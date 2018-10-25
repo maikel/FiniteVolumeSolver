@@ -8,7 +8,7 @@ Questions which are going to be tackled are
  * How to write documentation
  * How does proper unit testing look like
 
-# Install Instructions
+# Build Instructions
 
 To build this example you will need an installed [SAMRAI](https://github.com/LLNL/SAMRAI) version with [CMake](https://cmake.org) support.
 To install such a SAMRAI version download the newest SAMRAI from git
