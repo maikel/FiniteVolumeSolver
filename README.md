@@ -43,3 +43,6 @@ use following commands in the project source directory.
 > cmake .. -DCMAKE_PREFIX_PATH="${SAMRAI_INSTALL_PATH}/share/SAMRAI/cmake/"
 
 ```
+
+Note: The current implementation requires some **C++17** library and language features.
+This means you need at least **gcc 7**, **clang 6** or **XCode 10** and the appropiate standard library.
