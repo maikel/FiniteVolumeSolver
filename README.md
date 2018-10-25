@@ -45,4 +45,4 @@ use following commands in the project source directory.
 ```
 
 Note: The current implementation requires some **C++17** library and language features.
-This means you need at least **gcc 7**, **clang 6** or **XCode 10** and the appropiate standard library.
+This means you need at least **gcc 7**, **clang 6** or **Xcode 10** and the appropiate standard library.
