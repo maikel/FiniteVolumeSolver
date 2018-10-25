@@ -93,12 +93,23 @@ IdealGas::IdealGas(std::string&& name, const SAMRAI::tbox::Dimension& dim)
   registerAllVariables_(name_, data_ids_, dimension_);
 }
 
+namespace {
+double transform_reduce(Vector<double> x, Vector<double> y) {
+  double total = 0.0;
+  for (std::size_t i = 0; i < x.size(); ++i) {
+    total += x[i] * y[i];
+  }
+  return total;
+}
+} // namespace
+
 double IdealGas::computePressure(Conservative<double> q) const {
-  const double velocity = q.momentum / q.density;
-  const double kinetic_energy = 0.5 * q.density * velocity * velocity;
+  const double kinetic_energy =
+      0.5 * fub::euler::transform_reduce(q.momentum, q.momentum) / q.density;
+  FUB_ASSERT(kinetic_energy <= q.energy);
   const double internal_energy = q.energy - kinetic_energy;
-  const double temperature = getCv() * internal_energy;
-  const double pressure = getSpecificGasConstant() * temperature * q.density;
+  const double gamma_1 = getHeatCapacityRatio() - 1.0;
+  const double pressure = gamma_1 * internal_energy * q.density;
   return pressure;
 }
 
@@ -107,10 +118,17 @@ double IdealGas::computeSpeedOfSound(double density, double pressure) const {
 }
 
 IdealGas::Conservative<double>
-IdealGas::computeFlux(Complete<double> state) const {
-  const double velocity = state.momentum / state.density;
-  return {state.momentum, velocity * state.momentum + state.pressure,
-          velocity * (state.energy + state.pressure)};
+IdealGas::computeFlux(Complete<double> state, int dir) const {
+  const double velocity = state.momentum[dir] / state.density;
+  IdealGas::Conservative<double> cons;
+  cons.density = state.momentum[dir];
+  cons.momentum = state.momentum;
+  for (std::size_t i = 0; i < cons.momentum.size(); ++i) {
+    cons.momentum[i] *= velocity;
+  }
+  cons.momentum[dir] += state.pressure;
+  cons.energy = velocity * (state.energy + state.pressure);
+  return cons;
 }
 
 } // namespace euler

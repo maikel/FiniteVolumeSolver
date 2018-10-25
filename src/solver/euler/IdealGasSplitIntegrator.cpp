@@ -366,12 +366,14 @@ void advanceConservatively_(const IdealGasSplitIntegrator& integrator,
     FaceIndex right(index, dir, FaceIndex::Upper);
 
     density(cell) += lambda * (density_flux(left) - density_flux(right));
+    FUB_ASSERT(density(cell) > 0);
     const int dim = integrator.ideal_gas().getDim().getValue();
     for (int d = 0; d < dim; ++d) {
       momentum(cell, d) +=
           lambda * (momentum_flux(left, d) - momentum_flux(right, d));
     }
     energy(cell) += lambda * (energy_flux(left) - energy_flux(right));
+    FUB_ASSERT(energy(cell) > 0);
   }
 }
 
@@ -394,7 +396,10 @@ void reconstructStates_(const IdealGasSplitIntegrator& integrator,
     SAMRAI::pdat::CellIndex cell(index);
     IdealGas::Conservative<double> cons;
     cons.density = density(cell);
-    cons.momentum = momentum(cell, dir);
+    const int dim = cell.getDim().getValue();
+    for (int d = 0; d < dim; ++d) {
+      cons.momentum[0] = momentum(cell, d);
+    }
     cons.energy = energy(cell);
     const double p = integrator.ideal_gas().computePressure(cons);
     const double a =

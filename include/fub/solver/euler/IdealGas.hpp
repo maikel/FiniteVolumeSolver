@@ -30,6 +30,8 @@
 
 #include <array>
 
+#include "boost/container/static_vector.hpp"
+
 namespace fub {
 namespace euler {
 
@@ -38,9 +40,12 @@ struct IdealGasInvalidName : public std::runtime_error {
       : runtime_error("Initialized IdealGas with an invalid name.") {}
 };
 
+template <typename T>
+using Vector = std::array<T, SAMRAI_MAXIMUM_DIMENSION>;
+
 template <typename T> struct CompleteIdealGasState {
   T density;
-  T momentum;
+  Vector<T> momentum;
   T energy;
   T pressure;
   T speed_of_sound;
@@ -48,7 +53,7 @@ template <typename T> struct CompleteIdealGasState {
 
 template <typename T> struct ConservativeIdealGasState {
   T density;
-  T momentum;
+  Vector<T> momentum;
   T energy;
 };
 
@@ -109,10 +114,10 @@ public:
 
   /// @{
   /// \brief Computes the euer equation flux for a given complete state.
-  Conservative<double> computeFlux(Complete<double> state) const;
+  Conservative<double> computeFlux(Complete<double> state, int dir) const;
 
   void computeFlux(Conservative<span<double>> flux,
-                   Complete<span<const double>> state) const;
+                   Complete<span<const double>> state, int dir) const;
   /// @}
 
   /////////////////////////////////////////////////////////////////////////////

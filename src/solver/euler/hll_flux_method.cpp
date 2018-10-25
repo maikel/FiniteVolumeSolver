@@ -25,15 +25,15 @@
 namespace fub {
 namespace euler {
 
-double computeHllFlux(double sR, double sL, double uL, double uR, double fL,
+double computeHllFlux(double sL, double sR, double uL, double uR, double fL,
                       double fR) {
-  if (0 < sL) {
+  if (0 <= sL) {
     return fL;
   }
-  if (0 > sR) {
+  if (0 >= sR) {
     return fR;
   }
-  FUB_ASSERT(sL < sL);
+  FUB_ASSERT(sL < sR);
   return (sR * fL - sL * fR + sL * sR * (uR - uL)) / (sR - sL);
 }
 
