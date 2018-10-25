@@ -30,8 +30,6 @@
 
 #include <array>
 
-#include "boost/container/static_vector.hpp"
-
 namespace fub {
 namespace euler {
 
