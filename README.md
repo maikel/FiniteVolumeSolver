@@ -8,6 +8,16 @@ Questions which are going to be tackled are
  * How to write documentation
  * How does proper unit testing look like
 
+# Physical Project Structure
+
+- `docs/` contains a Doxygen.in file to generate documentation
+- `examples/` contains exemplary applications using this framework.
+- `include/` contains *public* header files which are consumable via some library exportable library.
+- `src/` contains *private* header and source files to the library.
+- `tests/` contains unit test files written with [Catch2](https://github.com/catchorg/Catch2)
+- `third_party/` contains third party libraries which are included as submodules in this project.
+- `.clang-format` Format definitions for this project. Auto-format files with the tool `clang-format`
+
 # Build Instructions
 
 To build this example you will need an installed [SAMRAI](https://github.com/LLNL/SAMRAI) version with [CMake](https://cmake.org) support.
