@@ -20,15 +20,17 @@ To install such a SAMRAI version download the newest SAMRAI from git
 > git submodule update
 ```
 
-And build it via something like this
+And build it with commands similar to
 
 ```
 > mkdir build && cd build
-> cmake .. -DCMAKE_PREFIX_PATH="YOUR_LOCAL_INSTALL_PATH" -DHDF5_ROOT="YOUR_HDF5_PATH" -DENABLE_OPENMP=OFF -DSILO_DIR="YOUR_SILO_PATH" -DCMAKE_CXX_COMPILER=mpic++ -DCMAKE_C_COMPILER=mpicc
+> cmake .. -DCMAKE_PREFIX_PATH="YOUR_LOCAL_INSTALL_PATH" -DCMAKE_BUILD_TYPE="Release" -DHDF5_ROOT="YOUR_HDF5_PATH" -DENABLE_OPENMP=OFF -DSILO_DIR="YOUR_SILO_PATH" -DCMAKE_CXX_COMPILER=mpic++ -DCMAKE_C_COMPILER=mpicc
 > make -j4 install
 ```
 
-*Note: You will need a MPI, HDF5 and SILO.*
+Tip: You can use `ccmake .` in the build directory to get an interactive view for configurable variables. Press `t` to toggle advanced options.
+
+*Note: You will need MPI, HDF5 and SILO.*
 
 Then download this repository and invoke this CMakefile with a proper SAMRAI path.
 use following commands in the project source directory.
@@ -40,8 +42,9 @@ use following commands in the project source directory.
 > git submodule update
 > mkdir build
 > cd build
-> cmake .. -DCMAKE_PREFIX_PATH="${SAMRAI_INSTALL_PATH}/share/SAMRAI/cmake/"
-
+> cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH="${SAMRAI_INSTALL_PATH}/share/SAMRAI/cmake/"
+> make
+> ./test/test.solver.IdealGasSplitIntegrator
 ```
 
 Note: The current implementation requires some **C++17** library and language features.
