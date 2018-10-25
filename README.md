@@ -20,8 +20,14 @@ And build it via something like this
 
 Note that you will need a MPI, HDF5 and SILO.
 
-Then download invoke this CMakefile with a proper SAMRAI path...
+Then download this repository and invoke this CMakefile with a proper SAMRAI path.
+use following commands in the project source directory.
 
 ```
+git submodule init
+git submodule update
+mkdir build
+cd build
 cmake .. -DCMAKE_PREFIX_PATH="${SAMRAI_INSTALL_PATH}/share/SAMRAI/cmake/"
+
 ```
