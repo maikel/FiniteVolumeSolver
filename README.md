@@ -52,7 +52,7 @@ use following commands in the project source directory.
 > git submodule update
 > mkdir build
 > cd build
-> cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH="${SAMRAI_INSTALL_PATH}/share/SAMRAI/cmake/"
+> cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH="${SAMRAI_INSTALL_PATH}"
 > make
 > ./test/test.solver.IdealGasSplitIntegrator
 ```
