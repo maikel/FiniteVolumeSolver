@@ -43,6 +43,8 @@ makeCartesianPatchHierarchy(const IndexRange& ir, const CoordinateRange& cr) {
                        "Geometry", cr.lower.data(), cr.upper.data(), domain));
 }
 
+
+
 namespace {
 using ArrayXi = Eigen::Array<int, SAMRAI_MAXIMUM_DIMENSION, 1>;
 using ArrayXd = Eigen::Array<double, SAMRAI_MAXIMUM_DIMENSION, 1>;

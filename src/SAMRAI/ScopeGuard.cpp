@@ -23,7 +23,7 @@
 #include "SAMRAI/tbox/SAMRAIManager.h"
 #include "SAMRAI/tbox/SAMRAI_MPI.h"
 
-namespace fub::SAMRAI {
+namespace fub {
 
 /// This method uses the global communication group, MPI_WORLD_COMM, for calls
 /// to SAMRAI routines.
@@ -40,4 +40,4 @@ ScopeGuard::~ScopeGuard() noexcept {
   ::SAMRAI::tbox::SAMRAI_MPI::finalize();
 }
 
-} // namespace fub::SAMRAI
+} // namespace fub

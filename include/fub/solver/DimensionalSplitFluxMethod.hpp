@@ -18,25 +18,34 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_SOLVER_HLLE_SIGNAL_VELOCITIES_HPP
-#define FUB_SOLVER_HLLE_SIGNAL_VELOCITIES_HPP
+#ifndef FUB_SOLVER_DIMENSIONAL_SPLIT_FLUX_METHOD_HPP
+#define FUB_SOLVER_DIMENSIONAL_SPLIT_FLUX_METHOD_HPP
 
-#include "src/solver/euler/hll_flux_method.hpp"
+#include "fub/solver/Direction.hpp"
+
+#include "SAMRAI/hier/Patch.h"
+#include "SAMRAI/mesh/GriddingAlgorithm.h"
+#include "SAMRAI/tbox/Dimension.h"
 
 namespace fub {
-namespace euler {
 
-template <typename T> struct HlleSignalState {
-  T density;
-  T momentum;
-  T speed_of_sound;
+template <typename FluxData, typename StateData>
+struct DimensionalSplitFluxMethod {
+  virtual ~DimensionalSplitFluxMethod() = default;
+
+  virtual double
+  computeStableDtOnPatch(const StateData& states,
+                          const SAMRAI::hier::Patch& patch) const = 0;
+
+  virtual void computeFluxesOnPatch(const FluxData& fluxes,
+                                    const StateData& states,
+                                    const SAMRAI::hier::Patch& patch, double dt,
+                                    Direction dir) const = 0;
+
+  virtual SAMRAI::hier::IntVector
+  getStencilWidth(const SAMRAI::tbox::Dimension& dim) const = 0;
 };
 
-HllSignals<double>
-computeHlleSignalVelocities(const HlleSignalState<double>& left,
-                            const HlleSignalState<double>& right) noexcept;
-
-} // namespace euler
 } // namespace fub
 
 #endif

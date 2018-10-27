@@ -26,6 +26,7 @@
 
 #include "SAMRAI/hier/Patch.h"
 #include "SAMRAI/pdat/CellData.h"
+#include "SAMRAI/pdat/FaceData.h"
 #include "SAMRAI/tbox/Dimension.h"
 
 #include <array>
@@ -38,27 +39,40 @@ struct IdealGasInvalidName : public std::runtime_error {
       : runtime_error("Initialized IdealGas with an invalid name.") {}
 };
 
-template <typename T>
-using Vector = std::array<T, SAMRAI_MAXIMUM_DIMENSION>;
+template <typename T> using Vector = std::array<T, SAMRAI_MAXIMUM_DIMENSION>;
 
-template <typename T> struct CompleteIdealGasState {
+template <typename T, typename VectorT = Vector<T>>
+struct CompleteIdealGasState {
   T density;
-  Vector<T> momentum;
+  VectorT momentum;
   T energy;
   T pressure;
   T speed_of_sound;
 };
 
-template <typename T> struct ConservativeIdealGasState {
+template <typename T, typename VectorT = Vector<T>>
+struct ConservativeIdealGasState {
   T density;
-  Vector<T> momentum;
+  VectorT momentum;
   T energy;
 };
 
 class IdealGas {
 public:
-  template <typename T> using Complete = CompleteIdealGasState<T>;
-  template <typename T> using Conservative = ConservativeIdealGasState<T>;
+  template <typename T, typename V = Vector<T>>
+  using Complete = CompleteIdealGasState<T, V>;
+
+  template <typename T, typename V = Vector<T>>
+  using Conservative = ConservativeIdealGasState<T, V>;
+
+  using CompleteState = Complete<SAMRAI::pdat::CellData<double>&,
+                                 SAMRAI::pdat::CellData<double>&>;
+
+  using ConsState = Conservative<SAMRAI::pdat::CellData<double>&,
+                                 SAMRAI::pdat::CellData<double>&>;
+
+  using FluxState = Conservative<SAMRAI::pdat::FaceData<double>&,
+                                 SAMRAI::pdat::FaceData<double>&>;
 
   enum class Variable : int {
     density,
@@ -110,14 +124,6 @@ public:
   /// \brief Computes the speed of sound given density and pressure.
   double computeSpeedOfSound(double density, double pressure) const;
 
-  /// @{
-  /// \brief Computes the euer equation flux for a given complete state.
-  Conservative<double> computeFlux(Complete<double> state, int dir) const;
-
-  void computeFlux(Conservative<span<double>> flux,
-                   Complete<span<const double>> state, int dir) const;
-  /// @}
-
   /////////////////////////////////////////////////////////////////////////////
   //                  SAMRAI related member functions
 
@@ -125,9 +131,9 @@ public:
 
   const SAMRAI::tbox::Dimension& getDim() const noexcept { return dimension_; }
 
-  SAMRAI::pdat::CellData<double>* getCellData(const SAMRAI::hier::Patch& patch,
+  SAMRAI::pdat::CellData<double>& getCellData(const SAMRAI::hier::Patch& patch,
                                               Variable var) const {
-    return static_cast<SAMRAI::pdat::CellData<double>*>(
+    return *static_cast<SAMRAI::pdat::CellData<double>*>(
         patch.getPatchData(getDataId(var)).get());
   }
 

@@ -18,28 +18,32 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "Eigen/Eigen"
-#include "fub/core/span.hpp"
+#ifndef FUB_SOLVER_EULER_GODUNOV_METHOD_HPP
+#define FUB_SOLVER_EULER_GODUNOV_METHOD_HPP
 
-namespace fub {
+#include "fub/solver/DimensionalSplitFluxMethod.hpp"
+#include "fub/solver/euler/IdealGas.hpp"
 
-template <typename T, std::size_t N>
-using Array = Eigen::Array<T, N, 1>;
+namespace fub::euler {
 
-template <typename T, std::ptrdiff_t N>
-Eigen::Map<const Eigen::Array<T, N, 1>> asEigen(span<const T, N> array) {
-  return Eigen::Map<const Eigen::Array<T, N, 1>>(array.data(), array.size());
-}
+struct GodunovMethod
+    : fub::DimensionalSplitFluxMethod<IdealGas::FluxStates,
+                                      IdealGas::CompleteStates> {
+  using FluxStates = IdealGas::FluxStates;
+  using CompleteStates = IdealGas::CompleteStates;
 
-template <typename T, std::ptrdiff_t N>
-Eigen::Map<Eigen::Array<T, N, 1>> asEigen(span<T, N> array) {
-  return Eigen::Map<Eigen::Array<T, N, 1>>(array.data(), array.size());
-}
+  double
+  estimateStableDtOnPatch(const StateData& states,
+                          const SAMRAI::hier::Patch& patch) const override;
 
-template <typename T, int N>
-span(Eigen::Array<T, N, 1>& array) -> span<T, N>;
+  void computeFluxesOnPatch(const FluxData& fluxes, const StateData& states,
+                            const SAMRAI::hier::Patch& patch, double dt,
+                            int dir) const override;
 
-template <typename T, int N>
-span(const Eigen::Array<T, N, 1>& array) -> span<const T, N>;
+  SAMRAI::hier::IntVector
+  getStencilWidth(const SAMRAI::tbox::Dimension& dim) const override;
+};
 
-}
+} // namespace fub::euler
+
+#endif

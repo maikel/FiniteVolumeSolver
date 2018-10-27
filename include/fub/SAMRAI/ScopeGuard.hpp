@@ -22,7 +22,6 @@
 #define FUB_SAMRAI_SCOPE_GUARD_HPP
 
 namespace fub {
-namespace SAMRAI {
 
 /// Initialises and finalizes the required SAMRAI routines for an application.
 struct ScopeGuard {
@@ -39,7 +38,6 @@ struct ScopeGuard {
   ~ScopeGuard() noexcept;
 };
 
-} // namespace SAMRAI
 } // namespace fub
 
 #endif

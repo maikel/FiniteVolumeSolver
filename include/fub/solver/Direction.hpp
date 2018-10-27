@@ -18,39 +18,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_SOLVER_HLL_FLUX_METHOD_HPP
-#define FUB_SOLVER_HLL_FLUX_METHOD_HPP
-
-#include <array>
+#ifndef FUB_SOLVER_DIRECTION_HPP
+#define FUB_SOLVER_DIRECTION_HPP
 
 namespace fub {
-namespace euler {
 
-template <typename T> struct HllSignals {
-  T left;
-  T right;
+enum class Direction : int {
+  X, Y, Z
 };
 
-template <typename T> struct HllState {
-  T density;
-  T momentum;
-  T energy;
-  T pressure;
-};
-
-template <typename T> struct HllFlux {
-  T density;
-  T momentum;
-  T energy;
-};
-
-double computeHllFlux(double sR, double sL, double uL, double uR, double fL, double fR);
-
-HllFlux<double> computeHllFlux(const HllSignals<double>& signals,
-                               const HllState<double>& left,
-                               const HllState<double>& right) noexcept;
-
-} // namespace euler
-} // namespace fub
+}
 
 #endif
