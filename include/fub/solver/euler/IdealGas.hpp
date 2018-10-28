@@ -80,7 +80,7 @@ public:
     energy,
     pressure,
     speed_of_sound,
-    size // <-- This is only a dummy value to get the number of variables
+    size ///< This is only a dummy value to get the number of variables
   };
 
   static constexpr int variables_size = static_cast<int>(Variable::size);
@@ -94,7 +94,7 @@ public:
   /// Returns the specific gas constant.
   static constexpr double getSpecificGasConstant() noexcept { return 1.0; }
 
-  /// Returns the heat capacity ratio.
+  /// Returns the ratio of specific the two heat capacities.
   static constexpr double getHeatCapacityRatio() noexcept { return 1.4; }
 
   /// Returns the heat capacity at constant volume.

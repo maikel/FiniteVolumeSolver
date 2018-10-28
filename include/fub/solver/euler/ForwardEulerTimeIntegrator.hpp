@@ -57,19 +57,8 @@ public:
 
   const IdealGas& ideal_gas() const noexcept { return ideal_gas_; }
 
-  /// Returns a struct of CellDatas, one for state variable.
-  CompleteState getCompleteState(const SAMRAI::hier::Patch& patch,
-                                 Scratch) const;
-
-  CompleteState getCompleteState(const SAMRAI::hier::Patch& patch) const;
-
-  /// Returns a struct of CellDatas, one for each conservative variable.
-  ConsState getConsState(const SAMRAI::hier::Patch& patch, Scratch) const;
-
-  ConsState getConsState(const SAMRAI::hier::Patch& patch) const;
-
-  /// Returns a struct of FaceDatas, one for each flux variable.
-  FluxState getFluxState(const SAMRAI::hier::Patch& patch) const;
+  /////////////////////////////////////////////////////////////////////////////
+  /// \name Obtain Patch Data Id
 
   /// \brief Returns a patch data id which corresponds to a variable in the
   /// current context.
@@ -94,7 +83,40 @@ public:
   }
 
   /////////////////////////////////////////////////////////////////////////////
-  //          virtual overrides of DimensionalSplitTimeIntegrator
+  /// \name Collect Patch Data 
+
+  /// Returns a struct of CellDatas, one for each state variable.
+  ///
+  /// \param[in] patch The patch where CellData arrays live on.
+  /// \param[in] Scratch A scratch value which specifies to which scratch
+  ///                    context to take form.
+  ///
+  /// \return a CompleteState containing CellData to the specified scratch
+  /// context.
+  ///
+  /// \throw Nothing.
+  CompleteState getCompleteState(const SAMRAI::hier::Patch& patch,
+                                 Scratch) const;
+
+  /// Returns a struct of CellDatas, one for each state variable.
+  ///
+  /// \param[in] patch The patch where CellData arrays live on.
+  ///
+  /// \return a CompleteState containing CellData to the original context.
+  ///
+  /// \throw Nothing.
+  CompleteState getCompleteState(const SAMRAI::hier::Patch& patch) const;
+
+  /// Returns a struct of CellDatas, one for each conservative variable.
+  ConsState getConsState(const SAMRAI::hier::Patch& patch, Scratch) const;
+
+  ConsState getConsState(const SAMRAI::hier::Patch& patch) const;
+
+  /// Returns a struct of FaceDatas, one for each flux variable.
+  FluxState getFluxState(const SAMRAI::hier::Patch& patch) const;
+
+
+  /// \name Virtual Overrides of DimensionalSplitTimeIntegrator
 
   void flagPatchDataIdsToAllocate(
       SAMRAI::hier::ComponentSelector& which_to_allocate) const override;
@@ -112,7 +134,7 @@ public:
   getFillGhostLayerCoarsenAlgorithm(Direction dir) const override;
 
   /////////////////////////////////////////////////////////////////////////////
-  //                        Class Member Variables
+  /// \name Class Member Variables
 
 private:
   /// This is the object which stores patch data ids for state variables to some
