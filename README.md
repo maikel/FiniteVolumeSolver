@@ -12,7 +12,7 @@ Questions which are going to be tackled are
 
 - `docs/` contains a Doxygen.in file to generate documentation
 - `examples/` contains exemplary applications using this framework.
-- `include/` contains *public* header files which are consumable via some library exportable library.
+- `include/` contains *public* header files which are consumable via some exportable library.
 - `src/` contains *private* header and source files to the library.
 - `tests/` contains unit test files written with [Catch2](https://github.com/catchorg/Catch2)
 - `third_party/` contains third party libraries which are included as submodules in this project.
