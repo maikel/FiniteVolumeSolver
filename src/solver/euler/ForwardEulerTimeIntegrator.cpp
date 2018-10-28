@@ -93,14 +93,16 @@ ForwardEulerTimeIntegrator::ForwardEulerTimeIntegrator(
       *SAMRAI::hier::VariableDatabase::getDatabase();
   const SAMRAI::tbox::Dimension& dim = ideal_gas_.getDim();
   const int dim_value = dim.getValue();
+  const SAMRAI::hier::IntVector ghost_cell_width =
+      flux_method_->getStencilWidth(dim);
   for (int dir = 0; dir < dim_value; ++dir) {
     std::shared_ptr<SAMRAI::hier::VariableContext> scratch =
         database.getContext(getScratchName_(dir));
-    SAMRAI::hier::IntVector ghost_width = SAMRAI::hier::IntVector::getZero(dim);
-    ghost_width[dir] = 1;
+    SAMRAI::hier::IntVector ghost = SAMRAI::hier::IntVector::getZero(dim);
+    ghost[dir] = ghost_cell_width[dir];
     for (int v = 0; v < variables_size; ++v) {
-      scratch_[v + dir * variables_size] = reassignContextOfDataId_(
-          getPatchDataId(Variable(v)), scratch, ghost_width);
+      scratch_[v + dir * variables_size] =
+          reassignContextOfDataId_(getPatchDataId(Variable(v)), scratch, ghost);
     }
   }
   const std::string& name = ideal_gas_.name();
