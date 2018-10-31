@@ -258,7 +258,11 @@ FlameMasterReactor::FlameMasterReactor(
   state_.massFractions.resize(state_.nSpecies);
   state_.molesStorage.resize(state_.nSpeciesEffective + 1);
   state_.temperature = state_.molesStorage.data();
+#ifdef __cpp_deduction_guides
   state_.moles = span{state_.molesStorage}.subspan(1);
+#else
+  state_.moles = make_span(state_.molesStorage).subspan(1);
+#endif
 
   // Computational space for calls to the chemistry implementation
   state_.production_rates.resize(state_.nSpeciesEffective);
@@ -296,13 +300,21 @@ FlameMasterReactor::FlameMasterReactor(
 FlameMasterReactor::FlameMasterReactor(const FlameMasterReactor& other)
     : mechanism_{other.mechanism_->Clone()}, state_{other.state_} {
   state_.temperature = state_.molesStorage.data();
+#ifdef __cpp_deduction_guides
   state_.moles = span{state_.molesStorage}.subspan(1);
+#else
+  state_.moles = make_span(state_.molesStorage).subspan(1);
+#endif
 }
 
 FlameMasterReactor::FlameMasterReactor(FlameMasterReactor&& other) noexcept
     : mechanism_{std::move(other.mechanism_)}, state_{std::move(other.state_)} {
   state_.temperature = state_.molesStorage.data();
+#ifdef __cpp_deduction_guides
   state_.moles = span{state_.molesStorage}.subspan(1);
+#else
+  state_.moles = make_span(state_.molesStorage).subspan(1);
+#endif
 }
 
 struct AdvanceSystem {
@@ -618,7 +630,7 @@ double FlameMasterReactor::SetPressureIsentropic(double pressure) {
   state_.setPVector[1] = 0;
 
   // Do the actual computation
-  Radau::integrate(SetIsentropicPSystem{this}, span{state_.setPVector},
+  Radau::integrate(SetIsentropicPSystem{this}, make_span(state_.setPVector),
                    GetPressure(), pressure - GetPressure());
 
   // Set the state of the reactor to the values from the result vector

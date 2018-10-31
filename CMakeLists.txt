@@ -37,7 +37,7 @@ target_link_libraries(HyberbolicSolver
     Eigen3::Eigen 
     Boost::container)
 
-    target_compile_features(HyberbolicSolver PUBLIC cxx_std_17)
+    target_compile_features(HyberbolicSolver PUBLIC cxx_std_14)
 
 add_subdirectory(examples)
 

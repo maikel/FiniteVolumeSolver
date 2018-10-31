@@ -72,11 +72,17 @@ struct CircleData : fub::InitialCondition {
     const SAMRAI::hier::Box& box = patch.getBox();
     const double sqrt_ = std::sqrt(1.4 * 8.0);
     fub::FlameMasterReactor reactor = integrator->ideal_gas().GetReactor();
-    auto [inner, outer] = getStates(reactor);
+#ifdef __cpp_structured_bindings
+    const auto [inner, outer] = getStates(reactor);
+#else
+    const std::array<State, 2> states = getStates(reactor);
+    const State& inner = states[0];
+    const State& outer = states[1];
+#endif
     for (SAMRAI::hier::Index i : box) {
       fub::Coordinates x = fub::computeCellCoordinates(geom, box, i);
       SAMRAI::pdat::CellIndex cell(i);
-      const double radius2 = x[0]*x[0];
+      const double radius2 = x[0] * x[0];
       if (radius2 < 0.025) {
         state.density(cell) = inner.rho;
         state.pressure(cell) = inner.p;
@@ -211,8 +217,9 @@ int main(int argc, char** argv) {
     integrator.advanceTime(hierarchy, t, dt, fub::Direction::X);
 
     // Do one time step in Y (transfer ghost cell layer for this direction)
-    // integrator.fillGhostLayer(hierarchy, boundary_cond, 0.0, fub::Direction::Y);
-    // integrator.advanceTime(hierarchy, t, dt, fub::Direction::Y);
+    // integrator.fillGhostLayer(hierarchy, boundary_cond, 0.0,
+    // fub::Direction::Y); integrator.advanceTime(hierarchy, t, dt,
+    // fub::Direction::Y);
 
     auto end = std::chrono::steady_clock::now();
     std::chrono::duration<double> duration = end - start;

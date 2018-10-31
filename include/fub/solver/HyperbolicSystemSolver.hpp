@@ -28,11 +28,9 @@ namespace fub {
 
 class HyperbolicSystemSolver {
 public:
-  HyperbolicSystemSolver(
-      std::shared_ptr<const DimensionalSplitTimeIntegrator> integrator,
-      std::shared_ptr<const SplittingMethod> splitting)
-      : integrator_{std::move(integrator)}, splitting_method_{
-                                                std::move(splitting)} {}
+  HyperbolicSystemSolver(const DimensionalSplitTimeIntegrator& integrator,
+                         const SplittingMethod& splitting)
+      : integrator_{&integrator}, splitting_method_{&splitting} {}
 
   double ComputeStableDt(
       const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
@@ -43,19 +41,17 @@ public:
               const BoundaryCondition& boundary_condition, double time_point,
               double time_step_size) const;
 
-  const std::shared_ptr<const DimensionalSplitTimeIntegrator>&
-  GetTimeIntegrator() const noexcept {
-    return integrator_;
+  const DimensionalSplitTimeIntegrator& GetTimeIntegrator() const noexcept {
+    return *integrator_;
   }
 
-  const std::shared_ptr<const SplittingMethod>& GetSplittingMethod() const
-      noexcept {
-    return splitting_method_;
+  const SplittingMethod& GetSplittingMethod() const noexcept {
+    return *splitting_method_;
   }
 
 private:
-  std::shared_ptr<const DimensionalSplitTimeIntegrator> integrator_;
-  std::shared_ptr<const SplittingMethod> splitting_method_;
+  const DimensionalSplitTimeIntegrator* integrator_;
+  const SplittingMethod* splitting_method_;
 };
 
 } // namespace fub

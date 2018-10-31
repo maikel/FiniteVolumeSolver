@@ -19,6 +19,7 @@
 #include "SAMRAI/pdat/OuterfaceVariable.h"
 
 #include <array>
+#include <cstdio>
 
 struct CircleData : fub::InitialCondition {
   const fub::euler::ForwardEulerTimeIntegrator* integrator;
@@ -61,6 +62,15 @@ struct CircleData : fub::InitialCondition {
     return {inner, outer};
   }
 
+  static double Dot_(const fub::Coordinates& x, const fub::Coordinates& y) {
+    const int size = x.size();
+    double total = 0.0;
+    for (int i = 0; i < size; ++i) {
+      total += x[i] * y[i];
+    }
+    return total;
+  }
+
   void initializeDataOnPatch(const SAMRAI::hier::Patch& patch) const override {
     auto state = integrator->getCompleteState(patch);
     double* density = state.density.getPointer();
@@ -72,11 +82,17 @@ struct CircleData : fub::InitialCondition {
     const SAMRAI::hier::Box& box = patch.getBox();
     const double sqrt_ = std::sqrt(1.4 * 8.0);
     fub::FlameMasterReactor reactor = integrator->ideal_gas().GetReactor();
-    auto [inner, outer] = getStates(reactor);
+#ifdef __cpp_structured_bindings
+    const auto [inner, outer] = getStates(reactor);
+#else
+    const std::array<State, 2> states = getStates(reactor);
+    const State& inner = states[0];
+    const State& outer = states[1];
+#endif
     for (SAMRAI::hier::Index i : box) {
       fub::Coordinates x = fub::computeCellCoordinates(geom, box, i);
       SAMRAI::pdat::CellIndex cell(i);
-      const double radius2 = x[0] * x[0] + x[1] * x[1];
+      const double radius2 = Dot_(x, x);
       if (radius2 < 0.025) {
         state.density(cell) = inner.rho;
         state.pressure(cell) = inner.p;
@@ -166,43 +182,48 @@ struct ConstantBoundary : public fub::BoundaryCondition {
 
 int main(int argc, char** argv) {
   fub::ScopeGuard guard(argc, argv);
-  const SAMRAI::tbox::Dimension dim(2);
+  const SAMRAI::tbox::Dimension dim(3);
 
-  auto integrator = std::make_shared<fub::euler::ForwardEulerTimeIntegrator>(
+  fub::euler::ForwardEulerTimeIntegrator integrator(
       std::make_shared<fub::euler::IdealGas>("IdealGas", dim));
+  ConstantBoundary boundary_cond(integrator);
+  CircleData initial_data(integrator);
 
   fub::IndexRange indices{SAMRAI::hier::Index(dim, 0),
-                          SAMRAI::hier::Index(dim, 499)};
-  fub::CoordinateRange coordinates{{-1.0, -1.0}, {1.0, 1.0}};
+                          SAMRAI::hier::Index(dim, 100)};
+  fub::CoordinateRange coordinates{{-1.0, -1.0, -1.0}, {1.0, 1.0, 1.0}};
 
   std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy =
       makeCartesianPatchHierarchy(indices, coordinates);
 
-  CircleData initial_data{*integrator};
-  fub::initializePatchHierarchy(hierarchy, *integrator, initial_data);
+  fub::initializePatchHierarchy(hierarchy, integrator, initial_data);
 
-  SAMRAI::appu::VisItDataWriter writer(dim, "VisItWriter", "output");
-  using Var = fub::euler::IdealGas::Variable;
-  writer.registerPlotQuantity("IdealGas_Density", "SCALAR",
-                              integrator->getPatchDataId(Var::density));
-  writer.registerPlotQuantity("IdealGas_Momentum", "VECTOR",
-                              integrator->getPatchDataId(Var::momentum));
-  writer.registerPlotQuantity("IdealGas_Pressure", "SCALAR",
-                              integrator->getPatchDataId(Var::pressure));
-  writer.registerPlotQuantity("IdealGas_Temperature", "SCALAR",
-                              integrator->getPatchDataId(Var::temperature));
-  writer.registerPlotQuantity("IdealGas_SpeedOfSound", "SCALAR",
-                              integrator->getPatchDataId(Var::speed_of_sound));
-  writer.registerPlotQuantity("IdealGas_Species", "VECTOR",
-                              integrator->getPatchDataId(Var::species));
+  std::unique_ptr<SAMRAI::appu::VisItDataWriter> writer = nullptr;
+  if (dim.getValue() == 2 || dim.getValue() == 3) {
+    writer = std::make_unique<SAMRAI::appu::VisItDataWriter>(dim, "VisItWriter",
+                                                             "output");
+    using Var = fub::euler::IdealGas::Variable;
+    writer->registerPlotQuantity("IdealGas_Density", "SCALAR",
+                                 integrator.getPatchDataId(Var::density));
+    writer->registerPlotQuantity("IdealGas_Momentum", "VECTOR",
+                                 integrator.getPatchDataId(Var::momentum));
+    writer->registerPlotQuantity("IdealGas_Pressure", "SCALAR",
+                                 integrator.getPatchDataId(Var::pressure));
+    writer->registerPlotQuantity("IdealGas_Temperature", "SCALAR",
+                                 integrator.getPatchDataId(Var::temperature));
+    writer->registerPlotQuantity(
+        "IdealGas_SpeedOfSound", "SCALAR",
+        integrator.getPatchDataId(Var::speed_of_sound));
+    writer->registerPlotQuantity("IdealGas_Species", "VECTOR",
+                                 integrator.getPatchDataId(Var::species));
+    // Do the output
+    writer->writePlotData(hierarchy, 0, 0.0);
+  }
 
-  // Do the output
-  writer.writePlotData(hierarchy, 0, 0.0);
-
-  ConstantBoundary boundary_cond{*integrator};
   double t = 0;
-  auto splitting = std::make_shared<fub::GodunovSplitting>();
-  fub::HyperbolicSystemSolver solver{integrator, splitting};
+  const int rank = SAMRAI::tbox::SAMRAI_MPI::getSAMRAIWorld().getRank();
+  fub::GodunovSplitting splitting{};
+  fub::HyperbolicSystemSolver solver(integrator, splitting);
   for (int step = 0; step < 10; ++step) {
     auto start = std::chrono::steady_clock::now();
 
@@ -213,14 +234,13 @@ int main(int argc, char** argv) {
 
     auto end = std::chrono::steady_clock::now();
     std::chrono::duration<double> duration = end - start;
-
-    int rank = SAMRAI::tbox::SAMRAI_MPI::getSAMRAIWorld().getRank();
     if (rank == 0) {
-      std::cout << "Time Step Counter: " << duration.count() << "s.\n";
+      std::printf("Time Step Counter: %fs.\n", duration.count());
     }
-
     // Do the output
     t += dt;
-    writer.writePlotData(hierarchy, step + 1, t);
+    if (writer) {
+      writer->writePlotData(hierarchy, step + 1, t);
+    }
   }
 }

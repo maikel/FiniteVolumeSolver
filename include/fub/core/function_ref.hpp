@@ -23,6 +23,7 @@
 
 #include <cstdint>
 #include <type_traits>
+#include <utility>
 
 namespace fub {
 /// An efficient, type-erasing, non-owning reference to a callable. This is

@@ -148,8 +148,15 @@ double HlleRiemannSolver::computeStableDtOnPatch(
     const double aL = state.speed_of_sound(left);
     const double aR = state.speed_of_sound(right);
 
+#ifdef __cpp_structured_bindings
     auto [sL, sR] =
         computeHlleSignalVelocities_({rhoL, rhouL, aL}, {rhoR, rhouR, aR});
+#else
+    HllSignals<double> signals =
+        computeHlleSignalVelocities_({rhoL, rhouL, aL}, {rhoR, rhouR, aR});
+    const double& sL = signals.left;
+    const double& sR = signals.right;
+#endif
     velocity = std::max({velocity, std::abs(sL), std::abs(sR)});
   }
   const double* dx = getCartesianPatchGeometry(patch)->getDx();
@@ -169,9 +176,9 @@ void HlleRiemannSolver::computeFluxesOnPatch(const FluxState& flux,
   auto last = SAMRAI::pdat::FaceGeometry::end(patch_box, d);
   while (first != last) {
     using FaceIndex = SAMRAI::pdat::FaceIndex;
-    const FaceIndex face = *first;
-    SAMRAI::pdat::CellIndex left(face.toCell(FaceIndex::Lower));
-    SAMRAI::pdat::CellIndex right(face.toCell(FaceIndex::Upper));
+    const FaceIndex face = *first++;
+    const SAMRAI::pdat::CellIndex left(face.toCell(FaceIndex::Lower));
+    const SAMRAI::pdat::CellIndex right(face.toCell(FaceIndex::Upper));
 
     const double rhoL = state.density(left);
     const double rhoR = state.density(right);
@@ -180,16 +187,31 @@ void HlleRiemannSolver::computeFluxesOnPatch(const FluxState& flux,
     const double aL = state.speed_of_sound(left);
     const double aR = state.speed_of_sound(right);
 
+#ifdef __cpp_structured_bindings
     auto [sL, sR] =
         computeHlleSignalVelocities_({rhoL, rhouL, aL}, {rhoR, rhouR, aR});
+#else
+    HllSignals<double> signals =
+        computeHlleSignalVelocities_({rhoL, rhouL, aL}, {rhoR, rhouR, aR});
+    const double& sL = signals.left;
+    const double& sR = signals.right;
+#endif
 
     const double rhoeL = state.energy(left);
     const double rhoeR = state.energy(right);
     const double pL = state.pressure(left);
     const double pR = state.pressure(right);
 
-    auto [fRho, fRhoU, fRhoE] = computeHllFlux_(
+#ifdef __cpp_structured_bindings
+    const auto [fRho, fRhoU, fRhoE] = computeHllFlux_(
         {sL, sR}, {rhoL, rhouL, rhoeL, pL}, {rhoR, rhouR, rhoeR, pR});
+#else 
+    const HllFlux<double> flux_ = computeHllFlux_(
+        {sL, sR}, {rhoL, rhouL, rhoeL, pL}, {rhoR, rhouR, rhoeR, pR});
+    const double& fRho = flux_.density;
+    const double& fRhoU = flux_.momentum;
+    const double& fRhoE = flux_.energy;
+#endif
 
     flux.density(face) = fRho;
 
@@ -216,8 +238,6 @@ void HlleRiemannSolver::computeFluxesOnPatch(const FluxState& flux,
       flux.species(face, s) =
           computeHllFlux_(sL, sR, speciesL, speciesR, fSpeciesL, fSpeciesR);
     }
-
-    ++first;
   }
 }
 

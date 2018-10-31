@@ -24,7 +24,8 @@
 #include "fub/solver/DimensionalSplitFluxMethod.hpp"
 #include "fub/solver/euler/IdealGas.hpp"
 
-namespace fub::euler {
+namespace fub {
+namespace euler {
 
 /// This class is a first order flux method for the IdealGas problem which uses
 /// the approximative HLL riemann problem solver with Einfeldts signals
@@ -54,6 +55,7 @@ struct HlleRiemannSolver
   getStencilWidth(const SAMRAI::tbox::Dimension& dim) const override;
 };
 
+}
 } // namespace fub::euler
 
 #endif

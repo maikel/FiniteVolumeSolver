@@ -336,11 +336,23 @@ public:
       typename = std::enable_if_t<(Count == dynamic_extent ||
                                    (0 <= Count && Count + Offset <= extent))>>
   constexpr auto subspan() const {
+#ifndef __cpp_if_constexpr
+    struct if_constexpr_t_ {
+      auto operator()(std::true_type, pointer p) {
+        return span<T, extent - Offset>{p + Offset, extent - Offset};
+      }
+      auto operator()(std::false_type, pointer p) {
+        return span<T, Count>{p + Offset, Count};
+      }
+    } if_constexpr_{};
+    return if_constexpr_(Count == dynamic_extent, pointer_, extent);
+#else
     if constexpr (Count == dynamic_extent) {
       return span<T, extent - Offset>{pointer_ + Offset, extent - Offset};
     } else {
       return span<T, Count>{pointer_ + Offset, Count};
     }
+#endif
   }
 
   /// Returns a subspan viewing `count` many elements from offset `offset`.
@@ -953,6 +965,7 @@ private:
   index_type size_{0};
 };
 
+#ifdef __cpp_deduction_guides
 template <class T, size_t N> span(T (&)[N])->span<T, N>;
 
 template <class T, size_t N> span(std::array<T, N>&)->span<T, N>;
@@ -964,6 +977,32 @@ span(Container&)->span<typename Container::value_type>;
 
 template <class Container>
 span(const Container&)->span<const typename Container::value_type>;
+#else
+template <class T, size_t N> auto make_span(T (&array)[N]) -> span<T, N> {
+  return span<T, N>(array);
+}
+
+template <class T, size_t N>
+auto make_span(std::array<T, N>& array) -> span<T, N> {
+  return span<T, N>(array);
+}
+
+template <class T, size_t N>
+auto make_span(const std::array<T, N>& array) -> span<const T, N> {
+  return span<const T, N>(array);
+}
+
+template <class Container>
+auto make_span(Container& array) -> span<typename Container::value_type> {
+  return span<typename Container::value_type>(array);
+}
+
+template <class Container>
+auto make_span(const Container& array)
+    -> span<const typename Container::value_type> {
+  return span<const typename Container::value_type>(array);
+}
+#endif
 
 } // namespace fub
 

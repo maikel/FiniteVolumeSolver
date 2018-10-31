@@ -32,7 +32,6 @@
 #include "SAMRAI/tbox/Dimension.h"
 
 #include <array>
-#include <vector>
 
 namespace fub {
 namespace euler {

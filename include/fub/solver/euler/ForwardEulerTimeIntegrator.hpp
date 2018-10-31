@@ -83,8 +83,13 @@ public:
   }
 
   span<const int> getScratch() const {
+#ifdef __cpp_deduction_guides
     return span{scratch_}.first(variables_size *
                                 ideal_gas_->getDim().getValue());
+#else
+    return make_span(scratch_).first(variables_size *
+                                     ideal_gas_->getDim().getValue());
+#endif
   }
 
   /////////////////////////////////////////////////////////////////////////////

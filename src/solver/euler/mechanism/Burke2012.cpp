@@ -6,7 +6,8 @@
 #include <string.h>
 #include <time.h>
 
-namespace fub::euler {
+namespace fub {
+namespace euler {
 namespace {
 double GetLindRateCoeff(double temp, double pressure, double k0, double kInf,
                         double fc, double conc);
@@ -519,4 +520,5 @@ double GetLindRateCoeff(double temp, double pressure, double k0, double kInf,
 
 double MAX_C(double X1, double X2) { return ((X1 > X2) ? X1 : X2); }
 } // namespace
-} // namespace fub::euler
+} // namespace euler
+} // namespace fub

@@ -35,6 +35,7 @@
 namespace fub {
 namespace euler {
 namespace {
+#ifdef __cpp_lib_string_view
 std::string getScratchName_(int dir) {
   static constexpr std::string_view scratch = "scratch";
   std::string result{};
@@ -44,6 +45,17 @@ std::string getScratchName_(int dir) {
   result += std::to_string(dir);
   return result;
 }
+#else
+std::string getScratchName_(int dir) {
+  static constexpr const char* scratch = "scratch";
+  std::string result{};
+  result.reserve(std::strlen(scratch) + 3);
+  result += scratch;
+  result += "_";
+  result += std::to_string(dir);
+  return result;
+}
+#endif
 
 int reassignContextOfDataId_(
     int index, const std::shared_ptr<SAMRAI::hier::VariableContext> scratch,

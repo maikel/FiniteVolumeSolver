@@ -8,7 +8,8 @@
 #include <string>
 #include <vector>
 
-namespace fub::euler {
+namespace fub {
+namespace euler {
 
 struct Burke2012 : public FlameMasterMechanism {
   typedef enum SpeciesLabel {
@@ -143,6 +144,7 @@ struct Burke2012 : public FlameMasterMechanism {
   }
 };
 
-} // namespace fub::euler
+} // namespace euler
+} // namespace fub
 
 #endif
