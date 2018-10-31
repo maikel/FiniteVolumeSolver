@@ -19,6 +19,7 @@
 #include "SAMRAI/pdat/OuterfaceVariable.h"
 
 #include <array>
+#include <chrono>
 #include <cstdio>
 
 struct CircleData : fub::InitialCondition {
@@ -182,7 +183,7 @@ struct ConstantBoundary : public fub::BoundaryCondition {
 
 int main(int argc, char** argv) {
   fub::ScopeGuard guard(argc, argv);
-  const SAMRAI::tbox::Dimension dim(3);
+  const SAMRAI::tbox::Dimension dim(2);
 
   fub::euler::ForwardEulerTimeIntegrator integrator(
       std::make_shared<fub::euler::IdealGas>("IdealGas", dim));
@@ -190,7 +191,7 @@ int main(int argc, char** argv) {
   CircleData initial_data(integrator);
 
   fub::IndexRange indices{SAMRAI::hier::Index(dim, 0),
-                          SAMRAI::hier::Index(dim, 100)};
+                          SAMRAI::hier::Index(dim, 200 - 1)};
   fub::CoordinateRange coordinates{{-1.0, -1.0, -1.0}, {1.0, 1.0, 1.0}};
 
   std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy =

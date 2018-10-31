@@ -26,6 +26,7 @@
 #include "fub/core/span.hpp"
 
 #include <limits>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <vector>

@@ -8,6 +8,7 @@
 #include "fub/solver/InitialCondition.hpp"
 
 #include <array>
+#include <chrono>
 
 #include "SAMRAI/geom/CartesianGridGeometry.h"
 #include "SAMRAI/geom/CartesianPatchGeometry.h"
