@@ -45,7 +45,7 @@ public:
     return *integrator_;
   }
 
-  const SplittingMethod& SplittingMethod() const noexcept {
+  const struct SplittingMethod& SplittingMethod() const noexcept {
     return *splitting_method_;
   }
 
