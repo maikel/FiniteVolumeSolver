@@ -12,7 +12,7 @@ Questions which are going to be tackled are
 
 - `docs/` contains a Doxygen.in file to generate documentation
 - `examples/` contains exemplary applications using this framework.
-- `include/` contains *public* header files which are consumable via some library exportable library.
+- `include/` contains *public* header files which are consumable via some exportable library.
 - `src/` contains *private* header and source files to the library.
 - `tests/` contains unit test files written with [Catch2](https://github.com/catchorg/Catch2)
 - `third_party/` contains third party libraries which are included as submodules in this project.
@@ -34,7 +34,7 @@ And build it with commands similar to
 
 ```
 > mkdir build && cd build
-> cmake .. -DCMAKE_PREFIX_PATH="YOUR_LOCAL_INSTALL_PATH" -DCMAKE_BUILD_TYPE="Release" -DHDF5_ROOT="YOUR_HDF5_PATH" -DENABLE_OPENMP=OFF -DSILO_DIR="YOUR_SILO_PATH" -DCMAKE_CXX_COMPILER=mpic++ -DCMAKE_C_COMPILER=mpicc
+> cmake .. -DCMAKE_INSTALL_PREFIX="YOUR_LOCAL_INSTALL_PATH" -DCMAKE_BUILD_TYPE="Release" -DHDF5_ROOT="YOUR_HDF5_PATH" -DENABLE_OPENMP=OFF -DSILO_DIR="YOUR_SILO_PATH" -DCMAKE_CXX_COMPILER=mpic++ -DCMAKE_C_COMPILER=mpicc
 > make -j4 install
 ```
 
@@ -54,7 +54,7 @@ use following commands in the project source directory.
 > cd build
 > cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH="${SAMRAI_INSTALL_PATH}"
 > make
-> ./test/test.solver.IdealGasSplitIntegrator
+> ./examples/ForwardEulerTimeIntegrator
 ```
 
 Note: The current implementation requires some **C++17** library and language features.
