@@ -19,31 +19,64 @@
 // SOFTWARE.
 
 #include "fub/solver/euler/IdealGas.hpp"
+#include "fub/solver/euler/mechanism/Burke2012.hpp"
 
 #include "SAMRAI/hier/VariableDatabase.h"
 #include "SAMRAI/pdat/CellVariable.h"
 
+#ifdef FUB_WITH_STD_STRING_VIEW
 #include <string_view>
+#endif
+
+#include <numeric>
 
 namespace fub {
 namespace euler {
 namespace {
 using Variable = IdealGas::Variable;
 
+#ifdef FUB_WITH_STD_STRING_VIEW
 std::string getPrefixedCellVariableName_(const std::string& prefix,
                                          IdealGas::Variable var) {
   static constexpr std::array<std::string_view, IdealGas::variables_size> names{
-      "/Density", "/Momentum", "/Energy", "/Pressure", "/SpeedOfSound"};
-  std::string_view variable_name = names[static_cast<int>(var)];
+      "/Density",    "/Momentum",     "/Energy", "/Pressure",
+      "Temperature", "/SpeedOfSound", "Species"};
+  std::string_view name = names[static_cast<int>(var)];
   std::string result;
-  result.reserve(prefix.size() + variable_name.size() + 1);
+  result.reserve(prefix.size() + name.size() + 1);
   result += prefix;
-  result += variable_name;
+  result += name;
   return result;
+}
+#else
+std::string getPrefixedCellVariableName_(const std::string& prefix,
+                                         IdealGas::Variable var) {
+  static constexpr std::array<const char*, IdealGas::variables_size> names{
+      "/Density",    "/Momentum",     "/Energy", "/Pressure",
+      "Temperature", "/SpeedOfSound", "Species"};
+  const char* name = names[static_cast<int>(var)];
+  std::string result;
+  result.reserve(prefix.size() + std::strlen(name) + 1);
+  result += prefix;
+  result += name;
+  return result;
+}
+#endif
+
+int getDepth_(Variable var, int dim, int n_species) {
+  int depth;
+  switch (var) {
+  case Variable::momentum:
+    return dim;
+  case Variable::species:
+    return n_species - 1;
+  default:
+    return 1;
+  }
 }
 
 int registerCellVariable_(const std::string& prefix, Variable var,
-                          const SAMRAI::tbox::Dimension& dim) {
+                          const SAMRAI::tbox::Dimension& dim, int n_species) {
   SAMRAI::hier::VariableDatabase& database =
       *SAMRAI::hier::VariableDatabase::getDatabase();
   // Construct a variable name using the given prefix
@@ -60,7 +93,7 @@ int registerCellVariable_(const std::string& prefix, Variable var,
           "' of differing type already exists in the variable database.");
     }
   } else {
-    int depth = var == Variable::momentum ? dim.getValue() : 1;
+    const int depth = getDepth_(var, dim.getValue(), n_species);
     // This variable does not exist yet, so we have to make a new one.
     variable =
         std::make_shared<SAMRAI::pdat::CellVariable<double>>(dim, name, depth);
@@ -75,47 +108,89 @@ int registerCellVariable_(const std::string& prefix, Variable var,
 template <std::size_t N>
 void registerAllVariables_(const std::string& prefix,
                            std::array<int, N>& data_ids,
-                           const SAMRAI::tbox::Dimension& dim) {
+                           const SAMRAI::tbox::Dimension& dim, int n_species) {
   const int size = N;
   for (int i = 0; i < size; ++i) {
-    data_ids[i] = registerCellVariable_(prefix, IdealGas::Variable(i), dim);
+    data_ids[i] =
+        registerCellVariable_(prefix, IdealGas::Variable(i), dim, n_species);
   }
 }
 } // namespace
 
 IdealGas::IdealGas(const std::string& name, const SAMRAI::tbox::Dimension& dim)
-    : name_{name}, dimension_{dim} {
-  registerAllVariables_(name_, data_ids_, dimension_);
+    : name_{name}, dimension_{dim}, reactor_{std::make_unique<Burke2012>()} {
+  registerAllVariables_(name_, data_ids_, dimension_, reactor_.GetNSpecies());
 }
 
 IdealGas::IdealGas(std::string&& name, const SAMRAI::tbox::Dimension& dim)
-    : name_{std::move(name)}, dimension_{dim} {
-  registerAllVariables_(name_, data_ids_, dimension_);
+    : name_{std::move(name)},
+      dimension_{dim}, reactor_{std::make_unique<Burke2012>()} {
+  registerAllVariables_(name_, data_ids_, dimension_, reactor_.GetNSpecies());
 }
 
 namespace {
-double transform_reduce(Vector<double> x, Vector<double> y, int len) {
-  double total = 0.0;
-  for (int i = 0; i < len; ++i) {
-    total += x[i] * y[i];
+void GetMassFractions(span<double> fractions,
+                      const SAMRAI::pdat::CellData<double>& species,
+                      const SAMRAI::pdat::CellIndex& index) {
+  FUB_ASSERT(fractions.size() == species.getDepth() + 1);
+  const int max_depth = species.getDepth();
+  for (int depth = 0; depth < max_depth; ++depth) {
+    fractions[depth + 1] = species(index, depth);
   }
-  return total;
+  const double total_fractions =
+      std::accumulate(fractions.begin() + 1, fractions.end(), 0.0);
+  fractions[0] = std::max(0.0, 1 - total_fractions);
 }
 } // namespace
 
-double IdealGas::computePressure(Conservative<double> q) const {
-  const double v2 = fub::euler::transform_reduce(q.momentum, q.momentum,
-                                                 dimension_.getValue());
-  const double kinetic_energy = 0.5 * v2 / q.density;
-  FUB_ASSERT(kinetic_energy <= q.energy);
-  const double internal_energy = q.energy - kinetic_energy;
-  const double gamma_1 = getHeatCapacityRatio() - 1.0;
-  const double pressure = gamma_1 * internal_energy * q.density;
-  return pressure;
+void IdealGas::Reconstruct(const CompleteState& q, const ConsState& cons) {
+  q.density.copy(cons.density);
+  q.momentum.copy(cons.momentum);
+  q.energy.copy(cons.energy);
+  q.species.copy(cons.species);
+  SAMRAI::hier::Box intersection(q.density.getDim());
+  q.density.getGhostBox().intersect(cons.density.getGhostBox(), intersection);
+  std::vector<double> fractions(q.species.getDepth() + 1);
+  for (const SAMRAI::hier::Index& index : intersection) {
+    SAMRAI::pdat::CellIndex cell(index);
+    GetMassFractions(fractions, q.species, cell);
+    const double rho = q.density(cell);
+    const double rhou = q.momentum(cell);
+    const double rhoE = q.energy(cell);
+    // internal energy = total energy - kinetic energy
+    const double e = rhoE - 0.5 * rhou * rhou / rho;
+    reactor_.SetMassFractions(fractions);
+    reactor_.SetDensity(rho);
+    reactor_.SetInternalEnergy(e);
+    q.temperature(cell) = reactor_.GetTemperature();
+    q.pressure(cell) = reactor_.GetPressure();
+    const double gamma = reactor_.GetCp() / reactor_.GetCv();
+    const double p = reactor_.GetPressure();
+    q.speed_of_sound(cell) = std::sqrt(gamma * p / rho);
+  }
 }
 
-double IdealGas::computeSpeedOfSound(double density, double pressure) const {
-  return std::sqrt(getHeatCapacityRatio() * pressure / density);
+void IdealGas::AdvanceSourceTerm(const CompleteState& q, double dt) {
+  const SAMRAI::hier::Box& box = q.density.getGhostBox();
+  std::vector<double> fractions(q.species.getDepth() + 1);
+  for (const SAMRAI::hier::Index& index : box) {
+    SAMRAI::pdat::CellIndex cell(index);
+    GetMassFractions(fractions, q.species, cell);
+    reactor_.SetMassFractions(fractions);
+    reactor_.SetTemperature(q.temperature(cell));
+    reactor_.SetPressure(q.pressure(cell));
+    reactor_.Advance(dt);
+    const double u = q.momentum(cell) / q.density(cell);
+    const double rho = reactor_.GetDensity();
+    q.density(cell) = rho;
+    q.temperature(cell) = reactor_.GetTemperature();
+    q.pressure(cell) = reactor_.GetPressure();
+    q.energy(cell) = reactor_.GetInternalEnergy() + 0.5 * rho * u * u;
+    q.momentum(cell) = reactor_.GetDensity() * u;
+    const double gamma = reactor_.GetCp() / reactor_.GetCv();
+    const double p = reactor_.GetPressure();
+    q.speed_of_sound(cell) = std::sqrt(gamma * p / rho);
+  }
 }
 
 } // namespace euler

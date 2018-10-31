@@ -158,7 +158,7 @@ double HlleRiemannSolver::computeStableDtOnPatch(
 
 /// This class method writes the flux quantities into fluxes.
 /// The algorithm uses the Einfeldt signal velocities without and the HLL
-/// method without any further correction term for discontiuity wave.
+/// method without any further correction term for discontinuity wave.
 void HlleRiemannSolver::computeFluxesOnPatch(const FluxState& flux,
                                              const CompleteState& state,
                                              const SAMRAI::hier::Patch& patch,
@@ -169,7 +169,7 @@ void HlleRiemannSolver::computeFluxesOnPatch(const FluxState& flux,
   auto last = SAMRAI::pdat::FaceGeometry::end(patch_box, d);
   while (first != last) {
     using FaceIndex = SAMRAI::pdat::FaceIndex;
-    FaceIndex face = *first++;
+    const FaceIndex face = *first;
     SAMRAI::pdat::CellIndex left(face.toCell(FaceIndex::Lower));
     SAMRAI::pdat::CellIndex right(face.toCell(FaceIndex::Upper));
 
@@ -180,7 +180,7 @@ void HlleRiemannSolver::computeFluxesOnPatch(const FluxState& flux,
     const double aL = state.speed_of_sound(left);
     const double aR = state.speed_of_sound(right);
 
-    HllSignals<double> signals =
+    auto [sL, sR] =
         computeHlleSignalVelocities_({rhoL, rhouL, aL}, {rhoR, rhouR, aR});
 
     const double rhoeL = state.energy(left);
@@ -189,15 +189,17 @@ void HlleRiemannSolver::computeFluxesOnPatch(const FluxState& flux,
     const double pR = state.pressure(right);
 
     auto [fRho, fRhoU, fRhoE] = computeHllFlux_(
-        signals, {rhoL, rhouL, rhoeL, pL}, {rhoR, rhouR, rhoeR, pR});
+        {sL, sR}, {rhoL, rhouL, rhoeL, pL}, {rhoR, rhouR, rhoeR, pR});
 
     flux.density(face) = fRho;
+
+    const double uL = rhouL / rhoL;
+    const double uR = rhouR / rhoR;
+
     const int dim = patch.getDim().getValue();
     for (int d_ = 0; d_ < dim; ++d_) {
-      const double sL = signals.left;
-      const double sR = signals.right;
-      const double fRhoUL = rhouL / rhoL * state.momentum(left, d_);
-      const double fRhoUR = rhouR / rhoR * state.momentum(right, d_);
+      const double fRhoUL = uL * state.momentum(left, d_);
+      const double fRhoUR = uR * state.momentum(right, d_);
       flux.momentum(face, d_) =
           (d_ == d)
               ? fRhoU
@@ -205,6 +207,17 @@ void HlleRiemannSolver::computeFluxesOnPatch(const FluxState& flux,
                                 state.momentum(right, d_), fRhoUL, fRhoUR);
     }
     flux.energy(face) = fRhoE;
+    const int species_size = state.species.getDepth();
+    for (int s = 0; s < species_size; ++s) {
+      const double speciesL = state.species(left, s);
+      const double speciesR = state.species(right, s);
+      const double fSpeciesL = uL * speciesL;
+      const double fSpeciesR = uR * speciesR;
+      flux.species(face, s) =
+          computeHllFlux_(sL, sR, speciesL, speciesR, fSpeciesL, fSpeciesR);
+    }
+
+    ++first;
   }
 }
 

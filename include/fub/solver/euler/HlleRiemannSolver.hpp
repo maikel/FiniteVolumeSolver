@@ -37,7 +37,7 @@ struct HlleRiemannSolver
 
   /// Return a stable time step size for a forward euler time integration. If
   /// you use this method as part of a more complicated scheme you might want to
-  /// scale this further with some lower CFL condition.
+  /// scale this down with some lower CFL condition.
   double
   computeStableDtOnPatch(const CompleteState& state,
                          const SAMRAI::hier::Patch& patch) const override;

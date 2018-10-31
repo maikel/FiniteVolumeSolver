@@ -46,16 +46,16 @@ public:
   using CompleteState = IdealGas::CompleteState;
   using FluxMethod = fub::DimensionalSplitFluxMethod<FluxState, CompleteState>;
 
-  enum class FluxVariable : int { density, momentum, energy, size };
+  enum class FluxVariable : int { density, momentum, energy, species, size };
   enum class Scratch : int {};
 
   static constexpr int variables_size = static_cast<int>(Variable::size);
   static constexpr int flux_variables_size =
       static_cast<int>(FluxVariable::size);
 
-  explicit ForwardEulerTimeIntegrator(const IdealGas& ideal_gas);
+  explicit ForwardEulerTimeIntegrator(std::shared_ptr<IdealGas> ideal_gas);
 
-  const IdealGas& ideal_gas() const noexcept { return ideal_gas_; }
+  const IdealGas& ideal_gas() const noexcept { return *ideal_gas_; }
 
   /////////////////////////////////////////////////////////////////////////////
   /// \name Obtain Patch Data Id
@@ -63,7 +63,7 @@ public:
   /// \brief Returns a patch data id which corresponds to a variable in the
   /// current context.
   int getPatchDataId(Variable variable) const {
-    return ideal_gas_.getDataId(variable);
+    return ideal_gas_->getDataId(variable);
   }
 
   /// \brief Returns a patch data id which corresponds to a variable in a
@@ -82,8 +82,13 @@ public:
     return face_[var];
   }
 
+  span<const int> getScratch() const {
+    return span{scratch_}.first(variables_size *
+                                ideal_gas_->getDim().getValue());
+  }
+
   /////////////////////////////////////////////////////////////////////////////
-  /// \name Collect Patch Data 
+  /// \name Collect Patch Data
 
   /// Returns a struct of CellDatas, one for each state variable.
   ///
@@ -115,7 +120,6 @@ public:
   /// Returns a struct of FaceDatas, one for each flux variable.
   FluxState getFluxState(const SAMRAI::hier::Patch& patch) const;
 
-
   /// \name Virtual Overrides of DimensionalSplitTimeIntegrator
 
   void flagPatchDataIdsToAllocate(
@@ -139,7 +143,7 @@ public:
 private:
   /// This is the object which stores patch data ids for state variables to some
   /// base context.
-  IdealGas ideal_gas_;
+  std::shared_ptr<IdealGas> ideal_gas_;
 
   /// This array stores patch data ids in scratch contexts.
   /// We store variables in up to three scratch contexts, for each dimensional

@@ -21,16 +21,21 @@
 #ifndef FUB_SOLVER_DIMENSIONAL_SPLIT_INTEGRATOR_HPP
 #define FUB_SOLVER_DIMENSIONAL_SPLIT_INTEGRATOR_HPP
 
+
 #include "fub/SAMRAI/utility.hpp"
-#include "fub/solver/InitialCondition.hpp"
 #include "fub/solver/BoundaryCondition.hpp"
 #include "fub/solver/Direction.hpp"
+#include "fub/solver/InitialCondition.hpp"
 
 #include "SAMRAI/hier/Patch.h"
 #include "SAMRAI/xfer/CoarsenAlgorithm.h"
 #include "SAMRAI/xfer/RefineAlgorithm.h"
 
 namespace fub {
+/// \defgroup TimeIntegrators Time Integrators
+/// Types and function which are about integrating a patch hierarchy in time.
+
+/// \ingroup TimeIntegrators
 class DimensionalSplitTimeIntegrator {
 public:
   virtual ~DimensionalSplitTimeIntegrator() = default;
@@ -45,6 +50,17 @@ public:
                  const BoundaryCondition& boundary_condition, double time_point,
                  Direction dir) const;
 
+  /// Performs a split step for all patches in the hierarchy.
+  ///
+  /// This method advances the given PatchHierarchy `hierarchy` in time from
+  /// `time_point` to `time_point + time_step_size` in a dimensional split
+  /// fashion.
+  ///
+  /// \param[in] hierarchy  The PatchHierarchy which holds the data.
+  /// \param[in] time_point  The initial time to start the time step from.
+  /// \param[in] time_step_size  The time step size of the coarsest level in the
+  ///                            hierarchy.
+  /// \param[in] dir  The direction of the dimensional split step.
   void
   advanceTime(const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
               double time_point, double time_step_size, Direction dir) const;

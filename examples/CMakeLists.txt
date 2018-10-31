@@ -4,3 +4,6 @@ project(HyperbolicSolver_examples CXX)
 
 add_executable(ForwardEulerTimeIntegrator ForwardEulerTimeIntegrator.cpp)
 target_link_libraries(ForwardEulerTimeIntegrator PRIVATE HyberbolicSolver)
+
+add_executable(HyperbolicSystemSolver HyperbolicSystemSolver.cpp)
+target_link_libraries(HyperbolicSystemSolver PRIVATE HyberbolicSolver)

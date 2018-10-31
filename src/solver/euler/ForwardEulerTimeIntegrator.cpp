@@ -80,18 +80,30 @@ std::string getPrefixedFluxName_(const std::string& name,
                                  ForwardEulerTimeIntegrator::FluxVariable var) {
   static constexpr std::array<const char*,
                               ForwardEulerTimeIntegrator::flux_variables_size>
-      names{"/DensityFlux", "/MomentumFlux", "/EnergyFlux"};
+      names{"/DensityFlux", "/MomentumFlux", "/EnergyFlux", "/SpeciesFlux"};
   return name + names[static_cast<int>(var)];
+}
+
+int getDepth_(ForwardEulerTimeIntegrator::FluxVariable var, int dim,
+              int specs) {
+  switch (var) {
+  case ForwardEulerTimeIntegrator::FluxVariable::momentum:
+    return dim;
+  case ForwardEulerTimeIntegrator::FluxVariable::species:
+    return specs - 1;
+  default:
+    return 1;
+  }
 }
 } // namespace
 
 ForwardEulerTimeIntegrator::ForwardEulerTimeIntegrator(
-    const IdealGas& ideal_gas)
-    : ideal_gas_{ideal_gas}, flux_method_{
-                                 std::make_shared<HlleRiemannSolver>()} {
+    std::shared_ptr<IdealGas> ideal_gas)
+    : ideal_gas_{std::move(ideal_gas)},
+      flux_method_{std::make_shared<HlleRiemannSolver>()} {
   SAMRAI::hier::VariableDatabase& database =
       *SAMRAI::hier::VariableDatabase::getDatabase();
-  const SAMRAI::tbox::Dimension& dim = ideal_gas_.getDim();
+  const SAMRAI::tbox::Dimension& dim = ideal_gas_->getDim();
   const int dim_value = dim.getValue();
   const SAMRAI::hier::IntVector ghost_cell_width =
       flux_method_->getStencilWidth(dim);
@@ -105,13 +117,13 @@ ForwardEulerTimeIntegrator::ForwardEulerTimeIntegrator(
           reassignContextOfDataId_(getPatchDataId(Variable(v)), scratch, ghost);
     }
   }
-  const std::string& name = ideal_gas_.name();
+  const std::string& name = ideal_gas_->name();
   const SAMRAI::hier::IntVector zeros = SAMRAI::hier::IntVector::getZero(dim);
   std::shared_ptr<SAMRAI::hier::VariableContext> current =
       database.getContext("current");
   for (int v = 0; v < flux_variables_size; ++v) {
-    int depth =
-        (FluxVariable(v) == FluxVariable::momentum) ? dim.getValue() : 1;
+    const int n_species = ideal_gas_->GetReactor().GetNSpecies();
+    const int depth = getDepth_(FluxVariable(v), dim_value, n_species);
     auto flux = getVariable_<SAMRAI::pdat::FaceVariable<double>>(
         dim, getPrefixedFluxName_(name, FluxVariable(v)), depth);
     face_[v] = database.registerVariableAndContext(flux, current, zeros);
@@ -146,7 +158,12 @@ void advanceTimeOnPatch_(const ForwardEulerTimeIntegrator::CompleteState& state,
           lambda * (flux.momentum(left, d) - flux.momentum(right, d));
     }
     state.energy(cell) += lambda * (flux.energy(left) - flux.energy(right));
-    FUB_ASSERT(state.energy(cell) > 0);
+    const int species_size = state.species.getDepth();
+    for (int s = 0; s < species_size; ++s) {
+      state.species(cell, s) +=
+          lambda * (flux.species(left, s) - flux.species(right, s));
+      FUB_ASSERT(state.species(cell, s) >= 0);
+    }
   }
 }
 } // namespace
@@ -158,6 +175,9 @@ void ForwardEulerTimeIntegrator::advanceTimeOnPatch(
   CompleteState state = getCompleteState(patch, Scratch(dir));
   flux_method_->computeFluxesOnPatch(flux, state, patch, dt, dir);
   advanceTimeOnPatch_(state, flux, patch, dt, dir);
+  CompleteState complete = getCompleteState(patch);
+  ConsState cons = getConsState(patch, Scratch(dir));
+  ideal_gas_->Reconstruct(complete, cons);
 }
 
 namespace {
@@ -182,9 +202,12 @@ ForwardEulerTimeIntegrator::getCompleteState(const SAMRAI::hier::Patch& patch,
   SAMRAI::pdat::CellData<double>& momentum = getCellData_(patch, getPatchDataId(Variable::momentum, scratch));
   SAMRAI::pdat::CellData<double>& energy = getCellData_(patch, getPatchDataId(Variable::energy, scratch));
   SAMRAI::pdat::CellData<double>& pressure = getCellData_(patch, getPatchDataId(Variable::pressure, scratch));
+  SAMRAI::pdat::CellData<double>& temperature = getCellData_(patch, getPatchDataId(Variable::temperature, scratch));
   SAMRAI::pdat::CellData<double>& speed_of_sound = getCellData_(patch, getPatchDataId(Variable::speed_of_sound, scratch));
+  SAMRAI::pdat::CellData<double>& species = getCellData_(patch, getPatchDataId(Variable::species, scratch));
   // clang-format on
-  return {density, momentum, energy, pressure, speed_of_sound};
+  return {density,     momentum,       energy, pressure,
+          temperature, speed_of_sound, species};
 }
 
 ForwardEulerTimeIntegrator::CompleteState
@@ -195,9 +218,12 @@ ForwardEulerTimeIntegrator::getCompleteState(
   SAMRAI::pdat::CellData<double>& momentum = getCellData_(patch, getPatchDataId(Variable::momentum));
   SAMRAI::pdat::CellData<double>& energy = getCellData_(patch, getPatchDataId(Variable::energy));
   SAMRAI::pdat::CellData<double>& pressure = getCellData_(patch, getPatchDataId(Variable::pressure));
+  SAMRAI::pdat::CellData<double>& temperature = getCellData_(patch, getPatchDataId(Variable::temperature));
   SAMRAI::pdat::CellData<double>& speed_of_sound = getCellData_(patch, getPatchDataId(Variable::speed_of_sound));
+  SAMRAI::pdat::CellData<double>& species = getCellData_(patch, getPatchDataId(Variable::species));
   // clang-format on
-  return {density, momentum, energy, pressure, speed_of_sound};
+  return {density,     momentum,       energy, pressure,
+          temperature, speed_of_sound, species};
 }
 
 ForwardEulerTimeIntegrator::ConsState
@@ -207,8 +233,9 @@ ForwardEulerTimeIntegrator::getConsState(const SAMRAI::hier::Patch& patch,
   SAMRAI::pdat::CellData<double>& density = getCellData_(patch, getPatchDataId(Variable::density, scratch));
   SAMRAI::pdat::CellData<double>& momentum = getCellData_(patch, getPatchDataId(Variable::momentum, scratch));
   SAMRAI::pdat::CellData<double>& energy = getCellData_(patch, getPatchDataId(Variable::energy, scratch));
+  SAMRAI::pdat::CellData<double>& species = getCellData_(patch, getPatchDataId(Variable::species, scratch));
   // clang-format on
-  return {density, momentum, energy};
+  return {density, momentum, energy, species};
 }
 
 ForwardEulerTimeIntegrator::ConsState ForwardEulerTimeIntegrator::getConsState(
@@ -217,8 +244,9 @@ ForwardEulerTimeIntegrator::ConsState ForwardEulerTimeIntegrator::getConsState(
   SAMRAI::pdat::CellData<double>& density = getCellData_(patch, getPatchDataId(Variable::density));
   SAMRAI::pdat::CellData<double>& momentum = getCellData_(patch, getPatchDataId(Variable::momentum));
   SAMRAI::pdat::CellData<double>& energy = getCellData_(patch, getPatchDataId(Variable::energy));
+  SAMRAI::pdat::CellData<double>& species = getCellData_(patch, getPatchDataId(Variable::species));
   // clang-format on
-  return {density, momentum, energy};
+  return {density, momentum, energy, species};
 }
 
 ForwardEulerTimeIntegrator::FluxState ForwardEulerTimeIntegrator::getFluxState(
@@ -227,16 +255,17 @@ ForwardEulerTimeIntegrator::FluxState ForwardEulerTimeIntegrator::getFluxState(
   SAMRAI::pdat::FaceData<double>& density = getFaceData_(patch, getPatchDataId(FluxVariable::density));
   SAMRAI::pdat::FaceData<double>& momentum = getFaceData_(patch, getPatchDataId(FluxVariable::momentum));
   SAMRAI::pdat::FaceData<double>& energy = getFaceData_(patch, getPatchDataId(FluxVariable::energy));
+  SAMRAI::pdat::FaceData<double>& species = getFaceData_(patch, getPatchDataId(FluxVariable::species));
   // clang-format on
-  return {density, momentum, energy};
+  return {density, momentum, energy, species};
 }
 
 void ForwardEulerTimeIntegrator::flagPatchDataIdsToAllocate(
     SAMRAI::hier::ComponentSelector& which_to_allocate) const {
-  for (int id : ideal_gas_.getDataIds()) {
+  for (int id : ideal_gas_->getDataIds()) {
     which_to_allocate.setFlag(id);
   }
-  for (int id : scratch_) {
+  for (int id : getScratch()) {
     which_to_allocate.setFlag(id);
   }
   for (int id : face_) {
@@ -260,7 +289,7 @@ std::shared_ptr<SAMRAI::xfer::CoarsenAlgorithm>
 ForwardEulerTimeIntegrator::getFillGhostLayerCoarsenAlgorithm(
     Direction dir) const {
   auto algorithm =
-      std::make_shared<SAMRAI::xfer::CoarsenAlgorithm>(ideal_gas_.getDim());
+      std::make_shared<SAMRAI::xfer::CoarsenAlgorithm>(ideal_gas_->getDim());
   for (int v = 0; v < variables_size; ++v) {
     algorithm->registerCoarsen(getPatchDataId(Variable(v), Scratch(dir)),
                                getPatchDataId(Variable(v)), nullptr);
