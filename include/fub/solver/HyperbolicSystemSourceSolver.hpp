@@ -43,7 +43,7 @@ public:
               const BoundaryCondition& boundary_condition, double time_point,
               double time_step_size) const;
 
-  const HyperbolicSystemSolver& HyperbolicSystemSolver() const
+  const class HyperbolicSystemSolver& HyperbolicSystemSolver() const
       noexcept {
     return hyperbolic_system_;
   }
@@ -52,7 +52,7 @@ public:
     return *source_term_;
   }
 
-  const SplittingMethod& SplittingMethod() const noexcept {
+  const struct SplittingMethod& SplittingMethod() const noexcept {
     return *splitting_method_;
   }
 
