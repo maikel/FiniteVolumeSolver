@@ -15,8 +15,8 @@ add_library(RadauSolverFortran
   src/solver/ode_solver/radau.f)
 
 add_library(HyberbolicSolver
-  src/samrai/ScopeGuard.cpp
-  src/samrai/utility.cpp
+  src/SAMRAI/ScopeGuard.cpp
+  src/SAMRAI/utility.cpp
   src/solver/DimensionalSplitTimeIntegrator.cpp
   src/solver/HyperbolicSystemSolver.cpp
   src/solver/GodunovSplitting.cpp
