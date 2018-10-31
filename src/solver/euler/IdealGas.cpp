@@ -119,13 +119,15 @@ void registerAllVariables_(const std::string& prefix,
 
 IdealGas::IdealGas(const std::string& name, const SAMRAI::tbox::Dimension& dim)
     : name_{name}, dimension_{dim}, reactor_{std::make_unique<Burke2012>()} {
-  registerAllVariables_(name_, data_ids_, dimension_, reactor_.GetNSpecies());
+  registerAllVariables_(name_, patch_data_ids_, dimension_,
+                        reactor_.GetNSpecies());
 }
 
 IdealGas::IdealGas(std::string&& name, const SAMRAI::tbox::Dimension& dim)
     : name_{std::move(name)},
       dimension_{dim}, reactor_{std::make_unique<Burke2012>()} {
-  registerAllVariables_(name_, data_ids_, dimension_, reactor_.GetNSpecies());
+  registerAllVariables_(name_, patch_data_ids_, dimension_,
+                        reactor_.GetNSpecies());
 }
 
 namespace {

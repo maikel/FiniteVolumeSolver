@@ -53,6 +53,11 @@ struct MatrixIsRepeatedlySingular : Exception {
   MatrixIsRepeatedlySingular()
       : Exception("ode_solver::Radau: Matrix is repeatedly singular.") {}
 };
+
+struct RhsEvaluatesToNaN : Exception {
+  RhsEvaluatesToNaN()
+      : Exception("ode_solver::Radau: RHS evaluates to NaN.") {}
+};
 } // namespace radau_error
 
 namespace radau_detail {
@@ -148,12 +153,13 @@ struct Radau {
     constexpr double reltol = 1e-9;  // relative tolerances
     constexpr double abstol = 1e-12; // absolute tolerances
 
-    static constexpr int work_len = Size * (Size + 7 * Size + 3 * 7 + 3) + 20;
+    const int size = y0.size();
+    const int work_len = size * (size + 7 * size + 3 * 7 + 3) + 20;
     std::vector<double, Allocator> work(work_len, alloc);
 
     using IAllocator =
         typename std::allocator_traits<Allocator>::template rebind_alloc<int>;
-    static constexpr int iwork_len = (2 + (7 - 1) / 2) * Size + 20;
+    const int iwork_len = (2 + (7 - 1) / 2) * size + 20;
     std::vector<int, IAllocator> iwork(iwork_len, IAllocator(alloc));
 
     iwork[0] = 1; // Use Hessenberg matrix form
@@ -253,12 +259,13 @@ struct Radau {
     constexpr double reltol = 1e-9;  // relative tolerances
     constexpr double abstol = 1e-12; // absolute tolerances
 
-    static constexpr int work_len = Size * (Size + 7 * Size + 3 * 7 + 3) + 20;
+    const int size = y0.size();
+    const int work_len = size * (size + 7 * size + 3 * 7 + 3) + 20;
     std::vector<double, Allocator> work(work_len, alloc);
 
     using IAllocator =
         typename std::allocator_traits<Allocator>::template rebind_alloc<int>;
-    static constexpr int iwork_len = (2 + (7 - 1) / 2) * Size + 20;
+    const int iwork_len = (2 + (7 - 1) / 2) * size + 20;
     std::vector<int, IAllocator> iwork(iwork_len, IAllocator(alloc));
 
     iwork[0] = 1; // Use Hessenberg matrix form
@@ -328,6 +335,8 @@ struct Radau {
       throw radau_error::StepSizeBecomesTooSmall{};
     case -4:
       throw radau_error::MatrixIsRepeatedlySingular{};
+    case -42:
+      throw radau_error::RhsEvaluatesToNaN{};
     default:
       throw std::logic_error{"Radau5: The fortran kernel returned an unknown "
                              "return code (which is: " +

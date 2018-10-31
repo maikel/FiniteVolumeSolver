@@ -18,40 +18,28 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_SOLVER_HYPERBOLIC_SYSTEM_SOLVER_HPP
-#define FUB_SOLVER_HYPERBOLIC_SYSTEM_SOLVER_HPP
+#ifndef FUB_SOLVER_SOURCE_TERM_INTEGRATOR_HPP
+#define FUB_SOLVER_SOURCE_TERM_INTEGRATOR_HPP
 
-#include "fub/solver/DimensionalSplitTimeIntegrator.hpp"
-#include "fub/solver/SplittingMethod.hpp"
+#include "fub/solver/BoundaryCondition.hpp"
+
+#include "SAMRAI/hier/PatchHierarchy.h"
+
+#include <memory>
 
 namespace fub {
 
-class HyperbolicSystemSolver {
+class SourceTermIntegrator {
 public:
-  HyperbolicSystemSolver(const DimensionalSplitTimeIntegrator& integrator,
-                         const SplittingMethod& splitting)
-      : integrator_{&integrator}, splitting_method_{&splitting} {}
-
-  double ComputeStableDt(
-      const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
-      const BoundaryCondition& boundary_condition, double time_point) const;
-
   void
   AdvanceTime(const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
-              const BoundaryCondition& boundary_condition, double time_point,
-              double time_step_size) const;
-
-  const DimensionalSplitTimeIntegrator& TimeIntegrator() const noexcept {
-    return *integrator_;
-  }
-
-  const SplittingMethod& SplittingMethod() const noexcept {
-    return *splitting_method_;
-  }
+              const BoundaryCondition& boundary_condition,
+              double time_point, double time_step_size) const;
 
 private:
-  const DimensionalSplitTimeIntegrator* integrator_;
-  const struct SplittingMethod* splitting_method_;
+  virtual void
+  AdvanceTimeOnPatch(const std::shared_ptr<SAMRAI::hier::Patch>& patch,
+                     double time_point, double time_step_size) const = 0;
 };
 
 } // namespace fub

@@ -7,3 +7,6 @@ target_link_libraries(ForwardEulerTimeIntegrator PRIVATE HyberbolicSolver)
 
 add_executable(HyperbolicSystemSolver HyperbolicSystemSolver.cpp)
 target_link_libraries(HyperbolicSystemSolver PRIVATE HyberbolicSolver)
+
+add_executable(HyperbolicSystemSourceSolver HyperbolicSystemSourceSolver.cpp)
+target_link_libraries(HyperbolicSystemSourceSolver PRIVATE HyberbolicSolver)

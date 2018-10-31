@@ -82,7 +82,7 @@ struct CircleData : fub::InitialCondition {
     const auto& geom = *fub::getCartesianPatchGeometry(patch);
     const SAMRAI::hier::Box& box = patch.getBox();
     const double sqrt_ = std::sqrt(1.4 * 8.0);
-    fub::FlameMasterReactor reactor = integrator->ideal_gas().GetReactor();
+    fub::FlameMasterReactor reactor = integrator->ideal_gas()->GetReactor();
 #ifdef __cpp_structured_bindings
     const auto [inner, outer] = getStates(reactor);
 #else
@@ -147,7 +147,7 @@ struct ConstantBoundary : public fub::BoundaryCondition {
     SAMRAI::pdat::CellData<double>& temperature = state.temperature;
     SAMRAI::pdat::CellData<double>& speed_of_sound = state.speed_of_sound;
 
-    fub::FlameMasterReactor reactor = integrator->ideal_gas().GetReactor();
+    fub::FlameMasterReactor reactor = integrator->ideal_gas()->GetReactor();
     std::vector<double> Y(reactor.GetNSpecies());
     Y[0] = 1.0;
     reactor.SetMassFractions(Y);

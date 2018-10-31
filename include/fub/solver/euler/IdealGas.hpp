@@ -130,26 +130,26 @@ public:
   SAMRAI::pdat::CellData<double>& getCellData(const SAMRAI::hier::Patch& patch,
                                               Variable var) const {
     return *static_cast<SAMRAI::pdat::CellData<double>*>(
-        patch.getPatchData(getDataId(var)).get());
+        patch.getPatchData(getPatchDataId(var)).get());
   }
 
   /// \brief Returns the array of all patch data ids registered by this problem
   /// class.
-  span<const int, variables_size> getDataIds() const noexcept {
-    return data_ids_;
+  span<const int, variables_size> getPatchDataIds() const noexcept {
+    return patch_data_ids_;
   }
 
   /// \brief Map a variable value to a patch data id from SAMRAI.
-  int getDataId(Variable var) const {
+  int getPatchDataId(Variable var) const {
     int val = static_cast<int>(var);
     FUB_ASSERT(0 <= val && val < variables_size);
-    return data_ids_[val];
+    return patch_data_ids_[val];
   }
 
 private:
   std::string name_;
   SAMRAI::tbox::Dimension dimension_;
-  std::array<int, variables_size> data_ids_;
+  std::array<int, variables_size> patch_data_ids_;
   FlameMasterReactor reactor_;
 };
 

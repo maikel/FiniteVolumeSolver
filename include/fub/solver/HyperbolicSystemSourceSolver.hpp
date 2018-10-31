@@ -22,13 +22,17 @@
 #define FUB_SOLVER_HYPERBOLIC_SYSTEM_SOURCE_SOLVER_HPP
 
 #include "fub/solver/HyperbolicSystemSolver.hpp"
-#include "fub/solver/SourceTermTimeIntegrator.hpp"
+#include "fub/solver/SourceTermIntegrator.hpp"
 
 namespace fub {
 
 class HyperbolicSystemSourceSolver {
 public:
-  HyperbolicSystemSourceSolver();
+  HyperbolicSystemSourceSolver(const HyperbolicSystemSolver& hyperbolic_system,
+                               const SourceTermIntegrator& source_term,
+                               const SplittingMethod& splitting)
+      : hyperbolic_system_{hyperbolic_system}, source_term_{&source_term},
+        splitting_method_{&splitting} {}
 
   double ComputeStableDt(
       const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
@@ -39,25 +43,23 @@ public:
               const BoundaryCondition& boundary_condition, double time_point,
               double time_step_size) const;
 
-  const std::shared_ptr<const DimensionalSplitTimeIntegrator>&
-  GetHyperbolicSystemSolver() const noexcept {
+  const HyperbolicSystemSolver& HyperbolicSystemSolver() const
+      noexcept {
     return hyperbolic_system_;
   }
 
-  const std::shared_ptr<const SourceTermIntegrator>& GetSourceTerm() const
-      noexcept {
-    return soure_term_;
+  const SourceTermIntegrator& SourceTerm() const noexcept {
+    return *source_term_;
   }
 
-  const std::shared_ptr<const SplittingMethod>& GetSplittingMethod() const
-      noexcept {
-    return splitting_method_;
+  const SplittingMethod& SplittingMethod() const noexcept {
+    return *splitting_method_;
   }
 
 private:
-  HyperbolicSystemSolver hyperbolic_system_;
-  std::shared_ptr<const SourceTermIntegrator> soure_term_;
-  std::shared_ptr<const SplittingMethod> splitting_method_;
+  class HyperbolicSystemSolver hyperbolic_system_;
+  const SourceTermIntegrator* source_term_;
+  const class SplittingMethod* splitting_method_;
 };
 
 } // namespace fub

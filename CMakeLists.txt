@@ -19,13 +19,16 @@ add_library(HyberbolicSolver
   src/SAMRAI/utility.cpp
   src/solver/DimensionalSplitTimeIntegrator.cpp
   src/solver/HyperbolicSystemSolver.cpp
+  src/solver/HyperbolicSystemSourceSolver.cpp
+  src/solver/SourceTermIntegrator.cpp
   src/solver/GodunovSplitting.cpp
   src/solver/ode_solver/Radau.cpp
   src/solver/euler/Reactor.cpp
   src/solver/euler/mechanism/Burke2012.cpp
   src/solver/euler/IdealGas.cpp
   src/solver/euler/ForwardEulerTimeIntegrator.cpp
-  src/solver/euler/HlleRiemannSolver.cpp)
+  src/solver/euler/HlleRiemannSolver.cpp
+  src/solver/euler/KineticSourceTerm.cpp)
 
 target_include_directories(HyberbolicSolver PUBLIC include/)
 target_include_directories(HyberbolicSolver PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

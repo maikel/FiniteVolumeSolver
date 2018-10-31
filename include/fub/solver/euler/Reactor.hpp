@@ -156,7 +156,6 @@ public:
 
   /// \brief Advance the reactor in time by dt and return the time where
   /// \f$dT/dt\f$ peaked.
-  ///
   double AdvanceAndFindMaxdT(double dt);
 
   /// Set tolerances for the integration. Defaults are 1e-9 for reltol and

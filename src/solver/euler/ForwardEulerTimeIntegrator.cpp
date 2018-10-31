@@ -274,7 +274,7 @@ ForwardEulerTimeIntegrator::FluxState ForwardEulerTimeIntegrator::getFluxState(
 
 void ForwardEulerTimeIntegrator::flagPatchDataIdsToAllocate(
     SAMRAI::hier::ComponentSelector& which_to_allocate) const {
-  for (int id : ideal_gas_->getDataIds()) {
+  for (int id : ideal_gas_->getPatchDataIds()) {
     which_to_allocate.setFlag(id);
   }
   for (int id : getScratch()) {

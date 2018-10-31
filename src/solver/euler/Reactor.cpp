@@ -282,6 +282,7 @@ FlameMasterReactor::FlameMasterReactor(
 
   // Initialize the state with something quite boring.
   state_.massFractions[0] = 1;
+  UpdateMolesFromMassFractions(state_);
   SetTemperature(300.);
   SetPressure(101325.);
 
@@ -346,9 +347,11 @@ void FlameMasterReactor::Advance(double dt) {
   }
   FUB_ASSERT(dt > 0);
 
+  UpdateMolesFromMassFractions(state_);
+
   // Do the actual computation
-  Radau::integrate(AdvanceSystem{mechanism_.get(), &state_}, state_.moles, 0.0,
-                   dt);
+  Radau::integrate(AdvanceSystem{mechanism_.get(), &state_},
+                   make_span(state_.molesStorage), 0.0, dt);
 
   // Retrieve mass fractions from the result vector
   UpdateMassFractionsFromMoles(state_);
@@ -361,9 +364,11 @@ void FlameMasterReactor::Advance(
   }
   FUB_ASSERT(dt > 0);
 
+  UpdateMolesFromMassFractions(state_);
+
   // Do the actual computation
   Radau::integrate_feedback(AdvanceSystem{mechanism_.get(), &state_},
-                            state_.moles, 0.0, dt,
+                            make_span(state_.molesStorage), 0.0, dt,
                             AdvanceFeedback{this, &state_, feedback});
 
   // Retrieve mass fractions from the result vector
@@ -397,7 +402,8 @@ double FlameMasterReactor::AdvanceAndFindMaxdT(double dt) {
 
   // Do the actual computation
   Radau::integrate_feedback(AdvanceSystem{mechanism_.get(), &state_},
-                            state_.moles, 0.0, dt, AdvanceAndFindMaxdT{&data});
+                            make_span(state_.molesStorage), 0.0, dt,
+                            AdvanceAndFindMaxdT{&data});
 
   // Retrieve mass fractions from the result vector
   UpdateMassFractionsFromMoles(state_);
@@ -552,6 +558,7 @@ void FlameMasterReactor::SetMassFractions(std::string newMassFractions) {
   for (int i = 0; i < state_.nSpecies; i++) {
     state_.massFractions[i] /= speciesSum;
   }
+  UpdateMolesFromMassFractions(state_);
 }
 
 void FlameMasterReactor::SetMassFractions(span<const double> fractions) {
@@ -562,6 +569,7 @@ void FlameMasterReactor::SetMassFractions(span<const double> fractions) {
                    state_.massFractions.begin(),
                    [sum](double frac) { return frac / sum; });
   }
+  UpdateMolesFromMassFractions(state_);
 }
 
 void FlameMasterReactor::SetTemperature(double temp) {
@@ -578,6 +586,7 @@ void FlameMasterReactor::SetMoleFractions(span<const double> newMoleFractions) {
   for (int i = 0; i < state_.nSpecies; i++) {
     state_.massFractions[i] *= state_.molarMasses[i] / totalMoles;
   }
+  UpdateMolesFromMassFractions(state_);
 }
 
 void FlameMasterReactor::SetMoleFractions(std::string newMoleFractions) {
@@ -589,6 +598,7 @@ void FlameMasterReactor::SetMoleFractions(std::string newMoleFractions) {
   for (int i = 0; i < state_.nSpecies; i++) {
     state_.massFractions[i] *= state_.molarMasses[i] / totalMoles;
   }
+  UpdateMolesFromMassFractions(state_);
 }
 
 span<const double> FlameMasterReactor::GetReactionRates() const {

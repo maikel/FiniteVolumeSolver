@@ -55,7 +55,7 @@ public:
 
   explicit ForwardEulerTimeIntegrator(std::shared_ptr<IdealGas> ideal_gas);
 
-  const IdealGas& ideal_gas() const noexcept { return *ideal_gas_; }
+  const std::shared_ptr<IdealGas>& ideal_gas() const noexcept { return ideal_gas_; }
 
   /////////////////////////////////////////////////////////////////////////////
   /// \name Obtain Patch Data Id
@@ -63,7 +63,7 @@ public:
   /// \brief Returns a patch data id which corresponds to a variable in the
   /// current context.
   int getPatchDataId(Variable variable) const {
-    return ideal_gas_->getDataId(variable);
+    return ideal_gas_->getPatchDataId(variable);
   }
 
   /// \brief Returns a patch data id which corresponds to a variable in a
