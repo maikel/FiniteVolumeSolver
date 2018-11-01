@@ -34,13 +34,13 @@ And build it with commands similar to
 
 ```
 > mkdir build && cd build
-> cmake .. -DCMAKE_INSTALL_PREFIX="YOUR_LOCAL_INSTALL_PATH" -DCMAKE_BUILD_TYPE="Release" -DHDF5_ROOT="YOUR_HDF5_PATH" -DENABLE_OPENMP=OFF -DSILO_DIR="YOUR_SILO_PATH" -DCMAKE_CXX_COMPILER=mpic++ -DCMAKE_C_COMPILER=mpicc
+> cmake .. -DCMAKE_INSTALL_PREFIX="YOUR_LOCAL_INSTALL_PATH" -DCMAKE_BUILD_TYPE="Release" -DHDF5_ROOT="YOUR_HDF5_PATH" -DENABLE_OPENMP=OFF -DCMAKE_CXX_COMPILER=mpic++
 > make -j4 install
 ```
 
 Tip: You can use `ccmake .` in the build directory to get an interactive view for configurable variables. Press `t` to toggle advanced options.
 
-*Note: You will need MPI, HDF5 and SILO.*
+*Note: You will need MPI and HDF5.*
 
 Then download this repository and invoke this CMakefile with a proper SAMRAI path.
 use following commands in the project source directory.
