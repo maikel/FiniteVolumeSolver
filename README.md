@@ -57,5 +57,5 @@ use following commands in the project source directory.
 > ./examples/ForwardEulerTimeIntegrator
 ```
 
-Note: The current implementation requires some **C++17** library and language features.
-This means you need at least **gcc 7**, **clang 6** or **Xcode 10** and the appropiate standard library.
+Note: The current implementation requires some **C++14** library and language features.
+This means you need at least **gcc 6**, **clang 5** or **Xcode 9** and the appropiate standard library.
