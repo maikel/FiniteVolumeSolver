@@ -24,14 +24,34 @@
 #include "SAMRAI/hier/Patch.h"
 
 namespace fub {
-
+/// \ingroup Abstract
+/// \brief This is an abstract interface class for general purpose boundary
+/// conditions.
 struct BoundaryCondition {
   virtual ~BoundaryCondition() = default;
 
+  /// \brief Fill ghost cell values of a given patch.
+  ///
+  /// This function will be called for each patch which touches the
+  /// computational domain. The vector ghost_width_to_fill indicates which
+  /// border to fill.
+  ///
+  /// \param[in,out] patch  The patch which ghost cells have to be filled.
+  /// \param[in] fill_time  The time point of the current simulation.
+  /// \param[in] ghost_width_to_fill  A vector which indicates the ghost layer
+  ///                                 width which has to be filled by this
+  ///                                 routine.
   virtual void setPhysicalBoundaryConditions(
-      const SAMRAI::hier::Patch&, double fill_time,
+      const SAMRAI::hier::Patch& patch, double fill_time,
       const SAMRAI::hier::IntVector& ghost_width_to_fill) const = 0;
 
+  /// \brief Returns the required stencil in each direction.
+  ///
+  /// Settings this will ensure that ghost cells are filled with the required
+  /// amount before the member function `setPhysicalBoundaryConditions` will be
+  /// called.
+  ///
+  /// \param[in] dim The dimension of the patch hierarchy.
   virtual SAMRAI::hier::IntVector
   getStencilWidth(const SAMRAI::tbox::Dimension& dim) const = 0;
 };

@@ -3,10 +3,10 @@ cmake_minimum_required(VERSION 3.10)
 project(HyperbolicSolver_examples CXX)
 
 add_executable(ForwardEulerTimeIntegrator ForwardEulerTimeIntegrator.cpp)
-target_link_libraries(ForwardEulerTimeIntegrator PRIVATE HyberbolicSolver)
+target_link_libraries(ForwardEulerTimeIntegrator PRIVATE HyperbolicSolver.IdealGas)
 
 add_executable(HyperbolicSystemSolver HyperbolicSystemSolver.cpp)
-target_link_libraries(HyperbolicSystemSolver PRIVATE HyberbolicSolver)
+target_link_libraries(HyperbolicSystemSolver PRIVATE HyperbolicSolver.IdealGas)
 
 add_executable(HyperbolicSystemSourceSolver HyperbolicSystemSourceSolver.cpp)
-target_link_libraries(HyperbolicSystemSourceSolver PRIVATE HyberbolicSolver)
+target_link_libraries(HyperbolicSystemSourceSolver PRIVATE HyperbolicSolver.IdealGas)

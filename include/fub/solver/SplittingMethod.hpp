@@ -28,7 +28,11 @@
 #include <memory>
 
 namespace fub {
-
+/// \ingroup Abstract
+/// This is an abstract interface for implementing splitting methods.
+///
+/// A splitting method takes two operators and executes them in some order such
+/// that they solve a combined problem.
 struct SplittingMethod {
 public:
   using AdvanceFunction = function_ref<void(
@@ -36,23 +40,25 @@ public:
 
   virtual ~SplittingMethod() = default;
 
+  /// This method recurisvely applies the base case.
   template <typename F, typename... Fs>
   void
-  AdvanceTime(const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
+  advanceTime(const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
               double time_point, double time_step_size,
               AdvanceFunction advance1, AdvanceFunction advance2, F advance3,
               Fs... advances) const {
-    AdvanceTime(
+    advanceTime(
         hierarchy, time_point, time_step_size, advance1,
         [&](const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
             double time_point, double time_step_size) {
-          AdvanceTime(hierarchy, time_point, time_step_size, advance2, advance3,
+          advanceTime(hierarchy, time_point, time_step_size, advance2, advance3,
                       advances...);
         });
   }
 
+  /// This is the base case of applying the splitting method with two operators.
   virtual void
-  AdvanceTime(const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
+  advanceTime(const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
               double time_point, double time_step_size,
               AdvanceFunction advance1, AdvanceFunction advance2) const = 0;
 };

@@ -28,13 +28,13 @@
 
 namespace fub {
 namespace euler {
-
+/// \ingroup Euler
 class KineticSourceTerm : public SourceTermIntegrator {
 public:
   KineticSourceTerm(std::shared_ptr<IdealGas> ideal_gas)
       : ideal_gas_{std::move(ideal_gas)} {}
 
-  void AdvanceTimeOnPatch(const std::shared_ptr<SAMRAI::hier::Patch>& patch,
+  void advanceTimeOnPatch(const std::shared_ptr<SAMRAI::hier::Patch>& patch,
                           double time_point,
                           double time_step_size) const override;
 

@@ -28,20 +28,53 @@
 #include "SAMRAI/tbox/Dimension.h"
 
 namespace fub {
-
+/// \ingroup Abstract
+/// \brief This is an abstract interface for flux methods.
+///
+/// A flux method has the task to compute flux data between cells. Flux data is
+/// normally located at faces.
+///
+/// \tparam FluxData  The concrete type which will be used as reference to flux
+///                   data.
+/// \tparam StateData  The concrete type which will be used as a reference to
+///                    complete state data.
 template <typename FluxData, typename StateData>
 struct DimensionalSplitFluxMethod {
   virtual ~DimensionalSplitFluxMethod() = default;
 
+  /// \brief Returns a time step value which estimates a maximal stable time
+  /// step size.
+  ///
+  /// The actual time step size may vary from but not exceed the return value.
+  /// To make a stable estimation this function may assume a standard forward 
+  /// euler update for the conservative variables.
+  ///
+  /// \param[in] states  A reference to complete state data.
+  /// \param[in] patch  The patch in question.
   virtual double
   computeStableDtOnPatch(const StateData& states,
-                          const SAMRAI::hier::Patch& patch) const = 0;
+                         const SAMRAI::hier::Patch& patch) const = 0;
 
+  /// \brief Fill the flux data on a patch based on the given states.
+  ///
+  /// \param[in] fluxes  A reference to the flux data.
+  /// \param[in] states  A reference to the complete state data.
+  /// \param[in] patch   The patch which may contain additional information 
+  ///                    related to the area in question.
+  /// \param[in] dt      The time step size which will be taken.
+  /// \param[in] dir     The split direction.
   virtual void computeFluxesOnPatch(const FluxData& fluxes,
                                     const StateData& states,
                                     const SAMRAI::hier::Patch& patch, double dt,
                                     Direction dir) const = 0;
 
+  /// \brief Returns the required stencil in each direction.
+  ///
+  /// Settings this will ensure that ghost cells are filled with the required
+  /// amount before the member function `setPhysicalBoundaryConditions` will be
+  /// called.
+  ///
+  /// \param[in] dim The dimension of the patch hierarchy.
   virtual SAMRAI::hier::IntVector
   getStencilWidth(const SAMRAI::tbox::Dimension& dim) const = 0;
 };

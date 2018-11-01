@@ -25,13 +25,25 @@
 #include <memory>
 
 namespace fub {
+/// \ingroup Solver
+/// @{
+/// \defgroup Abstract Abstract Interfaces
+/// This submodule lists all abstract interfaces of the Solver module.
+/// @}
 
+/// \ingroup Abstract
+/// \brief This is an abstract interface for setting initial data on a single
+/// patch.
 struct InitialCondition {
   virtual ~InitialCondition() = default;
 
+  /// Initialize patch data values on the specified patch.
+  ///
+  /// A concrete implementation has to know which patch data ids have to be
+  /// filled. This depends on problem basis.
   virtual void initializeDataOnPatch(const SAMRAI::hier::Patch&) const = 0;
 };
 
-}
+} // namespace fub
 
 #endif

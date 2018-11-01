@@ -25,33 +25,43 @@
 #include "fub/solver/SourceTermIntegrator.hpp"
 
 namespace fub {
-
+/// \ingroup Solver
+/// This class combines a two system solvers with a splitting method.
+///
+/// The intended usage is to combine a hyperbolic system solver with a source
+/// term using some kind splitting method, e.g. first order godunov splitting or
+/// second order strang splitting.
 class HyperbolicSystemSourceSolver {
 public:
+  /// Constrcuts a solver from the given strategies.
   HyperbolicSystemSourceSolver(const HyperbolicSystemSolver& hyperbolic_system,
                                const SourceTermIntegrator& source_term,
                                const SplittingMethod& splitting)
       : hyperbolic_system_{hyperbolic_system}, source_term_{&source_term},
         splitting_method_{&splitting} {}
 
-  double ComputeStableDt(
+  /// Estimates the next stable time step size to make for this solver.
+  double computeStableDt(
       const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
       const BoundaryCondition& boundary_condition, double time_point) const;
 
+  /// Advances the hierarchy int time by time_step_size. 
   void
-  AdvanceTime(const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
+  advanceTime(const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
               const BoundaryCondition& boundary_condition, double time_point,
               double time_step_size) const;
 
-  const class HyperbolicSystemSolver& HyperbolicSystemSolver() const
-      noexcept {
+  /// Returns the underlying hyperbolic system solver.
+  const class HyperbolicSystemSolver& HyperbolicSystemSolver() const noexcept {
     return hyperbolic_system_;
   }
 
+  /// Returns the underlying source term.
   const SourceTermIntegrator& SourceTerm() const noexcept {
     return *source_term_;
   }
 
+  /// Returns the underlying splitting method.
   const struct SplittingMethod& SplittingMethod() const noexcept {
     return *splitting_method_;
   }

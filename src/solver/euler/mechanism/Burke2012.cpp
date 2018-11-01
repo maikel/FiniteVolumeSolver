@@ -9,7 +9,7 @@
 namespace fub {
 namespace euler {
 namespace {
-double GetLindRateCoeff(double temp, double pressure, double k0, double kInf,
+double getLindRateCoeff(double temp, double pressure, double k0, double kInf,
                         double fc, double conc);
 
 double MAX_C(double X1, double X2);
@@ -22,7 +22,7 @@ double MAX_C(double X1, double X2);
 /// function. c contains the concentrations of non steady state species in
 /// [kmole/m^3] and is workspace for the steady state concentrations, which are
 /// computed in this function. temp is the temperature in [K] and pressure is
-/// the pressure in [Pa]. Called functions are 'GetLindRateCoeff',
+/// the pressure in [Pa]. Called functions are 'getLindRateCoeff',
 /// 'ComputeSteadyStates', 'CatchZero' and the functions that evaluate the
 /// broadening factors of the Troe formulation of pressure dependant rate
 /// coefficients 'Fc*'
@@ -87,10 +87,10 @@ void Burke2012::ComputeProductionRates(span<double> cdot, span<double> w,
   kTroe0 = 6.3660000000E+14 * exp(-1.72 * lgt - 2196000 / rt);
   kTroeInf = 4.6510000000E+09 * exp(0.44 * lgt);
   fcTroe = 0.5 * exp(-temp / 1e-30) + 0.5 * exp(-temp / 1e+30);
-  k[r15f] = GetLindRateCoeff(temp, pressure, kTroe0, kTroeInf, fcTroe, M[mM5]);
+  k[r15f] = getLindRateCoeff(temp, pressure, kTroe0, kTroeInf, fcTroe, M[mM5]);
   kTroe0 = 9.0292117899E+17 * exp(-1.73291 * lgt - 206862356.2 / rt);
   kTroeInf = 6.5967427010E+12 * exp(0.427093 * lgt - 204666356.2 / rt);
-  k[r15b] = GetLindRateCoeff(temp, pressure, kTroe0, kTroeInf, fcTroe, M[mM5]);
+  k[r15b] = getLindRateCoeff(temp, pressure, kTroe0, kTroeInf, fcTroe, M[mM5]);
   k[r16f] = 2.7500000000E+03 * exp(2.09 * lgt + 6071000 / rt);
   k[r16b] = 4.5231945076E+02 * exp(2.45171 * lgt - 222342371.2 / rt);
   k[r17f] = 7.0790000000E+10 * exp(-1234000 / rt);
@@ -106,10 +106,10 @@ void Burke2012::ComputeProductionRates(span<double> cdot, span<double> w,
   kTroe0 = 2.4900000000E+21 * exp(-2.3 * lgt - 203970000 / rt);
   kTroeInf = 2.0000000000E+12 * exp(0.9 * lgt - 203966000 / rt);
   fcTroe = 0.57 * exp(-temp / 1e-30) + 0.43 * exp(-temp / 1e+30);
-  k[r22f] = GetLindRateCoeff(temp, pressure, kTroe0, kTroeInf, fcTroe, M[mM6]);
+  k[r22f] = getLindRateCoeff(temp, pressure, kTroe0, kTroeInf, fcTroe, M[mM6]);
   kTroe0 = 2.2248483092E+12 * exp(-1.13619 * lgt + 10689381.66 / rt);
   kTroeInf = 1.7870267543E+03 * exp(2.06381 * lgt + 10693381.66 / rt);
-  k[r22b] = GetLindRateCoeff(temp, pressure, kTroe0, kTroeInf, fcTroe, M[mM6]);
+  k[r22b] = getLindRateCoeff(temp, pressure, kTroe0, kTroeInf, fcTroe, M[mM6]);
   k[r23f] = 2.4100000000E+10 * exp(-16610000 / rt);
   k[r23b] = 5.1591045676E+04 * exp(1.41899 * lgt - 297739571.6 / rt);
   k[r24f] = 4.8200000000E+10 * exp(-33263000 / rt);
@@ -486,7 +486,7 @@ void Burke2012::ComputeThermoData(span<double> h, span<double> cp,
 }
 
 namespace {
-double GetLindRateCoeff(double temp, double pressure, double k0, double kInf,
+double getLindRateCoeff(double temp, double pressure, double k0, double kInf,
                         double fc, double conc) {
   const double R = 8314.34; /* [J / kmole K] */
   double Ntmp;

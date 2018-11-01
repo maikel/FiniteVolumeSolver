@@ -23,13 +23,13 @@
 
 namespace fub {
 
-void SourceTermIntegrator::AdvanceTime(
+void SourceTermIntegrator::advanceTime(
     const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
     const BoundaryCondition& boundary_condition, double time_point,
     double time_step_size) const {
   forEachPatchLevel(*hierarchy, [&](const SAMRAI::hier::PatchLevel& level) {
     for (const std::shared_ptr<SAMRAI::hier::Patch>& patch : level) {
-      this->AdvanceTimeOnPatch(patch, time_point, time_step_size);
+      this->advanceTimeOnPatch(patch, time_point, time_step_size);
     }
   });
 }

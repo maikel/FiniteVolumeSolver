@@ -23,6 +23,8 @@
 
 namespace fub {
 
+/// \ingroup Solver
+/// \brief This is a type safe type to denote a dimensional split direction.
 enum class Direction : int {
   X, Y, Z
 };

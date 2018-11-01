@@ -134,7 +134,7 @@ ForwardEulerTimeIntegrator::ForwardEulerTimeIntegrator(
   std::shared_ptr<SAMRAI::hier::VariableContext> current =
       database.getContext("current");
   for (int v = 0; v < flux_variables_size; ++v) {
-    const int n_species = ideal_gas_->GetReactor().GetNSpecies();
+    const int n_species = ideal_gas_->getReactor().getNSpecies();
     const int depth = getDepth_(FluxVariable(v), dim_value, n_species);
     auto flux = getVariable_<SAMRAI::pdat::FaceVariable<double>>(
         dim, getPrefixedFluxName_(name, FluxVariable(v)), depth);

@@ -22,7 +22,7 @@
 
 namespace fub {
 
-void GodunovSplitting::AdvanceTime(
+void GodunovSplitting::advanceTime(
     const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
     double time_point, double time_step_size, AdvanceFunction advance1,
     AdvanceFunction advance2) const {

@@ -10,7 +10,7 @@
 
 namespace fub {
 namespace euler {
-
+/// \ingroup Euler
 struct Burke2012 : public FlameMasterMechanism {
   typedef enum SpeciesLabel {
     /* Computed species s.. */
@@ -111,14 +111,14 @@ struct Burke2012 : public FlameMasterMechanism {
 
   void ComputeThermoData(span<double> h, span<double> cp, double T) const;
 
-  int GetNSpecies() const override { return sEnd; }
+  int getNSpecies() const override { return sEnd; }
 
-  int GetNSpecs() const override { return 11; }
+  int getNSpecs() const override { return 11; }
 
-  int GetNReactions() const override { return rEnd; }
+  int getNReactions() const override { return rEnd; }
 
-  void GetMolarMass(span<double> W) const override {
-    FUB_ASSERT(W.size() == GetNSpecies());
+  void getMolarMass(span<double> W) const override {
+    FUB_ASSERT(W.size() == getNSpecies());
     W[sN2] = 2.80200000e+01;
     W[sAR] = 3.99480000e+01;
     W[sH] = 1.00800000e+00;
@@ -132,12 +132,12 @@ struct Burke2012 : public FlameMasterMechanism {
     W[sH2O2] = 3.40160000e+01;
   }
 
-  std::vector<std::string> GetSpeciesNames() const override {
+  std::vector<std::string> getSpeciesNames() const override {
     return std::vector<std::string>{"N2", "AR",  "H",  "O2",  "O",   "OH",
                                     "H2", "H2O", "HE", "HO2", "H2O2"};
   }
 
-  int GetNThirdBodyReactions() const override { return mEnd; }
+  int getNThirdBodyReactions() const override { return mEnd; }
 
   std::unique_ptr<FlameMasterMechanism> Clone() const override {
     return std::make_unique<Burke2012>();

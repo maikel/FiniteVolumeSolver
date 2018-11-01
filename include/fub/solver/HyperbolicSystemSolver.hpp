@@ -18,6 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+/// \defgroup Solver Solver
+/// Classes and methods related to numerical finite volume solvers.
+
 #ifndef FUB_SOLVER_HYPERBOLIC_SYSTEM_SOLVER_HPP
 #define FUB_SOLVER_HYPERBOLIC_SYSTEM_SOLVER_HPP
 
@@ -25,32 +28,67 @@
 #include "fub/solver/SplittingMethod.hpp"
 
 namespace fub {
-
+/// \ingroup Solver
+/// \brief This is a solver for hyperbolic systems which uses dimensional
+/// splitting.
 class HyperbolicSystemSolver {
 public:
+  /// \brief Constructs a solver object from an dimensional split integrator and
+  /// a splitting method.
   HyperbolicSystemSolver(const DimensionalSplitTimeIntegrator& integrator,
                          const SplittingMethod& splitting)
       : integrator_{&integrator}, splitting_method_{&splitting} {}
 
-  double ComputeStableDt(
+  /// \brief Estimates the next stable time size.
+  ///
+  /// \param[in] hierarchy  The patch hierarchy where to operate on.
+  /// \param[in] boundary_condition  The boundary condition needed to fill the
+  ///                                ghost cell layer of patches.
+  /// \param[in] time_point  The current time point of the simulation.
+  ///
+  /// \return A time step size value.
+  double computeStableDt(
       const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
       const BoundaryCondition& boundary_condition, double time_point) const;
 
+  /// \brief Advanves a patch hierarchy in time.
+  ///
+  /// This method applies the splitting method for each spatial diretion of the
+  /// hierarchy.
+  ///
+  /// \param[in,out] hierarchy  The patch hierarchy where to operate on.
+  /// \param[in] boundary_condition  The boundary condition needed to fill the
+  ///                                ghost cell layer of patches.
+  /// \param[in] time_point  The current time point of the simulation.
+  /// \param[in] time_step_size  The time step size which will be taken.
   void
-  AdvanceTime(const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
+  advanceTime(const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
               const BoundaryCondition& boundary_condition, double time_point,
               double time_step_size) const;
 
+  /// \brief Returns the underlying time integrator.
   const DimensionalSplitTimeIntegrator& TimeIntegrator() const noexcept {
     return *integrator_;
   }
 
+  /// \brief Returns the underlying splitting method.
   const struct SplittingMethod& SplittingMethod() const noexcept {
     return *splitting_method_;
   }
 
 private:
+  /// \brief This is an observing pointer to the underlying split time
+  /// integrator.
+  ///
+  /// \note The developer has to make sure that the integrator has to outlive
+  /// this object.
   const DimensionalSplitTimeIntegrator* integrator_;
+
+  /// \brief This is an observing pointer to the underlying split time
+  /// integrator.
+  ///
+  /// \note The developer has to make sure that the integrator has to outlive
+  /// this object.
   const struct SplittingMethod* splitting_method_;
 };
 

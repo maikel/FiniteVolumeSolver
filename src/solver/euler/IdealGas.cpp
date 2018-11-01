@@ -120,18 +120,18 @@ void registerAllVariables_(const std::string& prefix,
 IdealGas::IdealGas(const std::string& name, const SAMRAI::tbox::Dimension& dim)
     : name_{name}, dimension_{dim}, reactor_{std::make_unique<Burke2012>()} {
   registerAllVariables_(name_, patch_data_ids_, dimension_,
-                        reactor_.GetNSpecies());
+                        reactor_.getNSpecies());
 }
 
 IdealGas::IdealGas(std::string&& name, const SAMRAI::tbox::Dimension& dim)
     : name_{std::move(name)},
       dimension_{dim}, reactor_{std::make_unique<Burke2012>()} {
   registerAllVariables_(name_, patch_data_ids_, dimension_,
-                        reactor_.GetNSpecies());
+                        reactor_.getNSpecies());
 }
 
 namespace {
-void GetMassFractions(span<double> fractions,
+void getMassFractions(span<double> fractions,
                       const SAMRAI::pdat::CellData<double>& species,
                       const SAMRAI::pdat::CellIndex& index) {
   FUB_ASSERT(fractions.size() == species.getDepth() + 1);
@@ -155,42 +155,42 @@ void IdealGas::Reconstruct(const CompleteState& q, const ConsState& cons) {
   std::vector<double> fractions(q.species.getDepth() + 1);
   for (const SAMRAI::hier::Index& index : intersection) {
     SAMRAI::pdat::CellIndex cell(index);
-    GetMassFractions(fractions, q.species, cell);
+    getMassFractions(fractions, q.species, cell);
     const double rho = q.density(cell);
     const double rhou = q.momentum(cell);
     const double rhoE = q.energy(cell);
     // internal energy = total energy - kinetic energy
     const double e = rhoE - 0.5 * rhou * rhou / rho;
-    reactor_.SetMassFractions(fractions);
-    reactor_.SetDensity(rho);
-    reactor_.SetInternalEnergy(e);
-    q.temperature(cell) = reactor_.GetTemperature();
-    q.pressure(cell) = reactor_.GetPressure();
-    const double gamma = reactor_.GetCp() / reactor_.GetCv();
-    const double p = reactor_.GetPressure();
+    reactor_.setMassFractions(fractions);
+    reactor_.setDensity(rho);
+    reactor_.setInternalEnergy(e);
+    q.temperature(cell) = reactor_.getTemperature();
+    q.pressure(cell) = reactor_.getPressure();
+    const double gamma = reactor_.getCp() / reactor_.getCv();
+    const double p = reactor_.getPressure();
     q.speed_of_sound(cell) = std::sqrt(gamma * p / rho);
   }
 }
 
-void IdealGas::AdvanceSourceTerm(const CompleteState& q, double dt) {
+void IdealGas::advanceSourceTerm(const CompleteState& q, double dt) {
   const SAMRAI::hier::Box& box = q.density.getGhostBox();
   std::vector<double> fractions(q.species.getDepth() + 1);
   for (const SAMRAI::hier::Index& index : box) {
     SAMRAI::pdat::CellIndex cell(index);
-    GetMassFractions(fractions, q.species, cell);
-    reactor_.SetMassFractions(fractions);
-    reactor_.SetTemperature(q.temperature(cell));
-    reactor_.SetPressure(q.pressure(cell));
-    reactor_.Advance(dt);
+    getMassFractions(fractions, q.species, cell);
+    reactor_.setMassFractions(fractions);
+    reactor_.setTemperature(q.temperature(cell));
+    reactor_.setPressure(q.pressure(cell));
+    reactor_.advance(dt);
     const double u = q.momentum(cell) / q.density(cell);
-    const double rho = reactor_.GetDensity();
+    const double rho = reactor_.getDensity();
     q.density(cell) = rho;
-    q.temperature(cell) = reactor_.GetTemperature();
-    q.pressure(cell) = reactor_.GetPressure();
-    q.energy(cell) = reactor_.GetInternalEnergy() + 0.5 * rho * u * u;
-    q.momentum(cell) = reactor_.GetDensity() * u;
-    const double gamma = reactor_.GetCp() / reactor_.GetCv();
-    const double p = reactor_.GetPressure();
+    q.temperature(cell) = reactor_.getTemperature();
+    q.pressure(cell) = reactor_.getPressure();
+    q.energy(cell) = reactor_.getInternalEnergy() + 0.5 * rho * u * u;
+    q.momentum(cell) = reactor_.getDensity() * u;
+    const double gamma = reactor_.getCp() / reactor_.getCv();
+    const double p = reactor_.getPressure();
     q.speed_of_sound(cell) = std::sqrt(gamma * p / rho);
   }
 }

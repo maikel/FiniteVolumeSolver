@@ -28,6 +28,8 @@
 #include <sstream>
 
 namespace fub {
+namespace euler {
+
 namespace {
 void UpdateMassFractionsFromMoles(FlameMasterState& state) noexcept {
   for (int i = 0; i < state.nSpecies; i++) {
@@ -131,26 +133,26 @@ int OdeRhsSetP(span<double> dydp, span<const double> y, double p,
   // We integrate dH/dp = V <=> dT = 1/cp 1/rho dp from p0 to the desired value
   // of p
   // Reset to stored temperature
-  reactor.SetTemperature(y[0]);
+  reactor.setTemperature(y[0]);
 
   // Calculate derivative
-  reactor.SetPressure(p);
-  double cp_rho = reactor.GetDensity() * reactor.GetCp();
+  reactor.setPressure(p);
+  double cp_rho = reactor.getDensity() * reactor.getCp();
   dydp[0] = 1. / cp_rho;
 
   // Also integrate velocity du = -sqrt(1/(gamma p rho)) dp
-  dydp[1] = -std::sqrt(reactor.GetCv() / (cp_rho * p));
+  dydp[1] = -std::sqrt(reactor.getCv() / (cp_rho * p));
 
   return 0;
 }
 
-void SetEnergiesHOrU(FlameMasterReactor& reactor, double target, double dTtol,
+void setEnergiesHOrU(FlameMasterReactor& reactor, double target, double dTtol,
                      bool HOrU) {
   double dT;
 
-  double Tnew = reactor.GetTemperature();
-  double Unew = HOrU ? reactor.GetEnthalpy() : reactor.GetInternalEnergy();
-  double Cvnew = HOrU ? reactor.GetCp() : reactor.GetCv();
+  double Tnew = reactor.getTemperature();
+  double Unew = HOrU ? reactor.getEnthalpy() : reactor.getInternalEnergy();
+  double Cvnew = HOrU ? reactor.getCp() : reactor.getCv();
 
   double Utop = Unew;
   double Ubot = Unew;
@@ -195,10 +197,10 @@ void SetEnergiesHOrU(FlameMasterReactor& reactor, double target, double dTtol,
     // with cv > 0
     for (int its = 0; its < 10; its++) {
       Tnew = Told + dT;
-      reactor.SetTemperature(Tnew);
+      reactor.setTemperature(Tnew);
 
-      Unew = HOrU ? reactor.GetEnthalpy() : reactor.GetInternalEnergy();
-      Cvnew = HOrU ? reactor.GetCp() : reactor.GetCv();
+      Unew = HOrU ? reactor.getEnthalpy() : reactor.getInternalEnergy();
+      Cvnew = HOrU ? reactor.getCp() : reactor.getCv();
 
       if (Cvnew < 0) {
         Tunstable = Tnew;
@@ -232,7 +234,7 @@ void SetEnergiesHOrU(FlameMasterReactor& reactor, double target, double dTtol,
   errInfo << "Failed to converge to given " << (HOrU ? "enthalpy" : "energy")
           << ". Missed target " << target << "J/m^3 by "
           << (target -
-              (HOrU ? reactor.GetEnthalpy() : reactor.GetInternalEnergy()))
+              (HOrU ? reactor.getEnthalpy() : reactor.getInternalEnergy()))
           << "J/m^3 (relerr = " << UConvErr
           << "). Stopped Newton iteration with dT = " << dT << ".";
 
@@ -243,14 +245,14 @@ void SetEnergiesHOrU(FlameMasterReactor& reactor, double target, double dTtol,
 FlameMasterReactor::FlameMasterReactor(
     std::unique_ptr<FlameMasterMechanism> mechanism)
     : mechanism_{std::move(mechanism)}, state_{} {
-  state_.nSpecies = mechanism_->GetNSpecs();
-  state_.nSpeciesEffective = mechanism_->GetNSpecies();
+  state_.nSpecies = mechanism_->getNSpecs();
+  state_.nSpeciesEffective = mechanism_->getNSpecies();
   if (state_.nSpecies == 0) {
     state_.nSpecies = state_.nSpeciesEffective;
   }
-  state_.nReactions = mechanism_->GetNReactions();
-  state_.nThirdBodyReactions = mechanism_->GetNThirdBodyReactions();
-  state_.gasConstant = mechanism_->GetUniversalGasConstant();
+  state_.nReactions = mechanism_->getNReactions();
+  state_.nThirdBodyReactions = mechanism_->getNThirdBodyReactions();
+  state_.gasConstant = mechanism_->getUniversalGasConstant();
 
   // Allocate memory for the mass fractions and mole count
   // We store the temperature at the beginning of that vector such that we can
@@ -274,17 +276,17 @@ FlameMasterReactor::FlameMasterReactor(
   state_.entropies.resize(state_.nSpeciesEffective);
 
   // Load the names of the species
-  state_.speciesNames = mechanism_->GetSpeciesNames();
+  state_.speciesNames = mechanism_->getSpeciesNames();
 
-  // Get the molar masses of the species
+  // get the molar masses of the species
   state_.molarMasses.resize(state_.nSpeciesEffective);
-  mechanism_->GetMolarMass(state_.molarMasses);
+  mechanism_->getMolarMass(state_.molarMasses);
 
   // Initialize the state with something quite boring.
   state_.massFractions[0] = 1;
   UpdateMolesFromMassFractions(state_);
-  SetTemperature(300.);
-  SetPressure(101325.);
+  setTemperature(300.);
+  setPressure(101325.);
 
   UpdateThermoState(*mechanism_, state_);
   // mechanism_->ComputeProductionRates(state_.production_rates,          //
@@ -293,8 +295,8 @@ FlameMasterReactor::FlameMasterReactor(
   //                                    state_.rate_coefficients,         // k
   //                                    state_.moles,                     // c
   //                                    state_.third_body_concentrations, // M
-  //                                    GetTemperature(), // Temperature
-  //                                    GetPressure()     // Pressure
+  //                                    getTemperature(), // Temperature
+  //                                    getPressure()     // Pressure
   // );
 }
 
@@ -341,7 +343,7 @@ struct AdvanceFeedback {
   }
 };
 
-void FlameMasterReactor::Advance(double dt) {
+void FlameMasterReactor::advance(double dt) {
   if (dt == 0) {
     return;
   }
@@ -357,7 +359,7 @@ void FlameMasterReactor::Advance(double dt) {
   UpdateMassFractionsFromMoles(state_);
 }
 
-void FlameMasterReactor::Advance(
+void FlameMasterReactor::advance(
     double dt, function_ref<int(double, FlameMasterReactor*)> feedback) {
   if (dt == 0) {
     return;
@@ -382,7 +384,7 @@ struct AdvanceAndFindMaxdTData {
   double argmaxdT;
 };
 
-double FlameMasterReactor::AdvanceAndFindMaxdT(double dt) {
+double FlameMasterReactor::advanceAndFindMaxdT(double dt) {
   struct AdvanceAndFindMaxdT {
     AdvanceAndFindMaxdTData* data;
 
@@ -398,7 +400,7 @@ double FlameMasterReactor::AdvanceAndFindMaxdT(double dt) {
       return 0;
     }
   };
-  AdvanceAndFindMaxdTData data{0., GetTemperature(), -9000, -1};
+  AdvanceAndFindMaxdTData data{0., getTemperature(), -9000, -1};
 
   // Do the actual computation
   Radau::integrate_feedback(AdvanceSystem{mechanism_.get(), &state_},
@@ -413,26 +415,26 @@ double FlameMasterReactor::AdvanceAndFindMaxdT(double dt) {
 //
 // Thermodynamic properties
 //
-// Getters and setters
+// getters and setters
 //
 
-span<const double> FlameMasterReactor::GetCps() const {
+span<const double> FlameMasterReactor::getCps() const {
   return state_.heat_capacities_at_constant_pressure;
 }
 
-double FlameMasterReactor::GetEnthalpy() const {
+double FlameMasterReactor::getEnthalpy() const {
   return MeanY(state_.enthalpies);
 }
 
-double FlameMasterReactor::GetCp() const {
+double FlameMasterReactor::getCp() const {
   return MeanY(state_.heat_capacities_at_constant_pressure);
 }
 
-double FlameMasterReactor::GetCv() const {
-  return GetCp() - GetUniversalGasConstant() / GetMeanMolarMass();
+double FlameMasterReactor::getCv() const {
+  return getCp() - getUniversalGasConstant() / getMeanMolarMass();
 }
 
-double FlameMasterReactor::GetMeanMolarMass() const {
+double FlameMasterReactor::getMeanMolarMass() const {
   double minv = 0;
   for (int i = 0; i < state_.nSpecies; i++) {
     minv += state_.massFractions[i] / state_.molarMasses[i];
@@ -440,7 +442,7 @@ double FlameMasterReactor::GetMeanMolarMass() const {
   return 1 / minv;
 }
 
-double FlameMasterReactor::GetEntropy() const {
+double FlameMasterReactor::getEntropy() const {
   span<const double> s = state_.entropies;
   if (s[0] == 0) {
     throw FlameMasterReactorException(
@@ -453,10 +455,10 @@ double FlameMasterReactor::GetEntropy() const {
   //  c_p dT = T dS + RT/p dP
   // Also, there is entropy of mixing.
 
-  const double meanM = GetMeanMolarMass();
-  const double R = GetUniversalGasConstant();
+  const double meanM = getMeanMolarMass();
+  const double R = getUniversalGasConstant();
   // Initialize entropy with the pressure part
-  double entropy = MeanY(s) - R * std::log(GetPressure() / 101325.) / meanM;
+  double entropy = MeanY(s) - R * std::log(getPressure() / 101325.) / meanM;
 
   // Sum up the species' entropies and entropy of mixing
   double inv = 0;
@@ -468,26 +470,26 @@ double FlameMasterReactor::GetEntropy() const {
     moleSum += state_.moles[i];
   }
   inv = inv / moleSum - std::log(moleSum);
-  entropy -= GetUniversalGasConstant() * inv / meanM;
+  entropy -= getUniversalGasConstant() * inv / meanM;
   return entropy;
 }
 
-void FlameMasterReactor::SetEnthalpy(double enthalpy, double dTtol) {
-  SetEnergiesHOrU(*this, enthalpy, dTtol, true);
+void FlameMasterReactor::setEnthalpy(double enthalpy, double dTtol) {
+  setEnergiesHOrU(*this, enthalpy, dTtol, true);
 }
 
-double FlameMasterReactor::GetInternalEnergy() const {
-  double intEnergy = GetEnthalpy();
+double FlameMasterReactor::getInternalEnergy() const {
+  double intEnergy = getEnthalpy();
   double minv = 0;
   for (int i = 0; i < state_.nSpecies; i++) {
     minv += state_.massFractions[i] / state_.molarMasses[i];
   }
-  intEnergy -= GetUniversalGasConstant() * minv * GetTemperature();
+  intEnergy -= getUniversalGasConstant() * minv * getTemperature();
   return intEnergy;
 }
 
-void FlameMasterReactor::SetInternalEnergy(double energy, double dTtol) {
-  SetEnergiesHOrU(*this, energy, dTtol, false);
+void FlameMasterReactor::setInternalEnergy(double energy, double dTtol) {
+  setEnergiesHOrU(*this, energy, dTtol, false);
 }
 
 //
@@ -495,7 +497,7 @@ void FlameMasterReactor::SetInternalEnergy(double energy, double dTtol) {
 //
 
 double FlameMasterReactor::MeanX(span<const double> quantity) const {
-  double meanWeight = GetMeanMolarMass();
+  double meanWeight = getMeanMolarMass();
   double retval = 0;
   for (int i = 0; i < state_.nSpecies; i++) {
     retval += quantity[i] * state_.massFractions[i] * meanWeight /
@@ -512,7 +514,7 @@ double FlameMasterReactor::MeanY(span<const double> quantity) const {
   return retval;
 }
 
-void FlameMasterReactor::SetMassFractions(std::string newMassFractions) {
+void FlameMasterReactor::setMassFractions(std::string newMassFractions) {
   std::fill(state_.massFractions.begin(), state_.massFractions.end(), 0.0);
   std::istringstream inputParser(newMassFractions);
 
@@ -539,7 +541,7 @@ void FlameMasterReactor::SetMassFractions(std::string newMassFractions) {
 
     bool found = false;
     for (int i = 0; i < state_.nSpecies; i++) {
-      if (speciesName == GetSpeciesName(i)) {
+      if (speciesName == getSpeciesName(i)) {
         state_.massFractions[i] = speciesValue;
         speciesSum += speciesValue;
         found = true;
@@ -561,7 +563,7 @@ void FlameMasterReactor::SetMassFractions(std::string newMassFractions) {
   UpdateMolesFromMassFractions(state_);
 }
 
-void FlameMasterReactor::SetMassFractions(span<const double> fractions) {
+void FlameMasterReactor::setMassFractions(span<const double> fractions) {
   std::copy(fractions.begin(), fractions.end(), state_.massFractions.begin());
   const double sum = std::accumulate(fractions.begin(), fractions.end(), 0.0);
   if (sum != 0) {
@@ -572,13 +574,13 @@ void FlameMasterReactor::SetMassFractions(span<const double> fractions) {
   UpdateMolesFromMassFractions(state_);
 }
 
-void FlameMasterReactor::SetTemperature(double temp) {
+void FlameMasterReactor::setTemperature(double temp) {
   *state_.temperature = temp;
   UpdateThermoState(*mechanism_, state_, temp);
 }
 
-void FlameMasterReactor::SetMoleFractions(span<const double> newMoleFractions) {
-  SetMassFractions(newMoleFractions);
+void FlameMasterReactor::setMoleFractions(span<const double> newMoleFractions) {
+  setMassFractions(newMoleFractions);
   double totalMoles = 0.0;
   for (int i = 0; i < state_.nSpecies; i++) {
     totalMoles += state_.massFractions[i] * state_.molarMasses[i];
@@ -589,8 +591,8 @@ void FlameMasterReactor::SetMoleFractions(span<const double> newMoleFractions) {
   UpdateMolesFromMassFractions(state_);
 }
 
-void FlameMasterReactor::SetMoleFractions(std::string newMoleFractions) {
-  SetMassFractions(newMoleFractions);
+void FlameMasterReactor::setMoleFractions(std::string newMoleFractions) {
+  setMassFractions(newMoleFractions);
   double totalMoles = 0.0;
   for (int i = 0; i < state_.nSpecies; i++) {
     totalMoles += state_.massFractions[i] * state_.molarMasses[i];
@@ -601,11 +603,11 @@ void FlameMasterReactor::SetMoleFractions(std::string newMoleFractions) {
   UpdateMolesFromMassFractions(state_);
 }
 
-span<const double> FlameMasterReactor::GetReactionRates() const {
+span<const double> FlameMasterReactor::getReactionRates() const {
   return state_.reaction_rates;
 }
 
-span<const double> FlameMasterReactor::GetProductionRates() {
+span<const double> FlameMasterReactor::getProductionRates() {
   // We need to work in a local variable rather than in XD, because
   // the QSS code might alter XD beyond its size (nSpecies), assuming it
   // had space for nSpeciesEffective
@@ -616,8 +618,8 @@ span<const double> FlameMasterReactor::GetProductionRates() {
                                      state_.rate_coefficients,         // k
                                      state_.moles,                     // c
                                      state_.third_body_concentrations, // M
-                                     GetTemperature(), // Temperature
-                                     GetPressure()     // Pressure
+                                     getTemperature(), // Temperature
+                                     getPressure()     // Pressure
   );
 
   return state_.production_rates;
@@ -630,24 +632,25 @@ struct SetIsentropicPSystem {
   }
 };
 
-double FlameMasterReactor::SetPressureIsentropic(double pressure) {
+double FlameMasterReactor::setPressureIsentropic(double pressure) {
   // Do nothing if the pressures match
-  if (std::abs(pressure - GetPressure()) < 1e-5) {
+  if (std::abs(pressure - getPressure()) < 1e-5) {
     return 0;
   }
 
-  state_.setPVector[0] = GetTemperature();
+  state_.setPVector[0] = getTemperature();
   state_.setPVector[1] = 0;
 
   // Do the actual computation
   Radau::integrate(SetIsentropicPSystem{this}, make_span(state_.setPVector),
-                   GetPressure(), pressure - GetPressure());
+                   getPressure(), pressure - getPressure());
 
   // Set the state of the reactor to the values from the result vector
-  SetTemperature(state_.setPVector[0]);
-  SetPressure(pressure);
+  setTemperature(state_.setPVector[0]);
+  setPressure(pressure);
 
   return state_.setPVector[1];
 }
 
+} // namespace euler
 } // namespace fub

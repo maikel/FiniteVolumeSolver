@@ -37,7 +37,7 @@
 
 namespace fub {
 namespace euler {
-
+/// \ingroup Euler
 class ForwardEulerTimeIntegrator : public fub::DimensionalSplitTimeIntegrator {
 public:
   using Variable = IdealGas::Variable;

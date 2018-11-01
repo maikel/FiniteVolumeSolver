@@ -26,7 +26,7 @@
 
 namespace fub {
 namespace euler {
-
+/// \ingroup Euler
 /// This class is a first order flux method for the IdealGas problem which uses
 /// the approximative HLL riemann problem solver with Einfeldts signals
 /// velocivties.
@@ -36,6 +36,8 @@ struct HlleRiemannSolver
   using FluxState = IdealGas::FluxState;
   using CompleteState = IdealGas::CompleteState;
 
+  /// \copydoc fub::DimensionalSplitFluxMethod::computeStableDtOnPatch
+  ///
   /// Return a stable time step size for a forward euler time integration. If
   /// you use this method as part of a more complicated scheme you might want to
   /// scale this down with some lower CFL condition.
@@ -43,14 +45,16 @@ struct HlleRiemannSolver
   computeStableDtOnPatch(const CompleteState& state,
                          const SAMRAI::hier::Patch& patch) const override;
 
+  /// \copydoc fub::DimensionalSplitFluxMethod::computeFluxesOnPatch
+  ///
   /// This class method writes the flux quantities into fluxes.
   /// The algorithm uses the Einfeldt signal velocities without and the HLL
   /// method without any further correction term for discontiuity wave.
-  void computeFluxesOnPatch(const FluxState& flux, const CompleteState& state,
+  void computeFluxesOnPatch(const FluxState& fluxes, const CompleteState& state,
                             const SAMRAI::hier::Patch& patch, double dt,
                             Direction dir) const override;
 
-  /// Returns one in each direction.
+  /// \copydoc fub::DimensionalSplitFluxMethod::getStencilWidth
   SAMRAI::hier::IntVector
   getStencilWidth(const SAMRAI::tbox::Dimension& dim) const override;
 };

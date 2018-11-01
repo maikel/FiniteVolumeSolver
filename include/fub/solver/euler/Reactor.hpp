@@ -32,6 +32,7 @@
 #include <vector>
 
 namespace fub {
+namespace euler {
 
 /// This class encapsulates all exceptions which can occur in the
 /// FlameMasterReactor class
@@ -44,6 +45,7 @@ public:
       : std::runtime_error(std::move(message)) {}
 };
 
+/// \ingroup Euler
 /// This abstract base class encapsulates the underlying chemistry for the
 /// FlameMasterReactor.
 struct FlameMasterMechanism {
@@ -60,19 +62,19 @@ struct FlameMasterMechanism {
   virtual void ComputeThermoData(span<double> h, span<double> cp, double t,
                                  span<double> s) const = 0;
 
-  virtual int GetNSpecies() const = 0;
+  virtual int getNSpecies() const = 0;
 
-  virtual int GetNReactions() const = 0;
+  virtual int getNReactions() const = 0;
 
-  virtual int GetNThirdBodyReactions() const = 0;
+  virtual int getNThirdBodyReactions() const = 0;
 
-  virtual std::vector<std::string> GetSpeciesNames() const = 0;
+  virtual std::vector<std::string> getSpeciesNames() const = 0;
 
-  virtual void GetMolarMass(span<double>) const = 0;
+  virtual void getMolarMass(span<double>) const = 0;
 
-  virtual double GetUniversalGasConstant() const { return 8314.462175; }
+  virtual double getUniversalGasConstant() const { return 8314.462175; }
 
-  virtual int GetNSpecs() const { return GetNSpecies(); }
+  virtual int getNSpecs() const { return getNSpecies(); }
 };
 
 struct FlameMasterState {
@@ -127,6 +129,7 @@ struct FlameMasterState {
   double thermoTemp;
 };
 
+/// \ingroup Euler
 /// \brief A class mimicking the IdealGasMix / Reactor / ReactorNet interface of
 /// Cantera, but with FlameMaster chemistry.
 class FlameMasterReactor {
@@ -139,7 +142,7 @@ public:
 
   /// \brief Advance the reactor in time by dt and call a function for each
   /// internal timestep
-  void Advance(double dt,
+  void advance(double dt,
                function_ref<int(double, FlameMasterReactor*)> feedbackFun);
 
   /// \brief Advance the reactor in time by dt.
@@ -148,7 +151,7 @@ public:
   ///
   /// \throw FlameMasterReactorException  This exception may be thrown if the
   /// ode solver could not converge to a solution.
-  void Advance(double dt);
+  void advance(double dt);
 
   /// \brief Advance the reactor by one internal time step and return the time
   /// step size
@@ -156,11 +159,11 @@ public:
 
   /// \brief Advance the reactor in time by dt and return the time where
   /// \f$dT/dt\f$ peaked.
-  double AdvanceAndFindMaxdT(double dt);
+  double advanceAndFindMaxdT(double dt);
 
   /// Set tolerances for the integration. Defaults are 1e-9 for reltol and
   /// 1e-15 for abstol.
-  // void SetTolerances(double reltol, double abstol);
+  // void setTolerances(double reltol, double abstol);
 
   ///@name Thermodynamic properties
   ///@{
@@ -171,9 +174,9 @@ public:
   /// temperature, the mass fractions and density.
   ///
   /// The unit for pressure is Pascal.
-  double GetPressure() const {
-    return GetDensity() * GetUniversalGasConstant() / GetMeanMolarMass() *
-           GetTemperature();
+  double getPressure() const {
+    return getDensity() * getUniversalGasConstant() / getMeanMolarMass() *
+           getTemperature();
   }
 
   /**
@@ -184,9 +187,9 @@ public:
    *
    * The unit for pressure is Pascal.
    */
-  void SetPressure(double pressure) {
-    SetDensity(pressure * GetMeanMolarMass() / GetTemperature() /
-               GetUniversalGasConstant());
+  void setPressure(double pressure) {
+    setDensity(pressure * getMeanMolarMass() / getTemperature() /
+               getUniversalGasConstant());
   }
 
   /**
@@ -203,53 +206,53 @@ public:
    * allows to use the function to calculate the state behind such a
    * wave.
    */
-  double SetPressureIsentropic(double pressure);
+  double setPressureIsentropic(double pressure);
 
   /// Returns the density of the current mixture
   ///
   /// The units are \f$kg/m^3\f$
-  double GetDensity() const { return state_.density; }
+  double getDensity() const { return state_.density; }
 
   /**
    * Sets the density of the current mixture
    *
    * The units are \f$kg/m^3\f$
    */
-  void SetDensity(double density) { state_.density = density; }
+  void setDensity(double density) { state_.density = density; }
 
   /**
    * Returns the temperature of the current mixture
    *
    * In Kelvin
    */
-  double GetTemperature() const { return *(state_.temperature); }
+  double getTemperature() const { return *(state_.temperature); }
 
   /**
    * Set the temperature of the current mixture
    *
    * In Kelvin
    */
-  void SetTemperature(double temperature);
+  void setTemperature(double temperature);
 
   /**
    * Return the specific heat capacity cv
    */
-  double GetCv() const;
+  double getCv() const;
 
   /**
    * Return the specific heat capacity cp
    */
-  double GetCp() const;
+  double getCp() const;
 
   /**
    * Return the specific heat capacities cp for all species
    */
-  span<const double> GetCps() const;
+  span<const double> getCps() const;
 
   /**
    * Return the specific entropy
    */
-  double GetEntropy() const;
+  double getEntropy() const;
 
   ///@}
 
@@ -259,14 +262,14 @@ public:
   /**
    * Return the name of the ith species
    */
-  const std::string& GetSpeciesName(int i) const {
+  const std::string& getSpeciesName(int i) const {
     return state_.speciesNames[i];
   }
 
   /**
    * Return the number of species in the mechanism
    */
-  int GetNSpecies() const { return state_.nSpecies; }
+  int getNSpecies() const { return state_.nSpecies; }
 
   /**
    * Average a quantity over the mole fractions
@@ -287,8 +290,8 @@ public:
    *   species: fraction, species: fraction, ..
    *
    */
-  void SetMassFractions(span<const double> newMassFractions);
-  void SetMassFractions(std::string massFractions);
+  void setMassFractions(span<const double> newMassFractions);
+  void setMassFractions(std::string massFractions);
   ///@}
 
   ///@{
@@ -299,47 +302,47 @@ public:
    * a string of the form
    *   species: fraction, species: fraction, ..
    */
-  void SetMoleFractions(span<const double> newMoleFractions);
-  void SetMoleFractions(std::string newMoleFractions);
+  void setMoleFractions(span<const double> newMoleFractions);
+  void setMoleFractions(std::string newMoleFractions);
   ///@}
 
   /**
    * Return the mass fractions of the species as a double* array
    */
-  span<const double> GetMassFractions() const { return state_.massFractions; }
+  span<const double> getMassFractions() const { return state_.massFractions; }
 
   /**
-   * Get the molar mass of a single species
+   * get the molar mass of a single species
    *
    * Units are \f$kg/kmol\f$
    */
-  const double GetSpeciesMolarMass(size_t i) const {
+  const double getSpeciesMolarMass(size_t i) const {
     return state_.molarMasses[i];
   }
 
   /**
-   * Get the molar masses for all species
+   * get the molar masses for all species
    */
-  span<const double> GetMolarMasses() const { return state_.moles; }
+  span<const double> getMolarMasses() const { return state_.moles; }
 
   /**
-   * Get the overall molar mass
+   * get the overall molar mass
    *
    * Units are \f$kg/kmol\f$
    */
-  double GetMeanMolarMass() const;
+  double getMeanMolarMass() const;
 
   /**
-   * Get the species' enthalpies
+   * get the species' enthalpies
    */
-  span<const double> GetEnthalpies();
+  span<const double> getEnthalpies();
 
   /**
    * Return the mix'es specific enthalpy
    *
    * The unit is \f$J/kg\f$
    */
-  double GetEnthalpy() const;
+  double getEnthalpy() const;
 
   /**
    * Set the mix'es specific enthalpy
@@ -348,7 +351,7 @@ public:
    * mixtures temperature such that the enthalpy is correct. It does so by
    * using the same Newton algorithm which is also used by Cantera.
    */
-  void SetEnthalpy(double enthalpy, double dTtol);
+  void setEnthalpy(double enthalpy, double dTtol);
   ///@}
 
   /**
@@ -356,7 +359,7 @@ public:
    *
    * The unit is \f$J/kg\f$
    */
-  double GetInternalEnergy() const;
+  double getInternalEnergy() const;
 
   /**
    * Set the mix'es specific internal energy
@@ -365,26 +368,27 @@ public:
    * mixtures temperature such that the energy is correct. It does so by
    * using the same Newton algorithm which is also used by Cantera.
    */
-  void SetInternalEnergy(double energy, double dTtol = 1E-6);
+  void setInternalEnergy(double energy, double dTtol = 1E-6);
   ///@}
 
-  /// \brief Get the current reaction rates d/dt m, where m denotes the actual
+  /// \brief get the current reaction rates d/dt m, where m denotes the actual
   /// mole counts: Y = m * molarMasses / density
-  span<const double> GetReactionRates() const;
+  span<const double> getReactionRates() const;
 
-  span<const double> GetProductionRates();
+  span<const double> getProductionRates();
 
   /// \brief Retrieve the universal gas constant.
   ///
   /// Note that some mechanisms *can* override this, to use  normalized
   /// quantities!
-  double GetUniversalGasConstant() const { return state_.gasConstant; }
+  double getUniversalGasConstant() const { return state_.gasConstant; }
 
 private:
   std::unique_ptr<FlameMasterMechanism> mechanism_;
   FlameMasterState state_;
 };
 
+} // namespace euler
 } // namespace fub
 
 #endif

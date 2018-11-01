@@ -28,17 +28,17 @@
 #include <memory>
 
 namespace fub {
-
+/// \ingroup Abstract
 class SourceTermIntegrator {
 public:
   void
-  AdvanceTime(const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
+  advanceTime(const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
               const BoundaryCondition& boundary_condition,
               double time_point, double time_step_size) const;
 
 private:
   virtual void
-  AdvanceTimeOnPatch(const std::shared_ptr<SAMRAI::hier::Patch>& patch,
+  advanceTimeOnPatch(const std::shared_ptr<SAMRAI::hier::Patch>& patch,
                      double time_point, double time_step_size) const = 0;
 };
 

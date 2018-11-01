@@ -18,6 +18,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+/// \defgroup Euler Euler Equations
+/// This module defines classes and methods to be used to concrete solver
+/// implementations wrt the euler equations.
+
 #ifndef FUB_EULER_IDEAL_GAS_HPP
 #define FUB_EULER_IDEAL_GAS_HPP
 
@@ -60,6 +64,7 @@ struct ConservativeIdealGasState {
   SpeciesT species;
 };
 
+/// \ingroup Euler
 class IdealGas {
 public:
   template <typename T, typename V = span<T>, typename S = span<T>>
@@ -102,8 +107,8 @@ public:
   /// \brief Returns a Reactor object which is used to make thermodynamic
   /// computations.
   /// @{
-  const FlameMasterReactor& GetReactor() const noexcept { return reactor_; }
-  FlameMasterReactor& GetReactor() noexcept { return reactor_; }
+  const FlameMasterReactor& getReactor() const noexcept { return reactor_; }
+  FlameMasterReactor& getReactor() noexcept { return reactor_; }
   /// @}
 
   /// \brief Computes a complete state from a given conservative state.
@@ -114,7 +119,7 @@ public:
   /// \brief Computes a complete state from a given conservative state.
   ///
   /// \note This mutates the internal reactor state.
-  void AdvanceSourceTerm(const CompleteState& complete, double time_step_size);
+  void advanceSourceTerm(const CompleteState& complete, double time_step_size);
 
   /////////////////////////////////////////////////////////////////////////////
   //                  SAMRAI related member functions

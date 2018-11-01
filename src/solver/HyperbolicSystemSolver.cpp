@@ -22,7 +22,7 @@
 
 namespace fub {
 
-double HyperbolicSystemSolver::ComputeStableDt(
+double HyperbolicSystemSolver::computeStableDt(
     const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
     const BoundaryCondition& boundary_condition, double time_point) const {
   integrator_->fillGhostLayer(hierarchy, boundary_condition, time_point,
@@ -31,7 +31,7 @@ double HyperbolicSystemSolver::ComputeStableDt(
   return dt / hierarchy->getDim().getValue();
 }
 
-void HyperbolicSystemSolver::AdvanceTime(
+void HyperbolicSystemSolver::advanceTime(
     const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
     const BoundaryCondition& boundary_condition, double time_point,
     double time_step_size) const {
@@ -42,7 +42,7 @@ void HyperbolicSystemSolver::AdvanceTime(
     integrator_->advanceTime(hierarchy, time_point, time_step_size,
                              Direction::X);
   } else if (dim == 2) {
-    splitting_method_->AdvanceTime(
+    splitting_method_->advanceTime(
         hierarchy, time_point, time_step_size,
         [&](const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
             double time_point, double time_step_size) {
@@ -59,7 +59,7 @@ void HyperbolicSystemSolver::AdvanceTime(
                                    Direction::Y);
         });
   } else if (dim == 3) {
-    splitting_method_->AdvanceTime(
+    splitting_method_->advanceTime(
         hierarchy, time_point, time_step_size,
         [&](const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
             double time_point, double time_step_size) {

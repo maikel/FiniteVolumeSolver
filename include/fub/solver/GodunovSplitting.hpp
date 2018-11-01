@@ -26,15 +26,26 @@
 
 namespace fub {
 
+/// \ingroup Solver
+/// \brief This class implements a first order splitting method.
 struct GodunovSplitting : public SplittingMethod {
 public:
   using AdvanceFunction = SplittingMethod::AdvanceFunction;
 
+  /// \brief Invokes two operators in sequence.
+  ///
+  /// \param[in, out] hierarchy  This is the hierarchy where operators are 
+  ///                            acting on.
+  /// \param[in] time_point  The current time point of the simulation.
+  /// \param[in] time_step_size  The time by which the hierarchy shall be 
+  ///                            advanced.
+  /// \param[in] operator1  The first operator in the splitting.
+  /// \param[in] operator2  The second operator in the spligging.
   void
-  AdvanceTime(const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
+  advanceTime(const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
               double time_point, double time_step_size,
-              AdvanceFunction advance1,
-              AdvanceFunction advance2) const override;
+              AdvanceFunction operator1,
+              AdvanceFunction operator2) const override;
 };
 
 } // namespace fub

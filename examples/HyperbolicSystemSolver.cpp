@@ -35,29 +35,29 @@ struct CircleData : fub::InitialCondition {
     double a;
   };
 
-  std::array<State, 2> getStates(fub::FlameMasterReactor& reactor) const {
-    std::vector<double> Y(reactor.GetNSpecies());
+  std::array<State, 2> getStates(fub::euler::FlameMasterReactor& reactor) const {
+    std::vector<double> Y(reactor.getNSpecies());
     Y[0] = 1.0;
-    reactor.SetMassFractions(Y);
-    reactor.SetTemperature(2000.);
-    reactor.SetPressure(8 * 101325.0);
-    double gamma = reactor.GetCp() / reactor.GetCv();
+    reactor.setMassFractions(Y);
+    reactor.setTemperature(2000.);
+    reactor.setPressure(8 * 101325.0);
+    double gamma = reactor.getCp() / reactor.getCv();
 
     State inner;
-    inner.rho = reactor.GetDensity();
-    inner.p = reactor.GetPressure();
-    inner.E = reactor.GetInternalEnergy();
+    inner.rho = reactor.getDensity();
+    inner.p = reactor.getPressure();
+    inner.E = reactor.getInternalEnergy();
     inner.a = std::sqrt(gamma * inner.p / inner.rho);
 
-    reactor.SetMassFractions(Y);
-    reactor.SetTemperature(300.);
-    reactor.SetPressure(1 * 101325.0);
-    gamma = reactor.GetCp() / reactor.GetCv();
+    reactor.setMassFractions(Y);
+    reactor.setTemperature(300.);
+    reactor.setPressure(1 * 101325.0);
+    gamma = reactor.getCp() / reactor.getCv();
 
     State outer;
-    outer.rho = reactor.GetDensity();
-    outer.p = reactor.GetPressure();
-    outer.E = reactor.GetInternalEnergy();
+    outer.rho = reactor.getDensity();
+    outer.p = reactor.getPressure();
+    outer.E = reactor.getInternalEnergy();
     outer.a = std::sqrt(gamma * outer.p / outer.rho);
 
     return {inner, outer};
@@ -82,7 +82,7 @@ struct CircleData : fub::InitialCondition {
     const auto& geom = *fub::getCartesianPatchGeometry(patch);
     const SAMRAI::hier::Box& box = patch.getBox();
     const double sqrt_ = std::sqrt(1.4 * 8.0);
-    fub::FlameMasterReactor reactor = integrator->ideal_gas()->GetReactor();
+    fub::euler::FlameMasterReactor reactor = integrator->ideal_gas()->getReactor();
 #ifdef __cpp_structured_bindings
     const auto [inner, outer] = getStates(reactor);
 #else
@@ -147,18 +147,18 @@ struct ConstantBoundary : public fub::BoundaryCondition {
     SAMRAI::pdat::CellData<double>& temperature = state.temperature;
     SAMRAI::pdat::CellData<double>& speed_of_sound = state.speed_of_sound;
 
-    fub::FlameMasterReactor reactor = integrator->ideal_gas()->GetReactor();
-    std::vector<double> Y(reactor.GetNSpecies());
+    fub::euler::FlameMasterReactor reactor = integrator->ideal_gas()->getReactor();
+    std::vector<double> Y(reactor.getNSpecies());
     Y[0] = 1.0;
-    reactor.SetMassFractions(Y);
-    reactor.SetTemperature(300.);
-    reactor.SetPressure(101325.0);
-    const double gamma = reactor.GetCp() / reactor.GetCv();
+    reactor.setMassFractions(Y);
+    reactor.setTemperature(300.);
+    reactor.setPressure(101325.0);
+    const double gamma = reactor.getCp() / reactor.getCv();
 
     State outer;
-    outer.rho = reactor.GetDensity();
-    outer.p = reactor.GetPressure();
-    outer.E = reactor.GetInternalEnergy();
+    outer.rho = reactor.getDensity();
+    outer.p = reactor.getPressure();
+    outer.E = reactor.getInternalEnergy();
     outer.a = std::sqrt(gamma * outer.p / outer.rho);
     for (const SAMRAI::hier::BoundaryBox& face : faces) {
       SAMRAI::hier::Box box = patch_geom.getBoundaryFillBox(
@@ -229,9 +229,9 @@ int main(int argc, char** argv) {
     auto start = std::chrono::steady_clock::now();
 
     // Estimate time step size
-    const double dt = solver.ComputeStableDt(hierarchy, boundary_cond, t);
+    const double dt = solver.computeStableDt(hierarchy, boundary_cond, t);
     // Do one time step in X (use ghost cells from previous work)
-    solver.AdvanceTime(hierarchy, boundary_cond, t, dt);
+    solver.advanceTime(hierarchy, boundary_cond, t, dt);
 
     auto end = std::chrono::steady_clock::now();
     std::chrono::duration<double> duration = end - start;

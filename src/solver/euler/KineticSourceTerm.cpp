@@ -23,7 +23,7 @@
 namespace fub {
 namespace euler {
 namespace {
-IdealGas::CompleteState GetCompleteState_(const IdealGas& ideal_gas,
+IdealGas::CompleteState getCompleteState_(const IdealGas& ideal_gas,
                                           const SAMRAI::hier::Patch& patch) {
   using Variable = IdealGas::Variable;
   // clang-format off
@@ -40,11 +40,11 @@ IdealGas::CompleteState GetCompleteState_(const IdealGas& ideal_gas,
 }
 } // namespace
 
-void KineticSourceTerm::AdvanceTimeOnPatch(
+void KineticSourceTerm::advanceTimeOnPatch(
     const std::shared_ptr<SAMRAI::hier::Patch>& patch, double /* time_point */,
     double time_step_size) const {
-  IdealGas::CompleteState complete = GetCompleteState_(*ideal_gas_, *patch);
-  ideal_gas_->AdvanceSourceTerm(complete, time_step_size);
+  IdealGas::CompleteState complete = getCompleteState_(*ideal_gas_, *patch);
+  ideal_gas_->advanceSourceTerm(complete, time_step_size);
 }
 
 } // namespace euler
