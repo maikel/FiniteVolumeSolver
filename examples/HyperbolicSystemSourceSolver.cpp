@@ -2,14 +2,21 @@
 
 #include "fub/SAMRAI/ScopeGuard.hpp"
 #include "fub/SAMRAI/utility.hpp"
+#include "fub/geometry/Halfspace.hpp"
+#include "fub/geometry/PolymorphicGeometry.hpp"
+#include "fub/ideal_gas/ForwardEulerTimeIntegrator.hpp"
+#include "fub/ideal_gas/KineticSourceTerm.hpp"
+#include "fub/ideal_gas/PerfectGasEquation.hpp"
+#include "fub/ideal_gas/TChemKinetics.hpp"
+#include "fub/ideal_gas/boundary_condition/ReflectiveCondition.hpp"
+#include "fub/initial_data/RiemannProblem.hpp"
+#include "fub/output/GnuplotWriter.hpp"
 #include "fub/solver/BoundaryCondition.hpp"
+#include "fub/solver/DimensionalSplitSystemSolver.hpp"
 #include "fub/solver/GodunovSplitting.hpp"
-#include "fub/solver/HyperbolicSystemSolver.hpp"
 #include "fub/solver/HyperbolicSystemSourceSolver.hpp"
 #include "fub/solver/InitialCondition.hpp"
 #include "fub/solver/SourceTermIntegrator.hpp"
-#include "fub/solver/euler/ForwardEulerTimeIntegrator.hpp"
-#include "fub/solver/euler/KineticSourceTerm.hpp"
 
 #include "SAMRAI/appu/VisItDataWriter.h"
 #include "SAMRAI/geom/CartesianGridGeometry.h"
@@ -25,230 +32,149 @@
 #include <chrono>
 #include <cstdio>
 
-struct CircleData : fub::InitialCondition {
-  const fub::euler::ForwardEulerTimeIntegrator* integrator;
-
-  explicit CircleData(const fub::euler::ForwardEulerTimeIntegrator& i)
-      : integrator{&i} {}
-
-  struct State {
-    double rho;
-    double p;
-    double E;
-    double a;
-  };
-
-  std::array<State, 2>
-  getStates(fub::euler::FlameMasterReactor& reactor) const {
-    std::vector<double> Y(reactor.getNSpecies());
-    Y[0] = 1.0;
-    reactor.setMassFractions(Y);
-    reactor.setTemperature(2000.);
-    reactor.setPressure(8 * 101325.0);
-    double gamma = reactor.getCp() / reactor.getCv();
-
-    State inner;
-    inner.rho = reactor.getDensity();
-    inner.p = reactor.getPressure();
-    inner.E = reactor.getInternalEnergy();
-    inner.a = std::sqrt(gamma * inner.p / inner.rho);
-
-    reactor.setMassFractions(Y);
-    reactor.setTemperature(300.);
-    reactor.setPressure(1 * 101325.0);
-    gamma = reactor.getCp() / reactor.getCv();
-
-    State outer;
-    outer.rho = reactor.getDensity();
-    outer.p = reactor.getPressure();
-    outer.E = reactor.getInternalEnergy();
-    outer.a = std::sqrt(gamma * outer.p / outer.rho);
-
-    return {inner, outer};
-  }
-
-  static double Dot_(const fub::Coordinates& x, const fub::Coordinates& y) {
-    const int size = x.size();
-    double total = 0.0;
-    for (int i = 0; i < size; ++i) {
-      total += x[i] * y[i];
-    }
-    return total;
-  }
-
-  void initializeDataOnPatch(const SAMRAI::hier::Patch& patch) const override {
-    auto state = integrator->getCompleteState(patch);
-    double* density = state.density.getPointer();
-    double* momentum = state.momentum.getPointer();
-    double* energy = state.energy.getPointer();
-    double* pressure = state.pressure.getPointer();
-    double* speed_of_sound = state.speed_of_sound.getPointer();
-    const auto& geom = *fub::getCartesianPatchGeometry(patch);
-    const SAMRAI::hier::Box& box = patch.getBox();
-    const double sqrt_ = std::sqrt(1.4 * 8.0);
-    fub::euler::FlameMasterReactor reactor =
-        integrator->ideal_gas()->getReactor();
-#ifdef __cpp_structured_bindings
-    const auto [inner, outer] = getStates(reactor);
-#else
-    const std::array<State, 2> states = getStates(reactor);
-    const State& inner = states[0];
-    const State& outer = states[1];
-#endif
-    for (SAMRAI::hier::Index i : box) {
-      fub::Coordinates x = fub::computeCellCoordinates(geom, box, i);
-      SAMRAI::pdat::CellIndex cell(i);
-      const double radius2 = Dot_(x, x);
-      if (radius2 < 0.025) {
-        state.density(cell) = inner.rho;
-        state.pressure(cell) = inner.p;
-        state.energy(cell) = inner.E;
-        state.speed_of_sound(cell) = inner.a;
-        state.temperature(cell) = 300.0;
-      } else {
-        state.density(cell) = outer.rho;
-        state.pressure(cell) = outer.p;
-        state.energy(cell) = outer.E;
-        state.speed_of_sound(cell) = outer.a;
-        state.temperature(cell) = 300.0;
-      }
-    }
-  }
+struct PrimState {
+  double temperature;
+  double momentum;
+  double pressure;
+  std::vector<double> species;
 };
 
-struct ConstantBoundary : public fub::BoundaryCondition {
-  const fub::euler::ForwardEulerTimeIntegrator* integrator;
+struct CompleteState {
+  double density;
+  double momentum;
+  double energy;
+  double pressure;
+  double temperature;
+  double speed_of_sound;
+  std::vector<double> species;
+};
 
-  explicit ConstantBoundary(const fub::euler::ForwardEulerTimeIntegrator& i)
-      : integrator{&i} {}
+fub::ideal_gas::IdealGasEquation::PrimStateSpan<double> MakeSpan(PrimState& w) {
+  return {{&w.temperature, 1}, {&w.momentum, 1}, {&w.pressure, 1}, w.species};
+}
 
-  struct State {
-    double rho;
-    double p;
-    double E;
-    double a;
-  };
+fub::ideal_gas::IdealGasEquation::PrimStateSpan<const double>
+MakeSpan(const PrimState& w) {
+  return {{&w.temperature, 1}, {&w.momentum, 1}, {&w.pressure, 1}, w.species};
+}
 
-  void setPhysicalBoundaryConditions(
-      const SAMRAI::hier::Patch& patch, double fill_time,
-      const SAMRAI::hier::IntVector& ghost_width_to_fill) const override {
-    const SAMRAI::hier::PatchGeometry& patch_geom = *patch.getPatchGeometry();
-    const std::vector<SAMRAI::hier::BoundaryBox>& faces =
-        patch_geom.getCodimensionBoundaries(1);
-    using Variable = fub::euler::IdealGas::Variable;
-    int dim = 0;
-    for (int d = 0; d < ghost_width_to_fill.getDim().getValue(); ++d) {
-      if (ghost_width_to_fill[d]) {
-        dim = d;
-        break;
-      }
-    }
-    using Scratch = fub::euler::ForwardEulerTimeIntegrator::Scratch;
-    auto state = integrator->getCompleteState(patch, Scratch(dim));
-    SAMRAI::pdat::CellData<double>& density = state.density;
-    SAMRAI::pdat::CellData<double>& momentum = state.momentum;
-    SAMRAI::pdat::CellData<double>& energy = state.energy;
-    SAMRAI::pdat::CellData<double>& pressure = state.pressure;
-    SAMRAI::pdat::CellData<double>& temperature = state.temperature;
-    SAMRAI::pdat::CellData<double>& speed_of_sound = state.speed_of_sound;
+class RiemannProblem : public fub::RiemannProblem {
+public:
+  using CompleteStatePatchData =
+      fub::ideal_gas::IdealGasEquation::CompleteStatePatchData;
+  const fub::ideal_gas::IdealGasEquation* ideal_gas;
+  PrimState left;
+  PrimState right;
 
-    fub::euler::FlameMasterReactor reactor = integrator->ideal_gas()->getReactor();
-    std::vector<double> Y(reactor.getNSpecies());
-    Y[0] = 1.0;
-    reactor.setMassFractions(Y);
-    reactor.setTemperature(300.);
-    reactor.setPressure(101325.0);
-    const double gamma = reactor.getCp() / reactor.getCv();
-
-    State outer;
-    outer.rho = reactor.getDensity();
-    outer.p = reactor.getPressure();
-    outer.E = reactor.getInternalEnergy();
-    outer.a = std::sqrt(gamma * outer.p / outer.rho);
-    for (const SAMRAI::hier::BoundaryBox& face : faces) {
-      SAMRAI::hier::Box box = patch_geom.getBoundaryFillBox(
-          face, patch.getBox(), ghost_width_to_fill);
-      for (SAMRAI::hier::Index i : box) {
-        SAMRAI::pdat::CellIndex cell(i);
-        density(cell) = outer.rho;
-        momentum(cell) = 0.0;
-        pressure(cell) = outer.p;
-        energy(cell) = outer.E;
-        speed_of_sound(cell) = outer.a;
-        temperature(cell) = 300.0;
-      }
+  RiemannProblem(fub::PolymorphicGeometry geom,
+                 const fub::ideal_gas::IdealGasEquation& equation)
+      : fub::RiemannProblem(std::move(geom)), ideal_gas{&equation} {
+    left.temperature = 300.0;
+    left.momentum = 0.0;
+    left.pressure = 1013250.0;
+    right.temperature = 345.0;
+    right.momentum = 0.0;
+    right.pressure = 101325.0;
+    const int n_species = equation.GetNSpecies();
+    if (n_species) {
+      left.species.resize(n_species);
+      right.species.resize(n_species);
+      left.species[0] = right.species[0] = 1.0;
     }
   }
 
-  SAMRAI::hier::IntVector
-  getStencilWidth(const SAMRAI::tbox::Dimension& dim) const override {
-    return SAMRAI::hier::IntVector::getZero(dim);
+private:
+  void FillPrimState(const SAMRAI::hier::Patch& patch,
+                     const SAMRAI::hier::Index& index,
+                     const PrimState& state) const {
+    fub::ideal_gas::IdealGasEquation::PrimStatePatchData prim =
+        ideal_gas->GetPrimStatePatchData(patch);
+    SAMRAI::pdat::CellIndex i(index);
+    prim.momentum(i) = state.momentum;
+    prim.pressure(i) = state.pressure;
+    prim.temperature(i) = state.temperature;
+    for (int s = 0; s < state.species.size(); ++s) {
+      prim.species(i, s) = state.species[s];
+    }
+  }
+
+  void FillLeftState(const SAMRAI::hier::Patch& patch,
+                     const SAMRAI::hier::Index& index) const override {
+    FillPrimState(patch, index, left);
+  }
+
+  void FillRightState(const SAMRAI::hier::Patch& patch,
+                      const SAMRAI::hier::Index& index) const override {
+    FillPrimState(patch, index, right);
+  }
+
+  void PostInitialize(const SAMRAI::hier::Patch& patch) const override {
+    ideal_gas->FillFromPrim(ideal_gas->GetCompleteStatePatchData(patch),
+                            ideal_gas->GetPrimStatePatchData(patch));
   }
 };
 
 int main(int argc, char** argv) {
+  if (argc < 3) {
+    return -1;
+  }
+  auto wall_start = std::chrono::steady_clock::now();
   fub::ScopeGuard guard(argc, argv);
   const SAMRAI::tbox::Dimension dim(1);
 
-  fub::euler::ForwardEulerTimeIntegrator integrator(
-      std::make_shared<fub::euler::IdealGas>("IdealGas", dim));
-  ConstantBoundary boundary_cond(integrator);
-  CircleData initial_data(integrator);
+  fub::ideal_gas::TChemKineticsOptions options;
+  options.chemfile = argv[1];
+  options.thermofile = argv[2];
+
+  auto equation =
+      std::make_shared<fub::ideal_gas::TChemKinetics>("IdealGas", dim, options);
+
+  fub::ideal_gas::ForwardEulerTimeIntegrator integrator(equation);
+  fub::ideal_gas::KineticSourceTerm source_term(equation);
+  fub::GodunovSplitting splitting{};
+  fub::DimensionalSplitSystemSolver hyperbolic(integrator, splitting);
+  fub::HyperbolicSystemSourceSolver solver(hyperbolic, source_term, splitting);
+
+  fub::ideal_gas::ReflectiveCondition boundary_condition{integrator};
+
+  fub::Halfspace geometry({1}, 0.0);
+  RiemannProblem initial_data(geometry, *integrator.GetEquation());
 
   fub::IndexRange indices{SAMRAI::hier::Index(dim, 0),
                           SAMRAI::hier::Index(dim, 200 - 1)};
   fub::CoordinateRange coordinates{{-1.0, -1.0, -1.0}, {1.0, 1.0, 1.0}};
 
   std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy =
-      makeCartesianPatchHierarchy(indices, coordinates);
+      fub::MakeCartesianPatchHierarchy(indices, coordinates);
 
-  fub::initializePatchHierarchy(hierarchy, integrator, initial_data);
+  fub::InitializePatchHierarchy(hierarchy, integrator, initial_data);
 
-  std::unique_ptr<SAMRAI::appu::VisItDataWriter> writer = nullptr;
-  if (dim.getValue() == 2 || dim.getValue() == 3) {
-    writer = std::make_unique<SAMRAI::appu::VisItDataWriter>(dim, "VisItWriter",
-                                                             "output");
-    using Var = fub::euler::IdealGas::Variable;
-    writer->registerPlotQuantity("IdealGas_Density", "SCALAR",
-                                 integrator.getPatchDataId(Var::density));
-    writer->registerPlotQuantity("IdealGas_Momentum", "VECTOR",
-                                 integrator.getPatchDataId(Var::momentum));
-    writer->registerPlotQuantity("IdealGas_Pressure", "SCALAR",
-                                 integrator.getPatchDataId(Var::pressure));
-    writer->registerPlotQuantity("IdealGas_Temperature", "SCALAR",
-                                 integrator.getPatchDataId(Var::temperature));
-    writer->registerPlotQuantity(
-        "IdealGas_SpeedOfSound", "SCALAR",
-        integrator.getPatchDataId(Var::speed_of_sound));
-    writer->registerPlotQuantity("IdealGas_Species", "VECTOR",
-                                 integrator.getPatchDataId(Var::species));
-    // Do the output
-    writer->writePlotData(hierarchy, 0, 0.0);
-  }
+  fub::GnuplotWriter writer("output", equation->GetPatchDataIds());
+  // Do the output
+  writer.writePlotData(hierarchy, 0, 0.0);
 
   double t = 0;
   const int rank = SAMRAI::tbox::SAMRAI_MPI::getSAMRAIWorld().getRank();
-  fub::GodunovSplitting splitting{};
-  fub::HyperbolicSystemSolver hyperbolic(integrator, splitting);
-  fub::euler::KineticSourceTerm source_term{integrator.ideal_gas()};
-  fub::HyperbolicSystemSourceSolver solver{hyperbolic, source_term, splitting};
-  for (int step = 0; step < 10; ++step) {
+  for (int step = 0; step < 5000; ++step) {
     auto start = std::chrono::steady_clock::now();
 
     // Estimate time step size
-    const double dt = solver.computeStableDt(hierarchy, boundary_cond, t);
+    const double dt =
+        solver.computeStableDt(hierarchy, boundary_condition, t);
+
     // Do one time step in X (use ghost cells from previous work)
-    solver.advanceTime(hierarchy, boundary_cond, t, dt);
+    solver.advanceTime(hierarchy, boundary_condition, t, dt);
 
     auto end = std::chrono::steady_clock::now();
     std::chrono::duration<double> duration = end - start;
+    std::chrono::duration<double> wall_time = end - wall_start;
     if (rank == 0) {
-      std::printf("Time Step Counter: %fs.\n", duration.count());
+      std::printf("t = %fs, dt = %.3es, wall-time %fs, step-time %fs.\n", t, dt,
+                  wall_time.count(), duration.count());
     }
     // Do the output
     t += dt;
-    if (writer) {
-      writer->writePlotData(hierarchy, step + 1, t);
-    }
+
+    writer.writePlotData(hierarchy, step + 1, t);
   }
 }

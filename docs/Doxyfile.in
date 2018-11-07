@@ -782,7 +782,9 @@ WARN_LOGFILE           =
 
 INPUT                  = "../include/fub/core" \
                          "../include/fub/solver" \
-                         "../include/fub/solver/euler/" \
+                         "../include/fub/ideal_gas/" \
+                         "../include/fub/geometry/" \
+                         "../include/fub/output/" \
                          "../"
 
 # This tag can be used to specify the character encoding of the source files

@@ -46,20 +46,20 @@ struct DimensionalSplitFluxMethod {
   /// step size.
   ///
   /// The actual time step size may vary from but not exceed the return value.
-  /// To make a stable estimation this function may assume a standard forward 
+  /// To make a stable estimation this function may assume a standard forward
   /// euler update for the conservative variables.
   ///
   /// \param[in] states  A reference to complete state data.
   /// \param[in] patch  The patch in question.
-  virtual double
-  computeStableDtOnPatch(const StateData& states,
-                         const SAMRAI::hier::Patch& patch) const = 0;
+  virtual double computeStableDtOnPatch(const StateData& states,
+                                        const SAMRAI::hier::Patch& patch,
+                                        Direction dir) const = 0;
 
   /// \brief Fill the flux data on a patch based on the given states.
   ///
   /// \param[in] fluxes  A reference to the flux data.
   /// \param[in] states  A reference to the complete state data.
-  /// \param[in] patch   The patch which may contain additional information 
+  /// \param[in] patch   The patch which may contain additional information
   ///                    related to the area in question.
   /// \param[in] dt      The time step size which will be taken.
   /// \param[in] dir     The split direction.

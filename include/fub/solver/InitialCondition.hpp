@@ -41,7 +41,8 @@ struct InitialCondition {
   ///
   /// A concrete implementation has to know which patch data ids have to be
   /// filled. This depends on problem basis.
-  virtual void initializeDataOnPatch(const SAMRAI::hier::Patch&) const = 0;
+  virtual void
+  InitializeDataOnPatch(const SAMRAI::hier::Patch& patch) const = 0;
 };
 
 } // namespace fub

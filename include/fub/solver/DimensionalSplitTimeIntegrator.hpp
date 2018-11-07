@@ -62,7 +62,7 @@ public:
   ///
   /// \return a time step size value.
   double computeStableDt(const SAMRAI::hier::PatchHierarchy& hierarchy,
-                         double time_point) const;
+                         double time_point, Direction dir) const;
 
   /// \brief Fill ghost cells of all patches in the patch hierarchy.
   ///
@@ -120,7 +120,8 @@ private:
   ///
   /// \return a time step size value.
   virtual double computeStableDtOnPatch(const SAMRAI::hier::Patch& patch,
-                                        double time_point) const = 0;
+                                        double time_point,
+                                        Direction dir) const = 0;
 
   /// \brief Advances a specified patch in time.
   ///
@@ -192,7 +193,7 @@ private:
 /// \param[in] integrator The integrator which tells which variabels to allocate
 /// \param[in] initial_condition The initial condition sets values of newly
 ///            generated patches.
-void initializePatchHierarchy(
+void InitializePatchHierarchy(
     const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
     const DimensionalSplitTimeIntegrator& integrator,
     const InitialCondition& initial_condition);

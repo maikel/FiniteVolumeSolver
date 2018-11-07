@@ -34,7 +34,6 @@ namespace fub {
 /// A splitting method takes two operators and executes them in some order such
 /// that they solve a combined problem.
 struct SplittingMethod {
-public:
   using AdvanceFunction = function_ref<void(
       const std::shared_ptr<SAMRAI::hier::PatchHierarchy>&, double, double)>;
 

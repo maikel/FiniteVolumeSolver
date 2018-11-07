@@ -22,6 +22,7 @@
 #define FUB_SAMRAI_UTILITY_HPP
 
 #include "fub/core/function_ref.hpp"
+#include "fub/solver/Direction.hpp"
 
 #include <array>
 #include <memory>
@@ -69,16 +70,22 @@ struct CoordinateRange {
   Coordinates upper;
 };
 
+template <typename Index> Index shift(const Index& i, Direction dir, int n) {
+  Index j = i;
+  j[static_cast<int>(dir)] += n;
+  return j;
+}
+
 std::shared_ptr<SAMRAI::hier::PatchHierarchy>
-makeCartesianPatchHierarchy(const IndexRange& ir, const CoordinateRange& cr);
+MakeCartesianPatchHierarchy(const IndexRange& ir, const CoordinateRange& cr);
 
 Coordinates
-computeCellCoordinates(const SAMRAI::geom::CartesianPatchGeometry& geometry,
+ComputeCellCoordinates(const SAMRAI::geom::CartesianPatchGeometry& geometry,
                        const SAMRAI::hier::Box& box,
                        const SAMRAI::hier::Index& index);
 
 SAMRAI::geom::CartesianPatchGeometry*
-getCartesianPatchGeometry(const SAMRAI::hier::Patch& patch);
+GetCartesianPatchGeometry(const SAMRAI::hier::Patch& patch);
 
 } // namespace fub
 

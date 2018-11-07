@@ -21,20 +21,21 @@
 #include "fub/solver/DimensionalSplitTimeIntegrator.hpp"
 
 #include "SAMRAI/hier/CoarseFineBoundary.h"
+#include "SAMRAI/mesh/CascadePartitioner.h"
 #include "SAMRAI/mesh/GriddingAlgorithm.h"
 #include "SAMRAI/mesh/StandardTagAndInitialize.h"
 #include "SAMRAI/mesh/TileClustering.h"
-#include "SAMRAI/mesh/CascadePartitioner.h"
 
 #include "fub/core/assert.hpp"
 
 namespace fub {
 double DimensionalSplitTimeIntegrator::computeStableDt(
-    const SAMRAI::hier::PatchHierarchy& hierarchy, double time_point) const {
+    const SAMRAI::hier::PatchHierarchy& hierarchy, double time_point,
+    Direction dir) const {
   double time_step_size = std::numeric_limits<double>::infinity();
   forEachPatch(hierarchy, [&](const SAMRAI::hier::Patch& patch) {
     const double local_time_step_size =
-        this->computeStableDtOnPatch(patch, time_point);
+        this->computeStableDtOnPatch(patch, time_point, dir);
     time_step_size = std::min(time_step_size, local_time_step_size);
   });
   return time_step_size;
@@ -100,7 +101,7 @@ void DimensionalSplitTimeIntegrator::fillGhostLayer(
   }
 }
 
-void initializePatchHierarchy(
+void InitializePatchHierarchy(
     const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
     const DimensionalSplitTimeIntegrator& integrator,
     const InitialCondition& initial_condition) {
@@ -125,7 +126,7 @@ void initializePatchHierarchy(
       }
       if (initial_condition) {
         for (const std::shared_ptr<SAMRAI::hier::Patch>& patch : *patch_level) {
-          initial_condition->initializeDataOnPatch(*patch);
+          initial_condition->InitializeDataOnPatch(*patch);
         }
       }
     }

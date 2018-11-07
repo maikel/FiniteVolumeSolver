@@ -35,7 +35,7 @@
 namespace fub {
 
 std::shared_ptr<SAMRAI::hier::PatchHierarchy>
-makeCartesianPatchHierarchy(const IndexRange& ir, const CoordinateRange& cr) {
+MakeCartesianPatchHierarchy(const IndexRange& ir, const CoordinateRange& cr) {
   SAMRAI::hier::BoxContainer domain{
       SAMRAI::hier::Box(ir.lower, ir.upper, SAMRAI::hier::BlockId(0))};
   return std::make_shared<SAMRAI::hier::PatchHierarchy>(
@@ -55,7 +55,7 @@ Eigen::Map<const ArrayXi> asEigen(const SAMRAI::hier::Index& index) {
 } // namespace
 
 Coordinates
-computeCellCoordinates(const SAMRAI::geom::CartesianPatchGeometry& geometry,
+ComputeCellCoordinates(const SAMRAI::geom::CartesianPatchGeometry& geometry,
                        const SAMRAI::hier::Box& box,
                        const SAMRAI::hier::Index& index) {
   FUB_ASSERT(geometry.getDim().getValue() == box.getDim().getValue());
@@ -77,7 +77,7 @@ computeCellCoordinates(const SAMRAI::geom::CartesianPatchGeometry& geometry,
 }
 
 SAMRAI::geom::CartesianPatchGeometry*
-getCartesianPatchGeometry(const SAMRAI::hier::Patch& patch) {
+GetCartesianPatchGeometry(const SAMRAI::hier::Patch& patch) {
   return static_cast<SAMRAI::geom::CartesianPatchGeometry*>(
       patch.getPatchGeometry().get());
 }

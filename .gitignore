@@ -2,3 +2,6 @@ build
 .vscode
 docs/html
 docs/latex
+third_party/TChem2/doc
+third_party/TChem2/data
+docs/samrai-devdox

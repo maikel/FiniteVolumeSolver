@@ -977,7 +977,8 @@ span(Container&)->span<typename Container::value_type>;
 
 template <class Container>
 span(const Container&)->span<const typename Container::value_type>;
-#else
+#endif
+
 template <class T, size_t N> auto make_span(T (&array)[N]) -> span<T, N> {
   return span<T, N>(array);
 }
@@ -1002,7 +1003,6 @@ auto make_span(const Container& array)
     -> span<const typename Container::value_type> {
   return span<const typename Container::value_type>(array);
 }
-#endif
 
 } // namespace fub
 

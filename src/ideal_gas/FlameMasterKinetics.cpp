@@ -1,0 +1,156 @@
+// Copyright (c) 2018 Maikel Nadolski
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+#include "fub/ideal_gas/FlameMasterKinetics.hpp"
+#include "fub/ideal_gas/mechanism/Burke2012.hpp"
+
+#include "SAMRAI/hier/VariableDatabase.h"
+#include "SAMRAI/pdat/CellVariable.h"
+
+#include <numeric>
+
+namespace fub {
+namespace ideal_gas {
+using Variable = IdealGasEquation::Variable;
+
+FlameMasterKinetics::FlameMasterKinetics(std::string name,
+                                         SAMRAI::tbox::Dimension dim,
+                                         FlameMasterReactor reactor)
+    : IdealGasKinetics(name, dim, reactor.getNSpecies()), reactor_{std::move(
+                                                              reactor)} {
+  reactor_.setTemperature(300);
+  span<const double> hs = reactor_.getEnthalpies();
+  reference_enthalpies_.resize(hs.size());
+  std::copy(hs.begin(), hs.end(), reference_enthalpies_.begin());
+}
+
+void FlameMasterKinetics::FillFromCons(const CompleteStatePatchData& q,
+                                       const ConsStatePatchData& cons) const {
+  q.density.copy(cons.density);
+  q.momentum.copy(cons.momentum);
+  q.energy.copy(cons.energy);
+  q.species.copy(cons.species);
+  SAMRAI::hier::Box intersection(q.density.getDim());
+  q.density.getGhostBox().intersect(cons.density.getGhostBox(), intersection);
+  std::vector<double> fractions(q.species.getDepth());
+  for (const SAMRAI::hier::Index& index : intersection) {
+    SAMRAI::pdat::CellIndex cell(index);
+    const double rho = q.density(cell);
+    CopyMassFractions(fractions, q.species, cell);
+    const double rhou = q.momentum(cell);
+    const double rhoE = q.energy(cell);
+    reactor_.setMassFractions(fractions);
+    reactor_.setDensity(rho);
+    // internal energy = (total energy - kinetic energy) / density
+    const double refEnergy = reactor_.MeanY(reference_enthalpies_) -
+                             reactor_.getUniversalGasConstant() *
+                                 GetReferenceTemperature() /
+                                 reactor_.getMeanMolarMass();
+    const double e = (rhoE - 0.5 * rhou * rhou / rho) / rho;
+    reactor_.setInternalEnergy(e + refEnergy);
+    q.temperature(cell) = reactor_.getTemperature();
+    q.pressure(cell) = reactor_.getPressure();
+    const double gamma = reactor_.getCp() / reactor_.getCv();
+    const double p = reactor_.getPressure();
+    q.speed_of_sound(cell) = std::sqrt(gamma * p / rho);
+  }
+}
+
+void FlameMasterKinetics::FillFromPrim(const CompleteStatePatchData& q,
+                                       const PrimStatePatchData& prim) const {
+  q.temperature.copy(prim.temperature);
+  q.momentum.copy(prim.momentum);
+  q.pressure.copy(prim.pressure);
+  q.species.copy(prim.species);
+  SAMRAI::hier::Box intersection(q.density.getDim());
+  q.density.getGhostBox().intersect(prim.pressure.getGhostBox(), intersection);
+  std::vector<double> masses(q.species.getDepth());
+  for (const SAMRAI::hier::Index& index : intersection) {
+    SAMRAI::pdat::CellIndex cell(index);
+    CopyMassFractions(masses, q.species, cell);
+    reactor_.setMoleFractions(masses);
+    reactor_.setPressure(q.pressure(cell));
+    reactor_.setTemperature(q.temperature(cell));
+    q.density(cell) = reactor_.getDensity();
+    const double rho = reactor_.getDensity();
+    const double rhou = q.momentum(cell);
+    // internal energy = (total energy - kinetic energy) / density
+    const double refEnergy = reactor_.MeanY(reference_enthalpies_) -
+                             reactor_.getUniversalGasConstant() *
+                                 GetReferenceTemperature() /
+                                 reactor_.getMeanMolarMass();
+    const double eps = reactor_.getInternalEnergy() - refEnergy;
+    const double rhoE = rho * eps + 0.5 * rhou * rhou / rho;
+    q.energy(cell) = rhoE;
+    const double gamma = reactor_.getCp() / reactor_.getCv();
+    const double p = reactor_.getPressure();
+    q.speed_of_sound(cell) = std::sqrt(gamma * p / rho);
+    span<const double> fractions = reactor_.getMassFractions();
+    for (int s = 0; s < fractions.size(); ++s) {
+      q.species(cell, s) = rho * fractions[s];
+    }
+  }
+}
+
+namespace {
+void Normalize_(span<double> x) {
+  const double total = std::accumulate(x.begin(), x.end(), 0.0);
+  std::transform(x.begin(), x.end(), x.begin(),
+                 [total](double xi) { return xi / total; });
+}
+} // namespace
+
+void FlameMasterKinetics::AdvanceSourceTerm(const CompleteStatePatchData& q,
+                                            double dt) const {
+  const SAMRAI::hier::Box& box = q.density.getGhostBox();
+  std::vector<double> fractions(q.species.getDepth());
+  for (const SAMRAI::hier::Index& index : box) {
+    SAMRAI::pdat::CellIndex cell(index);
+    CopyMassFractions(fractions, q.species, cell);
+    reactor_.setMassFractions(fractions);
+    reactor_.setTemperature(q.temperature(cell));
+    reactor_.setPressure(q.pressure(cell));
+    reactor_.advance(dt);
+    const double u = q.momentum(cell) / q.density(cell);
+    const double rho = reactor_.getDensity();
+    q.density(cell) = rho;
+    q.temperature(cell) = reactor_.getTemperature();
+    q.pressure(cell) = reactor_.getPressure();
+    const double refEnergy = reactor_.MeanY(reference_enthalpies_) -
+                             reactor_.getUniversalGasConstant() *
+                                 GetReferenceTemperature() /
+                                 reactor_.getMeanMolarMass();
+    q.energy(cell) =
+        rho * (reactor_.getInternalEnergy() - refEnergy) + 0.5 * rho * u * u;
+    q.momentum(cell) = reactor_.getDensity() * u;
+    const double gamma = reactor_.getCp() / reactor_.getCv();
+    const double p = reactor_.getPressure();
+    q.speed_of_sound(cell) = std::sqrt(gamma * p / rho);
+    span<const double> Y = reactor_.getMassFractions();
+    std::copy(Y.begin(), Y.end(), fractions.begin());
+    Normalize_(fractions);
+    for (int s = 0; s < q.species.getDepth(); ++s) {
+      q.species(cell, s) = rho * fractions[s];
+    }
+  }
+}
+
+} // namespace ideal_gas
+} // namespace fub

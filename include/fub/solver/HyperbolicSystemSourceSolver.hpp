@@ -21,7 +21,7 @@
 #ifndef FUB_SOLVER_HYPERBOLIC_SYSTEM_SOURCE_SOLVER_HPP
 #define FUB_SOLVER_HYPERBOLIC_SYSTEM_SOURCE_SOLVER_HPP
 
-#include "fub/solver/HyperbolicSystemSolver.hpp"
+#include "fub/solver/DimensionalSplitSystemSolver.hpp"
 #include "fub/solver/SourceTermIntegrator.hpp"
 
 namespace fub {
@@ -34,9 +34,9 @@ namespace fub {
 class HyperbolicSystemSourceSolver {
 public:
   /// Constrcuts a solver from the given strategies.
-  HyperbolicSystemSourceSolver(const HyperbolicSystemSolver& hyperbolic_system,
-                               const SourceTermIntegrator& source_term,
-                               const SplittingMethod& splitting)
+  HyperbolicSystemSourceSolver(
+      const DimensionalSplitSystemSolver& hyperbolic_system,
+      const SourceTermIntegrator& source_term, const SplittingMethod& splitting)
       : hyperbolic_system_{hyperbolic_system}, source_term_{&source_term},
         splitting_method_{&splitting} {}
 
@@ -45,31 +45,32 @@ public:
       const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
       const BoundaryCondition& boundary_condition, double time_point) const;
 
-  /// Advances the hierarchy int time by time_step_size. 
+  /// Advances the hierarchy int time by time_step_size.
   void
   advanceTime(const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
               const BoundaryCondition& boundary_condition, double time_point,
               double time_step_size) const;
 
   /// Returns the underlying hyperbolic system solver.
-  const class HyperbolicSystemSolver& HyperbolicSystemSolver() const noexcept {
+  const DimensionalSplitSystemSolver& getDimensionalSplitSystemSolver() const
+      noexcept {
     return hyperbolic_system_;
   }
 
   /// Returns the underlying source term.
-  const SourceTermIntegrator& SourceTerm() const noexcept {
+  const SourceTermIntegrator& getSourceTerm() const noexcept {
     return *source_term_;
   }
 
   /// Returns the underlying splitting method.
-  const struct SplittingMethod& SplittingMethod() const noexcept {
+  const SplittingMethod& getSplittingMethod() const noexcept {
     return *splitting_method_;
   }
 
 private:
-  class HyperbolicSystemSolver hyperbolic_system_;
+  DimensionalSplitSystemSolver hyperbolic_system_;
   const SourceTermIntegrator* source_term_;
-  const class SplittingMethod* splitting_method_;
+  const SplittingMethod* splitting_method_;
 };
 
 } // namespace fub
