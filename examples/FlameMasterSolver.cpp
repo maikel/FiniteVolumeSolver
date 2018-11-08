@@ -136,12 +136,12 @@ int main(int argc, char** argv) {
 
   fub::ideal_gas::ReflectiveCondition boundary_condition{integrator};
 
-  fub::Halfspace geometry({1}, 0.0);
+  fub::Halfspace geometry(fub::Coordinates(1, 1.0), 0.0);
   RiemannProblem initial_data(geometry, *integrator.GetEquation());
 
   fub::IndexRange indices{SAMRAI::hier::Index(dim, 0),
                           SAMRAI::hier::Index(dim, 200 - 1)};
-  fub::CoordinateRange coordinates{{-1.0, -1.0, -1.0}, {1.0, 1.0, 1.0}};
+  fub::CoordinateRange coordinates{fub::Coordinates(1, -1.0), fub::Coordinates(1, +1.0)};
 
   std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy =
       fub::MakeCartesianPatchHierarchy(indices, coordinates);

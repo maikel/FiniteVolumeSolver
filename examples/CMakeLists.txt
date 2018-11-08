@@ -2,9 +2,11 @@ cmake_minimum_required(VERSION 3.10)
 
 project(HyperbolicSolver_examples CXX)
 
-find_package(benchmark REQUIRED)
-add_executable(benchmark.TChem benchmark.TChem.cpp)
-target_link_libraries(benchmark.TChem HyperbolicSolver.IdealGas benchmark::benchmark)
+find_package(benchmark)
+if (TARGET benchmark::benchmark)
+  add_executable(benchmark.TChem benchmark.TChem.cpp)
+  target_link_libraries(benchmark.TChem HyperbolicSolver.IdealGas benchmark::benchmark)
+endif()
 
 add_executable(TChem_Advance TChem_Advance.cpp)
 target_link_libraries(TChem_Advance PRIVATE HyperbolicSolver.IdealGas)

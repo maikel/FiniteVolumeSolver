@@ -24,6 +24,7 @@
 #include "SAMRAI/hier/VariableDatabase.h"
 #include "SAMRAI/pdat/CellVariable.h"
 
+#include <algorithm>
 #include <numeric>
 
 namespace fub {

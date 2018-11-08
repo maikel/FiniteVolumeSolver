@@ -300,7 +300,7 @@ FlameMasterReactor::FlameMasterReactor(const FlameMasterMechanism& mechanism)
 }
 
 FlameMasterReactor::FlameMasterReactor(const FlameMasterReactor& other)
-    : mechanism_{other.mechanism_}, state_{other.state_} {
+    : mechanism_{other.mechanism_}, state_(other.state_) {
   state_.temperature = state_.molesStorage.data();
 #ifdef __cpp_deduction_guides
   state_.moles = span{state_.molesStorage}.subspan(1);
@@ -310,7 +310,7 @@ FlameMasterReactor::FlameMasterReactor(const FlameMasterReactor& other)
 }
 
 FlameMasterReactor::FlameMasterReactor(FlameMasterReactor&& other) noexcept
-    : mechanism_{std::move(other.mechanism_)}, state_{std::move(other.state_)} {
+    : mechanism_{std::move(other.mechanism_)}, state_(std::move(other.state_)) {
   state_.temperature = state_.molesStorage.data();
 #ifdef __cpp_deduction_guides
   state_.moles = span{state_.molesStorage}.subspan(1);

@@ -79,10 +79,10 @@ public:
     if (n_species) {
       left.species.resize(n_species);
       right.species.resize(n_species);
-      left.species[5] = 1.0;
-      left.species[1] = 1.0;
-      right.species[1] = 1.0;
-      right.species[5] = 1.0;
+      left.species[3] = 1.0;
+      left.species[0] = 1.0;
+      right.species[0] = 1.0;
+      right.species[3] = 1.0;
     }
   }
 
@@ -123,7 +123,7 @@ int main(int argc, char** argv) {
   }
   auto wall_start = std::chrono::steady_clock::now();
   fub::ScopeGuard guard(argc, argv);
-  const SAMRAI::tbox::Dimension dim(1);
+  const SAMRAI::tbox::Dimension dim(2);
 
   fub::ideal_gas::TChemKineticsOptions options;
   options.chemfile = argv[1];
@@ -140,12 +140,12 @@ int main(int argc, char** argv) {
 
   fub::ideal_gas::ReflectiveCondition boundary_condition{integrator};
 
-  fub::Halfspace geometry({1}, 0.0);
+  fub::Halfspace geometry(fub::Coordinates(dim.getValue(), 1.0), 0.0);
   RiemannProblem initial_data(geometry, *integrator.GetEquation());
 
   fub::IndexRange indices{SAMRAI::hier::Index(dim, 0),
                           SAMRAI::hier::Index(dim, 200 - 1)};
-  fub::CoordinateRange coordinates{{-1.0, -1.0, -1.0}, {1.0, 1.0, 1.0}};
+  fub::CoordinateRange coordinates{fub::Coordinates(dim.getValue(), -1.0), fub::Coordinates(dim.getValue(), +1.0)};
 
   std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy =
       fub::MakeCartesianPatchHierarchy(indices, coordinates);

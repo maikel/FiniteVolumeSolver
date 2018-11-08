@@ -51,7 +51,7 @@ add_library(HyperbolicSolver.IdealGas
   src/ideal_gas/FlameMasterKinetics.cpp
   src/ideal_gas/mechanism/Burke2012.cpp
   src/ideal_gas/mechanism/Gri30.cpp
-  src/ideal_Gas/TChemKinetics.cpp
+  src/ideal_gas/TChemKinetics.cpp
   src/ideal_gas/ForwardEulerTimeIntegrator.cpp
   src/ideal_gas/HlleRiemannSolver.cpp
   src/ideal_gas/KineticSourceTerm.cpp

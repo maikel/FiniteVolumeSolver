@@ -435,21 +435,21 @@ public:
   ///
   /// \throws Nothing.
   constexpr reverse_iterator rbegin() const noexcept {
-    return std::make_reverse_iterator(end());
+    return reverse_iterator(end());
   }
 
   /// Returns a const reverse iterator pointing to the last element of the span.
   ///
   /// \throws Nothing.
   constexpr const_reverse_iterator crbegin() const noexcept {
-    return std::make_reverse_iterator(cend());
+    return const_reverse_iterator(cend());
   }
 
   /// Returns a reverse iterator pointing to the first element of the span.
   ///
   /// \throws Nothing.
   constexpr reverse_iterator rend() const noexcept {
-    return std::make_reverse_iterator(begin());
+    return reverse_iterator(begin());
   }
 
   /// Returns a const reverse iterator pointing to the first element of the
@@ -457,7 +457,7 @@ public:
   ///
   /// \throws Nothing.
   constexpr const_reverse_iterator crend() const noexcept {
-    return std::make_reverse_iterator(cbegin());
+    return const_reverse_iterator(cbegin());
   }
 
 private:
@@ -653,30 +653,30 @@ public:
   /// Returns a reverse iterator pointing to the last element of the span.
   ///
   /// \throws Nothing.
-  constexpr auto rbegin() const noexcept {
-    return std::make_reverse_iterator(end());
+  constexpr reverse_iterator rbegin() const noexcept {
+    return reverse_iterator(end());
   }
 
   /// Returns a const reverse iterator pointing to the last element of the span.
   ///
   /// \throws Nothing.
-  constexpr auto crbegin() const noexcept {
-    return std::make_reverse_iterator(cend());
+  constexpr const_reverse_iterator crbegin() const noexcept {
+    return const_reverse_iterator(cend());
   }
 
   /// Returns a reverse iterator pointing to the first element of the span.
   ///
   /// \throws Nothing.
-  constexpr auto rend() const noexcept {
-    return std::make_reverse_iterator(begin());
+  constexpr reverse_iterator rend() const noexcept {
+    return reverse_iterator(begin());
   }
 
   /// Returns a const reverse iterator pointing to the first element of the
   /// span.
   ///
   /// \throws Nothing.
-  constexpr auto crend() const noexcept {
-    return std::make_reverse_iterator(cbegin());
+  constexpr const_reverse_iterator crend() const noexcept {
+    return const_reverse_iterator(cbegin());
   }
 
 private:
@@ -935,21 +935,21 @@ public:
   ///
   /// \throws Nothing.
   constexpr reverse_iterator rbegin() const noexcept {
-    return std::make_reverse_iterator(end());
+    return reverse_iterator(end());
   }
 
   /// Returns a const reverse iterator pointing to the last element of the span.
   ///
   /// \throws Nothing.
   constexpr const_reverse_iterator crbegin() const noexcept {
-    return std::make_reverse_iterator(cend());
+    return const_reverse_iterator(cend());
   }
 
   /// Returns a reverse iterator pointing to the first element of the span.
   ///
   /// \throws Nothing.
   constexpr reverse_iterator rend() const noexcept {
-    return std::make_reverse_iterator(begin());
+    return reverse_iterator(begin());
   }
 
   /// Returns a const reverse iterator pointing to the first element of the
@@ -957,7 +957,7 @@ public:
   ///
   /// \throws Nothing.
   constexpr const_reverse_iterator crend() const noexcept {
-    return std::make_reverse_iterator(cbegin());
+    return const_reverse_iterator(cbegin());
   }
 
 private:
