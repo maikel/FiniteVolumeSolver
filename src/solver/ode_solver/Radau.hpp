@@ -91,51 +91,8 @@ int call_radau(system_type system, // RHS function
                double rotl,        // Tolerances
                double atol,        //
                span<double> work,  // Temporary array of size LWORK
-               span<int> iwork     // Temporary array of size LIWORK
-);
-
-/// @brief This function calls the fortran implementation of E. Hairer.
-///
-/// We fetched the fortran code from http://[...].
-/// It is a fully implicit scheme which is apdatively of 5th, 9th and 13th
-/// order. Phillip has shown in his thesis that this scheme is one of few which
-/// shows great stability with our kinetic ODEs.
-int call_radau_feedback(system_type system,    // RHS function
-                        int* par,              // See RPAR
-                        double t_0,            // Initial time
-                        double t_end,          // Final integration time
-                        span<double> y,        // Initial y array
-                        double h,              // Initial step size
-                        double rotl,           // Tolerances
-                        double atol,           //
-                        span<double> work,     // Temporary array of size LWORK
-                        span<int> iwork,       // Temporary array of size LIWORK
-                        feedback_type feedback // Feedback function
-);
-
-int call_radau_jac(system_type system, // RHS function
-                   int* ipar,          // IPAR
-                   double t_0,         // Initial time
-                   double t_end,       // Final integration time
-                   span<double> y,     // Initial y array
-                   double h,           // Initial step size
-                   double reltol,      // Tolerances
-                   double abstol,      //
-                   span<double> work,  // Temporary array of size LWORK
-                   span<int> iwork,    // Temporary array of size LIWORK
-                   jacobian_type jac);
-
-int call_radau_jac_feedback(system_type system, // RHS function
-                            int* ipar,          // IPAR
-                            double t_0,         // Initial time
-                            double t_end,       // Final integration time
-                            span<double> y,     // Initial y array
-                            double h,           // Initial step size
-                            double reltol,      // Tolerances
-                            double abstol,      //
-                            span<double> work,  // Temporary array of size LWORK
-                            span<int> iwork, // Temporary array of size LIWORK
-                            jacobian_type jac, feedback_type feedback);
+               span<int> iwork,    // Temporary array of size LIWORK
+               feedback_type feedback, jacobian_type jacobian);
 } // namespace radau_detail
 
 struct Radau {
@@ -194,18 +151,18 @@ struct Radau {
     iwork[12] = 7;  // Start off with order 13
     work[2] = 0.01; // Recompute Jacobian less often (default 0.001)
 
-    int idid = radau_detail::call_radau_feedback(
-        radau_rhs,                          // RHS function
-        reinterpret_cast<int*>(&user_data), // IPAR
-        t0,                                 // Initial time
-        t,                                  // Final integration time
-        y0,                                 // Initial y array and output
-        h0,                                 // Initial step size
-        reltol,                             // Tolerances
-        abstol,                             //
-        work,                               // Temporary array of size LWORK
-        iwork,                              // Temporary array of size LIWORK
-        radau_feedback);
+    int idid =
+        radau_detail::call_radau(radau_rhs, // RHS function
+                                 reinterpret_cast<int*>(&user_data), // IPAR
+                                 t0,     // Initial time
+                                 t,      // Final integration time
+                                 y0,     // Initial y array and output
+                                 h0,     // Initial step size
+                                 reltol, // Tolerances
+                                 abstol, //
+                                 work,   // Temporary array of size LWORK
+                                 iwork,  // Temporary array of size LIWORK
+                                 radau_feedback, nullptr);
 
     //  IDID= 1  COMPUTATION SUCCESSFUL,
     //  IDID= 2  COMPUT. SUCCESSFUL (INTERRUPTED BY SOLOUT)
@@ -224,31 +181,31 @@ struct Radau {
     case -2:
       throw radau_error::LargerNMaxIsNeeded{};
     case -3:
-      idid = radau_detail::call_radau_feedback(
-          radau_rhs,                          // RHS function
-          reinterpret_cast<int*>(&user_data), // IPAR
-          t0,                                 // Initial time
-          t / 2,                              // Final integration time
-          y0,                                 // Initial y array and output
-          h0,                                 // Initial step size
-          reltol,                             // Tolerances
-          abstol,                             //
-          work,                               // Temporary array of size LWORK
-          iwork,                              // Temporary array of size LIWORK
-          radau_feedback);
+      idid =
+          radau_detail::call_radau(radau_rhs, // RHS function
+                                   reinterpret_cast<int*>(&user_data), // IPAR
+                                   t0,     // Initial time
+                                   t / 2,  // Final integration time
+                                   y0,     // Initial y array and output
+                                   h0,     // Initial step size
+                                   reltol, // Tolerances
+                                   abstol, //
+                                   work,   // Temporary array of size LWORK
+                                   iwork,  // Temporary array of size LIWORK
+                                   radau_feedback, nullptr);
       if (idid > 0) {
-        idid = radau_detail::call_radau_feedback(
-            radau_rhs,                          // RHS function
-            reinterpret_cast<int*>(&user_data), // IPAR
-            t0,                                 // Initial time
-            t / 2,                              // Final integration time
-            y0,                                 // Initial y array and output
-            h0,                                 // Initial step size
-            reltol,                             // Tolerances
-            abstol,                             //
-            work,                               // Temporary array of size LWORK
-            iwork, // Temporary array of size LIWORK
-            radau_feedback);
+        idid =
+            radau_detail::call_radau(radau_rhs, // RHS function
+                                     reinterpret_cast<int*>(&user_data), // IPAR
+                                     t0,     // Initial time
+                                     t / 2,  // Final integration time
+                                     y0,     // Initial y array and output
+                                     h0,     // Initial step size
+                                     reltol, // Tolerances
+                                     abstol, //
+                                     work,   // Temporary array of size LWORK
+                                     iwork,  // Temporary array of size LIWORK
+                                     radau_feedback, nullptr);
         if (idid > 0) {
           break;
         }
@@ -310,8 +267,8 @@ struct Radau {
         reltol, // Tolerances
         abstol, //
         work,   // Temporary array of size LWORK
-        iwork   // Temporary array of size LIWORK
-    );
+        iwork,  // Temporary array of size LIWORK
+        nullptr, nullptr);
 
     //  IDID= 1  COMPUTATION SUCCESSFUL,
     //  IDID= 2  COMPUT. SUCCESSFUL (INTERRUPTED BY SOLOUT)
@@ -340,8 +297,8 @@ struct Radau {
           reltol, // Tolerances
           abstol, //
           work,   // Temporary array of size LWORK
-          iwork   // Temporary array of size LIWORK
-      );
+          iwork,  // Temporary array of size LIWORK
+          nullptr, nullptr);
       if (idid > 0) {
         idid = radau_detail::call_radau(
             radau_rhs,                                      // RHS function
@@ -353,8 +310,8 @@ struct Radau {
             reltol, // Tolerances
             abstol, //
             work,   // Temporary array of size LWORK
-            iwork   // Temporary array of size LIWORK
-        );
+            iwork,  // Temporary array of size LIWORK
+            nullptr, nullptr);
         if (idid > 0) {
           break;
         }
@@ -427,17 +384,17 @@ struct Radau {
     work[2] = 0.01; // Recompute Jacobian less often (default 0.001)
 
     int idid =
-        radau_detail::call_radau_jac(radau_rhs, // RHS function
-                                     reinterpret_cast<int*>(&user_data), // IPAR
-                                     t0,     // Initial time
-                                     t,      // Final integration time
-                                     y0,     // Initial y array and output
-                                     h0,     // Initial step size
-                                     reltol, // Tolerances
-                                     abstol, //
-                                     work,   // Temporary array of size LWORK
-                                     iwork,  // Temporary array of size LIWORK
-                                     radau_jacobian);
+        radau_detail::call_radau(radau_rhs, // RHS function
+                                 reinterpret_cast<int*>(&user_data), // IPAR
+                                 t0,     // Initial time
+                                 t,      // Final integration time
+                                 y0,     // Initial y array and output
+                                 h0,     // Initial step size
+                                 reltol, // Tolerances
+                                 abstol, //
+                                 work,   // Temporary array of size LWORK
+                                 iwork,  // Temporary array of size LIWORK
+                                 nullptr, radau_jacobian);
 
     //  IDID= 1  COMPUTATION SUCCESSFUL,
     //  IDID= 2  COMPUT. SUCCESSFUL (INTERRUPTED BY SOLOUT)
@@ -456,31 +413,31 @@ struct Radau {
     case -2:
       throw radau_error::LargerNMaxIsNeeded{};
     case -3:
-      idid = radau_detail::call_radau_jac(
-          radau_rhs,                          // RHS function
-          reinterpret_cast<int*>(&user_data), // IPAR
-          t0,                                 // Initial time
-          t / 2,                              // Final integration time
-          y0,                                 // Initial y array and output
-          h0,                                 // Initial step size
-          reltol,                             // Tolerances
-          abstol,                             //
-          work,                               // Temporary array of size LWORK
-          iwork,                              // Temporary array of size LIWORK
-          radau_jacobian);
+      idid =
+          radau_detail::call_radau(radau_rhs, // RHS function
+                                   reinterpret_cast<int*>(&user_data), // IPAR
+                                   t0,     // Initial time
+                                   t / 2,  // Final integration time
+                                   y0,     // Initial y array and output
+                                   h0,     // Initial step size
+                                   reltol, // Tolerances
+                                   abstol, //
+                                   work,   // Temporary array of size LWORK
+                                   iwork,  // Temporary array of size LIWORK
+                                   nullptr, radau_jacobian);
       if (idid > 0) {
-        idid = radau_detail::call_radau_jac(
-            radau_rhs,                          // RHS function
-            reinterpret_cast<int*>(&user_data), // IPAR
-            t0,                                 // Initial time
-            t / 2,                              // Final integration time
-            y0,                                 // Initial y array and output
-            h0,                                 // Initial step size
-            reltol,                             // Tolerances
-            abstol,                             //
-            work,                               // Temporary array of size LWORK
-            iwork, // Temporary array of size LIWORK
-            radau_jacobian);
+        idid =
+            radau_detail::call_radau(radau_rhs, // RHS function
+                                     reinterpret_cast<int*>(&user_data), // IPAR
+                                     t0,     // Initial time
+                                     t / 2,  // Final integration time
+                                     y0,     // Initial y array and output
+                                     h0,     // Initial step size
+                                     reltol, // Tolerances
+                                     abstol, //
+                                     work,   // Temporary array of size LWORK
+                                     iwork,  // Temporary array of size LIWORK
+                                     nullptr, radau_jacobian);
         if (idid > 0) {
           break;
         }
@@ -547,8 +504,8 @@ struct Radau {
         1e-6;           // Initial step size. Its okay to set this large. If set
                         // low, change WORK[2] to a smaller value!
     double t = t0 + dt; // final fime
-    constexpr double reltol = 1e-9;  // relative tolerances
-    constexpr double abstol = 1e-12; // absolute tolerances
+    constexpr double reltol = 1e-12;  // relative tolerances
+    constexpr double abstol = 1e-13; // absolute tolerances
 
     const int size = y0.size();
     const int work_len = size * (size + 7 * size + 3 * 7 + 3) + 20;
@@ -564,18 +521,18 @@ struct Radau {
     iwork[12] = 7;  // Start off with order 13
     work[2] = 0.01; // Recompute Jacobian less often (default 0.001)
 
-    int idid = radau_detail::call_radau_jac_feedback(
-        radau_rhs,                          // RHS function
-        reinterpret_cast<int*>(&user_data), // IPAR
-        t0,                                 // Initial time
-        t,                                  // Final integration time
-        y0,                                 // Initial y array and output
-        h0,                                 // Initial step size
-        reltol,                             // Tolerances
-        abstol,                             //
-        work,                               // Temporary array of size LWORK
-        iwork,                              // Temporary array of size LIWORK
-        radau_jacobian, radau_feedback);
+    int idid =
+        radau_detail::call_radau(radau_rhs, // RHS function
+                                 reinterpret_cast<int*>(&user_data), // IPAR
+                                 t0,     // Initial time
+                                 t,      // Final integration time
+                                 y0,     // Initial y array and output
+                                 h0,     // Initial step size
+                                 reltol, // Tolerances
+                                 abstol, //
+                                 work,   // Temporary array of size LWORK
+                                 iwork,  // Temporary array of size LIWORK
+                                 radau_feedback, radau_jacobian);
 
     //  IDID= 1  COMPUTATION SUCCESSFUL,
     //  IDID= 2  COMPUT. SUCCESSFUL (INTERRUPTED BY SOLOUT)
@@ -594,31 +551,31 @@ struct Radau {
     case -2:
       throw radau_error::LargerNMaxIsNeeded{};
     case -3:
-      idid = radau_detail::call_radau_jac(
-          radau_rhs,                          // RHS function
-          reinterpret_cast<int*>(&user_data), // IPAR
-          t0,                                 // Initial time
-          t / 2,                              // Final integration time
-          y0,                                 // Initial y array and output
-          h0,                                 // Initial step size
-          reltol,                             // Tolerances
-          abstol,                             //
-          work,                               // Temporary array of size LWORK
-          iwork,                              // Temporary array of size LIWORK
-          radau_jacobian);
+      idid =
+          radau_detail::call_radau(radau_rhs, // RHS function
+                                   reinterpret_cast<int*>(&user_data), // IPAR
+                                   t0,     // Initial time
+                                   t / 2,  // Final integration time
+                                   y0,     // Initial y array and output
+                                   h0,     // Initial step size
+                                   reltol, // Tolerances
+                                   abstol, //
+                                   work,   // Temporary array of size LWORK
+                                   iwork,  // Temporary array of size LIWORK
+                                   radau_feedback, radau_jacobian);
       if (idid > 0) {
-        idid = radau_detail::call_radau_jac(
-            radau_rhs,                          // RHS function
-            reinterpret_cast<int*>(&user_data), // IPAR
-            t0,                                 // Initial time
-            t / 2,                              // Final integration time
-            y0,                                 // Initial y array and output
-            h0,                                 // Initial step size
-            reltol,                             // Tolerances
-            abstol,                             //
-            work,                               // Temporary array of size LWORK
-            iwork, // Temporary array of size LIWORK
-            radau_jacobian);
+        idid =
+            radau_detail::call_radau(radau_rhs, // RHS function
+                                     reinterpret_cast<int*>(&user_data), // IPAR
+                                     t0,     // Initial time
+                                     t / 2,  // Final integration time
+                                     y0,     // Initial y array and output
+                                     h0,     // Initial step size
+                                     reltol, // Tolerances
+                                     abstol, //
+                                     work,   // Temporary array of size LWORK
+                                     iwork,  // Temporary array of size LIWORK
+                                     radau_feedback, radau_jacobian);
         if (idid > 0) {
           break;
         }

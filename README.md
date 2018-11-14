@@ -1,4 +1,4 @@
-# SAMRAI Example
+# Reactive Euler Solver
 
 This repository is an example of how to use SAMRAI. It also serves as a first attempt to talk about more concrete types and algorithms.
 Questions which are going to be tackled are 

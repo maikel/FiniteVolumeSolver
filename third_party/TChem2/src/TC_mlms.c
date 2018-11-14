@@ -128,7 +128,7 @@ int TCDND_getMl2Ms(double *Xspec,int Nspec,double *Yspec)
  *  \brief Transforms mole fractions to mass fractions. 
  *  \f[ Y_k=X_k\cdot W_k/W_{mix} \f]
  */
-int TC_getMl2Ms(double *Xspec,int Nspec,double *Yspec)
+int TC_getMl2Ms(const double *Xspec,int Nspec,double *Yspec)
 {
 /**
   \param Xspec : array of N<sub>spec</sub> mole fractions 
@@ -197,7 +197,7 @@ int TCDND_getMs2Ml(double *Yspec,int Nspec,double *Xspec)
  *  \brief Transforms mass fractions to mole fractions. 
  *  \f[ X_k=Y_k\cdot W_{mix}/W_k \f]
  */
-int TC_getMs2Ml(double *Yspec,int Nspec,double *Xspec)
+int TC_getMs2Ml(const double *Yspec,int Nspec,double *Xspec)
 {
 /**
   \param Yspec : array of N<sub>spec</sub> mass fractions
@@ -267,7 +267,7 @@ int TCDND_getMs2Wmix(double *Yspec,int Nspec,double *Wmix)
  *  \brief Computes mixture molecular weight based on species mass fractions. 
  *         \f[ W_{mix}=\left(\sum_{k=1}^{N_{spec}}Y_k/W_k\right)^{-1} \f]
 */
-int TC_getMs2Wmix(double *Yspec,int Nspec,double *Wmix)
+int TC_getMs2Wmix(const double *Yspec,int Nspec,double *Wmix)
 {
 /**
   \param Yspec : array of N<sub>spec</sub> mass fractions
@@ -334,7 +334,7 @@ int TCDND_getMl2Wmix(double *Xspec,int Nspec,double *Wmix)
  *  \brief Computes mixture molecular weight based on species mole fractions. 
  *         \f[ W_{mix}=\sum_{k=1}^{N_{spec}}X_kW_k\f]
  */
-int TC_getMl2Wmix(double *Xspec,int Nspec,double *Wmix)
+int TC_getMl2Wmix(const double *Xspec,int Nspec,double *Wmix)
 {
 /**
   \param Xspec : array of N<sub>spec</sub> mole fractions

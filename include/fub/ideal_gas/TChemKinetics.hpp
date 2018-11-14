@@ -30,6 +30,7 @@
 #include "fub/core/function_ref.hpp"
 
 #include "fub/ideal_gas/IdealGasKinetics.hpp"
+#include "fub/ideal_gas/TChemReactor.hpp"
 
 #include "SAMRAI/hier/Patch.h"
 #include "SAMRAI/pdat/CellData.h"
@@ -51,15 +52,7 @@ struct TChemKineticsOptions {
 class TChemKinetics : public IdealGasKinetics {
 public:
   TChemKinetics(std::string prefix, SAMRAI::tbox::Dimension dim,
-                TChemKineticsOptions options) noexcept;
-
-  TChemKinetics(const TChemKinetics& other) = delete;
-  TChemKinetics(TChemKinetics&& other) = delete;
-
-  TChemKinetics& operator=(const TChemKinetics& other) = delete;
-  TChemKinetics& operator=(TChemKinetics&& other) = delete;
-
-  ~TChemKinetics() noexcept;
+                const TChemMechanism& mechanism) noexcept;
 
   /// \brief Computes a complete state from a given conservative state.
   ///
@@ -79,11 +72,11 @@ public:
   void AdvanceSourceTerm(const CompleteStatePatchData& complete,
                          double dt) const override;
 
-  void AdvanceSourceTerm(span<double> TandY, double rho, double dt) const;
+  /// \brief Returns the underlying Reactor object.
+  const TChemReactor& GetReactor() const { return reactor_; }
 
-  void AdvanceSourceTerm(
-      span<double> TandY, double rho, double dt,
-      function_ref<int(span<const double>, double)> feedback) const;
+private:
+  mutable TChemReactor reactor_;
 };
 
 } // namespace ideal_gas

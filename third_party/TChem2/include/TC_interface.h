@@ -91,6 +91,7 @@ void TC_unsetthf9_ () ;
 
 /* initializes library */
 int TC_initChem(const char *mechfile, const char *thermofile, int tab, double delT) ;
+int TC_initChemFromFile(FILE *mechin, FILE *thermoin, int tab, double delT);
 
 /* set reference values, can be called only after TC_setNonDim() */
 void TC_setRefVal(double rhoref, double pref, double Tref, double Wref, 
@@ -321,19 +322,19 @@ int TC_getMs2Cc   (double *scal,int Nvars,double *concX) ;
 
 /* X_i -> Y_i */
 int TCDND_getMl2Ms(double *Xspec,int Nspec,double *Yspec) ;
-int TC_getMl2Ms   (double *Xspec,int Nspec,double *Yspec) ;
+int TC_getMl2Ms   (const double *Xspec,int Nspec,double *Yspec) ;
 
 /* Y_i -> X_i */
 int TCDND_getMs2Ml(double *Yspec,int Nspec,double *Xspec) ;
-int TC_getMs2Ml   (double *Yspec,int Nspec,double *Xspec) ;
+int TC_getMs2Ml   (const double *Yspec,int Nspec,double *Xspec) ;
 
 /* Y_i -> Wmix [kg/kmol] */
 int TCDND_getMs2Wmix(double *Yspec,int Nspec,double *Wmix) ;
-int TC_getMs2Wmix   (double *Yspec,int Nspec,double *Wmix) ;
+int TC_getMs2Wmix   (const double *Yspec,int Nspec,double *Wmix) ;
 
 /* X_i -> Wmix [kg/kmol] */
 int TCDND_getMl2Wmix(double *Xspec,int Nspec,double *Wmix) ;
-int TC_getMl2Wmix   (double *Xspec,int Nspec,double *Wmix) ;
+int TC_getMl2Wmix   (const double *Xspec,int Nspec,double *Wmix) ;
 
 /*
    _____ ____                        
@@ -377,6 +378,7 @@ int TC_getJacRPTYNnum(double *scal, int Nspec, double *jac) ;
 
 /* jacobian for constant volume */
 int TC_getJacCVTYNanl(double *scal, int Nspec, double *jac);
+int TC_getJacCVTYNnum(double *scal, int Nspec, double *jac);
   
 /* Eliminate species and reactions from a kinetic model */
 void TC_reduce(char *mechIn, char *slist, char *mechOut);

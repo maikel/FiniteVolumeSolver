@@ -163,12 +163,30 @@ void TC_unsetthf9_()           { TCKMI_thf9 = NULL ; return ; }
  */
 int TC_kmodint_(const char *mechfile,int *lmech, const char *thermofile,int *lthrm)
 {
-  /**
-   * \param mechfile : name of file containing kinetic model in chemkin format
-   * \param lmech    : length of mechfile character string
-   * \param thermofile : name of file containing coefficients for NASA polynomials
-   * \param lthrm    : length of thermofile character string
-  */
+  
+  /* File I/O */
+  FILE *mechin,*thermoin;
+  mechin    = NULL ;
+  thermoin  = NULL ;
+  mechin    = fopen(mechfile,   "r" ) ;
+  thermoin  = fopen(thermofile, "r" ) ;
+  if ( !mechin )
+  {
+    printf("TC_kmodin() : Could not open %s -> Abort !\n",mechfile) ;
+    fflush(stdout) ;
+    exit(1) ;
+  }
+  if ( !thermoin )
+  {
+    printf("TC_kmodin() : Could not open %s -> Abort !\n",thermofile) ;
+    fflush(stdout) ;
+    exit(1) ;
+  }
+  return TC_kmodint__(mechin, thermoin);
+}
+
+int TC_kmodint__(FILE *mechin, FILE *thermoin)
+{
   /*
        _                           _  _         _
       | | __ _ __ ___    ___    __| |(_) _ __  | |_
@@ -201,7 +219,7 @@ int TC_kmodint_(const char *mechfile,int *lmech, const char *thermofile,int *lth
   char aunits[lenstr03],eunits[lenstr03] ;
 
   /* File I/O */
-  FILE *mechin,*thermoin,*thermoin9,*filelist,*fileascii ;
+  FILE *thermoin9,*filelist,*fileascii ;
   char listfile [lenfile],asciifile [lenfile] ;
 
   /* Character strings */
@@ -218,14 +236,6 @@ int TC_kmodint_(const char *mechfile,int *lmech, const char *thermofile,int *lth
   printf("      |   < | | | | | || (_) || (_| || || | | || |_    \n") ;
   printf("      |_|\\_\\|_| |_| |_| \\___/  \\__,_||_||_| |_| \\__|   \n") ;
   printf("                                                       \n\n") ;
-#endif
-
-  /* Mark end of file names (in case method is called from Fortran) */
-  // memset(&mechfile[*lmech],0,1) ;
-  // memset(&thermofile[*lthrm],0,1) ;
-#ifdef VERBOSE
-  printf("Reading kinetic model from : %s\n",mechfile) ;
-  printf("      and thermo data from : %s\n",thermofile) ;
 #endif
 
   /*--------------------Set periodic table--------------------------- */
@@ -256,26 +266,10 @@ int TC_kmodint_(const char *mechfile,int *lmech, const char *thermofile,int *lth
   strcpy(listfile ,"kmod.list") ; /* Unformatted ASCII output file */
   strcpy(asciifile,"kmod.out" ) ; /* Formatted   ASCII output file */
 
-  mechin    = NULL ;
-  thermoin  = NULL ;
   filelist  = NULL ;
   fileascii = NULL ;
-  mechin    = fopen(mechfile,   "r" ) ;
-  thermoin  = fopen(thermofile, "r" ) ;
   filelist  = fopen(listfile,   "w" ) ;
   fileascii = fopen(asciifile,  "w" ) ;
-  if ( !mechin )
-  {
-    printf("TC_kmodin() : Could not open %s -> Abort !\n",mechfile) ;
-    fflush(stdout) ;
-    exit(1) ;
-  }
-  if ( !thermoin )
-  {
-    printf("TC_kmodin() : Could not open %s -> Abort !\n",thermofile) ;
-    fflush(stdout) ;
-    exit(1) ;
-  }
   if ( !filelist )
   {
     printf("TC_kmodin() : Could not open %s -> Abort !\n",listfile) ;
@@ -553,6 +547,7 @@ int TC_kmodint_(const char *mechfile,int *lmech, const char *thermofile,int *lth
   return ( ierror ) ;
 
 }
+
 
 /* ------------------------------------------------------------------------- */
 /**

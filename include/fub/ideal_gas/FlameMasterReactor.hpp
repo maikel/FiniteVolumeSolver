@@ -49,7 +49,6 @@ public:
 /// This abstract base class encapsulates the underlying chemistry for the
 /// FlameMasterReactor.
 struct FlameMasterMechanism {
-
   virtual ~FlameMasterMechanism() = default;
 
   virtual std::unique_ptr<FlameMasterMechanism> Clone() const = 0;
@@ -142,8 +141,10 @@ public:
 
   /// \brief Advance the reactor in time by dt and call a function for each
   /// internal timestep
-  void advance(double dt,
-               function_ref<int(double, FlameMasterReactor*)> feedbackFun);
+  void advance(
+      double dt,
+      function_ref<int(fub::span<const double>, double, FlameMasterReactor*)>
+          feedbackFun);
 
   /// \brief Advance the reactor in time by dt.
   ///
@@ -152,6 +153,12 @@ public:
   /// \throw FlameMasterReactorException  This exception may be thrown if the
   /// ode solver could not converge to a solution.
   void advance(double dt);
+
+  void advance_tchem(double dt);
+  void advance_tchem(
+      double dt,
+      function_ref<int(fub::span<const double>, double, FlameMasterReactor*)>
+          feedback);
 
   /// \brief Advance the reactor by one internal time step and return the time
   /// step size

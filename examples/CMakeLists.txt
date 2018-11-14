@@ -8,9 +8,6 @@ if (TARGET benchmark::benchmark)
   target_link_libraries(benchmark.TChem HyperbolicSolver.IdealGas benchmark::benchmark)
 endif()
 
-add_executable(TChem_Advance TChem_Advance.cpp)
-target_link_libraries(TChem_Advance PRIVATE HyperbolicSolver.IdealGas)
-
 add_executable(FlameMasterReactor_Advance FlameMasterReactor_Advance.cpp)
 target_link_libraries(FlameMasterReactor_Advance PRIVATE HyperbolicSolver.IdealGas)
 

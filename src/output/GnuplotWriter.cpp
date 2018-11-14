@@ -158,7 +158,6 @@ void GnuplotWriter::writePlotData(
     const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy, int cylce,
     double time_point) {
   forEachPatch(*hierarchy, [&](const SAMRAI::hier::Patch& patch) {
-    int num_quantities = names_.size();
     auto id_iter = patch_data_ids_.begin();
     (*out_) << std::setw(20) << "# Coordinates ";
     for (const std::string& name : names_) {

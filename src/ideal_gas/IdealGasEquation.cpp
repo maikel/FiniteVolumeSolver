@@ -44,7 +44,6 @@ std::string GetPrefixedCellVariableName_(const std::string& prefix,
 }
 
 int GetDepth_(Variable var, int dim, int n_species) {
-  int depth;
   switch (var) {
   case Variable::momentum:
     return dim;

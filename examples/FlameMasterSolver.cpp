@@ -9,7 +9,7 @@
 #include "fub/ideal_gas/KineticSourceTerm.hpp"
 #include "fub/ideal_gas/PerfectGasEquation.hpp"
 #include "fub/ideal_gas/boundary_condition/ReflectiveCondition.hpp"
-#include "fub/ideal_gas/mechanism/Gri30.hpp"
+#include "fub/ideal_gas/mechanism/Zhao2008Dme.hpp"
 #include "fub/initial_data/RiemannProblem.hpp"
 #include "fub/output/GnuplotWriter.hpp"
 #include "fub/solver/BoundaryCondition.hpp"
@@ -70,7 +70,7 @@ public:
   RiemannProblem(fub::PolymorphicGeometry geom,
                  const fub::ideal_gas::IdealGasEquation& equation)
       : fub::RiemannProblem(std::move(geom)), ideal_gas{&equation} {
-    using fub::ideal_gas::Gri30;
+    using fub::ideal_gas::Zhao2008Dme;
     left.temperature = 1100.0;
     left.momentum = 0.0;
     left.pressure = 101325.0;
@@ -81,10 +81,10 @@ public:
     if (n_species) {
       left.species.resize(n_species);
       right.species.resize(n_species);
-      left.species[Gri30::sO2] = 1.0;
-      left.species[Gri30::sH2] = 1.0;
-      right.species[Gri30::sO2] = 1.0;
-      right.species[Gri30::sH2] = 1.0;
+      left.species[Zhao2008Dme::sH2] = 0.5;
+      left.species[Zhao2008Dme::sO2] = 0.5;
+      right.species[Zhao2008Dme::sO2] = 0.5;
+      right.species[Zhao2008Dme::sH2] = 0.5;
     }
   }
 
@@ -124,7 +124,7 @@ int main(int argc, char** argv) {
   fub::ScopeGuard guard(argc, argv);
   const SAMRAI::tbox::Dimension dim(1);
 
-  fub::ideal_gas::Gri30 mechanism;
+  fub::ideal_gas::Zhao2008Dme mechanism;
   auto equation = std::make_shared<fub::ideal_gas::FlameMasterKinetics>(
       "IdealGas", dim, mechanism);
 
@@ -173,6 +173,6 @@ int main(int argc, char** argv) {
     // Do the output
     t += dt;
 
-    writer.writePlotData(hierarchy, step + 1, t);
+    // writer.writePlotData(hierarchy, step + 1, t);
   }
 }

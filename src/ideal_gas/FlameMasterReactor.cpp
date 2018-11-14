@@ -22,6 +22,11 @@
 #include "fub/ideal_gas/FlameMasterReactor.hpp"
 #include "src/solver/ode_solver/Radau.hpp"
 
+extern "C" {
+#include "TC_defs.h"
+#include "TC_interface.h"
+}
+
 #include <algorithm>
 #include <cmath>
 #include <numeric>
@@ -330,7 +335,7 @@ struct AdvanceSystem {
 struct AdvanceFeedback {
   FlameMasterReactor* reactor;
   FlameMasterState* state;
-  function_ref<int(double, FlameMasterReactor*)> feedback;
+  function_ref<int(span<const double>, double, FlameMasterReactor*)> feedback;
 
   int operator()(span<const double> y, double t) const noexcept {
     if (y.data() != state->molesStorage.data()) {
@@ -338,7 +343,7 @@ struct AdvanceFeedback {
       std::copy(y.begin(), y.end(), state->molesStorage.begin());
     }
     UpdateMassFractionsFromMoles(*state);
-    return feedback(t, reactor);
+    return feedback(y, t, reactor);
   }
 };
 
@@ -358,8 +363,79 @@ void FlameMasterReactor::advance(double dt) {
   UpdateMassFractionsFromMoles(state_);
 }
 
+void FlameMasterReactor::advance_tchem(
+    double dt, function_ref<int(span<const double>, double, FlameMasterReactor*)> feedback) {
+  if (dt == 0) {
+    return;
+  }
+  FUB_ASSERT(dt > 0);
+
+  UpdateMolesFromMassFractions(state_);
+
+  const double rho = getDensity();
+  TC_setThermoPres(getPressure());
+  TC_setDens(rho);
+  std::vector<double> TandY(getNSpecies() + 1);
+  TandY[0] = getTemperature();
+  std::copy(state_.massFractions.begin(), state_.massFractions.end(),
+            TandY.begin() + 1);
+  auto odeRhs = [&](span<double> dZdt, span<const double> Z, double time_point) {
+    TC_getSrcCV(const_cast<double*>(Z.data()), Z.size(), dZdt.data());
+    setMassFractions(Z.subspan(1));
+    setTemperature(Z[0]);
+  };
+  auto odeJac = [](span<double> dfdZ, span<const double> Z, double time_point) {
+    TC_getJacCVTYNanl(const_cast<double*>(Z.data()), Z.size() - 1, dfdZ.data());
+  };
+
+  // Do the actual computation
+  Radau::integrate_jacobian_feedback(odeRhs, make_span(TandY), 0.0, dt, odeJac,
+                                     AdvanceFeedback{this, &state_, feedback});
+
+  // Retrieve mass fractions from the result vector
+  UpdateMassFractionsFromMoles(state_);
+}
+
+void FlameMasterReactor::advance_tchem(double dt) {
+  if (dt == 0) {
+    return;
+  }
+  FUB_ASSERT(dt > 0);
+
+  UpdateMolesFromMassFractions(state_);
+
+  const double rho = getDensity();
+  TC_setDens(rho);
+  std::vector<double> TandY(getNSpecies() + 1);
+
+  auto odeJac = [&](span<double> dfdZ, span<const double> Z,
+                    double time_point) {
+    UpdateMassFractionsFromMoles(this->state_);
+    TandY[0] = Z[0];
+    std::copy(this->state_.massFractions.begin(),
+              this->state_.massFractions.end(), TandY.begin() + 1);
+    const int nSpecies = TandY.size() - 1;
+    TC_getJacCVTYNanl(TandY.data(), nSpecies, dfdZ.data());
+    span<const double> molarMasses(state_.molarMasses);
+    for (int j = 1; j < nSpecies; ++j) {
+      int index = j * (nSpecies + 1);
+      const double derivative = molarMasses[j - 1] / rho;
+      for (int i = 0; i <= nSpecies; ++i) {
+        dfdZ[index + i] *= derivative;
+      }
+    }
+  };
+
+  // Do the actual computation
+  Radau::integrate_jacobian(AdvanceSystem{mechanism_, &state_},
+                            make_span(state_.molesStorage), 0.0, dt, odeJac);
+
+  // Retrieve mass fractions from the result vector
+  UpdateMassFractionsFromMoles(state_);
+}
+
 void FlameMasterReactor::advance(
-    double dt, function_ref<int(double, FlameMasterReactor*)> feedback) {
+    double dt, function_ref<int(span<const double>, double, FlameMasterReactor*)> feedback) {
   if (dt == 0) {
     return;
   }
@@ -656,5 +732,5 @@ double FlameMasterReactor::setPressureIsentropic(double pressure) {
   return state_.setPVector[1];
 }
 
-} // namespace euler
+} // namespace ideal_gas
 } // namespace fub

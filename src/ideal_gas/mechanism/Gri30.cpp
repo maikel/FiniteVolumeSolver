@@ -12,7 +12,7 @@ namespace ideal_gas {
 static double GetLindRateCoeff(double temp, double pressure, double k0,
                                double kInf, double fc, double conc);
 
-double MAX_C(double X1, double X2);
+static double MAX_C(double X1, double X2);
 
 void Gri30::ComputeProductionRates(span<double> cdot, span<double> w,
                                    span<double> k, span<double> c,
@@ -31,8 +31,8 @@ void Gri30::ComputeProductionRates(span<double> cdot, span<double> w,
      coefficients 'Fc*'
   */
 
-  int nSpec = 53;
-  int nSpecIn = 53;
+  // int nSpec = 53;
+  // int nSpecIn = 53;
   double kTroe0, kTroeInf, fcTroe;
   double RGAS = 8314.34;
   double lgt = log(temp);

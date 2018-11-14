@@ -30,8 +30,8 @@ void Burke2012::ComputeProductionRates(span<double> cdot, span<double> w,
                                        span<double> k, span<double> c,
                                        span<double> M, double temp,
                                        double pressure) const {
-  int nSpec = 11;
-  int nSpecIn = 11;
+  // int nSpec = 11;
+  // int nSpecIn = 11;
   double kTroe0, kTroeInf, fcTroe;
   double RGAS = 8314.34;
   double lgt = log(temp);

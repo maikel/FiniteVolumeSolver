@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 project(HyperbolicSolver CXX Fortran)
 
 find_package(SAMRAI REQUIRED)
@@ -28,7 +28,9 @@ add_library(HyperbolicSolver
   src/solver/HyperbolicSystemSourceSolver.cpp
   src/solver/SourceTermIntegrator.cpp
   src/solver/GodunovSplitting.cpp
-  src/solver/ode_solver/Radau.cpp)
+  src/solver/ode_solver/Radau.cpp
+  src/ode_solver/RadauSolver.cpp
+  src/ode_solver/CVodeSolver.cpp)
 
 target_include_directories(HyperbolicSolver PUBLIC include/)
 target_include_directories(HyperbolicSolver PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
@@ -39,7 +41,8 @@ target_link_libraries(HyperbolicSolver
     SAMRAI_appu SAMRAI_mesh SAMRAI_geom 
     Boost::boost
     Boost::filesystem
-    Eigen3::Eigen)
+    Eigen3::Eigen
+    /usr/local/lib/libsundials_cvode.a)
 
 target_compile_features(HyperbolicSolver PUBLIC cxx_std_14)
 
@@ -47,11 +50,13 @@ target_compile_features(HyperbolicSolver PUBLIC cxx_std_14)
 add_library(HyperbolicSolver.IdealGas
   src/ideal_gas/IdealGasEquation.cpp
   src/ideal_gas/PerfectGasEquation.cpp
-  src/ideal_gas/Reactor.cpp
+  src/ideal_gas/FlameMasterReactor.cpp
   src/ideal_gas/FlameMasterKinetics.cpp
+  src/ideal_gas/TChemKinetics.cpp
+  src/ideal_gas/TChemReactor.cpp
   src/ideal_gas/mechanism/Burke2012.cpp
   src/ideal_gas/mechanism/Gri30.cpp
-  src/ideal_gas/TChemKinetics.cpp
+  src/ideal_gas/mechanism/Zhao2008Dme.cpp
   src/ideal_gas/ForwardEulerTimeIntegrator.cpp
   src/ideal_gas/HlleRiemannSolver.cpp
   src/ideal_gas/KineticSourceTerm.cpp

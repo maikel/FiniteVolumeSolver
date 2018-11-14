@@ -2043,7 +2043,7 @@ int TC_getCrndDer(int ireac, int *itbdy, int *ipfal,
       indxI = ( ireac) * 3          ;
       Arh0 = &(TC_reacPpar_[indx0]) ;
       ArhI = &(TC_reacArhenFor_[indxI]) ;
-      if (TC_reacPlohi_[i] == 0) {
+      if (TC_reacPlohi_[*ipfal] == 0) {
         /* LOW reaction */
         k0   = Arh0[0]*exp(Arh0[1]*tln-Arh0[2]*t_1) ;
         Pr   = k0/TC_kfor[ireac] ;
@@ -2065,7 +2065,7 @@ int TC_getCrndDer(int ireac, int *itbdy, int *ipfal,
         Pr *= concM[ireac] ;
       }
 
-      if (TC_reacPlohi_[i] == 0) {
+      if (TC_reacPlohi_[*ipfal] == 0) {
         /* LOW reaction */
         TC_PrDer[0] = Pr * t_1 * ( Arh0[1] - ArhI[1] + t_1 * ( Arh0[2]-ArhI[2] ) ) ;
       } else {
