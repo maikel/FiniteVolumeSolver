@@ -50,6 +50,7 @@ void TChemKinetics::FillFromCons(const CompleteStatePatchData& q,
     const double rhoE = q.energy(cell);
     const double U = (rhoE - 0.5 * rhou * rhou / rho) / rho;
     reactor_.SetInternalEnergy(U);
+    reactor_.UpdateThermoState();
     q.temperature(cell) = reactor_.GetTemperature();
     q.pressure(cell) = reactor_.GetPressure();
     q.speed_of_sound(cell) = reactor_.GetSpeedOfSound();
@@ -72,6 +73,7 @@ void TChemKinetics::FillFromPrim(const CompleteStatePatchData& q,
     reactor_.SetMoleFractions(X);
     reactor_.SetPressure(p);
     reactor_.SetTemperature(q.temperature(cell));
+    reactor_.UpdateThermoState();
     double rho = reactor_.GetDensity();
     q.density(cell) = rho;
     const double rhou = q.momentum(cell);
@@ -98,6 +100,7 @@ void TChemKinetics::AdvanceSourceTerm(const CompleteStatePatchData& q,
     reactor_.SetPressure(q.pressure(cell));
     reactor_.SetTemperature(q.temperature(cell));
     reactor_.Advance(time_step_size);
+    reactor_.UpdateThermoState();
     const double rho = reactor_.GetDensity();
     const double u = q.momentum(cell) / rho;
     q.density(cell) = rho;

@@ -273,10 +273,16 @@ public:
     return state_.speciesNames[i];
   }
 
+  span<const std::string> getSpeciesNames() const {
+    return state_.speciesNames;
+  }
+
   /**
    * Return the number of species in the mechanism
    */
   int getNSpecies() const { return state_.nSpecies; }
+
+  int getNReactions() const { return state_.nReactions; }
 
   /**
    * Average a quantity over the mole fractions
@@ -330,7 +336,7 @@ public:
   /**
    * get the molar masses for all species
    */
-  span<const double> getMolarMasses() const { return state_.moles; }
+  span<const double> getMolarMasses() const { return state_.molarMasses; }
 
   /**
    * get the overall molar mass

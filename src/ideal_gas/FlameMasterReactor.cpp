@@ -364,7 +364,9 @@ void FlameMasterReactor::advance(double dt) {
 }
 
 void FlameMasterReactor::advance_tchem(
-    double dt, function_ref<int(span<const double>, double, FlameMasterReactor*)> feedback) {
+    double dt,
+    function_ref<int(span<const double>, double, FlameMasterReactor*)>
+        feedback) {
   if (dt == 0) {
     return;
   }
@@ -379,7 +381,8 @@ void FlameMasterReactor::advance_tchem(
   TandY[0] = getTemperature();
   std::copy(state_.massFractions.begin(), state_.massFractions.end(),
             TandY.begin() + 1);
-  auto odeRhs = [&](span<double> dZdt, span<const double> Z, double time_point) {
+  auto odeRhs = [&](span<double> dZdt, span<const double> Z,
+                    double time_point) {
     TC_getSrcCV(const_cast<double*>(Z.data()), Z.size(), dZdt.data());
     setMassFractions(Z.subspan(1));
     setTemperature(Z[0]);
@@ -435,7 +438,9 @@ void FlameMasterReactor::advance_tchem(double dt) {
 }
 
 void FlameMasterReactor::advance(
-    double dt, function_ref<int(span<const double>, double, FlameMasterReactor*)> feedback) {
+    double dt,
+    function_ref<int(span<const double>, double, FlameMasterReactor*)>
+        feedback) {
   if (dt == 0) {
     return;
   }
@@ -644,8 +649,11 @@ void FlameMasterReactor::setMassFractions(std::string newMassFractions) {
 }
 
 void FlameMasterReactor::setMassFractions(span<const double> fractions) {
-  std::copy(fractions.begin(), fractions.end(), state_.massFractions.begin());
-  const double sum = std::accumulate(fractions.begin(), fractions.end(), 0.0);
+  std::transform(fractions.begin(), fractions.end(),
+                state_.massFractions.begin(),
+                [](double Y) { return std::max(0.0, Y); });
+  const double sum = std::accumulate(state_.massFractions.begin(),
+                                     state_.massFractions.end(), 0.0);
   if (sum != 0) {
     std::transform(state_.massFractions.begin(), state_.massFractions.end(),
                    state_.massFractions.begin(),
@@ -703,14 +711,16 @@ span<const double> FlameMasterReactor::getProductionRates() {
   );
 
   return state_.production_rates;
-} // namespace fub
+}
 
+namespace {
 struct SetIsentropicPSystem {
   FlameMasterReactor* reactor;
   int operator()(span<double> dydp, span<const double> y, double p) {
     return OdeRhsSetP(dydp, y, p, *reactor);
   }
 };
+}
 
 double FlameMasterReactor::setPressureIsentropic(double pressure) {
   // Do nothing if the pressures match

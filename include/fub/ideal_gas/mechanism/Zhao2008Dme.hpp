@@ -741,6 +741,10 @@ public:
     return std::make_unique<Zhao2008Dme>();
   }
 
+  std::unique_ptr<TChemMechanism> Clone_() const override {
+    return std::make_unique<Zhao2008Dme>();
+  }
+
   const char* GetMechanismResource() const override;
 
   const char* GetThermoResource() const override;

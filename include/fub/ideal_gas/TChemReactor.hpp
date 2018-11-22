@@ -26,6 +26,7 @@
 
 #include <memory>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
 namespace fub {
@@ -48,6 +49,7 @@ struct TChemMechanism {
   virtual int getNSpecies() const = 0;
   virtual const char* GetMechanismResource() const = 0;
   virtual const char* GetThermoResource() const = 0;
+  virtual std::unique_ptr<TChemMechanism> Clone_() const = 0;
 };
 
 class TChemReactor {
@@ -62,7 +64,9 @@ public:
   TChemReactor(TChemReactor&&) = delete;
   TChemReactor& operator=(TChemReactor&&) = delete;
 
-  void SetOdeSolver(std::unique_ptr<OdeSolver> solver);
+  void SetOdeSolver(std::unique_ptr<OdeSolver> solver) {
+    ode_solver_ = std::move(solver);
+  }
 
   void Advance(double dt);
   void Advance(double dt, Feedback feedback);
@@ -71,20 +75,25 @@ public:
   double GetPressure() const { return pressure_; }
   double GetDensity() const { return density_; }
   double GetTemperature() const { return temperature_; }
+
   span<const double> GetMassFractions() const {
     return make_span(temperature_and_mass_fractions_).subspan(1);
   }
+  span<const double> GetMolarMasses() const { return molar_masses_; }
+  double GetMeanMolarMass() const;
+  span<const std::string> GetSpeciesNames() const { return species_names_; }
   span<const double> GetMoleFractions() const { return moles_; }
   span<const double> GetCps() const { return cps_; }
   span<const double> GetCvs() const { return cvs_; }
   span<const double> GetEnthalpies() const { return enthalpies_; }
   span<const double> GetInternalEnergies() const { return internal_energies_; }
+
   const OdeSolver& GetOdeSolver() const { return *ode_solver_; }
 
   double GetSpeedOfSound() const;
   double GetInternalEnergy() const;
   double GetCp() const;
-  double GetCv() const; 
+  double GetCv() const;
   double GetGamma() const;
 
   void SetPressure(double p);
@@ -93,10 +102,15 @@ public:
   void SetInternalEnergy(double e, double tolerance = 1e-6);
   void SetMassFractions(span<const double> Y);
   void SetMoleFractions(span<const double> X);
+  void SetMoleFractions(std::string X);
+
+  double SetPressureIsentropic(double p);
 
   void UpdateThermoState();
 
-  const char* GetSpeciesName(int i) const;
+  const char* GetSpeciesName(int i) const { 
+    return species_names_[i].data();
+  }
 
 private:
   std::vector<double> temperature_and_mass_fractions_;
@@ -105,10 +119,13 @@ private:
   std::vector<double> enthalpies_;
   std::vector<double> cps_;
   std::vector<double> cvs_;
+  std::vector<double> molar_masses_;
+  std::vector<std::string> species_names_;
   double density_;
   double pressure_;
   double temperature_;
   double thermo_temperature_;
+  std::array<double, 2> setPVector_;
   std::unique_ptr<OdeSolver> ode_solver_;
 };
 

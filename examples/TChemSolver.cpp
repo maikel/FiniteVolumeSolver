@@ -149,7 +149,8 @@ int main(int argc, char** argv) {
     auto start = std::chrono::steady_clock::now();
 
     // Estimate time step size, use the boundary condition
-    const double dt = solver.computeStableDt(hierarchy, boundary_condition, t);
+    const double dt =
+        0.5 * solver.computeStableDt(hierarchy, boundary_condition, t);
     // Do one time step in X (use ghost cells from previous work)
     // Use boundary condition to fill ghost cells outside of the domain.
     solver.advanceTime(hierarchy, boundary_condition, t, dt);

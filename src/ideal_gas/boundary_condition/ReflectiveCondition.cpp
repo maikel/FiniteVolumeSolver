@@ -39,6 +39,7 @@ void ReflectOnBoundaryBox_(
     complete.density(to) = complete.density(from);
     complete.energy(to) = complete.energy(from);
     complete.pressure(to) = complete.pressure(from);
+    complete.temperature(to) = complete.temperature(from);
     complete.speed_of_sound(to) = complete.speed_of_sound(from);
     const int n_species = complete.species.getDepth();
     for (int s = 0; s < n_species; ++s) {

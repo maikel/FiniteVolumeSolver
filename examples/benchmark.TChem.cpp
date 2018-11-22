@@ -6,6 +6,8 @@
 #include "fub/ideal_gas/mechanism/Gri30.hpp"
 #include "fub/ideal_gas/mechanism/Zhao2008Dme.hpp"
 
+#include "fub/ode_solver/CVodeSolver.hpp"
+
 extern "C" {
 #include "TC_defs.h"
 #include "TC_interface.h"
@@ -201,6 +203,7 @@ AdvanceSourceTerm_TChem_Zhao2008Dme_NoReac(benchmark::State& state) {
 BENCHMARK(AdvanceSourceTerm_TChem_Zhao2008Dme_NoReac);
 
 int main(int argc, char** argv) {
+  reactor.SetOdeSolver(std::make_unique<fub::CVodeSolver>(reactor.GetNSpecies() + 1));
   fub::ScopeGuard guard(argc, argv);
   benchmark::Initialize(&argc, argv);
   benchmark::RunSpecifiedBenchmarks();

@@ -26,8 +26,8 @@
 #define FUB_IDEAL_GAS_TCHEM_KINETICS_HPP
 
 #include "fub/core/assert.hpp"
-#include "fub/core/span.hpp"
 #include "fub/core/function_ref.hpp"
+#include "fub/core/span.hpp"
 
 #include "fub/ideal_gas/IdealGasKinetics.hpp"
 #include "fub/ideal_gas/TChemReactor.hpp"

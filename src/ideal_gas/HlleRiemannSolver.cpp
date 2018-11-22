@@ -179,17 +179,13 @@ HlleRiemannSolver::computeStableDtOnPatch(const CompleteStatePatchData& state,
     const double aL = state.speed_of_sound(left);
     const double aR = state.speed_of_sound(right);
 
-#ifdef __cpp_structured_bindings
-    auto [sL, sR] =
-        computeHlleSignalVelocities_({rhoL, rhouL, aL}, {rhoR, rhouR, aR});
-#else
     HllSignals<double> signals =
         computeHlleSignalVelocities_({rhoL, rhouL, aL}, {rhoR, rhouR, aR});
     const double& bL = signals.left;
     const double& bR = signals.right;
     const double sL = std::min(0.0, bL);
     const double sR = std::max(0.0, bR);
-#endif
+
     velocity = std::max({velocity, -sL, sR});
     FUB_ASSERT(velocity >= 0.0);
   }
@@ -221,15 +217,10 @@ void HlleRiemannSolver::computeFluxesOnPatch(
     const double aL = state.speed_of_sound(left);
     const double aR = state.speed_of_sound(right);
 
-#ifdef __cpp_structured_bindings
-    auto [sL, sR] =
-        computeHlleSignalVelocities_({rhoL, rhouL, aL}, {rhoR, rhouR, aR});
-#else
     HllSignals<double> signals =
         computeHlleSignalVelocities_({rhoL, rhouL, aL}, {rhoR, rhouR, aR});
     const double& bL = signals.left;
     const double& bR = signals.right;
-#endif
 
     const double sL = std::min(0.0, bL);
     const double sR = std::max(0.0, bR);

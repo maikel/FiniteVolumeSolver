@@ -74,6 +74,39 @@ void FlameMasterKinetics::FillFromCons(const CompleteStatePatchData& q,
   }
 }
 
+void FlameMasterKinetics::FillFromCons(
+    const CompleteStateSpan<double>& q,
+    const ConsStateSpan<const double>& u) const {
+  std::copy(u.density.begin(), u.density.end(), q.density.begin());
+  std::copy(u.momentum.begin(), u.momentum.end(), q.momentum.begin());
+  std::copy(u.energy.begin(), u.energy.end(), q.energy.begin());
+  std::copy(u.species.begin(), u.species.end(), q.species.begin());
+  std::vector<double> masses(reactor_.getNSpecies());
+  const int size = q.density.size();
+  for (std::ptrdiff_t i = 0; i < size; ++i) {
+    const double rho = q.density[i];
+    const double rhou = q.momentum[i];
+    const double rhoE = q.energy[i];
+    for (int s = 0; s < reactor_.getNSpecies(); ++s) {
+      masses[s] = q.species[i + s * size];
+    }
+    reactor_.setMassFractions(masses);
+    reactor_.setDensity(rho);
+    // internal energy = (total energy - kinetic energy) / density
+    const double refEnergy = reactor_.MeanY(reference_enthalpies_) -
+                             reactor_.getUniversalGasConstant() *
+                                 GetReferenceTemperature() /
+                                 reactor_.getMeanMolarMass();
+    const double e = (rhoE - 0.5 * rhou * rhou / rho) / rho;
+    const double gamma = reactor_.getCp() / reactor_.getCv();
+    const double p = reactor_.getPressure();
+    reactor_.setInternalEnergy(e + refEnergy);
+    q.temperature[i] = reactor_.getTemperature();
+    q.pressure[i] = reactor_.getPressure();
+    q.speed_of_sound[i] = std::sqrt(gamma * p / rho);
+  }
+}
+
 void FlameMasterKinetics::FillFromPrim(const CompleteStatePatchData& q,
                                        const PrimStatePatchData& prim) const {
   q.temperature.copy(prim.temperature);
@@ -106,6 +139,44 @@ void FlameMasterKinetics::FillFromPrim(const CompleteStatePatchData& q,
     span<const double> fractions = reactor_.getMassFractions();
     for (int s = 0; s < fractions.size(); ++s) {
       q.species(cell, s) = rho * fractions[s];
+    }
+  }
+}
+
+void FlameMasterKinetics::FillFromPrim(
+    const CompleteStateSpan<double>& q,
+    const PrimStateSpan<const double>& w) const {
+  FUB_ASSERT(q.temperature.size() == w.temperature.size());
+  std::copy(w.temperature.begin(), w.temperature.end(), q.temperature.begin());
+  std::copy(w.pressure.begin(), w.pressure.end(), q.pressure.begin());
+  std::copy(w.species.begin(), w.species.end(), q.species.begin());
+  std::copy(w.momentum.begin(), w.momentum.end(), q.momentum.begin());
+  std::vector<double> moles(reactor_.getNSpecies());
+  const int size = q.temperature.size();
+  for (std::ptrdiff_t i = 0; i < size; ++i) {
+    for (int s = 0; s < reactor_.getNSpecies(); ++s) {
+      moles[s] = q.species[i + s * size];
+    }
+    reactor_.setMoleFractions(moles);
+    reactor_.setPressure(q.pressure[i]);
+    reactor_.setTemperature(q.temperature[i]);
+    const double rho = reactor_.getDensity();
+    const double rhou = q.momentum[i];
+    // internal energy = (total energy - kinetic energy) / density
+    const double refEnergy = reactor_.MeanY(reference_enthalpies_) -
+                             reactor_.getUniversalGasConstant() *
+                                 GetReferenceTemperature() /
+                                 reactor_.getMeanMolarMass();
+    const double eps = reactor_.getInternalEnergy() - refEnergy;
+    const double rhoE = rho * eps + 0.5 * rhou * rhou / rho;
+    const double gamma = reactor_.getCp() / reactor_.getCv();
+    const double p = reactor_.getPressure();
+    q.density[i] = rho;
+    q.energy[i] = rhoE;
+    q.speed_of_sound[i] = std::sqrt(gamma * p / rho);
+    span<const double> Y = reactor_.getMassFractions();
+    for (int s = 0; s < Y.size(); ++s) {
+      q.species[i + s * size] = rho * Y[s];
     }
   }
 }

@@ -60,11 +60,17 @@ public:
   void FillFromCons(const CompleteStatePatchData& complete,
                     const ConsStatePatchData& cons) const override;
 
+  void FillFromCons(const CompleteStateSpan<double>& complete,
+                    const ConsStateSpan<const double>& cons) const;
+
   /// \brief Computes a complete state from a given primitive state.
   ///
   /// \note This mutates the internal reactor state.
   void FillFromPrim(const CompleteStatePatchData& complete,
                     const PrimStatePatchData& prim) const override;
+
+  void FillFromPrim(const CompleteStateSpan<double>& complete,
+                    const PrimStateSpan<const double>& prim) const;
 
   span<const double> GetReferenceEnthalpies() const {
     return reference_enthalpies_;

@@ -141,7 +141,8 @@ int main(int argc, char** argv) {
 
   fub::IndexRange indices{SAMRAI::hier::Index(dim, 0),
                           SAMRAI::hier::Index(dim, 200 - 1)};
-  fub::CoordinateRange coordinates{fub::Coordinates(1, -1.0), fub::Coordinates(1, +1.0)};
+  fub::CoordinateRange coordinates{fub::Coordinates(1, -1.0),
+                                   fub::Coordinates(1, +1.0)};
 
   std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy =
       fub::MakeCartesianPatchHierarchy(indices, coordinates);
@@ -158,7 +159,8 @@ int main(int argc, char** argv) {
     auto start = std::chrono::steady_clock::now();
 
     // Estimate time step size
-    const double dt = solver.computeStableDt(hierarchy, boundary_condition, t);
+    const double dt =
+        0.5 * solver.computeStableDt(hierarchy, boundary_condition, t);
 
     // Do one time step in X (use ghost cells from previous work)
     solver.advanceTime(hierarchy, boundary_condition, t, dt);
