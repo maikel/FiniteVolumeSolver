@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 
 project(HyperbolicSolver_examples CXX)
 
-find_package(benchmark)
+find_package(benchmark QUIET)
 if (SAMRAI_FOUND AND TARGET benchmark::benchmark)
   add_executable(benchmark.TChem benchmark.TChem.cpp)
   target_link_libraries(benchmark.TChem HyperbolicSolver.IdealGas benchmark::benchmark)
