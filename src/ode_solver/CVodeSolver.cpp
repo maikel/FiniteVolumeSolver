@@ -40,6 +40,10 @@ struct CVodeSolver::CVodeInternalData_ {
   SUNLinearSolver solver;
 };
 
+std::unique_ptr<OdeSolver> CVodeSolver::clone() const {
+  return std::make_unique<CVodeSolver>(N_VGetLength_Serial(data_->y));
+}
+
 void CVodeSolver::ReleaseCVodeMemory::operator()(CVodeInternalData_* data) const
     noexcept {
   if (data != nullptr) {
@@ -125,6 +129,7 @@ void CVodeSolver::integrate(system_type system, span<double> y_0, double t0,
   } else {
     while (t < tend) {
       CVode(cvode_mem, tend, data_->y, &t, CV_ONE_STEP);
+      std::copy_n(N_VGetArrayPointer(data_->y), y_0.size(), y_0.begin());
       (*feedback)(y_0, t);
     }
   }

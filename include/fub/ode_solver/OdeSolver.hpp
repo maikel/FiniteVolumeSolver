@@ -24,6 +24,8 @@
 #include "fub/core/function_ref.hpp"
 #include "fub/core/span.hpp"
 
+#include <memory>
+
 namespace fub {
 
 struct OdeSolver {
@@ -56,10 +58,16 @@ struct OdeSolver {
     integrate(rhs, y_0, t, dt, &feedback, &jacobian);
   }
 
+  std::unique_ptr<OdeSolver> Clone() const {
+    return clone();
+  }
+
 private:
   virtual void integrate(system_type system, span<double> y_0, double t,
                          double dt, feedback_type* feedback,
                          jacobian_type* jacobian) const = 0;
+
+  virtual std::unique_ptr<OdeSolver> clone() const = 0;
 };
 
 } // namespace fub

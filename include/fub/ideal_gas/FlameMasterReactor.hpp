@@ -24,6 +24,7 @@
 
 #include "fub/core/function_ref.hpp"
 #include "fub/core/span.hpp"
+#include "fub/ode_solver/OdeSolver.hpp"
 
 #include <limits>
 #include <memory>
@@ -143,7 +144,7 @@ public:
   /// internal timestep
   void advance(
       double dt,
-      function_ref<int(fub::span<const double>, double, FlameMasterReactor*)>
+      function_ref<void(fub::span<const double>, double, FlameMasterReactor*)>
           feedbackFun);
 
   /// \brief Advance the reactor in time by dt.
@@ -153,12 +154,6 @@ public:
   /// \throw FlameMasterReactorException  This exception may be thrown if the
   /// ode solver could not converge to a solution.
   void advance(double dt);
-
-  void advance_tchem(double dt);
-  void advance_tchem(
-      double dt,
-      function_ref<int(fub::span<const double>, double, FlameMasterReactor*)>
-          feedback);
 
   /// \brief Advance the reactor by one internal time step and return the time
   /// step size
@@ -171,6 +166,22 @@ public:
   /// Set tolerances for the integration. Defaults are 1e-9 for reltol and
   /// 1e-15 for abstol.
   // void setTolerances(double reltol, double abstol);
+
+  const FlameMasterMechanism& getMechanism() const {
+    FUB_ASSERT(mechanism_);
+    return *mechanism_;
+  }
+
+  void setOdeSolver(std::unique_ptr<OdeSolver> solver) {
+    if (solver) {
+      ode_solver_ = std::move(solver);
+    }
+  }
+
+  const OdeSolver& getOdeSolver() const noexcept {
+    FUB_ASSERT(ode_solver_);
+    return *ode_solver_;
+  }
 
   ///@name Thermodynamic properties
   ///@{
@@ -399,6 +410,7 @@ public:
 private:
   const FlameMasterMechanism* mechanism_;
   FlameMasterState state_;
+  std::unique_ptr<OdeSolver> ode_solver_;
 };
 
 } // namespace ideal_gas

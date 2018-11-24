@@ -6,6 +6,7 @@ find_package(SAMRAI QUIET)
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 find_package(Boost 1.61 REQUIRED COMPONENTS filesystem fiber)
 find_package(Sundials QUIET)
+find_package(TBB REQUIRED)
 
 add_library(Catch2 INTERFACE)
 target_include_directories(Catch2 INTERFACE third_party/Catch2/single_include)
@@ -110,7 +111,7 @@ if (FUB_MEX_COMPONENTS)
   matlab_add_mex(
     NAME FlamemasterKinetics_ 
     SRC src/matlab/FlamemasterKinetics_.cpp
-    LINK_TO ${Matlab_DATAARRAY_LIBRARY} HyperbolicSolver.IdealGas)
+    LINK_TO ${Matlab_DATAARRAY_LIBRARY} HyperbolicSolver.IdealGas TBB::tbb)
 
   matlab_add_mex(
     NAME TChemKinetics_ 

@@ -20,7 +20,7 @@
 // SOFTWARE.
 
 #include "fub/ideal_gas/FlameMasterReactor.hpp"
-#include "src/solver/ode_solver/Radau.hpp"
+#include "fub/ode_solver/RadauSolver.hpp"
 
 extern "C" {
 #include "TC_defs.h"
@@ -113,6 +113,11 @@ int OdeRhsAdvance(double t, span<const double> XD, span<double> Xdot,
   //  U = const
 
   // Compute thermodynamic data
+  // if (XD.data() != state.molesStorage.data()) {
+  //   std::transform(XD.begin() + 1, XD.end(), state.moles.begin(),
+  //                  [=](double ci) { return ci / concentrationSum; });
+  //   *state.temperature = XD[0];
+  // }
   UpdateThermoState(mechanism, state, temperature);
   double& tempDt = Xdot[0];
   tempDt = 0;
@@ -187,7 +192,7 @@ void setEnergiesHOrU(FlameMasterReactor& reactor, double target, double dTtol,
     dT = std::max(-100., std::min(100., (target - Uold) / cvd));
     Tnew = Told + dT;
 
-    // This limits the step size to make the algorithm convergent
+    // This limits the step size to make the algorithm cvergent
     // See Cantera for details
     if ((dT > 0 && unstablePhase) || (dT <= 0 && !unstablePhase)) {
       if (Ubot < target && Tnew < (0.75 * Tbot + 0.25 * Told)) {
@@ -248,7 +253,8 @@ void setEnergiesHOrU(FlameMasterReactor& reactor, double target, double dTtol,
 } // namespace
 
 FlameMasterReactor::FlameMasterReactor(const FlameMasterMechanism& mechanism)
-    : mechanism_{&mechanism}, state_{} {
+    : mechanism_{&mechanism}, state_{}, ode_solver_{
+                                            std::make_unique<RadauSolver>()} {
   state_.nSpecies = mechanism_->getNSpecs();
   state_.nSpeciesEffective = mechanism_->getNSpecies();
   if (state_.nSpecies == 0) {
@@ -264,11 +270,7 @@ FlameMasterReactor::FlameMasterReactor(const FlameMasterMechanism& mechanism)
   state_.massFractions.resize(state_.nSpecies);
   state_.molesStorage.resize(state_.nSpeciesEffective + 1);
   state_.temperature = state_.molesStorage.data();
-#ifdef __cpp_deduction_guides
-  state_.moles = span{state_.molesStorage}.subspan(1);
-#else
   state_.moles = make_span(state_.molesStorage).subspan(1);
-#endif
 
   // Computational space for calls to the chemistry implementation
   state_.production_rates.resize(state_.nSpeciesEffective);
@@ -307,43 +309,37 @@ FlameMasterReactor::FlameMasterReactor(const FlameMasterMechanism& mechanism)
 FlameMasterReactor::FlameMasterReactor(const FlameMasterReactor& other)
     : mechanism_{other.mechanism_}, state_(other.state_) {
   state_.temperature = state_.molesStorage.data();
-#ifdef __cpp_deduction_guides
-  state_.moles = span{state_.molesStorage}.subspan(1);
-#else
   state_.moles = make_span(state_.molesStorage).subspan(1);
-#endif
+  ode_solver_ = other.ode_solver_->Clone();
 }
 
 FlameMasterReactor::FlameMasterReactor(FlameMasterReactor&& other) noexcept
-    : mechanism_{std::move(other.mechanism_)}, state_(std::move(other.state_)) {
+    : mechanism_{std::move(other.mechanism_)}, state_(std::move(other.state_)),
+      ode_solver_(std::move(other.ode_solver_)) {
   state_.temperature = state_.molesStorage.data();
-#ifdef __cpp_deduction_guides
-  state_.moles = span{state_.molesStorage}.subspan(1);
-#else
   state_.moles = make_span(state_.molesStorage).subspan(1);
-#endif
 }
 
 struct AdvanceSystem {
-  const FlameMasterMechanism* mechanism;
+  FlameMasterReactor* reactor;
   FlameMasterState* state;
-  int operator()(span<double> dXdt, span<const double> X, double t) {
-    return OdeRhsAdvance(t, X, dXdt, *mechanism, *state);
+  void operator()(span<double> dXdt, span<const double> X, double t) {
+    OdeRhsAdvance(t, X, dXdt, reactor->getMechanism(), *state);
   }
 };
 
 struct AdvanceFeedback {
   FlameMasterReactor* reactor;
-  FlameMasterState* state;
-  function_ref<int(span<const double>, double, FlameMasterReactor*)> feedback;
+  // FlameMasterState* state;
+  function_ref<void(span<const double>, double, FlameMasterReactor*)> feedback;
 
-  int operator()(span<const double> y, double t) const noexcept {
-    if (y.data() != state->molesStorage.data()) {
-      FUB_ASSERT(y.size() == state->molesStorage.size());
-      std::copy(y.begin(), y.end(), state->molesStorage.begin());
-    }
-    UpdateMassFractionsFromMoles(*state);
-    return feedback(y, t, reactor);
+  void operator()(span<const double> y, double t) const noexcept {
+    // if (y.data() != state->molesStorage.data()) {
+    // FUB_ASSERT(y.size() == state->molesStorage.size());
+    // reactor->setMoleFractions(y.subspan(1));
+    // reactor->setTemperature(y[0]);
+    // }
+    feedback(y, t, reactor);
   }
 };
 
@@ -356,82 +352,8 @@ void FlameMasterReactor::advance(double dt) {
   UpdateMolesFromMassFractions(state_);
 
   // Do the actual computation
-  Radau::integrate(AdvanceSystem{mechanism_, &state_},
-                   make_span(state_.molesStorage), 0.0, dt);
-
-  // Retrieve mass fractions from the result vector
-  UpdateMassFractionsFromMoles(state_);
-}
-
-void FlameMasterReactor::advance_tchem(
-    double dt,
-    function_ref<int(span<const double>, double, FlameMasterReactor*)>
-        feedback) {
-  if (dt == 0) {
-    return;
-  }
-  FUB_ASSERT(dt > 0);
-
-  UpdateMolesFromMassFractions(state_);
-
-  const double rho = getDensity();
-  TC_setThermoPres(getPressure());
-  TC_setDens(rho);
-  std::vector<double> TandY(getNSpecies() + 1);
-  TandY[0] = getTemperature();
-  std::copy(state_.massFractions.begin(), state_.massFractions.end(),
-            TandY.begin() + 1);
-  auto odeRhs = [&](span<double> dZdt, span<const double> Z,
-                    double time_point) {
-    TC_getSrcCV(const_cast<double*>(Z.data()), Z.size(), dZdt.data());
-    setMassFractions(Z.subspan(1));
-    setTemperature(Z[0]);
-  };
-  auto odeJac = [](span<double> dfdZ, span<const double> Z, double time_point) {
-    TC_getJacCVTYNanl(const_cast<double*>(Z.data()), Z.size() - 1, dfdZ.data());
-  };
-
-  // Do the actual computation
-  Radau::integrate_jacobian_feedback(odeRhs, make_span(TandY), 0.0, dt, odeJac,
-                                     AdvanceFeedback{this, &state_, feedback});
-
-  // Retrieve mass fractions from the result vector
-  UpdateMassFractionsFromMoles(state_);
-}
-
-void FlameMasterReactor::advance_tchem(double dt) {
-  if (dt == 0) {
-    return;
-  }
-  FUB_ASSERT(dt > 0);
-
-  UpdateMolesFromMassFractions(state_);
-
-  const double rho = getDensity();
-  TC_setDens(rho);
-  std::vector<double> TandY(getNSpecies() + 1);
-
-  auto odeJac = [&](span<double> dfdZ, span<const double> Z,
-                    double time_point) {
-    UpdateMassFractionsFromMoles(this->state_);
-    TandY[0] = Z[0];
-    std::copy(this->state_.massFractions.begin(),
-              this->state_.massFractions.end(), TandY.begin() + 1);
-    const int nSpecies = TandY.size() - 1;
-    TC_getJacCVTYNanl(TandY.data(), nSpecies, dfdZ.data());
-    span<const double> molarMasses(state_.molarMasses);
-    for (int j = 1; j < nSpecies; ++j) {
-      int index = j * (nSpecies + 1);
-      const double derivative = molarMasses[j - 1] / rho;
-      for (int i = 0; i <= nSpecies; ++i) {
-        dfdZ[index + i] *= derivative;
-      }
-    }
-  };
-
-  // Do the actual computation
-  Radau::integrate_jacobian(AdvanceSystem{mechanism_, &state_},
-                            make_span(state_.molesStorage), 0.0, dt, odeJac);
+  ode_solver_->Integrate(AdvanceSystem{this, &state_},
+                         make_span(state_.molesStorage), 0.0, dt);
 
   // Retrieve mass fractions from the result vector
   UpdateMassFractionsFromMoles(state_);
@@ -439,7 +361,7 @@ void FlameMasterReactor::advance_tchem(double dt) {
 
 void FlameMasterReactor::advance(
     double dt,
-    function_ref<int(span<const double>, double, FlameMasterReactor*)>
+    function_ref<void(span<const double>, double, FlameMasterReactor*)>
         feedback) {
   if (dt == 0) {
     return;
@@ -449,9 +371,9 @@ void FlameMasterReactor::advance(
   UpdateMolesFromMassFractions(state_);
 
   // Do the actual computation
-  Radau::integrate_feedback(AdvanceSystem{mechanism_, &state_},
-                            make_span(state_.molesStorage), 0.0, dt,
-                            AdvanceFeedback{this, &state_, feedback});
+  ode_solver_->Integrate(AdvanceSystem{this, &state_},
+                         make_span(state_.molesStorage), 0.0, dt,
+                         AdvanceFeedback{this, feedback});
 
   // Retrieve mass fractions from the result vector
   UpdateMassFractionsFromMoles(state_);
@@ -468,7 +390,7 @@ double FlameMasterReactor::advanceAndFindMaxdT(double dt) {
   struct AdvanceAndFindMaxdT {
     AdvanceAndFindMaxdTData* data;
 
-    int operator()(span<const double> y, double t) const noexcept {
+    void operator()(span<const double> y, double t) const noexcept {
       const double newTemperature = y[0];
       const double dT =
           (data->oldTemperature - newTemperature) / (data->oldTime - t);
@@ -477,15 +399,14 @@ double FlameMasterReactor::advanceAndFindMaxdT(double dt) {
         data->maxdT = dT;
         data->argmaxdT = t;
       }
-      return 0;
     }
   };
   AdvanceAndFindMaxdTData data{0., getTemperature(), -9000, -1};
 
   // Do the actual computation
-  Radau::integrate_feedback(AdvanceSystem{mechanism_, &state_},
-                            make_span(state_.molesStorage), 0.0, dt,
-                            AdvanceAndFindMaxdT{&data});
+  ode_solver_->Integrate(AdvanceSystem{this, &state_},
+                         make_span(state_.molesStorage), 0.0, dt,
+                         AdvanceAndFindMaxdT{&data});
 
   // Retrieve mass fractions from the result vector
   UpdateMassFractionsFromMoles(state_);
@@ -650,8 +571,8 @@ void FlameMasterReactor::setMassFractions(std::string newMassFractions) {
 
 void FlameMasterReactor::setMassFractions(span<const double> fractions) {
   std::transform(fractions.begin(), fractions.end(),
-                state_.massFractions.begin(),
-                [](double Y) { return std::max(0.0, Y); });
+                 state_.massFractions.begin(),
+                 [](double Y) { return std::max(0.0, Y); });
   const double sum = std::accumulate(state_.massFractions.begin(),
                                      state_.massFractions.end(), 0.0);
   if (sum != 0) {
@@ -716,11 +637,11 @@ span<const double> FlameMasterReactor::getProductionRates() {
 namespace {
 struct SetIsentropicPSystem {
   FlameMasterReactor* reactor;
-  int operator()(span<double> dydp, span<const double> y, double p) {
-    return OdeRhsSetP(dydp, y, p, *reactor);
+  void operator()(span<double> dydp, span<const double> y, double p) {
+    OdeRhsSetP(dydp, y, p, *reactor);
   }
 };
-}
+} // namespace
 
 double FlameMasterReactor::setPressureIsentropic(double pressure) {
   // Do nothing if the pressures match
@@ -732,8 +653,9 @@ double FlameMasterReactor::setPressureIsentropic(double pressure) {
   state_.setPVector[1] = 0;
 
   // Do the actual computation
-  Radau::integrate(SetIsentropicPSystem{this}, make_span(state_.setPVector),
-                   getPressure(), pressure - getPressure());
+  ode_solver_->Integrate(SetIsentropicPSystem{this},
+                         make_span(state_.setPVector), getPressure(),
+                         pressure - getPressure());
 
   // Set the state of the reactor to the values from the result vector
   setTemperature(state_.setPVector[0]);

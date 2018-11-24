@@ -39,6 +39,8 @@ public:
   }
 
 private:
+  std::unique_ptr<OdeSolver> clone() const override;
+
   void integrate(system_type system, span<double> y_0, double t, double dt,
                  feedback_type* feedback,
                  jacobian_type* jacobian) const override;
