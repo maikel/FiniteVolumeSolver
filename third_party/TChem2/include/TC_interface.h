@@ -51,6 +51,8 @@ int TC_getArhenRev( int ireac, int ipos, double* val ) ;
 int TC_getArhenFor( int ireac, int ipos, double* val ) ;
 int TC_getArhenPresDepFor( int ireac, int ipos, double *val ) ;
 
+double TC_getRUniv();
+
 /*
          _____ ____             _ _ _
         |_   _/ ___|    ___  __| (_) |_   ___

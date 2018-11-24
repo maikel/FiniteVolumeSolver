@@ -3,6 +3,9 @@
 
 #include <math.h>
 
+double TC_getRUniv() {
+  return TC_Runiv_;
+}
 
 /*! \file TC_thermo.c
     \brief Equation of state and thermodynamic functions

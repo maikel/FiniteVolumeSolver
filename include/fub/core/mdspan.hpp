@@ -651,7 +651,7 @@ public:
   constexpr index_type unique_size() const noexcept { return size(); }
 
   // [mdspan.basic.codomain], basic_mdspan observers of the codomain
-  constexpr span<element_type> span() const noexcept {
+  constexpr span<element_type> get_span() const noexcept {
     return {accessor().decay(ptr_), mapping().required_span_size()};
   }
 

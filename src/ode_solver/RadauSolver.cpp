@@ -194,8 +194,8 @@ void RadauSolver::integrate(system_type system, span<double> y0, double t0,
                         absolute_tolerance,     //
                         work_space_,            // Temporary array of size LWORK
                         iwork_space_, // Temporary array of size LIWORK
-                        feedback ? radau_feedback : nullptr,
-                        jacobian ? radau_jacobian : nullptr);
+                        feedback ? radau_feedback : sol_t{nullptr},
+                        jacobian ? radau_jacobian : jac_t{nullptr});
 
   //  IDID= 1  COMPUTATION SUCCESSFUL,
   //  IDID= 2  COMPUT. SUCCESSFUL (INTERRUPTED BY SOLOUT)
@@ -224,8 +224,8 @@ void RadauSolver::integrate(system_type system, span<double> y0, double t0,
                       absolute_tolerance,     //
                       work_space_,            // Temporary array of size LWORK
                       iwork_space_,           // Temporary array of size LIWORK
-                      feedback ? radau_feedback : nullptr,
-                      jacobian ? radau_jacobian : nullptr);
+                      feedback ? radau_feedback : sol_t{nullptr},
+                      jacobian ? radau_jacobian : jac_t{nullptr});
     if (idid > 0) {
       idid = call_radau(radau_rhs, // RHS function
                         reinterpret_cast<int*>(std::addressof(system)), // IPAR
@@ -237,8 +237,8 @@ void RadauSolver::integrate(system_type system, span<double> y0, double t0,
                         absolute_tolerance,     //
                         work_space_,            // Temporary array of size LWORK
                         iwork_space_, // Temporary array of size LIWORK
-                        feedback ? radau_feedback : nullptr,
-                        jacobian ? radau_jacobian : nullptr);
+                        feedback ? radau_feedback : sol_t{nullptr},
+                        jacobian ? radau_jacobian : jac_t{nullptr});
       if (idid > 0) {
         break;
       }

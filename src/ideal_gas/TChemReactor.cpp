@@ -28,6 +28,7 @@
 
 #include <algorithm>
 #include <numeric>
+#include <sstream>
 
 #include <cmath>
 #include <cstdio>
@@ -235,7 +236,7 @@ void TChemReactor::SetInternalEnergy(double U, double tol) {
   const double T = GetTemperatureFromInternalEnergy_(
       U, temperature_and_mass_fractions_, internal_energies_, tol);
   span<const double> Y = GetMassFractions();
-  SetPressure(density_ * TC_Runiv_ / GetMeanMolarMass() * T);
+  SetPressure(density_ * TC_getRUniv() / GetMeanMolarMass() * T);
   SetTemperature(T);
 }
 

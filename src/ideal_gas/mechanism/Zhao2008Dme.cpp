@@ -2673,7 +2673,7 @@ double GetLindRateCoeff(double temp, double pressure, double k0, double kInf,
 
   int iTroe = 1;
 
-  if (isinf(conc)) {
+  if (std::isinf(conc)) {
     /*conc = pressure / ( R * temp );*/
     return 0.0;
   }

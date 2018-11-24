@@ -6,6 +6,11 @@ find_package(SAMRAI QUIET)
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 find_package(Boost 1.61 REQUIRED COMPONENTS filesystem fiber)
 find_package(Sundials QUIET)
+
+include(cmake/TBBGet.cmake)
+include(cmake/TBBBuild.cmake)
+tbb_get(TBB_ROOT tbb_root SOURCE_CODE)
+tbb_build(TBB_ROOT ${tbb_root} CONFIG_DIR TBB_DIR)
 find_package(TBB REQUIRED)
 
 add_library(Catch2 INTERFACE)
