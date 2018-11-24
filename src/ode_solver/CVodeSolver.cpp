@@ -28,6 +28,7 @@ extern "C" {
 #include <sunmatrix/sunmatrix_dense.h>
 }
 
+#include <algorithm>
 #include <cmath>
 
 namespace fub {
