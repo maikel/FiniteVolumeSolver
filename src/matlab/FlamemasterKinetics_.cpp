@@ -38,11 +38,13 @@ ENABLE_WARNING(macro-redefined, macro-redefined, C4005)
 
 #include <boost/algorithm/string.hpp>
 
-#ifdef FUB_WITH_TBB
+#if defined(FUB_WITH_TBB)
 #define TBB_PREVIEW_WAITING_FOR_WORKERS 1
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
 #include <tbb/task_scheduler_init.h>
+#elif defined(FUB_WITH_OPENMP)
+#include <omp.h>
 #endif
 
 #include <map>
@@ -565,20 +567,24 @@ private:
   }
 
   void SetMaxThreads_(matlab::mex::ArgumentList inputs) {
-#ifdef FUB_WITH_TBB
     matlab::data::TypedArray<double> n = inputs[1];
-    scheduler_.blocking_terminate();
     int n_threads = n[0];
+#if defined(FUB_WITH_TBB)
+    scheduler_.blocking_terminate();
     scheduler_.initialize(n_threads);
     engine_->feval(
         u"fprintf", 0,
         std::vector<matlab::data::Array>({factory_.createScalar(
             "FlamemasterKinetics_: Maximum number of threads set to '" +
             std::to_string(n_threads) + "'.\n")}));
-#else
-    matlab::data::TypedArray<double> n = inputs[1];
-    int n_threads = n[0];
+#elif defined(FUB_WITH_OPENMP)
     n_max_threads_ = n_threads;
+    engine_->feval(
+        u"fprintf", 0,
+        std::vector<matlab::data::Array>({factory_.createScalar(
+            "FlamemasterKinetics_: Maximum number of threads set to '" +
+            std::to_string(n_threads) + "'.\n")}));
+#else
     if (n_threads > 1) {
       std::string what = "FlamemasterKinetics_: No parallel backend available.";
       engine_->feval(u"error", 0,
