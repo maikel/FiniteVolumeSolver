@@ -133,6 +133,11 @@ if (BUILD_TESTING)
   add_subdirectory(tests)
 endif()
 
+add_library(AddOpenMPFlag INTERFACE)
+if (FUB_WITH_OPENMP)
+  target_compile_options(AddOpenMPFlag INTERFACE "-fopenmp")
+endif()
+
 option(FUB_MEX_COMPONENTS "Compile and install the Matlab plugin for the ideal gas kinetics." ON)
 if (FUB_MEX_COMPONENTS) 
   find_package(Matlab 
@@ -149,7 +154,10 @@ if (FUB_MEX_COMPONENTS)
     matlab_add_mex(
       NAME FlamemasterKinetics_ 
       SRC src/matlab/FlamemasterKinetics_.cpp
-      LINK_TO ${Matlab_DATAARRAY_LIBRARY} HyperbolicSolver.IdealGas)
+      LINK_TO 
+        ${Matlab_DATAARRAY_LIBRARY}
+        HyperbolicSolver.IdealGas
+        AddOpenMPFlag)
   endif()
 
   matlab_add_mex(
