@@ -165,7 +165,7 @@ if (FUB_MEX_COMPONENTS)
       ${CMAKE_INSTALL_PREFIX}/lib)
   install(
     FILES
-      src/matlab/FlamemasterKinetics.m
+      src/matlab/FlamemasterKinetics2.m
       src/matlab/TChemKinetics.m
     DESTINATION
       ${CMAKE_INSTALL_PREFIX}/lib)
