@@ -23,6 +23,7 @@
 #include "fub/core/mdspan.hpp"
 #include "fub/core/pragma.hpp"
 #include "fub/ideal_gas/FlameMasterReactor.hpp"
+#include "fub/ideal_gas/mechanism/AramcoMech_DMEonly_74spec.hpp"
 #include "fub/ideal_gas/mechanism/Burke2012.hpp"
 #include "fub/ideal_gas/mechanism/Gri30.hpp"
 #include "fub/ideal_gas/mechanism/Zhao2008Dme.hpp"
@@ -51,6 +52,7 @@ ENABLE_WARNING(macro-redefined, macro-redefined, C4005)
 #include <memory>
 #include <numeric>
 #include <string>
+#include <thread>
 
 class MexFunction : public matlab::mex::Function {
 public:
@@ -192,6 +194,8 @@ private:
     factory["Zhao2008Dme"] = std::make_unique<fub::ideal_gas::Zhao2008Dme>();
     factory["Burke2012"] = std::make_unique<fub::ideal_gas::Burke2012>();
     factory["Gri30"] = std::make_unique<fub::ideal_gas::Gri30>();
+    factory["AramcoMech_DMEonly_74spec"] =
+        std::make_unique<fub::ideal_gas::AramcoMech_DMEonly_74spec>();
     return factory;
   }
 
@@ -211,13 +215,18 @@ private:
 
     fractions_buffer_.resize(reactor_->getNSpecies());
 
-#ifdef FUB_WITH_TBB
+#if defined(FUB_WITH_TBB)
     std::size_t p = tbb::task_scheduler_init::default_num_threads();
     tbb_reactor_ = std::make_unique<
         tbb::enumerable_thread_specific<fub::ideal_gas::FlameMasterReactor>>(
         *reactor_);
     tbb_fractions_buffer_ =
         tbb::enumerable_thread_specific<std::vector<double>>(fractions_buffer_);
+#elif defined(FUB_WITH_OPENMP)
+    std::size_t p = omp_get_max_threads();
+    omp_reactor_ = decltype(omp_reactor_)(p, *reactor_);
+    omp_fractions_buffer_ =
+        decltype(omp_fractions_buffer_)(p, fractions_buffer_);
 #endif
 
     engine_->feval(
@@ -585,16 +594,17 @@ private:
             "FlamemasterKinetics_: Maximum number of threads set to '" +
             std::to_string(n_threads) + "'.\n")}));
 #elif defined(FUB_WITH_OPENMP)
-    n_max_threads_ = n_threads;
-    omp_reactor_ =
-        std::vector<fub::ideal_gas::FlameMasterReactor>(n_threads, *reactor_);
+    int default_n_thread = std::thread::hardware_concurrency();
+    n_max_threads_ = n_threads < 0 ? default_n_threads : n_threads;
+    omp_reactor_ = std::vector<fub::ideal_gas::FlameMasterReactor>(
+        n_max_threads_, *reactor_);
     omp_fractions_buffer_ =
-        std::vector<std::vector<double>>(n_threads, fractions_buffer_);
+        std::vector<std::vector<double>>(n_max_threads_, fractions_buffer_);
     engine_->feval(
         u"fprintf", 0,
         std::vector<matlab::data::Array>({factory_.createScalar(
             "FlamemasterKinetics_: Maximum number of threads set to '" +
-            std::to_string(n_threads) + "'.\n")}));
+            std::to_string(n_max_threads_) + "'.\n")}));
 #else
     if (n_threads > 1) {
       std::string what = "FlamemasterKinetics_: No parallel backend available.";
@@ -616,7 +626,7 @@ private:
   mutable std::vector<double> fractions_buffer_;
   std::unique_ptr<fub::ideal_gas::FlameMasterMechanism> mechanism_{};
   std::unique_ptr<fub::ideal_gas::FlameMasterReactor> reactor_{};
-  int n_max_threads_{1};
+  int n_max_threads_{-1};
 
 #if defined(FUB_WITH_TBB)
   tbb::task_scheduler_init scheduler_{tbb::task_scheduler_init::automatic};

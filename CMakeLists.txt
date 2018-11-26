@@ -72,7 +72,8 @@ add_library(HyperbolicSolver.IdealGas
   src/ideal_gas/TChemReactor.cpp
   src/ideal_gas/mechanism/Burke2012.cpp
   src/ideal_gas/mechanism/Gri30.cpp
-  src/ideal_gas/mechanism/Zhao2008Dme.cpp)
+  src/ideal_gas/mechanism/Zhao2008Dme.cpp
+  src/ideal_gas/mechanism/AramcoMech_DMEonly_74spec.cpp)
 target_link_libraries(HyperbolicSolver.IdealGas 
   PUBLIC
     HyperbolicSolver.OdeSolver

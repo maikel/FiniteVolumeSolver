@@ -20,7 +20,7 @@
 
 #include "fub/core/mdspan.hpp"
 #include "fub/ideal_gas/TChemReactor.hpp"
-#include "fub/ideal_gas/mechanism/Burke2012.hpp"
+#include "fub/ideal_gas/mechanism/AramcoMech_DMEonly_74spec.hpp"
 #include "fub/ideal_gas/mechanism/Zhao2008Dme.hpp"
 #include "fub/ode_solver/CVodeSolver.hpp"
 #include "fub/ode_solver/RadauSolver.hpp"
@@ -144,6 +144,8 @@ private:
   static FactoryMap MechanismFactory_() {
     FactoryMap factory{};
     factory["Zhao2008Dme"] = std::make_unique<fub::ideal_gas::Zhao2008Dme>();
+    factory["AramcoMech_DMEonly_74spec"] =
+        std::make_unique<fub::ideal_gas::AramcoMech_DMEonly_74spec>();
     return factory;
   }
 
