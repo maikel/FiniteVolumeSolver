@@ -23,10 +23,13 @@
 
 #include "fub/core/assert.hpp"
 #include "fub/core/dynamic_extent.hpp"
+#include "fub/core/pragma.hpp"
 #include "fub/core/type_traits.hpp"
 
 #include <array>
 #include <type_traits>
+
+DISABLE_WARNING(attributes, unknown-attributes, 42);
 
 namespace fub {
 /// \defgroup spans Spans
@@ -1005,5 +1008,7 @@ auto make_span(const Container& array)
 }
 
 } // namespace fub
+
+ENABLE_WARNING(attributes, unknown-attributes, 42);
 
 #endif // !SPAN_HPP
