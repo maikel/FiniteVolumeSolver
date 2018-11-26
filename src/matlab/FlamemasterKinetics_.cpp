@@ -594,7 +594,7 @@ private:
             "FlamemasterKinetics_: Maximum number of threads set to '" +
             std::to_string(n_threads) + "'.\n")}));
 #elif defined(FUB_WITH_OPENMP)
-    int default_n_thread = std::thread::hardware_concurrency();
+    int default_n_threads = std::thread::hardware_concurrency();
     n_max_threads_ = n_threads < 0 ? default_n_threads : n_threads;
     omp_reactor_ = std::vector<fub::ideal_gas::FlameMasterReactor>(
         n_max_threads_, *reactor_);

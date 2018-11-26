@@ -4,7 +4,7 @@ project(HyperbolicSolver CXX Fortran)
 
 find_package(SAMRAI QUIET)
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
-find_package(Boost 1.61 REQUIRED COMPONENTS filesystem)
+find_package(Boost REQUIRED)
 find_package(Sundials QUIET)
 find_package(TBB QUIET)
 
