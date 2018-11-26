@@ -21,15 +21,24 @@
 #ifndef FUB_ODE_SOLVER_CVODE_SOLVER_HPP
 #define FUB_ODE_SOLVER_CVODE_SOLVER_HPP
 
-#include "fub/ode_solver/OdeSolver.hpp"
-#include <vector>
+#include "fub/config.hpp"
+#include "fub/ode_solver/OdeSolverFactory.hpp"
 #include <functional>
+#include <vector>
 
 namespace fub {
 
+struct CVodeSolverOptions : public OdeSolverOptions {
+  explicit CVodeSolverOptions(int nvars)
+      : OdeSolverOptions{OdeSolverType::CVode}, n_variables{nvars} {}
+
+  int n_variables;
+};
+
 class CVodeSolver : public OdeSolver {
 public:
-  using root_function_type = std::function<int(span<double>, span<const double>, double)>;
+  using root_function_type =
+      std::function<int(span<double>, span<const double>, double)>;
 
   CVodeSolver(int size);
 
@@ -55,6 +64,16 @@ private:
   int root_size_{};
   double relative_tolerance_{1e-10};
 };
+
+#ifdef FUB_WITH_SUNDIALS
+static RegisterSpecificFactory register_cvode_solver_{
+    "CVode", [](const OdeSolverOptions& base) {
+      FUB_ASSERT(base.type == OdeSolverType::CVode);
+      const CVodeSolverOptions* opts =
+          static_cast<const CVodeSolverOptions*>(&base);
+      return std::make_unique<CVodeSolver>(opts->n_variables);
+    }};
+#endif
 
 } // namespace fub
 

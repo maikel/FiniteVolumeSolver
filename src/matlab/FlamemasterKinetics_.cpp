@@ -18,35 +18,32 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include "fub/config.hpp"
+
 #include "fub/core/mdspan.hpp"
+#include "fub/core/pragma.hpp"
 #include "fub/ideal_gas/FlameMasterReactor.hpp"
 #include "fub/ideal_gas/mechanism/Burke2012.hpp"
 #include "fub/ideal_gas/mechanism/Gri30.hpp"
 #include "fub/ideal_gas/mechanism/Zhao2008Dme.hpp"
 #include "fub/ode_solver/CVodeSolver.hpp"
-#include "fub/ode_solver/RadauSolver.hpp"
+#include "fub/ode_solver/OdeSolverFactory.hpp"
 
-#ifdef __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmacro-redefined"
-#elif __CLANG__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wmacro-redefined"
-#endif
+// clang-format off
+DISABLE_WARNING(macro-redefined, macro-redefined, C4005)
 #include "mex.hpp"
 #include "mexAdapter.hpp"
-#ifdef __GNUC__
-#pragma GCC diagnostic pop
-#elif __CLANG__
-#pragma clang diagnostic pop
-#endif
+ENABLE_WARNING(macro-redefined, macro-redefined, C4005)
+// clang-format on
 
 #include <boost/algorithm/string.hpp>
 
+#ifdef FUB_WITH_TBB
 #define TBB_PREVIEW_WAITING_FOR_WORKERS 1
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
 #include <tbb/task_scheduler_init.h>
+#endif
 
 #include <map>
 #include <memory>
@@ -60,11 +57,39 @@ public:
     DispatchMemberFunction_(outputs, inputs);
   }
 
-  ~MexFunction() {
-    scheduler_.blocking_terminate();
-  }
+#ifdef FUB_WITH_TBB
+  ~MexFunction() { scheduler_.blocking_terminate(); }
+#endif
 
 private:
+#ifdef FUB_WITH_TBB
+  template <typename Function>
+  void ParallelFor_(int start, int end, Function f) {
+    tbb::parallel_for(start, end, [&](int cell) {
+      std::vector<double>& fractions_buffer = tbb_fractions_buffer_.local();
+      fub::ideal_gas::FlameMasterReactor& reactor = tbb_reactor_->local();
+      f(cell, fractions_buffer, reactor);
+    });
+  }
+#elif FUB_WITH_OPENMP
+  template <typename Function>
+  void ParallelFor_(int start, int end, Function f) {
+    omp_set_dynamic(1);
+    omp_set_num_threads(n_max_threads_);
+#pragma omp parallel for schedule(dynamic)
+    for (int cell = start; cell < end; ++cell) {
+      f(cell, fractions_buffer_, *reactor_);
+    }
+  }
+#else
+  template <typename Function>
+  void ParallelFor_(int start, int end, Function f) {
+    for (int cell = start; cell < end; ++cell) {
+      f(cell, fractions_buffer_, *reactor_);
+    }
+  }
+#endif
+
   enum class MemberFunction : int {
     kSetMechanism,
     kSetPressureIsentropic,
@@ -76,6 +101,7 @@ private:
     kFindSpeciesIndex,
     kGetEnthalpies,
     kSetOdeSolver,
+    kSetMaxThreads,
     kUnknown
   };
 
@@ -141,6 +167,9 @@ private:
     case MemberFunction::kSetOdeSolver:
       SetOdeSolver_(std::move(inputs));
       break;
+    case MemberFunction::kSetMaxThreads:
+      SetMaxThreads_(std::move(inputs));
+      break;
     default:
       const int value = static_cast<int>(*memfn);
       std::string what = "FlameMasterKinetics_: Unknown command with value '" +
@@ -170,19 +199,25 @@ private:
     matlab::data::CharArray array = inputs[1];
     std::string name = array.toAscii();
     mechanism_ = GetMechanism_(name);
-    std::size_t p = tbb::task_scheduler_init::default_num_threads();
+
     reactor_ =
         std::make_unique<fub::ideal_gas::FlameMasterReactor>(*mechanism_);
+
+    fractions_buffer_.resize(reactor_->getNSpecies());
+
+#ifdef FUB_WITH_TBB
+    std::size_t p = tbb::task_scheduler_init::default_num_threads();
     tbb_reactor_ = std::make_unique<
         tbb::enumerable_thread_specific<fub::ideal_gas::FlameMasterReactor>>(
         *reactor_);
-    fractions_buffer_.resize(reactor_->getNSpecies());
     tbb_fractions_buffer_ =
         tbb::enumerable_thread_specific<std::vector<double>>(fractions_buffer_);
-    engine_->feval(u"fprintf", 0,
-                   std::vector<matlab::data::Array>({factory_.createScalar(
-                       "FlamemasterKinetics_: Using the '" + name +
-                       "' mechanism now.\n")}));
+#endif
+
+    engine_->feval(
+        u"fprintf", 0,
+        std::vector<matlab::data::Array>({factory_.createScalar(
+            "FlamemasterKinetics_: Using the '" + name + "' mechanism.\n")}));
   }
 
   std::ptrdiff_t GetNumberOfVariables_() {
@@ -327,33 +362,34 @@ private:
     MdSpan<double> rates(rates_buffer.data(), n_species, n_cells);
     matlab::data::TypedArray<double> times = std::move(inputs[2]);
     const double dt = times[0];
-    tbb::parallel_for(std::size_t{0}, n_cells, [&](std::size_t cell) {
-      std::vector<double>& fractions_buffer = tbb_fractions_buffer_.local();
-      fub::ideal_gas::FlameMasterReactor reactor = tbb_reactor_->local();
-      auto at = [&](auto var, std::size_t cell) -> double& {
-        return At_(states, var, cell);
-      };
-      const double rhoE = at(Variable::energy, cell);
-      const double rhou = at(Variable::momentum, cell);
-      const double rho = at(Variable::density, cell);
-      const int rhoY = static_cast<int>(Variable::species);
-      for (int s = 0; s < reactor.getNSpecies() - 1; ++s) {
-        fractions_buffer[s] = at(Variable(rhoY + s), cell);
-      }
-      fractions_buffer[reactor.getNSpecies() - 1] =
-          std::max(0.0, rho - std::accumulate(fractions_buffer.begin(),
-                                              fractions_buffer.end() - 1, 0.0));
-      reactor.setMassFractions(fractions_buffer);
-      reactor.setDensity(at(Variable::density, cell));
-      const double e = (rhoE - 0.5 * rhou * rhou / rho) / rho;
-      reactor.setInternalEnergy(e);
-      reactor.advance(dt);
-      UpdateStateFromKinetics_(reactor, states, cell, rhou / rho);
-      fub::span<const double> current_rates = reactor.getProductionRates();
-      for (int s = 0; s < n_species; ++s) {
-        rates(s, cell) = current_rates[s];
-      }
-    });
+    ParallelFor_(
+        0, n_cells,
+        [&](int cell, std::vector<double>& fractions_buffer,
+            fub::ideal_gas::FlameMasterReactor& reactor) {
+          auto at = [&](auto var, int cell) -> double& {
+            return At_(states, var, cell);
+          };
+          const double rhoE = at(Variable::energy, cell);
+          const double rhou = at(Variable::momentum, cell);
+          const double rho = at(Variable::density, cell);
+          const int rhoY = static_cast<int>(Variable::species);
+          for (int s = 0; s < reactor.getNSpecies() - 1; ++s) {
+            fractions_buffer[s] = at(Variable(rhoY + s), cell);
+          }
+          fractions_buffer[reactor.getNSpecies() - 1] = std::max(
+              0.0, rho - std::accumulate(fractions_buffer.begin(),
+                                         fractions_buffer.end() - 1, 0.0));
+          reactor.setMassFractions(fractions_buffer);
+          reactor.setDensity(at(Variable::density, cell));
+          const double e = (rhoE - 0.5 * rhou * rhou / rho) / rho;
+          reactor.setInternalEnergy(e);
+          reactor.advance(dt);
+          UpdateStateFromKinetics_(reactor, states, cell, rhou / rho);
+          fub::span<const double> current_rates = reactor.getProductionRates();
+          for (int s = 0; s < n_species; ++s) {
+            rates(s, cell) = current_rates[s];
+          }
+        });
     outputs[0] = factory_.createArrayFromBuffer(dims, std::move(buffer));
     outputs[1] =
         factory_.createArray({static_cast<std::size_t>(n_species), n_cells},
@@ -508,43 +544,69 @@ private:
     }
     matlab::data::CharArray name = inputs[1];
     std::string ode_solver_name = name.toAscii();
+    const fub::OdeSolverFactory& factory = fub::OdeSolverFactory::GetInstance();
     if (ode_solver_name == "CVode") {
-      reactor_->setOdeSolver(
-          std::make_unique<fub::CVodeSolver>(reactor_->getNSpecies() + 1));
-      tbb_reactor_ = std::make_unique<
-          tbb::enumerable_thread_specific<fub::ideal_gas::FlameMasterReactor>>(
-          *reactor_);
-      engine_->feval(u"fprintf", 0,
-                     std::vector<matlab::data::Array>({factory_.createScalar(
-                         "FlamemasterKinetics_: Using the '" + ode_solver_name +
-                         "' ode solver now.\n")}));
-    } else if (ode_solver_name == "RADAU") {
-      reactor_->setOdeSolver(std::make_unique<fub::RadauSolver>());
-      tbb_reactor_ = std::make_unique<
-          tbb::enumerable_thread_specific<fub::ideal_gas::FlameMasterReactor>>(
-          *reactor_);
-      engine_->feval(u"fprintf", 0,
-                     std::vector<matlab::data::Array>({factory_.createScalar(
-                         "FlamemasterKinetics_: Using the '" + ode_solver_name +
-                         "' ode solver now.\n")}));
+      fub::CVodeSolverOptions options{reactor_->getNSpecies() + 1};
+      reactor_->setOdeSolver(factory.MakeSolver(ode_solver_name, options));
     } else {
-      std::string what =
-          "FlamemasterKinetics_: Unknown ode solver '" + ode_solver_name + "'.";
+      reactor_->setOdeSolver(factory.MakeSolver(ode_solver_name));
+    }
+
+#ifdef FUB_WITH_TBB
+    tbb_reactor_ = std::make_unique<
+        tbb::enumerable_thread_specific<fub::ideal_gas::FlameMasterReactor>>(
+        *reactor_);
+#endif
+
+    engine_->feval(u"fprintf", 0,
+                   std::vector<matlab::data::Array>({factory_.createScalar(
+                       "FlamemasterKinetics_: Using the '" + ode_solver_name +
+                       "' ode solver now.\n")}));
+  }
+
+  void SetMaxThreads_(matlab::mex::ArgumentList inputs) {
+#ifdef FUB_WITH_TBB
+    matlab::data::TypedArray<double> n = inputs[1];
+    scheduler_.blocking_terminate();
+    int n_threads = n[0];
+    scheduler_.initialize(n_threads);
+    engine_->feval(
+        u"fprintf", 0,
+        std::vector<matlab::data::Array>({factory_.createScalar(
+            "FlamemasterKinetics_: Maximum number of threads set to '" +
+            std::to_string(n_threads) + "'.\n")}));
+#else
+    matlab::data::TypedArray<double> n = inputs[1];
+    int n_threads = n[0];
+    n_max_threads_ = n_threads;
+    if (n_threads > 1) {
+      std::string what = "FlamemasterKinetics_: No parallel backend available.";
       engine_->feval(u"error", 0,
                      std::vector<matlab::data::Array>(
                          {factory_.createScalar(std::move(what))}));
+    } else {
+      engine_->feval(
+          u"fprintf", 0,
+          std::vector<matlab::data::Array>({factory_.createScalar(
+              "FlamemasterKinetics_: Maximum number of threads set to '" +
+              std::to_string(n_threads) + "'.\n")}));
     }
+#endif
   }
 
   std::shared_ptr<matlab::engine::MATLABEngine> engine_ = getEngine();
   matlab::data::ArrayFactory factory_;
   mutable std::vector<double> fractions_buffer_;
-  mutable tbb::enumerable_thread_specific<std::vector<double>>
-      tbb_fractions_buffer_;
-  tbb::task_scheduler_init scheduler_{tbb::task_scheduler_init::automatic};
   std::unique_ptr<fub::ideal_gas::FlameMasterMechanism> mechanism_{};
   std::unique_ptr<fub::ideal_gas::FlameMasterReactor> reactor_{};
+  int n_max_threads_{1};
+
+#ifdef FUB_WITH_TBB
+  tbb::task_scheduler_init scheduler_{tbb::task_scheduler_init::automatic};
+  mutable tbb::enumerable_thread_specific<std::vector<double>>
+      tbb_fractions_buffer_;
   std::unique_ptr<
       tbb::enumerable_thread_specific<fub::ideal_gas::FlameMasterReactor>>
       tbb_reactor_{};
+#endif
 };

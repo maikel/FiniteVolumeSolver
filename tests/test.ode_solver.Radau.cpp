@@ -89,13 +89,17 @@ int temperature_root_function(fub::span<double> T,
 int main() {
   TC_initChem("Zhao2008DME.ckm.chmech", "Zhao2008DME.ckm.chthermo", 1, 1.0);
   fub::RadauSolver radau;
+#ifdef FUB_WITH_SUNDIALS
   fub::CVodeSolver cvode(1 + TC_getNspec());
   cvode.SetRootFunction(temperature_root_function, 1);
+#endif
   for (int i = 0; i < 10; ++i) {
     std::printf("=================\nRadau: ");
     IntegrateTChemSystem(radau);
+#ifdef FUB_WITH_SUNDIALS
     std::printf("=================\nCVode: ");
     IntegrateTChemSystem(cvode);
+#endif
     std::printf("=================\nFlamemaster: ");
     IntegrateFMSystem();
   }

@@ -19,6 +19,9 @@
 // SOFTWARE.
 
 #include "fub/ode_solver/RadauSolver.hpp"
+
+#include "fub/ode_solver/OdeSolverFactory.hpp"
+
 #include <string>
 
 namespace fub {

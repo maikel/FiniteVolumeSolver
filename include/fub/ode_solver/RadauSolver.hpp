@@ -21,7 +21,7 @@
 #ifndef FUB_ODE_SOLVER_RADAU_SOLVER_HPP
 #define FUB_ODE_SOLVER_RADAU_SOLVER_HPP
 
-#include "fub/ode_solver/OdeSolver.hpp"
+#include "fub/ode_solver/OdeSolverFactory.hpp"
 #include <vector>
 
 namespace fub {
@@ -80,6 +80,10 @@ private:
   mutable std::vector<double> work_space_{};
   mutable std::vector<int> iwork_space_{};
 };
+
+static RegisterSpecificFactory register_radau_solver_{
+    "RADAU",
+    [](const OdeSolverOptions&) { return std::make_unique<RadauSolver>(); }};
 
 } // namespace fub
 

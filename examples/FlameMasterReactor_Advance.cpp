@@ -28,6 +28,7 @@ int main() {
                 reactor->getTemperature(), reactor->getPressure());
   });
 
+#ifdef FUB_WITH_SUNDIALS
   std::fill(X.begin(), X.end(), 0.0);
   X[Zhao2008Dme::sH2] = 2.0;
   X[Zhao2008Dme::sO2] = 1.0;
@@ -41,6 +42,7 @@ int main() {
     std::printf("time: %f, temperature: %f, pressure: %f\n", t,
                 reactor->getTemperature(), reactor->getPressure());
   });
+#endif
 
   // try {
   //   X[Zhao2008Dme::sH2] = 0.5;

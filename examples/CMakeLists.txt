@@ -18,7 +18,3 @@ if (SAMRAI_FOUND)
   add_executable(TChemSolver TChemSolver.cpp)
   target_link_libraries(TChemSolver PRIVATE HyperbolicSolver.SAMRAI.IdealGas)
 endif()
-
-add_executable(boost_fiber boost_fiber.cpp)
-target_link_libraries(boost_fiber Boost::fiber)
-target_compile_features(boost_fiber PRIVATE cxx_std_14)

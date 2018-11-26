@@ -489,26 +489,18 @@ private:
     }
     matlab::data::CharArray name = inputs[1];
     std::string ode_solver_name = name.toAscii();
+    const fub::OdeSolverFactory& factory = fub::OdeSolverFactory::GetInstance();
     if (ode_solver_name == "CVode") {
-      reactor_->SetOdeSolver(
-          std::make_unique<fub::CVodeSolver>(reactor_->GetNSpecies() + 1));
-      engine_->feval(u"fprintf", 0,
-                     std::vector<matlab::data::Array>({factory_.createScalar(
-                         "TChemKinetics_: Using the '" + ode_solver_name +
-                         "' ode solver now.\n")}));
-    } else if (ode_solver_name == "RADAU") {
-      reactor_->SetOdeSolver(std::make_unique<fub::RadauSolver>());
-      engine_->feval(u"fprintf", 0,
-                     std::vector<matlab::data::Array>({factory_.createScalar(
-                         "TChemKinetics_: Using the '" + ode_solver_name +
-                         "' ode solver now.\n")}));
+      fub::CVodeSolverOptions options{reactor_->GetNSpecies() + 1};
+      reactor_->SetOdeSolver(factory.MakeSolver(ode_solver_name, options));
     } else {
-      std::string what =
-          "TChemKinetics_: Unknown ode solver '" + ode_solver_name + "'.";
-      engine_->feval(u"error", 0,
-                     std::vector<matlab::data::Array>(
-                         {factory_.createScalar(std::move(what))}));
+      reactor_->SetOdeSolver(factory.MakeSolver(ode_solver_name));
     }
+
+    engine_->feval(u"fprintf", 0,
+                   std::vector<matlab::data::Array>({factory_.createScalar(
+                       "TChemKinetics_: Using the '" + ode_solver_name +
+                       "' ode solver now.\n")}));
   }
 
   std::shared_ptr<matlab::engine::MATLABEngine> engine_ = getEngine();

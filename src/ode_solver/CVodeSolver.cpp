@@ -20,6 +20,8 @@
 
 #include "fub/ode_solver/CVodeSolver.hpp"
 
+#include "fub/ode_solver/OdeSolverFactory.hpp"
+
 extern "C" {
 #include <cvode/cvode.h>
 #include <cvodes/cvodes_direct.h>

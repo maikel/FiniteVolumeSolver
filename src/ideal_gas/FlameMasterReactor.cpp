@@ -295,15 +295,6 @@ FlameMasterReactor::FlameMasterReactor(const FlameMasterMechanism& mechanism)
   setPressure(101325.);
 
   UpdateThermoState(*mechanism_, state_);
-  // mechanism_->ComputeProductionRates(state_.production_rates,          //
-  // cdot
-  //                                    state_.reaction_rates,            // w
-  //                                    state_.rate_coefficients,         // k
-  //                                    state_.moles,                     // c
-  //                                    state_.third_body_concentrations, // M
-  //                                    getTemperature(), // Temperature
-  //                                    getPressure()     // Pressure
-  // );
 }
 
 FlameMasterReactor::FlameMasterReactor(const FlameMasterReactor& other)
