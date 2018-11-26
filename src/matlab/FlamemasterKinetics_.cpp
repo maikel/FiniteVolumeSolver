@@ -80,7 +80,11 @@ private:
     omp_set_num_threads(n_max_threads_);
 #pragma omp parallel for schedule(dynamic)
     for (int cell = start; cell < end; ++cell) {
-      f(cell, fractions_buffer_, *reactor_);
+      int local_id = omp_get_thread_num();
+      std::vector<double>& fractions_buffer =
+          omp_fractions_buffer_.at(local_id);
+      fub::ideal_gas::FlameMasterReactor& reactor = omp_reactor_.at(local_id);
+      f(cell, fractions_buffer, reactor);
     }
   }
 #else
@@ -554,10 +558,13 @@ private:
       reactor_->setOdeSolver(factory.MakeSolver(ode_solver_name));
     }
 
-#ifdef FUB_WITH_TBB
+#if defined(FUB_WITH_TBB)
     tbb_reactor_ = std::make_unique<
         tbb::enumerable_thread_specific<fub::ideal_gas::FlameMasterReactor>>(
         *reactor_);
+#elif defined(FUB_WITH_OPENMP)
+    omp_reactor_ = std::vector<fub::ideal_gas::FlameMasterReactor>(
+        n_max_threads_, *reactor_);
 #endif
 
     engine_->feval(u"fprintf", 0,
@@ -579,6 +586,10 @@ private:
             std::to_string(n_threads) + "'.\n")}));
 #elif defined(FUB_WITH_OPENMP)
     n_max_threads_ = n_threads;
+    omp_reactor_ =
+        std::vector<fub::ideal_gas::FlameMasterReactor>(n_threads, *reactor_);
+    omp_fractions_buffer_ =
+        std::vector<std::vector<double>>(n_threads, fractions_buffer_);
     engine_->feval(
         u"fprintf", 0,
         std::vector<matlab::data::Array>({factory_.createScalar(
@@ -607,12 +618,15 @@ private:
   std::unique_ptr<fub::ideal_gas::FlameMasterReactor> reactor_{};
   int n_max_threads_{1};
 
-#ifdef FUB_WITH_TBB
+#if defined(FUB_WITH_TBB)
   tbb::task_scheduler_init scheduler_{tbb::task_scheduler_init::automatic};
   mutable tbb::enumerable_thread_specific<std::vector<double>>
       tbb_fractions_buffer_;
   std::unique_ptr<
       tbb::enumerable_thread_specific<fub::ideal_gas::FlameMasterReactor>>
       tbb_reactor_{};
+#elif defined(FUB_WITH_OPENMP)
+  std::vector<std::vector<double>> omp_fractions_buffer_;
+  std::vector<fub::ideal_gas::FlameMasterReactor> omp_reactor_;
 #endif
 };
