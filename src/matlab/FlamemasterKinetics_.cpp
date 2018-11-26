@@ -62,7 +62,7 @@ public:
 #endif
 
 private:
-#ifdef FUB_WITH_TBB
+#if defined(FUB_WITH_TBB)
   template <typename Function>
   void ParallelFor_(int start, int end, Function f) {
     tbb::parallel_for(start, end, [&](int cell) {
@@ -71,7 +71,7 @@ private:
       f(cell, fractions_buffer, reactor);
     });
   }
-#elif FUB_WITH_OPENMP
+#elif defined(FUB_WITH_OPENMP)
   template <typename Function>
   void ParallelFor_(int start, int end, Function f) {
     omp_set_dynamic(1);
