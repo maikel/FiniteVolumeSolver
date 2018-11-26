@@ -68,6 +68,12 @@ function [config] = TChemKinetics(mechanism)
      TChemKinetics_(kSetOdeSolver, solver);
   end
 
+  function SetNumberOfThreads(n_threads) 
+    if (n_threads > 1) 
+      error('TChem does not support multi-threading.');
+    end
+  end
+
   % Set hooks and register the thermo dynamic functions with the library
   config.kineticsif.setTPX = @SetTPX;
   config.kineticsif.recSetPUTY = @RecSetPUTY;
@@ -78,6 +84,7 @@ function [config] = TChemKinetics(mechanism)
 	config.kineticsif.baseEnthalpies = @BaseEnthalpies;
   config.kineticsif.molarMasses = @GetMolarMasses;
   config.kineticsif.setOdeSolver = @SetOdeSolver;
+  config.kineticsif.setNumberOfThreads = @SetNumberOfThreads;
     
   % Set State Variable Indices
   config.v.RHOY = (config.v.RHOY1:(config.v.RHOY1 + ...
