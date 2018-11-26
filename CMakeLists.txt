@@ -158,6 +158,15 @@ if (FUB_MEX_COMPONENTS)
     LINK_TO ${Matlab_DATAARRAY_LIBRARY} HyperbolicSolver.IdealGas)
 
   install(
-    TARGETS FlamemasterKinetics_ TChemKinetics_ 
-    LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib)
+    TARGETS 
+      FlamemasterKinetics_
+      TChemKinetics_ 
+    LIBRARY DESTINATION
+      ${CMAKE_INSTALL_PREFIX}/lib)
+  install(
+    FILES
+      src/matlab/FlamemasterKinetics.m
+      src/matlab/TChemKinetics.m
+    DESTINATION
+      ${CMAKE_INSTALL_PREFIX}/lib)
 endif()
