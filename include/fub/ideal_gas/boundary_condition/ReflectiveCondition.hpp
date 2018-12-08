@@ -21,16 +21,23 @@
 #ifndef FUB_EULER_BOUNDARY_CONDITION_REFLECTIVE_CONDITION_HPP
 #define FUB_EULER_BOUNDARY_CONDITION_REFLECTIVE_CONDITION_HPP
 
-#include "fub/ideal_gas/ForwardEulerTimeIntegrator.hpp"
-#include "fub/solver/BoundaryCondition.hpp"
+#include "fub/ideal_gas/HyperbolicTimeIntegrator.hpp"
+#include "fub/solver/SplitBoundaryCondition.hpp"
 
 namespace fub {
 namespace ideal_gas {
 
-class ReflectiveCondition : public BoundaryCondition {
+class ReflectiveCondition : public BoundaryCondition, public SplitBoundaryCondition {
 public:
-  explicit ReflectiveCondition(const ForwardEulerTimeIntegrator& i)
+  explicit ReflectiveCondition(const HyperbolicTimeIntegrator& i)
       : integrator_{&i} {}
+
+  void SetPhysicalBoundaryCondition(const SAMRAI::hier::Patch& patch,
+                                    const SAMRAI::hier::Box& fill_box,
+                                    double fill_time, Direction dir,
+                                    int side) const override;
+
+  int GetStencilWidth() const override { return 0; }
 
   void setPhysicalBoundaryConditions(
       const SAMRAI::hier::Patch& patch, double fill_time,
@@ -42,7 +49,7 @@ public:
   }
 
 private:
-  const ForwardEulerTimeIntegrator* integrator_;
+  const HyperbolicTimeIntegrator* integrator_;
 };
 
 } // namespace ideal_gas

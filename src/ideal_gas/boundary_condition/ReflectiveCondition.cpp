@@ -25,13 +25,13 @@
 
 namespace fub {
 namespace ideal_gas {
-namespace {
-void ReflectOnBoundaryBox_(
-    const IdealGasEquation::CompleteStatePatchData& complete,
-    const SAMRAI::hier::BoundaryBox& bbox, const SAMRAI::hier::Box& fill_box) {
-  const int locidx = bbox.getLocationIndex();
-  const int direction = locidx / 2;
-  const int side = locidx % 2;
+void ReflectiveCondition::SetPhysicalBoundaryCondition(
+    const SAMRAI::hier::Patch& patch, const SAMRAI::hier::Box& fill_box,
+    double /* fill_time */, Direction dir, int side) const {
+  using Scratch = HyperbolicTimeIntegrator::Scratch;
+  IdealGasEquation::CompleteStatePatchData complete =
+      integrator_->getCompleteState(patch, Scratch(dir));
+  const int direction = static_cast<int>(dir);
   const int sign = side == 0 ? +1 : -1;
   for (const SAMRAI::hier::Index& index : fill_box) {
     SAMRAI::pdat::CellIndex to(index);
@@ -52,7 +52,6 @@ void ReflectOnBoundaryBox_(
     complete.momentum(to, direction) *= -1;
   }
 }
-} // namespace
 
 void ReflectiveCondition::setPhysicalBoundaryConditions(
     const SAMRAI::hier::Patch& patch, double fill_time,
@@ -64,11 +63,9 @@ void ReflectiveCondition::setPhysicalBoundaryConditions(
     SAMRAI::hier::Box fill_box =
         geometry.getBoundaryFillBox(bbox, patch.getBox(), ghost_width_to_fill);
     if (fill_box.size() > 0) {
-      const int direction = bbox.getLocationIndex() / 2;
-      using Scratch = ForwardEulerTimeIntegrator::Scratch;
-      IdealGasEquation::CompleteStatePatchData complete =
-          integrator_->getCompleteState(patch, Scratch(direction));
-      ReflectOnBoundaryBox_(complete, bbox, fill_box);
+      const Direction dir = Direction(bbox.getLocationIndex() / 2);
+      int side = bbox.getLocationIndex() % 2;
+      SetPhysicalBoundaryCondition(patch, fill_box, fill_time, dir, side);
     }
   }
 }

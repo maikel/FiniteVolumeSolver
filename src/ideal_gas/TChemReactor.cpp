@@ -167,7 +167,7 @@ TChemReactor::TChemReactor(const TChemMechanism& mechanism) {
   FILE* thermoin =
       fmemopen(const_cast<char*>(thermofile), strlen(thermofile), "r");
   FUB_ASSERT(mechin && thermofile);
-  constexpr int with_tab = 1;
+  constexpr int with_tab = 0;
   constexpr double tab_delta_T = 1.0;
   int ec = TC_initChemFromFile(mechin, thermoin, with_tab, tab_delta_T);
   FUB_ASSERT(!ec);
@@ -260,7 +260,8 @@ void TChemReactor::SetMoleFractions(span<const double> X) {
                  [=](double Xi) { return std::max(0.0, Xi); });
   const double total = std::accumulate(moles_.begin(), moles_.end(), 0.0);
   FUB_ASSERT(total > 0.0);
-  std::transform(moles_.begin(), moles_.end(), moles_.begin(),
+  std::transform(moles_.begin(), moles_.end(),
+                 temperature_and_mass_fractions_.begin() + 1,
                  [=](double Xi) { return Xi / total; });
   TC_getRhoMixMl(temperature_and_mass_fractions_.data(),
                  temperature_and_mass_fractions_.size(), &density_);

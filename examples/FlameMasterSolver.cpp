@@ -5,7 +5,7 @@
 #include "fub/geometry/Halfspace.hpp"
 #include "fub/geometry/PolymorphicGeometry.hpp"
 #include "fub/ideal_gas/FlameMasterKinetics.hpp"
-#include "fub/ideal_gas/ForwardEulerTimeIntegrator.hpp"
+#include "fub/ideal_gas/HyperbolicTimeIntegrator.hpp"
 #include "fub/ideal_gas/KineticSourceTerm.hpp"
 #include "fub/ideal_gas/PerfectGasEquation.hpp"
 #include "fub/ideal_gas/boundary_condition/ReflectiveCondition.hpp"
@@ -128,7 +128,7 @@ int main(int argc, char** argv) {
   auto equation = std::make_shared<fub::ideal_gas::FlameMasterKinetics>(
       "IdealGas", dim, mechanism);
 
-  fub::ideal_gas::ForwardEulerTimeIntegrator integrator(equation);
+  fub::ideal_gas::HyperbolicTimeIntegrator integrator(equation);
   fub::ideal_gas::KineticSourceTerm source_term(equation);
   fub::GodunovSplitting splitting{};
   fub::DimensionalSplitSystemSolver hyperbolic(integrator, splitting);

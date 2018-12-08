@@ -4,7 +4,7 @@
 #include "fub/SAMRAI/utility.hpp"
 #include "fub/geometry/Halfspace.hpp"
 #include "fub/geometry/PolymorphicGeometry.hpp"
-#include "fub/ideal_gas/ForwardEulerTimeIntegrator.hpp"
+#include "fub/ideal_gas/HyperbolicTimeIntegrator.hpp"
 #include "fub/ideal_gas/KineticSourceTerm.hpp"
 #include "fub/ideal_gas/PerfectGasEquation.hpp"
 #include "fub/ideal_gas/TChemKinetics.hpp"
@@ -113,7 +113,7 @@ int main(int argc, char** argv) {
       "IdealGas", dim, mechanism);
 
   // Construct the finite volume method
-  fub::ideal_gas::ForwardEulerTimeIntegrator integrator(equation);
+  fub::ideal_gas::HyperbolicTimeIntegrator integrator(equation);
   fub::ideal_gas::KineticSourceTerm source_term(equation);
   fub::GodunovSplitting splitting{};
   fub::DimensionalSplitSystemSolver hyperbolic(integrator, splitting);

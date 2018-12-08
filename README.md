@@ -54,7 +54,7 @@ use following commands in the project source directory.
 > cd build
 > cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH="${SAMRAI_INSTALL_PATH}"
 > make
-> ./examples/ForwardEulerTimeIntegrator
+> ./examples/HyperbolicTimeIntegrator
 ```
 
 Note: The current implementation requires some **C++14** library and language features.

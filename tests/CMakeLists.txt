@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(HyperbolicSolver_tests CXX)
+project(ReactiveEulerSolver_tests CXX)
 
 add_executable(test.core.span test.core.span.cpp)
 target_link_libraries(test.core.span Catch2)
@@ -16,13 +16,13 @@ if (SAMRAI_FOUND)
   add_executable(test.ParallelBuffer test.ParallelBuffer.cpp)
   target_link_libraries(test.ParallelBuffer 
     PRIVATE 
-      HyperbolicSolver.SAMRAI 
+      ReactiveEulerSolver.SAMRAI 
       Catch2
   )
 endif()
 
 add_executable(test.RadauSolver test.ode_solver.Radau.cpp)
-target_link_libraries(test.RadauSolver PRIVATE HyperbolicSolver.IdealGas)
+target_link_libraries(test.RadauSolver PRIVATE ReactiveEulerSolver.IdealGas)
 
 add_executable(test.TChemReactor test.TChemReactor.cpp)
-target_link_libraries(test.TChemReactor PRIVATE HyperbolicSolver.IdealGas)
+target_link_libraries(test.TChemReactor PRIVATE ReactiveEulerSolver.IdealGas)

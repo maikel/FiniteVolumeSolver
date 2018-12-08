@@ -4607,7 +4607,6 @@ HCOOH+CH3<=>CH4+CO+OH                    3.900e-07    5.800   2200.00
 HCOOH+HO2<=>H2O2+CO+OH                   1.000e+12    0.000  11920.00
 HCOOH+O<=>CO+2OH                         1.770e+18   -1.900   2975.00
 END
-
 )RESOURCE";
 }
 

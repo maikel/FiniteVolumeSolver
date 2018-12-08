@@ -122,6 +122,10 @@ public:
   virtual void FillFromPrim(const CompleteStatePatchData& q,
                             const PrimStatePatchData& w) const = 0;
 
+  // virtual void SetPressureIsentropic(const CompleteStatePatchData& data,
+  //                                    const SAMRAI::hier::Index& to,
+  //                                    const SAMRAI::hier::Index& from) const = 0;
+
   /////////////////////////////////////////////////////////////////////////////
   //                  SAMRAI related member functions
 

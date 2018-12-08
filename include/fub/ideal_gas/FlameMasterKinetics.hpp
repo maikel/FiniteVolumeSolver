@@ -22,8 +22,8 @@
 /// This module defines classes and methods to be used to concrete solver
 /// implementations wrt the euler equations.
 
-#ifndef FUB_EULER_IDEAL_GAS_HPP
-#define FUB_EULER_IDEAL_GAS_HPP
+#ifndef FUB_IDEAL_GAS_FLAMEMASTER_KINETICS_HPP
+#define FUB_IDEAL_GAS_FLAMEMASTER_KINETICS_HPP
 
 #include "fub/core/assert.hpp"
 #include "fub/core/span.hpp"

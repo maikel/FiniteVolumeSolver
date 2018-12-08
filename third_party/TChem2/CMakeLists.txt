@@ -17,4 +17,18 @@ add_library(TChem
     src/TC_src.c
     src/TC_thermo.c
     src/TC_utils.c)
-target_include_directories(TChem PUBLIC include)
+target_include_directories(TChem 
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  PRIVATE
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>
+)
+install(
+  TARGETS TChem
+  EXPORT ReactiveEulerSolver
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
+  LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib)
+install(
+  FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h
+  DESTINATION ${CMAKE_INSTALL_PREFIX}/include
+)

@@ -24,6 +24,7 @@
 #include "fub/core/pragma.hpp"
 #include "fub/ideal_gas/FlameMasterReactor.hpp"
 #include "fub/ideal_gas/mechanism/AramcoMech_DMEonly_74spec.hpp"
+#include "fub/ideal_gas/mechanism/AramcoMech_woC3H4_91spec.hpp"
 #include "fub/ideal_gas/mechanism/Burke2012.hpp"
 #include "fub/ideal_gas/mechanism/Gri30.hpp"
 #include "fub/ideal_gas/mechanism/Zhao2008Dme.hpp"
@@ -194,6 +195,8 @@ private:
     factory["Zhao2008Dme"] = std::make_unique<fub::ideal_gas::Zhao2008Dme>();
     factory["Burke2012"] = std::make_unique<fub::ideal_gas::Burke2012>();
     factory["Gri30"] = std::make_unique<fub::ideal_gas::Gri30>();
+    factory["AramcoMech_woC3C4_91spec"] =
+        std::make_unique<fub::ideal_gas::AramcoMech_woC3H4_91spec>();
     factory["AramcoMech_DMEonly_74spec"] =
         std::make_unique<fub::ideal_gas::AramcoMech_DMEonly_74spec>();
     return factory;

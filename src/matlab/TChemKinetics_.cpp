@@ -21,6 +21,7 @@
 #include "fub/core/mdspan.hpp"
 #include "fub/ideal_gas/TChemReactor.hpp"
 #include "fub/ideal_gas/mechanism/AramcoMech_DMEonly_74spec.hpp"
+#include "fub/ideal_gas/mechanism/AramcoMech_woC3H4_91spec.hpp"
 #include "fub/ideal_gas/mechanism/Zhao2008Dme.hpp"
 #include "fub/ode_solver/CVodeSolver.hpp"
 #include "fub/ode_solver/RadauSolver.hpp"
@@ -146,6 +147,8 @@ private:
     factory["Zhao2008Dme"] = std::make_unique<fub::ideal_gas::Zhao2008Dme>();
     factory["AramcoMech_DMEonly_74spec"] =
         std::make_unique<fub::ideal_gas::AramcoMech_DMEonly_74spec>();
+    factory["AramcoMech_woC3C4_91spec"] =
+        std::make_unique<fub::ideal_gas::AramcoMech_woC3H4_91spec>();
     return factory;
   }
 

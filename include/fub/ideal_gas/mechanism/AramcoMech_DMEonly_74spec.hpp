@@ -31,10 +31,10 @@
 namespace fub {
 namespace ideal_gas {
 
-class AramcoMech_DMEonly_74spec : public FlameMasterMechanism, public TChemMechanism {
+class AramcoMech_DMEonly_74spec : public FlameMasterMechanism,
+                                  public TChemMechanism {
 public:
   typedef enum SpeciesLabel {
-
     /* Computed species s.. */
     /* Steady-state species ss.. */
     sN2 = 0,

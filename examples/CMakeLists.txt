@@ -1,20 +1,26 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(HyperbolicSolver_examples CXX)
+project(ReactiveEulerSolver_examples CXX)
 
 find_package(benchmark QUIET)
 if (SAMRAI_FOUND AND TARGET benchmark::benchmark)
-  add_executable(benchmark.TChem benchmark.TChem.cpp)
-  target_link_libraries(benchmark.TChem HyperbolicSolver.IdealGas benchmark::benchmark)
+  add_executable(benchmark.TChem.Zhao benchmark.TChem.Zhao.cpp)
+  target_link_libraries(benchmark.TChem.Zhao ReactiveEulerSolver.SAMRAI.IdealGas benchmark::benchmark)
+
+  add_executable(benchmark.TChem.Aramco benchmark.TChem.Aramco.cpp)
+  target_link_libraries(benchmark.TChem.Aramco ReactiveEulerSolver.SAMRAI.IdealGas benchmark::benchmark)
 endif()
 
 add_executable(FlameMasterReactor_Advance FlameMasterReactor_Advance.cpp)
-target_link_libraries(FlameMasterReactor_Advance PRIVATE HyperbolicSolver.IdealGas)
+target_link_libraries(FlameMasterReactor_Advance PRIVATE ReactiveEulerSolver.IdealGas)
+
+add_executable(Jacobian Jacobian.cpp)
+target_link_libraries(Jacobian PRIVATE ReactiveEulerSolver.IdealGas)
 
 if (SAMRAI_FOUND)
   add_executable(FlameMasterSolver FlameMasterSolver.cpp)
-  target_link_libraries(FlameMasterSolver PRIVATE HyperbolicSolver.SAMRAI.IdealGas)
+  target_link_libraries(FlameMasterSolver PRIVATE ReactiveEulerSolver.SAMRAI.IdealGas)
 
   add_executable(TChemSolver TChemSolver.cpp)
-  target_link_libraries(TChemSolver PRIVATE HyperbolicSolver.SAMRAI.IdealGas)
+  target_link_libraries(TChemSolver PRIVATE ReactiveEulerSolver.SAMRAI.IdealGas)
 endif()
