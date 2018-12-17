@@ -25,6 +25,7 @@
 #define FUB_CORE_TYPE_TRAITS_HPP
 
 #include <type_traits>
+#include <utility>
 
 namespace fub {
 #if defined(__cpp_lib_byte) && __cpp_lib_byte >= 201603
@@ -41,9 +42,7 @@ using byte = unsigned char;
 
 template <class...> using void_t = void;
 
-template <typename T> struct nodeduce {
-  using type = T;
-};
+template <typename T> struct nodeduce { using type = T; };
 template <typename T> using nodeduce_t = typename nodeduce<T>::type;
 
 struct nonesuch {
@@ -134,6 +133,36 @@ struct disjunction<B1, Bn...>
 
 template <class Bool>
 using negation = std::integral_constant<bool, !bool(Bool::value)>;
+#endif
+
+#if defined(__cpp_lib_integer_sequence)
+using std::integer_sequence;
+#else
+template <typename T, T... Ints> struct integer_sequence {
+  using value_type = T;
+
+  static constexpr std::size_t size() noexcept { return sizeof...(Ints); }
+};
+
+template <std::size_t... Is>
+using index_sequence = integer_sequence<std::size_t, Is...>;
+
+template <typename T, T N, T Last, T... Ints> struct MakeIntegerSequence_;
+
+template <typename T, T N, T... Ints> struct MakeIntegerSequence_<T, N, N, Ints...> {
+  using type = integer_sequence<T, Ints...>;
+};
+
+template <typename T, T N, T L, T... Ints>
+struct MakeIntegerSequence_ {
+  using type = MakeIntegerSequence_<T, N, L + 1, Ints..., L>;
+};
+
+template <typename T, T N>
+using make_integer_sequence = typename MakeIntegerSequence_<T, N, T{0}>::type;
+
+template <std::size_t N>
+using make_index_sequence = make_integer_sequence<std::size_t, N>;
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////

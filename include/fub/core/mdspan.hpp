@@ -342,8 +342,7 @@ struct layout_left {
             std::is_convertible<IndexType, std::ptrdiff_t>...>::value>,
         typename = std::enable_if_t<(sizeof...(IndexType) == Extents::rank())>>
     constexpr std::ptrdiff_t operator()(IndexType... indices) const noexcept {
-      return DoMapping_(std::make_index_sequence<Extents::rank()>(),
-                        indices...);
+      return DoMapping_(make_index_sequence<Extents::rank()>(), indices...);
     }
 
     /// \return Returns the stride value in a specified dimension r.
@@ -380,7 +379,7 @@ struct layout_left {
 
   private:
     template <std::size_t... Is, typename... IndexType>
-    constexpr std::ptrdiff_t DoMapping_(std::index_sequence<Is...>,
+    constexpr std::ptrdiff_t DoMapping_(index_sequence<Is...>,
                                         IndexType... indices) const noexcept {
       const std::ptrdiff_t is[Extents::rank()]{
           static_cast<std::ptrdiff_t>(indices)...};
@@ -417,8 +416,7 @@ struct layout_right {
             std::is_convertible<IndexType, std::ptrdiff_t>...>::value>,
         typename = std::enable_if_t<(sizeof...(IndexType) == Extents::rank())>>
     constexpr std::ptrdiff_t operator()(IndexType... indices) const noexcept {
-      return DoMapping_(std::make_index_sequence<Extents::rank()>(),
-                        indices...);
+      return DoMapping_(make_index_sequence<Extents::rank()>(), indices...);
     }
 
     constexpr std::ptrdiff_t stride(std::size_t r) const noexcept {
@@ -451,7 +449,7 @@ struct layout_right {
 
   private:
     template <std::size_t... Is, typename... IndexType>
-    constexpr std::ptrdiff_t DoMapping_(std::index_sequence<Is...>,
+    constexpr std::ptrdiff_t DoMapping_(index_sequence<Is...>,
                                         IndexType... indices) const noexcept {
       const std::ptrdiff_t is[Extents::rank()]{
           static_cast<std::ptrdiff_t>(indices)...};
@@ -595,8 +593,7 @@ public:
   constexpr basic_mdspan(
       const basic_mdspan<OtherElementType, OtherExtents, OtherLayoutPolicy,
                          OtherAccessorPolicy>& other)
-      : accessor_type(), mapping_type(other.mapping()),
-        ptr_(other.data()) {}
+      : accessor_type(), mapping_type(other.mapping()), ptr_(other.data()) {}
 
   ~basic_mdspan() = default;
 
@@ -692,13 +689,13 @@ using mdspan = basic_mdspan<T, extents<Extents...>>;
 template <typename T> struct DynamicExtents_;
 
 template <typename I, I... Is>
-struct DynamicExtents_<std::integer_sequence<I, Is...>> {
+struct DynamicExtents_<integer_sequence<I, Is...>> {
   using type = extents<(Is, fub::dynamic_extent)...>;
 };
 
 template <std::size_t Rank>
-using DynamicExtents = typename DynamicExtents_<
-    std::make_integer_sequence<std::size_t, Rank>>::type;
+using DynamicExtents =
+    typename DynamicExtents_<make_index_sequence<Rank>>::type;
 
 template <typename T, std::size_t Rank>
 using DynamicMdSpan = basic_mdspan<T, DynamicExtents<Rank>>;
@@ -804,7 +801,7 @@ template <class ElementType, class Extents, class LayoutPolicy,
           class AccessorPolicy, std::size_t... Is>
 constexpr std::array<std::ptrdiff_t, sizeof...(Is)> MakeStrideArray_(
     const basic_mdspan<ElementType, Extents, LayoutPolicy, AccessorPolicy>& src,
-    std::index_sequence<Is...>) {
+    index_sequence<Is...>) {
   return {src.stride(Is)...};
 }
 
@@ -812,14 +809,14 @@ template <typename T> struct Type_ {};
 
 template <std::size_t N, std::size_t... Is>
 constexpr std::array<std::size_t, N> AsStdArray__(const std::size_t (&array)[N],
-                                                  std::index_sequence<Is...>) {
+                                                  index_sequence<Is...>) {
   return {array[Is]...};
 }
 
 template <std::size_t N>
 constexpr std::array<std::size_t, N>
 AsStdArray_(const std::size_t (&array)[N]) {
-  return AsStdArray__(array, std::make_index_sequence<N>());
+  return AsStdArray__(array, make_index_sequence<N>());
 }
 
 template <typename... Slices>
@@ -837,16 +834,16 @@ MakeRangeIndices__(Type_<Slices>... slices) {
 }
 
 template <typename... Slices, std::size_t... Is>
-constexpr auto MakeRangeIndices_(std::index_sequence<Is...>,
+constexpr auto MakeRangeIndices_(index_sequence<Is...>,
                                  Type_<Slices>... slices) {
   constexpr std::array<std::size_t, SliceRank_<Slices...>> indices{
       MakeRangeIndices__(Type_<Slices>{}...)};
-  return std::index_sequence<indices[Is]...>{};
+  return index_sequence<indices[Is]...>{};
 }
 
 template <typename... Slices>
 constexpr auto MakeRangeIndices_(Type_<Slices>... slices) {
-  return MakeRangeIndices_(std::make_index_sequence<SliceRank_<Slices...>>{},
+  return MakeRangeIndices_(make_index_sequence<SliceRank_<Slices...>>{},
                            slices...);
 }
 
@@ -879,14 +876,14 @@ MakeOrigin_(Slices... slices) {
 }
 
 template <std::size_t... Is, typename F, std::size_t N>
-constexpr auto Apply_(std::index_sequence<Is...>, F fn,
+constexpr auto Apply_(index_sequence<Is...>, F fn,
                       std::array<std::ptrdiff_t, N> indices) {
   return fn(indices[Is]...);
 }
 
 template <typename F, std::size_t N>
 constexpr auto Apply_(F fn, std::array<std::ptrdiff_t, N> indices) {
-  return Apply_(std::make_index_sequence<N>{}, fn, indices);
+  return Apply_(make_index_sequence<N>{}, fn, indices);
 }
 
 template <class ElementType, class Extents, class LayoutPolicy,
