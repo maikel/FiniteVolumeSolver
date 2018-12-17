@@ -37,10 +37,11 @@ public:
   /// \brief Constructs a solver object from an dimensional split integrator and
   /// a splitting method.
   DimensionalSplitSystemSolver(const DimensionalSplitTimeIntegrator& integrator,
-                         const SplittingMethod& splitting)
+                               const SplittingMethod& splitting)
       : integrator_{&integrator}, splitting_method_{&splitting} {}
 
-  void allocatePatchDataOnPatchLevel(SAMRAI::hier::PatchLevel& level) const override;
+  void
+  allocatePatchDataOnPatchLevel(SAMRAI::hier::PatchLevel& level) const override;
 
   /// \brief Estimates the next stable time size.
   ///
@@ -52,7 +53,7 @@ public:
   /// \return A time step size value.
   double computeStableDt(
       const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
-      const BoundaryCondition& boundary_condition, double time_point) const override;
+      BoundaryCondition& boundary_condition, double time_point) const override;
 
   /// \brief Advanves a patch hierarchy in time.
   ///
@@ -66,7 +67,7 @@ public:
   /// \param[in] time_step_size  The time step size which will be taken.
   void
   advanceTime(const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
-              const BoundaryCondition& boundary_condition, double time_point,
+              BoundaryCondition& boundary_condition, double time_point,
               double time_step_size) const override;
 
   /// \brief Returns the underlying time integrator.

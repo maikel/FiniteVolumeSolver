@@ -29,7 +29,7 @@ void DimensionalSplitSystemSolver::allocatePatchDataOnPatchLevel(
 
 double DimensionalSplitSystemSolver::computeStableDt(
     const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
-    const BoundaryCondition& boundary_condition, double time_point) const {
+    BoundaryCondition& boundary_condition, double time_point) const {
   integrator_->fillGhostLayer(hierarchy, boundary_condition, time_point,
                               Direction::X);
   const double dt =
@@ -39,7 +39,7 @@ double DimensionalSplitSystemSolver::computeStableDt(
 
 void DimensionalSplitSystemSolver::advanceTime(
     const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
-    const BoundaryCondition& boundary_condition, double time_point,
+    BoundaryCondition& boundary_condition, double time_point,
     double time_step_size) const {
   const int dim = hierarchy->getDim().getValue();
   if (dim == 1) {

@@ -18,15 +18,25 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/ideal_gas/boundary_condition/ExpansionCondition.hpp"
+#include "fub/ideal_gas/boundary_condition/IsentropicExpansionBoundary.hpp"
 #include "fub/SAMRAI/utility.hpp"
 
 #include "SAMRAI/pdat/CellIndex.h"
 
 namespace fub {
 namespace ideal_gas {
+namespace {
+double GetEnthalpy_(const FlameMasterReactor& reactor) {
+  const double U = reactor.getInternalEnergy();
+  const double rho = reactor.getDensity();
+  const double V = 1.0 / rho;
+  const double p = reactor.getPressure();
+  return U + p * V;
+}
+} // namespace
+
 // Expansion into a fixed-pressure plenum
-void ExpansionCondition::SetPhysicalBoundaryCondition(
+void IsentropicExpansionBoundary::SetPhysicalBoundaryCondition(
     const SAMRAI::hier::Patch& patch, const SAMRAI::hier::Box& fill_box,
     double /* fill_time */, Direction dir, int side) const {
   using Scratch = HyperbolicTimeIntegrator::Scratch;
@@ -34,41 +44,29 @@ void ExpansionCondition::SetPhysicalBoundaryCondition(
       integrator_->getCompleteState(patch, Scratch(dir));
   const int direction = static_cast<int>(dir);
   const int sign = side == 0 ? +1 : -1;
+  FlameMasterReactor& reactor = kinetics_->GetReactor();
+  std::vector<double> fractions(complete.species.getDepth());
   for (const SAMRAI::hier::Index& index : fill_box) {
     SAMRAI::pdat::CellIndex to(index);
     SAMRAI::pdat::CellIndex from(shift(index, Direction(direction), sign));
-    integrator_->GetEquation().SetPressureIsentropic(complete, to, from);
-    complete.density(to) = complete.density(from);
-    complete.energy(to) = complete.energy(from);
-    complete.pressure(to) = complete.pressure(from);
-    complete.temperature(to) = complete.temperature(from);
-    complete.speed_of_sound(to) = complete.speed_of_sound(from);
-    const int n_species = complete.species.getDepth();
-    for (int s = 0; s < n_species; ++s) {
-      complete.species(to, s) = complete.species(from, s);
+    const double u_before = complete.momentum(from) / complete.density(from);
+    if (mass_fractions_.size() == 0) {
+      CopyMassFractions(fractions, complete.species, from);
+    } else {
+      std::copy(mass_fractions_.begin(), mass_fractions_.end(),
+                fractions.begin());
     }
-    const int dim = complete.momentum.getDepth();
-    for (int d = 0; d < dim; ++d) {
-      complete.momentum(to, d) = complete.momentum(from, d);
-    }
-    complete.momentum(to, direction) *= -1;
-  }
-}
-
-void ExpansionCondition::setPhysicalBoundaryConditions(
-    const SAMRAI::hier::Patch& patch, double fill_time,
-    const SAMRAI::hier::IntVector& ghost_width_to_fill) const {
-  const SAMRAI::hier::PatchGeometry& geometry = *patch.getPatchGeometry();
-  const std::vector<SAMRAI::hier::BoundaryBox>& boundaries =
-      geometry.getCodimensionBoundaries(1);
-  for (const SAMRAI::hier::BoundaryBox& bbox : boundaries) {
-    SAMRAI::hier::Box fill_box =
-        geometry.getBoundaryFillBox(bbox, patch.getBox(), ghost_width_to_fill);
-    if (fill_box.size() > 0) {
-      const Direction dir = Direction(bbox.getLocationIndex() / 2);
-      int side = bbox.getLocationIndex() % 2;
-      SetPhysicalBoundaryCondition(patch, fill_box, fill_time, dir, side);
-    }
+    reactor.setMassFractions(fractions);
+    reactor.setTemperature(complete.temperature(from));
+    reactor.setPressure(complete.pressure(from));
+    const double h_before = GetEnthalpy_(reactor);
+    reactor.setPressureIsentropic(pressure_);
+    const double h_after = GetEnthalpy_(reactor);
+    const double dH = h_after - h_before;
+    const double u2_after = 2 * std::abs(dH) + u_before * u_before;
+    const double u_after =
+        dH > 0.0 ? -std::sqrt(u2_after) : std::sqrt(u2_after);
+    kinetics_->UpdateCellFromReactor(complete, to, reactor, u_after);
   }
 }
 

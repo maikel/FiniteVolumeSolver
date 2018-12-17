@@ -21,6 +21,8 @@
 #ifndef FUB_SAMRAI_SCOPE_GUARD_HPP
 #define FUB_SAMRAI_SCOPE_GUARD_HPP
 
+#include <mpi.h>
+
 namespace fub {
 
 /// Initialises and finalizes the required SAMRAI routines for an application.
@@ -28,6 +30,7 @@ struct ScopeGuard {
   /// This method uses the global communication group, MPI_WORLD_COMM, for calls
   /// to SAMRAI routines.
   ScopeGuard(int argc, char** argv);
+  ScopeGuard(MPI_Comm comm);
 
   ScopeGuard(const ScopeGuard&) = delete;
   ScopeGuard& operator=(const ScopeGuard&) = delete;

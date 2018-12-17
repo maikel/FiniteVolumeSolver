@@ -8,7 +8,7 @@
 #include "fub/ideal_gas/KineticSourceTerm.hpp"
 #include "fub/ideal_gas/PerfectGasEquation.hpp"
 #include "fub/ideal_gas/TChemKinetics.hpp"
-#include "fub/ideal_gas/boundary_condition/ReflectiveCondition.hpp"
+#include "fub/ideal_gas/boundary_condition/ReflectiveBoundary.hpp"
 #include "fub/ideal_gas/mechanism/Zhao2008Dme.hpp"
 #include "fub/initial_data/RiemannProblem.hpp"
 #include "fub/output/GnuplotWriter.hpp"
@@ -142,7 +142,7 @@ int main(int argc, char** argv) {
   writer.writePlotData(hierarchy, 0, 0.0);
 
   // Setup the boundary condition
-  fub::ideal_gas::ReflectiveCondition boundary_condition{integrator};
+  fub::ideal_gas::ReflectiveBoundary boundary_condition{integrator};
   double t = 0;
   const int rank = SAMRAI::tbox::SAMRAI_MPI::getSAMRAIWorld().getRank();
   for (int step = 0; step < 200; ++step) {

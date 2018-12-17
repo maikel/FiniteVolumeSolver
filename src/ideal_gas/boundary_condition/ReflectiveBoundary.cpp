@@ -18,14 +18,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/ideal_gas/boundary_condition/ReflectiveCondition.hpp"
+#include "fub/ideal_gas/boundary_condition/ReflectiveBoundary.hpp"
 #include "fub/SAMRAI/utility.hpp"
 
 #include "SAMRAI/pdat/CellIndex.h"
 
 namespace fub {
 namespace ideal_gas {
-void ReflectiveCondition::SetPhysicalBoundaryCondition(
+void ReflectiveBoundary::SetPhysicalBoundaryCondition(
     const SAMRAI::hier::Patch& patch, const SAMRAI::hier::Box& fill_box,
     double /* fill_time */, Direction dir, int side) const {
   using Scratch = HyperbolicTimeIntegrator::Scratch;
@@ -53,7 +53,7 @@ void ReflectiveCondition::SetPhysicalBoundaryCondition(
   }
 }
 
-void ReflectiveCondition::setPhysicalBoundaryConditions(
+void ReflectiveBoundary::setPhysicalBoundaryConditions(
     const SAMRAI::hier::Patch& patch, double fill_time,
     const SAMRAI::hier::IntVector& ghost_width_to_fill) const {
   const SAMRAI::hier::PatchGeometry& geometry = *patch.getPatchGeometry();

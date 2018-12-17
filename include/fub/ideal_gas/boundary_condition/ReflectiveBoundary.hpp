@@ -27,9 +27,9 @@
 namespace fub {
 namespace ideal_gas {
 
-class ReflectiveCondition : public BoundaryCondition, public SplitBoundaryCondition {
+class ReflectiveBoundary : public BoundaryCondition, public SplitBoundaryCondition {
 public:
-  explicit ReflectiveCondition(const HyperbolicTimeIntegrator& i)
+  explicit ReflectiveBoundary(const HyperbolicTimeIntegrator& i)
       : integrator_{&i} {}
 
   void SetPhysicalBoundaryCondition(const SAMRAI::hier::Patch& patch,

@@ -22,6 +22,8 @@
 #define FUB_SOLVER_BOUNDARY_CONDITION_HPP
 
 #include "SAMRAI/hier/Patch.h"
+#include "SAMRAI/hier/PatchHierarchy.h"
+#include "fub/solver/Direction.hpp"
 
 namespace fub {
 /// \ingroup Abstract
@@ -54,6 +56,10 @@ struct BoundaryCondition {
   /// \param[in] dim The dimension of the patch hierarchy.
   virtual SAMRAI::hier::IntVector
   getStencilWidth(const SAMRAI::tbox::Dimension& dim) const = 0;
+
+  virtual void
+  PreFillGhostLayer(const std::shared_ptr<SAMRAI::hier::PatchHierarchy>&,
+                    double, Direction) {}
 };
 
 } // namespace fub

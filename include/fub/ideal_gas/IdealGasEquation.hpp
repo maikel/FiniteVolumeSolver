@@ -26,12 +26,16 @@
 #define FUB_IDEAL_GAS_IDEAL_GAS_EQUATION_HPP
 
 #include "fub/core/assert.hpp"
+#include "fub/core/mdspan.hpp"
 #include "fub/core/span.hpp"
 
 #include "SAMRAI/hier/Patch.h"
+#include "SAMRAI/hier/PatchHierarchy.h"
 #include "SAMRAI/pdat/CellData.h"
 #include "SAMRAI/pdat/FaceData.h"
 #include "SAMRAI/tbox/Dimension.h"
+
+#include <boost/optional.hpp>
 
 #include <array>
 
@@ -71,6 +75,7 @@ struct PrimitiveIdealGasState {
 };
 
 span<double> MakeSpan(SAMRAI::pdat::CellData<double>& data) noexcept;
+
 span<const double>
 MakeSpan(const SAMRAI::pdat::CellData<double>& data) noexcept;
 
@@ -124,7 +129,8 @@ public:
 
   // virtual void SetPressureIsentropic(const CompleteStatePatchData& data,
   //                                    const SAMRAI::hier::Index& to,
-  //                                    const SAMRAI::hier::Index& from) const = 0;
+  //                                    const SAMRAI::hier::Index& from) const =
+  //                                    0;
 
   /////////////////////////////////////////////////////////////////////////////
   //                  SAMRAI related member functions
@@ -134,6 +140,8 @@ public:
   const std::string& GetName() const noexcept { return name_; }
 
   int GetNSpecies() const noexcept { return n_species_; }
+
+  int GetNVariables() const noexcept { return variables_size + n_species_ - 1; }
 
   /// \brief Returns the spatial dimension of the equations.
   const SAMRAI::tbox::Dimension& GetDimension() const noexcept {
@@ -179,6 +187,41 @@ private:
 void CopyMassFractions(span<double> fractions,
                        const SAMRAI::pdat::CellData<double>& species,
                        const SAMRAI::pdat::CellIndex& index);
+
+class IdealGasGrid {
+public:
+  using Variable = IdealGasEquation::Variable;
+
+  IdealGasGrid(DynamicMdSpan<double, 2> buffer, double dx)
+      : mdspan_(buffer), dx_{dx} {}
+
+  double& operator()(Variable var, int cell) {
+    return mdspan_(static_cast<int>(var), cell);
+  }
+  const double& operator()(Variable var, int cell) const {
+    return mdspan_(static_cast<int>(var), cell);
+  }
+
+  DynamicMdSpan<double, 2> Mdspan() noexcept { return mdspan_; }
+  DynamicMdSpan<const double, 2> Mdspan() const noexcept { return mdspan_; }
+
+  DynamicExtents<2> Extents() const noexcept { return mdspan_.extents(); }
+  int Extent(int dim) const { return mdspan_.extent(dim); }
+
+  double Dx() const noexcept { return dx_; }
+
+private:
+  DynamicMdSpan<double, 2> mdspan_;
+  double dx_;
+};
+
+boost::optional<IdealGasGrid>
+GatherGrid(const SAMRAI::hier::PatchHierarchy& hier,
+           const IdealGasEquation& equation, span<double> buffer, int root = 0);
+
+IdealGasGrid AllGatherGrid(const SAMRAI::hier::PatchHierarchy& hier,
+                           const IdealGasEquation& equation,
+                           span<double> buffer, int root = 0);
 
 } // namespace ideal_gas
 } // namespace fub

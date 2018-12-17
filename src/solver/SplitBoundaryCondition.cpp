@@ -23,7 +23,7 @@
 namespace fub {
 
 void SplitBoundaryConditions::SetBoundaryCondition(
-    std::shared_ptr<const SplitBoundaryCondition> condition, Direction dir,
+    std::shared_ptr<SplitBoundaryCondition> condition, Direction dir,
     int side) {
   int i = 2 * static_cast<int>(dir) + side;
   conds_[i] = std::move(condition);

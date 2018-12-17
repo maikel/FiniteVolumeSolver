@@ -57,6 +57,13 @@ F forEachPatch(const SAMRAI::hier::PatchHierarchy& hierarchy, F function) {
   return function;
 }
 
+template <typename T, typename F>
+T ReducePatches(const SAMRAI::hier::PatchHierarchy& hier, T x, F fold) {
+  forEachPatch(hier,
+               [&](const SAMRAI::hier::Patch& patch) { x = fold(x, patch); });
+  return x;
+}
+
 struct IndexRange {
   SAMRAI::hier::Index lower;
   SAMRAI::hier::Index upper;

@@ -47,7 +47,7 @@ struct SystemSolver {
   /// \return A time step size value.
   virtual double computeStableDt(
       const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
-      const BoundaryCondition& boundary_condition, double time_point) const = 0;
+      BoundaryCondition& boundary_condition, double time_point) const = 0;
 
   /// \brief Advanves a patch hierarchy in time.
   ///
@@ -61,7 +61,7 @@ struct SystemSolver {
   /// \param[in] time_step_size  The time step size which will be taken.
   virtual void
   advanceTime(const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
-              const BoundaryCondition& boundary_condition, double time_point,
+              BoundaryCondition& boundary_condition, double time_point,
               double time_step_size) const = 0;
 };
 

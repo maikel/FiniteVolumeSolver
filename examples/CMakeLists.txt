@@ -18,6 +18,9 @@ add_executable(Jacobian Jacobian.cpp)
 target_link_libraries(Jacobian PRIVATE ReactiveEulerSolver.IdealGas)
 
 if (SAMRAI_FOUND)
+  add_executable(KineticDriver KineticDriver.cpp)
+  target_link_libraries(KineticDriver PRIVATE ReactiveEulerSolver.SAMRAI.IdealGas)
+
   add_executable(FlameMasterSolver FlameMasterSolver.cpp)
   target_link_libraries(FlameMasterSolver PRIVATE ReactiveEulerSolver.SAMRAI.IdealGas)
 

@@ -60,12 +60,8 @@ void FlameMasterKinetics::FillFromCons(const CompleteStatePatchData& q,
     reactor_.setMassFractions(fractions);
     reactor_.setDensity(rho);
     // internal energy = (total energy - kinetic energy) / density
-    const double refEnergy = reactor_.MeanY(reference_enthalpies_) -
-                             reactor_.getUniversalGasConstant() *
-                                 GetReferenceTemperature() /
-                                 reactor_.getMeanMolarMass();
     const double e = (rhoE - 0.5 * rhou * rhou / rho) / rho;
-    reactor_.setInternalEnergy(e + refEnergy);
+    reactor_.setInternalEnergy(e);
     q.temperature(cell) = reactor_.getTemperature();
     q.pressure(cell) = reactor_.getPressure();
     const double gamma = reactor_.getCp() / reactor_.getCv();
@@ -93,14 +89,10 @@ void FlameMasterKinetics::FillFromCons(
     reactor_.setMassFractions(masses);
     reactor_.setDensity(rho);
     // internal energy = (total energy - kinetic energy) / density
-    const double refEnergy = reactor_.MeanY(reference_enthalpies_) -
-                             reactor_.getUniversalGasConstant() *
-                                 GetReferenceTemperature() /
-                                 reactor_.getMeanMolarMass();
     const double e = (rhoE - 0.5 * rhou * rhou / rho) / rho;
     const double gamma = reactor_.getCp() / reactor_.getCv();
     const double p = reactor_.getPressure();
-    reactor_.setInternalEnergy(e + refEnergy);
+    reactor_.setInternalEnergy(e);
     q.temperature[i] = reactor_.getTemperature();
     q.pressure[i] = reactor_.getPressure();
     q.speed_of_sound[i] = std::sqrt(gamma * p / rho);
@@ -120,17 +112,14 @@ void FlameMasterKinetics::FillFromPrim(const CompleteStatePatchData& q,
     SAMRAI::pdat::CellIndex cell(index);
     CopyMassFractions(masses, q.species, cell);
     reactor_.setMoleFractions(masses);
-    reactor_.setPressure(q.pressure(cell));
     reactor_.setTemperature(q.temperature(cell));
+    reactor_.setPressure(q.pressure(cell));
     q.density(cell) = reactor_.getDensity();
     const double rho = reactor_.getDensity();
+    q.momentum(cell) *= rho;
     const double rhou = q.momentum(cell);
     // internal energy = (total energy - kinetic energy) / density
-    const double refEnergy = reactor_.MeanY(reference_enthalpies_) -
-                             reactor_.getUniversalGasConstant() *
-                                 GetReferenceTemperature() /
-                                 reactor_.getMeanMolarMass();
-    const double eps = reactor_.getInternalEnergy() - refEnergy;
+    const double eps = reactor_.getInternalEnergy();
     const double rhoE = rho * eps + 0.5 * rhou * rhou / rho;
     q.energy(cell) = rhoE;
     const double gamma = reactor_.getCp() / reactor_.getCv();
@@ -158,16 +147,13 @@ void FlameMasterKinetics::FillFromPrim(
       moles[s] = q.species[i + s * size];
     }
     reactor_.setMoleFractions(moles);
-    reactor_.setPressure(q.pressure[i]);
     reactor_.setTemperature(q.temperature[i]);
+    reactor_.setPressure(q.pressure[i]);
     const double rho = reactor_.getDensity();
+    q.momentum[i] *= rho;
     const double rhou = q.momentum[i];
     // internal energy = (total energy - kinetic energy) / density
-    const double refEnergy = reactor_.MeanY(reference_enthalpies_) -
-                             reactor_.getUniversalGasConstant() *
-                                 GetReferenceTemperature() /
-                                 reactor_.getMeanMolarMass();
-    const double eps = reactor_.getInternalEnergy() - refEnergy;
+    const double eps = reactor_.getInternalEnergy();
     const double rhoE = rho * eps + 0.5 * rhou * rhou / rho;
     const double gamma = reactor_.getCp() / reactor_.getCv();
     const double p = reactor_.getPressure();
@@ -205,12 +191,7 @@ void FlameMasterKinetics::AdvanceSourceTerm(const CompleteStatePatchData& q,
     q.density(cell) = rho;
     q.temperature(cell) = reactor_.getTemperature();
     q.pressure(cell) = reactor_.getPressure();
-    const double refEnergy = reactor_.MeanY(reference_enthalpies_) -
-                             reactor_.getUniversalGasConstant() *
-                                 GetReferenceTemperature() /
-                                 reactor_.getMeanMolarMass();
-    q.energy(cell) =
-        rho * (reactor_.getInternalEnergy() - refEnergy) + 0.5 * rho * u * u;
+    q.energy(cell) = rho * reactor_.getInternalEnergy() + 0.5 * rho * u * u;
     q.momentum(cell) = reactor_.getDensity() * u;
     const double gamma = reactor_.getCp() / reactor_.getCv();
     const double p = reactor_.getPressure();
@@ -222,6 +203,44 @@ void FlameMasterKinetics::AdvanceSourceTerm(const CompleteStatePatchData& q,
       q.species(cell, s) = rho * fractions[s];
     }
   }
+}
+
+void FlameMasterKinetics::UpdateCellFromReactor(
+    CompleteStatePatchData data, const SAMRAI::pdat::CellIndex cell,
+    const FlameMasterReactor& reactor, double velocity) const {
+  const double rho = reactor.getDensity();
+  data.density(cell) = rho;
+  data.temperature(cell) = reactor.getTemperature();
+  data.momentum(cell) = rho * velocity;
+  data.energy(cell) =
+      rho * reactor.getInternalEnergy() + 0.5 * rho * velocity * velocity;
+  data.pressure(cell) = reactor.getPressure();
+  const double gamma = reactor.getCp() / reactor.getCv();
+  data.speed_of_sound(cell) = std::sqrt(gamma * reactor.getPressure() / rho);
+  const int n_species = data.species.getDepth();
+  span<const double> Y = reactor.getMassFractions();
+  for (int s = 0; s < n_species; ++s) {
+    data.species(cell, s) = rho * Y[s];
+  }
+}
+
+void FlameMasterKinetics::UpdateStateFromReactor(
+    span<double> buffer, const FlameMasterReactor& reactor,
+    double velocity) const {
+  const double rho = reactor.getDensity();
+  buffer[int(Variable::density)] = rho;
+  buffer[int(Variable::momentum)] = rho * velocity;
+  buffer[int(Variable::temperature)] = reactor.getTemperature();
+  buffer[int(Variable::energy)] =
+      rho * reactor.getInternalEnergy() + 0.5 * rho * velocity * velocity;
+  buffer[int(Variable::pressure)] = reactor.getPressure();
+  const double gamma = reactor.getCp() / reactor.getCv();
+  buffer[int(Variable::speed_of_sound)] =
+      std::sqrt(gamma * reactor.getPressure() / rho);
+  const int n_species = GetNSpecies();
+  span<const double> Y = reactor.getMassFractions();
+  std::transform(Y.begin(), Y.end(), &buffer[int(Variable::species)],
+                 [rho](double Yi) { return rho * Yi; });
 }
 
 } // namespace ideal_gas

@@ -29,12 +29,18 @@
 namespace fub {
 
 struct SplitBoundaryCondition {
+  virtual ~SplitBoundaryCondition() = default;
+
   virtual void SetPhysicalBoundaryCondition(const SAMRAI::hier::Patch& patch,
                                             const SAMRAI::hier::Box& fill_box,
                                             double fill_time, Direction dir,
                                             int side) const = 0;
 
   virtual int GetStencilWidth() const = 0;
+
+  virtual void
+  PreFillGhostLayer(const std::shared_ptr<SAMRAI::hier::PatchHierarchy>&,
+                    double) {}
 };
 
 class SplitBoundaryConditions : public BoundaryCondition {
@@ -46,14 +52,21 @@ public:
   SAMRAI::hier::IntVector
   getStencilWidth(const SAMRAI::tbox::Dimension& dim) const override;
 
-  void SetBoundaryCondition(
-    std::shared_ptr<const SplitBoundaryCondition> condition, Direction dir,
-    int side);
+  void
+  SetBoundaryCondition(std::shared_ptr<SplitBoundaryCondition> condition,
+                       Direction dir, int side);
+
+  void
+  PreFillGhostLayer(const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hier,
+                    double timepoint, Direction dir) override {
+    const int d = static_cast<int>(dir);
+    conds_[2 * d]->PreFillGhostLayer(hier, timepoint);
+    conds_[2 * d + 1]->PreFillGhostLayer(hier, timepoint);
+  }
 
 private:
   static constexpr int max_n_conds = 2 * SAMRAI_MAXIMUM_DIMENSION;
-  std::array<std::shared_ptr<const SplitBoundaryCondition>, max_n_conds>
-      conds_{};
+  std::array<std::shared_ptr<SplitBoundaryCondition>, max_n_conds> conds_{};
 };
 
 } // namespace fub

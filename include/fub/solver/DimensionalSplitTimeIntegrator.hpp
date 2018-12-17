@@ -81,7 +81,7 @@ public:
   ///                                shall be filled.
   void
   fillGhostLayer(const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
-                 const BoundaryCondition& boundary_condition, double time_point,
+                 BoundaryCondition& boundary_condition, double time_point,
                  Direction dir) const;
 
   /// Performs a split step for all patches in the hierarchy.

@@ -182,7 +182,11 @@ if (SAMRAI_FOUND)
     src/ideal_gas/HlleRiemannSolver.cpp
     src/ideal_gas/KineticSourceTerm.cpp
     src/ideal_gas/KineticDriver.cpp
-    src/ideal_gas/boundary_condition/ReflectiveCondition.cpp
+    src/ideal_gas/boundary_condition/ReflectiveBoundary.cpp
+    src/ideal_gas/boundary_condition/ConstantBoundary.cpp
+    src/ideal_gas/boundary_condition/IsentropicExpansionBoundary.cpp
+    src/ideal_gas/boundary_condition/PressureValveBoundary.cpp
+    src/ideal_gas/boundary_condition/MassflowBoundary.cpp
     src/solver/SplitBoundaryCondition.cpp)
   target_link_libraries(ReactiveEulerSolver.SAMRAI.IdealGas 
     PUBLIC

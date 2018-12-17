@@ -38,7 +38,12 @@ double DimensionalSplitTimeIntegrator::computeStableDt(
         this->computeStableDtOnPatch(patch, time_point, dir);
     time_step_size = std::min(time_step_size, local_time_step_size);
   });
-  return time_step_size;
+  double global_time_step_size;
+  const MPI_Comm comm = hierarchy.getMPI().getCommunicator();
+  MPI_Allreduce(&time_step_size, &global_time_step_size, 1, MPI_DOUBLE, MPI_MIN,
+                comm);
+  FUB_ASSERT(global_time_step_size <= time_step_size);
+  return global_time_step_size;
 }
 
 void DimensionalSplitTimeIntegrator::allocatePatchDataOnPatchLevel(
@@ -88,8 +93,9 @@ struct BoundaryConditionWrapper : SAMRAI::xfer::RefinePatchStrategy {
 
 void DimensionalSplitTimeIntegrator::fillGhostLayer(
     const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
-    const BoundaryCondition& boundary_condition, double time_point,
+    BoundaryCondition& boundary_condition, double time_point,
     Direction dir) const {
+  boundary_condition.PreFillGhostLayer(hierarchy, time_point, dir);
   std::shared_ptr<SAMRAI::xfer::RefineAlgorithm> algorithm =
       getFillGhostLayerRefineAlgorithm(dir);
   const int max_level_number = hierarchy->getNumberOfLevels();

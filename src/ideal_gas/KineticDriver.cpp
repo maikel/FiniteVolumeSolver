@@ -19,7 +19,9 @@
 // SOFTWARE.
 
 #include "fub/ideal_gas/KineticDriver.hpp"
-#include "fub/ideal_gas/boundary_condition/ReflectiveCondition.hpp"
+#include "fub/ideal_gas/boundary_condition/ReflectiveBoundary.hpp"
+
+#include <SAMRAI/geom/CartesianGridGeometry.h>
 
 namespace fub {
 namespace ideal_gas {
@@ -34,8 +36,8 @@ KineticDriver::KineticDriver(const std::shared_ptr<IdealGasKinetics>& equation,
               SAMRAI::hier::Index(equation->GetDimension(), 0),
               SAMRAI::hier::Index(equation->GetDimension(), n_cells - 1)},
           coordinates)) {
-  std::shared_ptr<const ideal_gas::ReflectiveCondition> cond =
-      std::make_shared<ideal_gas::ReflectiveCondition>(time_integrator_);
+  std::shared_ptr<ReflectiveBoundary> cond =
+      std::make_shared<ReflectiveBoundary>(time_integrator_);
   boundary_condition_->SetBoundaryCondition(cond, Direction::X, 0);
   boundary_condition_->SetBoundaryCondition(cond, Direction::X, 1);
 }
@@ -45,12 +47,12 @@ void KineticDriver::InitializeHierarchy(const InitialCondition& init) {
 }
 
 void KineticDriver::SetLeftBoundaryCondition(
-    const std::shared_ptr<const SplitBoundaryCondition>& condition) {
+    const std::shared_ptr<SplitBoundaryCondition>& condition) {
   boundary_condition_->SetBoundaryCondition(condition, Direction::X, 0);
 }
 
 void KineticDriver::SetRightBoundaryCondition(
-    const std::shared_ptr<const SplitBoundaryCondition>& condition) {
+    const std::shared_ptr<SplitBoundaryCondition>& condition) {
   boundary_condition_->SetBoundaryCondition(condition, Direction::X, 1);
 }
 
@@ -60,17 +62,45 @@ double KineticDriver::ComputeStableDt() const {
   return 0.5 * dt;
 }
 
+void KineticDriver::Step(double dt) {
+  solver_.advanceTime(hierarchy_, *boundary_condition_, time_point_, dt);
+  time_point_ += dt;
+}
+
 void KineticDriver::Advance(double dt) {
-  double relt = 0.0;
-  while (relt < dt) {
+  double rel_t = 0.0;
+  while (rel_t < dt) {
     const double stable_dt = ComputeStableDt();
-    const double limit_dt = dt - relt;
+    const double limit_dt = dt - rel_t;
     FUB_ASSERT(limit_dt > 0.0);
     const double actual_dt = std::min(stable_dt, limit_dt);
     solver_.advanceTime(hierarchy_, *boundary_condition_, time_point_,
                         actual_dt);
     time_point_ += actual_dt;
+    rel_t += actual_dt;
   }
+}
+
+void KineticDriver::Advance(
+    double dt, function_ref<void(const KineticDriver&, double)> feedback) {
+  double rel_t = 0.0;
+  while (rel_t < dt) {
+    const double stable_dt = ComputeStableDt();
+    const double limit_dt = dt - rel_t;
+    FUB_ASSERT(limit_dt > 0.0);
+    const double actual_dt = std::min(stable_dt, limit_dt);
+    solver_.advanceTime(hierarchy_, *boundary_condition_, time_point_,
+                        actual_dt);
+    time_point_ += actual_dt;
+    rel_t += actual_dt;
+    feedback(*this, actual_dt);
+  }
+}
+
+std::ptrdiff_t KineticDriver::GetNCells() const {
+  std::shared_ptr<SAMRAI::hier::PatchLevel> level = hierarchy_->getPatchLevel(0);
+  const SAMRAI::hier::BoxLevel& box_level = level->getGlobalizedBoxLevel();
+  return box_level.getGlobalNumberOfCells();
 }
 
 } // namespace ideal_gas

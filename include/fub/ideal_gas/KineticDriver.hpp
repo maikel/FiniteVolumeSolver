@@ -21,6 +21,8 @@
 #ifndef FUB_IDEAL_GAS_KINETIC_DRIVER_HPP
 #define FUB_IDEAL_GAS_KINETIC_DRIVER_HPP
 
+#include "fub/core/mdspan.hpp"
+#include "fub/core/span.hpp"
 #include "fub/ideal_gas/HyperbolicTimeIntegrator.hpp"
 #include "fub/ideal_gas/IdealGasKinetics.hpp"
 #include "fub/ideal_gas/KineticSourceTerm.hpp"
@@ -29,8 +31,39 @@
 #include "fub/solver/HyperbolicSystemSourceSolver.hpp"
 #include "fub/solver/SplitBoundaryCondition.hpp"
 
+#include <SAMRAI/geom/CartesianGridGeometry.h>
+
+#include <boost/optional.hpp>
+
 namespace fub {
 namespace ideal_gas {
+
+class KineticDriverGrid {
+public:
+  using Variable = IdealGasEquation::Variable;
+
+  KineticDriverGrid(DynamicMdSpan<double, 2> buffer, double dx)
+      : mdspan_(buffer), dx_{dx} {}
+
+  double& operator()(Variable var, int cell) {
+    return mdspan_(static_cast<int>(var), cell);
+  }
+  const double& operator()(Variable var, int cell) const {
+    return mdspan_(static_cast<int>(var), cell);
+  }
+
+  DynamicMdSpan<double, 2> Mdspan() noexcept { return mdspan_; }
+  DynamicMdSpan<const double, 2> Mdspan() const noexcept { return mdspan_; }
+
+  DynamicExtents<2> Extents() const noexcept { return mdspan_.extents(); }
+  int Extent(int dim) const { return mdspan_.extent(dim); }
+
+  double Dx() const noexcept { return dx_; }
+
+private:
+  DynamicMdSpan<double, 2> mdspan_;
+  double dx_;
+};
 
 class KineticDriver {
 public:
@@ -40,16 +73,46 @@ public:
   void InitializeHierarchy(const InitialCondition& init);
 
   void SetLeftBoundaryCondition(
-      const std::shared_ptr<const SplitBoundaryCondition>& condition);
+      const std::shared_ptr<SplitBoundaryCondition>& condition);
 
   void SetRightBoundaryCondition(
-      const std::shared_ptr<const SplitBoundaryCondition>& condition);
+      const std::shared_ptr<SplitBoundaryCondition>& condition);
 
   double ComputeStableDt() const;
 
-  void Advance(double dt);
+  void Step(double dt);
 
-  std::vector<SAMRAI::hier::Patch> GatherAll() const;
+  void Advance(double dt);
+  void Advance(double dt,
+               function_ref<void(const KineticDriver&, double)> feedback);
+
+  double TimePoint() const noexcept { return time_point_; }
+
+  const HyperbolicTimeIntegrator& GetHyperbolicTimeIntegrator() const noexcept {
+    return time_integrator_;
+  }
+
+  MPI_Comm GetCommunicator() const noexcept {
+    return GetPatchHierarchy()->getMPI().getCommunicator();
+  }
+
+  std::ptrdiff_t GetNCells() const;
+
+  double GetDx() const noexcept {
+    const double* dx = static_cast<const SAMRAI::geom::CartesianGridGeometry&>(
+                           *GetPatchHierarchy()->getGridGeometry())
+                           .getDx();
+    return dx[0];
+  }
+
+  const std::shared_ptr<const IdealGasKinetics>& GetEquation() const noexcept {
+    return source_term_.GetEquation();
+  }
+
+  const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& GetPatchHierarchy() const
+      noexcept {
+    return hierarchy_;
+  }
 
 private:
   HyperbolicTimeIntegrator time_integrator_;

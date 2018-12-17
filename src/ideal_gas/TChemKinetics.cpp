@@ -76,6 +76,7 @@ void TChemKinetics::FillFromPrim(const CompleteStatePatchData& q,
     reactor_.UpdateThermoState();
     double rho = reactor_.GetDensity();
     q.density(cell) = rho;
+    q.momentum(cell) *= rho;
     const double rhou = q.momentum(cell);
     // internal energy = (total energy - kinetic energy) / density
     const double U = reactor_.GetInternalEnergy();

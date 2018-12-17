@@ -28,8 +28,8 @@
 #include "fub/core/assert.hpp"
 #include "fub/core/span.hpp"
 
-#include "fub/ideal_gas/IdealGasKinetics.hpp"
 #include "fub/ideal_gas/FlameMasterReactor.hpp"
+#include "fub/ideal_gas/IdealGasKinetics.hpp"
 
 #include "SAMRAI/hier/Patch.h"
 #include "SAMRAI/pdat/CellData.h"
@@ -77,6 +77,15 @@ public:
   }
 
   double GetReferenceTemperature() const { return 298.15; }
+
+  void UpdateCellFromReactor(CompleteStatePatchData data,
+                             const SAMRAI::pdat::CellIndex cell,
+                             const FlameMasterReactor& reactor,
+                             double velocity = 0) const;
+
+  void UpdateStateFromReactor(span<double> buffer,
+                             const FlameMasterReactor& reactor,
+                             double velocity = 0) const;
 
   /// \brief Computes a complete state from a given conservative state.
   ///

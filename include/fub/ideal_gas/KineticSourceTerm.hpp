@@ -39,6 +39,10 @@ public:
                           double time_point,
                           double time_step_size) const override;
 
+  const std::shared_ptr<const IdealGasKinetics>& GetEquation() const noexcept {
+    return ideal_gas_;
+  }
+
 private:
   std::shared_ptr<const IdealGasKinetics> ideal_gas_;
 };

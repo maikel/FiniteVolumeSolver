@@ -8,7 +8,7 @@
 #include "fub/ideal_gas/HyperbolicTimeIntegrator.hpp"
 #include "fub/ideal_gas/KineticSourceTerm.hpp"
 #include "fub/ideal_gas/PerfectGasEquation.hpp"
-#include "fub/ideal_gas/boundary_condition/ReflectiveCondition.hpp"
+#include "fub/ideal_gas/boundary_condition/ReflectiveBoundary.hpp"
 #include "fub/ideal_gas/mechanism/Zhao2008Dme.hpp"
 #include "fub/initial_data/RiemannProblem.hpp"
 #include "fub/output/GnuplotWriter.hpp"
@@ -134,7 +134,7 @@ int main(int argc, char** argv) {
   fub::DimensionalSplitSystemSolver hyperbolic(integrator, splitting);
   fub::HyperbolicSystemSourceSolver solver(hyperbolic, source_term, splitting);
 
-  fub::ideal_gas::ReflectiveCondition boundary_condition{integrator};
+  fub::ideal_gas::ReflectiveBoundary boundary_condition{integrator};
 
   fub::Halfspace geometry(fub::Coordinates(1, 1.0), 0.0);
   RiemannProblem initial_data(geometry, *integrator.GetEquation());

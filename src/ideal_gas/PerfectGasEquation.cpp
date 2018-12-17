@@ -32,6 +32,7 @@ void PerfectGasEquation::FillFromPrim(const CompleteStatePatchData& q,
     constexpr double gamma = 1.4;
     constexpr double gamma_minus_1 = gamma - 1.0;
     q.density(i) = q.temperature(i) / q.pressure(i);
+    q.momentum(i) *= q.density(i);
     q.species(i) = q.density(i);
     q.energy(i) = q.pressure(i) / gamma_minus_1 +
                   0.5 * q.momentum(i) * q.momentum(i) / q.density(i);

@@ -43,12 +43,12 @@ public:
   /// Estimates the next stable time step size to make for this solver.
   double computeStableDt(
       const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
-      const BoundaryCondition& boundary_condition, double time_point) const;
+      BoundaryCondition& boundary_condition, double time_point) const;
 
   /// Advances the hierarchy int time by time_step_size.
   void
   advanceTime(const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
-              const BoundaryCondition& boundary_condition, double time_point,
+              BoundaryCondition& boundary_condition, double time_point,
               double time_step_size) const;
 
   /// Returns the underlying hyperbolic system solver.

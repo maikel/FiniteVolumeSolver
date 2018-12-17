@@ -24,14 +24,14 @@ namespace fub {
 
 double HyperbolicSystemSourceSolver::computeStableDt(
     const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
-    const BoundaryCondition& boundary_condition, double time_point) const {
+    BoundaryCondition& boundary_condition, double time_point) const {
   return hyperbolic_system_.computeStableDt(hierarchy, boundary_condition,
                                              time_point);
 }
 
 void HyperbolicSystemSourceSolver::advanceTime(
     const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
-    const BoundaryCondition& boundary_condition, double time_point,
+    BoundaryCondition& boundary_condition, double time_point,
     double time_step_size) const {
   splitting_method_->advanceTime(
       hierarchy, time_point, time_step_size,

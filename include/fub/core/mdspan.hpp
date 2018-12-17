@@ -594,7 +594,9 @@ public:
             class OtherAccessorPolicy>
   constexpr basic_mdspan(
       const basic_mdspan<OtherElementType, OtherExtents, OtherLayoutPolicy,
-                         OtherAccessorPolicy>& other);
+                         OtherAccessorPolicy>& other)
+      : accessor_type(), mapping_type(other.mapping()),
+        ptr_(other.data()) {}
 
   ~basic_mdspan() = default;
 

@@ -33,11 +33,17 @@ ScopeGuard::ScopeGuard(int argc, char** argv) {
   ::SAMRAI::tbox::SAMRAIManager::startup();
 }
 
+ScopeGuard::ScopeGuard(MPI_Comm comm) {
+  ::SAMRAI::tbox::SAMRAI_MPI::init(comm);
+  ::SAMRAI::tbox::SAMRAIManager::initialize();
+  ::SAMRAI::tbox::SAMRAIManager::startup();
+}
+
 /// Calls SAMRAI routines to do the clean-up.
 ScopeGuard::~ScopeGuard() noexcept {
   ::SAMRAI::tbox::SAMRAIManager::shutdown();
   ::SAMRAI::tbox::SAMRAIManager::finalize();
-  ::SAMRAI::tbox::SAMRAI_MPI::finalize();
+  // ::SAMRAI::tbox::SAMRAI_MPI::finalize();
 }
 
 } // namespace fub
