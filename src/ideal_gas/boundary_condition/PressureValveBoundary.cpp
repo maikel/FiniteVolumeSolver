@@ -125,7 +125,7 @@ std::vector<double> MakeState_(const PressureValveOptions& options,
 PressureValveBoundary::PressureValveBoundary(
     const PressureValveOptions& options, const HyperbolicTimeIntegrator& i,
     FlameMasterKinetics& kinetics)
-    : options_{options}, equation_{&kinetics},
+    : options_(options), equation_{&kinetics},
       pressure_boundary_(
           MakeState_(options, PressureValveState::fuel, kinetics), i),
       reflective_boundary_(i) {}

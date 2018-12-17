@@ -137,6 +137,9 @@ using negation = std::integral_constant<bool, !bool(Bool::value)>;
 
 #if defined(__cpp_lib_integer_sequence)
 using std::integer_sequence;
+using std::index_sequence;
+using std::make_integer_sequence;
+using std::make_index_sequence;
 #else
 template <typename T, T... Ints> struct integer_sequence {
   using value_type = T;
