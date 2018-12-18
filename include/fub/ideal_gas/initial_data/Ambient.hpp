@@ -42,7 +42,7 @@ public:
   PrimState state;
 
   Ambient(PrimState w, const fub::ideal_gas::IdealGasEquation& equation)
-      : ideal_gas{&equation}, state{w} {}
+      : ideal_gas{&equation}, state(w) {}
 
 private:
   void FillPrimState(const SAMRAI::hier::Patch& patch,

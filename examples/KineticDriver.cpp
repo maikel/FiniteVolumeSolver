@@ -25,7 +25,7 @@
 #include "fub/ideal_gas/FlameMasterKinetics.hpp"
 #include "fub/ideal_gas/boundary_condition/IsentropicExpansionBoundary.hpp"
 #include "fub/ideal_gas/boundary_condition/PressureValveBoundary.hpp"
-#include "fub/ideal_gas/initial_data/RiemannProblem.hpp"
+#include "fub/ideal_gas/initial_data/Ambient.hpp"
 #include "fub/ideal_gas/mechanism/Burke2012.hpp"
 
 #include <cmath>
@@ -35,22 +35,6 @@ using namespace fub;
 int main(int argc, char** argv) {
   ScopeGuard scope(argc, argv);
   ideal_gas::Burke2012 mechanism;
-
-  ideal_gas::RiemannProblem::PrimState left;
-  left.temperature = 300.0; // [K]
-  left.velocity = 0.0;      // [m/s]
-  left.pressure = 101325.0; // [Pa]
-  left.species.resize(mechanism.getNSpecies());
-  left.species[ideal_gas::Burke2012::sN2] = 79.0; // [-]
-  left.species[ideal_gas::Burke2012::sO2] = 21.0; // [-]
-
-  ideal_gas::RiemannProblem::PrimState right;
-  right.temperature = 300.0; // [K]
-  right.velocity = 0.0;      // [m/s]
-  right.pressure = 101325.0; // [Pa]
-  right.species.resize(mechanism.getNSpecies());
-  right.species[ideal_gas::Burke2012::sN2] = 79.0; // [-]
-  right.species[ideal_gas::Burke2012::sO2] = 21.0; // [-]
 
   // Setup Equation
   const SAMRAI::tbox::Dimension dim(1);
@@ -71,10 +55,10 @@ int main(int argc, char** argv) {
   valve.compressor_pressure = 121325.0; // [Pa]
   valve.ignition_range.lower = Coordinates(1, 0.45);
   valve.ignition_range.upper = Coordinates(1, 0.5);
-  valve.flush_air_duration = 20e-3;  // [s]
-  valve.flush_fuel_duration = 30e-3; // [s]
-  valve.air.temperature = 300;       // [K]
-  valve.fuel.temperature = 300;      // [K]
+  valve.flush_air_duration = 2e-3;  // [s]
+  valve.flush_fuel_duration = 1e-3; // [s]
+  valve.air.temperature = 300;      // [K]
+  valve.fuel.temperature = 300;     // [K]
 
   valve.air.fractions.resize(equation->GetNSpecies());
   ideal_gas::FlameMasterReactor& reactor = equation->GetReactor();
@@ -96,8 +80,14 @@ int main(int argc, char** argv) {
           plenum_pressure, driver.GetHyperbolicTimeIntegrator(), *equation));
 
   // Initialize Data
-  driver.InitializeHierarchy(ideal_gas::RiemannProblem(
-      left, right, Halfspace(Coordinates(1, 1.0), 0.0), *driver.GetEquation()));
+  ideal_gas::Ambient::PrimState state;
+  state.temperature = 300.0; // [K]
+  state.velocity = 0.0;      // [m/s]
+  state.pressure = 101325.0; // [Pa]
+  state.species.resize(mechanism.getNSpecies());
+  state.species[ideal_gas::Burke2012::sN2] = 79.0; // [-]
+  state.species[ideal_gas::Burke2012::sO2] = 21.0; // [-]
+  driver.InitializeHierarchy(ideal_gas::Ambient(state, *driver.GetEquation()));
 
   // Print Grid
   std::vector<double> buffer(equation->GetNVariables() * n_cells);
@@ -134,7 +124,7 @@ int main(int argc, char** argv) {
         const double rho = (*grid)(Variable::density, i);
         std::cout << ' ' << std::setw(16)
                   << (*grid)(Variable(s0 + ideal_gas::Burke2012::sO2), i) / rho;
-        std::cout << ' ' <<  std::setw(16)
+        std::cout << ' ' << std::setw(16)
                   << (*grid)(Variable(s0 + ideal_gas::Burke2012::sH2), i) / rho;
         std::cout << '\n';
       }

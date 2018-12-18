@@ -53,16 +53,18 @@ void IgniteDetonation_(SAMRAI::hier::PatchHierarchy& hier,
     auto coord_is_in_patch = [&](Coordinates x) {
       return x_lo <= x[0] && x[0] < x_up;
     };
-    const std::ptrdiff_t size = patch.getBox().size();
-    std::ptrdiff_t first = 0;
-    std::ptrdiff_t last = 0;
-    if (coord_is_in_patch(ignition_range.lower)) {
-      first = std::floor((ignition_range.lower[0] - x_lo) / dx);
-    }
-    last = std::floor((ignition_range.upper[0] - x_lo) / dx);
-    last = std::min(size - 1, last);
-    for (std::ptrdiff_t i = first; i <= last; ++i) {
-      SetTemperature_(patch, i, 2000, equation, buffer);
+    if (coord_is_in_patch(ignition_range.lower) ||
+        coord_is_in_patch(ignition_range.upper)) {
+      const std::ptrdiff_t size = patch.getBox().size();
+      const std::ptrdiff_t first =
+          patch.getBox().lower(0) +
+          std::max<std::ptrdiff_t>(
+              0, std::floor((ignition_range.lower[0] - x_lo) / dx));
+      std::ptrdiff_t last = std::min<std::ptrdiff_t>(
+          size, first + std::floor((ignition_range.upper[0] - x_lo) / dx));
+      for (std::ptrdiff_t i = first; i < last; ++i) {
+        SetTemperature_(patch, i, 2000, equation, buffer);
+      }
     }
   });
 }
@@ -104,20 +106,7 @@ std::vector<double> MakeState_(const PressureValveOptions& options,
                                ? options.air.fractions
                                : options.fuel.fractions);
   reactor.setPressure(options.compressor_pressure);
-  buffer[int(Variable::density)] = reactor.getDensity();
-  buffer[int(Variable::momentum)] = reactor.getDensity() * 45.0;
-  buffer[int(Variable::energy)] = reactor.getInternalEnergy();
-  buffer[int(Variable::pressure)] = reactor.getPressure();
-  buffer[int(Variable::temperature)] = reactor.getTemperature();
-  const double gamma = reactor.getCp() / reactor.getCv();
-  buffer[int(Variable::speed_of_sound)] =
-      std::sqrt(gamma * reactor.getPressure() / reactor.getDensity());
-  const int s0 = int(Variable::species);
-  std::copy_n(reactor.getMassFractions().begin(), reactor.getNSpecies(),
-              buffer.data() + s0);
-  std::transform(buffer.data() + s0, buffer.data() + equation.GetNVariables(),
-                 buffer.data() + s0,
-                 [&](double Y) { return reactor.getDensity() * Y; });
+  equation.UpdateStateFromReactor(buffer, reactor, 45.0);
   return buffer;
 }
 } // namespace
