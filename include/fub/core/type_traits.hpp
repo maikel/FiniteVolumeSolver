@@ -155,7 +155,7 @@ template <typename T, T N, T... Ints> struct MakeIntegerSequence_<T, N, N, Ints.
 
 template <typename T, T N, T L, T... Ints>
 struct MakeIntegerSequence_ {
-  using type = MakeIntegerSequence_<T, N, L + 1, Ints..., L>;
+  using type = typename MakeIntegerSequence_<T, N, L + 1, Ints..., L>::type;
 };
 
 template <typename T, T N>
