@@ -99,8 +99,8 @@ private:
   ReflectiveBoundary reflective_boundary_;
   PressureValveState valve_state_{PressureValveState::fuel};
   double state_changed_timepoint_{0.0};
-  double open_boundary_pressure_limit{101325.0};
-  double close_boundary_pressure_limit{1.5 * 101325.0};
+  double open_boundary_pressure_limit{options_.compressor_pressure};
+  double close_boundary_pressure_limit{1.5 * open_boundary_pressure_limit};
   double observed_mean_pressure_{options_.compressor_pressure};
   bool is_opened_{true};
 };
