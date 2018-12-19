@@ -20,6 +20,8 @@
 
 #include "fub/ideal_gas/boundary_condition/PressureValveBoundary.hpp"
 
+#include "fub/core/algorithm.hpp"
+
 #include <numeric>
 
 namespace fub {
@@ -49,22 +51,17 @@ void IgniteDetonation_(SAMRAI::hier::PatchHierarchy& hier,
   forEachPatch(hier, [&](SAMRAI::hier::Patch& patch) {
     const double x_lo = *GetCartesianPatchGeometry(patch)->getXLower();
     const double x_up = *GetCartesianPatchGeometry(patch)->getXUpper();
+    const double ir_lo = ignition_range.lower[0];
+    const double ir_up = ignition_range.upper[0]; 
     const double dx = *GetCartesianPatchGeometry(patch)->getDx();
-    auto coord_is_in_patch = [&](Coordinates x) {
-      return x_lo <= x[0] && x[0] < x_up;
-    };
-    if (coord_is_in_patch(ignition_range.lower) ||
-        coord_is_in_patch(ignition_range.upper)) {
-      const std::ptrdiff_t size = patch.getBox().size();
-      const std::ptrdiff_t first =
-          patch.getBox().lower(0) +
-          std::max<std::ptrdiff_t>(
-              0, std::floor((ignition_range.lower[0] - x_lo) / dx));
-      std::ptrdiff_t last = std::min<std::ptrdiff_t>(
-          size, first + std::floor((ignition_range.upper[0] - x_lo) / dx));
-      for (std::ptrdiff_t i = first; i < last; ++i) {
-        SetTemperature_(patch, i, 2000, equation, buffer);
-      }
+    const std::ptrdiff_t i_lo = patch.getBox().lower(0);
+    const std::ptrdiff_t i_up = patch.getBox().upper(0);
+    const std::ptrdiff_t first = fub::clamp<std::ptrdiff_t>(
+        i_lo + std::floor((ir_lo - x_lo) / dx), i_lo, i_up);
+    const std::ptrdiff_t last = fub::clamp<std::ptrdiff_t>(
+        i_lo + std::floor((ir_up - x_lo) / dx), i_lo, i_up);
+    for (std::ptrdiff_t i = first; i < last; ++i) {
+      SetTemperature_(patch, i, 2000, equation, buffer);
     }
   });
 }

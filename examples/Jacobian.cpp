@@ -7,6 +7,8 @@ extern "C" {
 #include "TC_interface.h"
 }
 
+#include <algorithm>
+#include <string.h>
 #include <numeric>
 
 using namespace fub;
