@@ -334,6 +334,7 @@ public:
    * Return the mass fractions of the species as a double* array
    */
   span<const double> getMassFractions() const { return state_.massFractions; }
+  span<const double> getMoleFractions();
 
   /**
    * get the molar mass of a single species

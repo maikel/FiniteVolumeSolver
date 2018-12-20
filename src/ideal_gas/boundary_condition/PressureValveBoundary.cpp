@@ -173,9 +173,9 @@ void PressureValveBoundary::PreFillGhostLayer(
   MPI_Allreduce(&local.pressure, &global.pressure, 2, MPI_DOUBLE, MPI_SUM,
                 comm);
   observed_mean_pressure_ = global.pressure / global.volume;
-  if (observed_mean_pressure_ > close_boundary_pressure_limit) {
+  if (observed_mean_pressure_ > options_.close_boundary_pressure_limit) {
     is_opened_ = false;
-  } else if (observed_mean_pressure_ < open_boundary_pressure_limit) {
+  } else if (observed_mean_pressure_ < options_.open_boundary_pressure_limit) {
     is_opened_ = true;
   }
 }

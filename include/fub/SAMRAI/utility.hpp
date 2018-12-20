@@ -86,6 +86,10 @@ template <typename Index> Index shift(const Index& i, Direction dir, int n) {
 std::shared_ptr<SAMRAI::hier::PatchHierarchy>
 MakeCartesianPatchHierarchy(const IndexRange& ir, const CoordinateRange& cr);
 
+std::shared_ptr<SAMRAI::hier::PatchHierarchy>
+MakeCartesianPatchHierarchy(const std::string& name, const IndexRange& ir,
+                            const CoordinateRange& cr);
+
 Coordinates
 ComputeCellCoordinates(const SAMRAI::geom::CartesianPatchGeometry& geometry,
                        const SAMRAI::hier::Box& box,

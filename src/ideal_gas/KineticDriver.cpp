@@ -42,6 +42,22 @@ KineticDriver::KineticDriver(const std::shared_ptr<IdealGasKinetics>& equation,
   boundary_condition_->SetBoundaryCondition(cond, Direction::X, 1);
 }
 
+KineticDriver::KineticDriver(const std::shared_ptr<IdealGasKinetics>& equation,
+                             const CoordinateRange& coordinates,
+                             std::ptrdiff_t n_cells, const std::string& name)
+    : time_integrator_{equation}, source_term_{equation},
+      boundary_condition_(std::make_shared<SplitBoundaryConditions>()),
+      hierarchy_(MakeCartesianPatchHierarchy(name,
+          IndexRange{
+              SAMRAI::hier::Index(equation->GetDimension(), 0),
+              SAMRAI::hier::Index(equation->GetDimension(), n_cells - 1)},
+          coordinates)) {
+  std::shared_ptr<ReflectiveBoundary> cond =
+      std::make_shared<ReflectiveBoundary>(time_integrator_);
+  boundary_condition_->SetBoundaryCondition(cond, Direction::X, 0);
+  boundary_condition_->SetBoundaryCondition(cond, Direction::X, 1);
+}
+
 void KineticDriver::InitializeHierarchy(const InitialCondition& init) {
   fub::InitializePatchHierarchy(hierarchy_, time_integrator_, init);
 }

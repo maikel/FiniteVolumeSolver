@@ -43,7 +43,16 @@ MakeCartesianPatchHierarchy(const IndexRange& ir, const CoordinateRange& cr) {
                        "Geometry", cr.lower.data(), cr.upper.data(), domain));
 }
 
-
+std::shared_ptr<SAMRAI::hier::PatchHierarchy>
+MakeCartesianPatchHierarchy(const std::string& prefix, const IndexRange& ir,
+                            const CoordinateRange& cr) {
+  SAMRAI::hier::BoxContainer domain{
+      SAMRAI::hier::Box(ir.lower, ir.upper, SAMRAI::hier::BlockId(0))};
+  return std::make_shared<SAMRAI::hier::PatchHierarchy>(
+      prefix + "_Hierarchy",
+      std::make_shared<SAMRAI::geom::CartesianGridGeometry>(
+          prefix + "_Geometry", cr.lower.data(), cr.upper.data(), domain));
+}
 
 namespace {
 using ArrayXi = Eigen::Array<int, SAMRAI_MAXIMUM_DIMENSION, 1>;

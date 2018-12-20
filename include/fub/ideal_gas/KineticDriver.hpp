@@ -70,6 +70,10 @@ public:
   KineticDriver(const std::shared_ptr<IdealGasKinetics>& equation,
                 const CoordinateRange& coordinates, std::ptrdiff_t n_cells);
 
+  KineticDriver(const std::shared_ptr<IdealGasKinetics>& equation,
+                const CoordinateRange& coordinates, std::ptrdiff_t n_cells,
+                const std::string& name);
+
   void InitializeHierarchy(const InitialCondition& init);
 
   void SetLeftBoundaryCondition(

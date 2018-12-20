@@ -410,6 +410,11 @@ double FlameMasterReactor::advanceAndFindMaxdT(double dt) {
 // getters and setters
 //
 
+span<const double> FlameMasterReactor::getMoleFractions() {
+  UpdateMolesFromMassFractions(state_);
+  return span<const double>(state_.molesStorage).subspan(1);
+}
+
 span<const double> FlameMasterReactor::getCps() const {
   return state_.heat_capacities_at_constant_pressure;
 }

@@ -53,6 +53,8 @@ int main(int argc, char** argv) {
 
   ideal_gas::PressureValveOptions valve;
   valve.compressor_pressure = 121325.0; // [Pa]
+  valve.open_boundary_pressure_limit = valve.compressor_pressure;
+  valve.close_boundary_pressure_limit = 1.5 * valve.compressor_pressure;
   valve.ignition_range.lower = Coordinates(1, 0.45);
   valve.ignition_range.upper = Coordinates(1, 0.5);
   valve.flush_air_duration = 2e-3;  // [s]

@@ -33,6 +33,9 @@ namespace ideal_gas {
 
 struct PressureValveOptions {
   double compressor_pressure;
+  double open_boundary_pressure_limit;
+  double close_boundary_pressure_limit;
+
   CoordinateRange ignition_range;
   double flush_air_duration;
   double flush_fuel_duration;
@@ -99,8 +102,6 @@ private:
   ReflectiveBoundary reflective_boundary_;
   PressureValveState valve_state_{PressureValveState::fuel};
   double state_changed_timepoint_{0.0};
-  double open_boundary_pressure_limit{options_.compressor_pressure};
-  double close_boundary_pressure_limit{1.5 * open_boundary_pressure_limit};
   double observed_mean_pressure_{options_.compressor_pressure};
   bool is_opened_{true};
 };
