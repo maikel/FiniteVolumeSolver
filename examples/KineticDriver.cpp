@@ -59,6 +59,7 @@ int main(int argc, char** argv) {
   valve.ignition_range.upper = Coordinates(1, 0.5);
   valve.flush_air_duration = 2e-3;  // [s]
   valve.flush_fuel_duration = 1e-3; // [s]
+  valve.offset_duration = 1e-4;     // [s]
   valve.air.temperature = 300;      // [K]
   valve.fuel.temperature = 300;     // [K]
 

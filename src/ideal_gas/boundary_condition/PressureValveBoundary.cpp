@@ -77,6 +77,12 @@ bool MaybeChangeState_(PressureValveBoundary& boundary,
       boundary.ChangeStateTo(PressureValveState::fuel, timepoint);
       return true;
     }
+  } else if (state == PressureValveState::offset) {
+    const double duration_until_change = boundary.Options().offset_duration;
+    if (duration_until_change < current_state_duration) {
+      boundary.ChangeStateTo(PressureValveState::fuel, timepoint);
+      return true;
+    }
   } else {
     FUB_ASSERT(state == PressureValveState::fuel);
     const double duration_until_change = boundary.Options().flush_fuel_duration;
@@ -113,12 +119,12 @@ PressureValveBoundary::PressureValveBoundary(
     FlameMasterKinetics& kinetics)
     : options_(options), equation_{&kinetics},
       pressure_boundary_(
-          MakeState_(options, PressureValveState::fuel, kinetics), i),
+          MakeState_(options, PressureValveState::air, kinetics), i),
       reflective_boundary_(i) {}
 
 span<const double>
 PressureValveBoundary::GetMassFractions(PressureValveState state) const {
-  if (state == PressureValveState::air) {
+  if (state == PressureValveState::air || state == PressureValveState::offset) {
     return options_.air.fractions;
   }
   return options_.fuel.fractions;

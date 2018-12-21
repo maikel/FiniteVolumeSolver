@@ -39,6 +39,7 @@ struct PressureValveOptions {
   CoordinateRange ignition_range;
   double flush_air_duration;
   double flush_fuel_duration;
+  double offset_duration;
 
   struct State {
     double temperature;
@@ -48,7 +49,7 @@ struct PressureValveOptions {
   State fuel;
 };
 
-enum class PressureValveState { air, fuel };
+enum class PressureValveState { offset, air, fuel };
 
 class PressureValveBoundary : public SplitBoundaryCondition {
 public:
@@ -100,7 +101,7 @@ private:
   FlameMasterKinetics* equation_;
   ConstantBoundary pressure_boundary_;
   ReflectiveBoundary reflective_boundary_;
-  PressureValveState valve_state_{PressureValveState::fuel};
+  PressureValveState valve_state_{PressureValveState::offset};
   double state_changed_timepoint_{0.0};
   double observed_mean_pressure_{options_.compressor_pressure};
   bool is_opened_{true};
