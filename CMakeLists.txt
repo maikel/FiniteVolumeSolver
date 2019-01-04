@@ -2,9 +2,7 @@ cmake_minimum_required(VERSION 3.13)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 project(ReactiveEulerSolver CXX Fortran)
 
-if (FUB_WITH_SAMRAI) 
-  find_package(SAMRAI QUIET)
-endif()
+find_package(SAMRAI QUIET)
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 
 if (SAMRAI_FOUND)
