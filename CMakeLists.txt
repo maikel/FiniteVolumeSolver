@@ -2,6 +2,11 @@ cmake_minimum_required(VERSION 3.13)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 project(ReactiveEulerSolver CXX Fortran)
 
+if (EXISTS ${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
+  include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
+  conan_basic_setup()
+endif()
+
 find_package(SAMRAI QUIET)
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 
