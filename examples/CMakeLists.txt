@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.10)
 project(ReactiveEulerSolver_examples CXX)
 
 find_package(benchmark QUIET)
-if (SAMRAI_FOUND AND TARGET benchmark::benchmark)
+if (FUB_WITH_SUNDIALS AND SAMRAI_FOUND AND TARGET benchmark::benchmark)
   add_executable(benchmark.TChem.Zhao benchmark.TChem.Zhao.cpp)
   target_link_libraries(benchmark.TChem.Zhao ReactiveEulerSolver.SAMRAI.IdealGas benchmark::benchmark)
 
