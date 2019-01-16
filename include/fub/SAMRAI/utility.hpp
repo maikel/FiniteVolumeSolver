@@ -22,7 +22,7 @@
 #define FUB_SAMRAI_UTILITY_HPP
 
 #include "fub/core/function_ref.hpp"
-#include "fub/solver/Direction.hpp"
+#include "fub/SAMRAI/Direction.hpp"
 
 #include <array>
 #include <memory>

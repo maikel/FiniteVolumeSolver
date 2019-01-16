@@ -27,3 +27,8 @@ if (SAMRAI_FOUND)
   add_executable(TChemSolver TChemSolver.cpp)
   target_link_libraries(TChemSolver PRIVATE ReactiveEulerSolver.SAMRAI.IdealGas)
 endif()
+
+if (AMReX_FOUND AND TARGET AMReX::amrex) 
+  add_executable(amrex.hello_world AMReX/hello_world.cpp)
+  target_link_libraries(amrex.hello_world AMReX::amrex)
+endif()

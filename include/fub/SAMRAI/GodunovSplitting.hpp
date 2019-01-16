@@ -18,23 +18,34 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_GEOMETRY_GEOMETRY_HPP
-#define FUB_GEOMETRY_GEOMETRY_HPP
+#ifndef FUB_SAMRAI_GODUNOV_SPLITTING_HPP
+#define FUB_SAMRAI_GODUNOV_SPLITTING_HPP
 
-#include "fub/SAMRAI/utility.hpp"
-
-#include <memory>
+#include "fub/core/function_ref.hpp"
+#include "fub/SAMRAI/SplittingMethod.hpp"
 
 namespace fub {
 
-struct Geometry {
-  virtual ~Geometry() = default;
+/// \ingroup Solver
+/// \brief This class implements a first order splitting method.
+struct GodunovSplitting : public SplittingMethod {
+public:
+  using AdvanceFunction = SplittingMethod::AdvanceFunction;
 
-  /// Returns a copy of the concrete geometry as a pointer to the base class.
-  virtual std::unique_ptr<Geometry> Clone() const = 0;
-
-  /// Computes the minimum distance between geometry and point x.
-  virtual double ComputeDistanceTo(const Coordinates& x) const = 0;
+  /// \brief Invokes two operators in sequence.
+  ///
+  /// \param[in, out] hierarchy  This is the hierarchy where operators are 
+  ///                            acting on.
+  /// \param[in] time_point  The current time point of the simulation.
+  /// \param[in] time_step_size  The time by which the hierarchy shall be 
+  ///                            advanced.
+  /// \param[in] operator1  The first operator in the splitting.
+  /// \param[in] operator2  The second operator in the splitting.
+  void
+  AdvanceTime(const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
+              double time_point, double time_step_size,
+              AdvanceFunction operator1,
+              AdvanceFunction operator2) const override;
 };
 
 } // namespace fub

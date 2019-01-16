@@ -18,25 +18,16 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_GEOMETRY_GEOMETRY_HPP
-#define FUB_GEOMETRY_GEOMETRY_HPP
-
-#include "fub/SAMRAI/utility.hpp"
-
-#include <memory>
+#include "fub/SAMRAI/GodunovSplitting.hpp"
 
 namespace fub {
 
-struct Geometry {
-  virtual ~Geometry() = default;
-
-  /// Returns a copy of the concrete geometry as a pointer to the base class.
-  virtual std::unique_ptr<Geometry> Clone() const = 0;
-
-  /// Computes the minimum distance between geometry and point x.
-  virtual double ComputeDistanceTo(const Coordinates& x) const = 0;
-};
+void GodunovSplitting::AdvanceTime(
+    const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
+    double time_point, double time_step_size, AdvanceFunction advance1,
+    AdvanceFunction advance2) const {
+  advance1(hierarchy, time_point, time_step_size);
+  advance2(hierarchy, time_point, time_step_size);
+}
 
 } // namespace fub
-
-#endif

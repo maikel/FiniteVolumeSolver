@@ -18,25 +18,34 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_GEOMETRY_GEOMETRY_HPP
-#define FUB_GEOMETRY_GEOMETRY_HPP
+/// \defgroup Euler Euler Equations
+/// This module defines classes and methods to be used to concrete solver
+/// implementations wrt the euler equations.
 
-#include "fub/SAMRAI/utility.hpp"
+#ifndef FUB_EULER_PERFECT_GAS_EQUATION_HPP
+#define FUB_EULER_PERFECT_GAS_EQUATION_HPP
 
-#include <memory>
+#include "fub/SAMRAI/ideal_gas/IdealGasEquation.hpp"
 
 namespace fub {
+namespace ideal_gas {
 
-struct Geometry {
-  virtual ~Geometry() = default;
+/// \ingroup Euler
+class PerfectGasEquation : public IdealGasEquation {
+public:
+  PerfectGasEquation(std::string name, SAMRAI::tbox::Dimension dim)
+      : IdealGasEquation(std::move(name), dim, 1) {}
 
-  /// Returns a copy of the concrete geometry as a pointer to the base class.
-  virtual std::unique_ptr<Geometry> Clone() const = 0;
+  /// \brief Computes a complete state from a given conservative state.
+  void FillFromCons(const CompletePatchData& q,
+                    const ConsPatchData& u) const override;
 
-  /// Computes the minimum distance between geometry and point x.
-  virtual double ComputeDistanceTo(const Coordinates& x) const = 0;
+  /// \brief Computes a complete state from a given conservative state.
+  void FillFromPrim(const CompletePatchData& q,
+                    const PrimPatchData& w) const override;
 };
 
+} // namespace ideal_gas
 } // namespace fub
 
 #endif

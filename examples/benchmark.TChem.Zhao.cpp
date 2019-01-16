@@ -1,7 +1,7 @@
 #include "fub/SAMRAI/ScopeGuard.hpp"
 
 #include "fub/ideal_gas/FlameMasterReactor.hpp"
-#include "fub/ideal_gas/TChemKinetics.hpp"
+#include "fub/SAMRAI/ideal_gas/TChemKinetics.hpp"
 #include "fub/ideal_gas/mechanism/Zhao2008Dme.hpp"
 
 #include "fub/ode_solver/CVodeSolver.hpp"

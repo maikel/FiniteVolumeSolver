@@ -18,23 +18,39 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_GEOMETRY_GEOMETRY_HPP
-#define FUB_GEOMETRY_GEOMETRY_HPP
+#ifndef FUB_INITIAL_DATA_RIEMANN_PROBLEM_HPP
+#define FUB_INITIAL_DATA_RIEMANN_PROBLEM_HPP
 
-#include "fub/SAMRAI/utility.hpp"
+#include "fub/core/type_traits.hpp"
+#include "fub/geometry/PolymorphicGeometry.hpp"
+#include "fub/SAMRAI/InitialCondition.hpp"
+
+#include "SAMRAI/hier/Index.h"
+#include "SAMRAI/hier/Patch.h"
 
 #include <memory>
 
 namespace fub {
 
-struct Geometry {
-  virtual ~Geometry() = default;
+class RiemannProblem : public fub::InitialCondition {
+public:
+  RiemannProblem(PolymorphicGeometry geometry)
+      : geometry_{std::move(geometry)} {}
 
-  /// Returns a copy of the concrete geometry as a pointer to the base class.
-  virtual std::unique_ptr<Geometry> Clone() const = 0;
+  void InitializeDataOnPatch(const SAMRAI::hier::Patch& patch) const override;
 
-  /// Computes the minimum distance between geometry and point x.
-  virtual double ComputeDistanceTo(const Coordinates& x) const = 0;
+  virtual void PostInitialize(const SAMRAI::hier::Patch& patch) const {}
+
+  const PolymorphicGeometry& GetGeometry() const noexcept { return geometry_; }
+
+private:
+  virtual void FillLeftState(const SAMRAI::hier::Patch& patch,
+                             const SAMRAI::hier::Index& index) const = 0;
+
+  virtual void FillRightState(const SAMRAI::hier::Patch& patch,
+                              const SAMRAI::hier::Index& index) const = 0;
+
+  PolymorphicGeometry geometry_;
 };
 
 } // namespace fub

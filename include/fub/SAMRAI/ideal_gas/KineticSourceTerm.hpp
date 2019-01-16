@@ -18,25 +18,36 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_GEOMETRY_GEOMETRY_HPP
-#define FUB_GEOMETRY_GEOMETRY_HPP
+#ifndef FUB_SAMRAI_EULER_KINETIC_SOURCE_TERM_HPP
+#define FUB_SAMRAI_EULER_KINETIC_SOURCE_TERM_HPP
 
-#include "fub/SAMRAI/utility.hpp"
+#include "fub/SAMRAI/SourceTermIntegrator.hpp"
+#include "fub/SAMRAI/ideal_gas/IdealGasKinetics.hpp"
 
 #include <memory>
 
 namespace fub {
+namespace ideal_gas {
 
-struct Geometry {
-  virtual ~Geometry() = default;
+/// \ingroup Euler
+class KineticSourceTerm : public SourceTermIntegrator {
+public:
+  KineticSourceTerm(std::shared_ptr<const IdealGasKinetics> ideal_gas)
+      : ideal_gas_{std::move(ideal_gas)} {}
 
-  /// Returns a copy of the concrete geometry as a pointer to the base class.
-  virtual std::unique_ptr<Geometry> Clone() const = 0;
+  void AdvanceTimeOnPatch(const std::shared_ptr<SAMRAI::hier::Patch>& patch,
+                          double time_point,
+                          double time_step_size) const override;
 
-  /// Computes the minimum distance between geometry and point x.
-  virtual double ComputeDistanceTo(const Coordinates& x) const = 0;
+  const std::shared_ptr<const IdealGasKinetics>& GetEquation() const noexcept {
+    return ideal_gas_;
+  }
+
+private:
+  std::shared_ptr<const IdealGasKinetics> ideal_gas_;
 };
 
+} // namespace euler
 } // namespace fub
 
 #endif

@@ -18,8 +18,18 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/ideal_gas/KineticDriver.hpp"
+#include "fub/SAMRAI/ideal_gas/KineticDriver.hpp"
+
 #include "fub/ideal_gas/mechanism/Burke2012.hpp"
+
+#ifdef HAVE_SYS_TIMES_H
+#undef HAVE_SYS_TIMES_H
+#endif
+
+#ifdef HAVE_UNISTD_H
+#undef HAVE_UNISTD_H
+#endif
+
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 
@@ -64,6 +74,7 @@ PYBIND11_MODULE(PyReactiveEulerSolver, module) {
       .def("GetMassFractions", [](const FlamemasterReactor& reactor) {
         fub::span<const double> fractions = reactor.getMassFractions();
         PyArray result(fractions.size());
+        
         return result;
       });
 }

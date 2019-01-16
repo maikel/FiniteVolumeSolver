@@ -1,23 +1,43 @@
+// Copyright (c) 2018 Maikel Nadolski
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 #include "fub/core/assert.hpp"
 
 #include "fub/SAMRAI/ScopeGuard.hpp"
 #include "fub/SAMRAI/utility.hpp"
 #include "fub/geometry/Halfspace.hpp"
 #include "fub/geometry/PolymorphicGeometry.hpp"
-#include "fub/ideal_gas/HyperbolicTimeIntegrator.hpp"
-#include "fub/ideal_gas/KineticSourceTerm.hpp"
-#include "fub/ideal_gas/PerfectGasEquation.hpp"
-#include "fub/ideal_gas/TChemKinetics.hpp"
-#include "fub/ideal_gas/boundary_condition/ReflectiveBoundary.hpp"
+#include "fub/SAMRAI/ideal_gas/DimensionalSplitTimeIntegrator.hpp"
+#include "fub/SAMRAI/ideal_gas/KineticSourceTerm.hpp"
+#include "fub/SAMRAI/ideal_gas/PerfectGasEquation.hpp"
+#include "fub/SAMRAI/ideal_gas/TChemKinetics.hpp"
+#include "fub/SAMRAI/ideal_gas/boundary_condition/ReflectiveBoundary.hpp"
 #include "fub/ideal_gas/mechanism/Zhao2008Dme.hpp"
-#include "fub/initial_data/RiemannProblem.hpp"
-#include "fub/output/GnuplotWriter.hpp"
-#include "fub/solver/BoundaryCondition.hpp"
-#include "fub/solver/DimensionalSplitSystemSolver.hpp"
-#include "fub/solver/GodunovSplitting.hpp"
-#include "fub/solver/HyperbolicSystemSourceSolver.hpp"
-#include "fub/solver/InitialCondition.hpp"
-#include "fub/solver/SourceTermIntegrator.hpp"
+#include "fub/SAMRAI/initial_data/RiemannProblem.hpp"
+#include "fub/SAMRAI/output/GnuplotWriter.hpp"
+#include "fub/SAMRAI/BoundaryCondition.hpp"
+#include "fub/SAMRAI/DimensionalSplitSystemSolver.hpp"
+#include "fub/SAMRAI/GodunovSplitting.hpp"
+#include "fub/SAMRAI/DimensionalSplitSystemSourceSolver.hpp"
+#include "fub/SAMRAI/InitialCondition.hpp"
+#include "fub/SAMRAI/SourceTermIntegrator.hpp"
 
 #include "SAMRAI/appu/VisItDataWriter.h"
 #include "SAMRAI/geom/CartesianGridGeometry.h"
@@ -42,8 +62,8 @@ struct PrimState {
 
 class RiemannProblem : public fub::RiemannProblem {
 public:
-  using CompleteStatePatchData =
-      fub::ideal_gas::IdealGasEquation::CompleteStatePatchData;
+  using CompletePatchData =
+      fub::ideal_gas::IdealGasEquation::CompletePatchData;
   const fub::ideal_gas::IdealGasEquation* ideal_gas;
   PrimState left;
   PrimState right;
@@ -73,8 +93,8 @@ private:
   void FillPrimState(const SAMRAI::hier::Patch& patch,
                      const SAMRAI::hier::Index& index,
                      const PrimState& state) const {
-    fub::ideal_gas::IdealGasEquation::PrimStatePatchData prim =
-        ideal_gas->GetPrimStatePatchData(patch);
+    fub::ideal_gas::IdealGasEquation::PrimPatchData prim =
+        ideal_gas->GetPrimPatchData(patch);
     SAMRAI::pdat::CellIndex i(index);
     prim.momentum(i) = state.momentum;
     prim.pressure(i) = state.pressure;
@@ -95,8 +115,8 @@ private:
   }
 
   void PostInitialize(const SAMRAI::hier::Patch& patch) const override {
-    ideal_gas->FillFromPrim(ideal_gas->GetCompleteStatePatchData(patch),
-                            ideal_gas->GetPrimStatePatchData(patch));
+    ideal_gas->FillFromPrim(ideal_gas->GetCompletePatchData(patch),
+                            ideal_gas->GetPrimPatchData(patch));
   }
 };
 
@@ -113,11 +133,11 @@ int main(int argc, char** argv) {
       "IdealGas", dim, mechanism);
 
   // Construct the finite volume method
-  fub::ideal_gas::HyperbolicTimeIntegrator integrator(equation);
+  fub::ideal_gas::DimensionalSplitTimeIntegrator integrator(equation);
   fub::ideal_gas::KineticSourceTerm source_term(equation);
   fub::GodunovSplitting splitting{};
   fub::DimensionalSplitSystemSolver hyperbolic(integrator, splitting);
-  fub::HyperbolicSystemSourceSolver solver(hyperbolic, source_term, splitting);
+  fub::DimensionalSplitSystemSourceSolver solver(hyperbolic, source_term, splitting);
 
   // Make 200 Cells in each diretion
   fub::IndexRange indices{SAMRAI::hier::Index(dim, 0),
@@ -150,10 +170,10 @@ int main(int argc, char** argv) {
 
     // Estimate time step size, use the boundary condition
     const double dt =
-        0.5 * solver.computeStableDt(hierarchy, boundary_condition, t);
+        0.5 * solver.ComputeStableDt(hierarchy, boundary_condition, t);
     // Do one time step in X (use ghost cells from previous work)
     // Use boundary condition to fill ghost cells outside of the domain.
-    solver.advanceTime(hierarchy, boundary_condition, t, dt);
+    solver.AdvanceTime(hierarchy, boundary_condition, t, dt);
 
     auto end = std::chrono::steady_clock::now();
 

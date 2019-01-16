@@ -33,10 +33,11 @@ public:
   PolymorphicGeometry(const PolymorphicGeometry& other)
       : base_{other.Clone()} {}
 
-  template <typename G>
+  template <
+      typename G,
+      std::enable_if_t<!std::is_same<G, PolymorphicGeometry>::value>* = nullptr>
   PolymorphicGeometry(const G& geometry)
       : base_{std::make_unique<G>(geometry)} {
-    static_assert(!std::is_same<G, PolymorphicGeometry>::value, "");
   }
 
   double ComputeDistanceTo(const Coordinates& x) const override {

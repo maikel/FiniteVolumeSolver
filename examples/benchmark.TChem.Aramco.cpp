@@ -1,7 +1,7 @@
 #include "fub/SAMRAI/ScopeGuard.hpp"
+#include "fub/SAMRAI/ideal_gas/TChemKinetics.hpp"
 
 #include "fub/ideal_gas/FlameMasterReactor.hpp"
-#include "fub/ideal_gas/TChemKinetics.hpp"
 #include "fub/ideal_gas/mechanism/AramcoMech_DMEonly_74spec.hpp"
 
 #include "fub/ode_solver/CVodeSolver.hpp"

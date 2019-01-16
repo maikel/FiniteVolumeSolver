@@ -18,25 +18,39 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_GEOMETRY_GEOMETRY_HPP
-#define FUB_GEOMETRY_GEOMETRY_HPP
+/// \defgroup Euler Euler Equations
+/// This module defines classes and methods to be used to concrete solver
+/// implementations wrt the euler equations.
 
-#include "fub/SAMRAI/utility.hpp"
+#ifndef FUB_IDEAL_GAS_IDEAL_GAS_KINETICS_HPP
+#define FUB_IDEAL_GAS_IDEAL_GAS_KINETICS_HPP
 
-#include <memory>
+#include "fub/SAMRAI/ideal_gas/IdealGasEquation.hpp"
+
+#include <array>
 
 namespace fub {
+namespace ideal_gas {
 
-struct Geometry {
-  virtual ~Geometry() = default;
+/// \ingroup IdealGas
+///
+/// \brief This class extents the concept of the \a IdealGasEquation by
+/// providing an additonal method \a IdealGasKinetics::AdvanceSourceTerm which
+/// represent the kinetic source term in the reactive euler equations.
+class IdealGasKinetics : public IdealGasEquation {
+public:
+  using IdealGasEquation::IdealGasEquation;
 
-  /// Returns a copy of the concrete geometry as a pointer to the base class.
-  virtual std::unique_ptr<Geometry> Clone() const = 0;
-
-  /// Computes the minimum distance between geometry and point x.
-  virtual double ComputeDistanceTo(const Coordinates& x) const = 0;
+  /// \brief Advances the kinetic source for all given states.
+  ///
+  /// \param[in, out] complete  The reference to the complete ideal gas state on
+  ///                           the patch.
+  /// \param[in] time_step_size  The time which shall be integrated.
+  virtual void AdvanceSourceTerm(const CompletePatchData& complete,
+                                 double time_step_size) const = 0;
 };
 
+} // namespace ideal_gas
 } // namespace fub
 
 #endif

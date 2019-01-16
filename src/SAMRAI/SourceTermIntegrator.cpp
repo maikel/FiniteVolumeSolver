@@ -18,25 +18,20 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_GEOMETRY_GEOMETRY_HPP
-#define FUB_GEOMETRY_GEOMETRY_HPP
-
+#include "fub/SAMRAI/SourceTermIntegrator.hpp"
 #include "fub/SAMRAI/utility.hpp"
-
-#include <memory>
 
 namespace fub {
 
-struct Geometry {
-  virtual ~Geometry() = default;
+void SourceTermIntegrator::AdvanceTime(
+    const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
+    const BoundaryCondition& /* boundary_condition */, double time_point,
+    double time_step_size) const {
+  forEachPatchLevel(*hierarchy, [&](const SAMRAI::hier::PatchLevel& level) {
+    for (const std::shared_ptr<SAMRAI::hier::Patch>& patch : level) {
+      this->AdvanceTimeOnPatch(patch, time_point, time_step_size);
+    }
+  });
+}
 
-  /// Returns a copy of the concrete geometry as a pointer to the base class.
-  virtual std::unique_ptr<Geometry> Clone() const = 0;
-
-  /// Computes the minimum distance between geometry and point x.
-  virtual double ComputeDistanceTo(const Coordinates& x) const = 0;
-};
-
-} // namespace fub
-
-#endif
+}

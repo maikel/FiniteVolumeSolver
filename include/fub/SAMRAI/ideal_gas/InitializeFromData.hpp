@@ -18,25 +18,29 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_GEOMETRY_GEOMETRY_HPP
-#define FUB_GEOMETRY_GEOMETRY_HPP
+#ifndef FUB_IDEAL_GAS_INTIALIZE_FROM_VECTOR_HPP
+#define FUB_IDEAL_GAS_INTIALIZE_FROM_VECTOR_HPP
 
-#include "fub/SAMRAI/utility.hpp"
-
-#include <memory>
+#include "fub/core/mdspan.hpp"
+#include "fub/SAMRAI/ideal_gas/DimensionalSplitTimeIntegrator.hpp"
 
 namespace fub {
+namespace ideal_gas {
 
-struct Geometry {
-  virtual ~Geometry() = default;
+class InitializeFromData : public InitialCondition {
+public:
+  InitializeFromData(const DimensionalSplitTimeIntegrator& integrator,
+                     DynamicMdSpan<double, 2> grid);
 
-  /// Returns a copy of the concrete geometry as a pointer to the base class.
-  virtual std::unique_ptr<Geometry> Clone() const = 0;
+  void InitializeDataOnPatch(const SAMRAI::hier::Patch& patch) const override;
 
-  /// Computes the minimum distance between geometry and point x.
-  virtual double ComputeDistanceTo(const Coordinates& x) const = 0;
+private:
+  const DimensionalSplitTimeIntegrator* time_integrator_;
+  std::vector<double> data_;
+  DynamicMdSpan<double, 2> view_;
 };
 
+} // namespace ideal_gas
 } // namespace fub
 
 #endif

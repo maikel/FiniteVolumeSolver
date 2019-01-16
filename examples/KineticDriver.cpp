@@ -18,14 +18,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/ideal_gas/KineticDriver.hpp"
+#include "fub/SAMRAI/ideal_gas/KineticDriver.hpp"
 #include "fub/SAMRAI/ScopeGuard.hpp"
 #include "fub/geometry/Halfspace.hpp"
 #include "fub/geometry/PolymorphicGeometry.hpp"
-#include "fub/ideal_gas/FlameMasterKinetics.hpp"
-#include "fub/ideal_gas/boundary_condition/IsentropicExpansionBoundary.hpp"
-#include "fub/ideal_gas/boundary_condition/PressureValveBoundary.hpp"
-#include "fub/ideal_gas/initial_data/Ambient.hpp"
+#include "fub/SAMRAI/ideal_gas/FlameMasterKinetics.hpp"
+#include "fub/SAMRAI/ideal_gas/boundary_condition/IsentropicExpansionBoundary.hpp"
+#include "fub/SAMRAI/ideal_gas/boundary_condition/PressureValveBoundary.hpp"
+#include "fub/SAMRAI/ideal_gas/initial_data/Ambient.hpp"
 #include "fub/ideal_gas/mechanism/Burke2012.hpp"
 
 #include <cmath>
@@ -76,11 +76,11 @@ int main(int argc, char** argv) {
 
   driver.SetLeftBoundaryCondition(
       std::make_shared<ideal_gas::PressureValveBoundary>(
-          valve, driver.GetHyperbolicTimeIntegrator(), *equation));
+          valve, driver.GetDimensionalSplitTimeIntegrator(), *equation));
 
   driver.SetRightBoundaryCondition(
       std::make_shared<ideal_gas::IsentropicExpansionBoundary>(
-          plenum_pressure, driver.GetHyperbolicTimeIntegrator(), *equation));
+          plenum_pressure, driver.GetDimensionalSplitTimeIntegrator(), *equation));
 
   // Initialize Data
   ideal_gas::Ambient::PrimState state;
