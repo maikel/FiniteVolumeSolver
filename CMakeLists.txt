@@ -220,7 +220,7 @@ if (SAMRAI_FOUND)
     src/SAMRAI/ideal_gas/TChemKinetics.cpp
     src/SAMRAI/ideal_gas/DimensionalSplitTimeIntegrator.cpp
     src/SAMRAI/ideal_gas/InitializeFromData.cpp
-    src/SAMRAI/ideal_gas/HlleRiemannSolver.cpp
+    src/SAMRAI/ideal_gas/HlleGodunovMethod.cpp
     src/SAMRAI/ideal_gas/KineticSourceTerm.cpp
     src/SAMRAI/ideal_gas/KineticDriver.cpp
     src/SAMRAI/ideal_gas/boundary_condition/ReflectiveBoundary.cpp

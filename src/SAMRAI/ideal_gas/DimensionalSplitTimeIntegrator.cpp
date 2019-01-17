@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 #include "fub/SAMRAI/ideal_gas/DimensionalSplitTimeIntegrator.hpp"
-#include "fub/SAMRAI/ideal_gas/HlleRiemannSolver.hpp"
+#include "fub/SAMRAI/ideal_gas/HlleGodunovMethod.hpp"
 
 #include "SAMRAI/geom/CartesianCellDoubleConservativeLinearRefine.h"
 #include "SAMRAI/mesh/CascadePartitioner.h"
@@ -112,7 +112,7 @@ int getDepth_(DimensionalSplitTimeIntegrator::FluxVariable var, int dim,
 DimensionalSplitTimeIntegrator::DimensionalSplitTimeIntegrator(
     std::shared_ptr<const IdealGasEquation> ideal_gas)
     : ideal_gas_{std::move(ideal_gas)},
-      flux_method_{std::make_shared<HlleRiemannSolver>()} {
+      flux_method_{std::make_shared<HlleGodunovMethod>()} {
   SAMRAI::hier::VariableDatabase& database =
       *SAMRAI::hier::VariableDatabase::getDatabase();
   const SAMRAI::tbox::Dimension& dim = ideal_gas_->GetDimension();

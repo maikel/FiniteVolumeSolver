@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_SAMRAI_EULER_HLLE_RIEMANN_SOLVER_HPP
-#define FUB_SAMRAI_EULER_HLLE_RIEMANN_SOLVER_HPP
+#ifndef FUB_SAMRAI_IDEAL_GAS_HLLE_GODUNOV_METHOD_HPP
+#define FUB_SAMRAI_IDEAL_GAS_HLLE_GODUNOV_METHOD_HPP
 
 #include "fub/SAMRAI/DimensionalSplitFluxMethod.hpp"
 #include "fub/SAMRAI/ideal_gas/IdealGasEquation.hpp"
@@ -30,14 +30,14 @@ namespace ideal_gas {
 /// This class is a first order flux method for the IdealGas problem which uses
 /// the approximative HLL riemann problem solver with Einfeldts signals
 /// velocities.
-class HlleRiemannSolver
+class HlleGodunovMethod
     : public DimensionalSplitFluxMethod<IdealGasEquation::FluxPatchData,
                                         IdealGasEquation::CompletePatchData> {
 public:
   using FluxPatchData = IdealGasEquation::FluxPatchData;
   using CompletePatchData = IdealGasEquation::CompletePatchData;
 
-  HlleRiemannSolver() = default;
+  HlleGodunovMethod() = default;
 
   /// \copydoc fub::DimensionalSplitFluxMethod::ComputeStableDtOnPatch
   double ComputeStableDtOnPatch(const CompletePatchData& state,

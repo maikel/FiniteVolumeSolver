@@ -18,10 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_SAMRAI_HLL_FLUX_METHOD_HPP
-#define FUB_SAMRAI_HLL_FLUX_METHOD_HPP
-
-#include "fub/SAMRAI/ideal_gas/HlleRiemannSolver.hpp"
+#include "fub/SAMRAI/ideal_gas/HlleGodunovMethod.hpp"
 
 #include "fub/SAMRAI/ideal_gas/IdealGasEquation.hpp"
 #include "fub/SAMRAI/utility.hpp"
@@ -156,7 +153,7 @@ HllSignals<double> ComputeEinfeldtSignalVelocities_(
 /// you use this method as part of a more complicated scheme you might want to
 /// scale this further with some lower CFL condition.
 double
-HlleRiemannSolver::ComputeStableDtOnPatch(const CompletePatchData& state,
+HlleGodunovMethod::ComputeStableDtOnPatch(const CompletePatchData& state,
                                           const SAMRAI::hier::Patch& patch,
                                           Direction dir) const {
   double velocity = 0.0;
@@ -190,7 +187,7 @@ HlleRiemannSolver::ComputeStableDtOnPatch(const CompletePatchData& state,
   return max_time_step_size;
 }
 
-void HlleRiemannSolver::ComputeFluxesOnPatch(const FluxPatchData& flux,
+void HlleGodunovMethod::ComputeFluxesOnPatch(const FluxPatchData& flux,
                                              const CompletePatchData& state,
                                              const SAMRAI::hier::Patch& patch,
                                              double dt, Direction dir) const {
@@ -258,11 +255,9 @@ void HlleRiemannSolver::ComputeFluxesOnPatch(const FluxPatchData& flux,
 }
 
 SAMRAI::hier::IntVector
-HlleRiemannSolver::GetStencilWidth(const SAMRAI::tbox::Dimension& dim) const {
+HlleGodunovMethod::GetStencilWidth(const SAMRAI::tbox::Dimension& dim) const {
   return SAMRAI::hier::IntVector::getOne(dim);
 }
 
 } // namespace ideal_gas
 } // namespace fub
-
-#endif
