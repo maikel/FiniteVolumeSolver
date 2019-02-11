@@ -48,7 +48,7 @@ void IgniteDetonation_(SAMRAI::hier::PatchHierarchy& hier,
                        const CoordinateRange& ignition_range,
                        FlameMasterKinetics& equation) {
   std::vector<double> buffer(equation.GetNSpecies());
-  forEachPatch(hier, [&](SAMRAI::hier::Patch& patch) {
+  ForEachPatch(hier, [&](SAMRAI::hier::Patch& patch) {
     const double x_lo = *GetCartesianPatchGeometry(patch)->getXLower();
     const double x_up = *GetCartesianPatchGeometry(patch)->getXUpper();
     const double ir_lo = ignition_range.lower[0];

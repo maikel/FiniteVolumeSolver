@@ -43,6 +43,8 @@ public:
   using Variable = IdealGasEquation::Variable;
   using FluxPatchData = IdealGasEquation::FluxPatchData;
   using ConsPatchData = IdealGasEquation::ConsPatchData;
+  using CompleteSpans = IdealGasEquation::CompleteSpans<double>;
+  using FluxSpans = IdealGasEquation::FluxSpans<double>;
   using CompletePatchData = IdealGasEquation::CompletePatchData;
   using FluxMethod = fub::DimensionalSplitFluxMethod<FluxPatchData,
                                                      CompletePatchData>;
@@ -112,7 +114,7 @@ public:
   /// context.
   ///
   /// \throw Nothing.
-  CompletePatchData GetComletePatchData(const SAMRAI::hier::Patch& patch,
+  CompletePatchData GetCompletePatchData(const SAMRAI::hier::Patch& patch,
                                           Scratch) const;
 
   /// Returns a struct of CellDatas, one for each state variable.
@@ -123,7 +125,10 @@ public:
   ///
   /// \throw Nothing.
   CompletePatchData
-  GetComletePatchData(const SAMRAI::hier::Patch& patch) const;
+  GetCompletePatchData(const SAMRAI::hier::Patch& patch) const;
+
+  CompleteSpans GetCompleteSpans(const SAMRAI::hier::Patch& patch) const;
+  CompleteSpans GetCompleteSpans(const SAMRAI::hier::Patch& patch, Scratch) const;
 
   /// Returns a struct of CellDatas, one for each conservative variable.
   ConsPatchData GetConsPatchData(const SAMRAI::hier::Patch& patch,
@@ -133,6 +138,8 @@ public:
 
   /// Returns a struct of FaceDatas, one for each flux variable.
   FluxPatchData GetFluxPatchData(const SAMRAI::hier::Patch& patch) const;
+
+  FluxSpans GetFluxSpans(const SAMRAI::hier::Patch& patch, Direction face_normal) const;
 
   /// \name Virtual Overrides of DimensionalSplitTimeIntegrator
 

@@ -60,7 +60,7 @@ void TChemKinetics::FillFromCons(const CompletePatchData& q,
 void TChemKinetics::FillFromPrim(const CompletePatchData& q,
                                  const PrimPatchData& prim) const {
   q.temperature.copy(prim.temperature);
-  q.momentum.copy(prim.momentum);
+  q.momentum.copy(prim.velocity);
   q.pressure.copy(prim.pressure);
   q.species.copy(prim.species);
   SAMRAI::hier::Box intersection(q.density.getDim());

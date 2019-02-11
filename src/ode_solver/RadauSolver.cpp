@@ -157,8 +157,9 @@ void RadauSolver::integrate(system_type system, span<double> y0, double t0,
   };
 
   auto radau_feedback =
-      [](int* nr, double* xold_, double* x_, double* y_, int* cont, int* lrc,
-         int* n, float* rpar, int* ipar, int* irtrn) noexcept {
+      [](int* /* nr */, double* /* xold_ */, double* x_, double* y_,
+         int* /* cont */, int* /* lrc */, int* n, float* /* rpar */, int* ipar,
+         int* /*irtrn */) noexcept {
     feedback_type& feedback =
         *(reinterpret_cast<IntegrateData_*>(ipar)->feedback);
     span<const double> y(y_, *n);
@@ -167,7 +168,7 @@ void RadauSolver::integrate(system_type system, span<double> y0, double t0,
   };
 
   auto radau_jacobian = [](int* n, double* x_, double* y_, double* dfy,
-                           int* ldfy, float* rpar, int* ipar) noexcept {
+                           int* ldfy, float* /* rpar */, int* ipar) noexcept {
     jacobian_type& jacobian =
         *(reinterpret_cast<IntegrateData_*>(ipar)->jacobian);
     span<const double> y(y_, *n);

@@ -22,7 +22,7 @@
 #define FUB_SAMRAI_IDEAL_GAS_HLLE_GODUNOV_METHOD_HPP
 
 #include "fub/SAMRAI/DimensionalSplitFluxMethod.hpp"
-#include "fub/SAMRAI/ideal_gas/IdealGasEquation.hpp"
+#include "fub/SAMRAI/ideal_gas/FlameMasterKinetics.hpp"
 
 namespace fub {
 namespace ideal_gas {
@@ -36,8 +36,11 @@ class MusclHancockMethod
 public:
   using FluxPatchData = IdealGasEquation::FluxPatchData;
   using CompletePatchData = IdealGasEquation::CompletePatchData;
+  using Variable = IdealGasEquation::Variable;
 
-  MusclHancockMethod() = default;
+  explicit MusclHancockMethod(
+      std::shared_ptr<const FlameMasterKinetics> equation)
+      : equation_{std::move(equation)} {}
 
   /// \copydoc fub::DimensionalSplitFluxMethod::ComputeStableDtOnPatch
   double ComputeStableDtOnPatch(const CompletePatchData& state,
@@ -55,6 +58,16 @@ public:
   /// \Return '2' in all directions.
   SAMRAI::hier::IntVector
   GetStencilWidth(const SAMRAI::tbox::Dimension& dim) const override;
+
+  CompletePatchData
+  GetHalfTimePatchData(const SAMRAI::hier::Patch& patch) const;
+
+  SAMRAI::pdat::CellData<double>&
+  GetHalfTimeCellData(const SAMRAI::hier::Patch& patch,
+                      Variable variable) const;
+
+private:
+  std::shared_ptr<const FlameMasterKinetics> equation_;
 };
 } // namespace ideal_gas
 } // namespace fub

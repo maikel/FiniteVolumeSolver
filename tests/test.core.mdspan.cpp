@@ -94,5 +94,15 @@ TEST_CASE("subspan of mdspan") {
     for (int i = 0; i < inner.extent(0); ++i) {
       REQUIRE(inner(i) == ghost_view(8, 1 + i));
     }
+
+    auto left = fub::subspan(inner, std::make_pair(0, 7));
+    auto right = fub::subspan(inner, std::make_pair(1, 8));
+    REQUIRE(left.rank() == 1);
+    REQUIRE(left.extent(0) == 7);
+    REQUIRE(right.rank() == 1);
+    REQUIRE(right.extent(0) == 7);
+    for (int i = 0; i < 6; ++i) {
+      REQUIRE(left(i + 1) == right(i));
+    }
   }
 }

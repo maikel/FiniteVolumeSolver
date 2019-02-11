@@ -18,17 +18,52 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_SAMRAI_DIRECTION_HPP
-#define FUB_SAMRAI_DIRECTION_HPP
+#ifndef FUB_SAMRAI_CARTESIAN_PATCH_HIERARCHY_HPP
+#define FUB_SAMRAI_CARTESIAN_PATCH_HIERARCHY_HPP
 
-namespace fub {
+#include "fub/CartesianCoordinates.hpp"
 
-/// \ingroup Solver
-/// \brief This is a type safe type to denote a dimensional split direction.
-enum class Direction : int {
-  X, Y, Z
-};
+#include <SAMRAI/hier/PatchHierarchy.h>
+#include <SAMRAI/geom/CartesianPatchGeometry.h>
+
+#include <array>
+#include <memory>
+
+namespace SAMRAI {
+namespace geom {
+
+class CartesianPatchGeometry;
 
 }
+}
+
+namespace fub {
+namespace samrai {
+
+struct CoordinatesRange {
+  std::array<double, 3> lower;
+  std::array<double, 3> upper;
+};
+
+std::shared_ptr<SAMRAI::hier::PatchHierarchy>
+CartesianPatchHierarchy(const SAMRAI::hier::Box& box,
+                        const CoordinatesRange& x_up);
+
+SAMRAI::geom::CartesianPatchGeometry*
+GetCartesianPatchGeometry(const SAMRAI::hier::Patch& patch);
+
+CartesianCoordinates GetCartesianCoordinates(const SAMRAI::hier::Patch& patch);
+
+struct CartesianPatchCoordinates {
+  explicit CartesianPatchCoordinates(const SAMRAI::hier::Patch& patch);
+
+  std::array<double, 3> operator()(const SAMRAI::hier::Index& index) const;
+
+  SAMRAI::geom::CartesianPatchGeometry* geometry_;
+  SAMRAI::hier::Box box_;
+};
+
+} // namespace samrai
+} // namespace fub
 
 #endif

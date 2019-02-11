@@ -30,7 +30,7 @@ void ReflectiveBoundary::SetPhysicalBoundaryCondition(
     double /* fill_time */, Direction dir, int side) const {
   using Scratch = DimensionalSplitTimeIntegrator::Scratch;
   IdealGasEquation::CompletePatchData complete =
-      integrator_->GetComletePatchData(patch, Scratch(dir));
+      integrator_->GetCompletePatchData(patch, Scratch(dir));
   const int direction = static_cast<int>(dir);
   const int sign = side == 0 ? +1 : -1;
   for (const SAMRAI::hier::Index& index : fill_box) {

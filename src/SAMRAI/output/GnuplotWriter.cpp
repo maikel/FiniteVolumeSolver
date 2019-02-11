@@ -38,7 +38,7 @@
 namespace fub {
 namespace {
 std::size_t strlen_(const std::string& str) { return str.size(); }
-template <std::size_t N> std::size_t strlen_(const char (&str)[N]) { return N; }
+template <std::size_t N> std::size_t strlen_(const char (&)[N]) { return N; }
 std::size_t strlen_(const char* str) { return std::strlen(str); }
 
 #ifdef __cpp_fold_expressions
@@ -49,7 +49,7 @@ template <typename... Strings> std::string strcat_(Strings&&... strings) {
   return result;
 }
 #else
-void strcat_helper_(std::string& result) {}
+void strcat_helper_(std::string&) {}
 template <typename String, typename... Strings>
 void strcat_helper_(std::string& result, String&& string,
                     Strings&&... strings) {
@@ -155,9 +155,9 @@ void writeCellData_(std::ostream& out, const SAMRAI::hier::Patch& patch,
 /// Writes all quantitites which has been registered with this class to the
 /// output directory.
 void GnuplotWriter::writePlotData(
-    const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy, int cylce,
-    double time_point) {
-  forEachPatch(*hierarchy, [&](const SAMRAI::hier::Patch& patch) {
+    const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
+    int /* cylce */, double /* time_point */) {
+  ForEachPatch(*hierarchy, [&](const SAMRAI::hier::Patch& patch) {
     auto id_iter = patch_data_ids_.begin();
     (*out_) << std::setw(20) << "# Coordinates ";
     for (const std::string& name : names_) {

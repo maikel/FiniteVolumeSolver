@@ -114,7 +114,7 @@ public:
   static constexpr std::size_t rank_dynamic() noexcept { return Rank; }
 
   /// Returns dynamic_extent.
-  static constexpr std::ptrdiff_t static_extent(std::size_t n) noexcept {
+  static constexpr std::ptrdiff_t static_extent(std::size_t /* n */) noexcept {
     return dynamic_extent;
   }
 
@@ -577,9 +577,10 @@ public:
   explicit constexpr basic_mdspan(pointer p, IndexType... dynamic_extents)
       : basic_mdspan(p, Extents(dynamic_extents...)) {}
 
-  template <class IndexType, size_t N>
+  template <class IndexType, std::size_t N>
   explicit constexpr basic_mdspan(
-      pointer p, const std::array<IndexType, N>& dynamic_extents);
+      pointer p, const std::array<IndexType, N>& dynamic_extents)
+      : basic_mdspan(p, extents_type{dynamic_extents}) {}
 
   constexpr basic_mdspan(pointer p, const mapping_type& m)
       : accessor_type(), mapping_type(m), ptr_(p) {}
@@ -623,7 +624,7 @@ public:
       noexcept {
     const accessor_type acc = accessor();
     const mapping_type map = mapping();
-    return acc.access(ptr_, map(indices));
+    return acc.access(ptr_, std::apply(map, indices));
   }
 
   // [mdspan.basic.domobs], basic_mdspan observers of the domain
@@ -697,8 +698,11 @@ template <std::size_t Rank>
 using DynamicExtents =
     typename DynamicExtents_<make_index_sequence<Rank>>::type;
 
-template <typename T, std::size_t Rank>
-using DynamicMdSpan = basic_mdspan<T, DynamicExtents<Rank>>;
+template <typename T, std::size_t Rank, typename Layout = layout_right>
+using DynamicMdSpan = basic_mdspan<T, DynamicExtents<Rank>, Layout>;
+
+template <typename T, std::size_t Rank, typename Layout = layout_left>
+using dynamic_mdspan = basic_mdspan<T, DynamicExtents<Rank>, Layout>;
 
 struct all_type {
   explicit all_type() = default;
@@ -771,7 +775,7 @@ SlicePushBack__(std::true_type, std::array<std::ptrdiff_t, Rank> array,
 template <std::size_t Rank, typename Slice>
 constexpr std::array<std::ptrdiff_t, Rank>
 SlicePushBack__(std::false_type, std::array<std::ptrdiff_t, Rank> array,
-                Slice slice) {
+                Slice /* slice */) {
   return array;
 }
 
@@ -821,7 +825,7 @@ AsStdArray_(const std::size_t (&array)[N]) {
 
 template <typename... Slices>
 constexpr std::array<std::size_t, SliceRank_<Slices...>>
-MakeRangeIndices__(Type_<Slices>... slices) {
+MakeRangeIndices__(Type_<Slices>... /* slices */) {
   constexpr std::size_t is_range[] = {IsSliceRange_<Slices>::value...};
   std::size_t ranges[SliceRank_<Slices...>]{};
   std::size_t ri = 0;
@@ -835,7 +839,7 @@ MakeRangeIndices__(Type_<Slices>... slices) {
 
 template <typename... Slices, std::size_t... Is>
 constexpr auto MakeRangeIndices_(index_sequence<Is...>,
-                                 Type_<Slices>... slices) {
+                                 Type_<Slices>... /* slices */) {
   constexpr std::array<std::size_t, SliceRank_<Slices...>> indices{
       MakeRangeIndices__(Type_<Slices>{}...)};
   return index_sequence<indices[Is]...>{};
@@ -867,7 +871,7 @@ MakeOrigin__(std::pair<std::ptrdiff_t, std::ptrdiff_t> p) {
   return p.first;
 }
 
-constexpr std::ptrdiff_t MakeOrigin__(all_type all) { return 0; }
+constexpr std::ptrdiff_t MakeOrigin__(all_type /* all */) { return 0; }
 
 template <typename... Slices>
 constexpr std::array<std::ptrdiff_t, sizeof...(Slices)>
@@ -886,6 +890,42 @@ constexpr auto Apply_(F fn, std::array<std::ptrdiff_t, N> indices) {
   return Apply_(make_index_sequence<N>{}, fn, indices);
 }
 
+constexpr std::ptrdiff_t MapToLength_(all_type) { return -1; }
+
+constexpr std::ptrdiff_t
+MapToLength_(const std::pair<std::ptrdiff_t, std::ptrdiff_t>& rng) {
+  return rng.second - rng.first;
+}
+
+template <typename T, typename = std::enable_if_t<!IsSliceRange_<T>()>>
+constexpr std::ptrdiff_t MapToLength_(T) {
+  return 0;
+}
+
+template <typename Extents, typename... SliceSpecifiers>
+constexpr std::array<std::ptrdiff_t, SliceRank_<SliceSpecifiers...>>
+MakeSliceExtents2_(const Extents& e, SliceSpecifiers... slices) {
+  const std::array<std::ptrdiff_t, Extents::rank()> length{
+      MapToLength_(slices)...};
+  std::array<std::ptrdiff_t, Extents::rank()> dyn_length;
+  for (std::size_t i = 0; i < Extents::rank(); ++i) {
+    if (length[i] < 0) {
+      dyn_length[i] = e.extent(i);
+    } else {
+      dyn_length[i] = length[i];
+    }
+  }
+  std::array<std::ptrdiff_t, SliceRank_<SliceSpecifiers...>> extents;
+  int slice = 0;
+  for (std::size_t i = 0; i < Extents::rank(); ++i) {
+    if (dyn_length[i] > 0) {
+      extents[slice] = dyn_length[i];
+      slice = slice + 1;
+    }
+  }
+  return extents;
+}
+
 template <class ElementType, class Extents, class LayoutPolicy,
           class AccessorPolicy, class... SliceSpecifiers>
 mdspan_subspan_t<ElementType, Extents, LayoutPolicy, AccessorPolicy,
@@ -899,13 +939,22 @@ subspan(
   const auto acc = src.accessor();
   constexpr int slice_rank = SliceRank_<SliceSpecifiers...>;
   using SliceExtents = DynamicExtents<slice_rank>;
-  const SliceExtents extents{MakeSliceExtents_(slices...)};
+  const SliceExtents extents{MakeSliceExtents2_(src.extents(), slices...)};
   const std::array<std::ptrdiff_t, slice_rank> slice_array =
       MakeSliceArray_(src, slices...);
   const layout_stride::mapping<SliceExtents> slice_mapping(extents,
                                                            slice_array);
   return {acc.offset(src.data(), Apply_(map, origin)), slice_mapping};
 }
+
+template <typename>
+struct is_mdspan : std::false_type {};
+
+template <typename T, typename E, typename L, typename A>
+struct is_mdspan<basic_mdspan<T, E, L, A>> : std::true_type {};
+
+template <typename T>
+static constexpr bool is_mdspan_v = is_mdspan<T>::value;
 
 } // namespace fub
 

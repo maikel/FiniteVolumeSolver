@@ -88,10 +88,11 @@ getVariable_(const SAMRAI::tbox::Dimension& dim, const std::string& name,
   return getVariableOr_(name, alt);
 }
 
-std::string getPrefixedFluxName_(const std::string& name,
-                                 DimensionalSplitTimeIntegrator::FluxVariable var) {
-  static constexpr std::array<const char*,
-                              DimensionalSplitTimeIntegrator::kFluxVariablesSize>
+std::string
+getPrefixedFluxName_(const std::string& name,
+                     DimensionalSplitTimeIntegrator::FluxVariable var) {
+  static constexpr std::array<
+      const char*, DimensionalSplitTimeIntegrator::kFluxVariablesSize>
       names{"/DensityFlux", "/MomentumFlux", "/EnergyFlux", "/SpeciesFlux"};
   return name + names[static_cast<int>(var)];
 }
@@ -112,7 +113,7 @@ int getDepth_(DimensionalSplitTimeIntegrator::FluxVariable var, int dim,
 DimensionalSplitTimeIntegrator::DimensionalSplitTimeIntegrator(
     std::shared_ptr<const IdealGasEquation> ideal_gas)
     : ideal_gas_{std::move(ideal_gas)},
-      flux_method_{std::make_shared<HlleGodunovMethod>()} {
+      flux_method_{std::make_shared<samrai::ideal_gas::HlleGodunovMethod>()} {
   SAMRAI::hier::VariableDatabase& database =
       *SAMRAI::hier::VariableDatabase::getDatabase();
   const SAMRAI::tbox::Dimension& dim = ideal_gas_->GetDimension();
@@ -143,8 +144,9 @@ DimensionalSplitTimeIntegrator::DimensionalSplitTimeIntegrator(
 }
 
 double DimensionalSplitTimeIntegrator::ComputeStableDtOnPatch(
-    const SAMRAI::hier::Patch& patch, double time_point, Direction dir) const {
-  CompletePatchData state = GetComletePatchData(patch, Scratch(dir));
+    const SAMRAI::hier::Patch& patch, double /* time_point */,
+    Direction dir) const {
+  CompletePatchData state = GetCompletePatchData(patch, Scratch(dir));
   return flux_method_->ComputeStableDtOnPatch(state, patch, dir);
 }
 
@@ -181,13 +183,13 @@ void AdvanceTimeOnPatch_(
 } // namespace
 
 void DimensionalSplitTimeIntegrator::AdvanceTimeOnPatch(
-    const SAMRAI::hier::Patch& patch, double time_point, double dt,
+    const SAMRAI::hier::Patch& patch, double /* time_point */, double dt,
     Direction dir) const {
   FluxPatchData flux = GetFluxPatchData(patch);
-  CompletePatchData state = GetComletePatchData(patch, Scratch(dir));
+  CompletePatchData state = GetCompletePatchData(patch, Scratch(dir));
   flux_method_->ComputeFluxesOnPatch(flux, state, patch, dt, dir);
   AdvanceTimeOnPatch_(state, flux, patch, dt, dir);
-  CompletePatchData complete = GetComletePatchData(patch);
+  CompletePatchData complete = GetCompletePatchData(patch);
   ConsPatchData cons = GetConsPatchData(patch, Scratch(dir));
   ideal_gas_->FillFromCons(complete, cons);
 }
@@ -207,8 +209,8 @@ SAMRAI::pdat::FaceData<double>& getFaceData_(const SAMRAI::hier::Patch& patch,
 } // namespace
 
 DimensionalSplitTimeIntegrator::CompletePatchData
-DimensionalSplitTimeIntegrator::GetComletePatchData(const SAMRAI::hier::Patch& patch,
-                                             Scratch scratch) const {
+DimensionalSplitTimeIntegrator::GetCompletePatchData(
+    const SAMRAI::hier::Patch& patch, Scratch scratch) const {
   // clang-format off
   SAMRAI::pdat::CellData<double>& density = getCellData_(patch, GetPatchDataId(Variable::density, scratch));
   SAMRAI::pdat::CellData<double>& momentum = getCellData_(patch, GetPatchDataId(Variable::momentum, scratch));
@@ -222,8 +224,22 @@ DimensionalSplitTimeIntegrator::GetComletePatchData(const SAMRAI::hier::Patch& p
           temperature, speed_of_sound, species};
 }
 
+DimensionalSplitTimeIntegrator::CompleteSpans
+DimensionalSplitTimeIntegrator::GetCompleteSpans(
+    const SAMRAI::hier::Patch& patch, Scratch scratch) const {
+  CompletePatchData state = GetCompletePatchData(patch, scratch);
+  return boost::hana::make<StateTag<IdealGasEquation::Complete>>(
+      MakeMdSpan<double, 3, layout_left>(state.density),
+      MakeMdSpan<double, 4, layout_left>(state.momentum),
+      MakeMdSpan<double, 3, layout_left>(state.energy),
+      MakeMdSpan<double, 3, layout_left>(state.pressure),
+      MakeMdSpan<double, 3, layout_left>(state.temperature),
+      MakeMdSpan<double, 3, layout_left>(state.speed_of_sound),
+      MakeMdSpan<double, 4, layout_left>(state.species));
+}
+
 DimensionalSplitTimeIntegrator::CompletePatchData
-DimensionalSplitTimeIntegrator::GetComletePatchData(
+DimensionalSplitTimeIntegrator::GetCompletePatchData(
     const SAMRAI::hier::Patch& patch) const {
   // clang-format off
   SAMRAI::pdat::CellData<double>& density = getCellData_(patch, GetPatchDataId(Variable::density));
@@ -238,9 +254,23 @@ DimensionalSplitTimeIntegrator::GetComletePatchData(
           temperature, speed_of_sound, species};
 }
 
+DimensionalSplitTimeIntegrator::CompleteSpans
+DimensionalSplitTimeIntegrator::GetCompleteSpans(
+    const SAMRAI::hier::Patch& patch) const {
+  CompletePatchData state = GetCompletePatchData(patch);
+  return boost::hana::make<StateTag<IdealGasEquation::Complete>>(
+      MakeMdSpan<double, 3, layout_left>(state.density),
+      MakeMdSpan<double, 4, layout_left>(state.momentum),
+      MakeMdSpan<double, 3, layout_left>(state.energy),
+      MakeMdSpan<double, 3, layout_left>(state.pressure),
+      MakeMdSpan<double, 3, layout_left>(state.temperature),
+      MakeMdSpan<double, 3, layout_left>(state.speed_of_sound),
+      MakeMdSpan<double, 4, layout_left>(state.species));
+}
+
 DimensionalSplitTimeIntegrator::ConsPatchData
-DimensionalSplitTimeIntegrator::GetConsPatchData(const SAMRAI::hier::Patch& patch,
-                                         Scratch scratch) const {
+DimensionalSplitTimeIntegrator::GetConsPatchData(
+    const SAMRAI::hier::Patch& patch, Scratch scratch) const {
   // clang-format off
   SAMRAI::pdat::CellData<double>& density = getCellData_(patch, GetPatchDataId(Variable::density, scratch));
   SAMRAI::pdat::CellData<double>& momentum = getCellData_(patch, GetPatchDataId(Variable::momentum, scratch));
@@ -272,6 +302,18 @@ DimensionalSplitTimeIntegrator::GetFluxPatchData(
   SAMRAI::pdat::FaceData<double>& species = getFaceData_(patch, GetPatchDataId(FluxVariable::species));
   // clang-format on
   return {density, momentum, energy, species};
+}
+
+DimensionalSplitTimeIntegrator::FluxSpans
+DimensionalSplitTimeIntegrator::GetFluxSpans(const SAMRAI::hier::Patch& patch,
+                                             Direction face_normal) const {
+  FluxPatchData fluxes = GetFluxPatchData(patch);
+  const int face_n = int(face_normal);
+  return boost::hana::make<StateTag<IdealGasEquation::Conservative>>(
+      MakeMdSpan<double, 3, layout_left>(fluxes.density, face_n),
+      MakeMdSpan<double, 4, layout_left>(fluxes.momentum, face_n),
+      MakeMdSpan<double, 3, layout_left>(fluxes.energy, face_n),
+      MakeMdSpan<double, 4, layout_left>(fluxes.species, face_n));
 }
 
 void DimensionalSplitTimeIntegrator::FlagPatchDataIdsToAllocate(

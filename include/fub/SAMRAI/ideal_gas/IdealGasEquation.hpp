@@ -22,12 +22,14 @@
 /// This module defines classes and methods to be used to concrete solver
 /// implementations wrt the euler equations.
 
-#ifndef FUB_IDEAL_GAS_IDEAL_GAS_EQUATION_HPP
-#define FUB_IDEAL_GAS_IDEAL_GAS_EQUATION_HPP
+#ifndef FUB_SAMRAI_IDEAL_GAS_IDEAL_GAS_EQUATION_HPP
+#define FUB_SAMRAI_IDEAL_GAS_IDEAL_GAS_EQUATION_HPP
 
 #include "fub/core/assert.hpp"
 #include "fub/core/mdspan.hpp"
 #include "fub/core/span.hpp"
+
+#include "fub/ideal_gas/IdealGasEquation.hpp"
 
 #include "SAMRAI/hier/Patch.h"
 #include "SAMRAI/hier/PatchHierarchy.h"
@@ -47,33 +49,6 @@ struct IdealGasInvalidName : public std::runtime_error {
       : runtime_error("Initialized IdealGas with an invalid name.") {}
 };
 
-template <typename T, typename VectorT, typename SpeciesT>
-struct CompleteIdealGasState {
-  T density;
-  VectorT momentum;
-  T energy;
-  T pressure;
-  T temperature;
-  T speed_of_sound;
-  SpeciesT species;
-};
-
-template <typename T, typename VectorT, typename SpeciesT>
-struct ConservativeIdealGasState {
-  T density;
-  VectorT momentum;
-  T energy;
-  SpeciesT species;
-};
-
-template <typename T, typename VectorT, typename SpeciesT>
-struct PrimitiveIdealGasState {
-  T temperature;
-  VectorT momentum;
-  T pressure;
-  SpeciesT species;
-};
-
 span<double> MakeSpan(SAMRAI::pdat::CellData<double>& data) noexcept;
 
 span<const double>
@@ -83,16 +58,16 @@ MakeSpan(const SAMRAI::pdat::CellData<double>& data) noexcept;
 ///
 /// \brief This class describes what data lives on SAMRAI patches and helps to
 /// access their data arrays.
-class IdealGasEquation {
+class IdealGasEquation : public IdealGasEquation {
 public:
-  template <typename T, typename V = T, typename S = T>
-  using Complete = CompleteIdealGasState<T, V, S>;
+  template <typename T, typename V = T, typename S = V>
+  using Complete = IdealGasEquation::CompleteState<T, V, T, T, T, T, S>;
 
-  template <typename T, typename V = T, typename S = T>
-  using Conservative = ConservativeIdealGasState<T, V, S>;
+  template <typename T, typename V = T, typename S = V>
+  using Conservative = IdealGasEquation::ConservativeState<T, V, T, S>;
 
-  template <typename T, typename V = T, typename S = T>
-  using Primitive = PrimitiveIdealGasState<T, V, S>;
+  template <typename T, typename V = T, typename S = V>
+  using Primitive = IdealGasEquation::PrimitiveState<T, V, T, S>;
 
   using CompletePatchData = Complete<SAMRAI::pdat::CellData<double>&>;
   using ConsPatchData = Conservative<SAMRAI::pdat::CellData<double>&>;
@@ -104,16 +79,12 @@ public:
   template <typename T> using FluxStateSpan = Conservative<span<T>>;
   template <typename T> using PrimStateSpan = Primitive<span<T>>;
 
-  enum class Variable : int {
-    density,
-    momentum,
-    energy,
-    pressure,
-    temperature,
-    speed_of_sound,
-    species,
-    size ///< This is only a dummy value to get the number of variables
-  };
+  template <typename T>
+  using CompleteSpans = Complete<DynamicMdSpan<T, 3, layout_left>,
+                                 DynamicMdSpan<T, 4, layout_left>>;
+  template <typename T>
+  using FluxSpans = Conservative<DynamicMdSpan<T, 3, layout_left>,
+                                 DynamicMdSpan<T, 4, layout_left>>;
 
   static constexpr int kVariablesSize = static_cast<int>(Variable::size);
 
@@ -177,11 +148,9 @@ public:
   CompletePatchData
   GetCompletePatchData(const SAMRAI::hier::Patch& patch) const;
 
-  ConsPatchData
-  GetConsPatchData(const SAMRAI::hier::Patch& patch) const;
+  ConsPatchData GetConsPatchData(const SAMRAI::hier::Patch& patch) const;
 
-  PrimPatchData
-  GetPrimPatchData(const SAMRAI::hier::Patch& patch) const;
+  PrimPatchData GetPrimPatchData(const SAMRAI::hier::Patch& patch) const;
 
 private:
   std::string name_;

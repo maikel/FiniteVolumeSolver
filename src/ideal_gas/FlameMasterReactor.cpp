@@ -68,7 +68,7 @@ void UpdateThermoState(const FlameMasterMechanism& mechanism,
   UpdateThermoState(mechanism, state, *state.temperature);
 }
 
-int OdeRhsAdvance(double t, span<const double> XD, span<double> Xdot,
+int OdeRhsAdvance(double /* t */, span<const double> XD, span<double> Xdot,
                   const FlameMasterMechanism& mechanism,
                   FlameMasterState& state) {
   span<double> h = state.enthalpies;

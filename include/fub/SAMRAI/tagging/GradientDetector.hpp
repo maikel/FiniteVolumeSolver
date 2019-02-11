@@ -22,7 +22,7 @@
 #define FUB_TAGGING_GRADIENT_DETECTOR_HPP
 
 #include "fub/SAMRAI/tagging/TaggingMethod.hpp"
-#include "fub/SAMRAI/Direction.hpp"
+#include "fub/Direction.hpp"
 
 #include "SAMRAI/tbox/Dimension.h"
 #include "SAMRAI/hier/Patch.h"

@@ -22,7 +22,9 @@
 #define FUB_SAMRAI_UTILITY_HPP
 
 #include "fub/core/function_ref.hpp"
-#include "fub/SAMRAI/Direction.hpp"
+#include "fub/core/mdspan.hpp"
+
+#include "fub/Direction.hpp"
 
 #include <array>
 #include <memory>
@@ -33,11 +35,16 @@
 #include "SAMRAI/hier/Patch.h"
 #include "SAMRAI/hier/PatchHierarchy.h"
 
+#include "SAMRAI/pdat/ArrayData.h"
+#include "SAMRAI/pdat/CellData.h"
+#include "SAMRAI/pdat/FaceData.h"
+#include "SAMRAI/pdat/NodeData.h"
+
 #include "boost/container/static_vector.hpp"
 
 namespace fub {
 template <typename F>
-F forEachPatchLevel(const SAMRAI::hier::PatchHierarchy& hierarchy, F function) {
+F ForEachPatchLevel(const SAMRAI::hier::PatchHierarchy& hierarchy, F function) {
   const int max_level_number = hierarchy.getNumberOfLevels();
   for (int level_number = 0; level_number < max_level_number; ++level_number) {
     const SAMRAI::hier::PatchLevel& level =
@@ -48,8 +55,8 @@ F forEachPatchLevel(const SAMRAI::hier::PatchHierarchy& hierarchy, F function) {
 }
 
 template <typename F>
-F forEachPatch(const SAMRAI::hier::PatchHierarchy& hierarchy, F function) {
-  forEachPatchLevel(hierarchy, [&](const SAMRAI::hier::PatchLevel& level) {
+F ForEachPatch(const SAMRAI::hier::PatchHierarchy& hierarchy, F function) {
+  ForEachPatchLevel(hierarchy, [&](const SAMRAI::hier::PatchLevel& level) {
     for (const std::shared_ptr<SAMRAI::hier::Patch>& patch : level) {
       function(*patch);
     }
@@ -59,7 +66,7 @@ F forEachPatch(const SAMRAI::hier::PatchHierarchy& hierarchy, F function) {
 
 template <typename T, typename F>
 T ReducePatches(const SAMRAI::hier::PatchHierarchy& hier, T x, F fold) {
-  forEachPatch(hier,
+  ForEachPatch(hier,
                [&](const SAMRAI::hier::Patch& patch) { x = fold(x, patch); });
   return x;
 }

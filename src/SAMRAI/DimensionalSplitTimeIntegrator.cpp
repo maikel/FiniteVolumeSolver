@@ -33,7 +33,7 @@ double DimensionalSplitTimeIntegrator::ComputeStableDt(
     const SAMRAI::hier::PatchHierarchy& hierarchy, double time_point,
     Direction dir) const {
   double time_step_size = std::numeric_limits<double>::infinity();
-  forEachPatch(hierarchy, [&](const SAMRAI::hier::Patch& patch) {
+  ForEachPatch(hierarchy, [&](const SAMRAI::hier::Patch& patch) {
     const double local_time_step_size =
         this->ComputeStableDtOnPatch(patch, time_point, dir);
     time_step_size = std::min(time_step_size, local_time_step_size);
@@ -56,7 +56,7 @@ void DimensionalSplitTimeIntegrator::AllocatePatchDataOnPatchLevel(
 void DimensionalSplitTimeIntegrator::AdvanceTime(
     const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
     double time_point, double time_step_size, Direction dir) const {
-  forEachPatch(*hierarchy, [&](const SAMRAI::hier::Patch& patch) {
+  ForEachPatch(*hierarchy, [&](const SAMRAI::hier::Patch& patch) {
     this->AdvanceTimeOnPatch(patch, time_point, time_step_size, dir);
   });
 }
@@ -121,9 +121,9 @@ void InitializePatchHierarchy(
 
     void initializeLevelData(
         const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
-        int level_number, double init_data_time, bool can_be_refined,
-        bool initial_time,
-        const std::shared_ptr<SAMRAI::hier::PatchLevel>& old_level,
+        int level_number, double /* init_data_time */,
+        bool /* can_be_refined */, bool /* initial_time */,
+        const std::shared_ptr<SAMRAI::hier::PatchLevel>& /* old_level */,
         bool allocate_data) override {
       const std::shared_ptr<SAMRAI::hier::PatchLevel>& patch_level =
           hierarchy->getPatchLevel(level_number);
@@ -138,8 +138,8 @@ void InitializePatchHierarchy(
     }
 
     void resetHierarchyConfiguration(
-        const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
-        int coarsest_level, int finest_level) override {}
+        const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& /* hierarchy */,
+        int /* coarsest_level */, int /* finest_level */) override {}
   };
   InitializeStrategy initialize(integrator, initial_condition);
   const SAMRAI::tbox::Dimension& dim = hierarchy->getDim();

@@ -22,7 +22,7 @@
 #define FUB_SAMRAI_SPLIT_BOUNDARY_CONDITION_HPP
 
 #include "fub/SAMRAI/BoundaryCondition.hpp"
-#include "fub/SAMRAI/Direction.hpp"
+#include "fub/Direction.hpp"
 
 #include <array>
 

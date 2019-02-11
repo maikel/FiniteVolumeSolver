@@ -28,7 +28,7 @@ void ConstantBoundary::SetPhysicalBoundaryCondition(
     [[maybe_unused]] double fill_time, Direction dir, int side) const {
   using Scratch = DimensionalSplitTimeIntegrator::Scratch;
   IdealGasEquation::CompletePatchData complete =
-      integrator_->GetComletePatchData(patch, Scratch(dir));
+      integrator_->GetCompletePatchData(patch, Scratch(dir));
   const int d = static_cast<int>(dir);
   const int n_species = complete.species.getDepth();
   using Variable = IdealGasEquation::Variable;

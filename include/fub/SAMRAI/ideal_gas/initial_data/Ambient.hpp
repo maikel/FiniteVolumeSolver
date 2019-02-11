@@ -50,7 +50,7 @@ private:
     IdealGasEquation::PrimPatchData prim =
         ideal_gas->GetPrimPatchData(patch);
     SAMRAI::pdat::CellIndex i(index);
-    prim.momentum(i) = state.velocity;
+    prim.velocity(i) = state.velocity;
     prim.pressure(i) = state.pressure;
     prim.temperature(i) = state.temperature;
     for (int s = 0; s < state.species.size(); ++s) {

@@ -39,7 +39,7 @@ public:
 
   void InitializeDataOnPatch(const SAMRAI::hier::Patch& patch) const override;
 
-  virtual void PostInitialize(const SAMRAI::hier::Patch& patch) const {}
+  virtual void PostInitialize(const SAMRAI::hier::Patch&) const {}
 
   const PolymorphicGeometry& GetGeometry() const noexcept { return geometry_; }
 

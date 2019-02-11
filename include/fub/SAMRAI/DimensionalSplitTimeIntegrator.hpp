@@ -23,7 +23,7 @@
 
 #include "fub/SAMRAI/utility.hpp"
 #include "fub/SAMRAI/BoundaryCondition.hpp"
-#include "fub/SAMRAI/Direction.hpp"
+#include "fub/Direction.hpp"
 #include "fub/SAMRAI/InitialCondition.hpp"
 
 #include "SAMRAI/hier/Patch.h"
@@ -176,7 +176,7 @@ private:
   /// \note A default no-op implementation is given for convenience such that
   /// the user does not have to provide this method.
   virtual void PostprocessAdvanceLevelState(
-      const std::shared_ptr<SAMRAI::hier::PatchLevel>& level) const {}
+      const std::shared_ptr<SAMRAI::hier::PatchLevel>& /* level */) const {}
 };
 
 /// \ingroup Solver

@@ -103,7 +103,7 @@ void FlameMasterKinetics::FillFromCons(const CompletePatchData& q,
 void FlameMasterKinetics::FillFromPrim(const CompletePatchData& q,
                                        const PrimPatchData& prim) const {
   q.temperature.copy(prim.temperature);
-  q.momentum.copy(prim.momentum);
+  q.momentum.copy(prim.velocity);
   q.pressure.copy(prim.pressure);
   q.species.copy(prim.species);
   SAMRAI::hier::Box intersection(q.density.getDim());
@@ -238,7 +238,6 @@ void FlameMasterKinetics::UpdateStateFromReactor(
   const double gamma = reactor.getCp() / reactor.getCv();
   buffer[int(Variable::speed_of_sound)] =
       std::sqrt(gamma * reactor.getPressure() / rho);
-  const int n_species = GetNSpecies();
   span<const double> Y = reactor.getMassFractions();
   std::transform(Y.begin(), Y.end(), &buffer[int(Variable::species)],
                  [rho](double Yi) { return rho * Yi; });

@@ -23,7 +23,7 @@
 
 #include "SAMRAI/hier/Patch.h"
 #include "SAMRAI/hier/PatchHierarchy.h"
-#include "fub/SAMRAI/Direction.hpp"
+#include "fub/Direction.hpp"
 
 namespace fub {
 /// \ingroup Abstract

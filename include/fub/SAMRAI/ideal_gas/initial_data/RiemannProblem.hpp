@@ -22,11 +22,12 @@
 #define FUB_IDEAL_GAS_INITIAL_DATA_RIEMANN_PROBLEM_HPP
 
 #include "fub/SAMRAI/initial_data/RiemannProblem.hpp"
+#include "fub/SAMRAI/ideal_gas/IdealGasEquation.hpp"
 
 namespace fub {
 namespace ideal_gas {
 
-class RiemannProblem : public fub::RiemannProblem {
+class RiemannProblem : public ::fub::RiemannProblem {
 public:
   using CompletePatchData = IdealGasEquation::CompletePatchData;
 
@@ -53,10 +54,10 @@ private:
     fub::ideal_gas::IdealGasEquation::PrimPatchData prim =
         ideal_gas->GetPrimPatchData(patch);
     SAMRAI::pdat::CellIndex i(index);
-    prim.momentum(i) = state.velocity;
+    prim.velocity(i) = state.velocity;
     prim.pressure(i) = state.pressure;
     prim.temperature(i) = state.temperature;
-    for (int s = 0; s < state.species.size(); ++s) {
+    for (std::size_t s = 0; s < state.species.size(); ++s) {
       prim.species(i, s) = state.species[s];
     }
   }

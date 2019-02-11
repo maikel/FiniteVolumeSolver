@@ -10,12 +10,12 @@ namespace ideal_gas {
 static double GetLindRateCoeff(double temp, double pressure, double k0,
                                double kInf, double fc, double conc);
 
-static double GetPlogRateCoeff(double temp, double pressure, double lgt,
-                               double rt_inv, double* PlogP, double* PlogA,
-                               double* PlogB, double* PlogE, int np);
+// static double GetPlogRateCoeff(double temp, double pressure, double lgt,
+//                                double rt_inv, double* PlogP, double* PlogA,
+//                                double* PlogB, double* PlogE, int np);
 
 static double MAX_C(double X1, double X2);
-static double MIN_C(double X1, double X2);
+// static double MIN_C(double X1, double X2);
 
 void Zhao2008Dme::ComputeProductionRates(span<double> cdot, span<double> w,
                                          span<double> k, span<double> c,
@@ -40,8 +40,8 @@ void Zhao2008Dme::ComputeProductionRates(span<double> cdot, span<double> w,
   double RGAS = 8314.34;
   double lgt = log(temp);
   double rt_inv = 1.0 / (RGAS * temp);
-  double PlogA[14], PlogB[14], PlogE[14], PlogP[14];
-  int np;
+  // double PlogA[14], PlogB[14], PlogE[14] /* , PlogP[14] */;
+  // int np;
 
   M[mM1] = c[sH] + 0x1.4p+1 * c[sH2] + c[sCH2] + c[sCH2S] + c[sCH3] + c[sO] +
            c[sCH4] + c[sOH] + 0x1.8p+3 * c[sH2O] + c[sC2H] + c[sC2H2] +
@@ -2663,9 +2663,9 @@ void Zhao2008Dme::ComputeProductionRates(span<double> cdot, span<double> w,
               w[r10b];
 }
 
-double GetLindRateCoeff(double temp, double pressure, double k0, double kInf,
-                        double fc, double conc) {
-  const double R = 8314.34; /* [J / kmole K] */
+double GetLindRateCoeff(double /* temp */, double /* pressure */, double k0,
+                        double kInf, double fc, double conc) {
+  // const double R = 8314.34; /* [J / kmole K] */
   double Ntmp;
   double kl;
   double f;
@@ -4190,33 +4190,33 @@ void Zhao2008Dme::ComputeThermoData(span<double> h, span<double> cp, double T,
 }
 
 double MAX_C(double X1, double X2) { return ((X1 > X2) ? X1 : X2); }
-double MIN_C(double X1, double X2) { return ((X2 > X1) ? X1 : X2); }
+// double MIN_C(double X1, double X2) { return ((X2 > X1) ? X1 : X2); }
 
-double GetPlogRateCoeff(double temp, double pressure, double lgt, double rt_inv,
-                        double* PlogP, double* PlogA, double* PlogB,
-                        double* PlogE, int np) {
-  double kR, kR_l, kR_r;
-  int i;
-  if (pressure <= PlogP[0])
-    kR = PlogA[0] * exp(PlogB[0] * lgt - PlogE[0] * rt_inv);
-  else if (pressure >= PlogP[np - 1])
-    kR = PlogA[np - 1] * exp(PlogB[np - 1] * lgt - PlogE[np - 1] * rt_inv);
-  else {
-    /* interpolate */
-    for (i = 0; i < np; i++) {
-      if (pressure <= PlogP[i])
-        break;
-    }
+// double GetPlogRateCoeff(double /* temp */, double pressure, double lgt, double rt_inv,
+//                         double* PlogP, double* PlogA, double* PlogB,
+//                         double* PlogE, int np) {
+//   double kR, kR_l, kR_r;
+//   int i;
+//   if (pressure <= PlogP[0])
+//     kR = PlogA[0] * exp(PlogB[0] * lgt - PlogE[0] * rt_inv);
+//   else if (pressure >= PlogP[np - 1])
+//     kR = PlogA[np - 1] * exp(PlogB[np - 1] * lgt - PlogE[np - 1] * rt_inv);
+//   else {
+//     /* interpolate */
+//     for (i = 0; i < np; i++) {
+//       if (pressure <= PlogP[i])
+//         break;
+//     }
 
-    kR_l = PlogA[i - 1] * exp(PlogB[i - 1] * lgt - PlogE[i - 1] * rt_inv);
-    kR_r = PlogA[i] * exp(PlogB[i] * lgt - PlogE[i] * rt_inv);
-    kR = exp(log(MAX_C(kR_l, 1e-60)) +
-             (log(MAX_C(kR_r, 1e-60)) - log(MAX_C(kR_l, 1e-60))) /
-                 (log(PlogP[i]) - log(PlogP[i - 1])) *
-                 (log(pressure) - log(PlogP[i - 1])));
-  }
-  return MIN_C(kR, DBL_MAX);
-}
+//     kR_l = PlogA[i - 1] * exp(PlogB[i - 1] * lgt - PlogE[i - 1] * rt_inv);
+//     kR_r = PlogA[i] * exp(PlogB[i] * lgt - PlogE[i] * rt_inv);
+//     kR = exp(log(MAX_C(kR_l, 1e-60)) +
+//              (log(MAX_C(kR_r, 1e-60)) - log(MAX_C(kR_l, 1e-60))) /
+//                  (log(PlogP[i]) - log(PlogP[i - 1])) *
+//                  (log(pressure) - log(PlogP[i - 1])));
+//   }
+//   return MIN_C(kR, DBL_MAX);
+// }
 
 const char* Zhao2008Dme::GetMechanismResource() const {
   return R"RESOURCE(ELEMENTS

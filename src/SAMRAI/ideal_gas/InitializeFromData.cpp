@@ -45,7 +45,7 @@ void InitializeFromData::InitializeDataOnPatch(
   for (const SAMRAI::hier::Index& index : box) {
     SAMRAI::pdat::CellIndex cell(index);
     prim.temperature(cell) = at(index[0], Variable::temperature);
-    prim.momentum(cell) = at(index[0], Variable::momentum);
+    prim.velocity(cell) = at(index[0], Variable::momentum);
     prim.pressure(cell) = at(index[0], Variable::pressure);
     const int n_species = time_integrator_->GetEquation()->GetNSpecies();
     auto species = [](int s) { return Variable(int(Variable::species) + s); };

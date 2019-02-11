@@ -147,7 +147,7 @@ void FillSpeciesNames_(span<std::string> snames) {
     TC_getSnames(snames.size(), buffer.get());
     return std::string(buffer.get(), buffer.get() + buffer_size);
   }();
-  for (std::size_t i = 0; i < snames.size(); ++i) {
+  for (std::ptrdiff_t i = 0; i < snames.size(); ++i) {
     std::string name = all_names.substr(0, max_species_name_length);
     boost::algorithm::trim_right(name);
     snames[i] = std::move(name);
@@ -235,7 +235,6 @@ double TChemReactor::GetInternalEnergy() const {
 void TChemReactor::SetInternalEnergy(double U, double tol) {
   const double T = GetTemperatureFromInternalEnergy_(
       U, temperature_and_mass_fractions_, internal_energies_, tol);
-  span<const double> Y = GetMassFractions();
   SetPressure(density_ * TC_getRUniv() / GetMeanMolarMass() * T);
   SetTemperature(T);
 }
@@ -309,10 +308,10 @@ int TChemReactor::GetNSpecies() const { return TC_getNspec(); }
 
 void TChemReactor::Advance(double dt) {
   if (dt > 0) {
-    auto source_term = [](span<double> dydt, span<const double> y, double t) {
+    auto source_term = [](span<double> dydt, span<const double> y, double) {
       TC_getSrcCV(const_cast<double*>(y.data()), y.size(), dydt.data());
     };
-    auto jacobian = [](span<double> jac, span<const double> TandYs, double t) {
+    auto jacobian = [](span<double> jac, span<const double> TandYs, double) {
       int Ns = TandYs.size() - 1;
       TC_getJacCVTYNanl(const_cast<double*>(TandYs.data()), Ns, jac.data());
     };

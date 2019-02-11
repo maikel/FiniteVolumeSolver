@@ -24,6 +24,7 @@
 #include <mpi.h>
 
 namespace fub {
+namespace samrai {
 
 /// Initialises and finalizes the required SAMRAI routines for an application.
 struct ScopeGuard {
@@ -41,6 +42,7 @@ struct ScopeGuard {
   ~ScopeGuard() noexcept;
 };
 
+} // namespace samrai
 } // namespace fub
 
 #endif

@@ -26,6 +26,18 @@
 #include "fub/core/pragma.hpp"
 #include "fub/core/type_traits.hpp"
 
+#include <boost/hana/bool.hpp>
+#include <boost/hana/config.hpp>
+#include <boost/hana/detail/algorithm.hpp>
+#include <boost/hana/fwd/at.hpp>
+#include <boost/hana/fwd/core/tag_of.hpp>
+#include <boost/hana/fwd/drop_front.hpp>
+#include <boost/hana/fwd/equal.hpp>
+#include <boost/hana/fwd/is_empty.hpp>
+#include <boost/hana/fwd/length.hpp>
+#include <boost/hana/fwd/less.hpp>
+#include <boost/hana/integral_constant.hpp>
+
 #include <array>
 #include <type_traits>
 
@@ -1009,6 +1021,61 @@ auto make_span(const Container& array)
 
 } // namespace fub
 
+namespace std {
+
+template <typename T, std::ptrdiff_t N>
+class tuple_size<fub::span<T, N>>
+    : public std::integral_constant<std::size_t, N> {};
+
+} // namespace std
+
 ENABLE_WARNING(attributes, unknown-attributes, 42);
+
+BOOST_HANA_NAMESPACE_BEGIN
+namespace ext {
+namespace fub {
+struct span_tag;
+}
+} // namespace ext
+
+template <typename T, std::ptrdiff_t N> struct tag_of<fub::span<T, N>> {
+  using type = ext::fub::span_tag;
+};
+
+//////////////////////////////////////////////////////////////////////////
+// Foldable
+//////////////////////////////////////////////////////////////////////////
+template <> struct length_impl<ext::fub::span_tag> {
+  template <typename Xs> static constexpr auto apply(Xs const&) {
+    return hana::size_c<std::tuple_size<Xs>::type::value>;
+  }
+};
+
+//////////////////////////////////////////////////////////////////////////
+// Iterable
+//////////////////////////////////////////////////////////////////////////
+template <> struct at_impl<ext::fub::span_tag> {
+  template <typename T, std::ptrdiff_t Extent, typename N>
+  static constexpr decltype(auto) apply(fub::span<T, Extent> xs, N const&) {
+    constexpr std::ptrdiff_t n = N::value;
+    return xs[n];
+  }
+};
+
+template <> struct drop_front_impl<ext::fub::span_tag> {
+  template <typename T, std::ptrdiff_t Extent, typename N>
+  static constexpr auto apply(fub::span<T, Extent> xs, N const&) {
+    constexpr std::ptrdiff_t n = N::value;
+    return xs.template last<Extent - n>();
+  }
+};
+
+template <> struct is_empty_impl<ext::fub::span_tag> {
+  template <typename T, std::ptrdiff_t N>
+  static constexpr auto apply(fub::span<T, N> const&) {
+    return hana::bool_c<(N > 0)> ;
+  }
+};
+BOOST_HANA_NAMESPACE_END
 
 #endif // !SPAN_HPP

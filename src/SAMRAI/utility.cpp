@@ -33,6 +33,7 @@
 #include "Eigen/Eigen"
 
 namespace fub {
+namespace samrai {
 
 std::shared_ptr<SAMRAI::hier::PatchHierarchy>
 MakeCartesianPatchHierarchy(const IndexRange& ir, const CoordinateRange& cr) {
@@ -91,4 +92,5 @@ GetCartesianPatchGeometry(const SAMRAI::hier::Patch& patch) {
       patch.getPatchGeometry().get());
 }
 
+} // namespace samrai
 } // namespace fub

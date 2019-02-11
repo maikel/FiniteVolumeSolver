@@ -21,9 +21,13 @@
 #ifndef FUB_SAMRAI_DIMENSIONAL_SPLIT_FLUX_METHOD_HPP
 #define FUB_SAMRAI_DIMENSIONAL_SPLIT_FLUX_METHOD_HPP
 
-#include "fub/SAMRAI/Direction.hpp"
+#include "fub/Direction.hpp"
 
 #include "SAMRAI/hier/Patch.h"
+
+#include <SAMRAI/pdat/SideData.h>
+#include <SAMRAI/pdat/CellData.h>
+
 #include "SAMRAI/mesh/GriddingAlgorithm.h"
 #include "SAMRAI/tbox/Dimension.h"
 
@@ -33,12 +37,6 @@ namespace fub {
 ///
 /// A flux method has the task to compute flux data between cells. Flux data is
 /// normally located at faces.
-///
-/// \tparam FluxData  The concrete type which will be used as reference to flux
-///                   data.
-/// \tparam StateData  The concrete type which will be used as a reference to
-///                    complete state data.
-template <typename FluxData, typename StateData>
 struct DimensionalSplitFluxMethod {
   virtual ~DimensionalSplitFluxMethod() = default;
 
@@ -49,11 +47,11 @@ struct DimensionalSplitFluxMethod {
   /// To make a stable estimation this function may assume a standard forward
   /// euler update for the conservative variables.
   ///
-  /// \param[in] states  A reference to complete state data.
+  /// \param[in] states A reference to complete state data.
   /// \param[in] patch  The patch in question.
-  virtual double ComputeStableDtOnPatch(const StateData& states,
-                                        const SAMRAI::hier::Patch& patch,
-                                        Direction dir) const = 0;
+  virtual double
+  ComputeStableDtOnPatch(span<const SAMRAI::pdat::CellData<double>*> states,
+                         const SAMRAI::hier::Patch& patch, int dir) const = 0;
 
   /// \brief Fill the flux data on a patch based on the given states.
   ///
@@ -63,10 +61,11 @@ struct DimensionalSplitFluxMethod {
   ///                    related to the area in question.
   /// \param[in] dt      The time step size which will be taken.
   /// \param[in] dir     The split direction.
-  virtual void ComputeFluxesOnPatch(const FluxData& fluxes,
-                                    const StateData& states,
-                                    const SAMRAI::hier::Patch& patch, double dt,
-                                    Direction dir) const = 0;
+  virtual void
+  ComputeFluxesOnPatch(span<SAMRAI::pdat::SideData<double>*> fluxes,
+                       span<const SAMRAI::pdat::CellData<double>*> states,
+                       const SAMRAI::hier::Patch& patch, double dt,
+                       int dir) const = 0;
 
   /// \brief Returns the required stencil in each direction.
   ///

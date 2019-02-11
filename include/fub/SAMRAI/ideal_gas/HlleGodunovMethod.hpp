@@ -25,7 +25,11 @@
 #include "fub/SAMRAI/ideal_gas/IdealGasEquation.hpp"
 
 namespace fub {
+namespace samrai {
 namespace ideal_gas {
+
+using namespace ::fub::ideal_gas;
+
 /// \ingroup IdealGas
 /// This class is a first order flux method for the IdealGas problem which uses
 /// the approximative HLL riemann problem solver with Einfeldts signals
@@ -58,7 +62,9 @@ public:
   SAMRAI::hier::IntVector
   GetStencilWidth(const SAMRAI::tbox::Dimension& dim) const override;
 };
+
 } // namespace ideal_gas
+}
 } // namespace fub
 
 #endif

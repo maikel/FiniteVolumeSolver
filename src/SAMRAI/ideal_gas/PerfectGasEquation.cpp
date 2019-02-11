@@ -24,7 +24,7 @@ void PerfectGasEquation::FillFromCons(const CompletePatchData& q,
 void PerfectGasEquation::FillFromPrim(const CompletePatchData& q,
                                       const PrimPatchData& w) const {
   q.temperature.copy(w.temperature);
-  q.momentum.copy(w.momentum);
+  q.momentum.copy(w.velocity);
   q.pressure.copy(w.pressure);
   const SAMRAI::hier::Box& box = q.density.getBox();
   for (const SAMRAI::hier::Index& index : box) {

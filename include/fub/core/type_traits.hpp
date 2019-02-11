@@ -281,6 +281,12 @@ struct is_regular
     : conjunction<std::is_default_constructible<T>, std::is_copy_assignable<T>,
                   is_equality_comparable<T>> {};
 
+// helper type for the visitor #4
+template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
+#ifdef __cpp_deduction_guides
+template<class... Ts> overloaded(Ts...) -> overloaded<Ts...>;
+#endif
+
 } // namespace fub
 
 #endif // !TYPE_TRAITS_HPP

@@ -34,8 +34,6 @@ else()
   option(FUB_WITH_AMREX "Compile with AMReX modules." OFF)
 endif()
 
-# We currently use Eigen3 only in one place, to compute cell coordinates. 
-# Note: Consider to drop that dependency, or use it more.
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 
 # Attempt to find Sundials (which contains an optional ODE solver)
@@ -93,6 +91,25 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/include/fub/config.hpp.in
                ${CMAKE_BINARY_DIR}/include/fub/config.hpp)
 
 ################################################################################
+# [ReactiveEulerSolver.Core]
+
+add_library(ReactiveEulerSolver.Core INTERFACE)
+target_include_directories(ReactiveEulerSolver.Core 
+  INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>)
+target_link_libraries(ReactiveEulerSolver.Core INTERFACE Boost::boost)
+target_compile_features(ReactiveEulerSolver.Core INTERFACE cxx_std_17)
+
+install(
+  TARGETS ReactiveEulerSolver.Core
+  EXPORT ReactiveEulerSolver
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
+  LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
+)
+
+################################################################################
 # [ReactiveEulerSolver.OdeSolver]
 
 add_library(ReactiveEulerSolver.OdeSolver 
@@ -109,17 +126,30 @@ endif()
 
 target_link_libraries(ReactiveEulerSolver.OdeSolver
   PUBLIC 
+    ReactiveEulerSolver.Core
     RadauSolverFortran)
-target_include_directories(ReactiveEulerSolver.OdeSolver 
-  PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>
+target_include_directories(ReactiveEulerSolver.OdeSolver
   PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
-target_compile_features(ReactiveEulerSolver.OdeSolver PUBLIC cxx_std_14)
 install(
   TARGETS ReactiveEulerSolver.OdeSolver
+  EXPORT ReactiveEulerSolver
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
+  LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
+)
+
+add_library(ReactiveEulerSolver.Equations
+  # src/equations/Advection.cpp
+  src/equations/Burgers.cpp
+  src/equations/ShallowWater.cpp
+  src/CartesianCoordinates.cpp)
+target_link_libraries(ReactiveEulerSolver.Equations
+  PUBLIC
+    ReactiveEulerSolver.OdeSolver
+    Boost::boost
+    Eigen3::Eigen)
+install(
+  TARGETS ReactiveEulerSolver.Equations
   EXPORT ReactiveEulerSolver
   ARCHIVE DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
   LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
@@ -129,8 +159,11 @@ install(
 # [ReactiveEulerSolver.IdealGas]
 
 add_library(ReactiveEulerSolver.IdealGas
+  src/ideal_gas/IdealGasEquation.cpp
   src/ideal_gas/FlameMasterReactor.cpp
   src/ideal_gas/TChemReactor.cpp
+  src/ideal_gas/IdealGasEquation.cpp
+  src/ideal_gas/flux_method/HlleGodunovMethod.cpp
   src/ideal_gas/mechanism/Burke2012.cpp
   src/ideal_gas/mechanism/Gri30.cpp
   src/ideal_gas/mechanism/Zhao2008Dme.cpp
@@ -140,6 +173,7 @@ target_link_libraries(ReactiveEulerSolver.IdealGas
   PUBLIC
     ReactiveEulerSolver.OdeSolver
     Boost::boost
+    Eigen3::Eigen
     TChem)
 target_include_directories(ReactiveEulerSolver.IdealGas
   PRIVATE 
@@ -168,12 +202,36 @@ install(
 )
 
 ################################################################################
+# [ReactiveEulerSolver.AMReX]
+
+if (AMReX_FOUND AND TARGET AMReX::amrex)
+  add_library(ReactiveEulerSolver.AMReX
+    src/AMReX/ScopeGuard.cpp)
+  target_include_directories(ReactiveEulerSolver.AMReX 
+    PUBLIC 
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+      $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>
+    PRIVATE 
+      ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+  target_link_libraries(ReactiveEulerSolver.AMReX
+    PUBLIC
+      ReactiveEulerSolver.Equations
+      AMReX::amrex
+      Boost::boost
+      Eigen3::Eigen)
+endif()
+
+################################################################################
 # [ReactiveEulerSolver.SAMRAI]
 
 if (SAMRAI_FOUND)
   add_library(ReactiveEulerSolver.SAMRAI
+    src/SAMRAI/HyperbolicSplitLevelIntegrator.cpp
     src/SAMRAI/ScopeGuard.cpp
     src/SAMRAI/utility.cpp
+    src/SAMRAI/CartesianPatchHierarchy.cpp
+    src/SAMRAI/RegisterVariables.cpp
     src/SAMRAI/DimensionalSplitTimeIntegrator.cpp
     src/SAMRAI/DimensionalSplitSystemSolver.cpp
     src/SAMRAI/DimensionalSplitSystemSourceSolver.cpp
@@ -193,11 +251,12 @@ if (SAMRAI_FOUND)
   )
   target_link_libraries(ReactiveEulerSolver.SAMRAI
     PUBLIC
+      ReactiveEulerSolver.Equations
       SAMRAI_appu SAMRAI_mesh SAMRAI_geom 
       Boost::boost
       Boost::filesystem
       Eigen3::Eigen)
-  target_compile_features(ReactiveEulerSolver.SAMRAI PUBLIC cxx_std_14)
+  target_compile_features(ReactiveEulerSolver.SAMRAI PUBLIC cxx_std_17)
   install(
     TARGETS ReactiveEulerSolver.SAMRAI
     EXPORT ReactiveEulerSolver

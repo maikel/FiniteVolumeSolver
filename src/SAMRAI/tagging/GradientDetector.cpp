@@ -41,7 +41,7 @@ double computePartialGradient_(const SAMRAI::pdat::CellData<double>& q,
 
 void GradientDetector::fillTagsForRefinement(const SAMRAI::hier::Patch& patch,
                                              int tag_id,
-                                             double time_point) const {
+                                             double /* time_point */) const {
   SAMRAI::pdat::CellData<int>& tags =
       *std::static_pointer_cast<SAMRAI::pdat::CellData<int>>(
           patch.getPatchData(tag_id));
