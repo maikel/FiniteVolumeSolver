@@ -55,7 +55,7 @@ static void BM_AdvanceState(benchmark::State& state) {
     mass(i, 0, 0) = wave_packet(x - 0.5);
   }
 
-  DimensionalSplitHyperbolicTimeIntegrator integrator(equation);
+  HyperbolicSplitIntegrator integrator(equation);
   MusclHancockMethod flux_method(equation, GodunovMethod(equation));
   SimpleSolver solver(integrator, flux_method);
   simple::PeriodicBoundary boundary(equation);

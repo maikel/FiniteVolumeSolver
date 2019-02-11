@@ -31,6 +31,25 @@
 
 namespace fub {
 namespace samrai {
+void BoundaryCondition::setPhysicalBoundaryConditions(
+    SAMRAI::hier::Patch& patch, double fill_time,
+    const SAMRAI::hier::IntVector& ghost_width_to_fill) {
+  const SAMRAI::hier::PatchGeometry& geometry = *patch.getPatchGeometry();
+  const std::vector<SAMRAI::hier::BoundaryBox>& boundaries =
+      geometry.getCodimensionBoundaries(1);
+  for (const SAMRAI::hier::BoundaryBox& bbox : boundaries) {
+    SAMRAI::hier::Box fill_box =
+        geometry.getBoundaryFillBox(bbox, patch.getBox(), ghost_width_to_fill);
+    if (fill_box.size() > 0) {
+      const int direction = bbox.getLocationIndex() / 2;
+      const int side = bbox.getLocationIndex() % 2;
+      const int index = 2 * direction + side;
+      base_->SetPhysicalBoundaryCondition(patch, fill_box, fill_time,
+                                          Direction(direction), side);
+    }
+  }
+}
+
 namespace {
 template <typename T>
 constexpr span<const T*> AsConst(span<T*> pointers) noexcept {
@@ -270,37 +289,37 @@ MakeRefineSchedules(
 } // namespace
 
 HyperbolicSplitLevelIntegrator::HyperbolicSplitLevelIntegrator(
-    PatchDataIdSet description,
-    std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy,
+    SAMRAI::tbox::Dimension dim, PatchDataIdSet description,
     HyperbolicSplitPatchIntegrator& patch_integrator,
     DimensionalSplitFluxMethod& flux_method,
     DimensionalSplitBoundaryCondition& boundary_condition)
-    : description_{std::move(description)}, hierarchy_{std::move(hierarchy)},
+    : description_{std::move(description)}, hierarchy_{nullptr},
       patch_integrator_{&patch_integrator}, flux_method_{&flux_method},
       boundary_condition_{&boundary_condition},
       data_ids_{RegisterInternalDataIds(
-          description_, flux_method_->GetStencilWidth(hierarchy_->getDim()),
-          hierarchy_->getDim())},
-      coarsen_outerside_algorithm_{
-          CoarsenOuterSideAlgorithm(hierarchy_->getDim(), data_ids_)},
-      coarsen_outerside_{
-          MakeCoarsenSchedules(*coarsen_outerside_algorithm_, hierarchy_)},
+          description_, flux_method_->GetStencilWidth(dim), dim)},
+      coarsen_outerside_algorithm_{CoarsenOuterSideAlgorithm(dim, data_ids_)},
       coarsen_inner_region_algorithm_{CoarsenInnerRegionAlgorithm(
-          hierarchy_->getDim(), data_ids_, description_.conservative)},
-      coarsen_inner_region_{
-          MakeCoarsenSchedules(*coarsen_inner_region_algorithm_, hierarchy_)},
-      fill_ghost_layer_algorithm_{
-          FillGhostLayerAlgorithms(hierarchy_->getDim(), data_ids_)},
-      fill_ghost_layer_{MakeRefineSchedules(fill_ghost_layer_algorithm_,
-                                            hierarchy_, boundary_condition_)} {}
+          dim, data_ids_, description_.conservative)},
+      fill_ghost_layer_algorithm_{FillGhostLayerAlgorithms(dim, data_ids_)} {}
+
+void HyperbolicSplitLevelIntegrator::ResetHierarchyConfiguration(
+    std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy) {
+  hierarchy_ = std::move(hierarchy);
+  coarsen_outerside_ =
+      MakeCoarsenSchedules(*coarsen_outerside_algorithm_, hierarchy_);
+  coarsen_inner_region_ =
+      MakeCoarsenSchedules(*coarsen_inner_region_algorithm_, hierarchy_);
+  fill_ghost_layer_ = MakeRefineSchedules(fill_ghost_layer_algorithm_,
+                                          hierarchy_, boundary_condition_);
+}
 
 void HyperbolicSplitLevelIntegrator::AdvanceLevel(
     const SAMRAI::hier::PatchLevel& level, int direction, double dt) {
   // Do the normal conservative update on each patch of this level
   for (const std::shared_ptr<SAMRAI::hier::Patch>& patch : level) {
     // Compute fluxes in the specified direction
-    auto scratch =
-        GetScratch(*patch, direction);
+    auto scratch = GetScratch(*patch, direction);
     StaticVector<SAMRAI::pdat::SideData<double>*> fluxes =
         GetFluxes(*patch, direction);
     flux_method_->ComputeFluxesOnPatch(fluxes, AsConst(span(scratch)), *patch,

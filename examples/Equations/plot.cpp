@@ -5,7 +5,7 @@
 
 #include "fub/flux_method/GodunovMethod.hpp"
 #include "fub/flux_method/MusclHancockMethod.hpp"
-#include "fub/solver/DimensionalSplitHyperbolicTimeIntegrator.hpp"
+#include "fub/solver/HyperbolicSplitIntegrator.hpp"
 
 #include "fub/simple_grid/boundary_condition/PeriodicBoundary.hpp"
 
@@ -35,7 +35,7 @@ int main() {
     mass(i, 0, 0) = wave_packet(x - 0.5);
   }
 
-  DimensionalSplitHyperbolicTimeIntegrator integrator(equation);
+  HyperbolicSplitIntegrator integrator(equation);
   MusclHancockMethod flux_method(equation, GodunovMethod(equation));
   SimpleSolver solver(integrator, flux_method);
   simple::PeriodicBoundary boundary(equation);

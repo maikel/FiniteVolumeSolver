@@ -18,15 +18,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_SOLVER_DIMENSIONAL_SPLIT_HYPERBOLIC_TIME_INTEGRATOR_HPP
-#define FUB_SOLVER_DIMENSIONAL_SPLIT_HYPERBOLIC_TIME_INTEGRATOR_HPP
+#ifndef FUB_SOLVER_DIMENSIONAL_SPLIT_HYPERBOLIC_INTEGRATOR_HPP
+#define FUB_SOLVER_DIMENSIONAL_SPLIT_HYPERBOLIC_INTEGRATOR_HPP
 
 #include "fub/Direction.hpp"
 #include "fub/Equation.hpp"
 
 namespace fub {
 
-template <typename Eq> class DimensionalSplitHyperbolicTimeIntegrator {
+template <typename Eq> class HyperbolicSplitIntegrator {
 public:
   using Equation = Eq;
   using State = SimdifyT<typename Equation::State>;
@@ -37,7 +37,7 @@ public:
   template <typename T>
   using StateStridedSpan = StateView<T, Equation, layout_stride>;
 
-  DimensionalSplitHyperbolicTimeIntegrator(const Equation& eq) : equation{eq} {}
+  HyperbolicSplitIntegrator(const Equation& eq) : equation{eq} {}
 
   void AdvanceTimeOnSpans(StateSpan<double> next,
                           StateStridedSpan<const double> prev,
@@ -57,7 +57,7 @@ private:
 };
 
 template <typename Equation>
-void DimensionalSplitHyperbolicTimeIntegrator<Equation>::AdvanceInTime(
+void HyperbolicSplitIntegrator<Equation>::AdvanceInTime(
     State& next, const State& prev, const Cons& flux_left,
     const Cons& flux_right, const Array1d& lambda) {
   ForEachVariable(
@@ -65,12 +65,10 @@ void DimensionalSplitHyperbolicTimeIntegrator<Equation>::AdvanceInTime(
         next = prev + lambda * (flux_left - flux_right);
       },
       AsCons(next), AsCons(prev), flux_left, flux_right);
-
-  equation.Reconstruct(next, AsCons(next));
 }
 
 template <typename Equation>
-void DimensionalSplitHyperbolicTimeIntegrator<Equation>::AdvanceTimeOnSpans(
+void HyperbolicSplitIntegrator<Equation>::AdvanceTimeOnSpans(
     StateSpan<double> next, StateStridedSpan<const double> prev,
     ConsSpan<const double> fluxes, double dt, double dx, Direction dir) {
   Array1d lambda;

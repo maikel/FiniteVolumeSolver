@@ -84,11 +84,10 @@ public:
   static constexpr int MaxVariables = 8;
 
   HyperbolicSplitLevelIntegrator(
-      PatchDataIdSet description,
-      std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy,
-      HyperbolicSplitPatchIntegrator& patch_integrator,
-      DimensionalSplitFluxMethod& flux_method,
-      DimensionalSplitBoundaryCondition& boundary_condition);
+    SAMRAI::tbox::Dimension dim, PatchDataIdSet description,
+    HyperbolicSplitPatchIntegrator& patch_integrator,
+    DimensionalSplitFluxMethod& flux_method,
+    DimensionalSplitBoundaryCondition& boundary_condition);
 
   double ComputeStableDt(int direction);
 

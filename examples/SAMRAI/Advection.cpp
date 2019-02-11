@@ -121,6 +121,13 @@ int main(int argc, char** argv) {
   const fub::samrai::PatchDataIdSet data_ids =
       fub::samrai::RegisterVariables(advection, "Advection");
 
+  fub::PatchIntegrator patch_integrator{};
+  fub::FluxMethod flux_method{};
+  fub::BoundaryCondition_ boundary_condition{};
+
+  fub::samrai::HyperbolicSplitLevelIntegrator level_integrator(
+      dim, data_ids, patch_integrator, flux_method, boundary_condition);
+
   using State = fub::Advection<2>::State;
   fub::GradientDetector tagging(std::pair{&State::mass, 1e-2});
 
@@ -134,13 +141,6 @@ int main(int argc, char** argv) {
   }
 
   hierarchy->recursivePrint(SAMRAI::tbox::pout, {}, 2);
-
-  fub::PatchIntegrator patch_integrator{};
-  fub::FluxMethod flux_method{};
-  fub::BoundaryCondition_ boundary_condition{};
-
-  fub::samrai::HyperbolicSplitLevelIntegrator level_integrator(
-      data_ids, hierarchy, patch_integrator, flux_method, boundary_condition);
 
   SAMRAI::hier::VariableDatabase::getDatabase()->printClassData(
       SAMRAI::tbox::pout);

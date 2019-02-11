@@ -5,7 +5,7 @@
 
 #include "fub/flux_method/GodunovMethod.hpp"
 #include "fub/flux_method/MusclHancockMethod.hpp"
-#include "fub/solver/DimensionalSplitHyperbolicTimeIntegrator.hpp"
+#include "fub/solver/HyperbolicSplitIntegrator.hpp"
 
 #include "fub/simple_grid/boundary_condition/PeriodicBoundary.hpp"
 
@@ -35,7 +35,7 @@ static void BM_AdvanceState(benchmark::State& state) {
     momentum(i, 0, 0, 1) = 0.0;
   }
 
-  DimensionalSplitHyperbolicTimeIntegrator integrator(equation);
+  HyperbolicSplitIntegrator integrator(equation);
   // MusclHancockMethod flux_method(equation, GodunovMethod(equation));
   GodunovMethod flux_method(equation);
   SimpleSolver solver(integrator, flux_method);
