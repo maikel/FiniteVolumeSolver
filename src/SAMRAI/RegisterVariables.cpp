@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 
-#include "fub/SAMRAI/RegisterVariables.hpp"
+#include "fub/grid/SAMRAI/RegisterVariables.hpp"
 
 namespace fub {
 namespace samrai {

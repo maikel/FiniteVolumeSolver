@@ -21,67 +21,43 @@
 #ifndef FUB_EQUATIONS_BURGERS_HPP
 #define FUB_EQUATIONS_BURGERS_HPP
 
-#include "fub/Eigen.hpp"
-#include "fub/StateFacade.hpp"
-#include "fub/Equation.hpp"
+#include "fub/Direction.hpp"
+#include "fub/ExactRiemannSolver.hpp"
+#include "fub/State.hpp"
+#include "fub/VariableDescription.hpp"
+#include "fub/ext/Eigen.hpp"
+#include "fub/ext/hana.hpp"
 
 #include <array>
 
 namespace fub {
-
-struct Burgers {
-  template <typename Mass> struct ConsData {
-    using Equation = Burgers;
-    BOOST_HANA_DEFINE_STRUCT(ConsData, (Mass, mass));
-  };
-
-  template <typename Mass> struct StateData {
-    using Equation = Burgers;
-    BOOST_HANA_DEFINE_STRUCT(StateData, (Mass, mass));
-  };
-
-  // clang-format off
-  using State = StateFacade<StateData<
-    Scalar  // Mass
-  >>;
-  using Cons = StateFacade<ConsData<
-    Scalar  // Mass
-  >>;
-  // clang-format on
-
-  /// Computes the linear transport flux in the specified direction.
-  ///
-  /// \note This method is mandatory.
-  void Flux(Cons& flux, const State& state, Direction dir = Direction::X) const
-      noexcept;
-
-  /// This method is just the identity.
-  /// The types State and Cons differ in general and need this kind of
-  /// conversion method.
-  ///
-  /// \note This method is mandatory.
-  void Reconstruct(State& state, const Cons& cons) const noexcept;
-
-  /// Computes the exact solution to the 1-dim riemann problem at relative
-  /// coordinates `(0, t)`
-  ///
-  /// \note Providing this method is OPTIONAL but enables the automatic usage
-  /// with the GodunovMethod and other utility classes.
-  void SolveRiemannProblem(State& state, const State& left, const State& right,
-                           Direction dir = Direction::X);
+template <typename U> struct BurgersVariables {
+  BOOST_HANA_DEFINE_STRUCT(BurgersVariables, (U, u));
 };
 
-template <typename T>
-auto AsCons(const StateFacade<Burgers::StateData<T>>& state) {
-  return boost::hana::make<StateTag<Burgers::ConsData>>(
-      Scalar::Map(state.mass.data()));
-}
+struct Burgers1d : VariableDescription<BurgersVariables<Scalar>> {
+  using Complete = ::fub::Complete<Burgers1d>;
+  using Cons = ::fub::Cons<Burgers1d>;
 
-template <typename T>
-auto AsCons(StateFacade<Burgers::StateData<T>>& state) {
-  return boost::hana::make<StateTag<Burgers::ConsData>>(
-      Scalar::Map(state.mass.data()));
-}
+  static constexpr int Rank() { return 1; }
+
+  void Flux(Cons& flux, const Complete& state,
+            Direction dir = Direction::X) const noexcept;
+};
+
+template <> class ExactRiemannSolver<Burgers1d> {
+public:
+  using Complete = typename Burgers1d::Complete;
+
+  ExactRiemannSolver(const Burgers1d&){}
+
+  void SolveRiemannProblem(Complete& state, const Complete& left,
+                           const Complete& right, Direction dir) const;
+
+  std::array<double, 1> ComputeSignals(const Complete& left,
+                                       const Complete& right,
+                                       Direction dir) const;
+};
 
 } // namespace fub
 

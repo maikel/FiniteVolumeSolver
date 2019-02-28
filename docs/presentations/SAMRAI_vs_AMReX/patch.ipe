@@ -1,0 +1,514 @@
+<?xml version="1.0"?>
+<!DOCTYPE ipe SYSTEM "ipe.dtd">
+<ipe version="70206" creator="Ipe 7.2.10">
+<info created="D:20190225234335" modified="D:20190228091528" tex="pdftex"/>
+<preamble>\usepackage[T1]{fontenc}
+\usepackage{dsfont}
+\usepackage{arev,t1enc}</preamble>
+<ipestyle name="basic">
+<symbol name="arrow/arc(spx)">
+<path stroke="sym-stroke" fill="sym-stroke" pen="sym-pen">
+0 0 m
+-1 0.333 l
+-1 -0.333 l
+h
+</path>
+</symbol>
+<symbol name="arrow/farc(spx)">
+<path stroke="sym-stroke" fill="white" pen="sym-pen">
+0 0 m
+-1 0.333 l
+-1 -0.333 l
+h
+</path>
+</symbol>
+<symbol name="arrow/ptarc(spx)">
+<path stroke="sym-stroke" fill="sym-stroke" pen="sym-pen">
+0 0 m
+-1 0.333 l
+-0.8 0 l
+-1 -0.333 l
+h
+</path>
+</symbol>
+<symbol name="arrow/fptarc(spx)">
+<path stroke="sym-stroke" fill="white" pen="sym-pen">
+0 0 m
+-1 0.333 l
+-0.8 0 l
+-1 -0.333 l
+h
+</path>
+</symbol>
+<symbol name="mark/circle(sx)" transformations="translations">
+<path fill="sym-stroke">
+0.6 0 0 0.6 0 0 e
+0.4 0 0 0.4 0 0 e
+</path>
+</symbol>
+<symbol name="mark/disk(sx)" transformations="translations">
+<path fill="sym-stroke">
+0.6 0 0 0.6 0 0 e
+</path>
+</symbol>
+<symbol name="mark/fdisk(sfx)" transformations="translations">
+<group>
+<path fill="sym-fill">
+0.5 0 0 0.5 0 0 e
+</path>
+<path fill="sym-stroke" fillrule="eofill">
+0.6 0 0 0.6 0 0 e
+0.4 0 0 0.4 0 0 e
+</path>
+</group>
+</symbol>
+<symbol name="mark/box(sx)" transformations="translations">
+<path fill="sym-stroke" fillrule="eofill">
+-0.6 -0.6 m
+0.6 -0.6 l
+0.6 0.6 l
+-0.6 0.6 l
+h
+-0.4 -0.4 m
+0.4 -0.4 l
+0.4 0.4 l
+-0.4 0.4 l
+h
+</path>
+</symbol>
+<symbol name="mark/square(sx)" transformations="translations">
+<path fill="sym-stroke">
+-0.6 -0.6 m
+0.6 -0.6 l
+0.6 0.6 l
+-0.6 0.6 l
+h
+</path>
+</symbol>
+<symbol name="mark/fsquare(sfx)" transformations="translations">
+<group>
+<path fill="sym-fill">
+-0.5 -0.5 m
+0.5 -0.5 l
+0.5 0.5 l
+-0.5 0.5 l
+h
+</path>
+<path fill="sym-stroke" fillrule="eofill">
+-0.6 -0.6 m
+0.6 -0.6 l
+0.6 0.6 l
+-0.6 0.6 l
+h
+-0.4 -0.4 m
+0.4 -0.4 l
+0.4 0.4 l
+-0.4 0.4 l
+h
+</path>
+</group>
+</symbol>
+<symbol name="mark/cross(sx)" transformations="translations">
+<group>
+<path fill="sym-stroke">
+-0.43 -0.57 m
+0.57 0.43 l
+0.43 0.57 l
+-0.57 -0.43 l
+h
+</path>
+<path fill="sym-stroke">
+-0.43 0.57 m
+0.57 -0.43 l
+0.43 -0.57 l
+-0.57 0.43 l
+h
+</path>
+</group>
+</symbol>
+<symbol name="arrow/fnormal(spx)">
+<path stroke="sym-stroke" fill="white" pen="sym-pen">
+0 0 m
+-1 0.333 l
+-1 -0.333 l
+h
+</path>
+</symbol>
+<symbol name="arrow/pointed(spx)">
+<path stroke="sym-stroke" fill="sym-stroke" pen="sym-pen">
+0 0 m
+-1 0.333 l
+-0.8 0 l
+-1 -0.333 l
+h
+</path>
+</symbol>
+<symbol name="arrow/fpointed(spx)">
+<path stroke="sym-stroke" fill="white" pen="sym-pen">
+0 0 m
+-1 0.333 l
+-0.8 0 l
+-1 -0.333 l
+h
+</path>
+</symbol>
+<symbol name="arrow/linear(spx)">
+<path stroke="sym-stroke" pen="sym-pen">
+-1 0.333 m
+0 0 l
+-1 -0.333 l
+</path>
+</symbol>
+<symbol name="arrow/fdouble(spx)">
+<path stroke="sym-stroke" fill="white" pen="sym-pen">
+0 0 m
+-1 0.333 l
+-1 -0.333 l
+h
+-1 0 m
+-2 0.333 l
+-2 -0.333 l
+h
+</path>
+</symbol>
+<symbol name="arrow/double(spx)">
+<path stroke="sym-stroke" fill="sym-stroke" pen="sym-pen">
+0 0 m
+-1 0.333 l
+-1 -0.333 l
+h
+-1 0 m
+-2 0.333 l
+-2 -0.333 l
+h
+</path>
+</symbol>
+<pen name="heavier" value="0.8"/>
+<pen name="fat" value="1.2"/>
+<pen name="ultrafat" value="2"/>
+<symbolsize name="large" value="5"/>
+<symbolsize name="small" value="2"/>
+<symbolsize name="tiny" value="1.1"/>
+<arrowsize name="large" value="10"/>
+<arrowsize name="small" value="5"/>
+<arrowsize name="tiny" value="3"/>
+<color name="red" value="1 0 0"/>
+<color name="green" value="0 1 0"/>
+<color name="blue" value="0 0 1"/>
+<color name="yellow" value="1 1 0"/>
+<color name="orange" value="1 0.647 0"/>
+<color name="gold" value="1 0.843 0"/>
+<color name="purple" value="0.627 0.125 0.941"/>
+<color name="gray" value="0.745"/>
+<color name="brown" value="0.647 0.165 0.165"/>
+<color name="navy" value="0 0 0.502"/>
+<color name="pink" value="1 0.753 0.796"/>
+<color name="seagreen" value="0.18 0.545 0.341"/>
+<color name="turquoise" value="0.251 0.878 0.816"/>
+<color name="violet" value="0.933 0.51 0.933"/>
+<color name="darkblue" value="0 0 0.545"/>
+<color name="darkcyan" value="0 0.545 0.545"/>
+<color name="darkgray" value="0.663"/>
+<color name="darkgreen" value="0 0.392 0"/>
+<color name="darkmagenta" value="0.545 0 0.545"/>
+<color name="darkorange" value="1 0.549 0"/>
+<color name="darkred" value="0.545 0 0"/>
+<color name="lightblue" value="0.678 0.847 0.902"/>
+<color name="lightcyan" value="0.878 1 1"/>
+<color name="lightgray" value="0.827"/>
+<color name="lightgreen" value="0.565 0.933 0.565"/>
+<color name="lightyellow" value="1 1 0.878"/>
+<dashstyle name="dashed" value="[4] 0"/>
+<dashstyle name="dotted" value="[1 3] 0"/>
+<dashstyle name="dash dotted" value="[4 2 1 2] 0"/>
+<dashstyle name="dash dot dotted" value="[4 2 1 2 1 2] 0"/>
+<textsize name="large" value="\large"/>
+<textsize name="Large" value="\Large"/>
+<textsize name="LARGE" value="\LARGE"/>
+<textsize name="huge" value="\huge"/>
+<textsize name="Huge" value="\Huge"/>
+<textsize name="small" value="\small"/>
+<textsize name="footnote" value="\footnotesize"/>
+<textsize name="tiny" value="\tiny"/>
+<textstyle name="center" begin="\begin{center}" end="\end{center}"/>
+<textstyle name="itemize" begin="\begin{itemize}" end="\end{itemize}"/>
+<textstyle name="item" begin="\begin{itemize}\item{}" end="\end{itemize}"/>
+<gridsize name="4 pts" value="4"/>
+<gridsize name="8 pts (~3 mm)" value="8"/>
+<gridsize name="16 pts (~6 mm)" value="16"/>
+<gridsize name="32 pts (~12 mm)" value="32"/>
+<gridsize name="10 pts (~3.5 mm)" value="10"/>
+<gridsize name="20 pts (~7 mm)" value="20"/>
+<gridsize name="14 pts (~5 mm)" value="14"/>
+<gridsize name="28 pts (~10 mm)" value="28"/>
+<gridsize name="56 pts (~20 mm)" value="56"/>
+<anglesize name="90 deg" value="90"/>
+<anglesize name="60 deg" value="60"/>
+<anglesize name="45 deg" value="45"/>
+<anglesize name="30 deg" value="30"/>
+<anglesize name="22.5 deg" value="22.5"/>
+<opacity name="10%" value="0.1"/>
+<opacity name="30%" value="0.3"/>
+<opacity name="50%" value="0.5"/>
+<opacity name="75%" value="0.75"/>
+<tiling name="falling" angle="-60" step="4" width="1"/>
+<tiling name="rising" angle="30" step="4" width="1"/>
+</ipestyle>
+<page>
+<layer name="alpha"/>
+<layer name="beta"/>
+<layer name="gamma"/>
+<layer name="delta"/>
+<layer name="epsilon"/>
+<view layers="epsilon" active="epsilon"/>
+<view layers="beta" active="beta"/>
+<path layer="alpha" matrix="1 0 0 0.833333 -56 120" stroke="black" pen="heavier">
+128 768 m
+128 720 l
+256 720 l
+256 768 l
+h
+</path>
+<path matrix="1 0 0 0.833333 -56 56" stroke="black" pen="heavier">
+128 768 m
+128 720 l
+256 720 l
+256 768 l
+h
+</path>
+<path matrix="1 0 0 0.833333 -56 -8" stroke="black" pen="heavier">
+128 768 m
+128 720 l
+256 720 l
+256 768 l
+h
+</path>
+<path matrix="1 0 0 0.833333 -56 -72" stroke="black" pen="heavier">
+128 768 m
+128 720 l
+256 720 l
+256 768 l
+h
+</path>
+<path matrix="1 0 0 0.771739 -152 219.652" stroke="black" pen="heavier">
+208 752 m
+208 384 l
+368 384 l
+368 752 l
+h
+</path>
+<text matrix="1 0 0 1 -160 40" transformations="translations" pos="240 736" stroke="black" type="label" width="113.952" height="7.447" depth="0.13" valign="baseline">\texttt{SAMRAI::hier::Patch}</text>
+<text matrix="1 0 0 1 8 0" transformations="translations" pos="88 736" stroke="black" type="label" width="77.967" height="7.449" depth="2.1" valign="baseline">\texttt{PatchGeometry}</text>
+<text matrix="1 0 0 1 -8 0" transformations="translations" pos="96 672" stroke="black" type="label" width="89.962" height="7.447" depth="0.13" valign="baseline">\texttt{PatchData ID: 0}</text>
+<text matrix="1 0 0 1 -8 0" transformations="translations" pos="96 608" stroke="black" type="label" width="89.962" height="7.447" depth="0.13" valign="baseline">\texttt{PatchData ID: 1}</text>
+<text matrix="1 0 0 1 -8 0" transformations="translations" pos="96 544" stroke="black" type="label" width="89.962" height="7.447" depth="0.13" valign="baseline">\texttt{PatchData ID: 2}</text>
+<path matrix="1.125 0 0 0.833333 160 120" stroke="black" pen="heavier">
+128 768 m
+128 720 l
+256 720 l
+256 768 l
+h
+</path>
+<path matrix="1 0 0 0.833333 184 56" stroke="black" pen="heavier">
+128 768 m
+128 720 l
+256 720 l
+256 768 l
+h
+</path>
+<path matrix="1 0 0 0.833333 184 -8" stroke="black" pen="heavier">
+128 768 m
+128 720 l
+256 720 l
+256 768 l
+h
+</path>
+<path matrix="1 0 0 0.833333 184 -72" stroke="black" pen="heavier">
+128 768 m
+128 720 l
+256 720 l
+256 768 l
+h
+</path>
+<text matrix="1 0 0 1 224 0" transformations="translations" pos="88 736" stroke="black" type="label" width="131.945" height="7.449" depth="2.1" valign="baseline">\texttt{CartesianPatchGeometry}</text>
+<text matrix="1 0 0 1 232 0" transformations="translations" pos="96 672" stroke="black" type="label" width="95.96" height="7.447" depth="0.13" valign="baseline">\texttt{CellData&lt;double&gt;}</text>
+<text matrix="1 0 0 1 232 0" transformations="translations" pos="96 608" stroke="black" type="label" width="95.96" height="7.447" depth="0.13" valign="baseline">\texttt{SideData&lt;double&gt;}</text>
+<text matrix="1 0 0 1 228 0" transformations="translations" pos="96 544" stroke="black" type="label" width="101.957" height="7.449" depth="2.1" valign="baseline">\texttt{MyUserDefinedData}</text>
+<path stroke="black" fill="white" pen="heavier" rarrow="normal/normal">
+180 740 m
+304 740 l
+</path>
+<path stroke="black" fill="white" pen="heavier" rarrow="normal/normal">
+184 676 m
+312 676 l
+</path>
+<path stroke="black" fill="white" pen="heavier" rarrow="normal/normal">
+188 612 m
+312 612 l
+312 612 l
+312 612 l
+</path>
+<path stroke="black" fill="white" pen="heavier" rarrow="normal/normal">
+188 548 m
+312 548 l
+</path>
+<path layer="beta" matrix="1 0 0 0.833333 -56 120" stroke="black" pen="heavier">
+128 768 m
+128 720 l
+256 720 l
+256 768 l
+h
+</path>
+<path matrix="1 0 0 0.833333 -56 56" stroke="black" pen="heavier">
+128 768 m
+128 720 l
+256 720 l
+256 768 l
+h
+</path>
+<path matrix="1 0 0 0.833333 -56 -8" stroke="black" pen="heavier">
+128 768 m
+128 720 l
+256 720 l
+256 768 l
+h
+</path>
+<path matrix="1 0 0 0.833333 -56 -72" stroke="black" pen="heavier">
+128 768 m
+128 720 l
+256 720 l
+256 768 l
+h
+</path>
+<path matrix="1 0 0 0.771739 -152 219.652" stroke="black" pen="heavier">
+208 752 m
+208 384 l
+368 384 l
+368 752 l
+h
+</path>
+<text matrix="1 0 0 1 -176 40" transformations="translations" pos="240 736" stroke="black" type="label" width="143.94" height="7.447" depth="0.13" valign="baseline">\texttt{SAMRAI::hier::PatchLevel}</text>
+<text transformations="translations" pos="88 736" stroke="black" type="label" width="95.96" height="7.449" depth="2.1" valign="baseline">\texttt{BaseGridGeometry}</text>
+<text matrix="1 0 0 1 16 0" transformations="translations" pos="96 672" stroke="black" type="label" width="47.98" height="7.447" depth="0.13" valign="baseline">\texttt{BoxLevel}</text>
+<text matrix="1 0 0 1 -4 0" transformations="translations" pos="96 608" stroke="black" type="label" width="89.962" height="7.449" depth="2.1" valign="baseline">\texttt{PatchDescriptor}</text>
+<text matrix="1 0 0 1 -12 0" transformations="translations" pos="96 544" stroke="black" type="label" width="107.955" height="7.447" depth="0.13" valign="baseline">\texttt{std::vector&lt;Patch&gt;}</text>
+<path matrix="1.125 0 0 0.833333 160 120" stroke="black" pen="heavier">
+128 768 m
+128 720 l
+256 720 l
+256 768 l
+h
+</path>
+<text matrix="1 0 0 1 224 0" transformations="translations" pos="88 736" stroke="black" type="label" width="125.947" height="7.449" depth="2.1" valign="baseline">\texttt{CartesianGridGeometry}</text>
+<path stroke="black" fill="white" pen="heavier" rarrow="normal/normal">
+208 740 m
+304 740 l
+</path>
+<text layer="gamma" matrix="1 0 0 1 16 16" transformations="translations" pos="272 640" stroke="black" type="label" width="167.93" height="7.449" depth="2.1" valign="baseline">\texttt{SAMRAI::hier::PatchHierarchy}</text>
+<text matrix="1 0 0 1 0 16" transformations="translations" pos="272 608" stroke="black" type="label" width="208.877" height="7.629" depth="1.99" valign="baseline">ist eine Folge von verfeinerten PatchLevel</text>
+<path layer="delta" matrix="1 0 0 1 -4 -4" stroke="black">
+112 688 m
+112 640 l
+256 640 l
+256 688 l
+h
+</path>
+<text matrix="1 0 0 1 -16 0" transformations="translations" pos="144 656" stroke="black" type="label" width="101.957" height="7.447" depth="0.13" valign="baseline">\texttt{amrex::BaseFab&lt;T&gt;}</text>
+<path stroke="black" arrow="normal/normal">
+100 588 m
+144 644 l
+</path>
+<path stroke="black">
+44 600 m
+44 552 l
+160 552 l
+160 600 l
+h
+</path>
+<path matrix="1 0 0 1 152 0" stroke="black">
+44 600 m
+44 552 l
+160 552 l
+160 600 l
+h
+</path>
+<path matrix="1.41379 0 0 1 137.793 180" stroke="black">
+44 600 m
+44 552 l
+160 552 l
+160 600 l
+h
+</path>
+<text matrix="1 0 0 1 -56 -4" transformations="translations" pos="264 756" stroke="black" type="label" width="149.937" height="7.449" depth="2.1" valign="baseline">\texttt{SAMRAI::pdat::CellData&lt;T&gt;}</text>
+<path matrix="1.41379 0 0 1 317.793 180" stroke="black">
+44 600 m
+44 552 l
+160 552 l
+160 600 l
+h
+</path>
+<text matrix="1 0 0 1 124 -4" transformations="translations" pos="264 756" stroke="black" type="label" width="149.937" height="7.449" depth="2.1" valign="baseline">\texttt{SAMRAI::pdat::SideData&lt;T&gt;}</text>
+<path matrix="1.41379 0 0 1 317.793 112" stroke="black">
+44 600 m
+44 552 l
+160 552 l
+160 600 l
+h
+</path>
+<text matrix="1 0 0 1 124 -72" transformations="translations" pos="264 756" stroke="black" type="label" width="149.937" height="7.449" depth="2.1" valign="baseline">\texttt{SAMRAI::pdat::NodeData&lt;T&gt;}</text>
+<path stroke="black">
+188 800
+172 756
+204 712
+416 612
+568 644
+568 716
+568 776
+552 812
+212 808 u
+</path>
+<path stroke="black" arrow="normal/normal" rarrow="normal/normal">
+300 712 m
+240 676 l
+</path>
+<text matrix="0.576087 0 0 1 -42.7826 -84" transformations="translations" pos="352 604" stroke="black" type="label" width="368.657" height="7.629" depth="1.99" valign="baseline">\texttt{BaseFab&lt;T&gt;} übernimmt in \texttt{AMReX} die Rolle von PatchData Typen in \texttt{SAMRAI}</text>
+<path stroke="black" arrow="normal/normal">
+232 588 m
+196 644 l
+</path>
+<text matrix="1 0 0 1 -4 -4" transformations="translations" pos="60 576" stroke="black" type="label" width="95.96" height="7.449" depth="2.1" valign="baseline">\texttt{amrex::FArrayBox}</text>
+<text matrix="1 0 0 1 0 -4" transformations="translations" pos="216 576" stroke="black" type="label" width="77.967" height="7.449" depth="2.1" valign="baseline">\texttt{amrex::TagBox}</text>
+<text layer="epsilon" matrix="1 0 0 1 -48 60" transformations="translations" pos="152 744" stroke="black" type="label" width="77.967" height="7.449" depth="2.1" valign="baseline">\texttt{FabArray&lt;FAB&gt;}</text>
+<path matrix="1 0 0 1 -40 88" stroke="black" pen="heavier">
+128 736 m
+128 704 l
+240 704 l
+240 736 l
+h
+</path>
+<text matrix="1 0 0 1 -104 -4" transformations="translations" pos="152 744" stroke="black" type="label" width="47.98" height="7.447" depth="0.13" valign="baseline">\texttt{MultiFab}</text>
+<path matrix="1 0 0 1 -112 24" stroke="black" pen="heavier">
+128 736 m
+128 704 l
+240 704 l
+240 736 l
+h
+</path>
+<path matrix="1 0 0 1 -40 88" stroke="black" pen="heavier" arrow="normal/normal">
+136 664 m
+152 712 l
+</path>
+<text matrix="1 0 0 1 16 -4" transformations="translations" pos="152 744" stroke="black" type="label" width="65.972" height="7.449" depth="2.1" valign="baseline">\texttt{TagBoxArray}</text>
+<path matrix="1 0 0 1 16 24" stroke="black" pen="heavier">
+128 736 m
+128 704 l
+240 704 l
+240 736 l
+h
+</path>
+<path stroke="black" pen="heavier" arrow="normal/normal">
+176 752 m
+160 800 l
+</path>
+</page>
+</ipe>

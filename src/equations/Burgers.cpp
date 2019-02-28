@@ -22,25 +22,35 @@
 
 namespace fub {
 
-void Burgers::Flux(Cons& flux, const State& state, Direction dir) const
-    noexcept {
-  flux.mass = 0.5 * state.mass * state.mass;
+void Burgers1d::Flux(Cons& flux, const Complete& state,
+                     Direction dir) const noexcept {
+  flux.u = 0.5 * state.u * state.u;
 }
 
-void Burgers::Reconstruct(State& state, const Cons& cons) const noexcept {
-  state.mass = cons.mass;
+void ExactRiemannSolver<Burgers1d>::SolveRiemannProblem(
+    Complete& riemann_solution, const Complete& left, const Complete& right,
+    Direction) const {
+  if (right.u < left.u) {
+    const double s = 0.5 * (left.u + right.u);
+    riemann_solution.u = s < 0 ? right.u : left.u;
+  } else {
+    if (left.u > 0) {
+      riemann_solution.u = left.u;
+    } else if (right.u < 0) {
+      riemann_solution.u = right.u;
+    } else {
+      riemann_solution.u = 0.0;
+    }
+  }
 }
 
-void Burgers::SolveRiemannProblem(State& riemann_solution, const State& left,
-                                  const State& right, Direction) {
-  const Array1d s = (0.5 * (right.mass * right.mass - left.mass * left.mass)) /
-                    (right.mass - left.mass);
-  Array1d zero;
-  zero.fill(0.0);
-  const auto sol1 = (s < zero).select(left.mass, right.mass);
-  const auto sol2 = (right.mass < zero)
-          .select(right.mass, (left.mass > zero).select(left.mass, zero));
-  riemann_solution.mass = (left.mass < right.mass).select(sol1, sol2);
+std::array<double, 1> ExactRiemannSolver<Burgers1d>::ComputeSignals(
+    const Complete& left, const Complete& right, Direction) const {
+  if (right.u < left.u) {
+    const double s = 0.5 * (left.u + right.u);
+    return {s};
+  }
+  return {std::max(std::abs(left.u), std::abs(right.u))};
 }
 
 } // namespace fub

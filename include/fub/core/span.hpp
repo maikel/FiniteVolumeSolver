@@ -43,6 +43,7 @@
 
 DISABLE_WARNING(attributes, unknown-attributes, 42);
 
+
 namespace fub {
 /// \defgroup spans Spans
 /// Types and function which are about non-owning ranges of contiguous memory.
@@ -278,6 +279,15 @@ public:
 #endif
   constexpr span(const span<S, M>& s) noexcept // NOLINT
       : pointer_{s.data()} {
+  }
+
+  template <
+      typename S,
+      typename = std::enable_if_t<std::is_convertible<
+          typename span<S>::element_type (*)[], element_type (*)[]>::value>>
+  constexpr span(const span<S>& s) // NOLINT
+      : pointer_{s.data()} {
+    FUB_ASSERT(s.size() == extent);
   }
 
   /// Defaulted copy constructor to trivially copy the class member variables.
@@ -1073,7 +1083,7 @@ template <> struct drop_front_impl<ext::fub::span_tag> {
 template <> struct is_empty_impl<ext::fub::span_tag> {
   template <typename T, std::ptrdiff_t N>
   static constexpr auto apply(fub::span<T, N> const&) {
-    return hana::bool_c<(N > 0)> ;
+    return hana::bool_c<(N > 0)>;
   }
 };
 BOOST_HANA_NAMESPACE_END

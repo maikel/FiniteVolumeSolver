@@ -29,6 +29,11 @@ enum class Direction : int {
   X, Y, Z
 };
 
+struct Location {
+  Direction direction;
+  int side;
+};
+
 }
 
 #endif

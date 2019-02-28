@@ -21,104 +21,56 @@
 #ifndef FUB_EQUATIONS_ADVECTION_HPP
 #define FUB_EQUATIONS_ADVECTION_HPP
 
-#include "fub/Eigen.hpp"
-#include "fub/Equation.hpp"
-#include "fub/StateFacade.hpp"
+// #include "fub/Equation.hpp"
+#include "fub/Direction.hpp"
+#include "fub/ExactRiemannSolver.hpp"
+#include "fub/State.hpp"
+#include "fub/VariableDescription.hpp"
+#include "fub/ext/Eigen.hpp"
+#include "fub/ext/hana.hpp"
 
 #include <array>
 
 namespace fub {
+template <typename Mass> struct AdvectionVariables {
+  BOOST_HANA_DEFINE_STRUCT(AdvectionVariables, (Mass, mass));
+};
 
-template <int Rank> struct Advection {
-  static constexpr int kRank = Rank;
+struct Advection2d : VariableDescription<AdvectionVariables<Scalar>> {
+  using Complete = ::fub::Complete<Advection2d>;
+  using Cons = ::fub::Cons<Advection2d>;
 
-  template <typename Mass> struct ConsData {
-    using Equation = Advection;
-    BOOST_HANA_DEFINE_STRUCT(ConsData, (Mass, mass));
-  };
+  Advection2d(const std::array<double, 2>& v) noexcept : velocity{v} {}
 
-  template <typename Mass> struct StateData {
-    using Equation = Advection;
-    BOOST_HANA_DEFINE_STRUCT(StateData, (Mass, mass));
-  };
-
-  // clang-format off
-  using State = StateFacade<StateData<
-    double  // Mass
-  >>;
-  using Cons = StateFacade<ConsData<
-    double  // Mass
-  >>;
-  // clang-format on
-
-  using SimdState = SimdifyT<State>;
-  using SimdCons = SimdifyT<Cons>;
-
-  constexpr static int rank() { return Rank; }
-
-  /// Initializes this equation with a fixed velocity for each direction
-  /// specified by vel.
-  explicit Advection(const std::array<double, Rank>& vel) : velocity{vel} {}
+  static constexpr int Rank() { return 2; }
 
   /// Computes the linear transport flux in the specified direction.
   ///
-  /// The output parameter will be filled with `v_{text{dir}} \cdot q`.
-  ///
   /// \param[out] flux The conservative state which will store the results.
   /// \param[in] state The input state.
-  /// \param[in] dir   The split direction of this flux .
-  ///
-  /// \note This method is mandatory.
-  void Flux(SimdCons& flux, const SimdState& state,
-            Direction dir = Direction::X) const noexcept;
+  /// \param[in] dir   The split direction of this flux.
+  void Flux(Cons& flux, const Complete& state, Direction dir) const noexcept;
 
-  /// This method is just the identity.
-  /// The types State and Cons differ in general and need this kind of
-  /// conversion method.
-  ///
-  /// \note This method is mandatory.
-  void Reconstruct(SimdState& state, const SimdCons& cons) const noexcept;
-
-  /// Computes the exact solution to the 1-dim riemann problem along the
-  /// relative coordinates `(0, t)`
-  ///
-  /// \note Providing this method is OPTIONAL but enables the automatic usage
-  /// with the GodunovMethod and other utility classes.
-  void SolveRiemannProblem(SimdState& state, const SimdState& left,
-                           const SimdState& right,
-                           Direction dir = Direction::X);
-
-  std::array<double, Rank> velocity;
+  std::array<double, 2> velocity;
 };
 
-template <int Rank>
-void Advection<Rank>::Flux(SimdCons& flux, const SimdState& state,
-                           Direction dir) const noexcept {
-  const int dir_v = int(dir);
-  flux.mass = state.mass * velocity[dir_v];
-}
+template <> class ExactRiemannSolver<Advection2d> {
+public:
+  using Complete = typename Advection2d::Complete;
 
-template <int Rank>
-void Advection<Rank>::Reconstruct(SimdState& state, const SimdCons& cons) const
-    noexcept {
-  state.mass = cons.mass;
-}
+  ExactRiemannSolver(const Advection2d& equation) : equation_{equation} {}
 
-template <int Rank>
-void Advection<Rank>::SolveRiemannProblem(SimdState& state,
-                                          const SimdState& left,
-                                          const SimdState& right,
-                                          Direction dir) {
-  const int dir_v = int(dir);
-  if (0.0 < velocity[dir_v]) {
-    state = left;
-  } else {
-    state = right;
-  }
-}
+  /// Returns either left or right, depending on the upwind velocity.
+  void SolveRiemannProblem(Complete& state, const Complete& left,
+                           const Complete& right, Direction dir);
 
-template <std::size_t Rank>
-Advection(const std::array<double, Rank>&)->Advection<Rank>;
+  /// Returns the upwind velocity in the specified direction.
+  std::array<double, 1> ComputeSignals(const Complete&, const Complete&,
+                                       Direction dir);
+
+private:
+  Advection2d equation_;
+};
 
 } // namespace fub
 

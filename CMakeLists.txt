@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.13)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
-project(ReactiveEulerSolver CXX Fortran)
+project(HyperbolicSolver CXX Fortran)
 
 # Detect if we use conan to build this project and its dependencies.
 # If yes, we include the neccessary build information, i.e. include paths and
@@ -10,7 +10,7 @@ if (EXISTS ${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
   conan_basic_setup()
 endif()
 
-# Attempt to find SAMRAI (optinonal)
+# Try to find SAMRAI (optional)
 find_package(SAMRAI QUIET)
 
 if (SAMRAI_FOUND)
@@ -23,7 +23,7 @@ else()
   find_package(Boost REQUIRED)
 endif()
 
-# Try to find AMReX
+# Try to find AMReX (optional)
 find_package(AMReX QUIET)
 
 if (AMReX_FOUND)
@@ -40,9 +40,9 @@ find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 find_package(Sundials QUIET)
 
 if (TARGET Sundials::cvode)
-  option(FUB_WITH_SUNDIALS "Compile with support for CVode" ON)
-else()
   option(FUB_WITH_SUNDIALS "Compile with support for CVode" OFF)
+else()
+  option(FUB_WITH_SUNDIALS "Compile with support for CVode" ON)
 endif()
 
 # Attempt to find Intel TBB (optional multi threading support)
@@ -81,7 +81,7 @@ endif()
 
 install(
   TARGETS RadauSolverFortran
-  EXPORT ReactiveEulerSolver
+  EXPORT HyperbolicSolver
   ARCHIVE DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
   LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
 )
@@ -91,175 +91,130 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/include/fub/config.hpp.in
                ${CMAKE_BINARY_DIR}/include/fub/config.hpp)
 
 ################################################################################
-# [ReactiveEulerSolver.Core]
+# [HyperbolicSolver.Core]
 
-add_library(ReactiveEulerSolver.Core INTERFACE)
-target_include_directories(ReactiveEulerSolver.Core 
+add_library(HyperbolicSolver.Core INTERFACE)
+target_include_directories(HyperbolicSolver.Core 
   INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>)
-target_link_libraries(ReactiveEulerSolver.Core INTERFACE Boost::boost)
-target_compile_features(ReactiveEulerSolver.Core INTERFACE cxx_std_17)
+target_link_libraries(HyperbolicSolver.Core INTERFACE Boost::boost)
+target_compile_features(HyperbolicSolver.Core INTERFACE cxx_std_17)
 
 install(
-  TARGETS ReactiveEulerSolver.Core
-  EXPORT ReactiveEulerSolver
+  TARGETS HyperbolicSolver.Core
+  EXPORT HyperbolicSolver
   ARCHIVE DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
   LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
 )
 
 ################################################################################
-# [ReactiveEulerSolver.OdeSolver]
+# [HyperbolicSolver.OdeSolver]
 
-add_library(ReactiveEulerSolver.OdeSolver 
+add_library(HyperbolicSolver.OdeSolver 
   src/ode_solver/RadauSolver.cpp
   src/ode_solver/OdeSolverFactory.cpp)
 
 # If we found Sundials::cvode then we include its sources to the target.
 if (Sundials_FOUND AND FUB_WITH_SUNDIALS)
-  target_sources(ReactiveEulerSolver.OdeSolver 
+  target_sources(HyperbolicSolver.OdeSolver 
     PRIVATE 
       src/ode_solver/CVodeSolver.cpp)
-  target_link_libraries(ReactiveEulerSolver.OdeSolver PUBLIC Sundials::cvode)
+  target_link_libraries(HyperbolicSolver.OdeSolver PUBLIC Sundials::cvode)
 endif()
 
-target_link_libraries(ReactiveEulerSolver.OdeSolver
+target_link_libraries(HyperbolicSolver.OdeSolver
   PUBLIC 
-    ReactiveEulerSolver.Core
+    HyperbolicSolver.Core
     RadauSolverFortran)
-target_include_directories(ReactiveEulerSolver.OdeSolver
+target_include_directories(HyperbolicSolver.OdeSolver
   PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
 install(
-  TARGETS ReactiveEulerSolver.OdeSolver
-  EXPORT ReactiveEulerSolver
+  TARGETS HyperbolicSolver.OdeSolver
+  EXPORT HyperbolicSolver
   ARCHIVE DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
   LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
 )
 
-add_library(ReactiveEulerSolver.Equations
-  # src/equations/Advection.cpp
+find_package(fmt REQUIRED)
+
+add_library(HyperbolicSolver.Solver
+  src/equations/Advection.cpp
   src/equations/Burgers.cpp
   src/equations/ShallowWater.cpp
-  src/CartesianCoordinates.cpp)
-target_link_libraries(ReactiveEulerSolver.Equations
+  src/equations/PerfectGas.cpp
+  src/CartesianCoordinates.cpp
+  src/split_method/GodunovSplitting.cpp
+  src/split_method/StrangSplitting.cpp
+  src/RunSimulation.cpp)
+target_link_libraries(HyperbolicSolver.Solver
   PUBLIC
-    ReactiveEulerSolver.OdeSolver
+    HyperbolicSolver.Core
+    fmt::fmt
     Boost::boost
     Eigen3::Eigen)
 install(
-  TARGETS ReactiveEulerSolver.Equations
-  EXPORT ReactiveEulerSolver
+  TARGETS HyperbolicSolver.Solver
+  EXPORT HyperbolicSolver
   ARCHIVE DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
   LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
 )
 
 ################################################################################
-# [ReactiveEulerSolver.IdealGas]
-
-add_library(ReactiveEulerSolver.IdealGas
-  src/ideal_gas/IdealGasEquation.cpp
-  src/ideal_gas/FlameMasterReactor.cpp
-  src/ideal_gas/TChemReactor.cpp
-  src/ideal_gas/IdealGasEquation.cpp
-  src/ideal_gas/flux_method/HlleGodunovMethod.cpp
-  src/ideal_gas/mechanism/Burke2012.cpp
-  src/ideal_gas/mechanism/Gri30.cpp
-  src/ideal_gas/mechanism/Zhao2008Dme.cpp
-  src/ideal_gas/mechanism/AramcoMech_DMEonly_74spec.cpp
-  src/ideal_gas/mechanism/AramcoMech_woC3H4_91spec.cpp)
-target_link_libraries(ReactiveEulerSolver.IdealGas 
-  PUBLIC
-    ReactiveEulerSolver.OdeSolver
-    Boost::boost
-    Eigen3::Eigen
-    TChem)
-target_include_directories(ReactiveEulerSolver.IdealGas
-  PRIVATE 
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
-target_compile_features(ReactiveEulerSolver.IdealGas PUBLIC cxx_std_14)
-install(
-  TARGETS ReactiveEulerSolver.IdealGas
-  EXPORT ReactiveEulerSolver
-  ARCHIVE DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
-  LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
-)
-install(
-  DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/fub/core
-  DESTINATION ${CMAKE_INSTALL_PREFIX}/include/fub/
-  FILES_MATCHING PATTERN *.hpp
-)
-install(
-  DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/fub/ode_solver
-  DESTINATION ${CMAKE_INSTALL_PREFIX}/include/fub/
-  FILES_MATCHING PATTERN *.hpp
-)
-install(
-  DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/fub/ideal_gas
-  DESTINATION ${CMAKE_INSTALL_PREFIX}/include/fub/
-  FILES_MATCHING PATTERN *.hpp
-)
-
-################################################################################
-# [ReactiveEulerSolver.AMReX]
+# [HyperbolicSolver.AMReX]
 
 if (AMReX_FOUND AND TARGET AMReX::amrex)
-  add_library(ReactiveEulerSolver.AMReX
-    src/AMReX/ScopeGuard.cpp)
-  target_include_directories(ReactiveEulerSolver.AMReX 
+  add_library(HyperbolicSolver.AMReX
+    src/AMReX/ScopeGuard.cpp
+    src/AMReX/CartesianGridGeometry.cpp
+    src/AMReX/PatchHierarchy.cpp
+    src/AMReX/GriddingAlgorithm.cpp
+    src/AMReX/HyperbolicSplitIntegratorContext.cpp)
+  target_include_directories(HyperbolicSolver.AMReX 
     PUBLIC 
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
       $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>
     PRIVATE 
       ${CMAKE_CURRENT_SOURCE_DIR}
   )
-  target_link_libraries(ReactiveEulerSolver.AMReX
+  target_link_libraries(HyperbolicSolver.AMReX
     PUBLIC
-      ReactiveEulerSolver.Equations
+      HyperbolicSolver.Solver
       AMReX::amrex
       Boost::boost
       Eigen3::Eigen)
 endif()
 
 ################################################################################
-# [ReactiveEulerSolver.SAMRAI]
+# [HyperbolicSolver.SAMRAI]
 
 if (SAMRAI_FOUND)
-  add_library(ReactiveEulerSolver.SAMRAI
-    src/SAMRAI/HyperbolicSplitLevelIntegrator.cpp
+  add_library(HyperbolicSolver.SAMRAI
+    src/SAMRAI/HyperbolicSplitIntegratorContext.cpp
     src/SAMRAI/ScopeGuard.cpp
     src/SAMRAI/utility.cpp
     src/SAMRAI/CartesianPatchHierarchy.cpp
-    src/SAMRAI/RegisterVariables.cpp
-    src/SAMRAI/DimensionalSplitTimeIntegrator.cpp
-    src/SAMRAI/DimensionalSplitSystemSolver.cpp
-    src/SAMRAI/DimensionalSplitSystemSourceSolver.cpp
-    src/SAMRAI/DimensionalSplitBoundaryCondition.cpp
-    src/SAMRAI/SourceTermIntegrator.cpp
-    src/SAMRAI/GodunovSplitting.cpp
-    src/SAMRAI/geometry/Halfspace.cpp
-    src/SAMRAI/output/GnuplotWriter.cpp
-    src/SAMRAI/tagging/GradientDetector.cpp
-    src/SAMRAI/initial_data/RiemannProblem.cpp)
-  target_include_directories(ReactiveEulerSolver.SAMRAI 
+    src/SAMRAI/GriddingAlgorithm.cpp
+    src/SAMRAI/ViewPatch.cpp
+    src/SAMRAI/RegisterVariables.cpp)
+  target_include_directories(HyperbolicSolver.SAMRAI 
     PUBLIC 
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
       $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>
     PRIVATE 
       ${CMAKE_CURRENT_SOURCE_DIR}
   )
-  target_link_libraries(ReactiveEulerSolver.SAMRAI
+  target_link_libraries(HyperbolicSolver.SAMRAI
     PUBLIC
-      ReactiveEulerSolver.Equations
-      SAMRAI_appu SAMRAI_mesh SAMRAI_geom 
-      Boost::boost
-      Boost::filesystem
-      Eigen3::Eigen)
-  target_compile_features(ReactiveEulerSolver.SAMRAI PUBLIC cxx_std_17)
+      HyperbolicSolver.Solver
+      SAMRAI_appu SAMRAI_xfer SAMRAI_mesh SAMRAI_geom
+      SAMRAI_pdat SAMRAI_hier SAMRAI_tbox)
+  target_compile_features(HyperbolicSolver.SAMRAI PUBLIC cxx_std_17)
   install(
-    TARGETS ReactiveEulerSolver.SAMRAI
-    EXPORT ReactiveEulerSolver
+    TARGETS HyperbolicSolver.SAMRAI
+    EXPORT HyperbolicSolver
     ARCHIVE DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
   )
@@ -268,58 +223,6 @@ if (SAMRAI_FOUND)
     DESTINATION ${CMAKE_INSTALL_PREFIX}/include/fub/
     FILES_MATCHING PATTERN *.hpp
   )
-
-################################################################################
-# [ReactiveEulerSolver.SAMRAI.IdealGas]
-
-  add_library(ReactiveEulerSolver.SAMRAI.IdealGas
-    src/SAMRAI/ideal_gas/IdealGasEquation.cpp
-    src/SAMRAI/ideal_gas/PerfectGasEquation.cpp
-    src/SAMRAI/ideal_gas/FlameMasterKinetics.cpp
-    src/SAMRAI/ideal_gas/TChemKinetics.cpp
-    src/SAMRAI/ideal_gas/DimensionalSplitTimeIntegrator.cpp
-    src/SAMRAI/ideal_gas/InitializeFromData.cpp
-    src/SAMRAI/ideal_gas/HlleGodunovMethod.cpp
-    src/SAMRAI/ideal_gas/KineticSourceTerm.cpp
-    src/SAMRAI/ideal_gas/KineticDriver.cpp
-    src/SAMRAI/ideal_gas/boundary_condition/ReflectiveBoundary.cpp
-    src/SAMRAI/ideal_gas/boundary_condition/ConstantBoundary.cpp
-    src/SAMRAI/ideal_gas/boundary_condition/IsentropicExpansionBoundary.cpp
-    src/SAMRAI/ideal_gas/boundary_condition/PressureValveBoundary.cpp
-    src/SAMRAI/ideal_gas/boundary_condition/MassflowBoundary.cpp)
-  target_link_libraries(ReactiveEulerSolver.SAMRAI.IdealGas 
-    PUBLIC
-      ReactiveEulerSolver.SAMRAI
-      ReactiveEulerSolver.IdealGas)
-  target_include_directories(ReactiveEulerSolver.SAMRAI.IdealGas
-    PRIVATE 
-      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
-
-  install(
-    TARGETS ReactiveEulerSolver.SAMRAI.IdealGas
-    EXPORT ReactiveEulerSolver
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
-    LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
-  )
-  install(
-    DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/fub/solver
-    DESTINATION ${CMAKE_INSTALL_PREFIX}/include/fub/
-    FILES_MATCHING PATTERN *.hpp
-  )
-  install(
-    DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/fub/output
-    DESTINATION ${CMAKE_INSTALL_PREFIX}/include/fub/
-    FILES_MATCHING PATTERN *.hpp
-  )
-################################################################################
-# Pyhton Bindings
-
-  option(FUB_WITH_PYTHON_MODULE "Compile and install the python bindings of this solver." ON)
-  if (FUB_WITH_PYTHON_MODULE)
-    add_subdirectory(third_party/pybind11)
-    pybind11_add_module(PyReactiveEulerSolver src/python/PyReactiveEulerSolver.cpp)
-    target_link_libraries(PyReactiveEulerSolver PUBLIC ReactiveEulerSolver.SAMRAI.IdealGas)
-  endif()
 endif()
 
 ################################################################################
@@ -346,53 +249,7 @@ if (FUB_WITH_OPENMP)
   target_compile_options(AddOpenMPFlag INTERFACE "-fopenmp")
 endif()
 
-################################################################################
-# Matlab Bindings
-
-option(FUB_MEX_COMPONENTS "Compile and install the Matlab plugin for the ideal gas kinetics." ON)
-if (FUB_MEX_COMPONENTS) 
-  find_package(Matlab 
-    REQUIRED COMPONENTS 
-      MEX_COMPILER
-      DATAARRAY_LIBRARY)
-
-  if (TBB_FOUND) 
-    matlab_add_mex(
-      NAME FlamemasterKinetics_ 
-      SRC src/matlab/FlamemasterKinetics_.cpp
-      LINK_TO ${Matlab_DATAARRAY_LIBRARY} ReactiveEulerSolver.IdealGas TBB::tbb)
-  else()
-    matlab_add_mex(
-      NAME FlamemasterKinetics_ 
-      SRC src/matlab/FlamemasterKinetics_.cpp
-      LINK_TO 
-        ${Matlab_DATAARRAY_LIBRARY}
-        ReactiveEulerSolver.IdealGas
-        AddOpenMPFlag)
-  endif()
-
-  matlab_add_mex(
-    NAME TChemKinetics_ 
-    SRC src/matlab/TChemKinetics_.cpp
-    LINK_TO ${Matlab_DATAARRAY_LIBRARY} ReactiveEulerSolver.IdealGas)
-
-  install(
-    TARGETS 
-      FlamemasterKinetics_
-      TChemKinetics_ 
-    LIBRARY DESTINATION
-      ${CMAKE_INSTALL_PREFIX}/lib)
-  install(
-    FILES
-      src/matlab/FlamemasterKinetics2.m
-      src/matlab/TChemKinetics.m
-    DESTINATION
-      ${CMAKE_INSTALL_PREFIX}/lib)
-endif()
-
-# Export everything into a ReactiveEulerSolver namespace for external cmake usage.
-
 install(
-  EXPORT ReactiveEulerSolver
-  NAMESPACE ReactiveEulerSolver
+  EXPORT HyperbolicSolver
+  NAMESPACE HyperbolicSolver
   DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake)

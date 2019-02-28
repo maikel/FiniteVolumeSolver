@@ -21,7 +21,7 @@
 #ifndef FUB_CARTESIAN_COORDINATES_HPP
 #define FUB_CARTESIAN_COORDINATES_HPP
 
-#include "fub/Eigen.hpp"
+#include "fub/ext/Eigen.hpp"
 #include "fub/core/mdspan.hpp"
 
 namespace fub {
@@ -29,7 +29,7 @@ namespace fub {
 class CartesianCoordinates {
 public:
   CartesianCoordinates(const Eigen::Vector3d& lower,
-                       const Eigen::Vector3d& upper,
+                       const Eigen::Vector3d& upper, const Eigen::Vector3d& dx,
                        DynamicExtents<3> extents) noexcept;
 
   Eigen::Vector3d operator()(std::ptrdiff_t i, std::ptrdiff_t j = 0,
@@ -43,11 +43,14 @@ public:
 
   const Eigen::Vector3d& dx() const noexcept { return dx_; }
 
+  const Eigen::Vector3d& GetUpper() const noexcept { return upper_; }
+  const Eigen::Vector3d& GetLower() const noexcept { return lower_; }
+
 private:
   Eigen::Vector3d lower_;
   Eigen::Vector3d upper_;
-  DynamicExtents<3> extents_;
   Eigen::Vector3d dx_;
+  DynamicExtents<3> extents_;
 };
 
 } // namespace fub

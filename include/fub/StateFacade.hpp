@@ -22,7 +22,7 @@
 #define FUB_STATE_FACADE_HPP
 
 #include "fub/Direction.hpp"
-#include "fub/Eigen.hpp"
+#include "fub/ext/Eigen.hpp"
 
 #include <boost/hana.hpp>
 #include <boost/hana/core/to.hpp>
@@ -34,19 +34,24 @@
 #include <boost/hana/zip.hpp>
 
 namespace fub {
-template <template <typename...> class> struct StateTag;
+/// This is a tag which group states of the same state type together.
+///
+/// For example Equation::State and StateView<Equation::State, Equation> share
+/// the same state tag because their member variables differ in types only.
+template <template <typename...> class> struct StateTag {};
 
+// Forward Decleration.
 template <typename> struct StateFacade;
 
-template <typename> struct IsStateFacade : std::false_type {};
+/// @{
+/// This type trait returns true if the specified type T is a StateFacade.
+template <typename T> struct IsStateFacade : std::false_type {};
 template <typename T> struct IsStateFacade<StateFacade<T>> : std::true_type {};
+/// @}
 
 template <typename Eq> auto GetSizes(const Eq&);
 
-
-inline auto Ref(double& x) {
-  return std::ref(x);
-}
+inline auto Ref(double& x) { return std::ref(x); }
 
 inline auto Ref(const double& x) { return x; }
 
@@ -67,16 +72,22 @@ template <typename T> auto Ref(std::vector<T>& x) {
   return Eigen::Map<Eigen::Array<T, Eigen::Dynamic, 1>>(x.data(), x.size());
 }
 
+template <typename T, typename E, typename L, typename A>
+auto Ref(basic_mdspan<T, E, L, A> mdspan) {
+  return mdspan;
+}
+
 template <typename T> auto Ref(const T& x) { return T::Map(x.data()); }
 
 template <typename T> auto Ref(T& x) { return T::Map(x.data()); }
 
-
 template <typename Derived, typename Base, bool IsMdSpan>
 struct StateFacade_MdSpan : Base {
+  using Equation = typename Base::Equation;
   StateFacade_MdSpan() = default;
   constexpr StateFacade_MdSpan(const Base& base) : Base{base} {}
   constexpr StateFacade_MdSpan(Base&& base) : Base{std::move(base)} {}
+  constexpr StateFacade_MdSpan(const Equation&) {}
 };
 
 template <typename Derived, typename Base>
@@ -85,19 +96,13 @@ struct StateFacade_MdSpan<Derived, Base, true> : Base {
   constexpr StateFacade_MdSpan(const Base& base) : Base{base} {}
 
   template <typename... Is> auto operator()(Is... is) {
-    return Transform(
-        [&](auto&& member) {
-          return Ref(member(is...));
-        },
-        AsDerived());
+    return Transform([&](auto&& member) { return Ref(member(is...)); },
+                     AsDerived());
   }
 
   template <typename... Is> auto operator()(Is... is) const {
-    return Transform(
-        [&](auto&& member) {
-          return Ref(member(is...));
-        },
-        AsDerived());
+    return Transform([&](auto&& member) { return Ref(member(is...)); },
+                     AsDerived());
   }
 
   Derived& AsDerived() { return static_cast<Derived&>(*this); }
@@ -141,7 +146,7 @@ struct StateFacade_Eigen<Derived, Base, true> : Base {
   StateFacade_Eigen() = default;
   constexpr StateFacade_Eigen(const Base& base) : Base{base} {}
 
-  constexpr StateFacade_Eigen(const Equation& eq) {
+  constexpr StateFacade_Eigen(const Equation&) {
     //   const auto sizes = GetSizes<StateFacade<Data<MemberTypes...>>>(eq);
     //   constexpr auto mem_accessors = accessors();
     //   constexpr auto size_accessors =
@@ -192,9 +197,10 @@ struct StateFacade<Data<MemberTypes...>>
             })} {}
 
   template <typename... Ys>
-      // typename = std::enable_if_t<IsEigenType(boost::hana::type_c<Ys>...)>>
+  // typename = std::enable_if_t<IsEigenType(boost::hana::type_c<Ys>...)>>
   constexpr StateFacade& operator=(const StateFacade<Data<Ys...>>& other) {
-    constexpr auto this_accessors = boost::hana::accessors<Data<MemberTypes...>>();
+    constexpr auto this_accessors =
+        boost::hana::accessors<Data<MemberTypes...>>();
     constexpr auto other_accessors = boost::hana::accessors<Data<Ys...>>();
     constexpr auto accessors =
         boost::hana::zip(this_accessors, other_accessors);
@@ -207,7 +213,8 @@ struct StateFacade<Data<MemberTypes...>>
         FUB_ASSERT(this_member.cols() == other_member.cols());
         auto ov = other_member.reshaped();
         std::copy(ov.begin(), ov.end(), this_member.data());
-      } else if constexpr (std::is_same_v<Member, std::reference_wrapper<double>>) {
+      } else if constexpr (std::is_same_v<Member,
+                                          std::reference_wrapper<double>>) {
         this_member.get() = boost::hana::second(as[1_c])(other);
       } else {
         this_member = boost::hana::second(as[1_c])(other);
@@ -432,26 +439,132 @@ void StoreN(StateFacade<MdSpans>& dest, int limited,
 }
 
 template <typename Extents, typename F, typename... Datas>
-F ForEachRow(Extents extents, F function, const StateFacade<Datas>&... states) {
-  constexpr auto view_subspan = [](const auto& state, std::ptrdiff_t y,
-                                   std::ptrdiff_t z) {
-    return Transform(
-        [=](auto mdspan) {
-          if constexpr (std::decay_t<decltype(mdspan)>::rank() == 3) {
-            return subspan(mdspan, all, y, z);
-          } else {
-            return subspan(mdspan, all, y, z, all);
-          }
-        },
-        state);
-  };
-  static_assert(Extents::rank() == 3);
-  for (std::ptrdiff_t z = 0; z < extents.extent(2); ++z) {
+F ForEachRow(std::integral_constant<int, 0>, Extents extents, F function,
+             const StateFacade<Datas>&... states) {
+  if constexpr (Extents::rank() == 3) {
+    constexpr auto view_subspan = [](const auto& state, std::ptrdiff_t y,
+                                     std::ptrdiff_t z) {
+      return Transform(
+          [=](auto mdspan) {
+            if constexpr (std::decay_t<decltype(mdspan)>::rank() == 3) {
+              return subspan(mdspan, all, y, z);
+            } else if constexpr (std::decay_t<decltype(mdspan)>::rank() == 4) {
+              return subspan(mdspan, all, y, z, all);
+            }
+          },
+          state);
+    };
+    for (std::ptrdiff_t z = 0; z < extents.extent(2); ++z) {
+      for (std::ptrdiff_t y = 0; y < extents.extent(1); ++y) {
+        function(view_subspan(states, y, z)...);
+      }
+    }
+  } else if constexpr (Extents::rank() == 2) {
+    constexpr auto view_subspan = [](const auto& state, std::ptrdiff_t y) {
+      return Transform(
+          [=](auto mdspan) {
+            if constexpr (std::decay_t<decltype(mdspan)>::rank() == 2) {
+              return subspan(mdspan, all, y);
+            } else if constexpr (std::decay_t<decltype(mdspan)>::rank() == 3) {
+              return subspan(mdspan, all, y, all);
+            }
+          },
+          state);
+    };
     for (std::ptrdiff_t y = 0; y < extents.extent(1); ++y) {
-      function(view_subspan(states, y, z)...);
+      function(view_subspan(states, y)...);
+    }
+  } else {
+    function(states...);
+  }
+  return function;
+}
+
+template <typename Extents, typename F, typename... Datas>
+F ForEachRow(std::integral_constant<int, 1>, Extents extents, F function,
+             const StateFacade<Datas>&... states) {
+  if constexpr (Extents::rank() == 3) {
+    constexpr auto view_subspan = [](const auto& state, std::ptrdiff_t y,
+                                     std::ptrdiff_t z) {
+      return Transform(
+          [=](auto mdspan) {
+            if constexpr (std::decay_t<decltype(mdspan)>::rank() == 3) {
+              return subspan(mdspan, y, all, z);
+            } else if constexpr (std::decay_t<decltype(mdspan)>::rank() == 4) {
+              return subspan(mdspan, y, all, z, all);
+            }
+          },
+          state);
+    };
+    for (std::ptrdiff_t z = 0; z < extents.extent(2); ++z) {
+      for (std::ptrdiff_t y = 0; y < extents.extent(1); ++y) {
+        function(view_subspan(states, y, z)...);
+      }
+    }
+  } else if constexpr (Extents::rank() == 2) {
+    constexpr auto view_subspan = [](const auto& state, std::ptrdiff_t y) {
+      return Transform(
+          [=](auto mdspan) {
+            if constexpr (std::decay_t<decltype(mdspan)>::rank() == 2) {
+              return subspan(mdspan, y, all);
+            } else if constexpr (std::decay_t<decltype(mdspan)>::rank() == 3) {
+              return subspan(mdspan, y, all, all);
+            }
+          },
+          state);
+    };
+    for (std::ptrdiff_t y = 0; y < extents.extent(1); ++y) {
+      function(view_subspan(states, y)...);
     }
   }
   return function;
+}
+
+template <typename Extents, typename F, typename... Datas>
+F ForEachRow(std::integral_constant<int, 2>, Extents extents, F function,
+             const StateFacade<Datas>&... states) {
+  if constexpr (Extents::rank() == 3) {
+    constexpr auto view_subspan = [](const auto& state, std::ptrdiff_t y,
+                                     std::ptrdiff_t z) {
+      return Transform(
+          [=](auto mdspan) {
+            if constexpr (std::decay_t<decltype(mdspan)>::rank() == 3) {
+              return subspan(mdspan, y, z, all);
+            } else if constexpr (std::decay_t<decltype(mdspan)>::rank() == 4) {
+              return subspan(mdspan, y, z, all, all);
+            }
+          },
+          state);
+    };
+    for (std::ptrdiff_t z = 0; z < extents.extent(2); ++z) {
+      for (std::ptrdiff_t y = 0; y < extents.extent(1); ++y) {
+        function(view_subspan(states, y, z)...);
+      }
+    }
+  }
+  return function;
+}
+
+template <typename Extents, typename F, typename... Datas>
+F ForEachRow(Extents extents, F function, const StateFacade<Datas>&... states) {
+  return ForEachRow(std::integral_constant<int, 0>(), extents, function,
+                    states...);
+}
+
+template <typename Extents, typename F, typename... Datas>
+F ForEachRow(Direction dir, Extents extents, F function,
+             const StateFacade<Datas>&... states) {
+
+  if (dir == Direction::X) {
+    return ForEachRow(std::integral_constant<int, 0>(), extents, function,
+                      states...);
+  } else if (dir == Direction::Y) {
+    return ForEachRow(std::integral_constant<int, 1>(), extents, function,
+                      states...);
+  }
+  FUB_ASSERT(dir == Direction::Z);
+  return ForEachRow(std::integral_constant<int, 2>(), extents, function,
+                    states...);
 }
 
 struct get_accessor_t {

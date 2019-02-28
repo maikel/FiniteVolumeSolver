@@ -21,7 +21,7 @@
 #ifndef FUB_GEOMETRY_GEOMETRY_HPP
 #define FUB_GEOMETRY_GEOMETRY_HPP
 
-#include "fub/SAMRAI/utility.hpp"
+#include "fub/grid/SAMRAI/utility.hpp"
 
 #include <memory>
 

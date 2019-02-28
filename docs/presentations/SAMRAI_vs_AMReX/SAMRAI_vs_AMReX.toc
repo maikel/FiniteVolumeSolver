@@ -1,0 +1,2 @@
+\babel@toc {german}{}
+\beamer@sectionintoc {1}{Daten Verwaltung}{2}{0}{1}

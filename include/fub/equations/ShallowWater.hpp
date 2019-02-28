@@ -21,73 +21,52 @@
 #ifndef FUB_EQUATIONS_SHALLOW_WATER_HPP
 #define FUB_EQUATIONS_SHALLOW_WATER_HPP
 
-#include "fub/Eigen.hpp"
 #include "fub/Equation.hpp"
-#include "fub/StateFacade.hpp"
+#include "fub/ExactRiemannSolver.hpp"
+#include "fub/State.hpp"
+#include "fub/ext/Eigen.hpp"
 
 #include <array>
 
 namespace fub {
-
-struct ShallowWater {
-  template <typename Heigth, typename Momentum> struct ConsData {
-    using Equation = ShallowWater;
-    BOOST_HANA_DEFINE_STRUCT(ConsData, (Heigth, heigth), (Momentum, momentum));
-  };
-
-  template <typename Heigth, typename Momentum> struct StateData {
-    using Equation = ShallowWater;
-    BOOST_HANA_DEFINE_STRUCT(StateData, (Heigth, heigth), (Momentum, momentum));
-  };
-
-  // clang-format off
-  using State = StateFacade<StateData<
-    Scalar,  // Heigth
-    Array2d  // Momentum
-  >>;
-  using Cons = StateFacade<ConsData<
-    Scalar,  // Heigth
-    Array2d  // Momentum
-  >>;
-  // clang-format on
-
-  /// Computes the linear transport flux in the specified direction.
-  ///
-  /// \note This method is mandatory.
-  void Flux(Cons& flux, const State& state, Direction dir = Direction::X) const
-      noexcept;
-
-  /// This method is just the identity.
-  /// The types State and Cons differ in general and need this kind of
-  /// conversion method.
-  ///
-  /// \note This method is mandatory.
-  void Reconstruct(State& state, const Cons& cons) const noexcept;
-
-  /// Computes the exact solution to the 1-dim riemann problem at relative
-  /// coordinates `(x, t)`
-  ///
-  /// \note Providing this method is OPTIONAL but enables the automatic usage
-  /// with the GodunovMethod and other utility classes.
-  void SolveRiemannProblem(State& state, const State& left, const State& right,
-                           Direction dir = Direction::X);
-
-  Array2d ComputeSignals(const State& left, const State& right, Direction dir = Direction::X);
-
-  Scalar gravity_{Scalar::Constant(9.81)};
+template <typename Heigth, typename Momentum> struct ShallowWaterVariables {
+  BOOST_HANA_DEFINE_STRUCT(ShallowWaterVariables, (Heigth, heigth),
+                           (Momentum, momentum));
 };
 
-template <typename T, typename S>
-auto AsCons(const StateFacade<ShallowWater::StateData<T, S>>& state) {
-  return boost::hana::make<StateTag<ShallowWater::ConsData>>(
-      Scalar::Map(state.heigth.data()), Array2d::Map(state.momentum.data()));
-}
+struct ShallowWater
+    : VariableDescription<ShallowWaterVariables<Scalar, Vector2d>> {
+  using Cons = ::fub::Cons<ShallowWater>;
+  using Complete = ::fub::Complete<ShallowWater>;
 
-template <typename T, typename S>
-auto AsCons(StateFacade<ShallowWater::StateData<T, S>>& state) {
-  return boost::hana::make<StateTag<ShallowWater::ConsData>>(
-      Scalar::Map(state.heigth.data()), Array2d::Map(state.momentum.data()));
-}
+  static constexpr int Rank() noexcept { return 2; }
+
+  void Flux(Cons& flux, const Complete& state,
+            Direction dir = Direction::X) const noexcept;
+
+  double gravity_{10.0};
+};
+
+template <> class ExactRiemannSolver<ShallowWater> {
+public:
+  using Complete = typename ShallowWater::Complete;
+
+  ExactRiemannSolver(const ShallowWater& equation) : equation_{equation} {}
+
+  /// Returns either left or right, depending on the upwind velocity.
+  void SolveRiemannProblem(Complete& state, const Complete& left,
+                           const Complete& right, Direction dir);
+
+  /// Returns the upwind velocity in the specified direction.
+  std::array<double, 2> ComputeSignals(const Complete&, const Complete&,
+                                       Direction dir);
+
+  Complete ComputeMiddleState(const Complete& left, const Complete& right,
+                              Direction dir);
+
+private:
+  ShallowWater equation_;
+};
 
 } // namespace fub
 

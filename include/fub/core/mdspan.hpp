@@ -474,6 +474,18 @@ struct layout_stride {
         const std::array<std::ptrdiff_t, Extents::rank()>& s) noexcept
         : Extents(e), strides_(s) {}
 
+    std::array<std::ptrdiff_t, Extents::rank()>
+    MakeStrides(const layout_left::mapping<Extents>& other) {
+      std::array<std::ptrdiff_t, Extents::rank()> strides;
+      for (int s = 0; s < Extents::rank(); ++s) {
+        strides[s] = other.stride(s);
+      }
+      return strides;
+    }
+
+    constexpr mapping(const layout_left::mapping<Extents>& other)
+        : mapping(other.extents(), MakeStrides(other)) {}
+
     // [mdspan.layout.stride.ops], layout_stride::mapping operations
     constexpr const Extents& extents() const noexcept { return *this; }
 
@@ -600,11 +612,16 @@ public:
 
   constexpr basic_mdspan& operator=(const basic_mdspan&) noexcept = default;
   constexpr basic_mdspan& operator=(basic_mdspan&&) noexcept = default;
+  
   template <class OtherElementType, class OtherExtents, class OtherLayoutPolicy,
             class OtherAccessorPolicy>
   constexpr basic_mdspan& operator=(
       const basic_mdspan<OtherElementType, OtherExtents, OtherLayoutPolicy,
-                         OtherAccessorPolicy>& other) noexcept;
+                         OtherAccessorPolicy>& other) noexcept {
+      static_cast<mapping_type&>(*this) = other.mapping();
+      ptr_ = other.data();
+      return *this;
+    }
 
   // [mdspan.basic.mapping], basic_mdspan mapping domain multi-index to access
   // codomain element
@@ -703,6 +720,9 @@ using DynamicMdSpan = basic_mdspan<T, DynamicExtents<Rank>, Layout>;
 
 template <typename T, std::size_t Rank, typename Layout = layout_left>
 using dynamic_mdspan = basic_mdspan<T, DynamicExtents<Rank>, Layout>;
+
+template <typename T, typename E, typename A = accessor_basic<T>>
+using strided_mdspan = basic_mdspan<T, E, layout_stride, A>;
 
 struct all_type {
   explicit all_type() = default;
@@ -947,14 +967,12 @@ subspan(
   return {acc.offset(src.data(), Apply_(map, origin)), slice_mapping};
 }
 
-template <typename>
-struct is_mdspan : std::false_type {};
+template <typename> struct is_mdspan : std::false_type {};
 
 template <typename T, typename E, typename L, typename A>
 struct is_mdspan<basic_mdspan<T, E, L, A>> : std::true_type {};
 
-template <typename T>
-static constexpr bool is_mdspan_v = is_mdspan<T>::value;
+template <typename T> static constexpr bool is_mdspan_v = is_mdspan<T>::value;
 
 } // namespace fub
 

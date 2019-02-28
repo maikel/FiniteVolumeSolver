@@ -21,75 +21,58 @@
 #ifndef FUB_IDEAL_GAS_FLUX_GODUNOV_METHOD_HPP
 #define FUB_IDEAL_GAS_FLUX_GODUNOV_METHOD_HPP
 
+#include "fub/Direction.hpp"
+#include "fub/Duration.hpp"
 #include "fub/Equation.hpp"
+#include "fub/ExactRiemannSolver.hpp"
+#include "fub/core/span.hpp"
+#include "fub/flux_method/FluxMethod.hpp"
+
+#include <numeric>
 
 namespace fub {
 
-template <typename Equation> class GodunovMethod {
+template <typename EquationT, typename RiemannSolverT> class Godunov {
 public:
-  using State = SimdifyT<typename Equation::State>;
-  using Cons = SimdifyT<typename Equation::Cons>;
-  template <typename T> using ConsView = ConsView<T, Equation>;
-  template <typename T> using StateView = StateView<T, Equation>;
+  using Equation = EquationT;
+  using State = typename Equation::Complete;
+  using Cons = typename Equation::Cons;
 
-  explicit GodunovMethod(const Equation& eq)
-      : equation_{eq} {}
+  Godunov(const Equation& equation) : equation_{equation} {}
 
-  static constexpr int stencil_width() noexcept { return 1; }
-
-  void ComputeNumericFlux(Cons& numeric_flux, span<const State, 2> stencil,
-                          double /* dt */, double /* dx */,
-                          Direction dir = Direction::X) {
-    equation_.SolveRiemannProblem(riemann_solution_, stencil[0], stencil[1],
-                                  dir);
+  void ComputeNumericFlux(Cons& numeric_flux, span<const State, 2> states,
+                          Duration /* dt */, double /* dx */, Direction dir) {
+    riemann_solver_.SolveRiemannProblem(riemann_solution_, states[0], states[1],
+                                        dir);
     equation_.Flux(numeric_flux, riemann_solution_, dir);
   }
 
-  double ComputeStableDt(span<const State, 2> stencil, double dx) {
-    const auto signals = equation_.ComputeSignals(stencil[0], stencil[1]);
-    double s = 0;
-    for (int c = 0; c < signals.cols(); ++c) {
-      s = std::max(s, signals.col(c).abs().maxCoeff());
-    }
-    return 0.5 * dx / s;
+  double ComputeStableDt(span<const State, 2> states, double dx,
+                         Direction dir) {
+    auto signals = riemann_solver_.ComputeSignals(states[0], states[1], dir);
+    const double s_max =
+        std::accumulate(signals.begin(), signals.end(), 0.0,
+                        [](double x, double y) { return std::max(x, y); });
+    return dx / s_max;
   }
 
-  double ComputeStableDtOnSpans(StateView<const double> states, double dx,
-                                Direction dir = Direction::X) {
-    double dt = std::numeric_limits<double>::infinity();
-    ForEachRow(
-        Extents(states),
-        [&](auto state) {
-          for (int i = 0; i < Extents(state).extent(0) - 1; i += kChunkSize) {
-            Load(span(stencil_), state, i);
-            dt = std::min(dt, ComputeStableDt(span(stencil_), dx));
-          }
-        },
-        states);
-    return dt;
-  }
+  static constexpr int GetStencilWidth() noexcept { return 1; }
 
-  void ComputeNumericFluxesOnSpans(ConsView<double> fluxes,
-                                   StateView<const double> states, double dt,
-                                   double dx, Direction dir = Direction::X) {
-    ForEachRow(
-        Extents(fluxes),
-        [&](auto flux, auto state) {
-          for (int i = 0; i < Extents(flux).extent(0); i += kChunkSize) {
-            Load(span(stencil_), state, i);
-            ComputeNumericFlux(numeric_flux_, stencil_, dt, dx, dir);
-            Store(flux, numeric_flux_, i);
-          }
-        },
-        fluxes, states);
-  }
+  const Equation& GetEquation() const noexcept { return equation_; }
 
 private:
   Equation equation_;
-  std::array<State, 2> stencil_{State(equation_), State(equation_)};
-  State riemann_solution_{equation_};
-  Cons numeric_flux_{equation_};
+  RiemannSolverT riemann_solver_{equation_};
+  State riemann_solution_{};
 };
+
+template <typename Equation, typename RPSolver = ExactRiemannSolver<Equation>>
+struct GodunovMethod : public FluxMethod<Godunov<Equation, RPSolver>> {
+  using FluxMethod<Godunov<Equation, RPSolver>>::FluxMethod;
+};
+
+template <typename Equation>
+GodunovMethod(const Equation& eq) -> GodunovMethod<Equation>;
 
 } // namespace fub
 

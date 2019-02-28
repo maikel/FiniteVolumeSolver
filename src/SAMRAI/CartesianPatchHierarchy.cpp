@@ -18,11 +18,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/SAMRAI/CartesianPatchHierarchy.hpp"
-#include "fub/Eigen.hpp"
+#include "fub/grid/SAMRAI/CartesianPatchHierarchy.hpp"
+#include "fub/ext/Eigen.hpp"
 
 #include <SAMRAI/geom/CartesianGridGeometry.h>
 #include <SAMRAI/geom/CartesianPatchGeometry.h>
+#include <SAMRAI/tbox/MemoryDatabase.h>
 
 #include <array>
 
@@ -31,11 +32,25 @@ namespace samrai {
 
 std::shared_ptr<SAMRAI::hier::PatchHierarchy>
 CartesianPatchHierarchy(const SAMRAI::hier::Box& box,
-                        const CoordinatesRange& cr) {
-  SAMRAI::hier::BoxContainer domain{box};
-  return std::make_shared<SAMRAI::hier::PatchHierarchy>(
-      "Hierarchy", std::make_shared<SAMRAI::geom::CartesianGridGeometry>(
-                       "Geometry", cr.lower.data(), cr.upper.data(), domain));
+                        const CoordinatesRange& cr,
+                        const HierarchyOptions& options) {
+  // SAMRAI::hier::BoxContainer domain{box};
+  SAMRAI::tbox::Dimension dim = box.getDim();
+  auto properties =
+      std::make_shared<SAMRAI::tbox::MemoryDatabase>("properties");
+  std::array<int, 3> periodic_dimensions = options.periodic_dimensions;
+  std::array<SAMRAI::tbox::DatabaseBox, 1> boxes{box.DatabaseBox_from_Box()};
+  properties->putDatabaseBoxArray("domain_boxes", boxes.data(), 1);
+  properties->putIntegerArray("periodic_dimension", periodic_dimensions.data(),
+                              dim.getValue());
+  properties->putDoubleArray("x_lo", cr.lower.data(), dim.getValue());
+  properties->putDoubleArray("x_up", cr.upper.data(), dim.getValue());
+  auto geometry = std::make_shared<SAMRAI::geom::CartesianGridGeometry>(
+      dim, "Geometry", properties);
+  auto hier =
+      std::make_shared<SAMRAI::hier::PatchHierarchy>("Hierarchy", geometry);
+  hier->setMaxNumberOfLevels(options.max_number_of_levels);
+  return hier;
 }
 
 namespace {
@@ -71,14 +86,22 @@ GetCartesianPatchGeometry(const SAMRAI::hier::Patch& patch) {
 
 CartesianCoordinates GetCartesianCoordinates(const SAMRAI::hier::Patch& patch) {
   auto geom = GetCartesianPatchGeometry(patch);
-  Eigen::Vector3d lower = Eigen::Vector3d::Map(geom->getXLower());
-  Eigen::Vector3d upper = Eigen::Vector3d::Map(geom->getXUpper());
+  Eigen::Vector3d lower{0, 0, 0};
+  Eigen::Vector3d upper{0, 0, 0};
+  Eigen::Vector3d dx{0, 0, 0};
+
+  for (int d = 0; d < patch.getDim().getValue(); ++d) {
+     lower[d] = geom->getXLower()[d];
+     upper[d] = geom->getXUpper()[d];
+     dx[d] = geom->getDx()[d];
+  }
+
   std::array<std::ptrdiff_t, 3> extents;
   extents.fill(1);
   for (int i = 0; i < patch.getDim().getValue(); ++i) {
     extents[i] = patch.getBox().numberCells(i);
   }
-  return CartesianCoordinates(lower, upper, DynamicExtents<3>(extents));
+  return CartesianCoordinates(lower, upper, dx, DynamicExtents<3>(extents));
 }
 
 CartesianPatchCoordinates::CartesianPatchCoordinates(

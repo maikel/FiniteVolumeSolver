@@ -38,26 +38,28 @@ template <typename... Projections> struct GradientDetector {
   template <typename Tags, typename StateView>
   void TagCellsForRefinement(Tags tags, StateView states,
                              const CartesianCoordinates& coords) {
-    auto inner = ViewInnerRegion(states, 1);
-    ForEachIndex(Mapping(inner), [&](auto... is) {
-      boost::hana::for_each(conditions, [&](auto cond) {
-        auto&& [proj, tolerance] = cond;
-        using EquationT = typename StateView::Equation;
-        using State = typename EquationT::State;
-        std::array<std::ptrdiff_t, sizeof...(is)> index{is...};
-        State sL = states(index);
-        index[0] += 1;
-        State sM = states(index);
-        index[0] += 1;
-        State sR = states(index);
-        auto&& xL = std::invoke(proj, sL);
-        auto&& xM = std::invoke(proj, sM);
-        auto&& xR = std::invoke(proj, sR);
-        Eigen::Vector3d dx = coords.dx();
-        tags(is...) |=
-            ((std::abs(xM - xL) + std::abs(xR - xM)) / (2 * dx[0])) > tolerance;
+    using Equation = typename StateView::EquationType;
+    using Complete = typename Equation::Complete;
+    Complete sL;
+    Complete sM;
+    Complete sR;
+    for (int dir = 0; dir < Extents(states).rank(); ++dir) {
+      ForEachIndex(Shrink(Mapping(states), Direction(dir), 2), [&](auto... is) {
+        boost::hana::for_each(conditions, [&](auto cond) {
+          auto&& [proj, tolerance] = cond;
+          std::array<std::ptrdiff_t, sizeof...(is)> index{is...};
+          Load(sL, states, index);
+          Load(sM, states, Shift(index, Direction(dir), 1));
+          Load(sR, states, Shift(index, Direction(dir), 2));
+          auto&& xL = std::invoke(proj, sL);
+          auto&& xM = std::invoke(proj, sM);
+          auto&& xR = std::invoke(proj, sR);
+          Eigen::Vector3d dx = coords.dx();
+          tags(is...) |= ((std::abs(xM - xL) + std::abs(xR - xM)) /
+                          (2 * dx[dir])) > tolerance;
+        });
       });
-    });
+    }
   }
 };
 

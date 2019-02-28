@@ -26,76 +26,79 @@
 
 namespace fub {
 
-template <typename Equation, typename FluxMethod> struct MusclHancockMethod {
-  template <typename T> using StateView = StateView<T, Equation>;
-  template <typename T> using FluxView = ConsView<T, Equation>;
-
-  using State = SimdifyT<typename Equation::State>;
-  using Cons = SimdifyT<typename Equation::Cons>;
+template <typename Equation, typename FluxMethod, typename Limiter> 
+struct MusclHancockMethod {
+  using Complete = typename Equation::Complete;
+  using Cons = typename Equation::Cons;
 
   MusclHancockMethod(const Equation& eq, const FluxMethod& method)
       : equation_{eq}, flux_method_{method} {}
 
-  static void ComputeSlope(Cons& slope, span<const State, 3> stencil,
+  static void ComputeSlope(Cons& slope, span<const Complete, 3> stencil,
                            double cell_width) {
-    ForEachVariable(
-        [](auto slope, auto qL, auto qR) { slope = 0.5 * (qR - qL); }, slope,
-        stencil[0], stencil[2]);
+    ForEachComponent(
+        [](double& slope, double qL, double qR) { slope = 0.5 * (qR - qL); }, 
+        slope, stencil[0], stencil[2]);
   }
 
-  void ComputeNumericFlux(Cons& flux, span<const State, 4> stencil, double dt,
-                          double dx) noexcept {
-    const Array1d dt_2 = Array1d::Constant(0.5 * dt);
+  void ComputeLimitedSlope(Cons& slope, span<const Complete, 3> stencil,
+                           double cell_width) {
+    ComputeSlope(slope, stencil, cell_width);
+    limiter_.LimitSlope(slope, stencil, cell_width);
+  }
+
+  void ComputeNumericFlux(Cons& flux, span<const Complete, 4> stencil,
+                          Duration dt, double dx) noexcept {
+    const double dt_2 = 0.5 * dt;
 
     ////////////////////////////////////////////////////////////////////////////
-    // Compute Left Reconstructed State
+    // Compute Left Reconstructed Complete State
 
-    ComputeSlope(slope_, stencil.template first<3>(), dx);
+    ComputeLimitedSlope(slope_, stencil.template first<3>(), dx);
 
-    ForEachVariable(
-        [](auto qL, auto qR, auto state, auto slope) {
+    ForEachComponent<Conservative>(
+        [](double& qL, double& qR, double state, double slope) {
           qL = state - slope;
           qR = state + slope;
         },
-        AsCons(q_left_), AsCons(q_right_), AsCons(stencil[1]), slope_);
-
-    equation_.Reconstruct(q_left_, AsCons(q_left_));
-    equation_.Reconstruct(q_right_, AsCons(q_right_));
+        q_left_, q_right_, stencil[1], slope_);
+    Reconstruct(equation, q_left_, q_left_);
+    Reconstruct(equation, q_right_, q_right_);
 
     equation_.Flux(flux_left_, q_left_);
     equation_.Flux(flux_right_, q_right_);
 
-    ForEachVariable([&dt_2](auto rec, auto qR, auto fL,
-                            auto fR) { rec = qR + dt_2 * (fL - fR); },
-                    AsCons(rec_[0]), AsCons(q_right_), AsCons(stencil[1]),
-                    slope_);
-
-    equation_.Reconstruct(rec_[0], AsCons(rec_[0]));
+    ForEachComponent<Conservative>(
+        [&dt_2](double& rec, double qR, double fL, double fR) {
+          rec = qR + dt_2 * (fL - fR);
+        },
+        rec_[0], q_right_, stencil[1], slope_);
+    Reconstruct(equation_, rec_[0], rec_[0]);
 
     ///////////////////////////////////////////////////////////////////////////
-    // Compute Right Reconstructed State
+    // Compute Right Reconstructed Complete State
 
-    ComputeSlope(slope_, stencil.template last<3>(), dx);
+    ComputeLimitedSlope(slope_, stencil.template last<3>(), dx);
 
-    ForEachVariable(
+    ForEachComponent<Conservative>(
         [](auto qL, auto qR, auto state, auto slope) {
           qL = state - slope;
           qR = state + slope;
         },
         AsCons(q_left_), AsCons(q_right_), AsCons(stencil[2]), slope_);
 
-    equation_.Reconstruct(q_left_, AsCons(q_left_));
-    equation_.Reconstruct(q_right_, AsCons(q_right_));
+    Reconstruct(equation_, q_left_, AsCons(q_left_));
+    Reconstruct(equation_, q_right_, AsCons(q_right_));
 
-    equation_.Flux(flux_left_, q_left_);
-    equation_.Flux(flux_right_, q_right_);
+    Flux(flux_left_, q_left_);
+    Flux(flux_right_, q_right_);
 
-    ForEachVariable([&dt_2](auto rec, auto qL, auto fL,
-                            auto fR) { rec = qL + dt_2 * (fL - fR); },
-                    AsCons(rec_[1]), AsCons(q_left_), AsCons(stencil[2]),
-                    slope_);
+    ForEachComponent<Conservative>(
+      [&dt_2](double& rec, auto qL, auto fL, auto fR) { 
+        rec = qL + dt_2 * (fL - fR); 
+      }, rec_[1], q_left_, stencil[2], slope_);
 
-    equation_.Reconstruct(rec_[1], AsCons(rec_[1]));
+    Reconstruct(equation_, rec_[1], AsCons(rec_[1]));
 
     ///////////////////////////////////////////////////////////////////////////
     // Invoke Lower Order Flux Method
@@ -103,37 +106,22 @@ template <typename Equation, typename FluxMethod> struct MusclHancockMethod {
     flux_method_.ComputeNumericFlux(flux, span{rec_}, dt, dx);
   }
 
-  void ComputeNumericFluxesOnSpans(FluxView<double> fluxes,
-                                   StateView<const double> states, double dt,
-                                   double dx) noexcept {
-    ForEachRow(
-        Extents(fluxes),
-        [&](auto flux, auto state) {
-          for (int i = 0; i < Extents(flux).extent(0); i += kChunkSize) {
-            Load(span(stencil_), state, i);
-            ComputeNumericFlux(numeric_flux_, stencil_, dt, dx);
-            Store(flux, numeric_flux_, i);
-          }
-        },
-        fluxes, states);
-  }
-
 private:
   // These member variables control the behaviour of this method
   Equation equation_;
   FluxMethod flux_method_;
+  Limiter limiter_;
 
   // These member variables are used as an intermediate computation storage
   // and need to be allocated at construction time.
-  std::array<State, 4> stencil_{State(equation_), State(equation_),
-                                State(equation_), State(equation_)};
-  std::array<State, 2> rec_{State(equation_), State(equation_)};
-  Cons numeric_flux_{equation_};
-  Cons slope_{equation_};      //< Storage for the limited slopes
-  Cons flux_left_{equation_};  //< Storage for an intermediate left flux
-  Cons flux_right_{equation_}; //< Storage for an intermediate right flux
-  State q_left_{equation_};    //< Storage for an intermediate left state
-  State q_right_{equation_};   //< Storage for an intermediate right state
+  std::array<Complete, 4> stencil_;
+  std::array<Complete, 2> rec_;
+  Cons numeric_flux_;
+  Cons slope_;      //< Storage for the limited slopes
+  Cons flux_left_;  //< Storage for an intermediate left flux
+  Cons flux_right_; //< Storage for an intermediate right flux
+  Complete q_left_;    //< Storage for an intermediate left state
+  Complete q_right_;   //< Storage for an intermediate right state
 };
 
 } // namespace fub

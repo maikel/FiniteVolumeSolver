@@ -1,0 +1,23 @@
+\frametitle{Daten Kommunikation}
+In \texttt{SAMRAI} ist die Kommunikation in \texttt{SAMRAI::xfer::CoarsenAlgorithm} und \texttt{SAMRAI::xfer::CoarsenSchedule} geteilt.
+\begin{lstlisting}
+std::vector<int> scratch_ids{/* ... */};
+std::vector<int> cons_indices{/* indices into scratch_ids */};
+
+// You do not need to rebuild the algorithm if a hierarchy is regrid
+auto algorithm = std::make_shared<SAMRAI::xfer::CoarsenAlgorithm>(dim);
+for (int cons : cons_indices) {
+  algorithm->registerCoarsen(
+      scratch[cons], scratch[cons],
+      std::make_shared<SAMRAI::geom::CartesianCellDoubleWeightedAverage>());
+}
+
+// Whenever you change a PatchLevel you have to rebuild the RefineSchedule
+std::shared_ptr<SAMRAI::hier::PatchLevel> coarse = hierarchy->getPatchLevel(lvl - 1);
+std::shared_ptr<SAMRAI::hier::PatchLevel> fine = hierarchy->getPatchLevel(lvl);
+std::shared_ptr<SAMRAI::xfer::CoarsenSchedule> schedule =
+    algorithm.createSchedule(coarse, fine);
+
+// Whenever you want to coarsen your data
+schedule->fill(time_point);
+\end{lstlisting}

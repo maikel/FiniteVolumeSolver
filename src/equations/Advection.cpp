@@ -22,25 +22,26 @@
 
 namespace fub {
 
-void Advection::Flux(Cons& flux, const State& state, Direction dir) const
+void Advection2d::Flux(Cons& flux, const Complete& state, Direction dir) const
     noexcept {
   const int dir_v = int(dir);
   flux.mass = state.mass * velocity[dir_v];
 }
 
-void Advection::Reconstruct(State& state, const Cons& cons) const noexcept {
-  state.mass = cons.mass;
-}
-
-void Advection::SolveRiemannProblem(State& state, const State& left,
-                                    const State& right,
-                                    Direction dir) {
-  const int dir_v = int(dir);
-  if (0.0 < velocity[dir_v]) {
+void ExactRiemannSolver<Advection2d>::SolveRiemannProblem(Complete& state,
+                                                          const Complete& left,
+                                                          const Complete& right,
+                                                          Direction dir) {
+  if (equation_.velocity[int(dir)] > 0) {
     state = left;
   } else {
     state = right;
   }
+}
+
+std::array<double, 1> ExactRiemannSolver<Advection2d>::ComputeSignals(
+    const Complete&, const Complete&, Direction dir) {
+  return {equation_.velocity[int(dir)]};
 }
 
 } // namespace fub

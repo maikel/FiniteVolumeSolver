@@ -58,7 +58,7 @@ TEST_CASE("Construct extents") {
 
 TEST_CASE("Construct mdspan") {
   std::array<int, 8> arr{0, 1, 2, 3, 4, 5, 6, 7};
-  fub::DynamicMdSpan<int, 2> view(arr.data(), fub::DynamicExtents<2>(2, 4));
+  fub::dynamic_mdspan<int, 2> view(arr.data(), fub::DynamicExtents<2>(2, 4));
   REQUIRE(view(0, 0) == 0);
   REQUIRE(view(0, 1) == 1);
   REQUIRE(view(0, 2) == 2);
@@ -77,7 +77,7 @@ TEST_CASE("subspan of mdspan") {
   fub::mdspan<int, 10, 10> ghost_view(array.data());
   SECTION("Keep Dimension") {
     auto inner =
-        fub::subspan(ghost_view, std::make_pair(1, 9), std::make_pair(1, 9));
+        fub::subspan(ghost_view, std::pair{1, 9}, std::pair{1, 9});
     REQUIRE(inner.rank() == 2);
     REQUIRE(inner.extent(0) == 8);
     REQUIRE(inner.extent(1) == 8);
@@ -88,7 +88,7 @@ TEST_CASE("subspan of mdspan") {
     }
   }
   SECTION("Reduce Dimension") {
-    auto inner = fub::subspan(ghost_view, 8, std::make_pair(1, 9));
+    auto inner = fub::subspan(ghost_view, 8, std::pair{1, 9});
     REQUIRE(inner.rank() == 1);
     REQUIRE(inner.extent(0) == 8);
     for (int i = 0; i < inner.extent(0); ++i) {

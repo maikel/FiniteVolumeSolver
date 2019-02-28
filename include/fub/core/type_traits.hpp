@@ -135,6 +135,9 @@ template <class Bool>
 using negation = std::integral_constant<bool, !bool(Bool::value)>;
 #endif
 
+template <auto N>
+struct constant : std::integral_constant<decltype(N), N> {};
+
 #if defined(__cpp_lib_integer_sequence)
 using std::integer_sequence;
 using std::index_sequence;
