@@ -1,6 +1,7 @@
-# Reactive Euler Solver
+# Finite Volume Solver
 
-This repository is an example of how to use SAMRAI. It also serves as a first attempt to talk about more concrete types and algorithms.
+This repository is an example of how to use SAMRAI and AMReX. 
+It also serves as a first attempt to talk about more concrete types and algorithms.
 Questions which are going to be tackled are 
 
  * What are the right abstractions which we can define to help us in different projects.
@@ -19,6 +20,16 @@ Questions which are going to be tackled are
 - `.clang-format` Format definitions for this project. Auto-format files with the tool `clang-format`
 
 # Build Instructions
+
+This project has currently the follwing dependencies on third party libraries
+
+- [Eigen3](https://eigen.tuxfamily.org) for basic linear algebra and vectorization.
+- [fmtlib](http://fmtlib.net), a library to format string which got partially standardized in C++20.
+- [boost](https://www.boost.org) hana for simpler template meta programming and some basic reflection.
+- [SAMRAI](https://github.com/LLNL/SAMRAI) an optional AMR library.
+- [AMReX](https://amrex-codes.github.io) an optional AMR library.
+
+## SAMRAI
 
 To build this example you will need an installed [SAMRAI](https://github.com/LLNL/SAMRAI) version with [CMake](https://cmake.org) support.
 To install such a SAMRAI version download the newest SAMRAI from git
@@ -45,17 +56,7 @@ Tip: You can use `ccmake .` in the build directory to get an interactive view fo
 Then download this repository and invoke this CMakefile with a proper SAMRAI path.
 use following commands in the project source directory.
 
-```
-> git clone https://git.imp.fu-berlin.de/ag-klein/samrai_example.git Example
-> cd Example/
-> git submodule init
-> git submodule update
-> mkdir build
-> cd build
-> cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH="${SAMRAI_INSTALL_PATH}"
-> make
-> ./examples/DimensionalSplitTimeIntegrator
-```
+## AMReX
 
-Note: The current implementation requires some **C++14** library and language features.
-This means you need at least **gcc 6**, **clang 5** or **Xcode 9** and the appropiate standard library.
+To install AMReX use the git develop branch and build it on your local machine. 
+
