@@ -42,7 +42,7 @@ find_package(Sundials QUIET)
 if (TARGET Sundials::cvode)
   option(FUB_WITH_SUNDIALS "Compile with support for CVode" OFF)
 else()
-  option(FUB_WITH_SUNDIALS "Compile with support for CVode" ON)
+  option(FUB_WITH_SUNDIALS "Compile with support for CVode" OFF)
 endif()
 
 # Attempt to find Intel TBB (optional multi threading support)
