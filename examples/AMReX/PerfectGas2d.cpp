@@ -84,7 +84,7 @@ int main(int argc, char** argv) {
       desc, geometry, hier_opts);
 
   using State = fub::PerfectGas<2>::Complete;
-  fub::GradientDetector gradient(std::pair{&State::density, 1e-3});
+  fub::GradientDetector gradient(std::make_pair(&State::density, 1e-3));
   fub::TagBuffer buffered_gradient{gradient, 2};
 
   CircleData initial_data{};

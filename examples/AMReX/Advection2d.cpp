@@ -77,7 +77,7 @@ int main(int argc, char** argv) {
       std::make_shared<fub::amrex::PatchHierarchy>(desc, geometry, options);
 
   using State = fub::Advection2d::Complete;
-  fub::GradientDetector gradient(std::pair{&State::mass, 1e-3});
+  fub::GradientDetector gradient(std::make_pair(&State::mass, 1e-3));
   fub::TagBuffer buffered_gradient{gradient, 2};
 
   CircleData initial_data{};

@@ -20,7 +20,7 @@
 
 #include "fub/CartesianCoordinates.hpp"
 
-#include <AMReX_Geometry.h>
+#include <AMReX_Geometry.H>
 
 #include <array>
 
