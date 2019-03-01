@@ -81,7 +81,7 @@ int main(int argc, char** argv) {
       desc, geometry, hier_opts);
 
   using Complete = fub::ShallowWater::Complete;
-  fub::GradientDetector gradient(std::pair{&Complete::heigth, 5e-1});
+  fub::GradientDetector gradient(std::make_pair(&Complete::heigth, 5e-1));
   fub::TagBuffer buffered_gradient{gradient, 2};
 
   CircleData initial_data{};
