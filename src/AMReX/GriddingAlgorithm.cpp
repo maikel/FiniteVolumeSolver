@@ -49,7 +49,7 @@ bool GriddingAlgorithm::RegridAllFinerlevels(int which_level) {
   return false;
 }
 
-void GriddingAlgorithm::MakeCoarsestLevel(double level_time) {
+void GriddingAlgorithm::InitializeHierarchy(double level_time) {
   ::amrex::AmrCore::MakeNewGrids(level_time);
   const int n_levels = hierarchy_->GetNumberOfLevels();
   const int first = hierarchy_->GetDataDescription().first_cons_component;

@@ -68,6 +68,23 @@ private:
   ShallowWater equation_;
 };
 
+struct ShallowWaterSignalVelocities {
+  using Complete = typename ShallowWater::Complete;
+
+  std::array<double, 2> ComputeSignals(const Complete& left, const Complete& right, Direction dir) {
+    const int d = static_cast<int>(dir);
+    const double vL = left.momentum[d] / left.heigth;
+    const double sqrt_g_hL = std::sqrt(equation_.gravity_ * left.heigth);
+    const double vR = right.momentum[d] / right.heigth;
+    const double sqrt_g_hR = std::sqrt(equation_.gravity_ * right.heigth);
+    const double sL = std::min({vL - sqrt_g_hL, vR - sqrt_g_hR, 0.0});
+    const double sR = std::max({vL + sqrt_g_hL, vR + sqrt_g_hR, 0.0});
+    return {sL, sR};
+  }
+
+  ShallowWater equation_;
+};
+
 } // namespace fub
 
 #endif

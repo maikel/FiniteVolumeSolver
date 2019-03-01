@@ -84,7 +84,7 @@ int main(int argc, char** argv) {
   auto gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       hierarchy, fub::amrex::AdaptInitialData(initial_data, equation),
       fub::amrex::AdaptTagging(buffered_gradient, equation));
-  gridding->MakeCoarsestLevel(0.0);
+  gridding->InitializeHierarchy(0.0);
   fub::amrex::WritePlotFile("AMReX/Advection0000", *hierarchy, equation);
 
   fub::HyperbolicSplitPatchIntegrator<fub::Advection2d> patch_integrator{

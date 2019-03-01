@@ -46,8 +46,7 @@ public:
   }
 
   bool RegridAllFinerlevels(int which_level);
-  void MakeCoarsestLevel(double level_time);
-  void MakeFinerLevel(std::ptrdiff_t level_cycle, double level_time);
+  void InitializeHierarchy(double level_time);
 
 private:
   void FillMultiFabFromLevel(::amrex::MultiFab& mf, int level_number);
