@@ -23,6 +23,7 @@
 
 #include "fub/Equation.hpp"
 #include "fub/ExactRiemannSolver.hpp"
+#include "fub/EinfeldtSignalVelocities.hpp"
 #include "fub/ext/Eigen.hpp"
 
 #include <array>
@@ -114,11 +115,9 @@ static_assert(HasScalarReconstruction<PerfectGas<1>>::value);
 static_assert(HasScalarReconstruction<PerfectGas<2>>::value);
 static_assert(HasScalarReconstruction<PerfectGas<3>>::value);
 
-template <int>
-class EinfeldtSignalVelocities;
-
+/// \ingroup EinfeldtSignalVelocities
 template <>
-class EinfeldtSignalVelocities<1> {
+class EinfeldtSignalVelocities<PerfectGas<1>> {
 public:
   using Complete = typename PerfectGas<1>::Complete;
 
@@ -133,8 +132,9 @@ private:
   PerfectGas<1> equation_;
 };
 
+/// \ingroup EinfeldtSignalVelocities
 template <>
-class EinfeldtSignalVelocities<2> {
+class EinfeldtSignalVelocities<PerfectGas<2>> {
 public:
   using Complete = typename PerfectGas<2>::Complete;
 
@@ -150,8 +150,9 @@ private:
 };
 
 
+/// \ingroup EinfeldtSignalVelocities
 template <>
-class EinfeldtSignalVelocities<3> {
+class EinfeldtSignalVelocities<PerfectGas<3>> {
 public:
   using Complete = typename PerfectGas<3>::Complete;
 
@@ -166,8 +167,6 @@ private:
   PerfectGas<3> equation_;
 };
 
-template <int Rank>
-EinfeldtSignalVelocities(const PerfectGas<Rank>&) -> EinfeldtSignalVelocities<Rank>;
 
 } // namespace fub
 
