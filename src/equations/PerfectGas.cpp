@@ -59,8 +59,8 @@ void Reconstruct(const PerfectGas<Rank>& equation,
   } else {
     const double E_kin =
         0.5 *
-        std::inner_product(cons.momentum.begin(), cons.momentum.end(),
-                           cons.momentum.begin(), 0.0) /
+        std::inner_product(&cons.momentum[0], &cons.momentum[0] + Rank,
+                           &cons.momentum[0], 0.0) /
         cons.density;
     const double rho_e_internal = complete.energy - E_kin;
     complete.pressure = (equation.gamma - 1) * rho_e_internal;
@@ -136,17 +136,17 @@ ComputeHlleSignalVelocities(const Complete<PerfectGas<Rank>>& left,
 }
 } // namespace
 
-std::array<double, 2> EinfeldtSignalVelocities<1>::ComputeSignals(
+std::array<double, 2> EinfeldtSignalVelocities<PerfectGas<1>>::ComputeSignals(
     const Complete& left, const Complete& right, Direction dir) const {
   return ComputeHlleSignalVelocities(left, right, dir);
 }
 
-std::array<double, 2> EinfeldtSignalVelocities<2>::ComputeSignals(
+std::array<double, 2> EinfeldtSignalVelocities<PerfectGas<2>>::ComputeSignals(
     const Complete& left, const Complete& right, Direction dir) const {
   return ComputeHlleSignalVelocities(left, right, dir);
 }
 
-std::array<double, 2> EinfeldtSignalVelocities<3>::ComputeSignals(
+std::array<double, 2> EinfeldtSignalVelocities<PerfectGas<3>>::ComputeSignals(
     const Complete& left, const Complete& right, Direction dir) const {
   return ComputeHlleSignalVelocities(left, right, dir);
 }
