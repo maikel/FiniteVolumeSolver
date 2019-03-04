@@ -4,8 +4,8 @@
 #include "fub/Equation.hpp"
 #include "fub/State.hpp"
 
-#include <AMReX_BaseFab.h>
-#include <AMReX_FArrayBox.h>
+#include <AMReX_BaseFab.H>
+#include <AMReX_FArrayBox.H>
 
 namespace fub {
 namespace amrex {

@@ -153,7 +153,7 @@ void GriddingAlgorithm::MakeNewLevelFromCoarse(
       fine_level.data, time_point, coarse_level.data, cons_start, cons_start,
       n_cons_components, hierarchy_->GetGeometry(level - 1),
       hierarchy_->GetGeometry(level), fine_boundary, 0, coarse_boundary, 0,
-      {2, 2}, &::amrex::pc_interp, bcr, 0);
+      {AMREX_D_DECL(2, 2, 2)}, &::amrex::pc_interp, bcr, 0);
   hierarchy_->GetPatchLevel(level) = std::move(fine_level);
 }
 

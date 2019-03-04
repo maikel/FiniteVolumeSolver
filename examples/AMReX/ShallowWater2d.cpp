@@ -89,6 +89,7 @@ int main(int argc, char** argv) {
       std::make_shared<fub::amrex::PatchHierarchy>(desc, geometry, hier_opts);
 
   using Complete = fub::ShallowWater::Complete;
+
   fub::GradientDetector gradient{std::pair(&Complete::heigth, 5e-1)};
   fub::TagBuffer buffered_gradient{gradient, 2};
 
