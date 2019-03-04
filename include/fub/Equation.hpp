@@ -29,7 +29,7 @@ namespace fub {
 
 template <typename Eq>
 using ScalarFluxT =
-    decltype(std::declval<const Eq&>().Flux(std::declval<Cons<Eq>&>(),
+    decltype(std::declval<const Eq&>().Flux(std::declval<Conservative<Eq>&>(),
                                             std::declval<const Complete<Eq>&>(),
                                             Direction::X));
 
@@ -40,7 +40,7 @@ using VectorizedFluxT = decltype(std::declval<const Eq&>().Flux(
 
 template <typename Eq>
 using ScalarReconstructT = decltype(std::declval<const Eq&>().Reconstruct(
-    std::declval<Complete<Eq>&>(), std::declval<const Cons<Eq>&>()));
+    std::declval<Complete<Eq>&>(), std::declval<const Conservative<Eq>&>()));
 
 template <typename Eq, typename N = constant<kChunkSize>>
 using VectorizedReconstructT = decltype(std::declval<const Eq&>().Reconstruct(
@@ -66,56 +66,6 @@ struct HasReconstruction : disjunction<HasScalarReconstruction<Equation>,
                                        HasVectorizedReconstruction<Equation>> {
 };
 
-template <typename E, typename Function>
-Function ForEachIndex(const layout_left::mapping<E>& mapping,
-                      Function function) {
-  if constexpr (E::rank() == 1) {
-    for (int i = 0; i < mapping.extents().extent(0); ++i) {
-      function(i);
-    }
-  } else if constexpr (E::rank() == 2) {
-    for (int i = 0; i < mapping.extents().extent(1); ++i) {
-      for (int j = 0; j < mapping.extents().extent(0); ++j) {
-        function(j, i);
-      }
-    }
-  } else if constexpr (E::rank() == 3) {
-    for (int i = 0; i < mapping.extents().extent(2); ++i) {
-      for (int j = 0; j < mapping.extents().extent(1); ++j) {
-        for (int k = 0; k < mapping.extents().extent(0); ++k) {
-          function(k, j, i);
-        }
-      }
-    }
-  }
-  return function;
-}
-
-template <typename E, typename Function>
-Function ForEachIndex(const layout_stride::mapping<E>& mapping,
-                      Function function) {
-  if constexpr (E::rank() == 1) {
-    for (int i = 0; i < mapping.extents().extent(0); ++i) {
-      function(i);
-    }
-  } else if constexpr (E::rank() == 2) {
-    for (int i = 0; i < mapping.extents().extent(1); ++i) {
-      for (int j = 0; j < mapping.extents().extent(0); ++j) {
-        function(j, i);
-      }
-    }
-  } else if constexpr (E::rank() == 3) {
-    for (int i = 0; i < mapping.extents().extent(2); ++i) {
-      for (int j = 0; j < mapping.extents().extent(1); ++j) {
-        for (int k = 0; k < mapping.extents().extent(0); ++k) {
-          function(k, j, i);
-        }
-      }
-    }
-  }
-  return function;
-}
-
 template <std::size_t N>
 std::array<std::ptrdiff_t, N> Shift(const std::array<std::ptrdiff_t, N>& idx,
                                     Direction dir, std::ptrdiff_t shift) {
@@ -127,8 +77,8 @@ std::array<std::ptrdiff_t, N> Shift(const std::array<std::ptrdiff_t, N>& idx,
 template <typename Extents>
 constexpr std::array<std::ptrdiff_t, Extents::rank()>
 AsArray(Extents e) noexcept {
-  std::array<std::ptrdiff_t, Extents::rank()> array;
-  for (int r = 0; r < Extents::rank(); ++r) {
+  std::array<std::ptrdiff_t, Extents::rank()> array{};
+  for (std::size_t r = 0; r < Extents::rank(); ++r) {
     array[r] = e.extent(r);
   }
   return array;
@@ -162,23 +112,6 @@ template <typename State>
 StridedView<State> ViewInnerRegion(View<State> state, Direction dir, int gcw) {
   return boost::hana::unpack(state.Members(), [&](auto... mdspan) {
     return StridedView<State>{ViewInnerRegion(mdspan, dir, gcw)...};
-  });
-}
-
-template <typename Equation, typename CompleteView, typename ConsView>
-void ReconstructStatesFromCons(const Equation& eq, CompleteView sview,
-                               ConsView cview) {
-  FUB_ASSERT(Extents(sview) == Extents(cview));
-  Complete<Equation> complete;
-  Cons<Equation> cons;
-  ForEachIndex(Mapping(sview), [&](auto... is) {
-    Load(cons, cview, {is...});
-    if constexpr (HasReconstruction<Equation>()) {
-      eq.Reconstruct(complete, cons);
-    } else if (sizeof(Complete<Equation>) == sizeof(Cons<Equation>)) {
-      ::std::memcpy(&complete, &cons, sizeof(Cons<Equation>));
-    }
-    Store(sview, complete, {is...});
   });
 }
 

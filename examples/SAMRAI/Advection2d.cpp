@@ -45,7 +45,7 @@ struct CircleData {
   void InitializeData(fub::View<fub::Complete<fub::Advection2d>> states,
                       const fub::CartesianCoordinates& x) const {
     using namespace fub;
-    ForEachIndex(Mapping(states), [&](int i, int j) {
+    ForEachIndex(Mapping<0>(states), [&](int i, int j) {
       const double norm = x(i, j).norm();
       if (norm < 0.25) {
         states.mass(i, j) = 3;
@@ -84,7 +84,7 @@ int main(int argc, char** argv) {
   // Setup our gridding algorithm which manages refining and load balancing
 
   using Complete = fub::Advection2d::Complete;
-  fub::GradientDetector tagging(std::pair{&Complete::mass, 1e-2});
+  fub::GradientDetector tagging{std::pair{&Complete::mass, 1e-2}};
   CircleData initial_data{};
   fub::samrai::GriddingAlgorithm gridding(
       hierarchy, desc, fub::samrai::AdaptInitialData(initial_data, equation),

@@ -44,9 +44,9 @@
 struct CircleData {
   void InitializeData(fub::View<fub::Complete<fub::PerfectGas<2>>> states,
                       const fub::CartesianCoordinates& x) const {
-    fub::ForEachIndex(fub::Mapping(states), [&](int i, int j) {
+    fub::ForEachIndex(fub::Mapping<0>(states), [&](int i, int j) {
       const double norm = x(i, j).norm();
-      fub::Cons<fub::PerfectGas<2>> state;
+      fub::Conservative<fub::PerfectGas<2>> state;
       if (norm < 0.25) {
         state.energy = 8 * 101325. * equation_.gamma_minus_1_inv;
       } else {
@@ -94,8 +94,8 @@ int main(int argc, char** argv) {
   };
 
   using Complete = fub::PerfectGas<2>::Complete;
-  fub::GradientDetector tagging(std::pair{&Complete::density, 1e-2},
-                                std::pair{velocity_x, 1e-2});
+  fub::GradientDetector tagging{std::pair{&Complete::density, 1e-2},
+                                std::pair{velocity_x, 1e-2}};
   CircleData initial_data{};
   const fub::samrai::DataDescription reg =
       fub::samrai::RegisterVariables(equation);

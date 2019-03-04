@@ -16,7 +16,7 @@ GetCartesianCoordinates(const ::amrex::Geometry& geom,
     extents[i] = box.length(i);
     dx[i] = geom.CellSize(i);
   }
-  return CartesianCoordinates(lower, upper, dx, DynamicExtents<3>(extents));
+  return CartesianCoordinates(lower, upper, dx, dynamic_extents<3>(extents));
 }
 
 }

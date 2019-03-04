@@ -20,6 +20,7 @@
 
 #include "fub/Box.hpp"
 #include "fub/CartesianCoordinates.hpp"
+#include "fub/CompleteFromCons.hpp"
 #include "fub/Direction.hpp"
 #include "fub/Duration.hpp"
 #include "fub/Equation.hpp"
@@ -36,7 +37,7 @@ public:
   using Context = IntegratorContext;
   using PatchHandle = typename Context::PatchHandle;
   using Complete = ::fub::Complete<Equation>;
-  using Conservative = ::fub::Cons<Equation>;
+  using Conservative = ::fub::Conservative<Equation>;
 
   static constexpr int Rank() { return Equation::Rank(); }
 
@@ -74,8 +75,8 @@ public:
   }
 
   using Context::GetCycles;
-  using Context::GetTimePoint;
   using Context::GetPatchHierarchy;
+  using Context::GetTimePoint;
   using Context::ResetHierarchyConfiguration;
 
   void FillGhostLayerSingleLevel(int level, Direction direction) {
@@ -89,10 +90,10 @@ public:
 
   /// Returns a stable dt across all levels and in one spatial direction.
   ///
-  /// This function takes the refinement level into account. 
+  /// This function takes the refinement level into account.
   /// For stability it is advised to use some additional CFL condition.
   ///
-  /// \param[in] dir  The direction into which the time step size is calculated. 
+  /// \param[in] dir  The direction into which the time step size is calculated.
   Duration ComputeStableDt(Direction dir) {
     int refine_ratio = 1;
     double coarse_dt = std::numeric_limits<double>::infinity();
@@ -194,7 +195,7 @@ public:
       const int gcw = Context::GetGhostCellWidth(patch, direction);
       StridedView<const Conservative> inner =
           ViewInnerRegion(scratch, direction, gcw);
-      ReconstructStatesFromCons(GetEquation(), state, inner);
+      CompleteFromCons(GetEquation(), state, inner);
     });
 
     Context::PostAdvanceLevel(this_level, direction, dt, subcycle);
@@ -211,7 +212,7 @@ private:
           integrator_->GetCartesianCoordinates(patch);
       const int gcw = integrator_->GetGhostCellWidth(patch, dir);
       const Box<Rank> fill_box =
-          GetBoundaryBox(Extents(scratch), boundary, gcw);
+          GetBoundaryBox(Extents<0>(scratch), boundary, gcw);
       boundary_condition_.FillBoundary(scratch, fill_box, coordinates, boundary,
                                        time_point);
     }

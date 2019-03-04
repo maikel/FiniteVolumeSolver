@@ -68,7 +68,7 @@ void GriddingAlgorithm::FillMultiFabFromLevel(::amrex::MultiFab& multifab,
   PatchLevel& level = hierarchy_->GetPatchLevel(level_number);
   const int n_comps = level.data.nComp();
   // TODO decide for BoundaryCondition interface
-  ::amrex::Vector<::amrex::BCRec> bcr(2 * AMREX_SPACEDIM);
+  ::amrex::Vector<::amrex::BCRec> bcr(n_comps);
   if (level_number == 0) {
     const ::amrex::Geometry& geom = hierarchy_->GetGeometry(level_number);
     auto no_condition = MakePhysBCFunct(geom, bcr, [](auto&&...) {});
@@ -96,7 +96,7 @@ void GriddingAlgorithm::FillMultiFabFromLevel(::amrex::MultiFab& multifab,
 }
 
 void GriddingAlgorithm::ErrorEst(int level, ::amrex::TagBoxArray& tags,
-                                 double time_point, int /* ngrow */) {
+                                 double, int /* ngrow */) {
   PatchLevel& old_level = hierarchy_->GetPatchLevel(level);
   ::amrex::MultiFab& data = old_level.data;
   const int ngrow = tags.nGrow();
@@ -106,8 +106,8 @@ void GriddingAlgorithm::ErrorEst(int level, ::amrex::TagBoxArray& tags,
   FillMultiFabFromLevel(scratch, level);
   ForEachFAB(
       [&](::amrex::TagBox& tag_box, const ::amrex::FArrayBox& fab) {
-        dynamic_mdspan<const double, Rank + 1> data = MakeMdSpan(fab);
-        dynamic_mdspan<char, Rank> tags = MakeMdSpan(tag_box, 0);
+        mdspan<const double, Rank + 1> data = MakeMdSpan(fab);
+        mdspan<char, Rank> tags = MakeMdSpan(tag_box, 0);
         const ::amrex::Box box = fab.box();
         const ::amrex::Geometry& geom = hierarchy_->GetGeometry(level);
         CartesianCoordinates coords = GetCartesianCoordinates(geom, box);
@@ -126,7 +126,7 @@ void GriddingAlgorithm::MakeNewLevelFromScratch(
   FUB_ASSERT(::amrex::BoxArray(geom.Domain()).contains(box_array));
   ForEachFAB(
       [&](::amrex::FArrayBox& fab) {
-        dynamic_mdspan<double, Rank + 1> data = MakeMdSpan(fab);
+        mdspan<double, Rank + 1> data = MakeMdSpan(fab);
         CartesianCoordinates coords = GetCartesianCoordinates(geom, fab.box());
         initial_data_.InitializeData(data, coords);
       },
@@ -144,7 +144,7 @@ void GriddingAlgorithm::MakeNewLevelFromCoarse(
   const int cons_start = hierarchy_->GetDataDescription().first_cons_component;
   const int n_cons_components =
       hierarchy_->GetDataDescription().n_cons_components;
-  ::amrex::Vector<::amrex::BCRec> bcr(2 * AMREX_SPACEDIM); /* Fill it */
+  ::amrex::Vector<::amrex::BCRec> bcr(n_comps);
   auto fine_boundary =
       MakePhysBCFunct(hierarchy_->GetGeometry(level), bcr, [](auto&&...) {});
   auto coarse_boundary = MakePhysBCFunct(hierarchy_->GetGeometry(level - 1),

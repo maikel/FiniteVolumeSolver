@@ -22,7 +22,7 @@ FormatTimeStepLine(std::ptrdiff_t cycle,
       std::fmod(duration_cast<duration<double>>(wall_time).count(), 60.);
   const double wt_diff_seconds =
       duration_cast<duration<double>>(wall_time_difference).count();
-  return fmt::format("[{:3}\%] {:05}: T = {:>9.6}s dt = {:6e}s wall-time: {:02}h:"
+  return fmt::format("[{:3}%] {:05}: T = {:>9.6}s dt = {:6e}s wall-time: {:02}h:"
                      "{:02}m:{:6f}s (+{:6e}s)\n",
                      total_progress, cycle, simulation_time.count(),
                      time_step_size.count(), wt_hours, wt_minutes, wt_seconds,

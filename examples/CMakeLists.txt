@@ -3,14 +3,20 @@ cmake_minimum_required(VERSION 3.10)
 project(HyperbolicSolver_examples CXX)
 
 if (AMReX_FOUND) 
-  add_executable(AMReX.Advection2d AMReX/Advection2d.cpp)
-  target_link_libraries(AMReX.Advection2d HyperbolicSolver.AMReX)
+  add_executable(AMReX.Advection2d_Godunov AMReX/Advection2d_Godunov.cpp)
+  target_link_libraries(AMReX.Advection2d_Godunov HyperbolicSolver.AMReX)
+
+  add_executable(AMReX.Advection2d_MUSCLHancock AMReX/Advection2d_MUSCLHancock.cpp)
+  target_link_libraries(AMReX.Advection2d_MUSCLHancock HyperbolicSolver.AMReX)
 
   add_executable(AMReX.PerfectGas2d AMReX/PerfectGas2d.cpp)
   target_link_libraries(AMReX.PerfectGas2d HyperbolicSolver.AMReX)
 
   add_executable(AMReX.ShallowWater2d AMReX/ShallowWater2d.cpp)
   target_link_libraries(AMReX.ShallowWater2d HyperbolicSolver.AMReX)
+
+  add_executable(NodalPoisson AMReX/NodalPoisson.cpp)
+  target_link_libraries(NodalPoisson HyperbolicSolver.AMReX)
 endif()
 
 if (SAMRAI_FOUND)

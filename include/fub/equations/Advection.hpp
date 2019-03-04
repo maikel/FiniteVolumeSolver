@@ -38,7 +38,7 @@ template <typename Mass> struct AdvectionVariables {
 
 struct Advection2d : VariableDescription<AdvectionVariables<Scalar>> {
   using Complete = ::fub::Complete<Advection2d>;
-  using Cons = ::fub::Cons<Advection2d>;
+  using Conservative = ::fub::Conservative<Advection2d>;
 
   Advection2d(const std::array<double, 2>& v) noexcept : velocity{v} {}
 
@@ -49,7 +49,7 @@ struct Advection2d : VariableDescription<AdvectionVariables<Scalar>> {
   /// \param[out] flux The conservative state which will store the results.
   /// \param[in] state The input state.
   /// \param[in] dir   The split direction of this flux.
-  void Flux(Cons& flux, const Complete& state, Direction dir) const noexcept;
+  void Flux(Conservative& flux, const Complete& state, Direction dir) const noexcept;
 
   std::array<double, 2> velocity;
 };

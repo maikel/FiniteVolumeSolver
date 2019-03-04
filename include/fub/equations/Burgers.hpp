@@ -37,11 +37,11 @@ template <typename U> struct BurgersVariables {
 
 struct Burgers1d : VariableDescription<BurgersVariables<Scalar>> {
   using Complete = ::fub::Complete<Burgers1d>;
-  using Cons = ::fub::Cons<Burgers1d>;
+  using Conservative = ::fub::Conservative<Burgers1d>;
 
   static constexpr int Rank() { return 1; }
 
-  void Flux(Cons& flux, const Complete& state,
+  void Flux(Conservative& flux, const Complete& state,
             Direction dir = Direction::X) const noexcept;
 };
 

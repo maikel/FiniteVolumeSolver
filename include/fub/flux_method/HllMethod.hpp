@@ -34,18 +34,18 @@ namespace fub {
 template <typename EquationT, typename SignalSpeeds> class Hll {
 public:
   using Equation = EquationT;
-  using State = typename Equation::Complete;
-  using Cons = typename Equation::Cons;
+  using Complete = typename Equation::Complete;
+  using Conservative = typename Equation::Conservative;
 
   Hll(const Equation& equation, const SignalSpeeds& signals)
       : equation_{equation}, signal_speeds_{signals} {}
 
-  void ComputeNumericFlux(Cons& numeric_flux, span<const State, 2> states,
+  void ComputeNumericFlux(Conservative& numeric_flux, span<const Complete, 2> states,
                           Duration /* dt */, double /* dx */, Direction dir) {
-    const State& left = states[0];
-    const State& right = states[1];
+    const Complete& left = states[0];
+    const Complete& right = states[1];
 
-    const auto signals = signal_speeds_.ComputeSignals(left, right, dir);
+    const auto signals = signal_speeds_(equation_, left, right, dir);
 
     equation_.Flux(flux_left, left, dir);
     equation_.Flux(flux_right, right, dir);
@@ -56,18 +56,16 @@ public:
     const double ds = sR - sL;
     FUB_ASSERT(ds > 0);
 
-    ForEachComponent(
+    ForEachComponent<Conservative>(
         [&](double& nf, double fL, double fR, double qL, double qR) {
           nf = (sR * fL - sL * fR + sLsR * (qR - qL)) / ds;
         },
-        numeric_flux, flux_left, flux_right, AsCons(states[0]),
-        AsCons(states[1]));
+        numeric_flux, flux_left, flux_right, states[0], states[1]);
   }
 
-  double ComputeStableDt(span<const State, 2> states, double dx,
+  double ComputeStableDt(span<const Complete, 2> states, double dx,
                          Direction dir) {
-    const auto signals =
-        signal_speeds_.ComputeSignals(states[0], states[1], dir);
+    const auto signals = signal_speeds_(equation_, states[0], states[1], dir);
     const double max =
         std::accumulate(signals.begin(), signals.end(), 0.0,
                         [](double x, double y) { return std::max(x, y); });
@@ -81,8 +79,8 @@ public:
 private:
   Equation equation_;
   SignalSpeeds signal_speeds_;
-  Cons flux_left;
-  Cons flux_right;
+  Conservative flux_left{equation_};
+  Conservative flux_right{equation_};
 };
 
 template <typename Equation, typename Signals>

@@ -33,7 +33,7 @@ namespace fub {
 namespace amrex {
 struct InitialDataStrategy {
   virtual ~InitialDataStrategy() = default;
-  virtual void InitializeData(dynamic_mdspan<double, AMREX_SPACEDIM + 1> states,
+  virtual void InitializeData(mdspan<double, AMREX_SPACEDIM + 1> states,
                               const CartesianCoordinates& coords) = 0;
 };
 
@@ -42,7 +42,7 @@ template <typename T> struct InitialDataWrapper : public InitialDataStrategy {
   InitialDataWrapper(T&& initial_data)
       : initial_data_{std::move(initial_data)} {}
 
-  void InitializeData(dynamic_mdspan<double, AMREX_SPACEDIM + 1> states,
+  void InitializeData(mdspan<double, AMREX_SPACEDIM + 1> states,
                       const CartesianCoordinates& coords) override {
     initial_data_.InitializeData(states, coords);
   }
@@ -59,7 +59,7 @@ struct InitialData {
       : initial_data_{std::make_unique<InitialDataWrapper<remove_cvref_t<T>>>(
             std::move(initial_data))} {}
 
-  void InitializeData(dynamic_mdspan<double, AMREX_SPACEDIM + 1> states,
+  void InitializeData(mdspan<double, AMREX_SPACEDIM + 1> states,
                       const CartesianCoordinates& coords) {
     if (initial_data_) {
       return initial_data_->InitializeData(states, coords);
@@ -73,7 +73,7 @@ template <typename InitialData, typename Equation> struct AdaptInitialData {
   AdaptInitialData(InitialData data, Equation equation)
       : data_{std::move(data)}, equation_{std::move(equation)} {}
 
-  void InitializeData(dynamic_mdspan<double, AMREX_SPACEDIM + 1> states,
+  void InitializeData(mdspan<double, AMREX_SPACEDIM + 1> states,
                       const CartesianCoordinates& coords) {
     auto state_view = MakeView(boost::hana::type_c<View<Complete<Equation>>>,
                            states, equation_);

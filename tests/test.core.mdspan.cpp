@@ -58,7 +58,7 @@ TEST_CASE("Construct extents") {
 
 TEST_CASE("Construct mdspan") {
   std::array<int, 8> arr{0, 1, 2, 3, 4, 5, 6, 7};
-  fub::dynamic_mdspan<int, 2> view(arr.data(), fub::DynamicExtents<2>(2, 4));
+  fub::mdspan<int, 2> view(arr.data(), fub::dynamic_extents<2>(2, 4));
   REQUIRE(view(0, 0) == 0);
   REQUIRE(view(0, 1) == 1);
   REQUIRE(view(0, 2) == 2);
@@ -74,7 +74,7 @@ TEST_CASE("Construct mdspan") {
 TEST_CASE("subspan of mdspan") {
   std::array<int, 100> array;
   std::iota(array.begin(), array.end(), 0);
-  fub::mdspan<int, 10, 10> ghost_view(array.data());
+  fub::static_mdspan<int, 10, 10> ghost_view(array.data());
   SECTION("Keep Dimension") {
     auto inner =
         fub::subspan(ghost_view, std::pair{1, 9}, std::pair{1, 9});

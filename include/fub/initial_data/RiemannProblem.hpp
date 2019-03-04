@@ -21,6 +21,9 @@
 #ifndef FUB_INITIAL_DATA_RIEMANN_PROBLEM_HPP
 #define FUB_INITIAL_DATA_RIEMANN_PROBLEM_HPP
 
+#include "fub/Equation.hpp"
+#include "fub/ForEach.hpp"
+
 #include <array>
 
 namespace fub {
@@ -33,7 +36,7 @@ public:
 
   template <typename StateView, typename CoordMapping>
   void InitializeData(StateView states, const CoordMapping& x) {
-    ForEachIndex(Extents(states), [&](auto index) {
+    ForEachIndex(Extents<0>(states), [&](auto index) {
       if (geometry_.ComputeDistanceTo(x(index)) < 0.0) {
         states(index) = states_[0];
       } else {

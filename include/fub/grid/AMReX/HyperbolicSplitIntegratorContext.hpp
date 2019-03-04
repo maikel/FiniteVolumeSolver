@@ -74,7 +74,7 @@ public:
     return 1;
   }
 
-  int GetGhostCellWidth(PatchHandle, Direction dir) {
+  int GetGhostCellWidth(PatchHandle, Direction) {
     return ghost_cell_width_;
   }
 
@@ -97,13 +97,13 @@ public:
   }
 
   ::amrex::MultiFab& GetData(int level);
-  dynamic_mdspan<double, Rank + 1> GetData(PatchHandle patch);
+  mdspan<double, Rank + 1> GetData(PatchHandle patch);
 
   ::amrex::MultiFab& GetScratch(int level, Direction dir);
-  dynamic_mdspan<double, Rank + 1> GetScratch(PatchHandle patch, Direction dir);
+  mdspan<double, Rank + 1> GetScratch(PatchHandle patch, Direction dir);
 
   ::amrex::MultiFab& GetFluxes(int level, Direction dir);
-  dynamic_mdspan<double, Rank + 1> GetFluxes(PatchHandle patch, Direction dir);
+  mdspan<double, Rank + 1> GetFluxes(PatchHandle patch, Direction dir);
 
   Duration GetTimePoint(int level, Direction dir) const;
   void SetTimePoint(Duration t, int level, Direction dir);
@@ -143,7 +143,7 @@ private:
 template <typename State, typename T, typename Equation>
 State MakeView(const HyperbolicSplitIntegratorContext&,
                boost::hana::basic_type<State>,
-               dynamic_mdspan<T, AMREX_SPACEDIM + 1> fab,
+               mdspan<T, AMREX_SPACEDIM + 1> fab,
                const Equation& equation) {
   return MakeView(boost::hana::type_c<State>, fab, equation);
 }

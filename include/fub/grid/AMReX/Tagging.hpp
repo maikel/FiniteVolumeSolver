@@ -32,8 +32,8 @@ namespace amrex {
 struct TaggingStrategy {
   virtual ~TaggingStrategy() = default;
   virtual void
-  TagCellsForRefinement(dynamic_mdspan<char, AMREX_SPACEDIM, layout_stride> tags,
-                        dynamic_mdspan<const double, AMREX_SPACEDIM + 1> states,
+  TagCellsForRefinement(mdspan<char, AMREX_SPACEDIM, layout_stride> tags,
+                        mdspan<const double, AMREX_SPACEDIM + 1> states,
                         const CartesianCoordinates& coords) = 0;
 };
 
@@ -42,8 +42,8 @@ template <typename T> struct TaggingWrapper : public TaggingStrategy {
   TaggingWrapper(T&& tag) : tag_{std::move(tag)} {}
 
   void
-  TagCellsForRefinement(dynamic_mdspan<char, AMREX_SPACEDIM, layout_stride> tags,
-                        dynamic_mdspan<const double, AMREX_SPACEDIM + 1> states,
+  TagCellsForRefinement(mdspan<char, AMREX_SPACEDIM, layout_stride> tags,
+                        mdspan<const double, AMREX_SPACEDIM + 1> states,
                         const CartesianCoordinates& coords) override {
     tag_.TagCellsForRefinement(tags, states, coords);
   }
@@ -60,8 +60,8 @@ struct Tagging {
             std::move(tag))} {}
 
   void
-  TagCellsForRefinement(dynamic_mdspan<char, AMREX_SPACEDIM, layout_stride> tags,
-                        dynamic_mdspan<const double, AMREX_SPACEDIM + 1> states,
+  TagCellsForRefinement(mdspan<char, AMREX_SPACEDIM, layout_stride> tags,
+                        mdspan<const double, AMREX_SPACEDIM + 1> states,
                         const CartesianCoordinates& coords) {
     if (tag_) {
       return tag_->TagCellsForRefinement(tags, states, coords);
@@ -76,8 +76,8 @@ template <typename Tagging, typename Equation> struct AdaptTagging {
       : tagging_{std::move(tagging)}, equation_{std::move(equation)} {}
 
   void
-  TagCellsForRefinement(dynamic_mdspan<char, AMREX_SPACEDIM, layout_stride> tags,
-                        dynamic_mdspan<const double, AMREX_SPACEDIM + 1> states,
+  TagCellsForRefinement(mdspan<char, AMREX_SPACEDIM, layout_stride> tags,
+                        mdspan<const double, AMREX_SPACEDIM + 1> states,
                         const CartesianCoordinates& coords) {
     auto state_view = MakeView(boost::hana::type_c<View<Complete<Equation>>>,
                            states, equation_);

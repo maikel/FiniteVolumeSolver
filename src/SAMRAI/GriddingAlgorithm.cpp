@@ -111,11 +111,11 @@ struct TagAndInit : SAMRAI::mesh::TagAndInitializeStrategy {
   }
 
   void preprocessErrorEstimation(
-      const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
-      int level_number, int cycle, double regrid_time, double regrid_start_time,
-      bool initial_time) override {}
+      const std::shared_ptr<SAMRAI::hier::PatchHierarchy>&,
+      int, int, double, double,
+      bool) override {}
 
-  bool usesTimeIntegration(int cycle, double time) override { return false; }
+  bool usesTimeIntegration(int, double) override { return false; }
 
   bool everUsesTimeIntegration() const override { return false; }
 

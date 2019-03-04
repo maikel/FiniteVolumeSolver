@@ -31,8 +31,10 @@ namespace fub {
 struct RunOptions {
   std::chrono::duration<double> final_time;
   std::chrono::duration<double> output_interval{0.1};
+  int output_frequency{0};
   std::chrono::duration<double> smallest_time_step_size{1e-8};
   int regrid_frequency{2};
+  double cfl{1.0};
 };
 
 std::string
@@ -53,11 +55,11 @@ void RunSimulation(Solver& solver, RunOptions options,
   std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
   std::chrono::steady_clock::duration wall_time = wall_time_reference - now;
   while (time_point + eps < options.final_time) {
-    while (time_point + eps < next_output_time) {
+    do {
       const fub::Duration stable_dt = solver.ComputeStableDt();
       FUB_ASSERT(stable_dt > eps);
       const fub::Duration limited_dt =
-          std::min(next_output_time - time_point, stable_dt);
+          std::min(next_output_time - time_point, options.cfl * stable_dt);
       solver.AdvanceHierarchy(limited_dt);
       time_point = solver.GetTimePoint();
       now = std::chrono::steady_clock::now();
@@ -68,8 +70,11 @@ void RunSimulation(Solver& solver, RunOptions options,
       print(FormatTimeStepLine(cycle, time_point, limited_dt,
                                options.final_time, wall_time,
                                wall_time_difference));
-    }
-    output(solver.GetPatchHierarchy(), solver.GetCycles(), solver.GetTimePoint());
+    } while (time_point + eps < next_output_time &&
+             (options.output_frequency <= 0 ||
+              (solver.GetCycles() % options.output_frequency) != 0));
+    output(solver.GetPatchHierarchy(), solver.GetCycles(),
+           solver.GetTimePoint());
     next_output_time += options.output_interval;
   }
 }

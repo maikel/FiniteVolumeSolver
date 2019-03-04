@@ -77,7 +77,7 @@ auto Load(basic_mdspan<T, Extents, Layout> mdspan, Indices... indices) {
 }
 
 template <typename T, int N, typename Layout, typename... Indices>
-void StoreN(dynamic_mdspan<T, 1, Layout> mdspan, int n,
+void StoreN(mdspan<T, 1, Layout> mdspan, int n,
             const Eigen::Array<T, N, 1>& chunk, std::ptrdiff_t offset) {
   for (int i = 0; i < n; ++i) {
     mdspan(offset + i) = chunk[i];

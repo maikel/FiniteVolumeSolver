@@ -32,7 +32,7 @@ DOXYFILE_ENCODING      = UTF-8
 # title of most generated pages and in a few other places.
 # The default value is: My Project.
 
-PROJECT_NAME           = "Reactive Euler Solver"
+PROJECT_NAME           = "Finite Volume Solver"
 
 # The PROJECT_NUMBER tag can be used to enter a project or revision number. This
 # could be handy for archiving the generated documentation or if some version
@@ -781,10 +781,12 @@ WARN_LOGFILE           =
 # Note: If this tag is empty the current directory is searched.
 
 INPUT                  = "../include/fub/core" \
-                         "../include/fub/solver" \
-                         "../include/fub/ideal_gas/" \
+                         "../include/fub/" \
+                         "../include/fub/equations/" \
                          "../include/fub/geometry/" \
-                         "../include/fub/output/" \
+                         "../include/fub/grid/" \
+                         "../include/fub/grid/SAMRAI/" \
+                         "../include/fub/grid/AMReX/" \
                          "../"
 
 # This tag can be used to specify the character encoding of the source files

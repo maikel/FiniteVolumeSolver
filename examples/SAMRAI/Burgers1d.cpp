@@ -44,7 +44,7 @@ struct WaveData {
   void InitializeData(fub::View<fub::Complete<fub::Burgers1d>> states,
                       const fub::CartesianCoordinates& coords) const {
     fub::Complete<fub::Burgers1d> q;
-    fub::ForEachIndex(fub::Mapping(states), [&](auto... is) {
+    fub::ForEachIndex(fub::Mapping<0>(states), [&](auto... is) {
       q.u = wave_package(coords(is...).norm());
       Store(states, q, {is...});
     });
@@ -93,7 +93,7 @@ int main(int argc, char** argv) {
   // Setup our gridding algorithm which manages refining and load balancing
 
   using Complete = fub::Burgers1d::Complete;
-  fub::GradientDetector tagging(std::pair{&Complete::u, 1e-2});
+  fub::GradientDetector tagging{std::pair{&Complete::u, 1e-2}};
   WaveData initial_data{};
   const fub::samrai::DataDescription reg =
       fub::samrai::RegisterVariables(equation);

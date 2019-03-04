@@ -152,7 +152,7 @@ add_library(HyperbolicSolver.Solver
 target_link_libraries(HyperbolicSolver.Solver
   PUBLIC
     HyperbolicSolver.Core
-    fmt::fmt
+    fmt::fmt-header-only
     Boost::boost
     Eigen3::Eigen)
 install(

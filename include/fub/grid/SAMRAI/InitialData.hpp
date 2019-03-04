@@ -115,8 +115,8 @@ template <typename InitialData, typename Equation> struct AdaptInitialData {
   void Reconstruct(span<SAMRAI::pdat::CellData<double>*> states) {
     View<Complete<Equation>> state_view = MakeView(
         boost::hana::type_c<View<Complete<Equation>>>, states, equation_);
-    View<const Cons<Equation>> cons_view = AsCons(state_view);
-    ReconstructStatesFromCons(equation_, state_view, cons_view);
+    View<const Conservative<Equation>> cons_view = AsCons(state_view);
+    CompleteFromCons(equation_, state_view, cons_view);
   }
 
   InitialData data_;

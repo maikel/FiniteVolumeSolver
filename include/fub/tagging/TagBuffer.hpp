@@ -23,6 +23,8 @@
 
 #include "fub/CartesianCoordinates.hpp"
 #include "fub/core/mdspan.hpp"
+#include "fub/State.hpp"
+#include "fub/ForEach.hpp"
 
 #include <boost/hana/tuple.hpp>
 
@@ -42,12 +44,12 @@ template <typename Base> struct TagBuffer {
   void TagCellsForRefinement(Tags tags, StateView states,
                              const CartesianCoordinates& coords) {
     base_.TagCellsForRefinement(tags, states, coords);
-    for (int dir = 0; dir < Extents(states).rank(); ++dir) {
-      ForEachIndex(Mapping(states), [&](auto... is) {
+    for (std::size_t dir = 0; dir < Extents<0>(states).rank(); ++dir) {
+      ForEachIndex(Mapping<0>(states), [&](auto... is) {
         if (tags(is...) == 1) {
           std::array<std::ptrdiff_t, sizeof...(is)> index{is...};
           for (int width = 1; width <= buffer_width_; ++width) {
-            if (index[dir] + width < Extents(states).extent(dir) &&
+            if (index[dir] + width < Extents<0>(states).extent(dir) &&
                 !tags(Shift(index, Direction(dir), width))) {
               tags(Shift(index, Direction(dir), width)) = 2;
             }

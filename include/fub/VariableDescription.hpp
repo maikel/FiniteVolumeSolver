@@ -39,8 +39,8 @@ struct RemoveTemplateParameter<T<Ts...>> {
   using type = template_t<T>;
 };
 
-enum class StateType { Complete, Cons };
-inline constexpr constant<StateType::Cons> cons{};
+enum class StateType { Complete, Conservative };
+inline constexpr constant<StateType::Conservative> cons{};
 inline constexpr constant<StateType::Complete> complete{};
 
 template <typename ConsShape, typename CompleteShape = ConsShape>
@@ -49,21 +49,42 @@ struct VariableDescription {
   using CompleteTemplate =
       typename RemoveTemplateParameter<CompleteShape>::type;
 
-  static constexpr auto Template(constant<StateType::Cons>) {
+  static constexpr auto ConservativeIsComplete() {
+    return std::is_same<ConsShape, CompleteShape>{};
+  }
+
+  static constexpr auto Template(constant<StateType::Conservative>) {
     return ConsTemplate{};
   }
   static constexpr auto Template(constant<StateType::Complete>) {
     return CompleteTemplate{};
   }
 
-  static constexpr auto Shape(constant<StateType::Cons>) {
+  static constexpr auto Shape(constant<StateType::Conservative>) {
     return boost::hana::members(ConsShape{});
   }
   static constexpr auto Shape(constant<StateType::Complete>) {
     return boost::hana::members(CompleteShape{});
   }
 
-  static constexpr auto ValueTypes(constant<StateType::Cons>) {
+  template <StateType Type>
+  static constexpr auto StaticSize(constant<Type> type) {
+    constexpr auto shape = Shape(type);
+    constexpr auto any_dynamic_size =
+        boost::hana::any_of(shape, [](auto extents) {
+          return extents == constant<dynamic_extent>{};
+        });
+    if constexpr (any_dynamic_size) {
+      return constant<dynamic_extent>{};
+    } else {
+      auto sum = [](auto total, auto n) {
+        return constant<total() + n()>{};
+      };
+      return boost::hana::fold_left(shape, sum);
+    }
+  }
+
+  static constexpr auto ValueTypes(constant<StateType::Conservative>) {
     return boost::hana::transform(boost::hana::members(ConsShape{}),
                                   [](auto) { return type_c<double>; });
   }
@@ -72,10 +93,6 @@ struct VariableDescription {
                                   [](auto) { return type_c<double>; });
   }
 };
-
-template <int N, typename Equation, StateType Type>
-using ArrayBaseTypeT = typename decltype(
-    ArrayBaseType(constant<N>{}, type_c<Equation>, constant<Type>{}))::type;
 
 } // namespace fub
 

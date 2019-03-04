@@ -77,7 +77,7 @@ MdSpan MakeMdSpan(boost::hana::basic_type<MdSpan>,
 }
 
 template <template <typename...> typename T, typename... Args>
-T<remove_cvref_t<Args>...> MakeTemplate(template_t<T> template_,
+T<remove_cvref_t<Args>...> MakeTemplate(template_t<T>,
                                         Args&&... args) {
   return T<remove_cvref_t<Args>...>{std::forward<Args>(args)...};
 }
@@ -86,7 +86,7 @@ template <typename State, typename Equation,
           int N = boost::hana::length(State::ValueTypes())>
 auto MakeView(boost::hana::basic_type<State>,
               nodeduce_t<span<SAMRAI::pdat::CellData<double>*, N>> span,
-              const Equation& equation) {
+              const Equation&) {
   constexpr auto types = State::ValueTypes();
   const auto pointers = boost::hana::to_tuple(span);
   return boost::hana::unpack(
@@ -102,7 +102,7 @@ template <typename State, typename Equation,
           int N = boost::hana::length(State::ValueTypes())>
 auto MakeView(boost::hana::basic_type<State>,
               nodeduce_t<span<SAMRAI::pdat::SideData<double>*, N>> span,
-              const Equation& equation) {
+              const Equation&) {
   constexpr auto types = State::ValueTypes();
   const auto pointers = boost::hana::to_tuple(span);
   const int direction = GetDirection(span[0]->getDirectionVector());

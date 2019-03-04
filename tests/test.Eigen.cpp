@@ -27,7 +27,7 @@ using namespace fub;
 
 TEST_CASE("Load from linear memory") {
   std::array<double, 10> xs{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-  dynamic_mdspan<const double, 1> mdspan(xs.data(), 10);
+  mdspan<const double, 1> mdspan(xs.data(), 10);
   for (int i = 0; i < 10; i += 2) {
     Eigen::Array<double, 2, 1> x = Load(constant<2>(), mdspan, i);
     REQUIRE(x[0] == i);
@@ -37,7 +37,7 @@ TEST_CASE("Load from linear memory") {
   REQUIRE(x[0] == 9);
   x[0] = 42;
 
-  dynamic_mdspan<double, 1> span(xs.data(), 10);
+  mdspan<double, 1> span(xs.data(), 10);
   Store(span, x, 9);
   std::array<double, 10> ys{0, 1, 2, 3, 4, 5, 6, 7, 8, 42};
   REQUIRE(xs == ys);
@@ -47,14 +47,14 @@ TEST_CASE("Load from strided memory") {
   std::array<double, 10> xs{0, 1, 2, 3, 4, 
                             5, 6, 7, 8, 9};
   {
-    dynamic_mdspan<const double, 2> mdspan(xs.data(), 5, 2);
+    mdspan<const double, 2> mdspan(xs.data(), 5, 2);
     auto inner = subspan(mdspan, 3, all);
     Eigen::Array<double, 2, 1> x = Load(constant<2>(), inner, 0);
     REQUIRE(x[0] == 3);
     REQUIRE(x[1] == 8);
   }
   {
-    dynamic_mdspan<double, 2> mdspan(xs.data(), 5, 2);
+    mdspan<double, 2> mdspan(xs.data(), 5, 2);
     Eigen::Array<double, 2, 1> x{42, 24};
     auto inner = subspan(mdspan, 3, all);
     Store(inner, x, 0);

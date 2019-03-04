@@ -98,7 +98,7 @@ template <typename Equation>
 DataDescription RegisterVariables(const Equation& equation,
                                  std::string prefix = std::string()) {
   using Complete = typename Equation::Complete;
-  using Conservative = typename Equation::Cons;
+  using Conservative = typename Equation::Conservative;
 
   DataDescription data_ids;
 

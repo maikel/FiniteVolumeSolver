@@ -20,15 +20,12 @@
 
 #include "fub/equations/PerfectGas.hpp"
 
-#include <numeric>
-
 namespace fub {
 
-namespace {
-template <int Rank>
-void Flux(const PerfectGas<Rank>& equation, Cons<PerfectGas<Rank>>& flux,
-          const Complete<PerfectGas<Rank>>& state, Direction dir) noexcept {
-  if constexpr (Rank == 1) {
+template <int Dim>
+void PerfectGas<Dim>::Flux(Conservative& flux, const Complete& state,
+                           Direction dir) const noexcept {
+  if constexpr (Dim == 1) {
     const double velocity = state.momentum / state.density;
     flux.density = state.momentum;
     flux.momentum = velocity * state.momentum + state.pressure;
@@ -37,7 +34,7 @@ void Flux(const PerfectGas<Rank>& equation, Cons<PerfectGas<Rank>>& flux,
     const int d0 = static_cast<int>(dir);
     const double velocity = state.momentum[d0] / state.density;
     flux.density = state.momentum[d0];
-    for (int d = 0; d < Rank; ++d) {
+    for (int d = 0; d < Dim; ++d) {
       flux.momentum[d] = velocity * state.momentum[d];
     }
     flux.momentum[d0] += state.pressure;
@@ -45,72 +42,44 @@ void Flux(const PerfectGas<Rank>& equation, Cons<PerfectGas<Rank>>& flux,
   }
 }
 
-template <int Rank>
-void Reconstruct(const PerfectGas<Rank>& equation,
-                 Complete<PerfectGas<Rank>>& complete,
-                 const Cons<PerfectGas<Rank>>& cons) noexcept {
+template struct PerfectGas<1>;
+template struct PerfectGas<2>;
+template struct PerfectGas<3>;
+
+template <int Dim>
+void CompleteFromConsImpl<PerfectGas<Dim>>::apply(
+    const PerfectGas<Dim>& equation, Complete<PerfectGas<Dim>>& complete,
+    const Conservative<PerfectGas<Dim>>& cons) {
   complete.density = cons.density;
   complete.momentum = cons.momentum;
   complete.energy = cons.energy;
-  if constexpr (Rank == 1) {
+  if constexpr (Dim == 1) {
     complete.pressure =
-        equation.gamma *
+        (equation.gamma - 1.0) *
         (cons.energy - 0.5 * cons.momentum * cons.momentum / cons.density);
   } else {
     const double E_kin =
-        0.5 *
-        std::inner_product(&cons.momentum[0], &cons.momentum[0] + Rank,
-                           &cons.momentum[0], 0.0) /
-        cons.density;
-    const double rho_e_internal = complete.energy - E_kin;
-    complete.pressure = (equation.gamma - 1) * rho_e_internal;
+        0.5 * cons.momentum.matrix().squaredNorm() / cons.density;
+    const double rho_e_internal = cons.energy - E_kin;
+    complete.pressure = (equation.gamma - 1.0) * rho_e_internal;
   }
   complete.speed_of_sound =
       std::sqrt(equation.gamma * complete.pressure / complete.density);
 }
-} // namespace
 
-void PerfectGas<1>::Flux(Cons& flux, const Complete& state, Direction dir) const
-    noexcept {
-  ::fub::Flux(*this, flux, state, dir);
-}
+template struct CompleteFromConsImpl<PerfectGas<1>>;
+template struct CompleteFromConsImpl<PerfectGas<2>>;
+template struct CompleteFromConsImpl<PerfectGas<3>>;
 
-void PerfectGas<2>::Flux(Cons& flux, const Complete& state, Direction dir) const
-    noexcept {
-  ::fub::Flux(*this, flux, state, dir);
-}
-
-void PerfectGas<3>::Flux(Cons& flux, const Complete& state, Direction dir) const
-    noexcept {
-  ::fub::Flux(*this, flux, state, dir);
-}
-
-void PerfectGas<1>::Reconstruct(Complete& complete, const Cons& cons) const
-    noexcept {
-  ::fub::Reconstruct(*this, complete, cons);
-}
-
-void PerfectGas<2>::Reconstruct(Complete& complete, const Cons& cons) const
-    noexcept {
-  ::fub::Reconstruct(*this, complete, cons);
-}
-
-void PerfectGas<3>::Reconstruct(Complete& complete, const Cons& cons) const
-    noexcept {
-  ::fub::Reconstruct(*this, complete, cons);
-}
-
-namespace {
-template <int Rank>
-std::array<double, 2>
-ComputeHlleSignalVelocities(const Complete<PerfectGas<Rank>>& left,
-                            const Complete<PerfectGas<Rank>>& right,
-                            Direction dir) noexcept {
+template <int Dim>
+std::array<double, 2> EinfeldtSignalVelocitiesImpl<PerfectGas<Dim>>::apply(
+    const PerfectGas<Dim>&, const Complete& left, const Complete& right,
+    Direction dir) noexcept {
   const double rhoL = left.density;
   const double rhoR = right.density;
   double rhoUL;
   double rhoUR;
-  if constexpr (Rank == 1) {
+  if constexpr (Dim == 1) {
     rhoUL = left.momentum;
     rhoUR = right.momentum;
   } else {
@@ -134,21 +103,9 @@ ComputeHlleSignalVelocities(const Complete<PerfectGas<Rank>>& left,
   const double sR2 = uR + aR;
   return {std::min(sL1, sL2), std::max(sR1, sR2)};
 }
-} // namespace
 
-std::array<double, 2> EinfeldtSignalVelocities<PerfectGas<1>>::ComputeSignals(
-    const Complete& left, const Complete& right, Direction dir) const {
-  return ComputeHlleSignalVelocities(left, right, dir);
-}
-
-std::array<double, 2> EinfeldtSignalVelocities<PerfectGas<2>>::ComputeSignals(
-    const Complete& left, const Complete& right, Direction dir) const {
-  return ComputeHlleSignalVelocities(left, right, dir);
-}
-
-std::array<double, 2> EinfeldtSignalVelocities<PerfectGas<3>>::ComputeSignals(
-    const Complete& left, const Complete& right, Direction dir) const {
-  return ComputeHlleSignalVelocities(left, right, dir);
-}
+template struct EinfeldtSignalVelocitiesImpl<PerfectGas<1>>;
+template struct EinfeldtSignalVelocitiesImpl<PerfectGas<2>>;
+template struct EinfeldtSignalVelocitiesImpl<PerfectGas<3>>;
 
 } // namespace fub

@@ -203,7 +203,7 @@ private:
   };
 
   template <typename T>
-  using MdSpan = fub::basic_mdspan<T, fub::DynamicExtents<2>, fub::layout_left>;
+  using MdSpan = fub::basic_mdspan<T, fub::dynamic_extents<2>, fub::layout_left>;
 
   static double& At_(MdSpan<double> states, Variable var, std::ptrdiff_t cell) {
     return states(static_cast<int>(var), cell);

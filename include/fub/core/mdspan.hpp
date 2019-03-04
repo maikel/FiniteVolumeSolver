@@ -34,7 +34,7 @@
 
 #include <array>
 #include <type_traits>
-// #include <utility>
+#include <tuple>
 
 namespace fub {
 /// This is the storage type for the extents class and only takes storage for
@@ -477,7 +477,7 @@ struct layout_stride {
     std::array<std::ptrdiff_t, Extents::rank()>
     MakeStrides(const layout_left::mapping<Extents>& other) {
       std::array<std::ptrdiff_t, Extents::rank()> strides;
-      for (int s = 0; s < Extents::rank(); ++s) {
+      for (std::size_t s = 0; s < Extents::rank(); ++s) {
         strides[s] = other.stride(s);
       }
       return strides;
@@ -702,24 +702,24 @@ private:
 };
 
 template <typename T, ptrdiff_t... Extents>
-using mdspan = basic_mdspan<T, extents<Extents...>>;
+using static_mdspan = basic_mdspan<T, extents<Extents...>>;
 
-template <typename T> struct DynamicExtents_;
+template <typename T> struct dynamic_extents_;
 
 template <typename I, I... Is>
-struct DynamicExtents_<integer_sequence<I, Is...>> {
-  using type = extents<(Is, fub::dynamic_extent)...>;
+struct dynamic_extents_<integer_sequence<I, Is...>> {
+  using type = extents<((void)Is, fub::dynamic_extent)...>;
 };
 
 template <std::size_t Rank>
-using DynamicExtents =
-    typename DynamicExtents_<make_index_sequence<Rank>>::type;
+using dynamic_extents =
+    typename dynamic_extents_<make_index_sequence<Rank>>::type;
 
-template <typename T, std::size_t Rank, typename Layout = layout_right>
-using DynamicMdSpan = basic_mdspan<T, DynamicExtents<Rank>, Layout>;
+// template <typename T, std::size_t Rank, typename Layout = layout_right>
+// using DynamicMdSpan = basic_mdspan<T, dynamic_extents<Rank>, Layout>;
 
 template <typename T, std::size_t Rank, typename Layout = layout_left>
-using dynamic_mdspan = basic_mdspan<T, DynamicExtents<Rank>, Layout>;
+using mdspan = basic_mdspan<T, dynamic_extents<Rank>, Layout>;
 
 template <typename T, typename E, typename A = accessor_basic<T>>
 using strided_mdspan = basic_mdspan<T, E, layout_stride, A>;
@@ -729,6 +729,7 @@ struct all_type {
 };
 static constexpr all_type all = all_type{};
 
+/// \cond INTERNAL
 template <typename T>
 struct IsSliceRange_
     : disjunction<
@@ -748,13 +749,14 @@ template <typename I, typename... Is> constexpr I Accumulate_(I x0, Is... xi) {
 template <typename... SliceSpecifiers>
 static constexpr std::size_t SliceRank_ =
     Accumulate_(static_cast<int>(IsSliceRange_<SliceSpecifiers>::value)...);
+/// \endcond
 
 // [mdspan.subspan], subspan creation
 template <class ElementType, class Extents, class LayoutPolicy,
           class AccessorPolicy, class... SliceSpecifiers>
 struct mdspan_subspan { // exposition only
   static constexpr std::size_t slice_rank = SliceRank_<SliceSpecifiers...>;
-  using extents_t = DynamicExtents<slice_rank>;
+  using extents_t = dynamic_extents<slice_rank>;
   using layout_t = layout_stride;
   using type = basic_mdspan<ElementType, extents_t, layout_t,
                             typename AccessorPolicy::offset_policy>;
@@ -773,6 +775,7 @@ SliceExtent_(const std::pair<std::ptrdiff_t, std::ptrdiff_t>& p) {
   return p.second - p.first;
 }
 
+/// \cond INTERNAL
 constexpr std::ptrdiff_t SliceExtent_(all_type) { return dynamic_extent; }
 
 template <typename T, typename = std::enable_if_t<!IsSliceRange_<T>::value>>
@@ -927,7 +930,7 @@ constexpr std::array<std::ptrdiff_t, SliceRank_<SliceSpecifiers...>>
 MakeSliceExtents2_(const Extents& e, SliceSpecifiers... slices) {
   const std::array<std::ptrdiff_t, Extents::rank()> length{
       MapToLength_(slices)...};
-  std::array<std::ptrdiff_t, Extents::rank()> dyn_length;
+  std::array<std::ptrdiff_t, Extents::rank()> dyn_length{};
   for (std::size_t i = 0; i < Extents::rank(); ++i) {
     if (length[i] < 0) {
       dyn_length[i] = e.extent(i);
@@ -935,7 +938,7 @@ MakeSliceExtents2_(const Extents& e, SliceSpecifiers... slices) {
       dyn_length[i] = length[i];
     }
   }
-  std::array<std::ptrdiff_t, SliceRank_<SliceSpecifiers...>> extents;
+  std::array<std::ptrdiff_t, SliceRank_<SliceSpecifiers...>> extents{};
   int slice = 0;
   for (std::size_t i = 0; i < Extents::rank(); ++i) {
     if (dyn_length[i] > 0) {
@@ -945,6 +948,7 @@ MakeSliceExtents2_(const Extents& e, SliceSpecifiers... slices) {
   }
   return extents;
 }
+/// \endcond
 
 template <class ElementType, class Extents, class LayoutPolicy,
           class AccessorPolicy, class... SliceSpecifiers>
@@ -958,7 +962,7 @@ subspan(
   const auto map = src.mapping();
   const auto acc = src.accessor();
   constexpr int slice_rank = SliceRank_<SliceSpecifiers...>;
-  using SliceExtents = DynamicExtents<slice_rank>;
+  using SliceExtents = dynamic_extents<slice_rank>;
   const SliceExtents extents{MakeSliceExtents2_(src.extents(), slices...)};
   const std::array<std::ptrdiff_t, slice_rank> slice_array =
       MakeSliceArray_(src, slices...);

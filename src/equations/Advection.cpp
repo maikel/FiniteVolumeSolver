@@ -22,7 +22,7 @@
 
 namespace fub {
 
-void Advection2d::Flux(Cons& flux, const Complete& state, Direction dir) const
+void Advection2d::Flux(Conservative& flux, const Complete& state, Direction dir) const
     noexcept {
   const int dir_v = int(dir);
   flux.mass = state.mass * velocity[dir_v];

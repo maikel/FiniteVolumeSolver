@@ -332,8 +332,8 @@ SAMRAI::hier::ComponentSelector SelectComponents(
 
 void HyperbolicSplitIntegratorContext::AdaptBoundaryCondition::
     setPhysicalBoundaryConditions(
-        SAMRAI::hier::Patch& patch, double /* fill_time */,
-        const SAMRAI::hier::IntVector& ghost_width_to_fill) {
+        SAMRAI::hier::Patch& /* patch */, double /* fill_time */,
+        const SAMRAI::hier::IntVector& /* ghost_width_to_fill */) {
   // if (condition_) {
   //   const SAMRAI::hier::PatchGeometry& geometry = *patch.getPatchGeometry();
   //   const std::vector<SAMRAI::hier::BoundaryBox>& boundaries =
@@ -477,7 +477,7 @@ HyperbolicSplitIntegratorContext::GetOutersideFluxes(PatchHandle patch) const {
 
 void HyperbolicSplitIntegratorContext::AccumulateCoarseFineFluxes(int level_num,
                                                                   Direction dir,
-                                                                  Duration dt) {
+                                                                  Duration) {
   const SAMRAI::hier::PatchLevel& level =
       *GetPatchHierarchy()->getPatchLevel(level_num);
   const int direction = static_cast<int>(dir);
@@ -486,7 +486,7 @@ void HyperbolicSplitIntegratorContext::AccumulateCoarseFineFluxes(int level_num,
         GetOutersideFluxes(patch.get());
     vector<SAMRAI::pdat::SideData<double>*> face = GetFluxes(patch.get(), dir);
     FUB_ASSERT(outerside.size() == face.size());
-    for (int i = 0; i < face.size(); ++i) {
+    for (std::size_t i = 0; i < face.size(); ++i) {
       SAMRAI::pdat::ArrayData<double>& outer_lower =
           outerside[i]->getArrayData(direction, 0);
       SAMRAI::pdat::ArrayData<double>& outer_upper =
@@ -507,7 +507,7 @@ void HyperbolicSplitIntegratorContext::AccumulateCoarseFineFluxes(int level_num,
 }
 
 void HyperbolicSplitIntegratorContext::FillGhostLayerTwoLevels(
-    int fine, int coarse, Direction direction, BoundaryCondition boundary) {
+    int fine, int /* coarse */, Direction direction, BoundaryCondition boundary) {
   const int d = static_cast<int>(direction);
   adapted_boundary_.SetBoundaryCondition(boundary);
   fill_ghost_two_levels_[d][fine]->fillData(0.0);
@@ -521,8 +521,8 @@ void HyperbolicSplitIntegratorContext::FillGhostLayerSingleLevel(
 }
 
 void HyperbolicSplitIntegratorContext::ResetCoarseFineFluxes(int fine,
-                                                             int coarse,
-                                                             Direction dir) {
+                                                             int /* coarse */,
+                                                             Direction /* dir */) {
   // Loop over all patches
   const SAMRAI::hier::PatchLevel& level = *GetPatchHierarchy()->getPatchLevel(fine);
   for (const std::shared_ptr<SAMRAI::hier::Patch>& patch : level) {
@@ -568,14 +568,14 @@ void HyperbolicSplitIntegratorContext::ApplyFluxCorrection(int fine, int,
 
 void HyperbolicSplitIntegratorContext::PreAdvanceLevel(int level_num,
                                                        Direction dir,
-                                                       Duration dt,
+                                                       Duration /* dt */,
                                                        int subcycle) {
   const int d = int(dir);
   if (subcycle == 0 && level_num > 0 &&
       regrid_time_points_[d][level_num] != time_points_[d][level_num]) {
     gridding_.RegridAllFinerLevels(level_num - 1, GetCycles(level_num - 1, dir),
                                    GetTimePoint(level_num - 1, dir));
-    for (int lvl = level_num; lvl < regrid_time_points_.size(); ++lvl) {
+    for (std::size_t lvl = level_num; lvl < regrid_time_points_.size(); ++lvl) {
       regrid_time_points_[d][level_num] = time_points_[d][level_num];
     }
     ResetHierarchyConfiguration(level_num);

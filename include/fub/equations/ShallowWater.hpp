@@ -36,12 +36,12 @@ template <typename Heigth, typename Momentum> struct ShallowWaterVariables {
 
 struct ShallowWater
     : VariableDescription<ShallowWaterVariables<Scalar, Vector2d>> {
-  using Cons = ::fub::Cons<ShallowWater>;
+  using Conservative = ::fub::Conservative<ShallowWater>;
   using Complete = ::fub::Complete<ShallowWater>;
 
   static constexpr int Rank() noexcept { return 2; }
 
-  void Flux(Cons& flux, const Complete& state,
+  void Flux(Conservative& flux, const Complete& state,
             Direction dir = Direction::X) const noexcept;
 
   double gravity_{10.0};
@@ -71,18 +71,9 @@ private:
 struct ShallowWaterSignalVelocities {
   using Complete = typename ShallowWater::Complete;
 
-  std::array<double, 2> ComputeSignals(const Complete& left, const Complete& right, Direction dir) {
-    const int d = static_cast<int>(dir);
-    const double vL = left.momentum[d] / left.heigth;
-    const double sqrt_g_hL = std::sqrt(equation_.gravity_ * left.heigth);
-    const double vR = right.momentum[d] / right.heigth;
-    const double sqrt_g_hR = std::sqrt(equation_.gravity_ * right.heigth);
-    const double sL = std::min({vL - sqrt_g_hL, vR - sqrt_g_hR, 0.0});
-    const double sR = std::max({vL + sqrt_g_hL, vR + sqrt_g_hR, 0.0});
-    return {sL, sR};
-  }
-
-  ShallowWater equation_;
+  std::array<double, 2> operator()(const ShallowWater& equation,
+                                   const Complete& left, const Complete& right,
+                                   Direction dir);
 };
 
 } // namespace fub

@@ -23,6 +23,7 @@
 
 #include "fub/Equation.hpp"
 #include "fub/geometry/Ambient.hpp"
+#include "fub/ForEach.hpp"
 
 namespace fub {
 
@@ -33,7 +34,7 @@ public:
 
   template <typename StateView, typename CoordMapping>
   void InitializePatch(StateView states, const CoordMapping& x) {
-    ForEachIndex(Extents(states), [&](auto index) {
+    ForEachIndex(Extents<0>(states), [&](auto index) {
       if (geometry_.ComputeDistanceTo(x(index)) < 0.0) {
         states(index) = state_;
       }

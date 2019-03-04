@@ -30,7 +30,7 @@ class CartesianCoordinates {
 public:
   CartesianCoordinates(const Eigen::Vector3d& lower,
                        const Eigen::Vector3d& upper, const Eigen::Vector3d& dx,
-                       DynamicExtents<3> extents) noexcept;
+                       dynamic_extents<3> extents) noexcept;
 
   Eigen::Vector3d operator()(std::ptrdiff_t i, std::ptrdiff_t j = 0,
                              std::ptrdiff_t k = 0) const;
@@ -50,7 +50,7 @@ private:
   Eigen::Vector3d lower_;
   Eigen::Vector3d upper_;
   Eigen::Vector3d dx_;
-  DynamicExtents<3> extents_;
+  dynamic_extents<3> extents_;
 };
 
 } // namespace fub

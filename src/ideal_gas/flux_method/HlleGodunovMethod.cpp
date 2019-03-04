@@ -48,7 +48,7 @@ Array2d HlleGodunovMethod::ComputeEinfeldtSignalVelocities(
   return signals;
 }
 
-void HlleGodunovMethod::ComputeNumericFlux(Cons& flux, const State& left,
+void HlleGodunovMethod::ComputeNumericFlux(Conservative& flux, const State& left,
                                            const State& right) noexcept {
   const Array2d signals = ComputeEinfeldtSignalVelocities(left, right);
   const Array1d sL = signals.col(0);
@@ -65,10 +65,10 @@ void HlleGodunovMethod::ComputeNumericFlux(Cons& flux, const State& left,
 void HlleGodunovMethod::ComputeNumericFluxesOnSpans(
     ConsSpan<double> fluxes, StateSpan<const double> states) noexcept {
   ForEachRow(
-      Extents(states),
+      Extents<0>(states),
       [&](auto fluxes, auto states) {
         FUB_ASSERT(states.extent(0) == fluxes.extent(0) + 1);
-        for (int i = 0; i + 1 < Extents(states).extent(0); i += kChunkSize) {
+        for (int i = 0; i + 1 < Extents<0>(states).extent(0); i += kChunkSize) {
           Load(left, states, i);
           Load(right, states, i + 1);
           ComputeNumericFlux(flux, left, right);

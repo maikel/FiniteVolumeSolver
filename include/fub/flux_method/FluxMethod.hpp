@@ -32,8 +32,8 @@ namespace fub {
 
 template <typename Method> struct FluxMethodTraits {
   using Equation = typename Method::Equation;
-  using State = typename Method::State;
-  using Cons = typename Method::Cons;
+  using Complete = typename Method::Complete;
+  using Conservative = typename Method::Conservative;
   static constexpr int StencilWidth() noexcept {
     return Method::GetStencilWidth();
   }
@@ -47,14 +47,13 @@ template <typename Method> struct FluxMethodTraits {
 template <typename BaseMethod> class FluxMethod {
 public:
   using Equation = typename FluxMethodTraits<BaseMethod>::Equation;
-  using State = typename FluxMethodTraits<BaseMethod>::State;
-  using Cons = typename FluxMethodTraits<BaseMethod>::Cons;
+  using Complete = typename FluxMethodTraits<BaseMethod>::Complete;
+  using Conservative = typename FluxMethodTraits<BaseMethod>::Conservative;
 
   /// Allocates memory space for properly sized stencil and numeric flux
   /// buffers.
   template <typename... Args>
-  FluxMethod(Args&&... args)
-      : base_(std::forward<Args>(args)...) {}
+  FluxMethod(Args&&... args) : base_(std::forward<Args>(args)...) {}
 
   const BaseMethod& Base() { return base_; }
 
@@ -64,9 +63,10 @@ public:
     return FluxMethodTraits<BaseMethod>::StencilWidth();
   }
 
-  void ComputeNumericFluxes(View<Cons> fluxes, View<const State> states,
-                            Duration dt, double dx, Direction dir) {
-    ForEachIndex(Mapping(fluxes), [&](const auto... is) {
+  void ComputeNumericFluxes(View<Conservative> fluxes,
+                            View<const Complete> states, Duration dt, double dx,
+                            Direction dir) {
+    ForEachIndex(Mapping<0>(fluxes), [&](const auto... is) {
       using Index = std::array<std::ptrdiff_t, sizeof...(is)>;
       const Index face{is...};
       for (std::size_t i = 0; i < stencil_.size(); ++i) {
@@ -78,26 +78,39 @@ public:
     });
   }
 
-  double ComputeStableDt(View<const State> states, double dx,
+  void ComputeNumericFlux(Conservative& numeric_flux,
+                          span<const Complete, 2> states, Duration dt,
+                          double dx, Direction dir) {
+    base_.ComputeNumericFlux(numeric_flux, states, dt, dx, dir);
+  }
+
+  double ComputeStableDt(span<const Complete, 2> states, double dx,
+                         Direction dir) {
+    return base_.ComputeStableDt(states, dx, dir);
+  }
+
+  double ComputeStableDt(View<const Complete> states, double dx,
                          Direction dir) {
     double min_dt = std::numeric_limits<double>::infinity();
     constexpr int stencil = FluxMethodTraits<BaseMethod>::StencilWidth();
-    ForEachIndex(Shrink(Mapping(states), dir, stencil), [&](const auto... is) {
-      using Index = std::array<std::ptrdiff_t, sizeof...(is)>;
-      const Index face{is...};
-      for (std::size_t i = 0; i < stencil_.size(); ++i) {
-        const Index cell = Shift(face, dir, i);
-        Load(stencil_[i], states, cell);
-      }
-      double dt = base_.ComputeStableDt(stencil_, dx, dir);
-      min_dt = std::min(dt, min_dt);
-    });
+    ForEachIndex(Shrink(Mapping<0>(states), dir, 2 * stencil),
+                 [&](const auto... is) {
+                   using Index = std::array<std::ptrdiff_t, sizeof...(is)>;
+                   const Index face{is...};
+                   for (std::size_t i = 0; i < stencil_.size(); ++i) {
+                     const Index cell = Shift(face, dir, i);
+                     Load(stencil_[i], states, cell);
+                   }
+                   double dt = base_.ComputeStableDt(stencil_, dx, dir);
+                   min_dt = std::min(dt, min_dt);
+                 });
     return min_dt;
   }
 
   BaseMethod base_;
-  std::array<State, 2 * FluxMethodTraits<BaseMethod>::StencilWidth()> stencil_{};
-  Cons numeric_flux_{};
+  std::array<Complete, 2 * FluxMethodTraits<BaseMethod>::StencilWidth()>
+      stencil_{};
+  Conservative numeric_flux_{};
 };
 
 } // namespace fub

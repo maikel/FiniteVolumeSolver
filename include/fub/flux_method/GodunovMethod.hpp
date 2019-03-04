@@ -35,19 +35,20 @@ namespace fub {
 template <typename EquationT, typename RiemannSolverT> class Godunov {
 public:
   using Equation = EquationT;
-  using State = typename Equation::Complete;
-  using Cons = typename Equation::Cons;
+  using Complete = typename Equation::Complete;
+  using Conservative = typename Equation::Conservative;
 
   Godunov(const Equation& equation) : equation_{equation} {}
 
-  void ComputeNumericFlux(Cons& numeric_flux, span<const State, 2> states,
-                          Duration /* dt */, double /* dx */, Direction dir) {
+  void ComputeNumericFlux(Conservative& numeric_flux,
+                          span<const Complete, 2> states, Duration /* dt */,
+                          double /* dx */, Direction dir) {
     riemann_solver_.SolveRiemannProblem(riemann_solution_, states[0], states[1],
                                         dir);
     equation_.Flux(numeric_flux, riemann_solution_, dir);
   }
 
-  double ComputeStableDt(span<const State, 2> states, double dx,
+  double ComputeStableDt(span<const Complete, 2> states, double dx,
                          Direction dir) {
     auto signals = riemann_solver_.ComputeSignals(states[0], states[1], dir);
     const double s_max =
@@ -63,7 +64,7 @@ public:
 private:
   Equation equation_;
   RiemannSolverT riemann_solver_{equation_};
-  State riemann_solution_{};
+  Complete riemann_solution_{equation_};
 };
 
 template <typename Equation, typename RPSolver = ExactRiemannSolver<Equation>>
@@ -72,7 +73,7 @@ struct GodunovMethod : public FluxMethod<Godunov<Equation, RPSolver>> {
 };
 
 template <typename Equation>
-GodunovMethod(const Equation& eq) -> GodunovMethod<Equation>;
+GodunovMethod(const Equation& eq)->GodunovMethod<Equation>;
 
 } // namespace fub
 

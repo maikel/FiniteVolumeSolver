@@ -44,9 +44,9 @@
 struct CircleData {
   void InitializeData(fub::View<fub::Complete<fub::PerfectGas<2>>> states,
                       const fub::CartesianCoordinates& x) const {
-    fub::ForEachIndex(fub::Mapping(states), [&](int i, int j) {
+    fub::ForEachIndex(fub::Mapping<0>(states), [&](int i, int j) {
       const double norm = x(i, j).norm();
-      fub::Cons<fub::PerfectGas<2>> state;
+      fub::Conservative<fub::PerfectGas<2>> state;
       if (norm < 0.25) {
         state.energy = 8 * 101325. * equation_.gamma_minus_1_inv;
       } else {
@@ -56,7 +56,7 @@ struct CircleData {
       state.momentum.fill(0);
 
       fub::Complete<fub::PerfectGas<2>> complete;
-      equation_.Reconstruct(complete, state);
+      CompleteFromCons(equation_, complete, state);
       Store(states, complete, {i, j});
     });
   }
@@ -90,7 +90,7 @@ int main(int argc, char** argv) {
   // Setup our gridding algorithm which manages refining and load balancing
 
   using Complete = fub::PerfectGas<2>::Complete;
-  fub::GradientDetector tagging(std::pair{&Complete::pressure, 1e4});
+  fub::GradientDetector tagging{std::pair{&Complete::pressure, 1e4}};
   CircleData initial_data{};
   const fub::samrai::DataDescription reg =
       fub::samrai::RegisterVariables(equation);
@@ -102,7 +102,8 @@ int main(int argc, char** argv) {
   // These will register data ids with SAMRAIs variable database
 
   fub::HyperbolicSplitPatchIntegrator patch_integrator{equation};
-  fub::HllMethod flux_method{equation, fub::EinfeldtSignalVelocities{equation}};
+  fub::HllMethod flux_method{equation,
+                             fub::EinfeldtSignalVelocities<fub::PerfectGas<2>>};
   fub::HyperbolicSplitSystemSolver system_solver(
       fub::HyperbolicSplitLevelIntegrator(
           fub::samrai::HyperbolicSplitIntegratorContext(
@@ -115,7 +116,8 @@ int main(int argc, char** argv) {
   hierarchy->recursivePrint(SAMRAI::tbox::pout, "", 2);
   system_solver.ResetHierarchyConfiguration();
 
-  SAMRAI::appu::VisItDataWriter writer(dim, "VisItWriter", "SAMRAI/PerfectGas2d");
+  SAMRAI::appu::VisItDataWriter writer(dim, "VisItWriter",
+                                       "SAMRAI/PerfectGas2d");
   writer.registerPlotQuantity("Density", "SCALAR", reg.data_ids[0]);
   writer.registerPlotQuantity("Momentum", "VECTOR", reg.data_ids[1]);
   writer.registerPlotQuantity("Energy", "SCALAR", reg.data_ids[2]);
@@ -130,7 +132,7 @@ int main(int argc, char** argv) {
         writer.writePlotData(hierarchy, cycle, time_point.count());
         SAMRAI::tbox::pout << "Finished VisIt Output.\n";
       };
-  
+
   using namespace std::literals::chrono_literals;
   output(hierarchy, 0, 0.0s);
 

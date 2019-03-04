@@ -24,6 +24,7 @@
 #include "fub/Direction.hpp"
 #include "fub/Duration.hpp"
 #include "fub/Equation.hpp"
+#include "fub/ForEach.hpp"
 
 namespace fub {
 
@@ -43,10 +44,10 @@ public:
 private:
   Equation equation;
 
-  Cons<Equation> next_state;
-  Cons<Equation> prev_state;
-  Cons<Equation> flux_left;
-  Cons<Equation> flux_right;
+  Conservative<Equation> next_state{equation};
+  Conservative<Equation> prev_state{equation};
+  Conservative<Equation> flux_left{equation};
+  Conservative<Equation> flux_right{equation};
 };
 
 template <typename Equation>
@@ -55,19 +56,19 @@ void HyperbolicSplitPatchIntegrator<Equation>::UpdateConservatively(
     NextView next, FluxView fluxes, PrevView prev, Duration dt, double dx,
     Direction dir) {
   const double lambda = dt.count() / dx;
-  FUB_ASSERT(Extents(next) == Extents(prev));
+  FUB_ASSERT(Extents<0>(next) == Extents<0>(prev));
   constexpr int Rank = Equation::Rank();
-  ForEachIndex(Mapping(next), [&](const auto... is) {
+  ForEachIndex(Mapping<0>(next), [&](const auto... is) {
     std::array<std::ptrdiff_t, Rank> index{is...};
-    FUB_ASSERT(Extents(fluxes).extent(int(dir)) ==
-               Extents(prev).extent(int(dir)) + 1);
+    FUB_ASSERT(Extents<0>(fluxes).extent(int(dir)) ==
+               Extents<0>(prev).extent(int(dir)) + 1);
     // Load fluxes left and right at index
     Load(flux_left, fluxes, index);
     Load(flux_right, fluxes, Shift(index, dir, 1));
     // Load state at index
     Load(prev_state, prev, index);
     // Do The computation
-    ForEachComponent(
+    ForEachComponent<Conservative<Equation>>(
         [lambda](auto&& next, auto prev, auto flux_left, auto flux_right) {
           next = prev + lambda * (flux_left - flux_right);
         },

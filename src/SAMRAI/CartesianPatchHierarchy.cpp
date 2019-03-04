@@ -101,7 +101,7 @@ CartesianCoordinates GetCartesianCoordinates(const SAMRAI::hier::Patch& patch) {
   for (int i = 0; i < patch.getDim().getValue(); ++i) {
     extents[i] = patch.getBox().numberCells(i);
   }
-  return CartesianCoordinates(lower, upper, dx, DynamicExtents<3>(extents));
+  return CartesianCoordinates(lower, upper, dx, dynamic_extents<3>(extents));
 }
 
 CartesianPatchCoordinates::CartesianPatchCoordinates(

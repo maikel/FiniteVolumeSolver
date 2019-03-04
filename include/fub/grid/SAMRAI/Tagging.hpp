@@ -94,7 +94,7 @@ template <typename Tagging, typename Equation> struct AdaptTagging {
     auto state_view = MakeView(boost::hana::type_c<View<Complete<Equation>>>,
                            states, equation_);
     auto tags_view =
-        MakeMdSpan(boost::hana::type_c<dynamic_mdspan<int, Equation::Rank()>>,
+        MakeMdSpan(boost::hana::type_c<mdspan<int, Equation::Rank()>>,
                    tags.getArrayData());
     tagging_.TagCellsForRefinement(tags_view, state_view, coords);
   }

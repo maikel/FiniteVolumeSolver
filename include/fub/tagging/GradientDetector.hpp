@@ -23,6 +23,7 @@
 
 #include "fub/CartesianCoordinates.hpp"
 #include "fub/core/mdspan.hpp"
+#include "fub/ForEach.hpp"
 
 #include <boost/hana/tuple.hpp>
 
@@ -43,8 +44,8 @@ template <typename... Projections> struct GradientDetector {
     Complete sL;
     Complete sM;
     Complete sR;
-    for (int dir = 0; dir < Extents(states).rank(); ++dir) {
-      ForEachIndex(Shrink(Mapping(states), Direction(dir), 2), [&](auto... is) {
+    for (std::size_t dir = 0; dir < Extents<0>(states).rank(); ++dir) {
+      ForEachIndex(Shrink(Mapping<0>(states), Direction(dir), 2), [&](auto... is) {
         boost::hana::for_each(conditions, [&](auto cond) {
           auto&& [proj, tolerance] = cond;
           std::array<std::ptrdiff_t, sizeof...(is)> index{is...};

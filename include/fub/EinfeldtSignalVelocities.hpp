@@ -21,6 +21,8 @@
 #ifndef FUB_EINFELDT_SIGNAL_VELOCITIES_HPP
 #define FUB_EINFELDT_SIGNAL_VELOCITIES_HPP
 
+#include "fub/Direction.hpp"
+
 namespace fub {
 
 /// \defgroup EinfeldtSignalVelocities
@@ -29,12 +31,28 @@ namespace fub {
 ///
 /// Semantically the velocities should be formed by the roe averaves of two
 /// states.
+template <typename Equation> struct EinfeldtSignalVelocitiesImpl {
+  using Complete = typename Equation::Complete;
 
-// Forward Declaration for the customization point.
-template <typename Equation> class EinfeldtSignalVelocities;
+  static std::array<double, 2> apply(const Equation& equation, const Complete& left,
+                                     const Complete& right,
+                                     Direction dir);
+};
 
 template <typename Equation>
-EinfeldtSignalVelocities(const Equation&)->EinfeldtSignalVelocities<Equation>;
+struct EinfeldtSignalVelocitiesFn {
+  using Complete = typename Equation::Complete;
+
+  std::array<double, 2> operator()(const Equation& equation, const Complete& left,
+                                     const Complete& right,
+                                     Direction dir) const {
+    return EinfeldtSignalVelocitiesImpl<Equation>::apply(equation, left, right, dir);
+  }
+};
+
+template <typename Equation>
+inline constexpr EinfeldtSignalVelocitiesFn<Equation> EinfeldtSignalVelocities{};
+
 
 } // namespace fub
 
