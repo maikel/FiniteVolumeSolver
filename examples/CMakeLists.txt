@@ -29,9 +29,6 @@ if (SAMRAI_FOUND)
   add_executable(SAMRAI.ShallowWater2d SAMRAI/ShallowWater2d.cpp)
   target_link_libraries(SAMRAI.ShallowWater2d HyperbolicSolver.SAMRAI)
 
-  add_executable(SAMRAI.PerfectGas1d SAMRAI/PerfectGas1d.cpp)
-  target_link_libraries(SAMRAI.PerfectGas1d HyperbolicSolver.SAMRAI)
-
   add_executable(SAMRAI.PerfectGas2d SAMRAI/PerfectGas2d.cpp)
   target_link_libraries(SAMRAI.PerfectGas2d HyperbolicSolver.SAMRAI)
 

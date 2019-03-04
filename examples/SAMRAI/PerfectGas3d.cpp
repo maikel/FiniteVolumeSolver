@@ -56,7 +56,7 @@ struct CircleData {
       state.momentum.fill(0);
 
       fub::Complete<fub::PerfectGas<3>> complete;
-      equation_.Reconstruct(complete, state);
+      CompleteFromCons(equation_, complete, state);
       Store(states, complete, {i, j, k});
     });
   }
@@ -102,7 +102,8 @@ int main(int argc, char** argv) {
   // These will register data ids with SAMRAIs variable database
 
   fub::HyperbolicSplitPatchIntegrator patch_integrator{equation};
-  fub::HllMethod flux_method{equation, fub::EinfeldtSignalVelocities{equation}};
+  fub::HllMethod flux_method{equation,
+                             fub::EinfeldtSignalVelocities<fub::PerfectGas<3>>};
   fub::HyperbolicSplitSystemSolver system_solver(
       fub::HyperbolicSplitLevelIntegrator(
           fub::samrai::HyperbolicSplitIntegratorContext(
