@@ -78,7 +78,7 @@ constexpr auto ScalarComponentType(basic_type<T>, constant<N>) {
 
 template <typename Equation, StateType Type>
 constexpr auto ScalarBaseType() {
-  constexpr constant<Type> type{};
+  constexpr StateType_c<Type> type{};
   constexpr auto value_types = Equation::ValueTypes(type);
   constexpr auto shape = Equation::Shape(type);
   constexpr auto member_types =
@@ -150,7 +150,7 @@ struct Conservative
   using Base::Base;
 
   Conservative(const Equation& eq [[maybe_unused]]) : Base{} {
-    if constexpr (Equation::StaticSize(cons) == dynamic_extent) {
+    if constexpr (Equation::StaticSize(std::integral_constant<StateType, cons>{}) == dynamic_extent) {
     }
   }
 };

@@ -79,8 +79,8 @@ public:
   }
 
   void ComputeNumericFlux(Conservative& numeric_flux,
-                          span<const Complete, 2> states, Duration dt,
-                          double dx, Direction dir) {
+                          span<const Complete, 2 * GetStencilWidth()> states,
+                          Duration dt, double dx, Direction dir) {
     base_.ComputeNumericFlux(numeric_flux, states, dt, dx, dir);
   }
 

@@ -40,8 +40,10 @@ struct RemoveTemplateParameter<T<Ts...>> {
 };
 
 enum class StateType { Complete, Conservative };
-inline constexpr constant<StateType::Conservative> cons{};
-inline constexpr constant<StateType::Complete> complete{};
+
+template <StateType Type> using StateType_c =  std::integral_constant<StateType, Type>;
+inline constexpr StateType_c<StateType::Conservative> cons{};
+inline constexpr StateType_c<StateType::Complete> complete{};
 
 template <typename ConsShape, typename CompleteShape = ConsShape>
 struct VariableDescription {
@@ -53,22 +55,22 @@ struct VariableDescription {
     return std::is_same<ConsShape, CompleteShape>{};
   }
 
-  static constexpr auto Template(constant<StateType::Conservative>) {
+  static constexpr auto Template(StateType_c<StateType::Conservative>) {
     return ConsTemplate{};
   }
-  static constexpr auto Template(constant<StateType::Complete>) {
+  static constexpr auto Template(StateType_c<StateType::Complete>) {
     return CompleteTemplate{};
   }
 
-  static constexpr auto Shape(constant<StateType::Conservative>) {
+  static constexpr auto Shape(StateType_c<StateType::Conservative>) {
     return boost::hana::members(ConsShape{});
   }
-  static constexpr auto Shape(constant<StateType::Complete>) {
+  static constexpr auto Shape(StateType_c<StateType::Complete>) {
     return boost::hana::members(CompleteShape{});
   }
 
   template <StateType Type>
-  static constexpr auto StaticSize(constant<Type> type) {
+  static constexpr auto StaticSize(StateType_c<Type> type) {
     constexpr auto shape = Shape(type);
     constexpr auto any_dynamic_size =
         boost::hana::any_of(shape, [](auto extents) {
@@ -84,11 +86,11 @@ struct VariableDescription {
     }
   }
 
-  static constexpr auto ValueTypes(constant<StateType::Conservative>) {
+  static constexpr auto ValueTypes(StateType_c<StateType::Conservative>) {
     return boost::hana::transform(boost::hana::members(ConsShape{}),
                                   [](auto) { return type_c<double>; });
   }
-  static constexpr auto ValueTypes(constant<StateType::Complete>) {
+  static constexpr auto ValueTypes(StateType_c<StateType::Complete>) {
     return boost::hana::transform(boost::hana::members(CompleteShape{}),
                                   [](auto) { return type_c<double>; });
   }

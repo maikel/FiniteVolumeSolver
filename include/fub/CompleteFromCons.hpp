@@ -48,11 +48,20 @@ template <typename Equation> struct CompleteFromConsImpl {
       });
     }
   }
+
+  static void apply(const Equation&, Complete<Equation>& complete,
+                    const Complete<Equation>& cons) {}
 };
 
 template <typename Equation>
 void CompleteFromCons(const Equation& equation, Complete<Equation>& complete,
                       const Conservative<Equation>& cons) {
+  return CompleteFromConsImpl<Equation>::apply(equation, complete, cons);
+}
+
+template <typename Equation>
+void CompleteFromCons(const Equation& equation, Complete<Equation>& complete,
+                      const Complete<Equation>& cons) {
   return CompleteFromConsImpl<Equation>::apply(equation, complete, cons);
 }
 

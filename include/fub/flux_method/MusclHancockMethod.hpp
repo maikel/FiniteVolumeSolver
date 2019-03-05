@@ -68,7 +68,8 @@ struct MusclHancock {
 
   void ComputeNumericFlux(Conservative& flux, span<const Complete, 4> stencil,
                           Duration dt, double dx, Direction dir) noexcept {
-    const double lambda = 0.5 * dt.count() / dx;
+    
+    const double lambda_half = 0.5 * dt.count() / dx;
 
     ////////////////////////////////////////////////////////////////////////////
     // Compute Left Reconstructed Complete State
@@ -82,19 +83,19 @@ struct MusclHancock {
         },
         q_left_, q_right_, stencil[1], slope_);
 
-    CompleteFromCons(equation_, q_left_, AsCons(q_left_));
-    CompleteFromCons(equation_, q_right_, AsCons(q_right_));
+    CompleteFromCons(equation_, q_left_, q_left_);
+    CompleteFromCons(equation_, q_right_, q_right_);
 
     equation_.Flux(flux_left_, q_left_, dir);
     equation_.Flux(flux_right_, q_right_, dir);
 
     ForEachComponent<Conservative>(
-        [&lambda](double& rec, double qR, double fL, double fR) {
-          rec = qR + lambda * (fL - fR);
+        [&lambda_half](double& rec, double qR, double fL, double fR) {
+          rec = qR + lambda_half * (fL - fR);
         },
         rec_[0], q_right_, flux_left_, flux_right_);
 
-    CompleteFromCons(equation_, rec_[0], AsCons(rec_[0]));
+    CompleteFromCons(equation_, rec_[0], rec_[0]);
 
     ///////////////////////////////////////////////////////////////////////////
     // Compute Right Reconstructed Complete State
@@ -108,25 +109,27 @@ struct MusclHancock {
         },
         q_left_, q_right_, stencil[2], slope_);
 
-    CompleteFromCons(equation_, q_left_, AsCons(q_left_));
-    CompleteFromCons(equation_, q_right_, AsCons(q_right_));
+    CompleteFromCons(equation_, q_left_, q_left_);
+    CompleteFromCons(equation_, q_right_, q_right_);
 
     equation_.Flux(flux_left_, q_left_, dir);
     equation_.Flux(flux_right_, q_right_, dir);
 
     ForEachComponent<Conservative>(
-        [&lambda](double& rec, double qL, double fL, double fR) {
-          rec = qL + lambda * (fL - fR);
+        [&lambda_half](double& rec, double qL, double fL, double fR) {
+          rec = qL + lambda_half * (fL - fR);
         },
         rec_[1], q_left_, flux_left_, flux_right_);
 
-    CompleteFromCons(equation_, rec_[1], AsCons(rec_[1]));
+    CompleteFromCons(equation_, rec_[1], rec_[1]);
 
     ///////////////////////////////////////////////////////////////////////////
     // Invoke Lower Order Flux Method
 
     flux_method_.ComputeNumericFlux(flux, span{rec_}, dt, dx, dir);
   }
+
+  const Equation& GetEquation() const noexcept { return equation_; }
 
 private:
   // These member variables control the behaviour of this method
