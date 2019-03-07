@@ -25,6 +25,7 @@
 #include "fub/Duration.hpp"
 #include "fub/Equation.hpp"
 #include "fub/ExactRiemannSolver.hpp"
+#include "fub/ForEach.hpp"
 #include "fub/core/span.hpp"
 #include "fub/flux_method/FluxMethod.hpp"
 
@@ -32,11 +33,17 @@
 
 namespace fub {
 
-template <typename EquationT, typename RiemannSolverT> class Godunov {
+template <typename EquationT, typename RiemannSolverT,
+          int Width = kDefaultChunkSize>
+class Godunov {
 public:
   using Equation = EquationT;
   using Complete = typename Equation::Complete;
   using Conservative = typename Equation::Conservative;
+  using CompleteArray = ::fub::CompleteArray<Equation, Width>;
+  using ConservativeArray = ::fub::ConservativeArray<Equation, Width>;
+
+  static constexpr int ChunkSize = Width;
 
   Godunov(const Equation& equation) : equation_{equation} {}
 
@@ -46,6 +53,14 @@ public:
     riemann_solver_.SolveRiemannProblem(riemann_solution_, states[0], states[1],
                                         dir);
     equation_.Flux(numeric_flux, riemann_solution_, dir);
+  }
+
+  void ComputeNumericFlux(ConservativeArray& numeric_flux,
+                          span<const CompleteArray, 2> states,
+                          Duration /* dt */, double /* dx */, Direction dir) {
+    riemann_solver_.SolveRiemannProblem(riemann_solution_arr_, states[0],
+                                        states[1], dir);
+    equation_.Flux(numeric_flux, riemann_solution_arr_, dir);
   }
 
   double ComputeStableDt(span<const Complete, 2> states, double dx,
@@ -65,11 +80,13 @@ private:
   Equation equation_;
   RiemannSolverT riemann_solver_{equation_};
   Complete riemann_solution_{equation_};
+  CompleteArray riemann_solution_arr_{equation_};
 };
 
-template <typename Equation, typename RPSolver = ExactRiemannSolver<Equation>>
-struct GodunovMethod : public FluxMethod<Godunov<Equation, RPSolver>> {
-  using FluxMethod<Godunov<Equation, RPSolver>>::FluxMethod;
+template <typename Equation, typename RPSolver = ExactRiemannSolver<Equation>,
+          int Width = kDefaultChunkSize>
+struct GodunovMethod : public FluxMethod<Godunov<Equation, RPSolver, Width>> {
+  using FluxMethod<Godunov<Equation, RPSolver, Width>>::FluxMethod;
 };
 
 template <typename Equation>

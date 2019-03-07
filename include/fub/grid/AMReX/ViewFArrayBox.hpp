@@ -17,7 +17,7 @@ mdspan<T, AMREX_SPACEDIM + 1> MakeMdSpan(::amrex::BaseFab<T>& fab) {
   std::array<std::ptrdiff_t, AMREX_SPACEDIM + 1> extents;
   ::amrex::IntVect length{fab.box().length()};
   for (int i = 0; i < AMREX_SPACEDIM; ++i) {
-    extents[i] = length[i];
+    extents[static_cast<std::size_t>(i)] = length[i];
   }
   extents[AMREX_SPACEDIM] = fab.nComp();
   return mdspan<T, AMREX_SPACEDIM + 1>{fab.dataPtr(), extents};
@@ -32,7 +32,7 @@ mdspan<T, AMREX_SPACEDIM> MakeMdSpan(::amrex::BaseFab<T>& fab,
   std::array<std::ptrdiff_t, AMREX_SPACEDIM> extents;
   ::amrex::IntVect length{fab.box().length()};
   for (int i = 0; i < AMREX_SPACEDIM; ++i) {
-    extents[i] = length[i];
+    extents[static_cast<std::size_t>(i)] = length[i];
   }
   return mdspan<T, AMREX_SPACEDIM>{fab.dataPtr(component), extents};
 }
@@ -46,7 +46,7 @@ MakeMdSpan(const ::amrex::BaseFab<T>& fab) {
   std::array<std::ptrdiff_t, AMREX_SPACEDIM + 1> extents;
   ::amrex::IntVect length{fab.box().length()};
   for (int i = 0; i < AMREX_SPACEDIM; ++i) {
-    extents[i] = length[i];
+    extents[static_cast<std::size_t>(i)] = length[i];
   }
   extents[AMREX_SPACEDIM] = fab.nComp();
   return mdspan<const T, AMREX_SPACEDIM + 1>{fab.dataPtr(), extents};
@@ -61,7 +61,7 @@ MakeMdSpan(const ::amrex::BaseFab<T>& fab, int component) {
   std::array<std::ptrdiff_t, AMREX_SPACEDIM> extents;
   ::amrex::IntVect length{fab.box().length()};
   for (int i = 0; i < AMREX_SPACEDIM; ++i) {
-    extents[i] = length[i];
+    extents[static_cast<std::size_t>(i)] = length[i];
   }
   return mdspan<const T, AMREX_SPACEDIM>{fab.dataPtr(component),
                                                  extents};

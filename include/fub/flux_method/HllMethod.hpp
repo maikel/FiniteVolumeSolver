@@ -37,11 +37,14 @@ public:
   using Complete = typename Equation::Complete;
   using Conservative = typename Equation::Conservative;
 
+  static constexpr int ChunkSize = 1;
+
   Hll(const Equation& equation, const SignalSpeeds& signals)
       : equation_{equation}, signal_speeds_{signals} {}
 
-  void ComputeNumericFlux(Conservative& numeric_flux, span<const Complete, 2> states,
-                          Duration /* dt */, double /* dx */, Direction dir) {
+  void ComputeNumericFlux(Conservative& numeric_flux,
+                          span<const Complete, 2> states, Duration /* dt */,
+                          double /* dx */, Direction dir) {
     const Complete& left = states[0];
     const Complete& right = states[1];
 

@@ -16,8 +16,8 @@ FormatTimeStepLine(std::ptrdiff_t cycle,
   using namespace std::chrono;
   const int total_progress =
       static_cast<int>(simulation_time / final_time * 100.0);
-  const int wt_hours = duration_cast<hours>(wall_time).count();
-  const int wt_minutes = duration_cast<minutes>(wall_time).count() % 60;
+  const auto wt_hours = duration_cast<hours>(wall_time).count();
+  const auto wt_minutes = duration_cast<minutes>(wall_time).count() % 60;
   const double wt_seconds =
       std::fmod(duration_cast<duration<double>>(wall_time).count(), 60.);
   const double wt_diff_seconds =

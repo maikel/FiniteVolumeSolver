@@ -33,31 +33,31 @@ using ScalarFluxT =
                                             std::declval<const Complete<Eq>&>(),
                                             Direction::X));
 
-template <typename Eq, typename N = constant<kChunkSize>>
+template <typename Eq, typename N = constant<kDefaultChunkSize>>
 using VectorizedFluxT = decltype(std::declval<const Eq&>().Flux(
-    std::declval<ConsArray<Eq, N::value>&>(),
+    std::declval<ConservativeArray<Eq, N::value>&>(),
     std::declval<const CompleteArray<Eq, N::value>&>(), Direction::X));
 
 template <typename Eq>
 using ScalarReconstructT = decltype(std::declval<const Eq&>().Reconstruct(
     std::declval<Complete<Eq>&>(), std::declval<const Conservative<Eq>&>()));
 
-template <typename Eq, typename N = constant<kChunkSize>>
+template <typename Eq, typename N = constant<kDefaultChunkSize>>
 using VectorizedReconstructT = decltype(std::declval<const Eq&>().Reconstruct(
     std::declval<CompleteArray<Eq, N::value>&>(),
-    std::declval<const ConsArray<Eq, N::value>&>()));
+    std::declval<const ConservativeArray<Eq, N::value>&>()));
 
 template <typename Equation>
 struct HasScalarFlux : is_detected<ScalarFluxT, Equation> {};
 
-template <typename Equation, int N = kChunkSize>
+template <typename Equation, int N = kDefaultChunkSize>
 struct HasVectorizedFlux : is_detected<VectorizedFluxT, Equation, constant<N>> {
 };
 
 template <typename Equation>
 struct HasScalarReconstruction : is_detected<ScalarReconstructT, Equation> {};
 
-template <typename Equation, int N = kChunkSize>
+template <typename Equation, int N = kDefaultChunkSize>
 struct HasVectorizedReconstruction
     : is_detected<VectorizedReconstructT, Equation, constant<N>> {};
 
@@ -65,14 +65,6 @@ template <typename Equation>
 struct HasReconstruction : disjunction<HasScalarReconstruction<Equation>,
                                        HasVectorizedReconstruction<Equation>> {
 };
-
-template <std::size_t N>
-std::array<std::ptrdiff_t, N> Shift(const std::array<std::ptrdiff_t, N>& idx,
-                                    Direction dir, std::ptrdiff_t shift) {
-  auto shifted(idx);
-  shifted[int(dir)] += shift;
-  return shifted;
-}
 
 template <typename Extents>
 constexpr std::array<std::ptrdiff_t, Extents::rank()>
@@ -100,7 +92,7 @@ strided_mdspan<T, E, A> ViewInnerRegion(basic_mdspan<T, E, L, A> mdspan,
   for (int r = 0; r < Rank; ++r) {
     slices[r] = std::pair{0L, mdspan.extent(r)};
   }
-  const int dir_v = int(dir);
+  const std::size_t dir_v = static_cast<std::size_t>(dir);
   FUB_ASSERT(dir_v < Rank);
   slices[dir_v].first += gcw;
   slices[dir_v].second -= gcw;

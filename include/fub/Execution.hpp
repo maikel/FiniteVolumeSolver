@@ -18,30 +18,16 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/equations/Advection.hpp"
+#ifndef FUB_EXECUTION_HPP
+#define FUB_EXECUTION_HPP
 
 namespace fub {
+namespace execution {
 
-void Advection2d::Flux(Conservative& flux, const Complete& state, Direction dir) const
-    noexcept {
-  const std::size_t dir_v = static_cast<std::size_t>(dir);
-  flux.mass = state.mass * velocity[dir_v];
-}
+struct SimdTag {};
+inline constexpr SimdTag simd{};
 
-void ExactRiemannSolver<Advection2d>::SolveRiemannProblem(Complete& state,
-                                                          const Complete& left,
-                                                          const Complete& right,
-                                                          Direction dir) {
-  if (equation_.velocity[static_cast<std::size_t>(dir)] > 0) {
-    state = left;
-  } else {
-    state = right;
-  }
-}
-
-std::array<double, 1> ExactRiemannSolver<Advection2d>::ComputeSignals(
-    const Complete&, const Complete&, Direction dir) {
-  return {equation_.velocity[static_cast<std::size_t>(dir)]};
-}
-
+} // namespace execution
 } // namespace fub
+
+#endif

@@ -24,15 +24,16 @@
 // #include <unsupported/Eigen/CXX11/Tensor>
 #include <Eigen/Eigen>
 
-#include <fub/core/mdspan.hpp>
+#include "fub/Direction.hpp"
+#include "fub/core/mdspan.hpp"
 
 #include <type_traits>
 
 namespace fub {
 
-constexpr const int kChunkSize = 8;
+constexpr const int kDefaultChunkSize = 8;
 
-template <typename T, int N, int M = kChunkSize>
+template <typename T, int N, int M = kDefaultChunkSize>
 using Array = std::conditional_t<M == 1, Eigen::Array<T, 1, N>,
                                  Eigen::Array<T, M, N, Eigen::ColMajor>>;
 
@@ -43,7 +44,7 @@ using Array3d = Array<double, 3>;
 using ArrayXd = Array<double, Eigen::Dynamic>;
 
 template <int N, typename T, typename Extents, typename Layout,
-          typename... Indices>
+          typename... Indices, typename = std::enable_if_t<(std::is_integral_v<Indices> && ...)>>
 Eigen::Array<std::remove_cv_t<T>, N, 1>
 LoadN(constant<N>, basic_mdspan<T, Extents, Layout> mdspan, int size,
       std::ptrdiff_t i0, Indices... indices) {
@@ -54,6 +55,28 @@ LoadN(constant<N>, basic_mdspan<T, Extents, Layout> mdspan, int size,
   }
   return array;
 }
+
+template <std::size_t N>
+std::array<std::ptrdiff_t, N> Shift(const std::array<std::ptrdiff_t, N>& idx,
+                                    Direction dir, std::ptrdiff_t shift) {
+  auto shifted(idx);
+  shifted[int(dir)] += shift;
+  return shifted;
+}
+
+template <int N, typename T, typename Extents, typename Layout,
+          typename... Indices>
+Eigen::Array<std::remove_cv_t<T>, N, 1>
+LoadN(constant<N>, basic_mdspan<T, Extents, Layout> mdspan, int size,
+      const std::array<std::ptrdiff_t, Extents::rank()>& index) {
+  FUB_ASSERT(0 < size && size < N);
+  Eigen::Array<std::remove_cv_t<T>, N, 1> array{};
+  for (int i = 0; i < size; ++i) {
+    array[i] = mdspan(Shift(index, Direction::X, i));
+  }
+  return array;
+}
+
 
 template <int N, typename T, typename Extents, typename Layout,
           typename... Indices>
@@ -73,7 +96,7 @@ Load(constant<N> n, basic_mdspan<T, Extents, Layout> mdspan,
 
 template <typename T, typename Extents, typename Layout, typename... Indices>
 auto Load(basic_mdspan<T, Extents, Layout> mdspan, Indices... indices) {
-  return Load(constant<kChunkSize>(), mdspan, indices...);
+  return Load(constant<kDefaultChunkSize>(), mdspan, indices...);
 }
 
 template <typename T, int N, typename Layout, typename... Indices>

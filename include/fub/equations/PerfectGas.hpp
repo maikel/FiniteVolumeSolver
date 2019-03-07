@@ -79,6 +79,10 @@ template <int Dim> struct CompleteFromConsImpl<PerfectGas<Dim>> {
   static void apply(const PerfectGas<Dim>& equation,
                     Complete<PerfectGas<Dim>>& complete,
                     const Conservative<PerfectGas<Dim>>& cons);
+
+  static void apply(const PerfectGas<Dim>& equation,
+                    Complete<PerfectGas<Dim>>& complete,
+                    const Complete<PerfectGas<Dim>>& cons);
 };
 
 extern template struct CompleteFromConsImpl<PerfectGas<1>>;

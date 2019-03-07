@@ -23,7 +23,7 @@
 namespace fub {
 namespace ideal_gas {
 
-void IdealGasEquation::Flux(ConsArray& flux, const StateArray& state) noexcept {
+void IdealGasEquation::Flux(ConservativeArray& flux, const StateArray& state) noexcept {
   flux.density = state.momentum.col(0);
   const Array1d velocity_x = state.momentum.col(0) / state.density;
   flux.momentum.col(0) = velocity_x * state.momentum(0) + state.pressure;

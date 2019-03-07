@@ -14,12 +14,12 @@ PatchHierarchy::PatchHierarchy(DataDescription desc,
                                const PatchHierarchyOptions& options)
     : description_{std::move(desc)}, grid_geometry_{geometry},
       options_{options}, patch_level_{}, patch_level_geometry_{} {
-  patch_level_.resize(options.max_number_of_levels);
-  patch_level_geometry_.resize(options.max_number_of_levels);
+  patch_level_.resize(static_cast<std::size_t>(options.max_number_of_levels));
+  patch_level_geometry_.resize(static_cast<std::size_t>(options.max_number_of_levels));
   ::amrex::IntVect lower{};
   ::amrex::IntVect upper{};
   for (int i = 0; i < AMREX_SPACEDIM; ++i) {
-    upper[i] = geometry.cell_dimensions[i] - 1;
+    upper[i] = geometry.cell_dimensions[static_cast<std::size_t>(i)] - 1;
   }
   ::amrex::Box level_box(lower, upper);
   for (::amrex::Geometry& geom : patch_level_geometry_) {

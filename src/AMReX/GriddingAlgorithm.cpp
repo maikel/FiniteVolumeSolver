@@ -34,7 +34,7 @@ GriddingAlgorithm::GriddingAlgorithm(std::shared_ptr<PatchHierarchy> hier,
       hierarchy_{std::move(hier)},
       initial_data_{std::move(initial_data)}, tagging_{std::move(tagging)} {
   n_error_buf =
-      ::amrex::Vector<int>(hierarchy_->GetOptions().max_number_of_levels, 2);
+      ::amrex::Vector<int>(static_cast<std::size_t>(hierarchy_->GetOptions().max_number_of_levels), 2);
   n_proper = 2;
 }
 
@@ -68,7 +68,7 @@ void GriddingAlgorithm::FillMultiFabFromLevel(::amrex::MultiFab& multifab,
   PatchLevel& level = hierarchy_->GetPatchLevel(level_number);
   const int n_comps = level.data.nComp();
   // TODO decide for BoundaryCondition interface
-  ::amrex::Vector<::amrex::BCRec> bcr(n_comps);
+  ::amrex::Vector<::amrex::BCRec> bcr(static_cast<std::size_t>(n_comps));
   if (level_number == 0) {
     const ::amrex::Geometry& geom = hierarchy_->GetGeometry(level_number);
     auto no_condition = MakePhysBCFunct(geom, bcr, [](auto&&...) {});
@@ -144,7 +144,7 @@ void GriddingAlgorithm::MakeNewLevelFromCoarse(
   const int cons_start = hierarchy_->GetDataDescription().first_cons_component;
   const int n_cons_components =
       hierarchy_->GetDataDescription().n_cons_components;
-  ::amrex::Vector<::amrex::BCRec> bcr(n_comps);
+  ::amrex::Vector<::amrex::BCRec> bcr(static_cast<std::size_t>(n_comps));
   auto fine_boundary =
       MakePhysBCFunct(hierarchy_->GetGeometry(level), bcr, [](auto&&...) {});
   auto coarse_boundary = MakePhysBCFunct(hierarchy_->GetGeometry(level - 1),

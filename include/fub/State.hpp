@@ -76,8 +76,7 @@ constexpr auto ScalarComponentType(basic_type<T>, constant<N>) {
   return type_c<Array<T, N, 1>>;
 }
 
-template <typename Equation, StateType Type>
-constexpr auto ScalarBaseType() {
+template <typename Equation, StateType Type> constexpr auto ScalarBaseType() {
   constexpr StateType_c<Type> type{};
   constexpr auto value_types = Equation::ValueTypes(type);
   constexpr auto shape = Equation::Shape(type);
@@ -91,8 +90,8 @@ constexpr auto ScalarBaseType() {
 }
 
 template <typename Equation, StateType Type>
-using ScalarBaseTypeT = typename decltype(ScalarBaseType<Equation, Type>())::type;
-
+using ScalarBaseTypeT =
+    typename decltype(ScalarBaseType<Equation, Type>())::type;
 
 template <typename Derived, typename Base, bool IsDynamicSize = true>
 struct StateVector : public StateBase<Base> {
@@ -125,12 +124,12 @@ struct StateVector : public StateBase<Base> {
 };
 
 template <typename Equation>
-struct Complete
-    : StateVector<Complete<Equation>, ScalarBaseTypeT<Equation, StateType::Complete>> {
+struct Complete : StateVector<Complete<Equation>,
+                              ScalarBaseTypeT<Equation, StateType::Complete>> {
   using EquationType = Equation;
 
-  using Base =
-      StateVector<Complete<Equation>, ScalarBaseTypeT<Equation, StateType::Complete>>;
+  using Base = StateVector<Complete<Equation>,
+                           ScalarBaseTypeT<Equation, StateType::Complete>>;
 
   using Base::Base;
 
@@ -142,15 +141,18 @@ struct Complete
 
 template <typename Equation>
 struct Conservative
-    : StateVector<Conservative<Equation>, ScalarBaseTypeT<Equation, StateType::Conservative>> {
+    : StateVector<Conservative<Equation>,
+                  ScalarBaseTypeT<Equation, StateType::Conservative>> {
   using EquationType = Equation;
 
-  using Base =
-      StateVector<Conservative<Equation>, ScalarBaseTypeT<Equation, StateType::Conservative>>;
+  using Base = StateVector<Conservative<Equation>,
+                           ScalarBaseTypeT<Equation, StateType::Conservative>>;
   using Base::Base;
 
   Conservative(const Equation& eq [[maybe_unused]]) : Base{} {
-    if constexpr (Equation::StaticSize(std::integral_constant<StateType, cons>{}) == dynamic_extent) {
+    if constexpr (Equation::StaticSize(
+                      std::integral_constant<StateType, cons>{}) ==
+                  dynamic_extent) {
     }
   }
 };
@@ -182,7 +184,7 @@ constexpr auto ArrayComponentType(basic_type<T>, constant<N>, constant<Width>) {
 
 template <int Width, typename Equation, StateType Type>
 constexpr auto ArrayBaseType(constant<Width> width, basic_type<Equation>,
-                             constant<Type> type) {
+                             StateType_c<Type> type) {
   constexpr auto value_types = Equation::ValueTypes(type);
   constexpr auto shape = Equation::Shape(type);
   constexpr auto member_types = boost::hana::transform(
@@ -198,18 +200,52 @@ template <int N, typename Equation, StateType Type>
 using ArrayBaseTypeT = typename decltype(
     ArrayBaseType(constant<N>{}, type_c<Equation>, constant<Type>{}))::type;
 
-
-template <typename Equation, int N = kChunkSize>
-struct CompleteArray : StateVector<CompleteArray<Equation, N>,
-                                   ArrayBaseTypeT<N, Equation, StateType::Complete>> {
+template <typename Equation, int N = kDefaultChunkSize>
+struct CompleteArray
+    : StateVector<CompleteArray<Equation, N>,
+                  ArrayBaseTypeT<N, Equation, StateType::Complete>> {
   using EquationType = Equation;
+  using Base = StateVector<CompleteArray<Equation, N>,
+                           ArrayBaseTypeT<N, Equation, StateType::Complete>>;
+  using Base::Base;
+  CompleteArray(const Equation& eq [[maybe_unused]]) : Base{} {
+    if constexpr (Equation::StaticSize(
+                      std::integral_constant<StateType, cons>{}) ==
+                  dynamic_extent) {
+    }
+  }
 };
 
-template <typename Equation, int N = kChunkSize>
-struct ConsArray
-    : StateVector<ConsArray<Equation, N>, ArrayBaseTypeT<N, Equation, StateType::Conservative>> {
+template <typename Equation, int N = kDefaultChunkSize>
+struct ConservativeArray
+    : StateVector<ConservativeArray<Equation, N>,
+                  ArrayBaseTypeT<N, Equation, StateType::Conservative>> {
   using EquationType = Equation;
+  using Base =
+      StateVector<ConservativeArray<Equation, N>,
+                  ArrayBaseTypeT<N, Equation, StateType::Conservative>>;
+  using Base::Base;
+  ConservativeArray(const Equation& eq [[maybe_unused]]) : Base{} {
+    if constexpr (Equation::StaticSize(
+                      std::integral_constant<StateType, cons>{}) ==
+                  dynamic_extent) {
+    }
+  }
 };
+
+template <typename StateType, typename F, typename... Ts>
+void ForEachVariable(F function, Ts&&... states) {
+  constexpr auto names = StateType::Names();
+  constexpr auto maps = boost::hana::make_tuple(
+      boost::hana::to_map(remove_cvref_t<Ts>::Accessors())...);
+  boost::hana::for_each(names, [&](auto name) {
+    boost::hana::unpack(boost::hana::zip(maps, boost::hana::make_tuple(
+                                                   std::addressof(states)...)),
+                        [&](auto... xs) {
+                          return function(at_c<0>(xs)[name](*at_c<1>(xs))...);
+                        });
+  });
+}
 
 template <typename Layout, typename T, typename... Extents>
 constexpr auto ViewComponent(constant<1>, T* pointer, Extents... extents) {
@@ -313,15 +349,16 @@ template <typename State, int Rank, typename Layout>
 using ViewBaseT = typename decltype(
     ViewBase(type_c<State>, constant<Rank>(), type_c<Layout>))::type;
 
-template <typename State, typename Layout = layout_left>
-struct View : StateBase<ViewBaseT<State, State::EquationType::Rank(), Layout>> {
+template <typename State, typename Layout = layout_left,
+          int Rank = State::EquationType::Rank()>
+struct View : StateBase<ViewBaseT<State, Rank, Layout>> {
   using EquationType = typename State::EquationType;
 };
 
 template <typename T> struct IsView : std::false_type {};
 
-template <typename State, typename Layout>
-struct IsView<View<State, Layout>> : std::true_type {};
+template <typename State, typename Layout, int Rank>
+struct IsView<View<State, Layout, Rank>> : std::true_type {};
 
 template <template <typename...> typename T, typename... Args>
 StateBase<T<remove_cvref_t<Args>...>> MakeTemplate(template_t<T>,
@@ -329,50 +366,47 @@ StateBase<T<remove_cvref_t<Args>...>> MakeTemplate(template_t<T>,
   return StateBase<T<remove_cvref_t<Args>...>>{std::forward<Args>(args)...};
 }
 
-template <typename Equation, typename Layout>
-View<Conservative<Equation>, Layout>
-AsCons(View<Complete<Equation>, Layout> view) {
-  const auto map = boost::hana::to_map(view);
-  constexpr auto names = Conservative<Equation>::Names();
-  return boost::hana::unpack(names, [&](auto... name) {
-    return View<Conservative<Equation>, Layout>{map[name]...};
-  });
+template <typename Equation, typename Layout, int Rank>
+View<Conservative<Equation>, Layout, Rank>
+AsCons(View<Complete<Equation>, Layout, Rank> complete) {
+  View<Conservative<Equation>, Layout, Rank> conservative;
+  ForEachVariable<Conservative<Equation>>(
+      [&](auto& cons, auto comp) { cons = comp; }, conservative, complete);
+  return conservative;
 }
 
-template <typename Equation, typename Layout>
-View<const Conservative<Equation>, Layout>
-AsCons(View<const Complete<Equation>, Layout> view) {
-  const auto map = boost::hana::to_map(view);
-  constexpr auto names = Conservative<Equation>::Names();
-  return boost::hana::unpack(names, [&](auto... name) {
-    return View<const Conservative<Equation>, Layout>{map[name]...};
-  });
+template <typename Equation, typename Layout, int Rank>
+View<const Conservative<Equation>, Layout, Rank>
+AsCons(View<const Complete<Equation>, Layout, Rank> complete) {
+  View<const Conservative<Equation>, Layout, Rank> conservative;
+  ForEachVariable<Conservative<Equation>>(
+      [&](auto& cons, auto comp) { cons = comp; }, conservative, complete);
+  return conservative;
 }
 
-template <typename Equation, typename Layout>
-View<const Conservative<Equation>, Layout>
-AsConst(View<Conservative<Equation>, Layout> view) {
+template <typename Equation, typename Layout, int Rank>
+View<const Conservative<Equation>, Layout, Rank>
+AsConst(View<Conservative<Equation>, Layout, Rank> view) {
   const auto members = view.Members();
   return boost::hana::unpack(members, [&](auto... mdspan) {
-    return View<const Conservative<Equation>, Layout>{mdspan...};
+    return View<const Conservative<Equation>, Layout, Rank>{mdspan...};
   });
 }
 
-template <typename Equation, typename Layout>
-View<const Complete<Equation>, Layout>
-AsConst(View<Complete<Equation>, Layout> view) {
+template <typename Equation, typename Layout, int Rank>
+View<const Complete<Equation>, Layout, Rank>
+AsConst(View<Complete<Equation>, Layout, Rank> view) {
   const auto members = view.Members();
   return boost::hana::unpack(members, [&](auto... mdspan) {
-    return View<const Complete<Equation>, Layout>{mdspan...};
+    return View<const Complete<Equation>, Layout, Rank>{mdspan...};
   });
 }
 
-template <typename Equation, typename Layout>
-struct View<Conservative<Equation>, Layout>
-    : StateBase<ViewBaseT<Conservative<Equation>, Equation::Rank(), Layout>> {
+template <typename Equation, typename Layout, int Rank>
+struct View<Conservative<Equation>, Layout, Rank>
+    : StateBase<ViewBaseT<Conservative<Equation>, Rank, Layout>> {
   using EquationType = Equation;
-  using Base =
-      StateBase<ViewBaseT<Conservative<Equation>, Equation::Rank(), Layout>>;
+  using Base = StateBase<ViewBaseT<Conservative<Equation>, Rank, Layout>>;
   View() = default;
   View(const View&) = default;
   View(const View<Complete<Equation>, Layout>& complete)
@@ -382,13 +416,11 @@ struct View<Conservative<Equation>, Layout>
   View(Xs&&... xs) : Base{std::forward<Xs>(xs)...} {}
 };
 
-template <typename Equation, typename Layout>
-struct View<const Conservative<Equation>, Layout>
-    : StateBase<
-          ViewBaseT<const Conservative<Equation>, Equation::Rank(), Layout>> {
+template <typename Equation, typename Layout, int Rank>
+struct View<const Conservative<Equation>, Layout, Rank>
+    : StateBase<ViewBaseT<const Conservative<Equation>, Rank, Layout>> {
   using EquationType = Equation;
-  using Base = StateBase<
-      ViewBaseT<const Conservative<Equation>, Equation::Rank(), Layout>>;
+  using Base = StateBase<ViewBaseT<const Conservative<Equation>, Rank, Layout>>;
   using Base::Base;
   View() = default;
   View(const View&) = default;
@@ -403,46 +435,32 @@ struct View<const Conservative<Equation>, Layout>
   View(Xs&&... xs) : Base{std::forward<Xs>(xs)...} {}
 };
 
-template <typename Equation, typename Layout>
-struct View<const Complete<Equation>, Layout>
-    : StateBase<ViewBaseT<const Complete<Equation>, Equation::Rank(), Layout>> {
+template <typename Equation, typename Layout, int Rank>
+struct View<const Complete<Equation>, Layout, Rank>
+    : StateBase<ViewBaseT<const Complete<Equation>, Rank, Layout>> {
   using EquationType = Equation;
-  using Base =
-      StateBase<ViewBaseT<const Complete<Equation>, Equation::Rank(), Layout>>;
+  using Base = StateBase<ViewBaseT<const Complete<Equation>, Rank, Layout>>;
   using Base::Base;
   View() = default;
   View(const View&) = default;
   View(const View<Complete<Equation>, Layout>& complete)
       : View(AsConst(complete)) {}
 
-  template <typename... Xs, typename = std::enable_if_t<(!IsView<Xs>() && ...)>>
+  template <typename... Xs,
+            typename = std::enable_if_t<(!IsView<remove_cvref_t<Xs>>() && ...)>>
   View(Xs&&... xs) : Base{std::forward<Xs>(xs)...} {}
 };
 
 template <typename T> using StridedView = View<T, layout_stride>;
 
-template <int N, typename State, typename Layout>
-auto Extents(View<State, Layout> view) {
+template <int N, typename State, typename Layout, int Rank>
+auto Extents(View<State, Layout, Rank> view) {
   return at_c<N>(view.Members()).extents();
 }
 
 template <int N, typename State, typename Layout>
 auto Mapping(View<State, Layout> view) {
   return at_c<N>(view.Members()).mapping();
-}
-
-template <typename StateType, typename F, typename... Ts>
-void ForEachVariable(F function, Ts&&... states) {
-  constexpr auto names = StateType::Names();
-  constexpr auto maps =
-      boost::hana::make_tuple(boost::hana::to_map(remove_cvref_t<Ts>::Accessors())...);
-  boost::hana::for_each(names, [&](auto name) {
-    boost::hana::unpack(boost::hana::zip(maps, boost::hana::make_tuple(
-                                                   std::addressof(states)...)),
-                        [&](auto... xs) {
-                          return function(at_c<0>(xs)[name](*at_c<1>(xs))...);
-                        });
-  });
 }
 
 template <typename D, typename T, typename Scalar,
@@ -464,7 +482,7 @@ constant<M> Components(const Complete<D>&,
 }
 
 template <typename D, typename Scalar, int N, int M, int Options>
-constant<M> Components(const ConsArray<D, N>&,
+constant<M> Components(const ConservativeArray<D, N>&,
                        const Eigen::Array<Scalar, N, M, Options>&) {
   return {};
 }
@@ -475,13 +493,13 @@ constant<M> Components(const CompleteArray<D, N>&,
   return {};
 }
 
-template <typename S, typename L, typename T, typename E>
-auto Components(View<S, L>, basic_mdspan<T, E, L> span [[maybe_unused]]) {
-  if constexpr (S::EquationType::Rank() == E::rank()) {
+template <typename S, typename L, int Rank, typename T, typename E>
+auto Components(View<S, L, Rank>, basic_mdspan<T, E, L> span [[maybe_unused]]) {
+  if constexpr (Rank == E::rank()) {
     return constant<1>{};
   } else {
-    static_assert(S::EquationType::Rank() + 1 == E::rank());
-    return span.extent(S::EquationType::Rank());
+    static_assert(Rank + 1 == E::rank());
+    return span.extent(Rank);
   }
 }
 
@@ -511,27 +529,27 @@ Scalar& AtComponent(const Conservative<D>&,
 
 template <typename D, typename Scalar, int N, int Options>
 Eigen::Array<Scalar, N, 1, Options>&
-AtComponent(const ConsArray<D, N>&, Eigen::Array<Scalar, N, 1, Options>& x,
-            int) {
+AtComponent(const ConservativeArray<D, N>&,
+            Eigen::Array<Scalar, N, 1, Options>& x, int) {
   return x;
 }
 
 template <typename D, typename Scalar, int N, int Options>
 const Eigen::Array<Scalar, N, 1, Options>&
-AtComponent(const ConsArray<D, N>&,
+AtComponent(const ConservativeArray<D, N>&,
             const Eigen::Array<Scalar, N, 1, Options>& x, int) {
   return x;
 }
 
 template <typename D, typename Scalar, int N, int M, int Options>
-auto AtComponent(const ConsArray<D, N>&, Eigen::Array<Scalar, N, M, Options>& x,
-                 int i) {
+auto AtComponent(const ConservativeArray<D, N>&,
+                 Eigen::Array<Scalar, N, M, Options>& x, int i) {
   return x.col(i);
 }
 
 template <typename D, typename Scalar, int N, int M, int Options>
 Eigen::Array<Scalar, N, 1, Options>
-AtComponent(const ConsArray<D, N>&,
+AtComponent(const ConservativeArray<D, N>&,
             const Eigen::Array<Scalar, N, M, Options>& x, int i) {
   return x.col(i);
 }
@@ -575,13 +593,13 @@ AtComponent(const CompleteArray<D, N>&,
   return x.col(i);
 }
 
-template <typename S, typename L, typename T, typename E>
-mdspan<T, S::EquationType::Rank(), L>
-AtComponent(View<S, L>, basic_mdspan<T, E, L> span, int i [[maybe_unused]]) {
-  if constexpr (S::EquationType::Rank() == E::rank()) {
+template <typename S, typename L, int Rank, typename T, typename E>
+mdspan<T, Rank, L> AtComponent(View<S, L, Rank>, basic_mdspan<T, E, L> span,
+                               int i [[maybe_unused]]) {
+  if constexpr (Rank == E::rank()) {
     return span;
   } else {
-    static_assert(S::EquationType::Rank() + 1 == E::rank());
+    static_assert(Rank + 1 == E::rank());
     std::array<std::ptrdiff_t, E::rank()> index{};
     index[E::rank() - 1] = i;
     std::array<std::ptrdiff_t, E::rank() - 1> extents;
@@ -590,7 +608,6 @@ AtComponent(View<S, L>, basic_mdspan<T, E, L> span, int i [[maybe_unused]]) {
       extents[r] = span.extent(r);
       strides[r] = span.stride(r);
     }
-    constexpr int Rank = E::rank() - 1;
     if constexpr (std::is_same_v<L, layout_stride>) {
       layout_stride::mapping<dynamic_extents<Rank>> mapping{
           dynamic_extents<Rank>(extents), strides};
@@ -653,28 +670,154 @@ void Store(View<nodeduce_t<Complete<Eq>>, Layout> view,
       state);
 }
 
-// template <typename Eq, int N, typename Layout>
-// void StoreArray(View<nodeduce_t<Conservative<Eq>>, Layout> view,
-//                 const ConsArray<Eq, N>& state,
-//                 std::array<std::ptrdiff_t, Eq::Rank()> index) {
-//   ForEachComponent(
-//       [&](auto mdspan, auto block) { Store(mdspan, block, index); }, view,
-//       state);
-// }
+template <typename Eq, int N, typename Layout, int Rank>
+void Load(ConservativeArray<Eq, N>& state,
+          View<nodeduce_t<const Conservative<Eq>>, Layout, Rank> view,
+          std::array<std::ptrdiff_t, Rank> index) {
+  ForEachComponent<Conservative<Eq>>(
+      [&](auto& component, auto mdspan) {
+        component = std::apply(
+            [&](auto... i) { return Load(constant<N>(), mdspan, i...); },
+            index);
+      },
+      state, view);
+}
+
+template <typename Eq, int N, typename Layout, int Rank>
+void Load(CompleteArray<Eq, N>& state,
+          View<nodeduce_t<const Complete<Eq>>, Layout, Rank> view,
+          std::array<std::ptrdiff_t, Rank> index) {
+  ForEachComponent<Complete<Eq>>(
+      [&](auto& component, auto mdspan) {
+        component = Load(constant<N>(), mdspan, index);
+      },
+      state, view);
+}
+
+template <typename Eq, int N, typename Layout, int Rank>
+void LoadN(CompleteArray<Eq, N>& state,
+           const View<const Complete<Eq>, Layout, Rank>& view, int size,
+           const std::array<std::ptrdiff_t, Rank>& pos) {
+  ForEachComponent<Complete<Eq>>(
+      [&](auto& s, auto v) { s = LoadN(constant<N>{}, v, size, pos); }, state,
+      view);
+}
+
+template <typename Eq, int N, typename Layout, int Rank>
+void LoadN(ConservativeArray<Eq, N>& state,
+           const View<const Conservative<Eq>, Layout, Rank>& view, int size,
+           const std::array<std::ptrdiff_t, Rank>& pos) {
+  ForEachComponent<Conservative<Eq>>(
+      [&](auto& s, auto v) { s = LoadN(constant<N>{}, v, size, pos); }, state,
+      view);
+}
+
+template <typename Eq, int N, typename Layout, int Rank>
+void Store(View<nodeduce_t<Conservative<Eq>>, Layout, Rank> view,
+           const ConservativeArray<Eq, N>& state,
+           std::array<std::ptrdiff_t, Rank> index) {
+  ForEachComponent<Conservative<Eq>>(
+      [&](auto mdspan, auto block) { Store(mdspan, block, index); }, view,
+      state);
+}
+
+template <typename Eq, int N, typename Layout, int Rank>
+void Store(View<nodeduce_t<Complete<Eq>>, Layout, Rank> view,
+           const CompleteArray<Eq, N>& state,
+           std::array<std::ptrdiff_t, Rank> index) {
+  ForEachComponent<Complete<Eq>>(
+      [&](auto mdspan, auto block) { Store(mdspan, block, index); }, view,
+      state);
+}
+
+template <typename Eq, int N, typename Layout, int Rank>
+void StoreN(const View<Complete<Eq>, Layout, Rank>& view,
+            const CompleteArray<Eq, N>& state, int size,
+            const std::array<std::ptrdiff_t, Rank>& pos) {
+  ForEachComponent<Complete<Eq>>(
+      [&](auto& s, auto v) { StoreN(v, size, s, pos[0]); }, state, view);
+}
+
+template <typename Eq, int N, typename Layout, int Rank>
+void StoreN(const View<Conservative<Eq>, Layout, Rank>& view,
+            const ConservativeArray<Eq, N>& state, int size,
+            const std::array<std::ptrdiff_t, Rank>& pos) {
+  ForEachComponent<Conservative<Eq>>(
+      [&](auto& s, auto v) { StoreN(v, size, s, pos[0]); }, state, view);
+}
+
+template <typename State, typename Layout, int Rank,
+          typename... SliceSpecifiers>
+auto Subspan(const View<State, Layout, Rank>& view, SliceSpecifiers... slices) {
+  static constexpr int R = SliceRank_<SliceSpecifiers...>;
+  auto v = view.Members();
+  return boost::hana::unpack(v, [&](auto... vs) {
+    return View<State, layout_stride, R>{subspan(vs, slices...)...};
+  });
+}
+
+template <typename F, typename View, typename... Views>
+void ForEachRow(F function, View view, Views... views) {
+  auto extents = Extents<0>(view);
+  static constexpr int Rank = remove_cvref_t<decltype(extents)>::rank();
+  if constexpr (Rank == 1) {
+    function(view, views...);
+  } else if constexpr (Rank == 2) {
+    for (int j = 0; j < Extents<0>(view).extent(1); ++j) {
+      function(Subspan(view, all, j), Subspan(views, all, j)...);
+    }
+  } else {
+    static_assert(Rank == 3);
+    for (int k = 0; k < Extents<0>(view).extent(2); ++k) {
+      for (int j = 0; j < Extents<0>(view).extent(1); ++j) {
+        function(Subspan(view, all, j, k), Subspan(views, all, j, k)...);
+      }
+    }
+  }
+}
+
+template <Direction dir, typename T, typename E, typename L, typename A, typename SliceSpecifier>
+auto Slice(basic_mdspan<T, E, L, A> span, SliceSpecifier slice) {
+    if constexpr (E::rank() == 1) {
+        static_assert(dir == Direction::X);
+        return subspan(span, slice);
+    } else if constexpr (E::rank() == 2) {
+        if constexpr (dir == Direction::X) {
+            return subspan(span, slice, all);
+        } else {
+            static_assert(dir == Direction::Y);
+            return subspan(span, all, slice);
+        }
+    } else if constexpr (E::rank() == 3) {
+        if constexpr (dir == Direction::X) {
+            return subspan(span, slice, all, all);
+        } else if constexpr (dir == Direction::Y) {
+            return subspan(span, all, slice, all);
+        } else {
+            static_assert(dir == Direction::Z);
+            return subspan(span, all, all, slice);
+        }
+    } else if constexpr (E::rank() == 4) {
+        if constexpr (dir == Direction::X) {
+            return subspan(span, slice, all, all, all);
+        } else if constexpr (dir == Direction::Y) {
+            return subspan(span, all, slice, all, all);
+        } else {
+            static_assert(dir == Direction::Z);
+            return subspan(span, all, all, slice, all);
+        }
+    }
+}
 
 
-// template <typename Eq, int N, typename Layout>
-// void LoadArray(ConsArray<Eq, N>& state,
-//                View<nodeduce_t<const Conservative<Eq>>, Layout> view,
-//                std::array<std::ptrdiff_t, Eq::Rank()> index) {
-//   ForEachComponent(
-//       [&](auto component, auto mdspan) {
-//         component = std::apply(
-//             [&](auto... i) { return Load(constant<N>(), mdspan, i...); },
-//             index);
-//       },
-//       state, view);
-// }
+template <Direction dir, typename T, typename L, int Rank, typename SliceSpecifier>
+auto Slice(View<T, L, Rank> view, SliceSpecifier slice) {
+    View<T, layout_stride, Rank> sliced_view;
+    ForEachVariable<remove_cvref_t<T>>([&](auto& s, auto v) {
+        s = Slice<dir>(v, slice);
+    }, sliced_view, view);
+    return sliced_view;
+}
 
 } // namespace fub
 

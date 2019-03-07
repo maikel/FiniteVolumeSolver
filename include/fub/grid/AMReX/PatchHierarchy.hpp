@@ -21,10 +21,10 @@
 #ifndef FUB_AMREX_PATCH_HIERARCHY_HPP
 #define FUB_AMREX_PATCH_HIERARCHY_HPP
 
-#include "fub/grid/AMReX/CartesianGridGeometry.hpp"
 #include "fub/Duration.hpp"
-#include "fub/ext/Eigen.hpp"
 #include "fub/Equation.hpp"
+#include "fub/ext/Eigen.hpp"
+#include "fub/grid/AMReX/CartesianGridGeometry.hpp"
 
 #include <AMReX_FluxRegister.H>
 #include <AMReX_Geometry.H>
@@ -66,7 +66,7 @@ public:
                           const PatchHierarchyOptions& options);
 
   const ::amrex::Geometry& GetGeometry(int level) const noexcept {
-    return patch_level_geometry_[level];
+    return patch_level_geometry_[static_cast<std::size_t>(level)];
   }
   const PatchHierarchyOptions& GetOptions() const noexcept { return options_; }
 
@@ -74,24 +74,23 @@ public:
     return grid_geometry_;
   }
 
-  int GetCycles(int level = 0) const {
-    return patch_level_[level].cycles;
+  std::ptrdiff_t GetCycles(int level = 0) const {
+    return patch_level_[static_cast<std::size_t>(level)].cycles;
   }
 
   Duration GetTimePoint(int level = 0) const {
-    return patch_level_[level].time_point;
+    return patch_level_[static_cast<std::size_t>(level)].time_point;
   }
 
   int GetNumberOfLevels() const noexcept {
-    return std::count_if(
+    return static_cast<int>(std::count_if(
         patch_level_.begin(), patch_level_.end(),
-        [](const PatchLevel& level) { return !level.data.empty(); });
+        [](const PatchLevel& level) { return !level.data.empty(); }));
   }
 
   int GetMaxNumberOfLevels() const noexcept {
-    return patch_level_.size();
+    return static_cast<int>(patch_level_.size());
   }
-
 
   int GetRatioToCoarserLevel(int level) const noexcept {
     if (level) {
@@ -100,10 +99,12 @@ public:
     return 1;
   }
 
-  PatchLevel& GetPatchLevel(int level) noexcept { return patch_level_[level]; }
+  PatchLevel& GetPatchLevel(int level) noexcept {
+    return patch_level_[static_cast<std::size_t>(level)];
+  }
 
   const PatchLevel& GetPatchLevel(int level) const noexcept {
-    return patch_level_[level];
+    return patch_level_[static_cast<std::size_t>(level)];
   }
 
   const DataDescription& GetDataDescription() const noexcept {
@@ -121,13 +122,11 @@ private:
 template <typename Equation>
 DataDescription MakeDataDescription(const Equation& equation) {
   const auto complete_shape = equation.Shape(complete);
-  const int n_comp = boost::hana::fold_left(complete_shape, 0, [](int size, int ncomp) {
-    return size + ncomp;
-  });
+  const int n_comp = boost::hana::fold_left(
+      complete_shape, 0, [](int size, int ncomp) { return size + ncomp; });
   const auto cons_shape = equation.Shape(cons);
-  const int n_cons_comp = boost::hana::fold_left(cons_shape, 0, [](int size, int ncomp) {
-    return size + ncomp;
-  });
+  const int n_cons_comp = boost::hana::fold_left(
+      cons_shape, 0, [](int size, int ncomp) { return size + ncomp; });
   DataDescription desc;
   desc.n_state_components = n_comp;
   desc.first_cons_component = 0;
@@ -142,32 +141,32 @@ void WritePlotFile(const std::string plotfilename,
   const int nlevels = hier.GetNumberOfLevels();
   const double time_point = hier.GetTimePoint().count();
   FUB_ASSERT(nlevels >= 0);
-  ::amrex::Vector<const ::amrex::MultiFab*> mf(nlevels);
-  ::amrex::Vector<::amrex::Geometry> geoms(nlevels);
-  ::amrex::Vector<int> level_steps(nlevels);
-  ::amrex::Vector<::amrex::IntVect> ref_ratio(nlevels);
-  for (int i = 0; i < nlevels; ++i) {
-    mf[i] = &hier.GetPatchLevel(i).data;
-    geoms[i] = hier.GetGeometry(i);
-    level_steps[i] = hier.GetCycles(i);
-    ref_ratio[i] =
-        hier.GetRatioToCoarserLevel(i) * ::amrex::IntVect::TheUnitVector();
+  std::size_t size = static_cast<std::size_t>(nlevels);
+  ::amrex::Vector<const ::amrex::MultiFab*> mf(size);
+  ::amrex::Vector<::amrex::Geometry> geoms(size);
+  ::amrex::Vector<int> level_steps(size);
+  ::amrex::Vector<::amrex::IntVect> ref_ratio(size);
+  for (std::size_t i = 0; i < size; ++i) {
+    mf[i] = &hier.GetPatchLevel(static_cast<int>(i)).data;
+    geoms[i] = hier.GetGeometry(static_cast<int>(i));
+    level_steps[i] = static_cast<int>(hier.GetCycles(static_cast<int>(i)));
+    ref_ratio[i] = hier.GetRatioToCoarserLevel(static_cast<int>(i)) *
+                   ::amrex::IntVect::TheUnitVector();
   }
   constexpr auto names = Equation::Complete::Names();
   const auto shape = equation.Shape(complete);
   ::amrex::Vector<std::string> varnames;
   varnames.reserve(boost::hana::length(names));
-  boost::hana::for_each(boost::hana::zip(names, shape),
-                        [&](auto xs) { 
-                          const int ncomp = at_c<1>(xs);
-                          if (ncomp == 1) {
-                            varnames.push_back(at_c<0>(xs).c_str()); 
-                          } else {
-                            for (int i = 0; i < ncomp; ++i) {
-                              varnames.push_back(fmt::format("{}_{}", at_c<0>(xs).c_str(), i)); 
-                            }
-                          }
-                          });
+  boost::hana::for_each(boost::hana::zip(names, shape), [&](auto xs) {
+    const int ncomp = at_c<1>(xs);
+    if (ncomp == 1) {
+      varnames.push_back(at_c<0>(xs).c_str());
+    } else {
+      for (int i = 0; i < ncomp; ++i) {
+        varnames.push_back(fmt::format("{}_{}", at_c<0>(xs).c_str(), i));
+      }
+    }
+  });
   ::amrex::WriteMultiLevelPlotfile(plotfilename, nlevels, mf, varnames, geoms,
                                    time_point, level_steps, ref_ratio);
 }

@@ -13,7 +13,7 @@ GetCartesianCoordinates(const ::amrex::Geometry& geom,
   Eigen::Vector3d dx{0, 0, 0};
   std::array<std::ptrdiff_t, 3> extents{1, 1, 1};
   for (int i = 0; i < AMREX_SPACEDIM; ++i) {
-    extents[i] = box.length(i);
+    extents[static_cast<std::size_t>(i)] = box.length(i);
     dx[i] = geom.CellSize(i);
   }
   return CartesianCoordinates(lower, upper, dx, dynamic_extents<3>(extents));

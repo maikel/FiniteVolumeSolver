@@ -38,7 +38,10 @@ struct ShallowWater
     : VariableDescription<ShallowWaterVariables<Scalar, Vector2d>> {
   using Conservative = ::fub::Conservative<ShallowWater>;
   using Complete = ::fub::Complete<ShallowWater>;
-
+  template <int N>
+  using CompleteArray = ::fub::CompleteArray<ShallowWater, N>;
+  template <int N>
+  using ConservativeArray = ::fub::ConservativeArray<ShallowWater, N>;
   static constexpr int Rank() noexcept { return 2; }
 
   void Flux(Conservative& flux, const Complete& state,

@@ -40,6 +40,10 @@ struct Advection2d : VariableDescription<AdvectionVariables<Scalar>> {
   using Complete = ::fub::Complete<Advection2d>;
   using Conservative = ::fub::Conservative<Advection2d>;
 
+  template <int N> using CompleteArray = ::fub::CompleteArray<Advection2d, N>;
+  template <int N>
+  using ConservativeArray = ::fub::ConservativeArray<Advection2d, N>;
+
   Advection2d(const std::array<double, 2>& v) noexcept : velocity{v} {}
 
   static constexpr int Rank() { return 2; }
@@ -49,7 +53,15 @@ struct Advection2d : VariableDescription<AdvectionVariables<Scalar>> {
   /// \param[out] flux The conservative state which will store the results.
   /// \param[in] state The input state.
   /// \param[in] dir   The split direction of this flux.
-  void Flux(Conservative& flux, const Complete& state, Direction dir) const noexcept;
+  void Flux(Conservative& flux, const Complete& state, Direction dir) const
+      noexcept;
+
+  template <int N>
+  void Flux(ConservativeArray<N>& flux, const CompleteArray<N>& state,
+            Direction dir) const noexcept {
+    const int d = static_cast<int>(dir);
+    flux.mass = velocity[d] * state.mass;
+  }
 
   std::array<double, 2> velocity;
 };
@@ -57,6 +69,7 @@ struct Advection2d : VariableDescription<AdvectionVariables<Scalar>> {
 template <> class ExactRiemannSolver<Advection2d> {
 public:
   using Complete = typename Advection2d::Complete;
+  template <int N> using CompleteArray = typename Advection2d::CompleteArray<N>;
 
   ExactRiemannSolver(const Advection2d& equation) : equation_{equation} {}
 
@@ -64,9 +77,29 @@ public:
   void SolveRiemannProblem(Complete& state, const Complete& left,
                            const Complete& right, Direction dir);
 
+  /// Returns either left or right, depending on the upwind velocity.
+  template <int N>
+  void SolveRiemannProblem(CompleteArray<N>& state,
+                           const CompleteArray<N>& left,
+                           const CompleteArray<N>& right, Direction dir) {
+    if (equation_.velocity[static_cast<std::size_t>(dir)] > 0) {
+      state = left;
+    } else {
+      state = right;
+    }
+  }
+
   /// Returns the upwind velocity in the specified direction.
   std::array<double, 1> ComputeSignals(const Complete&, const Complete&,
                                        Direction dir);
+
+  /// Returns the upwind velocity in the specified direction.
+  template <int N>
+  std::array<Array<double, 1, N>, 1> ComputeSignals(const CompleteArray<N>&,
+                                                    const CompleteArray<N>&,
+                                                    Direction dir) {
+     return {Array<double, 1, N>::Constant(equation_.velocity[static_cast<std::size_t>(dir)])};
+  }
 
 private:
   Advection2d equation_;

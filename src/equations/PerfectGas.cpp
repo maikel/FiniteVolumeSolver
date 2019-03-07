@@ -67,6 +67,27 @@ void CompleteFromConsImpl<PerfectGas<Dim>>::apply(
       std::sqrt(equation.gamma * complete.pressure / complete.density);
 }
 
+template <int Dim>
+void CompleteFromConsImpl<PerfectGas<Dim>>::apply(
+    const PerfectGas<Dim>& equation, Complete<PerfectGas<Dim>>& complete,
+    const Complete<PerfectGas<Dim>>& cons) {
+  complete.density = cons.density;
+  complete.momentum = cons.momentum;
+  complete.energy = cons.energy;
+  if constexpr (Dim == 1) {
+    complete.pressure =
+        (equation.gamma - 1.0) *
+        (cons.energy - 0.5 * cons.momentum * cons.momentum / cons.density);
+  } else {
+    const double E_kin =
+        0.5 * cons.momentum.matrix().squaredNorm() / cons.density;
+    const double rho_e_internal = cons.energy - E_kin;
+    complete.pressure = (equation.gamma - 1.0) * rho_e_internal;
+  }
+  complete.speed_of_sound =
+      std::sqrt(equation.gamma * complete.pressure / complete.density);
+}
+
 template struct CompleteFromConsImpl<PerfectGas<1>>;
 template struct CompleteFromConsImpl<PerfectGas<2>>;
 template struct CompleteFromConsImpl<PerfectGas<3>>;

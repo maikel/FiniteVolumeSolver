@@ -1,0 +1,29 @@
+FROM gcc:7
+
+RUN apt-get update && apt-get install --yes libhdf5-openmpi-dev libeigen3-dev libboost-dev
+
+# Install latest CMake files from the internet
+RUN wget https://github.com/Kitware/CMake/releases/download/v3.14.0-rc3/cmake-3.14.0-rc3-Linux-x86_64.tar.gz \
+  && tar xzf cmake-3.14.0-rc3-Linux-x86_64.tar.gz && rm cmake-3.14.0-rc3-Linux-x86_64.tar.gz \
+  && cp -r cmake-3.14.0-rc3-Linux-x86_64/* / && rm -r cmake-3.14.0-rc3-Linux-x86_64/
+
+# Build and install fmtlib
+RUN git clone --depth=1 https://github.com/fmtlib/fmt.git \
+  && mkdir /fmt/build && cd /fmt/build \
+  && cmake /fmt -DCMAKE_INSTALL_PREFIX="/" -DFMT_TEST=OFF -DFMT_DOC=OFF \
+  && cd /fmt/build && make install && cd / && rm -r /fmt
+
+# Build and install SAMRAI
+RUN git clone --single-branch -b feature/DISABLE_TESTS https://github.com/maikel/SAMRAI.git /SAMRAI \
+  && cd /SAMRAI && git submodule update --init \
+  && mkdir /SAMRAI/build \
+  && cd /SAMRAI/build && cmake /SAMRAI -DENABLE_DOCS=OFF -DENABLE_CPPCHECK=OFF -DENABLE_EXAMPLES=OFF -DENABLE_OPENMP=OFF -DENABLE_SPHINX=OFF -DENABLE_TESTS=OFF -DCMAKE_INSTALL_PREFIX="/" -DENABLE_DOXYGEN=OFF \
+  && make install \
+  && cd / && rm -r /SAMRAI
+
+# Build and install AMReX
+RUN git clone -b development https://github.com/maikel/amrex.git /AMReX \
+  && mkdir /AMReX/build \
+  && cd /AMReX/build && cmake /AMReX -DDIM=2 -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="/" -DENABLE_3D_NODAL_MLMG=OFF \
+  && make install \
+  && cd / && rm -r /AMReX

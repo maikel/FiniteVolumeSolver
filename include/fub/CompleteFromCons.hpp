@@ -49,8 +49,8 @@ template <typename Equation> struct CompleteFromConsImpl {
     }
   }
 
-  static void apply(const Equation&, Complete<Equation>& complete,
-                    const Complete<Equation>& cons) {}
+  static void apply(const Equation&, Complete<Equation>&,
+                    const Complete<Equation>&) {}
 };
 
 template <typename Equation>
@@ -63,6 +63,17 @@ template <typename Equation>
 void CompleteFromCons(const Equation& equation, Complete<Equation>& complete,
                       const Complete<Equation>& cons) {
   return CompleteFromConsImpl<Equation>::apply(equation, complete, cons);
+}
+
+
+template <typename Equation, int N>
+void CompleteFromCons(const Equation&, CompleteArray<Equation, N>&,
+                      const ConservativeArray<Equation, N>&) {
+}
+
+template <typename Equation, int N>
+void CompleteFromCons(const Equation&, CompleteArray<Equation, N>&,
+                      const CompleteArray<Equation, N>&) {
 }
 
 template <typename Equation, typename L1, typename L2>
