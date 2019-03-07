@@ -84,7 +84,7 @@ template <typename Equation, StateType Type> constexpr auto ScalarBaseType() {
       boost::hana::transform(boost::hana::zip(value_types, shape), [](auto xs) {
         return ScalarComponentType(at_c<0>(xs), at_c<1>(xs));
       });
-  constexpr auto template_ = Equation::Template(type);
+  [[maybe_unused]] constexpr auto template_ = Equation::Template(type);
   return boost::hana::unpack(
       member_types, [&](auto... types) { return template_(types...); });
 }
