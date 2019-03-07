@@ -41,7 +41,7 @@
 #include <array>
 #include <type_traits>
 
-DISABLE_WARNING(attributes, unknown-attributes, 42);
+DISABLE_WARNING(attributes, unknown-attributes, 42)
 
 
 namespace fub {
@@ -1039,7 +1039,7 @@ class tuple_size<fub::span<T, N>>
 
 } // namespace std
 
-ENABLE_WARNING(attributes, unknown-attributes, 42);
+ENABLE_WARNING(attributes, unknown-attributes, 42)
 
 BOOST_HANA_NAMESPACE_BEGIN
 namespace ext {

@@ -290,7 +290,7 @@ constexpr auto ViewBase(basic_type<Conservative<Equation>>, constant<Rank> rank,
         };
         return template_(view_type(xs)...);
       });
-};
+}
 
 template <typename Equation, int Rank, typename Layout>
 constexpr auto ViewBase(basic_type<const Conservative<Equation>>,
@@ -308,7 +308,7 @@ constexpr auto ViewBase(basic_type<const Conservative<Equation>>,
         };
         return template_(view_type(xs)...);
       });
-};
+}
 
 template <typename Equation, int Rank, typename Layout>
 constexpr auto ViewBase(basic_type<Complete<Equation>>, constant<Rank> rank,
@@ -325,7 +325,7 @@ constexpr auto ViewBase(basic_type<Complete<Equation>>, constant<Rank> rank,
         };
         return template_(view_type(xs)...);
       });
-};
+}
 
 template <typename Equation, int Rank, typename Layout>
 constexpr auto ViewBase(basic_type<const Complete<Equation>>,
@@ -343,7 +343,7 @@ constexpr auto ViewBase(basic_type<const Complete<Equation>>,
         };
         return template_(view_type(xs)...);
       });
-};
+}
 
 template <typename State, int Rank, typename Layout>
 using ViewBaseT = typename decltype(
