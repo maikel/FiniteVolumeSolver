@@ -11,16 +11,15 @@ if (EXISTS ${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 endif()
 
 # Try to find SAMRAI (optional)
-find_package(SAMRAI QUIET)
+find_package(Boost REQUIRED)
 
+find_package(SAMRAI QUIET)
 if (SAMRAI_FOUND)
   message(STATUS "SAMRAI version: ${SAMRAI_VERSION}")
   option(FUB_WITH_SAMRAI "Compile with SAMRAI modules." ON)
-  find_package(Boost REQUIRED COMPONENTS filesystem)
 else()
   message(STATUS "SAMRAI: Not Found.")
   option(FUB_WITH_SAMRAI "Compile with SAMRAI modules." OFF)
-  find_package(Boost REQUIRED)
 endif()
 
 # Try to find AMReX (optional)
@@ -155,6 +154,14 @@ target_link_libraries(HyperbolicSolver.Solver
     fmt::fmt-header-only
     Boost::boost
     Eigen3::Eigen)
+target_compile_options(HyperbolicSolver.Solver 
+  PRIVATE 
+  $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Werror>
+  $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
+  $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall>
+  $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>
+  $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wconversion>
+  $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wsign-conversion>)
 install(
   TARGETS HyperbolicSolver.Solver
   EXPORT HyperbolicSolver
@@ -179,6 +186,12 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     PRIVATE 
       ${CMAKE_CURRENT_SOURCE_DIR}
   )
+  target_compile_options(HyperbolicSolver.AMReX 
+    PRIVATE 
+    $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Werror>
+    $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
+    $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall>
+    $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>)
   target_link_libraries(HyperbolicSolver.AMReX
     PUBLIC
       HyperbolicSolver.Solver
@@ -211,7 +224,12 @@ if (SAMRAI_FOUND)
       HyperbolicSolver.Solver
       SAMRAI_appu SAMRAI_xfer SAMRAI_mesh SAMRAI_geom
       SAMRAI_pdat SAMRAI_hier SAMRAI_tbox)
-  target_compile_features(HyperbolicSolver.SAMRAI PUBLIC cxx_std_17)
+  target_compile_options(HyperbolicSolver.SAMRAI 
+    PRIVATE 
+      $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Werror>
+      $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
+      $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall>
+      $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>)
   install(
     TARGETS HyperbolicSolver.SAMRAI
     EXPORT HyperbolicSolver
