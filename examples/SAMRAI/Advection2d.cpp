@@ -34,7 +34,7 @@
 #include "fub/grid/SAMRAI/ScopeGuard.hpp"
 #include "fub/grid/SAMRAI/ViewPatch.hpp"
 
-#include <SAMRAI/appu/VisitDataWriter.h>
+#include <SAMRAI/appu/VisItDataWriter.h>
 #include <SAMRAI/tbox/PIO.h>
 
 #include <fmt/format.h>
