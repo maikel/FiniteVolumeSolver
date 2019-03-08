@@ -1,0 +1,12 @@
+stages:
+  - build
+  - test
+
+build:gcc8:
+  image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/gcc8/amrex2d:1
+  stage: build
+  script:
+    - mkdir build
+    - cd build
+    - cmake ../ -DCMAKE_BUILD_TYPE=Release
+    - make
