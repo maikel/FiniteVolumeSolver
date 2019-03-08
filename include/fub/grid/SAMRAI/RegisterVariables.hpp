@@ -108,11 +108,11 @@ DataDescription RegisterVariables(const Equation& equation,
   RegisterVariables<Complete, SAMRAI::pdat::CellVariable<double>>(
       data_ids.data_ids, equation, dim, zero, prefix, "current");
 
-  constexpr auto cons_names = Conservative::Names();
-  constexpr auto complete_names = Complete::Names();
+  static constexpr auto cons_names = Conservative::Names();
+  static constexpr auto complete_names = Complete::Names();
 
   data_ids.conservative.reserve(boost::hana::length(cons_names));
-  boost::hana::for_each(cons_names, [&](auto name) {
+  boost::hana::for_each(cons_names, [&data_ids](auto name) {
     constexpr auto index =
         *boost::hana::index_if(complete_names, boost::hana::equal.to(name));
     data_ids.conservative.push_back(index);

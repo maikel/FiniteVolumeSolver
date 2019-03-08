@@ -86,11 +86,5 @@ ComputeCellCoordinates(const SAMRAI::geom::CartesianPatchGeometry& geometry,
   return buffer;
 }
 
-SAMRAI::geom::CartesianPatchGeometry*
-GetCartesianPatchGeometry(const SAMRAI::hier::Patch& patch) {
-  return static_cast<SAMRAI::geom::CartesianPatchGeometry*>(
-      patch.getPatchGeometry().get());
-}
-
 } // namespace samrai
 } // namespace fub
