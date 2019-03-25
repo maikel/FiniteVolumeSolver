@@ -46,7 +46,8 @@ static void BM_GodunovMethod_X(benchmark::State& state) {
 
   View<const Complete<ShallowWater>> states;
   states.heigth = mdspan<const double, 2>(heigth.data(), width + 1, width);
-  states.momentum = mdspan<const double, 3>(momentum.data(), width + 1, width, 2);
+  states.momentum =
+      mdspan<const double, 3>(momentum.data(), width + 1, width, 2);
 
   static_assert(IsView<View<Complete<ShallowWater>>>::value);
   for (auto _ : state) {
@@ -77,7 +78,8 @@ static void BM_GodunovMethod_Y(benchmark::State& state) {
 
   View<const Complete<ShallowWater>> states;
   states.heigth = mdspan<const double, 2>(heigth.data(), width, width + 1);
-  states.momentum = mdspan<const double, 3>(momentum.data(), width, width + 1, 2);
+  states.momentum =
+      mdspan<const double, 3>(momentum.data(), width, width + 1, 2);
 
   static_assert(IsView<View<Complete<ShallowWater>>>::value);
   for (auto _ : state) {
@@ -139,7 +141,8 @@ static void BM_MusclHancockMethod_Y(benchmark::State& state) {
 
   View<const Complete<ShallowWater>> states;
   states.heigth = mdspan<const double, 2>(heigth.data(), width, width + 3);
-  states.momentum = mdspan<const double, 3>(momentum.data(), width, width + 3, 2);
+  states.momentum =
+      mdspan<const double, 3>(momentum.data(), width, width + 3, 2);
 
   static_assert(IsView<View<Complete<ShallowWater>>>::value);
   for (auto _ : state) {

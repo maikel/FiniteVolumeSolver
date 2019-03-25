@@ -72,14 +72,15 @@ public:
     return FluxMethodTraits<BaseMethod>::StencilWidth();
   }
 
-  void ComputeNumericFluxes(View<Conservative> fluxes,
-                            View<const Complete> states, Duration dt, double dx,
-                            Direction dir) {
-    ForEachIndex(Mapping<0>(fluxes), [&](const auto... is) {
+  void ComputeNumericFluxes(const View<Conservative>& fluxes,
+                            const View<const Complete>& states, Direction dir,
+                            Duration dt, double dx) {
+    ForEachIndex(Box<0>(fluxes), [&](const auto... is) {
       using Index = std::array<std::ptrdiff_t, sizeof...(is)>;
       const Index face{is...};
+      const Index cell0 = Shift(face, dir, -GetStencilWidth());
       for (std::size_t i = 0; i < stencil_.size(); ++i) {
-        const Index cell = Shift(face, dir, i);
+        const Index cell = Shift(cell0, dir, static_cast<int>(i));
         Load(stencil_[i], states, cell);
       }
       base_.ComputeNumericFlux(numeric_flux_, stencil_, dt, dx, dir);
@@ -87,12 +88,14 @@ public:
     });
   }
 
-  void ComputeNumericFluxes(execution::SimdTag, View<Conservative> fluxes,
-                            View<const Complete> states, Duration dt, double dx,
-                            Direction dir) {
+  void ComputeNumericFluxes(execution::SimdTag,
+                            const View<Conservative>& fluxes,
+                            const View<const Complete>& states, Direction dir,
+                            Duration dt, double dx) {
     static constexpr int stencil = 2 * GetStencilWidth();
     [[maybe_unused]] const int d = static_cast<int>(dir);
-    FUB_ASSERT(Extents<0>(states).extent(d) == Extents<0>(fluxes).extent(d) + stencil - 1);
+    FUB_ASSERT(Extents<0>(states).extent(d) ==
+               Extents<0>(fluxes).extent(d) + stencil - 1);
     if (dir == Direction::X) {
       ForEachRow(
           [&](auto fluxes_row, auto states_row) {
@@ -139,7 +142,8 @@ public:
                     std::array<decltype(first_row), stencil> rows{
                         first_row, other_rows...};
                     std::ptrdiff_t i = 0;
-                    const std::ptrdiff_t ssize = Extents<0>(first_row).extent(0);
+                    const std::ptrdiff_t ssize =
+                        Extents<0>(first_row).extent(0);
                     while (i + ChunkSize <= ssize) {
                       for (std::size_t k = 0; k < stencil; ++k) {
                         Load(stencil_array_[k], rows[k], {i});
@@ -222,8 +226,8 @@ public:
     base_.ComputeNumericFlux(numeric_flux, states, dt, dx, dir);
   }
 
-  double ComputeStableDt(span<const Complete, 2> states, double dx,
-                         Direction dir) {
+  double ComputeStableDt(span<const Complete, 2 * GetStencilWidth()> states,
+                         double dx, Direction dir) {
     return base_.ComputeStableDt(states, dx, dir);
   }
 
@@ -231,12 +235,12 @@ public:
                          Direction dir) {
     double min_dt = std::numeric_limits<double>::infinity();
     constexpr int stencil = FluxMethodTraits<BaseMethod>::StencilWidth();
-    ForEachIndex(Shrink(Mapping<0>(states), dir, 2 * stencil),
+    ForEachIndex(Shrink(Box<0>(states), dir, {0, 2 * stencil}),
                  [&](const auto... is) {
                    using Index = std::array<std::ptrdiff_t, sizeof...(is)>;
                    const Index face{is...};
                    for (std::size_t i = 0; i < stencil_.size(); ++i) {
-                     const Index cell = Shift(face, dir, i);
+                     const Index cell = Shift(face, dir, static_cast<int>(i));
                      Load(stencil_[i], states, cell);
                    }
                    double dt = base_.ComputeStableDt(stencil_, dx, dir);

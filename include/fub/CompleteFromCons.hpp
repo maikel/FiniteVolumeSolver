@@ -65,25 +65,21 @@ void CompleteFromCons(const Equation& equation, Complete<Equation>& complete,
   return CompleteFromConsImpl<Equation>::apply(equation, complete, cons);
 }
 
+template <typename Equation, int N>
+void CompleteFromCons(const Equation&, CompleteArray<Equation, N>&,
+                      const ConservativeArray<Equation, N>&) {}
 
 template <typename Equation, int N>
 void CompleteFromCons(const Equation&, CompleteArray<Equation, N>&,
-                      const ConservativeArray<Equation, N>&) {
-}
-
-template <typename Equation, int N>
-void CompleteFromCons(const Equation&, CompleteArray<Equation, N>&,
-                      const CompleteArray<Equation, N>&) {
-}
+                      const CompleteArray<Equation, N>&) {}
 
 template <typename Equation, typename L1, typename L2>
 void CompleteFromCons(const Equation& eq,
                       View<Complete<Equation>, L1> complete_view,
                       View<const Conservative<Equation>, L2> cons_view) {
-  FUB_ASSERT(Extents<0>(complete_view) == Extents<0>(cons_view));
   Complete<Equation> complete(eq);
   Conservative<Equation> cons(eq);
-  ForEachIndex(Mapping<0>(complete_view), [&](auto... is) {
+  ForEachIndex(Box<0>(complete_view), [&](auto... is) {
     Load(cons, cons_view, {is...});
     CompleteFromCons(eq, complete, cons);
     Store(complete_view, complete, {is...});

@@ -21,10 +21,10 @@
 #ifndef FUB_AMREX_INITIAL_DATA_HPP
 #define FUB_AMREX_INITIAL_DATA_HPP
 
+#include "fub/PatchDataView.hpp"
 #include "fub/CartesianCoordinates.hpp"
 #include "fub/Equation.hpp"
-#include "fub/core/mdspan.hpp"
-#include "fub/grid/AMReX/CartesianGridGeometry.hpp"
+#include "fub/grid/AMReX/PatchHandle.hpp"
 #include "fub/grid/AMReX/ViewFArrayBox.hpp"
 
 #include <AMReX.H>
@@ -33,8 +33,9 @@ namespace fub {
 namespace amrex {
 struct InitialDataStrategy {
   virtual ~InitialDataStrategy() = default;
-  virtual void InitializeData(mdspan<double, AMREX_SPACEDIM + 1> states,
-                              const CartesianCoordinates& coords) = 0;
+  virtual void
+  InitializeData(const PatchDataView<double, AMREX_SPACEDIM + 1>& states,
+                 const PatchHandle& patch) = 0;
 };
 
 template <typename T> struct InitialDataWrapper : public InitialDataStrategy {
@@ -42,9 +43,9 @@ template <typename T> struct InitialDataWrapper : public InitialDataStrategy {
   InitialDataWrapper(T&& initial_data)
       : initial_data_{std::move(initial_data)} {}
 
-  void InitializeData(mdspan<double, AMREX_SPACEDIM + 1> states,
-                      const CartesianCoordinates& coords) override {
-    initial_data_.InitializeData(states, coords);
+  void InitializeData(const PatchDataView<double, AMREX_SPACEDIM + 1>& states,
+                      const PatchHandle& patch) override {
+    initial_data_.InitializeData(states, patch);
   }
 
   T initial_data_;
@@ -59,10 +60,10 @@ struct InitialData {
       : initial_data_{std::make_unique<InitialDataWrapper<remove_cvref_t<T>>>(
             std::move(initial_data))} {}
 
-  void InitializeData(mdspan<double, AMREX_SPACEDIM + 1> states,
-                      const CartesianCoordinates& coords) {
+  void InitializeData(const PatchDataView<double, AMREX_SPACEDIM + 1>& states,
+                      const PatchHandle& patch) {
     if (initial_data_) {
-      return initial_data_->InitializeData(states, coords);
+      return initial_data_->InitializeData(states, patch);
     }
   }
 
@@ -73,11 +74,11 @@ template <typename InitialData, typename Equation> struct AdaptInitialData {
   AdaptInitialData(InitialData data, Equation equation)
       : data_{std::move(data)}, equation_{std::move(equation)} {}
 
-  void InitializeData(mdspan<double, AMREX_SPACEDIM + 1> states,
-                      const CartesianCoordinates& coords) {
-    auto state_view = MakeView(boost::hana::type_c<View<Complete<Equation>>>,
-                           states, equation_);
-    data_.InitializeData(state_view, coords);
+  void InitializeData(const PatchDataView<double, AMREX_SPACEDIM + 1>& states,
+                      const PatchHandle& patch) {
+    View<Complete<Equation>> state_view =
+        MakeView<View<Complete<Equation>>>(states, equation_);
+    data_.InitializeData(state_view, patch);
   }
 
   InitialData data_;

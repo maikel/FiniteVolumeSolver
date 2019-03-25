@@ -18,19 +18,20 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/Box.hpp"
+#ifndef FUB_HYPERBOLIC_SPLIT_LEVEL_INTEGRATOR_HPP
+#define FUB_HYPERBOLIC_SPLIT_LEVEL_INTEGRATOR_HPP
+
 #include "fub/CartesianCoordinates.hpp"
 #include "fub/CompleteFromCons.hpp"
 #include "fub/Direction.hpp"
 #include "fub/Duration.hpp"
 #include "fub/Equation.hpp"
-#include "fub/boundary_condition/NoBoundary.hpp"
 
 #include <mpi.h>
 
 namespace fub {
 template <typename IntegratorContext, typename PatchIntegrator,
-          typename FluxMethod, typename BoundaryCondition = NoBoundary>
+          typename FluxMethod, typename Reconstruction>
 class HyperbolicSplitLevelIntegrator : private IntegratorContext {
 public:
   using Equation = typename PatchIntegrator::Equation;
@@ -41,52 +42,47 @@ public:
 
   static constexpr int Rank() { return Equation::Rank(); }
 
-  HyperbolicSplitLevelIntegrator(
-      IntegratorContext context, PatchIntegrator integrator,
-      FluxMethod flux_method,
-      BoundaryCondition boundary_condition = BoundaryCondition())
+  HyperbolicSplitLevelIntegrator(IntegratorContext context,
+                                 PatchIntegrator integrator,
+                                 FluxMethod flux_method,
+                                 Reconstruction reconstruction)
       : Context(std::move(context)), patch_integrator_{std::move(integrator)},
-        flux_method_{std::move(flux_method)}, boundary_condition_{
-                                                  this, boundary_condition} {}
+        flux_method_{std::move(flux_method)}, reconstruction_{
+                                                  std::move(reconstruction)} {}
 
   HyperbolicSplitLevelIntegrator(HyperbolicSplitLevelIntegrator&&) = default;
+
+  IntegratorContext& GetIntegratorContext() noexcept { return *this; }
 
   const IntegratorContext& GetIntegratorContext() const noexcept {
     return *this;
   }
 
   View<Complete> GetData(const PatchHandle& patch) {
-    return MakeView(*this, boost::hana::type_c<View<Complete>>,
-                    Context::GetData(patch), GetEquation());
+    return MakeViewImpl(*this, boost::hana::type_c<View<Complete>>,
+                        Context::GetData(patch), GetEquation());
   }
 
   View<Complete> GetScratch(const PatchHandle& patch, Direction dir) {
-    return MakeView(*this, boost::hana::type_c<View<Complete>>,
-                    Context::GetScratch(patch, dir), GetEquation());
+    return MakeViewImpl(*this, boost::hana::type_c<View<Complete>>,
+                        Context::GetScratch(patch, dir), GetEquation());
   }
 
   View<Conservative> GetFluxes(const PatchHandle& patch, Direction dir) {
-    return MakeView(*this, boost::hana::type_c<View<Conservative>>,
-                    Context::GetFluxes(patch, dir), GetEquation());
+    return MakeViewImpl(*this, boost::hana::type_c<View<Conservative>>,
+                        Context::GetFluxes(patch, dir), GetEquation());
   }
 
   const Equation& GetEquation() const noexcept {
     return patch_integrator_.GetEquation();
   }
 
+  using Context::FillGhostLayerSingleLevel;
+  using Context::FillGhostLayerTwoLevels;
   using Context::GetCycles;
   using Context::GetPatchHierarchy;
   using Context::GetTimePoint;
   using Context::ResetHierarchyConfiguration;
-
-  void FillGhostLayerSingleLevel(int level, Direction direction) {
-    Context::FillGhostLayerSingleLevel(level, direction, boundary_condition_);
-  }
-
-  void FillGhostLayerTwoLevels(int fine, int coarse, Direction direction) {
-    Context::FillGhostLayerTwoLevels(fine, coarse, direction,
-                                     boundary_condition_);
-  }
 
   /// Returns a stable dt across all levels and in one spatial direction.
   ///
@@ -105,9 +101,8 @@ public:
         FillGhostLayerSingleLevel(level_num, dir);
       }
       Context::ForEachPatch(level_num, [&](const PatchHandle& patch) {
-        View<const Complete> scratch = GetScratch(patch, dir);
-        const double dx = Context::GetDx(patch, dir);
-        const double patch_dt = flux_method_.ComputeStableDt(scratch, dx, dir);
+        const double patch_dt =
+            flux_method_.ComputeStableDt(GetIntegratorContext(), patch, dir);
         level_dt = std::min(level_dt, patch_dt);
       });
       refine_ratio *= Context::GetRatioToCoarserLevel(level_num);
@@ -146,10 +141,8 @@ public:
 
     // Compute fluxes in the specified direction
     Context::ForEachPatch(this_level, [&](const PatchHandle& patch) {
-      const double dx = Context::GetDx(patch, direction);
-      View<const Complete> scratch = GetScratch(patch, direction);
-      View<Conservative> fluxes = GetFluxes(patch, direction);
-      flux_method_.ComputeNumericFluxes(fluxes, scratch, dt, dx, direction);
+      flux_method_.ComputeNumericFluxes(GetIntegratorContext(), patch,
+                                        direction, dt);
     });
 
     // Accumulate Fluxes on the coarse-fine interface to the next coarser level.
@@ -171,14 +164,8 @@ public:
 
     // Use the updated fluxes to update cons variables at the "SCRATCH" context.
     Context::ForEachPatch(this_level, [&](const PatchHandle& patch) {
-      View<Conservative> scratch = GetScratch(patch, direction);
-      const int gcw = Context::GetGhostCellWidth(patch, direction);
-      const double dx = Context::GetDx(patch, direction);
-      View<const Conservative> fluxes = GetFluxes(patch, direction);
-      StridedView<Conservative> inner =
-          ViewInnerRegion(scratch, direction, gcw - 1);
-      patch_integrator_.UpdateConservatively(inner, fluxes, inner, dt, dx,
-                                             direction);
+      patch_integrator_.UpdateConservatively(GetIntegratorContext(), patch,
+                                             direction, dt);
     });
 
     // Coarsen inner regions from next finer level to this level.
@@ -186,43 +173,23 @@ public:
       Context::CoarsenConservatively(next_level, this_level, direction);
     }
 
+    Context::ForEachPatch(this_level, [&](const PatchHandle& patch) {
+      reconstruction_.CompleteFromCons(GetIntegratorContext(), patch, direction,
+                                       dt);
+    });
+
     // The conservative update and and the coarsening happened on conservative
     // variables. We have to reconstruct the missing variables in the complete
     // state.
-    Context::ForEachPatch(this_level, [&](const PatchHandle& patch) {
-      View<Complete> state = GetData(patch);
-      View<Conservative> scratch = GetScratch(patch, direction);
-      const int gcw = Context::GetGhostCellWidth(patch, direction);
-      StridedView<const Conservative> inner =
-          ViewInnerRegion(scratch, direction, gcw);
-      CompleteFromCons(GetEquation(), state, inner);
-    });
-
     Context::PostAdvanceLevel(this_level, direction, dt, subcycle);
   }
 
 private:
-  struct AdaptedBoundaryCondition {
-    static constexpr int Rank = Equation::Rank();
-
-    void operator()(PatchHandle patch, Location boundary, Duration time_point) {
-      Direction dir = boundary.direction;
-      View<Complete> scratch = integrator_->GetScratch(patch, dir);
-      const CartesianCoordinates& coordinates =
-          integrator_->GetCartesianCoordinates(patch);
-      const int gcw = integrator_->GetGhostCellWidth(patch, dir);
-      const Box<Rank> fill_box =
-          GetBoundaryBox(Extents<0>(scratch), boundary, gcw);
-      boundary_condition_.FillBoundary(scratch, fill_box, coordinates, boundary,
-                                       time_point);
-    }
-
-    HyperbolicSplitLevelIntegrator* integrator_;
-    BoundaryCondition boundary_condition_;
-  };
   PatchIntegrator patch_integrator_;
   FluxMethod flux_method_;
-  AdaptedBoundaryCondition boundary_condition_;
+  Reconstruction reconstruction_;
 };
 
 } // namespace fub
+
+#endif

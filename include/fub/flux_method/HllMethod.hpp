@@ -72,6 +72,7 @@ public:
     const double max =
         std::accumulate(signals.begin(), signals.end(), 0.0,
                         [](double x, double y) { return std::max(x, y); });
+    FUB_ASSERT(max > 0.0);
     return 0.5 * dx / max;
   }
 

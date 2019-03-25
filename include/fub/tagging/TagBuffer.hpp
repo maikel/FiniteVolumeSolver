@@ -22,30 +22,48 @@
 #define FUB_TAGGING_TAG_BUFFER_HPP
 
 #include "fub/CartesianCoordinates.hpp"
-#include "fub/core/mdspan.hpp"
-#include "fub/State.hpp"
 #include "fub/ForEach.hpp"
+#include "fub/State.hpp"
+#include "fub/core/mdspan.hpp"
 
 #include <boost/hana/tuple.hpp>
 
 #include <utility>
 
 namespace fub {
-template <typename Base> struct TagBuffer {
-  Base base_;
+struct TagBuffer {
   int buffer_width_;
 
-  TagBuffer(const Base& base, int width) : base_{base}, buffer_width_{width} {}
-
-  TagBuffer(Base&& base, int width)
-      : base_{std::move(base)}, buffer_width_{width} {}
+  explicit TagBuffer(int width) : buffer_width_{width} {}
 
   template <typename Tags, typename StateView>
-  void TagCellsForRefinement(Tags tags, StateView states,
-                             const CartesianCoordinates& coords) {
-    base_.TagCellsForRefinement(tags, states, coords);
+  void TagCellsForRefinement(const Tags& tags, const StateView& states,
+                             const CartesianCoordinates& /* coords */) {
     for (std::size_t dir = 0; dir < Extents<0>(states).rank(); ++dir) {
-      ForEachIndex(Mapping<0>(states), [&](auto... is) {
+      ForEachIndex(Shrink(Box<0>(states), Direction(dir), {2, 2}), [&](auto... is) {
+        if (tags(is...) == 1) {
+          std::array<std::ptrdiff_t, sizeof...(is)> index{is...};
+          for (int width = 1; width <= buffer_width_; ++width) {
+            if (index[dir] + width < Extents<0>(states).extent(dir) &&
+                !tags(Shift(index, Direction(dir), width))) {
+              tags(Shift(index, Direction(dir), width)) = 2;
+            }
+            if (0 <= index[dir] - width &&
+                !tags(Shift(index, Direction(dir), -width))) {
+              tags(Shift(index, Direction(dir), -width)) = 2;
+            }
+          }
+        }
+      });
+    }
+  }
+
+  template <typename Tags, typename StateView, typename CutCellData>
+  void TagCellsForRefinement(const Tags& tags, const StateView& states,
+                             const CutCellData&,
+                             const CartesianCoordinates& /* coords */) {
+    for (std::size_t dir = 0; dir < Extents<0>(states).rank(); ++dir) {
+      ForEachIndex(Shrink(Box<0>(states), Direction(dir), {2, 2}), [&](auto... is) {
         if (tags(is...) == 1) {
           std::array<std::ptrdiff_t, sizeof...(is)> index{is...};
           for (int width = 1; width <= buffer_width_; ++width) {

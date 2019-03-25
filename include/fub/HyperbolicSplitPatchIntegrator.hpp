@@ -37,9 +37,8 @@ public:
   const Equation& GetEquation() const noexcept { return equation; }
 
   template <typename NextView, typename FluxView, typename PrevView>
-  void UpdateConservatively(NextView next, FluxView fluxes, PrevView prev,
-                            Duration dt, double dx,
-                            Direction dir = Direction::X);
+  void UpdateConservatively(NextView next, FluxView fluxes, PrevView prev, Direction dir,
+                            Duration dt, double dx);
 
 private:
   Equation equation;
@@ -53,28 +52,26 @@ private:
 template <typename Equation>
 template <typename NextView, typename FluxView, typename PrevView>
 void HyperbolicSplitPatchIntegrator<Equation>::UpdateConservatively(
-    NextView next, FluxView fluxes, PrevView prev, Duration dt, double dx,
-    Direction dir) {
+    NextView next, FluxView fluxes, PrevView prev, Direction dir, Duration dt, double dx) {
   const double lambda = dt.count() / dx;
-  FUB_ASSERT(Extents<0>(next) == Extents<0>(prev));
   constexpr int Rank = Equation::Rank();
-  ForEachIndex(Mapping<0>(next), [&](const auto... is) {
-    std::array<std::ptrdiff_t, Rank> index{is...};
-    FUB_ASSERT(Extents<0>(fluxes).extent(int(dir)) ==
-               Extents<0>(prev).extent(int(dir)) + 1);
+  ForEachIndex(Shrink(Box<0>(fluxes), dir, {0, 1}), [&](const auto... is) {
+    const std::array<std::ptrdiff_t, Rank> face_left{is...};
+    const std::array<std::ptrdiff_t, Rank> face_right = Shift(face_left, dir, 1);
     // Load fluxes left and right at index
-    Load(flux_left, fluxes, index);
-    Load(flux_right, fluxes, Shift(index, dir, 1));
+    Load(flux_left, fluxes, face_left);
+    Load(flux_right, fluxes, face_right);
     // Load state at index
-    Load(prev_state, prev, index);
+    const std::array<std::ptrdiff_t, Rank> cell = face_left;
+    Load(prev_state, prev, cell);
     // Do The computation
-    ForEachComponent<Conservative<Equation>>(
+    ForEachVariable<Conservative<Equation>>(
         [lambda](auto&& next, auto prev, auto flux_left, auto flux_right) {
           next = prev + lambda * (flux_left - flux_right);
         },
         next_state, prev_state, flux_left, flux_right);
     // Store the result at index
-    Store(next, next_state, index);
+    Store(next, next_state, cell);
   });
 }
 

@@ -27,8 +27,11 @@
 #include "fub/ext/Eigen.hpp"
 #include "fub/flux_method/HllMethod.hpp"
 #include "fub/flux_method/MusclHancockMethod.hpp"
+#include "fub/grid/AMReX/FluxMethod.hpp"
 #include "fub/grid/AMReX/GriddingAlgorithm.hpp"
 #include "fub/grid/AMReX/HyperbolicSplitIntegratorContext.hpp"
+#include "fub/grid/AMReX/HyperbolicSplitPatchIntegrator.hpp"
+#include "fub/grid/AMReX/Reconstruction.hpp"
 #include "fub/grid/AMReX/ScopeGuard.hpp"
 #include "fub/split_method/StrangSplitting.hpp"
 #include "fub/tagging/GradientDetector.hpp"
@@ -40,10 +43,17 @@
 #include <iostream>
 
 struct CircleData {
-  void InitializeData(fub::View<fub::Complete<fub::PerfectGas<2>>> states,
-                      const fub::CartesianCoordinates& x) const {
-    fub::ForEachIndex(fub::Mapping<0>(states), [&](int i, int j) {
-      const double norm = x(i, j).norm();
+  std::shared_ptr<fub::amrex::PatchHierarchy> hierarchy;
+  fub::PerfectGas<2> equation_;
+  void
+  InitializeData(const fub::View<fub::Complete<fub::PerfectGas<2>>>& states,
+                 fub::amrex::PatchHandle patch) const {
+    const ::amrex::Geometry& geom = hierarchy->GetGeometry(patch.level);
+    const ::amrex::Box& box = patch.iterator->tilebox();
+    fub::CartesianCoordinates x =
+        fub::amrex::GetCartesianCoordinates(geom, box);
+    fub::ForEachIndex(fub::Box<0>(states), [&](auto... is) {
+      const double norm = x(is...).norm();
       fub::Conservative<fub::PerfectGas<2>> state;
       if (norm < 0.25) {
         state.energy = 8 * 101325. * equation_.gamma_minus_1_inv;
@@ -52,14 +62,11 @@ struct CircleData {
       }
       state.density = 1.0;
       state.momentum.fill(0);
-
       fub::Complete<fub::PerfectGas<2>> complete;
       CompleteFromCons(equation_, complete, state);
-      Store(states, complete, {i, j});
+      Store(states, complete, {is...});
     });
   }
-
-  fub::PerfectGas<2> equation_;
 };
 
 int main(int argc, char** argv) {
@@ -94,12 +101,12 @@ int main(int argc, char** argv) {
   using Complete = fub::PerfectGas<2>::Complete;
   fub::GradientDetector gradient{std::make_pair(&Complete::density, 1e-3),
                                  std::make_pair(&Complete::pressure, 1000.0)};
-  fub::TagBuffer buffered_gradient{gradient, 2};
+  fub::TagBuffer buffer{2};
 
   CircleData initial_data{};
   auto gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       hierarchy, fub::amrex::AdaptInitialData(initial_data, equation),
-      fub::amrex::AdaptTagging(buffered_gradient, equation));
+      fub::amrex::AdaptTagging(equation, hierarchy, gradient, buffer));
   gridding->InitializeHierarchy(0.0);
 
   fub::HyperbolicSplitPatchIntegrator patch_integrator{equation};
@@ -110,7 +117,9 @@ int main(int argc, char** argv) {
   const int gcw = flux_method.GetStencilWidth();
   fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
       fub::amrex::HyperbolicSplitIntegratorContext(std::move(gridding), gcw),
-      patch_integrator, flux_method));
+      fub::amrex::HyperbolicSplitPatchIntegrator(patch_integrator),
+      fub::amrex::FluxMethod(flux_method),
+      fub::amrex::Reconstruction(equation)));
 
   std::string base_name = "AMReX/PerfectGas2d_";
 

@@ -18,34 +18,35 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_BOX_HPP
-#define FUB_BOX_HPP
+#ifndef FUB_CUTCELL_DATA_HPP
+#define FUB_CUTCELL_DATA_HPP
 
-#include "fub/Direction.hpp"
-
-#include <array>
+#include "fub/PatchDataView.hpp"
+#include "fub/ext/Eigen.hpp"
+#include <AMReX_EBCellFlag.H>
 
 namespace fub {
 
-template <int Rank> using Index = std::array<std::ptrdiff_t, Rank>;
-
-template <int Rank> struct Box {
-  Index<Rank> lower;
-  Index<Rank> upper;
+template <int Rank> struct CutCellData {
+  // The next four members are given by AMReX
+  Direction dir;
+  PatchDataView<const ::amrex::EBCellFlag, Rank> flags;
+  PatchDataView<const double, Rank> volume_fractions;
+  PatchDataView<const double, Rank> face_fractions;
+  PatchDataView<const double, Rank + 1> boundary_normals;
+  PatchDataView<const double, Rank + 1> boundary_centeroids;
+  // The following members need to be computed from the AMReX EB database
+  PatchDataView<const double, Rank> unshielded_fractions;
+  PatchDataView<const double, Rank> shielded_left_fractions;
+  PatchDataView<const double, Rank> shielded_right_fractions;
+  PatchDataView<const double, Rank> doubly_shielded_fractions;
 };
 
-template <typename Extents>
-Box<Extents::rank()> GetBoundaryBox(const Extents& extents, Location loc, int gcw) {
-  Box<Extents::rank()> box{{}, AsArray(extents)};
-  const int d = static_cast<int>(loc.direction);
-  if (loc.side == 0) {
-    box.upper[d] = gcw;
-  } else {
-    box.lower[d] = box.upper[d] - gcw;
-  }
-  return box;
-}
+Eigen::Vector2d GetBoundaryNormal(const CutCellData<2>& ccdata,
+                                  const std::array<std::ptrdiff_t, 2>& index);
 
+Eigen::Vector3d GetBoundaryNormal(const CutCellData<3>& ccdata,
+                                  const std::array<std::ptrdiff_t, 3>& index);
 
 } // namespace fub
 

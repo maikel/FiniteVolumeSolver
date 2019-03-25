@@ -21,6 +21,7 @@
 #ifndef FUB_AMREX_GRIDDING_ALGORITHM_HPP
 #define FUB_AMREX_GRIDDING_ALGORITHM_HPP
 
+#include "fub/grid/AMReX/BoundaryCondition.hpp"
 #include "fub/grid/AMReX/InitialData.hpp"
 #include "fub/grid/AMReX/PatchHierarchy.hpp"
 #include "fub/grid/AMReX/Tagging.hpp"
@@ -36,6 +37,9 @@ namespace amrex {
 
 class GriddingAlgorithm : private ::amrex::AmrCore {
 public:
+using BoundaryCondition =
+      std::function<void(const PatchDataView<double, AMREX_SPACEDIM + 1>&,
+                         PatchHandle, Location, int, Duration)>;
   static constexpr int Rank = AMREX_SPACEDIM;
 
   GriddingAlgorithm(std::shared_ptr<PatchHierarchy> hier,
@@ -47,6 +51,8 @@ public:
 
   bool RegridAllFinerlevels(int which_level);
   void InitializeHierarchy(double level_time);
+
+  const BoundaryCondition& GetBoundaryCondition() const noexcept;
 
 private:
   void FillMultiFabFromLevel(::amrex::MultiFab& mf, int level_number);
@@ -71,6 +77,7 @@ private:
   std::shared_ptr<PatchHierarchy> hierarchy_;
   InitialData initial_data_;
   Tagging tagging_;
+  BoundaryCondition boundary_condition_;
 };
 
 } // namespace amrex

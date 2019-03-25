@@ -27,7 +27,10 @@
 #include "fub/ext/Eigen.hpp"
 #include "fub/flux_method/MusclHancockMethod.hpp"
 #include "fub/grid/AMReX/GriddingAlgorithm.hpp"
+#include "fub/grid/AMReX/FluxMethod.hpp"
 #include "fub/grid/AMReX/HyperbolicSplitIntegratorContext.hpp"
+#include "fub/grid/AMReX/HyperbolicSplitPatchIntegrator.hpp"
+#include "fub/grid/AMReX/Reconstruction.hpp"
 #include "fub/grid/AMReX/ScopeGuard.hpp"
 #include "fub/tagging/GradientDetector.hpp"
 #include "fub/tagging/TagBuffer.hpp"
@@ -39,16 +42,22 @@
 #include <iostream>
 
 struct CircleData {
-  void InitializeData(fub::View<fub::Complete<fub::Advection2d>> states,
-                      const fub::CartesianCoordinates& x) const {
-    fub::ForEachIndex(fub::Mapping<0>(states), [&](int i, int j) {
-      const double norm = x(i, j).norm();
-      if (norm < 0.25) {
-        states.mass(i, j) = 3;
-      } else {
-        states.mass(i, j) = 1;
-      }
-    });
+  std::shared_ptr<fub::amrex::PatchHierarchy> hierarchy;
+  void InitializeData(const fub::View<fub::Complete<fub::Advection2d>>& states,
+                      fub::amrex::PatchHandle patch) const {
+    const ::amrex::Geometry& geom = hierarchy->GetGeometry(patch.level);
+    const ::amrex::Box& box = patch.iterator->tilebox();
+    fub::CartesianCoordinates x =
+        fub::amrex::GetCartesianCoordinates(geom, box);
+    fub::ForEachIndex(fub::Box<0>(states),
+                      [&](std::ptrdiff_t i, std::ptrdiff_t j) {
+                        const double norm = x(i, j).norm();
+                        if (norm < 0.25) {
+                          states.mass(i, j) = 3;
+                        } else {
+                          states.mass(i, j) = 1;
+                        }
+                      });
   }
 };
 
@@ -83,12 +92,12 @@ int main(int argc, char** argv) {
 
   using State = fub::Advection2d::Complete;
   fub::GradientDetector gradient{std::pair{&State::mass, 1e-3}};
-  fub::TagBuffer buffered_gradient{gradient, 2};
+  fub::TagBuffer buffer{2};
 
-  CircleData initial_data{};
+  CircleData initial_data{hierarchy};
   auto gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       hierarchy, fub::amrex::AdaptInitialData(initial_data, equation),
-      fub::amrex::AdaptTagging(buffered_gradient, equation));
+      fub::amrex::AdaptTagging(equation, hierarchy, gradient, buffer));
   gridding->InitializeHierarchy(0.0);
   fub::amrex::WritePlotFile("AMReX/Advection_M2_0000", *hierarchy, equation);
 
@@ -98,7 +107,9 @@ int main(int argc, char** argv) {
   const int gcw = flux_method.GetStencilWidth();
   fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
       fub::amrex::HyperbolicSplitIntegratorContext(std::move(gridding), gcw),
-      patch_integrator, flux_method));
+      fub::amrex::HyperbolicSplitPatchIntegrator(patch_integrator),
+      fub::amrex::FluxMethod(flux_method),
+      fub::amrex::Reconstruction(equation)));
 
   std::string base_name = "AMReX/Advection_M2_";
 

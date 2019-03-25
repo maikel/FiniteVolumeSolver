@@ -1,6 +1,6 @@
 build
 .vscode
-.xcode
+xcode
 docs/html
 docs/latex
 third_party/TChem2/doc

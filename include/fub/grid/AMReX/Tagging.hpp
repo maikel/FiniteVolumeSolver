@@ -23,7 +23,10 @@
 
 #include "fub/CartesianCoordinates.hpp"
 #include "fub/core/mdspan.hpp"
+#include "fub/grid/AMReX/PatchHandle.hpp"
 #include "fub/grid/AMReX/ViewFArrayBox.hpp"
+#include "fub/grid/AMReX/CartesianGridGeometry.hpp"
+#include "fub/grid/AMReX/PatchHierarchy.hpp"
 
 #include <AMReX.H>
 
@@ -32,9 +35,9 @@ namespace amrex {
 struct TaggingStrategy {
   virtual ~TaggingStrategy() = default;
   virtual void
-  TagCellsForRefinement(mdspan<char, AMREX_SPACEDIM, layout_stride> tags,
-                        mdspan<const double, AMREX_SPACEDIM + 1> states,
-                        const CartesianCoordinates& coords) = 0;
+  TagCellsForRefinement(const PatchDataView<char, AMREX_SPACEDIM>& tags,
+                        const PatchDataView<const double, AMREX_SPACEDIM + 1>& states,
+                        const PatchHandle& patch) = 0;
 };
 
 template <typename T> struct TaggingWrapper : public TaggingStrategy {
@@ -42,10 +45,10 @@ template <typename T> struct TaggingWrapper : public TaggingStrategy {
   TaggingWrapper(T&& tag) : tag_{std::move(tag)} {}
 
   void
-  TagCellsForRefinement(mdspan<char, AMREX_SPACEDIM, layout_stride> tags,
-                        mdspan<const double, AMREX_SPACEDIM + 1> states,
-                        const CartesianCoordinates& coords) override {
-    tag_.TagCellsForRefinement(tags, states, coords);
+  TagCellsForRefinement(const PatchDataView<char, AMREX_SPACEDIM>& tags,
+                        const PatchDataView<const double, AMREX_SPACEDIM + 1>& states,
+                        const PatchHandle& patch) override {
+    tag_.TagCellsForRefinement(tags, states, patch);
   }
 
   T tag_;
@@ -60,32 +63,41 @@ struct Tagging {
             std::move(tag))} {}
 
   void
-  TagCellsForRefinement(mdspan<char, AMREX_SPACEDIM, layout_stride> tags,
-                        mdspan<const double, AMREX_SPACEDIM + 1> states,
-                        const CartesianCoordinates& coords) {
+  TagCellsForRefinement(const PatchDataView<char, AMREX_SPACEDIM>& tags,
+                        const PatchDataView<const double, AMREX_SPACEDIM + 1>& states,
+                        const PatchHandle& patch) {
     if (tag_) {
-      return tag_->TagCellsForRefinement(tags, states, coords);
+      return tag_->TagCellsForRefinement(tags, states, patch);
     }
   }
 
   std::unique_ptr<TaggingStrategy> tag_;
 };
 
-template <typename Tagging, typename Equation> struct AdaptTagging {
-  AdaptTagging(Tagging tagging, Equation equation)
-      : tagging_{std::move(tagging)}, equation_{std::move(equation)} {}
+template <typename Equation, typename... Tagging> struct AdaptTagging {
+  AdaptTagging(Equation equation,
+               std::shared_ptr<const PatchHierarchy> hierarchy,
+               Tagging... tagging)
+      : tagging_{std::move(tagging)...}, equation_{std::move(equation)},
+        hierarchy_{std::move(hierarchy)} {}
 
-  void
-  TagCellsForRefinement(mdspan<char, AMREX_SPACEDIM, layout_stride> tags,
-                        mdspan<const double, AMREX_SPACEDIM + 1> states,
-                        const CartesianCoordinates& coords) {
-    auto state_view = MakeView(boost::hana::type_c<View<Complete<Equation>>>,
-                           states, equation_);
-    tagging_.TagCellsForRefinement(tags, state_view, coords);
+  void TagCellsForRefinement(
+      const PatchDataView<char, AMREX_SPACEDIM>& tags,
+      const PatchDataView<const double, AMREX_SPACEDIM + 1>& states,
+      const PatchHandle& patch) {
+    View<const Complete<Equation>> state_view =
+        MakeView<View<Complete<Equation>>>(states, equation_);
+    const ::amrex::Geometry& geom = hierarchy_->GetGeometry(patch.level);
+    const ::amrex::Box& box = patch.iterator->growntilebox();
+    boost::hana::for_each(tagging_, [&](auto&& tagging) {
+      tagging.TagCellsForRefinement(tags, state_view,
+                                    GetCartesianCoordinates(geom, box));
+    });
   }
 
-  Tagging tagging_;
+  boost::hana::tuple<Tagging...> tagging_;
   Equation equation_;
+  std::shared_ptr<const PatchHierarchy> hierarchy_;
 };
 
 } // namespace amrex

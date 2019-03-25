@@ -21,12 +21,14 @@
 #ifndef FUB_AMREX_HYPERBOLIC_SPLIT_INTEGRATOR_CONTEXT_HPP
 #define FUB_AMREX_HYPERBOLIC_SPLIT_INTEGRATOR_CONTEXT_HPP
 
+#include "fub/PatchDataView.hpp"
 #include "fub/CartesianCoordinates.hpp"
 #include "fub/Duration.hpp"
 #include "fub/core/function_ref.hpp"
 #include "fub/core/mdspan.hpp"
 
 #include "fub/grid/AMReX/GriddingAlgorithm.hpp"
+#include "fub/grid/AMReX/PatchHandle.hpp"
 #include "fub/grid/AMReX/PatchHierarchy.hpp"
 #include "fub/grid/AMReX/ViewFArrayBox.hpp"
 
@@ -34,27 +36,18 @@
 
 namespace fub {
 namespace amrex {
-struct PatchHandle {
-  int level;
-  int global_index;
-};
 
 class HyperbolicSplitIntegratorContext {
 public:
   using PatchHandle = ::fub::amrex::PatchHandle;
-  using BoundaryCondition = function_ref<void(PatchHandle, Location, Duration)>;
   static constexpr int Rank = AMREX_SPACEDIM;
 
   HyperbolicSplitIntegratorContext(std::shared_ptr<GriddingAlgorithm> gridding,
                                    int gcw);
   void ResetHierarchyConfiguration(int level = 0);
 
-  template <typename F> void ForEachPatch(int level, F function) {
-    const ::amrex::Vector<int>& indices =
-        GetPatchHierarchy()->GetPatchLevel(level).data.IndexArray();
-    for (int global_index : indices) {
-      function(PatchHandle{level, global_index});
-    }
+  template <typename F> F ForEachPatch(int level, F function) {
+    return GetPatchHierarchy()->ForEachPatch(level, function);
   }
 
   MPI_Comm GetMpiCommunicator() const noexcept;
@@ -74,15 +67,11 @@ public:
     return 1;
   }
 
-  int GetGhostCellWidth(PatchHandle, Direction) {
-    return ghost_cell_width_;
-  }
+  int GetGhostCellWidth(PatchHandle, Direction) { return ghost_cell_width_; }
 
-  void FillGhostLayerTwoLevels(int level, int coarse, Direction direction,
-                               BoundaryCondition boundary);
+  void FillGhostLayerTwoLevels(int level, int coarse, Direction direction);
 
-  void FillGhostLayerSingleLevel(int level, Direction direction,
-                                 BoundaryCondition boundary);
+  void FillGhostLayerSingleLevel(int level, Direction direction);
 
   void AccumulateCoarseFineFluxes(int level, Direction dir, Duration dt);
   void ApplyFluxCorrection(int fine, int coarse, Duration dt, Direction dir);
@@ -97,13 +86,13 @@ public:
   }
 
   ::amrex::MultiFab& GetData(int level);
-  mdspan<double, Rank + 1> GetData(PatchHandle patch);
+  PatchDataView<double, Rank + 1> GetData(PatchHandle patch);
 
   ::amrex::MultiFab& GetScratch(int level, Direction dir);
-  mdspan<double, Rank + 1> GetScratch(PatchHandle patch, Direction dir);
+  PatchDataView<double, Rank + 1> GetScratch(PatchHandle patch, Direction dir);
 
   ::amrex::MultiFab& GetFluxes(int level, Direction dir);
-  mdspan<double, Rank + 1> GetFluxes(PatchHandle patch, Direction dir);
+  PatchDataView<double, Rank + 1> GetFluxes(PatchHandle patch, Direction dir);
 
   Duration GetTimePoint(int level, Direction dir) const;
   void SetTimePoint(Duration t, int level, Direction dir);
@@ -114,6 +103,8 @@ public:
   void PreAdvanceLevel(int level_num, Direction dir, Duration dt, int subcycle);
   void PostAdvanceLevel(int level_num, Direction dir, Duration dt,
                         int subcycle);
+
+  BoundaryCondition GetBoundaryCondition(int level) const;
 
 private:
   struct LevelData {
@@ -143,8 +134,7 @@ private:
 template <typename State, typename T, typename Equation>
 State MakeView(const HyperbolicSplitIntegratorContext&,
                boost::hana::basic_type<State>,
-               mdspan<T, AMREX_SPACEDIM + 1> fab,
-               const Equation& equation) {
+               mdspan<T, AMREX_SPACEDIM + 1> fab, const Equation& equation) {
   return MakeView(boost::hana::type_c<State>, fab, equation);
 }
 

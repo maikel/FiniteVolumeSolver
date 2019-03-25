@@ -33,8 +33,9 @@ GriddingAlgorithm::GriddingAlgorithm(std::shared_ptr<PatchHierarchy> hier,
                                hier->GetGridGeometry().cell_dimensions.end())),
       hierarchy_{std::move(hier)},
       initial_data_{std::move(initial_data)}, tagging_{std::move(tagging)} {
-  n_error_buf =
-      ::amrex::Vector<int>(static_cast<std::size_t>(hierarchy_->GetOptions().max_number_of_levels), 2);
+  n_error_buf = ::amrex::Vector<int>(
+      static_cast<std::size_t>(hierarchy_->GetOptions().max_number_of_levels),
+      2);
   n_proper = 2;
 }
 
@@ -71,11 +72,12 @@ void GriddingAlgorithm::FillMultiFabFromLevel(::amrex::MultiFab& multifab,
   ::amrex::Vector<::amrex::BCRec> bcr(static_cast<std::size_t>(n_comps));
   if (level_number == 0) {
     const ::amrex::Geometry& geom = hierarchy_->GetGeometry(level_number);
-    auto no_condition = MakePhysBCFunct(geom, bcr, [](auto&&...) {});
+    ::fub::amrex::BoundaryCondition boundary(boundary_condition_, geom,
+                                             level_number);
     const ::amrex::Vector<::amrex::MultiFab*> smf{&level.data};
     const ::amrex::Vector<double> stime{level.time_point.count()};
     ::amrex::FillPatchSingleLevel(multifab, level.time_point.count(), smf,
-                                  stime, 0, 0, n_comps, geom, no_condition, 0);
+                                  stime, 0, 0, n_comps, geom, boundary, 0);
   } else {
     PatchLevel& coarse_level = hierarchy_->GetPatchLevel(level_number - 1);
     const ::amrex::Vector<::amrex::MultiFab*> cmf{&coarse_level.data};
@@ -86,51 +88,53 @@ void GriddingAlgorithm::FillMultiFabFromLevel(::amrex::MultiFab& multifab,
     const ::amrex::Geometry& fgeom = hierarchy_->GetGeometry(level_number);
     const ::amrex::IntVect ratio = 2 * ::amrex::IntVect::TheUnitVector();
     ::amrex::Interpolater* mapper = &::amrex::pc_interp;
-    auto fine_boundary = MakePhysBCFunct(fgeom, bcr, [](auto&&...) {});
-    auto coarse_boundary = MakePhysBCFunct(cgeom, bcr, [](auto&&...) {});
-    ::amrex::FillPatchTwoLevels(multifab, level.time_point.count(),
-                                cmf, ct, fmf, ft, 0, 0, n_comps, cgeom, fgeom,
+    ::fub::amrex::BoundaryCondition fine_boundary(boundary_condition_, fgeom,
+                                                  level_number);
+    ::fub::amrex::BoundaryCondition coarse_boundary(boundary_condition_, cgeom,
+                                                    level_number - 1);
+    ::amrex::FillPatchTwoLevels(multifab, level.time_point.count(), cmf, ct,
+                                fmf, ft, 0, 0, n_comps, cgeom, fgeom,
                                 coarse_boundary, 0, fine_boundary, 0, ratio,
                                 mapper, bcr, 0);
   }
 }
 
-void GriddingAlgorithm::ErrorEst(int level, ::amrex::TagBoxArray& tags,
-                                 double, int /* ngrow */) {
+void GriddingAlgorithm::ErrorEst(int level, ::amrex::TagBoxArray& tags, double,
+                                 int /* ngrow */) {
   PatchLevel& old_level = hierarchy_->GetPatchLevel(level);
   ::amrex::MultiFab& data = old_level.data;
-  const int ngrow = tags.nGrow();
+  const ::amrex::IntVect& ngrow = tags.nGrowVect();
   const int ncomp = data.nComp();
-  ::amrex::MultiFab scratch(data.boxArray(), data.DistributionMap(), ncomp,
-                            ngrow);
+  const ::amrex::BoxArray& ba = data.boxArray();
+  const ::amrex::DistributionMapping& dm = data.DistributionMap();
+  ::amrex::MultiFab scratch(ba, dm, ncomp, ngrow);
   FillMultiFabFromLevel(scratch, level);
-  ForEachFAB(
-      [&](::amrex::TagBox& tag_box, const ::amrex::FArrayBox& fab) {
-        mdspan<const double, Rank + 1> data = MakeMdSpan(fab);
-        mdspan<char, Rank> tags = MakeMdSpan(tag_box, 0);
-        const ::amrex::Box box = fab.box();
-        const ::amrex::Geometry& geom = hierarchy_->GetGeometry(level);
-        CartesianCoordinates coords = GetCartesianCoordinates(geom, box);
-        tagging_.TagCellsForRefinement(tags, data, coords);
-      },
-      tags, scratch);
+  for (::amrex::MFIter mfi(ba, dm); mfi.isValid(); ++mfi) {
+    PatchDataView<const double, Rank + 1> data =
+        MakePatchDataView(scratch[mfi]);
+    PatchDataView<char, Rank> tag = MakePatchDataView(tags[mfi], 0);
+    PatchHandle patch{level, &mfi};
+    tagging_.TagCellsForRefinement(tag, data, patch);
+  }
 }
 
 void GriddingAlgorithm::MakeNewLevelFromScratch(
     int level, double time_point, const ::amrex::BoxArray& box_array,
     const ::amrex::DistributionMapping& distribution_mapping) {
-  const int n_comps = hierarchy_->GetDataDescription().n_state_components;
-  hierarchy_->GetPatchLevel(level) = PatchLevel(
-      level, Duration(time_point), box_array, distribution_mapping, n_comps);
-  const ::amrex::Geometry& geom = hierarchy_->GetGeometry(level);
-  FUB_ASSERT(::amrex::BoxArray(geom.Domain()).contains(box_array));
-  ForEachFAB(
-      [&](::amrex::FArrayBox& fab) {
-        mdspan<double, Rank + 1> data = MakeMdSpan(fab);
-        CartesianCoordinates coords = GetCartesianCoordinates(geom, fab.box());
-        initial_data_.InitializeData(data, coords);
-      },
-      hierarchy_->GetPatchLevel(level).data);
+  // Allocate level data.
+  {
+    const int n_comps = hierarchy_->GetDataDescription().n_state_components;
+    hierarchy_->GetPatchLevel(level) = PatchLevel(
+        level, Duration(time_point), box_array, distribution_mapping, n_comps);
+  }
+  // Initialize Data with stored intial data condition.
+  for (::amrex::MFIter mfi(box_array, distribution_mapping); mfi.isValid();
+       ++mfi) {
+    PatchHandle patch{level, &mfi};
+    PatchDataView<double, Rank + 1> data =
+        MakePatchDataView(hierarchy_->GetPatchLevel(level).data[mfi]);
+    initial_data_.InitializeData(data, patch);
+  }
 }
 
 void GriddingAlgorithm::MakeNewLevelFromCoarse(
@@ -145,10 +149,10 @@ void GriddingAlgorithm::MakeNewLevelFromCoarse(
   const int n_cons_components =
       hierarchy_->GetDataDescription().n_cons_components;
   ::amrex::Vector<::amrex::BCRec> bcr(static_cast<std::size_t>(n_comps));
-  auto fine_boundary =
-      MakePhysBCFunct(hierarchy_->GetGeometry(level), bcr, [](auto&&...) {});
-  auto coarse_boundary = MakePhysBCFunct(hierarchy_->GetGeometry(level - 1),
-                                         bcr, [](auto&&...) {});
+  ::fub::amrex::BoundaryCondition fine_boundary(
+      boundary_condition_, hierarchy_->GetGeometry(level), level);
+  ::fub::amrex::BoundaryCondition coarse_boundary(
+      boundary_condition_, hierarchy_->GetGeometry(level - 1), level - 1);
   ::amrex::InterpFromCoarseLevel(
       fine_level.data, time_point, coarse_level.data, cons_start, cons_start,
       n_cons_components, hierarchy_->GetGeometry(level - 1),
@@ -169,6 +173,11 @@ void GriddingAlgorithm::RemakeLevel(
 
 void GriddingAlgorithm::ClearLevel(int level) {
   hierarchy_->GetPatchLevel(level) = PatchLevel{};
+}
+
+const GriddingAlgorithm::BoundaryCondition&
+GriddingAlgorithm::GetBoundaryCondition() const noexcept {
+  return boundary_condition_;
 }
 
 } // namespace fub::amrex

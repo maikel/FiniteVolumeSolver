@@ -75,6 +75,25 @@ extern template struct PerfectGas<1>;
 extern template struct PerfectGas<2>;
 extern template struct PerfectGas<3>;
 
+void Rotate(Conservative<PerfectGas<2>>& rotated,
+            const Conservative<PerfectGas<2>>& state,
+            const Eigen::Matrix<double, 2, 2>& rotation, const PerfectGas<2>&);
+
+void Rotate(Complete<PerfectGas<2>>& rotated,
+            const Complete<PerfectGas<2>>& state,
+            const Eigen::Matrix<double, 2, 2>& rotation, const PerfectGas<2>&);
+
+void Reflect(Complete<PerfectGas<1>>& reflected,
+             const Complete<PerfectGas<1>>& state,
+             const Eigen::Matrix<double, 1, 1>& normal,
+             const PerfectGas<1>& gas);
+void Reflect(Complete<PerfectGas<2>>& reflected,
+             const Complete<PerfectGas<2>>& state,
+             const Eigen::Vector2d& normal, const PerfectGas<2>& gas);
+void Reflect(Complete<PerfectGas<3>>& reflected,
+             const Complete<PerfectGas<3>>& state,
+             const Eigen::Vector3d& normal, const PerfectGas<3>& gas);
+
 template <int Dim> struct CompleteFromConsImpl<PerfectGas<Dim>> {
   static void apply(const PerfectGas<Dim>& equation,
                     Complete<PerfectGas<Dim>>& complete,

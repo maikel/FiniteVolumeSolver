@@ -84,26 +84,22 @@ auto Shrink(const layout_left::mapping<Extent>& layout, Direction dir,
   return layout_left::mapping<Extent>(Extent(Shift(extents, dir, -n)));
 }
 
-template <typename T, typename E, typename L, typename A>
-strided_mdspan<T, E, A> ViewInnerRegion(basic_mdspan<T, E, L, A> mdspan,
-                                        Direction dir, int gcw) {
-  constexpr int Rank = E::rank();
-  std::array<std::pair<std::ptrdiff_t, std::ptrdiff_t>, Rank> slices;
-  for (int r = 0; r < Rank; ++r) {
-    slices[r] = std::pair{0L, mdspan.extent(r)};
-  }
-  const std::size_t dir_v = static_cast<std::size_t>(dir);
-  FUB_ASSERT(dir_v < Rank);
-  slices[dir_v].first += gcw;
-  slices[dir_v].second -= gcw;
-  return std::apply([&](auto... slices) { return subspan(mdspan, slices...); },
-                    slices);
-}
-
-template <typename State>
-StridedView<State> ViewInnerRegion(View<State> state, Direction dir, int gcw) {
-  return boost::hana::unpack(state.Members(), [&](auto... mdspan) {
-    return StridedView<State>{ViewInnerRegion(mdspan, dir, gcw)...};
+template <typename State, typename Layout, int Rank>
+StridedView<State> Subview(const View<State, Layout, Rank>& state, const IndexBox<Rank>& box) {
+  return boost::hana::unpack(state.Members(), [&](const auto&... pdview) {
+    auto subview = [](const auto& pdv, const IndexBox<Rank>& box) {
+      using PatchDataView = std::decay_t<decltype(pdv)>;
+      if constexpr (PatchDataView::Rank() == Rank) {
+        return pdv.Subview(box);
+      } else if constexpr (PatchDataView::Rank() == Rank + 1) {
+        const std::ptrdiff_t lower = pdv.Box().lower[Rank];
+        const std::ptrdiff_t upper = pdv.Box().upper[Rank];
+        const IndexBox<Rank + 1> embedded_box =
+            Embed<Rank + 1>(box, {lower, upper});
+        return pdv.Subview(embedded_box);
+      }
+    };
+    return StridedView<State>{subview(pdview, box)...};
   });
 }
 

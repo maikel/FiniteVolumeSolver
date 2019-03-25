@@ -21,11 +21,10 @@
 #ifndef FUB_CORE_EIGEN_HPP
 #define FUB_CORE_EIGEN_HPP
 
-// #include <unsupported/Eigen/CXX11/Tensor>
 #include <Eigen/Eigen>
 
+#include "fub/PatchDataView.hpp"
 #include "fub/Direction.hpp"
-#include "fub/core/mdspan.hpp"
 
 #include <type_traits>
 
@@ -44,7 +43,8 @@ using Array3d = Array<double, 3>;
 using ArrayXd = Array<double, Eigen::Dynamic>;
 
 template <int N, typename T, typename Extents, typename Layout,
-          typename... Indices, typename = std::enable_if_t<(std::is_integral_v<Indices> && ...)>>
+          typename... Indices,
+          typename = std::enable_if_t<(std::is_integral_v<Indices> && ...)>>
 Eigen::Array<std::remove_cv_t<T>, N, 1>
 LoadN(constant<N>, basic_mdspan<T, Extents, Layout> mdspan, int size,
       std::ptrdiff_t i0, Indices... indices) {
@@ -60,8 +60,28 @@ template <std::size_t N>
 std::array<std::ptrdiff_t, N> Shift(const std::array<std::ptrdiff_t, N>& idx,
                                     Direction dir, std::ptrdiff_t shift) {
   auto shifted(idx);
-  shifted[int(dir)] += shift;
+  shifted[static_cast<std::size_t>(dir)] += shift;
   return shifted;
+}
+
+template <int Rank>
+Eigen::Matrix<double, Rank, 1> UnitVector(Direction dir) noexcept {
+  Eigen::Matrix<double, Rank, 1> unit = Eigen::Matrix<double, Rank, 1>::Zero();
+  Eigen::Index dir_v = static_cast<Eigen::Index>(dir);
+  unit[dir_v] = 1.0;
+  return unit;
+}
+
+inline Eigen::Matrix<double, 2, 2> MakeRotation(const Eigen::Matrix<double, 2, 1>& a,
+                                         const Eigen::Matrix<double, 2, 1>& b) {
+  if (a == -b) {
+    return -Eigen::Matrix<double, 2, 2>::Identity();
+  }
+  const double s = a[0]*b[1] - a[1]*b[0];
+  const double c = a.dot(b);
+  Eigen::Matrix<double, 2, 2> rotation;
+  rotation << c, -s, s, c;
+  return rotation;
 }
 
 template <int N, typename T, typename Extents, typename Layout,
@@ -76,7 +96,6 @@ LoadN(constant<N>, basic_mdspan<T, Extents, Layout> mdspan, int size,
   }
   return array;
 }
-
 
 template <int N, typename T, typename Extents, typename Layout,
           typename... Indices>
@@ -107,28 +126,29 @@ void StoreN(mdspan<T, 1, Layout> mdspan, int n,
   }
 }
 
-template <typename T, typename E, typename Layout, int N, int Options,
+template <typename T, int Rank, typename Layout, int N, int Options,
           typename... Indices>
-void Store(basic_mdspan<T, E, Layout> mdspan,
-           const Eigen::Array<T, N, 1, Options>& chunk, std::array<std::ptrdiff_t, E::rank()> offset) {
-  FUB_ASSERT(mdspan.extent(0) >= N);
-  if (mdspan.stride(0) == 1) {
-    Eigen::Map<Eigen::Array<T, N, 1>> mapped(&mdspan(offset), N);
+void Store(const PatchDataView<T, Rank, Layout>& view,
+           const Eigen::Array<T, N, 1, Options>& chunk,
+           const nodeduce_t<std::array<std::ptrdiff_t, Rank>>& index) {
+  FUB_ASSERT(view.Extent(0) >= N);
+  if (view.stride(0) == 1) {
+    Eigen::Map<Eigen::Array<T, N, 1>> mapped(&view(index), N);
     mapped = chunk;
   } else {
     using Stride = Eigen::Stride<1, Eigen::Dynamic>;
     Eigen::Map<Eigen::Array<T, N, 1>, Eigen::Unaligned, Stride> mapped(
-        &mdspan(offset), N, Stride(1, mdspan.stride(0)));
+        &view(index), N, Stride(1, view.stride(0)));
     mapped = chunk;
   }
   return;
 }
 
-template <typename T, typename E, typename L, typename A>
-void Store(basic_mdspan<T, E, L, A> mdspan, nodeduce_t<const T&> value, const std::array<std::ptrdiff_t, E::rank()>& index) {
-    mdspan(index) = value;
+template <typename T, int Rank, typename L>
+void Store(const PatchDataView<T, Rank, L>& view, nodeduce_t<const T&> value,
+           const nodeduce_t<std::array<std::ptrdiff_t, Rank>>& index) {
+  view(index) = value;
 }
-
 
 } // namespace fub
 

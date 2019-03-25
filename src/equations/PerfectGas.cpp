@@ -25,6 +25,7 @@ namespace fub {
 template <int Dim>
 void PerfectGas<Dim>::Flux(Conservative& flux, const Complete& state,
                            Direction dir) const noexcept {
+  FUB_ASSERT(state.density > 0);
   if constexpr (Dim == 1) {
     const double velocity = state.momentum / state.density;
     flux.density = state.momentum;
@@ -53,6 +54,7 @@ void CompleteFromConsImpl<PerfectGas<Dim>>::apply(
   complete.density = cons.density;
   complete.momentum = cons.momentum;
   complete.energy = cons.energy;
+  FUB_ASSERT(complete.density > 0.0);
   if constexpr (Dim == 1) {
     complete.pressure =
         (equation.gamma - 1.0) *
@@ -61,10 +63,58 @@ void CompleteFromConsImpl<PerfectGas<Dim>>::apply(
     const double E_kin =
         0.5 * cons.momentum.matrix().squaredNorm() / cons.density;
     const double rho_e_internal = cons.energy - E_kin;
+    FUB_ASSERT(rho_e_internal > 0.0);
     complete.pressure = (equation.gamma - 1.0) * rho_e_internal;
   }
+  FUB_ASSERT(complete.pressure > 0.0);
   complete.speed_of_sound =
       std::sqrt(equation.gamma * complete.pressure / complete.density);
+}
+
+void Rotate(Conservative<PerfectGas<2>>& rotated,
+            const Conservative<PerfectGas<2>>& state,
+            const Eigen::Matrix<double, 2, 2>& rotation, const PerfectGas<2>&) {
+  rotated.density = state.density;
+  rotated.energy = state.energy;
+  rotated.momentum = (rotation * state.momentum.matrix().transpose()).array();
+}
+
+void Rotate(Complete<PerfectGas<2>>& rotated,
+            const Complete<PerfectGas<2>>& state,
+            const Eigen::Matrix<double, 2, 2>& rotation, const PerfectGas<2>&) {
+  rotated.density = state.density;
+  rotated.energy = state.energy;
+  rotated.pressure = state.pressure;
+  rotated.speed_of_sound = state.speed_of_sound;
+  rotated.momentum = (rotation * state.momentum.matrix().transpose()).array();
+}
+
+void Reflect(Complete<PerfectGas<2>>& reflected,
+             const Complete<PerfectGas<2>>& state,
+             const Eigen::Vector2d& normal, const PerfectGas<2>&) {
+  reflected.density = state.density;
+  reflected.energy = state.energy;
+  reflected.pressure = state.pressure;
+  reflected.speed_of_sound = state.speed_of_sound;
+  reflected.momentum =
+      state.momentum -
+      2 * (state.momentum.matrix().transpose().dot(normal) * normal)
+              .transpose()
+              .array();
+}
+
+void Reflect(Complete<PerfectGas<3>>& reflected,
+             const Complete<PerfectGas<3>>& state,
+             const Eigen::Vector3d& normal, const PerfectGas<3>&) {
+  reflected.density = state.density;
+  reflected.energy = state.energy;
+  reflected.pressure = state.pressure;
+  reflected.speed_of_sound = state.speed_of_sound;
+  reflected.momentum =
+      state.momentum -
+      2 * (state.momentum.matrix().transpose().dot(normal) * normal)
+              .transpose()
+              .array();
 }
 
 template <int Dim>
@@ -82,7 +132,9 @@ void CompleteFromConsImpl<PerfectGas<Dim>>::apply(
     const double E_kin =
         0.5 * cons.momentum.matrix().squaredNorm() / cons.density;
     const double rho_e_internal = cons.energy - E_kin;
+    FUB_ASSERT(rho_e_internal > 0.0);
     complete.pressure = (equation.gamma - 1.0) * rho_e_internal;
+    FUB_ASSERT(complete.pressure > 0.0);
   }
   complete.speed_of_sound =
       std::sqrt(equation.gamma * complete.pressure / complete.density);

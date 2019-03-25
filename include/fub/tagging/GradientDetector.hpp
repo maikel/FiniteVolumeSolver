@@ -22,8 +22,8 @@
 #define FUB_TAGGING_GRADIENT_DETECTOR_HPP
 
 #include "fub/CartesianCoordinates.hpp"
-#include "fub/core/mdspan.hpp"
 #include "fub/ForEach.hpp"
+#include "fub/core/mdspan.hpp"
 
 #include <boost/hana/tuple.hpp>
 
@@ -37,7 +37,7 @@ template <typename... Projections> struct GradientDetector {
       : conditions{conds...} {}
 
   template <typename Tags, typename StateView>
-  void TagCellsForRefinement(Tags tags, StateView states,
+  void TagCellsForRefinement(const Tags& tags, const StateView& states,
                              const CartesianCoordinates& coords) {
     using Equation = typename StateView::EquationType;
     using Complete = typename Equation::Complete;
@@ -45,21 +45,64 @@ template <typename... Projections> struct GradientDetector {
     Complete sM;
     Complete sR;
     for (std::size_t dir = 0; dir < Extents<0>(states).rank(); ++dir) {
-      ForEachIndex(Shrink(Mapping<0>(states), Direction(dir), 2), [&](auto... is) {
-        boost::hana::for_each(conditions, [&](auto cond) {
-          auto&& [proj, tolerance] = cond;
-          std::array<std::ptrdiff_t, sizeof...(is)> index{is...};
-          Load(sL, states, index);
-          Load(sM, states, Shift(index, Direction(dir), 1));
-          Load(sR, states, Shift(index, Direction(dir), 2));
-          auto&& xL = std::invoke(proj, sL);
-          auto&& xM = std::invoke(proj, sM);
-          auto&& xR = std::invoke(proj, sR);
-          Eigen::Vector3d dx = coords.dx();
-          tags(is...) |= ((std::abs(xM - xL) + std::abs(xR - xM)) /
-                          (2 * dx[dir])) > tolerance;
-        });
-      });
+      ForEachIndex(Shrink(Box<0>(states), Direction(dir), {0, 2}),
+                   [&](auto... is) {
+                     boost::hana::for_each(conditions, [&](auto cond) {
+                       auto&& [proj, tolerance] = cond;
+                       std::array<std::ptrdiff_t, sizeof...(is)> index{is...};
+                       Load(sL, states, index);
+                       Load(sM, states, Shift(index, Direction(dir), 1));
+                       Load(sR, states, Shift(index, Direction(dir), 2));
+                       auto&& xL = std::invoke(proj, sL);
+                       auto&& xM = std::invoke(proj, sM);
+                       auto&& xR = std::invoke(proj, sR);
+                       Eigen::Vector3d dx = coords.dx();
+                       if (xM != xR || xM != xL) {
+                         const double left =
+                             std::abs(xM - xL) / (std::abs(xM) + std::abs(xL));
+                         const double right =
+                             std::abs(xM - xR) / (std::abs(xM) + std::abs(xR));
+                         tags(is...) |= left > tolerance || right > tolerance;
+                       }
+                     });
+                   });
+    }
+  }
+
+  template <typename Tags, typename StateView, typename CutCellData>
+  void TagCellsForRefinement(const Tags& tags, const StateView& states,
+                             const CutCellData& cutcell_data,
+                             const CartesianCoordinates& coords) {
+    using Equation = typename StateView::EquationType;
+    using Complete = typename Equation::Complete;
+    Complete sL;
+    Complete sM;
+    Complete sR;
+    const auto& flags = cutcell_data.flags;
+    FUB_ASSERT(Contains(flags.Box(), Box<0>(states)));
+    for (std::size_t dir = 0; dir < Extents<0>(states).rank(); ++dir) {
+      ForEachIndex(Shrink(Box<0>(states), Direction(dir), {0, 2}), [&](auto... is) {
+            if (flags(is...).isRegular()) {
+              boost::hana::for_each(conditions, [&](auto cond) {
+                auto&& [proj, tolerance] = cond;
+                std::array<std::ptrdiff_t, sizeof...(is)> index{is...};
+                Load(sL, states, index);
+                Load(sM, states, Shift(index, Direction(dir), 1));
+                Load(sR, states, Shift(index, Direction(dir), 2));
+                auto&& xL = std::invoke(proj, sL);
+                auto&& xM = std::invoke(proj, sM);
+                auto&& xR = std::invoke(proj, sR);
+                Eigen::Vector3d dx = coords.dx();
+                if (xM != xR || xM != xL) {
+                  const double left =
+                      std::abs(xM - xL) / (std::abs(xM) + std::abs(xL));
+                  const double right =
+                      std::abs(xM - xR) / (std::abs(xM) + std::abs(xR));
+                  tags(is...) |= left > tolerance || right > tolerance;
+                }
+              });
+            }
+          });
     }
   }
 };

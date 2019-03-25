@@ -23,9 +23,6 @@
 
 namespace fub {
 
-template <typename Equation>
-struct Reflect;
-
 
 
 }

@@ -25,6 +25,12 @@
 
 namespace fub {
 
+template <typename LevelIntegrator>
+using IntegratorContext = std::decay_t<decltype(std::declval<LevelIntegrator>().GetIntegratorContext())>;
+
+template <typename Context>
+using PreAdvanceHierarchy = decltype(std::declval<Context>().PreAdvanceHierarchy());
+
 template <typename LevelIntegrator, typename SplittingMethod = GodunovSplitting>
 struct HyperbolicSplitSystemSolver {
   HyperbolicSplitSystemSolver(LevelIntegrator level_integrator,
@@ -65,6 +71,12 @@ struct HyperbolicSplitSystemSolver {
   }
 
   void AdvanceHierarchy(std::chrono::duration<double> dt) {
+    using Context = IntegratorContext<LevelIntegrator>;
+    if constexpr (is_detected<PreAdvanceHierarchy, Context>()) {
+      Context& context = integrator.GetIntegratorContext();
+      context.PreAdvanceHierarchy(dt);
+    }
+
     // This transforms a direction into a function which statisfies
     // is_invokable<void, Duration>.
     auto MakeAdvanceFunction = [&](Direction dir) {

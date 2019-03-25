@@ -158,7 +158,8 @@ target_compile_options(HyperbolicSolver.Solver
   PRIVATE 
   $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
   $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall>
-  $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>)
+  $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>
+  $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wconversion>)
 install(
   TARGETS HyperbolicSolver.Solver
   EXPORT HyperbolicSolver
@@ -173,9 +174,22 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
   add_library(HyperbolicSolver.AMReX
     src/AMReX/ScopeGuard.cpp
     src/AMReX/CartesianGridGeometry.cpp
+    src/AMReX/ViewFArrayBox.cpp
     src/AMReX/PatchHierarchy.cpp
     src/AMReX/GriddingAlgorithm.cpp
+    src/AMReX/BoundaryCondition.cpp
     src/AMReX/HyperbolicSplitIntegratorContext.cpp)
+
+  if (AMREX_ENABLE_EB) 
+    target_sources(HyperbolicSolver.AMReX
+      PRIVATE
+        src/CutCellData.cpp
+        src/AMReX/cutcell/HyperbolicSplitIntegratorContext.cpp
+        src/AMReX/cutcell/PatchHierarchy.cpp
+        src/AMReX/cutcell/FillCutCellData.cpp
+        src/AMReX/cutcell/GriddingAlgorithm.cpp)
+  endif()
+
   target_include_directories(HyperbolicSolver.AMReX 
     PUBLIC 
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -187,7 +201,8 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     PRIVATE 
     $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
     $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall>
-    $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>)
+    $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>
+    $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wconversion>)
   target_link_libraries(HyperbolicSolver.AMReX
     PUBLIC
       HyperbolicSolver.Solver

@@ -122,6 +122,32 @@ Function ForEachIndex(const layout_stride::mapping<Extents>& mapping,
 }
 /// @}
 
+template <int Rank, typename Function>
+Function ForEachIndex(const IndexBox<Rank>& box,
+                      Function function) {
+  static_assert(Rank == 1 || Rank == 2 || Rank == 3);
+  if constexpr (Rank == 1) {
+    for (std::ptrdiff_t i = box.lower[0]; i < box.upper[0]; ++i) {
+      function(i);
+    }
+  } else if constexpr (Rank == 2) {
+    for (std::ptrdiff_t i = box.lower[1]; i < box.upper[1]; ++i) {
+      for (std::ptrdiff_t j = box.lower[0]; j < box.upper[0]; ++j) {
+        function(j, i);
+      }
+    }
+  } else if constexpr (Rank == 3) {
+    for (std::ptrdiff_t i = box.lower[2]; i < box.upper[2]; ++i) {
+      for (std::ptrdiff_t j = box.lower[1]; j < box.upper[1]; ++j) {
+        for (std::ptrdiff_t k = box.lower[0]; k < box.upper[0]; ++k) {
+          function(k, j, i);
+        }
+      }
+    }
+  }
+  return function;
+}
+
 } // namespace fub
 
 #endif

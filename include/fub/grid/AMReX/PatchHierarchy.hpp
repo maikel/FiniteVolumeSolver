@@ -25,6 +25,7 @@
 #include "fub/Equation.hpp"
 #include "fub/ext/Eigen.hpp"
 #include "fub/grid/AMReX/CartesianGridGeometry.hpp"
+#include "fub/grid/AMReX/PatchHandle.hpp"
 
 #include <AMReX_FluxRegister.H>
 #include <AMReX_Geometry.H>
@@ -44,8 +45,21 @@ struct PatchHierarchyOptions {
 
 struct PatchLevel {
   PatchLevel() = default;
+
+  PatchLevel(const PatchLevel&) = delete;
+  PatchLevel& operator=(const PatchLevel&) = delete;
+
+  PatchLevel(PatchLevel&&) noexcept = default;
+  PatchLevel& operator=(PatchLevel&&) noexcept = default;
+
+  ~PatchLevel() = default;
+
   PatchLevel(int num, Duration tp, const ::amrex::BoxArray& ba,
              const ::amrex::DistributionMapping& dm, int n_components);
+
+  PatchLevel(int num, Duration tp, const ::amrex::BoxArray& ba,
+             const ::amrex::DistributionMapping& dm, int n_components,
+             const ::amrex::FabFactory<::amrex::FArrayBox>& factory);
 
   int level_number{};
   Duration time_point{};
@@ -109,6 +123,15 @@ public:
 
   const DataDescription& GetDataDescription() const noexcept {
     return description_;
+  }
+
+  template <typename Feedback>
+  Feedback ForEachPatch(int level, Feedback feedback) {
+    for (::amrex::MFIter mfi(GetPatchLevel(level).data); mfi.isValid(); ++mfi) {
+      PatchHandle handle{level, &mfi};
+      std::invoke(feedback, handle);
+    }
+    return feedback;
   }
 
 private:

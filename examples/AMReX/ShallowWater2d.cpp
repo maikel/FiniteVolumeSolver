@@ -28,8 +28,11 @@
 
 #include "fub/CartesianCoordinates.hpp"
 #include "fub/flux_method/HllMethod.hpp"
+#include "fub/grid/AMReX/FluxMethod.hpp"
 #include "fub/grid/AMReX/GriddingAlgorithm.hpp"
 #include "fub/grid/AMReX/HyperbolicSplitIntegratorContext.hpp"
+#include "fub/grid/AMReX/HyperbolicSplitPatchIntegrator.hpp"
+#include "fub/grid/AMReX/Reconstruction.hpp"
 #include "fub/grid/AMReX/ScopeGuard.hpp"
 #include "fub/tagging/GradientDetector.hpp"
 #include "fub/tagging/TagBuffer.hpp"
@@ -40,22 +43,27 @@
 #include <iostream>
 
 struct CircleData {
-  void InitializeData(fub::View<fub::Complete<fub::ShallowWater>> states,
-                      const fub::CartesianCoordinates& x) const {
-    fub::ForEachIndex(fub::Mapping<0>(states), [&](int i, int j) {
-      const double norm = x(i, j).norm();
+  void InitializeData(const fub::View<fub::Complete<fub::ShallowWater>>& states,
+                      fub::amrex::PatchHandle patch) const {
+    const ::amrex::Geometry& geom = hierarchy->GetGeometry(patch.level);
+    const ::amrex::Box& box = patch.iterator->tilebox();
+    fub::CartesianCoordinates x =
+        fub::amrex::GetCartesianCoordinates(geom, box);
+    fub::ForEachIndex(fub::Box<0>(states), [&](auto... is) {
+      const double norm = x(is...).norm();
       if (norm < 0.25) {
-        Store(states, inner_, {i, j});
+        Store(states, inner_, {is...});
       } else {
-        Store(states, outer_, {i, j});
+        Store(states, outer_, {is...});
       }
     });
   }
 
+  std::shared_ptr<fub::amrex::PatchHierarchy> hierarchy;
   fub::ShallowWater equation_;
   fub::Complete<fub::ShallowWater> inner_{1.2,
                                           Eigen::Array<double, 1, 2>{0., 0.}};
-  fub::Complete<fub::ShallowWater> outer_{1.,
+  fub::Complete<fub::ShallowWater> outer_{1.0,
                                           Eigen::Array<double, 1, 2>{0., 0.}};
 };
 
@@ -91,23 +99,23 @@ int main(int argc, char** argv) {
   using Complete = fub::ShallowWater::Complete;
 
   fub::GradientDetector gradient{std::pair(&Complete::heigth, 5e-1)};
-  fub::TagBuffer buffered_gradient{gradient, 2};
+  fub::TagBuffer buffer{2};
 
   CircleData initial_data{};
   auto gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       hierarchy, fub::amrex::AdaptInitialData(initial_data, equation),
-      fub::amrex::AdaptTagging(buffered_gradient, equation));
+      fub::amrex::AdaptTagging(equation, hierarchy, gradient, buffer));
   gridding->InitializeHierarchy(0.0);
 
   fub::HyperbolicSplitPatchIntegrator patch_integrator{equation};
   fub::HllMethod flux_method{equation, fub::ShallowWaterSignalVelocities{}};
-  
+
   const int gcw = flux_method.GetStencilWidth();
-  fub::HyperbolicSplitSystemSolver solver(
-      fub::HyperbolicSplitLevelIntegrator(
-          fub::amrex::HyperbolicSplitIntegratorContext(std::move(gridding),
-                                                       gcw),
-          patch_integrator, flux_method));
+  fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
+      fub::amrex::HyperbolicSplitIntegratorContext(std::move(gridding), gcw),
+      fub::amrex::HyperbolicSplitPatchIntegrator(patch_integrator),
+      fub::amrex::FluxMethod(flux_method),
+      fub::amrex::Reconstruction(equation)));
 
   std::string base_name = "AMReX/ShallowWater_";
 
