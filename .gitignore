@@ -1,4 +1,5 @@
 build
+build_*
 .vscode
 xcode
 docs/html
