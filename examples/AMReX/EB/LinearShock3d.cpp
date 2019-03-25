@@ -54,6 +54,12 @@
 #include <cmath>
 #include <iostream>
 
+#ifdef _OPENMP
+extern "C" {
+#include <omp.h>
+}
+#endif
+
 constexpr std::ptrdiff_t ipow(int base, int exponent) {
   std::ptrdiff_t prod{1};
   while (exponent > 0) {
@@ -184,7 +190,7 @@ struct TransmissiveBoundary {
       fub::ForEachIndex(fill_box, [&](auto... is) {
         const std::array<std::ptrdiff_t, 3> dest_index{is...};
         std::array<std::ptrdiff_t, 3> source_index = dest_index;
-        source_index[dir] = fill_width;
+        source_index[dir] = upper[dir];
         Load(state, complete, source_index);
         Store(complete, state, dest_index);
       });
@@ -214,6 +220,11 @@ int main(int argc, char** argv) {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
   fub::amrex::ScopeGuard _(argc, argv);
+
+#ifdef _OPENMP
+  ::amrex::Print() << "Using OpenMP with maximal #" << ::omp_get_max_threads()
+                   << " threads.\n";
+#endif
 
   const std::array<int, 3> n_cells{32, 32, 32};
   const std::array<double, 3> xlower{-0.10, -0.15, -0.15};
@@ -295,7 +306,7 @@ int main(int argc, char** argv) {
   auto gridding = std::make_shared<fub::amrex::cutcell::GriddingAlgorithm>(
       hierarchy, fub::amrex::AdaptInitialData(initial_data, equation),
       fub::amrex::cutcell::AdaptTagging(equation, hierarchy, cutcells,
-                                        gradients, fub::TagBuffer(4)),
+                                        gradients, fub::TagBuffer(2)),
       boundary);
 
   gridding->InitializeHierarchy(0.0);
@@ -306,8 +317,6 @@ int main(int argc, char** argv) {
   amrex::WriteSingleLevelPlotfile(
       "AMReX/LinearShock_Geom", eb_factory.getVolFrac(), {"VolumeFraction"},
       gridding->GetPatchHierarchy()->GetGeometry(0), 0.0, 0);
-
-  fub::amrex::cutcell::WritePlotFile("LinearShock_0000", *hierarchy, equation);
 
   const int gcw = 2;
   fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
