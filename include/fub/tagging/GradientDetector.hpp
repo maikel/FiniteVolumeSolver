@@ -47,12 +47,14 @@ template <typename... Projections> struct GradientDetector {
     for (std::size_t dir = 0; dir < Extents<0>(states).rank(); ++dir) {
       ForEachIndex(Shrink(Box<0>(states), Direction(dir), {0, 2}),
                    [&](auto... is) {
+                     std::array<std::ptrdiff_t, sizeof...(is)> left{is...};
+                     std::array<std::ptrdiff_t, sizeof...(is)> mid = Shift(left, Direction(dir), 1);
+                     std::array<std::ptrdiff_t, sizeof...(is)> right = Shift(mid, Direction(dir), 1);
                      boost::hana::for_each(conditions, [&](auto cond) {
                        auto&& [proj, tolerance] = cond;
-                       std::array<std::ptrdiff_t, sizeof...(is)> index{is...};
-                       Load(sL, states, index);
-                       Load(sM, states, Shift(index, Direction(dir), 1));
-                       Load(sR, states, Shift(index, Direction(dir), 2));
+                       Load(sL, states, left);
+                       Load(sM, states, mid);
+                       Load(sR, states, right);
                        auto&& xL = std::invoke(proj, sL);
                        auto&& xM = std::invoke(proj, sM);
                        auto&& xR = std::invoke(proj, sR);
@@ -62,7 +64,7 @@ template <typename... Projections> struct GradientDetector {
                              std::abs(xM - xL) / (std::abs(xM) + std::abs(xL));
                          const double right =
                              std::abs(xM - xR) / (std::abs(xM) + std::abs(xR));
-                         tags(is...) |= left > tolerance || right > tolerance;
+                         tags(mid) |= left > tolerance || right > tolerance;
                        }
                      });
                    });
@@ -82,13 +84,15 @@ template <typename... Projections> struct GradientDetector {
     FUB_ASSERT(Contains(flags.Box(), Box<0>(states)));
     for (std::size_t dir = 0; dir < Extents<0>(states).rank(); ++dir) {
       ForEachIndex(Shrink(Box<0>(states), Direction(dir), {0, 2}), [&](auto... is) {
-            if (flags(is...).isRegular()) {
+                std::array<std::ptrdiff_t, sizeof...(is)> left{is...};
+        std::array<std::ptrdiff_t, sizeof...(is)> mid = Shift(left, Direction(dir), 1);
+        std::array<std::ptrdiff_t, sizeof...(is)> right = Shift(mid, Direction(dir), 1);
+        if (flags(mid).isRegular()) {
               boost::hana::for_each(conditions, [&](auto cond) {
                 auto&& [proj, tolerance] = cond;
-                std::array<std::ptrdiff_t, sizeof...(is)> index{is...};
-                Load(sL, states, index);
-                Load(sM, states, Shift(index, Direction(dir), 1));
-                Load(sR, states, Shift(index, Direction(dir), 2));
+                Load(sL, states, left);
+                Load(sM, states, mid);
+                Load(sR, states, right);
                 auto&& xL = std::invoke(proj, sL);
                 auto&& xM = std::invoke(proj, sM);
                 auto&& xR = std::invoke(proj, sR);
@@ -98,7 +102,7 @@ template <typename... Projections> struct GradientDetector {
                       std::abs(xM - xL) / (std::abs(xM) + std::abs(xL));
                   const double right =
                       std::abs(xM - xR) / (std::abs(xM) + std::abs(xR));
-                  tags(is...) |= left > tolerance || right > tolerance;
+                  tags(mid) |= left > tolerance || right > tolerance;
                 }
               });
             }
