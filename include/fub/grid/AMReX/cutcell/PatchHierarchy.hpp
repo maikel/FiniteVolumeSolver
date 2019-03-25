@@ -54,7 +54,7 @@ struct PatchLevel : ::fub::amrex::PatchLevel {
   ~PatchLevel() = default;
 
   PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
-             const ::amrex::DistributionMapping& dm, int n_components, 
+             const ::amrex::DistributionMapping& dm, int n_components,
              std::unique_ptr<::amrex::EBFArrayBoxFactory> factory);
 
   using MultiCutFabs =
@@ -135,6 +135,9 @@ public:
 
   template <typename Feedback>
   Feedback ForEachPatch(int level, Feedback feedback) {
+#ifdef _OPENMP
+    #pragma omp parallel
+#endif
     for (::amrex::MFIter mfi(GetPatchLevel(level).data); mfi.isValid(); ++mfi) {
       PatchHandle handle{level, &mfi};
       feedback(handle);
