@@ -40,21 +40,24 @@ struct TagBuffer {
   void TagCellsForRefinement(const Tags& tags, const StateView& states,
                              const CartesianCoordinates& /* coords */) {
     for (std::size_t dir = 0; dir < Extents<0>(states).rank(); ++dir) {
-      ForEachIndex(Shrink(Box<0>(states), Direction(dir), {2, 2}), [&](auto... is) {
-        if (tags(is...) == 1) {
-          std::array<std::ptrdiff_t, sizeof...(is)> index{is...};
-          for (int width = 1; width <= buffer_width_; ++width) {
-            if (index[dir] + width < Extents<0>(states).extent(dir) &&
-                !tags(Shift(index, Direction(dir), width))) {
-              tags(Shift(index, Direction(dir), width)) = 2;
-            }
-            if (0 <= index[dir] - width &&
-                !tags(Shift(index, Direction(dir), -width))) {
-              tags(Shift(index, Direction(dir), -width)) = 2;
-            }
-          }
-        }
-      });
+      ForEachIndex(Shrink(Box<0>(states), Direction(dir),
+                          {buffer_width_, buffer_width_}),
+                   [&](auto... is) {
+                     if (tags(is...) == 1) {
+                       std::array<std::ptrdiff_t, sizeof...(is)> index{is...};
+                       for (int width = 1; width <= buffer_width_; ++width) {
+                         if (index[dir] + width <
+                                 Extents<0>(states).extent(dir) &&
+                             !tags(Shift(index, Direction(dir), width))) {
+                           tags(Shift(index, Direction(dir), width)) = 2;
+                         }
+                         if (0 <= index[dir] - width &&
+                             !tags(Shift(index, Direction(dir), -width))) {
+                           tags(Shift(index, Direction(dir), -width)) = 2;
+                         }
+                       }
+                     }
+                   });
     }
   }
 
@@ -63,21 +66,24 @@ struct TagBuffer {
                              const CutCellData&,
                              const CartesianCoordinates& /* coords */) {
     for (std::size_t dir = 0; dir < Extents<0>(states).rank(); ++dir) {
-      ForEachIndex(Shrink(Box<0>(states), Direction(dir), {2, 2}), [&](auto... is) {
-        if (tags(is...) == 1) {
-          std::array<std::ptrdiff_t, sizeof...(is)> index{is...};
-          for (int width = 1; width <= buffer_width_; ++width) {
-            if (index[dir] + width < Extents<0>(states).extent(dir) &&
-                !tags(Shift(index, Direction(dir), width))) {
-              tags(Shift(index, Direction(dir), width)) = 2;
-            }
-            if (0 <= index[dir] - width &&
-                !tags(Shift(index, Direction(dir), -width))) {
-              tags(Shift(index, Direction(dir), -width)) = 2;
-            }
-          }
-        }
-      });
+      ForEachIndex(Shrink(Box<0>(states), Direction(dir),
+                          {buffer_width_, buffer_width_}),
+                   [&](auto... is) {
+                     if (tags(is...) == 1) {
+                       std::array<std::ptrdiff_t, sizeof...(is)> index{is...};
+                       for (int width = 1; width <= buffer_width_; ++width) {
+                         if (index[dir] + width <
+                                 Extents<0>(states).extent(dir) &&
+                             !tags(Shift(index, Direction(dir), width))) {
+                           tags(Shift(index, Direction(dir), width)) = 2;
+                         }
+                         if (0 <= index[dir] - width &&
+                             !tags(Shift(index, Direction(dir), -width))) {
+                           tags(Shift(index, Direction(dir), -width)) = 2;
+                         }
+                       }
+                     }
+                   });
     }
   }
 };

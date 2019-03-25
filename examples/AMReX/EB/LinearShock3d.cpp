@@ -53,7 +53,6 @@
 
 #include <cmath>
 #include <iostream>
-#include <xmmintrin.h>
 
 constexpr std::ptrdiff_t ipow(int base, int exponent) {
   std::ptrdiff_t prod{1};
@@ -201,7 +200,6 @@ struct TransmissiveBoundary {
         std::array<std::ptrdiff_t, 3> source_index = dest_index;
         source_index[dir] = upper[dir] - fill_width - 1;
         Load(state, complete, source_index);
-        FUB_ASSERT(state.density > 0.0);
         Store(complete, state, dest_index);
       });
     }
@@ -217,12 +215,12 @@ int main(int argc, char** argv) {
       std::chrono::steady_clock::now();
   fub::amrex::ScopeGuard _(argc, argv);
 
-  const std::array<int, 3> n_cells{128, 128, 128};
+  const std::array<int, 3> n_cells{32, 32, 32};
   const std::array<double, 3> xlower{-0.10, -0.15, -0.15};
   const std::array<double, 3> xupper{+0.20, +0.15, +0.15};
   const std::array<int, 3> periodicity{0, 0, 0};
 
-  const int n_level = 1;
+  const int n_level = 2;
 
   amrex::Geometry finest_geom =
       MakeFinestGeometry(n_cells, xlower, xupper, periodicity, n_level);
@@ -247,14 +245,6 @@ int main(int argc, char** argv) {
 
   auto hierarchy = std::make_shared<fub::amrex::cutcell::PatchHierarchy>(
       desc, geometry, options);
-
-  // amrex::Geometry geom = hierarchy->GetGeometry(0);
-  // amrex::Box domain{{}, {n_cells[0], n_cells[1], n_cells[2]}};
-  // amrex::BoxArray ba{domain};
-  // amrex::DistributionMapping dm(ba);
-  // auto eb_factory =
-  //     amrex::makeEBFabFactory(geom, ba, dm, {4, 4, 4},
-  //     amrex::EBSupport::full);
 
   fub::Conservative<fub::PerfectGas<3>> cons;
   cons.density = 1.22;
@@ -308,7 +298,6 @@ int main(int argc, char** argv) {
                                         gradients, fub::TagBuffer(4)),
       boundary);
 
-  // _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() & ~_MM_MASK_INVALID);
   gridding->InitializeHierarchy(0.0);
 
   const ::amrex::EBFArrayBoxFactory& eb_factory =
@@ -329,7 +318,7 @@ int main(int argc, char** argv) {
 
   std::string base_name = "AMReX/LinearShock_";
 
-  auto output = [&](auto& hierarchy, int cycle, fub::Duration) {
+  auto output = [&](auto& hierarchy, std::ptrdiff_t cycle, fub::Duration) {
     std::string name = fmt::format("{}{:04}", base_name, cycle);
     ::amrex::Print() << "Start output to '" << name << "'.\n";
     fub::amrex::cutcell::WritePlotFile(name, *hierarchy, equation);

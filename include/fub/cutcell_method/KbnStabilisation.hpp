@@ -113,11 +113,13 @@ public:
     Eigen::Matrix<double, Rank, 1> normal{};
     normal[static_cast<int>(dir)] = 1.0;
     while (i >= 0) {
-      if (is_covered[i]) {
-        if (is_covered[j]) {
+      std::size_t is = static_cast<std::size_t>(i);
+      std::size_t js = static_cast<std::size_t>(j);
+      if (is_covered[is]) {
+        if (is_covered[js]) {
           return false;
         }
-        Reflect(stencil_[i], stencil_[j], normal, equation);
+        Reflect(stencil_[is], stencil_[js], normal, equation);
       }
       --i;
       ++j;
@@ -125,11 +127,14 @@ public:
     j = mid_L;
     i = mid_R;
     while (i < 2 * StencilWidth) {
-      if (is_covered[i]) {
-        if (is_covered[j]) {
+      FUB_ASSERT(j >= 0);
+      std::size_t is = static_cast<std::size_t>(i);
+      std::size_t js = static_cast<std::size_t>(j);
+      if (is_covered[is]) {
+        if (is_covered[js]) {
           return false;
         }
-        Reflect(stencil_[i], stencil_[j], normal, equation);
+        Reflect(stencil_[is], stencil_[js], normal, equation);
       }
       ++i;
       --j;

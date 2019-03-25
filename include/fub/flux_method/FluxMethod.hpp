@@ -104,7 +104,7 @@ public:
             const std::ptrdiff_t fsize = Extents<0>(fluxes_row).extent(0);
             while (i + stencil - 1 + ChunkSize <= ssize) {
               for (std::size_t k = 0; k < stencil; ++k) {
-                const std::ptrdiff_t index = i + k;
+                const std::ptrdiff_t index = i + static_cast<std::ptrdiff_t>(k);
                 Load(stencil_array_[k], states_row, {index});
               }
               base_.ComputeNumericFlux(numeric_flux_array_, stencil_array_, dt,
@@ -117,7 +117,7 @@ public:
             FUB_ASSERT(rest < ChunkSize);
             if (rest > 0) {
               for (std::size_t k = 0; k < stencil; ++k) {
-                const std::ptrdiff_t index = i + k;
+                const std::ptrdiff_t index = i + static_cast<std::ptrdiff_t>(k);
                 LoadN(stencil_array_[k], states_row, rest, {index});
               }
               base_.ComputeNumericFlux(numeric_flux_array_, stencil_array_, dt,

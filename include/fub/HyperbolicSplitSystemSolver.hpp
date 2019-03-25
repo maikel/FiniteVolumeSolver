@@ -52,8 +52,8 @@ struct HyperbolicSplitSystemSolver {
 
   std::array<Direction, LevelIntegrator::Rank()> MakeSplitDirections() {
     std::array<Direction, LevelIntegrator::Rank()> dirs;
-    for (int i = 0; i < LevelIntegrator::Rank(); ++i) {
-      dirs[i] = Direction(i);
+    for (std::size_t i = 0; i < static_cast<std::size_t>(LevelIntegrator::Rank()); ++i) {
+      dirs[i] = static_cast<Direction>(i);
     }
     return dirs;
   }

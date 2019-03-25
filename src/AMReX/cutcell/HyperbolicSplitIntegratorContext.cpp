@@ -83,34 +83,35 @@ HyperbolicSplitIntegratorContext::GetData(PatchHandle patch) {
 
 PatchDataView<double, AMREX_SPACEDIM + 1>
 HyperbolicSplitIntegratorContext::GetScratch(PatchHandle patch, Direction dir) {
-  const int d = static_cast<int>(dir);
-  return GetPatchDataView(data_[patch.level].scratch[d], patch);
+  const std::size_t d = static_cast<std::size_t>(dir);
+  const std::size_t level_num = static_cast<std::size_t>(patch.level);
+  return GetPatchDataView(data_[level_num].scratch[d], patch);
 }
 
 ::amrex::MultiFab& HyperbolicSplitIntegratorContext::GetScratch(int level,
                                                                 Direction dir) {
-  const int d = static_cast<int>(dir);
+  const std::size_t d = static_cast<std::size_t>(dir);
   const std::size_t level_num = static_cast<std::size_t>(level);
   return data_[level_num].scratch[d];
 }
 
 PatchDataView<double, AMREX_SPACEDIM + 1>
 HyperbolicSplitIntegratorContext::GetFluxes(PatchHandle patch, Direction dir) {
-  const int d = static_cast<int>(dir);
+  const std::size_t d = static_cast<std::size_t>(dir);
   const std::size_t level_num = static_cast<std::size_t>(patch.level);
   return GetPatchDataView(data_[level_num].fluxes[d], patch);
 }
 
 ::amrex::MultiFab& HyperbolicSplitIntegratorContext::GetFluxes(int level,
                                                                Direction dir) {
-  const int d = static_cast<int>(dir);
+  const std::size_t d = static_cast<std::size_t>(dir);
   const std::size_t level_num = static_cast<std::size_t>(level);
   return data_[level_num].fluxes[d];
 }
 
 ::amrex::MultiFab&
 HyperbolicSplitIntegratorContext::GetBoundaryFluxes(int level, Direction dir) {
-  const int d = static_cast<int>(dir);
+  const std::size_t d = static_cast<std::size_t>(dir);
   const std::size_t level_num = static_cast<std::size_t>(level);
   return data_[level_num].boundary_fluxes[d];
 }
@@ -118,7 +119,7 @@ HyperbolicSplitIntegratorContext::GetBoundaryFluxes(int level, Direction dir) {
 PatchDataView<double, AMREX_SPACEDIM + 1>
 HyperbolicSplitIntegratorContext::GetBoundaryFluxes(PatchHandle patch,
                                                     Direction dir) {
-  const int d = static_cast<int>(dir);
+  const std::size_t d = static_cast<std::size_t>(dir);
   const std::size_t level_num = static_cast<std::size_t>(patch.level);
   return GetPatchDataView(data_[level_num].boundary_fluxes[d], patch);
 }
@@ -139,7 +140,7 @@ HyperbolicSplitIntegratorContext::GetReferenceStates(PatchHandle patch,
 ::amrex::MultiFab&
 HyperbolicSplitIntegratorContext::GetStabilizedFluxes(int level,
                                                       Direction dir) {
-  const int d = static_cast<int>(dir);
+  const std::size_t d = static_cast<std::size_t>(dir);
   const std::size_t level_num = static_cast<std::size_t>(level);
   return data_[level_num].stabilized_fluxes[d];
 }
@@ -147,7 +148,7 @@ HyperbolicSplitIntegratorContext::GetStabilizedFluxes(int level,
 PatchDataView<double, AMREX_SPACEDIM + 1>
 HyperbolicSplitIntegratorContext::GetStabilizedFluxes(PatchHandle patch,
                                                       Direction dir) {
-  const int d = static_cast<int>(dir);
+  const std::size_t d = static_cast<std::size_t>(dir);
   const std::size_t level_num = static_cast<std::size_t>(patch.level);
   return GetPatchDataView(data_[level_num].stabilized_fluxes[d], patch);
 }
@@ -165,23 +166,30 @@ HyperbolicSplitIntegratorContext::GetGeometry(int level) const {
 
 Duration HyperbolicSplitIntegratorContext::GetTimePoint(int level,
                                                         Direction dir) const {
-  const int d = static_cast<int>(dir);
-  return data_[level].time_point[d];
+  const std::size_t d = static_cast<std::size_t>(dir);
+  const std::size_t level_num = static_cast<std::size_t>(level);
+  return data_[level_num].time_point[d];
 }
 
 std::ptrdiff_t
 HyperbolicSplitIntegratorContext::GetCycles(int level, Direction dir) const {
-  return data_[level].cycles[static_cast<int>(dir)];
+  const std::size_t d = static_cast<std::size_t>(dir);
+  const std::size_t level_num = static_cast<std::size_t>(level);
+  return data_[level_num].cycles[d];
 }
 
 void HyperbolicSplitIntegratorContext::SetTimePoint(Duration dt, int level,
                                                     Direction dir) {
-  data_[level].time_point[static_cast<int>(dir)] = dt;
+  const std::size_t d = static_cast<std::size_t>(dir);
+  const std::size_t level_num = static_cast<std::size_t>(level);
+  data_[level_num].time_point[d] = dt;
 }
 
 void HyperbolicSplitIntegratorContext::SetCycles(std::ptrdiff_t cycles,
                                                  int level, Direction dir) {
-  data_[level].cycles[static_cast<int>(dir)] = cycles;
+  const std::size_t d = static_cast<std::size_t>(dir);
+  const std::size_t level_num = static_cast<std::size_t>(level);
+  data_[level_num].cycles[d] = cycles;
 }
 
 double HyperbolicSplitIntegratorContext::GetDx(PatchHandle patch,
@@ -193,7 +201,7 @@ double HyperbolicSplitIntegratorContext::GetDx(PatchHandle patch,
 HyperbolicSplitIntegratorContext::HyperbolicSplitIntegratorContext(
     std::shared_ptr<GriddingAlgorithm> gridding, int gcw)
     : ghost_cell_width_{gcw + 1}, gridding_{std::move(gridding)},
-      data_(GetPatchHierarchy()->GetMaxNumberOfLevels()) {
+  data_(static_cast<std::size_t>(GetPatchHierarchy()->GetMaxNumberOfLevels())) {
   ResetHierarchyConfiguration();
 }
 
@@ -203,15 +211,15 @@ void HyperbolicSplitIntegratorContext::ResetHierarchyConfiguration(
       GetPatchHierarchy()->GetDataDescription().n_cons_components;
   const int n_levels = GetPatchHierarchy()->GetMaxNumberOfLevels();
   for (int level = first_level; level < n_levels; ++level) {
-    LevelData& data = data_[level];
+    LevelData& data = data_[static_cast<std::size_t>(level)];
     const ::amrex::MultiFab& base =
         GetPatchHierarchy()->GetPatchLevel(level).data;
     const ::amrex::BoxArray& ba = base.boxArray();
     const ::amrex::DistributionMapping& dm = base.DistributionMap();
     const int n_comp = base.nComp();
     data.reference_states.define(ba, dm, n_comp, 0);
-    for (int d = 0; d < AMREX_SPACEDIM; ++d) {
-      const ::amrex::IntVect unit = ::amrex::IntVect::TheDimensionVector(d);
+    for (std::size_t d = 0; d < static_cast<std::size_t>(AMREX_SPACEDIM); ++d) {
+      const ::amrex::IntVect unit = ::amrex::IntVect::TheDimensionVector(static_cast<int>(d));
       data.scratch[d].define(ba, dm, n_comp, ghost_cell_width_ * unit);
       data.fluxes[d].define(::amrex::convert(ba, unit), dm, n_cons_components,
                             unit);
@@ -233,8 +241,10 @@ void HyperbolicSplitIntegratorContext::FillGhostLayerTwoLevels(int fine,
                                                                Direction dir) {
   FUB_ASSERT(coarse >= 0 && fine > coarse);
   ::amrex::MultiFab& scratch = GetScratch(fine, dir);
-  ::amrex::Vector<::amrex::BCRec> bcr(scratch.nComp());
   const int nc = scratch.nComp();
+  FUB_ASSERT(nc > 0);
+  const std::size_t ncs = static_cast<std::size_t>(nc);
+  ::amrex::Vector<::amrex::BCRec> bcr(ncs);
   const ::amrex::Vector<::amrex::MultiFab*> cmf{&GetData(coarse)};
   const ::amrex::Vector<::amrex::MultiFab*> fmf{&GetData(fine)};
   const ::amrex::Vector<double> ct{GetTimePoint(coarse, dir).count()};
@@ -253,8 +263,10 @@ void HyperbolicSplitIntegratorContext::FillGhostLayerTwoLevels(int fine,
 void HyperbolicSplitIntegratorContext::FillGhostLayerSingleLevel(
     int level, Direction dir) {
   ::amrex::MultiFab& scratch = GetScratch(level, dir);
-  ::amrex::Vector<::amrex::BCRec> bcr(scratch.nComp());
   const int nc = scratch.nComp();
+  FUB_ASSERT(nc > 0);
+  const std::size_t ncs = static_cast<std::size_t>(nc);
+  ::amrex::Vector<::amrex::BCRec> bcr(ncs);
   const ::amrex::Vector<::amrex::MultiFab*> smf{&GetData(level)};
   const ::amrex::Vector<double> stime{GetTimePoint(level, dir).count()};
   const ::amrex::Geometry& geom = GetGeometry(level);
@@ -289,10 +301,11 @@ void HyperbolicSplitIntegratorContext::AccumulateCoarseFineFluxes(int level,
                                                                   Direction dir,
                                                                   Duration) {
   if (level > 0) {
+    const std::size_t level_num = static_cast<std::size_t>(level);
     const ::amrex::MultiFab& fluxes = GetFluxes(level, dir);
     const double scale =
         1.0 / ipow(GetRatioToCoarserLevel(level), AMREX_SPACEDIM);
-    data_[level].coarse_fine.FineAdd(fluxes, static_cast<int>(dir), 0, 0,
+    data_[level_num].coarse_fine.FineAdd(fluxes, static_cast<int>(dir), 0, 0,
                                      fluxes.nComp(), scale);
   }
 }
@@ -300,25 +313,29 @@ void HyperbolicSplitIntegratorContext::AccumulateCoarseFineFluxes(int level,
 void HyperbolicSplitIntegratorContext::ResetCoarseFineFluxes(int fine,
                                                              int coarse,
                                                              Direction dir) {
-  data_[fine].coarse_fine.ClearInternalBorders(GetGeometry(coarse));
+  FUB_ASSERT(fine > 0);
+  const std::size_t f = static_cast<std::size_t>(fine);
+  data_[f].coarse_fine.ClearInternalBorders(GetGeometry(coarse));
   const ::amrex::MultiFab& flux = GetFluxes(coarse, dir);
   const ::amrex::BoxArray& boxes = flux.boxArray();
   const ::amrex::DistributionMapping& distribution = flux.DistributionMap();
   const int ncomp = flux.nComp();
   ::amrex::MultiFab zero(boxes, distribution, ncomp, 0);
   zero.setVal(0.0);
-  data_[fine].coarse_fine.CrseInit(zero, static_cast<int>(dir), 0, 0, ncomp);
+  data_[f].coarse_fine.CrseInit(zero, static_cast<int>(dir), 0, 0, ncomp);
 }
 
 void HyperbolicSplitIntegratorContext::ApplyFluxCorrection(int fine, int coarse,
                                                            Duration,
                                                            Direction) {
+  FUB_ASSERT(fine > 0);
+  const std::size_t f = static_cast<std::size_t>(fine);
   const int ncomp = GetPatchHierarchy()->GetDataDescription().n_cons_components;
   const ::amrex::Geometry& cgeom = GetGeometry(coarse);
   std::array<::amrex::MultiFab*, AMREX_SPACEDIM> crse_fluxes{AMREX_D_DECL(
       &GetFluxes(coarse, Direction::X), &GetFluxes(coarse, Direction::Y),
       &GetFluxes(coarse, Direction::Z))};
-  data_[fine].coarse_fine.OverwriteFlux(crse_fluxes, 1.0, 0, 0, ncomp, cgeom);
+  data_[f].coarse_fine.OverwriteFlux(crse_fluxes, 1.0, 0, 0, ncomp, cgeom);
 }
 
 CartesianCoordinates HyperbolicSplitIntegratorContext::GetCartesianCoordinates(

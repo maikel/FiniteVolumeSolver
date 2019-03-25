@@ -57,7 +57,7 @@ PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
   const ::amrex::MultiCutFab& centeroids = factory->getBndryCent();
   const ::amrex::FabArray<::amrex::EBCellFlagFab>& flags =
       factory->getMultiEBCellFlagFab();
-  for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+   for (std::size_t d = 0; d < static_cast<std::size_t>(AMREX_SPACEDIM); ++d) {
     const ::amrex::MultiCutFab& betas = *factory->getAreaFrac()[d];
     for (::amrex::MFIter mfi(ba, dm); mfi.isValid(); ++mfi) {
       if (flags[mfi].getType(mfi.tilebox()) == ::amrex::FabType::singlevalued) {
@@ -106,7 +106,7 @@ PatchHierarchy::PatchHierarchy(DataDescription desc,
 
 CutCellData<AMREX_SPACEDIM>
 PatchHierarchy::GetCutCellData(PatchHandle patch, Direction dir) const {
-  const int d = static_cast<int>(dir);
+  const std::size_t d = static_cast<std::size_t>(dir);
   const ::amrex::MFIter& mfi = *patch.iterator;
   CutCellData<AMREX_SPACEDIM> cutcell_data;
   const PatchLevel& level = GetPatchLevel(patch.level);
