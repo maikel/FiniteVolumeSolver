@@ -144,8 +144,8 @@ public:
         PatchHandle handle{level, &mfi};
         feedback(handle);
       }
-      return feedback;
     }
+    return feedback;
   }
 
   template <typename Feedback> double Minimum(int level, Feedback feedback) {
@@ -160,8 +160,8 @@ public:
         const double local_min = feedback(handle);
         global_min = std::min(global_min, local_min);
       }
-      return global_min;
     }
+    return global_min;
   }
 
   CutCellData<AMREX_SPACEDIM> GetCutCellData(PatchHandle patch,
