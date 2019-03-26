@@ -94,17 +94,16 @@ public:
     int refine_ratio = 1;
     double coarse_dt = std::numeric_limits<double>::infinity();
     for (int level_num = 0; Context::LevelExists(level_num); ++level_num) {
-      double level_dt = std::numeric_limits<double>::infinity();
       if (level_num > 0) {
         FillGhostLayerTwoLevels(level_num, level_num - 1, dir);
       } else {
         FillGhostLayerSingleLevel(level_num, dir);
       }
-      Context::ForEachPatch(level_num, [&](const PatchHandle& patch) {
-        const double patch_dt =
-            flux_method_.ComputeStableDt(GetIntegratorContext(), patch, dir);
-        level_dt = std::min(level_dt, patch_dt);
-      });
+      const double level_dt =
+          Context::Minimum(level_num, [&](const PatchHandle& patch) -> double {
+            return flux_method_.ComputeStableDt(GetIntegratorContext(), patch,
+                                                dir);
+          });
       refine_ratio *= Context::GetRatioToCoarserLevel(level_num);
       coarse_dt = std::min(refine_ratio * level_dt, coarse_dt);
     }
