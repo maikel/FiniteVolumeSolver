@@ -116,6 +116,10 @@ public:
     return GetPatchHierarchy()->ForEachPatch(level, function);
   }
 
+  template <typename F> double Minimum(int level, F function) {
+    return GetPatchHierarchy()->Minimum(level, function);
+  }
+
   ::amrex::FabType GetCutCellPatchType(PatchHandle handle, int gcw = 0) const;
 
   BoundaryCondition GetBoundaryCondition(int level) const;

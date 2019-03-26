@@ -222,7 +222,7 @@ int main(int argc, char** argv) {
   fub::amrex::ScopeGuard _(argc, argv);
 
 #ifdef _OPENMP
-  ::amrex::Print() << "Using OpenMP with maximal #" << ::omp_get_max_threads()
+  ::amrex::Print() << "Using OpenMP with maximal " << ::omp_get_max_threads()
                    << " threads.\n";
 #endif
 
@@ -263,25 +263,6 @@ int main(int argc, char** argv) {
   cons.energy = 101325.0 * equation.gamma_minus_1_inv;
   fub::Complete<fub::PerfectGas<3>> right;
   fub::CompleteFromCons(equation, right, cons);
-
-  // constexpr double M_Shock = 1.8;
-  // constexpr double M_Shock2 = M_Shock * M_Shock;
-
-  // const double density = right.density * (equation.gamma + 1.0) * M_Shock2 /
-  //                        ((equation.gamma - 1.0) * M_Shock2 + 2.0);
-  // const double pressure = right.pressure *
-  //     (2 * equation.gamma * M_Shock2 - (equation.gamma - 1.0)) /
-  //     (equation.gamma + 1.0);
-
-  // const double a_Shock = std::sqrt(equation.gamma * pressure / density);
-  // const double u_Shock = M_Shock * a_Shock;
-
-  // const double velocity = u_Shock * (1.0 - right.density / density);
-
-  // cons.density = density;
-  // cons.momentum << density * velocity, 0.0, 0.0;
-  // cons.energy = pressure * equation.gamma_minus_1_inv +
-  //               0.5 * density * velocity * velocity;
 
   cons.density = 3.15736;
   cons.momentum << 1258.31, 0.0, 0.0;
@@ -340,7 +321,7 @@ int main(int argc, char** argv) {
   fub::RunOptions run_options{};
   run_options.final_time = 0.002s;
   run_options.output_interval = 0.0000125s;
-  run_options.cfl = 0.5 * 0.9;
+  run_options.cfl = 0.25 * 0.9;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      print_msg);
 }
