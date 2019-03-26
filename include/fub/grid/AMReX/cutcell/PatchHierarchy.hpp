@@ -136,26 +136,32 @@ public:
   template <typename Feedback>
   Feedback ForEachPatch(int level, Feedback feedback) {
 #ifdef _OPENMP
-#pragma omp parallel for copyin(feedback)
+#pragma omp parallel private(feedback) copyin(feedback)
 #endif
-    for (::amrex::MFIter mfi(GetPatchLevel(level).data); mfi.isValid(); ++mfi) {
-      PatchHandle handle{level, &mfi};
-      feedback(handle);
+    {
+      for (::amrex::MFIter mfi(GetPatchLevel(level).data); mfi.isValid();
+           ++mfi) {
+        PatchHandle handle{level, &mfi};
+        feedback(handle);
+      }
+      return feedback;
     }
-    return feedback;
   }
 
   template <typename Feedback> double Minimum(int level, Feedback feedback) {
     double global_min = std::numeric_limits<double>::infinity();
 #ifdef _OPENMP
-#pragma omp parallel for reduce(min : global_min) copyin(feedback)
+#pragma omp reduce(min : global_min) private(feedback) copyin(feedback)
 #endif
-    for (::amrex::MFIter mfi(GetPatchLevel(level).data); mfi.isValid(); ++mfi) {
-      PatchHandle handle{level, &mfi};
-      const double local_min = feedback(handle);
-      global_min = std::min(global_min, local_min);
+    {
+      for (::amrex::MFIter mfi(GetPatchLevel(level).data); mfi.isValid();
+           ++mfi) {
+        PatchHandle handle{level, &mfi};
+        const double local_min = feedback(handle);
+        global_min = std::min(global_min, local_min);
+      }
+      return global_min;
     }
-    return global_min;
   }
 
   CutCellData<AMREX_SPACEDIM> GetCutCellData(PatchHandle patch,
