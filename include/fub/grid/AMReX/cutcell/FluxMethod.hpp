@@ -44,14 +44,20 @@ template <typename Base> struct FluxMethod : public Base {
 
   template <typename Context>
   double ComputeStableDt(Context& context, PatchHandle patch, Direction dir) {
-    ::amrex::FabType type = context.GetCutCellPatchType(patch);
+    const int gcw = context.GetGhostCellWidth(patch, dir);
+    ::amrex::FabType type = context.GetCutCellPatchType(patch, gcw);
     if (type == ::amrex::FabType::covered) {
       return std::numeric_limits<double>::infinity();
     }
     const Equation& equation = Base::GetEquation();
     const double dx = context.GetDx(patch, dir);
-    View<const Complete> scratch =
-        MakeView<View<Complete>>(context.GetScratch(patch, dir), equation);
+    const int d = static_cast<int>(dir);
+    ::amrex::IntVect gcws{};
+    gcws[d] = gcw;
+    const auto tilebox_cells = AsIndexBox(patch.iterator->growntilebox(gcws));
+    StridedView<const Complete> scratch = Subview(
+        MakeView<View<Complete>>(context.GetScratch(patch, dir), equation),
+        tilebox_cells);
     if (type == ::amrex::FabType::regular) {
       return Base::ComputeStableDt(scratch, dx, dir);
     } else if (type == ::amrex::FabType::singlevalued) {
@@ -64,29 +70,47 @@ template <typename Base> struct FluxMethod : public Base {
   template <typename Context>
   void ComputeNumericFluxes(Context& context, PatchHandle patch, Direction dir,
                             Duration dt) {
-    ::amrex::FabType type = context.GetCutCellPatchType(
-        patch, context.GetGhostCellWidth(patch, dir));
+    const int gcw = context.GetGhostCellWidth(patch, dir);
+    ::amrex::FabType type = context.GetCutCellPatchType(patch, gcw);
     if (type == ::amrex::FabType::covered) {
       return;
     }
     const Equation& equation = Base::GetEquation();
     const double dx = context.GetDx(patch, dir);
-    View<const Complete> scratch =
-        MakeView<View<Complete>>(context.GetScratch(patch, dir), equation);
-    View<Conservative> regular_fluxes =
-        MakeView<View<Conservative>>(context.GetFluxes(patch, dir), equation);
+
+    const int d = static_cast<int>(dir);
+    ::amrex::IntVect gcws{};
+    gcws[d] = gcw;
+    const auto tilebox_cells = AsIndexBox(patch.iterator->growntilebox(gcws));
+
+    gcws[d] = 1;
+    const auto tilebox_faces =
+        AsIndexBox(patch.iterator->grownnodaltilebox(d, gcws));
+
+    StridedView<const Complete> scratch = Subview(
+        MakeView<View<Complete>>(context.GetScratch(patch, dir), equation),
+        tilebox_cells);
+
+    StridedView<Conservative> regular_fluxes = Subview(
+        MakeView<View<Conservative>>(context.GetFluxes(patch, dir), equation),
+        tilebox_faces);
 
     if (type == ::amrex::FabType::regular) {
       Base::ComputeNumericFluxes(regular_fluxes, scratch, dir, dt, dx);
     } else if (type == ::amrex::FabType::singlevalued) {
-      View<Conservative> boundary_fluxes = MakeView<View<Conservative>>(
-          context.GetBoundaryFluxes(patch, dir), equation);
+      StridedView<Conservative> boundary_fluxes =
+          Subview(MakeView<View<Conservative>>(
+                      context.GetBoundaryFluxes(patch, dir), equation),
+                  tilebox_cells);
+
       CutCellData<Rank> cutcell_data = context.GetCutCellData(patch, dir);
       Base::ComputeBoundaryFluxes(boundary_fluxes, scratch, cutcell_data, dir,
                                   dt, dx);
 
-      View<Conservative> stabilized_fluxes = MakeView<View<Conservative>>(
-          context.GetStabilizedFluxes(patch, dir), equation);
+      StridedView<Conservative> stabilized_fluxes =
+          Subview(MakeView<View<Conservative>>(
+                      context.GetStabilizedFluxes(patch, dir), equation),
+                  tilebox_faces);
 
       Base::ComputeCutCellFluxes(stabilized_fluxes, regular_fluxes,
                                  AsConst(boundary_fluxes), scratch,

@@ -127,11 +127,28 @@ public:
 
   template <typename Feedback>
   Feedback ForEachPatch(int level, Feedback feedback) {
-    for (::amrex::MFIter mfi(GetPatchLevel(level).data); mfi.isValid(); ++mfi) {
+    for (::amrex::MFIter mfi(GetPatchLevel(level).data, true); mfi.isValid();
+         ++mfi) {
       PatchHandle handle{level, &mfi};
       std::invoke(feedback, handle);
     }
     return feedback;
+  }
+
+  template <typename Feedback> double Minimum(int level, Feedback feedback) {
+    double global_min = std::numeric_limits<double>::infinity();
+#ifdef _OPENMP
+#pragma omp parallel reduction(min : global_min) firstprivate(feedback)
+#endif
+    {
+      for (::amrex::MFIter mfi(GetPatchLevel(level).data, true); mfi.isValid();
+           ++mfi) {
+        PatchHandle handle{level, &mfi};
+        const double local_min = feedback(handle);
+        global_min = std::min(global_min, local_min);
+      }
+    }
+    return global_min;
   }
 
 private:

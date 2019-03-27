@@ -53,20 +53,21 @@ template <typename Equation> struct Reconstruction {
   template <typename Context>
   void CompleteFromCons(Context& context, PatchHandle patch, Direction dir,
                         Duration) {
-    View<Complete<Equation>> state =
-        MakeView<View<Complete<Equation>>>(context.GetData(patch), equation_);
-    View<Conservative<Equation>> scratch = MakeView<View<Complete<Equation>>>(
-        context.GetScratch(patch, dir), equation_);
-//    const int gcw = context.GetGhostCellWidth(patch, dir);
-//    StridedView<const Conservative<Equation>> sub_scratch =
-//        Subview(scratch, Box<0>(state));
+    const auto tilebox = AsIndexBox(patch.iterator->tilebox());
+    StridedView<Complete<Equation>> state = Subview(
+        MakeView<View<Complete<Equation>>>(context.GetData(patch), equation_),
+        tilebox);
+    StridedView<const Conservative<Equation>> scratch =
+        Subview(MakeView<View<Complete<Equation>>>(
+                    context.GetScratch(patch, dir), equation_),
+                tilebox);
     ::amrex::FabType type = context.GetCutCellPatchType(patch);
     if (type == ::amrex::FabType::regular) {
-      ::fub::CompleteFromCons(equation_, state, AsConst(scratch));
+      ::fub::CompleteFromCons(equation_, state, scratch);
     } else if (type == ::amrex::FabType::singlevalued) {
       CutCellData<Equation::Rank()> cutcell_data =
           context.GetCutCellData(patch, dir);
-      ::fub::amrex::cutcell::CompleteFromCons(equation_, state, AsConst(scratch),
+      ::fub::amrex::cutcell::CompleteFromCons(equation_, state, scratch,
                                               cutcell_data);
     }
   }

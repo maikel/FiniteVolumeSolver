@@ -202,13 +202,18 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
     $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall>
     $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>
-    $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wconversion>)
+    $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wconversion>
+    $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wsign-conversion>)
   target_link_libraries(HyperbolicSolver.AMReX
     PUBLIC
       HyperbolicSolver.Solver
       AMReX::amrex
       Boost::boost
       Eigen3::Eigen)
+
+   if (FUB_WITH_OPENMP) 
+    target_compile_options(HyperbolicSolver.AMReX PUBLIC "-fopenmp")
+   endif()
 endif()
 
 ################################################################################

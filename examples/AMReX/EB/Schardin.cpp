@@ -51,7 +51,12 @@
 #include <AMReX_EB_LSCore.H>
 
 #include <iostream>
-#include <xmmintrin.h>
+
+#ifdef _OPENMP
+extern "C" {
+#include <omp.h>
+}
+#endif
 
 constexpr std::ptrdiff_t ipow(int base, int exponent) {
   std::ptrdiff_t prod{1};
@@ -103,7 +108,7 @@ struct ShockData {
     CartesianCoordinates x = fub::amrex::GetCartesianCoordinates(geom, box);
     if (type == ::amrex::FabType::regular) {
       ForEachIndex(Box<0>(data), [&](auto... is) {
-        if (x(is...)[0] < -0.04) {
+        if (x(is...)[0] < 0.01) {
           Store(data, left, {is...});
         } else {
           Store(data, right, {is...});
@@ -115,7 +120,7 @@ struct ShockData {
       ForEachIndex(Box<0>(data), [&](auto... is) {
         if (flags(is...).isCovered()) {
           Store(data, zero, {is...});
-        } else if (x(is...)[0] < -0.04) {
+        } else if (x(is...)[0] < 0.01) {
           Store(data, left, {is...});
         } else {
           Store(data, right, {is...});
@@ -168,35 +173,32 @@ struct TransmissiveBoundary {
     fub::View<Complete> complete =
         fub::amrex::MakeView<fub::View<Complete>>(data, equation);
     const std::size_t dir = static_cast<std::size_t>(location.direction);
-    const std::size_t other_dir = (dir + 1) % 2;
-    std::array<std::ptrdiff_t, 3> origin = data.Origin();
+    fub::IndexBox<3> box = data.Box();
+    FUB_ASSERT(location.side == 0 || location.side == 1);
     if (location.side == 0) {
-      for (std::ptrdiff_t j = 0; j < data.Extent(other_dir); ++j) {
-        std::array<std::ptrdiff_t, 2> dest_index{origin[0], origin[1]};
-        std::array<std::ptrdiff_t, 2> source_index{origin[0], origin[1]};
-        dest_index[other_dir] += j;
-        source_index[other_dir] += j;
-        source_index[dir] += fill_width;
+      std::array<std::ptrdiff_t, 2> lower{box.lower[0], box.lower[1]};
+      std::array<std::ptrdiff_t, 2> upper{box.upper[0], box.upper[1]};
+      upper[dir] = lower[dir] + fill_width;
+      const fub::IndexBox<2> fill_box{lower, upper};
+      fub::ForEachIndex(fill_box, [&](auto... is) {
+        const std::array<std::ptrdiff_t, 2> dest_index{is...};
+        std::array<std::ptrdiff_t, 2> source_index = dest_index;
+        source_index[dir] = upper[dir];
         Load(state, complete, source_index);
-        for (int i = 0; i < fill_width; ++i) {
-          dest_index[dir] = origin[dir] + i;
-          Store(complete, state, dest_index);
-        }
-      }
-    } else if (location.side == 1) {
-      const std::ptrdiff_t n = fub::Extents<0>(complete).extent(dir);
-      for (std::ptrdiff_t j = 0; j < data.Extent(other_dir); ++j) {
-        std::array<std::ptrdiff_t, 2> dest_index{origin[0], origin[1]};
-        std::array<std::ptrdiff_t, 2> source_index{origin[0], origin[1]};
-        dest_index[other_dir] += j;
-        source_index[other_dir] += j;
-        source_index[dir] += n - 1 - fill_width;
+        Store(complete, state, dest_index);
+      });
+    } else {
+      std::array<std::ptrdiff_t, 2> lower{box.lower[0], box.lower[1]};
+      std::array<std::ptrdiff_t, 2> upper{box.upper[0], box.upper[1]};
+      lower[dir] = upper[dir] - fill_width;
+      const fub::IndexBox<2> fill_box{lower, upper};
+      fub::ForEachIndex(fill_box, [&](auto... is) {
+        const std::array<std::ptrdiff_t, 2> dest_index{is...};
+        std::array<std::ptrdiff_t, 2> source_index = dest_index;
+        source_index[dir] = upper[dir] - fill_width - 1;
         Load(state, complete, source_index);
-        for (int i = 0; i < fill_width; ++i) {
-          dest_index[dir] = origin[dir] + n - fill_width + i;
-          Store(complete, state, dest_index);
-        }
-      }
+        Store(complete, state, dest_index);
+      });
     }
   }
 
@@ -205,33 +207,45 @@ struct TransmissiveBoundary {
   Complete state{equation};
 };
 
-auto Rectangle(const std::array<double, 2>& lower,
-               const std::array<double, 2>& upper) {
-  amrex::EB2::PlaneIF lower_x({lower[0], lower[1]}, {0, +1});
-  amrex::EB2::PlaneIF lower_y({lower[0], lower[1]}, {+1, 0});
-  amrex::EB2::PlaneIF upper_x({upper[0], upper[1]}, {0, -1});
-  amrex::EB2::PlaneIF upper_y({upper[0], upper[1]}, {-1, 0});
-  return amrex::EB2::makeIntersection(lower_x, lower_y, upper_x, upper_y);
+using Coord = Eigen::Vector2d;
+
+Coord OrthogonalTo(const Coord& x) {
+  return Coord{x[1], -x[0]};
+}
+
+auto Triangle(const Coord& p1, const Coord& p2, const Coord& p3) {
+  Coord norm1 = OrthogonalTo(p2 - p1).normalized();
+  Coord norm2 = OrthogonalTo(p3 - p2).normalized();
+  Coord norm3 = OrthogonalTo(p1 - p3).normalized();
+  amrex::EB2::PlaneIF plane1({p1[0], p1[1]}, {norm1[0], norm1[1]});
+  amrex::EB2::PlaneIF plane2({p2[0], p2[1]}, {norm2[0], norm2[1]});
+  amrex::EB2::PlaneIF plane3({p3[0], p3[1]}, {norm3[0], norm3[1]});
+  return amrex::EB2::makeIntersection(plane1, plane2, plane3);
 }
 
 int main(int argc, char** argv) {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
+
   fub::amrex::ScopeGuard _(argc, argv);
 
-  const std::array<int, 2> n_cells{128, 128};
-  const std::array<double, 2> xlower{-0.10, -0.15};
-  const std::array<double, 2> xupper{+0.20, +0.15};
+#ifdef _OPENMP
+  ::amrex::Print() << "Using OpenMP with maximal " << ::omp_get_max_threads()
+                   << " threads.\n";
+#endif
+
+  const std::array<int, 2> n_cells{8 * 15, 8 * 10};
+  const std::array<double, 2> xlower{0.0, 0.0};
+  const std::array<double, 2> xupper{+0.15, +0.10};
   const std::array<int, 2> periodicity{0, 0};
 
   const int n_level = 3;
 
-  amrex::Geometry finest_geom =
+  const amrex::Geometry finest_geom =
       MakeFinestGeometry(n_cells, xlower, xupper, periodicity, n_level);
 
   auto embedded_boundary =
-      amrex::EB2::makeUnion(Rectangle({-1.0, +0.015}, {0.0, 1.0}),
-                            Rectangle({-1.0, -1.0}, {0.0, -0.015}));
+      Triangle({0.02, 0.05}, {0.05, 0.0655}, {0.05, 0.0345});
 
   auto shop = amrex::EB2::makeShop(embedded_boundary);
   amrex::EB2::Build(shop, finest_geom, n_level - 1, n_level - 1);
@@ -282,19 +296,16 @@ int main(int argc, char** argv) {
 
   gridding->InitializeHierarchy(0.0);
 
-  fub::amrex::cutcell::WritePlotFile("LinearShock_0000", *hierarchy, equation);
-
-  const int gcw = 2;
+  const int gcw = muscl_method.GetStencilWidth();
   fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
       fub::amrex::cutcell::HyperbolicSplitIntegratorContext(gridding, gcw),
       fub::amrex::cutcell::HyperbolicSplitPatchIntegrator(patch_integrator),
       fub::amrex::cutcell::FluxMethod(cutcell_method),
       fub::amrex::cutcell::Reconstruction(equation)));
 
-  std::string base_name = "AMReX/LinearShock_";
-
+  std::string base_name = "AMReX/Schardin_";
   auto output = [&](auto& hierarchy, int cycle, fub::Duration) {
-    std::string name = fmt::format("{}{:04}", base_name, cycle);
+    std::string name = fmt::format("{}{:05}", base_name, cycle);
     ::amrex::Print() << "Start output to '" << name << "'.\n";
     fub::amrex::cutcell::WritePlotFile(name, *hierarchy, equation);
     ::amrex::Print() << "Finished output to '" << name << "'.\n";
@@ -304,8 +315,9 @@ int main(int argc, char** argv) {
   using namespace std::literals::chrono_literals;
   output(hierarchy, 0, 0s);
   fub::RunOptions run_options{};
-  run_options.final_time = 0.002s;
-  run_options.output_interval = 0.0000125s;
+  run_options.final_time = 1e4s;
+  run_options.output_interval = 1e-5s;
+//  run_options.output_frequency = 1;
   run_options.cfl = 0.5 * 0.9;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      print_msg);

@@ -85,7 +85,8 @@ auto Shrink(const layout_left::mapping<Extent>& layout, Direction dir,
 }
 
 template <typename State, typename Layout, int Rank>
-StridedView<State> Subview(const View<State, Layout, Rank>& state, const IndexBox<Rank>& box) {
+StridedView<State> Subview(const View<State, Layout, Rank>& state,
+                           const IndexBox<Rank>& box) {
   return boost::hana::unpack(state.Members(), [&](const auto&... pdview) {
     auto subview = [](const auto& pdv, const IndexBox<Rank>& box) {
       using PatchDataView = std::decay_t<decltype(pdv)>;

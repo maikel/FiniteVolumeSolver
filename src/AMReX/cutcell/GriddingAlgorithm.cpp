@@ -116,9 +116,6 @@ void GriddingAlgorithm::ErrorEst(int level, ::amrex::TagBoxArray& tags, double,
   ::amrex::MultiFab scratch(ba, dm, ncomp, 2);
   FillMultiFabFromLevel(scratch, level);
 
-#ifdef _OPENMP
-  #pragma omp parallel
-#endif
   for (::amrex::MFIter mfi(ba, dm); mfi.isValid(); ++mfi) {
     PatchDataView<const double, Rank + 1> data =
         MakePatchDataView(scratch[mfi]);
@@ -149,9 +146,6 @@ void GriddingAlgorithm::MakeNewLevelFromScratch(
                    n_comps, std::move(eb_factory));
   }
   // Initialize Data with stored intial data condition.
-#ifdef _OPENMP
-  #pragma omp parallel
-#endif
   for (::amrex::MFIter mfi(box_array, distribution_mapping); mfi.isValid();
        ++mfi) {
     PatchHandle patch{level, &mfi};

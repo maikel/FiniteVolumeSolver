@@ -52,20 +52,20 @@ bool Contains(const IndexBox<Rank>& b1, const IndexBox<Rank>& b2) {
 }
 
 template <int Rank>
-  IndexBox<Rank> Intersect(const IndexBox<Rank>& b1, const IndexBox<Rank>& b2) {
-    std::array<std::ptrdiff_t, Rank> lower;
-    std::transform(b1.lower.begin(), b1.lower.end(), b2.lower.begin(), lower.begin(), [](std::ptrdiff_t l1, std::ptrdiff_t l2) {
-      return std::max(l1, l2);
-    });
-    std::array<std::ptrdiff_t, Rank> upper;
-    std::transform(b1.upper.begin(), b1.upper.end(), b2.upper.begin(), upper.begin(), [](std::ptrdiff_t u1, std::ptrdiff_t u2) {
-      return std::min(u1, u2);
-    });
-    std::transform(lower.begin(), lower.end(), upper.begin(), upper.begin(), [](std::ptrdiff_t l, std::ptrdiff_t u) {
-      return std::max(l, u);
-    });
-    return IndexBox<Rank>{lower, upper};
-  }
+IndexBox<Rank> Intersect(const IndexBox<Rank>& b1, const IndexBox<Rank>& b2) {
+  std::array<std::ptrdiff_t, Rank> lower;
+  std::transform(
+      b1.lower.begin(), b1.lower.end(), b2.lower.begin(), lower.begin(),
+      [](std::ptrdiff_t l1, std::ptrdiff_t l2) { return std::max(l1, l2); });
+  std::array<std::ptrdiff_t, Rank> upper;
+  std::transform(
+      b1.upper.begin(), b1.upper.end(), b2.upper.begin(), upper.begin(),
+      [](std::ptrdiff_t u1, std::ptrdiff_t u2) { return std::min(u1, u2); });
+  std::transform(
+      lower.begin(), lower.end(), upper.begin(), upper.begin(),
+      [](std::ptrdiff_t l, std::ptrdiff_t u) { return std::max(l, u); });
+  return IndexBox<Rank>{lower, upper};
+}
 
 template <int Rank>
 IndexBox<Rank> Grow(const IndexBox<Rank>& box, Direction dir,
@@ -206,7 +206,8 @@ struct PatchDataView : public PatchDataViewBase<T, R, Layout> {
             typename = std::enable_if_t<conjunction<
                 std::is_convertible<IndexType, std::ptrdiff_t>...>::value>>
   auto& operator()(IndexType... indices) const {
-    std::array<std::ptrdiff_t, R> index{static_cast<std::ptrdiff_t>(indices)...};
+    std::array<std::ptrdiff_t, R> index{
+        static_cast<std::ptrdiff_t>(indices)...};
     return this->operator()(index);
   }
 

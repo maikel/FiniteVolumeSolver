@@ -77,8 +77,9 @@ public:
     //    Rotate(flux, flux, MakeRotation(unit, boundary_normal), equation);
   }
 
-  void ComputeBoundaryFluxes(View<Conservative> boundary_fluxes,
-                             View<const Complete> states,
+  template <typename LB, typename LS>
+  void ComputeBoundaryFluxes(const View<Conservative, LB>& boundary_fluxes,
+                             const View<const Complete, LS>& states,
                              const CutCellData<Rank>& cutcell_data,
                              Direction dir, Duration dt, double dx) {
     FUB_ASSERT(Extents<0>(boundary_fluxes) == Extents<0>(states));
@@ -146,7 +147,8 @@ public:
 
   /// \todo compute stable dt inside of cutcells, i.e. in the reflection with
   /// their boundary state.
-  double ComputeStableDt(View<const Complete> states,
+  template <typename Layout>
+  double ComputeStableDt(const View<const Complete, Layout>& states,
                          const CutCellData<Rank>& cutcell_data, Direction dir,
                          double dx) {
     double min_dt = std::numeric_limits<double>::infinity();
@@ -171,10 +173,10 @@ public:
   }
 
   template <typename L1, typename L2, typename L3, typename L4>
-  void ComputeCutCellFluxes(View<Conservative, L1> cutcell_fluxes,
-                            View<Conservative, L2> regular_fluxes,
-                            View<const Conservative, L3> boundary_fluxes,
-                            View<const Complete, L4> states,
+  void ComputeCutCellFluxes(const View<Conservative, L1>& cutcell_fluxes,
+                            const View<Conservative, L2>& regular_fluxes,
+                            const View<const Conservative, L3>& boundary_fluxes,
+                            const View<const Complete, L4>& states,
                             const CutCellData<Rank>& cutcell_data,
                             Direction dir, Duration dt, double dx) {
     const std::size_t dir_v = static_cast<std::size_t>(dir);
@@ -220,9 +222,11 @@ public:
         if (beta_left > 0) {
           FUB_ASSERT(flags(cell_left).isSingleValued());
           Load(boundary_flux_, boundary_fluxes, cell_left);
-          const double center = std::apply(
-              [&](auto... iL) { return boundary_centeroids(iL..., dir_v); },
-              cell_left);
+          const double center = std::clamp(
+              std::apply(
+                  [&](auto... iL) { return boundary_centeroids(iL..., dir_v); },
+                  cell_left),
+              -0.5, +0.5);
           FUB_ASSERT(-0.5 <= center && center <= +0.5);
           // d is the average distance to the boundary
           const double d = 0.5 - center;

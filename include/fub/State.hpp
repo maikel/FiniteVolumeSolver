@@ -407,7 +407,7 @@ AsCons(View<const Complete<Equation>, Layout, Rank> complete) {
 
 template <typename Equation, typename Layout, int Rank>
 View<const Conservative<Equation>, Layout, Rank>
-AsConst(View<Conservative<Equation>, Layout, Rank> view) {
+AsConst(const View<Conservative<Equation>, Layout, Rank>& view) {
   const auto members = view.Members();
   return boost::hana::unpack(members, [&](auto... mdspan) {
     return View<const Conservative<Equation>, Layout, Rank>{mdspan...};
@@ -434,7 +434,7 @@ struct View<Conservative<Equation>, Layout, Rank>
       : View(AsCons(complete)) {}
 
   template <typename... Xs, typename = std::enable_if_t<(!IsView<Xs>() && ...)>>
-  View(Xs&&... xs) : Base{std::forward<Xs>(xs)...} {}
+      View(Xs&&... xs) : Base{std::forward<Xs>(xs)...} {}
 };
 
 template <typename Equation, typename Layout, int Rank>
@@ -453,7 +453,7 @@ struct View<const Conservative<Equation>, Layout, Rank>
       : View(AsCons(complete)) {}
 
   template <typename... Xs, typename = std::enable_if_t<(!IsView<Xs>() && ...)>>
-  explicit View(Xs&&... xs) : Base{std::forward<Xs>(xs)...} {}
+      explicit View(Xs&&... xs) : Base{std::forward<Xs>(xs)...} {}
 };
 
 template <typename Equation, typename Layout, int Rank>
@@ -469,7 +469,7 @@ struct View<const Complete<Equation>, Layout, Rank>
 
   template <typename... Xs,
             typename = std::enable_if_t<(!IsView<remove_cvref_t<Xs>>() && ...)>>
-  explicit View(Xs&&... xs) : Base{std::forward<Xs>(xs)...} {}
+      explicit View(Xs&&... xs) : Base{std::forward<Xs>(xs)...} {}
 };
 
 template <typename T> using StridedView = View<T, layout_stride>;
@@ -644,7 +644,7 @@ PatchDataView<T, Rank, L> AtComponent(const View<S, L, Rank>&,
     if constexpr (std::is_same_v<L, layout_stride>) {
       layout_stride::mapping<dynamic_extents<Rank>> mapping{
           dynamic_extents<Rank>(extents), strides};
-      mdspan<T, Rank, L> mds(&data(index), mapping);
+      mdspan<T, Rank, L> mds(&data.MdSpan()(index), mapping);
       return PatchDataView<T, Rank, L>(mds, origin);
     } else {
       mdspan<T, Rank, L> mds(&data.MdSpan()(index), extents);
@@ -690,7 +690,7 @@ void Load(State& state, const View<State, Layout>& view,
 template <typename Eq, typename Layout>
 void Store(const View<nodeduce_t<Conservative<Eq>>, Layout>& view,
            const Conservative<Eq>& state,
-           std::array<std::ptrdiff_t, Eq::Rank()> index) {
+           const std::array<std::ptrdiff_t, Eq::Rank()>& index) {
   ForEachComponent<Conservative<Eq>>(
       [&](auto data, auto block) { Store(data, block, index); }, view,
       state);

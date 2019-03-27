@@ -99,10 +99,11 @@ public:
       } else {
         FillGhostLayerSingleLevel(level_num, dir);
       }
-      const double level_dt =
-          Context::Minimum(level_num, [&](const PatchHandle& patch) -> double {
-            return flux_method_.ComputeStableDt(GetIntegratorContext(), patch,
-                                                dir);
+      const double level_dt = Context::Minimum(
+          level_num,
+          [dir, context = &GetIntegratorContext(),
+           fm = flux_method_](const PatchHandle& patch) mutable -> double {
+            return fm.ComputeStableDt(*context, patch, dir);
           });
       refine_ratio *= Context::GetRatioToCoarserLevel(level_num);
       coarse_dt = std::min(refine_ratio * level_dt, coarse_dt);
@@ -139,10 +140,11 @@ public:
     }
 
     // Compute fluxes in the specified direction
-    Context::ForEachPatch(this_level, [&](const PatchHandle& patch) {
-      flux_method_.ComputeNumericFluxes(GetIntegratorContext(), patch,
-                                        direction, dt);
-    });
+    Context::ForEachPatch(
+        this_level, [direction, dt, context = &GetIntegratorContext(),
+                     fm = flux_method_](const PatchHandle& patch) mutable {
+          fm.ComputeNumericFluxes(*context, patch, direction, dt);
+        });
 
     // Accumulate Fluxes on the coarse-fine interface to the next coarser level.
     if (this_level > 0) {
@@ -162,20 +164,22 @@ public:
     }
 
     // Use the updated fluxes to update cons variables at the "SCRATCH" context.
-    Context::ForEachPatch(this_level, [&](const PatchHandle& patch) {
-      patch_integrator_.UpdateConservatively(GetIntegratorContext(), patch,
-                                             direction, dt);
-    });
+    Context::ForEachPatch(
+        this_level, [direction, dt, context = &GetIntegratorContext(),
+                     pi = patch_integrator_](const PatchHandle& patch) mutable {
+          pi.UpdateConservatively(*context, patch, direction, dt);
+        });
 
     // Coarsen inner regions from next finer level to this level.
     if (Context::LevelExists(next_level)) {
       Context::CoarsenConservatively(next_level, this_level, direction);
     }
 
-    Context::ForEachPatch(this_level, [&](const PatchHandle& patch) {
-      reconstruction_.CompleteFromCons(GetIntegratorContext(), patch, direction,
-                                       dt);
-    });
+    Context::ForEachPatch(
+        this_level, [direction, dt, context = &GetIntegratorContext(),
+                     rec = reconstruction_](const PatchHandle& patch) mutable {
+          rec.CompleteFromCons(*context, patch, direction, dt);
+        });
 
     // The conservative update and and the coarsening happened on conservative
     // variables. We have to reconstruct the missing variables in the complete

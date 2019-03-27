@@ -72,9 +72,10 @@ public:
     return FluxMethodTraits<BaseMethod>::StencilWidth();
   }
 
-  void ComputeNumericFluxes(const View<Conservative>& fluxes,
-                            const View<const Complete>& states, Direction dir,
-                            Duration dt, double dx) {
+  template <typename L1, typename L2>
+  void ComputeNumericFluxes(const View<Conservative, L1>& fluxes,
+                            const View<const Complete, L2>& states,
+                            Direction dir, Duration dt, double dx) {
     ForEachIndex(Box<0>(fluxes), [&](const auto... is) {
       using Index = std::array<std::ptrdiff_t, sizeof...(is)>;
       const Index face{is...};
@@ -88,10 +89,11 @@ public:
     });
   }
 
+  template <typename L1, typename L2>
   void ComputeNumericFluxes(execution::SimdTag,
-                            const View<Conservative>& fluxes,
-                            const View<const Complete>& states, Direction dir,
-                            Duration dt, double dx) {
+                            const View<Conservative, L1>& fluxes,
+                            const View<const Complete, L2>& states,
+                            Direction dir, Duration dt, double dx) {
     static constexpr int stencil = 2 * GetStencilWidth();
     [[maybe_unused]] const int d = static_cast<int>(dir);
     FUB_ASSERT(Extents<0>(states).extent(d) ==
@@ -231,7 +233,8 @@ public:
     return base_.ComputeStableDt(states, dx, dir);
   }
 
-  double ComputeStableDt(View<const Complete> states, double dx,
+  template <typename L>
+  double ComputeStableDt(const View<const Complete, L>& states, double dx,
                          Direction dir) {
     double min_dt = std::numeric_limits<double>::infinity();
     constexpr int stencil = FluxMethodTraits<BaseMethod>::StencilWidth();

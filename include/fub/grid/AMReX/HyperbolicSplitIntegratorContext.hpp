@@ -21,9 +21,9 @@
 #ifndef FUB_AMREX_HYPERBOLIC_SPLIT_INTEGRATOR_CONTEXT_HPP
 #define FUB_AMREX_HYPERBOLIC_SPLIT_INTEGRATOR_CONTEXT_HPP
 
-#include "fub/PatchDataView.hpp"
 #include "fub/CartesianCoordinates.hpp"
 #include "fub/Duration.hpp"
+#include "fub/PatchDataView.hpp"
 #include "fub/core/function_ref.hpp"
 #include "fub/core/mdspan.hpp"
 
@@ -48,6 +48,10 @@ public:
 
   template <typename F> F ForEachPatch(int level, F function) {
     return GetPatchHierarchy()->ForEachPatch(level, function);
+  }
+
+  template <typename Feedback> double Minimum(int level, Feedback feedback) {
+    return GetPatchHierarchy()->Minimum(level, feedback);
   }
 
   MPI_Comm GetMpiCommunicator() const noexcept;

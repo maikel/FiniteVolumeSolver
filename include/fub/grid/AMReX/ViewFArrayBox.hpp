@@ -1,6 +1,27 @@
+// Copyright (c) 2019 Maikel Nadolski
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 #ifndef FUB_AMREX_FARRAYBOX_HPP
 #define FUB_AMREX_FARRAYBOX_HPP
 
+#include "fub/PatchDataView.hpp"
 #include "fub/Equation.hpp"
 #include "fub/State.hpp"
 
@@ -10,6 +31,8 @@
 namespace fub {
 namespace amrex {
 std::array<std::ptrdiff_t, AMREX_SPACEDIM> AsArray(const ::amrex::IntVect& vec);
+
+IndexBox<AMREX_SPACEDIM> AsIndexBox(const ::amrex::Box& box);
 
 /// Creates a mdspan which views all components of a mutable Fab.
 ///
@@ -135,7 +158,6 @@ auto MakeView(boost::hana::basic_type<State>,
         std::array<std::ptrdiff_t, AMREX_SPACEDIM + 1> index{};
         index[AMREX_SPACEDIM] = counter;
         std::array<std::ptrdiff_t, AMREX_SPACEDIM + 1> this_origin = origin;
-        this_origin[AMREX_SPACEDIM] = counter;
         counter += n_comps;
         mdspan<T, AMREX_SPACEDIM + 1> mds(&fab.MdSpan()(index), e);
         return PatchDataView<T, AMREX_SPACEDIM + 1>(mds, this_origin);
@@ -172,7 +194,6 @@ auto MakeView(boost::hana::basic_type<State>,
         std::array<std::ptrdiff_t, AMREX_SPACEDIM + 1> index{};
         index[AMREX_SPACEDIM] = counter;
         std::array<std::ptrdiff_t, AMREX_SPACEDIM + 1> this_origin = origin;
-        this_origin[AMREX_SPACEDIM] = counter;
         counter += n_comps;
         mdspan<const T, AMREX_SPACEDIM + 1> mds(&fab.MdSpan()(index), e);
         return PatchDataView<const T, AMREX_SPACEDIM + 1>(mds, this_origin);

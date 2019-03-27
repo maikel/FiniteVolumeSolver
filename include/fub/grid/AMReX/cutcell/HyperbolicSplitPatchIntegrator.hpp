@@ -42,28 +42,40 @@ template <typename Base> struct HyperbolicSplitPatchIntegrator : public Base {
   template <typename Context>
   void UpdateConservatively(Context& context, PatchHandle patch, Direction dir,
                             Duration dt) {
-    ::amrex::FabType type = context.GetCutCellPatchType(patch);
+    const int gcw = context.GetGhostCellWidth(patch, dir);
+    ::amrex::FabType type = context.GetCutCellPatchType(patch, gcw);
     if (type == ::amrex::FabType::covered) {
       return;
     }
     const Equation& equation = Base::GetEquation();
-    View<Conservative> scratch =
-        MakeView<View<Complete>>(context.GetScratch(patch, dir), equation);
-//    const int gcw = context.GetGhostCellWidth(patch, dir);
     const double dx = context.GetDx(patch, dir);
-    View<const Conservative> regular_fluxes =
-        MakeView<View<Conservative>>(context.GetFluxes(patch, dir), equation);
+    const int d = static_cast<int>(dir);
+    const ::amrex::IntVect gcws = ::amrex::IntVect::TheDimensionVector(d);
+    const auto tilebox_cells = AsIndexBox(patch.iterator->growntilebox(gcws));
+    const auto tilebox_faces =
+        AsIndexBox(patch.iterator->grownnodaltilebox(d, gcws));
+
+    StridedView<Conservative> scratch = Subview(
+        MakeView<View<Complete>>(context.GetScratch(patch, dir), equation),
+        tilebox_cells);
+    StridedView<const Conservative> regular_fluxes = Subview(
+        MakeView<View<Conservative>>(context.GetFluxes(patch, dir), equation),
+        tilebox_faces);
     if (type == ::amrex::FabType::regular) {
       Base::UpdateConservatively(scratch, AsConst(scratch), regular_fluxes, dir,
                                  dt, dx);
     } else {
       FUB_ASSERT(type == ::amrex::FabType::singlevalued);
-      View<const Conservative> stabilised_fluxes = MakeView<View<Conservative>>(
-          context.GetStabilizedFluxes(patch, dir), equation);
       CutCellData<Rank> cutcell_data = context.GetCutCellData(patch, dir);
-      View<const Conservative> boundary_fluxes = MakeView<View<Conservative>>(
-          context.GetBoundaryFluxes(patch, dir), equation);
-      Base::UpdateConservatively(scratch, AsConst(scratch), stabilised_fluxes,
+      StridedView<const Conservative> stabilized_fluxes =
+          Subview(MakeView<View<Conservative>>(
+                      context.GetStabilizedFluxes(patch, dir), equation),
+                  tilebox_faces);
+      StridedView<const Conservative> boundary_fluxes =
+          Subview(MakeView<View<Conservative>>(
+                      context.GetBoundaryFluxes(patch, dir), equation),
+                  tilebox_cells);
+      Base::UpdateConservatively(scratch, AsConst(scratch), stabilized_fluxes,
                                  regular_fluxes, boundary_fluxes, cutcell_data,
                                  dir, dt, dx);
     }

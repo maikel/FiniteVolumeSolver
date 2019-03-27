@@ -43,7 +43,12 @@ template <typename Base> struct FluxMethod : public Base {
     const double dx = context.GetDx(patch, dir);
     View<const Complete> scratch =
         MakeView<View<Complete>>(context.GetScratch(patch, dir), equation);
-    return Base::ComputeStableDt(scratch, dx, dir);
+    static constexpr int Rank = Equation::Rank();
+    const int gcw = context.GetGhostCellWidth(patch, dir);
+    const IndexBox<Rank> tilebox =
+        Grow(AsIndexBox(patch.iterator->tilebox()), dir, {gcw, gcw});
+    StridedView<const Complete> subscratch = Subview(scratch, tilebox);
+    return Base::ComputeStableDt(subscratch, dx, dir);
   }
 
   template <typename Context>
@@ -54,7 +59,7 @@ template <typename Base> struct FluxMethod : public Base {
                                             Base::GetEquation());
     auto fluxes = MakeView<View<Conservative>>(context.GetFluxes(patch, dir),
                                                Base::GetEquation());
-    Base::ComputeNumericFluxes(fluxes, scratch, dir, dt, dx);
+    Base::ComputeNumericFluxes(fluxes, AsConst(scratch), dir, dt, dx);
   }
 };
 
