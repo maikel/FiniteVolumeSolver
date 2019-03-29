@@ -55,9 +55,11 @@ template <typename Base> struct FluxMethod : public Base {
     ::amrex::IntVect gcws{};
     gcws[d] = gcw;
     const auto tilebox_cells = AsIndexBox(patch.iterator->growntilebox(gcws));
-    StridedView<const Complete> scratch = Subview(
-        MakeView<View<Complete>>(context.GetScratch(patch, dir), equation),
-        tilebox_cells);
+//    StridedView<const Complete> scratch = Subview(
+//        MakeView<View<Complete>>(context.GetScratch(patch, dir), equation),
+//        tilebox_cells);
+    View<const Complete> scratch =
+        MakeView<View<Complete>>(context.GetScratch(patch, dir), equation);
     if (type == ::amrex::FabType::regular) {
       return Base::ComputeStableDt(scratch, dx, dir);
     } else if (type == ::amrex::FabType::singlevalued) {
@@ -71,7 +73,7 @@ template <typename Base> struct FluxMethod : public Base {
   void ComputeNumericFluxes(Context& context, PatchHandle patch, Direction dir,
                             Duration dt) {
     const int gcw = context.GetGhostCellWidth(patch, dir);
-    ::amrex::FabType type = context.GetCutCellPatchType(patch, gcw);
+    ::amrex::FabType type = context.GetCutCellPatchType(patch);
     if (type == ::amrex::FabType::covered) {
       return;
     }

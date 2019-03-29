@@ -35,10 +35,13 @@ void FillCutCellData(PatchDataView<double, 2> unshielded,
     const std::array<std::ptrdiff_t, 2> right = Shift(mid, dir, +1);
     const double beta_left = data.face_fractions(left);
     const double beta_mid = data.face_fractions(mid);
+    FUB_ASSERT(beta_mid >= 0.0);
     const double beta_right = data.face_fractions(right);
     const double dBetaL = std::max(0.0, beta_mid - beta_left);
     const double dBetaR = std::max(0.0, beta_mid - beta_right);
+    FUB_ASSERT(dBetaL >= 0.0);
     shielded_left(mid) = dBetaL;
+    FUB_ASSERT(dBetaR >= 0.0);
     shielded_right(mid) = dBetaR;
     unshielded(mid) = beta_mid - std::max(dBetaL, dBetaR);
     doubly_shielded(mid) = std::min(dBetaL, dBetaR);

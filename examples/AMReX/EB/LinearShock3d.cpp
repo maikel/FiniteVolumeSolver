@@ -226,12 +226,12 @@ int main(int argc, char** argv) {
                    << " threads.\n";
 #endif
 
-  const std::array<int, 3> n_cells{32, 32, 32};
+  const std::array<int, 3> n_cells{128, 128, 128};
   const std::array<double, 3> xlower{-0.10, -0.15, -0.15};
   const std::array<double, 3> xupper{+0.20, +0.15, +0.15};
   const std::array<int, 3> periodicity{0, 0, 0};
 
-  const int n_level = 2;
+  const int n_level = 1;
 
   amrex::Geometry finest_geom =
       MakeFinestGeometry(n_cells, xlower, xupper, periodicity, n_level);
@@ -296,7 +296,7 @@ int main(int argc, char** argv) {
       gridding->GetPatchHierarchy()->GetEmbeddedBoundary(0);
 
   amrex::WriteSingleLevelPlotfile(
-      "AMReX/LinearShock_Geom", eb_factory.getVolFrac(), {"VolumeFraction"},
+      "AMReX/Geometry_LinearShock3d", eb_factory.getVolFrac(), {"VolumeFraction"},
       gridding->GetPatchHierarchy()->GetGeometry(0), 0.0, 0);
 
   const int gcw = 2;
@@ -306,7 +306,7 @@ int main(int argc, char** argv) {
       fub::amrex::cutcell::FluxMethod(cutcell_method),
       fub::amrex::cutcell::Reconstruction(equation)));
 
-  std::string base_name = "AMReX/LinearShock_";
+  std::string base_name = "AMReX/LinearShock3d_";
 
   auto output = [&](auto& hierarchy, std::ptrdiff_t cycle, fub::Duration) {
     std::string name = fmt::format("{}{:04}", base_name, cycle);
