@@ -25,6 +25,7 @@
 #include <AMReX_FillPatchUtil.H>
 #include <AMReX_FluxReg_C.H>
 #include <AMReX_Interpolater.H>
+#include <AMReX_EBMultiFabUtil.H>
 #include <AMReX_MultiFabUtil.H>
 
 #include <fmt/format.h>
@@ -281,9 +282,8 @@ void HyperbolicSplitIntegratorContext::CoarsenConservatively(int fine_level,
   const int first =
       GetPatchHierarchy()->GetDataDescription().first_cons_component;
   const int size = GetPatchHierarchy()->GetDataDescription().n_cons_components;
-  ::amrex::average_down(GetScratch(fine_level, dir),
-                        GetScratch(coarse_level, dir), GetGeometry(fine_level),
-                        GetGeometry(coarse_level), first, size, 2);
+  ::amrex::EB_average_down(GetScratch(fine_level, dir),
+                           GetScratch(coarse_level, dir), first, size, 2);
 }
 
 namespace {
