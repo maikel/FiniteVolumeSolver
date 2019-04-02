@@ -54,7 +54,7 @@ template <typename Base> struct FluxMethod : public Base {
     const int d = static_cast<int>(dir);
     ::amrex::IntVect gcws{};
     gcws[d] = gcw;
-    const auto tilebox_cells = AsIndexBox(patch.iterator->growntilebox(gcws));
+    // const auto tilebox_cells = AsIndexBox(patch.iterator->growntilebox(gcws));
 //    StridedView<const Complete> scratch = Subview(
 //        MakeView<View<Complete>>(context.GetScratch(patch, dir), equation),
 //        tilebox_cells);

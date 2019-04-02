@@ -40,21 +40,22 @@ public:
   }
 
   template <typename L1, typename L2, typename L3>
-  void UpdateConservatively(View<Conservative, L1> next,
-                            View<const Conservative, L2> prev,
-                            View<const Conservative, L3> fluxes, Direction dir,
-                            Duration dt, double dx) {
+  void UpdateConservatively(const View<Conservative, L1>& next,
+                            const View<const Conservative, L2>& prev,
+                            const View<const Conservative, L3>& fluxes,
+                            Direction dir, Duration dt, double dx) {
     regular_integrator_.UpdateConservatively(next, fluxes, prev, dir, dt, dx);
   }
 
   template <typename L1, typename L2, typename L3, typename L4>
-  void UpdateConservatively(View<Conservative, L1> nexts,
-                            View<const Conservative, L2> prevs,
-                            View<const Conservative, L3> stabilised_fluxes,
-                            View<const Conservative, L3> regular_fluxes,
-                            View<const Conservative, L4> fluxes_boundary,
-                            const CutCellData<Rank>& cutcell_data,
-                            Direction dir, Duration dt, double dx) {
+  void
+  UpdateConservatively(const View<Conservative, L1>& nexts,
+                       const View<const Conservative, L2>& prevs,
+                       const View<const Conservative, L3>& stabilised_fluxes,
+                       const View<const Conservative, L3>& regular_fluxes,
+                       const View<const Conservative, L4>& fluxes_boundary,
+                       const CutCellData<Rank>& cutcell_data, Direction dir,
+                       Duration dt, double dx) {
     using Index = std::array<std::ptrdiff_t, Rank>;
     const double dt_over_dx = dt.count() / dx;
     FUB_ASSERT(Extents<0>(nexts) == Extents<0>(prevs));
@@ -99,13 +100,16 @@ public:
         } else if (beta_left > beta_right) {
           Load(flux_left_, regular_fluxes, left_face);
           Load(flux_right_, stabilised_fluxes, right_face);
+          const double beta_ds =
+              cutcell_data.doubly_shielded_fractions(left_face);
+          FUB_ASSERT(beta_right + beta_ds <= beta_left);
           const double distance_to_boundary = 0.5 + center(is..., dir_v);
           alpha = beta_right + distance_to_boundary * (beta_left - beta_right);
           const double betaR_over_alpha = beta_right / alpha;
           const double dBeta_over_alpha =
-              beta_right == 0
-                  ? 1.0
-                  : distance_to_boundary * (beta_left - beta_right) / alpha;
+              beta_right == 0 ? 1.0
+                              : distance_to_boundary *
+                                    (beta_left - beta_ds - beta_right) / alpha;
           FUB_ASSERT(0 <= betaR_over_alpha && betaR_over_alpha <= 1.0);
           FUB_ASSERT(0 <= dBeta_over_alpha && dBeta_over_alpha <= 1.0);
           ForEachComponent<Conservative>(
@@ -113,21 +117,23 @@ public:
                   double f_B) {
                 const double dF = f_left - f_right;
                 const double dBoundary = f_left - f_B;
-                next = prev +
-                       dt_over_dx * betaR_over_alpha * dF +
+                next = prev + dt_over_dx * betaR_over_alpha * dF +
                        dt_over_dx * dBeta_over_alpha * dBoundary;
               },
               next_, prev_, flux_left_, flux_right_, flux_boundary_);
         } else if (beta_left < beta_right) {
           Load(flux_left_, stabilised_fluxes, left_face);
           Load(flux_right_, regular_fluxes, right_face);
+          const double beta_ds =
+              cutcell_data.doubly_shielded_fractions(right_face);
+          FUB_ASSERT(beta_left + beta_ds <= beta_right);
           const double distance_to_boundary = 0.5 - center(is..., dir_v);
           alpha = beta_left + distance_to_boundary * (beta_right - beta_left);
           const double betaL_over_alpha = beta_left / alpha;
           const double dBeta_over_alpha =
-              beta_left == 0.0
-                  ? 1.0
-                  : distance_to_boundary * (beta_right - beta_left) / alpha;
+              beta_left == 0.0 ? 1.0
+                               : distance_to_boundary *
+                                     (beta_right - beta_ds - beta_left) / alpha;
           FUB_ASSERT(0 <= betaL_over_alpha && betaL_over_alpha <= 1.0);
           FUB_ASSERT(0 <= dBeta_over_alpha && dBeta_over_alpha <= 1.0);
           ForEachComponent<Conservative>(
@@ -135,8 +141,7 @@ public:
                   double f_B) {
                 const double dF = f_left - f_right;
                 const double dBoundary = f_B - f_right;
-                next = prev +
-                       dt_over_dx * betaL_over_alpha * dF +
+                next = prev + dt_over_dx * betaL_over_alpha * dF +
                        dt_over_dx * dBeta_over_alpha * dBoundary;
               },
               next_, prev_, flux_left_, flux_right_, flux_boundary_);

@@ -148,6 +148,8 @@ template <int Dim>
 std::array<double, 2> EinfeldtSignalVelocitiesImpl<PerfectGas<Dim>>::apply(
     const PerfectGas<Dim>&, const Complete& left, const Complete& right,
     Direction dir) noexcept {
+  FUB_ASSERT(left.density > 0.0);
+  FUB_ASSERT(right.density > 0.0);
   const double rhoL = left.density;
   const double rhoR = right.density;
   double rhoUL;
