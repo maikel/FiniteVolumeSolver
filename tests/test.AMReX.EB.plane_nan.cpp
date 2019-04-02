@@ -63,7 +63,7 @@ void MyMain(int cells) {
   const std::array<double, 2> xupper{+0.5, +1.0};
   const std::array<int, 2> periodicity{0, 0};
   const amrex::Geometry finest_geom =
-      MakeGeometry(n_cells, xlower, xupper, periodicity, n_level);
+      MakeGeometry(n_cells, xlower, xupper, periodicity);
   auto embedded_boundary = Wedge({-1.0, +1.0}, {+1.0, +1.0});
   auto shop = amrex::EB2::makeShop(embedded_boundary);
   amrex::EB2::Build(shop, finest_geom, 0, 0);
