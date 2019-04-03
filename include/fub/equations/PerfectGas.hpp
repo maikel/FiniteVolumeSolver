@@ -47,12 +47,13 @@ struct PerfectGasConservative {
 
 template <int Rank>
 using PerfectGasConsShape =
-    PerfectGasConservative<constant<1>, constant<Rank>, constant<1>>;
+    PerfectGasConservative<int_constant<1>, int_constant<Rank>,
+                           int_constant<1>>;
 
 template <int Rank>
 using PerfectGasCompleteShape =
-    PerfectGasComplete<constant<1>, constant<Rank>, constant<1>, constant<1>,
-                       constant<1>>;
+    PerfectGasComplete<int_constant<1>, int_constant<Rank>, int_constant<1>,
+                       int_constant<1>, int_constant<1>>;
 
 template <int Rank> struct PerfectGas;
 
@@ -120,6 +121,32 @@ template <int Dim> struct EinfeldtSignalVelocitiesImpl<PerfectGas<Dim>> {
 extern template struct EinfeldtSignalVelocitiesImpl<PerfectGas<1>>;
 extern template struct EinfeldtSignalVelocitiesImpl<PerfectGas<2>>;
 extern template struct EinfeldtSignalVelocitiesImpl<PerfectGas<3>>;
+
+template <int Dim> class ExactRiemannSolver<PerfectGas<Dim>> {
+public:
+  using Complete = typename PerfectGas<Dim>::Complete;
+
+  explicit ExactRiemannSolver(const PerfectGas<Dim>& equation) : equation_{equation} {}
+
+  /// Returns either left or right, depending on the upwind velocity.
+  void SolveRiemannProblem(Complete& state, const Complete& left,
+                           const Complete& right, Direction dir);
+
+  /// Returns the upwind velocity in the specified direction.
+  std::array<double, 2> ComputeSignals(const Complete&, const Complete&,
+                                       Direction dir);
+
+  std::array<double, 2> ComputeMiddleState(const Complete& left,
+                                           const Complete& right,
+                                           Direction dir);
+
+private:
+  PerfectGas<Dim> equation_;
+};
+
+extern template class ExactRiemannSolver<PerfectGas<1>>;
+extern template class ExactRiemannSolver<PerfectGas<2>>;
+extern template class ExactRiemannSolver<PerfectGas<3>>;
 
 } // namespace fub
 

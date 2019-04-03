@@ -28,12 +28,13 @@
 
 namespace fub {
 
-using Scalar = constant<1>;
-using Vector2d = constant<2>;
-using Vector3d = constant<3>;
-using VectorXd = constant<dynamic_extent>;
+using Scalar = int_constant<1>;
+using Vector2d = int_constant<2>;
+using Vector3d = int_constant<3>;
+using VectorXd = int_constant<dynamic_extent>;
 
 template <typename T> struct RemoveTemplateParameter;
+
 template <template <typename...> typename T, typename... Ts>
 struct RemoveTemplateParameter<T<Ts...>> {
   using type = template_t<T>;
@@ -42,12 +43,14 @@ struct RemoveTemplateParameter<T<Ts...>> {
 enum class StateType { Complete, Conservative };
 
 template <StateType Type> using StateType_c =  std::integral_constant<StateType, Type>;
-inline constexpr StateType_c<StateType::Conservative> cons{};
-inline constexpr StateType_c<StateType::Complete> complete{};
+
+static constexpr StateType_c<StateType::Conservative> cons{};
+static constexpr StateType_c<StateType::Complete> complete{};
 
 template <typename ConsShape, typename CompleteShape = ConsShape>
 struct VariableDescription {
   using ConsTemplate = typename RemoveTemplateParameter<ConsShape>::type;
+  
   using CompleteTemplate =
       typename RemoveTemplateParameter<CompleteShape>::type;
 
@@ -58,6 +61,7 @@ struct VariableDescription {
   static constexpr auto Template(StateType_c<StateType::Conservative>) {
     return ConsTemplate{};
   }
+
   static constexpr auto Template(StateType_c<StateType::Complete>) {
     return CompleteTemplate{};
   }
@@ -65,6 +69,7 @@ struct VariableDescription {
   static constexpr auto Shape(StateType_c<StateType::Conservative>) {
     return boost::hana::members(ConsShape{});
   }
+
   static constexpr auto Shape(StateType_c<StateType::Complete>) {
     return boost::hana::members(CompleteShape{});
   }
@@ -74,13 +79,13 @@ struct VariableDescription {
     constexpr auto shape = Shape(type);
     constexpr auto any_dynamic_size =
         boost::hana::any_of(shape, [](auto extents) {
-          return extents == constant<dynamic_extent>{};
+          return extents == int_constant<dynamic_extent>{};
         });
     if constexpr (any_dynamic_size) {
-      return constant<dynamic_extent>{};
+      return int_constant<dynamic_extent>{};
     } else {
       auto sum = [](auto total, auto n) {
-        return constant<total() + n()>{};
+        return int_constant<total() + n()>{};
       };
       return boost::hana::fold_left(shape, sum);
     }

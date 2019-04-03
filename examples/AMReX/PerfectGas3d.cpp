@@ -78,7 +78,7 @@ int main(int argc, char** argv) {
   constexpr int Dim = AMREX_SPACEDIM;
   static_assert(AMREX_SPACEDIM == 3);
 
-  const std::array<int, Dim> n_cells{64, 64, 64};
+  const std::array<int, Dim> n_cells{32, 32, 32};
 
   const std::array<double, Dim> xlower{-1.0, -1.0, -1.0};
   const std::array<double, Dim> xupper{+1.0, +1.0, +1.0};
@@ -93,7 +93,7 @@ int main(int argc, char** argv) {
   fub::amrex::DataDescription desc = fub::amrex::MakeDataDescription(equation);
 
   fub::amrex::PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = 2;
+  hier_opts.max_number_of_levels = 1;
 
   auto hierarchy =
       std::make_shared<fub::amrex::PatchHierarchy>(desc, geometry, hier_opts);

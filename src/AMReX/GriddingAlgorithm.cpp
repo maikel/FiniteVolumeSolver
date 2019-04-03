@@ -39,6 +39,22 @@ GriddingAlgorithm::GriddingAlgorithm(std::shared_ptr<PatchHierarchy> hier,
   n_proper = 2;
 }
 
+GriddingAlgorithm::GriddingAlgorithm(std::shared_ptr<PatchHierarchy> hier,
+                                     InitialData initial_data, Tagging tagging,
+                                     BoundaryCondition boundary)
+    : AmrCore(
+          &hier->GetGridGeometry().coordinates,
+          hier->GetOptions().max_number_of_levels - 1,
+          ::amrex::Vector<int>(hier->GetGridGeometry().cell_dimensions.begin(),
+                               hier->GetGridGeometry().cell_dimensions.end())),
+      hierarchy_{std::move(hier)}, initial_data_{std::move(initial_data)},
+      tagging_{std::move(tagging)}, boundary_condition_{std::move(boundary)} {
+  n_error_buf = ::amrex::Vector<int>(
+      static_cast<std::size_t>(hierarchy_->GetOptions().max_number_of_levels),
+      2);
+  n_proper = 2;
+}
+
 bool GriddingAlgorithm::RegridAllFinerlevels(int which_level) {
   if (which_level < max_level) {
     const int before = AmrMesh::finest_level;

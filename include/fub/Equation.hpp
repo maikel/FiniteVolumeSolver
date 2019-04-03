@@ -33,7 +33,7 @@ using ScalarFluxT =
                                             std::declval<const Complete<Eq>&>(),
                                             Direction::X));
 
-template <typename Eq, typename N = constant<kDefaultChunkSize>>
+template <typename Eq, typename N = int_constant<kDefaultChunkSize>>
 using VectorizedFluxT = decltype(std::declval<const Eq&>().Flux(
     std::declval<ConservativeArray<Eq, N::value>&>(),
     std::declval<const CompleteArray<Eq, N::value>&>(), Direction::X));
@@ -42,7 +42,7 @@ template <typename Eq>
 using ScalarReconstructT = decltype(std::declval<const Eq&>().Reconstruct(
     std::declval<Complete<Eq>&>(), std::declval<const Conservative<Eq>&>()));
 
-template <typename Eq, typename N = constant<kDefaultChunkSize>>
+template <typename Eq, typename N = int_constant<kDefaultChunkSize>>
 using VectorizedReconstructT = decltype(std::declval<const Eq&>().Reconstruct(
     std::declval<CompleteArray<Eq, N::value>&>(),
     std::declval<const ConservativeArray<Eq, N::value>&>()));
@@ -51,7 +51,7 @@ template <typename Equation>
 struct HasScalarFlux : is_detected<ScalarFluxT, Equation> {};
 
 template <typename Equation, int N = kDefaultChunkSize>
-struct HasVectorizedFlux : is_detected<VectorizedFluxT, Equation, constant<N>> {
+struct HasVectorizedFlux : is_detected<VectorizedFluxT, Equation, int_constant<N>> {
 };
 
 template <typename Equation>
@@ -59,7 +59,7 @@ struct HasScalarReconstruction : is_detected<ScalarReconstructT, Equation> {};
 
 template <typename Equation, int N = kDefaultChunkSize>
 struct HasVectorizedReconstruction
-    : is_detected<VectorizedReconstructT, Equation, constant<N>> {};
+    : is_detected<VectorizedReconstructT, Equation, int_constant<N>> {};
 
 template <typename Equation>
 struct HasReconstruction : disjunction<HasScalarReconstruction<Equation>,

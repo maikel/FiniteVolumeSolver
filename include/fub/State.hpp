@@ -25,7 +25,22 @@
 #include "fub/VariableDescription.hpp"
 #include "fub/ext/hana.hpp"
 
+#include <Eigen/Dense>
+
+#include <boost/mp11/tuple.hpp>
+
 namespace fub {
+namespace v2 {
+
+template <typename State> struct StateTraits;
+
+template <typename T, int Depth, int ArraySize> struct VectorValueType {
+  using type = Eigen::Array<double, Depth, ArraySize>;
+};
+
+template <typename T> struct VectorValueType<T, 1, 1> { using type = T; };
+
+} // namespace v2
 
 template <typename... As, typename... Bs>
 auto IsConvertible(boost::hana::basic_tuple<As...> a,
@@ -73,7 +88,7 @@ template <typename Base> struct StateBase : public Base {
 };
 
 template <typename T>
-constexpr auto ScalarComponentType(basic_type<T>, constant<1>) {
+constexpr auto ScalarComponentType(basic_type<T>, int_constant<1>) {
   return type_c<T>;
 }
 
@@ -83,7 +98,7 @@ constexpr auto ScalarComponentType(basic_type<T>, std::ptrdiff_t) {
 }
 
 template <typename T, int N, typename = std::enable_if_t<(N > 0)>>
-constexpr auto ScalarComponentType(basic_type<T>, constant<N>) {
+constexpr auto ScalarComponentType(basic_type<T>, int_constant<N>) {
   return type_c<Array<T, N, 1>>;
 }
 
@@ -188,23 +203,25 @@ Conservative<Equation> AsCons(const Complete<Equation>& complete) {
 }
 
 template <typename T, int Width>
-constexpr auto ArrayComponentType(basic_type<T>, constant<1>, constant<Width>) {
+constexpr auto ArrayComponentType(basic_type<T>, int_constant<1>,
+                                  int_constant<Width>) {
   return type_c<Array<T, 1, Width>>;
 }
 
 template <typename T, int Width>
 constexpr auto ArrayComponentType(basic_type<T>, std::ptrdiff_t,
-                                  constant<Width>) {
+                                  int_constant<Width>) {
   return type_c<Array<T, Eigen::Dynamic, Width>>;
 }
 
 template <typename T, int N, int Width, typename = std::enable_if_t<(N > 0)>>
-constexpr auto ArrayComponentType(basic_type<T>, constant<N>, constant<Width>) {
+constexpr auto ArrayComponentType(basic_type<T>, int_constant<N>,
+                                  int_constant<Width>) {
   return type_c<Array<T, N, Width>>;
 }
 
 template <int Width, typename Equation, StateType Type>
-constexpr auto ArrayBaseType(constant<Width> width, basic_type<Equation>,
+constexpr auto ArrayBaseType(int_constant<Width> width, basic_type<Equation>,
                              StateType_c<Type> type) {
   constexpr auto value_types = Equation::ValueTypes(type);
   constexpr auto shape = Equation::Shape(type);
@@ -219,7 +236,8 @@ constexpr auto ArrayBaseType(constant<Width> width, basic_type<Equation>,
 
 template <int N, typename Equation, StateType Type>
 using ArrayBaseTypeT = typename decltype(
-    ArrayBaseType(constant<N>{}, type_c<Equation>, constant<Type>{}))::type;
+    ArrayBaseType(int_constant<N>{}, type_c<Equation>,
+                  std::integral_constant<StateType, Type>{}))::type;
 
 template <typename Equation, int N = kDefaultChunkSize>
 struct CompleteArray
@@ -269,13 +287,13 @@ void ForEachVariable(F function, Ts&&... states) {
 }
 
 template <typename Layout, typename T, typename... Extents>
-constexpr auto ViewComponent(constant<1>, T* pointer, Extents... extents) {
+constexpr auto ViewComponent(int_constant<1>, T* pointer, Extents... extents) {
   return mdspan<T, sizeof...(Extents), Layout>(pointer, extents...);
 }
 
 template <typename Layout, int N, typename T, typename... Extents,
           typename = std::enable_if_t<(N > 0)>>
-constexpr auto ViewComponent(constant<N>, T* pointer, Extents... extents) {
+constexpr auto ViewComponent(int_constant<N>, T* pointer, Extents... extents) {
   return mdspan<T, sizeof...(Extents) + 1, Layout>(pointer, extents..., N);
 }
 
@@ -285,20 +303,20 @@ constexpr auto ViewComponent(int n, T* pointer, Extents... extents) {
 }
 
 template <typename Layout, typename T, int Rank>
-constexpr auto ViewComponentType(basic_type<Layout>, constant<1>,
-                                 basic_type<T*>, constant<Rank>) {
+constexpr auto ViewComponentType(basic_type<Layout>, int_constant<1>,
+                                 basic_type<T*>, int_constant<Rank>) {
   return type_c<PatchDataView<T, Rank, Layout>>;
 }
 
 template <typename Layout, typename Depth, typename T, int Rank>
 constexpr auto ViewComponentType(basic_type<Layout>, Depth, basic_type<T*>,
-                                 constant<Rank>) {
+                                 int_constant<Rank>) {
   return type_c<PatchDataView<T, Rank + 1, Layout>>;
 }
 
 template <typename Equation, int Rank, typename Layout>
-constexpr auto ViewBase(basic_type<Conservative<Equation>>, constant<Rank> rank,
-                        basic_type<Layout> layout) {
+constexpr auto ViewBase(basic_type<Conservative<Equation>>,
+                        int_constant<Rank> rank, basic_type<Layout> layout) {
   constexpr auto value_types = Equation::ValueTypes(cons);
   constexpr auto shape = Equation::Shape(cons);
   constexpr auto template_ = Equation::Template(cons);
@@ -315,7 +333,7 @@ constexpr auto ViewBase(basic_type<Conservative<Equation>>, constant<Rank> rank,
 
 template <typename Equation, int Rank, typename Layout>
 constexpr auto ViewBase(basic_type<const Conservative<Equation>>,
-                        constant<Rank> rank, basic_type<Layout> layout) {
+                        int_constant<Rank> rank, basic_type<Layout> layout) {
   constexpr auto value_types = Equation::ValueTypes(cons);
   constexpr auto shape = Equation::Shape(cons);
   constexpr auto template_ = Equation::Template(cons);
@@ -332,7 +350,7 @@ constexpr auto ViewBase(basic_type<const Conservative<Equation>>,
 }
 
 template <typename Equation, int Rank, typename Layout>
-constexpr auto ViewBase(basic_type<Complete<Equation>>, constant<Rank> rank,
+constexpr auto ViewBase(basic_type<Complete<Equation>>, int_constant<Rank> rank,
                         basic_type<Layout> layout) {
   constexpr auto value_types = Equation::ValueTypes(complete);
   constexpr auto shape = Equation::Shape(complete);
@@ -350,7 +368,7 @@ constexpr auto ViewBase(basic_type<Complete<Equation>>, constant<Rank> rank,
 
 template <typename Equation, int Rank, typename Layout>
 constexpr auto ViewBase(basic_type<const Complete<Equation>>,
-                        constant<Rank> rank, basic_type<Layout> layout) {
+                        int_constant<Rank> rank, basic_type<Layout> layout) {
   constexpr auto value_types = Equation::ValueTypes(complete);
   constexpr auto shape = Equation::Shape(complete);
   constexpr auto template_ = Equation::Template(complete);
@@ -368,7 +386,7 @@ constexpr auto ViewBase(basic_type<const Complete<Equation>>,
 
 template <typename State, int Rank, typename Layout>
 using ViewBaseT = typename decltype(
-    ViewBase(type_c<State>, constant<Rank>(), type_c<Layout>))::type;
+    ViewBase(type_c<State>, int_constant<Rank>(), type_c<Layout>))::type;
 
 template <typename State, typename Layout = layout_left,
           int Rank = State::EquationType::Rank()>
@@ -389,7 +407,7 @@ StateBase<T<remove_cvref_t<Args>...>> MakeTemplate(template_t<T>,
 
 template <typename Equation, typename Layout, int Rank>
 View<Conservative<Equation>, Layout, Rank>
-AsCons(View<Complete<Equation>, Layout, Rank> complete) {
+AsCons(const View<Complete<Equation>, Layout, Rank>& complete) {
   View<Conservative<Equation>, Layout, Rank> conservative;
   ForEachVariable<Conservative<Equation>>(
       [&](auto& cons, auto comp) { cons = comp; }, conservative, complete);
@@ -398,7 +416,7 @@ AsCons(View<Complete<Equation>, Layout, Rank> complete) {
 
 template <typename Equation, typename Layout, int Rank>
 View<const Conservative<Equation>, Layout, Rank>
-AsCons(View<const Complete<Equation>, Layout, Rank> complete) {
+AsCons(const View<const Complete<Equation>, Layout, Rank>& complete) {
   View<const Conservative<Equation>, Layout, Rank> conservative;
   ForEachVariable<Conservative<Equation>>(
       [&](auto& cons, auto comp) { cons = comp; }, conservative, complete);
@@ -416,7 +434,7 @@ AsConst(const View<Conservative<Equation>, Layout, Rank>& view) {
 
 template <typename Equation, typename Layout, int Rank>
 View<const Complete<Equation>, Layout, Rank>
-AsConst(View<Complete<Equation>, Layout, Rank> view) {
+AsConst(const View<Complete<Equation>, Layout, Rank>& view) {
   const auto members = view.Members();
   return boost::hana::unpack(members, [&](auto... mdspan) {
     return View<const Complete<Equation>, Layout, Rank>{mdspan...};
@@ -434,7 +452,7 @@ struct View<Conservative<Equation>, Layout, Rank>
       : View(AsCons(complete)) {}
 
   template <typename... Xs, typename = std::enable_if_t<(!IsView<Xs>() && ...)>>
-      View(Xs&&... xs) : Base{std::forward<Xs>(xs)...} {}
+  View(Xs&&... xs) : Base{std::forward<Xs>(xs)...} {}
 };
 
 template <typename Equation, typename Layout, int Rank>
@@ -453,7 +471,7 @@ struct View<const Conservative<Equation>, Layout, Rank>
       : View(AsCons(complete)) {}
 
   template <typename... Xs, typename = std::enable_if_t<(!IsView<Xs>() && ...)>>
-      explicit View(Xs&&... xs) : Base{std::forward<Xs>(xs)...} {}
+  explicit View(Xs&&... xs) : Base{std::forward<Xs>(xs)...} {}
 };
 
 template <typename Equation, typename Layout, int Rank>
@@ -469,7 +487,7 @@ struct View<const Complete<Equation>, Layout, Rank>
 
   template <typename... Xs,
             typename = std::enable_if_t<(!IsView<remove_cvref_t<Xs>>() && ...)>>
-      explicit View(Xs&&... xs) : Base{std::forward<Xs>(xs)...} {}
+  explicit View(Xs&&... xs) : Base{std::forward<Xs>(xs)...} {}
 };
 
 template <typename T> using StridedView = View<T, layout_stride>;
@@ -492,31 +510,31 @@ Mapping(const View<State, Layout, Rank>& view) {
 
 template <typename D, typename T, typename Scalar,
           typename = std::enable_if_t<std::is_floating_point<Scalar>::value>>
-constant<1> Components(const StateVector<D, T>&, const Scalar&) {
+int_constant<1> Components(const StateVector<D, T>&, const Scalar&) {
   return {};
 }
 
 template <typename D, typename Scalar, int M, int Options>
-constant<M> Components(const Conservative<D>&,
-                       const Eigen::Array<Scalar, 1, M, Options>&) {
+int_constant<M> Components(const Conservative<D>&,
+                           const Eigen::Array<Scalar, 1, M, Options>&) {
   return {};
 }
 
 template <typename D, typename Scalar, int M, int Options>
-constant<M> Components(const Complete<D>&,
-                       const Eigen::Array<Scalar, 1, M, Options>&) {
+int_constant<M> Components(const Complete<D>&,
+                           const Eigen::Array<Scalar, 1, M, Options>&) {
   return {};
 }
 
 template <typename D, typename Scalar, int N, int M, int Options>
-constant<M> Components(const ConservativeArray<D, N>&,
-                       const Eigen::Array<Scalar, N, M, Options>&) {
+int_constant<M> Components(const ConservativeArray<D, N>&,
+                           const Eigen::Array<Scalar, N, M, Options>&) {
   return {};
 }
 
 template <typename D, typename Scalar, int N, int M, int Options>
-constant<M> Components(const CompleteArray<D, N>&,
-                       const Eigen::Array<Scalar, N, M, Options>&) {
+int_constant<M> Components(const CompleteArray<D, N>&,
+                           const Eigen::Array<Scalar, N, M, Options>&) {
   return {};
 }
 
@@ -524,7 +542,7 @@ template <typename S, typename L, int Rank, typename T, int Rank2>
 auto Components(const View<S, L, Rank>&,
                 const PatchDataView<T, Rank2, L> span [[maybe_unused]]) {
   if constexpr (Rank == Rank2) {
-    return constant<1>{};
+    return int_constant<1>{};
   } else {
     static_assert(Rank + 1 == Rank2);
     return span.Extent(Rank);
@@ -672,19 +690,21 @@ void ForEachComponent(F function, T&& state, Ts&&... states) {
 }
 
 template <typename State, typename Layout>
-void Load(State& state, const View<const State, Layout>& view,
-          const std::array<std::ptrdiff_t, State::EquationType::Rank()>& index) {
+void Load(
+    State& state, const View<const State, Layout>& view,
+    const std::array<std::ptrdiff_t, State::EquationType::Rank()>& index) {
   ForEachComponent<State>(
-      [&](auto& component, const auto& mdspan) { component = mdspan(index); }, state,
-      view);
+      [&](auto& component, const auto& mdspan) { component = mdspan(index); },
+      state, view);
 }
 
 template <typename State, typename Layout>
-void Load(State& state, const View<State, Layout>& view,
-          const std::array<std::ptrdiff_t, State::EquationType::Rank()>& index) {
+void Load(
+    State& state, const View<State, Layout>& view,
+    const std::array<std::ptrdiff_t, State::EquationType::Rank()>& index) {
   ForEachComponent<State>(
-      [&](auto& component, const auto& mdspan) { component = mdspan(index); }, state,
-      view);
+      [&](auto& component, const auto& mdspan) { component = mdspan(index); },
+      state, view);
 }
 
 template <typename Eq, typename Layout>
@@ -692,8 +712,7 @@ void Store(const View<nodeduce_t<Conservative<Eq>>, Layout>& view,
            const Conservative<Eq>& state,
            const std::array<std::ptrdiff_t, Eq::Rank()>& index) {
   ForEachComponent<Conservative<Eq>>(
-      [&](auto data, auto block) { Store(data, block, index); }, view,
-      state);
+      [&](auto data, auto block) { Store(data, block, index); }, view, state);
 }
 
 template <typename Eq, typename Layout>
@@ -701,8 +720,7 @@ void Store(const View<nodeduce_t<Complete<Eq>>, Layout>& view,
            const Complete<Eq>& state,
            const std::array<std::ptrdiff_t, Eq::Rank()>& index) {
   ForEachComponent<Complete<Eq>>(
-      [&](auto data, auto block) { Store(data, block, index); }, view,
-      state);
+      [&](auto data, auto block) { Store(data, block, index); }, view, state);
 }
 
 template <typename Eq, int N, typename Layout, int Rank>
@@ -712,7 +730,7 @@ void Load(ConservativeArray<Eq, N>& state,
   ForEachComponent<Conservative<Eq>>(
       [&](auto& component, auto data) {
         component = std::apply(
-            [&](auto... i) { return Load(constant<N>(), data, i...); },
+            [&](auto... i) { return Load(int_constant<N>(), data, i...); },
             index);
       },
       state, view);
@@ -724,7 +742,7 @@ void Load(CompleteArray<Eq, N>& state,
           std::array<std::ptrdiff_t, Rank> index) {
   ForEachComponent<Complete<Eq>>(
       [&](auto& component, auto data) {
-        component = Load(constant<N>(), data, index);
+        component = Load(int_constant<N>(), data, index);
       },
       state, view);
 }
@@ -734,7 +752,7 @@ void LoadN(CompleteArray<Eq, N>& state,
            const View<const Complete<Eq>, Layout, Rank>& view, int size,
            const std::array<std::ptrdiff_t, Rank>& pos) {
   ForEachComponent<Complete<Eq>>(
-      [&](auto& s, auto v) { s = LoadN(constant<N>{}, v, size, pos); },
+      [&](auto& s, auto v) { s = LoadN(int_constant<N>{}, v, size, pos); },
       state, view);
 }
 
@@ -743,7 +761,7 @@ void LoadN(ConservativeArray<Eq, N>& state,
            const View<const Conservative<Eq>, Layout, Rank>& view, int size,
            const std::array<std::ptrdiff_t, Rank>& pos) {
   ForEachComponent<Conservative<Eq>>(
-      [&](auto& s, auto v) { s = LoadN(constant<N>{}, v, size, pos); },
+      [&](auto& s, auto v) { s = LoadN(int_constant<N>{}, v, size, pos); },
       state, view);
 }
 
@@ -752,8 +770,7 @@ void Store(const View<nodeduce_t<Conservative<Eq>>, Layout, Rank>& view,
            const ConservativeArray<Eq, N>& state,
            std::array<std::ptrdiff_t, Rank> index) {
   ForEachComponent<Conservative<Eq>>(
-      [&](auto data, auto block) { Store(data, block, index); }, view,
-      state);
+      [&](auto data, auto block) { Store(data, block, index); }, view, state);
 }
 
 template <typename Eq, int N, typename Layout, int Rank>
@@ -761,8 +778,7 @@ void Store(const View<nodeduce_t<Complete<Eq>>, Layout, Rank>& view,
            const CompleteArray<Eq, N>& state,
            std::array<std::ptrdiff_t, Rank> index) {
   ForEachComponent<Complete<Eq>>(
-      [&](auto data, auto block) { Store(data, block, index); }, view,
-      state);
+      [&](auto data, auto block) { Store(data, block, index); }, view, state);
 }
 
 template <typename Eq, int N, typename Layout, int Rank>
@@ -770,8 +786,7 @@ void StoreN(const View<Complete<Eq>, Layout, Rank>& view,
             const CompleteArray<Eq, N>& state, int size,
             const std::array<std::ptrdiff_t, Rank>& pos) {
   ForEachComponent<Complete<Eq>>(
-      [&](auto& s, auto v) { StoreN(v, size, s, pos[0]); }, state,
-      view);
+      [&](auto& s, auto v) { StoreN(v, size, s, pos[0]); }, state, view);
 }
 
 template <typename Eq, int N, typename Layout, int Rank>
@@ -779,8 +794,7 @@ void StoreN(const View<Conservative<Eq>, Layout, Rank>& view,
             const ConservativeArray<Eq, N>& state, int size,
             const std::array<std::ptrdiff_t, Rank>& pos) {
   ForEachComponent<Conservative<Eq>>(
-      [&](auto& s, auto v) { StoreN(v, size, s, pos[0]); }, state,
-      view);
+      [&](auto& s, auto v) { StoreN(v, size, s, pos[0]); }, state, view);
 }
 
 template <typename State, typename Layout, int Rank,

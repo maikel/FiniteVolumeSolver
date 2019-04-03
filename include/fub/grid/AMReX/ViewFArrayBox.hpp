@@ -132,13 +132,13 @@ MakePatchDataView(const ::amrex::BaseFab<T>& fab, int component) {
 }
 
 template <typename Equation>
-constant<StateType::Complete>
+std::integral_constant<StateType, StateType::Complete>
 GetStateType(basic_type<Equation>, basic_type<View<Complete<Equation>>>) {
   return {};
 }
 
 template <typename Equation>
-constant<StateType::Conservative>
+std::integral_constant<StateType, StateType::Conservative>
 GetStateType(basic_type<Equation>, basic_type<View<Conservative<Equation>>>) {
   return {};
 }

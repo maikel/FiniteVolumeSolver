@@ -26,6 +26,9 @@
 
 #include <array>
 #include <functional>
+#include <utility>
+
+#include <boost/mp11/tuple.hpp>
 
 namespace fub {
 template <int Rank> struct IndexBox {
@@ -192,9 +195,9 @@ struct PatchDataView : public PatchDataViewBase<T, R, Layout> {
     std::transform(offset.begin(), offset.end(), extents.begin(),
                    slice_array.begin(),
                    [](std::ptrdiff_t offset, std::ptrdiff_t extents) {
-                     return std::pair{offset, offset + extents};
+                     return std::make_pair(offset, offset + extents);
                    });
-    return std::apply(
+    return boost::mp11::tuple_apply(
         [&](const auto&... slices) {
           return PatchDataView<T, R, layout_stride>(
               subspan(MdSpan(), slices...), box.lower);

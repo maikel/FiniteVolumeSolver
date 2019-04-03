@@ -45,6 +45,9 @@ using BoundaryCondition =
   GriddingAlgorithm(std::shared_ptr<PatchHierarchy> hier,
                     InitialData initial_data, Tagging tagging);
 
+  GriddingAlgorithm(std::shared_ptr<PatchHierarchy> hier,
+                    InitialData initial_data, Tagging tagging, BoundaryCondition boundary);
+
   const std::shared_ptr<PatchHierarchy>& GetPatchHierarchy() const noexcept {
     return hierarchy_;
   }

@@ -111,7 +111,7 @@ struct ShockData {
     CartesianCoordinates x = fub::amrex::GetCartesianCoordinates(geom, box);
     if (type == ::amrex::FabType::regular) {
       ForEachIndex(Box<0>(data), [&](auto... is) {
-        if (x(is...)[1] > 0.7) {
+        if (x(is...)[1] > 100.0) {
           Store(data, left, {is...});
         } else {
           Store(data, right, {is...});
@@ -123,7 +123,7 @@ struct ShockData {
       ForEachIndex(Box<0>(data), [&](auto... is) {
         if (flags(is...).isCovered()) {
           Store(data, zero, {is...});
-        } else if (x(is...)[1] > 0.7) {
+        } else if (x(is...)[1] > 100.0) {
           Store(data, left, {is...});
         } else {
           Store(data, right, {is...});
@@ -225,8 +225,7 @@ auto Wedge(const Coord& p1, const Coord& p2) {
 }
 
 int main(int argc, char** argv) {
-  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() & ~MM_MASK_INVALID);
-
+  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() & ~_MM_MASK_INVALID);
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
@@ -237,12 +236,12 @@ int main(int argc, char** argv) {
                    << " threads.\n";
 #endif
 
-  const std::array<int, 2> n_cells{32, 32};
+  const std::array<int, 2> n_cells{128, 128};
   const std::array<double, 2> xlower{-0.5, 0.0};
   const std::array<double, 2> xupper{+0.5, +1.0};
   const std::array<int, 2> periodicity{0, 0};
 
-  const int n_level = 2;
+  const int n_level = 1;
 
   const amrex::Geometry finest_geom =
       MakeFinestGeometry(n_cells, xlower, xupper, periodicity, n_level);

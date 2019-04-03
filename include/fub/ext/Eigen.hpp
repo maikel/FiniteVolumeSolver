@@ -23,10 +23,12 @@
 
 #include <Eigen/Eigen>
 
-#include "fub/PatchDataView.hpp"
 #include "fub/Direction.hpp"
+#include "fub/PatchDataView.hpp"
 
 #include <type_traits>
+
+#include <boost/mp11/function.hpp>
 
 namespace fub {
 
@@ -43,10 +45,10 @@ using Array3d = Array<double, 3>;
 using ArrayXd = Array<double, Eigen::Dynamic>;
 
 template <int N, typename T, typename Extents, typename Layout,
-          typename... Indices,
-          typename = std::enable_if_t<(std::is_integral_v<Indices> && ...)>>
-Eigen::Array<std::remove_cv_t<T>, N, 1>
-LoadN(constant<N>, basic_mdspan<T, Extents, Layout> mdspan, int size,
+          typename... Indices>
+std::enable_if_t<boost::mp11::mp_all<std::is_integral<Indices>...>::value,
+                 Eigen::Array<std::remove_cv_t<T>, N, 1>>
+LoadN(int_constant<N>, basic_mdspan<T, Extents, Layout> mdspan, int size,
       std::ptrdiff_t i0, Indices... indices) {
   FUB_ASSERT(0 < size && size < N);
   Eigen::Array<std::remove_cv_t<T>, N, 1> array;
@@ -72,12 +74,13 @@ Eigen::Matrix<double, Rank, 1> UnitVector(Direction dir) noexcept {
   return unit;
 }
 
-inline Eigen::Matrix<double, 2, 2> MakeRotation(const Eigen::Matrix<double, 2, 1>& a,
-                                         const Eigen::Matrix<double, 2, 1>& b) {
+inline Eigen::Matrix<double, 2, 2>
+MakeRotation(const Eigen::Matrix<double, 2, 1>& a,
+             const Eigen::Matrix<double, 2, 1>& b) {
   if (a == -b) {
     return -Eigen::Matrix<double, 2, 2>::Identity();
   }
-  const double s = a[0]*b[1] - a[1]*b[0];
+  const double s = a[0] * b[1] - a[1] * b[0];
   const double c = a.dot(b);
   Eigen::Matrix<double, 2, 2> rotation;
   rotation << c, -s, s, c;
@@ -87,7 +90,7 @@ inline Eigen::Matrix<double, 2, 2> MakeRotation(const Eigen::Matrix<double, 2, 1
 template <int N, typename T, typename Extents, typename Layout,
           typename... Indices>
 Eigen::Array<std::remove_cv_t<T>, N, 1>
-LoadN(constant<N>, basic_mdspan<T, Extents, Layout> mdspan, int size,
+LoadN(int_constant<N>, basic_mdspan<T, Extents, Layout> mdspan, int size,
       const std::array<std::ptrdiff_t, Extents::rank()>& index) {
   FUB_ASSERT(0 < size && size < N);
   Eigen::Array<std::remove_cv_t<T>, N, 1> array{};
@@ -100,7 +103,7 @@ LoadN(constant<N>, basic_mdspan<T, Extents, Layout> mdspan, int size,
 template <int N, typename T, typename Extents, typename Layout,
           typename... Indices>
 Eigen::Array<std::remove_cv_t<T>, N, 1>
-Load(constant<N> n, basic_mdspan<T, Extents, Layout> mdspan,
+Load(int_constant<N> n, basic_mdspan<T, Extents, Layout> mdspan,
      Indices... indices) {
   if (mdspan.stride(0) == 1) {
     return Eigen::Map<const Eigen::Array<std::remove_cv_t<T>, N, 1>>(
@@ -115,7 +118,7 @@ Load(constant<N> n, basic_mdspan<T, Extents, Layout> mdspan,
 
 template <typename T, typename Extents, typename Layout, typename... Indices>
 auto Load(basic_mdspan<T, Extents, Layout> mdspan, Indices... indices) {
-  return Load(constant<kDefaultChunkSize>(), mdspan, indices...);
+  return Load(int_c<kDefaultChunkSize>, mdspan, indices...);
 }
 
 template <typename T, int N, typename Layout, typename... Indices>

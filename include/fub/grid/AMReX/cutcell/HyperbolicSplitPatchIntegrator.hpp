@@ -42,8 +42,8 @@ template <typename Base> struct HyperbolicSplitPatchIntegrator : public Base {
   template <typename Context>
   void UpdateConservatively(Context& context, PatchHandle patch, Direction dir,
                             Duration dt) {
-    const int gcw = context.GetGhostCellWidth(patch, dir);
-    ::amrex::FabType type = context.GetCutCellPatchType(patch, gcw);
+    // const int gcw = context.GetGhostCellWidth(patch, dir);
+    ::amrex::FabType type = context.GetCutCellPatchType(patch);
     if (type == ::amrex::FabType::covered) {
       return;
     }

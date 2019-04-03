@@ -42,31 +42,80 @@
 #include <fmt/format.h>
 #include <iostream>
 
-struct CircleData {
-  std::shared_ptr<fub::amrex::PatchHierarchy> hierarchy;
-  fub::PerfectGas<2> equation_;
-  void
-  InitializeData(const fub::View<fub::Complete<fub::PerfectGas<2>>>& states,
-                 fub::amrex::PatchHandle patch) const {
+struct ShockData {
+  using Equation = fub::PerfectGas<2>;
+  using Complete = fub::Complete<Equation>;
+  using Conservative = fub::Conservative<Equation>;
+
+  void InitializeData(const fub::View<Complete>& data,
+                      fub::amrex::PatchHandle patch) {
+    using namespace fub;
     const ::amrex::Geometry& geom = hierarchy->GetGeometry(patch.level);
     const ::amrex::Box& box = patch.iterator->tilebox();
-    fub::CartesianCoordinates x =
-        fub::amrex::GetCartesianCoordinates(geom, box);
-    fub::ForEachIndex(fub::Box<0>(states), [&](auto... is) {
-      const double norm = x(is...).norm();
-      fub::Conservative<fub::PerfectGas<2>> state;
-      if (norm < 0.25) {
-        state.energy = 8 * 101325. * equation_.gamma_minus_1_inv;
+    CartesianCoordinates x = fub::amrex::GetCartesianCoordinates(geom, box);
+
+    ForEachIndex(Box<0>(data), [&](auto... is) {
+      if (x(is...)[0] < -0.04) {
+        Store(data, left, {is...});
       } else {
-        state.energy = 101325. * equation_.gamma_minus_1_inv;
+        Store(data, right, {is...});
       }
-      state.density = 1.0;
-      state.momentum.fill(0);
-      fub::Complete<fub::PerfectGas<2>> complete;
-      CompleteFromCons(equation_, complete, state);
-      Store(states, complete, {is...});
     });
   }
+
+  std::shared_ptr<fub::amrex::PatchHierarchy> hierarchy;
+  Equation equation;
+  Complete left;
+  Complete right;
+};
+
+
+struct TransmissiveBoundary {
+  using Equation = fub::PerfectGas<2>;
+  using Complete = fub::Complete<Equation>;
+  using Conservative = fub::Conservative<Equation>;
+
+  void operator()(const fub::PatchDataView<double, 3>& data,
+                  fub::amrex::PatchHandle, fub::Location location,
+                  int fill_width, fub::Duration) {
+    fub::View<Complete> complete =
+        fub::amrex::MakeView<fub::View<Complete>>(data, equation);
+    const std::size_t dir = static_cast<std::size_t>(location.direction);
+    const std::size_t other_dir = (dir + 1) % 2;
+    std::array<std::ptrdiff_t, 3> origin = data.Origin();
+    if (location.side == 0) {
+      for (std::ptrdiff_t j = 0; j < data.Extent(other_dir); ++j) {
+        std::array<std::ptrdiff_t, 2> dest_index{origin[0], origin[1]};
+        std::array<std::ptrdiff_t, 2> source_index{origin[0], origin[1]};
+        dest_index[other_dir] += j;
+        source_index[other_dir] += j;
+        source_index[dir] += fill_width;
+        Load(state, complete, source_index);
+        for (int i = 0; i < fill_width; ++i) {
+          dest_index[dir] = origin[dir] + i;
+          Store(complete, state, dest_index);
+        }
+      }
+    } else if (location.side == 1) {
+      const std::ptrdiff_t n = fub::Extents<0>(complete).extent(dir);
+      for (std::ptrdiff_t j = 0; j < data.Extent(other_dir); ++j) {
+        std::array<std::ptrdiff_t, 2> dest_index{origin[0], origin[1]};
+        std::array<std::ptrdiff_t, 2> source_index{origin[0], origin[1]};
+        dest_index[other_dir] += j;
+        source_index[other_dir] += j;
+        source_index[dir] += n - 1 - fill_width;
+        Load(state, complete, source_index);
+        for (int i = 0; i < fill_width; ++i) {
+          dest_index[dir] = origin[dir] + n - fill_width + i;
+          Store(complete, state, dest_index);
+        }
+      }
+    }
+  }
+
+  std::shared_ptr<fub::amrex::PatchHierarchy> hierarchy;
+  Equation equation;
+  Complete state{equation};
 };
 
 int main(int argc, char** argv) {
@@ -88,31 +137,48 @@ int main(int argc, char** argv) {
   fub::amrex::CartesianGridGeometry geometry;
   geometry.cell_dimensions = n_cells;
   geometry.coordinates = amrex::RealBox(xlower, xupper);
-  geometry.periodicity = std::array<int, 2>{1, 1};
+  geometry.periodicity = std::array<int, 2>{0, 0};
 
   fub::amrex::DataDescription desc = fub::amrex::MakeDataDescription(equation);
 
   fub::amrex::PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = 3;
+  hier_opts.max_number_of_levels = 1;
 
   auto hierarchy =
       std::make_shared<fub::amrex::PatchHierarchy>(desc, geometry, hier_opts);
 
   using Complete = fub::PerfectGas<2>::Complete;
-  fub::GradientDetector gradient{std::make_pair(&Complete::density, 1e-3),
-                                 std::make_pair(&Complete::pressure, 1000.0)};
-  fub::TagBuffer buffer{2};
+  fub::GradientDetector gradient{std::make_pair(&Complete::density, 0.001),
+                                 std::make_pair(&Complete::pressure, 0.1)};
+  fub::TagBuffer buffer{4};
 
-  CircleData initial_data{};
+  auto from_prim = [](Complete& state, const fub::PerfectGas<2>& equation) {
+    state.energy = state.pressure * equation.gamma_minus_1_inv;
+    state.speed_of_sound =
+        std::sqrt(equation.gamma * state.pressure / state.density);
+  };
+
+  Complete left;
+  left.density = 1.0;
+  left.momentum = 0.0;
+  left.pressure = 1000.0;
+  from_prim(left, equation);
+
+  Complete right;
+  right.density = 1.0;
+  right.momentum = 0.0;
+  right.pressure = 0.01;
+  from_prim(right, equation);
+
+  ShockData initial_data{hierarchy, equation, left, right};
+  TransmissiveBoundary boundary{hierarchy, equation};
   auto gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       hierarchy, fub::amrex::AdaptInitialData(initial_data, equation),
-      fub::amrex::AdaptTagging(equation, hierarchy, gradient, buffer));
+      fub::amrex::AdaptTagging(equation, hierarchy, gradient, buffer), boundary);
   gridding->InitializeHierarchy(0.0);
 
   fub::HyperbolicSplitPatchIntegrator patch_integrator{equation};
-  fub::HllMethod base_method{equation,
-                             fub::EinfeldtSignalVelocities<fub::PerfectGas<2>>};
-  fub::MusclHancockMethod flux_method{equation, base_method};
+  fub::MusclHancockMethod flux_method{equation};
 
   const int gcw = flux_method.GetStencilWidth();
   fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
@@ -135,8 +201,9 @@ int main(int argc, char** argv) {
   using namespace std::literals::chrono_literals;
   output(hierarchy, 0, 0.0s);
   fub::RunOptions run_options{};
-  run_options.final_time = 0.004s;
-  run_options.output_interval = 0.00005s;
+  
+  run_options.final_time = 1.0s;
+  run_options.output_frequency = 1;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      print_msg);
 }

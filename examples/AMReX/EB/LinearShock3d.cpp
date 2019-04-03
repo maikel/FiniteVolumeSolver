@@ -54,6 +54,14 @@
 #include <cmath>
 #include <iostream>
 
+
+#ifdef __APPLE__
+#include <xmmintrin.h>
+#else
+#pragma STDC FENV_ACCESS ON
+#include <fenv.h>
+#endif
+
 #ifdef _OPENMP
 extern "C" {
 #include <omp.h>
@@ -221,12 +229,18 @@ int main(int argc, char** argv) {
       std::chrono::steady_clock::now();
   fub::amrex::ScopeGuard _(argc, argv);
 
+#ifdef __APPLE__
+  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() | _MM_MASK_DIV_ZERO | _MM_MASK_OVERFLOW | _MM_MASK_UNDERFLOW | _MM_MASK_INVALID);
+#else
+  ::feenableexcept(FE_DIVBYZERO | FE_INVALID | FE_OVERFLOW | FE_UNDERFLOW);
+#endif
+
 #ifdef _OPENMP
   ::amrex::Print() << "Using OpenMP with maximal " << ::omp_get_max_threads()
                    << " threads.\n";
 #endif
 
-  const std::array<int, 3> n_cells{128, 128, 128};
+  const std::array<int, 3> n_cells{80, 80, 80};
   const std::array<double, 3> xlower{-0.10, -0.15, -0.15};
   const std::array<double, 3> xupper{+0.20, +0.15, +0.15};
   const std::array<int, 3> periodicity{0, 0, 0};
@@ -279,15 +293,13 @@ int main(int argc, char** argv) {
   TransmissiveBoundary boundary{hierarchy, equation};
 
   fub::HyperbolicSplitCutCellPatchIntegrator patch_integrator{equation};
-  fub::HllMethod base_method{equation,
-                             fub::EinfeldtSignalVelocities<fub::PerfectGas<3>>};
-  fub::MusclHancockMethod muscl_method{equation, base_method};
-  fub::KbnCutCellMethod cutcell_method(muscl_method);
+  fub::MusclHancockMethod base_method{equation};
+  fub::KbnCutCellMethod cutcell_method(base_method);
 
   auto gridding = std::make_shared<fub::amrex::cutcell::GriddingAlgorithm>(
       hierarchy, fub::amrex::AdaptInitialData(initial_data, equation),
       fub::amrex::cutcell::AdaptTagging(equation, hierarchy, cutcells,
-                                        gradients, fub::TagBuffer(2)),
+                                        gradients, fub::TagBuffer(4)),
       boundary);
 
   gridding->InitializeHierarchy(0.0);
@@ -320,7 +332,7 @@ int main(int argc, char** argv) {
   output(hierarchy, 0, 0s);
   fub::RunOptions run_options{};
   run_options.final_time = 0.002s;
-  run_options.output_interval = 0.0000125s;
+  run_options.output_interval = 0.5 * 0.0000125s;
   run_options.cfl = 0.25 * 0.9;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      print_msg);

@@ -34,7 +34,8 @@
 
 #include <array>
 #include <type_traits>
-#include <tuple>
+
+#include <boost/mp11/tuple.hpp>
 
 namespace fub {
 /// This is the storage type for the extents class and only takes storage for
@@ -641,7 +642,7 @@ public:
       noexcept {
     const accessor_type acc = accessor();
     const mapping_type map = mapping();
-    return acc.access(ptr_, std::apply(map, indices));
+    return acc.access(ptr_, boost::mp11::tuple_apply(map, indices));
   }
 
   // [mdspan.basic.domobs], basic_mdspan observers of the domain

@@ -8,6 +8,9 @@ target_link_libraries(test.core.span HyperbolicSolver.Core Catch2)
 add_executable(test.core.mdspan test.core.mdspan.cpp)
 target_link_libraries(test.core.mdspan HyperbolicSolver.Core Catch2)
 
+add_executable(test.PerfectGas.ExactRiemannProblem test.PerfectGas.ExactRiemannProblem.cpp)
+target_link_libraries(test.PerfectGas.ExactRiemannProblem HyperbolicSolver.Solver)
+
 if (AMReX_FOUND AND AMREX_DIM EQUAL 2 AND AMREX_ENABLE_EB)
   add_executable(test.AMReX.EB.Wedge_nan test.AMReX.EB.plane_nan.cpp)
   target_link_libraries(test.AMReX.EB.Wedge_nan HyperbolicSolver.AMReX)

@@ -18,6 +18,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#ifdef __APPLE__
+#include <xmmintrin.h>
+#else
+#pragma STDC FENV_ACCESS ON
+#include <fenv.h>
+#endif
+
 #include "fub/CartesianCoordinates.hpp"
 #include "fub/equations/PerfectGas.hpp"
 
@@ -218,13 +225,18 @@ int main(int argc, char** argv) {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
   fub::amrex::ScopeGuard _(argc, argv);
+#ifdef __APPLE__
+  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() | _MM_MASK_DIV_ZERO | _MM_MASK_OVERFLOW | _MM_MASK_UNDERFLOW | _MM_MASK_INVALID);
+#else
+  ::feenableexcept(FE_DIVBYZERO | FE_INVALID | FE_OVERFLOW | FE_UNDERFLOW);
+#endif
 
   const std::array<int, 2> n_cells{128, 128};
   const std::array<double, 2> xlower{-0.10, -0.15};
   const std::array<double, 2> xupper{+0.20, +0.15};
   const std::array<int, 2> periodicity{0, 0};
 
-  const int n_level = 3;
+  const int n_level = 1;
 
   amrex::Geometry finest_geom =
       MakeFinestGeometry(n_cells, xlower, xupper, periodicity, n_level);

@@ -135,8 +135,10 @@ template <class Bool>
 using negation = std::integral_constant<bool, !bool(Bool::value)>;
 #endif
 
+#if defined(__cpp_nontype_template_parameter_auto)
 template <auto N>
 struct constant : std::integral_constant<decltype(N), N> {};
+#endif
 
 #if defined(__cpp_lib_integer_sequence)
 using std::integer_sequence;
@@ -285,8 +287,8 @@ struct is_regular
                   is_equality_comparable<T>> {};
 
 // helper type for the visitor #4
-template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
 #ifdef __cpp_deduction_guides
+template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
 template<class... Ts> overloaded(Ts...) -> overloaded<Ts...>;
 #endif
 
