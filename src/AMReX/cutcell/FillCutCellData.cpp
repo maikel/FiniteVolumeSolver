@@ -35,16 +35,14 @@ void FillCutCellData(PatchDataView<double, 2> unshielded,
     const std::array<std::ptrdiff_t, 2> right = Shift(mid, dir, +1);
     const double beta_left = data.face_fractions(left);
     const double beta_mid = data.face_fractions(mid);
-    FUB_ASSERT(beta_mid >= 0.0);
     const double beta_right = data.face_fractions(right);
+    FUB_ASSERT(beta_mid >= 0.0);
     const double dBetaL = std::max(0.0, beta_mid - beta_left);
     const double dBetaR = std::max(0.0, beta_mid - beta_right);
-    FUB_ASSERT(dBetaL >= 0.0);
-    shielded_left(mid) = dBetaL;
-    FUB_ASSERT(dBetaR >= 0.0);
-    shielded_right(mid) = dBetaR;
     unshielded(mid) = beta_mid - std::max(dBetaL, dBetaR);
     doubly_shielded(mid) = std::min(dBetaL, dBetaR);
+    shielded_left(mid) = std::max(0.0, dBetaL - doubly_shielded(mid));
+    shielded_right(mid) = std::max(0.0, dBetaR - doubly_shielded(mid));
   });
 }
 
@@ -61,12 +59,13 @@ void FillCutCellData(PatchDataView<double, 3> unshielded,
     const double beta_left = data.face_fractions(left);
     const double beta_mid = data.face_fractions(mid);
     const double beta_right = data.face_fractions(right);
+    FUB_ASSERT(beta_mid >= 0.0);
     const double dBetaL = std::max(0.0, beta_mid - beta_left);
     const double dBetaR = std::max(0.0, beta_mid - beta_right);
-    shielded_left(mid) = dBetaL;
-    shielded_right(mid) = dBetaR;
     unshielded(mid) = beta_mid - std::max(dBetaL, dBetaR);
     doubly_shielded(mid) = std::min(dBetaL, dBetaR);
+    shielded_left(mid) = std::max(0.0, dBetaL - doubly_shielded(mid));
+    shielded_right(mid) = std::max(0.0, dBetaR - doubly_shielded(mid));
   });
 }
 

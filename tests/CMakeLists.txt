@@ -22,6 +22,16 @@ if (AMReX_FOUND AND AMREX_DIM EQUAL 2 AND AMREX_ENABLE_EB)
       $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wconversion>)
 endif()
 
+if (AMReX_FOUND AND AMREX_DIM EQUAL 3 AND AMREX_ENABLE_EB)
+  add_executable(test.AMReX.EB.Cylinder test.AMReX.EB.Cylinder.cpp)
+  target_link_libraries(test.AMReX.EB.Cylinder HyperbolicSolver.AMReX)
+  target_compile_options(test.AMReX.EB.Cylinder
+      PRIVATE 
+      $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
+      $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall>
+      $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>)
+endif()
+
 # find_package(benchmark QUIET)
 # if (TARGET benchmark::benchmark)
 #   add_executable(benchmark.Advection benchmark/Advection.cpp)

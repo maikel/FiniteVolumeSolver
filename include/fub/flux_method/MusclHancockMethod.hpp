@@ -59,6 +59,27 @@ struct MinMod {
   }
 };
 
+struct VanLeer {
+  template <typename Equation>
+  void ComputeLimitedSlope(Conservative<Equation>& cons,
+                           span<const Complete<Equation>, 3> stencil) {
+    ForEachComponent<Conservative<Equation>>(
+        [](double& cons, double qL, double qM, double qR) {
+          const double sL = qM - qL;
+          const double sR = qR - qM;
+          double r = 0;
+          if (sL * sR > 0.0) {
+            r = sL / sR;
+          }
+          if (r < 0.0) {
+            return 0.0;
+          }
+          return 0.5 * std::min(2*r/(1+r), 2/(1+r)) * (sL + sR);
+        },
+        cons, stencil[0], stencil[1], stencil[2]);
+  }
+};
+
 template <typename EquationT,
           typename BaseMethod = GodunovMethod<EquationT, ExactRiemannSolver<EquationT>>,
           typename SlopeLimiter = MinMod>

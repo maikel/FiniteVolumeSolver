@@ -57,7 +57,7 @@ PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
   const ::amrex::MultiCutFab& centeroids = factory->getBndryCent();
   const ::amrex::FabArray<::amrex::EBCellFlagFab>& flags =
       factory->getMultiEBCellFlagFab();
-   for (std::size_t d = 0; d < static_cast<std::size_t>(AMREX_SPACEDIM); ++d) {
+  for (std::size_t d = 0; d < static_cast<std::size_t>(AMREX_SPACEDIM); ++d) {
     const ::amrex::MultiCutFab& betas = *factory->getAreaFrac()[d];
     for (::amrex::MFIter mfi(ba, dm); mfi.isValid(); ++mfi) {
       if (flags[mfi].getType(mfi.tilebox()) == ::amrex::FabType::singlevalued) {
@@ -111,7 +111,8 @@ PatchHierarchy::GetCutCellData(PatchHandle patch, Direction dir) const {
   CutCellData<AMREX_SPACEDIM> cutcell_data;
   const PatchLevel& level = GetPatchLevel(patch.level);
   cutcell_data.dir = dir;
-  cutcell_data.flags = MakePatchDataView(level.factory->getMultiEBCellFlagFab()[mfi], 0);
+  cutcell_data.flags =
+      MakePatchDataView(level.factory->getMultiEBCellFlagFab()[mfi], 0);
   cutcell_data.volume_fractions =
       MakePatchDataView(level.factory->getVolFrac()[mfi], 0);
   cutcell_data.face_fractions =
@@ -129,6 +130,127 @@ PatchHierarchy::GetCutCellData(PatchHandle patch, Direction dir) const {
   cutcell_data.doubly_shielded_fractions =
       MakePatchDataView((*level.doubly_shielded[d])[mfi], 0);
   return cutcell_data;
+}
+
+void WriteCheckpointFile(const std::string checkpointname,
+                         const PatchHierarchy& hier) {
+  const int nlevels = hier.GetNumberOfLevels();
+  ::amrex::PreBuildDirectorHierarchy(checkpointname, "Level_", nlevels, true);
+  // write Header file
+  if (::amrex::ParallelDescriptor::IOProcessor()) {
+    const std::string header(checkpointname + "/Header");
+    ::amrex::VisMF::IO_Buffer io_buffer(::amrex::VisMF::IO_Buffer_Size);
+    std::ofstream hout;
+    hout.rdbuf()->pubsetbuf(io_buffer.dataPtr(), io_buffer.size());
+    hout.open(header.c_str(), std::ofstream::out | std::ofstream::trunc |
+                                  std::ofstream::binary);
+    if (!hout.good()) {
+      ::amrex::FileOpenFailed(header);
+    }
+
+    hout.precision(17);
+
+    // write out title line
+    hout << "Checkpoint file for fub::cutcell::PatchHierarchy\n";
+
+    // write out finest_level
+    hout << nlevels - 1 << '\n';
+
+    // write out array of istep
+    for (int level = 0; level < nlevels; ++level) {
+      hout << hier.GetCycles(level) << ' ';
+    }
+    hout << '\n';
+
+    // write out array of t_new
+    for (int level = 0; level < nlevels; ++level) {
+      hout << hier.GetTimePoint(level).count() << ' ';
+    }
+    hout << '\n';
+
+    // write the BoxArray at each level
+    for (int level = 0; level < nlevels; ++level) {
+      hier.GetPatchLevel(level).data.boxArray().writeOn(hout);
+      hout << '\n';
+    }
+  }
+
+  // write the MultiFab data
+  for (int level = 0; level < nlevels; ++level) {
+    ::amrex::VisMF::Write(hier.GetPatchLevel(level).data,
+                          ::amrex::MultiFabFileFullPrefix(level, checkpointname,
+                                                          "Level_", "data"));
+  }
+}
+
+std::shared_ptr<PatchHierarchy>
+ReadCheckpointFile(const std::string checkpointname, DataDescription desc,
+                   const CartesianGridGeometry& geometry,
+                   const PatchHierarchyOptions& options) {
+  std::string File(checkpointname + "/Header");
+  ::amrex::VisMF::IO_Buffer io_buffer(::amrex::VisMF::GetIOBufferSize());
+  ::amrex::Vector<char> fileCharPtr;
+  ::amrex::ParallelDescriptor::ReadAndBcastFile(File, fileCharPtr);
+  std::string fileCharPtrString(fileCharPtr.dataPtr());
+  std::istringstream is(fileCharPtrString, std::istringstream::in);
+
+  std::shared_ptr<PatchHierarchy> hierarchy =
+      std::make_shared<PatchHierarchy>(desc, geometry, options);
+
+  // read in title line
+  std::string line;
+  std::getline(is, line);
+
+  // read in finest_level
+  std::getline(is, line);
+  const int finest_level = std::stoi(line);
+  std::vector<std::ptrdiff_t> cycles(static_cast<std::size_t>(finest_level + 1));
+  std::vector<double> time_points(static_cast<std::size_t>(finest_level + 1));
+
+  // read in array of istep
+  std::getline(is, line);
+  {
+    std::istringstream lis(line);
+    for (std::size_t i = 0; i <= static_cast<std::size_t>(finest_level); ++i) {
+      lis >> cycles[i];
+    }
+  }
+
+  // read in array of t_new
+  std::getline(is, line);
+  {
+    std::istringstream lis(line);
+    for (std::size_t i = 0; i <= static_cast<std::size_t>(finest_level); ++i) {
+      lis >> time_points[i];
+    }
+  }
+
+  for (int lev = 0; lev <= finest_level; ++lev) {
+    // read in level 'lev' BoxArray from Header
+    ::amrex::BoxArray ba;
+    ba.readFrom(is);
+
+    // create a distribution mapping
+    ::amrex::DistributionMapping dm{ba, ::amrex::ParallelDescriptor::NProcs()};
+
+    std::unique_ptr<::amrex::EBFArrayBoxFactory> eb_factory =
+        ::amrex::makeEBFabFactory(hierarchy->GetGeometry(lev), ba, dm,
+                                  {4, 4, 4}, ::amrex::EBSupport::full);
+
+    hierarchy->GetPatchLevel(lev) =
+        PatchLevel(lev, Duration(time_points[lev]), ba, dm,
+                   desc.n_state_components, std::move(eb_factory));
+    hierarchy->GetPatchLevel(lev).cycles = cycles[lev];
+  }
+
+  // read in the MultiFab data
+  for (int lev = 0; lev <= finest_level; ++lev) {
+    ::amrex::VisMF::Read(
+        hierarchy->GetPatchLevel(lev).data,
+        ::amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "data"));
+  }
+
+  return hierarchy;
 }
 
 } // namespace cutcell

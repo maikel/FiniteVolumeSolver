@@ -43,6 +43,16 @@ void PerfectGas<Dim>::Flux(Conservative& flux, const Complete& state,
     flux.energy = velocity * (state.energy + state.pressure);
   }
 }
+namespace {
+double KineticEnergy(double density, double momentum) noexcept {
+  return 0.5 * momentum * momentum / density;
+}
+
+template <int Dim>
+double KineticEnergy(double density, const Eigen::Array<double, 1, Dim>& momentum) noexcept {
+  return 0.5 * momentum.matrix().squaredNorm() / density;
+}
+}
 
 template struct PerfectGas<1>;
 template struct PerfectGas<2>;
@@ -55,22 +65,35 @@ void CompleteFromConsImpl<PerfectGas<Dim>>::apply(
   complete.density = cons.density;
   complete.momentum = cons.momentum;
   complete.energy = cons.energy;
-  FUB_ASSERT(complete.density > 0.0);
-  if constexpr (Dim == 1) {
-    complete.pressure =
-        (equation.gamma - 1.0) *
-        (cons.energy - 0.5 * cons.momentum * cons.momentum / cons.density);
-  } else {
-    const double E_kin =
-        0.5 * cons.momentum.matrix().squaredNorm() / cons.density;
-    const double rho_e_internal = cons.energy - E_kin;
-    FUB_ASSERT(rho_e_internal > 0.0);
-    complete.pressure = (equation.gamma - 1.0) * rho_e_internal;
-  }
-  FUB_ASSERT(complete.pressure > 0.0);
+  const double e_kin = KineticEnergy(cons.density, cons.momentum);
+  FUB_ASSERT(e_kin < cons.energy);
+  const double e_int = cons.energy - e_kin;
+  complete.pressure = e_int / equation.gamma_minus_1_inv;
+  FUB_ASSERT(complete.pressure > 0.0 && complete.density > 0.0);
   complete.speed_of_sound =
       std::sqrt(equation.gamma * complete.pressure / complete.density);
 }
+
+template <int Dim>
+void CompleteFromConsImpl<PerfectGas<Dim>>::apply(
+    const PerfectGas<Dim>& equation, Complete<PerfectGas<Dim>>& complete,
+    const Complete<PerfectGas<Dim>>& cons) {
+  complete.density = cons.density;
+  complete.momentum = cons.momentum;
+  complete.energy = cons.energy;
+  const double e_kin = KineticEnergy(cons.density, cons.momentum);
+  FUB_ASSERT(e_kin < cons.energy);
+  const double e_int = cons.energy - e_kin;
+  complete.pressure = e_int / equation.gamma_minus_1_inv;
+  FUB_ASSERT(complete.pressure > 0.0 && complete.density > 0.0);
+  complete.speed_of_sound =
+      std::sqrt(equation.gamma * complete.pressure / complete.density);
+}
+
+template struct CompleteFromConsImpl<PerfectGas<1>>;
+template struct CompleteFromConsImpl<PerfectGas<2>>;
+template struct CompleteFromConsImpl<PerfectGas<3>>;
+
 
 void Rotate(Conservative<PerfectGas<2>>& rotated,
             const Conservative<PerfectGas<2>>& state,
@@ -117,33 +140,6 @@ void Reflect(Complete<PerfectGas<3>>& reflected,
               .transpose()
               .array();
 }
-
-template <int Dim>
-void CompleteFromConsImpl<PerfectGas<Dim>>::apply(
-    const PerfectGas<Dim>& equation, Complete<PerfectGas<Dim>>& complete,
-    const Complete<PerfectGas<Dim>>& cons) {
-  complete.density = cons.density;
-  complete.momentum = cons.momentum;
-  complete.energy = cons.energy;
-  if constexpr (Dim == 1) {
-    complete.pressure =
-        (equation.gamma - 1.0) *
-        (cons.energy - 0.5 * cons.momentum * cons.momentum / cons.density);
-  } else {
-    const double E_kin =
-        0.5 * cons.momentum.matrix().squaredNorm() / cons.density;
-    const double rho_e_internal = cons.energy - E_kin;
-    FUB_ASSERT(rho_e_internal > 0.0);
-    complete.pressure = (equation.gamma - 1.0) * rho_e_internal;
-    FUB_ASSERT(complete.pressure > 0.0);
-  }
-  complete.speed_of_sound =
-      std::sqrt(equation.gamma * complete.pressure / complete.density);
-}
-
-template struct CompleteFromConsImpl<PerfectGas<1>>;
-template struct CompleteFromConsImpl<PerfectGas<2>>;
-template struct CompleteFromConsImpl<PerfectGas<3>>;
 
 template <int Dim>
 std::array<double, 2> EinfeldtSignalVelocitiesImpl<PerfectGas<Dim>>::apply(
@@ -318,9 +314,15 @@ void ExactRiemannSolver<PerfectGas<Dim>>::SolveRiemannProblem(
     if constexpr (Dim == 1) {
       state.momentum = momentum;
     } else {
-      state.momentum = state.density * side.momentum / side.density;
+      state.momentum = state.density * (side.momentum / side.density);
       state.momentum[static_cast<int>(dir)] = momentum;
     }
+  };
+  auto from_prim = [eq = equation_](Complete& state) {
+    const double rhoE_kin = KineticEnergy(state.density, state.momentum);
+    const double rhoE_internal = state.pressure * eq.gamma_minus_1_inv;
+    state.energy = rhoE_internal + rhoE_kin;
+    state.speed_of_sound = std::sqrt(eq.gamma * state.pressure / state.density);
   };
   FUB_ASSERT(0.0 < left.density);
   FUB_ASSERT(0.0 < left.pressure);
@@ -353,9 +355,7 @@ void ExactRiemannSolver<PerfectGas<Dim>>::SolveRiemannProblem(
             left.density * (p_ratio + g_ratio) / (g_ratio * p_ratio + 1.0);
         set_momentum(state, state.density * uM, left);
         state.pressure = pM;
-        const double rhoE_internal = pM / gm1;
-        state.energy = rhoE_internal + 0.5 * state.density * uM * uM;
-        state.speed_of_sound = std::sqrt(g * pM / state.density);
+        from_prim(state);
       } else {
         state.density = left.density;
         state.momentum = left.momentum;
@@ -380,19 +380,14 @@ void ExactRiemannSolver<PerfectGas<Dim>>::SolveRiemannProblem(
         state.density = left.density * std::pow(p_ratio, 1 / g);
         set_momentum(state, state.density * uM, left);
         state.pressure = pM;
-        const double rhoE_internal = pM / gm1;
-        state.energy = rhoE_internal + 0.5 * state.density * uM * uM;
-        state.speed_of_sound = std::sqrt(g * pM / state.density);
+        from_prim(state);
       } else {
         state.density = left.density * std::pow(2.0 / gp1 + g_ratio * uL / aL, 2.0 / gm1);
         const double u = 2.0 / gp1 * (aL + 0.5 * gm1 * uL);
         set_momentum(state, state.density * u, left);
         state.pressure =
             pL * std::pow(2.0 / gp1 + g_ratio * uL / aL, 2.0 * g / gm1);
-        const double rhoE_internal = state.pressure / gm1;
-        state.energy = rhoE_internal + 0.5 * state.density * u * u;
-        state.speed_of_sound =
-            std::sqrt(g * state.pressure / state.density);
+        from_prim(state);
       }
     }
   }
@@ -414,10 +409,7 @@ void ExactRiemannSolver<PerfectGas<Dim>>::SolveRiemannProblem(
             right.density * (p_ratio + g_ratio) / (g_ratio * p_ratio + 1.0);
         set_momentum(state, state.density * uM, right);
         state.pressure = pM;
-        const double rhoE_internal = pM / gm1;
-        const double rhoE_kin = 0.5 * state.density * uM * uM;
-        state.energy = rhoE_internal + rhoE_kin;
-        state.speed_of_sound = std::sqrt(g * pM / state.density);
+        from_prim(state);
       } else {
         state.density = right.density;
         state.momentum = right.momentum;
@@ -442,19 +434,13 @@ void ExactRiemannSolver<PerfectGas<Dim>>::SolveRiemannProblem(
         state.density = right.density * std::pow(p_ratio, 1 / g);
         set_momentum(state, state.density * uM, right);
         state.pressure = pM;
-        const double rhoE_internal = pM / gm1;
-        const double rhoE_kin = 0.5 * state.density * uM * uM;
-        state.energy = rhoE_internal + rhoE_kin;
-        state.speed_of_sound = std::sqrt(g * pM / state.density);
+        from_prim(state);
       } else {
         state.density = right.density * std::pow(2.0 / gp1 - g_ratio * uR / aR, 2.0 / gm1);
         const double u = 2.0 / gp1 * (-aR + 0.5 * gm1 * uR);
         set_momentum(state, state.density * u, right);
         state.pressure = pR * std::pow(2.0 / gp1 - g_ratio * uR / aR, 2.0 * g / gm1);
-        const double rhoE_internal = state.pressure / gm1;
-        state.energy = rhoE_internal + 0.5 * state.density * u * u;
-        state.speed_of_sound = state.speed_of_sound =
-            std::sqrt(g * state.pressure / state.density);
+        from_prim(state);
       }
     }
   }

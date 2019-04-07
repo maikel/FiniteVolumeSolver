@@ -91,6 +91,18 @@ public:
   PatchDataView<double, Rank + 1> GetStabilizedFluxes(PatchHandle patch,
                                                       Direction dir);
 
+  ::amrex::MultiFab& GetShieldedLeftFluxes(int level, Direction dir);
+  PatchDataView<double, Rank + 1> GetShieldedLeftFluxes(PatchHandle patch,
+                                                        Direction dir);
+
+  ::amrex::MultiFab& GetShieldedRightFluxes(int level, Direction dir);
+  PatchDataView<double, Rank + 1> GetShieldedRightFluxes(PatchHandle patch,
+                                                         Direction dir);
+
+  ::amrex::MultiFab& GetDoublyShieldedFluxes(int level, Direction dir);
+  PatchDataView<double, Rank + 1> GetDoublyShieldedFluxes(PatchHandle patch,
+                                                          Direction dir);
+
   CutCellData<Rank> GetCutCellData(PatchHandle patch, Direction dir);
 
   Duration GetTimePoint(int level, Direction dir) const;
@@ -135,6 +147,9 @@ private:
     /// PatchHierarchy changes.
     std::array<::amrex::MultiFab, 3> fluxes;
     std::array<::amrex::MultiFab, 3> stabilized_fluxes;
+    std::array<::amrex::MultiFab, 3> shielded_left_fluxes;
+    std::array<::amrex::MultiFab, 3> shielded_right_fluxes;
+    std::array<::amrex::MultiFab, 3> doubly_shielded_fluxes;
     std::array<::amrex::MultiFab, 3> boundary_fluxes;
 
     /// FluxRegister accumulate fluxes on coarse fine interfaces between

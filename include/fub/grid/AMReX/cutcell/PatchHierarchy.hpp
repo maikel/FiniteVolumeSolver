@@ -207,9 +207,18 @@ void WritePlotFile(const std::string plotfilename, const PatchHierarchy& hier,
       }
     }
   });
-  ::amrex::WriteMultiLevelPlotfile(plotfilename, nlevels, mf, varnames, geoms,
-                                   time_point, level_steps, ref_ratio);
+  ::amrex::EB_WriteMultiLevelPlotfile(plotfilename, nlevels, mf, varnames,
+                                      geoms, time_point, level_steps,
+                                      ref_ratio);
 }
+
+void WriteCheckpointFile(const std::string checkpointname,
+                         const PatchHierarchy& hier);
+
+std::shared_ptr<PatchHierarchy>
+ReadCheckpointFile(const std::string checkpointname, DataDescription desc,
+                   const CartesianGridGeometry& geometry,
+                   const PatchHierarchyOptions& options);
 
 } // namespace cutcell
 } // namespace amrex

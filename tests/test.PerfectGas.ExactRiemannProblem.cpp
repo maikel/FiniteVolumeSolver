@@ -27,6 +27,7 @@ int main() {
   ExactRiemannSolver<PerfectGas<1>> solver{equation};
 
   using Complete = PerfectGas<1>::Complete;
+  using Conservative = PerfectGas<1>::Conservative;
   auto from_prim = [&equation](Complete& state) {
     state.energy = state.pressure * equation.gamma_minus_1_inv;
     state.speed_of_sound =
@@ -118,4 +119,51 @@ int main() {
   std::cout << "solution: rho=" << solution.density
             << ", u=" << solution.momentum / solution.density
             << ", p=" << solution.pressure << "\n\n";
+
+  left.density =  2.52667;
+  left.momentum = 1204.31;
+  left.pressure = 312160;
+  from_prim(left);
+  
+  right.density = 2.28972;
+  right.momentum = 1150.82;
+  right.pressure = 278308;
+  from_prim(right);
+
+  std::tie(pM, uM) = solver.ComputeMiddleState(left, right, Direction::X);
+  std::cout << "p*: " << pM << ", u*: " << uM << '\n';
+
+  solver.SolveRiemannProblem(solution, left, right, Direction::X);
+  std::cout << "solution: rho=" << solution.density
+            << ", u=" << solution.momentum / solution.density
+            << ", p=" << solution.pressure << "\n\n";
+
+  Conservative f_left;
+  equation.Flux(f_left, solution, Direction::X);
+
+  // Linear Shock Tube problematic states
+  left.density = 2.28972;
+  left.momentum = 1150.82;
+  left.pressure = 278308;
+  from_prim(left);
+
+  right.density = 2.06243;
+  right.momentum = 1084.96;
+  right.pressure = 248331;
+  from_prim(right);
+
+  std::tie(pM, uM) = solver.ComputeMiddleState(left, right, Direction::X);
+  std::cout << "p*: " << pM << ", u*: " << uM << '\n';
+
+  solver.SolveRiemannProblem(solution, left, right, Direction::X);
+  std::cout << "solution: rho=" << solution.density
+            << ", u=" << solution.momentum / solution.density
+            << ", p=" << solution.pressure << "\n\n";
+
+  Conservative f_right;
+  equation.Flux(f_right, solution, Direction::X);
+
+  std::cout << f_left.density << " - " << f_right.density << '\n';
+  std::cout << f_left.momentum << " - " << f_right.momentum << '\n';
+  std::cout << f_left.energy << " - " << f_right.energy << '\n';
 }

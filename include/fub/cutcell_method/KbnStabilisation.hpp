@@ -179,13 +179,18 @@ public:
     return min_dt;
   }
 
-  template <typename L1, typename L2, typename L3, typename L4>
-  void ComputeCutCellFluxes(const View<Conservative, L1>& cutcell_fluxes,
-                            const View<Conservative, L2>& regular_fluxes,
-                            const View<const Conservative, L3>& boundary_fluxes,
-                            const View<const Complete, L4>& states,
-                            const CutCellData<Rank>& cutcell_data,
-                            Direction dir, Duration dt, double dx) {
+  template <typename L1, typename L2, typename L3, typename L4, typename L5,
+            typename L6, typename L7>
+  void
+  ComputeCutCellFluxes(const View<Conservative, L1>& stabilised_fluxes,
+                       const View<Conservative, L2>& regular_fluxes,
+                       const View<Conservative, L3>& shielded_left_fluxes,
+                       const View<Conservative, L4>& shielded_right_fluxes,
+                       const View<Conservative, L5>& doubly_shielded_fluxes,
+                       const View<const Conservative, L6>& boundary_fluxes,
+                       const View<const Complete, L7>& states,
+                       const CutCellData<Rank>& cutcell_data, Direction dir,
+                       Duration dt, double dx) {
     const std::size_t dir_v = static_cast<std::size_t>(dir);
     using Index = std::array<std::ptrdiff_t, Rank>;
     const auto& flags = cutcell_data.flags;
@@ -217,7 +222,7 @@ public:
       return std::clamp(center, -0.5, +0.5);
     };
 
-    ForEachIndex(Box<0>(cutcell_fluxes), [&](auto... is) {
+    ForEachIndex(Box<0>(stabilised_fluxes), [&](auto... is) {
       const Index face = Index{is...};
       const double beta_unshielded = cutcell_data.unshielded_fractions(face);
       const double beta_left = cutcell_data.shielded_left_fractions(face);
@@ -235,7 +240,7 @@ public:
         Load(regular_flux_, regular_fluxes, face);
 
         // Compute stabilisation for shielded face fraction from left
-        if (beta_left > 0) {
+        if (beta_left > 0.0) {
           FUB_ASSERT(flags(cell_left).isSingleValued());
           Load(boundary_flux_left_, boundary_fluxes, cell_left);
           const double center = boundary_centeroid(cell_left);
@@ -252,7 +257,7 @@ public:
         }
 
         // Compute stabilisation for shielded face fraction from right
-        if (beta_right > 0) {
+        if (beta_right > 0.0) {
           FUB_ASSERT(flags(cell_right).isSingleValued());
           Load(boundary_flux_right_, boundary_fluxes, cell_right);
           const double center = boundary_centeroid(cell_right);
@@ -267,7 +272,7 @@ public:
                                          shielded_right_flux_);
         }
 
-        if (beta_ds > 0) {
+        if (beta_ds > 0.0) {
           FUB_ASSERT(flags(cell_left).isSingleValued() &&
                      flags(cell_right).isSingleValued());
           Load(boundary_flux_left_, boundary_fluxes, cell_left);
@@ -306,9 +311,9 @@ public:
                   double doubly_shielded_flux) {
                 stabilized_flux = (beta_unshielded * regular_flux +
                                    beta_left * shielded_left_flux +
-                                   beta_right * shielded_right_flux) / // +
-                                  //  beta_ds * doubly_shielded_flux) /
+                                   beta_right * shielded_right_flux) /
                                   beta_total;
+                // + beta_ds * doubly_shielded_flux) /
               },
               cutcell_flux_, regular_flux_, shielded_left_flux_,
               shielded_right_flux_, doubly_shielded_flux_);
@@ -317,7 +322,18 @@ public:
                                          cutcell_flux_);
         }
 
-        Store(cutcell_fluxes, cutcell_flux_, face);
+        Store(shielded_left_fluxes, shielded_left_flux_, face);
+        Store(shielded_right_fluxes, shielded_right_flux_, face);
+        Store(doubly_shielded_fluxes, doubly_shielded_flux_, face);
+        Store(stabilised_fluxes, cutcell_flux_, face);
+      } else {
+        Load(regular_flux_, regular_fluxes, face);
+        ForEachComponent<Conservative>([](double& x) { x = 0.0; },
+                                       cutcell_flux_);
+        Store(shielded_left_fluxes, cutcell_flux_, face);
+        Store(shielded_right_fluxes, cutcell_flux_, face);
+        Store(doubly_shielded_fluxes, cutcell_flux_, face);
+        Store(stabilised_fluxes, regular_flux_, face);
       }
     });
   }

@@ -67,17 +67,36 @@ template <typename Base> struct HyperbolicSplitPatchIntegrator : public Base {
     } else {
       FUB_ASSERT(type == ::amrex::FabType::singlevalued);
       CutCellData<Rank> cutcell_data = context.GetCutCellData(patch, dir);
+
       StridedView<const Conservative> stabilized_fluxes =
           Subview(MakeView<View<Conservative>>(
                       context.GetStabilizedFluxes(patch, dir), equation),
                   tilebox_faces);
+
+      StridedView<const Conservative> shielded_left_fluxes =
+          Subview(MakeView<View<Conservative>>(
+                      context.GetShieldedLeftFluxes(patch, dir), equation),
+                  tilebox_faces);
+
+      StridedView<const Conservative> shielded_right_fluxes =
+          Subview(MakeView<View<Conservative>>(
+                      context.GetShieldedRightFluxes(patch, dir), equation),
+                  tilebox_faces);
+
+      StridedView<const Conservative> doubly_shielded_fluxes =
+          Subview(MakeView<View<Conservative>>(
+                      context.GetDoublyShieldedFluxes(patch, dir), equation),
+                  tilebox_faces);
+
       StridedView<const Conservative> boundary_fluxes =
           Subview(MakeView<View<Conservative>>(
                       context.GetBoundaryFluxes(patch, dir), equation),
                   tilebox_cells);
+
       Base::UpdateConservatively(scratch, AsConst(scratch), stabilized_fluxes,
-                                 regular_fluxes, boundary_fluxes, cutcell_data,
-                                 dir, dt, dx);
+                                 regular_fluxes, shielded_left_fluxes,
+                                 shielded_right_fluxes, doubly_shielded_fluxes,
+                                 boundary_fluxes, cutcell_data, dir, dt, dx);
     }
   }
 };

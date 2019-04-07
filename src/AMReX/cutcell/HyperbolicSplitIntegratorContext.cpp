@@ -22,10 +22,10 @@
 #include "fub/grid/AMReX/ViewFArrayBox.hpp"
 #include "fub/grid/AMReX/utility.hpp"
 
+#include <AMReX_EBMultiFabUtil.H>
 #include <AMReX_FillPatchUtil.H>
 #include <AMReX_FluxReg_C.H>
 #include <AMReX_Interpolater.H>
-#include <AMReX_EBMultiFabUtil.H>
 #include <AMReX_MultiFabUtil.H>
 
 #include <fmt/format.h>
@@ -154,6 +154,54 @@ HyperbolicSplitIntegratorContext::GetStabilizedFluxes(PatchHandle patch,
   return GetPatchDataView(data_[level_num].stabilized_fluxes[d], patch);
 }
 
+::amrex::MultiFab&
+HyperbolicSplitIntegratorContext::GetShieldedLeftFluxes(int level,
+                                                        Direction dir) {
+  const std::size_t d = static_cast<std::size_t>(dir);
+  const std::size_t level_num = static_cast<std::size_t>(level);
+  return data_[level_num].shielded_left_fluxes[d];
+}
+
+PatchDataView<double, AMREX_SPACEDIM + 1>
+HyperbolicSplitIntegratorContext::GetShieldedLeftFluxes(PatchHandle patch,
+                                                        Direction dir) {
+  const std::size_t d = static_cast<std::size_t>(dir);
+  const std::size_t level_num = static_cast<std::size_t>(patch.level);
+  return GetPatchDataView(data_[level_num].shielded_left_fluxes[d], patch);
+}
+
+::amrex::MultiFab&
+HyperbolicSplitIntegratorContext::GetShieldedRightFluxes(int level,
+                                                         Direction dir) {
+  const std::size_t d = static_cast<std::size_t>(dir);
+  const std::size_t level_num = static_cast<std::size_t>(level);
+  return data_[level_num].shielded_right_fluxes[d];
+}
+
+PatchDataView<double, AMREX_SPACEDIM + 1>
+HyperbolicSplitIntegratorContext::GetShieldedRightFluxes(PatchHandle patch,
+                                                         Direction dir) {
+  const std::size_t d = static_cast<std::size_t>(dir);
+  const std::size_t level_num = static_cast<std::size_t>(patch.level);
+  return GetPatchDataView(data_[level_num].shielded_right_fluxes[d], patch);
+}
+
+::amrex::MultiFab&
+HyperbolicSplitIntegratorContext::GetDoublyShieldedFluxes(int level,
+                                                          Direction dir) {
+  const std::size_t d = static_cast<std::size_t>(dir);
+  const std::size_t level_num = static_cast<std::size_t>(level);
+  return data_[level_num].doubly_shielded_fluxes[d];
+}
+
+PatchDataView<double, AMREX_SPACEDIM + 1>
+HyperbolicSplitIntegratorContext::GetDoublyShieldedFluxes(PatchHandle patch,
+                                                          Direction dir) {
+  const std::size_t d = static_cast<std::size_t>(dir);
+  const std::size_t level_num = static_cast<std::size_t>(patch.level);
+  return GetPatchDataView(data_[level_num].doubly_shielded_fluxes[d], patch);
+}
+
 CutCellData<AMREX_SPACEDIM>
 HyperbolicSplitIntegratorContext::GetCutCellData(PatchHandle patch,
                                                  Direction dir) {
@@ -202,8 +250,18 @@ double HyperbolicSplitIntegratorContext::GetDx(PatchHandle patch,
 HyperbolicSplitIntegratorContext::HyperbolicSplitIntegratorContext(
     std::shared_ptr<GriddingAlgorithm> gridding, int gcw)
     : ghost_cell_width_{gcw + 1}, gridding_{std::move(gridding)},
-  data_(static_cast<std::size_t>(GetPatchHierarchy()->GetMaxNumberOfLevels())) {
+      data_(static_cast<std::size_t>(
+          GetPatchHierarchy()->GetMaxNumberOfLevels())) {
   ResetHierarchyConfiguration();
+  const int nlevels = GetPatchHierarchy()->GetNumberOfLevels();
+  for (int level = 0; level < nlevels; ++level) {
+    const Duration time_point = GetPatchHierarchy()->GetTimePoint(level);
+    const std::ptrdiff_t cycles = GetPatchHierarchy()->GetCycles(level);
+    for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+    SetTimePoint(time_point, level, Direction(d));
+    SetCycles(cycles, level, Direction(d));
+    }
+  }
 }
 
 void HyperbolicSplitIntegratorContext::ResetHierarchyConfiguration(
@@ -220,7 +278,8 @@ void HyperbolicSplitIntegratorContext::ResetHierarchyConfiguration(
     const int n_comp = base.nComp();
     data.reference_states.define(ba, dm, n_comp, 0);
     for (std::size_t d = 0; d < static_cast<std::size_t>(AMREX_SPACEDIM); ++d) {
-      const ::amrex::IntVect unit = ::amrex::IntVect::TheDimensionVector(static_cast<int>(d));
+      const ::amrex::IntVect unit =
+          ::amrex::IntVect::TheDimensionVector(static_cast<int>(d));
       data.scratch[d].define(ba, dm, n_comp, ghost_cell_width_ * unit);
       data.fluxes[d].define(::amrex::convert(ba, unit), dm, n_cons_components,
                             unit);
@@ -228,6 +287,12 @@ void HyperbolicSplitIntegratorContext::ResetHierarchyConfiguration(
                                      ghost_cell_width_ * unit);
       data.stabilized_fluxes[d].define(::amrex::convert(ba, unit), dm,
                                        n_cons_components, unit);
+      data.shielded_left_fluxes[d].define(::amrex::convert(ba, unit), dm,
+                                          n_cons_components, unit);
+      data.shielded_right_fluxes[d].define(::amrex::convert(ba, unit), dm,
+                                           n_cons_components, unit);
+      data.doubly_shielded_fluxes[d].define(::amrex::convert(ba, unit), dm,
+                                            n_cons_components, unit);
     }
     if (level > 0) {
       const ::amrex::IntVect ref_ratio = 2 * ::amrex::IntVect::TheUnitVector();
@@ -306,7 +371,7 @@ void HyperbolicSplitIntegratorContext::AccumulateCoarseFineFluxes(int level,
     const double scale =
         1.0 / ipow(GetRatioToCoarserLevel(level), AMREX_SPACEDIM);
     data_[level_num].coarse_fine.FineAdd(fluxes, static_cast<int>(dir), 0, 0,
-                                     fluxes.nComp(), scale);
+                                         fluxes.nComp(), scale);
   }
 }
 
@@ -376,8 +441,9 @@ void HyperbolicSplitIntegratorContext::PostAdvanceLevel(int level_num,
       GetCycles(level_num, dir);
 }
 
-::amrex::FabType HyperbolicSplitIntegratorContext::GetCutCellPatchType(
-    PatchHandle handle, int gcw) const {
+::amrex::FabType
+HyperbolicSplitIntegratorContext::GetCutCellPatchType(PatchHandle handle,
+                                                      int gcw) const {
   const ::amrex::EBFArrayBoxFactory& eb_factory =
       GetPatchHierarchy()->GetEmbeddedBoundary(handle.level);
   const ::amrex::FabArray<::amrex::EBCellFlagFab>& flags =

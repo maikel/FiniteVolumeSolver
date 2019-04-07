@@ -54,10 +54,11 @@ template <typename Base> struct FluxMethod : public Base {
     const int d = static_cast<int>(dir);
     ::amrex::IntVect gcws{};
     gcws[d] = gcw;
-    // const auto tilebox_cells = AsIndexBox(patch.iterator->growntilebox(gcws));
-//    StridedView<const Complete> scratch = Subview(
-//        MakeView<View<Complete>>(context.GetScratch(patch, dir), equation),
-//        tilebox_cells);
+    // const auto tilebox_cells =
+    // AsIndexBox(patch.iterator->growntilebox(gcws));
+    //    StridedView<const Complete> scratch = Subview(
+    //        MakeView<View<Complete>>(context.GetScratch(patch, dir),
+    //        equation), tilebox_cells);
     View<const Complete> scratch =
         MakeView<View<Complete>>(context.GetScratch(patch, dir), equation);
     if (type == ::amrex::FabType::regular) {
@@ -114,9 +115,25 @@ template <typename Base> struct FluxMethod : public Base {
                       context.GetStabilizedFluxes(patch, dir), equation),
                   tilebox_faces);
 
-      Base::ComputeCutCellFluxes(stabilized_fluxes, regular_fluxes,
-                                 AsConst(boundary_fluxes), scratch,
-                                 cutcell_data, dir, dt, dx);
+      StridedView<Conservative> shielded_left_fluxes =
+          Subview(MakeView<View<Conservative>>(
+                      context.GetShieldedLeftFluxes(patch, dir), equation),
+                  tilebox_faces);
+
+      StridedView<Conservative> shielded_right_fluxes =
+          Subview(MakeView<View<Conservative>>(
+                      context.GetShieldedRightFluxes(patch, dir), equation),
+                  tilebox_faces);
+
+      StridedView<Conservative> doubly_shielded_fluxes =
+          Subview(MakeView<View<Conservative>>(
+                      context.GetDoublyShieldedFluxes(patch, dir), equation),
+                  tilebox_faces);
+
+      Base::ComputeCutCellFluxes(
+          stabilized_fluxes, regular_fluxes, shielded_left_fluxes,
+          shielded_right_fluxes, doubly_shielded_fluxes,
+          AsConst(boundary_fluxes), scratch, cutcell_data, dir, dt, dx);
     }
   }
 

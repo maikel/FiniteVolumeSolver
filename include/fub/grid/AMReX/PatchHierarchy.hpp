@@ -30,7 +30,9 @@
 #include <AMReX_FluxRegister.H>
 #include <AMReX_Geometry.H>
 #include <AMReX_MultiFab.H>
+#include <AMReX_ParallelDescriptor.H>
 #include <AMReX_PlotFileUtil.H>
+#include <AMReX_VisMF.H>
 
 #include <fmt/format.h>
 
@@ -75,9 +77,9 @@ struct DataDescription {
 
 class PatchHierarchy {
 public:
-  explicit PatchHierarchy(DataDescription description,
-                          const CartesianGridGeometry& geometry,
-                          const PatchHierarchyOptions& options);
+  PatchHierarchy(DataDescription description,
+                 const CartesianGridGeometry& geometry,
+                 const PatchHierarchyOptions& options);
 
   const ::amrex::Geometry& GetGeometry(int level) const noexcept {
     return patch_level_geometry_[static_cast<std::size_t>(level)];
@@ -137,8 +139,7 @@ public:
 
   template <typename Feedback> double Minimum(int level, Feedback feedback) {
     double global_min = std::numeric_limits<double>::infinity();
-    for (::amrex::MFIter mfi(GetPatchLevel(level).data); mfi.isValid();
-         ++mfi) {
+    for (::amrex::MFIter mfi(GetPatchLevel(level).data); mfi.isValid(); ++mfi) {
       PatchHandle handle{level, &mfi};
       const double local_min = feedback(handle);
       global_min = std::min(global_min, local_min);
@@ -204,6 +205,59 @@ void WritePlotFile(const std::string plotfilename,
   });
   ::amrex::WriteMultiLevelPlotfile(plotfilename, nlevels, mf, varnames, geoms,
                                    time_point, level_steps, ref_ratio);
+}
+
+template <typename Equation>
+void WriteCheckpointFile(const std::string checkpointname,
+                         const fub::amrex::PatchHierarchy& hier,
+                         const Equation& equation) {
+  const int nlevels = hier.GetNumberOfLevels();
+  ::amrex::PreBuildDirectorHierarchy(checkpointname, "Level_", nlevels, true);
+  // write Header file
+  if (::amrex::ParallelDescriptor::IOProcessor()) {
+    const std::string header(checkpointname + "/Header");
+    ::amrex::VisMF::IO_Buffer io_buffer(::amrex::VisMF::IO_Buffer_Size);
+    std::ofstream hout;
+    hout.rdbuf()->pubsetbuf(io_buffer.dataPtr(), io_buffer.size());
+    hout.open(header.c_str(), std::ofstream::out | std::ofstream::trunc |
+                                  std::ofstream::binary);
+    if (!hout.good()) {
+      ::amrex::FileOpenFailed(header);
+    }
+
+    hout.precision(17);
+
+    // write out title line
+    hout << "Checkpoint file for AmrCoreAdv\n";
+
+    // write out finest_level
+    hout << nlevels - 1 << '\n';
+
+    // write out array of istep
+    for (int level = 0; level < nlevels; ++level) {
+      hout << hier.GetCycles(level) << ' ';
+    }
+    hout << '\n';
+
+    // write out array of t_new
+    for (int level = 0; level < nlevels; ++level) {
+      hout << hier.GetTimePoint(level).count() << ' ';
+    }
+    hout << '\n';
+
+    // write the BoxArray at each level
+    for (int level = 0; level < nlevels; ++level) {
+      hier.GetPatchLevel(level).data.boxArray().writeOn(hout);
+      hout << '\n';
+    }
+  }
+
+  // write the MultiFab data to, e.g., chk00010/Level_0/
+  for (int level = 0; level < nlevels; ++level) {
+    ::amrex::VisMF::Write(hier.GetPatchLevel(level).data,
+                          ::amrex::MultiFabFileFullPrefix(level, checkpointname,
+                                                          "Level_", "data"));
+  }
 }
 
 } // namespace amrex
