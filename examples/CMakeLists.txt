@@ -52,9 +52,11 @@ if (AMReX_FOUND AND AMREX_DIM EQUAL 3)
   add_executable(AMReX.PerfectGas3d AMReX/PerfectGas3d.cpp)
   target_link_libraries(AMReX.PerfectGas3d HyperbolicSolver.AMReX)
 
-  if (AMREX_ENABLE_EB) 
+  if (AMREX_ENABLE_EB)
+    find_package(BOOST COMPONENTS filesystem REQUIRED)
+
     add_executable(AMReX.EB.LinearShock3d AMReX/EB/LinearShock3d.cpp)
-    target_link_libraries(AMReX.EB.LinearShock3d HyperbolicSolver.AMReX)
+    target_link_libraries(AMReX.EB.LinearShock3d HyperbolicSolver.AMReX Boost::filesystem)
     target_compile_options(AMReX.EB.LinearShock3d
       PRIVATE 
       $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
@@ -63,6 +65,14 @@ if (AMReX_FOUND AND AMREX_DIM EQUAL 3)
       $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wconversion>
       $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wsign-conversion>
       $<$<CXX_COMPILER_ID:AppleClang>:-Wno-missing-braces>)
+
+    add_executable(AMReX.EB.Divider AMReX/EB/Divider.cpp)
+    target_link_libraries(AMReX.EB.Divider HyperbolicSolver.AMReX Boost::filesystem)
+    target_compile_options(AMReX.EB.Divider
+      PRIVATE 
+      $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
+      $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall>
+      $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>)
   endif()
 endif()
 

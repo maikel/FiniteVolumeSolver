@@ -11,7 +11,7 @@ if (EXISTS ${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 endif()
 
 # Try to find SAMRAI (optional)
-find_package(Boost REQUIRED)
+find_package(Boost REQUIRED COMPONENTS filesystem)
 
 find_package(SAMRAI QUIET)
 if (SAMRAI_FOUND)
@@ -184,6 +184,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     target_sources(HyperbolicSolver.AMReX
       PRIVATE
         src/CutCellData.cpp
+        src/geometry/ExpandTube.cpp
         src/AMReX/cutcell/HyperbolicSplitIntegratorContext.cpp
         src/AMReX/cutcell/PatchHierarchy.cpp
         src/AMReX/cutcell/FillCutCellData.cpp
