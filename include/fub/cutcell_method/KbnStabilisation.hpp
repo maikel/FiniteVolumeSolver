@@ -245,10 +245,10 @@ public:
           Load(boundary_flux_left_, boundary_fluxes, cell_left);
           const double center = boundary_centeroid(cell_left);
           // d is the average distance to the boundary
-          const double d = 0.5 - center;
+          const double d = std::clamp(0.5 - center, 0.0, 1.0);
           ForEachComponent<Conservative>(
               [=](double& f_shielded, double f_regular, double f_B) {
-                f_shielded = d * f_regular + (1 - d) * f_B;
+                f_shielded = d * f_regular + (1.0 - d) * f_B;
               },
               shielded_left_flux_, regular_flux_, boundary_flux_left_);
         } else {
@@ -261,10 +261,10 @@ public:
           FUB_ASSERT(flags(cell_right).isSingleValued());
           Load(boundary_flux_right_, boundary_fluxes, cell_right);
           const double center = boundary_centeroid(cell_right);
-          const double d = 0.5 + center;
+          const double d = std::clamp(0.5 + center, 0.0, 1.0);
           ForEachComponent<Conservative>(
               [d](double& f_shielded, double f_regular, double f_B) {
-                f_shielded = (d * f_regular + (1 - d) * f_B);
+                f_shielded = (d * f_regular + (1.0 - d) * f_B);
               },
               shielded_right_flux_, regular_flux_, boundary_flux_right_);
         } else {
@@ -304,19 +304,19 @@ public:
         // unshielded, shielded and doubly shielded parts.
         const double beta_total =
             beta_unshielded + beta_left + beta_right + beta_ds;
-        if (beta_total > 0) {
+        if (beta_total > 0.0) {
+          const double beta_us_frac = beta_unshielded / beta_total;
+          const double beta_left_frac = beta_left / beta_total;
+          const double beta_right_frac = beta_right / beta_total;
           ForEachComponent<Conservative>(
               [=](double& stabilized_flux, double regular_flux,
-                  double shielded_left_flux, double shielded_right_flux,
-                  double doubly_shielded_flux) {
-                stabilized_flux = (beta_unshielded * regular_flux +
-                                   beta_left * shielded_left_flux +
-                                   beta_right * shielded_right_flux) /
-                                  beta_total;
-                // + beta_ds * doubly_shielded_flux) /
+                  double shielded_left_flux, double shielded_right_flux) {
+                stabilized_flux = beta_us_frac * regular_flux +
+                                   beta_left_frac * shielded_left_flux +
+                                   beta_right_frac * shielded_right_flux;
               },
               cutcell_flux_, regular_flux_, shielded_left_flux_,
-              shielded_right_flux_, doubly_shielded_flux_);
+              shielded_right_flux_);
         } else {
           ForEachComponent<Conservative>([](double& x) { x = 0.0; },
                                          cutcell_flux_);
