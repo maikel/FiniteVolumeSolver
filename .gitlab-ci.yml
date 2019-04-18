@@ -41,3 +41,39 @@ build:amrex-2d_clang8:
     - cd build
     - cmake ../ -DCMAKE_CXX_COMPILER="clang++" -DCMAKE_CXX_FLAGS="-stdlib=libc++" -DCMAKE_BUILD_TYPE=Debug
     - make
+
+build:amrex-2d_gcc7:
+  image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:2d_gcc7
+  stage: build
+  script:
+    - mkdir build
+    - cd build
+    - cmake ../ -DCMAKE_BUILD_TYPE=Debug
+    - make
+
+build:amrex-2d_gcc8:
+  image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:2d_gcc8
+  stage: build
+  script:
+    - mkdir build
+    - cd build
+    - cmake ../ -DCMAKE_BUILD_TYPE=Debug
+    - make
+
+build:amrex-3d_gcc7:
+  image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:3d_gcc7
+  stage: build
+  script:
+    - mkdir build
+    - cd build
+    - cmake ../ -DCMAKE_BUILD_TYPE=Debug
+    - make
+
+build:amrex-3d_gcc8:
+  image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:3d_gcc8
+  stage: build
+  script:
+    - mkdir build
+    - cd build
+    - cmake ../ -DCMAKE_BUILD_TYPE=Debug
+    - make

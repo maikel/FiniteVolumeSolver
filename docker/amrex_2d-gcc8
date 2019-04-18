@@ -20,18 +20,18 @@ RUN git clone --depth=1 https://github.com/fmtlib/fmt.git \
 RUN wget https://dl.bintray.com/boostorg/release/1.70.0/source/boost_1_70_0.tar.gz \
   && tar xzf boost_1_70_0.tar.gz \
   && cd boost_1_70_0/ && ./bootstrap.sh --prefix="/usr" \
-  && ./b2 install --with-filesystem --with-program_options --with-log -j 4 \
+  && ./b2 install link=static --with-filesystem --with-program_options --with-log -j 2 \
   && cd / && rm -r /boost_1_70_0 boost_1_70_0.tar.gz
 
 # Build and install AMReX
 RUN git clone -b development --depth=1 https://github.com/AMReX-Codes/amrex.git /AMReX \
   && mkdir /AMReX/build \
-  && cd /AMReX/build 
+  && cd /AMReX/build \
   && cmake /AMReX -DDIM=2 \
                   -DCMAKE_BUILD_TYPE=Release \
                   -DCMAKE_INSTALL_PREFIX="/" \
                   -DENABLE_EB=ON \
                   -DENABLE_OMP=ON \
                   -DENABLE_ASSERTIONS=OFF \
-  && make -j4 install \
+  && make -j 2 install \
   && cd / && rm -r /AMReX
