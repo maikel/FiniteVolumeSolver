@@ -2,14 +2,16 @@ FROM ubuntu:16.04
 
 RUN apt-get update && apt-get install --yes \
   wget \
+  build-essential \
   xz-utils \
   libopenmpi-dev \
-  libeigen3-dev \
-  openmpi-bin
+  openmpi-bin \
+  gfortran \
+  git
 
-# Fetch clang5 and install it into /usr
-RUN wget http://releases.llvm.org/5.0.2/clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-16.04.tar.xz
-RUN tar xf clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-16.04.tar.xz \
+# Fetch clang-5 and install it into /usr
+RUN wget https://releases.llvm.org/5.0.2/clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-16.04.tar.xz \
+  && tar xf clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-16.04.tar.xz \
   && cp -r clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-16.04/* /usr \
   && rm -r clang+llvm*
 
@@ -28,8 +30,15 @@ RUN git clone --depth=1 https://github.com/fmtlib/fmt.git \
 RUN wget https://dl.bintray.com/boostorg/release/1.70.0/source/boost_1_70_0.tar.gz \
   && tar xzf boost_1_70_0.tar.gz \
   && cd boost_1_70_0/ && ./bootstrap.sh --with-toolset=clang --prefix="/usr" \
-  && ./b2 install --with-filesystem --with-program_options --with-log -j 4 \
+  && ./b2 install link=static --with-filesystem --with-program_options --with-log -j 4 \
   && cd / && rm -r /boost_1_70_0 boost_1_70_0.tar.gz
+
+RUN git clone --depth=1 -b branches/3.3 https://github.com/eigenteam/eigen-git-mirror.git /Eigen3 \
+  && cd /Eigen3 \
+  && mkdir build/ && cd build/ \
+  && cmake /Eigen3 -DCMAKE_INSTALL_PREFIX="/usr" -DCMAKE_BUILD_TYPE="Release" \
+  && make install \
+  && cd / && rm -rf /Eigen3
 
 # Build and install AMReX
 RUN git clone -b development --depth=1 https://github.com/AMReX-Codes/amrex.git /AMReX \

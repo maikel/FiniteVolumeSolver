@@ -780,13 +780,15 @@ WARN_LOGFILE           =
 # spaces. See also FILE_PATTERNS and EXTENSION_MAPPING
 # Note: If this tag is empty the current directory is searched.
 
-INPUT                  = "../include/fub/core" \
-                         "../include/fub/" \
+INPUT                  = "../include/fub/" \
+                         "../include/fub/boundary_condition/" \
+                         "../include/fub/core" \
+                         "../include/fub/cutcell_method/" \
                          "../include/fub/equations/" \
                          "../include/fub/geometry/" \
                          "../include/fub/grid/" \
-                         "../include/fub/grid/SAMRAI/" \
                          "../include/fub/grid/AMReX/" \
+                         "../include/fub/grid/AMReX/cutcell" \
                          "../"
 
 # This tag can be used to specify the character encoding of the source files
@@ -2136,8 +2138,7 @@ SKIP_FUNCTION_MACROS   = YES
 # the path). If a tag file is not located in the directory in which doxygen is
 # run, you must also specify the path to the tagfile here.
 
-TAGFILES               = "cppreference-doxygen-web.tag.xml=http://en.cppreference.com/w/" \
-                         "samrai-dev.tag=../samrai-devdox/html"
+TAGFILES               = "cppreference-doxygen-web.tag.xml=http://en.cppreference.com/w/"
 
 # When a file name is specified after GENERATE_TAGFILE, doxygen will create a
 # tag file that is based on the input files it reads. See section "Linking to
