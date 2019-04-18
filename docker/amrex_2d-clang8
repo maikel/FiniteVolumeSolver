@@ -36,7 +36,7 @@ RUN wget https://dl.bintray.com/boostorg/release/1.70.0/source/boost_1_70_0.tar.
 RUN git clone --depth=1 -b branches/3.3 https://github.com/eigenteam/eigen-git-mirror.git /Eigen3 \
   && cd /Eigen3 \
   && mkdir build/ && cd build/ \
-  && cmake /Eigen -DCMAKE_INSTALL_PREFIX="/usr" -DCMAKE_BUILD_TYPE="Release" \
+  && cmake /Eigen3 -DCMAKE_INSTALL_PREFIX="/usr" -DCMAKE_BUILD_TYPE="Release" \
   && make install \
   && cd / && rm -rf /Eigen3
 
