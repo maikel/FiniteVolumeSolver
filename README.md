@@ -32,12 +32,13 @@ This project has currently the follwing dependencies on third party libraries
 
 ## HowTo Build This Code
 
-Given that all dependencies are installed. you simply have to invoke CMake with paths configured for locally installed libraried. These paths need to point to directories contiaining the `LibConig.cmake` for each library in question.
+Given that all dependencies are installed. you simply have to invoke CMake with paths configured for locally installed libraried.
+These paths need to point to directories contiaining the `LibConig.cmake` for each library in question.
 
 What follows is an example of how to setup a build of FiniteVolumeSolver for the case that your AMReX installation is contained in a folder `${AMREX_INSTALL_PREFIX}` while Eigen3, boost and fmtlib are installed via a package manager.
 
 ```bash
-git clone ssh://git.imp.fu-berlin.de/AG-Klein/FiniteVolumeSolver.git FiniteVolumeSolver/
+git clone git@git.imp.fu-berlin.de:ag-klein/FiniteVolumeSolver.git FiniteVolumeSolver/
 cd FiniteVolumeSolver
 mkdir build
 cd build
@@ -54,32 +55,34 @@ AMReX comes in multiple flavors which can be configured via CMake. To use the Cu
 To build AMReX with support for 2D meshes and embedded boundaries and OpenMP parallelisation an invocation can look like
 
 ```bash
-> AMREX_INSTALL_PREFIX="/Your/Path/To/AMReX/Installation/Prefix"
-> git clone --single-branch -b development https://github.com/AMReX-Codes/amrex AMReX/
-> cd AMReX/
-> mkdir build/
-> cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="${AMREX_INSTALL_PREFIX}" -DENABLE_EB=ON -ENABLE_OMP=ON
-> make install
+AMREX_INSTALL_PREFIX="/Your/Path/To/AMReX/Installation/Prefix"
+git clone --single-branch -b development https://github.com/AMReX-Codes/amrex AMReX/
+cd AMReX/
+mkdir build/
+cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="${AMREX_INSTALL_PREFIX}" -DENABLE_EB=ON -ENABLE_OMP=ON
+make install
 ```
 
 ## SAMRAI
 
+*SAMRAI is currently not maintained*
+
 To build this example you will need an installed [SAMRAI](https://github.com/LLNL/SAMRAI) version with [CMake](https://cmake.org) support.
 To install such a SAMRAI version download the newest SAMRAI from git
 
-```
-> git clone --single-branch -b feature/blt https://github.com/LLNL/SAMRAI.git SAMRAI/
-> cd SAMRAI
-> git submodule init
-> git submodule update
+```bash
+git clone --single-branch -b feature/blt https://github.com/LLNL/SAMRAI.git SAMRAI/
+cd SAMRAI
+git submodule init
+git submodule update
 ```
 
 And build it with commands similar to
 
-```
-> mkdir build && cd build
-> cmake .. -DCMAKE_INSTALL_PREFIX="YOUR_LOCAL_INSTALL_PATH" -DCMAKE_BUILD_TYPE="Release" -DHDF5_ROOT="YOUR_HDF5_PATH" -DENABLE_OPENMP=OFF -DCMAKE_CXX_COMPILER=mpic++
-> make -j4 install
+```bash
+mkdir build && cd build
+cmake .. -DCMAKE_INSTALL_PREFIX="YOUR_LOCAL_INSTALL_PATH" -DCMAKE_BUILD_TYPE="Release" -DHDF5_ROOT="YOUR_HDF5_PATH" -DENABLE_OPENMP=OFF -DCMAKE_CXX_COMPILER=mpic++
+make -j4 install
 ```
 
 Tip: You can use `ccmake .` in the build directory to get an interactive view for configurable variables. Press `t` to toggle advanced options.
