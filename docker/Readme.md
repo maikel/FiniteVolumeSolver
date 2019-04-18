@@ -24,10 +24,11 @@ stored in this repository, for example
 
 ```bash
 git clone git@git.imp.fu-berlin.de:ag-klein/FiniteVolumeSolver.git FiniteVolumeSolver/
-docker run -it -v FiniteVolumeSolver/:/FiniteVolumeSolver git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:2_gcc8
+docker run -it -v FiniteVolumeSolver/:/FiniteVolumeSolver git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:2d_gcc8
 root@da4ed06a478c:/# mkdir build/
 root@da4ed06a478c:/build/# cd build/
 root@da4ed06a478c:/build/# cmake /FiniteVolumeSolver -DCMAKE_BUILD_TYPE=Release
 root@da4ed06a478c:/build/# make AMReX.EB.Ramp
 root@da4ed06a478c:/build/# ./examples/AMReX.EB.Ramp
 ```
+A list of available images, with links, can be found in the [Container Registry](https://git.imp.fu-berlin.de/ag-klein/FiniteVolumeSolver/container_registry).
