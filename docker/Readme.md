@@ -24,8 +24,8 @@ and then you can use images which are stored in this repository
 git clone git@git.imp.fu-berlin.de:ag-klein/FiniteVolumeSolver.git FiniteVolumeSolver/
 docker run -it -v FiniteVolumeSolver/:/FiniteVolumeSolver git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:2_clang5
 root@da4ed06a478c:/# mkdir build/
-root@da4ed06a478c:/# cd build/
-root@da4ed06a478c:/# cmake /FiniteVolumeSolver -DCMAKE_BUILD_TYPE=Release
-root@da4ed06a478c:/# make AMReX.EB.Ramp
-root@da4ed06a478c:/# ./examples/AMReX.EB.Ramp
+root@da4ed06a478c:/build/# cd build/
+root@da4ed06a478c:/build/# cmake /FiniteVolumeSolver -DCMAKE_BUILD_TYPE=Release
+root@da4ed06a478c:/build/# make AMReX.EB.Ramp
+root@da4ed06a478c:/build/# ./examples/AMReX.EB.Ramp
 ```
