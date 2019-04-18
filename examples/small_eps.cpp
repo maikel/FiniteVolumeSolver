@@ -1,8 +1,7 @@
 #include <fmt/format.h>
 #include <limits>
 
-int main()
-{
+int main() {
   float eps = std::numeric_limits<float>::epsilon();
   float dt = 1.323e-6;
   float dx = 1.25e-5;

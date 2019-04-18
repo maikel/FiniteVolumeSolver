@@ -23,7 +23,10 @@
 
 #include "fub/Direction.hpp"
 #include "fub/State.hpp"
+#include "fub/StateArray.hpp"
 #include "fub/core/type_traits.hpp"
+
+#include "fub/ext/Eigen.hpp"
 
 namespace fub {
 
@@ -51,8 +54,8 @@ template <typename Equation>
 struct HasScalarFlux : is_detected<ScalarFluxT, Equation> {};
 
 template <typename Equation, int N = kDefaultChunkSize>
-struct HasVectorizedFlux : is_detected<VectorizedFluxT, Equation, int_constant<N>> {
-};
+struct HasVectorizedFlux
+    : is_detected<VectorizedFluxT, Equation, int_constant<N>> {};
 
 template <typename Equation>
 struct HasScalarReconstruction : is_detected<ScalarReconstructT, Equation> {};
@@ -85,23 +88,25 @@ auto Shrink(const layout_left::mapping<Extent>& layout, Direction dir,
 }
 
 template <typename State, typename Layout, int Rank>
-StridedView<State> Subview(const View<State, Layout, Rank>& state,
-                           const IndexBox<Rank>& box) {
-  return boost::hana::unpack(state.Members(), [&](const auto&... pdview) {
-    auto subview = [](const auto& pdv, const IndexBox<Rank>& box) {
-      using PatchDataView = std::decay_t<decltype(pdv)>;
-      if constexpr (PatchDataView::Rank() == Rank) {
-        return pdv.Subview(box);
-      } else if constexpr (PatchDataView::Rank() == Rank + 1) {
-        const std::ptrdiff_t lower = pdv.Box().lower[Rank];
-        const std::ptrdiff_t upper = pdv.Box().upper[Rank];
-        const IndexBox<Rank + 1> embedded_box =
-            Embed<Rank + 1>(box, {lower, upper});
-        return pdv.Subview(embedded_box);
-      }
-    };
-    return StridedView<State>{subview(pdview, box)...};
-  });
+View<State> Subview(const BasicView<State, Layout, Rank>& state,
+                    const IndexBox<Rank>& box) {
+  auto subview = [](const auto& pdv, const IndexBox<Rank>& box) {
+    using PatchDataView = std::decay_t<decltype(pdv)>;
+    if constexpr (PatchDataView::Rank() == Rank) {
+      return pdv.Subview(box);
+    } else if constexpr (PatchDataView::Rank() == Rank + 1) {
+      const std::ptrdiff_t lower = pdv.Box().lower[Rank];
+      const std::ptrdiff_t upper = pdv.Box().upper[Rank];
+      const IndexBox<Rank + 1> embedded_box =
+          Embed<Rank + 1>(box, {lower, upper});
+      return pdv.Subview(embedded_box);
+    }
+  };
+  View<State> strided{};
+  ForEachVariable<View<State>>(
+      [&](auto& dest, const auto& src) { dest = subview(src, box); }, strided,
+      state);
+  return strided;
 }
 
 } // namespace fub

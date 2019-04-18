@@ -317,7 +317,7 @@ int TC_initChemFromFile(FILE *mechin, FILE *thermoin, int tab, double delT)
   /* loop variables */
   int i, j, k, ir, ij ;
 
-  int  lmech, lthrm, ierr, itemp ;
+  int  ierr, itemp ;
   double sml, reacbalance ;
   char charvar4[9] ;
 

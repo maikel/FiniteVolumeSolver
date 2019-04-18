@@ -21,8 +21,8 @@
 #ifndef FUB_CARTESIAN_COORDINATES_HPP
 #define FUB_CARTESIAN_COORDINATES_HPP
 
-#include "fub/ext/Eigen.hpp"
 #include "fub/core/mdspan.hpp"
+#include "fub/ext/Eigen.hpp"
 
 namespace fub {
 

@@ -73,24 +73,24 @@ public:
     }
   }
 
-  /// Returns a native handle to the patch hierarchy.
+  /// \brief Returns a native handle to the patch hierarchy.
   const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& GetPatchHierarchy() const
       noexcept;
 
-  /// Regrid level_num and all finer levels if it is the first subcycle.
+  /// \brief Regrid level_num and all finer levels if it is the first subcycle.
   void PreAdvanceLevel(int level_num, Direction dir, Duration dt, int subcycle);
 
   /// Do nothing here.
   void PostAdvanceLevel(int level_num, Direction dir, Duration dt,
                         int subcycle);
 
-  /// Returns the geometric cell width of `patch` in direction `dir`.
+  /// \brief Returns the geometric cell width of `patch` in direction `dir`.
   double GetDx(PatchHandle patch, Direction dir) const;
 
-  /// Returns a Coordinates object associated with the specified patch.
+  /// \brief Returns a Coordinates object associated with the specified patch.
   CartesianCoordinates GetCartesianCoordinates(PatchHandle patch) const;
 
-  /// Returns the MPI communicator which is associated with this context.
+  /// \brief Returns the MPI communicator which is associated with this context.
   MPI_Comm GetMpiCommunicator() const noexcept;
 
   bool LevelExists(int level) const noexcept;
@@ -215,13 +215,6 @@ public:
   };
   AdaptBoundaryCondition adapted_boundary_;
 };
-
-template <typename State, typename Data, typename Equation>
-State MakeView(const HyperbolicSplitIntegratorContext&,
-               boost::hana::basic_type<State>, Data&& data,
-               const Equation& equation) {
-  return MakeView(boost::hana::type_c<State>, data, equation);
-}
 
 } // namespace samrai
 } // namespace fub

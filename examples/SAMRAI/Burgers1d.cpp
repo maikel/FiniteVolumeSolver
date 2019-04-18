@@ -18,12 +18,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/equations/Burgers.hpp"
 #include "fub/CartesianCoordinates.hpp"
 #include "fub/HyperbolicSplitLevelIntegrator.hpp"
 #include "fub/HyperbolicSplitPatchIntegrator.hpp"
 #include "fub/HyperbolicSplitSystemSolver.hpp"
 #include "fub/RunSimulation.hpp"
+#include "fub/equations/Burgers.hpp"
 #include "fub/flux_method/GodunovMethod.hpp"
 #include "fub/tagging/GradientDetector.hpp"
 

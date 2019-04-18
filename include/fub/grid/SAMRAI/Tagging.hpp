@@ -55,8 +55,7 @@ template <typename T> struct TaggingWrapper : public TaggingStrategy {
 };
 
 struct Tagging {
-  Tagging(const Tagging& other) 
-    : tag_{other.tag_->Clone()} {}
+  Tagging(const Tagging& other) : tag_{other.tag_->Clone()} {}
 
   Tagging& operator=(const Tagging& other) {
     tag_ = other.tag_->Clone();
@@ -92,7 +91,7 @@ template <typename Tagging, typename Equation> struct AdaptTagging {
                              span<SAMRAI::pdat::CellData<double>*> states,
                              const CartesianCoordinates& coords) {
     auto state_view = MakeView(boost::hana::type_c<View<Complete<Equation>>>,
-                           states, equation_);
+                               states, equation_);
     auto tags_view =
         MakeMdSpan(boost::hana::type_c<mdspan<int, Equation::Rank()>>,
                    tags.getArrayData());

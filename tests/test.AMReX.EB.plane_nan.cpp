@@ -71,7 +71,9 @@ void MyMain(int cells) {
 
 int main(int argc, char** argv) {
 #ifdef __APPLE__
-  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() & ~_MM_MASK_INVALID);
+  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() | _MM_MASK_DIV_ZERO |
+                         _MM_MASK_OVERFLOW | _MM_MASK_UNDERFLOW |
+                         _MM_MASK_INVALID);
 #else
   ::feenableexcept(~FE_INVALID);
 #endif

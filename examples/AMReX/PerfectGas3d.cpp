@@ -42,6 +42,8 @@
 #include <fmt/format.h>
 #include <iostream>
 
+#include <xmmintrin.h>
+
 struct CircleData {
   std::shared_ptr<fub::amrex::PatchHierarchy> hierarchy;
   fub::PerfectGas<3> equation_;
@@ -74,6 +76,10 @@ int main(int argc, char** argv) {
       std::chrono::steady_clock::now();
 
   const fub::amrex::ScopeGuard guard(argc, argv);
+
+  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() | _MM_MASK_DIV_ZERO |
+                         _MM_MASK_OVERFLOW | _MM_MASK_UNDERFLOW |
+                         _MM_MASK_INVALID);
 
   constexpr int Dim = AMREX_SPACEDIM;
   static_assert(AMREX_SPACEDIM == 3);
@@ -110,9 +116,7 @@ int main(int argc, char** argv) {
   gridding->InitializeHierarchy(0.0);
 
   fub::HyperbolicSplitPatchIntegrator patch_integrator{equation};
-  fub::HllMethod base_method{equation,
-                             fub::EinfeldtSignalVelocities<fub::PerfectGas<3>>};
-  fub::MusclHancockMethod flux_method{equation, base_method};
+  fub::MusclHancockMethod flux_method{equation};
 
   const int gcw = flux_method.GetStencilWidth();
   fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
@@ -121,10 +125,10 @@ int main(int argc, char** argv) {
       fub::amrex::FluxMethod(flux_method),
       fub::amrex::Reconstruction(equation)));
 
-  std::string base_name = "AMReX/PerfectGas3d_";
+  std::string base_name = "PerfectGas3d/";
 
-  auto output = [&](auto& hierarchy, int cycle, fub::Duration) {
-    std::string name = fmt::format("{}{:04}", base_name, cycle);
+  auto output = [&](auto& hierarchy, std::ptrdiff_t cycle, fub::Duration) {
+    std::string name = fmt::format("{}{:05}", base_name, cycle);
     ::amrex::Print() << "Start output to '" << name << "'.\n";
     fub::amrex::WritePlotFile(name, *hierarchy, equation);
     ::amrex::Print() << "Finished output to '" << name << "'.\n";
@@ -135,6 +139,7 @@ int main(int argc, char** argv) {
   using namespace std::literals::chrono_literals;
   output(hierarchy, 0, 0.0s);
   fub::RunOptions run_options{};
+  run_options.cfl = 0.1 * 0.8;
   run_options.final_time = 0.004s;
   run_options.output_interval = 0.00005s;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,

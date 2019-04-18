@@ -34,19 +34,25 @@ template <typename Base> struct HyperbolicSplitPatchIntegrator : public Base {
   using Conservative = ::fub::Conservative<Equation>;
   using Complete = ::fub::Complete<Equation>;
 
+  static constexpr int Rank = Equation::Rank();
+
   HyperbolicSplitPatchIntegrator(const Base& base) : Base(base) {}
 
   template <typename Context>
   void UpdateConservatively(Context& context, PatchHandle patch, Direction dir,
                             Duration dt) {
     const Equation& eq = Base::GetEquation();
+    const int d = static_cast<int>(dir);
+    const ::amrex::IntVect gcws = ::amrex::IntVect::TheDimensionVector(d);
+    IndexBox<Rank> cells = AsIndexBox(patch.iterator->growntilebox(gcws));
     View<Conservative> scratch =
-        MakeView<View<Complete>>(context.GetScratch(patch, dir), eq);
-    const int gcw = context.GetGhostCellWidth(patch, dir);
+        Subview(AsCons(MakeView<BasicView<Complete>>(
+                    context.GetScratch(patch, dir), eq)),
+                cells);
     const double dx = context.GetDx(patch, dir);
-    View<const Conservative> fluxes =
-        MakeView<View<Conservative>>(context.GetFluxes(patch, dir), eq);
-    Base::UpdateConservatively(scratch, fluxes, scratch, dir, dt, dx);
+    BasicView<const Conservative> fluxes = AsConst(
+        MakeView<BasicView<Conservative>>(context.GetFluxes(patch, dir), eq));
+    Base::UpdateConservatively(scratch, fluxes, AsConst(scratch), dir, dt, dx);
   }
 };
 

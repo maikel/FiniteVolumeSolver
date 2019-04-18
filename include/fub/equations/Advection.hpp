@@ -25,18 +25,24 @@
 #include "fub/Direction.hpp"
 #include "fub/ExactRiemannSolver.hpp"
 #include "fub/State.hpp"
-#include "fub/VariableDescription.hpp"
+#include "fub/StateArray.hpp"
 #include "fub/ext/Eigen.hpp"
-#include "fub/ext/hana.hpp"
 
 #include <array>
 
 namespace fub {
-template <typename Mass> struct AdvectionVariables {
-  BOOST_HANA_DEFINE_STRUCT(AdvectionVariables, (Mass, mass));
+template <typename Mass> struct AdvectionVariables { Mass mass; };
+
+template <typename... Xs> struct StateTraits<AdvectionVariables<Xs...>> {
+  static constexpr auto names = std::make_tuple("Mass");
+  static constexpr auto pointers_to_member =
+      std::make_tuple(&AdvectionVariables<Xs...>::mass);
 };
 
-struct Advection2d : VariableDescription<AdvectionVariables<Scalar>> {
+struct Advection2d {
+  using ConservativeDepths = AdvectionVariables<ScalarDepth>;
+  using CompleteDepths = ConservativeDepths;
+
   using Complete = ::fub::Complete<Advection2d>;
   using Conservative = ::fub::Conservative<Advection2d>;
 
@@ -98,7 +104,8 @@ public:
   std::array<Array<double, 1, N>, 1> ComputeSignals(const CompleteArray<N>&,
                                                     const CompleteArray<N>&,
                                                     Direction dir) {
-     return {Array<double, 1, N>::Constant(equation_.velocity[static_cast<std::size_t>(dir)])};
+    return {Array<double, 1, N>::Constant(
+        equation_.velocity[static_cast<std::size_t>(dir)])};
   }
 
 private:

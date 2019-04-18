@@ -21,19 +21,19 @@
 #ifndef FUB_DIRECTION_HPP
 #define FUB_DIRECTION_HPP
 
+#include <cstddef>
+
 namespace fub {
 
 /// \ingroup Solver
 /// \brief This is a type safe type to denote a dimensional split direction.
-enum class Direction : int {
-  X, Y, Z
-};
+enum class Direction : std::size_t { X, Y, Z };
 
 struct Location {
-  Direction direction;
+  std::size_t direction;
   int side;
 };
 
-}
+} // namespace fub
 
 #endif

@@ -22,8 +22,8 @@
 #define FUB_INITIAL_DATA_CONSTANT_HPP
 
 #include "fub/Equation.hpp"
-#include "fub/geometry/Ambient.hpp"
 #include "fub/ForEach.hpp"
+#include "fub/geometry/Ambient.hpp"
 
 namespace fub {
 

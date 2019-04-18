@@ -24,6 +24,7 @@
 #include "fub/HyperbolicSplitLevelIntegrator.hpp"
 #include "fub/HyperbolicSplitPatchIntegrator.hpp"
 #include "fub/HyperbolicSplitSystemSolver.hpp"
+#include "fub/boundary_condition/TransmissiveBoundary.hpp"
 #include "fub/ext/Eigen.hpp"
 #include "fub/flux_method/HllMethod.hpp"
 #include "fub/flux_method/MusclHancockMethod.hpp"
@@ -67,55 +68,6 @@ struct ShockData {
   Equation equation;
   Complete left;
   Complete right;
-};
-
-
-struct TransmissiveBoundary {
-  using Equation = fub::PerfectGas<2>;
-  using Complete = fub::Complete<Equation>;
-  using Conservative = fub::Conservative<Equation>;
-
-  void operator()(const fub::PatchDataView<double, 3>& data,
-                  fub::amrex::PatchHandle, fub::Location location,
-                  int fill_width, fub::Duration) {
-    fub::View<Complete> complete =
-        fub::amrex::MakeView<fub::View<Complete>>(data, equation);
-    const std::size_t dir = static_cast<std::size_t>(location.direction);
-    const std::size_t other_dir = (dir + 1) % 2;
-    std::array<std::ptrdiff_t, 3> origin = data.Origin();
-    if (location.side == 0) {
-      for (std::ptrdiff_t j = 0; j < data.Extent(other_dir); ++j) {
-        std::array<std::ptrdiff_t, 2> dest_index{origin[0], origin[1]};
-        std::array<std::ptrdiff_t, 2> source_index{origin[0], origin[1]};
-        dest_index[other_dir] += j;
-        source_index[other_dir] += j;
-        source_index[dir] += fill_width;
-        Load(state, complete, source_index);
-        for (int i = 0; i < fill_width; ++i) {
-          dest_index[dir] = origin[dir] + i;
-          Store(complete, state, dest_index);
-        }
-      }
-    } else if (location.side == 1) {
-      const std::ptrdiff_t n = fub::Extents<0>(complete).extent(dir);
-      for (std::ptrdiff_t j = 0; j < data.Extent(other_dir); ++j) {
-        std::array<std::ptrdiff_t, 2> dest_index{origin[0], origin[1]};
-        std::array<std::ptrdiff_t, 2> source_index{origin[0], origin[1]};
-        dest_index[other_dir] += j;
-        source_index[other_dir] += j;
-        source_index[dir] += n - 1 - fill_width;
-        Load(state, complete, source_index);
-        for (int i = 0; i < fill_width; ++i) {
-          dest_index[dir] = origin[dir] + n - fill_width + i;
-          Store(complete, state, dest_index);
-        }
-      }
-    }
-  }
-
-  std::shared_ptr<fub::amrex::PatchHierarchy> hierarchy;
-  Equation equation;
-  Complete state{equation};
 };
 
 int main(int argc, char** argv) {
@@ -171,10 +123,11 @@ int main(int argc, char** argv) {
   from_prim(right, equation);
 
   ShockData initial_data{hierarchy, equation, left, right};
-  TransmissiveBoundary boundary{hierarchy, equation};
+  fub::TransmissiveBoundary boundary{equation};
   auto gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       hierarchy, fub::amrex::AdaptInitialData(initial_data, equation),
-      fub::amrex::AdaptTagging(equation, hierarchy, gradient, buffer), boundary);
+      fub::amrex::AdaptTagging(equation, hierarchy, gradient, buffer),
+      boundary);
   gridding->InitializeHierarchy(0.0);
 
   fub::HyperbolicSplitPatchIntegrator patch_integrator{equation};
@@ -201,7 +154,7 @@ int main(int argc, char** argv) {
   using namespace std::literals::chrono_literals;
   output(hierarchy, 0, 0.0s);
   fub::RunOptions run_options{};
-  
+
   run_options.final_time = 1.0s;
   run_options.output_frequency = 1;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,

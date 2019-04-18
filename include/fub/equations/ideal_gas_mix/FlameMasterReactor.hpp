@@ -341,9 +341,7 @@ public:
    *
    * Units are \f$kg/kmol\f$
    */
-  double getSpeciesMolarMass(size_t i) const {
-    return state_.molarMasses[i];
-  }
+  double getSpeciesMolarMass(size_t i) const { return state_.molarMasses[i]; }
 
   /**
    * get the molar masses for all species

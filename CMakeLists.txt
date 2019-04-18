@@ -147,6 +147,7 @@ add_library(HyperbolicSolver.Solver
   src/CartesianCoordinates.cpp
   src/split_method/GodunovSplitting.cpp
   src/split_method/StrangSplitting.cpp
+  src/geometry/Halfspace.cpp
   src/RunSimulation.cpp)
 target_link_libraries(HyperbolicSolver.Solver
   PUBLIC
@@ -159,7 +160,8 @@ target_compile_options(HyperbolicSolver.Solver
   $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
   $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall>
   $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>
-  $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wconversion>)
+  $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wconversion>
+  $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wsign-conversion>)
 install(
   TARGETS HyperbolicSolver.Solver
   EXPORT HyperbolicSolver

@@ -37,7 +37,7 @@ namespace amrex {
 
 class GriddingAlgorithm : private ::amrex::AmrCore {
 public:
-using BoundaryCondition =
+  using BoundaryCondition =
       std::function<void(const PatchDataView<double, AMREX_SPACEDIM + 1>&,
                          PatchHandle, Location, int, Duration)>;
   static constexpr int Rank = AMREX_SPACEDIM;
@@ -46,7 +46,8 @@ using BoundaryCondition =
                     InitialData initial_data, Tagging tagging);
 
   GriddingAlgorithm(std::shared_ptr<PatchHierarchy> hier,
-                    InitialData initial_data, Tagging tagging, BoundaryCondition boundary);
+                    InitialData initial_data, Tagging tagging,
+                    BoundaryCondition boundary);
 
   const std::shared_ptr<PatchHierarchy>& GetPatchHierarchy() const noexcept {
     return hierarchy_;

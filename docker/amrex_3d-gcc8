@@ -1,0 +1,37 @@
+FROM gcc:8
+
+RUN apt-get update && apt-get install --yes \
+  libopenmpi-dev \
+  libeigen3-dev \
+  openmpi-bin
+
+# Install latest CMake files from the internet
+RUN wget https://github.com/Kitware/CMake/releases/download/v3.14.2/cmake-3.14.2-Linux-x86_64.tar.gz \
+  && tar xzf cmake-3.14.2-Linux-x86_64.tar.gz && rm cmake-3.14.2-Linux-x86_64.tar.gz \
+  && cp -r cmake-3.14.2-Linux-x86_64/* /usr/ && rm -r cmake-3.14.2-Linux-x86_64/
+
+# Build and install fmtlib
+RUN git clone --depth=1 https://github.com/fmtlib/fmt.git \
+  && mkdir /fmt/build && cd /fmt/build \
+  && cmake /fmt -DCMAKE_INSTALL_PREFIX="/" -DFMT_TEST=OFF -DFMT_DOC=OFF\ 
+  && cd /fmt/build && make install && cd / && rm -r /fmt
+
+# Install boost libraries
+RUN wget https://dl.bintray.com/boostorg/release/1.70.0/source/boost_1_70_0.tar.gz \
+  && tar xzf boost_1_70_0.tar.gz \
+  && cd boost_1_70_0/ && ./bootstrap.sh --prefix="/usr" \
+  && ./b2 install --with-filesystem --with-program_options --with-log -j 4 \
+  && cd / && rm -r /boost_1_70_0 boost_1_70_0.tar.gz
+
+# Build and install AMReX
+RUN git clone -b development --depth=1 https://github.com/AMReX-Codes/amrex.git /AMReX \
+  && mkdir /AMReX/build \
+  && cd /AMReX/build 
+  && cmake /AMReX -DDIM=3 \
+                  -DCMAKE_BUILD_TYPE=Release \
+                  -DCMAKE_INSTALL_PREFIX="/" \
+                  -DENABLE_EB=ON \
+                  -DENABLE_OMP=ON \
+                  -DENABLE_ASSERTIONS=OFF \
+  && make -j4 install \
+  && cd / && rm -r /AMReX

@@ -19,7 +19,20 @@
 // SOFTWARE.
 
 #include "fub/equations/PerfectGas.hpp"
+
+#include <tuple>
+#include <type_traits>
 #include <iostream>
+
+template <typename T, std::size_t N, std::size_t... Is>
+auto ToTuple(const std::array<T, N>& array, std::index_sequence<Is...>) {
+  return std::make_tuple(array[Is]...);
+}
+
+template <typename T, std::size_t N>
+auto ToTuple(const std::array<T, N>& array) {
+  return ToTuple(array, std::make_index_sequence<N>{});
+}
 
 int main() {
   using namespace fub;
@@ -52,7 +65,7 @@ int main() {
 
   double pM;
   double uM;
-  std::tie(pM, uM) = solver.ComputeMiddleState(left, right, Direction::X);
+  std::tie(pM, uM) = ToTuple(solver.ComputeMiddleState(left, right, Direction::X));
   std::cout << "p*: " << pM << ", u*: " << uM << '\n';
 
   solver.SolveRiemannProblem(solution, left, right, Direction::X);
@@ -72,7 +85,7 @@ int main() {
   right.pressure = 0.4;
   from_prim(right);
 
-  std::tie(pM, uM) = solver.ComputeMiddleState(left, right, Direction::X);
+  std::tie(pM, uM) = ToTuple(solver.ComputeMiddleState(left, right, Direction::X));
   std::cout << "p*: " << pM << ", u*: " << uM << '\n';
 
   solver.SolveRiemannProblem(solution, left, right, Direction::X);
@@ -92,7 +105,7 @@ int main() {
   right.pressure = 0.01;
   from_prim(right);
 
-  std::tie(pM, uM) = solver.ComputeMiddleState(left, right, Direction::X);
+  std::tie(pM, uM) = ToTuple(solver.ComputeMiddleState(left, right, Direction::X));
   std::cout << "p*: " << pM << ", u*: " << uM << '\n';
 
   solver.SolveRiemannProblem(solution, left, right, Direction::X);
@@ -112,7 +125,7 @@ int main() {
   right.pressure = 100.0;
   from_prim(right);
 
-  std::tie(pM, uM) = solver.ComputeMiddleState(left, right, Direction::X);
+  std::tie(pM, uM) = ToTuple(solver.ComputeMiddleState(left, right, Direction::X));
   std::cout << "p*: " << pM << ", u*: " << uM << '\n';
 
   solver.SolveRiemannProblem(solution, left, right, Direction::X);
@@ -130,7 +143,7 @@ int main() {
   right.pressure = 278308;
   from_prim(right);
 
-  std::tie(pM, uM) = solver.ComputeMiddleState(left, right, Direction::X);
+  std::tie(pM, uM) = ToTuple(solver.ComputeMiddleState(left, right, Direction::X));
   std::cout << "p*: " << pM << ", u*: " << uM << '\n';
 
   solver.SolveRiemannProblem(solution, left, right, Direction::X);
@@ -152,7 +165,7 @@ int main() {
   right.pressure = 248331;
   from_prim(right);
 
-  std::tie(pM, uM) = solver.ComputeMiddleState(left, right, Direction::X);
+  std::tie(pM, uM) = ToTuple(solver.ComputeMiddleState(left, right, Direction::X));
   std::cout << "p*: " << pM << ", u*: " << uM << '\n';
 
   solver.SolveRiemannProblem(solution, left, right, Direction::X);

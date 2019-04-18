@@ -33,8 +33,8 @@ Eigen::Vector3d CartesianCoordinates::
 operator()(std::ptrdiff_t i, std::ptrdiff_t j, std::ptrdiff_t k) const {
   Eigen::Matrix<std::ptrdiff_t, 3, 1> i_loc{i, j, k};
   Eigen::Matrix<std::ptrdiff_t, 3, 1> di{extents_.extent(0) - 1,
-                                      std::max(1L, extents_.extent(1) - 1),
-                                      std::max(1L, extents_.extent(2) - 1)};
+                                         std::max(1L, extents_.extent(1) - 1),
+                                         std::max(1L, extents_.extent(2) - 1)};
   Eigen::Array3d lambda =
       i_loc.cast<double>().array() / di.cast<double>().array();
   Eigen::Array3d dx_2 = dx_.array() / 2;

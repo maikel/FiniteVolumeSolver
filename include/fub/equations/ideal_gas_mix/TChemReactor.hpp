@@ -108,9 +108,7 @@ public:
 
   void UpdateThermoState();
 
-  const char* GetSpeciesName(int i) const { 
-    return species_names_[i].data();
-  }
+  const char* GetSpeciesName(int i) const { return species_names_[i].data(); }
 
 private:
   std::vector<double> temperature_and_mass_fractions_;

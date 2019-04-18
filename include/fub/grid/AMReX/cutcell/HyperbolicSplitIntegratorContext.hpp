@@ -40,6 +40,8 @@ namespace cutcell {
 class HyperbolicSplitIntegratorContext {
 public:
   using PatchHandle = ::fub::amrex::PatchHandle;
+  template <typename V> using MakeView = MakeViewImpl<V>;
+
   static constexpr int Rank = AMREX_SPACEDIM;
 
   HyperbolicSplitIntegratorContext(std::shared_ptr<GriddingAlgorithm> gridding,
@@ -58,6 +60,8 @@ public:
   int GetRatioToCoarserLevel(int level) const noexcept;
 
   int GetGhostCellWidth(PatchHandle, Direction);
+
+  void FillGhostLayer(::amrex::MultiFab& dest, int level);
 
   void FillGhostLayerTwoLevels(int level, int coarse, Direction direction);
 
@@ -79,13 +83,12 @@ public:
   ::amrex::MultiFab& GetFluxes(int level, Direction dir);
   PatchDataView<double, Rank + 1> GetFluxes(PatchHandle patch, Direction dir);
 
-  ::amrex::MultiFab& GetBoundaryFluxes(int level, Direction dir);
+  ::amrex::MultiCutFab& GetBoundaryFluxes(int level, Direction dir);
   PatchDataView<double, Rank + 1> GetBoundaryFluxes(PatchHandle patch,
                                                     Direction dir);
 
   ::amrex::MultiFab& GetReferenceStates(int level, Direction dir);
-  PatchDataView<double, Rank + 1> GetReferenceStates(PatchHandle patch,
-                                                     Direction dir);
+  PatchDataView<double, Rank + 1> GetReferenceStates(PatchHandle patch);
 
   ::amrex::MultiFab& GetStabilizedFluxes(int level, Direction dir);
   PatchDataView<double, Rank + 1> GetStabilizedFluxes(PatchHandle patch,
@@ -113,16 +116,13 @@ public:
 
   const ::amrex::Geometry& GetGeometry(int level) const;
 
+  void PreAdvanceHierarchy();
+  void PostAdvanceHierarchy();
+
   void PreAdvanceLevel(int level_num, Direction dir, Duration dt, int subcycle);
 
   void PostAdvanceLevel(int level_num, Direction dir, Duration dt,
                         int subcycle);
-
-  void PostProcessNumericFluxes(int level_num, Direction dir, Duration dt);
-
-  void Advance(int level, Direction dir, Duration dt, int subcycle);
-
-  void UpdateConservatively(int level, Direction dir, Duration dt);
 
   template <typename F> F ForEachPatch(int level, F function) {
     return GetPatchHierarchy()->ForEachPatch(level, function);
@@ -136,21 +136,36 @@ public:
 
   BoundaryCondition GetBoundaryCondition(int level) const;
 
-private:
   struct LevelData {
-    /// Scratch space with ghost cell widths
-    std::array<::amrex::MultiFab, 3> scratch;
-    ::amrex::MultiFab reference_states;
+    /// This eb_factory is shared with the underlying patch hierarchy.
+    std::shared_ptr<::amrex::EBFArrayBoxFactory> eb_factory;
 
-    /// These arrays will store the fluxes for each patch level which is present
-    /// in the patch hierarchy. These will need to be rebuilt if the
-    /// PatchHierarchy changes.
+    ///////////////////////////////////////////////////////////////////////////
+    // [cell-centered]
+
+    /// reference states which are used to compute embedded boundary fluxes
+    std::unique_ptr<::amrex::MultiFab> reference_states;
+
+    /// scratch space filled with data in ghost cells
+    std::array<::amrex::MultiFab, 3> scratch;
+
+    /// fluxes for the embedded boundary
+    ::amrex::MultiCutFab boundary_fluxes;
+
+    ///////////////////////////////////////////////////////////////////////////
+    // [face-centered]
+
+    /// @{
+    /// various flux types needed by the numerical scheme
     std::array<::amrex::MultiFab, 3> fluxes;
     std::array<::amrex::MultiFab, 3> stabilized_fluxes;
     std::array<::amrex::MultiFab, 3> shielded_left_fluxes;
     std::array<::amrex::MultiFab, 3> shielded_right_fluxes;
     std::array<::amrex::MultiFab, 3> doubly_shielded_fluxes;
-    std::array<::amrex::MultiFab, 3> boundary_fluxes;
+    /// @}
+
+    ///////////////////////////////////////////////////////////////////////////
+    // [misc]
 
     /// FluxRegister accumulate fluxes on coarse fine interfaces between
     /// refinement level. These will need to be rebuilt whenever the hierarchy
@@ -162,18 +177,11 @@ private:
     std::array<std::ptrdiff_t, 3> cycles;
   };
 
+private:
   int ghost_cell_width_;
   std::shared_ptr<cutcell::GriddingAlgorithm> gridding_;
   std::vector<LevelData> data_;
 };
-
-template <typename State, typename T, typename Equation>
-State MakeViewImpl(const HyperbolicSplitIntegratorContext&,
-                   boost::hana::basic_type<State>,
-                   mdspan<T, AMREX_SPACEDIM + 1> fab,
-                   const Equation& equation) {
-  return MakeView(boost::hana::type_c<State>, fab, equation);
-}
 
 } // namespace cutcell
 } // namespace amrex

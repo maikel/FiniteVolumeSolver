@@ -39,27 +39,24 @@ public:
     return regular_integrator_.GetEquation();
   }
 
-  template <typename L1, typename L2, typename L3>
-  void UpdateConservatively(const View<Conservative, L1>& next,
-                            const View<const Conservative, L2>& prev,
-                            const View<const Conservative, L3>& fluxes,
+  void UpdateConservatively(const View<Conservative>& next,
+                            const View<const Conservative>& prev,
+                            const View<const Conservative>& fluxes,
                             Direction dir, Duration dt, double dx) {
     regular_integrator_.UpdateConservatively(next, fluxes, prev, dir, dt, dx);
   }
 
-  template <typename L1, typename L2, typename L3, typename L4>
   void UpdateConservatively(
-      const View<Conservative, L1>& nexts,
-      const View<const Conservative, L2>& prevs,
-      const View<const Conservative, L3>& stabilised_fluxes,
-      const View<const Conservative, L3>& regular_fluxes,
-      const View<const Conservative, L3>& shielded_left_fluxes,
-      const View<const Conservative, L3>& shielded_right_fluxes,
-      const View<const Conservative, L3>& doubly_shielded_fluxes,
-      const View<const Conservative, L4>& fluxes_boundary,
+      const View<Conservative>& nexts, const View<const Conservative>& prevs,
+      const View<const Conservative>& stabilised_fluxes,
+      const View<const Conservative>& regular_fluxes,
+      const View<const Conservative>& shielded_left_fluxes,
+      const View<const Conservative>& shielded_right_fluxes,
+      const View<const Conservative>& /* doubly_shielded_fluxes */,
+      const View<const Conservative>& fluxes_boundary,
       const CutCellData<Rank>& cutcell_data, Direction dir, Duration dt,
       double dx) {
-    using Index = std::array<std::ptrdiff_t, Rank>;
+    using Index = std::array<std::ptrdiff_t, static_cast<std::size_t>(Rank)>;
     const double dt_over_dx = dt.count() / dx;
     FUB_ASSERT(Extents<0>(nexts) == Extents<0>(prevs));
     auto volume = cutcell_data.volume_fractions;

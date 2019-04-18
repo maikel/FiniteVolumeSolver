@@ -23,8 +23,8 @@
 
 namespace fub {
 
-void ShallowWater::Flux(Conservative& flux, const Complete& state, Direction dir) const
-    noexcept {
+void ShallowWater::Flux(Conservative& flux, const Complete& state,
+                        Direction dir) const noexcept {
   const int d = int(dir);
   const double velocity = state.momentum[d];
   flux.heigth = state.momentum[d];
@@ -199,17 +199,17 @@ void ExactRiemannSolver<ShallowWater>::SolveRiemannProblem(
   }
 }
 
-std::array<double, 2> ShallowWaterSignalVelocities::operator()(const ShallowWater& equation,
-                                   const Complete& left, const Complete& right,
-                                   Direction dir) {
-    const int d = static_cast<int>(dir);
-    const double vL = left.momentum[d] / left.heigth;
-    const double sqrt_g_hL = std::sqrt(equation.gravity_ * left.heigth);
-    const double vR = right.momentum[d] / right.heigth;
-    const double sqrt_g_hR = std::sqrt(equation.gravity_ * right.heigth);
-    const double sL = std::min({vL - sqrt_g_hL, vR - sqrt_g_hR, 0.0});
-    const double sR = std::max({vL + sqrt_g_hL, vR + sqrt_g_hR, 0.0});
-    return {sL, sR};
-  }
+std::array<double, 2> ShallowWaterSignalVelocities::
+operator()(const ShallowWater& equation, const Complete& left,
+           const Complete& right, Direction dir) {
+  const int d = static_cast<int>(dir);
+  const double vL = left.momentum[d] / left.heigth;
+  const double sqrt_g_hL = std::sqrt(equation.gravity_ * left.heigth);
+  const double vR = right.momentum[d] / right.heigth;
+  const double sqrt_g_hR = std::sqrt(equation.gravity_ * right.heigth);
+  const double sL = std::min({vL - sqrt_g_hL, vR - sqrt_g_hR, 0.0});
+  const double sR = std::max({vL + sqrt_g_hL, vR + sqrt_g_hR, 0.0});
+  return {sL, sR};
+}
 
 } // namespace fub

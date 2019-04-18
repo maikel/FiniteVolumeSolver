@@ -45,6 +45,11 @@ namespace fub {
 namespace amrex {
 namespace cutcell {
 
+/// This class holds state data arrays for each refinement level of a patch
+/// hierarchy.
+///
+/// This cut-cell version stores some embedded boundary informations in addition
+/// to the normal patch level type.
 struct PatchLevel : ::fub::amrex::PatchLevel {
   PatchLevel() = default;
   PatchLevel(const PatchLevel&) = delete;
@@ -55,16 +60,22 @@ struct PatchLevel : ::fub::amrex::PatchLevel {
 
   PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
              const ::amrex::DistributionMapping& dm, int n_components,
-             std::unique_ptr<::amrex::EBFArrayBoxFactory> factory);
+             std::shared_ptr<::amrex::EBFArrayBoxFactory> factory);
 
   using MultiCutFabs =
       std::array<std::unique_ptr<::amrex::MultiCutFab>, AMREX_SPACEDIM>;
 
-  std::unique_ptr<::amrex::EBFArrayBoxFactory> factory;
+  std::shared_ptr<::amrex::EBFArrayBoxFactory> factory;
   MultiCutFabs unshielded;
   MultiCutFabs shielded_left;
   MultiCutFabs shielded_right;
   MultiCutFabs doubly_shielded;
+};
+
+/// This class extents the normal hierarchy options with a pointer to an
+/// embedded boundary index space for each possible refinement level.
+struct PatchHierarchyOptions : public ::fub::amrex::PatchHierarchyOptions {
+  std::vector<const ::amrex::EB2::IndexSpace*> index_spaces;
 };
 
 class PatchHierarchy {
@@ -97,7 +108,8 @@ public:
     return static_cast<int>(patch_level_.size());
   }
 
-  int GetRatioToCoarserLevel(int level) const noexcept {
+  int GetRatioToCoarserLevel(int level, Direction = Direction::X) const
+      noexcept {
     if (level) {
       return 2;
     }
@@ -126,11 +138,11 @@ public:
     return description_;
   }
 
-  const ::amrex::EBFArrayBoxFactory& GetEmbeddedBoundary(int level) const
-      noexcept {
+  const std::shared_ptr<::amrex::EBFArrayBoxFactory>&
+  GetEmbeddedBoundary(int level) const noexcept {
     FUB_ASSERT(0 <= level && level < GetMaxNumberOfLevels());
     const std::size_t level_num = static_cast<std::size_t>(level);
-    return *patch_level_[level_num].factory;
+    return patch_level_[level_num].factory;
   }
 
   template <typename Feedback>
@@ -193,17 +205,20 @@ void WritePlotFile(const std::string plotfilename, const PatchHierarchy& hier,
     ref_ratio[i] = hier.GetRatioToCoarserLevel(static_cast<int>(i)) *
                    ::amrex::IntVect::TheUnitVector();
   }
-  constexpr auto names = Equation::Complete::Names();
-  const auto shape = equation.Shape(complete);
+  using Traits = StateTraits<Complete<Equation>>;
+  constexpr auto names = Traits::names;
+  const auto depths = Depths<Complete<Equation>>(equation);
+  const std::size_t n_names =
+      std::tuple_size<remove_cvref_t<decltype(names)>>::value;
   ::amrex::Vector<std::string> varnames;
-  varnames.reserve(boost::hana::length(names));
-  boost::hana::for_each(boost::hana::zip(names, shape), [&](auto xs) {
-    const int ncomp = at_c<1>(xs);
+  varnames.reserve(n_names);
+  boost::mp11::tuple_for_each(Zip(names, ToTuple(depths)), [&](auto xs) {
+    const int ncomp = std::get<1>(xs);
     if (ncomp == 1) {
-      varnames.push_back(at_c<0>(xs).c_str());
+      varnames.push_back(std::get<0>(xs));
     } else {
       for (int i = 0; i < ncomp; ++i) {
-        varnames.push_back(fmt::format("{}_{}", at_c<0>(xs).c_str(), i));
+        varnames.push_back(fmt::format("{}_{}", std::get<0>(xs), i));
       }
     }
   });

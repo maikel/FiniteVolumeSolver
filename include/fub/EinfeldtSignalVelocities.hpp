@@ -34,25 +34,25 @@ namespace fub {
 template <typename Equation> struct EinfeldtSignalVelocitiesImpl {
   using Complete = typename Equation::Complete;
 
-  static std::array<double, 2> apply(const Equation& equation, const Complete& left,
-                                     const Complete& right,
-                                     Direction dir);
+  static std::array<double, 2> apply(const Equation& equation,
+                                     const Complete& left,
+                                     const Complete& right, Direction dir);
 };
 
-template <typename Equation>
-struct EinfeldtSignalVelocitiesFn {
+template <typename Equation> struct EinfeldtSignalVelocitiesFn {
   using Complete = typename Equation::Complete;
 
-  std::array<double, 2> operator()(const Equation& equation, const Complete& left,
-                                     const Complete& right,
-                                     Direction dir) const {
-    return EinfeldtSignalVelocitiesImpl<Equation>::apply(equation, left, right, dir);
+  std::array<double, 2> operator()(const Equation& equation,
+                                   const Complete& left, const Complete& right,
+                                   Direction dir) const {
+    return EinfeldtSignalVelocitiesImpl<Equation>::apply(equation, left, right,
+                                                         dir);
   }
 };
 
 template <typename Equation>
-inline constexpr EinfeldtSignalVelocitiesFn<Equation> EinfeldtSignalVelocities{};
-
+inline constexpr EinfeldtSignalVelocitiesFn<Equation>
+    EinfeldtSignalVelocities{};
 
 } // namespace fub
 

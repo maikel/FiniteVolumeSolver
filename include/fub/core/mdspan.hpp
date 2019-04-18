@@ -613,16 +613,16 @@ public:
 
   constexpr basic_mdspan& operator=(const basic_mdspan&) noexcept = default;
   constexpr basic_mdspan& operator=(basic_mdspan&&) noexcept = default;
-  
+
   template <class OtherElementType, class OtherExtents, class OtherLayoutPolicy,
             class OtherAccessorPolicy>
   constexpr basic_mdspan& operator=(
       const basic_mdspan<OtherElementType, OtherExtents, OtherLayoutPolicy,
                          OtherAccessorPolicy>& other) noexcept {
-      static_cast<mapping_type&>(*this) = other.mapping();
-      ptr_ = other.data();
-      return *this;
-    }
+    static_cast<mapping_type&>(*this) = other.mapping();
+    ptr_ = other.data();
+    return *this;
+  }
 
   // [mdspan.basic.mapping], basic_mdspan mapping domain multi-index to access
   // codomain element
@@ -940,7 +940,7 @@ MakeSliceExtents2_(const Extents& e, SliceSpecifiers... slices) {
     }
   }
   std::array<std::ptrdiff_t, SliceRank_<SliceSpecifiers...>> extents{};
-  int slice = 0;
+  std::size_t slice = 0;
   for (std::size_t i = 0; i < Extents::rank(); ++i) {
     if (dyn_length[i] > 0) {
       extents[slice] = dyn_length[i];
@@ -962,7 +962,7 @@ subspan(
       MakeOrigin_(slices...);
   const auto map = src.mapping();
   const auto acc = src.accessor();
-  constexpr int slice_rank = SliceRank_<SliceSpecifiers...>;
+  constexpr std::size_t slice_rank = SliceRank_<SliceSpecifiers...>;
   using SliceExtents = dynamic_extents<slice_rank>;
   const SliceExtents extents{MakeSliceExtents2_(src.extents(), slices...)};
   const std::array<std::ptrdiff_t, slice_rank> slice_array =

@@ -58,9 +58,7 @@ struct OdeSolver {
     integrate(rhs, y_0, t, dt, &feedback, &jacobian);
   }
 
-  std::unique_ptr<OdeSolver> Clone() const {
-    return clone();
-  }
+  std::unique_ptr<OdeSolver> Clone() const { return clone(); }
 
 private:
   virtual void integrate(system_type system, span<double> y_0, double t,

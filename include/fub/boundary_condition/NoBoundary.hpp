@@ -25,14 +25,14 @@
 #include "fub/Direction.hpp"
 #include "fub/Duration.hpp"
 
-namespace fub 
-{
+namespace fub {
 
 struct NoBoundary {
   template <typename PatchHandle, typename Box>
-  void FillBoundary(const PatchHandle&, const Box&, const CartesianCoordinates&, Location, Duration) {}
+  void FillBoundary(const PatchHandle&, const Box&, const CartesianCoordinates&,
+                    Location, Duration) {}
 };
 
-}
+} // namespace fub
 
 #endif

@@ -37,6 +37,8 @@
 namespace fub {
 namespace amrex {
 
+/// \brief This class is used by the HypebrolicSplitLevelIntegrator and
+/// delegates AMR related tasks to the AMReX library.
 class HyperbolicSplitIntegratorContext {
 public:
   using PatchHandle = ::fub::amrex::PatchHandle;
@@ -82,9 +84,6 @@ public:
   void ResetCoarseFineFluxes(int fine, int coarse, Direction dir);
   void CoarsenConservatively(int fine, int coarse, Direction dir);
 
-  // void CopyCurrentToIntermediate();
-  // void CopyIntermediateToCurrent();
-
   const std::shared_ptr<PatchHierarchy>& GetPatchHierarchy() const noexcept {
     return gridding_->GetPatchHierarchy();
   }
@@ -105,6 +104,7 @@ public:
   const ::amrex::Geometry& GetGeometry(int level) const;
 
   void PreAdvanceLevel(int level_num, Direction dir, Duration dt, int subcycle);
+
   void PostAdvanceLevel(int level_num, Direction dir, Duration dt,
                         int subcycle);
 
@@ -134,13 +134,6 @@ private:
   std::shared_ptr<GriddingAlgorithm> gridding_;
   std::vector<LevelData> data_;
 };
-
-template <typename State, typename T, typename Equation>
-State MakeView(const HyperbolicSplitIntegratorContext&,
-               boost::hana::basic_type<State>,
-               mdspan<T, AMREX_SPACEDIM + 1> fab, const Equation& equation) {
-  return MakeView(boost::hana::type_c<State>, fab, equation);
-}
 
 } // namespace amrex
 } // namespace fub

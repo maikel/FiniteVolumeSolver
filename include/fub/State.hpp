@@ -22,693 +22,427 @@
 #define FUB_STATE_HPP
 
 #include "fub/PatchDataView.hpp"
-#include "fub/VariableDescription.hpp"
-#include "fub/ext/hana.hpp"
 
 #include <Eigen/Dense>
 
+#include <boost/mp11/algorithm.hpp>
 #include <boost/mp11/tuple.hpp>
 
+#include <tuple>
+
 namespace fub {
-namespace v2 {
 
-template <typename State> struct StateTraits;
+template <typename T> struct StateTraits;
 
-template <typename T, int Depth, int ArraySize> struct VectorValueType {
-  using type = Eigen::Array<double, Depth, ArraySize>;
-};
-
-template <typename T> struct VectorValueType<T, 1, 1> { using type = T; };
-
-} // namespace v2
-
-template <typename... As, typename... Bs>
-auto IsConvertible(boost::hana::basic_tuple<As...> a,
-                   boost::hana::basic_tuple<Bs...> b) {
-  return boost::hana::all_of(boost::hana::zip(a, b), [](auto ab) {
-    return boost::hana::traits::is_convertible(at_c<0>(ab), at_c<1>(ab));
-  });
+namespace detail {
+template <std::size_t I, typename... Ts> constexpr auto ZipNested(Ts&&... ts) {
+  return std::make_tuple(std::get<I>(ts)...);
 }
 
-template <typename Base> struct StateBase : public Base {
-  using BaseType = Base;
-  using TemplateType = typename RemoveTemplateParameter<Base>::type;
+template <std::size_t... Is, typename... Ts>
+constexpr auto ZipHelper(std::index_sequence<Is...>, Ts&&... ts) {
+  return std::make_tuple(ZipNested<Is>(std::forward<Ts>(ts)...)...);
+}
+} // namespace detail
 
-  Base& base() noexcept { return *this; }
-  const Base& base() const noexcept { return *this; }
-
-  static constexpr auto Template() { return TemplateType{}; }
-
-  static constexpr auto Names() {
-    return decltype(boost::hana::keys(std::declval<Base>())){};
-  }
-
-  using MemberTypes = decltype(boost::hana::members(std::declval<Base>()));
-  MemberTypes Members() const { return boost::hana::members(base()); }
-
-  static constexpr auto Accessors() { return boost::hana::accessors<Base>(); }
-
-  static constexpr auto PointersToMember() {
-    return boost::hana::values(boost::hana::to_map(Accessors()));
-  }
-
-  static constexpr auto ValueTypes() {
-    constexpr auto accessors = Accessors();
-    return boost::hana::transform(accessors, [&](auto a) {
-      using MemberType =
-          decltype(boost::hana::second(a)(std::declval<StateBase<Base>&>()));
-      using ValueType = remove_cvref_t<MemberType>;
-      return type_c<ValueType>;
-    });
-  }
-
-  template <typename... Xs> static constexpr auto Rebind(type<Xs>... types) {
-    return Template()(types...);
-  }
-};
-
-template <typename T>
-constexpr auto ScalarComponentType(basic_type<T>, int_constant<1>) {
-  return type_c<T>;
+template <typename... Ts> constexpr auto Zip(Ts&&... ts) {
+  using First =
+      std::decay_t<boost::mp11::mp_front<boost::mp11::mp_list<Ts...>>>;
+  return detail::ZipHelper(
+      std::make_index_sequence<std::tuple_size<First>::value>(),
+      std::forward<Ts>(ts)...);
 }
 
-template <typename T>
-constexpr auto ScalarComponentType(basic_type<T>, std::ptrdiff_t) {
-  return type_c<Array<T, Eigen::Dynamic, 1>>;
+template <std::size_t I, typename State>
+constexpr decltype(auto) get(State&& x) {
+  using S = remove_cvref_t<State>;
+  constexpr auto& pointers_to_member = S::Traits::pointers_to_member;
+  return x.*std::get<I>(pointers_to_member);
 }
-
-template <typename T, int N, typename = std::enable_if_t<(N > 0)>>
-constexpr auto ScalarComponentType(basic_type<T>, int_constant<N>) {
-  return type_c<Array<T, N, 1>>;
-}
-
-template <typename Equation, StateType Type> constexpr auto ScalarBaseType() {
-  constexpr StateType_c<Type> type{};
-  constexpr auto value_types = Equation::ValueTypes(type);
-  constexpr auto shape = Equation::Shape(type);
-  constexpr auto member_types =
-      boost::hana::transform(boost::hana::zip(value_types, shape), [](auto xs) {
-        return ScalarComponentType(at_c<0>(xs), at_c<1>(xs));
-      });
-  [[maybe_unused]] constexpr auto template_ = Equation::Template(type);
-  return boost::hana::unpack(
-      member_types, [&](auto... types) { return template_(types...); });
-}
-
-template <typename Equation, StateType Type>
-using ScalarBaseTypeT =
-    typename decltype(ScalarBaseType<Equation, Type>())::type;
-
-template <typename Derived, typename Base, bool IsDynamicSize = true>
-struct StateVector : public StateBase<Base> {
-  Derived operator+(const Derived& other) const {
-    return boost::hana::unpack(
-        boost::hana::zip(this->Members(), other.Members()),
-        [](auto... xs) { return Derived{(at_c<0>(xs) + at_c<1>(xs))...}; });
-  }
-
-  Derived operator-(const Derived& other) const {
-    return boost::hana::unpack(
-        boost::hana::zip(this->Members(), other.Members()),
-        [](auto... xs) { return Derived{(at_c<0>(xs) - at_c<1>(xs))...}; });
-  }
-
-  Derived operator*(const Derived& other) const {
-    return boost::hana::unpack(
-        boost::hana::zip(this->Members(), other.Members()),
-        [](auto... xs) { return Derived{(at_c<0>(xs) * at_c<1>(xs))...}; });
-  }
-
-  friend Derived operator*(double scalar, const Derived& vector) {
-    return boost::hana::unpack(vector.Members(), [scalar](auto... xs) {
-      return Derived{(scalar * xs)...};
-    });
-  }
-
-  friend Derived operator*(const Derived& vector, double scalar) {
-    return scalar * vector;
-  }
-
-  StateVector() = default;
-
-  template <typename... Args,
-            typename = std::enable_if_t<IsConvertible(
-                boost::hana::make_tuple(type_c<remove_cvref_t<Args>>...),
-                StateBase<Base>::ValueTypes())>>
-  StateVector(Args&&... args) noexcept
-      : StateBase<Base>{std::forward<Args>(args)...} {}
-};
-
-template <typename Equation>
-struct Complete : StateVector<Complete<Equation>,
-                              ScalarBaseTypeT<Equation, StateType::Complete>> {
-  using EquationType = Equation;
-
-  using Base = StateVector<Complete<Equation>,
-                           ScalarBaseTypeT<Equation, StateType::Complete>>;
-
-  using Base::Base;
-
-  Complete(const Equation& eq [[maybe_unused]]) : Base{} {
-    if constexpr (Equation::StaticSize(complete) == dynamic_extent) {
-    }
-  }
-};
-
-template <typename Equation>
-struct Conservative
-    : StateVector<Conservative<Equation>,
-                  ScalarBaseTypeT<Equation, StateType::Conservative>> {
-  using EquationType = Equation;
-
-  using Base = StateVector<Conservative<Equation>,
-                           ScalarBaseTypeT<Equation, StateType::Conservative>>;
-  using Base::Base;
-
-  Conservative(const Equation& eq [[maybe_unused]]) : Base{} {
-    if constexpr (Equation::StaticSize(
-                      std::integral_constant<StateType, cons>{}) ==
-                  dynamic_extent) {
-    }
-  }
-};
-
-template <typename Equation>
-Conservative<Equation> AsCons(const Complete<Equation>& complete) {
-  constexpr auto names = Conservative<Equation>::Names();
-  const auto mapped = boost::hana::to_map(complete);
-  return boost::hana::unpack(names, [&](auto... name) {
-    return Conservative<Equation>{mapped[name]...};
-  });
-}
-
-template <typename T, int Width>
-constexpr auto ArrayComponentType(basic_type<T>, int_constant<1>,
-                                  int_constant<Width>) {
-  return type_c<Array<T, 1, Width>>;
-}
-
-template <typename T, int Width>
-constexpr auto ArrayComponentType(basic_type<T>, std::ptrdiff_t,
-                                  int_constant<Width>) {
-  return type_c<Array<T, Eigen::Dynamic, Width>>;
-}
-
-template <typename T, int N, int Width, typename = std::enable_if_t<(N > 0)>>
-constexpr auto ArrayComponentType(basic_type<T>, int_constant<N>,
-                                  int_constant<Width>) {
-  return type_c<Array<T, N, Width>>;
-}
-
-template <int Width, typename Equation, StateType Type>
-constexpr auto ArrayBaseType(int_constant<Width> width, basic_type<Equation>,
-                             StateType_c<Type> type) {
-  constexpr auto value_types = Equation::ValueTypes(type);
-  constexpr auto shape = Equation::Shape(type);
-  constexpr auto member_types = boost::hana::transform(
-      boost::hana::zip(value_types, shape), [&](auto xs) {
-        return ArrayComponentType(at_c<0>(xs), at_c<1>(xs), width);
-      });
-  constexpr auto template_ = Equation::Template(type);
-  return boost::hana::unpack(
-      member_types, [&](auto... types) { return template_(types...); });
-}
-
-template <int N, typename Equation, StateType Type>
-using ArrayBaseTypeT = typename decltype(
-    ArrayBaseType(int_constant<N>{}, type_c<Equation>,
-                  std::integral_constant<StateType, Type>{}))::type;
-
-template <typename Equation, int N = kDefaultChunkSize>
-struct CompleteArray
-    : StateVector<CompleteArray<Equation, N>,
-                  ArrayBaseTypeT<N, Equation, StateType::Complete>> {
-  using EquationType = Equation;
-  using Base = StateVector<CompleteArray<Equation, N>,
-                           ArrayBaseTypeT<N, Equation, StateType::Complete>>;
-  using Base::Base;
-  CompleteArray(const Equation& eq [[maybe_unused]]) : Base{} {
-    if constexpr (Equation::StaticSize(
-                      std::integral_constant<StateType, cons>{}) ==
-                  dynamic_extent) {
-    }
-  }
-};
-
-template <typename Equation, int N = kDefaultChunkSize>
-struct ConservativeArray
-    : StateVector<ConservativeArray<Equation, N>,
-                  ArrayBaseTypeT<N, Equation, StateType::Conservative>> {
-  using EquationType = Equation;
-  using Base =
-      StateVector<ConservativeArray<Equation, N>,
-                  ArrayBaseTypeT<N, Equation, StateType::Conservative>>;
-  using Base::Base;
-  ConservativeArray(const Equation& eq [[maybe_unused]]) : Base{} {
-    if constexpr (Equation::StaticSize(
-                      std::integral_constant<StateType, cons>{}) ==
-                  dynamic_extent) {
-    }
-  }
-};
 
 template <typename StateType, typename F, typename... Ts>
 void ForEachVariable(F function, Ts&&... states) {
-  constexpr auto names = StateType::Names();
-  constexpr auto maps = boost::hana::make_tuple(
-      boost::hana::to_map(remove_cvref_t<Ts>::Accessors())...);
-  boost::hana::for_each(names, [&](auto name) {
-    boost::hana::unpack(boost::hana::zip(maps, boost::hana::make_tuple(
-                                                   std::addressof(states)...)),
-                        [&](auto... xs) {
-                          return function(at_c<0>(xs)[name](*at_c<1>(xs))...);
-                        });
+  constexpr auto pointers =
+      Zip(StateTraits<remove_cvref_t<Ts>>::pointers_to_member...);
+  const auto xs = std::make_tuple(std::addressof(states)...);
+  boost::mp11::tuple_for_each(pointers, [&function, &xs](const auto& ps) {
+    boost::mp11::tuple_apply(
+        [&function](auto... ys) {
+          function((*std::get<0>(ys)).*std::get<1>(ys)...);
+        },
+        Zip(xs, ps));
   });
 }
 
-template <typename Layout, typename T, typename... Extents>
-constexpr auto ViewComponent(int_constant<1>, T* pointer, Extents... extents) {
-  return mdspan<T, sizeof...(Extents), Layout>(pointer, extents...);
+template <typename State> auto ToTuple(const State& x) {
+  return boost::mp11::tuple_apply(
+      [&x](auto... pointer) { return std::make_tuple((x.*pointer)...); },
+      StateTraits<State>::pointers_to_member);
 }
 
-template <typename Layout, int N, typename T, typename... Extents,
-          typename = std::enable_if_t<(N > 0)>>
-constexpr auto ViewComponent(int_constant<N>, T* pointer, Extents... extents) {
-  return mdspan<T, sizeof...(Extents) + 1, Layout>(pointer, extents..., N);
-}
+/// This type is used to tag scalar quantities
+struct ScalarDepth : std::integral_constant<int, 1> {};
 
-template <typename Layout, typename T, typename... Extents>
-constexpr auto ViewComponent(int n, T* pointer, Extents... extents) {
-  return mdspan<T, sizeof...(Extents) + 1, Layout>(pointer, extents..., n);
-}
+/// This type is used to tag quantities with a depth known at compile time.
+template <int Depth> struct VectorDepth : std::integral_constant<int, Depth> {};
 
-template <typename Layout, typename T, int Rank>
-constexpr auto ViewComponentType(basic_type<Layout>, int_constant<1>,
-                                 basic_type<T*>, int_constant<Rank>) {
-  return type_c<PatchDataView<T, Rank, Layout>>;
-}
+/// @{
+/// This meta-function transforms a Depth into a value type used in a states or
+/// state arrays.
+template <typename T, int Width> struct DepthToStateValueTypeImpl;
 
-template <typename Layout, typename Depth, typename T, int Rank>
-constexpr auto ViewComponentType(basic_type<Layout>, Depth, basic_type<T*>,
-                                 int_constant<Rank>) {
-  return type_c<PatchDataView<T, Rank + 1, Layout>>;
-}
-
-template <typename Equation, int Rank, typename Layout>
-constexpr auto ViewBase(basic_type<Conservative<Equation>>,
-                        int_constant<Rank> rank, basic_type<Layout> layout) {
-  constexpr auto value_types = Equation::ValueTypes(cons);
-  constexpr auto shape = Equation::Shape(cons);
-  constexpr auto template_ = Equation::Template(cons);
-  return boost::hana::unpack(
-      boost::hana::zip(value_types, shape), [&](auto... xs) {
-        auto view_type = [&](auto x) {
-          constexpr auto pointer = boost::hana::traits::add_pointer(at_c<0>(x));
-          constexpr auto depth = at_c<1>(x);
-          return ViewComponentType(layout, depth, pointer, rank);
-        };
-        return template_(view_type(xs)...);
-      });
-}
-
-template <typename Equation, int Rank, typename Layout>
-constexpr auto ViewBase(basic_type<const Conservative<Equation>>,
-                        int_constant<Rank> rank, basic_type<Layout> layout) {
-  constexpr auto value_types = Equation::ValueTypes(cons);
-  constexpr auto shape = Equation::Shape(cons);
-  constexpr auto template_ = Equation::Template(cons);
-  return boost::hana::unpack(
-      boost::hana::zip(value_types, shape), [&](auto... xs) {
-        auto view_type = [&](auto x) {
-          constexpr auto pointer = boost::hana::traits::add_pointer(
-              boost::hana::traits::add_const(at_c<0>(x)));
-          constexpr auto depth = at_c<1>(x);
-          return ViewComponentType(layout, depth, pointer, rank);
-        };
-        return template_(view_type(xs)...);
-      });
-}
-
-template <typename Equation, int Rank, typename Layout>
-constexpr auto ViewBase(basic_type<Complete<Equation>>, int_constant<Rank> rank,
-                        basic_type<Layout> layout) {
-  constexpr auto value_types = Equation::ValueTypes(complete);
-  constexpr auto shape = Equation::Shape(complete);
-  constexpr auto template_ = Equation::Template(complete);
-  return boost::hana::unpack(
-      boost::hana::zip(value_types, shape), [&](auto... xs) {
-        auto view_type = [&](auto x) {
-          constexpr auto pointer = boost::hana::traits::add_pointer(at_c<0>(x));
-          constexpr auto depth = at_c<1>(x);
-          return ViewComponentType(layout, depth, pointer, rank);
-        };
-        return template_(view_type(xs)...);
-      });
-}
-
-template <typename Equation, int Rank, typename Layout>
-constexpr auto ViewBase(basic_type<const Complete<Equation>>,
-                        int_constant<Rank> rank, basic_type<Layout> layout) {
-  constexpr auto value_types = Equation::ValueTypes(complete);
-  constexpr auto shape = Equation::Shape(complete);
-  constexpr auto template_ = Equation::Template(complete);
-  return boost::hana::unpack(
-      boost::hana::zip(value_types, shape), [&](auto... xs) {
-        auto view_type = [&](auto x) {
-          constexpr auto pointer = boost::hana::traits::add_pointer(
-              boost::hana::traits::add_const(at_c<0>(x)));
-          constexpr auto depth = at_c<1>(x);
-          return ViewComponentType(layout, depth, pointer, rank);
-        };
-        return template_(view_type(xs)...);
-      });
-}
-
-template <typename State, int Rank, typename Layout>
-using ViewBaseT = typename decltype(
-    ViewBase(type_c<State>, int_constant<Rank>(), type_c<Layout>))::type;
-
-template <typename State, typename Layout = layout_left,
-          int Rank = State::EquationType::Rank()>
-struct View : StateBase<ViewBaseT<State, Rank, Layout>> {
-  using EquationType = typename State::EquationType;
+/// The value-type for a single-cell state for a scalar quantity.
+template <> struct DepthToStateValueTypeImpl<ScalarDepth, 1> {
+  using type = double;
 };
+
+/// The value-type for a single-cell state for a scalar quantity.
+template <int Width> struct DepthToStateValueTypeImpl<ScalarDepth, Width> {
+  using type = Eigen::Array<double, 1, Width>;
+};
+
+/// The value-type for a single-cell state for a scalar quantity.
+template <int Depth, int Width>
+struct DepthToStateValueTypeImpl<VectorDepth<Depth>, Width> {
+  using type = Eigen::Array<double, Depth, Width>;
+};
+
+/// For usage with boost::mp11
+template <typename T>
+using DepthToStateValueType = typename DepthToStateValueTypeImpl<T, 1>::type;
+/// @}
+
+/// This type alias transforms state depths into a conservative state associated
+/// with a specified equation.
+template <typename Equation>
+using ConservativeBase =
+    boost::mp11::mp_transform<DepthToStateValueType,
+                              typename Equation::ConservativeDepths>;
+
+/// This type has a constructor which takes an equation and might allocate any
+/// dynamically sized member variable.
+template <typename Eq> struct Conservative : ConservativeBase<Eq> {
+  using Equation = Eq;
+  using Depths = typename Equation::ConservativeDepths;
+
+  Conservative() = default;
+  Conservative(const ConservativeBase<Eq>& x) : ConservativeBase<Eq>{x} {}
+  Conservative& operator=(const ConservativeBase<Eq>& x) {
+    static_cast<ConservativeBase<Eq>&>(*this) = x;
+  }
+  Conservative(const Equation&) : ConservativeBase<Eq>{} {}
+};
+
+template <typename Eq>
+struct StateTraits<Conservative<Eq>> : StateTraits<ConservativeBase<Eq>> {};
+
+template <typename Equation>
+using CompleteBase =
+    boost::mp11::mp_transform<DepthToStateValueType,
+                              typename Equation::CompleteDepths>;
+
+/// This type has a constructor which takes an equation and might allocate any
+/// dynamically sized member variable.
+template <typename Eq> struct Complete : CompleteBase<Eq> {
+  using Equation = Eq;
+  using Depths = typename Equation::CompleteDepths;
+  using Traits = StateTraits<CompleteBase<Equation>>;
+
+  Complete() = default;
+  Complete(const CompleteBase<Eq>& x) : CompleteBase<Eq>{x} {}
+  Complete& operator=(const CompleteBase<Eq>& x) {
+    static_cast<CompleteBase<Eq>&>(*this) = x;
+  }
+  Complete(const Equation&) : CompleteBase<Eq>{} {}
+};
+
+template <typename Eq>
+struct StateTraits<Complete<Eq>> : StateTraits<CompleteBase<Eq>> {};
+
+///// View type
+
+template <typename Depth, typename T, int Rank, typename Layout>
+struct DepthToViewValueType {
+  using type = PatchDataView<T, Rank + 1, Layout>;
+};
+
+template <typename T, int Rank, typename Layout>
+struct DepthToViewValueType<ScalarDepth, T, Rank, Layout> {
+  using type = PatchDataView<T, Rank, Layout>;
+};
+
+template <typename State, typename Layout, int Rank> struct ViewBaseImpl {
+  template <typename Depth>
+  using fn = typename DepthToViewValueType<Depth, double, Rank, Layout>::type;
+  using type = boost::mp11::mp_transform<fn, typename State::Depths>;
+};
+
+template <typename State, typename Layout, int Rank>
+struct ViewBaseImpl<const State, Layout, Rank> {
+  template <typename Depth>
+  using fn =
+      typename DepthToViewValueType<Depth, const double, Rank, Layout>::type;
+  using type = boost::mp11::mp_transform<fn, typename State::Depths>;
+};
+
+template <typename State, typename Layout, int Rank>
+using ViewBase = typename ViewBaseImpl<State, Layout, Rank>::type;
+
+template <typename S, typename L = layout_left, int R = S::Equation::Rank()>
+struct BasicView : ViewBase<S, L, R> {
+  using State = S;
+  using Layout = L;
+  static constexpr int Rank = R;
+  using ValueType =
+      std::conditional_t<std::is_const<S>::value, const double, double>;
+  using Equation = typename State::Equation;
+  using Depths = typename Equation::ConservativeDepths;
+  using Traits = StateTraits<ViewBase<S, L, R>>;
+
+  BasicView() = default;
+
+  BasicView(const ViewBase<S, L, R>& base) : ViewBase<S, L, R>{base} {}
+  BasicView& operator=(const ViewBase<S, L, R>& base) {
+    static_cast<ViewBase<S, L, R>&>(*this) = base;
+  }
+};
+
+template <typename State, typename Layout, int Rank>
+BasicView<const State, Layout, Rank>
+AsConst(const BasicView<State, Layout, Rank>& v) {
+  BasicView<const State, Layout, Rank> w{};
+  ForEachVariable<State>([](auto& w, const auto& v) { w = v; }, w, v);
+  return w;
+}
+
+template <typename Eq>
+const Conservative<Eq>& AsCons(const Conservative<Eq>& x) {
+  return x;
+}
+
+template <typename Eq> Conservative<Eq>& AsCons(Conservative<Eq>& x) {
+  return x;
+}
+
+template <typename Eq>
+const ConservativeBase<Eq>& AsCons(const Complete<Eq>& x) {
+  return x;
+}
+
+template <typename Eq> ConservativeBase<Eq>& AsCons(Complete<Eq>& x) {
+  return x;
+}
+
+template <typename State, typename L, int R>
+auto AsCons(const BasicView<State, L, R>& view) {
+  using T = std::remove_const_t<State>;
+  using Equation = typename T::Equation;
+  if constexpr (std::is_same<T, Conservative<Equation>>::value) {
+    return view;
+  } else {
+    using Cons = std::conditional_t<std::is_const<State>::value,
+                                    const Conservative<Equation>,
+                                    Conservative<Equation>>;
+    BasicView<Cons, L, R> cons(view);
+    return cons;
+  }
+}
+
+template <typename S, typename L, int R>
+struct StateTraits<BasicView<S, L, R>> : StateTraits<ViewBase<S, L, R>> {};
+
+template <typename State, int Rank = State::Equation::Rank()>
+using View = BasicView<State, layout_stride, Rank>;
 
 template <typename T> struct IsView : std::false_type {};
 
 template <typename State, typename Layout, int Rank>
-struct IsView<View<State, Layout, Rank>> : std::true_type {};
-
-template <template <typename...> typename T, typename... Args>
-StateBase<T<remove_cvref_t<Args>...>> MakeTemplate(template_t<T>,
-                                                   Args&&... args) {
-  return StateBase<T<remove_cvref_t<Args>...>>{std::forward<Args>(args)...};
-}
-
-template <typename Equation, typename Layout, int Rank>
-View<Conservative<Equation>, Layout, Rank>
-AsCons(const View<Complete<Equation>, Layout, Rank>& complete) {
-  View<Conservative<Equation>, Layout, Rank> conservative;
-  ForEachVariable<Conservative<Equation>>(
-      [&](auto& cons, auto comp) { cons = comp; }, conservative, complete);
-  return conservative;
-}
-
-template <typename Equation, typename Layout, int Rank>
-View<const Conservative<Equation>, Layout, Rank>
-AsCons(const View<const Complete<Equation>, Layout, Rank>& complete) {
-  View<const Conservative<Equation>, Layout, Rank> conservative;
-  ForEachVariable<Conservative<Equation>>(
-      [&](auto& cons, auto comp) { cons = comp; }, conservative, complete);
-  return conservative;
-}
-
-template <typename Equation, typename Layout, int Rank>
-View<const Conservative<Equation>, Layout, Rank>
-AsConst(const View<Conservative<Equation>, Layout, Rank>& view) {
-  const auto members = view.Members();
-  return boost::hana::unpack(members, [&](auto... mdspan) {
-    return View<const Conservative<Equation>, Layout, Rank>{mdspan...};
-  });
-}
-
-template <typename Equation, typename Layout, int Rank>
-View<const Complete<Equation>, Layout, Rank>
-AsConst(const View<Complete<Equation>, Layout, Rank>& view) {
-  const auto members = view.Members();
-  return boost::hana::unpack(members, [&](auto... mdspan) {
-    return View<const Complete<Equation>, Layout, Rank>{mdspan...};
-  });
-}
-
-template <typename Equation, typename Layout, int Rank>
-struct View<Conservative<Equation>, Layout, Rank>
-    : StateBase<ViewBaseT<Conservative<Equation>, Rank, Layout>> {
-  using EquationType = Equation;
-  using Base = StateBase<ViewBaseT<Conservative<Equation>, Rank, Layout>>;
-  View() = default;
-  View(const View&) = default;
-  View(const View<Complete<Equation>, Layout>& complete)
-      : View(AsCons(complete)) {}
-
-  template <typename... Xs, typename = std::enable_if_t<(!IsView<Xs>() && ...)>>
-  View(Xs&&... xs) : Base{std::forward<Xs>(xs)...} {}
-};
-
-template <typename Equation, typename Layout, int Rank>
-struct View<const Conservative<Equation>, Layout, Rank>
-    : StateBase<ViewBaseT<const Conservative<Equation>, Rank, Layout>> {
-  using EquationType = Equation;
-  using Base = StateBase<ViewBaseT<const Conservative<Equation>, Rank, Layout>>;
-  using Base::Base;
-  View() = default;
-  View(const View&) = default;
-  View(const View<Conservative<Equation>, Layout>& cons)
-      : View(AsConst(cons)) {}
-  View(const View<Complete<Equation>, Layout>& complete)
-      : View(AsCons(complete)) {}
-  View(const View<const Complete<Equation>, Layout>& complete)
-      : View(AsCons(complete)) {}
-
-  template <typename... Xs, typename = std::enable_if_t<(!IsView<Xs>() && ...)>>
-  explicit View(Xs&&... xs) : Base{std::forward<Xs>(xs)...} {}
-};
-
-template <typename Equation, typename Layout, int Rank>
-struct View<const Complete<Equation>, Layout, Rank>
-    : StateBase<ViewBaseT<const Complete<Equation>, Rank, Layout>> {
-  using EquationType = Equation;
-  using Base = StateBase<ViewBaseT<const Complete<Equation>, Rank, Layout>>;
-  using Base::Base;
-  View() = default;
-  View(const View&) = default;
-  View(const View<Complete<Equation>, Layout>& complete)
-      : View(AsConst(complete)) {}
-
-  template <typename... Xs,
-            typename = std::enable_if_t<(!IsView<remove_cvref_t<Xs>>() && ...)>>
-  explicit View(Xs&&... xs) : Base{std::forward<Xs>(xs)...} {}
-};
-
-template <typename T> using StridedView = View<T, layout_stride>;
+struct IsView<BasicView<State, Layout, Rank>> : std::true_type {};
 
 template <int N, typename State, typename Layout, int Rank>
-dynamic_extents<Rank> Extents(const View<State, Layout, Rank>& view) {
-  return at_c<N>(view.Members()).Extents();
+dynamic_extents<static_cast<std::size_t>(Rank)>
+Extents(const BasicView<State, Layout, Rank>& view) {
+  static_assert(N >= 0, "N has to be greater than 0!");
+  return get<static_cast<std::size_t>(N)>(view).Extents();
 }
 
 template <int N, typename State, typename Layout, int Rank>
-IndexBox<Rank> Box(const View<State, Layout, Rank>& view) {
-  return at_c<N>(view.Members()).Box();
+IndexBox<Rank> Box(const BasicView<State, Layout, Rank>& view) {
+  static_assert(N >= 0, "N has to be greater than 0!");
+  return get<static_cast<std::size_t>(N)>(view).Box();
 }
 
 template <int N, typename State, typename Layout, int Rank>
-typename Layout::template mapping<dynamic_extents<Rank>>
-Mapping(const View<State, Layout, Rank>& view) {
-  return at_c<N>(view.Members()).Mapping();
+typename Layout::template mapping<
+    dynamic_extents<static_cast<std::size_t>(Rank)>>
+Mapping(const BasicView<State, Layout, Rank>& view) {
+  static_assert(N >= 0, "N has to be greater than 0!");
+  return get<static_cast<std::size_t>(N)>(view).Mapping();
 }
 
-template <typename D, typename T, typename Scalar,
-          typename = std::enable_if_t<std::is_floating_point<Scalar>::value>>
-int_constant<1> Components(const StateVector<D, T>&, const Scalar&) {
-  return {};
-}
+template <typename T, typename Eq> struct DepthsImpl;
 
-template <typename D, typename Scalar, int M, int Options>
-int_constant<M> Components(const Conservative<D>&,
-                           const Eigen::Array<Scalar, 1, M, Options>&) {
-  return {};
-}
-
-template <typename D, typename Scalar, int M, int Options>
-int_constant<M> Components(const Complete<D>&,
-                           const Eigen::Array<Scalar, 1, M, Options>&) {
-  return {};
-}
-
-template <typename D, typename Scalar, int N, int M, int Options>
-int_constant<M> Components(const ConservativeArray<D, N>&,
-                           const Eigen::Array<Scalar, N, M, Options>&) {
-  return {};
-}
-
-template <typename D, typename Scalar, int N, int M, int Options>
-int_constant<M> Components(const CompleteArray<D, N>&,
-                           const Eigen::Array<Scalar, N, M, Options>&) {
-  return {};
-}
-
-template <typename S, typename L, int Rank, typename T, int Rank2>
-auto Components(const View<S, L, Rank>&,
-                const PatchDataView<T, Rank2, L> span [[maybe_unused]]) {
-  if constexpr (Rank == Rank2) {
-    return int_constant<1>{};
-  } else {
-    static_assert(Rank + 1 == Rank2);
-    return span.Extent(Rank);
+template <typename Eq> struct DepthsImpl<Complete<Eq>, Eq> {
+  constexpr typename Eq::CompleteDepths operator()(const Eq&) const noexcept {
+    return {};
   }
+};
+
+template <typename Eq> struct DepthsImpl<Conservative<Eq>, Eq> {
+  constexpr typename Eq::ConservativeDepths operator()(const Eq&) const
+      noexcept {
+    return {};
+  }
+};
+
+template <typename State, typename Layout, int Rank, typename Eq>
+struct DepthsImpl<BasicView<State, Layout, Rank>, Eq> {
+  constexpr auto operator()(const Eq& eq) const noexcept {
+    DepthsImpl<std::remove_const_t<State>, Eq> depths{};
+    return depths(eq);
+  }
+};
+
+template <typename T, typename Eq> auto Depths(const Eq& eq) {
+  DepthsImpl<T, Eq> depths;
+  return depths(eq);
 }
 
-template <typename D, typename T, typename Scalar,
-          typename = std::enable_if_t<std::is_floating_point<Scalar>::value>>
-const Scalar& AtComponent(const StateVector<D, T>&, const Scalar& x, int) {
-  return x;
-}
+template <typename T> struct GetNumberOfComponentsImpl {
+  int_constant<1> operator()(double) const noexcept { return {}; }
 
-template <typename D, typename T, typename Scalar,
-          typename = std::enable_if_t<std::is_floating_point<Scalar>::value>>
-Scalar& AtComponent(const StateVector<D, T>&, Scalar& x, int) {
-  return x;
-}
+  template <int N, int M>
+  int_constant<N> operator()(const Eigen::Array<double, N, M>) const noexcept {
+    return {};
+  }
 
-template <typename D, typename Scalar, int M, int Options>
-const Scalar& AtComponent(const Conservative<D>&,
-                          const Eigen::Array<Scalar, 1, M, Options>& x, int i) {
-  return x[i];
-}
+  template <int M>
+  int operator()(const Eigen::Array<double, Eigen::Dynamic, M> x) const
+      noexcept {
+    return x.cols();
+  }
+};
 
-template <typename D, typename Scalar, int M, int Options>
-Scalar& AtComponent(const Conservative<D>&,
-                    Eigen::Array<Scalar, 1, M, Options>& x, int i) {
-  return x[i];
-}
+template <typename S, typename Layout, int Rank>
+struct GetNumberOfComponentsImpl<BasicView<S, Layout, Rank>> {
+  int_constant<1> operator()(const PatchDataView<double, Rank, Layout>&) const
+      noexcept {
+    return {};
+  }
+  int operator()(const PatchDataView<double, Rank + 1, Layout>& pdv) const
+      noexcept {
+    return static_cast<int>(pdv.Extent(Rank));
+  }
+};
 
-template <typename D, typename Scalar, int N, int Options>
-Eigen::Array<Scalar, N, 1, Options>&
-AtComponent(const ConservativeArray<D, N>&,
-            Eigen::Array<Scalar, N, 1, Options>& x, int) {
-  return x;
-}
+template <typename T>
+static constexpr GetNumberOfComponentsImpl<T> GetNumberOfComponents{};
 
-template <typename D, typename Scalar, int N, int Options>
-const Eigen::Array<Scalar, N, 1, Options>&
-AtComponent(const ConservativeArray<D, N>&,
-            const Eigen::Array<Scalar, N, 1, Options>& x, int) {
-  return x;
-}
+template <typename T> struct AtComponentImpl {
+  template <typename FP>
+  std::enable_if_t<std::is_floating_point<remove_cvref_t<FP>>::value, FP>
+  operator()(FP&& x, int) const noexcept {
+    return x;
+  }
 
-template <typename D, typename Scalar, int N, int M, int Options>
-auto AtComponent(const ConservativeArray<D, N>&,
-                 Eigen::Array<Scalar, N, M, Options>& x, int i) {
-  return x.col(i);
-}
+  template <int N>
+  double& operator()(Eigen::Array<double, N, 1>& x, int n) const noexcept {
+    return x[n];
+  }
 
-template <typename D, typename Scalar, int N, int M, int Options>
-Eigen::Array<Scalar, N, 1, Options>
-AtComponent(const ConservativeArray<D, N>&,
-            const Eigen::Array<Scalar, N, M, Options>& x, int i) {
-  return x.col(i);
-}
+  template <int N>
+  const double& operator()(const Eigen::Array<double, N, 1>& x, int n) const
+      noexcept {
+    return x[n];
+  }
 
-template <typename D, typename Scalar, int M, int Options>
-const Scalar& AtComponent(const Complete<D>&,
-                          const Eigen::Array<Scalar, 1, M, Options>& x, int i) {
-  return x[i];
-}
+  template <int N, int M>
+  auto operator()(Eigen::Array<double, N, M>& x, int n) const noexcept {
+    return x.col(n);
+  }
 
-template <typename D, typename Scalar, int M, int Options>
-Scalar& AtComponent(const Complete<D>&, Eigen::Array<Scalar, 1, M, Options>& x,
-                    int i) {
-  return x[i];
-}
+  template <int N, int M>
+  auto operator()(const Eigen::Array<double, N, M>& x, int n) const noexcept {
+    return x.col(n);
+  }
+};
 
-template <typename D, typename Scalar, int N, int Options>
-Eigen::Array<Scalar, N, 1, Options>&
-AtComponent(const CompleteArray<D, N>&, Eigen::Array<Scalar, N, 1, Options>& x,
-            int) {
-  return x;
-}
+template <typename S, typename Layout, int Rank>
+struct AtComponentImpl<BasicView<S, Layout, Rank>> {
+  using ValueType = typename BasicView<S, Layout, Rank>::ValueType;
 
-template <typename D, typename Scalar, int N, int Options>
-const Eigen::Array<Scalar, N, 1, Options>&
-AtComponent(const CompleteArray<D, N>&,
-            const Eigen::Array<Scalar, N, 1, Options>& x, int) {
-  return x;
-}
+  const PatchDataView<ValueType, Rank, Layout>&
+  operator()(const PatchDataView<ValueType, Rank, Layout>& x, int) const
+      noexcept {
+    return x;
+  }
 
-template <typename D, typename Scalar, int N, int M, int Options>
-auto AtComponent(const CompleteArray<D, N>&,
-                 Eigen::Array<Scalar, N, M, Options>& x, int i) {
-  return x.col(i);
-}
-
-template <typename D, typename Scalar, int N, int M, int Options>
-Eigen::Array<Scalar, N, 1, Options>
-AtComponent(const CompleteArray<D, N>&,
-            const Eigen::Array<Scalar, N, M, Options>& x, int i) {
-  return x.col(i);
-}
-
-template <typename S, typename L, int Rank, int PdvRank, typename T>
-PatchDataView<T, Rank, L> AtComponent(const View<S, L, Rank>&,
-                                      const PatchDataView<T, PdvRank, L>& data,
-                                      int i [[maybe_unused]]) {
-  if constexpr (Rank == PdvRank) {
-    return data;
-  } else {
-    static_assert(Rank + 1 == PdvRank);
-    std::array<std::ptrdiff_t, PdvRank> index{};
-    index[Rank] = i;
-    std::array<std::ptrdiff_t, Rank> extents;
-    for (std::size_t r = 0; r < Rank; ++r) {
-      extents[r] = data.Extent(r);
+  PatchDataView<ValueType, Rank, Layout>
+  operator()(const PatchDataView<ValueType, Rank + 1, Layout>& x, int n) const
+      noexcept {
+    constexpr std::size_t sRank = Rank;
+    std::array<std::ptrdiff_t, sRank + 1> index{};
+    index[sRank] = n;
+    std::array<std::ptrdiff_t, sRank> extents;
+    for (std::size_t r = 0; r < sRank; ++r) {
+      extents[r] = x.Extent(r);
     }
-    std::array<std::ptrdiff_t, Rank> strides;
-    for (std::size_t r = 0; r < Rank; ++r) {
-      strides[r] = data.Stride(r);
+    std::array<std::ptrdiff_t, sRank> strides;
+    for (std::size_t r = 0; r < sRank; ++r) {
+      strides[r] = x.Stride(r);
     }
-    std::array<std::ptrdiff_t, Rank> origin;
-    std::copy_n(data.Origin().begin(), Rank, origin.begin());
-    if constexpr (std::is_same_v<L, layout_stride>) {
-      layout_stride::mapping<dynamic_extents<Rank>> mapping{
-          dynamic_extents<Rank>(extents), strides};
-      mdspan<T, Rank, L> mds(&data.MdSpan()(index), mapping);
-      return PatchDataView<T, Rank, L>(mds, origin);
+    std::array<std::ptrdiff_t, sRank> origin;
+    std::copy_n(x.Origin().begin(), Rank, origin.begin());
+    if constexpr (std::is_same_v<Layout, layout_stride>) {
+      layout_stride::mapping<dynamic_extents<sRank>> mapping{
+          dynamic_extents<sRank>(extents), strides};
+      mdspan<ValueType, sRank, Layout> mds(&x.MdSpan()(index), mapping);
+      return PatchDataView<ValueType, Rank, Layout>(mds, origin);
     } else {
-      mdspan<T, Rank, L> mds(&data.MdSpan()(index), extents);
-      return PatchDataView<T, Rank, L>(mds, origin);
+      mdspan<ValueType, sRank, Layout> mds(&x.MdSpan()(index), extents);
+      return PatchDataView<ValueType, Rank, Layout>(mds, origin);
     }
   }
-}
+};
 
-template <typename StateType, typename F, typename T, typename... Ts>
-void ForEachComponent(F function, T&& state, Ts&&... states) {
-  const auto pointers = boost::hana::make_tuple(std::addressof(states)...);
+template <typename State> constexpr static AtComponentImpl<State> AtComponent{};
+
+template <typename StateType, typename F, typename... Ts>
+void ForEachComponent(F function, Ts&&... states) {
   ForEachVariable<StateType>(
-      [&](auto&& var, auto&&... variables) {
-        const auto n_components = Components(state, var);
-        const auto pv =
-            boost::hana::zip(pointers, boost::hana::make_tuple(&variables...));
+      [&](auto&&... variables) {
+        const auto vs = std::make_tuple(std::addressof(variables)...);
+        using T =
+            remove_cvref_t<boost::mp11::mp_first<boost::mp11::mp_list<Ts...>>>;
+        const int n_components = GetNumberOfComponents<T>(*std::get<0>(vs));
         for (int i = 0; i < n_components; ++i) {
-          boost::hana::unpack(pv, [&](auto... xs) {
-            function(AtComponent(state, var, i),
-                     AtComponent(*at_c<0>(xs), *at_c<1>(xs), i)...);
-          });
+          function(AtComponent<remove_cvref_t<Ts>>(variables, i)...);
         }
       },
-      state, states...);
+      std::forward<Ts>(states)...);
 }
 
-template <typename State, typename Layout>
-void Load(
-    State& state, const View<const State, Layout>& view,
-    const std::array<std::ptrdiff_t, State::EquationType::Rank()>& index) {
+template <typename State, typename Layout, int Rank>
+void Load(State& state, const BasicView<const State, Layout, Rank>& view,
+          const std::array<std::ptrdiff_t, State::Equation::Rank()>& index) {
   ForEachComponent<State>(
-      [&](auto& component, const auto& mdspan) { component = mdspan(index); },
+      [&](double& component,
+          const PatchDataView<const double, Rank, Layout>& pdv) {
+        component = pdv(index);
+      },
       state, view);
 }
 
-template <typename State, typename Layout>
-void Load(
-    State& state, const View<State, Layout>& view,
-    const std::array<std::ptrdiff_t, State::EquationType::Rank()>& index) {
+template <typename State, typename Layout, int Rank>
+void Load(State& state, const BasicView<State, Layout, Rank>& view,
+          const std::array<std::ptrdiff_t, State::Equation::Rank()>& index) {
   ForEachComponent<State>(
-      [&](auto& component, const auto& mdspan) { component = mdspan(index); },
+      [&](double& component, const auto& pdv) { component = pdv(index); },
       state, view);
 }
 
 template <typename Eq, typename Layout>
-void Store(const View<nodeduce_t<Conservative<Eq>>, Layout>& view,
+void Store(const BasicView<Conservative<Eq>, Layout, Eq::Rank()>& view,
            const Conservative<Eq>& state,
            const std::array<std::ptrdiff_t, Eq::Rank()>& index) {
   ForEachComponent<Conservative<Eq>>(
@@ -716,99 +450,27 @@ void Store(const View<nodeduce_t<Conservative<Eq>>, Layout>& view,
 }
 
 template <typename Eq, typename Layout>
-void Store(const View<nodeduce_t<Complete<Eq>>, Layout>& view,
+void Store(const BasicView<Complete<Eq>, Layout, Eq::Rank()>& view,
            const Complete<Eq>& state,
            const std::array<std::ptrdiff_t, Eq::Rank()>& index) {
   ForEachComponent<Complete<Eq>>(
       [&](auto data, auto block) { Store(data, block, index); }, view, state);
 }
 
-template <typename Eq, int N, typename Layout, int Rank>
-void Load(ConservativeArray<Eq, N>& state,
-          const View<nodeduce_t<const Conservative<Eq>>, Layout, Rank>& view,
-          std::array<std::ptrdiff_t, Rank> index) {
-  ForEachComponent<Conservative<Eq>>(
-      [&](auto& component, auto data) {
-        component = std::apply(
-            [&](auto... i) { return Load(int_constant<N>(), data, i...); },
-            index);
-      },
-      state, view);
-}
-
-template <typename Eq, int N, typename Layout, int Rank>
-void Load(CompleteArray<Eq, N>& state,
-          const View<nodeduce_t<const Complete<Eq>>, Layout, Rank>& view,
-          std::array<std::ptrdiff_t, Rank> index) {
-  ForEachComponent<Complete<Eq>>(
-      [&](auto& component, auto data) {
-        component = Load(int_constant<N>(), data, index);
-      },
-      state, view);
-}
-
-template <typename Eq, int N, typename Layout, int Rank>
-void LoadN(CompleteArray<Eq, N>& state,
-           const View<const Complete<Eq>, Layout, Rank>& view, int size,
-           const std::array<std::ptrdiff_t, Rank>& pos) {
-  ForEachComponent<Complete<Eq>>(
-      [&](auto& s, auto v) { s = LoadN(int_constant<N>{}, v, size, pos); },
-      state, view);
-}
-
-template <typename Eq, int N, typename Layout, int Rank>
-void LoadN(ConservativeArray<Eq, N>& state,
-           const View<const Conservative<Eq>, Layout, Rank>& view, int size,
-           const std::array<std::ptrdiff_t, Rank>& pos) {
-  ForEachComponent<Conservative<Eq>>(
-      [&](auto& s, auto v) { s = LoadN(int_constant<N>{}, v, size, pos); },
-      state, view);
-}
-
-template <typename Eq, int N, typename Layout, int Rank>
-void Store(const View<nodeduce_t<Conservative<Eq>>, Layout, Rank>& view,
-           const ConservativeArray<Eq, N>& state,
-           std::array<std::ptrdiff_t, Rank> index) {
-  ForEachComponent<Conservative<Eq>>(
-      [&](auto data, auto block) { Store(data, block, index); }, view, state);
-}
-
-template <typename Eq, int N, typename Layout, int Rank>
-void Store(const View<nodeduce_t<Complete<Eq>>, Layout, Rank>& view,
-           const CompleteArray<Eq, N>& state,
-           std::array<std::ptrdiff_t, Rank> index) {
-  ForEachComponent<Complete<Eq>>(
-      [&](auto data, auto block) { Store(data, block, index); }, view, state);
-}
-
-template <typename Eq, int N, typename Layout, int Rank>
-void StoreN(const View<Complete<Eq>, Layout, Rank>& view,
-            const CompleteArray<Eq, N>& state, int size,
-            const std::array<std::ptrdiff_t, Rank>& pos) {
-  ForEachComponent<Complete<Eq>>(
-      [&](auto& s, auto v) { StoreN(v, size, s, pos[0]); }, state, view);
-}
-
-template <typename Eq, int N, typename Layout, int Rank>
-void StoreN(const View<Conservative<Eq>, Layout, Rank>& view,
-            const ConservativeArray<Eq, N>& state, int size,
-            const std::array<std::ptrdiff_t, Rank>& pos) {
-  ForEachComponent<Conservative<Eq>>(
-      [&](auto& s, auto v) { StoreN(v, size, s, pos[0]); }, state, view);
-}
-
 template <typename State, typename Layout, int Rank,
           typename... SliceSpecifiers>
-auto Subspan(const View<State, Layout, Rank>& view, SliceSpecifiers... slices) {
+View<State, SliceRank_<SliceSpecifiers...>>
+Subspan(const BasicView<State, Layout, Rank>& view, SliceSpecifiers... slices) {
   static constexpr int R = SliceRank_<SliceSpecifiers...>;
-  auto v = view.Members();
-  return boost::hana::unpack(v, [&](auto... vs) {
-    return View<State, layout_stride, R>{subspan(vs, slices...)...};
-  });
+  View<State, R> subview{};
+  ForEachVariable([&](auto& subcomp,
+                      const auto& comp) { subcomp = subspan(comp, slices...); },
+                  subview, view);
+  return subview;
 }
 
 template <typename F, typename View, typename... Views>
-void ForEachRow(F function, View view, Views... views) {
+void ForEachRow(F function, const View& view, const Views&... views) {
   auto extents = Extents<0>(view);
   static constexpr int Rank = remove_cvref_t<decltype(extents)>::rank();
   if constexpr (Rank == 1) {
@@ -829,7 +491,7 @@ void ForEachRow(F function, View view, Views... views) {
 
 template <Direction dir, typename T, typename E, typename L, typename A,
           typename SliceSpecifier>
-auto Slice(basic_mdspan<T, E, L, A> span, SliceSpecifier slice) {
+auto Slice(const basic_mdspan<T, E, L, A>& span, SliceSpecifier slice) {
   if constexpr (E::rank() == 1) {
     static_assert(dir == Direction::X);
     return subspan(span, slice);
@@ -863,8 +525,8 @@ auto Slice(basic_mdspan<T, E, L, A> span, SliceSpecifier slice) {
 
 template <Direction dir, typename T, typename L, int Rank,
           typename SliceSpecifier>
-auto Slice(View<T, L, Rank> view, SliceSpecifier slice) {
-  View<T, layout_stride, Rank> sliced_view;
+View<T, Rank> Slice(const BasicView<T, L, Rank>& view, SliceSpecifier slice) {
+  View<T, Rank> sliced_view;
   ForEachVariable<remove_cvref_t<T>>(
       [&](auto& s, auto v) { s = Slice<dir>(v, slice); }, sliced_view, view);
   return sliced_view;

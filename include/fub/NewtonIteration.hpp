@@ -27,7 +27,7 @@ namespace fub {
 
 template <typename Function, typename Derivative>
 double NewtonIteration(Function&& f, Derivative&& Df, double x0,
-                        double tolerance = 1e-7, int max_iterations = 5000) {
+                       double tolerance = 1e-7, int max_iterations = 5000) {
   double x = x0;
   double fx = f(x);
   int counter = 0;

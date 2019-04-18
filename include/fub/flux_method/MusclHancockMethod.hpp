@@ -42,7 +42,7 @@ struct MinMod {
             cons = std::min(0.0, std::max(sL, sR));
           }
         },
-        cons, stencil[0], stencil[1], stencil[2]);
+        cons, AsCons(stencil[0]), AsCons(stencil[1]), AsCons(stencil[2]));
   }
 
   template <typename Equation, int N>
@@ -55,7 +55,7 @@ struct MinMod {
           const Array<double, 1, N> zero = Array<double, 1, N>::Constant(0.0);
           cons = (sR > 0).select(zero.max(sL.min(sR)), zero.min(sL.max(sR)));
         },
-        cons, stencil[0], stencil[1], stencil[2]);
+        cons, AsCons(stencil[0]), AsCons(stencil[1]), AsCons(stencil[2]));
   }
 };
 
@@ -67,21 +67,23 @@ struct VanLeer {
         [](double& cons, double qL, double qM, double qR) {
           const double sL = qM - qL;
           const double sR = qR - qM;
-          double r = 0;
+          double r = 0.0;
           if (sL * sR > 0.0) {
             r = sL / sR;
           }
           if (r < 0.0) {
-            return 0.0;
+            cons = 0.0;
+          } else {
+            cons = 0.5 * std::min(2 * r / (1 + r), 2 / (1 + r)) * (sL + sR);
           }
-          return 0.5 * std::min(2*r/(1+r), 2/(1+r)) * (sL + sR);
         },
-        cons, stencil[0], stencil[1], stencil[2]);
+        cons, AsCons(stencil[0]), AsCons(stencil[1]), AsCons(stencil[2]));
   }
 };
 
 template <typename EquationT,
-          typename BaseMethod = GodunovMethod<EquationT, ExactRiemannSolver<EquationT>>,
+          typename BaseMethod =
+              GodunovMethod<EquationT, ExactRiemannSolver<EquationT>>,
           typename SlopeLimiter = MinMod>
 struct MusclHancock {
   using Equation = EquationT;
@@ -120,7 +122,7 @@ struct MusclHancock {
           qL = state - 0.5 * slope;
           qR = state + 0.5 * slope;
         },
-        q_left_, q_right_, stencil[1], slope_);
+        AsCons(q_left_), AsCons(q_right_), AsCons(stencil[1]), slope_);
 
     CompleteFromCons(equation_, q_left_, q_left_);
     CompleteFromCons(equation_, q_right_, q_right_);
@@ -132,7 +134,7 @@ struct MusclHancock {
         [&lambda_half](double& rec, double qR, double fL, double fR) {
           rec = qR + lambda_half * (fL - fR);
         },
-        rec_[0], q_right_, flux_left_, flux_right_);
+        AsCons(rec_[0]), AsCons(q_right_), flux_left_, flux_right_);
 
     CompleteFromCons(equation_, rec_[0], rec_[0]);
 
@@ -146,7 +148,7 @@ struct MusclHancock {
           qL = state - 0.5 * slope;
           qR = state + 0.5 * slope;
         },
-        q_left_, q_right_, stencil[2], slope_);
+        AsCons(q_left_), AsCons(q_right_), AsCons(stencil[2]), slope_);
 
     CompleteFromCons(equation_, q_left_, q_left_);
     CompleteFromCons(equation_, q_right_, q_right_);
@@ -158,7 +160,7 @@ struct MusclHancock {
         [&lambda_half](double& rec, double qL, double fL, double fR) {
           rec = qL + lambda_half * (fL - fR);
         },
-        rec_[1], q_left_, flux_left_, flux_right_);
+        AsCons(rec_[1]), AsCons(q_left_), flux_left_, flux_right_);
 
     CompleteFromCons(equation_, rec_[1], rec_[1]);
 
@@ -171,7 +173,6 @@ struct MusclHancock {
   void ComputeNumericFlux(ConservativeArray& flux,
                           span<const CompleteArray, 4> stencil, Duration dt,
                           double dx, Direction dir) {
-
     const Array<double, 1, ChunkSize> lambda_half =
         Array<double, 1, ChunkSize>::Constant(0.5 * dt.count() / dx);
 

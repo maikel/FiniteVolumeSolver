@@ -21,8 +21,8 @@
 #ifndef FUB_AMREX_FARRAYBOX_HPP
 #define FUB_AMREX_FARRAYBOX_HPP
 
-#include "fub/PatchDataView.hpp"
 #include "fub/Equation.hpp"
+#include "fub/PatchDataView.hpp"
 #include "fub/State.hpp"
 
 #include <AMReX_BaseFab.H>
@@ -125,101 +125,67 @@ mdspan<const T, AMREX_SPACEDIM> MakeMdSpan(const ::amrex::BaseFab<T>& fab,
 template <typename T>
 PatchDataView<const T, AMREX_SPACEDIM>
 MakePatchDataView(const ::amrex::BaseFab<T>& fab, int component) {
-  fub::mdspan<const T, AMREX_SPACEDIM> mdspan = MakeMdSpan(fab, component);
+  mdspan<const T, AMREX_SPACEDIM> mdspan = MakeMdSpan(fab, component);
   std::array<std::ptrdiff_t, AMREX_SPACEDIM> lower =
       AsArray(fab.box().smallEnd());
   return PatchDataView<const T, AMREX_SPACEDIM>(mdspan, lower);
 }
 
-template <typename Equation>
-std::integral_constant<StateType, StateType::Complete>
-GetStateType(basic_type<Equation>, basic_type<View<Complete<Equation>>>) {
-  return {};
-}
+template <typename State> struct MakeViewImpl {
+  using Equation = typename State::Equation;
+  using Depths = typename State::Depths;
+  using ValueType = typename State::ValueType;
 
-template <typename Equation>
-std::integral_constant<StateType, StateType::Conservative>
-GetStateType(basic_type<Equation>, basic_type<View<Conservative<Equation>>>) {
-  return {};
-}
+  static constexpr int Rank = Equation::Rank();
+  static constexpr std::size_t sRank = static_cast<std::size_t>(Rank);
 
-template <typename State, typename T, typename Equation>
-auto MakeView(boost::hana::basic_type<State>,
-              const PatchDataView<T, AMREX_SPACEDIM + 1>& fab,
-              const Equation& equation) {
-  auto shape = equation.Shape(GetStateType(type_c<Equation>, type_c<State>));
-  int counter = 0;
-  const std::array<std::ptrdiff_t, AMREX_SPACEDIM + 1>& origin = fab.Origin();
-  auto transform = overloaded{
-      [&](int n_comps) {
-        std::array<std::ptrdiff_t, AMREX_SPACEDIM + 1> e =
-            AsArray(fab.Extents());
-        e[AMREX_SPACEDIM] = n_comps;
-        std::array<std::ptrdiff_t, AMREX_SPACEDIM + 1> index{};
-        index[AMREX_SPACEDIM] = counter;
-        std::array<std::ptrdiff_t, AMREX_SPACEDIM + 1> this_origin = origin;
-        counter += n_comps;
-        mdspan<T, AMREX_SPACEDIM + 1> mds(&fab.MdSpan()(index), e);
-        return PatchDataView<T, AMREX_SPACEDIM + 1>(mds, this_origin);
-      },
-      [&](std::integral_constant<int, 1>) {
-        std::array<std::ptrdiff_t, AMREX_SPACEDIM + 1> e1 =
-            AsArray(fab.Extents());
-        std::array<std::ptrdiff_t, AMREX_SPACEDIM> e2;
-        std::copy_n(e1.begin(), AMREX_SPACEDIM, e2.begin());
-        std::array<std::ptrdiff_t, AMREX_SPACEDIM + 1> index{};
-        index[AMREX_SPACEDIM] = counter;
-        std::array<std::ptrdiff_t, AMREX_SPACEDIM> this_origin;
-        std::copy_n(origin.begin(), AMREX_SPACEDIM, this_origin.begin());
-        counter += 1;
-        mdspan<T, AMREX_SPACEDIM> mds(&fab.MdSpan()(index), e2);
-        return PatchDataView<T, AMREX_SPACEDIM>(mds, this_origin);
-      }};
-  return boost::hana::unpack(
-      shape, [&](auto... sizes) { return State{transform(sizes)...}; });
-}
-
-template <typename State, typename T, typename Equation>
-auto MakeView(boost::hana::basic_type<State>,
-              const PatchDataView<const T, AMREX_SPACEDIM + 1>& fab,
-              const Equation& equation) {
-  auto shape = equation.Shape(GetStateType(type_c<Equation>, type_c<State>));
-  int counter = 0;
-  const std::array<std::ptrdiff_t, AMREX_SPACEDIM + 1>& origin = fab.Origin();
-  auto transform = overloaded{
-      [&](int n_comps) {
-        std::array<std::ptrdiff_t, AMREX_SPACEDIM + 1> e =
-            AsArray(fab.Extents());
-        e[AMREX_SPACEDIM] = n_comps;
-        std::array<std::ptrdiff_t, AMREX_SPACEDIM + 1> index{};
-        index[AMREX_SPACEDIM] = counter;
-        std::array<std::ptrdiff_t, AMREX_SPACEDIM + 1> this_origin = origin;
-        counter += n_comps;
-        mdspan<const T, AMREX_SPACEDIM + 1> mds(&fab.MdSpan()(index), e);
-        return PatchDataView<const T, AMREX_SPACEDIM + 1>(mds, this_origin);
-      },
-      [&](std::integral_constant<int, 1>) {
-        std::array<std::ptrdiff_t, AMREX_SPACEDIM + 1> e1 =
-            AsArray(fab.Extents());
-        std::array<std::ptrdiff_t, AMREX_SPACEDIM> e2;
-        std::copy_n(e1.begin(), AMREX_SPACEDIM, e2.begin());
-        std::array<std::ptrdiff_t, AMREX_SPACEDIM + 1> index{};
-        index[AMREX_SPACEDIM] = counter;
-        std::array<std::ptrdiff_t, AMREX_SPACEDIM> this_origin;
-        std::copy_n(origin.begin(), AMREX_SPACEDIM, this_origin.begin());
-        counter += 1;
-        mdspan<const T, AMREX_SPACEDIM> mds(&fab.MdSpan()(index), e2);
-        return PatchDataView<const T, AMREX_SPACEDIM>(mds, this_origin);
-      }};
-  using ConstState = decltype(AsConst(std::declval<State>()));
-  return boost::hana::unpack(
-      shape, [&](auto... sizes) { return ConstState{transform(sizes)...}; });
-}
+  State operator()(const PatchDataView<ValueType, AMREX_SPACEDIM + 1>& fab,
+                   const Equation& equation) {
+    const auto depths = ::fub::Depths<State, Equation>(equation);
+    int counter = 0;
+    const std::array<std::ptrdiff_t, AMREX_SPACEDIM + 1>& origin = fab.Origin();
+    auto transform = overloaded{
+        [&](int n_comps) {
+          std::array<std::ptrdiff_t, AMREX_SPACEDIM + 1> efab =
+              AsArray(fab.Extents());
+          std::array<std::ptrdiff_t, sRank + 1> e;
+          std::copy_n(efab.begin(), Rank, e.begin());
+          e[sRank] = n_comps;
+          std::array<std::ptrdiff_t, AMREX_SPACEDIM + 1> index{};
+          index[AMREX_SPACEDIM] = counter;
+          std::array<std::ptrdiff_t, sRank + 1> this_origin{};
+          std::copy_n(origin.begin(), Rank, this_origin.begin());
+          this_origin[sRank] = counter;
+          counter += n_comps;
+          mdspan<ValueType, sRank + 1> mds(&fab.MdSpan()(index), e);
+          return PatchDataView<ValueType, Rank + 1>(mds, this_origin);
+        },
+        [&](std::integral_constant<int, 1>) {
+          std::array<std::ptrdiff_t, AMREX_SPACEDIM + 1> efab =
+              AsArray(fab.Extents());
+          std::array<std::ptrdiff_t, sRank> e;
+          std::copy_n(efab.begin(), Rank, e.begin());
+          std::array<std::ptrdiff_t, AMREX_SPACEDIM + 1> index{};
+          index[AMREX_SPACEDIM] = counter;
+          std::array<std::ptrdiff_t, sRank> this_origin;
+          std::copy_n(origin.begin(), Rank, this_origin.begin());
+          counter += 1;
+          mdspan<ValueType, sRank> mds(&fab.MdSpan()(index), e);
+          return PatchDataView<ValueType, Rank>(mds, this_origin);
+        }};
+    State pd_views{};
+    ForEachVariable<State>(
+        [&](auto& pdv, const auto& depth) { pdv = transform(depth); }, pd_views,
+        depths);
+    return pd_views;
+  }
+};
 
 template <typename State, typename T, typename Equation>
 auto MakeView(const PatchDataView<T, AMREX_SPACEDIM + 1>& fab,
               const Equation& equation) {
-  return MakeView(type_c<State>, fab, equation);
+  MakeViewImpl<State> make_view;
+  return make_view(fab, equation);
 }
 
 } // namespace amrex

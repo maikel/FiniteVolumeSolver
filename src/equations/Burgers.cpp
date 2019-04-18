@@ -22,8 +22,8 @@
 
 namespace fub {
 
-void Burgers1d::Flux(Conservative& flux, const Complete& state,
-                     Direction) const noexcept {
+void Burgers1d::Flux(Conservative& flux, const Complete& state, Direction) const
+    noexcept {
   flux.u = 0.5 * state.u * state.u;
 }
 

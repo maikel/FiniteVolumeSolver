@@ -72,10 +72,9 @@ public:
     return FluxMethodTraits<BaseMethod>::StencilWidth();
   }
 
-  template <typename L1, typename L2>
-  void ComputeNumericFluxes(const View<Conservative, L1>& fluxes,
-                            const View<const Complete, L2>& states,
-                            Direction dir, Duration dt, double dx) {
+  void ComputeNumericFluxes(const View<Conservative>& fluxes,
+                            const View<const Complete>& states, Direction dir,
+                            Duration dt, double dx) {
     ForEachIndex(Box<0>(fluxes), [&](const auto... is) {
       using Index = std::array<std::ptrdiff_t, sizeof...(is)>;
       const Index face{is...};
@@ -89,23 +88,24 @@ public:
     });
   }
 
-  template <typename L1, typename L2>
   void ComputeNumericFluxes(execution::SimdTag,
-                            const View<Conservative, L1>& fluxes,
-                            const View<const Complete, L2>& states,
-                            Direction dir, Duration dt, double dx) {
-    static constexpr int stencil = 2 * GetStencilWidth();
+                            const View<Conservative>& fluxes,
+                            const View<const Complete>& states, Direction dir,
+                            Duration dt, double dx) {
+    constexpr std::ptrdiff_t StencilSize = 2 * GetStencilWidth();
+    constexpr std::size_t sStencilSize = static_cast<std::size_t>(StencilSize);
     [[maybe_unused]] const int d = static_cast<int>(dir);
     FUB_ASSERT(Extents<0>(states).extent(d) ==
-               Extents<0>(fluxes).extent(d) + stencil - 1);
+               Extents<0>(fluxes).extent(d) + StencilSize - 1);
     if (dir == Direction::X) {
       ForEachRow(
           [&](auto fluxes_row, auto states_row) {
             std::ptrdiff_t i = 0;
             const std::ptrdiff_t ssize = Extents<0>(states_row).extent(0);
-            const std::ptrdiff_t fsize = Extents<0>(fluxes_row).extent(0);
-            while (i + stencil - 1 + ChunkSize <= ssize) {
-              for (std::size_t k = 0; k < stencil; ++k) {
+            [[maybe_unused]] const std::ptrdiff_t fsize =
+                Extents<0>(fluxes_row).extent(0);
+            while (i + StencilSize - 1 + ChunkSize <= ssize) {
+              for (std::size_t k = 0; k < StencilSize; ++k) {
                 const std::ptrdiff_t index = i + static_cast<std::ptrdiff_t>(k);
                 Load(stencil_array_[k], states_row, {index});
               }
@@ -115,10 +115,10 @@ public:
               Store(fluxes_row, numeric_flux_array_, {i});
               i += ChunkSize;
             }
-            const int rest = ssize - (i + stencil);
+            const int rest = ssize - static_cast<int>(i + StencilSize);
             FUB_ASSERT(rest < ChunkSize);
             if (rest > 0) {
-              for (std::size_t k = 0; k < stencil; ++k) {
+              for (std::size_t k = 0; k < sStencilSize; ++k) {
                 const std::ptrdiff_t index = i + static_cast<std::ptrdiff_t>(k);
                 LoadN(stencil_array_[k], states_row, rest, {index});
               }
@@ -131,23 +131,22 @@ public:
     } else if (dir == Direction::Y) {
       if constexpr (Equation::Rank() == 2) {
         const int n = Extents<0>(states).extent(1);
-        std::array<View<const Complete, layout_stride>, stencil>
-            stencil_views{};
-        for (int i = 0; i < stencil; ++i) {
-          stencil_views[i] =
-              Slice<Direction::Y>(states, std::pair{i, n - stencil + i});
+        std::array<View<const Complete>, sStencilSize> stencil_views{};
+        for (int i = 0; i < StencilSize; ++i) {
+          stencil_views[static_cast<std::size_t>(i)] =
+              Slice<Direction::Y>(states, std::pair{i, n - StencilSize + i});
         }
-        std::apply(
+        boost::mp11::tuple_apply(
             [&](auto... rows) {
               ForEachRow(
                   [&](auto fluxes_row, auto first_row, auto... other_rows) {
-                    std::array<decltype(first_row), stencil> rows{
+                    std::array<decltype(first_row), sStencilSize> rows{
                         first_row, other_rows...};
                     std::ptrdiff_t i = 0;
                     const std::ptrdiff_t ssize =
                         Extents<0>(first_row).extent(0);
                     while (i + ChunkSize <= ssize) {
-                      for (std::size_t k = 0; k < stencil; ++k) {
+                      for (std::size_t k = 0; k < sStencilSize; ++k) {
                         Load(stencil_array_[k], rows[k], {i});
                       }
                       base_.ComputeNumericFlux(numeric_flux_array_,
@@ -158,7 +157,7 @@ public:
                     const int rest = ssize - i;
                     FUB_ASSERT(rest < ChunkSize);
                     if (rest > 0) {
-                      for (std::size_t k = 0; k < stencil; ++k) {
+                      for (std::size_t k = 0; k < sStencilSize; ++k) {
                         LoadN(stencil_array_[k], rows[k], rest, {i});
                       }
                       base_.ComputeNumericFlux(numeric_flux_array_,
@@ -174,22 +173,21 @@ public:
       if constexpr (Equation::Rank() == 3) {
         FUB_ASSERT(dir == Direction::Z);
         const int n = Extents<0>(states).extent(1);
-        std::array<View<const Complete, layout_stride>, stencil>
-            stencil_views{};
-        for (int i = 0; i < stencil; ++i) {
+        std::array<View<const Complete>, sStencilSize> stencil_views{};
+        for (int i = 0; i < sStencilSize; ++i) {
           stencil_views[i] =
-              Slice<Direction::Z>(states, std::pair{i, n - stencil + i});
+              Slice<Direction::Z>(states, std::pair{i, n - StencilSize + i});
         }
         std::apply(
             [&](auto... rows) {
               ForEachRow(
                   [&](auto fluxes_row, auto first_row, auto... other_rows) {
-                    std::array<decltype(first_row), stencil> rows{
+                    std::array<decltype(first_row), sStencilSize> rows{
                         first_row, other_rows...};
                     std::ptrdiff_t i = 0;
                     const std::ptrdiff_t size = Extents<0>(first_row).extent(0);
-                    while (i + ChunkSize + stencil - 1 <= size) {
-                      for (std::size_t k = 0; k < stencil; ++k) {
+                    while (i + ChunkSize + StencilSize - 1 <= size) {
+                      for (std::size_t k = 0; k < sStencilSize; ++k) {
                         Load(stencil_array_[k], rows[k], {i});
                       }
                       base_.ComputeNumericFlux(numeric_flux_array_,
@@ -200,7 +198,7 @@ public:
                     const int rest = size - i;
                     FUB_ASSERT(rest < ChunkSize);
                     if (rest > 0) {
-                      for (std::size_t k = 0; k < stencil; ++k) {
+                      for (std::size_t k = 0; k < sStencilSize; ++k) {
                         LoadN(stencil_array_[k], rows[k], rest, {i});
                       }
                       base_.ComputeNumericFlux(numeric_flux_array_,
@@ -233,8 +231,7 @@ public:
     return base_.ComputeStableDt(states, dx, dir);
   }
 
-  template <typename L>
-  double ComputeStableDt(const View<const Complete, L>& states, double dx,
+  double ComputeStableDt(const View<const Complete>& states, double dx,
                          Direction dir) {
     double min_dt = std::numeric_limits<double>::infinity();
     constexpr int stencil = FluxMethodTraits<BaseMethod>::StencilWidth();
@@ -254,11 +251,11 @@ public:
 
   BaseMethod base_;
 
-  std::array<Complete, 2 * FluxMethodTraits<BaseMethod>::StencilWidth()>
+  std::array<Complete, static_cast<std::size_t>(2 * GetStencilWidth())>
       stencil_{};
   Conservative numeric_flux_{};
 
-  std::array<CompleteArray, 2 * FluxMethodTraits<BaseMethod>::StencilWidth()>
+  std::array<CompleteArray, static_cast<std::size_t>(2 * GetStencilWidth())>
       stencil_array_{};
   ConservativeArray numeric_flux_array_{};
 };

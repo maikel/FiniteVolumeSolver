@@ -32,8 +32,7 @@ public:
 
   double operator()(double x, double y, double z) const;
 
-  template <typename Vector>
-  double operator()(const Vector& x) const {
+  template <typename Vector> double operator()(const Vector& x) const {
     return this->operator()(x[0], x[1], x[2]);
   }
 

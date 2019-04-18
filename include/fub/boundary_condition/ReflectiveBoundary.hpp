@@ -21,10 +21,6 @@
 #ifndef FUB_BOUNDARY_CONDITION_REFLECTIVE_BOUNDARY_HPP
 #define FUB_BOUNDARY_CONDITION_REFLECTIVE_BOUNDARY_HPP
 
-namespace fub {
-
-
-
-}
+namespace fub {}
 
 #endif

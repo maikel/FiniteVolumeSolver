@@ -23,33 +23,86 @@
 
 #include "fub/Equation.hpp"
 #include "fub/ForEach.hpp"
+#include "fub/grid/AMReX/cutcell/PatchHierarchy.hpp"
 
 #include <array>
+#include <limits>
 
 namespace fub {
+namespace amrex {
+namespace cutcell {
 
-template <typename State, typename Geometry> class RiemannProblem {
-public:
-  explicit RiemannProblem(const State& state1, const State& state2,
-                          const Geometry& geom)
-      : states_{state1, state2}, geometry_{geom} {}
+template <typename Eq, typename Geometry> struct RiemannProblem {
+  using Equation = Eq;
+  using Complete = fub::Complete<Equation>;
+  using Conservative = fub::Conservative<Equation>;
+  static constexpr int Rank = Eq::Rank();
 
-  template <typename StateView, typename CoordMapping>
-  void InitializeData(StateView states, const CoordMapping& x) {
-    ForEachIndex(Extents<0>(states), [&](auto index) {
-      if (geometry_.ComputeDistanceTo(x(index)) < 0.0) {
-        states(index) = states_[0];
-      } else {
-        states(index) = states_[1];
-      }
-    });
+  RiemannProblem(std::shared_ptr<PatchHierarchy> hier, const Eq& eq,
+                 const Geometry& geom, const Complete& l, const Complete& r)
+      : hierarchy{std::move(hier)}, equation{eq}, geometry_{geom}, left{l},
+        right{r} {
+    ForEachComponent<Complete>(
+        [](double& x) { x = std::numeric_limits<double>::quiet_NaN(); },
+        boundary);
   }
 
-private:
-  std::array<State, 2> states_;
+  void InitializeData(const View<Complete>& data, PatchHandle patch) {
+    const ::amrex::Geometry& geom = hierarchy->GetGeometry(patch.level);
+    const ::amrex::Box& box = patch.iterator->tilebox();
+    const auto& factory = hierarchy->GetPatchLevel(patch.level).factory;
+    const auto& flags = factory->getMultiEBCellFlagFab()[*patch.iterator];
+    ::amrex::FabType type = flags.getType(box);
+    if (type == ::amrex::FabType::covered) {
+      ForEachVariable<Complete>(
+          [](const auto& var) {
+            span<double> span = var.Span();
+            std::fill(span.begin(), span.end(),
+                      std::numeric_limits<double>::quiet_NaN());
+          },
+          data);
+      return;
+    }
+
+    CartesianCoordinates x = GetCartesianCoordinates(geom, box);
+    if (type == ::amrex::FabType::regular) {
+      ForEachIndex(Box<0>(data), [&](auto... is) {
+        if (geometry_(x(is...)) < 0.0) {
+          Store(data, left, {is...});
+        } else {
+          Store(data, right, {is...});
+        }
+      });
+    } else {
+      CutCellData<Rank> eb = hierarchy->GetCutCellData(patch, Direction::X);
+      const PatchDataView<const ::amrex::EBCellFlag, Rank>& flags = eb.flags;
+      ForEachIndex(Box<0>(data), [&](auto... is) {
+        if (flags(is...).isCovered()) {
+          Store(data, boundary, {is...});
+        } else if (geometry_(x(is...)) < 0.0) {
+          Store(data, left, {is...});
+        } else {
+          Store(data, right, {is...});
+        }
+      });
+    }
+  }
+
+  std::shared_ptr<PatchHierarchy> hierarchy;
+  Equation equation;
   Geometry geometry_;
+  Complete left{equation};
+  Complete right{equation};
+  Complete boundary{equation};
 };
 
+template <typename Eq, typename Geom>
+RiemannProblem(std::shared_ptr<PatchHierarchy>, const Eq&, const Geom&,
+               nodeduce_t<const Complete<Eq>&>, nodeduce_t<const Complete<Eq>&>)
+    ->RiemannProblem<Eq, Geom>;
+
+} // namespace cutcell
+} // namespace amrex
 } // namespace fub
 
 #endif

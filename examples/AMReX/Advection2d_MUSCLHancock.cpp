@@ -18,25 +18,29 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/equations/Advection.hpp"
 #include "fub/CartesianCoordinates.hpp"
+#include "fub/equations/Advection.hpp"
 
 #include "fub/HyperbolicSplitLevelIntegrator.hpp"
 #include "fub/HyperbolicSplitPatchIntegrator.hpp"
 #include "fub/HyperbolicSplitSystemSolver.hpp"
 #include "fub/ext/Eigen.hpp"
 #include "fub/flux_method/MusclHancockMethod.hpp"
-#include "fub/grid/AMReX/GriddingAlgorithm.hpp"
 #include "fub/grid/AMReX/FluxMethod.hpp"
+#include "fub/grid/AMReX/GriddingAlgorithm.hpp"
 #include "fub/grid/AMReX/HyperbolicSplitIntegratorContext.hpp"
 #include "fub/grid/AMReX/HyperbolicSplitPatchIntegrator.hpp"
 #include "fub/grid/AMReX/Reconstruction.hpp"
 #include "fub/grid/AMReX/ScopeGuard.hpp"
+#include "fub/split_method/StrangSplitting.hpp"
 #include "fub/tagging/GradientDetector.hpp"
 #include "fub/tagging/TagBuffer.hpp"
-#include "fub/split_method/StrangSplitting.hpp"
 
 #include "fub/RunSimulation.hpp"
+
+#include <AMReX_EB2.H>
+#include <AMReX_EB2_GeometryShop.H>
+#include <AMReX_EB2_IF_AllRegular.H>
 
 #include <fmt/format.h>
 #include <iostream>
@@ -76,19 +80,27 @@ int main(int argc, char** argv) {
   const std::array<double, Dim> xupper{+1.0, +1.0};
 
   fub::Advection2d equation{{1.0, 1.0}};
-  
+
   fub::amrex::DataDescription desc = fub::amrex::MakeDataDescription(equation);
 
   fub::amrex::CartesianGridGeometry geometry;
   geometry.cell_dimensions = n_cells;
   geometry.coordinates = amrex::RealBox(xlower, xupper);
   geometry.periodicity = std::array<int, 2>{1, 1};
-  
+
   fub::amrex::PatchHierarchyOptions options;
   options.max_number_of_levels = 2;
 
   auto hierarchy =
       std::make_shared<fub::amrex::PatchHierarchy>(desc, geometry, options);
+
+#ifdef AMREX_USE_EB
+  amrex::EB2::Build(
+      amrex::EB2::makeShop(amrex::EB2::AllRegularIF()),
+      hierarchy->GetGeometry(hierarchy->GetMaxNumberOfLevels() - 1),
+      hierarchy->GetMaxNumberOfLevels() - 1,
+      hierarchy->GetMaxNumberOfLevels() - 1);
+#endif
 
   using State = fub::Advection2d::Complete;
   fub::GradientDetector gradient{std::pair{&State::mass, 1e-3}};
@@ -99,7 +111,6 @@ int main(int argc, char** argv) {
       hierarchy, fub::amrex::AdaptInitialData(initial_data, equation),
       fub::amrex::AdaptTagging(equation, hierarchy, gradient, buffer));
   gridding->InitializeHierarchy(0.0);
-  fub::amrex::WritePlotFile("AMReX/Advection_M2_0000", *hierarchy, equation);
 
   fub::HyperbolicSplitPatchIntegrator patch_integrator{equation};
   fub::MusclHancockMethod flux_method{equation};

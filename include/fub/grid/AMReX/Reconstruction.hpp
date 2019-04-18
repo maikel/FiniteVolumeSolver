@@ -34,10 +34,16 @@ template <typename Equation> struct Reconstruction {
   template <typename Context>
   void CompleteFromCons(Context& context, PatchHandle patch, Direction dir,
                         Duration) {
+    const auto tilebox = AsIndexBox(patch.iterator->tilebox());
+
     View<Complete<Equation>> state =
-        MakeView<View<Complete<Equation>>>(context.GetData(patch), equation_);
-    View<Conservative<Equation>> scratch = MakeView<View<Complete<Equation>>>(
-        context.GetScratch(patch, dir), equation_);
+        Subview(MakeView<BasicView<Complete<Equation>>>(context.GetData(patch),
+                                                        equation_),
+                tilebox);
+    View<Conservative<Equation>> scratch =
+        Subview(AsCons(MakeView<BasicView<Complete<Equation>>>(
+                    context.GetScratch(patch, dir), equation_)),
+                tilebox);
     ::fub::CompleteFromCons(equation_, state, AsConst(scratch));
   }
 

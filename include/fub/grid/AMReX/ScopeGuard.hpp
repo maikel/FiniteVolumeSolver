@@ -29,7 +29,7 @@ struct ScopeGuard {
   ~ScopeGuard();
 };
 
-}
-}
+} // namespace amrex
+} // namespace fub
 
 #endif

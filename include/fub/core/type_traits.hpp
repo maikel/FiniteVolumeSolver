@@ -136,15 +136,14 @@ using negation = std::integral_constant<bool, !bool(Bool::value)>;
 #endif
 
 #if defined(__cpp_nontype_template_parameter_auto)
-template <auto N>
-struct constant : std::integral_constant<decltype(N), N> {};
+template <auto N> struct constant : std::integral_constant<decltype(N), N> {};
 #endif
 
 #if defined(__cpp_lib_integer_sequence)
-using std::integer_sequence;
 using std::index_sequence;
-using std::make_integer_sequence;
+using std::integer_sequence;
 using std::make_index_sequence;
+using std::make_integer_sequence;
 #else
 template <typename T, T... Ints> struct integer_sequence {
   using value_type = T;
@@ -157,12 +156,12 @@ using index_sequence = integer_sequence<std::size_t, Is...>;
 
 template <typename T, T N, T Last, T... Ints> struct MakeIntegerSequence_;
 
-template <typename T, T N, T... Ints> struct MakeIntegerSequence_<T, N, N, Ints...> {
+template <typename T, T N, T... Ints>
+struct MakeIntegerSequence_<T, N, N, Ints...> {
   using type = integer_sequence<T, Ints...>;
 };
 
-template <typename T, T N, T L, T... Ints>
-struct MakeIntegerSequence_ {
+template <typename T, T N, T L, T... Ints> struct MakeIntegerSequence_ {
   using type = typename MakeIntegerSequence_<T, N, L + 1, Ints..., L>::type;
 };
 
@@ -288,8 +287,8 @@ struct is_regular
 
 // helper type for the visitor #4
 #ifdef __cpp_deduction_guides
-template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
-template<class... Ts> overloaded(Ts...) -> overloaded<Ts...>;
+template <class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
+template <class... Ts> overloaded(Ts...)->overloaded<Ts...>;
 #endif
 
 } // namespace fub

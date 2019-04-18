@@ -21,9 +21,9 @@
 #ifndef FUB_AMREX_INITIAL_DATA_HPP
 #define FUB_AMREX_INITIAL_DATA_HPP
 
-#include "fub/PatchDataView.hpp"
 #include "fub/CartesianCoordinates.hpp"
 #include "fub/Equation.hpp"
+#include "fub/PatchDataView.hpp"
 #include "fub/grid/AMReX/PatchHandle.hpp"
 #include "fub/grid/AMReX/ViewFArrayBox.hpp"
 
@@ -76,8 +76,10 @@ template <typename InitialData, typename Equation> struct AdaptInitialData {
 
   void InitializeData(const PatchDataView<double, AMREX_SPACEDIM + 1>& states,
                       const PatchHandle& patch) {
-    View<Complete<Equation>> state_view =
-        MakeView<View<Complete<Equation>>>(states, equation_);
+    const IndexBox<AMREX_SPACEDIM> cells =
+        AsIndexBox(patch.iterator->tilebox());
+    View<Complete<Equation>> state_view = Subview(
+        MakeView<BasicView<Complete<Equation>>>(states, equation_), cells);
     data_.InitializeData(state_view, patch);
   }
 

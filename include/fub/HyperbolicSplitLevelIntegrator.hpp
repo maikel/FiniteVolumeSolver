@@ -54,23 +54,25 @@ public:
 
   IntegratorContext& GetIntegratorContext() noexcept { return *this; }
 
+  FluxMethod& GetFluxMethod() noexcept { return flux_method_; }
+
   const IntegratorContext& GetIntegratorContext() const noexcept {
     return *this;
   }
 
-  View<Complete> GetData(const PatchHandle& patch) {
-    return MakeViewImpl(*this, boost::hana::type_c<View<Complete>>,
-                        Context::GetData(patch), GetEquation());
+  BasicView<Complete> GetData(const PatchHandle& patch) {
+    typename Context::template MakeView<BasicView<Complete>> make_view{};
+    return make_view(*this, Context::GetData(patch), GetEquation());
   }
 
-  View<Complete> GetScratch(const PatchHandle& patch, Direction dir) {
-    return MakeViewImpl(*this, boost::hana::type_c<View<Complete>>,
-                        Context::GetScratch(patch, dir), GetEquation());
+  BasicView<Complete> GetScratch(const PatchHandle& patch, Direction dir) {
+    typename Context::template MakeView<BasicView<Complete>> make_view{};
+    return make_view(*this, Context::GetScratch(patch, dir), GetEquation());
   }
 
-  View<Conservative> GetFluxes(const PatchHandle& patch, Direction dir) {
-    return MakeViewImpl(*this, boost::hana::type_c<View<Conservative>>,
-                        Context::GetFluxes(patch, dir), GetEquation());
+  BasicView<Conservative> GetFluxes(const PatchHandle& patch, Direction dir) {
+    typename Context::template MakeView<BasicView<Conservative>> make_view{};
+    return make_view(*this, Context::GetFluxes(patch, dir), GetEquation());
   }
 
   const Equation& GetEquation() const noexcept {

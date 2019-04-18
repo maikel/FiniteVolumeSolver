@@ -44,30 +44,30 @@ template <typename Equation, typename... Tagging> struct AdaptTagging {
       const PatchDataView<char, AMREX_SPACEDIM>& tags,
       const PatchDataView<const double, AMREX_SPACEDIM + 1>& states,
       const PatchHandle& patch) {
-    View<const Complete<Equation>> state_view =
-        MakeView<View<Complete<Equation>>>(states, equation_);
+    BasicView<const Complete<Equation>> state_view =
+        MakeView<BasicView<const Complete<Equation>>>(states, equation_);
     const ::amrex::Geometry& geom = hierarchy_->GetGeometry(patch.level);
     const ::amrex::Box& box = patch.iterator->growntilebox();
-    const ::amrex::EBFArrayBoxFactory& factory =
+    const std::shared_ptr<::amrex::EBFArrayBoxFactory>& factory =
         hierarchy_->GetEmbeddedBoundary(patch.level);
-    const auto& flags = factory.getMultiEBCellFlagFab()[*patch.iterator];
+    const auto& flags = factory->getMultiEBCellFlagFab()[*patch.iterator];
     const ::amrex::FabType type = flags.getType(box);
     if (type == ::amrex::FabType::regular) {
-      boost::hana::for_each(tagging_, [&](auto&& tagging) {
+      boost::mp11::tuple_for_each(tagging_, [&](auto&& tagging) {
         tagging.TagCellsForRefinement(tags, state_view,
                                       GetCartesianCoordinates(geom, box));
       });
-    } else {
+    } else if (type != ::amrex::FabType::covered) {
       FUB_ASSERT(type == ::amrex::FabType::singlevalued);
       auto cutcell_data = hierarchy_->GetCutCellData(patch, Direction::X);
-      boost::hana::for_each(tagging_, [&](auto&& tagging) {
+      boost::mp11::tuple_for_each(tagging_, [&](auto&& tagging) {
         tagging.TagCellsForRefinement(tags, state_view, cutcell_data,
                                       GetCartesianCoordinates(geom, box));
       });
     }
   }
 
-  boost::hana::tuple<Tagging...> tagging_;
+  std::tuple<Tagging...> tagging_;
   Equation equation_;
   std::shared_ptr<const PatchHierarchy> hierarchy_;
 };

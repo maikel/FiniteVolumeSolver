@@ -26,10 +26,16 @@
 namespace fub {
 
 template <typename LevelIntegrator>
-using IntegratorContext = std::decay_t<decltype(std::declval<LevelIntegrator>().GetIntegratorContext())>;
+using IntegratorContext = std::decay_t<decltype(
+    std::declval<LevelIntegrator>().GetIntegratorContext())>;
 
-template <typename Context>
-using PreAdvanceHierarchy = decltype(std::declval<Context>().PreAdvanceHierarchy());
+template <typename Context, typename... Args>
+using PreAdvanceHierarchy = decltype(
+    std::declval<Context>().PreAdvanceHierarchy(std::declval<Args>()...));
+
+template <typename Context, typename... Args>
+using PostAdvanceHierarchy = decltype(
+    std::declval<Context>().PostAdvanceHierarchy(std::declval<Args>()...));
 
 template <typename LevelIntegrator, typename SplittingMethod = GodunovSplitting>
 struct HyperbolicSplitSystemSolver {
@@ -42,6 +48,18 @@ struct HyperbolicSplitSystemSolver {
   }
 
   Duration ComputeStableDt() {
+    using Context = IntegratorContext<LevelIntegrator>;
+    using FluxMethod = std::decay_t<decltype(integrator.GetFluxMethod())>;
+    if constexpr (is_detected<PreAdvanceHierarchy, Context&>()) {
+      Context& context = integrator.GetIntegratorContext();
+      context.PreAdvanceHierarchy();
+    }
+    if constexpr (is_detected<PreAdvanceHierarchy, FluxMethod, Context&>()) {
+      FluxMethod& method = integrator.GetFluxMethod();
+      Context& context = integrator.GetIntegratorContext();
+      method.PreAdvanceHierarchy(context);
+    }
+
     Duration dt(std::numeric_limits<double>::infinity());
     for (int d = 0; d < LevelIntegrator::Rank(); ++d) {
       Direction dir = static_cast<Direction>(d);
@@ -52,7 +70,8 @@ struct HyperbolicSplitSystemSolver {
 
   std::array<Direction, LevelIntegrator::Rank()> MakeSplitDirections() {
     std::array<Direction, LevelIntegrator::Rank()> dirs;
-    for (std::size_t i = 0; i < static_cast<std::size_t>(LevelIntegrator::Rank()); ++i) {
+    for (std::size_t i = 0;
+         i < static_cast<std::size_t>(LevelIntegrator::Rank()); ++i) {
       dirs[i] = static_cast<Direction>(i);
     }
     return dirs;
@@ -71,11 +90,6 @@ struct HyperbolicSplitSystemSolver {
   }
 
   void AdvanceHierarchy(std::chrono::duration<double> dt) {
-    using Context = IntegratorContext<LevelIntegrator>;
-    if constexpr (is_detected<PreAdvanceHierarchy, Context>()) {
-      Context& context = integrator.GetIntegratorContext();
-      context.PreAdvanceHierarchy(dt);
-    }
 
     // This transforms a direction into a function which statisfies
     // is_invokable<void, Duration>.
@@ -92,6 +106,12 @@ struct HyperbolicSplitSystemSolver {
         },
         // TODO: Maybe randomize the directions array?
         MakeSplitDirections());
+
+    using Context = IntegratorContext<LevelIntegrator>;
+    if constexpr (is_detected<PostAdvanceHierarchy, Context&>()) {
+      Context& context = integrator.GetIntegratorContext();
+      context.PostAdvanceHierarchy();
+    }
   }
 
   LevelIntegrator integrator;

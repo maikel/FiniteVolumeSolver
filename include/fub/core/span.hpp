@@ -26,23 +26,8 @@
 #include "fub/core/pragma.hpp"
 #include "fub/core/type_traits.hpp"
 
-#include <boost/hana/bool.hpp>
-#include <boost/hana/config.hpp>
-#include <boost/hana/detail/algorithm.hpp>
-#include <boost/hana/fwd/at.hpp>
-#include <boost/hana/fwd/core/tag_of.hpp>
-#include <boost/hana/fwd/drop_front.hpp>
-#include <boost/hana/fwd/equal.hpp>
-#include <boost/hana/fwd/is_empty.hpp>
-#include <boost/hana/fwd/length.hpp>
-#include <boost/hana/fwd/less.hpp>
-#include <boost/hana/integral_constant.hpp>
-
 #include <array>
 #include <type_traits>
-
-DISABLE_WARNING(attributes, unknown-attributes, 42)
-
 
 namespace fub {
 /// \defgroup spans Spans
@@ -109,6 +94,7 @@ public:
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
   static constexpr index_type extent = N;
+  static constexpr std::size_t sextent = static_cast<std::size_t>(N);
 
   /// \name  Constructors, copy, and assignment [span.cons]
 
@@ -155,7 +141,7 @@ public:
   /// \post `size() == extent`
   ///
   /// \throws Nothing.
-  constexpr span(element_type (&arr)[extent]) noexcept // NOLINT
+  constexpr span(element_type (&arr)[sextent]) noexcept // NOLINT
       : pointer_{&arr[0]} {}
 
   /// Implicit conversion from const `std::array`s.
@@ -991,11 +977,14 @@ private:
 };
 
 #ifdef __cpp_deduction_guides
-template <class T, size_t N> span(T (&)[N])->span<T, N>;
+template <class T, size_t N>
+span(T (&)[N])->span<T, static_cast<std::ptrdiff_t>(N)>;
 
-template <class T, size_t N> span(std::array<T, N>&)->span<T, N>;
+template <class T, size_t N>
+span(std::array<T, N>&)->span<T, static_cast<std::ptrdiff_t>(N)>;
 
-template <class T, size_t N> span(const std::array<T, N>&)->span<const T, N>;
+template <class T, size_t N>
+span(const std::array<T, N>&)->span<const T, static_cast<std::ptrdiff_t>(N)>;
 
 template <class Container>
 span(Container&)->span<typename Container::value_type>;
@@ -1004,18 +993,21 @@ template <class Container>
 span(const Container&)->span<const typename Container::value_type>;
 #endif
 
-template <class T, size_t N> auto make_span(T (&array)[N]) -> span<T, N> {
-  return span<T, N>(array);
+template <class T, size_t N>
+auto make_span(T (&array)[N]) -> span<T, static_cast<std::ptrdiff_t>(N)> {
+  return span<T, static_cast<std::ptrdiff_t>(N)>(array);
 }
 
 template <class T, size_t N>
-auto make_span(std::array<T, N>& array) -> span<T, N> {
-  return span<T, N>(array);
+auto make_span(std::array<T, N>& array)
+    -> span<T, static_cast<std::ptrdiff_t>(N)> {
+  return span<T, static_cast<std::ptrdiff_t>(N)>(array);
 }
 
 template <class T, size_t N>
-auto make_span(const std::array<T, N>& array) -> span<const T, N> {
-  return span<const T, N>(array);
+auto make_span(const std::array<T, N>& array)
+    -> span<const T, static_cast<std::ptrdiff_t>(N)> {
+  return span<const T, static_cast<std::ptrdiff_t>(N)>(array);
 }
 
 template <class Container>
@@ -1035,57 +1027,9 @@ namespace std {
 
 template <typename T, std::ptrdiff_t N>
 class tuple_size<fub::span<T, N>>
-    : public std::integral_constant<std::size_t, N> {};
-
-} // namespace std
-
-ENABLE_WARNING(attributes, unknown-attributes, 42)
-
-BOOST_HANA_NAMESPACE_BEGIN
-namespace ext {
-namespace fub {
-struct span_tag;
-}
-} // namespace ext
-
-template <typename T, std::ptrdiff_t N> struct tag_of<fub::span<T, N>> {
-  using type = ext::fub::span_tag;
+    : public std::integral_constant<std::size_t, static_cast<std::size_t>(N)> {
 };
 
-//////////////////////////////////////////////////////////////////////////
-// Foldable
-//////////////////////////////////////////////////////////////////////////
-template <> struct length_impl<ext::fub::span_tag> {
-  template <typename Xs> static constexpr auto apply(Xs const&) {
-    return hana::size_c<std::tuple_size<Xs>::type::value>;
-  }
-};
-
-//////////////////////////////////////////////////////////////////////////
-// Iterable
-//////////////////////////////////////////////////////////////////////////
-template <> struct at_impl<ext::fub::span_tag> {
-  template <typename T, std::ptrdiff_t Extent, typename N>
-  static constexpr decltype(auto) apply(fub::span<T, Extent> xs, N const&) {
-    constexpr std::ptrdiff_t n = N::value;
-    return xs[n];
-  }
-};
-
-template <> struct drop_front_impl<ext::fub::span_tag> {
-  template <typename T, std::ptrdiff_t Extent, typename N>
-  static constexpr auto apply(fub::span<T, Extent> xs, N const&) {
-    constexpr std::ptrdiff_t n = N::value;
-    return xs.template last<Extent - n>();
-  }
-};
-
-template <> struct is_empty_impl<ext::fub::span_tag> {
-  template <typename T, std::ptrdiff_t N>
-  static constexpr auto apply(fub::span<T, N> const&) {
-    return hana::bool_c<(N > 0)>;
-  }
-};
-BOOST_HANA_NAMESPACE_END
+} // namespace stde
 
 #endif // !SPAN_HPP

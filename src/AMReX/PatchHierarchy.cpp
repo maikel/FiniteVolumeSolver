@@ -39,5 +39,56 @@ PatchHierarchy::PatchHierarchy(DataDescription desc,
   }
 }
 
+void WriteCheckpointFile(const std::string checkpointname,
+                         const fub::amrex::PatchHierarchy& hier) {
+  const int nlevels = hier.GetNumberOfLevels();
+  ::amrex::PreBuildDirectorHierarchy(checkpointname, "Level_", nlevels, true);
+  // write Header file
+  if (::amrex::ParallelDescriptor::IOProcessor()) {
+    const std::string header(checkpointname + "/Header");
+    ::amrex::VisMF::IO_Buffer io_buffer(::amrex::VisMF::IO_Buffer_Size);
+    std::ofstream hout;
+    hout.rdbuf()->pubsetbuf(io_buffer.dataPtr(), io_buffer.size());
+    hout.open(header.c_str(), std::ofstream::out | std::ofstream::trunc |
+                                  std::ofstream::binary);
+    if (!hout.good()) {
+      ::amrex::FileOpenFailed(header);
+    }
+
+    hout.precision(17);
+
+    // write out title line
+    hout << "Checkpoint file for AmrCoreAdv\n";
+
+    // write out finest_level
+    hout << nlevels - 1 << '\n';
+
+    // write out array of istep
+    for (int level = 0; level < nlevels; ++level) {
+      hout << hier.GetCycles(level) << ' ';
+    }
+    hout << '\n';
+
+    // write out array of t_new
+    for (int level = 0; level < nlevels; ++level) {
+      hout << hier.GetTimePoint(level).count() << ' ';
+    }
+    hout << '\n';
+
+    // write the BoxArray at each level
+    for (int level = 0; level < nlevels; ++level) {
+      hier.GetPatchLevel(level).data.boxArray().writeOn(hout);
+      hout << '\n';
+    }
+  }
+
+  // write the MultiFab data to, e.g., chk00010/Level_0/
+  for (int level = 0; level < nlevels; ++level) {
+    ::amrex::VisMF::Write(hier.GetPatchLevel(level).data,
+                          ::amrex::MultiFabFileFullPrefix(level, checkpointname,
+                                                          "Level_", "data"));
+  }
+}
+
 } // namespace amrex
 } // namespace fub

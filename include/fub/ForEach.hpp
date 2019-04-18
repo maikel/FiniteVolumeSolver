@@ -26,8 +26,8 @@
 #ifndef FUB_FOR_EACH_HPP
 #define FUB_FOR_EACH_HPP
 
-#include "fub/core/mdspan.hpp"
 #include "fub/State.hpp"
+#include "fub/core/mdspan.hpp"
 
 namespace fub {
 
@@ -69,7 +69,8 @@ namespace fub {
 template <typename Extents, typename Function>
 Function ForEachIndex(const layout_left::mapping<Extents>& mapping,
                       Function function) {
-  static_assert(Extents::rank() == 1 || Extents::rank() == 2 || Extents::rank() == 3);
+  static_assert(Extents::rank() == 1 || Extents::rank() == 2 ||
+                Extents::rank() == 3);
   if constexpr (Extents::rank() == 1) {
     for (int i = 0; i < mapping.extents().extent(0); ++i) {
       function(i);
@@ -95,7 +96,8 @@ Function ForEachIndex(const layout_left::mapping<Extents>& mapping,
 template <typename Extents, typename Function>
 Function ForEachIndex(const layout_stride::mapping<Extents>& mapping,
                       Function function) {
-  static_assert(Extents::rank() == 1 || Extents::rank() == 2 || Extents::rank() == 3);
+  static_assert(Extents::rank() == 1 || Extents::rank() == 2 ||
+                Extents::rank() == 3);
   if constexpr (Extents::rank() == 1) {
     for (int i = 0; i < mapping.extents().extent(0); ++i) {
       function(i);
@@ -123,8 +125,7 @@ Function ForEachIndex(const layout_stride::mapping<Extents>& mapping,
 /// @}
 
 template <int Rank, typename Function>
-Function ForEachIndex(const IndexBox<Rank>& box,
-                      Function function) {
+Function ForEachIndex(const IndexBox<Rank>& box, Function function) {
   static_assert(Rank == 1 || Rank == 2 || Rank == 3);
   if constexpr (Rank == 1) {
     for (std::ptrdiff_t i = box.lower[0]; i < box.upper[0]; ++i) {

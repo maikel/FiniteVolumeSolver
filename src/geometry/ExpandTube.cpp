@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/core/assert.hpp"
 #include "fub/geometry/ExpandTube.hpp"
+#include "fub/core/assert.hpp"
 #include <fstream>
 #include <sstream>
 #include <vector>
@@ -39,7 +39,7 @@ Eigen::Matrix<double, 3, Eigen::Dynamic>
 GetPlanes(const Eigen::Matrix<double, 3, Eigen::Dynamic>& center_points,
           const Eigen::Matrix<double, 3, Eigen::Dynamic>& heights) {
   Eigen::Matrix<double, 3, Eigen::Dynamic> planes(3, center_points.cols());
-  Eigen::Vector3d norm0{0.0, 1.0, 0.0};// = heights.col(0);
+  Eigen::Vector3d norm0{0.0, 1.0, 0.0}; // = heights.col(0);
   planes(0, 0) = norm0[0];
   planes(1, 0) = norm0[1];
   planes(2, 0) = norm0.dot(center_points.col(0));
@@ -101,8 +101,8 @@ double ExpandTube::operator()(double x, double y, double z) const {
     Eigen::Vector2d normhi{planes_(0, i + 1), planes_(1, i + 1)};
     distances[static_cast<std::size_t>(i)] = std::max(
         {planes_(2, i) - normlo.dot(X), normhi.dot(X) - planes_(2, i + 1),
-          ComputeDistance_({x, y, z}, center_points_.col(i),
-                          heights_.col(i), radius_)});
+         ComputeDistance_({x, y, z}, center_points_.col(i), heights_.col(i),
+                          radius_)});
   }
   return -*std::min_element(distances.begin(), distances.end());
 }

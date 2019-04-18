@@ -1,7 +1,7 @@
 #include <AMReX_AmrCore.H>
+#include <AMReX_FillPatchUtil.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_PhysBCFunct.H>
-#include <AMReX_FillPatchUtil.H>
 
 using namespace amrex;
 
@@ -36,7 +36,8 @@ int main(int argc, char** argv) {
     Vector<BCRec> bcr(AMREX_SPACEDIM * 2);
     auto noop = [](auto&&...) {};
     PhysBCFunct<decltype(noop)> no_condition(geom, bcr, noop);
-    FillPatchSingleLevel(dest, 0, smf, stime, 0, 0, ncomp, geom, no_condition, 0);
+    FillPatchSingleLevel(dest, 0, smf, stime, 0, 0, ncomp, geom, no_condition,
+                         0);
 
     // Print Result
     FArrayBox& dfab = dest[0];

@@ -51,12 +51,12 @@ void BoundaryCondition::FillBoundary(::amrex::MultiFab& mf, int, int,
       PatchDataView<double, AMREX_SPACEDIM + 1> data =
           MakePatchDataView(mf[mfi]);
       for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-        if (ngrow[dir] && !gdomain.contains(box.smallEnd())) {
-          function_(data, patch, Location{Direction(dir), 0}, ngrow[dir],
+        if (ngrow[dir] && box.smallEnd(dir) < gdomain.smallEnd(dir)) {
+          function_(data, patch, Location{static_cast<std::size_t>(dir), 0}, ngrow[dir],
                     Duration(time_point));
         }
-        if (ngrow[dir] && !gdomain.contains(box.bigEnd())) {
-          function_(data, patch, Location{Direction(dir), 1}, ngrow[dir],
+        if (ngrow[dir] && gdomain.bigEnd(dir) < box.bigEnd(dir)) {
+          function_(data, patch, Location{static_cast<std::size_t>(dir), 1}, ngrow[dir],
                     Duration(time_point));
         }
       }

@@ -36,11 +36,10 @@ struct CartesianGridGeometry {
   std::array<int, AMREX_SPACEDIM> periodicity;
 };
 
-CartesianCoordinates
-GetCartesianCoordinates(const ::amrex::Geometry& geom,
-                        const ::amrex::Box& box);
+CartesianCoordinates GetCartesianCoordinates(const ::amrex::Geometry& geom,
+                                             const ::amrex::Box& box);
 
-}
-}
+} // namespace amrex
+} // namespace fub
 
 #endif

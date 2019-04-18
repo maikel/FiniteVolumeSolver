@@ -27,32 +27,26 @@ template <int Dim>
 void PerfectGas<Dim>::Flux(Conservative& flux, const Complete& state,
                            Direction dir) const noexcept {
   FUB_ASSERT(state.density > 0);
-  if constexpr (Dim == 1) {
-    const double velocity = state.momentum / state.density;
-    flux.density = state.momentum;
-    flux.momentum = velocity * state.momentum + state.pressure;
-    flux.energy = velocity * (state.energy + state.pressure);
-  } else {
-    const int d0 = static_cast<int>(dir);
-    const double velocity = state.momentum[d0] / state.density;
-    flux.density = state.momentum[d0];
-    for (int d = 0; d < Dim; ++d) {
-      flux.momentum[d] = velocity * state.momentum[d];
-    }
-    flux.momentum[d0] += state.pressure;
-    flux.energy = velocity * (state.energy + state.pressure);
+  const int d0 = static_cast<int>(dir);
+  const double velocity = state.momentum[d0] / state.density;
+  flux.density = state.momentum[d0];
+  for (int d = 0; d < Dim; ++d) {
+    flux.momentum[d] = velocity * state.momentum[d];
   }
+  flux.momentum[d0] += state.pressure;
+  flux.energy = velocity * (state.energy + state.pressure);
 }
 namespace {
-double KineticEnergy(double density, double momentum) noexcept {
-  return 0.5 * momentum * momentum / density;
-}
+// double KineticEnergy(double density, double momentum) noexcept {
+//  return 0.5 * momentum * momentum / density;
+//}
 
 template <int Dim>
-double KineticEnergy(double density, const Eigen::Array<double, 1, Dim>& momentum) noexcept {
+double KineticEnergy(double density,
+                     const Eigen::Array<double, Dim, 1>& momentum) noexcept {
   return 0.5 * momentum.matrix().squaredNorm() / density;
 }
-}
+} // namespace
 
 template struct PerfectGas<1>;
 template struct PerfectGas<2>;
@@ -94,13 +88,12 @@ template struct CompleteFromConsImpl<PerfectGas<1>>;
 template struct CompleteFromConsImpl<PerfectGas<2>>;
 template struct CompleteFromConsImpl<PerfectGas<3>>;
 
-
 void Rotate(Conservative<PerfectGas<2>>& rotated,
             const Conservative<PerfectGas<2>>& state,
             const Eigen::Matrix<double, 2, 2>& rotation, const PerfectGas<2>&) {
   rotated.density = state.density;
   rotated.energy = state.energy;
-  rotated.momentum = (rotation * state.momentum.matrix().transpose()).array();
+  rotated.momentum = (rotation * state.momentum.matrix()).array();
 }
 
 void Rotate(Complete<PerfectGas<2>>& rotated,
@@ -110,7 +103,25 @@ void Rotate(Complete<PerfectGas<2>>& rotated,
   rotated.energy = state.energy;
   rotated.pressure = state.pressure;
   rotated.speed_of_sound = state.speed_of_sound;
-  rotated.momentum = (rotation * state.momentum.matrix().transpose()).array();
+  rotated.momentum = (rotation * state.momentum.matrix()).array();
+}
+
+void Rotate(Conservative<PerfectGas<3>>& rotated,
+            const Conservative<PerfectGas<3>>& state,
+            const Eigen::Matrix<double, 3, 3>& rotation, const PerfectGas<3>&) {
+  rotated.density = state.density;
+  rotated.energy = state.energy;
+  rotated.momentum = (rotation * state.momentum.matrix()).array();
+}
+
+void Rotate(Complete<PerfectGas<3>>& rotated,
+            const Complete<PerfectGas<3>>& state,
+            const Eigen::Matrix<double, 3, 3>& rotation, const PerfectGas<3>&) {
+  rotated.density = state.density;
+  rotated.energy = state.energy;
+  rotated.pressure = state.pressure;
+  rotated.speed_of_sound = state.speed_of_sound;
+  rotated.momentum = (rotation * state.momentum.matrix()).array();
 }
 
 void Reflect(Complete<PerfectGas<2>>& reflected,
@@ -122,9 +133,7 @@ void Reflect(Complete<PerfectGas<2>>& reflected,
   reflected.speed_of_sound = state.speed_of_sound;
   reflected.momentum =
       state.momentum -
-      2 * (state.momentum.matrix().transpose().dot(normal) * normal)
-              .transpose()
-              .array();
+      2 * (state.momentum.matrix().dot(normal) * normal).array();
 }
 
 void Reflect(Complete<PerfectGas<3>>& reflected,
@@ -136,9 +145,7 @@ void Reflect(Complete<PerfectGas<3>>& reflected,
   reflected.speed_of_sound = state.speed_of_sound;
   reflected.momentum =
       state.momentum -
-      2 * (state.momentum.matrix().transpose().dot(normal) * normal)
-              .transpose()
-              .array();
+      2 * (state.momentum.matrix().dot(normal) * normal).array();
 }
 
 template <int Dim>
@@ -151,13 +158,8 @@ std::array<double, 2> EinfeldtSignalVelocitiesImpl<PerfectGas<Dim>>::apply(
   const double rhoR = right.density;
   double rhoUL;
   double rhoUR;
-  if constexpr (Dim == 1) {
-    rhoUL = left.momentum;
-    rhoUR = right.momentum;
-  } else {
-    rhoUL = left.momentum[int(dir)];
-    rhoUR = right.momentum[int(dir)];
-  }
+  rhoUL = left.momentum[int(dir)];
+  rhoUR = right.momentum[int(dir)];
   const double aL = left.speed_of_sound;
   const double aR = right.speed_of_sound;
   const double sqRhoL = std::sqrt(rhoL);
@@ -229,11 +231,7 @@ std::array<double, 2> ExactRiemannSolver<PerfectGas<Dim>>::ComputeMiddleState(
   };
 
   auto velocity = [dir](const Complete& state) {
-    if constexpr (Dim == 1) {
-      return state.momentum / state.density;
-    } else {
-      return state.momentum[static_cast<int>(dir)] / state.density;
-    }
+    return state.momentum[static_cast<int>(dir)] / state.density;
   };
   const double uL = velocity(left);
   const double uR = velocity(right);
@@ -253,11 +251,7 @@ template <int Dim>
 std::array<double, 2> ExactRiemannSolver<PerfectGas<Dim>>::ComputeSignals(
     const Complete& left, const Complete& right, Direction dir) {
   auto velocity = [dir](const Complete& state) {
-    if constexpr (Dim == 1) {
-      return state.momentum / state.density;
-    } else {
-      return state.momentum[static_cast<int>(dir)] / state.density;
-    }
+    return state.momentum[static_cast<int>(dir)] / state.density;
   };
   FUB_ASSERT(0.0 < left.density);
   FUB_ASSERT(0.0 < left.pressure);
@@ -303,15 +297,12 @@ void ExactRiemannSolver<PerfectGas<Dim>>::SolveRiemannProblem(
     Complete& state, const Complete& left, const Complete& right,
     Direction dir) {
   auto velocity = [dir](const Complete& state) {
-    if constexpr (Dim == 1) {
-      return state.momentum / state.density;
-    } else {
-      return state.momentum[static_cast<int>(dir)] / state.density;
-    }
+    return state.momentum[static_cast<int>(dir)] / state.density;
   };
   auto set_momentum = [dir](Complete& state, double momentum,
                             const Complete& side) {
     if constexpr (Dim == 1) {
+      (void)dir;
       state.momentum = momentum;
     } else {
       state.momentum = state.density * (side.momentum / side.density);
@@ -382,7 +373,8 @@ void ExactRiemannSolver<PerfectGas<Dim>>::SolveRiemannProblem(
         state.pressure = pM;
         from_prim(state);
       } else {
-        state.density = left.density * std::pow(2.0 / gp1 + g_ratio * uL / aL, 2.0 / gm1);
+        state.density =
+            left.density * std::pow(2.0 / gp1 + g_ratio * uL / aL, 2.0 / gm1);
         const double u = 2.0 / gp1 * (aL + 0.5 * gm1 * uL);
         set_momentum(state, state.density * u, left);
         state.pressure =
@@ -436,10 +428,12 @@ void ExactRiemannSolver<PerfectGas<Dim>>::SolveRiemannProblem(
         state.pressure = pM;
         from_prim(state);
       } else {
-        state.density = right.density * std::pow(2.0 / gp1 - g_ratio * uR / aR, 2.0 / gm1);
+        state.density =
+            right.density * std::pow(2.0 / gp1 - g_ratio * uR / aR, 2.0 / gm1);
         const double u = 2.0 / gp1 * (-aR + 0.5 * gm1 * uR);
         set_momentum(state, state.density * u, right);
-        state.pressure = pR * std::pow(2.0 / gp1 - g_ratio * uR / aR, 2.0 * g / gm1);
+        state.pressure =
+            pR * std::pow(2.0 / gp1 - g_ratio * uR / aR, 2.0 * g / gm1);
         from_prim(state);
       }
     }

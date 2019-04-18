@@ -151,8 +151,9 @@ void HyperbolicSplitIntegratorContext::ResetHierarchyConfiguration(
   }
 }
 
-void HyperbolicSplitIntegratorContext::FillGhostLayerTwoLevels(
-    int fine, int coarse, Direction dir) {
+void HyperbolicSplitIntegratorContext::FillGhostLayerTwoLevels(int fine,
+                                                               int coarse,
+                                                               Direction dir) {
   FUB_ASSERT(coarse >= 0 && fine > coarse);
   ::amrex::MultiFab& scratch = GetScratch(fine, dir);
   ::amrex::Vector<::amrex::BCRec> bcr(
@@ -215,7 +216,7 @@ void HyperbolicSplitIntegratorContext::AccumulateCoarseFineFluxes(int level,
   if (level > 0) {
     const ::amrex::MultiFab& fluxes = GetFluxes(level, dir);
     const double scale =
-        1.0 / ipow(GetRatioToCoarserLevel(level), AMREX_SPACEDIM);
+        1.0 / static_cast<double>(ipow(GetRatioToCoarserLevel(level), AMREX_SPACEDIM));
     data_[static_cast<std::size_t>(level)].coarse_fine.FineAdd(
         fluxes, int(dir), 0, 0, fluxes.nComp(), scale);
   }

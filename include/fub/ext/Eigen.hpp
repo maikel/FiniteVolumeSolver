@@ -87,6 +87,21 @@ MakeRotation(const Eigen::Matrix<double, 2, 1>& a,
   return rotation;
 }
 
+inline Eigen::Matrix<double, 3, 3>
+MakeRotation(const Eigen::Matrix<double, 3, 1>& a,
+             const Eigen::Matrix<double, 3, 1>& b) {
+  if (a == -b) {
+    return -Eigen::Matrix<double, 3, 3>::Identity();
+  }
+  const Eigen::Matrix<double, 3, 1> v = a.cross(b);
+  const double c = a.dot(b);
+  Eigen::Matrix<double, 3, 3> skew;
+  skew << 0, -v[2], +v[1], +v[2], 0, -v[0], -v[1], +v[0], 0;
+  Eigen::Matrix<double, 3, 3> I = Eigen::Matrix<double, 3, 3>::Identity();
+  Eigen::Matrix<double, 3, 3> rotation = I + skew + skew * skew / (1 + c);
+  return rotation;
+}
+
 template <int N, typename T, typename Extents, typename Layout,
           typename... Indices>
 Eigen::Array<std::remove_cv_t<T>, N, 1>
@@ -131,9 +146,11 @@ void StoreN(mdspan<T, 1, Layout> mdspan, int n,
 
 template <typename T, int Rank, typename Layout, int N, int Options,
           typename... Indices>
-void Store(const PatchDataView<T, Rank, Layout>& view,
-           const Eigen::Array<T, N, 1, Options>& chunk,
-           const nodeduce_t<std::array<std::ptrdiff_t, Rank>>& index) {
+void Store(
+    const PatchDataView<T, Rank, Layout>& view,
+    const Eigen::Array<T, N, 1, Options>& chunk,
+    const nodeduce_t<
+        std::array<std::ptrdiff_t, static_cast<std::size_t>(Rank)>>& index) {
   FUB_ASSERT(view.Extent(0) >= N);
   if (view.stride(0) == 1) {
     Eigen::Map<Eigen::Array<T, N, 1>> mapped(&view(index), N);
@@ -148,8 +165,10 @@ void Store(const PatchDataView<T, Rank, Layout>& view,
 }
 
 template <typename T, int Rank, typename L>
-void Store(const PatchDataView<T, Rank, L>& view, nodeduce_t<const T&> value,
-           const nodeduce_t<std::array<std::ptrdiff_t, Rank>>& index) {
+void Store(
+    const PatchDataView<T, Rank, L>& view, nodeduce_t<const T&> value,
+    const nodeduce_t<
+        std::array<std::ptrdiff_t, static_cast<std::size_t>(Rank)>>& index) {
   view(index) = value;
 }
 

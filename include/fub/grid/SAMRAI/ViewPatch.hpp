@@ -77,8 +77,7 @@ MdSpan MakeMdSpan(boost::hana::basic_type<MdSpan>,
 }
 
 template <template <typename...> typename T, typename... Args>
-T<remove_cvref_t<Args>...> MakeTemplate(template_t<T>,
-                                        Args&&... args) {
+T<remove_cvref_t<Args>...> MakeTemplate(template_t<T>, Args&&... args) {
   return T<remove_cvref_t<Args>...>{std::forward<Args>(args)...};
 }
 

@@ -29,9 +29,7 @@ ScopeGuard::ScopeGuard(int argc, char** argv) {
   ::amrex::Initialize(argc, argv);
 }
 
-ScopeGuard::~ScopeGuard() {
-  ::amrex::Finalize();
-}
+ScopeGuard::~ScopeGuard() { ::amrex::Finalize(); }
 
-}
-}
+} // namespace amrex
+} // namespace fub

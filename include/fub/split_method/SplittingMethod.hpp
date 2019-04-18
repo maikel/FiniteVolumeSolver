@@ -36,8 +36,7 @@ struct SplittingMethod {
 
   virtual ~SplittingMethod() = default;
 
-  template <typename F>
-  void Advance(Duration dt, F advance) const {
+  template <typename F> void Advance(Duration dt, F advance) const {
     advance(dt);
   }
 

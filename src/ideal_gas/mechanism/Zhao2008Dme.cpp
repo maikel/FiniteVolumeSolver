@@ -4192,7 +4192,8 @@ void Zhao2008Dme::ComputeThermoData(span<double> h, span<double> cp, double T,
 double MAX_C(double X1, double X2) { return ((X1 > X2) ? X1 : X2); }
 // double MIN_C(double X1, double X2) { return ((X2 > X1) ? X1 : X2); }
 
-// double GetPlogRateCoeff(double /* temp */, double pressure, double lgt, double rt_inv,
+// double GetPlogRateCoeff(double /* temp */, double pressure, double lgt,
+// double rt_inv,
 //                         double* PlogP, double* PlogA, double* PlogB,
 //                         double* PlogE, int np) {
 //   double kR, kR_l, kR_r;

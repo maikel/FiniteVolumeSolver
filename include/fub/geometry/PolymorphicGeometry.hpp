@@ -37,8 +37,7 @@ public:
       typename G,
       std::enable_if_t<!std::is_same<G, PolymorphicGeometry>::value>* = nullptr>
   PolymorphicGeometry(const G& geometry)
-      : base_{std::make_unique<G>(geometry)} {
-  }
+      : base_{std::make_unique<G>(geometry)} {}
 
   double ComputeDistanceTo(const Coordinates& x) const override {
     return base_->ComputeDistanceTo(x);

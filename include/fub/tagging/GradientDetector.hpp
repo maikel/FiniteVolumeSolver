@@ -31,51 +31,54 @@
 
 namespace fub {
 template <typename... Projections> struct GradientDetector {
-  boost::hana::tuple<std::pair<Projections, double>...> conditions;
+  std::tuple<std::pair<Projections, double>...> conditions;
 
   GradientDetector(const std::pair<Projections, double>&... conds)
       : conditions{conds...} {}
 
   template <typename Tags, typename StateView>
   void TagCellsForRefinement(const Tags& tags, const StateView& states,
-                             const CartesianCoordinates& coords) {
-    using Equation = typename StateView::EquationType;
+                             const CartesianCoordinates&) {
+    using Equation = typename StateView::Equation;
     using Complete = typename Equation::Complete;
     Complete sL;
     Complete sM;
     Complete sR;
     for (std::size_t dir = 0; dir < Extents<0>(states).rank(); ++dir) {
-      ForEachIndex(Shrink(Box<0>(states), Direction(dir), {0, 2}),
-                   [&](auto... is) {
-                     std::array<std::ptrdiff_t, sizeof...(is)> left{is...};
-                     std::array<std::ptrdiff_t, sizeof...(is)> mid = Shift(left, Direction(dir), 1);
-                     std::array<std::ptrdiff_t, sizeof...(is)> right = Shift(mid, Direction(dir), 1);
-                     boost::hana::for_each(conditions, [&](auto cond) {
-                       auto&& [proj, tolerance] = cond;
-                       Load(sL, states, left);
-                       Load(sM, states, mid);
-                       Load(sR, states, right);
-                       auto&& xL = std::invoke(proj, sL);
-                       auto&& xM = std::invoke(proj, sM);
-                       auto&& xR = std::invoke(proj, sR);
-                       Eigen::Vector3d dx = coords.dx();
-                       if (xM != xR || xM != xL) {
-                         const double left =
-                             std::abs(xM - xL) / (std::abs(xM) + std::abs(xL));
-                         const double right =
-                             std::abs(xM - xR) / (std::abs(xM) + std::abs(xR));
-                         tags(mid) |= left > tolerance || right > tolerance;
-                       }
-                     });
-                   });
+      ForEachIndex(
+          Shrink(Box<0>(states), Direction(dir), {0, 2}), [&](auto... is) {
+            std::array<std::ptrdiff_t, sizeof...(is)> left{is...};
+            std::array<std::ptrdiff_t, sizeof...(is)> mid =
+                Shift(left, Direction(dir), 1);
+            std::array<std::ptrdiff_t, sizeof...(is)> right =
+                Shift(mid, Direction(dir), 1);
+            boost::mp11::tuple_for_each(conditions, [&](auto cond) {
+              auto&& [proj, tolerance] = cond;
+              Load(sL, states, left);
+              Load(sM, states, mid);
+              Load(sR, states, right);
+              auto&& xL = std::invoke(proj, sL);
+              auto&& xM = std::invoke(proj, sM);
+              auto&& xR = std::invoke(proj, sR);
+              //  Eigen::Vector3d dx = coords.dx();
+              if (xM != xR || xM != xL) {
+                const double left =
+                    std::abs(xM - xL) / (std::abs(xM) + std::abs(xL));
+                const double right =
+                    std::abs(xM - xR) / (std::abs(xM) + std::abs(xR));
+                tags(mid) |=
+                    static_cast<char>(left > tolerance || right > tolerance);
+              }
+            });
+          });
     }
   }
 
   template <typename Tags, typename StateView, typename CutCellData>
   void TagCellsForRefinement(const Tags& tags, const StateView& states,
                              const CutCellData& cutcell_data,
-                             const CartesianCoordinates& coords) {
-    using Equation = typename StateView::EquationType;
+                             const CartesianCoordinates&) {
+    using Equation = typename StateView::Equation;
     using Complete = typename Equation::Complete;
     Complete sL;
     Complete sM;
@@ -83,12 +86,15 @@ template <typename... Projections> struct GradientDetector {
     const auto& flags = cutcell_data.flags;
     FUB_ASSERT(Contains(flags.Box(), Box<0>(states)));
     for (std::size_t dir = 0; dir < Extents<0>(states).rank(); ++dir) {
-      ForEachIndex(Shrink(Box<0>(states), Direction(dir), {0, 2}), [&](auto... is) {
-                std::array<std::ptrdiff_t, sizeof...(is)> left{is...};
-        std::array<std::ptrdiff_t, sizeof...(is)> mid = Shift(left, Direction(dir), 1);
-        std::array<std::ptrdiff_t, sizeof...(is)> right = Shift(mid, Direction(dir), 1);
-        if (flags(mid).isRegular()) {
-              boost::hana::for_each(conditions, [&](auto cond) {
+      ForEachIndex(
+          Shrink(Box<0>(states), Direction(dir), {0, 2}), [&](auto... is) {
+            std::array<std::ptrdiff_t, sizeof...(is)> left{is...};
+            std::array<std::ptrdiff_t, sizeof...(is)> mid =
+                Shift(left, Direction(dir), 1);
+            std::array<std::ptrdiff_t, sizeof...(is)> right =
+                Shift(mid, Direction(dir), 1);
+            if (flags(mid).isRegular()) {
+              boost::mp11::tuple_for_each(conditions, [&](auto cond) {
                 auto&& [proj, tolerance] = cond;
                 Load(sL, states, left);
                 Load(sM, states, mid);
@@ -96,13 +102,14 @@ template <typename... Projections> struct GradientDetector {
                 auto&& xL = std::invoke(proj, sL);
                 auto&& xM = std::invoke(proj, sM);
                 auto&& xR = std::invoke(proj, sR);
-                Eigen::Vector3d dx = coords.dx();
+                // Eigen::Vector3d dx = coords.dx();
                 if (xM != xR || xM != xL) {
                   const double left =
                       std::abs(xM - xL) / (std::abs(xM) + std::abs(xL));
                   const double right =
                       std::abs(xM - xR) / (std::abs(xM) + std::abs(xR));
-                  tags(mid) |= left > tolerance || right > tolerance;
+                  tags(mid) |=
+                      static_cast<char>(left > tolerance || right > tolerance);
                 }
               });
             }

@@ -31,11 +31,18 @@
 #include <array>
 
 namespace fub {
-template <typename U> struct BurgersVariables {
-  BOOST_HANA_DEFINE_STRUCT(BurgersVariables, (U, u));
+template <typename U> struct BurgersVariables { U u; };
+
+template <typename... Xs> struct StateTraits<BurgersVariables<Xs...>> {
+  static constexpr auto names = std::make_tuple("U");
+  static constexpr auto pointers_to_member =
+      std::make_tuple(&BurgersVariables<Xs...>::u);
 };
 
-struct Burgers1d : VariableDescription<BurgersVariables<Scalar>> {
+struct Burgers1d {
+  using ConservativeDepths = BurgersVariables<ScalarDepth>;
+  using CompleteDepths = ConservativeDepths;
+
   using Complete = ::fub::Complete<Burgers1d>;
   using Conservative = ::fub::Conservative<Burgers1d>;
 
@@ -49,7 +56,7 @@ template <> class ExactRiemannSolver<Burgers1d> {
 public:
   using Complete = typename Burgers1d::Complete;
 
-  ExactRiemannSolver(const Burgers1d&){}
+  ExactRiemannSolver(const Burgers1d&) {}
 
   void SolveRiemannProblem(Complete& state, const Complete& left,
                            const Complete& right, Direction dir) const;

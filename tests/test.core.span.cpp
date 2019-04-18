@@ -23,8 +23,6 @@
 #define CATCH_CONFIG_MAIN
 #include <catch2/catch.hpp>
 
-#include <boost/hana/tuple.hpp>
-
 #include <vector>
 
 TEST_CASE("Default construct spans") {
@@ -72,20 +70,4 @@ TEST_CASE("SFINAE Constructor Test") {
                                 fub::span<const int, 3>>());
     REQUIRE(std::is_convertible<std::vector<int>&, fub::span<int, 3>>());
   }
-}
-
-TEST_CASE("span<T, N> to boost::hana::tuple") {
-  std::vector<int> v{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-  fub::span<int, 10> span = v;
-  auto tuple = boost::hana::to<boost::hana::tuple_tag>(span);
-  REQUIRE(boost::hana::at_c<0>(tuple) == span[0]);
-  REQUIRE(boost::hana::at_c<1>(tuple) == span[1]);
-  REQUIRE(boost::hana::at_c<2>(tuple) == span[2]);
-  REQUIRE(boost::hana::at_c<3>(tuple) == span[3]);
-  REQUIRE(boost::hana::at_c<4>(tuple) == span[4]);
-  REQUIRE(boost::hana::at_c<5>(tuple) == span[5]);
-  REQUIRE(boost::hana::at_c<6>(tuple) == span[6]);
-  REQUIRE(boost::hana::at_c<7>(tuple) == span[7]);
-  REQUIRE(boost::hana::at_c<8>(tuple) == span[8]);
-  REQUIRE(boost::hana::at_c<9>(tuple) == span[9]);
 }

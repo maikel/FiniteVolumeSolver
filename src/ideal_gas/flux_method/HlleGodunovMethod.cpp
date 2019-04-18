@@ -48,7 +48,8 @@ Array2d HlleGodunovMethod::ComputeEinfeldtSignalVelocities(
   return signals;
 }
 
-void HlleGodunovMethod::ComputeNumericFlux(Conservative& flux, const State& left,
+void HlleGodunovMethod::ComputeNumericFlux(Conservative& flux,
+                                           const State& left,
                                            const State& right) noexcept {
   const Array2d signals = ComputeEinfeldtSignalVelocities(left, right);
   const Array1d sL = signals.col(0);

@@ -24,13 +24,22 @@
 #define FUB_CORE_ASSERT_HPP
 
 #ifndef FUB_NO_ASSERTIONS
-  #ifdef FUB_THROW_ON_ASSERTION_FAILURE
-    #define FUB_ASSERT(x) if ((x)) { throw assertion_failure(); } /**/
-  #else
-    #define FUB_ASSERT(x) assert(x)
-  #endif
+#ifdef FUB_THROW_ON_ASSERTION_FAILURE
+#include <stdexcept>
+namespace fub {
+struct assertion_failure : std::logic_error {
+  explicit assertion_failure(const char* what) : logic_error(what) {}
+};
+} // namespace fub
+#define FUB_ASSERT(x)                                                          \
+  if ((x)) {                                                                   \
+    throw ::fub::assertion_failure(#x);                                        \
+  } /**/
 #else
-  #define FUB_ASSERT(x)
+#define FUB_ASSERT(x) assert(x)
+#endif
+#else
+#define FUB_ASSERT(x)
 #endif
 
 #endif

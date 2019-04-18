@@ -22,8 +22,8 @@
 
 namespace fub {
 
-void Advection2d::Flux(Conservative& flux, const Complete& state, Direction dir) const
-    noexcept {
+void Advection2d::Flux(Conservative& flux, const Complete& state,
+                       Direction dir) const noexcept {
   const std::size_t dir_v = static_cast<std::size_t>(dir);
   flux.mass = state.mass * velocity[dir_v];
 }

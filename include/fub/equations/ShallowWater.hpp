@@ -30,18 +30,30 @@
 
 namespace fub {
 template <typename Heigth, typename Momentum> struct ShallowWaterVariables {
-  BOOST_HANA_DEFINE_STRUCT(ShallowWaterVariables, (Heigth, heigth),
-                           (Momentum, momentum));
+  Heigth heigth;
+  Momentum momentum;
 };
 
-struct ShallowWater
-    : VariableDescription<ShallowWaterVariables<Scalar, Vector2d>> {
+template <typename... Xs> struct StateTraits<ShallowWaterVariables<Xs...>> {
+  static constexpr auto names = std::make_tuple("Height", "Momentum");
+
+  static constexpr auto pointers_to_member =
+      std::make_tuple(&ShallowWaterVariables<Xs...>::heigth,
+                      &ShallowWaterVariables<Xs...>::momentum);
+};
+
+struct ShallowWater {
+  using ConservativeDepths = ShallowWaterVariables<ScalarDepth, VectorDepth<2>>;
+  using CompleteDepths = ConservativeDepths;
+
   using Conservative = ::fub::Conservative<ShallowWater>;
   using Complete = ::fub::Complete<ShallowWater>;
-  template <int N>
-  using CompleteArray = ::fub::CompleteArray<ShallowWater, N>;
+
+  template <int N> using CompleteArray = ::fub::CompleteArray<ShallowWater, N>;
+
   template <int N>
   using ConservativeArray = ::fub::ConservativeArray<ShallowWater, N>;
+
   static constexpr int Rank() noexcept { return 2; }
 
   void Flux(Conservative& flux, const Complete& state,

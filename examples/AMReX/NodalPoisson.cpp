@@ -1,13 +1,13 @@
-#include "fub/grid/AMReX/ScopeGuard.hpp"
 #include "fub/core/mdspan.hpp"
-#include "fub/grid/AMReX/ViewFArrayBox.hpp"
 #include "fub/grid/AMReX/CartesianGridGeometry.hpp"
+#include "fub/grid/AMReX/ScopeGuard.hpp"
+#include "fub/grid/AMReX/ViewFArrayBox.hpp"
 
 #include <AMReX.H>
+#include <AMReX_MLMG.H>
+#include <AMReX_MLNodeLaplacian.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_PlotFileUtil.H>
-#include <AMReX_MLNodeLaplacian.H>
-#include <AMReX_MLMG.H>
 
 int main(int argc, char** argv) {
   fub::amrex::ScopeGuard guard(argc, argv);
@@ -26,7 +26,7 @@ int main(int argc, char** argv) {
 
   amrex::BoxArray box_array0(domain0);
   box_array0.maxSize(8);
-  
+
   amrex::BoxArray box_array1(box1);
 
   amrex::BoxArray node_boxes0 = amrex::convert(box_array0, {1, 1});
@@ -62,12 +62,14 @@ int main(int argc, char** argv) {
     amrex::Box box = rhs[mfi].box();
     int i0 = box.smallEnd(0);
     int j0 = box.smallEnd(1);
-    // fub::CartesianCoordinates coords = fub::amrex::GetCartesianCoordinates(geom0, box);
+    // fub::CartesianCoordinates coords =
+    // fub::amrex::GetCartesianCoordinates(geom0, box);
     for (int j = 0; j < fabv.extent(1); ++j) {
       for (int i = 0; i < fabv.extent(0); ++i) {
         const std::array<double, 2> x{(i + i0) * dx[0], (j + j0) * dx[1]};
-        fabv(i, j) = - 6 * M_PI * std::cos(2 * M_PI * x[0]) * std::cos(2 * M_PI * x[1])
-                     - 6 * M_PI * std::cos(4 * M_PI * x[0]) * std::cos(4 * M_PI * x[1]);
+        fabv(i, j) =
+            -6 * M_PI * std::cos(2 * M_PI * x[0]) * std::cos(2 * M_PI * x[1]) -
+            6 * M_PI * std::cos(4 * M_PI * x[0]) * std::cos(4 * M_PI * x[1]);
       }
     }
 
@@ -83,12 +85,14 @@ int main(int argc, char** argv) {
     amrex::Box box = rhs1[mfi].box();
     int i0 = box.smallEnd(0);
     int j0 = box.smallEnd(1);
-    // fub::CartesianCoordinates coords = fub::amrex::GetCartesianCoordinates(geom0, box);
+    // fub::CartesianCoordinates coords =
+    // fub::amrex::GetCartesianCoordinates(geom0, box);
     for (int j = 0; j < fabv.extent(1); ++j) {
       for (int i = 0; i < fabv.extent(0); ++i) {
         const std::array<double, 2> x{(i + i0) * dx1[0], (j + j0) * dx1[1]};
-        fabv(i, j) = - 6 * M_PI * std::cos(2 * M_PI * x[0]) * std::cos(2 * M_PI * x[1])
-                     - 6 * M_PI * std::cos(4 * M_PI * x[0]) * std::cos(4 * M_PI * x[1]);
+        fabv(i, j) =
+            -6 * M_PI * std::cos(2 * M_PI * x[0]) * std::cos(2 * M_PI * x[1]) -
+            6 * M_PI * std::cos(4 * M_PI * x[0]) * std::cos(4 * M_PI * x[1]);
       }
     }
 
@@ -97,30 +101,34 @@ int main(int argc, char** argv) {
     // std::cout << '\n';
   }
 
-// ::amrex::WriteMultiLevelPlotfile(plotfilename, nlevels, mf, varnames, geoms,
-//                                    time_point, level_steps, ref_ratio);
+  // ::amrex::WriteMultiLevelPlotfile(plotfilename, nlevels, mf, varnames,
+  // geoms,
+  //                                    time_point, level_steps, ref_ratio);
 
   amrex::IntVect unit = amrex::IntVect::TheUnitVector();
-  amrex::WriteMultiLevelPlotfile("rhs", 2, {&rhs, &rhs1}, {"rhs"}, {geom0, geom1}, 0.0, {0, 0}, {unit, 2*unit});
+  amrex::WriteMultiLevelPlotfile("rhs", 2, {&rhs, &rhs1}, {"rhs"},
+                                 {geom0, geom1}, 0.0, {0, 0}, {unit, 2 * unit});
 
-  amrex::MLNodeLaplacian linop({geom0, geom1}, {box_array0, box_array1}, {dmap0, dmap1});
+  amrex::MLNodeLaplacian linop({geom0, geom1}, {box_array0, box_array1},
+                               {dmap0, dmap1});
 
-    linop.setDomainBC({AMREX_D_DECL(amrex::LinOpBCType::Periodic,
-                                    amrex::LinOpBCType::Periodic,
-                                    amrex::LinOpBCType::Periodic)},
-                      {AMREX_D_DECL(amrex::LinOpBCType::Periodic,
-                                    amrex::LinOpBCType::Periodic,
-                                    amrex::LinOpBCType::Periodic)});
+  linop.setDomainBC(
+      {AMREX_D_DECL(amrex::LinOpBCType::Periodic, amrex::LinOpBCType::Periodic,
+                    amrex::LinOpBCType::Periodic)},
+      {AMREX_D_DECL(amrex::LinOpBCType::Periodic, amrex::LinOpBCType::Periodic,
+                    amrex::LinOpBCType::Periodic)});
 
-    linop.setLevelBC(0, nullptr);
+  linop.setLevelBC(0, nullptr);
 
-    linop.setSigma(0, sigma);
+  linop.setSigma(0, sigma);
 
-    amrex::MLMG mlmg(linop);
-    mlmg.setVerbose(2);
-    mlmg.setBottomVerbose(2);
+  amrex::MLMG mlmg(linop);
+  mlmg.setVerbose(2);
+  mlmg.setBottomVerbose(2);
 
-    mlmg.solve({&solution, &solution1}, {&rhs, &rhs1}, 1e-6, 0.0);
+  mlmg.solve({&solution, &solution1}, {&rhs, &rhs1}, 1e-6, 0.0);
 
-   amrex::WriteMultiLevelPlotfile("solution", 2, {&solution, &solution1}, {"solution"}, {geom0, geom1}, 0.0, {0, 0}, {unit, 2 * unit});
+  amrex::WriteMultiLevelPlotfile("solution", 2, {&solution, &solution1},
+                                 {"solution"}, {geom0, geom1}, 0.0, {0, 0},
+                                 {unit, 2 * unit});
 }

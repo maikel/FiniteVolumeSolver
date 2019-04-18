@@ -18,7 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-
 #include "fub/grid/SAMRAI/RegisterVariables.hpp"
 
 namespace fub {
@@ -32,5 +31,5 @@ std::string MakeVariableName(const std::string& prefix,
   return prefix + "_" + name;
 }
 
-}
-}
+} // namespace samrai
+} // namespace fub

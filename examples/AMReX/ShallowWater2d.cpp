@@ -43,6 +43,15 @@
 #include <iostream>
 
 struct CircleData {
+  CircleData(std::shared_ptr<fub::amrex::PatchHierarchy> hier,
+             fub::ShallowWater eq)
+      : hierarchy{std::move(hier)}, equation_{eq} {
+    inner_.heigth = 1.2;
+    inner_.momentum = Eigen::Array<double, 2, 1>::Zero();
+    outer_.heigth = 1.0;
+    outer_.momentum = inner_.momentum;
+  }
+
   void InitializeData(const fub::View<fub::Complete<fub::ShallowWater>>& states,
                       fub::amrex::PatchHandle patch) const {
     const ::amrex::Geometry& geom = hierarchy->GetGeometry(patch.level);
@@ -61,10 +70,8 @@ struct CircleData {
 
   std::shared_ptr<fub::amrex::PatchHierarchy> hierarchy;
   fub::ShallowWater equation_;
-  fub::Complete<fub::ShallowWater> inner_{1.2,
-                                          Eigen::Array<double, 1, 2>{0., 0.}};
-  fub::Complete<fub::ShallowWater> outer_{1.0,
-                                          Eigen::Array<double, 1, 2>{0., 0.}};
+  fub::Complete<fub::ShallowWater> inner_;
+  fub::Complete<fub::ShallowWater> outer_;
 };
 
 int main(int argc, char** argv) {
@@ -77,7 +84,6 @@ int main(int argc, char** argv) {
   static_assert(AMREX_SPACEDIM == 2);
 
   const std::array<int, Dim> n_cells{25 * 8, 25 * 8};
-
   const std::array<double, Dim> xlower{-1.0, -1.0};
   const std::array<double, Dim> xupper{+1.0, +1.0};
 
@@ -98,10 +104,10 @@ int main(int argc, char** argv) {
 
   using Complete = fub::ShallowWater::Complete;
 
-  fub::GradientDetector gradient{std::pair(&Complete::heigth, 5e-1)};
+  fub::GradientDetector gradient{std::pair(&Complete::heigth, 0.005)};
   fub::TagBuffer buffer{2};
 
-  CircleData initial_data{};
+  CircleData initial_data(hierarchy, equation);
   auto gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       hierarchy, fub::amrex::AdaptInitialData(initial_data, equation),
       fub::amrex::AdaptTagging(equation, hierarchy, gradient, buffer));

@@ -23,31 +23,32 @@
 
 #include "fub/CartesianCoordinates.hpp"
 #include "fub/core/mdspan.hpp"
-#include "fub/grid/AMReX/PatchHandle.hpp"
-#include "fub/grid/AMReX/ViewFArrayBox.hpp"
 #include "fub/grid/AMReX/CartesianGridGeometry.hpp"
+#include "fub/grid/AMReX/PatchHandle.hpp"
 #include "fub/grid/AMReX/PatchHierarchy.hpp"
+#include "fub/grid/AMReX/ViewFArrayBox.hpp"
 
 #include <AMReX.H>
 
 namespace fub {
 namespace amrex {
+
 struct TaggingStrategy {
   virtual ~TaggingStrategy() = default;
-  virtual void
-  TagCellsForRefinement(const PatchDataView<char, AMREX_SPACEDIM>& tags,
-                        const PatchDataView<const double, AMREX_SPACEDIM + 1>& states,
-                        const PatchHandle& patch) = 0;
+  virtual void TagCellsForRefinement(
+      const PatchDataView<char, AMREX_SPACEDIM>& tags,
+      const PatchDataView<const double, AMREX_SPACEDIM + 1>& states,
+      const PatchHandle& patch) = 0;
 };
 
 template <typename T> struct TaggingWrapper : public TaggingStrategy {
   TaggingWrapper(const T& tag) : tag_{tag} {}
   TaggingWrapper(T&& tag) : tag_{std::move(tag)} {}
 
-  void
-  TagCellsForRefinement(const PatchDataView<char, AMREX_SPACEDIM>& tags,
-                        const PatchDataView<const double, AMREX_SPACEDIM + 1>& states,
-                        const PatchHandle& patch) override {
+  void TagCellsForRefinement(
+      const PatchDataView<char, AMREX_SPACEDIM>& tags,
+      const PatchDataView<const double, AMREX_SPACEDIM + 1>& states,
+      const PatchHandle& patch) override {
     tag_.TagCellsForRefinement(tags, states, patch);
   }
 
@@ -62,10 +63,10 @@ struct Tagging {
       : tag_{std::make_unique<TaggingWrapper<remove_cvref_t<T>>>(
             std::move(tag))} {}
 
-  void
-  TagCellsForRefinement(const PatchDataView<char, AMREX_SPACEDIM>& tags,
-                        const PatchDataView<const double, AMREX_SPACEDIM + 1>& states,
-                        const PatchHandle& patch) {
+  void TagCellsForRefinement(
+      const PatchDataView<char, AMREX_SPACEDIM>& tags,
+      const PatchDataView<const double, AMREX_SPACEDIM + 1>& states,
+      const PatchHandle& patch) {
     if (tag_) {
       return tag_->TagCellsForRefinement(tags, states, patch);
     }
@@ -85,17 +86,17 @@ template <typename Equation, typename... Tagging> struct AdaptTagging {
       const PatchDataView<char, AMREX_SPACEDIM>& tags,
       const PatchDataView<const double, AMREX_SPACEDIM + 1>& states,
       const PatchHandle& patch) {
-    View<const Complete<Equation>> state_view =
-        MakeView<View<Complete<Equation>>>(states, equation_);
+    BasicView<const Complete<Equation>> state_view =
+        MakeView<BasicView<const Complete<Equation>>>(states, equation_);
     const ::amrex::Geometry& geom = hierarchy_->GetGeometry(patch.level);
     const ::amrex::Box& box = patch.iterator->growntilebox();
-    boost::hana::for_each(tagging_, [&](auto&& tagging) {
+    boost::mp11::tuple_for_each(tagging_, [&](auto&& tagging) {
       tagging.TagCellsForRefinement(tags, state_view,
                                     GetCartesianCoordinates(geom, box));
     });
   }
 
-  boost::hana::tuple<Tagging...> tagging_;
+  std::tuple<Tagging...> tagging_;
   Equation equation_;
   std::shared_ptr<const PatchHierarchy> hierarchy_;
 };

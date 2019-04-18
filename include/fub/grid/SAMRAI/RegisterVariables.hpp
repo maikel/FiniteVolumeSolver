@@ -96,7 +96,7 @@ void RegisterVariables(std::vector<int>& data_ids, const Equation& equation,
 /// \return Returns the patch data ids for all registered variables.
 template <typename Equation>
 DataDescription RegisterVariables(const Equation& equation,
-                                 std::string prefix = std::string()) {
+                                  std::string prefix = std::string()) {
   using Complete = typename Equation::Complete;
   using Conservative = typename Equation::Conservative;
 

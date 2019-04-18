@@ -41,25 +41,43 @@ template <typename Base> struct FluxMethod : public Base {
   double ComputeStableDt(Context& context, PatchHandle patch, Direction dir) {
     const Equation& equation = Base::GetEquation();
     const double dx = context.GetDx(patch, dir);
-    View<const Complete> scratch =
-        MakeView<View<Complete>>(context.GetScratch(patch, dir), equation);
+    BasicView<const Complete> scratch = AsConst(MakeView<BasicView<Complete>>(
+        context.GetScratch(patch, dir), equation));
     static constexpr int Rank = Equation::Rank();
     const int gcw = context.GetGhostCellWidth(patch, dir);
     const IndexBox<Rank> tilebox =
         Grow(AsIndexBox(patch.iterator->tilebox()), dir, {gcw, gcw});
-    StridedView<const Complete> subscratch = Subview(scratch, tilebox);
+    View<const Complete> subscratch = Subview(scratch, tilebox);
     return Base::ComputeStableDt(subscratch, dx, dir);
   }
 
   template <typename Context>
   void ComputeNumericFluxes(Context& context, PatchHandle patch, Direction dir,
                             Duration dt) {
+    const int d = static_cast<int>(dir);
+    const int gcw = context.GetGhostCellWidth(patch, dir);
+
+    ::amrex::IntVect gcws{};
+    gcws[d] = gcw;
+    const auto tilebox_cells = AsIndexBox(patch.iterator->growntilebox(gcws));
+
+    gcws[d] = 1;
+    const auto tilebox_faces =
+        AsIndexBox(patch.iterator->grownnodaltilebox(d, gcws));
+
     const double dx = context.GetDx(patch, dir);
-    auto scratch = MakeView<View<Complete>>(context.GetScratch(patch, dir),
-                                            Base::GetEquation());
-    auto fluxes = MakeView<View<Conservative>>(context.GetFluxes(patch, dir),
-                                               Base::GetEquation());
-    Base::ComputeNumericFluxes(fluxes, AsConst(scratch), dir, dt, dx);
+
+    View<const Complete> scratch =
+        Subview(AsConst(MakeView<BasicView<Complete>>(
+                    context.GetScratch(patch, dir), Base::GetEquation())),
+                tilebox_cells);
+
+    View<Conservative> fluxes =
+        Subview(MakeView<BasicView<Conservative>>(context.GetFluxes(patch, dir),
+                                                  Base::GetEquation()),
+                tilebox_faces);
+
+    Base::ComputeNumericFluxes(fluxes, scratch, dir, dt, dx);
   }
 };
 

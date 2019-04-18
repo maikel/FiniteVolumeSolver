@@ -52,21 +52,22 @@ void FillCutCellData(PatchDataView<double, 3> unshielded,
                      PatchDataView<double, 3> doubly_shielded,
                      const CutCellData<3>& data, Direction dir) {
   const IndexBox<3> indices = Shrink(data.face_fractions.Box(), dir, {1, 1});
-  fub::ForEachIndex(indices, [&](std::ptrdiff_t i, std::ptrdiff_t j, std::ptrdiff_t k) {
-    const std::array<std::ptrdiff_t, 3> mid{i, j, k};
-    const std::array<std::ptrdiff_t, 3> left = Shift(mid, dir, -1);
-    const std::array<std::ptrdiff_t, 3> right = Shift(mid, dir, +1);
-    const double beta_left = data.face_fractions(left);
-    const double beta_mid = data.face_fractions(mid);
-    const double beta_right = data.face_fractions(right);
-    FUB_ASSERT(beta_mid >= 0.0);
-    const double dBetaL = std::max(0.0, beta_mid - beta_left);
-    const double dBetaR = std::max(0.0, beta_mid - beta_right);
-    unshielded(mid) = beta_mid - std::max(dBetaL, dBetaR);
-    doubly_shielded(mid) = std::min(dBetaL, dBetaR);
-    shielded_left(mid) = std::max(0.0, dBetaL - doubly_shielded(mid));
-    shielded_right(mid) = std::max(0.0, dBetaR - doubly_shielded(mid));
-  });
+  fub::ForEachIndex(
+      indices, [&](std::ptrdiff_t i, std::ptrdiff_t j, std::ptrdiff_t k) {
+        const std::array<std::ptrdiff_t, 3> mid{i, j, k};
+        const std::array<std::ptrdiff_t, 3> left = Shift(mid, dir, -1);
+        const std::array<std::ptrdiff_t, 3> right = Shift(mid, dir, +1);
+        const double beta_left = data.face_fractions(left);
+        const double beta_mid = data.face_fractions(mid);
+        const double beta_right = data.face_fractions(right);
+        FUB_ASSERT(beta_mid >= 0.0);
+        const double dBetaL = std::max(0.0, beta_mid - beta_left);
+        const double dBetaR = std::max(0.0, beta_mid - beta_right);
+        unshielded(mid) = beta_mid - std::max(dBetaL, dBetaR);
+        doubly_shielded(mid) = std::min(dBetaL, dBetaR);
+        shielded_left(mid) = std::max(0.0, dBetaL - doubly_shielded(mid));
+        shielded_right(mid) = std::max(0.0, dBetaR - doubly_shielded(mid));
+      });
 }
 
 } // namespace amrex

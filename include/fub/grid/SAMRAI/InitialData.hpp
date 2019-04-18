@@ -107,15 +107,15 @@ template <typename InitialData, typename Equation> struct AdaptInitialData {
 
   void InitializeData(span<SAMRAI::pdat::CellData<double>*> states,
                       const CartesianCoordinates& coords) {
-    View<Complete<Equation>> state_view = MakeView(
-        boost::hana::type_c<View<Complete<Equation>>>, states, equation_);
+    BasicView<Complete<Equation>> state_view =
+        MakeView<BasicView<Complete<Equation>>>(states, equation_);
     data_.InitializeData(state_view, coords);
   }
 
   void Reconstruct(span<SAMRAI::pdat::CellData<double>*> states) {
-    View<Complete<Equation>> state_view = MakeView(
-        boost::hana::type_c<View<Complete<Equation>>>, states, equation_);
-    View<const Conservative<Equation>> cons_view = AsCons(state_view);
+    BasicView<Complete<Equation>> state_view =
+        MakeView<BasicView<Complete<Equation>>>(states, equation_);
+    BasicView<const Conservative<Equation>> cons_view = AsCons(state_view);
     CompleteFromCons(equation_, state_view, cons_view);
   }
 

@@ -6,11 +6,47 @@ stages:
   - build
   - test
 
-build:gcc8:
-  image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/gcc8/amrex2d:1
+build:amrex-2d_gcc8:
+  image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex2d/gcc/8:1
   stage: build
   script:
     - mkdir build
     - cd build
     - cmake ../ -DCMAKE_BUILD_TYPE=Release
+    - make
+
+build:amrex-2d_gcc7:
+  image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex2d/gcc/7:1
+  stage: build
+  script:
+    - mkdir build
+    - cd build
+    - cmake ../ -DCMAKE_BUILD_TYPE=Release
+    - make
+
+build:amrex-3d_gcc8:
+  image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex3d/gcc/8:1
+  stage: build
+  script:
+    - mkdir build
+    - cd build
+    - cmake ../ -DCMAKE_BUILD_TYPE=Release
+    - make
+
+build:amrex-3d_gcc7:
+  image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex3d/gcc/7:1
+  stage: build
+  script:
+    - mkdir build
+    - cd build
+    - cmake ../ -DCMAKE_BUILD_TYPE=Release
+    - make
+
+build:amrex-2d_clang5:
+  image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex3d/gcc/7:1
+  stage: build
+  script:
+    - mkdir build
+    - cd build
+    - cmake ../ -DCMAKE_CXX_COMPILER="clang++" -DCMAKE_CXX_FLAGS="-stdlib=libc++" -DCMAKE_BUILD_TYPE=Release
     - make

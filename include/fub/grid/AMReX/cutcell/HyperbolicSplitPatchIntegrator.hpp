@@ -55,12 +55,13 @@ template <typename Base> struct HyperbolicSplitPatchIntegrator : public Base {
     const auto tilebox_faces =
         AsIndexBox(patch.iterator->grownnodaltilebox(d, gcws));
 
-    StridedView<Conservative> scratch = Subview(
-        MakeView<View<Complete>>(context.GetScratch(patch, dir), equation),
-        tilebox_cells);
-    StridedView<const Conservative> regular_fluxes = Subview(
-        MakeView<View<Conservative>>(context.GetFluxes(patch, dir), equation),
-        tilebox_faces);
+    View<Conservative> scratch = AsCons(Subview(
+        MakeView<BasicView<Complete>>(context.GetScratch(patch, dir), equation),
+        tilebox_cells));
+    View<const Conservative> regular_fluxes =
+        AsConst(Subview(MakeView<BasicView<Conservative>>(
+                            context.GetFluxes(patch, dir), equation),
+                        tilebox_faces));
     if (type == ::amrex::FabType::regular) {
       Base::UpdateConservatively(scratch, AsConst(scratch), regular_fluxes, dir,
                                  dt, dx);
@@ -68,30 +69,30 @@ template <typename Base> struct HyperbolicSplitPatchIntegrator : public Base {
       FUB_ASSERT(type == ::amrex::FabType::singlevalued);
       CutCellData<Rank> cutcell_data = context.GetCutCellData(patch, dir);
 
-      StridedView<const Conservative> stabilized_fluxes =
-          Subview(MakeView<View<Conservative>>(
+      View<const Conservative> stabilized_fluxes = AsConst(
+          Subview(MakeView<BasicView<Conservative>>(
                       context.GetStabilizedFluxes(patch, dir), equation),
-                  tilebox_faces);
+                  tilebox_faces));
 
-      StridedView<const Conservative> shielded_left_fluxes =
-          Subview(MakeView<View<Conservative>>(
+      View<const Conservative> shielded_left_fluxes = AsConst(
+          Subview(MakeView<BasicView<Conservative>>(
                       context.GetShieldedLeftFluxes(patch, dir), equation),
-                  tilebox_faces);
+                  tilebox_faces));
 
-      StridedView<const Conservative> shielded_right_fluxes =
-          Subview(MakeView<View<Conservative>>(
+      View<const Conservative> shielded_right_fluxes = AsConst(
+          Subview(MakeView<BasicView<Conservative>>(
                       context.GetShieldedRightFluxes(patch, dir), equation),
-                  tilebox_faces);
+                  tilebox_faces));
 
-      StridedView<const Conservative> doubly_shielded_fluxes =
-          Subview(MakeView<View<Conservative>>(
+      View<const Conservative> doubly_shielded_fluxes = AsConst(
+          Subview(MakeView<BasicView<Conservative>>(
                       context.GetDoublyShieldedFluxes(patch, dir), equation),
-                  tilebox_faces);
+                  tilebox_faces));
 
-      StridedView<const Conservative> boundary_fluxes =
-          Subview(MakeView<View<Conservative>>(
-                      context.GetBoundaryFluxes(patch, dir), equation),
-                  tilebox_cells);
+      View<const Conservative> boundary_fluxes =
+          AsConst(Subview(MakeView<BasicView<Conservative>>(
+                              context.GetBoundaryFluxes(patch, dir), equation),
+                          tilebox_cells));
 
       Base::UpdateConservatively(scratch, AsConst(scratch), stabilized_fluxes,
                                  regular_fluxes, shielded_left_fluxes,

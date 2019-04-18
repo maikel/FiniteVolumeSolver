@@ -119,8 +119,7 @@ void GriddingAlgorithm::ErrorEst(int level, ::amrex::TagBoxArray& tags, double,
   for (::amrex::MFIter mfi(ba, dm); mfi.isValid(); ++mfi) {
     PatchDataView<const double, Rank + 1> data =
         MakePatchDataView(scratch[mfi]);
-    PatchDataView<char, Rank> tag =
-        MakePatchDataView(tags[mfi], 0);
+    PatchDataView<char, Rank> tag = MakePatchDataView(tags[mfi], 0);
     PatchHandle patch{level, &mfi};
     tagging_.TagCellsForRefinement(tag, data, patch);
   }
@@ -137,10 +136,12 @@ void GriddingAlgorithm::MakeNewLevelFromScratch(
   // Allocate level data.
   {
     const int n_comps = hierarchy_->GetDataDescription().n_state_components;
-    std::unique_ptr<::amrex::EBFArrayBoxFactory> eb_factory =
-        ::amrex::makeEBFabFactory(hierarchy_->GetGeometry(level), box_array,
-                                  distribution_mapping, {4, 4, 4},
-                                  ::amrex::EBSupport::full);
+    std::shared_ptr<::amrex::EBFArrayBoxFactory> eb_factory =
+        ::amrex::makeEBFabFactory(
+            hierarchy_->GetOptions()
+                .index_spaces[static_cast<std::size_t>(level)],
+            hierarchy_->GetGeometry(level), box_array, distribution_mapping,
+            {4, 4, 4}, ::amrex::EBSupport::full);
     hierarchy_->GetPatchLevel(level) =
         PatchLevel(level, Duration(time_point), box_array, distribution_mapping,
                    n_comps, std::move(eb_factory));
@@ -162,9 +163,12 @@ void GriddingAlgorithm::MakeNewLevelFromCoarse(
   const PatchLevel& coarse_level = hierarchy_->GetPatchLevel(level - 1);
   const int n_comps = hierarchy_->GetDataDescription().n_state_components;
   const ::amrex::Geometry& geom = hierarchy_->GetGeometry(level);
-  std::unique_ptr<::amrex::EBFArrayBoxFactory> factory =
-      ::amrex::makeEBFabFactory(geom, box_array, distribution_mapping,
-                                {4, 4, 4}, ::amrex::EBSupport::full);
+  std::shared_ptr<::amrex::EBFArrayBoxFactory> factory =
+      ::amrex::makeEBFabFactory(
+          hierarchy_->GetOptions()
+              .index_spaces[static_cast<std::size_t>(level)],
+          geom, box_array, distribution_mapping, {4, 4, 4},
+          ::amrex::EBSupport::full);
   PatchLevel fine_level(level, Duration(time_point), box_array,
                         distribution_mapping, n_comps, std::move(factory));
   const int cons_start = hierarchy_->GetDataDescription().first_cons_component;
@@ -189,9 +193,12 @@ void GriddingAlgorithm::RemakeLevel(
     const ::amrex::DistributionMapping& distribution_mapping) {
   const int n_comps = hierarchy_->GetDataDescription().n_state_components;
   const ::amrex::Geometry& geom = hierarchy_->GetGeometry(level_number);
-  std::unique_ptr<::amrex::EBFArrayBoxFactory> factory =
-      ::amrex::makeEBFabFactory(geom, box_array, distribution_mapping,
-                                {4, 4, 4}, ::amrex::EBSupport::full);
+  std::shared_ptr<::amrex::EBFArrayBoxFactory> factory =
+      ::amrex::makeEBFabFactory(
+          hierarchy_->GetOptions()
+              .index_spaces[static_cast<std::size_t>(level_number)],
+          geom, box_array, distribution_mapping, {4, 4, 4},
+          ::amrex::EBSupport::full);
   PatchLevel new_level(level_number, Duration(time_point), box_array,
                        distribution_mapping, n_comps, std::move(factory));
   FillMultiFabFromLevel(new_level.data, level_number);

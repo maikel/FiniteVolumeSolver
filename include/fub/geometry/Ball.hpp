@@ -21,8 +21,8 @@
 #ifndef FUB_GEOMETRY_BALL_HPP
 #define FUB_GEOMETRY_BALL_HPP
 
-#include <array>
 #include <algorithm>
+#include <array>
 
 namespace fub {
 
@@ -44,7 +44,7 @@ private:
 };
 
 template <std::size_t Rank>
-Ball(const std::array<double, Rank>&, double) -> Ball<Rank>;
+Ball(const std::array<double, Rank>&, double)->Ball<Rank>;
 
 } // namespace fub
 

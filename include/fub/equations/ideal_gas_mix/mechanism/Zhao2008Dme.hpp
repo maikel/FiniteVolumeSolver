@@ -722,8 +722,9 @@ public:
                               span<double> c, span<double> M, double temp,
                               double pressure) const override;
 
-  virtual void ComputeThermoData(span<double> h, span<double> cp, double T,
-                                 span<double> s = span<double>()) const override;
+  virtual void
+  ComputeThermoData(span<double> h, span<double> cp, double T,
+                    span<double> s = span<double>()) const override;
 
   int getNSpecies() const override { return sEnd; }
 
@@ -734,7 +735,7 @@ public:
   void getMolarMass(span<double> W) const override;
 
   std::vector<std::string> getSpeciesNames() const override;
-  
+
   int getNThirdBodyReactions() const override { return mEnd; }
 
   std::unique_ptr<FlameMasterMechanism> Clone() const override {

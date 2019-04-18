@@ -46,7 +46,7 @@ MultiCutFabs MakeMultiCutFabs(const ::amrex::BoxArray& ba,
 
 PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
                        const ::amrex::DistributionMapping& dm, int n_components,
-                       std::unique_ptr<::amrex::EBFArrayBoxFactory> f)
+                       std::shared_ptr<::amrex::EBFArrayBoxFactory> f)
     : ::fub::amrex::PatchLevel(level, tp, ba, dm, n_components, *f),
       factory(std::move(f)), unshielded(MakeMultiCutFabs(ba, dm, *factory)),
       shielded_left(MakeMultiCutFabs(ba, dm, *factory)),
@@ -60,7 +60,8 @@ PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
   for (std::size_t d = 0; d < static_cast<std::size_t>(AMREX_SPACEDIM); ++d) {
     const ::amrex::MultiCutFab& betas = *factory->getAreaFrac()[d];
     for (::amrex::MFIter mfi(ba, dm); mfi.isValid(); ++mfi) {
-      if (flags[mfi].getType(mfi.tilebox()) == ::amrex::FabType::singlevalued) {
+      if (flags[mfi].getType(mfi.growntilebox(4)) ==
+          ::amrex::FabType::singlevalued) {
         CutCellData<AMREX_SPACEDIM> cutcell_data;
         cutcell_data.flags = MakePatchDataView(flags[mfi], 0);
         cutcell_data.volume_fractions = MakePatchDataView(alphas[mfi], 0);
@@ -188,7 +189,8 @@ ReadCheckpointFile(const std::string checkpointname, DataDescription desc,
                    const CartesianGridGeometry& geometry,
                    const PatchHierarchyOptions& options) {
   std::string File(checkpointname + "/Header");
-  ::amrex::VisMF::IO_Buffer io_buffer(::amrex::VisMF::GetIOBufferSize());
+  ::amrex::VisMF::IO_Buffer io_buffer(
+      static_cast<std::size_t>(::amrex::VisMF::GetIOBufferSize()));
   ::amrex::Vector<char> fileCharPtr;
   ::amrex::ParallelDescriptor::ReadAndBcastFile(File, fileCharPtr);
   std::string fileCharPtrString(fileCharPtr.dataPtr());
@@ -204,7 +206,8 @@ ReadCheckpointFile(const std::string checkpointname, DataDescription desc,
   // read in finest_level
   std::getline(is, line);
   const int finest_level = std::stoi(line);
-  std::vector<std::ptrdiff_t> cycles(static_cast<std::size_t>(finest_level + 1));
+  std::vector<std::ptrdiff_t> cycles(
+      static_cast<std::size_t>(finest_level + 1));
   std::vector<double> time_points(static_cast<std::size_t>(finest_level + 1));
 
   // read in array of istep
@@ -238,9 +241,10 @@ ReadCheckpointFile(const std::string checkpointname, DataDescription desc,
                                   {4, 4, 4}, ::amrex::EBSupport::full);
 
     hierarchy->GetPatchLevel(lev) =
-        PatchLevel(lev, Duration(time_points[lev]), ba, dm,
-                   desc.n_state_components, std::move(eb_factory));
-    hierarchy->GetPatchLevel(lev).cycles = cycles[lev];
+        PatchLevel(lev, Duration(time_points[static_cast<std::size_t>(lev)]),
+                   ba, dm, desc.n_state_components, std::move(eb_factory));
+    hierarchy->GetPatchLevel(lev).cycles =
+        cycles[static_cast<std::size_t>(lev)];
   }
 
   // read in the MultiFab data

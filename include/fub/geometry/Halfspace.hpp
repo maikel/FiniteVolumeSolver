@@ -21,22 +21,19 @@
 #ifndef FUB_GEOMETRY_HALFSPACE_HPP
 #define FUB_GEOMETRY_HALFSPACE_HPP
 
-#include "fub/geometry/Geometry.hpp"
+#include <Eigen/Dense>
 
 namespace fub {
 
-class Halfspace : public Geometry {
+class Halfspace {
 public:
-  Halfspace(const Coordinates& direction, double offset);
+  Halfspace(const Eigen::Vector3d& direction, double offset);
 
-  double ComputeDistanceTo(const Coordinates& x) const override;
-
-  std::unique_ptr<Geometry> Clone() const override {
-    return std::make_unique<Halfspace>(*this);
-  }
+  double operator()(double x, double y, double z) const;
+  double operator()(const Eigen::Vector3d& x) const;
 
 private:
-  Coordinates normal_;
+  Eigen::Vector3d normal_;
   double offset_;
 };
 

@@ -37,8 +37,8 @@ public:
   const Equation& GetEquation() const noexcept { return equation; }
 
   template <typename NextView, typename FluxView, typename PrevView>
-  void UpdateConservatively(NextView next, FluxView fluxes, PrevView prev, Direction dir,
-                            Duration dt, double dx);
+  void UpdateConservatively(NextView next, FluxView fluxes, PrevView prev,
+                            Direction dir, Duration dt, double dx);
 
 private:
   Equation equation;
@@ -52,17 +52,20 @@ private:
 template <typename Equation>
 template <typename NextView, typename FluxView, typename PrevView>
 void HyperbolicSplitPatchIntegrator<Equation>::UpdateConservatively(
-    NextView next, FluxView fluxes, PrevView prev, Direction dir, Duration dt, double dx) {
+    NextView next, FluxView fluxes, PrevView prev, Direction dir, Duration dt,
+    double dx) {
   const double lambda = dt.count() / dx;
   constexpr int Rank = Equation::Rank();
+  constexpr std::size_t sRank = static_cast<std::size_t>(Rank);
   ForEachIndex(Shrink(Box<0>(fluxes), dir, {0, 1}), [&](const auto... is) {
-    const std::array<std::ptrdiff_t, Rank> face_left{is...};
-    const std::array<std::ptrdiff_t, Rank> face_right = Shift(face_left, dir, 1);
+    const std::array<std::ptrdiff_t, sRank> face_left{is...};
+    const std::array<std::ptrdiff_t, sRank> face_right =
+        Shift(face_left, dir, 1);
     // Load fluxes left and right at index
     Load(flux_left, fluxes, face_left);
     Load(flux_right, fluxes, face_right);
     // Load state at index
-    const std::array<std::ptrdiff_t, Rank> cell = face_left;
+    const std::array<std::ptrdiff_t, sRank> cell = face_left;
     Load(prev_state, prev, cell);
     // Do The computation
     ForEachVariable<Conservative<Equation>>(

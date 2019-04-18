@@ -40,6 +40,5 @@ MakePhysBCFunct(const ::amrex::Geometry& geom,
   return {geom, bcr, f};
 }
 
-
 } // namespace amrex
 } // namespace fub

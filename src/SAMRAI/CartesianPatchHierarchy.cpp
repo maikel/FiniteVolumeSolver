@@ -91,9 +91,9 @@ CartesianCoordinates GetCartesianCoordinates(const SAMRAI::hier::Patch& patch) {
   Eigen::Vector3d dx{0, 0, 0};
 
   for (int d = 0; d < patch.getDim().getValue(); ++d) {
-     lower[d] = geom->getXLower()[d];
-     upper[d] = geom->getXUpper()[d];
-     dx[d] = geom->getDx()[d];
+    lower[d] = geom->getXLower()[d];
+    upper[d] = geom->getXUpper()[d];
+    dx[d] = geom->getDx()[d];
   }
 
   std::array<std::ptrdiff_t, 3> extents;
