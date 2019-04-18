@@ -12,7 +12,7 @@ Questions which are going to be tackled are
 # Physical Project Structure
 
 - `docs/` contains a Doxygen.in file to generate documentation
-- `docker/` contains Dockerfiles to create docker images with preinstalled development environments. Read the [Docker Tutorial](https://...) for more information. 
+- `docker/` contains Dockerfiles to create docker images with preinstalled development environments. Read the [Docker Tutorial](https://git.imp.fu-berlin.de/ag-klein/FiniteVolumeSolver/tree/develop/docker) for more information. 
 - `examples/` contains exemplary applications using this framework.
 - `include/` contains public header files which are consumable via some exportable library.
 - `src/` contains private header and source files to the library.
@@ -30,10 +30,10 @@ This project has currently the follwing dependencies on third party libraries
 - [AMReX](https://amrex-codes.github.io) an optional AMR library.
 - [SAMRAI](https://github.com/LLNL/SAMRAI) an optional AMR library.
 
-## HowTo Build This Code
+## How To Build Finite Volume Solver
 
-Given that all dependencies are installed. you simply have to invoke CMake with paths configured for locally installed libraried.
-These paths need to point to directories contiaining the `LibConig.cmake` for each library in question.
+Given that all dependencies are installed. you have to invoke CMake with all paths configured for your locally installed depedencies.
+These paths need to point to directories contiaining the `LibraryConig.cmake` for each `Library` in question.
 
 What follows is an example of how to setup a build of FiniteVolumeSolver for the case that your AMReX installation is contained in a folder `${AMREX_INSTALL_PREFIX}` while Eigen3, boost and fmtlib are installed via a package manager.
 
@@ -42,10 +42,16 @@ git clone git@git.imp.fu-berlin.de:ag-klein/FiniteVolumeSolver.git FiniteVolumeS
 cd FiniteVolumeSolver
 mkdir build
 cd build
-cmake ../ -DCMAKE_BUILD_TYPE=Release -DAMReX_DIR="${AMREX_INSTALL_PREFIX}/lib/CMake/AMReX/"
+cmake ../ -DCMAKE_BUILD_TYPE=Release -DAMReX_DIR="${AMREX_INSTALL_PREFIX}/lib/cmake/AMReX/"
 ```
 
 Being in your preconfigured build folder, you can see possible configure options and make adjustments via the command `ccmake .` (configure cmake).
+
+As as example, to generate a Xcode project I use the following command line
+
+```bash
+cmake -G Xcode ../ -DCMAKE_Fortran_COMPILER=/usr/local/Cellar/gcc/8.2.0/bin/gfortran -DAMReX_DIR=/Users/maikel/amrex/amrex2d-eb-debug/lib/cmake/AMReX/ -DCMAKE_BUILD_TYPE=Debug -DEigen3_DIR=/usr/local/Cellar/eigen/3.3.7/share/eigen3/cmake/ -DCMAKE_EXE_LINKER_FLAGS="-lgfortran -L/usr/local/Cellar/gcc/8.2.0/lib/gcc/8" -DBOOST_ROOT=/usr/local/Cellar/boost/1.69.0/ -DCMAKE_CXX_COMPILER=mpic++
+```
 
 ## AMReX
 

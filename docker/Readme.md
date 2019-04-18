@@ -32,3 +32,20 @@ root@da4ed06a478c:/build/# make AMReX.EB.Ramp
 root@da4ed06a478c:/build/# ./examples/AMReX.EB.Ramp
 ```
 A list of available images, with links, can be found in the [Container Registry](https://git.imp.fu-berlin.de/ag-klein/FiniteVolumeSolver/container_registry).
+
+## Building docker images on your own
+
+You do not have to fetch the docker image from this docker repository since you can build 
+them easily with the provided Dockerfiles in this git repository.
+
+To build an image locally you can invoke docker via
+
+```
+docker build -t MyImageTag -f amrex_3d-gcc8 .
+```
+
+and then simply run `MyImageTag`
+
+```
+docker run -it MyImageTag
+```
