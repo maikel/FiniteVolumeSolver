@@ -12,7 +12,7 @@ build:amrex-2d_clang5:
   script:
     - mkdir build
     - cd build
-    - cmake ../ -DCMAKE_CXX_COMPILER="clang++" -DCMAKE_CXX_FLAGS="-stdlib=libc++ -Wno-missing-braces" -DCMAKE_BUILD_TYPE=Debug
+    - cmake ../ -DCMAKE_CXX_COMPILER="clang++" -DCMAKE_CXX_FLAGS="-stdlib=libc++ -Wno-missing-braces" -DCMAKE_BUILD_TYPE=Release
     - make
 
 build:amrex-2d_clang6:
@@ -21,7 +21,7 @@ build:amrex-2d_clang6:
   script:
     - mkdir build
     - cd build
-    - cmake ../ -DCMAKE_CXX_COMPILER="clang++" -DCMAKE_CXX_FLAGS="-stdlib=libc++" -DCMAKE_BUILD_TYPE=Debug
+    - cmake ../ -DCMAKE_CXX_COMPILER="clang++" -DCMAKE_CXX_FLAGS="-stdlib=libc++" -DCMAKE_BUILD_TYPE=Release
     - make
 
 build:amrex-2d_clang7:
@@ -30,7 +30,7 @@ build:amrex-2d_clang7:
   script:
     - mkdir build
     - cd build
-    - cmake ../ -DCMAKE_CXX_COMPILER="clang++" -DCMAKE_CXX_FLAGS="-stdlib=libc++" -DCMAKE_BUILD_TYPE=Debug
+    - cmake ../ -DCMAKE_CXX_COMPILER="clang++" -DCMAKE_CXX_FLAGS="-stdlib=libc++" -DCMAKE_BUILD_TYPE=Release
     - make
 
 build:amrex-2d_clang8:
@@ -39,7 +39,7 @@ build:amrex-2d_clang8:
   script:
     - mkdir build
     - cd build
-    - cmake ../ -DCMAKE_CXX_COMPILER="clang++" -DCMAKE_CXX_FLAGS="-stdlib=libc++" -DCMAKE_BUILD_TYPE=Debug
+    - cmake ../ -DCMAKE_CXX_COMPILER="clang++" -DCMAKE_CXX_FLAGS="-stdlib=libc++" -DCMAKE_BUILD_TYPE=Release
     - make
 
 build:amrex-2d_gcc7:
