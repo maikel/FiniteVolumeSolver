@@ -59,7 +59,7 @@ AMREX_INSTALL_PREFIX="/Your/Path/To/AMReX/Installation/Prefix"
 git clone --single-branch -b development https://github.com/AMReX-Codes/amrex AMReX/
 cd AMReX/
 mkdir build/
-cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="${AMREX_INSTALL_PREFIX}" -DENABLE_EB=ON -ENABLE_OMP=ON
+cmake ../ -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="${AMREX_INSTALL_PREFIX}" -DENABLE_EB=ON -ENABLE_OMP=ON
 make install
 ```
 
@@ -81,7 +81,7 @@ And build it with commands similar to
 
 ```bash
 mkdir build && cd build
-cmake .. -DCMAKE_INSTALL_PREFIX="YOUR_LOCAL_INSTALL_PATH" -DCMAKE_BUILD_TYPE="Release" -DHDF5_ROOT="YOUR_HDF5_PATH" -DENABLE_OPENMP=OFF -DCMAKE_CXX_COMPILER=mpic++
+cmake ../ -DCMAKE_INSTALL_PREFIX="YOUR_LOCAL_INSTALL_PATH" -DCMAKE_BUILD_TYPE="Release" -DHDF5_ROOT="YOUR_HDF5_PATH" -DENABLE_OPENMP=OFF -DCMAKE_CXX_COMPILER=mpic++
 make -j4 install
 ```
 
