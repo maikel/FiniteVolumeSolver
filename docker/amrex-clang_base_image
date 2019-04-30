@@ -1,25 +1,11 @@
 FROM ubuntu:16.04
 
-RUN apt-get update && apt-get install --yes \
-  wget \
-  build-essential \
-  xz-utils \
-  libopenmpi-dev \
-  openmpi-bin \
-  gfortran \
-  git
+RUN apt-get update && apt-get install --yes python3-pip wget && pip3 install conan
 
 # Install latest CMake files from the internet
 RUN wget https://github.com/Kitware/CMake/releases/download/v3.14.2/cmake-3.14.2-Linux-x86_64.tar.gz \
     && tar xzf cmake-3.14.2-Linux-x86_64.tar.gz && rm cmake-3.14.2-Linux-x86_64.tar.gz \
     && cp -r cmake-3.14.2-Linux-x86_64/* /usr/ && rm -r cmake-3.14.2-Linux-x86_64/
-
-RUN git clone --depth=1 -b branches/3.3 https://github.com/eigenteam/eigen-git-mirror.git /Eigen3 \
-  && cd /Eigen3 \
-  && mkdir build/ && cd build/ \
-  && cmake /Eigen3 -DCMAKE_INSTALL_PREFIX="/usr" -DCMAKE_BUILD_TYPE="Release" \
-  && make install \
-  && cd / && rm -rf /Eigen3
 
 # Fetch clang-5 and install it into /usr
 ARG CLANG_URL
@@ -32,31 +18,11 @@ RUN mkdir llvm_download \
   && cd ../ \
   && rm -r llvm_download
 
-# Build and install fmtlib
-RUN git clone --depth=1 https://github.com/fmtlib/fmt.git \
-  && mkdir /fmt/build && cd /fmt/build \
-  && cmake /fmt -DCMAKE_CXX_COMPILER="clang++" -DCMAKE_CXX_FLAGS="-stdlib=libc++" -DCMAKE_INSTALL_PREFIX="/" -DFMT_TEST=OFF -DFMT_DOC=OFF\ 
-  && cd /fmt/build && make install && cd / && rm -r /fmt
-
-# Install boost libraries
-RUN wget https://dl.bintray.com/boostorg/release/1.70.0/source/boost_1_70_0.tar.gz \
-  && tar xzf boost_1_70_0.tar.gz \
-  && cd boost_1_70_0/ && ./bootstrap.sh --with-toolset=clang --prefix="/usr" \
-  && ./b2 install link=static --with-filesystem --with-program_options --with-log -j 4 \
-  && cd / && rm -r /boost_1_70_0 boost_1_70_0.tar.gz
-
-# Build and install AMReX
-ARG AMREX_SPACEDIM
-RUN git clone -b development --depth=1 https://github.com/AMReX-Codes/amrex.git /AMReX \
-  && mkdir /AMReX/build \
-  && cd /AMReX/build \
-  && cmake /AMReX -DCMAKE_CXX_COMPILER="clang++" -DCMAKE_CXX_FLAGS="-stdlib=libc++" \
-                  -DDIM="${AMREX_SPACEDIM}" \
-                  -DCMAKE_BUILD_TYPE=Release \
-                  -DCMAKE_INSTALL_PREFIX="/" \
-                  -DENABLE_EB=ON \
-                  -DENABLE_OMP=ON \
-                  -DENABLE_ASSERTIONS=OFF \
-  && make -j4 install \
-  && cd / \
-  && rm -r /AMReX
+ARG CLANG_VERSION
+RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/finite-volume \ 
+    && conan user -p 3c416ef866ef8b7f6e45ba1720b00ca690093577 -r finite-volume maikel \
+    && conan install "AMReX/[>=19.04]@finite-volume/development" -o amrex:dim="${AMREX_SPACEDIM}" \
+        --env CXX=clang -s compiler=clang -s compiler.libcxx=libc++ -s compiler.version="${CLANG_VERSION}" \
+        --build missing \
+    && conan upload "$(conan search --raw | grep OpenMPI)" --all \
+    && conan upload "$(conan search --raw | grep AMReX)" --all

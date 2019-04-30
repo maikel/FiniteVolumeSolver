@@ -18,15 +18,19 @@ build_clang_image() {
   case "${COMPILER_ID}" in
   clang5)
     CLANG_URL="https://releases.llvm.org/5.0.2/clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-16.04.tar.xz"
+    CLANG_VERSION=5.0
     ;;
   clang6)
     CLANG_URL="https://releases.llvm.org/6.0.1/clang+llvm-6.0.1-x86_64-linux-gnu-ubuntu-16.04.tar.xz"
+    CLANG_VERSION=6.0
     ;;
   clang7)
     CLANG_URL="https://releases.llvm.org/7.0.1/clang+llvm-7.0.1-x86_64-linux-gnu-ubuntu-16.04.tar.xz"
+    CLANG_VERSION=7.0
     ;;
   clang8)
     CLANG_URL="https://releases.llvm.org/8.0.0/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz"
+    CLANG_VERSION=8.0
     ;;
   esac
   docker build \
@@ -67,14 +71,14 @@ main() {
     done
   done
 
-  for COMPILER_ID in ${GCC_VERSIONS[@]}; do
-    for AMREX_SPACEDIM in ${AMREX_SPACEDIMS[@]}; do
-      printf "[Build] Docker Image for ${COMPILER_ID} with Dimension ${AMREX_SPACEDIM}\n"
-      build_gcc_image "${COMPILER_ID}" "${AMREX_SPACEDIM}"
-      printf "[Push] Docker Image for ${COMPILER_ID} with Dimension ${AMREX_SPACEDIM}\n"
-      push_docker_image "${COMPILER_ID}" "${AMREX_SPACEDIM}"
-    done
-  done
+#   for COMPILER_ID in ${GCC_VERSIONS[@]}; do
+#     for AMREX_SPACEDIM in ${AMREX_SPACEDIMS[@]}; do
+#       printf "[Build] Docker Image for ${COMPILER_ID} with Dimension ${AMREX_SPACEDIM}\n"
+#       build_gcc_image "${COMPILER_ID}" "${AMREX_SPACEDIM}"
+#       printf "[Push] Docker Image for ${COMPILER_ID} with Dimension ${AMREX_SPACEDIM}\n"
+#       push_docker_image "${COMPILER_ID}" "${AMREX_SPACEDIM}"
+#     done
+#   done
 }
 
 main
