@@ -36,6 +36,7 @@ build_clang_image() {
   docker build \
     -t "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:${AMREX_SPACEDIM}d_${COMPILER_ID}" \
     --build-arg CLANG_URL="${CLANG_URL}" \
+    --build-arg CLANG_VERSION="${CLANG_VERSION}" \
     --build-arg AMREX_SPACEDIM="${AMREX_SPACEDIM}" \
     -f amrex-clang_base_image .
 }
