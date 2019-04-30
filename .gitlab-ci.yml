@@ -10,7 +10,7 @@ stages:
 
 build_docker_images:
   stage: build
-  image: $IMP_REGISTRY/pub/docker-git
+  image: docker:git
   before_script:
     - *prepare_docker
   script:
