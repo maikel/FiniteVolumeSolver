@@ -18,6 +18,8 @@ RUN mkdir llvm_download \
   && cd ../ \
   && rm -r llvm_download
 
+RUN apt-get install --yes libevent-pthreads-2.0-5
+
 ARG CLANG_VERSION
 RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/finite-volume \ 
     && conan user -p 3c416ef866ef8b7f6e45ba1720b00ca690093577 -r finite-volume maikel \
