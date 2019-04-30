@@ -14,5 +14,6 @@ build_docker_images:
   before_script:
     - *prepare_docker
   script:
+    - apk add bash
     - cd docker/
     - bash build_images.sh
