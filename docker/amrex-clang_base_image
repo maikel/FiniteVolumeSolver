@@ -24,7 +24,7 @@ ARG CLANG_VERSION
 RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/finite-volume \ 
     && conan user -p 3c416ef866ef8b7f6e45ba1720b00ca690093577 -r finite-volume maikel \
     && conan install "AMReX/[>=19.04]@finite-volume/development" -o amrex:dim="${AMREX_SPACEDIM}" \
-        --env CXX=clang++ CC=clang -s compiler=clang -s compiler.libcxx=libc++ -s compiler.version="${CLANG_VERSION}" \
+        --env CXX=clang++ --env CC=clang -s compiler=clang -s compiler.libcxx=libc++ -s compiler.version="${CLANG_VERSION}" \
         --build missing \
     && conan upload "$(conan search --raw | grep OpenMPI)" --all \
     && conan upload "$(conan search --raw | grep AMReX)" --all
