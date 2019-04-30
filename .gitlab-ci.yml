@@ -4,9 +4,15 @@ variables:
 stages:
   - build
 
+.prepare_docker:
+  before_script: &prepare_docker |
+    docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
+
 build_docker_images:
   stage: build
-  image: $IMP_REGISTRY/pub/docker-git
+  image: docker:git
+  before_script:
+    - *prepare_docker
   script:
     - cd docker/
     - bash build_images.sh
