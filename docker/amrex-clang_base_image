@@ -18,7 +18,7 @@ RUN mkdir llvm_download \
   && cd ../ \
   && rm -r llvm_download
 
-RUN apt-get install --yes libpthread-stubs0-dev git
+RUN apt-get install --yes libpthread-stubs0-dev git gfortran
 
 ARG CLANG_VERSION
 RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/finite-volume \ 
