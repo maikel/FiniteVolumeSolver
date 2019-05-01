@@ -26,5 +26,5 @@ RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/fin
     && conan install "AMReX/[>=19.04]@finite-volume/development" -o amrex:dim="${AMREX_SPACEDIM}" \
         --env CXX=clang++ --env CC=clang -s compiler=clang -s compiler.libcxx=libc++ -s compiler.version="${CLANG_VERSION}" \
         --build missing \
-    && conan upload "$(conan search --raw | grep OpenMPI)" --all \
-    && conan upload "$(conan search --raw | grep AMReX)" --all
+    && conan upload "$(conan search --raw | grep OpenMPI)" --all -r=finite-volume \
+    && conan upload "$(conan search --raw | grep AMReX)" --all -r=finite-volume
