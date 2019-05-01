@@ -30,7 +30,7 @@ build_clang_image() {
     ;;
   clang8)
     CLANG_URL="https://releases.llvm.org/8.0.0/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz"
-    CLANG_VERSION=8.0
+    CLANG_VERSION="8"
     ;;
   esac
   docker build \
