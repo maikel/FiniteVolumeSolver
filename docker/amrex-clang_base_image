@@ -31,5 +31,5 @@ RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/fin
 ARG AMREX_SPACEDIM
 RUN conan install "AMReX/[>=19.4.30]@finite-volume/development" -o amrex:dim="${AMREX_SPACEDIM}" \
         --env CXX=clang++ --env CC=clang -s compiler=clang -s compiler.libcxx=libc++ -s compiler.version="${CLANG_VERSION}" \
-        --build missing \
+        --build always \
     && conan upload "$(conan search --raw | grep AMReX)" --all -r=finite-volume
