@@ -29,6 +29,7 @@ RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/fin
     && conan upload "$(conan search --raw | grep OpenMPI)" --all -r=finite-volume
 
 ARG AMREX_SPACEDIM
+ARG CACHEBUST=1
 RUN conan install "AMReX/[>=19.4.30]@finite-volume/development" -o AMReX:dim="${AMREX_SPACEDIM}" \
         --env CXX=clang++ --env CC=clang -s compiler=clang -s compiler.libcxx=libc++ -s compiler.version="${CLANG_VERSION}" \
         --build AMReX \

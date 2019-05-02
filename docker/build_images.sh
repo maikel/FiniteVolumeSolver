@@ -38,6 +38,7 @@ build_clang_image() {
     --build-arg CLANG_URL="${CLANG_URL}" \
     --build-arg CLANG_VERSION="${CLANG_VERSION}" \
     --build-arg AMREX_SPACEDIM="${AMREX_SPACEDIM}" \
+    --build-arg CACHEBUST="$(date +%s)" \
     -f amrex-clang_base_image .
 }
 
@@ -49,6 +50,7 @@ build_gcc_image() {
     -t "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:${AMREX_SPACEDIM}d_${COMPILER_ID}" \
     --build-arg GCC_VERSION="${GCC_VERSION}" \
     --build-arg AMREX_SPACEDIM="${AMREX_SPACEDIM}" \
+    --build-arg CACHEBUST="$(date +%s)" \
     -f amrex-gcc_base_image .
 }
 
