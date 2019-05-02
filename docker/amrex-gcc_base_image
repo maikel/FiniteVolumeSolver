@@ -2,7 +2,7 @@ ARG GCC_VERSION
 FROM gcc:$GCC_VERSION
 
 RUN apt-get update \
-  && apt-get upgrade \
+  && apt-get --yes dist-upgrade \
   && apt-get install --yes python3-pip wget libpthread-stubs0-dev git \
   && pip3 install conan
 
@@ -13,13 +13,9 @@ RUN wget https://github.com/Kitware/CMake/releases/download/v3.14.2/cmake-3.14.2
 
 RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/finite-volume \ 
     && conan user -p 3c416ef866ef8b7f6e45ba1720b00ca690093577 -r finite-volume maikel \
-    && conan install "OpenMPI/[>=3]@finite-volume/stable" \
-        --env CXX=clang++ --env CC=clang -s compiler=gcc -s compiler.libcxx=libstdc++ -s compiler.version="${GCC_VERSION}" \
-        --build missing \
+    && conan install "OpenMPI/[>=3]@finite-volume/stable" --build missing \
     && conan upload "$(conan search --raw | grep OpenMPI)" --all -r=finite-volume
 
 ARG AMREX_SPACEDIM
 ARG CACHEBUST=1
-RUN conan install "AMReX/[>=19.4.30]@finite-volume/development" -o AMReX:dim="${AMREX_SPACEDIM}" \
-        --env CXX=clang++ --env CC=clang -s compiler=gcc -s compiler.libcxx=libstdc++ -s compiler.version="${GCC_VERSION}" \
-        --build AMReX
+RUN conan install "AMReX/[>=19.4.30]@finite-volume/development" -o AMReX:dim="${AMREX_SPACEDIM}" --build AMReX
