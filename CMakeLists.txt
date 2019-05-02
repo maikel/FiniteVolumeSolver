@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.13)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
-project(HyperbolicSolver CXX Fortran)
+project(FiniteVolumeSolver CXX Fortran)
 
 # Detect if we use conan to build this project and its dependencies.
 # If yes, we include the neccessary build information, i.e. include paths and
@@ -80,7 +80,7 @@ endif()
 
 install(
   TARGETS RadauSolverFortran
-  EXPORT HyperbolicSolver
+  EXPORT FiniteVolumeSolver
   ARCHIVE DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
   LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
 )
@@ -90,56 +90,56 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/include/fub/config.hpp.in
                ${CMAKE_BINARY_DIR}/include/fub/config.hpp)
 
 ################################################################################
-# [HyperbolicSolver.Core]
+# [FiniteVolumeSolver.Core]
 
-add_library(HyperbolicSolver.Core INTERFACE)
-target_include_directories(HyperbolicSolver.Core 
+add_library(FiniteVolumeSolver.Core INTERFACE)
+target_include_directories(FiniteVolumeSolver.Core 
   INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>)
-target_link_libraries(HyperbolicSolver.Core INTERFACE Boost::boost)
-target_compile_features(HyperbolicSolver.Core INTERFACE cxx_std_17)
+target_link_libraries(FiniteVolumeSolver.Core INTERFACE Boost::boost)
+target_compile_features(FiniteVolumeSolver.Core INTERFACE cxx_std_17)
 
 install(
-  TARGETS HyperbolicSolver.Core
-  EXPORT HyperbolicSolver
+  TARGETS FiniteVolumeSolver.Core
+  EXPORT FiniteVolumeSolver
   ARCHIVE DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
   LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
 )
 
 ################################################################################
-# [HyperbolicSolver.OdeSolver]
+# [FiniteVolumeSolver.OdeSolver]
 
-add_library(HyperbolicSolver.OdeSolver 
+add_library(FiniteVolumeSolver.OdeSolver 
   src/ode_solver/RadauSolver.cpp
   src/ode_solver/OdeSolverFactory.cpp)
 
 # If we found Sundials::cvode then we include its sources to the target.
 if (Sundials_FOUND AND FUB_WITH_SUNDIALS)
-  target_sources(HyperbolicSolver.OdeSolver 
+  target_sources(FiniteVolumeSolver.OdeSolver 
     PRIVATE 
       src/ode_solver/CVodeSolver.cpp)
-  target_link_libraries(HyperbolicSolver.OdeSolver PUBLIC Sundials::cvode)
+  target_link_libraries(FiniteVolumeSolver.OdeSolver PUBLIC Sundials::cvode)
 endif()
 
-target_link_libraries(HyperbolicSolver.OdeSolver
+target_link_libraries(FiniteVolumeSolver.OdeSolver
   PUBLIC 
-    HyperbolicSolver.Core
+    FiniteVolumeSolver.Core
     RadauSolverFortran)
-target_include_directories(HyperbolicSolver.OdeSolver
+target_include_directories(FiniteVolumeSolver.OdeSolver
   PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
 install(
-  TARGETS HyperbolicSolver.OdeSolver
-  EXPORT HyperbolicSolver
+  TARGETS FiniteVolumeSolver.OdeSolver
+  EXPORT FiniteVolumeSolver
   ARCHIVE DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
   LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
 )
 
 find_package(fmt REQUIRED)
 
-add_library(HyperbolicSolver.Solver
+add_library(FiniteVolumeSolver.Solver
   src/equations/Advection.cpp
   src/equations/Burgers.cpp
   src/equations/ShallowWater.cpp
@@ -152,14 +152,14 @@ add_library(HyperbolicSolver.Solver
   src/split_method/StrangSplitting.cpp
   src/geometry/Halfspace.cpp
   src/RunSimulation.cpp)
-target_link_libraries(HyperbolicSolver.Solver
+target_link_libraries(FiniteVolumeSolver.Solver
   PUBLIC
-    HyperbolicSolver.Core
-    HyperbolicSolver.OdeSolver
+    FiniteVolumeSolver.Core
+    FiniteVolumeSolver.OdeSolver
     fmt::fmt-header-only
     Boost::boost
     Eigen3::Eigen)
-target_compile_options(HyperbolicSolver.Solver 
+target_compile_options(FiniteVolumeSolver.Solver 
   PRIVATE 
   $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
   $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall>
@@ -167,17 +167,17 @@ target_compile_options(HyperbolicSolver.Solver
   $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wconversion>
   $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wsign-conversion>)
 install(
-  TARGETS HyperbolicSolver.Solver
-  EXPORT HyperbolicSolver
+  TARGETS FiniteVolumeSolver.Solver
+  EXPORT FiniteVolumeSolver
   ARCHIVE DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
   LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
 )
 
 ################################################################################
-# [HyperbolicSolver.AMReX]
+# [FiniteVolumeSolver.AMReX]
 
 if (AMReX_FOUND AND TARGET AMReX::amrex)
-  add_library(HyperbolicSolver.AMReX
+  add_library(FiniteVolumeSolver.AMReX
     src/AMReX/ScopeGuard.cpp
     src/AMReX/MultiFab.cpp
     src/AMReX/CartesianGridGeometry.cpp
@@ -188,7 +188,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     src/AMReX/HyperbolicSplitIntegratorContext.cpp)
 
   if (AMREX_ENABLE_EB) 
-    target_sources(HyperbolicSolver.AMReX
+    target_sources(FiniteVolumeSolver.AMReX
       PRIVATE
         src/CutCellData.cpp
         src/geometry/ExpandTube.cpp
@@ -199,37 +199,37 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         src/AMReX/cutcell/GriddingAlgorithm.cpp)
   endif()
 
-  target_include_directories(HyperbolicSolver.AMReX 
+  target_include_directories(FiniteVolumeSolver.AMReX 
     PUBLIC 
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
       $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>
     PRIVATE 
       ${CMAKE_CURRENT_SOURCE_DIR}
   )
-  target_compile_options(HyperbolicSolver.AMReX 
+  target_compile_options(FiniteVolumeSolver.AMReX 
     PRIVATE 
     $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
     $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall>
     $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>
     $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wconversion>
     $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wsign-conversion>)
-  target_link_libraries(HyperbolicSolver.AMReX
+  target_link_libraries(FiniteVolumeSolver.AMReX
     PUBLIC
-      HyperbolicSolver.Solver
+      FiniteVolumeSolver.Solver
       AMReX::amrex
       Boost::boost
       Eigen3::Eigen)
 
    if (FUB_WITH_OPENMP) 
-    target_compile_options(HyperbolicSolver.AMReX PUBLIC "-fopenmp")
+    target_compile_options(FiniteVolumeSolver.AMReX PUBLIC "-fopenmp")
    endif()
 endif()
 
 ################################################################################
-# [HyperbolicSolver.SAMRAI]
+# [FiniteVolumeSolver.SAMRAI]
 
 if (SAMRAI_FOUND)
-  add_library(HyperbolicSolver.SAMRAI
+  add_library(FiniteVolumeSolver.SAMRAI
     src/SAMRAI/HyperbolicSplitIntegratorContext.cpp
     src/SAMRAI/ScopeGuard.cpp
     src/SAMRAI/utility.cpp
@@ -237,26 +237,26 @@ if (SAMRAI_FOUND)
     src/SAMRAI/GriddingAlgorithm.cpp
     src/SAMRAI/ViewPatch.cpp
     src/SAMRAI/RegisterVariables.cpp)
-  target_include_directories(HyperbolicSolver.SAMRAI 
+  target_include_directories(FiniteVolumeSolver.SAMRAI 
     PUBLIC 
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
       $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>
     PRIVATE 
       ${CMAKE_CURRENT_SOURCE_DIR}
   )
-  target_link_libraries(HyperbolicSolver.SAMRAI
+  target_link_libraries(FiniteVolumeSolver.SAMRAI
     PUBLIC
-      HyperbolicSolver.Solver
+      FiniteVolumeSolver.Solver
       SAMRAI_appu SAMRAI_xfer SAMRAI_mesh SAMRAI_geom
       SAMRAI_pdat SAMRAI_hier SAMRAI_tbox)
-  target_compile_options(HyperbolicSolver.SAMRAI 
+  target_compile_options(FiniteVolumeSolver.SAMRAI 
     PRIVATE 
       $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
       $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall>
       $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>)
   install(
-    TARGETS HyperbolicSolver.SAMRAI
-    EXPORT HyperbolicSolver
+    TARGETS FiniteVolumeSolver.SAMRAI
+    EXPORT FiniteVolumeSolver
     ARCHIVE DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
   )
@@ -292,6 +292,6 @@ if (FUB_WITH_OPENMP)
 endif()
 
 install(
-  EXPORT HyperbolicSolver
-  NAMESPACE HyperbolicSolver
+  EXPORT FiniteVolumeSolver
+  NAMESPACE FiniteVolumeSolver
   DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake)

@@ -69,9 +69,9 @@ public:
   double ComputeStableDt(span<const Complete, 2> states, double dx,
                          Direction dir) {
     const auto signals = signal_speeds_(equation_, states[0], states[1], dir);
-    const double max =
-        std::accumulate(signals.begin(), signals.end(), 0.0,
-                        [](double x, double y) { return std::max(x, std::abs(y)); });
+    const double max = std::accumulate(
+        signals.begin(), signals.end(), 0.0,
+        [](double x, double y) { return std::max(x, std::abs(y)); });
     FUB_ASSERT(max > 0.0);
     return 0.5 * dx / max;
   }

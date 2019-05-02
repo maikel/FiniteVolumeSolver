@@ -41,13 +41,12 @@ template <typename Eq, typename Geometry> struct RiemannProblem {
   RiemannProblem(const Eq& eq, const Geometry& geom, const Complete& l,
                  const Complete& r)
       : equation{eq}, geometry_{geom}, left{l}, right{r} {
-    ForEachComponent<Complete>(
-        [](double& x) { x = 0.0; },
-        boundary);
+    ForEachComponent<Complete>([](double& x) { x = 0.0; }, boundary);
   }
 
   void InitializeData(const View<Complete>& data,
-                      const cutcell::PatchHierarchy& hierarchy, PatchHandle patch) {
+                      const cutcell::PatchHierarchy& hierarchy,
+                      PatchHandle patch) {
     const ::amrex::Geometry& geom = hierarchy.GetGeometry(patch.level);
     const ::amrex::Box& box = patch.iterator->tilebox();
     const auto& factory = hierarchy.GetPatchLevel(patch.level).factory;
@@ -96,7 +95,8 @@ template <typename Eq, typename Geometry> struct RiemannProblem {
 };
 
 template <typename Eq, typename Geom>
-RiemannProblem(const Eq&, const Geom&, nodeduce_t<const Complete<Eq>&>, nodeduce_t<const Complete<Eq>&>)
+RiemannProblem(const Eq&, const Geom&, nodeduce_t<const Complete<Eq>&>,
+               nodeduce_t<const Complete<Eq>&>)
     ->RiemannProblem<Eq, Geom>;
 
 } // namespace cutcell

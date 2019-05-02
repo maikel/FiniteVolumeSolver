@@ -71,7 +71,6 @@ struct PatchLevel {
   PatchLevel& operator=(PatchLevel&& other) = default;
   /// @}
 
-
   PatchLevel(int num, Duration tp, const ::amrex::BoxArray& ba,
              const ::amrex::DistributionMapping& dm, int n_components);
 

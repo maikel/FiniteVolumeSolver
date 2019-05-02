@@ -38,12 +38,12 @@ template <typename Eq> struct TransmissiveBoundary {
   static constexpr std::size_t sRank = static_cast<std::size_t>(Rank);
 
   explicit TransmissiveBoundary(const Equation& eq) : equation_{eq} {}
-  explicit TransmissiveBoundary(const Equation& eq, const Complete& fallback) : equation_{eq}, fallback_state_{fallback} {}
+  explicit TransmissiveBoundary(const Equation& eq, const Complete& fallback)
+      : equation_{eq}, fallback_state_{fallback} {}
 
   void operator()(const fub::PatchDataView<double, AMREX_SPACEDIM + 1>& data,
-                  const fub::amrex::PatchHierarchy&,
-                  fub::amrex::PatchHandle, fub::Location location,
-                  int fill_width, fub::Duration) {
+                  const fub::amrex::PatchHierarchy&, fub::amrex::PatchHandle,
+                  fub::Location location, int fill_width, fub::Duration) {
     fub::BasicView<Complete> complete =
         fub::amrex::MakeView<fub::BasicView<Complete>>(data, equation_);
     fub::IndexBox<Rank> box = Box<0>(complete);
@@ -79,7 +79,7 @@ template <typename Eq> struct TransmissiveBoundary {
                   fub::amrex::PatchHandle, fub::Location location,
                   int fill_width, fub::Duration) {
     fub::BasicView<Complete> complete =
-    fub::amrex::MakeView<fub::BasicView<Complete>>(data, equation_);
+        fub::amrex::MakeView<fub::BasicView<Complete>>(data, equation_);
     fub::IndexBox<Rank> box = Box<0>(complete);
     FUB_ASSERT(location.side == 0 || location.side == 1);
     std::array<std::ptrdiff_t, sRank> lower = box.lower;
@@ -105,7 +105,7 @@ template <typename Eq> struct TransmissiveBoundary {
         const std::array<std::ptrdiff_t, sRank> dest_index{is...};
         std::array<std::ptrdiff_t, sRank> source_index = dest_index;
         source_index[location.direction] =
-        upper[location.direction] - fill_width - 1;
+            upper[location.direction] - fill_width - 1;
         Load(state_, AsConst(complete), source_index);
         if (!AnyNaN(state_)) {
           Store(complete, state_, dest_index);

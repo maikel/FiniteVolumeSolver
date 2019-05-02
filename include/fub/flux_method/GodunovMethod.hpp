@@ -66,9 +66,9 @@ public:
   double ComputeStableDt(span<const Complete, 2> states, double dx,
                          Direction dir) {
     auto signals = riemann_solver_.ComputeSignals(states[0], states[1], dir);
-    const double s_max =
-        std::accumulate(signals.begin(), signals.end(), 0.0,
-                        [](double x, double y) { return std::max(x, std::abs(y)); });
+    const double s_max = std::accumulate(
+        signals.begin(), signals.end(), 0.0,
+        [](double x, double y) { return std::max(x, std::abs(y)); });
     return dx / s_max;
   }
 

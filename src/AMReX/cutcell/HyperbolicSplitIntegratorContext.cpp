@@ -19,8 +19,8 @@
 // SOFTWARE.
 
 #include "fub/grid/AMReX/cutcell/HyperbolicSplitIntegratorContext.hpp"
-#include "fub/grid/AMReX/cutcell/BoundaryCondition.hpp"
 #include "fub/grid/AMReX/ViewFArrayBox.hpp"
+#include "fub/grid/AMReX/cutcell/BoundaryCondition.hpp"
 #include "fub/grid/AMReX/cutcell/IndexSpace.hpp"
 #include "fub/grid/AMReX/utility.hpp"
 
@@ -393,11 +393,14 @@ void FillGhostLayerTwoLevels_(::amrex::MultiFab& dest,
   ::amrex::Interpolater* mapper = &::amrex::pc_interp;
   BoundaryCondition fine_condition = context.GetBoundaryCondition(fine);
   BoundaryCondition coarse_condition = context.GetBoundaryCondition(coarse);
-  const ::amrex::EB2::IndexSpace* index_space = context.GetPatchHierarchy().GetPatchLevel(fine).factory->getEBIndexSpace();
+  const ::amrex::EB2::IndexSpace* index_space = context.GetPatchHierarchy()
+                                                    .GetPatchLevel(fine)
+                                                    .factory->getEBIndexSpace();
   FUB_ASSERT(index_space != nullptr);
-  ::amrex::FillPatchTwoLevels(dest, ft[0], *index_space, cmf, ct, fmf, ft, 0, 0, nc, cgeom,
-                              fgeom, coarse_condition, 0, fine_condition, 0,
-                              ratio, mapper, bcr, 0, ::amrex::NullInterpHook(), ::amrex::NullInterpHook());
+  ::amrex::FillPatchTwoLevels(
+      dest, ft[0], *index_space, cmf, ct, fmf, ft, 0, 0, nc, cgeom, fgeom,
+      coarse_condition, 0, fine_condition, 0, ratio, mapper, bcr, 0,
+      ::amrex::NullInterpHook(), ::amrex::NullInterpHook());
 }
 
 void FillGhostLayerSingleLevel_(::amrex::MultiFab& dest,

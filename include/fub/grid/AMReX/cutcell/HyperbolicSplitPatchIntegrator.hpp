@@ -51,7 +51,8 @@ template <typename Base> struct HyperbolicSplitPatchIntegrator : public Base {
     const double dx = context.GetDx(patch, dir);
     const int d = static_cast<int>(dir);
     const ::amrex::IntVect gcws = ::amrex::IntVect::TheDimensionVector(d);
-    const auto tilebox_cells = AsIndexBox<Rank>(patch.iterator->growntilebox(gcws));
+    const auto tilebox_cells =
+        AsIndexBox<Rank>(patch.iterator->growntilebox(gcws));
     const auto tilebox_faces =
         AsIndexBox<Rank>(patch.iterator->grownnodaltilebox(d, gcws));
 

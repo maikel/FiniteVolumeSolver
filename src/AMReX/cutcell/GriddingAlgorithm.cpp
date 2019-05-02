@@ -191,8 +191,8 @@ void GriddingAlgorithm::FillMultiFabFromLevel(::amrex::MultiFab& multifab,
     const ::amrex::Geometry& geom = hierarchy_.GetGeometry(level_number);
     const ::amrex::Vector<::amrex::MultiFab*> smf{&level.data};
     const ::amrex::Vector<double> stime{level.time_point.count()};
-    ::fub::amrex::cutcell::BoundaryCondition boundary(boundary_condition_, geom,
-                                             level_number, GetPatchHierarchy());
+    ::fub::amrex::cutcell::BoundaryCondition boundary(
+        boundary_condition_, geom, level_number, GetPatchHierarchy());
     ::amrex::FillPatchSingleLevel(multifab, level.time_point.count(), smf,
                                   stime, 0, 0, n_comps, geom, boundary, 0);
   } else {
@@ -205,10 +205,10 @@ void GriddingAlgorithm::FillMultiFabFromLevel(::amrex::MultiFab& multifab,
     const ::amrex::Geometry& fgeom = hierarchy_.GetGeometry(level_number);
     const ::amrex::IntVect ratio = 2 * ::amrex::IntVect::TheUnitVector();
     ::amrex::Interpolater* mapper = &::amrex::pc_interp;
-    ::fub::amrex::cutcell::BoundaryCondition fine_boundary(boundary_condition_, fgeom,
-                                                  level_number, GetPatchHierarchy());
-    ::fub::amrex::cutcell::BoundaryCondition coarse_boundary(boundary_condition_, cgeom,
-                                                    level_number - 1, GetPatchHierarchy());
+    ::fub::amrex::cutcell::BoundaryCondition fine_boundary(
+        boundary_condition_, fgeom, level_number, GetPatchHierarchy());
+    ::fub::amrex::cutcell::BoundaryCondition coarse_boundary(
+        boundary_condition_, cgeom, level_number - 1, GetPatchHierarchy());
     ::amrex::FillPatchTwoLevels(multifab, level.time_point.count(), cmf, ct,
                                 fmf, ft, 0, 0, n_comps, cgeom, fgeom,
                                 coarse_boundary, 0, fine_boundary, 0, ratio,
@@ -285,9 +285,11 @@ void GriddingAlgorithm::MakeNewLevelFromCoarse(
       hierarchy_.GetDataDescription().n_cons_components;
   ::amrex::Vector<::amrex::BCRec> bcr(static_cast<std::size_t>(n_comps));
   ::fub::amrex::cutcell::BoundaryCondition fine_boundary(
-      boundary_condition_, hierarchy_.GetGeometry(level), level, GetPatchHierarchy());
+      boundary_condition_, hierarchy_.GetGeometry(level), level,
+      GetPatchHierarchy());
   ::fub::amrex::cutcell::BoundaryCondition coarse_boundary(
-      boundary_condition_, hierarchy_.GetGeometry(level - 1), level - 1, GetPatchHierarchy());
+      boundary_condition_, hierarchy_.GetGeometry(level - 1), level - 1,
+      GetPatchHierarchy());
 
   ::amrex::InterpFromCoarseLevel(
       fine_level.data, time_point, coarse_level.data, cons_start, cons_start,

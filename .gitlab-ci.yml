@@ -122,6 +122,6 @@ build:amrex-3d_clang8:
   script:
     - mkdir build
     - cd build
-    - conan install ../  -s compiler=clang -s compiler.version=8 -s compiler.libcxx=libc++  --build missing -o AMReX:dim=3
+    - conan install ../  -s compiler=clang -s compiler.version=8 -s compiler.libcxx=libc++ --build missing -o AMReX:dim=3
     - cmake ../ -DCMAKE_CXX_COMPILER="clang++" -DCMAKE_CXX_FLAGS="-stdlib=libc++" -DCMAKE_BUILD_TYPE=Release  -DFUB_WITH_OPENMP=False
     - make

@@ -545,10 +545,10 @@ View<T, Rank> Slice(const BasicView<T, L, Rank>& view, SliceSpecifier slice) {
   return sliced_view;
 }
 
-template <typename Equation>
-bool AnyNaN(const Complete<Equation>& state) {
+template <typename Equation> bool AnyNaN(const Complete<Equation>& state) {
   bool any_nan = false;
-  ForEachComponent<Complete<Equation>>([&any_nan](double x) { any_nan |= std::isnan(x); }, state);
+  ForEachComponent<Complete<Equation>>(
+      [&any_nan](double x) { any_nan |= std::isnan(x); }, state);
   return any_nan;
 }
 

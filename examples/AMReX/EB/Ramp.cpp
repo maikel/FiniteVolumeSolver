@@ -146,13 +146,15 @@ int main(int argc, char** argv) {
 
   const int gcw = muscl_method.GetStencilWidth();
   fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
-      fub::amrex::cutcell::HyperbolicSplitIntegratorContext(std::move(gridding), gcw),
+      fub::amrex::cutcell::HyperbolicSplitIntegratorContext(std::move(gridding),
+                                                            gcw),
       fub::amrex::cutcell::HyperbolicSplitPatchIntegrator(patch_integrator),
       fub::amrex::cutcell::FluxMethod(cutcell_method),
       fub::amrex::cutcell::Reconstruction(equation)));
 
   std::string base_name = "Ramp/";
-  auto output = [&](const fub::amrex::cutcell::PatchHierarchy& hierarchy, std::ptrdiff_t cycle, fub::Duration) {
+  auto output = [&](const fub::amrex::cutcell::PatchHierarchy& hierarchy,
+                    std::ptrdiff_t cycle, fub::Duration) {
     std::string name = fmt::format("{}{:05}", base_name, cycle);
     ::amrex::Print() << "Start output to '" << name << "'.\n";
     fub::amrex::cutcell::WritePlotFile(name, hierarchy, equation);

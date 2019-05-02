@@ -88,7 +88,8 @@ template <typename Base> struct FluxMethod : public Base {
     const int d = static_cast<int>(dir);
     ::amrex::IntVect gcws{};
     gcws[d] = gcw;
-    const auto tilebox_cells = AsIndexBox<Rank>(patch.iterator->growntilebox(gcws));
+    const auto tilebox_cells =
+        AsIndexBox<Rank>(patch.iterator->growntilebox(gcws));
     View<const Complete> scratch = AsConst(Subview(
         MakeView<BasicView<Complete>>(context.GetScratch(patch, dir), equation),
         tilebox_cells));
@@ -118,7 +119,8 @@ template <typename Base> struct FluxMethod : public Base {
     const int d = static_cast<int>(dir);
     ::amrex::IntVect gcws{};
     gcws[d] = gcw;
-    const auto tilebox_cells = AsIndexBox<Rank>(patch.iterator->growntilebox(gcws));
+    const auto tilebox_cells =
+        AsIndexBox<Rank>(patch.iterator->growntilebox(gcws));
 
     gcws[d] = 1;
     const auto tilebox_faces =

@@ -98,8 +98,7 @@ template <typename Equation, typename... Tagging> struct AdaptTagging {
   void TagCellsForRefinement(
       const PatchDataView<char, AMREX_SPACEDIM>& tags,
       const PatchDataView<const double, AMREX_SPACEDIM + 1>& states,
-      const PatchHierarchy& hierarchy,
-      const PatchHandle& patch) {
+      const PatchHierarchy& hierarchy, const PatchHandle& patch) {
     BasicView<const Complete<Equation>> state_view =
         MakeView<BasicView<const Complete<Equation>>>(states, equation_);
     const ::amrex::Geometry& geom = hierarchy.GetGeometry(patch.level);

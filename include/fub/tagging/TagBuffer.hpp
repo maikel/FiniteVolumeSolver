@@ -44,15 +44,18 @@ struct TagBuffer {
       ForEachIndex(Shrink(Box<0>(states), Direction(dir),
                           {buffer_width_, buffer_width_}),
                    [&](auto... is) {
-                     using Index = std::array<std::ptrdiff_t, sizeof...(is)>;
+                     constexpr std::size_t tag_rank = static_cast<std::size_t>(AMREX_SPACEDIM);
+                     using Index = std::array<std::ptrdiff_t, tag_rank>;
                      if (Contains(tagbox, Index{is...}) && tags(is...) == 1) {
                        Index index{is...};
                        for (int width = 1; width <= buffer_width_; ++width) {
-                         const Index right = Shift(index, Direction(dir), width);
+                         const Index right =
+                             Shift(index, Direction(dir), width);
                          if (Contains(tagbox, right) && !tags(right)) {
                            tags(right) = 2;
                          }
-                         const Index left = Shift(index, Direction(dir), -width);
+                         const Index left =
+                             Shift(index, Direction(dir), -width);
                          if (Contains(tagbox, left) && !tags(left)) {
                            tags(left) = 2;
                          }
@@ -71,15 +74,18 @@ struct TagBuffer {
       ForEachIndex(Shrink(Box<0>(states), Direction(dir),
                           {buffer_width_, buffer_width_}),
                    [&](auto... is) {
-                     using Index = std::array<std::ptrdiff_t, sizeof...(is)>;
+                     constexpr std::size_t tag_rank = static_cast<std::size_t>(AMREX_SPACEDIM);
+                     using Index = std::array<std::ptrdiff_t, tag_rank>;
                      if (Contains(tagbox, Index{is...}) && tags(is...) == 1) {
                        Index index{is...};
                        for (int width = 1; width <= buffer_width_; ++width) {
-                         const Index right = Shift(index, Direction(dir), width);
+                         const Index right =
+                             Shift(index, Direction(dir), width);
                          if (Contains(tagbox, right) && !tags(right)) {
                            tags(right) = 2;
                          }
-                         const Index left = Shift(index, Direction(dir), -width);
+                         const Index left =
+                             Shift(index, Direction(dir), -width);
                          if (Contains(tagbox, left) && !tags(left)) {
                            tags(left) = 2;
                          }

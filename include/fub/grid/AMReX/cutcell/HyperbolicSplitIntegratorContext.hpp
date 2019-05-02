@@ -29,8 +29,8 @@
 
 #include "fub/grid/AMReX/PatchHandle.hpp"
 #include "fub/grid/AMReX/ViewFArrayBox.hpp"
-#include "fub/grid/AMReX/cutcell/GriddingAlgorithm.hpp"
 #include "fub/grid/AMReX/cutcell/BoundaryCondition.hpp"
+#include "fub/grid/AMReX/cutcell/GriddingAlgorithm.hpp"
 
 #include <memory>
 
@@ -55,12 +55,12 @@ public:
   operator=(const HyperbolicSplitIntegratorContext&);
 
   HyperbolicSplitIntegratorContext(
-                                   HyperbolicSplitIntegratorContext&&) noexcept = default;
+      HyperbolicSplitIntegratorContext&&) noexcept = default;
 
   HyperbolicSplitIntegratorContext&
   operator=(HyperbolicSplitIntegratorContext&&) noexcept = default;
 
-  ~HyperbolicSplitIntegratorContext() =  default;
+  ~HyperbolicSplitIntegratorContext() = default;
 
   void ResetHierarchyConfiguration(int level = 0);
 

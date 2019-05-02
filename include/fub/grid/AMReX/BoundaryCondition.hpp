@@ -36,12 +36,12 @@ namespace fub {
 namespace amrex {
 
 struct BoundaryCondition : public ::amrex::PhysBCFunctBase {
-  using Function =
-      function_ref<void(const PatchDataView<double, AMREX_SPACEDIM + 1>&,
-                        const PatchHierarchy&,
-                        PatchHandle, Location, int, Duration)>;
+  using Function = function_ref<void(
+      const PatchDataView<double, AMREX_SPACEDIM + 1>&, const PatchHierarchy&,
+      PatchHandle, Location, int, Duration)>;
 
-  BoundaryCondition(Function f, const ::amrex::Geometry& geom, int level, const PatchHierarchy& hierarchy);
+  BoundaryCondition(Function f, const ::amrex::Geometry& geom, int level,
+                    const PatchHierarchy& hierarchy);
 
   void FillBoundary(::amrex::MultiFab& mf, int, int, double time_point,
                     int) override;

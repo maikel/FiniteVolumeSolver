@@ -25,8 +25,8 @@ namespace fub {
 namespace amrex {
 
 BoundaryCondition::BoundaryCondition(Function f, const ::amrex::Geometry& geom,
-                                     int level,const PatchHierarchy& hierarchy)
-  : function_{f}, geom_{geom}, level_num_{level}, hierarchy_{&hierarchy} {}
+                                     int level, const PatchHierarchy& hierarchy)
+    : function_{f}, geom_{geom}, level_num_{level}, hierarchy_{&hierarchy} {}
 
 void BoundaryCondition::FillBoundary(::amrex::MultiFab& mf, int, int,
                                      double time_point, int) {
@@ -52,12 +52,14 @@ void BoundaryCondition::FillBoundary(::amrex::MultiFab& mf, int, int,
           MakePatchDataView(mf[mfi]);
       for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
         if (ngrow[dir] && box.smallEnd(dir) < gdomain.smallEnd(dir)) {
-          function_(data, *hierarchy_, patch, Location{static_cast<std::size_t>(dir), 0},
-                    ngrow[dir], Duration(time_point));
+          function_(data, *hierarchy_, patch,
+                    Location{static_cast<std::size_t>(dir), 0}, ngrow[dir],
+                    Duration(time_point));
         }
         if (ngrow[dir] && gdomain.bigEnd(dir) < box.bigEnd(dir)) {
-          function_(data, *hierarchy_, patch, Location{static_cast<std::size_t>(dir), 1},
-                    ngrow[dir], Duration(time_point));
+          function_(data, *hierarchy_, patch,
+                    Location{static_cast<std::size_t>(dir), 1}, ngrow[dir],
+                    Duration(time_point));
         }
       }
     }

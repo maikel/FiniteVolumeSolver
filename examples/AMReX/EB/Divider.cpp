@@ -94,7 +94,8 @@ int main(int argc, char** argv) {
   auto embedded_boundary = amrex::EB2::makeComplement(amrex::EB2::makeUnion(
       amrex::EB2::CylinderIF(radius, 1.0, 0, {-0.1, radius, 0.0}, false),
       fub::ExpandTube(centerline, radius)));
-//  auto embedded_boundary = amrex::EB2::CylinderIF(radius, 1.0, 0, {-0.1, radius, 0.0}, false);
+  //  auto embedded_boundary = amrex::EB2::CylinderIF(radius, 1.0, 0, {-0.1,
+  //  radius, 0.0}, false);
   auto shop = amrex::EB2::makeShop(embedded_boundary);
 
   fub::PerfectGas<3> equation;
@@ -128,8 +129,7 @@ int main(int argc, char** argv) {
   fub::CompleteFromCons(equation, left, cons);
 
   fub::amrex::cutcell::RiemannProblem initial_data(
-      equation, fub::Halfspace({+1.0, 0.0, 0.0}, 0.04), left,
-      right);
+      equation, fub::Halfspace({+1.0, 0.0, 0.0}, 0.04), left, right);
 
   using State = fub::Complete<fub::PerfectGas<3>>;
   fub::GradientDetector gradients{equation, std::pair{&State::pressure, 0.05},
@@ -141,23 +141,26 @@ int main(int argc, char** argv) {
   fub::MusclHancockMethod flux_method(equation);
   fub::KbnCutCellMethod cutcell_method(std::move(flux_method));
 
-  fub::amrex::cutcell::GriddingAlgorithm gridding(std::move(hierarchy),
+  fub::amrex::cutcell::GriddingAlgorithm gridding(
+      std::move(hierarchy),
       fub::amrex::cutcell::AdaptInitialData(initial_data, equation),
-      fub::amrex::cutcell::AdaptTagging(equation, fub::TagCutCells(),
-                                        gradients, fub::TagBuffer(4)),
+      fub::amrex::cutcell::AdaptTagging(equation, fub::TagCutCells(), gradients,
+                                        fub::TagBuffer(4)),
       boundary);
   gridding.InitializeHierarchy(0.0);
 
   const int gcw = cutcell_method.GetStencilWidth();
   fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
-                                                                              fub::amrex::cutcell::HyperbolicSplitIntegratorContext(std::move(gridding), gcw),
+      fub::amrex::cutcell::HyperbolicSplitIntegratorContext(std::move(gridding),
+                                                            gcw),
       fub::amrex::cutcell::HyperbolicSplitPatchIntegrator(patch_integrator),
       fub::amrex::cutcell::FluxMethod(cutcell_method),
       fub::amrex::cutcell::Reconstruction(equation)));
 
   std::string base_name = "Divider/";
 
-  auto output = [&](const fub::amrex::cutcell::PatchHierarchy& hierarchy, std::ptrdiff_t cycle, fub::Duration) {
+  auto output = [&](const fub::amrex::cutcell::PatchHierarchy& hierarchy,
+                    std::ptrdiff_t cycle, fub::Duration) {
     std::string name = fmt::format("{}{:05}", base_name, cycle);
     ::amrex::Print() << "Start output to '" << name << "'.\n";
     fub::amrex::cutcell::WritePlotFile(name, hierarchy, equation);

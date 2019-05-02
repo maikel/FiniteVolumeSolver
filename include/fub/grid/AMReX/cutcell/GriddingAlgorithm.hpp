@@ -23,8 +23,8 @@
 
 #include "fub/grid/AMReX/BoundaryCondition.hpp"
 #include "fub/grid/AMReX/ViewFArrayBox.hpp"
-#include "fub/grid/AMReX/cutcell/PatchHierarchy.hpp"
 #include "fub/grid/AMReX/cutcell/InitialData.hpp"
+#include "fub/grid/AMReX/cutcell/PatchHierarchy.hpp"
 #include "fub/grid/AMReX/cutcell/Tagging.hpp"
 
 #include <AMReX_AmrCore.H>
@@ -38,10 +38,9 @@ namespace cutcell {
 
 class GriddingAlgorithm : private ::amrex::AmrCore {
 public:
-  using BoundaryCondition =
-  std::function<void(const PatchDataView<double, AMREX_SPACEDIM + 1>&,
-                         const PatchHierarchy&,
-                         PatchHandle, Location, int, Duration)>;
+  using BoundaryCondition = std::function<void(
+      const PatchDataView<double, AMREX_SPACEDIM + 1>&, const PatchHierarchy&,
+      PatchHandle, Location, int, Duration)>;
 
   static constexpr int Rank = AMREX_SPACEDIM;
 
@@ -53,8 +52,8 @@ public:
 
   ~GriddingAlgorithm() noexcept = default;
 
-  GriddingAlgorithm(PatchHierarchy hier, InitialData data,
-                    Tagging tagging, BoundaryCondition boundary);
+  GriddingAlgorithm(PatchHierarchy hier, InitialData data, Tagging tagging,
+                    BoundaryCondition boundary);
 
   const PatchHierarchy& GetPatchHierarchy() const noexcept;
   PatchHierarchy& GetPatchHierarchy() noexcept;

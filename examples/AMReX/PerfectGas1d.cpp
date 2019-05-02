@@ -101,12 +101,6 @@ int main(int argc, char** argv) {
   geometry.cell_dimensions = n_cells;
   geometry.coordinates = amrex::RealBox(xlower, xupper);
 
-#ifdef AMREX_USE_EB
-  amrex::EB2::Build(
-      amrex::EB2::makeShop(amrex::EB2::AllRegularIF()),
-      hierarchy->GetGeometry(hierarchy->GetMaxNumberOfLevels() - 1), 2, 2);
-#endif
-
   using Complete = fub::PerfectGas<1>::Complete;
   fub::GradientDetector gradient{equation,
                                  std::make_pair(&Complete::density, 5e-3),

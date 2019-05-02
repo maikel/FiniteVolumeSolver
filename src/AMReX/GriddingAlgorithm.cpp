@@ -161,8 +161,7 @@ GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier,
               hier.GetRatioToCoarserLevel(
                   hier.GetOptions().max_number_of_levels - 1))),
       hierarchy_{std::move(hier)},
-      initial_data_{std::move(initial_data)}, tagging_{std::move(tagging)} {
-}
+      initial_data_{std::move(initial_data)}, tagging_{std::move(tagging)} {}
 
 GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier,
                                      InitialData initial_data, Tagging tagging,
@@ -178,8 +177,7 @@ GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier,
               hier.GetRatioToCoarserLevel(
                   hier.GetOptions().max_number_of_levels - 1))),
       hierarchy_{std::move(hier)}, initial_data_{std::move(initial_data)},
-      tagging_{std::move(tagging)}, boundary_condition_{std::move(boundary)} {
-}
+      tagging_{std::move(tagging)}, boundary_condition_{std::move(boundary)} {}
 
 bool GriddingAlgorithm::RegridAllFinerlevels(int which_level) {
   if (which_level < max_level) {
@@ -234,10 +232,10 @@ void GriddingAlgorithm::FillMultiFabFromLevel(::amrex::MultiFab& multifab,
     const ::amrex::IntVect ratio =
         hierarchy_.GetRatioToCoarserLevel(level_number);
     ::amrex::Interpolater* mapper = &::amrex::pc_interp;
-    ::fub::amrex::BoundaryCondition fine_boundary(boundary_condition_, fgeom,
-                                                  level_number, GetPatchHierarchy());
-    ::fub::amrex::BoundaryCondition coarse_boundary(boundary_condition_, cgeom,
-                                                    level_number - 1, GetPatchHierarchy());
+    ::fub::amrex::BoundaryCondition fine_boundary(
+        boundary_condition_, fgeom, level_number, GetPatchHierarchy());
+    ::fub::amrex::BoundaryCondition coarse_boundary(
+        boundary_condition_, cgeom, level_number - 1, GetPatchHierarchy());
     ::amrex::FillPatchTwoLevels(multifab, level.time_point.count(), cmf, ct,
                                 fmf, ft, 0, 0, n_comps, cgeom, fgeom,
                                 coarse_boundary, 0, fine_boundary, 0, ratio,
@@ -299,10 +297,12 @@ void GriddingAlgorithm::MakeNewLevelFromCoarse(
   const int n_cons_components =
       hierarchy_.GetDataDescription().n_cons_components;
   ::amrex::Vector<::amrex::BCRec> bcr(static_cast<std::size_t>(n_comps));
-  ::fub::amrex::BoundaryCondition fine_boundary(
-      boundary_condition_, hierarchy_.GetGeometry(level), level, GetPatchHierarchy());
+  ::fub::amrex::BoundaryCondition fine_boundary(boundary_condition_,
+                                                hierarchy_.GetGeometry(level),
+                                                level, GetPatchHierarchy());
   ::fub::amrex::BoundaryCondition coarse_boundary(
-      boundary_condition_, hierarchy_.GetGeometry(level - 1), level - 1, GetPatchHierarchy());
+      boundary_condition_, hierarchy_.GetGeometry(level - 1), level - 1,
+      GetPatchHierarchy());
   ::amrex::InterpFromCoarseLevel(
       fine_level.data, time_point, coarse_level.data, cons_start, cons_start,
       n_cons_components, hierarchy_.GetGeometry(level - 1),

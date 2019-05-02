@@ -59,7 +59,7 @@ public:
   HyperbolicSplitIntegratorContext&
   operator=(HyperbolicSplitIntegratorContext&&) noexcept = default;
 
-  ~HyperbolicSplitIntegratorContext() =  default;
+  ~HyperbolicSplitIntegratorContext() = default;
 
   void ResetHierarchyConfiguration(int level = 0);
 

@@ -25,8 +25,8 @@
 #include "fub/Equation.hpp"
 #include "fub/PatchDataView.hpp"
 #include "fub/grid/AMReX/PatchHandle.hpp"
-#include "fub/grid/AMReX/cutcell/PatchHierarchy.hpp"
 #include "fub/grid/AMReX/ViewFArrayBox.hpp"
+#include "fub/grid/AMReX/cutcell/PatchHierarchy.hpp"
 
 #include <AMReX.H>
 
@@ -114,7 +114,7 @@ template <typename InitialData, typename Equation> struct AdaptInitialData {
   Equation equation_;
 };
 
-}
+} // namespace cutcell
 } // namespace amrex
 } // namespace fub
 

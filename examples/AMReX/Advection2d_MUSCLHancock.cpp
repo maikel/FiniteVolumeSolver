@@ -76,14 +76,6 @@ int main(int argc, char** argv) {
   constexpr int Dim = AMREX_SPACEDIM;
   static_assert(AMREX_SPACEDIM >= 2);
 
-#ifdef AMREX_USE_EB
-  amrex::EB2::Build(
-      amrex::EB2::makeShop(amrex::EB2::AllRegularIF()),
-      hierarchy->GetGeometry(hierarchy->GetMaxNumberOfLevels() - 1),
-      hierarchy->GetMaxNumberOfLevels() - 1,
-      hierarchy->GetMaxNumberOfLevels() - 1);
-#endif
-
   const std::array<int, Dim> n_cells{AMREX_D_DECL(256, 256, 1)};
   const std::array<double, Dim> xlower{AMREX_D_DECL(-1.0, -1.0, -1.0)};
   const std::array<double, Dim> xupper{AMREX_D_DECL(+1.0, +1.0, +1.0)};

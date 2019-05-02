@@ -57,7 +57,9 @@ bool Contains(const IndexBox<Rank>& b1, const IndexBox<Rank>& b2) {
 }
 
 template <int Rank>
-bool Contains(const IndexBox<Rank>& box, const std::array<std::ptrdiff_t, static_cast<std::size_t>(Rank)>& index) {
+bool Contains(
+    const IndexBox<Rank>& box,
+    const std::array<std::ptrdiff_t, static_cast<std::size_t>(Rank)>& index) {
   return Contains(box, IndexBox<Rank>{index, index});
 }
 

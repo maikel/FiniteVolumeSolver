@@ -60,32 +60,33 @@ template <typename Equation, typename... Projections> struct GradientDetector {
     constexpr std::size_t sTagRank = static_cast<std::size_t>(TagRank);
     const auto tagbox = tags.Box();
     for (std::size_t dir = 0; dir < Extents<0>(states).rank(); ++dir) {
-      ForEachIndex(Shrink(Box<0>(states), Direction(dir), {1, 1}), [&](auto... is) {
-        using Index = std::array<std::ptrdiff_t, sizeof...(is)>;
-        const Index mid{is...};
-        if (Contains(tagbox, EmbedInSpace<sTagRank>(mid))) {
-            const Index left = Shift(mid, Direction(dir), -1);
-            const Index right = Shift(mid, Direction(dir), 1);
-            boost::mp11::tuple_for_each(conditions_, [&](auto cond) {
-              auto&& [proj, tolerance] = cond;
-              Load(sL, states, left);
-              Load(sM, states, mid);
-              Load(sR, states, right);
-              auto&& xL = std::invoke(proj, sL);
-              auto&& xM = std::invoke(proj, sM);
-              auto&& xR = std::invoke(proj, sR);
-              //  Eigen::Vector3d dx = coords.dx();
-              if (xM != xR || xM != xL) {
-                const double left =
-                    std::abs(xM - xL) / (std::abs(xM) + std::abs(xL));
-                const double right =
-                    std::abs(xM - xR) / (std::abs(xM) + std::abs(xR));
-                tags(EmbedInSpace<sTagRank>(mid)) |=
-                    static_cast<char>(left > tolerance || right > tolerance);
-              }
-            });
-        }
-      });
+      ForEachIndex(
+          Shrink(Box<0>(states), Direction(dir), {1, 1}), [&](auto... is) {
+            using Index = std::array<std::ptrdiff_t, sizeof...(is)>;
+            const Index mid{is...};
+            if (Contains(tagbox, EmbedInSpace<sTagRank>(mid))) {
+              const Index left = Shift(mid, Direction(dir), -1);
+              const Index right = Shift(mid, Direction(dir), 1);
+              boost::mp11::tuple_for_each(conditions_, [&](auto cond) {
+                auto&& [proj, tolerance] = cond;
+                Load(sL, states, left);
+                Load(sM, states, mid);
+                Load(sR, states, right);
+                auto&& xL = std::invoke(proj, sL);
+                auto&& xM = std::invoke(proj, sM);
+                auto&& xR = std::invoke(proj, sR);
+                //  Eigen::Vector3d dx = coords.dx();
+                if (xM != xR || xM != xL) {
+                  const double left =
+                      std::abs(xM - xL) / (std::abs(xM) + std::abs(xL));
+                  const double right =
+                      std::abs(xM - xR) / (std::abs(xM) + std::abs(xR));
+                  tags(EmbedInSpace<sTagRank>(mid)) |=
+                      static_cast<char>(left > tolerance || right > tolerance);
+                }
+              });
+            }
+          });
     }
   }
 
@@ -102,31 +103,31 @@ template <typename Equation, typename... Projections> struct GradientDetector {
           Shrink(Box<0>(states), Direction(dir), {0, 2}), [&](auto... is) {
             using Index = std::array<std::ptrdiff_t, sizeof...(is)>;
             if (Contains(tagbox, Index{is...})) {
-            std::array<std::ptrdiff_t, sizeof...(is)> left{is...};
-            std::array<std::ptrdiff_t, sizeof...(is)> mid =
-                Shift(left, Direction(dir), 1);
-            std::array<std::ptrdiff_t, sizeof...(is)> right =
-                Shift(mid, Direction(dir), 1);
-            if (flags(mid).isRegular()) {
-              boost::mp11::tuple_for_each(conditions_, [&](auto cond) {
-                auto&& [proj, tolerance] = cond;
-                Load(sL, states, left);
-                Load(sM, states, mid);
-                Load(sR, states, right);
-                auto&& xL = std::invoke(proj, sL);
-                auto&& xM = std::invoke(proj, sM);
-                auto&& xR = std::invoke(proj, sR);
-                // Eigen::Vector3d dx = coords.dx();
-                if (xM != xR || xM != xL) {
-                  const double left =
-                      std::abs(xM - xL) / (std::abs(xM) + std::abs(xL));
-                  const double right =
-                      std::abs(xM - xR) / (std::abs(xM) + std::abs(xR));
-                  tags(mid) |=
-                      static_cast<char>(left > tolerance || right > tolerance);
-                }
-              });
-            }
+              std::array<std::ptrdiff_t, sizeof...(is)> left{is...};
+              std::array<std::ptrdiff_t, sizeof...(is)> mid =
+                  Shift(left, Direction(dir), 1);
+              std::array<std::ptrdiff_t, sizeof...(is)> right =
+                  Shift(mid, Direction(dir), 1);
+              if (flags(mid).isRegular()) {
+                boost::mp11::tuple_for_each(conditions_, [&](auto cond) {
+                  auto&& [proj, tolerance] = cond;
+                  Load(sL, states, left);
+                  Load(sM, states, mid);
+                  Load(sR, states, right);
+                  auto&& xL = std::invoke(proj, sL);
+                  auto&& xM = std::invoke(proj, sM);
+                  auto&& xR = std::invoke(proj, sR);
+                  // Eigen::Vector3d dx = coords.dx();
+                  if (xM != xR || xM != xL) {
+                    const double left =
+                        std::abs(xM - xL) / (std::abs(xM) + std::abs(xL));
+                    const double right =
+                        std::abs(xM - xR) / (std::abs(xM) + std::abs(xR));
+                    tags(mid) |= static_cast<char>(left > tolerance ||
+                                                   right > tolerance);
+                  }
+                });
+              }
             }
           });
     }
