@@ -61,7 +61,7 @@ push_docker_image() {
 }
 
 CLANG_VERSIONS=("clang5" "clang6" "clang7" "clang8")
-GCC_VERSIONS=("gcc6" "gcc7" "gcc8")
+GCC_VERSIONS=("gcc7" "gcc8")
 AMREX_SPACEDIMS=("2" "3")
 
 main() {
