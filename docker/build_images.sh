@@ -65,19 +65,19 @@ GCC_VERSIONS=("gcc5" "gcc6" "gcc7" "gcc8")
 AMREX_SPACEDIMS=("2" "3")
 
 main() {
-  for COMPILER_ID in ${CLANG_VERSIONS[@]}; do
+  for COMPILER_ID in ${GCC_VERSIONS[@]}; do
     for AMREX_SPACEDIM in ${AMREX_SPACEDIMS[@]}; do
       printf "[Build] Docker Image for ${COMPILER_ID} with Dimension ${AMREX_SPACEDIM}\n"
-      build_clang_image "${COMPILER_ID}" "${AMREX_SPACEDIM}"
+      build_gcc_image "${COMPILER_ID}" "${AMREX_SPACEDIM}"
       printf "[Push] Docker Image for ${COMPILER_ID} with Dimension ${AMREX_SPACEDIM}\n"
       push_docker_image "${COMPILER_ID}" "${AMREX_SPACEDIM}"
     done
   done
 
-  for COMPILER_ID in ${GCC_VERSIONS[@]}; do
+  for COMPILER_ID in ${CLANG_VERSIONS[@]}; do
     for AMREX_SPACEDIM in ${AMREX_SPACEDIMS[@]}; do
       printf "[Build] Docker Image for ${COMPILER_ID} with Dimension ${AMREX_SPACEDIM}\n"
-      build_gcc_image "${COMPILER_ID}" "${AMREX_SPACEDIM}"
+      build_clang_image "${COMPILER_ID}" "${AMREX_SPACEDIM}"
       printf "[Push] Docker Image for ${COMPILER_ID} with Dimension ${AMREX_SPACEDIM}\n"
       push_docker_image "${COMPILER_ID}" "${AMREX_SPACEDIM}"
     done
