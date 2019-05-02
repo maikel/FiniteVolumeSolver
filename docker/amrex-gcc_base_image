@@ -1,39 +1,23 @@
 ARG GCC_VERSION
 FROM gcc:$GCC_VERSION
 
-RUN apt-get update && apt-get install --yes \
-  libopenmpi-dev \
-  libeigen3-dev \
-  openmpi-bin
+RUN apt-get update \
+  && apt-get install --yes python3-pip wget libpthread-stubs0-dev git \
+  && pip3 install conan
 
 # Install latest CMake files from the internet
 RUN wget https://github.com/Kitware/CMake/releases/download/v3.14.2/cmake-3.14.2-Linux-x86_64.tar.gz \
-  && tar xzf cmake-3.14.2-Linux-x86_64.tar.gz && rm cmake-3.14.2-Linux-x86_64.tar.gz \
-  && cp -r cmake-3.14.2-Linux-x86_64/* /usr/ && rm -r cmake-3.14.2-Linux-x86_64/
+    && tar xzf cmake-3.14.2-Linux-x86_64.tar.gz && rm cmake-3.14.2-Linux-x86_64.tar.gz \
+    && cp -r cmake-3.14.2-Linux-x86_64/* /usr/ && rm -r cmake-3.14.2-Linux-x86_64/
 
-# Build and install fmtlib
-RUN git clone --depth=1 https://github.com/fmtlib/fmt.git \
-  && mkdir /fmt/build && cd /fmt/build \
-  && cmake /fmt -DCMAKE_INSTALL_PREFIX="/" -DFMT_TEST=OFF -DFMT_DOC=OFF\ 
-  && cd /fmt/build && make install && cd / && rm -r /fmt
+RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/finite-volume \ 
+    && conan user -p 3c416ef866ef8b7f6e45ba1720b00ca690093577 -r finite-volume maikel \
+    && conan install "OpenMPI/[>=3]@finite-volume/stable" \
+        --env CXX=clang++ --env CC=clang -s compiler=gcc -s compiler.libcxx=libstdc++ -s compiler.version="${GCC_VERSION}" \
+        --build missing \
+    && conan upload "$(conan search --raw | grep OpenMPI)" --all -r=finite-volume
 
-# Install boost libraries
-RUN wget https://dl.bintray.com/boostorg/release/1.70.0/source/boost_1_70_0.tar.gz \
-  && tar xzf boost_1_70_0.tar.gz \
-  && cd boost_1_70_0/ && ./bootstrap.sh --prefix="/usr" \
-  && ./b2 install link=static --with-filesystem --with-program_options --with-log -j 2 \
-  && cd / && rm -r /boost_1_70_0 boost_1_70_0.tar.gz
-
-# Build and install AMReX
 ARG AMREX_SPACEDIM
-RUN git clone -b development --depth=1 https://github.com/AMReX-Codes/amrex.git /AMReX \
-  && mkdir /AMReX/build \
-  && cd /AMReX/build \
-  && cmake /AMReX -DDIM="${AMREX_SPACEDIM}" \
-                  -DCMAKE_BUILD_TYPE=Release \
-                  -DCMAKE_INSTALL_PREFIX="/" \
-                  -DENABLE_EB=ON \
-                  -DENABLE_OMP=ON \
-                  -DENABLE_ASSERTIONS=OFF \
-  && make -j 2 install \
-  && cd / && rm -r /AMReX
+RUN conan install "AMReX/[>=19.4.30]@finite-volume/development" -o AMReX:dim="${AMREX_SPACEDIM}" \
+        --env CXX=clang++ --env CC=clang -s compiler=gcc -s compiler.libcxx=libstdc++ -s compiler.version="${GCC_VERSION}" \
+        --build AMReX
