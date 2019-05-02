@@ -4,6 +4,8 @@ build_*
 xcode
 docs/html
 docs/latex
+third_party/Catch2
+third_party/pybind11
 third_party/TChem2/doc
 third_party/TChem2/data
 docs/samrai-devdox
