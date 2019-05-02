@@ -38,19 +38,19 @@ template <typename Eq, typename Geometry> struct RiemannProblem {
   using Conservative = fub::Conservative<Equation>;
   static constexpr int Rank = Eq::Rank();
 
-  RiemannProblem(std::shared_ptr<PatchHierarchy> hier, const Eq& eq,
-                 const Geometry& geom, const Complete& l, const Complete& r)
-      : hierarchy{std::move(hier)}, equation{eq}, geometry_{geom}, left{l},
-        right{r} {
+  RiemannProblem(const Eq& eq, const Geometry& geom, const Complete& l,
+                 const Complete& r)
+      : equation{eq}, geometry_{geom}, left{l}, right{r} {
     ForEachComponent<Complete>(
-        [](double& x) { x = std::numeric_limits<double>::quiet_NaN(); },
+        [](double& x) { x = 0.0; },
         boundary);
   }
 
-  void InitializeData(const View<Complete>& data, PatchHandle patch) {
-    const ::amrex::Geometry& geom = hierarchy->GetGeometry(patch.level);
+  void InitializeData(const View<Complete>& data,
+                      const cutcell::PatchHierarchy& hierarchy, PatchHandle patch) {
+    const ::amrex::Geometry& geom = hierarchy.GetGeometry(patch.level);
     const ::amrex::Box& box = patch.iterator->tilebox();
-    const auto& factory = hierarchy->GetPatchLevel(patch.level).factory;
+    const auto& factory = hierarchy.GetPatchLevel(patch.level).factory;
     const auto& flags = factory->getMultiEBCellFlagFab()[*patch.iterator];
     ::amrex::FabType type = flags.getType(box);
     if (type == ::amrex::FabType::covered) {
@@ -74,7 +74,7 @@ template <typename Eq, typename Geometry> struct RiemannProblem {
         }
       });
     } else {
-      CutCellData<Rank> eb = hierarchy->GetCutCellData(patch, Direction::X);
+      CutCellData<Rank> eb = hierarchy.GetCutCellData(patch, Direction::X);
       const PatchDataView<const ::amrex::EBCellFlag, Rank>& flags = eb.flags;
       ForEachIndex(Box<0>(data), [&](auto... is) {
         if (flags(is...).isCovered()) {
@@ -88,7 +88,6 @@ template <typename Eq, typename Geometry> struct RiemannProblem {
     }
   }
 
-  std::shared_ptr<PatchHierarchy> hierarchy;
   Equation equation;
   Geometry geometry_;
   Complete left{equation};
@@ -97,8 +96,7 @@ template <typename Eq, typename Geometry> struct RiemannProblem {
 };
 
 template <typename Eq, typename Geom>
-RiemannProblem(std::shared_ptr<PatchHierarchy>, const Eq&, const Geom&,
-               nodeduce_t<const Complete<Eq>&>, nodeduce_t<const Complete<Eq>&>)
+RiemannProblem(const Eq&, const Geom&, nodeduce_t<const Complete<Eq>&>, nodeduce_t<const Complete<Eq>&>)
     ->RiemannProblem<Eq, Geom>;
 
 } // namespace cutcell

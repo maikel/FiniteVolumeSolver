@@ -22,10 +22,10 @@
 #define FUB_AMREX_CUT_CELL_GRIDDING_ALGORITHM_HPP
 
 #include "fub/grid/AMReX/BoundaryCondition.hpp"
-#include "fub/grid/AMReX/InitialData.hpp"
-#include "fub/grid/AMReX/Tagging.hpp"
 #include "fub/grid/AMReX/ViewFArrayBox.hpp"
 #include "fub/grid/AMReX/cutcell/PatchHierarchy.hpp"
+#include "fub/grid/AMReX/cutcell/InitialData.hpp"
+#include "fub/grid/AMReX/cutcell/Tagging.hpp"
 
 #include <AMReX_AmrCore.H>
 #include <AMReX_MultiFabUtil.H>
@@ -39,19 +39,32 @@ namespace cutcell {
 class GriddingAlgorithm : private ::amrex::AmrCore {
 public:
   using BoundaryCondition =
-      std::function<void(const PatchDataView<double, AMREX_SPACEDIM + 1>&,
+  std::function<void(const PatchDataView<double, AMREX_SPACEDIM + 1>&,
+                         const PatchHierarchy&,
                          PatchHandle, Location, int, Duration)>;
+
   static constexpr int Rank = AMREX_SPACEDIM;
 
-  GriddingAlgorithm(std::shared_ptr<PatchHierarchy> hier, InitialData data,
+  GriddingAlgorithm(const GriddingAlgorithm&);
+  GriddingAlgorithm& operator=(const GriddingAlgorithm&);
+
+  GriddingAlgorithm(GriddingAlgorithm&&) noexcept;
+  GriddingAlgorithm& operator=(GriddingAlgorithm&&) noexcept;
+
+  ~GriddingAlgorithm() noexcept = default;
+
+  GriddingAlgorithm(PatchHierarchy hier, InitialData data,
                     Tagging tagging, BoundaryCondition boundary);
 
-  const std::shared_ptr<PatchHierarchy>& GetPatchHierarchy() const noexcept;
+  const PatchHierarchy& GetPatchHierarchy() const noexcept;
+  PatchHierarchy& GetPatchHierarchy() noexcept;
 
   bool RegridAllFinerlevels(int which_level);
   void InitializeHierarchy(double level_time);
 
   const BoundaryCondition& GetBoundaryCondition() const noexcept;
+  const InitialData& GetInitialData() const noexcept;
+  const Tagging& GetTagging() const noexcept;
 
 private:
   void FillMultiFabFromLevel(::amrex::MultiFab& mf, int level_number);
@@ -73,7 +86,7 @@ private:
 
   void ClearLevel(int level) override;
 
-  std::shared_ptr<PatchHierarchy> hierarchy_;
+  PatchHierarchy hierarchy_;
   InitialData initial_condition_;
   BoundaryCondition boundary_condition_;
   Tagging tagging_;

@@ -62,7 +62,9 @@ public:
   /// Allocates memory space for properly sized stencil and numeric flux
   /// buffers.
   template <typename... Args>
-  FluxMethod(Args&&... args) : base_(std::forward<Args>(args)...) {}
+  FluxMethod(Args&&... args) : base_(std::forward<Args>(args)...) {
+    stencil_.fill(Complete{GetEquation()});
+  }
 
   const BaseMethod& Base() { return base_; }
 
@@ -243,7 +245,7 @@ public:
                      const Index cell = Shift(face, dir, static_cast<int>(i));
                      Load(stencil_[i], states, cell);
                    }
-                   double dt = base_.ComputeStableDt(stencil_, dx, dir);
+                   const double dt = base_.ComputeStableDt(stencil_, dx, dir);
                    min_dt = std::min(dt, min_dt);
                  });
     return min_dt;
@@ -253,7 +255,7 @@ public:
 
   std::array<Complete, static_cast<std::size_t>(2 * GetStencilWidth())>
       stencil_{};
-  Conservative numeric_flux_{};
+  Conservative numeric_flux_{GetEquation()};
 
   std::array<CompleteArray, static_cast<std::size_t>(2 * GetStencilWidth())>
       stencil_array_{};

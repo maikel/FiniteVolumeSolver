@@ -11,7 +11,15 @@ target_link_libraries(test.core.mdspan HyperbolicSolver.Core Catch2)
 add_executable(test.PerfectGas.ExactRiemannProblem test.PerfectGas.ExactRiemannProblem.cpp)
 target_link_libraries(test.PerfectGas.ExactRiemannProblem HyperbolicSolver.Solver)
 
+if (AMReX_FOUND)
+  add_executable(test.AMReX.n_proper test.AMReX.n_proper.cpp)
+  target_link_libraries(test.AMReX.n_proper HyperbolicSolver.AMReX)
+endif()
+
 if (AMReX_FOUND AND AMREX_DIM EQUAL 2 AND AMREX_ENABLE_EB)
+  add_executable(test.AMReX.MultiCutFab test.AMReX.MultiCutFab.cpp)
+  target_link_libraries(test.AMReX.MultiCutFab HyperbolicSolver.AMReX)
+
   add_executable(test.AMReX.EB.Wedge_nan test.AMReX.EB.plane_nan.cpp)
   target_link_libraries(test.AMReX.EB.Wedge_nan HyperbolicSolver.AMReX)
   target_compile_options(test.AMReX.EB.Wedge_nan

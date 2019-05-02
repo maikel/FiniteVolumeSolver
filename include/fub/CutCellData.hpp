@@ -28,7 +28,7 @@
 namespace fub {
 
 template <int Rank> struct CutCellData {
-  // The next four members are given by AMReX
+  // The next member variables are given by AMReX
   Direction dir;
   PatchDataView<const ::amrex::EBCellFlag, Rank> flags;
   PatchDataView<const double, Rank> volume_fractions;

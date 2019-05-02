@@ -18,11 +18,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/grid/AMReX/BoundaryCondition.hpp"
+#include "fub/grid/AMReX/cutcell/BoundaryCondition.hpp"
 #include "fub/grid/AMReX/ViewFArrayBox.hpp"
 
 namespace fub {
 namespace amrex {
+namespace cutcell {
 
 BoundaryCondition::BoundaryCondition(Function f, const ::amrex::Geometry& geom,
                                      int level,const PatchHierarchy& hierarchy)
@@ -64,5 +65,6 @@ void BoundaryCondition::FillBoundary(::amrex::MultiFab& mf, int, int,
   }
 }
 
+}
 } // namespace amrex
 } // namespace fub

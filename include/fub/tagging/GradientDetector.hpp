@@ -25,34 +25,48 @@
 #include "fub/ForEach.hpp"
 #include "fub/core/mdspan.hpp"
 
-#include <boost/hana/tuple.hpp>
-
 #include <utility>
 
 namespace fub {
-template <typename... Projections> struct GradientDetector {
-  std::tuple<std::pair<Projections, double>...> conditions;
 
-  GradientDetector(const std::pair<Projections, double>&... conds)
-      : conditions{conds...} {}
+template <std::size_t DestRank, std::size_t SrcRank>
+std::array<std::ptrdiff_t, DestRank>
+EmbedInSpace(const std::array<std::ptrdiff_t, SrcRank>& index) {
+  if constexpr (DestRank == SrcRank) {
+    return index;
+  } else {
+    std::array<std::ptrdiff_t, DestRank> dest{};
+    std::copy_n(index.begin(), static_cast<std::ptrdiff_t>(SrcRank),
+                dest.begin());
+    return dest;
+  }
+}
 
-  template <typename Tags, typename StateView>
-  void TagCellsForRefinement(const Tags& tags, const StateView& states,
+template <typename Equation, typename... Projections> struct GradientDetector {
+  Equation equation_;
+  std::tuple<std::pair<Projections, double>...> conditions_;
+  Complete<Equation> sL{equation_};
+  Complete<Equation> sM{equation_};
+  Complete<Equation> sR{equation_};
+
+  GradientDetector(const Equation& equation,
+                   const std::pair<Projections, double>&... conds)
+      : equation_{equation}, conditions_{conds...} {}
+
+  template <int TagRank>
+  void TagCellsForRefinement(const PatchDataView<char, TagRank>& tags,
+                             const BasicView<const Complete<Equation>>& states,
                              const CartesianCoordinates&) {
-    using Equation = typename StateView::Equation;
-    using Complete = typename Equation::Complete;
-    Complete sL;
-    Complete sM;
-    Complete sR;
+    constexpr std::size_t sTagRank = static_cast<std::size_t>(TagRank);
+    const auto tagbox = tags.Box();
     for (std::size_t dir = 0; dir < Extents<0>(states).rank(); ++dir) {
-      ForEachIndex(
-          Shrink(Box<0>(states), Direction(dir), {0, 2}), [&](auto... is) {
-            std::array<std::ptrdiff_t, sizeof...(is)> left{is...};
-            std::array<std::ptrdiff_t, sizeof...(is)> mid =
-                Shift(left, Direction(dir), 1);
-            std::array<std::ptrdiff_t, sizeof...(is)> right =
-                Shift(mid, Direction(dir), 1);
-            boost::mp11::tuple_for_each(conditions, [&](auto cond) {
+      ForEachIndex(Shrink(Box<0>(states), Direction(dir), {1, 1}), [&](auto... is) {
+        using Index = std::array<std::ptrdiff_t, sizeof...(is)>;
+        const Index mid{is...};
+        if (Contains(tagbox, EmbedInSpace<sTagRank>(mid))) {
+            const Index left = Shift(mid, Direction(dir), -1);
+            const Index right = Shift(mid, Direction(dir), 1);
+            boost::mp11::tuple_for_each(conditions_, [&](auto cond) {
               auto&& [proj, tolerance] = cond;
               Load(sL, states, left);
               Load(sM, states, mid);
@@ -66,35 +80,35 @@ template <typename... Projections> struct GradientDetector {
                     std::abs(xM - xL) / (std::abs(xM) + std::abs(xL));
                 const double right =
                     std::abs(xM - xR) / (std::abs(xM) + std::abs(xR));
-                tags(mid) |=
+                tags(EmbedInSpace<sTagRank>(mid)) |=
                     static_cast<char>(left > tolerance || right > tolerance);
               }
             });
-          });
+        }
+      });
     }
   }
 
-  template <typename Tags, typename StateView, typename CutCellData>
-  void TagCellsForRefinement(const Tags& tags, const StateView& states,
+  template <int TagRank, typename CutCellData>
+  void TagCellsForRefinement(const PatchDataView<char, TagRank>& tags,
+                             const BasicView<const Complete<Equation>>& states,
                              const CutCellData& cutcell_data,
                              const CartesianCoordinates&) {
-    using Equation = typename StateView::Equation;
-    using Complete = typename Equation::Complete;
-    Complete sL;
-    Complete sM;
-    Complete sR;
     const auto& flags = cutcell_data.flags;
     FUB_ASSERT(Contains(flags.Box(), Box<0>(states)));
+    const auto tagbox = tags.Box();
     for (std::size_t dir = 0; dir < Extents<0>(states).rank(); ++dir) {
       ForEachIndex(
           Shrink(Box<0>(states), Direction(dir), {0, 2}), [&](auto... is) {
+            using Index = std::array<std::ptrdiff_t, sizeof...(is)>;
+            if (Contains(tagbox, Index{is...})) {
             std::array<std::ptrdiff_t, sizeof...(is)> left{is...};
             std::array<std::ptrdiff_t, sizeof...(is)> mid =
                 Shift(left, Direction(dir), 1);
             std::array<std::ptrdiff_t, sizeof...(is)> right =
                 Shift(mid, Direction(dir), 1);
             if (flags(mid).isRegular()) {
-              boost::mp11::tuple_for_each(conditions, [&](auto cond) {
+              boost::mp11::tuple_for_each(conditions_, [&](auto cond) {
                 auto&& [proj, tolerance] = cond;
                 Load(sL, states, left);
                 Load(sM, states, mid);
@@ -113,13 +127,15 @@ template <typename... Projections> struct GradientDetector {
                 }
               });
             }
+            }
           });
     }
   }
 };
 
-template <typename... Ps>
-GradientDetector(const std::pair<Ps, double>&...)->GradientDetector<Ps...>;
+template <typename Eq, typename... Ps>
+GradientDetector(const Eq&, const std::pair<Ps, double>&...)
+    ->GradientDetector<Eq, Ps...>;
 } // namespace fub
 
 #endif

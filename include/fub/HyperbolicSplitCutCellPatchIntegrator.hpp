@@ -79,8 +79,6 @@ public:
             },
             next_, prev_, flux_left_, flux_right_);
         FUB_ASSERT(next_.density > 0.0);
-        FUB_ASSERT(next_.energy >
-                   0.5 * next_.momentum.matrix().squaredNorm() / next_.density);
         Store(nexts, next_, cell);
       } else if (flags(cell).isSingleValued() && alpha > 0.0) {
         const Index left_face = cell;

@@ -1,22 +1,55 @@
+// Copyright (c) 2019 Maikel Nadolski
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 #include "fub/grid/AMReX/PatchHierarchy.hpp"
 
 namespace fub {
 namespace amrex {
-PatchLevel::PatchLevel(int level, Duration tp,
-                       const ::amrex::BoxArray& box_array,
-                       const ::amrex::DistributionMapping& distribution_mapping,
-                       int n_components)
-    : level_number{level}, time_point{tp}, data{box_array, distribution_mapping,
-                                                n_components, 0} {}
 
-PatchLevel::PatchLevel(int level, Duration tp,
-                       const ::amrex::BoxArray& box_array,
-                       const ::amrex::DistributionMapping& distribution_mapping,
-                       int n_components,
+PatchLevel::PatchLevel(const PatchLevel& other)
+    : level_number(other.level_number), time_point(other.time_point),
+      cycles(other.cycles), box_array(other.box_array.boxList()),
+      distribution_mapping(other.distribution_mapping.ProcessorMap()),
+      data(box_array, distribution_mapping, other.data.nComp(),
+           other.data.nGrowVect(), ::amrex::MFInfo(), other.data.Factory()) {
+  data.copy(other.data);
+}
+
+PatchLevel& PatchLevel::operator=(const PatchLevel& other) {
+  PatchLevel tmp(other);
+  return *this = std::move(tmp);
+}
+
+PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
+                       const ::amrex::DistributionMapping& dm, int n_components)
+    : level_number{level}, time_point{tp}, box_array{ba},
+      distribution_mapping{dm}, data{box_array, distribution_mapping,
+                                     n_components, 0} {}
+
+PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
+                       const ::amrex::DistributionMapping& dm, int n_components,
                        const ::amrex::FabFactory<::amrex::FArrayBox>& factory)
-    : level_number{level},
-      time_point{tp}, data{box_array, distribution_mapping, n_components,
-                           0,         ::amrex::MFInfo(),    factory} {}
+    : level_number{level}, time_point{tp}, box_array{ba},
+      distribution_mapping{dm}, data{box_array,         distribution_mapping,
+                                     n_components,      0,
+                                     ::amrex::MFInfo(), factory} {}
 
 PatchHierarchy::PatchHierarchy(DataDescription desc,
                                const CartesianGridGeometry& geometry,
@@ -35,8 +68,24 @@ PatchHierarchy::PatchHierarchy(DataDescription desc,
   for (::amrex::Geometry& geom : patch_level_geometry_) {
     geom = ::amrex::Geometry(level_box, &grid_geometry_.coordinates, -1,
                              grid_geometry_.periodicity.data());
-    level_box.refine(2);
+    level_box.refine(options_.refine_ratio);
   }
+}
+
+int PatchHierarchy::GetRatioToCoarserLevel(int level, Direction dir) const
+    noexcept {
+  if (level == 0) {
+    return 1;
+  }
+  return options_.refine_ratio[static_cast<int>(dir)];
+}
+
+::amrex::IntVect PatchHierarchy::GetRatioToCoarserLevel(int level) const
+    noexcept {
+  if (level == 0) {
+    return ::amrex::IntVect::TheUnitVector();
+  }
+  return options_.refine_ratio;
 }
 
 void WriteCheckpointFile(const std::string checkpointname,

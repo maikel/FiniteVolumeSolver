@@ -26,7 +26,7 @@
 #include "fub/PatchDataView.hpp"
 #include "fub/core/function_ref.hpp"
 #include "fub/core/mdspan.hpp"
-#include "fub/grid/AMReX/PatchHandle.hpp"
+#include "fub/grid/AMReX/PatchHierarchy.hpp"
 
 #include <AMReX_FillPatchUtil.H>
 #include <AMReX_Interpolater.H>
@@ -38,9 +38,10 @@ namespace amrex {
 struct BoundaryCondition : public ::amrex::PhysBCFunctBase {
   using Function =
       function_ref<void(const PatchDataView<double, AMREX_SPACEDIM + 1>&,
+                        const PatchHierarchy&,
                         PatchHandle, Location, int, Duration)>;
 
-  BoundaryCondition(Function f, const ::amrex::Geometry& geom, int level);
+  BoundaryCondition(Function f, const ::amrex::Geometry& geom, int level, const PatchHierarchy& hierarchy);
 
   void FillBoundary(::amrex::MultiFab& mf, int, int, double time_point,
                     int) override;
@@ -48,6 +49,7 @@ struct BoundaryCondition : public ::amrex::PhysBCFunctBase {
   Function function_;
   ::amrex::Geometry geom_;
   int level_num_;
+  const PatchHierarchy* hierarchy_;
 };
 
 } // namespace amrex

@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Maikel Nadolski
+// Copyright (c) 2019 Maikel Nadolski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,35 +18,20 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_STRANG_SPLITTING_HPP
-#define FUB_STRANG_SPLITTING_HPP
-
-#include "fub/Duration.hpp"
-#include "fub/core/function_ref.hpp"
-#include "fub/split_method/SplittingMethod.hpp"
+#include "fub/grid/AMReX/MultiFab.hpp"
 
 namespace fub {
+namespace amrex {
 
-/// \ingroup Solver
-/// \brief This class implements a second order splitting method.
-struct StrangSplitting : public SplittingMethod {
-public:
-  using AdvanceFunction = SplittingMethod::AdvanceFunction;
+MultiFab::MultiFab(const MultiFab& other) : MultiFab() {
+  if (!other.boxArray().empty()) {
+    ::amrex::BoxArray ba(other.boxArray().boxList());
+    ::amrex::DistributionMapping dm(other.DistributionMap().ProcessorMap());
+    define(ba, dm, other.nComp(), other.nGrowVect(), ::amrex::MFInfo(),
+           other.Factory());
+    copy(other);
+  }
+}
 
-  using SplittingMethod::Advance;
-
-  /// \brief Invokes two operators a1, a2 by the following scheme:
-  /// a1(dt/2); a2(dt); a1(dt/2);
-  ///
-  /// \param[in] time_step_size  The time by which the hierarchy shall be
-  ///                            advanced.
-  /// \param[in] operator1  The first operator in the splitting.
-  /// \param[in] operator2  The second operator in the spligging.
-  boost::outcome_v2::result<void, TimeStepTooLarge>
-  Advance(Duration time_step_size, AdvanceFunction operator1,
-          AdvanceFunction operator2) const override;
-};
-
+} // namespace amrex
 } // namespace fub
-
-#endif

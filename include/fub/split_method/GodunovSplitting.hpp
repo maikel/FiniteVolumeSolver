@@ -41,8 +41,9 @@ public:
   ///                            advanced.
   /// \param[in] operator1  The first operator in the splitting.
   /// \param[in] operator2  The second operator in the spligging.
-  void Advance(Duration time_step_size, AdvanceFunction operator1,
-               AdvanceFunction operator2) const override;
+  boost::outcome_v2::result<void, TimeStepTooLarge>
+  Advance(Duration time_step_size, AdvanceFunction operator1,
+          AdvanceFunction operator2) const override;
 };
 
 } // namespace fub

@@ -41,31 +41,27 @@ template <typename Equation> struct CompleteFromConsImpl {
 };
 
 template <typename Equation>
-void CompleteFromCons(const Equation& equation, Complete<Equation>& complete,
-                      const Conservative<Equation>& cons) {
-  return CompleteFromConsImpl<Equation>::apply(equation, complete, cons);
+void CompleteFromCons(Equation&& equation,
+                      Complete<std::decay_t<Equation>>& complete,
+                      const Conservative<std::decay_t<Equation>>& cons) {
+  return CompleteFromConsImpl<std::decay_t<Equation>>::apply(equation, complete,
+                                                             cons);
 }
 
 template <typename Equation>
-void CompleteFromCons(const Equation& equation, Complete<Equation>& complete,
-                      const Complete<Equation>& cons) {
-  return CompleteFromConsImpl<Equation>::apply(equation, complete, cons);
+void CompleteFromCons(Equation&& equation,
+                      Complete<std::decay_t<Equation>>& complete,
+                      const Complete<std::decay_t<Equation>>& cons) {
+  return CompleteFromConsImpl<std::decay_t<Equation>>::apply(equation, complete,
+                                                             cons);
 }
-//
-// template <typename Equation, int N>
-// void CompleteFromCons(const Equation&, CompleteArray<Equation, N>&,
-//                      const ConservativeArray<Equation, N>&) {}
-//
-// template <typename Equation, int N>
-// void CompleteFromCons(const Equation&, CompleteArray<Equation, N>&,
-//                      const CompleteArray<Equation, N>&) {}
 
 template <typename Equation>
-void CompleteFromCons(const Equation& eq,
-                      const View<Complete<Equation>>& complete_view,
-                      const View<const Conservative<Equation>>& cons_view) {
-  Complete<Equation> complete(eq);
-  Conservative<Equation> cons(eq);
+void CompleteFromCons(
+    Equation&& eq, const View<Complete<std::decay_t<Equation>>>& complete_view,
+    const View<const Conservative<std::decay_t<Equation>>>& cons_view) {
+  Complete<std::decay_t<Equation>> complete(eq);
+  Conservative<std::decay_t<Equation>> cons(eq);
   ForEachIndex(Box<0>(complete_view), [&](auto... is) {
     Load(cons, cons_view, {is...});
     CompleteFromCons(eq, complete, cons);

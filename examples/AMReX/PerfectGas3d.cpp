@@ -24,6 +24,7 @@
 #include "fub/HyperbolicSplitLevelIntegrator.hpp"
 #include "fub/HyperbolicSplitPatchIntegrator.hpp"
 #include "fub/HyperbolicSplitSystemSolver.hpp"
+#include "fub/boundary_condition/TransmissiveBoundary.hpp"
 #include "fub/ext/Eigen.hpp"
 #include "fub/flux_method/HllMethod.hpp"
 #include "fub/flux_method/MusclHancockMethod.hpp"
@@ -39,32 +40,37 @@
 
 #include "fub/RunSimulation.hpp"
 
+#ifdef AMREX_USE_EB
+#include <AMReX_EB2.H>
+#include <AMReX_EB2_GeometryShop.H>
+#include <AMReX_EB2_IF_AllRegular.H>
+#endif
+
 #include <fmt/format.h>
 #include <iostream>
 
 #include <xmmintrin.h>
 
-struct CircleData {
-  std::shared_ptr<fub::amrex::PatchHierarchy> hierarchy;
-  fub::PerfectGas<3> equation_;
+struct RiemannProblem {
+  fub::PerfectGas<1> equation_;
   void
-  InitializeData(const fub::View<fub::Complete<fub::PerfectGas<3>>>& states,
+  InitializeData(const fub::View<fub::Complete<fub::PerfectGas<1>>>& states,
+                 const fub::amrex::PatchHierarchy& hierarchy,
                  fub::amrex::PatchHandle patch) const {
-    const ::amrex::Geometry& geom = hierarchy->GetGeometry(patch.level);
+    const ::amrex::Geometry& geom = hierarchy.GetGeometry(patch.level);
     const ::amrex::Box& box = patch.iterator->tilebox();
     fub::CartesianCoordinates x =
         fub::amrex::GetCartesianCoordinates(geom, box);
     fub::ForEachIndex(fub::Box<0>(states), [&](auto... is) {
-      const double norm = x(is...).norm();
-      fub::Conservative<fub::PerfectGas<3>> state;
-      if (norm < 0.25) {
+      fub::Conservative<fub::PerfectGas<1>> state{equation_};
+      if (x(is...)[0] < 0.0) {
         state.energy = 8 * 101325. * equation_.gamma_minus_1_inv;
       } else {
         state.energy = 101325. * equation_.gamma_minus_1_inv;
       }
       state.density = 1.0;
       state.momentum.fill(0);
-      fub::Complete<fub::PerfectGas<3>> complete;
+      fub::Complete<fub::PerfectGas<1>> complete{equation_};
       CompleteFromCons(equation_, complete, state);
       Store(states, complete, {is...});
     });
@@ -84,36 +90,40 @@ int main(int argc, char** argv) {
   constexpr int Dim = AMREX_SPACEDIM;
   static_assert(AMREX_SPACEDIM == 3);
 
-  const std::array<int, Dim> n_cells{32, 32, 32};
+  const std::array<int, Dim> n_cells{AMREX_D_DECL(32, 1, 1)};
 
-  const std::array<double, Dim> xlower{-1.0, -1.0, -1.0};
-  const std::array<double, Dim> xupper{+1.0, +1.0, +1.0};
+  const std::array<double, Dim> xlower{AMREX_D_DECL(-1.0, -1.0, -1.0)};
+  const std::array<double, Dim> xupper{AMREX_D_DECL(+1.0, +1.0, +1.0)};
 
-  fub::PerfectGas<3> equation{};
+  fub::PerfectGas<1> equation{};
 
   fub::amrex::CartesianGridGeometry geometry;
   geometry.cell_dimensions = n_cells;
   geometry.coordinates = amrex::RealBox(xlower, xupper);
-  geometry.periodicity = std::array<int, Dim>{1, 1, 1};
+
+#ifdef AMREX_USE_EB
+  amrex::EB2::Build(
+      amrex::EB2::makeShop(amrex::EB2::AllRegularIF()),
+      hierarchy->GetGeometry(hierarchy->GetMaxNumberOfLevels() - 1), 2, 2);
+#endif
+
+  using Complete = fub::PerfectGas<1>::Complete;
+  fub::GradientDetector gradient{equation,
+                                 std::make_pair(&Complete::density, 5e-3),
+                                 std::make_pair(&Complete::pressure, 5e-2)};
+
+  RiemannProblem initial_data{equation};
+  fub::TransmissiveBoundary transmissive(equation);
 
   fub::amrex::DataDescription desc = fub::amrex::MakeDataDescription(equation);
-
   fub::amrex::PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = 1;
-
-  auto hierarchy =
-      std::make_shared<fub::amrex::PatchHierarchy>(desc, geometry, hier_opts);
-
-  using Complete = fub::PerfectGas<3>::Complete;
-  fub::GradientDetector gradient{std::make_pair(&Complete::density, 5e-3),
-                                 std::make_pair(&Complete::pressure, 5e-2)};
-  fub::TagBuffer buffer{2};
-
-  CircleData initial_data{hierarchy, equation};
-  auto gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
-      hierarchy, fub::amrex::AdaptInitialData(initial_data, equation),
-      fub::amrex::AdaptTagging(equation, hierarchy, gradient, buffer));
-  gridding->InitializeHierarchy(0.0);
+  hier_opts.max_number_of_levels = 3;
+  hier_opts.refine_ratio = ::amrex::IntVect{AMREX_D_DECL(2, 1, 1)};
+  fub::amrex::GriddingAlgorithm gridding(
+      fub::amrex::PatchHierarchy(desc, geometry, hier_opts),
+      fub::amrex::AdaptInitialData(initial_data, equation),
+      fub::amrex::AdaptTagging(equation, gradient), transmissive);
+  gridding.InitializeHierarchy(0.0);
 
   fub::HyperbolicSplitPatchIntegrator patch_integrator{equation};
   fub::MusclHancockMethod flux_method{equation};
@@ -125,23 +135,25 @@ int main(int argc, char** argv) {
       fub::amrex::FluxMethod(flux_method),
       fub::amrex::Reconstruction(equation)));
 
-  std::string base_name = "PerfectGas3d/";
+  std::string base_name = "PerfectGas_1d_embed_in_3d/";
 
-  auto output = [&](auto& hierarchy, std::ptrdiff_t cycle, fub::Duration) {
+  auto output = [&](const fub::amrex::PatchHierarchy& hierarchy,
+                    std::ptrdiff_t cycle, fub::Duration) {
     std::string name = fmt::format("{}{:05}", base_name, cycle);
     ::amrex::Print() << "Start output to '" << name << "'.\n";
-    fub::amrex::WritePlotFile(name, *hierarchy, equation);
+    fub::amrex::WritePlotFile(name, hierarchy, equation);
     ::amrex::Print() << "Finished output to '" << name << "'.\n";
   };
 
   auto print_msg = [](const std::string& msg) { ::amrex::Print() << msg; };
 
   using namespace std::literals::chrono_literals;
-  output(hierarchy, 0, 0.0s);
+  output(solver.GetPatchHierarchy(), 0, 0.0s);
   fub::RunOptions run_options{};
-  run_options.cfl = 0.1 * 0.8;
+  run_options.cfl = 0.1 * 0.5;
   run_options.final_time = 0.004s;
-  run_options.output_interval = 0.00005s;
+  run_options.max_cycles = 100;
+  run_options.output_frequency = 1;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      print_msg);
 }

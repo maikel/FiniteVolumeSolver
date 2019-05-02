@@ -45,7 +45,7 @@ template <typename Base> struct FluxMethod : public Base {
 
   template <typename Context> void PreAdvanceHierarchy(Context& context) {
     const Equation& equation = Base::GetEquation();
-    const PatchHierarchy& hierarchy = *context.GetPatchHierarchy();
+    const PatchHierarchy& hierarchy = context.GetPatchHierarchy();
     const int nlevels = hierarchy.GetNumberOfLevels();
     const int gcw = Base::GetStencilWidth() + 1;
     const int n_components = hierarchy.GetDataDescription().n_state_components;
@@ -61,7 +61,7 @@ template <typename Base> struct FluxMethod : public Base {
           CutCellData<Rank> cc_data =
               context.GetCutCellData(patch, Direction::X);
           const IndexBox<Rank> cells =
-              AsIndexBox(patch.iterator->growntilebox(gcw));
+              AsIndexBox<Rank>(patch.iterator->growntilebox(gcw));
           View<const Complete> data = AsConst(
               Subview(MakeView<BasicView<Complete>>(
                           MakePatchDataView(datas[*patch.iterator]), equation),
@@ -88,7 +88,7 @@ template <typename Base> struct FluxMethod : public Base {
     const int d = static_cast<int>(dir);
     ::amrex::IntVect gcws{};
     gcws[d] = gcw;
-    const auto tilebox_cells = AsIndexBox(patch.iterator->growntilebox(gcws));
+    const auto tilebox_cells = AsIndexBox<Rank>(patch.iterator->growntilebox(gcws));
     View<const Complete> scratch = AsConst(Subview(
         MakeView<BasicView<Complete>>(context.GetScratch(patch, dir), equation),
         tilebox_cells));
@@ -118,11 +118,11 @@ template <typename Base> struct FluxMethod : public Base {
     const int d = static_cast<int>(dir);
     ::amrex::IntVect gcws{};
     gcws[d] = gcw;
-    const auto tilebox_cells = AsIndexBox(patch.iterator->growntilebox(gcws));
+    const auto tilebox_cells = AsIndexBox<Rank>(patch.iterator->growntilebox(gcws));
 
     gcws[d] = 1;
     const auto tilebox_faces =
-        AsIndexBox(patch.iterator->grownnodaltilebox(d, gcws));
+        AsIndexBox<Rank>(patch.iterator->grownnodaltilebox(d, gcws));
 
     View<const Complete> scratch = AsConst(Subview(
         MakeView<BasicView<Complete>>(context.GetScratch(patch, dir), equation),

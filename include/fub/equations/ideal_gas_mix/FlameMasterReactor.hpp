@@ -19,8 +19,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_SAMRAI_EULER_REACTOR_HPP
-#define FUB_SAMRAI_EULER_REACTOR_HPP
+#ifndef FUB_FLAME_MASTER_REACTOR_HPP
+#define FUB_FLAME_MASTER_REACTOR_HPP
 
 #include "fub/core/function_ref.hpp"
 #include "fub/core/span.hpp"
@@ -33,7 +33,6 @@
 #include <vector>
 
 namespace fub {
-namespace ideal_gas {
 
 /// This class encapsulates all exceptions which can occur in the
 /// FlameMasterReactor class
@@ -138,11 +137,14 @@ public:
   ~FlameMasterReactor() = default;
 
   FlameMasterReactor(const FlameMasterReactor& other);
+  FlameMasterReactor& operator=(const FlameMasterReactor& other);
+
   FlameMasterReactor(FlameMasterReactor&& other) noexcept;
+  FlameMasterReactor& operator=(FlameMasterReactor&& other) noexcept;
 
   /// \brief Advance the reactor in time by dt and call a function for each
   /// internal timestep
-  void advance(
+  void Advance(
       double dt,
       function_ref<void(fub::span<const double>, double, FlameMasterReactor*)>
           feedbackFun);
@@ -153,7 +155,7 @@ public:
   ///
   /// \throw FlameMasterReactorException  This exception may be thrown if the
   /// ode solver could not converge to a solution.
-  void advance(double dt);
+  void Advance(double dt);
 
   /// \brief Advance the reactor by one internal time step and return the time
   /// step size
@@ -161,7 +163,7 @@ public:
 
   /// \brief Advance the reactor in time by dt and return the time where
   /// \f$dT/dt\f$ peaked.
-  double advanceAndFindMaxdT(double dt);
+  double AdvanceAndFindMaxdT(double dt);
 
   /// Set tolerances for the integration. Defaults are 1e-9 for reltol and
   /// 1e-15 for abstol.
@@ -172,13 +174,13 @@ public:
     return *mechanism_;
   }
 
-  void setOdeSolver(std::unique_ptr<OdeSolver> solver) {
+  void SetOdeSolver(std::unique_ptr<OdeSolver> solver) {
     if (solver) {
       ode_solver_ = std::move(solver);
     }
   }
 
-  const OdeSolver& getOdeSolver() const noexcept {
+  const OdeSolver& GetOdeSolver() const noexcept {
     FUB_ASSERT(ode_solver_);
     return *ode_solver_;
   }
@@ -192,9 +194,9 @@ public:
   /// temperature, the mass fractions and density.
   ///
   /// The unit for pressure is Pascal.
-  double getPressure() const {
-    return getDensity() * getUniversalGasConstant() / getMeanMolarMass() *
-           getTemperature();
+  double GetPressure() const {
+    return GetDensity() * GetUniversalGasConstant() / GetMeanMolarMass() *
+           GetTemperature();
   }
 
   /**
@@ -205,9 +207,9 @@ public:
    *
    * The unit for pressure is Pascal.
    */
-  void setPressure(double pressure) {
-    setDensity(pressure * getMeanMolarMass() / getTemperature() /
-               getUniversalGasConstant());
+  void SetPressure(double pressure) {
+    SetDensity(pressure * GetMeanMolarMass() / GetTemperature() /
+               GetUniversalGasConstant());
   }
 
   /**
@@ -224,53 +226,53 @@ public:
    * allows to use the function to calculate the state behind such a
    * wave.
    */
-  double setPressureIsentropic(double pressure);
+  double SetPressureIsentropic(double pressure);
 
   /// Returns the density of the current mixture
   ///
   /// The units are \f$kg/m^3\f$
-  double getDensity() const { return state_.density; }
+  double GetDensity() const { return state_.density; }
 
   /**
    * Sets the density of the current mixture
    *
    * The units are \f$kg/m^3\f$
    */
-  void setDensity(double density) { state_.density = density; }
+  void SetDensity(double density) { state_.density = density; }
 
   /**
    * Returns the temperature of the current mixture
    *
    * In Kelvin
    */
-  double getTemperature() const { return *(state_.temperature); }
+  double GetTemperature() const { return *(state_.temperature); }
 
   /**
    * Set the temperature of the current mixture
    *
    * In Kelvin
    */
-  void setTemperature(double temperature);
+  void SetTemperature(double temperature);
 
   /**
    * Return the specific heat capacity cv
    */
-  double getCv() const;
+  double GetCv() const;
 
   /**
    * Return the specific heat capacity cp
    */
-  double getCp() const;
+  double GetCp() const;
 
   /**
    * Return the specific heat capacities cp for all species
    */
-  span<const double> getCps() const;
+  span<const double> GetCps() const;
 
   /**
    * Return the specific entropy
    */
-  double getEntropy() const;
+  double GetEntropy() const;
 
   ///@}
 
@@ -280,20 +282,20 @@ public:
   /**
    * Return the name of the ith species
    */
-  const std::string& getSpeciesName(int i) const {
-    return state_.speciesNames[i];
+  const std::string& GetSpeciesName(int i) const {
+    return state_.speciesNames[static_cast<std::size_t>(i)];
   }
 
-  span<const std::string> getSpeciesNames() const {
+  span<const std::string> GetSpeciesNames() const {
     return state_.speciesNames;
   }
 
   /**
    * Return the number of species in the mechanism
    */
-  int getNSpecies() const { return state_.nSpecies; }
+  int GetNSpecies() const { return state_.nSpecies; }
 
-  int getNReactions() const { return state_.nReactions; }
+  int GetNReactions() const { return state_.nReactions; }
 
   /**
    * Average a quantity over the mole fractions
@@ -314,8 +316,8 @@ public:
    *   species: fraction, species: fraction, ..
    *
    */
-  void setMassFractions(span<const double> newMassFractions);
-  void setMassFractions(std::string massFractions);
+  void SetMassFractions(span<const double> newMassFractions);
+  void SetMassFractions(std::string massFractions);
   ///@}
 
   ///@{
@@ -326,46 +328,46 @@ public:
    * a string of the form
    *   species: fraction, species: fraction, ..
    */
-  void setMoleFractions(span<const double> newMoleFractions);
-  void setMoleFractions(std::string newMoleFractions);
+  void SetMoleFractions(span<const double> newMoleFractions);
+  void SetMoleFractions(std::string newMoleFractions);
   ///@}
 
   /**
    * Return the mass fractions of the species as a double* array
    */
-  span<const double> getMassFractions() const { return state_.massFractions; }
-  span<const double> getMoleFractions();
+  span<const double> GetMassFractions() const { return state_.massFractions; }
+  span<const double> GetMoleFractions();
 
   /**
    * get the molar mass of a single species
    *
    * Units are \f$kg/kmol\f$
    */
-  double getSpeciesMolarMass(size_t i) const { return state_.molarMasses[i]; }
+  double GetSpeciesMolarMass(size_t i) const { return state_.molarMasses[i]; }
 
   /**
    * get the molar masses for all species
    */
-  span<const double> getMolarMasses() const { return state_.molarMasses; }
+  span<const double> GetMolarMasses() const { return state_.molarMasses; }
 
   /**
    * get the overall molar mass
    *
    * Units are \f$kg/kmol\f$
    */
-  double getMeanMolarMass() const;
+  double GetMeanMolarMass() const;
 
   /**
    * get the species' enthalpies
    */
-  span<const double> getEnthalpies();
+  span<const double> GetEnthalpies();
 
   /**
    * Return the mix'es specific enthalpy
    *
    * The unit is \f$J/kg\f$
    */
-  double getEnthalpy() const;
+  double GetEnthalpy() const;
 
   /**
    * Set the mix'es specific enthalpy
@@ -374,7 +376,7 @@ public:
    * mixtures temperature such that the enthalpy is correct. It does so by
    * using the same Newton algorithm which is also used by Cantera.
    */
-  void setEnthalpy(double enthalpy, double dTtol);
+  void SetEnthalpy(double enthalpy, double dTtol);
   ///@}
 
   /**
@@ -382,7 +384,7 @@ public:
    *
    * The unit is \f$J/kg\f$
    */
-  double getInternalEnergy() const;
+  double GetInternalEnergy() const;
 
   /**
    * Set the mix'es specific internal energy
@@ -391,20 +393,20 @@ public:
    * mixtures temperature such that the energy is correct. It does so by
    * using the same Newton algorithm which is also used by Cantera.
    */
-  void setInternalEnergy(double energy, double dTtol = 1E-6);
+  void SetInternalEnergy(double energy, double dTtol = 1E-6);
   ///@}
 
   /// \brief get the current reaction rates d/dt m, where m denotes the actual
   /// mole counts: Y = m * molarMasses / density
-  span<const double> getReactionRates() const;
+  span<const double> GetReactionRates() const;
 
-  span<const double> getProductionRates();
+  span<const double> GetProductionRates();
 
   /// \brief Retrieve the universal gas constant.
   ///
   /// Note that some mechanisms *can* override this, to use  normalized
   /// quantities!
-  double getUniversalGasConstant() const { return state_.gasConstant; }
+  double GetUniversalGasConstant() const { return state_.gasConstant; }
 
 private:
   const FlameMasterMechanism* mechanism_;
@@ -412,7 +414,6 @@ private:
   std::unique_ptr<OdeSolver> ode_solver_;
 };
 
-} // namespace ideal_gas
 } // namespace fub
 
 #endif

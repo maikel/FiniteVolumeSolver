@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Maikel Nadolski
+// Copyright (c) 2019 Maikel Nadolski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,35 +18,43 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_STRANG_SPLITTING_HPP
-#define FUB_STRANG_SPLITTING_HPP
+#ifndef FUB_GRID_AMREX_CUTCELL_BOUNDARY_CONDITION_HPP
+#define FUB_GRID_AMREX_CUTCELL_BOUNDARY_CONDITION_HPP
 
+#include "fub/Direction.hpp"
 #include "fub/Duration.hpp"
+#include "fub/PatchDataView.hpp"
 #include "fub/core/function_ref.hpp"
-#include "fub/split_method/SplittingMethod.hpp"
+#include "fub/core/mdspan.hpp"
+#include "fub/grid/AMReX/cutcell/PatchHierarchy.hpp"
+
+#include <AMReX_FillPatchUtil.H>
+#include <AMReX_Interpolater.H>
+#include <AMReX_MultiFabUtil.H>
 
 namespace fub {
+namespace amrex {
+namespace cutcell {
 
-/// \ingroup Solver
-/// \brief This class implements a second order splitting method.
-struct StrangSplitting : public SplittingMethod {
-public:
-  using AdvanceFunction = SplittingMethod::AdvanceFunction;
+struct BoundaryCondition : public ::amrex::PhysBCFunctBase {
+  using Function =
+      function_ref<void(const PatchDataView<double, AMREX_SPACEDIM + 1>&,
+                        const PatchHierarchy&,
+                        PatchHandle, Location, int, Duration)>;
 
-  using SplittingMethod::Advance;
+  BoundaryCondition(Function f, const ::amrex::Geometry& geom, int level, const PatchHierarchy& hierarchy);
 
-  /// \brief Invokes two operators a1, a2 by the following scheme:
-  /// a1(dt/2); a2(dt); a1(dt/2);
-  ///
-  /// \param[in] time_step_size  The time by which the hierarchy shall be
-  ///                            advanced.
-  /// \param[in] operator1  The first operator in the splitting.
-  /// \param[in] operator2  The second operator in the spligging.
-  boost::outcome_v2::result<void, TimeStepTooLarge>
-  Advance(Duration time_step_size, AdvanceFunction operator1,
-          AdvanceFunction operator2) const override;
+  void FillBoundary(::amrex::MultiFab& mf, int, int, double time_point,
+                    int) override;
+
+  Function function_;
+  ::amrex::Geometry geom_;
+  int level_num_;
+  const PatchHierarchy* hierarchy_;
 };
 
+}
+} // namespace amrex
 } // namespace fub
 
 #endif

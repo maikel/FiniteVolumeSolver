@@ -49,9 +49,10 @@ struct ShockData {
   using Conservative = fub::Conservative<Equation>;
 
   void InitializeData(const fub::View<Complete>& data,
+                      const fub::amrex::PatchHierarchy& hierarchy,
                       fub::amrex::PatchHandle patch) {
     using namespace fub;
-    const ::amrex::Geometry& geom = hierarchy->GetGeometry(patch.level);
+    const ::amrex::Geometry& geom = hierarchy.GetGeometry(patch.level);
     const ::amrex::Box& box = patch.iterator->tilebox();
     CartesianCoordinates x = fub::amrex::GetCartesianCoordinates(geom, box);
 
@@ -64,10 +65,9 @@ struct ShockData {
     });
   }
 
-  std::shared_ptr<fub::amrex::PatchHierarchy> hierarchy;
   Equation equation;
-  Complete left;
-  Complete right;
+  Complete left{};
+  Complete right{};
 };
 
 int main(int argc, char** argv) {
@@ -77,32 +77,27 @@ int main(int argc, char** argv) {
   const fub::amrex::ScopeGuard guard(argc, argv);
 
   constexpr int Dim = AMREX_SPACEDIM;
-  static_assert(AMREX_SPACEDIM == 2);
+  static_assert(AMREX_SPACEDIM >= 2);
 
-  const std::array<int, Dim> n_cells{128, 128};
-
-  const std::array<double, Dim> xlower{-1.0, -1.0};
-  const std::array<double, Dim> xupper{+1.0, +1.0};
+  const std::array<int, Dim> n_cells{AMREX_D_DECL(128, 128, 1)};
+  const std::array<double, Dim> xlower{AMREX_D_DECL(-1.0, -1.0, -1.0)};
+  const std::array<double, Dim> xupper{AMREX_D_DECL(+1.0, +1.0, +1.0)};
 
   fub::PerfectGas<2> equation{};
 
-  fub::amrex::CartesianGridGeometry geometry;
+  fub::amrex::CartesianGridGeometry geometry{};
   geometry.cell_dimensions = n_cells;
   geometry.coordinates = amrex::RealBox(xlower, xupper);
-  geometry.periodicity = std::array<int, 2>{0, 0};
 
   fub::amrex::DataDescription desc = fub::amrex::MakeDataDescription(equation);
 
   fub::amrex::PatchHierarchyOptions hier_opts;
   hier_opts.max_number_of_levels = 1;
 
-  auto hierarchy =
-      std::make_shared<fub::amrex::PatchHierarchy>(desc, geometry, hier_opts);
-
   using Complete = fub::PerfectGas<2>::Complete;
-  fub::GradientDetector gradient{std::make_pair(&Complete::density, 0.001),
+  fub::GradientDetector gradient{equation,
+                                 std::make_pair(&Complete::density, 0.001),
                                  std::make_pair(&Complete::pressure, 0.1)};
-  fub::TagBuffer buffer{4};
 
   auto from_prim = [](Complete& state, const fub::PerfectGas<2>& equation) {
     state.energy = state.pressure * equation.gamma_minus_1_inv;
@@ -122,13 +117,14 @@ int main(int argc, char** argv) {
   right.pressure = 0.01;
   from_prim(right, equation);
 
-  ShockData initial_data{hierarchy, equation, left, right};
+  ShockData initial_data{equation, left, right};
   fub::TransmissiveBoundary boundary{equation};
-  auto gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
-      hierarchy, fub::amrex::AdaptInitialData(initial_data, equation),
-      fub::amrex::AdaptTagging(equation, hierarchy, gradient, buffer),
-      boundary);
-  gridding->InitializeHierarchy(0.0);
+
+  fub::amrex::GriddingAlgorithm gridding(
+      fub::amrex::PatchHierarchy(desc, geometry, hier_opts),
+      fub::amrex::AdaptInitialData(initial_data, equation),
+      fub::amrex::AdaptTagging(equation, gradient), boundary);
+  gridding.InitializeHierarchy(0.0);
 
   fub::HyperbolicSplitPatchIntegrator patch_integrator{equation};
   fub::MusclHancockMethod flux_method{equation};
@@ -140,23 +136,24 @@ int main(int argc, char** argv) {
       fub::amrex::FluxMethod(flux_method),
       fub::amrex::Reconstruction(equation)));
 
-  std::string base_name = "AMReX/PerfectGas2d_";
+  std::string base_name = "PerfectGas2d/";
 
-  auto output = [&](auto& hierarchy, int cycle, fub::Duration) {
-    std::string name = fmt::format("{}{:04}", base_name, cycle);
+  auto output = [&](const fub::amrex::PatchHierarchy& hierarchy,
+                    std::ptrdiff_t cycle, fub::Duration) {
+    std::string name = fmt::format("{}{:05}", base_name, cycle);
     ::amrex::Print() << "Start output to '" << name << "'.\n";
-    fub::amrex::WritePlotFile(name, *hierarchy, equation);
+    fub::amrex::WritePlotFile(name, hierarchy, equation);
     ::amrex::Print() << "Finished output to '" << name << "'.\n";
   };
 
   auto print_msg = [](const std::string& msg) { ::amrex::Print() << msg; };
 
   using namespace std::literals::chrono_literals;
-  output(hierarchy, 0, 0.0s);
+  output(solver.GetPatchHierarchy(), 0, 0.0s);
   fub::RunOptions run_options{};
-
   run_options.final_time = 1.0s;
   run_options.output_frequency = 1;
+  run_options.cfl = 0.9;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      print_msg);
 }

@@ -57,6 +57,11 @@ bool Contains(const IndexBox<Rank>& b1, const IndexBox<Rank>& b2) {
 }
 
 template <int Rank>
+bool Contains(const IndexBox<Rank>& box, const std::array<std::ptrdiff_t, static_cast<std::size_t>(Rank)>& index) {
+  return Contains(box, IndexBox<Rank>{index, index});
+}
+
+template <int Rank>
 IndexBox<Rank> Intersect(const IndexBox<Rank>& b1, const IndexBox<Rank>& b2) {
   constexpr std::size_t sRank = static_cast<std::size_t>(Rank);
   std::array<std::ptrdiff_t, sRank> lower;

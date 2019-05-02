@@ -32,7 +32,23 @@ namespace fub {
 namespace amrex {
 std::array<std::ptrdiff_t, AMREX_SPACEDIM> AsArray(const ::amrex::IntVect& vec);
 
-IndexBox<AMREX_SPACEDIM> AsIndexBox(const ::amrex::Box& box);
+template <int Rank> IndexBox<Rank> AsIndexBox(const ::amrex::Box& box) {
+  const std::array<std::ptrdiff_t, AMREX_SPACEDIM> lower =
+      AsArray(box.smallEnd());
+  std::array<std::ptrdiff_t, AMREX_SPACEDIM> upper = AsArray(box.bigEnd());
+  std::transform(upper.begin(), upper.end(), upper.begin(),
+                 [](std::ptrdiff_t i) { return i + 1; });
+
+  if constexpr (AMREX_SPACEDIM != Rank) {
+    std::array<std::ptrdiff_t, Rank> lower1;
+    std::array<std::ptrdiff_t, Rank> upper1;
+    std::copy_n(lower.begin(), Rank, lower1.begin());
+    std::copy_n(upper.begin(), Rank, upper1.begin());
+    return IndexBox<Rank>{lower1, upper1};
+  } else {
+    return IndexBox<Rank>{lower, upper};
+  }
+}
 
 /// Creates a mdspan which views all components of a mutable Fab.
 ///
@@ -160,7 +176,7 @@ template <typename State> struct MakeViewImpl {
           mdspan<ValueType, sRank + 1> mds(&fab.MdSpan()(index), e);
           return PatchDataView<ValueType, Rank + 1>(mds, this_origin);
         },
-        [&](std::integral_constant<int, 1>) {
+        [&](const ScalarDepth&) {
           std::array<std::ptrdiff_t, AMREX_SPACEDIM + 1> efab =
               AsArray(fab.Extents());
           std::array<std::ptrdiff_t, sRank> e;

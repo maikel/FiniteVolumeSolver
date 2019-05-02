@@ -33,7 +33,7 @@ namespace amrex {
 struct CartesianGridGeometry {
   std::array<int, AMREX_SPACEDIM> cell_dimensions;
   ::amrex::RealBox coordinates;
-  std::array<int, AMREX_SPACEDIM> periodicity;
+  std::array<int, AMREX_SPACEDIM> periodicity{};
 };
 
 CartesianCoordinates GetCartesianCoordinates(const ::amrex::Geometry& geom,

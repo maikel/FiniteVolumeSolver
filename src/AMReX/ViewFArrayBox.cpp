@@ -32,14 +32,5 @@ AsArray(const ::amrex::IntVect& vec) {
   return array;
 }
 
-IndexBox<AMREX_SPACEDIM> AsIndexBox(const ::amrex::Box& box) {
-  const std::array<std::ptrdiff_t, AMREX_SPACEDIM> lower =
-      AsArray(box.smallEnd());
-  std::array<std::ptrdiff_t, AMREX_SPACEDIM> upper = AsArray(box.bigEnd());
-  std::transform(upper.begin(), upper.end(), upper.begin(),
-                 [](std::ptrdiff_t i) { return i + 1; });
-  return IndexBox<AMREX_SPACEDIM>{lower, upper};
-}
-
 } // namespace amrex
 } // namespace fub

@@ -75,7 +75,7 @@ add_library(RadauSolverFortran
   src/ode_solver/dc_decsol.f
   src/ode_solver/radau.f)
 if (FUB_WITH_FORTRAN_OPENMP_SUPPORT) 
-  target_compile_options(RadauSolverFortran PRIVATE "-fopenmp")
+ target_compile_options(RadauSolverFortran PRIVATE "-fopenmp")
 endif()
 
 install(
@@ -144,6 +144,9 @@ add_library(HyperbolicSolver.Solver
   src/equations/Burgers.cpp
   src/equations/ShallowWater.cpp
   src/equations/PerfectGas.cpp
+  src/equations/IdealGasMix.cpp
+  src/equations/ideal_gas_mix/FlameMasterReactor.cpp
+  src/equations/ideal_gas_mix/mechanism/Burke2012.cpp
   src/CartesianCoordinates.cpp
   src/split_method/GodunovSplitting.cpp
   src/split_method/StrangSplitting.cpp
@@ -152,6 +155,7 @@ add_library(HyperbolicSolver.Solver
 target_link_libraries(HyperbolicSolver.Solver
   PUBLIC
     HyperbolicSolver.Core
+    HyperbolicSolver.OdeSolver
     fmt::fmt-header-only
     Boost::boost
     Eigen3::Eigen)
@@ -175,6 +179,7 @@ install(
 if (AMReX_FOUND AND TARGET AMReX::amrex)
   add_library(HyperbolicSolver.AMReX
     src/AMReX/ScopeGuard.cpp
+    src/AMReX/MultiFab.cpp
     src/AMReX/CartesianGridGeometry.cpp
     src/AMReX/ViewFArrayBox.cpp
     src/AMReX/PatchHierarchy.cpp
@@ -187,6 +192,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
       PRIVATE
         src/CutCellData.cpp
         src/geometry/ExpandTube.cpp
+        src/AMReX/cutcell/BoundaryCondition.cpp
         src/AMReX/cutcell/HyperbolicSplitIntegratorContext.cpp
         src/AMReX/cutcell/PatchHierarchy.cpp
         src/AMReX/cutcell/FillCutCellData.cpp

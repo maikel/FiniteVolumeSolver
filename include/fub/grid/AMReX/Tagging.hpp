@@ -35,10 +35,11 @@ namespace amrex {
 
 struct TaggingStrategy {
   virtual ~TaggingStrategy() = default;
+  virtual std::unique_ptr<TaggingStrategy> Clone() const = 0;
   virtual void TagCellsForRefinement(
       const PatchDataView<char, AMREX_SPACEDIM>& tags,
       const PatchDataView<const double, AMREX_SPACEDIM + 1>& states,
-      const PatchHandle& patch) = 0;
+      const PatchHierarchy& hierarchy, const PatchHandle& patch) = 0;
 };
 
 template <typename T> struct TaggingWrapper : public TaggingStrategy {
@@ -48,14 +49,29 @@ template <typename T> struct TaggingWrapper : public TaggingStrategy {
   void TagCellsForRefinement(
       const PatchDataView<char, AMREX_SPACEDIM>& tags,
       const PatchDataView<const double, AMREX_SPACEDIM + 1>& states,
-      const PatchHandle& patch) override {
-    tag_.TagCellsForRefinement(tags, states, patch);
+      const PatchHierarchy& hierarchy, const PatchHandle& patch) override {
+    tag_.TagCellsForRefinement(tags, states, hierarchy, patch);
   }
+
+  std::unique_ptr<TaggingStrategy> Clone() const override {
+    return std::make_unique<TaggingWrapper<T>>(tag_);
+  };
 
   T tag_;
 };
 
 struct Tagging {
+  Tagging() = default;
+
+  Tagging(const Tagging& other) : tag_(other.tag_->Clone()) {}
+  Tagging(Tagging&&) noexcept = default;
+
+  Tagging& operator=(const Tagging& other) {
+    Tagging tmp(other);
+    return *this = std::move(tmp);
+  }
+  Tagging& operator=(Tagging&&) noexcept = default;
+
   template <typename T>
   Tagging(const T& tag) : tag_{std::make_unique<TaggingWrapper<T>>(tag)} {}
   template <typename T>
@@ -66,9 +82,9 @@ struct Tagging {
   void TagCellsForRefinement(
       const PatchDataView<char, AMREX_SPACEDIM>& tags,
       const PatchDataView<const double, AMREX_SPACEDIM + 1>& states,
-      const PatchHandle& patch) {
+      const PatchHierarchy& hierarchy, const PatchHandle& patch) {
     if (tag_) {
-      return tag_->TagCellsForRefinement(tags, states, patch);
+      return tag_->TagCellsForRefinement(tags, states, hierarchy, patch);
     }
   }
 
@@ -76,19 +92,16 @@ struct Tagging {
 };
 
 template <typename Equation, typename... Tagging> struct AdaptTagging {
-  AdaptTagging(Equation equation,
-               std::shared_ptr<const PatchHierarchy> hierarchy,
-               Tagging... tagging)
-      : tagging_{std::move(tagging)...}, equation_{std::move(equation)},
-        hierarchy_{std::move(hierarchy)} {}
+  AdaptTagging(Equation equation, Tagging... tagging)
+      : tagging_{std::move(tagging)...}, equation_{std::move(equation)} {}
 
   void TagCellsForRefinement(
       const PatchDataView<char, AMREX_SPACEDIM>& tags,
       const PatchDataView<const double, AMREX_SPACEDIM + 1>& states,
-      const PatchHandle& patch) {
+      const PatchHierarchy& hierarchy, const PatchHandle& patch) {
     BasicView<const Complete<Equation>> state_view =
         MakeView<BasicView<const Complete<Equation>>>(states, equation_);
-    const ::amrex::Geometry& geom = hierarchy_->GetGeometry(patch.level);
+    const ::amrex::Geometry& geom = hierarchy.GetGeometry(patch.level);
     const ::amrex::Box& box = patch.iterator->growntilebox();
     boost::mp11::tuple_for_each(tagging_, [&](auto&& tagging) {
       tagging.TagCellsForRefinement(tags, state_view,
@@ -98,7 +111,6 @@ template <typename Equation, typename... Tagging> struct AdaptTagging {
 
   std::tuple<Tagging...> tagging_;
   Equation equation_;
-  std::shared_ptr<const PatchHierarchy> hierarchy_;
 };
 
 } // namespace amrex

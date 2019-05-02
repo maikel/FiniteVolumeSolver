@@ -41,12 +41,12 @@ GetPatchDataView(::amrex::MultiFab& multi_fab, PatchHandle patch) {
 
 PatchDataView<double, AMREX_SPACEDIM + 1>
 HyperbolicSplitIntegratorContext::GetData(PatchHandle patch) {
-  return GetPatchDataView(GetPatchHierarchy()->GetPatchLevel(patch.level).data,
+  return GetPatchDataView(GetPatchHierarchy().GetPatchLevel(patch.level).data,
                           patch);
 }
 
 ::amrex::MultiFab& HyperbolicSplitIntegratorContext::GetData(int level) {
-  return GetPatchHierarchy()->GetPatchLevel(level).data;
+  return GetPatchHierarchy().GetPatchLevel(level).data;
 }
 
 PatchDataView<double, AMREX_SPACEDIM + 1>
@@ -79,7 +79,7 @@ HyperbolicSplitIntegratorContext::GetFluxes(PatchHandle patch, Direction dir) {
 
 const ::amrex::Geometry&
 HyperbolicSplitIntegratorContext::GetGeometry(int level) const {
-  return GetPatchHierarchy()->GetGeometry(level);
+  return GetPatchHierarchy().GetGeometry(level);
 }
 
 Duration HyperbolicSplitIntegratorContext::GetTimePoint(int level,
@@ -113,29 +113,84 @@ void HyperbolicSplitIntegratorContext::SetCycles(std::ptrdiff_t cycles,
 double HyperbolicSplitIntegratorContext::GetDx(PatchHandle patch,
                                                Direction dir) const {
   const int d = int(dir);
-  return GetPatchHierarchy()->GetGeometry(patch.level).CellSize(d);
+  return GetPatchHierarchy().GetGeometry(patch.level).CellSize(d);
+}
+
+HyperbolicSplitIntegratorContext::LevelData&
+HyperbolicSplitIntegratorContext::LevelData::
+operator=(LevelData&& other) noexcept {
+  if (other.coarse_fine.fineLevel() > 0) {
+    coarse_fine.clear();
+    coarse_fine.define(scratch[0].boxArray(), scratch[0].DistributionMap(),
+                       other.coarse_fine.refRatio(),
+                       other.coarse_fine.fineLevel(),
+                       other.coarse_fine.nComp());
+  }
+  scratch = std::move(other.scratch);
+  fluxes = std::move(other.fluxes);
+  time_point = other.time_point;
+  regrid_time_point = other.regrid_time_point;
+  cycles = other.cycles;
+  return *this;
 }
 
 HyperbolicSplitIntegratorContext::HyperbolicSplitIntegratorContext(
-    std::shared_ptr<GriddingAlgorithm> gridding, int gcw)
+    const GriddingAlgorithm& gridding, int gcw)
+    : ghost_cell_width_{gcw + 1}, gridding_{gridding},
+      data_(static_cast<std::size_t>(
+          GetPatchHierarchy().GetMaxNumberOfLevels())) {
+  ResetHierarchyConfiguration();
+}
+
+HyperbolicSplitIntegratorContext::HyperbolicSplitIntegratorContext(
+    GriddingAlgorithm&& gridding, int gcw)
     : ghost_cell_width_{gcw + 1}, gridding_{std::move(gridding)},
       data_(static_cast<std::size_t>(
-          GetPatchHierarchy()->GetMaxNumberOfLevels())) {
+          GetPatchHierarchy().GetMaxNumberOfLevels())) {
   ResetHierarchyConfiguration();
+}
+
+HyperbolicSplitIntegratorContext::HyperbolicSplitIntegratorContext(
+    const HyperbolicSplitIntegratorContext& other)
+    : ghost_cell_width_{other.ghost_cell_width_}, gridding_{other.gridding_},
+      data_(static_cast<std::size_t>(
+          GetPatchHierarchy().GetMaxNumberOfLevels())) {
+  // Allocate data arrays
+  ResetHierarchyConfiguration();
+  // Copy relevant data
+  std::size_t n_levels =
+      static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels());
+  for (std::size_t i = 0; i < n_levels; ++i) {
+    data_[i].cycles = other.data_[i].cycles;
+    data_[i].time_point = other.data_[i].time_point;
+    data_[i].regrid_time_point = other.data_[i].regrid_time_point;
+  }
+}
+
+HyperbolicSplitIntegratorContext&
+HyperbolicSplitIntegratorContext::HyperbolicSplitIntegratorContext::
+operator=(const HyperbolicSplitIntegratorContext& other) {
+  // We use the copy and move idiom to provide the strong exception guarantee.
+  // If an exception occurs we do not change the original object.
+  HyperbolicSplitIntegratorContext tmp{other};
+  return (*this = std::move(tmp));
 }
 
 void HyperbolicSplitIntegratorContext::ResetHierarchyConfiguration(
     int first_level) {
   const int n_cons_components =
-      GetPatchHierarchy()->GetDataDescription().n_cons_components;
-  const int n_levels = GetPatchHierarchy()->GetMaxNumberOfLevels();
+      GetPatchHierarchy().GetDataDescription().n_cons_components;
+  const int n_levels = GetPatchHierarchy().GetMaxNumberOfLevels();
   for (int level = first_level; level < n_levels; ++level) {
     LevelData& data = data_[static_cast<std::size_t>(level)];
-    const ::amrex::MultiFab& base =
-        GetPatchHierarchy()->GetPatchLevel(level).data;
-    const ::amrex::BoxArray& ba = base.boxArray();
-    const ::amrex::DistributionMapping& dm = base.DistributionMap();
-    const int n_comp = base.nComp();
+    const ::amrex::BoxArray& ba =
+        GetPatchHierarchy().GetPatchLevel(level).box_array;
+    const ::amrex::DistributionMapping& dm =
+        GetPatchHierarchy().GetPatchLevel(level).distribution_mapping;
+    const int n_comp =
+        GetPatchHierarchy().GetDataDescription().n_state_components;
+    // We need to allocate data for each dimensions because of
+    // amrex::FluxBoundary::OverwriteFlux.
     for (std::size_t d = 0; d < static_cast<std::size_t>(AMREX_SPACEDIM); ++d) {
       const ::amrex::IntVect unit =
           ::amrex::IntVect::TheDimensionVector(int(d));
@@ -144,7 +199,8 @@ void HyperbolicSplitIntegratorContext::ResetHierarchyConfiguration(
                             1 * unit);
     }
     if (level > 0) {
-      const ::amrex::IntVect ref_ratio = 2 * ::amrex::IntVect::TheUnitVector();
+      const ::amrex::IntVect ref_ratio =
+          GetPatchHierarchy().GetRatioToCoarserLevel(level);
       data.coarse_fine.clear();
       data.coarse_fine.define(ba, dm, ref_ratio, level, n_cons_components);
     }
@@ -192,11 +248,15 @@ void HyperbolicSplitIntegratorContext::CoarsenConservatively(int fine_level,
                                                              int coarse_level,
                                                              Direction dir) {
   const int first =
-      GetPatchHierarchy()->GetDataDescription().first_cons_component;
-  const int size = GetPatchHierarchy()->GetDataDescription().n_cons_components;
-  ::amrex::average_down(GetScratch(fine_level, dir),
-                        GetScratch(coarse_level, dir), GetGeometry(fine_level),
-                        GetGeometry(coarse_level), first, size, 2);
+      GetPatchHierarchy().GetDataDescription().first_cons_component;
+  const int size = GetPatchHierarchy().GetDataDescription().n_cons_components;
+  const ::amrex::MultiFab& fine = GetScratch(fine_level, dir);
+  ::amrex::MultiFab& coarse = GetScratch(coarse_level, dir);
+  FUB_ASSERT(!fine.contains_nan());
+  FUB_ASSERT(!coarse.contains_nan());
+  ::amrex::average_down(fine, coarse, GetGeometry(fine_level),
+                        GetGeometry(coarse_level), first, size,
+                        GetRatioToCoarserLevel(fine_level));
 }
 
 namespace {
@@ -210,13 +270,26 @@ constexpr std::ptrdiff_t ipow(int base, int exponent) {
 }
 } // namespace
 
+int HyperbolicSplitIntegratorContext::GetRatioToCoarserLevel(
+    int level, Direction dir) const noexcept {
+  return GetPatchHierarchy().GetRatioToCoarserLevel(level, dir);
+}
+
+::amrex::IntVect
+HyperbolicSplitIntegratorContext::GetRatioToCoarserLevel(int level) const
+    noexcept {
+  return GetPatchHierarchy().GetRatioToCoarserLevel(level);
+}
+
 void HyperbolicSplitIntegratorContext::AccumulateCoarseFineFluxes(int level,
                                                                   Direction dir,
                                                                   Duration) {
   if (level > 0) {
     const ::amrex::MultiFab& fluxes = GetFluxes(level, dir);
+    const int dim = GetPatchHierarchy().GetDataDescription().dimension;
     const double scale =
-        1.0 / static_cast<double>(ipow(GetRatioToCoarserLevel(level), AMREX_SPACEDIM));
+        1.0 /
+        static_cast<double>(ipow(GetRatioToCoarserLevel(level, dir), dim));
     data_[static_cast<std::size_t>(level)].coarse_fine.FineAdd(
         fluxes, int(dir), 0, 0, fluxes.nComp(), scale);
   }
@@ -239,7 +312,7 @@ void HyperbolicSplitIntegratorContext::ResetCoarseFineFluxes(int fine,
 void HyperbolicSplitIntegratorContext::ApplyFluxCorrection(int fine, int coarse,
                                                            Duration,
                                                            Direction) {
-  const int ncomp = GetPatchHierarchy()->GetDataDescription().n_cons_components;
+  const int ncomp = GetPatchHierarchy().GetDataDescription().n_cons_components;
   const ::amrex::Geometry& cgeom = GetGeometry(coarse);
   std::array<::amrex::MultiFab*, AMREX_SPACEDIM> crse_fluxes{AMREX_D_DECL(
       &GetFluxes(coarse, Direction::X), &GetFluxes(coarse, Direction::Y),
@@ -266,7 +339,7 @@ void HyperbolicSplitIntegratorContext::PreAdvanceLevel(int level_num,
   const std::size_t l = static_cast<std::size_t>(level_num);
   if (subcycle == 0 && level_num > 0 &&
       data_[l].regrid_time_point[d] != data_[l].time_point[d]) {
-    gridding_->RegridAllFinerlevels(level_num - 1);
+    gridding_.RegridAllFinerlevels(level_num - 1);
     for (std::size_t lvl = l; lvl < data_.size(); ++lvl) {
       data_[lvl].regrid_time_point[d] = data_[lvl].time_point[d];
     }
@@ -280,18 +353,27 @@ void HyperbolicSplitIntegratorContext::PostAdvanceLevel(int level_num,
                                                         Duration dt, int) {
   SetCycles(GetCycles(level_num, dir) + 1, level_num, dir);
   SetTimePoint(GetTimePoint(level_num, dir) + dt, level_num, dir);
-  GetPatchHierarchy()->GetPatchLevel(level_num).time_point =
+  GetPatchHierarchy().GetPatchLevel(level_num).time_point =
       GetTimePoint(level_num, dir);
-  GetPatchHierarchy()->GetPatchLevel(level_num).cycles =
+  GetPatchHierarchy().GetPatchLevel(level_num).cycles =
       GetCycles(level_num, dir);
 }
 
 BoundaryCondition
 HyperbolicSplitIntegratorContext::GetBoundaryCondition(int level) const {
   const GriddingAlgorithm::BoundaryCondition& fn =
-      gridding_->GetBoundaryCondition();
-  BoundaryCondition bc(fn, GetGeometry(level), level);
+      gridding_.GetBoundaryCondition();
+  BoundaryCondition bc(fn, GetGeometry(level), level, GetPatchHierarchy());
   return bc;
+}
+
+PatchHierarchy& HyperbolicSplitIntegratorContext::GetPatchHierarchy() noexcept {
+  return gridding_.GetPatchHierarchy();
+}
+
+const PatchHierarchy&
+HyperbolicSplitIntegratorContext::GetPatchHierarchy() const noexcept {
+  return gridding_.GetPatchHierarchy();
 }
 
 } // namespace amrex

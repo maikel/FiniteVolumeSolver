@@ -119,6 +119,15 @@ using ConservativeBase =
     boost::mp11::mp_transform<DepthToStateValueType,
                               typename Equation::ConservativeDepths>;
 
+template <typename Eq> struct Conservative;
+template <typename Eq> struct Complete;
+
+template <typename Equation>
+void InitializeState(const Equation&, const Conservative<Equation>&) {}
+
+template <typename Equation>
+void InitializeState(const Equation&, const Complete<Equation>&) {}
+
 /// This type has a constructor which takes an equation and might allocate any
 /// dynamically sized member variable.
 template <typename Eq> struct Conservative : ConservativeBase<Eq> {
@@ -130,7 +139,9 @@ template <typename Eq> struct Conservative : ConservativeBase<Eq> {
   Conservative& operator=(const ConservativeBase<Eq>& x) {
     static_cast<ConservativeBase<Eq>&>(*this) = x;
   }
-  Conservative(const Equation&) : ConservativeBase<Eq>{} {}
+  Conservative(const Equation& eq) : ConservativeBase<Eq>{} {
+    InitializeState(eq, *this);
+  }
 };
 
 template <typename Eq>
@@ -153,7 +164,9 @@ template <typename Eq> struct Complete : CompleteBase<Eq> {
   Complete& operator=(const CompleteBase<Eq>& x) {
     static_cast<CompleteBase<Eq>&>(*this) = x;
   }
-  Complete(const Equation&) : CompleteBase<Eq>{} {}
+  Complete(const Equation& eq) : CompleteBase<Eq>{} {
+    InitializeState(eq, *this);
+  }
 };
 
 template <typename Eq>
@@ -312,14 +325,14 @@ template <typename T> struct GetNumberOfComponentsImpl {
   int_constant<1> operator()(double) const noexcept { return {}; }
 
   template <int N, int M>
-  int_constant<N> operator()(const Eigen::Array<double, N, M>) const noexcept {
+  int_constant<N> operator()(const Eigen::Array<double, N, M>&) const noexcept {
     return {};
   }
 
   template <int M>
-  int operator()(const Eigen::Array<double, Eigen::Dynamic, M> x) const
+  int operator()(const Eigen::Array<double, Eigen::Dynamic, M>& x) const
       noexcept {
-    return x.cols();
+    return static_cast<int>(x.rows());
   }
 };
 
@@ -358,12 +371,12 @@ template <typename T> struct AtComponentImpl {
 
   template <int N, int M>
   auto operator()(Eigen::Array<double, N, M>& x, int n) const noexcept {
-    return x.col(n);
+    return x.row(n);
   }
 
   template <int N, int M>
   auto operator()(const Eigen::Array<double, N, M>& x, int n) const noexcept {
-    return x.col(n);
+    return x.row(n);
   }
 };
 
@@ -530,6 +543,13 @@ View<T, Rank> Slice(const BasicView<T, L, Rank>& view, SliceSpecifier slice) {
   ForEachVariable<remove_cvref_t<T>>(
       [&](auto& s, auto v) { s = Slice<dir>(v, slice); }, sliced_view, view);
   return sliced_view;
+}
+
+template <typename Equation>
+bool AnyNaN(const Complete<Equation>& state) {
+  bool any_nan = false;
+  ForEachComponent<Complete<Equation>>([&any_nan](double x) { any_nan |= std::isnan(x); }, state);
+  return any_nan;
 }
 
 } // namespace fub

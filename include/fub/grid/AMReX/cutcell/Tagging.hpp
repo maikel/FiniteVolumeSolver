@@ -33,23 +33,79 @@ namespace fub {
 namespace amrex {
 namespace cutcell {
 
-template <typename Equation, typename... Tagging> struct AdaptTagging {
-  AdaptTagging(Equation equation,
-               std::shared_ptr<const PatchHierarchy> hierarchy,
-               Tagging... tagging)
-      : tagging_{std::move(tagging)...}, equation_{std::move(equation)},
-        hierarchy_{std::move(hierarchy)} {}
+struct TaggingStrategy {
+  virtual ~TaggingStrategy() = default;
+  virtual std::unique_ptr<TaggingStrategy> Clone() const = 0;
+  virtual void TagCellsForRefinement(
+      const PatchDataView<char, AMREX_SPACEDIM>& tags,
+      const PatchDataView<const double, AMREX_SPACEDIM + 1>& states,
+      const PatchHierarchy& hierarchy, const PatchHandle& patch) = 0;
+};
+
+template <typename T> struct TaggingWrapper : public TaggingStrategy {
+  TaggingWrapper(const T& tag) : tag_{tag} {}
+  TaggingWrapper(T&& tag) : tag_{std::move(tag)} {}
 
   void TagCellsForRefinement(
       const PatchDataView<char, AMREX_SPACEDIM>& tags,
       const PatchDataView<const double, AMREX_SPACEDIM + 1>& states,
+      const PatchHierarchy& hierarchy, const PatchHandle& patch) override {
+    tag_.TagCellsForRefinement(tags, states, hierarchy, patch);
+  }
+
+  std::unique_ptr<TaggingStrategy> Clone() const override {
+    return std::make_unique<TaggingWrapper<T>>(tag_);
+  };
+
+  T tag_;
+};
+
+struct Tagging {
+  Tagging() = default;
+
+  Tagging(const Tagging& other) : tag_(other.tag_->Clone()) {}
+  Tagging(Tagging&&) noexcept = default;
+
+  Tagging& operator=(const Tagging& other) {
+    Tagging tmp(other);
+    return *this = std::move(tmp);
+  }
+  Tagging& operator=(Tagging&&) noexcept = default;
+
+  template <typename T>
+  Tagging(const T& tag) : tag_{std::make_unique<TaggingWrapper<T>>(tag)} {}
+  template <typename T>
+  Tagging(T&& tag)
+      : tag_{std::make_unique<TaggingWrapper<remove_cvref_t<T>>>(
+            std::move(tag))} {}
+
+  void TagCellsForRefinement(
+      const PatchDataView<char, AMREX_SPACEDIM>& tags,
+      const PatchDataView<const double, AMREX_SPACEDIM + 1>& states,
+      const PatchHierarchy& hierarchy, const PatchHandle& patch) {
+    if (tag_) {
+      return tag_->TagCellsForRefinement(tags, states, hierarchy, patch);
+    }
+  }
+
+  std::unique_ptr<TaggingStrategy> tag_;
+};
+
+template <typename Equation, typename... Tagging> struct AdaptTagging {
+  AdaptTagging(Equation equation, Tagging... tagging)
+      : tagging_{std::move(tagging)...}, equation_{std::move(equation)} {}
+
+  void TagCellsForRefinement(
+      const PatchDataView<char, AMREX_SPACEDIM>& tags,
+      const PatchDataView<const double, AMREX_SPACEDIM + 1>& states,
+      const PatchHierarchy& hierarchy,
       const PatchHandle& patch) {
     BasicView<const Complete<Equation>> state_view =
         MakeView<BasicView<const Complete<Equation>>>(states, equation_);
-    const ::amrex::Geometry& geom = hierarchy_->GetGeometry(patch.level);
+    const ::amrex::Geometry& geom = hierarchy.GetGeometry(patch.level);
     const ::amrex::Box& box = patch.iterator->growntilebox();
     const std::shared_ptr<::amrex::EBFArrayBoxFactory>& factory =
-        hierarchy_->GetEmbeddedBoundary(patch.level);
+        hierarchy.GetEmbeddedBoundary(patch.level);
     const auto& flags = factory->getMultiEBCellFlagFab()[*patch.iterator];
     const ::amrex::FabType type = flags.getType(box);
     if (type == ::amrex::FabType::regular) {
@@ -59,7 +115,7 @@ template <typename Equation, typename... Tagging> struct AdaptTagging {
       });
     } else if (type != ::amrex::FabType::covered) {
       FUB_ASSERT(type == ::amrex::FabType::singlevalued);
-      auto cutcell_data = hierarchy_->GetCutCellData(patch, Direction::X);
+      auto cutcell_data = hierarchy.GetCutCellData(patch, Direction::X);
       boost::mp11::tuple_for_each(tagging_, [&](auto&& tagging) {
         tagging.TagCellsForRefinement(tags, state_view, cutcell_data,
                                       GetCartesianCoordinates(geom, box));
@@ -69,7 +125,6 @@ template <typename Equation, typename... Tagging> struct AdaptTagging {
 
   std::tuple<Tagging...> tagging_;
   Equation equation_;
-  std::shared_ptr<const PatchHierarchy> hierarchy_;
 };
 
 } // namespace cutcell

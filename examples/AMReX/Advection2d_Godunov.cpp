@@ -41,11 +41,10 @@
 #include <iostream>
 
 struct CircleData {
-  std::shared_ptr<fub::amrex::PatchHierarchy> hierarchy;
-
   void InitializeData(fub::View<fub::Complete<fub::Advection2d>> states,
+                      const fub::amrex::PatchHierarchy& hierarchy,
                       fub::amrex::PatchHandle patch) const {
-    const ::amrex::Geometry& geom = hierarchy->GetGeometry(patch.level);
+    const ::amrex::Geometry& geom = hierarchy.GetGeometry(patch.level);
     const ::amrex::Box& box = patch.iterator->tilebox();
     fub::CartesianCoordinates x =
         fub::amrex::GetCartesianCoordinates(geom, box);
@@ -68,38 +67,33 @@ int main(int argc, char** argv) {
   const fub::amrex::ScopeGuard guard(argc, argv);
 
   constexpr int Dim = AMREX_SPACEDIM;
-  static_assert(AMREX_SPACEDIM == 2);
+  static_assert(AMREX_SPACEDIM >= 2);
 
-  const std::array<int, Dim> n_cells{256, 256};
+  const std::array<int, Dim> n_cells{AMREX_D_DECL(128, 128, 1)};
 
-  const std::array<double, Dim> xlower{-1.0, -1.0};
-  const std::array<double, Dim> xupper{+1.0, +1.0};
+  const std::array<double, Dim> xlower{AMREX_D_DECL(-1.0, -1.0, -1.0)};
+  const std::array<double, Dim> xupper{AMREX_D_DECL(+1.0, +1.0, -1.0)};
 
   fub::Advection2d equation{{1.0, 1.0}};
 
   fub::amrex::DataDescription desc = fub::amrex::MakeDataDescription(equation);
-
   fub::amrex::CartesianGridGeometry geometry;
   geometry.cell_dimensions = n_cells;
   geometry.coordinates = amrex::RealBox(xlower, xupper);
-  geometry.periodicity = std::array<int, 2>{1, 1};
+  geometry.periodicity = std::array<int, Dim>{AMREX_D_DECL(1, 1, 1)};
 
   fub::amrex::PatchHierarchyOptions options;
-  options.max_number_of_levels = 2;
-
-  auto hierarchy =
-      std::make_shared<fub::amrex::PatchHierarchy>(desc, geometry, options);
+  options.max_number_of_levels = 3;
 
   using State = fub::Advection2d::Complete;
-  fub::GradientDetector gradient{std::pair{&State::mass, 1e-3}};
-  fub::TagBuffer buffer{2};
+  fub::GradientDetector gradient{equation, std::pair{&State::mass, 1e-4}};
 
-  CircleData initial_data{hierarchy};
-  auto gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
-      hierarchy, fub::amrex::AdaptInitialData(initial_data, equation),
-      fub::amrex::AdaptTagging(equation, hierarchy, gradient, buffer));
-  gridding->InitializeHierarchy(0.0);
-  fub::amrex::WritePlotFile("AMReX/Advection_G_0000", *hierarchy, equation);
+  CircleData initial_data{};
+  fub::amrex::GriddingAlgorithm gridding(
+      fub::amrex::PatchHierarchy(desc, geometry, options),
+      fub::amrex::AdaptInitialData(initial_data, equation),
+      fub::amrex::AdaptTagging(equation, gradient, fub::TagBuffer(2)));
+  gridding.InitializeHierarchy(0.0);
 
   fub::HyperbolicSplitPatchIntegrator patch_integrator{equation};
   fub::GodunovMethod flux_method{equation};
@@ -111,18 +105,19 @@ int main(int argc, char** argv) {
       fub::amrex::FluxMethod(flux_method),
       fub::amrex::Reconstruction(equation)));
 
-  std::string base_name = "AMReX/Advection_G_";
+  std::string base_name = "Advection_Godunov/";
 
-  auto output = [&](auto& hierarchy, int cycle, fub::Duration) {
-    std::string name = fmt::format("{}{:04}", base_name, cycle);
+  auto output = [&](const fub::amrex::PatchHierarchy& hierarchy,
+                    std::ptrdiff_t cycle, fub::Duration) {
+    std::string name = fmt::format("{}{:05}", base_name, cycle);
     ::amrex::Print() << "Start output to '" << name << "'.\n";
-    fub::amrex::WritePlotFile(name, *hierarchy, equation);
+    fub::amrex::WritePlotFile(name, hierarchy, equation);
     ::amrex::Print() << "Finished output to '" << name << "'.\n";
   };
   auto print_msg = [](const std::string& msg) { ::amrex::Print() << msg; };
 
   using namespace std::literals::chrono_literals;
-  output(hierarchy, 0, 0s);
+  output(solver.GetPatchHierarchy(), 0, 0s);
   fub::RunOptions run_options{};
   run_options.final_time = 2.0s;
   run_options.output_interval = 2.0s;

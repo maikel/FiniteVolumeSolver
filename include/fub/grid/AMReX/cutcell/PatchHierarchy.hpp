@@ -52,8 +52,8 @@ namespace cutcell {
 /// to the normal patch level type.
 struct PatchLevel : ::fub::amrex::PatchLevel {
   PatchLevel() = default;
-  PatchLevel(const PatchLevel&) = delete;
-  PatchLevel& operator=(const PatchLevel&) = delete;
+  PatchLevel(const PatchLevel&);
+  PatchLevel& operator=(const PatchLevel&);
   PatchLevel(PatchLevel&&) noexcept = default;
   PatchLevel& operator=(PatchLevel&&) noexcept = default;
   ~PatchLevel() = default;
@@ -108,13 +108,9 @@ public:
     return static_cast<int>(patch_level_.size());
   }
 
-  int GetRatioToCoarserLevel(int level, Direction = Direction::X) const
-      noexcept {
-    if (level) {
-      return 2;
-    }
-    return 1;
-  }
+  int GetRatioToCoarserLevel(int level, Direction dir) const noexcept;
+
+  ::amrex::IntVect GetRatioToCoarserLevel(int level) const noexcept;
 
   const ::amrex::Geometry& GetGeometry(int level) const noexcept {
     FUB_ASSERT(0 <= level && level < GetMaxNumberOfLevels());

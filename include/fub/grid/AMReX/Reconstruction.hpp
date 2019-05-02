@@ -31,10 +31,12 @@ namespace amrex {
 template <typename Equation> struct Reconstruction {
   explicit Reconstruction(const Equation& eq) : equation_{eq} {}
 
+  static constexpr int Rank = Equation::Rank();
+
   template <typename Context>
   void CompleteFromCons(Context& context, PatchHandle patch, Direction dir,
                         Duration) {
-    const auto tilebox = AsIndexBox(patch.iterator->tilebox());
+    const IndexBox<Rank> tilebox = AsIndexBox<Rank>(patch.iterator->tilebox());
 
     View<Complete<Equation>> state =
         Subview(MakeView<BasicView<Complete<Equation>>>(context.GetData(patch),

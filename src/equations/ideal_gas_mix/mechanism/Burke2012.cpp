@@ -1,4 +1,4 @@
-#include "fub/ideal_gas/mechanism/Burke2012.hpp"
+#include "fub/equations/ideal_gas_mix/mechanism/Burke2012.hpp"
 
 #include <math.h>
 #include <stdio.h>
@@ -7,7 +7,6 @@
 #include <time.h>
 
 namespace fub {
-namespace ideal_gas {
 namespace {
 double getLindRateCoeff(double temp, double pressure, double k0, double kInf,
                         double fc, double conc);
@@ -520,5 +519,4 @@ double getLindRateCoeff(double temp, double pressure, double k0, double kInf,
 
 double MAX_C(double X1, double X2) { return ((X1 > X2) ? X1 : X2); }
 } // namespace
-} // namespace ideal_gas
 } // namespace fub

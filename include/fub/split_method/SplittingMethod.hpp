@@ -22,7 +22,10 @@
 #define FUB_SPLITTING_METHOD_HPP
 
 #include "fub/Duration.hpp"
+#include "fub/TimeStepError.hpp"
 #include "fub/core/function_ref.hpp"
+
+#include <boost/outcome.hpp>
 
 namespace fub {
 /// \ingroup Abstract
@@ -32,26 +35,31 @@ namespace fub {
 /// derived strategy recursively to generalize the derived splitting to N
 /// operators.
 struct SplittingMethod {
-  using AdvanceFunction = function_ref<void(Duration)>;
+  using AdvanceFunction =
+      function_ref<boost::outcome_v2::result<void, TimeStepTooLarge>(Duration)>;
 
   virtual ~SplittingMethod() = default;
 
-  template <typename F> void Advance(Duration dt, F advance) const {
-    advance(dt);
+  template <typename F>
+  boost::outcome_v2::result<void, TimeStepTooLarge> Advance(Duration dt,
+                                                            F advance) const {
+    return advance(dt);
   }
 
   /// This method recurisvely applies the base case.
   template <typename F, typename... Fs>
-  void Advance(Duration dt, AdvanceFunction advance1, AdvanceFunction advance2,
-               F advance3, Fs... advances) const {
-    Advance(dt, advance1, [&](Duration time_step_size) {
-      Advance(time_step_size, advance2, advance3, advances...);
+  boost::outcome_v2::result<void, TimeStepTooLarge>
+  Advance(Duration dt, AdvanceFunction advance1, AdvanceFunction advance2,
+          F advance3, Fs... advances) const {
+    return Advance(dt, advance1, [&](Duration time_step_size) {
+      return Advance(time_step_size, advance2, advance3, advances...);
     });
   }
 
   /// This is the base case of applying the splitting method with two operators.
-  virtual void Advance(Duration time_step_size, AdvanceFunction advance1,
-                       AdvanceFunction advance2) const = 0;
+  virtual boost::outcome_v2::result<void, TimeStepTooLarge>
+  Advance(Duration time_step_size, AdvanceFunction advance1,
+          AdvanceFunction advance2) const = 0;
 };
 
 } // namespace fub

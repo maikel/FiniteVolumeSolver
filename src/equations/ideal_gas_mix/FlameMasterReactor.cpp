@@ -19,13 +19,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/ideal_gas/FlameMasterReactor.hpp"
+#include "fub/equations/ideal_gas_mix/FlameMasterReactor.hpp"
 #include "fub/ode_solver/RadauSolver.hpp"
-
-extern "C" {
-#include "TC_defs.h"
-#include "TC_interface.h"
-}
 
 #include <algorithm>
 #include <cmath>
@@ -33,19 +28,19 @@ extern "C" {
 #include <sstream>
 
 namespace fub {
-namespace ideal_gas {
-
 namespace {
 void UpdateMassFractionsFromMoles(FlameMasterState& state) noexcept {
-  for (int i = 0; i < state.nSpecies; i++) {
+  for (std::size_t i = 0; i < static_cast<std::size_t>(state.nSpecies); i++) {
+    const std::ptrdiff_t j = static_cast<std::ptrdiff_t>(i);
     state.massFractions[i] =
-        state.moles[i] * state.molarMasses[i] / state.density;
+        state.moles[j] * state.molarMasses[i] / state.density;
   }
 }
 
 void UpdateMolesFromMassFractions(FlameMasterState& state) noexcept {
-  for (int i = 0; i < state.nSpecies; i++) {
-    state.moles[i] =
+  for (std::size_t i = 0; i < static_cast<std::size_t>(state.nSpecies); i++) {
+    const std::ptrdiff_t j = static_cast<std::ptrdiff_t>(i);
+    state.moles[j] =
         state.massFractions[i] * state.density / state.molarMasses[i];
   }
 }
@@ -78,8 +73,10 @@ int OdeRhsAdvance(double /* t */, span<const double> XD, span<double> Xdot,
   // We need to work in a local variable rather than in XD, because
   // the QSS code might alter XD beyond its size (nSpecies), assuming it
   // had space for nSpeciesEffective
-  int size = XD.size() - 1;
-  span<double> concentrations((double*)alloca(sizeof(double) * size), size);
+  FUB_ASSERT(XD.size() > 0);
+  std::size_t size = static_cast<std::size_t>(XD.size() - 1);
+  span<double> concentrations((double*)alloca(sizeof(double) * size),
+                              static_cast<std::ptrdiff_t>(size));
   std::copy(XD.begin() + 1, XD.end(), concentrations.begin());
 
   // Compute the pressure from the ideal gas law
@@ -143,50 +140,45 @@ int OdeRhsSetP(span<double> dydp, span<const double> y, double p,
   // We integrate dH/dp = V <=> dT = 1/cp 1/rho dp from p0 to the desired value
   // of p
   // Reset to stored temperature
-  reactor.setTemperature(y[0]);
+  reactor.SetTemperature(y[0]);
 
   // Calculate derivative
-  reactor.setPressure(p);
-  double cp_rho = reactor.getDensity() * reactor.getCp();
+  reactor.SetPressure(p);
+  double cp_rho = reactor.GetDensity() * reactor.GetCp();
   dydp[0] = 1. / cp_rho;
 
   // Also integrate velocity du = -sqrt(1/(gamma p rho)) dp
-  dydp[1] = -std::sqrt(reactor.getCv() / (cp_rho * p));
+  dydp[1] = -std::sqrt(reactor.GetCv() / (cp_rho * p));
 
   return 0;
 }
 
 void setEnergiesHOrU(FlameMasterReactor& reactor, double target, double dTtol,
                      bool HOrU) {
-  double dT;
+  double dT{};
 
-  double Tnew = reactor.getTemperature();
-  double Unew = HOrU ? reactor.getEnthalpy() : reactor.getInternalEnergy();
-  double Cvnew = HOrU ? reactor.getCp() : reactor.getCv();
+  double Tnew = reactor.GetTemperature();
+  double Unew = HOrU ? reactor.GetEnthalpy() : reactor.GetInternalEnergy();
+  double Cvnew = HOrU ? reactor.GetCp() : reactor.GetCv();
 
   double Utop = Unew;
   double Ubot = Unew;
-  double Uold = Unew;
   double Ttop = Tnew;
   double Tbot = Tnew;
-  double Told = Tnew;
 
   bool unstablePhase = false;
-  double Tunstable = -1;
-
-  double UConvErr;
+  double UConvErr{};
 
   // Newton iteration
   // This is exactly like Cantera's setState_UV implementation,
   // except that we do not check for upper/lower temperature limits
   for (int i = 0; i < 1000; i++) {
-    Told = Tnew;
-    Uold = Unew;
+    const double Told = Tnew;
+    const double Uold = Unew;
 
     double cvd = Cvnew;
     if (cvd < 0) {
       unstablePhase = true;
-      Tunstable = Tnew;
     }
 
     dT = std::max(-100., std::min(100., (target - Uold) / cvd));
@@ -207,13 +199,12 @@ void setEnergiesHOrU(FlameMasterReactor& reactor, double target, double dTtol,
     // with cv > 0
     for (int its = 0; its < 10; its++) {
       Tnew = Told + dT;
-      reactor.setTemperature(Tnew);
+      reactor.SetTemperature(Tnew);
 
-      Unew = HOrU ? reactor.getEnthalpy() : reactor.getInternalEnergy();
-      Cvnew = HOrU ? reactor.getCp() : reactor.getCv();
+      Unew = HOrU ? reactor.GetEnthalpy() : reactor.GetInternalEnergy();
+      Cvnew = HOrU ? reactor.GetCp() : reactor.GetCv();
 
       if (Cvnew < 0) {
-        Tunstable = Tnew;
         dT *= .25;
       } else {
         break;
@@ -244,7 +235,7 @@ void setEnergiesHOrU(FlameMasterReactor& reactor, double target, double dTtol,
   errInfo << "Failed to converge to given " << (HOrU ? "enthalpy" : "energy")
           << ". Missed target " << target << "J/m^3 by "
           << (target -
-              (HOrU ? reactor.getEnthalpy() : reactor.getInternalEnergy()))
+              (HOrU ? reactor.GetEnthalpy() : reactor.GetInternalEnergy()))
           << "J/m^3 (relerr = " << UConvErr
           << "). Stopped Newton iteration with dT = " << dT << ".";
 
@@ -267,32 +258,36 @@ FlameMasterReactor::FlameMasterReactor(const FlameMasterMechanism& mechanism)
   // Allocate memory for the mass fractions and mole count
   // We store the temperature at the beginning of that vector such that we can
   // pass it directly to the ODE solver
-  state_.massFractions.resize(state_.nSpecies);
-  state_.molesStorage.resize(state_.nSpeciesEffective + 1);
+  state_.massFractions.resize(static_cast<std::size_t>(state_.nSpecies));
+  state_.molesStorage.resize(
+      static_cast<std::size_t>(state_.nSpeciesEffective + 1));
   state_.temperature = state_.molesStorage.data();
   state_.moles = make_span(state_.molesStorage).subspan(1);
 
   // Computational space for calls to the chemistry implementation
-  state_.production_rates.resize(state_.nSpeciesEffective);
-  state_.reaction_rates.resize(state_.nReactions);
-  state_.rate_coefficients.resize(state_.nReactions);
-  state_.third_body_concentrations.resize(state_.nThirdBodyReactions);
-  state_.enthalpies.resize(state_.nSpeciesEffective);
-  state_.heat_capacities_at_constant_pressure.resize(state_.nSpeciesEffective);
-  state_.entropies.resize(state_.nSpeciesEffective);
+  state_.production_rates.resize(
+      static_cast<std::size_t>(state_.nSpeciesEffective));
+  state_.reaction_rates.resize(static_cast<std::size_t>(state_.nReactions));
+  state_.rate_coefficients.resize(static_cast<std::size_t>(state_.nReactions));
+  state_.third_body_concentrations.resize(
+      static_cast<std::size_t>(state_.nThirdBodyReactions));
+  state_.enthalpies.resize(static_cast<std::size_t>(state_.nSpeciesEffective));
+  state_.heat_capacities_at_constant_pressure.resize(
+      static_cast<std::size_t>(state_.nSpeciesEffective));
+  state_.entropies.resize(static_cast<std::size_t>(state_.nSpeciesEffective));
 
   // Load the names of the species
   state_.speciesNames = mechanism_->getSpeciesNames();
 
   // get the molar masses of the species
-  state_.molarMasses.resize(state_.nSpeciesEffective);
+  state_.molarMasses.resize(static_cast<std::size_t>(state_.nSpeciesEffective));
   mechanism_->getMolarMass(state_.molarMasses);
 
   // Initialize the state with something quite boring.
   state_.massFractions[0] = 1;
   UpdateMolesFromMassFractions(state_);
-  setTemperature(300.);
-  setPressure(101325.);
+  SetTemperature(300.);
+  SetPressure(101325.);
 
   UpdateThermoState(*mechanism_, state_);
 }
@@ -309,6 +304,22 @@ FlameMasterReactor::FlameMasterReactor(FlameMasterReactor&& other) noexcept
       ode_solver_(std::move(other.ode_solver_)) {
   state_.temperature = state_.molesStorage.data();
   state_.moles = make_span(state_.molesStorage).subspan(1);
+}
+
+FlameMasterReactor& FlameMasterReactor::
+operator=(FlameMasterReactor&& other) noexcept {
+  mechanism_ = std::move(other.mechanism_);
+  state_ = std::move(other.state_);
+  ode_solver_ = std::move(other.ode_solver_);
+  state_.temperature = state_.molesStorage.data();
+  state_.moles = make_span(state_.molesStorage).subspan(1);
+  return *this;
+}
+
+FlameMasterReactor& FlameMasterReactor::
+operator=(const FlameMasterReactor& other) {
+  FlameMasterReactor tmp(other);
+  return *this = std::move(tmp);
 }
 
 struct AdvanceSystem {
@@ -328,13 +339,13 @@ struct AdvanceFeedback {
     // if (y.data() != state->molesStorage.data()) {
     // FUB_ASSERT(y.size() == state->molesStorage.size());
     // reactor->setMoleFractions(y.subspan(1));
-    // reactor->setTemperature(y[0]);
+    // reactor->SetTemperature(y[0]);
     // }
     feedback(y, t, reactor);
   }
 };
 
-void FlameMasterReactor::advance(double dt) {
+void FlameMasterReactor::Advance(double dt) {
   if (dt == 0) {
     return;
   }
@@ -350,7 +361,7 @@ void FlameMasterReactor::advance(double dt) {
   UpdateMassFractionsFromMoles(state_);
 }
 
-void FlameMasterReactor::advance(
+void FlameMasterReactor::Advance(
     double dt,
     function_ref<void(span<const double>, double, FlameMasterReactor*)>
         feedback) {
@@ -377,7 +388,7 @@ struct AdvanceAndFindMaxdTData {
   double argmaxdT;
 };
 
-double FlameMasterReactor::advanceAndFindMaxdT(double dt) {
+double FlameMasterReactor::AdvanceAndFindMaxdT(double dt) {
   struct AdvanceAndFindMaxdT {
     AdvanceAndFindMaxdTData* data;
 
@@ -392,7 +403,7 @@ double FlameMasterReactor::advanceAndFindMaxdT(double dt) {
       }
     }
   };
-  AdvanceAndFindMaxdTData data{0., getTemperature(), -9000, -1};
+  AdvanceAndFindMaxdTData data{0., GetTemperature(), -9000, -1};
 
   // Do the actual computation
   ode_solver_->Integrate(AdvanceSystem{this, &state_},
@@ -410,41 +421,41 @@ double FlameMasterReactor::advanceAndFindMaxdT(double dt) {
 // getters and setters
 //
 
-span<const double> FlameMasterReactor::getMoleFractions() {
+span<const double> FlameMasterReactor::GetMoleFractions() {
   UpdateMolesFromMassFractions(state_);
   return span<const double>(state_.molesStorage).subspan(1);
 }
 
-span<const double> FlameMasterReactor::getCps() const {
+span<const double> FlameMasterReactor::GetCps() const {
   return state_.heat_capacities_at_constant_pressure;
 }
 
-double FlameMasterReactor::getEnthalpy() const {
+double FlameMasterReactor::GetEnthalpy() const {
   return MeanY(state_.enthalpies);
 }
 
-span<const double> FlameMasterReactor::getEnthalpies() {
-  UpdateThermoState(*mechanism_, state_, getTemperature());
+span<const double> FlameMasterReactor::GetEnthalpies() {
+  UpdateThermoState(*mechanism_, state_, GetTemperature());
   return state_.enthalpies;
 }
 
-double FlameMasterReactor::getCp() const {
+double FlameMasterReactor::GetCp() const {
   return MeanY(state_.heat_capacities_at_constant_pressure);
 }
 
-double FlameMasterReactor::getCv() const {
-  return getCp() - getUniversalGasConstant() / getMeanMolarMass();
+double FlameMasterReactor::GetCv() const {
+  return GetCp() - GetUniversalGasConstant() / GetMeanMolarMass();
 }
 
-double FlameMasterReactor::getMeanMolarMass() const {
+double FlameMasterReactor::GetMeanMolarMass() const {
   double minv = 0;
-  for (int i = 0; i < state_.nSpecies; i++) {
+  for (std::size_t i = 0; i < static_cast<std::size_t>(state_.nSpecies); i++) {
     minv += state_.massFractions[i] / state_.molarMasses[i];
   }
   return 1 / minv;
 }
 
-double FlameMasterReactor::getEntropy() const {
+double FlameMasterReactor::GetEntropy() const {
   span<const double> s = state_.entropies;
   if (s[0] == 0) {
     throw FlameMasterReactorException(
@@ -457,10 +468,10 @@ double FlameMasterReactor::getEntropy() const {
   //  c_p dT = T dS + RT/p dP
   // Also, there is entropy of mixing.
 
-  const double meanM = getMeanMolarMass();
-  const double R = getUniversalGasConstant();
+  const double meanM = GetMeanMolarMass();
+  const double R = GetUniversalGasConstant();
   // Initialize entropy with the pressure part
-  double entropy = MeanY(s) - R * std::log(getPressure() / 101325.) / meanM;
+  double entropy = MeanY(s) - R * std::log(GetPressure() / 101325.) / meanM;
 
   // Sum up the species' entropies and entropy of mixing
   double inv = 0;
@@ -472,25 +483,25 @@ double FlameMasterReactor::getEntropy() const {
     moleSum += state_.moles[i];
   }
   inv = inv / moleSum - std::log(moleSum);
-  entropy -= getUniversalGasConstant() * inv / meanM;
+  entropy -= GetUniversalGasConstant() * inv / meanM;
   return entropy;
 }
 
-void FlameMasterReactor::setEnthalpy(double enthalpy, double dTtol) {
+void FlameMasterReactor::SetEnthalpy(double enthalpy, double dTtol) {
   setEnergiesHOrU(*this, enthalpy, dTtol, true);
 }
 
-double FlameMasterReactor::getInternalEnergy() const {
-  double intEnergy = getEnthalpy();
+double FlameMasterReactor::GetInternalEnergy() const {
+  double intEnergy = GetEnthalpy();
   double minv = 0;
-  for (int i = 0; i < state_.nSpecies; i++) {
+  for (std::size_t i = 0; i < static_cast<std::size_t>(state_.nSpecies); i++) {
     minv += state_.massFractions[i] / state_.molarMasses[i];
   }
-  intEnergy -= getUniversalGasConstant() * minv * getTemperature();
+  intEnergy -= GetUniversalGasConstant() * minv * GetTemperature();
   return intEnergy;
 }
 
-void FlameMasterReactor::setInternalEnergy(double energy, double dTtol) {
+void FlameMasterReactor::SetInternalEnergy(double energy, double dTtol) {
   setEnergiesHOrU(*this, energy, dTtol, false);
 }
 
@@ -499,11 +510,11 @@ void FlameMasterReactor::setInternalEnergy(double energy, double dTtol) {
 //
 
 double FlameMasterReactor::MeanX(span<const double> quantity) const {
-  double meanWeight = getMeanMolarMass();
+  double meanWeight = GetMeanMolarMass();
   double retval = 0;
-  for (int i = 0; i < state_.nSpecies; i++) {
-    retval += quantity[i] * state_.massFractions[i] * meanWeight /
-              state_.molarMasses[i];
+  for (std::size_t i = 0; i < static_cast<std::size_t>(state_.nSpecies); i++) {
+    retval += quantity[static_cast<std::ptrdiff_t>(i)] *
+              state_.massFractions[i] * meanWeight / state_.molarMasses[i];
   }
   return retval;
 }
@@ -511,12 +522,12 @@ double FlameMasterReactor::MeanX(span<const double> quantity) const {
 double FlameMasterReactor::MeanY(span<const double> quantity) const {
   double retval = 0;
   for (int i = 0; i < state_.nSpecies; i++) {
-    retval += quantity[i] * state_.massFractions[i];
+    retval += quantity[i] * state_.massFractions[static_cast<std::size_t>(i)];
   }
   return retval;
 }
 
-void FlameMasterReactor::setMassFractions(std::string newMassFractions) {
+void FlameMasterReactor::SetMassFractions(std::string newMassFractions) {
   std::fill(state_.massFractions.begin(), state_.massFractions.end(), 0.0);
   std::istringstream inputParser(newMassFractions);
 
@@ -542,8 +553,9 @@ void FlameMasterReactor::setMassFractions(std::string newMassFractions) {
       inputParser.get();
 
     bool found = false;
-    for (int i = 0; i < state_.nSpecies; i++) {
-      if (speciesName == getSpeciesName(i)) {
+    for (std::size_t i = 0; i < static_cast<std::size_t>(state_.nSpecies);
+         i++) {
+      if (speciesName == GetSpeciesName(static_cast<int>(i))) {
         state_.massFractions[i] = speciesValue;
         speciesSum += speciesValue;
         found = true;
@@ -559,13 +571,13 @@ void FlameMasterReactor::setMassFractions(std::string newMassFractions) {
     throw FlameMasterReactorException("Invalid mass fraction string: " +
                                       newMassFractions);
 
-  for (int i = 0; i < state_.nSpecies; i++) {
+  for (std::size_t i = 0; i < static_cast<std::size_t>(state_.nSpecies); i++) {
     state_.massFractions[i] /= speciesSum;
   }
   UpdateMolesFromMassFractions(state_);
 }
 
-void FlameMasterReactor::setMassFractions(span<const double> fractions) {
+void FlameMasterReactor::SetMassFractions(span<const double> fractions) {
   std::transform(fractions.begin(), fractions.end(),
                  state_.massFractions.begin(),
                  [](double Y) { return std::max(0.0, Y); });
@@ -579,54 +591,48 @@ void FlameMasterReactor::setMassFractions(span<const double> fractions) {
   UpdateMolesFromMassFractions(state_);
 }
 
-void FlameMasterReactor::setTemperature(double temp) {
+void FlameMasterReactor::SetTemperature(double temp) {
   *state_.temperature = temp;
   UpdateThermoState(*mechanism_, state_, temp);
 }
 
-void FlameMasterReactor::setMoleFractions(span<const double> newMoleFractions) {
-  setMassFractions(newMoleFractions);
+void FlameMasterReactor::SetMoleFractions(span<const double> newMoleFractions) {
+  SetMassFractions(newMoleFractions);
   double totalMoles = 0.0;
-  for (int i = 0; i < state_.nSpecies; i++) {
+  for (std::size_t i = 0; i < static_cast<std::size_t>(state_.nSpecies); i++) {
     totalMoles += state_.massFractions[i] * state_.molarMasses[i];
   }
-  for (int i = 0; i < state_.nSpecies; i++) {
+  for (std::size_t i = 0; i < static_cast<std::size_t>(state_.nSpecies); i++) {
     state_.massFractions[i] *= state_.molarMasses[i] / totalMoles;
   }
   UpdateMolesFromMassFractions(state_);
 }
 
-void FlameMasterReactor::setMoleFractions(std::string newMoleFractions) {
-  setMassFractions(newMoleFractions);
+void FlameMasterReactor::SetMoleFractions(std::string newMoleFractions) {
+  SetMassFractions(newMoleFractions);
   double totalMoles = 0.0;
-  for (int i = 0; i < state_.nSpecies; i++) {
+  for (std::size_t i = 0; i < static_cast<std::size_t>(state_.nSpecies); i++) {
     totalMoles += state_.massFractions[i] * state_.molarMasses[i];
   }
-  for (int i = 0; i < state_.nSpecies; i++) {
+  for (std::size_t i = 0; i < static_cast<std::size_t>(state_.nSpecies); i++) {
     state_.massFractions[i] *= state_.molarMasses[i] / totalMoles;
   }
   UpdateMolesFromMassFractions(state_);
 }
 
-span<const double> FlameMasterReactor::getReactionRates() const {
+span<const double> FlameMasterReactor::GetReactionRates() const {
   return state_.reaction_rates;
 }
 
-span<const double> FlameMasterReactor::getProductionRates() {
-  // We need to work in a local variable rather than in XD, because
-  // the QSS code might alter XD beyond its size (nSpecies), assuming it
-  // had space for nSpeciesEffective
-
-  // Compute species' derivatives
+span<const double> FlameMasterReactor::GetProductionRates() {
   mechanism_->ComputeProductionRates(state_.production_rates,          // cdot
                                      state_.reaction_rates,            // w
                                      state_.rate_coefficients,         // k
                                      state_.moles,                     // c
                                      state_.third_body_concentrations, // M
-                                     getTemperature(), // Temperature
-                                     getPressure()     // Pressure
+                                     GetTemperature(), // Temperature
+                                     GetPressure()     // Pressure
   );
-
   return state_.production_rates;
 }
 
@@ -639,26 +645,25 @@ struct SetIsentropicPSystem {
 };
 } // namespace
 
-double FlameMasterReactor::setPressureIsentropic(double pressure) {
+double FlameMasterReactor::SetPressureIsentropic(double pressure) {
   // Do nothing if the pressures match
-  if (std::abs(pressure - getPressure()) < 1e-5) {
+  if (std::abs(pressure - GetPressure()) < 1e-5) {
     return 0;
   }
 
-  state_.setPVector[0] = getTemperature();
+  state_.setPVector[0] = GetTemperature();
   state_.setPVector[1] = 0;
 
   // Do the actual computation
   ode_solver_->Integrate(SetIsentropicPSystem{this},
-                         make_span(state_.setPVector), getPressure(),
-                         pressure - getPressure());
+                         make_span(state_.setPVector), GetPressure(),
+                         pressure - GetPressure());
 
   // Set the state of the reactor to the values from the result vector
-  setTemperature(state_.setPVector[0]);
-  setPressure(pressure);
+  SetTemperature(state_.setPVector[0]);
+  SetPressure(pressure);
 
   return state_.setPVector[1];
 }
 
-} // namespace ideal_gas
 } // namespace fub

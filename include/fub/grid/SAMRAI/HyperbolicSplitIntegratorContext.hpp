@@ -186,34 +186,6 @@ public:
       fill_ghost_two_levels_{};
   std::array<std::vector<std::shared_ptr<SAMRAI::xfer::RefineSchedule>>, 3>
       fill_ghost_single_level_{};
-
-  struct AdaptBoundaryCondition : public SAMRAI::xfer::RefinePatchStrategy {
-    AdaptBoundaryCondition(HyperbolicSplitIntegratorContext* context)
-        : condition_{}, context_{context} {}
-
-    void SetBoundaryCondition(BoundaryCondition bc) { condition_ = bc; }
-
-    void setPhysicalBoundaryConditions(
-        SAMRAI::hier::Patch& patch, double fill_time,
-        const SAMRAI::hier::IntVector& ghost_width_to_fill) override;
-
-    SAMRAI::hier::IntVector
-    getRefineOpStencilWidth(const SAMRAI::tbox::Dimension& dim) const override {
-      return SAMRAI::hier::IntVector::getZero(dim);
-    }
-
-    void preprocessRefine(SAMRAI::hier::Patch&, const SAMRAI::hier::Patch&,
-                          const SAMRAI::hier::Box&,
-                          const SAMRAI::hier::IntVector&) override {}
-
-    void postprocessRefine(SAMRAI::hier::Patch&, const SAMRAI::hier::Patch&,
-                           const SAMRAI::hier::Box&,
-                           const SAMRAI::hier::IntVector&) override {}
-
-    std::optional<BoundaryCondition> condition_;
-    HyperbolicSplitIntegratorContext* context_;
-  };
-  AdaptBoundaryCondition adapted_boundary_;
 };
 
 } // namespace samrai

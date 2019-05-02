@@ -51,9 +51,9 @@ template <typename Base> struct HyperbolicSplitPatchIntegrator : public Base {
     const double dx = context.GetDx(patch, dir);
     const int d = static_cast<int>(dir);
     const ::amrex::IntVect gcws = ::amrex::IntVect::TheDimensionVector(d);
-    const auto tilebox_cells = AsIndexBox(patch.iterator->growntilebox(gcws));
+    const auto tilebox_cells = AsIndexBox<Rank>(patch.iterator->growntilebox(gcws));
     const auto tilebox_faces =
-        AsIndexBox(patch.iterator->grownnodaltilebox(d, gcws));
+        AsIndexBox<Rank>(patch.iterator->grownnodaltilebox(d, gcws));
 
     View<Conservative> scratch = AsCons(Subview(
         MakeView<BasicView<Complete>>(context.GetScratch(patch, dir), equation),

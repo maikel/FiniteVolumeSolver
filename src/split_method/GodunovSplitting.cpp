@@ -22,11 +22,15 @@
 
 namespace fub {
 
-void GodunovSplitting::Advance(Duration time_step_size,
-                               AdvanceFunction advance1,
-                               AdvanceFunction advance2) const {
-  advance1(time_step_size);
-  advance2(time_step_size);
+boost::outcome_v2::result<void, TimeStepTooLarge>
+GodunovSplitting::Advance(Duration time_step_size, AdvanceFunction advance1,
+                          AdvanceFunction advance2) const {
+  boost::outcome_v2::result<void, TimeStepTooLarge> result =
+      advance1(time_step_size);
+  if (!result) {
+    return result.as_failure();
+  }
+  return advance2(time_step_size);
 }
 
 } // namespace fub

@@ -44,8 +44,7 @@ TEST_CASE("Load from linear memory") {
 }
 
 TEST_CASE("Load from strided memory") {
-  std::array<double, 10> xs{0, 1, 2, 3, 4, 
-                            5, 6, 7, 8, 9};
+  std::array<double, 10> xs{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
   {
     mdspan<const double, 2> mdspan(xs.data(), 5, 2);
     auto inner = subspan(mdspan, 3, all);
@@ -59,7 +58,6 @@ TEST_CASE("Load from strided memory") {
     auto inner = subspan(mdspan, 3, all);
     Store(inner, x, 0);
   }
-  std::array<double, 10> ys{0, 1, 2, 42, 4, 
-                            5, 6, 7, 24, 9};
+  std::array<double, 10> ys{0, 1, 2, 42, 4, 5, 6, 7, 24, 9};
   REQUIRE(xs == ys);
 }

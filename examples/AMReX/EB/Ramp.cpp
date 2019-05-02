@@ -83,7 +83,7 @@ int main(int argc, char** argv) {
                          _MM_MASK_OVERFLOW | _MM_MASK_UNDERFLOW |
                          _MM_MASK_INVALID);
 
-  const std::array<int, AMREX_SPACEDIM> n_cells{AMREX_D_DECL(64, 64, 1)};
+  const std::array<int, AMREX_SPACEDIM> n_cells{AMREX_D_DECL(128, 128, 1)};
   const std::array<double, AMREX_SPACEDIM> xlower{
       AMREX_D_DECL(-1.0, -1.0, -1.0)};
   const std::array<double, AMREX_SPACEDIM> xupper{
@@ -96,7 +96,7 @@ int main(int argc, char** argv) {
           {}, {AMREX_D_DECL(n_cells[0] - 1, n_cells[1] - 1, n_cells[2] - 1)}},
       &xbox, -1, periodicity.data());
 
-  const int n_level = 1;
+  const int n_level = 3;
 
   auto embedded_boundary = Plane({-1.0, +1.0});
   auto shop = amrex::EB2::makeShop(embedded_boundary);
@@ -114,9 +114,6 @@ int main(int argc, char** argv) {
   options.index_spaces =
       fub::amrex::cutcell::MakeIndexSpaces(shop, coarse_geom, n_level);
 
-  auto hierarchy = std::make_shared<fub::amrex::cutcell::PatchHierarchy>(
-      desc, geometry, options);
-
   fub::Conservative<fub::PerfectGas<2>> cons;
   cons.density = 1.0;
   cons.momentum << +1.0, -1.0;
@@ -129,48 +126,46 @@ int main(int argc, char** argv) {
   fub::CompleteFromCons(equation, left, cons);
 
   fub::amrex::cutcell::RiemannProblem initial_data(
-      hierarchy, equation, fub::Halfspace({+1.0, -1.0, 0.0}, 0.4), left, right);
+      equation, fub::Halfspace({+1.0, -1.0, 0.0}, 0.4), left, right);
 
   using State = fub::Complete<fub::PerfectGas<2>>;
-  fub::GradientDetector gradients{std::pair{&State::pressure, 0.05},
+  fub::GradientDetector gradients{equation, std::pair{&State::pressure, 0.05},
                                   std::pair{&State::density, 0.005}};
 
-  fub::TransmissiveBoundary boundary{equation};
-
   fub::HyperbolicSplitCutCellPatchIntegrator patch_integrator{equation};
-  fub::GodunovMethod muscl_method{equation};
+  fub::MusclHancockMethod muscl_method{equation};
   fub::KbnCutCellMethod cutcell_method(muscl_method);
 
-  auto gridding = std::make_shared<fub::amrex::cutcell::GriddingAlgorithm>(
-      hierarchy, fub::amrex::AdaptInitialData(initial_data, equation),
-      fub::amrex::cutcell::AdaptTagging(equation, hierarchy, fub::TagCutCells(),
-                                        gradients, fub::TagBuffer(4)),
-      boundary);
-
-  gridding->InitializeHierarchy(0.0);
+  fub::amrex::cutcell::GriddingAlgorithm gridding(
+      fub::amrex::cutcell::PatchHierarchy(desc, geometry, options),
+      fub::amrex::cutcell::AdaptInitialData(initial_data, equation),
+      fub::amrex::cutcell::AdaptTagging(equation, fub::TagCutCells(), gradients,
+                                        fub::TagBuffer(4)),
+      fub::TransmissiveBoundary(equation, right));
+  gridding.InitializeHierarchy(0.0);
 
   const int gcw = muscl_method.GetStencilWidth();
   fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
-      fub::amrex::cutcell::HyperbolicSplitIntegratorContext(gridding, gcw),
+      fub::amrex::cutcell::HyperbolicSplitIntegratorContext(std::move(gridding), gcw),
       fub::amrex::cutcell::HyperbolicSplitPatchIntegrator(patch_integrator),
       fub::amrex::cutcell::FluxMethod(cutcell_method),
       fub::amrex::cutcell::Reconstruction(equation)));
 
-  std::string base_name = "Plane/";
-  auto output = [&](auto& hierarchy, std::ptrdiff_t cycle, fub::Duration) {
+  std::string base_name = "Ramp/";
+  auto output = [&](const fub::amrex::cutcell::PatchHierarchy& hierarchy, std::ptrdiff_t cycle, fub::Duration) {
     std::string name = fmt::format("{}{:05}", base_name, cycle);
     ::amrex::Print() << "Start output to '" << name << "'.\n";
-    fub::amrex::cutcell::WritePlotFile(name, *hierarchy, equation);
+    fub::amrex::cutcell::WritePlotFile(name, hierarchy, equation);
     ::amrex::Print() << "Finished output to '" << name << "'.\n";
   };
   auto print_msg = [](const std::string& msg) { ::amrex::Print() << msg; };
 
   using namespace std::literals::chrono_literals;
-  output(hierarchy, 0, 0s);
+  output(solver.GetPatchHierarchy(), 0, 0s);
   fub::RunOptions run_options{};
   run_options.final_time = 1e4s;
   run_options.output_frequency = 1;
-  run_options.cfl = 0.5 * 0.9;
+  run_options.cfl = 0.4;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      print_msg);
 }

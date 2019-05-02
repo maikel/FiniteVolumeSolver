@@ -25,6 +25,7 @@
 #include "fub/State.hpp"
 #include "fub/grid/AMReX/PatchHierarchy.hpp"
 #include "fub/grid/AMReX/ViewFArrayBox.hpp"
+#include "fub/grid/AMReX/cutcell/PatchHierarchy.hpp"
 
 namespace fub {
 
@@ -37,18 +38,18 @@ template <typename Eq> struct TransmissiveBoundary {
   static constexpr std::size_t sRank = static_cast<std::size_t>(Rank);
 
   explicit TransmissiveBoundary(const Equation& eq) : equation_{eq} {}
+  explicit TransmissiveBoundary(const Equation& eq, const Complete& fallback) : equation_{eq}, fallback_state_{fallback} {}
 
-  void operator()(const fub::PatchDataView<double, Rank + 1>& data,
+  void operator()(const fub::PatchDataView<double, AMREX_SPACEDIM + 1>& data,
+                  const fub::amrex::PatchHierarchy&,
                   fub::amrex::PatchHandle, fub::Location location,
                   int fill_width, fub::Duration) {
     fub::BasicView<Complete> complete =
         fub::amrex::MakeView<fub::BasicView<Complete>>(data, equation_);
-    fub::IndexBox<Rank + 1> box = data.Box();
+    fub::IndexBox<Rank> box = Box<0>(complete);
     FUB_ASSERT(location.side == 0 || location.side == 1);
-    std::array<std::ptrdiff_t, sRank> lower;
-    std::copy_n(box.lower.begin(), Rank, lower.begin());
-    std::array<std::ptrdiff_t, sRank> upper;
-    std::copy_n(box.upper.begin(), Rank, upper.begin());
+    std::array<std::ptrdiff_t, sRank> lower = box.lower;
+    std::array<std::ptrdiff_t, sRank> upper = box.upper;
     if (location.side == 0) {
       upper[location.direction] = lower[location.direction] + fill_width;
       const fub::IndexBox<Rank> fill_box{lower, upper};
@@ -73,8 +74,51 @@ template <typename Eq> struct TransmissiveBoundary {
     }
   }
 
+  void operator()(const fub::PatchDataView<double, AMREX_SPACEDIM + 1>& data,
+                  const fub::amrex::cutcell::PatchHierarchy&,
+                  fub::amrex::PatchHandle, fub::Location location,
+                  int fill_width, fub::Duration) {
+    fub::BasicView<Complete> complete =
+    fub::amrex::MakeView<fub::BasicView<Complete>>(data, equation_);
+    fub::IndexBox<Rank> box = Box<0>(complete);
+    FUB_ASSERT(location.side == 0 || location.side == 1);
+    std::array<std::ptrdiff_t, sRank> lower = box.lower;
+    std::array<std::ptrdiff_t, sRank> upper = box.upper;
+    if (location.side == 0) {
+      upper[location.direction] = lower[location.direction] + fill_width;
+      const fub::IndexBox<Rank> fill_box{lower, upper};
+      fub::ForEachIndex(fill_box, [&](auto... is) {
+        const std::array<std::ptrdiff_t, sRank> dest_index{is...};
+        std::array<std::ptrdiff_t, sRank> source_index = dest_index;
+        source_index[location.direction] = upper[location.direction];
+        Load(state_, AsConst(complete), source_index);
+        if (!AnyNaN(state_)) {
+          Store(complete, state_, dest_index);
+        } else {
+          Store(complete, fallback_state_, dest_index);
+        }
+      });
+    } else {
+      lower[location.direction] = upper[location.direction] - fill_width;
+      const fub::IndexBox<Rank> fill_box{lower, upper};
+      fub::ForEachIndex(fill_box, [&](auto... is) {
+        const std::array<std::ptrdiff_t, sRank> dest_index{is...};
+        std::array<std::ptrdiff_t, sRank> source_index = dest_index;
+        source_index[location.direction] =
+        upper[location.direction] - fill_width - 1;
+        Load(state_, AsConst(complete), source_index);
+        if (!AnyNaN(state_)) {
+          Store(complete, state_, dest_index);
+        } else {
+          Store(complete, fallback_state_, dest_index);
+        }
+      });
+    }
+  }
+
   Equation equation_;
   Complete state_{equation_};
+  Complete fallback_state_{equation_};
 };
 
 } // namespace fub

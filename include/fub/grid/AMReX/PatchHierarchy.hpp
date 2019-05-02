@@ -25,11 +25,12 @@
 #include "fub/Equation.hpp"
 #include "fub/ext/Eigen.hpp"
 #include "fub/grid/AMReX/CartesianGridGeometry.hpp"
+#include "fub/grid/AMReX/MultiFab.hpp"
 #include "fub/grid/AMReX/PatchHandle.hpp"
 
 #include <AMReX_FluxRegister.H>
 #include <AMReX_Geometry.H>
-#include <AMReX_MultiFab.H>
+
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_PlotFileUtil.H>
 #include <AMReX_VisMF.H>
@@ -43,18 +44,33 @@ namespace amrex {
 
 struct PatchHierarchyOptions {
   int max_number_of_levels{1};
+  ::amrex::IntVect refine_ratio{AMREX_D_DECL(2, 2, 2)};
 };
 
+/// \brief The PatchLevel represents a distributed grid containing plain
+/// simulation data without a ghost cell layer.
+///
+/// Copying a patch level object will deeply copy the data and creates a new
+/// independent patch level. This includes making duplicate objects of box array
+/// and distribution mapping and modifying the copy will not affect the original
+/// patch level in any way.
 struct PatchLevel {
   PatchLevel() = default;
+  ~PatchLevel() noexcept = default;
 
-  PatchLevel(const PatchLevel&) = delete;
-  PatchLevel& operator=(const PatchLevel&) = delete;
+  /// \brief Creates a independent copy of the patch level.
+  PatchLevel(const PatchLevel& other);
 
-  PatchLevel(PatchLevel&&) noexcept = default;
-  PatchLevel& operator=(PatchLevel&&) noexcept = default;
+  /// \brief Create a copy of the other patch level, deallocate old memory and
+  /// allocate new memory for the copied data.
+  PatchLevel& operator=(const PatchLevel& other);
 
-  ~PatchLevel() = default;
+  /// @{
+  /// \brief Moves a patch level without any allocations happening.
+  PatchLevel(PatchLevel&& other) noexcept = default;
+  PatchLevel& operator=(PatchLevel&& other) = default;
+  /// @}
+
 
   PatchLevel(int num, Duration tp, const ::amrex::BoxArray& ba,
              const ::amrex::DistributionMapping& dm, int n_components);
@@ -66,13 +82,18 @@ struct PatchLevel {
   int level_number{};
   Duration time_point{};
   std::ptrdiff_t cycles{};
+  ::amrex::BoxArray box_array{};
+  ::amrex::DistributionMapping distribution_mapping{};
   ::amrex::MultiFab data{};
 };
 
+/// The DataDescription class contains all information which is neccessary to
+/// describe the complete and conservative state data of an equation.
 struct DataDescription {
   int n_state_components;
   int first_cons_component;
   int n_cons_components;
+  int dimension{AMREX_SPACEDIM};
 };
 
 class PatchHierarchy {
@@ -108,12 +129,8 @@ public:
     return static_cast<int>(patch_level_.size());
   }
 
-  int GetRatioToCoarserLevel(int level) const noexcept {
-    if (level) {
-      return 2;
-    }
-    return 1;
-  }
+  int GetRatioToCoarserLevel(int level, Direction dir) const noexcept;
+  ::amrex::IntVect GetRatioToCoarserLevel(int level) const noexcept;
 
   PatchLevel& GetPatchLevel(int level) noexcept {
     return patch_level_[static_cast<std::size_t>(level)];
@@ -129,8 +146,7 @@ public:
 
   template <typename Feedback>
   Feedback ForEachPatch(int level, Feedback feedback) {
-    for (::amrex::MFIter mfi(GetPatchLevel(level).data, true); mfi.isValid();
-         ++mfi) {
+    for (::amrex::MFIter mfi(GetPatchLevel(level).data); mfi.isValid(); ++mfi) {
       PatchHandle handle{level, &mfi};
       feedback(handle);
     }
@@ -171,6 +187,7 @@ DataDescription MakeDataDescription(const Equation& equation) {
   desc.n_state_components = n_comp;
   desc.first_cons_component = 0;
   desc.n_cons_components = n_cons_comp;
+  desc.dimension = Equation::Rank();
   return desc;
 }
 
@@ -190,8 +207,7 @@ void WritePlotFile(const std::string plotfilename,
     mf[i] = &hier.GetPatchLevel(static_cast<int>(i)).data;
     geoms[i] = hier.GetGeometry(static_cast<int>(i));
     level_steps[i] = static_cast<int>(hier.GetCycles(static_cast<int>(i)));
-    ref_ratio[i] = hier.GetRatioToCoarserLevel(static_cast<int>(i)) *
-                   ::amrex::IntVect::TheUnitVector();
+    ref_ratio[i] = hier.GetRatioToCoarserLevel(static_cast<int>(i));
   }
   using Traits = StateTraits<Complete<Equation>>;
   constexpr auto names = Traits::names;

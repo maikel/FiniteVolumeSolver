@@ -53,8 +53,8 @@ public:
     equation_.Flux(flux_left, left, dir);
     equation_.Flux(flux_right, right, dir);
 
-    const double sL = signals[0];
-    const double sR = signals[1];
+    const double sL = std::min(0.0, signals[0]);
+    const double sR = std::max(0.0, signals[1]);
     const double sLsR = sL * sR;
     const double ds = sR - sL;
     FUB_ASSERT(ds > 0);
@@ -71,7 +71,7 @@ public:
     const auto signals = signal_speeds_(equation_, states[0], states[1], dir);
     const double max =
         std::accumulate(signals.begin(), signals.end(), 0.0,
-                        [](double x, double y) { return std::max(x, y); });
+                        [](double x, double y) { return std::max(x, std::abs(y)); });
     FUB_ASSERT(max > 0.0);
     return 0.5 * dx / max;
   }

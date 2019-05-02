@@ -39,17 +39,25 @@ class GriddingAlgorithm : private ::amrex::AmrCore {
 public:
   using BoundaryCondition =
       std::function<void(const PatchDataView<double, AMREX_SPACEDIM + 1>&,
+                         const PatchHierarchy&,
                          PatchHandle, Location, int, Duration)>;
   static constexpr int Rank = AMREX_SPACEDIM;
 
-  GriddingAlgorithm(std::shared_ptr<PatchHierarchy> hier,
-                    InitialData initial_data, Tagging tagging);
+  GriddingAlgorithm(const GriddingAlgorithm& other);
+  GriddingAlgorithm& operator=(const GriddingAlgorithm& other);
 
-  GriddingAlgorithm(std::shared_ptr<PatchHierarchy> hier,
-                    InitialData initial_data, Tagging tagging,
-                    BoundaryCondition boundary);
+  GriddingAlgorithm(GriddingAlgorithm&&) noexcept;
+  GriddingAlgorithm& operator=(GriddingAlgorithm&&) noexcept;
 
-  const std::shared_ptr<PatchHierarchy>& GetPatchHierarchy() const noexcept {
+  GriddingAlgorithm(PatchHierarchy hier, InitialData initial_data,
+                    Tagging tagging);
+
+  GriddingAlgorithm(PatchHierarchy hier, InitialData initial_data,
+                    Tagging tagging, BoundaryCondition boundary);
+
+  PatchHierarchy& GetPatchHierarchy() noexcept { return hierarchy_; }
+
+  const PatchHierarchy& GetPatchHierarchy() const noexcept {
     return hierarchy_;
   }
 
@@ -57,6 +65,8 @@ public:
   void InitializeHierarchy(double level_time);
 
   const BoundaryCondition& GetBoundaryCondition() const noexcept;
+  const InitialData& GetInitialCondition() const noexcept;
+  const Tagging& GetTagging() const noexcept;
 
 private:
   void FillMultiFabFromLevel(::amrex::MultiFab& mf, int level_number);
@@ -78,7 +88,7 @@ private:
 
   void ClearLevel(int level) override;
 
-  std::shared_ptr<PatchHierarchy> hierarchy_;
+  PatchHierarchy hierarchy_;
   InitialData initial_data_;
   Tagging tagging_;
   BoundaryCondition boundary_condition_;

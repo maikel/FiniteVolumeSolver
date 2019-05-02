@@ -26,10 +26,22 @@
 #include "fub/Direction.hpp"
 #include "fub/Duration.hpp"
 #include "fub/Equation.hpp"
+#include "fub/TimeStepError.hpp"
+
+#include <boost/outcome.hpp>
+
+#include <stdexcept>
 
 #include <mpi.h>
 
 namespace fub {
+
+/// This Level Integrator applies a very general anisotropic AMR integration
+/// scheme in context of dimensional splitting.
+///
+/// The time integration is split into multiple intermediate steps where each is
+/// supposed to do a certain task. The detailed implementation of these tasks
+/// happens in the integrator context object.
 template <typename IntegratorContext, typename PatchIntegrator,
           typename FluxMethod, typename Reconstruction>
 class HyperbolicSplitLevelIntegrator : private IntegratorContext {
@@ -49,8 +61,6 @@ public:
       : Context(std::move(context)), patch_integrator_{std::move(integrator)},
         flux_method_{std::move(flux_method)}, reconstruction_{
                                                   std::move(reconstruction)} {}
-
-  HyperbolicSplitLevelIntegrator(HyperbolicSplitLevelIntegrator&&) = default;
 
   IntegratorContext& GetIntegratorContext() noexcept { return *this; }
 
@@ -86,6 +96,14 @@ public:
   using Context::GetTimePoint;
   using Context::ResetHierarchyConfiguration;
 
+  int GetTotalRefineRatio(int fine_level, int coarse_level = 0) const {
+    int refine_ratio = 1;
+    for (int level = fine_level; level > coarse_level; --level) {
+      refine_ratio *= Context::GetRatioToCoarserLevel(level).max();
+    }
+    return refine_ratio;
+  }
+
   /// Returns a stable dt across all levels and in one spatial direction.
   ///
   /// This function takes the refinement level into account.
@@ -107,7 +125,7 @@ public:
            fm = flux_method_](const PatchHandle& patch) mutable -> double {
             return fm.ComputeStableDt(*context, patch, dir);
           });
-      refine_ratio *= Context::GetRatioToCoarserLevel(level_num);
+      refine_ratio *= Context::GetRatioToCoarserLevel(level_num).max();
       coarse_dt = std::min(refine_ratio * level_dt, coarse_dt);
     }
     const MPI_Comm comm = Context::GetMpiCommunicator();
@@ -128,8 +146,9 @@ public:
   /// advance.
   ///
   /// \param[in] dt A stable time step size for the level_num-th patch level.
-  void AdvanceLevel(int this_level, Direction direction, Duration dt,
-                    int subcycle = 0) {
+  boost::outcome_v2::result<void, TimeStepTooLarge>
+  AdvanceLevel(int this_level, Direction direction, Duration dt,
+               int subcycle = 0) {
     // PreAdvanceLevel might regrid this and all finer levels.
     // The Context must make sure that scratch data is allocated
     Context::PreAdvanceLevel(this_level, direction, dt, subcycle);
@@ -139,6 +158,17 @@ public:
       FillGhostLayerTwoLevels(this_level, this_level - 1, direction);
     } else {
       FillGhostLayerSingleLevel(this_level, direction);
+    }
+
+    const double level_dt = Context::Minimum(
+        this_level,
+        [direction, context = &GetIntegratorContext(),
+         fm = flux_method_](const PatchHandle& patch) mutable -> double {
+          return fm.ComputeStableDt(*context, patch, direction);
+        });
+    if (level_dt < dt.count()) {
+      const int refine_ratio = GetTotalRefineRatio(this_level);
+      return TimeStepTooLarge{Duration(refine_ratio * level_dt)};
     }
 
     // Compute fluxes in the specified direction
@@ -158,9 +188,13 @@ public:
     const int next_level = this_level + 1;
     if (Context::LevelExists(next_level)) {
       Context::ResetCoarseFineFluxes(next_level, this_level, direction);
-      const int refine_ratio = Context::GetRatioToCoarserLevel(next_level);
+      const int refine_ratio =
+          Context::GetRatioToCoarserLevel(next_level, direction);
       for (int r = 0; r < refine_ratio; ++r) {
-        AdvanceLevel(next_level, direction, dt / refine_ratio, r);
+        auto result = AdvanceLevel(next_level, direction, dt / refine_ratio, r);
+        if (!result) {
+          return result.as_failure();
+        }
       }
       Context::ApplyFluxCorrection(next_level, this_level, dt, direction);
     }
@@ -187,6 +221,8 @@ public:
     // variables. We have to reconstruct the missing variables in the complete
     // state.
     Context::PostAdvanceLevel(this_level, direction, dt, subcycle);
+
+    return boost::outcome_v2::success();
   }
 
 private:

@@ -18,13 +18,16 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include "fub/equations/IdealGasMix.hpp"
 #include "fub/CartesianCoordinates.hpp"
-#include "fub/equations/Advection.hpp"
+#include "fub/equations/ideal_gas_mix/mechanism/Burke2012.hpp"
 
 #include "fub/HyperbolicSplitLevelIntegrator.hpp"
 #include "fub/HyperbolicSplitPatchIntegrator.hpp"
 #include "fub/HyperbolicSplitSystemSolver.hpp"
+#include "fub/boundary_condition/TransmissiveBoundary.hpp"
 #include "fub/ext/Eigen.hpp"
+#include "fub/flux_method/HllMethod.hpp"
 #include "fub/flux_method/MusclHancockMethod.hpp"
 #include "fub/grid/AMReX/FluxMethod.hpp"
 #include "fub/grid/AMReX/GriddingAlgorithm.hpp"
@@ -38,32 +41,36 @@
 
 #include "fub/RunSimulation.hpp"
 
-#ifdef AMREX_USE_EB
-#include <AMReX_EB2.H>
-#include <AMReX_EB2_GeometryShop.H>
-#include <AMReX_EB2_IF_AllRegular.H>
-#endif
-
 #include <fmt/format.h>
 #include <iostream>
 
-struct CircleData {
-  void InitializeData(const fub::View<fub::Complete<fub::Advection2d>>& states,
-                      const fub::amrex::PatchHierarchy& hierarchy,
-                      fub::amrex::PatchHandle patch) const {
+#include <xmmintrin.h>
+
+struct RiemannProblem {
+  fub::IdealGasMix<1> equation_;
+  void
+  InitializeData(const fub::View<fub::Complete<fub::IdealGasMix<1>>>& states,
+                 const fub::amrex::PatchHierarchy& hierarchy,
+                 fub::amrex::PatchHandle patch) {
     const ::amrex::Geometry& geom = hierarchy.GetGeometry(patch.level);
     const ::amrex::Box& box = patch.iterator->tilebox();
     fub::CartesianCoordinates x =
         fub::amrex::GetCartesianCoordinates(geom, box);
-    fub::ForEachIndex(fub::Box<0>(states),
-                      [&](std::ptrdiff_t i, std::ptrdiff_t j) {
-                        const double norm = x(i, j).norm();
-                        if (norm < 0.25) {
-                          states.mass(i, j) = 3;
-                        } else {
-                          states.mass(i, j) = 1;
-                        }
-                      });
+    fub::FlameMasterReactor& reactor = equation_.GetReactor();
+    reactor.SetMoleFractions("N2:79,O2:21");
+    reactor.SetTemperature(300.0);
+    const double high_pressure = 8.0 * 101325.0;
+    const double low_pressure = 1.0 * 101325.0;
+    fub::Complete<fub::IdealGasMix<1>> complete(equation_);
+    fub::ForEachIndex(fub::Box<0>(states), [&](auto... is) {
+      if (x(is...)[0] < 0.0) {
+        reactor.SetPressure(high_pressure);
+      } else {
+        reactor.SetPressure(low_pressure);
+      }
+      equation_.CompleteFromReactor(complete);
+      Store(states, complete, {is...});
+    });
   }
 };
 
@@ -73,72 +80,74 @@ int main(int argc, char** argv) {
 
   const fub::amrex::ScopeGuard guard(argc, argv);
 
+  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() | _MM_MASK_DIV_ZERO |
+                         _MM_MASK_OVERFLOW | _MM_MASK_UNDERFLOW |
+                         _MM_MASK_INVALID);
+
   constexpr int Dim = AMREX_SPACEDIM;
-  static_assert(AMREX_SPACEDIM >= 2);
 
-#ifdef AMREX_USE_EB
-  amrex::EB2::Build(
-      amrex::EB2::makeShop(amrex::EB2::AllRegularIF()),
-      hierarchy->GetGeometry(hierarchy->GetMaxNumberOfLevels() - 1),
-      hierarchy->GetMaxNumberOfLevels() - 1,
-      hierarchy->GetMaxNumberOfLevels() - 1);
-#endif
+  const std::array<int, Dim> n_cells{AMREX_D_DECL(32, 1, 1)};
 
-  const std::array<int, Dim> n_cells{AMREX_D_DECL(256, 256, 1)};
   const std::array<double, Dim> xlower{AMREX_D_DECL(-1.0, -1.0, -1.0)};
   const std::array<double, Dim> xupper{AMREX_D_DECL(+1.0, +1.0, +1.0)};
 
-  fub::Advection2d equation{{1.0, 1.0}};
-
-  fub::amrex::DataDescription desc = fub::amrex::MakeDataDescription(equation);
+  fub::Burke2012 mechanism{};
+  fub::IdealGasMix<1> equation{fub::FlameMasterReactor(mechanism)};
 
   fub::amrex::CartesianGridGeometry geometry;
   geometry.cell_dimensions = n_cells;
   geometry.coordinates = amrex::RealBox(xlower, xupper);
-  geometry.periodicity = std::array<int, Dim>{AMREX_D_DECL(1, 1, 1)};
 
-  fub::amrex::PatchHierarchyOptions options;
-  options.max_number_of_levels = 2;
+  fub::amrex::DataDescription desc = fub::amrex::MakeDataDescription(equation);
 
-  using State = fub::Advection2d::Complete;
-  fub::GradientDetector gradient{equation, std::pair{&State::mass, 1e-3}};
+  fub::amrex::PatchHierarchyOptions hier_opts;
+  hier_opts.max_number_of_levels = 5;
+  hier_opts.refine_ratio = amrex::IntVect{AMREX_D_DECL(2, 1, 1)};
 
-  CircleData initial_data{};
+  using Complete = fub::IdealGasMix<1>::Complete;
+  fub::GradientDetector gradient{equation,
+                                 std::make_pair(&Complete::density, 5e-3),
+                                 std::make_pair(&Complete::pressure, 5e-2)};
+
+  RiemannProblem initial_data{equation};
+  fub::TransmissiveBoundary transmissive(equation);
 
   fub::amrex::GriddingAlgorithm gridding(
-      fub::amrex::PatchHierarchy(desc, geometry, options),
+      fub::amrex::PatchHierarchy(desc, geometry, hier_opts),
       fub::amrex::AdaptInitialData(initial_data, equation),
-      fub::amrex::AdaptTagging(equation, gradient));
+      fub::amrex::AdaptTagging(equation, gradient), transmissive);
   gridding.InitializeHierarchy(0.0);
 
   fub::HyperbolicSplitPatchIntegrator patch_integrator{equation};
-  fub::MusclHancockMethod flux_method{equation};
+  fub::HllMethod base_method(
+      equation, fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>>);
+  fub::MusclHancockMethod flux_method{equation, base_method};
 
-  const int gcw = flux_method.GetStencilWidth();
+  const int gcw = base_method.GetStencilWidth();
   fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
       fub::amrex::HyperbolicSplitIntegratorContext(std::move(gridding), gcw),
       fub::amrex::HyperbolicSplitPatchIntegrator(patch_integrator),
       fub::amrex::FluxMethod(flux_method),
       fub::amrex::Reconstruction(equation)));
 
-  std::string base_name = "Advection_Muscl_Hancock/";
+  std::string base_name = "IdealGasMix_1d_embed_in_Nd/";
 
   auto output = [&](const fub::amrex::PatchHierarchy& hierarchy,
                     std::ptrdiff_t cycle, fub::Duration) {
-    std::string name = fmt::format("{}{:04}", base_name, cycle);
+    std::string name = fmt::format("{}{:05}", base_name, cycle);
     ::amrex::Print() << "Start output to '" << name << "'.\n";
     fub::amrex::WritePlotFile(name, hierarchy, equation);
     ::amrex::Print() << "Finished output to '" << name << "'.\n";
   };
+
   auto print_msg = [](const std::string& msg) { ::amrex::Print() << msg; };
 
   using namespace std::literals::chrono_literals;
-  output(solver.GetPatchHierarchy(), 0, 0s);
+  output(solver.GetPatchHierarchy(), 0, 0.0s);
   fub::RunOptions run_options{};
-  run_options.final_time = 2.0s;
-  run_options.output_interval = 2.0s;
-  run_options.output_frequency = 1;
-  run_options.cfl = 0.9;
+  run_options.cfl = 0.8;
+  run_options.final_time = 0.002s;
+  run_options.output_interval = 0.0001s;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      print_msg);
 }

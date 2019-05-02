@@ -44,16 +44,31 @@ public:
   using PatchHandle = ::fub::amrex::PatchHandle;
   static constexpr int Rank = AMREX_SPACEDIM;
 
-  HyperbolicSplitIntegratorContext(std::shared_ptr<GriddingAlgorithm> gridding,
-                                   int gcw);
+  HyperbolicSplitIntegratorContext(GriddingAlgorithm&& gridding, int gcw);
+
+  HyperbolicSplitIntegratorContext(const GriddingAlgorithm& gridding, int gcw);
+
+  HyperbolicSplitIntegratorContext(const HyperbolicSplitIntegratorContext&);
+
+  HyperbolicSplitIntegratorContext&
+  operator=(const HyperbolicSplitIntegratorContext&);
+
+  HyperbolicSplitIntegratorContext(
+      HyperbolicSplitIntegratorContext&&) noexcept = default;
+
+  HyperbolicSplitIntegratorContext&
+  operator=(HyperbolicSplitIntegratorContext&&) noexcept = default;
+
+  ~HyperbolicSplitIntegratorContext() =  default;
+
   void ResetHierarchyConfiguration(int level = 0);
 
   template <typename F> F ForEachPatch(int level, F function) {
-    return GetPatchHierarchy()->ForEachPatch(level, function);
+    return GetPatchHierarchy().ForEachPatch(level, function);
   }
 
   template <typename Feedback> double Minimum(int level, Feedback feedback) {
-    return GetPatchHierarchy()->Minimum(level, feedback);
+    return GetPatchHierarchy().Minimum(level, feedback);
   }
 
   MPI_Comm GetMpiCommunicator() const noexcept;
@@ -63,15 +78,11 @@ public:
   CartesianCoordinates GetCartesianCoordinates(PatchHandle patch) const;
 
   bool LevelExists(int level) const noexcept {
-    return level < GetPatchHierarchy()->GetNumberOfLevels();
+    return level < GetPatchHierarchy().GetNumberOfLevels();
   }
 
-  int GetRatioToCoarserLevel(int level) const noexcept {
-    if (level) {
-      return 2;
-    }
-    return 1;
-  }
+  int GetRatioToCoarserLevel(int level, Direction dir) const noexcept;
+  ::amrex::IntVect GetRatioToCoarserLevel(int level) const noexcept;
 
   int GetGhostCellWidth(PatchHandle, Direction) { return ghost_cell_width_; }
 
@@ -84,9 +95,8 @@ public:
   void ResetCoarseFineFluxes(int fine, int coarse, Direction dir);
   void CoarsenConservatively(int fine, int coarse, Direction dir);
 
-  const std::shared_ptr<PatchHierarchy>& GetPatchHierarchy() const noexcept {
-    return gridding_->GetPatchHierarchy();
-  }
+  const PatchHierarchy& GetPatchHierarchy() const noexcept;
+  PatchHierarchy& GetPatchHierarchy() noexcept;
 
   ::amrex::MultiFab& GetData(int level);
   PatchDataView<double, Rank + 1> GetData(PatchHandle patch);
@@ -112,6 +122,13 @@ public:
 
 private:
   struct LevelData {
+    LevelData() = default;
+    LevelData(const LevelData& other) = delete;
+    LevelData& operator=(const LevelData& other) = delete;
+    LevelData(LevelData&&) noexcept = default;
+    LevelData& operator=(LevelData&&) noexcept;
+    ~LevelData() noexcept = default;
+
     /// Scratch space with ghost cell widths
     std::array<::amrex::MultiFab, 3> scratch;
 
@@ -131,7 +148,7 @@ private:
   };
 
   int ghost_cell_width_;
-  std::shared_ptr<GriddingAlgorithm> gridding_;
+  GriddingAlgorithm gridding_;
   std::vector<LevelData> data_;
 };
 

@@ -43,18 +43,17 @@
 #include <iostream>
 
 struct CircleData {
-  CircleData(std::shared_ptr<fub::amrex::PatchHierarchy> hier,
-             fub::ShallowWater eq)
-      : hierarchy{std::move(hier)}, equation_{eq} {
-    inner_.heigth = 1.2;
+  CircleData(const fub::ShallowWater& eq) : equation_{eq} {
+    inner_.heigth = 3.0;
     inner_.momentum = Eigen::Array<double, 2, 1>::Zero();
     outer_.heigth = 1.0;
     outer_.momentum = inner_.momentum;
   }
 
   void InitializeData(const fub::View<fub::Complete<fub::ShallowWater>>& states,
+                      const fub::amrex::PatchHierarchy& hierarchy,
                       fub::amrex::PatchHandle patch) const {
-    const ::amrex::Geometry& geom = hierarchy->GetGeometry(patch.level);
+    const ::amrex::Geometry& geom = hierarchy.GetGeometry(patch.level);
     const ::amrex::Box& box = patch.iterator->tilebox();
     fub::CartesianCoordinates x =
         fub::amrex::GetCartesianCoordinates(geom, box);
@@ -68,10 +67,9 @@ struct CircleData {
     });
   }
 
-  std::shared_ptr<fub::amrex::PatchHierarchy> hierarchy;
   fub::ShallowWater equation_;
-  fub::Complete<fub::ShallowWater> inner_;
-  fub::Complete<fub::ShallowWater> outer_;
+  fub::Complete<fub::ShallowWater> inner_{};
+  fub::Complete<fub::ShallowWater> outer_{};
 };
 
 int main(int argc, char** argv) {
@@ -81,37 +79,32 @@ int main(int argc, char** argv) {
   const fub::amrex::ScopeGuard guard(argc, argv);
 
   constexpr int Dim = AMREX_SPACEDIM;
-  static_assert(AMREX_SPACEDIM == 2);
+  static_assert(AMREX_SPACEDIM >= 2);
 
-  const std::array<int, Dim> n_cells{25 * 8, 25 * 8};
-  const std::array<double, Dim> xlower{-1.0, -1.0};
-  const std::array<double, Dim> xupper{+1.0, +1.0};
+  const std::array<int, Dim> n_cells{AMREX_D_DECL(25 * 8, 25 * 8, 1)};
+  const std::array<double, Dim> xlower{AMREX_D_DECL(-1.0, -1.0, -1.0)};
+  const std::array<double, Dim> xupper{AMREX_D_DECL(+1.0, +1.0, +1.0)};
 
   fub::ShallowWater equation{};
-
   fub::amrex::DataDescription desc = fub::amrex::MakeDataDescription(equation);
 
   fub::amrex::CartesianGridGeometry geometry;
   geometry.cell_dimensions = n_cells;
   geometry.coordinates = ::amrex::RealBox(xlower, xupper);
-  geometry.periodicity = std::array<int, 2>{1, 1};
+  geometry.periodicity = std::array<int, Dim>{AMREX_D_DECL(1, 1, 1)};
 
   fub::amrex::PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = 3;
+  hier_opts.max_number_of_levels = 2;
 
-  auto hierarchy =
-      std::make_shared<fub::amrex::PatchHierarchy>(desc, geometry, hier_opts);
+  using State = fub::ShallowWater::Complete;
+  fub::GradientDetector gradient{equation, std::pair(&State::heigth, 1e-3)};
+  CircleData initial_data(equation);
 
-  using Complete = fub::ShallowWater::Complete;
-
-  fub::GradientDetector gradient{std::pair(&Complete::heigth, 0.005)};
-  fub::TagBuffer buffer{2};
-
-  CircleData initial_data(hierarchy, equation);
-  auto gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
-      hierarchy, fub::amrex::AdaptInitialData(initial_data, equation),
-      fub::amrex::AdaptTagging(equation, hierarchy, gradient, buffer));
-  gridding->InitializeHierarchy(0.0);
+  fub::amrex::GriddingAlgorithm gridding(
+      fub::amrex::PatchHierarchy(desc, geometry, hier_opts),
+      fub::amrex::AdaptInitialData(initial_data, equation),
+      fub::amrex::AdaptTagging(equation, gradient, fub::TagBuffer(2)));
+  gridding.InitializeHierarchy(0.0);
 
   fub::HyperbolicSplitPatchIntegrator patch_integrator{equation};
   fub::HllMethod flux_method{equation, fub::ShallowWaterSignalVelocities{}};
@@ -123,22 +116,24 @@ int main(int argc, char** argv) {
       fub::amrex::FluxMethod(flux_method),
       fub::amrex::Reconstruction(equation)));
 
-  std::string base_name = "AMReX/ShallowWater_";
+  std::string base_name = "ShallowWater2d/";
 
-  auto output = [&](auto& hierarchy, int cycle, fub::Duration) {
-    std::string name = fmt::format("{}{:04}", base_name, cycle);
+  auto output = [&](const fub::amrex::PatchHierarchy& hierarchy,
+                    std::ptrdiff_t cycle, fub::Duration) {
+    std::string name = fmt::format("{}{:05}", base_name, cycle);
     ::amrex::Print() << "Start output to '" << name << "'.\n";
-    fub::amrex::WritePlotFile(name, *hierarchy, equation);
+    fub::amrex::WritePlotFile(name, hierarchy, equation);
     ::amrex::Print() << "Finished output to '" << name << "'.\n";
   };
 
   auto print_msg = [](const std::string& msg) { ::amrex::Print() << msg; };
 
   using namespace std::literals::chrono_literals;
-  output(hierarchy, 0, 0.0s);
+  output(solver.GetPatchHierarchy(), 0, 0.0s);
   fub::RunOptions run_options{};
   run_options.final_time = 2.0s;
   run_options.output_interval = 0.01s;
+  run_options.cfl = 0.5;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      print_msg);
 }

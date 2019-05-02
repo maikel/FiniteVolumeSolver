@@ -26,7 +26,7 @@
 namespace fub {
 namespace amrex {
 namespace cutcell {
-
+namespace {
 using MultiCutFabs =
     std::array<std::unique_ptr<::amrex::MultiCutFab>, AMREX_SPACEDIM>;
 
@@ -42,6 +42,53 @@ MultiCutFabs MakeMultiCutFabs(const ::amrex::BoxArray& ba,
     dir += 1;
   }
   return mfabs;
+}
+} // namespace
+
+PatchLevel::PatchLevel(const PatchLevel& other)
+    : ::fub::amrex::PatchLevel(other), factory(other.factory),
+      unshielded(MakeMultiCutFabs(box_array, distribution_mapping, *factory)),
+      shielded_left(
+          MakeMultiCutFabs(box_array, distribution_mapping, *factory)),
+      shielded_right(
+          MakeMultiCutFabs(box_array, distribution_mapping, *factory)),
+      doubly_shielded(
+          MakeMultiCutFabs(box_array, distribution_mapping, *factory)) {
+  const ::amrex::MultiFab& alphas = factory->getVolFrac();
+  const ::amrex::MultiCutFab& normals = factory->getBndryNormal();
+  const ::amrex::MultiCutFab& centeroids = factory->getBndryCent();
+  const ::amrex::FabArray<::amrex::EBCellFlagFab>& flags =
+      factory->getMultiEBCellFlagFab();
+  for (std::size_t d = 0; d < static_cast<std::size_t>(AMREX_SPACEDIM); ++d) {
+    const ::amrex::MultiCutFab& betas = *factory->getAreaFrac()[d];
+    for (::amrex::MFIter mfi(box_array, distribution_mapping); mfi.isValid();
+         ++mfi) {
+      if (flags[mfi].getType(mfi.growntilebox(4)) ==
+          ::amrex::FabType::singlevalued) {
+        CutCellData<AMREX_SPACEDIM> cutcell_data;
+        cutcell_data.flags = MakePatchDataView(flags[mfi], 0);
+        cutcell_data.volume_fractions = MakePatchDataView(alphas[mfi], 0);
+        cutcell_data.face_fractions = MakePatchDataView(betas[mfi], 0);
+        cutcell_data.boundary_normals = MakePatchDataView(normals[mfi]);
+        cutcell_data.boundary_centeroids = MakePatchDataView(centeroids[mfi]);
+        PatchDataView<double, AMREX_SPACEDIM> us =
+            MakePatchDataView((*unshielded[d])[mfi], 0);
+        PatchDataView<double, AMREX_SPACEDIM> sL =
+            MakePatchDataView((*shielded_left[d])[mfi], 0);
+        PatchDataView<double, AMREX_SPACEDIM> sR =
+            MakePatchDataView((*shielded_right[d])[mfi], 0);
+        PatchDataView<double, AMREX_SPACEDIM> ds =
+            MakePatchDataView((*doubly_shielded[d])[mfi], 0);
+        FillCutCellData(us, sL, sR, ds, cutcell_data,
+                        static_cast<Direction>(d));
+      }
+    }
+  }
+}
+
+PatchLevel& PatchLevel::operator=(const PatchLevel& other) {
+  PatchLevel tmp(other);
+  return *this = std::move(tmp);
 }
 
 PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
@@ -131,6 +178,22 @@ PatchHierarchy::GetCutCellData(PatchHandle patch, Direction dir) const {
   cutcell_data.doubly_shielded_fractions =
       MakePatchDataView((*level.doubly_shielded[d])[mfi], 0);
   return cutcell_data;
+}
+
+int PatchHierarchy::GetRatioToCoarserLevel(int level, Direction dir) const
+    noexcept {
+  if (level == 0) {
+    return 1;
+  }
+  return options_.refine_ratio[static_cast<int>(dir)];
+}
+
+::amrex::IntVect PatchHierarchy::GetRatioToCoarserLevel(int level) const
+    noexcept {
+  if (level == 0) {
+    return ::amrex::IntVect::TheUnitVector();
+  }
+  return options_.refine_ratio;
 }
 
 void WriteCheckpointFile(const std::string checkpointname,

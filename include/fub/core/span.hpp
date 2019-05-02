@@ -1030,6 +1030,6 @@ class tuple_size<fub::span<T, N>>
     : public std::integral_constant<std::size_t, static_cast<std::size_t>(N)> {
 };
 
-} // namespace stde
+} // namespace std
 
 #endif // !SPAN_HPP

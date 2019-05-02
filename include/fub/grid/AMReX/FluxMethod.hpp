@@ -35,6 +35,8 @@ template <typename Base> struct FluxMethod : public Base {
   using Conservative = ::fub::Conservative<Equation>;
   using Complete = ::fub::Complete<Equation>;
 
+  static const int Rank = Equation::Rank();
+
   FluxMethod(const Base& base) : Base(base) {}
 
   template <typename Context>
@@ -46,7 +48,7 @@ template <typename Base> struct FluxMethod : public Base {
     static constexpr int Rank = Equation::Rank();
     const int gcw = context.GetGhostCellWidth(patch, dir);
     const IndexBox<Rank> tilebox =
-        Grow(AsIndexBox(patch.iterator->tilebox()), dir, {gcw, gcw});
+        Grow(AsIndexBox<Rank>(patch.iterator->tilebox()), dir, {gcw, gcw});
     View<const Complete> subscratch = Subview(scratch, tilebox);
     return Base::ComputeStableDt(subscratch, dx, dir);
   }
@@ -59,11 +61,12 @@ template <typename Base> struct FluxMethod : public Base {
 
     ::amrex::IntVect gcws{};
     gcws[d] = gcw;
-    const auto tilebox_cells = AsIndexBox(patch.iterator->growntilebox(gcws));
+    const IndexBox<Rank> tilebox_cells =
+        AsIndexBox<Rank>(patch.iterator->growntilebox(gcws));
 
     gcws[d] = 1;
-    const auto tilebox_faces =
-        AsIndexBox(patch.iterator->grownnodaltilebox(d, gcws));
+    const IndexBox<Rank> tilebox_faces =
+        AsIndexBox<Rank>(patch.iterator->grownnodaltilebox(d, gcws));
 
     const double dx = context.GetDx(patch, dir);
 
