@@ -88,7 +88,6 @@ int main(int argc, char** argv) {
                          _MM_MASK_INVALID);
 
   constexpr int Dim = AMREX_SPACEDIM;
-  static_assert(AMREX_SPACEDIM == 3);
 
   const std::array<int, Dim> n_cells{AMREX_D_DECL(32, 1, 1)};
 

@@ -47,19 +47,35 @@ struct HyperbolicSplitSystemSolver {
     integrator.ResetHierarchyConfiguration();
   }
 
-  Duration ComputeStableDt() {
+  void PreAdvanceHierarchy() {
     using Context = IntegratorContext<LevelIntegrator>;
-    using FluxMethod = std::decay_t<decltype(integrator.GetFluxMethod())>;
-    if constexpr (is_detected<PreAdvanceHierarchy, Context&>()) {
+    if constexpr (is_detected<::fub::PreAdvanceHierarchy, Context&>()) {
       Context& context = integrator.GetIntegratorContext();
       context.PreAdvanceHierarchy();
     }
-    if constexpr (is_detected<PreAdvanceHierarchy, FluxMethod, Context&>()) {
+    using FluxMethod = std::decay_t<decltype(integrator.GetFluxMethod())>;
+    if constexpr (is_detected<::fub::PreAdvanceHierarchy, FluxMethod&, Context&>()) {
       FluxMethod& method = integrator.GetFluxMethod();
       Context& context = integrator.GetIntegratorContext();
       method.PreAdvanceHierarchy(context);
     }
+  }
 
+  void PostAdvanceHierarchy() {
+    using Context = IntegratorContext<LevelIntegrator>;
+    if constexpr (is_detected<::fub::PostAdvanceHierarchy, Context&>()) {
+      Context& context = integrator.GetIntegratorContext();
+      context.PostAdvanceHierarchy();
+    }
+    using FluxMethod = std::decay_t<decltype(integrator.GetFluxMethod())>;
+    if constexpr (is_detected<::fub::PostAdvanceHierarchy, FluxMethod&, Context&>()) {
+      FluxMethod& method = integrator.GetFluxMethod();
+      Context& context = integrator.GetIntegratorContext();
+      method.PostAdvanceHierarchy(context);
+    }
+  }
+
+  Duration ComputeStableDt() {
     Duration dt(std::numeric_limits<double>::infinity());
     for (int d = 0; d < LevelIntegrator::Rank(); ++d) {
       Direction dir = static_cast<Direction>(d);
@@ -89,9 +105,8 @@ struct HyperbolicSplitSystemSolver {
     return integrator.GetCycles(0, Direction::X);
   }
 
-  boost::outcome_v2::result<void, TimeStepTooLarge>
+  Result<void, TimeStepTooLarge>
   AdvanceHierarchy(std::chrono::duration<double> dt) {
-
     // This transforms a direction into a function which statisfies
     // is_invokable<void, Duration>.
     auto MakeAdvanceFunction = [&](Direction dir) {
@@ -101,23 +116,12 @@ struct HyperbolicSplitSystemSolver {
     };
     // We construct for each split direction a function which will be passed to
     // our splitting method.
-    boost::outcome_v2::result<void, TimeStepTooLarge> result = std::apply(
+    return std::apply(
         [&](auto... dir) {
           return splitting.Advance(dt, MakeAdvanceFunction(dir)...);
         },
         // TODO: Maybe randomize the directions array?
         MakeSplitDirections());
-    if (!result) {
-      return result.as_failure();
-    }
-
-    using Context = IntegratorContext<LevelIntegrator>;
-    if constexpr (is_detected<PostAdvanceHierarchy, Context&>()) {
-      Context& context = integrator.GetIntegratorContext();
-      context.PostAdvanceHierarchy();
-    }
-
-    return boost::outcome_v2::success();
   }
 
   LevelIntegrator integrator;

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.13)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
-project(FiniteVolumeSolver CXX Fortran)
+project(FiniteVolumeSolver C CXX Fortran)
 
 # Detect if we use conan to build this project and its dependencies.
 # If yes, we include the neccessary build information, i.e. include paths and

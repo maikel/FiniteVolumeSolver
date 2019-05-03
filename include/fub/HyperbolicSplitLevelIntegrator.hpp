@@ -27,8 +27,7 @@
 #include "fub/Duration.hpp"
 #include "fub/Equation.hpp"
 #include "fub/TimeStepError.hpp"
-
-#include <boost/outcome.hpp>
+#include "fub/ext/outcome.hpp"
 
 #include <stdexcept>
 
@@ -146,7 +145,7 @@ public:
   /// advance.
   ///
   /// \param[in] dt A stable time step size for the level_num-th patch level.
-  boost::outcome_v2::result<void, TimeStepTooLarge>
+  Result<void, TimeStepTooLarge>
   AdvanceLevel(int this_level, Direction direction, Duration dt,
                int subcycle = 0) {
     // PreAdvanceLevel might regrid this and all finer levels.

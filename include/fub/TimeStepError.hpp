@@ -23,6 +23,7 @@
 
 #include "fub/Duration.hpp"
 
+#include <string>
 #include <system_error>
 
 namespace fub {

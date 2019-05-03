@@ -65,6 +65,8 @@ Solver RunSimulation(Solver& solver, RunOptions options,
          (options.max_cycles < 0 || solver.GetCycles() < options.max_cycles)) {
     // We have a nested loop to exactly reach output time points.
     do {
+      solver.PreAdvanceHierarchy();
+
       // Compute the next time step size. If an estimate is available from a
       // prior failure we use that one.
       const fub::Duration stable_dt =
@@ -88,6 +90,7 @@ Solver RunSimulation(Solver& solver, RunOptions options,
                           options.cfl * failure_dt->count()));
         solver = backup;
       } else {
+        solver.PostAdvanceHierarchy();
         // If advancing the hierarchy was successfull print a successful time
         // step line and reset any failure indicators.
         now = std::chrono::steady_clock::now();
