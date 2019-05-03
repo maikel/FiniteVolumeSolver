@@ -12,7 +12,7 @@ build:amrex-2d_clang5:
   script:
     - mkdir build
     - cd build
-    - conan install ../ -s compiler=clang -s compiler.version=5.0 -s compiler.libcxx=libc++ --build missing -o AMReX:dim=2
+    - conan install ../ -s compiler=clang -s compiler.version=5.0 -s compiler.libcxx=libc++ --build missing --build AMReX -o AMReX:dim=2 --env CXX=clang++ --env CC=clang
     - cmake ../ -DCMAKE_CXX_COMPILER="clang++" -DCMAKE_CXX_FLAGS="-stdlib=libc++ -Wno-missing-braces" -DCMAKE_BUILD_TYPE=Release  -DFUB_WITH_OPENMP=False
     - make
 
@@ -22,7 +22,7 @@ build:amrex-2d_clang6:
   script:
     - mkdir build
     - cd build
-    - conan install ../ -s compiler=clang -s compiler.version=6.0 -s compiler.libcxx=libc++ --build missing -o AMReX:dim=2
+    - conan install ../ -s compiler=clang -s compiler.version=6.0 -s compiler.libcxx=libc++ --build missing --build AMReX -o AMReX:dim=2 --env CXX=clang++ --env CC=clang
     - cmake ../ -DCMAKE_CXX_COMPILER="clang++" -DCMAKE_CXX_FLAGS="-stdlib=libc++" -DCMAKE_BUILD_TYPE=Release  -DFUB_WITH_OPENMP=False
     - make
 
@@ -32,7 +32,7 @@ build:amrex-2d_clang7:
   script:
     - mkdir build
     - cd build
-    - conan install ../ -s compiler=clang -s compiler.version=7.0 -s compiler.libcxx=libc++ --build missing -o AMReX:dim=2
+    - conan install ../ -s compiler=clang -s compiler.version=7.0 -s compiler.libcxx=libc++ --build missing --build AMReX -o AMReX:dim=2 --env CXX=clang++ --env CC=clang
     - cmake ../ -DCMAKE_CXX_COMPILER="clang++" -DCMAKE_CXX_FLAGS="-stdlib=libc++" -DCMAKE_BUILD_TYPE=Release  -DFUB_WITH_OPENMP=False
     - make
 
@@ -42,7 +42,7 @@ build:amrex-2d_clang8:
   script:
     - mkdir build
     - cd build
-    - conan install ../  -s compiler=clang -s compiler.version=8 -s compiler.libcxx=libc++  --build missing -o AMReX:dim=2
+    - conan install ../  -s compiler=clang -s compiler.version=8 -s compiler.libcxx=libc++  --build missing --build AMReX -o AMReX:dim=2 --env CXX=clang++ --env CC=clang
     - cmake ../ -DCMAKE_CXX_COMPILER="clang++" -DCMAKE_CXX_FLAGS="-stdlib=libc++" -DCMAKE_BUILD_TYPE=Release  -DFUB_WITH_OPENMP=False
     - make
 
@@ -52,7 +52,7 @@ build:amrex-2d_gcc7:
   script:
     - mkdir build
     - cd build
-    - conan install ../ --build missing -o AMReX:dim=2
+    - conan install ../ --build missing --build AMReX -o AMReX:dim=2
     - cmake ../ -DCMAKE_BUILD_TYPE=Debug -DFUB_WITH_OPENMP=False
     - make
 
@@ -62,7 +62,7 @@ build:amrex-2d_gcc8:
   script:
     - mkdir build
     - cd build
-    - conan install ../ --build missing -o AMReX:dim=2
+    - conan install ../ --build missing --build AMReX -o AMReX:dim=2
     - cmake ../ -DCMAKE_BUILD_TYPE=Debug -DFUB_WITH_OPENMP=False
     - make
 
@@ -72,7 +72,7 @@ build:amrex-3d_gcc7:
   script:
     - mkdir build
     - cd build
-    - conan install ../ --build missing -o AMReX:dim=3
+    - conan install ../ --build missing --build AMReX -o AMReX:dim=3
     - cmake ../ -DCMAKE_BUILD_TYPE=Debug -DFUB_WITH_OPENMP=False
     - make
 
@@ -82,7 +82,7 @@ build:amrex-3d_gcc8:
   script:
     - mkdir build
     - cd build
-    - conan install ../ --build missing -o AMReX:dim=3
+    - conan install ../ --build missing --build AMReX -o AMReX:dim=3
     - cmake ../ -DCMAKE_BUILD_TYPE=Debug -DFUB_WITH_OPENMP=False
     - make
 
@@ -92,7 +92,7 @@ build:amrex-3d_clang5:
   script:
     - mkdir build
     - cd build
-    - conan install ../ -s compiler=clang -s compiler.version=5.0 -s compiler.libcxx=libc++ --build missing -o AMReX:dim=3
+    - conan install ../ -s compiler=clang -s compiler.version=5.0 -s compiler.libcxx=libc++ --build missing --build AMReX -o AMReX:dim=3 --env CXX=clang++ --env CC=clang
     - cmake ../ -DCMAKE_CXX_COMPILER="clang++" -DCMAKE_CXX_FLAGS="-stdlib=libc++ -Wno-missing-braces" -DCMAKE_BUILD_TYPE=Release  -DFUB_WITH_OPENMP=False
     - make
 
@@ -102,7 +102,7 @@ build:amrex-3d_clang6:
   script:
     - mkdir build
     - cd build
-    - conan install ../ -s compiler=clang -s compiler.version=6.0 -s compiler.libcxx=libc++ --build missing -o AMReX:dim=3
+    - conan install ../ -s compiler=clang -s compiler.version=6.0 -s compiler.libcxx=libc++ --build missing --build AMReX -o AMReX:dim=3 --env CXX=clang++ --env CC=clang
     - cmake ../ -DCMAKE_CXX_COMPILER="clang++" -DCMAKE_CXX_FLAGS="-stdlib=libc++" -DCMAKE_BUILD_TYPE=Release  -DFUB_WITH_OPENMP=False
     - make
 
@@ -112,7 +112,7 @@ build:amrex-3d_clang7:
   script:
     - mkdir build
     - cd build
-    - conan install ../ -s compiler=clang -s compiler.version=7.0 -s compiler.libcxx=libc++ --build missing -o AMReX:dim=3
+    - conan install ../ -s compiler=clang -s compiler.version=7.0 -s compiler.libcxx=libc++ --build missing --build AMReX -o AMReX:dim=3 --env CXX=clang++ --env CC=clang
     - cmake ../ -DCMAKE_CXX_COMPILER="clang++" -DCMAKE_CXX_FLAGS="-stdlib=libc++" -DCMAKE_BUILD_TYPE=Release  -DFUB_WITH_OPENMP=False
     - make
 
@@ -122,6 +122,6 @@ build:amrex-3d_clang8:
   script:
     - mkdir build
     - cd build
-    - conan install ../  -s compiler=clang -s compiler.version=8 -s compiler.libcxx=libc++ --build missing -o AMReX:dim=3
+    - conan install ../  -s compiler=clang -s compiler.version=8 -s compiler.libcxx=libc++ --build missing --build AMReX -o AMReX:dim=3 --env CXX=clang++ --env CC=clang
     - cmake ../ -DCMAKE_CXX_COMPILER="clang++" -DCMAKE_CXX_FLAGS="-stdlib=libc++" -DCMAKE_BUILD_TYPE=Release  -DFUB_WITH_OPENMP=False
     - make
