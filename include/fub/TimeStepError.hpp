@@ -27,9 +27,7 @@
 #include <system_error>
 
 namespace fub {
-
 enum class TimeStepErrc { success = 0, time_step_too_large = 1 };
-
 }
 
 namespace std {

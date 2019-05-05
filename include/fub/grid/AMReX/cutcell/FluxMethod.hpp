@@ -62,6 +62,7 @@ template <typename Base> struct FluxMethod : public Base {
               context.GetCutCellData(patch, Direction::X);
           const IndexBox<Rank> cells =
               AsIndexBox<Rank>(patch.iterator->growntilebox(gcw));
+          //              AsIndexBox<Rank>(patch.iterator->tilebox());
           View<const Complete> data = AsConst(
               Subview(MakeView<BasicView<Complete>>(
                           MakePatchDataView(datas[*patch.iterator]), equation),

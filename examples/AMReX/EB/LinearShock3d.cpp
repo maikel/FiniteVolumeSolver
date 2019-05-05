@@ -18,7 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/equations/PerfectGas.hpp"
+#include "fub/equations/IdealGasMix.hpp"
+#include "fub/equations/ideal_gas_mix/mechanism/Burke2012.hpp"
 
 #include "fub/CartesianCoordinates.hpp"
 #include "fub/HyperbolicSplitCutCellPatchIntegrator.hpp"
@@ -47,6 +48,7 @@
 #include "fub/boundary_condition/TransmissiveBoundary.hpp"
 
 #include "fub/cutcell_method/KbnStabilisation.hpp"
+#include "fub/flux_method/HllMethod.hpp"
 #include "fub/flux_method/MusclHancockMethod.hpp"
 
 #include "fub/RunSimulation.hpp"
@@ -88,7 +90,8 @@ int main(int argc, char** argv) {
       amrex::EB2::CylinderIF(0.015, -1.0, 0, {1e6, 0.0, 0.0}, true));
   auto shop = amrex::EB2::makeShop(embedded_boundary);
 
-  fub::PerfectGas<3> equation;
+  fub::Burke2012 mechanism;
+  fub::IdealGasMix<3> equation{mechanism};
   fub::amrex::DataDescription desc = fub::amrex::MakeDataDescription(equation);
 
   fub::amrex::CartesianGridGeometry geometry;
@@ -101,53 +104,58 @@ int main(int argc, char** argv) {
   options.index_spaces =
       fub::amrex::cutcell::MakeIndexSpaces(shop, coarse_geom, n_level);
 
-  fub::amrex::cutcell::PatchHierarchy hierarchy(desc, geometry, options);
+  equation.GetReactor().SetMoleFractions("N2:80,O2:20");
+  equation.GetReactor().SetTemperature(300.0);
+  equation.GetReactor().SetDensity(1.22);
+  fub::Complete<fub::IdealGasMix<3>> right(equation);
+  equation.CompleteFromReactor(right);
 
-  fub::Conservative<fub::PerfectGas<3>> cons;
-  cons.density = 1.22;
-  cons.momentum << 0.0, 0.0, 0.0;
-  cons.energy = 101325.0 * equation.gamma_minus_1_inv;
-  fub::Complete<fub::PerfectGas<3>> right;
-  fub::CompleteFromCons(equation, right, cons);
-
-  cons.density = 3.15736;
-  cons.momentum << 1258.31, 0.0, 0.0;
-  cons.energy = 416595.0 * equation.gamma_minus_1_inv +
-                0.5 * cons.momentum[0] * cons.momentum[0] / cons.density;
-  fub::Complete<fub::PerfectGas<3>> left;
-  fub::CompleteFromCons(equation, left, cons);
+  //  cons.density = 3.15736;
+  //  cons.momentum << 1258.31, 0.0, 0.0;
+  //  cons.energy = 416595.0 * equation.gamma_minus_1_inv +
+  //                0.5 * cons.momentum[0] * cons.momentum[0] / cons.density;
+  equation.GetReactor().SetMoleFractions("N2:80,O2:20");
+  equation.GetReactor().SetTemperature(500.0);
+  equation.GetReactor().SetDensity(3.15);
+  fub::Complete<fub::IdealGasMix<3>> left(equation);
+  equation.CompleteFromReactor(left, {400.0, 0.0, 0.0});
 
   fub::amrex::cutcell::RiemannProblem initial_data(
       equation, fub::Halfspace({+1.0, 0.0, 0.0}, -0.04), left, right);
 
-  using Complete = fub::Complete<fub::PerfectGas<3>>;
-  fub::GradientDetector gradients{equation, std::pair{&Complete::pressure, 0.05},
+  using Complete = fub::Complete<fub::IdealGasMix<3>>;
+  fub::GradientDetector gradients{equation,
+                                  std::pair{&Complete::pressure, 0.05},
                                   std::pair{&Complete::density, 0.005}};
 
-  fub::TransmissiveBoundary boundary{equation};
-
   fub::HyperbolicSplitCutCellPatchIntegrator patch_integrator{equation};
-  fub::KbnCutCellMethod cutcell_method{fub::MusclHancockMethod(equation)};
 
-  fub::amrex::cutcell::GriddingAlgorithm gridding(
-      std::move(hierarchy), 
+  auto signals = fub::EinfeldtSignalVelocities<fub::IdealGasMix<3>>;
+  fub::Hll riemann_solver{equation, signals};
+  fub::MusclHancockMethod flux_method(equation,
+                                      fub::HllMethod{equation, signals});
+  fub::KbnCutCellMethod cutcell_method{flux_method, riemann_solver};
+
+  auto gridding = std::make_shared<fub::amrex::cutcell::GriddingAlgorithm>(
+      fub::amrex::cutcell::PatchHierarchy(desc, geometry, options),
       fub::amrex::cutcell::AdaptInitialData(initial_data, equation),
-      fub::amrex::cutcell::AdaptTagging(equation, fub::TagCutCells(),
-                                        gradients, fub::TagBuffer(4)),
-      boundary);
-
-  gridding.InitializeHierarchy(0.0);
+      fub::amrex::cutcell::AdaptTagging(equation, fub::TagCutCells(), gradients,
+                                        fub::TagBuffer(4)),
+      fub::TransmissiveBoundary(equation));
+  gridding->InitializeHierarchy(0.0);
 
   const int gcw = cutcell_method.GetStencilWidth();
   fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
-      fub::amrex::cutcell::HyperbolicSplitIntegratorContext(gridding, gcw),
+      fub::amrex::cutcell::HyperbolicSplitIntegratorContext(std::move(gridding),
+                                                            gcw),
       fub::amrex::cutcell::HyperbolicSplitPatchIntegrator(patch_integrator),
       fub::amrex::cutcell::FluxMethod(std::move(cutcell_method)),
       fub::amrex::cutcell::Reconstruction(equation)));
 
   std::string base_name = "LinearShock3d/";
 
-  auto output = [&](const fub::amrex::cutcell::PatchHierarchy& hierarchy, std::ptrdiff_t cycle, fub::Duration) {
+  auto output = [&](const fub::amrex::cutcell::PatchHierarchy& hierarchy,
+                    std::ptrdiff_t cycle, fub::Duration) {
     std::string name = fmt::format("{}{:05}", base_name, cycle);
     ::amrex::Print() << "Start output to '" << name << "'.\n";
     fub::amrex::cutcell::WritePlotFile(name, hierarchy, equation);

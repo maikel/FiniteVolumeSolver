@@ -32,7 +32,9 @@
 
 namespace fub {
 
-template <typename FM> class KbnCutCellMethod : public FM {
+template <typename FM,
+          typename RiemannSolver = ExactRiemannSolver<typename FM::Equation>>
+class KbnCutCellMethod : public FM {
 public:
   using Equation = typename FM::Equation;
   using Conservative = ::fub::Conservative<Equation>;
@@ -44,7 +46,13 @@ public:
   static constexpr std::size_t StencilSize =
       static_cast<std::size_t>(2 * StencilWidth);
 
-  KbnCutCellMethod(const FM& fm) : FM(fm) {}
+  KbnCutCellMethod(const FM& fm) : FM(fm) {
+    stencil_.fill(Complete(FM::GetEquation()));
+  }
+  KbnCutCellMethod(const FM& fm, const RiemannSolver& rs)
+      : FM(fm), riemann_solver_(rs) {
+    stencil_.fill(Complete(FM::GetEquation()));
+  }
 
   /// This function computes a reference state for each cut-cell.
   ///
@@ -68,9 +76,8 @@ public:
             GetBoundaryNormal(cutcell_data, cell);
         Rotate(state_, state_, MakeRotation(normal, unit), equation);
         Reflect(reflected_, state_, unit, equation);
-        ExactRiemannSolver<Equation> riemann_solver{equation};
-        riemann_solver.SolveRiemannProblem(solution_, reflected_, state_,
-                                           Direction::X);
+        riemann_solver_.SolveRiemannProblem(solution_, reflected_, state_,
+                                            Direction::X);
         Rotate(solution_, solution_, MakeRotation(unit, normal), equation);
         Store(references, solution_, cell);
       }
@@ -89,9 +96,8 @@ public:
     // Reflect state in the split direction
     Rotate(state, state, MakeRotation(boundary_normal, unit), equation);
     Reflect(reflected_, state, unit, equation);
-    ExactRiemannSolver<Equation> riemann_solver{equation};
-    riemann_solver.SolveRiemannProblem(solution_, reflected_, state,
-                                       Direction::X);
+    riemann_solver_.SolveRiemannProblem(solution_, reflected_, state,
+                                        Direction::X);
     Rotate(solution_, solution_, MakeRotation(unit, boundary_normal), equation);
 
     const int d = static_cast<int>(dir);
@@ -600,6 +606,7 @@ private:
 
   HyperbolicSplitPatchIntegrator<Equation> regular_integrator_{
       FM::GetEquation()};
+  RiemannSolver riemann_solver_{FM::GetEquation()};
   Conservative prev_{FM::GetEquation()};
   Conservative next_{FM::GetEquation()};
   Conservative flux_shielded_left_{FM::GetEquation()};

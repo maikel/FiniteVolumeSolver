@@ -118,13 +118,13 @@ int main(int argc, char** argv) {
   from_prim(right, equation);
 
   ShockData initial_data{equation, left, right};
-  fub::TransmissiveBoundary boundary{equation};
 
-  fub::amrex::GriddingAlgorithm gridding(
+  auto gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       fub::amrex::PatchHierarchy(desc, geometry, hier_opts),
       fub::amrex::AdaptInitialData(initial_data, equation),
-      fub::amrex::AdaptTagging(equation, gradient), boundary);
-  gridding.InitializeHierarchy(0.0);
+      fub::amrex::AdaptTagging(equation, gradient, fub::TagBuffer(4)),
+      fub::TransmissiveBoundary(equation));
+  gridding->InitializeHierarchy(0.0);
 
   fub::HyperbolicSplitPatchIntegrator patch_integrator{equation};
   fub::MusclHancockMethod flux_method{equation};

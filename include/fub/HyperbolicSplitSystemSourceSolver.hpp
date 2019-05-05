@@ -21,8 +21,10 @@
 #ifndef FUB_HYPERBOLIC_SPLIT_SYSTEM_SOURCE_SOLVER_HPP
 #define FUB_HYPERBOLIC_SPLIT_SYSTEM_SOURCE_SOLVER_HPP
 
-#include "fub/split_method/GodunovSplitting.hpp"
 #include "fub/ext/outcome.hpp"
+#include "fub/split_method/StrangSplitting.hpp"
+
+#include <algorithm>
 
 namespace fub {
 
@@ -38,65 +40,142 @@ template <typename Context, typename... Args>
 using PostAdvanceHierarchy = decltype(
     std::declval<Context>().PostAdvanceHierarchy(std::declval<Args>()...));
 
-template <typename SystemSolver, typename SourceTerm, typename SplittingMethod = GodunovSplitting>
-struct HyperbolicSplitSystemSourceSolver {
-  HyperbolicSplitSystemSourceSolver(SystemSolver system_solver, SourceTerm source_term,
-                              SplittingMethod split = SplittingMethod())
-      : system_solver_{std::move(system_solver)}, source_term_{std::move(source_term)}, splitting{split} {}
+////////////////////////////////////////////////////////////////////////////////
+//                                                                  Decleration
 
-  void ResetHierarchyConfiguration() {
-    system_solver_.ResetHierarchyConfiguration();
+template <typename SystemSolver, typename SourceTerm,
+          typename SplittingMethod = StrangSplitting>
+class HyperbolicSplitSystemSourceSolver {
+public:
+  using GriddingAlgorithm = typename SystemSolver::GriddingAlgorithm;
+
+  /// \brief Constructs a system source solver from given sub solvers.
+  HyperbolicSplitSystemSourceSolver(SystemSolver system_solver,
+                                    SourceTerm source_term,
+                                    SplittingMethod split = SplittingMethod());
+
+  // Accessors
+
+  /// \brief Returns the shared gridding algorithm of both subsolvers.
+  const std::shared_ptr<GriddingAlgorithm>& GetGriddingAlgorithm() const
+      noexcept {
+    return system_solver_.GetGriddingAlgorithm();
   }
 
-  void PreAdvanceHierarchy() {
-    if constexpr (is_detected<PreAdvanceHierarchy, SystemSolver&>()) {
-      system_solver_.PreAdvanceHierarchy();
-    }
-    if constexpr (is_detected<PreAdvanceHierarchy, SourceTerm&>()) {
-      source_term_.PreAdvanceHierarchy();
-    }
-  }
+  /// \brief Returns the shared patch hierarchy of both subsolvers.
+  const auto& GetPatchHierarchy() const;
 
-  void PostAdvanceHierarchy() {
-    if constexpr (is_detected<PostAdvanceHierarchy, Context&>()) {
-      system_solver_.PostAdvanceHierarchy();
-    }
-    if constexpr (is_detected<PostAdvanceHierarchy, Context&>()) {
-      source_term_.PostAdvanceHierarchy();
-    }
-  }
+  /// \brief Returns the global time point of the current data.
+  Duration GetTimePoint() const;
 
-  Duration ComputeStableDt() {
-    return std::min(system_solver_.ComputeStableDt(), source_term_.ComputeStableDt());
-  }
+  /// \brief Returns the number of cycles at the coarsest level.
+  std::ptrdiff_t GetCycles() const;
 
-  const auto& GetPatchHierarchy() const {
-    return system_solver_.GetPatchHierarchy();
-  }
+  // Modifiers
 
-  Duration GetTimePoint() const {
-    return system_solver_.GetTimePoint();
-  }
+  /// \brief Resets the hierarchy configuration of both sub solvers.
+  template <typename... Args>
+  void ResetHierarchyConfiguration(const Args&... args);
 
-  std::ptrdiff_t GetCycles() const {
-    return system_solver_.GetCycles();
-  }
+  /// \brief Invokes any "pre-advance" logic of both sub solvers.
+  void PreAdvanceHierarchy();
 
-  Result<void, TimeStepTooLarge>
-  AdvanceHierarchy(std::chrono::duration<double> dt) {
-    auto system_solver = [&](std::chrono::duration<double> dt) {
-      return system_solver_.AdvanceLevel(dt);
-    };
-    auto source_term = [&](std::chrono::duration<double> dt) {
-      return source_term_.AdvanceLevel(dt);
-    };
-    return splitting.Advance(dt, system_solver, soruce_term);
-  }
+  /// \brief Invokes any "post-advance" logic of both sub solvers.
+  void PostAdvanceHierarchy();
 
+  /// \brief Returns the minimum of stable time step sizes for both sub solvers.
+  Duration ComputeStableDt();
+
+  /// \brief Advances the hierarchy by time step size dt.
+  Result<void, TimeStepTooLarge> AdvanceHierarchy(Duration dt);
+
+private:
   SystemSolver system_solver_;
   SourceTerm source_term_;
   SplittingMethod splitting_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+//                                                               Implementation
+
+template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
+HyperbolicSplitSystemSourceSolver<SystemSolver, SourceTerm, SplittingMethod>::
+    HyperbolicSplitSystemSourceSolver(SystemSolver system_solver,
+                                      SourceTerm source_term,
+                                      SplittingMethod split)
+    : system_solver_{std::move(system_solver)},
+      source_term_{std::move(source_term)}, splitting_{split} {}
+
+template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
+template <typename... Args>
+void HyperbolicSplitSystemSourceSolver<
+    SystemSolver, SourceTerm,
+    SplittingMethod>::ResetHierarchyConfiguration(const Args&... args) {
+  system_solver_.ResetHierarchyConfiguration(args...);
+  source_term_.ResetHierarchyConfiguration(args...);
+}
+
+template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
+void HyperbolicSplitSystemSourceSolver<SystemSolver, SourceTerm,
+                                       SplittingMethod>::PreAdvanceHierarchy() {
+  if constexpr (is_detected<::fub::PreAdvanceHierarchy, SystemSolver&>()) {
+    system_solver_.PreAdvanceHierarchy();
+  }
+  if constexpr (is_detected<::fub::PreAdvanceHierarchy, SourceTerm&>()) {
+    source_term_.PreAdvanceHierarchy();
+  }
+}
+
+template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
+void HyperbolicSplitSystemSourceSolver<
+    SystemSolver, SourceTerm, SplittingMethod>::PostAdvanceHierarchy() {
+  if constexpr (is_detected<::fub::PostAdvanceHierarchy, SourceTerm&>()) {
+    source_term_.PostAdvanceHierarchy();
+  }
+  if constexpr (is_detected<::fub::PostAdvanceHierarchy, SystemSolver&>()) {
+    system_solver_.PostAdvanceHierarchy();
+  }
+}
+
+template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
+Duration HyperbolicSplitSystemSourceSolver<SystemSolver, SourceTerm,
+                                           SplittingMethod>::ComputeStableDt() {
+  return std::min(system_solver_.ComputeStableDt(),
+                  source_term_.ComputeStableDt());
+}
+
+template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
+const auto&
+HyperbolicSplitSystemSourceSolver<SystemSolver, SourceTerm,
+                                  SplittingMethod>::GetPatchHierarchy() const {
+  return system_solver_.GetPatchHierarchy();
+}
+
+template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
+Duration
+HyperbolicSplitSystemSourceSolver<SystemSolver, SourceTerm,
+                                  SplittingMethod>::GetTimePoint() const {
+  return system_solver_.GetTimePoint();
+}
+
+template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
+std::ptrdiff_t
+HyperbolicSplitSystemSourceSolver<SystemSolver, SourceTerm,
+                                  SplittingMethod>::GetCycles() const {
+  return system_solver_.GetCycles();
+}
+
+template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
+Result<void, TimeStepTooLarge> HyperbolicSplitSystemSourceSolver<
+    SystemSolver, SourceTerm, SplittingMethod>::AdvanceHierarchy(Duration dt) {
+  auto system_solver = [&](Duration dt) {
+    return system_solver_.AdvanceHierarchy(dt);
+  };
+  auto source_term = [&](Duration dt) {
+    return source_term_.AdvanceHierarchy(dt);
+  };
+  return splitting_.Advance(dt, source_term, system_solver);
+}
 
 } // namespace fub
 

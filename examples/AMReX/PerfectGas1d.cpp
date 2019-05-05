@@ -106,17 +106,18 @@ int main(int argc, char** argv) {
                                  std::make_pair(&Complete::pressure, 5e-2)};
 
   RiemannProblem initial_data{equation};
-  fub::TransmissiveBoundary transmissive(equation);
 
   fub::amrex::DataDescription desc = fub::amrex::MakeDataDescription(equation);
   fub::amrex::PatchHierarchyOptions hier_opts;
   hier_opts.max_number_of_levels = 3;
   hier_opts.refine_ratio = ::amrex::IntVect{AMREX_D_DECL(2, 1, 1)};
-  fub::amrex::GriddingAlgorithm gridding(
+
+  auto gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       fub::amrex::PatchHierarchy(desc, geometry, hier_opts),
       fub::amrex::AdaptInitialData(initial_data, equation),
-      fub::amrex::AdaptTagging(equation, gradient), transmissive);
-  gridding.InitializeHierarchy(0.0);
+      fub::amrex::AdaptTagging(equation, gradient, fub::TagBuffer(4)),
+      fub::TransmissiveBoundary(equation));
+  gridding->InitializeHierarchy(0.0);
 
   fub::HyperbolicSplitPatchIntegrator patch_integrator{equation};
   fub::MusclHancockMethod flux_method{equation};

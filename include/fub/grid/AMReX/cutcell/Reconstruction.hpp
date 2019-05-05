@@ -29,9 +29,8 @@
 namespace fub {
 namespace amrex {
 namespace cutcell {
-template <typename Equation>
-void CompleteFromCons(const Equation& eq,
-                      const View<Complete<Equation>>& complete_view,
+template <typename Eq, typename Equation = std::decay_t<Eq>>
+void CompleteFromCons(Eq&& eq, const View<Complete<Equation>>& complete_view,
                       const View<const Conservative<Equation>>& cons_view,
                       const CutCellData<Equation::Rank()>& cutcell_data) {
   Complete<Equation> complete(eq);

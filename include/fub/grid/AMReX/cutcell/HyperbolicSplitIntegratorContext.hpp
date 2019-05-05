@@ -41,13 +41,13 @@ namespace cutcell {
 class HyperbolicSplitIntegratorContext {
 public:
   using PatchHandle = ::fub::amrex::PatchHandle;
+  using GriddingAlgorithm = ::fub::amrex::cutcell::GriddingAlgorithm;
   template <typename V> using MakeView = MakeViewImpl<V>;
 
   static constexpr int Rank = AMREX_SPACEDIM;
 
-  HyperbolicSplitIntegratorContext(GriddingAlgorithm&& gridding, int gcw);
-
-  HyperbolicSplitIntegratorContext(const GriddingAlgorithm& gridding, int gcw);
+  HyperbolicSplitIntegratorContext(std::shared_ptr<GriddingAlgorithm> gridding,
+                                   int gcw);
 
   HyperbolicSplitIntegratorContext(const HyperbolicSplitIntegratorContext&);
 
@@ -62,6 +62,7 @@ public:
 
   ~HyperbolicSplitIntegratorContext() = default;
 
+  void ResetHierarchyConfiguration(std::shared_ptr<GriddingAlgorithm> gridding);
   void ResetHierarchyConfiguration(int level = 0);
 
   MPI_Comm GetMpiCommunicator() const noexcept;
@@ -87,6 +88,9 @@ public:
   void ApplyFluxCorrection(int fine, int coarse, Duration dt, Direction dir);
   void ResetCoarseFineFluxes(int fine, int coarse, Direction dir);
   void CoarsenConservatively(int fine, int coarse, Direction dir);
+
+  const std::shared_ptr<GriddingAlgorithm>& GetGriddingAlgorithm() const
+      noexcept;
 
   PatchHierarchy& GetPatchHierarchy() noexcept;
   const PatchHierarchy& GetPatchHierarchy() const noexcept;
@@ -203,7 +207,7 @@ public:
 
 private:
   int ghost_cell_width_;
-  GriddingAlgorithm gridding_;
+  std::shared_ptr<GriddingAlgorithm> gridding_;
   std::vector<LevelData> data_;
 };
 

@@ -97,11 +97,11 @@ int main(int argc, char** argv) {
 
   CircleData initial_data{};
 
-  fub::amrex::GriddingAlgorithm gridding(
+  auto gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       fub::amrex::PatchHierarchy(desc, geometry, options),
       fub::amrex::AdaptInitialData(initial_data, equation),
-      fub::amrex::AdaptTagging(equation, gradient));
-  gridding.InitializeHierarchy(0.0);
+      fub::amrex::AdaptTagging(equation, gradient, fub::TagBuffer(4)));
+  gridding->InitializeHierarchy(0.0);
 
   fub::HyperbolicSplitPatchIntegrator patch_integrator{equation};
   fub::MusclHancockMethod flux_method{equation};

@@ -60,11 +60,16 @@ template <typename... Xs> struct StateTraits<IdealGasMixConservative<Xs...>> {
 };
 
 template <typename Density, typename Momentum, typename Energy,
-          typename Species, typename Pressure, typename SpeedOfSound>
+          typename Species, typename Pressure, typename SpeedOfSound,
+          typename Temperature, typename HeatCapacityAtConstantPressure,
+          typename HeatCapacityRatio>
 struct IdealGasMixComplete
     : IdealGasMixConservative<Density, Momentum, Energy, Species> {
   Pressure pressure;
   SpeedOfSound speed_of_sound;
+  Temperature temperature;
+  HeatCapacityAtConstantPressure c_p;
+  HeatCapacityRatio gamma;
 };
 
 // We "register" the complete state with our framework.
@@ -72,13 +77,16 @@ struct IdealGasMixComplete
 // compete state.
 template <typename... Xs> struct StateTraits<IdealGasMixComplete<Xs...>> {
   static constexpr auto names = std::make_tuple(
-      "Density", "Momentum", "Energy", "Species", "Pressure", "SpeedOfSound");
+      "Density", "Momentum", "Energy", "Species", "Pressure", "SpeedOfSound",
+      "Temperature", "HeatCapacityAtConstantPressure", "HeatCapacityRatio");
   static constexpr auto pointers_to_member = std::make_tuple(
       &IdealGasMixComplete<Xs...>::density,
       &IdealGasMixComplete<Xs...>::momentum,
       &IdealGasMixComplete<Xs...>::energy, &IdealGasMixComplete<Xs...>::species,
       &IdealGasMixComplete<Xs...>::pressure,
-      &IdealGasMixComplete<Xs...>::speed_of_sound);
+      &IdealGasMixComplete<Xs...>::speed_of_sound,
+      &IdealGasMixComplete<Xs...>::temperature,
+      &IdealGasMixComplete<Xs...>::c_p, &IdealGasMixComplete<Xs...>::gamma);
 };
 
 template <int Rank>
@@ -89,7 +97,8 @@ using IdealGasConservativeShape =
 template <int Rank>
 using IdealGasMixCompleteShape =
     IdealGasMixComplete<ScalarDepth, VectorDepth<Rank>, ScalarDepth,
-                        VectorDepth<-1>, ScalarDepth, ScalarDepth>;
+                        VectorDepth<-1>, ScalarDepth, ScalarDepth, ScalarDepth,
+                        ScalarDepth, ScalarDepth>;
 
 template <int N> class IdealGasMix {
 public:
@@ -109,6 +118,8 @@ public:
 
   FlameMasterReactor& GetReactor() noexcept { return reactor_; }
   const FlameMasterReactor& GetReactor() const noexcept { return reactor_; }
+
+  void SetReactorStateFromComplete(const Complete& state);
 
   void CompleteFromReactor(Complete& state,
                            const Eigen::Array<double, N, 1>& velocity =

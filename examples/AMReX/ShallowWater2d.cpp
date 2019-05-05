@@ -100,11 +100,11 @@ int main(int argc, char** argv) {
   fub::GradientDetector gradient{equation, std::pair(&State::heigth, 1e-3)};
   CircleData initial_data(equation);
 
-  fub::amrex::GriddingAlgorithm gridding(
+  auto gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       fub::amrex::PatchHierarchy(desc, geometry, hier_opts),
       fub::amrex::AdaptInitialData(initial_data, equation),
-      fub::amrex::AdaptTagging(equation, gradient, fub::TagBuffer(2)));
-  gridding.InitializeHierarchy(0.0);
+      fub::amrex::AdaptTagging(equation, gradient, fub::TagBuffer(4)));
+  gridding->InitializeHierarchy(0.0);
 
   fub::HyperbolicSplitPatchIntegrator patch_integrator{equation};
   fub::HllMethod flux_method{equation, fub::ShallowWaterSignalVelocities{}};

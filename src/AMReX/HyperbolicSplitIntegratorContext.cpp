@@ -135,15 +135,7 @@ operator=(LevelData&& other) noexcept {
 }
 
 HyperbolicSplitIntegratorContext::HyperbolicSplitIntegratorContext(
-    const GriddingAlgorithm& gridding, int gcw)
-    : ghost_cell_width_{gcw + 1}, gridding_{gridding},
-      data_(static_cast<std::size_t>(
-          GetPatchHierarchy().GetMaxNumberOfLevels())) {
-  ResetHierarchyConfiguration();
-}
-
-HyperbolicSplitIntegratorContext::HyperbolicSplitIntegratorContext(
-    GriddingAlgorithm&& gridding, int gcw)
+    std::shared_ptr<GriddingAlgorithm> gridding, int gcw)
     : ghost_cell_width_{gcw + 1}, gridding_{std::move(gridding)},
       data_(static_cast<std::size_t>(
           GetPatchHierarchy().GetMaxNumberOfLevels())) {
@@ -177,6 +169,12 @@ operator=(const HyperbolicSplitIntegratorContext& other) {
 }
 
 void HyperbolicSplitIntegratorContext::ResetHierarchyConfiguration(
+    std::shared_ptr<GriddingAlgorithm> gridding) {
+  gridding_ = std::move(gridding);
+  ResetHierarchyConfiguration();
+}
+
+void HyperbolicSplitIntegratorContext::ResetHierarchyConfiguration(
     int first_level) {
   const int n_cons_components =
       GetPatchHierarchy().GetDataDescription().n_cons_components;
@@ -205,6 +203,11 @@ void HyperbolicSplitIntegratorContext::ResetHierarchyConfiguration(
       data.coarse_fine.define(ba, dm, ref_ratio, level, n_cons_components);
     }
   }
+}
+
+const std::shared_ptr<GriddingAlgorithm>&
+HyperbolicSplitIntegratorContext::GetGriddingAlgorithm() const noexcept {
+  return gridding_;
 }
 
 void HyperbolicSplitIntegratorContext::FillGhostLayerTwoLevels(int fine,
@@ -339,7 +342,7 @@ void HyperbolicSplitIntegratorContext::PreAdvanceLevel(int level_num,
   const std::size_t l = static_cast<std::size_t>(level_num);
   if (subcycle == 0 && level_num > 0 &&
       data_[l].regrid_time_point[d] != data_[l].time_point[d]) {
-    gridding_.RegridAllFinerlevels(level_num - 1);
+    gridding_->RegridAllFinerlevels(level_num - 1);
     for (std::size_t lvl = l; lvl < data_.size(); ++lvl) {
       data_[lvl].regrid_time_point[d] = data_[lvl].time_point[d];
     }
@@ -362,18 +365,18 @@ void HyperbolicSplitIntegratorContext::PostAdvanceLevel(int level_num,
 BoundaryCondition
 HyperbolicSplitIntegratorContext::GetBoundaryCondition(int level) const {
   const GriddingAlgorithm::BoundaryCondition& fn =
-      gridding_.GetBoundaryCondition();
+      gridding_->GetBoundaryCondition();
   BoundaryCondition bc(fn, GetGeometry(level), level, GetPatchHierarchy());
   return bc;
 }
 
 PatchHierarchy& HyperbolicSplitIntegratorContext::GetPatchHierarchy() noexcept {
-  return gridding_.GetPatchHierarchy();
+  return gridding_->GetPatchHierarchy();
 }
 
 const PatchHierarchy&
 HyperbolicSplitIntegratorContext::GetPatchHierarchy() const noexcept {
-  return gridding_.GetPatchHierarchy();
+  return gridding_->GetPatchHierarchy();
 }
 
 } // namespace amrex

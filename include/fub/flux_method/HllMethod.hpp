@@ -42,6 +42,28 @@ public:
   Hll(const Equation& equation, const SignalSpeeds& signals)
       : equation_{equation}, signal_speeds_{signals} {}
 
+  void SolveRiemannProblem(Complete& solution, const Complete& left,
+                           const Complete& right, Direction dir) {
+    const auto signals = signal_speeds_(equation_, left, right, dir);
+    equation_.Flux(flux_left, left, dir);
+    equation_.Flux(flux_right, right, dir);
+    const double sL = signals[0];
+    const double sR = signals[1];
+    const double ds = sR - sL;
+    if (0.0 < sL) {
+      solution = left;
+    } else if (sR < 0.0) {
+      solution = right;
+    } else {
+      ForEachComponent<Conservative>(
+          [&](double& sol, double fL, double fR, double qL, double qR) {
+            sol = (sR * qR - sL * qL + fL - fR) / ds;
+          },
+          (Conservative&)(solution), flux_left, flux_right, left, right);
+      CompleteFromCons(equation_, solution, solution);
+    }
+  }
+
   void ComputeNumericFlux(Conservative& numeric_flux,
                           span<const Complete, 2> states, Duration /* dt */,
                           double /* dx */, Direction dir) {

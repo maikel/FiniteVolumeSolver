@@ -48,6 +48,7 @@ public:
   using Equation = typename PatchIntegrator::Equation;
   using Context = IntegratorContext;
   using PatchHandle = typename Context::PatchHandle;
+  using GriddingAlgorithm = typename Context::GriddingAlgorithm;
   using Complete = ::fub::Complete<Equation>;
   using Conservative = ::fub::Conservative<Equation>;
 
@@ -91,6 +92,7 @@ public:
   using Context::FillGhostLayerSingleLevel;
   using Context::FillGhostLayerTwoLevels;
   using Context::GetCycles;
+  using Context::GetGriddingAlgorithm;
   using Context::GetPatchHierarchy;
   using Context::GetTimePoint;
   using Context::ResetHierarchyConfiguration;
@@ -145,9 +147,9 @@ public:
   /// advance.
   ///
   /// \param[in] dt A stable time step size for the level_num-th patch level.
-  Result<void, TimeStepTooLarge>
-  AdvanceLevel(int this_level, Direction direction, Duration dt,
-               int subcycle = 0) {
+  Result<void, TimeStepTooLarge> AdvanceLevel(int this_level,
+                                              Direction direction, Duration dt,
+                                              int subcycle = 0) {
     // PreAdvanceLevel might regrid this and all finer levels.
     // The Context must make sure that scratch data is allocated
     Context::PreAdvanceLevel(this_level, direction, dt, subcycle);

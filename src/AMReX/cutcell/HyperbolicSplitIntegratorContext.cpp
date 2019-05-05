@@ -66,18 +66,18 @@ HyperbolicSplitIntegratorContext::GetRatioToCoarserLevel(int level) const
 }
 
 PatchHierarchy& HyperbolicSplitIntegratorContext::GetPatchHierarchy() noexcept {
-  return gridding_.GetPatchHierarchy();
+  return gridding_->GetPatchHierarchy();
 }
 
 const PatchHierarchy&
 HyperbolicSplitIntegratorContext::GetPatchHierarchy() const noexcept {
-  return gridding_.GetPatchHierarchy();
+  return gridding_->GetPatchHierarchy();
 }
 
 BoundaryCondition
 HyperbolicSplitIntegratorContext::GetBoundaryCondition(int level) const {
   const GriddingAlgorithm::BoundaryCondition& fn =
-      gridding_.GetBoundaryCondition();
+      gridding_->GetBoundaryCondition();
   BoundaryCondition bc(fn, GetGeometry(level), level, GetPatchHierarchy());
   return bc;
 }
@@ -224,6 +224,11 @@ HyperbolicSplitIntegratorContext::GetGeometry(int level) const {
   return GetPatchHierarchy().GetGeometry(level);
 }
 
+const std::shared_ptr<GriddingAlgorithm>&
+HyperbolicSplitIntegratorContext::GetGriddingAlgorithm() const noexcept {
+  return gridding_;
+}
+
 Duration HyperbolicSplitIntegratorContext::GetTimePoint(int level,
                                                         Direction dir) const {
   const std::size_t d = static_cast<std::size_t>(dir);
@@ -259,24 +264,7 @@ double HyperbolicSplitIntegratorContext::GetDx(PatchHandle patch,
 }
 
 HyperbolicSplitIntegratorContext::HyperbolicSplitIntegratorContext(
-    GriddingAlgorithm&& gridding, int gcw)
-    : ghost_cell_width_{gcw + 1}, gridding_{std::move(gridding)},
-      data_(static_cast<std::size_t>(
-          GetPatchHierarchy().GetMaxNumberOfLevels())) {
-  ResetHierarchyConfiguration();
-  const int nlevels = GetPatchHierarchy().GetNumberOfLevels();
-  for (int level = 0; level < nlevels; ++level) {
-    const Duration time_point = GetPatchHierarchy().GetTimePoint(level);
-    const std::ptrdiff_t cycles = GetPatchHierarchy().GetCycles(level);
-    for (int d = 0; d < AMREX_SPACEDIM; ++d) {
-      SetTimePoint(time_point, level, Direction(d));
-      SetCycles(cycles, level, Direction(d));
-    }
-  }
-}
-
-HyperbolicSplitIntegratorContext::HyperbolicSplitIntegratorContext(
-    const GriddingAlgorithm& gridding, int gcw)
+    std::shared_ptr<GriddingAlgorithm> gridding, int gcw)
     : ghost_cell_width_{gcw + 1}, gridding_{std::move(gridding)},
       data_(static_cast<std::size_t>(
           GetPatchHierarchy().GetMaxNumberOfLevels())) {
@@ -316,6 +304,12 @@ operator=(const HyperbolicSplitIntegratorContext& other) {
   // If an exception occurs we do not change the original object.
   HyperbolicSplitIntegratorContext tmp{other};
   return (*this = std::move(tmp));
+}
+
+void HyperbolicSplitIntegratorContext::ResetHierarchyConfiguration(
+    std::shared_ptr<GriddingAlgorithm> gridding) {
+  gridding_ = std::move(gridding);
+  ResetHierarchyConfiguration();
 }
 
 void HyperbolicSplitIntegratorContext::ResetHierarchyConfiguration(
@@ -511,7 +505,7 @@ void HyperbolicSplitIntegratorContext::PreAdvanceLevel(int level_num,
   const std::size_t l = static_cast<std::size_t>(level_num);
   if (subcycle == 0 && level_num > 0 &&
       data_[l].regrid_time_point[d] != data_[l].time_point[d]) {
-    gridding_.RegridAllFinerlevels(level_num - 1);
+    gridding_->RegridAllFinerlevels(level_num - 1);
     for (std::size_t lvl = l; lvl < data_.size(); ++lvl) {
       data_[lvl].regrid_time_point[d] = data_[lvl].time_point[d];
     }

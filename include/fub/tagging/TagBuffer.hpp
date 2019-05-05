@@ -44,7 +44,8 @@ struct TagBuffer {
       ForEachIndex(Shrink(Box<0>(states), Direction(dir),
                           {buffer_width_, buffer_width_}),
                    [&](auto... is) {
-                     constexpr std::size_t tag_rank = static_cast<std::size_t>(AMREX_SPACEDIM);
+                     constexpr std::size_t tag_rank =
+                         static_cast<std::size_t>(AMREX_SPACEDIM);
                      using Index = std::array<std::ptrdiff_t, tag_rank>;
                      if (Contains(tagbox, Index{is...}) && tags(is...) == 1) {
                        Index index{is...};
@@ -74,7 +75,8 @@ struct TagBuffer {
       ForEachIndex(Shrink(Box<0>(states), Direction(dir),
                           {buffer_width_, buffer_width_}),
                    [&](auto... is) {
-                     constexpr std::size_t tag_rank = static_cast<std::size_t>(AMREX_SPACEDIM);
+                     constexpr std::size_t tag_rank =
+                         static_cast<std::size_t>(AMREX_SPACEDIM);
                      using Index = std::array<std::ptrdiff_t, tag_rank>;
                      if (Contains(tagbox, Index{is...}) && tags(is...) == 1) {
                        Index index{is...};

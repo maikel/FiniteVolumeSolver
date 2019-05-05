@@ -57,6 +57,13 @@ double ComputeSpeedOfSound(const FlameMasterReactor& reactor) {
 } // namespace
 
 template <int Dim>
+void IdealGasMix<Dim>::SetReactorStateFromComplete(const Complete& state) {
+  reactor_.SetMassFractions(state.species);
+  reactor_.SetTemperature(state.temperature);
+  reactor_.SetPressure(state.pressure);
+}
+
+template <int Dim>
 void IdealGasMix<Dim>::CompleteFromReactor(
     Complete& state, const Eigen::Array<double, Dim, 1>& velocity) const {
   state.density = reactor_.GetDensity();
@@ -69,6 +76,9 @@ void IdealGasMix<Dim>::CompleteFromReactor(
   std::transform(Y.begin(), Y.end(), &state.species[0],
                  [rho = state.density](double Yi) { return rho * Yi; });
   state.speed_of_sound = ComputeSpeedOfSound(reactor_);
+  state.temperature = reactor_.GetTemperature();
+  state.c_p = reactor_.GetCp();
+  state.gamma = reactor_.GetCp() / reactor_.GetCv();
 }
 
 template class IdealGasMix<1>;
@@ -94,6 +104,9 @@ void CompleteFromConsImpl<IdealGasMix<Dim>>::apply(
   complete.species = cons.species;
   complete.pressure = reactor.GetPressure();
   complete.speed_of_sound = ComputeSpeedOfSound(reactor);
+  complete.temperature = reactor.GetTemperature();
+  complete.c_p = reactor.GetCp();
+  complete.gamma = reactor.GetCp() / reactor.GetCv();
 }
 
 template struct CompleteFromConsImpl<IdealGasMix<1>>;
@@ -118,6 +131,9 @@ void Rotate(Complete<IdealGasMix<2>>& rotated,
   rotated.energy = state.energy;
   rotated.pressure = state.pressure;
   rotated.speed_of_sound = state.speed_of_sound;
+  rotated.temperature = state.temperature;
+  rotated.c_p = state.c_p;
+  rotated.gamma = state.gamma;
   rotated.species = state.species;
   rotated.momentum = (rotation * state.momentum.matrix()).array();
 }
@@ -140,6 +156,9 @@ void Rotate(Complete<IdealGasMix<3>>& rotated,
   rotated.energy = state.energy;
   rotated.pressure = state.pressure;
   rotated.speed_of_sound = state.speed_of_sound;
+  rotated.temperature = state.temperature;
+  rotated.c_p = state.c_p;
+  rotated.gamma = state.gamma;
   rotated.species = state.species;
   rotated.momentum = (rotation * state.momentum.matrix()).array();
 }
@@ -152,6 +171,9 @@ void Reflect(Complete<IdealGasMix<2>>& reflected,
   reflected.pressure = state.pressure;
   reflected.speed_of_sound = state.speed_of_sound;
   reflected.species = state.species;
+  reflected.temperature = state.temperature;
+  reflected.c_p = state.c_p;
+  reflected.gamma = state.gamma;
   reflected.momentum =
       state.momentum -
       2 * (state.momentum.matrix().dot(normal) * normal).array();
@@ -165,6 +187,9 @@ void Reflect(Complete<IdealGasMix<3>>& reflected,
   reflected.pressure = state.pressure;
   reflected.speed_of_sound = state.speed_of_sound;
   reflected.species = state.species;
+  reflected.temperature = state.temperature;
+  reflected.c_p = state.c_p;
+  reflected.gamma = state.gamma;
   reflected.momentum =
       state.momentum -
       2 * (state.momentum.matrix().dot(normal) * normal).array();

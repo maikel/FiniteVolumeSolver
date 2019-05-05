@@ -89,11 +89,12 @@ int main(int argc, char** argv) {
   fub::GradientDetector gradient{equation, std::pair{&State::mass, 1e-4}};
 
   CircleData initial_data{};
-  fub::amrex::GriddingAlgorithm gridding(
+
+  auto gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       fub::amrex::PatchHierarchy(desc, geometry, options),
       fub::amrex::AdaptInitialData(initial_data, equation),
-      fub::amrex::AdaptTagging(equation, gradient, fub::TagBuffer(2)));
-  gridding.InitializeHierarchy(0.0);
+      fub::amrex::AdaptTagging(equation, gradient, fub::TagBuffer(4)));
+  gridding->InitializeHierarchy(0.0);
 
   fub::HyperbolicSplitPatchIntegrator patch_integrator{equation};
   fub::GodunovMethod flux_method{equation};

@@ -39,9 +39,16 @@ using PostAdvanceHierarchy = decltype(
 
 template <typename LevelIntegrator, typename SplittingMethod = GodunovSplitting>
 struct HyperbolicSplitSystemSolver {
+  using GriddingAlgorithm = typename LevelIntegrator::GriddingAlgorithm;
+
   HyperbolicSplitSystemSolver(LevelIntegrator level_integrator,
                               SplittingMethod split = SplittingMethod())
       : integrator{std::move(level_integrator)}, splitting{split} {}
+
+  void
+  ResetHierarchyConfiguration(std::shared_ptr<GriddingAlgorithm> gridding) {
+    integrator.ResetHierarchyConfiguration(std::move(gridding));
+  }
 
   void ResetHierarchyConfiguration() {
     integrator.ResetHierarchyConfiguration();
@@ -54,7 +61,8 @@ struct HyperbolicSplitSystemSolver {
       context.PreAdvanceHierarchy();
     }
     using FluxMethod = std::decay_t<decltype(integrator.GetFluxMethod())>;
-    if constexpr (is_detected<::fub::PreAdvanceHierarchy, FluxMethod&, Context&>()) {
+    if constexpr (is_detected<::fub::PreAdvanceHierarchy, FluxMethod&,
+                              Context&>()) {
       FluxMethod& method = integrator.GetFluxMethod();
       Context& context = integrator.GetIntegratorContext();
       method.PreAdvanceHierarchy(context);
@@ -68,7 +76,8 @@ struct HyperbolicSplitSystemSolver {
       context.PostAdvanceHierarchy();
     }
     using FluxMethod = std::decay_t<decltype(integrator.GetFluxMethod())>;
-    if constexpr (is_detected<::fub::PostAdvanceHierarchy, FluxMethod&, Context&>()) {
+    if constexpr (is_detected<::fub::PostAdvanceHierarchy, FluxMethod&,
+                              Context&>()) {
       FluxMethod& method = integrator.GetFluxMethod();
       Context& context = integrator.GetIntegratorContext();
       method.PostAdvanceHierarchy(context);
@@ -91,6 +100,11 @@ struct HyperbolicSplitSystemSolver {
       dirs[i] = static_cast<Direction>(i);
     }
     return dirs;
+  }
+
+  const std::shared_ptr<GriddingAlgorithm>& GetGriddingAlgorithm() const
+      noexcept {
+    return integrator.GetGriddingAlgorithm();
   }
 
   const auto& GetPatchHierarchy() const {

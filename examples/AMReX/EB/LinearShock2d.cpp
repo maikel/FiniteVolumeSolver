@@ -122,34 +122,36 @@ int main(int argc, char** argv) {
   fub::CompleteFromCons(equation, left, cons);
 
   fub::amrex::cutcell::RiemannProblem initial_data(
-      equation, fub::Halfspace({+1.0, 0.0, 0.0}, -0.04), left,
-      right);
+      equation, fub::Halfspace({+1.0, 0.0, 0.0}, -0.04), left, right);
 
   using State = fub::Complete<fub::PerfectGas<2>>;
   fub::GradientDetector gradients{equation, std::pair{&State::pressure, 0.05},
                                   std::pair{&State::density, 0.005}};
 
   fub::HyperbolicSplitCutCellPatchIntegrator patch_integrator{equation};
-  fub::KbnCutCellMethod cutcell_method(fub::MusclHancockMethod{equation});
+  fub::MusclHancockMethod flux_method(equation);
+  fub::KbnCutCellMethod cutcell_method(std::move(flux_method));
 
-  fub::amrex::cutcell::GriddingAlgorithm gridding(
-      fub::amrex::cutcell::PatchHierarchy(desc, geometry, options), fub::amrex::cutcell::AdaptInitialData(initial_data, equation),
-      fub::amrex::cutcell::AdaptTagging(equation, fub::TagCutCells(),
-                                        gradients, fub::TagBuffer(4)),
+  auto gridding = std::make_shared<fub::amrex::cutcell::GriddingAlgorithm>(
+      fub::amrex::cutcell::PatchHierarchy(desc, geometry, options),
+      fub::amrex::cutcell::AdaptInitialData(initial_data, equation),
+      fub::amrex::cutcell::AdaptTagging(equation, fub::TagCutCells(), gradients,
+                                        fub::TagBuffer(4)),
       fub::TransmissiveBoundary{equation});
-
-  gridding.InitializeHierarchy(0.0);
+  gridding->InitializeHierarchy(0.0);
 
   const int gcw = cutcell_method.GetStencilWidth();
   fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
-      fub::amrex::cutcell::HyperbolicSplitIntegratorContext(std::move(gridding), gcw),
+      fub::amrex::cutcell::HyperbolicSplitIntegratorContext(std::move(gridding),
+                                                            gcw),
       fub::amrex::cutcell::HyperbolicSplitPatchIntegrator(patch_integrator),
       fub::amrex::cutcell::FluxMethod(cutcell_method),
       fub::amrex::cutcell::Reconstruction(equation)));
 
   std::string base_name = "LinearShock2d";
 
-  auto output = [&](const fub::amrex::cutcell::PatchHierarchy& hierarchy, std::ptrdiff_t cycle, fub::Duration) {
+  auto output = [&](const fub::amrex::cutcell::PatchHierarchy& hierarchy,
+                    std::ptrdiff_t cycle, fub::Duration) {
     std::string name = fmt::format("{}/Plot-{:04}", base_name, cycle);
     ::amrex::Print() << "Start output to '" << name << "'.\n";
     fub::amrex::cutcell::WritePlotFile(name, hierarchy, equation);

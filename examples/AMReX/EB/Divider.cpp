@@ -111,8 +111,6 @@ int main(int argc, char** argv) {
   options.index_spaces =
       fub::amrex::cutcell::MakeIndexSpaces(shop, coarse_geom, n_level);
 
-  fub::amrex::cutcell::PatchHierarchy hierarchy(desc, geometry, options);
-
   fub::Conservative<fub::PerfectGas<3>> cons;
   cons.density = 1.22;
   cons.momentum << 0.0, 0.0, 0.0;
@@ -135,19 +133,17 @@ int main(int argc, char** argv) {
   fub::GradientDetector gradients{equation, std::pair{&State::pressure, 0.05},
                                   std::pair{&State::density, 0.005}};
 
-  fub::TransmissiveBoundary boundary{equation};
-
   fub::HyperbolicSplitCutCellPatchIntegrator patch_integrator{equation};
   fub::MusclHancockMethod flux_method(equation);
   fub::KbnCutCellMethod cutcell_method(std::move(flux_method));
 
-  fub::amrex::cutcell::GriddingAlgorithm gridding(
-      std::move(hierarchy),
+  auto gridding = std::make_shared<fub::amrex::cutcell::GriddingAlgorithm>(
+      fub::amrex::cutcell::PatchHierarchy(desc, geometry, options),
       fub::amrex::cutcell::AdaptInitialData(initial_data, equation),
       fub::amrex::cutcell::AdaptTagging(equation, fub::TagCutCells(), gradients,
                                         fub::TagBuffer(4)),
-      boundary);
-  gridding.InitializeHierarchy(0.0);
+      fub::TransmissiveBoundary{equation});
+  gridding->InitializeHierarchy(0.0);
 
   const int gcw = cutcell_method.GetStencilWidth();
   fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(

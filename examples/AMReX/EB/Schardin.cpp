@@ -116,8 +116,6 @@ int main(int argc, char** argv) {
   options.index_spaces =
       fub::amrex::cutcell::MakeIndexSpaces(shop, coarse_geom, n_level);
 
-  fub::amrex::cutcell::PatchHierarchy hierarchy(desc, geometry, options);
-
   fub::Conservative<fub::PerfectGas<2>> cons;
   cons.density = 1.0;
   cons.momentum << 0.0, 0.0;
@@ -130,36 +128,35 @@ int main(int argc, char** argv) {
   fub::CompleteFromCons(equation, left, cons);
 
   fub::amrex::cutcell::RiemannProblem initial_data(
-      equation, fub::Halfspace({+1.0, 0.0, 0.0}, 0.015), left,
-      right);
+      equation, fub::Halfspace({+1.0, 0.0, 0.0}, 0.015), left, right);
 
   using State = fub::Complete<fub::PerfectGas<2>>;
   fub::GradientDetector gradients{equation, std::pair{&State::pressure, 0.05},
                                   std::pair{&State::density, 0.005}};
 
-  fub::TransmissiveBoundary boundary{equation};
-
   fub::HyperbolicSplitCutCellPatchIntegrator patch_integrator{equation};
   fub::MusclHancockMethod muscl_method{equation};
   fub::KbnCutCellMethod cutcell_method(muscl_method);
 
-  fub::amrex::cutcell::GriddingAlgorithm gridding(
-      std::move(hierarchy), fub::amrex::cutcell::AdaptInitialData(initial_data, equation),
-      fub::amrex::cutcell::AdaptTagging(equation, fub::TagCutCells(),
-                                        gradients, fub::TagBuffer(4)),
-      boundary);
-
-  gridding.InitializeHierarchy(0.0);
+  auto gridding = std::make_shared<fub::amrex::cutcell::GriddingAlgorithm>(
+      fub::amrex::cutcell::PatchHierarchy(desc, geometry, options),
+      fub::amrex::cutcell::AdaptInitialData(initial_data, equation),
+      fub::amrex::cutcell::AdaptTagging(equation, fub::TagCutCells(), gradients,
+                                        fub::TagBuffer(4)),
+      fub::TransmissiveBoundary{equation});
+  gridding->InitializeHierarchy(0.0);
 
   const int gcw = muscl_method.GetStencilWidth();
   fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
-      fub::amrex::cutcell::HyperbolicSplitIntegratorContext(std::move(gridding), gcw),
+      fub::amrex::cutcell::HyperbolicSplitIntegratorContext(std::move(gridding),
+                                                            gcw),
       fub::amrex::cutcell::HyperbolicSplitPatchIntegrator(patch_integrator),
       fub::amrex::cutcell::FluxMethod(cutcell_method),
       fub::amrex::cutcell::Reconstruction(equation)));
 
   std::string base_name = "Schardin/";
-  auto output = [&](const fub::amrex::cutcell::PatchHierarchy& hierarchy, std::ptrdiff_t cycle, fub::Duration) {
+  auto output = [&](const fub::amrex::cutcell::PatchHierarchy& hierarchy,
+                    std::ptrdiff_t cycle, fub::Duration) {
     std::string name = fmt::format("{}{:05}", base_name, cycle);
     ::amrex::Print() << "Start output to '" << name << "'.\n";
     fub::amrex::cutcell::WritePlotFile(name, hierarchy, equation);

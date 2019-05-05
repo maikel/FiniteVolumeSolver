@@ -136,13 +136,13 @@ int main(int argc, char** argv) {
   fub::MusclHancockMethod muscl_method{equation};
   fub::KbnCutCellMethod cutcell_method(muscl_method);
 
-  fub::amrex::cutcell::GriddingAlgorithm gridding(
+  auto gridding = std::make_shared<fub::amrex::cutcell::GriddingAlgorithm>(
       fub::amrex::cutcell::PatchHierarchy(desc, geometry, options),
       fub::amrex::cutcell::AdaptInitialData(initial_data, equation),
       fub::amrex::cutcell::AdaptTagging(equation, fub::TagCutCells(), gradients,
                                         fub::TagBuffer(4)),
-      fub::TransmissiveBoundary(equation, right));
-  gridding.InitializeHierarchy(0.0);
+      fub::TransmissiveBoundary{equation});
+  gridding->InitializeHierarchy(0.0);
 
   const int gcw = muscl_method.GetStencilWidth();
   fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
