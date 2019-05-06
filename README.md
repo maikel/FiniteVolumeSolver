@@ -65,7 +65,7 @@ AMREX_INSTALL_PREFIX="/Your/Path/To/AMReX/Installation/Prefix"
 git clone --single-branch -b development https://github.com/AMReX-Codes/amrex AMReX/
 cd AMReX/
 mkdir build/
-cmake ../ -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="${AMREX_INSTALL_PREFIX}" -DENABLE_EB=ON -ENABLE_OMP=ON
+cmake ../ -DCMAKE_BUILD_TYPE=Release -DDIM=2 -DCMAKE_INSTALL_PREFIX="${AMREX_INSTALL_PREFIX}" -DENABLE_EB=ON -DENABLE_OMP=ON
 make install
 ```
 
