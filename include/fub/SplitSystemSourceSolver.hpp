@@ -45,12 +45,12 @@ using PostAdvanceHierarchy = decltype(
 
 template <typename SystemSolver, typename SourceTerm,
           typename SplittingMethod = StrangSplitting>
-class HyperbolicSplitSystemSourceSolver {
+class SplitSystemSourceSolver {
 public:
   using GriddingAlgorithm = typename SystemSolver::GriddingAlgorithm;
 
   /// \brief Constructs a system source solver from given sub solvers.
-  HyperbolicSplitSystemSourceSolver(SystemSolver system_solver,
+  SplitSystemSourceSolver(SystemSolver system_solver,
                                     SourceTerm source_term,
                                     SplittingMethod split = SplittingMethod());
 
@@ -99,8 +99,8 @@ private:
 //                                                               Implementation
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
-HyperbolicSplitSystemSourceSolver<SystemSolver, SourceTerm, SplittingMethod>::
-    HyperbolicSplitSystemSourceSolver(SystemSolver system_solver,
+SplitSystemSourceSolver<SystemSolver, SourceTerm, SplittingMethod>::
+    SplitSystemSourceSolver(SystemSolver system_solver,
                                       SourceTerm source_term,
                                       SplittingMethod split)
     : system_solver_{std::move(system_solver)},
@@ -108,7 +108,7 @@ HyperbolicSplitSystemSourceSolver<SystemSolver, SourceTerm, SplittingMethod>::
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
 template <typename... Args>
-void HyperbolicSplitSystemSourceSolver<
+void SplitSystemSourceSolver<
     SystemSolver, SourceTerm,
     SplittingMethod>::ResetHierarchyConfiguration(const Args&... args) {
   system_solver_.ResetHierarchyConfiguration(args...);
@@ -116,7 +116,7 @@ void HyperbolicSplitSystemSourceSolver<
 }
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
-void HyperbolicSplitSystemSourceSolver<SystemSolver, SourceTerm,
+void SplitSystemSourceSolver<SystemSolver, SourceTerm,
                                        SplittingMethod>::PreAdvanceHierarchy() {
   if constexpr (is_detected<::fub::PreAdvanceHierarchy, SystemSolver&>()) {
     system_solver_.PreAdvanceHierarchy();
@@ -127,7 +127,7 @@ void HyperbolicSplitSystemSourceSolver<SystemSolver, SourceTerm,
 }
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
-void HyperbolicSplitSystemSourceSolver<
+void SplitSystemSourceSolver<
     SystemSolver, SourceTerm, SplittingMethod>::PostAdvanceHierarchy() {
   if constexpr (is_detected<::fub::PostAdvanceHierarchy, SourceTerm&>()) {
     source_term_.PostAdvanceHierarchy();
@@ -138,7 +138,7 @@ void HyperbolicSplitSystemSourceSolver<
 }
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
-Duration HyperbolicSplitSystemSourceSolver<SystemSolver, SourceTerm,
+Duration SplitSystemSourceSolver<SystemSolver, SourceTerm,
                                            SplittingMethod>::ComputeStableDt() {
   return std::min(system_solver_.ComputeStableDt(),
                   source_term_.ComputeStableDt());
@@ -146,27 +146,27 @@ Duration HyperbolicSplitSystemSourceSolver<SystemSolver, SourceTerm,
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
 const auto&
-HyperbolicSplitSystemSourceSolver<SystemSolver, SourceTerm,
+SplitSystemSourceSolver<SystemSolver, SourceTerm,
                                   SplittingMethod>::GetPatchHierarchy() const {
   return system_solver_.GetPatchHierarchy();
 }
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
 Duration
-HyperbolicSplitSystemSourceSolver<SystemSolver, SourceTerm,
+SplitSystemSourceSolver<SystemSolver, SourceTerm,
                                   SplittingMethod>::GetTimePoint() const {
   return system_solver_.GetTimePoint();
 }
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
 std::ptrdiff_t
-HyperbolicSplitSystemSourceSolver<SystemSolver, SourceTerm,
+SplitSystemSourceSolver<SystemSolver, SourceTerm,
                                   SplittingMethod>::GetCycles() const {
   return system_solver_.GetCycles();
 }
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
-Result<void, TimeStepTooLarge> HyperbolicSplitSystemSourceSolver<
+Result<void, TimeStepTooLarge> SplitSystemSourceSolver<
     SystemSolver, SourceTerm, SplittingMethod>::AdvanceHierarchy(Duration dt) {
   auto system_solver = [&](Duration dt) {
     return system_solver_.AdvanceHierarchy(dt);

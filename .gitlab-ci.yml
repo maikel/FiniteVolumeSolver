@@ -66,6 +66,16 @@ build:amrex-2d_gcc8:
     - cmake ../ -DCMAKE_BUILD_TYPE=Debug -DFUB_WITH_OPENMP=False
     - make
 
+build:amrex-2d_gcc9:
+  image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:2d_gcc9
+  stage: build
+  script:
+    - mkdir build
+    - cd build
+    - conan install ../ --build missing --build AMReX -o AMReX:dim=2 -s compiler.libcxx=libstdc++11
+    - cmake ../ -DCMAKE_BUILD_TYPE=Debug -DFUB_WITH_OPENMP=False
+    - make
+
 build:amrex-3d_gcc7:
   image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:3d_gcc7
   stage: build
@@ -78,6 +88,16 @@ build:amrex-3d_gcc7:
 
 build:amrex-3d_gcc8:
   image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:3d_gcc8
+  stage: build
+  script:
+    - mkdir build
+    - cd build
+    - conan install ../ --build missing --build AMReX -o AMReX:dim=3 -s compiler.libcxx=libstdc++11
+    - cmake ../ -DCMAKE_BUILD_TYPE=Debug -DFUB_WITH_OPENMP=False
+    - make
+
+build:amrex-3d_gcc9:
+  image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:3d_gcc9
   stage: build
   script:
     - mkdir build
