@@ -35,9 +35,9 @@ AsArray(const ::amrex::IntVect& vec);
 
 template <int Rank> IndexBox<Rank> AsIndexBox(const ::amrex::Box& box) {
   const std::array<std::ptrdiff_t, static_cast<std::size_t>(AMREX_SPACEDIM)>
-  lower = AsArray(box.smallEnd());
+      lower = AsArray(box.smallEnd());
   std::array<std::ptrdiff_t, static_cast<std::size_t>(AMREX_SPACEDIM)> upper =
-  AsArray(box.bigEnd());
+      AsArray(box.bigEnd());
   std::transform(upper.begin(), upper.end(), upper.begin(),
                  [](std::ptrdiff_t i) { return i + 1; });
 

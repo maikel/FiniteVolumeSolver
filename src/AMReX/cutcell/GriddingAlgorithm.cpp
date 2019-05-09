@@ -235,7 +235,6 @@ void GriddingAlgorithm::ErrorEst(int level, ::amrex::TagBoxArray& tags, double,
   }
 }
 
-
 void GriddingAlgorithm::SetBoundaryCondition(BoundaryCondition condition) {
   boundary_condition_ = std::move(condition);
 }

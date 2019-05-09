@@ -139,13 +139,11 @@ struct HyperbolicSplitSystemSolver {
         MakeSplitDirections());
   }
 
-//  Equation& GetEquation() {
-//    return integrator.GetEquation();
-//  }
+  //  Equation& GetEquation() {
+  //    return integrator.GetEquation();
+  //  }
 
-  const Equation& GetEquation() const {
-    return integrator.GetEquation();
-  }
+  const Equation& GetEquation() const { return integrator.GetEquation(); }
 
   LevelIntegrator integrator;
   SplittingMethod splitting;

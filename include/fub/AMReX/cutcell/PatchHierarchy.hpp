@@ -158,7 +158,8 @@ public:
     return feedback;
   }
 
-  template <typename Feedback> double Minimum(int level, Feedback feedback) const {
+  template <typename Feedback>
+  double Minimum(int level, Feedback feedback) const {
     double global_min = std::numeric_limits<double>::infinity();
 #ifdef _OPENMP
 #pragma omp parallel reduction(min : global_min) firstprivate(feedback)

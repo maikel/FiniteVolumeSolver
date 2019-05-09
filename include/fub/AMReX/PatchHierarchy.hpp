@@ -168,7 +168,8 @@ public:
     return feedback;
   }
 
-  template <typename Feedback> double Minimum(int level, Feedback feedback) const {
+  template <typename Feedback>
+  double Minimum(int level, Feedback feedback) const {
     double global_min = std::numeric_limits<double>::infinity();
     for (::amrex::MFIter mfi(GetPatchLevel(level).data); mfi.isValid(); ++mfi) {
       PatchHandle handle{level, &mfi};

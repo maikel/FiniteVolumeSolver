@@ -26,15 +26,15 @@
 
 #include "fub/ext/Eigen.hpp"
 
-#include "fub/CartesianCoordinates.hpp"
-#include "fub/flux_method/MusclHancockMethod.hpp"
-#include "fub/flux_method/HllMethod.hpp"
 #include "fub/AMReX/FluxMethod.hpp"
 #include "fub/AMReX/GriddingAlgorithm.hpp"
 #include "fub/AMReX/HyperbolicSplitIntegratorContext.hpp"
 #include "fub/AMReX/HyperbolicSplitPatchIntegrator.hpp"
 #include "fub/AMReX/Reconstruction.hpp"
 #include "fub/AMReX/ScopeGuard.hpp"
+#include "fub/CartesianCoordinates.hpp"
+#include "fub/flux_method/HllMethod.hpp"
+#include "fub/flux_method/MusclHancockMethod.hpp"
 #include "fub/tagging/GradientDetector.hpp"
 #include "fub/tagging/TagBuffer.hpp"
 

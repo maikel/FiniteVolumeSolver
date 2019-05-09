@@ -466,7 +466,8 @@ void Store(const BasicView<Conservative<Eq>, Layout, Eq::Rank()>& view,
       [&](auto data, auto block) {
         FUB_ASSERT(Contains(data.Box(), index));
         Store(data, block, index);
-      }, view, state);
+      },
+      view, state);
 }
 
 template <typename Eq, typename Layout>
@@ -477,7 +478,8 @@ void Store(const BasicView<Complete<Eq>, Layout, Eq::Rank()>& view,
       [&](auto data, auto block) {
         FUB_ASSERT(Contains(data.Box(), index));
         Store(data, block, index);
-  }, view, state);
+      },
+      view, state);
 }
 
 template <typename State, typename Layout, int Rank,

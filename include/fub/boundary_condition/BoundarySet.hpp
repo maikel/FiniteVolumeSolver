@@ -35,14 +35,15 @@ public:
   using PatchHandle = typename Hierarchy::PatchHandle;
   using BoundaryCondition = std::function<void(
       const PatchDataView<double, AMREX_SPACEDIM + 1>&, const Hierarchy&,
-                                               typename Hierarchy::PatchHandle, Location, int, Duration)>;
+      typename Hierarchy::PatchHandle, Location, int, Duration)>;
 
-  BoundarySet(): conditions_(2 * AMREX_SPACEDIM) {}
+  BoundarySet() : conditions_(2 * AMREX_SPACEDIM) {}
 
   void operator()(const PatchDataView<double, AMREX_SPACEDIM + 1>& data,
                   const Hierarchy& hierarchy, PatchHandle patch, Location loc,
                   int fillwidth, Duration timepoint) const {
-    const std::size_t i = static_cast<std::size_t>(loc.direction * 2 + static_cast<std::size_t>(loc.side));
+    const std::size_t i = static_cast<std::size_t>(
+        loc.direction * 2 + static_cast<std::size_t>(loc.side));
     FUB_ASSERT(i < conditions_.size());
     if (conditions_[i]) {
       conditions_[i](data, hierarchy, patch, loc, fillwidth, timepoint);
@@ -50,7 +51,8 @@ public:
   }
 
   void SetBoundaryCondition(Location loc, BoundaryCondition condition) {
-    const std::size_t i = static_cast<std::size_t>(loc.direction * 2 + static_cast<std::size_t>(loc.side));
+    const std::size_t i = static_cast<std::size_t>(
+        loc.direction * 2 + static_cast<std::size_t>(loc.side));
     FUB_ASSERT(i < conditions_.size());
     conditions_[i] = std::move(condition);
   }

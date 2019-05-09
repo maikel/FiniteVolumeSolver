@@ -95,7 +95,6 @@ int main(int argc, char** argv) {
   options.index_spaces =
       fub::amrex::cutcell::MakeIndexSpaces(shop, coarse_geom, n_level);
 
-
   fub::Burke2012 mechanism;
   fub::IdealGasMix<3> equation{mechanism};
   fub::amrex::DataDescription desc = fub::amrex::MakeDataDescription(equation);
@@ -104,7 +103,6 @@ int main(int argc, char** argv) {
   geometry.cell_dimensions = n_cells;
   geometry.coordinates = amrex::RealBox(xlower, xupper);
   geometry.periodicity = periodicity;
-
 
   equation.GetReactor().SetMoleFractions("N2:80,O2:20");
   equation.GetReactor().SetTemperature(300.0);

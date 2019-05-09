@@ -22,10 +22,10 @@
 #define FUB_AMREX_RUN_SIMULATION_HPP
 
 #include "fub/Duration.hpp"
+#include "fub/RunSimulation.hpp"
 #include "fub/TimeStepError.hpp"
 #include "fub/core/assert.hpp"
 #include "fub/ext/outcome.hpp"
-#include "fub/RunSimulation.hpp"
 
 #include <boost/optional.hpp>
 
@@ -43,8 +43,8 @@ void RunCoupledSimulation(
   fub::Duration next_output_time = options.output_interval;
   std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
   std::chrono::steady_clock::duration wall_time = wall_time_reference - now;
-  auto plenum_backup =
-  std::make_shared<cutcell::GriddingAlgorithm>(*plenum.GetGriddingAlgorithm());
+  auto plenum_backup = std::make_shared<cutcell::GriddingAlgorithm>(
+      *plenum.GetGriddingAlgorithm());
   auto tube_backup =
       std::make_shared<GriddingAlgorithm>(*tube.GetGriddingAlgorithm());
   boost::optional<Duration> failure_dt{};
@@ -98,8 +98,8 @@ void RunCoupledSimulation(
                                  options.final_time, wall_time,
                                  wall_time_difference));
         failure_dt.reset();
-        plenum_backup =
-        std::make_shared<cutcell::GriddingAlgorithm>(*plenum.GetGriddingAlgorithm());
+        plenum_backup = std::make_shared<cutcell::GriddingAlgorithm>(
+            *plenum.GetGriddingAlgorithm());
         tube_backup =
             std::make_shared<GriddingAlgorithm>(*tube.GetGriddingAlgorithm());
         boundary.ComputeBoundaryData(plenum.GetPatchHierarchy(),

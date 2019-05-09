@@ -20,15 +20,14 @@
 
 #include "fub/equations/IdealGasMix.hpp"
 #include "fub/CartesianCoordinates.hpp"
-#include "fub/equations/ideal_gas_mix/mechanism/Burke2012.hpp"
 #include "fub/equations/ideal_gas_mix/KineticSourceTerm.hpp"
+#include "fub/equations/ideal_gas_mix/mechanism/Burke2012.hpp"
 
 #include "fub/HyperbolicSplitLevelIntegrator.hpp"
 #include "fub/HyperbolicSplitPatchIntegrator.hpp"
 #include "fub/HyperbolicSplitSystemSolver.hpp"
 #include "fub/SplitSystemSourceSolver.hpp"
 #include "fub/boundary_condition/TransmissiveBoundary.hpp"
-
 
 #include "fub/ext/Eigen.hpp"
 #include "fub/flux_method/HllMethod.hpp"

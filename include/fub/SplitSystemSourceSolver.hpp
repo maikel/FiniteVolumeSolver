@@ -166,9 +166,12 @@ SplitSystemSourceSolver<SystemSolver, SourceTerm, SplittingMethod>::GetCycles()
 }
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
-  const typename SplitSystemSourceSolver<SystemSolver, SourceTerm, SplittingMethod>::Equation& SplitSystemSourceSolver<SystemSolver, SourceTerm, SplittingMethod>::GetEquation() const {
-    return system_solver_.GetEquation();
-  }
+const typename SplitSystemSourceSolver<SystemSolver, SourceTerm,
+                                       SplittingMethod>::Equation&
+SplitSystemSourceSolver<SystemSolver, SourceTerm,
+                        SplittingMethod>::GetEquation() const {
+  return system_solver_.GetEquation();
+}
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
 Result<void, TimeStepTooLarge>

@@ -22,9 +22,9 @@
 #define FUB_IDEAL_GAS_MIX_KINETIC_SOURCE_TERM_HPP
 
 #include "fub/AMReX/GriddingAlgorithm.hpp"
+#include "fub/TimeStepError.hpp"
 #include "fub/equations/IdealGasMix.hpp"
 #include "fub/ext/outcome.hpp"
-#include "fub/TimeStepError.hpp"
 
 #include <functional>
 

@@ -60,9 +60,9 @@ double CellVolume(const ::amrex::Geometry& geom) {
     });
   });
   ::amrex::FArrayBox global_reduced_volumes(ld_mirror);
-  ::MPI_Allreduce(local_reduced_volumes.dataPtr(),
-                  global_reduced_volumes.dataPtr(), local_reduced_volumes.size(),
-                  MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  ::MPI_Allreduce(
+      local_reduced_volumes.dataPtr(), global_reduced_volumes.dataPtr(),
+      local_reduced_volumes.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   return global_reduced_volumes;
 }
 
@@ -95,10 +95,10 @@ AverageConservativeHierarchyStates(const cutcell::PatchHierarchy& hierarchy,
       ReduceTotalVolume(hierarchy, level, mirror);
   ::amrex::FArrayBox fab(total_volume.box(), n_comps);
   fab.setVal(0.0);
-//  const std::ptrdiff_t linear =
-//      static_cast<std::ptrdiff_t>(fab.box().length()[0]);
-//  const std::ptrdiff_t size = linear * fab.nComp();
-//  std::fill_n(fab.dataPtr(), size, 0.0);
+  //  const std::ptrdiff_t linear =
+  //      static_cast<std::ptrdiff_t>(fab.box().length()[0]);
+  //  const std::ptrdiff_t size = linear * fab.nComp();
+  //  std::fill_n(fab.dataPtr(), size, 0.0);
   const double cell_volume = CellVolume(hierarchy.GetGeometry(0));
   PatchDataView<double, AMREX_SPACEDIM + 1> fabv = MakePatchDataView(fab);
   PatchDataView<const double, AMREX_SPACEDIM> tot_vol =
@@ -115,8 +115,8 @@ AverageConservativeHierarchyStates(const cutcell::PatchHierarchy& hierarchy,
   });
   ::amrex::FArrayBox global_fab(fab.box(), fab.nComp());
   global_fab.setVal(0.0);
-  ::MPI_Allreduce(fab.dataPtr(), global_fab.dataPtr(), fab.size(),
-                  MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  ::MPI_Allreduce(fab.dataPtr(), global_fab.dataPtr(), fab.size(), MPI_DOUBLE,
+                  MPI_SUM, MPI_COMM_WORLD);
   return global_fab;
 }
 
@@ -224,9 +224,8 @@ void EmbedState(Complete<IdealGasMix<AMREX_SPACEDIM>>& dest,
     local_fab.plus(data, subbox, 0, 0, n_comps);
   });
   ::amrex::FArrayBox global_fab(local_fab.box(), local_fab.nComp());
-  ::MPI_Allreduce(local_fab.dataPtr(), global_fab.dataPtr(),
-                  local_fab.size(), MPI_DOUBLE, MPI_SUM,
-                  MPI_COMM_WORLD);
+  ::MPI_Allreduce(local_fab.dataPtr(), global_fab.dataPtr(), local_fab.size(),
+                  MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   return global_fab;
 }
 } // namespace
@@ -335,8 +334,7 @@ void CoupledBoundary::ComputeBoundaryData(const cutcell::PatchHierarchy& plenum,
 
 void CoupledBoundary::FillPlenumBoundary(
     const PatchDataView<double, AMREX_SPACEDIM + 1>& data,
-    const cutcell::PatchHierarchy&, PatchHandle, Location loc, int,
-    Duration) {
+    const cutcell::PatchHierarchy&, PatchHandle, Location loc, int, Duration) {
   if (loc.direction != 0 || loc.side != 0) {
     return;
   }

@@ -191,12 +191,12 @@ auto MakePlenumSolver(int num_cells, fub::Burke2012& mechanism) {
   equation.GetReactor().SetPressure(101325.0);
   fub::Complete<fub::IdealGasMix<3>> right(equation);
   equation.CompleteFromReactor(right);
-//
-//  equation.GetReactor().SetMoleFractions("N2:80,O2:20");
-//  equation.GetReactor().SetTemperature(500.0);
-//  equation.GetReactor().SetDensity(3.15);
-//  fub::Complete<fub::IdealGasMix<3>> left(equation);
-//  equation.CompleteFromReactor(left, {400.0, 0.0, 0.0});
+  //
+  //  equation.GetReactor().SetMoleFractions("N2:80,O2:20");
+  //  equation.GetReactor().SetTemperature(500.0);
+  //  equation.GetReactor().SetDensity(3.15);
+  //  fub::Complete<fub::IdealGasMix<3>> left(equation);
+  //  equation.CompleteFromReactor(left, {400.0, 0.0, 0.0});
 
   fub::amrex::cutcell::RiemannProblem initial_data(
       equation, fub::Halfspace({+1.0, 0.0, 0.0}, -0.04), right, right);
@@ -235,7 +235,7 @@ auto MakePlenumSolver(int num_cells, fub::Burke2012& mechanism) {
 
 int main(int argc, char** argv) {
   std::chrono::steady_clock::time_point wall_time_reference =
-  std::chrono::steady_clock::now();
+      std::chrono::steady_clock::now();
 
   fub::amrex::ScopeGuard _(argc, argv);
   fub::Burke2012 mechanism{};
@@ -276,7 +276,8 @@ int main(int argc, char** argv) {
     ::amrex::Print() << "Start output to '" << name << "'.\n";
     fub::amrex::cutcell::WritePlotFile(name, hierarchy, plenum.GetEquation());
     name = fmt::format("{}_Tube/{:05}", base_name, cycle);
-    fub::amrex::WritePlotFile(name, tube.GetPatchHierarchy(), tube.GetEquation());
+    fub::amrex::WritePlotFile(name, tube.GetPatchHierarchy(),
+                              tube.GetEquation());
     ::amrex::Print() << "Finished output to '" << name << "'.\n";
   };
 
@@ -289,5 +290,6 @@ int main(int argc, char** argv) {
   run_options.output_interval = 6.25e-6s;
   run_options.cfl = 0.5 * 0.9;
 
-  fub::amrex::RunCoupledSimulation(plenum, tube, *boundary, run_options, wall_time_reference, output, print_msg);
+  fub::amrex::RunCoupledSimulation(plenum, tube, *boundary, run_options,
+                                   wall_time_reference, output, print_msg);
 }
