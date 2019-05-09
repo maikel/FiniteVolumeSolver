@@ -170,8 +170,7 @@ install(
   TARGETS FiniteVolumeSolver.Solver
   EXPORT FiniteVolumeSolver
   ARCHIVE DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
-  LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
-)
+  LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib)
 
 ################################################################################
 # [FiniteVolumeSolver.AMReX]
@@ -179,40 +178,26 @@ install(
 if (AMReX_FOUND AND TARGET AMReX::amrex)
   add_library(FiniteVolumeSolver.AMReX
     src/AMReX/ScopeGuard.cpp
-    src/AMReX/MultiFab.cpp
     src/AMReX/CartesianGridGeometry.cpp
     src/AMReX/ViewFArrayBox.cpp
     src/AMReX/PatchHierarchy.cpp
     src/AMReX/GriddingAlgorithm.cpp
     src/AMReX/BoundaryCondition.cpp
     src/AMReX/HyperbolicSplitIntegratorContext.cpp)
-
-  if (AMREX_ENABLE_EB) 
-    target_sources(FiniteVolumeSolver.AMReX
-      PRIVATE
-        src/CutCellData.cpp
-        src/geometry/ExpandTube.cpp
-        src/AMReX/cutcell/BoundaryCondition.cpp
-        src/AMReX/cutcell/HyperbolicSplitIntegratorContext.cpp
-        src/AMReX/cutcell/PatchHierarchy.cpp
-        src/AMReX/cutcell/FillCutCellData.cpp
-        src/AMReX/cutcell/GriddingAlgorithm.cpp)
-  endif()
-
-  target_include_directories(FiniteVolumeSolver.AMReX 
-    PUBLIC 
+  target_include_directories(FiniteVolumeSolver.AMReX
+    PUBLIC
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
       $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>
-    PRIVATE 
+    PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}
   )
-  target_compile_options(FiniteVolumeSolver.AMReX 
-    PRIVATE 
-    $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
-    $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall>
-    $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>
-    $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wconversion>
-    $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wsign-conversion>)
+  target_compile_options(FiniteVolumeSolver.AMReX
+    PRIVATE
+      $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
+      $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall>
+      $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>
+      $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wconversion>
+      $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wsign-conversion>)
   target_link_libraries(FiniteVolumeSolver.AMReX
     PUBLIC
       FiniteVolumeSolver.Solver
@@ -220,9 +205,29 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
       Boost::boost
       Eigen3::Eigen)
 
-   if (FUB_WITH_OPENMP) 
+  if (AMREX_ENABLE_EB) 
+    add_library(FiniteVolumeSolver.AMReX.EB
+        src/CutCellData.cpp
+        src/geometry/ExpandTube.cpp
+        src/AMReX/cutcell/BoundaryCondition.cpp
+        src/AMReX/cutcell/HyperbolicSplitIntegratorContext.cpp
+        src/AMReX/cutcell/PatchHierarchy.cpp
+        src/AMReX/cutcell/FillCutCellData.cpp
+        src/AMReX/cutcell/GriddingAlgorithm.cpp
+        src/boundary_condition/CoupledBoundary.cpp)
+    target_compile_options(FiniteVolumeSolver.AMReX.EB
+      PRIVATE
+        $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
+        $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall>
+        $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>
+        $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wconversion>
+        $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wsign-conversion>)
+    target_link_libraries(FiniteVolumeSolver.AMReX.EB PUBLIC FiniteVolumeSolver.AMReX)
+  endif()
+
+  if (FUB_WITH_OPENMP AND AMREX_ENABLE_OMP)
     target_compile_options(FiniteVolumeSolver.AMReX PUBLIC "-fopenmp")
-   endif()
+  endif()
 endif()
 
 ################################################################################
@@ -242,8 +247,7 @@ if (SAMRAI_FOUND)
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
       $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>
     PRIVATE 
-      ${CMAKE_CURRENT_SOURCE_DIR}
-  )
+      ${CMAKE_CURRENT_SOURCE_DIR})
   target_link_libraries(FiniteVolumeSolver.SAMRAI
     PUBLIC
       FiniteVolumeSolver.Solver
@@ -258,13 +262,11 @@ if (SAMRAI_FOUND)
     TARGETS FiniteVolumeSolver.SAMRAI
     EXPORT FiniteVolumeSolver
     ARCHIVE DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
-    LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
-  )
+    LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib)
   install(
     DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/fub/SAMRAI
     DESTINATION ${CMAKE_INSTALL_PREFIX}/include/fub/
-    FILES_MATCHING PATTERN *.hpp
-  )
+    FILES_MATCHING PATTERN *.hpp)
 endif()
 
 ################################################################################

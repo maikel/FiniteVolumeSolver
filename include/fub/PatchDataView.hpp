@@ -31,11 +31,13 @@
 #include <boost/mp11/tuple.hpp>
 
 namespace fub {
+template <int Rank>
+using Index = std::array<std::ptrdiff_t, static_cast<std::size_t>(Rank)>;
+
 template <int Rank> struct IndexBox {
   static_assert(Rank >= 0);
-  static constexpr std::size_t sRank = static_cast<std::size_t>(Rank);
-  std::array<std::ptrdiff_t, sRank> lower;
-  std::array<std::ptrdiff_t, sRank> upper;
+  Index<Rank> lower;
+  Index<Rank> upper;
 };
 
 template <int Rank>
@@ -57,10 +59,11 @@ bool Contains(const IndexBox<Rank>& b1, const IndexBox<Rank>& b2) {
 }
 
 template <int Rank>
-bool Contains(
-    const IndexBox<Rank>& box,
-    const std::array<std::ptrdiff_t, static_cast<std::size_t>(Rank)>& index) {
-  return Contains(box, IndexBox<Rank>{index, index});
+bool Contains(const IndexBox<Rank>& box, const Index<Rank>& index) {
+  Index<Rank> upper;
+  std::transform(index.begin(), index.end(), upper.begin(),
+                 [](std::ptrdiff_t i) { return i + 1; });
+  return Contains(box, IndexBox<Rank>{index, upper});
 }
 
 template <int Rank>

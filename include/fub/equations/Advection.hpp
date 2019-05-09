@@ -50,8 +50,10 @@ struct Advection2d {
   template <int N>
   using ConservativeArray = ::fub::ConservativeArray<Advection2d, N>;
 
+  /// Constructs an equation object with velocity `v`.
   Advection2d(const std::array<double, 2>& v) noexcept : velocity{v} {}
 
+  /// Returns 2, which is the space dimension for this equation.
   static constexpr int Rank() { return 2; }
 
   /// Computes the linear transport flux in the specified direction.
@@ -62,6 +64,12 @@ struct Advection2d {
   void Flux(Conservative& flux, const Complete& state, Direction dir) const
       noexcept;
 
+  /// Computes the linear transport flux in the specified direction (Array
+  /// version).
+  ///
+  /// \param[out] flux The conservative state which will store the results.
+  /// \param[in] state The input state.
+  /// \param[in] dir   The split direction of this flux.
   template <int N>
   void Flux(ConservativeArray<N>& flux, const CompleteArray<N>& state,
             Direction dir) const noexcept {
@@ -69,6 +77,7 @@ struct Advection2d {
     flux.mass = velocity[d] * state.mass;
   }
 
+  /// This member variable stores the constant transport velocity.
   std::array<double, 2> velocity;
 };
 

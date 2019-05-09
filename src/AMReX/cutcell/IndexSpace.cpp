@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/grid/AMReX/cutcell/IndexSpace.hpp"
+#include "fub/AMReX/cutcell/IndexSpace.hpp"
 
 namespace fub {
 namespace amrex {

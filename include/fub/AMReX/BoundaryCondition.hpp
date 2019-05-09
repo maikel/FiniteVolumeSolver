@@ -18,25 +18,38 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_AMREX_MULTIFAB_HPP
-#define FUB_AMREX_MULTIFAB_HPP
+#ifndef FUB_GRID_AMREX_BOUNDARY_CONDITION_HPP
+#define FUB_GRID_AMREX_BOUNDARY_CONDITION_HPP
 
-#include <AMReX_MultiFab.H>
+#include "fub/AMReX/PatchHierarchy.hpp"
+#include "fub/Direction.hpp"
+#include "fub/Duration.hpp"
+#include "fub/PatchDataView.hpp"
+#include "fub/core/function_ref.hpp"
+#include "fub/core/mdspan.hpp"
+
+#include <AMReX_FillPatchUtil.H>
+#include <AMReX_Interpolater.H>
+#include <AMReX_MultiFabUtil.H>
 
 namespace fub {
 namespace amrex {
 
-/// This class is a wrapper around ::amrex::Multifab which makes it a copy
-/// assignable type.
-class MultiFab : public ::amrex::MultiFab {
-public:
-  using ::amrex::MultiFab::MultiFab;
+struct BoundaryCondition : public ::amrex::PhysBCFunctBase {
+  using Function = function_ref<void(
+      const PatchDataView<double, AMREX_SPACEDIM + 1>&, const PatchHierarchy&,
+      PatchHandle, Location, int, Duration)>;
 
-  MultiFab(const MultiFab&);
-  MultiFab& operator=(const MultiFab&);
+  BoundaryCondition(Function f, const ::amrex::Geometry& geom, int level,
+                    const PatchHierarchy& hierarchy);
 
-  MultiFab(MultiFab&&) noexcept = default;
-  MultiFab& operator=(MultiFab&&) noexcept = default;
+  void FillBoundary(::amrex::MultiFab& mf, int, int, double time_point,
+                    int) override;
+
+  Function function_;
+  ::amrex::Geometry geom_;
+  int level_num_;
+  const PatchHierarchy* hierarchy_;
 };
 
 } // namespace amrex

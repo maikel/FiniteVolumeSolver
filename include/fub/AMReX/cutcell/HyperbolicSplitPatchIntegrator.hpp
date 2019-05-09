@@ -18,13 +18,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_AMREX_HYPERBOLIC_SPLIT_PATCH_INTEGRATOR_HPP
-#define FUB_AMREX_HYPERBOLIC_SPLIT_PATCH_INTEGRATOR_HPP
+#ifndef FUB_AMREX_CUTCELL_HYPERBOLIC_SPLIT_PATCH_INTEGRATOR_HPP
+#define FUB_AMREX_CUTCELL_HYPERBOLIC_SPLIT_PATCH_INTEGRATOR_HPP
 
+#include "fub/AMReX/PatchHandle.hpp"
 #include "fub/Direction.hpp"
 #include "fub/Duration.hpp"
 #include "fub/State.hpp"
-#include "fub/grid/AMReX/PatchHandle.hpp"
 
 namespace fub {
 namespace amrex {

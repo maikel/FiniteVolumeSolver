@@ -26,16 +26,16 @@
 #include "fub/HyperbolicSplitLevelIntegrator.hpp"
 #include "fub/HyperbolicSplitSystemSolver.hpp"
 
-#include "fub/grid/AMReX/FillCutCellData.hpp"
-#include "fub/grid/AMReX/GriddingAlgorithm.hpp"
-#include "fub/grid/AMReX/ScopeGuard.hpp"
-#include "fub/grid/AMReX/cutcell/FluxMethod.hpp"
-#include "fub/grid/AMReX/cutcell/GriddingAlgorithm.hpp"
-#include "fub/grid/AMReX/cutcell/HyperbolicSplitIntegratorContext.hpp"
-#include "fub/grid/AMReX/cutcell/HyperbolicSplitPatchIntegrator.hpp"
-#include "fub/grid/AMReX/cutcell/IndexSpace.hpp"
-#include "fub/grid/AMReX/cutcell/Reconstruction.hpp"
-#include "fub/grid/AMReX/cutcell/Tagging.hpp"
+#include "fub/AMReX/FillCutCellData.hpp"
+#include "fub/AMReX/GriddingAlgorithm.hpp"
+#include "fub/AMReX/ScopeGuard.hpp"
+#include "fub/AMReX/cutcell/FluxMethod.hpp"
+#include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
+#include "fub/AMReX/cutcell/HyperbolicSplitIntegratorContext.hpp"
+#include "fub/AMReX/cutcell/HyperbolicSplitPatchIntegrator.hpp"
+#include "fub/AMReX/cutcell/IndexSpace.hpp"
+#include "fub/AMReX/cutcell/Reconstruction.hpp"
+#include "fub/AMReX/cutcell/Tagging.hpp"
 
 #include "fub/geometry/ExpandTube.hpp"
 #include "fub/geometry/Halfspace.hpp"
@@ -90,6 +90,12 @@ int main(int argc, char** argv) {
       amrex::EB2::CylinderIF(0.015, -1.0, 0, {1e6, 0.0, 0.0}, true));
   auto shop = amrex::EB2::makeShop(embedded_boundary);
 
+  fub::amrex::cutcell::PatchHierarchyOptions options{};
+  options.max_number_of_levels = n_level;
+  options.index_spaces =
+      fub::amrex::cutcell::MakeIndexSpaces(shop, coarse_geom, n_level);
+
+
   fub::Burke2012 mechanism;
   fub::IdealGasMix<3> equation{mechanism};
   fub::amrex::DataDescription desc = fub::amrex::MakeDataDescription(equation);
@@ -99,10 +105,6 @@ int main(int argc, char** argv) {
   geometry.coordinates = amrex::RealBox(xlower, xupper);
   geometry.periodicity = periodicity;
 
-  fub::amrex::cutcell::PatchHierarchyOptions options{};
-  options.max_number_of_levels = n_level;
-  options.index_spaces =
-      fub::amrex::cutcell::MakeIndexSpaces(shop, coarse_geom, n_level);
 
   equation.GetReactor().SetMoleFractions("N2:80,O2:20");
   equation.GetReactor().SetTemperature(300.0);
@@ -110,10 +112,6 @@ int main(int argc, char** argv) {
   fub::Complete<fub::IdealGasMix<3>> right(equation);
   equation.CompleteFromReactor(right);
 
-  //  cons.density = 3.15736;
-  //  cons.momentum << 1258.31, 0.0, 0.0;
-  //  cons.energy = 416595.0 * equation.gamma_minus_1_inv +
-  //                0.5 * cons.momentum[0] * cons.momentum[0] / cons.density;
   equation.GetReactor().SetMoleFractions("N2:80,O2:20");
   equation.GetReactor().SetTemperature(500.0);
   equation.GetReactor().SetDensity(3.15);

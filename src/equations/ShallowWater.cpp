@@ -30,7 +30,7 @@ void ShallowWater::Flux(Conservative& flux, const Complete& state,
   flux.heigth = state.momentum[d];
   flux.momentum[0] = velocity * state.momentum[0];
   flux.momentum[1] = velocity * state.momentum[1];
-  flux.momentum[d] += gravity_ * state.heigth;
+  flux.momentum[d] += 0.5 * gravity_ * state.heigth * state.heigth;
 }
 
 ShallowWater::Complete ExactRiemannSolver<ShallowWater>::ComputeMiddleState(

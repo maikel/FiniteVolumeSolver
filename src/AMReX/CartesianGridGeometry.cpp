@@ -1,4 +1,4 @@
-#include "fub/grid/AMReX/CartesianGridGeometry.hpp"
+#include "fub/AMReX/CartesianGridGeometry.hpp"
 
 namespace fub {
 namespace amrex {

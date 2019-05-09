@@ -21,9 +21,9 @@
 #ifndef FUB_INITIAL_DATA_RIEMANN_PROBLEM_HPP
 #define FUB_INITIAL_DATA_RIEMANN_PROBLEM_HPP
 
+#include "fub/AMReX/cutcell/PatchHierarchy.hpp"
 #include "fub/Equation.hpp"
 #include "fub/ForEach.hpp"
-#include "fub/grid/AMReX/cutcell/PatchHierarchy.hpp"
 
 #include <array>
 #include <limits>

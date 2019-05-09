@@ -18,9 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/grid/AMReX/cutcell/GriddingAlgorithm.hpp"
-#include "fub/grid/AMReX/cutcell/BoundaryCondition.hpp"
-#include "fub/grid/AMReX/utility.hpp"
+#include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
+#include "fub/AMReX/cutcell/BoundaryCondition.hpp"
+#include "fub/AMReX/utility.hpp"
 
 #include <AMReX_EBMultiFabUtil.H>
 #include <AMReX_FillPatchUtil.H>
@@ -233,6 +233,11 @@ void GriddingAlgorithm::ErrorEst(int level, ::amrex::TagBoxArray& tags, double,
     PatchHandle patch{level, &mfi};
     tagging_.TagCellsForRefinement(tag, data, hierarchy_, patch);
   }
+}
+
+
+void GriddingAlgorithm::SetBoundaryCondition(BoundaryCondition condition) {
+  boundary_condition_ = std::move(condition);
 }
 
 const GriddingAlgorithm::BoundaryCondition&

@@ -21,11 +21,11 @@
 #ifndef FUB_BOUNDARY_CONDITION_TRANSMISSIVE_BOUNDARY_HPP
 #define FUB_BOUNDARY_CONDITION_TRANSMISSIVE_BOUNDARY_HPP
 
+#include "fub/AMReX/PatchHierarchy.hpp"
+#include "fub/AMReX/ViewFArrayBox.hpp"
+#include "fub/AMReX/cutcell/PatchHierarchy.hpp"
 #include "fub/Equation.hpp"
 #include "fub/State.hpp"
-#include "fub/grid/AMReX/PatchHierarchy.hpp"
-#include "fub/grid/AMReX/ViewFArrayBox.hpp"
-#include "fub/grid/AMReX/cutcell/PatchHierarchy.hpp"
 
 namespace fub {
 

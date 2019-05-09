@@ -48,11 +48,11 @@ template <typename SystemSolver, typename SourceTerm,
 class SplitSystemSourceSolver {
 public:
   using GriddingAlgorithm = typename SystemSolver::GriddingAlgorithm;
+  using Equation = typename SystemSolver::Equation;
 
   /// \brief Constructs a system source solver from given sub solvers.
-  SplitSystemSourceSolver(SystemSolver system_solver,
-                                    SourceTerm source_term,
-                                    SplittingMethod split = SplittingMethod());
+  SplitSystemSourceSolver(SystemSolver system_solver, SourceTerm source_term,
+                          SplittingMethod split = SplittingMethod());
 
   // Accessors
 
@@ -70,6 +70,9 @@ public:
 
   /// \brief Returns the number of cycles at the coarsest level.
   std::ptrdiff_t GetCycles() const;
+
+  /// \brief Returns the underlying equation object of system solver.
+  const Equation& GetEquation() const;
 
   // Modifiers
 
@@ -100,24 +103,22 @@ private:
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
 SplitSystemSourceSolver<SystemSolver, SourceTerm, SplittingMethod>::
-    SplitSystemSourceSolver(SystemSolver system_solver,
-                                      SourceTerm source_term,
-                                      SplittingMethod split)
+    SplitSystemSourceSolver(SystemSolver system_solver, SourceTerm source_term,
+                            SplittingMethod split)
     : system_solver_{std::move(system_solver)},
       source_term_{std::move(source_term)}, splitting_{split} {}
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
 template <typename... Args>
-void SplitSystemSourceSolver<
-    SystemSolver, SourceTerm,
-    SplittingMethod>::ResetHierarchyConfiguration(const Args&... args) {
+void SplitSystemSourceSolver<SystemSolver, SourceTerm, SplittingMethod>::
+    ResetHierarchyConfiguration(const Args&... args) {
   system_solver_.ResetHierarchyConfiguration(args...);
   source_term_.ResetHierarchyConfiguration(args...);
 }
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
 void SplitSystemSourceSolver<SystemSolver, SourceTerm,
-                                       SplittingMethod>::PreAdvanceHierarchy() {
+                             SplittingMethod>::PreAdvanceHierarchy() {
   if constexpr (is_detected<::fub::PreAdvanceHierarchy, SystemSolver&>()) {
     system_solver_.PreAdvanceHierarchy();
   }
@@ -127,8 +128,8 @@ void SplitSystemSourceSolver<SystemSolver, SourceTerm,
 }
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
-void SplitSystemSourceSolver<
-    SystemSolver, SourceTerm, SplittingMethod>::PostAdvanceHierarchy() {
+void SplitSystemSourceSolver<SystemSolver, SourceTerm,
+                             SplittingMethod>::PostAdvanceHierarchy() {
   if constexpr (is_detected<::fub::PostAdvanceHierarchy, SourceTerm&>()) {
     source_term_.PostAdvanceHierarchy();
   }
@@ -139,7 +140,7 @@ void SplitSystemSourceSolver<
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
 Duration SplitSystemSourceSolver<SystemSolver, SourceTerm,
-                                           SplittingMethod>::ComputeStableDt() {
+                                 SplittingMethod>::ComputeStableDt() {
   return std::min(system_solver_.ComputeStableDt(),
                   source_term_.ComputeStableDt());
 }
@@ -147,27 +148,32 @@ Duration SplitSystemSourceSolver<SystemSolver, SourceTerm,
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
 const auto&
 SplitSystemSourceSolver<SystemSolver, SourceTerm,
-                                  SplittingMethod>::GetPatchHierarchy() const {
+                        SplittingMethod>::GetPatchHierarchy() const {
   return system_solver_.GetPatchHierarchy();
 }
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
-Duration
-SplitSystemSourceSolver<SystemSolver, SourceTerm,
-                                  SplittingMethod>::GetTimePoint() const {
+Duration SplitSystemSourceSolver<SystemSolver, SourceTerm,
+                                 SplittingMethod>::GetTimePoint() const {
   return system_solver_.GetTimePoint();
 }
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
 std::ptrdiff_t
-SplitSystemSourceSolver<SystemSolver, SourceTerm,
-                                  SplittingMethod>::GetCycles() const {
+SplitSystemSourceSolver<SystemSolver, SourceTerm, SplittingMethod>::GetCycles()
+    const {
   return system_solver_.GetCycles();
 }
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
-Result<void, TimeStepTooLarge> SplitSystemSourceSolver<
-    SystemSolver, SourceTerm, SplittingMethod>::AdvanceHierarchy(Duration dt) {
+  const typename SplitSystemSourceSolver<SystemSolver, SourceTerm, SplittingMethod>::Equation& SplitSystemSourceSolver<SystemSolver, SourceTerm, SplittingMethod>::GetEquation() const {
+    return system_solver_.GetEquation();
+  }
+
+template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
+Result<void, TimeStepTooLarge>
+SplitSystemSourceSolver<SystemSolver, SourceTerm,
+                        SplittingMethod>::AdvanceHierarchy(Duration dt) {
   auto system_solver = [&](Duration dt) {
     return system_solver_.AdvanceHierarchy(dt);
   };

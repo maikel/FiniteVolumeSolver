@@ -18,11 +18,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/grid/AMReX/cutcell/HyperbolicSplitIntegratorContext.hpp"
-#include "fub/grid/AMReX/ViewFArrayBox.hpp"
-#include "fub/grid/AMReX/cutcell/BoundaryCondition.hpp"
-#include "fub/grid/AMReX/cutcell/IndexSpace.hpp"
-#include "fub/grid/AMReX/utility.hpp"
+#include "fub/AMReX/cutcell/HyperbolicSplitIntegratorContext.hpp"
+#include "fub/AMReX/ViewFArrayBox.hpp"
+#include "fub/AMReX/cutcell/BoundaryCondition.hpp"
+#include "fub/AMReX/cutcell/IndexSpace.hpp"
+#include "fub/AMReX/utility.hpp"
 
 #include <AMReX_EBMultiFabUtil.H>
 #include <AMReX_FillPatchUtil.H>

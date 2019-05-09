@@ -21,12 +21,11 @@
 #ifndef FUB_AMREX_PATCH_HIERARCHY_HPP
 #define FUB_AMREX_PATCH_HIERARCHY_HPP
 
+#include "fub/AMReX/CartesianGridGeometry.hpp"
+#include "fub/AMReX/PatchHandle.hpp"
 #include "fub/Duration.hpp"
 #include "fub/Equation.hpp"
 #include "fub/ext/Eigen.hpp"
-#include "fub/grid/AMReX/CartesianGridGeometry.hpp"
-#include "fub/grid/AMReX/MultiFab.hpp"
-#include "fub/grid/AMReX/PatchHandle.hpp"
 
 #include <AMReX_FluxRegister.H>
 #include <AMReX_Geometry.H>
@@ -71,9 +70,24 @@ struct PatchLevel {
   PatchLevel& operator=(PatchLevel&& other) = default;
   /// @}
 
+  /// Allocates arrays with specified box array and distribution mapping.
+  ///
+  /// \param num the refinement level number
+  /// \param tp  the time point of the simulation
+  /// \param ba  the box array of the distributed array
+  /// \param dm  the distribution mapping for the array
+  /// \param n_components the number of components of the array
   PatchLevel(int num, Duration tp, const ::amrex::BoxArray& ba,
              const ::amrex::DistributionMapping& dm, int n_components);
 
+  /// Allocates arrays with specified box array and distribution mapping.
+  ///
+  /// \param num the refinement level number
+  /// \param tp  the time point of the simulation
+  /// \param ba  the box array of the distributed array
+  /// \param dm  the distribution mapping for the array
+  /// \param n_components the number of components of the array
+  /// \param factory the FAB factory, important with EB.
   PatchLevel(int num, Duration tp, const ::amrex::BoxArray& ba,
              const ::amrex::DistributionMapping& dm, int n_components,
              const ::amrex::FabFactory<::amrex::FArrayBox>& factory);
@@ -97,6 +111,8 @@ struct DataDescription {
 
 class PatchHierarchy {
 public:
+  using PatchHandle = ::fub::amrex::PatchHandle;
+
   PatchHierarchy(DataDescription description,
                  const CartesianGridGeometry& geometry,
                  const PatchHierarchyOptions& options);
@@ -144,7 +160,7 @@ public:
   }
 
   template <typename Feedback>
-  Feedback ForEachPatch(int level, Feedback feedback) {
+  Feedback ForEachPatch(int level, Feedback feedback) const {
     for (::amrex::MFIter mfi(GetPatchLevel(level).data); mfi.isValid(); ++mfi) {
       PatchHandle handle{level, &mfi};
       feedback(handle);
@@ -152,7 +168,7 @@ public:
     return feedback;
   }
 
-  template <typename Feedback> double Minimum(int level, Feedback feedback) {
+  template <typename Feedback> double Minimum(int level, Feedback feedback) const {
     double global_min = std::numeric_limits<double>::infinity();
     for (::amrex::MFIter mfi(GetPatchLevel(level).data); mfi.isValid(); ++mfi) {
       PatchHandle handle{level, &mfi};

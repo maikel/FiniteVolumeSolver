@@ -30,12 +30,14 @@
 
 namespace fub {
 namespace amrex {
-std::array<std::ptrdiff_t, AMREX_SPACEDIM> AsArray(const ::amrex::IntVect& vec);
+std::array<std::ptrdiff_t, static_cast<std::size_t>(AMREX_SPACEDIM)>
+AsArray(const ::amrex::IntVect& vec);
 
 template <int Rank> IndexBox<Rank> AsIndexBox(const ::amrex::Box& box) {
-  const std::array<std::ptrdiff_t, AMREX_SPACEDIM> lower =
-      AsArray(box.smallEnd());
-  std::array<std::ptrdiff_t, AMREX_SPACEDIM> upper = AsArray(box.bigEnd());
+  const std::array<std::ptrdiff_t, static_cast<std::size_t>(AMREX_SPACEDIM)>
+  lower = AsArray(box.smallEnd());
+  std::array<std::ptrdiff_t, static_cast<std::size_t>(AMREX_SPACEDIM)> upper =
+  AsArray(box.bigEnd());
   std::transform(upper.begin(), upper.end(), upper.begin(),
                  [](std::ptrdiff_t i) { return i + 1; });
 
@@ -55,7 +57,8 @@ template <int Rank> IndexBox<Rank> AsIndexBox(const ::amrex::Box& box) {
 /// \param[in] fab  The Fab which owns the data.
 template <typename T>
 mdspan<T, AMREX_SPACEDIM + 1> MakeMdSpan(::amrex::BaseFab<T>& fab) {
-  std::array<std::ptrdiff_t, AMREX_SPACEDIM + 1> extents;
+  std::array<std::ptrdiff_t, static_cast<std::size_t>(AMREX_SPACEDIM + 1)>
+      extents;
   ::amrex::IntVect length{fab.box().length()};
   for (int i = 0; i < AMREX_SPACEDIM; ++i) {
     extents[static_cast<std::size_t>(i)] = length[i];
@@ -68,11 +71,12 @@ template <typename T>
 PatchDataView<T, AMREX_SPACEDIM + 1>
 MakePatchDataView(::amrex::BaseFab<T>& fab) {
   fub::mdspan<T, AMREX_SPACEDIM + 1> mdspan = MakeMdSpan(fab);
-  std::array<std::ptrdiff_t, AMREX_SPACEDIM> lower =
+  std::array<std::ptrdiff_t, static_cast<std::size_t>(AMREX_SPACEDIM)> lower =
       AsArray(fab.box().smallEnd());
-  std::array<std::ptrdiff_t, AMREX_SPACEDIM + 1> lower_comp;
+  std::array<std::ptrdiff_t, static_cast<std::size_t>(AMREX_SPACEDIM + 1)>
+      lower_comp;
   std::copy_n(lower.begin(), AMREX_SPACEDIM, lower_comp.begin());
-  lower_comp[AMREX_SPACEDIM] = 0;
+  lower_comp[static_cast<std::size_t>(AMREX_SPACEDIM)] = 0;
   return PatchDataView<T, AMREX_SPACEDIM + 1>(mdspan, lower_comp);
 }
 
@@ -93,7 +97,7 @@ template <typename T>
 PatchDataView<T, AMREX_SPACEDIM> MakePatchDataView(::amrex::BaseFab<T>& fab,
                                                    int component) {
   fub::mdspan<T, AMREX_SPACEDIM> mdspan = MakeMdSpan(fab, component);
-  std::array<std::ptrdiff_t, AMREX_SPACEDIM> lower =
+  std::array<std::ptrdiff_t, static_cast<std::size_t>(AMREX_SPACEDIM)> lower =
       AsArray(fab.box().smallEnd());
   return PatchDataView<T, AMREX_SPACEDIM>(mdspan, lower);
 }
@@ -103,12 +107,13 @@ PatchDataView<T, AMREX_SPACEDIM> MakePatchDataView(::amrex::BaseFab<T>& fab,
 /// \param[in] fab  The Fab which owns the data.
 template <typename T>
 mdspan<const T, AMREX_SPACEDIM + 1> MakeMdSpan(const ::amrex::BaseFab<T>& fab) {
-  std::array<std::ptrdiff_t, AMREX_SPACEDIM + 1> extents;
+  std::array<std::ptrdiff_t, static_cast<std::size_t>(AMREX_SPACEDIM + 1)>
+      extents;
   ::amrex::IntVect length{fab.box().length()};
   for (int i = 0; i < AMREX_SPACEDIM; ++i) {
     extents[static_cast<std::size_t>(i)] = length[i];
   }
-  extents[AMREX_SPACEDIM] = fab.nComp();
+  extents[static_cast<std::size_t>(AMREX_SPACEDIM)] = fab.nComp();
   return mdspan<const T, AMREX_SPACEDIM + 1>{fab.dataPtr(), extents};
 }
 

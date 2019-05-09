@@ -39,6 +39,7 @@ using PostAdvanceHierarchy = decltype(
 
 template <typename LevelIntegrator, typename SplittingMethod = GodunovSplitting>
 struct HyperbolicSplitSystemSolver {
+  using Equation = typename LevelIntegrator::Equation;
   using GriddingAlgorithm = typename LevelIntegrator::GriddingAlgorithm;
 
   HyperbolicSplitSystemSolver(LevelIntegrator level_integrator,
@@ -136,6 +137,14 @@ struct HyperbolicSplitSystemSolver {
         },
         // TODO: Maybe randomize the directions array?
         MakeSplitDirections());
+  }
+
+//  Equation& GetEquation() {
+//    return integrator.GetEquation();
+//  }
+
+  const Equation& GetEquation() const {
+    return integrator.GetEquation();
   }
 
   LevelIntegrator integrator;

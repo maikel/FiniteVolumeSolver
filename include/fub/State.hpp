@@ -441,6 +441,7 @@ void Load(State& state, const BasicView<const State, Layout, Rank>& view,
   ForEachComponent<State>(
       [&](double& component,
           const PatchDataView<const double, Rank, Layout>& pdv) {
+        FUB_ASSERT(Contains(pdv.Box(), index));
         component = pdv(index);
       },
       state, view);
@@ -450,7 +451,10 @@ template <typename State, typename Layout, int Rank>
 void Load(State& state, const BasicView<State, Layout, Rank>& view,
           const std::array<std::ptrdiff_t, State::Equation::Rank()>& index) {
   ForEachComponent<State>(
-      [&](double& component, const auto& pdv) { component = pdv(index); },
+      [&](double& component, const auto& pdv) {
+        FUB_ASSERT(Contains(pdv.Box(), index));
+        component = pdv(index);
+      },
       state, view);
 }
 
@@ -459,7 +463,10 @@ void Store(const BasicView<Conservative<Eq>, Layout, Eq::Rank()>& view,
            const Conservative<Eq>& state,
            const std::array<std::ptrdiff_t, Eq::Rank()>& index) {
   ForEachComponent<Conservative<Eq>>(
-      [&](auto data, auto block) { Store(data, block, index); }, view, state);
+      [&](auto data, auto block) {
+        FUB_ASSERT(Contains(data.Box(), index));
+        Store(data, block, index);
+      }, view, state);
 }
 
 template <typename Eq, typename Layout>
@@ -467,7 +474,10 @@ void Store(const BasicView<Complete<Eq>, Layout, Eq::Rank()>& view,
            const Complete<Eq>& state,
            const std::array<std::ptrdiff_t, Eq::Rank()>& index) {
   ForEachComponent<Complete<Eq>>(
-      [&](auto data, auto block) { Store(data, block, index); }, view, state);
+      [&](auto data, auto block) {
+        FUB_ASSERT(Contains(data.Box(), index));
+        Store(data, block, index);
+  }, view, state);
 }
 
 template <typename State, typename Layout, int Rank,

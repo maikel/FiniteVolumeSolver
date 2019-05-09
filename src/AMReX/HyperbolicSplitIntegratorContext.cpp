@@ -18,9 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/grid/AMReX/HyperbolicSplitIntegratorContext.hpp"
-#include "fub/grid/AMReX/ViewFArrayBox.hpp"
-#include "fub/grid/AMReX/utility.hpp"
+#include "fub/AMReX/HyperbolicSplitIntegratorContext.hpp"
+#include "fub/AMReX/ViewFArrayBox.hpp"
+#include "fub/AMReX/utility.hpp"
 
 #include <AMReX_FillPatchUtil.H>
 #include <AMReX_FluxReg_C.H>

@@ -18,15 +18,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_GRID_AMREX_BOUNDARY_CONDITION_HPP
-#define FUB_GRID_AMREX_BOUNDARY_CONDITION_HPP
+#ifndef FUB_GRID_AMREX_CUTCELL_BOUNDARY_CONDITION_HPP
+#define FUB_GRID_AMREX_CUTCELL_BOUNDARY_CONDITION_HPP
 
+#include "fub/AMReX/cutcell/PatchHierarchy.hpp"
 #include "fub/Direction.hpp"
 #include "fub/Duration.hpp"
 #include "fub/PatchDataView.hpp"
 #include "fub/core/function_ref.hpp"
 #include "fub/core/mdspan.hpp"
-#include "fub/grid/AMReX/PatchHierarchy.hpp"
 
 #include <AMReX_FillPatchUtil.H>
 #include <AMReX_Interpolater.H>
@@ -34,6 +34,7 @@
 
 namespace fub {
 namespace amrex {
+namespace cutcell {
 
 struct BoundaryCondition : public ::amrex::PhysBCFunctBase {
   using Function = function_ref<void(
@@ -52,6 +53,7 @@ struct BoundaryCondition : public ::amrex::PhysBCFunctBase {
   const PatchHierarchy* hierarchy_;
 };
 
+} // namespace cutcell
 } // namespace amrex
 } // namespace fub
 

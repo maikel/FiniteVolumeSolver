@@ -39,32 +39,35 @@ if (AMReX_FOUND AND AMREX_DIM EQUAL 2)
 
   if (AMREX_ENABLE_EB)
     add_executable_with_warnings(AMReX.EB.LinearShock2d AMReX/EB/LinearShock2d.cpp)
-    target_link_libraries(AMReX.EB.LinearShock2d FiniteVolumeSolver.AMReX)
+    target_link_libraries(AMReX.EB.LinearShock2d FiniteVolumeSolver.AMReX.EB)
 
     add_executable_with_warnings(AMReX.EB.Schardin AMReX/EB/Schardin.cpp)
-    target_link_libraries(AMReX.EB.Schardin FiniteVolumeSolver.AMReX)
+    target_link_libraries(AMReX.EB.Schardin FiniteVolumeSolver.AMReX.EB)
 
     add_executable_with_warnings(AMReX.EB.Wedge AMReX/EB/Wedge.cpp)
-    target_link_libraries(AMReX.EB.Wedge FiniteVolumeSolver.AMReX)
+    target_link_libraries(AMReX.EB.Wedge FiniteVolumeSolver.AMReX.EB)
 
     add_executable_with_warnings(AMReX.EB.Ramp AMReX/EB/Ramp.cpp)
-    target_link_libraries(AMReX.EB.Ramp FiniteVolumeSolver.AMReX)
+    target_link_libraries(AMReX.EB.Ramp FiniteVolumeSolver.AMReX.EB)
 
     add_executable_with_warnings(AMReX.EB.Ramp2 AMReX/EB/Ramp2.cpp)
-    target_link_libraries(AMReX.EB.Ramp2 FiniteVolumeSolver.AMReX)
+    target_link_libraries(AMReX.EB.Ramp2 FiniteVolumeSolver.AMReX.EB)
 
     add_executable_with_warnings(AMReX.EB.Tube AMReX/EB/Tube.cpp)
-    target_link_libraries(AMReX.EB.Tube FiniteVolumeSolver.AMReX)
+    target_link_libraries(AMReX.EB.Tube FiniteVolumeSolver.AMReX.EB)
   endif()
 endif()
 
 if (AMReX_FOUND AND AMREX_DIM EQUAL 3)
   if (AMREX_ENABLE_EB)
     add_executable_with_warnings(AMReX.EB.LinearShock3d AMReX/EB/LinearShock3d.cpp)
-    target_link_libraries(AMReX.EB.LinearShock3d FiniteVolumeSolver.AMReX Boost::filesystem)
+    target_link_libraries(AMReX.EB.LinearShock3d FiniteVolumeSolver.AMReX.EB Boost::filesystem)
+
+    add_executable_with_warnings(AMReX.EB.CoupledLinearShock3d AMReX/EB/CoupledLinearShock3d.cpp)
+    target_link_libraries(AMReX.EB.CoupledLinearShock3d FiniteVolumeSolver.AMReX.EB Boost::filesystem)
 
     add_executable_with_warnings(AMReX.EB.Divider AMReX/EB/Divider.cpp)
-    target_link_libraries(AMReX.EB.Divider FiniteVolumeSolver.AMReX Boost::filesystem)
+    target_link_libraries(AMReX.EB.Divider FiniteVolumeSolver.AMReX.EB Boost::filesystem)
   endif()
 endif()
 

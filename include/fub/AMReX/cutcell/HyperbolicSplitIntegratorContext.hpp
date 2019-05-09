@@ -18,31 +18,32 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_AMREX_HYPERBOLIC_SPLIT_INTEGRATOR_CONTEXT_HPP
-#define FUB_AMREX_HYPERBOLIC_SPLIT_INTEGRATOR_CONTEXT_HPP
+#ifndef FUB_AMREX_CUTCELL_HYPERBOLIC_SPLIT_LEVEL_INTEGRATOR_HPP
+#define FUB_AMREX_CUTCELL_HYPERBOLIC_SPLIT_LEVEL_INTEGRATOR_HPP
 
 #include "fub/CartesianCoordinates.hpp"
+#include "fub/CutCellData.hpp"
 #include "fub/Duration.hpp"
-#include "fub/PatchDataView.hpp"
 #include "fub/core/function_ref.hpp"
 #include "fub/core/mdspan.hpp"
 
-#include "fub/grid/AMReX/GriddingAlgorithm.hpp"
-#include "fub/grid/AMReX/PatchHandle.hpp"
-#include "fub/grid/AMReX/PatchHierarchy.hpp"
-#include "fub/grid/AMReX/ViewFArrayBox.hpp"
+#include "fub/AMReX/PatchHandle.hpp"
+#include "fub/AMReX/ViewFArrayBox.hpp"
+#include "fub/AMReX/cutcell/BoundaryCondition.hpp"
+#include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
 
 #include <memory>
 
 namespace fub {
 namespace amrex {
+namespace cutcell {
 
-/// \brief This class is used by the HypebrolicSplitLevelIntegrator and
-/// delegates AMR related tasks to the AMReX library.
 class HyperbolicSplitIntegratorContext {
 public:
   using PatchHandle = ::fub::amrex::PatchHandle;
-  using GriddingAlgorithm = ::fub::amrex::GriddingAlgorithm;
+  using GriddingAlgorithm = ::fub::amrex::cutcell::GriddingAlgorithm;
+  template <typename V> using MakeView = MakeViewImpl<V>;
+
   static constexpr int Rank = AMREX_SPACEDIM;
 
   HyperbolicSplitIntegratorContext(std::shared_ptr<GriddingAlgorithm> gridding,
@@ -64,28 +65,20 @@ public:
   void ResetHierarchyConfiguration(std::shared_ptr<GriddingAlgorithm> gridding);
   void ResetHierarchyConfiguration(int level = 0);
 
-  template <typename F> F ForEachPatch(int level, F function) {
-    return GetPatchHierarchy().ForEachPatch(level, function);
-  }
-
-  template <typename Feedback> double Minimum(int level, Feedback feedback) {
-    return GetPatchHierarchy().Minimum(level, feedback);
-  }
-
   MPI_Comm GetMpiCommunicator() const noexcept;
 
   double GetDx(PatchHandle patch, Direction dir) const;
 
   CartesianCoordinates GetCartesianCoordinates(PatchHandle patch) const;
 
-  bool LevelExists(int level) const noexcept {
-    return level < GetPatchHierarchy().GetNumberOfLevels();
-  }
+  bool LevelExists(int level) const noexcept;
 
   int GetRatioToCoarserLevel(int level, Direction dir) const noexcept;
   ::amrex::IntVect GetRatioToCoarserLevel(int level) const noexcept;
 
-  int GetGhostCellWidth(PatchHandle, Direction) { return ghost_cell_width_; }
+  int GetGhostCellWidth(PatchHandle, Direction);
+
+  void FillGhostLayer(::amrex::MultiFab& dest, int level);
 
   void FillGhostLayerTwoLevels(int level, int coarse, Direction direction);
 
@@ -99,8 +92,8 @@ public:
   const std::shared_ptr<GriddingAlgorithm>& GetGriddingAlgorithm() const
       noexcept;
 
-  const PatchHierarchy& GetPatchHierarchy() const noexcept;
   PatchHierarchy& GetPatchHierarchy() noexcept;
+  const PatchHierarchy& GetPatchHierarchy() const noexcept;
 
   ::amrex::MultiFab& GetData(int level);
   PatchDataView<double, Rank + 1> GetData(PatchHandle patch);
@@ -111,20 +104,59 @@ public:
   ::amrex::MultiFab& GetFluxes(int level, Direction dir);
   PatchDataView<double, Rank + 1> GetFluxes(PatchHandle patch, Direction dir);
 
+  ::amrex::MultiCutFab& GetBoundaryFluxes(int level, Direction dir);
+  PatchDataView<double, Rank + 1> GetBoundaryFluxes(PatchHandle patch,
+                                                    Direction dir);
+
+  ::amrex::MultiFab& GetReferenceStates(int level, Direction dir);
+  PatchDataView<double, Rank + 1> GetReferenceStates(PatchHandle patch);
+
+  ::amrex::MultiFab& GetStabilizedFluxes(int level, Direction dir);
+  PatchDataView<double, Rank + 1> GetStabilizedFluxes(PatchHandle patch,
+                                                      Direction dir);
+
+  ::amrex::MultiFab& GetShieldedLeftFluxes(int level, Direction dir);
+  PatchDataView<double, Rank + 1> GetShieldedLeftFluxes(PatchHandle patch,
+                                                        Direction dir);
+
+  ::amrex::MultiFab& GetShieldedRightFluxes(int level, Direction dir);
+  PatchDataView<double, Rank + 1> GetShieldedRightFluxes(PatchHandle patch,
+                                                         Direction dir);
+
+  ::amrex::MultiFab& GetDoublyShieldedFluxes(int level, Direction dir);
+  PatchDataView<double, Rank + 1> GetDoublyShieldedFluxes(PatchHandle patch,
+                                                          Direction dir);
+
+  CutCellData<Rank> GetCutCellData(PatchHandle patch, Direction dir);
+
   Duration GetTimePoint(int level, Direction dir) const;
   void SetTimePoint(Duration t, int level, Direction dir);
+
   std::ptrdiff_t GetCycles(int level, Direction dir) const;
   void SetCycles(std::ptrdiff_t cycle, int level, Direction dir);
+
   const ::amrex::Geometry& GetGeometry(int level) const;
+
+  void PreAdvanceHierarchy();
+  void PostAdvanceHierarchy();
 
   void PreAdvanceLevel(int level_num, Direction dir, Duration dt, int subcycle);
 
   void PostAdvanceLevel(int level_num, Direction dir, Duration dt,
                         int subcycle);
 
+  template <typename F> F ForEachPatch(int level, F function) {
+    return GetPatchHierarchy().ForEachPatch(level, function);
+  }
+
+  template <typename F> double Minimum(int level, F function) {
+    return GetPatchHierarchy().Minimum(level, function);
+  }
+
+  ::amrex::FabType GetCutCellPatchType(PatchHandle handle, int gcw = 0) const;
+
   BoundaryCondition GetBoundaryCondition(int level) const;
 
-private:
   struct LevelData {
     LevelData() = default;
     LevelData(const LevelData& other) = delete;
@@ -133,29 +165,53 @@ private:
     LevelData& operator=(LevelData&&) noexcept;
     ~LevelData() noexcept = default;
 
-    /// Scratch space with ghost cell widths
-    std::array<::amrex::MultiFab, 3> scratch;
+    /// This eb_factory is shared with the underlying patch hierarchy.
+    std::shared_ptr<::amrex::EBFArrayBoxFactory> eb_factory;
 
-    /// These arrays will store the fluxes for each patch level which is present
-    /// in the patch hierarchy. These will need to be rebuilt if the
-    /// PatchHierarchy changes.
-    std::array<::amrex::MultiFab, 3> fluxes;
+    ///////////////////////////////////////////////////////////////////////////
+    // [cell-centered]
+
+    /// reference states which are used to compute embedded boundary fluxes
+    std::unique_ptr<::amrex::MultiFab> reference_states;
+
+    /// scratch space filled with data in ghost cells
+    std::array<::amrex::MultiFab, Rank> scratch;
+
+    /// fluxes for the embedded boundary
+    ::amrex::MultiCutFab boundary_fluxes;
+
+    ///////////////////////////////////////////////////////////////////////////
+    // [face-centered]
+
+    /// @{
+    /// various flux types needed by the numerical scheme
+    std::array<::amrex::MultiFab, Rank> fluxes;
+    std::array<::amrex::MultiFab, Rank> stabilized_fluxes;
+    std::array<::amrex::MultiFab, Rank> shielded_left_fluxes;
+    std::array<::amrex::MultiFab, Rank> shielded_right_fluxes;
+    std::array<::amrex::MultiFab, Rank> doubly_shielded_fluxes;
+    /// @}
+
+    ///////////////////////////////////////////////////////////////////////////
+    // [misc]
 
     /// FluxRegister accumulate fluxes on coarse fine interfaces between
     /// refinement level. These will need to be rebuilt whenever the hierarchy
     /// changes.
     ::amrex::FluxRegister coarse_fine;
 
-    std::array<Duration, 3> time_point;
-    std::array<Duration, 3> regrid_time_point;
-    std::array<std::ptrdiff_t, 3> cycles;
+    std::array<Duration, Rank> time_point;
+    std::array<Duration, Rank> regrid_time_point;
+    std::array<std::ptrdiff_t, Rank> cycles;
   };
 
+private:
   int ghost_cell_width_;
   std::shared_ptr<GriddingAlgorithm> gridding_;
   std::vector<LevelData> data_;
 };
 
+} // namespace cutcell
 } // namespace amrex
 } // namespace fub
 

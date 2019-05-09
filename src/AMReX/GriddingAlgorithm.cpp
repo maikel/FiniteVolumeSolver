@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/grid/AMReX/GriddingAlgorithm.hpp"
-#include "fub/grid/AMReX/utility.hpp"
+#include "fub/AMReX/GriddingAlgorithm.hpp"
+#include "fub/AMReX/utility.hpp"
 
 #include <AMReX_FillPatchUtil.H>
 #include <AMReX_ParmParse.H>
@@ -323,6 +323,10 @@ void GriddingAlgorithm::RemakeLevel(
 
 void GriddingAlgorithm::ClearLevel(int level) {
   hierarchy_.GetPatchLevel(level) = PatchLevel{};
+}
+
+void GriddingAlgorithm::SetBoundaryCondition(BoundaryCondition condition) {
+  boundary_condition_ = std::move(condition);
 }
 
 const GriddingAlgorithm::BoundaryCondition&

@@ -21,11 +21,11 @@
 #ifndef FUB_AMREX_FLUX_METHOD_HPP
 #define FUB_AMREX_FLUX_METHOD_HPP
 
+#include "fub/AMReX/PatchHandle.hpp"
+#include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/Direction.hpp"
 #include "fub/Duration.hpp"
 #include "fub/State.hpp"
-#include "fub/grid/AMReX/PatchHandle.hpp"
-#include "fub/grid/AMReX/ViewFArrayBox.hpp"
 
 namespace fub {
 namespace amrex {

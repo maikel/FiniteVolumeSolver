@@ -42,10 +42,12 @@ template <typename Equation> struct Reconstruction {
         Subview(MakeView<BasicView<Complete<Equation>>>(context.GetData(patch),
                                                         equation_),
                 tilebox);
+
     View<Conservative<Equation>> scratch =
         Subview(AsCons(MakeView<BasicView<Complete<Equation>>>(
                     context.GetScratch(patch, dir), equation_)),
                 tilebox);
+
     ::fub::CompleteFromCons(equation_, state, AsConst(scratch));
   }
 

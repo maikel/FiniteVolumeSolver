@@ -18,20 +18,25 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/grid/AMReX/MultiFab.hpp"
+#ifndef FUB_AMREX_COUPLED_GRIDDING_ALGORITHM_HPP
+#define FUB_AMREX_COUPLED_GRIDDING_ALGORITHM_HPP
+
+#include "fub/AMReX/GriddingAlgorithm.hpp"
+#include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
 
 namespace fub {
 namespace amrex {
 
-MultiFab::MultiFab(const MultiFab& other) : MultiFab() {
-  if (!other.boxArray().empty()) {
-    ::amrex::BoxArray ba(other.boxArray().boxList());
-    ::amrex::DistributionMapping dm(other.DistributionMap().ProcessorMap());
-    define(ba, dm, other.nComp(), other.nGrowVect(), ::amrex::MFInfo(),
-           other.Factory());
-    copy(other);
-  }
-}
+class CoupledGriddingAlgorithm {
+public:
+  CoupledGriddingAlgorithm();
+
+private:
+  GriddingAlgorithm tube_;
+  cutcell::GriddingAlgorithm plenum_;
+};
 
 } // namespace amrex
 } // namespace fub
+
+#endif // FUB_AMREX_COUPLED_GRIDDING_ALGORITHM_HPP

@@ -26,12 +26,12 @@
 #include "fub/HyperbolicSplitSystemSolver.hpp"
 #include "fub/ext/Eigen.hpp"
 #include "fub/flux_method/MusclHancockMethod.hpp"
-#include "fub/grid/AMReX/FluxMethod.hpp"
-#include "fub/grid/AMReX/GriddingAlgorithm.hpp"
-#include "fub/grid/AMReX/HyperbolicSplitIntegratorContext.hpp"
-#include "fub/grid/AMReX/HyperbolicSplitPatchIntegrator.hpp"
-#include "fub/grid/AMReX/Reconstruction.hpp"
-#include "fub/grid/AMReX/ScopeGuard.hpp"
+#include "fub/AMReX/FluxMethod.hpp"
+#include "fub/AMReX/GriddingAlgorithm.hpp"
+#include "fub/AMReX/HyperbolicSplitIntegratorContext.hpp"
+#include "fub/AMReX/HyperbolicSplitPatchIntegrator.hpp"
+#include "fub/AMReX/Reconstruction.hpp"
+#include "fub/AMReX/ScopeGuard.hpp"
 #include "fub/split_method/StrangSplitting.hpp"
 #include "fub/tagging/GradientDetector.hpp"
 #include "fub/tagging/TagBuffer.hpp"
@@ -119,7 +119,6 @@ int main(int argc, char** argv) {
                     std::ptrdiff_t cycle, fub::Duration) {
     std::string name = fmt::format("{}{:04}", base_name, cycle);
     ::amrex::Print() << "Start output to '" << name << "'.\n";
-    fub::amrex::WritePlotFile(name, hierarchy, equation);
     ::amrex::Print() << "Finished output to '" << name << "'.\n";
   };
   auto print_msg = [](const std::string& msg) { ::amrex::Print() << msg; };

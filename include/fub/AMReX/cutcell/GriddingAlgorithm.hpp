@@ -18,14 +18,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_AMREX_GRIDDING_ALGORITHM_HPP
-#define FUB_AMREX_GRIDDING_ALGORITHM_HPP
+#ifndef FUB_AMREX_CUT_CELL_GRIDDING_ALGORITHM_HPP
+#define FUB_AMREX_CUT_CELL_GRIDDING_ALGORITHM_HPP
 
-#include "fub/grid/AMReX/BoundaryCondition.hpp"
-#include "fub/grid/AMReX/InitialData.hpp"
-#include "fub/grid/AMReX/PatchHierarchy.hpp"
-#include "fub/grid/AMReX/Tagging.hpp"
-#include "fub/grid/AMReX/ViewFArrayBox.hpp"
+#include "fub/AMReX/BoundaryCondition.hpp"
+#include "fub/AMReX/ViewFArrayBox.hpp"
+#include "fub/AMReX/cutcell/InitialData.hpp"
+#include "fub/AMReX/cutcell/PatchHierarchy.hpp"
+#include "fub/AMReX/cutcell/Tagging.hpp"
 
 #include <AMReX_AmrCore.H>
 #include <AMReX_MultiFabUtil.H>
@@ -34,37 +34,36 @@
 
 namespace fub {
 namespace amrex {
+namespace cutcell {
 
 class GriddingAlgorithm : private ::amrex::AmrCore {
 public:
   using BoundaryCondition = std::function<void(
       const PatchDataView<double, AMREX_SPACEDIM + 1>&, const PatchHierarchy&,
       PatchHandle, Location, int, Duration)>;
+
   static constexpr int Rank = AMREX_SPACEDIM;
 
-  GriddingAlgorithm(const GriddingAlgorithm& other);
-  GriddingAlgorithm& operator=(const GriddingAlgorithm& other);
+  GriddingAlgorithm(const GriddingAlgorithm&);
+  GriddingAlgorithm& operator=(const GriddingAlgorithm&);
 
   GriddingAlgorithm(GriddingAlgorithm&&) noexcept;
   GriddingAlgorithm& operator=(GriddingAlgorithm&&) noexcept;
 
-  GriddingAlgorithm(PatchHierarchy hier, InitialData initial_data,
-                    Tagging tagging);
+  ~GriddingAlgorithm() noexcept = default;
 
-  GriddingAlgorithm(PatchHierarchy hier, InitialData initial_data,
-                    Tagging tagging, BoundaryCondition boundary);
+  GriddingAlgorithm(PatchHierarchy hier, InitialData data, Tagging tagging,
+                    BoundaryCondition boundary);
 
-  PatchHierarchy& GetPatchHierarchy() noexcept { return hierarchy_; }
-
-  const PatchHierarchy& GetPatchHierarchy() const noexcept {
-    return hierarchy_;
-  }
+  const PatchHierarchy& GetPatchHierarchy() const noexcept;
+  PatchHierarchy& GetPatchHierarchy() noexcept;
 
   bool RegridAllFinerlevels(int which_level);
   void InitializeHierarchy(double level_time);
 
+  void SetBoundaryCondition(BoundaryCondition condition);
   const BoundaryCondition& GetBoundaryCondition() const noexcept;
-  const InitialData& GetInitialCondition() const noexcept;
+  const InitialData& GetInitialData() const noexcept;
   const Tagging& GetTagging() const noexcept;
 
 private:
@@ -88,11 +87,12 @@ private:
   void ClearLevel(int level) override;
 
   PatchHierarchy hierarchy_;
-  InitialData initial_data_;
-  Tagging tagging_;
+  InitialData initial_condition_;
   BoundaryCondition boundary_condition_;
+  Tagging tagging_;
 };
 
+} // namespace cutcell
 } // namespace amrex
 } // namespace fub
 

@@ -18,10 +18,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/grid/AMReX/cutcell/PatchHierarchy.hpp"
-#include "fub/grid/AMReX/ViewFArrayBox.hpp"
+#include "fub/AMReX/cutcell/PatchHierarchy.hpp"
+#include "fub/AMReX/ViewFArrayBox.hpp"
 
-#include "fub/grid/AMReX/FillCutCellData.hpp"
+#include "fub/AMReX/FillCutCellData.hpp"
 
 namespace fub {
 namespace amrex {

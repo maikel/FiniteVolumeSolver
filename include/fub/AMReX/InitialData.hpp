@@ -18,21 +18,20 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_AMREX_CUTCELL_INITIAL_DATA_HPP
-#define FUB_AMREX_CUTCELL_INITIAL_DATA_HPP
+#ifndef FUB_AMREX_INITIAL_DATA_HPP
+#define FUB_AMREX_INITIAL_DATA_HPP
 
+#include "fub/AMReX/PatchHandle.hpp"
+#include "fub/AMReX/PatchHierarchy.hpp"
+#include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/CartesianCoordinates.hpp"
 #include "fub/Equation.hpp"
 #include "fub/PatchDataView.hpp"
-#include "fub/grid/AMReX/PatchHandle.hpp"
-#include "fub/grid/AMReX/ViewFArrayBox.hpp"
-#include "fub/grid/AMReX/cutcell/PatchHierarchy.hpp"
 
 #include <AMReX.H>
 
 namespace fub {
 namespace amrex {
-namespace cutcell {
 
 struct InitialDataStrategy {
   virtual ~InitialDataStrategy() = default;
@@ -114,7 +113,6 @@ template <typename InitialData, typename Equation> struct AdaptInitialData {
   Equation equation_;
 };
 
-} // namespace cutcell
 } // namespace amrex
 } // namespace fub
 

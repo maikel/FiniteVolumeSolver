@@ -21,22 +21,26 @@
 #include "fub/equations/IdealGasMix.hpp"
 #include "fub/CartesianCoordinates.hpp"
 #include "fub/equations/ideal_gas_mix/mechanism/Burke2012.hpp"
+#include "fub/equations/ideal_gas_mix/KineticSourceTerm.hpp"
 
 #include "fub/HyperbolicSplitLevelIntegrator.hpp"
 #include "fub/HyperbolicSplitPatchIntegrator.hpp"
 #include "fub/HyperbolicSplitSystemSolver.hpp"
-#include "fub/HyperbolicSplitSystemSourceSolver.hpp"
+#include "fub/SplitSystemSourceSolver.hpp"
 #include "fub/boundary_condition/TransmissiveBoundary.hpp"
-#include "fub/equations/ideal_gas_mix/KineticSourceTerm.hpp"
+
+
 #include "fub/ext/Eigen.hpp"
 #include "fub/flux_method/HllMethod.hpp"
 #include "fub/flux_method/MusclHancockMethod.hpp"
-#include "fub/grid/AMReX/FluxMethod.hpp"
-#include "fub/grid/AMReX/GriddingAlgorithm.hpp"
-#include "fub/grid/AMReX/HyperbolicSplitIntegratorContext.hpp"
-#include "fub/grid/AMReX/HyperbolicSplitPatchIntegrator.hpp"
-#include "fub/grid/AMReX/Reconstruction.hpp"
-#include "fub/grid/AMReX/ScopeGuard.hpp"
+
+#include "fub/AMReX/FluxMethod.hpp"
+#include "fub/AMReX/GriddingAlgorithm.hpp"
+#include "fub/AMReX/HyperbolicSplitIntegratorContext.hpp"
+#include "fub/AMReX/HyperbolicSplitPatchIntegrator.hpp"
+#include "fub/AMReX/Reconstruction.hpp"
+#include "fub/AMReX/ScopeGuard.hpp"
+
 #include "fub/split_method/StrangSplitting.hpp"
 #include "fub/tagging/GradientDetector.hpp"
 #include "fub/tagging/TagBuffer.hpp"
@@ -92,7 +96,6 @@ int main(int argc, char** argv) {
   constexpr int Dim = AMREX_SPACEDIM;
 
   const std::array<int, Dim> n_cells{AMREX_D_DECL(32, 32, 1)};
-
   const std::array<double, Dim> xlower{AMREX_D_DECL(0.0, 0.0, 0.0)};
   const std::array<double, Dim> xupper{AMREX_D_DECL(+0.1, +0.1, +0.1)};
 
@@ -107,7 +110,7 @@ int main(int argc, char** argv) {
 
   fub::amrex::PatchHierarchyOptions hier_opts;
   hier_opts.max_number_of_levels = 1;
-  hier_opts.refine_ratio = amrex::IntVect{AMREX_D_DECL(2, 1, 1)};
+  hier_opts.refine_ratio = amrex::IntVect{AMREX_D_DECL(2, 2, 1)};
 
   using Complete = fub::IdealGasMix<2>::Complete;
   fub::GradientDetector gradient{equation,
@@ -138,16 +141,16 @@ int main(int argc, char** argv) {
 
   fub::ideal_gas::KineticSourceTerm<2> source_term(equation, gridding);
 
-  fub::HyperbolicSplitSystemSourceSolver solver(system_solver, source_term);
+  fub::SplitSystemSourceSolver solver(system_solver, source_term);
 
   std::string base_name = "IdealGasMix_1d_embed_in_Nd/";
 
   auto output = [&](const fub::amrex::PatchHierarchy& hierarchy,
                     std::ptrdiff_t cycle, fub::Duration) {
     std::string name = fmt::format("{}{:05}", base_name, cycle);
-    ::amrex::Print() << "Start output to '" << name << "'.\n";
+    amrex::Print() << "Start output to '" << name << "'.\n";
     fub::amrex::WritePlotFile(name, hierarchy, equation);
-    ::amrex::Print() << "Finished output to '" << name << "'.\n";
+    amrex::Print() << "Finished output to '" << name << "'.\n";
   };
 
   auto print_msg = [](const std::string& msg) { ::amrex::Print() << msg; };

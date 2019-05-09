@@ -21,9 +21,10 @@
 #ifndef FUB_IDEAL_GAS_MIX_KINETIC_SOURCE_TERM_HPP
 #define FUB_IDEAL_GAS_MIX_KINETIC_SOURCE_TERM_HPP
 
+#include "fub/AMReX/GriddingAlgorithm.hpp"
 #include "fub/equations/IdealGasMix.hpp"
 #include "fub/ext/outcome.hpp"
-#include "fub/grid/AMReX/GriddingAlgorithm.hpp"
+#include "fub/TimeStepError.hpp"
 
 #include <functional>
 
@@ -116,7 +117,7 @@ Duration KineticSourceTerm<Rank>::ComputeStableDt(amrex::PatchHandle patch) {
     dt_chem = std::inner_product(
         X.begin(), X.end(), production_rates.begin(), dt_chem,
         [](double t1, double t2) { return std::min(t1, std::abs(t2)); },
-        [](double X, double dXdt) {
+        [](double /* X */, double /* dXdt */) {
           //          if (dXdt < 0.0) {
           //            FUB_ASSERT(X > 0.0);
           //            return 10000.0 * X / -dXdt;

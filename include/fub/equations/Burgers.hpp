@@ -25,8 +25,6 @@
 #include "fub/ExactRiemannSolver.hpp"
 #include "fub/State.hpp"
 #include "fub/VariableDescription.hpp"
-#include "fub/ext/Eigen.hpp"
-#include "fub/ext/hana.hpp"
 
 #include <array>
 

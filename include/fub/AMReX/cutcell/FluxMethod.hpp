@@ -21,12 +21,12 @@
 #ifndef FUB_AMREX_CUTCELL_FLUX_METHOD_HPP
 #define FUB_AMREX_CUTCELL_FLUX_METHOD_HPP
 
+#include "fub/AMReX/PatchHandle.hpp"
+#include "fub/AMReX/ViewFArrayBox.hpp"
+#include "fub/AMReX/cutcell/PatchHierarchy.hpp"
 #include "fub/Direction.hpp"
 #include "fub/Duration.hpp"
 #include "fub/State.hpp"
-#include "fub/grid/AMReX/PatchHandle.hpp"
-#include "fub/grid/AMReX/ViewFArrayBox.hpp"
-#include "fub/grid/AMReX/cutcell/PatchHierarchy.hpp"
 
 namespace fub {
 namespace amrex {
@@ -40,6 +40,7 @@ template <typename Base> struct FluxMethod : public Base {
   static constexpr int Rank = Equation::Rank();
 
   FluxMethod(const Base& base) : Base(base) {}
+  FluxMethod(Base&& base) : Base(std::move(base)) {}
 
   const Equation& GetEquation() const { return Base::GetEquation(); }
 

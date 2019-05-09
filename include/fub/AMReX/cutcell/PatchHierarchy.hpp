@@ -21,13 +21,13 @@
 #ifndef FUB_AMREX_CUTCELL_PATCH_HIERARCHY_HPP
 #define FUB_AMREX_CUTCELL_PATCH_HIERARCHY_HPP
 
+#include "fub/AMReX/CartesianGridGeometry.hpp"
+#include "fub/AMReX/PatchHandle.hpp"
+#include "fub/AMReX/PatchHierarchy.hpp"
 #include "fub/CutCellData.hpp"
 #include "fub/Duration.hpp"
 #include "fub/Equation.hpp"
 #include "fub/ext/Eigen.hpp"
-#include "fub/grid/AMReX/CartesianGridGeometry.hpp"
-#include "fub/grid/AMReX/PatchHandle.hpp"
-#include "fub/grid/AMReX/PatchHierarchy.hpp"
 
 #include <AMReX_EBFabFactory.H>
 #include <AMReX_FluxRegister.H>
@@ -80,6 +80,8 @@ struct PatchHierarchyOptions : public ::fub::amrex::PatchHierarchyOptions {
 
 class PatchHierarchy {
 public:
+  using PatchHandle = ::fub::amrex::PatchHandle;
+
   PatchHierarchy(DataDescription description,
                  const CartesianGridGeometry& geometry,
                  const PatchHierarchyOptions& options);
@@ -142,7 +144,7 @@ public:
   }
 
   template <typename Feedback>
-  Feedback ForEachPatch(int level, Feedback feedback) {
+  Feedback ForEachPatch(int level, Feedback feedback) const {
 #ifdef _OPENMP
 #pragma omp parallel firstprivate(feedback)
 #endif
@@ -156,7 +158,7 @@ public:
     return feedback;
   }
 
-  template <typename Feedback> double Minimum(int level, Feedback feedback) {
+  template <typename Feedback> double Minimum(int level, Feedback feedback) const {
     double global_min = std::numeric_limits<double>::infinity();
 #ifdef _OPENMP
 #pragma omp parallel reduction(min : global_min) firstprivate(feedback)

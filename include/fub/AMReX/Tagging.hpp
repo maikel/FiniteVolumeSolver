@@ -18,20 +18,20 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_GRID_AMREX_CUTCELL_TAGGING_HPP
-#define FUB_GRID_AMREX_CUTCELL_TAGGING_HPP
+#ifndef FUB_AMREX_TAGGING_HPP
+#define FUB_AMREX_TAGGING_HPP
 
+#include "fub/AMReX/CartesianGridGeometry.hpp"
+#include "fub/AMReX/PatchHandle.hpp"
+#include "fub/AMReX/PatchHierarchy.hpp"
+#include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/CartesianCoordinates.hpp"
 #include "fub/core/mdspan.hpp"
-#include "fub/grid/AMReX/PatchHandle.hpp"
-#include "fub/grid/AMReX/ViewFArrayBox.hpp"
-#include "fub/grid/AMReX/cutcell/PatchHierarchy.hpp"
 
 #include <AMReX.H>
 
 namespace fub {
 namespace amrex {
-namespace cutcell {
 
 struct TaggingStrategy {
   virtual ~TaggingStrategy() = default;
@@ -103,30 +103,16 @@ template <typename Equation, typename... Tagging> struct AdaptTagging {
         MakeView<BasicView<const Complete<Equation>>>(states, equation_);
     const ::amrex::Geometry& geom = hierarchy.GetGeometry(patch.level);
     const ::amrex::Box& box = patch.iterator->growntilebox();
-    const std::shared_ptr<::amrex::EBFArrayBoxFactory>& factory =
-        hierarchy.GetEmbeddedBoundary(patch.level);
-    const auto& flags = factory->getMultiEBCellFlagFab()[*patch.iterator];
-    const ::amrex::FabType type = flags.getType(box);
-    if (type == ::amrex::FabType::regular) {
-      boost::mp11::tuple_for_each(tagging_, [&](auto&& tagging) {
-        tagging.TagCellsForRefinement(tags, state_view,
-                                      GetCartesianCoordinates(geom, box));
-      });
-    } else if (type != ::amrex::FabType::covered) {
-      FUB_ASSERT(type == ::amrex::FabType::singlevalued);
-      auto cutcell_data = hierarchy.GetCutCellData(patch, Direction::X);
-      boost::mp11::tuple_for_each(tagging_, [&](auto&& tagging) {
-        tagging.TagCellsForRefinement(tags, state_view, cutcell_data,
-                                      GetCartesianCoordinates(geom, box));
-      });
-    }
+    boost::mp11::tuple_for_each(tagging_, [&](auto&& tagging) {
+      tagging.TagCellsForRefinement(tags, state_view,
+                                    GetCartesianCoordinates(geom, box));
+    });
   }
 
   std::tuple<Tagging...> tagging_;
   Equation equation_;
 };
 
-} // namespace cutcell
 } // namespace amrex
 } // namespace fub
 
