@@ -1,6 +1,8 @@
 FROM ubuntu:16.04
 
-RUN apt-get update && apt-get install --yes python3-pip wget && pip3 install conan
+RUN apt-get update                                                                           \
+ && apt-get install --yes python3-pip wget libopenmpi-dev libpthread-stubs0-dev git gfortran \
+ && pip3 install conan
 
 # Install latest CMake files from the internet
 RUN wget https://github.com/Kitware/CMake/releases/download/v3.14.2/cmake-3.14.2-Linux-x86_64.tar.gz \
@@ -18,19 +20,13 @@ RUN mkdir llvm_download \
   && cd ../ \
   && rm -r llvm_download
 
-RUN apt-get install --yes libpthread-stubs0-dev git gfortran
-
 ARG CLANG_VERSION
-RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/finite-volume \ 
-    && conan user -p 3c416ef866ef8b7f6e45ba1720b00ca690093577 -r finite-volume maikel \
-    && conan install "OpenMPI/[>=3]@finite-volume/stable" \
-        --env CXX=clang++ --env CC=clang -s compiler=clang -s compiler.libcxx=libc++ -s compiler.version="${CLANG_VERSION}" \
-        --build missing \
-    && conan upload "$(conan search --raw | grep OpenMPI)" --all -r=finite-volume
-
 ARG AMREX_SPACEDIM
 ARG CACHEBUST=1
-RUN conan install "AMReX/[>=19.4.30]@finite-volume/development" -o AMReX:dim="${AMREX_SPACEDIM}" \
-        --env CXX=clang++ --env CC=clang -s compiler=clang -s compiler.libcxx=libc++ -s compiler.version="${CLANG_VERSION}" \
-        --build AMReX \
-    && conan upload "$(conan search --raw | grep AMReX)" --all -r=finite-volume
+RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/finite-volume  \ 
+ && conan install "AMReX/development@finite-volume/stable" -o AMReX:dim="${AMREX_SPACEDIM}" \
+                 --env CXX=clang++                                                          \
+                 --env CC=clang                                                             \
+                 -s compiler=clang                                                          \
+                 -s compiler.libcxx=libc++                                                  \
+                 -s compiler.version="${CLANG_VERSION}"                                     
