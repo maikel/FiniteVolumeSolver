@@ -14,7 +14,7 @@ RUN wget https://github.com/Kitware/CMake/releases/download/v3.14.2/cmake-3.14.2
 ARG AMREX_SPACEDIM
 ARG CACHEBUST=1
 RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/finite-volume \
-    && sed s/libstdc++/libstdc++11/ -i /root/.conan/profiles/default                       \
+    && conan && sed s/libstdc++/libstdc++11/ -i /root/.conan/profiles/default              \
     && conan install "AMReX/development@finite-volume/stable"                              \
                      -o AMReX:dim="${AMREX_SPACEDIM}"                                      \
                      --build AMReX                                                         \
