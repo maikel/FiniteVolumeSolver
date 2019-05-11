@@ -29,4 +29,8 @@ RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/fin
                  --env CC=clang                                                             \
                  -s compiler=clang                                                          \
                  -s compiler.libcxx=libc++                                                  \
-                 -s compiler.version="${CLANG_VERSION}"                                     
+                 -s compiler.version="${CLANG_VERSION}"                                     \
+                 --build AMReX                                                              \
+ && conan install boost/1.70.0@conan/stable --build missing                                 \
+ && conan install eigen/3.3.7@conan/stable  --build missing                                  \
+ && conan install fmt/5.3.0@bincrafters/stable --build missing
