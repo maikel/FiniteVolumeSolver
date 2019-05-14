@@ -4,15 +4,11 @@ variables:
 stages:
   - build
 
-.prepare_docker:
-  before_script: &prepare_docker |
-    docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
-
 .build_base: &build_base
   stage: build
   image: docker:git
   before_script:
-    *prepare_docker
+    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
   script:
     - apk add bash
     - cd docker/
@@ -21,34 +17,34 @@ stages:
 build_clang5:
   variables:
     COMPILER_ID: "clang5"
-  <<: &build_base
+  <<: *build_base
 
 build_clang6:
   variables:
     COMPILER_ID: "clang6"
-  <<: &build_base
+  <<: *build_base
 
 build_clang7:
   variables:
     COMPILER_ID: "clang7"
-  <<: &build_base
+  <<: *build_base
 
 build_clang8:
   variables:
     COMPILER_ID: "clang8"
-  <<: &build_base
+  <<: *build_base
 
 build_gcc7:
   variables:
     COMPILER_ID: "gcc7"
-  <<: &build_base
+  <<: *build_base
 
 build_gcc8:
   variables:
     COMPILER_ID: "gcc8"
-  <<: &build_base
+  <<: *build_base
 
 build_gcc9:
   variables:
     COMPILER_ID: "gcc9"
-  <<: &build_base
+  <<: *build_base
