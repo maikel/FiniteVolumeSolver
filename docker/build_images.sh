@@ -65,7 +65,9 @@ GCC_VERSIONS=("gcc7" "gcc8" "gcc9")
 AMREX_SPACEDIMS=("2" "3")
 
 main() {
-  for COMPILER_ID in ${GCC_VERSIONS[@]}; do
+  COMPILER_ID=$1
+  COMPILER="$(echo "${COMPILER_ID}" | sed s/[0-9]//)"
+  if [[ "${COMPILER}" == "gcc" ]]; then
     for AMREX_SPACEDIM in ${AMREX_SPACEDIMS[@]}; do
       printf "[Build] Docker Image for ${COMPILER_ID} with Dimension ${AMREX_SPACEDIM}\n" && \
       build_gcc_image "${COMPILER_ID}" "${AMREX_SPACEDIM}"                                && \
@@ -77,9 +79,7 @@ main() {
         exit "${ec}"
       fi
     done
-  done
-
-  for COMPILER_ID in ${CLANG_VERSIONS[@]}; do
+  elif [[ "${COMPILER}" == "clang" ]]; then
     for AMREX_SPACEDIM in ${AMREX_SPACEDIMS[@]}; do
       printf "[Build] Docker Image for ${COMPILER_ID} with Dimension ${AMREX_SPACEDIM}\n" && \
       build_clang_image "${COMPILER_ID}" "${AMREX_SPACEDIM}"                              && \
@@ -91,7 +91,15 @@ main() {
         exit "${ec}"
       fi
     done
-  done
+  else 
+    printf "Unknown COMPILER_ID '${COMPILER_ID}'.\n"
+    exit 1;
+  fi
 }
 
-main
+if [[ "" != $1 ]]; then
+  main "$1"
+else
+  >&2 echo "Missing an argument to '$0'"
+  >&2 echo "Usage: $0 <COMPILER_ID>"
+fi
