@@ -158,7 +158,7 @@ struct DepthsImpl<Conservative<IdealGasMix<Dim>>, IdealGasMix<Dim>> {
   operator()(const IdealGasMix<Dim>& equation) const noexcept {
     ToConcreteDepths<typename IdealGasMix<Dim>::ConservativeDepths> depths{};
     depths.species = equation.GetReactor().GetNSpecies();
-    return depths;
+    return depths;  
   }
 };
 
