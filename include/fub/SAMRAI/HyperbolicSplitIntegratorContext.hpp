@@ -39,8 +39,6 @@
 #include <SAMRAI/xfer/RefineAlgorithm.h>
 #include <SAMRAI/xfer/RefineSchedule.h>
 
-#include <boost/container/static_vector.hpp>
-
 #include <mpi.h>
 
 #include <array>
@@ -53,12 +51,7 @@ namespace samrai {
 /// This integrator context delegates grid related tasks to the SAMRAI library.
 class HyperbolicSplitIntegratorContext {
 public:
-  static constexpr int MaxVariables = 8;
   using PatchHandle = SAMRAI::hier::Patch*;
-
-  template <typename T>
-  using vector = boost::container::static_vector<T, MaxVariables>;
-
   using BoundaryCondition = function_ref<void(PatchHandle, Location, Duration)>;
 
   HyperbolicSplitIntegratorContext(const GriddingAlgorithm& gridding,
@@ -80,7 +73,7 @@ public:
   /// \brief Regrid level_num and all finer levels if it is the first subcycle.
   void PreAdvanceLevel(int level_num, Direction dir, Duration dt, int subcycle);
 
-  /// Do nothing here.
+  /// \brief Do nothing in this function.
   void PostAdvanceLevel(int level_num, Direction dir, Duration dt,
                         int subcycle);
 
@@ -110,15 +103,15 @@ public:
   void ResetCoarseFineFluxes(int fine, int coarse, Direction dir);
   void CoarsenConservatively(int fine, int coarse, Direction dir);
 
-  vector<SAMRAI::pdat::CellData<double>*> GetData(PatchHandle patch);
+  std::vector<SAMRAI::pdat::CellData<double>*> GetData(PatchHandle patch);
 
-  vector<SAMRAI::pdat::CellData<double>*> GetScratch(PatchHandle patch,
+  std::vector<SAMRAI::pdat::CellData<double>*> GetScratch(PatchHandle patch,
                                                      Direction dir);
 
-  vector<SAMRAI::pdat::SideData<double>*> GetFluxes(PatchHandle patch,
+  std::vector<SAMRAI::pdat::SideData<double>*> GetFluxes(PatchHandle patch,
                                                     Direction dir);
 
-  vector<SAMRAI::pdat::OutersideData<double>*>
+  std::vector<SAMRAI::pdat::OutersideData<double>*>
   GetOutersideFluxes(PatchHandle patch) const;
 
   Duration GetTimePoint(int level, Direction dir) const;
@@ -141,7 +134,8 @@ public:
 
   void ClearOutersideFluxes(int level);
 
-  GriddingAlgorithm gridding_;
+private:
+  std::shared_ptr<GriddingAlgorithm> gridding_;
   DataDescription description_;
   struct InternalDataIds {
     std::vector<int> intermediate;

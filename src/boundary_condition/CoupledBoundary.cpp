@@ -62,7 +62,7 @@ double CellVolume(const ::amrex::Geometry& geom) {
   ::amrex::FArrayBox global_reduced_volumes(ld_mirror);
   ::MPI_Allreduce(
       local_reduced_volumes.dataPtr(), global_reduced_volumes.dataPtr(),
-      local_reduced_volumes.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      int(local_reduced_volumes.size()), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   return global_reduced_volumes;
 }
 
@@ -115,7 +115,7 @@ AverageConservativeHierarchyStates(const cutcell::PatchHierarchy& hierarchy,
   });
   ::amrex::FArrayBox global_fab(fab.box(), fab.nComp());
   global_fab.setVal(0.0);
-  ::MPI_Allreduce(fab.dataPtr(), global_fab.dataPtr(), fab.size(), MPI_DOUBLE,
+  ::MPI_Allreduce(fab.dataPtr(), global_fab.dataPtr(), int(fab.size()), MPI_DOUBLE,
                   MPI_SUM, MPI_COMM_WORLD);
   return global_fab;
 }
@@ -224,7 +224,7 @@ void EmbedState(Complete<IdealGasMix<AMREX_SPACEDIM>>& dest,
     local_fab.plus(data, subbox, 0, 0, n_comps);
   });
   ::amrex::FArrayBox global_fab(local_fab.box(), local_fab.nComp());
-  ::MPI_Allreduce(local_fab.dataPtr(), global_fab.dataPtr(), local_fab.size(),
+  ::MPI_Allreduce(local_fab.dataPtr(), global_fab.dataPtr(), int(local_fab.size()),
                   MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   return global_fab;
 }

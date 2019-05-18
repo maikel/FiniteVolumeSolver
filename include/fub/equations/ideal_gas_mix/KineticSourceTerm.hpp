@@ -133,11 +133,16 @@ Result<void, TimeStepTooLarge>
 KineticSourceTerm<Rank>::AdvanceHierarchy(Duration dt) {
   const int nlevels = GetPatchHierarchy().GetNumberOfLevels();
   for (int level = 0; level < nlevels; ++level) {
+    Result<void, TimeStepTooLarge> result = boost::outcome_v2::success();
     GetPatchHierarchy().ForEachPatch(
-        level, [dt, solver = *this](amrex::PatchHandle patch) mutable {
-          Result<void, TimeStepTooLarge> result =
-              solver.AdvancePatch(patch, dt);
+        level, [&result, dt, solver = *this](amrex::PatchHandle patch) mutable {
+          if (result) {
+              result = solver.AdvancePatch(patch, dt);
+          }
         });
+    if (!result) {
+      return result;
+    }
   }
   return boost::outcome_v2::success();
 }

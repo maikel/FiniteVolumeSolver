@@ -30,20 +30,19 @@
 
 namespace fub {
 namespace amrex {
-std::array<std::ptrdiff_t, static_cast<std::size_t>(AMREX_SPACEDIM)>
+std::array<std::ptrdiff_t, AMREX_SPACEDIM>
 AsArray(const ::amrex::IntVect& vec);
 
 template <int Rank> IndexBox<Rank> AsIndexBox(const ::amrex::Box& box) {
-  const std::array<std::ptrdiff_t, static_cast<std::size_t>(AMREX_SPACEDIM)>
-      lower = AsArray(box.smallEnd());
-  std::array<std::ptrdiff_t, static_cast<std::size_t>(AMREX_SPACEDIM)> upper =
-      AsArray(box.bigEnd());
+  const std::array<std::ptrdiff_t, AMREX_SPACEDIM> lower = AsArray(box.smallEnd());
+  std::array<std::ptrdiff_t, AMREX_SPACEDIM> upper = AsArray(box.bigEnd());
   std::transform(upper.begin(), upper.end(), upper.begin(),
                  [](std::ptrdiff_t i) { return i + 1; });
 
   if constexpr (AMREX_SPACEDIM != Rank) {
-    std::array<std::ptrdiff_t, Rank> lower1;
-    std::array<std::ptrdiff_t, Rank> upper1;
+    constexpr std::size_t sRank = static_cast<std::size_t>(Rank);
+    std::array<std::ptrdiff_t, sRank> lower1;
+    std::array<std::ptrdiff_t, sRank> upper1;
     std::copy_n(lower.begin(), Rank, lower1.begin());
     std::copy_n(upper.begin(), Rank, upper1.begin());
     return IndexBox<Rank>{lower1, upper1};
@@ -57,8 +56,7 @@ template <int Rank> IndexBox<Rank> AsIndexBox(const ::amrex::Box& box) {
 /// \param[in] fab  The Fab which owns the data.
 template <typename T>
 mdspan<T, AMREX_SPACEDIM + 1> MakeMdSpan(::amrex::BaseFab<T>& fab) {
-  std::array<std::ptrdiff_t, static_cast<std::size_t>(AMREX_SPACEDIM + 1)>
-      extents;
+  Index<AMREX_SPACEDIM + 1> extents{};
   ::amrex::IntVect length{fab.box().length()};
   for (int i = 0; i < AMREX_SPACEDIM; ++i) {
     extents[static_cast<std::size_t>(i)] = length[i];
@@ -71,12 +69,9 @@ template <typename T>
 PatchDataView<T, AMREX_SPACEDIM + 1>
 MakePatchDataView(::amrex::BaseFab<T>& fab) {
   fub::mdspan<T, AMREX_SPACEDIM + 1> mdspan = MakeMdSpan(fab);
-  std::array<std::ptrdiff_t, static_cast<std::size_t>(AMREX_SPACEDIM)> lower =
-      AsArray(fab.box().smallEnd());
-  std::array<std::ptrdiff_t, static_cast<std::size_t>(AMREX_SPACEDIM + 1)>
-      lower_comp;
+  Index<AMREX_SPACEDIM> lower = AsArray(fab.box().smallEnd());
+  Index<AMREX_SPACEDIM + 1> lower_comp{};
   std::copy_n(lower.begin(), AMREX_SPACEDIM, lower_comp.begin());
-  lower_comp[static_cast<std::size_t>(AMREX_SPACEDIM)] = 0;
   return PatchDataView<T, AMREX_SPACEDIM + 1>(mdspan, lower_comp);
 }
 
@@ -85,7 +80,7 @@ MakePatchDataView(::amrex::BaseFab<T>& fab) {
 /// \param[in] fab  The Fab which owns the data.
 template <typename T>
 mdspan<T, AMREX_SPACEDIM> MakeMdSpan(::amrex::BaseFab<T>& fab, int component) {
-  std::array<std::ptrdiff_t, AMREX_SPACEDIM> extents;
+  Index<AMREX_SPACEDIM> extents{};
   ::amrex::IntVect length{fab.box().length()};
   for (int i = 0; i < AMREX_SPACEDIM; ++i) {
     extents[static_cast<std::size_t>(i)] = length[i];
@@ -97,8 +92,7 @@ template <typename T>
 PatchDataView<T, AMREX_SPACEDIM> MakePatchDataView(::amrex::BaseFab<T>& fab,
                                                    int component) {
   fub::mdspan<T, AMREX_SPACEDIM> mdspan = MakeMdSpan(fab, component);
-  std::array<std::ptrdiff_t, static_cast<std::size_t>(AMREX_SPACEDIM)> lower =
-      AsArray(fab.box().smallEnd());
+  Index<AMREX_SPACEDIM> lower = AsArray(fab.box().smallEnd());
   return PatchDataView<T, AMREX_SPACEDIM>(mdspan, lower);
 }
 
@@ -107,8 +101,7 @@ PatchDataView<T, AMREX_SPACEDIM> MakePatchDataView(::amrex::BaseFab<T>& fab,
 /// \param[in] fab  The Fab which owns the data.
 template <typename T>
 mdspan<const T, AMREX_SPACEDIM + 1> MakeMdSpan(const ::amrex::BaseFab<T>& fab) {
-  std::array<std::ptrdiff_t, static_cast<std::size_t>(AMREX_SPACEDIM + 1)>
-      extents;
+  Index<AMREX_SPACEDIM + 1> extents{};
   ::amrex::IntVect length{fab.box().length()};
   for (int i = 0; i < AMREX_SPACEDIM; ++i) {
     extents[static_cast<std::size_t>(i)] = length[i];
@@ -121,9 +114,8 @@ template <typename T>
 PatchDataView<const T, AMREX_SPACEDIM + 1>
 MakePatchDataView(const ::amrex::BaseFab<T>& fab) {
   fub::mdspan<const T, AMREX_SPACEDIM + 1> mdspan = MakeMdSpan(fab);
-  std::array<std::ptrdiff_t, AMREX_SPACEDIM> lower =
-      AsArray(fab.box().smallEnd());
-  std::array<std::ptrdiff_t, AMREX_SPACEDIM + 1> lower_comp;
+  Index<AMREX_SPACEDIM> lower = AsArray(fab.box().smallEnd());
+  Index<AMREX_SPACEDIM + 1> lower_comp;
   std::copy_n(lower.begin(), AMREX_SPACEDIM, lower_comp.begin());
   lower_comp[AMREX_SPACEDIM] = 0;
   return PatchDataView<const T, AMREX_SPACEDIM + 1>(mdspan, lower_comp);
@@ -135,7 +127,7 @@ MakePatchDataView(const ::amrex::BaseFab<T>& fab) {
 template <typename T>
 mdspan<const T, AMREX_SPACEDIM> MakeMdSpan(const ::amrex::BaseFab<T>& fab,
                                            int component) {
-  std::array<std::ptrdiff_t, AMREX_SPACEDIM> extents;
+  Index<AMREX_SPACEDIM> extents{};
   ::amrex::IntVect length{fab.box().length()};
   for (int i = 0; i < AMREX_SPACEDIM; ++i) {
     extents[static_cast<std::size_t>(i)] = length[i];
@@ -147,8 +139,7 @@ template <typename T>
 PatchDataView<const T, AMREX_SPACEDIM>
 MakePatchDataView(const ::amrex::BaseFab<T>& fab, int component) {
   mdspan<const T, AMREX_SPACEDIM> mdspan = MakeMdSpan(fab, component);
-  std::array<std::ptrdiff_t, AMREX_SPACEDIM> lower =
-      AsArray(fab.box().smallEnd());
+  Index<AMREX_SPACEDIM> lower = AsArray(fab.box().smallEnd());
   return PatchDataView<const T, AMREX_SPACEDIM>(mdspan, lower);
 }
 
@@ -164,17 +155,16 @@ template <typename State> struct MakeViewImpl {
                    const Equation& equation) {
     const auto depths = ::fub::Depths<State, Equation>(equation);
     int counter = 0;
-    const std::array<std::ptrdiff_t, AMREX_SPACEDIM + 1>& origin = fab.Origin();
+    const Index<AMREX_SPACEDIM + 1>& origin = fab.Origin();
     auto transform = overloaded{
         [&](int n_comps) {
-          std::array<std::ptrdiff_t, AMREX_SPACEDIM + 1> efab =
-              AsArray(fab.Extents());
-          std::array<std::ptrdiff_t, sRank + 1> e;
+          Index<AMREX_SPACEDIM + 1> efab = AsArray(fab.Extents());
+          Index<Rank + 1> e{};
           std::copy_n(efab.begin(), Rank, e.begin());
           e[sRank] = n_comps;
-          std::array<std::ptrdiff_t, AMREX_SPACEDIM + 1> index{};
-          index[AMREX_SPACEDIM] = counter;
-          std::array<std::ptrdiff_t, sRank + 1> this_origin{};
+          Index<AMREX_SPACEDIM + 1> index{};
+          index[static_cast<std::size_t>(AMREX_SPACEDIM)] = counter;
+          Index<Rank + 1> this_origin{};
           std::copy_n(origin.begin(), Rank, this_origin.begin());
           this_origin[sRank] = counter;
           counter += n_comps;
@@ -182,20 +172,19 @@ template <typename State> struct MakeViewImpl {
           return PatchDataView<ValueType, Rank + 1>(mds, this_origin);
         },
         [&](const ScalarDepth&) {
-          std::array<std::ptrdiff_t, AMREX_SPACEDIM + 1> efab =
-              AsArray(fab.Extents());
-          std::array<std::ptrdiff_t, sRank> e;
+          Index<AMREX_SPACEDIM + 1> efab = AsArray(fab.Extents());
+          Index<Rank> e{};
           std::copy_n(efab.begin(), Rank, e.begin());
-          std::array<std::ptrdiff_t, AMREX_SPACEDIM + 1> index{};
+          Index<AMREX_SPACEDIM + 1> index{};
           index[AMREX_SPACEDIM] = counter;
-          std::array<std::ptrdiff_t, sRank> this_origin;
+          Index<Rank> this_origin{};
           std::copy_n(origin.begin(), Rank, this_origin.begin());
           counter += 1;
           mdspan<ValueType, sRank> mds(&fab.MdSpan()(index), e);
           return PatchDataView<ValueType, Rank>(mds, this_origin);
         }};
     State pd_views{};
-    ForEachVariable<State>(
+    ForEachVariable(
         [&](auto& pdv, const auto& depth) { pdv = transform(depth); }, pd_views,
         depths);
     return pd_views;
@@ -205,7 +194,7 @@ template <typename State> struct MakeViewImpl {
 template <typename State, typename T, typename Equation>
 auto MakeView(const PatchDataView<T, AMREX_SPACEDIM + 1>& fab,
               const Equation& equation) {
-  MakeViewImpl<State> make_view;
+  MakeViewImpl<State> make_view{};
   return make_view(fab, equation);
 }
 

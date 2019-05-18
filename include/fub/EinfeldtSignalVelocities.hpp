@@ -22,6 +22,10 @@
 #define FUB_EINFELDT_SIGNAL_VELOCITIES_HPP
 
 #include "fub/Direction.hpp"
+#include "fub/State.hpp"
+#include "fub/StateArray.hpp"
+
+#include <array>
 
 namespace fub {
 
@@ -31,28 +35,19 @@ namespace fub {
 ///
 /// Semantically the velocities should be formed by the roe averaves of two
 /// states.
-template <typename Equation> struct EinfeldtSignalVelocitiesImpl {
-  using Complete = typename Equation::Complete;
-
-  static std::array<double, 2> apply(const Equation& equation,
-                                     const Complete& left,
-                                     const Complete& right, Direction dir);
-};
-
-template <typename Equation> struct EinfeldtSignalVelocitiesFn {
-  using Complete = typename Equation::Complete;
+template <typename Equation> struct EinfeldtSignalVelocities {
+  using Complete = ::fub::Complete<Equation>;
+  using CompleteArray = ::fub::CompleteArray<Equation>;
 
   std::array<double, 2> operator()(const Equation& equation,
                                    const Complete& left, const Complete& right,
-                                   Direction dir) const {
-    return EinfeldtSignalVelocitiesImpl<Equation>::apply(equation, left, right,
-                                                         dir);
-  }
-};
+                                   Direction dir) const noexcept;
 
-template <typename Equation>
-inline constexpr EinfeldtSignalVelocitiesFn<Equation>
-    EinfeldtSignalVelocities{};
+  std::array<Array1d, 2> operator()(const Equation& equation,
+                                    const CompleteArray& left,
+                                    const CompleteArray& right,
+                                    Direction dir) const noexcept;
+};
 
 } // namespace fub
 

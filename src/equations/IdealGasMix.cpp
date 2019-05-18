@@ -81,37 +81,33 @@ void IdealGasMix<Dim>::CompleteFromReactor(
   state.gamma = reactor_.GetCp() / reactor_.GetCv();
 }
 
-template class IdealGasMix<1>;
-template class IdealGasMix<2>;
-template class IdealGasMix<3>;
 
 template <int Dim>
-void CompleteFromConsImpl<IdealGasMix<Dim>>::apply(
-    IdealGasMix<Dim>& equation, Complete<IdealGasMix<Dim>>& complete,
-    const Conservative<IdealGasMix<Dim>>& cons) {
-  FlameMasterReactor& reactor = equation.GetReactor();
-  reactor.SetMassFractions(cons.species);
-  reactor.SetDensity(cons.density);
+void IdealGasMix<Dim>::CompleteFromCons(
+                                        Complete& complete,
+                                        const ConservativeBase& cons) noexcept {
+  reactor_.SetMassFractions(cons.species);
+  reactor_.SetDensity(cons.density);
   const double rhoE_kin = KineticEnergy(cons.density, cons.momentum);
   const double e_internal = (cons.energy - rhoE_kin) / cons.density;
-  reactor.SetTemperature(300);
-  reactor.SetInternalEnergy(e_internal);
-  FUB_ASSERT(reactor.GetTemperature() > 0.0);
-  FUB_ASSERT(cons.density == reactor.GetDensity());
+  reactor_.SetTemperature(300);
+  reactor_.SetInternalEnergy(e_internal);
+  FUB_ASSERT(reactor_.GetTemperature() > 0.0);
+  FUB_ASSERT(cons.density == reactor_.GetDensity());
   complete.density = cons.density;
   complete.momentum = cons.momentum;
   complete.energy = cons.energy;
   complete.species = cons.species;
-  complete.pressure = reactor.GetPressure();
-  complete.speed_of_sound = ComputeSpeedOfSound(reactor);
-  complete.temperature = reactor.GetTemperature();
-  complete.c_p = reactor.GetCp();
-  complete.gamma = reactor.GetCp() / reactor.GetCv();
+  complete.pressure = reactor_.GetPressure();
+  complete.speed_of_sound = ComputeSpeedOfSound(reactor_);
+  complete.temperature = reactor_.GetTemperature();
+  complete.c_p = reactor_.GetCp();
+  complete.gamma = reactor_.GetCp() / reactor_.GetCv();
 }
 
-template struct CompleteFromConsImpl<IdealGasMix<1>>;
-template struct CompleteFromConsImpl<IdealGasMix<2>>;
-template struct CompleteFromConsImpl<IdealGasMix<3>>;
+template class IdealGasMix<1>;
+template class IdealGasMix<2>;
+template class IdealGasMix<3>;
 
 void Rotate(Conservative<IdealGasMix<2>>& rotated,
             const Conservative<IdealGasMix<2>>& state,
@@ -196,9 +192,9 @@ void Reflect(Complete<IdealGasMix<3>>& reflected,
 }
 
 template <int Dim>
-std::array<double, 2> EinfeldtSignalVelocitiesImpl<IdealGasMix<Dim>>::apply(
+std::array<double, 2> EinfeldtSignalVelocities<IdealGasMix<Dim>>::operator()(
     const IdealGasMix<Dim>&, const Complete& left, const Complete& right,
-    Direction dir) noexcept {
+    Direction dir) const noexcept {
   FUB_ASSERT(left.density > 0.0);
   FUB_ASSERT(right.density > 0.0);
   const double rhoL = left.density;
@@ -225,8 +221,8 @@ std::array<double, 2> EinfeldtSignalVelocitiesImpl<IdealGasMix<Dim>>::apply(
   return {std::min(sL1, sL2), std::max(sR1, sR2)};
 }
 
-template struct EinfeldtSignalVelocitiesImpl<IdealGasMix<1>>;
-template struct EinfeldtSignalVelocitiesImpl<IdealGasMix<2>>;
-template struct EinfeldtSignalVelocitiesImpl<IdealGasMix<3>>;
+template struct EinfeldtSignalVelocities<IdealGasMix<1>>;
+template struct EinfeldtSignalVelocities<IdealGasMix<2>>;
+template struct EinfeldtSignalVelocities<IdealGasMix<3>>;
 
 } // namespace fub

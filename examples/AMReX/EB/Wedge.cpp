@@ -87,7 +87,7 @@ int main(int argc, char** argv) {
                          _MM_MASK_OVERFLOW | _MM_MASK_UNDERFLOW |
                          _MM_MASK_INVALID);
 
-  const std::array<int, AMREX_SPACEDIM> n_cells{AMREX_D_DECL(64, 64, 1)};
+  const std::array<int, AMREX_SPACEDIM> n_cells{AMREX_D_DECL(128, 128, 1)};
   const std::array<double, AMREX_SPACEDIM> xlower{
       AMREX_D_DECL(-0.5, -1.0, -1.0)};
   const std::array<double, AMREX_SPACEDIM> xupper{
@@ -100,7 +100,7 @@ int main(int argc, char** argv) {
           {}, {AMREX_D_DECL(n_cells[0] - 1, n_cells[1] - 1, n_cells[2] - 1)}},
       &xbox, -1, periodicity.data());
 
-  const int n_level = 1;
+  const int n_level = 3;
 
   auto embedded_boundary = Wedge({-1.0, +1.0}, {+1.0, +1.0});
   auto shop = amrex::EB2::makeShop(embedded_boundary);
@@ -170,9 +170,9 @@ int main(int argc, char** argv) {
 
   using namespace std::literals::chrono_literals;
   fub::RunOptions run_options{};
-  run_options.final_time = 1e4s;
-  // run_options.output_interval = 1e-5s;
-  run_options.output_frequency = 1;
+  run_options.final_time = 1e-4s;
+   run_options.output_interval = 1e-5s;
+//  run_options.output_frequency = 1;
   run_options.cfl = 0.5 * 0.9;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      print_msg);

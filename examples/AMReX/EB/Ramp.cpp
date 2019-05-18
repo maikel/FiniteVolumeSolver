@@ -165,8 +165,8 @@ int main(int argc, char** argv) {
   using namespace std::literals::chrono_literals;
   output(solver.GetPatchHierarchy(), 0, 0s);
   fub::RunOptions run_options{};
-  run_options.final_time = 1e4s;
-  run_options.output_frequency = 1;
+  run_options.final_time = 1s;
+  run_options.output_interval = 0.1s;
   run_options.cfl = 0.4;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      print_msg);

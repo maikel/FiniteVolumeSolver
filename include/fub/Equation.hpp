@@ -103,7 +103,7 @@ View<State> Subview(const BasicView<State, Layout, Rank>& state,
     }
   };
   View<State> strided{};
-  ForEachVariable<View<State>>(
+  ForEachVariable(
       [&](auto& dest, const auto& src) { dest = subview(src, box); }, strided,
       state);
   return strided;

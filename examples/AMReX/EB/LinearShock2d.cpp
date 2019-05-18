@@ -75,7 +75,7 @@ int main(int argc, char** argv) {
       std::chrono::steady_clock::now();
   fub::amrex::ScopeGuard _(argc, argv);
 
-  const std::array<int, AMREX_SPACEDIM> n_cells{AMREX_D_DECL(256, 256, 1)};
+  const std::array<int, AMREX_SPACEDIM> n_cells{AMREX_D_DECL(128, 128, 1)};
   const std::array<double, AMREX_SPACEDIM> xlower{
       AMREX_D_DECL(-0.10, -0.15, -0.15)};
   const std::array<double, AMREX_SPACEDIM> xupper{
@@ -83,7 +83,7 @@ int main(int argc, char** argv) {
   amrex::RealBox xbox(xlower, xupper);
   const std::array<int, AMREX_SPACEDIM> periodicity{};
 
-  const int n_level = 2;
+  const int n_level = 3;
 
   amrex::Geometry coarse_geom(
       amrex::Box{
@@ -163,7 +163,7 @@ int main(int argc, char** argv) {
   output(solver.GetPatchHierarchy(), solver.GetCycles(), solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.final_time = 0.002s;
-  run_options.output_interval = 0.0000125s;
+  run_options.output_interval = 0.000125s;
   run_options.cfl = 0.5 * 0.9;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      print_msg);

@@ -73,7 +73,7 @@ public:
         Load(prev_, prevs, cell);
         Load(flux_left_, stabilised_fluxes, left_face);
         Load(flux_right_, stabilised_fluxes, right_face);
-        ForEachComponent<Conservative>(
+        ForEachComponent(
             [=](double& next, double prev, double f_left, double f_right) {
               next = prev + dt_over_dx * (f_left - f_right);
             },
@@ -90,7 +90,7 @@ public:
         if (beta_left == beta_right) {
           Load(flux_left_, stabilised_fluxes, left_face);
           Load(flux_right_, stabilised_fluxes, right_face);
-          ForEachComponent<Conservative>(
+          ForEachComponent(
               [=](double& next, double prev, double f_left, double f_right) {
                 next = prev + dt_over_dx * (f_left - f_right);
               },
@@ -121,7 +121,7 @@ public:
           const double dBeta_over_alpha = std::clamp(
               (beta_ss_right * distance_to_boundary) / alpha, 0.0, 1.0);
 
-          ForEachComponent<Conservative>(
+          ForEachComponent(
               [=](double& next, double prev, double f_left, double f_ssL,
                   double f_right, double f_B) {
                 const double dF =
@@ -159,7 +159,7 @@ public:
           const double dBeta_over_alpha = std::clamp(
               (beta_ss_left * distance_to_boundary) / alpha, 0.0, 1.0);
 
-          ForEachComponent<Conservative>(
+          ForEachComponent(
               [=](double& next, double prev, double f_left, double f_right,
                   double f_ssR, double f_B) {
                 const double dF =

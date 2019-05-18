@@ -40,12 +40,6 @@
 
 #include "fub/RunSimulation.hpp"
 
-#ifdef AMREX_USE_EB
-#include <AMReX_EB2.H>
-#include <AMReX_EB2_GeometryShop.H>
-#include <AMReX_EB2_IF_AllRegular.H>
-#endif
-
 #include <fmt/format.h>
 #include <iostream>
 
@@ -89,8 +83,7 @@ int main(int argc, char** argv) {
 
   constexpr int Dim = AMREX_SPACEDIM;
 
-  const std::array<int, Dim> n_cells{AMREX_D_DECL(32, 1, 1)};
-
+  const std::array<int, Dim> n_cells{AMREX_D_DECL(128, 1, 1)};
   const std::array<double, Dim> xlower{AMREX_D_DECL(-1.0, -1.0, -1.0)};
   const std::array<double, Dim> xupper{AMREX_D_DECL(+1.0, +1.0, +1.0)};
 
@@ -129,7 +122,7 @@ int main(int argc, char** argv) {
       fub::amrex::FluxMethod(flux_method),
       fub::amrex::Reconstruction(equation)));
 
-  std::string base_name = "PerfectGas_1d_embed_in_3d/";
+  std::string base_name = "PerfectGas1d/";
 
   auto output = [&](const fub::amrex::PatchHierarchy& hierarchy,
                     std::ptrdiff_t cycle, fub::Duration) {
@@ -144,10 +137,9 @@ int main(int argc, char** argv) {
   using namespace std::literals::chrono_literals;
   output(solver.GetPatchHierarchy(), 0, 0.0s);
   fub::RunOptions run_options{};
-  run_options.cfl = 0.1 * 0.5;
-  run_options.final_time = 0.004s;
-  run_options.max_cycles = 100;
-  run_options.output_frequency = 1;
+  run_options.cfl = 0.8;
+  run_options.final_time = 0.002s;
+  run_options.output_interval = 0.0001s;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      print_msg);
 }

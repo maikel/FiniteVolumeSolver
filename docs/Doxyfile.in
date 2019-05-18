@@ -781,6 +781,7 @@ WARN_LOGFILE           =
 # Note: If this tag is empty the current directory is searched.
 
 INPUT                  = "../include/fub/" \
+                         "../include/fub/flux_method/" \
                          "../include/fub/boundary_condition/" \
                          "../include/fub/core" \
                          "../include/fub/cutcell_method/" \

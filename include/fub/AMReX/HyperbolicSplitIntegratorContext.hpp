@@ -62,6 +62,13 @@ public:
   ~HyperbolicSplitIntegratorContext() = default;
 
   void ResetHierarchyConfiguration(std::shared_ptr<GriddingAlgorithm> gridding);
+
+  /// \brief Whenever the gridding algorithm changes the data hierarchy this
+  /// function will regrid all distributed helper variables managed by the
+  /// context.
+  ///
+  /// \param[in] level  The level number of the coarsest level which changed its
+  /// shape. Regrid all levels finer than level.
   void ResetHierarchyConfiguration(int level = 0);
 
   template <typename F> F ForEachPatch(int level, F function) {

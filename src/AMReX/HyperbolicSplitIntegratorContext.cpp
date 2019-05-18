@@ -136,17 +136,16 @@ operator=(LevelData&& other) noexcept {
 
 HyperbolicSplitIntegratorContext::HyperbolicSplitIntegratorContext(
     std::shared_ptr<GriddingAlgorithm> gridding, int gcw)
-    : ghost_cell_width_{gcw + 1}, gridding_{std::move(gridding)},
-      data_(static_cast<std::size_t>(
-          GetPatchHierarchy().GetMaxNumberOfLevels())) {
+    : ghost_cell_width_{gcw + 1}, gridding_{std::move(gridding)}, data_{} {
+  data_.reserve(
+      static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
   ResetHierarchyConfiguration();
 }
 
 HyperbolicSplitIntegratorContext::HyperbolicSplitIntegratorContext(
     const HyperbolicSplitIntegratorContext& other)
     : ghost_cell_width_{other.ghost_cell_width_}, gridding_{other.gridding_},
-      data_(static_cast<std::size_t>(
-          GetPatchHierarchy().GetMaxNumberOfLevels())) {
+      data_(static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels())) {
   // Allocate data arrays
   ResetHierarchyConfiguration();
   // Copy relevant data
@@ -178,8 +177,9 @@ void HyperbolicSplitIntegratorContext::ResetHierarchyConfiguration(
     int first_level) {
   const int n_cons_components =
       GetPatchHierarchy().GetDataDescription().n_cons_components;
-  const int n_levels = GetPatchHierarchy().GetMaxNumberOfLevels();
-  for (int level = first_level; level < n_levels; ++level) {
+  const int new_n_levels = GetPatchHierarchy().GetNumberOfLevels();
+  data_.resize(static_cast<std::size_t>(new_n_levels));
+  for (int level = first_level; level < new_n_levels; ++level) {
     LevelData& data = data_[static_cast<std::size_t>(level)];
     const ::amrex::BoxArray& ba =
         GetPatchHierarchy().GetPatchLevel(level).box_array;
@@ -314,14 +314,17 @@ void HyperbolicSplitIntegratorContext::ResetCoarseFineFluxes(int fine,
 
 void HyperbolicSplitIntegratorContext::ApplyFluxCorrection(int fine, int coarse,
                                                            Duration,
-                                                           Direction) {
+                                                           Direction dir) {
+  const std::size_t sfine = static_cast<std::size_t>(fine);
   const int ncomp = GetPatchHierarchy().GetDataDescription().n_cons_components;
   const ::amrex::Geometry& cgeom = GetGeometry(coarse);
   std::array<::amrex::MultiFab*, AMREX_SPACEDIM> crse_fluxes{AMREX_D_DECL(
       &GetFluxes(coarse, Direction::X), &GetFluxes(coarse, Direction::Y),
       &GetFluxes(coarse, Direction::Z))};
-  std::size_t sfine = static_cast<std::size_t>(fine);
-  data_[sfine].coarse_fine.OverwriteFlux(crse_fluxes, 1.0, 0, 0, ncomp, cgeom);
+  const auto size = crse_fluxes[std::size_t(dir)]->size();
+  if (size > 0) {
+    data_[sfine].coarse_fine.OverwriteFlux(crse_fluxes, 1.0, 0, 0, ncomp, cgeom);
+  }
 }
 
 CartesianCoordinates HyperbolicSplitIntegratorContext::GetCartesianCoordinates(

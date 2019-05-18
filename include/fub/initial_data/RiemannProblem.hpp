@@ -41,7 +41,7 @@ template <typename Eq, typename Geometry> struct RiemannProblem {
   RiemannProblem(const Eq& eq, const Geometry& geom, const Complete& l,
                  const Complete& r)
       : equation{eq}, geometry_{geom}, left{l}, right{r} {
-    ForEachComponent<Complete>([](double& x) { x = 0.0; }, boundary);
+    ForEachComponent([](double& x) { x = 0.0; }, boundary);
   }
 
   void InitializeData(const View<Complete>& data,
@@ -53,7 +53,7 @@ template <typename Eq, typename Geometry> struct RiemannProblem {
     const auto& flags = factory->getMultiEBCellFlagFab()[*patch.iterator];
     ::amrex::FabType type = flags.getType(box);
     if (type == ::amrex::FabType::covered) {
-      ForEachVariable<Complete>(
+      ForEachVariable(
           [](const auto& var) {
             span<double> span = var.Span();
             std::fill(span.begin(), span.end(),

@@ -51,25 +51,26 @@
 
 #include <xmmintrin.h>
 
-struct RiemannProblem {
-  fub::IdealGasMix<2> equation_;
+namespace fub {
+struct TemperatureRamp {
+  IdealGasMix<1> equation_;
   void
-  InitializeData(const fub::View<fub::Complete<fub::IdealGasMix<2>>>& states,
-                 const fub::amrex::PatchHierarchy& hierarchy,
-                 fub::amrex::PatchHandle patch) {
+  InitializeData(const View<Complete<IdealGasMix<1>>>& states,
+                 const amrex::PatchHierarchy& hierarchy,
+                 amrex::PatchHandle patch) {
     const ::amrex::Geometry& geom = hierarchy.GetGeometry(patch.level);
     const ::amrex::Box& box = patch.iterator->tilebox();
-    fub::CartesianCoordinates x =
-        fub::amrex::GetCartesianCoordinates(geom, box);
-    fub::FlameMasterReactor& reactor = equation_.GetReactor();
+    CartesianCoordinates x =
+        amrex::GetCartesianCoordinates(geom, box);
+    FlameMasterReactor& reactor = equation_.GetReactor();
     reactor.SetMoleFractions("N2:79,O2:21,H2:42");
-    const double high_temp = 1100.0;
+    const double high_temp = 1150.0;
     const double low_temp = 300.0;
-    fub::Complete<fub::IdealGasMix<2>> complete(equation_);
-    fub::ForEachIndex(fub::Box<0>(states), [&](auto... is) {
-      if (x(is...)[0] < 0.01) {
+    Complete<IdealGasMix<1>> complete(equation_);
+    ForEachIndex(Box<0>(states), [&](auto... is) {
+      if (x(is...)[0] < 0.1) {
         const double x0 = x(is...)[0];
-        const double d = x0 / 0.01;
+        const double d = x0 / 0.1;
         reactor.SetTemperature(d * low_temp + (1.0 - d) * high_temp);
         reactor.SetPressure(101325.0);
       } else {
@@ -81,6 +82,7 @@ struct RiemannProblem {
     });
   }
 };
+}
 
 int main(int argc, char** argv) {
   std::chrono::steady_clock::time_point wall_time_reference =
@@ -94,12 +96,12 @@ int main(int argc, char** argv) {
 
   constexpr int Dim = AMREX_SPACEDIM;
 
-  const std::array<int, Dim> n_cells{AMREX_D_DECL(32, 32, 1)};
+  const std::array<int, Dim> n_cells{AMREX_D_DECL(128, 1, 1)};
   const std::array<double, Dim> xlower{AMREX_D_DECL(0.0, 0.0, 0.0)};
-  const std::array<double, Dim> xupper{AMREX_D_DECL(+0.1, +0.1, +0.1)};
+  const std::array<double, Dim> xupper{AMREX_D_DECL(+1.0, +1.0, +1.0)};
 
   fub::Burke2012 mechanism{};
-  fub::IdealGasMix<2> equation{fub::FlameMasterReactor(mechanism)};
+  fub::IdealGasMix<1> equation{fub::FlameMasterReactor(mechanism)};
 
   fub::amrex::CartesianGridGeometry geometry;
   geometry.cell_dimensions = n_cells;
@@ -108,15 +110,15 @@ int main(int argc, char** argv) {
   fub::amrex::DataDescription desc = fub::amrex::MakeDataDescription(equation);
 
   fub::amrex::PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = 1;
-  hier_opts.refine_ratio = amrex::IntVect{AMREX_D_DECL(2, 2, 1)};
+  hier_opts.max_number_of_levels = 3;
+  hier_opts.refine_ratio = amrex::IntVect{AMREX_D_DECL(2, 1, 1)};
 
-  using Complete = fub::IdealGasMix<2>::Complete;
+  using Complete = fub::IdealGasMix<1>::Complete;
   fub::GradientDetector gradient{equation,
-                                 std::make_pair(&Complete::density, 5e-3),
-                                 std::make_pair(&Complete::pressure, 5e-2)};
+                                 std::make_pair(&Complete::temperature, 5e-3),
+                                 std::make_pair(&Complete::density, 5e-4)};
 
-  RiemannProblem initial_data{equation};
+  fub::TemperatureRamp initial_data{equation};
 
   auto gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       fub::amrex::PatchHierarchy(desc, geometry, hier_opts),
@@ -126,11 +128,10 @@ int main(int argc, char** argv) {
   gridding->InitializeHierarchy(0.0);
 
   fub::HyperbolicSplitPatchIntegrator patch_integrator{equation};
-  fub::HllMethod base_method(
-      equation, fub::EinfeldtSignalVelocities<fub::IdealGasMix<2>>);
-  fub::MusclHancockMethod flux_method{equation, base_method};
+  fub::HllMethod hlle(equation, fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>>{});
+  fub::MusclHancockMethod flux_method{equation, hlle};
 
-  const int gcw = base_method.GetStencilWidth();
+  const int gcw = flux_method.GetStencilWidth();
   fub::HyperbolicSplitSystemSolver system_solver(
       fub::HyperbolicSplitLevelIntegrator(
           fub::amrex::HyperbolicSplitIntegratorContext(gridding, gcw),
@@ -138,7 +139,7 @@ int main(int argc, char** argv) {
           fub::amrex::FluxMethod(flux_method),
           fub::amrex::Reconstruction(equation)));
 
-  fub::ideal_gas::KineticSourceTerm<2> source_term(equation, gridding);
+  fub::ideal_gas::KineticSourceTerm<1> source_term(equation, gridding);
 
   fub::SplitSystemSourceSolver solver(system_solver, source_term);
 
@@ -159,7 +160,7 @@ int main(int argc, char** argv) {
   fub::RunOptions run_options{};
   run_options.cfl = 0.8;
   run_options.final_time = 0.002s;
-  run_options.output_interval = 0.00001s;
+  run_options.output_interval = 0.0001s;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      print_msg);
 }

@@ -126,7 +126,7 @@ int main(int argc, char** argv) {
 
   fub::HyperbolicSplitCutCellPatchIntegrator patch_integrator{equation};
 
-  auto signals = fub::EinfeldtSignalVelocities<fub::IdealGasMix<3>>;
+  fub::EinfeldtSignalVelocities<fub::IdealGasMix<3>> signals{};
   fub::Hll riemann_solver{equation, signals};
   fub::MusclHancockMethod flux_method(equation,
                                       fub::HllMethod{equation, signals});

@@ -343,13 +343,13 @@ public:
           const double center = boundary_centeroid(cell_left);
           // d is the average distance to the boundary
           const double d = std::clamp(0.5 - center, 0.0, 1.0);
-          ForEachComponent<Conservative>(
+          ForEachComponent(
               [=](double& f_shielded, double f_regular, double f_B) {
                 f_shielded = d * f_regular + (1.0 - d) * f_B;
               },
               shielded_left_flux_, regular_flux_, boundary_flux_left_);
         } else {
-          ForEachComponent<Conservative>([](double& x) { x = 0.0; },
+          ForEachComponent([](double& x) { x = 0.0; },
                                          shielded_left_flux_);
         }
 
@@ -359,13 +359,13 @@ public:
           Load(boundary_flux_right_, boundary_fluxes, cell_right);
           const double center = boundary_centeroid(cell_right);
           const double d = std::clamp(0.5 + center, 0.0, 1.0);
-          ForEachComponent<Conservative>(
+          ForEachComponent(
               [d](double& f_shielded, double f_regular, double f_B) {
                 f_shielded = (d * f_regular + (1.0 - d) * f_B);
               },
               shielded_right_flux_, regular_flux_, boundary_flux_right_);
         } else {
-          ForEachComponent<Conservative>([](double& x) { x = 0.0; },
+          ForEachComponent([](double& x) { x = 0.0; },
                                          shielded_right_flux_);
         }
 
@@ -384,7 +384,7 @@ public:
           const double dLdR_over_ds = dL * dR * one_over_ds;
           const double dL_over_ds = dL * one_over_ds;
           const double dR_over_ds = dR * one_over_ds;
-          ForEachComponent<Conservative>(
+          ForEachComponent(
               [=](double& f_ds, double uL, double uR, double fL_B,
                   double fR_B) {
                 f_ds = (dLdR_over_ds * (uL - uR) + dL_over_ds * fR_B +
@@ -393,7 +393,7 @@ public:
               doubly_shielded_flux_, stencil_[0], stencil_[1],
               boundary_flux_left_, boundary_flux_right_);
         } else {
-          ForEachComponent<Conservative>([](double& x) { x = 0.0; },
+          ForEachComponent([](double& x) { x = 0.0; },
                                          doubly_shielded_flux_);
         }
 
@@ -405,7 +405,7 @@ public:
           const double beta_us_frac = beta_unshielded / beta_total;
           const double beta_left_frac = beta_left / beta_total;
           const double beta_right_frac = beta_right / beta_total;
-          ForEachComponent<Conservative>(
+          ForEachComponent(
               [=](double& stabilized_flux, double regular_flux,
                   double shielded_left_flux, double shielded_right_flux) {
                 stabilized_flux = beta_us_frac * regular_flux +
@@ -415,7 +415,7 @@ public:
               cutcell_flux_, regular_flux_, shielded_left_flux_,
               shielded_right_flux_);
         } else {
-          ForEachComponent<Conservative>([](double& x) { x = 0.0; },
+          ForEachComponent([](double& x) { x = 0.0; },
                                          cutcell_flux_);
         }
 
@@ -425,7 +425,7 @@ public:
         Store(stabilised_fluxes, cutcell_flux_, face);
       } else {
         Load(regular_flux_, regular_fluxes, face);
-        ForEachComponent<Conservative>([](double& x) { x = 0.0; },
+        ForEachComponent([](double& x) { x = 0.0; },
                                        cutcell_flux_);
         Store(shielded_left_fluxes, cutcell_flux_, face);
         Store(shielded_right_fluxes, cutcell_flux_, face);
@@ -483,7 +483,7 @@ public:
         Load(prev_, prevs, cell);
         Load(flux_left_, stabilised_fluxes, left_face);
         Load(flux_right_, stabilised_fluxes, right_face);
-        ForEachComponent<Conservative>(
+        ForEachComponent(
             [=](double& next, double prev, double f_left, double f_right) {
               next = prev + dt_over_dx * (f_left - f_right);
             },
@@ -504,7 +504,7 @@ public:
           // forward euler step.
           Load(flux_left_, stabilised_fluxes, left_face);
           Load(flux_right_, stabilised_fluxes, right_face);
-          ForEachComponent<Conservative>(
+          ForEachComponent(
               [=](double& next, double prev, double f_left, double f_right) {
                 next = prev + dt_over_dx * (f_left - f_right);
               },
@@ -535,7 +535,7 @@ public:
           const double dBeta_over_alpha = std::clamp(
               (beta_ss_right * distance_to_boundary) / alpha, 0.0, 1.0);
 
-          ForEachComponent<Conservative>(
+          ForEachComponent(
               [=](double& next, double prev, double f_left, double f_ssL,
                   double f_right, double f_B) {
                 const double dF =
@@ -573,7 +573,7 @@ public:
           const double dBeta_over_alpha = std::clamp(
               (beta_ss_left * distance_to_boundary) / alpha, 0.0, 1.0);
 
-          ForEachComponent<Conservative>(
+          ForEachComponent(
               [=](double& next, double prev, double f_left, double f_right,
                   double f_ssR, double f_B) {
                 const double dF =

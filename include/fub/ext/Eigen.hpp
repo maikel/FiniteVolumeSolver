@@ -35,8 +35,9 @@ namespace fub {
 constexpr const int kDefaultChunkSize = 8;
 
 template <typename T, int N, int M = kDefaultChunkSize>
-using Array = std::conditional_t<M == 1, Eigen::Array<T, 1, N>,
-                                 Eigen::Array<T, M, N, Eigen::ColMajor>>;
+using Array = std::conditional_t<N == 1 || M == 1, Eigen::Array<T, N, M>,
+                                 Eigen::Array<T, N, M, Eigen::RowMajor>>;
+// using Array = Eigen::Array<T, N, M, Eigen::ColMajor>;
 
 using Array1d = Array<double, 1>;
 // using Scalar = Array1d;
@@ -44,16 +45,15 @@ using Array2d = Array<double, 2>;
 using Array3d = Array<double, 3>;
 using ArrayXd = Array<double, Eigen::Dynamic>;
 
-template <int N, typename T, typename Extents, typename Layout,
-          typename... Indices>
+template <int N, typename T, int Rank, typename Layout, typename... Indices>
 std::enable_if_t<boost::mp11::mp_all<std::is_integral<Indices>...>::value,
                  Eigen::Array<std::remove_cv_t<T>, N, 1>>
-LoadN(int_constant<N>, basic_mdspan<T, Extents, Layout> mdspan, int size,
+LoadN(int_constant<N>, const PatchDataView<T, Rank, Layout>& pdv, int size,
       std::ptrdiff_t i0, Indices... indices) {
   FUB_ASSERT(0 < size && size < N);
   Eigen::Array<std::remove_cv_t<T>, N, 1> array;
   for (int i = 0; i < size; ++i) {
-    array[i] = mdspan(i0 + i, indices...);
+    array[i] = pdv(i0 + i, indices...);
   }
   return array;
 }
@@ -102,45 +102,43 @@ MakeRotation(const Eigen::Matrix<double, 3, 1>& a,
   return rotation;
 }
 
-template <int N, typename T, typename Extents, typename Layout,
-          typename... Indices>
+template <int N, typename T, int Rank, typename Layout, typename... Indices>
 Eigen::Array<std::remove_cv_t<T>, N, 1>
-LoadN(int_constant<N>, basic_mdspan<T, Extents, Layout> mdspan, int size,
-      const std::array<std::ptrdiff_t, Extents::rank()>& index) {
+LoadN(int_constant<N>, const PatchDataView<T, Rank, Layout>& pdv, int size,
+      nodeduce_t<const std::array<std::ptrdiff_t, std::size_t(Rank)>&> index) {
   FUB_ASSERT(0 < size && size < N);
   Eigen::Array<std::remove_cv_t<T>, N, 1> array{};
   for (int i = 0; i < size; ++i) {
-    array[i] = mdspan(Shift(index, Direction::X, i));
+    array[i] = pdv(Shift(index, Direction::X, i));
   }
   return array;
 }
 
-template <int N, typename T, typename Extents, typename Layout,
-          typename... Indices>
+template <int N, typename T, int Rank, typename Layout, typename... Indices>
 Eigen::Array<std::remove_cv_t<T>, N, 1>
-Load(int_constant<N> n, basic_mdspan<T, Extents, Layout> mdspan,
+Load(int_constant<N> n, const PatchDataView<T, Rank, Layout>& pdv,
      Indices... indices) {
-  if (mdspan.stride(0) == 1) {
+  if (pdv.MdSpan().stride(0) == 1) {
     return Eigen::Map<const Eigen::Array<std::remove_cv_t<T>, N, 1>>(
-        &mdspan(indices...), n);
+        &pdv(indices...), n);
   } else {
     using Stride = Eigen::Stride<Eigen::Dynamic, Eigen::Dynamic>;
     return Eigen::Map<const Eigen::Array<std::remove_cv_t<T>, N, 1>,
-                      Eigen::Unaligned, Stride>(&mdspan(indices...), n, 1,
-                                                Stride(1, mdspan.stride(0)));
+                      Eigen::Unaligned, Stride>(
+        &pdv(indices...), n, 1, Stride(1, pdv.MdSpan().stride(0)));
   }
 }
 
-template <typename T, typename Extents, typename Layout, typename... Indices>
-auto Load(basic_mdspan<T, Extents, Layout> mdspan, Indices... indices) {
-  return Load(int_c<kDefaultChunkSize>, mdspan, indices...);
+template <typename T, int Rank, typename Layout, typename... Indices>
+auto Load(const PatchDataView<T, Rank, Layout>& pdv, Indices... indices) {
+  return Load(int_c<kDefaultChunkSize>, pdv, indices...);
 }
 
-template <typename T, int N, typename Layout, typename... Indices>
-void StoreN(mdspan<T, 1, Layout> mdspan, int n,
-            const Eigen::Array<T, N, 1>& chunk, std::ptrdiff_t offset) {
+template <typename T, typename A, int N, bool B, typename Layout>
+void StoreN(const PatchDataView<T, 1, Layout>& pdv, int n,
+            const Eigen::Block<A, 1, N, B>& chunk, std::ptrdiff_t offset) {
   for (int i = 0; i < n; ++i) {
-    mdspan(offset + i) = chunk[i];
+    pdv(offset + i) = chunk[i];
   }
 }
 
@@ -148,17 +146,37 @@ template <typename T, int Rank, typename Layout, int N, int Options,
           typename... Indices>
 void Store(
     const PatchDataView<T, Rank, Layout>& view,
-    const Eigen::Array<T, N, 1, Options>& chunk,
+    const Eigen::Array<T, 1, N, Options>& chunk,
     const nodeduce_t<
         std::array<std::ptrdiff_t, static_cast<std::size_t>(Rank)>>& index) {
   FUB_ASSERT(view.Extent(0) >= N);
-  if (view.stride(0) == 1) {
+  if (view.MdSpan().stride(0) == 1) {
     Eigen::Map<Eigen::Array<T, N, 1>> mapped(&view(index), N);
     mapped = chunk;
   } else {
     using Stride = Eigen::Stride<1, Eigen::Dynamic>;
     Eigen::Map<Eigen::Array<T, N, 1>, Eigen::Unaligned, Stride> mapped(
         &view(index), N, Stride(1, view.stride(0)));
+    mapped = chunk;
+  }
+  return;
+}
+
+template <typename T, typename Base, int Rank, typename Layout, int N,
+          bool Options, typename... Indices>
+void Store(
+    const PatchDataView<T, Rank, Layout>& view,
+    const Eigen::Block<Base, 1, N, Options>& chunk,
+    const nodeduce_t<
+        std::array<std::ptrdiff_t, static_cast<std::size_t>(Rank)>>& index) {
+  FUB_ASSERT(view.Extent(0) >= N);
+  if (view.MdSpan().stride(0) == 1) {
+    Eigen::Map<Eigen::Array<T, N, 1>> mapped(&view(index), N);
+    mapped = chunk;
+  } else {
+    using Stride = Eigen::Stride<1, Eigen::Dynamic>;
+    Eigen::Map<Eigen::Array<T, N, 1>, Eigen::Unaligned, Stride> mapped(
+        &view(index), N, Stride(1, view.MdSpan().stride(0)));
     mapped = chunk;
   }
   return;

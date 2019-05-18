@@ -44,14 +44,18 @@ template <typename Base> struct HyperbolicSplitPatchIntegrator : public Base {
     const Equation& eq = Base::GetEquation();
     const int d = static_cast<int>(dir);
     const ::amrex::IntVect gcws = ::amrex::IntVect::TheDimensionVector(d);
+
     IndexBox<Rank> cells = AsIndexBox<Rank>(patch.iterator->growntilebox(gcws));
+    IndexBox<Rank> faces = AsIndexBox<Rank>(patch.iterator->growntilebox(gcws));
+
     View<Conservative> scratch =
         Subview(AsCons(MakeView<BasicView<Complete>>(
                     context.GetScratch(patch, dir), eq)),
                 cells);
     const double dx = context.GetDx(patch, dir);
-    BasicView<const Conservative> fluxes = AsConst(
+    BasicView<const Conservative> basic_fluxes = AsConst(
         MakeView<BasicView<Conservative>>(context.GetFluxes(patch, dir), eq));
+    View<const Conservative> fluxes = Subview(basic_fluxes, faces);
     Base::UpdateConservatively(scratch, fluxes, AsConst(scratch), dir, dt, dx);
   }
 };

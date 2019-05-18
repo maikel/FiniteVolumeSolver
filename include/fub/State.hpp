@@ -22,8 +22,7 @@
 #define FUB_STATE_HPP
 
 #include "fub/PatchDataView.hpp"
-
-#include <Eigen/Dense>
+#include "fub/ext/Eigen.hpp"
 
 #include <boost/mp11/algorithm.hpp>
 #include <boost/mp11/tuple.hpp>
@@ -60,7 +59,7 @@ constexpr decltype(auto) get(State&& x) {
   return x.*std::get<I>(pointers_to_member);
 }
 
-template <typename StateType, typename F, typename... Ts>
+template <typename F, typename... Ts>
 void ForEachVariable(F function, Ts&&... states) {
   constexpr auto pointers =
       Zip(StateTraits<remove_cvref_t<Ts>>::pointers_to_member...);
@@ -98,13 +97,13 @@ template <> struct DepthToStateValueTypeImpl<ScalarDepth, 1> {
 
 /// The value-type for a single-cell state for a scalar quantity.
 template <int Width> struct DepthToStateValueTypeImpl<ScalarDepth, Width> {
-  using type = Eigen::Array<double, 1, Width>;
+  using type = Array<double, 1, Width>;
 };
 
 /// The value-type for a single-cell state for a scalar quantity.
 template <int Depth, int Width>
 struct DepthToStateValueTypeImpl<VectorDepth<Depth>, Width> {
-  using type = Eigen::Array<double, Depth, Width>;
+  using type = Array<double, Depth, Width>;
 };
 
 /// For usage with boost::mp11
@@ -220,11 +219,14 @@ struct BasicView : ViewBase<S, L, R> {
   }
 };
 
+template <typename S, typename L, int R>
+BasicView(const BasicView<S, L, R>&)->BasicView<S, L, R>;
+
 template <typename State, typename Layout, int Rank>
 BasicView<const State, Layout, Rank>
 AsConst(const BasicView<State, Layout, Rank>& v) {
   BasicView<const State, Layout, Rank> w{};
-  ForEachVariable<State>([](auto& w, const auto& v) { w = v; }, w, v);
+  ForEachVariable([](auto& w, const auto& v) { w = v; }, w, v);
   return w;
 }
 
@@ -324,14 +326,15 @@ template <typename T, typename Eq> auto Depths(const Eq& eq) {
 template <typename T> struct GetNumberOfComponentsImpl {
   int_constant<1> operator()(double) const noexcept { return {}; }
 
-  template <int N, int M>
-  int_constant<N> operator()(const Eigen::Array<double, N, M>&) const noexcept {
+  template <int N, int M, int O, int MR, int MC>
+  int_constant<N> operator()(const Eigen::Array<double, N, M, O, MR, MC>&) const
+      noexcept {
     return {};
   }
 
-  template <int M>
-  int operator()(const Eigen::Array<double, Eigen::Dynamic, M>& x) const
-      noexcept {
+  template <int M, int O, int MR, int MC>
+  int operator()(const Eigen::Array<double, Eigen::Dynamic, M, O, MR, MC>& x)
+      const noexcept {
     return static_cast<int>(x.rows());
   }
 };
@@ -369,13 +372,15 @@ template <typename T> struct AtComponentImpl {
     return x[n];
   }
 
-  template <int N, int M>
-  auto operator()(Eigen::Array<double, N, M>& x, int n) const noexcept {
+  template <int N, int M, int O, int MR, int MC>
+  auto operator()(Eigen::Array<double, N, M, O, MR, MC>& x, int n) const
+      noexcept {
     return x.row(n);
   }
 
-  template <int N, int M>
-  auto operator()(const Eigen::Array<double, N, M>& x, int n) const noexcept {
+  template <int N, int M, int O, int MR, int MC>
+  auto operator()(const Eigen::Array<double, N, M, O, MR, MC>& x, int n) const
+      noexcept {
     return x.row(n);
   }
 };
@@ -420,9 +425,9 @@ struct AtComponentImpl<BasicView<S, Layout, Rank>> {
 
 template <typename State> constexpr static AtComponentImpl<State> AtComponent{};
 
-template <typename StateType, typename F, typename... Ts>
+template <typename F, typename... Ts>
 void ForEachComponent(F function, Ts&&... states) {
-  ForEachVariable<StateType>(
+  ForEachVariable(
       [&](auto&&... variables) {
         const auto vs = std::make_tuple(std::addressof(variables)...);
         using T =
@@ -438,7 +443,7 @@ void ForEachComponent(F function, Ts&&... states) {
 template <typename State, typename Layout, int Rank>
 void Load(State& state, const BasicView<const State, Layout, Rank>& view,
           const std::array<std::ptrdiff_t, State::Equation::Rank()>& index) {
-  ForEachComponent<State>(
+  ForEachComponent(
       [&](double& component,
           const PatchDataView<const double, Rank, Layout>& pdv) {
         FUB_ASSERT(Contains(pdv.Box(), index));
@@ -450,7 +455,7 @@ void Load(State& state, const BasicView<const State, Layout, Rank>& view,
 template <typename State, typename Layout, int Rank>
 void Load(State& state, const BasicView<State, Layout, Rank>& view,
           const std::array<std::ptrdiff_t, State::Equation::Rank()>& index) {
-  ForEachComponent<State>(
+  ForEachComponent(
       [&](double& component, const auto& pdv) {
         FUB_ASSERT(Contains(pdv.Box(), index));
         component = pdv(index);
@@ -462,7 +467,7 @@ template <typename Eq, typename Layout>
 void Store(const BasicView<Conservative<Eq>, Layout, Eq::Rank()>& view,
            const Conservative<Eq>& state,
            const std::array<std::ptrdiff_t, Eq::Rank()>& index) {
-  ForEachComponent<Conservative<Eq>>(
+  ForEachComponent(
       [&](auto data, auto block) {
         FUB_ASSERT(Contains(data.Box(), index));
         Store(data, block, index);
@@ -474,94 +479,176 @@ template <typename Eq, typename Layout>
 void Store(const BasicView<Complete<Eq>, Layout, Eq::Rank()>& view,
            const Complete<Eq>& state,
            const std::array<std::ptrdiff_t, Eq::Rank()>& index) {
-  ForEachComponent<Complete<Eq>>(
+  ForEachComponent(
       [&](auto data, auto block) {
         FUB_ASSERT(Contains(data.Box(), index));
         Store(data, block, index);
       },
       view, state);
 }
+//
+// template <typename State, typename Layout, int Rank,
+//          typename... SliceSpecifiers>
+// View<State, SliceRank_<SliceSpecifiers...>>
+// Subspan(const BasicView<State, Layout, Rank>& view, SliceSpecifiers...
+// slices) {
+//  static constexpr int R = SliceRank_<SliceSpecifiers...>;
+//  View<State, R> subview{};
+//  ForEachVariable([&](auto& subcomp,
+//                      const auto& comp) { subcomp = subspan(comp, slices...);
+//                      },
+//                  subview, view);
+//  return subview;
+//}
 
-template <typename State, typename Layout, int Rank,
-          typename... SliceSpecifiers>
-View<State, SliceRank_<SliceSpecifiers...>>
-Subspan(const BasicView<State, Layout, Rank>& view, SliceSpecifiers... slices) {
-  static constexpr int R = SliceRank_<SliceSpecifiers...>;
-  View<State, R> subview{};
-  ForEachVariable([&](auto& subcomp,
-                      const auto& comp) { subcomp = subspan(comp, slices...); },
-                  subview, view);
-  return subview;
-}
-
-template <typename F, typename View, typename... Views>
-void ForEachRow(F function, const View& view, const Views&... views) {
-  auto extents = Extents<0>(view);
-  static constexpr int Rank = remove_cvref_t<decltype(extents)>::rank();
-  if constexpr (Rank == 1) {
-    function(view, views...);
-  } else if constexpr (Rank == 2) {
-    for (int j = 0; j < Extents<0>(view).extent(1); ++j) {
-      function(Subspan(view, all, j), Subspan(views, all, j)...);
-    }
-  } else {
-    static_assert(Rank == 3);
-    for (int k = 0; k < Extents<0>(view).extent(2); ++k) {
-      for (int j = 0; j < Extents<0>(view).extent(1); ++j) {
-        function(Subspan(view, all, j, k), Subspan(views, all, j, k)...);
-      }
-    }
-  }
-}
-
-template <Direction dir, typename T, typename E, typename L, typename A,
-          typename SliceSpecifier>
-auto Slice(const basic_mdspan<T, E, L, A>& span, SliceSpecifier slice) {
-  if constexpr (E::rank() == 1) {
-    static_assert(dir == Direction::X);
-    return subspan(span, slice);
-  } else if constexpr (E::rank() == 2) {
-    if constexpr (dir == Direction::X) {
-      return subspan(span, slice, all);
-    } else {
-      static_assert(dir == Direction::Y);
-      return subspan(span, all, slice);
-    }
-  } else if constexpr (E::rank() == 3) {
-    if constexpr (dir == Direction::X) {
-      return subspan(span, slice, all, all);
-    } else if constexpr (dir == Direction::Y) {
-      return subspan(span, all, slice, all);
-    } else {
-      static_assert(dir == Direction::Z);
-      return subspan(span, all, all, slice);
-    }
-  } else if constexpr (E::rank() == 4) {
-    if constexpr (dir == Direction::X) {
-      return subspan(span, slice, all, all, all);
-    } else if constexpr (dir == Direction::Y) {
-      return subspan(span, all, slice, all, all);
-    } else {
-      static_assert(dir == Direction::Z);
-      return subspan(span, all, all, slice, all);
-    }
-  }
-}
-
+//
 template <Direction dir, typename T, typename L, int Rank,
           typename SliceSpecifier>
-View<T, Rank> Slice(const BasicView<T, L, Rank>& view, SliceSpecifier slice) {
+auto Slice(const BasicView<T, L, Rank>& view, SliceSpecifier slice) {
   View<T, Rank> sliced_view;
-  ForEachVariable<remove_cvref_t<T>>(
-      [&](auto& s, auto v) { s = Slice<dir>(v, slice); }, sliced_view, view);
+  ForEachVariable([&](auto& s, auto v) { s = Slice<dir>(v, slice); },
+                  sliced_view, view);
   return sliced_view;
+}
+
+// template <typename State, typename Layout, int Rank, typename... Indices>
+// View<State, 1> Row(const BasicView<State, Layout, Rank>& view, Indices... is)
+// {
+//  View<State, 1> row;
+//  ForEachVariable([&](auto&& r, auto&& v){
+//    r = Row(v, is...);
+//  }, row, view);
+//  return row;
+//}
+
+template <typename State, int Rank, typename Layout>
+View<State, Rank> Shrink(const BasicView<State, Layout, Rank>& view,
+                         Direction dir, std::array<std::ptrdiff_t, 2> offsets) {
+  IndexBox<Rank> box = Box<0>(view);
+  IndexBox<Rank> shrinked_box = Shrink(box, dir, offsets);
+  View<State, Rank> shrinked_view;
+  using T = std::conditional_t<std::is_const_v<State>, const double, double>;
+  ForEachVariable(
+      overloaded{
+          [&shrinked_box](PatchDataView<T, Rank, layout_stride>& dest,
+                          PatchDataView<T, Rank, Layout> src) {
+            dest = src.Subview(shrinked_box);
+          },
+          [&shrinked_box](PatchDataView<T, Rank + 1, layout_stride>& dest,
+                          PatchDataView<T, Rank + 1, Layout> src) {
+            IndexBox<Rank + 1> src_box = src.Box();
+            IndexBox<Rank + 1> embed_shrinked_box = Embed<Rank + 1>(
+                shrinked_box, {src_box.lower[Rank], src_box.upper[Rank]});
+            dest = src.Subview(embed_shrinked_box);
+          }},
+      shrinked_view, view);
+  return shrinked_view;
 }
 
 template <typename Equation> bool AnyNaN(const Complete<Equation>& state) {
   bool any_nan = false;
-  ForEachComponent<Complete<Equation>>(
-      [&any_nan](double x) { any_nan |= std::isnan(x); }, state);
+  ForEachComponent([&any_nan](double x) { any_nan |= std::isnan(x); }, state);
   return any_nan;
+}
+
+template <typename T, typename Depth> struct DepthToPointerType;
+
+template <typename T> struct DepthToPointerType<T, ScalarDepth> {
+  using type = T*;
+};
+
+template <typename T, int Rank>
+struct DepthToPointerType<T, VectorDepth<Rank>> {
+  using type = std::pair<T*, std::ptrdiff_t>;
+};
+
+template <typename State> struct ViewPointerBaseImpl {
+  template <typename Depth>
+  using fn = typename DepthToPointerType<double, Depth>::type;
+  using type = boost::mp11::mp_transform<fn, typename State::Depths>;
+};
+
+template <typename State> struct ViewPointerBaseImpl<const State> {
+  template <typename Depth>
+  using fn = typename DepthToPointerType<const double, Depth>::type;
+  using type = boost::mp11::mp_transform<fn, typename State::Depths>;
+};
+
+template <typename State>
+using ViewPointerBase = typename ViewPointerBaseImpl<State>::type;
+
+template <typename State> struct ViewPointer : ViewPointerBase<State> {
+  using Traits = StateTraits<ViewPointer<State>>;
+};
+
+template <typename State>
+struct StateTraits<ViewPointer<State>> : StateTraits<ViewPointerBase<State>> {};
+
+template <typename State>
+ViewPointer(const ViewPointer<State>&)->ViewPointer<State>;
+
+template <typename State, typename Layout, int Rank>
+ViewPointer<State> Begin(const BasicView<State, Layout, Rank>& view) {
+  ViewPointer<State> pointer;
+  ForEachVariable(
+      overloaded{[&](double*& p, auto pdv) { p = pdv.Span().begin(); },
+                 [&](const double*& p, auto pdv) { p = pdv.Span().begin(); },
+                 [&](auto& p, auto pdv) {
+                   p = std::pair{pdv.Span().begin(), pdv.Stride(Rank)};
+                 }},
+      pointer, view);
+  return pointer;
+}
+
+template <typename State, typename Layout, int Rank>
+ViewPointer<State> End(const BasicView<State, Layout, Rank>& view) {
+  ViewPointer<State> pointer;
+  ForEachVariable(
+      overloaded{[&](double*& p, auto pdv) { p = pdv.Span().end(); },
+                 [&](const double*& p, auto pdv) { p = pdv.Span().end(); },
+                 [&](auto& p, auto pdv) {
+                   p = std::pair{pdv.Span().end(), pdv.Stride(Rank)};
+                 }},
+      pointer, view);
+  return pointer;
+}
+
+template <typename Eq>
+void Load(Complete<Eq>& state,
+          nodeduce_t<ViewPointer<const Complete<Eq>>> pointer) {
+  ForEachVariable(
+      overloaded{[](double& x, const double* p) { x = *p; },
+                 [](auto& xs, std::pair<const double*, std::ptrdiff_t> ps) {
+                   const double* p = ps.first;
+                   for (std::size_t i = 0; i < xs.size(); ++i) {
+                     xs[i] = *p;
+                     p += ps.second;
+                   }
+                 }},
+      state, pointer);
+}
+
+template <typename Eq>
+void Load(Conservative<Eq>& state,
+          nodeduce_t<ViewPointer<const Conservative<Eq>>> pointer) {
+  ForEachVariable(
+      overloaded{[](double& x, const double* p) { x = *p; },
+                 [](auto& xs, std::pair<const double*, std::ptrdiff_t> ps) {
+                   const double* p = ps.first;
+                   for (std::size_t i = 0; i < xs.size(); ++i) {
+                     xs[i] = *p;
+                     p += ps.second;
+                   }
+                 }},
+      state, pointer);
+}
+
+template <typename State>
+void Advance(ViewPointer<State>& pointer, std::ptrdiff_t n) noexcept {
+  ForEachVariable(overloaded{[n](double*& ptr) { ptr += n; },
+                             [n](const double*& ptr) { ptr += n; },
+                             [n](auto& ptr) { ptr.first += n; }},
+                  pointer);
 }
 
 } // namespace fub

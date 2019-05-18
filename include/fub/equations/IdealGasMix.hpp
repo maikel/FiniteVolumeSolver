@@ -106,6 +106,7 @@ public:
   using CompleteDepths = IdealGasMixCompleteShape<N>;
 
   using Conservative = ::fub::Conservative<IdealGasMix<N>>;
+  using ConservativeBase = ::fub::ConservativeBase<IdealGasMix<N>>;
   using Complete = ::fub::Complete<IdealGasMix<N>>;
 
   explicit IdealGasMix(const FlameMasterReactor& reactor)
@@ -114,7 +115,9 @@ public:
   static constexpr int Rank() noexcept { return N; }
 
   void Flux(Conservative& flux, const Complete& state,
-            [[maybe_unused]] Direction dir = Direction::X) const noexcept;
+            Direction dir = Direction::X) const noexcept;
+
+  void CompleteFromCons(Complete& state, const ConservativeBase& cons) noexcept;
 
   FlameMasterReactor& GetReactor() noexcept { return reactor_; }
   const FlameMasterReactor& GetReactor() const noexcept { return reactor_; }
@@ -212,28 +215,18 @@ void Reflect(Complete<IdealGasMix<3>>& reflected,
              const Complete<IdealGasMix<3>>& state,
              const Eigen::Vector3d& normal, const IdealGasMix<3>& gas);
 
-template <int Dim> struct CompleteFromConsImpl<IdealGasMix<Dim>> {
-  static void apply(IdealGasMix<Dim>& equation,
-                    Complete<IdealGasMix<Dim>>& complete,
-                    const Conservative<IdealGasMix<Dim>>& cons);
-};
-
-extern template struct CompleteFromConsImpl<IdealGasMix<1>>;
-extern template struct CompleteFromConsImpl<IdealGasMix<2>>;
-extern template struct CompleteFromConsImpl<IdealGasMix<3>>;
-
-template <int Dim> struct EinfeldtSignalVelocitiesImpl<IdealGasMix<Dim>> {
+template <int Dim> struct EinfeldtSignalVelocities<IdealGasMix<Dim>> {
   using Complete = typename IdealGasMix<Dim>::Complete;
 
-  static std::array<double, 2> apply(const IdealGasMix<Dim>& equation,
+  std::array<double, 2> operator()(const IdealGasMix<Dim>& equation,
                                      const Complete& left,
                                      const Complete& right,
-                                     [[maybe_unused]] Direction dir) noexcept;
+                                     Direction dir) const noexcept;
 };
 
-extern template struct EinfeldtSignalVelocitiesImpl<IdealGasMix<1>>;
-extern template struct EinfeldtSignalVelocitiesImpl<IdealGasMix<2>>;
-extern template struct EinfeldtSignalVelocitiesImpl<IdealGasMix<3>>;
+extern template struct EinfeldtSignalVelocities<IdealGasMix<1>>;
+extern template struct EinfeldtSignalVelocities<IdealGasMix<2>>;
+extern template struct EinfeldtSignalVelocities<IdealGasMix<3>>;
 
 } // namespace fub
 

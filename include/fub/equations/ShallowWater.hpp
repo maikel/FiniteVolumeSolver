@@ -25,12 +25,13 @@
 #include "fub/ExactRiemannSolver.hpp"
 #include "fub/State.hpp"
 #include "fub/ext/Eigen.hpp"
+#include "fub/flux_method/HllMethod.hpp"
 
 #include <array>
 
 namespace fub {
 template <typename Heigth, typename Momentum> struct ShallowWaterVariables {
-  Heigth heigth;
+  Heigth height;
   Momentum momentum;
 };
 
@@ -38,7 +39,7 @@ template <typename... Xs> struct StateTraits<ShallowWaterVariables<Xs...>> {
   static constexpr auto names = std::make_tuple("Height", "Momentum");
 
   static constexpr auto pointers_to_member =
-      std::make_tuple(&ShallowWaterVariables<Xs...>::heigth,
+      std::make_tuple(&ShallowWaterVariables<Xs...>::height,
                       &ShallowWaterVariables<Xs...>::momentum);
 };
 
@@ -49,15 +50,16 @@ struct ShallowWater {
   using Conservative = ::fub::Conservative<ShallowWater>;
   using Complete = ::fub::Complete<ShallowWater>;
 
-  template <int N> using CompleteArray = ::fub::CompleteArray<ShallowWater, N>;
-
-  template <int N>
-  using ConservativeArray = ::fub::ConservativeArray<ShallowWater, N>;
+  using ConservativeArray = ::fub::ConservativeArray<ShallowWater>;
+  using CompleteArray = ::fub::CompleteArray<ShallowWater>;
 
   static constexpr int Rank() noexcept { return 2; }
 
-  void Flux(Conservative& flux, const Complete& state,
-            Direction dir = Direction::X) const noexcept;
+  void Flux(Conservative& flux, const Complete& state, Direction dir) const
+      noexcept;
+
+  void Flux(ConservativeArray& flux, const CompleteArray& state,
+            Direction dir) const noexcept;
 
   double gravity_{10.0};
 };
@@ -84,12 +86,19 @@ private:
 };
 
 struct ShallowWaterSignalVelocities {
-  using Complete = typename ShallowWater::Complete;
+  using Complete = fub::Complete<ShallowWater>;
+  using CompleteArray = fub::CompleteArray<ShallowWater>;
 
   std::array<double, 2> operator()(const ShallowWater& equation,
                                    const Complete& left, const Complete& right,
                                    Direction dir);
+
+  std::array<Array1d, 2> operator()(const ShallowWater& equation,
+                                    const CompleteArray& left,
+                                    const CompleteArray& right, Direction dir);
 };
+
+extern template class FluxMethod<Hll<ShallowWater, ShallowWaterSignalVelocities>>;
 
 } // namespace fub
 

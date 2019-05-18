@@ -136,9 +136,9 @@ auto MakeTubeSolver(int num_cells, fub::Burke2012& mechanism) {
   gridding->InitializeHierarchy(0.0);
 
   fub::HyperbolicSplitPatchIntegrator patch_integrator{equation};
-  fub::HllMethod base_method(
-      equation, fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>>);
-  fub::MusclHancockMethod flux_method{equation, base_method};
+  fub::HllMethod hlle(
+                             equation, fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>>{});
+  fub::MusclHancockMethod flux_method{equation, hlle};
 
   const int gcw = flux_method.GetStencilWidth();
   fub::HyperbolicSplitSystemSolver system_solver(
@@ -208,7 +208,7 @@ auto MakePlenumSolver(int num_cells, fub::Burke2012& mechanism) {
 
   fub::HyperbolicSplitCutCellPatchIntegrator patch_integrator{equation};
 
-  auto signals = fub::EinfeldtSignalVelocities<fub::IdealGasMix<3>>;
+  fub::EinfeldtSignalVelocities<fub::IdealGasMix<3>> signals{};
   fub::Hll riemann_solver{equation, signals};
   fub::MusclHancockMethod flux_method(equation,
                                       fub::HllMethod{equation, signals});

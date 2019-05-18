@@ -272,8 +272,13 @@ void GriddingAlgorithm::MakeNewLevelFromScratch(
   // Allocate level data.
   {
     const int n_comps = hierarchy_.GetDataDescription().n_state_components;
-    hierarchy_.GetPatchLevel(level) = PatchLevel(
-        level, Duration(time_point), box_array, distribution_mapping, n_comps);
+    if (hierarchy_.GetNumberOfLevels() == level) {
+      hierarchy_.PushBack(PatchLevel(level, Duration(time_point), box_array,
+                                     distribution_mapping, n_comps));
+    } else {
+      hierarchy_.GetPatchLevel(level) = PatchLevel(level, Duration(time_point), box_array,
+                                                   distribution_mapping, n_comps);
+    }
   }
   // Initialize Data with stored intial data condition.
   for (::amrex::MFIter mfi(box_array, distribution_mapping); mfi.isValid();
@@ -288,7 +293,7 @@ void GriddingAlgorithm::MakeNewLevelFromScratch(
 void GriddingAlgorithm::MakeNewLevelFromCoarse(
     int level, double time_point, const ::amrex::BoxArray& box_array,
     const ::amrex::DistributionMapping& distribution_mapping) {
-  FUB_ASSERT(level > 0);
+  FUB_ASSERT(0 < level && level <= hierarchy_.GetNumberOfLevels());
   const PatchLevel& coarse_level = hierarchy_.GetPatchLevel(level - 1);
   const int n_comps = hierarchy_.GetDataDescription().n_state_components;
   PatchLevel fine_level(level, Duration(time_point), box_array,
@@ -308,7 +313,11 @@ void GriddingAlgorithm::MakeNewLevelFromCoarse(
       n_cons_components, hierarchy_.GetGeometry(level - 1),
       hierarchy_.GetGeometry(level), fine_boundary, 0, coarse_boundary, 0,
       {AMREX_D_DECL(2, 2, 2)}, &::amrex::pc_interp, bcr, 0);
-  hierarchy_.GetPatchLevel(level) = std::move(fine_level);
+  if (level == hierarchy_.GetNumberOfLevels()) {
+    hierarchy_.PushBack(std::move(fine_level));
+  } else {
+    hierarchy_.GetPatchLevel(level) = std::move(fine_level);
+  }
 }
 
 void GriddingAlgorithm::RemakeLevel(
@@ -322,7 +331,8 @@ void GriddingAlgorithm::RemakeLevel(
 }
 
 void GriddingAlgorithm::ClearLevel(int level) {
-  hierarchy_.GetPatchLevel(level) = PatchLevel{};
+  FUB_ASSERT(0 < level && level + 1 == hierarchy_.GetNumberOfLevels());
+  hierarchy_.PopBack();
 }
 
 void GriddingAlgorithm::SetBoundaryCondition(BoundaryCondition condition) {

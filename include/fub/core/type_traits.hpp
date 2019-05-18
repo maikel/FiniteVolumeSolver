@@ -286,10 +286,10 @@ struct is_regular
                   is_equality_comparable<T>> {};
 
 // helper type for the visitor #4
-#ifdef __cpp_deduction_guides
+//#ifdef __cpp_deduction_guides
 template <class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
 template <class... Ts> overloaded(Ts...)->overloaded<Ts...>;
-#endif
+//#endif
 
 } // namespace fub
 

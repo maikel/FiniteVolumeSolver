@@ -121,9 +121,8 @@ int main(int argc, char** argv) {
   output(solver.GetPatchHierarchy(), 0, 0s);
   fub::RunOptions run_options{};
   run_options.final_time = 2.0s;
-  run_options.output_interval = 2.0s;
-  run_options.output_frequency = 1;
-  run_options.cfl = 1.0;
+  run_options.output_interval = 0.1s;
+  run_options.cfl = 0.9;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      print_msg);
 }

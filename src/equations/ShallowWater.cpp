@@ -27,17 +27,27 @@ void ShallowWater::Flux(Conservative& flux, const Complete& state,
                         Direction dir) const noexcept {
   const int d = int(dir);
   const double velocity = state.momentum[d];
-  flux.heigth = state.momentum[d];
+  flux.height = state.momentum[d];
   flux.momentum[0] = velocity * state.momentum[0];
   flux.momentum[1] = velocity * state.momentum[1];
-  flux.momentum[d] += 0.5 * gravity_ * state.heigth * state.heigth;
+  flux.momentum[d] += 0.5 * gravity_ * state.height * state.height;
+}
+
+void ShallowWater::Flux(ConservativeArray& flux, const CompleteArray& state,
+                        Direction dir) const noexcept {
+  const int d = int(dir);
+  const Array1d velocity = state.momentum.row(d);
+  flux.height = state.momentum.row(d);
+  flux.momentum.row(0) = velocity * state.momentum.row(0);
+  flux.momentum.row(1) = velocity * state.momentum.row(1);
+  flux.momentum.row(d) += 0.5 * gravity_ * state.height * state.height;
 }
 
 ShallowWater::Complete ExactRiemannSolver<ShallowWater>::ComputeMiddleState(
     const Complete& left, const Complete& right, Direction dir) {
   int d0 = static_cast<int>(dir);
-  const double uL = left.momentum[d0] / left.heigth;
-  const double hL = left.heigth;
+  const double uL = left.momentum[d0] / left.height;
+  const double hL = left.height;
   const double g = equation_.gravity_;
   const double sqrt_g_hL = std::sqrt(g * hL);
   auto f_left = [&](double h) {
@@ -56,8 +66,8 @@ ShallowWater::Complete ExactRiemannSolver<ShallowWater>::ComputeMiddleState(
              std::sqrt(0.5 * g * (1.0 / h + 1.0 / hL));
     }
   };
-  const double uR = right.momentum[d0] / right.heigth;
-  const double hR = right.heigth;
+  const double uR = right.momentum[d0] / right.height;
+  const double hR = right.height;
   const double sqrt_g_hR = std::sqrt(g * hR);
   auto f_right = [&](double h) {
     if (h < hR) {
@@ -78,12 +88,12 @@ ShallowWater::Complete ExactRiemannSolver<ShallowWater>::ComputeMiddleState(
   auto f = [&](double h) { return f_right(h) - f_left(h); };
   auto df = [&](double h) { return df_right(h) - df_left(h); };
 
-  const double hM = NewtonIteration(f, df, 0.5 * (left.heigth + right.heigth));
+  const double hM = NewtonIteration(f, df, 0.5 * (left.height + right.height));
   // FUB_ASSERT(f_left(hM) == f_right(hM));
   const double uM = f_left(hM);
 
   Complete middle;
-  middle.heigth = hM;
+  middle.height = hM;
   middle.momentum[d0] = hM * uM;
   const int d1 = (d0 + 1) % 2;
   middle.momentum[d1] = 0;
@@ -96,24 +106,24 @@ std::array<double, 2> ExactRiemannSolver<ShallowWater>::ComputeSignals(
   std::array<double, 2> signals;
   int d0 = static_cast<int>(dir);
   // Compute Left fastest signal
-  if (middle.heigth <= left.heigth) {
-    FUB_ASSERT(0 < left.heigth);
-    const double uL = left.momentum[d0] / left.heigth;
-    const double sqrt_g_hL = std::sqrt(equation_.gravity_ * left.heigth);
+  if (middle.height <= left.height) {
+    FUB_ASSERT(0 < left.height);
+    const double uL = left.momentum[d0] / left.height;
+    const double sqrt_g_hL = std::sqrt(equation_.gravity_ * left.height);
     signals[0] = uL - sqrt_g_hL;
   } else {
     signals[0] = (middle.momentum[d0] - left.momentum[d0]) /
-                 (middle.heigth - left.heigth);
+                 (middle.height - left.height);
   }
   // Compute right fastest signal
-  if (middle.heigth <= right.heigth) {
-    FUB_ASSERT(0 < right.heigth);
-    const double uR = right.momentum[d0] / right.heigth;
-    const double sqrt_g_hR = std::sqrt(equation_.gravity_ * right.heigth);
+  if (middle.height <= right.height) {
+    FUB_ASSERT(0 < right.height);
+    const double uR = right.momentum[d0] / right.height;
+    const double sqrt_g_hR = std::sqrt(equation_.gravity_ * right.height);
     signals[1] = uR + sqrt_g_hR;
   } else {
     signals[1] = (right.momentum[d0] - middle.momentum[d0]) /
-                 (right.heigth - middle.heigth);
+                 (right.height - middle.height);
   }
   return signals;
 }
@@ -121,21 +131,21 @@ std::array<double, 2> ExactRiemannSolver<ShallowWater>::ComputeSignals(
 void ExactRiemannSolver<ShallowWater>::SolveRiemannProblem(
     Complete& state, const Complete& left, const Complete& right,
     Direction dir) {
-  FUB_ASSERT(0 < left.heigth);
-  FUB_ASSERT(0 < right.heigth);
+  FUB_ASSERT(0 < left.height);
+  FUB_ASSERT(0 < right.height);
   Complete middle = ComputeMiddleState(left, right, dir);
-  FUB_ASSERT(0 < middle.heigth);
+  FUB_ASSERT(0 < middle.height);
   int d0 = static_cast<int>(dir);
   int d1 = (d0 + 1) % 2;
   const double g = equation_.gravity_;
-  const double uL = left.momentum[d0] / left.heigth;
-  const double vL = left.momentum[d1] / left.heigth;
-  const double hL = left.heigth;
-  const double uR = right.momentum[d0] / right.heigth;
-  const double vR = right.momentum[d1] / right.heigth;
-  const double hR = right.heigth;
-  const double hM = middle.heigth;
-  const double uM = middle.momentum[d0] / middle.heigth;
+  const double uL = left.momentum[d0] / left.height;
+  const double vL = left.momentum[d1] / left.height;
+  const double hL = left.height;
+  const double uR = right.momentum[d0] / right.height;
+  const double vR = right.momentum[d1] / right.height;
+  const double hR = right.height;
+  const double hM = middle.height;
+  const double uM = middle.momentum[d0] / middle.height;
   const double sqrt_g_hM = std::sqrt(g * hM);
   const double sqrt_g_hL = std::sqrt(g * hL);
   const double sqrt_g_hR = std::sqrt(g * hR);
@@ -164,7 +174,7 @@ void ExactRiemannSolver<ShallowWater>::SolveRiemannProblem(
         const double h_rarefaction = a * a / (9.0 * g);
         const double u_rarefaction =
             uL + 2.0 * (sqrt_g_hL - std::sqrt(g * h_rarefaction));
-        state.heigth = h_rarefaction;
+        state.height = h_rarefaction;
         state.momentum[d0] = h_rarefaction * u_rarefaction;
         state.momentum[d1] = h_rarefaction * vL;
       }
@@ -191,7 +201,7 @@ void ExactRiemannSolver<ShallowWater>::SolveRiemannProblem(
         const double h_rarefaction = a * a / (9.0 * g);
         const double u_rarefaction =
             uR - 2.0 * (sqrt_g_hR - std::sqrt(g * h_rarefaction));
-        state.heigth = h_rarefaction;
+        state.height = h_rarefaction;
         state.momentum[d0] = h_rarefaction * u_rarefaction;
         state.momentum[d1] = h_rarefaction * vR;
       }
@@ -203,13 +213,28 @@ std::array<double, 2> ShallowWaterSignalVelocities::
 operator()(const ShallowWater& equation, const Complete& left,
            const Complete& right, Direction dir) {
   const int d = static_cast<int>(dir);
-  const double vL = left.momentum[d] / left.heigth;
-  const double sqrt_g_hL = std::sqrt(equation.gravity_ * left.heigth);
-  const double vR = right.momentum[d] / right.heigth;
-  const double sqrt_g_hR = std::sqrt(equation.gravity_ * right.heigth);
+  const double vL = left.momentum[d] / left.height;
+  const double sqrt_g_hL = std::sqrt(equation.gravity_ * left.height);
+  const double vR = right.momentum[d] / right.height;
+  const double sqrt_g_hR = std::sqrt(equation.gravity_ * right.height);
   const double sL = std::min({vL - sqrt_g_hL, vR - sqrt_g_hR, 0.0});
   const double sR = std::max({vL + sqrt_g_hL, vR + sqrt_g_hR, 0.0});
   return {sL, sR};
 }
+
+std::array<Array1d, 2> ShallowWaterSignalVelocities::
+operator()(const ShallowWater& equation, const CompleteArray& left,
+           const CompleteArray& right, Direction dir) {
+  const int d = static_cast<int>(dir);
+  const Array1d vL = left.momentum.row(d) / left.height;
+  const Array1d sqrt_g_hL = (equation.gravity_ * left.height).sqrt();
+  const Array1d vR = right.momentum.row(d) / right.height;
+  const Array1d sqrt_g_hR = (equation.gravity_ * right.height).sqrt();
+  const Array1d sL = (vL - sqrt_g_hL).min(vR - sqrt_g_hR).min(Array1d::Zero());
+  const Array1d sR = (vL + sqrt_g_hL).max(vR + sqrt_g_hR).max(Array1d::Zero());
+  return {sL, sR};
+}
+
+template class FluxMethod<Hll<ShallowWater, ShallowWaterSignalVelocities>>;
 
 } // namespace fub

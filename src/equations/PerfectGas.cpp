@@ -22,6 +22,21 @@
 #include "fub/NewtonIteration.hpp"
 
 namespace fub {
+namespace {
+template <int Dim>
+double KineticEnergy(double density,
+                     const Eigen::Array<double, Dim, 1>& momentum) noexcept {
+  return 0.5 * momentum.matrix().squaredNorm() / density;
+}
+
+template <int Dim, int N, int O, int MR, int MC>
+Array1d KineticEnergy(
+    const Array1d& density,
+    const Eigen::Array<double, Dim, N, O, MR, MC>& momentum) noexcept {
+  Array1d squaredMomentum = momentum.matrix().colwise().squaredNorm();
+  return 0.5 * squaredMomentum / density;
+}
+} // namespace
 
 template <int Dim>
 void PerfectGas<Dim>::Flux(Conservative& flux, const Complete& state,
@@ -36,57 +51,53 @@ void PerfectGas<Dim>::Flux(Conservative& flux, const Complete& state,
   flux.momentum[d0] += state.pressure;
   flux.energy = velocity * (state.energy + state.pressure);
 }
-namespace {
-// double KineticEnergy(double density, double momentum) noexcept {
-//  return 0.5 * momentum * momentum / density;
-//}
 
 template <int Dim>
-double KineticEnergy(double density,
-                     const Eigen::Array<double, Dim, 1>& momentum) noexcept {
-  return 0.5 * momentum.matrix().squaredNorm() / density;
+void PerfectGas<Dim>::Flux(ConservativeArray& flux, const CompleteArray& state,
+                           Direction dir) const noexcept {
+  const int d0 = static_cast<int>(dir);
+  const Array1d velocity = state.momentum.row(d0) / state.density;
+  flux.density = state.momentum.row(d0);
+  for (int d = 0; d < Dim; ++d) {
+    flux.momentum.row(d) = velocity * state.momentum.row(d);
+  }
+  flux.momentum.row(d0) += state.pressure;
+  flux.energy = velocity * (state.energy + state.pressure);
 }
-} // namespace
+
+template <int Dim>
+void PerfectGas<Dim>::CompleteFromCons(Complete& complete,
+                                       const Conservative& cons) const
+    noexcept {
+  complete.density = cons.density;
+  complete.momentum = cons.momentum;
+  complete.energy = cons.energy;
+  const double e_kin = KineticEnergy(cons.density, cons.momentum);
+  FUB_ASSERT(e_kin < cons.energy);
+  const double e_int = cons.energy - e_kin;
+  complete.pressure = e_int / gamma_minus_1_inv;
+  FUB_ASSERT(complete.pressure > 0.0 && complete.density > 0.0);
+  complete.speed_of_sound =
+      std::sqrt(gamma * complete.pressure / complete.density);
+}
+
+template <int Dim>
+void PerfectGas<Dim>::CompleteFromCons(CompleteArray& complete,
+                                       const ConservativeArray& cons) const
+    noexcept {
+  complete.density = cons.density;
+  complete.momentum = cons.momentum;
+  complete.energy = cons.energy;
+  const Array1d e_kin = KineticEnergy(cons.density, cons.momentum);
+  const Array1d e_int = cons.energy - e_kin;
+  complete.pressure = e_int / gamma_minus_1_inv;
+  complete.speed_of_sound =
+      (gamma_array_ * complete.pressure / complete.density).sqrt();
+}
 
 template struct PerfectGas<1>;
 template struct PerfectGas<2>;
 template struct PerfectGas<3>;
-
-template <int Dim>
-void CompleteFromConsImpl<PerfectGas<Dim>>::apply(
-    const PerfectGas<Dim>& equation, Complete<PerfectGas<Dim>>& complete,
-    const Conservative<PerfectGas<Dim>>& cons) {
-  complete.density = cons.density;
-  complete.momentum = cons.momentum;
-  complete.energy = cons.energy;
-  const double e_kin = KineticEnergy(cons.density, cons.momentum);
-  FUB_ASSERT(e_kin < cons.energy);
-  const double e_int = cons.energy - e_kin;
-  complete.pressure = e_int / equation.gamma_minus_1_inv;
-  FUB_ASSERT(complete.pressure > 0.0 && complete.density > 0.0);
-  complete.speed_of_sound =
-      std::sqrt(equation.gamma * complete.pressure / complete.density);
-}
-
-template <int Dim>
-void CompleteFromConsImpl<PerfectGas<Dim>>::apply(
-    const PerfectGas<Dim>& equation, Complete<PerfectGas<Dim>>& complete,
-    const Complete<PerfectGas<Dim>>& cons) {
-  complete.density = cons.density;
-  complete.momentum = cons.momentum;
-  complete.energy = cons.energy;
-  const double e_kin = KineticEnergy(cons.density, cons.momentum);
-  FUB_ASSERT(e_kin < cons.energy);
-  const double e_int = cons.energy - e_kin;
-  complete.pressure = e_int / equation.gamma_minus_1_inv;
-  FUB_ASSERT(complete.pressure > 0.0 && complete.density > 0.0);
-  complete.speed_of_sound =
-      std::sqrt(equation.gamma * complete.pressure / complete.density);
-}
-
-template struct CompleteFromConsImpl<PerfectGas<1>>;
-template struct CompleteFromConsImpl<PerfectGas<2>>;
-template struct CompleteFromConsImpl<PerfectGas<3>>;
 
 void Rotate(Conservative<PerfectGas<2>>& rotated,
             const Conservative<PerfectGas<2>>& state,
@@ -149,9 +160,9 @@ void Reflect(Complete<PerfectGas<3>>& reflected,
 }
 
 template <int Dim>
-std::array<double, 2> EinfeldtSignalVelocitiesImpl<PerfectGas<Dim>>::apply(
+std::array<double, 2> EinfeldtSignalVelocities<PerfectGas<Dim>>::operator()(
     const PerfectGas<Dim>&, const Complete& left, const Complete& right,
-    Direction dir) noexcept {
+    Direction dir) const noexcept {
   FUB_ASSERT(left.density > 0.0);
   FUB_ASSERT(right.density > 0.0);
   const double rhoL = left.density;
@@ -178,9 +189,39 @@ std::array<double, 2> EinfeldtSignalVelocitiesImpl<PerfectGas<Dim>>::apply(
   return {std::min(sL1, sL2), std::max(sR1, sR2)};
 }
 
-template struct EinfeldtSignalVelocitiesImpl<PerfectGas<1>>;
-template struct EinfeldtSignalVelocitiesImpl<PerfectGas<2>>;
-template struct EinfeldtSignalVelocitiesImpl<PerfectGas<3>>;
+template <int Dim>
+std::array<Array1d, 2> EinfeldtSignalVelocities<PerfectGas<Dim>>::operator()(
+    const PerfectGas<Dim>&, const CompleteArray& left,
+    const CompleteArray& right, Direction dir) const noexcept {
+  const Array1d rhoL = left.density;
+  const Array1d rhoR = right.density;
+  const Array1d rhoUL = left.momentum.row(int(dir));
+  const Array1d rhoUR = right.momentum.row(int(dir));
+  const Array1d aL = left.speed_of_sound;
+  const Array1d aR = right.speed_of_sound;
+  const Array1d sqRhoL = rhoL.sqrt();
+  const Array1d sqRhoR = rhoR.sqrt();
+  const Array1d uL = rhoUL / rhoL;
+  const Array1d uR = rhoUR / rhoR;
+  const Array1d roeU = (sqRhoL * uL + sqRhoR * uR) / (sqRhoL + sqRhoR);
+  const Array1d roeA =
+      ((sqRhoL * aL * aL + sqRhoR * aR * aR) / (sqRhoL + sqRhoR) +
+       0.5 * (sqRhoL * sqRhoR) / ((sqRhoL + sqRhoR) * (sqRhoL + sqRhoR)) *
+           (uR - uL) * (uR - uL))
+          .sqrt();
+  const Array1d sL1 = uL - aL;
+  const Array1d sL2 = roeU - 0.5 * roeA;
+  const Array1d sR1 = roeU + 0.5 * roeA;
+  const Array1d sR2 = uR + aR;
+  return {sL1.min(sL2), sR1.max(sR2)};
+}
+
+template struct EinfeldtSignalVelocities<PerfectGas<1>>;
+template struct EinfeldtSignalVelocities<PerfectGas<2>>;
+template struct EinfeldtSignalVelocities<PerfectGas<3>>;
+
+template class FluxMethod<
+    Hll<PerfectGas<3>, EinfeldtSignalVelocities<PerfectGas<3>>>>;
 
 template <int Dim>
 std::array<double, 2> ExactRiemannSolver<PerfectGas<Dim>>::ComputeMiddleState(

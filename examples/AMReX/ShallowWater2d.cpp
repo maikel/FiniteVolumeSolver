@@ -45,9 +45,9 @@
 
 struct CircleData {
   CircleData(const fub::ShallowWater& eq) : equation_{eq} {
-    inner_.heigth = 1.4;
+    inner_.height = 1.4;
     inner_.momentum = Eigen::Array<double, 2, 1>::Zero();
-    outer_.heigth = 1.0;
+    outer_.height = 1.0;
     outer_.momentum = inner_.momentum;
   }
 
@@ -82,7 +82,7 @@ int main(int argc, char** argv) {
   constexpr int Dim = AMREX_SPACEDIM;
   static_assert(AMREX_SPACEDIM >= 2);
 
-  const std::array<int, Dim> n_cells{AMREX_D_DECL(10 * 8, 10 * 8, 1)};
+  const std::array<int, Dim> n_cells{AMREX_D_DECL(128, 128, 1)};
   const std::array<double, Dim> xlower{AMREX_D_DECL(-1.0, -1.0, -1.0)};
   const std::array<double, Dim> xupper{AMREX_D_DECL(+1.0, +1.0, +1.0)};
 
@@ -98,7 +98,7 @@ int main(int argc, char** argv) {
   hier_opts.max_number_of_levels = 3;
 
   using State = fub::ShallowWater::Complete;
-  fub::GradientDetector gradient{equation, std::pair(&State::heigth, 1e-2)};
+  fub::GradientDetector gradient{equation, std::pair(&State::height, 1e-2)};
   CircleData initial_data(equation);
 
   auto gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
@@ -133,9 +133,9 @@ int main(int argc, char** argv) {
   using namespace std::literals::chrono_literals;
   output(solver.GetPatchHierarchy(), 0, 0.0s);
   fub::RunOptions run_options{};
-  run_options.final_time = 2.0s;
+  run_options.final_time = 1.0s;
   run_options.output_interval = 0.01s;
-  run_options.cfl = 0.5;
+  run_options.cfl = 0.8;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      print_msg);
 }

@@ -56,7 +56,7 @@ PatchHierarchy::PatchHierarchy(DataDescription desc,
                                const PatchHierarchyOptions& options)
     : description_{std::move(desc)}, grid_geometry_{geometry},
       options_{options}, patch_level_{}, patch_level_geometry_{} {
-  patch_level_.resize(static_cast<std::size_t>(options.max_number_of_levels));
+  patch_level_.reserve(static_cast<std::size_t>(options.max_number_of_levels));
   patch_level_geometry_.resize(
       static_cast<std::size_t>(options.max_number_of_levels));
   ::amrex::IntVect lower{};
@@ -86,6 +86,56 @@ int PatchHierarchy::GetRatioToCoarserLevel(int level, Direction dir) const
     return ::amrex::IntVect::TheUnitVector();
   }
   return options_.refine_ratio;
+}
+
+const ::amrex::Geometry& PatchHierarchy::GetGeometry(int level) const noexcept {
+  return patch_level_geometry_[static_cast<std::size_t>(level)];
+}
+
+const PatchHierarchyOptions& PatchHierarchy::GetOptions() const noexcept {
+  return options_;
+}
+
+const CartesianGridGeometry& PatchHierarchy::GetGridGeometry() const noexcept {
+  return grid_geometry_;
+}
+
+std::ptrdiff_t PatchHierarchy::GetCycles(int level) const {
+  return GetPatchLevel(level).cycles;
+}
+
+Duration PatchHierarchy::GetTimePoint(int level) const {
+  return GetPatchLevel(level).time_point;
+}
+
+int PatchHierarchy::GetNumberOfLevels() const noexcept {
+  return static_cast<int>(patch_level_.size());
+}
+
+int PatchHierarchy::GetMaxNumberOfLevels() const noexcept {
+  return GetOptions().max_number_of_levels;
+}
+
+PatchLevel& PatchHierarchy::GetPatchLevel(int level) {
+  return patch_level_.at(static_cast<std::size_t>(level));
+}
+
+const PatchLevel& PatchHierarchy::GetPatchLevel(int level) const {
+  return patch_level_[static_cast<std::size_t>(level)];
+}
+
+void PatchHierarchy::PushBack(const PatchLevel& level) {
+  patch_level_.push_back(level);
+}
+
+void PatchHierarchy::PushBack(PatchLevel&& level) {
+  patch_level_.push_back(std::move(level));
+}
+
+void PatchHierarchy::PopBack() { patch_level_.pop_back(); }
+
+const DataDescription& PatchHierarchy::GetDataDescription() const noexcept {
+  return description_;
 }
 
 void WriteCheckpointFile(const std::string checkpointname,

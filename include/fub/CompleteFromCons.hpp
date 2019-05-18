@@ -28,32 +28,67 @@
 #include <type_traits>
 
 namespace fub {
-
-template <typename Equation> struct CompleteFromConsImpl {
-  static void apply(const Equation&, Complete<Equation>& complete,
-                    const Conservative<Equation>& cons) {
-    ForEachVariable<Conservative<Equation>>(
-        [](auto& dest, const auto& src) { dest = src; }, complete, cons);
-  }
-
-  static void apply(const Equation&, Complete<Equation>&,
-                    const Complete<Equation>&) {}
-};
+template <typename Eq, typename... Args>
+using CompleteFromConsMemberFunction =
+    decltype(std::declval<Eq>().CompleteFromCons(std::declval<Args>()...));
 
 template <typename Equation>
 void CompleteFromCons(Equation&& equation,
                       Complete<std::decay_t<Equation>>& complete,
                       const Conservative<std::decay_t<Equation>>& cons) {
-  return CompleteFromConsImpl<std::decay_t<Equation>>::apply(equation, complete,
-                                                             cons);
+  using Eq = std::decay_t<Equation>;
+  if constexpr (is_detected<CompleteFromConsMemberFunction, Equation,
+                            Complete<Eq>&, const Conservative<Eq>&>::value) {
+    equation.CompleteFromCons(complete, cons);
+  } else {
+    ForEachVariable([](auto& dest, const auto& src) { dest = src; },
+                    AsCons(complete), cons);
+  }
 }
 
 template <typename Equation>
 void CompleteFromCons(Equation&& equation,
                       Complete<std::decay_t<Equation>>& complete,
                       const Complete<std::decay_t<Equation>>& cons) {
-  return CompleteFromConsImpl<std::decay_t<Equation>>::apply(equation, complete,
-                                                             cons);
+  using Eq = std::decay_t<Equation>;
+  if constexpr (is_detected<CompleteFromConsMemberFunction, Equation,
+                            Complete<Eq>&,
+                            const ConservativeBase<Eq>&>::value) {
+    equation.CompleteFromCons(complete, AsCons(cons));
+  } else {
+    ForEachVariable([](auto& dest, const auto& src) { dest = src; },
+                    AsCons(complete), AsCons(cons));
+  }
+}
+
+template <typename Equation>
+void CompleteFromCons(Equation&& equation,
+                      CompleteArray<std::decay_t<Equation>>& complete,
+                      const ConservativeArray<std::decay_t<Equation>>& cons) {
+  using Eq = std::decay_t<Equation>;
+  if constexpr (is_detected<CompleteFromConsMemberFunction, Equation,
+                            CompleteArray<Eq>&,
+                            const ConservativeArray<Eq>&>::value) {
+    equation.CompleteFromCons(complete, cons);
+  } else {
+    ForEachVariable([](auto& dest, const auto& src) { dest = src; },
+                    AsCons(complete), cons);
+  }
+}
+
+template <typename Equation>
+void CompleteFromCons(Equation&& equation,
+                      CompleteArray<std::decay_t<Equation>>& complete,
+                      const CompleteArray<std::decay_t<Equation>>& cons) {
+  using Eq = std::decay_t<Equation>;
+  if constexpr (is_detected<CompleteFromConsMemberFunction, Equation,
+                            CompleteArray<Eq>&,
+                            const ConservativeArray<Eq>&>::value) {
+    equation.CompleteFromCons(complete, AsCons(cons));
+  } else {
+    ForEachVariable([](auto& dest, const auto& src) { dest = src; },
+                    AsCons(complete), AsCons(cons));
+  }
 }
 
 template <typename Equation>

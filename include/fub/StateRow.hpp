@@ -1,0 +1,139 @@
+// Copyright (c) 2019 Maikel Nadolski
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+#ifndef FUB_STATE_ROW_HPP
+#define FUB_STATE_ROW_HPP
+
+#include "fub/State.hpp"
+
+namespace fub {
+
+template <typename T, typename Depth> struct DepthToRowType;
+
+template <typename T> struct DepthToRowType<T, ScalarDepth> {
+  using type = span<T>;
+};
+
+template <typename T, int Rank> struct DepthToRowType<T, VectorDepth<Rank>> {
+  using type = mdspan<T, 2, layout_stride>;
+};
+
+template <typename State> struct RowBaseImpl {
+  template <typename Depth>
+  using fn = typename DepthToRowType<double, Depth>::type;
+  using type = boost::mp11::mp_transform<fn, typename State::Depths>;
+};
+
+template <typename State> struct RowBaseImpl<const State> {
+  template <typename Depth>
+  using fn = typename DepthToRowType<const double, Depth>::type;
+  using type = boost::mp11::mp_transform<fn, typename State::Depths>;
+};
+
+template <typename State> using RowBase = typename RowBaseImpl<State>::type;
+
+template <typename State> struct Row : RowBase<State> {
+  static constexpr int Rank = 1;
+  using Traits = StateTraits<RowBase<State>>;
+  using ElementType =
+      std::conditional_t<std::is_const_v<State>, const double, double>;
+
+  Row() = default;
+
+  Row(const ViewPointer<State>& pointer, std::ptrdiff_t extent) {
+    ForEachVariable(
+        overloaded{[extent](span<ElementType>& s, auto p) {
+                     s = span<ElementType>(p, extent);
+                   },
+                   [extent](mdspan<ElementType, 2, layout_stride>& mds,
+                            const auto& p) {
+                     layout_stride::mapping<dynamic_extents<2>> mapping{dynamic_extents<2>{extent, 2}, {1, p.second}};
+                     mds = mdspan<ElementType, 2, layout_stride>(
+                         p.first, mapping);
+                   }},
+        *this, pointer);
+  }
+};
+
+template <typename State>
+struct StateTraits<Row<State>> : StateTraits<RowBase<State>> {};
+
+template <typename State> ViewPointer<State> Begin(const Row<State>& row) {
+  ViewPointer<State> pointer;
+  ForEachVariable(
+      overloaded{
+          [&](double*& p, span<double> s) { p = s.begin(); },
+          [&](const double*& p, span<const double> s) { p = s.begin(); },
+          [&](auto& p, const mdspan<double, 2, layout_stride>& mds) {
+            p = std::pair{mds.get_span().begin(), mds.stride(1)};
+          },
+        [&](auto& p, const mdspan<const double, 2, layout_stride>& mds) {
+          p = std::pair{mds.get_span().begin(), mds.stride(1)};
+        }
+      },
+      pointer, row);
+  return pointer;
+}
+
+template <typename State> ViewPointer<State> End(const Row<State>& row) {
+  ViewPointer<State> pointer;
+  ForEachVariable(
+      overloaded{
+          [&](double*& p, span<double> s) { p = s.end(); },
+          [&](const double*& p, span<const double> s) { p = s.end(); },
+          [&](auto& p, const mdspan<double, 2, layout_stride>& mds) {
+            p = std::pair{mds.get_span().end(), mds.stride(1)};
+          },
+        [&](auto& p, const mdspan<const double, 2, layout_stride>& mds) {
+          p = std::pair{mds.get_span().end(), mds.stride(1)};
+        }
+      },
+      pointer, row);
+  return pointer;
+}
+
+template <typename Tuple, typename Function>
+auto Transform(Tuple&& tuple, Function f) {
+  return std::apply([&](auto&&... xs) { return std::tuple{f(xs)...}; }, tuple);
+}
+
+template <typename Tuple, typename Function>
+void ForEachRow(const Tuple& views, Function f) {
+  std::tuple firsts = Transform(views, [](const auto& v) { return Begin(v); });
+  std::tuple lasts = Transform(views, [](const auto& v) { return End(v); });
+  const auto& view = get<0>(views);
+  const auto& first = get<0>(firsts);
+  const auto& last = get<0>(lasts);
+  std::ptrdiff_t row_extent = get<0>(view).Extent(0);
+  std::ptrdiff_t stride = get<0>(view).Stride(1);
+  while (get<0>(last) - get<0>(first) >= stride) {
+    std::tuple rows = Transform(firsts, [row_extent](const auto& pointer) {
+      return Row(pointer, row_extent);
+    });
+    std::apply(f, rows);
+    boost::mp11::tuple_for_each(firsts,
+                                [stride](auto& p) { Advance(p, stride); });
+  }
+  FUB_ASSERT(get<0>(first) == get<0>(last));
+}
+
+} // namespace fub
+
+#endif

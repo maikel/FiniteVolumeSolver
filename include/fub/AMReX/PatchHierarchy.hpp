@@ -109,55 +109,49 @@ struct DataDescription {
   int dimension{AMREX_SPACEDIM};
 };
 
+/// The PatchHierarchy holds simulation data on multiple refinement levels. It
+/// also holds a time stamp for each level.
 class PatchHierarchy {
 public:
   using PatchHandle = ::fub::amrex::PatchHandle;
 
+  /// \brief Constructs a PatchHierarchy object which is capable of holding data
+  /// described by the secified data description on given geometry extents.
   PatchHierarchy(DataDescription description,
                  const CartesianGridGeometry& geometry,
                  const PatchHierarchyOptions& options);
 
-  const ::amrex::Geometry& GetGeometry(int level) const noexcept {
-    return patch_level_geometry_[static_cast<std::size_t>(level)];
-  }
-  const PatchHierarchyOptions& GetOptions() const noexcept { return options_; }
+  /// \brief Returns a Geometry object for a specified level.
+  ///
+  /// \param[in] The refinement level number for this geometry obejct.
+  const ::amrex::Geometry& GetGeometry(int level) const noexcept;
 
-  const CartesianGridGeometry& GetGridGeometry() const noexcept {
-    return grid_geometry_;
-  }
+  /// \brief Return some additional patch hierarchy options.
+  const PatchHierarchyOptions& GetOptions() const noexcept;
 
-  std::ptrdiff_t GetCycles(int level = 0) const {
-    return patch_level_[static_cast<std::size_t>(level)].cycles;
-  }
+  const CartesianGridGeometry& GetGridGeometry() const noexcept;
 
-  Duration GetTimePoint(int level = 0) const {
-    return patch_level_[static_cast<std::size_t>(level)].time_point;
-  }
+  std::ptrdiff_t GetCycles(int level = 0) const;
 
-  int GetNumberOfLevels() const noexcept {
-    return static_cast<int>(std::count_if(
-        patch_level_.begin(), patch_level_.end(),
-        [](const PatchLevel& level) { return !level.data.empty(); }));
-  }
+  Duration GetTimePoint(int level = 0) const;
 
-  int GetMaxNumberOfLevels() const noexcept {
-    return static_cast<int>(patch_level_.size());
-  }
+  int GetNumberOfLevels() const noexcept;
+
+  int GetMaxNumberOfLevels() const noexcept;
 
   int GetRatioToCoarserLevel(int level, Direction dir) const noexcept;
+
   ::amrex::IntVect GetRatioToCoarserLevel(int level) const noexcept;
 
-  PatchLevel& GetPatchLevel(int level) noexcept {
-    return patch_level_[static_cast<std::size_t>(level)];
-  }
+  PatchLevel& GetPatchLevel(int level);
 
-  const PatchLevel& GetPatchLevel(int level) const noexcept {
-    return patch_level_[static_cast<std::size_t>(level)];
-  }
+  const PatchLevel& GetPatchLevel(int level) const;
 
-  const DataDescription& GetDataDescription() const noexcept {
-    return description_;
-  }
+  void PushBack(const PatchLevel& level);
+  void PushBack(PatchLevel&& level);
+  void PopBack();
+
+  const DataDescription& GetDataDescription() const noexcept;
 
   template <typename Feedback>
   Feedback ForEachPatch(int level, Feedback feedback) const {
@@ -191,13 +185,12 @@ template <typename Equation>
 DataDescription MakeDataDescription(const Equation& equation) {
   const auto complete_depths = Depths<Complete<Equation>>(equation);
   int n_comp = 0;
-  ForEachVariable<Complete<Equation>>([&n_comp](int depth) { n_comp += depth; },
-                                      complete_depths);
+  ForEachVariable([&n_comp](int depth) { n_comp += depth; }, complete_depths);
 
   const auto cons_depths = Depths<Conservative<Equation>>(equation);
   int n_cons_comp = 0;
-  ForEachVariable<Conservative<Equation>>(
-      [&n_cons_comp](int depth) { n_cons_comp += depth; }, cons_depths);
+  ForEachVariable([&n_cons_comp](int depth) { n_cons_comp += depth; },
+                  cons_depths);
 
   DataDescription desc;
   desc.n_state_components = n_comp;

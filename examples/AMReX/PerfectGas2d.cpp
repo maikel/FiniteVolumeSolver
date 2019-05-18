@@ -56,11 +56,11 @@ struct ShockData {
     const ::amrex::Box& box = patch.iterator->tilebox();
     CartesianCoordinates x = fub::amrex::GetCartesianCoordinates(geom, box);
 
-    ForEachIndex(Box<0>(data), [&](auto... is) {
-      if (x(is...)[0] < -0.04) {
-        Store(data, left, {is...});
+    ForEachIndex(Box<0>(data), [&](std::ptrdiff_t i, std::ptrdiff_t j) {
+      if (x(i, j)[0] < -0.04) {
+        Store(data, left, {i, j});
       } else {
-        Store(data, right, {is...});
+        Store(data, right, {i, j});
       }
     });
   }
@@ -92,7 +92,8 @@ int main(int argc, char** argv) {
   fub::amrex::DataDescription desc = fub::amrex::MakeDataDescription(equation);
 
   fub::amrex::PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = 1;
+  hier_opts.max_number_of_levels = 3;
+  hier_opts.refine_ratio = amrex::IntVect{AMREX_D_DECL(2, 2, 1)};
 
   using Complete = fub::PerfectGas<2>::Complete;
   fub::GradientDetector gradient{equation,
@@ -108,13 +109,13 @@ int main(int argc, char** argv) {
   Complete left;
   left.density = 1.0;
   left.momentum = 0.0;
-  left.pressure = 1000.0;
+  left.pressure = 8.0;
   from_prim(left, equation);
 
   Complete right;
   right.density = 1.0;
   right.momentum = 0.0;
-  right.pressure = 0.01;
+  right.pressure = 1.0;
   from_prim(right, equation);
 
   ShockData initial_data{equation, left, right};
@@ -127,7 +128,7 @@ int main(int argc, char** argv) {
   gridding->InitializeHierarchy(0.0);
 
   fub::HyperbolicSplitPatchIntegrator patch_integrator{equation};
-  fub::MusclHancockMethod flux_method{equation};
+  fub::GodunovMethod flux_method{equation};
 
   const int gcw = flux_method.GetStencilWidth();
   fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
@@ -151,8 +152,8 @@ int main(int argc, char** argv) {
   using namespace std::literals::chrono_literals;
   output(solver.GetPatchHierarchy(), 0, 0.0s);
   fub::RunOptions run_options{};
-  run_options.final_time = 1.0s;
-  run_options.output_frequency = 1;
+  run_options.final_time = 2ms;
+  run_options.output_interval = 0.1ms;
   run_options.cfl = 0.9;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      print_msg);

@@ -24,6 +24,7 @@
 #include "fub/Direction.hpp"
 #include "fub/Duration.hpp"
 #include "fub/Equation.hpp"
+#include "fub/Execution.hpp"
 #include "fub/ForEach.hpp"
 
 namespace fub {
@@ -31,28 +32,39 @@ namespace fub {
 template <typename Eq> class HyperbolicSplitPatchIntegrator {
 public:
   using Equation = Eq;
+  using Conservative = ::fub::Conservative<Equation>;
+  using ConservativeArray = ::fub::ConservativeArray<Equation>;
 
   HyperbolicSplitPatchIntegrator(const Equation& eq) : equation{eq} {}
 
   const Equation& GetEquation() const noexcept { return equation; }
 
-  template <typename NextView, typename FluxView, typename PrevView>
-  void UpdateConservatively(NextView next, FluxView fluxes, PrevView prev,
-                            Direction dir, Duration dt, double dx);
+  void UpdateConservatively(const View<Conservative>& next,
+                            const View<const Conservative>& fluxes,
+                            const View<const Conservative>& prev, Direction dir,
+                            Duration dt, double dx);
+
+  void UpdateConservatively(execution::SimdTag, const View<Conservative>& next,
+                            const View<const Conservative>& fluxes,
+                            const View<const Conservative>& prev, Direction dir,
+                            Duration dt, double dx);
 
 private:
   Equation equation;
 
-  Conservative<Equation> next_state{equation};
-  Conservative<Equation> prev_state{equation};
-  Conservative<Equation> flux_left{equation};
-  Conservative<Equation> flux_right{equation};
+  /// @{
+  /// States used as a buffer for intermediate loads and stores
+  Conservative next_state{equation};
+  Conservative prev_state{equation};
+  Conservative flux_left{equation};
+  Conservative flux_right{equation};
+  /// @}
 };
 
 template <typename Equation>
-template <typename NextView, typename FluxView, typename PrevView>
 void HyperbolicSplitPatchIntegrator<Equation>::UpdateConservatively(
-    NextView next, FluxView fluxes, PrevView prev, Direction dir, Duration dt,
+    const View<Conservative>& next, const View<const Conservative>& fluxes,
+    const View<const Conservative>& prev, Direction dir, Duration dt,
     double dx) {
   const double lambda = dt.count() / dx;
   constexpr int Rank = Equation::Rank();
@@ -68,7 +80,7 @@ void HyperbolicSplitPatchIntegrator<Equation>::UpdateConservatively(
     const std::array<std::ptrdiff_t, sRank> cell = face_left;
     Load(prev_state, prev, cell);
     // Do The computation
-    ForEachVariable<Conservative<Equation>>(
+    ForEachVariable(
         [lambda](auto&& next, auto prev, auto flux_left, auto flux_right) {
           next = prev + lambda * (flux_left - flux_right);
         },
@@ -76,6 +88,43 @@ void HyperbolicSplitPatchIntegrator<Equation>::UpdateConservatively(
     // Store the result at index
     Store(next, next_state, cell);
   });
+}
+
+template <typename Equation>
+void HyperbolicSplitPatchIntegrator<Equation>::UpdateConservatively(
+    execution::SimdTag, const View<Conservative>& next,
+    const View<const Conservative>& fluxes,
+    const View<const Conservative>& prev, Direction dir, Duration dt,
+    double dx) {
+  const double lambda = dt.count() / dx;
+  constexpr int Rank = Equation::Rank();
+  ForEachVariable(
+      [lambda,
+       dir](const PatchDataView<double, Rank, layout_stride>& next,
+            const PatchDataView<const double, Rank, layout_stride>& prev,
+            const PatchDataView<const double, Rank, layout_stride>& flux) {
+        const std::ptrdiff_t next_extent = next.Extents().extent(0);
+        const std::ptrdiff_t next_stride = next.Stride(1);
+        const std::ptrdiff_t prev_stride = prev.Stride(1);
+        const std::ptrdiff_t flux_stride = flux.Stride(1);
+        const std::ptrdiff_t flux_dir = flux.Stride(int(dir));
+        double* n = next.Span().begin();
+        double* end = next.Span().end();
+        const double* p = prev.Span().begin();
+        const double* f = flux.Span().begin();
+        while (end - n >= next_extent) {
+          using Row = Eigen::Map<Eigen::Array<double, Eigen::Dynamic, 1>>;
+          Eigen::Map<Row> nextv(n, next_extent);
+          Eigen::Map<const Row> prevv(p, next_extent);
+          Eigen::Map<const Row> fL(f, next_extent);
+          Eigen::Map<const Row> fR(f + flux_dir, next_extent);
+          nextv = prevv + lambda * (fL - fR);
+          n += next_stride;
+          p += prev_stride;
+          f += flux_stride;
+        }
+      },
+      next, prev, fluxes);
 }
 
 } // namespace fub

@@ -32,7 +32,7 @@ struct MinMod {
   template <typename Equation>
   void ComputeLimitedSlope(Conservative<Equation>& cons,
                            span<const Complete<Equation>, 3> stencil) {
-    ForEachComponent<Conservative<Equation>>(
+    ForEachComponent(
         [](double& cons, double qL, double qM, double qR) {
           const double sL = qM - qL;
           const double sR = qR - qM;
@@ -48,7 +48,7 @@ struct MinMod {
   template <typename Equation, int N>
   void ComputeLimitedSlope(ConservativeArray<Equation, N>& cons,
                            span<const CompleteArray<Equation, N>, 3> stencil) {
-    ForEachComponent<Conservative<Equation>>(
+    ForEachComponent(
         [](auto& cons, auto qL, auto qM, auto qR) {
           const Array<double, 1, N> sL = qM - qL;
           const Array<double, 1, N> sR = qR - qM;
@@ -63,7 +63,7 @@ struct VanLeer {
   template <typename Equation>
   void ComputeLimitedSlope(Conservative<Equation>& cons,
                            span<const Complete<Equation>, 3> stencil) {
-    ForEachComponent<Conservative<Equation>>(
+    ForEachComponent(
         [](double& cons, double qL, double qM, double qR) {
           const double sL = qM - qL;
           const double sR = qR - qM;
@@ -90,10 +90,8 @@ struct MusclHancock {
   using Complete = typename Equation::Complete;
   using Conservative = typename Equation::Conservative;
 
-  static constexpr int ChunkSize = BaseMethod::ChunkSize;
-
-  using CompleteArray = ::fub::CompleteArray<Equation, ChunkSize>;
-  using ConservativeArray = ::fub::ConservativeArray<Equation, ChunkSize>;
+  using CompleteArray = ::fub::CompleteArray<Equation>;
+  using ConservativeArray = ::fub::ConservativeArray<Equation>;
 
   explicit MusclHancock(const Equation& eq) : equation_{eq}, flux_method_{eq} {}
 
@@ -117,7 +115,7 @@ struct MusclHancock {
 
     slope_limiter_.ComputeLimitedSlope(slope_, stencil.template first<3>());
 
-    ForEachComponent<Conservative>(
+    ForEachComponent(
         [](double& qL, double& qR, double state, double slope) {
           qL = state - 0.5 * slope;
           qR = state + 0.5 * slope;
@@ -130,7 +128,7 @@ struct MusclHancock {
     equation_.Flux(flux_left_, q_left_, dir);
     equation_.Flux(flux_right_, q_right_, dir);
 
-    ForEachComponent<Conservative>(
+    ForEachComponent(
         [&lambda_half](double& rec, double qR, double fL, double fR) {
           rec = qR + lambda_half * (fL - fR);
         },
@@ -143,7 +141,7 @@ struct MusclHancock {
 
     slope_limiter_.ComputeLimitedSlope(slope_, stencil.template last<3>());
 
-    ForEachComponent<Conservative>(
+    ForEachComponent(
         [](double& qL, double& qR, double state, double slope) {
           qL = state - 0.5 * slope;
           qR = state + 0.5 * slope;
@@ -156,7 +154,7 @@ struct MusclHancock {
     equation_.Flux(flux_left_, q_left_, dir);
     equation_.Flux(flux_right_, q_right_, dir);
 
-    ForEachComponent<Conservative>(
+    ForEachComponent(
         [&lambda_half](double& rec, double qL, double fL, double fR) {
           rec = qL + lambda_half * (fL - fR);
         },
@@ -173,15 +171,14 @@ struct MusclHancock {
   void ComputeNumericFlux(ConservativeArray& flux,
                           span<const CompleteArray, 4> stencil, Duration dt,
                           double dx, Direction dir) {
-    const Array<double, 1, ChunkSize> lambda_half =
-        Array<double, 1, ChunkSize>::Constant(0.5 * dt.count() / dx);
+    const Array1d lambda_half = Array1d::Constant(0.5 * dt.count() / dx);
 
     ////////////////////////////////////////////////////////////////////////////
     // Compute Left Reconstructed Complete State
 
     slope_limiter_.ComputeLimitedSlope(slope_arr_, stencil.template first<3>());
 
-    ForEachComponent<Conservative>(
+    ForEachComponent(
         [](auto& qL, auto& qR, const auto& state, const auto& slope) {
           qL = state - 0.5 * slope;
           qR = state + 0.5 * slope;
@@ -191,7 +188,7 @@ struct MusclHancock {
     equation_.Flux(flux_left_arr_, q_left_arr_, dir);
     equation_.Flux(flux_right_arr_, q_right_arr_, dir);
 
-    ForEachComponent<Conservative>(
+    ForEachComponent(
         [&lambda_half](auto& rec, auto qR, auto fL, auto fR) {
           rec = qR + lambda_half * (fL - fR);
         },
@@ -204,7 +201,7 @@ struct MusclHancock {
 
     slope_limiter_.ComputeLimitedSlope(slope_arr_, stencil.template last<3>());
 
-    ForEachComponent<Conservative>(
+    ForEachComponent(
         [](auto& qL, auto& qR, auto state, auto slope) {
           qL = state - 0.5 * slope;
           qR = state + 0.5 * slope;
@@ -214,7 +211,7 @@ struct MusclHancock {
     equation_.Flux(flux_left_arr_, q_left_arr_, dir);
     equation_.Flux(flux_right_arr_, q_right_arr_, dir);
 
-    ForEachComponent<Conservative>(
+    ForEachComponent(
         [&lambda_half](auto& rec, auto qL, auto fL, auto fR) {
           rec = qL + lambda_half * (fL - fR);
         },

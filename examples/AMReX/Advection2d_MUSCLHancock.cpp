@@ -76,7 +76,7 @@ int main(int argc, char** argv) {
   constexpr int Dim = AMREX_SPACEDIM;
   static_assert(AMREX_SPACEDIM >= 2);
 
-  const std::array<int, Dim> n_cells{AMREX_D_DECL(256, 256, 1)};
+  const std::array<int, Dim> n_cells{AMREX_D_DECL(128, 128, 1)};
   const std::array<double, Dim> xlower{AMREX_D_DECL(-1.0, -1.0, -1.0)};
   const std::array<double, Dim> xupper{AMREX_D_DECL(+1.0, +1.0, +1.0)};
 
@@ -90,7 +90,7 @@ int main(int argc, char** argv) {
   geometry.periodicity = std::array<int, Dim>{AMREX_D_DECL(1, 1, 1)};
 
   fub::amrex::PatchHierarchyOptions options;
-  options.max_number_of_levels = 2;
+  options.max_number_of_levels = 3;
 
   using State = fub::Advection2d::Complete;
   fub::GradientDetector gradient{equation, std::pair{&State::mass, 1e-3}};
@@ -118,6 +118,7 @@ int main(int argc, char** argv) {
   auto output = [&](const fub::amrex::PatchHierarchy& hierarchy,
                     std::ptrdiff_t cycle, fub::Duration) {
     std::string name = fmt::format("{}{:04}", base_name, cycle);
+    fub::amrex::WritePlotFile(name, hierarchy, equation);
     ::amrex::Print() << "Start output to '" << name << "'.\n";
     ::amrex::Print() << "Finished output to '" << name << "'.\n";
   };
@@ -127,8 +128,7 @@ int main(int argc, char** argv) {
   output(solver.GetPatchHierarchy(), 0, 0s);
   fub::RunOptions run_options{};
   run_options.final_time = 2.0s;
-  run_options.output_interval = 2.0s;
-  run_options.output_frequency = 1;
+  run_options.output_interval = 0.1s;
   run_options.cfl = 0.9;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      print_msg);
