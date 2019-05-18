@@ -146,7 +146,7 @@ template <int Dim>
 struct DepthsImpl<Complete<IdealGasMix<Dim>>, IdealGasMix<Dim>> {
   constexpr ToConcreteDepths<typename IdealGasMix<Dim>::CompleteDepths>
   operator()(const IdealGasMix<Dim>& equation) const noexcept {
-    ToConcreteDepths<typename IdealGasMix<Dim>::CompleteDepths> depths;
+    ToConcreteDepths<typename IdealGasMix<Dim>::CompleteDepths> depths{};
     depths.species = equation.GetReactor().GetNSpecies();
     return depths;
   }
@@ -156,7 +156,7 @@ template <int Dim>
 struct DepthsImpl<Conservative<IdealGasMix<Dim>>, IdealGasMix<Dim>> {
   constexpr ToConcreteDepths<typename IdealGasMix<Dim>::ConservativeDepths>
   operator()(const IdealGasMix<Dim>& equation) const noexcept {
-    ToConcreteDepths<typename IdealGasMix<Dim>::ConservativeDepths> depths;
+    ToConcreteDepths<typename IdealGasMix<Dim>::ConservativeDepths> depths{};
     depths.species = equation.GetReactor().GetNSpecies();
     return depths;
   }

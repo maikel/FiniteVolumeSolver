@@ -150,8 +150,8 @@ void InterpolateStates_Less(span<double> dest, double dest_dx,
                             span<const double> src, double src_dx) {
   FUB_ASSERT(dest_dx < src_dx);
   for (std::ptrdiff_t i = 0; i < dest.size(); ++i) {
-    const double x_lower = dest_dx * i;
-    const double x_upper = dest_dx * (i + 1);
+    const double x_lower = dest_dx * static_cast<double>(i);
+    const double x_upper = dest_dx * static_cast<double>(i + 1);
     const std::ptrdiff_t j0 = static_cast<std::ptrdiff_t>(x_lower / src_dx);
     const std::ptrdiff_t j1 = static_cast<std::ptrdiff_t>(x_upper / src_dx);
     if (j0 == j1) {
