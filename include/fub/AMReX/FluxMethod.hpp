@@ -59,14 +59,11 @@ template <typename Base> struct FluxMethod : public Base {
     const int d = static_cast<int>(dir);
     const int gcw = context.GetGhostCellWidth(patch, dir);
 
-    ::amrex::IntVect gcws{};
-    gcws[d] = gcw;
     const IndexBox<Rank> tilebox_cells =
-        AsIndexBox<Rank>(patch.iterator->growntilebox(gcws));
+      Grow(AsIndexBox<Rank>(patch.iterator->tilebox()), dir, {gcw, gcw});
 
-    gcws[d] = 1;
     const IndexBox<Rank> tilebox_faces =
-        AsIndexBox<Rank>(patch.iterator->grownnodaltilebox(d, gcws));
+      Grow(AsIndexBox<Rank>(patch.iterator->nodaltilebox(d)), dir, {1, 1});
 
     const double dx = context.GetDx(patch, dir);
 

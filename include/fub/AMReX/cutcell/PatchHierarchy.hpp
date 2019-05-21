@@ -149,7 +149,7 @@ public:
 #pragma omp parallel firstprivate(feedback)
 #endif
     {
-      for (::amrex::MFIter mfi(GetPatchLevel(level).data); mfi.isValid();
+      for (::amrex::MFIter mfi(GetPatchLevel(level).data, true); mfi.isValid();
            ++mfi) {
         PatchHandle handle{level, &mfi};
         feedback(handle);
@@ -165,7 +165,7 @@ public:
 #pragma omp parallel reduction(min : global_min) firstprivate(feedback)
 #endif
     {
-      for (::amrex::MFIter mfi(GetPatchLevel(level).data); mfi.isValid();
+      for (::amrex::MFIter mfi(GetPatchLevel(level).data, true); mfi.isValid();
            ++mfi) {
         PatchHandle handle{level, &mfi};
         const double local_min = feedback(handle);

@@ -115,33 +115,36 @@ AverageConservativeHierarchyStates(const cutcell::PatchHierarchy& hierarchy,
   });
   ::amrex::FArrayBox global_fab(fab.box(), fab.nComp());
   global_fab.setVal(0.0);
-  ::MPI_Allreduce(fab.dataPtr(), global_fab.dataPtr(), int(fab.size()), MPI_DOUBLE,
-                  MPI_SUM, MPI_COMM_WORLD);
+  ::MPI_Allreduce(fab.dataPtr(), global_fab.dataPtr(), int(fab.size()),
+                  MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   return global_fab;
 }
 
 void InterpolateStates_Greater(span<double> dest, double dest_dx,
                                span<const double> src, double src_dx) {
   FUB_ASSERT(dest_dx > src_dx);
-  const std::ptrdiff_t n = static_cast<std::ptrdiff_t>(dest_dx / src_dx);
-  const double weight = src_dx / dest_dx;
-  std::ptrdiff_t i0 = 0;
+  std::ptrdiff_t src_index = 0LL;
   double last_remainder = 0.0;
+  const double full_weight = src_dx / dest_dx;
   for (std::ptrdiff_t j = 0; j < dest.size(); ++j) {
     dest[j] = 0.0;
-    std::ptrdiff_t offset = 0.0;
-    const double remainder = ::fmod(dest_dx - last_remainder, src_dx);
+    double src_sum = 0.0;
     if (last_remainder > 0.0) {
-      dest[j] += (weight - last_remainder / dest_dx) * src[i0];
-      offset = 1LL;
+      const double rest_dx = src_dx - last_remainder;
+      const double rest_weight = rest_dx / dest_dx;
+      dest[j] += rest_weight * src[src_index];
+      src_index += 1;
+      src_sum += rest_dx;
     }
-    for (std::ptrdiff_t i = 0; i < n; ++i) {
-      dest[j] += weight * src[i0 + offset + i];
+    while (src_sum + src_dx <= dest_dx) {
+      dest[j] += full_weight * src[src_index];
+      src_sum += src_dx;
+      src_index += 1;
     }
-    if (i0 + offset + n < src.size()) {
-      dest[j] += (remainder / dest_dx) * src[i0 + offset + n];
-    }
-    i0 += offset + n;
+    const double remainder = dest_dx - src_sum;
+    const double remainder_weight = remainder / dest_dx;
+    FUB_ASSERT(remainder < src_dx);
+    dest[j] += remainder_weight * src[src_index];
     last_remainder = remainder;
   }
 }
@@ -224,8 +227,8 @@ void EmbedState(Complete<IdealGasMix<AMREX_SPACEDIM>>& dest,
     local_fab.plus(data, subbox, 0, 0, n_comps);
   });
   ::amrex::FArrayBox global_fab(local_fab.box(), local_fab.nComp());
-  ::MPI_Allreduce(local_fab.dataPtr(), global_fab.dataPtr(), int(local_fab.size()),
-                  MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  ::MPI_Allreduce(local_fab.dataPtr(), global_fab.dataPtr(),
+                  int(local_fab.size()), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   return global_fab;
 }
 } // namespace

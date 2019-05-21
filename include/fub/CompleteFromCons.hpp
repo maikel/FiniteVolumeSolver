@@ -41,6 +41,7 @@ void CompleteFromCons(Equation&& equation,
                             Complete<Eq>&, const Conservative<Eq>&>::value) {
     equation.CompleteFromCons(complete, cons);
   } else {
+    static_assert(sizeof(Complete<Eq>) == sizeof(Conservative<Eq>));
     ForEachVariable([](auto& dest, const auto& src) { dest = src; },
                     AsCons(complete), cons);
   }
@@ -56,6 +57,7 @@ void CompleteFromCons(Equation&& equation,
                             const ConservativeBase<Eq>&>::value) {
     equation.CompleteFromCons(complete, AsCons(cons));
   } else {
+    static_assert(sizeof(Complete<Eq>) == sizeof(Conservative<Eq>));
     ForEachVariable([](auto& dest, const auto& src) { dest = src; },
                     AsCons(complete), AsCons(cons));
   }
@@ -71,6 +73,7 @@ void CompleteFromCons(Equation&& equation,
                             const ConservativeArray<Eq>&>::value) {
     equation.CompleteFromCons(complete, cons);
   } else {
+    static_assert(sizeof(Complete<Eq>) == sizeof(Conservative<Eq>));
     ForEachVariable([](auto& dest, const auto& src) { dest = src; },
                     AsCons(complete), cons);
   }
@@ -86,6 +89,7 @@ void CompleteFromCons(Equation&& equation,
                             const ConservativeArray<Eq>&>::value) {
     equation.CompleteFromCons(complete, AsCons(cons));
   } else {
+    static_assert(sizeof(Complete<Eq>) == sizeof(Conservative<Eq>));
     ForEachVariable([](auto& dest, const auto& src) { dest = src; },
                     AsCons(complete), AsCons(cons));
   }

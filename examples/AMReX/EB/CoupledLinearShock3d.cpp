@@ -90,12 +90,12 @@ struct RiemannProblem {
         fub::amrex::GetCartesianCoordinates(geom, box);
     fub::FlameMasterReactor& reactor = equation_.GetReactor();
     reactor.SetMoleFractions("N2:79,O2:21,H2:42");
-    const double high_temp = 1100.0;
+    const double high_temp = 1150.0;
     const double low_temp = 300.0;
     fub::Complete<fub::IdealGasMix<1>> complete(equation_);
     fub::ForEachIndex(fub::Box<0>(states), [&](std::ptrdiff_t i) {
       const double x0 = x(i)[0];
-      const double d = std::clamp(x0 / 0.01, 0.0, 1.0);
+      const double d = std::clamp(x0 / 0.1, 0.0, 1.0);
       reactor.SetTemperature(d * low_temp + (1.0 - d) * high_temp);
       reactor.SetPressure(101325.0);
       equation_.CompleteFromReactor(complete);
@@ -136,8 +136,8 @@ auto MakeTubeSolver(int num_cells, fub::Burke2012& mechanism) {
   gridding->InitializeHierarchy(0.0);
 
   fub::HyperbolicSplitPatchIntegrator patch_integrator{equation};
-  fub::HllMethod hlle(
-                             equation, fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>>{});
+  fub::HllMethod hlle(equation,
+                      fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>>{});
   fub::MusclHancockMethod flux_method{equation, hlle};
 
   const int gcw = flux_method.GetStencilWidth();
@@ -191,12 +191,6 @@ auto MakePlenumSolver(int num_cells, fub::Burke2012& mechanism) {
   equation.GetReactor().SetPressure(101325.0);
   fub::Complete<fub::IdealGasMix<3>> right(equation);
   equation.CompleteFromReactor(right);
-  //
-  //  equation.GetReactor().SetMoleFractions("N2:80,O2:20");
-  //  equation.GetReactor().SetTemperature(500.0);
-  //  equation.GetReactor().SetDensity(3.15);
-  //  fub::Complete<fub::IdealGasMix<3>> left(equation);
-  //  equation.CompleteFromReactor(left, {400.0, 0.0, 0.0});
 
   fub::amrex::cutcell::RiemannProblem initial_data(
       equation, fub::Halfspace({+1.0, 0.0, 0.0}, -0.04), right, right);
@@ -240,7 +234,7 @@ int main(int argc, char** argv) {
   fub::amrex::ScopeGuard _(argc, argv);
   fub::Burke2012 mechanism{};
   auto plenum = MakePlenumSolver(64, mechanism);
-  auto tube = MakeTubeSolver(120, mechanism);
+  auto tube = MakeTubeSolver(240, mechanism);
 
   fub::amrex::CoupledBoundaryFunction coupled_boundary(
       plenum.GetPatchHierarchy(), tube.GetPatchHierarchy(), 3,
@@ -275,7 +269,9 @@ int main(int argc, char** argv) {
     std::string name = fmt::format("{}_Plenum/{:05}", base_name, cycle);
     ::amrex::Print() << "Start output to '" << name << "'.\n";
     fub::amrex::cutcell::WritePlotFile(name, hierarchy, plenum.GetEquation());
+    ::amrex::Print() << "Finished output to '" << name << "'.\n";
     name = fmt::format("{}_Tube/{:05}", base_name, cycle);
+    ::amrex::Print() << "Start output to '" << name << "'.\n";
     fub::amrex::WritePlotFile(name, tube.GetPatchHierarchy(),
                               tube.GetEquation());
     ::amrex::Print() << "Finished output to '" << name << "'.\n";
@@ -287,7 +283,7 @@ int main(int argc, char** argv) {
   output(plenum.GetPatchHierarchy(), plenum.GetCycles(), plenum.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.final_time = 0.002s;
-  run_options.output_interval = 6.25e-6s;
+  run_options.output_interval = 1.25e-5s;
   run_options.cfl = 0.5 * 0.9;
 
   fub::amrex::RunCoupledSimulation(plenum, tube, *boundary, run_options,

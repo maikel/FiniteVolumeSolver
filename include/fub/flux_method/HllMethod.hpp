@@ -53,6 +53,7 @@ public:
 
   /// \brief Returns the underlying equations object.
   const Equation& GetEquation() const noexcept { return equation_; }
+  Equation& GetEquation() noexcept { return equation_; }
 
   void SolveRiemannProblem(Complete& solution, const Complete& left,
                            const Complete& right, Direction dir);

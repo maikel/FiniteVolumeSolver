@@ -63,7 +63,6 @@ template <typename Base> struct FluxMethod : public Base {
               context.GetCutCellData(patch, Direction::X);
           const IndexBox<Rank> cells =
               AsIndexBox<Rank>(patch.iterator->growntilebox(gcw));
-          //              AsIndexBox<Rank>(patch.iterator->tilebox());
           View<const Complete> data = AsConst(
               Subview(MakeView<BasicView<Complete>>(
                           MakePatchDataView(datas[*patch.iterator]), equation),
@@ -87,11 +86,8 @@ template <typename Base> struct FluxMethod : public Base {
     }
     const Equation& equation = Base::GetEquation();
     const double dx = context.GetDx(patch, dir);
-    const int d = static_cast<int>(dir);
-    ::amrex::IntVect gcws{};
-    gcws[d] = gcw;
     const auto tilebox_cells =
-        AsIndexBox<Rank>(patch.iterator->growntilebox(gcws));
+        Grow(AsIndexBox<Rank>(patch.iterator->tilebox()), dir, {gcw, gcw});
     View<const Complete> scratch = AsConst(Subview(
         MakeView<BasicView<Complete>>(context.GetScratch(patch, dir), equation),
         tilebox_cells));
@@ -119,14 +115,12 @@ template <typename Base> struct FluxMethod : public Base {
     const double dx = context.GetDx(patch, dir);
 
     const int d = static_cast<int>(dir);
-    ::amrex::IntVect gcws{};
-    gcws[d] = gcw;
-    const auto tilebox_cells =
-        AsIndexBox<Rank>(patch.iterator->growntilebox(gcws));
 
-    gcws[d] = 1;
+    const auto tilebox_cells =
+        Grow(AsIndexBox<Rank>(patch.iterator->tilebox()), dir, {gcw, gcw});
+
     const auto tilebox_faces =
-        AsIndexBox<Rank>(patch.iterator->grownnodaltilebox(d, gcws));
+        Grow(AsIndexBox<Rank>(patch.iterator->nodaltilebox(d)), dir, {1, 1});
 
     View<const Complete> scratch = AsConst(Subview(
         MakeView<BasicView<Complete>>(context.GetScratch(patch, dir), equation),
