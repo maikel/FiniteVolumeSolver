@@ -45,7 +45,6 @@ template <typename Base> struct FluxMethod : public Base {
   const Equation& GetEquation() const { return Base::GetEquation(); }
 
   template <typename Context> void PreAdvanceHierarchy(Context& context) {
-    const Equation& equation = Base::GetEquation();
     const PatchHierarchy& hierarchy = context.GetPatchHierarchy();
     const int nlevels = hierarchy.GetNumberOfLevels();
     const int gcw = Base::GetStencilWidth() + 1;
@@ -56,13 +55,14 @@ template <typename Base> struct FluxMethod : public Base {
                               level.data.DistributionMap(), n_components, gcw,
                               ::amrex::MFInfo(), level.data.Factory());
       context.FillGhostLayer(datas, level_num);
-      context.ForEachPatch(level_num, [&](PatchHandle patch) {
+      context.ForEachPatch(level_num, [method = *this, &context, &datas](PatchHandle patch) mutable {
         ::amrex::FabType type = context.GetCutCellPatchType(patch, gcw);
         if (type == ::amrex::FabType::singlevalued) {
           CutCellData<Rank> cc_data =
               context.GetCutCellData(patch, Direction::X);
           const IndexBox<Rank> cells =
               AsIndexBox<Rank>(patch.iterator->growntilebox(gcw));
+          const Equation& equation = method.GetEquation();
           View<const Complete> data = AsConst(
               Subview(MakeView<BasicView<Complete>>(
                           MakePatchDataView(datas[*patch.iterator]), equation),
@@ -71,7 +71,7 @@ template <typename Base> struct FluxMethod : public Base {
               Subview(MakeView<BasicView<Complete>>(
                           context.GetReferenceStates(patch), equation),
                       cells);
-          Base::PreAdvanceHierarchy(reference_states, data, cc_data);
+          method.Base::PreAdvanceHierarchy(reference_states, data, cc_data);
         }
       });
     }

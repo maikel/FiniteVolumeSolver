@@ -164,8 +164,8 @@ int main(int argc, char** argv) {
   output(solver.GetPatchHierarchy(), solver.GetCycles(), solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.final_time = 0.002s;
-  run_options.output_interval = 0.5 * 0.0000125s;
-  run_options.cfl = 0.5 * 0.9;
+  run_options.output_interval = 0.0000125s;
+  run_options.cfl = 0.5;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      print_msg);
 }

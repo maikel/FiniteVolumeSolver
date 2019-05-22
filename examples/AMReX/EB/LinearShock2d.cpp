@@ -83,7 +83,7 @@ int main(int argc, char** argv) {
   amrex::RealBox xbox(xlower, xupper);
   const std::array<int, AMREX_SPACEDIM> periodicity{};
 
-  const int n_level = 3;
+  const int n_level = 2;
 
   amrex::Geometry coarse_geom(
       amrex::Box{
