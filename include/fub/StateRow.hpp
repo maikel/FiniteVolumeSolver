@@ -64,9 +64,10 @@ template <typename State> struct Row : RowBase<State> {
                    },
                    [extent](mdspan<ElementType, 2, layout_stride>& mds,
                             const auto& p) {
-                     layout_stride::mapping<dynamic_extents<2>> mapping{dynamic_extents<2>{extent, 2}, {1, p.second}};
-                     mds = mdspan<ElementType, 2, layout_stride>(
-                         p.first, mapping);
+                     layout_stride::mapping<dynamic_extents<2>> mapping{
+                         dynamic_extents<2>{extent, 2}, {1, p.second}};
+                     mds = mdspan<ElementType, 2, layout_stride>(p.first,
+                                                                 mapping);
                    }},
         *this, pointer);
   }
@@ -84,10 +85,9 @@ template <typename State> ViewPointer<State> Begin(const Row<State>& row) {
           [&](auto& p, const mdspan<double, 2, layout_stride>& mds) {
             p = std::pair{mds.get_span().begin(), mds.stride(1)};
           },
-        [&](auto& p, const mdspan<const double, 2, layout_stride>& mds) {
-          p = std::pair{mds.get_span().begin(), mds.stride(1)};
-        }
-      },
+          [&](auto& p, const mdspan<const double, 2, layout_stride>& mds) {
+            p = std::pair{mds.get_span().begin(), mds.stride(1)};
+          }},
       pointer, row);
   return pointer;
 }
@@ -101,10 +101,9 @@ template <typename State> ViewPointer<State> End(const Row<State>& row) {
           [&](auto& p, const mdspan<double, 2, layout_stride>& mds) {
             p = std::pair{mds.get_span().end(), mds.stride(1)};
           },
-        [&](auto& p, const mdspan<const double, 2, layout_stride>& mds) {
-          p = std::pair{mds.get_span().end(), mds.stride(1)};
-        }
-      },
+          [&](auto& p, const mdspan<const double, 2, layout_stride>& mds) {
+            p = std::pair{mds.get_span().end(), mds.stride(1)};
+          }},
       pointer, row);
   return pointer;
 }

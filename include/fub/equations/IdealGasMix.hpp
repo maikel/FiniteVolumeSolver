@@ -158,7 +158,7 @@ struct DepthsImpl<Conservative<IdealGasMix<Dim>>, IdealGasMix<Dim>> {
   operator()(const IdealGasMix<Dim>& equation) const noexcept {
     ToConcreteDepths<typename IdealGasMix<Dim>::ConservativeDepths> depths{};
     depths.species = equation.GetReactor().GetNSpecies();
-    return depths;  
+    return depths;
   }
 };
 
@@ -219,9 +219,8 @@ template <int Dim> struct EinfeldtSignalVelocities<IdealGasMix<Dim>> {
   using Complete = typename IdealGasMix<Dim>::Complete;
 
   std::array<double, 2> operator()(const IdealGasMix<Dim>& equation,
-                                     const Complete& left,
-                                     const Complete& right,
-                                     Direction dir) const noexcept;
+                                   const Complete& left, const Complete& right,
+                                   Direction dir) const noexcept;
 };
 
 extern template struct EinfeldtSignalVelocities<IdealGasMix<1>>;

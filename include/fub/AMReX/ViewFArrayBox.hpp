@@ -30,11 +30,11 @@
 
 namespace fub {
 namespace amrex {
-std::array<std::ptrdiff_t, AMREX_SPACEDIM>
-AsArray(const ::amrex::IntVect& vec);
+std::array<std::ptrdiff_t, AMREX_SPACEDIM> AsArray(const ::amrex::IntVect& vec);
 
 template <int Rank> IndexBox<Rank> AsIndexBox(const ::amrex::Box& box) {
-  const std::array<std::ptrdiff_t, AMREX_SPACEDIM> lower = AsArray(box.smallEnd());
+  const std::array<std::ptrdiff_t, AMREX_SPACEDIM> lower =
+      AsArray(box.smallEnd());
   std::array<std::ptrdiff_t, AMREX_SPACEDIM> upper = AsArray(box.bigEnd());
   std::transform(upper.begin(), upper.end(), upper.begin(),
                  [](std::ptrdiff_t i) { return i + 1; });

@@ -349,8 +349,7 @@ public:
               },
               shielded_left_flux_, regular_flux_, boundary_flux_left_);
         } else {
-          ForEachComponent([](double& x) { x = 0.0; },
-                                         shielded_left_flux_);
+          ForEachComponent([](double& x) { x = 0.0; }, shielded_left_flux_);
         }
 
         // Compute stabilisation for shielded face fraction from right
@@ -365,8 +364,7 @@ public:
               },
               shielded_right_flux_, regular_flux_, boundary_flux_right_);
         } else {
-          ForEachComponent([](double& x) { x = 0.0; },
-                                         shielded_right_flux_);
+          ForEachComponent([](double& x) { x = 0.0; }, shielded_right_flux_);
         }
 
         if (beta_ds > 0.0) {
@@ -393,8 +391,7 @@ public:
               doubly_shielded_flux_, stencil_[0], stencil_[1],
               boundary_flux_left_, boundary_flux_right_);
         } else {
-          ForEachComponent([](double& x) { x = 0.0; },
-                                         doubly_shielded_flux_);
+          ForEachComponent([](double& x) { x = 0.0; }, doubly_shielded_flux_);
         }
 
         // Now assemble the total stabilised flux as an area weighted sum of
@@ -415,8 +412,7 @@ public:
               cutcell_flux_, regular_flux_, shielded_left_flux_,
               shielded_right_flux_);
         } else {
-          ForEachComponent([](double& x) { x = 0.0; },
-                                         cutcell_flux_);
+          ForEachComponent([](double& x) { x = 0.0; }, cutcell_flux_);
         }
 
         Store(shielded_left_fluxes, shielded_left_flux_, face);
@@ -425,8 +421,7 @@ public:
         Store(stabilised_fluxes, cutcell_flux_, face);
       } else {
         Load(regular_flux_, regular_fluxes, face);
-        ForEachComponent([](double& x) { x = 0.0; },
-                                       cutcell_flux_);
+        ForEachComponent([](double& x) { x = 0.0; }, cutcell_flux_);
         Store(shielded_left_fluxes, cutcell_flux_, face);
         Store(shielded_right_fluxes, cutcell_flux_, face);
         Store(doubly_shielded_fluxes, cutcell_flux_, face);

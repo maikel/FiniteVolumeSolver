@@ -60,10 +60,10 @@ template <typename Base> struct FluxMethod : public Base {
     const int gcw = context.GetGhostCellWidth(patch, dir);
 
     const IndexBox<Rank> tilebox_cells =
-      Grow(AsIndexBox<Rank>(patch.iterator->tilebox()), dir, {gcw, gcw});
+        Grow(AsIndexBox<Rank>(patch.iterator->tilebox()), dir, {gcw, gcw});
 
     const IndexBox<Rank> tilebox_faces =
-      Grow(AsIndexBox<Rank>(patch.iterator->nodaltilebox(d)), dir, {1, 1});
+        Grow(AsIndexBox<Rank>(patch.iterator->nodaltilebox(d)), dir, {1, 1});
 
     const double dx = context.GetDx(patch, dir);
 

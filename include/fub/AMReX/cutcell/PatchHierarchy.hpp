@@ -40,7 +40,6 @@
 
 #include <functional>
 #include <vector>
-#include <iostream>
 
 namespace fub {
 namespace amrex {

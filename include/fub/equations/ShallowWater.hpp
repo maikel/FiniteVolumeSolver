@@ -98,7 +98,8 @@ struct ShallowWaterSignalVelocities {
                                     const CompleteArray& right, Direction dir);
 };
 
-extern template class FluxMethod<Hll<ShallowWater, ShallowWaterSignalVelocities>>;
+extern template class FluxMethod<
+    Hll<ShallowWater, ShallowWaterSignalVelocities>>;
 
 } // namespace fub
 

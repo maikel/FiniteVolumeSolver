@@ -137,7 +137,7 @@ KineticSourceTerm<Rank>::AdvanceHierarchy(Duration dt) {
     GetPatchHierarchy().ForEachPatch(
         level, [&result, dt, solver = *this](amrex::PatchHandle patch) mutable {
           if (result) {
-              result = solver.AdvancePatch(patch, dt);
+            result = solver.AdvancePatch(patch, dt);
           }
         });
     if (!result) {

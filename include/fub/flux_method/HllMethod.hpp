@@ -24,8 +24,8 @@
 #include "fub/Direction.hpp"
 #include "fub/Duration.hpp"
 #include "fub/Equation.hpp"
-#include "fub/core/span.hpp"
 #include "fub/ForEach.hpp"
+#include "fub/core/span.hpp"
 #include "fub/flux_method/FluxMethod.hpp"
 
 #include <numeric>
@@ -108,8 +108,8 @@ private:
 template <typename Equation, typename SignalSpeeds>
 class HllArrayBase<Equation, SignalSpeeds, false>
     : public HllBase<Equation, SignalSpeeds> {
-      using HllBase<Equation, SignalSpeeds>::HllBase;
-    };
+  using HllBase<Equation, SignalSpeeds>::HllBase;
+};
 
 template <typename Equation, typename SignalSpeeds>
 class Hll : public HllArrayBase<Equation, SignalSpeeds,
@@ -120,7 +120,7 @@ class Hll : public HllArrayBase<Equation, SignalSpeeds,
 };
 
 template <typename Equation, typename Signals>
-Hll(const Equation& eq, const Signals& signals) -> Hll<Equation, Signals>;
+Hll(const Equation& eq, const Signals& signals)->Hll<Equation, Signals>;
 
 template <typename Equation, typename Signals>
 struct HllMethod : public FluxMethod<Hll<Equation, Signals>> {
