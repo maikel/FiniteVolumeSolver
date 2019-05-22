@@ -27,6 +27,7 @@
 #include "fub/ext/outcome.hpp"
 
 #include <functional>
+#include <optional>
 
 namespace fub {
 namespace ideal_gas {
@@ -133,15 +134,15 @@ Result<void, TimeStepTooLarge>
 KineticSourceTerm<Rank>::AdvanceHierarchy(Duration dt) {
   const int nlevels = GetPatchHierarchy().GetNumberOfLevels();
   for (int level = 0; level < nlevels; ++level) {
-    Result<void, TimeStepTooLarge> result = boost::outcome_v2::success();
+    std::optional<Result<void, TimeStepTooLarge>> result{};
     GetPatchHierarchy().ForEachPatch(
         level, [&result, dt, solver = *this](amrex::PatchHandle patch) mutable {
-          if (result) {
+          if (!result || *result) {
               result = solver.AdvancePatch(patch, dt);
           }
         });
-    if (!result) {
-      return result;
+    if (result && !(*result)) {
+      return *result;
     }
   }
   return boost::outcome_v2::success();
