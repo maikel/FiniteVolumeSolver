@@ -77,9 +77,11 @@ void IntegrateConserativeStates(
     Index<AMREX_SPACEDIM> index{is...};
     Index<AMREX_SPACEDIM> lowdim_index{index[0]};
     for (int i = 0; i < n_comps; ++i) {
-      dest(AMREX_D_DECL(index[0], 0, 0), i) +=
-          (volumes(index) * cell_volume / total_volumes(lowdim_index)) *
-          src(is..., i);
+      if (volumes(index) > 0.0) {
+        dest(AMREX_D_DECL(index[0], 0, 0), i) +=
+            (volumes(index) * cell_volume / total_volumes(lowdim_index)) *
+            src(is..., i);
+      }
     }
   });
 }

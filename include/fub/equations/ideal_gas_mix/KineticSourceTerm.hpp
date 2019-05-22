@@ -29,7 +29,9 @@
 #include <functional>
 #include <optional>
 
+#ifdef _OPENMP
 #include <omp.h>
+#endif
 
 namespace fub {
 namespace ideal_gas {
