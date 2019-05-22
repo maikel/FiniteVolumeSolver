@@ -55,7 +55,7 @@ template <typename Base> struct FluxMethod : public Base {
                               level.data.DistributionMap(), n_components, gcw,
                               ::amrex::MFInfo(), level.data.Factory());
       context.FillGhostLayer(datas, level_num);
-      context.ForEachPatch(level_num, [method = *this, &context,
+      context.ForEachPatch(execution::openmp, level_num, [method = *this, &context,
                                        &datas](PatchHandle patch) mutable {
         ::amrex::FabType type = context.GetCutCellPatchType(patch, gcw);
         if (type == ::amrex::FabType::singlevalued) {

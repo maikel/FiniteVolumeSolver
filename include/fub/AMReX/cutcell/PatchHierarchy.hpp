@@ -27,6 +27,7 @@
 #include "fub/CutCellData.hpp"
 #include "fub/Duration.hpp"
 #include "fub/Equation.hpp"
+#include "fub/Execution.hpp"
 #include "fub/ext/Eigen.hpp"
 
 #include <AMReX_EBFabFactory.H>
@@ -145,6 +146,16 @@ public:
 
   template <typename Feedback>
   Feedback ForEachPatch(int level, Feedback feedback) const {
+    for (::amrex::MFIter mfi(GetPatchLevel(level).data); mfi.isValid();
+         ++mfi) {
+      PatchHandle handle{level, &mfi};
+      feedback(handle);
+    }
+    return feedback;
+  }
+
+  template <typename Feedback>
+  Feedback ForEachPatch(execution::OpenMpTag, int level, Feedback feedback) const {
 #ifdef _OPENMP
 #pragma omp parallel firstprivate(feedback)
 #endif
@@ -160,6 +171,18 @@ public:
 
   template <typename Feedback>
   double Minimum(int level, Feedback feedback) const {
+    double global_min = std::numeric_limits<double>::infinity();
+    for (::amrex::MFIter mfi(GetPatchLevel(level).data); mfi.isValid();
+         ++mfi) {
+      PatchHandle handle{level, &mfi};
+      const double local_min = feedback(handle);
+      global_min = std::min(global_min, local_min);
+    }
+    return global_min;
+  }
+
+  template <typename Feedback>
+  double Minimum(execution::OpenMpTag, int level, Feedback feedback) const {
     double global_min = std::numeric_limits<double>::infinity();
 #ifdef _OPENMP
 #pragma omp parallel reduction(min : global_min) firstprivate(feedback)

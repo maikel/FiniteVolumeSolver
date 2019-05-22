@@ -27,6 +27,9 @@ namespace execution {
 struct SimdTag {};
 inline constexpr SimdTag simd{};
 
+struct OpenMpTag {};
+inline constexpr OpenMpTag openmp{};
+
 } // namespace execution
 } // namespace fub
 

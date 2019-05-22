@@ -29,6 +29,8 @@
 #include <functional>
 #include <optional>
 
+#include <omp.h>
+
 namespace fub {
 namespace ideal_gas {
 
@@ -134,16 +136,37 @@ Result<void, TimeStepTooLarge>
 KineticSourceTerm<Rank>::AdvanceHierarchy(Duration dt) {
   const int nlevels = GetPatchHierarchy().GetNumberOfLevels();
   for (int level = 0; level < nlevels; ++level) {
+#ifdef _OPENMP
+    const std::size_t n_threads =
+      static_cast<std::size_t>(::omp_get_max_threads());
+    std::vector<std::optional<Result<void, TimeStepTooLarge>>> results(
+        n_threads);
+    GetPatchHierarchy().ForEachPatch(
+        execution::openmp, level,
+        [&results, dt, solver = *this](amrex::PatchHandle patch) mutable {
+          const std::size_t this_thread_num =
+            static_cast<std::size_t>(::omp_get_thread_num());
+          if (!results[this_thread_num] || *results[this_thread_num]) {
+            results[this_thread_num] = solver.AdvancePatch(patch, dt);
+          }
+        });
+    for (std::size_t thread_num = 0; thread_num < n_threads; ++thread_num) {
+      if (results[thread_num] && !(*results[thread_num])) {
+        return *results[thread_num];
+      }
+    }
+#else
     std::optional<Result<void, TimeStepTooLarge>> result{};
     GetPatchHierarchy().ForEachPatch(
         level, [&result, dt, solver = *this](amrex::PatchHandle patch) mutable {
           if (!result || *result) {
-              result = solver.AdvancePatch(patch, dt);
+            result = solver.AdvancePatch(patch, dt);
           }
         });
     if (result && !(*result)) {
       return *result;
     }
+#endif
   }
   return boost::outcome_v2::success();
 }

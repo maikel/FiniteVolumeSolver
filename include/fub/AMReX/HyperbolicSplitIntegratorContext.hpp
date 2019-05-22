@@ -25,6 +25,7 @@
 #include "fub/Duration.hpp"
 #include "fub/PatchDataView.hpp"
 #include "fub/core/function_ref.hpp"
+#include "fub/Execution.hpp"
 #include "fub/core/mdspan.hpp"
 
 #include "fub/AMReX/GriddingAlgorithm.hpp"
@@ -77,6 +78,14 @@ public:
 
   template <typename Feedback> double Minimum(int level, Feedback feedback) {
     return GetPatchHierarchy().Minimum(level, feedback);
+  }
+
+  template <typename F> F ForEachPatch(execution::OpenMpTag, int level, F function) {
+    return GetPatchHierarchy().ForEachPatch(execution::openmp, level, function);
+  }
+
+  template <typename Feedback> double Minimum(execution::OpenMpTag, int level, Feedback feedback) {
+    return GetPatchHierarchy().Minimum(execution::openmp, level, feedback);
   }
 
   MPI_Comm GetMpiCommunicator() const noexcept;

@@ -26,6 +26,7 @@
 #include "fub/Direction.hpp"
 #include "fub/Duration.hpp"
 #include "fub/Equation.hpp"
+#include "fub/Execution.hpp"
 #include "fub/TimeStepError.hpp"
 #include "fub/ext/outcome.hpp"
 
@@ -173,7 +174,7 @@ public:
     }
 
     // Compute fluxes in the specified direction
-    Context::ForEachPatch(
+    Context::ForEachPatch(execution::openmp,
         this_level, [direction, dt, context = &GetIntegratorContext(),
                      fm = flux_method_](const PatchHandle& patch) mutable {
           fm.ComputeNumericFluxes(*context, patch, direction, dt);
@@ -201,7 +202,7 @@ public:
     }
 
     // Use the updated fluxes to update cons variables at the "SCRATCH" context.
-    Context::ForEachPatch(
+    Context::ForEachPatch(execution::openmp,
         this_level, [direction, dt, context = &GetIntegratorContext(),
                      pi = patch_integrator_](const PatchHandle& patch) mutable {
           pi.UpdateConservatively(*context, patch, direction, dt);
@@ -212,7 +213,7 @@ public:
       Context::CoarsenConservatively(next_level, this_level, direction);
     }
 
-    Context::ForEachPatch(
+    Context::ForEachPatch(execution::openmp,
         this_level, [direction, dt, context = &GetIntegratorContext(),
                      rec = reconstruction_](const PatchHandle& patch) mutable {
           rec.CompleteFromCons(*context, patch, direction, dt);

@@ -95,10 +95,6 @@ AverageConservativeHierarchyStates(const cutcell::PatchHierarchy& hierarchy,
       ReduceTotalVolume(hierarchy, level, mirror);
   ::amrex::FArrayBox fab(total_volume.box(), n_comps);
   fab.setVal(0.0);
-  //  const std::ptrdiff_t linear =
-  //      static_cast<std::ptrdiff_t>(fab.box().length()[0]);
-  //  const std::ptrdiff_t size = linear * fab.nComp();
-  //  std::fill_n(fab.dataPtr(), size, 0.0);
   const double cell_volume = CellVolume(hierarchy.GetGeometry(0));
   PatchDataView<double, AMREX_SPACEDIM + 1> fabv = MakePatchDataView(fab);
   PatchDataView<const double, AMREX_SPACEDIM> tot_vol =

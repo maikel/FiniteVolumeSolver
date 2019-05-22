@@ -26,6 +26,7 @@
 #include "fub/Duration.hpp"
 #include "fub/core/function_ref.hpp"
 #include "fub/core/mdspan.hpp"
+#include "fub/Execution.hpp"
 
 #include "fub/AMReX/PatchHandle.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
@@ -151,6 +152,14 @@ public:
 
   template <typename F> double Minimum(int level, F function) {
     return GetPatchHierarchy().Minimum(level, function);
+  }
+
+  template <typename F> F ForEachPatch(execution::OpenMpTag, int level, F function) {
+    return GetPatchHierarchy().ForEachPatch(execution::openmp, level, function);
+  }
+
+  template <typename F> double Minimum(execution::OpenMpTag, int level, F function) {
+    return GetPatchHierarchy().Minimum(execution::openmp, level, function);
   }
 
   ::amrex::FabType GetCutCellPatchType(PatchHandle handle, int gcw = 0) const;
