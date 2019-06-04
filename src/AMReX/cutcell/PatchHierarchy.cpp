@@ -196,7 +196,7 @@ int PatchHierarchy::GetRatioToCoarserLevel(int level, Direction dir) const
   return options_.refine_ratio;
 }
 
-void WriteCheckpointFile(const std::string checkpointname,
+void WriteCheckpointFile(const std::string& checkpointname,
                          const PatchHierarchy& hier) {
   const int nlevels = hier.GetNumberOfLevels();
   ::amrex::PreBuildDirectorHierarchy(checkpointname, "Level_", nlevels, true);
@@ -247,10 +247,10 @@ void WriteCheckpointFile(const std::string checkpointname,
   }
 }
 
-std::shared_ptr<PatchHierarchy>
-ReadCheckpointFile(const std::string checkpointname, DataDescription desc,
-                   const CartesianGridGeometry& geometry,
-                   const PatchHierarchyOptions& options) {
+PatchHierarchy ReadCheckpointFile(const std::string& checkpointname,
+                                  DataDescription desc,
+                                  const CartesianGridGeometry& geometry,
+                                  const PatchHierarchyOptions& options) {
   std::string File(checkpointname + "/Header");
   ::amrex::VisMF::IO_Buffer io_buffer(
       static_cast<std::size_t>(::amrex::VisMF::GetIOBufferSize()));
@@ -259,8 +259,7 @@ ReadCheckpointFile(const std::string checkpointname, DataDescription desc,
   std::string fileCharPtrString(fileCharPtr.dataPtr());
   std::istringstream is(fileCharPtrString, std::istringstream::in);
 
-  std::shared_ptr<PatchHierarchy> hierarchy =
-      std::make_shared<PatchHierarchy>(desc, geometry, options);
+  PatchHierarchy hierarchy(desc, geometry, options);
 
   // read in title line
   std::string line;
@@ -300,20 +299,19 @@ ReadCheckpointFile(const std::string checkpointname, DataDescription desc,
     ::amrex::DistributionMapping dm{ba, ::amrex::ParallelDescriptor::NProcs()};
 
     std::unique_ptr<::amrex::EBFArrayBoxFactory> eb_factory =
-        ::amrex::makeEBFabFactory(hierarchy->GetGeometry(lev), ba, dm,
-                                  {4, 4, 4}, ::amrex::EBSupport::full);
+        ::amrex::makeEBFabFactory(hierarchy.GetGeometry(lev), ba, dm, {4, 4, 4},
+                                  ::amrex::EBSupport::full);
 
-    hierarchy->GetPatchLevel(lev) =
+    hierarchy.GetPatchLevel(lev) =
         PatchLevel(lev, Duration(time_points[static_cast<std::size_t>(lev)]),
                    ba, dm, desc.n_state_components, std::move(eb_factory));
-    hierarchy->GetPatchLevel(lev).cycles =
-        cycles[static_cast<std::size_t>(lev)];
+    hierarchy.GetPatchLevel(lev).cycles = cycles[static_cast<std::size_t>(lev)];
   }
 
   // read in the MultiFab data
   for (int lev = 0; lev <= finest_level; ++lev) {
     ::amrex::VisMF::Read(
-        hierarchy->GetPatchLevel(lev).data,
+        hierarchy.GetPatchLevel(lev).data,
         ::amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "data"));
   }
 

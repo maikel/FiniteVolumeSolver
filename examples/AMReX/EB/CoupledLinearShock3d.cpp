@@ -78,6 +78,8 @@
 #include <cmath>
 #include <iostream>
 
+#include <xmmintrin.h>
+
 struct RiemannProblem {
   fub::IdealGasMix<1> equation_;
   void
@@ -233,8 +235,12 @@ int main(int argc, char** argv) {
 
   fub::amrex::ScopeGuard _(argc, argv);
   fub::Burke2012 mechanism{};
-  auto plenum = MakePlenumSolver(64, mechanism);
-  auto tube = MakeTubeSolver(240, mechanism);
+  auto plenum = MakePlenumSolver(96, mechanism);
+  auto tube = MakeTubeSolver(400, mechanism);
+
+  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() | _MM_MASK_DIV_ZERO |
+                         _MM_MASK_OVERFLOW | _MM_MASK_UNDERFLOW |
+                         _MM_MASK_INVALID);
 
   fub::amrex::CoupledBoundaryFunction coupled_boundary(
       plenum.GetPatchHierarchy(), tube.GetPatchHierarchy(), 3,

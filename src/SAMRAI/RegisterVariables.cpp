@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/grid/SAMRAI/RegisterVariables.hpp"
+#include "fub/SAMRAI/RegisterVariables.hpp"
 
 namespace fub {
 namespace samrai {

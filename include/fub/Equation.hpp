@@ -30,6 +30,9 @@
 
 namespace fub {
 
+template <typename Eq, typename... Args>
+using FluxT = decltype(std::declval<Eq>().Flux(std::declval<Args>()...));
+
 template <typename Eq>
 using ScalarFluxT =
     decltype(std::declval<const Eq&>().Flux(std::declval<Conservative<Eq>&>(),
@@ -107,6 +110,52 @@ View<State> Subview(const BasicView<State, Layout, Rank>& state,
       [&](auto& dest, const auto& src) { dest = subview(src, box); }, strided,
       state);
   return strided;
+}
+
+template <typename Eq, typename Equation = std::decay_t<Eq>>
+void Flux(Eq&& equation, Conservative<Equation>& flux,
+          const Complete<Equation>& state, Direction dir,
+          [[maybe_unused]] double x = 0.0) {
+  if constexpr (is_detected<FluxT, Eq, Conservative<Equation>&,
+                            const Complete<Equation>&, Direction,
+                            double>::value) {
+    equation.Flux(flux, state, dir, x);
+  } else if constexpr (is_detected_exact<Conservative<Equation>, FluxT, Eq,
+                                         const Complete<Equation>&, Direction,
+                                         double>::value) {
+    flux = equation.Flux(state, dir, x);
+  } else if constexpr (is_detected_exact<Conservative<Equation>, FluxT, Eq,
+                                         const Complete<Equation>&,
+                                         Direction>::value) {
+    flux = equation.Flux(state, dir);
+  } else {
+    static_assert(is_detected<FluxT, Eq, Conservative<Equation>&,
+                              const Complete<Equation>&, Direction>::value);
+    equation.Flux(flux, state, dir);
+  }
+}
+
+template <typename Eq, typename Equation = std::decay_t<Eq>>
+void Flux(Eq&& equation, ConservativeArray<Equation>& flux,
+          const CompleteArray<Equation>& state, Direction dir,
+          [[maybe_unused]] double x = 0.0) {
+  if constexpr (is_detected<FluxT, Eq, ConservativeArray<Equation>&,
+                            const CompleteArray<Equation>&, Direction,
+                            double>::value) {
+    equation.Flux(flux, state, dir, x);
+  } else if constexpr (is_detected_exact<ConservativeArray<Equation>, FluxT, Eq,
+                                         const CompleteArray<Equation>&,
+                                         Direction, double>::value) {
+    flux = equation.Flux(state, dir, x);
+  } else if constexpr (is_detected_exact<ConservativeArray<Equation>, FluxT, Eq,
+                                         const CompleteArray<Equation>&,
+                                         Direction>::value) {
+    flux = equation.Flux(state, dir);
+  } else if constexpr (is_detected<FluxT, Eq, ConservativeArray<Equation>&,
+                                   const CompleteArray<Equation>&,
+                                   Direction>::value) {
+    equation.Flux(flux, state, dir);
+  }
 }
 
 } // namespace fub

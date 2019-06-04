@@ -28,6 +28,10 @@
 #include "fub/StateArray.hpp"
 #include "fub/ext/Eigen.hpp"
 
+#include "fub/flux_method/FluxMethod.hpp"
+#include "fub/flux_method/GodunovMethod.hpp"
+#include "fub/flux_method/MusclHancockMethod.hpp"
+
 #include <array>
 
 namespace fub {
@@ -46,9 +50,8 @@ struct Advection2d {
   using Complete = ::fub::Complete<Advection2d>;
   using Conservative = ::fub::Conservative<Advection2d>;
 
-  template <int N> using CompleteArray = ::fub::CompleteArray<Advection2d, N>;
-  template <int N>
-  using ConservativeArray = ::fub::ConservativeArray<Advection2d, N>;
+  using CompleteArray = ::fub::CompleteArray<Advection2d>;
+  using ConservativeArray = ::fub::ConservativeArray<Advection2d>;
 
   /// Constructs an equation object with velocity `v`.
   Advection2d(const std::array<double, 2>& v) noexcept : velocity{v} {}
@@ -70,12 +73,8 @@ struct Advection2d {
   /// \param[out] flux The conservative state which will store the results.
   /// \param[in] state The input state.
   /// \param[in] dir   The split direction of this flux.
-  template <int N>
-  void Flux(ConservativeArray<N>& flux, const CompleteArray<N>& state,
-            Direction dir) const noexcept {
-    const int d = static_cast<int>(dir);
-    flux.mass = velocity[d] * state.mass;
-  }
+  void Flux(ConservativeArray& flux, const CompleteArray& state,
+            Direction dir) const noexcept;
 
   /// This member variable stores the constant transport velocity.
   std::array<double, 2> velocity;
@@ -84,7 +83,7 @@ struct Advection2d {
 template <> class ExactRiemannSolver<Advection2d> {
 public:
   using Complete = typename Advection2d::Complete;
-  template <int N> using CompleteArray = typename Advection2d::CompleteArray<N>;
+  using CompleteArray = typename Advection2d::CompleteArray;
 
   ExactRiemannSolver(const Advection2d& equation) : equation_{equation} {}
 
@@ -93,33 +92,23 @@ public:
                            const Complete& right, Direction dir);
 
   /// Returns either left or right, depending on the upwind velocity.
-  template <int N>
-  void SolveRiemannProblem(CompleteArray<N>& state,
-                           const CompleteArray<N>& left,
-                           const CompleteArray<N>& right, Direction dir) {
-    if (equation_.velocity[static_cast<std::size_t>(dir)] > 0) {
-      state = left;
-    } else {
-      state = right;
-    }
-  }
+  void SolveRiemannProblem(CompleteArray& state, const CompleteArray& left,
+                           const CompleteArray& right, Direction dir);
 
   /// Returns the upwind velocity in the specified direction.
   std::array<double, 1> ComputeSignals(const Complete&, const Complete&,
                                        Direction dir);
 
   /// Returns the upwind velocity in the specified direction.
-  template <int N>
-  std::array<Array<double, 1, N>, 1> ComputeSignals(const CompleteArray<N>&,
-                                                    const CompleteArray<N>&,
-                                                    Direction dir) {
-    return {Array<double, 1, N>::Constant(
-        equation_.velocity[static_cast<std::size_t>(dir)])};
-  }
+  std::array<Array1d, 1> ComputeSignals(const CompleteArray&,
+                                        const CompleteArray&, Direction dir);
 
 private:
   Advection2d equation_;
 };
+
+extern template class FluxMethod<Godunov<Advection2d>>;
+extern template class FluxMethod<MusclHancock<Advection2d>>;
 
 } // namespace fub
 

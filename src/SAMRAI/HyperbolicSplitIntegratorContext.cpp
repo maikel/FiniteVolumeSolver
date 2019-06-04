@@ -18,9 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/grid/SAMRAI/HyperbolicSplitIntegratorContext.hpp"
-
-#include "fub/grid/SAMRAI/CartesianPatchHierarchy.hpp"
+#include "fub/SAMRAI/HyperbolicSplitIntegratorContext.hpp"
+#include "fub/SAMRAI/CartesianPatchHierarchy.hpp"
 
 #include <SAMRAI/pdat/CellVariable.h>
 #include <SAMRAI/pdat/OutersideVariable.h>
@@ -38,24 +37,11 @@ namespace samrai {
 namespace {
 template <typename PatchData>
 auto GetPatchData(const SAMRAI::hier::Patch& patch, span<const int> ids) {
-  static constexpr int MaxVariables =
-      HyperbolicSplitIntegratorContext::MaxVariables;
-  boost::container::static_vector<PatchData, MaxVariables> datas;
+  std::vector<PatchData> datas{};
+  datas.reserve(static_cast<std::size_t>(ids.size()));
   for (int id : ids) {
     FUB_ASSERT(dynamic_cast<PatchData>(patch.getPatchData(id).get()));
     datas.push_back(static_cast<PatchData>(patch.getPatchData(id).get()));
-  }
-  return datas;
-}
-
-template <typename PatchData>
-auto GetPatchData(const SAMRAI::hier::Patch& patch, span<const int> ids,
-                  span<const int> subset) {
-  static constexpr int MaxVariables =
-      HyperbolicSplitIntegratorContext::MaxVariables;
-  boost::container::static_vector<PatchData, MaxVariables> datas;
-  for (int pos : subset) {
-    datas.push_back(static_cast<PatchData>(patch.getPatchData(ids[pos]).get()));
   }
   return datas;
 }
@@ -168,14 +154,16 @@ RegisterInternalDataIds(const DataDescription& desc,
     }
   }
   // Register outerside flux data ids for coarse fine interfaces
-  data_ids.outerside_fluxes.reserve(desc.conservative.size());
-  for (int cons : desc.conservative) {
-    data_ids.outerside_fluxes.push_back(RegisterOuterFlux(desc.data_ids[cons]));
+  span<const int> conservative =
+      span<const int>(desc.data_ids).subspan(0, desc.n_cons_variables);
+  data_ids.outerside_fluxes.reserve(conservative.size());
+  for (int cons : conservative) {
+    data_ids.outerside_fluxes.push_back(RegisterOuterFlux(cons));
   }
   // Register flux data ids
   for (int dir = 0; dir < dim.getValue(); ++dir) {
-    data_ids.fluxes[dir].reserve(desc.conservative.size());
-    for (int cons : desc.conservative) {
+    data_ids.fluxes[dir].reserve(conservative.size());
+    for (int cons : conservative) {
       SAMRAI::hier::IntVector unit = UnitVector(dim, dir);
       unit *= stencil_width[dir];
       data_ids.fluxes[dir].push_back(
@@ -546,7 +534,7 @@ void HyperbolicSplitIntegratorContext::CoarsenConservatively(int fine, int,
 
 const std::shared_ptr<SAMRAI::hier::PatchHierarchy>&
 HyperbolicSplitIntegratorContext::GetPatchHierarchy() const noexcept {
-  return gridding_.hierarchy;
+  return gridding_->hierarchy;
 }
 
 double HyperbolicSplitIntegratorContext::GetDx(PatchHandle patch,
@@ -575,8 +563,9 @@ void HyperbolicSplitIntegratorContext::PreAdvanceLevel(int level_num,
   const int d = int(dir);
   if (subcycle == 0 && level_num > 0 &&
       regrid_time_points_[d][level_num] != time_points_[d][level_num]) {
-    gridding_.RegridAllFinerLevels(level_num - 1, GetCycles(level_num - 1, dir),
-                                   GetTimePoint(level_num - 1, dir));
+    gridding_->RegridAllFinerLevels(level_num - 1,
+                                    GetCycles(level_num - 1, dir),
+                                    GetTimePoint(level_num - 1, dir));
     for (std::size_t lvl = level_num; lvl < regrid_time_points_.size(); ++lvl) {
       regrid_time_points_[d][level_num] = time_points_[d][level_num];
     }

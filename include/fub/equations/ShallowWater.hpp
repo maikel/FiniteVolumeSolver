@@ -25,7 +25,11 @@
 #include "fub/ExactRiemannSolver.hpp"
 #include "fub/State.hpp"
 #include "fub/ext/Eigen.hpp"
+
+#include "fub/flux_method/FluxMethod.hpp"
+#include "fub/flux_method/GodunovMethod.hpp"
 #include "fub/flux_method/HllMethod.hpp"
+#include "fub/flux_method/MusclHancockMethod.hpp"
 
 #include <array>
 
@@ -67,6 +71,7 @@ struct ShallowWater {
 template <> class ExactRiemannSolver<ShallowWater> {
 public:
   using Complete = typename ShallowWater::Complete;
+  using CompleteArray = typename ShallowWater::CompleteArray;
 
   ExactRiemannSolver(const ShallowWater& equation) : equation_{equation} {}
 
@@ -74,9 +79,17 @@ public:
   void SolveRiemannProblem(Complete& state, const Complete& left,
                            const Complete& right, Direction dir);
 
+  /// Returns either left or right, depending on the upwind velocity.
+  void SolveRiemannProblem(CompleteArray& state, const CompleteArray& left,
+                           const CompleteArray& right, Direction dir);
+
   /// Returns the upwind velocity in the specified direction.
   std::array<double, 2> ComputeSignals(const Complete&, const Complete&,
                                        Direction dir);
+
+  /// Returns the upwind velocity in the specified direction.
+  std::array<Array1d, 2> ComputeSignals(const CompleteArray&,
+                                        const CompleteArray&, Direction dir);
 
   Complete ComputeMiddleState(const Complete& left, const Complete& right,
                               Direction dir);
@@ -100,6 +113,13 @@ struct ShallowWaterSignalVelocities {
 
 extern template class FluxMethod<
     Hll<ShallowWater, ShallowWaterSignalVelocities>>;
+
+extern template class FluxMethod<Godunov<ShallowWater>>;
+
+extern template class FluxMethod<MusclHancock<ShallowWater>>;
+
+extern template class FluxMethod<MusclHancock<
+    ShallowWater, HllMethod<ShallowWater, ShallowWaterSignalVelocities>>>;
 
 } // namespace fub
 

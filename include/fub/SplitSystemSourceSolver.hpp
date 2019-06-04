@@ -28,10 +28,6 @@
 
 namespace fub {
 
-template <typename LevelIntegrator>
-using IntegratorContext = std::decay_t<decltype(
-    std::declval<LevelIntegrator>().GetIntegratorContext())>;
-
 template <typename Context, typename... Args>
 using PreAdvanceHierarchy = decltype(
     std::declval<Context>().PreAdvanceHierarchy(std::declval<Args>()...));

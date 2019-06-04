@@ -23,10 +23,10 @@
 
 #include "fub/CartesianCoordinates.hpp"
 #include "fub/Duration.hpp"
+#include "fub/SAMRAI/GriddingAlgorithm.hpp"
+#include "fub/SAMRAI/RegisterVariables.hpp"
 #include "fub/core/function_ref.hpp"
 #include "fub/core/span.hpp"
-#include "fub/grid/SAMRAI/GriddingAlgorithm.hpp"
-#include "fub/grid/SAMRAI/RegisterVariables.hpp"
 
 #include <SAMRAI/geom/CartesianGridGeometry.h>
 #include <SAMRAI/hier/CoarseFineBoundary.h>
@@ -106,10 +106,10 @@ public:
   std::vector<SAMRAI::pdat::CellData<double>*> GetData(PatchHandle patch);
 
   std::vector<SAMRAI::pdat::CellData<double>*> GetScratch(PatchHandle patch,
-                                                     Direction dir);
+                                                          Direction dir);
 
   std::vector<SAMRAI::pdat::SideData<double>*> GetFluxes(PatchHandle patch,
-                                                    Direction dir);
+                                                         Direction dir);
 
   std::vector<SAMRAI::pdat::OutersideData<double>*>
   GetOutersideFluxes(PatchHandle patch) const;
@@ -134,9 +134,6 @@ public:
 
   void ClearOutersideFluxes(int level);
 
-private:
-  std::shared_ptr<GriddingAlgorithm> gridding_;
-  DataDescription description_;
   struct InternalDataIds {
     std::vector<int> intermediate;
     /// Scratch space for each direction with ghost cells
@@ -146,6 +143,10 @@ private:
     /// OutersideData for each direction
     std::vector<int> outerside_fluxes;
   };
+
+private:
+  std::shared_ptr<GriddingAlgorithm> gridding_;
+  DataDescription description_;
   InternalDataIds data_ids_;
   std::array<std::vector<Duration>, 3> time_points_{};
   std::array<std::vector<Duration>, 3> regrid_time_points_{};

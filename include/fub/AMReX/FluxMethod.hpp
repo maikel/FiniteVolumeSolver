@@ -27,61 +27,135 @@
 #include "fub/Duration.hpp"
 #include "fub/State.hpp"
 
-namespace fub {
-namespace amrex {
+#include <AMReX_Geometry.H>
 
-template <typename Base> struct FluxMethod : public Base {
-  using Equation = typename Base::Equation;
-  using Conservative = ::fub::Conservative<Equation>;
-  using Complete = ::fub::Complete<Equation>;
+namespace fub::amrex {
 
-  static const int Rank = Equation::Rank();
+struct FluxMethodBase {
+  virtual ~FluxMethodBase() = default;
 
-  FluxMethod(const Base& base) : Base(base) {}
+  virtual std::unique_ptr<FluxMethodBase> Clone() const = 0;
 
-  template <typename Context>
-  double ComputeStableDt(Context& context, PatchHandle patch, Direction dir) {
-    const Equation& equation = Base::GetEquation();
-    const double dx = context.GetDx(patch, dir);
-    BasicView<const Complete> scratch = AsConst(MakeView<BasicView<Complete>>(
-        context.GetScratch(patch, dir), equation));
-    static constexpr int Rank = Equation::Rank();
-    const int gcw = context.GetGhostCellWidth(patch, dir);
-    const IndexBox<Rank> tilebox =
-        Grow(AsIndexBox<Rank>(patch.iterator->tilebox()), dir, {gcw, gcw});
-    View<const Complete> subscratch = Subview(scratch, tilebox);
-    return Base::ComputeStableDt(subscratch, dx, dir);
-  }
+  virtual double ComputeStableDt(const ::amrex::FArrayBox& states,
+                                 const ::amrex::Box& box,
+                                 const ::amrex::Geometry& geom,
+                                 Direction dir) = 0;
 
-  template <typename Context>
-  void ComputeNumericFluxes(Context& context, PatchHandle patch, Direction dir,
-                            Duration dt) {
-    const int d = static_cast<int>(dir);
-    const int gcw = context.GetGhostCellWidth(patch, dir);
+  virtual void ComputeNumericFluxes(::amrex::FArrayBox& fluxes,
+                                    const ::amrex::Box& box,
+                                    const ::amrex::FArrayBox& states,
+                                    const ::amrex::Geometry& geom, Duration dt,
+                                    Direction dir) = 0;
 
-    const IndexBox<Rank> tilebox_cells =
-        Grow(AsIndexBox<Rank>(patch.iterator->tilebox()), dir, {gcw, gcw});
-
-    const IndexBox<Rank> tilebox_faces =
-        Grow(AsIndexBox<Rank>(patch.iterator->nodaltilebox(d)), dir, {1, 1});
-
-    const double dx = context.GetDx(patch, dir);
-
-    View<const Complete> scratch =
-        Subview(AsConst(MakeView<BasicView<Complete>>(
-                    context.GetScratch(patch, dir), Base::GetEquation())),
-                tilebox_cells);
-
-    View<Conservative> fluxes =
-        Subview(MakeView<BasicView<Conservative>>(context.GetFluxes(patch, dir),
-                                                  Base::GetEquation()),
-                tilebox_faces);
-
-    Base::ComputeNumericFluxes(fluxes, scratch, dir, dt, dx);
-  }
+  virtual int GetStencilWidth() const = 0;
 };
 
-} // namespace amrex
-} // namespace fub
+template <typename FM> struct FluxMethodWrapper : FluxMethodBase {
+  FluxMethodWrapper() = default;
+
+  FluxMethodWrapper(const FM& fm);
+  FluxMethodWrapper(FM&& fm) noexcept;
+
+  std::unique_ptr<FluxMethodBase> Clone() const override;
+
+  double ComputeStableDt(const ::amrex::FArrayBox& fab, const ::amrex::Box& box,
+                         const ::amrex::Geometry& geom, Direction dir) override;
+
+  void ComputeNumericFluxes(::amrex::FArrayBox& fluxes, const ::amrex::Box& box,
+                            const ::amrex::FArrayBox& states,
+                            const ::amrex::Geometry& geom, Duration dt,
+                            Direction dir) override;
+
+  int GetStencilWidth() const override;
+
+  FM flux_method_{};
+};
+
+class FluxMethod {
+public:
+  FluxMethod() = delete;
+
+  template <typename FM, typename = std::enable_if_t<
+                             !std::is_same_v<FluxMethod, std::decay_t<FM>>>>
+  FluxMethod(FM&& flux_method)
+      : flux_method_{std::make_unique<FluxMethodWrapper<std::decay_t<FM>>>(
+            std::forward<FM>(flux_method))} {}
+
+  FluxMethod(const FluxMethod& other);
+  FluxMethod& operator=(const FluxMethod&);
+
+  FluxMethod(FluxMethod&&) = default;
+  FluxMethod& operator=(FluxMethod&&) = default;
+
+  double ComputeStableDt(const ::amrex::FArrayBox& states,
+                         const ::amrex::Box& box, const ::amrex::Geometry& geom,
+                         Direction dir);
+
+  void ComputeNumericFluxes(::amrex::FArrayBox& fluxes, const ::amrex::Box& box,
+                            const ::amrex::FArrayBox& states,
+                            const ::amrex::Geometry& geom, Duration dt,
+                            Direction dir);
+
+  int GetStencilWidth() const;
+
+private:
+  std::unique_ptr<FluxMethodBase> flux_method_;
+};
+
+template <typename FM>
+FluxMethodWrapper<FM>::FluxMethodWrapper(const FM& fm) : flux_method_{fm} {}
+
+template <typename FM>
+FluxMethodWrapper<FM>::FluxMethodWrapper(FM&& fm) noexcept
+    : flux_method_{std::move(fm)} {}
+
+template <typename FM>
+std::unique_ptr<FluxMethodBase> FluxMethodWrapper<FM>::Clone() const {
+  return std::make_unique<FluxMethodWrapper<FM>>(flux_method_);
+}
+
+template <typename FM>
+double FluxMethodWrapper<FM>::ComputeStableDt(const ::amrex::FArrayBox& fab,
+                                              const ::amrex::Box& box,
+                                              const ::amrex::Geometry& geom,
+                                              Direction dir) {
+  using Eq = std::decay_t<decltype(flux_method_.GetEquation())>;
+  static constexpr int Rank = Eq::Rank();
+  Eq& equation = flux_method_.GetEquation();
+  const double dx = geom.CellSize(int(dir));
+  const IndexBox<Rank> cells = AsIndexBox<Rank>(box);
+  View<const Complete<Eq>> states =
+      MakeView<const Complete<Eq>>(fab, equation, cells);
+  return flux_method_.ComputeStableDt(states, dx, dir);
+}
+
+template <typename FM>
+void FluxMethodWrapper<FM>::ComputeNumericFluxes(
+    ::amrex::FArrayBox& fluxes, const ::amrex::Box& box,
+    const ::amrex::FArrayBox& states, const ::amrex::Geometry& geom,
+    Duration dt, Direction dir) {
+  using Eq = std::decay_t<decltype(flux_method_.GetEquation())>;
+  static const int Rank = Eq::Rank();
+  Eq& equation = flux_method_.GetEquation();
+  const double dx = geom.CellSize(int(dir));
+
+  const int gcw = flux_method_.GetStencilWidth() + 1;
+
+  const IndexBox<Rank> cells = Grow(AsIndexBox<Rank>(box), dir, {gcw, gcw});
+  View<const Complete<Eq>> state =
+      MakeView<const Complete<Eq>>(states, equation, cells);
+
+  const IndexBox<Rank> faces = Grow(
+      AsIndexBox<Rank>(::amrex::surroundingNodes(box, int(dir))), dir, {1, 1});
+  View<Conservative<Eq>> flux =
+      MakeView<Conservative<Eq>>(fluxes, equation, faces);
+
+  flux_method_.ComputeNumericFluxes(flux, state, dt, dx, dir);
+}
+
+template <typename FM> int FluxMethodWrapper<FM>::GetStencilWidth() const {
+  return flux_method_.GetStencilWidth();
+}
+} // namespace fub::amrex
 
 #endif

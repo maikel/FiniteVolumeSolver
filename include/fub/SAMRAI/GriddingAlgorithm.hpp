@@ -21,11 +21,11 @@
 #ifndef FUB_SAMRAI_GRIDDING_ALGORITHM_HPP
 #define FUB_SAMRAI_GRIDDING_ALGORITHM_HPP
 
-#include "fub/grid/SAMRAI/CartesianPatchHierarchy.hpp"
-#include "fub/grid/SAMRAI/InitialData.hpp"
-#include "fub/grid/SAMRAI/RegisterVariables.hpp"
-#include "fub/grid/SAMRAI/Tagging.hpp"
-#include "fub/grid/SAMRAI/ViewPatch.hpp"
+#include "fub/SAMRAI/CartesianPatchHierarchy.hpp"
+#include "fub/SAMRAI/InitialData.hpp"
+#include "fub/SAMRAI/RegisterVariables.hpp"
+#include "fub/SAMRAI/Tagging.hpp"
+#include "fub/SAMRAI/ViewPatch.hpp"
 
 #include "fub/Duration.hpp"
 
@@ -38,6 +38,11 @@ struct GriddingAlgorithm {
   GriddingAlgorithm(const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hier,
                     DataDescription description, InitialData initial_data,
                     Tagging tagging, std::vector<int> tag_buffer);
+
+  GriddingAlgorithm(const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hier,
+                    DataDescription description, InitialData initial_data,
+                    Tagging tagging, BoundaryCondition boundary,
+                    std::vector<int> tag_buffer);
 
   void RegridAllFinerLevels(int level_num, int cycle, Duration time_point);
 

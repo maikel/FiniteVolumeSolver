@@ -34,7 +34,7 @@ namespace samrai {
 
 struct DataDescription {
   std::vector<int> data_ids;
-  std::vector<int> conservative;
+  int n_cons_variables;
 };
 
 std::string MakeVariableName(const std::string& prefix,
@@ -64,16 +64,16 @@ void RegisterVariables(std::vector<int>& data_ids, const Equation& equation,
                        const SAMRAI::hier::IntVector& ghost_layer_width,
                        const std::string& prefix,
                        const std::string& context_name) {
-  constexpr auto names = State::Names();
-  const auto sizes = equation.Shape(complete);
+  constexpr auto names = StateTraits<State>::names;
+  const auto sizes = Depths<State>(equation);
   SAMRAI::hier::VariableDatabase* vardb =
       SAMRAI::hier::VariableDatabase::getDatabase();
   std::shared_ptr<SAMRAI::hier::VariableContext> context =
       vardb->getContext(context_name);
-  data_ids.reserve(boost::hana::length(names));
-  boost::hana::for_each(boost::hana::zip(names, sizes), [&](auto xs) {
-    const int depth = at_c<1>(xs);
-    const char* name = at_c<0>(xs).c_str();
+  data_ids.reserve(std::tuple_size_v<std::decay_t<decltype(names)>>);
+  boost::mp11::tuple_for_each(Zip(names, sizes), [&](auto xs) {
+    const int depth = std::get<1>(xs);
+    const char* name = std::get<0>(xs);
     const std::string variable_name = MakeVariableName(prefix, name);
     auto variable = GetVariable<VariableType>(dim, variable_name, depth);
     const int data_id =
@@ -99,6 +99,7 @@ DataDescription RegisterVariables(const Equation& equation,
                                   std::string prefix = std::string()) {
   using Complete = typename Equation::Complete;
   using Conservative = typename Equation::Conservative;
+  using ConsTraits = typename Conservative::Traits;
 
   DataDescription data_ids;
 
@@ -108,15 +109,8 @@ DataDescription RegisterVariables(const Equation& equation,
   RegisterVariables<Complete, SAMRAI::pdat::CellVariable<double>>(
       data_ids.data_ids, equation, dim, zero, prefix, "current");
 
-  static constexpr auto cons_names = Conservative::Names();
-  static constexpr auto complete_names = Complete::Names();
-
-  data_ids.conservative.reserve(boost::hana::length(cons_names));
-  boost::hana::for_each(cons_names, [&data_ids](auto name) {
-    constexpr auto index =
-        *boost::hana::index_if(complete_names, boost::hana::equal.to(name));
-    data_ids.conservative.push_back(index);
-  });
+  data_ids.n_cons_variables =
+      std::tuple_size_v<std::decay_t<decltype(ConsTraits::names)>>;
 
   return data_ids;
 }

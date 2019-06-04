@@ -2,6 +2,23 @@ cmake_minimum_required(VERSION 3.13)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 project(FiniteVolumeSolver C CXX Fortran)
 
+# Set a default build type if none was specified
+set(default_build_type "Release")
+if(EXISTS "${CMAKE_SOURCE_DIR}/.git")
+  set(default_build_type "Debug")
+endif()
+ 
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+  message(STATUS "Setting build type to '${default_build_type}' as none was specified.")
+  set(CMAKE_BUILD_TYPE "${default_build_type}" CACHE
+      STRING "Choose the type of build." FORCE)
+  # Set the possible values of build type for cmake-gui
+  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
+    "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+else()
+  message(STATUS "Setting build type to '${default_build_type}'.")
+endif()
+
 # Detect if we use conan to build this project and its dependencies.
 # If yes, we include the neccessary build information, i.e. include paths and
 # linker options.
@@ -11,7 +28,7 @@ if (EXISTS ${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 endif()
 
 # Try to find SAMRAI (optional)
-find_package(Boost REQUIRED COMPONENTS filesystem)
+find_package(Boost REQUIRED COMPONENTS filesystem container)
 
 find_package(SAMRAI QUIET)
 if (SAMRAI_FOUND)
@@ -111,7 +128,10 @@ install(
 ################################################################################
 # [FiniteVolumeSolver.OdeSolver]
 
-add_library(FiniteVolumeSolver.OdeSolver 
+add_library(FiniteVolumeSolver.OdeSolver
+  include/fub/ode_solver/OdeSolver.hpp
+  include/fub/ode_solver/RadauSolver.hpp 
+  include/fub/ode_solver/OdeSolverFactory.hpp
   src/ode_solver/RadauSolver.cpp
   src/ode_solver/OdeSolverFactory.cpp)
 
@@ -140,24 +160,69 @@ install(
 find_package(fmt REQUIRED)
 
 add_library(FiniteVolumeSolver.Solver
+  include/fub/boundary_condition/TransmissiveBoundary.hpp
+  include/fub/equations/ideal_gas_mix/mechanism/Burke2012.hpp
+  include/fub/equations/ideal_gas_mix/FlameMasterReactor.hpp
+  include/fub/equations/ideal_gas_mix/KineticSourceTerm.hpp
+  include/fub/equations/Advection.hpp
+  include/fub/equations/Burgers.hpp
+  include/fub/equations/IdealGasMix.hpp
+  include/fub/equations/PerfectGas.hpp
+  include/fub/equations/ShallowWater.hpp
+  include/fub/ext/Eigen.hpp
+  include/fub/ext/outcome.hpp
+  include/fub/flux_method/FluxMethod.hpp
+  include/fub/flux_method/GodunovMethod.hpp
+  include/fub/flux_method/HllMethod.hpp
+  include/fub/flux_method/MusclHancockMethod.hpp
+  include/fub/initial_data/Constant.hpp
+  include/fub/initial_data/RiemannProblem.hpp
+  include/fub/initial_data/ShockMachnumber.hpp
+  include/fub/Solver.hpp
+  include/fub/CompleteFromCons.hpp
+  include/fub/Direction.hpp
+  include/fub/Duration.hpp
+  include/fub/EinfeldtSignalVelocities.hpp
+  include/fub/Execution.hpp
+  include/fub/ForEach.hpp
+  include/fub/HyperbolicSplitLevelIntegrator.hpp
+  include/fub/HyperbolicSplitPatchIntegrator.hpp
+  include/fub/HyperbolicSplitSystemSolver.hpp
+  include/fub/NewtonIteration.hpp
+  include/fub/PatchDataView.hpp
+  include/fub/RunSimulation.hpp
+  include/fub/State.hpp
+  include/fub/StateArray.hpp
+  include/fub/StateRow.hpp
+  include/fub/TimeStepError.hpp
   src/equations/Advection.cpp
+  src/equations/advection/GodunovMethod.cpp
+  src/equations/advection/MusclHancockMethod.cpp
   src/equations/Burgers.cpp
+  src/equations/burgers/GodunovMethod.cpp
+  src/equations/burgers/MusclHancockMethod.cpp
   src/equations/ShallowWater.cpp
+  src/equations/shallow_water/GodunovMethod.cpp
+  src/equations/shallow_water/HllMethod.cpp
+  src/equations/shallow_water/MusclHancockMethod.cpp
   src/equations/PerfectGas.cpp
   src/equations/IdealGasMix.cpp
+  src/equations/ideal_gas_mix/HllMethod.cpp
+  src/equations/ideal_gas_mix/MusclHancockMethod.cpp
   src/equations/ideal_gas_mix/FlameMasterReactor.cpp
   src/equations/ideal_gas_mix/mechanism/Burke2012.cpp
   src/CartesianCoordinates.cpp
   src/split_method/GodunovSplitting.cpp
   src/split_method/StrangSplitting.cpp
   src/geometry/Halfspace.cpp
+  src/geometry/Polygon.cpp
   src/RunSimulation.cpp)
 target_link_libraries(FiniteVolumeSolver.Solver
   PUBLIC
     FiniteVolumeSolver.Core
     FiniteVolumeSolver.OdeSolver
     fmt::fmt-header-only
-    Boost::boost
+    Boost::container
     Eigen3::Eigen)
 target_compile_options(FiniteVolumeSolver.Solver 
   PRIVATE 
@@ -177,12 +242,31 @@ install(
 
 if (AMReX_FOUND AND TARGET AMReX::amrex)
   add_library(FiniteVolumeSolver.AMReX
+    include/fub/AMReX/boundary_condition/BoundarySet.hpp
+    include/fub/AMReX/boundary_condition/TransmissiveBoundary.hpp
+    include/fub/AMReX/GriddingAlgorithm.hpp
+    include/fub/AMReX/NumericalMethod.hpp
+    include/fub/AMReX/PatchHierarchy.hpp
+    include/fub/AMReX/Reconstruction.hpp
+    include/fub/AMReX/RunSimulation.hpp
+    include/fub/AMReX/BoundaryCondition.hpp
+    include/fub/AMReX/Tagging.hpp
+    include/fub/AMReX/HyperbolicSplitTimeIntegrator.hpp
+    include/fub/AMReX/HyperbolicSplitIntegratorContext.hpp
+    include/fub/AMReX/InitialData.hpp
+    include/fub/AMReX/FluxMethod.hpp
+    include/fub/AMReX/ScopeGuard.hpp
+    include/fub/AMReX/ViewFArrayBox.hpp
+    src/AMReX/boundary_condition/BoundarySet.cpp
+    src/AMReX/boundary_condition/TransmissiveBoundary.cpp
+    src/AMReX/FluxMethod.cpp
     src/AMReX/ScopeGuard.cpp
     src/AMReX/CartesianGridGeometry.cpp
     src/AMReX/ViewFArrayBox.cpp
     src/AMReX/PatchHierarchy.cpp
     src/AMReX/GriddingAlgorithm.cpp
     src/AMReX/BoundaryCondition.cpp
+    src/AMReX/HyperbolicSplitTimeIntegrator.cpp
     src/AMReX/HyperbolicSplitIntegratorContext.cpp)
   target_include_directories(FiniteVolumeSolver.AMReX
     PUBLIC
@@ -209,6 +293,17 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     add_library(FiniteVolumeSolver.AMReX.EB
         src/CutCellData.cpp
         src/geometry/ExpandTube.cpp
+        include/fub/AMReX/cutcell/BoundaryCondition.hpp
+        include/fub/AMReX/cutcell/FluxMethod.hpp
+        include/fub/AMReX/cutcell/GriddingAlgorithm.hpp
+        include/fub/AMReX/cutcell/HyperbolicSplitIntegratorContext.hpp
+        include/fub/AMReX/cutcell/HyperbolicSplitPatchIntegrator.hpp
+        include/fub/AMReX/cutcell/IndexSpace.hpp
+        include/fub/AMReX/cutcell/InitialData.hpp
+        include/fub/AMReX/cutcell/PatchHierarchy.hpp
+        include/fub/AMReX/cutcell/Reconstruction.hpp
+        include/fub/AMReX/cutcell/IntegratorContext.hpp
+        include/fub/AMReX/cutcell/Tagging.hpp
         src/AMReX/cutcell/BoundaryCondition.cpp
         src/AMReX/cutcell/HyperbolicSplitIntegratorContext.cpp
         src/AMReX/cutcell/PatchHierarchy.cpp

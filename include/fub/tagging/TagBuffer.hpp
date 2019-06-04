@@ -26,8 +26,6 @@
 #include "fub/State.hpp"
 #include "fub/core/mdspan.hpp"
 
-#include <boost/hana/tuple.hpp>
-
 #include <utility>
 
 namespace fub {

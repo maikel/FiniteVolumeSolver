@@ -23,9 +23,9 @@
 
 #include "fub/CartesianCoordinates.hpp"
 #include "fub/Equation.hpp"
+#include "fub/SAMRAI/CartesianPatchHierarchy.hpp"
+#include "fub/SAMRAI/ViewPatch.hpp"
 #include "fub/core/mdspan.hpp"
-#include "fub/grid/SAMRAI/CartesianPatchHierarchy.hpp"
-#include "fub/grid/SAMRAI/ViewPatch.hpp"
 
 namespace fub {
 namespace samrai {

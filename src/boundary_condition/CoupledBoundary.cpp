@@ -219,11 +219,11 @@ void EmbedState(Complete<IdealGasMix<AMREX_SPACEDIM>>& dest,
   const int n_comps = hierarchy.GetDataDescription().n_cons_components;
   ::amrex::FArrayBox local_fab(mirror, n_comps);
   local_fab.setVal(0.0);
-  hierarchy.ForEachPatch(level, [&](PatchHandle patch) {
-    const ::amrex::FArrayBox& data = datas[*patch.iterator];
-    const ::amrex::Box subbox = patch.iterator->tilebox() & mirror;
+  for (::amrex::MFIter mfi(datas); mfi.isValid(); ++mfi) {
+    const ::amrex::FArrayBox& data = datas[mfi];
+    const ::amrex::Box subbox = mfi.tilebox() & mirror;
     local_fab.plus(data, subbox, 0, 0, n_comps);
-  });
+  }
   ::amrex::FArrayBox global_fab(local_fab.box(), local_fab.nComp());
   ::MPI_Allreduce(local_fab.dataPtr(), global_fab.dataPtr(),
                   int(local_fab.size()), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);

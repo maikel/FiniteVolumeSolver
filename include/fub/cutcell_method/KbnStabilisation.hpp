@@ -224,40 +224,53 @@ public:
                          double dx) {
     double min_dt = std::numeric_limits<double>::infinity();
     auto&& flags = cutcell_data.flags;
-    ForEachIndex(Shrink(Box<0>(states), dir, {0, StencilSize}),
-                 [&](const auto... is) {
-                   using Index = std::array<std::ptrdiff_t, sizeof...(is)>;
-                   const Index cell0{is...};
-                   std::array<int, StencilSize> is_covered{};
-                   for (std::size_t i = 0; i < stencil_.size(); ++i) {
-                     const Index cell = Shift(cell0, dir, static_cast<int>(i));
-                     Load(stencil_[i], states, cell);
-                     if (flags(cell).isRegular()) {
-                       is_covered[i] = 0;
-                     } else if (flags(cell).isSingleValued()) {
-                       is_covered[i] = 1;
-                     } else {
-                       is_covered[i] = 2;
-                     }
-                   }
-                   const std::size_t iL = StencilWidth - 1;
-                   const std::size_t iR = StencilWidth;
-                   if (is_covered[iL] == 0 || is_covered[iR] == 0) {
-                     ReflectCoveredStates(is_covered, cell0, cutcell_data, dir);
-                     double dt = FM::ComputeStableDt(stencil_, dx, dir);
-                     min_dt = std::min(dt, min_dt);
-                   }
-                   if (is_covered[iL] == 1 && is_covered[iR] == 1) {
-                     for (std::size_t i = 0; i < iL; ++i) {
-                       stencil_[i] = stencil_[iL];
-                     }
-                     for (std::size_t i = iR + 1; i < StencilSize; ++i) {
-                       stencil_[i] = stencil_[iR];
-                     }
-                     double dt = FM::ComputeStableDt(stencil_, dx, dir);
-                     min_dt = std::min(dt, min_dt);
-                   }
-                 });
+    const Eigen::Matrix<double, Rank, 1> unit = UnitVector<Rank>(Direction::X);
+    ForEachIndex(
+        Shrink(Box<0>(states), dir, {0, StencilSize}), [&](const auto... is) {
+          using Index = std::array<std::ptrdiff_t, sizeof...(is)>;
+          const Index cell0{is...};
+          std::array<int, StencilSize> is_covered{};
+          if (flags(cell0).isSingleValued()) {
+            Load(state_, states, cell0);
+            const Eigen::Matrix<double, Rank, 1> normal =
+                GetBoundaryNormal(cutcell_data, cell0);
+            Rotate(state_, state_, MakeRotation(normal, unit),
+                   FM::GetEquation());
+            Reflect(reflected_, state_, unit, FM::GetEquation());
+            auto half = std::fill_n(stencil_.begin(), StencilWidth, reflected_);
+            std::fill_n(half, StencilWidth, state_);
+            const double dt = FM::ComputeStableDt(stencil_, dx, Direction::X);
+            min_dt = std::min(dt, min_dt);
+          }
+          for (std::size_t i = 0; i < stencil_.size(); ++i) {
+            const Index cell = Shift(cell0, dir, static_cast<int>(i));
+            Load(stencil_[i], states, cell);
+            if (flags(cell).isRegular()) {
+              is_covered[i] = 0;
+            } else if (flags(cell).isSingleValued()) {
+              is_covered[i] = 1;
+            } else {
+              is_covered[i] = 2;
+            }
+          }
+          const std::size_t iL = StencilWidth - 1;
+          const std::size_t iR = StencilWidth;
+          if (is_covered[iL] == 0 || is_covered[iR] == 0) {
+            ReflectCoveredStates(is_covered, cell0, cutcell_data, dir);
+            double dt = FM::ComputeStableDt(stencil_, dx, dir);
+            min_dt = std::min(dt, min_dt);
+          }
+          if (is_covered[iL] == 1 && is_covered[iR] == 1) {
+            for (std::size_t i = 0; i < iL; ++i) {
+              stencil_[i] = stencil_[iL];
+            }
+            for (std::size_t i = iR + 1; i < StencilSize; ++i) {
+              stencil_[i] = stencil_[iR];
+            }
+            double dt = FM::ComputeStableDt(stencil_, dx, dir);
+            min_dt = std::min(dt, min_dt);
+          }
+        });
     return min_dt;
   }
 

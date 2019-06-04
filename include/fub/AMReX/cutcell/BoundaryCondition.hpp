@@ -21,16 +21,8 @@
 #ifndef FUB_GRID_AMREX_CUTCELL_BOUNDARY_CONDITION_HPP
 #define FUB_GRID_AMREX_CUTCELL_BOUNDARY_CONDITION_HPP
 
-#include "fub/AMReX/cutcell/PatchHierarchy.hpp"
 #include "fub/Direction.hpp"
 #include "fub/Duration.hpp"
-#include "fub/PatchDataView.hpp"
-#include "fub/core/function_ref.hpp"
-#include "fub/core/mdspan.hpp"
-
-#include <AMReX_FillPatchUtil.H>
-#include <AMReX_Interpolater.H>
-#include <AMReX_MultiFabUtil.H>
 
 namespace fub {
 namespace amrex {

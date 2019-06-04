@@ -42,6 +42,17 @@ template <std::size_t... Is, typename... Ts>
 constexpr auto ZipHelper(std::index_sequence<Is...>, Ts&&... ts) {
   return std::make_tuple(ZipNested<Is>(std::forward<Ts>(ts)...)...);
 }
+
+template <std::size_t I, typename... Ts>
+constexpr auto UnzipNested(const std::tuple<Ts...>& ts) {
+  return std::apply([](const auto& t) { return std::get<I>(t); }, ts);
+}
+
+template <std::size_t... Is, typename... Ts>
+constexpr auto UnzipHelper(std::index_sequence<Is...>,
+                           const std::tuple<Ts...>& ts) {
+  return std::make_tuple(UnzipNested<Is>(ts)...);
+}
 } // namespace detail
 
 template <typename... Ts> constexpr auto Zip(Ts&&... ts) {
@@ -50,6 +61,14 @@ template <typename... Ts> constexpr auto Zip(Ts&&... ts) {
   return detail::ZipHelper(
       std::make_index_sequence<std::tuple_size<First>::value>(),
       std::forward<Ts>(ts)...);
+}
+
+template <typename... Ts>
+constexpr auto Unzip(const std::tuple<Ts...>& zipped) {
+  using First =
+      std::decay_t<boost::mp11::mp_front<boost::mp11::mp_list<Ts...>>>;
+  return detail::UnzipHelper(
+      std::make_index_sequence<std::tuple_size<First>::value>(), zipped);
 }
 
 template <std::size_t I, typename State>
@@ -72,6 +91,12 @@ void ForEachVariable(F function, Ts&&... states) {
         Zip(xs, ps));
   });
 }
+
+template <typename T>
+struct NumVariables
+    : std::integral_constant<
+          std::size_t,
+          std::tuple_size_v<std::decay_t<decltype(T::Traits::names)>>> {};
 
 template <typename State> auto ToTuple(const State& x) {
   return boost::mp11::tuple_apply(

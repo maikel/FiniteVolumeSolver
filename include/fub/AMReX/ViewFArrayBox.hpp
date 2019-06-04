@@ -166,7 +166,7 @@ template <typename State> struct MakeViewImpl {
           index[static_cast<std::size_t>(AMREX_SPACEDIM)] = counter;
           Index<Rank + 1> this_origin{};
           std::copy_n(origin.begin(), Rank, this_origin.begin());
-          this_origin[sRank] = counter;
+          // this_origin[sRank] = counter;
           counter += n_comps;
           mdspan<ValueType, sRank + 1> mds(&fab.MdSpan()(index), e);
           return PatchDataView<ValueType, Rank + 1>(mds, this_origin);
@@ -196,6 +196,34 @@ auto MakeView(const PatchDataView<T, AMREX_SPACEDIM + 1>& fab,
               const Equation& equation) {
   MakeViewImpl<State> make_view{};
   return make_view(fab, equation);
+}
+
+template <typename State, typename Equation>
+auto MakeView(::amrex::FArrayBox& fab, const Equation& equation) {
+  return MakeView<State>(MakePatchDataView(fab), equation);
+}
+
+template <typename State, typename Equation>
+auto MakeView(const ::amrex::FArrayBox& fab, const Equation& equation) {
+  return MakeView<State>(MakePatchDataView(fab), equation);
+}
+
+template <typename State, typename Equation>
+auto MakeView(::amrex::FArrayBox& fab, const Equation& eq,
+              const IndexBox<Equation::Rank()>& box) {
+  return Subview(MakeView<BasicView<State>>(fab, eq), box);
+}
+
+template <typename State, typename Equation>
+auto MakeView(const ::amrex::FArrayBox& fab, const Equation& eq,
+              const IndexBox<Equation::Rank()>& box) {
+  return Subview(MakeView<BasicView<State>>(fab, eq), box);
+}
+
+template <typename State, typename FAB, typename Equation>
+auto MakeView(FAB&& fab, const Equation& eq, const ::amrex::Box& box) {
+  return MakeView<State>(std::forward<FAB>(fab), eq,
+                         AsIndexBox<Equation::Rank()>(box));
 }
 
 } // namespace amrex

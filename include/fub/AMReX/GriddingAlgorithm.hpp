@@ -37,9 +37,6 @@ namespace amrex {
 
 class GriddingAlgorithm : private ::amrex::AmrCore {
 public:
-  using BoundaryCondition = std::function<void(
-      const PatchDataView<double, AMREX_SPACEDIM + 1>&, const PatchHierarchy&,
-      PatchHandle, Location, int, Duration)>;
   static constexpr int Rank = AMREX_SPACEDIM;
 
   GriddingAlgorithm(const GriddingAlgorithm& other);
@@ -61,16 +58,22 @@ public:
   }
 
   bool RegridAllFinerlevels(int which_level);
+
   void InitializeHierarchy(double level_time);
 
-  void SetBoundaryCondition(BoundaryCondition condition);
-  const BoundaryCondition& GetBoundaryCondition() const noexcept;
+  void SetBoundaryCondition(int level, const BoundaryCondition& condition);
+  void SetBoundaryCondition(int level, BoundaryCondition&& condition);
+
+  const BoundaryCondition& GetBoundaryCondition(int level) const noexcept;
+  BoundaryCondition& GetBoundaryCondition(int level) noexcept;
+
   const InitialData& GetInitialCondition() const noexcept;
+
   const Tagging& GetTagging() const noexcept;
 
-private:
   void FillMultiFabFromLevel(::amrex::MultiFab& mf, int level_number);
 
+private:
   void ErrorEst(int level, ::amrex::TagBoxArray& tags, double time_point,
                 int /* ngrow */) override;
 
@@ -86,12 +89,12 @@ private:
       int level, double time_point, const ::amrex::BoxArray& box_array,
       const ::amrex::DistributionMapping& distribution_mapping) override;
 
-  void ClearLevel(int level) override;
+  void ClearLevel([[maybe_unused]] int level) override;
 
   PatchHierarchy hierarchy_;
   InitialData initial_data_;
   Tagging tagging_;
-  BoundaryCondition boundary_condition_;
+  std::vector<BoundaryCondition> boundary_condition_;
 };
 
 } // namespace amrex

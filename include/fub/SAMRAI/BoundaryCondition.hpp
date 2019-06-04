@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Maikel Nadolski
+// Copyright (c) 2019 Maikel Nadolski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,7 +18,34 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_VARIABLE_DESCRIPTION_HPP
-#define FUB_VARIABLE_DESCRIPTION_HPP
+#ifndef FUB_SAMRAI_BOUNDARY_CONDITION_HPP
+#define FUB_SAMRAI_BOUNDARY_CONDITION_HPP
+
+#include <SAMRAI/xfer/RefinePatchStrategy.h>
+
+namespace fub::samrai {
+
+struct BoundaryConditionConcept {
+  virtual ~BoundaryConditionConcept() = default;
+  virtual void
+  SetPhysicalBoundaryConditions(hier::Patch& patch, const double fill_time,
+                                const hier::IntVector& ghost_width_to_fill) = 0;
+  virtual std::unique_ptr<BoundaryConditionConcept> Clone() const = 0;
+};
+
+struct BoundaryConditionConcept {
+  virtual ~BoundaryConditionConcept() = default;
+  virtual void
+  SetPhysicalBoundaryConditions(hier::Patch& patch, const double fill_time,
+                                const hier::IntVector& ghost_width_to_fill) = 0;
+  virtual std::unique_ptr<BoundaryConditionConcept> Clone() const = 0;
+};
+
+class BoundaryCondition : public SAMRAI::xfer::RefinePatchStrategy {
+private:
+  std::unique_ptr<BoundaryConditionConcept> impl_;
+};
+
+} // namespace fub::samrai
 
 #endif

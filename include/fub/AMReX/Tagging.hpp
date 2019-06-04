@@ -21,36 +21,28 @@
 #ifndef FUB_AMREX_TAGGING_HPP
 #define FUB_AMREX_TAGGING_HPP
 
-#include "fub/AMReX/CartesianGridGeometry.hpp"
-#include "fub/AMReX/PatchHandle.hpp"
-#include "fub/AMReX/PatchHierarchy.hpp"
-#include "fub/AMReX/ViewFArrayBox.hpp"
-#include "fub/CartesianCoordinates.hpp"
-#include "fub/core/mdspan.hpp"
-
 #include <AMReX.H>
+#include <AMReX_TagBox.H>
 
-namespace fub {
-namespace amrex {
+namespace fub::amrex {
+
+class GriddingAlgorithm;
 
 struct TaggingStrategy {
   virtual ~TaggingStrategy() = default;
   virtual std::unique_ptr<TaggingStrategy> Clone() const = 0;
-  virtual void TagCellsForRefinement(
-      const PatchDataView<char, AMREX_SPACEDIM>& tags,
-      const PatchDataView<const double, AMREX_SPACEDIM + 1>& states,
-      const PatchHierarchy& hierarchy, const PatchHandle& patch) = 0;
+  virtual void TagCellsForRefinement(::amrex::TagBoxArray& tags,
+                                     Duration time_point, int level,
+                                     GriddingAlgorithm& gridding) = 0;
 };
 
 template <typename T> struct TaggingWrapper : public TaggingStrategy {
   TaggingWrapper(const T& tag) : tag_{tag} {}
   TaggingWrapper(T&& tag) : tag_{std::move(tag)} {}
 
-  void TagCellsForRefinement(
-      const PatchDataView<char, AMREX_SPACEDIM>& tags,
-      const PatchDataView<const double, AMREX_SPACEDIM + 1>& states,
-      const PatchHierarchy& hierarchy, const PatchHandle& patch) override {
-    tag_.TagCellsForRefinement(tags, states, hierarchy, patch);
+  void TagCellsForRefinement(::amrex::TagBoxArray& tags, Duration time_point,
+                             int level, GriddingAlgorithm& gridding) override {
+    tag_.TagCellsForRefinement(tags, time_point, level, gridding);
   }
 
   std::unique_ptr<TaggingStrategy> Clone() const override {
@@ -73,47 +65,34 @@ struct Tagging {
   Tagging& operator=(Tagging&&) noexcept = default;
 
   template <typename T>
-  Tagging(const T& tag) : tag_{std::make_unique<TaggingWrapper<T>>(tag)} {}
-  template <typename T>
   Tagging(T&& tag)
       : tag_{std::make_unique<TaggingWrapper<remove_cvref_t<T>>>(
-            std::move(tag))} {}
+            std::forward<T>(tag))} {}
 
-  void TagCellsForRefinement(
-      const PatchDataView<char, AMREX_SPACEDIM>& tags,
-      const PatchDataView<const double, AMREX_SPACEDIM + 1>& states,
-      const PatchHierarchy& hierarchy, const PatchHandle& patch) {
-    if (tag_) {
-      return tag_->TagCellsForRefinement(tags, states, hierarchy, patch);
-    }
+  void TagCellsForRefinement(::amrex::TagBoxArray& tags, Duration time_point,
+                             int level, GriddingAlgorithm& gridding) {
+    return tag_->TagCellsForRefinement(tags, time_point, level, gridding);
   }
 
   std::unique_ptr<TaggingStrategy> tag_;
 };
 
-template <typename Equation, typename... Tagging> struct AdaptTagging {
-  AdaptTagging(Equation equation, Tagging... tagging)
-      : tagging_{std::move(tagging)...}, equation_{std::move(equation)} {}
+template <typename... Tagging> struct TagAllOf {
+  TagAllOf(Tagging... tagging) : tagging_{std::move(tagging)...} {}
 
-  void TagCellsForRefinement(
-      const PatchDataView<char, AMREX_SPACEDIM>& tags,
-      const PatchDataView<const double, AMREX_SPACEDIM + 1>& states,
-      const PatchHierarchy& hierarchy, const PatchHandle& patch) {
-    BasicView<const Complete<Equation>> state_view =
-        MakeView<BasicView<const Complete<Equation>>>(states, equation_);
-    const ::amrex::Geometry& geom = hierarchy.GetGeometry(patch.level);
-    const ::amrex::Box& box = patch.iterator->growntilebox();
-    boost::mp11::tuple_for_each(tagging_, [&](auto&& tagging) {
-      tagging.TagCellsForRefinement(tags, state_view,
-                                    GetCartesianCoordinates(geom, box));
-    });
+  void TagCellsForRefinement(::amrex::TagBoxArray& tags, Duration time_point,
+                             int level, GriddingAlgorithm& gridding) {
+    std::apply(
+        [this, &tags, time_point, level, &gridding](Tagging&... tagging) {
+          (tagging.TagCellsForRefinement(tags, time_point, level, gridding),
+           ...);
+        },
+        tagging_);
   }
 
   std::tuple<Tagging...> tagging_;
-  Equation equation_;
 };
 
-} // namespace amrex
-} // namespace fub
+} // namespace fub::amrex
 
 #endif

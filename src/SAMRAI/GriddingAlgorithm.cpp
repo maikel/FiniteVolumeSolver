@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/grid/SAMRAI/GriddingAlgorithm.hpp"
+#include "fub/SAMRAI/GriddingAlgorithm.hpp"
 
 #include <SAMRAI/mesh/BergerRigoutsos.h>
 #include <SAMRAI/mesh/CascadePartitioner.h>

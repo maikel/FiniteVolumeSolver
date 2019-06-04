@@ -33,7 +33,7 @@ template <typename Eq, int Width> struct ConservativeArrayBaseImpl {
   using type = boost::mp11::mp_transform<fn, typename Eq::ConservativeDepths>;
 };
 
-template <typename Eq, int Width>
+template <typename Eq, int Width = kDefaultChunkSize>
 using ConservativeArrayBase =
     typename ConservativeArrayBaseImpl<Eq, Width>::type;
 

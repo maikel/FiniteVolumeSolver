@@ -36,6 +36,23 @@ void IdealGasMix<Dim>::Flux(Conservative& flux, const Complete& state,
   flux.energy = velocity * (state.energy + state.pressure);
   flux.species = velocity * state.species;
 }
+
+template <int Dim>
+void IdealGasMix<Dim>::Flux(ConservativeArray& flux, const CompleteArray& state,
+                            Direction dir) const noexcept {
+  const int d0 = static_cast<int>(dir);
+  const Array1d velocity = state.momentum.row(d0) / state.density;
+  flux.density = state.momentum.row(d0);
+  for (int d = 0; d < Dim; ++d) {
+    flux.momentum.row(d) = velocity * state.momentum.row(d);
+  }
+  flux.momentum.row(d0) += state.pressure;
+  flux.energy = velocity * (state.energy + state.pressure);
+  for (int s = 0; s < flux.species.rows(); ++s) {
+    flux.species.row(s) = velocity * state.species.row(s);
+  }
+}
+
 namespace {
 template <int Dim>
 double KineticEnergy(double density,
@@ -81,10 +98,8 @@ void IdealGasMix<Dim>::CompleteFromReactor(
   state.gamma = reactor_.GetCp() / reactor_.GetCv();
 }
 
-
 template <int Dim>
-void IdealGasMix<Dim>::CompleteFromCons(
-                                        Complete& complete,
+void IdealGasMix<Dim>::CompleteFromCons(Complete& complete,
                                         const ConservativeBase& cons) noexcept {
   reactor_.SetMassFractions(cons.species);
   reactor_.SetDensity(cons.density);
@@ -103,6 +118,36 @@ void IdealGasMix<Dim>::CompleteFromCons(
   complete.temperature = reactor_.GetTemperature();
   complete.c_p = reactor_.GetCp();
   complete.gamma = reactor_.GetCp() / reactor_.GetCv();
+}
+
+template <int Dim>
+void IdealGasMix<Dim>::CompleteFromCons(
+    CompleteArray& complete, const ConservativeArrayBase& cons) noexcept {
+  for (int i = 0; i < kDefaultChunkSize; ++i) {
+    complete.density = cons.density[i];
+    complete.momentum = cons.momentum;
+    complete.energy = cons.energy;
+    for (int s = 0; s < complete.species.rows(); ++s) {
+      complete.species.row(s) = cons.species.row(s);
+    }
+    for (int i = 0; i < kDefaultChunkSize; ++i) {
+      species_buffer_ = cons.species.col(i);
+      reactor_.SetMassFractions(species_buffer_);
+      reactor_.SetDensity(cons.density[i]);
+      Array<double, Dim, 1> momentum = cons.momentum.col(i);
+      const double rhoE_kin = KineticEnergy(cons.density[i], momentum);
+      const double e_internal = (cons.energy[i] - rhoE_kin) / cons.density[i];
+      reactor_.SetTemperature(300);
+      reactor_.SetInternalEnergy(e_internal);
+      FUB_ASSERT(reactor_.GetTemperature() > 0.0);
+      FUB_ASSERT(cons.density[i] == reactor_.GetDensity());
+      complete.pressure[i] = reactor_.GetPressure();
+      complete.speed_of_sound[i] = ComputeSpeedOfSound(reactor_);
+      complete.temperature[i] = reactor_.GetTemperature();
+      complete.c_p[i] = reactor_.GetCp();
+      complete.gamma[i] = reactor_.GetCp() / reactor_.GetCv();
+    }
+  }
 }
 
 template class IdealGasMix<1>;
@@ -192,9 +237,9 @@ void Reflect(Complete<IdealGasMix<3>>& reflected,
 }
 
 template <int Dim>
-std::array<double, 2> EinfeldtSignalVelocities<IdealGasMix<Dim>>::operator()(
-    const IdealGasMix<Dim>&, const Complete& left, const Complete& right,
-    Direction dir) const noexcept {
+std::array<double, 2> EinfeldtSignalVelocities<IdealGasMix<Dim>>::
+operator()(const IdealGasMix<Dim>&, const Complete& left, const Complete& right,
+           Direction dir) const noexcept {
   FUB_ASSERT(left.density > 0.0);
   FUB_ASSERT(right.density > 0.0);
   const double rhoL = left.density;
