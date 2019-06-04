@@ -110,7 +110,7 @@ HyperbolicSplitLevelIntegrator<Eq, Context>::ComputeStableDt(Direction dir) {
     } else {
       Context::FillGhostLayerSingleLevel(level_num, dir);
     }
-    const double level_dt = Context::ComputeStableDt(level_num, dir);
+    const double level_dt = Context::ComputeStableDt(level_num, dir).count();
     refine_ratio *= Context::GetRatioToCoarserLevel(level_num).max();
     coarse_dt = std::min(refine_ratio * level_dt, coarse_dt);
   }
@@ -137,7 +137,8 @@ HyperbolicSplitLevelIntegrator<Eq, Context>::AdvanceLevel(int this_level,
     Context::FillGhostLayerSingleLevel(this_level, direction);
   }
 
-  const double level_dt = Context::ComputeStableDt(this_level, direction);
+  const double level_dt =
+      Context::ComputeStableDt(this_level, direction).count();
   if (level_dt < dt.count()) {
     const int refine_ratio = GetTotalRefineRatio(this_level);
     return TimeStepTooLarge{Duration(refine_ratio * level_dt)};

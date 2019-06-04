@@ -84,7 +84,8 @@ public:
   const HyperbolicSplitTimeIntegrator& GetHyperbolicSplitTimeIntegrator() const
       noexcept;
 
-  /// \brief Returns the object which reconstructs complete states from given conservative ones.
+  /// \brief Returns the object which reconstructs complete states from given
+  /// conservative ones.
   const Reconstruction& GetReconstruction() const noexcept;
 
   /// \brief Returns a shared pointer to the underlying GriddingAlgorithm which
@@ -187,7 +188,7 @@ public:
 
   /// \brief Returns a estimate for a stable time step size which can be taken
   /// for specified level number in direction dir.
-  double ComputeStableDt(int level, Direction dir);
+  Duration ComputeStableDt(int level, Direction dir);
 
   /// \brief Fill the flux MultiFab with numeric fluxes based on current states
   /// in scratch.
@@ -217,6 +218,7 @@ public:
   ///@}
 
 private:
+  /// \brief This class holds auxiliary data on each refinement level.
   struct LevelData {
     LevelData() = default;
     LevelData(const LevelData& other) = delete;

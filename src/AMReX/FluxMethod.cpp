@@ -20,39 +20,3 @@
 
 #include "fub/AMReX/FluxMethod.hpp"
 
-namespace fub::amrex {
-
-FluxMethod::FluxMethod(const FluxMethod& other)
-    : flux_method_{other.flux_method_->Clone()} {}
-
-FluxMethod& FluxMethod::operator=(const FluxMethod& other) {
-  flux_method_ = other.flux_method_->Clone();
-  return *this;
-}
-
-double FluxMethod::ComputeStableDt(const ::amrex::FArrayBox& states,
-                                   const ::amrex::Box& box,
-                                   const ::amrex::Geometry& geom,
-                                   Direction dir) {
-  if (!flux_method_) {
-    throw std::runtime_error("Empty flux method.");
-  }
-  return flux_method_->ComputeStableDt(states, box, geom, dir);
-}
-
-void FluxMethod::ComputeNumericFluxes(::amrex::FArrayBox& fluxes,
-                                      const ::amrex::Box& box,
-                                      const ::amrex::FArrayBox& states,
-                                      const ::amrex::Geometry& geom,
-                                      Duration dt, Direction dir) {
-  if (!flux_method_) {
-    throw std::runtime_error("Empty flux method.");
-  }
-  flux_method_->ComputeNumericFluxes(fluxes, box, states, geom, dt, dir);
-}
-
-int FluxMethod::GetStencilWidth() const {
-  return flux_method_->GetStencilWidth();
-}
-
-} // namespace fub::amrex

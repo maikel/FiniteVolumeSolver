@@ -14,4 +14,6 @@
 #include "fub/AMReX/Print.hpp"
 #include "fub/AMReX/ForEachIndex.hpp"
 
+#include "fub/AMReX/FluxMethodWrapper.hpp"
+
 #endif

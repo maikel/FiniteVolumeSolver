@@ -361,44 +361,15 @@ void HyperbolicSplitIntegratorContext::ApplyFluxCorrection(int fine, int coarse,
   }
 }
 
-double HyperbolicSplitIntegratorContext::ComputeStableDt(int level,
+Duration HyperbolicSplitIntegratorContext::ComputeStableDt(int level,
                                                          Direction dir) {
-  const std::size_t l = static_cast<std::size_t>(level);
-  const std::size_t d = static_cast<std::size_t>(dir);
-  const ::amrex::MultiFab& scratch = data_[l].scratch[d];
-  const ::amrex::Geometry& geom = GetGeometry(level);
-  double min_dt = std::numeric_limits<double>::infinity();
-#if defined(_OPENMP) && defined(AMREX_USE_OMP)
-#pragma omp parallel reduction(min : min_dt)
-#endif
-  for (::amrex::MFIter mfi(scratch, true); mfi.isValid(); ++mfi) {
-    const ::amrex::FArrayBox& data = scratch[mfi];
-    const ::amrex::Box& box = mfi.tilebox();
-    const double dt =
-        numerical_method_.flux_method.ComputeStableDt(data, box, geom, dir);
-    min_dt = std::min(min_dt, dt);
-  }
-  return min_dt;
+  return numerical_method_.flux_method.ComputeStableDt(*this, level, dir);
 }
 
 void HyperbolicSplitIntegratorContext::ComputeNumericFluxes(int level,
                                                             Duration dt,
                                                             Direction dir) {
-  const std::size_t l = static_cast<std::size_t>(level);
-  const std::size_t d = static_cast<std::size_t>(dir);
-  const ::amrex::MultiFab& scratch = data_[l].scratch[d];
-  ::amrex::MultiFab& fluxes = data_[l].fluxes[d];
-  const ::amrex::Geometry& geom = GetGeometry(level);
-#if defined(_OPENMP) && defined(AMREX_USE_OMP)
-#pragma omp parallel
-#endif
-  for (::amrex::MFIter mfi(scratch, true); mfi.isValid(); ++mfi) {
-    ::amrex::FArrayBox& flux = fluxes[mfi];
-    const ::amrex::FArrayBox& data = scratch[mfi];
-    const ::amrex::Box& box = mfi.tilebox();
-    numerical_method_.flux_method.ComputeNumericFluxes(flux, box, data, geom,
-                                                       dt, dir);
-  }
+  numerical_method_.flux_method.ComputeNumericFluxes(*this, level, dt, dir);
 }
 
 void HyperbolicSplitIntegratorContext::CompleteFromCons(int level, Duration,
