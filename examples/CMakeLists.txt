@@ -38,6 +38,9 @@ if (AMReX_FOUND AND AMREX_DIM EQUAL 2)
   target_link_libraries(NodalPoisson FiniteVolumeSolver.AMReX)
 
   if (AMREX_ENABLE_EB)
+    add_executable_with_warnings(AMReX.EB.Divider2D AMReX/EB/Divider2D.cpp)
+    target_link_libraries(AMReX.EB.Divider2D FiniteVolumeSolver.AMReX.EB)
+
     add_executable_with_warnings(AMReX.EB.LinearShock2d AMReX/EB/LinearShock2d.cpp)
     target_link_libraries(AMReX.EB.LinearShock2d FiniteVolumeSolver.AMReX.EB)
 

@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/grid/SAMRAI/CartesianPatchHierarchy.hpp"
+#include "fub/SAMRAI/CartesianPatchHierarchy.hpp"
 #include "fub/ext/Eigen.hpp"
 
 #include <SAMRAI/geom/CartesianGridGeometry.h>

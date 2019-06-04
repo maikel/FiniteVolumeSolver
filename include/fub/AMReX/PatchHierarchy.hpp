@@ -110,6 +110,9 @@ struct DataDescription {
   int dimension{AMREX_SPACEDIM};
 };
 
+template <typename Equation>
+DataDescription MakeDataDescription(const Equation& equation);
+
 /// The PatchHierarchy holds simulation data on multiple refinement levels. It
 /// also holds a time stamp for each level.
 class PatchHierarchy {
@@ -118,18 +121,24 @@ public:
 
   /// \brief Constructs a PatchHierarchy object which is capable of holding data
   /// described by the secified data description on given geometry extents.
+  template <typename Equation>
+  PatchHierarchy(const Equation& equation,
+                 const CartesianGridGeometry& geometry,
+                 const PatchHierarchyOptions& options);
+
+  /// \brief Constructs a PatchHierarchy object which is capable of holding data
+  /// described by the secified data description on given geometry extents.
   PatchHierarchy(DataDescription description,
                  const CartesianGridGeometry& geometry,
                  const PatchHierarchyOptions& options);
 
-  /// \brief Returns a Geometry object for a specified level.
-  ///
-  /// \param[in] The refinement level number for this geometry obejct.
-  const ::amrex::Geometry& GetGeometry(int level) const noexcept;
+  const DataDescription& GetDataDescription() const noexcept;
 
   /// \brief Return some additional patch hierarchy options.
   const PatchHierarchyOptions& GetOptions() const noexcept;
 
+  /// \brief Returns the Grid Geometry which was used to create the hierarchy
+  /// with.
   const CartesianGridGeometry& GetGridGeometry() const noexcept;
 
   std::ptrdiff_t GetCycles(int level = 0) const;
@@ -148,65 +157,18 @@ public:
 
   const PatchLevel& GetPatchLevel(int level) const;
 
+  /// \brief Returns a Geometry object for a specified level.
+  ///
+  /// \param[in] The refinement level number for this geometry obejct.
+  const ::amrex::Geometry& GetGeometry(int level) const noexcept;
+
+  // Modifiers
+
   void PushBack(const PatchLevel& level);
+
   void PushBack(PatchLevel&& level);
+
   void PopBack();
-
-  const DataDescription& GetDataDescription() const noexcept;
-
-  template <typename Feedback>
-  Feedback ForEachPatch(int level, Feedback feedback) const {
-    for (::amrex::MFIter mfi(GetPatchLevel(level).data); mfi.isValid();
-         ++mfi) {
-      PatchHandle handle{level, &mfi};
-      feedback(handle);
-    }
-    return feedback;
-  }
-
-  template <typename Feedback>
-  Feedback ForEachPatch(execution::OpenMpTag, int level, Feedback feedback) const {
-#ifdef _OPENMP
-#pragma omp parallel firstprivate(feedback)
-#endif
-    {
-      for (::amrex::MFIter mfi(GetPatchLevel(level).data, true); mfi.isValid();
-           ++mfi) {
-        PatchHandle handle{level, &mfi};
-        feedback(handle);
-      }
-    }
-    return feedback;
-  }
-
-  template <typename Feedback>
-  double Minimum(int level, Feedback feedback) const {
-    double global_min = std::numeric_limits<double>::infinity();
-    for (::amrex::MFIter mfi(GetPatchLevel(level).data); mfi.isValid();
-         ++mfi) {
-      PatchHandle handle{level, &mfi};
-      const double local_min = feedback(handle);
-      global_min = std::min(global_min, local_min);
-    }
-    return global_min;
-  }
-
-  template <typename Feedback>
-  double Minimum(execution::OpenMpTag, int level, Feedback feedback) const {
-    double global_min = std::numeric_limits<double>::infinity();
-#ifdef _OPENMP
-#pragma omp parallel reduction(min : global_min) firstprivate(feedback)
-#endif
-    {
-      for (::amrex::MFIter mfi(GetPatchLevel(level).data, true); mfi.isValid();
-           ++mfi) {
-        PatchHandle handle{level, &mfi};
-        const double local_min = feedback(handle);
-        global_min = std::min(global_min, local_min);
-      }
-    }
-    return global_min;
-  }
 
 private:
   DataDescription description_;
@@ -276,6 +238,12 @@ void WritePlotFile(const std::string plotfilename,
 
 void WriteCheckpointFile(const std::string checkpointname,
                          const fub::amrex::PatchHierarchy& hier);
+
+template <typename Equation>
+PatchHierarchy::PatchHierarchy(const Equation& equation,
+                               const CartesianGridGeometry& geometry,
+                               const PatchHierarchyOptions& options)
+    : PatchHierarchy(MakeDataDescription(equation), geometry, options) {}
 
 } // namespace amrex
 } // namespace fub

@@ -96,13 +96,13 @@ public:
   /// \param[in] dx  The cell width size which will be used to compute the
   ///                numerical flux.
   void ComputeNumericFluxes(const View<Conservative>& fluxes,
-                            const View<const Complete>& states, Direction dir,
-                            Duration dt, double dx);
+                            const View<const Complete>& states, Duration dt,
+                            double dx, Direction dir);
 
   void ComputeNumericFluxes(execution::SimdTag,
                             const View<Conservative>& fluxes,
-                            const View<const Complete>& states, Direction dir,
-                            Duration dt, double dx);
+                            const View<const Complete>& states, Duration dt,
+                            double dx, Direction dir);
   /// @}
 
   using BaseMethod::ComputeNumericFlux;
@@ -155,7 +155,7 @@ FluxMethod<BaseMethod>::FluxMethod(Args&&... args)
 template <typename BaseMethod>
 void FluxMethod<BaseMethod>::ComputeNumericFluxes(
     const View<Conservative>& fluxes, const View<const Complete>& states,
-    Direction dir, Duration dt, double dx) {
+    Duration dt, double dx, Direction dir) {
   ForEachIndex(Box<0>(fluxes), [&](const auto... is) {
     using Index = std::array<std::ptrdiff_t, sizeof...(is)>;
     const Index face{is...};
@@ -180,7 +180,7 @@ using HasComputeNumericFlux =
 template <typename BaseMethod>
 void FluxMethod<BaseMethod>::ComputeNumericFluxes(
     execution::SimdTag, const View<Conservative>& fluxes,
-    const View<const Complete>& states, Direction dir, Duration dt, double dx) {
+    const View<const Complete>& states, Duration dt, double dx, Direction dir) {
   static_assert(HasComputeNumericFlux<BaseMethod&, ConservativeArray&,
                                       std::array<CompleteArray, StencilSize>,
                                       Duration, double, Direction>());
@@ -205,7 +205,8 @@ void FluxMethod<BaseMethod>::ComputeNumericFluxes(
     ViewPointer<Conservative> fit = Begin(fluxes);
     ViewPointer<Conservative> fend = End(fluxes);
     std::array<ViewPointer<const Complete>, StencilSize> states{Begin(rows)...};
-    while (get<0>(fend) - get<0>(fit) >= GetStencilSize()) {
+    int n = static_cast<int>(get<0>(fend) - get<0>(fit));
+    while (n >= kDefaultChunkSize) {
       for (std::size_t i = 0; i < StencilSize; ++i) {
         Load(stencil_array_[i], states[i]);
       }
@@ -215,8 +216,8 @@ void FluxMethod<BaseMethod>::ComputeNumericFluxes(
       for (std::size_t i = 0; i < StencilSize; ++i) {
         Advance(states[i], kDefaultChunkSize);
       }
+      n = static_cast<int>(get<0>(fend) - get<0>(fit));
     }
-    const int n = static_cast<int>(get<0>(fend) - get<0>(fit));
     for (std::size_t i = 0; i < StencilSize; ++i) {
       LoadN(stencil_array_[i], states[i], n);
     }
@@ -243,6 +244,45 @@ FluxMethod<BaseMethod>::ComputeStableDt(const View<const Complete>& states,
                  min_dt = std::min(dt, min_dt);
                });
   return min_dt;
+}
+
+template <typename T, typename... Ts> T Head(T&& head, Ts&&...) { return head; }
+
+template <typename BaseMethod>
+double
+FluxMethod<BaseMethod>::ComputeStableDt(execution::SimdTag,
+                                        const View<const Complete>& states,
+                                        double dx, Direction dir) {
+  Array1d min_dt(std::numeric_limits<double>::infinity());
+  std::array<View<const Complete>, StencilSize> stencil_views;
+  for (std::size_t i = 0; i < StencilSize; ++i) {
+    stencil_views[i] =
+        Shrink(states, dir,
+               {static_cast<std::ptrdiff_t>(i),
+                static_cast<std::ptrdiff_t>(StencilSize - i) - 1});
+  }
+  std::tuple views = std::apply(
+      [](const auto&... vs) { return std::tuple{vs...}; }, stencil_views);
+  ForEachRow(views, [this, dx, dir, &min_dt](auto... rows) {
+    std::array<ViewPointer<const Complete>, StencilSize> states{Begin(rows)...};
+    ViewPointer<const Complete> send = End(Head(rows...));
+    int n = static_cast<int>(get<0>(send) - get<0>(states[0]));
+    while (n >= kDefaultChunkSize) {
+      for (std::size_t i = 0; i < StencilSize; ++i) {
+        Load(stencil_array_[i], states[i]);
+      }
+      min_dt = min_dt.min(ComputeStableDt(stencil_array_, dx, dir));
+      for (std::size_t i = 0; i < StencilSize; ++i) {
+        Advance(states[i], kDefaultChunkSize);
+      }
+      n = static_cast<int>(get<0>(send) - get<0>(states[0]));
+    }
+    for (std::size_t i = 0; i < StencilSize; ++i) {
+      LoadN(stencil_array_[i], states[i], n);
+    }
+    min_dt = min_dt.min(ComputeStableDt(stencil_array_, dx, dir));
+  });
+  return min_dt.minCoeff();
 }
 
 } // namespace fub

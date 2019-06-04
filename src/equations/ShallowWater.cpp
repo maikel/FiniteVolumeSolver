@@ -128,6 +128,23 @@ std::array<double, 2> ExactRiemannSolver<ShallowWater>::ComputeSignals(
   return signals;
 }
 
+std::array<Array1d, 2> ExactRiemannSolver<ShallowWater>::ComputeSignals(
+    const CompleteArray& left, const CompleteArray& right, Direction dir) {
+  Complete left_i{};
+  Complete right_i{};
+  std::array<Array1d, 2> signals;
+  for (int i = 0; i < kDefaultChunkSize; ++i) {
+    left_i.height = left.height(i);
+    left_i.momentum = left.momentum.col(i);
+    right_i.height = right.height(i);
+    right_i.momentum = right.momentum.col(i);
+    std::array<double, 2> signals_i = ComputeSignals(left_i, right_i, dir);
+    signals[0][i] = signals_i[0];
+    signals[1][i] = signals_i[1];
+  }
+  return signals;
+}
+
 void ExactRiemannSolver<ShallowWater>::SolveRiemannProblem(
     Complete& state, const Complete& left, const Complete& right,
     Direction dir) {
@@ -209,6 +226,24 @@ void ExactRiemannSolver<ShallowWater>::SolveRiemannProblem(
   }
 }
 
+void ExactRiemannSolver<ShallowWater>::SolveRiemannProblem(
+    CompleteArray& state, const CompleteArray& left, const CompleteArray& right,
+    Direction dir) {
+  Complete left_i{};
+  Complete right_i{};
+  Complete solution_i{};
+  std::array<Array1d, 2> signals;
+  for (int i = 0; i < kDefaultChunkSize; ++i) {
+    left_i.height = left.height(i);
+    left_i.momentum = left.momentum.col(i);
+    right_i.height = right.height(i);
+    right_i.momentum = right.momentum.col(i);
+    SolveRiemannProblem(solution_i, left_i, right_i, dir);
+    state.height(i) = solution_i.height;
+    state.momentum.col(i) = solution_i.momentum;
+  }
+}
+
 std::array<double, 2> ShallowWaterSignalVelocities::
 operator()(const ShallowWater& equation, const Complete& left,
            const Complete& right, Direction dir) {
@@ -234,7 +269,5 @@ operator()(const ShallowWater& equation, const CompleteArray& left,
   const Array1d sR = (vL + sqrt_g_hL).max(vR + sqrt_g_hR).max(Array1d::Zero());
   return {sL, sR};
 }
-
-template class FluxMethod<Hll<ShallowWater, ShallowWaterSignalVelocities>>;
 
 } // namespace fub

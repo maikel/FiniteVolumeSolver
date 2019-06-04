@@ -26,9 +26,12 @@
 #include "fub/CompleteFromCons.hpp"
 #include "fub/EinfeldtSignalVelocities.hpp"
 #include "fub/Equation.hpp"
-#include "fub/ExactRiemannSolver.hpp"
 #include "fub/State.hpp"
 #include "fub/ext/Eigen.hpp"
+
+#include "fub/flux_method/FluxMethod.hpp"
+#include "fub/flux_method/HllMethod.hpp"
+#include "fub/flux_method/MusclHancockMethod.hpp"
 
 #include <array>
 
@@ -109,6 +112,10 @@ public:
   using ConservativeBase = ::fub::ConservativeBase<IdealGasMix<N>>;
   using Complete = ::fub::Complete<IdealGasMix<N>>;
 
+  using ConservativeArray = ::fub::ConservativeArray<IdealGasMix<N>>;
+  using ConservativeArrayBase = ::fub::ConservativeArrayBase<IdealGasMix<N>>;
+  using CompleteArray = ::fub::CompleteArray<IdealGasMix<N>>;
+
   explicit IdealGasMix(const FlameMasterReactor& reactor)
       : reactor_(std::move(reactor)) {}
 
@@ -117,7 +124,13 @@ public:
   void Flux(Conservative& flux, const Complete& state,
             Direction dir = Direction::X) const noexcept;
 
+  void Flux(ConservativeArray& flux, const CompleteArray& state,
+            Direction dir = Direction::X) const noexcept;
+
   void CompleteFromCons(Complete& state, const ConservativeBase& cons) noexcept;
+
+  void CompleteFromCons(CompleteArray& state,
+                        const ConservativeArrayBase& cons) noexcept;
 
   FlameMasterReactor& GetReactor() noexcept { return reactor_; }
   const FlameMasterReactor& GetReactor() const noexcept { return reactor_; }
@@ -130,6 +143,7 @@ public:
 
 private:
   FlameMasterReactor reactor_;
+  Array<double, Eigen::Dynamic, 1> species_buffer_{reactor_.GetNSpecies()};
 };
 
 template <typename Depth> struct ToConcreteDepthImpl { using type = Depth; };
@@ -217,15 +231,38 @@ void Reflect(Complete<IdealGasMix<3>>& reflected,
 
 template <int Dim> struct EinfeldtSignalVelocities<IdealGasMix<Dim>> {
   using Complete = typename IdealGasMix<Dim>::Complete;
+  using CompleteArray = typename IdealGasMix<Dim>::CompleteArray;
 
   std::array<double, 2> operator()(const IdealGasMix<Dim>& equation,
                                    const Complete& left, const Complete& right,
                                    Direction dir) const noexcept;
+
+  std::array<Array1d, 2> operator()(const IdealGasMix<Dim>& equation,
+                                    const CompleteArray& left,
+                                    const CompleteArray& right,
+                                    Direction dir) const noexcept;
 };
 
 extern template struct EinfeldtSignalVelocities<IdealGasMix<1>>;
 extern template struct EinfeldtSignalVelocities<IdealGasMix<2>>;
 extern template struct EinfeldtSignalVelocities<IdealGasMix<3>>;
+
+extern template class FluxMethod<
+    Hll<IdealGasMix<1>, EinfeldtSignalVelocities<IdealGasMix<1>>>>;
+extern template class FluxMethod<
+    Hll<IdealGasMix<2>, EinfeldtSignalVelocities<IdealGasMix<2>>>>;
+extern template class FluxMethod<
+    Hll<IdealGasMix<3>, EinfeldtSignalVelocities<IdealGasMix<3>>>>;
+
+extern template class FluxMethod<MusclHancock<
+    IdealGasMix<1>,
+    Hll<IdealGasMix<1>, EinfeldtSignalVelocities<IdealGasMix<1>>>>>;
+extern template class FluxMethod<MusclHancock<
+    IdealGasMix<2>,
+    Hll<IdealGasMix<2>, EinfeldtSignalVelocities<IdealGasMix<2>>>>>;
+extern template class FluxMethod<MusclHancock<
+    IdealGasMix<3>,
+    Hll<IdealGasMix<3>, EinfeldtSignalVelocities<IdealGasMix<3>>>>>;
 
 } // namespace fub
 

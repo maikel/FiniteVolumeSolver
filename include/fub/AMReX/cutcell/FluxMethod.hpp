@@ -21,163 +21,76 @@
 #ifndef FUB_AMREX_CUTCELL_FLUX_METHOD_HPP
 #define FUB_AMREX_CUTCELL_FLUX_METHOD_HPP
 
-#include "fub/AMReX/PatchHandle.hpp"
-#include "fub/AMReX/ViewFArrayBox.hpp"
-#include "fub/AMReX/cutcell/PatchHierarchy.hpp"
-#include "fub/Direction.hpp"
-#include "fub/Duration.hpp"
-#include "fub/State.hpp"
+#include <memory>
+#include "fub/AMReX/cutcell/IntegratorContext.hpp"
 
 namespace fub {
 namespace amrex {
 namespace cutcell {
+namespace detail {
+struct FluxMethodBase {
+  virtual ~FluxMethodBase() = default;
+  virtual std::unique_ptr<FluxMethodBase> Clone() const = 0;
+  virtual void PreAdvanceHierarchy(IntegratorContext& context) = 0;
+  virtual void ComputeNumericFluxes(IntegratorContext& context, int level, Duration dt, Direction dir) = 0;
+};
 
-template <typename Base> struct FluxMethod : public Base {
-  using Equation = typename Base::Equation;
+template <typename T, typename... Args>
+using PreAdvanceHierarchyT = decltype(std::declval<T>().PreAdvanceHierarchy(std::declval<Args>()...));
+
+template <typename T, typename... Args>
+using ComputeNumericFluxesT = decltype(std::declval<T>().ComputeNumericFluxes(std::declval<Args>()...));
+
+template <typename FM>
+struct FluxMethodWrapper : public FluxMethodBase {
+  using Equation = std::decay_t<decltype(std::declval<FM&>().GetEquation())>;
   using Conservative = ::fub::Conservative<Equation>;
   using Complete = ::fub::Complete<Equation>;
 
   static constexpr int Rank = Equation::Rank();
 
-  FluxMethod(const Base& base) : Base(base) {}
-  FluxMethod(Base&& base) : Base(std::move(base)) {}
+  static constexpr bool HasPreAdvanceHierarchy = is_detected<PreAdvanceHierarchyT, FM&, IntegratorContext&>();
+  static constexpr bool HasComputeNumericFluxesOnContext = is_detected<ComputeNumericFluxesT, FM&, IntegratorContext&, int, Duration, Direction>();
 
-  const Equation& GetEquation() const { return Base::GetEquation(); }
 
-  template <typename Context> void PreAdvanceHierarchy(Context& context) {
-    const PatchHierarchy& hierarchy = context.GetPatchHierarchy();
-    const int nlevels = hierarchy.GetNumberOfLevels();
-    const int gcw = Base::GetStencilWidth() + 1;
-    const int n_components = hierarchy.GetDataDescription().n_state_components;
-    for (int level_num = 0; level_num < nlevels; ++level_num) {
-      const PatchLevel& level = hierarchy.GetPatchLevel(level_num);
-      ::amrex::MultiFab datas(level.data.boxArray(),
-                              level.data.DistributionMap(), n_components, gcw,
-                              ::amrex::MFInfo(), level.data.Factory());
-      context.FillGhostLayer(datas, level_num);
-      context.ForEachPatch(execution::openmp, level_num, [method = *this, &context,
-                                       &datas](PatchHandle patch) mutable {
-        ::amrex::FabType type = context.GetCutCellPatchType(patch, gcw);
-        if (type == ::amrex::FabType::singlevalued) {
-          CutCellData<Rank> cc_data =
-              context.GetCutCellData(patch, Direction::X);
-          const IndexBox<Rank> cells =
-              AsIndexBox<Rank>(patch.iterator->growntilebox(gcw));
-          const Equation& equation = method.GetEquation();
-          View<const Complete> data = AsConst(
-              Subview(MakeView<BasicView<Complete>>(
-                          MakePatchDataView(datas[*patch.iterator]), equation),
-                      cells));
-          View<Complete> reference_states =
-              Subview(MakeView<BasicView<Complete>>(
-                          context.GetReferenceStates(patch), equation),
-                      cells);
-          method.Base::PreAdvanceHierarchy(reference_states, data, cc_data);
-        }
-      });
-    }
-  }
+  FluxMethodWrapper(const FM& fm) : method_{fm} {}
+  FluxMethodWrapper(FM&& fm) : method_{std::move(fm)} {}
 
-  template <typename Context>
-  double ComputeStableDt(Context& context, PatchHandle patch, Direction dir) {
-    const int gcw = context.GetGhostCellWidth(patch, dir);
-    ::amrex::FabType type = context.GetCutCellPatchType(patch, gcw);
-    if (type == ::amrex::FabType::covered) {
-      return std::numeric_limits<double>::infinity();
-    }
-    const Equation& equation = Base::GetEquation();
-    const double dx = context.GetDx(patch, dir);
-    const auto tilebox_cells =
-        Grow(AsIndexBox<Rank>(patch.iterator->tilebox()), dir, {gcw, gcw});
-    View<const Complete> scratch = AsConst(Subview(
-        MakeView<BasicView<Complete>>(context.GetScratch(patch, dir), equation),
-        tilebox_cells));
-    //    BasicView<const Complete> scratch =
-    //        AsConst(MakeView<BasicView<Complete>>(context.GetScratch(patch,
-    //        dir), equation));
-    if (type == ::amrex::FabType::regular) {
-      return Base::ComputeStableDt(scratch, dx, dir);
-    } else if (type == ::amrex::FabType::singlevalued) {
-      CutCellData<Rank> cutcell_data = context.GetCutCellData(patch, dir);
-      return Base::ComputeStableDt(scratch, cutcell_data, dir, dx);
-    }
-    return std::numeric_limits<double>::infinity();
-  }
+  std::unique_ptr<FluxMethodBase> Clone() const override;
+  void PreAdvanceHierarchy(IntegratorContext& context) override;
+  void ComputeNumericFluxes(IntegratorContext& context, int level, Duration dt, Direction dir) override;
 
-  template <typename Context>
-  void ComputeNumericFluxes(Context& context, PatchHandle patch, Direction dir,
-                            Duration dt) {
-    const int gcw = context.GetGhostCellWidth(patch, dir);
-    ::amrex::FabType type = context.GetCutCellPatchType(patch, gcw);
-    if (type == ::amrex::FabType::covered) {
-      return;
-    }
-    const Equation& equation = Base::GetEquation();
-    const double dx = context.GetDx(patch, dir);
-
-    const int d = static_cast<int>(dir);
-
-    const auto tilebox_cells =
-        Grow(AsIndexBox<Rank>(patch.iterator->tilebox()), dir, {gcw, gcw});
-
-    const auto tilebox_faces =
-        Grow(AsIndexBox<Rank>(patch.iterator->nodaltilebox(d)), dir, {1, 1});
-
-    View<const Complete> scratch = AsConst(Subview(
-        MakeView<BasicView<Complete>>(context.GetScratch(patch, dir), equation),
-        tilebox_cells));
-
-    View<Conservative> regular_fluxes =
-        Subview(MakeView<BasicView<Conservative>>(context.GetFluxes(patch, dir),
-                                                  equation),
-                tilebox_faces);
-
-    if (type == ::amrex::FabType::regular) {
-      Base::ComputeNumericFluxes(regular_fluxes, scratch, dir, dt, dx);
-    } else if (type == ::amrex::FabType::singlevalued) {
-      View<Conservative> boundary_fluxes =
-          Subview(MakeView<BasicView<Conservative>>(
-                      context.GetBoundaryFluxes(patch, dir), equation),
-                  tilebox_cells);
-
-      View<const Complete> reference_states =
-          AsConst(Subview(MakeView<BasicView<Complete>>(
-                              context.GetReferenceStates(patch), equation),
-                          tilebox_cells));
-
-      CutCellData<Rank> cutcell_data = context.GetCutCellData(patch, dir);
-      Base::ComputeBoundaryFluxes(boundary_fluxes, scratch, reference_states,
-                                  cutcell_data, dir, dt, dx);
-
-      View<Conservative> stabilized_fluxes =
-          Subview(MakeView<BasicView<Conservative>>(
-                      context.GetStabilizedFluxes(patch, dir), equation),
-                  tilebox_faces);
-
-      View<Conservative> shielded_left_fluxes =
-          Subview(MakeView<BasicView<Conservative>>(
-                      context.GetShieldedLeftFluxes(patch, dir), equation),
-                  tilebox_faces);
-
-      View<Conservative> shielded_right_fluxes =
-          Subview(MakeView<BasicView<Conservative>>(
-                      context.GetShieldedRightFluxes(patch, dir), equation),
-                  tilebox_faces);
-
-      View<Conservative> doubly_shielded_fluxes =
-          Subview(MakeView<BasicView<Conservative>>(
-                      context.GetDoublyShieldedFluxes(patch, dir), equation),
-                  tilebox_faces);
-
-      Base::ComputeCutCellFluxes(
-          stabilized_fluxes, regular_fluxes, shielded_left_fluxes,
-          shielded_right_fluxes, doubly_shielded_fluxes,
-          AsConst(boundary_fluxes), scratch, cutcell_data, dir, dt, dx);
-    }
-  }
-
-  Complete ref_;
+  FM method_;
 };
+}
+
+class FluxMethod {
+public:
+
+private:
+  std::unique_ptr<detail::FluxMethodBase> base_;
+};
+
+namespace detail {
+template <typename FM>
+std::unique_ptr<FluxMethodBase> FluxMethodWrapper<FM>::Clone() const override {
+  return std::make_unique<FluxMethodWrapper<FM>>(method_);
+}
+
+template <typename FM>
+void FluxMethodWrapper<FM>::PreAdvanceHierarchy(IntegratorContext& context) override {
+  if constexpr (HasPreAdvanceHierarchy) {
+    method_.PreAdvaceHierarchy(context);
+  }
+}
+
+template <typename FM>
+void FluxMethodWrapper<FM>::ComputeNumericFluxes(IntegratorContext& context, int level, Duration dt, Direction dir) override {
+  if constexpr (HasComputeNumericFluxesOnContext) {
+    method_.ComputeNumericFluxes(context, level, dt, dir);
+  }
+}
+}
 
 } // namespace cutcell
 } // namespace amrex

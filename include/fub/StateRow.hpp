@@ -117,18 +117,23 @@ template <typename Tuple, typename Function>
 void ForEachRow(const Tuple& views, Function f) {
   std::tuple firsts = Transform(views, [](const auto& v) { return Begin(v); });
   std::tuple lasts = Transform(views, [](const auto& v) { return End(v); });
+  std::tuple strides =
+      Transform(views, [](const auto& v) { return get<0>(v).Stride(1); });
   const auto& view = get<0>(views);
   const auto& first = get<0>(firsts);
   const auto& last = get<0>(lasts);
   std::ptrdiff_t row_extent = get<0>(view).Extent(0);
-  std::ptrdiff_t stride = get<0>(view).Stride(1);
-  while (get<0>(last) - get<0>(first) >= stride) {
+  while (get<0>(last) - get<0>(first) >= get<0>(strides)) {
     std::tuple rows = Transform(firsts, [row_extent](const auto& pointer) {
       return Row(pointer, row_extent);
     });
     std::apply(f, rows);
-    boost::mp11::tuple_for_each(firsts,
-                                [stride](auto& p) { Advance(p, stride); });
+    std::tuple firsts_and_strides = Zip(firsts, strides);
+    boost::mp11::tuple_for_each(
+        firsts_and_strides, [](auto& ps) { Advance(get<0>(ps), get<1>(ps)); });
+    firsts =
+        std::apply([](auto&&... fs) { return std::tuple{std::get<0>(fs)...}; },
+                   firsts_and_strides);
   }
   FUB_ASSERT(get<0>(first) == get<0>(last));
 }

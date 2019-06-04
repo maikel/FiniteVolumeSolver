@@ -24,9 +24,9 @@
 #include "fub/CartesianCoordinates.hpp"
 #include "fub/CutCellData.hpp"
 #include "fub/Duration.hpp"
+#include "fub/Execution.hpp"
 #include "fub/core/function_ref.hpp"
 #include "fub/core/mdspan.hpp"
-#include "fub/Execution.hpp"
 
 #include "fub/AMReX/PatchHandle.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
@@ -154,11 +154,13 @@ public:
     return GetPatchHierarchy().Minimum(level, function);
   }
 
-  template <typename F> F ForEachPatch(execution::OpenMpTag, int level, F function) {
+  template <typename F>
+  F ForEachPatch(execution::OpenMpTag, int level, F function) {
     return GetPatchHierarchy().ForEachPatch(execution::openmp, level, function);
   }
 
-  template <typename F> double Minimum(execution::OpenMpTag, int level, F function) {
+  template <typename F>
+  double Minimum(execution::OpenMpTag, int level, F function) {
     return GetPatchHierarchy().Minimum(execution::openmp, level, function);
   }
 

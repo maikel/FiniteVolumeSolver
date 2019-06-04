@@ -140,14 +140,14 @@ KineticSourceTerm<Rank>::AdvanceHierarchy(Duration dt) {
   for (int level = 0; level < nlevels; ++level) {
 #ifdef _OPENMP
     const std::size_t n_threads =
-      static_cast<std::size_t>(::omp_get_max_threads());
+        static_cast<std::size_t>(::omp_get_max_threads());
     std::vector<std::optional<Result<void, TimeStepTooLarge>>> results(
         n_threads);
     GetPatchHierarchy().ForEachPatch(
         execution::openmp, level,
         [&results, dt, solver = *this](amrex::PatchHandle patch) mutable {
           const std::size_t this_thread_num =
-            static_cast<std::size_t>(::omp_get_thread_num());
+              static_cast<std::size_t>(::omp_get_thread_num());
           if (!results[this_thread_num] || *results[this_thread_num]) {
             results[this_thread_num] = solver.AdvancePatch(patch, dt);
           }

@@ -40,7 +40,7 @@ template <typename Eq, typename Geometry> struct RiemannProblem {
 
   RiemannProblem(const Eq& eq, const Geometry& geom, const Complete& l,
                  const Complete& r)
-      : equation{eq}, geometry_{geom}, left{l}, right{r} {
+      : equation_{eq}, geometry_{geom}, left{l}, right{r} {
     ForEachComponent([](double& x) { x = 0.0; }, boundary);
   }
 
@@ -56,8 +56,7 @@ template <typename Eq, typename Geometry> struct RiemannProblem {
       ForEachVariable(
           [](const auto& var) {
             span<double> span = var.Span();
-            std::fill(span.begin(), span.end(),
-                      std::numeric_limits<double>::quiet_NaN());
+            std::fill(span.begin(), span.end(), 0.0);
           },
           data);
       return;
@@ -87,11 +86,11 @@ template <typename Eq, typename Geometry> struct RiemannProblem {
     }
   }
 
-  Equation equation;
+  Equation equation_;
   Geometry geometry_;
-  Complete left{equation};
-  Complete right{equation};
-  Complete boundary{equation};
+  Complete left{equation_};
+  Complete right{equation_};
+  Complete boundary{equation_};
 };
 
 template <typename Eq, typename Geom>

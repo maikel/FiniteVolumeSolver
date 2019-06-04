@@ -54,9 +54,9 @@ template <typename Equation, typename... Projections> struct GradientDetector {
       : equation_{equation}, conditions_{conds...} {}
 
   template <int TagRank>
-  void TagCellsForRefinement(const PatchDataView<char, TagRank>& tags,
-                             const BasicView<const Complete<Equation>>& states,
-                             const CartesianCoordinates&) {
+  void
+  TagCellsForRefinement(const PatchDataView<char, TagRank, layout_stride>& tags,
+                        const View<const Complete<Equation>>& states) {
     constexpr std::size_t sTagRank = static_cast<std::size_t>(TagRank);
     const auto tagbox = tags.Box();
     for (std::size_t dir = 0; dir < Extents<0>(states).rank(); ++dir) {
@@ -92,9 +92,8 @@ template <typename Equation, typename... Projections> struct GradientDetector {
 
   template <int TagRank, typename CutCellData>
   void TagCellsForRefinement(const PatchDataView<char, TagRank>& tags,
-                             const BasicView<const Complete<Equation>>& states,
-                             const CutCellData& cutcell_data,
-                             const CartesianCoordinates&) {
+                             const View<const Complete<Equation>>& states,
+                             const CutCellData& cutcell_data) {
     const auto& flags = cutcell_data.flags;
     FUB_ASSERT(Contains(flags.Box(), Box<0>(states)));
     const auto tagbox = tags.Box();

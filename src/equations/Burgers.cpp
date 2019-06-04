@@ -22,9 +22,18 @@
 
 namespace fub {
 
-void Burgers1d::Flux(Conservative& flux, const Complete& state, Direction) const
+Burgers1d::Conservative Burgers1d::Flux(Complete state, Direction) const
     noexcept {
+  Conservative flux{};
   flux.u = 0.5 * state.u * state.u;
+  return flux;
+}
+
+Burgers1d::ConservativeArray Burgers1d::Flux(CompleteArray state,
+                                             Direction) const noexcept {
+  ConservativeArray flux{};
+  flux.u = 0.5 * state.u * state.u;
+  return flux;
 }
 
 void ExactRiemannSolver<Burgers1d>::SolveRiemannProblem(
@@ -44,6 +53,16 @@ void ExactRiemannSolver<Burgers1d>::SolveRiemannProblem(
   }
 }
 
+void ExactRiemannSolver<Burgers1d>::SolveRiemannProblem(
+    CompleteArray& riemann_solution, const CompleteArray& left,
+    const CompleteArray& right, Direction) const {
+  const Array1d s = 0.5 * (left.u + right.u);
+  const Array1d by_s = (s < 0.0).select(right.u, left.u);
+  riemann_solution.u = (left.u > 0.0).select(left.u, Array1d::Zero());
+  riemann_solution.u = (right.u < 0.0).select(right.u, riemann_solution.u);
+  riemann_solution.u = (right.u < left.u).select(by_s, riemann_solution.u);
+}
+
 std::array<double, 1> ExactRiemannSolver<Burgers1d>::ComputeSignals(
     const Complete& left, const Complete& right, Direction) const {
   if (right.u < left.u) {
@@ -51,6 +70,13 @@ std::array<double, 1> ExactRiemannSolver<Burgers1d>::ComputeSignals(
     return {s};
   }
   return {std::max(std::abs(left.u), std::abs(right.u))};
+}
+
+std::array<Array1d, 1> ExactRiemannSolver<Burgers1d>::ComputeSignals(
+    const CompleteArray& left, const CompleteArray& right, Direction) const {
+  const Array1d s = 0.5 * (left.u + right.u);
+  const Array1d max = left.u.abs().max(right.u.abs());
+  return {(right.u < left.u).select(s, max)};
 }
 
 } // namespace fub

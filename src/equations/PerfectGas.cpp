@@ -66,8 +66,8 @@ void PerfectGas<Dim>::Flux(ConservativeArray& flux, const CompleteArray& state,
 }
 
 template <int Dim>
-void PerfectGas<Dim>::CompleteFromCons(Complete& complete,
-                                       const Conservative& cons) const
+void PerfectGas<Dim>::CompleteFromCons(
+    Complete& complete, const ConservativeBase<PerfectGas>& cons) const
     noexcept {
   complete.density = cons.density;
   complete.momentum = cons.momentum;
@@ -82,9 +82,9 @@ void PerfectGas<Dim>::CompleteFromCons(Complete& complete,
 }
 
 template <int Dim>
-void PerfectGas<Dim>::CompleteFromCons(CompleteArray& complete,
-                                       const ConservativeArray& cons) const
-    noexcept {
+void PerfectGas<Dim>::CompleteFromCons(
+    CompleteArray& complete,
+    const ConservativeArrayBase<PerfectGas>& cons) const noexcept {
   complete.density = cons.density;
   complete.momentum = cons.momentum;
   complete.energy = cons.energy;
@@ -93,6 +93,33 @@ void PerfectGas<Dim>::CompleteFromCons(CompleteArray& complete,
   complete.pressure = e_int / gamma_minus_1_inv;
   complete.speed_of_sound =
       (gamma_array_ * complete.pressure / complete.density).sqrt();
+}
+
+template <int Dim>
+Complete<PerfectGas<Dim>>
+PerfectGas<Dim>::CompleteFromPrim(double rho, const Array<double, Dim, 1>& v,
+                                  double p) const noexcept {
+  Complete q{};
+  q.density = rho;
+  q.momentum = rho * v;
+  q.pressure = p;
+  const double e_kin = KineticEnergy(q.density, q.momentum);
+  q.energy = e_kin + p * gamma_minus_1_inv;
+  q.speed_of_sound = std::sqrt(gamma * q.pressure / q.density);
+  return q;
+}
+
+template <int Dim>
+Array<double, Dim, 1> PerfectGas<Dim>::Velocity(const Complete& complete) const
+    noexcept {
+  Array<double, Dim, 1> u = complete.momentum / complete.density;
+  return u;
+}
+
+template <int Dim>
+double PerfectGas<Dim>::Machnumber(const Complete& complete) const noexcept {
+  double u = Velocity(complete).matrix().norm();
+  return u / complete.speed_of_sound;
 }
 
 template struct PerfectGas<1>;
@@ -160,9 +187,9 @@ void Reflect(Complete<PerfectGas<3>>& reflected,
 }
 
 template <int Dim>
-std::array<double, 2> EinfeldtSignalVelocities<PerfectGas<Dim>>::operator()(
-    const PerfectGas<Dim>&, const Complete& left, const Complete& right,
-    Direction dir) const noexcept {
+std::array<double, 2> EinfeldtSignalVelocities<PerfectGas<Dim>>::
+operator()(const PerfectGas<Dim>&, const Complete& left, const Complete& right,
+           Direction dir) const noexcept {
   FUB_ASSERT(left.density > 0.0);
   FUB_ASSERT(right.density > 0.0);
   const double rhoL = left.density;
@@ -190,9 +217,9 @@ std::array<double, 2> EinfeldtSignalVelocities<PerfectGas<Dim>>::operator()(
 }
 
 template <int Dim>
-std::array<Array1d, 2> EinfeldtSignalVelocities<PerfectGas<Dim>>::operator()(
-    const PerfectGas<Dim>&, const CompleteArray& left,
-    const CompleteArray& right, Direction dir) const noexcept {
+std::array<Array1d, 2> EinfeldtSignalVelocities<PerfectGas<Dim>>::
+operator()(const PerfectGas<Dim>&, const CompleteArray& left,
+           const CompleteArray& right, Direction dir) const noexcept {
   const Array1d rhoL = left.density;
   const Array1d rhoR = right.density;
   const Array1d rhoUL = left.momentum.row(int(dir));

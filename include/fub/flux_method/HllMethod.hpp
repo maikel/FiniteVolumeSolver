@@ -44,17 +44,29 @@ public:
   /// \brief Returns the stencil width of this method
   static constexpr int GetStencilWidth() noexcept { return 1; }
 
+  /// @{
   /// \brief Returns the strategy object which computes the signal speeds for
   /// this method.
   const SignalSpeeds& GetSignalSpeeds() const noexcept {
     return signal_speeds_;
   }
   SignalSpeeds& GetSignalSpeeds() noexcept { return signal_speeds_; }
+  /// @}
 
+  /// @{
   /// \brief Returns the underlying equations object.
   const Equation& GetEquation() const noexcept { return equation_; }
   Equation& GetEquation() noexcept { return equation_; }
+  /// @}
 
+  /// \brief Computes an approximate solution to the rieman problem defined by
+  /// left and right states.
+  ///
+  /// \param[out] solution  The solution to the riemann problem will be stored
+  ///                       here.
+  /// \param[in] left  The left state of the riemann problem
+  /// \param[in] right  The right state of the riemann problem.
+  /// \param[in] dir  The direction in which the riemann problem will be solved.
   void SolveRiemannProblem(Complete& solution, const Complete& left,
                            const Complete& right, Direction dir);
 
@@ -140,8 +152,8 @@ void HllBase<Equation, SignalSpeeds>::SolveRiemannProblem(Complete& solution,
                                                           const Complete& right,
                                                           Direction dir) {
   const auto signals = signal_speeds_(equation_, left, right, dir);
-  GetEquation().Flux(flux_left_, left, dir);
-  GetEquation().Flux(flux_right_, right, dir);
+  Flux(GetEquation(), flux_left_, left, dir);
+  Flux(GetEquation(), flux_right_, right, dir);
   const double sL = signals[0];
   const double sR = signals[1];
   const double ds = sR - sL;
@@ -168,8 +180,8 @@ void HllBase<Equation, SignalSpeeds>::ComputeNumericFlux(
 
   const auto signals = signal_speeds_(GetEquation(), left, right, dir);
 
-  GetEquation().Flux(flux_left_, left, dir);
-  GetEquation().Flux(flux_right_, right, dir);
+  Flux(GetEquation(), flux_left_, left, dir);
+  Flux(GetEquation(), flux_right_, right, dir);
 
   const double sL = std::min(0.0, signals[0]);
   const double sR = std::max(0.0, signals[1]);
@@ -204,8 +216,8 @@ void HllArrayBase<Equation, SignalSpeeds, true>::SolveRiemannProblem(
     CompleteArray& solution, const CompleteArray& left,
     const CompleteArray& right, Direction dir) {
   const auto signals = GetSignalSpeeds()(GetEquation(), left, right, dir);
-  GetEquation().Flux(flux_left_array_, left, dir);
-  GetEquation().Flux(flux_right_array_, right, dir);
+  Flux(GetEquation(), flux_left_array_, left, dir);
+  Flux(GetEquation(), flux_right_array_, right, dir);
   const Array1d sL = signals[0];
   const Array1d sR = signals[1];
   const Array1d ds = sR - sL;
@@ -228,8 +240,8 @@ void HllArrayBase<Equation, SignalSpeeds, true>::ComputeNumericFlux(
 
   const auto signals = GetSignalSpeeds()(GetEquation(), left, right, dir);
 
-  GetEquation().Flux(flux_left_array_, left, dir);
-  GetEquation().Flux(flux_right_array_, right, dir);
+  Flux(GetEquation(), flux_left_array_, left, dir);
+  Flux(GetEquation(), flux_right_array_, right, dir);
 
   const Array1d zero = Array1d::Zero();
   const Array1d sL = signals[0].min(zero);

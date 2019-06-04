@@ -52,13 +52,27 @@ namespace cutcell {
 /// This cut-cell version stores some embedded boundary informations in addition
 /// to the normal patch level type.
 struct PatchLevel : ::fub::amrex::PatchLevel {
+  /// \brief Constructs an invalid patch level containing no data.
   PatchLevel() = default;
+
+  /// \brief Deeply copy a patch level on each MPI Rank and recompute shielded fractions.
   PatchLevel(const PatchLevel&);
+
+  /// \brief Deeply copy a patch level on each MPI Rank and recompute shielded fractions.
   PatchLevel& operator=(const PatchLevel&);
+
   PatchLevel(PatchLevel&&) noexcept = default;
   PatchLevel& operator=(PatchLevel&&) noexcept = default;
+
   ~PatchLevel() = default;
 
+  /// \brief Constructs a patch level and computes shielded fractions.
+  ///
+  /// \param[in] level  the refinement level number in a hierarchy
+  /// \param[in] tp  the time point associated with this level
+  /// \param[in] ba  the box array describing all boxes of this level
+  /// \param[in] dm  the distribution mapping for all boxes of this level
+  /// \param[in] factory  the boundary informations for cut cells.
   PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
              const ::amrex::DistributionMapping& dm, int n_components,
              std::shared_ptr<::amrex::EBFArrayBoxFactory> factory);
@@ -66,10 +80,19 @@ struct PatchLevel : ::fub::amrex::PatchLevel {
   using MultiCutFabs =
       std::array<std::unique_ptr<::amrex::MultiCutFab>, AMREX_SPACEDIM>;
 
+  /// \brief This stores the EB factory for this refinement level.
   std::shared_ptr<::amrex::EBFArrayBoxFactory> factory;
+
+  /// \brief Store unshielded face fractions for all faces which touch a cut cell.
   MultiCutFabs unshielded;
+
+  /// \brief Store singly shielded from left face fractions for all faces which touch a cut cell.
   MultiCutFabs shielded_left;
+
+  /// \brief Store singly shielded from right face fractions for all faces which touch a cut cell.
   MultiCutFabs shielded_right;
+
+  /// \brief Store doubly shielded face fractions for all faces which touch a cut cell.
   MultiCutFabs doubly_shielded;
 };
 
@@ -146,8 +169,7 @@ public:
 
   template <typename Feedback>
   Feedback ForEachPatch(int level, Feedback feedback) const {
-    for (::amrex::MFIter mfi(GetPatchLevel(level).data); mfi.isValid();
-         ++mfi) {
+    for (::amrex::MFIter mfi(GetPatchLevel(level).data); mfi.isValid(); ++mfi) {
       PatchHandle handle{level, &mfi};
       feedback(handle);
     }
@@ -155,7 +177,8 @@ public:
   }
 
   template <typename Feedback>
-  Feedback ForEachPatch(execution::OpenMpTag, int level, Feedback feedback) const {
+  Feedback ForEachPatch(execution::OpenMpTag, int level,
+                        Feedback feedback) const {
 #ifdef _OPENMP
 #pragma omp parallel firstprivate(feedback)
 #endif
@@ -172,8 +195,7 @@ public:
   template <typename Feedback>
   double Minimum(int level, Feedback feedback) const {
     double global_min = std::numeric_limits<double>::infinity();
-    for (::amrex::MFIter mfi(GetPatchLevel(level).data); mfi.isValid();
-         ++mfi) {
+    for (::amrex::MFIter mfi(GetPatchLevel(level).data); mfi.isValid(); ++mfi) {
       PatchHandle handle{level, &mfi};
       const double local_min = feedback(handle);
       global_min = std::min(global_min, local_min);
@@ -249,13 +271,13 @@ void WritePlotFile(const std::string plotfilename, const PatchHierarchy& hier,
                                       ref_ratio);
 }
 
-void WriteCheckpointFile(const std::string checkpointname,
+void WriteCheckpointFile(const std::string& checkpointname,
                          const PatchHierarchy& hier);
 
-std::shared_ptr<PatchHierarchy>
-ReadCheckpointFile(const std::string checkpointname, DataDescription desc,
-                   const CartesianGridGeometry& geometry,
-                   const PatchHierarchyOptions& options);
+PatchHierarchy ReadCheckpointFile(const std::string& checkpointname,
+                                  DataDescription desc,
+                                  const CartesianGridGeometry& geometry,
+                                  const PatchHierarchyOptions& options);
 
 } // namespace cutcell
 } // namespace amrex

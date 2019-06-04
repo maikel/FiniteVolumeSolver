@@ -18,27 +18,24 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include <AMReX_FluxRegister.H>
+#ifndef FUB_AMREX_BOUNDARY_CONDITION_BOUNDARY_SET_HPP
+#define FUB_AMREX_BOUNDARY_CONDITION_BOUNDARY_SET_HPP
+
+#include "fub/AMReX/BoundaryCondition.hpp"
+
 #include <AMReX_MultiFab.H>
-#include <AMReX_PhysBCFunct.H>
 
-namespace fub {
-namespace amrex {
+#include <vector>
 
-template <typename Function, typename MultiFab, typename... MultiFabs>
-void ForEachFAB(Function function, MultiFab&& fab, MultiFabs&&... fabs) {
-  const ::amrex::Vector<int>& local_indices = fab.IndexArray();
-  for (auto i : local_indices) {
-    function(fab[i], fabs[i]...);
-  }
-}
+namespace fub::amrex {
 
-template <typename F>
-::amrex::PhysBCFunct<F>
-MakePhysBCFunct(const ::amrex::Geometry& geom,
-                const ::amrex::Vector<::amrex::BCRec>& bcr, F f) {
-  return {geom, bcr, f};
-}
+struct BoundarySet {
+  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
+                    Duration timepoint, const GriddingAlgorithm& gridding);
 
-} // namespace amrex
-} // namespace fub
+  std::vector<BoundaryCondition> conditions;
+};
+
+} // namespace fub::amrex
+
+#endif

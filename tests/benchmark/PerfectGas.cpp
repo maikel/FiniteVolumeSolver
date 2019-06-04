@@ -27,7 +27,7 @@
 
 static void BM_HLLE_Method_X(benchmark::State& state) {
   int width = state.range(0);
-  
+
   std::vector<double> density_flux(width * width * width);
   std::vector<double> momentum_flux(width * width * width * 3);
   std::vector<double> energy_flux(width * width * width);
@@ -39,12 +39,12 @@ static void BM_HLLE_Method_X(benchmark::State& state) {
   std::vector<double> momentum((width + 1) * width * width * 3);
   std::fill(density.begin(), density.end(), 1.0);
   std::iota(pressure.begin(), pressure.end(), 0.0);
-  std::transform(pressure.begin(), pressure.end(), pressure.begin(), [&](double x) {
-    return 1 + 0.1 * std::sin(x * 2 * M_PI / width);
-  });
-  std::transform(pressure.begin(), pressure.end(), density.begin(), speed_of_sound.begin(), [](double p, double rho) {
-    return std::sqrt(1.4 * p / rho);
-  });
+  std::transform(
+      pressure.begin(), pressure.end(), pressure.begin(),
+      [&](double x) { return 1 + 0.1 * std::sin(x * 2 * M_PI / width); });
+  std::transform(pressure.begin(), pressure.end(), density.begin(),
+                 speed_of_sound.begin(),
+                 [](double p, double rho) { return std::sqrt(1.4 * p / rho); });
 
   using namespace fub;
   PerfectGas<3> equation{};
@@ -65,20 +65,21 @@ static void BM_HLLE_Method_X(benchmark::State& state) {
   basic_states.density = PatchDataView<const double, 3>(
       mdspan<const double, 3>(density.data(), width + 1, width, width), {-1});
   basic_states.momentum = PatchDataView<const double, 4>(
-      mdspan<const double, 4>(momentum.data(), width + 1, width, width, 3), {-1});
+      mdspan<const double, 4>(momentum.data(), width + 1, width, width, 3),
+      {-1});
   basic_states.energy = PatchDataView<const double, 3>(
       mdspan<const double, 3>(energy.data(), width + 1, width, width), {-1});
   basic_states.pressure = PatchDataView<const double, 3>(
       mdspan<const double, 3>(pressure.data(), width + 1, width, width), {-1});
   basic_states.speed_of_sound = PatchDataView<const double, 3>(
-      mdspan<const double, 3>(speed_of_sound.data(), width + 1, width, width), {-1});
+      mdspan<const double, 3>(speed_of_sound.data(), width + 1, width, width),
+      {-1});
   View<const Complete<PerfectGas<3>>> states =
       Subview(basic_states, {{-1, 0, 0}, {width, width, width}});
 
   static_assert(IsView<View<Complete<PerfectGas<3>>>>::value);
   for (auto _ : state) {
-    hlle.ComputeNumericFluxes(fluxes, states, Direction::X, Duration(0.7),
-                                 1.0);
+    hlle.ComputeNumericFluxes(fluxes, states, Direction::X, Duration(0.7), 1.0);
   }
 }
 BENCHMARK(BM_HLLE_Method_X)->Arg(8)->Arg(16)->Arg(32);
@@ -97,12 +98,12 @@ static void BM_HLLE_Method_Y(benchmark::State& state) {
   std::vector<double> momentum((width + 1) * width * width * 3);
   std::fill(density.begin(), density.end(), 1.0);
   std::iota(pressure.begin(), pressure.end(), 0.0);
-  std::transform(pressure.begin(), pressure.end(), pressure.begin(), [&](double x) {
-    return 1 + 0.1 * std::sin(x * 2 * M_PI / width);
-  });
-  std::transform(pressure.begin(), pressure.end(), density.begin(), speed_of_sound.begin(), [](double p, double rho) {
-    return std::sqrt(1.4 * p / rho);
-  });
+  std::transform(
+      pressure.begin(), pressure.end(), pressure.begin(),
+      [&](double x) { return 1 + 0.1 * std::sin(x * 2 * M_PI / width); });
+  std::transform(pressure.begin(), pressure.end(), density.begin(),
+                 speed_of_sound.begin(),
+                 [](double p, double rho) { return std::sqrt(1.4 * p / rho); });
 
   using namespace fub;
   PerfectGas<3> equation{};
@@ -110,33 +111,36 @@ static void BM_HLLE_Method_Y(benchmark::State& state) {
 
   BasicView<Conservative<PerfectGas<3>>> basic_fluxes;
   basic_fluxes.density = PatchDataView<double, 3>(
-                                                  mdspan<double, 3>(density_flux.data(), width, width, width), {});
+      mdspan<double, 3>(density_flux.data(), width, width, width), {});
   basic_fluxes.momentum = PatchDataView<double, 4>(
-                                                   mdspan<double, 4>(momentum_flux.data(), width, width, width, 3), {});
+      mdspan<double, 4>(momentum_flux.data(), width, width, width, 3), {});
   basic_fluxes.energy = PatchDataView<double, 3>(
-                                                 mdspan<double, 3>(energy_flux.data(), width, width, width), {});
+      mdspan<double, 3>(energy_flux.data(), width, width, width), {});
 
   View<Conservative<PerfectGas<3>>> fluxes =
-  Subview(basic_fluxes, {{}, {width, width, width}});
+      Subview(basic_fluxes, {{}, {width, width, width}});
 
   BasicView<const Complete<PerfectGas<3>>> basic_states;
   basic_states.density = PatchDataView<const double, 3>(
-                                                        mdspan<const double, 3>(density.data(), width, width + 1, width), {0, -1});
+      mdspan<const double, 3>(density.data(), width, width + 1, width),
+      {0, -1});
   basic_states.momentum = PatchDataView<const double, 4>(
-                                                         mdspan<const double, 4>(momentum.data(), width, width + 1, width, 3), {0, -1});
+      mdspan<const double, 4>(momentum.data(), width, width + 1, width, 3),
+      {0, -1});
   basic_states.energy = PatchDataView<const double, 3>(
-                                                       mdspan<const double, 3>(energy.data(), width, width + 1, width), {0, -1});
+      mdspan<const double, 3>(energy.data(), width, width + 1, width), {0, -1});
   basic_states.pressure = PatchDataView<const double, 3>(
-                                                         mdspan<const double, 3>(pressure.data(), width, width + 1, width), {0, -1});
+      mdspan<const double, 3>(pressure.data(), width, width + 1, width),
+      {0, -1});
   basic_states.speed_of_sound = PatchDataView<const double, 3>(
-                                                               mdspan<const double, 3>(speed_of_sound.data(), width , width + 1, width), {0, -1});
+      mdspan<const double, 3>(speed_of_sound.data(), width, width + 1, width),
+      {0, -1});
   View<const Complete<PerfectGas<3>>> states =
-  Subview(basic_states, {{0, -1, 0}, {width, width, width}});
+      Subview(basic_states, {{0, -1, 0}, {width, width, width}});
 
   static_assert(IsView<View<Complete<PerfectGas<3>>>>::value);
   for (auto _ : state) {
-    hlle.ComputeNumericFluxes(fluxes, states, Direction::Y, Duration(0.7),
-                              1.0);
+    hlle.ComputeNumericFluxes(fluxes, states, Direction::Y, Duration(0.7), 1.0);
   }
 }
 BENCHMARK(BM_HLLE_Method_Y)->Arg(8)->Arg(16)->Arg(32);
@@ -155,12 +159,12 @@ static void BM_SIMD_HLLE_Method_X(benchmark::State& state) {
   std::vector<double> momentum((width + 1) * width * width * 3);
   std::fill(density.begin(), density.end(), 1.0);
   std::iota(pressure.begin(), pressure.end(), 0.0);
-  std::transform(pressure.begin(), pressure.end(), pressure.begin(), [&](double x) {
-    return 1 + 0.1 * std::sin(x * 2 * M_PI / width);
-  });
-  std::transform(pressure.begin(), pressure.end(), density.begin(), speed_of_sound.begin(), [](double p, double rho) {
-    return std::sqrt(1.4 * p / rho);
-  });
+  std::transform(
+      pressure.begin(), pressure.end(), pressure.begin(),
+      [&](double x) { return 1 + 0.1 * std::sin(x * 2 * M_PI / width); });
+  std::transform(pressure.begin(), pressure.end(), density.begin(),
+                 speed_of_sound.begin(),
+                 [](double p, double rho) { return std::sqrt(1.4 * p / rho); });
 
   using namespace fub;
   PerfectGas<3> equation{};
@@ -168,33 +172,35 @@ static void BM_SIMD_HLLE_Method_X(benchmark::State& state) {
 
   BasicView<Conservative<PerfectGas<3>>> basic_fluxes;
   basic_fluxes.density = PatchDataView<double, 3>(
-                                                  mdspan<double, 3>(density_flux.data(), width, width, width), {});
+      mdspan<double, 3>(density_flux.data(), width, width, width), {});
   basic_fluxes.momentum = PatchDataView<double, 4>(
-                                                   mdspan<double, 4>(momentum_flux.data(), width, width, width, 3), {});
+      mdspan<double, 4>(momentum_flux.data(), width, width, width, 3), {});
   basic_fluxes.energy = PatchDataView<double, 3>(
-                                                 mdspan<double, 3>(energy_flux.data(), width, width, width), {});
+      mdspan<double, 3>(energy_flux.data(), width, width, width), {});
 
   View<Conservative<PerfectGas<3>>> fluxes =
-  Subview(basic_fluxes, {{}, {width, width, width}});
+      Subview(basic_fluxes, {{}, {width, width, width}});
 
   BasicView<const Complete<PerfectGas<3>>> basic_states;
   basic_states.density = PatchDataView<const double, 3>(
-                                                        mdspan<const double, 3>(density.data(), width + 1, width, width), {-1});
+      mdspan<const double, 3>(density.data(), width + 1, width, width), {-1});
   basic_states.momentum = PatchDataView<const double, 4>(
-                                                         mdspan<const double, 4>(momentum.data(), width + 1, width, width, 3), {-1});
+      mdspan<const double, 4>(momentum.data(), width + 1, width, width, 3),
+      {-1});
   basic_states.energy = PatchDataView<const double, 3>(
-                                                       mdspan<const double, 3>(energy.data(), width + 1, width, width), {-1});
+      mdspan<const double, 3>(energy.data(), width + 1, width, width), {-1});
   basic_states.pressure = PatchDataView<const double, 3>(
-                                                         mdspan<const double, 3>(pressure.data(), width + 1, width, width), {-1});
+      mdspan<const double, 3>(pressure.data(), width + 1, width, width), {-1});
   basic_states.speed_of_sound = PatchDataView<const double, 3>(
-                                                               mdspan<const double, 3>(speed_of_sound.data(), width + 1, width, width), {-1});
+      mdspan<const double, 3>(speed_of_sound.data(), width + 1, width, width),
+      {-1});
   View<const Complete<PerfectGas<3>>> states =
-  Subview(basic_states, {{-1, 0, 0}, {width, width, width}});
+      Subview(basic_states, {{-1, 0, 0}, {width, width, width}});
 
   static_assert(IsView<View<Complete<PerfectGas<3>>>>::value);
   for (auto _ : state) {
-    hlle.ComputeNumericFluxes(execution::simd, fluxes, states, Direction::X, Duration(0.7),
-                              1.0);
+    hlle.ComputeNumericFluxes(execution::simd, fluxes, states, Direction::X,
+                              Duration(0.7), 1.0);
   }
 }
 BENCHMARK(BM_SIMD_HLLE_Method_X)->Arg(8)->Arg(16)->Arg(32);
@@ -213,12 +219,12 @@ static void BM_SIMD_HLLE_Method_Y(benchmark::State& state) {
   std::vector<double> momentum((width + 1) * width * width * 3);
   std::fill(density.begin(), density.end(), 1.0);
   std::iota(pressure.begin(), pressure.end(), 0.0);
-  std::transform(pressure.begin(), pressure.end(), pressure.begin(), [&](double x) {
-    return 1 + 0.1 * std::sin(x * 2 * M_PI / width);
-  });
-  std::transform(pressure.begin(), pressure.end(), density.begin(), speed_of_sound.begin(), [](double p, double rho) {
-    return std::sqrt(1.4 * p / rho);
-  });
+  std::transform(
+      pressure.begin(), pressure.end(), pressure.begin(),
+      [&](double x) { return 1 + 0.1 * std::sin(x * 2 * M_PI / width); });
+  std::transform(pressure.begin(), pressure.end(), density.begin(),
+                 speed_of_sound.begin(),
+                 [](double p, double rho) { return std::sqrt(1.4 * p / rho); });
 
   using namespace fub;
   PerfectGas<3> equation{};
@@ -226,33 +232,37 @@ static void BM_SIMD_HLLE_Method_Y(benchmark::State& state) {
 
   BasicView<Conservative<PerfectGas<3>>> basic_fluxes;
   basic_fluxes.density = PatchDataView<double, 3>(
-                                                  mdspan<double, 3>(density_flux.data(), width, width, width), {});
+      mdspan<double, 3>(density_flux.data(), width, width, width), {});
   basic_fluxes.momentum = PatchDataView<double, 4>(
-                                                   mdspan<double, 4>(momentum_flux.data(), width, width, width, 3), {});
+      mdspan<double, 4>(momentum_flux.data(), width, width, width, 3), {});
   basic_fluxes.energy = PatchDataView<double, 3>(
-                                                 mdspan<double, 3>(energy_flux.data(), width, width, width), {});
+      mdspan<double, 3>(energy_flux.data(), width, width, width), {});
 
   View<Conservative<PerfectGas<3>>> fluxes =
-  Subview(basic_fluxes, {{}, {width, width, width}});
+      Subview(basic_fluxes, {{}, {width, width, width}});
 
   BasicView<const Complete<PerfectGas<3>>> basic_states;
   basic_states.density = PatchDataView<const double, 3>(
-                                                        mdspan<const double, 3>(density.data(), width, width + 1, width), {0, -1});
+      mdspan<const double, 3>(density.data(), width, width + 1, width),
+      {0, -1});
   basic_states.momentum = PatchDataView<const double, 4>(
-                                                         mdspan<const double, 4>(momentum.data(), width, width + 1, width, 3), {0, -1});
+      mdspan<const double, 4>(momentum.data(), width, width + 1, width, 3),
+      {0, -1});
   basic_states.energy = PatchDataView<const double, 3>(
-                                                       mdspan<const double, 3>(energy.data(), width, width + 1, width), {0, -1});
+      mdspan<const double, 3>(energy.data(), width, width + 1, width), {0, -1});
   basic_states.pressure = PatchDataView<const double, 3>(
-                                                         mdspan<const double, 3>(pressure.data(), width, width + 1, width), {0, -1});
+      mdspan<const double, 3>(pressure.data(), width, width + 1, width),
+      {0, -1});
   basic_states.speed_of_sound = PatchDataView<const double, 3>(
-                                                               mdspan<const double, 3>(speed_of_sound.data(), width , width + 1, width), {0, -1});
+      mdspan<const double, 3>(speed_of_sound.data(), width, width + 1, width),
+      {0, -1});
   View<const Complete<PerfectGas<3>>> states =
-  Subview(basic_states, {{0, -1, 0}, {width, width, width}});
+      Subview(basic_states, {{0, -1, 0}, {width, width, width}});
 
   static_assert(IsView<View<Complete<PerfectGas<3>>>>::value);
   for (auto _ : state) {
-    hlle.ComputeNumericFluxes(execution::simd, fluxes, states, Direction::Y, Duration(0.7),
-                              1.0);
+    hlle.ComputeNumericFluxes(execution::simd, fluxes, states, Direction::Y,
+                              Duration(0.7), 1.0);
   }
 }
 BENCHMARK(BM_SIMD_HLLE_Method_Y)->Arg(8)->Arg(16)->Arg(32);

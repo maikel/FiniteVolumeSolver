@@ -22,6 +22,7 @@
 #define FUB_EQUATIONS_PERFECT_GAS_HPP
 
 #include "fub/State.hpp"
+#include "fub/StateArray.hpp"
 
 #include "fub/CompleteFromCons.hpp"
 #include "fub/EinfeldtSignalVelocities.hpp"
@@ -103,11 +104,18 @@ template <int N> struct PerfectGas {
   void Flux(ConservativeArray& flux, const CompleteArray& state,
             [[maybe_unused]] Direction dir) const noexcept;
 
-  void CompleteFromCons(Complete& complete, const Conservative& cons) const
+  void CompleteFromCons(Complete& complete,
+                        const ConservativeBase<PerfectGas>& cons) const
       noexcept;
 
   void CompleteFromCons(CompleteArray& complete,
-                        const ConservativeArray& cons) const noexcept;
+                        const ConservativeArrayBase<PerfectGas>& cons) const
+      noexcept;
+
+  Complete CompleteFromPrim(double density, const Array<double, N, 1>& u,
+                            double pressure) const noexcept;
+  Array<double, N, 1> Velocity(const Complete& q) const noexcept;
+  double Machnumber(const Complete& q) const noexcept;
 
   double gamma{1.4};
   double gamma_minus_1_inv{1.0 / (gamma - 1.0)};
@@ -160,6 +168,7 @@ void Reflect(Complete<PerfectGas<3>>& reflected,
 template <int Dim> class ExactRiemannSolver<PerfectGas<Dim>> {
 public:
   using Complete = typename PerfectGas<Dim>::Complete;
+  using CompleteArray = typename PerfectGas<Dim>::CompleteArray;
 
   explicit ExactRiemannSolver(const PerfectGas<Dim>& equation)
       : equation_{equation} {}
@@ -168,9 +177,15 @@ public:
   void SolveRiemannProblem(Complete& state, const Complete& left,
                            const Complete& right, Direction dir);
 
+  void SolveRiemannProblem(CompleteArray& state, const CompleteArray& left,
+                           const CompleteArray& right, Direction dir);
+
   /// Returns the upwind velocity in the specified direction.
   std::array<double, 2> ComputeSignals(const Complete&, const Complete&,
                                        Direction dir);
+
+  std::array<double, 2> ComputeSignals(const CompleteArray&,
+                                       const CompleteArray&, Direction dir);
 
   std::array<double, 2> ComputeMiddleState(const Complete& left,
                                            const Complete& right,
@@ -201,13 +216,6 @@ template <int Dim> struct EinfeldtSignalVelocities<PerfectGas<Dim>> {
 extern template struct EinfeldtSignalVelocities<PerfectGas<1>>;
 extern template struct EinfeldtSignalVelocities<PerfectGas<2>>;
 extern template struct EinfeldtSignalVelocities<PerfectGas<3>>;
-
-extern template class FluxMethod<
-    Hll<PerfectGas<1>, EinfeldtSignalVelocities<PerfectGas<1>>>>;
-extern template class FluxMethod<
-    Hll<PerfectGas<2>, EinfeldtSignalVelocities<PerfectGas<2>>>>;
-extern template class FluxMethod<
-    Hll<PerfectGas<3>, EinfeldtSignalVelocities<PerfectGas<3>>>>;
 
 } // namespace fub
 
