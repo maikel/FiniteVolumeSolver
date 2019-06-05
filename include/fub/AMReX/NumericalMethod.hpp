@@ -27,6 +27,7 @@
 
 namespace fub::amrex {
 template <typename FM> struct FluxMethodWrapper;
+
 /// \brief This struct summarizes the numerical method which is being deployed
 /// by this integrator context.
 struct NumericalMethod {
@@ -37,6 +38,7 @@ struct NumericalMethod {
   explicit NumericalMethod(const FM& method)
       : flux_method(FluxMethodWrapper<std::decay_t<FM>>(method)),
         time_integrator{ForwardIntegrator{}},
+
         reconstruction{ReconstructEquationStates{method.GetEquation()}} {}
 
   FluxMethod flux_method;

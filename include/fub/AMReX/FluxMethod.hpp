@@ -43,8 +43,28 @@ struct FluxMethodBase {
   virtual int GetStencilWidth() const = 0;
 };
 
-/// This is a polymorphic flux method class which is intended to be used in
-/// conjunction with the HyperbolicSplitIntegratorContext
+
+template <typename FM> struct FluxMethodWrapper : FluxMethodBase {
+  FluxMethodWrapper() = default;
+
+  FluxMethodWrapper(const FM& fm);
+  FluxMethodWrapper(FM&& fm) noexcept;
+
+  std::unique_ptr<FluxMethodBase> Clone() const override;
+
+  double ComputeStableDt(const ::amrex::FArrayBox& fab, const ::amrex::Box& box,
+                         const ::amrex::Geometry& geom, Direction dir) override;
+
+  void ComputeNumericFluxes(::amrex::FArrayBox& fluxes, const ::amrex::Box& box,
+                            const ::amrex::FArrayBox& states,
+                            const ::amrex::Geometry& geom, Duration dt,
+                            Direction dir) override;
+
+  int GetStencilWidth() const override;
+
+  FM flux_method_{};
+};
+
 class FluxMethod {
 public:
   FluxMethod() = delete;
