@@ -22,25 +22,31 @@
 #define FUB_AMREX_TAGGING_GRADIENT_DETECTOR_HPP
 
 #include "fub/AMReX/Tagging.hpp"
+#include "fub/ext/omp.hpp"
 #include "fub/tagging/GradientDetector.hpp"
 
 namespace fub::amrex {
 
-template <typename Equation, typename... Projections>
-class GradientDetector
-    : public ::fub::GradientDetector<Equation, Projections...> {
+template <typename Equation, typename... Projections> class GradientDetector {
 public:
   GradientDetector(const Equation& equation,
                    const std::pair<Projections, double>&... projs);
 
   void TagCellsForRefinement(::amrex::TagBoxArray& tags, Duration, int level,
                              GriddingAlgorithm& gridding);
+
+private:
+  OmpLocal<::fub::GradientDetector<Equation, Projections...>> detector_;
 };
+
+template <typename Eq, typename... Ps>
+GradientDetector(const Eq& eq, const std::pair<Ps, double>&... ps)
+    ->GradientDetector<Eq, Ps...>;
 
 template <typename Equation, typename... Projections>
 GradientDetector<Equation, Projections...>::GradientDetector(
     const Equation& equation, const std::pair<Projections, double>&... projs)
-    : ::fub::GradientDetector<Equation, Projections...>{equation, projs...} {}
+    : detector_(::fub::GradientDetector(equation, projs...)) {}
 
 template <typename Equation, typename... Projections>
 void GradientDetector<Equation, Projections...>::TagCellsForRefinement(
@@ -60,13 +66,11 @@ void GradientDetector<Equation, Projections...>::TagCellsForRefinement(
   for (::amrex::MFIter mfi(scratch, true); mfi.isValid(); ++mfi) {
     ::amrex::Box grown = ::amrex::grow(mfi.tilebox(), 1);
     View<const Complete<Equation>> states = MakeView<const Complete<Equation>>(
-        scratch[mfi],
-        ::fub::GradientDetector<Equation, Projections...>::equation_, grown);
+        scratch[mfi], detector_->GetEquation(), grown);
     PatchDataView<char, AMREX_SPACEDIM, layout_stride> tagsview =
         MakePatchDataView(tags[mfi], 0)
             .Subview(AsIndexBox<AMREX_SPACEDIM>(mfi.tilebox()));
-    ::fub::GradientDetector<Equation, Projections...>::TagCellsForRefinement(
-        tagsview, states);
+    detector_->TagCellsForRefinement(tagsview, states);
   }
 }
 

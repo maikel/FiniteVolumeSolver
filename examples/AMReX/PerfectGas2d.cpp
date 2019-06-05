@@ -77,9 +77,10 @@ int main(int argc, char** argv) {
   hier_opts.refine_ratio = amrex::IntVect{AMREX_D_DECL(2, 2, 1)};
 
   using Complete = fub::PerfectGas<2>::Complete;
-  fub::amrex::GradientDetector gradient{
-      equation, std::make_pair(&Complete::density, 0.001),
-      std::make_pair(&Complete::pressure, 0.01)};
+  using CompleteArray = fub::PerfectGas<2>::CompleteArray;
+  fub::amrex::GradientDetector gradient(
+      equation, std::make_pair(&CompleteArray::density, 0.001),
+      std::make_pair(&CompleteArray::pressure, 0.01));
 
   auto from_prim = [](Complete& state, const fub::PerfectGas<2>& equation) {
     state.energy = state.pressure * equation.gamma_minus_1_inv;

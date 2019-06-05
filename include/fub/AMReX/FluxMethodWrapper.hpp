@@ -54,13 +54,7 @@ template <typename FM> struct FluxMethodWrapper : FluxMethodBase {
 
   int GetStencilWidth() const override;
 
-  FM& FluxMethod() noexcept;
-
-#if defined(_OPENMP) && defined(AMREX_USE_OMP)
-  std::vector<FM> flux_method_{};
-#else
-  FM flux_method_{};
-#endif
+  OmpLocal<FM> flux_method_{};
 };
 
 template <typename FM>
@@ -72,16 +66,7 @@ FluxMethodWrapper<FM>::FluxMethodWrapper(FM&& fm) noexcept
 
 template <typename FM>
 std::unique_ptr<FluxMethodBase> FluxMethodWrapper<FM>::Clone() const {
-  return std::make_unique<FluxMethodWrapper<FM>>(flux_method_);
-}
-
-template <typename FM> FM& FluxMethodWrapper<FM>::FluxMethod() noexcept {
-#if defined(_OPENMP) && defined(AMREX_USE_OMP)
-  const std::size_t id = static_cast<std::size_t>(::omp_get_thread_num());
-  return flux_method_[id];
-#else
-  return flux_method_;
-#endif
+  return std::make_unique<FluxMethodWrapper<FM>>(flux_method_.Get());
 }
 
 template <typename T, typename... Args>
@@ -103,19 +88,20 @@ Duration FluxMethodWrapper<FM>::ComputeStableDt(
     for (::amrex::MFIter mfi(scratch, true); mfi.isValid(); ++mfi) {
       const ::amrex::FArrayBox& data = scratch[mfi];
       const ::amrex::Box& box = mfi.tilebox();
-      using Eq = std::decay_t<decltype(flux_method_.GetEquation())>;
+      using Eq = std::decay_t<decltype(flux_method_.Get().GetEquation())>;
       static constexpr int Rank = Eq::Rank();
-      Eq& equation = FluxMethod().GetEquation();
+      Eq& equation = flux_method_->GetEquation();
       const double dx = geom.CellSize(int(dir));
       const IndexBox<Rank> cells = AsIndexBox<Rank>(box);
       View<const Complete<Eq>> states =
           MakeView<const Complete<Eq>>(data, equation, cells);
-      const Duration dt(FluxMethod().ComputeStableDt(states, dx, dir));
+      const Duration dt(
+          flux_method_->ComputeStableDt(execution::simd, states, dx, dir));
       min_dt = std::min(min_dt, dt.count());
     }
     return Duration(min_dt);
   } else {
-    return FluxMethod().ComputeStableDt(context, level, dir);
+    return flux_method_->ComputeStableDt(context, level, dir);
   }
 }
 
@@ -140,12 +126,12 @@ void FluxMethodWrapper<FM>::ComputeNumericFluxes(
       ::amrex::FArrayBox& fdata = fluxes[mfi];
       const ::amrex::FArrayBox& data = scratch[mfi];
       const ::amrex::Box& box = mfi.tilebox();
-      using Eq = std::decay_t<decltype(flux_method_.GetEquation())>;
+      using Eq = std::decay_t<decltype(flux_method_.Get().GetEquation())>;
       static const int Rank = Eq::Rank();
-      Eq& equation = FluxMethod().GetEquation();
+      Eq& equation = flux_method_->GetEquation();
       const double dx = geom.CellSize(int(dir));
 
-      const int gcw = FluxMethod().GetStencilWidth() + 1;
+      const int gcw = flux_method_->GetStencilWidth() + 1;
 
       const IndexBox<Rank> cells = Grow(AsIndexBox<Rank>(box), dir, {gcw, gcw});
       View<const Complete<Eq>> states =
@@ -157,18 +143,19 @@ void FluxMethodWrapper<FM>::ComputeNumericFluxes(
       View<Conservative<Eq>> flux =
           MakeView<Conservative<Eq>>(fdata, equation, faces);
 
-      FluxMethod().ComputeNumericFluxes(flux, states, dt, dx, dir);
+      flux_method_->ComputeNumericFluxes(execution::simd, flux, states, dt, dx,
+                                         dir);
     }
   } else {
-    FluxMethod().ComputeNumericFluxes(context, level, dir, dir);
+    flux_method_->ComputeNumericFluxes(context, level, dir, dir);
   }
 }
 
 template <typename FM> int FluxMethodWrapper<FM>::GetStencilWidth() const {
-  return flux_method_.GetStencilWidth();
+  return flux_method_->GetStencilWidth();
 }
 
-}
+} // namespace fub::amrex
 
 #endif
 

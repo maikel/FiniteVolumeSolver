@@ -19,8 +19,8 @@
 // SOFTWARE.
 
 #include "fub/AMReX/boundary_condition/TransmissiveBoundary.hpp"
-#include "fub/AMReX/GriddingAlgorithm.hpp"
 #include "fub/AMReX/ForEachIndex.hpp"
+#include "fub/AMReX/GriddingAlgorithm.hpp"
 
 namespace fub::amrex {
 

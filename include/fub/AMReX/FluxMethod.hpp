@@ -43,35 +43,13 @@ struct FluxMethodBase {
   virtual int GetStencilWidth() const = 0;
 };
 
-
-template <typename FM> struct FluxMethodWrapper : FluxMethodBase {
-  FluxMethodWrapper() = default;
-
-  FluxMethodWrapper(const FM& fm);
-  FluxMethodWrapper(FM&& fm) noexcept;
-
-  std::unique_ptr<FluxMethodBase> Clone() const override;
-
-  double ComputeStableDt(const ::amrex::FArrayBox& fab, const ::amrex::Box& box,
-                         const ::amrex::Geometry& geom, Direction dir) override;
-
-  void ComputeNumericFluxes(::amrex::FArrayBox& fluxes, const ::amrex::Box& box,
-                            const ::amrex::FArrayBox& states,
-                            const ::amrex::Geometry& geom, Duration dt,
-                            Direction dir) override;
-
-  int GetStencilWidth() const override;
-
-  FM flux_method_{};
-};
-
 class FluxMethod {
 public:
   FluxMethod() = delete;
 
 template <typename FM, typename = std::enable_if_t<std::is_base_of<
                            FluxMethodBase, std::decay_t<FM>>::value>>
-  FluxMethod(FM&& flux_method);
+  FluxMethod(FM&& flux_method); // NOLINT
 
   FluxMethod(const FluxMethod& other);
   FluxMethod& operator=(const FluxMethod&);
