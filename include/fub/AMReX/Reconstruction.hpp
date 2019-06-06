@@ -24,6 +24,7 @@
 #include "fub/CompleteFromCons.hpp"
 #include "fub/ForEach.hpp"
 #include "fub/State.hpp"
+#include "fub/ext/omp.hpp"
 
 #include <AMReX_MultiFab.H>
 
@@ -81,24 +82,25 @@ private:
 
 template <typename Equation> class ReconstructEquationStates {
 public:
-  explicit ReconstructEquationStates(const Equation& eq) : equation_{eq} {}
+  explicit ReconstructEquationStates(const Equation& eq)
+      : simd_impl_{ArrayCompleteFromCons<Equation>{eq}} {}
 
   void CompleteFromCons(::amrex::MultiFab& dest, const ::amrex::MultiFab& src) {
 #if defined(_OPENMP) && defined(AMREX_USE_OMP)
 #pragma omp parallel
 #endif
     for (::amrex::MFIter mfi(src, true); mfi.isValid(); ++mfi) {
+      Equation& eq = simd_impl_->equation_;
       View<Complete<Equation>> complete =
-          MakeView<Complete<Equation>>(dest[mfi], equation_, mfi.tilebox());
+          MakeView<Complete<Equation>>(dest[mfi], eq, mfi.tilebox());
       View<const Conservative<Equation>> conservative =
-          MakeView<const Conservative<Equation>>(src[mfi], equation_,
-                                                 mfi.tilebox());
-      ::fub::CompleteFromCons(equation_, complete, conservative);
+          MakeView<const Conservative<Equation>>(src[mfi], eq, mfi.tilebox());
+      simd_impl_->CompleteFromCons(complete, conservative);
     }
   }
 
 private:
-  Equation equation_;
+  OmpLocal<ArrayCompleteFromCons<Equation>> simd_impl_;
 };
 
 } // namespace fub::amrex

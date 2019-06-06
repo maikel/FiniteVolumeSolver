@@ -32,7 +32,7 @@
 
 namespace fub {
 
-constexpr const int kDefaultChunkSize = 8;
+constexpr const int kDefaultChunkSize = 2;
 
 template <typename T, int N, int M = kDefaultChunkSize>
 using Array = std::conditional_t<N == 1 || M == 1, Eigen::Array<T, N, M>,
@@ -44,7 +44,6 @@ using Array1d = Array<double, 1>;
 using Array2d = Array<double, 2>;
 using Array3d = Array<double, 3>;
 using ArrayXd = Array<double, Eigen::Dynamic>;
-
 
 inline void LoadN(Array<char, 1>& array, const char* pointer, int n) {
   for (int i = 0; i < n; ++i) {

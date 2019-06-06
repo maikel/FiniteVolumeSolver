@@ -23,6 +23,7 @@
 
 #include "fub/State.hpp"
 #include "fub/StateArray.hpp"
+#include "fub/StateRow.hpp"
 
 #include <cstring>
 #include <type_traits>
@@ -107,6 +108,48 @@ void CompleteFromCons(
     Store(complete_view, complete, {is...});
   });
 }
+
+template <typename Equation> struct ArrayCompleteFromCons {
+  Equation equation_;
+  CompleteArray<Equation> complete_{equation_};
+  ConservativeArray<Equation> cons_{equation_};
+
+  using Complete = ::fub::Complete<Equation>;
+  using Conservative = ::fub::Conservative<Equation>;
+
+  struct CompleteFromCons_Rows {
+    ArrayCompleteFromCons<Equation>* this_;
+
+    void operator()(const Row<Complete>& complete_row,
+                    const Row<const Conservative>& cons_row) const {
+      ViewPointer in = Begin(cons_row);
+      ViewPointer end = End(cons_row);
+      ViewPointer out = Begin(complete_row);
+      Equation& equation = this_->equation_;
+      CompleteArray<Equation>& complete = this_->complete_;
+      ConservativeArray<Equation>& cons = this_->cons_;
+      int n = static_cast<int>(get<0>(end) - get<0>(in));
+      while (n >= kDefaultChunkSize) {
+        Load(cons, in);
+        ::fub::CompleteFromCons(equation, complete, cons);
+        Store(out, complete);
+        Advance(in, kDefaultChunkSize);
+        Advance(out, kDefaultChunkSize);
+        n = static_cast<int>(get<0>(end) - get<0>(in));
+      }
+      LoadN(cons, in, n);
+      ::fub::CompleteFromCons(equation, complete, cons);
+      StoreN(out, complete, n);
+    }
+  };
+
+  void CompleteFromCons(const View<Complete>& complete_view,
+                        const View<const Conservative>& cons_view) {
+    FUB_ASSERT(Box<0>(complete_view) == Box<0>(cons_view));
+    ForEachRow(std::tuple{complete_view, cons_view},
+               CompleteFromCons_Rows{this});
+  }
+};
 
 } // namespace fub
 
