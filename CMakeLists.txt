@@ -178,6 +178,7 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/initial_data/Constant.hpp
   include/fub/initial_data/RiemannProblem.hpp
   include/fub/initial_data/ShockMachnumber.hpp
+  include/fub/tagging/GradientDetector.hpp
   include/fub/Solver.hpp
   include/fub/CompleteFromCons.hpp
   include/fub/Direction.hpp

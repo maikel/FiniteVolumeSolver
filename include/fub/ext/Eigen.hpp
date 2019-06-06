@@ -45,6 +45,19 @@ using Array2d = Array<double, 2>;
 using Array3d = Array<double, 3>;
 using ArrayXd = Array<double, Eigen::Dynamic>;
 
+
+inline void LoadN(Array<char, 1>& array, const char* pointer, int n) {
+  for (int i = 0; i < n; ++i) {
+    array[i] = pointer[i];
+  }
+}
+
+inline void StoreN(char* pointer, const Array<char, 1>& array, int n) {
+  for (int i = 0; i < n; ++i) {
+    pointer[i] = array[i];
+  }
+}
+
 template <int N, typename T, int Rank, typename Layout, typename... Indices>
 std::enable_if_t<boost::mp11::mp_all<std::is_integral<Indices>...>::value,
                  Eigen::Array<std::remove_cv_t<T>, N, 1>>

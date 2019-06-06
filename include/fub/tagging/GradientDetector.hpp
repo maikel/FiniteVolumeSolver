@@ -213,7 +213,7 @@ void ArrayGradientDetector<Equation, Projections...>::TagCellsForRefinement(
       sL_ = sM_;
       sM_ = sR_;
       Load(sR_, pR);
-      auto tags_array = Array<char, 1>::Map(tags_pointer);
+      Array<char, 1> tags_array = Array<char, 1>::Map(tags_pointer);
       boost::mp11::tuple_for_each(Base::conditions_, [&](auto&& condition) {
         auto&& [proj, tolerance] = condition;
         const Array1d xL = std::invoke(proj, sL_);
@@ -221,20 +221,19 @@ void ArrayGradientDetector<Equation, Projections...>::TagCellsForRefinement(
         const Array1d xR = std::invoke(proj, sR_);
         const Array1d left = (xM - xL).abs() / (xM.abs() + xL.abs());
         const Array1d right = (xM - xR).abs() / (xM.abs() + xR.abs());
-        tags_array = (left > tolerance).select(tags_array, ones);
-        tags_array = (right > tolerance).select(tags_array, ones);
-        Advance(pR, kDefaultChunkSize);
-        tags_pointer += kDefaultChunkSize;
-        n = static_cast<int>(get<0>(pEnd) - get<0>(pR));
+        tags_array = (left < tolerance).select(tags_array, ones);
+        tags_array = (right < tolerance).select(tags_array, ones);
       });
+      Array<char, 1>::Map(tags_pointer) = tags_array;
+      Advance(pR, kDefaultChunkSize);
+      tags_pointer += kDefaultChunkSize;
+      n = static_cast<int>(get<0>(pEnd) - get<0>(pR));
     }
     LoadN(sL_, pL, n);
     LoadN(sM_, pM, n);
     LoadN(sR_, pR, n);
     Array<char, 1> tags_array = Array<char, 1>::Zero();
-    for (int i = 0; i < n; ++i) {
-      tags_array[i] = tags_pointer[i];
-    }
+    LoadN(tags_array, tags_pointer, n);
     boost::mp11::tuple_for_each(Base::conditions_, [&](auto&& condition) {
       auto&& [proj, tolerance] = condition;
       const Array1d xL = std::invoke(proj, sL_);
@@ -242,12 +241,10 @@ void ArrayGradientDetector<Equation, Projections...>::TagCellsForRefinement(
       const Array1d xR = std::invoke(proj, sR_);
       const Array1d left = (xM - xL).abs() / (xM.abs() + xL.abs());
       const Array1d right = (xM - xR).abs() / (xM.abs() + xR.abs());
-      tags_array = (left > tolerance).select(tags_array, ones);
-      tags_array = (right > tolerance).select(tags_array, ones);
+      tags_array = (left < tolerance).select(tags_array, ones);
+      tags_array = (right < tolerance).select(tags_array, ones);
     });
-    for (int i = 0; i < n; ++i) {
-      tags_pointer[i] = tags_array[i];
-    }
+    StoreN(tags_pointer, tags_array, n);
   });
 }
 

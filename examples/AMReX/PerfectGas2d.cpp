@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/AMReX.hpp"
 #include "fub/Solver.hpp"
+#include "fub/AMReX.hpp"
 
 #include <fmt/format.h>
 #include <iostream>

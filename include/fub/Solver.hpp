@@ -49,4 +49,3 @@
 #include "fub/split_method/StrangSplitting.hpp"
 
 #include "fub/tagging/GradientDetector.hpp"
-#include "fub/tagging/TagBuffer.hpp"
