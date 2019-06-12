@@ -19,4 +19,3 @@
 // SOFTWARE.
 
 #include "fub/AMReX/FluxMethod.hpp"
-

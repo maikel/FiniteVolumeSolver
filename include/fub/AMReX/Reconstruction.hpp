@@ -22,85 +22,41 @@
 #define FUB_AMREX_RECONSTRUCTION_HPP
 
 #include "fub/CompleteFromCons.hpp"
-#include "fub/ForEach.hpp"
+#include "fub/Execution.hpp"
 #include "fub/State.hpp"
-#include "fub/ext/omp.hpp"
+
+#include "fub/AMReX/ForEachFab.hpp"
+#include "fub/AMReX/IntegratorContext.hpp"
 
 #include <AMReX_MultiFab.H>
 
 namespace fub::amrex {
 
-struct ReconstructionBase {
-  virtual ~ReconstructionBase() = default;
-  virtual void CompleteFromCons(::amrex::MultiFab& dest,
-                                const ::amrex::MultiFab& src) = 0;
-  virtual std::unique_ptr<ReconstructionBase> Clone() const = 0;
-};
-
-template <typename T> struct ReconstructionWrapper : ReconstructionBase {
-  ReconstructionWrapper(const T& x) : reconstruction_{x} {}
-  ReconstructionWrapper(T&& x) : reconstruction_{x} {}
-
-  void CompleteFromCons(::amrex::MultiFab& dest,
-                        const ::amrex::MultiFab& src) override {
-    reconstruction_.CompleteFromCons(dest, src);
-  }
-
-  std::unique_ptr<ReconstructionBase> Clone() const override {
-    return std::make_unique<ReconstructionWrapper<T>>(reconstruction_);
-  }
-
-  T reconstruction_;
-};
-
-class Reconstruction {
+template <typename Tag, typename Equation> class Reconstruction {
 public:
-  Reconstruction() = delete;
-
-  Reconstruction(const Reconstruction& other)
-      : reconstruction_{other.reconstruction_->Clone()} {}
-  Reconstruction& operator=(const Reconstruction& other) {
-    reconstruction_ = other.reconstruction_->Clone();
-    return *this;
-  }
-
-  Reconstruction(Reconstruction&& other) = default;
-  Reconstruction& operator=(Reconstruction&& other) = default;
-
-  template <typename R, typename = std::enable_if_t<
-                            !std::is_same_v<std::decay_t<R>, Reconstruction>>>
-  Reconstruction(R&& rec)
-      : reconstruction_{std::make_unique<ReconstructionWrapper<R>>(rec)} {}
+  explicit Reconstruction(Tag, const Equation& eq)
+      : rec_{CompleteFromConsFn<Equation>{eq}} {}
 
   void CompleteFromCons(::amrex::MultiFab& dest, const ::amrex::MultiFab& src) {
-    reconstruction_->CompleteFromCons(dest, src);
-  }
-
-private:
-  std::unique_ptr<ReconstructionBase> reconstruction_;
-};
-
-template <typename Equation> class ReconstructEquationStates {
-public:
-  explicit ReconstructEquationStates(const Equation& eq)
-      : simd_impl_{ArrayCompleteFromCons<Equation>{eq}} {}
-
-  void CompleteFromCons(::amrex::MultiFab& dest, const ::amrex::MultiFab& src) {
-#if defined(_OPENMP) && defined(AMREX_USE_OMP)
-#pragma omp parallel
-#endif
-    for (::amrex::MFIter mfi(src, true); mfi.isValid(); ++mfi) {
-      Equation& eq = simd_impl_->equation_;
+    ForEachFab(Tag(), dest, [&](::amrex::MFIter& mfi) {
+      Equation& eq = rec_->equation_;
       View<Complete<Equation>> complete =
           MakeView<Complete<Equation>>(dest[mfi], eq, mfi.tilebox());
       View<const Conservative<Equation>> conservative =
           MakeView<const Conservative<Equation>>(src[mfi], eq, mfi.tilebox());
-      simd_impl_->CompleteFromCons(complete, conservative);
-    }
+      rec_->CompleteFromCons(Tag(), complete, conservative);
+    });
+  }
+
+  void CompleteFromCons(IntegratorContext& context, int level, Duration,
+                        Direction dir) {
+    ::amrex::MultiFab& data = context.GetData(level);
+    const ::amrex::MultiFab& scratch = context.GetScratch(level, dir);
+    CompleteFromCons(data, scratch);
   }
 
 private:
-  OmpLocal<ArrayCompleteFromCons<Equation>> simd_impl_;
+  Local<Tag, CompleteFromConsFn<Equation>> rec_;
 };
 
 } // namespace fub::amrex

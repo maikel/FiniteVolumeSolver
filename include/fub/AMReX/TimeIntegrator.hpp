@@ -18,18 +18,40 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_AMREX_PRINT_HPP
-#define FUB_AMREX_PRINT_HPP
+#ifndef FUB_AMREX_HYPERBOLIC_SPLIT_TIME_INTEGRATOR_HPP
+#define FUB_AMREX_HYPERBOLIC_SPLIT_TIME_INTEGRATOR_HPP
+
+#include "fub/AMReX/IntegratorContext.hpp"
+#include "fub/Direction.hpp"
+#include "fub/Duration.hpp"
+#include "fub/State.hpp"
 
 #include <AMReX.H>
+#include <AMReX_Geometry.H>
+#include <AMReX_MultiFab.H>
+
+#include <memory>
 
 namespace fub::amrex {
 
-struct Print {
-  void operator()(const std::string& s) const { ::amrex::Print() << s; }
+template <typename Tag> struct ForwardIntegrator {
+  ForwardIntegrator() = default;
+  ForwardIntegrator(Tag) {}
+
+  void UpdateConservatively(::amrex::MultiFab& dest,
+                            const ::amrex::MultiFab& src,
+                            const ::amrex::MultiFab& fluxes,
+                            const ::amrex::Geometry& geom, Duration dt,
+                            Direction dir);
+
+  void UpdateConservatively(IntegratorContext& context, int level, Duration dt,
+                            Direction dir);
 };
 
-constexpr Print print{};
+extern template struct ForwardIntegrator<execution::SequentialTag>;
+extern template struct ForwardIntegrator<execution::OpenMpTag>;
+extern template struct ForwardIntegrator<execution::SimdTag>;
+extern template struct ForwardIntegrator<execution::OpenMpSimdTag>;
 
 } // namespace fub::amrex
 

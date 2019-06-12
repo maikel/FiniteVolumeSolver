@@ -18,39 +18,37 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_GRID_AMREX_CUTCELL_TAGGING_HPP
-#define FUB_GRID_AMREX_CUTCELL_TAGGING_HPP
+#ifndef FUB_AMREX_CUTCELL_TAGGING_HPP
+#define FUB_AMREX_CUTCELL_TAGGING_HPP
 
-#include "fub/AMReX/PatchHandle.hpp"
-#include "fub/AMReX/ViewFArrayBox.hpp"
-#include "fub/AMReX/cutcell/PatchHierarchy.hpp"
-#include "fub/CartesianCoordinates.hpp"
-#include "fub/core/mdspan.hpp"
+#include "fub/Direction.hpp"
+#include "fub/Duration.hpp"
+#include "fub/AMReX/GriddingAlgorithm.hpp"
 
 #include <AMReX.H>
+#include <AMReX_TagBox.H>
 
-namespace fub {
-namespace amrex {
-namespace cutcell {
+#include <memory>
+
+namespace fub::amrex::cutcell {
+
+class GriddingAlgorithm;
 
 struct TaggingStrategy {
   virtual ~TaggingStrategy() = default;
   virtual std::unique_ptr<TaggingStrategy> Clone() const = 0;
-  virtual void TagCellsForRefinement(
-      const PatchDataView<char, AMREX_SPACEDIM>& tags,
-      const PatchDataView<const double, AMREX_SPACEDIM + 1>& states,
-      const PatchHierarchy& hierarchy, const PatchHandle& patch) = 0;
+  virtual void TagCellsForRefinement(::amrex::TagBoxArray& tags,
+                                     Duration time_point, int level,
+                                     GriddingAlgorithm& gridding) = 0;
 };
 
 template <typename T> struct TaggingWrapper : public TaggingStrategy {
   TaggingWrapper(const T& tag) : tag_{tag} {}
   TaggingWrapper(T&& tag) : tag_{std::move(tag)} {}
 
-  void TagCellsForRefinement(
-      const PatchDataView<char, AMREX_SPACEDIM>& tags,
-      const PatchDataView<const double, AMREX_SPACEDIM + 1>& states,
-      const PatchHierarchy& hierarchy, const PatchHandle& patch) override {
-    tag_.TagCellsForRefinement(tags, states, hierarchy, patch);
+  void TagCellsForRefinement(::amrex::TagBoxArray& tags, Duration time_point,
+                             int level, GriddingAlgorithm& gridding) override {
+    tag_.TagCellsForRefinement(tags, time_point, level, gridding);
   }
 
   std::unique_ptr<TaggingStrategy> Clone() const override {
@@ -73,61 +71,34 @@ struct Tagging {
   Tagging& operator=(Tagging&&) noexcept = default;
 
   template <typename T>
-  Tagging(const T& tag) : tag_{std::make_unique<TaggingWrapper<T>>(tag)} {}
-  template <typename T>
   Tagging(T&& tag)
       : tag_{std::make_unique<TaggingWrapper<remove_cvref_t<T>>>(
-            std::move(tag))} {}
+            std::forward<T>(tag))} {}
 
-  void TagCellsForRefinement(
-      const PatchDataView<char, AMREX_SPACEDIM>& tags,
-      const PatchDataView<const double, AMREX_SPACEDIM + 1>& states,
-      const PatchHierarchy& hierarchy, const PatchHandle& patch) {
-    if (tag_) {
-      return tag_->TagCellsForRefinement(tags, states, hierarchy, patch);
-    }
+  void TagCellsForRefinement(::amrex::TagBoxArray& tags, Duration time_point,
+                             int level, GriddingAlgorithm& gridding) {
+    return tag_->TagCellsForRefinement(tags, time_point, level, gridding);
   }
 
   std::unique_ptr<TaggingStrategy> tag_;
 };
 
-template <typename Equation, typename... Tagging> struct AdaptTagging {
-  AdaptTagging(Equation equation, Tagging... tagging)
-      : tagging_{std::move(tagging)...}, equation_{std::move(equation)} {}
+template <typename... Tagging> struct TagAllOf {
+  TagAllOf(Tagging... tagging) : tagging_{std::move(tagging)...} {}
 
-  void TagCellsForRefinement(
-      const PatchDataView<char, AMREX_SPACEDIM>& tags,
-      const PatchDataView<const double, AMREX_SPACEDIM + 1>& states,
-      const PatchHierarchy& hierarchy, const PatchHandle& patch) {
-    BasicView<const Complete<Equation>> state_view =
-        MakeView<BasicView<const Complete<Equation>>>(states, equation_);
-    const ::amrex::Geometry& geom = hierarchy.GetGeometry(patch.level);
-    const ::amrex::Box& box = patch.iterator->growntilebox();
-    const std::shared_ptr<::amrex::EBFArrayBoxFactory>& factory =
-        hierarchy.GetEmbeddedBoundary(patch.level);
-    const auto& flags = factory->getMultiEBCellFlagFab()[*patch.iterator];
-    const ::amrex::FabType type = flags.getType(box);
-    if (type == ::amrex::FabType::regular) {
-      boost::mp11::tuple_for_each(tagging_, [&](auto&& tagging) {
-        tagging.TagCellsForRefinement(tags, state_view,
-                                      GetCartesianCoordinates(geom, box));
-      });
-    } else if (type != ::amrex::FabType::covered) {
-      FUB_ASSERT(type == ::amrex::FabType::singlevalued);
-      auto cutcell_data = hierarchy.GetCutCellData(patch, Direction::X);
-      boost::mp11::tuple_for_each(tagging_, [&](auto&& tagging) {
-        tagging.TagCellsForRefinement(tags, state_view, cutcell_data,
-                                      GetCartesianCoordinates(geom, box));
-      });
-    }
+  void TagCellsForRefinement(::amrex::TagBoxArray& tags, Duration time_point,
+                             int level, GriddingAlgorithm& gridding) {
+    std::apply(
+        [this, &tags, time_point, level, &gridding](Tagging&... tagging) {
+          (tagging.TagCellsForRefinement(tags, time_point, level, gridding),
+           ...);
+        },
+        tagging_);
   }
 
   std::tuple<Tagging...> tagging_;
-  Equation equation_;
 };
 
 } // namespace cutcell
-} // namespace amrex
-} // namespace fub
 
 #endif

@@ -21,8 +21,14 @@
 #ifndef FUB_AMREX_TAGGING_HPP
 #define FUB_AMREX_TAGGING_HPP
 
+#include "fub/Direction.hpp"
+#include "fub/Duration.hpp"
+#include "fub/AMReX/GriddingAlgorithm.hpp"
+
 #include <AMReX.H>
 #include <AMReX_TagBox.H>
+
+#include <memory>
 
 namespace fub::amrex {
 

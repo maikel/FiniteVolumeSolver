@@ -25,7 +25,7 @@ namespace fub {
 namespace amrex {
 
 BoundaryCondition::BoundaryCondition(const BoundaryCondition& other)
-  : geometry{other.geometry}, boundary_condition_{} {
+    : geometry{other.geometry}, boundary_condition_{} {
   if (other.boundary_condition_) {
     boundary_condition_ = other.boundary_condition_->Clone();
   }

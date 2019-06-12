@@ -46,6 +46,9 @@ public:
   T* operator->() noexcept;
   const T* operator->() const noexcept;
 
+  T& operator*() noexcept;
+  const T& operator*() const noexcept;
+
 private:
   std::vector<T, Allocator> instances_;
 };
@@ -95,6 +98,16 @@ T* OmpLocal<T, Allocator>::operator->() noexcept {
 template <typename T, typename Allocator>
 const T* OmpLocal<T, Allocator>::operator->() const noexcept {
   return &Get();
+}
+
+template <typename T, typename Allocator>
+T& OmpLocal<T, Allocator>::operator*() noexcept {
+  return Get();
+}
+
+template <typename T, typename Allocator>
+const T& OmpLocal<T, Allocator>::operator*() const noexcept {
+  return Get();
 }
 
 } // namespace fub

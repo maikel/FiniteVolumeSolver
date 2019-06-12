@@ -18,16 +18,16 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_AMREX_HYPERBOLIC_SPLIT_INTEGRATOR_CONTEXT_HPP
-#define FUB_AMREX_HYPERBOLIC_SPLIT_INTEGRATOR_CONTEXT_HPP
+#ifndef FUB_AMREX_INTEGRATOR_CONTEXT_HPP
+#define FUB_AMREX_INTEGRATOR_CONTEXT_HPP
 
 #include "fub/Direction.hpp"
 #include "fub/Duration.hpp"
 #include "fub/TimeStepError.hpp"
+#include "fub/HyperbolicMethod.hpp"
 #include "fub/ext/outcome.hpp"
 
 #include "fub/AMReX/GriddingAlgorithm.hpp"
-#include "fub/AMReX/NumericalMethod.hpp"
 #include "fub/AMReX/PatchHierarchy.hpp"
 
 #include <AMReX_FluxRegister.H>
@@ -40,34 +40,35 @@
 namespace fub {
 namespace amrex {
 
+class IntegratorContext;
+
+using HyperbolicMethod = ::fub::HyperbolicMethod<IntegratorContext>;
+
 /// \brief This class is used by the HypebrolicSplitLevelIntegrator and
 /// delegates AMR related tasks to the AMReX library.
-class HyperbolicSplitIntegratorContext {
+class IntegratorContext {
 public:
   /// @{
   /// \name Constructors and Assignments
 
   /// \brief Constructs a context object from given a gridding algorithm and a
   /// numerical method.
-  HyperbolicSplitIntegratorContext(std::shared_ptr<GriddingAlgorithm> gridding,
-                                   NumericalMethod method);
+  IntegratorContext(std::shared_ptr<GriddingAlgorithm> gridding,
+                    HyperbolicMethod method);
 
   /// \brief Deeply copies a context and all its distributed data for all MPI
   /// ranks.
-  HyperbolicSplitIntegratorContext(const HyperbolicSplitIntegratorContext&);
+  IntegratorContext(const IntegratorContext&);
 
   /// \brief Deeply copies a context and all its distributed data for all MPI
   /// ranks.
-  HyperbolicSplitIntegratorContext&
-  operator=(const HyperbolicSplitIntegratorContext&);
+  IntegratorContext& operator=(const IntegratorContext&);
 
-  HyperbolicSplitIntegratorContext(
-      HyperbolicSplitIntegratorContext&&) noexcept = default;
+  IntegratorContext(IntegratorContext&&) noexcept = default;
 
-  HyperbolicSplitIntegratorContext&
-  operator=(HyperbolicSplitIntegratorContext&&) noexcept = default;
+  IntegratorContext& operator=(IntegratorContext&&) noexcept = default;
 
-  ~HyperbolicSplitIntegratorContext() = default;
+  ~IntegratorContext() = default;
   /// @}
 
   /// @{
@@ -75,18 +76,7 @@ public:
 
   /// \brief Returns the current boundary condition for the specified level.
   const BoundaryCondition& GetBoundaryCondition(int level) const;
-  BoundaryCondition& GetBoundaryCondition(int level);
-
-  /// \brief Returns the FluxMethod object which computes for each patch.
-  const FluxMethod& GetFluxMethod() const noexcept;
-
-  /// \brief Returns the time integrator which advances the time for each patch.
-  const HyperbolicSplitTimeIntegrator& GetHyperbolicSplitTimeIntegrator() const
-      noexcept;
-
-  /// \brief Returns the object which reconstructs complete states from given
-  /// conservative ones.
-  const Reconstruction& GetReconstruction() const noexcept;
+  BoundaryCondition& GetBoundaryCondition(int level);  
 
   /// \brief Returns a shared pointer to the underlying GriddingAlgorithm which
   /// owns the simulation.
@@ -248,7 +238,7 @@ private:
   int ghost_cell_width_;
   std::shared_ptr<GriddingAlgorithm> gridding_;
   std::vector<LevelData> data_;
-  NumericalMethod numerical_method_;
+  HyperbolicMethod method_;
 };
 
 } // namespace amrex

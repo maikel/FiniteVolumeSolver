@@ -148,37 +148,37 @@ PatchHierarchy::PatchHierarchy(DataDescription desc,
   for (::amrex::Geometry& geom : patch_level_geometry_) {
     geom = ::amrex::Geometry(level_box, &grid_geometry_.coordinates, -1,
                              grid_geometry_.periodicity.data());
-    level_box.refine(2);
+    level_box.refine(options_.refine_ratio);
   }
 }
 
-CutCellData<AMREX_SPACEDIM>
-PatchHierarchy::GetCutCellData(PatchHandle patch, Direction dir) const {
-  const std::size_t d = static_cast<std::size_t>(dir);
-  const ::amrex::MFIter& mfi = *patch.iterator;
-  CutCellData<AMREX_SPACEDIM> cutcell_data;
-  const PatchLevel& level = GetPatchLevel(patch.level);
-  cutcell_data.dir = dir;
-  cutcell_data.flags =
-      MakePatchDataView(level.factory->getMultiEBCellFlagFab()[mfi], 0);
-  cutcell_data.volume_fractions =
-      MakePatchDataView(level.factory->getVolFrac()[mfi], 0);
-  cutcell_data.face_fractions =
-      MakePatchDataView((*level.factory->getAreaFrac()[d])[mfi], 0);
-  cutcell_data.boundary_normals =
-      MakePatchDataView(level.factory->getBndryNormal()[mfi]);
-  cutcell_data.boundary_centeroids =
-      MakePatchDataView(level.factory->getBndryCent()[mfi]);
-  cutcell_data.unshielded_fractions =
-      MakePatchDataView((*level.unshielded[d])[mfi], 0);
-  cutcell_data.shielded_left_fractions =
-      MakePatchDataView((*level.shielded_left[d])[mfi], 0);
-  cutcell_data.shielded_right_fractions =
-      MakePatchDataView((*level.shielded_right[d])[mfi], 0);
-  cutcell_data.doubly_shielded_fractions =
-      MakePatchDataView((*level.doubly_shielded[d])[mfi], 0);
-  return cutcell_data;
-}
+// CutCellData<AMREX_SPACEDIM>
+// PatchHierarchy::GetCutCellData(PatchHandle patch, Direction dir) const {
+//   const std::size_t d = static_cast<std::size_t>(dir);
+//   const ::amrex::MFIter& mfi = *patch.iterator;
+//   CutCellData<AMREX_SPACEDIM> cutcell_data;
+//   const PatchLevel& level = GetPatchLevel(patch.level);
+//   cutcell_data.dir = dir;
+//   cutcell_data.flags =
+//       MakePatchDataView(level.factory->getMultiEBCellFlagFab()[mfi], 0);
+//   cutcell_data.volume_fractions =
+//       MakePatchDataView(level.factory->getVolFrac()[mfi], 0);
+//   cutcell_data.face_fractions =
+//       MakePatchDataView((*level.factory->getAreaFrac()[d])[mfi], 0);
+//   cutcell_data.boundary_normals =
+//       MakePatchDataView(level.factory->getBndryNormal()[mfi]);
+//   cutcell_data.boundary_centeroids =
+//       MakePatchDataView(level.factory->getBndryCent()[mfi]);
+//   cutcell_data.unshielded_fractions =
+//       MakePatchDataView((*level.unshielded[d])[mfi], 0);
+//   cutcell_data.shielded_left_fractions =
+//       MakePatchDataView((*level.shielded_left[d])[mfi], 0);
+//   cutcell_data.shielded_right_fractions =
+//       MakePatchDataView((*level.shielded_right[d])[mfi], 0);
+//   cutcell_data.doubly_shielded_fractions =
+//       MakePatchDataView((*level.doubly_shielded[d])[mfi], 0);
+//   return cutcell_data;
+// }
 
 int PatchHierarchy::GetRatioToCoarserLevel(int level, Direction dir) const
     noexcept {
@@ -194,6 +194,42 @@ int PatchHierarchy::GetRatioToCoarserLevel(int level, Direction dir) const
     return ::amrex::IntVect::TheUnitVector();
   }
   return options_.refine_ratio;
+}
+
+const ::amrex::Geometry& PatchHierarchy::GetGeometry(int level) const noexcept {
+  return patch_level_geometry_[static_cast<std::size_t>(level)];
+}
+
+const PatchHierarchyOptions& PatchHierarchy::GetOptions() const noexcept {
+  return options_;
+}
+
+const CartesianGridGeometry& PatchHierarchy::GetGridGeometry() const noexcept {
+  return grid_geometry_;
+}
+
+std::ptrdiff_t PatchHierarchy::GetCycles(int level) const {
+  return GetPatchLevel(level).cycles;
+}
+
+Duration PatchHierarchy::GetTimePoint(int level) const {
+  return GetPatchLevel(level).time_point;
+}
+
+int PatchHierarchy::GetNumberOfLevels() const noexcept {
+  return static_cast<int>(patch_level_.size());
+}
+
+int PatchHierarchy::GetMaxNumberOfLevels() const noexcept {
+  return GetOptions().max_number_of_levels;
+}
+
+PatchLevel& PatchHierarchy::GetPatchLevel(int level) {
+  return patch_level_.at(static_cast<std::size_t>(level));
+}
+
+const PatchLevel& PatchHierarchy::GetPatchLevel(int level) const {
+  return patch_level_.at(static_cast<std::size_t>(level));
 }
 
 void WriteCheckpointFile(const std::string& checkpointname,

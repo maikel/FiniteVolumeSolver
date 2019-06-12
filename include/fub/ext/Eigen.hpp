@@ -23,6 +23,7 @@
 
 #include <Eigen/Eigen>
 
+#include "fub/config.hpp"
 #include "fub/Direction.hpp"
 #include "fub/PatchDataView.hpp"
 
@@ -32,7 +33,11 @@
 
 namespace fub {
 
-constexpr const int kDefaultChunkSize = 2;
+#ifdef FUB_DEFAULT_CHUNK_SIZE
+constexpr const int kDefaultChunkSize = FUB_DEFAULT_CHUNK_SIZE;
+#else
+constexpr const int kDefaultChunkSize = 8;
+#endif
 
 template <typename T, int N, int M = kDefaultChunkSize>
 using Array = std::conditional_t<N == 1 || M == 1, Eigen::Array<T, N, M>,

@@ -26,59 +26,63 @@
 #include "fub/ForEach.hpp"
 #include "fub/State.hpp"
 
-namespace fub {
-namespace amrex {
-namespace cutcell {
-template <typename Eq, typename Equation = std::decay_t<Eq>>
-void CompleteFromCons(Eq&& eq, const View<Complete<Equation>>& complete_view,
-                      const View<const Conservative<Equation>>& cons_view,
-                      const CutCellData<Equation::Rank()>& cutcell_data) {
-  Complete<Equation> complete(eq);
-  Conservative<Equation> cons(eq);
-  const auto& flags = cutcell_data.flags;
-  ForEachIndex(Box<0>(complete_view), [&](auto... is) {
-    if (flags(is...).isRegular() || flags(is...).isSingleValued()) {
-      std::array<std::ptrdiff_t, sizeof...(is)> cell{is...};
-      Load(cons, cons_view, cell);
-      CompleteFromCons(eq, complete, cons);
-      Store(complete_view, complete, cell);
-    }
-  });
-}
+namespace fub::amrex::cutcell {
 
-template <typename Equation> struct Reconstruction {
+template <typename Equation> struct ScalarReconstructStates {
+  using Complete = ::fub::Complete<Equation>;
+  using Conservative = ::fub::Conservative<Equation>;
   static constexpr int Rank = Equation::Rank();
 
-  explicit Reconstruction(const Equation& eq) : equation_{eq} {}
+  explicit ScalarReconstructStates(const Equation& eq) : kernel_{eq} {}
 
-  template <typename Context>
-  void CompleteFromCons(Context& context, PatchHandle patch, Direction dir,
-                        Duration) {
-    const auto tilebox = AsIndexBox<Rank>(patch.iterator->tilebox());
-    View<Complete<Equation>> state =
-        Subview(MakeView<BasicView<Complete<Equation>>>(context.GetData(patch),
-                                                        equation_),
-                tilebox);
-    View<const Conservative<Equation>> scratch =
-        AsCons(Subview(MakeView<BasicView<const Complete<Equation>>>(
-                           context.GetScratch(patch, dir), equation_),
-                       tilebox));
-    ::amrex::FabType type = context.GetCutCellPatchType(patch);
-    if (type == ::amrex::FabType::regular) {
-      ::fub::CompleteFromCons(equation_, state, scratch);
-    } else if (type == ::amrex::FabType::singlevalued) {
-      CutCellData<Equation::Rank()> cutcell_data =
-          context.GetCutCellData(patch, dir);
-      ::fub::amrex::cutcell::CompleteFromCons(equation_, state, scratch,
-                                              cutcell_data);
-    }
+  void CompleteFromCons(IntegratorContext& context, int level,
+                        [[maybe_unused]] Duration dt, Direction dir) {
+    ::amrex::MultiFab dest = context.GetData(level);
+    const ::amrex::MultiFab src = context.GetScratch(level, dir);
+
+    ForEachMFIter(execution::openmp, dest, [&](::amrex::MFIter& mfi) {
+      const ::amrex::Box box = mfi.tilebox();
+      auto state = MakeView<Complete>(dest[mfi], *equation_, box);
+      auto scratch = MakeView<const Consevative>(src[mfi], *equation_, box);
+      ::amrex::FabType type = context.GetCutCellPatchType(mfi);
+      if (type == ::amrex::FabType::regular) {
+        kernel_->CompleteFromCons(state, scratch);
+      } else if (type == ::amrex::FabType::singlevalued) {
+        ::amrex::TagBox flags = context.GetFlags(mfi);
+        kernel_->CompleteFromCons(state, scratch, flags);
+      }
+    });
   }
 
-  Equation equation_;
+  struct Kernel {
+    void CompleteFromCons(const View<Complete>& dest,
+                          const View<const Conservative>& src) {
+      ForEachIndex(Box<0>(dest), [&](auto... is) {
+        Load(cons_, src, {is...});
+        CompleteFromCons(eq, complete_, cons_);
+        Store(complete_, dest, {is...});
+      });
+    }
+
+    void CompleteFromCons(const View<Complete>& dest,
+                          const View<const Conservative>& src,
+                          const ::amrex::TagBox& cutcell_flag) {
+      ForEachIndex(Box<0>(dest), [&](auto... is) {
+        if (cutcell_flag({int(is)...}) != 2) {
+          Load(cons_, src, {is...});
+          CompleteFromCons(eq, complete_, cons_);
+          Store(complete_, dest, {is...});
+        }
+      });
+    }
+
+    Equation equation_;
+    Complete complete_{equation_};
+    Conservative cons_{equation_};
+  };
+  OmpLocal<Kernel> kernel_;
 };
 
-} // namespace cutcell
-} // namespace amrex
-} // namespace fub
+} // namespace fub::amrex::cutcell
 
 #endif

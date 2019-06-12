@@ -21,79 +21,84 @@
 #ifndef FUB_AMREX_CUTCELL_FLUX_METHOD_HPP
 #define FUB_AMREX_CUTCELL_FLUX_METHOD_HPP
 
-#include <memory>
-#include "fub/AMReX/cutcell/IntegratorContext.hpp"
+#include "fub/Direction.hpp"
+#include "fub/Duration.hpp"
 
-namespace fub {
-namespace amrex {
-namespace cutcell {
-namespace detail {
+#include <memory>
+
+namespace fub::amrex::cutcell {
+class IntegratorContext;
+
 struct FluxMethodBase {
   virtual ~FluxMethodBase() = default;
+
   virtual std::unique_ptr<FluxMethodBase> Clone() const = 0;
+
   virtual void PreAdvanceHierarchy(IntegratorContext& context) = 0;
-  virtual void ComputeNumericFluxes(IntegratorContext& context, int level, Duration dt, Direction dir) = 0;
+
+  virtual void ComputeNumericFluxes(IntegratorContext& context, int level,
+                                    Duration dt, Direction dir) = 0;
+
+  virtual Duration ComputeStableDt(IntegratorContext& context, int level,
+                                   Direction dir) = 0;
+
+  virtual int GetStencilWidth() const = 0;
 };
-
-template <typename T, typename... Args>
-using PreAdvanceHierarchyT = decltype(std::declval<T>().PreAdvanceHierarchy(std::declval<Args>()...));
-
-template <typename T, typename... Args>
-using ComputeNumericFluxesT = decltype(std::declval<T>().ComputeNumericFluxes(std::declval<Args>()...));
-
-template <typename FM>
-struct FluxMethodWrapper : public FluxMethodBase {
-  using Equation = std::decay_t<decltype(std::declval<FM&>().GetEquation())>;
-  using Conservative = ::fub::Conservative<Equation>;
-  using Complete = ::fub::Complete<Equation>;
-
-  static constexpr int Rank = Equation::Rank();
-
-  static constexpr bool HasPreAdvanceHierarchy = is_detected<PreAdvanceHierarchyT, FM&, IntegratorContext&>();
-  static constexpr bool HasComputeNumericFluxesOnContext = is_detected<ComputeNumericFluxesT, FM&, IntegratorContext&, int, Duration, Direction>();
-
-
-  FluxMethodWrapper(const FM& fm) : method_{fm} {}
-  FluxMethodWrapper(FM&& fm) : method_{std::move(fm)} {}
-
-  std::unique_ptr<FluxMethodBase> Clone() const override;
-  void PreAdvanceHierarchy(IntegratorContext& context) override;
-  void ComputeNumericFluxes(IntegratorContext& context, int level, Duration dt, Direction dir) override;
-
-  FM method_;
-};
-}
 
 class FluxMethod {
 public:
+  template <typename FM> FluxMethod(FM&& fm);
+
+  void PreAdvanceHierarchy(IntegratorContext& context);
+
+  void ComputeNumericFluxes(IntegratorContext& context, int level, Duration dt,
+                            Direction dir);
+
+  Duration ComputeStableDt(IntegratorContext& context, int level,
+                           Direction dir);
+
+  int GetStencilWidth() const;
 
 private:
-  std::unique_ptr<detail::FluxMethodBase> base_;
+  std::unique_ptr<FluxMethodBase> flux_method_;
 };
 
-namespace detail {
 template <typename FM>
-std::unique_ptr<FluxMethodBase> FluxMethodWrapper<FM>::Clone() const override {
-  return std::make_unique<FluxMethodWrapper<FM>>(method_);
-}
+FluxMethod::FluxMethod(FM&& flux_method)
+    : flux_method_(
+          std::make_unique<std::decay_t<FM>>(std::forward<FM>(flux_method_))) {}
 
-template <typename FM>
-void FluxMethodWrapper<FM>::PreAdvanceHierarchy(IntegratorContext& context) override {
-  if constexpr (HasPreAdvanceHierarchy) {
-    method_.PreAdvaceHierarchy(context);
+inline void FluxMethod::PreAdvanceHierarchy(IntegratorContext& context) {
+  if (!flux_method_) {
+    throw std::runtime_error("Empty flux method.");
   }
+  flux_method_->PreAdvanceHierarchy(context);
 }
 
-template <typename FM>
-void FluxMethodWrapper<FM>::ComputeNumericFluxes(IntegratorContext& context, int level, Duration dt, Direction dir) override {
-  if constexpr (HasComputeNumericFluxesOnContext) {
-    method_.ComputeNumericFluxes(context, level, dt, dir);
+inline void FluxMethod::ComputeNumericFluxes(IntegratorContext& context,
+                                             int level, Duration dt,
+                                             Direction dir) {
+  if (!flux_method_) {
+    throw std::runtime_error("Empty flux method.");
   }
-}
+  flux_method_->ComputeNumericFluxes(context, level, dt, dir);
 }
 
-} // namespace cutcell
-} // namespace amrex
-} // namespace fub
+inline Duration FluxMethod::ComputeStableDt(IntegratorContext& context,
+                                            int level, Direction dir) {
+  if (!flux_method_) {
+    throw std::runtime_error("Empty flux method.");
+  }
+  return flux_method_->ComputeStableDt(context, level, dir);
+}
+
+inline int FluxMethod::GetStencilWidth() const {
+  if (!flux_method_) {
+    throw std::runtime_error("Empty flux method.");
+  }
+  return flux_method_->GetStencilWidth();
+}
+
+} // namespace fub::amrex::cutcell
 
 #endif

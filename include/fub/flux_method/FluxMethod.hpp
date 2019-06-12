@@ -99,10 +99,25 @@ public:
                             const View<const Complete>& states, Duration dt,
                             double dx, Direction dir);
 
+  void ComputeNumericFluxes(execution::SequentialTag,
+                            const View<Conservative>& fluxes,
+                            const View<const Complete>& states, Duration dt,
+                            double dx, Direction dir);
+
   void ComputeNumericFluxes(execution::SimdTag,
                             const View<Conservative>& fluxes,
                             const View<const Complete>& states, Duration dt,
                             double dx, Direction dir);
+
+    void ComputeNumericFluxes(execution::OpenMpTag,
+                              const View<Conservative>& fluxes,
+                              const View<const Complete>& states, Duration dt,
+                              double dx, Direction dir);
+
+    void ComputeNumericFluxes(execution::OpenMpSimdTag,
+                              const View<Conservative>& fluxes,
+                              const View<const Complete>& states, Duration dt,
+                              double dx, Direction dir);
   /// @}
 
   using BaseMethod::ComputeNumericFlux;
@@ -122,8 +137,17 @@ public:
   double ComputeStableDt(const View<const Complete>& states, double dx,
                          Direction dir);
 
+  double ComputeStableDt(execution::SequentialTag, const View<const Complete>& states,
+                         double dx, Direction dir);
+
   double ComputeStableDt(execution::SimdTag, const View<const Complete>& states,
                          double dx, Direction dir);
+
+        double ComputeStableDt(execution::OpenMpTag, const View<const Complete>& states,
+                               double dx, Direction dir);
+
+        double ComputeStableDt(execution::OpenMpSimdTag, const View<const Complete>& states,
+                               double dx, Direction dir);
   /// @}
 
   using BaseMethod::ComputeStableDt;
@@ -153,7 +177,7 @@ FluxMethod<BaseMethod>::FluxMethod(Args&&... args)
 }
 
 template <typename BaseMethod>
-void FluxMethod<BaseMethod>::ComputeNumericFluxes(
+void FluxMethod<BaseMethod>::ComputeNumericFluxes(execution::SequentialTag,
     const View<Conservative>& fluxes, const View<const Complete>& states,
     Duration dt, double dx, Direction dir) {
   ForEachIndex(Box<0>(fluxes), [&](const auto... is) {
@@ -167,6 +191,27 @@ void FluxMethod<BaseMethod>::ComputeNumericFluxes(
     BaseMethod::ComputeNumericFlux(numeric_flux_, stencil_, dt, dx, dir);
     Store(fluxes, numeric_flux_, face);
   });
+}
+
+template <typename BaseMethod>
+void FluxMethod<BaseMethod>::ComputeNumericFluxes(
+    const View<Conservative>& fluxes, const View<const Complete>& states,
+    Duration dt, double dx, Direction dir) {
+  ComputeNumericFluxes(execution::seq, fluxes, states, dt, dx, dir);
+}
+
+template <typename BaseMethod>
+void FluxMethod<BaseMethod>::ComputeNumericFluxes(
+        execution::OpenMpTag, const View<Conservative>& fluxes, const View<const Complete>& states,
+        Duration dt, double dx, Direction dir) {
+    ComputeNumericFluxes(execution::seq, fluxes, states, dt, dx, dir);
+}
+
+template <typename BaseMethod>
+void FluxMethod<BaseMethod>::ComputeNumericFluxes(execution::OpenMpSimdTag,
+        const View<Conservative>& fluxes, const View<const Complete>& states,
+        Duration dt, double dx, Direction dir) {
+    ComputeNumericFluxes(execution::simd, fluxes, states, dt, dx, dir);
 }
 
 template <typename FM, typename... Args>
@@ -202,8 +247,8 @@ void FluxMethod<BaseMethod>::ComputeNumericFluxes(
       stencil_views);
   ForEachRow(views, [this, dt, dx, dir](const Row<Conservative>& fluxes,
                                         auto... rows) {
-    ViewPointer<Conservative> fit = Begin(fluxes);
-    ViewPointer<Conservative> fend = End(fluxes);
+    ViewPointer fit = Begin(fluxes);
+    ViewPointer fend = End(fluxes);
     std::array<ViewPointer<const Complete>, StencilSize> states{Begin(rows)...};
     int n = static_cast<int>(get<0>(fend) - get<0>(fit));
     while (n >= kDefaultChunkSize) {
@@ -228,7 +273,7 @@ void FluxMethod<BaseMethod>::ComputeNumericFluxes(
 
 template <typename BaseMethod>
 double
-FluxMethod<BaseMethod>::ComputeStableDt(const View<const Complete>& states,
+FluxMethod<BaseMethod>::ComputeStableDt(execution::SequentialTag, const View<const Complete>& states,
                                         double dx, Direction dir) {
   double min_dt = std::numeric_limits<double>::infinity();
   ForEachIndex(Shrink(Box<0>(states), dir, {0, GetStencilSize()}),
@@ -244,6 +289,27 @@ FluxMethod<BaseMethod>::ComputeStableDt(const View<const Complete>& states,
                  min_dt = std::min(dt, min_dt);
                });
   return min_dt;
+}
+
+template <typename BaseMethod>
+double
+FluxMethod<BaseMethod>::ComputeStableDt(const View<const Complete>& states,
+                                        double dx, Direction dir) {
+  return ComputeStableDt(execution::seq, states, dx, dir);
+}
+
+template <typename BaseMethod>
+double
+FluxMethod<BaseMethod>::ComputeStableDt(execution::OpenMpTag, const View<const Complete>& states,
+                                        double dx, Direction dir) {
+    return ComputeStableDt(execution::seq, states, dx, dir);
+}
+
+template <typename BaseMethod>
+double
+FluxMethod<BaseMethod>::ComputeStableDt(execution::OpenMpSimdTag, const View<const Complete>& states,
+                                        double dx, Direction dir) {
+    return ComputeStableDt(execution::simd, states, dx, dir);
 }
 
 template <typename T, typename... Ts> T Head(T&& head, Ts&&...) { return head; }

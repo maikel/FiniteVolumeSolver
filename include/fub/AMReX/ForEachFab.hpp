@@ -18,33 +18,44 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_AMREX_NUMERICAL_METHOD_HPP
-#define FUB_AMREX_NUMERICAL_METHOD_HPP
+#ifndef FUB_AMREX_FOR_EACH_FAB_HPP
+#define FUB_AMREX_FOR_EACH_FAB_HPP
 
-#include "fub/AMReX/FluxMethod.hpp"
-#include "fub/AMReX/HyperbolicSplitTimeIntegrator.hpp"
-#include "fub/AMReX/Reconstruction.hpp"
+#include <AMReX_MultiFab.H>
 
 namespace fub::amrex {
-template <typename FM> struct FluxMethodWrapper;
 
-/// \brief This struct summarizes the numerical method which is being deployed
-/// by this integrator context.
-struct NumericalMethod {
-  NumericalMethod(FluxMethod, HyperbolicSplitTimeIntegrator, Reconstruction);
+template <typename Tag, typename F>
+void ForEachFab(Tag, const ::amrex::FabArrayBase& fabarray, F function) {
+  for (::amrex::MFIter mfi(fabarray); mfi.isValid(); ++mfi) {
+    function(mfi);
+  }
+}
 
-  template <typename FM, typename = std::enable_if_t<!std::is_same_v<
-                             std::decay_t<FM>, NumericalMethod>>>
-  explicit NumericalMethod(const FM& method)
-      : flux_method(FluxMethodWrapper<std::decay_t<FM>>(method)),
-        time_integrator{ForwardIntegrator{}},
+template <typename F>
+void ForEachFab(execution::OpenMpTag,
+                const ::amrex::FabArrayBase& fabarray, F function) {
+#if defined(_OPENMP) && defined(AMREX_USE_OMP)
+#pragma omp parallel
+#endif
+  for (::amrex::MFIter mfi(fabarray,
+                           ::amrex::IntVect(AMREX_D_DECL(1024000, 8, 8)));
+       mfi.isValid(); ++mfi) {
+    function(mfi);
+  }
+}
 
-        reconstruction{ReconstructEquationStates{method.GetEquation()}} {}
+template <typename F>
+void ForEachFab(execution::OpenMpSimdTag,
+                const ::amrex::FabArrayBase& fabarray, F function) {
+  ForEachFab(execution::openmp, fabarray, std::move(function));
+}
 
-  FluxMethod flux_method;
-  HyperbolicSplitTimeIntegrator time_integrator;
-  Reconstruction reconstruction;
-};
+
+template <typename F>
+F ForEachFab(const ::amrex::FabArrayBase& fabarray, F&& function) {
+  ForEachFab(execution::seq, fabarray, std::forward<F>(function));
+}
 
 } // namespace fub::amrex
 

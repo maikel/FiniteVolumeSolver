@@ -22,12 +22,10 @@
 #define FUB_AMREX_CUTCELL_PATCH_HIERARCHY_HPP
 
 #include "fub/AMReX/CartesianGridGeometry.hpp"
-#include "fub/AMReX/PatchHandle.hpp"
 #include "fub/AMReX/PatchHierarchy.hpp"
 #include "fub/CutCellData.hpp"
 #include "fub/Duration.hpp"
 #include "fub/Equation.hpp"
-#include "fub/Execution.hpp"
 #include "fub/ext/Eigen.hpp"
 
 #include <AMReX_EBFabFactory.H>
@@ -42,9 +40,7 @@
 #include <functional>
 #include <vector>
 
-namespace fub {
-namespace amrex {
-namespace cutcell {
+namespace fub::amrex::cutcell {
 
 /// This class holds state data arrays for each refinement level of a patch
 /// hierarchy.
@@ -52,8 +48,8 @@ namespace cutcell {
 /// This cut-cell version stores some embedded boundary informations in addition
 /// to the normal patch level type.
 struct PatchLevel : ::fub::amrex::PatchLevel {
-  /// \brief Constructs an invalid patch level containing no data.
   PatchLevel() = default;
+  ~PatchLevel() = default;
 
   /// \brief Deeply copy a patch level on each MPI Rank and recompute shielded fractions.
   PatchLevel(const PatchLevel&);
@@ -61,10 +57,11 @@ struct PatchLevel : ::fub::amrex::PatchLevel {
   /// \brief Deeply copy a patch level on each MPI Rank and recompute shielded fractions.
   PatchLevel& operator=(const PatchLevel&);
 
+  /// @{
+  /// \brief Moves a patch level without any allocations happening.
   PatchLevel(PatchLevel&&) noexcept = default;
   PatchLevel& operator=(PatchLevel&&) noexcept = default;
-
-  ~PatchLevel() = default;
+  /// @}
 
   /// \brief Constructs a patch level and computes shielded fractions.
   ///
@@ -104,124 +101,74 @@ struct PatchHierarchyOptions : public ::fub::amrex::PatchHierarchyOptions {
 
 class PatchHierarchy {
 public:
-  using PatchHandle = ::fub::amrex::PatchHandle;
+  /// \brief Constructs a PatchHierarchy object which is capable of holding data
+  /// described by the secified data description on given geometry extents.
+  template <typename Equation>
+  PatchHierarchy(const Equation& equation,
+                 const CartesianGridGeometry& geometry,
+                 const PatchHierarchyOptions& options);
 
+  /// \brief Constructs a PatchHierarchy object which is capable of holding data
+  /// described by the secified data description on given geometry extents.
   PatchHierarchy(DataDescription description,
                  const CartesianGridGeometry& geometry,
                  const PatchHierarchyOptions& options);
 
-  const PatchHierarchyOptions& GetOptions() const noexcept { return options_; }
+  /// @{
+  /// \name Member Acccess
 
-  const CartesianGridGeometry& GetGridGeometry() const noexcept {
-    return grid_geometry_;
-  }
+  const DataDescription& GetDataDescription() const noexcept;
 
-  std::ptrdiff_t GetCycles(int level = 0) const {
-    return patch_level_[static_cast<std::size_t>(level)].cycles;
-  }
+  /// \brief Return some additional patch hierarchy options.
+  const PatchHierarchyOptions& GetOptions() const noexcept;
 
-  Duration GetTimePoint(int level = 0) const {
-    return patch_level_[static_cast<std::size_t>(level)].time_point;
-  }
+  /// \brief Returns the Grid Geometry which was used to create the hierarchy
+  /// with.
+  const CartesianGridGeometry& GetGridGeometry() const noexcept;
 
-  int GetNumberOfLevels() const noexcept {
-    return static_cast<int>(std::count_if(
-        patch_level_.begin(), patch_level_.end(),
-        [](const PatchLevel& level) { return !level.data.empty(); }));
-  }
+  /// @}
 
-  int GetMaxNumberOfLevels() const noexcept {
-    return static_cast<int>(patch_level_.size());
-  }
 
+  /// @{
+  /// \name Observers
+
+  int GetNumberOfLevels() const noexcept;
+
+  int GetMaxNumberOfLevels() const noexcept;
+
+  /// @}
+
+  /// @{
+  /// \name Level specific Access
+
+  /// \brief Returns the number of cycles done for a specific level.
+  ///
+  /// \param[in] level  the refinement level number
+  std::ptrdiff_t GetCycles(int level = 0) const;
+
+  /// \brief Returns the time point of a specified level number.
+  ///
+  /// \param[in] level  the refinement level number
+  Duration GetTimePoint(int level = 0) const;
+
+  /// \brief Returns the ratio from fine to coarse for specified fine level number and direction.
+  ///
+  /// \param[in] level  the fine refinement level number
+  /// \param[in] dir  the direction
   int GetRatioToCoarserLevel(int level, Direction dir) const noexcept;
 
   ::amrex::IntVect GetRatioToCoarserLevel(int level) const noexcept;
 
-  const ::amrex::Geometry& GetGeometry(int level) const noexcept {
-    FUB_ASSERT(0 <= level && level < GetMaxNumberOfLevels());
-    const std::size_t level_num = static_cast<std::size_t>(level);
-    return patch_level_geometry_[level_num];
-  }
+  const ::amrex::Geometry& GetGeometry(int level) const noexcept;
 
-  PatchLevel& GetPatchLevel(int level) noexcept {
-    FUB_ASSERT(0 <= level && level < GetMaxNumberOfLevels());
-    const std::size_t level_num = static_cast<std::size_t>(level);
-    return patch_level_[level_num];
-  }
+  PatchLevel& GetPatchLevel(int level) noexcept;
 
-  const PatchLevel& GetPatchLevel(int level) const noexcept {
-    FUB_ASSERT(0 <= level && level < GetMaxNumberOfLevels());
-    const std::size_t level_num = static_cast<std::size_t>(level);
-    return patch_level_[level_num];
-  }
-
-  const DataDescription& GetDataDescription() const noexcept {
-    return description_;
-  }
+  const PatchLevel& GetPatchLevel(int level) const noexcept;
 
   const std::shared_ptr<::amrex::EBFArrayBoxFactory>&
-  GetEmbeddedBoundary(int level) const noexcept {
-    FUB_ASSERT(0 <= level && level < GetMaxNumberOfLevels());
-    const std::size_t level_num = static_cast<std::size_t>(level);
-    return patch_level_[level_num].factory;
-  }
+  GetEmbeddedBoundary(int level) const noexcept;
 
-  template <typename Feedback>
-  Feedback ForEachPatch(int level, Feedback feedback) const {
-    for (::amrex::MFIter mfi(GetPatchLevel(level).data); mfi.isValid(); ++mfi) {
-      PatchHandle handle{level, &mfi};
-      feedback(handle);
-    }
-    return feedback;
-  }
-
-  template <typename Feedback>
-  Feedback ForEachPatch(execution::OpenMpTag, int level,
-                        Feedback feedback) const {
-#ifdef _OPENMP
-#pragma omp parallel firstprivate(feedback)
-#endif
-    {
-      for (::amrex::MFIter mfi(GetPatchLevel(level).data, true); mfi.isValid();
-           ++mfi) {
-        PatchHandle handle{level, &mfi};
-        feedback(handle);
-      }
-    }
-    return feedback;
-  }
-
-  template <typename Feedback>
-  double Minimum(int level, Feedback feedback) const {
-    double global_min = std::numeric_limits<double>::infinity();
-    for (::amrex::MFIter mfi(GetPatchLevel(level).data); mfi.isValid(); ++mfi) {
-      PatchHandle handle{level, &mfi};
-      const double local_min = feedback(handle);
-      global_min = std::min(global_min, local_min);
-    }
-    return global_min;
-  }
-
-  template <typename Feedback>
-  double Minimum(execution::OpenMpTag, int level, Feedback feedback) const {
-    double global_min = std::numeric_limits<double>::infinity();
-#ifdef _OPENMP
-#pragma omp parallel reduction(min : global_min) firstprivate(feedback)
-#endif
-    {
-      for (::amrex::MFIter mfi(GetPatchLevel(level).data, true); mfi.isValid();
-           ++mfi) {
-        PatchHandle handle{level, &mfi};
-        const double local_min = feedback(handle);
-        global_min = std::min(global_min, local_min);
-      }
-    }
-    return global_min;
-  }
-
-  CutCellData<AMREX_SPACEDIM> GetCutCellData(PatchHandle patch,
-                                             Direction dir) const;
+  /// @}
 
 private:
   DataDescription description_;
@@ -280,7 +227,5 @@ PatchHierarchy ReadCheckpointFile(const std::string& checkpointname,
                                   const PatchHierarchyOptions& options);
 
 } // namespace cutcell
-} // namespace amrex
-} // namespace fub
 
 #endif

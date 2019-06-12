@@ -22,7 +22,6 @@
 #define FUB_AMREX_PATCH_HIERARCHY_HPP
 
 #include "fub/AMReX/CartesianGridGeometry.hpp"
-#include "fub/AMReX/PatchHandle.hpp"
 #include "fub/Duration.hpp"
 #include "fub/Equation.hpp"
 #include "fub/Execution.hpp"
@@ -71,7 +70,7 @@ struct PatchLevel {
   PatchLevel& operator=(PatchLevel&& other) = default;
   /// @}
 
-  /// Allocates arrays with specified box array and distribution mapping.
+  /// \brief Allocates arrays with specified box array and distribution mapping.
   ///
   /// \param num the refinement level number
   /// \param tp  the time point of the simulation
@@ -117,8 +116,6 @@ DataDescription MakeDataDescription(const Equation& equation);
 /// also holds a time stamp for each level.
 class PatchHierarchy {
 public:
-  using PatchHandle = ::fub::amrex::PatchHandle;
-
   /// \brief Constructs a PatchHierarchy object which is capable of holding data
   /// described by the secified data description on given geometry extents.
   template <typename Equation>

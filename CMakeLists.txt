@@ -85,6 +85,8 @@ else()
   option(FUB_WITH_OPENMP "Fallback to OpenMP for shared memory parallelism." OFF)
 endif()
 
+set(FUB_DEFAULT_CHUNK_SIZE "8" CACHE STRING "The Array width for vectorization routines")
+
 # In a multi-threaded environment we have to specify '-fopenmp' else we risk 
 # data races in the fortran implementation of RADAU.
 add_library(RadauSolverFortran
@@ -103,7 +105,7 @@ install(
 )
 
 # Write information about found libraries into fub/config.hpp
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/include/fub/config.hpp.in 
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/include/fub/config.hpp.in
                ${CMAKE_BINARY_DIR}/include/fub/config.hpp)
 
 ################################################################################
@@ -246,14 +248,13 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     include/fub/AMReX/boundary_condition/BoundarySet.hpp
     include/fub/AMReX/boundary_condition/TransmissiveBoundary.hpp
     include/fub/AMReX/GriddingAlgorithm.hpp
-    include/fub/AMReX/NumericalMethod.hpp
     include/fub/AMReX/PatchHierarchy.hpp
     include/fub/AMReX/Reconstruction.hpp
     include/fub/AMReX/RunSimulation.hpp
     include/fub/AMReX/BoundaryCondition.hpp
     include/fub/AMReX/Tagging.hpp
-    include/fub/AMReX/HyperbolicSplitTimeIntegrator.hpp
-    include/fub/AMReX/HyperbolicSplitIntegratorContext.hpp
+    include/fub/AMReX/TimeIntegrator.hpp
+    include/fub/AMReX/IntegratorContext.hpp
     include/fub/AMReX/InitialData.hpp
     include/fub/AMReX/FluxMethod.hpp
     include/fub/AMReX/ScopeGuard.hpp
@@ -267,8 +268,8 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     src/AMReX/PatchHierarchy.cpp
     src/AMReX/GriddingAlgorithm.cpp
     src/AMReX/BoundaryCondition.cpp
-    src/AMReX/HyperbolicSplitTimeIntegrator.cpp
-    src/AMReX/HyperbolicSplitIntegratorContext.cpp)
+    src/AMReX/TimeIntegrator.cpp
+    src/AMReX/IntegratorContext.cpp)
   target_include_directories(FiniteVolumeSolver.AMReX
     PUBLIC
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -297,7 +298,6 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         include/fub/AMReX/cutcell/BoundaryCondition.hpp
         include/fub/AMReX/cutcell/FluxMethod.hpp
         include/fub/AMReX/cutcell/GriddingAlgorithm.hpp
-        include/fub/AMReX/cutcell/HyperbolicSplitIntegratorContext.hpp
         include/fub/AMReX/cutcell/HyperbolicSplitPatchIntegrator.hpp
         include/fub/AMReX/cutcell/IndexSpace.hpp
         include/fub/AMReX/cutcell/InitialData.hpp
@@ -306,7 +306,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         include/fub/AMReX/cutcell/IntegratorContext.hpp
         include/fub/AMReX/cutcell/Tagging.hpp
         src/AMReX/cutcell/BoundaryCondition.cpp
-        src/AMReX/cutcell/HyperbolicSplitIntegratorContext.cpp
+        src/AMReX/cutcell/IntegratorContext.cpp
         src/AMReX/cutcell/PatchHierarchy.cpp
         src/AMReX/cutcell/FillCutCellData.cpp
         src/AMReX/cutcell/GriddingAlgorithm.cpp

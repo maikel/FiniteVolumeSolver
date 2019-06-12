@@ -67,6 +67,11 @@ GriddingAlgorithm::GriddingAlgorithm(const GriddingAlgorithm& other)
     AmrMesh::dmap[ii] = hierarchy_.GetPatchLevel(i).distribution_mapping;
     AmrMesh::grids[ii] = hierarchy_.GetPatchLevel(i).box_array;
   }
+  for (int level = 0; level < hierarchy_.GetMaxNumberOfLevels(); ++level) {
+    boundary_condition_[static_cast<std::size_t>(level)].geometry =
+        hierarchy_.GetGeometry(level);
+    boundary_condition_[static_cast<std::size_t>(level)].parent = this;
+  }
 }
 
 GriddingAlgorithm& GriddingAlgorithm::
@@ -109,6 +114,11 @@ GriddingAlgorithm::GriddingAlgorithm(GriddingAlgorithm&& other) noexcept
   AmrMesh::geom = std::move(other.geom);
   AmrMesh::dmap = std::move(other.dmap);
   AmrMesh::grids = std::move(other.grids);
+  for (int level = 0; level < hierarchy_.GetMaxNumberOfLevels(); ++level) {
+    boundary_condition_[static_cast<std::size_t>(level)].geometry =
+        hierarchy_.GetGeometry(level);
+    boundary_condition_[static_cast<std::size_t>(level)].parent = this;
+  }
 }
 
 GriddingAlgorithm& GriddingAlgorithm::
@@ -135,6 +145,11 @@ operator=(GriddingAlgorithm&& other) noexcept {
   initial_condition_ = std::move(other.initial_condition_);
   tagging_ = std::move(other.tagging_);
   boundary_condition_ = std::move(other.boundary_condition_);
+  for (int level = 0; level < hierarchy_.GetMaxNumberOfLevels(); ++level) {
+    boundary_condition_[static_cast<std::size_t>(level)].geometry =
+        hierarchy_.GetGeometry(level);
+    boundary_condition_[static_cast<std::size_t>(level)].parent = this;
+  }
   return *this;
 }
 
@@ -191,8 +206,7 @@ void GriddingAlgorithm::FillMultiFabFromLevel(::amrex::MultiFab& multifab,
     const ::amrex::Geometry& geom = hierarchy_.GetGeometry(level_number);
     const ::amrex::Vector<::amrex::MultiFab*> smf{&level.data};
     const ::amrex::Vector<double> stime{level.time_point.count()};
-    ::fub::amrex::cutcell::BoundaryCondition boundary(
-        boundary_condition_, geom, level_number, GetPatchHierarchy());
+    BoundaryCondition& boundary = boundary_condition_[size_t(level_number)];
     ::amrex::FillPatchSingleLevel(multifab, level.time_point.count(), smf,
                                   stime, 0, 0, n_comps, geom, boundary, 0);
   } else {
@@ -205,10 +219,10 @@ void GriddingAlgorithm::FillMultiFabFromLevel(::amrex::MultiFab& multifab,
     const ::amrex::Geometry& fgeom = hierarchy_.GetGeometry(level_number);
     const ::amrex::IntVect ratio = 2 * ::amrex::IntVect::TheUnitVector();
     ::amrex::Interpolater* mapper = &::amrex::pc_interp;
-    ::fub::amrex::cutcell::BoundaryCondition fine_boundary(
-        boundary_condition_, fgeom, level_number, GetPatchHierarchy());
-    ::fub::amrex::cutcell::BoundaryCondition coarse_boundary(
-        boundary_condition_, cgeom, level_number - 1, GetPatchHierarchy());
+    const std::size_t fine = std::size_t(level_number);
+    const std::size_t coarse = std::size_t(level_number - 1);
+    BoundaryCondition& fine_boundary = boundary_condition_[fine];
+    BoundaryCondition& coarse_boundary = boundary_condition_[coarse];
     ::amrex::FillPatchTwoLevels(multifab, level.time_point.count(), cmf, ct,
                                 fmf, ft, 0, 0, n_comps, cgeom, fgeom,
                                 coarse_boundary, 0, fine_boundary, 0, ratio,
@@ -216,32 +230,22 @@ void GriddingAlgorithm::FillMultiFabFromLevel(::amrex::MultiFab& multifab,
   }
 }
 
-void GriddingAlgorithm::ErrorEst(int level, ::amrex::TagBoxArray& tags, double,
+void GriddingAlgorithm::ErrorEst(int level, ::amrex::TagBoxArray& tags, double tp,
                                  int /* ngrow */) {
-  PatchLevel& old_level = hierarchy_.GetPatchLevel(level);
-  ::amrex::MultiFab& data = old_level.data;
-  const int ncomp = data.nComp();
-  const ::amrex::BoxArray& ba = data.boxArray();
-  const ::amrex::DistributionMapping& dm = data.DistributionMap();
-  ::amrex::MultiFab scratch(ba, dm, ncomp, 1);
-  FillMultiFabFromLevel(scratch, level);
-
-  for (::amrex::MFIter mfi(ba, dm); mfi.isValid(); ++mfi) {
-    PatchDataView<const double, Rank + 1> data =
-        MakePatchDataView(scratch[mfi]);
-    PatchDataView<char, Rank> tag = MakePatchDataView(tags[mfi], 0);
-    PatchHandle patch{level, &mfi};
-    tagging_.TagCellsForRefinement(tag, data, hierarchy_, patch);
-  }
+  tagging_.TagCellsForRefinement(tags, Duration(tp), level, *this);
 }
 
-void GriddingAlgorithm::SetBoundaryCondition(BoundaryCondition condition) {
-  boundary_condition_ = std::move(condition);
+void GriddingAlgorithm::SetBoundaryCondition(int level, BoundaryCondition&& condition) {
+  boundary_condition_[std::size_t(level)] = std::move(condition);
+}
+
+void GriddingAlgorithm::SetBoundaryCondition(int level, const BoundaryCondition& condition) {
+  boundary_condition_[std::size_t(level)] = condition;
 }
 
 const GriddingAlgorithm::BoundaryCondition&
-GriddingAlgorithm::GetBoundaryCondition() const noexcept {
-  return boundary_condition_;
+GriddingAlgorithm::GetBoundaryCondition(int level) const noexcept {
+  return boundary_condition_[std::size_t(level)];
 }
 
 void GriddingAlgorithm::MakeNewLevelFromScratch(

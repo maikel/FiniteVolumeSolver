@@ -30,8 +30,8 @@ template <typename F> void ForEachIndex(const ::amrex::Box& box, F function) {
 template <typename F>
 void ForEachIndex(const ::amrex::Box& box, int n_components, F function) {
   for (int c = 0; c < n_components; ++c) {
-    ForEachIndex(box,
-                 [c, &function](auto... is) { std::invoke(function, is..., c); });
+    ForEachIndex(
+        box, [c, &function](auto... is) { std::invoke(function, is..., c); });
   }
 }
 

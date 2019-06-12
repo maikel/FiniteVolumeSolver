@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/Solver.hpp"
 #include "fub/AMReX.hpp"
+#include "fub/Solver.hpp"
 
 #include <fmt/format.h>
 #include <iostream>
@@ -30,29 +30,27 @@ struct ShockData {
   using Conservative = fub::Conservative<Equation>;
 
   void InitializeData(amrex::MultiFab& data, const amrex::Geometry& geom) {
-#if defined(_OPENMP) && defined(AMREX_USE_OMP)
-#pragma omp parallel
-#endif
-    for (amrex::MFIter mfi(data, true); mfi.isValid(); ++mfi) {
-      fub::View<Complete> state =
-          fub::amrex::MakeView<Complete>(data[mfi], equation_, mfi.tilebox());
-      fub::amrex::ForEachIndex(
-          mfi.tilebox(),
-          [this, &state, &geom](std::ptrdiff_t i, std::ptrdiff_t j) {
-            double x[2];
-            geom.CellCenter({int(i), int(j)}, x);
-            if (x[0] < -0.04) {
-              Store(state, left_, {i, j});
-            } else {
-              Store(state, right_, {i, j});
-            }
-          });
-    }
+    fub::amrex::ForEachFab(
+        fub::execution::openmp, data, [&](amrex::MFIter& mfi) {
+          fub::View<Complete> state = fub::amrex::MakeView<Complete>(
+              data[mfi], equation_, mfi.tilebox());
+          fub::ForEachIndex(
+              fub::amrex::AsIndexBox<2>(mfi.tilebox()),
+              [this, &state, &geom](std::ptrdiff_t i, std::ptrdiff_t j) {
+                double x[AMREX_SPACEDIM];
+                geom.CellCenter({int(i), int(j), 0}, x);
+                if (x[0] < -0.04) {
+                  Store(state, left_, {i, j});
+                } else {
+                  Store(state, right_, {i, j});
+                }
+              });
+        });
   }
 
   Equation equation_;
-  Complete left_{};
-  Complete right_{};
+  Complete left_{equation_};
+  Complete right_{equation_};
 };
 
 int main(int argc, char** argv) {
@@ -67,13 +65,13 @@ int main(int argc, char** argv) {
   fub::PerfectGas<2> equation{};
 
   fub::amrex::CartesianGridGeometry geometry{};
-  geometry.cell_dimensions = std::array<int, Dim>{AMREX_D_DECL(128, 128, 1)};
+  geometry.cell_dimensions = std::array<int, Dim>{AMREX_D_DECL(256, 256, 1)};
   geometry.coordinates = amrex::RealBox({AMREX_D_DECL(-1.0, -1.0, -1.0)},
                                         {AMREX_D_DECL(+1.0, +1.0, +1.0)});
   geometry.periodicity[1] = 1;
 
   fub::amrex::PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = 2;
+  hier_opts.max_number_of_levels = 1;
   hier_opts.refine_ratio = amrex::IntVect{AMREX_D_DECL(2, 2, 1)};
 
   using Complete = fub::PerfectGas<2>::Complete;
@@ -104,21 +102,24 @@ int main(int argc, char** argv) {
   using fub::amrex::TransmissiveBoundary;
   boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::X, 0});
   boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::X, 1});
-  boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::Y, 0});
-  boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::Y, 1});
 
   auto gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       fub::amrex::PatchHierarchy(equation, geometry, hier_opts),
       ShockData{equation, left, right}, gradient, boundary);
   gridding->InitializeHierarchy(0.0);
 
-  fub::HllMethod flux_method{
-      equation, fub::EinfeldtSignalVelocities<fub::PerfectGas<2>>{}};
-  fub::amrex::NumericalMethod method(std::move(flux_method));
+  auto tag = fub::execution::openmp_simd;
+
+  fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
+  fub::HllMethod hll_method(equation, signals);
+  fub::MusclHancockMethod muscl_method(equation, hll_method);
+  fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(tag, muscl_method),
+                                     fub::amrex::ForwardIntegrator(tag),
+                                     fub::amrex::Reconstruction(tag, equation)};
 
   fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
-      equation, fub::amrex::HyperbolicSplitIntegratorContext(
-                    std::move(gridding), std::move(method))));
+      equation,
+      fub::amrex::IntegratorContext(std::move(gridding), std::move(method))));
 
   std::string base_name = "PerfectGas2d/";
 

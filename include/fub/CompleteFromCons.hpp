@@ -21,6 +21,7 @@
 #ifndef FUB_COMPLETE_FROM_CONS_HPP
 #define FUB_COMPLETE_FROM_CONS_HPP
 
+#include "Execution.hpp"
 #include "fub/State.hpp"
 #include "fub/StateArray.hpp"
 #include "fub/StateRow.hpp"
@@ -109,25 +110,25 @@ void CompleteFromCons(
   });
 }
 
-template <typename Equation> struct ArrayCompleteFromCons {
+template <typename Equation> struct CompleteFromConsFn {
   Equation equation_;
-  CompleteArray<Equation> complete_{equation_};
-  ConservativeArray<Equation> cons_{equation_};
+  CompleteArray<Equation> complete_array_{equation_};
+  ConservativeArray<Equation> cons_array_{equation_};
+  Complete<Equation> complete_{equation_};
+  Conservative<Equation> cons_{equation_};
 
-  using Complete = ::fub::Complete<Equation>;
-  using Conservative = ::fub::Conservative<Equation>;
 
   struct CompleteFromCons_Rows {
-    ArrayCompleteFromCons<Equation>* this_;
+    CompleteFromConsFn<Equation>* this_;
 
-    void operator()(const Row<Complete>& complete_row,
-                    const Row<const Conservative>& cons_row) const {
+    void operator()(const Row<Complete<Equation>>& complete_row,
+                    const Row<const Conservative<Equation>>& cons_row) const {
       ViewPointer in = Begin(cons_row);
       ViewPointer end = End(cons_row);
       ViewPointer out = Begin(complete_row);
       Equation& equation = this_->equation_;
-      CompleteArray<Equation>& complete = this_->complete_;
-      ConservativeArray<Equation>& cons = this_->cons_;
+      CompleteArray<Equation>& complete = this_->complete_array_;
+      ConservativeArray<Equation>& cons = this_->cons_array_;
       int n = static_cast<int>(get<0>(end) - get<0>(in));
       while (n >= kDefaultChunkSize) {
         Load(cons, in);
@@ -143,11 +144,34 @@ template <typename Equation> struct ArrayCompleteFromCons {
     }
   };
 
-  void CompleteFromCons(const View<Complete>& complete_view,
-                        const View<const Conservative>& cons_view) {
+  void CompleteFromCons(execution::SimdTag, const View<Complete<Equation>>& complete_view,
+                        const View<const Conservative<Equation>>& cons_view) {
     FUB_ASSERT(Box<0>(complete_view) == Box<0>(cons_view));
     ForEachRow(std::tuple{complete_view, cons_view},
                CompleteFromCons_Rows{this});
+  }
+
+  void CompleteFromCons(execution::SequentialTag,
+                        const View<Complete<Equation>>& complete_view,
+                        const View<const Conservative<Equation>>& cons_view) {
+    FUB_ASSERT(Box<0>(complete_view) == Box<0>(cons_view));
+    ForEachIndex(Box<0>(cons_view), [&](auto... is) {
+      Load(cons_, cons_view, {is...});
+      ::fub::CompleteFromCons(equation_, complete_, cons_);
+      Store(complete_view, complete_, {is...});
+    });
+  }
+
+  void CompleteFromCons(execution::OpenMpTag,
+                        const View<Complete<Equation>>& complete_view,
+                        const View<const Conservative<Equation>>& cons_view) {
+    return CompleteFromCons(execution::seq, complete_view, cons_view);
+  }
+
+  void CompleteFromCons(execution::OpenMpSimdTag,
+                        const View<Complete<Equation>>& complete_view,
+                        const View<const Conservative<Equation>>& cons_view) {
+    return CompleteFromCons(execution::simd, complete_view, cons_view);
   }
 };
 

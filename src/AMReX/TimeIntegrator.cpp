@@ -18,21 +18,21 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/AMReX/HyperbolicSplitTimeIntegrator.hpp"
+#include "fub/AMReX/TimeIntegrator.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/ForEach.hpp"
+#include "fub/AMReX/ForEachFab.hpp"
 
 namespace fub::amrex {
-
-void ForwardIntegrator::UpdateConservatively(::amrex::MultiFab& dest,
-                                             const ::amrex::MultiFab& src,
-                                             const ::amrex::MultiFab& fluxes,
-                                             const ::amrex::Geometry& geom,
-                                             Duration dt, Direction dir) {
+template <typename Tag>
+void ForwardIntegrator<Tag>::UpdateConservatively(
+    ::amrex::MultiFab& dest, const ::amrex::MultiFab& src,
+    const ::amrex::MultiFab& fluxes, const ::amrex::Geometry& geom, Duration dt,
+    Direction dir) {
   const int n_cons = fluxes.nComp();
   const double dx = geom.CellSize(int(dir));
   const double lambda = dt.count() / dx;
-  for (::amrex::MFIter mfi(dest, true); mfi.isValid(); ++mfi) {
+  ForEachFab(Tag(), dest, [&](::amrex::MFIter& mfi) {
     ::amrex::FArrayBox& next = dest[mfi];
     const ::amrex::FArrayBox& prev = src[mfi];
     const ::amrex::FArrayBox& flux = fluxes[mfi];
@@ -40,15 +40,29 @@ void ForwardIntegrator::UpdateConservatively(::amrex::MultiFab& dest,
     IndexBox<AMREX_SPACEDIM> ibox =
         Grow(AsIndexBox<AMREX_SPACEDIM>(box), dir, {1, 1});
     for (int c = 0; c < n_cons; ++c) {
-      ForEachIndex(ibox, [c, lambda, dir, &next, &prev,
-                          &flux](AMREX_D_DECL(std::ptrdiff_t i, std::ptrdiff_t j, std::ptrdiff_t k)) {
-        const ::amrex::IntVect iv{AMREX_D_DECL(int(i), int(j), int(k))};
+      ForEachIndex(ibox, [c, lambda, dir, &next, &prev, &flux](auto... is) {
+        const ::amrex::IntVect iv{int(is)...};
         const ::amrex::IntVect left = iv;
         ::amrex::IntVect right = iv;
         right.shift(int(dir), 1);
         next(iv, c) = prev(iv, c) + lambda * (flux(left, c) - flux(right, c));
       });
     }
-  }
+  });
 }
+
+template <typename Tag>
+void ForwardIntegrator<Tag>::UpdateConservatively(IntegratorContext& context,
+                                                  int level, Duration dt,
+                                                  Direction dir) {
+  ::amrex::MultiFab& data = context.GetScratch(level, dir);
+  const ::amrex::MultiFab& fluxes = context.GetFluxes(level, dir);
+  const ::amrex::Geometry& geom = context.GetGeometry(level);
+  UpdateConservatively(data, data, fluxes, geom, dt, dir);
+}
+
+template struct ForwardIntegrator<execution::SequentialTag>;
+template struct ForwardIntegrator<execution::OpenMpTag>;
+template struct ForwardIntegrator<execution::SimdTag>;
+template struct ForwardIntegrator<execution::OpenMpSimdTag>;
 } // namespace fub::amrex
