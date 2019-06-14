@@ -20,15 +20,8 @@
 
 #include "fub/AMReX/cutcell/IntegratorContext.hpp"
 
-// Polymorphic Strategies
-#include "fub/AMReX/cutcell/BoundaryCondition.hpp"
-#include "fub/AMReX/cutcell/FluxMethod.hpp"
-#include "fub/AMReX/cutcell/Reconstruction.hpp"
-#include "fub/AMReX/cutcell/TimeIntegrator.hpp"
-
-#include "fub/AMReX/cutcell/IndexSpace.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
-#include "fub/AMReX/utility.hpp"
+#include "fub/AMReX/cutcell/IndexSpace.hpp"
 
 #include <AMReX_EBMultiFabUtil.H>
 #include <AMReX_FillPatchUtil.H>
@@ -40,6 +33,54 @@ namespace fub::amrex::cutcell {
 
 ////////////////////////////////////////////////////////////////////////////////
 //                                                  IntegratorContext::LevelData
+
+struct IntegratorContext::LevelData {
+  LevelData() = default;
+  LevelData(const LevelData& other) = delete;
+  LevelData& operator=(const LevelData& other) = delete;
+  LevelData(LevelData&&) noexcept = default;
+  LevelData& operator=(LevelData&&) noexcept;
+  ~LevelData() noexcept = default;
+
+  /// This eb_factory is shared with the underlying patch hierarchy.
+  std::shared_ptr<::amrex::EBFArrayBoxFactory> eb_factory;
+
+  ///////////////////////////////////////////////////////////////////////////
+  // [cell-centered]
+
+  /// reference states which are used to compute embedded boundary fluxes
+  ::amrex::MultiFab reference_states;
+
+  /// scratch space filled with data in ghost cells
+  std::array<::amrex::MultiFab, Rank> scratch;
+
+  /// fluxes for the embedded boundary
+  std::unique_ptr<::amrex::MultiCutFab> boundary_fluxes;
+
+  ///////////////////////////////////////////////////////////////////////////
+  // [face-centered]
+
+  /// @{
+  /// various flux types needed by the numerical scheme
+  std::array<::amrex::MultiFab, Rank> fluxes;
+  std::array<::amrex::MultiFab, Rank> stabilized_fluxes;
+  std::array<::amrex::MultiFab, Rank> shielded_left_fluxes;
+  std::array<::amrex::MultiFab, Rank> shielded_right_fluxes;
+  std::array<::amrex::MultiFab, Rank> doubly_shielded_fluxes;
+  /// @}
+
+  ///////////////////////////////////////////////////////////////////////////
+  // [misc]
+
+  /// FluxRegister accumulate fluxes on coarse fine interfaces between
+  /// refinement level. These will need to be rebuilt whenever the hierarchy
+  /// changes.
+  ::amrex::FluxRegister coarse_fine;
+
+  std::array<Duration, Rank> time_point;
+  std::array<Duration, Rank> regrid_time_point;
+  std::array<std::ptrdiff_t, Rank> cycles;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 //                                                      Move Assignment Operator
@@ -75,11 +116,10 @@ operator=(LevelData&& other) noexcept {
 ////////////////////////////////////////////////////////////////////////////////
 //                                          Constructor and Assignment Operators
 
-IntegratorContext::IntegratorContext(
-    std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod nm)
+IntegratorContext::IntegratorContext(GriddingAlgorithm gridding,
+                                     HyperbolicMethod nm)
     : ghost_cell_width_{nm.flux_method.GetStencilWidth() + 1},
-      gridding_{std::move(gridding)}, data_{}, method_{
-                                                   std::move(nm)} {
+      gridding_{std::move(gridding)}, data_{}, method_{std::move(nm)} {
   data_.reserve(
       static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
   // Allocate auxiliary data arrays for each refinement level in the hierarchy
@@ -113,6 +153,4 @@ operator=(const IntegratorContext& other) {
 ///////////////////////////////////////////////////////////////////////////////
 //                                                             Member Accessors
 
-
-
-}
+} // namespace fub::amrex::cutcell

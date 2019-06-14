@@ -103,10 +103,10 @@ int main(int argc, char** argv) {
   boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::X, 0});
   boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::X, 1});
 
-  auto gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
+  fub::amrex::GriddingAlgorithm gridding(
       fub::amrex::PatchHierarchy(equation, geometry, hier_opts),
       ShockData{equation, left, right}, gradient, boundary);
-  gridding->InitializeHierarchy(0.0);
+  gridding.InitializeHierarchy(0.0);
 
   auto tag = fub::execution::openmp_simd;
 
@@ -114,8 +114,8 @@ int main(int argc, char** argv) {
   fub::HllMethod hll_method(equation, signals);
   fub::MusclHancockMethod muscl_method(equation, hll_method);
   fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(tag, muscl_method),
-                                     fub::amrex::ForwardIntegrator(tag),
-                                     fub::amrex::Reconstruction(tag, equation)};
+                                      fub::amrex::ForwardIntegrator(tag),
+                                      fub::amrex::Reconstruction(tag, equation)};
 
   fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
       equation,

@@ -160,6 +160,7 @@ install(
 )
 
 find_package(fmt REQUIRED)
+find_package(Vc REQUIRED)
 
 add_library(FiniteVolumeSolver.Solver
   include/fub/boundary_condition/TransmissiveBoundary.hpp
@@ -189,7 +190,7 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/Execution.hpp
   include/fub/ForEach.hpp
   include/fub/HyperbolicSplitLevelIntegrator.hpp
-  include/fub/HyperbolicSplitPatchIntegrator.hpp
+  include/fub/HyperbolicPatchIntegrator.hpp
   include/fub/HyperbolicSplitSystemSolver.hpp
   include/fub/NewtonIteration.hpp
   include/fub/PatchDataView.hpp
@@ -219,6 +220,7 @@ add_library(FiniteVolumeSolver.Solver
   src/split_method/StrangSplitting.cpp
   src/geometry/Halfspace.cpp
   src/geometry/Polygon.cpp
+  src/HyperbolicPatchIntegrator.cpp
   src/RunSimulation.cpp)
 target_link_libraries(FiniteVolumeSolver.Solver
   PUBLIC
@@ -226,7 +228,8 @@ target_link_libraries(FiniteVolumeSolver.Solver
     FiniteVolumeSolver.OdeSolver
     fmt::fmt-header-only
     Boost::container
-    Eigen3::Eigen)
+    Eigen3::Eigen
+    Vc::Vc)
 target_compile_options(FiniteVolumeSolver.Solver 
   PRIVATE 
   $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
@@ -298,7 +301,6 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         include/fub/AMReX/cutcell/BoundaryCondition.hpp
         include/fub/AMReX/cutcell/FluxMethod.hpp
         include/fub/AMReX/cutcell/GriddingAlgorithm.hpp
-        include/fub/AMReX/cutcell/HyperbolicSplitPatchIntegrator.hpp
         include/fub/AMReX/cutcell/IndexSpace.hpp
         include/fub/AMReX/cutcell/InitialData.hpp
         include/fub/AMReX/cutcell/PatchHierarchy.hpp
@@ -309,8 +311,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         src/AMReX/cutcell/IntegratorContext.cpp
         src/AMReX/cutcell/PatchHierarchy.cpp
         src/AMReX/cutcell/FillCutCellData.cpp
-        src/AMReX/cutcell/GriddingAlgorithm.cpp
-        src/boundary_condition/CoupledBoundary.cpp)
+        src/AMReX/cutcell/GriddingAlgorithm.cpp)
     target_compile_options(FiniteVolumeSolver.AMReX.EB
       PRIVATE
         $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>

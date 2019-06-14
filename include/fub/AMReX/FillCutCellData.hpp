@@ -27,8 +27,7 @@
 #include "fub/ForEach.hpp"
 #include "fub/core/mdspan.hpp"
 
-namespace fub {
-namespace amrex {
+namespace fub::amrex::cutcell {
 
 void FillCutCellData(PatchDataView<double, 2> unshielded,
                      PatchDataView<double, 2> shielded_left,
@@ -43,6 +42,5 @@ void FillCutCellData(PatchDataView<double, 3> unshielded,
                      const CutCellData<3>& data, Direction dir);
 
 } // namespace amrex
-} // namespace fub
 
 #endif

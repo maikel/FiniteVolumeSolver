@@ -66,7 +66,6 @@ PatchLevel::PatchLevel(const PatchLevel& other)
       if (flags[mfi].getType(mfi.growntilebox(4)) ==
           ::amrex::FabType::singlevalued) {
         CutCellData<AMREX_SPACEDIM> cutcell_data;
-        cutcell_data.flags = MakePatchDataView(flags[mfi], 0);
         cutcell_data.volume_fractions = MakePatchDataView(alphas[mfi], 0);
         cutcell_data.face_fractions = MakePatchDataView(betas[mfi], 0);
         cutcell_data.boundary_normals = MakePatchDataView(normals[mfi]);
@@ -110,7 +109,6 @@ PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
       if (flags[mfi].getType(mfi.growntilebox(4)) ==
           ::amrex::FabType::singlevalued) {
         CutCellData<AMREX_SPACEDIM> cutcell_data;
-        cutcell_data.flags = MakePatchDataView(flags[mfi], 0);
         cutcell_data.volume_fractions = MakePatchDataView(alphas[mfi], 0);
         cutcell_data.face_fractions = MakePatchDataView(betas[mfi], 0);
         cutcell_data.boundary_normals = MakePatchDataView(normals[mfi]);
@@ -152,51 +150,46 @@ PatchHierarchy::PatchHierarchy(DataDescription desc,
   }
 }
 
-// CutCellData<AMREX_SPACEDIM>
-// PatchHierarchy::GetCutCellData(PatchHandle patch, Direction dir) const {
-//   const std::size_t d = static_cast<std::size_t>(dir);
-//   const ::amrex::MFIter& mfi = *patch.iterator;
-//   CutCellData<AMREX_SPACEDIM> cutcell_data;
-//   const PatchLevel& level = GetPatchLevel(patch.level);
-//   cutcell_data.dir = dir;
-//   cutcell_data.flags =
-//       MakePatchDataView(level.factory->getMultiEBCellFlagFab()[mfi], 0);
-//   cutcell_data.volume_fractions =
-//       MakePatchDataView(level.factory->getVolFrac()[mfi], 0);
-//   cutcell_data.face_fractions =
-//       MakePatchDataView((*level.factory->getAreaFrac()[d])[mfi], 0);
-//   cutcell_data.boundary_normals =
-//       MakePatchDataView(level.factory->getBndryNormal()[mfi]);
-//   cutcell_data.boundary_centeroids =
-//       MakePatchDataView(level.factory->getBndryCent()[mfi]);
-//   cutcell_data.unshielded_fractions =
-//       MakePatchDataView((*level.unshielded[d])[mfi], 0);
-//   cutcell_data.shielded_left_fractions =
-//       MakePatchDataView((*level.shielded_left[d])[mfi], 0);
-//   cutcell_data.shielded_right_fractions =
-//       MakePatchDataView((*level.shielded_right[d])[mfi], 0);
-//   cutcell_data.doubly_shielded_fractions =
-//       MakePatchDataView((*level.doubly_shielded[d])[mfi], 0);
-//   return cutcell_data;
-// }
+CutCellData<AMREX_SPACEDIM>
+PatchHierarchy::GetCutCellData(int level_number, const ::amrex::MFIter& mfi, Direction dir) const {
+  const std::size_t d = static_cast<std::size_t>(dir);
+  CutCellData<AMREX_SPACEDIM> cutcell_data;
+  const PatchLevel& level = GetPatchLevel(level_number);
+  cutcell_data.dir = dir;
+  cutcell_data.volume_fractions =
+      MakePatchDataView(level.factory->getVolFrac()[mfi], 0);
+  cutcell_data.face_fractions =
+      MakePatchDataView((*level.factory->getAreaFrac()[d])[mfi], 0);
+  cutcell_data.boundary_normals =
+      MakePatchDataView(level.factory->getBndryNormal()[mfi]);
+  cutcell_data.boundary_centeroids =
+      MakePatchDataView(level.factory->getBndryCent()[mfi]);
+  cutcell_data.unshielded_fractions =
+      MakePatchDataView((*level.unshielded[d])[mfi], 0);
+  cutcell_data.shielded_left_fractions =
+      MakePatchDataView((*level.shielded_left[d])[mfi], 0);
+  cutcell_data.shielded_right_fractions =
+      MakePatchDataView((*level.shielded_right[d])[mfi], 0);
+  cutcell_data.doubly_shielded_fractions =
+      MakePatchDataView((*level.doubly_shielded[d])[mfi], 0);
+  return cutcell_data;
+}
 
-int PatchHierarchy::GetRatioToCoarserLevel(int level, Direction dir) const
-    noexcept {
+int PatchHierarchy::GetRatioToCoarserLevel(int level, Direction dir) const {
   if (level == 0) {
     return 1;
   }
   return options_.refine_ratio[static_cast<int>(dir)];
 }
 
-::amrex::IntVect PatchHierarchy::GetRatioToCoarserLevel(int level) const
-    noexcept {
+::amrex::IntVect PatchHierarchy::GetRatioToCoarserLevel(int level) const {
   if (level == 0) {
     return ::amrex::IntVect::TheUnitVector();
   }
   return options_.refine_ratio;
 }
 
-const ::amrex::Geometry& PatchHierarchy::GetGeometry(int level) const noexcept {
+const ::amrex::Geometry& PatchHierarchy::GetGeometry(int level) const {
   return patch_level_geometry_[static_cast<std::size_t>(level)];
 }
 

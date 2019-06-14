@@ -59,9 +59,7 @@ Solver RunSimulation(Solver& solver, RunOptions options,
   fub::Duration next_output_time = options.output_interval;
   std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
   std::chrono::steady_clock::duration wall_time = wall_time_reference - now;
-  using GriddingAlgorithm = typename Solver::GriddingAlgorithm;
-  std::shared_ptr<GriddingAlgorithm> backup =
-      std::make_shared<GriddingAlgorithm>(*solver.GetGriddingAlgorithm());
+  auto backup = solver.GetGriddingAlgorithm();
   boost::optional<Duration> failure_dt{};
   while (time_point + eps < options.final_time &&
          (options.max_cycles < 0 || solver.GetCycles() < options.max_cycles)) {
@@ -91,7 +89,6 @@ Solver RunSimulation(Solver& solver, RunOptions options,
                           limited_dt.count(),
                           options.cfl * failure_dt->count()));
         solver.ResetHierarchyConfiguration(backup);
-        backup = std::make_shared<GriddingAlgorithm>(*backup);
       } else {
         solver.PostAdvanceHierarchy();
         // If advancing the hierarchy was successfull print a successful time
@@ -106,8 +103,7 @@ Solver RunSimulation(Solver& solver, RunOptions options,
                                  options.final_time, wall_time,
                                  wall_time_difference));
         failure_dt.reset();
-        backup =
-            std::make_shared<GriddingAlgorithm>(*solver.GetGriddingAlgorithm());
+        backup = solver.GetGriddingAlgorithm();
       }
     } while (time_point + eps < next_output_time &&
              (options.output_frequency <= 0 || failure_dt ||

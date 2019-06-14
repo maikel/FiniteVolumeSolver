@@ -20,8 +20,7 @@
 
 #include "fub/AMReX/FillCutCellData.hpp"
 
-namespace fub {
-namespace amrex {
+namespace fub::amrex::cutcell {
 
 void FillCutCellData(PatchDataView<double, 2> unshielded,
                      PatchDataView<double, 2> shielded_left,
@@ -29,7 +28,7 @@ void FillCutCellData(PatchDataView<double, 2> unshielded,
                      PatchDataView<double, 2> doubly_shielded,
                      const CutCellData<2>& data, Direction dir) {
   const IndexBox<2> indices = Shrink(data.face_fractions.Box(), dir, {1, 1});
-  fub::ForEachIndex(indices, [&](std::ptrdiff_t i, std::ptrdiff_t j) {
+  ForEachIndex(indices, [&](std::ptrdiff_t i, std::ptrdiff_t j) {
     const std::array<std::ptrdiff_t, 2> mid{i, j};
     const std::array<std::ptrdiff_t, 2> left = Shift(mid, dir, -1);
     const std::array<std::ptrdiff_t, 2> right = Shift(mid, dir, +1);
@@ -52,7 +51,7 @@ void FillCutCellData(PatchDataView<double, 3> unshielded,
                      PatchDataView<double, 3> doubly_shielded,
                      const CutCellData<3>& data, Direction dir) {
   const IndexBox<3> indices = Shrink(data.face_fractions.Box(), dir, {1, 1});
-  fub::ForEachIndex(
+  ForEachIndex(
       indices, [&](std::ptrdiff_t i, std::ptrdiff_t j, std::ptrdiff_t k) {
         const std::array<std::ptrdiff_t, 3> mid{i, j, k};
         const std::array<std::ptrdiff_t, 3> left = Shift(mid, dir, -1);
@@ -70,5 +69,4 @@ void FillCutCellData(PatchDataView<double, 3> unshielded,
       });
 }
 
-} // namespace amrex
-} // namespace fub
+} // namespace fub::amrex::cutcell

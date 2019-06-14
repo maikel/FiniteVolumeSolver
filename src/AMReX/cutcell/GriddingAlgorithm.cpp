@@ -19,8 +19,6 @@
 // SOFTWARE.
 
 #include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
-#include "fub/AMReX/cutcell/BoundaryCondition.hpp"
-#include "fub/AMReX/utility.hpp"
 
 #include <AMReX_EBMultiFabUtil.H>
 #include <AMReX_FillPatchUtil.H>
@@ -162,7 +160,14 @@ GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier, InitialData data,
           ::amrex::Vector<int>(hier.GetGridGeometry().cell_dimensions.begin(),
                                hier.GetGridGeometry().cell_dimensions.end())),
       hierarchy_{std::move(hier)}, initial_condition_{std::move(data)},
-      boundary_condition_{std::move(boundary)}, tagging_{std::move(tagging)} {}
+      boundary_condition_(std::size_t(hier.GetMaxNumberOfLevels()), std::move(boundary)),
+      tagging_{std::move(tagging)} {
+  for (int level = 0; level < hierarchy_.GetMaxNumberOfLevels(); ++level) {
+    boundary_condition_[static_cast<std::size_t>(level)].geometry =
+        hierarchy_.GetGeometry(level);
+    boundary_condition_[static_cast<std::size_t>(level)].parent = this;
+  }
+}
 
 PatchHierarchy& GriddingAlgorithm::GetPatchHierarchy() noexcept {
   return hierarchy_;
@@ -230,20 +235,22 @@ void GriddingAlgorithm::FillMultiFabFromLevel(::amrex::MultiFab& multifab,
   }
 }
 
-void GriddingAlgorithm::ErrorEst(int level, ::amrex::TagBoxArray& tags, double tp,
-                                 int /* ngrow */) {
+void GriddingAlgorithm::ErrorEst(int level, ::amrex::TagBoxArray& tags,
+                                 double tp, int /* ngrow */) {
   tagging_.TagCellsForRefinement(tags, Duration(tp), level, *this);
 }
 
-void GriddingAlgorithm::SetBoundaryCondition(int level, BoundaryCondition&& condition) {
+void GriddingAlgorithm::SetBoundaryCondition(int level,
+                                             BoundaryCondition&& condition) {
   boundary_condition_[std::size_t(level)] = std::move(condition);
 }
 
-void GriddingAlgorithm::SetBoundaryCondition(int level, const BoundaryCondition& condition) {
+void GriddingAlgorithm::SetBoundaryCondition(
+    int level, const BoundaryCondition& condition) {
   boundary_condition_[std::size_t(level)] = condition;
 }
 
-const GriddingAlgorithm::BoundaryCondition&
+const BoundaryCondition&
 GriddingAlgorithm::GetBoundaryCondition(int level) const noexcept {
   return boundary_condition_[std::size_t(level)];
 }
@@ -264,14 +271,9 @@ void GriddingAlgorithm::MakeNewLevelFromScratch(
         PatchLevel(level, Duration(time_point), box_array, distribution_mapping,
                    n_comps, std::move(eb_factory));
   }
-  // Initialize Data with stored intial data condition.
-  for (::amrex::MFIter mfi(box_array, distribution_mapping); mfi.isValid();
-       ++mfi) {
-    PatchHandle patch{level, &mfi};
-    PatchDataView<double, Rank + 1> data =
-        MakePatchDataView(hierarchy_.GetPatchLevel(level).data[mfi]);
-    initial_condition_.InitializeData(data, hierarchy_, patch);
-  }
+  ::amrex::MultiFab& data = hierarchy_.GetPatchLevel(level).data;
+  const ::amrex::Geometry& geom = hierarchy_.GetGeometry(level);
+  initial_condition_.InitializeData(data, geom);
 }
 
 void GriddingAlgorithm::MakeNewLevelFromCoarse(
@@ -292,13 +294,10 @@ void GriddingAlgorithm::MakeNewLevelFromCoarse(
   const int n_cons_components =
       hierarchy_.GetDataDescription().n_cons_components;
   ::amrex::Vector<::amrex::BCRec> bcr(static_cast<std::size_t>(n_comps));
-  ::fub::amrex::cutcell::BoundaryCondition fine_boundary(
-      boundary_condition_, hierarchy_.GetGeometry(level), level,
-      GetPatchHierarchy());
-  ::fub::amrex::cutcell::BoundaryCondition coarse_boundary(
-      boundary_condition_, hierarchy_.GetGeometry(level - 1), level - 1,
-      GetPatchHierarchy());
-
+  const std::size_t fine = std::size_t(level);
+  const std::size_t coarse = std::size_t(level - 1);
+  BoundaryCondition& fine_boundary = boundary_condition_[fine];
+  BoundaryCondition& coarse_boundary = boundary_condition_[coarse];
   ::amrex::InterpFromCoarseLevel(
       fine_level.data, time_point, coarse_level.data, cons_start, cons_start,
       n_cons_components, hierarchy_.GetGeometry(level - 1),

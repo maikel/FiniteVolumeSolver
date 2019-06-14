@@ -23,6 +23,8 @@
 
 #include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
 #include "fub/HyperbolicMethod.hpp"
+#include "fub/ext/outcome.hpp"
+#include "fub/TimeStepError.hpp"
 
 #include <mpi.h>
 
@@ -60,33 +62,19 @@ public:
 
   ~IntegratorContext() = default;
 
-  /// \brief Returns the current boundary condition for the specified level.
-  const BoundaryCondition& GetBoundaryCondition(int level) const;
-  BoundaryCondition& GetBoundaryCondition(int level);
+  /// @{ 
+  /// \name Member Accessors
 
-  /// \brief Returns the FluxMethod object which computes for each patch.
-  const FluxMethod& GetFluxMethod() const noexcept;
-
-  /// \brief Returns the time integrator which advances the time for each patch.
-  const HyperbolicSplitTimeIntegrator& GetHyperbolicSplitTimeIntegrator() const
-      noexcept;
-
-  /// \brief Returns the object which reconstructs complete states from given
-  /// conservative ones.
-  const Reconstruction& GetReconstruction() const noexcept;
+  /// \brief Returns the hyperbolic method member object.
+  const HyperbolicMethod& GetHyperbolicMethod() const noexcept;
 
   /// \brief Returns a shared pointer to the underlying GriddingAlgorithm which
   /// owns the simulation.
-  const std::shared_ptr<GriddingAlgorithm>& GetGriddingAlgorithm() const
-      noexcept;
+  const GriddingAlgorithm& GetGriddingAlgorithm() const noexcept;
 
   /// \brief Returns a reference to const PatchHierarchy which is a member of
   /// the GriddingAlgorithm.
   const PatchHierarchy& GetPatchHierarchy() const noexcept;
-
-  /// \brief Returns a reference to PatchHierarchy which is a member of the
-  /// GriddingAlgorithm.
-  PatchHierarchy& GetPatchHierarchy() noexcept;
 
   /// \brief Returns the MPI communicator which is associated with this context.
   MPI_Comm GetMpiCommunicator() const noexcept;
@@ -94,6 +82,10 @@ public:
 
   /// @{
   /// \name Access Level-specific data
+
+  /// \brief Returns the current boundary condition for the specified level.
+  const BoundaryCondition& GetBoundaryCondition(int level) const;
+  BoundaryCondition& GetBoundaryCondition(int level);
 
   /// \brief Returns the MultiFab associated with level data on the specifed
   /// level number.
@@ -231,53 +223,7 @@ public:
 
 
 private:
-  struct LevelData {
-    LevelData() = default;
-    LevelData(const LevelData& other) = delete;
-    LevelData& operator=(const LevelData& other) = delete;
-    LevelData(LevelData&&) noexcept = default;
-    LevelData& operator=(LevelData&&) noexcept;
-    ~LevelData() noexcept = default;
-
-    /// This eb_factory is shared with the underlying patch hierarchy.
-    std::shared_ptr<::amrex::EBFArrayBoxFactory> eb_factory;
-
-    ///////////////////////////////////////////////////////////////////////////
-    // [cell-centered]
-
-    /// reference states which are used to compute embedded boundary fluxes
-    ::amrex::MultiFab reference_states;
-
-    /// scratch space filled with data in ghost cells
-    std::array<::amrex::MultiFab, Rank> scratch;
-
-    /// fluxes for the embedded boundary
-    ::amrex::MultiCutFab boundary_fluxes;
-
-    ///////////////////////////////////////////////////////////////////////////
-    // [face-centered]
-
-    /// @{
-    /// various flux types needed by the numerical scheme
-    std::array<::amrex::MultiFab, Rank> fluxes;
-    std::array<::amrex::MultiFab, Rank> stabilized_fluxes;
-    std::array<::amrex::MultiFab, Rank> shielded_left_fluxes;
-    std::array<::amrex::MultiFab, Rank> shielded_right_fluxes;
-    std::array<::amrex::MultiFab, Rank> doubly_shielded_fluxes;
-    /// @}
-
-    ///////////////////////////////////////////////////////////////////////////
-    // [misc]
-
-    /// FluxRegister accumulate fluxes on coarse fine interfaces between
-    /// refinement level. These will need to be rebuilt whenever the hierarchy
-    /// changes.
-    ::amrex::FluxRegister coarse_fine;
-
-    std::array<Duration, Rank> time_point;
-    std::array<Duration, Rank> regrid_time_point;
-    std::array<std::ptrdiff_t, Rank> cycles;
-  };
+  struct LevelData;
 
   int ghost_cell_width_;
   GriddingAlgorithm gridding_;

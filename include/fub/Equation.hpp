@@ -72,16 +72,6 @@ struct HasReconstruction : disjunction<HasScalarReconstruction<Equation>,
                                        HasVectorizedReconstruction<Equation>> {
 };
 
-template <typename Extents>
-constexpr std::array<std::ptrdiff_t, Extents::rank()>
-AsArray(Extents e) noexcept {
-  std::array<std::ptrdiff_t, Extents::rank()> array{};
-  for (std::size_t r = 0; r < Extents::rank(); ++r) {
-    array[r] = e.extent(r);
-  }
-  return array;
-}
-
 template <typename Extent>
 auto Shrink(const layout_left::mapping<Extent>& layout, Direction dir,
             std::ptrdiff_t n = 1) {

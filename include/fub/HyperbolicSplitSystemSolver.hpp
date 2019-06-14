@@ -53,7 +53,12 @@ struct HyperbolicSplitSystemSolver {
       : integrator{std::move(level_integrator)}, splitting{split} {}
 
   void
-  ResetHierarchyConfiguration(std::shared_ptr<GriddingAlgorithm> gridding) {
+  ResetHierarchyConfiguration(const GriddingAlgorithm& gridding) {
+    integrator.ResetHierarchyConfiguration(gridding);
+  }
+
+  void
+  ResetHierarchyConfiguration(GriddingAlgorithm&& gridding) {
     integrator.ResetHierarchyConfiguration(std::move(gridding));
   }
 
@@ -108,13 +113,12 @@ struct HyperbolicSplitSystemSolver {
     return dirs;
   }
 
-  const std::shared_ptr<GriddingAlgorithm>& GetGriddingAlgorithm() const
-      noexcept {
+  const GriddingAlgorithm& GetGriddingAlgorithm() const {
     return integrator.GetContext().GetGriddingAlgorithm();
   }
 
   const auto& GetPatchHierarchy() const {
-    return GetGriddingAlgorithm()->GetPatchHierarchy();
+    return GetGriddingAlgorithm().GetPatchHierarchy();
   }
 
   Duration GetTimePoint() const {

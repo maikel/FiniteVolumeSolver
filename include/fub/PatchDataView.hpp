@@ -118,6 +118,26 @@ IndexBox<Rank> Embed(const IndexBox<Rank - 1>& box,
   return IndexBox<Rank>{lower, upper};
 }
 
+template <int Rank, int OtherRank>
+IndexBox<Rank> Project(const IndexBox<OtherRank>& box) {
+  constexpr std::size_t sRank = static_cast<std::size_t>(Rank);
+  std::array<std::ptrdiff_t, sRank> lower;
+  std::copy_n(box.lower.begin(), Rank, lower.begin());
+  std::array<std::ptrdiff_t, sRank> upper;
+  std::copy_n(box.upper.begin(), Rank, upper.begin());
+  return IndexBox<Rank>{lower, upper};
+}
+
+template <typename Extents>
+constexpr std::array<std::ptrdiff_t, Extents::rank()>
+AsArray(Extents e) noexcept {
+  std::array<std::ptrdiff_t, Extents::rank()> array{};
+  for (std::size_t r = 0; r < Extents::rank(); ++r) {
+    array[r] = e.extent(r);
+  }
+  return array;
+}
+
 template <typename T, int Rank, typename Layout = layout_left>
 struct PatchDataView;
 

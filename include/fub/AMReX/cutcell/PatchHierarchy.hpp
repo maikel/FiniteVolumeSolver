@@ -155,18 +155,21 @@ public:
   ///
   /// \param[in] level  the fine refinement level number
   /// \param[in] dir  the direction
-  int GetRatioToCoarserLevel(int level, Direction dir) const noexcept;
+  int GetRatioToCoarserLevel(int level, Direction dir) const;
 
-  ::amrex::IntVect GetRatioToCoarserLevel(int level) const noexcept;
+  ::amrex::IntVect GetRatioToCoarserLevel(int level) const;
 
-  const ::amrex::Geometry& GetGeometry(int level) const noexcept;
+  const ::amrex::Geometry& GetGeometry(int level) const;
 
-  PatchLevel& GetPatchLevel(int level) noexcept;
+  PatchLevel& GetPatchLevel(int level);
 
-  const PatchLevel& GetPatchLevel(int level) const noexcept;
+  const PatchLevel& GetPatchLevel(int level) const;
 
   const std::shared_ptr<::amrex::EBFArrayBoxFactory>&
-  GetEmbeddedBoundary(int level) const noexcept;
+  GetEmbeddedBoundary(int level) const;
+
+  CutCellData<AMREX_SPACEDIM>
+  GetCutCellData(int level, const ::amrex::MFIter& mfi, Direction dir) const;
 
   /// @}
 

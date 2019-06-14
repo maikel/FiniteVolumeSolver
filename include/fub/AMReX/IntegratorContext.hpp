@@ -53,8 +53,7 @@ public:
 
   /// \brief Constructs a context object from given a gridding algorithm and a
   /// numerical method.
-  IntegratorContext(std::shared_ptr<GriddingAlgorithm> gridding,
-                    HyperbolicMethod method);
+  IntegratorContext(GriddingAlgorithm gridding, HyperbolicMethod method);
 
   /// \brief Deeply copies a context and all its distributed data for all MPI
   /// ranks.
@@ -80,8 +79,7 @@ public:
 
   /// \brief Returns a shared pointer to the underlying GriddingAlgorithm which
   /// owns the simulation.
-  const std::shared_ptr<GriddingAlgorithm>& GetGriddingAlgorithm() const
-      noexcept;
+  const GriddingAlgorithm& GetGriddingAlgorithm() const noexcept;
 
   /// \brief Returns a reference to const PatchHierarchy which is a member of
   /// the GriddingAlgorithm.
@@ -140,7 +138,7 @@ public:
   /// \name Modifiers
 
   /// \brief Replaces the underlying gridding algorithm with the specified one.
-  void ResetHierarchyConfiguration(std::shared_ptr<GriddingAlgorithm> gridding);
+  void ResetHierarchyConfiguration(GriddingAlgorithm gridding);
 
   /// \brief Whenever the gridding algorithm changes the data hierarchy this
   /// function will regrid all distributed helper variables managed by the
@@ -236,7 +234,7 @@ private:
   };
 
   int ghost_cell_width_;
-  std::shared_ptr<GriddingAlgorithm> gridding_;
+  GriddingAlgorithm gridding_;
   std::vector<LevelData> data_;
   HyperbolicMethod method_;
 };

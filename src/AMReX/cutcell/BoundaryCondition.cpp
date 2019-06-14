@@ -36,4 +36,4 @@ operator=(const BoundaryCondition& other) {
   return (*this = std::move(tmp));
 }
 
-} // namespace fub
+} // namespace fub::amrex::cutcell

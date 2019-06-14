@@ -23,14 +23,12 @@
 
 #include "fub/PatchDataView.hpp"
 #include "fub/ext/Eigen.hpp"
-#include <AMReX_EBCellFlag.H>
 
 namespace fub {
 
 template <int Rank> struct CutCellData {
   // The next member variables are given by AMReX
   Direction dir;
-  PatchDataView<const ::amrex::EBCellFlag, Rank> flags;
   PatchDataView<const double, Rank> volume_fractions;
   PatchDataView<const double, Rank> face_fractions;
   PatchDataView<const double, Rank + 1> boundary_normals;
