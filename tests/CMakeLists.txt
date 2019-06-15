@@ -15,6 +15,9 @@ if (TARGET Catch2)
   add_executable(test.PerfectGas.ExactRiemannProblem test.PerfectGas.ExactRiemannProblem.cpp)
   target_link_libraries(test.PerfectGas.ExactRiemannProblem FiniteVolumeSolver.Solver)
 
+  add_executable(test.HyperbolicSplitPatchIntegrator test.HyperbolicSplitPatchIntegrator.cpp)
+  target_link_libraries(test.HyperbolicSplitPatchIntegrator FiniteVolumeSolver.Solver Catch2)
+
   add_executable(test.State test.State.cpp)
   target_link_libraries(test.State FiniteVolumeSolver.Solver Catch2)
 
@@ -53,6 +56,9 @@ endif()
 
 find_package(benchmark)
 if (TARGET benchmark::benchmark)
+  add_executable(benchmark.HyperbolicSplitPatchIntegrator benchmark/HyperbolicSplitPatchIntegrator.cpp)
+  target_link_libraries(benchmark.HyperbolicSplitPatchIntegrator FiniteVolumeSolver.Solver benchmark::benchmark)
+
   add_executable(benchmark.Advection benchmark/Advection.cpp)
   target_link_libraries(benchmark.Advection FiniteVolumeSolver.Solver benchmark::benchmark)
 

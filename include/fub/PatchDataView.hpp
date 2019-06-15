@@ -26,9 +26,8 @@
 
 #include <array>
 #include <functional>
+#include <tuple>
 #include <utility>
-
-#include <boost/mp11/tuple.hpp>
 
 namespace fub {
 template <int Rank>
@@ -241,7 +240,7 @@ struct PatchDataView : public PatchDataViewBase<T, R, Layout> {
                    [](std::ptrdiff_t offset, std::ptrdiff_t extents) {
                      return std::make_pair(offset, offset + extents);
                    });
-    return boost::mp11::tuple_apply(
+    return std::apply(
         [&](const auto&... slices) {
           return PatchDataView<T, R, layout_stride>(
               subspan(MdSpan(), slices...), box.lower);
@@ -269,6 +268,33 @@ struct PatchDataView : public PatchDataViewBase<T, R, Layout> {
     return this->mdspan_(local_index);
   }
 };
+
+template <typename T, int Rank, typename Layout>
+PatchDataView<T, Rank - 1, Layout>
+SliceLast(const PatchDataView<T, Rank, Layout>& pdv, int component = 0) {
+  constexpr std::size_t sRank = static_cast<std::size_t>(Rank - 1);
+  std::array<std::ptrdiff_t, sRank + 1> index{};
+  index[sRank] = component;
+  std::array<std::ptrdiff_t, sRank> extents;
+  for (std::size_t r = 0; r < sRank; ++r) {
+    extents[r] = pdv.Extent(r);
+  }
+  std::array<std::ptrdiff_t, sRank> strides;
+  for (std::size_t r = 0; r < sRank; ++r) {
+    strides[r] = pdv.Stride(r);
+  }
+  std::array<std::ptrdiff_t, sRank> origin;
+  std::copy_n(pdv.Origin().begin(), Rank - 1, origin.begin());
+  if constexpr (std::is_same_v<Layout, layout_stride>) {
+    layout_stride::mapping<dynamic_extents<sRank>> mapping{
+        dynamic_extents<sRank>(extents), strides};
+    mdspan<T, sRank, Layout> mds(&pdv.MdSpan()(index), mapping);
+    return PatchDataView<T, Rank - 1, Layout>(mds, origin);
+  } else {
+    mdspan<T, sRank, Layout> mds(&pdv.MdSpan()(index), extents);
+    return PatchDataView<T, Rank - 1, Layout>(mds, origin);
+  }
+}
 
 } // namespace fub
 

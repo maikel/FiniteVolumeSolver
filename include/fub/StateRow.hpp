@@ -116,7 +116,11 @@ auto Transform(Tuple&& tuple, Function f) {
 template <Direction Dir> struct ToStride {
   template <typename T, int R, typename L>
   std::ptrdiff_t operator()(const PatchDataView<T, R, L>& pdv) const {
-    return pdv.Stride(static_cast<int>(Dir));
+    if constexpr (R == 1) {
+      return pdv.Extent(0);
+    } else {
+      return pdv.Stride(static_cast<int>(Dir));
+    }
   }
 
   template <typename T, typename L, int R>

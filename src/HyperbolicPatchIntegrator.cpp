@@ -19,6 +19,11 @@
 // SOFTWARE.
 
 #include "fub/HyperbolicPatchIntegrator.hpp"
+#include "fub/StateRow.hpp"
+#include "fub/ForEach.hpp"
+#include "fub/ext/Vc.hpp"
+
+#include <tuple>
 
 namespace fub {
 namespace {
@@ -48,37 +53,106 @@ void UpdateConservatively_SIMD(span<double> nexts, span<const double> prevs,
     n = end - out;
   }
   const auto mask = Vc::Vector<double>([](int i) { return i; }) < int(n);
-  const Vc::Vector<double> prev(in, mask);
-  const Vc::Vector<double> fL(fluxL, mask);
-  const Vc::Vector<double> fR(fluxR, mask);
+  const Vc::Vector<double> prev = mask_load(in, mask);
+  const Vc::Vector<double> fL = mask_load(fluxL, mask);
+  const Vc::Vector<double> fR = mask_load(fluxR, mask);
   const Vc::Vector<double> next = prev + dt_over_dx * (fL - fR);
   next.store(out, mask, Vc::Unaligned);
+}
+
+template <int Rank>
+void UpdateConservatively_(
+    execution::SimdTag, const PatchDataView<double, Rank, layout_stride>& next,
+    const PatchDataView<const double, Rank, layout_stride>& prev,
+    const PatchDataView<const double, Rank, layout_stride>& fluxes, Duration dt,
+    double dx, Direction dir) {
+  for (int comp = 0; comp < next.Extent(Rank - 1); ++comp) {
+    const PatchDataView<double, Rank - 1, layout_stride> n =
+        SliceLast(next, comp);
+    const PatchDataView<const double, Rank - 1, layout_stride> p =
+        SliceLast(prev, comp);
+    const IndexBox<Rank> facesL = next.Box();
+    const IndexBox<Rank> facesR = Grow(facesL, dir, {-1, 1});
+    const PatchDataView<const double, Rank - 1, layout_stride> fL =
+        SliceLast(fluxes.Subview(facesL), comp);
+    const PatchDataView<const double, Rank - 1, layout_stride> fR =
+        SliceLast(fluxes.Subview(facesR), comp);
+    const double dt_dx = dt.count() / dx;
+    ForEachRow(std::tuple{n, p, fL, fR},
+               [dt_dx](span<double> n, span<const double> p,
+                       span<const double> fL, span<const double> fR) {
+                 UpdateConservatively_SIMD(n, p, fL, fR, dt_dx);
+               });
+  }
+}
+
+template <int Rank>
+void UpdateConservatively_(
+    execution::SequentialTag, const PatchDataView<double, Rank, layout_stride>& next,
+    const PatchDataView<const double, Rank, layout_stride>& prev,
+    const PatchDataView<const double, Rank, layout_stride>& fluxes, Duration dt,
+    double dx, Direction dir) {
+  double dt_dx = dt.count() / dx;
+  ForEachIndex(next.Box(), [&](auto... is) {
+    std::array<std::ptrdiff_t, sizeof...(is)> cell{is...};
+    std::array<std::ptrdiff_t, sizeof...(is)> fL{is...};
+    std::array<std::ptrdiff_t, sizeof...(is)> fR = Shift(fL, dir, 1);
+    next(cell) = prev(cell) + dt_dx * (fluxes(fL) - fluxes(fR));
+  });
+}
+
+template <int Rank>
+void UpdateConservatively_(
+    execution::OpenMpTag, const PatchDataView<double, Rank, layout_stride>& next,
+    const PatchDataView<const double, Rank, layout_stride>& prev,
+    const PatchDataView<const double, Rank, layout_stride>& fluxes, Duration dt,
+    double dx, Direction dir) {
+  return UpdateConservatively_(execution::seq, next, prev, fluxes, dt, dx, dir);
+}
+
+template <int Rank>
+void UpdateConservatively_(
+    execution::OpenMpSimdTag, const PatchDataView<double, Rank, layout_stride>& next,
+    const PatchDataView<const double, Rank, layout_stride>& prev,
+    const PatchDataView<const double, Rank, layout_stride>& fluxes, Duration dt,
+    double dx, Direction dir) {
+  return UpdateConservatively_(execution::simd, next, prev, fluxes, dt, dx, dir);
 }
 } // namespace
 
 template <typename Tag>
-HyperbolicPatchIntegrator::HyperbolicPatchIntegrator(Tag) {}
+HyperbolicPatchIntegrator<Tag>::HyperbolicPatchIntegrator(Tag) {}
 
-template <>
-void HyperbolicPatchIntegrator<exeuction::SimdTag>::UpdateConservatively(
+template <typename Tag>
+void HyperbolicPatchIntegrator<Tag>::UpdateConservatively(
     const PatchDataView<double, 2>& next,
     const PatchDataView<const double, 2>& prev,
     const PatchDataView<const double, 2>& fluxes, Duration dt, double dx,
     Direction dir) {
-  for (int comp = 0; comp < next.Extent(1); ++comp) {
-    const PatchDataView<double, 1> n = Slice(next, all, comp);
-    const PatchDataView<double, 1> p = Slice(prev, all, comp);
-    const IndexBox<1> facesL = n.Box();
-    const IndexBox<1> facesR = Grow(cells, dir, {-1, 1});
-    const PatchDataView<double, 1> fL =
-        Slice(fluxes.Subview(facesL), all, comp);
-    const PatchDataView<double, 1> fR =
-        Slice(fluxes.Subview(facesR), all, comp);
-    const double dt_dx = dt.count() / dx;
-    UpdateConservatively_SIMD(n.Span(), p.Span(), fL.Span(), fR.Span(), dt_dx);
-  }
+  UpdateConservatively_(Tag(), next, prev, fluxes, dt, dx, dir);
 }
 
-} // namespace fub
+template <typename Tag>
+void HyperbolicPatchIntegrator<Tag>::UpdateConservatively(
+    const PatchDataView<double, 3>& next,
+    const PatchDataView<const double, 3>& prev,
+    const PatchDataView<const double, 3>& fluxes, Duration dt, double dx,
+    Direction dir) {
+  UpdateConservatively_(Tag(), next, prev, fluxes, dt, dx, dir);
+}
+
+template <typename Tag>
+void HyperbolicPatchIntegrator<Tag>::UpdateConservatively(
+    const PatchDataView<double, 4>& next,
+    const PatchDataView<const double, 4>& prev,
+    const PatchDataView<const double, 4>& fluxes, Duration dt, double dx,
+    Direction dir) {
+  UpdateConservatively_(Tag(), next, prev, fluxes, dt, dx, dir);
+}
+
+template struct HyperbolicPatchIntegrator<execution::SimdTag>;
+template struct HyperbolicPatchIntegrator<execution::SequentialTag>;
+template struct HyperbolicPatchIntegrator<execution::OpenMpTag>;
+template struct HyperbolicPatchIntegrator<execution::OpenMpSimdTag>;
 
 } // namespace fub

@@ -22,11 +22,12 @@
 #define FUB_SOLVER_DIMENSIONAL_SPLIT_HYPERBOLIC_TIME_INTEGRATOR_HPP
 
 #include "fub/Duration.hpp"
+#include "fub/Execution.hpp"
 #include "fub/PatchDataView.hpp"
 
 namespace fub {
 
-template <typename Tag> class HyperbolicPatchIntegrator {
+template <typename Tag> struct HyperbolicPatchIntegrator {
   template <typename T, int Rank>
   using PatchDataView = ::fub::PatchDataView<T, Rank, layout_stride>;
 
@@ -35,18 +36,23 @@ template <typename Tag> class HyperbolicPatchIntegrator {
   static void UpdateConservatively(const PatchDataView<double, 2>& next,
                                    const PatchDataView<const double, 2>& prev,
                                    const PatchDataView<const double, 2>& fluxes,
-                                   Duration dt, double dx);
+                                   Duration dt, double dx, Direction dir);
 
   static void UpdateConservatively(const PatchDataView<double, 3>& next,
                                    const PatchDataView<const double, 3>& prev,
                                    const PatchDataView<const double, 3>& fluxes,
-                                   Duration dt, double dx);
+                                   Duration dt, double dx, Direction dir);
 
   static void UpdateConservatively(const PatchDataView<double, 4>& next,
                                    const PatchDataView<const double, 4>& prev,
                                    const PatchDataView<const double, 4>& fluxes,
-                                   Duration dt, double dx);
+                                   Duration dt, double dx, Direction dir);
 };
+
+extern template struct HyperbolicPatchIntegrator<execution::SequentialTag>;
+extern template struct HyperbolicPatchIntegrator<execution::SimdTag>;
+extern template struct HyperbolicPatchIntegrator<execution::OpenMpTag>;
+extern template struct HyperbolicPatchIntegrator<execution::OpenMpSimdTag>;
 
 } // namespace fub
 
