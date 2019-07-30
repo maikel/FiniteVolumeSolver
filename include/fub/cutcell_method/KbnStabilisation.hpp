@@ -36,9 +36,14 @@ template <typename FM,
           typename RiemannSolver = ExactRiemannSolver<typename FM::Equation>>
 class KbnCutCellMethod : public FM {
 public:
+  // Typedefs
+
   using Equation = typename FM::Equation;
   using Conservative = ::fub::Conservative<Equation>;
   using Complete = ::fub::Complete<Equation>;
+
+  // Static Variables
+
   static constexpr int Rank = Equation::Rank();
   static constexpr std::size_t sRank = static_cast<std::size_t>(Rank);
   static constexpr int StencilWidth = FM::GetStencilWidth();
@@ -46,9 +51,12 @@ public:
   static constexpr std::size_t StencilSize =
       static_cast<std::size_t>(2 * StencilWidth);
 
-  KbnCutCellMethod(const FM& fm) : FM(fm) {
+  // Constructors
+
+  explicit KbnCutCellMethod(const FM& fm) : FM(fm) {
     stencil_.fill(Complete(FM::GetEquation()));
   }
+
   KbnCutCellMethod(const FM& fm, const RiemannSolver& rs)
       : FM(fm), riemann_solver_(rs) {
     stencil_.fill(Complete(FM::GetEquation()));
@@ -70,16 +78,19 @@ public:
     const Eigen::Matrix<double, Rank, 1> unit = UnitVector<Rank>(Direction::X);
     ForEachIndex(Box<0>(states), [&](auto... is) {
       std::array<std::ptrdiff_t, sRank> cell{is...};
-      if (cutcell_data.flags(cell).isSingleValued()) {
+      const double vol = cutcell_data.volume_fractions(cell);
+      if (0.0 < vol && vol < 1.0) {
         Load(state_, states, cell);
-        const Eigen::Matrix<double, Rank, 1> normal =
-            GetBoundaryNormal(cutcell_data, cell);
-        Rotate(state_, state_, MakeRotation(normal, unit), equation);
-        Reflect(reflected_, state_, unit, equation);
-        riemann_solver_.SolveRiemannProblem(solution_, reflected_, state_,
-                                            Direction::X);
-        Rotate(solution_, solution_, MakeRotation(unit, normal), equation);
-        Store(references, solution_, cell);
+        if (state_.density > 0.0) {
+          const Eigen::Matrix<double, Rank, 1> normal =
+              GetBoundaryNormal(cutcell_data, cell);
+          Rotate(state_, state_, MakeRotation(normal, unit), equation);
+          Reflect(reflected_, state_, unit, equation);
+          riemann_solver_.SolveRiemannProblem(solution_, reflected_, state_,
+                                              Direction::X);
+          Rotate(solution_, solution_, MakeRotation(unit, normal), equation);
+          Store(references, solution_, cell);
+        }
       }
     });
   }
@@ -115,11 +126,12 @@ public:
                              const View<const Complete>& states,
                              const View<const Complete>& reference_states,
                              const CutCellData<Rank>& cutcell_data,
-                             Direction dir, Duration dt, double dx) {
+                             Duration dt, double dx, Direction dir) {
     FUB_ASSERT(Extents<0>(boundary_fluxes) == Extents<0>(states));
-    const auto& flags = cutcell_data.flags;
+    const auto& vols = cutcell_data.volume_fractions;
     ForEachIndex(Box<0>(reference_states), [&](auto... is) {
-      if (flags(is...).isSingleValued()) {
+      const double alpha = vols(is...);
+      if (0.0 < alpha && alpha < 1.0) {
         // Get the state and the boundary normal in this cell.
         std::array<std::ptrdiff_t, sRank> cell{is...};
         Load(state_, states, cell);
@@ -220,17 +232,16 @@ public:
   /// \todo compute stable dt inside of cutcells, i.e. in the reflection with
   /// their boundary state.
   double ComputeStableDt(const View<const Complete>& states,
-                         const CutCellData<Rank>& cutcell_data, Direction dir,
-                         double dx) {
+                         const CutCellData<Rank>& cutcell_data, double dx, Direction dir) {
     double min_dt = std::numeric_limits<double>::infinity();
-    auto&& flags = cutcell_data.flags;
+    auto&& vols = cutcell_data.volume_fractions;
     const Eigen::Matrix<double, Rank, 1> unit = UnitVector<Rank>(Direction::X);
     ForEachIndex(
         Shrink(Box<0>(states), dir, {0, StencilSize}), [&](const auto... is) {
           using Index = std::array<std::ptrdiff_t, sizeof...(is)>;
           const Index cell0{is...};
           std::array<int, StencilSize> is_covered{};
-          if (flags(cell0).isSingleValued()) {
+          if (0.0 < vols(cell0) && vols(cell0) < 1.0) {
             Load(state_, states, cell0);
             const Eigen::Matrix<double, Rank, 1> normal =
                 GetBoundaryNormal(cutcell_data, cell0);
@@ -245,9 +256,9 @@ public:
           for (std::size_t i = 0; i < stencil_.size(); ++i) {
             const Index cell = Shift(cell0, dir, static_cast<int>(i));
             Load(stencil_[i], states, cell);
-            if (flags(cell).isRegular()) {
+            if (vols(cell) == 1.0) {
               is_covered[i] = 0;
-            } else if (flags(cell).isSingleValued()) {
+            } else if (0.0 < vols(cell)) {
               is_covered[i] = 1;
             } else {
               is_covered[i] = 2;
@@ -282,10 +293,10 @@ public:
                             const View<const Conservative>& boundary_fluxes,
                             const View<const Complete>& states,
                             const CutCellData<Rank>& cutcell_data,
-                            Direction dir, Duration dt, double dx) {
+                            Duration dt, double dx, Direction dir) {
     const std::size_t dir_v = static_cast<std::size_t>(dir);
     using Index = std::array<std::ptrdiff_t, sRank>;
-    const auto& flags = cutcell_data.flags;
+    const auto& vols = cutcell_data.volume_fractions;
     ForEachIndex(Box<0>(regular_fluxes), [&](auto... is) {
       const Index face{is...};
       const Index leftmost_cell = Shift(face, dir, -StencilWidth);
@@ -293,9 +304,9 @@ public:
       for (std::size_t i = 0; i < stencil_.size(); ++i) {
         const Index cell = Shift(leftmost_cell, dir, static_cast<int>(i));
         Load(stencil_[i], states, cell);
-        if (flags(cell).isRegular()) {
+        if (vols(cell) == 1.0) {
           is_covered[i] = 0;
-        } else if (flags(cell).isSingleValued()) {
+        } else if (vols(cell) > 0.0) {
           is_covered[i] = 1;
         } else {
           is_covered[i] = 2;
@@ -343,15 +354,15 @@ public:
 
       const Index cell_right{is...};
       const Index cell_left = Shift(cell_right, dir, -1);
-      if (flags(cell_left).isSingleValued() ||
-          flags(cell_right).isSingleValued()) {
+      if ((0.0 < vols(cell_left) && vols(cell_left) < 1.0) ||
+          (0.0 < vols(cell_right) && vols(cell_right) < 1.0)) {
         // The unshielded face fraction does not need any stabilisation.
         // Take the regular flux here!
         Load(regular_flux_, regular_fluxes, face);
 
         // Compute stabilisation for shielded face fraction from left
         if (beta_left > 0.0) {
-          FUB_ASSERT(flags(cell_left).isSingleValued());
+          FUB_ASSERT(0.0 < vols(cell_left) && vols(cell_left) < 1.0);
           Load(boundary_flux_left_, boundary_fluxes, cell_left);
           const double center = boundary_centeroid(cell_left);
           // d is the average distance to the boundary
@@ -367,7 +378,7 @@ public:
 
         // Compute stabilisation for shielded face fraction from right
         if (beta_right > 0.0) {
-          FUB_ASSERT(flags(cell_right).isSingleValued());
+          FUB_ASSERT(0.0 < vols(cell_right) && vols(cell_right) < 1.0);
           Load(boundary_flux_right_, boundary_fluxes, cell_right);
           const double center = boundary_centeroid(cell_right);
           const double d = std::clamp(0.5 + center, 0.0, 1.0);
@@ -381,8 +392,8 @@ public:
         }
 
         if (beta_ds > 0.0) {
-          FUB_ASSERT(flags(cell_left).isSingleValued() &&
-                     flags(cell_right).isSingleValued());
+          FUB_ASSERT((0.0 < vols(cell_left) && vols(cell_left) < 1.0) &&
+                     (0.0 < vols(cell_right) && vols(cell_right) < 1.0));
           Load(boundary_flux_left_, boundary_fluxes, cell_left);
           Load(boundary_flux_right_, boundary_fluxes, cell_right);
           Load(stencil_[0], states, cell_left);
@@ -443,161 +454,6 @@ public:
     });
   }
 
-  void UpdateConservatively(const View<Conservative>& next,
-                            const View<const Conservative>& prev,
-                            const View<const Conservative>& fluxes,
-                            Direction dir, Duration dt, double dx) {
-    regular_integrator_.UpdateConservatively(next, fluxes, prev, dir, dt, dx);
-  }
-
-  /// \brief This is a specialized version of a conservative time update
-  /// tailored to this particular KBN stabilisation scheme.
-  ///
-  /// It is less general than HyperbolicSplitCutCellPatchIntegrator but should
-  /// be more stable.
-  ///
-  /// \param[out] nexts The state array for the next time level.
-  ///
-  /// \param[in] prevs The state array for the current time level.
-  ///
-  /// \param[in] stabilised fluxes An array for stabilised fluxes, which are
-  /// convex combinations of regular and shielded ones.
-  void UpdateConservatively(
-      const View<Conservative>& nexts, const View<const Conservative>& prevs,
-      const View<const Conservative>& stabilised_fluxes,
-      const View<const Conservative>& regular_fluxes,
-      const View<const Conservative>& shielded_left_fluxes,
-      const View<const Conservative>& shielded_right_fluxes,
-      const View<const Conservative>& /* doubly_shielded_fluxes */,
-      const View<const Conservative>& fluxes_boundary,
-      const CutCellData<Rank>& cutcell_data, Direction dir, Duration dt,
-      double dx) {
-    using Index = std::array<std::ptrdiff_t, static_cast<std::size_t>(Rank)>;
-    const double dt_over_dx = dt.count() / dx;
-    FUB_ASSERT(Extents<0>(nexts) == Extents<0>(prevs));
-    auto volume = cutcell_data.volume_fractions;
-    auto face = cutcell_data.face_fractions;
-    auto flags = cutcell_data.flags;
-    auto center = cutcell_data.boundary_centeroids;
-    const std::ptrdiff_t dir_v = static_cast<std::ptrdiff_t>(dir);
-    ForEachIndex(Shrink(Box<0>(regular_fluxes), dir, {0, 1}), [&](auto... is) {
-      const Index cell{is...};
-      double alpha = volume(cell);
-      // if the cell is regular we take stabilised fluxes and do the standard
-      // forward euler step.
-      if (flags(cell).isRegular()) {
-        const Index left_face = cell;
-        const Index right_face = Shift(cell, dir, 1);
-        Load(prev_, prevs, cell);
-        Load(flux_left_, stabilised_fluxes, left_face);
-        Load(flux_right_, stabilised_fluxes, right_face);
-        ForEachComponent(
-            [=](double& next, double prev, double f_left, double f_right) {
-              next = prev + dt_over_dx * (f_left - f_right);
-            },
-            next_, prev_, flux_left_, flux_right_);
-        FUB_ASSERT(next_.density > 0.0);
-        FUB_ASSERT(next_.energy >
-                   0.5 * next_.momentum.matrix().squaredNorm() / next_.density);
-        Store(nexts, next_, cell);
-      } else if (flags(cell).isSingleValued() && alpha > 0.0) {
-        const Index left_face = cell;
-        const Index right_face = Shift(cell, dir, 1);
-        Load(prev_, prevs, cell);
-        Load(flux_boundary_, fluxes_boundary, cell);
-        const double beta_left = face(left_face);
-        const double beta_right = face(right_face);
-        if (beta_left == beta_right) {
-          // if both sides have the same sized area fraction we do the standard
-          // forward euler step.
-          Load(flux_left_, stabilised_fluxes, left_face);
-          Load(flux_right_, stabilised_fluxes, right_face);
-          ForEachComponent(
-              [=](double& next, double prev, double f_left, double f_right) {
-                next = prev + dt_over_dx * (f_left - f_right);
-              },
-              next_, prev_, flux_left_, flux_right_);
-        } else if (beta_left > beta_right) {
-          Load(flux_left_, regular_fluxes, left_face);
-          Load(flux_shielded_left_, shielded_left_fluxes, left_face);
-          Load(flux_right_, stabilised_fluxes, right_face);
-
-          const double beta_ss_left =
-              cutcell_data.shielded_left_fractions(left_face);
-          const double beta_ss_right =
-              cutcell_data.shielded_right_fractions(left_face);
-          const double beta_us = cutcell_data.unshielded_fractions(left_face);
-          const double distance_to_boundary = 0.5 + center(is..., dir_v);
-          FUB_ASSERT(distance_to_boundary > 0.0);
-          const double beta_us_frac =
-              beta_right == 0.0 ? 1.0
-                                : std::clamp(beta_us / beta_right, 0.0, 1.0);
-          const double beta_ssL_frac =
-              beta_right == 0.0
-                  ? 0.0
-                  : std::clamp(beta_ss_left / beta_right, 0.0, 1.0);
-          FUB_ASSERT(std::abs(1.0 - (beta_us_frac + beta_ssL_frac)) < 1e-6);
-
-          const double betaR_over_alpha =
-              std::clamp(beta_right / alpha, 0.0, 1.0);
-          const double dBeta_over_alpha = std::clamp(
-              (beta_ss_right * distance_to_boundary) / alpha, 0.0, 1.0);
-
-          ForEachComponent(
-              [=](double& next, double prev, double f_left, double f_ssL,
-                  double f_right, double f_B) {
-                const double dF =
-                    beta_us_frac * f_left + beta_ssL_frac * f_ssL - f_right;
-                const double dBoundary = f_left - f_B;
-                next = prev + dt_over_dx * betaR_over_alpha * dF +
-                       dt_over_dx * dBeta_over_alpha * dBoundary;
-              },
-              next_, prev_, flux_left_, flux_shielded_left_, flux_right_,
-              flux_boundary_);
-
-        } else if (beta_left < beta_right) {
-          Load(flux_left_, stabilised_fluxes, left_face);
-          Load(flux_shielded_right_, shielded_right_fluxes, right_face);
-          Load(flux_right_, regular_fluxes, right_face);
-
-          const double beta_ss_left =
-              cutcell_data.shielded_left_fractions(right_face);
-          const double beta_ss_right =
-              cutcell_data.shielded_right_fractions(right_face);
-          const double beta_us = cutcell_data.unshielded_fractions(right_face);
-          const double distance_to_boundary = 0.5 - center(is..., dir_v);
-          FUB_ASSERT(distance_to_boundary > 0.0);
-          const double beta_us_frac =
-              beta_left == 0.0 ? 1.0
-                               : std::clamp(beta_us / beta_left, 0.0, 1.0);
-          const double beta_ssR_frac =
-              beta_left == 0.0
-                  ? 0.0
-                  : std::clamp(beta_ss_right / beta_left, 0.0, 1.0);
-          FUB_ASSERT(std::abs(1.0 - (beta_us_frac + beta_ssR_frac)) < 1e-6);
-
-          const double betaL_over_alpha =
-              std::clamp(beta_left / alpha, 0.0, 1.0);
-          const double dBeta_over_alpha = std::clamp(
-              (beta_ss_left * distance_to_boundary) / alpha, 0.0, 1.0);
-
-          ForEachComponent(
-              [=](double& next, double prev, double f_left, double f_right,
-                  double f_ssR, double f_B) {
-                const double dF =
-                    f_left - (beta_us_frac * f_right + beta_ssR_frac * f_ssR);
-                const double dBoundary = f_B - f_right;
-                next = prev + dt_over_dx * betaL_over_alpha * dF +
-                       dt_over_dx * dBeta_over_alpha * dBoundary;
-              },
-              next_, prev_, flux_left_, flux_right_, flux_shielded_right_,
-              flux_boundary_);
-        }
-        Store(nexts, next_, cell);
-      }
-    });
-  }
-
 private:
   std::array<Complete, StencilSize> stencil_{};
   Complete state_{FM::GetEquation()};
@@ -612,16 +468,7 @@ private:
   Conservative shielded_left_flux_{FM::GetEquation()};
   Conservative doubly_shielded_flux_{FM::GetEquation()};
 
-  HyperbolicSplitPatchIntegrator<Equation> regular_integrator_{
-      FM::GetEquation()};
   RiemannSolver riemann_solver_{FM::GetEquation()};
-  Conservative prev_{FM::GetEquation()};
-  Conservative next_{FM::GetEquation()};
-  Conservative flux_shielded_left_{FM::GetEquation()};
-  Conservative flux_shielded_right_{FM::GetEquation()};
-  Conservative flux_left_{FM::GetEquation()};
-  Conservative flux_right_{FM::GetEquation()};
-  Conservative flux_boundary_{FM::GetEquation()};
 };
 
 } // namespace fub

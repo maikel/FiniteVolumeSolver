@@ -38,8 +38,8 @@ GriddingAlgorithm::GriddingAlgorithm(const GriddingAlgorithm& other)
               other.hierarchy_.GetRatioToCoarserLevel(
                   other.hierarchy_.GetOptions().max_number_of_levels - 1))),
       hierarchy_{other.hierarchy_},
-      initial_condition_{other.initial_condition_},
-      boundary_condition_(other.boundary_condition_), tagging_{other.tagging_} {
+      initial_condition_{other.initial_condition_}, tagging_{other.tagging_},
+      boundary_condition_(other.boundary_condition_) {
   AmrMesh::verbose = other.verbose;
   AmrMesh::max_level = other.max_level;
   AmrMesh::ref_ratio = other.ref_ratio;
@@ -92,8 +92,8 @@ GriddingAlgorithm::GriddingAlgorithm(GriddingAlgorithm&& other) noexcept
                   other.hierarchy_.GetOptions().max_number_of_levels - 1))),
       hierarchy_{std::move(other.hierarchy_)}, initial_condition_{std::move(
                                                    other.initial_condition_)},
-      boundary_condition_(std::move(other.boundary_condition_)),
-      tagging_{std::move(other.tagging_)} {
+      tagging_{std::move(other.tagging_)},
+      boundary_condition_(std::move(other.boundary_condition_)) {
   AmrMesh::verbose = std::move(other.verbose);
   AmrMesh::max_level = std::move(other.max_level);
   AmrMesh::ref_ratio = std::move(other.ref_ratio);
@@ -159,9 +159,10 @@ GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier, InitialData data,
           hier.GetOptions().max_number_of_levels - 1,
           ::amrex::Vector<int>(hier.GetGridGeometry().cell_dimensions.begin(),
                                hier.GetGridGeometry().cell_dimensions.end())),
-      hierarchy_{std::move(hier)}, initial_condition_{std::move(data)},
-      boundary_condition_(std::size_t(hier.GetMaxNumberOfLevels()), std::move(boundary)),
-      tagging_{std::move(tagging)} {
+      hierarchy_{std::move(hier)},
+      initial_condition_{std::move(data)}, tagging_{std::move(tagging)},
+      boundary_condition_(std::size_t(hier.GetMaxNumberOfLevels()),
+                          std::move(boundary)) {
   for (int level = 0; level < hierarchy_.GetMaxNumberOfLevels(); ++level) {
     boundary_condition_[static_cast<std::size_t>(level)].geometry =
         hierarchy_.GetGeometry(level);
@@ -252,6 +253,10 @@ void GriddingAlgorithm::SetBoundaryCondition(
 
 const BoundaryCondition&
 GriddingAlgorithm::GetBoundaryCondition(int level) const noexcept {
+  return boundary_condition_[std::size_t(level)];
+}
+
+BoundaryCondition& GriddingAlgorithm::GetBoundaryCondition(int level) noexcept {
   return boundary_condition_[std::size_t(level)];
 }
 

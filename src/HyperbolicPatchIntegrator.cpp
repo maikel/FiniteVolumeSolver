@@ -19,8 +19,8 @@
 // SOFTWARE.
 
 #include "fub/HyperbolicPatchIntegrator.hpp"
-#include "fub/StateRow.hpp"
 #include "fub/ForEach.hpp"
+#include "fub/StateRow.hpp"
 #include "fub/ext/Vc.hpp"
 
 #include <tuple>
@@ -88,7 +88,8 @@ void UpdateConservatively_(
 
 template <int Rank>
 void UpdateConservatively_(
-    execution::SequentialTag, const PatchDataView<double, Rank, layout_stride>& next,
+    execution::SequentialTag,
+    const PatchDataView<double, Rank, layout_stride>& next,
     const PatchDataView<const double, Rank, layout_stride>& prev,
     const PatchDataView<const double, Rank, layout_stride>& fluxes, Duration dt,
     double dx, Direction dir) {
@@ -103,7 +104,8 @@ void UpdateConservatively_(
 
 template <int Rank>
 void UpdateConservatively_(
-    execution::OpenMpTag, const PatchDataView<double, Rank, layout_stride>& next,
+    execution::OpenMpTag,
+    const PatchDataView<double, Rank, layout_stride>& next,
     const PatchDataView<const double, Rank, layout_stride>& prev,
     const PatchDataView<const double, Rank, layout_stride>& fluxes, Duration dt,
     double dx, Direction dir) {
@@ -112,11 +114,13 @@ void UpdateConservatively_(
 
 template <int Rank>
 void UpdateConservatively_(
-    execution::OpenMpSimdTag, const PatchDataView<double, Rank, layout_stride>& next,
+    execution::OpenMpSimdTag,
+    const PatchDataView<double, Rank, layout_stride>& next,
     const PatchDataView<const double, Rank, layout_stride>& prev,
     const PatchDataView<const double, Rank, layout_stride>& fluxes, Duration dt,
     double dx, Direction dir) {
-  return UpdateConservatively_(execution::simd, next, prev, fluxes, dt, dx, dir);
+  return UpdateConservatively_(execution::simd, next, prev, fluxes, dt, dx,
+                               dir);
 }
 } // namespace
 

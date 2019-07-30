@@ -21,6 +21,8 @@
 #ifndef FUB_BOUNDARY_CONDITION_COUPLED
 #define FUB_BOUNDARY_CONDITION_COUPLED
 
+#include "fub/AMReX/coupled/CoupledGriddingAlgorithm.hpp"
+
 #include "fub/AMReX/PatchHierarchy.hpp"
 #include "fub/AMReX/cutcell/PatchHierarchy.hpp"
 #include "fub/PatchDataView.hpp"
@@ -38,10 +40,13 @@ public:
   static constexpr int Plenum_Rank = AMREX_SPACEDIM;
   static constexpr int Tube_Rank = 1;
 
-  /// Constructs a coupled boundary states by pre computing mirror and ghost
+  /// Constructs coupled boundary states by pre computing mirror and ghost
   /// states for each of the specified domains.
-  CoupledBoundary(const cutcell::PatchHierarchy& plenum,
-                  const PatchHierarchy& tube, int gcw,
+  ///
+  /// This function might grow the specified mirror boxes to an extent which is
+  /// required to fulfill the specified ghost cell width requirements.
+  CoupledBoundary(CoupledGriddingAlgorithm& gridding,
+                  const BlockConnection& connection, int gcw,
                   const FlameMasterReactor& reactor);
 
   /// Precompute Boundary states for each domain.
@@ -60,17 +65,15 @@ public:
   /// Assuming that mf represents a MultiFab living in the higher dimensional
   /// plenum simulation its ghost layer will be filled with data from the tube
   /// simulation.
-  void
-  FillPlenumBoundary(const PatchDataView<double, AMREX_SPACEDIM + 1>& states,
-                     const cutcell::PatchHierarchy& plenum, PatchHandle patch,
-                     Location loc, int fill_width, Duration time_point);
+  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
+                    Duration time_point,
+                    const cutcell::GriddingAlgorithm& gridding);
 
   /// Assuming that mf represents a MultiFab living in the one dimensional tube
   /// simulation its ghost layer will be filled with data from the plenum
   /// simulation.
-  void FillTubeBoundary(const PatchDataView<double, AMREX_SPACEDIM + 1>& states,
-                        const PatchHierarchy& tube, PatchHandle patch,
-                        Location loc, int fill_width, Duration time_point);
+  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
+                    Duration time_point, const GriddingAlgorithm& gridding);
 
 private:
   IdealGasMix<Plenum_Rank> plenum_equation_;
@@ -84,37 +87,42 @@ private:
 
   ::amrex::FArrayBox tube_mirror_data_{};
   ::amrex::FArrayBox plenum_ghost_data_{};
+
+  Direction dir_{};
+  int side_{};
 };
 
-class CoupledBoundaryFunction {
-public:
-  CoupledBoundaryFunction(const cutcell::PatchHierarchy& plenum,
-                          const PatchHierarchy& tube, int gcw,
-                          const FlameMasterReactor& reactor)
-      : boundary_state_(
-            std::make_shared<CoupledBoundary>(plenum, tube, gcw, reactor)) {}
-
-  void operator()(const PatchDataView<double, AMREX_SPACEDIM + 1>& states,
-                  const cutcell::PatchHierarchy& plenum, PatchHandle patch,
-                  Location loc, int fill_width, Duration time_point) const {
-    boundary_state_->FillPlenumBoundary(states, plenum, patch, loc, fill_width,
-                                        time_point);
-  }
-
-  void operator()(const PatchDataView<double, AMREX_SPACEDIM + 1>& states,
-                  const PatchHierarchy& plenum, PatchHandle patch, Location loc,
-                  int fill_width, Duration time_point) const {
-    boundary_state_->FillTubeBoundary(states, plenum, patch, loc, fill_width,
-                                      time_point);
-  }
-
-  const std::shared_ptr<CoupledBoundary>& GetSharedState() const noexcept {
-    return boundary_state_;
-  }
-
-private:
-  std::shared_ptr<CoupledBoundary> boundary_state_;
-};
+//
+// class CoupledBoundaryFunction {
+// public:
+//  CoupledBoundaryFunction(const cutcell::PatchHierarchy& plenum,
+//                          const PatchHierarchy& tube, int gcw,
+//                          const FlameMasterReactor& reactor)
+//      : boundary_state_(
+//            std::make_shared<CoupledBoundary>(plenum, tube, gcw, reactor)) {}
+//
+//  void operator()(const PatchDataView<double, AMREX_SPACEDIM + 1>& states,
+//                  const cutcell::PatchHierarchy& plenum, PatchHandle patch,
+//                  Location loc, int fill_width, Duration time_point) const {
+//    boundary_state_->FillPlenumBoundary(states, plenum, patch, loc,
+//    fill_width,
+//                                        time_point);
+//  }
+//
+//  void operator()(const PatchDataView<double, AMREX_SPACEDIM + 1>& states,
+//                  const PatchHierarchy& plenum, PatchHandle patch, Location
+//                  loc, int fill_width, Duration time_point) const {
+//    boundary_state_->FillTubeBoundary(states, plenum, patch, loc, fill_width,
+//                                      time_point);
+//  }
+//
+//  const std::shared_ptr<CoupledBoundary>& GetSharedState() const noexcept {
+//    return boundary_state_;
+//  }
+//
+// private:
+//  std::shared_ptr<CoupledBoundary> boundary_state_;
+//};
 
 } // namespace fub::amrex
 

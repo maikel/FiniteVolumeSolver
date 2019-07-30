@@ -21,6 +21,8 @@
 #ifndef FUB_AMREX_FOR_EACH_FAB_HPP
 #define FUB_AMREX_FOR_EACH_FAB_HPP
 
+#include "fub/Execution.hpp"
+
 #include <AMReX_MultiFab.H>
 
 namespace fub::amrex {
@@ -33,8 +35,8 @@ void ForEachFab(Tag, const ::amrex::FabArrayBase& fabarray, F function) {
 }
 
 template <typename F>
-void ForEachFab(execution::OpenMpTag,
-                const ::amrex::FabArrayBase& fabarray, F function) {
+void ForEachFab(execution::OpenMpTag, const ::amrex::FabArrayBase& fabarray,
+                F function) {
 #if defined(_OPENMP) && defined(AMREX_USE_OMP)
 #pragma omp parallel
 #endif
@@ -46,14 +48,13 @@ void ForEachFab(execution::OpenMpTag,
 }
 
 template <typename F>
-void ForEachFab(execution::OpenMpSimdTag,
-                const ::amrex::FabArrayBase& fabarray, F function) {
+void ForEachFab(execution::OpenMpSimdTag, const ::amrex::FabArrayBase& fabarray,
+                F function) {
   ForEachFab(execution::openmp, fabarray, std::move(function));
 }
 
-
 template <typename F>
-F ForEachFab(const ::amrex::FabArrayBase& fabarray, F&& function) {
+void ForEachFab(const ::amrex::FabArrayBase& fabarray, F&& function) {
   ForEachFab(execution::seq, fabarray, std::forward<F>(function));
 }
 

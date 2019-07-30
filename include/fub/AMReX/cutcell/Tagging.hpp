@@ -23,7 +23,6 @@
 
 #include "fub/Direction.hpp"
 #include "fub/Duration.hpp"
-#include "fub/AMReX/GriddingAlgorithm.hpp"
 
 #include <AMReX.H>
 #include <AMReX_TagBox.H>
@@ -89,7 +88,7 @@ template <typename... Tagging> struct TagAllOf {
   void TagCellsForRefinement(::amrex::TagBoxArray& tags, Duration time_point,
                              int level, GriddingAlgorithm& gridding) {
     std::apply(
-        [this, &tags, time_point, level, &gridding](Tagging&... tagging) {
+        [&tags, time_point, level, &gridding](Tagging&... tagging) {
           (tagging.TagCellsForRefinement(tags, time_point, level, gridding),
            ...);
         },
@@ -99,6 +98,6 @@ template <typename... Tagging> struct TagAllOf {
   std::tuple<Tagging...> tagging_;
 };
 
-} // namespace cutcell
+} // namespace fub::amrex::cutcell
 
 #endif

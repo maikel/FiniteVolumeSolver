@@ -25,6 +25,8 @@
 #include <iostream>
 
 struct CircleData {
+  using Complete = fub::Complete<fub::ShallowWater>;
+
   CircleData(const fub::ShallowWater& eq) : equation_{eq} {
     inner_.height = 1.4;
     inner_.momentum = Eigen::Array<double, 2, 1>::Zero();
@@ -32,20 +34,23 @@ struct CircleData {
     outer_.momentum = inner_.momentum;
   }
 
-  void InitializeData(const fub::View<fub::Complete<fub::ShallowWater>>& states,
-                      const fub::amrex::PatchHierarchy& hierarchy,
-                      fub::amrex::PatchHandle patch) const {
-    const ::amrex::Geometry& geom = hierarchy.GetGeometry(patch.level);
-    const ::amrex::Box& box = patch.iterator->tilebox();
-    fub::CartesianCoordinates x =
-        fub::amrex::GetCartesianCoordinates(geom, box);
-    fub::ForEachIndex(fub::Box<0>(states), [&](auto... is) {
-      const double norm = x(is...).norm();
-      if (norm < 0.25) {
-        Store(states, inner_, {is...});
-      } else {
-        Store(states, outer_, {is...});
-      }
+  void InitializeData(amrex::MultiFab& data,
+                      const amrex::Geometry& geom) const {
+    fub::amrex::ForEachFab(data, [&](const amrex::MFIter& mfi) {
+      const ::amrex::Box& box = mfi.tilebox();
+      fub::View<Complete> states =
+          fub::amrex::MakeView<Complete>(data[mfi], equation_, box);
+      fub::ForEachIndex(
+          fub::Box<0>(states), [&](std::ptrdiff_t i, std::ptrdiff_t j) {
+            double x[AMREX_SPACEDIM] = {};
+            geom.CellCenter(amrex::IntVect{int(i), int(j)}, x);
+            const double norm = std::sqrt(x[0] * x[0] + x[1] * x[1]);
+            if (norm < 0.25) {
+              Store(states, inner_, {i, j});
+            } else {
+              Store(states, outer_, {i, j});
+            }
+          });
     });
   }
 
@@ -58,6 +63,10 @@ int main(int argc, char** argv) {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
+  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() | _MM_MASK_DIV_ZERO |
+                         _MM_MASK_OVERFLOW | _MM_MASK_UNDERFLOW |
+                         _MM_MASK_INVALID);
+
   const fub::amrex::ScopeGuard guard(argc, argv);
 
   constexpr int Dim = AMREX_SPACEDIM;
@@ -69,16 +78,18 @@ int main(int argc, char** argv) {
 
   fub::ShallowWater equation{};
 
-  fub::amrex::CartesianGridGeometry geometry;
+  fub::amrex::CartesianGridGeometry geometry{};
   geometry.cell_dimensions = n_cells;
   geometry.coordinates = ::amrex::RealBox(xlower, xupper);
   geometry.periodicity = std::array<int, Dim>{AMREX_D_DECL(1, 1, 1)};
 
   fub::amrex::PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = 3;
+  hier_opts.max_number_of_levels = 2;
+  hier_opts.refine_ratio = amrex::IntVect{AMREX_D_DECL(2, 2, 1)};
 
   using State = fub::ShallowWater::Complete;
-  fub::GradientDetector gradient{equation, std::pair(&State::height, 1e-2)};
+  fub::amrex::GradientDetector gradient{equation,
+                                        std::pair(&State::height, 1e-2)};
 
   fub::amrex::BoundarySet boundary;
   using fub::amrex::TransmissiveBoundary;
@@ -87,20 +98,20 @@ int main(int argc, char** argv) {
   boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::Y, 0});
   boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::Y, 1});
 
-  fub::amrex::GriddingAlgorithm gridding(
+  std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       fub::amrex::PatchHierarchy(equation, geometry, hier_opts),
-      CricleData{equation, left, right}, gradient, boundary);
-  gridding.InitializeHierarchy(0.0);
+      CircleData{equation}, gradient, boundary);
+  gridding->InitializeHierarchy(0.0);
 
-  fub::HyperbolicSplitPatchIntegrator patch_integrator{equation};
   fub::HllMethod hll_method{equation, fub::ShallowWaterSignalVelocities{}};
   fub::MusclHancockMethod muscl_method{equation, hll_method};
   fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethod(execution::seq, muscl_method),
-      fub::amrex::ForwardIntegrator(execution::seq),
-      fub::amrex::Reconstruction(execution::seq, equation)};
-  fub::HyperbolicSplitSystemSolver solver(
-      equation, fub::amrex::IntegratorContext(gridding, method));
+      fub::amrex::FluxMethod(fub::execution::seq, muscl_method),
+      fub::amrex::ForwardIntegrator(fub::execution::seq),
+      fub::amrex::Reconstruction(fub::execution::seq, equation)};
+
+  fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
+      equation, fub::amrex::IntegratorContext(gridding, method)));
 
   std::string base_name = "ShallowWater2d/";
 
@@ -116,7 +127,7 @@ int main(int argc, char** argv) {
   output(solver.GetPatchHierarchy(), 0, 0.0s);
   fub::RunOptions run_options{};
   run_options.final_time = 1.0s;
-  run_options.output_interval = 0.01s;
+  run_options.output_interval = run_options.final_time / 20;
   run_options.cfl = 0.8;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      fub::amrex::print);

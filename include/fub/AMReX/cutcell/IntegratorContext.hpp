@@ -23,8 +23,8 @@
 
 #include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
 #include "fub/HyperbolicMethod.hpp"
-#include "fub/ext/outcome.hpp"
 #include "fub/TimeStepError.hpp"
+#include "fub/ext/outcome.hpp"
 
 #include <mpi.h>
 
@@ -43,7 +43,8 @@ class IntegratorContext {
 public:
   static constexpr int Rank = AMREX_SPACEDIM;
 
-  IntegratorContext(GriddingAlgorithm gridding, HyperbolicMethod method);
+  IntegratorContext(std::shared_ptr<GriddingAlgorithm> gridding,
+                    HyperbolicMethod method);
 
   /// \brief Deeply copies a context and all its distributed data for all MPI
   /// ranks.
@@ -51,18 +52,15 @@ public:
 
   /// \brief Deeply copies a context and all its distributed data for all MPI
   /// ranks.
-  IntegratorContext&
-  operator=(const IntegratorContext&);
+  IntegratorContext& operator=(const IntegratorContext&);
 
-  IntegratorContext(
-      IntegratorContext&&) noexcept = default;
+  IntegratorContext(IntegratorContext&&) noexcept = default;
 
-  IntegratorContext&
-  operator=(IntegratorContext&&) noexcept = default;
+  IntegratorContext& operator=(IntegratorContext&&) noexcept = default;
 
   ~IntegratorContext() = default;
 
-  /// @{ 
+  /// @{
   /// \name Member Accessors
 
   /// \brief Returns the hyperbolic method member object.
@@ -70,11 +68,13 @@ public:
 
   /// \brief Returns a shared pointer to the underlying GriddingAlgorithm which
   /// owns the simulation.
-  const GriddingAlgorithm& GetGriddingAlgorithm() const noexcept;
+  const std::shared_ptr<GriddingAlgorithm>& GetGriddingAlgorithm() const
+      noexcept;
 
   /// \brief Returns a reference to const PatchHierarchy which is a member of
   /// the GriddingAlgorithm.
   const PatchHierarchy& GetPatchHierarchy() const noexcept;
+  PatchHierarchy& GetPatchHierarchy() noexcept;
 
   /// \brief Returns the MPI communicator which is associated with this context.
   MPI_Comm GetMpiCommunicator() const noexcept;
@@ -86,6 +86,9 @@ public:
   /// \brief Returns the current boundary condition for the specified level.
   const BoundaryCondition& GetBoundaryCondition(int level) const;
   BoundaryCondition& GetBoundaryCondition(int level);
+
+  ::amrex::EBFArrayBoxFactory& GetEmbeddedBoundary(int level);
+  const ::amrex::EBFArrayBoxFactory& GetEmbeddedBoundary(int level) const;
 
   /// \brief Returns the MultiFab associated with level data on the specifed
   /// level number.
@@ -106,6 +109,10 @@ public:
   /// \brief Returns the MultiFab associated with flux data on the specifed
   /// level number and direction.
   ::amrex::MultiFab& GetFluxes(int level, Direction dir);
+
+  /// \brief Returns the MultiFab associated with flux data on the specifed
+  /// level number and direction.
+  ::amrex::MultiFab& GetStabilizedFluxes(int level, Direction dir);
 
   /// \brief Returns the MultiFab associated with flux data on the specifed
   /// level number and direction.
@@ -134,7 +141,6 @@ public:
 
   /// @{
   /// \name Observers
-
   /// \brief Returns true if the data exists for the specified level number.
   bool LevelExists(int level) const noexcept;
 
@@ -143,6 +149,11 @@ public:
 
   /// \brief Returns the refinement ratio for all directions.
   ::amrex::IntVect GetRatioToCoarserLevel(int level) const noexcept;
+
+  double GetDx(int level, Direction dir) const noexcept;
+
+  ::amrex::FabType GetFabType(int level, const ::amrex::MFIter& mfi) const
+      noexcept;
   /// @}
 
   /// @{
@@ -169,10 +180,13 @@ public:
   /// @{
   /// \name Member functions relevant for the level integrator algorithm.
 
-  /// \brief Compute and store reference states for cut-cells over all split cycles.
+  /// \brief Compute and store reference states for cut-cells over all split
+  /// cycles.
   ///
-  /// \note This assumes that cut cells are always refined to the finest level of the hierarchy.
+  /// \note This assumes that cut cells are always refined to the finest level
+  /// of the hierarchy.
   void PreAdvanceHierarchy();
+  void PostAdvanceHierarchy();
 
   /// \brief On each first subcycle this will regrid the data if neccessary.
   void PreAdvanceLevel(int level_num, Direction dir, Duration dt, int subcycle);
@@ -221,12 +235,57 @@ public:
   void CoarsenConservatively(int fine, int coarse, Direction dir);
   ///@}
 
-
 private:
-  struct LevelData;
+  struct LevelData {
+    LevelData() = default;
+    LevelData(const LevelData& other) = delete;
+    LevelData& operator=(const LevelData& other) = delete;
+    LevelData(LevelData&&) noexcept = default;
+    LevelData& operator=(LevelData&&) noexcept;
+    ~LevelData() noexcept = default;
+
+    /// This eb_factory is shared with the underlying patch hierarchy.
+    std::shared_ptr<::amrex::EBFArrayBoxFactory> eb_factory{};
+
+    ///////////////////////////////////////////////////////////////////////////
+    // [cell-centered]
+
+    /// reference states which are used to compute embedded boundary fluxes
+    std::optional<::amrex::MultiFab> reference_states{};
+
+    /// scratch space filled with data in ghost cells
+    std::array<::amrex::MultiFab, Rank> scratch{};
+
+    /// fluxes for the embedded boundary
+    std::unique_ptr<::amrex::MultiCutFab> boundary_fluxes{};
+
+    ///////////////////////////////////////////////////////////////////////////
+    // [face-centered]
+
+    /// @{
+    /// various flux types needed by the numerical scheme
+    std::array<::amrex::MultiFab, Rank> fluxes{};
+    std::array<::amrex::MultiFab, Rank> stabilized_fluxes{};
+    std::array<::amrex::MultiFab, Rank> shielded_left_fluxes{};
+    std::array<::amrex::MultiFab, Rank> shielded_right_fluxes{};
+    std::array<::amrex::MultiFab, Rank> doubly_shielded_fluxes{};
+    /// @}
+
+    ///////////////////////////////////////////////////////////////////////////
+    // [misc]
+
+    /// FluxRegister accumulate fluxes on coarse fine interfaces between
+    /// refinement level. These will need to be rebuilt whenever the hierarchy
+    /// changes.
+    ::amrex::FluxRegister coarse_fine{};
+
+    std::array<Duration, Rank> time_point{};
+    std::array<Duration, Rank> regrid_time_point{};
+    std::array<std::ptrdiff_t, Rank> cycles{};
+  };
 
   int ghost_cell_width_;
-  GriddingAlgorithm gridding_;
+  std::shared_ptr<GriddingAlgorithm> gridding_;
   std::vector<LevelData> data_;
   HyperbolicMethod method_;
 };

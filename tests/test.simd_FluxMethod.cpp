@@ -49,41 +49,50 @@ void InitializeStates(const fub::View<Complete>& states,
 
 TEST_CASE("simd single state") {
   fub::PerfectGas<2> equation{};
-  std::array<Complete, 2> states{};
+  std::array<Complete, 4> states{};
 
   states[0].density = 1.0;
   states[0].momentum.fill(0);
   states[0].energy = 2.0;
   equation.CompleteFromCons(states[0], AsCons(states[0]));
 
-  states[1].density = 1.0;
-  states[1].momentum.fill(0);
-  states[1].energy = 1.0;
-  equation.CompleteFromCons(states[1], AsCons(states[1]));
+  states[1] = states[0];
 
-  fub::HllMethod hll(equation,
-                     fub::EinfeldtSignalVelocities<fub::PerfectGas<2>>{});
+  states[2].density = 1.0;
+  states[2].momentum.fill(0);
+  states[2].energy = 1.0;
+  equation.CompleteFromCons(states[2], AsCons(states[2]));
+
+  states[3] = states[2];
+
+  fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
+  fub::HllMethod hll(equation, signals);
+  fub::MusclHancockMethod muscl(equation, hll);
 
   const fub::Duration dt(1.0);
   const double dx = 1.0;
   const fub::Direction dir = fub::Direction::X;
   Conservative flux{};
-  hll.ComputeNumericFlux(flux, states, dt, dx, dir);
+  muscl.ComputeNumericFlux(flux, states, dt, dx, dir);
 
-  std::array<CompleteArray, 2> array_states;
+  std::array<CompleteArray, 4> array_states;
 
   array_states[0].density.fill(1.0);
   array_states[0].momentum.fill(0.0);
   array_states[0].energy.fill(2.0);
   equation.CompleteFromCons(array_states[0], AsCons(array_states[0]));
 
-  array_states[1].density.fill(1.0);
-  array_states[1].momentum.fill(0);
-  array_states[1].energy.fill(1.0);
-  equation.CompleteFromCons(array_states[1], AsCons(array_states[1]));
+  array_states[1] =  array_states[0];
+
+  array_states[2].density.fill(1.0);
+  array_states[2].momentum.fill(0);
+  array_states[2].energy.fill(1.0);
+  equation.CompleteFromCons(array_states[2], AsCons(array_states[2]));
+
+  array_states[3] =  array_states[2];
 
   ConservativeArray array_flux{};
-  hll.ComputeNumericFlux(array_flux, array_states, dt, dx, dir);
+  muscl.ComputeNumericFlux(array_flux, array_states, dt, dx, dir);
 
   REQUIRE(flux.density == array_flux.density(0));
   REQUIRE(flux.momentum(0) == array_flux.momentum(0, 0));
@@ -119,14 +128,13 @@ TEST_CASE("simd impl produces the exact same results as the naive impl") {
     fub::View<Conservative> fluxes = fub::amrex::MakeView<Conservative>(
         fluxes_data, equation, fub::amrex::AsIndexBox<2>(face_box));
 
-    hll.ComputeNumericFluxes(fluxes, AsConst(states), fub::Direction::X, dt,
-                             dx);
+    hll.ComputeNumericFluxes(fluxes, AsConst(states), dt, dx, fub::Direction::X);
 
     fluxes = fub::amrex::MakeView<Conservative>(
         simd_fluxes_data, equation, fub::amrex::AsIndexBox<2>(face_box));
 
     hll.ComputeNumericFluxes(fub::execution::simd, fluxes, AsConst(states),
-                             fub::Direction::X, dt, dx);
+                            dt, dx, fub::Direction::X);
 
     const double* flux_first = fluxes_data.dataPtr();
     const double* flux_last = flux_first + fluxes_data.size();
@@ -157,14 +165,14 @@ TEST_CASE("simd impl produces the exact same results as the naive impl") {
     fub::View<Conservative> fluxes = fub::amrex::MakeView<Conservative>(
         fluxes_data, equation, fub::amrex::AsIndexBox<2>(face_box));
 
-    hll.ComputeNumericFluxes(fluxes, AsConst(states), fub::Direction::Y, dt,
-                             dx);
+    hll.ComputeNumericFluxes(fluxes, AsConst(states), dt,
+                             dx, fub::Direction::Y);
 
     fluxes = fub::amrex::MakeView<Conservative>(
         simd_fluxes_data, equation, fub::amrex::AsIndexBox<2>(face_box));
 
     hll.ComputeNumericFluxes(fub::execution::simd, fluxes, AsConst(states),
-                             fub::Direction::Y, dt, dx);
+                             dt, dx, fub::Direction::Y);
 
     const double* flux_first = fluxes_data.dataPtr();
     const double* flux_last = flux_first + fluxes_data.size();

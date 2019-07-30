@@ -22,6 +22,7 @@
 #define FUB_AMREX_PRINT_HPP
 
 #include <AMReX.H>
+#include <AMReX_Print.H>
 
 namespace fub::amrex {
 

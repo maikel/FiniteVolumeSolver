@@ -60,10 +60,10 @@ operator=(LevelData&& other) noexcept {
 ////////////////////////////////////////////////////////////////////////////////
 // Constructor and Assignment Operators
 
-IntegratorContext::IntegratorContext(GriddingAlgorithm gridding, HyperbolicMethod nm)
+IntegratorContext::IntegratorContext(
+    std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod nm)
     : ghost_cell_width_{nm.flux_method.GetStencilWidth() + 1},
-      gridding_{std::move(gridding)}, data_{}, method_{
-                                                   std::move(nm)} {
+      gridding_{std::move(gridding)}, data_{}, method_{std::move(nm)} {
   data_.reserve(
       static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
   // Allocate auxiliary data arrays for each refinement level in the hierarchy
@@ -99,24 +99,24 @@ operator=(const IntegratorContext& other) {
 
 const BoundaryCondition&
 IntegratorContext::GetBoundaryCondition(int level) const {
-  return gridding_.GetBoundaryCondition(level);
+  return gridding_->GetBoundaryCondition(level);
 }
 
 BoundaryCondition& IntegratorContext::GetBoundaryCondition(int level) {
-  return gridding_.GetBoundaryCondition(level);
+  return gridding_->GetBoundaryCondition(level);
 }
 
-const GriddingAlgorithm&
+const std::shared_ptr<GriddingAlgorithm>&
 IntegratorContext::GetGriddingAlgorithm() const noexcept {
   return gridding_;
 }
 
 PatchHierarchy& IntegratorContext::GetPatchHierarchy() noexcept {
-  return gridding_.GetPatchHierarchy();
+  return gridding_->GetPatchHierarchy();
 }
 
 const PatchHierarchy& IntegratorContext::GetPatchHierarchy() const noexcept {
-  return gridding_.GetPatchHierarchy();
+  return gridding_->GetPatchHierarchy();
 }
 
 MPI_Comm IntegratorContext::GetMpiCommunicator() const noexcept {
@@ -186,7 +186,8 @@ int IntegratorContext::GetRatioToCoarserLevel(int level, Direction dir) const
 ///////////////////////////////////////////////////////////////////////////////
 //                                                                    Modifiers
 
-void IntegratorContext::ResetHierarchyConfiguration(GriddingAlgorithm gridding) {
+void IntegratorContext::ResetHierarchyConfiguration(
+    std::shared_ptr<GriddingAlgorithm> gridding) {
   gridding_ = std::move(gridding);
   ResetHierarchyConfiguration();
 }
@@ -334,7 +335,8 @@ void IntegratorContext::ComputeNumericFluxes(int level, Duration dt,
   method_.flux_method.ComputeNumericFluxes(*this, level, dt, dir);
 }
 
-void IntegratorContext::CompleteFromCons(int level, Duration dt, Direction dir) {
+void IntegratorContext::CompleteFromCons(int level, Duration dt,
+                                         Direction dir) {
   method_.reconstruction.CompleteFromCons(*this, level, dt, dir);
 }
 
@@ -349,7 +351,7 @@ void IntegratorContext::PreAdvanceLevel(int level_num, Direction dir, Duration,
   const std::size_t l = static_cast<std::size_t>(level_num);
   if (subcycle == 0 && level_num > 0 &&
       data_[l].regrid_time_point[d] != data_[l].time_point[d]) {
-    gridding_.RegridAllFinerlevels(level_num - 1);
+    gridding_->RegridAllFinerlevels(level_num - 1);
     for (std::size_t lvl = l; lvl < data_.size(); ++lvl) {
       data_[lvl].regrid_time_point[d] = data_[lvl].time_point[d];
     }

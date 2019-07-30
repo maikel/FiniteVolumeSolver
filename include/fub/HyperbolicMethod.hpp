@@ -23,6 +23,7 @@
 
 #include "fub/Direction.hpp"
 #include "fub/Duration.hpp"
+#include "fub/core/type_traits.hpp"
 
 #include <memory>
 #include <type_traits>
@@ -50,6 +51,7 @@ template <typename IntegratorContext> struct TimeIntegratorBase {
 template <typename IntegratorContext> struct FluxMethodBase {
   virtual ~FluxMethodBase() = default;
   virtual std::unique_ptr<FluxMethodBase> Clone() const = 0;
+  virtual void PreAdvanceHierarchy(IntegratorContext& context) = 0;
   virtual Duration ComputeStableDt(IntegratorContext& context, int level,
                                    Direction dir) = 0;
   virtual void ComputeNumericFluxes(IntegratorContext& context, int level,
@@ -126,6 +128,8 @@ public:
   Duration ComputeStableDt(IntegratorContext& context, int level,
                            Direction dir);
 
+  void PreAdvanceHierarchy(IntegratorContext& context);
+
   void ComputeNumericFluxes(IntegratorContext& context, int level, Duration dt,
                             Direction dir);
 
@@ -177,7 +181,8 @@ template <typename IntegratorContext, typename R>
 struct ReconstructionWrapper : ReconstructionBase<IntegratorContext> {
   ReconstructionWrapper(const R& rec) : rec_{rec} {}
   ReconstructionWrapper(R&& rec) : rec_{std::move(rec)} {}
-  std::unique_ptr<ReconstructionBase<IntegratorContext>> Clone() const override {
+  std::unique_ptr<ReconstructionBase<IntegratorContext>>
+  Clone() const override {
     return std::make_unique<ReconstructionWrapper>(rec_);
   }
   void CompleteFromCons(IntegratorContext& context, int level, Duration dt,
@@ -263,10 +268,17 @@ operator=(const PolyFluxMethod& other) {
   }
   return *this;
 }
+
+template <typename IntegratorContext>
+void PolyFluxMethod<IntegratorContext>::PreAdvanceHierarchy(
+    IntegratorContext& context) {
+  flux_method_->PreAdvanceHierarchy(context);
+}
+
 template <typename IntegratorContext>
 Duration
 PolyFluxMethod<IntegratorContext>::ComputeStableDt(IntegratorContext& context,
-                                               int level, Direction dir) {
+                                                   int level, Direction dir) {
   return flux_method_->ComputeStableDt(context, level, dir);
 }
 
@@ -282,6 +294,10 @@ int PolyFluxMethod<IntegratorContext>::GetStencilWidth() const {
 }
 
 namespace detail {
+template <typename I, typename C>
+using PreAdvanceHierarchyT =
+    decltype(std::declval<I>().PreAdvanceHierarchy(std::declval<C>()));
+
 template <typename IntegratorContext, typename I>
 struct FluxMethodWrapper : FluxMethodBase<IntegratorContext> {
   FluxMethodWrapper(const I& flux_method) : flux_method_{flux_method} {}
@@ -299,6 +315,12 @@ struct FluxMethodWrapper : FluxMethodBase<IntegratorContext> {
   }
   int GetStencilWidth() const override {
     return flux_method_.GetStencilWidth();
+  }
+  void PreAdvanceHierarchy(IntegratorContext& context) override {
+    if constexpr (is_detected<PreAdvanceHierarchyT, I&,
+                              IntegratorContext&>::value) {
+      flux_method_.PreAdvanceHierarchy(context);
+    }
   }
   I flux_method_;
 };

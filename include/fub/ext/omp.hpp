@@ -33,6 +33,7 @@ extern "C" {
 #endif
 
 #include <vector>
+#include <algorithm>
 
 namespace fub {
 
@@ -48,6 +49,8 @@ public:
 
   T& operator*() noexcept;
   const T& operator*() const noexcept;
+
+  const T& Min() const noexcept;
 
 private:
   std::vector<T, Allocator> instances_;
@@ -108,6 +111,11 @@ T& OmpLocal<T, Allocator>::operator*() noexcept {
 template <typename T, typename Allocator>
 const T& OmpLocal<T, Allocator>::operator*() const noexcept {
   return Get();
+}
+
+template <typename T, typename Allocator>
+const T& OmpLocal<T, Allocator>::Min() const noexcept {
+  return *std::min_element(instances_.begin(), instances_.end());
 }
 
 } // namespace fub

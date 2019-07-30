@@ -41,6 +41,6 @@ void FillCutCellData(PatchDataView<double, 3> unshielded,
                      PatchDataView<double, 3> doubly_shielded,
                      const CutCellData<3>& data, Direction dir);
 
-} // namespace amrex
+} // namespace fub::amrex::cutcell
 
 #endif

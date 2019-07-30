@@ -51,6 +51,7 @@ public:
       : Context(context), equation_{equation} {}
 
   const Context& GetContext() const noexcept { return *this; }
+  Context& GetContext() noexcept { return *this; }
 
   const Equation& GetEquation() const noexcept { return equation_; }
 

@@ -106,8 +106,8 @@ struct MusclHancock {
                                         dir);
   }
 
-  double ComputeStableDt(span<const CompleteArray, 4> states, double dx,
-                         Direction dir) noexcept {
+  Array1d ComputeStableDt(span<const CompleteArray, 4> states, double dx,
+                          Direction dir) noexcept {
     return flux_method_.ComputeStableDt(states.template subspan<1, 2>(), dx,
                                         dir);
   }
@@ -217,7 +217,7 @@ struct MusclHancock {
           qL = state - 0.5 * slope;
           qR = state + 0.5 * slope;
         },
-        AsCons(q_left_arr_), AsCons(q_right_arr_), AsCons(stencil[1]),
+        AsCons(q_left_arr_), AsCons(q_right_arr_), AsCons(stencil[2]),
         slope_arr_);
 
     CompleteFromCons(equation_, q_left_arr_, q_left_arr_);

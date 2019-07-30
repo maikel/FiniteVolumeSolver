@@ -67,8 +67,8 @@ public:
   double ComputeStableDt(span<const Complete, 2> states, double dx,
                          Direction dir);
 
-  double ComputeStableDt(span<const CompleteArray, 2> states, double dx,
-                         Direction dir);
+  Array1d ComputeStableDt(span<const CompleteArray, 2> states, double dx,
+                          Direction dir);
 
 private:
   Equation equation_;
@@ -143,17 +143,16 @@ double Godunov<Equation, RiemannSolver>::ComputeStableDt(
 }
 
 template <typename Equation, typename RiemannSolver>
-double Godunov<Equation, RiemannSolver>::ComputeStableDt(
+Array1d Godunov<Equation, RiemannSolver>::ComputeStableDt(
     span<const CompleteArray, 2> states, double dx, Direction dir) {
   auto signals = riemann_solver_.ComputeSignals(states[0], states[1], dir);
   Array1d zero = Array1d::Zero();
-  const double s_max =
+  const Array1d s_max =
       std::accumulate(signals.begin(), signals.end(), zero,
                       [](const Array1d& x, const Array1d& y) -> Array1d {
                         return x.max(y.abs());
-                      })
-          .maxCoeff();
-  return dx / s_max;
+                      });
+  return Array1d(dx) / s_max;
 }
 
 } // namespace fub

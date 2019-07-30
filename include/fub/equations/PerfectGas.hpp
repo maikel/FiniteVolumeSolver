@@ -30,6 +30,7 @@
 #include "fub/ExactRiemannSolver.hpp"
 #include "fub/ext/Eigen.hpp"
 #include "fub/flux_method/HllMethod.hpp"
+#include "fub/flux_method/MusclHancockMethod.hpp"
 
 #include <array>
 

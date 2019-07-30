@@ -13,7 +13,7 @@ fub::PatchDataView<T, sizeof...(Is)> MakePdv(fub::span<T> data, Is... extents) {
 
 static void Sequential(benchmark::State& state) {
   const int width = state.range(0);
-  const int components = 3;
+  const int components = 5;
 
   std::vector<double> next(width * width * width * components);
   std::vector<double> prev(width * width * width * components);
@@ -45,7 +45,7 @@ BENCHMARK(Sequential)->RangeMultiplier(2)->Range(2, 64);
 
 static void Simd(benchmark::State& state) {
   const int width = state.range(0);
-  const int components = 3;
+  const int components = 5;
 
   std::vector<double> next(width * width * width * components);
   std::vector<double> prev(width * width * width * components);

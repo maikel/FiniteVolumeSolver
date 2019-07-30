@@ -21,8 +21,8 @@
 #ifndef FUB_AMREX_CUT_CELL_GRIDDING_ALGORITHM_HPP
 #define FUB_AMREX_CUT_CELL_GRIDDING_ALGORITHM_HPP
 
-#include "fub/AMReX/cutcell/BoundaryCondition.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
+#include "fub/AMReX/cutcell/BoundaryCondition.hpp"
 #include "fub/AMReX/cutcell/InitialData.hpp"
 #include "fub/AMReX/cutcell/PatchHierarchy.hpp"
 #include "fub/AMReX/cutcell/Tagging.hpp"
@@ -61,8 +61,9 @@ public:
   void SetBoundaryCondition(int level, const BoundaryCondition& condition);
 
   const BoundaryCondition& GetBoundaryCondition(int level) const noexcept;
-  
-  const InitialData& GetInitialData() const noexcept;
+  BoundaryCondition& GetBoundaryCondition(int level) noexcept;
+
+  const InitialData& GetInitialCondition() const noexcept;
 
   const Tagging& GetTagging() const noexcept;
 
@@ -88,10 +89,10 @@ private:
 
   PatchHierarchy hierarchy_;
   InitialData initial_condition_;
-  std::vector<BoundaryCondition> boundary_condition_;
   Tagging tagging_;
+  std::vector<BoundaryCondition> boundary_condition_;
 };
 
-} // namespace fub
+} // namespace fub::amrex::cutcell
 
 #endif

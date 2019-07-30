@@ -102,8 +102,8 @@ static void BM_GodunovMethod_X(benchmark::State& state) {
 
   static_assert(IsView<View<Complete<ShallowWater>>>::value);
   for (auto _ : state) {
-    godunov.ComputeNumericFluxes(fluxes, states, Direction::X, Duration(0.7),
-                                 1.0);
+    godunov.ComputeNumericFluxes(fluxes, states, Duration(0.7),
+                                 1.0, Direction::X);
   }
 }
 BENCHMARK(BM_GodunovMethod_X)->Range(8, 512);
@@ -141,8 +141,8 @@ static void BM_SIMD_GodunovMethod_X(benchmark::State& state) {
 
   static_assert(IsView<View<Complete<ShallowWater>>>::value);
   for (auto _ : state) {
-    method.ComputeNumericFluxes(execution::simd, fluxes, states, Direction::X,
-                                Duration(0.7), 1.0);
+    method.ComputeNumericFluxes(execution::simd, fluxes, states,
+                                Duration(0.7), 1.0, Direction::X);
   }
 }
 BENCHMARK(BM_SIMD_GodunovMethod_X)->Range(8, 512);
@@ -180,8 +180,8 @@ static void BM_SIMD_GodunovMethod_Y(benchmark::State& state) {
 
   static_assert(IsView<View<Complete<ShallowWater>>>::value);
   for (auto _ : state) {
-    method.ComputeNumericFluxes(execution::simd, fluxes, states, Direction::Y,
-                                Duration(0.7), 1.0);
+    method.ComputeNumericFluxes(execution::simd, fluxes, states,
+                                Duration(0.7), 1.0, Direction::Y);
   }
 }
 BENCHMARK(BM_SIMD_GodunovMethod_Y)->Range(8, 512);

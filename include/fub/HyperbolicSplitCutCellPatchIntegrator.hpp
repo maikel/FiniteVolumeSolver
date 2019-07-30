@@ -22,7 +22,7 @@
 #define FUB_HYPERBOLIC_SPLIT_CUTCELL_PATCH_INTEGRATOR_HPP
 
 #include "fub/CutCellData.hpp"
-#include "fub/HyperbolicSplitPatchIntegrator.hpp"
+#include "fub/HyperbolicPatchIntegrator.hpp"
 
 namespace fub {
 
@@ -177,7 +177,7 @@ public:
   }
 
 private:
-  HyperbolicSplitPatchIntegrator<Eq> regular_integrator_;
+  HyperbolicPatchIntegrator<Eq> regular_integrator_;
   Conservative prev_{GetEquation()};
   Conservative next_{GetEquation()};
   Conservative flux_shielded_left_{GetEquation()};

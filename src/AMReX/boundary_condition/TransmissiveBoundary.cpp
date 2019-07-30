@@ -19,8 +19,11 @@
 // SOFTWARE.
 
 #include "fub/AMReX/boundary_condition/TransmissiveBoundary.hpp"
+
+#include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/ForEachIndex.hpp"
 #include "fub/AMReX/GriddingAlgorithm.hpp"
+#include "fub/Execution.hpp"
 
 namespace fub::amrex {
 
@@ -44,6 +47,12 @@ int GetSign(int side) { return (side == 0) - (side == 1); }
 void TransmissiveBoundary::FillBoundary(::amrex::MultiFab& mf,
                                         const ::amrex::Geometry& geom, Duration,
                                         const GriddingAlgorithm&) {
+
+  FillBoundary(mf, geom);
+}
+
+void TransmissiveBoundary::FillBoundary(::amrex::MultiFab& mf,
+                                        const ::amrex::Geometry& geom) {
   const int ngrow = mf.nGrow(int(dir));
   ::amrex::Box grown_box = geom.growNonPeriodicDomain(ngrow);
   ::amrex::BoxList boundaries =
@@ -51,15 +60,12 @@ void TransmissiveBoundary::FillBoundary(::amrex::MultiFab& mf,
   if (boundaries.isEmpty()) {
     return;
   }
-#if defined(_OPENMP) && defined(AMREX_USE_OMP)
-#pragma omp parallel
-#endif
-  for (::amrex::MFIter mfi(mf, true); mfi.isValid(); ++mfi) {
+  ForEachFab(execution::openmp, mf, [&](const ::amrex::MFIter& mfi) {
     ::amrex::FArrayBox& fab = mf[mfi];
     for (const ::amrex::Box& boundary : boundaries) {
       ::amrex::Box shifted =
           ::amrex::shift(boundary, int(dir), GetSign(side) * ngrow);
-      if (!geom.Domain().contains(shifted)) {
+      if (!geom.Domain().intersects(shifted)) {
         continue;
       }
       ::amrex::Box box_to_fill = fab.box() & boundary;
@@ -74,7 +80,7 @@ void TransmissiveBoundary::FillBoundary(::amrex::MultiFab& mf,
         }
       }
     }
-  }
+  });
 }
 
 } // namespace fub::amrex

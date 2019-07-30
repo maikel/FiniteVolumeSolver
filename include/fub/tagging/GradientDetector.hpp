@@ -83,6 +83,12 @@ public:
   TagCellsForRefinement(const PatchDataView<char, TagRank, layout_stride>& tags,
                         const View<const Complete<Equation>>& states);
 
+  template <int TagRank>
+  void TagCellsForRefinement(
+      const PatchDataView<char, TagRank, layout_stride>& tags,
+      const View<const Complete<Equation>>& states,
+      const PatchDataView<const double, TagRank, layout_stride>& volumes);
+
 private:
   using Base = GradientDetectorBase<Equation, Projections...>;
   Complete<Equation> sL{Base::equation_};
@@ -175,6 +181,46 @@ void ScalarGradientDetector<Equation, Projections...>::TagCellsForRefinement(
                     static_cast<char>(left > tolerance || right > tolerance);
               }
             });
+          }
+        });
+  }
+}
+
+template <typename Equation, typename... Projections>
+template <int TagRank>
+void ScalarGradientDetector<Equation, Projections...>::TagCellsForRefinement(
+    const PatchDataView<char, TagRank, layout_stride>& tags,
+    const View<const Complete<Equation>>& states,
+    const PatchDataView<const double, TagRank, layout_stride>& volumes) {
+  const auto tagbox = tags.Box();
+  for (std::size_t dir = 0; dir < Extents<0>(states).rank(); ++dir) {
+    ForEachIndex(
+        Shrink(Box<0>(states), Direction(dir), {1, 1}), [&](auto... is) {
+          using Index = std::array<std::ptrdiff_t, sizeof...(is)>;
+          const Index mid{is...};
+          if (Contains(tagbox, mid)) {
+            const Index left = Shift(mid, Direction(dir), -1);
+            const Index right = Shift(mid, Direction(dir), 1);
+            if (volumes(left) > 0.0 && volumes(mid) > 0.0 &&
+                volumes(right) > 0.0) {
+              boost::mp11::tuple_for_each(Base::conditions_, [&](auto cond) {
+                auto&& [proj, tolerance] = cond;
+                Load(sL, states, left);
+                Load(sM, states, mid);
+                Load(sR, states, right);
+                auto&& xL = std::invoke(proj, sL);
+                auto&& xM = std::invoke(proj, sM);
+                auto&& xR = std::invoke(proj, sR);
+                if (xM != xR || xM != xL) {
+                  const double left =
+                      std::abs(xM - xL) / (std::abs(xM) + std::abs(xL));
+                  const double right =
+                      std::abs(xM - xR) / (std::abs(xM) + std::abs(xR));
+                  tags(mid) |=
+                      static_cast<char>(left > tolerance || right > tolerance);
+                }
+              });
+            }
           }
         });
   }

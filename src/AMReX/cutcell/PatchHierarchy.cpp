@@ -151,7 +151,8 @@ PatchHierarchy::PatchHierarchy(DataDescription desc,
 }
 
 CutCellData<AMREX_SPACEDIM>
-PatchHierarchy::GetCutCellData(int level_number, const ::amrex::MFIter& mfi, Direction dir) const {
+PatchHierarchy::GetCutCellData(int level_number, const ::amrex::MFIter& mfi,
+                               Direction dir) const {
   const std::size_t d = static_cast<std::size_t>(dir);
   CutCellData<AMREX_SPACEDIM> cutcell_data;
   const PatchLevel& level = GetPatchLevel(level_number);
@@ -173,6 +174,12 @@ PatchHierarchy::GetCutCellData(int level_number, const ::amrex::MFIter& mfi, Dir
   cutcell_data.doubly_shielded_fractions =
       MakePatchDataView((*level.doubly_shielded[d])[mfi], 0);
   return cutcell_data;
+}
+
+const std::shared_ptr<::amrex::EBFArrayBoxFactory>&
+PatchHierarchy::GetEmbeddedBoundary(int level) const {
+  const std::size_t l = static_cast<std::size_t>(level);
+  return patch_level_[l].factory;
 }
 
 int PatchHierarchy::GetRatioToCoarserLevel(int level, Direction dir) const {
@@ -219,6 +226,10 @@ int PatchHierarchy::GetMaxNumberOfLevels() const noexcept {
 
 PatchLevel& PatchHierarchy::GetPatchLevel(int level) {
   return patch_level_.at(static_cast<std::size_t>(level));
+}
+
+const DataDescription& PatchHierarchy::GetDataDescription() const noexcept {
+  return description_;
 }
 
 const PatchLevel& PatchHierarchy::GetPatchLevel(int level) const {

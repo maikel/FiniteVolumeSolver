@@ -36,7 +36,7 @@ template <typename Tag, typename Equation> struct Reconstruction {
   static constexpr int Rank = Equation::Rank();
   static constexpr bool IsSimd = std::is_base_of<execution::SimdTag, Tag>();
 
-  explicit Reconstruction(const Equation& eq);
+  explicit Reconstruction(const Tag& tag, const Equation& eq);
 
   void CompleteFromCons(IntegratorContext& context, int level,
                         [[maybe_unused]] Duration dt, Direction dir);
@@ -51,27 +51,30 @@ namespace detail {
 // Scalar Case
 template <typename Equation, bool IsSimd> struct ReconstructionKernel {
   Equation equation_;
-  Complete<Equation> complete_(equation_);
-  Conservative<Equation> cons_(equation_);
+  Complete<Equation> complete_{equation_};
+  Conservative<Equation> cons_{equation_};
 
-  void CompleteFromCons(const View<Complete>& dest,
-                        const View<const Conservative>& src) {
+  static constexpr int Rank = Equation::Rank();
+
+  void CompleteFromCons(const View<Complete<Equation>>& dest,
+                        const View<const Conservative<Equation>>& src) {
     ForEachIndex(Box<0>(dest), [&](auto... is) {
       Load(cons_, src, {is...});
-      ::fub::CompleteFromCons(eq, complete_, cons_);
-      Store(complete_, dest, {is...});
+      ::fub::CompleteFromCons(equation_, complete_, cons_);
+      Store(dest, complete_, {is...});
     });
   }
 
-  void
-  CompleteFromCons(const View<Complete>& dest,
-                   const View<const Conservative>& src,
-                   const PatchDataView<double, Rank, layout_stride>& volume) {
+  void CompleteFromCons(
+      const View<Complete<Equation>>& dest,
+      const View<const Conservative<Equation>>& src,
+      const PatchDataView<const double, Rank, layout_stride>& volume) {
     ForEachIndex(Box<0>(dest), [&](auto... is) {
-      if (volume(is...)) {
+      const double alpha = volume(is...);
+      if (alpha > 0.0) {
         Load(cons_, src, {is...});
-        ::fub::CompleteFromCons(eq, complete_, cons_);
-        Store(complete_, dest, {is...});
+        ::fub::CompleteFromCons(equation_, complete_, cons_);
+        Store(dest, complete_, {is...});
       }
     });
   }
@@ -80,41 +83,44 @@ template <typename Equation, bool IsSimd> struct ReconstructionKernel {
 // SIMD Case
 template <typename Equation> struct ReconstructionKernel<Equation, true> {
   Equation equation_;
-  CompleteArray<Equation> complete_(equation_);
-  ConservativeArray<Equation> cons_(equation_);
+  CompleteArray<Equation> complete_{equation_};
+  ConservativeArray<Equation> cons_{equation_};
 
-  void CompleteFromCons(const View<Complete>& dest,
-                        const View<const Conservative>& src) {
-    ForEachRow(std::tuple{dest, src}, [](const Row<Complete>& dest,
-                                         const Row<const Conservative>& src) {
-      ViewPointer<const Conservative> first = Begin(src);
-      ViewPointer<const Conservative> last = End(src);
-      ViewPointer<Complete> out = Begin(dest);
-      constexpr std::ptrdiff_t size =
-          std::ptrdiff_t(CompleteArray<Equation>::Size());
-      std::ptrdiff_t n = get<0>(last) - get<0>(first);
-      while (n >= size) {
-        Load(cons_, first);
-        ::fub::CompleteFromCons(eq, complete_, cons_);
-        Store(out, complete_);
-        Advance(first, size);
-        Advance(out, size);
-        n = get<0>(last) - get<0>(first);
-      }
-      LoadN(cons_, first, N);
-      ::fub::CompleteFromCons(eq, complete_, cons_);
-      StoreN(out, complete_, N);
-    });
+  static constexpr int Rank = Equation::Rank();
+
+  void CompleteFromCons(const View<Complete<Equation>>& dest,
+                        const View<const Conservative<Equation>>& src) {
+    ForEachRow(std::tuple{dest, src},
+               [&](const Row<Complete<Equation>>& dest,
+                   const Row<const Conservative<Equation>>& src) {
+                 ViewPointer<const Conservative<Equation>> first = Begin(src);
+                 ViewPointer<const Conservative<Equation>> last = End(src);
+                 ViewPointer<Complete<Equation>> out = Begin(dest);
+                 constexpr std::ptrdiff_t size =
+                     std::ptrdiff_t(CompleteArray<Equation>::Size());
+                 std::ptrdiff_t n = get<0>(last) - get<0>(first);
+                 while (n >= size) {
+                   Load(cons_, first);
+                   ::fub::CompleteFromCons(equation_, complete_, cons_);
+                   Store(out, complete_);
+                   Advance(first, size);
+                   Advance(out, size);
+                   n = get<0>(last) - get<0>(first);
+                 }
+                 LoadN(cons_, first, n);
+                 ::fub::CompleteFromCons(equation_, complete_, cons_);
+                 StoreN(out, complete_, n);
+               });
   }
 
-  void
-  CompleteFromCons(const View<Complete>& dest,
-                   const View<const Conservative>& src,
-                   const PatchDataView<double, Rank, layout_stride>& volume) {
+  void CompleteFromCons(
+      const View<Complete<Equation>>& dest,
+      const View<const Conservative<Equation>>& src,
+      const PatchDataView<const double, Rank, layout_stride>& volume) {
     ForEachIndex(Box<0>(dest), [&](auto... is) {
-      if (volume(is...)) {
+      if (volume(is...) > 0.0) {
         Load(cons_, src, {is...});
-        ::fub::CompleteFromCons(eq, complete_, cons_);
+        ::fub::CompleteFromCons(equation_, complete_, cons_);
         Store(complete_, dest, {is...});
       }
     });
@@ -123,27 +129,31 @@ template <typename Equation> struct ReconstructionKernel<Equation, true> {
 } // namespace detail
 
 template <typename Tag, typename Equation>
-Reconstruction<Tag, Equation>::Reconstruction(const Equation& eq)
-    : kernel_(ReconstructionKernel<Equation, IsSimd>{eq}) {}
+Reconstruction<Tag, Equation>::Reconstruction(const Tag&, const Equation& eq)
+    : kernel_(detail::ReconstructionKernel<Equation, IsSimd>{eq}) {}
 
 template <typename Tag, typename Equation>
 void Reconstruction<Tag, Equation>::CompleteFromCons(IntegratorContext& context,
-                                                     int level, Duration dt,
+                                                     int level, Duration,
                                                      Direction dir) {
-  ::amrex::MultiFab dest = context.GetData(level);
-  ::amrex::MultiFab volumes = context.GetEmbeddedBoundary(level).getVolFrac();
-  const ::amrex::MultiFab src = context.GetScratch(level, dir);
+  ::amrex::MultiFab& dest = context.GetData(level);
+  const ::amrex::MultiFab& volumes =
+      context.GetEmbeddedBoundary(level).getVolFrac();
+  const ::amrex::MultiFab& src = context.GetScratch(level, dir);
 
-  ForEachMFIter(Tag(), dest, [&](::amrex::MFIter& mfi) {
+  ForEachFab(Tag(), dest, [&](const ::amrex::MFIter& mfi) {
     const ::amrex::Box box = mfi.tilebox();
-    auto state = MakeView<Complete>(dest[mfi], *equation_, box);
-    auto scratch = MakeView<const Consevative>(src[mfi], *equation_, box);
-    auto volume = MakePatchDataView(volumes[mfi], 0);
-    ::amrex::FabType type = context.GetCutCellPatchType(mfi);
+    auto state =
+        MakeView<Complete<Equation>>(dest[mfi], kernel_->equation_, box);
+    auto scratch = MakeView<const Conservative<Equation>>(
+        src[mfi], kernel_->equation_, box);
+    ::amrex::FabType type =
+        context.GetEmbeddedBoundary(level).getMultiEBCellFlagFab()[mfi].getType(
+            box);
     if (type == ::amrex::FabType::regular) {
       kernel_->CompleteFromCons(state, scratch);
     } else if (type == ::amrex::FabType::singlevalued) {
-      ::amrex::TagBox flags = context.GetVolumes()[mfi];
+      auto volume = MakePatchDataView(volumes[mfi], 0, box);
       kernel_->CompleteFromCons(state, scratch, volume);
     }
   });

@@ -236,6 +236,8 @@ struct BasicView : ViewBase<S, L, R> {
   using Depths = typename Equation::ConservativeDepths;
   using Traits = StateTraits<ViewBase<S, L, R>>;
 
+  static constexpr int rank() noexcept { return Rank; }
+
   BasicView() = default;
 
   BasicView(const ViewBase<S, L, R>& base) : ViewBase<S, L, R>{base} {}

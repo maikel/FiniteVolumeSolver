@@ -179,9 +179,13 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/flux_method/HllMethod.hpp
   include/fub/flux_method/MusclHancockMethod.hpp
   include/fub/initial_data/Constant.hpp
-  include/fub/initial_data/RiemannProblem.hpp
   include/fub/initial_data/ShockMachnumber.hpp
   include/fub/tagging/GradientDetector.hpp
+  include/fub/tagging/TagBuffer.hpp
+  include/fub/tagging/TagCutCells.hpp
+  include/fub/geometry/Geometry.hpp
+  include/fub/geometry/Halfspace.hpp
+  include/fub/geometry/ExpandTube.hpp
   include/fub/Solver.hpp
   include/fub/CompleteFromCons.hpp
   include/fub/Direction.hpp
@@ -215,11 +219,14 @@ add_library(FiniteVolumeSolver.Solver
   src/equations/ideal_gas_mix/MusclHancockMethod.cpp
   src/equations/ideal_gas_mix/FlameMasterReactor.cpp
   src/equations/ideal_gas_mix/mechanism/Burke2012.cpp
+  src/tagging/TagBuffer.cpp
+  src/tagging/TagCutCells.cpp
   src/CartesianCoordinates.cpp
   src/split_method/GodunovSplitting.cpp
   src/split_method/StrangSplitting.cpp
   src/geometry/Halfspace.cpp
   src/geometry/Polygon.cpp
+  src/geometry/ExpandTube.cpp
   src/HyperbolicPatchIntegrator.cpp
   src/RunSimulation.cpp)
 target_link_libraries(FiniteVolumeSolver.Solver
@@ -262,6 +269,8 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     include/fub/AMReX/FluxMethod.hpp
     include/fub/AMReX/ScopeGuard.hpp
     include/fub/AMReX/ViewFArrayBox.hpp
+    include/fub/AMReX/tagging/TagBuffer.hpp
+    src/equations/ideal_gas_mix/KineticSourceTerm.cpp
     src/AMReX/boundary_condition/BoundarySet.cpp
     src/AMReX/boundary_condition/TransmissiveBoundary.cpp
     src/AMReX/FluxMethod.cpp
@@ -272,7 +281,8 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     src/AMReX/GriddingAlgorithm.cpp
     src/AMReX/BoundaryCondition.cpp
     src/AMReX/TimeIntegrator.cpp
-    src/AMReX/IntegratorContext.cpp)
+    src/AMReX/IntegratorContext.cpp
+    src/AMReX/tagging/TagBuffer.cpp)
   target_include_directories(FiniteVolumeSolver.AMReX
     PUBLIC
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -298,6 +308,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     add_library(FiniteVolumeSolver.AMReX.EB
         src/CutCellData.cpp
         src/geometry/ExpandTube.cpp
+        include/fub/AMReX_CutCell.hpp
         include/fub/AMReX/cutcell/BoundaryCondition.hpp
         include/fub/AMReX/cutcell/FluxMethod.hpp
         include/fub/AMReX/cutcell/GriddingAlgorithm.hpp
@@ -307,11 +318,25 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         include/fub/AMReX/cutcell/Reconstruction.hpp
         include/fub/AMReX/cutcell/IntegratorContext.hpp
         include/fub/AMReX/cutcell/Tagging.hpp
+        include/fub/AMReX/cutcell/TimeIntegrator.hpp
+        include/fub/AMReX/cutcell/initial_data/RiemannProblem.hpp
+        include/fub/AMReX/cutcell/tagging/GradientDetector.hpp
+        include/fub/AMReX/cutcell/tagging/TagBuffer.hpp
+        include/fub/AMReX/cutcell/tagging/TagCutCells.hpp
+        include/fub/AMReX/cutcell/boundary_condition/BoundarySet.hpp
+        include/fub/AMReX/cutcell/boundary_condition/TransmissiveBoundary.hpp
+        include/fub/AMReX/coupled/CoupledBoundary.hpp
         src/AMReX/cutcell/BoundaryCondition.cpp
         src/AMReX/cutcell/IntegratorContext.cpp
         src/AMReX/cutcell/PatchHierarchy.cpp
         src/AMReX/cutcell/FillCutCellData.cpp
-        src/AMReX/cutcell/GriddingAlgorithm.cpp)
+        src/AMReX/cutcell/GriddingAlgorithm.cpp
+        src/AMReX/cutcell/TimeIntegrator.cpp
+        src/AMReX/cutcell/boundary_condition/BoundarySet.cpp
+        src/AMReX/cutcell/boundary_condition/TransmissiveBoundary.cpp
+        src/AMReX/cutcell/tagging/TagBuffer.cpp
+        src/AMReX/cutcell/tagging/TagCutCells.cpp
+        src/AMReX/coupled/CoupledBoundary.cpp)
     target_compile_options(FiniteVolumeSolver.AMReX.EB
       PRIVATE
         $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>

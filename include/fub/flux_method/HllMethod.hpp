@@ -109,8 +109,8 @@ public:
                           double dx, Direction dir);
 
   using Base::ComputeStableDt;
-  double ComputeStableDt(span<const CompleteArray, 2> states, double dx,
-                         Direction dir);
+  Array1d ComputeStableDt(span<const CompleteArray, 2> states, double dx,
+                          Direction dir);
 
 private:
   ConservativeArray flux_left_array_{Base::GetEquation()};
@@ -258,17 +258,15 @@ void HllArrayBase<Equation, SignalSpeeds, true>::ComputeNumericFlux(
 }
 
 template <typename Equation, typename SignalSpeeds>
-double HllArrayBase<Equation, SignalSpeeds, true>::ComputeStableDt(
+Array1d HllArrayBase<Equation, SignalSpeeds, true>::ComputeStableDt(
     span<const CompleteArray, 2> states, double dx, Direction dir) {
   const auto signals =
       GetSignalSpeeds()(GetEquation(), states[0], states[1], dir);
   Array1d zero = Array1d::Zero();
-  const double max =
+  const Array1d max =
       std::accumulate(signals.begin(), signals.end(), zero,
-                      [](Array1d x, Array1d y) { return x.max(y.abs()); })
-          .maxCoeff();
-  FUB_ASSERT(max > 0.0);
-  return dx / max;
+                      [](Array1d x, Array1d y) { return x.max(y.abs()); });
+  return Array1d(dx) / max;
 }
 
 } // namespace fub

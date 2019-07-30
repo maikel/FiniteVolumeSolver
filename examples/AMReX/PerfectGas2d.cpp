@@ -24,6 +24,8 @@
 #include <fmt/format.h>
 #include <iostream>
 
+#include <xmmintrin.h>
+
 struct ShockData {
   using Equation = fub::PerfectGas<2>;
   using Complete = fub::Complete<Equation>;
@@ -38,7 +40,7 @@ struct ShockData {
               fub::amrex::AsIndexBox<2>(mfi.tilebox()),
               [this, &state, &geom](std::ptrdiff_t i, std::ptrdiff_t j) {
                 double x[AMREX_SPACEDIM];
-                geom.CellCenter({int(i), int(j), 0}, x);
+                geom.CellCenter({int(i), int(j)}, x);
                 if (x[0] < -0.04) {
                   Store(state, left_, {i, j});
                 } else {
@@ -57,6 +59,10 @@ int main(int argc, char** argv) {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
+  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() | _MM_MASK_DIV_ZERO |
+                         _MM_MASK_OVERFLOW | _MM_MASK_UNDERFLOW |
+                         _MM_MASK_INVALID);
+
   const fub::amrex::ScopeGuard guard(argc, argv);
 
   constexpr int Dim = AMREX_SPACEDIM;
@@ -65,57 +71,48 @@ int main(int argc, char** argv) {
   fub::PerfectGas<2> equation{};
 
   fub::amrex::CartesianGridGeometry geometry{};
-  geometry.cell_dimensions = std::array<int, Dim>{AMREX_D_DECL(256, 256, 1)};
+  geometry.cell_dimensions = std::array<int, Dim>{AMREX_D_DECL(128, 128, 1)};
   geometry.coordinates = amrex::RealBox({AMREX_D_DECL(-1.0, -1.0, -1.0)},
                                         {AMREX_D_DECL(+1.0, +1.0, +1.0)});
-  geometry.periodicity[1] = 1;
 
   fub::amrex::PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = 1;
+  hier_opts.max_number_of_levels = 2;
   hier_opts.refine_ratio = amrex::IntVect{AMREX_D_DECL(2, 2, 1)};
 
   using Complete = fub::PerfectGas<2>::Complete;
-  using CompleteArray = fub::PerfectGas<2>::CompleteArray;
   fub::amrex::GradientDetector gradient(
-      equation, std::make_pair(&CompleteArray::density, 0.001),
-      std::make_pair(&CompleteArray::pressure, 0.01));
+      equation, std::make_pair(&Complete::density, 0.001),
+      std::make_pair(&Complete::pressure, 0.01));
 
-  auto from_prim = [](Complete& state, const fub::PerfectGas<2>& equation) {
-    state.energy = state.pressure * equation.gamma_minus_1_inv;
-    state.speed_of_sound =
-        std::sqrt(equation.gamma * state.pressure / state.density);
-  };
+  fub::Conservative<fub::PerfectGas<2>> cons;
+  cons.density = 1.0;
+  cons.momentum << 0.0, 0.0;
+  cons.energy = 101325.0 * equation.gamma_minus_1_inv;
+  fub::Complete<fub::PerfectGas<2>> right;
+  fub::CompleteFromCons(equation, right, cons);
 
-  Complete left;
-  left.density = 1.0;
-  left.momentum = 0.0;
-  left.pressure = 8.0;
-  from_prim(left, equation);
-
-  Complete right;
-  right.density = 1.0;
-  right.momentum = 0.0;
-  right.pressure = 1.0;
-  from_prim(right, equation);
+  cons.energy *= 4;
+  fub::Complete<fub::PerfectGas<2>> left;
+  fub::CompleteFromCons(equation, left, cons);
 
   fub::amrex::BoundarySet boundary;
   using fub::amrex::TransmissiveBoundary;
   boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::X, 0});
   boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::X, 1});
+  boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::Y, 0});
+  boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::Y, 1});
 
-  fub::amrex::GriddingAlgorithm gridding(
+  std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       fub::amrex::PatchHierarchy(equation, geometry, hier_opts),
       ShockData{equation, left, right}, gradient, boundary);
-  gridding.InitializeHierarchy(0.0);
+  gridding->InitializeHierarchy(0.0);
 
-  auto tag = fub::execution::openmp_simd;
+  auto tag = fub::execution::seq;
 
-  fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
-  fub::HllMethod hll_method(equation, signals);
-  fub::MusclHancockMethod muscl_method(equation, hll_method);
-  fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(tag, muscl_method),
-                                      fub::amrex::ForwardIntegrator(tag),
-                                      fub::amrex::Reconstruction(tag, equation)};
+  fub::amrex::HyperbolicMethod method{
+      fub::amrex::FluxMethod(tag, fub::MusclHancockMethod(equation)),
+      fub::amrex::ForwardIntegrator(tag),
+      fub::amrex::Reconstruction(tag, equation)};
 
   fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
       equation,
@@ -134,9 +131,9 @@ int main(int argc, char** argv) {
   using namespace std::literals::chrono_literals;
   output(solver.GetPatchHierarchy(), 0, 0.0s);
   fub::RunOptions run_options{};
-  run_options.final_time = 2s;
-  run_options.output_interval = 0.1s;
-  run_options.cfl = 0.9;
+  run_options.final_time = 0.002s;
+  run_options.output_interval = 0.000125s;
+  run_options.cfl = 0.5 * 0.9;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      fub::amrex::print);
 }

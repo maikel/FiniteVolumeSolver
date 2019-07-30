@@ -41,8 +41,10 @@ template <typename LevelIntegrator, typename SplittingMethod = GodunovSplitting>
 struct HyperbolicSplitSystemSolver {
   using Equation =
       std::decay_t<decltype(std::declval<LevelIntegrator&>().GetEquation())>;
+
   using Context =
       std::decay_t<decltype(std::declval<LevelIntegrator&>().GetContext())>;
+
   using GriddingAlgorithm =
       std::decay_t<decltype(*std::declval<Context&>().GetGriddingAlgorithm())>;
 
@@ -53,12 +55,7 @@ struct HyperbolicSplitSystemSolver {
       : integrator{std::move(level_integrator)}, splitting{split} {}
 
   void
-  ResetHierarchyConfiguration(const GriddingAlgorithm& gridding) {
-    integrator.ResetHierarchyConfiguration(gridding);
-  }
-
-  void
-  ResetHierarchyConfiguration(GriddingAlgorithm&& gridding) {
+  ResetHierarchyConfiguration(std::shared_ptr<GriddingAlgorithm> gridding) {
     integrator.ResetHierarchyConfiguration(std::move(gridding));
   }
 
@@ -69,7 +66,7 @@ struct HyperbolicSplitSystemSolver {
   void PreAdvanceHierarchy() {
     using Context = IntegratorContext<LevelIntegrator>;
     if constexpr (is_detected<::fub::PreAdvanceHierarchy, Context&>()) {
-      Context& context = integrator.GetIntegratorContext();
+      Context& context = integrator.GetContext();
       context.PreAdvanceHierarchy();
     }
     // using FluxMethod = std::decay_t<decltype(integrator.GetFluxMethod())>;
@@ -84,7 +81,7 @@ struct HyperbolicSplitSystemSolver {
   void PostAdvanceHierarchy() {
     using Context = IntegratorContext<LevelIntegrator>;
     if constexpr (is_detected<::fub::PostAdvanceHierarchy, Context&>()) {
-      Context& context = integrator.GetIntegratorContext();
+      Context& context = integrator.GetContext();
       context.PostAdvanceHierarchy();
     }
     // using FluxMethod = std::decay_t<decltype(integrator.GetFluxMethod())>;
@@ -113,12 +110,12 @@ struct HyperbolicSplitSystemSolver {
     return dirs;
   }
 
-  const GriddingAlgorithm& GetGriddingAlgorithm() const {
+  const std::shared_ptr<GriddingAlgorithm>& GetGriddingAlgorithm() const {
     return integrator.GetContext().GetGriddingAlgorithm();
   }
 
   const auto& GetPatchHierarchy() const {
-    return GetGriddingAlgorithm().GetPatchHierarchy();
+    return GetGriddingAlgorithm()->GetPatchHierarchy();
   }
 
   Duration GetTimePoint() const {

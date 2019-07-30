@@ -199,6 +199,7 @@ struct PatchDataView : public PatchDataViewBase<T, R, Layout> {
   }
 
   static constexpr int Rank() noexcept { return R; }
+  static constexpr int rank() noexcept { return R; }
 
   span<T> Span() const noexcept { return this->mdspan_.get_span(); }
 

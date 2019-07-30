@@ -82,7 +82,6 @@ private:
   std::unique_ptr<BoundaryConditionBase> boundary_condition_{};
 };
 
-
 // Implementation
 
 template <typename BC>
@@ -121,6 +120,6 @@ inline void BoundaryCondition::FillBoundary(::amrex::MultiFab& mf,
   }
 }
 
-} // namespace fub
+} // namespace fub::amrex::cutcell
 
 #endif

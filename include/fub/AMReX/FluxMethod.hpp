@@ -21,9 +21,9 @@
 #ifndef FUB_AMREX_FLUX_METHOD_HPP
 #define FUB_AMREX_FLUX_METHOD_HPP
 
+#include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/IntegratorContext.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
-#include "fub/AMReX/ForEachFab.hpp"
 
 #include "fub/Execution.hpp"
 #include "fub/State.hpp"
@@ -42,8 +42,8 @@ template <typename Tag, typename FM> struct FluxMethod {
   Duration ComputeStableDt(IntegratorContext& context, int level,
                            Direction dir);
 
-  void ComputeNumericFluxes(IntegratorContext& context,
-                            int level, Duration dt, Direction dir);
+  void ComputeNumericFluxes(IntegratorContext& context, int level, Duration dt,
+                            Direction dir);
 
   int GetStencilWidth() const;
 
@@ -58,13 +58,13 @@ FluxMethod<Tag, FM>::FluxMethod(Tag, const FM& fm) : flux_method_{fm} {}
 //     : flux_method_{std::move(fm)} {}
 
 template <typename Tag, typename FM>
-Duration
-FluxMethod<Tag, FM>::ComputeStableDt(IntegratorContext& context,
-                                     int level, Direction dir) {
+Duration FluxMethod<Tag, FM>::ComputeStableDt(IntegratorContext& context,
+                                              int level, Direction dir) {
   const ::amrex::Geometry& geom = context.GetGeometry(level);
   const double dx = geom.CellSize(int(dir));
   double min_dt = std::numeric_limits<double>::infinity();
   const ::amrex::MultiFab& scratch = context.GetScratch(level, dir);
+  const int gcw = GetStencilWidth();
   if constexpr (std::is_base_of<execution::OpenMpTag, Tag>::value) {
 #if defined(_OPENMP) && defined(AMREX_USE_OMP)
 #pragma omp parallel reduction(min : min_dt)
@@ -74,7 +74,7 @@ FluxMethod<Tag, FM>::ComputeStableDt(IntegratorContext& context,
          mfi.isValid(); ++mfi) {
       const ::amrex::Box& box = mfi.tilebox();
       Equation& equation = flux_method_->GetEquation();
-      const IndexBox<Rank> cells = AsIndexBox<Rank>(box);
+      const IndexBox<Rank> cells = Grow(AsIndexBox<Rank>(box), dir, {gcw, gcw});
       const ::amrex::MultiFab& scratch = context.GetScratch(level, dir);
       const ::amrex::FArrayBox& data = scratch[mfi];
       View<const Complete<Equation>> states =
@@ -87,7 +87,7 @@ FluxMethod<Tag, FM>::ComputeStableDt(IntegratorContext& context,
     for (::amrex::MFIter mfi(scratch); mfi.isValid(); ++mfi) {
       const ::amrex::Box& box = mfi.tilebox();
       Equation& equation = flux_method_->GetEquation();
-      const IndexBox<Rank> cells = AsIndexBox<Rank>(box);
+      const IndexBox<Rank> cells = Grow(AsIndexBox<Rank>(box), dir, {gcw, gcw});
       const ::amrex::MultiFab& scratch = context.GetScratch(level, dir);
       const ::amrex::FArrayBox& data = scratch[mfi];
       View<const Complete<Equation>> states =
@@ -104,9 +104,9 @@ using ComputeNumericFluxes_t =
     decltype(std::declval<T>().ComputeNumericFluxes(std::declval<Args>()...));
 
 template <typename Tag, typename FM>
-void FluxMethod<Tag, FM>::ComputeNumericFluxes(
-    IntegratorContext& context, int level, Duration dt,
-    Direction dir) {
+void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
+                                               int level, Duration dt,
+                                               Direction dir) {
   const ::amrex::Geometry& geom = context.GetGeometry(level);
   ::amrex::MultiFab& fluxes = context.GetFluxes(level, dir);
   const ::amrex::MultiFab& scratch = context.GetScratch(level, dir);

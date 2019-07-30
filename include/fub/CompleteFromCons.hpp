@@ -117,7 +117,6 @@ template <typename Equation> struct CompleteFromConsFn {
   Complete<Equation> complete_{equation_};
   Conservative<Equation> cons_{equation_};
 
-
   struct CompleteFromCons_Rows {
     CompleteFromConsFn<Equation>* this_;
 
@@ -144,7 +143,8 @@ template <typename Equation> struct CompleteFromConsFn {
     }
   };
 
-  void CompleteFromCons(execution::SimdTag, const View<Complete<Equation>>& complete_view,
+  void CompleteFromCons(execution::SimdTag,
+                        const View<Complete<Equation>>& complete_view,
                         const View<const Conservative<Equation>>& cons_view) {
     FUB_ASSERT(Box<0>(complete_view) == Box<0>(cons_view));
     ForEachRow(std::tuple{complete_view, cons_view},

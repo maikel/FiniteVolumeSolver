@@ -266,6 +266,33 @@ operator()(const IdealGasMix<Dim>&, const Complete& left, const Complete& right,
   return {std::min(sL1, sL2), std::max(sR1, sR2)};
 }
 
+template <int Dim>
+std::array<Array1d, 2> EinfeldtSignalVelocities<IdealGasMix<Dim>>::
+operator()(const IdealGasMix<Dim>&, const CompleteArray& left,
+           const CompleteArray& right, Direction dir) const noexcept {
+  const Array1d rhoL = left.density;
+  const Array1d rhoR = right.density;
+  const Array1d rhoUL = left.momentum.row(int(dir));
+  const Array1d rhoUR = right.momentum.row(int(dir));
+  const Array1d aL = left.speed_of_sound;
+  const Array1d aR = right.speed_of_sound;
+  const Array1d sqRhoL = rhoL.sqrt();
+  const Array1d sqRhoR = rhoR.sqrt();
+  const Array1d uL = rhoUL / rhoL;
+  const Array1d uR = rhoUR / rhoR;
+  const Array1d roeU = (sqRhoL * uL + sqRhoR * uR) / (sqRhoL + sqRhoR);
+  const Array1d roeA =
+      ((sqRhoL * aL * aL + sqRhoR * aR * aR) / (sqRhoL + sqRhoR) +
+       0.5 * (sqRhoL * sqRhoR) / ((sqRhoL + sqRhoR) * (sqRhoL + sqRhoR)) *
+           (uR - uL) * (uR - uL))
+          .sqrt();
+  const Array1d sL1 = uL - aL;
+  const Array1d sL2 = roeU - 0.5 * roeA;
+  const Array1d sR1 = roeU + 0.5 * roeA;
+  const Array1d sR2 = uR + aR;
+  return {sL1.min(sL2), sR1.max(sR2)};
+}
+
 template struct EinfeldtSignalVelocities<IdealGasMix<1>>;
 template struct EinfeldtSignalVelocities<IdealGasMix<2>>;
 template struct EinfeldtSignalVelocities<IdealGasMix<3>>;

@@ -18,39 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/equations/PerfectGas.hpp"
-
-#include "fub/CartesianCoordinates.hpp"
-#include "fub/HyperbolicSplitCutCellPatchIntegrator.hpp"
-#include "fub/HyperbolicSplitLevelIntegrator.hpp"
-#include "fub/HyperbolicSplitSystemSolver.hpp"
-
-#include "fub/AMReX/FillCutCellData.hpp"
-#include "fub/AMReX/GriddingAlgorithm.hpp"
-#include "fub/AMReX/ScopeGuard.hpp"
-#include "fub/AMReX/cutcell/FluxMethod.hpp"
-#include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
-#include "fub/AMReX/cutcell/HyperbolicSplitIntegratorContext.hpp"
-#include "fub/AMReX/cutcell/HyperbolicSplitPatchIntegrator.hpp"
-#include "fub/AMReX/cutcell/IndexSpace.hpp"
-#include "fub/AMReX/cutcell/Reconstruction.hpp"
-#include "fub/AMReX/cutcell/Tagging.hpp"
-
-#include "fub/geometry/Halfspace.hpp"
-#include "fub/initial_data/RiemannProblem.hpp"
-
-#include "fub/tagging/GradientDetector.hpp"
-#include "fub/tagging/TagBuffer.hpp"
-#include "fub/tagging/TagCutCells.hpp"
-
-#include "fub/boundary_condition/TransmissiveBoundary.hpp"
-
-#include "fub/cutcell_method/KbnStabilisation.hpp"
-#include "fub/flux_method/MusclHancockMethod.hpp"
-
-#include "fub/RunSimulation.hpp"
-
-#include "fub/ForEach.hpp"
+#include <fub/AMReX.hpp>
+#include <fub/AMReX_CutCell.hpp>
+#include <fub/Solver.hpp>
 
 #include <AMReX_EB2_IF_Box.H>
 #include <AMReX_EB2_IF_Rotation.H>
@@ -69,18 +39,16 @@ int main(int argc, char** argv) {
                          _MM_MASK_OVERFLOW | _MM_MASK_UNDERFLOW |
                          _MM_MASK_INVALID);
 
-  const std::array<int, AMREX_SPACEDIM> n_cells{AMREX_D_DECL(128, 128, 1)};
-  const std::array<double, AMREX_SPACEDIM> xlower{
-      AMREX_D_DECL(-1.0, -1.0, -1.0)};
-  const std::array<double, AMREX_SPACEDIM> xupper{
-      AMREX_D_DECL(+1.0, +1.0, +1.0)};
-  amrex::RealBox xbox(xlower, xupper);
-  const std::array<int, AMREX_SPACEDIM> periodicity{};
+  static constexpr int Rank = AMREX_SPACEDIM;
 
-  amrex::Geometry coarse_geom(
-      amrex::Box{
-          {}, {AMREX_D_DECL(n_cells[0] - 1, n_cells[1] - 1, n_cells[2] - 1)}},
-      &xbox, -1, periodicity.data());
+  const std::array<int, Rank> n_cells{128, 128};
+  const std::array<double, Rank> xlower{-1.0, -1.0};
+  const std::array<double, Rank> xupper{+1.0, +1.0};
+  amrex::RealBox xbox(xlower, xupper);
+  const std::array<int, Rank> periodicity{};
+
+  amrex::Geometry coarse_geom(amrex::Box{{}, {n_cells[0] - 1, n_cells[1] - 1}},
+                              &xbox, -1, periodicity.data());
 
   const int n_level = 1;
 
@@ -89,7 +57,6 @@ int main(int argc, char** argv) {
   auto shop = amrex::EB2::makeShop(embedded_boundary);
 
   fub::PerfectGas<2> equation;
-  fub::amrex::DataDescription desc = fub::amrex::MakeDataDescription(equation);
 
   fub::amrex::CartesianGridGeometry geometry;
   geometry.cell_dimensions = n_cells;
@@ -103,7 +70,7 @@ int main(int argc, char** argv) {
 
   fub::Conservative<fub::PerfectGas<2>> cons;
   cons.density = 1.0;
-  cons.momentum << 0.0, 0.0; // +100.0, -100.0;
+  cons.momentum << 0.0, 0.0;
   cons.energy = equation.gamma_minus_1_inv;
   fub::Complete<fub::PerfectGas<2>> right;
   fub::CompleteFromCons(equation, right, cons);
@@ -116,19 +83,19 @@ int main(int argc, char** argv) {
       equation, fub::Halfspace({+1.0, +1.0, 0.0}, 0.2), left, right);
 
   using State = fub::Complete<fub::PerfectGas<2>>;
-  fub::GradientDetector gradients{equation, std::pair{&State::pressure, 0.05},
-                                  std::pair{&State::density, 0.005}};
+  fub::amrex::cutcell::GradientDetector gradients{
+      equation, std::pair{&State::pressure, 0.05},
+      std::pair{&State::density, 0.005}};
 
-  fub::HyperbolicSplitCutCellPatchIntegrator patch_integrator{equation};
   fub::MusclHancockMethod flux_method(equation);
   fub::KbnCutCellMethod cutcell_method(std::move(flux_method));
 
   auto gridding = std::make_shared<fub::amrex::cutcell::GriddingAlgorithm>(
-      fub::amrex::cutcell::PatchHierarchy(desc, geometry, options),
-      fub::amrex::cutcell::AdaptInitialData(initial_data, equation),
-      fub::amrex::cutcell::AdaptTagging(equation, fub::TagCutCells(), gradients,
-                                        fub::TagBuffer(4)),
-      fub::TransmissiveBoundary{equation});
+      fub::amrex::cutcell::PatchHierarchy(equation, geometry, options),
+      initial_data,
+      fub::amrex::cutcell::TagAllOf(fub::TagCutCells(), gradients,
+                                    fub::TagBuffer(4)),
+      fub::amrex::cutcell::TransmissiveBoundary{});
   gridding->InitializeHierarchy(0.0);
 
   const int gcw = cutcell_method.GetStencilWidth();

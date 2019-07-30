@@ -178,21 +178,51 @@ template <typename Tuple, typename Function>
 void ForEachRow(const Tuple& views, Function f) {
   std::tuple firsts = Transform(views, [](const auto& v) { return Begin(v); });
   std::tuple lasts = Transform(views, [](const auto& v) { return End(v); });
-  std::tuple strides = Transform(views, ToStride<Direction::Y>());
   const std::ptrdiff_t row_extent = Extent<Direction::X>(std::get<0>(views));
-  const auto& first = std::get<0>(firsts);
-  const auto& last = std::get<0>(lasts);
-  while (GetOrForward<0>(last) - GetOrForward<0>(first) >=
-         std::get<0>(strides)) {
+  if constexpr (std::tuple_element_t<0, Tuple>::rank() == 1) {
     std::tuple rows = Transform(firsts, ToRow{row_extent});
     std::apply(f, rows);
-    std::tuple firsts_and_strides = Zip(firsts, strides);
-    std::apply(
-        [](auto&... ps) { (Advance(std::get<0>(ps), std::get<1>(ps)), ...); },
-        firsts_and_strides);
-    firsts =
-        std::apply([](auto&&... fs) { return std::tuple{std::get<0>(fs)...}; },
-                   firsts_and_strides);
+  } else if constexpr (std::tuple_element_t<0, Tuple>::rank() == 2) {
+    std::tuple strides = Transform(views, ToStride<Direction::Y>());
+    const auto& first = std::get<0>(firsts);
+    const auto& last = std::get<0>(lasts);
+    std::ptrdiff_t n = GetOrForward<0>(last) - GetOrForward<0>(first);
+    while (n >= std::get<0>(strides)) {
+      std::tuple rows = Transform(firsts, ToRow{row_extent});
+      std::apply(f, rows);
+      std::tuple firsts_and_strides = Zip(firsts, strides);
+      std::apply(
+          [](auto&... ps) { (Advance(std::get<0>(ps), std::get<1>(ps)), ...); },
+          firsts_and_strides);
+      firsts = std::apply(
+          [](auto&&... fs) { return std::tuple{std::get<0>(fs)...}; },
+          firsts_and_strides);
+      n = GetOrForward<0>(last) - GetOrForward<0>(first);
+    }
+  } else {
+    const std::ptrdiff_t ny = Extent<Direction::Y>(std::get<0>(views));
+    const std::ptrdiff_t nz = Extent<Direction::Z>(std::get<0>(views));
+    std::tuple strides_y = Transform(views, ToStride<Direction::Y>());
+    std::tuple strides_z = Transform(views, ToStride<Direction::Z>());
+    for (std::ptrdiff_t j = 0; j < nz; ++j) {
+      std::tuple pointers = firsts;
+    for (std::ptrdiff_t i = 0; i < ny; ++i) {
+      std::tuple rows = Transform(pointers, ToRow{row_extent});
+      std::apply(f, rows);
+      pointers = std::apply(
+                          [](auto... ps) {
+                            (Advance(std::get<0>(ps), std::get<1>(ps)), ...);
+                            return std::tuple{std::get<0>(ps)...};
+                          },
+                          Zip(pointers, strides_y));
+    }
+      firsts = std::apply(
+                 [](auto... ps) {
+                   (Advance(std::get<0>(ps), std::get<1>(ps)), ...);
+                   return std::tuple{std::get<0>(ps)...};
+                 },
+                 Zip(firsts, strides_z));
+    }
   }
 }
 

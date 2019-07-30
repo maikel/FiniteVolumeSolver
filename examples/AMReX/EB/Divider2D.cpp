@@ -18,41 +18,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/equations/PerfectGas.hpp"
+#include "fub/AMReX.hpp"
+#include "fub/AMReX_CutCell.hpp"
+#include "fub/Solver.hpp"
 
-#include "fub/geometry/Polygon.hpp"
+#include <AMReX_EB2_IF_Cylinder.H>
+#include <AMReX_EB2_IF_Intersection.H>
+#include <AMReX_EB2_IF_Plane.H>
 
-#include "fub/CartesianCoordinates.hpp"
-#include "fub/HyperbolicSplitCutCellPatchIntegrator.hpp"
-#include "fub/HyperbolicSplitLevelIntegrator.hpp"
-#include "fub/HyperbolicSplitSystemSolver.hpp"
-
-#include "fub/AMReX/FillCutCellData.hpp"
-#include "fub/AMReX/Geometry.hpp"
-#include "fub/AMReX/GriddingAlgorithm.hpp"
-#include "fub/AMReX/ScopeGuard.hpp"
-#include "fub/AMReX/cutcell/FluxMethod.hpp"
-#include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
-#include "fub/AMReX/cutcell/HyperbolicSplitIntegratorContext.hpp"
-#include "fub/AMReX/cutcell/HyperbolicSplitPatchIntegrator.hpp"
-#include "fub/AMReX/cutcell/IndexSpace.hpp"
-#include "fub/AMReX/cutcell/Reconstruction.hpp"
-#include "fub/AMReX/cutcell/Tagging.hpp"
-
-#include "fub/geometry/ExpandTube.hpp"
-#include "fub/geometry/Halfspace.hpp"
-#include "fub/initial_data/ShockMachnumber.hpp"
-
-#include "fub/tagging/GradientDetector.hpp"
-#include "fub/tagging/TagBuffer.hpp"
-#include "fub/tagging/TagCutCells.hpp"
-
-#include "fub/boundary_condition/TransmissiveBoundary.hpp"
-
-#include "fub/cutcell_method/KbnStabilisation.hpp"
-#include "fub/flux_method/MusclHancockMethod.hpp"
-
-#include "fub/RunSimulation.hpp"
+#include <iostream>
 
 #include <AMReX_EB2.H>
 #include <AMReX_EB2_IF_Union.H>

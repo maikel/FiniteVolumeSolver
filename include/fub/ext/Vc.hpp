@@ -22,34 +22,35 @@
 #define FUB_EXT_VC_HPP
 
 #include <Vc/vector.h>
-#include <xmmintrin.h>
 #include <immintrin.h>
+#include <xmmintrin.h>
 
 namespace fub {
 
 template <typename Abi>
-Vc::Vector<double, Abi> mask_load(const double* p, Vc::Mask<double, Abi> mask)
-{
-    if constexpr (std::is_same_v<Abi, Vc::VectorAbi::Sse>) {
+Vc::Vector<double, Abi> mask_load(const double* p, Vc::Mask<double, Abi> mask) {
+  if constexpr (std::is_same_v<Abi, Vc::VectorAbi::Sse>) {
 #ifdef __AVX__
-        __m128i native_mask = *reinterpret_cast<__m128i*>(&mask);
-        __m128d xmm = _mm_maskload_pd(p, native_mask);
-        Vc::Vector<double, Abi> x(xmm);
-        return x;
+    __m128i native_mask = *reinterpret_cast<__m128i*>(&mask);
+    __m128d xmm = _mm_maskload_pd(p, native_mask);
+    Vc::Vector<double, Abi> x(xmm);
+    return x;
 #else
-        Vc::Vector<double, Abi> x;
-        if (mask[0]) x[0] = p[0];
-        if (mask[1]) x[1] = p[1];
-        return x;
+    Vc::Vector<double, Abi> x;
+    if (mask[0])
+      x[0] = p[0];
+    if (mask[1])
+      x[1] = p[1];
+    return x;
 #endif
-    } else if constexpr (std::is_same_v<Abi, Vc::VectorAbi::Avx>) {
-        __m256i native_mask = *reinterpret_cast<__m256i*>(&mask);
-        __m256d xmm = _mm256_maskload_pd(p, native_mask);
-        Vc::Vector<double, Abi> x(xmm);
-        return x;
-    }
+  } else if constexpr (std::is_same_v<Abi, Vc::VectorAbi::Avx>) {
+    __m256i native_mask = *reinterpret_cast<__m256i*>(&mask);
+    __m256d xmm = _mm256_maskload_pd(p, native_mask);
+    Vc::Vector<double, Abi> x(xmm);
+    return x;
+  }
 }
 
-}
+} // namespace fub
 
 #endif

@@ -18,51 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/equations/IdealGasMix.hpp"
-#include "fub/equations/ideal_gas_mix/KineticSourceTerm.hpp"
-#include "fub/equations/ideal_gas_mix/mechanism/Burke2012.hpp"
 
-#include "fub/CartesianCoordinates.hpp"
-#include "fub/HyperbolicSplitCutCellPatchIntegrator.hpp"
-#include "fub/HyperbolicSplitLevelIntegrator.hpp"
-#include "fub/HyperbolicSplitSystemSolver.hpp"
-#include "fub/SplitSystemSourceSolver.hpp"
-
-#include "fub/boundary_condition/CoupledBoundary.hpp"
-
-#include "fub/AMReX/ScopeGuard.hpp"
-
-#include "fub/AMReX/FluxMethod.hpp"
-#include "fub/AMReX/GriddingAlgorithm.hpp"
-#include "fub/AMReX/HyperbolicSplitIntegratorContext.hpp"
-#include "fub/AMReX/HyperbolicSplitPatchIntegrator.hpp"
-#include "fub/AMReX/Reconstruction.hpp"
-
-#include "fub/AMReX/FillCutCellData.hpp"
-#include "fub/AMReX/cutcell/FluxMethod.hpp"
-#include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
-#include "fub/AMReX/cutcell/HyperbolicSplitIntegratorContext.hpp"
-#include "fub/AMReX/cutcell/HyperbolicSplitPatchIntegrator.hpp"
-#include "fub/AMReX/cutcell/IndexSpace.hpp"
-#include "fub/AMReX/cutcell/Reconstruction.hpp"
-#include "fub/AMReX/cutcell/Tagging.hpp"
-
-#include "fub/geometry/ExpandTube.hpp"
-#include "fub/geometry/Halfspace.hpp"
-#include "fub/initial_data/RiemannProblem.hpp"
-
-#include "fub/tagging/GradientDetector.hpp"
-#include "fub/tagging/TagBuffer.hpp"
-#include "fub/tagging/TagCutCells.hpp"
-
-#include "fub/boundary_condition/BoundarySet.hpp"
-#include "fub/boundary_condition/TransmissiveBoundary.hpp"
-
-#include "fub/cutcell_method/KbnStabilisation.hpp"
-#include "fub/flux_method/HllMethod.hpp"
-#include "fub/flux_method/MusclHancockMethod.hpp"
-
-#include "fub/AMReX/RunSimulation.hpp"
 
 #include <AMReX_EB2.H>
 #include <AMReX_EB2_IF_Box.H>

@@ -18,56 +18,37 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/CartesianCoordinates.hpp"
-#include "fub/equations/PerfectGas.hpp"
-
-#include "fub/AMReX/FluxMethod.hpp"
-#include "fub/AMReX/GriddingAlgorithm.hpp"
-#include "fub/AMReX/HyperbolicSplitIntegratorContext.hpp"
-#include "fub/AMReX/HyperbolicSplitPatchIntegrator.hpp"
-#include "fub/AMReX/Reconstruction.hpp"
-#include "fub/AMReX/ScopeGuard.hpp"
-#include "fub/HyperbolicSplitLevelIntegrator.hpp"
-#include "fub/HyperbolicSplitPatchIntegrator.hpp"
-#include "fub/HyperbolicSplitSystemSolver.hpp"
-#include "fub/boundary_condition/TransmissiveBoundary.hpp"
-#include "fub/ext/Eigen.hpp"
-#include "fub/flux_method/HllMethod.hpp"
-#include "fub/flux_method/MusclHancockMethod.hpp"
-#include "fub/split_method/StrangSplitting.hpp"
-#include "fub/tagging/GradientDetector.hpp"
-#include "fub/tagging/TagBuffer.hpp"
-
-#include "fub/RunSimulation.hpp"
+#include "fub/AMReX.hpp"
+#include "fub/Solver.hpp"
 
 #include <fmt/format.h>
 #include <iostream>
 
-#include <xmmintrin.h>
-
 struct RiemannProblem {
-  fub::PerfectGas<1> equation_;
-  void
-  InitializeData(const fub::View<fub::Complete<fub::PerfectGas<1>>>& states,
-                 const fub::amrex::PatchHierarchy& hierarchy,
-                 fub::amrex::PatchHandle patch) const {
-    const ::amrex::Geometry& geom = hierarchy.GetGeometry(patch.level);
-    const ::amrex::Box& box = patch.iterator->tilebox();
-    fub::CartesianCoordinates x =
-        fub::amrex::GetCartesianCoordinates(geom, box);
-    fub::ForEachIndex(fub::Box<0>(states), [&](auto... is) {
-      fub::Conservative<fub::PerfectGas<1>> state{equation_};
-      if (x(is...)[0] < 0.0) {
-        state.energy = 8 * 101325. * equation_.gamma_minus_1_inv;
-      } else {
-        state.energy = 101325. * equation_.gamma_minus_1_inv;
-      }
-      state.density = 1.0;
-      state.momentum.fill(0);
-      fub::Complete<fub::PerfectGas<1>> complete{equation_};
-      CompleteFromCons(equation_, complete, state);
-      Store(states, complete, {is...});
-    });
+  using Equation = fub::PerfectGas<1>;
+  using Complete = fub::Complete<Equation>;
+  using Conservative = fub::Conservative<Equation>;
+
+  Equation equation_;
+  Complete left_{equation_};
+  Complete right_{equation_};
+
+  void InitializeData(amrex::MultiFab& data, const amrex::Geometry& geom) {
+    fub::amrex::ForEachFab(
+        fub::execution::openmp, data, [&](amrex::MFIter& mfi) {
+          fub::View<Complete> state = fub::amrex::MakeView<Complete>(
+              data[mfi], equation_, mfi.tilebox());
+          fub::ForEachIndex(fub::amrex::AsIndexBox<1>(mfi.tilebox()),
+                            [this, &state, &geom](auto... is) {
+                              double x[AMREX_SPACEDIM] = {};
+                              geom.CellCenter(amrex::IntVect{int(is)...}, x);
+                              if (x[0] < -0.04) {
+                                Store(state, left_, {is...});
+                              } else {
+                                Store(state, right_, {is...});
+                              }
+                            });
+        });
   }
 };
 
@@ -94,33 +75,56 @@ int main(int argc, char** argv) {
   geometry.coordinates = amrex::RealBox(xlower, xupper);
 
   using Complete = fub::PerfectGas<1>::Complete;
-  fub::GradientDetector gradient{equation,
-                                 std::make_pair(&Complete::density, 5e-3),
-                                 std::make_pair(&Complete::pressure, 5e-2)};
+  fub::amrex::GradientDetector gradient{
+      equation, std::make_pair(&Complete::density, 5e-3),
+      std::make_pair(&Complete::pressure, 5e-2)};
 
-  RiemannProblem initial_data{equation};
+  auto from_prim = [](Complete& state, const fub::PerfectGas<1>& equation) {
+    state.energy = state.pressure * equation.gamma_minus_1_inv;
+    state.speed_of_sound =
+        std::sqrt(equation.gamma * state.pressure / state.density);
+  };
 
-  fub::amrex::DataDescription desc = fub::amrex::MakeDataDescription(equation);
+  Complete left;
+  left.density = 1.0;
+  left.momentum = 0.0;
+  left.pressure = 8.0;
+  from_prim(left, equation);
+
+  Complete right;
+  right.density = 1.0;
+  right.momentum = 0.0;
+  right.pressure = 1.0;
+  from_prim(right, equation);
+
+  RiemannProblem initial_data{equation, left, right};
+
+  fub::amrex::BoundarySet boundary;
+  using fub::amrex::TransmissiveBoundary;
+  boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::X, 0});
+  boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::X, 1});
+
   fub::amrex::PatchHierarchyOptions hier_opts;
   hier_opts.max_number_of_levels = 3;
   hier_opts.refine_ratio = ::amrex::IntVect{AMREX_D_DECL(2, 1, 1)};
 
-  auto gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
-      fub::amrex::PatchHierarchy(desc, geometry, hier_opts),
-      fub::amrex::AdaptInitialData(initial_data, equation),
-      fub::amrex::AdaptTagging(equation, gradient, fub::TagBuffer(4)),
-      fub::TransmissiveBoundary(equation));
+  std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
+      fub::amrex::PatchHierarchy(equation, geometry, hier_opts), initial_data,
+      gradient, boundary);
   gridding->InitializeHierarchy(0.0);
 
-  fub::HyperbolicSplitPatchIntegrator patch_integrator{equation};
-  fub::MusclHancockMethod flux_method{equation};
+  auto tag = fub::execution::simd;
 
-  const int gcw = flux_method.GetStencilWidth();
+  fub::EinfeldtSignalVelocities<fub::PerfectGas<1>> signals{};
+  fub::HllMethod hll_method(equation, signals);
+  fub::MusclHancockMethod flux_method{equation, hll_method};
+  fub::amrex::HyperbolicMethod method{
+      fub::amrex::FluxMethod(tag, flux_method),
+      fub::amrex::ForwardIntegrator(tag),
+      fub::amrex::Reconstruction(tag, equation)};
+
   fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
-      fub::amrex::HyperbolicSplitIntegratorContext(std::move(gridding), gcw),
-      fub::amrex::HyperbolicSplitPatchIntegrator(patch_integrator),
-      fub::amrex::FluxMethod(flux_method),
-      fub::amrex::Reconstruction(equation)));
+      equation, fub::amrex::IntegratorContext(gridding, method)));
 
   std::string base_name = "PerfectGas1d/";
 
@@ -138,8 +142,8 @@ int main(int argc, char** argv) {
   output(solver.GetPatchHierarchy(), 0, 0.0s);
   fub::RunOptions run_options{};
   run_options.cfl = 0.8;
-  run_options.final_time = 0.002s;
-  run_options.output_interval = 0.0001s;
+  run_options.final_time = 2.0s;
+  run_options.output_interval = 0.1s;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      print_msg);
 }

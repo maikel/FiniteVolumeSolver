@@ -51,10 +51,12 @@ struct PatchLevel : ::fub::amrex::PatchLevel {
   PatchLevel() = default;
   ~PatchLevel() = default;
 
-  /// \brief Deeply copy a patch level on each MPI Rank and recompute shielded fractions.
+  /// \brief Deeply copy a patch level on each MPI Rank and recompute shielded
+  /// fractions.
   PatchLevel(const PatchLevel&);
 
-  /// \brief Deeply copy a patch level on each MPI Rank and recompute shielded fractions.
+  /// \brief Deeply copy a patch level on each MPI Rank and recompute shielded
+  /// fractions.
   PatchLevel& operator=(const PatchLevel&);
 
   /// @{
@@ -80,16 +82,20 @@ struct PatchLevel : ::fub::amrex::PatchLevel {
   /// \brief This stores the EB factory for this refinement level.
   std::shared_ptr<::amrex::EBFArrayBoxFactory> factory;
 
-  /// \brief Store unshielded face fractions for all faces which touch a cut cell.
+  /// \brief Store unshielded face fractions for all faces which touch a cut
+  /// cell.
   MultiCutFabs unshielded;
 
-  /// \brief Store singly shielded from left face fractions for all faces which touch a cut cell.
+  /// \brief Store singly shielded from left face fractions for all faces which
+  /// touch a cut cell.
   MultiCutFabs shielded_left;
 
-  /// \brief Store singly shielded from right face fractions for all faces which touch a cut cell.
+  /// \brief Store singly shielded from right face fractions for all faces which
+  /// touch a cut cell.
   MultiCutFabs shielded_right;
 
-  /// \brief Store doubly shielded face fractions for all faces which touch a cut cell.
+  /// \brief Store doubly shielded face fractions for all faces which touch a
+  /// cut cell.
   MultiCutFabs doubly_shielded;
 };
 
@@ -128,7 +134,6 @@ public:
 
   /// @}
 
-
   /// @{
   /// \name Observers
 
@@ -151,7 +156,8 @@ public:
   /// \param[in] level  the refinement level number
   Duration GetTimePoint(int level = 0) const;
 
-  /// \brief Returns the ratio from fine to coarse for specified fine level number and direction.
+  /// \brief Returns the ratio from fine to coarse for specified fine level
+  /// number and direction.
   ///
   /// \param[in] level  the fine refinement level number
   /// \param[in] dir  the direction
@@ -180,6 +186,12 @@ private:
   std::vector<PatchLevel> patch_level_;
   std::vector<::amrex::Geometry> patch_level_geometry_;
 };
+
+template <typename Equation>
+PatchHierarchy::PatchHierarchy(const Equation& equation,
+                               const CartesianGridGeometry& geometry,
+                               const PatchHierarchyOptions& options)
+    : PatchHierarchy(MakeDataDescription(equation), geometry, options) {}
 
 template <typename Equation>
 void WritePlotFile(const std::string plotfilename, const PatchHierarchy& hier,
@@ -229,6 +241,6 @@ PatchHierarchy ReadCheckpointFile(const std::string& checkpointname,
                                   const CartesianGridGeometry& geometry,
                                   const PatchHierarchyOptions& options);
 
-} // namespace cutcell
+} // namespace fub::amrex::cutcell
 
 #endif

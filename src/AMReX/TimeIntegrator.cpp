@@ -19,9 +19,10 @@
 // SOFTWARE.
 
 #include "fub/AMReX/TimeIntegrator.hpp"
+#include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/ForEach.hpp"
-#include "fub/AMReX/ForEachFab.hpp"
+#include "fub/HyperbolicPatchIntegrator.hpp"
 
 namespace fub::amrex {
 template <typename Tag>
@@ -31,23 +32,19 @@ void ForwardIntegrator<Tag>::UpdateConservatively(
     Direction dir) {
   const int n_cons = fluxes.nComp();
   const double dx = geom.CellSize(int(dir));
-  const double lambda = dt.count() / dx;
   ForEachFab(Tag(), dest, [&](::amrex::MFIter& mfi) {
     ::amrex::FArrayBox& next = dest[mfi];
     const ::amrex::FArrayBox& prev = src[mfi];
     const ::amrex::FArrayBox& flux = fluxes[mfi];
     const ::amrex::Box& box = mfi.tilebox();
-    IndexBox<AMREX_SPACEDIM> ibox =
-        Grow(AsIndexBox<AMREX_SPACEDIM>(box), dir, {1, 1});
-    for (int c = 0; c < n_cons; ++c) {
-      ForEachIndex(ibox, [c, lambda, dir, &next, &prev, &flux](auto... is) {
-        const ::amrex::IntVect iv{int(is)...};
-        const ::amrex::IntVect left = iv;
-        ::amrex::IntVect right = iv;
-        right.shift(int(dir), 1);
-        next(iv, c) = prev(iv, c) + lambda * (flux(left, c) - flux(right, c));
-      });
-    }
+    const auto cells = Embed<AMREX_SPACEDIM + 1>(
+        Grow(AsIndexBox<AMREX_SPACEDIM>(box), dir, {1, 1}), {0, n_cons});
+    auto nv = MakePatchDataView(next).Subview(cells);
+    auto pv = MakePatchDataView(prev).Subview(cells);
+    const auto faces = Grow(cells, dir, {0, 1});
+    auto fv = MakePatchDataView(flux).Subview(faces);
+    HyperbolicPatchIntegrator<Tag>::UpdateConservatively(nv, pv, fv, dt, dx,
+                                                         dir);
   });
 }
 
@@ -58,7 +55,7 @@ void ForwardIntegrator<Tag>::UpdateConservatively(IntegratorContext& context,
   ::amrex::MultiFab& data = context.GetScratch(level, dir);
   const ::amrex::MultiFab& fluxes = context.GetFluxes(level, dir);
   const ::amrex::Geometry& geom = context.GetGeometry(level);
-  UpdateConservatively(data, data, fluxes, geom, dt, dir);
+  this->UpdateConservatively(data, data, fluxes, geom, dt, dir);
 }
 
 template struct ForwardIntegrator<execution::SequentialTag>;

@@ -23,9 +23,9 @@
 
 #include <Eigen/Eigen>
 
-#include "fub/config.hpp"
 #include "fub/Direction.hpp"
 #include "fub/PatchDataView.hpp"
+#include "fub/config.hpp"
 
 #include <type_traits>
 

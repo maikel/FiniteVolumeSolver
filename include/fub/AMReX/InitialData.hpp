@@ -21,7 +21,10 @@
 #ifndef FUB_AMREX_INITIAL_DATA_HPP
 #define FUB_AMREX_INITIAL_DATA_HPP
 
+#include "fub/core/type_traits.hpp"
+
 #include <AMReX.H>
+#include <AMReX_MultiFab.H>
 
 #include <memory>
 

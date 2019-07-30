@@ -79,7 +79,7 @@ static void BM_HLLE_Method_X(benchmark::State& state) {
 
   static_assert(IsView<View<Complete<PerfectGas<3>>>>::value);
   for (auto _ : state) {
-    hlle.ComputeNumericFluxes(fluxes, states, Direction::X, Duration(0.7), 1.0);
+    hlle.ComputeNumericFluxes(fluxes, states, Duration(0.7), 1.0, Direction::X);
   }
 }
 BENCHMARK(BM_HLLE_Method_X)->Arg(8)->Arg(16)->Arg(32);
@@ -140,7 +140,7 @@ static void BM_HLLE_Method_Y(benchmark::State& state) {
 
   static_assert(IsView<View<Complete<PerfectGas<3>>>>::value);
   for (auto _ : state) {
-    hlle.ComputeNumericFluxes(fluxes, states, Direction::Y, Duration(0.7), 1.0);
+    hlle.ComputeNumericFluxes(fluxes, states, Duration(0.7), 1.0, Direction::Y);
   }
 }
 BENCHMARK(BM_HLLE_Method_Y)->Arg(8)->Arg(16)->Arg(32);
@@ -199,8 +199,8 @@ static void BM_SIMD_HLLE_Method_X(benchmark::State& state) {
 
   static_assert(IsView<View<Complete<PerfectGas<3>>>>::value);
   for (auto _ : state) {
-    hlle.ComputeNumericFluxes(execution::simd, fluxes, states, Direction::X,
-                              Duration(0.7), 1.0);
+    hlle.ComputeNumericFluxes(execution::simd, fluxes, states, Duration(0.7),
+                              1.0, Direction::X);
   }
 }
 BENCHMARK(BM_SIMD_HLLE_Method_X)->Arg(8)->Arg(16)->Arg(32);
@@ -261,8 +261,8 @@ static void BM_SIMD_HLLE_Method_Y(benchmark::State& state) {
 
   static_assert(IsView<View<Complete<PerfectGas<3>>>>::value);
   for (auto _ : state) {
-    hlle.ComputeNumericFluxes(execution::simd, fluxes, states, Direction::Y,
-                              Duration(0.7), 1.0);
+    hlle.ComputeNumericFluxes(execution::simd, fluxes, states, Duration(0.7),
+                              1.0, Direction::Y);
   }
 }
 BENCHMARK(BM_SIMD_HLLE_Method_Y)->Arg(8)->Arg(16)->Arg(32);

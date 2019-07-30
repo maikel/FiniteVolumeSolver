@@ -27,8 +27,8 @@
 #include "fub/ForEach.hpp"
 #include "fub/PatchDataView.hpp"
 
+#include "fub/HyperbolicPatchIntegrator.hpp"
 #include "fub/HyperbolicSplitLevelIntegrator.hpp"
-#include "fub/HyperbolicSplitPatchIntegrator.hpp"
 #include "fub/HyperbolicSplitSystemSolver.hpp"
 #include "fub/NewtonIteration.hpp"
 #include "fub/SplitSystemSourceSolver.hpp"
@@ -41,11 +41,19 @@
 #include "fub/equations/PerfectGas.hpp"
 #include "fub/equations/ShallowWater.hpp"
 
+#include "fub/equations/ideal_gas_mix/mechanism/Burke2012.hpp"
+
 #include "fub/flux_method/GodunovMethod.hpp"
 #include "fub/flux_method/HllMethod.hpp"
 #include "fub/flux_method/MusclHancockMethod.hpp"
+
+#include "fub/cutcell_method/KbnStabilisation.hpp"
 
 #include "fub/split_method/GodunovSplitting.hpp"
 #include "fub/split_method/StrangSplitting.hpp"
 
 #include "fub/tagging/GradientDetector.hpp"
+
+#include "fub/geometry/Geometry.hpp"
+#include "fub/geometry/Halfspace.hpp"
+#include "fub/geometry/ExpandTube.hpp"

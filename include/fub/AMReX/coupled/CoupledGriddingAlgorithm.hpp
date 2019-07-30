@@ -24,16 +24,56 @@
 #include "fub/AMReX/GriddingAlgorithm.hpp"
 #include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
 
+#include "fub/core/span.hpp"
+
+#include "fub/equations/ideal_gas_mix/FlameMasterReactor.hpp"
+
 namespace fub {
 namespace amrex {
 
+struct BlockEntry {
+  std::size_t id;
+  ::amrex::Box mirror_box;
+};
+
+struct BlockConnection {
+  BlockEntry tube;
+  BlockEntry plenum;
+  Direction direction;
+  int side;
+};
+
+class CoupledBoundaryCondition;
+
 class CoupledGriddingAlgorithm {
 public:
-  CoupledGriddingAlgorithm();
+  CoupledGriddingAlgorithm(FlameMasterReactor reactor,
+                           std::vector<GriddingAlgorithm> tubes,
+                           std::vector<cutcell::GriddingAlgorithm> plena,
+                           std::vector<BlockConnection> connectivity);
+
+  CoupledGriddingAlgorithm(const CoupledGriddingAlgorithm& other);
+  CoupledGriddingAlgorithm& operator=(const CoupledGriddingAlgorithm& other);
+
+  CoupledGriddingAlgorithm(CoupledGriddingAlgorithm&& other) noexcept;
+  CoupledGriddingAlgorithm& operator=(CoupledGriddingAlgorithm&& other) noexcept;
+
+  span<GriddingAlgorithm> GetTubes() noexcept;
+  span<const GriddingAlgorithm> GetTubes() const noexcept;
+
+  span<cutcell::GriddingAlgorithm> GetPlena() noexcept;
+  span<const cutcell::GriddingAlgorithm> GetPlena() const noexcept;
+
+  span<const BlockConnection> GetConnectivity() const noexcept;
+
+  CoupledBoundaryCondition& GetBoundaryCondition(int level) noexcept;
 
 private:
-  GriddingAlgorithm tube_;
-  cutcell::GriddingAlgorithm plenum_;
+  ideal_gas_mix::Mechanism mechanism_;
+  std::vector<std::shared_ptr<GriddingAlgorithm>> tube_;
+  std::vector<std::shared_ptr<cutcell::GriddingAlgorithm>> plenum_;
+  std::vector<BlockConnection> connectivity_;
+  std::vector<CoupledBoundaryCondition> boundary_condition_;
 };
 
 } // namespace amrex
