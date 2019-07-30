@@ -2197,8 +2197,10 @@ C ---  THIS OPTION IS NOT PROVIDED
       DO 624 I=1,N
          SUM=0.D0
          DO 623 J=1,N
-  623       SUM=SUM+FMAS(I,J)*YNEW(J)
-  624    AK(I)=AK(I)+SUM
+            SUM=SUM+FMAS(I,J)*YNEW(J)
+  623       CONTINUE
+         AK(I)=AK(I)+SUM
+  624    CONTINUE
       CALL SOLB (N,LDE,E,MLE,MUE,AK,IP)
       END IF
       RETURN
