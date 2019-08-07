@@ -47,7 +47,7 @@ mdspan<T, Rank> MakeMdSpan(SAMRAI::pdat::ArrayData<T>& array) {
     extents[dim] = depth;
   }
   T* pointer = array.getPointer();
-  return MdSpan(pointer, extents);
+  return mdspan<T, Rank>(pointer, extents);
 }
 
 template <int Rank, typename T>
@@ -67,7 +67,7 @@ mdspan<const T, Rank> MakeMdSpan(const SAMRAI::pdat::ArrayData<T>& array) {
     extents[dim] = depth;
   }
   const T* pointer = array.getPointer();
-  return MdSpan(pointer, extents);
+  return mdspan<const T, Rank>(pointer, extents);
 }
 
 template <int Rank> IndexBox<Rank> AsIndexBox(const SAMRAI::hier::Box& box) {
@@ -83,51 +83,36 @@ template <int Rank> IndexBox<Rank> AsIndexBox(const SAMRAI::hier::Box& box) {
 template <int Rank, typename T>
 PatchDataView<T, Rank> MakePatchDataView(SAMRAI::pdat::ArrayData<T>& array) {
   IndexBox<Rank> box = AsIndexBox<Rank>(array.getBox());
-  return PatchDataView<T, Rank>(MakeMdSpan(array), box.lower);
+  return PatchDataView<T, Rank>(MakeMdSpan<Rank, T>(array), box.lower);
 }
 
-template <typename State, typename Equation, std::size_t... Is>
-auto MakeView(std::index_sequence<Is...>,
-              span<SAMRAI::pdat::CellData<double>*> span,
-              const Equation& equation) {
+
+template <typename State>
+BasicView<State> MakeView(span<SAMRAI::pdat::CellData<double>*> span,
+              const typename State::Equation& /* equation */) {
   BasicView<State> view;
-  constexpr auto depths = Depths<std::decay_t<State>>(equation);
-  ((get<Is>(view) =
-        MakePatchDataView<std::decay_t<decltype(get<Is>(view))>::Rank()>(
-            span[Is]->getArrayData())),
-   ...);
+  int i = 0;
+  static constexpr int Rank = State::Equation::Rank();
+  ForEachVariable(overloaded{[&](PatchDataView<double, Rank>& variable) {
+    variable = MakePatchDataView<Rank>(span[i]->getArrayData());
+    ++i;
+  },
+                             [&](PatchDataView<double, Rank + 1>& variable) {
+                               variable = MakePatchDataView<Rank + 1>(span[i]->getArrayData());
+                               ++i;
+                             }}, view);
   return view;
-}
-
-template <typename State, typename Equation>
-auto MakeView(span<SAMRAI::pdat::CellData<double>*> span,
-              const Equation& equation) {
-  return MakeView(std::make_index_sequence<NumVariables<State>::value>(), span,
-                  equation);
 }
 
 int GetDirection(const SAMRAI::hier::IntVector& directions);
 
-template <typename State, typename Equation, std::size_t... Is>
-auto MakeView(std::index_sequence<Is...>,
-              span<SAMRAI::pdat::SideData<double>*> span,
-              const Equation& equation) {
-  BasicView<State> view;
-  constexpr auto depths = Depths<std::decay_t<State>>(equation);
-  const int dir = GetDirection(span[0]->getDirectionVector());
-  ((get<Is>(view) =
-        MakePatchDataView<std::decay_t<decltype(get<Is>(view))>::Rank()>(
-            span[Is]->getArrayData(dir))),
-   ...);
-  return view;
-}
 
-template <typename State, typename Equation>
-auto MakeView(span<SAMRAI::pdat::SideData<double>*> span,
-              const Equation& equation) {
-  return MakeView(std::make_index_sequence<NumVariables<State>::value>(), span,
-                  equation);
-}
+//template <typename State, typename Equation>
+//auto MakeView(span<SAMRAI::pdat::SideData<double>*> span,
+//              const Equation& equation) {
+//  return MakeView(std::make_index_sequence<NumVariables<State>::value>(), span,
+//                  equation);
+//}
 
 } // namespace samrai
 } // namespace fub

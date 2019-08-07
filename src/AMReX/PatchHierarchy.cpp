@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/AMReX/PatchHierarchy.hpp"
+#include "fub/AMReX/PatchHierarchyExample.hpp"
 
 namespace fub {
 namespace amrex {

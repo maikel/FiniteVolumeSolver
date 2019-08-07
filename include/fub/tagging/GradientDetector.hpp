@@ -78,9 +78,9 @@ public:
   ScalarGradientDetector(const Equation& equation,
                          const std::pair<Projections, double>&... conds);
 
-  template <int TagRank>
+  template <typename T, int TagRank>
   void
-  TagCellsForRefinement(const PatchDataView<char, TagRank, layout_stride>& tags,
+  TagCellsForRefinement(const PatchDataView<T, TagRank, layout_stride>& tags,
                         const View<const Complete<Equation>>& states);
 
   template <int TagRank>
@@ -150,9 +150,9 @@ ScalarGradientDetector<Equation, Projections...>::ScalarGradientDetector(
     : Base(equation, conds...) {}
 
 template <typename Equation, typename... Projections>
-template <int TagRank>
+template <typename T, int TagRank>
 void ScalarGradientDetector<Equation, Projections...>::TagCellsForRefinement(
-    const PatchDataView<char, TagRank, layout_stride>& tags,
+    const PatchDataView<T, TagRank, layout_stride>& tags,
     const View<const Complete<Equation>>& states) {
   constexpr std::size_t sTagRank = static_cast<std::size_t>(TagRank);
   const auto tagbox = tags.Box();
@@ -178,7 +178,7 @@ void ScalarGradientDetector<Equation, Projections...>::TagCellsForRefinement(
                 const double right =
                     std::abs(xM - xR) / (std::abs(xM) + std::abs(xR));
                 tags(EmbedInSpace<sTagRank>(mid)) |=
-                    static_cast<char>(left > tolerance || right > tolerance);
+                    static_cast<T>(left > tolerance || right > tolerance);
               }
             });
           }

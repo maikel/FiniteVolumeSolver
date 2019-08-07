@@ -23,7 +23,7 @@
 
 #include "fub/AMReX/coupled/CoupledGriddingAlgorithm.hpp"
 
-#include "fub/AMReX/PatchHierarchy.hpp"
+#include "fub/AMReX/PatchHierarchyExample.hpp"
 #include "fub/AMReX/cutcell/PatchHierarchy.hpp"
 #include "fub/PatchDataView.hpp"
 #include "fub/equations/IdealGasMix.hpp"

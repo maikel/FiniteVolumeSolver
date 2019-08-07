@@ -258,7 +258,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     include/fub/AMReX/boundary_condition/BoundarySet.hpp
     include/fub/AMReX/boundary_condition/TransmissiveBoundary.hpp
     include/fub/AMReX/GriddingAlgorithm.hpp
-    include/fub/AMReX/PatchHierarchy.hpp
+          include/fub/AMReX/PatchHierarchyExample.hpp
     include/fub/AMReX/Reconstruction.hpp
     include/fub/AMReX/RunSimulation.hpp
     include/fub/AMReX/BoundaryCondition.hpp
@@ -356,14 +356,15 @@ endif()
 # [FiniteVolumeSolver.SAMRAI]
 
 if (SAMRAI_FOUND)
+  find_package(HDF5 REQUIRED)
+
   add_library(FiniteVolumeSolver.SAMRAI
-    src/SAMRAI/HyperbolicSplitIntegratorContext.cpp
+    src/SAMRAI/PatchHierarchy.cpp
     src/SAMRAI/ScopeGuard.cpp
-    src/SAMRAI/utility.cpp
-    src/SAMRAI/CartesianPatchHierarchy.cpp
+    src/SAMRAI/RegisterVariables.cpp
     src/SAMRAI/GriddingAlgorithm.cpp
     src/SAMRAI/ViewPatch.cpp
-    src/SAMRAI/RegisterVariables.cpp)
+    src/SAMRAI/tagging/ConstantBox.cpp)
   target_include_directories(FiniteVolumeSolver.SAMRAI 
     PUBLIC 
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

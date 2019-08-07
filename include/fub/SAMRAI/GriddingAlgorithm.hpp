@@ -35,30 +35,31 @@ namespace fub {
 namespace samrai {
 
 struct GriddingAlgorithm {
-  GriddingAlgorithm(const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hier,
-                    DataDescription description, InitialData initial_data,
+  GriddingAlgorithm(PatchHierarchy hier, InitialData initial_data,
                     Tagging tagging, std::vector<int> tag_buffer);
 
-  GriddingAlgorithm(const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hier,
-                    DataDescription description, InitialData initial_data,
-                    Tagging tagging, BoundaryCondition boundary,
-                    std::vector<int> tag_buffer);
+  /*  GriddingAlgorithm(PatchHierarchy hier, InitialData initial_data,
+                      Tagging tagging, BoundaryCondition boundary,
+                      std::vector<int> tag_buffer);*/
 
   void RegridAllFinerLevels(int level_num, int cycle, Duration time_point);
 
   void InitializeHierarchy(Duration initial_time = Duration(),
                            std::ptrdiff_t initial_cycle = 0);
 
-  const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& GetPatchHierarchy() const
-      noexcept;
+  const PatchHierarchy& GetPatchHierarchy() const noexcept;
+  PatchHierarchy& GetPatchHierarchy() noexcept;
 
-  std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy;
-  InitialData initial_data;
-  Tagging tagging;
-  DataDescription id_set;
-  std::vector<int> tag_buffer;
+  const InitialData& GetInitialData() const noexcept;
+  InitialData& GetInitialData() noexcept;
+
+  PatchHierarchy hierarchy_;
+  InitialData initial_data_;
+  Tagging tagging_;
+  DataDescription id_set_;
+  std::vector<int> tag_buffer_;
   std::shared_ptr<SAMRAI::xfer::RefineAlgorithm> refine_data_algorithm_{};
-  std::shared_ptr<SAMRAI::mesh::GriddingAlgorithm> algorithm;
+  std::shared_ptr<SAMRAI::mesh::GriddingAlgorithm> algorithm_;
 };
 
 } // namespace samrai

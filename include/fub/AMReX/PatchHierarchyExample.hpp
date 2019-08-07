@@ -237,7 +237,7 @@ void WriteCheckpointFile(const std::string checkpointname,
                          const fub::amrex::PatchHierarchy& hier);
 
 template <typename Equation>
-PatchHierarchy::PatchHierarchy(const Equation& equation,
+PatchHierarchy:: PatchHierarchy(const Equation& equation,
                                const CartesianGridGeometry& geometry,
                                const PatchHierarchyOptions& options)
     : PatchHierarchy(MakeDataDescription(equation), geometry, options) {}

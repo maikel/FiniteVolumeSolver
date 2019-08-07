@@ -59,7 +59,7 @@ template <typename Base> struct HyperbolicSplitPatchIntegrator : public Base {
         AsIndexBox<Rank>(patch.iterator->grownnodaltilebox(d, unit));
 
     View<Conservative> scratch = AsCons(Subview(
-        MakeView<BasicView<Complete>>(context.GetScratch(patch, dir), equation),
+        <BasicView<Complete>>(context.GetScratch(patch, dir), equation),
         tilebox_cells));
 
     View<const Conservative> regular_fluxes =

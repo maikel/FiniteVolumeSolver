@@ -28,7 +28,7 @@
 #include "fub/ext/outcome.hpp"
 
 #include "fub/AMReX/GriddingAlgorithm.hpp"
-#include "fub/AMReX/PatchHierarchy.hpp"
+#include "fub/AMReX/PatchHierarchyExample.hpp"
 
 #include <AMReX_FluxRegister.H>
 #include <AMReX_MultiFab.H>
