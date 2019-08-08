@@ -43,7 +43,7 @@ void MultiBlockKineticSouceTerm::ResetHierarchyConfiguration(
 }
 
 Duration MultiBlockKineticSouceTerm::ComputeStableDt() {
-  return std::reduce(source_terms_.begin(), source_terms_.end(),
+  return std::accumulate(source_terms_.begin(), source_terms_.end(),
                      Duration(std::numeric_limits<double>::infinity()),
                      [](Duration dt, ideal_gas::KineticSourceTerm<1>& source) {
                        return std::min(dt, source.ComputeStableDt());

@@ -55,6 +55,9 @@ private:
   Local<Tag, Base> flux_method_;
 };
 
+template <typename Tag, typename FM> FluxMethod(Tag, FM&&) -> FluxMethod<Tag, std::decay_t<FM>>;
+template <typename Tag, typename FM> FluxMethod(Tag, const FM&) -> FluxMethod<Tag, FM>;
+
 template <typename Tag, typename FM>
 FluxMethod<Tag, FM>::FluxMethod(Tag, FM&& flux_method)
     : flux_method_(std::move(flux_method)) {}

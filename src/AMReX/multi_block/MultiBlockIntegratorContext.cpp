@@ -195,20 +195,21 @@ void MultiBlockIntegratorContext::PreAdvanceLevel(int level_num, Direction dir,
 Result<void, TimeStepTooLarge>
 MultiBlockIntegratorContext::PostAdvanceLevel(int level_num, Direction dir,
                                               Duration dt, int subcycle) {
-  Result<void, TimeStepTooLarge> result = boost::outcome_v2::success();
   if (dir == LastDirection()) {
     for (IntegratorContext& tube : tubes_) {
-      if (result) {
-        result = tube.PostAdvanceLevel(level_num, dir, dt, subcycle);
+        Result<void, TimeStepTooLarge> result = tube.PostAdvanceLevel(level_num, dir, dt, subcycle);
+	if (!result) {
+		return result;
+	}
       }
     }
-  }
   for (cutcell::IntegratorContext& plenum : plena_) {
-    if (result) {
-      result = plenum.PostAdvanceLevel(level_num, dir, dt, subcycle);
-    }
+      Result<void, TimeStepTooLarge> result = plenum.PostAdvanceLevel(level_num, dir, dt, subcycle);
+	if (!result) {
+	   return result;
+        }
   }
-  return result;
+  return boost::outcome_v2::success();
 }
 
 /// \brief Fills the ghost layer of the scratch data and interpolates in the
@@ -284,13 +285,13 @@ Duration MultiBlockIntegratorContext::ComputeStableDt(int level,
   Duration stable_dt{std::numeric_limits<double>::infinity()};
   if (dir == Direction::X) {
     stable_dt =
-        std::reduce(tubes_.begin(), tubes_.end(), stable_dt,
+        std::accumulate(tubes_.begin(), tubes_.end(), stable_dt,
                     [=](Duration dt, IntegratorContext& ctx) {
                       return std::min(dt, ctx.ComputeStableDt(level, dir));
                     });
   }
   stable_dt =
-      std::reduce(plena_.begin(), plena_.end(), stable_dt,
+      std::accumulate(plena_.begin(), plena_.end(), stable_dt,
                   [=](Duration dt, cutcell::IntegratorContext& ctx) {
                     return std::min(dt, ctx.ComputeStableDt(level, dir));
                   });
