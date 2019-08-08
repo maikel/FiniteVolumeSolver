@@ -60,11 +60,17 @@ KineticSourceTerm<Rank>::AdvanceHierarchy(Duration dt) {
           FlameMasterReactor& reactor = equation_->GetReactor();
           ForEachIndex(Box<0>(states), [&](auto... is) {
             std::array<std::ptrdiff_t, sRank> index{is...};
-            Load(*this->state_, states, index);
-            equation_->SetReactorStateFromComplete(*this->state_);
+            Load(*state_, states, index);
+            //equation_->SetReactorStateFromComplete(*state_);
+            reactor.SetMassFractions(state_->species);
+            reactor.SetTemperature(state_->temperature);
+            reactor.SetDensity(state_->density);
+            const double internal_energy = (state_->energy - KineticEnergy(state_->density, state_->momentum)) / state_->density;
+            reactor.SetInternalEnergy(internal_energy);
             reactor.Advance(dt.count());
-            equation_->CompleteFromReactor(*this->state_);
-            Store(states, *this->state_, index);
+            Eigen::Matrix<double, Rank, 1> velocity = state_->momentum / state_->density;
+            equation_->CompleteFromReactor(*state_, velocity);
+            Store(states, *state_, index);
           });
         });
   }

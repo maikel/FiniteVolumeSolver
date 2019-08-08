@@ -45,10 +45,13 @@ int main(int argc, char** argv) {
   const std::array<double, Rank> xlower{-1.0, -1.0};
   const std::array<double, Rank> xupper{+1.0, +1.0};
   amrex::RealBox xbox(xlower, xupper);
-  const std::array<int, Rank> periodicity{};
+
+  fub::amrex::CartesianGridGeometry geometry;
+  geometry.cell_dimensions = n_cells;
+  geometry.coordinates = xbox;
 
   amrex::Geometry coarse_geom(amrex::Box{{}, {n_cells[0] - 1, n_cells[1] - 1}},
-                              &xbox, -1, periodicity.data());
+                              &xbox, -1, geometry.periodicity.data());
 
   const int n_level = 1;
 
@@ -58,15 +61,11 @@ int main(int argc, char** argv) {
 
   fub::PerfectGas<2> equation;
 
-  fub::amrex::CartesianGridGeometry geometry;
-  geometry.cell_dimensions = n_cells;
-  geometry.coordinates = amrex::RealBox(xlower, xupper);
-  geometry.periodicity = periodicity;
+  using namespace fub::amrex::cutcell;
 
-  fub::amrex::cutcell::PatchHierarchyOptions options{};
+  PatchHierarchyOptions options{};
   options.max_number_of_levels = n_level;
-  options.index_spaces =
-      fub::amrex::cutcell::MakeIndexSpaces(shop, coarse_geom, n_level);
+  options.index_spaces = MakeIndexSpaces(shop, coarse_geom, n_level);
 
   fub::Conservative<fub::PerfectGas<2>> cons;
   cons.density = 1.0;
@@ -79,50 +78,50 @@ int main(int argc, char** argv) {
   fub::Complete<fub::PerfectGas<2>> left;
   fub::CompleteFromCons(equation, left, cons);
 
-  fub::amrex::cutcell::RiemannProblem initial_data(
-      equation, fub::Halfspace({+1.0, +1.0, 0.0}, 0.2), left, right);
+  RiemannProblem initial_data(equation, fub::Halfspace({+1.0, +1.0, 0.0}, 0.2),
+                              left, right);
 
   using State = fub::Complete<fub::PerfectGas<2>>;
-  fub::amrex::cutcell::GradientDetector gradients{
-      equation, std::pair{&State::pressure, 0.05},
-      std::pair{&State::density, 0.005}};
+  GradientDetector gradients{equation, std::pair{&State::pressure, 0.05},
+                             std::pair{&State::density, 0.005}};
+
+  BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
+                                  TransmissiveBoundary{fub::Direction::X, 1},
+                                  TransmissiveBoundary{fub::Direction::Y, 0},
+                                  TransmissiveBoundary{fub::Direction::Y, 1}}};
+
+  std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
+      PatchHierarchy(equation, geometry, options), initial_data,
+      TagAllOf(TagCutCells(), gradients, TagBuffer(4)), boundary_condition);
+  gridding->InitializeHierarchy(0.0);
 
   fub::MusclHancockMethod flux_method(equation);
   fub::KbnCutCellMethod cutcell_method(std::move(flux_method));
 
-  auto gridding = std::make_shared<fub::amrex::cutcell::GriddingAlgorithm>(
-      fub::amrex::cutcell::PatchHierarchy(equation, geometry, options),
-      initial_data,
-      fub::amrex::cutcell::TagAllOf(fub::TagCutCells(), gradients,
-                                    fub::TagBuffer(4)),
-      fub::amrex::cutcell::TransmissiveBoundary{});
-  gridding->InitializeHierarchy(0.0);
+  HyperbolicMethod method{FluxMethod{fub::execution::seq, cutcell_method},
+                          TimeIntegrator{},
+                          Reconstruction{fub::execution::seq, equation}};
 
-  const int gcw = cutcell_method.GetStencilWidth();
   fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
-      fub::amrex::cutcell::HyperbolicSplitIntegratorContext(std::move(gridding),
-                                                            gcw),
-      fub::amrex::cutcell::HyperbolicSplitPatchIntegrator(patch_integrator),
-      fub::amrex::cutcell::FluxMethod(cutcell_method),
-      fub::amrex::cutcell::Reconstruction(equation)));
+      equation, fub::amrex::cutcell::IntegratorContext(gridding, method)));
 
   std::string base_name = "Tube/";
-  auto output = [&](const fub::amrex::cutcell::PatchHierarchy& hierarchy,
+  auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,
                     std::ptrdiff_t cycle, fub::Duration) {
     std::string name = fmt::format("{}{:05}", base_name, cycle);
     ::amrex::Print() << "Start output to '" << name << "'.\n";
-    fub::amrex::cutcell::WritePlotFile(name, hierarchy, equation);
+    fub::amrex::cutcell::WritePlotFile(name, gridding->GetPatchHierarchy(),
+                                       equation);
     ::amrex::Print() << "Finished output to '" << name << "'.\n";
   };
-  auto print_msg = [](const std::string& msg) { ::amrex::Print() << msg; };
 
   using namespace std::literals::chrono_literals;
-  output(solver.GetPatchHierarchy(), solver.GetCycles(), solver.GetTimePoint());
+  output(solver.GetGriddingAlgorithm(), solver.GetCycles(), solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.final_time = 1e4s;
   //   run_options.output_interval = 1e-5s;
   run_options.output_frequency = 1;
   run_options.cfl = 0.5 * 0.9;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
-                     print_msg);
+                     fub::amrex::print);
 }

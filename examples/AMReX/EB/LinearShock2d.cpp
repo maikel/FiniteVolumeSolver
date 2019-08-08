@@ -116,20 +116,20 @@ int main(int argc, char** argv) {
                           Reconstruction{fub::execution::seq, equation}};
 
   fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
-      equation, fub::amrex::cutcell::IntegratorContext(gridding, method)));
+      equation, IntegratorContext(gridding, method)));
 
   std::string base_name = "LinearShock2d";
 
-  auto output = [&](const PatchHierarchy& hierarchy, std::ptrdiff_t cycle,
+  auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding, std::ptrdiff_t cycle,
                     fub::Duration) {
     std::string name = fmt::format("{}/Plot-{:04}", base_name, cycle);
     ::amrex::Print() << "Start output to '" << name << "'.\n";
-    WritePlotFile(name, hierarchy, equation);
+    WritePlotFile(name, gridding->GetPatchHierarchy(), equation);
     ::amrex::Print() << "Finished output to '" << name << "'.\n";
   };
 
   using namespace std::literals::chrono_literals;
-  output(solver.GetPatchHierarchy(), solver.GetCycles(), solver.GetTimePoint());
+  output(solver.GetGriddingAlgorithm(), solver.GetCycles(), solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.final_time = 0.002s;
   run_options.output_interval = 0.0000125s;

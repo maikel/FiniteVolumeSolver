@@ -168,12 +168,16 @@ public:
   Result<void, TimeStepTooLarge> PostAdvanceLevel(int level_num, Direction dir,
                                                   Duration dt, int subcycle);
 
+
+
   /// \brief Fills the ghost layer of the scratch data and interpolates in the
   /// coarse fine layer.
+  void FillGhostLayerTwoLevels(int level, BoundaryCondition& fbc, int coarse, BoundaryCondition& cbc, Direction direction);
   void FillGhostLayerTwoLevels(int level, int coarse, Direction direction);
 
   /// \brief Fills the ghost layer of the scratch data and does nothing in the
   /// coarse fine layer.
+  void FillGhostLayerSingleLevel(int level, BoundaryCondition& bc, Direction direction);
   void FillGhostLayerSingleLevel(int level, Direction direction);
 
   /// \brief Returns a estimate for a stable time step size which can be taken

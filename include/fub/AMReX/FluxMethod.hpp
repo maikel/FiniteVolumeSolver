@@ -128,7 +128,9 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
     View<Conservative<Equation>> flux =
         MakeView<Conservative<Equation>>(fdata, equation, faces);
     // Pass views to implementation
+    FUB_ASSERT(!scratch[mfi].contains_nan());
     flux_method_->ComputeNumericFluxes(Tag(), flux, states, dt, dx, dir);
+    FUB_ASSERT(!fluxes[mfi].contains_nan());
   });
 }
 

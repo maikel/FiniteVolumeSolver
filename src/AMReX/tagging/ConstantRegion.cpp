@@ -18,33 +18,34 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_AMREX_HPP
-#define FUB_AMREX_HPP
-
-#include <AMReX.H>
-#include <AMReX_IntVect.H>
-
-#include "fub/AMReX/GriddingAlgorithm.hpp"
-#include "fub/AMReX/IntegratorContext.hpp"
-
-#include "fub/AMReX/ScopeGuard.hpp"
-
-#include "fub/AMReX/tagging/GradientDetector.hpp"
+#include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/tagging/ConstantRegion.hpp"
 
-#include "fub/AMReX/boundary_condition/BoundarySet.hpp"
-#include "fub/AMReX/boundary_condition/TransmissiveBoundary.hpp"
-#include "fub/AMReX/boundary_condition/ReflectiveBoundary.hpp"
-#include "fub/AMReX/boundary_condition/IsentropicBoundary.hpp"
+namespace fub::amrex {
 
-#include "fub/AMReX/ForEachFab.hpp"
-#include "fub/AMReX/ForEachIndex.hpp"
-#include "fub/AMReX/Print.hpp"
+ConstantBox::ConstantBox(const ::amrex::Box& coarse_box)
+    : coarse_region_{coarse_box} {}
 
-#include "fub/AMReX/FluxMethod.hpp"
-#include "fub/AMReX/Reconstruction.hpp"
-#include "fub/AMReX/TimeIntegrator.hpp"
+namespace {
+::amrex::Box RefineToLevel(const ::amrex::Box& box, int level,
+                           const GriddingAlgorithm& gridding) {
+  ::amrex::Box result = box;
+  for (int i = 1; i <= level; ++i) {
+    result.refine(gridding.GetPatchHierarchy().GetRatioToCoarserLevel(level));
+  }
+  return result;
+}
+} // namespace
 
-#include "fub/equations/ideal_gas_mix/KineticSourceTerm.hpp"
+void ConstantBox::TagCellsForRefinement(::amrex::TagBoxArray& tags, Duration,
+                                        int level,
+                                        GriddingAlgorithm& gridding) const
+    noexcept {
+  const ::amrex::Box region = RefineToLevel(coarse_region_, level, gridding);
+  ForEachFab(tags, [&](const ::amrex::MFIter& mfi) {
+    const ::amrex::Box where = region & mfi.tilebox();
+    tags[mfi].setVal('\1', where);
+  });
+}
 
-#endif
+} // namespace fub::amrex

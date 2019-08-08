@@ -52,6 +52,10 @@ public:
 
   // Accessors
 
+  auto& GetContext() noexcept;
+
+  const auto& GetContext() const noexcept;
+
   /// \brief Returns the shared gridding algorithm of both subsolvers.
   const std::shared_ptr<GriddingAlgorithm>& GetGriddingAlgorithm() const
       noexcept {
@@ -145,7 +149,7 @@ template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
 const auto&
 SplitSystemSourceSolver<SystemSolver, SourceTerm,
                         SplittingMethod>::GetPatchHierarchy() const {
-  return system_solver_.GetPatchHierarchy();
+  return system_solver_.GetGriddingAlgorithm().GetPatchHierarchy();
 }
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
@@ -180,6 +184,18 @@ SplitSystemSourceSolver<SystemSolver, SourceTerm,
     return source_term_.AdvanceHierarchy(dt);
   };
   return splitting_.Advance(dt, source_term, system_solver);
+}
+
+template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
+  auto& SplitSystemSourceSolver<SystemSolver, SourceTerm,
+  SplittingMethod>::GetContext() noexcept {
+  return system_solver_.GetContext();
+}
+
+template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
+  const auto& SplitSystemSourceSolver<SystemSolver, SourceTerm,
+  SplittingMethod>::GetContext() const noexcept {
+  return system_solver_.GetContext();
 }
 
 } // namespace fub

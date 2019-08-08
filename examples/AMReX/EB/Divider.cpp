@@ -24,8 +24,8 @@
 
 #include <boost/filesystem.hpp>
 
-#include <AMReX_EB2_IF_Cylinder.H>
 #include <AMReX_EB2_IF_Complement.H>
+#include <AMReX_EB2_IF_Cylinder.H>
 #include <AMReX_EB2_IF_Union.H>
 
 #include <cmath>
@@ -127,22 +127,20 @@ int main(int argc, char** argv) {
       equation, IntegratorContext(gridding, method)));
   std::string base_name = "Divider/";
 
-  auto output = [&](const PatchHierarchy& hierarchy, std::ptrdiff_t cycle,
+  auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding, std::ptrdiff_t cycle,
                     fub::Duration) {
     std::string name = fmt::format("{}{:05}", base_name, cycle);
     ::amrex::Print() << "Start output to '" << name << "'.\n";
-    WritePlotFile(name, hierarchy, equation);
+    WritePlotFile(name, gridding->GetPatchHierarchy(), equation);
     ::amrex::Print() << "Finished output to '" << name << "'.\n";
   };
 
-  auto print_msg = [&](const std::string& msg) { ::amrex::Print() << msg; };
-
   using namespace std::literals::chrono_literals;
-  output(solver.GetPatchHierarchy(), solver.GetCycles(), solver.GetTimePoint());
+  output(solver.GetGriddingAlgorithm(), solver.GetCycles(), solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.final_time = 0.0005s;
   run_options.output_interval = 0.5 * 0.0000125s;
   run_options.cfl = 0.5 * 0.9;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
-                     print_msg);
+                     fub::amrex::print);
 }

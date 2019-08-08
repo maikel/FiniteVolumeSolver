@@ -18,33 +18,24 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_AMREX_HPP
-#define FUB_AMREX_HPP
+#ifndef FUB_AMREX_CUTCELL_TAGGING_CONSTANT_REGION_HPP
+#define FUB_AMREX_CUTCELL_TAGGING_CONSTANT_REGION_HPP
 
-#include <AMReX.H>
-#include <AMReX_IntVect.H>
+#include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
 
-#include "fub/AMReX/GriddingAlgorithm.hpp"
-#include "fub/AMReX/IntegratorContext.hpp"
+namespace fub::amrex::cutcell {
 
-#include "fub/AMReX/ScopeGuard.hpp"
+class ConstantBox {
+public:
+  explicit ConstantBox(const ::amrex::Box& coarse_region);
 
-#include "fub/AMReX/tagging/GradientDetector.hpp"
-#include "fub/AMReX/tagging/ConstantRegion.hpp"
+  void TagCellsForRefinement(::amrex::TagBoxArray& tags, Duration t, int level,
+                             GriddingAlgorithm& gridding) const noexcept;
 
-#include "fub/AMReX/boundary_condition/BoundarySet.hpp"
-#include "fub/AMReX/boundary_condition/TransmissiveBoundary.hpp"
-#include "fub/AMReX/boundary_condition/ReflectiveBoundary.hpp"
-#include "fub/AMReX/boundary_condition/IsentropicBoundary.hpp"
+private:
+  ::amrex::Box coarse_region_;
+};
 
-#include "fub/AMReX/ForEachFab.hpp"
-#include "fub/AMReX/ForEachIndex.hpp"
-#include "fub/AMReX/Print.hpp"
-
-#include "fub/AMReX/FluxMethod.hpp"
-#include "fub/AMReX/Reconstruction.hpp"
-#include "fub/AMReX/TimeIntegrator.hpp"
-
-#include "fub/equations/ideal_gas_mix/KineticSourceTerm.hpp"
+} // namespace fub::amrex
 
 #endif

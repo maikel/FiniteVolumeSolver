@@ -18,41 +18,50 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_AMREX_COUPLED_INTEGRATOR_CONTEXT_HPP
-#define FUB_AMREX_COUPLED_INTEGRATOR_CONTEXT_HPP
+#ifndef FUB_AMREX_MultiBlock_INTEGRATOR_CONTEXT_HPP
+#define FUB_AMREX_MultiBlock_INTEGRATOR_CONTEXT_HPP
 
-#include "fub/AMReX/HyperbolicSplitIntegratorContext.hpp"
-#include "fub/AMReX/cutcell/HyperbolicSplitIntegratorContext.hpp"
+#include "fub/AMReX/IntegratorContext.hpp"
+#include "fub/AMReX/cutcell/IntegratorContext.hpp"
 
+#include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp"
+
+#include <memory>
 #include <vector>
 
 namespace fub::amrex {
 
-class CoupledIntegratorContext;
-using HyperbolicMethod = ::fub::HyperbolicMethod<CoupledIntegratorContext>;
-
-class CoupledIntegratorContext {
-private:
-  std::vector<HyperbolicSplitIntegratorContext> tubes_;
-  std::vector<cutcell::HyperbolicSplitIntegratorContext> plena_;
-  std::shared_ptr<CoupledGriddingAlgorithm> gridding_;
-  HyperbolicMethod method_;
-
+class MultiBlockIntegratorContext {
 public:
-  CoupledIntegratorContext(std::shared_ptr<CoupledGriddingAlgorithm> gridding,
-                    HyperbolicMethod method) = default;
+  MultiBlockIntegratorContext(FlameMasterReactor reactor,
+                              std::vector<IntegratorContext> tubes,
+                              std::vector<cutcell::IntegratorContext> plena,
+                              std::vector<BlockConnection> connectivity);
 
-  span<HyperbolicSplitIntegratorContext> Tubes() noexcept;
-  span<const HyperbolicSplitIntegratorContext> Tubes() const noexcept;
+  /// @{
+  /// \name Member Accessors
+  span<IntegratorContext> Tubes() noexcept;
+  span<const IntegratorContext> Tubes() const noexcept;
 
-  span<cutcell::HyperbolicSplitIntegratorContext> Plena() noexcept;
-  span<const cutcell::HyperbolicSplitIntegratorContext> Plena() const noexcept;
+  span<cutcell::IntegratorContext> Plena() noexcept;
+  span<const cutcell::IntegratorContext> Plena() const noexcept;
 
-  const std::shared_ptr<CoupledGriddingAlgorithm>& GetGriddingAlgorithm() const noexcept;
+  const std::shared_ptr<MultiBlockGriddingAlgorithm>&
+  GetGriddingAlgorithm() const noexcept;
+
+  /// \brief Returns the current time level for data at the specified refinement
+  /// level and direction.
+  Duration GetTimePoint(int level, Direction dir) const;
+
+  /// \brief Returns the current number of cycles for data at the specified
+  /// refinement level and direction.
+  std::ptrdiff_t GetCycles(int level, Direction dir) const;
+  /// @}
 
   /// \brief Returns the current boundary condition for the specified level.
-  CoupledBoundaryCondition& GetBoundaryCondition(int level);
+  MultiBlockBoundary& GetBoundaryCondition(int level);
 
+  MPI_Comm GetMpiCommunicator() const noexcept;
   /// @{
   /// \name Observers
 
@@ -70,7 +79,8 @@ public:
   /// \name Modifiers
 
   /// \brief Replaces the underlying gridding algorithm with the specified one.
-  void ResetHierarchyConfiguration(std::shared_ptr<CoupledGriddingAlgorithm> gridding);
+  void ResetHierarchyConfiguration(
+      std::shared_ptr<MultiBlockGriddingAlgorithm> gridding);
 
   /// \brief Whenever the gridding algorithm changes the data hierarchy this
   /// function will regrid all distributed helper variables managed by the
@@ -89,6 +99,10 @@ public:
 
   /// @{
   /// \name Member functions relevant for the level integrator algorithm.
+
+  void PreAdvanceHierarchy();
+
+  void PostAdvanceHierarchy();
 
   /// \brief On each first subcycle this will regrid the data if neccessary.
   void PreAdvanceLevel(int level_num, Direction dir, Duration dt, int subcycle);
@@ -136,6 +150,13 @@ public:
   /// number.
   void CoarsenConservatively(int fine, int coarse, Direction dir);
   ///@}
+
+private:
+  std::vector<IntegratorContext> tubes_;
+  std::vector<cutcell::IntegratorContext> plena_;
+  std::shared_ptr<MultiBlockGriddingAlgorithm> gridding_;
 };
 
 } // namespace fub::amrex
+
+#endif

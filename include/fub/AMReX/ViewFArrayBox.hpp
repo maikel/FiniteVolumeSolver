@@ -210,24 +210,24 @@ auto MakeView(const PatchDataView<T, AMREX_SPACEDIM + 1>& fab,
 
 template <typename State, typename Equation>
 auto MakeView(::amrex::FArrayBox& fab, const Equation& equation) {
-  return MakeView<State>(MakePatchDataView(fab), equation);
+  return MakeView<BasicView<State>>(MakePatchDataView(fab), equation);
 }
 
 template <typename State, typename Equation>
 auto MakeView(const ::amrex::FArrayBox& fab, const Equation& equation) {
-  return MakeView<State>(MakePatchDataView(fab), equation);
+  return MakeView<BasicView<State>>(MakePatchDataView(fab), equation);
 }
 
 template <typename State, typename Equation>
 auto MakeView(::amrex::FArrayBox& fab, const Equation& eq,
               const IndexBox<Equation::Rank()>& box) {
-  return Subview(MakeView<BasicView<State>>(fab, eq), box);
+  return Subview(MakeView<State>(fab, eq), box);
 }
 
 template <typename State, typename Equation>
 auto MakeView(const ::amrex::FArrayBox& fab, const Equation& eq,
               const IndexBox<Equation::Rank()>& box) {
-  return Subview(MakeView<BasicView<State>>(fab, eq), box);
+  return Subview(MakeView<State>(fab, eq), box);
 }
 
 template <typename State, typename FAB, typename Equation>

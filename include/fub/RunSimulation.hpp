@@ -112,7 +112,7 @@ Solver RunSimulation(Solver& solver, RunOptions options,
     } while (time_point + eps < next_output_time &&
              (options.output_frequency <= 0 || failure_dt ||
               (solver.GetCycles() % options.output_frequency) != 0));
-    output(solver.GetPatchHierarchy(), solver.GetCycles(),
+    output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
            solver.GetTimePoint());
     next_output_time += options.output_interval;
   }

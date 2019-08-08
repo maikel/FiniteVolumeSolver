@@ -128,22 +128,21 @@ int main(int argc, char** argv) {
 
   std::string base_name = "PerfectGas1d/";
 
-  auto output = [&](const fub::amrex::PatchHierarchy& hierarchy,
+  using namespace fub::amrex;
+  auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,
                     std::ptrdiff_t cycle, fub::Duration) {
     std::string name = fmt::format("{}{:05}", base_name, cycle);
-    ::amrex::Print() << "Start output to '" << name << "'.\n";
-    fub::amrex::WritePlotFile(name, hierarchy, equation);
-    ::amrex::Print() << "Finished output to '" << name << "'.\n";
+    amrex::Print() << "Start output to '" << name << "'.\n";
+    WritePlotFile(name, gridding->GetPatchHierarchy(), equation);
+    amrex::Print() << "Finished output to '" << name << "'.\n";
   };
 
-  auto print_msg = [](const std::string& msg) { ::amrex::Print() << msg; };
-
   using namespace std::literals::chrono_literals;
-  output(solver.GetPatchHierarchy(), 0, 0.0s);
+  output(solver.GetGriddingAlgorithm(), solver.GetCycles(), solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.cfl = 0.8;
   run_options.final_time = 2.0s;
   run_options.output_interval = 0.1s;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
-                     print_msg);
+                     fub::amrex::print);
 }

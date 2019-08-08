@@ -236,39 +236,45 @@ void IntegratorContext::SetCycles(std::ptrdiff_t cycles, int level,
   data_[l].cycles[d] = cycles;
 }
 
+  void IntegratorContext::FillGhostLayerTwoLevels(int fine, BoundaryCondition& fine_condition, int coarse, BoundaryCondition& coarse_condition,
+                                                  Direction dir) {
+    FUB_ASSERT(coarse >= 0 && fine > coarse);
+    ::amrex::MultiFab& scratch = GetScratch(fine, dir);
+    ::amrex::Vector<::amrex::BCRec> bcr(
+                                        static_cast<std::size_t>(scratch.nComp()));
+    const int nc = scratch.nComp();
+    const ::amrex::Vector<::amrex::MultiFab*> cmf{&GetData(coarse)};
+    const ::amrex::Vector<::amrex::MultiFab*> fmf{&GetData(fine)};
+    const ::amrex::Vector<double> ct{GetTimePoint(coarse, dir).count()};
+    const ::amrex::Vector<double> ft{GetTimePoint(fine, dir).count()};
+    const ::amrex::Geometry& cgeom = GetGeometry(coarse);
+    const ::amrex::Geometry& fgeom = GetGeometry(fine);
+    const ::amrex::IntVect ratio = 2 * ::amrex::IntVect::TheUnitVector();
+    ::amrex::Interpolater* mapper = &::amrex::pc_interp;
+    ::amrex::FillPatchTwoLevels(scratch, ft[0], cmf, ct, fmf, ft, 0, 0, nc, cgeom,
+                                fgeom, coarse_condition, 0, fine_condition, 0,
+                                ratio, mapper, bcr, 0);
+  }
+
 void IntegratorContext::FillGhostLayerTwoLevels(int fine, int coarse,
                                                 Direction dir) {
-  FUB_ASSERT(coarse >= 0 && fine > coarse);
-  ::amrex::MultiFab& scratch = GetScratch(fine, dir);
-  ::amrex::Vector<::amrex::BCRec> bcr(
-      static_cast<std::size_t>(scratch.nComp()));
-  const int nc = scratch.nComp();
-  const ::amrex::Vector<::amrex::MultiFab*> cmf{&GetData(coarse)};
-  const ::amrex::Vector<::amrex::MultiFab*> fmf{&GetData(fine)};
-  const ::amrex::Vector<double> ct{GetTimePoint(coarse, dir).count()};
-  const ::amrex::Vector<double> ft{GetTimePoint(fine, dir).count()};
-  const ::amrex::Geometry& cgeom = GetGeometry(coarse);
-  const ::amrex::Geometry& fgeom = GetGeometry(fine);
-  const ::amrex::IntVect ratio = 2 * ::amrex::IntVect::TheUnitVector();
-  ::amrex::Interpolater* mapper = &::amrex::pc_interp;
-  BoundaryCondition& fine_condition = GetBoundaryCondition(fine);
-  BoundaryCondition& coarse_condition = GetBoundaryCondition(coarse);
-  ::amrex::FillPatchTwoLevels(scratch, ft[0], cmf, ct, fmf, ft, 0, 0, nc, cgeom,
-                              fgeom, coarse_condition, 0, fine_condition, 0,
-                              ratio, mapper, bcr, 0);
+  return FillGhostLayerTwoLevels(fine, GetBoundaryCondition(fine), coarse, GetBoundaryCondition(coarse), dir);
 }
 
+  void IntegratorContext::FillGhostLayerSingleLevel(int level, BoundaryCondition& bc, Direction dir) {
+    ::amrex::MultiFab& scratch = GetScratch(level, dir);
+    ::amrex::Vector<::amrex::BCRec> bcr(
+                                        static_cast<std::size_t>(scratch.nComp()));
+    const int nc = scratch.nComp();
+    const ::amrex::Vector<::amrex::MultiFab*> smf{&GetData(level)};
+    const ::amrex::Vector<double> stime{GetTimePoint(level, dir).count()};
+    const ::amrex::Geometry& geom = GetGeometry(level);
+    ::amrex::FillPatchSingleLevel(scratch, stime[0], smf, stime, 0, 0, nc, geom,
+                                  bc, 0);
+  }
+
 void IntegratorContext::FillGhostLayerSingleLevel(int level, Direction dir) {
-  ::amrex::MultiFab& scratch = GetScratch(level, dir);
-  ::amrex::Vector<::amrex::BCRec> bcr(
-      static_cast<std::size_t>(scratch.nComp()));
-  const int nc = scratch.nComp();
-  const ::amrex::Vector<::amrex::MultiFab*> smf{&GetData(level)};
-  const ::amrex::Vector<double> stime{GetTimePoint(level, dir).count()};
-  const ::amrex::Geometry& geom = GetGeometry(level);
-  BoundaryCondition& condition = GetBoundaryCondition(level);
-  ::amrex::FillPatchSingleLevel(scratch, stime[0], smf, stime, 0, 0, nc, geom,
-                                condition, 0);
+  FillGhostLayerSingleLevel(level, GetBoundaryCondition(level), dir);
 }
 
 void IntegratorContext::CoarsenConservatively(int fine_level, int coarse_level,

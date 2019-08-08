@@ -33,14 +33,14 @@ struct ShockData {
 
   void InitializeData(amrex::MultiFab& data, const amrex::Geometry& geom) {
     fub::amrex::ForEachFab(
-        fub::execution::openmp, data, [&](amrex::MFIter& mfi) {
+        fub::execution::openmp, data, [&](const amrex::MFIter& mfi) {
           fub::View<Complete> state = fub::amrex::MakeView<Complete>(
               data[mfi], equation_, mfi.tilebox());
           fub::ForEachIndex(
               fub::amrex::AsIndexBox<2>(mfi.tilebox()),
               [this, &state, &geom](std::ptrdiff_t i, std::ptrdiff_t j) {
                 double x[AMREX_SPACEDIM];
-                geom.CellCenter({int(i), int(j)}, x);
+                geom.CellCenter({AMREX_D_DECL(int(i), int(j), 0)}, x);
                 if (x[0] < -0.04) {
                   Store(state, left_, {i, j});
                 } else {
@@ -120,16 +120,17 @@ int main(int argc, char** argv) {
 
   std::string base_name = "PerfectGas2d/";
 
-  auto output = [&](const fub::amrex::PatchHierarchy& hierarchy,
+  using namespace fub::amrex;
+  auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,
                     std::ptrdiff_t cycle, fub::Duration) {
     std::string name = fmt::format("{}{:05}", base_name, cycle);
-    ::amrex::Print() << "Start output to '" << name << "'.\n";
-    fub::amrex::WritePlotFile(name, hierarchy, equation);
-    ::amrex::Print() << "Finished output to '" << name << "'.\n";
+    amrex::Print() << "Start output to '" << name << "'.\n";
+    WritePlotFile(name, gridding->GetPatchHierarchy(), equation);
+    amrex::Print() << "Finished output to '" << name << "'.\n";
   };
 
   using namespace std::literals::chrono_literals;
-  output(solver.GetPatchHierarchy(), 0, 0.0s);
+  output(solver.GetGriddingAlgorithm(), solver.GetCycles(), solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.final_time = 0.002s;
   run_options.output_interval = 0.000125s;

@@ -44,7 +44,7 @@ struct ConservativeArray : ConservativeArrayBase<Eq, Width> {
   using Traits = StateTraits<ConservativeArrayBase<Eq, Width>>;
 
   ConservativeArray() = default;
-  ConservativeArray(const Equation&) {}
+  ConservativeArray(const Equation& eq) { InitializeState(eq, *this); }
 };
 
 template <typename Eq, int Width>
@@ -67,8 +67,14 @@ struct CompleteArray : CompleteArrayBase<Eq, Width> {
   using Traits = StateTraits<CompleteArrayBase<Eq, Width>>;
 
   CompleteArray() = default;
-  CompleteArray(const Equation&) {}
+  CompleteArray(const Equation& eq) { InitializeState(eq, *this); }
 };
+
+template <typename Equation>
+void InitializeState(const Equation&, CompleteArray<Equation>&) {}
+
+template <typename Equation>
+void InitializeState(const Equation&, ConservativeArray<Equation>&) {}
 
 template <typename Eq, int Width>
 struct StateTraits<CompleteArray<Eq, Width>>

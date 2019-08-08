@@ -335,34 +335,38 @@ void IntegratorContext::FillGhostLayerTwoLevels(int fine, int coarse,
   ::amrex::Interpolater* mapper = &::amrex::pc_interp;
   BoundaryCondition& fine_condition = GetBoundaryCondition(fine);
   BoundaryCondition& coarse_condition = GetBoundaryCondition(coarse);
-  ::amrex::FillPatchTwoLevels(scratch, ft[0], cmf, ct, fmf, ft, 0, 0, nc, cgeom,
+  ::amrex::FillPatchTwoLevels(scratch, ft[0], *GetPatchHierarchy().GetOptions().index_spaces[fine], cmf, ct, fmf, ft, 0, 0, nc, cgeom,
                               fgeom, coarse_condition, 0, fine_condition, 0,
-                              ratio, mapper, bcr, 0);
+                              ratio, mapper, bcr, 0, ::amrex::NullInterpHook(), ::amrex::NullInterpHook());
 }
+
+  void IntegratorContext::FillGhostLayerSingleLevel(int level, BoundaryCondition& bc, Direction dir) {
+    ::amrex::MultiFab& scratch = GetScratch(level, dir);
+    ::amrex::Vector<::amrex::BCRec> bcr(
+                                        static_cast<std::size_t>(scratch.nComp()));
+    const int nc = scratch.nComp();
+    const ::amrex::Vector<::amrex::MultiFab*> smf{&GetData(level)};
+    const ::amrex::Vector<double> stime{GetTimePoint(level, dir).count()};
+    const ::amrex::Geometry& geom = GetGeometry(level);
+    ::amrex::FillPatchSingleLevel(scratch, stime[0], smf, stime, 0, 0, nc, geom,
+                                  bc, 0);
+  }
 
 void IntegratorContext::FillGhostLayerSingleLevel(int level, Direction dir) {
-  ::amrex::MultiFab& scratch = GetScratch(level, dir);
-  ::amrex::Vector<::amrex::BCRec> bcr(
-      static_cast<std::size_t>(scratch.nComp()));
-  const int nc = scratch.nComp();
-  const ::amrex::Vector<::amrex::MultiFab*> smf{&GetData(level)};
-  const ::amrex::Vector<double> stime{GetTimePoint(level, dir).count()};
-  const ::amrex::Geometry& geom = GetGeometry(level);
   BoundaryCondition& condition = GetBoundaryCondition(level);
-  ::amrex::FillPatchSingleLevel(scratch, stime[0], smf, stime, 0, 0, nc, geom,
-                                condition, 0);
+  FillGhostLayerSingleLevel(level, condition, dir);
 }
 
-namespace {
-constexpr std::ptrdiff_t ipow(int base, int exponent) {
-  std::ptrdiff_t prod{1};
-  while (exponent > 0) {
-    prod *= base;
-    exponent -= 1;
-  }
-  return prod;
-}
-} // namespace
+//namespace {
+//constexpr std::ptrdiff_t ipow(int base, int exponent) {
+//  std::ptrdiff_t prod{1};
+//  while (exponent > 0) {
+//    prod *= base;
+//    exponent -= 1;
+//  }
+//  return prod;
+//}
+//} // namespace
 
 void IntegratorContext::CoarsenConservatively(int fine_level, int coarse_level,
                                               Direction dir) {

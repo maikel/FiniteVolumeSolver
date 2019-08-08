@@ -18,32 +18,24 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_IDEAL_GAS_MIX_KINETIC_SOURCE_TERM_HPP
-#define FUB_IDEAL_GAS_MIX_KINETIC_SOURCE_TERM_HPP
+#ifndef FUB_AMREX_MULTI_BLOCK_KINETIC_SOURCE_TERM_HPP
+#define FUB_AMREX_MULTI_BLOCK_KINETIC_SOURCE_TERM_HPP
 
-#include "fub/AMReX/GriddingAlgorithm.hpp"
-#include "fub/TimeStepError.hpp"
-#include "fub/equations/IdealGasMix.hpp"
-#include "fub/ext/omp.hpp"
-#include "fub/ext/outcome.hpp"
+#include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp"
+#include "fub/equations/ideal_gas_mix/KineticSourceTerm.hpp"
 
-#include <memory>
+#include <vector>
 
-namespace fub::ideal_gas {
+namespace fub::amrex {
 
-template <int R> class KineticSourceTerm {
+class MultiBlockKineticSouceTerm {
 public:
-  static constexpr int Rank = R;
-  static constexpr std::size_t sRank = static_cast<std::size_t>(Rank);
-
-  KineticSourceTerm(const IdealGasMix<Rank>& eq,
-                    std::shared_ptr<amrex::GriddingAlgorithm> gridding);
+  MultiBlockKineticSouceTerm(
+      const IdealGasMix<1>& equation,
+      std::shared_ptr<MultiBlockGriddingAlgorithm> gridding);
 
   void ResetHierarchyConfiguration(
-      std::shared_ptr<amrex::GriddingAlgorithm>&& griding);
-
-  void ResetHierarchyConfiguration(
-      const std::shared_ptr<amrex::GriddingAlgorithm>& griding);
+      std::shared_ptr<MultiBlockGriddingAlgorithm> gridding);
 
   Duration ComputeStableDt();
 
@@ -53,20 +45,10 @@ public:
 
   std::ptrdiff_t GetCycles() const;
 
-  amrex::PatchHierarchy& GetPatchHierarchy();
-  const amrex::PatchHierarchy& GetPatchHierarchy() const;
-
 private:
-  OmpLocal<IdealGasMix<Rank>> equation_;
-  OmpLocal<Complete<IdealGasMix<Rank>>> state_{
-      Complete<IdealGasMix<Rank>>(*equation_)};
-  std::shared_ptr<amrex::GriddingAlgorithm> gridding_;
+  std::vector<ideal_gas::KineticSourceTerm<1>> source_terms_;
 };
 
-extern template class KineticSourceTerm<1>;
-extern template class KineticSourceTerm<2>;
-extern template class KineticSourceTerm<3>;
-
-} // namespace fub::ideal_gas
+} // namespace fub::amrex
 
 #endif

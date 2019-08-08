@@ -202,6 +202,7 @@ public:
 
   /// \brief Fills the ghost layer of the scratch data and does nothing in the
   /// coarse fine layer.
+  void FillGhostLayerSingleLevel(int level, BoundaryCondition& bc, Direction direction);
   void FillGhostLayerSingleLevel(int level, Direction direction);
 
   /// \brief Returns a estimate for a stable time step size which can be taken

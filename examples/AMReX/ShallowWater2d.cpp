@@ -43,7 +43,7 @@ struct CircleData {
       fub::ForEachIndex(
           fub::Box<0>(states), [&](std::ptrdiff_t i, std::ptrdiff_t j) {
             double x[AMREX_SPACEDIM] = {};
-            geom.CellCenter(amrex::IntVect{int(i), int(j)}, x);
+            geom.CellCenter(amrex::IntVect{AMREX_D_DECL(int(i), int(j), 0)}, x);
             const double norm = std::sqrt(x[0] * x[0] + x[1] * x[1]);
             if (norm < 0.25) {
               Store(states, inner_, {i, j});
@@ -115,16 +115,17 @@ int main(int argc, char** argv) {
 
   std::string base_name = "ShallowWater2d/";
 
-  auto output = [&](const fub::amrex::PatchHierarchy& hierarchy,
+  using namespace fub::amrex;
+  auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,
                     std::ptrdiff_t cycle, fub::Duration) {
     std::string name = fmt::format("{}{:05}", base_name, cycle);
-    ::amrex::Print() << "Start output to '" << name << "'.\n";
-    fub::amrex::WritePlotFile(name, hierarchy, equation);
-    ::amrex::Print() << "Finished output to '" << name << "'.\n";
+    amrex::Print() << "Start output to '" << name << "'.\n";
+    WritePlotFile(name, gridding->GetPatchHierarchy(), equation);
+    amrex::Print() << "Finished output to '" << name << "'.\n";
   };
 
   using namespace std::literals::chrono_literals;
-  output(solver.GetPatchHierarchy(), 0, 0.0s);
+  output(solver.GetGriddingAlgorithm(), solver.GetCycles(), solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.final_time = 1.0s;
   run_options.output_interval = run_options.final_time / 20;

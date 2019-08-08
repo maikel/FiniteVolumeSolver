@@ -18,60 +18,39 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_BOUNDARY_CONDITION_REFLECTIVE_BOUNDARY_HPP
-#define FUB_BOUNDARY_CONDITION_REFLECTIVE_BOUNDARY_HPP
-
-#include "fub/State.hpp"
-#include "fub/ext/Eigen.hpp"
+#include "fub/boundary_condition/ReflectiveBoundary.hpp"
 
 namespace fub {
+namespace {
+template <int Rank>
+Index<Rank> ReflectIndex_(Index<Rank> i, const IndexBox<Rank>& fillbox,
+                          Direction dir, int side) {
+  const std::size_t d = static_cast<std::size_t>(dir);
+  if (side == 0) {
+    std::ptrdiff_t distance = fillbox.upper[d] - i[d];
+    i[d] += 2 * distance - 1;
+  } else {
+    std::ptrdiff_t distance = i[d] - (fillbox.lower[d] - 1);
+    i[d] -= 2 * distance + 1;
+  }
+  return i;
+}
+} // namespace
+
 std::array<std::ptrdiff_t, 1> ReflectIndex(std::array<std::ptrdiff_t, 1> i,
                                            const IndexBox<1>& domain,
-                                           Direction dir, int side);
+                                           Direction dir, int side) {
+  return ReflectIndex_(i, domain, dir, side);
+}
 std::array<std::ptrdiff_t, 2> ReflectIndex(std::array<std::ptrdiff_t, 2> i,
                                            const IndexBox<2>& domain,
-                                           Direction dir, int side);
+                                           Direction dir, int side) {
+  return ReflectIndex_(i, domain, dir, side);
+}
 std::array<std::ptrdiff_t, 3> ReflectIndex(std::array<std::ptrdiff_t, 3> i,
                                            const IndexBox<3>& domain,
-                                           Direction dir, int side);
-
-template <typename Equation> class ReflectiveBoundary {
-public:
-  using Complete = ::fub::Complete<Equation>;
-  static constexpr int Rank = Equation::Rank();
-
-  ReflectiveBoundary(const Equation& equation);
-
-  void FillBoundary(const View<Complete>& states,
-                    const IndexBox<Rank>& box_to_fill, Direction dir, int side);
-
-  const Equation& GetEquation() const noexcept { return equation_; }
-
-private:
-  Equation equation_;
-  Complete state_{equation_};
-  Complete reflected_{equation_};
-};
-
-template <typename Equation>
-ReflectiveBoundary<Equation>::ReflectiveBoundary(const Equation& equation)
-    : equation_{equation} {}
-
-template <typename Equation>
-void ReflectiveBoundary<Equation>::FillBoundary(
-    const View<Complete>& states, const IndexBox<Rank>& box_to_fill,
-    Direction dir, int side) {
-  const Eigen::Matrix<double, Rank, 1> unit = UnitVector<Rank>(dir);
-  ForEachIndex(box_to_fill, [&](auto... is) {
-    std::array<std::ptrdiff_t, Rank> dest{is...};
-    std::array<std::ptrdiff_t, Rank> src =
-        ReflectIndex(dest, box_to_fill, dir, side);
-    Load(state_, states, src);
-    Reflect(reflected_, state_, unit, equation_);
-    Store(states, reflected_, dest);
-  });
+                                           Direction dir, int side) {
+  return ReflectIndex_(i, domain, dir, side);
 }
 
 } // namespace fub
-
-#endif

@@ -18,7 +18,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/AMReX/coupled/CoupledBoundary.hpp"
+#include "fub/AMReX/multi_block/MultiBlockBoundary.hpp"
+
+#include "fub/AMReX/GriddingAlgorithm.hpp"
+#include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
+#include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp"
+
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/ForEach.hpp"
@@ -29,13 +34,16 @@
 
 namespace fub::amrex {
 namespace {
+::amrex::IntVect ReduceDimension(const ::amrex::IntVect& idx, Direction dir) {
+  ::amrex::IntVect ld = ::amrex::IntVect::TheZeroVector();
+  ld[int(dir)] = idx[int(dir)];
+  return ld;
+}
+
 ::amrex::Box ReduceDimension(const ::amrex::Box& mirror,
                              Direction dir) noexcept {
-  const int d = static_cast<int>(dir);
-  ::amrex::IntVect lower = ::amrex::IntVect::TheZeroVector();
-  ::amrex::IntVect upper = ::amrex::IntVect::TheZeroVector();
-  lower[d] = mirror.smallEnd(d);
-  upper[d] = mirror.bigEnd(d);
+  ::amrex::IntVect lower = ReduceDimension(mirror.smallEnd(), dir);
+  ::amrex::IntVect upper = ReduceDimension(mirror.bigEnd(), dir);
   return ::amrex::Box{lower, upper};
 }
 
@@ -237,21 +245,86 @@ void EmbedState(Complete<IdealGasMix<AMREX_SPACEDIM>>& dest,
 }
 
 ::amrex::Box MakeMirrorBox(const ::amrex::Box& box, int width, Direction dir,
-                           int side);
+                           int side) {
+  const int d = static_cast<int>(dir);
+  ::amrex::Box result = box;
+  if (side == 1) {
+    result.setSmall(d, box.bigEnd(d) - width + 1);
+  } else {
+    result.setBig(d, box.smallEnd(d) + width - 1);
+  }
+  return result;
+}
+
 ::amrex::Box MakeGhostBox(const ::amrex::Box& box, int width, Direction dir,
-                          int side);
+                          int side) {
+  const int d = static_cast<int>(dir);
+  ::amrex::Box result = box;
+  if (side == 1) {
+    result.setSmall(d, box.bigEnd(d) + 1);
+    result.setBig(d, box.bigEnd(d) + width);
+  } else {
+    result.setBig(d, box.smallEnd(d) - 1);
+    result.setSmall(d, box.smallEnd(d) - width);
+  }
+  return result;
+}
+
+int Flip(int side) { return (side == 0) * 1 + (side != 0) * 0; }
+
+template <typename GriddingAlgorithm>
+int FindLevel(const ::amrex::Geometry& geom,
+              const GriddingAlgorithm& gridding) {
+  for (int level = 0; level < gridding.GetPatchHierarchy().GetNumberOfLevels();
+       ++level) {
+    if (geom.Domain() ==
+        gridding.GetPatchHierarchy().GetGeometry(level).Domain()) {
+      return level;
+    }
+  }
+  return -1;
+}
 } // namespace
 
-CoupledBoundary::CoupledBoundary(CoupledGriddingAlgorithm& gridding,
-                                 const BlockConnection& connection, int gcw,
-                                 const FlameMasterReactor& reactor)
+MultiBlockBoundary::MultiBlockBoundary(const MultiBlockBoundary& other)
+    : plenum_equation_(other.plenum_equation_),
+      tube_equation_(other.tube_equation_),
+      plenum_mirror_box_(other.plenum_mirror_box_),
+      tube_mirror_box_(other.tube_mirror_box_),
+      plenum_mirror_data_(std::make_unique<::amrex::FArrayBox>(
+          other.plenum_mirror_data_->box(),
+          other.plenum_mirror_data_->nComp())),
+      tube_ghost_data_(std::make_unique<::amrex::FArrayBox>(
+          other.tube_ghost_data_->box(), other.tube_ghost_data_->nComp())),
+      tube_mirror_data_(std::make_unique<::amrex::FArrayBox>(
+          other.tube_mirror_data_->box(), other.tube_mirror_data_->nComp())),
+      plenum_ghost_data_(std::make_unique<::amrex::FArrayBox>(
+          other.plenum_ghost_data_->box(), other.plenum_ghost_data_->nComp())),
+      dir_(other.dir_), side_(other.side_) {
+  plenum_mirror_data_->copy(*other.plenum_mirror_data_);
+  tube_ghost_data_->copy(*other.tube_ghost_data_);
+  tube_mirror_data_->copy(*other.tube_mirror_data_);
+  plenum_ghost_data_->copy(*other.plenum_ghost_data_);
+}
+
+MultiBlockBoundary& MultiBlockBoundary::
+operator=(const MultiBlockBoundary& other) {
+  MultiBlockBoundary tmp(other);
+  *this = std::move(tmp);
+  return *this;
+}
+
+MultiBlockBoundary::MultiBlockBoundary(
+    const MultiBlockGriddingAlgorithm& gridding,
+    const BlockConnection& connection, int gcw,
+    const FlameMasterReactor& reactor)
     : plenum_equation_(reactor), tube_equation_(std::move(reactor)),
       dir_{connection.direction}, side_{connection.side} {
   const std::ptrdiff_t pid = static_cast<std::ptrdiff_t>(connection.plenum.id);
-  cutcell::PatchHierarchy& plenum =
-      gridding.GetPlena()[pid].GetPatchHierarchy();
+  const cutcell::PatchHierarchy& plenum =
+      gridding.GetPlena()[pid]->GetPatchHierarchy();
   const std::ptrdiff_t tid = static_cast<std::ptrdiff_t>(connection.tube.id);
-  PatchHierarchy& tube = gridding.GetTubes()[tid].GetPatchHierarchy();
+  const PatchHierarchy& tube = gridding.GetTubes()[tid]->GetPatchHierarchy();
   const double plenum_dx = plenum.GetGeometry(0).CellSize(0);
   const double tube_dx = tube.GetGeometry(0).CellSize(0);
   // Allocate mirror data containing the plenum data (reduced to 1d)
@@ -262,22 +335,29 @@ CoupledBoundary::CoupledBoundary(CoupledGriddingAlgorithm& gridding,
         MakeMirrorBox(connection.plenum.mirror_box, mirror_width, dir_, side_);
     const int ncons = plenum.GetDataDescription().n_cons_components;
     const int ncomp = plenum.GetDataDescription().n_state_components;
-    plenum_mirror_data_.resize(ReduceDimension(plenum_mirror_box_, dir_),
-                               ncons);
-    plenum_ghost_data_.resize(
-        MakeGhostBox(plenum_mirror_box_, gcw, dir_, side_), ncomp);
+    plenum_mirror_data_ = std::make_unique<::amrex::FArrayBox>(
+        ReduceDimension(
+            MakeMirrorBox(connection.plenum.mirror_box, gcw, dir_, side_),
+            dir_),
+        ncons);
+    plenum_ghost_data_ = std::make_unique<::amrex::FArrayBox>(
+        ReduceDimension(MakeGhostBox(plenum_mirror_box_, gcw, dir_, side_),
+                        dir_),
+        ncomp);
   }
   // Allocate mirror data for the tube data
   {
     const int mirror_width =
         static_cast<int>(std::ceil((gcw * plenum_dx) / tube_dx));
-    tube_mirror_box_ =
-        MakeMirrorBox(connection.tube.mirror_box, mirror_width, dir_, side_);
+    tube_mirror_box_ = MakeMirrorBox(connection.tube.mirror_box, mirror_width,
+                                     dir_, Flip(side_));
     const int ncons = tube.GetDataDescription().n_cons_components;
     const int ncomp = tube.GetDataDescription().n_state_components;
-    tube_mirror_data_.resize(tube_mirror_box_, ncons);
-    tube_ghost_data_.resize(MakeGhostBox(tube_mirror_box_, gcw, dir_, side_),
-                            ncomp);
+    tube_mirror_data_ = std::make_unique<::amrex::FArrayBox>(
+        MakeMirrorBox(connection.tube.mirror_box, gcw, dir_, Flip(side_)),
+        ncons);
+    tube_ghost_data_ = std::make_unique<::amrex::FArrayBox>(
+        MakeGhostBox(tube_mirror_box_, gcw, dir_, Flip(side_)), ncomp);
   }
   // Fill internal mirror data
   ComputeBoundaryData(plenum, tube);
@@ -286,8 +366,8 @@ CoupledBoundary::CoupledBoundary(CoupledGriddingAlgorithm& gridding,
 template <int R> using Conservative = ::fub::Conservative<IdealGasMix<R>>;
 template <int R> using Complete = ::fub::Complete<IdealGasMix<R>>;
 
-void CoupledBoundary::ComputeBoundaryData(const cutcell::PatchHierarchy& plenum,
-                                          const PatchHierarchy& tube) {
+void MultiBlockBoundary::ComputeBoundaryData(
+    const cutcell::PatchHierarchy& plenum, const PatchHierarchy& tube) {
   const double plenum_dx = plenum.GetGeometry(0).CellSize(0);
   const double tube_dx = tube.GetGeometry(0).CellSize(0);
 
@@ -296,103 +376,110 @@ void CoupledBoundary::ComputeBoundaryData(const cutcell::PatchHierarchy& plenum,
   // {{{
   // Integrate over mirror volume
   const ::amrex::FArrayBox plenum_data =
-    AverageConservativeHierarchyStates(plenum, 0, plenum_mirror_box_, dir_);
+      AverageConservativeHierarchyStates(plenum, 0, plenum_mirror_box_, dir_);
 
   // Interpolate between grid cell sizes.
-  InterpolateStates(plenum_mirror_data_, tube_dx, plenum_data, plenum_dx);
+  InterpolateStates(*plenum_mirror_data_, tube_dx, plenum_data, plenum_dx);
 
   // Transform high dimensional states into low dimensional ones.
   // Store low dimensional states as the reference in the ghost cell region.
-  auto cons_states = MakeView<Conservative<Plenum_Rank>>(plenum_mirror_data_, plenum_equation_);
-  auto complete_states = MakeView<Complete<Tube_Rank>>(tube_ghost_data_, tube_equation_);
-  Conservative<Plenum_Rank> cons(plenum_equation_);
-  Complete<Tube_Rank> complete(tube_equation_);
-  const std::ptrdiff_t i0 = plenum_data.box().smallEnd(int(dir_));
-  const std::ptrdiff_t j0 = Box<0>(complete_states).upper[int(dir_)];
-  ForEachIndex(Box<0>(complete_states), [&](std::ptrdiff_t i) {
-    const std::ptrdiff_t k = i - i0;
-    const std::ptrdiff_t j = j0 + k;
-    Load(cons, cons_states, {j});
-    ReduceStateDimension(complete, tube_equation_, cons);
-    Store(complete_states, complete, {i});
-  });
+  {
+    BasicView cons_states = MakeView<const Conservative<Plenum_Rank>>(
+        *plenum_mirror_data_, plenum_equation_);
+    BasicView complete_states =
+        MakeView<Complete<Tube_Rank>>(*tube_ghost_data_, tube_equation_);
+    Conservative<Plenum_Rank> cons(plenum_equation_);
+    Complete<Tube_Rank> complete(tube_equation_);
+    const std::ptrdiff_t i0 = plenum_data.box().smallEnd(int(dir_));
+    const std::ptrdiff_t j0 = tube_ghost_data_->box().smallEnd(int(dir_));
+    ForEachIndex(Box<0>(complete_states), [&](std::ptrdiff_t j) {
+      const std::ptrdiff_t k = j - j0;
+      const std::ptrdiff_t i = i0 + k;
+      Load(cons, cons_states, {i});
+      ReduceStateDimension(complete, tube_equation_, cons);
+      Store(complete_states, complete, {j});
+    });
+  }
   // }}}
 
-
+  // Interpolate between grid cell sizes.
   {
-    // Interpolate between grid cell sizes.
     ::amrex::FArrayBox tube_data =
         AllgatherMirrorData(tube, 0, tube_mirror_box_);
-    InterpolateStates(tube_mirror_data_, plenum_dx, tube_data, tube_dx);
+    InterpolateStates(*tube_mirror_data_, plenum_dx, tube_data, tube_dx);
 
     // Transform low dimensional states into high dimensional ones.
-    auto cons_states = MakeView<BasicView<Conservative<IdealGasMix<1>>>>(
-        MakePatchDataView(tube_mirror_data_), tube_equation_);
-    auto complete_states =
-        MakeView<BasicView<Complete<IdealGasMix<AMREX_SPACEDIM>>>>(
-            MakePatchDataView(plenum_ghost_data_), plenum_equation_);
-    Conservative<IdealGasMix<1>> cons(tube_equation_);
-    Complete<IdealGasMix<AMREX_SPACEDIM>> complete(plenum_equation_);
+    BasicView cons_states =
+        MakeView<Conservative<Tube_Rank>>(*tube_mirror_data_, tube_equation_);
+    BasicView complete_states =
+        MakeView<Complete<Plenum_Rank>>(*plenum_ghost_data_, plenum_equation_);
+    Conservative<Tube_Rank> cons(tube_equation_);
+    Complete<Plenum_Rank> complete(plenum_equation_);
     const std::ptrdiff_t i0 = Box<0>(cons_states).lower[0];
     const std::ptrdiff_t j0 = Box<0>(complete_states).lower[0];
     ForEachIndex(Box<0>(cons_states), [&](std::ptrdiff_t i) {
+      const std::ptrdiff_t k = i - i0;
+      const std::ptrdiff_t j = j0 + k;
       Load(cons, cons_states, {i});
       EmbedState(complete, plenum_equation_, cons);
-      Store(complete_states, complete, {i + j0 - i0});
+      Store(complete_states, complete, {j});
     });
   }
 }
 
-void CoupledBoundary::FillPlenumBoundary(
-    const PatchDataView<double, AMREX_SPACEDIM + 1>& data,
-    const cutcell::PatchHierarchy&, PatchHandle, Location loc, int, Duration) {
-  if (loc.direction != 0 || loc.side != 0) {
-    return;
+void MultiBlockBoundary::FillBoundary(::amrex::MultiFab& mf,
+                                      const ::amrex::Geometry& geom, Duration,
+                                      const GriddingAlgorithm& gridding) {
+  //  const ::amrex::Box ghost_box = MakeGhostBox(plenum_mirror_box_, 3, dir_,
+  //  side_);
+  const int level = FindLevel(geom, gridding);
+  ::amrex::Box box = tube_ghost_data_->box();
+  for (int i = 1; i <= level; ++i) {
+    const ::amrex::IntVect ratio = gridding.GetPatchHierarchy().GetRatioToCoarserLevel(i);
+    box.refine(ratio);
   }
-
-  auto dest = MakeView<BasicView<Complete<IdealGasMix<AMREX_SPACEDIM>>>>(
-      data, plenum_equation_);
-
-  auto src = MakeView<BasicView<Complete<IdealGasMix<AMREX_SPACEDIM>>>>(
-      MakePatchDataView(plenum_ghost_data_), plenum_equation_);
-
-  IndexBox<AMREX_SPACEDIM> fill_box = Box<0>(dest);
-  fill_box.upper[0] = Box<0>(src).upper[0];
-  IndexBox<1> ghost_data_box = AsIndexBox<1>(plenum_ghost_data_.box());
-
-  Complete<IdealGasMix<AMREX_SPACEDIM>> complete(plenum_equation_);
-  ForEachIndex(fill_box, [&](auto... is) {
-    Index<AMREX_SPACEDIM> index{is...};
-    if (Contains(ghost_data_box, Index<1>{index[0]})) {
-      Load(complete, src, {index[0]});
-      Store(dest, complete, index);
+  ForEachFab(execution::openmp, mf, [&](const ::amrex::MFIter& mfi) {
+    const ::amrex::Box b = mfi.growntilebox() & box;
+    if (!b.isEmpty()) {
+    for (int n = 0; n < mf.nComp(); ++n) {
+    ForEachIndex(AsIndexBox<AMREX_SPACEDIM>(b), [&](auto... is) {
+      const ::amrex::IntVect iv{int(is)...};
+      ::amrex::IntVect tube_iv = iv;
+      for (int i = level; i > 0; --i) {
+        const ::amrex::IntVect ratio = gridding.GetPatchHierarchy().GetRatioToCoarserLevel(i);
+        tube_iv.coarsen(ratio);
+      }
+      mf[mfi](iv, n) = (*tube_ghost_data_)(tube_iv, n);
+    });
+    }
     }
   });
 }
 
-void CoupledBoundary::FillTubeBoundary(
-    const PatchDataView<double, AMREX_SPACEDIM + 1>& data,
-    const PatchHierarchy&, PatchHandle, Location loc, int fill_width,
-    Duration) {
-  if (loc.direction != 0 || loc.side != 1) {
-    return;
+void MultiBlockBoundary::FillBoundary(::amrex::MultiFab& mf,
+                                      const ::amrex::Geometry& geom, Duration,
+                                      const cutcell::GriddingAlgorithm& gridding) {
+  const int level = FindLevel(geom, gridding);
+  ::amrex::Box ghost_box = MakeGhostBox(plenum_mirror_box_, 3, dir_, side_);
+  for (int i = 1; i <= level; ++i) {
+    const ::amrex::IntVect ratio = gridding.GetPatchHierarchy().GetRatioToCoarserLevel(i);
+    ghost_box.refine(ratio);
   }
-
-  auto dest =
-      MakeView<BasicView<Complete<IdealGasMix<1>>>>(data, tube_equation_);
-
-  auto src = MakeView<BasicView<Complete<IdealGasMix<1>>>>(
-      MakePatchDataView(tube_ghost_data_), tube_equation_);
-
-  IndexBox<1> fill_box = Box<0>(dest);
-  fill_box.lower[0] = fill_box.upper[0] - fill_width;
-  IndexBox<1> ghost_data_box = AsIndexBox<1>(tube_ghost_data_.box());
-
-  Complete<IdealGasMix<1>> complete(tube_equation_);
-  ForEachIndex(fill_box, [&](std::ptrdiff_t i) {
-    if (Contains(ghost_data_box, Index<1>{i})) {
-      Load(complete, src, {i});
-      Store(dest, complete, {i});
+  ForEachFab(execution::openmp, mf, [&](const ::amrex::MFIter& mfi) {
+    const ::amrex::Box box = mfi.growntilebox() & ghost_box;
+    if (!box.isEmpty()) {
+      ::amrex::FArrayBox& fab = mf[mfi];
+      for (int c = 0; c < mf.nComp(); ++c) {
+        ForEachIndex(AsIndexBox<Plenum_Rank>(box), [&](auto... is) {
+          const ::amrex::IntVect dest{int(is)...};
+          ::amrex::IntVect src = ReduceDimension(dest, dir_);
+          for (int i = level; i > 0; --i) {
+            const ::amrex::IntVect ratio = gridding.GetPatchHierarchy().GetRatioToCoarserLevel(i);
+            src.coarsen(ratio);
+          }
+          fab(dest, c) = (*plenum_ghost_data_)(src, c);
+        });
+      }
     }
   });
 }

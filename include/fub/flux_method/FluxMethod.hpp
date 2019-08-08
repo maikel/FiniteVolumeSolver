@@ -159,7 +159,7 @@ public:
   Conservative numeric_flux_{GetEquation()};
 
   std::array<CompleteArray, StencilSize> stencil_array_{};
-  ConservativeArray numeric_flux_array_{};
+  ConservativeArray numeric_flux_array_{GetEquation()};
 };
 
 template <typename BaseMethod>
@@ -177,6 +177,7 @@ template <typename... Args>
 FluxMethod<BaseMethod>::FluxMethod(Args&&... args)
     : BaseMethod(std::forward<Args>(args)...) {
   stencil_.fill(Complete{BaseMethod::GetEquation()});
+  stencil_array_.fill(CompleteArray{BaseMethod::GetEquation()});
 }
 
 template <typename BaseMethod>

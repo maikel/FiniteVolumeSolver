@@ -38,7 +38,7 @@ public:
       : rec_{CompleteFromConsFn<Equation>{eq}} {}
 
   void CompleteFromCons(::amrex::MultiFab& dest, const ::amrex::MultiFab& src) {
-    ForEachFab(Tag(), dest, [&](::amrex::MFIter& mfi) {
+    ForEachFab(Tag(), dest, [&](const ::amrex::MFIter& mfi) {
       Equation& eq = rec_->equation_;
       View<Complete<Equation>> complete =
           MakeView<Complete<Equation>>(dest[mfi], eq, mfi.tilebox());

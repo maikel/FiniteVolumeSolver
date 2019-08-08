@@ -113,7 +113,7 @@ void UpdateConservatively_Row(double* next, const double* prev,
       return next;
     }();
 
-    next[i] = alpha > 0.0 ? betaL == betaR
+    next[i] = alpha > 0.0 ? betaL == betaR || alpha == 1.0
                                 ? regular
                                 : betaL > betaR ? left_greater : right_greater
                           : next[i];

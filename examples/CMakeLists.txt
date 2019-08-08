@@ -33,13 +33,13 @@ if (AMReX_FOUND)
   target_link_libraries(AMReX.ShallowWater2d FiniteVolumeSolver.AMReX)
 endif()
 
-if (AMReX_FOUND AND AMREX_DIM EQUAL 2)
+if (AMReX_FOUND AND AMReX_2D_FOUND)
   add_executable(NodalPoisson AMReX/NodalPoisson.cpp)
   target_link_libraries(NodalPoisson FiniteVolumeSolver.AMReX)
 
-  if (AMREX_ENABLE_EB)
-    add_executable_with_warnings(AMReX.EB.Divider2D AMReX/EB/Divider2D.cpp)
-    target_link_libraries(AMReX.EB.Divider2D FiniteVolumeSolver.AMReX.EB)
+  if (AMReX_EB_FOUND)
+    # add_executable_with_warnings(AMReX.EB.Divider2D AMReX/EB/Divider2D.cpp)
+    # target_link_libraries(AMReX.EB.Divider2D FiniteVolumeSolver.AMReX.EB)
 
     add_executable_with_warnings(AMReX.EB.LinearShock2d AMReX/EB/LinearShock2d.cpp)
     target_link_libraries(AMReX.EB.LinearShock2d FiniteVolumeSolver.AMReX.EB)
@@ -58,11 +58,14 @@ if (AMReX_FOUND AND AMREX_DIM EQUAL 2)
 
     add_executable_with_warnings(AMReX.EB.Tube AMReX/EB/Tube.cpp)
     target_link_libraries(AMReX.EB.Tube FiniteVolumeSolver.AMReX.EB)
+
+    add_executable_with_warnings(AMReX.EB.CoupledLinearShock2d AMReX/EB/CoupledLinearShock2d.cpp)
+    target_link_libraries(AMReX.EB.CoupledLinearShock2d FiniteVolumeSolver.AMReX.EB Boost::filesystem)
   endif()
 endif()
 
-if (AMReX_FOUND AND AMREX_DIM EQUAL 3)
-  if (AMREX_ENABLE_EB)
+if (AMReX_FOUND AND AMReX_3D_FOUND)
+  if (AMReX_EB_FOUND)
     add_executable_with_warnings(AMReX.EB.LinearShock3d AMReX/EB/LinearShock3d.cpp)
     target_link_libraries(AMReX.EB.LinearShock3d FiniteVolumeSolver.AMReX.EB Boost::filesystem)
 

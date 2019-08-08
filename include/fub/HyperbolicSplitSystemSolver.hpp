@@ -110,13 +110,20 @@ struct HyperbolicSplitSystemSolver {
     return dirs;
   }
 
+  auto& GetContext() noexcept {
+    return integrator.GetContext();
+  }
+  const auto& GetContext() const noexcept {
+    return integrator.GetContext();
+  }
+
   const std::shared_ptr<GriddingAlgorithm>& GetGriddingAlgorithm() const {
     return integrator.GetContext().GetGriddingAlgorithm();
   }
-
-  const auto& GetPatchHierarchy() const {
-    return GetGriddingAlgorithm()->GetPatchHierarchy();
-  }
+//
+//  const auto& GetPatchHierarchy() const {
+//    return GetGriddingAlgorithm()->GetPatchHierarchy();
+//  }
 
   Duration GetTimePoint() const {
     return integrator.GetContext().GetTimePoint(0, Direction::X);

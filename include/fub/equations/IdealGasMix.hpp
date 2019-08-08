@@ -127,10 +127,10 @@ public:
   void Flux(ConservativeArray& flux, const CompleteArray& state,
             Direction dir = Direction::X) const noexcept;
 
-  void CompleteFromCons(Complete& state, const ConservativeBase& cons) noexcept;
+  void CompleteFromCons(Complete& state, const ConservativeBase& cons);
 
   void CompleteFromCons(CompleteArray& state,
-                        const ConservativeArrayBase& cons) noexcept;
+                        const ConservativeArrayBase& cons);
 
   FlameMasterReactor& GetReactor() noexcept { return reactor_; }
   const FlameMasterReactor& GetReactor() const noexcept { return reactor_; }
@@ -192,6 +192,24 @@ template <int Dim>
 void InitializeState(const IdealGasMix<Dim>& eq,
                      Complete<IdealGasMix<Dim>>& state) {
   state.species.resize(eq.GetReactor().GetNSpecies(), 1);
+}
+
+template <int Dim>
+void InitializeState(const IdealGasMix<Dim>& eq,
+                     ConservativeArray<IdealGasMix<Dim>>& cons) {
+  cons.species.resize(eq.GetReactor().GetNSpecies(), kDefaultChunkSize);
+}
+
+template <int Dim>
+void InitializeState(const IdealGasMix<Dim>& eq,
+                     CompleteArray<IdealGasMix<Dim>>& state) {
+  state.species.resize(eq.GetReactor().GetNSpecies(), kDefaultChunkSize);
+}
+
+template <int Dim>
+double KineticEnergy(double density,
+                     const Eigen::Array<double, Dim, 1>& momentum) noexcept {
+  return 0.5 * momentum.matrix().squaredNorm() / density;
 }
 
 /// @{
