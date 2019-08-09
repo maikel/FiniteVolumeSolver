@@ -74,6 +74,8 @@ public:
   /// @{
   /// \name Member Accessors
 
+  int Rank() const noexcept;
+
   /// \brief Returns the current boundary condition for the specified level.
   const BoundaryCondition& GetBoundaryCondition(int level) const;
   BoundaryCondition& GetBoundaryCondition(int level);
@@ -104,7 +106,7 @@ public:
 
   /// \brief Returns the MultiFab associated with level data with ghost cells on
   /// the specifed level number and direction.
-  ::amrex::MultiFab& GetScratch(int level, Direction dir);
+  ::amrex::MultiFab& GetScratch(int level);
 
   /// \brief Returns the MultiFab associated with flux data on the specifed
   /// level number and direction.
@@ -112,11 +114,11 @@ public:
 
   /// \brief Returns the current time level for data at the specified refinement
   /// level and direction.
-  Duration GetTimePoint(int level, Direction dir) const;
+  Duration GetTimePoint(int level = 0) const;
 
   /// \brief Returns the current number of cycles for data at the specified
   /// refinement level and direction.
-  std::ptrdiff_t GetCycles(int level, Direction dir) const;
+  std::ptrdiff_t GetCycles(int level = 0) const;
 
   /// \brief Returns the geometry object for the specified refinement level.
   const ::amrex::Geometry& GetGeometry(int level) const;
@@ -151,34 +153,34 @@ public:
   void ResetHierarchyConfiguration(int level = 0);
 
   /// \brief Sets the cycle count for a specific level number and direction.
-  void SetCycles(std::ptrdiff_t cycle, int level, Direction dir);
+  void SetCycles(std::ptrdiff_t cycle, int level);
 
   /// \brief Sets the time point for a specific level number and direction.
-  void SetTimePoint(Duration t, int level, Direction dir);
+  void SetTimePoint(Duration t, int level);
   /// @}
 
   /// @{
   /// \name Member functions relevant for the level integrator algorithm.
 
   /// \brief On each first subcycle this will regrid the data if neccessary.
-  void PreAdvanceLevel(int level_num, Direction dir, Duration dt, int subcycle);
+  void PreAdvanceLevel(int level_num, Duration dt, int subcycle);
 
   /// \brief Increases the internal time stamps and cycle counters for the
   /// specified level number and direction.
-  Result<void, TimeStepTooLarge> PostAdvanceLevel(int level_num, Direction dir,
+  Result<void, TimeStepTooLarge> PostAdvanceLevel(int level_num,
                                                   Duration dt, int subcycle);
 
 
 
   /// \brief Fills the ghost layer of the scratch data and interpolates in the
   /// coarse fine layer.
-  void FillGhostLayerTwoLevels(int level, BoundaryCondition& fbc, int coarse, BoundaryCondition& cbc, Direction direction);
-  void FillGhostLayerTwoLevels(int level, int coarse, Direction direction);
+  void FillGhostLayerTwoLevels(int level, BoundaryCondition& fbc, int coarse, BoundaryCondition& cbc);
+  void FillGhostLayerTwoLevels(int level, int coarse);
 
   /// \brief Fills the ghost layer of the scratch data and does nothing in the
   /// coarse fine layer.
-  void FillGhostLayerSingleLevel(int level, BoundaryCondition& bc, Direction direction);
-  void FillGhostLayerSingleLevel(int level, Direction direction);
+  void FillGhostLayerSingleLevel(int level, BoundaryCondition& bc);
+  void FillGhostLayerSingleLevel(int level);
 
   /// \brief Returns a estimate for a stable time step size which can be taken
   /// for specified level number in direction dir.
@@ -193,22 +195,22 @@ public:
   void UpdateConservatively(int level, Duration dt, Direction dir);
 
   /// \brief Reconstruct complete state variables from conservative ones.
-  void CompleteFromCons(int level, Duration dt, Direction dir);
+  void CompleteFromCons(int level, Duration dt);
 
   /// \brief Accumulate fluxes on the coarse fine interfaces for a specified
   /// fine level number.
-  void AccumulateCoarseFineFluxes(int level, Duration dt, Direction dir);
+  void AccumulateCoarseFineFluxes(int level, double time_scale, Direction dir);
 
   /// \brief Replace the coarse fluxes by accumulated fine fluxes on the coarse
   /// fine interfaces.
-  void ApplyFluxCorrection(int fine, int coarse, Duration dt, Direction dir);
+  void ApplyFluxCorrection(int fine, int coarse, Duration dt);
 
   /// \brief Resets all accumulates fluxes to zero.
-  void ResetCoarseFineFluxes(int fine, int coarse, Direction dir);
+  void ResetCoarseFineFluxes(int fine, int coarse);
 
   /// \brief Coarsen scratch data from a fine level number to a coarse level
   /// number.
-  void CoarsenConservatively(int fine, int coarse, Direction dir);
+  void CoarsenConservatively(int fine, int coarse);
   ///@}
 
 private:
@@ -222,7 +224,7 @@ private:
     ~LevelData() noexcept = default;
 
     /// Scratch space with ghost cell widths
-    std::array<::amrex::MultiFab, 3> scratch;
+    ::amrex::MultiFab scratch;
 
     /// These arrays will store the fluxes for each patch level which is present
     /// in the patch hierarchy. These will need to be rebuilt if the
@@ -234,9 +236,9 @@ private:
     /// changes.
     ::amrex::FluxRegister coarse_fine;
 
-    std::array<Duration, 3> time_point;
-    std::array<Duration, 3> regrid_time_point;
-    std::array<std::ptrdiff_t, 3> cycles;
+    Duration time_point;
+    Duration regrid_time_point;
+    std::ptrdiff_t cycles;
   };
 
   int ghost_cell_width_;

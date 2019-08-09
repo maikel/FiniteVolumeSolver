@@ -105,7 +105,7 @@ int main(int argc, char** argv) {
   boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::X, 1});
 
   fub::amrex::PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = 3;
+  hier_opts.max_number_of_levels = 5;
   hier_opts.refine_ratio = ::amrex::IntVect{AMREX_D_DECL(2, 1, 1)};
 
   std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
@@ -113,7 +113,7 @@ int main(int argc, char** argv) {
       gradient, boundary);
   gridding->InitializeHierarchy(0.0);
 
-  auto tag = fub::execution::simd;
+  auto tag = fub::execution::seq;
 
   fub::EinfeldtSignalVelocities<fub::PerfectGas<1>> signals{};
   fub::HllMethod hll_method(equation, signals);
@@ -123,15 +123,15 @@ int main(int argc, char** argv) {
       fub::amrex::ForwardIntegrator(tag),
       fub::amrex::Reconstruction(tag, equation)};
 
-  fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
-      equation, fub::amrex::IntegratorContext(gridding, method)));
+  fub::DimensionalSplitLevelIntegrator solver(fub::int_c<1>,
+                                       fub::amrex::IntegratorContext(gridding, method), fub::GodunovSplitting{});
 
   std::string base_name = "PerfectGas1d/";
 
   using namespace fub::amrex;
   auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,
                     std::ptrdiff_t cycle, fub::Duration) {
-    std::string name = fmt::format("{}{:05}", base_name, cycle);
+    std::string name = fmt::format("{}plt{:05}", base_name, cycle);
     amrex::Print() << "Start output to '" << name << "'.\n";
     WritePlotFile(name, gridding->GetPatchHierarchy(), equation);
     amrex::Print() << "Finished output to '" << name << "'.\n";
@@ -142,7 +142,8 @@ int main(int argc, char** argv) {
   fub::RunOptions run_options{};
   run_options.cfl = 0.8;
   run_options.final_time = 2.0s;
-  run_options.output_interval = 0.1s;
+  run_options.max_cycles = 100;
+  run_options.output_frequency = 1;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      fub::amrex::print);
 }

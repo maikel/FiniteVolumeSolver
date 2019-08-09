@@ -38,7 +38,7 @@ template <typename IntegratorContext> struct ReconstructionBase {
   virtual ~ReconstructionBase() = default;
   virtual std::unique_ptr<ReconstructionBase> Clone() const = 0;
   virtual void CompleteFromCons(IntegratorContext& context, int level,
-                                Duration dt, Direction dir) = 0;
+                                Duration dt) = 0;
 };
 
 template <typename IntegratorContext> struct TimeIntegratorBase {
@@ -79,8 +79,7 @@ public:
                             !std::is_same_v<std::decay_t<R>, Reconstruction>>>
   Reconstruction(R&& r); // NOLINT
 
-  void CompleteFromCons(IntegratorContext& context, int level, Duration dt,
-                        Direction dir);
+  void CompleteFromCons(IntegratorContext& context, int level, Duration dt);
 
 private:
   std::unique_ptr<detail::ReconstructionBase<IntegratorContext>> reconstruct_;
@@ -172,8 +171,8 @@ operator=(const Reconstruction& other) {
 
 template <typename IntegratorContext>
 void Reconstruction<IntegratorContext>::CompleteFromCons(
-    IntegratorContext& context, int level, Duration dt, Direction dir) {
-  reconstruct_->CompleteFromCons(context, level, dt, dir);
+    IntegratorContext& context, int level, Duration dt) {
+  reconstruct_->CompleteFromCons(context, level, dt);
 }
 
 namespace detail {
@@ -185,9 +184,8 @@ struct ReconstructionWrapper : ReconstructionBase<IntegratorContext> {
   Clone() const override {
     return std::make_unique<ReconstructionWrapper>(rec_);
   }
-  void CompleteFromCons(IntegratorContext& context, int level, Duration dt,
-                        Direction dir) override {
-    rec_.CompleteFromCons(context, level, dt, dir);
+  void CompleteFromCons(IntegratorContext& context, int level, Duration dt) override {
+    rec_.CompleteFromCons(context, level, dt);
   }
   R rec_;
 };

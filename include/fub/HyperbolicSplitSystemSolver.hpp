@@ -37,7 +37,7 @@ template <typename Context, typename... Args>
 using PostAdvanceHierarchy = decltype(
     std::declval<Context>().PostAdvanceHierarchy(std::declval<Args>()...));
 
-template <typename LevelIntegrator, typename SplittingMethod = GodunovSplitting>
+template <typename LevelIntegrator>
 struct HyperbolicSplitSystemSolver {
   using Equation =
       std::decay_t<decltype(std::declval<LevelIntegrator&>().GetEquation())>;

@@ -32,13 +32,13 @@ void ForwardIntegrator<Tag>::UpdateConservatively(
     Direction dir) {
   const int n_cons = fluxes.nComp();
   const double dx = geom.CellSize(int(dir));
+  ::amrex::IntVect fgrow = fluxes.nGrowVect();
   ForEachFab(Tag(), dest, [&](::amrex::MFIter& mfi) {
     ::amrex::FArrayBox& next = dest[mfi];
     const ::amrex::FArrayBox& prev = src[mfi];
     const ::amrex::FArrayBox& flux = fluxes[mfi];
     const ::amrex::Box& box = mfi.tilebox();
-    const auto cells = Embed<AMREX_SPACEDIM + 1>(
-        Grow(AsIndexBox<AMREX_SPACEDIM>(box), dir, {1, 1}), {0, n_cons});
+    const IndexBox<AMREX_SPACEDIM + 1> cells = Embed<AMREX_SPACEDIM + 1>(AsIndexBox<AMREX_SPACEDIM>(::amrex::grow(box, fgrow)), {0, n_cons});
     auto nv = MakePatchDataView(next).Subview(cells);
     auto pv = MakePatchDataView(prev).Subview(cells);
     const auto faces = Grow(cells, dir, {0, 1});
@@ -52,7 +52,7 @@ template <typename Tag>
 void ForwardIntegrator<Tag>::UpdateConservatively(IntegratorContext& context,
                                                   int level, Duration dt,
                                                   Direction dir) {
-  ::amrex::MultiFab& data = context.GetScratch(level, dir);
+  ::amrex::MultiFab& data = context.GetScratch(level);
   const ::amrex::MultiFab& fluxes = context.GetFluxes(level, dir);
   const ::amrex::Geometry& geom = context.GetGeometry(level);
   this->UpdateConservatively(data, data, fluxes, geom, dt, dir);

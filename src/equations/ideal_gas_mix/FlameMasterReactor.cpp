@@ -448,7 +448,7 @@ double FlameMasterReactor::GetCv() const {
 }
 
 double FlameMasterReactor::GetMeanMolarMass() const {
-  const double minv = std::transform_reduce(
+  const double minv = std::inner_product(
       state_.massFractions.begin(), state_.massFractions.end(),
       state_.molarMasses.begin(), 0.0, std::plus<>{}, std::divides<>{});
   return 1.0 / minv;

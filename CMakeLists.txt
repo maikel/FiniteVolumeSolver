@@ -198,6 +198,7 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/HyperbolicSplitLevelIntegrator.hpp
   include/fub/HyperbolicPatchIntegrator.hpp
   include/fub/HyperbolicSplitSystemSolver.hpp
+  include/fub/HyperbolicMethod.hpp
   include/fub/SplitSystemSourceSolver.hpp
   include/fub/NewtonIteration.hpp
   include/fub/PatchDataView.hpp

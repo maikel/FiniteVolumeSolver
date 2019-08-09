@@ -31,6 +31,7 @@
 
 #include "fub/AMReX/tagging/GradientDetector.hpp"
 #include "fub/AMReX/tagging/ConstantRegion.hpp"
+#include "fub/AMReX/tagging/TagBuffer.hpp"
 
 #include "fub/AMReX/boundary_condition/BoundarySet.hpp"
 #include "fub/AMReX/boundary_condition/TransmissiveBoundary.hpp"

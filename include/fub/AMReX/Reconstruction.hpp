@@ -43,15 +43,14 @@ public:
       View<Complete<Equation>> complete =
           MakeView<Complete<Equation>>(dest[mfi], eq, mfi.tilebox());
       View<const Conservative<Equation>> conservative =
-          MakeView<const Conservative<Equation>>(src[mfi], eq, mfi.tilebox());
+          MakeView<const Conservative<Equation>>(src[mfi], eq, mfi.growntilebox());
       rec_->CompleteFromCons(Tag(), complete, conservative);
     });
   }
 
-  void CompleteFromCons(IntegratorContext& context, int level, Duration,
-                        Direction dir) {
+  void CompleteFromCons(IntegratorContext& context, int level, Duration) {
     ::amrex::MultiFab& data = context.GetData(level);
-    const ::amrex::MultiFab& scratch = context.GetScratch(level, dir);
+    const ::amrex::MultiFab& scratch = context.GetScratch(level);
     CompleteFromCons(data, scratch);
   }
 

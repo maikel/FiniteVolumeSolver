@@ -127,7 +127,7 @@ auto MakeTubeSolver(int num_cells, fub::Burke2012& mechanism) {
 
   HyperbolicMethod method{FluxMethod(fub::execution::seq, hll_method),
                           ForwardIntegrator(fub::execution::seq),
-                          Reconstruction(fub::execution::seq, equation)};
+                          Reconstruction(fub::execution::simd, equation)};
 
   return fub::amrex::IntegratorContext(gridding, method);
 }

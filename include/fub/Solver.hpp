@@ -29,7 +29,7 @@
 
 #include "fub/HyperbolicPatchIntegrator.hpp"
 #include "fub/HyperbolicSplitLevelIntegrator.hpp"
-#include "fub/HyperbolicSplitSystemSolver.hpp"
+//#include "fub/HyperbolicSplitSystemSolver.hpp"
 #include "fub/NewtonIteration.hpp"
 #include "fub/SplitSystemSourceSolver.hpp"
 
