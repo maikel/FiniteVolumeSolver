@@ -132,8 +132,8 @@ auto MakeTubeSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
   return fub::amrex::IntegratorContext(gridding, method);
 }
 
-::amrex::Box BoxWhichContains(const ::amrex::RealBox& xbox, const ::amrex::Geometry& geom)
-{
+::amrex::Box BoxWhichContains(const ::amrex::RealBox& xbox,
+                              const ::amrex::Geometry& geom) {
   ::amrex::Box domain = geom.Domain();
   ::amrex::IntVect lo = domain.smallEnd();
   ::amrex::IntVect up = domain.bigEnd();
@@ -141,7 +141,7 @@ auto MakeTubeSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
     for (int i = domain.smallEnd(d); i < domain.bigEnd(d); ++i) {
       const double x = geom.CellCenter(i, d);
       if (x < xbox.lo(d)) {
-        lo[d]  = std::max(lo[d], i);
+        lo[d] = std::max(lo[d], i);
       }
       if (x > xbox.hi(d)) {
         up[d] = std::min(up[d], i);
@@ -251,22 +251,40 @@ int main(int /* argc */, char** /* argv */) {
   fub::IdealGasMix<Plenum_Rank> equation{mechanism};
 
   fub::amrex::MultiBlockIntegratorContext context(
-    fub::FlameMasterReactor(mechanism), {std::move(tube)}, {std::move(plenum)}, {connection});
+      fub::FlameMasterReactor(mechanism), {std::move(tube)},
+      {std::move(plenum)}, {connection});
 
   fub::DimensionalSplitLevelIntegrator system_solver(fub::int_c<Plenum_Rank>,
                                                      std::move(context));
 
   fub::amrex::MultiBlockKineticSouceTerm source_term{
-    fub::IdealGasMix<Tube_Rank>{mechanism},
-    system_solver.GetGriddingAlgorithm()};
+      fub::IdealGasMix<Tube_Rank>{mechanism},
+      system_solver.GetGriddingAlgorithm()};
 
   fub::DimensionalSplitSystemSourceSolver solver{system_solver, source_term};
 
   std::string base_name = "MultiBlock_3d";
   fub::IdealGasMix<Tube_Rank> tube_equation{mechanism};
+
+  // Write Checkpoints 25min + every 30min
+  const fub::Duration checkpoint_offest = std::chrono::minutes(30);
+  fub::Duration next_checkpoint = std::chrono::minutes(25);
   auto output =
       [&](std::shared_ptr<fub::amrex::MultiBlockGriddingAlgorithm> gridding,
           auto cycle, auto) {
+        std::chrono::steady_clock::time_point now =
+            std::chrono::steady_clock::now();
+        auto duration = std::chrono::duration_cast<fub::Duration>(
+            now - wall_time_reference);
+        if (duration > next_checkpoint) {
+          fub::amrex::WriteCheckpointFile(
+              fmt::format("{}/Checkpoint_Tube/{:05}", base_name, cycle),
+              gridding->GetTubes()[0]->GetPatchHierarchy());
+          fub::amrex::cutcell::WriteCheckpointFile(
+              fmt::format("{}/Checkpoint_Plenum/{:05}", base_name, cycle),
+              gridding->GetPlena()[0]->GetPatchHierarchy());
+          next_checkpoint += checkpoint_offest;
+        }
         std::string name = fmt::format("{}/Tube/plt{:05}", base_name, cycle);
         ::amrex::Print() << "Start output to '" << name << "'.\n";
         fub::amrex::WritePlotFile(
