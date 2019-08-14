@@ -26,6 +26,7 @@ namespace amrex {
 
 struct ScopeGuard {
   ScopeGuard(int argc, char** argv);
+  ScopeGuard();
   ~ScopeGuard();
 };
 

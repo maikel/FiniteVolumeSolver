@@ -21,12 +21,17 @@
 #include "fub/AMReX/ScopeGuard.hpp"
 
 #include <AMReX.H>
+#include <mpi.h>
 
 namespace fub {
 namespace amrex {
 
 ScopeGuard::ScopeGuard(int argc, char** argv) {
   ::amrex::Initialize(argc, argv);
+}
+
+ScopeGuard::ScopeGuard() {
+  ::amrex::Initialize(MPI_COMM_WORLD);
 }
 
 ScopeGuard::~ScopeGuard() { ::amrex::Finalize(); }
