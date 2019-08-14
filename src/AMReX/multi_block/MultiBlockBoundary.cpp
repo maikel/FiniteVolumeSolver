@@ -86,17 +86,17 @@ void IntegrateConserativeStates(
     const PatchDataView<const double, AMREX_SPACEDIM>& volumes,
     const ::amrex::Box& box, double cell_volume) {
   const int n_comps = static_cast<int>(dest.Extent(AMREX_SPACEDIM));
-  ForEachIndex(AsIndexBox<AMREX_SPACEDIM>(box), [&](auto... is) {
-    Index<AMREX_SPACEDIM> index{is...};
-    Index<AMREX_SPACEDIM> lowdim_index{index[0]};
-    for (int i = 0; i < n_comps; ++i) {
+  for (int i = 0; i < n_comps; ++i) {
+    ForEachIndex(AsIndexBox<AMREX_SPACEDIM>(box), [&](auto... is) {
+      Index<AMREX_SPACEDIM> index{is...};
+      Index<AMREX_SPACEDIM> lowdim_index{index[0]};
       if (volumes(index) > 0.0) {
         dest(AMREX_D_DECL(index[0], 0, 0), i) +=
             (volumes(index) * cell_volume / total_volumes(lowdim_index)) *
             src(is..., i);
       }
-    }
-  });
+    });
+  }
 }
 
 ::amrex::FArrayBox
@@ -435,37 +435,40 @@ void MultiBlockBoundary::FillBoundary(::amrex::MultiFab& mf,
   const int level = FindLevel(geom, gridding);
   ::amrex::Box box = tube_ghost_data_->box();
   for (int i = 1; i <= level; ++i) {
-    const ::amrex::IntVect ratio = gridding.GetPatchHierarchy().GetRatioToCoarserLevel(i);
+    const ::amrex::IntVect ratio =
+        gridding.GetPatchHierarchy().GetRatioToCoarserLevel(i);
     box.refine(ratio);
   }
   ForEachFab(execution::openmp, mf, [&](const ::amrex::MFIter& mfi) {
     const ::amrex::Box b = mfi.growntilebox() & box;
     if (!b.isEmpty()) {
-    for (int n = 0; n < mf.nComp(); ++n) {
-    ForEachIndex(AsIndexBox<AMREX_SPACEDIM>(b), [&](auto... is) {
-      const ::amrex::IntVect iv{int(is)...};
-      ::amrex::IntVect tube_iv = iv;
-      for (int i = level; i > 0; --i) {
-        const ::amrex::IntVect ratio = gridding.GetPatchHierarchy().GetRatioToCoarserLevel(i);
-        tube_iv.coarsen(ratio);
+      for (int n = 0; n < mf.nComp(); ++n) {
+        ForEachIndex(AsIndexBox<AMREX_SPACEDIM>(b), [&](auto... is) {
+          const ::amrex::IntVect iv{int(is)...};
+          ::amrex::IntVect tube_iv = iv;
+          for (int i = level; i > 0; --i) {
+            const ::amrex::IntVect ratio =
+                gridding.GetPatchHierarchy().GetRatioToCoarserLevel(i);
+            tube_iv.coarsen(ratio);
+          }
+          mf[mfi](iv, n) = (*tube_ghost_data_)(tube_iv, n);
+        });
       }
-      mf[mfi](iv, n) = (*tube_ghost_data_)(tube_iv, n);
-    });
-    }
     }
   });
 }
 
-void MultiBlockBoundary::FillBoundary(::amrex::MultiFab& mf,
-                                      const ::amrex::Geometry& geom, Duration,
-                                      const cutcell::GriddingAlgorithm& gridding) {
+void MultiBlockBoundary::FillBoundary(
+    ::amrex::MultiFab& mf, const ::amrex::Geometry& geom, Duration,
+    const cutcell::GriddingAlgorithm& gridding) {
   const int level = FindLevel(geom, gridding);
   ::amrex::Box ghost_box = MakeGhostBox(plenum_mirror_box_, 3, dir_, side_);
   for (int i = 1; i <= level; ++i) {
-    const ::amrex::IntVect ratio = gridding.GetPatchHierarchy().GetRatioToCoarserLevel(i);
+    const ::amrex::IntVect ratio =
+        gridding.GetPatchHierarchy().GetRatioToCoarserLevel(i);
     ghost_box.refine(ratio);
   }
-  ForEachFab(execution::openmp, mf, [&](const ::amrex::MFIter& mfi) {
+  ForEachFab(execution::seq, mf, [&](const ::amrex::MFIter& mfi) {
     const ::amrex::Box box = mfi.growntilebox() & ghost_box;
     if (!box.isEmpty()) {
       ::amrex::FArrayBox& fab = mf[mfi];
@@ -474,7 +477,8 @@ void MultiBlockBoundary::FillBoundary(::amrex::MultiFab& mf,
           const ::amrex::IntVect dest{int(is)...};
           ::amrex::IntVect src = ReduceDimension(dest, dir_);
           for (int i = level; i > 0; --i) {
-            const ::amrex::IntVect ratio = gridding.GetPatchHierarchy().GetRatioToCoarserLevel(i);
+            const ::amrex::IntVect ratio =
+                gridding.GetPatchHierarchy().GetRatioToCoarserLevel(i);
             src.coarsen(ratio);
           }
           fab(dest, c) = (*plenum_ghost_data_)(src, c);

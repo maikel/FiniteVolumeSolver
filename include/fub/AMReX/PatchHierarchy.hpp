@@ -158,7 +158,7 @@ public:
   /// \brief Returns a Geometry object for a specified level.
   ///
   /// \param[in] The refinement level number for this geometry obejct.
-  const ::amrex::Geometry& GetGeometry(int level) const noexcept;
+  const ::amrex::Geometry& GetGeometry(int level) const;
 
   // Modifiers
 

@@ -176,11 +176,11 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::ComputeStableDt() {
     const Direction dir = static_cast<Direction>(d);
     min_dt = std::min(min_dt, ComputeStableDt_Split(dir));
   }
-  const MPI_Comm comm = Context::GetMpiCommunicator();
+  MPI_Comm comm = Context::GetMpiCommunicator();
   const double local_dt = min_dt.count();
   double global_min_dt{0};
   MPI_Allreduce(&local_dt, &global_min_dt, 1, MPI_DOUBLE, MPI_MIN, comm);
-  return min_dt;
+  return Duration(global_min_dt);
 }
 
 template <int Rank, typename Context, typename SplitMethod>
@@ -213,11 +213,10 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::AdvanceLevel(
   //  }
 
   auto AdvanceLevel_Split = [&](Direction dir) {
-    return [&, dir, first_use = true](
+    return [&, dir, split_cycle = 0](
                Duration split_dt) mutable -> Result<void, TimeStepTooLarge> {
-      if (first_use && subcycle == 0 && this_level > 0) {
+      if (dir == Direction::X && split_cycle == 0 && subcycle == 0 && this_level > 0) {
         Context::FillGhostLayerTwoLevels(this_level, this_level - 1);
-        first_use = false;
       } else {
         Context::FillGhostLayerSingleLevel(this_level);
       }
@@ -247,6 +246,7 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::AdvanceLevel(
       // We have to reconstruct the missing variables in the complete state.
       Context::CompleteFromCons(this_level, split_dt);
 
+      split_cycle += 1;
       return boost::outcome_v2::success();
     };
   };

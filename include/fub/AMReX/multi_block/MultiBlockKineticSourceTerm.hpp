@@ -30,6 +30,8 @@ namespace fub::amrex {
 
 class MultiBlockKineticSouceTerm {
 public:
+    static constexpr int Rank = 1;
+
   MultiBlockKineticSouceTerm(
       const IdealGasMix<1>& equation,
       std::shared_ptr<MultiBlockGriddingAlgorithm> gridding);
@@ -40,6 +42,7 @@ public:
   Duration ComputeStableDt();
 
   Result<void, TimeStepTooLarge> AdvanceHierarchy(Duration dt);
+  Result<void, TimeStepTooLarge> AdvanceLevel(int level, Duration dt);
 
   Duration GetTimePoint() const;
 

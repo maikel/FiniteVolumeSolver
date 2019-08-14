@@ -23,6 +23,7 @@
 #include "fub/Solver.hpp"
 
 #include <AMReX_EB2.H>
+#include <AMReX_EB2_IF_AllRegular.H>
 #include <AMReX_EB2_IF_Box.H>
 #include <AMReX_EB2_IF_Complement.H>
 #include <AMReX_EB2_IF_Cylinder.H>
@@ -30,10 +31,8 @@
 #include <AMReX_EB2_IF_Plane.H>
 #include <AMReX_EB2_IF_Union.H>
 #include <AMReX_EB_LSCore.H>
-#include <AMReX_EB2_IF_AllRegular.H>
 
 #include <boost/filesystem.hpp>
-
 
 #include <cmath>
 #include <iostream>
@@ -59,12 +58,13 @@ struct TemperatureRamp {
       fub::ForEachIndex(fub::Box<0>(states), [&](std::ptrdiff_t i) {
         double x[AMREX_SPACEDIM] = {};
         geom.CellCenter(::amrex::IntVect{int(i)}, x);
-        if (x[0] < 0.1) {
-          const double d = x[0] / 0.1;
+        const double x0 = x[0] + 1.5;
+        if (x0 < 0.1) {
+          const double d = x0 / 0.1;
           reactor.SetMoleFractions("N2:79,O2:21,H2:42");
           reactor.SetTemperature(d * low_temp + (1.0 - d) * high_temp);
           reactor.SetPressure(101325.0);
-        } else if (x[0] < 0.8) {
+        } else if (x0 < 0.8) {
           reactor.SetMoleFractions("N2:79,O2:21,H2:42");
           reactor.SetTemperature(low_temp);
           reactor.SetPressure(101325.0);
@@ -82,8 +82,8 @@ struct TemperatureRamp {
 
 auto MakeTubeSolver(int num_cells, fub::Burke2012& mechanism) {
   const std::array<int, 2> n_cells{num_cells, 1};
-  const std::array<double, 2> xlower{0.0, 0.0};
-  const std::array<double, 2> xupper{+1.0, +0.03};
+  const std::array<double, 2> xlower{-1.5, -0.015};
+  const std::array<double, 2> xupper{-0.1, +0.015};
   const std::array<int, 2> periodicity{0, 0};
 
   amrex::RealBox xbox(xlower, xupper);
@@ -101,9 +101,11 @@ auto MakeTubeSolver(int num_cells, fub::Burke2012& mechanism) {
   hier_opts.max_number_of_levels = 1;
   hier_opts.refine_ratio = amrex::IntVect{2, 1};
 
-  amrex::Geometry geom(amrex::Box{{}, {n_cells[0] - 1, n_cells[1] - 1}}, &xbox, -1, periodicity.data());
+  amrex::Geometry geom(amrex::Box{{}, {n_cells[0] - 1, n_cells[1] - 1}}, &xbox,
+                       -1, periodicity.data());
   geom.refine(hier_opts.refine_ratio);
-  ::amrex::EB2::Build(::amrex::EB2::makeShop(::amrex::EB2::AllRegularIF()), geom, hier_opts.refine_ratio, 1, 1);
+  ::amrex::EB2::Build(::amrex::EB2::makeShop(::amrex::EB2::AllRegularIF()),
+                      geom, hier_opts.refine_ratio, 1, 1);
 
   using Complete = fub::IdealGasMix<1>::Complete;
   GradientDetector gradient{equation, std::make_pair(&Complete::density, 5e-3),
@@ -117,13 +119,14 @@ auto MakeTubeSolver(int num_cells, fub::Burke2012& mechanism) {
   BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
                                   TransmissiveBoundary{fub::Direction::X, 1}}};
 
-  std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(PatchHierarchy(desc, geometry, hier_opts), initial_data, TagAllOf(gradient, constant_box),
-      boundary_condition);
+  std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
+      PatchHierarchy(desc, geometry, hier_opts), initial_data,
+      TagAllOf(gradient, constant_box), boundary_condition);
   gridding->InitializeHierarchy(0.0);
 
   fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>> signals{};
   fub::HllMethod hll_method(equation, signals);
-  //fub::MusclHancockMethod flux_method{equation, hll_method};
+  // fub::MusclHancockMethod flux_method{equation, hll_method};
 
   HyperbolicMethod method{FluxMethod(fub::execution::seq, hll_method),
                           ForwardIntegrator(fub::execution::seq),
@@ -151,7 +154,7 @@ auto MakePlenumSolver(int num_cells, fub::Burke2012& mechanism) {
   amrex::Geometry coarse_geom(amrex::Box{{}, {n_cells[0] - 1, n_cells[1] - 1}},
                               &xbox, -1, periodicity.data());
 
-  const int n_level = 1;
+  const int n_level = 2;
 
   auto embedded_boundary =
       amrex::EB2::makeUnion(Rectangle({-1.0, +0.015}, {0.0, 1.0}),
@@ -196,7 +199,8 @@ auto MakePlenumSolver(int num_cells, fub::Burke2012& mechanism) {
 
   std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
       PatchHierarchy(equation, geometry, options), initial_data,
-      TagAllOf(TagCutCells(), gradients, constant_box, TagBuffer(4)), boundary_condition);
+      TagAllOf(TagCutCells(), gradients, constant_box, TagBuffer(4)),
+      boundary_condition);
   gridding->InitializeHierarchy(0.0);
 
   // Make Solver
@@ -219,8 +223,8 @@ int main(int argc, char** argv) {
 
   fub::amrex::ScopeGuard _(argc, argv);
   fub::Burke2012 mechanism{};
-  auto plenum = MakePlenumSolver(256, mechanism);
-  auto tube = MakeTubeSolver(1600, mechanism);
+  auto plenum = MakePlenumSolver(80, mechanism);
+  auto tube = MakeTubeSolver(400, mechanism);
 
   fub::amrex::BlockConnection connection;
   connection.direction = fub::Direction::X;
@@ -238,11 +242,12 @@ int main(int argc, char** argv) {
       fub::FlameMasterReactor(mechanism), {tube}, {plenum}, {connection});
 
   fub::IdealGasMix<Plenum_Rank> equation{mechanism};
-  fub::HyperbolicSplitSystemSolver system_solver(
-      fub::HyperbolicSplitLevelIntegrator(equation, std::move(context)));
+  fub::DimensionalSplitLevelIntegrator system_solver(fub::int_c<Plenum_Rank>,
+                                                     std::move(context));
   fub::amrex::MultiBlockKineticSouceTerm source_term{
-      fub::IdealGasMix<1>{mechanism}, system_solver.GetGriddingAlgorithm()};
-  fub::SplitSystemSourceSolver solver{system_solver, source_term};
+      fub::IdealGasMix<Tube_Rank>{mechanism},
+      system_solver.GetGriddingAlgorithm()};
+  fub::DimensionalSplitSystemSourceSolver solver{system_solver, source_term};
 
   std::string base_name = "MultiBlock_2d";
   fub::IdealGasMix<Tube_Rank> tube_equation{mechanism};
@@ -267,7 +272,7 @@ int main(int argc, char** argv) {
          solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.final_time = 0.004s;
-  run_options.output_interval = run_options.final_time / (60 * 4);
+  run_options.output_interval = fub::Duration(0.001 / 30.0);
   run_options.cfl = 0.8;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      print_msg);

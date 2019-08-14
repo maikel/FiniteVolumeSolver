@@ -141,28 +141,29 @@ void MultiBlockIntegratorContext::ResetHierarchyConfiguration(
 /// \param[in] level  The level number of the coarsest level which changed its
 /// shape. Regrid all levels finer than level.
 void MultiBlockIntegratorContext::ResetHierarchyConfiguration(int level) {
-  ForEachBlock(std::tuple{tubes_, plena_},
-               [=](auto& block) { block.ResetHierarchyConfiguration(level); });
+  ForEachBlock(std::tuple{tubes_, plena_}, [=](auto& block) {
+    if (block.LevelExists(level)) {
+      block.ResetHierarchyConfiguration(level);
+    }
+  });
 }
 
 /// \brief Sets the cycle count for a specific level number and direction.
 void MultiBlockIntegratorContext::SetCycles(std::ptrdiff_t cycle, int level) {
-    for (IntegratorContext& tube : tubes_) {
-      tube.SetCycles(cycle, level);
+  ForEachBlock(std::tuple{tubes_, plena_}, [=](auto& block) {
+    if (block.LevelExists(level)) {
+      block.SetCycles(cycle, level);
     }
-  for (cutcell::IntegratorContext& plenum : plena_) {
-    plenum.SetCycles(cycle, level);
-  }
+  });
 }
 
 /// \brief Sets the time point for a specific level number and direction.
 void MultiBlockIntegratorContext::SetTimePoint(Duration t, int level) {
-  for (IntegratorContext& tube : tubes_) {
-    tube.SetTimePoint(t, level);
-  }
-  for (cutcell::IntegratorContext& plenum : plena_) {
-    plenum.SetTimePoint(t, level);
-  }
+  ForEachBlock(std::tuple{tubes_, plena_}, [=](auto& block) {
+    if (block.LevelExists(level)) {
+      block.SetTimePoint(t, level);
+    }
+  });
 }
 /// @}
 
@@ -170,94 +171,150 @@ void MultiBlockIntegratorContext::SetTimePoint(Duration t, int level) {
 /// \name Member functions relevant for the level integrator algorithm.
 
 /// \brief On each first subcycle this will regrid the data if neccessary.
-void MultiBlockIntegratorContext::PreAdvanceLevel(int level_num,
-                                                  Duration dt, int subcycle) {
-  for (IntegratorContext& tube : tubes_) {
-    tube.PreAdvanceLevel(level_num, dt, subcycle);
-  }
-  for (cutcell::IntegratorContext& plenum : plena_) {
-    plenum.PreAdvanceLevel(level_num, dt, subcycle);
-  }
+void MultiBlockIntegratorContext::PreAdvanceLevel(int level_num, Duration dt,
+                                                  int subcycle) {
+  ForEachBlock(std::tuple{tubes_, plena_}, [=](auto& block) {
+    if (block.LevelExists(level_num)) {
+      block.PreAdvanceLevel(level_num, dt, subcycle);
+    }
+  });
 }
 
 /// \brief Increases the internal time stamps and cycle counters for the
 /// specified level number and direction.
 Result<void, TimeStepTooLarge>
-MultiBlockIntegratorContext::PostAdvanceLevel(int level_num,
-                                              Duration dt, int subcycle) {
+MultiBlockIntegratorContext::PostAdvanceLevel(int level_num, Duration dt,
+                                              int subcycle) {
   for (IntegratorContext& tube : tubes_) {
-        Result<void, TimeStepTooLarge> result = tube.PostAdvanceLevel(level_num, dt, subcycle);
-	if (!result) {
-		return result;
-	}
+    if (tube.LevelExists(level_num)) {
+      Result<void, TimeStepTooLarge> result =
+          tube.PostAdvanceLevel(level_num, dt, subcycle);
+      if (!result) {
+        return result;
+      }
+    }
   }
   for (cutcell::IntegratorContext& plenum : plena_) {
-      Result<void, TimeStepTooLarge> result = plenum.PostAdvanceLevel(level_num, dt, subcycle);
-	if (!result) {
-	   return result;
-        }
+    if (plenum.LevelExists(level_num)) {
+      Result<void, TimeStepTooLarge> result =
+          plenum.PostAdvanceLevel(level_num, dt, subcycle);
+      if (!result) {
+        return result;
+      }
+    }
   }
   return boost::outcome_v2::success();
 }
 
-/// \brief Fills the ghost layer of the scratch data and interpolates in the
-/// coarse fine layer.
-void MultiBlockIntegratorContext::FillGhostLayerTwoLevels(int level, int coarse) {
-  for (IntegratorContext& tube : tubes_) {
-    tube.FillGhostLayerTwoLevels(level, coarse);
-  }
-  for (cutcell::IntegratorContext& plenum : plena_) {
-    plenum.FillGhostLayerTwoLevels(level, coarse);
-  }
-}
-
 namespace {
 struct WrapBoundaryCondition {
-  MultiBlockBoundary* boundary;
+  std::size_t id;
+  span<const BlockConnection> connectivity;
+  span<MultiBlockBoundary> boundaries;
+  BoundaryCondition* base_condition{nullptr};
+  cutcell::BoundaryCondition* base_cc_condition{nullptr};
+
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
                     Duration time_point,
                     const GriddingAlgorithm& gridding) const {
-    boundary->FillBoundary(mf, geom, time_point, gridding);
+    FUB_ASSERT(base_condition != nullptr);
+    base_condition->FillBoundary(mf, geom, time_point, gridding);
+    MultiBlockBoundary* boundary = boundaries.begin();
+    for (const BlockConnection& connection : connectivity) {
+      if (id == connection.tube.id) {
+        boundary->FillBoundary(mf, geom, time_point, gridding);
+      }
+      ++boundary;
+    }
   }
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
                     Duration time_point,
                     const cutcell::GriddingAlgorithm& gridding) const {
-    boundary->FillBoundary(mf, geom, time_point, gridding);
+    FUB_ASSERT(base_cc_condition != nullptr);
+    base_cc_condition->FillBoundary(mf, geom, time_point, gridding);
+    MultiBlockBoundary* boundary = boundaries.begin();
+    for (const BlockConnection& connection : connectivity) {
+      if (id == connection.plenum.id) {
+        boundary->FillBoundary(mf, geom, time_point, gridding);
+      }
+      ++boundary;
+    }
   }
 };
 } // namespace
 
+/// \brief Fills the ghost layer of the scratch data and interpolates in the
+/// coarse fine layer.
+void MultiBlockIntegratorContext::FillGhostLayerTwoLevels(int fine,
+                                                          int coarse) {
+  std::size_t id = 0;
+  for (IntegratorContext& tube : tubes_) {
+    if (tube.LevelExists(fine)) {
+      BoundaryCondition& fbc = tube.GetBoundaryCondition(fine);
+      BoundaryCondition fwrapped =
+          WrapBoundaryCondition{id, gridding_->GetConnectivity(),
+                                gridding_->GetBoundaries(), &fbc, nullptr};
+      fwrapped.parent = tube.GetGriddingAlgorithm().get();
+      fwrapped.geometry = tube.GetGeometry(fine);
+      BoundaryCondition& cbc = tube.GetBoundaryCondition(fine);
+      BoundaryCondition cwrapped =
+          WrapBoundaryCondition{id, gridding_->GetConnectivity(),
+                                gridding_->GetBoundaries(), &cbc, nullptr};
+      cwrapped.parent = tube.GetGriddingAlgorithm().get();
+      cwrapped.geometry = tube.GetGeometry(coarse);
+      tube.FillGhostLayerTwoLevels(fine, fwrapped, coarse, cwrapped);
+    }
+    id += 1;
+  }
+  id = 0;
+  for (cutcell::IntegratorContext& plenum : plena_) {
+    if (plenum.LevelExists(fine)) {
+      cutcell::BoundaryCondition& fbc = plenum.GetBoundaryCondition(fine);
+      cutcell::BoundaryCondition fwrapped =
+          WrapBoundaryCondition{id, gridding_->GetConnectivity(),
+                                gridding_->GetBoundaries(), nullptr, &fbc};
+      fwrapped.parent = plenum.GetGriddingAlgorithm().get();
+      fwrapped.geometry = plenum.GetGeometry(fine);
+      cutcell::BoundaryCondition& cbc = plenum.GetBoundaryCondition(fine);
+      cutcell::BoundaryCondition cwrapped =
+          WrapBoundaryCondition{id, gridding_->GetConnectivity(),
+                                gridding_->GetBoundaries(), nullptr, &cbc};
+      cwrapped.parent = plenum.GetGriddingAlgorithm().get();
+      cwrapped.geometry = plenum.GetGeometry(fine);
+      plenum.FillGhostLayerTwoLevels(fine, fwrapped, coarse, cwrapped);
+    }
+    id += 1;
+  }
+}
+
 /// \brief Fills the ghost layer of the scratch data and does nothing in the
 /// coarse fine layer.
-void MultiBlockIntegratorContext::FillGhostLayerSingleLevel(
-    int level) {
-  {
-    for (IntegratorContext& tube : tubes_) {
-      tube.FillGhostLayerSingleLevel(level);
+void MultiBlockIntegratorContext::FillGhostLayerSingleLevel(int level) {
+  std::size_t id = 0;
+  for (IntegratorContext& tube : tubes_) {
+    if (tube.LevelExists(level)) {
+      BoundaryCondition& bc = tube.GetBoundaryCondition(level);
+      BoundaryCondition wrapped =
+          WrapBoundaryCondition{id, gridding_->GetConnectivity(),
+                                gridding_->GetBoundaries(), &bc, nullptr};
+      wrapped.parent = tube.GetGriddingAlgorithm().get();
+      wrapped.geometry = tube.GetGeometry(level);
+      tube.FillGhostLayerSingleLevel(level, wrapped);
     }
-    MultiBlockBoundary* boundary = gridding_->GetBoundaries().begin();
-    for (const BlockConnection& connection : gridding_->GetConnectivity()) {
-        IntegratorContext& tube = tubes_[connection.tube.id];
-        BoundaryCondition bc(WrapBoundaryCondition{boundary});
-        bc.parent = tube.GetGriddingAlgorithm().get();
-        bc.geometry = tube.GetGeometry(level);
-        tube.FillGhostLayerSingleLevel(level, bc);
-       ++boundary;
-    }
+    id += 1;
+  }
+  id = 0;
   for (cutcell::IntegratorContext& plenum : plena_) {
-    plenum.FillGhostLayerSingleLevel(level);
-  }
-  }
-  {
-  MultiBlockBoundary* boundary = gridding_->GetBoundaries().begin();
-  for (const BlockConnection& connection : gridding_->GetConnectivity()) {
-      cutcell::IntegratorContext& plenum = plena_[connection.plenum.id];
-      cutcell::BoundaryCondition bc(WrapBoundaryCondition{boundary});
-      bc.parent = plenum.GetGriddingAlgorithm().get();
-      bc.geometry = plenum.GetGeometry(level);
-      plenum.FillGhostLayerSingleLevel(level, bc);
-      ++boundary;
-  }
+    if (plenum.LevelExists(level)) {
+      cutcell::BoundaryCondition& bc = plenum.GetBoundaryCondition(level);
+      cutcell::BoundaryCondition wrapped =
+          WrapBoundaryCondition{id, gridding_->GetConnectivity(),
+                                gridding_->GetBoundaries(), nullptr, &bc};
+      wrapped.parent = plenum.GetGriddingAlgorithm().get();
+      wrapped.geometry = plenum.GetGeometry(level);
+      plenum.FillGhostLayerSingleLevel(level, wrapped);
+    }
+    id += 1;
   }
 }
 
@@ -267,17 +324,21 @@ Duration MultiBlockIntegratorContext::ComputeStableDt(int level,
                                                       Direction dir) {
   Duration stable_dt{std::numeric_limits<double>::infinity()};
   if (dir == Direction::X) {
-    stable_dt =
-        std::accumulate(tubes_.begin(), tubes_.end(), stable_dt,
-                    [=](Duration dt, IntegratorContext& ctx) {
-                      return std::min(dt, ctx.ComputeStableDt(level, dir));
-                    });
+    stable_dt = std::accumulate(
+        tubes_.begin(), tubes_.end(), stable_dt,
+        [=](Duration dt, IntegratorContext& ctx) {
+          return ctx.LevelExists(level)
+                     ? std::min(dt, ctx.ComputeStableDt(level, dir))
+                     : dt;
+        });
   }
-  stable_dt =
-      std::accumulate(plena_.begin(), plena_.end(), stable_dt,
-                  [=](Duration dt, cutcell::IntegratorContext& ctx) {
-                    return std::min(dt, ctx.ComputeStableDt(level, dir));
-                  });
+  stable_dt = std::accumulate(
+      plena_.begin(), plena_.end(), stable_dt,
+      [=](Duration dt, cutcell::IntegratorContext& ctx) {
+        return ctx.LevelExists(level)
+                   ? std::min(dt, ctx.ComputeStableDt(level, dir))
+                   : dt;
+      });
   return stable_dt;
 }
 
@@ -306,11 +367,15 @@ void MultiBlockIntegratorContext::ComputeNumericFluxes(int level, Duration dt,
                                                        Direction dir) {
   if (dir == Direction::X) {
     for (IntegratorContext& tube : tubes_) {
-      tube.ComputeNumericFluxes(level, dt, dir);
+      if (tube.LevelExists(level)) {
+        tube.ComputeNumericFluxes(level, dt, dir);
+      }
     }
   }
   for (cutcell::IntegratorContext& plenum : plena_) {
-    plenum.ComputeNumericFluxes(level, dt, dir);
+    if (plenum.LevelExists(level)) {
+      plenum.ComputeNumericFluxes(level, dt, dir);
+    }
   }
 }
 
@@ -318,24 +383,27 @@ void MultiBlockIntegratorContext::ComputeNumericFluxes(int level, Duration dt,
 /// the specified level number and direction.
 void MultiBlockIntegratorContext::UpdateConservatively(int level, Duration dt,
                                                        Direction dir) {
-  if (dir == LastDirection()) {
+  if (dir == Direction::X) {
     for (IntegratorContext& tube : tubes_) {
-      tube.UpdateConservatively(level, dt, Direction::X);
+      if (tube.LevelExists(level)) {
+        tube.UpdateConservatively(level, dt, dir);
+      }
     }
   }
   for (cutcell::IntegratorContext& plenum : plena_) {
-    plenum.UpdateConservatively(level, dt, dir);
+    if (plenum.LevelExists(level)) {
+      plenum.UpdateConservatively(level, dt, dir);
+    }
   }
 }
 
 /// \brief Reconstruct complete state variables from conservative ones.
 void MultiBlockIntegratorContext::CompleteFromCons(int level, Duration dt) {
-  for (IntegratorContext& tube : tubes_) {
-    tube.CompleteFromCons(level, dt);
-  }
-  for (cutcell::IntegratorContext& plenum : plena_) {
-    plenum.CompleteFromCons(level, dt);
-  }
+  ForEachBlock(std::tuple{tubes_, plena_}, [=](auto& block) {
+    if (block.LevelExists(level)) {
+      block.CompleteFromCons(level, dt);
+    }
+  });
 }
 
 /// \brief Accumulate fluxes on the coarse fine interfaces for a specified
@@ -345,11 +413,15 @@ void MultiBlockIntegratorContext::AccumulateCoarseFineFluxes(int level,
                                                              Direction dir) {
   if (dir == Direction::X) {
     for (IntegratorContext& tube : tubes_) {
-      tube.AccumulateCoarseFineFluxes(level, time_scale, dir);
+      if (tube.LevelExists(level)) {
+        tube.AccumulateCoarseFineFluxes(level, time_scale, dir);
+      }
     }
   }
   for (cutcell::IntegratorContext& plenum : plena_) {
-    plenum.AccumulateCoarseFineFluxes(level, time_scale, dir);
+    if (plenum.LevelExists(level)) {
+      plenum.AccumulateCoarseFineFluxes(level, time_scale, dir);
+    }
   }
 }
 
@@ -357,33 +429,30 @@ void MultiBlockIntegratorContext::AccumulateCoarseFineFluxes(int level,
 /// fine interfaces.
 void MultiBlockIntegratorContext::ApplyFluxCorrection(int fine, int coarse,
                                                       Duration dt) {
-  for (IntegratorContext& tube : tubes_) {
-    tube.ApplyFluxCorrection(fine, coarse, dt);
-  }
-  for (cutcell::IntegratorContext& plenum : plena_) {
-    plenum.ApplyFluxCorrection(fine, coarse, dt);
-  }
+  ForEachBlock(std::tuple{tubes_, plena_}, [=](auto& block) {
+    if (block.LevelExists(fine)) {
+      block.ApplyFluxCorrection(fine, coarse, dt);
+    }
+  });
 }
 
 /// \brief Resets all accumulates fluxes to zero.
 void MultiBlockIntegratorContext::ResetCoarseFineFluxes(int fine, int coarse) {
-    for (IntegratorContext& tube : tubes_) {
-      tube.ResetCoarseFineFluxes(fine, coarse);
+  ForEachBlock(std::tuple{tubes_, plena_}, [=](auto& block) {
+    if (block.LevelExists(fine)) {
+      block.ResetCoarseFineFluxes(fine, coarse);
     }
-  for (cutcell::IntegratorContext& plenum : plena_) {
-    plenum.ResetCoarseFineFluxes(fine, coarse);
-  }
+  });
 }
 
 /// \brief Coarsen scratch data from a fine level number to a coarse level
 /// number.
 void MultiBlockIntegratorContext::CoarsenConservatively(int fine, int coarse) {
-  for (IntegratorContext& tube : tubes_) {
-    tube.CoarsenConservatively(fine, coarse);
-  }
-  for (cutcell::IntegratorContext& plenum : plena_) {
-    plenum.CoarsenConservatively(fine, coarse);
-  }
+  ForEachBlock(std::tuple{tubes_, plena_}, [=](auto& block) {
+    if (block.LevelExists(fine)) {
+      block.CoarsenConservatively(fine, coarse);
+    }
+  });
 }
 ///@}
 

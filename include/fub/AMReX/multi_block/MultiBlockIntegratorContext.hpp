@@ -51,11 +51,11 @@ public:
 
   /// \brief Returns the current time level for data at the specified refinement
   /// level and direction.
-  Duration GetTimePoint(int level) const;
+  Duration GetTimePoint(int level = 0) const;
 
   /// \brief Returns the current number of cycles for data at the specified
   /// refinement level and direction.
-  std::ptrdiff_t GetCycles(int level) const;
+  std::ptrdiff_t GetCycles(int level = 0) const;
   /// @}
 
   /// \brief Returns the current boundary condition for the specified level.

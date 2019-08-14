@@ -247,7 +247,7 @@ void TimeIntegrator::UpdateConservatively(IntegratorContext& context, int level,
 
 //  const int gcw = context.GetHyperbolicMethod().flux_method.GetStencilWidth();
 
-  ForEachFab(execution::openmp, scratch, [&](const ::amrex::MFIter& mfi) {
+  ForEachFab(execution::seq, scratch, [&](const ::amrex::MFIter& mfi) {
     ::amrex::FabType type = context.GetFabType(level, mfi);
     const IndexBox<AMREX_SPACEDIM> cells = AsIndexBox<AMREX_SPACEDIM>(GetCellBoxToUpdate(mfi, dir));
     if (type == ::amrex::FabType::singlevalued) {

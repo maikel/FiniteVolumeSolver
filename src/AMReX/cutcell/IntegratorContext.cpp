@@ -207,7 +207,8 @@ IntegratorContext::GetEmbeddedBoundary(int level) const {
   return *GetPatchHierarchy().GetEmbeddedBoundary(level);
 }
 
-const HyperbolicMethod& IntegratorContext::GetHyperbolicMethod() const noexcept {
+const HyperbolicMethod& IntegratorContext::GetHyperbolicMethod() const
+    noexcept {
   return method_;
 }
 
@@ -281,14 +282,14 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
         ba, dm, n_cons_components, ghost_cell_width_,
         ebf->getMultiEBCellFlagFab());
 
-
     data.scratch.define(ba, dm, n_components, ghost_cell_width_);
     ::amrex::IntVect grow(ghost_cell_width_);
 
     for (std::size_t d = 0; d < static_cast<std::size_t>(AMREX_SPACEDIM); ++d) {
       ::amrex::IntVect fgrow = grow;
       fgrow[int(d)] = 1;
-      const ::amrex::IntVect unit = ::amrex::IntVect::TheDimensionVector(int(d));
+      const ::amrex::IntVect unit =
+          ::amrex::IntVect::TheDimensionVector(int(d));
       data.fluxes[d].define(::amrex::convert(ba, unit), dm, n_cons_components,
                             fgrow);
       data.stabilized_fluxes[d].define(::amrex::convert(ba, unit), dm,
@@ -320,7 +321,10 @@ void IntegratorContext::SetCycles(std::ptrdiff_t cycles, int level) {
   data_[l].cycles = cycles;
 }
 
-void IntegratorContext::FillGhostLayerTwoLevels(int fine, int coarse) {
+void IntegratorContext::FillGhostLayerTwoLevels(int fine,
+                                                BoundaryCondition& fbc,
+                                                int coarse,
+                                                BoundaryCondition& cbc) {
   FUB_ASSERT(coarse >= 0 && fine > coarse);
   ::amrex::MultiFab& scratch = GetScratch(fine);
   ::amrex::Vector<::amrex::BCRec> bcr(
@@ -334,37 +338,43 @@ void IntegratorContext::FillGhostLayerTwoLevels(int fine, int coarse) {
   const ::amrex::Geometry& fgeom = GetGeometry(fine);
   const ::amrex::IntVect ratio = 2 * ::amrex::IntVect::TheUnitVector();
   ::amrex::Interpolater* mapper = &::amrex::pc_interp;
-  BoundaryCondition& fine_condition = GetBoundaryCondition(fine);
-  BoundaryCondition& coarse_condition = GetBoundaryCondition(coarse);
   std::size_t sfine = static_cast<std::size_t>(fine);
-  ::amrex::FillPatchTwoLevels(scratch, ft[0], *GetPatchHierarchy().GetOptions().index_spaces[sfine], cmf, ct, fmf, ft, 0, 0, nc, cgeom,
-                              fgeom, coarse_condition, 0, fine_condition, 0,
-                              ratio, mapper, bcr, 0, ::amrex::NullInterpHook(), ::amrex::NullInterpHook());
+  ::amrex::FillPatchTwoLevels(
+      scratch, ft[0], *GetPatchHierarchy().GetOptions().index_spaces[sfine],
+      cmf, ct, fmf, ft, 0, 0, nc, cgeom, fgeom, cbc, 0, fbc, 0, ratio, mapper,
+      bcr, 0, ::amrex::NullInterpHook(), ::amrex::NullInterpHook());
 }
 
-  void IntegratorContext::FillGhostLayerSingleLevel(int level, BoundaryCondition& bc) {
-    ::amrex::MultiFab& scratch = GetScratch(level);
-    ::amrex::Vector<::amrex::BCRec> bcr(
-                                        static_cast<std::size_t>(scratch.nComp()));
-    const int nc = scratch.nComp();
-    const ::amrex::Vector<::amrex::MultiFab*> smf{&GetData(level)};
-    const ::amrex::Vector<double> stime{GetTimePoint(level).count()};
-    const ::amrex::Geometry& geom = GetGeometry(level);
-    ::amrex::FillPatchSingleLevel(scratch, stime[0], smf, stime, 0, 0, nc, geom,
-                                  bc, 0);
-  }
+void IntegratorContext::FillGhostLayerTwoLevels(int fine, int coarse) {
+  FillGhostLayerTwoLevels(fine, GetBoundaryCondition(fine), coarse,
+                          GetBoundaryCondition(coarse));
+}
+
+void IntegratorContext::FillGhostLayerSingleLevel(int level,
+                                                  BoundaryCondition& bc) {
+  ::amrex::MultiFab& scratch = GetScratch(level);
+  ::amrex::Vector<::amrex::BCRec> bcr(
+      static_cast<std::size_t>(scratch.nComp()));
+  const int nc = scratch.nComp();
+  const ::amrex::Vector<::amrex::MultiFab*> smf{&GetData(level)};
+  const ::amrex::Vector<double> stime{GetTimePoint(level).count()};
+  const ::amrex::Geometry& geom = GetGeometry(level);
+  ::amrex::FillPatchSingleLevel(scratch, stime[0], smf, stime, 0, 0, nc, geom,
+                                bc, 0);
+}
 
 void IntegratorContext::FillGhostLayerSingleLevel(int level) {
   BoundaryCondition& condition = GetBoundaryCondition(level);
   FillGhostLayerSingleLevel(level, condition);
 }
 
-void IntegratorContext::CoarsenConservatively(int fine_level, int coarse_level) {
+void IntegratorContext::CoarsenConservatively(int fine_level,
+                                              int coarse_level) {
   const int first =
       GetPatchHierarchy().GetDataDescription().first_cons_component;
   const int size = GetPatchHierarchy().GetDataDescription().n_cons_components;
-  ::amrex::EB_average_down(GetScratch(fine_level),
-                           GetScratch(coarse_level), first, size, 2);
+  ::amrex::EB_average_down(GetScratch(fine_level), GetScratch(coarse_level),
+                           first, size, 2);
 }
 
 void IntegratorContext::AccumulateCoarseFineFluxes(int level, double time_scale,
@@ -373,7 +383,8 @@ void IntegratorContext::AccumulateCoarseFineFluxes(int level, double time_scale,
     const std::size_t level_num = static_cast<std::size_t>(level);
     const ::amrex::MultiFab& fluxes = GetFluxes(level, dir);
     const int ratio = GetRatioToCoarserLevel(level, dir);
-    const double space_scale_inv = static_cast<double>(ipow(ratio, AMREX_SPACEDIM));
+    const double space_scale_inv =
+        static_cast<double>(ipow(ratio, AMREX_SPACEDIM));
     const double total_scale = time_scale / space_scale_inv;
     data_[level_num].coarse_fine.FineAdd(fluxes, static_cast<int>(dir), 0, 0,
                                          fluxes.nComp(), total_scale);
@@ -428,8 +439,7 @@ void IntegratorContext::UpdateConservatively(int level, Duration dt,
   method_.time_integrator.UpdateConservatively(*this, level, dt, dir);
 }
 
-void IntegratorContext::PreAdvanceLevel(int level_num, Duration,
-                                        int subcycle) {
+void IntegratorContext::PreAdvanceLevel(int level_num, Duration, int subcycle) {
   const std::size_t l = static_cast<std::size_t>(level_num);
   if (subcycle == 0 && level_num > 0 &&
       data_[l].regrid_time_point != data_[l].time_point) {
@@ -443,8 +453,7 @@ void IntegratorContext::PreAdvanceLevel(int level_num, Duration,
 }
 
 Result<void, TimeStepTooLarge>
-IntegratorContext::PostAdvanceLevel(int level_num, Duration dt,
-                                    int) {
+IntegratorContext::PostAdvanceLevel(int level_num, Duration dt, int) {
   SetCycles(GetCycles(level_num) + 1, level_num);
   SetTimePoint(GetTimePoint(level_num) + dt, level_num);
   return boost::outcome_v2::success();

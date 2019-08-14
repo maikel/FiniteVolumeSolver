@@ -61,6 +61,21 @@ MultiBlockKineticSouceTerm::AdvanceHierarchy(Duration dt) {
   return boost::outcome_v2::success();
 }
 
+
+Result<void, TimeStepTooLarge>
+MultiBlockKineticSouceTerm::AdvanceLevel(int level, Duration dt) {
+    for (ideal_gas::KineticSourceTerm<1>& source : source_terms_) {
+      if (level < source.GetPatchHierarchy().GetNumberOfLevels()) {
+        Result<void, TimeStepTooLarge> result = source.AdvanceLevel(level, dt);
+        if (!result) {
+          return result;
+        }
+      }
+    }
+    return boost::outcome_v2::success();
+}
+
+
 Duration MultiBlockKineticSouceTerm::GetTimePoint() const {
   return source_terms_[0].GetTimePoint();
 }

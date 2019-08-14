@@ -70,6 +70,7 @@ void RiemannProblem<Eq, Geometry>::InitializeData(
       dynamic_cast<const ::amrex::EBFArrayBoxFactory&>(data.Factory());
   const ::amrex::FabArray<::amrex::EBCellFlagFab>& flags =
       factory.getMultiEBCellFlagFab();
+  const ::amrex::MultiFab& alphas = factory.getVolFrac();
   ForEachFab(data, [&](const ::amrex::MFIter& mfi) {
     const ::amrex::FabType type = flags[mfi].getType();
     if (type == ::amrex::FabType::covered) {
@@ -90,9 +91,10 @@ void RiemannProblem<Eq, Geometry>::InitializeData(
         }
       });
     } else {
+      const ::amrex::FArrayBox& alpha = alphas[mfi];
       ForEachIndex(Box<0>(states), [&](auto... is) {
         geom.CellCenter({int(is)...}, x.data());
-        if (flags[mfi]({int(is)...}).isCovered()) {
+        if (alpha({int(is)...}) == 0.0) {
           Store(states, boundary_, {is...});
         } else if (geometry_(x) < 0.0) {
           Store(states, left_, {is...});

@@ -96,23 +96,25 @@ void IdealGasMix<Dim>::CompleteFromReactor(
 template <int Dim>
 void IdealGasMix<Dim>::CompleteFromCons(Complete& complete,
                                         const ConservativeBase& cons) {
-  reactor_.SetMassFractions(cons.species);
-  reactor_.SetDensity(cons.density);
-  const double rhoE_kin = KineticEnergy(cons.density, cons.momentum);
-  const double e_internal = (cons.energy - rhoE_kin) / cons.density;
-  reactor_.SetTemperature(300);
-  reactor_.SetInternalEnergy(e_internal);
-  FUB_ASSERT(reactor_.GetTemperature() > 0.0);
-  FUB_ASSERT(cons.density == reactor_.GetDensity());
-  complete.density = cons.density;
-  complete.momentum = cons.momentum;
-  complete.energy = cons.energy;
-  complete.species = cons.species;
-  complete.pressure = reactor_.GetPressure();
-  complete.speed_of_sound = ComputeSpeedOfSound(reactor_);
-  complete.temperature = reactor_.GetTemperature();
-  complete.c_p = reactor_.GetCp();
-  complete.gamma = reactor_.GetCp() / reactor_.GetCv();
+  if (cons.density > 0.0) {
+    reactor_.SetMassFractions(cons.species);
+    reactor_.SetDensity(cons.density);
+    const double rhoE_kin = KineticEnergy(cons.density, cons.momentum);
+    const double e_internal = (cons.energy - rhoE_kin) / cons.density;
+    reactor_.SetTemperature(300);
+    reactor_.SetInternalEnergy(e_internal);
+    FUB_ASSERT(reactor_.GetTemperature() > 0.0);
+    FUB_ASSERT(cons.density == reactor_.GetDensity());
+    complete.density = cons.density;
+    complete.momentum = cons.momentum;
+    complete.energy = cons.energy;
+    complete.species = cons.species;
+    complete.pressure = reactor_.GetPressure();
+    complete.speed_of_sound = ComputeSpeedOfSound(reactor_);
+    complete.temperature = reactor_.GetTemperature();
+    complete.c_p = reactor_.GetCp();
+    complete.gamma = reactor_.GetCp() / reactor_.GetCv();
+  }
 }
 
 template <int Dim>
