@@ -125,11 +125,30 @@ auto MakeTubeSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
   fub::HllMethod hll_method(equation, signals);
   // fub::MusclHancockMethod flux_method{equation, hll_method};
 
-  HyperbolicMethod method{FluxMethod(fub::execution::seq, hll_method),
-                          ForwardIntegrator(fub::execution::seq),
-                          Reconstruction(fub::execution::simd, equation)};
+  HyperbolicMethod method{FluxMethod(fub::execution::openmp, hll_method),
+                          ForwardIntegrator(fub::execution::openmp),
+                          Reconstruction(fub::execution::openmp, equation)};
 
   return fub::amrex::IntegratorContext(gridding, method);
+}
+
+::amrex::Box BoxWhichContains(const ::amrex::RealBox& xbox, const ::amrex::Geometry& geom)
+{
+  ::amrex::Box domain = geom.Domain();
+  ::amrex::IntVect lo = domain.smallEnd();
+  ::amrex::IntVect up = domain.bigEnd();
+  for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+    for (int i = domain.smallEnd(d); i < domain.bigEnd(d); ++i) {
+      const double x = geom.CellCenter(i, d);
+      if (x < xbox.lo(d)) {
+        lo[d]  = std::max(lo[d], i);
+      }
+      if (x > xbox.hi(d)) {
+        up[d] = std::min(up[d], i);
+      }
+    }
+  }
+  return ::amrex::Box{lo, up};
 }
 
 auto MakePlenumSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
@@ -176,7 +195,8 @@ auto MakePlenumSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
   GradientDetector gradients{equation, std::pair{&State::pressure, 0.05},
                              std::pair{&State::density, 0.005}};
 
-  ::amrex::Box refine_box{{0, 0, 0}, {5, num_cells - 1, num_cells - 1}};
+  ::amrex::RealBox inlet{{-0.1, -0.015, -0.015}, {0.05, +0.015, +0.015}};
+  const ::amrex::Box refine_box = BoxWhichContains(inlet, coarse_geom);
   ConstantBox constant_box{refine_box};
 
   BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
@@ -188,7 +208,7 @@ auto MakePlenumSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
 
   std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
       PatchHierarchy(equation, geometry, options), initial_data,
-      TagAllOf(TagCutCells(), gradients, constant_box, TagBuffer(4)),
+      TagAllOf(TagCutCells(), gradients, constant_box, TagBuffer(2)),
       boundary_condition);
   gridding->InitializeHierarchy(0.0);
 
@@ -199,33 +219,31 @@ auto MakePlenumSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
   fub::MusclHancockMethod flux_method(equation, hll_method);
   fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
 
-  HyperbolicMethod method{FluxMethod{fub::execution::seq, cutcell_method},
+  HyperbolicMethod method{FluxMethod{fub::execution::openmp, cutcell_method},
                           fub::amrex::cutcell::TimeIntegrator{},
-                          Reconstruction{fub::execution::seq, equation}};
+                          Reconstruction{fub::execution::openmp, equation}};
 
   return fub::amrex::cutcell::IntegratorContext(gridding, method);
 }
 
-int main(int argc, char** argv) {
+int main(int /* argc */, char** /* argv */) {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
-  fub::amrex::ScopeGuard _(argc, argv);
+  fub::amrex::ScopeGuard _{};
   fub::Burke2012 mechanism{};
 
-
-  const int n_level = 2;
+  const int n_level = 1;
   auto plenum = MakePlenumSolver(64, n_level, mechanism);
   auto tube = MakeTubeSolver(200, n_level, mechanism);
+
+  ::amrex::RealBox inlet{{-0.1, -0.015, -0.015}, {0.05, +0.015, +0.015}};
 
   fub::amrex::BlockConnection connection;
   connection.direction = fub::Direction::X;
   connection.side = 0;
   connection.plenum.id = 0;
-  connection.plenum.mirror_box = plenum.GetGriddingAlgorithm()
-                                     ->GetPatchHierarchy()
-                                     .GetGeometry(0)
-                                     .Domain();
+  connection.plenum.mirror_box = BoxWhichContains(inlet, plenum.GetGeometry(0));
   connection.tube.id = 0;
   connection.tube.mirror_box =
       tube.GetGriddingAlgorithm()->GetPatchHierarchy().GetGeometry(0).Domain();
@@ -249,12 +267,12 @@ int main(int argc, char** argv) {
   auto output =
       [&](std::shared_ptr<fub::amrex::MultiBlockGriddingAlgorithm> gridding,
           auto cycle, auto) {
-        std::string name = fmt::format("{}/Tube/{:05}", base_name, cycle);
+        std::string name = fmt::format("{}/Tube/plt{:05}", base_name, cycle);
         ::amrex::Print() << "Start output to '" << name << "'.\n";
         fub::amrex::WritePlotFile(
             name, gridding->GetTubes()[0]->GetPatchHierarchy(), tube_equation);
         ::amrex::Print() << "Finished output to '" << name << "'.\n";
-        name = fmt::format("{}/Plenum/{:05}", base_name, cycle);
+        name = fmt::format("{}/Plenum/plt{:05}", base_name, cycle);
         ::amrex::Print() << "Start output to '" << name << "'.\n";
         fub::amrex::cutcell::WritePlotFile(
             name, gridding->GetPlena()[0]->GetPatchHierarchy(), equation);

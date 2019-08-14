@@ -31,6 +31,7 @@ ScopeGuard::ScopeGuard(int argc, char** argv) {
 }
 
 ScopeGuard::ScopeGuard() {
+  MPI_Init(nullptr, nullptr);
   ::amrex::Initialize(MPI_COMM_WORLD);
 }
 
