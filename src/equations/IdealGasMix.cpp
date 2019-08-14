@@ -96,7 +96,6 @@ void IdealGasMix<Dim>::CompleteFromReactor(
 template <int Dim>
 void IdealGasMix<Dim>::CompleteFromCons(Complete& complete,
                                         const ConservativeBase& cons) {
-  if (cons.density > 0.0) {
     reactor_.SetMassFractions(cons.species);
     reactor_.SetDensity(cons.density);
     const double rhoE_kin = KineticEnergy(cons.density, cons.momentum);
@@ -114,7 +113,6 @@ void IdealGasMix<Dim>::CompleteFromCons(Complete& complete,
     complete.temperature = reactor_.GetTemperature();
     complete.c_p = reactor_.GetCp();
     complete.gamma = reactor_.GetCp() / reactor_.GetCv();
-  }
 }
 
 template <int Dim>
@@ -257,10 +255,8 @@ operator()(const IdealGasMix<Dim>&, const Complete& left, const Complete& right,
   FUB_ASSERT(right.density > 0.0);
   const double rhoL = left.density;
   const double rhoR = right.density;
-  double rhoUL;
-  double rhoUR;
-  rhoUL = left.momentum[int(dir)];
-  rhoUR = right.momentum[int(dir)];
+  const double rhoUL = left.momentum[int(dir)];
+  const double rhoUR = right.momentum[int(dir)];
   const double aL = left.speed_of_sound;
   const double aR = right.speed_of_sound;
   const double sqRhoL = std::sqrt(rhoL);

@@ -468,7 +468,7 @@ void MultiBlockBoundary::FillBoundary(
         gridding.GetPatchHierarchy().GetRatioToCoarserLevel(i);
     ghost_box.refine(ratio);
   }
-  ForEachFab(execution::seq, mf, [&](const ::amrex::MFIter& mfi) {
+  ForEachFab(execution::openmp, mf, [&](const ::amrex::MFIter& mfi) {
     const ::amrex::Box box = mfi.growntilebox() & ghost_box;
     if (!box.isEmpty()) {
       ::amrex::FArrayBox& fab = mf[mfi];

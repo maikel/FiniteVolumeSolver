@@ -21,9 +21,6 @@
 #include "fub/AMReX/multi_block/MultiBlockIntegratorContext.hpp"
 
 namespace fub::amrex {
-namespace {
-Direction LastDirection() noexcept { return Direction{AMREX_SPACEDIM - 1}; }
-} // namespace
 
 MultiBlockIntegratorContext::MultiBlockIntegratorContext(
     FlameMasterReactor reactor, std::vector<IntegratorContext> tubes,
@@ -141,7 +138,7 @@ void MultiBlockIntegratorContext::ResetHierarchyConfiguration(
 /// \param[in] level  The level number of the coarsest level which changed its
 /// shape. Regrid all levels finer than level.
 void MultiBlockIntegratorContext::ResetHierarchyConfiguration(int level) {
-  ForEachBlock(std::tuple{tubes_, plena_}, [=](auto& block) {
+  ForEachBlock(std::tuple{span{tubes_}, span{plena_}}, [=](auto& block) {
     if (block.LevelExists(level)) {
       block.ResetHierarchyConfiguration(level);
     }
@@ -150,7 +147,7 @@ void MultiBlockIntegratorContext::ResetHierarchyConfiguration(int level) {
 
 /// \brief Sets the cycle count for a specific level number and direction.
 void MultiBlockIntegratorContext::SetCycles(std::ptrdiff_t cycle, int level) {
-  ForEachBlock(std::tuple{tubes_, plena_}, [=](auto& block) {
+  ForEachBlock(std::tuple{span{tubes_}, span{plena_}}, [=](auto& block) {
     if (block.LevelExists(level)) {
       block.SetCycles(cycle, level);
     }
@@ -159,7 +156,7 @@ void MultiBlockIntegratorContext::SetCycles(std::ptrdiff_t cycle, int level) {
 
 /// \brief Sets the time point for a specific level number and direction.
 void MultiBlockIntegratorContext::SetTimePoint(Duration t, int level) {
-  ForEachBlock(std::tuple{tubes_, plena_}, [=](auto& block) {
+  ForEachBlock(std::tuple{span{tubes_}, span{plena_}}, [=](auto& block) {
     if (block.LevelExists(level)) {
       block.SetTimePoint(t, level);
     }
@@ -173,7 +170,7 @@ void MultiBlockIntegratorContext::SetTimePoint(Duration t, int level) {
 /// \brief On each first subcycle this will regrid the data if neccessary.
 void MultiBlockIntegratorContext::PreAdvanceLevel(int level_num, Duration dt,
                                                   int subcycle) {
-  ForEachBlock(std::tuple{tubes_, plena_}, [=](auto& block) {
+  ForEachBlock(std::tuple{span{tubes_}, span{plena_}}, [=](auto& block) {
     if (block.LevelExists(level_num)) {
       block.PreAdvanceLevel(level_num, dt, subcycle);
     }
@@ -256,7 +253,7 @@ void MultiBlockIntegratorContext::FillGhostLayerTwoLevels(int fine,
                                 gridding_->GetBoundaries(), &fbc, nullptr};
       fwrapped.parent = tube.GetGriddingAlgorithm().get();
       fwrapped.geometry = tube.GetGeometry(fine);
-      BoundaryCondition& cbc = tube.GetBoundaryCondition(fine);
+      BoundaryCondition& cbc = tube.GetBoundaryCondition(coarse);
       BoundaryCondition cwrapped =
           WrapBoundaryCondition{id, gridding_->GetConnectivity(),
                                 gridding_->GetBoundaries(), &cbc, nullptr};
@@ -275,7 +272,7 @@ void MultiBlockIntegratorContext::FillGhostLayerTwoLevels(int fine,
                                 gridding_->GetBoundaries(), nullptr, &fbc};
       fwrapped.parent = plenum.GetGriddingAlgorithm().get();
       fwrapped.geometry = plenum.GetGeometry(fine);
-      cutcell::BoundaryCondition& cbc = plenum.GetBoundaryCondition(fine);
+      cutcell::BoundaryCondition& cbc = plenum.GetBoundaryCondition(coarse);
       cutcell::BoundaryCondition cwrapped =
           WrapBoundaryCondition{id, gridding_->GetConnectivity(),
                                 gridding_->GetBoundaries(), nullptr, &cbc};
@@ -399,7 +396,7 @@ void MultiBlockIntegratorContext::UpdateConservatively(int level, Duration dt,
 
 /// \brief Reconstruct complete state variables from conservative ones.
 void MultiBlockIntegratorContext::CompleteFromCons(int level, Duration dt) {
-  ForEachBlock(std::tuple{tubes_, plena_}, [=](auto& block) {
+  ForEachBlock(std::tuple{span{tubes_}, span{plena_}}, [=](auto& block) {
     if (block.LevelExists(level)) {
       block.CompleteFromCons(level, dt);
     }
@@ -429,7 +426,7 @@ void MultiBlockIntegratorContext::AccumulateCoarseFineFluxes(int level,
 /// fine interfaces.
 void MultiBlockIntegratorContext::ApplyFluxCorrection(int fine, int coarse,
                                                       Duration dt) {
-  ForEachBlock(std::tuple{tubes_, plena_}, [=](auto& block) {
+  ForEachBlock(std::tuple{span{tubes_}, span{plena_}}, [=](auto& block) {
     if (block.LevelExists(fine)) {
       block.ApplyFluxCorrection(fine, coarse, dt);
     }
@@ -438,7 +435,7 @@ void MultiBlockIntegratorContext::ApplyFluxCorrection(int fine, int coarse,
 
 /// \brief Resets all accumulates fluxes to zero.
 void MultiBlockIntegratorContext::ResetCoarseFineFluxes(int fine, int coarse) {
-  ForEachBlock(std::tuple{tubes_, plena_}, [=](auto& block) {
+  ForEachBlock(std::tuple{span{tubes_}, span{plena_}}, [=](auto& block) {
     if (block.LevelExists(fine)) {
       block.ResetCoarseFineFluxes(fine, coarse);
     }
@@ -448,7 +445,7 @@ void MultiBlockIntegratorContext::ResetCoarseFineFluxes(int fine, int coarse) {
 /// \brief Coarsen scratch data from a fine level number to a coarse level
 /// number.
 void MultiBlockIntegratorContext::CoarsenConservatively(int fine, int coarse) {
-  ForEachBlock(std::tuple{tubes_, plena_}, [=](auto& block) {
+  ForEachBlock(std::tuple{span{tubes_}, span{plena_}}, [=](auto& block) {
     if (block.LevelExists(fine)) {
       block.CoarsenConservatively(fine, coarse);
     }

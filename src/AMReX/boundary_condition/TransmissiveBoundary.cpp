@@ -59,7 +59,7 @@ void TransmissiveBoundary::FillBoundary(::amrex::MultiFab& mf,
   if (boundaries.isEmpty()) {
     return;
   }
-  ForEachFab(execution::seq, mf, [&](const ::amrex::MFIter& mfi) {
+  ForEachFab(execution::openmp, mf, [&](const ::amrex::MFIter& mfi) {
     ::amrex::FArrayBox& fab = mf[mfi];
     for (const ::amrex::Box& boundary : boundaries) {
       ::amrex::Box shifted =

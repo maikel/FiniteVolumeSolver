@@ -76,7 +76,7 @@ struct TemperatureRamp {
   }
 };
 
-auto MakeTubeSolver(int num_cells, fub::Burke2012& mechanism) {
+auto MakeTubeSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
   const std::array<int, AMREX_SPACEDIM> n_cells{num_cells, 1, 1};
   const std::array<double, AMREX_SPACEDIM> xlower{-1.5, -0.015, -0.015};
   const std::array<double, AMREX_SPACEDIM> xupper{-0.01, +0.015, +0.015};
@@ -94,7 +94,7 @@ auto MakeTubeSolver(int num_cells, fub::Burke2012& mechanism) {
   DataDescription desc = MakeDataDescription(equation);
 
   PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = 1;
+  hier_opts.max_number_of_levels = n_level;
   hier_opts.refine_ratio = amrex::IntVect{2, 1, 1};
 
   amrex::Geometry geom(
@@ -132,7 +132,7 @@ auto MakeTubeSolver(int num_cells, fub::Burke2012& mechanism) {
   return fub::amrex::IntegratorContext(gridding, method);
 }
 
-auto MakePlenumSolver(int num_cells, fub::Burke2012& mechanism) {
+auto MakePlenumSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
   const std::array<int, Plenum_Rank> n_cells{num_cells, num_cells, num_cells};
   const std::array<double, Plenum_Rank> xlower{-0.01, -0.15, -0.15};
   const std::array<double, Plenum_Rank> xupper{+0.29, +0.15, +0.15};
@@ -142,8 +142,6 @@ auto MakePlenumSolver(int num_cells, fub::Burke2012& mechanism) {
   amrex::Geometry coarse_geom(
       amrex::Box{{}, {n_cells[0] - 1, n_cells[1] - 1, n_cells[2] - 1}}, &xbox,
       -1, periodicity.data());
-
-  const int n_level = 1;
 
   auto embedded_boundary = amrex::EB2::makeIntersection(
       amrex::EB2::PlaneIF({0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, false),
@@ -214,8 +212,11 @@ int main(int argc, char** argv) {
 
   fub::amrex::ScopeGuard _(argc, argv);
   fub::Burke2012 mechanism{};
-  auto plenum = MakePlenumSolver(64, mechanism);
-  auto tube = MakeTubeSolver(1200, mechanism);
+
+
+  const int n_level = 2;
+  auto plenum = MakePlenumSolver(64, n_level, mechanism);
+  auto tube = MakeTubeSolver(200, n_level, mechanism);
 
   fub::amrex::BlockConnection connection;
   connection.direction = fub::Direction::X;
@@ -229,16 +230,19 @@ int main(int argc, char** argv) {
   connection.tube.mirror_box =
       tube.GetGriddingAlgorithm()->GetPatchHierarchy().GetGeometry(0).Domain();
 
-  fub::amrex::MultiBlockIntegratorContext context(
-      fub::FlameMasterReactor(mechanism), {tube}, {plenum}, {connection});
-
   fub::IdealGasMix<Plenum_Rank> equation{mechanism};
-  fub::HyperbolicSplitSystemSolver system_solver(
-      fub::HyperbolicSplitLevelIntegrator(equation, std::move(context)));
+
+  fub::amrex::MultiBlockIntegratorContext context(
+    fub::FlameMasterReactor(mechanism), {std::move(tube)}, {std::move(plenum)}, {connection});
+
+  fub::DimensionalSplitLevelIntegrator system_solver(fub::int_c<Plenum_Rank>,
+                                                     std::move(context));
+
   fub::amrex::MultiBlockKineticSouceTerm source_term{
-      fub::IdealGasMix<Tube_Rank>{mechanism},
-      system_solver.GetGriddingAlgorithm()};
-  fub::SplitSystemSourceSolver solver{system_solver, source_term};
+    fub::IdealGasMix<Tube_Rank>{mechanism},
+    system_solver.GetGriddingAlgorithm()};
+
+  fub::DimensionalSplitSystemSourceSolver solver{system_solver, source_term};
 
   std::string base_name = "MultiBlock_3d";
   fub::IdealGasMix<Tube_Rank> tube_equation{mechanism};
@@ -256,15 +260,14 @@ int main(int argc, char** argv) {
             name, gridding->GetPlena()[0]->GetPatchHierarchy(), equation);
         ::amrex::Print() << "Finished output to '" << name << "'.\n";
       };
-  auto print_msg = [&](const std::string& msg) { ::amrex::Print() << msg; };
 
   using namespace std::literals::chrono_literals;
   output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
          solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.final_time = 0.004s;
-  run_options.output_interval = run_options.final_time / (60 * 4);
+  run_options.output_interval = 0.1e-3s;
   run_options.cfl = 0.8;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
-                     print_msg);
+                     fub::amrex::print);
 }
