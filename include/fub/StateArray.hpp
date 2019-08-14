@@ -43,6 +43,8 @@ struct ConservativeArray : ConservativeArrayBase<Eq, Width> {
   using Depths = typename Equation::ConservativeDepths;
   using Traits = StateTraits<ConservativeArrayBase<Eq, Width>>;
 
+  static constexpr int Size() { return Width; }
+
   ConservativeArray() = default;
   ConservativeArray(const Equation& eq) { InitializeState(eq, *this); }
 };
@@ -65,6 +67,8 @@ struct CompleteArray : CompleteArrayBase<Eq, Width> {
   using Equation = Eq;
   using Depths = typename Equation::CompleteDepths;
   using Traits = StateTraits<CompleteArrayBase<Eq, Width>>;
+
+  static constexpr int Size() { return Width; }
 
   CompleteArray() = default;
   CompleteArray(const Equation& eq) { InitializeState(eq, *this); }
@@ -113,6 +117,18 @@ void Load(ConservativeArray<Eq, N>& state,
             index);
       },
       state, view);
+}
+
+template <typename Eq, int N, typename Layout, int Rank>
+void Load(
+          ConservativeArray<Eq, N>& state,
+          const BasicView<const Conservative<Eq>, Layout, Rank>& view,
+          nodeduce_t<const std::array<std::ptrdiff_t, std::size_t(Rank)>&> index) {
+  ForEachComponent(
+                   [&](auto&& component, auto data) {
+                     component = Load(int_constant<N>(), data, index);
+                   },
+                   state, view);
 }
 
 template <typename Eq>

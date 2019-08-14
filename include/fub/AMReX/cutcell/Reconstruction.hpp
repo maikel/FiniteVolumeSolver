@@ -39,7 +39,7 @@ template <typename Tag, typename Equation> struct Reconstruction {
   explicit Reconstruction(const Tag& tag, const Equation& eq);
 
   void CompleteFromCons(IntegratorContext& context, int level,
-                        [[maybe_unused]] Duration dt, Direction dir);
+                        [[maybe_unused]] Duration dt);
 
   Local<Tag, detail::ReconstructionKernel<Equation, IsSimd>> kernel_;
 };
@@ -96,8 +96,7 @@ template <typename Equation> struct ReconstructionKernel<Equation, true> {
                  ViewPointer<const Conservative<Equation>> first = Begin(src);
                  ViewPointer<const Conservative<Equation>> last = End(src);
                  ViewPointer<Complete<Equation>> out = Begin(dest);
-                 constexpr std::ptrdiff_t size =
-                     std::ptrdiff_t(CompleteArray<Equation>::Size());
+                 constexpr std::ptrdiff_t size = static_cast<std::ptrdiff_t>(kDefaultChunkSize);
                  std::ptrdiff_t n = get<0>(last) - get<0>(first);
                  while (n >= size) {
                    Load(cons_, first);
@@ -107,9 +106,9 @@ template <typename Equation> struct ReconstructionKernel<Equation, true> {
                    Advance(out, size);
                    n = get<0>(last) - get<0>(first);
                  }
-                 LoadN(cons_, first, n);
+                 LoadN(cons_, first, static_cast<int>(n));
                  ::fub::CompleteFromCons(equation_, complete_, cons_);
-                 StoreN(out, complete_, n);
+                 StoreN(out, complete_, static_cast<int>(n));
                });
   }
 
@@ -121,7 +120,7 @@ template <typename Equation> struct ReconstructionKernel<Equation, true> {
       if (volume(is...) > 0.0) {
         Load(cons_, src, {is...});
         ::fub::CompleteFromCons(equation_, complete_, cons_);
-        Store(complete_, dest, {is...});
+        Store(dest, complete_, {is...});
       }
     });
   }
@@ -134,12 +133,11 @@ Reconstruction<Tag, Equation>::Reconstruction(const Tag&, const Equation& eq)
 
 template <typename Tag, typename Equation>
 void Reconstruction<Tag, Equation>::CompleteFromCons(IntegratorContext& context,
-                                                     int level, Duration,
-                                                     Direction dir) {
+                                                     int level, Duration) {
   ::amrex::MultiFab& dest = context.GetData(level);
   const ::amrex::MultiFab& volumes =
       context.GetEmbeddedBoundary(level).getVolFrac();
-  const ::amrex::MultiFab& src = context.GetScratch(level, dir);
+  const ::amrex::MultiFab& src = context.GetScratch(level);
 
   ForEachFab(Tag(), dest, [&](const ::amrex::MFIter& mfi) {
     const ::amrex::Box box = mfi.tilebox();

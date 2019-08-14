@@ -66,14 +66,12 @@ MultiBlockIntegratorContext::GetGriddingAlgorithm() const noexcept {
   return gridding_;
 }
 
-Duration MultiBlockIntegratorContext::GetTimePoint(int level,
-                                                   Direction dir) const {
-  return plena_[0].GetTimePoint(level, dir);
+Duration MultiBlockIntegratorContext::GetTimePoint(int level) const {
+  return plena_[0].GetTimePoint(level);
 }
 
-std::ptrdiff_t MultiBlockIntegratorContext::GetCycles(int level,
-                                                      Direction dir) const {
-  return plena_[0].GetCycles(level, dir);
+std::ptrdiff_t MultiBlockIntegratorContext::GetCycles(int level) const {
+  return plena_[0].GetCycles(level);
 }
 
 MPI_Comm MultiBlockIntegratorContext::GetMpiCommunicator() const noexcept {
@@ -148,28 +146,22 @@ void MultiBlockIntegratorContext::ResetHierarchyConfiguration(int level) {
 }
 
 /// \brief Sets the cycle count for a specific level number and direction.
-void MultiBlockIntegratorContext::SetCycles(std::ptrdiff_t cycle, int level,
-                                            Direction dir) {
-  if (dir == Direction::X) {
+void MultiBlockIntegratorContext::SetCycles(std::ptrdiff_t cycle, int level) {
     for (IntegratorContext& tube : tubes_) {
-      tube.SetCycles(cycle, level, dir);
+      tube.SetCycles(cycle, level);
     }
-  }
   for (cutcell::IntegratorContext& plenum : plena_) {
-    plenum.SetCycles(cycle, level, dir);
+    plenum.SetCycles(cycle, level);
   }
 }
 
 /// \brief Sets the time point for a specific level number and direction.
-void MultiBlockIntegratorContext::SetTimePoint(Duration t, int level,
-                                               Direction dir) {
-  if (dir == Direction::X) {
-    for (IntegratorContext& tube : tubes_) {
-      tube.SetTimePoint(t, level, dir);
-    }
+void MultiBlockIntegratorContext::SetTimePoint(Duration t, int level) {
+  for (IntegratorContext& tube : tubes_) {
+    tube.SetTimePoint(t, level);
   }
   for (cutcell::IntegratorContext& plenum : plena_) {
-    plenum.SetTimePoint(t, level, dir);
+    plenum.SetTimePoint(t, level);
   }
 }
 /// @}
@@ -178,33 +170,29 @@ void MultiBlockIntegratorContext::SetTimePoint(Duration t, int level,
 /// \name Member functions relevant for the level integrator algorithm.
 
 /// \brief On each first subcycle this will regrid the data if neccessary.
-void MultiBlockIntegratorContext::PreAdvanceLevel(int level_num, Direction dir,
+void MultiBlockIntegratorContext::PreAdvanceLevel(int level_num,
                                                   Duration dt, int subcycle) {
-  if (dir == Direction::X) {
-    for (IntegratorContext& tube : tubes_) {
-      tube.PreAdvanceLevel(level_num, dir, dt, subcycle);
-    }
+  for (IntegratorContext& tube : tubes_) {
+    tube.PreAdvanceLevel(level_num, dt, subcycle);
   }
   for (cutcell::IntegratorContext& plenum : plena_) {
-    plenum.PreAdvanceLevel(level_num, dir, dt, subcycle);
+    plenum.PreAdvanceLevel(level_num, dt, subcycle);
   }
 }
 
 /// \brief Increases the internal time stamps and cycle counters for the
 /// specified level number and direction.
 Result<void, TimeStepTooLarge>
-MultiBlockIntegratorContext::PostAdvanceLevel(int level_num, Direction dir,
+MultiBlockIntegratorContext::PostAdvanceLevel(int level_num,
                                               Duration dt, int subcycle) {
-  if (dir == LastDirection()) {
-    for (IntegratorContext& tube : tubes_) {
-        Result<void, TimeStepTooLarge> result = tube.PostAdvanceLevel(level_num, dir, dt, subcycle);
+  for (IntegratorContext& tube : tubes_) {
+        Result<void, TimeStepTooLarge> result = tube.PostAdvanceLevel(level_num, dt, subcycle);
 	if (!result) {
 		return result;
 	}
-      }
-    }
+  }
   for (cutcell::IntegratorContext& plenum : plena_) {
-      Result<void, TimeStepTooLarge> result = plenum.PostAdvanceLevel(level_num, dir, dt, subcycle);
+      Result<void, TimeStepTooLarge> result = plenum.PostAdvanceLevel(level_num, dt, subcycle);
 	if (!result) {
 	   return result;
         }
@@ -214,15 +202,12 @@ MultiBlockIntegratorContext::PostAdvanceLevel(int level_num, Direction dir,
 
 /// \brief Fills the ghost layer of the scratch data and interpolates in the
 /// coarse fine layer.
-void MultiBlockIntegratorContext::FillGhostLayerTwoLevels(int level, int coarse,
-                                                          Direction direction) {
-  if (direction == Direction::X) {
-    for (IntegratorContext& tube : tubes_) {
-      tube.FillGhostLayerTwoLevels(level, coarse, direction);
-    }
+void MultiBlockIntegratorContext::FillGhostLayerTwoLevels(int level, int coarse) {
+  for (IntegratorContext& tube : tubes_) {
+    tube.FillGhostLayerTwoLevels(level, coarse);
   }
   for (cutcell::IntegratorContext& plenum : plena_) {
-    plenum.FillGhostLayerTwoLevels(level, coarse, direction);
+    plenum.FillGhostLayerTwoLevels(level, coarse);
   }
 }
 
@@ -245,36 +230,34 @@ struct WrapBoundaryCondition {
 /// \brief Fills the ghost layer of the scratch data and does nothing in the
 /// coarse fine layer.
 void MultiBlockIntegratorContext::FillGhostLayerSingleLevel(
-    int level, Direction direction) {
-  if (direction == Direction::X) {
+    int level) {
+  {
     for (IntegratorContext& tube : tubes_) {
-      tube.FillGhostLayerSingleLevel(level, direction);
+      tube.FillGhostLayerSingleLevel(level);
     }
     MultiBlockBoundary* boundary = gridding_->GetBoundaries().begin();
     for (const BlockConnection& connection : gridding_->GetConnectivity()) {
-      if (connection.direction == direction) {
         IntegratorContext& tube = tubes_[connection.tube.id];
         BoundaryCondition bc(WrapBoundaryCondition{boundary});
         bc.parent = tube.GetGriddingAlgorithm().get();
         bc.geometry = tube.GetGeometry(level);
-        tube.FillGhostLayerSingleLevel(level, bc, direction);
-      }
-      ++boundary;
+        tube.FillGhostLayerSingleLevel(level, bc);
+       ++boundary;
     }
-  }
   for (cutcell::IntegratorContext& plenum : plena_) {
-    plenum.FillGhostLayerSingleLevel(level, direction);
+    plenum.FillGhostLayerSingleLevel(level);
   }
+  }
+  {
   MultiBlockBoundary* boundary = gridding_->GetBoundaries().begin();
   for (const BlockConnection& connection : gridding_->GetConnectivity()) {
-    if (connection.direction == direction) {
       cutcell::IntegratorContext& plenum = plena_[connection.plenum.id];
       cutcell::BoundaryCondition bc(WrapBoundaryCondition{boundary});
       bc.parent = plenum.GetGriddingAlgorithm().get();
       bc.geometry = plenum.GetGeometry(level);
-      plenum.FillGhostLayerSingleLevel(level, bc, direction);
-    }
-    ++boundary;
+      plenum.FillGhostLayerSingleLevel(level, bc);
+      ++boundary;
+  }
   }
 }
 
@@ -346,72 +329,60 @@ void MultiBlockIntegratorContext::UpdateConservatively(int level, Duration dt,
 }
 
 /// \brief Reconstruct complete state variables from conservative ones.
-void MultiBlockIntegratorContext::CompleteFromCons(int level, Duration dt,
-                                                   Direction dir) {
-  if (dir == LastDirection()) {
-    for (IntegratorContext& tube : tubes_) {
-      tube.CompleteFromCons(level, dt, Direction::X);
-    }
+void MultiBlockIntegratorContext::CompleteFromCons(int level, Duration dt) {
+  for (IntegratorContext& tube : tubes_) {
+    tube.CompleteFromCons(level, dt);
   }
   for (cutcell::IntegratorContext& plenum : plena_) {
-    plenum.CompleteFromCons(level, dt, dir);
+    plenum.CompleteFromCons(level, dt);
   }
 }
 
 /// \brief Accumulate fluxes on the coarse fine interfaces for a specified
 /// fine level number.
 void MultiBlockIntegratorContext::AccumulateCoarseFineFluxes(int level,
-                                                             Duration dt,
+                                                             double time_scale,
                                                              Direction dir) {
   if (dir == Direction::X) {
     for (IntegratorContext& tube : tubes_) {
-      tube.AccumulateCoarseFineFluxes(level, dt, dir);
+      tube.AccumulateCoarseFineFluxes(level, time_scale, dir);
     }
   }
   for (cutcell::IntegratorContext& plenum : plena_) {
-    plenum.AccumulateCoarseFineFluxes(level, dt, dir);
+    plenum.AccumulateCoarseFineFluxes(level, time_scale, dir);
   }
 }
 
 /// \brief Replace the coarse fluxes by accumulated fine fluxes on the coarse
 /// fine interfaces.
 void MultiBlockIntegratorContext::ApplyFluxCorrection(int fine, int coarse,
-                                                      Duration dt,
-                                                      Direction dir) {
-  if (dir == Direction::X) {
-    for (IntegratorContext& tube : tubes_) {
-      tube.ApplyFluxCorrection(fine, coarse, dt, dir);
-    }
+                                                      Duration dt) {
+  for (IntegratorContext& tube : tubes_) {
+    tube.ApplyFluxCorrection(fine, coarse, dt);
   }
   for (cutcell::IntegratorContext& plenum : plena_) {
-    plenum.ApplyFluxCorrection(fine, coarse, dt, dir);
+    plenum.ApplyFluxCorrection(fine, coarse, dt);
   }
 }
 
 /// \brief Resets all accumulates fluxes to zero.
-void MultiBlockIntegratorContext::ResetCoarseFineFluxes(int fine, int coarse,
-                                                        Direction dir) {
-  if (dir == Direction::X) {
+void MultiBlockIntegratorContext::ResetCoarseFineFluxes(int fine, int coarse) {
     for (IntegratorContext& tube : tubes_) {
-      tube.ResetCoarseFineFluxes(fine, coarse, dir);
+      tube.ResetCoarseFineFluxes(fine, coarse);
     }
-  }
   for (cutcell::IntegratorContext& plenum : plena_) {
-    plenum.ResetCoarseFineFluxes(fine, coarse, dir);
+    plenum.ResetCoarseFineFluxes(fine, coarse);
   }
 }
 
 /// \brief Coarsen scratch data from a fine level number to a coarse level
 /// number.
-void MultiBlockIntegratorContext::CoarsenConservatively(int fine, int coarse,
-                                                        Direction dir) {
-  if (dir == Direction::X) {
-    for (IntegratorContext& tube : tubes_) {
-      tube.CoarsenConservatively(fine, coarse, dir);
-    }
+void MultiBlockIntegratorContext::CoarsenConservatively(int fine, int coarse) {
+  for (IntegratorContext& tube : tubes_) {
+    tube.CoarsenConservatively(fine, coarse);
   }
   for (cutcell::IntegratorContext& plenum : plena_) {
-    plenum.CoarsenConservatively(fine, coarse, dir);
+    plenum.CoarsenConservatively(fine, coarse);
   }
 }
 ///@}

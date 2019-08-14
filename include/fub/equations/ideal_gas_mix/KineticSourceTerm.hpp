@@ -48,6 +48,7 @@ public:
   Duration ComputeStableDt();
 
   Result<void, TimeStepTooLarge> AdvanceHierarchy(Duration dt);
+  Result<void, TimeStepTooLarge> AdvanceLevel(int level, Duration dt);
 
   Duration GetTimePoint() const;
 

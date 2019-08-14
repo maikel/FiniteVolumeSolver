@@ -49,7 +49,7 @@ struct TemperatureRamp {
   void InitializeData(::amrex::MultiFab& data, const ::amrex::Geometry& geom) {
     fub::FlameMasterReactor& reactor = equation_.GetReactor();
     reactor.SetMoleFractions("N2:79,O2:21,H2:42");
-    const double high_temp = 1250.0;
+    const double high_temp = 1350.0;
     const double low_temp = 300.0;
     Complete complete(equation_);
 
@@ -220,7 +220,7 @@ int main(int argc, char** argv) {
   fub::amrex::ScopeGuard _(argc, argv);
   fub::Burke2012 mechanism{};
   auto plenum = MakePlenumSolver(256, mechanism);
-  auto tube = MakeTubeSolver(1200, mechanism);
+  auto tube = MakeTubeSolver(1600, mechanism);
 
   fub::amrex::BlockConnection connection;
   connection.direction = fub::Direction::X;
@@ -249,12 +249,12 @@ int main(int argc, char** argv) {
   auto output =
       [&](std::shared_ptr<fub::amrex::MultiBlockGriddingAlgorithm> gridding,
           auto cycle, auto) {
-        std::string name = fmt::format("{}/Tube/{:05}", base_name, cycle);
+        std::string name = fmt::format("{}/Tube/plt{:05}", base_name, cycle);
         ::amrex::Print() << "Start output to '" << name << "'.\n";
         fub::amrex::WritePlotFile(
             name, gridding->GetTubes()[0]->GetPatchHierarchy(), tube_equation);
         ::amrex::Print() << "Finished output to '" << name << "'.\n";
-        name = fmt::format("{}/Plenum/{:05}", base_name, cycle);
+        name = fmt::format("{}/Plenum/plt{:05}", base_name, cycle);
         ::amrex::Print() << "Start output to '" << name << "'.\n";
         fub::amrex::cutcell::WritePlotFile(
             name, gridding->GetPlena()[0]->GetPatchHierarchy(), equation);

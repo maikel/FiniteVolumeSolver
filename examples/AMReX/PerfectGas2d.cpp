@@ -32,57 +32,56 @@ struct GreshoVortex {
   using Conservative = fub::Conservative<Equation>;
 
   void InitializeData(amrex::MultiFab& data, const amrex::Geometry& geom) {
-    fub::amrex::ForEachFab(
-        fub::execution::openmp, data, [&](const amrex::MFIter& mfi) {
-          fub::View<Complete> states = fub::amrex::MakeView<Complete>(
-              data[mfi], equation_, mfi.tilebox());
+    fub::amrex::ForEachFab(data, [&](const amrex::MFIter& mfi) {
+      fub::View<Complete> states =
+          fub::amrex::MakeView<Complete>(data[mfi], equation_, mfi.tilebox());
 
-          auto from_prim = [](Complete& state, const Equation& equation) {
-            state.energy = state.pressure * equation.gamma_minus_1_inv;
-            state.speed_of_sound =
+      auto from_prim = [](Complete& state, const Equation& equation) {
+        state.energy = state.pressure * equation.gamma_minus_1_inv;
+        state.speed_of_sound =
             std::sqrt(equation.gamma * state.pressure / state.density);
-          };
+      };
 
-          ForEachIndex(fub::Box<0>(states), [&](std::ptrdiff_t i, std::ptrdiff_t j) {
-            double xy[AMREX_SPACEDIM];
-            geom.CellCenter({AMREX_D_DECL(int(i), int(j), 0)}, xy);
-            const double x = xy[0];
-            const double y = xy[1];
+      ForEachIndex(fub::Box<0>(states),
+                   [&](std::ptrdiff_t i, std::ptrdiff_t j) {
+                     double xy[AMREX_SPACEDIM];
+                     geom.CellCenter({AMREX_D_DECL(int(i), int(j), 0)}, xy);
+                     const double x = xy[0];
+                     const double y = xy[1];
 
-            const double r   = std::sqrt(x*x + y*y);
-            const double phi = std::atan2(y,x);
+                     const double r = std::sqrt(x * x + y * y);
+                     const double phi = std::atan2(y, x);
 
-            double pr  = 0*r;
-            double uth = 0*r;
+                     double pr = 0 * r;
+                     double uth = 0 * r;
 
-            if (r < 0.2) {
-              uth = 5. * r;
-              pr  = 5. + 12.5*r*r;
-            }
-            else if (r < 0.4){
-              uth = 2. - 5. * r;
-              pr  = 9.-4.*std::log(0.2) + 12.5*r*r - 20.*r + 4*std::log(r);
-            }
-            else{
-              uth = 0.;
-              pr  = 3. + 4.*std::log(2.);
-            }
+                     if (r < 0.2) {
+                       uth = 5. * r;
+                       pr = 5. + 12.5 * r * r;
+                     } else if (r < 0.4) {
+                       uth = 2. - 5. * r;
+                       pr = 9. - 4. * std::log(0.2) + 12.5 * r * r - 20. * r +
+                            4 * std::log(r);
+                     } else {
+                       uth = 0.;
+                       pr = 3. + 4. * std::log(2.);
+                     }
 
-            const double u   = -std::sin(phi)*uth;
-            const double v   =  std::cos(phi)*uth;
+                     const double u = -std::sin(phi) * uth;
+                     const double v = std::cos(phi) * uth;
 
-            Complete state;
+                     Complete state;
 
-            state.density     = 1.;
-            state.momentum[0] = u;
-            state.momentum[1] = v;
-            state.pressure    = pr;
+                     state.density = 1.;
+                     state.momentum[0] = u;
+                     state.momentum[1] = v;
+                     state.pressure = pr;
 
-            from_prim(state, equation_);
+                     from_prim(state, equation_);
 
-            Store(states, state, {i,j});
-          });
-        });
+                     Store(states, state, {i, j});
+                   });
+    });
   }
 
   Equation equation_;
@@ -104,21 +103,23 @@ int main(int argc, char** argv) {
   fub::PerfectGas<2> equation{};
 
   fub::amrex::CartesianGridGeometry geometry{};
-  geometry.cell_dimensions = std::array<int, Dim>{AMREX_D_DECL(64, 64, 1)};
+  geometry.cell_dimensions = std::array<int, Dim>{AMREX_D_DECL(800, 800, 1)};
   geometry.coordinates = amrex::RealBox({AMREX_D_DECL(-1.0, -1.0, -1.0)},
                                         {AMREX_D_DECL(+1.0, +1.0, +1.0)});
 
   fub::amrex::PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = 6;
+  hier_opts.max_number_of_levels = 1;
   hier_opts.refine_ratio = amrex::IntVect{AMREX_D_DECL(2, 2, 1)};
 
   using Complete = fub::PerfectGas<2>::Complete;
   fub::amrex::GradientDetector gradient(
-      equation, std::make_pair(&Complete::density, 1.E-4),
-      std::make_pair(&Complete::pressure, 1.E-4),
-      std::make_pair([](const Complete& state) {
-        return (state.momentum / state.density).matrix().norm();
-      }, 1.E-4));
+      equation, std::make_pair(&Complete::density, 1.e-4),
+      std::make_pair(&Complete::pressure, 1.e-3),
+      std::make_pair(
+          [](const Complete& state) {
+            return (state.momentum / state.density).matrix().norm();
+          },
+          1.e-1));
 
   fub::Conservative<fub::PerfectGas<2>> cons;
   cons.density = 1.0;
@@ -140,19 +141,25 @@ int main(int argc, char** argv) {
 
   std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       fub::amrex::PatchHierarchy(equation, geometry, hier_opts),
-                                                                             GreshoVortex{equation}, fub::amrex::TagAllOf(gradient, fub::amrex::TagBuffer(4)), boundary);
+      GreshoVortex{equation},
+      fub::amrex::TagAllOf(gradient, fub::amrex::TagBuffer(4)), boundary);
   gridding->InitializeHierarchy(0.0);
 
-  auto tag = fub::execution::seq;
+  auto tag = fub::execution::simd;
 
+//  fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
+//  fub::HllMethod hll_method(equation, signals);
+  fub::MusclHancockMethod muscl_method(equation);
   fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethod(tag, fub::MusclHancockMethod(equation)),
+      fub::amrex::FluxMethod(fub::execution::seq, muscl_method),
       fub::amrex::ForwardIntegrator(tag),
       fub::amrex::Reconstruction(tag, equation)};
 
-  fub::DimensionalSplitLevelIntegrator solver(fub::int_c<2>, fub::amrex::IntegratorContext(gridding, method), fub::StrangSplitting());
+  fub::DimensionalSplitLevelIntegrator solver(
+      fub::int_c<2>, fub::amrex::IntegratorContext(gridding, method),
+      fub::StrangSplitting());
 
-  std::string base_name = "PerfectGas2d/";
+  std::string base_name = "GreshoVertex/";
 
   using namespace fub::amrex;
   auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,
@@ -164,10 +171,11 @@ int main(int argc, char** argv) {
   };
 
   using namespace std::literals::chrono_literals;
-  output(solver.GetGriddingAlgorithm(), solver.GetCycles(), solver.GetTimePoint());
+  output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
+         solver.GetTimePoint());
   fub::RunOptions run_options{};
-  run_options.final_time = 4s;
-  run_options.output_interval = fub::Duration(1.0 / (run_options.final_time.count() * 30.0));
+  run_options.final_time = 1.0s;
+  run_options.output_interval = fub::Duration(1.0 / 30.0);
   run_options.cfl = 0.8;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      fub::amrex::print);

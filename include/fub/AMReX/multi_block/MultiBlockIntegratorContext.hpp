@@ -51,11 +51,11 @@ public:
 
   /// \brief Returns the current time level for data at the specified refinement
   /// level and direction.
-  Duration GetTimePoint(int level, Direction dir) const;
+  Duration GetTimePoint(int level) const;
 
   /// \brief Returns the current number of cycles for data at the specified
   /// refinement level and direction.
-  std::ptrdiff_t GetCycles(int level, Direction dir) const;
+  std::ptrdiff_t GetCycles(int level) const;
   /// @}
 
   /// \brief Returns the current boundary condition for the specified level.
@@ -91,10 +91,10 @@ public:
   void ResetHierarchyConfiguration(int level = 0);
 
   /// \brief Sets the cycle count for a specific level number and direction.
-  void SetCycles(std::ptrdiff_t cycle, int level, Direction dir);
+  void SetCycles(std::ptrdiff_t cycle, int level);
 
   /// \brief Sets the time point for a specific level number and direction.
-  void SetTimePoint(Duration t, int level, Direction dir);
+  void SetTimePoint(Duration t, int level);
   /// @}
 
   /// @{
@@ -105,20 +105,20 @@ public:
   void PostAdvanceHierarchy();
 
   /// \brief On each first subcycle this will regrid the data if neccessary.
-  void PreAdvanceLevel(int level_num, Direction dir, Duration dt, int subcycle);
+  void PreAdvanceLevel(int level_num, Duration dt, int subcycle);
 
   /// \brief Increases the internal time stamps and cycle counters for the
   /// specified level number and direction.
-  Result<void, TimeStepTooLarge> PostAdvanceLevel(int level_num, Direction dir,
+  Result<void, TimeStepTooLarge> PostAdvanceLevel(int level_num,
                                                   Duration dt, int subcycle);
 
   /// \brief Fills the ghost layer of the scratch data and interpolates in the
   /// coarse fine layer.
-  void FillGhostLayerTwoLevels(int level, int coarse, Direction direction);
+  void FillGhostLayerTwoLevels(int level, int coarse);
 
   /// \brief Fills the ghost layer of the scratch data and does nothing in the
   /// coarse fine layer.
-  void FillGhostLayerSingleLevel(int level, Direction direction);
+  void FillGhostLayerSingleLevel(int level);
 
   /// \brief Returns a estimate for a stable time step size which can be taken
   /// for specified level number in direction dir.
@@ -133,22 +133,22 @@ public:
   void UpdateConservatively(int level, Duration dt, Direction dir);
 
   /// \brief Reconstruct complete state variables from conservative ones.
-  void CompleteFromCons(int level, Duration dt, Direction dir);
+  void CompleteFromCons(int level, Duration dt);
 
   /// \brief Accumulate fluxes on the coarse fine interfaces for a specified
   /// fine level number.
-  void AccumulateCoarseFineFluxes(int level, Duration dt, Direction dir);
+  void AccumulateCoarseFineFluxes(int level, double time_scale, Direction dir);
 
   /// \brief Replace the coarse fluxes by accumulated fine fluxes on the coarse
   /// fine interfaces.
-  void ApplyFluxCorrection(int fine, int coarse, Duration dt, Direction dir);
+  void ApplyFluxCorrection(int fine, int coarse, Duration dt);
 
   /// \brief Resets all accumulates fluxes to zero.
-  void ResetCoarseFineFluxes(int fine, int coarse, Direction dir);
+  void ResetCoarseFineFluxes(int fine, int coarse);
 
   /// \brief Coarsen scratch data from a fine level number to a coarse level
   /// number.
-  void CoarsenConservatively(int fine, int coarse, Direction dir);
+  void CoarsenConservatively(int fine, int coarse);
   ///@}
 
 private:

@@ -247,7 +247,7 @@ void IntegratorContext::FillGhostLayerTwoLevels(int fine, BoundaryCondition& fin
     const ::amrex::Vector<double> ft{GetTimePoint(fine).count()};
     const ::amrex::Geometry& cgeom = GetGeometry(coarse);
     const ::amrex::Geometry& fgeom = GetGeometry(fine);
-    const ::amrex::IntVect ratio = 2 * ::amrex::IntVect::TheUnitVector();
+    const ::amrex::IntVect ratio = GetGriddingAlgorithm()->GetPatchHierarchy().GetOptions().refine_ratio;
     ::amrex::Interpolater* mapper = &::amrex::pc_interp;
     ::amrex::FillPatchTwoLevels(scratch, ft[0], cmf, ct, fmf, ft, 0, 0, nc, cgeom,
                                 fgeom, coarse_condition, 0, fine_condition, 0,

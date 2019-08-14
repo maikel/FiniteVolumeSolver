@@ -26,8 +26,8 @@
 #include "fub/Equation.hpp"
 #include "fub/Execution.hpp"
 #include "fub/TimeStepError.hpp"
-#include "fub/split_method/GodunovSplitting.hpp"
 #include "fub/ext/outcome.hpp"
+#include "fub/split_method/GodunovSplitting.hpp"
 
 #include <stdexcept>
 
@@ -37,37 +37,37 @@ namespace fub {
 
 template <typename Context, typename... Args>
 using PreAdvanceHierarchy = decltype(
-                                     std::declval<Context>().PreAdvanceHierarchy(std::declval<Args>()...));
+    std::declval<Context>().PreAdvanceHierarchy(std::declval<Args>()...));
 
 template <typename Context, typename... Args>
 using PostAdvanceHierarchy = decltype(
-                                      std::declval<Context>().PostAdvanceHierarchy(std::declval<Args>()...));
+    std::declval<Context>().PostAdvanceHierarchy(std::declval<Args>()...));
 
 template <typename T>
-using GriddingAlgorithm = std::decay_t<decltype(*std::declval<T&>().GetGriddingAlgorithm())>;
+using GriddingAlgorithm =
+    std::decay_t<decltype(*std::declval<T&>().GetGriddingAlgorithm())>;
 
-template <int Rank>
-constexpr std::array<Direction, static_cast<std::size_t>(Rank)> MakeSplitDirections() noexcept;
-
-/// This Level Integrator applies a very general AMR integration scheme in context of dimensional splitting.
+/// This Level Integrator applies a very general AMR integration scheme in
+/// context of dimensional splitting.
 ///
 /// The time integration is split into multiple intermediate steps where each is
 /// supposed to do a certain task. The detailed implementation of these tasks
 /// happens in the integrator context object.
-template <int Rank, typename Context, typename SplitMethod = GodunovSplitting>
-class DimensionalSplitLevelIntegrator : private Context, private SplitMethod {
+template <int R, typename Context, typename SplitMethod = GodunovSplitting>
+class DimensionalSplitLevelIntegrator : public Context, private SplitMethod {
 public:
-  DimensionalSplitLevelIntegrator(const Context& context, const SplitMethod& splitting = SplitMethod());
-  DimensionalSplitLevelIntegrator(int_constant<Rank>, const Context& context, const SplitMethod& splitting = SplitMethod());
+  static constexpr int Rank = R;
+
+  DimensionalSplitLevelIntegrator(const Context& context,
+                                  const SplitMethod& splitting = SplitMethod());
+
+  DimensionalSplitLevelIntegrator(int_constant<R>, const Context& context,
+                                  const SplitMethod& splitting = SplitMethod());
 
   const Context& GetContext() const noexcept;
+  Context& GetContext() noexcept;
 
   const SplitMethod& GetSplitMethod() const noexcept;
-
-  using Context::ResetHierarchyConfiguration;
-  using Context::GetGriddingAlgorithm;
-  using Context::GetCycles;
-  using Context::GetTimePoint;
 
   void PreAdvanceHierarchy() {
     if constexpr (is_detected<::fub::PreAdvanceHierarchy, Context&>()) {
@@ -103,24 +103,29 @@ public:
   /// advance.
   ///
   /// \param[in] dt A stable time step size for the level_num-th patch level.
-  Result<void, TimeStepTooLarge>
-  AdvanceLevel(int level_number, Duration dt, int subcycle = 0);
+  Result<void, TimeStepTooLarge> AdvanceLevel(int level_number, Duration dt,
+                                              int subcycle = 0);
 
   Result<void, TimeStepTooLarge> AdvanceHierarchy(Duration dt);
 };
 
 // Implementation
 template <int Rank, typename Context, typename SplitMethod>
-  DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::DimensionalSplitLevelIntegrator(const Context& context, const SplitMethod& splitting) : Context(context), SplitMethod(splitting)
-  {}
+DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::
+    DimensionalSplitLevelIntegrator(const Context& context,
+                                    const SplitMethod& splitting)
+    : Context(context), SplitMethod(splitting) {}
+
+template <int R, typename Context, typename SplitMethod>
+DimensionalSplitLevelIntegrator<R, Context, SplitMethod>::
+    DimensionalSplitLevelIntegrator(int_constant<R>, const Context& context,
+                                    const SplitMethod& splitting)
+    : DimensionalSplitLevelIntegrator(context, splitting) {}
 
 template <int Rank, typename Context, typename SplitMethod>
-DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::DimensionalSplitLevelIntegrator(int_constant<Rank>, const Context& context, const SplitMethod& splitting) : DimensionalSplitLevelIntegrator(context, splitting)
-{}
-
-template <int Rank, typename Context, typename SplitMethod>
-int DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::GetTotalRefineRatio(
-    int fine_level, int coarse_level) const {
+int DimensionalSplitLevelIntegrator<
+    Rank, Context, SplitMethod>::GetTotalRefineRatio(int fine_level,
+                                                     int coarse_level) const {
   int refine_ratio = 1;
   for (int level = fine_level; level > coarse_level; --level) {
     refine_ratio *= Context::GetRatioToCoarserLevel(level).max();
@@ -128,10 +133,30 @@ int DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::GetTotalRefineR
   return refine_ratio;
 }
 
+template <int R, typename Context, typename SplitMethod>
+const Context&
+DimensionalSplitLevelIntegrator<R, Context, SplitMethod>::GetContext() const
+    noexcept {
+  return *this;
+}
+
+template <int R, typename Context, typename SplitMethod>
+Context& DimensionalSplitLevelIntegrator<R, Context,
+                                         SplitMethod>::GetContext() noexcept {
+  return *this;
+}
+
+template <int R, typename Context, typename SplitMethod>
+const SplitMethod&
+DimensionalSplitLevelIntegrator<R, Context, SplitMethod>::GetSplitMethod() const
+    noexcept {
+  return *this;
+}
+
 template <int Rank, typename Context, typename SplitMethod>
 Duration
 DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::ComputeStableDt() {
-  auto ComputeStableDt_Split = [this](Direction dir) {
+  auto ComputeStableDt_Split = [this](Direction dir) -> Duration {
     int refine_ratio = 1;
     double coarse_dt = std::numeric_limits<double>::infinity();
     for (int level_num = 0; Context::LevelExists(level_num); ++level_num) {
@@ -144,24 +169,24 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::ComputeStableDt() {
       refine_ratio *= Context::GetRatioToCoarserLevel(level_num).max();
       coarse_dt = std::min(refine_ratio * level_dt, coarse_dt);
     }
-    const MPI_Comm comm = Context::GetMpiCommunicator();
-    double global_min_dt{0};
-    MPI_Allreduce(&coarse_dt, &global_min_dt, 1, MPI_DOUBLE, MPI_MIN, comm);
-    return Duration(global_min_dt);
+    return Duration(coarse_dt);
   };
   Duration min_dt(std::numeric_limits<double>::infinity());
-  for (int d = 0; d < Context::Rank(); ++d) {
+  for (int d = 0; d < Rank; ++d) {
     const Direction dir = static_cast<Direction>(d);
     min_dt = std::min(min_dt, ComputeStableDt_Split(dir));
   }
+  const MPI_Comm comm = Context::GetMpiCommunicator();
+  const double local_dt = min_dt.count();
+  double global_min_dt{0};
+  MPI_Allreduce(&local_dt, &global_min_dt, 1, MPI_DOUBLE, MPI_MIN, comm);
   return min_dt;
 }
 
 template <int Rank, typename Context, typename SplitMethod>
 Result<void, TimeStepTooLarge>
-DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::AdvanceLevel(int this_level,
-                                                          Duration dt,
-                                                          int subcycle) {
+DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::AdvanceLevel(
+    int this_level, Duration dt, int subcycle) {
   // PreAdvanceLevel might regrid this and all finer levels.
   // The Context must make sure that scratch data is allocated
   Context::PreAdvanceLevel(this_level, dt, subcycle);
@@ -180,45 +205,57 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::AdvanceLevel(int th
     }
   }
 
-  // Fill the ghost layer which is needed for this split direction
-  if (subcycle == 0 && this_level > 0) {
-    Context::FillGhostLayerTwoLevels(this_level, this_level - 1);
-  } else {
-    Context::FillGhostLayerSingleLevel(this_level);
-  }
+  //  // Fill the ghost layer which is needed for this split direction
+  //  if (subcycle == 0 && this_level > 0) {
+  //    Context::FillGhostLayerTwoLevels(this_level, this_level - 1);
+  //  } else {
+  //    Context::FillGhostLayerSingleLevel(this_level);
+  //  }
 
   auto AdvanceLevel_Split = [&](Direction dir) {
-    return [this, dir, dt, this_level, next_level](Duration split_dt) -> Result<void, TimeStepTooLarge> {
-        const Duration level_dt = Context::ComputeStableDt(this_level, dir);
-        if (level_dt < split_dt) {
-          const int refine_ratio = GetTotalRefineRatio(this_level);
-          return TimeStepTooLarge{refine_ratio * level_dt};
-        }
+    return [&, dir, first_use = true](
+               Duration split_dt) mutable -> Result<void, TimeStepTooLarge> {
+      if (first_use && subcycle == 0 && this_level > 0) {
+        Context::FillGhostLayerTwoLevels(this_level, this_level - 1);
+        first_use = false;
+      } else {
+        Context::FillGhostLayerSingleLevel(this_level);
+      }
+      const Duration level_dt = Context::ComputeStableDt(this_level, dir);
+      if (level_dt < split_dt) {
+        const int refine_ratio = GetTotalRefineRatio(this_level);
+        return TimeStepTooLarge{refine_ratio * level_dt};
+      }
 
-        // Compute fluxes in the specified direction
-        Context::ComputeNumericFluxes(this_level, split_dt, dir);
+      // Compute fluxes in the specified direction
+      Context::ComputeNumericFluxes(this_level, split_dt, dir);
 
-        if (Context::LevelExists(next_level)) {
-          Context::ApplyFluxCorrection(next_level, this_level, split_dt);
-        }
+      if (Context::LevelExists(next_level)) {
+        Context::ApplyFluxCorrection(next_level, this_level, split_dt);
+      }
 
-        if (this_level > 0) {
-          Context::AccumulateCoarseFineFluxes(this_level, split_dt.count() / dt.count(), dir);
-        }
+      if (this_level > 0) {
+        Context::AccumulateCoarseFineFluxes(this_level,
+                                            split_dt.count() / dt.count(), dir);
+      }
 
-        // Use the updated fluxes to update cons variables at the "SCRATCH" context.
-        Context::UpdateConservatively(this_level, split_dt, dir);
+      // Use the updated fluxes to update cons variables at the "SCRATCH"
+      // context.
+      Context::UpdateConservatively(this_level, split_dt, dir);
 
-        // The conservative update and happened on conservative variables.
-        // We have to reconstruct the missing variables in the complete state.
-        Context::CompleteFromCons(this_level, split_dt);
+      // The conservative update and happened on conservative variables.
+      // We have to reconstruct the missing variables in the complete state.
+      Context::CompleteFromCons(this_level, split_dt);
 
       return boost::outcome_v2::success();
     };
   };
-  if (Result<void, TimeStepTooLarge> result = std::apply([&](auto... directions) {
-    return SplitMethod::Advance(dt, AdvanceLevel_Split(directions)...);
-  }, MakeSplitDirections<Rank>()); !result) {
+  if (Result<void, TimeStepTooLarge> result = std::apply(
+          [&](auto... directions) {
+            return SplitMethod::Advance(dt, AdvanceLevel_Split(directions)...);
+          },
+          MakeSplitDirections<Rank>());
+      !result) {
     return result;
   }
 
@@ -241,17 +278,9 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::AdvanceLevel(int th
 
 template <int Rank, typename Context, typename SplitMethod>
 Result<void, TimeStepTooLarge>
-DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::AdvanceHierarchy(Duration dt) {
+DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::AdvanceHierarchy(
+    Duration dt) {
   return AdvanceLevel(0, dt, 0);
-}
-
-template <int Rank>
-constexpr std::array<Direction, static_cast<std::size_t>(Rank)> MakeSplitDirections() noexcept {
-  std::array<Direction, static_cast<std::size_t>(Rank)> directions{};
-  for (int i = 0; i < Rank; ++i) {
-    directions[static_cast<std::size_t>(i)] = static_cast<Direction>(i);
-  }
-  return directions;
 }
 
 } // namespace fub

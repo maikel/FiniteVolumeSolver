@@ -236,9 +236,9 @@ private:
     /// changes.
     ::amrex::FluxRegister coarse_fine;
 
-    Duration time_point;
-    Duration regrid_time_point;
-    std::ptrdiff_t cycles;
+    Duration time_point{};
+    Duration regrid_time_point{};
+    std::ptrdiff_t cycles{};
   };
 
   int ghost_cell_width_;

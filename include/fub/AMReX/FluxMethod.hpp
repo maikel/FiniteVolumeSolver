@@ -64,34 +64,40 @@ Duration FluxMethod<Tag, FM>::ComputeStableDt(IntegratorContext& context,
   const double dx = geom.CellSize(int(dir));
   double min_dt = std::numeric_limits<double>::infinity();
   const ::amrex::MultiFab& scratch = context.GetScratch(level);
-  const int gcw = GetStencilWidth();
+  const ::amrex::MultiFab& fluxes = context.GetFluxes(level, dir);
   if constexpr (std::is_base_of<execution::OpenMpTag, Tag>::value) {
 #if defined(_OPENMP) && defined(AMREX_USE_OMP)
 #pragma omp parallel reduction(min : min_dt)
 #endif
-    for (::amrex::MFIter mfi(scratch,
+    for (::amrex::MFIter mfi(fluxes,
                              ::amrex::IntVect(AMREX_D_DECL(1024000, 8, 8)));
          mfi.isValid(); ++mfi) {
-      const ::amrex::Box box = mfi.tilebox();
+      const int gcw = GetStencilWidth();
+      const ::amrex::Box face_box = mfi.growntilebox();
+      const ::amrex::Box cell_box = [&face_box, dir, gcw] {
+        ::amrex::Box cells = enclosedCells(face_box);
+        cells.grow(static_cast<int>(dir), gcw);
+        return cells;
+      }();
       Equation& equation = flux_method_->GetEquation();
-      const IndexBox<Rank> cells = Grow(AsIndexBox<Rank>(box), dir, {gcw, gcw});
-      const ::amrex::MultiFab& scratch = context.GetScratch(level);
-      const ::amrex::FArrayBox& data = scratch[mfi];
       View<const Complete<Equation>> states =
-          MakeView<const Complete<Equation>>(data, equation, cells);
+          MakeView<const Complete<Equation>>(scratch[mfi], equation, cell_box);
       const Duration dt(flux_method_->ComputeStableDt(Tag(), states, dx, dir));
       min_dt = std::min(min_dt, dt.count());
     }
     return Duration(min_dt);
   } else {
-    for (::amrex::MFIter mfi(scratch); mfi.isValid(); ++mfi) {
-      const ::amrex::Box& box = mfi.tilebox();
+    for (::amrex::MFIter mfi(fluxes); mfi.isValid(); ++mfi) {
+      const int gcw = GetStencilWidth();
+      const ::amrex::Box face_box = mfi.growntilebox();
+      const ::amrex::Box cell_box = [&face_box, dir, gcw] {
+        ::amrex::Box cells = enclosedCells(face_box);
+        cells.grow(static_cast<int>(dir), gcw);
+        return cells;
+      }();
       Equation& equation = flux_method_->GetEquation();
-      const IndexBox<Rank> cells = Grow(AsIndexBox<Rank>(box), dir, {gcw, gcw});
-      const ::amrex::MultiFab& scratch = context.GetScratch(level);
-      const ::amrex::FArrayBox& data = scratch[mfi];
       View<const Complete<Equation>> states =
-          MakeView<const Complete<Equation>>(data, equation, cells);
+          MakeView<const Complete<Equation>>(scratch[mfi], equation, cell_box);
       const Duration dt(flux_method_->ComputeStableDt(Tag(), states, dx, dir));
       min_dt = std::min(min_dt, dt.count());
     }
@@ -111,22 +117,20 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
   ::amrex::MultiFab& fluxes = context.GetFluxes(level, dir);
   const ::amrex::MultiFab& scratch = context.GetScratch(level);
   const double dx = geom.CellSize(int(dir));
-  ForEachFab(Tag(), scratch, [&](::amrex::MFIter& mfi) {
+  ForEachFab(Tag(), fluxes, [&](::amrex::MFIter& mfi) {
     // Get a view of all complete state variables
-    const int gcw = flux_method_->GetStencilWidth() + 1;
-    const ::amrex::Box box = ::amrex::grow(mfi.tilebox(), gcw);
+    const int gcw = GetStencilWidth();
+    const ::amrex::Box face_box = mfi.growntilebox();
+    const ::amrex::Box cell_box = [&face_box, dir, gcw] {
+      ::amrex::Box cells = enclosedCells(face_box);
+      cells.grow(static_cast<int>(dir), gcw);
+      return cells;
+    }();
     Equation& equation = flux_method_->GetEquation();
-    const IndexBox<Rank> cells = AsIndexBox<Rank>(box);
-    const ::amrex::FArrayBox& data = scratch[mfi];
     View<const Complete<Equation>> states =
-        MakeView<const Complete<Equation>>(data, equation, cells);
-    // Get a view of all flux variables
-    const IndexBox<Rank> faces =
-        Shrink(AsIndexBox<Rank>(::amrex::surroundingNodes(box, int(dir))), dir,
-             {gcw - 1, gcw - 1});
-    ::amrex::FArrayBox& fdata = fluxes[mfi];
+        MakeView<const Complete<Equation>>(scratch[mfi], equation, cell_box);
     View<Conservative<Equation>> flux =
-        MakeView<Conservative<Equation>>(fdata, equation, faces);
+        MakeView<Conservative<Equation>>(fluxes[mfi], equation, face_box);
     // Pass views to implementation
     FUB_ASSERT(!scratch[mfi].contains_nan());
     flux_method_->ComputeNumericFluxes(Tag(), flux, states, dt, dx, dir);

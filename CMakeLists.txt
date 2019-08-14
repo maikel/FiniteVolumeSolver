@@ -207,6 +207,9 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/StateArray.hpp
   include/fub/StateRow.hpp
   include/fub/TimeStepError.hpp
+  include/fub/split_method/SplittingMethod.hpp
+  include/fub/split_method/GodunovSplitting.hpp
+  include/fub/split_method/StrangSplitting.hpp
   src/boundary_condition/ReflectiveBoundary.cpp
   src/equations/Advection.cpp
   src/equations/advection/GodunovMethod.cpp
@@ -219,6 +222,8 @@ add_library(FiniteVolumeSolver.Solver
   src/equations/shallow_water/HllMethod.cpp
   src/equations/shallow_water/MusclHancockMethod.cpp
   src/equations/PerfectGas.cpp
+  src/equations/perfect_gas/GodunovMethod.cpp
+  src/equations/perfect_gas/MusclHancockMethod.cpp
   src/equations/IdealGasMix.cpp
   src/equations/ideal_gas_mix/HllMethod.cpp
   src/equations/ideal_gas_mix/MusclHancockMethod.cpp

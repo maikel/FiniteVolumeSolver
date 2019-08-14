@@ -104,7 +104,7 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
                                                Direction dir) {
   const PatchHierarchy& hierarchy = context.GetPatchHierarchy();
   ::amrex::MultiFab& references = context.GetReferenceStates(level);
-  const ::amrex::MultiFab& scratch = context.GetScratch(level, dir);
+  const ::amrex::MultiFab& scratch = context.GetScratch(level);
   ::amrex::MultiCutFab& boundary_fluxes = context.GetBoundaryFluxes(level);
 
   ::amrex::MultiFab& fluxes = context.GetFluxes(level, dir);
@@ -115,14 +115,16 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
 
   const double dx = context.GetDx(level, dir);
 
-  ForEachFab(Tag(), scratch, [&](const ::amrex::MFIter& mfi) {
-    const ::amrex::FabType type = context.GetFabType(level, mfi);
+  ForEachFab(Tag(), fluxes, [&](const ::amrex::MFIter& mfi) {
     const Equation& equation = flux_method_->GetEquation();
-    constexpr int gcw = GetStencilWidth();
-    const ::amrex::IntVect& unit = ::amrex::IntVect::TheDimensionVector(int(dir));
-    const ::amrex::Box face_box = ::amrex::Box(mfi.tilebox()).grow(int(dir), 1).convert(unit);
-    const ::amrex::Box cell_box = ::amrex::Box(mfi.tilebox()).grow(int(dir), gcw + 1);
-
+    static constexpr int gcw = GetStencilWidth();
+    const ::amrex::Box face_box = mfi.growntilebox();
+    const ::amrex::Box cell_box = [&face_box, dir] {
+      ::amrex::Box cells = enclosedCells(face_box);
+      cells.grow(static_cast<int>(dir), gcw);
+      return cells;
+    }();
+    const ::amrex::FabType type = context.GetFabType(level, mfi);
     if (type == ::amrex::FabType::singlevalued) {
       CutCellData<AMREX_SPACEDIM> cc = hierarchy.GetCutCellData(level, mfi, dir);
       {
@@ -150,13 +152,20 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
 template <typename Tag, typename FM>
 Duration FluxMethod<Tag, FM>::ComputeStableDt(IntegratorContext& context,
                                               int level, Direction dir) {
-  const ::amrex::MultiFab& scratch = context.GetScratch(level, dir);
+  const ::amrex::MultiFab& scratch = context.GetScratch(level);
+  const ::amrex::MultiFab& fluxes = context.GetFluxes(level, dir);
   const double dx = context.GetDx(level, dir);
   Local<Tag, Duration> min_dt{Duration(std::numeric_limits<double>::infinity())};
-  ForEachFab(Tag(), scratch, [&](const ::amrex::MFIter& mfi){
+  ForEachFab(Tag(), fluxes, [&](const ::amrex::MFIter& mfi){
     const Equation& equation = flux_method_->GetEquation();
-    const ::amrex::Box& box = mfi.tilebox();
-    auto states = MakeView<const Complete<Equation>>(scratch[mfi], equation, box);
+    const ::amrex::Box face_box = mfi.growntilebox();
+    static constexpr int gcw = GetStencilWidth();
+    const ::amrex::Box cell_box = [&face_box, dir] {
+      ::amrex::Box cells = enclosedCells(face_box);
+      cells.grow(static_cast<int>(dir), gcw);
+      return cells;
+    }();
+    auto states = MakeView<const Complete<Equation>>(scratch[mfi], equation, cell_box);
     const ::amrex::FabType type = context.GetFabType(level, mfi);
     if (type == ::amrex::FabType::singlevalued) {
       CutCellData<AMREX_SPACEDIM> cc = context.GetPatchHierarchy().GetCutCellData(level, mfi, dir);
