@@ -110,8 +110,8 @@ int main(int argc, char** argv) {
       fub::amrex::ForwardIntegrator(fub::execution::seq),
       fub::amrex::Reconstruction(fub::execution::seq, equation)};
 
-  fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
-      equation, fub::amrex::IntegratorContext(gridding, method)));
+  fub::DimensionalSplitLevelIntegrator solver(
+      fub::int_c<2>, fub::amrex::IntegratorContext(gridding, method));
 
   std::string base_name = "ShallowWater2d/";
 
@@ -125,7 +125,8 @@ int main(int argc, char** argv) {
   };
 
   using namespace std::literals::chrono_literals;
-  output(solver.GetGriddingAlgorithm(), solver.GetCycles(), solver.GetTimePoint());
+  output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
+         solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.final_time = 1.0s;
   run_options.output_interval = run_options.final_time / 20;

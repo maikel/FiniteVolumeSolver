@@ -105,20 +105,22 @@ auto MakeTubeSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
                       geom, hier_opts.refine_ratio, 1, 1);
 
   using Complete = fub::IdealGasMix<1>::Complete;
-  GradientDetector gradient{equation, std::make_pair(&Complete::density, 5e-3),
-                            std::make_pair(&Complete::pressure, 5e-2)};
+  GradientDetector gradient{equation, std::make_pair(&Complete::density, 1e-3),
+                            std::make_pair(&Complete::pressure, 1e-2),
+                            std::make_pair(&Complete::temperature, 1e-1)};
 
   ::amrex::Box refine_box{{num_cells - 5, 0, 0}, {num_cells - 1, 0, 0}};
   ConstantBox constant_box{refine_box};
 
   TemperatureRamp initial_data{equation};
 
-  BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
-                                  TransmissiveBoundary{fub::Direction::X, 1}}};
+  BoundarySet boundaries{
+      {ReflectiveBoundary{fub::execution::seq, equation, fub::Direction::X, 0},
+       TransmissiveBoundary{fub::Direction::X, 1}}};
 
   std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
       PatchHierarchy(desc, geometry, hier_opts), initial_data,
-      TagAllOf(gradient, constant_box), boundary_condition);
+      TagAllOf(gradient, constant_box), boundaries);
   gridding->InitializeHierarchy(0.0);
 
   fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>> signals{};
@@ -301,7 +303,7 @@ int main(int /* argc */, char** /* argv */) {
   output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
          solver.GetTimePoint());
   fub::RunOptions run_options{};
-  run_options.final_time = 0.004s;
+  run_options.final_time = 0.020s;
   run_options.output_interval = 0.1e-3s;
   run_options.cfl = 0.8;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,

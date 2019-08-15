@@ -99,16 +99,19 @@ int main(int argc, char** argv) {
 
   std::string base_name = "Advection_Godunov/";
 
-  auto output = [&](const std::shared_ptr<fub::amrex::GriddingAlgorithm>& gridding,
-                    std::ptrdiff_t cycle, fub::Duration) {
-    std::string name = fmt::format("{}{:04}", base_name, cycle);
-    ::amrex::Print() << "Start output to '" << name << "'.\n";
-    fub::amrex::WritePlotFile(name, gridding->GetPatchHierarchy(), equation);
-    ::amrex::Print() << "Finished output to '" << name << "'.\n";
-  };
+  auto output =
+      [&](const std::shared_ptr<fub::amrex::GriddingAlgorithm>& gridding,
+          std::ptrdiff_t cycle, fub::Duration) {
+        std::string name = fmt::format("{}{:04}", base_name, cycle);
+        ::amrex::Print() << "Start output to '" << name << "'.\n";
+        fub::amrex::WritePlotFile(name, gridding->GetPatchHierarchy(),
+                                  equation);
+        ::amrex::Print() << "Finished output to '" << name << "'.\n";
+      };
 
   using namespace std::literals::chrono_literals;
-  output(solver.GetGriddingAlgorithm(), solver.GetCycles(), solver.GetTimePoint());
+  output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
+         solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.final_time = 2.0s;
   run_options.output_interval = 0.1s;

@@ -100,12 +100,12 @@ int main(int argc, char** argv) {
   fub::Complete<fub::PerfectGas<2>> left;
   fub::CompleteFromCons(equation, left, cons);
 
-  RiemannProblem initial_data(
-      equation, fub::Halfspace({+1.0, 0.0, 0.0}, 0.015), left, right);
+  RiemannProblem initial_data(equation, fub::Halfspace({+1.0, 0.0, 0.0}, 0.015),
+                              left, right);
 
   using State = fub::Complete<fub::PerfectGas<2>>;
   GradientDetector gradients{equation, std::pair{&State::pressure, 0.05},
-                                  std::pair{&State::density, 0.005}};
+                             std::pair{&State::density, 0.005}};
 
   BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
                                   TransmissiveBoundary{fub::Direction::X, 1},
@@ -117,31 +117,34 @@ int main(int argc, char** argv) {
       TagAllOf(TagCutCells(), gradients, TagBuffer(4)), boundary_condition);
   gridding->InitializeHierarchy(0.0);
 
-  fub::MusclHancockMethod muscl_method{equation};
-  fub::KbnCutCellMethod cutcell_method(muscl_method);
+  fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
+  fub::HllMethod hll_method{equation, signals};
+  fub::MusclHancockMethod muscl_method{equation, hll_method};
+  fub::KbnCutCellMethod cutcell_method(muscl_method, hll_method);
 
   HyperbolicMethod method{FluxMethod{fub::execution::seq, cutcell_method},
                           TimeIntegrator{},
                           Reconstruction{fub::execution::seq, equation}};
 
-  fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
-      equation, IntegratorContext(gridding, method)));
+  fub::DimensionalSplitLevelIntegrator solver(
+      fub::int_c<2>, IntegratorContext(gridding, method));
 
   std::string base_name = "Schardin/";
-  auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding, std::ptrdiff_t cycle,
-                    fub::Duration) {
-    std::string name = fmt::format("{}/Plot-{:04}", base_name, cycle);
+  auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,
+                    std::ptrdiff_t cycle, fub::Duration) {
+    std::string name = fmt::format("{}/plt{:04}", base_name, cycle);
     ::amrex::Print() << "Start output to '" << name << "'.\n";
     WritePlotFile(name, gridding->GetPatchHierarchy(), equation);
     ::amrex::Print() << "Finished output to '" << name << "'.\n";
   };
 
   using namespace std::literals::chrono_literals;
-  output(solver.GetGriddingAlgorithm(), solver.GetCycles(), solver.GetTimePoint());
+  output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
+         solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.final_time = 3e-4s;
   run_options.output_interval = 1e-5s;
-  run_options.cfl = 0.5 * 0.9;
+  run_options.cfl = 0.4;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      fub::amrex::print);
 }

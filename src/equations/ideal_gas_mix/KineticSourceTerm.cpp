@@ -49,26 +49,27 @@ template <int Rank>
 Result<void, TimeStepTooLarge>
 KineticSourceTerm<Rank>::AdvanceLevel(int level, Duration dt) {
   ::amrex::MultiFab& data =
-  gridding_->GetPatchHierarchy().GetPatchLevel(level).data;
+      gridding_->GetPatchHierarchy().GetPatchLevel(level).data;
   fub::amrex::ForEachFab(
-                         execution::openmp, data, [&](const ::amrex::MFIter& mfi) {
-                           using Complete = ::fub::Complete<IdealGasMix<Rank>>;
-                           View<Complete> states =
-                           amrex::MakeView<Complete>(data[mfi], *equation_, mfi.tilebox());
-                           FlameMasterReactor& reactor = equation_->GetReactor();
-                           ForEachIndex(Box<0>(states), [&](auto... is) {
-                             std::array<std::ptrdiff_t, sRank> index{is...};
-                             Load(*state_, states, index);
-                             //equation_->SetReactorStateFromComplete(*state_);
-                             reactor.SetMassFractions(state_->species);
-                             reactor.SetTemperature(state_->temperature);
-                             reactor.SetDensity(state_->density);
-                             reactor.Advance(dt.count());
-                             Eigen::Matrix<double, Rank, 1> velocity = state_->momentum / state_->density;
-                             equation_->CompleteFromReactor(*state_, velocity);
-                             Store(states, *state_, index);
-                           });
-                         });
+      execution::openmp, data, [&](const ::amrex::MFIter& mfi) {
+        using Complete = ::fub::Complete<IdealGasMix<Rank>>;
+        View<Complete> states =
+            amrex::MakeView<Complete>(data[mfi], *equation_, mfi.tilebox());
+        FlameMasterReactor& reactor = equation_->GetReactor();
+        ForEachIndex(Box<0>(states), [&](auto... is) {
+          std::array<std::ptrdiff_t, sRank> index{is...};
+          Load(*state_, states, index);
+          // equation_->SetReactorStateFromComplete(*state_);
+          reactor.SetMassFractions(state_->species);
+          reactor.SetTemperature(state_->temperature);
+          reactor.SetDensity(state_->density);
+          reactor.Advance(dt.count());
+          Eigen::Matrix<double, Rank, 1> velocity =
+              state_->momentum / state_->density;
+          equation_->CompleteFromReactor(*state_, velocity);
+          Store(states, *state_, index);
+        });
+      });
   return boost::outcome_v2::success();
 }
 

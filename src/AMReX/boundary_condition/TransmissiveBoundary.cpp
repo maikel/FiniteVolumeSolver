@@ -33,10 +33,10 @@ namespace {
                           Direction dir) {
   const int boundary = (side == 0) * geom.Domain().smallEnd(int(dir)) +
                        (side == 1) * geom.Domain().bigEnd(int(dir));
-//  const int distance = dest[int(dir)] - boundary;
-//  const int sign = int((distance > 0) - (distance < 0));
+  //  const int distance = dest[int(dir)] - boundary;
+  //  const int sign = int((distance > 0) - (distance < 0));
   ::amrex::IntVect src{dest};
-//  src[int(dir)] -= 2 * distance - sign;
+  //  src[int(dir)] -= 2 * distance - sign;
   src[int(dir)] = boundary;
   return src;
 }

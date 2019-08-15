@@ -126,7 +126,7 @@ int main(int, char** argv) {
   using namespace fub::amrex::cutcell;
   using State = fub::Complete<fub::PerfectGas<2>>;
   GradientDetector gradients{equation, std::pair{&State::pressure, 0.05},
-                                  std::pair{&State::density, 0.005}};
+                             std::pair{&State::density, 0.005}};
 
   fub::Conservative<fub::PerfectGas<2>> cons;
   cons.density = 1.22;
@@ -138,9 +138,8 @@ int main(int, char** argv) {
   const double shock_mach_number = 5.8;
   const fub::Array<double, 2, 1> normal{1.0, 0.0};
 
-  ShockMachnumber initial_data(
-      equation, fub::Halfspace({+1.0, 0.0, 0.0}, 0.01), post_shock_state,
-      shock_mach_number, normal);
+  ShockMachnumber initial_data(equation, fub::Halfspace({+1.0, 0.0, 0.0}, 0.01),
+                               post_shock_state, shock_mach_number, normal);
 
   const State& pre_shock_state = initial_data.GetRiemannProblem().left;
   amrex::Print() << "Post-Shock-State:\n"
@@ -200,14 +199,14 @@ int main(int, char** argv) {
                           TimeIntegrator{},
                           Reconstruction{fub::execution::seq, equation}};
 
- fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
+  fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
       equation, IntegratorContext(gridding, method)));
 
   std::string base_name = "Divider_58/";
 
-  auto output = [&, count = 0LL](
-                    const std::shared_ptr<GriddingAlgorithm>& gridding,
-                    std::ptrdiff_t cycle, fub::Duration) mutable {
+  auto output = [&, count =
+                        0LL](const std::shared_ptr<GriddingAlgorithm>& gridding,
+                             std::ptrdiff_t cycle, fub::Duration) mutable {
     PatchHierarchy& hierarchy = gridding->GetPatchHierarchy();
     WriteCheckpoint(base_name, hierarchy, cycle);
     std::string name = fmt::format("{}{:05}.dat", base_name, count++);
@@ -221,7 +220,8 @@ int main(int, char** argv) {
   auto print_msg = [&](const std::string& msg) { ::amrex::Print() << msg; };
 
   using namespace std::literals::chrono_literals;
-  output(solver.GetGriddingAlgorithm(), solver.GetCycles(), solver.GetTimePoint());
+  output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
+         solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.final_time = 0.0005s;
   run_options.output_interval = 0.125 * 0.0000125s;

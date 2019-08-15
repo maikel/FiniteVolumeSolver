@@ -35,7 +35,7 @@ namespace {
   box.setBig(idir, one_box.bigEnd(idir));
   return box;
 }
-}
+} // namespace
 
 template <typename Tag>
 void ForwardIntegrator<Tag>::UpdateConservatively(
@@ -49,7 +49,8 @@ void ForwardIntegrator<Tag>::UpdateConservatively(
     const ::amrex::FArrayBox& prev = src[mfi];
     const ::amrex::FArrayBox& flux = fluxes[mfi];
     const ::amrex::Box& cell_box = GetCellBoxToUpdate(mfi, dir);
-    const IndexBox<AMREX_SPACEDIM + 1> cells = Embed<AMREX_SPACEDIM + 1>(AsIndexBox<AMREX_SPACEDIM>(cell_box), {0, n_cons});
+    const IndexBox<AMREX_SPACEDIM + 1> cells = Embed<AMREX_SPACEDIM + 1>(
+        AsIndexBox<AMREX_SPACEDIM>(cell_box), {0, n_cons});
     auto nv = MakePatchDataView(next).Subview(cells);
     auto pv = MakePatchDataView(prev).Subview(cells);
     const auto faces = Grow(cells, dir, {0, 1});

@@ -26,7 +26,7 @@ MultiBlockKineticSouceTerm::MultiBlockKineticSouceTerm(
     const IdealGasMix<1>& equation,
     std::shared_ptr<MultiBlockGriddingAlgorithm> gridding)
     : source_terms_() {
-      source_terms_.reserve(static_cast<std::size_t>(gridding->GetTubes().size()));
+  source_terms_.reserve(static_cast<std::size_t>(gridding->GetTubes().size()));
   std::transform(gridding->GetTubes().begin(), gridding->GetTubes().end(),
                  std::back_inserter(source_terms_),
                  [&equation](const std::shared_ptr<GriddingAlgorithm>& grid) {
@@ -43,11 +43,12 @@ void MultiBlockKineticSouceTerm::ResetHierarchyConfiguration(
 }
 
 Duration MultiBlockKineticSouceTerm::ComputeStableDt() {
-  return std::accumulate(source_terms_.begin(), source_terms_.end(),
-                     Duration(std::numeric_limits<double>::infinity()),
-                     [](Duration dt, ideal_gas::KineticSourceTerm<1>& source) {
-                       return std::min(dt, source.ComputeStableDt());
-                     });
+  return std::accumulate(
+      source_terms_.begin(), source_terms_.end(),
+      Duration(std::numeric_limits<double>::infinity()),
+      [](Duration dt, ideal_gas::KineticSourceTerm<1>& source) {
+        return std::min(dt, source.ComputeStableDt());
+      });
 }
 
 Result<void, TimeStepTooLarge>
@@ -61,20 +62,18 @@ MultiBlockKineticSouceTerm::AdvanceHierarchy(Duration dt) {
   return boost::outcome_v2::success();
 }
 
-
 Result<void, TimeStepTooLarge>
 MultiBlockKineticSouceTerm::AdvanceLevel(int level, Duration dt) {
-    for (ideal_gas::KineticSourceTerm<1>& source : source_terms_) {
-      if (level < source.GetPatchHierarchy().GetNumberOfLevels()) {
-        Result<void, TimeStepTooLarge> result = source.AdvanceLevel(level, dt);
-        if (!result) {
-          return result;
-        }
+  for (ideal_gas::KineticSourceTerm<1>& source : source_terms_) {
+    if (level < source.GetPatchHierarchy().GetNumberOfLevels()) {
+      Result<void, TimeStepTooLarge> result = source.AdvanceLevel(level, dt);
+      if (!result) {
+        return result;
       }
     }
-    return boost::outcome_v2::success();
+  }
+  return boost::outcome_v2::success();
 }
-
 
 Duration MultiBlockKineticSouceTerm::GetTimePoint() const {
   return source_terms_[0].GetTimePoint();

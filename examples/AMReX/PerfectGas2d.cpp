@@ -121,17 +121,6 @@ int main(int argc, char** argv) {
           },
           1.e-1));
 
-  fub::Conservative<fub::PerfectGas<2>> cons;
-  cons.density = 1.0;
-  cons.momentum << 0.0, 0.0;
-  cons.energy = 101325.0 * equation.gamma_minus_1_inv;
-  fub::Complete<fub::PerfectGas<2>> right;
-  fub::CompleteFromCons(equation, right, cons);
-
-  cons.energy *= 4;
-  fub::Complete<fub::PerfectGas<2>> left;
-  fub::CompleteFromCons(equation, left, cons);
-
   fub::amrex::BoundarySet boundary;
   using fub::amrex::TransmissiveBoundary;
   boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::X, 0});
@@ -147,8 +136,8 @@ int main(int argc, char** argv) {
 
   auto tag = fub::execution::simd;
 
-//  fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
-//  fub::HllMethod hll_method(equation, signals);
+  //  fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
+  //  fub::HllMethod hll_method(equation, signals);
   fub::MusclHancockMethod muscl_method(equation);
   fub::amrex::HyperbolicMethod method{
       fub::amrex::FluxMethod(fub::execution::seq, muscl_method),

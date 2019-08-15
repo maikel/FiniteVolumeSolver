@@ -77,7 +77,7 @@ int main(int argc, char** argv) {
   geometry.cell_dimensions = n_cells;
   geometry.coordinates = amrex::RealBox(xlower, xupper);
   geometry.periodicity = periodicity;
-  
+
   using namespace fub::amrex::cutcell;
 
   PatchHierarchyOptions options{};
@@ -105,9 +105,8 @@ int main(int argc, char** argv) {
                                   TransmissiveBoundary{fub::Direction::Y, 1}}};
 
   using State = fub::Complete<fub::PerfectGas<2>>;
-  GradientDetector gradients{
-      equation, std::pair{&State::pressure, 0.05},
-      std::pair{&State::density, 0.005}};
+  GradientDetector gradients{equation, std::pair{&State::pressure, 0.05},
+                             std::pair{&State::density, 0.005}};
 
   std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
       PatchHierarchy(equation, geometry, options), initial_data,
@@ -135,7 +134,8 @@ int main(int argc, char** argv) {
   };
 
   using namespace std::literals::chrono_literals;
-  output(solver.GetGriddingAlgorithm(), solver.GetCycles(), solver.GetTimePoint());
+  output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
+         solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.final_time = 1e-4s;
   run_options.output_interval = 1e-5s;

@@ -65,17 +65,21 @@ struct TemperatureRamp {
   }
 };
 
-void WriteMatlabFile(std::ostream& out, const amrex::PatchHierarchy& hierarchy) {
+void WriteMatlabFile(std::ostream& out,
+                     const amrex::PatchHierarchy& hierarchy) {
   const amrex::PatchLevel& level = hierarchy.GetPatchLevel(0);
   const ::amrex::Box domain = hierarchy.GetGeometry(0).Domain();
   const ::amrex::BoxArray ba(domain);
   const ::amrex::DistributionMapping dm(ba);
-  ::amrex::MultiFab mf(ba, dm, hierarchy.GetDataDescription().n_state_components, 0);
+  ::amrex::MultiFab mf(ba, dm,
+                       hierarchy.GetDataDescription().n_state_components, 0);
   mf.ParallelCopy(level.data);
   int rank = -1;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   if (rank == 0) {
-    out.write(reinterpret_cast<char*>(mf[0].dataPtr()), static_cast<std::streamsize>(mf[0].size()) * static_cast<std::streamsize>(sizeof(double)));
+    out.write(reinterpret_cast<char*>(mf[0].dataPtr()),
+              static_cast<std::streamsize>(mf[0].size()) *
+                  static_cast<std::streamsize>(sizeof(double)));
   }
 }
 

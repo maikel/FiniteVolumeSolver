@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/tagging/ConstantRegion.hpp"
+#include "fub/AMReX/ForEachFab.hpp"
 
 namespace fub::amrex {
 

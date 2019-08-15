@@ -227,7 +227,7 @@ namespace {
   box.setBig(idir, one_box.bigEnd(idir));
   return box;
 }
-}
+} // namespace
 
 void TimeIntegrator::UpdateConservatively(IntegratorContext& context, int level,
                                           Duration dt, Direction dir) {
@@ -245,11 +245,13 @@ void TimeIntegrator::UpdateConservatively(IntegratorContext& context, int level,
   const double dx = context.GetDx(level, dir);
   const double dt_over_dx = dt.count() / dx;
 
-//  const int gcw = context.GetHyperbolicMethod().flux_method.GetStencilWidth();
+  //  const int gcw =
+  //  context.GetHyperbolicMethod().flux_method.GetStencilWidth();
 
   ForEachFab(execution::openmp, scratch, [&](const ::amrex::MFIter& mfi) {
     ::amrex::FabType type = context.GetFabType(level, mfi);
-    const IndexBox<AMREX_SPACEDIM> cells = AsIndexBox<AMREX_SPACEDIM>(GetCellBoxToUpdate(mfi, dir));
+    const IndexBox<AMREX_SPACEDIM> cells =
+        AsIndexBox<AMREX_SPACEDIM>(GetCellBoxToUpdate(mfi, dir));
     if (type == ::amrex::FabType::singlevalued) {
       const IndexBox<AMREX_SPACEDIM> facesL = cells;
       const IndexBox<AMREX_SPACEDIM> facesR = Grow(cells, dir, {-1, 1});
@@ -290,7 +292,8 @@ void TimeIntegrator::UpdateConservatively(IntegratorContext& context, int level,
       }
     } else if (type == ::amrex::FabType::regular) {
       const int n_cons = hierarchy.GetDataDescription().n_cons_components;
-      const IndexBox<AMREX_SPACEDIM + 1> embed_cells = Embed<AMREX_SPACEDIM + 1>(cells, {0, n_cons});
+      const IndexBox<AMREX_SPACEDIM + 1> embed_cells =
+          Embed<AMREX_SPACEDIM + 1>(cells, {0, n_cons});
       const IndexBox<AMREX_SPACEDIM + 1> faces = Grow(embed_cells, dir, {0, 1});
       PatchDataView<double, AMREX_SPACEDIM + 1, layout_stride> next =
           MakePatchDataView(scratch[mfi]).Subview(embed_cells);

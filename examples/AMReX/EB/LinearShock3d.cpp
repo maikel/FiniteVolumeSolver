@@ -128,8 +128,8 @@ int main(int argc, char** argv) {
 
   std::string base_name = "LinearShock3d/";
 
-  auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding, std::ptrdiff_t cycle,
-                    fub::Duration) {
+  auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,
+                    std::ptrdiff_t cycle, fub::Duration) {
     std::string name = fmt::format("{}{:05}", base_name, cycle);
     amrex::Print() << "Start output to '" << name << "'.\n";
     WritePlotFile(name, gridding->GetPatchHierarchy(), equation);
@@ -137,7 +137,8 @@ int main(int argc, char** argv) {
   };
 
   using namespace std::literals::chrono_literals;
-  output(solver.GetGriddingAlgorithm(), solver.GetCycles(), solver.GetTimePoint());
+  output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
+         solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.final_time = 0.002s;
   run_options.output_interval = 0.0000125s;

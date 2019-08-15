@@ -53,8 +53,8 @@ void IsentropicBoundary::FillBoundary(::amrex::MultiFab& mf,
       }
       ::amrex::Box box_to_fill = mfi.growntilebox() & boundary;
       if (!box_to_fill.isEmpty()) {
-        auto states =
-            MakeView<Complete<IdealGasMix<1>>>(fab, equation_, mfi.growntilebox());
+        auto states = MakeView<Complete<IdealGasMix<1>>>(fab, equation_,
+                                                         mfi.growntilebox());
         ForEachIndex(box_to_fill, [this, &geom, &state,
                                    &states](std::ptrdiff_t i, auto...) {
           std::array<std::ptrdiff_t, 1> dest{i};
