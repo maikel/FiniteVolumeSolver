@@ -51,12 +51,12 @@ public:
   MultiBlockGriddingAlgorithm&
   operator=(MultiBlockGriddingAlgorithm&& other) noexcept = default;
 
-  span<const std::shared_ptr<GriddingAlgorithm>> GetTubes() const noexcept;
-  span<const std::shared_ptr<cutcell::GriddingAlgorithm>> GetPlena() const
+  [[nodiscard]] span<const std::shared_ptr<GriddingAlgorithm>> GetTubes() const noexcept;
+  [[nodiscard]] span<const std::shared_ptr<cutcell::GriddingAlgorithm>> GetPlena() const
       noexcept;
 
-  span<const BlockConnection> GetConnectivity() const noexcept;
-  span<MultiBlockBoundary> GetBoundaries() noexcept { return boundaries_; }
+  [[nodiscard]] span<const BlockConnection> GetConnectivity() const noexcept;
+  [[nodiscard]] span<MultiBlockBoundary> GetBoundaries() noexcept { return boundaries_; }
 
   void RegridAllFinerLevels(int which_level);
 

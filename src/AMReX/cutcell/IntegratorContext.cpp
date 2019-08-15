@@ -441,14 +441,17 @@ void IntegratorContext::UpdateConservatively(int level, Duration dt,
 
 void IntegratorContext::PreAdvanceLevel(int level_num, Duration, int subcycle) {
   const std::size_t l = static_cast<std::size_t>(level_num);
-  if (subcycle == 0 && level_num > 0 &&
+  if (subcycle == 0 &&
       data_[l].regrid_time_point != data_[l].time_point) {
-    gridding_->RegridAllFinerlevels(level_num - 1);
+    gridding_->RegridAllFinerlevels(level_num);
     for (std::size_t lvl = l; lvl < data_.size(); ++lvl) {
       data_[lvl].regrid_time_point = data_[lvl].time_point;
     }
-    ResetHierarchyConfiguration(level_num);
-    ResetCoarseFineFluxes(level_num, level_num - 1);
+    const int next_level = level_num + 1;
+    if (LevelExists(next_level)) {
+      ResetHierarchyConfiguration(next_level);
+      ResetCoarseFineFluxes(next_level, level_num);
+    }
   }
 }
 

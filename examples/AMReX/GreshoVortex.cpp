@@ -61,7 +61,7 @@ struct GreshoVortex {
                      } else if (r < 0.4) {
                        uth = 2. - 5. * r;
                        pr = 9. - 4. * std::log(0.2) + 12.5 * r * r - 20. * r +
-                            4 * std::log(r);
+                            4. * std::log(r);
                      } else {
                        uth = 0.;
                        pr = 3. + 4. * std::log(2.);
@@ -103,9 +103,9 @@ int main(int argc, char** argv) {
   fub::PerfectGas<2> equation{};
 
   fub::amrex::CartesianGridGeometry geometry{};
-  geometry.cell_dimensions = std::array<int, Dim>{AMREX_D_DECL(800, 800, 1)};
-  geometry.coordinates = amrex::RealBox({AMREX_D_DECL(-1.0, -1.0, -1.0)},
-                                        {AMREX_D_DECL(+1.0, +1.0, +1.0)});
+  geometry.cell_dimensions = std::array<int, Dim>{AMREX_D_DECL(400, 400, 1)};
+  geometry.coordinates = amrex::RealBox({AMREX_D_DECL(-0.5, -0.5, -0.5)},
+                                        {AMREX_D_DECL(+0.5, +0.5, +0.5)});
 
   fub::amrex::PatchHierarchyOptions hier_opts;
   hier_opts.max_number_of_levels = 1;
@@ -131,16 +131,18 @@ int main(int argc, char** argv) {
   std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       fub::amrex::PatchHierarchy(equation, geometry, hier_opts),
       GreshoVortex{equation},
-      fub::amrex::TagAllOf(gradient, fub::amrex::TagBuffer(4)), boundary);
+      fub::amrex::TagAllOf(gradient, fub::amrex::TagBuffer(2)), boundary);
   gridding->InitializeHierarchy(0.0);
 
-  auto tag = fub::execution::simd;
+  auto tag = fub::execution::openmp_simd;
 
   //  fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
   //  fub::HllMethod hll_method(equation, signals);
+  //  fub::MusclHancockMethod muscl_method(equation, hll_method);
+  //  fub::GodunovMethod godunov_method(equation, signals);
   fub::MusclHancockMethod muscl_method(equation);
   fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethod(fub::execution::seq, muscl_method),
+      fub::amrex::FluxMethod(fub::execution::openmp, muscl_method),
       fub::amrex::ForwardIntegrator(tag),
       fub::amrex::Reconstruction(tag, equation)};
 
@@ -148,7 +150,7 @@ int main(int argc, char** argv) {
       fub::int_c<2>, fub::amrex::IntegratorContext(gridding, method),
       fub::StrangSplitting());
 
-  std::string base_name = "GreshoVertex/";
+  std::string base_name = "GreshoVortex/";
 
   using namespace fub::amrex;
   auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,
@@ -163,7 +165,7 @@ int main(int argc, char** argv) {
   output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
          solver.GetTimePoint());
   fub::RunOptions run_options{};
-  run_options.final_time = 1.0s;
+  run_options.final_time = 3.0s;
   run_options.output_interval = fub::Duration(1.0 / 30.0);
   run_options.cfl = 0.8;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,

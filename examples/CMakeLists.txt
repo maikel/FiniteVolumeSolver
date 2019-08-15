@@ -24,8 +24,8 @@ if (AMReX_FOUND)
   add_executable_with_warnings(AMReX.Advection2d_MUSCLHancock AMReX/Advection2d_MUSCLHancock.cpp)
   target_link_libraries(AMReX.Advection2d_MUSCLHancock FiniteVolumeSolver.AMReX)
 
-  add_executable_with_warnings(AMReX.PerfectGas2d AMReX/PerfectGas2d.cpp)
-  target_link_libraries(AMReX.PerfectGas2d FiniteVolumeSolver.AMReX)
+  add_executable_with_warnings(AMReX.GreshoVortex AMReX/GreshoVortex.cpp)
+  target_link_libraries(AMReX.GreshoVortex FiniteVolumeSolver.AMReX)
 
   add_executable_with_warnings(AMReX.ShallowWater2d AMReX/ShallowWater2d.cpp)
   target_link_libraries(AMReX.ShallowWater2d FiniteVolumeSolver.AMReX)

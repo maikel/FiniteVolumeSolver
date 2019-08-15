@@ -123,14 +123,14 @@ int main(int argc, char** argv) {
                           TimeIntegrator{},
                           Reconstruction{fub::execution::seq, equation}};
 
-  fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
-      equation, IntegratorContext(gridding, method)));
+  fub::DimensionalSplitLevelIntegrator solver(fub::int_c<3>,
+      IntegratorContext(gridding, method));
 
   std::string base_name = "LinearShock3d/";
 
   auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,
                     std::ptrdiff_t cycle, fub::Duration) {
-    std::string name = fmt::format("{}{:05}", base_name, cycle);
+    std::string name = fmt::format("{}plt{:05}", base_name, cycle);
     amrex::Print() << "Start output to '" << name << "'.\n";
     WritePlotFile(name, gridding->GetPatchHierarchy(), equation);
     amrex::Print() << "Finished output to '" << name << "'.\n";

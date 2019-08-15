@@ -108,8 +108,8 @@ auto MakeSolver(const fub::PerfectGas<2>& equation) {
                           TimeIntegrator{},
                           Reconstruction{fub::execution::seq, equation}};
 
-  return fub::HyperbolicSplitSystemSolver(fub::HyperbolicSplitLevelIntegrator(
-      equation, fub::amrex::cutcell::IntegratorContext(gridding, method)));
+  return fub::DimensionalSplitLevelIntegrator(fub::int_c<2>,
+      fub::amrex::cutcell::IntegratorContext(gridding, method));
 }
 
 int main(int argc, char** argv) {
@@ -124,14 +124,14 @@ int main(int argc, char** argv) {
 
   fub::amrex::ScopeGuard _(argc, argv);
   fub::PerfectGas<2> equation{};
-  fub::HyperbolicSplitSystemSolver solver = MakeSolver(equation);
+  fub::DimensionalSplitLevelIntegrator solver = MakeSolver(equation);
 
   std::string base_name = "Ramp2/";
 
   using namespace fub::amrex::cutcell;
   auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,
                     std::ptrdiff_t cycle, fub::Duration) {
-    std::string name = fmt::format("{}{:05}", base_name, cycle);
+    std::string name = fmt::format("{}plt{:05}", base_name, cycle);
     amrex::Print() << "Start output to '" << name << "'.\n";
     WritePlotFile(name, gridding->GetPatchHierarchy(), equation);
     amrex::Print() << "Finished output to '" << name << "'.\n";

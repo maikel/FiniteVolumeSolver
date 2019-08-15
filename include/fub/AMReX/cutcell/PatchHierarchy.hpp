@@ -194,7 +194,7 @@ PatchHierarchy::PatchHierarchy(const Equation& equation,
     : PatchHierarchy(MakeDataDescription(equation), geometry, options) {}
 
 template <typename Equation>
-void WritePlotFile(const std::string plotfilename, const PatchHierarchy& hier,
+void WritePlotFile(const std::string& plotfilename, const PatchHierarchy& hier,
                    const Equation& equation) {
   const int nlevels = hier.GetNumberOfLevels();
   const double time_point = hier.GetTimePoint().count();
@@ -234,7 +234,7 @@ void WritePlotFile(const std::string plotfilename, const PatchHierarchy& hier,
 }
 
   template <int Rank>
-  void WritePlotFile(const std::string plotfilename, const PatchHierarchy& hier,
+  void WritePlotFile(const std::string& plotfilename, const PatchHierarchy& hier,
                      const IdealGasMix<Rank>& equation) {
     using Equation = IdealGasMix<Rank>;
     const int nlevels = hier.GetNumberOfLevels();

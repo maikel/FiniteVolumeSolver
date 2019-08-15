@@ -105,7 +105,7 @@ int main(int argc, char** argv) {
   boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::X, 1});
 
   fub::amrex::PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = 5;
+  hier_opts.max_number_of_levels = 6;
   hier_opts.refine_ratio = ::amrex::IntVect{AMREX_D_DECL(2, 1, 1)};
 
   std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
@@ -113,7 +113,7 @@ int main(int argc, char** argv) {
       gradient, boundary);
   gridding->InitializeHierarchy(0.0);
 
-  auto tag = fub::execution::seq;
+  auto tag = fub::execution::openmp_simd;
 
   fub::EinfeldtSignalVelocities<fub::PerfectGas<1>> signals{};
   fub::HllMethod hll_method(equation, signals);
@@ -143,9 +143,8 @@ int main(int argc, char** argv) {
          solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.cfl = 0.8;
-  run_options.final_time = 2.0s;
-  run_options.max_cycles = 100;
-  run_options.output_frequency = 1;
+  run_options.final_time = 1.0s;
+  run_options.output_interval = 1.0s / 180.;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      fub::amrex::print);
 }

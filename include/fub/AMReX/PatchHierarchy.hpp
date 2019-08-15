@@ -130,35 +130,35 @@ public:
                  const CartesianGridGeometry& geometry,
                  const PatchHierarchyOptions& options);
 
-  const DataDescription& GetDataDescription() const noexcept;
+  [[nodiscard]] const DataDescription& GetDataDescription() const noexcept;
 
   /// \brief Return some additional patch hierarchy options.
-  const PatchHierarchyOptions& GetOptions() const noexcept;
+  [[nodiscard]] const PatchHierarchyOptions& GetOptions() const noexcept;
 
   /// \brief Returns the Grid Geometry which was used to create the hierarchy
   /// with.
-  const CartesianGridGeometry& GetGridGeometry() const noexcept;
+  [[nodiscard]] const CartesianGridGeometry& GetGridGeometry() const noexcept;
 
-  std::ptrdiff_t GetCycles(int level = 0) const;
+  [[nodiscard]] std::ptrdiff_t GetCycles(int level = 0) const;
 
-  Duration GetTimePoint(int level = 0) const;
+  [[nodiscard]] Duration GetTimePoint(int level = 0) const;
 
-  int GetNumberOfLevels() const noexcept;
+  [[nodiscard]] int GetNumberOfLevels() const noexcept;
 
-  int GetMaxNumberOfLevels() const noexcept;
+  [[nodiscard]] int GetMaxNumberOfLevels() const noexcept;
 
-  int GetRatioToCoarserLevel(int level, Direction dir) const noexcept;
+  [[nodiscard]] int GetRatioToCoarserLevel(int level, Direction dir) const noexcept;
 
-  ::amrex::IntVect GetRatioToCoarserLevel(int level) const noexcept;
+  [[nodiscard]] ::amrex::IntVect GetRatioToCoarserLevel(int level) const noexcept;
 
-  PatchLevel& GetPatchLevel(int level);
+  [[nodiscard]] PatchLevel& GetPatchLevel(int level);
 
-  const PatchLevel& GetPatchLevel(int level) const;
+  [[nodiscard]] const PatchLevel& GetPatchLevel(int level) const;
 
   /// \brief Returns a Geometry object for a specified level.
   ///
   /// \param[in] The refinement level number for this geometry obejct.
-  const ::amrex::Geometry& GetGeometry(int level) const;
+  [[nodiscard]] const ::amrex::Geometry& GetGeometry(int level) const;
 
   // Modifiers
 
@@ -168,7 +168,7 @@ public:
 
   void PopBack();
 
-  span<const ::amrex::EB2::IndexSpace*> GetIndexSpaces();
+  [[nodiscard]] span<const ::amrex::EB2::IndexSpace*> GetIndexSpaces();
 
 private:
   DataDescription description_;

@@ -94,15 +94,15 @@ int main(int argc, char** argv) {
       fub::amrex::ForwardIntegrator(fub::execution::seq),
       fub::amrex::Reconstruction(fub::execution::seq, equation)};
 
-  fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
-      equation, fub::amrex::IntegratorContext(gridding, method)));
+  fub::DimensionalSplitLevelIntegrator solver(fub::int_c<2>,
+      fub::amrex::IntegratorContext(gridding, method));
 
   std::string base_name = "Advection_Godunov/";
 
   auto output =
       [&](const std::shared_ptr<fub::amrex::GriddingAlgorithm>& gridding,
           std::ptrdiff_t cycle, fub::Duration) {
-        std::string name = fmt::format("{}{:04}", base_name, cycle);
+        std::string name = fmt::format("{}plt{:04}", base_name, cycle);
         ::amrex::Print() << "Start output to '" << name << "'.\n";
         fub::amrex::WritePlotFile(name, gridding->GetPatchHierarchy(),
                                   equation);

@@ -187,7 +187,7 @@ template <int Rank, typename Context, typename SplitMethod>
 Result<void, TimeStepTooLarge>
 DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::AdvanceLevel(
     int this_level, Duration dt, int subcycle) {
-  // PreAdvanceLevel might regrid this and all finer levels.
+  // PreAdvanceLevel might regrid all finer levels.
   // The Context must make sure that scratch data is allocated
   Context::PreAdvanceLevel(this_level, dt, subcycle);
 
@@ -252,7 +252,7 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::AdvanceLevel(
   };
   if (Result<void, TimeStepTooLarge> result = std::apply(
           [&](auto... directions) {
-            return SplitMethod::Advance(dt, AdvanceLevel_Split(directions)...);
+            return GetSplitMethod().Advance(dt, AdvanceLevel_Split(directions)...);
           },
           MakeSplitDirections<Rank>());
       !result) {
