@@ -62,6 +62,8 @@ struct FlameMasterMechanism {
   virtual void ComputeThermoData(span<double> h, span<double> cp, double t,
                                  span<double> s) const = 0;
 
+    virtual void ComputeThermoData(ArrayXd& h, ArrayXd& cp, Array1d t) const = 0;
+
   virtual int getNSpecies() const = 0;
 
   virtual int getNReactions() const = 0;
@@ -415,6 +417,7 @@ public:
    * The unit is \f$J/kg\f$
    */
   double GetEnthalpy() const;
+  Array1d GetEnthalpyArray() const;
 
   /**
    * Set the mix'es specific enthalpy

@@ -78,8 +78,7 @@ void UpdateThermoState(const FlameMasterMechanism& mechanism,
   }
   ArrayXd& h = state.enthalpies;
   ArrayXd& cp = state.heat_capacities_at_constant_pressure;
-  ArrayXd& s = state.entropies;
-  mechanism.ComputeThermoData(h, cp, temperature, s);
+  mechanism.ComputeThermoData(h, cp, temperature);
   state.thermoTemp = temperature;
 }
 
@@ -477,6 +476,10 @@ double FlameMasterReactor::GetEnthalpy() const {
   return MeanY(state_.enthalpies);
 }
 
+Array1d FlameMasterReactor::GetEnthalpyArray() const {
+  return MeanY(array_state_.enthalpies);
+}
+
 span<const double> FlameMasterReactor::GetEnthalpies() {
   UpdateThermoState(*mechanism_, state_, GetTemperature());
   return state_.enthalpies;
@@ -486,15 +489,32 @@ double FlameMasterReactor::GetCp() const {
   return MeanY(state_.heat_capacities_at_constant_pressure);
 }
 
+Array1d FlameMasterReactor::GetCpArray() const {
+  return MeanY(array_state_.heat_capacities_at_constant_pressure);
+}
+
 double FlameMasterReactor::GetCv() const {
   return GetCp() - GetUniversalGasConstant() / GetMeanMolarMass();
 }
+
+Array1d FlameMasterReactor::GetCvArray() const {
+  return GetCp() - Array1d::Constant(GetUniversalGasConstant()) / GetMeanMolarMassArray();
+}
+
 
 double FlameMasterReactor::GetMeanMolarMass() const {
   const double minv = std::inner_product(
       state_.massFractions.begin(), state_.massFractions.end(),
       state_.molarMasses.begin(), 0.0, std::plus<>{}, std::divides<>{});
   return 1.0 / minv;
+}
+
+Array1d FlameMasterReactor::GetMeanMolarMassArray() const {
+  Array1d minv = Array1d::Zero();
+  for (int i = 0; i < array_state_.massFractions.rows(); ++i) {
+    minv += array_state_.massFractions.row(i) / state_.molarMasses[i];
+  }
+  return Array1d::Constant(1.0) / minv;
 }
 
 double FlameMasterReactor::GetEntropy() const {
@@ -529,6 +549,11 @@ double FlameMasterReactor::GetEntropy() const {
   return entropy;
 }
 
+void FlameMasterReactor::SetTemperatureArray(Array1d temperature) {
+  array_state_.temperature = temperature;
+  UpdateThermoState(*mechanism_, array_state_, temperature);
+}
+
 void FlameMasterReactor::SetEnthalpy(double enthalpy, double dTtol) {
   setEnergiesHOrU(*this, enthalpy, dTtol, true);
 }
@@ -543,8 +568,90 @@ double FlameMasterReactor::GetInternalEnergy() const {
   return intEnergy;
 }
 
+Array1d FlameMasterReactor::GetInternalEnergyArray() const {
+  Array1d intEnergy = GetEnthalpyArray();
+  Array1d minv = Array1d::Zero();
+  for (int i = 0; i < state_.nSpecies; ++i) {
+    minv += array_state_.massFractions.row(i) / state_.molarMasses[i];
+  }
+  intEnergy -= GetUniversalGasConstant() * minv * GetTemperatureArray();
+  return intEnergy;
+}
+
 void FlameMasterReactor::SetInternalEnergy(double energy, double dTtol) {
   setEnergiesHOrU(*this, energy, dTtol, false);
+}
+
+void FlameMasterReactor::SetInternalEnergyArray(Array1d target, double dTtol) {
+  Array1d dT = Array1d::Zero();
+
+  Array1d Tnew = GetTemperatureArray();
+  Array1d Unew = GetInternalEnergyArray();
+  Array1d Cvnew = GetCvArray();
+
+  Array1d Utop = Unew;
+  Array1d Ubot = Unew;
+  Array1d Ttop = Tnew;
+  Array1d Tbot = Tnew;
+
+  Array<bool, 1> unstablePhase = Array<bool, 1>::Constant(false);
+  Array1d UConvErr{};
+
+  // Newton iteration
+  // This is exactly like Cantera's setState_UV implementation,
+  // except that we do not check for upper/lower temperature limits
+  for (int i = 0; i < 1000; i++) {
+    const Array1d Told = Tnew;
+    const Array1d Uold = Unew;
+
+    Array1d cvd = Cvnew;
+    unstablePhase = (cvd < 0).select(Array<bool, 1>::Constant(true), Array<bool, 1>::Constant(false));
+
+    dT = ((target - Uold) / cvd).max(-100.).min(+100.);
+    dT = ((dT > 0.0 && unstablePhase) || (dT <= 0.0 && !unstablePhase)).select((Ubot < target && Tnew < (0.75 * Tbot + 0.25 * Told)).select(0.75 * (Tbot - Told), dT), (Utop > target && Tnew > (.75 * Ttop + .25 * Told)).select(.75 * (Ttop - Told), dT));
+
+    // Set the new temperature, but try to stay in the stable region
+    // with cv > 0
+    for (int its = 0; its < 10; its++) {
+      Tnew = Told + dT;
+      SetTemperatureArray(Tnew);
+      Unew = GetInternalEnergyArray();
+      Cvnew = GetCvArray();
+      if ((Cvnew < 0).any()) {
+        dT = (Cvnew < 0).select(0.25 * dT, dT);
+      } else {
+        break;
+      }
+    }
+
+    if ((Unew == target).all()) {
+      return;
+    }
+
+    Utop = (Unew > target && (Utop < target || Unew < Utop)).select(Unew, Utop);
+    Ttop = (Unew > target && (Utop < target || Unew < Utop)).select(Tnew, Ttop);
+
+    Ubot = (Unew < target && (Ubot > target || Unew > Ubot)).select(Unew, Ubot);
+    Tbot = (Unew < target && (Ubot > target || Unew > Ubot)).select(Tnew, Tbot);
+
+    // Check for convergence
+    Array1d Uerr = target - Unew;
+    Array1d acvd = cvd.abs().max(1e-5);
+    Array1d denom = target.abs().max(acvd * dTtol);
+    UConvErr = (Uerr / denom).abs();
+    if ((UConvErr < 1e-5 * dTtol || dT.abs() < dTtol).all()) {
+      return;
+    }
+  }
+
+  std::ostringstream errInfo;
+  errInfo << "Failed to converge to given energy. "
+          << "Missed target " << target << "J/m^3 by "
+          << target - GetInternalEnergy()
+          << "J/m^3 (relerr = " << UConvErr
+          << "). Stopped Newton iteration with dT = " << dT << ".";
+
+  throw FlameMasterReactorException(errInfo.str());
 }
 
 //
@@ -568,6 +675,15 @@ double FlameMasterReactor::MeanY(span<const double> quantity) const {
   }
   return retval;
 }
+
+Array1d FlameMasterReactor::MeanY(const ArrayXd& quantity) const {
+  Array1d retval = Array1d::Zero();
+  for (int i = 0; i < state_.nSpecies; i++) {
+    retval += quantity.row(i) * array_state_.massFractions.row(i);
+  }
+  return retval;
+}
+
 
 void FlameMasterReactor::SetMassFractions(std::string newMassFractions) {
   std::fill(state_.massFractions.begin(), state_.massFractions.end(), 0.0);
@@ -631,6 +747,18 @@ void FlameMasterReactor::SetMassFractions(span<const double> fractions) {
                    [sum](double frac) { return frac / sum; });
   }
   UpdateMolesFromMassFractions(state_);
+}
+
+void FlameMasterReactor::SetMassFractionsArray(const ArrayXd &newMassFractions) {
+  Array1d sum = Array1d::Zero();
+  for (int i = 0; i < array_state_.massFractions.rows(); ++i) {
+    array_state_.massFractions.row(i) = newMassFractions.row(i);
+    sum += array_state_.massFractions.row(i) ;
+  }
+  for (int i = 0; i < array_state_.massFractions.rows(); ++i) {
+    array_state_.massFractions.row(i) /= sum;
+  }
+  UpdateMolesFromMassFractions(array_state_, state_);
 }
 
 void FlameMasterReactor::SetTemperature(double temp) {

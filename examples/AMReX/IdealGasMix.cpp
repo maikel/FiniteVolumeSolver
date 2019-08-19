@@ -149,11 +149,10 @@ int main(int argc, char** argv) {
   fub::HllMethod hll_method(equation, signals);
   fub::MusclHancockMethod flux_method{equation, hll_method};
 
-  auto tag = fub::execution::seq;
   fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethod(fub::execution::seq, hll_method),
-      fub::amrex::ForwardIntegrator(fub::execution::seq),
-      fub::amrex::Reconstruction(tag, equation)};
+      fub::amrex::FluxMethod(fub::execution::simd, hll_method),
+      fub::amrex::ForwardIntegrator(fub::execution::simd),
+      fub::amrex::Reconstruction(fub::execution::simd, equation)};
 
   fub::DimensionalSplitLevelIntegrator system_solver(
       fub::int_c<1>, fub::amrex::IntegratorContext(gridding, method),
