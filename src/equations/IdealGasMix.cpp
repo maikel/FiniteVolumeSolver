@@ -54,7 +54,6 @@ void IdealGasMix<Dim>::Flux(ConservativeArray& flux, const CompleteArray& state,
 }
 
 namespace {
-
 double ComputeSpeedOfSound(const FlameMasterReactor& reactor) {
   const double gamma = reactor.GetCp() / reactor.GetCv();
   FUB_ASSERT(1.0 < gamma && gamma <= 2.0);
@@ -65,6 +64,15 @@ double ComputeSpeedOfSound(const FlameMasterReactor& reactor) {
   const double a = std::sqrt(gamma * p / rho);
   FUB_ASSERT(0.0 < a);
   return a;
+}
+
+auto ComputeSpeedOfSoundArray(const FlameMasterReactor& reactor) {
+  const Array1d cp = reactor.GetCpArray();
+  const Array1d gamma = cp / reactor.GetCvArray();
+  const Array1d p = reactor.GetPressureArray();
+  const Array1d rho = reactor.GetDensityArray();
+  const Array1d a = (gamma * p / rho).sqrt();
+  return std::tuple{a, cp, gamma};
 }
 } // namespace
 
@@ -118,31 +126,19 @@ void IdealGasMix<Dim>::CompleteFromCons(Complete& complete,
 template <int Dim>
 void IdealGasMix<Dim>::CompleteFromCons(CompleteArray& complete,
                                         const ConservativeArrayBase& cons) {
-  for (int i = 0; i < kDefaultChunkSize; ++i) {
-    complete.density = cons.density[i];
-    complete.momentum = cons.momentum;
-    complete.energy = cons.energy;
-    for (int s = 0; s < complete.species.rows(); ++s) {
-      complete.species.row(s) = cons.species.row(s);
-    }
-    for (int i = 0; i < kDefaultChunkSize; ++i) {
-      species_buffer_ = cons.species.col(i);
-      reactor_.SetMassFractions(species_buffer_);
-      reactor_.SetDensity(cons.density[i]);
-      Array<double, Dim, 1> momentum = cons.momentum.col(i);
-      const double rhoE_kin = KineticEnergy(cons.density[i], momentum);
-      const double e_internal = (cons.energy[i] - rhoE_kin) / cons.density[i];
-      reactor_.SetTemperature(300);
-      reactor_.SetInternalEnergy(e_internal);
-      FUB_ASSERT(reactor_.GetTemperature() > 0.0);
-      FUB_ASSERT(cons.density[i] == reactor_.GetDensity());
-      complete.pressure[i] = reactor_.GetPressure();
-      complete.speed_of_sound[i] = ComputeSpeedOfSound(reactor_);
-      complete.temperature[i] = reactor_.GetTemperature();
-      complete.c_p[i] = reactor_.GetCp();
-      complete.gamma[i] = reactor_.GetCp() / reactor_.GetCv();
-    }
-  }
+  reactor_.SetMassFractionsArray(cons.species);
+  reactor_.SetDensityArray(cons.density);
+  reactor_.SetTemperatureArray(Array1d::Constant(300));
+  const Array1d rhoE_kin = KineticEnergy(cons.density, cons.momentum);
+  const Array1d e_internal = (cons.energy - rhoE_kin) / cons.density;
+  reactor_.SetInternalEnergyArray(e_internal);
+  complete.density = cons.density;
+  complete.momentum = cons.momentum;
+  complete.energy = cons.energy;
+  complete.species = cons.species;
+  complete.pressure = reactor_.GetPressureArray();
+  complete.temperature = reactor_.GetTemperatureArray();
+  std::tie(complete.speed_of_sound, complete.c_p, complete.gamma) = ComputeSpeedOfSoundArray(reactor_);
 }
 
 template class IdealGasMix<1>;

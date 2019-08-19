@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
       std::chrono::steady_clock::now();
   fub::amrex::ScopeGuard _(argc, argv);
 
-  const std::array<int, 3> n_cells{128, 128, 128};
+  const std::array<int, 3> n_cells{64, 64, 64};
   const std::array<double, 3> xlower{-0.10, -0.15, -0.15};
   const std::array<double, 3> xupper{+0.20, +0.15, +0.15};
   const std::array<int, 3> periodicity{0, 0, 0};
@@ -94,7 +94,7 @@ int main(int argc, char** argv) {
   //  fub::CompleteFromCons(equation, left, cons);
 
   RiemannProblem initial_data(equation, fub::Halfspace({+1.0, 0.0, 0.0}, -0.04),
-                              left, left);
+                              left, right);
 
   //  using Complete = fub::Complete<fub::PerfectGas<3>>;
   using Complete = fub::Complete<fub::IdealGasMix<3>>;
@@ -119,9 +119,9 @@ int main(int argc, char** argv) {
   fub::MusclHancockMethod flux_method(equation, hll_method);
   fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
 
-  HyperbolicMethod method{FluxMethod{fub::execution::seq, cutcell_method},
+  HyperbolicMethod method{FluxMethod{fub::execution::simd, cutcell_method},
                           TimeIntegrator{},
-                          Reconstruction{fub::execution::seq, equation}};
+                          Reconstruction{fub::execution::simd, equation}};
 
   fub::DimensionalSplitLevelIntegrator solver(fub::int_c<3>,
       IntegratorContext(gridding, method));

@@ -144,7 +144,7 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
     } else if (type == ::amrex::FabType::regular) {
       auto flux = MakeView<Conservative<Equation>>(fluxes[mfi], equation, face_box);
       auto states = MakeView<const Complete<Equation>>(scratch[mfi], equation, cell_box);
-      flux_method_->ComputeNumericFluxes(flux, states, dt, dx, dir);
+      flux_method_->ComputeNumericFluxes(Tag(), flux, states, dt, dx, dir);
     }
   });
 }

@@ -45,6 +45,19 @@ void UpdateMolesFromMassFractions(FlameMasterState& state) noexcept {
   }
 }
 
+  void UpdateMassFractionsFromMoles(FlameMasterArrayState& state, const FlameMasterState& x) noexcept {
+    for (int i = 0; i < state.massFractions.rows(); i++) {
+      state.massFractions.row(i) = state.moles.row(i) * x.molarMasses[i] / state.density;
+    }
+  }
+
+void UpdateMolesFromMassFractions(FlameMasterArrayState& state, const FlameMasterState& x) noexcept {
+  for (int i = 0; i < state.moles.rows(); i++) {
+    state.moles.row(i) = state.massFractions.row(i) * state.density / x.molarMasses[i];
+    state.molesStorage.row(i + 1) = state.moles.row(i);
+  }
+}
+
 /// Update function for the thermodynamic state
 void UpdateThermoState(const FlameMasterMechanism& mechanism,
                        FlameMasterState& state, double temperature) {
@@ -57,6 +70,19 @@ void UpdateThermoState(const FlameMasterMechanism& mechanism,
   mechanism.ComputeThermoData(h, cp, temperature, s);
   state.thermoTemp = temperature;
 }
+
+void UpdateThermoState(const FlameMasterMechanism& mechanism,
+                       FlameMasterArrayState& state, Array1d temperature) {
+  if ((state.thermoTemp == temperature).all()) {
+    return;
+  }
+  ArrayXd& h = state.enthalpies;
+  ArrayXd& cp = state.heat_capacities_at_constant_pressure;
+  ArrayXd& s = state.entropies;
+  mechanism.ComputeThermoData(h, cp, temperature, s);
+  state.thermoTemp = temperature;
+}
+
 
 void UpdateThermoState(const FlameMasterMechanism& mechanism,
                        FlameMasterState& state) {
@@ -264,6 +290,11 @@ FlameMasterReactor::FlameMasterReactor(const FlameMasterMechanism& mechanism)
   state_.temperature = state_.molesStorage.data();
   state_.moles = make_span(state_.molesStorage).subspan(1);
 
+  array_state_.massFractions.resize(state_.nSpecies, kDefaultChunkSize);
+  array_state_.moles.resize(state_.nSpecies, kDefaultChunkSize);
+  array_state_.molesStorage.resize(state_.nSpeciesEffective + 1,
+                                   kDefaultChunkSize);
+
   // Computational space for calls to the chemistry implementation
   state_.production_rates.resize(
       static_cast<std::size_t>(state_.nSpeciesEffective));
@@ -275,6 +306,18 @@ FlameMasterReactor::FlameMasterReactor(const FlameMasterMechanism& mechanism)
   state_.heat_capacities_at_constant_pressure.resize(
       static_cast<std::size_t>(state_.nSpeciesEffective));
   state_.entropies.resize(static_cast<std::size_t>(state_.nSpeciesEffective));
+
+  array_state_.production_rates.resize(state_.nSpeciesEffective,
+                                       kDefaultChunkSize);
+  array_state_.reaction_rates.resize(state_.nReactions, kDefaultChunkSize);
+  array_state_.rate_coefficients.resize(state_.nReactions, kDefaultChunkSize);
+  array_state_.third_body_concentrations.resize(state_.nThirdBodyReactions,
+                                                kDefaultChunkSize);
+  array_state_.enthalpies.resize(state_.nSpeciesEffective, kDefaultChunkSize);
+  array_state_.heat_capacities_at_constant_pressure.resize(
+      state_.nSpeciesEffective, kDefaultChunkSize);
+
+  array_state_.entropies.resize(state_.nSpeciesEffective, kDefaultChunkSize);
 
   // Load the names of the species
   state_.speciesNames = mechanism_->getSpeciesNames();

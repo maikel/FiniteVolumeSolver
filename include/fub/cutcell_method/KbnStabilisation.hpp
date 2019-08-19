@@ -241,7 +241,8 @@ public:
           using Index = std::array<std::ptrdiff_t, sizeof...(is)>;
           const Index cell0{is...};
           std::array<int, StencilSize> is_covered{};
-          if (0.0 < vols(cell0) && vols(cell0) < 1.0) {
+          const double alpha = vols(cell0);
+          if (0.0 < alpha && alpha < 1.0) {
             Load(state_, states, cell0);
             const Eigen::Matrix<double, Rank, 1> normal =
                 GetBoundaryNormal(cutcell_data, cell0);

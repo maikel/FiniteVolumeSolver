@@ -212,6 +212,16 @@ double KineticEnergy(double density,
   return 0.5 * momentum.matrix().squaredNorm() / density;
 }
 
+template <int Dim>
+Array1d KineticEnergy(Array1d density,
+                      const Eigen::Array<double, Dim, kDefaultChunkSize, Eigen::RowMajor>& momentum) noexcept {
+  Array1d square = Array1d::Zero();
+  for (int i = 0; i < Dim; ++i) {
+    square += momentum.row(i) * momentum.row(i);
+  }
+  return Array1d::Constant(0.5) * square / density;
+}
+
 /// @{
 /// \brief Defines how to rotate a given state of the euler equations.
 ///

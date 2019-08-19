@@ -105,9 +105,8 @@ auto MakeTubeSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
                       geom, hier_opts.refine_ratio, 1, 1);
 
   using Complete = fub::IdealGasMix<1>::Complete;
-  GradientDetector gradient{equation, std::make_pair(&Complete::density, 1e-3),
-                            std::make_pair(&Complete::pressure, 1e-2),
-                            std::make_pair(&Complete::temperature, 1e-1)};
+  GradientDetector gradient{equation, std::make_pair(&Complete::density, 1e-1),
+                            std::make_pair(&Complete::pressure, 1e-1)};
 
   ::amrex::Box refine_box{{num_cells - 5, 0, 0}, {num_cells - 1, 0, 0}};
   ConstantBox constant_box{refine_box};
@@ -155,8 +154,8 @@ auto MakeTubeSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
 
 auto MakePlenumSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
   const std::array<int, Plenum_Rank> n_cells{num_cells, num_cells, num_cells};
-  const std::array<double, Plenum_Rank> xlower{-0.01, -0.15, -0.15};
-  const std::array<double, Plenum_Rank> xupper{+0.29, +0.15, +0.15};
+  const std::array<double, Plenum_Rank> xlower{-0.01, -0.50, -0.50};
+  const std::array<double, Plenum_Rank> xupper{+0.99, +0.50, +0.50};
   const std::array<int, Plenum_Rank> periodicity{0, 0, 0};
 
   amrex::RealBox xbox(xlower, xupper);
@@ -221,7 +220,7 @@ auto MakePlenumSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
   fub::MusclHancockMethod flux_method(equation, hll_method);
   fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
 
-  HyperbolicMethod method{FluxMethod{fub::execution::openmp, cutcell_method},
+  HyperbolicMethod method{FluxMethod{fub::execution::simd, cutcell_method},
                           fub::amrex::cutcell::TimeIntegrator{},
                           Reconstruction{fub::execution::openmp, equation}};
 
@@ -236,7 +235,7 @@ int main(int /* argc */, char** /* argv */) {
   fub::Burke2012 mechanism{};
 
   const int n_level = 1;
-  auto plenum = MakePlenumSolver(64, n_level, mechanism);
+  auto plenum = MakePlenumSolver(32, n_level, mechanism);
   auto tube = MakeTubeSolver(200, n_level, mechanism);
 
   ::amrex::RealBox inlet{{-0.1, -0.015, -0.015}, {0.05, +0.015, +0.015}};
@@ -265,12 +264,12 @@ int main(int /* argc */, char** /* argv */) {
 
   fub::DimensionalSplitSystemSourceSolver solver{system_solver, source_term};
 
-  std::string base_name = "MultiBlock_3d";
+  std::string base_name = "LongLinearShock_3d";
   fub::IdealGasMix<Tube_Rank> tube_equation{mechanism};
 
-  // Write Checkpoints 25min + every 30min
-  const fub::Duration checkpoint_offest = std::chrono::minutes(30);
-  fub::Duration next_checkpoint = std::chrono::minutes(25);
+  // Write Checkpoints 0min + every 5min
+  const fub::Duration checkpoint_offest = std::chrono::minutes(5);
+  fub::Duration next_checkpoint = std::chrono::minutes(0);
   auto output =
       [&](std::shared_ptr<fub::amrex::MultiBlockGriddingAlgorithm> gridding,
           auto cycle, auto) {
@@ -280,10 +279,10 @@ int main(int /* argc */, char** /* argv */) {
             now - wall_time_reference);
         if (duration > next_checkpoint) {
           fub::amrex::WriteCheckpointFile(
-              fmt::format("{}/Checkpoint_Tube/{:05}", base_name, cycle),
+              fmt::format("{}/Checkpoint/Tube_{:05}", base_name, cycle),
               gridding->GetTubes()[0]->GetPatchHierarchy());
           fub::amrex::cutcell::WriteCheckpointFile(
-              fmt::format("{}/Checkpoint_Plenum/{:05}", base_name, cycle),
+              fmt::format("{}/Checkpoint/Plenum_{:05}", base_name, cycle),
               gridding->GetPlena()[0]->GetPatchHierarchy());
           next_checkpoint += checkpoint_offest;
         }
