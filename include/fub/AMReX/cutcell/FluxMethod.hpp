@@ -55,8 +55,10 @@ private:
   Local<Tag, Base> flux_method_;
 };
 
-template <typename Tag, typename FM> FluxMethod(Tag, FM&&) -> FluxMethod<Tag, std::decay_t<FM>>;
-template <typename Tag, typename FM> FluxMethod(Tag, const FM&) -> FluxMethod<Tag, FM>;
+template <typename Tag, typename FM>
+FluxMethod(Tag, FM &&)->FluxMethod<Tag, std::decay_t<FM>>;
+template <typename Tag, typename FM>
+FluxMethod(Tag, const FM&)->FluxMethod<Tag, FM>;
 
 template <typename Tag, typename FM>
 FluxMethod<Tag, FM>::FluxMethod(Tag, FM&& flux_method)
@@ -126,24 +128,47 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
     }();
     const ::amrex::FabType type = context.GetFabType(level, mfi);
     if (type == ::amrex::FabType::singlevalued) {
-      CutCellData<AMREX_SPACEDIM> cc = hierarchy.GetCutCellData(level, mfi, dir);
+      CutCellData<AMREX_SPACEDIM> cc =
+          hierarchy.GetCutCellData(level, mfi, dir);
       {
-        auto boundary_flux = MakeView<Conservative<Equation>>(boundary_fluxes[mfi], equation, cell_box);
-        auto states = MakeView<const Complete<Equation>>(scratch[mfi], equation, cell_box);
-        auto refs = MakeView<const Complete<Equation>>(references[mfi], equation, cell_box);
-        flux_method_->ComputeBoundaryFluxes(boundary_flux, states, refs, cc, dt, dx, dir);
+        auto boundary_flux = MakeView<Conservative<Equation>>(
+            boundary_fluxes[mfi], equation, cell_box);
+        auto states = MakeView<const Complete<Equation>>(scratch[mfi], equation,
+                                                         cell_box);
+        auto refs = MakeView<const Complete<Equation>>(references[mfi],
+                                                       equation, cell_box);
+        flux_method_->ComputeBoundaryFluxes(boundary_flux, states, refs, cc, dt,
+                                            dx, dir);
       }
-      auto flux = MakeView<Conservative<Equation>>(fluxes[mfi], equation, face_box);
-      auto flux_s = MakeView<Conservative<Equation>>(fluxes_s[mfi], equation, face_box);
-      auto flux_sL = MakeView<Conservative<Equation>>(fluxes_sL[mfi], equation, face_box);
-      auto flux_sR = MakeView<Conservative<Equation>>(fluxes_sR[mfi], equation, face_box);
-      auto flux_ds = MakeView<Conservative<Equation>>(fluxes_ds[mfi], equation, face_box);
-      auto flux_B = MakeView<const Conservative<Equation>>(boundary_fluxes[mfi], equation, cell_box);
-      auto states = MakeView<const Complete<Equation>>(scratch[mfi], equation, cell_box);
-      flux_method_->ComputeCutCellFluxes(flux_s, flux, flux_sL, flux_sR, flux_ds, flux_B, states, cc, dt, dx, dir);
+      {
+        auto flux =
+            MakeView<Conservative<Equation>>(fluxes[mfi], equation, face_box);
+        auto states = MakeView<const Complete<Equation>>(scratch[mfi], equation,
+                                                         cell_box);
+        flux_method_->ComputeRegularFluxes(flux, states, cc, dt, dx, dir);
+      }
+      auto flux_s =
+          MakeView<Conservative<Equation>>(fluxes_s[mfi], equation, face_box);
+      auto flux_sL =
+          MakeView<Conservative<Equation>>(fluxes_sL[mfi], equation, face_box);
+      auto flux_sR =
+          MakeView<Conservative<Equation>>(fluxes_sR[mfi], equation, face_box);
+      auto flux_ds =
+          MakeView<Conservative<Equation>>(fluxes_ds[mfi], equation, face_box);
+      auto flux = MakeView<const Conservative<Equation>>(fluxes[mfi], equation,
+                                                         face_box);
+      auto flux_B = MakeView<const Conservative<Equation>>(boundary_fluxes[mfi],
+                                                           equation, cell_box);
+      auto states =
+          MakeView<const Complete<Equation>>(scratch[mfi], equation, cell_box);
+      flux_method_->ComputeCutCellFluxes(flux_s, flux_sL, flux_sR,
+                                         flux_ds, flux, flux_B, states, cc, dt, dx,
+                                         dir);
     } else if (type == ::amrex::FabType::regular) {
-      auto flux = MakeView<Conservative<Equation>>(fluxes[mfi], equation, face_box);
-      auto states = MakeView<const Complete<Equation>>(scratch[mfi], equation, cell_box);
+      auto flux =
+          MakeView<Conservative<Equation>>(fluxes[mfi], equation, face_box);
+      auto states =
+          MakeView<const Complete<Equation>>(scratch[mfi], equation, cell_box);
       flux_method_->ComputeNumericFluxes(Tag(), flux, states, dt, dx, dir);
     }
   });
@@ -155,8 +180,9 @@ Duration FluxMethod<Tag, FM>::ComputeStableDt(IntegratorContext& context,
   const ::amrex::MultiFab& scratch = context.GetScratch(level);
   const ::amrex::MultiFab& fluxes = context.GetFluxes(level, dir);
   const double dx = context.GetDx(level, dir);
-  Local<Tag, Duration> min_dt{Duration(std::numeric_limits<double>::infinity())};
-  ForEachFab(Tag(), fluxes, [&](const ::amrex::MFIter& mfi){
+  Local<Tag, Duration> min_dt{
+      Duration(std::numeric_limits<double>::infinity())};
+  ForEachFab(Tag(), fluxes, [&](const ::amrex::MFIter& mfi) {
     const Equation& equation = flux_method_->GetEquation();
     const ::amrex::Box face_box = mfi.growntilebox();
     static constexpr int gcw = GetStencilWidth();
@@ -165,13 +191,17 @@ Duration FluxMethod<Tag, FM>::ComputeStableDt(IntegratorContext& context,
       cells.grow(static_cast<int>(dir), gcw);
       return cells;
     }();
-    auto states = MakeView<const Complete<Equation>>(scratch[mfi], equation, cell_box);
+    auto states =
+        MakeView<const Complete<Equation>>(scratch[mfi], equation, cell_box);
     const ::amrex::FabType type = context.GetFabType(level, mfi);
     if (type == ::amrex::FabType::singlevalued) {
-      CutCellData<AMREX_SPACEDIM> cc = context.GetPatchHierarchy().GetCutCellData(level, mfi, dir);
-      *min_dt = std::min(*min_dt, Duration(flux_method_->ComputeStableDt(states, cc, dx, dir)));
+      CutCellData<AMREX_SPACEDIM> cc =
+          context.GetPatchHierarchy().GetCutCellData(level, mfi, dir);
+      *min_dt = std::min(*min_dt, Duration(flux_method_->ComputeStableDt(
+                                      states, cc, dx, dir)));
     } else if (type == ::amrex::FabType::regular) {
-      *min_dt = std::min(*min_dt, Duration(flux_method_->ComputeStableDt(states, dx, dir)));
+      *min_dt = std::min(
+          *min_dt, Duration(flux_method_->ComputeStableDt(Tag(), states, dx, dir)));
     }
   });
   return Min(min_dt);

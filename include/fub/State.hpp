@@ -22,12 +22,11 @@
 #define FUB_STATE_HPP
 
 #include "fub/PatchDataView.hpp"
+#include "fub/core/tuple.hpp"
 #include "fub/ext/Eigen.hpp"
 
 #include <boost/mp11/algorithm.hpp>
 #include <boost/mp11/tuple.hpp>
-
-#include <tuple>
 
 namespace fub {
 
@@ -98,12 +97,6 @@ struct NumVariables
           std::size_t,
           std::tuple_size_v<std::decay_t<decltype(T::Traits::names)>>> {};
 
-template <typename State> auto ToTuple(const State& x) {
-  return boost::mp11::tuple_apply(
-      [&x](auto... pointer) { return std::make_tuple((x.*pointer)...); },
-      StateTraits<State>::pointers_to_member);
-}
-
 /// This type is used to tag scalar quantities
 struct ScalarDepth : std::integral_constant<int, 1> {};
 
@@ -172,6 +165,12 @@ template <typename Eq> struct Conservative : ConservativeBase<Eq> {
 
 template <typename Eq>
 struct StateTraits<Conservative<Eq>> : StateTraits<ConservativeBase<Eq>> {};
+
+template <typename State> auto StateToTuple(const State& x) {
+  return boost::mp11::tuple_apply(
+      [&x](auto... pointer) { return std::make_tuple((x.*pointer)...); },
+      StateTraits<State>::pointers_to_member);
+}
 
 template <typename Equation>
 using CompleteBase =

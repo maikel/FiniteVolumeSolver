@@ -108,6 +108,12 @@ public:
                           span<const CompleteArray, 2> states, Duration dt,
                           double dx, Direction dir);
 
+  void ComputeNumericFlux(ConservativeArray& numeric_flux,
+                          Array1d face_fraction,
+                          span<const CompleteArray, 2> states,
+                          span<const Array1d, 2> volume_fraction, Duration dt,
+                          double dx, Direction dir);
+
   using Base::ComputeStableDt;
   Array1d ComputeStableDt(span<const CompleteArray, 2> states, double dx,
                           Direction dir);
@@ -252,6 +258,34 @@ void HllArrayBase<Equation, SignalSpeeds, true>::ComputeNumericFlux(
   ForEachComponent(
       [&](auto&& nf, Array1d fL, Array1d fR, Array1d qL, Array1d qR) {
         nf = (sR * fL - sL * fR + sLsR * (qR - qL)) / ds;
+      },
+      numeric_flux, flux_left_array_, flux_right_array_, AsCons(left),
+      AsCons(right));
+}
+
+template <typename Equation, typename SignalSpeeds>
+void HllArrayBase<Equation, SignalSpeeds, true>::ComputeNumericFlux(
+    ConservativeArray& numeric_flux, Array1d face_fraction,
+    span<const CompleteArray, 2> states, span<const Array1d, 2>, Duration /* dt */,
+    double /* dx */, Direction dir) {
+  const CompleteArray& left = states[0];
+  const CompleteArray& right = states[1];
+
+  const auto signals = GetSignalSpeeds()(GetEquation(), left, right, dir);
+
+  Flux(GetEquation(), flux_left_array_, left, dir);
+  Flux(GetEquation(), flux_right_array_, right, dir);
+
+  const Array1d zero = Array1d::Zero();
+  const Array1d sL = signals[0].min(zero);
+  const Array1d sR = signals[1].max(zero);
+  const Array1d sLsR = sL * sR;
+  const Array1d ds = sR - sL;
+
+  MaskArray mask = face_fraction > 0.0;
+  ForEachComponent(
+      [&](auto&& nf, Array1d fL, Array1d fR, Array1d qL, Array1d qR) {
+        nf = mask.select((sR * fL - sL * fR + sLsR * (qR - qL)) / ds, Array1d::Zero());
       },
       numeric_flux, flux_left_array_, flux_right_array_, AsCons(left),
       AsCons(right));

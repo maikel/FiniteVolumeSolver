@@ -34,10 +34,16 @@ template <int Rank> struct CutCellData {
   PatchDataView<const double, Rank + 1> boundary_normals;
   PatchDataView<const double, Rank + 1> boundary_centeroids;
   // The following members need to be computed from the AMReX EB database
+  PatchDataView<const double, Rank + 1> distance_to_boundary_left;
+  PatchDataView<const double, Rank + 1> distance_to_boundary_right;
   PatchDataView<const double, Rank> unshielded_fractions;
   PatchDataView<const double, Rank> shielded_left_fractions;
   PatchDataView<const double, Rank> shielded_right_fractions;
   PatchDataView<const double, Rank> doubly_shielded_fractions;
+  PatchDataView<const double, Rank> unshielded_fractions_rel;
+  PatchDataView<const double, Rank> shielded_left_fractions_rel;
+  PatchDataView<const double, Rank> shielded_right_fractions_rel;
+  PatchDataView<const double, Rank> doubly_shielded_fractions_rel;
 };
 
 Eigen::Vector2d GetBoundaryNormal(const CutCellData<2>& ccdata,

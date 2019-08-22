@@ -223,7 +223,7 @@ void WritePlotFile(const std::string plotfilename,
       std::tuple_size<remove_cvref_t<decltype(names)>>::value;
   ::amrex::Vector<std::string> varnames;
   varnames.reserve(n_names);
-  boost::mp11::tuple_for_each(Zip(names, ToTuple(depths)), [&](auto xs) {
+  boost::mp11::tuple_for_each(Zip(names, StateToTuple(depths)), [&](auto xs) {
     const int ncomp = std::get<1>(xs);
     if (ncomp == 1) {
       varnames.push_back(std::get<0>(xs));
@@ -263,7 +263,7 @@ void WritePlotFile(const std::string plotfilename,
     std::tuple_size<remove_cvref_t<decltype(names)>>::value;
     ::amrex::Vector<std::string> varnames;
     varnames.reserve(n_names);
-    boost::mp11::tuple_for_each(Zip(names, ToTuple(depths)), [&](auto xs) {
+    boost::mp11::tuple_for_each(Zip(names, StateToTuple(depths)), [&](auto xs) {
       const int ncomp = std::get<1>(xs);
       if (ncomp == 1) {
         varnames.push_back(std::get<0>(xs));

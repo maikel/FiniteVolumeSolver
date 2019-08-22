@@ -116,13 +116,33 @@ template <typename Equation> struct ReconstructionKernel<Equation, true> {
       const View<Complete<Equation>>& dest,
       const View<const Conservative<Equation>>& src,
       const PatchDataView<const double, Rank, layout_stride>& volume) {
-    ForEachIndex(Box<0>(dest), [&](auto... is) {
-      if (volume(is...) > 0.0) {
-        Load(cons_, src, {is...});
-        ::fub::CompleteFromCons(equation_, complete_, cons_);
-        Store(dest, complete_, {is...});
-      }
-    });
+    ForEachRow(std::tuple{dest, src, volume},
+               [&](const Row<Complete<Equation>>& dest,
+                   const Row<const Conservative<Equation>>& src, span<const double> volume) {
+                 ViewPointer<const Conservative<Equation>> first = Begin(src);
+                 ViewPointer<const Conservative<Equation>> last = End(src);
+                 ViewPointer<Complete<Equation>> out = Begin(dest);
+                 Array1d alpha = Array1d::Zero();
+                 constexpr std::ptrdiff_t size = static_cast<std::ptrdiff_t>(kDefaultChunkSize);
+                 std::ptrdiff_t n = get<0>(last) - get<0>(first);
+                 while (n >= size) {
+                   Load(cons_, first);
+                   alpha = Array1d::Map(volume.data());
+                   MaskArray mask = alpha > 0.0;
+                   ::fub::CompleteFromCons(equation_, complete_, cons_, mask);
+                   Store(out, complete_);
+                   Advance(first, size);
+                   Advance(out, size);
+                   volume = volume.subspan(size);
+                   n = get<0>(last) - get<0>(first);
+                 }
+                 LoadN(cons_, first, static_cast<int>(n));
+                 std::copy_n(volume.data(), n, alpha.data());
+                 std::fill_n(alpha.data() + n, size - n, 0.0);
+                 MaskArray mask = alpha > 0.0;
+                 ::fub::CompleteFromCons(equation_, complete_, cons_, mask);
+                 StoreN(out, complete_, static_cast<int>(n));
+               });
   }
 };
 } // namespace detail

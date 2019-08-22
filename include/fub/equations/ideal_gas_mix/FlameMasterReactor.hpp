@@ -275,7 +275,9 @@ public:
    * The units are \f$kg/m^3\f$
    */
   void SetDensity(double density) { state_.density = density; }
-  void SetDensityArray(Array1d density) { array_state_.density = density; }
+  void SetDensityArray(Array1d density) {
+    array_state_.density = density;
+  }
 
   /**
    * Returns the temperature of the current mixture
@@ -446,6 +448,7 @@ public:
    */
   void SetInternalEnergy(double energy, double dTtol = 1E-6);
   void SetInternalEnergyArray(Array1d energy, double dTtol = 1E-6);
+  void SetInternalEnergyArray(Array1d energy, MaskArray mask, double dTtol = 1E-6);
   ///@}
 
   /// \brief get the current reaction rates d/dt m, where m denotes the actual

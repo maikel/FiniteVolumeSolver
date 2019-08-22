@@ -33,12 +33,20 @@ void FillCutCellData(PatchDataView<double, 2> unshielded,
                      PatchDataView<double, 2> shielded_left,
                      PatchDataView<double, 2> shielded_right,
                      PatchDataView<double, 2> doubly_shielded,
+                     PatchDataView<double, 2> unshielded_rel,
+                     PatchDataView<double, 2> shielded_left_rel,
+                     PatchDataView<double, 2> shielded_right_rel,
+                     PatchDataView<double, 2> doubly_shielded_rel,
                      const CutCellData<2>& data, Direction dir);
 
 void FillCutCellData(PatchDataView<double, 3> unshielded,
                      PatchDataView<double, 3> shielded_left,
                      PatchDataView<double, 3> shielded_right,
                      PatchDataView<double, 3> doubly_shielded,
+                     PatchDataView<double, 3> unshielded_rel,
+                     PatchDataView<double, 3> shielded_left_rel,
+                     PatchDataView<double, 3> shielded_right_rel,
+                     PatchDataView<double, 3> doubly_shielded_rel,
                      const CutCellData<3>& data, Direction dir);
 
 } // namespace fub::amrex::cutcell

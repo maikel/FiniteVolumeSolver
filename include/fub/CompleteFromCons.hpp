@@ -84,6 +84,22 @@ void CompleteFromCons(Equation&& equation,
 template <typename Equation>
 void CompleteFromCons(Equation&& equation,
                       CompleteArray<std::decay_t<Equation>>& complete,
+                      const ConservativeArrayBase<std::decay_t<Equation>>& cons, MaskArray mask) {
+  using Eq = std::decay_t<Equation>;
+  if constexpr (is_detected<CompleteFromConsMemberFunction, Equation,
+                CompleteArray<Eq>&,
+                const ConservativeArray<Eq>&, MaskArray>::value) {
+    equation.CompleteFromCons(complete, cons, mask);
+  } else {
+    static_assert(sizeof(Complete<Eq>) == sizeof(Conservative<Eq>));
+    ForEachVariable([&](auto& dest, const auto& src) { dest = mask.select(src, dest); },
+                    AsCons(complete), cons);
+  }
+}
+
+template <typename Equation>
+void CompleteFromCons(Equation&& equation,
+                      CompleteArray<std::decay_t<Equation>>& complete,
                       const CompleteArray<std::decay_t<Equation>>& cons) {
   using Eq = std::decay_t<Equation>;
   if constexpr (is_detected<CompleteFromConsMemberFunction, Equation,

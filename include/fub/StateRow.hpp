@@ -22,6 +22,7 @@
 #define FUB_STATE_ROW_HPP
 
 #include "fub/State.hpp"
+#include "fub/core/tuple.hpp"
 
 namespace fub {
 
@@ -106,11 +107,6 @@ template <typename State> ViewPointer<State> End(const Row<State>& row) {
           }},
       pointer, row);
   return pointer;
-}
-
-template <typename Tuple, typename Function>
-auto Transform(Tuple&& tuple, Function f) {
-  return std::apply([&](auto&&... xs) { return std::tuple{f(xs)...}; }, tuple);
 }
 
 template <Direction Dir> struct ToStride {
