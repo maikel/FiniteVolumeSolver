@@ -234,6 +234,8 @@ void Burke2012::ComputeThermoData(ArrayXd& h, ArrayXd& cp,
   int i;
   Array<bool, 1> greater_1000 = (T > 1000.0);
   Array<bool, 1> greater_300 = (T >= 299.999999);
+  Array1d T_old = T;
+  T = T.max(300.0);
 
   h.row(sN2) = 2.96733125e+02 *
                (T * (3.29867700e+00 +
@@ -481,9 +483,8 @@ void Burke2012::ComputeThermoData(ArrayXd& h, ArrayXd& cp,
                            T * (2.34890400e-10 + T * -1.43165400e-14)))), cp.row(sH2O2));
   }
 
-
   for (i = 0; i < sEnd; i++) {
-    h.row(i) = (!greater_300).select((T - 300.) * cp.row(i) + h.row(i), h.row(i));
+    h.row(i) = (!greater_300).select((T_old - Array1d::Constant(300.0)) * cp.row(i) + h.row(i), h.row(i));
   }
 }
 

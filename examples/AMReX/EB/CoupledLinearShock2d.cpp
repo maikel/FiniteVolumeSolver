@@ -80,7 +80,7 @@ struct TemperatureRamp {
   }
 };
 
-auto MakeTubeSolver(int num_cells, fub::Burke2012& mechanism) {
+auto MakeTubeSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
   const std::array<int, 2> n_cells{num_cells, 1};
   const std::array<double, 2> xlower{-1.5, -0.015};
   const std::array<double, 2> xupper{-0.03, +0.015};
@@ -98,7 +98,7 @@ auto MakeTubeSolver(int num_cells, fub::Burke2012& mechanism) {
   DataDescription desc = MakeDataDescription(equation);
 
   PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = 3;
+  hier_opts.max_number_of_levels = n_level;
   hier_opts.refine_ratio = amrex::IntVect{2, 1};
 
   amrex::Geometry geom(amrex::Box{{}, {n_cells[0] - 1, n_cells[1] - 1}}, &xbox,
@@ -128,9 +128,9 @@ auto MakeTubeSolver(int num_cells, fub::Burke2012& mechanism) {
   fub::HllMethod hll_method(equation, signals);
   // fub::MusclHancockMethod flux_method{equation, hll_method};
 
-  HyperbolicMethod method{FluxMethod(fub::execution::seq, hll_method),
+  HyperbolicMethod method{FluxMethod(fub::execution::simd, hll_method),
                           ForwardIntegrator(fub::execution::seq),
-                          Reconstruction(fub::execution::seq, equation)};
+                          Reconstruction(fub::execution::simd, equation)};
 
   return fub::amrex::IntegratorContext(gridding, method);
 }
@@ -164,7 +164,7 @@ auto Rectangle(const std::array<double, 2>& lower,
   return ::amrex::Box{lo, up};
 }
 
-auto MakePlenumSolver(int num_cells, fub::Burke2012& mechanism) {
+auto MakePlenumSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
   const std::array<int, Plenum_Rank> n_cells{num_cells, num_cells};
   const std::array<double, Plenum_Rank> xlower{-0.03, -0.25};
   const std::array<double, Plenum_Rank> xupper{+0.47, +0.25};
@@ -173,8 +173,6 @@ auto MakePlenumSolver(int num_cells, fub::Burke2012& mechanism) {
   amrex::RealBox xbox(xlower, xupper);
   amrex::Geometry coarse_geom(amrex::Box{{}, {n_cells[0] - 1, n_cells[1] - 1}},
                               &xbox, -1, periodicity.data());
-
-  const int n_level = 3;
 
   auto embedded_boundary =
       amrex::EB2::makeUnion(Rectangle({-1.0, +0.015}, {0.0, 1.0}),
@@ -206,11 +204,11 @@ auto MakePlenumSolver(int num_cells, fub::Burke2012& mechanism) {
   options.index_spaces = MakeIndexSpaces(shop, coarse_geom, n_level);
 
   using State = fub::Complete<fub::IdealGasMix<Plenum_Rank>>;
-  GradientDetector gradients{equation, std::pair{&State::pressure, 0.05},
-                             std::pair{&State::density, 0.005}};
+  GradientDetector gradients{equation, std::pair{&State::pressure, 0.1},
+                             std::pair{&State::density, 0.1}};
 
   const ::amrex::Box refine_box =
-      BoxWhichContains({-0.1, -0.015}, {0.05, +0.015}, coarse_geom);
+      BoxWhichContains({-0.1, -0.015}, {0.02, +0.015}, coarse_geom);
   ConstantBox constant_box{refine_box};
 
   BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
@@ -228,12 +226,13 @@ auto MakePlenumSolver(int num_cells, fub::Burke2012& mechanism) {
 
   fub::EinfeldtSignalVelocities<fub::IdealGasMix<Plenum_Rank>> signals{};
   fub::HllMethod hll_method{equation, signals};
-  fub::MusclHancockMethod flux_method(equation, hll_method);
+  fub::ideal_gas::MusclHancockPrimMethod<Plenum_Rank> flux_method(equation);
+//  fub::MusclHancockMethod flux_method{equation, hll_method};
   fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
 
-  HyperbolicMethod method{FluxMethod{fub::execution::seq, cutcell_method},
+  HyperbolicMethod method{FluxMethod{fub::execution::simd, cutcell_method},
                           fub::amrex::cutcell::TimeIntegrator{},
-                          Reconstruction{fub::execution::seq, equation}};
+                          Reconstruction{fub::execution::simd, equation}};
 
   return fub::amrex::cutcell::IntegratorContext(gridding, method);
 }
@@ -247,8 +246,8 @@ int main(int argc, char** argv) {
 
   const int n_level = 1;
 
-  auto plenum = MakePlenumSolver(64, mechanism);
-  auto tube = MakeTubeSolver(400, mechanism);
+  auto plenum = MakePlenumSolver(256, n_level, mechanism);
+  auto tube = MakeTubeSolver(400, n_level, mechanism);
 
   fub::amrex::BlockConnection connection;
   connection.direction = fub::Direction::X;
@@ -296,6 +295,7 @@ int main(int argc, char** argv) {
   fub::RunOptions run_options{};
   run_options.final_time = 0.004s;
   run_options.output_interval = fub::Duration(0.001 / 30.0);
+//  run_options.output_frequency = 1;
   run_options.cfl = 0.8;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      fub::amrex::print);

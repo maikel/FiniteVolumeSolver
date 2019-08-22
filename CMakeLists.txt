@@ -190,6 +190,7 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/geometry/ExpandTube.hpp
   include/fub/Solver.hpp
   include/fub/CompleteFromCons.hpp
+  include/fub/CutCellData.hpp
   include/fub/Direction.hpp
   include/fub/Duration.hpp
   include/fub/EinfeldtSignalVelocities.hpp
@@ -229,6 +230,7 @@ add_library(FiniteVolumeSolver.Solver
   src/equations/ideal_gas_mix/MusclHancockMethod.cpp
   src/equations/ideal_gas_mix/FlameMasterReactor.cpp
   src/equations/ideal_gas_mix/mechanism/Burke2012.cpp
+  src/cutcell_method/KbnStabilisation.cpp
   src/tagging/TagBuffer.cpp
   src/tagging/TagCutCells.cpp
   src/CartesianCoordinates.cpp
@@ -237,6 +239,7 @@ add_library(FiniteVolumeSolver.Solver
   src/geometry/Halfspace.cpp
   src/geometry/Polygon.cpp
   src/geometry/ExpandTube.cpp
+  src/CutCellData.cpp
   src/HyperbolicPatchIntegrator.cpp
   src/RunSimulation.cpp)
 target_link_libraries(FiniteVolumeSolver.Solver
@@ -318,7 +321,6 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
 
   if (AMReX_EB_FOUND) 
     add_library(FiniteVolumeSolver.AMReX.EB
-        src/CutCellData.cpp
         src/geometry/ExpandTube.cpp
         include/fub/AMReX_CutCell.hpp
         include/fub/AMReX/cutcell/BoundaryCondition.hpp

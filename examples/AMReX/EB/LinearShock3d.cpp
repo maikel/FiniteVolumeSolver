@@ -42,7 +42,7 @@ int main(int argc, char** argv) {
   const std::array<double, 3> xupper{+0.20, +0.15, +0.15};
   const std::array<int, 3> periodicity{0, 0, 0};
 
-  const int n_level = 1;
+  const int n_level = 2;
 
   auto embedded_boundary = amrex::EB2::makeIntersection(
       amrex::EB2::PlaneIF({0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, false),
@@ -98,8 +98,8 @@ int main(int argc, char** argv) {
 
   //  using Complete = fub::Complete<fub::PerfectGas<3>>;
   using Complete = fub::Complete<fub::IdealGasMix<3>>;
-  GradientDetector gradients{equation, std::pair{&Complete::pressure, 0.05},
-                             std::pair{&Complete::density, 0.005}};
+  GradientDetector gradients{equation, std::pair{&Complete::pressure, 0.1},
+                             std::pair{&Complete::density, 0.1}};
 
   BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
                                   TransmissiveBoundary{fub::Direction::X, 1},
@@ -116,7 +116,8 @@ int main(int argc, char** argv) {
   //  fub::EinfeldtSignalVelocities<fub::PerfectGas<3>> signals{};
   fub::EinfeldtSignalVelocities<fub::IdealGasMix<3>> signals{};
   fub::HllMethod hll_method{equation, signals};
-  fub::MusclHancockMethod flux_method(equation, hll_method);
+//  fub::MusclHancockMethod flux_method(equation, hll_method);
+  fub::ideal_gas::MusclHancockPrimMethod<3> flux_method(equation);
   fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
 
   HyperbolicMethod method{FluxMethod{fub::execution::simd, cutcell_method},

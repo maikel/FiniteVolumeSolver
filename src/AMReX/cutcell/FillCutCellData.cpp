@@ -26,6 +26,10 @@ void FillCutCellData(PatchDataView<double, 2> unshielded,
                      PatchDataView<double, 2> shielded_left,
                      PatchDataView<double, 2> shielded_right,
                      PatchDataView<double, 2> doubly_shielded,
+                     PatchDataView<double, 2> unshielded_rel,
+                     PatchDataView<double, 2> shielded_left_rel,
+                     PatchDataView<double, 2> shielded_right_rel,
+                     PatchDataView<double, 2> doubly_shielded_rel,
                      const CutCellData<2>& data, Direction dir) {
   const IndexBox<2> indices = Shrink(data.face_fractions.Box(), dir, {1, 1});
   ForEachIndex(indices, [&](std::ptrdiff_t i, std::ptrdiff_t j) {
@@ -38,10 +42,14 @@ void FillCutCellData(PatchDataView<double, 2> unshielded,
     FUB_ASSERT(beta_mid >= 0.0);
     const double dBetaL = std::max(0.0, beta_mid - beta_left);
     const double dBetaR = std::max(0.0, beta_mid - beta_right);
-    unshielded(mid) = beta_mid - std::max(dBetaL, dBetaR);
+    unshielded(mid) = std::max(0.0, beta_mid - std::max(dBetaL, dBetaR));
+    unshielded_rel(mid) = beta_mid > 0.0 ? std::clamp(unshielded(mid) / beta_mid, 0.0, 1.0) : 0.0;
     doubly_shielded(mid) = std::min(dBetaL, dBetaR);
+    doubly_shielded_rel(mid) = beta_mid > 0.0 ? std::clamp(doubly_shielded(mid) / beta_mid, 0.0, 1.0) : 0.0;
     shielded_left(mid) = std::max(0.0, dBetaL - doubly_shielded(mid));
+    shielded_left_rel(mid) = beta_mid > 0.0 ? std::clamp(shielded_left(mid) / beta_mid, 0.0, 1.0) : 0.0;
     shielded_right(mid) = std::max(0.0, dBetaR - doubly_shielded(mid));
+    shielded_right_rel(mid) = beta_mid > 0.0 ? std::clamp(shielded_right(mid) / beta_mid, 0.0, 1.0) : 0.0;
   });
 }
 
@@ -49,6 +57,10 @@ void FillCutCellData(PatchDataView<double, 3> unshielded,
                      PatchDataView<double, 3> shielded_left,
                      PatchDataView<double, 3> shielded_right,
                      PatchDataView<double, 3> doubly_shielded,
+                     PatchDataView<double, 3> unshielded_rel,
+                     PatchDataView<double, 3> shielded_left_rel,
+                     PatchDataView<double, 3> shielded_right_rel,
+                     PatchDataView<double, 3> doubly_shielded_rel,
                      const CutCellData<3>& data, Direction dir) {
   const IndexBox<3> indices = Shrink(data.face_fractions.Box(), dir, {1, 1});
   ForEachIndex(
@@ -63,9 +75,13 @@ void FillCutCellData(PatchDataView<double, 3> unshielded,
         const double dBetaL = std::max(0.0, beta_mid - beta_left);
         const double dBetaR = std::max(0.0, beta_mid - beta_right);
         unshielded(mid) = beta_mid - std::max(dBetaL, dBetaR);
+        unshielded_rel(mid) = beta_mid > 0.0 ? std::clamp(unshielded(mid) / beta_mid, 0.0, 1.0) : 0.0;
         doubly_shielded(mid) = std::min(dBetaL, dBetaR);
-        shielded_left(mid) = std::max(0.0, dBetaL - doubly_shielded(mid));
-        shielded_right(mid) = std::max(0.0, dBetaR - doubly_shielded(mid));
+        doubly_shielded_rel(mid) = beta_mid > 0.0 ? std::clamp(doubly_shielded(mid) / beta_mid, 0.0, 1.0) : 0.0;
+        shielded_left(mid) = dBetaL - doubly_shielded(mid);
+        shielded_left_rel(mid) = beta_mid > 0.0 ? std::clamp(shielded_left(mid) / beta_mid, 0.0, 1.0) : 0.0;
+        shielded_right(mid) = dBetaR - doubly_shielded(mid);
+        shielded_right_rel(mid) = beta_mid > 0.0 ? std::clamp(shielded_right(mid) / beta_mid, 0.0, 1.0) : 0.0;
       });
 }
 

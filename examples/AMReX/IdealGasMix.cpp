@@ -134,7 +134,7 @@ int main(int argc, char** argv) {
   //  fub::Direction::X, 1});
 
   fub::amrex::PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = 4;
+  hier_opts.max_number_of_levels = 1;
   hier_opts.refine_ratio = ::amrex::IntVect{AMREX_D_DECL(2, 1, 1)};
 
   std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
@@ -150,7 +150,7 @@ int main(int argc, char** argv) {
   fub::MusclHancockMethod flux_method{equation, hll_method};
 
   fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethod(fub::execution::simd, hll_method),
+      fub::amrex::FluxMethod(fub::execution::simd, flux_method),
       fub::amrex::ForwardIntegrator(fub::execution::simd),
       fub::amrex::Reconstruction(fub::execution::simd, equation)};
 

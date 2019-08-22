@@ -38,7 +38,7 @@ MultiCutFabs MakeMultiCutFabs(const ::amrex::BoxArray& ba,
   for (std::unique_ptr<::amrex::MultiCutFab>& mf : mfabs) {
     ::amrex::IntVect unit = ::amrex::IntVect::TheDimensionVector(dir);
     mf = std::make_unique<::amrex::MultiCutFab>(
-        ::amrex::convert(ba, unit), dm, 1, 4, factory.getMultiEBCellFlagFab());
+        ::amrex::convert(ba, unit), dm, 2, 4, factory.getMultiEBCellFlagFab());
     dir += 1;
   }
   return mfabs;
@@ -78,7 +78,15 @@ PatchLevel::PatchLevel(const PatchLevel& other)
             MakePatchDataView((*shielded_right[d])[mfi], 0);
         PatchDataView<double, AMREX_SPACEDIM> ds =
             MakePatchDataView((*doubly_shielded[d])[mfi], 0);
-        FillCutCellData(us, sL, sR, ds, cutcell_data,
+        PatchDataView<double, AMREX_SPACEDIM> us_rel =
+        MakePatchDataView((*unshielded[d])[mfi], 1);
+        PatchDataView<double, AMREX_SPACEDIM> sL_rel =
+        MakePatchDataView((*shielded_left[d])[mfi], 1);
+        PatchDataView<double, AMREX_SPACEDIM> sR_rel =
+        MakePatchDataView((*shielded_right[d])[mfi], 1);
+        PatchDataView<double, AMREX_SPACEDIM> ds_rel =
+        MakePatchDataView((*doubly_shielded[d])[mfi], 1);
+        FillCutCellData(us, sL, sR, ds, us_rel, sL_rel, sR_rel, ds_rel, cutcell_data,
                         static_cast<Direction>(d));
       }
     }
@@ -114,14 +122,22 @@ PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
         cutcell_data.boundary_normals = MakePatchDataView(normals[mfi]);
         cutcell_data.boundary_centeroids = MakePatchDataView(centeroids[mfi]);
         PatchDataView<double, AMREX_SPACEDIM> us =
-            MakePatchDataView((*unshielded[d])[mfi], 0);
+        MakePatchDataView((*unshielded[d])[mfi], 0);
         PatchDataView<double, AMREX_SPACEDIM> sL =
-            MakePatchDataView((*shielded_left[d])[mfi], 0);
+        MakePatchDataView((*shielded_left[d])[mfi], 0);
         PatchDataView<double, AMREX_SPACEDIM> sR =
-            MakePatchDataView((*shielded_right[d])[mfi], 0);
+        MakePatchDataView((*shielded_right[d])[mfi], 0);
         PatchDataView<double, AMREX_SPACEDIM> ds =
-            MakePatchDataView((*doubly_shielded[d])[mfi], 0);
-        FillCutCellData(us, sL, sR, ds, cutcell_data,
+        MakePatchDataView((*doubly_shielded[d])[mfi], 0);
+        PatchDataView<double, AMREX_SPACEDIM> us_rel =
+        MakePatchDataView((*unshielded[d])[mfi], 1);
+        PatchDataView<double, AMREX_SPACEDIM> sL_rel =
+        MakePatchDataView((*shielded_left[d])[mfi], 1);
+        PatchDataView<double, AMREX_SPACEDIM> sR_rel =
+        MakePatchDataView((*shielded_right[d])[mfi], 1);
+        PatchDataView<double, AMREX_SPACEDIM> ds_rel =
+        MakePatchDataView((*doubly_shielded[d])[mfi], 1);
+        FillCutCellData(us, sL, sR, ds, us_rel, sL_rel, sR_rel, ds_rel, cutcell_data,
                         static_cast<Direction>(d));
       }
     }
@@ -173,6 +189,14 @@ PatchHierarchy::GetCutCellData(int level_number, const ::amrex::MFIter& mfi,
       MakePatchDataView((*level.shielded_right[d])[mfi], 0);
   cutcell_data.doubly_shielded_fractions =
       MakePatchDataView((*level.doubly_shielded[d])[mfi], 0);
+  cutcell_data.unshielded_fractions_rel =
+  MakePatchDataView((*level.unshielded[d])[mfi], 1);
+  cutcell_data.shielded_left_fractions_rel =
+  MakePatchDataView((*level.shielded_left[d])[mfi], 1);
+  cutcell_data.shielded_right_fractions_rel =
+  MakePatchDataView((*level.shielded_right[d])[mfi], 1);
+  cutcell_data.doubly_shielded_fractions_rel =
+  MakePatchDataView((*level.doubly_shielded[d])[mfi], 1);
   return cutcell_data;
 }
 
