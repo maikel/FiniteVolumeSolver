@@ -224,9 +224,9 @@ auto MakePlenumSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
   fub::ideal_gas::MusclHancockPrimMethod<Plenum_Rank> flux_method(equation);
   fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
 
-  HyperbolicMethod method{FluxMethod{fub::execution::simd, cutcell_method},
+  HyperbolicMethod method{FluxMethod{fub::execution::openmp_simd, cutcell_method},
                           fub::amrex::cutcell::TimeIntegrator{},
-                          Reconstruction{fub::execution::simd, equation}};
+                          Reconstruction{fub::execution::openmp_simd, equation}};
 
   return fub::amrex::cutcell::IntegratorContext(gridding, method);
 }
@@ -239,7 +239,11 @@ int main(int /* argc */, char** /* argv */) {
   fub::Burke2012 mechanism{};
 
   const int n_level = 2;
+<<<<<<< Updated upstream
   auto plenum = MakePlenumSolver(32, n_level, mechanism);
+=======
+  auto plenum = MakePlenumSolver(64, n_level, mechanism);
+>>>>>>> Stashed changes
   auto tube = MakeTubeSolver(200, n_level, mechanism);
 
   ::amrex::RealBox inlet{{-0.1, -0.015, -0.015}, {0.05, +0.015, +0.015}};

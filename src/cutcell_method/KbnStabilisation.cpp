@@ -48,7 +48,11 @@ template <typename T> struct CutCellGeometry {
 void ComputeStableFluxes_Row(const Fluxes<double*, const double*>& fluxes,
                              const CutCellGeometry<const double*>& geom, int n,
                              Duration /* dt */, double /* dx */) {
+#if defined(__CLANG__)
 #pragma clang loop vectorize(enable)
+#elif defined(_OPENMP)
+#pragma omp simd
+#endif
   for (int face = 0; face < n; ++face) {
     const double dL = 0.5 - geom.centerL[face];
     const double dR = 0.5 + geom.centerR[face];
