@@ -80,7 +80,7 @@ const T& OmpLocal<T, Allocator>::Get() const noexcept {
 #else
 template <typename T, typename Allocator>
 OmpLocal<T, Allocator>::OmpLocal(const T& value, Allocator alloc)
-    : instances_({value}, alloc) {}
+    : instances_(1, value, alloc) {}
 
 template <typename T, typename Allocator>
 T& OmpLocal<T, Allocator>::Get() noexcept {

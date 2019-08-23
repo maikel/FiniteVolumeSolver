@@ -27,7 +27,7 @@
 #include <vector>
 
 namespace fub {
-
+namespace {
 template <typename T, typename S> struct Fluxes {
   T stable;
   T shielded_left;
@@ -62,6 +62,7 @@ void ComputeStableFluxes_Row(const Fluxes<double*, const double*>& fluxes,
     fluxes.shielded_right[face] = betaR ? fsR : 0.0;
     fluxes.stable[face] = betaUS * f + betaL * fsL + betaR * fsR;
   }
+}
 }
 
 void ComputeStableFluxComponents(
