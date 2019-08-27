@@ -187,17 +187,16 @@ KbnCutCellMethod<FM, RiemannSolver>::KbnCutCellMethod(const FM& fm,
 template <typename FM, typename RiemannSolver>
 void KbnCutCellMethod<FM, RiemannSolver>::PreAdvanceHierarchy(
     const View<Complete>& references, const View<const Complete>& states,
-    const CutCellData<Rank>& cutcell_data) {
+    const CutCellData<Rank>& geom) {
   const Equation& equation = FM::GetEquation();
   const Eigen::Matrix<double, Rank, 1> unit = UnitVector<Rank>(Direction::X);
   ForEachIndex(Box<0>(states), [&](auto... is) {
     std::array<std::ptrdiff_t, sRank> cell{is...};
-    const double vol = cutcell_data.volume_fractions(cell);
-    if (0.0 < vol && vol < 1.0) {
+    if (IsCutCell(geom, cell)) {
       Load(state_, states, cell);
       if (state_.density > 0.0) {
         const Eigen::Matrix<double, Rank, 1> normal =
-            GetBoundaryNormal(cutcell_data, cell);
+            GetBoundaryNormal(geom, cell);
         Rotate(state_, state_, MakeRotation(normal, unit), equation);
         Reflect(reflected_, state_, unit, equation);
         riemann_solver_.SolveRiemannProblem(solution_, reflected_, state_,
@@ -240,20 +239,17 @@ template <typename FM, typename RiemannSolver>
 void KbnCutCellMethod<FM, RiemannSolver>::ComputeBoundaryFluxes(
     const View<Conservative>& boundary_fluxes,
     const View<const Complete>& states,
-    const View<const Complete>& reference_states,
-    const CutCellData<Rank>& cutcell_data, Duration dt, double dx,
-    Direction dir) {
+    const View<const Complete>& reference_states, const CutCellData<Rank>& geom,
+    Duration dt, double dx, Direction dir) {
   FUB_ASSERT(Extents<0>(boundary_fluxes) == Extents<0>(states));
-  const auto& vols = cutcell_data.volume_fractions;
   ForEachIndex(Box<0>(reference_states), [&](auto... is) {
-    const double alpha = vols(is...);
-    if (0.0 < alpha && alpha < 1.0) {
+    if (IsCutCell(geom, {is...})) {
       // Get the state and the boundary normal in this cell.
       std::array<std::ptrdiff_t, sRank> cell{is...};
       Load(state_, states, cell);
       Load(reference_state_, reference_states, cell);
       const Eigen::Matrix<double, Rank, 1> normal =
-          GetBoundaryNormal(cutcell_data, cell);
+          GetBoundaryNormal(geom, cell);
 
       this->ComputeBoundaryFlux(boundary_flux_left_, state_, reference_state_,
                                 normal, dir, dt, dx);
@@ -348,21 +344,20 @@ void KbnCutCellMethod<FM, RiemannSolver>::ReflectCoveredStates(
 /// their boundary state.
 template <typename FM, typename RiemannSolver>
 double KbnCutCellMethod<FM, RiemannSolver>::ComputeStableDt(
-    const View<const Complete>& states, const CutCellData<Rank>& cutcell_data,
+    const View<const Complete>& states, const CutCellData<Rank>& geom,
     double dx, Direction dir) {
   double min_dt = std::numeric_limits<double>::infinity();
-  auto&& vols = cutcell_data.volume_fractions;
+  auto&& vols = geom.volume_fractions;
   const Eigen::Matrix<double, Rank, 1> unit = UnitVector<Rank>(Direction::X);
   ForEachIndex(
       Shrink(Box<0>(states), dir, {0, StencilSize}), [&](const auto... is) {
         using Index = std::array<std::ptrdiff_t, sizeof...(is)>;
         const Index cell0{is...};
         std::array<int, StencilSize> is_covered{};
-        const double alpha = vols(cell0);
-        if (0.0 < alpha && alpha < 1.0) {
+        if (IsCutCell(geom, cell0)) {
           Load(state_, states, cell0);
           const Eigen::Matrix<double, Rank, 1> normal =
-              GetBoundaryNormal(cutcell_data, cell0);
+              GetBoundaryNormal(geom, cell0);
           Rotate(state_, state_, MakeRotation(normal, unit), FM::GetEquation());
           Reflect(reflected_, state_, unit, FM::GetEquation());
           auto half = std::fill_n(stencil_.begin(), StencilWidth, reflected_);
@@ -373,10 +368,10 @@ double KbnCutCellMethod<FM, RiemannSolver>::ComputeStableDt(
         for (std::size_t i = 0; i < stencil_.size(); ++i) {
           const Index cell = Shift(cell0, dir, static_cast<int>(i));
           Load(stencil_[i], states, cell);
-          if (vols(cell) == 1.0) {
-            is_covered[i] = 0;
-          } else if (0.0 < vols(cell)) {
+          if (IsCutCell(geom, cell)) {
             is_covered[i] = 1;
+          } else if (vols(cell) == 1.0) {
+            is_covered[i] = 0;
           } else {
             is_covered[i] = 2;
           }
@@ -384,7 +379,7 @@ double KbnCutCellMethod<FM, RiemannSolver>::ComputeStableDt(
         const std::size_t iL = StencilWidth - 1;
         const std::size_t iR = StencilWidth;
         if (is_covered[iL] == 0 || is_covered[iR] == 0) {
-          ReflectCoveredStates(is_covered, cell0, cutcell_data, dir);
+          ReflectCoveredStates(is_covered, cell0, geom, dir);
           double dt = FM::ComputeStableDt(stencil_, dx, dir);
           min_dt = std::min(dt, min_dt);
         }
@@ -413,7 +408,8 @@ void KbnCutCellMethod<FM, RiemannSolver>::ComputeRegularFluxes(
   View<const Complete> base = Subview(states, cellbox);
   using ArrayView = PatchDataView<const double, Rank, layout_stride>;
   ArrayView volumes = cutcell_data.volume_fractions.Subview(cellbox);
-  ArrayView faces = cutcell_data.face_fractions.Subview(fluxbox);
+  const int d = static_cast<int>(dir);
+  ArrayView faces = cutcell_data.face_fractions[d].Subview(fluxbox);
   std::array<View<const Complete>, StencilSize> stencil_views;
   std::array<ArrayView, StencilSize> stencil_volumes;
   for (std::size_t i = 0; i < StencilSize; ++i) {
@@ -429,51 +425,52 @@ void KbnCutCellMethod<FM, RiemannSolver>::ComputeRegularFluxes(
   std::tuple views =
       std::tuple_cat(std::tuple(fluxes, faces), AsTuple(stencil_volumes),
                      AsTuple(stencil_views));
-  ForEachRow(views, [this, dt, dx, dir](const Row<Conservative>& fluxes,
-                                        span<const double> faces,
-                                        auto... rest) {
-    ViewPointer fit = Begin(fluxes);
-    ViewPointer fend = End(fluxes);
-    std::tuple args{rest...};
-    std::array<span<const double>, StencilSize> volumes =
-        AsArray(Take<StencilSize>(args));
-    std::array states = std::apply(
-        [](const auto&... xs)
-            -> std::array<ViewPointer<const Complete>, StencilSize> {
-          return {Begin(xs)...};
-        },
-        Drop<StencilSize>(args));
-    std::array<Array1d, StencilSize> alphas;
-    alphas.fill(Array1d::Zero());
-    Array1d betas = Array1d::Zero();
-    int n = static_cast<int>(get<0>(fend) - get<0>(fit));
-    while (n >= kDefaultChunkSize) {
-      betas = Array1d::Map(faces.data());
-      for (std::size_t i = 0; i < StencilSize; ++i) {
-        Load(stencil_array_[i], states[i]);
-        alphas[i] = Array1d::Map(volumes[i].data());
-      }
-      FM::ComputeNumericFlux(numeric_flux_array_, betas, stencil_array_, alphas,
-                             dt, dx, dir);
-      Store(fit, numeric_flux_array_);
-      Advance(fit, kDefaultChunkSize);
-      for (std::size_t i = 0; i < StencilSize; ++i) {
-        Advance(states[i], kDefaultChunkSize);
-        volumes[i] = volumes[i].subspan(kDefaultChunkSize);
-      }
-      faces = faces.subspan(kDefaultChunkSize);
-      n = static_cast<int>(get<0>(fend) - get<0>(fit));
-    }
-    std::copy_n(faces.data(), n, betas.data());
-    std::fill_n(betas.data() + n, kDefaultChunkSize - n, 0.0);
-    for (std::size_t i = 0; i < StencilSize; ++i) {
-      LoadN(stencil_array_[i], states[i], n);
-      std::copy_n(volumes[i].data(), n, alphas[i].data());
-      std::fill_n(alphas[i].data() + n, kDefaultChunkSize - n, 0.0);
-    }
-    FM::ComputeNumericFlux(numeric_flux_array_, betas, stencil_array_, alphas, dt, dx, dir);
-    StoreN(fit, numeric_flux_array_, n);
-  });
+  ForEachRow(views,
+             [this, dt, dx, dir](const Row<Conservative>& fluxes,
+                                 span<const double> faces, auto... rest) {
+               ViewPointer fit = Begin(fluxes);
+               ViewPointer fend = End(fluxes);
+               std::tuple args{rest...};
+               std::array<span<const double>, StencilSize> volumes =
+                   AsArray(Take<StencilSize>(args));
+               std::array states = std::apply(
+                   [](const auto&... xs)
+                       -> std::array<ViewPointer<const Complete>, StencilSize> {
+                     return {Begin(xs)...};
+                   },
+                   Drop<StencilSize>(args));
+               std::array<Array1d, StencilSize> alphas;
+               alphas.fill(Array1d::Zero());
+               Array1d betas = Array1d::Zero();
+               int n = static_cast<int>(get<0>(fend) - get<0>(fit));
+               while (n >= kDefaultChunkSize) {
+                 betas = Array1d::Map(faces.data());
+                 for (std::size_t i = 0; i < StencilSize; ++i) {
+                   Load(stencil_array_[i], states[i]);
+                   alphas[i] = Array1d::Map(volumes[i].data());
+                 }
+                 FM::ComputeNumericFlux(numeric_flux_array_, betas,
+                                        stencil_array_, alphas, dt, dx, dir);
+                 Store(fit, numeric_flux_array_);
+                 Advance(fit, kDefaultChunkSize);
+                 for (std::size_t i = 0; i < StencilSize; ++i) {
+                   Advance(states[i], kDefaultChunkSize);
+                   volumes[i] = volumes[i].subspan(kDefaultChunkSize);
+                 }
+                 faces = faces.subspan(kDefaultChunkSize);
+                 n = static_cast<int>(get<0>(fend) - get<0>(fit));
+               }
+               std::copy_n(faces.data(), n, betas.data());
+               std::fill_n(betas.data() + n, kDefaultChunkSize - n, 0.0);
+               for (std::size_t i = 0; i < StencilSize; ++i) {
+                 LoadN(stencil_array_[i], states[i], n);
+                 std::copy_n(volumes[i].data(), n, alphas[i].data());
+                 std::fill_n(alphas[i].data() + n, kDefaultChunkSize - n, 0.0);
+               }
+               FM::ComputeNumericFlux(numeric_flux_array_, betas,
+                                      stencil_array_, alphas, dt, dx, dir);
+               StoreN(fit, numeric_flux_array_, n);
+             });
 }
 
 template <typename FM, typename RiemannSolver>

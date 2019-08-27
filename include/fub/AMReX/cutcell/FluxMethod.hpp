@@ -92,9 +92,8 @@ void FluxMethod<Tag, FM>::PreAdvanceHierarchy(IntegratorContext& context) {
             MakeView<Complete<Equation>>(references[mfi], eq, box);
         View<const Complete<Equation>> states =
             MakeView<const Complete<Equation>>(references[mfi], eq, box);
-        CutCellData<AMREX_SPACEDIM> cc =
-            hierarchy.GetCutCellData(level, mfi, Direction::X);
-        flux_method_->PreAdvanceHierarchy(refs, states, cc);
+        CutCellData<AMREX_SPACEDIM> geom = hierarchy.GetCutCellData(level, mfi);
+        flux_method_->PreAdvanceHierarchy(refs, states, geom);
       }
     });
   }
@@ -128,24 +127,24 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
     }();
     const ::amrex::FabType type = context.GetFabType(level, mfi);
     if (type == ::amrex::FabType::singlevalued) {
-      CutCellData<AMREX_SPACEDIM> cc =
-          hierarchy.GetCutCellData(level, mfi, dir);
+      CutCellData<AMREX_SPACEDIM> geom = hierarchy.GetCutCellData(level, mfi);
       {
+        boundary_fluxes[mfi].setVal(0.0);
         auto boundary_flux = MakeView<Conservative<Equation>>(
             boundary_fluxes[mfi], equation, cell_box);
         auto states = MakeView<const Complete<Equation>>(scratch[mfi], equation,
                                                          cell_box);
         auto refs = MakeView<const Complete<Equation>>(references[mfi],
                                                        equation, cell_box);
-        flux_method_->ComputeBoundaryFluxes(boundary_flux, states, refs, cc, dt,
-                                            dx, dir);
+        flux_method_->ComputeBoundaryFluxes(boundary_flux, states, refs, geom,
+                                            dt, dx, dir);
       }
       {
         auto flux =
             MakeView<Conservative<Equation>>(fluxes[mfi], equation, face_box);
         auto states = MakeView<const Complete<Equation>>(scratch[mfi], equation,
                                                          cell_box);
-        flux_method_->ComputeRegularFluxes(flux, states, cc, dt, dx, dir);
+        flux_method_->ComputeRegularFluxes(flux, states, geom, dt, dx, dir);
       }
       auto flux_s =
           MakeView<Conservative<Equation>>(fluxes_s[mfi], equation, face_box);
@@ -161,8 +160,8 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
                                                            equation, cell_box);
       auto states =
           MakeView<const Complete<Equation>>(scratch[mfi], equation, cell_box);
-      flux_method_->ComputeCutCellFluxes(flux_s, flux_sL, flux_sR,
-                                         flux_ds, flux, flux_B, states, cc, dt, dx,
+      flux_method_->ComputeCutCellFluxes(flux_s, flux_sL, flux_sR, flux_ds,
+                                         flux, flux_B, states, geom, dt, dx,
                                          dir);
     } else if (type == ::amrex::FabType::regular) {
       auto flux =
@@ -195,13 +194,13 @@ Duration FluxMethod<Tag, FM>::ComputeStableDt(IntegratorContext& context,
         MakeView<const Complete<Equation>>(scratch[mfi], equation, cell_box);
     const ::amrex::FabType type = context.GetFabType(level, mfi);
     if (type == ::amrex::FabType::singlevalued) {
-      CutCellData<AMREX_SPACEDIM> cc =
-          context.GetPatchHierarchy().GetCutCellData(level, mfi, dir);
+      CutCellData<AMREX_SPACEDIM> geom =
+          context.GetPatchHierarchy().GetCutCellData(level, mfi);
       *min_dt = std::min(*min_dt, Duration(flux_method_->ComputeStableDt(
-                                      states, cc, dx, dir)));
+                                      states, geom, dx, dir)));
     } else if (type == ::amrex::FabType::regular) {
-      *min_dt = std::min(
-          *min_dt, Duration(flux_method_->ComputeStableDt(Tag(), states, dx, dir)));
+      *min_dt = std::min(*min_dt, Duration(flux_method_->ComputeStableDt(
+                                      Tag(), states, dx, dir)));
     }
   });
   return Min(min_dt);

@@ -45,10 +45,16 @@ Vc::Vector<double, Abi> mask_load(const double* p, Vc::Mask<double, Abi> mask) {
 #endif
   } else if constexpr (std::is_same_v<Abi, Vc::VectorAbi::Avx>) {
     __m256i native_mask = *reinterpret_cast<__m256i*>(&mask);
-    __m256d xmm = _mm256_maskload_pd(p, native_mask);
-    Vc::Vector<double, Abi> x(xmm);
+    __m256d ymm = _mm256_maskload_pd(p, native_mask);
+    Vc::Vector<double, Abi> x(ymm);
     return x;
   }
+  //  else if constexpr (std::is_same_v<Abi, Vc::VectorAbi::Avx512) {
+  //    __m512i native_mask = *reinterpret_cast<__m512i*>(&mask);
+  //    __m512d zmm = _mm512_maskload_pd(p, native_mask);
+  //    Vc::Vector<double, Abi> x(zmm);
+  //    return x;
+  //  }
 }
 
 } // namespace fub

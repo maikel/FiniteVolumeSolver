@@ -60,7 +60,8 @@ public:
   void SetBoundaryCondition(int level, BoundaryCondition&& condition);
   void SetBoundaryCondition(int level, const BoundaryCondition& condition);
 
-  [[nodiscard]] const BoundaryCondition& GetBoundaryCondition(int level) const noexcept;
+  [[nodiscard]] const BoundaryCondition& GetBoundaryCondition(int level) const
+      noexcept;
   [[nodiscard]] BoundaryCondition& GetBoundaryCondition(int level) noexcept;
 
   [[nodiscard]] const InitialData& GetInitialCondition() const noexcept;

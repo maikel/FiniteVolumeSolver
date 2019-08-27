@@ -43,7 +43,8 @@ public:
       View<Complete<Equation>> complete =
           MakeView<Complete<Equation>>(dest[mfi], eq, mfi.tilebox());
       View<const Conservative<Equation>> conservative =
-          MakeView<const Conservative<Equation>>(src[mfi], eq, mfi.growntilebox());
+          MakeView<const Conservative<Equation>>(src[mfi], eq,
+                                                 mfi.growntilebox());
       rec_->CompleteFromCons(Tag(), complete, conservative);
     });
   }

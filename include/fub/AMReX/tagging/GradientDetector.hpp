@@ -43,8 +43,7 @@ template <typename Eq, typename... Ps>
 GradientDetector(const Eq& eq, const std::pair<Ps, double>&... ps)
     ->GradientDetector<Eq, Ps...>;
 
-template <int Rank>
-::amrex::IntVect GetGradientGrowVector() {
+template <int Rank>::amrex::IntVect GetGradientGrowVector() {
   ::amrex::IntVect unit = ::amrex::IntVect::TheUnitVector();
   for (int i = Rank; i < AMREX_SPACEDIM; ++i) {
     unit[i] = 0;

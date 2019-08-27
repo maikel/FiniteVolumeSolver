@@ -215,7 +215,8 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::AdvanceLevel(
   auto AdvanceLevel_Split = [&](Direction dir) {
     return [&, dir, split_cycle = 0](
                Duration split_dt) mutable -> Result<void, TimeStepTooLarge> {
-      if (dir == Direction::X && split_cycle == 0 && subcycle == 0 && this_level > 0) {
+      if (dir == Direction::X && split_cycle == 0 && subcycle == 0 &&
+          this_level > 0) {
         Context::FillGhostLayerTwoLevels(this_level, this_level - 1);
       } else {
         Context::FillGhostLayerSingleLevel(this_level);
@@ -252,7 +253,8 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::AdvanceLevel(
   };
   if (Result<void, TimeStepTooLarge> result = std::apply(
           [&](auto... directions) {
-            return GetSplitMethod().Advance(dt, AdvanceLevel_Split(directions)...);
+            return GetSplitMethod().Advance(dt,
+                                            AdvanceLevel_Split(directions)...);
           },
           MakeSplitDirections<Rank>());
       !result) {

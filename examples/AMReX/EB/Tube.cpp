@@ -102,8 +102,8 @@ int main(int argc, char** argv) {
                           TimeIntegrator{},
                           Reconstruction{fub::execution::seq, equation}};
 
-  fub::DimensionalSplitLevelIntegrator solver(fub::int_c<2>,
-      fub::amrex::cutcell::IntegratorContext(gridding, method));
+  fub::DimensionalSplitLevelIntegrator solver(
+      fub::int_c<2>, fub::amrex::cutcell::IntegratorContext(gridding, method));
 
   std::string base_name = "Tube/";
   auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,

@@ -125,7 +125,7 @@ struct Burke2012 : public FlameMasterMechanism {
                               span<double> c, span<double> M, double temp,
                               double pressure) const override;
 
-  //void ComputeProductionRates(ArrayXd& cdot, ArrayXd& w, ArrayXd& k,
+  // void ComputeProductionRates(ArrayXd& cdot, ArrayXd& w, ArrayXd& k,
   //                            ArrayXd& c, ArrayXd& M, Array1d temp,
   //                            Array1d pressure) const override;
 

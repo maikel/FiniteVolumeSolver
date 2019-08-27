@@ -96,7 +96,8 @@ template <typename Equation> struct ReconstructionKernel<Equation, true> {
                  ViewPointer<const Conservative<Equation>> first = Begin(src);
                  ViewPointer<const Conservative<Equation>> last = End(src);
                  ViewPointer<Complete<Equation>> out = Begin(dest);
-                 constexpr std::ptrdiff_t size = static_cast<std::ptrdiff_t>(kDefaultChunkSize);
+                 constexpr std::ptrdiff_t size =
+                     static_cast<std::ptrdiff_t>(kDefaultChunkSize);
                  std::ptrdiff_t n = get<0>(last) - get<0>(first);
                  while (n >= size) {
                    Load(cons_, first);
@@ -118,12 +119,14 @@ template <typename Equation> struct ReconstructionKernel<Equation, true> {
       const PatchDataView<const double, Rank, layout_stride>& volume) {
     ForEachRow(std::tuple{dest, src, volume},
                [&](const Row<Complete<Equation>>& dest,
-                   const Row<const Conservative<Equation>>& src, span<const double> volume) {
+                   const Row<const Conservative<Equation>>& src,
+                   span<const double> volume) {
                  ViewPointer<const Conservative<Equation>> first = Begin(src);
                  ViewPointer<const Conservative<Equation>> last = End(src);
                  ViewPointer<Complete<Equation>> out = Begin(dest);
                  Array1d alpha = Array1d::Zero();
-                 constexpr std::ptrdiff_t size = static_cast<std::ptrdiff_t>(kDefaultChunkSize);
+                 constexpr std::ptrdiff_t size =
+                     static_cast<std::ptrdiff_t>(kDefaultChunkSize);
                  std::ptrdiff_t n = get<0>(last) - get<0>(first);
                  while (n >= size) {
                    Load(cons_, first);

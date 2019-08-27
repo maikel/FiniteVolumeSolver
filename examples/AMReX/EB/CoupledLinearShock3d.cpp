@@ -90,7 +90,7 @@ struct TemperatureRamp {
 auto MakeTubeSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
   const std::array<int, AMREX_SPACEDIM> n_cells{num_cells, 1, 1};
   const std::array<double, AMREX_SPACEDIM> xlower{-1.5, -0.015, -0.015};
-  const std::array<double, AMREX_SPACEDIM> xupper{-0.02, +0.015, +0.015};
+  const std::array<double, AMREX_SPACEDIM> xupper{-0.05, +0.015, +0.015};
   const std::array<int, AMREX_SPACEDIM> periodicity{0, 0, 0};
 
   amrex::RealBox xbox(xlower, xupper);
@@ -101,8 +101,6 @@ auto MakeTubeSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
   CartesianGridGeometry geometry;
   geometry.cell_dimensions = n_cells;
   geometry.coordinates = amrex::RealBox(xlower, xupper);
-
-  DataDescription desc = MakeDataDescription(equation);
 
   PatchHierarchyOptions hier_opts;
   hier_opts.max_number_of_levels = n_level;
@@ -128,16 +126,21 @@ auto MakeTubeSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
       {ReflectiveBoundary{fub::execution::seq, equation, fub::Direction::X, 0},
        TransmissiveBoundary{fub::Direction::X, 1}}};
 
+  //  PatchHierarchy hierarchy =
+  //  ReadCheckpointFile("/Volumes/Maikel_Intenso/FiniteVolumeSolver_Build_3d/LongLinearShock_3d/Checkpoint/Tube_00108",
+  //  MakeDataDescription(equation), geometry, hier_opts);
+  PatchHierarchy hierarchy(equation, geometry, hier_opts);
   std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
-      PatchHierarchy(desc, geometry, hier_opts), initial_data,
-      TagAllOf(gradient, constant_box, TagBuffer(2)), boundaries);
+      hierarchy, initial_data, TagAllOf(gradient, constant_box, TagBuffer(2)),
+      boundaries);
   gridding->InitializeHierarchy(0.0);
 
-  fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>> signals{};
-  fub::HllMethod hll_method(equation, signals);
+  //  fub::EinfeldtSignalVelocities<fub::IdealGasMix<Tube_Rank>> signals{};
+  //  fub::HllMethod hll_method(equation, signals);
   // fub::MusclHancockMethod flux_method{equation, hll_method};
+  fub::ideal_gas::MusclHancockPrimMethod<Tube_Rank> flux_method(equation);
 
-  HyperbolicMethod method{FluxMethod(fub::execution::seq, hll_method),
+  HyperbolicMethod method{FluxMethod(fub::execution::seq, flux_method),
                           ForwardIntegrator(fub::execution::seq),
                           Reconstruction(fub::execution::seq, equation)};
 
@@ -165,8 +168,8 @@ auto MakeTubeSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
 
 auto MakePlenumSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
   const std::array<int, Plenum_Rank> n_cells{num_cells, num_cells, num_cells};
-  const std::array<double, Plenum_Rank> xlower{-0.02, -0.50, -0.50};
-  const std::array<double, Plenum_Rank> xupper{+0.98, +0.50, +0.50};
+  const std::array<double, Plenum_Rank> xlower{-0.05, -0.10, -0.10};
+  const std::array<double, Plenum_Rank> xupper{+0.15, +0.10, +0.10};
   const std::array<int, Plenum_Rank> periodicity{0, 0, 0};
 
   amrex::RealBox xbox(xlower, xupper);
@@ -218,8 +221,12 @@ auto MakePlenumSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
                                   TransmissiveBoundary{fub::Direction::Z, 0},
                                   TransmissiveBoundary{fub::Direction::Z, 1}}};
 
+  //  PatchHierarchy hierarchy =
+  //  ReadCheckpointFile("/Volumes/Maikel_Intenso/FiniteVolumeSolver_Build_3d/LongLinearShock_3d/Checkpoint/Plenum_00108",
+  //  fub::amrex::MakeDataDescription(equation), geometry, options);
+  PatchHierarchy hierarchy(equation, geometry, options);
   std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
-      PatchHierarchy(equation, geometry, options), initial_data,
+      std::move(hierarchy), initial_data,
       TagAllOf(TagCutCells(), gradients, constant_box, TagBuffer(2)),
       boundary_condition);
   gridding->InitializeHierarchy(0.0);
@@ -228,13 +235,14 @@ auto MakePlenumSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
 
   fub::EinfeldtSignalVelocities<fub::IdealGasMix<Plenum_Rank>> signals{};
   fub::HllMethod hll_method{equation, signals};
-//  fub::MusclHancockMethod flux_method(equation, hll_method);
-//  fub::ideal_gas::MusclHancockPrimMethod<Plenum_Rank> flux_method(equation);
-  fub::KbnCutCellMethod cutcell_method(hll_method, hll_method);
+  //  fub::MusclHancockMethod flux_method(equation, hll_method);
+  fub::ideal_gas::MusclHancockPrimMethod<Plenum_Rank> flux_method(equation);
+  fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
 
-  HyperbolicMethod method{FluxMethod{fub::execution::simd, cutcell_method},
-                          fub::amrex::cutcell::TimeIntegrator{},
-                          Reconstruction{fub::execution::simd, equation}};
+  HyperbolicMethod method{
+      FluxMethod{fub::execution::openmp_simd, cutcell_method},
+      fub::amrex::cutcell::TimeIntegrator{},
+      Reconstruction{fub::execution::openmp_simd, equation}};
 
   return fub::amrex::cutcell::IntegratorContext(gridding, method);
 }
@@ -247,8 +255,8 @@ int main(int /* argc */, char** /* argv */) {
   fub::Burke2012 mechanism{};
 
   const int n_level = 1;
-  auto plenum = MakePlenumSolver(96, n_level, mechanism);
-  auto tube = MakeTubeSolver(144, n_level, mechanism);
+  auto plenum = MakePlenumSolver(32, n_level, mechanism);
+  auto tube = MakeTubeSolver(232, n_level, mechanism);
 
   ::amrex::RealBox inlet{{-0.1, -0.015, -0.015}, {0.05, +0.015, +0.015}};
 
@@ -272,33 +280,32 @@ int main(int /* argc */, char** /* argv */) {
                                                      std::move(context));
 
   fub::amrex::MultiBlockKineticSouceTerm source_term{
-      tube_equation,
-      system_solver.GetGriddingAlgorithm()};
+      tube_equation, system_solver.GetGriddingAlgorithm()};
 
   fub::DimensionalSplitSystemSourceSolver solver{system_solver, source_term};
 
-  std::string base_name = "LongLinearShock_3d";
+  std::string base_name = "LongLinearShock2_3d";
 
   // Write Checkpoints 0min + every 5min
-//  const fub::Duration checkpoint_offest = std::chrono::minutes(5);
-//  fub::Duration next_checkpoint = std::chrono::minutes(0);
+  //  const fub::Duration checkpoint_offest = std::chrono::minutes(5);
+  //  fub::Duration next_checkpoint = std::chrono::minutes(0);
   auto output =
       [&](std::shared_ptr<fub::amrex::MultiBlockGriddingAlgorithm> gridding,
           auto cycle, auto) {
-//        std::chrono::steady_clock::time_point now =
-//            std::chrono::steady_clock::now();
-//        auto duration = std::chrono::duration_cast<fub::Duration>(
-//            now - wall_time_reference);
-//        if (duration > next_checkpoint) {
+        //        std::chrono::steady_clock::time_point now =
+        //            std::chrono::steady_clock::now();
+        //        auto duration = std::chrono::duration_cast<fub::Duration>(
+        //            now - wall_time_reference);
+        //        if (duration > next_checkpoint) {
         ::amrex::Print() << "Checkpointing.\n";
         fub::amrex::WriteCheckpointFile(
-              fmt::format("{}/Checkpoint/Tube_{:05}", base_name, cycle),
-              gridding->GetTubes()[0]->GetPatchHierarchy());
-          fub::amrex::cutcell::WriteCheckpointFile(
-              fmt::format("{}/Checkpoint/Plenum_{:05}", base_name, cycle),
-              gridding->GetPlena()[0]->GetPatchHierarchy());
-//          next_checkpoint += checkpoint_offest;
-//        }
+            fmt::format("{}/Checkpoint/Tube_{:05}", base_name, cycle),
+            gridding->GetTubes()[0]->GetPatchHierarchy());
+        fub::amrex::cutcell::WriteCheckpointFile(
+            fmt::format("{}/Checkpoint/Plenum_{:05}", base_name, cycle),
+            gridding->GetPlena()[0]->GetPatchHierarchy());
+        //          next_checkpoint += checkpoint_offest;
+        //        }
         std::string name = fmt::format("{}/Tube/plt{:05}", base_name, cycle);
         ::amrex::Print() << "Start output to '" << name << "'.\n";
         fub::amrex::WritePlotFile(
@@ -317,7 +324,7 @@ int main(int /* argc */, char** /* argv */) {
   fub::RunOptions run_options{};
   run_options.final_time = 0.020s;
   run_options.output_interval = 0.1e-3s;
-  run_options.cfl = 0.8;
+  run_options.cfl = 0.4;
   try {
     fub::RunSimulation(solver, run_options, wall_time_reference, output,
                        fub::amrex::print);

@@ -109,8 +109,8 @@ public:
 
   /// \brief Increases the internal time stamps and cycle counters for the
   /// specified level number and direction.
-  Result<void, TimeStepTooLarge> PostAdvanceLevel(int level_num,
-                                                  Duration dt, int subcycle);
+  Result<void, TimeStepTooLarge> PostAdvanceLevel(int level_num, Duration dt,
+                                                  int subcycle);
 
   /// \brief Fills the ghost layer of the scratch data and interpolates in the
   /// coarse fine layer.

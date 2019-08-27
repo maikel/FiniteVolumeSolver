@@ -39,7 +39,8 @@ template <int Rank>
 KineticSourceTerm<Rank>::KineticSourceTerm(
     const IdealGasMix<Rank>& eq,
     std::shared_ptr<amrex::GriddingAlgorithm> gridding)
-  : equation_{eq}, state_{Complete<IdealGasMix<Rank>>(eq)}, gridding_{std::move(gridding)} {}
+    : equation_{eq}, state_{Complete<IdealGasMix<Rank>>(eq)},
+      gridding_{std::move(gridding)} {}
 
 template <int Rank> Duration KineticSourceTerm<Rank>::ComputeStableDt() {
   return Duration(std::numeric_limits<double>::infinity());

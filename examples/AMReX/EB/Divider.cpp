@@ -123,8 +123,8 @@ int main(int argc, char** argv) {
   HyperbolicMethod method{FluxMethod{fub::execution::seq, cutcell_method},
                           TimeIntegrator{},
                           Reconstruction{fub::execution::seq, equation}};
-  fub::DimensionalSplitLevelIntegrator solver(fub::int_c<3>,
-      IntegratorContext(gridding, method));
+  fub::DimensionalSplitLevelIntegrator solver(
+      fub::int_c<3>, IntegratorContext(gridding, method));
   std::string base_name = "Divider/";
 
   auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,

@@ -45,7 +45,7 @@ void UpdateMolesFromMassFractions(FlameMasterState& state) noexcept {
   }
 }
 //
-//void UpdateMassFractionsFromMoles(FlameMasterArrayState& state,
+// void UpdateMassFractionsFromMoles(FlameMasterArrayState& state,
 //                                  const FlameMasterState& x) noexcept {
 //  for (int i = 0; i < state.massFractions.rows(); i++) {
 //    state.massFractions.row(i) =
@@ -642,11 +642,13 @@ void FlameMasterReactor::SetInternalEnergyArray(Array1d target, double dTtol) {
       return;
     }
 
-    Array<bool, 1> update_top = (Unew > target && (Utop < target || Unew < Utop));
+    Array<bool, 1> update_top =
+        (Unew > target && (Utop < target || Unew < Utop));
     Utop = update_top.select(Unew, Utop);
     Ttop = update_top.select(Tnew, Ttop);
 
-    Array<bool, 1> update_bot = (Unew < target && (Ubot > target || Unew > Ubot));
+    Array<bool, 1> update_bot =
+        (Unew < target && (Ubot > target || Unew > Ubot));
     Ubot = update_bot.select(Unew, Ubot);
     Tbot = update_bot.select(Tnew, Tbot);
 
@@ -663,13 +665,15 @@ void FlameMasterReactor::SetInternalEnergyArray(Array1d target, double dTtol) {
   std::ostringstream errInfo;
   errInfo << "Failed to converge to given energy. "
           << "Missed target [" << target << "] J/m^3 by ["
-          << target - GetInternalEnergyArray() << "] J/m^3 (relerr = " << UConvErr
+          << target - GetInternalEnergyArray()
+          << "] J/m^3 (relerr = " << UConvErr
           << "). Stopped Newton iteration with dT = " << dT << ".";
 
   throw FlameMasterReactorException(errInfo.str());
 }
 
-void FlameMasterReactor::SetInternalEnergyArray(Array1d target, MaskArray mask, double dTtol) {
+void FlameMasterReactor::SetInternalEnergyArray(Array1d target, MaskArray mask,
+                                                double dTtol) {
   Array1d dT = Array1d::Zero();
 
   Array1d Tnew = GetTemperatureArray();
@@ -697,10 +701,10 @@ void FlameMasterReactor::SetInternalEnergyArray(Array1d target, MaskArray mask, 
     dT = ((target - Uold) / cvd).max(-100.).min(+100.);
     Tnew = Told + dT;
     dT = ((dT > 0.0 && unstablePhase) || (dT <= 0.0 && !unstablePhase))
-    .select((Ubot < target && Tnew < (0.75 * Tbot + 0.25 * Told))
-            .select(0.75 * (Tbot - Told), dT),
-            (Utop > target && Tnew > (.75 * Ttop + .25 * Told))
-            .select(0.75 * (Ttop - Told), dT));
+             .select((Ubot < target && Tnew < (0.75 * Tbot + 0.25 * Told))
+                         .select(0.75 * (Tbot - Told), dT),
+                     (Utop > target && Tnew > (.75 * Ttop + .25 * Told))
+                         .select(0.75 * (Ttop - Told), dT));
 
     // Set the new temperature, but try to stay in the stable region
     // with cv > 0
@@ -720,11 +724,13 @@ void FlameMasterReactor::SetInternalEnergyArray(Array1d target, MaskArray mask, 
       return;
     }
 
-    Array<bool, 1> update_top = (Unew > target && (Utop < target || Unew < Utop));
+    Array<bool, 1> update_top =
+        (Unew > target && (Utop < target || Unew < Utop));
     Utop = update_top.select(Unew, Utop);
     Ttop = update_top.select(Tnew, Ttop);
 
-    Array<bool, 1> update_bot = (Unew < target && (Ubot > target || Unew > Ubot));
+    Array<bool, 1> update_bot =
+        (Unew < target && (Ubot > target || Unew > Ubot));
     Ubot = update_bot.select(Unew, Ubot);
     Tbot = update_bot.select(Tnew, Tbot);
 
@@ -740,9 +746,10 @@ void FlameMasterReactor::SetInternalEnergyArray(Array1d target, MaskArray mask, 
 
   std::ostringstream errInfo;
   errInfo << "Failed to converge to given energy. "
-  << "Missed target [" << target << "] J/m^3 with mask [" << mask << "] by ["
-  << target - GetInternalEnergyArray() << "] J/m^3 (relerr = " << UConvErr
-  << "). Stopped Newton iteration with dT = " << dT << ".";
+          << "Missed target [" << target << "] J/m^3 with mask [" << mask
+          << "] by [" << target - GetInternalEnergyArray()
+          << "] J/m^3 (relerr = " << UConvErr
+          << "). Stopped Newton iteration with dT = " << dT << ".";
 
   throw FlameMasterReactorException(errInfo.str());
 }

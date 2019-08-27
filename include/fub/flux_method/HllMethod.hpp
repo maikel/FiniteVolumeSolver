@@ -266,8 +266,8 @@ void HllArrayBase<Equation, SignalSpeeds, true>::ComputeNumericFlux(
 template <typename Equation, typename SignalSpeeds>
 void HllArrayBase<Equation, SignalSpeeds, true>::ComputeNumericFlux(
     ConservativeArray& numeric_flux, Array1d face_fraction,
-    span<const CompleteArray, 2> states, span<const Array1d, 2>, Duration /* dt */,
-    double /* dx */, Direction dir) {
+    span<const CompleteArray, 2> states, span<const Array1d, 2>,
+    Duration /* dt */, double /* dx */, Direction dir) {
   const CompleteArray& left = states[0];
   const CompleteArray& right = states[1];
 
@@ -285,7 +285,7 @@ void HllArrayBase<Equation, SignalSpeeds, true>::ComputeNumericFlux(
   MaskArray mask = face_fraction > 0.0;
   ForEachComponent(
       [&](auto&& nf, Array1d fL, Array1d fR, Array1d qL, Array1d qR) {
-        nf = mask.select((sR * fL - sL * fR + sLsR * (qR - qL)) / ds, Array1d::Zero());
+        nf = mask.select((sR * fL - sL * fR + sLsR * (qR - qL)) / ds, zero);
       },
       numeric_flux, flux_left_array_, flux_right_array_, AsCons(left),
       AsCons(right));

@@ -5,6 +5,9 @@ project(FiniteVolumeSolver_tests CXX)
 add_executable(test.geometry.Polygon test.Geometry.Polygon)
 target_link_libraries(test.geometry.Polygon FiniteVolumeSolver.Solver)
 
+add_executable(test.AMReX.average_down test.AMReX.average_down.cpp)
+target_link_libraries(test.AMReX.average_down AMReX::amrex)
+
 if (TARGET Catch2)
   add_executable(test.FlameMasterReactor test.FlameMasterReactor.cpp)
   target_link_libraries(test.FlameMasterReactor FiniteVolumeSolver.Solver Catch2)

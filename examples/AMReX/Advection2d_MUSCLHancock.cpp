@@ -95,8 +95,8 @@ int main(int argc, char** argv) {
       fub::amrex::ForwardIntegrator(fub::execution::seq),
       fub::amrex::Reconstruction(fub::execution::seq, equation)};
 
-  fub::DimensionalSplitLevelIntegrator solver(fub::int_c<2>,
-      fub::amrex::IntegratorContext(gridding, method));
+  fub::DimensionalSplitLevelIntegrator solver(
+      fub::int_c<2>, fub::amrex::IntegratorContext(gridding, method));
 
   std::string base_name = "Advection_Muscl_Hancock/";
 

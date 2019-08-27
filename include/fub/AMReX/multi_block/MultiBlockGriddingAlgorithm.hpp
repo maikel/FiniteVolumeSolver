@@ -51,12 +51,15 @@ public:
   MultiBlockGriddingAlgorithm&
   operator=(MultiBlockGriddingAlgorithm&& other) noexcept = default;
 
-  [[nodiscard]] span<const std::shared_ptr<GriddingAlgorithm>> GetTubes() const noexcept;
-  [[nodiscard]] span<const std::shared_ptr<cutcell::GriddingAlgorithm>> GetPlena() const
+  [[nodiscard]] span<const std::shared_ptr<GriddingAlgorithm>> GetTubes() const
       noexcept;
+  [[nodiscard]] span<const std::shared_ptr<cutcell::GriddingAlgorithm>>
+  GetPlena() const noexcept;
 
   [[nodiscard]] span<const BlockConnection> GetConnectivity() const noexcept;
-  [[nodiscard]] span<MultiBlockBoundary> GetBoundaries() noexcept { return boundaries_; }
+  [[nodiscard]] span<MultiBlockBoundary> GetBoundaries(int level = 0) noexcept {
+    return boundaries_[static_cast<std::size_t>(level)];
+  }
 
   void RegridAllFinerLevels(int which_level);
 
@@ -65,7 +68,7 @@ private:
   std::vector<std::shared_ptr<GriddingAlgorithm>> tubes_;
   std::vector<std::shared_ptr<cutcell::GriddingAlgorithm>> plena_;
   std::vector<BlockConnection> connectivity_;
-  std::vector<MultiBlockBoundary> boundaries_;
+  std::vector<std::vector<MultiBlockBoundary>> boundaries_;
 };
 
 } // namespace amrex
