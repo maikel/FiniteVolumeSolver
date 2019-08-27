@@ -49,7 +49,7 @@ void FillCutCellData(
     std::array<PatchDataView<double, 3>, 3> shielded_left_rel,
     std::array<PatchDataView<double, 3>, 3> shielded_right_rel,
     std::array<PatchDataView<double, 3>, 3> doubly_shielded_rel,
-    const CutCellData<3>& data, Direction dir);
+    const CutCellData<3>& data);
 
 } // namespace fub::amrex::cutcell
 

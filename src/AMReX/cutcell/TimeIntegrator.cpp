@@ -119,7 +119,7 @@ void UpdateConservatively_Row(double* next, const double* prev,
                                 ? regular
                                 : betaL > betaR ? left_greater : right_greater
                           : 0.0;
-    FUB_ASSERT(!std::isnan(next[i]));
+//    FUB_ASSERT(!std::isnan(next[i]));
   }
 }
 

@@ -116,6 +116,23 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
 
   const double dx = context.GetDx(level, dir);
 
+  ForEachFab(Tag(), scratch, [&](const ::amrex::MFIter& mfi) {
+    const Equation& equation = flux_method_->GetEquation();
+    const ::amrex::Box box = mfi.growntilebox();
+    const ::amrex::FabType type = context.GetFabType(level, mfi);
+    if (type == ::amrex::FabType::singlevalued) {
+        CutCellData<AMREX_SPACEDIM> geom = hierarchy.GetCutCellData(level, mfi);
+        boundary_fluxes[mfi].setVal(0.0);
+        auto boundary_flux = MakeView<Conservative<Equation>>(
+                                                              boundary_fluxes[mfi], equation, box);
+        auto states = MakeView<const Complete<Equation>>(scratch[mfi], equation,
+                                                         box);
+        auto refs = MakeView<const Complete<Equation>>(references[mfi],
+                                                       equation, box);
+        flux_method_->ComputeBoundaryFluxes(boundary_flux, states, refs, geom,
+                                            dt, dx, dir);
+    }});
+
   ForEachFab(Tag(), fluxes, [&](const ::amrex::MFIter& mfi) {
     const Equation& equation = flux_method_->GetEquation();
     static constexpr int gcw = GetStencilWidth();
@@ -128,17 +145,6 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
     const ::amrex::FabType type = context.GetFabType(level, mfi);
     if (type == ::amrex::FabType::singlevalued) {
       CutCellData<AMREX_SPACEDIM> geom = hierarchy.GetCutCellData(level, mfi);
-      {
-        boundary_fluxes[mfi].setVal(0.0);
-        auto boundary_flux = MakeView<Conservative<Equation>>(
-            boundary_fluxes[mfi], equation, cell_box);
-        auto states = MakeView<const Complete<Equation>>(scratch[mfi], equation,
-                                                         cell_box);
-        auto refs = MakeView<const Complete<Equation>>(references[mfi],
-                                                       equation, cell_box);
-        flux_method_->ComputeBoundaryFluxes(boundary_flux, states, refs, geom,
-                                            dt, dx, dir);
-      }
       {
         auto flux =
             MakeView<Conservative<Equation>>(fluxes[mfi], equation, face_box);

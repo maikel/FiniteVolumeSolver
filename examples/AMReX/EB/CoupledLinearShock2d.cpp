@@ -134,14 +134,14 @@ auto MakeTubeSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
       TagAllOf(gradient, constant_box, TagBuffer(4)), boundary_condition);
   gridding->InitializeHierarchy(0.0);
 
-  fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>> signals{};
-  fub::HllMethod hll_method(equation, signals);
+//  fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>> signals{};
+//  fub::HllMethod hll_method(equation, signals);
   //   fub::MusclHancockMethod flux_method{equation, hll_method};
-  //  fub::ideal_gas::MusclHancockPrimMethod<1> flux_method(equation);
+    fub::ideal_gas::MusclHancockPrimMethod<1> flux_method(equation);
 
-  HyperbolicMethod method{FluxMethod(fub::execution::seq, hll_method),
-                          ForwardIntegrator(fub::execution::seq),
-                          Reconstruction(fub::execution::seq, equation)};
+  HyperbolicMethod method{FluxMethod(fub::execution::openmp_simd, flux_method),
+                          ForwardIntegrator(fub::execution::openmp),
+                          Reconstruction(fub::execution::openmp_simd, equation)};
 
   return fub::amrex::IntegratorContext(gridding, method);
 }
@@ -246,9 +246,9 @@ auto MakePlenumSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
   //  fub::MusclHancockMethod flux_method{equation, hll_method};
   fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
 
-  HyperbolicMethod method{FluxMethod{fub::execution::simd, cutcell_method},
+  HyperbolicMethod method{FluxMethod{fub::execution::openmp_simd, cutcell_method},
                           fub::amrex::cutcell::TimeIntegrator{},
-                          Reconstruction{fub::execution::simd, equation}};
+                          Reconstruction{fub::execution::openmp_simd, equation}};
 
   return fub::amrex::cutcell::IntegratorContext(gridding, method);
 }
