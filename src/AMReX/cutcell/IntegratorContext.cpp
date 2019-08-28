@@ -467,10 +467,14 @@ void IntegratorContext::PreAdvanceHierarchy() {
 
 void IntegratorContext::PostAdvanceHierarchy() {
   PatchHierarchy& hierarchy = GetPatchHierarchy();
-  const int nlevels = hierarchy.GetNumberOfLevels();
+  int nlevels = hierarchy.GetNumberOfLevels();
   for (int level = 0; level < nlevels; ++level) {
-    hierarchy.GetPatchLevel(level).time_point = GetTimePoint(level);
-    hierarchy.GetPatchLevel(level).cycles = GetCycles(level);
+    double timepoint = GetTimePoint(level).count();
+    ::MPI_Bcast(&timepoint, 1, MPI_DOUBLE, 0, GetMpiCommunicator());
+    int cycles = GetCycles(level);
+    ::MPI_Bcast(&cycles, 1, MPI_INT, 0, GetMpiCommunicator());
+    hierarchy.GetPatchLevel(level).time_point = Duration(timepoint);
+    hierarchy.GetPatchLevel(level).cycles = cycles;
   }
 }
 
