@@ -497,14 +497,15 @@ int main(int /* argc */, char** /* argv */) {
 
   std::string base_name = "LongLinearShock_3d";
 
-  std::vector<double> probes_buffer(5 * 3);
+  std::vector<double> probes_buffer(6 * 3);
   fub::basic_mdspan<double, fub::extents<3, fub::dynamic_extent>> probes(
       probes_buffer.data(), 5);
-  probes(0, 0) = 4.0 * 0.03;
-  probes(0, 1) = 9.0 * 0.03;
-  probes(0, 2) = 14.0 * 0.03;
-  probes(0, 3) = 19.0 * 0.03;
-  probes(0, 4) = 24.0 * 0.03;
+  probes(0, 0) = 0.0 * 0.03;
+  probes(0, 1) = 4.0 * 0.03;
+  probes(0, 2) = 9.0 * 0.03;
+  probes(0, 3) = 14.0 * 0.03;
+  probes(0, 4) = 19.0 * 0.03;
+  probes(0, 5) = 24.0 * 0.03;
 
   std::vector<double> tube_probes_buffer(5 * 3);
   fub::basic_mdspan<double, fub::extents<3, fub::dynamic_extent>> tube_probes(
@@ -536,6 +537,20 @@ int main(int /* argc */, char** /* argv */) {
               gridding->GetPlena()[0]->GetPatchHierarchy());
           ::amrex::Print() << "Finish Checkpointing.\n";
 
+          std::string name = fmt::format("{}/Tube/plt{:05}", base_name,
+          cycle);
+          ::amrex::Print() << "Start output to '" << name << "'.\n";
+          fub::amrex::WritePlotFile(
+              name, gridding->GetTubes()[0]->GetPatchHierarchy(),
+              tube_equation);
+          ::amrex::Print() << "Finished output to '" << name << "'.\n";
+          name = fmt::format("{}/Plenum/plt{:05}", base_name, cycle);
+          ::amrex::Print() << "Start output to '" << name << "'.\n";
+          fub::amrex::cutcell::WritePlotFile(
+              name, gridding->GetPlena()[0]->GetPatchHierarchy(),
+              equation);
+          ::amrex::Print() << "Finished output to '" << name << "'.\n";
+
           ::amrex::Print() << "Start Matlab Output.\n";
           std::ofstream out(
               fmt::format("{}/Plenum_{:05}.dat", base_name, cycle),
@@ -547,21 +562,7 @@ int main(int /* argc */, char** /* argv */) {
         }
         //          next_checkpoint += checkpoint_offest;
         //        }
-        if (output_num == 1) {
-          //      std::string name = fmt::format("{}/Tube/plt{:05}", base_name,
-          //      cycle);
-          //      ::amrex::Print() << "Start output to '" << name << "'.\n";
-          //      fub::amrex::WritePlotFile(
-          //          name, gridding->GetTubes()[0]->GetPatchHierarchy(),
-          //          tube_equation);
-          //      ::amrex::Print() << "Finished output to '" << name << "'.\n";
-          //      name = fmt::format("{}/Plenum/plt{:05}", base_name, cycle);
-          //      ::amrex::Print() << "Start output to '" << name << "'.\n";
-          //      fub::amrex::cutcell::WritePlotFile(
-          //          name, gridding->GetPlena()[0]->GetPatchHierarchy(),
-          //          equation);
-          //      ::amrex::Print() << "Finished output to '" << name << "'.\n";
-
+        if (output_num >= 0) {
           {
             std::vector<double> buffer =
                 GatherStates(gridding->GetTubes()[0]->GetPatchHierarchy(),
@@ -592,14 +593,15 @@ int main(int /* argc */, char** /* argv */) {
               const double u = states(i, 1) / rho;
               const double v = states(i, 2) / rho;
               const double w = states(i, 3) / rho;
-              const double Ma = (u*u + v*v + w*w) / states(i, 17);
+              const double a = states(i, 17);
+              const double Ma = std::sqrt(u*u + v*v + w*w) / a;
               const double T = states(i, 18);
               const double p = states(i, 16);
               const double t = timepoint.count();
               const double x = probes(0, i);
               ::amrex::Print() << fmt::format(
-                  "{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}\n",
-                  x, t, rho, Ma, T, p);
+                  "{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}\n",
+                  x, t, rho, Ma, a, T, p);
             }
           }
         }
@@ -607,7 +609,7 @@ int main(int /* argc */, char** /* argv */) {
 
   using namespace std::literals::chrono_literals;
   output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
-         solver.GetTimePoint(), 1);
+         solver.GetTimePoint(), 0);
   fub::RunOptions run_options{};
   run_options.final_time = 0.020s;
   run_options.output_interval = std::vector<fub::Duration>{0.1e-3s, 0.0s};
