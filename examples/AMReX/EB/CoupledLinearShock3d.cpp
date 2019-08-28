@@ -592,13 +592,14 @@ int main(int /* argc */, char** /* argv */) {
               const double u = states(i, 1) / rho;
               const double v = states(i, 2) / rho;
               const double w = states(i, 3) / rho;
+              const double Ma = (u*u + v*v + w*w) / states(i, 17);
               const double T = states(i, 18);
               const double p = states(i, 16);
               const double t = timepoint.count();
               const double x = probes(0, i);
               ::amrex::Print() << fmt::format(
-                  "{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}\n",
-                  x, t, rho, u, v, w, T, p);
+                  "{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}\n",
+                  x, t, rho, Ma, T, p);
             }
           }
         }
