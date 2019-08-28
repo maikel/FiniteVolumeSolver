@@ -152,8 +152,7 @@ GatherStates(const PatchHierarchy& hierarchy,
   std::vector<double> buffer(xs.extent(1) * ncomp * nlevel);
   mdspan<double, 3> states(buffer.data(), xs.extent(1), ncomp, nlevel);
   for (int level = 0; level < nlevel; ++level) {
-    const ::amrex::MultiFab& level_data =
-    hierarchy.GetPatchLevel(level).data;
+    const ::amrex::MultiFab& level_data = hierarchy.GetPatchLevel(level).data;
     const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(level);
     ForEachFab(level_data, [&](const ::amrex::MFIter& mfi) {
       ForEachIndex(mfi.tilebox(), [&](auto... is) {
@@ -186,7 +185,9 @@ GatherStates(const PatchHierarchy& hierarchy,
       }
     }
   }
-  std::vector<double> result(&states(0, 0, finest_level), &states(0, 0, finest_level) + xs.extent(1) * ncomp);
+  std::vector<double> result(&states(0, 0, finest_level),
+                             &states(0, 0, finest_level) +
+                                 xs.extent(1) * ncomp);
   return result;
 }
 
@@ -203,8 +204,7 @@ GatherStates(const PatchHierarchy& hierarchy,
   std::vector<double> buffer(xs.extent(1) * ncomp * nlevel);
   mdspan<double, 3> states(buffer.data(), xs.extent(1), ncomp, nlevel);
   for (int level = 0; level < nlevel; ++level) {
-    const ::amrex::MultiFab& level_data =
-        hierarchy.GetPatchLevel(level).data;
+    const ::amrex::MultiFab& level_data = hierarchy.GetPatchLevel(level).data;
     const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(level);
     ForEachFab(level_data, [&](const ::amrex::MFIter& mfi) {
       ForEachIndex(mfi.tilebox(), [&](auto... is) {
@@ -237,7 +237,9 @@ GatherStates(const PatchHierarchy& hierarchy,
       }
     }
   }
-  std::vector<double> result(&states(0, 0, finest_level), &states(0, 0, finest_level) + xs.extent(1) * ncomp);
+  std::vector<double> result(&states(0, 0, finest_level),
+                             &states(0, 0, finest_level) +
+                                 xs.extent(1) * ncomp);
   return result;
 }
 
@@ -444,9 +446,9 @@ auto MakePlenumSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
   fub::ideal_gas::MusclHancockPrimMethod<Plenum_Rank> flux_method(equation);
   fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
 
-  HyperbolicMethod method{FluxMethod{fub::execution::openmp_simd, cutcell_method},
+  HyperbolicMethod method{FluxMethod{fub::execution::simd, cutcell_method},
                           fub::amrex::cutcell::TimeIntegrator{},
-                          Reconstruction{fub::execution::openmp_simd, equation}};
+                          Reconstruction{fub::execution::simd, equation}};
 
   return fub::amrex::cutcell::IntegratorContext(gridding, method);
 }
@@ -458,7 +460,7 @@ int main(int /* argc */, char** /* argv */) {
   fub::amrex::ScopeGuard _{};
   fub::Burke2012 mechanism{};
 
-  const int n_level = 1;
+  const int n_level = 2;
   const int n_plenum_cells = 96;
   const int n_tube_cells = [=] {
     int cells = 3 * n_plenum_cells / 2;
@@ -553,8 +555,9 @@ int main(int /* argc */, char** /* argv */) {
             std::vector<double> buffer =
                 GatherStates(gridding->GetTubes()[0]->GetPatchHierarchy(),
                              tube_probes, context.GetMpiCommunicator());
-            fub::mdspan<const double, 2> states(buffer.data(), tube_probes.extent(1),
-                       buffer.size() / tube_probes.extent(1));
+            fub::mdspan<const double, 2> states(
+                buffer.data(), tube_probes.extent(1),
+                buffer.size() / tube_probes.extent(1));
             for (int i = tube_probes.extent(1) - 1; i >= 0; --i) {
               const double rho = states(i, 0);
               const double u = states(i, 1) / rho;
@@ -562,9 +565,10 @@ int main(int /* argc */, char** /* argv */) {
               const double p = states(i, 14);
               const double t = timepoint.count();
               const double x = tube_probes(0, i);
-              ::amrex::Print() << fmt::format(
-                  "{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}\n",
-                  x, t, rho, u, T, p);
+              ::amrex::Print()
+                  << fmt::format("{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< "
+                                 "24.15g}{:< 24.15g}{:< 24.15g}\n",
+                                 x, t, rho, u, T, p);
             }
           }
 
@@ -573,21 +577,23 @@ int main(int /* argc */, char** /* argv */) {
                 GatherStates(gridding->GetPlena()[0]->GetPatchHierarchy(),
                              probes, context.GetMpiCommunicator());
             fub::mdspan<const double, 2> states(buffer.data(), probes.extent(1),
-                       buffer.size() / probes.extent(1));
+                                                buffer.size() /
+                                                    probes.extent(1));
             for (int i = 0; i < probes.extent(1); ++i) {
               const double rho = states(i, 0);
               const double u = states(i, 1) / rho;
               const double v = states(i, 2) / rho;
               const double w = states(i, 3) / rho;
               const double a = states(i, 17);
-              const double Ma = std::sqrt(u*u + v*v + w*w) / a;
+              const double Ma = std::sqrt(u * u + v * v + w * w) / a;
               const double T = states(i, 18);
               const double p = states(i, 16);
               const double t = timepoint.count();
               const double x = probes(0, i);
-              ::amrex::Print() << fmt::format(
-                  "{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}\n",
-                  x, t, rho, Ma, a, T, p);
+              ::amrex::Print()
+                  << fmt::format("{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< "
+                                 "24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}\n",
+                                 x, t, rho, Ma, a, T, p);
             }
           }
           ::amrex::Print() << "End Output for Probes.\n";
@@ -602,14 +608,6 @@ int main(int /* argc */, char** /* argv */) {
   run_options.output_interval = std::vector<fub::Duration>{0.1e-3s, 0.0s};
   run_options.output_frequency = std::vector<int>{0, 1};
   run_options.cfl = 0.8;
-  try {
-    fub::RunSimulation(solver, run_options, wall_time_reference, output,
+  fub::RunSimulation(solver, run_options, wall_time_reference, output,
                        fub::amrex::print);
-  } catch (...) {
-    ::amrex::Print() << "Caught an exception!\n";
-    output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
-           solver.GetTimePoint(), 0);
-    ::amrex::Print() << "Rethrow and terminate.\n";
-    throw;
-  }
 }
