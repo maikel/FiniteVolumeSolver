@@ -45,24 +45,25 @@ void WriteMatlabData(std::ostream& out, const amrex::FArrayBox& fab,
   auto view = fub::amrex::MakeView<const Complete<IdealGasMix<3>>>(fab, eq);
   out << fmt::format(
       "X Y Density VelocityX VelocityY VelocityZ Temperature Pressure\n");
-  ForEachIndex(Box<0>(view),
-               [&](std::ptrdiff_t i, std::ptrdiff_t j, std::ptrdiff_t k) {
-                 double x[3] = {0.0, 0.0, 0.0};
-                 ::amrex::IntVect iv{int(i), int(j), int(k)};
-                 geom.CellCenter(iv, x);
-                 const double density = view.density(i, j, k);
-                 const double velocity_x =
-                     density > 0.0 ? view.momentum(i, j, k, 0) / density : 0.0;
-                 const double velocity_y =
-                     density > 0.0 ? view.momentum(i, j, k, 1) / density : 0.0;
-                 const double velocity_z =
-                     density > 0.0 ? view.momentum(i, j, k, 2) / density : 0.0;
-                 const double temperature = view.temperature(i, j, k);
-                 const double pressure = view.pressure(i, j, k);
-                 out << fmt::format("{} {} {} {} {} {} {} {}\n", x[0], x[1],
-                                    density, velocity_x, velocity_y, velocity_z,
-                                    temperature, pressure);
-               });
+  ForEachIndex(
+      Box<0>(view), [&](std::ptrdiff_t i, std::ptrdiff_t j, std::ptrdiff_t k) {
+        double x[3] = {0.0, 0.0, 0.0};
+        ::amrex::IntVect iv{int(i), int(j), int(k)};
+        geom.CellCenter(iv, x);
+        const double density = view.density(i, j, k);
+        const double velocity_x =
+            density > 0.0 ? view.momentum(i, j, k, 0) / density : 0.0;
+        const double velocity_y =
+            density > 0.0 ? view.momentum(i, j, k, 1) / density : 0.0;
+        const double velocity_z =
+            density > 0.0 ? view.momentum(i, j, k, 2) / density : 0.0;
+        const double temperature = view.temperature(i, j, k);
+        const double pressure = view.pressure(i, j, k);
+        out << fmt::format("{:< 24.15e}{:< 24.15e}{:< 24.15e}{:< 24.15e} "
+                           "{:< 24.15e}{:< 24.15e}{:< 24.15e}{:< 24.15e}\n",
+                           x[0], x[1], density, velocity_x, velocity_y,
+                           velocity_z, temperature, pressure);
+      });
 }
 
 namespace fub::amrex::cutcell {
@@ -126,12 +127,14 @@ void Write2Dfrom3D(std::ostream& out, const PatchHierarchy& hierarchy,
       }
       ::MPI_Reduce(fab.dataPtr(), global_fab.dataPtr(), fab.size(), MPI_DOUBLE,
                    MPI_SUM, 0, comm);
-      out << fmt::format("nx = {}\n", domain.length(0));
-      out << fmt::format("ny = {}\n", domain.length(1));
-      out << fmt::format("t = {}\n", time_point.count());
-      out << fmt::format("cycle = {}\n", cycle_number);
-      WriteMatlabData(out, global_fab, eq, geom);
-      out.flush();
+      if (level == n_level - 1) {
+        out << fmt::format("nx = {}\n", domain.length(0));
+        out << fmt::format("ny = {}\n", domain.length(1));
+        out << fmt::format("t = {}\n", time_point.count());
+        out << fmt::format("cycle = {}\n", cycle_number);
+        WriteMatlabData(out, global_fab, eq, geom);
+        out.flush();
+      }
     } else {
       ::MPI_Reduce(fab.dataPtr(), nullptr, fab.size(), MPI_DOUBLE, MPI_SUM, 0,
                    comm);
@@ -143,34 +146,48 @@ std::vector<double>
 GatherStates(const PatchHierarchy& hierarchy,
              basic_mdspan<const double, extents<3, dynamic_extent>> xs,
              MPI_Comm comm) {
-  const int finest_level = hierarchy.GetNumberOfLevels() - 1;
-  const ::amrex::MultiFab& level_data =
-      hierarchy.GetPatchLevel(finest_level).data;
-  const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(finest_level);
-  std::vector<double> buffer(xs.extent(1) * level_data.nComp());
-  basic_mdspan<double, extents<dynamic_extent, dynamic_extent>> states(
-      buffer.data(), xs.extent(1), level_data.nComp());
-  ForEachFab(level_data, [&](const ::amrex::MFIter& mfi) {
-    ForEachIndex(mfi.tilebox(), [&](auto... is) {
-      double lo[3];
-      double hi[3];
-      const ::amrex::IntVect iv{int(is)...};
-      level_geom.LoNode(iv, lo);
-      level_geom.HiNode(iv, hi);
-      for (int k = 0; k < xs.extent(1); ++k) {
-        if (lo[0] <= xs(0, k) && xs(0, k) < hi[0] && lo[1] <= xs(1, k) &&
-            xs(1, k) < hi[1] && lo[2] <= xs(2, k) && xs(2, k) < hi[2]) {
-          for (int comp = 0; comp < level_data.nComp(); ++comp) {
-            states(k, comp) = level_data[mfi](iv, comp);
+  const int nlevel = hierarchy.GetNumberOfLevels();
+  const int finest_level = nlevel - 1;
+  const int ncomp = hierarchy.GetDataDescription().n_state_components;
+  std::vector<double> buffer(xs.extent(1) * ncomp * nlevel);
+  mdspan<double, 3> states(buffer.data(), xs.extent(1), ncomp, nlevel);
+  for (int level = 0; level < nlevel; ++level) {
+    const ::amrex::MultiFab& level_data =
+    hierarchy.GetPatchLevel(level).data;
+    const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(level);
+    ForEachFab(level_data, [&](const ::amrex::MFIter& mfi) {
+      ForEachIndex(mfi.tilebox(), [&](auto... is) {
+        double lo[3];
+        double hi[3];
+        const ::amrex::IntVect iv{int(is)...};
+        level_geom.LoNode(iv, lo);
+        level_geom.HiNode(iv, hi);
+        for (int k = 0; k < xs.extent(1); ++k) {
+          if (lo[0] <= xs(0, k) && xs(0, k) < hi[0] && lo[1] <= xs(1, k) &&
+              xs(1, k) < hi[1] && lo[2] <= xs(2, k) && xs(2, k) < hi[2]) {
+            for (int comp = 0; comp < level_data.nComp(); ++comp) {
+              states(k, comp, level) = level_data[mfi](iv, comp);
+            }
           }
         }
-      }
+      });
     });
-  });
-  std::vector<double> global_buffer(xs.extent(1) * level_data.nComp());
-  ::MPI_Allreduce(buffer.data(), global_buffer.data(), buffer.size(),
+  }
+  std::vector<double> global_buffer(buffer.size());
+  ::MPI_Allreduce(buffer.data(), global_buffer.data(), global_buffer.size(),
                   MPI_DOUBLE, MPI_SUM, comm);
-  return global_buffer;
+  states = mdspan<double, 3>(global_buffer.data(), xs.extent(1), ncomp, nlevel);
+  for (int level = 1; level < nlevel; ++level) {
+    for (int comp = 0; comp < ncomp; ++comp) {
+      for (int i = 0; i < xs.extent(1); ++i) {
+        if (states(i, comp, level) == 0.0) {
+          states(i, comp, level) = states(i, comp, level - 1);
+        }
+      }
+    }
+  }
+  std::vector<double> result(&states(0, 0, finest_level), &states(0, 0, finest_level) + xs.extent(1) * ncomp);
+  return result;
 }
 
 } // namespace fub::amrex::cutcell
@@ -180,34 +197,48 @@ std::vector<double>
 GatherStates(const PatchHierarchy& hierarchy,
              basic_mdspan<const double, extents<3, dynamic_extent>> xs,
              MPI_Comm comm) {
-  const int finest_level = hierarchy.GetNumberOfLevels() - 1;
-  const ::amrex::MultiFab& level_data =
-      hierarchy.GetPatchLevel(finest_level).data;
-  const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(finest_level);
-  std::vector<double> buffer(xs.extent(1) * level_data.nComp());
-  basic_mdspan<double, extents<dynamic_extent, dynamic_extent>> states(
-      buffer.data(), xs.extent(1), level_data.nComp());
-  ForEachFab(level_data, [&](const ::amrex::MFIter& mfi) {
-    ForEachIndex(mfi.tilebox(), [&](auto... is) {
-      double lo[3];
-      double hi[3];
-      const ::amrex::IntVect iv{int(is)...};
-      level_geom.LoNode(iv, lo);
-      level_geom.HiNode(iv, hi);
-      for (int k = 0; k < xs.extent(1); ++k) {
-        if (lo[0] <= xs(0, k) && xs(0, k) < hi[0] && lo[1] <= xs(1, k) &&
-            xs(1, k) < hi[1] && lo[2] <= xs(2, k) && xs(2, k) < hi[2]) {
-          for (int comp = 0; comp < level_data.nComp(); ++comp) {
-            states(k, comp) = level_data[mfi](iv, comp);
+  const int nlevel = hierarchy.GetNumberOfLevels();
+  const int finest_level = nlevel - 1;
+  const int ncomp = hierarchy.GetDataDescription().n_state_components;
+  std::vector<double> buffer(xs.extent(1) * ncomp * nlevel);
+  mdspan<double, 3> states(buffer.data(), xs.extent(1), ncomp, nlevel);
+  for (int level = 0; level < nlevel; ++level) {
+    const ::amrex::MultiFab& level_data =
+        hierarchy.GetPatchLevel(level).data;
+    const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(level);
+    ForEachFab(level_data, [&](const ::amrex::MFIter& mfi) {
+      ForEachIndex(mfi.tilebox(), [&](auto... is) {
+        double lo[3];
+        double hi[3];
+        const ::amrex::IntVect iv{int(is)...};
+        level_geom.LoNode(iv, lo);
+        level_geom.HiNode(iv, hi);
+        for (int k = 0; k < xs.extent(1); ++k) {
+          if (lo[0] <= xs(0, k) && xs(0, k) < hi[0] && lo[1] <= xs(1, k) &&
+              xs(1, k) < hi[1] && lo[2] <= xs(2, k) && xs(2, k) < hi[2]) {
+            for (int comp = 0; comp < level_data.nComp(); ++comp) {
+              states(k, comp, level) = level_data[mfi](iv, comp);
+            }
           }
         }
-      }
+      });
     });
-  });
-  std::vector<double> global_buffer(xs.extent(1) * level_data.nComp());
-  ::MPI_Allreduce(buffer.data(), global_buffer.data(), buffer.size(),
+  }
+  std::vector<double> global_buffer(buffer.size());
+  ::MPI_Allreduce(buffer.data(), global_buffer.data(), global_buffer.size(),
                   MPI_DOUBLE, MPI_SUM, comm);
-  return global_buffer;
+  states = mdspan<double, 3>(global_buffer.data(), xs.extent(1), ncomp, nlevel);
+  for (int level = 1; level < nlevel; ++level) {
+    for (int comp = 0; comp < ncomp; ++comp) {
+      for (int i = 0; i < xs.extent(1); ++i) {
+        if (states(i, comp, level) == 0.0) {
+          states(i, comp, level) = states(i, comp, level - 1);
+        }
+      }
+    }
+  }
+  std::vector<double> result(&states(0, 0, finest_level), &states(0, 0, finest_level) + xs.extent(1) * ncomp);
+  return result;
 }
 
 } // namespace fub::amrex
@@ -428,7 +459,7 @@ int main(int /* argc */, char** /* argv */) {
   fub::amrex::ScopeGuard _{};
   fub::Burke2012 mechanism{};
 
-  const int n_level = 1;
+  const int n_level = 2;
   const int n_plenum_cells = 64;
   const int n_tube_cells = [=] {
     int cells = 3 * n_plenum_cells / 2;
@@ -487,102 +518,91 @@ int main(int /* argc */, char** /* argv */) {
   // Write Checkpoints 0min + every 5min
   //  const fub::Duration checkpoint_offest = std::chrono::minutes(5);
   //  fub::Duration next_checkpoint = std::chrono::minutes(0);
-  auto output = [&](std::shared_ptr<fub::amrex::MultiBlockGriddingAlgorithm>
-                        gridding,
-                    auto cycle, auto timepoint, int output_num) {
-    //        std::chrono::steady_clock::time_point now =
-    //            std::chrono::steady_clock::now();
-    //        auto duration = std::chrono::duration_cast<fub::Duration>(
-    //            now - wall_time_reference);
-    //        if (duration > next_checkpoint) {
-    if (output_num == 0) {
-      ::amrex::Print() << "Start Checkpointing.\n";
-      fub::amrex::WriteCheckpointFile(
-          fmt::format("{}/Checkpoint/Tube_{:05}", base_name, cycle),
-          gridding->GetTubes()[0]->GetPatchHierarchy());
-      fub::amrex::cutcell::WriteCheckpointFile(
-          fmt::format("{}/Checkpoint/Plenum_{:05}", base_name, cycle),
-          gridding->GetPlena()[0]->GetPatchHierarchy());
-      ::amrex::Print() << "Finish Checkpointing.\n";
+  auto output =
+      [&](std::shared_ptr<fub::amrex::MultiBlockGriddingAlgorithm> gridding,
+          auto cycle, auto timepoint, int output_num) {
+        //        std::chrono::steady_clock::time_point now =
+        //            std::chrono::steady_clock::now();
+        //        auto duration = std::chrono::duration_cast<fub::Duration>(
+        //            now - wall_time_reference);
+        //        if (duration > next_checkpoint) {
+        if (output_num == 0) {
+          ::amrex::Print() << "Start Checkpointing.\n";
+          fub::amrex::WriteCheckpointFile(
+              fmt::format("{}/Checkpoint/Tube_{:05}", base_name, cycle),
+              gridding->GetTubes()[0]->GetPatchHierarchy());
+          fub::amrex::cutcell::WriteCheckpointFile(
+              fmt::format("{}/Checkpoint/Plenum_{:05}", base_name, cycle),
+              gridding->GetPlena()[0]->GetPatchHierarchy());
+          ::amrex::Print() << "Finish Checkpointing.\n";
 
-      ::amrex::Print() << "Start Matlab Output.\n";
-      std::ofstream out(
-                        fmt::format("{}/Plenum_{:05}.dat",
-                        base_name, cycle), std::ios::trunc);
-      fub::amrex::cutcell::Write2Dfrom3D(
-                                         out,
-                                         gridding->GetPlena()[0]->GetPatchHierarchy(),
-                                         equation, timepoint,
-                                         cycle,
-                                         context.GetMpiCommunicator());
-      ::amrex::Print() << "End Matlab Output.\n";
-    }
-    //          next_checkpoint += checkpoint_offest;
-    //        }
-    if (output_num == 1) {
-//      std::string name = fmt::format("{}/Tube/plt{:05}", base_name, cycle);
-//      ::amrex::Print() << "Start output to '" << name << "'.\n";
-//      fub::amrex::WritePlotFile(
-//          name, gridding->GetTubes()[0]->GetPatchHierarchy(), tube_equation);
-//      ::amrex::Print() << "Finished output to '" << name << "'.\n";
-//      name = fmt::format("{}/Plenum/plt{:05}", base_name, cycle);
-//      ::amrex::Print() << "Start output to '" << name << "'.\n";
-//      fub::amrex::cutcell::WritePlotFile(
-//          name, gridding->GetPlena()[0]->GetPatchHierarchy(), equation);
-//      ::amrex::Print() << "Finished output to '" << name << "'.\n";
-
-      {
-        std::vector<double> buffer =
-            GatherStates(gridding->GetTubes()[0]->GetPatchHierarchy(),
-                         tube_probes, context.GetMpiCommunicator());
-        fub::basic_mdspan<const double, fub::extents<fub::dynamic_extent,
-                                                     fub::dynamic_extent>>
-            states(buffer.data(), probes.extent(1),
-                   buffer.size() / tube_probes.extent(1));
-        for (int i = tube_probes.extent(1) - 1; i >= 0; --i) {
-          const double rho = states(i, 0);
-          const double u = states(i, 1) / rho;
-          const double T = states(i, 16);
-          const double p = states(i, 14);
-          const double t = timepoint.count();
-          const double x = tube_probes(0, i);
-          const double y = tube_probes(1, i);
-          const double z = tube_probes(2, i);
-          ::amrex::Print() << fmt::format(
-              "Probe {:0>2}: {:< 16.12f} {:< 16.12f} {:< 16.12f} {:< 16.12f} "
-              "{:< 16.12f} {:< 16.12f} {:< 16.12f} {:< 16.12f}\n",
-              i + 6, t, x, y, z, rho, u, T, p);
+          ::amrex::Print() << "Start Matlab Output.\n";
+          std::ofstream out(
+              fmt::format("{}/Plenum_{:05}.dat", base_name, cycle),
+              std::ios::trunc);
+          fub::amrex::cutcell::Write2Dfrom3D(
+              out, gridding->GetPlena()[0]->GetPatchHierarchy(), equation,
+              timepoint, cycle, context.GetMpiCommunicator());
+          ::amrex::Print() << "End Matlab Output.\n";
         }
-      }
+        //          next_checkpoint += checkpoint_offest;
+        //        }
+        if (output_num == 1) {
+          //      std::string name = fmt::format("{}/Tube/plt{:05}", base_name,
+          //      cycle);
+          //      ::amrex::Print() << "Start output to '" << name << "'.\n";
+          //      fub::amrex::WritePlotFile(
+          //          name, gridding->GetTubes()[0]->GetPatchHierarchy(),
+          //          tube_equation);
+          //      ::amrex::Print() << "Finished output to '" << name << "'.\n";
+          //      name = fmt::format("{}/Plenum/plt{:05}", base_name, cycle);
+          //      ::amrex::Print() << "Start output to '" << name << "'.\n";
+          //      fub::amrex::cutcell::WritePlotFile(
+          //          name, gridding->GetPlena()[0]->GetPatchHierarchy(),
+          //          equation);
+          //      ::amrex::Print() << "Finished output to '" << name << "'.\n";
 
-      {
-        std::vector<double> buffer =
-            GatherStates(gridding->GetPlena()[0]->GetPatchHierarchy(), probes,
-                         context.GetMpiCommunicator());
-        fub::basic_mdspan<const double, fub::extents<fub::dynamic_extent,
-                                                     fub::dynamic_extent>>
-            states(buffer.data(), probes.extent(1),
-                   buffer.size() / probes.extent(1));
-        for (int i = 0; i < probes.extent(1); ++i) {
-          const double rho = states(i, 0);
-          const double u = states(i, 1) / rho;
-          const double v = states(i, 2) / rho;
-          const double w = states(i, 3) / rho;
-          const double T = states(i, 18);
-          const double p = states(i, 16);
-          const double t = timepoint.count();
-          const double x = probes(0, i);
-          const double y = probes(1, i);
-          const double z = probes(2, i);
-          ::amrex::Print() << fmt::format(
-              "Probe {:0>2}: {:< 16.12f} {:< 16.12f} {:< 16.12f} {:< 16.12f} "
-              "{:< 16.12f} {:< 16.12f} {:< 16.12f} {:< 16.12f} {:< 16.12f} "
-              "{:< 16.12f}\n",
-              i + 1, t, x, y, z, rho, u, v, w, T, p);
+          {
+            std::vector<double> buffer =
+                GatherStates(gridding->GetTubes()[0]->GetPatchHierarchy(),
+                             tube_probes, context.GetMpiCommunicator());
+            fub::mdspan<const double, 2> states(buffer.data(), tube_probes.extent(1),
+                       buffer.size() / tube_probes.extent(1));
+            for (int i = tube_probes.extent(1) - 1; i >= 0; --i) {
+              const double rho = states(i, 0);
+              const double u = states(i, 1) / rho;
+              const double T = states(i, 16);
+              const double p = states(i, 14);
+              const double t = timepoint.count();
+              const double x = tube_probes(0, i);
+              ::amrex::Print() << fmt::format(
+                  "{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}\n",
+                  x, t, rho, u, T, p);
+            }
+          }
+
+          {
+            std::vector<double> buffer =
+                GatherStates(gridding->GetPlena()[0]->GetPatchHierarchy(),
+                             probes, context.GetMpiCommunicator());
+            fub::mdspan<const double, 2> states(buffer.data(), probes.extent(1),
+                       buffer.size() / probes.extent(1));
+            for (int i = 0; i < probes.extent(1); ++i) {
+              const double rho = states(i, 0);
+              const double u = states(i, 1) / rho;
+              const double v = states(i, 2) / rho;
+              const double w = states(i, 3) / rho;
+              const double T = states(i, 18);
+              const double p = states(i, 16);
+              const double t = timepoint.count();
+              const double x = probes(0, i);
+              ::amrex::Print() << fmt::format(
+                  "{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}\n",
+                  x, t, rho, u, v, w, T, p);
+            }
+          }
         }
-      }
-    }
-  };
+      };
 
   using namespace std::literals::chrono_literals;
   output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
