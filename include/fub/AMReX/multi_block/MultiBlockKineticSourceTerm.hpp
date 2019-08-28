@@ -30,7 +30,7 @@ namespace fub::amrex {
 
 class MultiBlockKineticSouceTerm {
 public:
-    static constexpr int Rank = 1;
+  static constexpr int Rank = 1;
 
   MultiBlockKineticSouceTerm(
       const IdealGasMix<1>& equation,

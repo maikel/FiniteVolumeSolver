@@ -219,12 +219,12 @@ extern template struct EinfeldtSignalVelocities<PerfectGas<1>>;
 extern template struct EinfeldtSignalVelocities<PerfectGas<2>>;
 extern template struct EinfeldtSignalVelocities<PerfectGas<3>>;
 
-//extern template class FluxMethod<Godunov<PerfectGas<1>>>;
-//extern template class FluxMethod<MusclHancock<PerfectGas<1>>>;
-//extern template class FluxMethod<Godunov<PerfectGas<2>>>;
-//extern template class FluxMethod<MusclHancock<PerfectGas<2>>>;
-//extern template class FluxMethod<Godunov<PerfectGas<3>>>;
-//extern template class FluxMethod<MusclHancock<PerfectGas<3>>>;
+// extern template class FluxMethod<Godunov<PerfectGas<1>>>;
+// extern template class FluxMethod<MusclHancock<PerfectGas<1>>>;
+// extern template class FluxMethod<Godunov<PerfectGas<2>>>;
+// extern template class FluxMethod<MusclHancock<PerfectGas<2>>>;
+// extern template class FluxMethod<Godunov<PerfectGas<3>>>;
+// extern template class FluxMethod<MusclHancock<PerfectGas<3>>>;
 
 } // namespace fub
 

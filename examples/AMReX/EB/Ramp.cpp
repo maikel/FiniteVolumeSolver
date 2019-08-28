@@ -107,7 +107,8 @@ auto MakeSolver(const fub::PerfectGas<2>& equation) {
                           TimeIntegrator{},
                           Reconstruction{fub::execution::seq, equation}};
 
-  return fub::DimensionalSplitLevelIntegrator(fub::int_c<2>, IntegratorContext(gridding, method));
+  return fub::DimensionalSplitLevelIntegrator(
+      fub::int_c<2>, IntegratorContext(gridding, method));
 }
 
 int main(int argc, char** argv) {

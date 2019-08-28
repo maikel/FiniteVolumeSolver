@@ -78,9 +78,9 @@ auto ComputeSpeedOfSoundArray(const FlameMasterReactor& reactor) {
 
 template <int Dim>
 void IdealGasMix<Dim>::SetReactorStateFromComplete(const Complete& state) {
-  reactor_.SetTemperature(state.temperature);
   reactor_.SetDensity(state.density);
   reactor_.SetMassFractions(state.species);
+  reactor_.SetTemperature(state.temperature);
 }
 
 template <int Dim>
@@ -355,9 +355,8 @@ template struct EinfeldtSignalVelocities<IdealGasMix<2>>;
 template struct EinfeldtSignalVelocities<IdealGasMix<3>>;
 
 namespace ideal_gas {
- template <int Rank>
- MusclHancockPrimitive<Rank>::MusclHancockPrimitive(const IdealGasMix<Rank>&
- eq)
+template <int Rank>
+MusclHancockPrimitive<Rank>::MusclHancockPrimitive(const IdealGasMix<Rank>& eq)
     : hll_(eq, EinfeldtSignalVelocities<IdealGasMix<Rank>>{}) {
   const int nspecies = eq.GetReactor().GetNSpecies();
   dpdx.mass_fractions.resize(nspecies);
@@ -415,7 +414,7 @@ void ToPrim(PrimitiveArray<Rank>& p,
     p.velocity.row(i) = q.momentum.row(i) / q.density;
   }
   p.temperature = q.temperature;
-  for (int i = 0; i < Rank; ++i) {
+  for (int i = 0; i < p.mass_fractions.rows(); ++i) {
     p.mass_fractions.row(i) = q.species.row(i) / q.density;
   }
 }
@@ -491,7 +490,7 @@ void PrimDerivatives(IdealGasMix<Rank>& eq, PrimitiveArray<Rank>& dt,
     dt.velocity.row(i) = -u * dx.velocity.row(i);
   }
   dt.velocity.row(d) -= dpdx / rho;
-  for (int i = 1; i < dYdx.rows(); ++i) {
+  for (int i = 0; i < dYdx.rows(); ++i) {
     dt.mass_fractions.row(i) = -u * dYdx.row(i);
   }
   dt.pressure = dpdt;
@@ -549,39 +548,39 @@ template <int Rank>
 void MusclHancockPrimitive<Rank>::ComputeNumericFlux(
     Conservative& flux, span<const Complete, 4> stencil, Duration dt, double dx,
     Direction dir) {
+  const double dt_over_dx = dt.count() / dx;
 
   ToPrim(pL, stencil[0]);
   ToPrim(pM, stencil[1]);
   ToPrim(pR, stencil[2]);
   MinModLimiter(dpdx, pL, pM, pR);
+  PrimDerivatives(GetEquation(), dpdt, stencil[1], dpdx, dir);
 
-  pR.pressure = pM.pressure + 0.5 * dpdx.pressure;
-  pR.velocity = pM.velocity + 0.5 * dpdx.velocity;
-  pR.temperature = pM.temperature + 0.5 * dpdx.temperature;
-  pR.mass_fractions = pM.mass_fractions + 0.5 * dpdx.mass_fractions;
-  CompleteFromPrim(GetEquation(), stencil_[0], pR);
-  PrimDerivatives(GetEquation(), dpdt, stencil_[0], dpdx, dir);
-  const double lambda = 0.5 * dt.count() / dx;
-  pR.pressure += lambda * dpdt.pressure;
-  pR.velocity += lambda * dpdt.velocity;
-  pR.temperature += lambda * dpdt.temperature;
-  pR.mass_fractions += lambda * dpdt.mass_fractions;
+  pR.pressure =
+      pM.pressure + 0.5 * (dt_over_dx * dpdt.pressure + dpdx.pressure);
+  pR.velocity =
+      pM.velocity + 0.5 * (dt_over_dx * dpdt.velocity + dpdx.velocity);
+  pR.temperature =
+      pM.temperature + 0.5 * (dt_over_dx * dpdt.temperature + dpdx.temperature);
+  pR.mass_fractions =
+      pM.mass_fractions +
+      0.5 * (dt_over_dx * dpdt.mass_fractions + dpdx.mass_fractions);
   CompleteFromPrim(GetEquation(), stencil_[0], pR);
 
   ToPrim(pL, stencil[1]);
   ToPrim(pM, stencil[2]);
   ToPrim(pR, stencil[3]);
   MinModLimiter(dpdx, pL, pM, pR);
-  pL.pressure = pM.pressure - 0.5 * dpdx.pressure;
-  pL.velocity = pM.velocity - 0.5 * dpdx.velocity;
-  pL.temperature = pM.temperature - 0.5 * dpdx.temperature;
-  pL.mass_fractions = pM.mass_fractions - 0.5 * dpdx.mass_fractions;
-  CompleteFromPrim(GetEquation(), stencil_[1], pL);
-  PrimDerivatives(GetEquation(), dpdt, stencil_[1], dpdx, dir);
-  pL.pressure += lambda * dpdt.pressure;
-  pL.velocity += lambda * dpdt.velocity;
-  pL.temperature += lambda * dpdt.temperature;
-  pL.mass_fractions += lambda * dpdt.mass_fractions;
+  PrimDerivatives(GetEquation(), dpdt, stencil[2], dpdx, dir);
+  pL.pressure =
+      pM.pressure + 0.5 * (dt_over_dx * dpdt.pressure - dpdx.pressure);
+  pL.velocity =
+      pM.velocity + 0.5 * (dt_over_dx * dpdt.velocity - dpdx.velocity);
+  pL.temperature =
+      pM.temperature + 0.5 * (dt_over_dx * dpdt.temperature - dpdx.temperature);
+  pL.mass_fractions =
+      pM.mass_fractions +
+      0.5 * (dt_over_dx * dpdt.mass_fractions - dpdx.mass_fractions);
 
   CompleteFromPrim(GetEquation(), stencil_[1], pL);
   hll_.ComputeNumericFlux(flux, stencil_, dt, dx, dir);
@@ -591,34 +590,31 @@ template <int Rank>
 void MusclHancockPrimitive<Rank>::ComputeNumericFlux(
     ConservativeArray& flux, span<const CompleteArray, 4> stencil, Duration dt,
     double dx, Direction dir) {
-  const int nspecies = pR_array_.mass_fractions.rows();
+  const int nspecies = GetEquation().GetReactor().GetNSpecies();
+  const Array1d dt_over_dx = Array1d::Constant(dt.count() / dx);
+
   ToPrim(pL_array_, stencil[0]);
   ToPrim(pM_array_, stencil[1]);
   ToPrim(pR_array_, stencil[2]);
   MinModLimiter(dpdx_array_, pL_array_, pM_array_, pR_array_);
-
-  pR_array_.pressure = pM_array_.pressure + 0.5 * dpdx_array_.pressure;
+  PrimDerivatives(GetEquation(), dpdt_array_, stencil[1], dpdx_array_, dir);
+  pR_array_.pressure =
+      pM_array_.pressure +
+      0.5 * (dt_over_dx * dpdt_array_.pressure + dpdx_array_.pressure);
   for (int i = 0; i < Rank; ++i) {
     pR_array_.velocity.row(i) =
-        pM_array_.velocity.row(i) + 0.5 * dpdx_array_.velocity.row(i);
+        pM_array_.velocity.row(i) +
+        0.5 * (dt_over_dx * dpdt_array_.velocity.row(i) +
+               dpdx_array_.velocity.row(i));
   }
-  pR_array_.temperature = pM_array_.temperature + 0.5 * dpdx_array_.temperature;
+  pR_array_.temperature =
+      pM_array_.temperature +
+      0.5 * (dt_over_dx * dpdt_array_.temperature + dpdx_array_.temperature);
   for (int i = 0; i < nspecies; ++i) {
-    pR_array_.mass_fractions.row(i) = pM_array_.mass_fractions.row(i) +
-                                      0.5 * dpdx_array_.mass_fractions.row(i);
-  }
-  CompleteFromPrim(GetEquation(), stencil_array_[0], pR_array_);
-  PrimDerivatives(GetEquation(), dpdt_array_, stencil_array_[0], dpdx_array_,
-                  dir);
-  const double lambda = 0.5 * dt.count() / dx;
-  pR_array_.pressure += lambda * dpdt_array_.pressure;
-  for (int i = 0; i < Rank; ++i) {
-    pR_array_.velocity.row(i) += lambda * dpdt_array_.velocity.row(i);
-  }
-  pR_array_.temperature += lambda * dpdt_array_.temperature;
-  for (int i = 0; i < nspecies; ++i) {
-    pR_array_.mass_fractions.row(i) +=
-        lambda * dpdt_array_.mass_fractions.row(i);
+    pR_array_.mass_fractions.row(i) =
+        pM_array_.mass_fractions.row(i) +
+        0.5 * (dt_over_dx * dpdt_array_.mass_fractions.row(i) +
+               dpdx_array_.mass_fractions.row(i));
   }
   CompleteFromPrim(GetEquation(), stencil_array_[0], pR_array_);
 
@@ -626,29 +622,25 @@ void MusclHancockPrimitive<Rank>::ComputeNumericFlux(
   ToPrim(pM_array_, stencil[2]);
   ToPrim(pR_array_, stencil[3]);
   MinModLimiter(dpdx_array_, pL_array_, pM_array_, pR_array_);
-  pL_array_.pressure = pM_array_.pressure - 0.5 * dpdx_array_.pressure;
+  PrimDerivatives(GetEquation(), dpdt_array_, stencil[2], dpdx_array_, dir);
+  pL_array_.pressure =
+      pM_array_.pressure +
+      0.5 * (dt_over_dx * dpdt_array_.pressure - dpdx_array_.pressure);
   for (int i = 0; i < Rank; ++i) {
     pL_array_.velocity.row(i) =
-        pM_array_.velocity.row(i) - 0.5 * dpdx_array_.velocity.row(i);
+        pM_array_.velocity.row(i) +
+        0.5 * (dt_over_dx * dpdt_array_.velocity.row(i) -
+               dpdx_array_.velocity.row(i));
   }
-  pL_array_.temperature = pM_array_.temperature - 0.5 * dpdx_array_.temperature;
+  pL_array_.temperature =
+      pM_array_.temperature +
+      0.5 * (dt_over_dx * dpdt_array_.temperature - dpdx_array_.temperature);
   for (int i = 0; i < nspecies; ++i) {
-    pL_array_.mass_fractions.row(i) = pM_array_.mass_fractions.row(i) -
-                                      0.5 * dpdx_array_.mass_fractions.row(i);
+    pL_array_.mass_fractions.row(i) =
+        pM_array_.mass_fractions.row(i) +
+        0.5 * (dt_over_dx * dpdt_array_.mass_fractions.row(i) -
+               dpdx_array_.mass_fractions.row(i));
   }
-  CompleteFromPrim(GetEquation(), stencil_array_[1], pL_array_);
-  PrimDerivatives(GetEquation(), dpdt_array_, stencil_array_[1], dpdx_array_,
-                  dir);
-  pL_array_.pressure += lambda * dpdt_array_.pressure;
-  for (int i = 0; i < Rank; ++i) {
-    pL_array_.velocity.row(i) += lambda * dpdt_array_.velocity.row(i);
-  }
-  pL_array_.temperature += lambda * dpdt_array_.temperature;
-  for (int i = 0; i < nspecies; ++i) {
-    pL_array_.mass_fractions.row(i) +=
-        lambda * dpdt_array_.mass_fractions.row(i);
-  }
-
   CompleteFromPrim(GetEquation(), stencil_array_[1], pL_array_);
   hll_.ComputeNumericFlux(flux, stencil_array_, dt, dx, dir);
 }
@@ -659,34 +651,49 @@ void MusclHancockPrimitive<Rank>::ComputeNumericFlux(
     span<const CompleteArray, 4> stencil,
     span<const Array1d, 4> volume_fractions, Duration dt, double dx,
     Direction dir) {
-  const int nspecies = pR_array_.mass_fractions.rows();
+  const int nspecies = GetEquation().GetReactor().GetNSpecies();
+  const Array1d dt_over_dx = Array1d::Constant(dt.count() / dx);
+
   ToPrim(pL_array_, stencil[0]);
   ToPrim(pM_array_, stencil[1]);
   ToPrim(pR_array_, stencil[2]);
   MinModLimiter(dpdx_array_, pL_array_, pM_array_, pR_array_);
-
-  pR_array_.pressure = pM_array_.pressure + 0.5 * dpdx_array_.pressure;
+  PrimDerivatives(GetEquation(), dpdt_array_, stencil[1], dpdx_array_, dir);
+  Array1d zero = Array1d::Zero();
+  MaskArray mask0 = (volume_fractions[0] > 0.0);
+  dpdx_array_.pressure = mask0.select(dpdx_array_.pressure, zero);
+  dpdt_array_.pressure = mask0.select(dpdt_array_.pressure, zero);
+  dpdx_array_.temperature = mask0.select(dpdx_array_.temperature, zero);
+  dpdt_array_.temperature = mask0.select(dpdt_array_.temperature, zero);
+  for (int i = 0; i < Rank; ++i) {
+    dpdx_array_.velocity.row(i) =
+        mask0.select(dpdx_array_.velocity.row(i), zero);
+    dpdt_array_.velocity.row(i) =
+        mask0.select(dpdt_array_.velocity.row(i), zero);
+  }
+  for (int i = 0; i < nspecies; ++i) {
+    dpdx_array_.mass_fractions.row(i) =
+        mask0.select(dpdx_array_.mass_fractions.row(i), zero);
+    dpdt_array_.mass_fractions.row(i) =
+        mask0.select(dpdt_array_.mass_fractions.row(i), zero);
+  }
+  pR_array_.pressure =
+      pM_array_.pressure +
+      0.5 * (dt_over_dx * dpdt_array_.pressure + dpdx_array_.pressure);
   for (int i = 0; i < Rank; ++i) {
     pR_array_.velocity.row(i) =
-        pM_array_.velocity.row(i) + 0.5 * dpdx_array_.velocity.row(i);
+        pM_array_.velocity.row(i) +
+        0.5 * (dt_over_dx * dpdt_array_.velocity.row(i) +
+               dpdx_array_.velocity.row(i));
   }
-  pR_array_.temperature = pM_array_.temperature + 0.5 * dpdx_array_.temperature;
+  pR_array_.temperature =
+      pM_array_.temperature +
+      0.5 * (dt_over_dx * dpdt_array_.temperature + dpdx_array_.temperature);
   for (int i = 0; i < nspecies; ++i) {
-    pR_array_.mass_fractions.row(i) = pM_array_.mass_fractions.row(i) +
-                                      0.5 * dpdx_array_.mass_fractions.row(i);
-  }
-  CompleteFromPrim(GetEquation(), stencil_array_[0], pR_array_);
-  PrimDerivatives(GetEquation(), dpdt_array_, stencil_array_[0], dpdx_array_,
-                  dir);
-  const double lambda = 0.5 * dt.count() / dx;
-  pR_array_.pressure += lambda * dpdt_array_.pressure;
-  for (int i = 0; i < Rank; ++i) {
-    pR_array_.velocity.row(i) += lambda * dpdt_array_.velocity.row(i);
-  }
-  pR_array_.temperature += lambda * dpdt_array_.temperature;
-  for (int i = 0; i < nspecies; ++i) {
-    pR_array_.mass_fractions.row(i) +=
-        lambda * dpdt_array_.mass_fractions.row(i);
+    pR_array_.mass_fractions.row(i) =
+        pM_array_.mass_fractions.row(i) +
+        0.5 * (dt_over_dx * dpdt_array_.mass_fractions.row(i) +
+               dpdx_array_.mass_fractions.row(i));
   }
   CompleteFromPrim(GetEquation(), stencil_array_[0], pR_array_);
 
@@ -694,29 +701,42 @@ void MusclHancockPrimitive<Rank>::ComputeNumericFlux(
   ToPrim(pM_array_, stencil[2]);
   ToPrim(pR_array_, stencil[3]);
   MinModLimiter(dpdx_array_, pL_array_, pM_array_, pR_array_);
-  pL_array_.pressure = pM_array_.pressure - 0.5 * dpdx_array_.pressure;
+  PrimDerivatives(GetEquation(), dpdt_array_, stencil[2], dpdx_array_, dir);
+  MaskArray mask3 = (volume_fractions[3] > 0.0);
+  dpdx_array_.pressure = mask3.select(dpdx_array_.pressure, zero);
+  dpdt_array_.pressure = mask3.select(dpdt_array_.pressure, zero);
+  dpdx_array_.temperature = mask3.select(dpdx_array_.temperature, zero);
+  dpdt_array_.temperature = mask3.select(dpdt_array_.temperature, zero);
+  for (int i = 0; i < Rank; ++i) {
+    dpdx_array_.velocity.row(i) =
+        mask3.select(dpdx_array_.velocity.row(i), zero);
+    dpdt_array_.velocity.row(i) =
+        mask3.select(dpdt_array_.velocity.row(i), zero);
+  }
+  for (int i = 0; i < nspecies; ++i) {
+    dpdx_array_.mass_fractions.row(i) =
+        mask3.select(dpdx_array_.mass_fractions.row(i), zero);
+    dpdt_array_.mass_fractions.row(i) =
+        mask3.select(dpdt_array_.mass_fractions.row(i), zero);
+  }
+  pL_array_.pressure =
+      pM_array_.pressure +
+      0.5 * (dt_over_dx * dpdt_array_.pressure - dpdx_array_.pressure);
   for (int i = 0; i < Rank; ++i) {
     pL_array_.velocity.row(i) =
-        pM_array_.velocity.row(i) - 0.5 * dpdx_array_.velocity.row(i);
+        pM_array_.velocity.row(i) +
+        0.5 * (dt_over_dx * dpdt_array_.velocity.row(i) -
+               dpdx_array_.velocity.row(i));
   }
-  pL_array_.temperature = pM_array_.temperature - 0.5 * dpdx_array_.temperature;
+  pL_array_.temperature =
+      pM_array_.temperature +
+      0.5 * (dt_over_dx * dpdt_array_.temperature - dpdx_array_.temperature);
   for (int i = 0; i < nspecies; ++i) {
-    pL_array_.mass_fractions.row(i) = pM_array_.mass_fractions.row(i) -
-                                      0.5 * dpdx_array_.mass_fractions.row(i);
+    pL_array_.mass_fractions.row(i) =
+        pM_array_.mass_fractions.row(i) +
+        0.5 * (dt_over_dx * dpdt_array_.mass_fractions.row(i) -
+               dpdx_array_.mass_fractions.row(i));
   }
-  CompleteFromPrim(GetEquation(), stencil_array_[1], pL_array_);
-  PrimDerivatives(GetEquation(), dpdt_array_, stencil_array_[1], dpdx_array_,
-                  dir);
-  pL_array_.pressure += lambda * dpdt_array_.pressure;
-  for (int i = 0; i < Rank; ++i) {
-    pL_array_.velocity.row(i) += lambda * dpdt_array_.velocity.row(i);
-  }
-  pL_array_.temperature += lambda * dpdt_array_.temperature;
-  for (int i = 0; i < nspecies; ++i) {
-    pL_array_.mass_fractions.row(i) +=
-        lambda * dpdt_array_.mass_fractions.row(i);
-  }
-
   CompleteFromPrim(GetEquation(), stencil_array_[1], pL_array_);
   hll_.ComputeNumericFlux(flux, face_fractions, stencil_array_,
                           volume_fractions.template subspan<1, 2>(), dt, dx,
@@ -726,13 +746,13 @@ void MusclHancockPrimitive<Rank>::ComputeNumericFlux(
 template <int Rank>
 double MusclHancockPrimitive<Rank>::ComputeStableDt(
     span<const Complete, 4> states, double dx, Direction dir) noexcept {
-  return hll_.ComputeStableDt(states.template subspan<1, 2>(), dx, dir);
+  return 0.5 * hll_.ComputeStableDt(states.template subspan<1, 2>(), dx, dir);
 }
 
 template <int Rank>
 Array1d MusclHancockPrimitive<Rank>::ComputeStableDt(
     span<const CompleteArray, 4> states, double dx, Direction dir) noexcept {
-  return hll_.ComputeStableDt(states.template subspan<1, 2>(), dx, dir);
+  return 0.5 * hll_.ComputeStableDt(states.template subspan<1, 2>(), dx, dir);
 }
 
 template class MusclHancockPrimitive<1>;

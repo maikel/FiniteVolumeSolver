@@ -37,8 +37,7 @@ template <typename Context, typename... Args>
 using PostAdvanceHierarchy = decltype(
     std::declval<Context>().PostAdvanceHierarchy(std::declval<Args>()...));
 
-template <typename LevelIntegrator>
-struct HyperbolicSplitSystemSolver {
+template <typename LevelIntegrator> struct HyperbolicSplitSystemSolver {
   using Equation =
       std::decay_t<decltype(std::declval<LevelIntegrator&>().GetEquation())>;
 
@@ -110,20 +109,16 @@ struct HyperbolicSplitSystemSolver {
     return dirs;
   }
 
-  auto& GetContext() noexcept {
-    return integrator.GetContext();
-  }
-  const auto& GetContext() const noexcept {
-    return integrator.GetContext();
-  }
+  auto& GetContext() noexcept { return integrator.GetContext(); }
+  const auto& GetContext() const noexcept { return integrator.GetContext(); }
 
   const std::shared_ptr<GriddingAlgorithm>& GetGriddingAlgorithm() const {
     return integrator.GetContext().GetGriddingAlgorithm();
   }
-//
-//  const auto& GetPatchHierarchy() const {
-//    return GetGriddingAlgorithm()->GetPatchHierarchy();
-//  }
+  //
+  //  const auto& GetPatchHierarchy() const {
+  //    return GetGriddingAlgorithm()->GetPatchHierarchy();
+  //  }
 
   Duration GetTimePoint() const {
     return integrator.GetContext().GetTimePoint(0, Direction::X);

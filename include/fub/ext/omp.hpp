@@ -32,8 +32,8 @@ extern "C" {
 }
 #endif
 
-#include <vector>
 #include <algorithm>
+#include <vector>
 
 namespace fub {
 

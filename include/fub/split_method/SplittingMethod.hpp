@@ -21,8 +21,8 @@
 #ifndef FUB_SPLITTING_METHOD_HPP
 #define FUB_SPLITTING_METHOD_HPP
 
-#include "fub/Duration.hpp"
 #include "fub/Direction.hpp"
+#include "fub/Duration.hpp"
 #include "fub/TimeStepError.hpp"
 #include "fub/core/function_ref.hpp"
 
@@ -64,7 +64,8 @@ struct SplittingMethod {
 };
 
 template <int Rank>
-constexpr std::array<Direction, static_cast<std::size_t>(Rank)> MakeSplitDirections() noexcept {
+constexpr std::array<Direction, static_cast<std::size_t>(Rank)>
+MakeSplitDirections() noexcept {
   std::array<Direction, static_cast<std::size_t>(Rank)> directions{};
   for (int i = 0; i < Rank; ++i) {
     directions[static_cast<std::size_t>(i)] = static_cast<Direction>(i);

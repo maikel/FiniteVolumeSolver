@@ -25,22 +25,28 @@
 #include "fub/TimeStepError.hpp"
 #include "fub/core/assert.hpp"
 
-#include <boost/optional.hpp>
 #include <boost/outcome.hpp>
 
 #include <fmt/format.h>
+
+#include <optional>
+#include <vector>
 
 namespace fub {
 
 struct RunOptions {
   std::chrono::duration<double> final_time;
   std::ptrdiff_t max_cycles{-1};
-  std::chrono::duration<double> output_interval{0.1};
-  int output_frequency{0};
+  std::vector<std::chrono::duration<double>> output_interval{final_time};
+  std::vector<int> output_frequency{0};
   std::chrono::duration<double> smallest_time_step_size{1e-12};
   int regrid_frequency{2};
   double cfl{1.0};
 };
+
+  std::optional<int> AnyOutputCondition(std::ptrdiff_t cycle, Duration time_point, const RunOptions& options);
+
+Duration NextOutputTime(Duration time_point, const RunOptions& options);
 
 std::string
 FormatTimeStepLine(std::ptrdiff_t cycle,
@@ -56,19 +62,20 @@ Solver RunSimulation(Solver& solver, RunOptions options,
                      Output output, Print print) {
   fub::Duration time_point = solver.GetTimePoint();
   const fub::Duration eps = options.smallest_time_step_size;
-  fub::Duration next_output_time = options.output_interval;
   std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
   std::chrono::steady_clock::duration wall_time = wall_time_reference - now;
-  using GriddingAlgorithm = std::decay_t<decltype(*std::declval<Solver&>().GetGriddingAlgorithm())>;
+  using GriddingAlgorithm =
+      std::decay_t<decltype(*std::declval<Solver&>().GetGriddingAlgorithm())>;
   std::shared_ptr backup =
       std::make_shared<GriddingAlgorithm>(*solver.GetGriddingAlgorithm());
-  boost::optional<Duration> failure_dt{};
+  std::optional<Duration> failure_dt{};
+  std::optional<int> output_condition{};
   while (time_point + eps < options.final_time &&
          (options.max_cycles < 0 || solver.GetCycles() < options.max_cycles)) {
     // We have a nested loop to exactly reach output time points.
     do {
+      const fub::Duration next_output_time = NextOutputTime(time_point, options);
       solver.PreAdvanceHierarchy();
-
       // Compute the next time step size. If an estimate is available from a
       // prior failure we use that one.
       const fub::Duration stable_dt =
@@ -109,12 +116,10 @@ Solver RunSimulation(Solver& solver, RunOptions options,
         backup =
             std::make_shared<GriddingAlgorithm>(*solver.GetGriddingAlgorithm());
       }
-    } while (time_point + eps < next_output_time &&
-             (options.output_frequency <= 0 || failure_dt ||
-              (solver.GetCycles() % options.output_frequency) != 0));
+      output_condition = AnyOutputCondition(solver.GetCycles(), solver.GetTimePoint(), options);
+    } while (!output_condition);
     output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
-           solver.GetTimePoint());
-    next_output_time += options.output_interval;
+           solver.GetTimePoint(), *output_condition);
   }
 
   return solver;

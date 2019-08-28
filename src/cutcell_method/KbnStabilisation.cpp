@@ -64,9 +64,78 @@ void ComputeStableFluxes_Row(const Fluxes<double*, const double*>& fluxes,
     const double betaUS = geom.betaUS[face];
     fluxes.shielded_left[face] = betaL ? fsL : 0.0;
     fluxes.shielded_right[face] = betaR ? fsR : 0.0;
-    fluxes.stable[face] = betaUS * f + betaL * fsL + betaR * fsR;
+    fluxes.stable[face] = betaUS * f + betaL * fluxes.shielded_left[face] +
+                          betaR * fluxes.shielded_right[face];
+    FUB_ASSERT(!std::isnan(fluxes.shielded_left[face]));
+    FUB_ASSERT(!std::isnan(fluxes.shielded_right[face]));
+    FUB_ASSERT(!std::isnan(fluxes.stable[face]));
   }
 }
+
+template <int Rank>
+void ComputeStableFluxComponents_View(
+    const PatchDataView<double, Rank, layout_stride>& stabilised_fluxes,
+    const PatchDataView<double, Rank, layout_stride>& shielded_left_fluxes,
+    const PatchDataView<double, Rank, layout_stride>& shielded_right_fluxes,
+    const PatchDataView<const double, Rank, layout_stride>& regular_fluxes,
+    const PatchDataView<const double, Rank, layout_stride>& boundary_fluxes,
+    const CutCellData<Rank>& geom, Duration dt, double dx, Direction dir) {
+  IndexBox<Rank> faces = regular_fluxes.Box();
+  IndexBox<Rank> cells_to_right = faces;
+  IndexBox<Rank> cells_to_left = Grow(cells_to_right, dir, {1, -1});
+  const int d = static_cast<int>(dir);
+  PatchDataView<const double, Rank, layout_stride> boundaryL =
+      boundary_fluxes.Subview(cells_to_left);
+  PatchDataView<const double, Rank, layout_stride> boundaryR =
+      boundary_fluxes.Subview(cells_to_right);
+  PatchDataView<const double, Rank, layout_stride> betaUs =
+      geom.unshielded_fractions_rel[d].Subview(faces);
+  PatchDataView<const double, Rank, layout_stride> betaL =
+      geom.shielded_left_fractions_rel[d].Subview(faces);
+  PatchDataView<const double, Rank, layout_stride> betaR =
+      geom.shielded_right_fractions_rel[d].Subview(faces);
+  PatchDataView<const double, Rank, layout_stride> centerL =
+      SliceLast(geom.boundary_centeroids.Subview(
+          Embed<Rank + 1>(cells_to_left, {d, d + 1})));
+  PatchDataView<const double, Rank, layout_stride> centerR =
+      SliceLast(geom.boundary_centeroids.Subview(
+          Embed<Rank + 1>(cells_to_right, {d, d + 1})));
+  ForEachRow(std::tuple{stabilised_fluxes, shielded_left_fluxes,
+                        shielded_right_fluxes, regular_fluxes, boundaryL,
+                        boundaryR, betaUs, betaL, betaR, centerL, centerR},
+             [dt, dx](span<double> fs, span<double> fsL, span<double> fsR,
+                      span<const double> f, span<const double> fBL,
+                      span<const double> fBR, span<const double> betaUs,
+                      span<const double> betaL, span<const double> betaR,
+                      span<const double> centerL, span<const double> centerR) {
+               Fluxes<double*, const double*> fluxes;
+               fluxes.stable = fs.data();
+               fluxes.shielded_left = fsL.data();
+               fluxes.shielded_right = fsR.data();
+               fluxes.regular = f.data();
+               fluxes.boundaryL = fBL.data();
+               fluxes.boundaryR = fBR.data();
+               CutCellGeometry<const double*> geom;
+               geom.betaL = betaL.data();
+               geom.betaR = betaR.data();
+               geom.betaUS = betaUs.data();
+               geom.centerR = centerR.data();
+               geom.centerL = centerL.data();
+               ComputeStableFluxes_Row(fluxes, geom, f.size(), dt, dx);
+             });
+}
+} // namespace
+
+void ComputeStableFluxComponents(
+    const PatchDataView<double, 3, layout_stride>& stabilised_fluxes,
+    const PatchDataView<double, 3, layout_stride>& shielded_left_fluxes,
+    const PatchDataView<double, 3, layout_stride>& shielded_right_fluxes,
+    const PatchDataView<const double, 3, layout_stride>& regular_fluxes,
+    const PatchDataView<const double, 3, layout_stride>& boundary_fluxes,
+    const CutCellData<3>& geom, Duration dt, double dx, Direction dir) {
+  return ComputeStableFluxComponents_View<3>(
+      stabilised_fluxes, shielded_left_fluxes, shielded_right_fluxes,
+      regular_fluxes, boundary_fluxes, geom, dt, dx, dir);
 }
 
 void ComputeStableFluxComponents(
@@ -76,97 +145,9 @@ void ComputeStableFluxComponents(
     const PatchDataView<const double, 2, layout_stride>& regular_fluxes,
     const PatchDataView<const double, 2, layout_stride>& boundary_fluxes,
     const CutCellData<2>& geom, Duration dt, double dx, Direction dir) {
-  IndexBox<2> faces = regular_fluxes.Box();
-  IndexBox<2> cells_to_right = faces;
-  IndexBox<2> cells_to_left = Grow(cells_to_right, dir, {1, -1});
-  PatchDataView<const double, 2, layout_stride> boundaryL =
-      boundary_fluxes.Subview(cells_to_left);
-  PatchDataView<const double, 2, layout_stride> boundaryR =
-      boundary_fluxes.Subview(cells_to_right);
-  PatchDataView<const double, 2, layout_stride> betaUs =
-      geom.unshielded_fractions_rel.Subview(faces);
-  PatchDataView<const double, 2, layout_stride> betaL =
-      geom.shielded_left_fractions_rel.Subview(faces);
-  PatchDataView<const double, 2, layout_stride> betaR =
-      geom.shielded_right_fractions_rel.Subview(faces);
-  const int d = static_cast<int>(dir);
-  PatchDataView<const double, 2, layout_stride> centerL = SliceLast(
-      geom.boundary_centeroids.Subview(Embed<3>(cells_to_left, {d, d + 1})));
-  PatchDataView<const double, 2, layout_stride> centerR = SliceLast(
-      geom.boundary_centeroids.Subview(Embed<3>(cells_to_right, {d, d + 1})));
-  ForEachRow(std::tuple{stabilised_fluxes, shielded_left_fluxes,
-                        shielded_right_fluxes, regular_fluxes, boundaryL,
-                        boundaryR, betaUs, betaL, betaR, centerL, centerR},
-             [dt, dx](span<double> fs, span<double> fsL, span<double> fsR,
-                      span<const double> f, span<const double> fBL,
-                      span<const double> fBR, span<const double> betaUs,
-                      span<const double> betaL, span<const double> betaR,
-                      span<const double> centerL, span<const double> centerR) {
-               Fluxes<double*, const double*> fluxes;
-               fluxes.stable = fs.data();
-               fluxes.shielded_left = fsL.data();
-               fluxes.shielded_right = fsR.data();
-               fluxes.regular = f.data();
-               fluxes.boundaryL = fBL.data();
-               fluxes.boundaryR = fBR.data();
-               CutCellGeometry<const double*> geom;
-               geom.betaL = betaL.data();
-               geom.betaR = betaR.data();
-               geom.betaUS = betaUs.data();
-               geom.centerR = centerR.data();
-               geom.centerL = centerL.data();
-               ComputeStableFluxes_Row(fluxes, geom, f.size(), dt, dx);
-             });
-}
-
-void ComputeStableFluxComponents(
-    const PatchDataView<double, 3, layout_stride>& stabilised_fluxes,
-    const PatchDataView<double, 3, layout_stride>& shielded_left_fluxes,
-    const PatchDataView<double, 3, layout_stride>& shielded_right_fluxes,
-    const PatchDataView<const double, 3, layout_stride>& regular_fluxes,
-    const PatchDataView<const double, 3, layout_stride>& boundary_fluxes,
-    const CutCellData<3>& geom, Duration dt, double dx, Direction dir) {
-  IndexBox<3> faces = regular_fluxes.Box();
-  IndexBox<3> cells_to_right = faces;
-  IndexBox<3> cells_to_left = Grow(cells_to_right, dir, {1, -1});
-  PatchDataView<const double, 3, layout_stride> boundaryL =
-      boundary_fluxes.Subview(cells_to_left);
-  PatchDataView<const double, 3, layout_stride> boundaryR =
-      boundary_fluxes.Subview(cells_to_right);
-  PatchDataView<const double, 3, layout_stride> betaUs =
-      geom.unshielded_fractions_rel.Subview(faces);
-  PatchDataView<const double, 3, layout_stride> betaL =
-      geom.shielded_left_fractions_rel.Subview(faces);
-  PatchDataView<const double, 3, layout_stride> betaR =
-      geom.shielded_right_fractions_rel.Subview(faces);
-  const int d = static_cast<int>(dir);
-  PatchDataView<const double, 3, layout_stride> centerL = SliceLast(
-      geom.boundary_centeroids.Subview(Embed<4>(cells_to_left, {d, d + 1})));
-  PatchDataView<const double, 3, layout_stride> centerR = SliceLast(
-      geom.boundary_centeroids.Subview(Embed<4>(cells_to_right, {d, d + 1})));
-  ForEachRow(std::tuple{stabilised_fluxes, shielded_left_fluxes,
-                        shielded_right_fluxes, regular_fluxes, boundaryL,
-                        boundaryR, betaUs, betaL, betaR, centerL, centerR},
-             [dt, dx](span<double> fs, span<double> fsL, span<double> fsR,
-                      span<const double> f, span<const double> fBL,
-                      span<const double> fBR, span<const double> betaUs,
-                      span<const double> betaL, span<const double> betaR,
-                      span<const double> centerL, span<const double> centerR) {
-               Fluxes<double*, const double*> fluxes;
-               fluxes.stable = fs.data();
-               fluxes.shielded_left = fsL.data();
-               fluxes.shielded_right = fsR.data();
-               fluxes.regular = f.data();
-               fluxes.boundaryL = fBL.data();
-               fluxes.boundaryR = fBR.data();
-               CutCellGeometry<const double*> geom;
-               geom.betaL = betaL.data();
-               geom.betaR = betaR.data();
-               geom.betaUS = betaUs.data();
-               geom.centerR = centerR.data();
-               geom.centerL = centerL.data();
-               ComputeStableFluxes_Row(fluxes, geom, f.size(), dt, dx);
-             });
+  return ComputeStableFluxComponents_View<2>(
+      stabilised_fluxes, shielded_left_fluxes, shielded_right_fluxes,
+      regular_fluxes, boundary_fluxes, geom, dt, dx, dir);
 }
 
 } // namespace fub

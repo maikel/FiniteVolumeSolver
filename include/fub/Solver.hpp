@@ -54,6 +54,6 @@
 
 #include "fub/tagging/GradientDetector.hpp"
 
+#include "fub/geometry/ExpandTube.hpp"
 #include "fub/geometry/Geometry.hpp"
 #include "fub/geometry/Halfspace.hpp"
-#include "fub/geometry/ExpandTube.hpp"

@@ -24,8 +24,8 @@
 
 #include "fub/core/function_ref.hpp"
 #include "fub/core/span.hpp"
-#include "fub/ode_solver/OdeSolver.hpp"
 #include "fub/ext/Eigen.hpp"
+#include "fub/ode_solver/OdeSolver.hpp"
 
 #include <limits>
 #include <memory>
@@ -62,7 +62,7 @@ struct FlameMasterMechanism {
   virtual void ComputeThermoData(span<double> h, span<double> cp, double t,
                                  span<double> s) const = 0;
 
-    virtual void ComputeThermoData(ArrayXd& h, ArrayXd& cp, Array1d t) const = 0;
+  virtual void ComputeThermoData(ArrayXd& h, ArrayXd& cp, Array1d t) const = 0;
 
   virtual int getNSpecies() const = 0;
 
@@ -128,7 +128,7 @@ struct FlameMasterState {
   std::array<double, 2> setPVector;
 
   /// Temperature at which the thermodynamic state was last evaluated
-  double thermoTemp;
+  double thermoTemp{};
 };
 
 struct FlameMasterArrayState {
@@ -138,11 +138,10 @@ struct FlameMasterArrayState {
 
   /// We make this a pointer because we want to make sure it is stored at the
   /// beginning of moles (for CVode)
-  Array1d temperature;
+  Array1d temperature{Array1d::Zero()};
   /// Temperature at which the thermodynamic state was last evaluated
-  Array1d thermoTemp;
-
-  Array1d density;
+  Array1d thermoTemp{Array1d::Zero()};
+  Array1d density{Array1d::Zero()};
 
   /// Computational space for the reaction mechanism
   ArrayXd production_rates;
@@ -226,7 +225,8 @@ public:
   }
 
   Array1d GetPressureArray() const {
-    return GetDensityArray() * GetUniversalGasConstant() / GetMeanMolarMassArray() * GetTemperatureArray();
+    return GetDensityArray() * GetUniversalGasConstant() /
+           GetMeanMolarMassArray() * GetTemperatureArray();
   }
 
   /**
@@ -244,7 +244,7 @@ public:
 
   void SetPressureArray(Array1d pressure) {
     SetDensityArray(pressure * GetMeanMolarMassArray() / GetTemperatureArray() /
-               GetUniversalGasConstant());
+                    GetUniversalGasConstant());
   }
 
   /**
@@ -275,17 +275,19 @@ public:
    * The units are \f$kg/m^3\f$
    */
   void SetDensity(double density) { state_.density = density; }
-  void SetDensityArray(Array1d density) {
-    array_state_.density = density;
-  }
+  void SetDensityArray(Array1d density) { array_state_.density = density; }
 
   /**
    * Returns the temperature of the current mixture
    *
    * In Kelvin
    */
-  [[nodiscard]] double GetTemperature() const noexcept { return *(state_.temperature); }
-  [[nodiscard]] Array1d GetTemperatureArray() const noexcept { return array_state_.temperature; }
+  [[nodiscard]] double GetTemperature() const noexcept {
+    return *(state_.temperature);
+  }
+  [[nodiscard]] Array1d GetTemperatureArray() const noexcept {
+    return array_state_.temperature;
+  }
 
   /**
    * Set the temperature of the current mixture
@@ -385,7 +387,9 @@ public:
    */
   span<const double> GetMassFractions() const { return state_.massFractions; }
   span<const double> GetMoleFractions();
-  const ArrayXd& GetMassFractionsArray() const { return array_state_.massFractions; }
+  const ArrayXd& GetMassFractionsArray() const {
+    return array_state_.massFractions;
+  }
   const ArrayXd& GetMoleFractionsArray();
 
   /**
@@ -448,7 +452,8 @@ public:
    */
   void SetInternalEnergy(double energy, double dTtol = 1E-6);
   void SetInternalEnergyArray(Array1d energy, double dTtol = 1E-6);
-  void SetInternalEnergyArray(Array1d energy, MaskArray mask, double dTtol = 1E-6);
+  void SetInternalEnergyArray(Array1d energy, MaskArray mask,
+                              double dTtol = 1E-6);
   ///@}
 
   /// \brief get the current reaction rates d/dt m, where m denotes the actual

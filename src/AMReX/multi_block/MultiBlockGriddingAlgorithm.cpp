@@ -30,9 +30,14 @@ MultiBlockGriddingAlgorithm::MultiBlockGriddingAlgorithm(
     : reactor_{std::move(reactor)}, tubes_{std::move(tubes)}, plena_{std::move(
                                                                   plena)},
       connectivity_(std::move(connectivity)) {
-  boundaries_.reserve(connectivity_.size());
-  for (const BlockConnection& conn : connectivity_) {
-    boundaries_.emplace_back(*this, conn, 3, reactor_);
+  const int nlevel = plena_[0]->GetPatchHierarchy().GetMaxNumberOfLevels();
+  boundaries_.resize(nlevel);
+  int level = 0;
+  for (auto& boundaries : boundaries_) {
+    for (const BlockConnection& conn : connectivity_) {
+      boundaries.emplace_back(*this, conn, 3, reactor_, level);
+    }
+    level += 1;
   }
 }
 

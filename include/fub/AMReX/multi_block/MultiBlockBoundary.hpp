@@ -66,7 +66,7 @@ public:
   /// required to fulfill the specified ghost cell width requirements.
   MultiBlockBoundary(const MultiBlockGriddingAlgorithm& gridding,
                      const BlockConnection& connection, int gcw,
-                     const FlameMasterReactor& reactor);
+                     const FlameMasterReactor& reactor, int level);
 
   MultiBlockBoundary(const MultiBlockBoundary& other);
   MultiBlockBoundary& operator=(const MultiBlockBoundary& other);
@@ -114,6 +114,7 @@ private:
 
   Direction dir_{};
   int side_{};
+  int level_{};
 };
 
 //

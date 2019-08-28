@@ -48,9 +48,14 @@ struct TemperatureRamp {
   void InitializeData(::amrex::MultiFab& data, const ::amrex::Geometry& geom) {
     fub::FlameMasterReactor& reactor = equation_.GetReactor();
     reactor.SetMoleFractions("N2:79,O2:21,H2:42");
-    const double high_temp = 1350.0;
+    const double high_temp = 1450.0;
     const double low_temp = 300.0;
     Complete complete(equation_);
+    Complete right(equation_);
+    reactor.SetMoleFractions("N2:79,O2:21,H2:42");
+    reactor.SetTemperature(low_temp);
+    reactor.SetPressure(101325.0);
+    equation_.CompleteFromReactor(right);
 
     fub::amrex::ForEachFab(data, [&](const ::amrex::MFIter& mfi) {
       fub::View<Complete> states =
@@ -58,23 +63,24 @@ struct TemperatureRamp {
       fub::ForEachIndex(fub::Box<0>(states), [&](std::ptrdiff_t i) {
         double x[AMREX_SPACEDIM] = {};
         geom.CellCenter(::amrex::IntVect{int(i)}, x);
-        const double x0 = x[0] + 1.5;
-        if (x0 < 0.1) {
-          const double d = x0 / 0.1;
+        const double x0 = x[0] + 1.0;
+        if (0.0 < x0 && x0 < 0.05) {
+          const double d = std::clamp(x0 / 0.05, 0.0, 1.0);
           reactor.SetMoleFractions("N2:79,O2:21,H2:42");
           reactor.SetTemperature(d * low_temp + (1.0 - d) * high_temp);
           reactor.SetPressure(101325.0);
-        } else if (x0 < 1.4) {
+          equation_.CompleteFromReactor(complete);
+          fub::Store(states, complete, {i});
+        } else if (-0.05 < x0 && x0 < 0.0) {
+          const double d = std::clamp(-x0 / 0.05, 0.0, 1.0);
           reactor.SetMoleFractions("N2:79,O2:21,H2:42");
-          reactor.SetTemperature(low_temp);
+          reactor.SetTemperature(d * low_temp + (1.0 - d) * high_temp);
           reactor.SetPressure(101325.0);
+          equation_.CompleteFromReactor(complete);
+          fub::Store(states, complete, {i});
         } else {
-          reactor.SetMoleFractions("N2:79,O2:21");
-          reactor.SetTemperature(low_temp);
-          reactor.SetPressure(101325.0);
+          fub::Store(states, right, {i});
         }
-        equation_.CompleteFromReactor(complete);
-        fub::Store(states, complete, {i});
       });
     });
   }
@@ -119,18 +125,23 @@ auto MakeTubeSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
   BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
                                   TransmissiveBoundary{fub::Direction::X, 1}}};
 
+  //  PatchHierarchy hierarchy =
+  //  ReadCheckpointFile("/Volumes/Maikel_Intenso/FiniteVolumeSolver_Build/MultiBlock_2d/Checkpoint/Tube_00897",
+  //  desc, geometry, hier_opts);
+  PatchHierarchy hierarchy(desc, geometry, hier_opts);
   std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
-      PatchHierarchy(desc, geometry, hier_opts), initial_data,
-      TagAllOf(gradient, constant_box), boundary_condition);
+      std::move(hierarchy), initial_data,
+      TagAllOf(gradient, constant_box, TagBuffer(4)), boundary_condition);
   gridding->InitializeHierarchy(0.0);
 
-  fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>> signals{};
-  fub::HllMethod hll_method(equation, signals);
-  // fub::MusclHancockMethod flux_method{equation, hll_method};
+//  fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>> signals{};
+//  fub::HllMethod hll_method(equation, signals);
+  //   fub::MusclHancockMethod flux_method{equation, hll_method};
+    fub::ideal_gas::MusclHancockPrimMethod<1> flux_method(equation);
 
-  HyperbolicMethod method{FluxMethod(fub::execution::simd, hll_method),
-                          ForwardIntegrator(fub::execution::seq),
-                          Reconstruction(fub::execution::simd, equation)};
+  HyperbolicMethod method{FluxMethod(fub::execution::openmp_simd, flux_method),
+                          ForwardIntegrator(fub::execution::openmp),
+                          Reconstruction(fub::execution::openmp_simd, equation)};
 
   return fub::amrex::IntegratorContext(gridding, method);
 }
@@ -166,8 +177,8 @@ auto Rectangle(const std::array<double, 2>& lower,
 
 auto MakePlenumSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
   const std::array<int, Plenum_Rank> n_cells{num_cells, num_cells};
-  const std::array<double, Plenum_Rank> xlower{-0.03, -0.25};
-  const std::array<double, Plenum_Rank> xupper{+0.47, +0.25};
+  const std::array<double, Plenum_Rank> xlower{-0.03, -0.50};
+  const std::array<double, Plenum_Rank> xupper{+0.97, +0.50};
   const std::array<int, Plenum_Rank> periodicity{0, 0};
 
   amrex::RealBox xbox(xlower, xupper);
@@ -216,8 +227,13 @@ auto MakePlenumSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
                                   TransmissiveBoundary{fub::Direction::Y, 0},
                                   TransmissiveBoundary{fub::Direction::Y, 1}}};
 
+  auto desc = fub::amrex::MakeDataDescription(equation);
+  //  PatchHierarchy hierarchy =
+  //  ReadCheckpointFile("/Volumes/Maikel_Intenso/FiniteVolumeSolver_Build/MultiBlock_2d/Checkpoint/Plenum_00897",
+  //  desc, geometry, options);
+  PatchHierarchy hierarchy(desc, geometry, options);
   std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
-      PatchHierarchy(equation, geometry, options), initial_data,
+      std::move(hierarchy), initial_data,
       TagAllOf(TagCutCells(), gradients, constant_box, TagBuffer(4)),
       boundary_condition);
   gridding->InitializeHierarchy(0.0);
@@ -227,12 +243,12 @@ auto MakePlenumSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
   fub::EinfeldtSignalVelocities<fub::IdealGasMix<Plenum_Rank>> signals{};
   fub::HllMethod hll_method{equation, signals};
   fub::ideal_gas::MusclHancockPrimMethod<Plenum_Rank> flux_method(equation);
-//  fub::MusclHancockMethod flux_method{equation, hll_method};
+  //  fub::MusclHancockMethod flux_method{equation, hll_method};
   fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
 
-  HyperbolicMethod method{FluxMethod{fub::execution::simd, cutcell_method},
+  HyperbolicMethod method{FluxMethod{fub::execution::openmp_simd, cutcell_method},
                           fub::amrex::cutcell::TimeIntegrator{},
-                          Reconstruction{fub::execution::simd, equation}};
+                          Reconstruction{fub::execution::openmp_simd, equation}};
 
   return fub::amrex::cutcell::IntegratorContext(gridding, method);
 }
@@ -244,10 +260,13 @@ int main(int argc, char** argv) {
   fub::amrex::ScopeGuard _(argc, argv);
   fub::Burke2012 mechanism{};
 
-  const int n_level = 1;
+  const int n_level = 2;
 
-  auto plenum = MakePlenumSolver(256, n_level, mechanism);
-  auto tube = MakeTubeSolver(400, n_level, mechanism);
+  const int num_cells = 128;
+
+  auto plenum = MakePlenumSolver(num_cells, n_level, mechanism);
+  auto tube = MakeTubeSolver(3 * num_cells / 2 - ((3 * num_cells / 2) % 8),
+                             n_level, mechanism);
 
   fub::amrex::BlockConnection connection;
   connection.direction = fub::Direction::X;
@@ -278,6 +297,13 @@ int main(int argc, char** argv) {
   auto output =
       [&](std::shared_ptr<fub::amrex::MultiBlockGriddingAlgorithm> gridding,
           auto cycle, auto) {
+        ::amrex::Print() << "Checkpointing.\n";
+        fub::amrex::WriteCheckpointFile(
+            fmt::format("{}/Checkpoint/Tube_{:05}", base_name, cycle),
+            gridding->GetTubes()[0]->GetPatchHierarchy());
+        fub::amrex::cutcell::WriteCheckpointFile(
+            fmt::format("{}/Checkpoint/Plenum_{:05}", base_name, cycle),
+            gridding->GetPlena()[0]->GetPatchHierarchy());
         std::string name = fmt::format("{}/Tube/plt{:05}", base_name, cycle);
         ::amrex::Print() << "Start output to '" << name << "'.\n";
         fub::amrex::WritePlotFile(
@@ -295,8 +321,8 @@ int main(int argc, char** argv) {
   fub::RunOptions run_options{};
   run_options.final_time = 0.004s;
   run_options.output_interval = fub::Duration(0.001 / 30.0);
-//  run_options.output_frequency = 1;
-  run_options.cfl = 0.8;
+  //  run_options.output_frequency = 1;
+  run_options.cfl = 0.4;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      fub::amrex::print);
 }

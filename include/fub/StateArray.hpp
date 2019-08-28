@@ -121,14 +121,14 @@ void Load(ConservativeArray<Eq, N>& state,
 
 template <typename Eq, int N, typename Layout, int Rank>
 void Load(
-          ConservativeArray<Eq, N>& state,
-          const BasicView<const Conservative<Eq>, Layout, Rank>& view,
-          nodeduce_t<const std::array<std::ptrdiff_t, std::size_t(Rank)>&> index) {
+    ConservativeArray<Eq, N>& state,
+    const BasicView<const Conservative<Eq>, Layout, Rank>& view,
+    nodeduce_t<const std::array<std::ptrdiff_t, std::size_t(Rank)>&> index) {
   ForEachComponent(
-                   [&](auto&& component, auto data) {
-                     component = Load(int_constant<N>(), data, index);
-                   },
-                   state, view);
+      [&](auto&& component, auto data) {
+        component = Load(int_constant<N>(), data, index);
+      },
+      state, view);
 }
 
 template <typename Eq>

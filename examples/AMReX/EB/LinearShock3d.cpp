@@ -116,7 +116,7 @@ int main(int argc, char** argv) {
   //  fub::EinfeldtSignalVelocities<fub::PerfectGas<3>> signals{};
   fub::EinfeldtSignalVelocities<fub::IdealGasMix<3>> signals{};
   fub::HllMethod hll_method{equation, signals};
-//  fub::MusclHancockMethod flux_method(equation, hll_method);
+  //  fub::MusclHancockMethod flux_method(equation, hll_method);
   fub::ideal_gas::MusclHancockPrimMethod<3> flux_method(equation);
   fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
 
@@ -124,8 +124,8 @@ int main(int argc, char** argv) {
                           TimeIntegrator{},
                           Reconstruction{fub::execution::simd, equation}};
 
-  fub::DimensionalSplitLevelIntegrator solver(fub::int_c<3>,
-      IntegratorContext(gridding, method));
+  fub::DimensionalSplitLevelIntegrator solver(
+      fub::int_c<3>, IntegratorContext(gridding, method));
 
   std::string base_name = "LinearShock3d/";
 

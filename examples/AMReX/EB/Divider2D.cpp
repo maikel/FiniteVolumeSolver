@@ -199,8 +199,8 @@ int main(int, char** argv) {
                           TimeIntegrator{},
                           Reconstruction{fub::execution::seq, equation}};
 
-  fub::DimensionalSplitLevelIntegrator solver(fub::int_c<2>,
-      IntegratorContext(gridding, method));
+  fub::DimensionalSplitLevelIntegrator solver(
+      fub::int_c<2>, IntegratorContext(gridding, method));
 
   std::string base_name = "Divider_58/";
 
