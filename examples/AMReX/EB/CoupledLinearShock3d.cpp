@@ -152,8 +152,7 @@ GatherStates(const PatchHierarchy& hierarchy,
   std::vector<double> buffer(xs.extent(1) * ncomp * nlevel);
   mdspan<double, 3> states(buffer.data(), xs.extent(1), ncomp, nlevel);
   for (int level = 0; level < nlevel; ++level) {
-    const ::amrex::MultiFab& level_data =
-    hierarchy.GetPatchLevel(level).data;
+    const ::amrex::MultiFab& level_data = hierarchy.GetPatchLevel(level).data;
     const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(level);
     ForEachFab(level_data, [&](const ::amrex::MFIter& mfi) {
       ForEachIndex(mfi.tilebox(), [&](auto... is) {
@@ -186,7 +185,9 @@ GatherStates(const PatchHierarchy& hierarchy,
       }
     }
   }
-  std::vector<double> result(&states(0, 0, finest_level), &states(0, 0, finest_level) + xs.extent(1) * ncomp);
+  std::vector<double> result(&states(0, 0, finest_level),
+                             &states(0, 0, finest_level) +
+                                 xs.extent(1) * ncomp);
   return result;
 }
 
@@ -203,8 +204,7 @@ GatherStates(const PatchHierarchy& hierarchy,
   std::vector<double> buffer(xs.extent(1) * ncomp * nlevel);
   mdspan<double, 3> states(buffer.data(), xs.extent(1), ncomp, nlevel);
   for (int level = 0; level < nlevel; ++level) {
-    const ::amrex::MultiFab& level_data =
-        hierarchy.GetPatchLevel(level).data;
+    const ::amrex::MultiFab& level_data = hierarchy.GetPatchLevel(level).data;
     const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(level);
     ForEachFab(level_data, [&](const ::amrex::MFIter& mfi) {
       ForEachIndex(mfi.tilebox(), [&](auto... is) {
@@ -237,7 +237,9 @@ GatherStates(const PatchHierarchy& hierarchy,
       }
     }
   }
-  std::vector<double> result(&states(0, 0, finest_level), &states(0, 0, finest_level) + xs.extent(1) * ncomp);
+  std::vector<double> result(&states(0, 0, finest_level),
+                             &states(0, 0, finest_level) +
+                                 xs.extent(1) * ncomp);
   return result;
 }
 
@@ -373,8 +375,8 @@ auto MakeTubeSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
 
 auto MakePlenumSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
   const std::array<int, Plenum_Rank> n_cells{num_cells, num_cells, num_cells};
-  const std::array<double, Plenum_Rank> xlower{-0.03, -0.15, -0.15};
-  const std::array<double, Plenum_Rank> xupper{+0.27, +0.15, +0.15};
+  const std::array<double, Plenum_Rank> xlower{-0.03, -0.5, -0.5};
+  const std::array<double, Plenum_Rank> xupper{+0.97, +0.5, +0.5};
   const std::array<int, Plenum_Rank> periodicity{0, 0, 0};
 
   amrex::RealBox xbox(xlower, xupper);
@@ -460,9 +462,9 @@ int main(int /* argc */, char** /* argv */) {
   fub::Burke2012 mechanism{};
 
   const int n_level = 1;
-  const int n_plenum_cells = 32;
+  const int n_plenum_cells = 96;
   const int n_tube_cells = [=] {
-    int cells = 5 * n_plenum_cells;
+    int cells = 3 * n_plenum_cells / 2;
     cells -= cells % 8;
     return cells;
   }();
@@ -554,8 +556,9 @@ int main(int /* argc */, char** /* argv */) {
             std::vector<double> buffer =
                 GatherStates(gridding->GetTubes()[0]->GetPatchHierarchy(),
                              tube_probes, context.GetMpiCommunicator());
-            fub::mdspan<const double, 2> states(buffer.data(), tube_probes.extent(1),
-                       buffer.size() / tube_probes.extent(1));
+            fub::mdspan<const double, 2> states(
+                buffer.data(), tube_probes.extent(1),
+                buffer.size() / tube_probes.extent(1));
             for (int i = tube_probes.extent(1) - 1; i >= 0; --i) {
               const double rho = states(i, 0);
               const double u = states(i, 1) / rho;
@@ -563,9 +566,10 @@ int main(int /* argc */, char** /* argv */) {
               const double p = states(i, 14);
               const double t = timepoint.count();
               const double x = tube_probes(0, i);
-              ::amrex::Print() << fmt::format(
-                  "{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}\n",
-                  x, t, rho, u, T, p);
+              ::amrex::Print()
+                  << fmt::format("{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< "
+                                 "24.15g}{:< 24.15g}{:< 24.15g}\n",
+                                 x, t, rho, u, T, p);
             }
           }
 
@@ -574,21 +578,23 @@ int main(int /* argc */, char** /* argv */) {
                 GatherStates(gridding->GetPlena()[0]->GetPatchHierarchy(),
                              probes, context.GetMpiCommunicator());
             fub::mdspan<const double, 2> states(buffer.data(), probes.extent(1),
-                       buffer.size() / probes.extent(1));
+                                                buffer.size() /
+                                                    probes.extent(1));
             for (int i = 0; i < probes.extent(1); ++i) {
               const double rho = states(i, 0);
               const double u = states(i, 1) / rho;
               const double v = states(i, 2) / rho;
               const double w = states(i, 3) / rho;
               const double a = states(i, 17);
-              const double Ma = std::sqrt(u*u + v*v + w*w) / a;
+              const double Ma = std::sqrt(u * u + v * v + w * w) / a;
               const double T = states(i, 18);
               const double p = states(i, 16);
               const double t = timepoint.count();
               const double x = probes(0, i);
-              ::amrex::Print() << fmt::format(
-                  "{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}\n",
-                  x, t, rho, Ma, a, T, p);
+              ::amrex::Print()
+                  << fmt::format("{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< "
+                                 "24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}\n",
+                                 x, t, rho, Ma, a, T, p);
             }
           }
           ::amrex::Print() << "End Output for Probes.\n";
