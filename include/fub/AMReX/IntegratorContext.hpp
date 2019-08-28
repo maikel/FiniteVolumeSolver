@@ -162,6 +162,9 @@ public:
   /// @{
   /// \name Member functions relevant for the level integrator algorithm.
 
+  /// \brief Updates time point and cycle counter for the patch hierarchy.
+  void PostAdvanceHierarchy();
+
   /// \brief On each first subcycle this will regrid the data if neccessary.
   void PreAdvanceLevel(int level_num, Duration dt, int subcycle);
 

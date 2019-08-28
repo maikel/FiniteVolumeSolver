@@ -116,13 +116,13 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
 
   const double dx = context.GetDx(level, dir);
 
+  boundary_fluxes.setVal(0.0);
   ForEachFab(Tag(), scratch, [&](const ::amrex::MFIter& mfi) {
     const Equation& equation = flux_method_->GetEquation();
     const ::amrex::Box box = mfi.growntilebox();
     const ::amrex::FabType type = context.GetFabType(level, mfi);
     if (type == ::amrex::FabType::singlevalued) {
         CutCellData<AMREX_SPACEDIM> geom = hierarchy.GetCutCellData(level, mfi);
-        boundary_fluxes[mfi].setVal(0.0);
         auto boundary_flux = MakeView<Conservative<Equation>>(
                                                               boundary_fluxes[mfi], equation, box);
         auto states = MakeView<const Complete<Equation>>(scratch[mfi], equation,

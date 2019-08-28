@@ -296,7 +296,7 @@ int main(int argc, char** argv) {
   fub::IdealGasMix<Tube_Rank> tube_equation{mechanism};
   auto output =
       [&](std::shared_ptr<fub::amrex::MultiBlockGriddingAlgorithm> gridding,
-          auto cycle, auto) {
+          auto cycle, auto, int) {
         ::amrex::Print() << "Checkpointing.\n";
         fub::amrex::WriteCheckpointFile(
             fmt::format("{}/Checkpoint/Tube_{:05}", base_name, cycle),
@@ -317,11 +317,11 @@ int main(int argc, char** argv) {
       };
   using namespace std::literals::chrono_literals;
   output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
-         solver.GetTimePoint());
+         solver.GetTimePoint(), 0);
   fub::RunOptions run_options{};
   run_options.final_time = 0.004s;
-  run_options.output_interval = fub::Duration(0.001 / 30.0);
-  //  run_options.output_frequency = 1;
+//  run_options.output_interval = std::vector<fub::Duration>{0.001s / 30.0s};
+  run_options.output_frequency = std::vector<int>{1};
   run_options.cfl = 0.4;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      fub::amrex::print);

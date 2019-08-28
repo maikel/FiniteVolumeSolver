@@ -157,8 +157,8 @@ GatherStates(const PatchHierarchy& hierarchy,
     const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(level);
     ForEachFab(level_data, [&](const ::amrex::MFIter& mfi) {
       ForEachIndex(mfi.tilebox(), [&](auto... is) {
-        double lo[3];
-        double hi[3];
+        double lo[3]{};
+        double hi[3]{};
         const ::amrex::IntVect iv{int(is)...};
         level_geom.LoNode(iv, lo);
         level_geom.HiNode(iv, hi);
@@ -208,8 +208,8 @@ GatherStates(const PatchHierarchy& hierarchy,
     const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(level);
     ForEachFab(level_data, [&](const ::amrex::MFIter& mfi) {
       ForEachIndex(mfi.tilebox(), [&](auto... is) {
-        double lo[3];
-        double hi[3];
+        double lo[3]{};
+        double hi[3]{};
         const ::amrex::IntVect iv{int(is)...};
         level_geom.LoNode(iv, lo);
         level_geom.HiNode(iv, hi);
@@ -373,8 +373,8 @@ auto MakeTubeSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
 
 auto MakePlenumSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
   const std::array<int, Plenum_Rank> n_cells{num_cells, num_cells, num_cells};
-  const std::array<double, Plenum_Rank> xlower{-0.03, -0.5, -0.5};
-  const std::array<double, Plenum_Rank> xupper{+0.97, +0.5, +0.5};
+  const std::array<double, Plenum_Rank> xlower{-0.03, -0.15, -0.15};
+  const std::array<double, Plenum_Rank> xupper{+0.27, +0.15, +0.15};
   const std::array<int, Plenum_Rank> periodicity{0, 0, 0};
 
   amrex::RealBox xbox(xlower, xupper);
@@ -459,10 +459,10 @@ int main(int /* argc */, char** /* argv */) {
   fub::amrex::ScopeGuard _{};
   fub::Burke2012 mechanism{};
 
-  const int n_level = 2;
-  const int n_plenum_cells = 64;
+  const int n_level = 1;
+  const int n_plenum_cells = 32;
   const int n_tube_cells = [=] {
-    int cells = 3 * n_plenum_cells / 2;
+    int cells = 5 * n_plenum_cells;
     cells -= cells % 8;
     return cells;
   }();
@@ -499,8 +499,8 @@ int main(int /* argc */, char** /* argv */) {
 
   std::vector<double> probes_buffer(6 * 3);
   fub::basic_mdspan<double, fub::extents<3, fub::dynamic_extent>> probes(
-      probes_buffer.data(), 5);
-  probes(0, 0) = 0.0 * 0.03;
+      probes_buffer.data(), 6);
+  probes(0, 0) = 1.0E-6 * 0.03;
   probes(0, 1) = 4.0 * 0.03;
   probes(0, 2) = 9.0 * 0.03;
   probes(0, 3) = 14.0 * 0.03;
@@ -537,21 +537,7 @@ int main(int /* argc */, char** /* argv */) {
               gridding->GetPlena()[0]->GetPatchHierarchy());
           ::amrex::Print() << "Finish Checkpointing.\n";
 
-          std::string name = fmt::format("{}/Tube/plt{:05}", base_name,
-          cycle);
-          ::amrex::Print() << "Start output to '" << name << "'.\n";
-          fub::amrex::WritePlotFile(
-              name, gridding->GetTubes()[0]->GetPatchHierarchy(),
-              tube_equation);
-          ::amrex::Print() << "Finished output to '" << name << "'.\n";
-          name = fmt::format("{}/Plenum/plt{:05}", base_name, cycle);
-          ::amrex::Print() << "Start output to '" << name << "'.\n";
-          fub::amrex::cutcell::WritePlotFile(
-              name, gridding->GetPlena()[0]->GetPatchHierarchy(),
-              equation);
-          ::amrex::Print() << "Finished output to '" << name << "'.\n";
-
-          ::amrex::Print() << "Start Matlab Output.\n";
+          ::amrex::Print() << "End Matlab Output.\n";
           std::ofstream out(
               fmt::format("{}/Plenum_{:05}.dat", base_name, cycle),
               std::ios::trunc);
@@ -563,6 +549,7 @@ int main(int /* argc */, char** /* argv */) {
         //          next_checkpoint += checkpoint_offest;
         //        }
         if (output_num >= 0) {
+          ::amrex::Print() << "Start Output for Probes.\n";
           {
             std::vector<double> buffer =
                 GatherStates(gridding->GetTubes()[0]->GetPatchHierarchy(),
@@ -604,6 +591,7 @@ int main(int /* argc */, char** /* argv */) {
                   x, t, rho, Ma, a, T, p);
             }
           }
+          ::amrex::Print() << "End Output for Probes.\n";
         }
       };
 

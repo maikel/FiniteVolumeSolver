@@ -378,4 +378,17 @@ IntegratorContext::PostAdvanceLevel(int level_num, Duration dt, int) {
   return boost::outcome_v2::success();
 }
 
+void IntegratorContext::PostAdvanceHierarchy() {
+  PatchHierarchy& hierarchy = GetPatchHierarchy();
+  int nlevels = hierarchy.GetNumberOfLevels();
+  for (int level = 0; level < nlevels; ++level) {
+    double timepoint = GetTimePoint(level).count();
+    ::MPI_Bcast(&timepoint, 1, MPI_DOUBLE, 0, GetMpiCommunicator());
+    int cycles = GetCycles(level);
+    ::MPI_Bcast(&cycles, 1, MPI_INT, 0, GetMpiCommunicator());
+    hierarchy.GetPatchLevel(level).time_point = Duration(timepoint);
+    hierarchy.GetPatchLevel(level).cycles = cycles;
+  }
+}
+
 } // namespace fub::amrex
