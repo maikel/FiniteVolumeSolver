@@ -168,7 +168,7 @@ int main(int argc, char** argv) {
 
   using namespace std::literals::chrono_literals;
   output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
-         solver.GetTimePoint());
+         solver.GetTimePoint(), 0);
   fub::RunOptions run_options{};
   run_options.final_time = 3.0s;
   run_options.output_interval = {fub::Duration(1.0 / 30.0)};
