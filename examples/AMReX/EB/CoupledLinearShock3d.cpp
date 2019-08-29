@@ -40,12 +40,49 @@
 #include <xmmintrin.h>
 
 void WriteMatlabData(std::ostream& out, const amrex::FArrayBox& fab,
+                     const fub::IdealGasMix<1>& eq,
+                     const amrex::Geometry& geom) {
+  using namespace fub;
+  auto view = fub::amrex::MakeView<const Complete<IdealGasMix<1>>>(fab, eq);
+  out << fmt::format("X Density VelocityX Temperature Pressure ");
+  const int nspecies = eq.GetReactor().GetNSpecies();
+  span<const std::string> names = eq.GetReactor().GetSpeciesNames();
+  for (int s = 0; s < nspecies - 1; ++s) {
+    out << names[s] << ' ';
+  }
+  out << names[nspecies - 1] << '\n';
+  ForEachIndex(Box<0>(view), [&](std::ptrdiff_t i) {
+    double x[3] = {0.0, 0.0, 0.0};
+    ::amrex::IntVect iv{int(i), 0, 0};
+    geom.CellCenter(iv, x);
+    const double density = view.density(i);
+    const double velocity_x =
+        density > 0.0 ? view.momentum(i, 0) / density : 0.0;
+    const double temperature = view.temperature(i);
+    const double pressure = view.pressure(i);
+    out << fmt::format(
+        "{:< 24.15e}{:< 24.15e}{:< 24.15e}{:< 24.15e}{:< 24.15e}", x[0],
+        density, velocity_x, temperature, pressure);
+    for (int s = 0; s < nspecies; ++s) {
+      out << fmt::format("{:< 24.15e}", view.species(i, s));
+    }
+    out << '\n';
+  });
+}
+
+void WriteMatlabData(std::ostream& out, const amrex::FArrayBox& fab,
                      const fub::IdealGasMix<3>& eq,
                      const amrex::Geometry& geom) {
   using namespace fub;
   auto view = fub::amrex::MakeView<const Complete<IdealGasMix<3>>>(fab, eq);
   out << fmt::format(
-      "X Y Density VelocityX VelocityY VelocityZ Temperature Pressure\n");
+      "X Y Density VelocityX VelocityY VelocityZ Temperature Pressure ");
+  const int nspecies = eq.GetReactor().GetNSpecies();
+  span<const std::string> names = eq.GetReactor().GetSpeciesNames();
+  for (int s = 0; s < nspecies - 1; ++s) {
+    out << names[s] << ' ';
+  }
+  out << names[nspecies - 1] << '\n';
   ForEachIndex(
       Box<0>(view), [&](std::ptrdiff_t i, std::ptrdiff_t j, std::ptrdiff_t k) {
         double x[3] = {0.0, 0.0, 0.0};
@@ -60,10 +97,14 @@ void WriteMatlabData(std::ostream& out, const amrex::FArrayBox& fab,
             density > 0.0 ? view.momentum(i, j, k, 2) / density : 0.0;
         const double temperature = view.temperature(i, j, k);
         const double pressure = view.pressure(i, j, k);
-        out << fmt::format("{:< 24.15e}{:< 24.15e}{:< 24.15e}{:< 24.15e} "
-                           "{:< 24.15e}{:< 24.15e}{:< 24.15e}{:< 24.15e}\n",
+        out << fmt::format("{:< 24.15e}{:< 24.15e}{:< 24.15e}{:< 24.15e}"
+                           "{:< 24.15e}{:< 24.15e}{:< 24.15e}{:< 24.15e}",
                            x[0], x[1], density, velocity_x, velocity_y,
                            velocity_z, temperature, pressure);
+        for (int s = 0; s < nspecies; ++s) {
+          out << fmt::format("{:< 24.15e}", view.species(i, j, k, s));
+        }
+        out << '\n';
       });
 }
 
@@ -104,10 +145,13 @@ void Write2Dfrom3D(std::ostream& out, const PatchHierarchy& hierarchy,
     ::MPI_Comm_rank(comm, &rank);
     if (rank == 0) {
       ::amrex::FArrayBox& fab = fabs.emplace_back(domain, level_data.nComp());
+      fab.setVal(0.0);
+      ::MPI_Reduce(local_fab.dataPtr(), fab.dataPtr(), local_fab.size(),
+                   MPI_DOUBLE, MPI_SUM, 0, comm);
       if (level > 0) {
-        for (int comp = 0; comp < level_data.nComp(); ++comp) {
-          for (int j = domain.smallEnd(1); j < domain.bigEnd(1); ++j) {
-            for (int i = domain.smallEnd(0); i < domain.bigEnd(0); ++i) {
+        for (int comp = 1; comp < level_data.nComp(); ++comp) {
+          for (int j = domain.smallEnd(1); j <= domain.bigEnd(1); ++j) {
+            for (int i = domain.smallEnd(0); i <= domain.bigEnd(0); ++i) {
               ::amrex::IntVect fine_i{i, j, domain.smallEnd(2)};
               ::amrex::IntVect coarse_i = fine_i;
               coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(level));
@@ -117,9 +161,17 @@ void Write2Dfrom3D(std::ostream& out, const PatchHierarchy& hierarchy,
             }
           }
         }
+        for (int j = domain.smallEnd(1); j <= domain.bigEnd(1); ++j) {
+          for (int i = domain.smallEnd(0); i <= domain.bigEnd(0); ++i) {
+            ::amrex::IntVect fine_i{i, j, domain.smallEnd(2)};
+            ::amrex::IntVect coarse_i = fine_i;
+            coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(level));
+            if (fab(fine_i, 0) == 0.0) {
+              fab(fine_i, 0) = fabs[level - 1](coarse_i, 0);
+            }
+          }
+        }
       }
-      ::MPI_Reduce(local_fab.dataPtr(), fab.dataPtr(), local_fab.size(),
-                   MPI_DOUBLE, MPI_SUM, 0, comm);
       if (level == n_level - 1) {
         out << fmt::format("nx = {}\n", domain.length(0));
         out << fmt::format("ny = {}\n", domain.length(1));
@@ -236,6 +288,69 @@ GatherStates(const PatchHierarchy& hierarchy,
   return result;
 }
 
+void WriteTubeData(std::ostream& out, const PatchHierarchy& hierarchy,
+                   const IdealGasMix<1>& eq, fub::Duration time_point,
+                   std::ptrdiff_t cycle_number, MPI_Comm comm) {
+  const std::size_t n_level =
+      static_cast<std::size_t>(hierarchy.GetNumberOfLevels());
+  std::vector<::amrex::FArrayBox> fabs{};
+  fabs.reserve(n_level);
+  for (std::size_t level = 0; level < n_level; ++level) {
+    const int ilvl = static_cast<int>(level);
+    const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(ilvl);
+    ::amrex::Box domain = level_geom.Domain();
+    const ::amrex::MultiFab& level_data = hierarchy.GetPatchLevel(ilvl).data;
+    ::amrex::FArrayBox local_fab(domain, level_data.nComp());
+    local_fab.setVal(0.0);
+    ForEachFab(level_data, [&](const ::amrex::MFIter& mfi) {
+      const ::amrex::FArrayBox& patch_data = level_data[mfi];
+      local_fab.copy(patch_data);
+    });
+    int rank = -1;
+    ::MPI_Comm_rank(comm, &rank);
+    if (rank == 0) {
+      ::amrex::FArrayBox& fab = fabs.emplace_back(domain, level_data.nComp());
+      fab.setVal(0.0);
+      ::MPI_Reduce(local_fab.dataPtr(), fab.dataPtr(), local_fab.size(),
+                   MPI_DOUBLE, MPI_SUM, 0, comm);
+      if (level > 0) {
+        for (int comp = 1; comp < level_data.nComp(); ++comp) {
+          for (int j = domain.smallEnd(1); j <= domain.bigEnd(1); ++j) {
+            for (int i = domain.smallEnd(0); i <= domain.bigEnd(0); ++i) {
+              ::amrex::IntVect fine_i{i, j, domain.smallEnd(2)};
+              ::amrex::IntVect coarse_i = fine_i;
+              coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(level));
+              if (fab(fine_i, 0) == 0.0) {
+                fab(fine_i, comp) = fabs[level - 1](coarse_i, comp);
+              }
+            }
+          }
+        }
+        for (int j = domain.smallEnd(1); j <= domain.bigEnd(1); ++j) {
+          for (int i = domain.smallEnd(0); i <= domain.bigEnd(0); ++i) {
+            ::amrex::IntVect fine_i{i, j, domain.smallEnd(2)};
+            ::amrex::IntVect coarse_i = fine_i;
+            coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(level));
+            if (fab(fine_i, 0) == 0.0) {
+              fab(fine_i, 0) = fabs[level - 1](coarse_i, 0);
+            }
+          }
+        }
+      }
+      if (level == n_level - 1) {
+        out << fmt::format("nx = {}\n", domain.length(0));
+        out << fmt::format("t = {}\n", time_point.count());
+        out << fmt::format("cycle = {}\n", cycle_number);
+        WriteMatlabData(out, fab, eq, level_geom);
+        out.flush();
+      }
+    } else {
+      ::MPI_Reduce(local_fab.dataPtr(), nullptr, local_fab.size(), MPI_DOUBLE,
+                   MPI_SUM, 0, comm);
+    }
+  }
+}
+
 } // namespace fub::amrex
 
 static constexpr int Tube_Rank = 1;
@@ -245,19 +360,38 @@ struct TemperatureRamp {
   using Complete = fub::IdealGasMix<Tube_Rank>::Complete;
 
   fub::IdealGasMix<Tube_Rank> equation_;
-  double ignition_pos_;
+  double ignition_pos_{-1.0};
+  double air_position_{0.0};
+  double equiv_raito_{1.0};
 
   void InitializeData(::amrex::MultiFab& data, const ::amrex::Geometry& geom) {
     fub::FlameMasterReactor& reactor = equation_.GetReactor();
-    reactor.SetMoleFractions("N2:79,O2:21,H2:42");
     const double high_temp = 1450.0;
     const double low_temp = 300.0;
     Complete complete(equation_);
+    Complete burnt{equation_};
     Complete cold(equation_);
-    reactor.SetMoleFractions("N2:79,O2:21,H2:42");
+    Complete air(equation_);
+
+    double h2_moles = 42.0 * equiv_raito_;
+    double o2_moles = std::max(21.0 - 0.5 * h2_moles, 0.0);
+
+    std::string fuel_moles = fmt::format("N2:79,O2:21,H2:{}", h2_moles);
+    reactor.SetMoleFractions(fuel_moles);
     reactor.SetTemperature(low_temp);
     reactor.SetPressure(101325.0);
     equation_.CompleteFromReactor(cold);
+
+    reactor.SetMoleFractions("N2:79,O2:21");
+    reactor.SetTemperature(low_temp);
+    reactor.SetPressure(101325.0);
+    equation_.CompleteFromReactor(air);
+
+    reactor.SetMoleFractions(
+        fmt::format("N2:79,O2:{},H2O:{}", o2_moles, h2_moles));
+    reactor.SetTemperature(high_temp);
+    reactor.SetPressure(101325.0);
+    equation_.CompleteFromReactor(burnt);
 
     fub::amrex::ForEachFab(data, [&](const ::amrex::MFIter& mfi) {
       fub::View<Complete> states =
@@ -265,33 +399,53 @@ struct TemperatureRamp {
       fub::ForEachIndex(fub::Box<0>(states), [&](std::ptrdiff_t i) {
         double x[AMREX_SPACEDIM] = {};
         geom.CellCenter(::amrex::IntVect{int(i)}, x);
-        const double x0 = ignition_pos_ - x[0];
-        if (0.0 < x0 && x0 < 0.05) {
+        if (x[0] < ignition_pos_) {
+          fub::Store(states, burnt, {i});
+        } else if (x[0] < ignition_pos_ + 0.05) {
+          const double x0 = x[0] - ignition_pos_;
           const double d = std::clamp(x0 / 0.05, 0.0, 1.0);
-          reactor.SetMoleFractions("N2:79,O2:21,H2:42");
-          reactor.SetTemperature(d * high_temp + (1.0 - d) * low_temp);
+          reactor.SetMoleFractions(fuel_moles);
+          reactor.SetTemperature(d * low_temp + (1.0 - d) * high_temp);
           reactor.SetPressure(101325.0);
           equation_.CompleteFromReactor(complete);
           fub::Store(states, complete, {i});
-        } else if (-0.05 < x0 && x0 < 0.0) {
-          const double d = std::clamp(-x0 / 0.05, 0.0, 1.0);
-          reactor.SetMoleFractions("N2:79,O2:21,H2:42");
-          reactor.SetTemperature(d * high_temp + (1.0 - d) * low_temp);
-          reactor.SetPressure(101325.0);
-          equation_.CompleteFromReactor(complete);
-          fub::Store(states, complete, {i});
-        } else {
+        } else if (x[0] < air_position_) {
           fub::Store(states, cold, {i});
+        } else {
+          fub::Store(states, air, {i});
         }
       });
     });
   }
 };
 
-auto MakeTubeSolver(int num_cells, double length, double ignition_pos,
-                    int n_level, fub::Burke2012& mechanism) {
-  const std::array<int, AMREX_SPACEDIM> n_cells{num_cells, 1, 1};
+struct ProgramOptions {
+  double final_time{0.20};
+  double cfl{0.8};
+  double plenum_domain_length{1.0};
+  int plenum_n_cells{128};
+  int max_refinement_level{1};
+  double tube_domain_length{1.47};
+  double tube_ignition_position{0.6 - 1.47};
+  double tube_air_position{0.0};
+  double tube_equiv_ratio{1.0};
+  double output_interval{1.0E-4};
+};
+
+auto MakeTubeSolver(const ProgramOptions& po, fub::Burke2012& mechanism) {
+  const int num_cells = [&] {
+    const double len_ratio = po.tube_domain_length / po.plenum_domain_length;
+    int cells =
+        static_cast<int>(len_ratio * static_cast<double>(po.plenum_n_cells));
+    cells -= cells % 8;
+    return cells;
+  }();
+
+  const double length = po.tube_domain_length;
   const double tube_radius = 0.015;
+  const int n_level = po.max_refinement_level;
+
+  const std::array<int, AMREX_SPACEDIM> n_cells{num_cells, 1, 1};
   const std::array<double, AMREX_SPACEDIM> xlower{-length - 0.03, -tube_radius,
                                                   -tube_radius};
   const std::array<double, AMREX_SPACEDIM> xupper{-0.03, tube_radius,
@@ -319,13 +473,16 @@ auto MakeTubeSolver(int num_cells, double length, double ignition_pos,
                       geom, hier_opts.refine_ratio, 1, 1);
 
   using Complete = fub::IdealGasMix<1>::Complete;
-  GradientDetector gradient{equation, std::make_pair(&Complete::density, 5e-2),
-                            std::make_pair(&Complete::pressure, 5e-2)};
+  GradientDetector gradient{equation, std::make_pair(&Complete::density, 5e-3),
+                            std::make_pair(&Complete::pressure, 5e-3)};
 
   ::amrex::Box refine_box{{num_cells - 5, 0, 0}, {num_cells - 1, 0, 0}};
   ConstantBox constant_box{refine_box};
 
-  TemperatureRamp initial_data{equation, ignition_pos};
+  TemperatureRamp initial_data{equation};
+  initial_data.ignition_pos_ = po.tube_ignition_position;
+  initial_data.air_position_ = po.tube_air_position;
+  initial_data.equiv_raito_ = po.tube_equiv_ratio;
 
   BoundarySet boundaries{
       {ReflectiveBoundary{fub::execution::seq, equation, fub::Direction::X, 0},
@@ -371,10 +528,12 @@ auto MakeTubeSolver(int num_cells, double length, double ignition_pos,
   return ::amrex::Box{lo, up};
 }
 
-auto MakePlenumSolver(int num_cells, double length, int n_level,
-                      fub::Burke2012& mechanism) {
+auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism) {
+  const int num_cells = po.plenum_n_cells;
   const std::array<int, Plenum_Rank> n_cells{num_cells, num_cells, num_cells};
-  const double half = 0.5 * length;
+  const double length = po.plenum_domain_length;
+  const double half = 0.5 * po.plenum_domain_length;
+  const int n_level = po.max_refinement_level;
 
   const std::array<double, Plenum_Rank> xlower{-0.03, -half, -half};
   const std::array<double, Plenum_Rank> xupper{length - 0.03, +0.15, +0.15};
@@ -415,21 +574,20 @@ auto MakePlenumSolver(int num_cells, double length, int n_level,
   options.index_spaces = MakeIndexSpaces(shop, coarse_geom, n_level);
 
   using State = fub::Complete<fub::IdealGasMix<Plenum_Rank>>;
-  GradientDetector gradients{equation, std::pair{&State::pressure, 0.1},
-                             std::pair{&State::density, 0.05}};
+  GradientDetector gradients{equation, std::pair{&State::pressure, 0.01},
+                             std::pair{&State::density, 0.01}};
 
   ::amrex::RealBox inlet{{-0.1, -0.015, -0.015}, {0.01, +0.015, +0.015}};
   const ::amrex::Box refine_box = BoxWhichContains(inlet, coarse_geom);
   ConstantBox constant_box{refine_box};
 
-  const double p0 = 101325.0;
-  BoundarySet boundary_condition{
-      {IsentropicPressureBoundary{equation, p0, fub::Direction::X, 0},
-       IsentropicPressureBoundary{equation, p0, fub::Direction::X, 1},
-       IsentropicPressureBoundary{equation, p0, fub::Direction::Y, 0},
-       IsentropicPressureBoundary{equation, p0, fub::Direction::Y, 1},
-       IsentropicPressureBoundary{equation, p0, fub::Direction::Z, 0},
-       IsentropicPressureBoundary{equation, p0, fub::Direction::Z, 1}}};
+  //  const double p0 = 101325.0;
+  BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
+                                  TransmissiveBoundary{fub::Direction::X, 1},
+                                  TransmissiveBoundary{fub::Direction::Y, 0},
+                                  TransmissiveBoundary{fub::Direction::Y, 1},
+                                  TransmissiveBoundary{fub::Direction::Z, 0},
+                                  TransmissiveBoundary{fub::Direction::Z, 1}}};
 
   //  PatchHierarchy hierarchy =
   //  ReadCheckpointFile("/Volumes/Maikel_Intenso/FiniteVolumeSolver_Build_3d/LongLinearShock_3d/Checkpoint/Plenum_00108",
@@ -455,17 +613,6 @@ auto MakePlenumSolver(int num_cells, double length, int n_level,
 
   return fub::amrex::cutcell::IntegratorContext(gridding, method);
 }
-
-struct ProgramOptions {
-  double final_time{0.20};
-  double cfl{0.8};
-  double plenum_domain_length{1.0};
-  int plenum_n_cells{128};
-  int max_refinement_level{1};
-  double tube_domain_length{1.47};
-  double tube_ignition_position{0.6 - 1.47};
-  double output_interval{1.0E-4};
-};
 
 void MyMain(const ProgramOptions& po);
 
@@ -497,6 +644,14 @@ std::optional<ProgramOptions> ParseCommandLine(int argc, char** argv) {
       po::value<double>(&opts.tube_ignition_position)
           ->default_value(opts.tube_ignition_position),
       "Set the position for the ignition of the detonation inside the tube")(
+      "tube_air_position",
+      po::value<double>(&opts.tube_air_position)
+          ->default_value(opts.tube_air_position),
+      "Sets the starting position for an air buffer in the tube.")(
+      "tube_equiv_ratio",
+      po::value<double>(&opts.tube_equiv_ratio)
+          ->default_value(opts.tube_equiv_ratio),
+      "Sets the equivalence ratio of the fuel in the tube")(
       "output_interval,o",
       po::value<double>(&opts.output_interval)
           ->default_value(opts.output_interval),
@@ -547,15 +702,26 @@ std::optional<ProgramOptions> ParseCommandLine(int argc, char** argv) {
   amrex::Print() << fmt::format(
       "[Info] tube_n_cells = {}\n[Info] tube_dx = {}\n", tube_n_cells,
       opts.tube_domain_length / tube_n_cells);
+  amrex::Print() << fmt::format("[Info] tube_ignition_pos = {}\n", opts.tube_ignition_position);
+  amrex::Print() << fmt::format("[Info] tube_equiv_ratio = {}\n", opts.tube_equiv_ratio);
+  amrex::Print() << fmt::format("[Info] tube_air_position = {}\n", opts.tube_air_position);
 
   return opts;
 }
 
 int main(int argc, char** argv) {
-  fub::amrex::ScopeGuard _{};
-  std::optional<ProgramOptions> po = ParseCommandLine(argc, argv);
-  if (po) {
-    MyMain(*po);
+  MPI_Init(nullptr, nullptr);
+  {
+    fub::amrex::ScopeGuard _{};
+    std::optional<ProgramOptions> po = ParseCommandLine(argc, argv);
+    if (po) {
+      MyMain(*po);
+    }
+  }
+  int flag = -1;
+  MPI_Finalized(&flag);
+  if (!flag) {
+    MPI_Finalize();
   }
 }
 
@@ -564,19 +730,8 @@ void MyMain(const ProgramOptions& po) {
       std::chrono::steady_clock::now();
   fub::Burke2012 mechanism{};
 
-  const int n_level = po.max_refinement_level;
-  const int n_plenum_cells = po.plenum_n_cells;
-  const int n_tube_cells = [&] {
-    const double len_ratio = po.tube_domain_length / po.plenum_domain_length;
-    int cells =
-        static_cast<int>(len_ratio * static_cast<double>(n_plenum_cells));
-    cells -= cells % 8;
-    return cells;
-  }();
-  auto plenum = MakePlenumSolver(n_plenum_cells, po.plenum_domain_length,
-                                 n_level, mechanism);
-  auto tube = MakeTubeSolver(n_tube_cells, po.tube_domain_length,
-                             po.tube_ignition_position, n_level, mechanism);
+  auto plenum = MakePlenumSolver(po, mechanism);
+  auto tube = MakeTubeSolver(po, mechanism);
 
   ::amrex::RealBox inlet{{-0.1, -0.015, -0.015}, {0.05, +0.015, +0.015}};
 
@@ -643,26 +798,20 @@ void MyMain(const ProgramOptions& po) {
 
           ::amrex::Print() << "Begin Matlab Output.\n";
           std::ofstream out(
-                            fmt::format("{}/Plenum_{:05}.dat", base_name, cycle),
-                            std::ios::trunc);
+              fmt::format("{}/Plenum_{:05}.dat", base_name, cycle),
+              std::ios::trunc);
           fub::amrex::cutcell::Write2Dfrom3D(
-                                             out, gridding->GetPlena()[0]->GetPatchHierarchy(), equation,
-                                             timepoint, cycle, context.GetMpiCommunicator());
+              out, gridding->GetPlena()[0]->GetPatchHierarchy(), equation,
+              timepoint, cycle, context.GetMpiCommunicator());
+          out =
+              std::ofstream(fmt::format("{}/Tube_{:05}.dat", base_name, cycle),
+                            std::ios::trunc);
+          fub::amrex::WriteTubeData(
+              out, gridding->GetTubes()[0]->GetPatchHierarchy(), tube_equation,
+              timepoint, cycle, context.GetMpiCommunicator());
           ::amrex::Print() << "End Matlab Output.\n";
         }
         if (output_num >= 0) {
-//          std::string name = fmt::format("{}/Tube/plt{:05}", base_name, cycle);
-//          ::amrex::Print() << "Start output to '" << name << "'.\n";
-//          fub::amrex::WritePlotFile(
-//              name, gridding->GetTubes()[0]->GetPatchHierarchy(),
-//              tube_equation);
-//          ::amrex::Print() << "Finished output to '" << name << "'.\n";
-//          name = fmt::format("{}/Plenum/plt{:05}", base_name, cycle);
-//          ::amrex::Print() << "Start output to '" << name << "'.\n";
-//          fub::amrex::cutcell::WritePlotFile(
-//              name, gridding->GetPlena()[0]->GetPatchHierarchy(), equation);
-//          ::amrex::Print() << "Finished output to '" << name << "'.\n";
-
           ::amrex::Print() << "Start Output for Probes.\n";
           {
             std::vector<double> buffer =
