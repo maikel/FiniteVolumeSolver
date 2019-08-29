@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Maikel Nadolski
+// Copyright (c) 2018 Maikel Nadolski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,38 +18,38 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/AMReX/boundary_condition/IsentropicBoundary.hpp"
+#include "fub/AMReX/cutcell/boundary_condition/IsentropicPressureBoundary.hpp"
+
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/ForEachIndex.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/ForEach.hpp"
 
-#include <cmath>
-
-namespace fub::amrex {
-
+namespace fub::amrex::cutcell {
 namespace {
-std::array<std::ptrdiff_t, 1>
-MapToSrc(const std::array<std::ptrdiff_t, 1>& dest,
+std::array<std::ptrdiff_t, AMREX_SPACEDIM>
+MapToSrc(const std::array<std::ptrdiff_t, AMREX_SPACEDIM>& dest,
          const ::amrex::Geometry& geom, int side, Direction dir) {
   const int boundary = (side == 0) * geom.Domain().smallEnd(int(dir)) +
                        (side == 1) * geom.Domain().bigEnd(int(dir));
   //    const int distance = dest[int(dir)] - boundary;
   //  const int sign = int((distance > 0) - (distance < 0));
-  std::array<std::ptrdiff_t, 1> src{dest};
+  std::array<std::ptrdiff_t, AMREX_SPACEDIM> src{dest};
   //  src[int(dir)] -= 2 * distance - sign;
   src[std::size_t(dir)] = boundary;
   return src;
 }
 
+inline int GetSign(int side) { return (side == 0) - (side == 1); }
+
 int Sign(double x) { return (x > 0) - (x < 0); }
 
-void IsentropicExpansionWithoutDissipation(IdealGasMix<1>& eq,
-                                           Complete<IdealGasMix<1>>& dest,
-                                           const Complete<IdealGasMix<1>>& src,
-                                           double dest_pressure,
-                                           double efficiency = 1.0) {
-  double old_velocity = src.momentum[0] / src.density;
+void IsentropicExpansionWithoutDissipation(
+    IdealGasMix<AMREX_SPACEDIM>& eq,
+    Complete<IdealGasMix<AMREX_SPACEDIM>>& dest,
+    const Complete<IdealGasMix<AMREX_SPACEDIM>>& src, double dest_pressure,
+    double efficiency = 1.0) {
+  Array<double, AMREX_SPACEDIM, 1> old_velocity = src.momentum / src.density;
   eq.SetReactorStateFromComplete(src);
   eq.CompleteFromReactor(dest);
   const double h_before =
@@ -62,31 +62,32 @@ void IsentropicExpansionWithoutDissipation(IdealGasMix<1>& eq,
   const double u_border =
       Sign(enthalpyDifference) *
       std::sqrt(efficiency * std::abs(enthalpyDifference) * 2 +
-                old_velocity * old_velocity);
-  dest.momentum[0] = dest.density * u_border;
-  dest.energy += 0.5 * u_border * dest.momentum[0];
+                old_velocity.matrix().squaredNorm());
+  dest.momentum = dest.density * u_border * old_velocity.matrix().normalized();
+  dest.energy += 0.5 * dest.density * u_border * u_border;
 }
 
 } // namespace
 
-IsentropicBoundary::IsentropicBoundary(const IdealGasMix<1>& eq,
-                                       double outer_pressure, Direction dir,
-                                       int side)
+IsentropicPressureBoundary::IsentropicPressureBoundary(
+    const IdealGasMix<AMREX_SPACEDIM>& eq, double outer_pressure, Direction dir,
+    int side)
     : equation_{eq}, outer_pressure_{outer_pressure}, dir_{dir}, side_{side} {}
 
-void IsentropicBoundary::FillBoundary(::amrex::MultiFab& mf,
-                                      const ::amrex::Geometry& geom, Duration,
-                                      const GriddingAlgorithm&) {
+void IsentropicPressureBoundary::FillBoundary(::amrex::MultiFab& mf,
+                                              const ::amrex::Geometry& geom,
+                                              Duration,
+                                              const GriddingAlgorithm&) {
   FillBoundary(mf, geom);
 }
 
-void IsentropicBoundary::FillBoundary(::amrex::MultiFab& mf,
-                                      const ::amrex::Geometry& geom) {
+void IsentropicPressureBoundary::FillBoundary(::amrex::MultiFab& mf,
+                                              const ::amrex::Geometry& geom) {
   const int ngrow = mf.nGrow(int(dir_));
   ::amrex::Box grown_box = geom.growNonPeriodicDomain(ngrow);
   ::amrex::BoxList boundaries =
       ::amrex::complementIn(grown_box, ::amrex::BoxList{geom.Domain()});
-  Complete<IdealGasMix<1>> state{equation_};
+  Complete<IdealGasMix<AMREX_SPACEDIM>> state{equation_};
   if (boundaries.isEmpty()) {
     return;
   }
@@ -100,19 +101,22 @@ void IsentropicBoundary::FillBoundary(::amrex::MultiFab& mf,
       }
       ::amrex::Box box_to_fill = mfi.growntilebox() & boundary;
       if (!box_to_fill.isEmpty()) {
-        auto states = MakeView<Complete<IdealGasMix<1>>>(fab, equation_,
+        auto states = MakeView<Complete<IdealGasMix<AMREX_SPACEDIM>>>(fab, equation_,
                                                          mfi.growntilebox());
-        ForEachIndex(box_to_fill, [this, &geom, &state,
-                                   &states](std::ptrdiff_t i, auto...) {
-          std::array<std::ptrdiff_t, 1> dest{i};
-          std::array<std::ptrdiff_t, 1> src = MapToSrc(dest, geom, side_, dir_);
+        ForEachIndex(box_to_fill, [this, &geom, &state, &states](auto... is) {
+          std::array<std::ptrdiff_t, AMREX_SPACEDIM> dest{int(is)...};
+          std::array<std::ptrdiff_t, AMREX_SPACEDIM> src =
+              MapToSrc(dest, geom, side_, dir_);
           Load(state, states, src);
-          IsentropicExpansionWithoutDissipation(equation_, state, state,
-                                                outer_pressure_);
+          if (state.density > 0.0) {
+            IsentropicExpansionWithoutDissipation(equation_, state, state,
+                                                  outer_pressure_);
+          }
           Store(states, state, dest);
         });
       }
     }
   });
 }
-} // namespace fub::amrex
+
+} // namespace fub::amrex::cutcell

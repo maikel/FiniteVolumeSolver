@@ -42,7 +42,7 @@ int main(int argc, char** argv) {
   const std::array<double, 3> xupper{+0.20, +0.15, +0.15};
   const std::array<int, 3> periodicity{0, 0, 0};
 
-  const int n_level = 2;
+  const int n_level = 3;
 
   auto embedded_boundary = amrex::EB2::makeIntersection(
       amrex::EB2::PlaneIF({0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, false),
@@ -98,8 +98,8 @@ int main(int argc, char** argv) {
 
   //  using Complete = fub::Complete<fub::PerfectGas<3>>;
   using Complete = fub::Complete<fub::IdealGasMix<3>>;
-  GradientDetector gradients{equation, std::pair{&Complete::pressure, 0.1},
-                             std::pair{&Complete::density, 0.1}};
+  GradientDetector gradients{equation, std::pair{&Complete::pressure, 0.05},
+                             std::pair{&Complete::density, 0.05}};
 
   BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
                                   TransmissiveBoundary{fub::Direction::X, 1},
@@ -142,8 +142,8 @@ int main(int argc, char** argv) {
          solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.final_time = 0.002s;
-  run_options.output_interval = 0.0000125s;
-  run_options.cfl = 0.5;
+  run_options.output_interval = {0.0000125s};
+  run_options.cfl = 0.8;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      fub::amrex::print);
 }

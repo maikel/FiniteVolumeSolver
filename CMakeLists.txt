@@ -28,7 +28,7 @@ if (EXISTS ${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 endif()
 
 # Try to find SAMRAI (optional)
-find_package(Boost REQUIRED COMPONENTS filesystem container)
+find_package(Boost REQUIRED COMPONENTS filesystem container program_options)
 
 find_package(SAMRAI QUIET)
 if (SAMRAI_FOUND)
@@ -340,6 +340,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         include/fub/AMReX/cutcell/tagging/TagCutCells.hpp
         include/fub/AMReX/cutcell/boundary_condition/BoundarySet.hpp
         include/fub/AMReX/cutcell/boundary_condition/TransmissiveBoundary.hpp
+        include/fub/AMReX/cutcell/boundary_condition/IsentropicPressureBoundary.hpp
         include/fub/AMReX/multi_block/MultiBlockBoundary.hpp
         include/fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp
         include/fub/AMReX/multi_block/MultiBlockIntegratorContext.hpp
@@ -352,6 +353,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         src/AMReX/cutcell/TimeIntegrator.cpp
         src/AMReX/cutcell/boundary_condition/BoundarySet.cpp
         src/AMReX/cutcell/boundary_condition/TransmissiveBoundary.cpp
+        src/AMReX/cutcell/boundary_condition/IsentropicPressureBoundary.cpp
         src/AMReX/cutcell/tagging/ConstantRegion.cpp
         src/AMReX/cutcell/tagging/TagBuffer.cpp
         src/AMReX/cutcell/tagging/TagCutCells.cpp
