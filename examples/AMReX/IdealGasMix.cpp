@@ -65,24 +65,6 @@ struct TemperatureRamp {
   }
 };
 
-void WriteMatlabFile(std::ostream& out,
-                     const amrex::PatchHierarchy& hierarchy) {
-  const amrex::PatchLevel& level = hierarchy.GetPatchLevel(0);
-  const ::amrex::Box domain = hierarchy.GetGeometry(0).Domain();
-  const ::amrex::BoxArray ba(domain);
-  const ::amrex::DistributionMapping dm(ba);
-  ::amrex::MultiFab mf(ba, dm,
-                       hierarchy.GetDataDescription().n_state_components, 0);
-  mf.ParallelCopy(level.data);
-  int rank = -1;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  if (rank == 0) {
-    out.write(reinterpret_cast<char*>(mf[0].dataPtr()),
-              static_cast<std::streamsize>(mf[0].size()) *
-                  static_cast<std::streamsize>(sizeof(double)));
-  }
-}
-
 } // namespace fub
 
 int main(int argc, char** argv) {
@@ -129,9 +111,8 @@ int main(int argc, char** argv) {
   using fub::amrex::TransmissiveBoundary;
   boundary.conditions.push_back(
       ReflectiveBoundary{fub::execution::seq, equation, fub::Direction::X, 0});
-  boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::X, 1});
-  //  boundary.conditions.push_back(IsentropicBoundary{equation, 101325.0,
-  //  fub::Direction::X, 1});
+//  boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::X, 1});
+  boundary.conditions.push_back(IsentropicBoundary{equation, 101325.0, fub::Direction::X, 1});
 
   fub::amrex::PatchHierarchyOptions hier_opts;
   hier_opts.max_number_of_levels = 1;
@@ -147,10 +128,10 @@ int main(int argc, char** argv) {
   // {{{
   fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>> signals{};
   fub::HllMethod hll_method(equation, signals);
-  fub::MusclHancockMethod flux_method{equation, hll_method};
+//  fub::MusclHancockMethod flux_method{equation, hll_method};
 
   fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethod(fub::execution::simd, flux_method),
+      fub::amrex::FluxMethod(fub::execution::simd, hll_method),
       fub::amrex::ForwardIntegrator(fub::execution::simd),
       fub::amrex::Reconstruction(fub::execution::simd, equation)};
 
@@ -170,22 +151,22 @@ int main(int argc, char** argv) {
 
   auto output =
       [&](const std::shared_ptr<fub::amrex::GriddingAlgorithm>& gridding,
-          std::ptrdiff_t cycle, fub::Duration) {
+          std::ptrdiff_t cycle, fub::Duration, int) {
         std::string name = fmt::format("{}plt{:05}", base_name, cycle);
         std::ofstream out(name + ".dat", std::ofstream::binary);
         amrex::Print() << "Start output to '" << name << "'.\n";
         fub::amrex::WritePlotFile(name, gridding->GetPatchHierarchy(),
                                   equation);
-        fub::WriteMatlabFile(out, gridding->GetPatchHierarchy());
+//        fub::WriteMatlabFile(out, gridding->GetPatchHierarchy());
         amrex::Print() << "Finished output to '" << name << "'.\n";
       };
 
   using namespace std::literals::chrono_literals;
-  output(solver.GetGriddingAlgorithm(), 0, 0.0s);
+  output(solver.GetGriddingAlgorithm(), 0, 0.0s, 0);
   fub::RunOptions run_options{};
   run_options.cfl = 0.8;
-  run_options.final_time = 0.0001s;
-  run_options.output_interval = 4e-6s;
+  run_options.final_time = 0.02s;
+  run_options.output_interval = {5e-5s};
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      fub::amrex::print);
 }

@@ -18,18 +18,21 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_AMREX_BOUNDARY_CONDITION_ISENTROPIC_HPP
-#define FUB_AMREX_BOUNDARY_CONDITION_ISENTROPIC_HPP
+#ifndef FUB_AMREX_CUTCELL_ISENTROPIC_PRESSURE_BOUNDARY_HPP
+#define FUB_AMREX_CUTCELL_ISENTROPIC_PRESSURE_BOUNDARY_HPP
 
-#include "fub/AMReX/BoundaryCondition.hpp"
+#include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
+#include "fub/Direction.hpp"
 #include "fub/equations/IdealGasMix.hpp"
 
-namespace fub::amrex {
+#include <AMReX.H>
 
-class IsentropicBoundary {
+namespace fub::amrex::cutcell {
+
+class IsentropicPressureBoundary {
 public:
-  IsentropicBoundary(const IdealGasMix<1>& eq, double outer_pressure,
-                     Direction dir, int side);
+  IsentropicPressureBoundary(const IdealGasMix<AMREX_SPACEDIM>& eq,
+                             double outer_pressure, Direction dir, int side);
 
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
                     Duration dt, const GriddingAlgorithm&);
@@ -37,12 +40,12 @@ public:
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom);
 
 private:
-  IdealGasMix<1> equation_;
+  IdealGasMix<AMREX_SPACEDIM> equation_;
   double outer_pressure_;
   Direction dir_;
   int side_;
 };
 
-} // namespace fub::amrex
+} // namespace fub::amrex::cutcell
 
-#endif
+#endif // !FUB_AMREX_CUTCELL_ISENTROPIC_PRESSURE_BOUNDARY_HPP

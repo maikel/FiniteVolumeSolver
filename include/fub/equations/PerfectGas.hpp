@@ -182,6 +182,10 @@ public:
   void SolveRiemannProblem(CompleteArray& state, const CompleteArray& left,
                            const CompleteArray& right, Direction dir);
 
+  void SolveRiemannProblem(CompleteArray& state, const CompleteArray& left,
+                           const CompleteArray& right, MaskArray mask,
+                           Direction dir);
+
   /// Returns the upwind velocity in the specified direction.
   std::array<double, 2> ComputeSignals(const Complete&, const Complete&,
                                        Direction dir);

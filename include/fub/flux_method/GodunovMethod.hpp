@@ -64,6 +64,12 @@ public:
                           span<const CompleteArray, 2> states,
                           Duration /* dt */, double /* dx */, Direction dir);
 
+  void ComputeNumericFlux(ConservativeArray& numeric_flux,
+                          Array1d face_fraction,
+                          span<const CompleteArray, 2> states,
+                          span<const Array1d, 2> volume_fraction,
+                          Duration /* dt */, double /* dx */, Direction dir);
+
   double ComputeStableDt(span<const Complete, 2> states, double dx,
                          Direction dir);
 
@@ -130,6 +136,21 @@ void Godunov<Equation, RiemannSolver>::ComputeNumericFlux(
   riemann_solver_.SolveRiemannProblem(riemann_solution_arr_, states[0],
                                       states[1], dir);
   Flux(equation_, numeric_flux, riemann_solution_arr_, dir);
+}
+
+template <typename Equation, typename RiemannSolver>
+void Godunov<Equation, RiemannSolver>::ComputeNumericFlux(
+    ConservativeArray& numeric_flux, Array1d face_fraction,
+    span<const CompleteArray, 2> states,
+    span<const Array1d, 2> /* volume_fraction */, Duration /* dt */,
+    double /* dx */, Direction dir) {
+  MaskArray mask = face_fraction > 0.0;
+  riemann_solver_.SolveRiemannProblem(riemann_solution_arr_, states[0],
+                                      states[1], mask, dir);
+  Flux(equation_, numeric_flux, riemann_solution_arr_, dir);
+  const Array1d zero = Array1d::Zero();
+  ForEachComponent([&](auto&& nf, Array1d f) { nf = mask.select(f, zero); },
+                   numeric_flux, numeric_flux);
 }
 
 template <typename Equation, typename RiemannSolver>
