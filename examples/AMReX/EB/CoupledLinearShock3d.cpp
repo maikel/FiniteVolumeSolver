@@ -640,28 +640,28 @@ void MyMain(const ProgramOptions& po) {
               fmt::format("{}/Checkpoint/Plenum_{:05}", base_name, cycle),
               gridding->GetPlena()[0]->GetPatchHierarchy());
           ::amrex::Print() << "Finish Checkpointing.\n";
-        }
-        if (output_num >= 0) {
-          std::string name = fmt::format("{}/Tube/plt{:05}", base_name, cycle);
-          ::amrex::Print() << "Start output to '" << name << "'.\n";
-          fub::amrex::WritePlotFile(
-              name, gridding->GetTubes()[0]->GetPatchHierarchy(),
-              tube_equation);
-          ::amrex::Print() << "Finished output to '" << name << "'.\n";
-          name = fmt::format("{}/Plenum/plt{:05}", base_name, cycle);
-          ::amrex::Print() << "Start output to '" << name << "'.\n";
-          fub::amrex::cutcell::WritePlotFile(
-              name, gridding->GetPlena()[0]->GetPatchHierarchy(), equation);
-          ::amrex::Print() << "Finished output to '" << name << "'.\n";
 
           ::amrex::Print() << "Begin Matlab Output.\n";
           std::ofstream out(
-              fmt::format("{}/Plenum_{:05}.dat", base_name, cycle),
-              std::ios::trunc);
+                            fmt::format("{}/Plenum_{:05}.dat", base_name, cycle),
+                            std::ios::trunc);
           fub::amrex::cutcell::Write2Dfrom3D(
-              out, gridding->GetPlena()[0]->GetPatchHierarchy(), equation,
-              timepoint, cycle, context.GetMpiCommunicator());
+                                             out, gridding->GetPlena()[0]->GetPatchHierarchy(), equation,
+                                             timepoint, cycle, context.GetMpiCommunicator());
           ::amrex::Print() << "End Matlab Output.\n";
+        }
+        if (output_num >= 0) {
+//          std::string name = fmt::format("{}/Tube/plt{:05}", base_name, cycle);
+//          ::amrex::Print() << "Start output to '" << name << "'.\n";
+//          fub::amrex::WritePlotFile(
+//              name, gridding->GetTubes()[0]->GetPatchHierarchy(),
+//              tube_equation);
+//          ::amrex::Print() << "Finished output to '" << name << "'.\n";
+//          name = fmt::format("{}/Plenum/plt{:05}", base_name, cycle);
+//          ::amrex::Print() << "Start output to '" << name << "'.\n";
+//          fub::amrex::cutcell::WritePlotFile(
+//              name, gridding->GetPlena()[0]->GetPatchHierarchy(), equation);
+//          ::amrex::Print() << "Finished output to '" << name << "'.\n";
 
           ::amrex::Print() << "Start Output for Probes.\n";
           {
