@@ -44,7 +44,8 @@ void WriteMatlabData(std::ostream& out, const amrex::FArrayBox& fab,
                      const amrex::Geometry& geom) {
   using namespace fub;
   auto view = fub::amrex::MakeView<const Complete<IdealGasMix<1>>>(fab, eq);
-  out << fmt::format("X Density VelocityX Temperature Pressure ");
+  out << fmt::format("X Density VelocityX SpeedOfSound Temperature Pressure "
+                     "Gamma HeatCapacityAtConstantPressure ");
   const int nspecies = eq.GetReactor().GetNSpecies();
   span<const std::string> names = eq.GetReactor().GetSpeciesNames();
   for (int s = 0; s < nspecies - 1; ++s) {
@@ -59,10 +60,14 @@ void WriteMatlabData(std::ostream& out, const amrex::FArrayBox& fab,
     const double velocity_x =
         density > 0.0 ? view.momentum(i, 0) / density : 0.0;
     const double temperature = view.temperature(i);
+    const double speed_of_sound = view.speed_of_sound(i);
+    const double gamma = view.gamma(i);
+    const double c_p = view.c_p(i);
     const double pressure = view.pressure(i);
-    out << fmt::format(
-        "{:< 24.15e}{:< 24.15e}{:< 24.15e}{:< 24.15e}{:< 24.15e}", x[0],
-        density, velocity_x, temperature, pressure);
+    out << fmt::format("{:< 24.15e}{:< 24.15e}{:< 24.15e}{:< 24.15e}{:< "
+                       "24.15e}{:< 24.15e}{:< 24.15e}{:< 24.15e}",
+                       x[0], density, velocity_x, speed_of_sound, temperature,
+                       pressure, gamma, c_p);
     for (int s = 0; s < nspecies; ++s) {
       out << fmt::format("{:< 24.15e}", view.species(i, s));
     }
@@ -76,36 +81,41 @@ void WriteMatlabData(std::ostream& out, const amrex::FArrayBox& fab,
   using namespace fub;
   auto view = fub::amrex::MakeView<const Complete<IdealGasMix<3>>>(fab, eq);
   out << fmt::format(
-      "X Y Density VelocityX VelocityY VelocityZ Temperature Pressure ");
+      "X Y Density VelocityX VelocityY VelocityZ SpeedOfSound Temperature "
+      "Pressure Gamma HeatCapacityAtConstantPressure ");
   const int nspecies = eq.GetReactor().GetNSpecies();
   span<const std::string> names = eq.GetReactor().GetSpeciesNames();
   for (int s = 0; s < nspecies - 1; ++s) {
     out << names[s] << ' ';
   }
   out << names[nspecies - 1] << '\n';
-  ForEachIndex(
-      Box<0>(view), [&](std::ptrdiff_t i, std::ptrdiff_t j, std::ptrdiff_t k) {
-        double x[3] = {0.0, 0.0, 0.0};
-        ::amrex::IntVect iv{int(i), int(j), int(k)};
-        geom.CellCenter(iv, x);
-        const double density = view.density(i, j, k);
-        const double velocity_x =
-            density > 0.0 ? view.momentum(i, j, k, 0) / density : 0.0;
-        const double velocity_y =
-            density > 0.0 ? view.momentum(i, j, k, 1) / density : 0.0;
-        const double velocity_z =
-            density > 0.0 ? view.momentum(i, j, k, 2) / density : 0.0;
-        const double temperature = view.temperature(i, j, k);
-        const double pressure = view.pressure(i, j, k);
-        out << fmt::format("{:< 24.15e}{:< 24.15e}{:< 24.15e}{:< 24.15e}"
-                           "{:< 24.15e}{:< 24.15e}{:< 24.15e}{:< 24.15e}",
-                           x[0], x[1], density, velocity_x, velocity_y,
-                           velocity_z, temperature, pressure);
-        for (int s = 0; s < nspecies; ++s) {
-          out << fmt::format("{:< 24.15e}", view.species(i, j, k, s));
-        }
-        out << '\n';
-      });
+  ForEachIndex(Box<0>(view), [&](std::ptrdiff_t i, std::ptrdiff_t j,
+                                 std::ptrdiff_t k) {
+    double x[3] = {0.0, 0.0, 0.0};
+    ::amrex::IntVect iv{int(i), int(j), int(k)};
+    geom.CellCenter(iv, x);
+    const double density = view.density(i, j, k);
+    const double velocity_x =
+        density > 0.0 ? view.momentum(i, j, k, 0) / density : 0.0;
+    const double velocity_y =
+        density > 0.0 ? view.momentum(i, j, k, 1) / density : 0.0;
+    const double velocity_z =
+        density > 0.0 ? view.momentum(i, j, k, 2) / density : 0.0;
+    const double temperature = view.temperature(i, j, k);
+    const double speed_of_sound = view.speed_of_sound(i, j, k);
+    const double gamma = view.gamma(i, j, k);
+    const double c_p = view.c_p(i, j, k);
+    const double pressure = view.pressure(i, j, k);
+    out << fmt::format("{:< 24.15e}{:< 24.15e}{:< 24.15e}{:< 24.15e}"
+                       "{:< 24.15e}{:< 24.15e}{:< 24.15e}{:< 24.15e}"
+                       "{:< 24.15e}{:< 24.15e}{:< 24.15e}",
+                       x[0], x[1], density, velocity_x, velocity_y, velocity_z,
+                       speed_of_sound, temperature, pressure, gamma, c_p);
+    for (int s = 0; s < nspecies; ++s) {
+      out << fmt::format("{:< 24.15e}", view.species(i, j, k, s));
+    }
+    out << '\n';
+  });
 }
 
 namespace fub::amrex::cutcell {
@@ -420,6 +430,7 @@ struct TemperatureRamp {
 };
 
 struct ProgramOptions {
+  int max_cycles{0};
   double final_time{0.20};
   double cfl{0.8};
   double plenum_domain_length{1.0};
@@ -430,6 +441,8 @@ struct ProgramOptions {
   double tube_air_position{0.0};
   double tube_equiv_ratio{1.0};
   double output_interval{1.0E-4};
+  std::string plenum_checkpoint{};
+  std::string tube_checkpoint{};
 };
 
 auto MakeTubeSolver(const ProgramOptions& po, fub::Burke2012& mechanism) {
@@ -488,10 +501,14 @@ auto MakeTubeSolver(const ProgramOptions& po, fub::Burke2012& mechanism) {
       {ReflectiveBoundary{fub::execution::seq, equation, fub::Direction::X, 0},
        TransmissiveBoundary{fub::Direction::X, 1}}};
 
-  //  PatchHierarchy hierarchy =
-  //  ReadCheckpointFile("/Volumes/Maikel_Intenso/FiniteVolumeSolver_Build_3d/LongLinearShock_3d/Checkpoint/Tube_00108",
-  //  MakeDataDescription(equation), geometry, hier_opts);
-  PatchHierarchy hierarchy(equation, geometry, hier_opts);
+  PatchHierarchy hierarchy = [&] {
+    if (po.tube_checkpoint.empty()) {
+      return PatchHierarchy(equation, geometry, hier_opts);
+    }
+    return ReadCheckpointFile(po.tube_checkpoint,
+                              fub::amrex::MakeDataDescription(equation),
+                              geometry, hier_opts);
+  }();
   std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
       hierarchy, initial_data, TagAllOf(gradient, constant_box, TagBuffer(2)),
       boundaries);
@@ -589,10 +606,14 @@ auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism) {
                                   TransmissiveBoundary{fub::Direction::Z, 0},
                                   TransmissiveBoundary{fub::Direction::Z, 1}}};
 
-  //  PatchHierarchy hierarchy =
-  //  ReadCheckpointFile("/Volumes/Maikel_Intenso/FiniteVolumeSolver_Build_3d/LongLinearShock_3d/Checkpoint/Plenum_00108",
-  //  fub::amrex::MakeDataDescription(equation), geometry, options);
-  PatchHierarchy hierarchy(equation, geometry, options);
+  PatchHierarchy hierarchy = [&] {
+    if (po.plenum_checkpoint.empty()) {
+      return PatchHierarchy(equation, geometry, options);
+    }
+    return ReadCheckpointFile(po.plenum_checkpoint,
+                              fub::amrex::MakeDataDescription(equation),
+                              geometry, options);
+  }();
   std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
       std::move(hierarchy), initial_data,
       TagAllOf(TagCutCells(), gradients, constant_box, TagBuffer(2)),
@@ -621,26 +642,35 @@ std::optional<ProgramOptions> ParseCommandLine(int argc, char** argv) {
   ProgramOptions opts;
   po::options_description desc("Program Options");
   desc.add_options()("help", "Print help messages")(
+      "max_cycles",
+      po::value<int>(&opts.max_cycles)->default_value(opts.max_cycles),
+      "Set maximal number of coarse time steps done.")(
+      "plenum_checkpoint",
+      po::value<std::string>(&opts.plenum_checkpoint)->default_value(""),
+      "Restart the simulation from a given plenum checkpoint.")(
+      "tube_checkpoint",
+      po::value<std::string>(&opts.tube_checkpoint)->default_value(""),
+      "Restart the simulation from a given tube checkpoint.")(
       "cfl", po::value<double>(&opts.cfl)->default_value(opts.cfl),
       "Set the CFL condition")("max_refinement_level,r",
                                po::value<int>(&opts.max_refinement_level)
                                    ->default_value(opts.plenum_domain_length),
                                "Set the maximal refinement level")(
-      "ncells,n",
+      "ncells",
       po::value<int>(&opts.plenum_n_cells)->default_value(opts.plenum_n_cells),
       "Set number of cells in each direction for the plenum")(
-      "final_time,t",
+      "final_time",
       po::value<double>(&opts.final_time)->default_value(opts.final_time),
       "Set the final simulation time")(
-      "plenum_len,p",
+      "plenum_len",
       po::value<double>(&opts.plenum_domain_length)
           ->default_value(opts.plenum_domain_length),
       "Set the base length for the plenum")(
-      "tube_len,l",
+      "tube_len",
       po::value<double>(&opts.tube_domain_length)
           ->default_value(opts.tube_domain_length),
       "Set the base length for the tube")(
-      "tube_ignition,i",
+      "tube_ignition",
       po::value<double>(&opts.tube_ignition_position)
           ->default_value(opts.tube_ignition_position),
       "Set the position for the ignition of the detonation inside the tube")(
@@ -652,7 +682,7 @@ std::optional<ProgramOptions> ParseCommandLine(int argc, char** argv) {
       po::value<double>(&opts.tube_equiv_ratio)
           ->default_value(opts.tube_equiv_ratio),
       "Sets the equivalence ratio of the fuel in the tube")(
-      "output_interval,o",
+      "output_interval",
       po::value<double>(&opts.output_interval)
           ->default_value(opts.output_interval),
       "Sets the output interval");
@@ -702,9 +732,22 @@ std::optional<ProgramOptions> ParseCommandLine(int argc, char** argv) {
   amrex::Print() << fmt::format(
       "[Info] tube_n_cells = {}\n[Info] tube_dx = {}\n", tube_n_cells,
       opts.tube_domain_length / tube_n_cells);
-  amrex::Print() << fmt::format("[Info] tube_ignition_pos = {}\n", opts.tube_ignition_position);
-  amrex::Print() << fmt::format("[Info] tube_equiv_ratio = {}\n", opts.tube_equiv_ratio);
-  amrex::Print() << fmt::format("[Info] tube_air_position = {}\n", opts.tube_air_position);
+  amrex::Print() << fmt::format("[Info] tube_ignition_pos = {}\n",
+                                opts.tube_ignition_position);
+  amrex::Print() << fmt::format("[Info] tube_equiv_ratio = {}\n",
+                                opts.tube_equiv_ratio);
+  amrex::Print() << fmt::format("[Info] tube_air_position = {}\n",
+                                opts.tube_air_position);
+
+  if (!opts.plenum_checkpoint.empty() || !opts.tube_checkpoint.empty()) {
+    if (opts.plenum_checkpoint.empty() || opts.tube_checkpoint.empty()) {
+      amrex::Print() << "[Error] Only one Checkpoint file specified but you need a checkpoint for each domain.\n";
+      return {};
+    }
+    amrex::Print() << "[Info]\n[Info] Restart from a checkpoint!\n";
+    amrex::Print() << "[Info] Plenum Checkpoint: " << opts.plenum_checkpoint << '\n';
+    amrex::Print() << "[Info] Tube Checkpoint: " << opts.tube_checkpoint << '\n';
+  }
 
   return opts;
 }
@@ -871,6 +914,7 @@ void MyMain(const ProgramOptions& po) {
       std::vector<fub::Duration>{fub::Duration(po.output_interval), 0.0s};
   run_options.output_frequency = std::vector<int>{0, 1};
   run_options.cfl = po.cfl;
+  run_options.max_cycles = po.max_cycles;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      fub::amrex::print);
 }
