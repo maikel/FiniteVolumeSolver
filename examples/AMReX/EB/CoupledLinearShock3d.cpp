@@ -513,6 +513,9 @@ auto MakeTubeSolver(const ProgramOptions& po, fub::Burke2012& mechanism) {
       hierarchy, initial_data, TagAllOf(gradient, constant_box, TagBuffer(2)),
       boundaries);
   gridding->InitializeHierarchy(0.0);
+  if (po.tube_checkpoint.empty()) {
+    gridding->InitializeHierarchy(0.0);
+  }
 
   //  fub::EinfeldtSignalVelocities<fub::IdealGasMix<Tube_Rank>> signals{};
   //  fub::HllMethod hll_method(equation, signals);
@@ -618,7 +621,9 @@ auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism) {
       std::move(hierarchy), initial_data,
       TagAllOf(TagCutCells(), gradients, constant_box, TagBuffer(2)),
       boundary_condition);
-  gridding->InitializeHierarchy(0.0);
+  if (po.plenum_checkpoint.empty()) {
+    gridding->InitializeHierarchy(0.0);
+  }
 
   // Make Solver
 
