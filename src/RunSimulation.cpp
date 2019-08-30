@@ -59,7 +59,7 @@ std::optional<int> AnyOutputCondition(std::ptrdiff_t cycle, Duration time_point,
   for (std::size_t i = 0; i < options.output_interval.size(); ++i) {
     if (options.output_interval[i].count() > 0.0 &&
         std::fmod(time_point.count(), options.output_interval[i].count()) <
-            eps.count()) {
+            2*eps.count()) {
       return static_cast<int>(i);
     }
   }

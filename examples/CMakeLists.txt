@@ -16,7 +16,7 @@ if (AMReX_FOUND)
   target_link_libraries(AMReX.PerfectGas1d FiniteVolumeSolver.AMReX)
 
   add_executable_with_warnings(AMReX.IdealGasMix AMReX/IdealGasMix.cpp)
-  target_link_libraries(AMReX.IdealGasMix FiniteVolumeSolver.AMReX)
+  target_link_libraries(AMReX.IdealGasMix FiniteVolumeSolver.AMReX Boost::program_options)
 
   add_executable_with_warnings(AMReX.Advection2d_Godunov AMReX/Advection2d_Godunov.cpp)
   target_link_libraries(AMReX.Advection2d_Godunov FiniteVolumeSolver.AMReX)
