@@ -71,9 +71,9 @@ IntegratorContext::IntegratorContext(
   std::size_t n_levels =
   static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels());
   for (std::size_t i = 0; i < n_levels; ++i) {
-    data_[i].cycles = gridding->GetPatchHierarchy().GetPatchLevel(i).cycles;
-    data_[i].time_point = gridding->GetPatchHierarchy().GetPatchLevel(i).time_point;
-    data_[i].regrid_time_point = data_[i].regrid_time_point;
+    data_[i].cycles = gridding_->GetPatchHierarchy().GetPatchLevel(i).cycles;
+    data_[i].time_point = gridding_->GetPatchHierarchy().GetPatchLevel(i).time_point;
+    data_[i].regrid_time_point = data_[i].time_point;
   }
 }
 
