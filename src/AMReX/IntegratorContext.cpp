@@ -68,6 +68,13 @@ IntegratorContext::IntegratorContext(
       static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
   // Allocate auxiliary data arrays for each refinement level in the hierarchy
   ResetHierarchyConfiguration();
+  std::size_t n_levels =
+  static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels());
+  for (std::size_t i = 0; i < n_levels; ++i) {
+    data_[i].cycles = gridding->GetPatchHierarchy().GetPatchLevel(i).cycles;
+    data_[i].time_point = gridding->GetPatchHierarchy().GetPatchLevel(i).time_point;
+    data_[i].regrid_time_point = data_[i].regrid_time_point;
+  }
 }
 
 IntegratorContext::IntegratorContext(const IntegratorContext& other)
