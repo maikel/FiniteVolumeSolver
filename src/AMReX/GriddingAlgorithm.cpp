@@ -256,10 +256,18 @@ void GriddingAlgorithm::FillMultiFabFromLevel(::amrex::MultiFab& multifab,
     const std::size_t coarse = std::size_t(level_number - 1);
     BoundaryCondition& fine_boundary = boundary_condition_[fine];
     BoundaryCondition& coarse_boundary = boundary_condition_[coarse];
+#ifdef AMREX_USE_EB
+    span<const ::amrex::EB2::IndexSpace*> index_space = hierarchy_.GetIndexSpaces();
+    ::amrex::FillPatchTwoLevels(multifab, level.time_point.count(), *index_space[fine], cmf, ct,
+                                fmf, ft, 0, 0, n_comps, cgeom, fgeom,
+                                coarse_boundary, 0, fine_boundary, 0, ratio,
+                                mapper, bcr, 0, ::amrex::NullInterpHook(), ::amrex::NullInterpHook());
+#else
     ::amrex::FillPatchTwoLevels(multifab, level.time_point.count(), cmf, ct,
                                 fmf, ft, 0, 0, n_comps, cgeom, fgeom,
                                 coarse_boundary, 0, fine_boundary, 0, ratio,
                                 mapper, bcr, 0);
+#endif
   }
 }
 

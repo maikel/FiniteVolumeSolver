@@ -430,7 +430,7 @@ struct TemperatureRamp {
 };
 
 struct ProgramOptions {
-  int max_cycles{0};
+  int max_cycles{-1};
   double final_time{0.20};
   double cfl{0.8};
   double plenum_domain_length{1.0};
@@ -482,8 +482,6 @@ auto MakeTubeSolver(const ProgramOptions& po, fub::Burke2012& mechanism) {
       amrex::Box{{}, {n_cells[0] - 1, n_cells[1] - 1, n_cells[2] - 1}}, &xbox,
       -1, periodicity.data());
   geom.refine(hier_opts.refine_ratio);
-  ::amrex::EB2::Build(::amrex::EB2::makeShop(::amrex::EB2::AllRegularIF()),
-                      geom, hier_opts.refine_ratio, 1, 1);
 
   using Complete = fub::IdealGasMix<1>::Complete;
   GradientDetector gradient{equation, std::make_pair(&Complete::density, 5e-3),

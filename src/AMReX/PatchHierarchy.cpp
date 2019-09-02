@@ -19,6 +19,10 @@
 // SOFTWARE.
 
 #include "fub/AMReX/PatchHierarchy.hpp"
+#ifdef AMREX_USE_EB
+#include "fub/AMReX/cutcell/IndexSpace.hpp"
+#include <AMReX_EB2.H>
+#endif
 
 namespace fub {
 namespace amrex {
@@ -70,6 +74,10 @@ PatchHierarchy::PatchHierarchy(DataDescription desc,
                              grid_geometry_.periodicity.data());
     level_box.refine(options_.refine_ratio);
   }
+#ifdef AMREX_USE_EB
+  auto shop = ::amrex::EB2::makeShop(::amrex::EB2::AllRegularIF());
+  index_spaces_ = cutcell::MakeIndexSpaces(shop, patch_level_geometry_[0], options.max_number_of_levels, options.refine_ratio);
+#endif
 }
 
 int PatchHierarchy::GetRatioToCoarserLevel(int level, Direction dir) const
@@ -118,6 +126,10 @@ int PatchHierarchy::GetMaxNumberOfLevels() const noexcept {
 
 PatchLevel& PatchHierarchy::GetPatchLevel(int level) {
   return patch_level_.at(static_cast<std::size_t>(level));
+}
+
+span<const ::amrex::EB2::IndexSpace*> PatchHierarchy::GetIndexSpaces() noexcept {
+  return index_spaces_;
 }
 
 const PatchLevel& PatchHierarchy::GetPatchLevel(int level) const {
