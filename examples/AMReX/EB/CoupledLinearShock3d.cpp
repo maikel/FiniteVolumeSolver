@@ -744,12 +744,15 @@ std::optional<ProgramOptions> ParseCommandLine(int argc, char** argv) {
 
   if (!opts.plenum_checkpoint.empty() || !opts.tube_checkpoint.empty()) {
     if (opts.plenum_checkpoint.empty() || opts.tube_checkpoint.empty()) {
-      amrex::Print() << "[Error] Only one Checkpoint file specified but you need a checkpoint for each domain.\n";
+      amrex::Print() << "[Error] Only one Checkpoint file specified but you "
+                        "need a checkpoint for each domain.\n";
       return {};
     }
     amrex::Print() << "[Info]\n[Info] Restart from a checkpoint!\n";
-    amrex::Print() << "[Info] Plenum Checkpoint: " << opts.plenum_checkpoint << '\n';
-    amrex::Print() << "[Info] Tube Checkpoint: " << opts.tube_checkpoint << '\n';
+    amrex::Print() << "[Info] Plenum Checkpoint: " << opts.plenum_checkpoint
+                   << '\n';
+    amrex::Print() << "[Info] Tube Checkpoint: " << opts.tube_checkpoint
+                   << '\n';
   }
 
   return opts;
@@ -867,9 +870,9 @@ void MyMain(const ProgramOptions& po) {
                 buffer.data(), tube_probes.extent(1),
                 buffer.size() / tube_probes.extent(1));
             ::amrex::Print()
-            << fmt::format("{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}"
-                           "{:24s}{:24s}{:24s}\n",
-                           "Position", "Time", "Density", "VelocityX", "SpeedOfSound", "Temperature", "Pressure");
+                << fmt::format("{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}\n",
+                               "Position", "Time", "Density", "VelocityX",
+                               "SpeedOfSound", "Temperature", "Pressure");
             for (int i = tube_probes.extent(1) - 1; i >= 0; --i) {
               const double rho = states(i, 0);
               const double u = states(i, 1) / rho;
@@ -893,9 +896,11 @@ void MyMain(const ProgramOptions& po) {
                                                 buffer.size() /
                                                     probes.extent(1));
             ::amrex::Print()
-            << fmt::format("{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}"
-                           "{:24s}{:24s}{:24s}\n",
-                           "Position", "Time", "Density", "VelocityX", "VelocityY", "VelocityZ", "Machnumber", "SpeedOfSound", "Temperature", "Pressure");
+                << fmt::format("{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}"
+                               "{:24s}{:24s}\n",
+                               "Position", "Time", "Density", "VelocityX",
+                               "VelocityY", "VelocityZ",
+                               "SpeedOfSound", "Temperature", "Pressure");
             for (int i = 0; i < probes.extent(1); ++i) {
               const double rho = states(i, 0);
               const double u = states(i, 1) / rho;
@@ -907,7 +912,8 @@ void MyMain(const ProgramOptions& po) {
               const double t = timepoint.count();
               const double x = probes(0, i);
               ::amrex::Print()
-                  << fmt::format("{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< "
+                  << fmt::format("{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< "
+                                 "24.15g}{:< 24.15g}{:< 24.15g}{:< "
                                  "24.15g}{:< 24.15g}{:< 24.15g}\n",
                                  x, t, rho, u, v, w, a, T, p);
             }
