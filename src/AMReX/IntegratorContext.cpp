@@ -261,9 +261,16 @@ void IntegratorContext::FillGhostLayerTwoLevels(
   const ::amrex::IntVect ratio =
       GetGriddingAlgorithm()->GetPatchHierarchy().GetOptions().refine_ratio;
   ::amrex::Interpolater* mapper = &::amrex::pc_interp;
+#ifdef AMREX_USE_EB
+  auto index_space = GetPatchHierarchy().GetIndexSpaces();
+  ::amrex::FillPatchTwoLevels(scratch, ft[0], *index_space[fine], cmf, ct, fmf, ft, 0, 0, nc, cgeom,
+                              fgeom, coarse_condition, 0, fine_condition, 0,
+                              ratio, mapper, bcr, 0, ::amrex::NullInterpHook(), ::amrex::NullInterpHook());
+#else
   ::amrex::FillPatchTwoLevels(scratch, ft[0], cmf, ct, fmf, ft, 0, 0, nc, cgeom,
                               fgeom, coarse_condition, 0, fine_condition, 0,
                               ratio, mapper, bcr, 0);
+#endif
 }
 
 void IntegratorContext::FillGhostLayerTwoLevels(int fine, int coarse) {

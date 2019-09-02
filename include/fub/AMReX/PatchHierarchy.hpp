@@ -170,7 +170,7 @@ public:
 
   void PopBack();
 
-  [[nodiscard]] span<const ::amrex::EB2::IndexSpace*> GetIndexSpaces();
+  [[nodiscard]] span<const ::amrex::EB2::IndexSpace*> GetIndexSpaces() noexcept;
 
 private:
   DataDescription description_;
