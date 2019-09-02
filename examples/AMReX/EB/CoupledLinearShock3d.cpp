@@ -631,9 +631,9 @@ auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism) {
   fub::ideal_gas::MusclHancockPrimMethod<Plenum_Rank> flux_method(equation);
   fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
 
-  HyperbolicMethod method{FluxMethod{fub::execution::simd, cutcell_method},
+  HyperbolicMethod method{FluxMethod{fub::execution::openmp_simd, cutcell_method},
                           fub::amrex::cutcell::TimeIntegrator{},
-                          Reconstruction{fub::execution::simd, equation}};
+                          Reconstruction{fub::execution::openmp_simd, equation}};
 
   return fub::amrex::cutcell::IntegratorContext(gridding, method);
 }
