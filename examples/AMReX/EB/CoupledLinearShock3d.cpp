@@ -866,17 +866,22 @@ void MyMain(const ProgramOptions& po) {
             fub::mdspan<const double, 2> states(
                 buffer.data(), tube_probes.extent(1),
                 buffer.size() / tube_probes.extent(1));
+            ::amrex::Print()
+            << fmt::format("{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}"
+                           "{:24s}{:24s}{:24s}\n",
+                           "Position", "Time", "Density", "VelocityX", "SpeedOfSound", "Temperature", "Pressure");
             for (int i = tube_probes.extent(1) - 1; i >= 0; --i) {
               const double rho = states(i, 0);
               const double u = states(i, 1) / rho;
               const double T = states(i, 16);
               const double p = states(i, 14);
+              const double a = states(i, 15);
               const double t = timepoint.count();
               const double x = tube_probes(0, i);
               ::amrex::Print()
                   << fmt::format("{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< "
-                                 "24.15g}{:< 24.15g}{:< 24.15g}\n",
-                                 x, t, rho, u, T, p);
+                                 "24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}\n",
+                                 x, t, rho, u, a, T, p);
             }
           }
 
@@ -887,21 +892,24 @@ void MyMain(const ProgramOptions& po) {
             fub::mdspan<const double, 2> states(buffer.data(), probes.extent(1),
                                                 buffer.size() /
                                                     probes.extent(1));
+            ::amrex::Print()
+            << fmt::format("{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}"
+                           "{:24s}{:24s}{:24s}\n",
+                           "Position", "Time", "Density", "VelocityX", "VelocityY", "VelocityZ", "Machnumber", "SpeedOfSound", "Temperature", "Pressure");
             for (int i = 0; i < probes.extent(1); ++i) {
               const double rho = states(i, 0);
               const double u = states(i, 1) / rho;
               const double v = states(i, 2) / rho;
               const double w = states(i, 3) / rho;
               const double a = states(i, 17);
-              const double Ma = std::sqrt(u * u + v * v + w * w) / a;
               const double T = states(i, 18);
               const double p = states(i, 16);
               const double t = timepoint.count();
               const double x = probes(0, i);
               ::amrex::Print()
-                  << fmt::format("{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< "
-                                 "24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}\n",
-                                 x, t, rho, Ma, a, T, p);
+                  << fmt::format("{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< "
+                                 "24.15g}{:< 24.15g}{:< 24.15g}\n",
+                                 x, t, rho, u, v, w, a, T, p);
             }
           }
           ::amrex::Print() << "End Output for Probes.\n";
