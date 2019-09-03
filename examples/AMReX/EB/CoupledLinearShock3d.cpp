@@ -91,7 +91,7 @@ struct TemperatureRamp {
           const double x0 = ignition_pos_ - x[0];
           const double d = std::clamp(x0 / 0.05, 0.0, 1.0);
           reactor.SetMoleFractions(fuel_moles);
-          reactor.SetTemperature(d * high_temp + (1.0 - d) * low_temp);
+          reactor.SetTemperature(d * low_temp + (1.0 - d) * high_temp);
           reactor.SetPressure(101325.0);
           equation_.CompleteFromReactor(complete);
           fub::Store(states, complete, {i});
@@ -527,6 +527,8 @@ void MyMain(const ProgramOptions& po) {
           fub::amrex::cutcell::WriteCheckpointFile(
               fmt::format("{}/Checkpoint/Plenum_{:05}", base_name, cycle),
               gridding->GetPlena()[0]->GetPatchHierarchy());
+          fub::amrex::WritePlotFile(fmt::format("{}/Plotfile/Tube_plt{}", base_name, cycle), gridding->GetTubes()[0]->GetPatchHierarchy(), tube_equation);
+          fub::amrex::cutcell::WritePlotFile(fmt::format("{}/Plotfile/Plenum_plt{}", base_name, cycle), gridding->GetPlena()[0]->GetPatchHierarchy(), equation);
           ::amrex::Print() << "Finish Checkpointing.\n";
 
           ::amrex::Print() << "Begin Matlab Output.\n";
