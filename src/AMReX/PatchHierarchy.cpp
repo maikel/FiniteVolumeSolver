@@ -19,6 +19,9 @@
 // SOFTWARE.
 
 #include "fub/AMReX/PatchHierarchy.hpp"
+#include "fub/AMReX/ForEachFab.hpp"
+#include "fub/AMReX/ForEachIndex.hpp"
+
 #ifdef AMREX_USE_EB
 #include "fub/AMReX/cutcell/IndexSpace.hpp"
 #include <AMReX_EB2.H>
@@ -266,6 +269,201 @@ PatchHierarchy ReadCheckpointFile(const std::string& checkpointname,
   }
 
   return hierarchy;
+}
+
+
+  void WriteMatlabData(std::ostream& out, const ::amrex::FArrayBox& fab,
+                     const fub::IdealGasMix<1>& eq,
+                       const ::amrex::Geometry& geom) {
+  auto view = MakeView<const Complete<IdealGasMix<1>>>(fab, eq);
+  out << fmt::format("{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}",
+      "X", "Density", "VelocityX", "SpeedOfSound", "Temperature",
+      "Pressure", "Gamma", "HeatCapacityAtConstantPressure");
+  const int nspecies = eq.GetReactor().GetNSpecies();
+  span<const std::string> names = eq.GetReactor().GetSpeciesNames();
+  for (int s = 0; s < nspecies - 1; ++s) {
+    out << names[s] << ' ';
+  }
+  out << names[nspecies - 1] << '\n';
+  ForEachIndex(Box<0>(view), [&](std::ptrdiff_t i) {
+    double x[3] = {0.0, 0.0, 0.0};
+    ::amrex::IntVect iv{int(i), 0, 0};
+    geom.CellCenter(iv, x);
+    const double density = view.density(i);
+    const double velocity_x =
+        density > 0.0 ? view.momentum(i, 0) / density : 0.0;
+    const double temperature = view.temperature(i);
+    const double speed_of_sound = view.speed_of_sound(i);
+    const double gamma = view.gamma(i);
+    const double c_p = view.c_p(i);
+    const double pressure = view.pressure(i);
+    out << fmt::format("{:< 24.15e}{:< 24.15e}{:< 24.15e}{:< 24.15e}{:< "
+                       "24.15e}{:< 24.15e}{:< 24.15e}{:< 24.15e}",
+                       x[0], density, velocity_x, speed_of_sound, temperature,
+                       pressure, gamma, c_p);
+    for (int s = 0; s < nspecies; ++s) {
+      out << fmt::format("{:< 24.15e}", view.species(i, s));
+    }
+    out << '\n';
+  });
+}
+
+  void WriteMatlabData(std::ostream& out, const ::amrex::FArrayBox& fab,
+                     const fub::IdealGasMix<3>& eq,
+                       const ::amrex::Geometry& geom) {
+  auto view = MakeView<const Complete<IdealGasMix<3>>>(fab, eq);
+  out << fmt::format("{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}",
+      "X", "Y", "Density", "VelocityX", "VelocityY", "VelocityZ", "SpeedOfSound", "Temperature",
+      "Pressure", "Gamma", "HeatCapacityAtConstantPressure");
+  const int nspecies = eq.GetReactor().GetNSpecies();
+  span<const std::string> names = eq.GetReactor().GetSpeciesNames();
+  for (int s = 0; s < nspecies - 1; ++s) {
+    out << fmt::format("{:24s}", names[s]);
+  }
+  out << fmt::format("{:24s}\n", names[nspecies - 1]);
+  ForEachIndex(Box<0>(view), [&](std::ptrdiff_t i, std::ptrdiff_t j,
+                                 std::ptrdiff_t k) {
+    double x[3] = {0.0, 0.0, 0.0};
+    ::amrex::IntVect iv{int(i), int(j), int(k)};
+    geom.CellCenter(iv, x);
+    const double density = view.density(i, j, k);
+    const double velocity_x =
+        density > 0.0 ? view.momentum(i, j, k, 0) / density : 0.0;
+    const double velocity_y =
+        density > 0.0 ? view.momentum(i, j, k, 1) / density : 0.0;
+    const double velocity_z =
+        density > 0.0 ? view.momentum(i, j, k, 2) / density : 0.0;
+    const double temperature = view.temperature(i, j, k);
+    const double speed_of_sound = view.speed_of_sound(i, j, k);
+    const double gamma = view.gamma(i, j, k);
+    const double c_p = view.c_p(i, j, k);
+    const double pressure = view.pressure(i, j, k);
+    out << fmt::format("{:< 24.15e}{:< 24.15e}{:< 24.15e}{:< 24.15e}"
+                       "{:< 24.15e}{:< 24.15e}{:< 24.15e}{:< 24.15e}"
+                       "{:< 24.15e}{:< 24.15e}{:< 24.15e}",
+                       x[0], x[1], density, velocity_x, velocity_y, velocity_z,
+                       speed_of_sound, temperature, pressure, gamma, c_p);
+    for (int s = 0; s < nspecies; ++s) {
+      out << fmt::format("{:< 24.15e}", view.species(i, j, k, s));
+    }
+    out << '\n';
+  });
+}
+
+std::vector<double>
+GatherStates(const PatchHierarchy& hierarchy,
+             basic_mdspan<const double, extents<AMREX_SPACEDIM, dynamic_extent>> xs,
+             MPI_Comm comm) {
+  const int nlevel = hierarchy.GetNumberOfLevels();
+  const int finest_level = nlevel - 1;
+  const int ncomp = hierarchy.GetDataDescription().n_state_components;
+  std::vector<double> buffer(xs.extent(1) * ncomp * nlevel);
+  mdspan<double, 3> states(buffer.data(), xs.extent(1), ncomp, nlevel);
+  for (int level = 0; level < nlevel; ++level) {
+    const ::amrex::MultiFab& level_data = hierarchy.GetPatchLevel(level).data;
+    const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(level);
+    ForEachFab(level_data, [&](const ::amrex::MFIter& mfi) {
+      ForEachIndex(mfi.tilebox(), [&](auto... is) {
+        double lo[AMREX_SPACEDIM]{};
+        double hi[AMREX_SPACEDIM]{};
+        const ::amrex::IntVect iv{int(is)...};
+        level_geom.LoNode(iv, lo);
+        level_geom.HiNode(iv, hi);
+        for (int k = 0; k < xs.extent(1); ++k) {
+          bool is_in_range = true;
+          for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+            is_in_range = is_in_range && lo[d] <= xs(d, k) && xs(d, k) < hi[d];
+          }
+          if (is_in_range) {
+            for (int comp = 0; comp < level_data.nComp(); ++comp) {
+              states(k, comp, level) = level_data[mfi](iv, comp);
+            }
+          }
+        }
+      });
+    });
+  }
+  std::vector<double> global_buffer(buffer.size());
+  ::MPI_Allreduce(buffer.data(), global_buffer.data(), global_buffer.size(),
+                  MPI_DOUBLE, MPI_SUM, comm);
+  states = mdspan<double, 3>(global_buffer.data(), xs.extent(1), ncomp, nlevel);
+  for (int level = 1; level < nlevel; ++level) {
+    for (int comp = 0; comp < ncomp; ++comp) {
+      for (int i = 0; i < xs.extent(1); ++i) {
+        if (states(i, comp, level) == 0.0) {
+          states(i, comp, level) = states(i, comp, level - 1);
+        }
+      }
+    }
+  }
+  std::vector<double> result(&states(0, 0, finest_level),
+                             &states(0, 0, finest_level) +
+                                 xs.extent(1) * ncomp);
+  return result;
+}
+
+  
+void WriteTubeData(std::ostream& out, const PatchHierarchy& hierarchy,
+                   const IdealGasMix<1>& eq, fub::Duration time_point,
+                   std::ptrdiff_t cycle_number, MPI_Comm comm) {
+  const std::size_t n_level =
+      static_cast<std::size_t>(hierarchy.GetNumberOfLevels());
+  std::vector<::amrex::FArrayBox> fabs{};
+  fabs.reserve(n_level);
+  for (std::size_t level = 0; level < n_level; ++level) {
+    const int ilvl = static_cast<int>(level);
+    const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(ilvl);
+    ::amrex::Box domain = level_geom.Domain();
+    const ::amrex::MultiFab& level_data = hierarchy.GetPatchLevel(ilvl).data;
+    ::amrex::FArrayBox local_fab(domain, level_data.nComp());
+    local_fab.setVal(0.0);
+    ForEachFab(level_data, [&](const ::amrex::MFIter& mfi) {
+      const ::amrex::FArrayBox& patch_data = level_data[mfi];
+      local_fab.copy(patch_data);
+    });
+    int rank = -1;
+    ::MPI_Comm_rank(comm, &rank);
+    if (rank == 0) {
+      ::amrex::FArrayBox& fab = fabs.emplace_back(domain, level_data.nComp());
+      fab.setVal(0.0);
+      ::MPI_Reduce(local_fab.dataPtr(), fab.dataPtr(), local_fab.size(),
+                   MPI_DOUBLE, MPI_SUM, 0, comm);
+      if (level > 0) {
+        for (int comp = 1; comp < level_data.nComp(); ++comp) {
+          for (int j = domain.smallEnd(1); j <= domain.bigEnd(1); ++j) {
+            for (int i = domain.smallEnd(0); i <= domain.bigEnd(0); ++i) {
+              ::amrex::IntVect fine_i{i, j, domain.smallEnd(2)};
+              ::amrex::IntVect coarse_i = fine_i;
+              coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(level));
+              if (fab(fine_i, 0) == 0.0) {
+                fab(fine_i, comp) = fabs[level - 1](coarse_i, comp);
+              }
+            }
+          }
+        }
+        for (int j = domain.smallEnd(1); j <= domain.bigEnd(1); ++j) {
+          for (int i = domain.smallEnd(0); i <= domain.bigEnd(0); ++i) {
+            ::amrex::IntVect fine_i{i, j, domain.smallEnd(2)};
+            ::amrex::IntVect coarse_i = fine_i;
+            coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(level));
+            if (fab(fine_i, 0) == 0.0) {
+              fab(fine_i, 0) = fabs[level - 1](coarse_i, 0);
+            }
+          }
+        }
+      }
+      if (level == n_level - 1) {
+        out << fmt::format("nx = {}\n", domain.length(0));
+        out << fmt::format("t = {}\n", time_point.count());
+        out << fmt::format("cycle = {}\n", cycle_number);
+        WriteMatlabData(out, fab, eq, level_geom);
+        out.flush();
+      }
+    } else {
+      ::MPI_Reduce(local_fab.dataPtr(), nullptr, local_fab.size(), MPI_DOUBLE,
+                   MPI_SUM, 0, comm);
+    }
+  }
 }
 
 } // namespace amrex

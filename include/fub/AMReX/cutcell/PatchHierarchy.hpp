@@ -37,6 +37,7 @@
 
 #include <fmt/format.h>
 
+#include <iosfwd>
 #include <functional>
 #include <vector>
 
@@ -286,6 +287,15 @@ PatchHierarchy ReadCheckpointFile(const std::string& checkpointname,
                                   DataDescription desc,
                                   const CartesianGridGeometry& geometry,
                                   const PatchHierarchyOptions& options);
+
+void Write2Dfrom3D(std::ostream& out, const PatchHierarchy& hierarchy,
+                   const IdealGasMix<3>& eq, fub::Duration time_point,
+                   std::ptrdiff_t cycle_number, MPI_Comm comm);
+
+std::vector<double>
+GatherStates(const PatchHierarchy& hierarchy,
+             basic_mdspan<const double, extents<AMREX_SPACEDIM, dynamic_extent>> xs,
+             MPI_Comm comm);
 
 } // namespace fub::amrex::cutcell
 

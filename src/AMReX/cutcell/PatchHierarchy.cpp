@@ -21,6 +21,7 @@
 #include "fub/AMReX/cutcell/PatchHierarchy.hpp"
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
+#include "fub/AMReX/ForEachIndex.hpp"
 
 #include "fub/AMReX/FillCutCellData.hpp"
 
@@ -382,6 +383,135 @@ PatchHierarchy ReadCheckpointFile(const std::string& checkpointname,
   }
 
   return hierarchy;
+}
+
+void Write2Dfrom3D(std::ostream& out, const PatchHierarchy& hierarchy,
+                   const IdealGasMix<3>& eq, fub::Duration time_point,
+                   std::ptrdiff_t cycle_number, MPI_Comm comm) {
+  const std::size_t n_level =
+      static_cast<std::size_t>(hierarchy.GetNumberOfLevels());
+  std::vector<::amrex::Geometry> geoms{};
+  geoms.reserve(n_level);
+  std::vector<::amrex::MultiFab> data{};
+  std::vector<::amrex::FArrayBox> fabs{};
+  data.reserve(n_level);
+  for (std::size_t level = 0; level < n_level; ++level) {
+    const int ilvl = static_cast<int>(level);
+    const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(ilvl);
+    ::amrex::Box domain = level_geom.Domain();
+    const int k =
+        (level_geom.Domain().smallEnd(2) + level_geom.Domain().bigEnd(2)) / 2;
+    domain.setSmall(2, k);
+    domain.setBig(2, k);
+    ::amrex::RealBox probDomain = level_geom.ProbDomain();
+    //    const double dz = level_geom.CellSize(2);
+    probDomain.setLo(2, 0.0);
+    probDomain.setHi(2, 0.0);
+    ::amrex::Geometry& geom = geoms.emplace_back(domain, &probDomain);
+    const ::amrex::MultiFab& level_data = hierarchy.GetPatchLevel(ilvl).data;
+    ::amrex::FArrayBox local_fab(domain, level_data.nComp());
+    local_fab.setVal(0.0);
+    ForEachFab(level_data, [&](const ::amrex::MFIter& mfi) {
+      const ::amrex::FArrayBox& patch_data = level_data[mfi];
+      const ::amrex::Box box = mfi.tilebox() & domain;
+      local_fab.copy(patch_data, box);
+    });
+    int rank = -1;
+    ::MPI_Comm_rank(comm, &rank);
+    if (rank == 0) {
+      ::amrex::FArrayBox& fab = fabs.emplace_back(domain, level_data.nComp());
+      fab.setVal(0.0);
+      ::MPI_Reduce(local_fab.dataPtr(), fab.dataPtr(), local_fab.size(),
+                   MPI_DOUBLE, MPI_SUM, 0, comm);
+      if (level > 0) {
+        for (int comp = 1; comp < level_data.nComp(); ++comp) {
+          for (int j = domain.smallEnd(1); j <= domain.bigEnd(1); ++j) {
+            for (int i = domain.smallEnd(0); i <= domain.bigEnd(0); ++i) {
+              ::amrex::IntVect fine_i{i, j, domain.smallEnd(2)};
+              ::amrex::IntVect coarse_i = fine_i;
+              coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(level));
+              if (fab(fine_i, 0) == 0.0) {
+                fab(fine_i, comp) = fabs[level - 1](coarse_i, comp);
+              }
+            }
+          }
+        }
+        for (int j = domain.smallEnd(1); j <= domain.bigEnd(1); ++j) {
+          for (int i = domain.smallEnd(0); i <= domain.bigEnd(0); ++i) {
+            ::amrex::IntVect fine_i{i, j, domain.smallEnd(2)};
+            ::amrex::IntVect coarse_i = fine_i;
+            coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(level));
+            if (fab(fine_i, 0) == 0.0) {
+              fab(fine_i, 0) = fabs[level - 1](coarse_i, 0);
+            }
+          }
+        }
+      }
+      if (level == n_level - 1) {
+        out << fmt::format("nx = {}\n", domain.length(0));
+        out << fmt::format("ny = {}\n", domain.length(1));
+        out << fmt::format("t = {}\n", time_point.count());
+        out << fmt::format("cycle = {}\n", cycle_number);
+        WriteMatlabData(out, fab, eq, geom);
+        out.flush();
+      }
+    } else {
+      ::MPI_Reduce(local_fab.dataPtr(), nullptr, local_fab.size(), MPI_DOUBLE,
+                   MPI_SUM, 0, comm);
+    }
+  }
+}
+
+std::vector<double>
+GatherStates(const PatchHierarchy& hierarchy,
+             basic_mdspan<const double, extents<AMREX_SPACEDIM, dynamic_extent>> xs,
+             MPI_Comm comm) {
+  const int nlevel = hierarchy.GetNumberOfLevels();
+  const int finest_level = nlevel - 1;
+  const int ncomp = hierarchy.GetDataDescription().n_state_components;
+  std::vector<double> buffer(xs.extent(1) * ncomp * nlevel);
+  mdspan<double, 3> states(buffer.data(), xs.extent(1), ncomp, nlevel);
+  for (int level = 0; level < nlevel; ++level) {
+    const ::amrex::MultiFab& level_data = hierarchy.GetPatchLevel(level).data;
+    const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(level);
+    ForEachFab(level_data, [&](const ::amrex::MFIter& mfi) {
+      ForEachIndex(mfi.tilebox(), [&](auto... is) {
+        double lo[AMREX_SPACEDIM]{};
+        double hi[AMREX_SPACEDIM]{};
+        const ::amrex::IntVect iv{int(is)...};
+        level_geom.LoNode(iv, lo);
+        level_geom.HiNode(iv, hi);
+        for (int k = 0; k < xs.extent(1); ++k) {
+          bool is_in_range = true;
+          for (int i = 0; i < AMREX_SPACEDIM; ++i) {
+            is_in_range = is_in_range && lo[i] <= xs(i, k) && xs(i, k) < hi[i];
+          }
+          if (is_in_range) {
+            for (int comp = 0; comp < level_data.nComp(); ++comp) {
+              states(k, comp, level) = level_data[mfi](iv, comp);
+            }
+          }
+        }
+      });
+    });
+  }
+  std::vector<double> global_buffer(buffer.size());
+  ::MPI_Allreduce(buffer.data(), global_buffer.data(), global_buffer.size(),
+                  MPI_DOUBLE, MPI_SUM, comm);
+  states = mdspan<double, 3>(global_buffer.data(), xs.extent(1), ncomp, nlevel);
+  for (int level = 1; level < nlevel; ++level) {
+    for (int comp = 0; comp < ncomp; ++comp) {
+      for (int i = 0; i < xs.extent(1); ++i) {
+        if (states(i, comp, level) == 0.0) {
+          states(i, comp, level) = states(i, comp, level - 1);
+        }
+      }
+    }
+  }
+  std::vector<double> result(&states(0, 0, finest_level),
+                             &states(0, 0, finest_level) +
+                                 xs.extent(1) * ncomp);
+  return result;
 }
 
 } // namespace cutcell
