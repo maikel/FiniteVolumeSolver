@@ -43,6 +43,15 @@ template <typename Eq, typename... Ps>
 GradientDetector(const Eq& eq, const std::pair<Ps, double>&... ps)
     ->GradientDetector<Eq, Ps...>;
 
+template <int Rank>
+::amrex::IntVect GetGradientGrowVector() {
+  ::amrex::IntVect unit = ::amrex::IntVect::TheUnitVector();
+  for (int i = Rank; i < AMREX_SPACEDIM; ++i) {
+    unit[i] = 0;
+  }
+  return unit;
+}
+
 template <typename Equation, typename... Projections>
 GradientDetector<Equation, Projections...>::GradientDetector(
     const Equation& equation, const std::pair<Projections, double>&... projs)
@@ -57,7 +66,8 @@ void GradientDetector<Equation, Projections...>::TagCellsForRefinement(
   ::amrex::DistributionMapping dm =
       hierarchy.GetPatchLevel(level).distribution_mapping;
   const ::amrex::MultiFab& data = hierarchy.GetPatchLevel(level).data;
-  ::amrex::MultiFab scratch(ba, dm, data.nComp(), 1, ::amrex::MFInfo(),
+  const ::amrex::IntVect grow = GetGradientGrowVector<Equation::Rank()>();
+  ::amrex::MultiFab scratch(ba, dm, data.nComp(), grow, ::amrex::MFInfo(),
                             data.Factory());
   gridding.FillMultiFabFromLevel(scratch, level);
 #if defined(_OPENMP) && defined(AMREX_USE_OMP)

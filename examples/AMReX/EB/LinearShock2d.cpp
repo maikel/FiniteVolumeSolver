@@ -49,10 +49,10 @@ int main(int argc, char** argv) {
   fub::amrex::ScopeGuard _(argc, argv);
 
   const std::array<int, 2> n_cells{128, 128};
-  const std::array<double, 2> xlower{-0.10, -0.15};
-  const std::array<double, 2> xupper{+0.20, +0.15};
+  const std::array<double, 2> xlower{-0.10, -0.6};
+  const std::array<double, 2> xupper{+1.10, +0.6};
 
-  const int n_level = 4;
+  const int n_level = 5;
 
   auto embedded_boundary =
       amrex::EB2::makeUnion(Rectangle({-1.0, +0.015}, {0.0, 1.0}),
@@ -111,29 +111,31 @@ int main(int argc, char** argv) {
   fub::MusclHancockMethod flux_method(equation, hll_method);
   fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
 
-  HyperbolicMethod method{FluxMethod{fub::execution::seq, cutcell_method},
+  HyperbolicMethod method{FluxMethod{fub::execution::openmp, cutcell_method},
                           TimeIntegrator{},
-                          Reconstruction{fub::execution::seq, equation}};
+                          Reconstruction{fub::execution::openmp, equation}};
 
-  fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
-      equation, fub::amrex::cutcell::IntegratorContext(gridding, method)));
+  fub::DimensionalSplitLevelIntegrator solver(
+      fub::int_c<2>, IntegratorContext(gridding, method),
+      fub::GodunovSplitting());
 
   std::string base_name = "LinearShock2d";
 
-  auto output = [&](const PatchHierarchy& hierarchy, std::ptrdiff_t cycle,
-                    fub::Duration) {
-    std::string name = fmt::format("{}/Plot-{:04}", base_name, cycle);
+  auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,
+                    std::ptrdiff_t cycle, fub::Duration) {
+    std::string name = fmt::format("{}/plt{:04}", base_name, cycle);
     ::amrex::Print() << "Start output to '" << name << "'.\n";
-    WritePlotFile(name, hierarchy, equation);
+    WritePlotFile(name, gridding->GetPatchHierarchy(), equation);
     ::amrex::Print() << "Finished output to '" << name << "'.\n";
   };
 
   using namespace std::literals::chrono_literals;
-  output(solver.GetPatchHierarchy(), solver.GetCycles(), solver.GetTimePoint());
+  output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
+         solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.final_time = 0.002s;
   run_options.output_interval = 0.0000125s;
-  run_options.cfl = 0.5 * 0.9;
+  run_options.cfl = 0.8;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      fub::amrex::print);
 }

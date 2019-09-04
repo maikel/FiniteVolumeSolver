@@ -157,6 +157,7 @@ void InitializeState(const Equation&, const Complete<Equation>&) {}
 template <typename Eq> struct Conservative : ConservativeBase<Eq> {
   using Equation = Eq;
   using Depths = typename Equation::ConservativeDepths;
+  using ValueType = double;
   using Traits = StateTraits<ConservativeBase<Equation>>;
 
   Conservative() = default;
@@ -182,6 +183,7 @@ using CompleteBase =
 template <typename Eq> struct Complete : CompleteBase<Eq> {
   using Equation = Eq;
   using Depths = typename Equation::CompleteDepths;
+  using ValueType = double;
   using Traits = StateTraits<CompleteBase<Equation>>;
 
   Complete() = default;

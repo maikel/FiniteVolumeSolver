@@ -25,10 +25,11 @@
 #include "fub/StateArray.hpp"
 
 #include "fub/CompleteFromCons.hpp"
-#include "fub/EinfeldtSignalVelocities.hpp"
 #include "fub/Equation.hpp"
 #include "fub/ExactRiemannSolver.hpp"
 #include "fub/ext/Eigen.hpp"
+
+#include "fub/EinfeldtSignalVelocities.hpp"
 #include "fub/flux_method/HllMethod.hpp"
 #include "fub/flux_method/MusclHancockMethod.hpp"
 
@@ -185,8 +186,8 @@ public:
   std::array<double, 2> ComputeSignals(const Complete&, const Complete&,
                                        Direction dir);
 
-  std::array<double, 2> ComputeSignals(const CompleteArray&,
-                                       const CompleteArray&, Direction dir);
+  std::array<Array1d, 2> ComputeSignals(const CompleteArray&,
+                                        const CompleteArray&, Direction dir);
 
   std::array<double, 2> ComputeMiddleState(const Complete& left,
                                            const Complete& right,
@@ -217,6 +218,13 @@ template <int Dim> struct EinfeldtSignalVelocities<PerfectGas<Dim>> {
 extern template struct EinfeldtSignalVelocities<PerfectGas<1>>;
 extern template struct EinfeldtSignalVelocities<PerfectGas<2>>;
 extern template struct EinfeldtSignalVelocities<PerfectGas<3>>;
+
+//extern template class FluxMethod<Godunov<PerfectGas<1>>>;
+//extern template class FluxMethod<MusclHancock<PerfectGas<1>>>;
+//extern template class FluxMethod<Godunov<PerfectGas<2>>>;
+//extern template class FluxMethod<MusclHancock<PerfectGas<2>>>;
+//extern template class FluxMethod<Godunov<PerfectGas<3>>>;
+//extern template class FluxMethod<MusclHancock<PerfectGas<3>>>;
 
 } // namespace fub
 

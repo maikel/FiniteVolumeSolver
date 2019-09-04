@@ -88,7 +88,7 @@ int PatchHierarchy::GetRatioToCoarserLevel(int level, Direction dir) const
   return options_.refine_ratio;
 }
 
-const ::amrex::Geometry& PatchHierarchy::GetGeometry(int level) const noexcept {
+const ::amrex::Geometry& PatchHierarchy::GetGeometry(int level) const {
   return patch_level_geometry_[static_cast<std::size_t>(level)];
 }
 

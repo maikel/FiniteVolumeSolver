@@ -338,15 +338,18 @@ void GriddingAlgorithm::SetBoundaryCondition(
 void GriddingAlgorithm::SetBoundaryCondition(int level,
                                              BoundaryCondition&& condition) {
   FUB_ASSERT(level >= 0);
+  FUB_ASSERT(std::size_t(level) < boundary_condition_.size());
   boundary_condition_[size_t(level)] = std::move(condition);
 }
 
 const BoundaryCondition&
 GriddingAlgorithm::GetBoundaryCondition(int level) const noexcept {
+  FUB_ASSERT(std::size_t(level) < boundary_condition_.size());
   return boundary_condition_[size_t(level)];
 }
 
 BoundaryCondition& GriddingAlgorithm::GetBoundaryCondition(int level) noexcept {
+  FUB_ASSERT(std::size_t(level) < boundary_condition_.size());
   return boundary_condition_[size_t(level)];
 }
 

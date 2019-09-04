@@ -107,8 +107,7 @@ auto MakeSolver(const fub::PerfectGas<2>& equation) {
                           TimeIntegrator{},
                           Reconstruction{fub::execution::seq, equation}};
 
-  return fub::HyperbolicSplitSystemSolver(fub::HyperbolicSplitLevelIntegrator(
-      equation, IntegratorContext(gridding, method)));
+  return fub::DimensionalSplitLevelIntegrator(fub::int_c<2>, IntegratorContext(gridding, method));
 }
 
 int main(int argc, char** argv) {
@@ -123,24 +122,26 @@ int main(int argc, char** argv) {
 
   fub::amrex::ScopeGuard _(argc, argv);
   fub::PerfectGas<2> equation{};
-  fub::HyperbolicSplitSystemSolver solver = MakeSolver(equation);
+  fub::DimensionalSplitLevelIntegrator solver = MakeSolver(equation);
 
   std::string base_name = "Ramp/";
-  auto output = [&](const fub::amrex::cutcell::PatchHierarchy& hierarchy,
+
+  using namespace fub::amrex::cutcell;
+  auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,
                     std::ptrdiff_t cycle, fub::Duration) {
-    std::string name = fmt::format("{}{:05}", base_name, cycle);
-    ::amrex::Print() << "Start output to '" << name << "'.\n";
-    fub::amrex::cutcell::WritePlotFile(name, hierarchy, equation);
-    ::amrex::Print() << "Finished output to '" << name << "'.\n";
+    std::string name = fmt::format("{}plt{:05}", base_name, cycle);
+    amrex::Print() << "Start output to '" << name << "'.\n";
+    WritePlotFile(name, gridding->GetPatchHierarchy(), equation);
+    amrex::Print() << "Finished output to '" << name << "'.\n";
   };
-  auto print_msg = [](const std::string& msg) { ::amrex::Print() << msg; };
 
   using namespace std::literals::chrono_literals;
-  output(solver.GetPatchHierarchy(), 0, 0s);
+  output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
+         solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.final_time = 1s;
   run_options.output_frequency = 1;
   run_options.cfl = 0.4;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
-                     print_msg);
+                     fub::amrex::print);
 }

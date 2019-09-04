@@ -59,6 +59,8 @@ void UpdateConservatively_Row(double* next, const double* prev,
                               double dt_over_dx) {
 #ifdef __clang__
 #pragma clang loop vectorize(enable)
+#elif _OPENMP
+#pragma omp simd
 #endif
   for (std::ptrdiff_t i = 0; i < n; ++i) {
     ////////////////////////////////////////////////////////////////////////////////////
@@ -113,7 +115,7 @@ void UpdateConservatively_Row(double* next, const double* prev,
       return next;
     }();
 
-    next[i] = alpha > 0.0 ? betaL == betaR
+    next[i] = alpha > 0.0 ? betaL == betaR || alpha == 1.0
                                 ? regular
                                 : betaL > betaR ? left_greater : right_greater
                           : next[i];
@@ -215,9 +217,21 @@ void UpdateConservatively_View(
              });
 }
 
+namespace {
+::amrex::Box GetCellBoxToUpdate(const ::amrex::MFIter& mfi, Direction dir) {
+  const ::amrex::Box one_box = mfi.growntilebox(1);
+  const ::amrex::Box grown_box = mfi.growntilebox();
+  ::amrex::Box box = grown_box;
+  const int idir = static_cast<int>(dir);
+  box.setSmall(idir, one_box.smallEnd(idir));
+  box.setBig(idir, one_box.bigEnd(idir));
+  return box;
+}
+} // namespace
+
 void TimeIntegrator::UpdateConservatively(IntegratorContext& context, int level,
                                           Duration dt, Direction dir) {
-  ::amrex::MultiFab& scratch = context.GetScratch(level, dir);
+  ::amrex::MultiFab& scratch = context.GetScratch(level);
   const ::amrex::MultiFab& unshielded = context.GetFluxes(level, dir);
   const ::amrex::MultiFab& stabilized = context.GetStabilizedFluxes(level, dir);
   const ::amrex::MultiFab& shielded_left =
@@ -231,15 +245,17 @@ void TimeIntegrator::UpdateConservatively(IntegratorContext& context, int level,
   const double dx = context.GetDx(level, dir);
   const double dt_over_dx = dt.count() / dx;
 
-  ForEachFab(execution::seq, scratch, [&](const ::amrex::MFIter& mfi) {
-    ::amrex::FabType type = context.GetFabType(level, mfi);
-    if (type == ::amrex::FabType::singlevalued) {
-      for (int comp = 0; comp < n_cons; ++comp) {
-        const IndexBox<AMREX_SPACEDIM> cells =
-            Grow(AsIndexBox<AMREX_SPACEDIM>(mfi.tilebox()), dir, {1, 1});
-        const IndexBox<AMREX_SPACEDIM> facesL = cells;
-        const IndexBox<AMREX_SPACEDIM> facesR = Grow(cells, dir, {-1, 1});
+  //  const int gcw =
+  //  context.GetHyperbolicMethod().flux_method.GetStencilWidth();
 
+  ForEachFab(execution::openmp, scratch, [&](const ::amrex::MFIter& mfi) {
+    ::amrex::FabType type = context.GetFabType(level, mfi);
+    const IndexBox<AMREX_SPACEDIM> cells =
+        AsIndexBox<AMREX_SPACEDIM>(GetCellBoxToUpdate(mfi, dir));
+    if (type == ::amrex::FabType::singlevalued) {
+      const IndexBox<AMREX_SPACEDIM> facesL = cells;
+      const IndexBox<AMREX_SPACEDIM> facesR = Grow(cells, dir, {-1, 1});
+      for (int comp = 0; comp < n_cons; ++comp) {
         View<double> scratch_view = MakeView(scratch[mfi], cells, comp);
 
         FluxData<View<const double>> fluxesL;
@@ -275,13 +291,12 @@ void TimeIntegrator::UpdateConservatively(IntegratorContext& context, int level,
                                   fractions, dt_over_dx);
       }
     } else if (type == ::amrex::FabType::regular) {
-      ::amrex::Box box = mfi.tilebox();
       const int n_cons = hierarchy.GetDataDescription().n_cons_components;
-      const auto cells = Embed<AMREX_SPACEDIM + 1>(
-          Grow(AsIndexBox<AMREX_SPACEDIM>(box), dir, {1, 1}), {0, n_cons});
-      const auto faces = Grow(cells, dir, {0, 1});
+      const IndexBox<AMREX_SPACEDIM + 1> embed_cells =
+          Embed<AMREX_SPACEDIM + 1>(cells, {0, n_cons});
+      const IndexBox<AMREX_SPACEDIM + 1> faces = Grow(embed_cells, dir, {0, 1});
       PatchDataView<double, AMREX_SPACEDIM + 1, layout_stride> next =
-          MakePatchDataView(scratch[mfi]).Subview(cells);
+          MakePatchDataView(scratch[mfi]).Subview(embed_cells);
       PatchDataView<const double, AMREX_SPACEDIM + 1, layout_stride> fluxes =
           MakePatchDataView(unshielded[mfi]).Subview(faces);
       fub::HyperbolicPatchIntegrator integrator{fub::execution::simd};

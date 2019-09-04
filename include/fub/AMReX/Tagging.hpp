@@ -89,7 +89,7 @@ template <typename... Tagging> struct TagAllOf {
   void TagCellsForRefinement(::amrex::TagBoxArray& tags, Duration time_point,
                              int level, GriddingAlgorithm& gridding) {
     std::apply(
-        [this, &tags, time_point, level, &gridding](Tagging&... tagging) {
+        [&tags, time_point, level, &gridding](Tagging&... tagging) {
           (tagging.TagCellsForRefinement(tags, time_point, level, gridding),
            ...);
         },

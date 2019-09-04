@@ -122,11 +122,11 @@ int main(int, char** argv) {
   const std::array<int, 2> periodicity{0, 0};
 
   fub::PerfectGas<2> equation;
-  fub::amrex::DataDescription desc = fub::amrex::MakeDataDescription(equation);
 
+  using namespace fub::amrex::cutcell;
   using State = fub::Complete<fub::PerfectGas<2>>;
-  fub::GradientDetector gradients{equation, std::pair{&State::pressure, 0.05},
-                                  std::pair{&State::density, 0.005}};
+  GradientDetector gradients{equation, std::pair{&State::pressure, 0.05},
+                             std::pair{&State::density, 0.005}};
 
   fub::Conservative<fub::PerfectGas<2>> cons;
   cons.density = 1.22;
@@ -138,9 +138,8 @@ int main(int, char** argv) {
   const double shock_mach_number = 5.8;
   const fub::Array<double, 2, 1> normal{1.0, 0.0};
 
-  fub::amrex::cutcell::ShockMachnumber initial_data(
-      equation, fub::Halfspace({+1.0, 0.0, 0.0}, 0.01), post_shock_state,
-      shock_mach_number, normal);
+  ShockMachnumber initial_data(equation, fub::Halfspace({+1.0, 0.0, 0.0}, 0.01),
+                               post_shock_state, shock_mach_number, normal);
 
   const State& pre_shock_state = initial_data.GetRiemannProblem().left;
   amrex::Print() << "Post-Shock-State:\n"
@@ -177,39 +176,38 @@ int main(int, char** argv) {
   geometry.coordinates = amrex::RealBox(xlower, xupper);
   geometry.periodicity = periodicity;
 
-  fub::amrex::cutcell::PatchHierarchyOptions options{};
+  PatchHierarchyOptions options{};
   options.max_number_of_levels = n_level;
   options.index_spaces =
       fub::amrex::cutcell::MakeIndexSpaces(shop, coarse_geom, n_level);
 
-  auto gridding = std::make_shared<fub::amrex::cutcell::GriddingAlgorithm>(
-      fub::amrex::cutcell::PatchHierarchy(desc, geometry, options),
-      fub::amrex::cutcell::AdaptInitialData(initial_data, equation),
-      fub::amrex::cutcell::AdaptTagging(equation, fub::TagCutCells(), gradients,
-                                        fub::TagBuffer(4)),
-      fub::TransmissiveBoundary{equation});
+  BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
+                                  TransmissiveBoundary{fub::Direction::X, 1},
+                                  TransmissiveBoundary{fub::Direction::Y, 0},
+                                  TransmissiveBoundary{fub::Direction::Y, 1}}};
+
+  std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
+      PatchHierarchy(equation, geometry, options), initial_data,
+      TagAllOf(TagCutCells(), gradients, TagBuffer(4)), boundary_condition);
   gridding->InitializeHierarchy(0.0);
 
-  fub::HyperbolicSplitCutCellPatchIntegrator patch_integrator{equation};
   fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
-  fub::Hll riemann_solver{equation, signals};
   fub::HllMethod hll_method{equation, signals};
   fub::MusclHancockMethod flux_method(equation, hll_method);
-  fub::KbnCutCellMethod cutcell_method(std::move(flux_method), riemann_solver);
+  fub::KbnCutCellMethod cutcell_method(std::move(flux_method), hll_method);
+  HyperbolicMethod method{FluxMethod{fub::execution::seq, cutcell_method},
+                          TimeIntegrator{},
+                          Reconstruction{fub::execution::seq, equation}};
 
-  const int gcw = cutcell_method.GetStencilWidth();
-  fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
-      fub::amrex::cutcell::HyperbolicSplitIntegratorContext(std::move(gridding),
-                                                            gcw),
-      fub::amrex::cutcell::HyperbolicSplitPatchIntegrator(patch_integrator),
-      fub::amrex::cutcell::FluxMethod(cutcell_method),
-      fub::amrex::cutcell::Reconstruction(equation)));
+  fub::DimensionalSplitLevelIntegrator solver(fub::int_c<2>,
+      IntegratorContext(gridding, method));
 
   std::string base_name = "Divider_58/";
 
-  auto output = [&, count = 0LL](
-                    const fub::amrex::cutcell::PatchHierarchy& hierarchy,
-                    std::ptrdiff_t cycle, fub::Duration) mutable {
+  auto output = [&, count =
+                        0LL](const std::shared_ptr<GriddingAlgorithm>& gridding,
+                             std::ptrdiff_t cycle, fub::Duration) mutable {
+    PatchHierarchy& hierarchy = gridding->GetPatchHierarchy();
     WriteCheckpoint(base_name, hierarchy, cycle);
     std::string name = fmt::format("{}{:05}.dat", base_name, count++);
     std::ofstream file(name);
@@ -222,7 +220,8 @@ int main(int, char** argv) {
   auto print_msg = [&](const std::string& msg) { ::amrex::Print() << msg; };
 
   using namespace std::literals::chrono_literals;
-  output(solver.GetPatchHierarchy(), solver.GetCycles(), solver.GetTimePoint());
+  output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
+         solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.final_time = 0.0005s;
   run_options.output_interval = 0.125 * 0.0000125s;

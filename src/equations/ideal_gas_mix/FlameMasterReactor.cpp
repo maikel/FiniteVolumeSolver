@@ -448,11 +448,10 @@ double FlameMasterReactor::GetCv() const {
 }
 
 double FlameMasterReactor::GetMeanMolarMass() const {
-  double minv = 0;
-  for (std::size_t i = 0; i < static_cast<std::size_t>(state_.nSpecies); i++) {
-    minv += state_.massFractions[i] / state_.molarMasses[i];
-  }
-  return 1 / minv;
+  const double minv = std::inner_product(
+      state_.massFractions.begin(), state_.massFractions.end(),
+      state_.molarMasses.begin(), 0.0, std::plus<>{}, std::divides<>{});
+  return 1.0 / minv;
 }
 
 double FlameMasterReactor::GetEntropy() const {

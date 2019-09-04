@@ -28,17 +28,16 @@
 namespace fub::amrex {
 
 namespace {
-int GetSign(int side) { return (side == 0) - (side == 1); }
-
 ::amrex::IntVect MapToSrc(const ::amrex::IntVect& dest,
                           const ::amrex::Geometry& geom, int side,
                           Direction dir) {
   const int boundary = (side == 0) * geom.Domain().smallEnd(int(dir)) +
                        (side == 1) * geom.Domain().bigEnd(int(dir));
-  const int distance = dest[int(dir)] - boundary;
-  const int sign = int((distance > 0) - (distance < 0));
+  //  const int distance = dest[int(dir)] - boundary;
+  //  const int sign = int((distance > 0) - (distance < 0));
   ::amrex::IntVect src{dest};
-  src[int(dir)] -= 2 * distance - sign;
+  //  src[int(dir)] -= 2 * distance - sign;
+  src[int(dir)] = boundary;
   return src;
 }
 
@@ -68,7 +67,7 @@ void TransmissiveBoundary::FillBoundary(::amrex::MultiFab& mf,
       if (!geom.Domain().intersects(shifted)) {
         continue;
       }
-      ::amrex::Box box_to_fill = fab.box() & boundary;
+      ::amrex::Box box_to_fill = mfi.growntilebox() & boundary;
       if (!box_to_fill.isEmpty()) {
         const int ncomp = fab.nComp();
         for (int c = 0; c < ncomp; ++c) {

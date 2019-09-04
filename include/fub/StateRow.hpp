@@ -177,12 +177,12 @@ constexpr decltype(auto) GetOrForward(const ViewPointer<T>& pointer) noexcept {
 template <typename Tuple, typename Function>
 void ForEachRow(const Tuple& views, Function f) {
   std::tuple firsts = Transform(views, [](const auto& v) { return Begin(v); });
-  std::tuple lasts = Transform(views, [](const auto& v) { return End(v); });
   const std::ptrdiff_t row_extent = Extent<Direction::X>(std::get<0>(views));
   if constexpr (std::tuple_element_t<0, Tuple>::rank() == 1) {
     std::tuple rows = Transform(firsts, ToRow{row_extent});
     std::apply(f, rows);
   } else if constexpr (std::tuple_element_t<0, Tuple>::rank() == 2) {
+    std::tuple lasts = Transform(views, [](const auto& v) { return End(v); });
     std::tuple strides = Transform(views, ToStride<Direction::Y>());
     const auto& first = std::get<0>(firsts);
     const auto& last = std::get<0>(lasts);

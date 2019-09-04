@@ -47,26 +47,40 @@ template <int Rank> Duration KineticSourceTerm<Rank>::ComputeStableDt() {
 
 template <int Rank>
 Result<void, TimeStepTooLarge>
+KineticSourceTerm<Rank>::AdvanceLevel(int level, Duration dt) {
+  ::amrex::MultiFab& data =
+      gridding_->GetPatchHierarchy().GetPatchLevel(level).data;
+  fub::amrex::ForEachFab(
+      execution::openmp, data, [&](const ::amrex::MFIter& mfi) {
+        using Complete = ::fub::Complete<IdealGasMix<Rank>>;
+        View<Complete> states =
+            amrex::MakeView<Complete>(data[mfi], *equation_, mfi.tilebox());
+        FlameMasterReactor& reactor = equation_->GetReactor();
+        ForEachIndex(Box<0>(states), [&](auto... is) {
+          std::array<std::ptrdiff_t, sRank> index{is...};
+          Load(*state_, states, index);
+          // equation_->SetReactorStateFromComplete(*state_);
+          reactor.SetMassFractions(state_->species);
+          reactor.SetTemperature(state_->temperature);
+          reactor.SetDensity(state_->density);
+          reactor.Advance(dt.count());
+          Eigen::Matrix<double, Rank, 1> velocity =
+              state_->momentum / state_->density;
+          equation_->CompleteFromReactor(*state_, velocity);
+          Store(states, *state_, index);
+        });
+      });
+  return boost::outcome_v2::success();
+}
+
+template <int Rank>
+Result<void, TimeStepTooLarge>
 KineticSourceTerm<Rank>::AdvanceHierarchy(Duration dt) {
   const int nlevels = GetPatchHierarchy().GetNumberOfLevels();
   for (int level = 0; level < nlevels; ++level) {
-    ::amrex::MultiFab& data =
-        gridding_->GetPatchHierarchy().GetPatchLevel(level).data;
-    fub::amrex::ForEachFab(
-        execution::openmp, data, [&](const ::amrex::MFIter& mfi) {
-          using Complete = ::fub::Complete<IdealGasMix<Rank>>;
-          View<Complete> states =
-              amrex::MakeView<Complete>(data[mfi], *equation_, mfi.tilebox());
-          FlameMasterReactor& reactor = equation_->GetReactor();
-          ForEachIndex(Box<0>(states), [&](auto... is) {
-            std::array<std::ptrdiff_t, sRank> index{is...};
-            Load(*this->state_, states, index);
-            equation_->SetReactorStateFromComplete(*this->state_);
-            reactor.Advance(dt.count());
-            equation_->CompleteFromReactor(*this->state_);
-            Store(states, *this->state_, index);
-          });
-        });
+    if (auto result = AdvanceLevel(level, dt); !result) {
+      return result;
+    }
   }
   return boost::outcome_v2::success();
 }

@@ -32,6 +32,8 @@
 namespace fub {
 namespace amrex {
 
+inline int GetSign(int side) { return (side == 0) - (side == 1); }
+
 class GriddingAlgorithm;
 
 struct BoundaryConditionBase {

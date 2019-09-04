@@ -85,6 +85,7 @@ IndexBox<Rank> Intersect(const IndexBox<Rank>& b1, const IndexBox<Rank>& b2) {
 template <int Rank>
 IndexBox<Rank> Grow(const IndexBox<Rank>& box, Direction dir,
                     const std::array<std::ptrdiff_t, 2>& shifts) {
+  assert(static_cast<int>(dir) < Rank);
   constexpr std::size_t sRank = static_cast<std::size_t>(Rank);
   std::array<std::ptrdiff_t, sRank> lower = box.lower;
   lower[static_cast<std::size_t>(dir)] -= shifts[0];
@@ -96,6 +97,7 @@ IndexBox<Rank> Grow(const IndexBox<Rank>& box, Direction dir,
 template <int Rank>
 IndexBox<Rank> Shrink(const IndexBox<Rank>& box, Direction dir,
                       const std::array<std::ptrdiff_t, 2>& shifts) {
+  assert(static_cast<int>(dir) < Rank);
   constexpr std::size_t sRank = static_cast<std::size_t>(Rank);
   std::array<std::ptrdiff_t, sRank> lower = box.lower;
   lower[static_cast<std::size_t>(dir)] += shifts[0];

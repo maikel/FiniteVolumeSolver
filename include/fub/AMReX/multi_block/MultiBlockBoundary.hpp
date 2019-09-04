@@ -18,13 +18,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_BOUNDARY_CONDITION_COUPLED
-#define FUB_BOUNDARY_CONDITION_COUPLED
+#ifndef FUB_AMREX_MULTI_BLOCK_BOUNDARY_HPP
+#define FUB_AMREX_MULTI_BLOCK_BOUNDARY_HPP
 
-#include "fub/AMReX/coupled/CoupledGriddingAlgorithm.hpp"
-
-#include "fub/AMReX/PatchHierarchyExample.hpp"
-#include "fub/AMReX/cutcell/PatchHierarchy.hpp"
+#include "fub/Direction.hpp"
+#include "fub/Duration.hpp"
 #include "fub/PatchDataView.hpp"
 #include "fub/equations/IdealGasMix.hpp"
 
@@ -35,7 +33,28 @@
 
 namespace fub::amrex {
 
-class CoupledBoundary {
+class MultiBlockGriddingAlgorithm;
+class PatchHierarchy;
+class GriddingAlgorithm;
+
+namespace cutcell {
+class PatchHierarchy;
+class GriddingAlgorithm;
+} // namespace cutcell
+
+struct BlockEntry {
+  std::size_t id;
+  ::amrex::Box mirror_box;
+};
+
+struct BlockConnection {
+  BlockEntry tube;
+  BlockEntry plenum;
+  Direction direction;
+  int side;
+};
+
+class MultiBlockBoundary {
 public:
   static constexpr int Plenum_Rank = AMREX_SPACEDIM;
   static constexpr int Tube_Rank = 1;
@@ -45,14 +64,19 @@ public:
   ///
   /// This function might grow the specified mirror boxes to an extent which is
   /// required to fulfill the specified ghost cell width requirements.
-  CoupledBoundary(CoupledGriddingAlgorithm& gridding,
-                  const BlockConnection& connection, int gcw,
-                  const FlameMasterReactor& reactor);
+  MultiBlockBoundary(const MultiBlockGriddingAlgorithm& gridding,
+                     const BlockConnection& connection, int gcw,
+                     const FlameMasterReactor& reactor);
+
+  MultiBlockBoundary(const MultiBlockBoundary& other);
+  MultiBlockBoundary& operator=(const MultiBlockBoundary& other);
+
+  MultiBlockBoundary(MultiBlockBoundary&& other) noexcept = default;
+  MultiBlockBoundary& operator=(MultiBlockBoundary&& other) noexcept = default;
 
   /// Precompute Boundary states for each domain.
   ///
-  /// Subsequent calls to FillXXXBoundary will use these new computed boundary
-  /// states.
+  /// Subsequent calls to FillBoundary will use these computed boundary states.
   ///
   /// \param[in] plenum  The higher dimensional patch hierarchy with geometry
   /// information. States here will be conservatively averaged and projected
@@ -82,18 +106,18 @@ private:
   ::amrex::Box plenum_mirror_box_{};
   ::amrex::Box tube_mirror_box_{};
 
-  ::amrex::FArrayBox plenum_mirror_data_{};
-  ::amrex::FArrayBox tube_ghost_data_{};
+  std::unique_ptr<::amrex::FArrayBox> plenum_mirror_data_{};
+  std::unique_ptr<::amrex::FArrayBox> tube_ghost_data_{};
 
-  ::amrex::FArrayBox tube_mirror_data_{};
-  ::amrex::FArrayBox plenum_ghost_data_{};
+  std::unique_ptr<::amrex::FArrayBox> tube_mirror_data_{};
+  std::unique_ptr<::amrex::FArrayBox> plenum_ghost_data_{};
 
   Direction dir_{};
   int side_{};
 };
 
 //
-// class CoupledBoundaryFunction {
+// class MultiBlockBoundaryFunction {
 // public:
 //  CoupledBoundaryFunction(const cutcell::PatchHierarchy& plenum,
 //                          const PatchHierarchy& tube, int gcw,

@@ -30,9 +30,13 @@
 #include "fub/AMReX/ScopeGuard.hpp"
 
 #include "fub/AMReX/tagging/GradientDetector.hpp"
+#include "fub/AMReX/tagging/ConstantRegion.hpp"
+#include "fub/AMReX/tagging/TagBuffer.hpp"
 
 #include "fub/AMReX/boundary_condition/BoundarySet.hpp"
 #include "fub/AMReX/boundary_condition/TransmissiveBoundary.hpp"
+#include "fub/AMReX/boundary_condition/ReflectiveBoundary.hpp"
+#include "fub/AMReX/boundary_condition/IsentropicBoundary.hpp"
 
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/ForEachIndex.hpp"

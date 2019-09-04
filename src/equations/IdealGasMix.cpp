@@ -54,11 +54,6 @@ void IdealGasMix<Dim>::Flux(ConservativeArray& flux, const CompleteArray& state,
 }
 
 namespace {
-template <int Dim>
-double KineticEnergy(double density,
-                     const Eigen::Array<double, Dim, 1>& momentum) noexcept {
-  return 0.5 * momentum.matrix().squaredNorm() / density;
-}
 
 double ComputeSpeedOfSound(const FlameMasterReactor& reactor) {
   const double gamma = reactor.GetCp() / reactor.GetCv();
@@ -77,7 +72,7 @@ template <int Dim>
 void IdealGasMix<Dim>::SetReactorStateFromComplete(const Complete& state) {
   reactor_.SetMassFractions(state.species);
   reactor_.SetTemperature(state.temperature);
-  reactor_.SetPressure(state.pressure);
+  reactor_.SetDensity(state.density);
 }
 
 template <int Dim>
@@ -100,7 +95,7 @@ void IdealGasMix<Dim>::CompleteFromReactor(
 
 template <int Dim>
 void IdealGasMix<Dim>::CompleteFromCons(Complete& complete,
-                                        const ConservativeBase& cons) noexcept {
+                                        const ConservativeBase& cons) {
   reactor_.SetMassFractions(cons.species);
   reactor_.SetDensity(cons.density);
   const double rhoE_kin = KineticEnergy(cons.density, cons.momentum);
@@ -121,8 +116,8 @@ void IdealGasMix<Dim>::CompleteFromCons(Complete& complete,
 }
 
 template <int Dim>
-void IdealGasMix<Dim>::CompleteFromCons(
-    CompleteArray& complete, const ConservativeArrayBase& cons) noexcept {
+void IdealGasMix<Dim>::CompleteFromCons(CompleteArray& complete,
+                                        const ConservativeArrayBase& cons) {
   for (int i = 0; i < kDefaultChunkSize; ++i) {
     complete.density = cons.density[i];
     complete.momentum = cons.momentum;
@@ -204,6 +199,22 @@ void Rotate(Complete<IdealGasMix<3>>& rotated,
   rotated.momentum = (rotation * state.momentum.matrix()).array();
 }
 
+void Reflect(Complete<IdealGasMix<1>>& reflected,
+             const Complete<IdealGasMix<1>>& state,
+             const Eigen::Matrix<double, 1, 1>& normal, const IdealGasMix<1>&) {
+  reflected.density = state.density;
+  reflected.energy = state.energy;
+  reflected.pressure = state.pressure;
+  reflected.speed_of_sound = state.speed_of_sound;
+  reflected.species = state.species;
+  reflected.temperature = state.temperature;
+  reflected.c_p = state.c_p;
+  reflected.gamma = state.gamma;
+  reflected.momentum =
+      state.momentum -
+      2 * (state.momentum.matrix().dot(normal) * normal).array();
+}
+
 void Reflect(Complete<IdealGasMix<2>>& reflected,
              const Complete<IdealGasMix<2>>& state,
              const Eigen::Vector2d& normal, const IdealGasMix<2>&) {
@@ -244,10 +255,8 @@ operator()(const IdealGasMix<Dim>&, const Complete& left, const Complete& right,
   FUB_ASSERT(right.density > 0.0);
   const double rhoL = left.density;
   const double rhoR = right.density;
-  double rhoUL;
-  double rhoUR;
-  rhoUL = left.momentum[int(dir)];
-  rhoUR = right.momentum[int(dir)];
+  const double rhoUL = left.momentum[int(dir)];
+  const double rhoUR = right.momentum[int(dir)];
   const double aL = left.speed_of_sound;
   const double aR = right.speed_of_sound;
   const double sqRhoL = std::sqrt(rhoL);

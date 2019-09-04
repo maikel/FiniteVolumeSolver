@@ -41,16 +41,23 @@ using PostAdvanceHierarchy = decltype(
 
 template <typename SystemSolver, typename SourceTerm,
           typename SplittingMethod = StrangSplitting>
-class SplitSystemSourceSolver {
+class DimensionalSplitSystemSourceSolver {
 public:
-  using GriddingAlgorithm = typename SystemSolver::GriddingAlgorithm;
-  using Equation = typename SystemSolver::Equation;
+  using GriddingAlgorithm = std::decay_t<decltype(
+      *std::declval<SystemSolver&>().GetGriddingAlgorithm())>;
+
+  static const int Rank = std::max(SystemSolver::Rank, SourceTerm::Rank);
 
   /// \brief Constructs a system source solver from given sub solvers.
-  SplitSystemSourceSolver(SystemSolver system_solver, SourceTerm source_term,
-                          SplittingMethod split = SplittingMethod());
+  DimensionalSplitSystemSourceSolver(SystemSolver system_solver,
+                                     SourceTerm source_term,
+                                     SplittingMethod split = SplittingMethod());
 
   // Accessors
+
+  auto& GetContext() noexcept;
+
+  const auto& GetContext() const noexcept;
 
   /// \brief Returns the shared gridding algorithm of both subsolvers.
   const std::shared_ptr<GriddingAlgorithm>& GetGriddingAlgorithm() const
@@ -66,9 +73,6 @@ public:
 
   /// \brief Returns the number of cycles at the coarsest level.
   std::ptrdiff_t GetCycles() const;
-
-  /// \brief Returns the underlying equation object of system solver.
-  const Equation& GetEquation() const;
 
   // Modifiers
 
@@ -86,6 +90,8 @@ public:
   Duration ComputeStableDt();
 
   /// \brief Advances the hierarchy by time step size dt.
+  Result<void, TimeStepTooLarge> AdvanceLevel(int level, Duration dt,
+                                              int subcycle = 0);
   Result<void, TimeStepTooLarge> AdvanceHierarchy(Duration dt);
 
 private:
@@ -98,23 +104,25 @@ private:
 //                                                               Implementation
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
-SplitSystemSourceSolver<SystemSolver, SourceTerm, SplittingMethod>::
-    SplitSystemSourceSolver(SystemSolver system_solver, SourceTerm source_term,
-                            SplittingMethod split)
+DimensionalSplitSystemSourceSolver<SystemSolver, SourceTerm, SplittingMethod>::
+    DimensionalSplitSystemSourceSolver(SystemSolver system_solver,
+                                       SourceTerm source_term,
+                                       SplittingMethod split)
     : system_solver_{std::move(system_solver)},
       source_term_{std::move(source_term)}, splitting_{split} {}
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
 template <typename... Args>
-void SplitSystemSourceSolver<SystemSolver, SourceTerm, SplittingMethod>::
-    ResetHierarchyConfiguration(const Args&... args) {
+void DimensionalSplitSystemSourceSolver<
+    SystemSolver, SourceTerm,
+    SplittingMethod>::ResetHierarchyConfiguration(const Args&... args) {
   system_solver_.ResetHierarchyConfiguration(args...);
   source_term_.ResetHierarchyConfiguration(args...);
 }
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
-void SplitSystemSourceSolver<SystemSolver, SourceTerm,
-                             SplittingMethod>::PreAdvanceHierarchy() {
+void DimensionalSplitSystemSourceSolver<
+    SystemSolver, SourceTerm, SplittingMethod>::PreAdvanceHierarchy() {
   if constexpr (is_detected<::fub::PreAdvanceHierarchy, SystemSolver&>()) {
     system_solver_.PreAdvanceHierarchy();
   }
@@ -124,8 +132,8 @@ void SplitSystemSourceSolver<SystemSolver, SourceTerm,
 }
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
-void SplitSystemSourceSolver<SystemSolver, SourceTerm,
-                             SplittingMethod>::PostAdvanceHierarchy() {
+void DimensionalSplitSystemSourceSolver<
+    SystemSolver, SourceTerm, SplittingMethod>::PostAdvanceHierarchy() {
   if constexpr (is_detected<::fub::PostAdvanceHierarchy, SourceTerm&>()) {
     source_term_.PostAdvanceHierarchy();
   }
@@ -135,51 +143,156 @@ void SplitSystemSourceSolver<SystemSolver, SourceTerm,
 }
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
-Duration SplitSystemSourceSolver<SystemSolver, SourceTerm,
-                                 SplittingMethod>::ComputeStableDt() {
+Duration
+DimensionalSplitSystemSourceSolver<SystemSolver, SourceTerm,
+                                   SplittingMethod>::ComputeStableDt() {
   return std::min(system_solver_.ComputeStableDt(),
                   source_term_.ComputeStableDt());
 }
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
 const auto&
-SplitSystemSourceSolver<SystemSolver, SourceTerm,
-                        SplittingMethod>::GetPatchHierarchy() const {
-  return system_solver_.GetPatchHierarchy();
+DimensionalSplitSystemSourceSolver<SystemSolver, SourceTerm,
+                                   SplittingMethod>::GetPatchHierarchy() const {
+  return system_solver_.GetGriddingAlgorithm().GetPatchHierarchy();
 }
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
-Duration SplitSystemSourceSolver<SystemSolver, SourceTerm,
-                                 SplittingMethod>::GetTimePoint() const {
+Duration
+DimensionalSplitSystemSourceSolver<SystemSolver, SourceTerm,
+                                   SplittingMethod>::GetTimePoint() const {
   return system_solver_.GetTimePoint();
 }
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
 std::ptrdiff_t
-SplitSystemSourceSolver<SystemSolver, SourceTerm, SplittingMethod>::GetCycles()
-    const {
+DimensionalSplitSystemSourceSolver<SystemSolver, SourceTerm,
+                                   SplittingMethod>::GetCycles() const {
   return system_solver_.GetCycles();
 }
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
-const typename SplitSystemSourceSolver<SystemSolver, SourceTerm,
-                                       SplittingMethod>::Equation&
-SplitSystemSourceSolver<SystemSolver, SourceTerm,
-                        SplittingMethod>::GetEquation() const {
-  return system_solver_.GetEquation();
+Result<void, TimeStepTooLarge> DimensionalSplitSystemSourceSolver<
+    SystemSolver, SourceTerm, SplittingMethod>::AdvanceLevel(int this_level,
+                                                             Duration dt,
+                                                             int subcycle) {
+  // PreAdvanceLevel might regrid this and all finer levels.
+  // The Context must make sure that scratch data is allocated
+  system_solver_.PreAdvanceLevel(this_level, dt, subcycle);
+
+  // If a finer level exists in the hierarchy, we subcycle that finer level
+  // multiple times and use the fine fluxes on coarse-fine interfaces
+  const int next_level = this_level + 1;
+  if (system_solver_.LevelExists(next_level)) {
+    system_solver_.ResetCoarseFineFluxes(next_level, this_level);
+    const int refine_ratio =
+        system_solver_.GetRatioToCoarserLevel(next_level).max();
+    for (int r = 0; r < refine_ratio; ++r) {
+      auto result = AdvanceLevel(next_level, dt / refine_ratio, r);
+      if (!result) {
+        return result.as_failure();
+      }
+    }
+  }
+
+  auto AdvanceSystem = [&](Duration dt) -> Result<void, TimeStepTooLarge> {
+    auto AdvanceLevel_Split = [&, dt](Direction dir) {
+      return [&, dir, dt, split_cycle = 0](
+                 Duration split_dt) mutable -> Result<void, TimeStepTooLarge> {
+        if (dir == Direction::X && split_cycle == 0 && subcycle == 0 &&
+            this_level > 0) {
+          system_solver_.FillGhostLayerTwoLevels(this_level, this_level - 1);
+        } else {
+          system_solver_.FillGhostLayerSingleLevel(this_level);
+        }
+        const Duration level_dt =
+            system_solver_.GetContext().ComputeStableDt(this_level, dir);
+        if (level_dt < split_dt) {
+          const int refine_ratio =
+              system_solver_.GetTotalRefineRatio(this_level);
+          return TimeStepTooLarge{refine_ratio * level_dt};
+        }
+
+        // Compute fluxes in the specified direction
+        system_solver_.ComputeNumericFluxes(this_level, split_dt, dir);
+
+        if (system_solver_.LevelExists(next_level)) {
+          system_solver_.ApplyFluxCorrection(next_level, this_level, split_dt);
+        }
+
+        if (this_level > 0) {
+          system_solver_.AccumulateCoarseFineFluxes(
+              this_level, split_dt.count() / dt.count(), dir);
+        }
+
+        // Use the updated fluxes to update cons variables at the "SCRATCH"
+        // system_solver_.
+        system_solver_.UpdateConservatively(this_level, split_dt, dir);
+
+        // The conservative update and happened on conservative variables.
+        // We have to reconstruct the missing variables in the complete state.
+        system_solver_.CompleteFromCons(this_level, split_dt);
+
+        split_cycle += 1;
+        return boost::outcome_v2::success();
+      };
+    };
+
+    if (Result<void, TimeStepTooLarge> result = std::apply(
+            [&](auto... directions) {
+              return system_solver_.GetSplitMethod().Advance(
+                  dt, AdvanceLevel_Split(directions)...);
+            },
+            MakeSplitDirections<Rank>());
+        !result) {
+      return result;
+    }
+
+    // Coarsen inner regions from next finer level to this level.
+    if (system_solver_.LevelExists(next_level)) {
+      system_solver_.CoarsenConservatively(next_level, this_level);
+
+      // The conservative update and the coarsening happened on conservative
+      // variables. We have to reconstruct the missing variables in the complete
+      // state.
+      system_solver_.CompleteFromCons(this_level, dt);
+    }
+    return boost::outcome_v2::success();
+  };
+
+  auto AdvanceSource = [&](Duration dt) -> Result<void, TimeStepTooLarge> {
+    return source_term_.AdvanceLevel(this_level, dt);
+  };
+
+  if (Result<void, TimeStepTooLarge> result =
+          splitting_.Advance(dt, AdvanceSource, AdvanceSystem);
+      !result) {
+    return result;
+  }
+
+  // Apply any further context related work after advancing this level.
+  // This function can also indicate if some error occured.
+  // For example the context could detect unphysical states and return a
+  // TooLargeTimeStep error condition.
+  return system_solver_.PostAdvanceLevel(this_level, dt, subcycle);
 }
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
-Result<void, TimeStepTooLarge>
-SplitSystemSourceSolver<SystemSolver, SourceTerm,
-                        SplittingMethod>::AdvanceHierarchy(Duration dt) {
-  auto system_solver = [&](Duration dt) {
-    return system_solver_.AdvanceHierarchy(dt);
-  };
-  auto source_term = [&](Duration dt) {
-    return source_term_.AdvanceHierarchy(dt);
-  };
-  return splitting_.Advance(dt, source_term, system_solver);
+Result<void, TimeStepTooLarge> DimensionalSplitSystemSourceSolver<
+    SystemSolver, SourceTerm, SplittingMethod>::AdvanceHierarchy(Duration dt) {
+  return AdvanceLevel(0, dt);
+}
+
+template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
+auto& DimensionalSplitSystemSourceSolver<
+    SystemSolver, SourceTerm, SplittingMethod>::GetContext() noexcept {
+  return system_solver_.GetContext();
+}
+
+template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
+const auto& DimensionalSplitSystemSourceSolver<
+    SystemSolver, SourceTerm, SplittingMethod>::GetContext() const noexcept {
+  return system_solver_.GetContext();
 }
 
 } // namespace fub

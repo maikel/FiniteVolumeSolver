@@ -35,11 +35,17 @@
 
 #include "fub/AMReX/cutcell/initial_data/RiemannProblem.hpp"
 
+#include "fub/AMReX/cutcell/tagging/ConstantRegion.hpp"
 #include "fub/AMReX/cutcell/tagging/GradientDetector.hpp"
 #include "fub/AMReX/cutcell/tagging/TagBuffer.hpp"
 #include "fub/AMReX/cutcell/tagging/TagCutCells.hpp"
 
 #include "fub/AMReX/cutcell/boundary_condition/BoundarySet.hpp"
 #include "fub/AMReX/cutcell/boundary_condition/TransmissiveBoundary.hpp"
+
+#include "fub/AMReX/multi_block/MultiBlockBoundary.hpp"
+#include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp"
+#include "fub/AMReX/multi_block/MultiBlockIntegratorContext.hpp"
+#include "fub/AMReX/multi_block/MultiBlockKineticSourceTerm.hpp"
 
 #endif

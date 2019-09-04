@@ -18,7 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-
 #include "fub/AMReX.hpp"
 #include "fub/AMReX_CutCell.hpp"
 #include "fub/Solver.hpp"
@@ -64,9 +63,8 @@ int main(int argc, char** argv) {
   amrex::RealBox xbox(xlower, xupper);
   const std::array<int, 2> periodicity{};
 
-  amrex::Geometry coarse_geom(
-      amrex::Box{{}, {n_cells[0] - 1, n_cells[1] - 1}},
-      &xbox, -1, periodicity.data());
+  amrex::Geometry coarse_geom(amrex::Box{{}, {n_cells[0] - 1, n_cells[1] - 1}},
+                              &xbox, -1, periodicity.data());
 
   const int n_level = 1;
 
@@ -80,7 +78,9 @@ int main(int argc, char** argv) {
   geometry.coordinates = amrex::RealBox(xlower, xupper);
   geometry.periodicity = periodicity;
 
-  fub::amrex::cutcell::PatchHierarchyOptions options{};
+  using namespace fub::amrex::cutcell;
+
+  PatchHierarchyOptions options{};
   options.max_number_of_levels = n_level;
   options.index_spaces =
       fub::amrex::cutcell::MakeIndexSpaces(shop, coarse_geom, n_level);
@@ -100,15 +100,15 @@ int main(int argc, char** argv) {
       equation, fub::Halfspace({+1.0, 0.0, 0.0}, 0.4), left, right);
 
   BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
-                            TransmissiveBoundary{fub::Direction::X, 1},
-                            TransmissiveBoundary{fub::Direction::Y, 0},
-                            TransmissiveBoundary{fub::Direction::Y, 1}}};
+                                  TransmissiveBoundary{fub::Direction::X, 1},
+                                  TransmissiveBoundary{fub::Direction::Y, 0},
+                                  TransmissiveBoundary{fub::Direction::Y, 1}}};
 
   using State = fub::Complete<fub::PerfectGas<2>>;
-  fub::amrex::cutcell::GradientDetector gradients{equation, std::pair{&State::pressure, 0.05},
-                                  std::pair{&State::density, 0.005}};
+  GradientDetector gradients{equation, std::pair{&State::pressure, 0.05},
+                             std::pair{&State::density, 0.005}};
 
-    std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
+  std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
       PatchHierarchy(equation, geometry, options), initial_data,
       TagAllOf(TagCutCells(), gradients, TagBuffer(4)), boundary_condition);
   gridding->InitializeHierarchy(0.0);
@@ -120,24 +120,25 @@ int main(int argc, char** argv) {
                           TimeIntegrator{},
                           Reconstruction{fub::execution::seq, equation}};
 
-  fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
-      equation, fub::amrex::cutcell::IntegratorContext(gridding, method)));
+  fub::DimensionalSplitLevelIntegrator solver(fub::int_c<2>,
+      fub::amrex::cutcell::IntegratorContext(gridding, method));
 
   std::string base_name = "Wedge/";
-  auto output = [&](const fub::amrex::cutcell::PatchHierarchy& hierarchy,
+
+  auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,
                     std::ptrdiff_t cycle, fub::Duration) {
-    std::string name = fmt::format("{}{:05}", base_name, cycle);
-    ::amrex::Print() << "Start output to '" << name << "'.\n";
-    fub::amrex::cutcell::WritePlotFile(name, hierarchy, equation);
-    ::amrex::Print() << "Finished output to '" << name << "'.\n";
+    std::string name = fmt::format("{}plt{:05}", base_name, cycle);
+    amrex::Print() << "Start output to '" << name << "'.\n";
+    WritePlotFile(name, gridding->GetPatchHierarchy(), equation);
+    amrex::Print() << "Finished output to '" << name << "'.\n";
   };
-  output(solver.GetPatchHierarchy(), solver.GetCycles(), solver.GetTimePoint());
 
   using namespace std::literals::chrono_literals;
+  output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
+         solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.final_time = 1e-4s;
   run_options.output_interval = 1e-5s;
-  //  run_options.output_frequency = 1;
   run_options.cfl = 0.5 * 0.9;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      fub::amrex::print);

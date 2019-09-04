@@ -51,12 +51,12 @@ int main(int argc, char** argv) {
 
   fub::Burke2012 mechanism;
   fub::IdealGasMix<3> equation{mechanism};
-//  fub::PerfectGas<3> equation{};
+  //  fub::PerfectGas<3> equation{};
 
   amrex::RealBox xbox(xlower, xupper);
   amrex::Geometry coarse_geom(
-      amrex::Box{{}, {n_cells[0] - 1, n_cells[1] - 1, n_cells[2] - 1}},
-      &xbox, -1, periodicity.data());
+      amrex::Box{{}, {n_cells[0] - 1, n_cells[1] - 1, n_cells[2] - 1}}, &xbox,
+      -1, periodicity.data());
 
   using namespace fub::amrex::cutcell;
 
@@ -82,25 +82,24 @@ int main(int argc, char** argv) {
   fub::Complete<fub::IdealGasMix<3>> left(equation);
   equation.CompleteFromReactor(left, {400.0, 0.0, 0.0});
 
-//fub::Conservative<fub::PerfectGas<3>> cons;
-//  cons.density = 1.0;
-//  cons.momentum << 0.0, 0.0, 0.0;
-//  cons.energy = 101325.0 * equation.gamma_minus_1_inv;
-//  fub::Complete<fub::PerfectGas<3>> right;
-//  fub::CompleteFromCons(equation, right, cons);
-//
-//  cons.energy *= 4;
-//  fub::Complete<fub::PerfectGas<3>> left;
-//  fub::CompleteFromCons(equation, left, cons);
+  // fub::Conservative<fub::PerfectGas<3>> cons;
+  //  cons.density = 1.0;
+  //  cons.momentum << 0.0, 0.0, 0.0;
+  //  cons.energy = 101325.0 * equation.gamma_minus_1_inv;
+  //  fub::Complete<fub::PerfectGas<3>> right;
+  //  fub::CompleteFromCons(equation, right, cons);
+  //
+  //  cons.energy *= 4;
+  //  fub::Complete<fub::PerfectGas<3>> left;
+  //  fub::CompleteFromCons(equation, left, cons);
 
-  RiemannProblem initial_data(
-      equation, fub::Halfspace({+1.0, 0.0, 0.0}, -0.04), left, left);
+  RiemannProblem initial_data(equation, fub::Halfspace({+1.0, 0.0, 0.0}, -0.04),
+                              left, left);
 
-//  using Complete = fub::Complete<fub::PerfectGas<3>>;
+  //  using Complete = fub::Complete<fub::PerfectGas<3>>;
   using Complete = fub::Complete<fub::IdealGasMix<3>>;
-  GradientDetector gradients{equation,
-                                  std::pair{&Complete::pressure, 0.05},
-                                  std::pair{&Complete::density, 0.005}};
+  GradientDetector gradients{equation, std::pair{&Complete::pressure, 0.05},
+                             std::pair{&Complete::density, 0.005}};
 
   BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
                                   TransmissiveBoundary{fub::Direction::X, 1},
@@ -114,7 +113,7 @@ int main(int argc, char** argv) {
       TagAllOf(TagCutCells(), gradients, TagBuffer(4)), boundary_condition);
   gridding->InitializeHierarchy(0.0);
 
-//  fub::EinfeldtSignalVelocities<fub::PerfectGas<3>> signals{};
+  //  fub::EinfeldtSignalVelocities<fub::PerfectGas<3>> signals{};
   fub::EinfeldtSignalVelocities<fub::IdealGasMix<3>> signals{};
   fub::HllMethod hll_method{equation, signals};
   fub::MusclHancockMethod flux_method(equation, hll_method);
@@ -124,21 +123,22 @@ int main(int argc, char** argv) {
                           TimeIntegrator{},
                           Reconstruction{fub::execution::seq, equation}};
 
-  fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
-      equation, IntegratorContext(gridding, method)));
+  fub::DimensionalSplitLevelIntegrator solver(fub::int_c<3>,
+      IntegratorContext(gridding, method));
 
   std::string base_name = "LinearShock3d/";
 
-  auto output = [&](const PatchHierarchy& hierarchy,
+  auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,
                     std::ptrdiff_t cycle, fub::Duration) {
-    std::string name = fmt::format("{}{:05}", base_name, cycle);
+    std::string name = fmt::format("{}plt{:05}", base_name, cycle);
     amrex::Print() << "Start output to '" << name << "'.\n";
-    WritePlotFile(name, hierarchy, equation);
+    WritePlotFile(name, gridding->GetPatchHierarchy(), equation);
     amrex::Print() << "Finished output to '" << name << "'.\n";
   };
 
   using namespace std::literals::chrono_literals;
-  output(solver.GetPatchHierarchy(), solver.GetCycles(), solver.GetTimePoint());
+  output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
+         solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.final_time = 0.002s;
   run_options.output_interval = 0.0000125s;
