@@ -21,7 +21,7 @@
 #ifndef FUB_SAMRAI_GRIDDING_ALGORITHM_HPP
 #define FUB_SAMRAI_GRIDDING_ALGORITHM_HPP
 
-#include "fub/SAMRAI/CartesianPatchHierarchy.hpp"
+#include "fub/SAMRAI/PatchHierarchy.hpp"
 #include "fub/SAMRAI/InitialData.hpp"
 #include "fub/SAMRAI/RegisterVariables.hpp"
 #include "fub/SAMRAI/Tagging.hpp"
@@ -38,9 +38,14 @@ struct GriddingAlgorithm {
   GriddingAlgorithm(PatchHierarchy hier, InitialData initial_data,
                     Tagging tagging, std::vector<int> tag_buffer);
 
-  /*  GriddingAlgorithm(PatchHierarchy hier, InitialData initial_data,
-                      Tagging tagging, BoundaryCondition boundary,
-                      std::vector<int> tag_buffer);*/
+  GriddingAlgorithm(const GriddingAlgorithm& ga);
+  GriddingAlgorithm& operator=(const GriddingAlgorithm& ga) {
+    GriddingAlgorithm tmp(ga);
+    return (*this = std::move(tmp));
+  }
+
+  GriddingAlgorithm(GriddingAlgorithm&& ph) = default;
+  GriddingAlgorithm& operator=(GriddingAlgorithm&& ph) = default;
 
   void RegridAllFinerLevels(int level_num, int cycle, Duration time_point);
 
@@ -52,6 +57,15 @@ struct GriddingAlgorithm {
 
   const InitialData& GetInitialData() const noexcept;
   InitialData& GetInitialData() noexcept;
+
+  const Tagging& GetTagging() const noexcept;
+  Tagging& GetTagging() noexcept;
+
+  const DataDescription& GetDataDescription() const noexcept;
+  DataDescription& GetDataDescription() noexcept;
+
+  const std::vector<int>& GetTagBuffer() const noexcept;
+  std::vector<int>& GetTagBuffer() noexcept;
 
   PatchHierarchy hierarchy_;
   InitialData initial_data_;

@@ -110,6 +110,7 @@ int main(int argc, char** argv) {
       MakeCartesianGridGeometry(n_cells, x_range);
 
   fub::samrai::PatchHierarchy ph(equation, geom, hier_opts);
+  fub::samrai::DataDescription data_desc = ph.GetDataDescription();
 
   SAMRAI::hier::Box tagbox(SAMRAI::hier::Index(40, 40), SAMRAI::hier::Index(80, 80), SAMRAI::hier::BlockId(0));
   fub::samrai::ConstantBox constbox{tagbox};
@@ -119,8 +120,7 @@ int main(int argc, char** argv) {
 
   std::vector<int> tb(hier_opts.max_number_of_levels - 1, 4);
   fub::samrai::GriddingAlgorithm ga(
-      ph, CircleData{ph.GetDataDescription(), equation}, fub::samrai::Tagging{gradient},
-      tb);
+      std::move(ph), CircleData{data_desc, equation}, fub::samrai::Tagging{gradient}, tb);
 
   ga.InitializeHierarchy();
 
@@ -128,18 +128,28 @@ int main(int argc, char** argv) {
       SAMRAI::hier::VariableDatabase::getDatabase();
   vardb->printClassData(std::cout, false);
 
-  ph.GetNative()->recursivePrint(std::cout, "", 2);
+  ga.GetPatchHierarchy().GetNative()->recursivePrint(std::cout, "", 2);
+  //std::cout << std::endl << std::endl << "---------------------------------------------------------------------" << std::endl << std::endl;
+  //ph1.GetNative()->recursivePrint(std::cout, "", 2);
+
+  fub::samrai::GriddingAlgorithm ga2(ga);
+  ga2.GetPatchHierarchy().GetNative()->removePatchLevel(ga2.GetPatchHierarchy().GetNative()->getNumberOfLevels() - 1);
+
+  ph = ga.GetPatchHierarchy();
+  ph.GetNative()->removePatchLevel(ph.GetNative()->getNumberOfLevels() - 1);
 
   SAMRAI::appu::VisItDataWriter writer(dim, "VisItWriter", "SAMRAI/PHE");
   writer.registerPlotQuantity("mass", "SCALAR",
                               ph.GetDataDescription().data_ids[0]);
 
-  writer.writePlotData(ph.GetNative(), 0);
+  writer.writePlotData(ga.GetPatchHierarchy().GetNative(), 0);
+  writer.writePlotData(ph.GetNative(), 1);
+  writer.writePlotData(ga2.GetPatchHierarchy().GetNative(), 2);
 
-  const std::vector<int>& data_ids = ph.GetDataDescription().data_ids;
+  const std::vector<int>& data_ids = ga.GetPatchHierarchy().GetDataDescription().data_ids;
   std::vector<SAMRAI::pdat::CellData<double>*> datas(data_ids.size());
   // Generate View
-  for(const std::shared_ptr<SAMRAI::hier::Patch>& patch : *ph.GetNative()->getPatchLevel(0)) {
+  for(const std::shared_ptr<SAMRAI::hier::Patch>& patch : *ga.GetPatchHierarchy().GetNative()->getPatchLevel(0)) {
     std::transform(data_ids.begin(), data_ids.end(), datas.begin(), [&](int id) -> SAMRAI::pdat::CellData<double>* {
         return static_cast<SAMRAI::pdat::CellData<double>*>(patch->getPatchData(id).get());
     });

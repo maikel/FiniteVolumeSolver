@@ -52,7 +52,7 @@ template <typename Equation, typename... Projections>
 void GradientDetector<Equation, Projections...>::TagCellsForRefinement(
     GriddingAlgorithm& gridding, int level, int tag_id,
     Duration /* time_point */) {
-  fub::samrai::PatchHierarchy patch_hierarchy = gridding.GetPatchHierarchy();
+  const fub::samrai::PatchHierarchy& patch_hierarchy = gridding.GetPatchHierarchy();
   const std::vector<int>& data_ids =
       patch_hierarchy.GetDataDescription().data_ids;
   std::vector<SAMRAI::pdat::CellData<double>*> datas(data_ids.size());
