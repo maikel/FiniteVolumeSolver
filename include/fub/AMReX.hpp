@@ -47,5 +47,6 @@
 #include "fub/AMReX/TimeIntegrator.hpp"
 
 #include "fub/equations/ideal_gas_mix/KineticSourceTerm.hpp"
+#include "fub/AMReX/AxialSourceTerm.hpp"
 
 #endif

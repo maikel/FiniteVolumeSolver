@@ -271,6 +271,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     include/fub/AMReX/boundary_condition/TransmissiveBoundary.hpp
     include/fub/AMReX/boundary_condition/ReflectiveBoundary.hpp
     include/fub/AMReX/boundary_condition/IsentropicBoundary.hpp
+    include/fub/AMReX/AxialSourceTerm.hpp
     include/fub/AMReX/GriddingAlgorithm.hpp
     include/fub/AMReX/PatchHierarchy.hpp
     include/fub/AMReX/Reconstruction.hpp
@@ -289,6 +290,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     src/AMReX/boundary_condition/BoundarySet.cpp
     src/AMReX/boundary_condition/TransmissiveBoundary.cpp
     src/AMReX/boundary_condition/IsentropicBoundary.cpp
+    src/AMReX/AxialSourceTerm.cpp
     src/AMReX/FluxMethod.cpp
     src/AMReX/ScopeGuard.cpp
     src/AMReX/CartesianGridGeometry.cpp

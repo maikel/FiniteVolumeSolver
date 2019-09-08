@@ -130,7 +130,7 @@ int main(int argc, char** argv) {
   std::string base_name = "LinearShock3d/";
 
   auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,
-                    std::ptrdiff_t cycle, fub::Duration) {
+                    std::ptrdiff_t cycle, fub::Duration, int = 0) {
     std::string name = fmt::format("{}plt{:05}", base_name, cycle);
     amrex::Print() << "Start output to '" << name << "'.\n";
     WritePlotFile(name, gridding->GetPatchHierarchy(), equation);

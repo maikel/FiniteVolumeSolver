@@ -114,6 +114,10 @@ template <int N> struct PerfectGas {
                         const ConservativeArrayBase<PerfectGas>& cons) const
       noexcept;
 
+  void CompleteFromCons(CompleteArray& complete,
+                        const ConservativeArrayBase<PerfectGas>& cons, MaskArray mask) const
+  noexcept;
+
   Complete CompleteFromPrim(double density, const Array<double, N, 1>& u,
                             double pressure) const noexcept;
   Array<double, N, 1> Velocity(const Complete& q) const noexcept;

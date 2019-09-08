@@ -109,7 +109,7 @@ int main(int argc, char** argv) {
   geometry.periodicity = std::array<int, Dim>{AMREX_D_DECL(1, 1, 1)};
 
   fub::amrex::PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = 1;
+  hier_opts.max_number_of_levels = 3;
   hier_opts.refine_ratio = amrex::IntVect{AMREX_D_DECL(2, 2, 1)};
 
   using Complete = fub::PerfectGas<2>::Complete;
@@ -168,7 +168,7 @@ int main(int argc, char** argv) {
 
   using namespace std::literals::chrono_literals;
   output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
-         solver.GetTimePoint(), 0);
+         solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.final_time = 3.0s;
   run_options.output_interval = {fub::Duration(1.0 / 30.0)};

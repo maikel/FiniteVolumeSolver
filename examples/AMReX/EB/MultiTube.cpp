@@ -305,7 +305,7 @@ int main(int /* argc */, char** /* argv */) {
   fub::Duration next_checkpoint = std::chrono::minutes(25);
   auto output =
       [&](std::shared_ptr<fub::amrex::MultiBlockGriddingAlgorithm> gridding,
-          auto cycle, auto) {
+          std::ptrdiff_t cycle, fub::Duration, int = 0) {
         std::chrono::steady_clock::time_point now =
             std::chrono::steady_clock::now();
         auto duration = std::chrono::duration_cast<fub::Duration>(
@@ -336,7 +336,7 @@ int main(int /* argc */, char** /* argv */) {
          solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.final_time = 0.020s;
-  run_options.output_interval = 0.1e-3s;
+  run_options.output_interval = {0.1e-3s};
   run_options.cfl = 0.8;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      fub::amrex::print);

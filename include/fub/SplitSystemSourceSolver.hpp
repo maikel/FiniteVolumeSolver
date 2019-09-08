@@ -36,6 +36,15 @@ template <typename Context, typename... Args>
 using PostAdvanceHierarchy = decltype(
     std::declval<Context>().PostAdvanceHierarchy(std::declval<Args>()...));
 
+template <typename Context, typename... Args>
+using PreAdvanceLevel = decltype(
+                                     std::declval<Context>().PreAdvanceLevel(std::declval<Args>()...));
+
+template <typename Context, typename... Args>
+using PostAdvanceLevel = decltype(
+                                      std::declval<Context>().PostAdvanceLevel(std::declval<Args>()...));
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                  Decleration
 
@@ -65,6 +74,9 @@ public:
     return system_solver_.GetGriddingAlgorithm();
   }
 
+  void PreAdvanceLevel(int level, Duration dt, int subcycle);
+  Result<void, TimeStepTooLarge> PostAdvanceLevel(int level, Duration dt, int subcycle);
+
   /// \brief Returns the shared patch hierarchy of both subsolvers.
   const auto& GetPatchHierarchy() const;
 
@@ -86,12 +98,17 @@ public:
   /// \brief Invokes any "post-advance" logic of both sub solvers.
   void PostAdvanceHierarchy();
 
+  [[nodiscard]] bool LevelExists(int level) const;
+
   /// \brief Returns the minimum of stable time step sizes for both sub solvers.
   Duration ComputeStableDt();
 
   /// \brief Advances the hierarchy by time step size dt.
   Result<void, TimeStepTooLarge> AdvanceLevel(int level, Duration dt,
                                               int subcycle = 0);
+  Result<void, TimeStepTooLarge> AdvanceLevelNonRecursively(int level, Duration dt,
+                                              int subcycle = 0);
+
   Result<void, TimeStepTooLarge> AdvanceHierarchy(Duration dt);
 
 private:
@@ -158,6 +175,13 @@ DimensionalSplitSystemSourceSolver<SystemSolver, SourceTerm,
 }
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
+bool
+DimensionalSplitSystemSourceSolver<SystemSolver, SourceTerm,
+SplittingMethod>::LevelExists(int level) const {
+  return system_solver_.LevelExists(level);
+}
+
+template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
 Duration
 DimensionalSplitSystemSourceSolver<SystemSolver, SourceTerm,
                                    SplittingMethod>::GetTimePoint() const {
@@ -171,6 +195,57 @@ DimensionalSplitSystemSourceSolver<SystemSolver, SourceTerm,
   return system_solver_.GetCycles();
 }
 
+  template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
+  void
+  DimensionalSplitSystemSourceSolver<SystemSolver, SourceTerm,
+  SplittingMethod>::PreAdvanceLevel(int this_level, Duration dt, int subcycle) {
+    system_solver_.PreAdvanceLevel(this_level, dt, subcycle);
+    if constexpr (is_detected<::fub::PreAdvanceLevel, SourceTerm&, int, Duration, int>()) {
+      source_term_.PreAdvanceLevel(this_level, dt, subcycle);
+    }
+  }
+
+template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
+Result<void, TimeStepTooLarge>
+DimensionalSplitSystemSourceSolver<SystemSolver, SourceTerm,
+SplittingMethod>::PostAdvanceLevel(int this_level, Duration dt, int subcycle) {
+  if constexpr (is_detected<::fub::PostAdvanceLevel, SourceTerm&, int, Duration, int>()) {
+    source_term_.PostAdvanceLevel(this_level, dt, subcycle);
+  }
+  return system_solver_.PostAdvanceLevel(this_level, dt, subcycle);
+}
+
+  template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
+  Result<void, TimeStepTooLarge> DimensionalSplitSystemSourceSolver<
+  SystemSolver, SourceTerm, SplittingMethod>::AdvanceLevelNonRecursively(int this_level,
+                                                           Duration dt,
+                                                           int subcycle) {
+    auto AdvanceSystem = [&](Duration dt) -> Result<void, TimeStepTooLarge> {
+      Result<void, TimeStepTooLarge> result = system_solver_.AdvanceLevelNonRecursively(this_level, dt, subcycle);
+      if (!result) {
+        return result;
+      }
+      const int next_level = this_level + 1;
+      // Coarsen inner regions from next finer level to this level.
+      if (system_solver_.LevelExists(next_level)) {
+        auto& context = system_solver_.GetContext();
+        context.CoarsenConservatively(next_level, this_level);
+
+        // The conservative update and the coarsening happened on conservative
+        // variables. We have to reconstruct the missing variables in the complete
+        // state.
+        context.CompleteFromCons(this_level, dt);
+      }
+      return result;
+    };
+
+    auto AdvanceSource = [&](Duration dt) -> Result<void, TimeStepTooLarge> {
+      return source_term_.AdvanceLevel(this_level, dt);
+    };
+
+    return splitting_.Advance(dt, AdvanceSource, AdvanceSystem);
+  }
+
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
 Result<void, TimeStepTooLarge> DimensionalSplitSystemSourceSolver<
     SystemSolver, SourceTerm, SplittingMethod>::AdvanceLevel(int this_level,
@@ -178,15 +253,16 @@ Result<void, TimeStepTooLarge> DimensionalSplitSystemSourceSolver<
                                                              int subcycle) {
   // PreAdvanceLevel might regrid this and all finer levels.
   // The Context must make sure that scratch data is allocated
-  system_solver_.PreAdvanceLevel(this_level, dt, subcycle);
+  PreAdvanceLevel(this_level, dt, subcycle);
 
   // If a finer level exists in the hierarchy, we subcycle that finer level
   // multiple times and use the fine fluxes on coarse-fine interfaces
   const int next_level = this_level + 1;
   if (system_solver_.LevelExists(next_level)) {
-    system_solver_.ResetCoarseFineFluxes(next_level, this_level);
+    auto& context = system_solver_.GetContext();
+    context.ResetCoarseFineFluxes(next_level, this_level);
     const int refine_ratio =
-        system_solver_.GetRatioToCoarserLevel(next_level).max();
+        context.GetRatioToCoarserLevel(next_level).max();
     for (int r = 0; r < refine_ratio; ++r) {
       auto result = AdvanceLevel(next_level, dt / refine_ratio, r);
       if (!result) {
@@ -195,86 +271,13 @@ Result<void, TimeStepTooLarge> DimensionalSplitSystemSourceSolver<
     }
   }
 
-  auto AdvanceSystem = [&](Duration dt) -> Result<void, TimeStepTooLarge> {
-    auto AdvanceLevel_Split = [&, dt](Direction dir) {
-      return [&, dir, dt, split_cycle = 0](
-                 Duration split_dt) mutable -> Result<void, TimeStepTooLarge> {
-        if (dir == Direction::X && split_cycle == 0 && subcycle == 0 &&
-            this_level > 0) {
-          system_solver_.FillGhostLayerTwoLevels(this_level, this_level - 1);
-        } else {
-          system_solver_.FillGhostLayerSingleLevel(this_level);
-        }
-        const Duration level_dt =
-            system_solver_.GetContext().ComputeStableDt(this_level, dir);
-        if (level_dt < split_dt) {
-          const int refine_ratio =
-              system_solver_.GetTotalRefineRatio(this_level);
-          return TimeStepTooLarge{refine_ratio * level_dt};
-        }
-
-        // Compute fluxes in the specified direction
-        system_solver_.ComputeNumericFluxes(this_level, split_dt, dir);
-
-        if (system_solver_.LevelExists(next_level)) {
-          system_solver_.ApplyFluxCorrection(next_level, this_level, split_dt);
-        }
-
-        if (this_level > 0) {
-          system_solver_.AccumulateCoarseFineFluxes(
-              this_level, split_dt.count() / dt.count(), dir);
-        }
-
-        // Use the updated fluxes to update cons variables at the "SCRATCH"
-        // system_solver_.
-        system_solver_.UpdateConservatively(this_level, split_dt, dir);
-
-        // The conservative update and happened on conservative variables.
-        // We have to reconstruct the missing variables in the complete state.
-        system_solver_.CompleteFromCons(this_level, split_dt);
-
-        split_cycle += 1;
-        return boost::outcome_v2::success();
-      };
-    };
-
-    if (Result<void, TimeStepTooLarge> result = std::apply(
-            [&](auto... directions) {
-              return system_solver_.GetSplitMethod().Advance(
-                  dt, AdvanceLevel_Split(directions)...);
-            },
-            MakeSplitDirections<Rank>());
-        !result) {
-      return result;
-    }
-
-    // Coarsen inner regions from next finer level to this level.
-    if (system_solver_.LevelExists(next_level)) {
-      system_solver_.CoarsenConservatively(next_level, this_level);
-
-      // The conservative update and the coarsening happened on conservative
-      // variables. We have to reconstruct the missing variables in the complete
-      // state.
-      system_solver_.CompleteFromCons(this_level, dt);
-    }
-    return boost::outcome_v2::success();
-  };
-
-  auto AdvanceSource = [&](Duration dt) -> Result<void, TimeStepTooLarge> {
-    return source_term_.AdvanceLevel(this_level, dt);
-  };
-
-  if (Result<void, TimeStepTooLarge> result =
-          splitting_.Advance(dt, AdvanceSource, AdvanceSystem);
-      !result) {
-    return result;
-  }
+  AdvanceLevelNonRecursively(this_level, dt, subcycle);
 
   // Apply any further context related work after advancing this level.
   // This function can also indicate if some error occured.
   // For example the context could detect unphysical states and return a
   // TooLargeTimeStep error condition.
-  return system_solver_.PostAdvanceLevel(this_level, dt, subcycle);
+  return PostAdvanceLevel(this_level, dt, subcycle);
 }
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>

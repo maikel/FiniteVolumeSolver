@@ -41,8 +41,8 @@
 #include "fub/AMReX/cutcell/tagging/TagCutCells.hpp"
 
 #include "fub/AMReX/cutcell/boundary_condition/BoundarySet.hpp"
-#include "fub/AMReX/cutcell/boundary_condition/TransmissiveBoundary.hpp"
 #include "fub/AMReX/cutcell/boundary_condition/IsentropicPressureBoundary.hpp"
+#include "fub/AMReX/cutcell/boundary_condition/TransmissiveBoundary.hpp"
 
 #include "fub/AMReX/multi_block/MultiBlockBoundary.hpp"
 #include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp"
