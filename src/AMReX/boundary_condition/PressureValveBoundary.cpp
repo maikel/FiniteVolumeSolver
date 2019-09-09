@@ -36,8 +36,8 @@ po::options_description PressureValveBoundary::GetProgramOptions() {
     ("outer_pressure", po::value<double>()->default_value(6 * 101325.0), "The mean pressure value for the outer side [Pa]")
     ("pressure_value_which_opens_boudnary", po::value<double>()->default_value(2 * 101325.0), "The mean pressure value in the tube which opens the boundary [Pa]")
     ("pressure_value_which_closes_boundary", po::value<double>()->default_value(6 * 101325.0), "The mean pressure value in the tube which closes the boundary [Pa]")
-    ("air_buffer_length", po::value<double>()->default_value(1.5), "The air buffer length which will be used to flush the tube [m]")
-    ("fuel_length", po::value<double>()->default_value(1.5), "The fuel buffer length, will be capped by tube length [m]")
+    ("air_buffer_length", po::value<double>()->default_value(1.0), "The air buffer length which will be used to flush the tube [m]")
+    ("fuel_length", po::value<double>()->default_value(1.0), "The fuel buffer length, will be capped by tube length [m]")
     ("ignition_position", po::value<double>()->default_value(0.69), "The position in the tube where the detonation will be triggered [m]");
   // clang-format on
   return desc;
@@ -82,6 +82,13 @@ std::vector<double> AsMolesVector(const std::string& moles,
   return mole;
 }
 
+bool AlmostEqual(span<const double> x, span<const double> y)
+{
+  return std::equal(x.begin(), x.end(), y.begin(), [](double x, double y) {
+    return std::abs(x - y) < 1e-5;
+  });
+}
+
 double GetMeanPressure(const GriddingAlgorithm& grid, IdealGasMix<1>& eq) {
   const PatchHierarchy& hier = grid.GetPatchHierarchy();
   const ::amrex::MultiFab& data = hier.GetPatchLevel(0).data;
@@ -107,10 +114,11 @@ std::vector<double> GatherMoles(const GriddingAlgorithm& grid, double x,
                                 IdealGasMix<1>& eq) {
   const PatchHierarchy& hier = grid.GetPatchHierarchy();
   const int nlevel = hier.GetNumberOfLevels();
+  std::vector<double> moles(eq.GetReactor().GetNSpecies());
+  std::vector<double> local_moles(moles.size());
   for (int level = nlevel - 1; level >= 0; --level) {
     const ::amrex::MultiFab& data = hier.GetPatchLevel(level).data;
     const ::amrex::Geometry& geom = hier.GetGeometry(level);
-    std::vector<double> local_moles(eq.GetReactor().GetNSpecies());
     int local_found = 0;
     Complete<IdealGasMix<1>> state(eq);
     ForEachFab(data, [&local_moles, &local_found, &eq, &data, &geom, x,
@@ -138,14 +146,12 @@ std::vector<double> GatherMoles(const GriddingAlgorithm& grid, double x,
     MPI_Allreduce(&local_found, &found, 1, MPI_INT, MPI_SUM,
                   ::amrex::ParallelContext::CommunicatorAll());
     if (found) {
-      std::vector<double> moles(eq.GetReactor().GetNSpecies());
-      MPI_Allreduce(&local_moles, &moles, moles.size(), MPI_DOUBLE, MPI_SUM,
+      MPI_Allreduce(local_moles.data(), moles.data(), moles.size(), MPI_DOUBLE, MPI_SUM,
                     ::amrex::ParallelContext::CommunicatorAll());
-      return moles;
+      break;
     }
   }
-  throw std::logic_error("Should not reach here!");
-  return std::vector<double>(eq.GetReactor().GetNSpecies());
+  return moles;
 }
 
 void ChangeState(PressureValveState& state, ::amrex::MultiFab& data,
@@ -169,19 +175,19 @@ void ChangeState(PressureValveState& state, ::amrex::MultiFab& data,
   }
   if (state == PressureValveState::open_air) {
     const double x_air =
-        std::min(xlo + options.air_buffer_length, geom.ProbDomain().hi(0));
+        std::min(xlo + options.air_buffer_length, geom.ProbDomain().hi(0) - 0.5 * geom.CellSize(0));
     const std::vector<double> moles_at_x_air = GatherMoles(grid, x_air, eq);
     const std::vector<double> moles_air = AsMolesVector(options.air_moles, eq);
-    if (moles_at_x_air == moles_air) {
+    if (AlmostEqual(moles_at_x_air, moles_air)) {
       state = PressureValveState::open_fuel;
     }
   }
   if (state == PressureValveState::open_fuel) {
     const double x_fuel =
-        std::min(xlo + options.fuel_length, geom.ProbDomain().hi(0));
+        std::min(xlo + options.fuel_length, geom.ProbDomain().hi(0) - 0.5 * geom.CellSize(0));
     const std::vector<double> moles_at_x_fuel = GatherMoles(grid, x_fuel, eq);
     const std::vector<double> moles_fuel = AsMolesVector(options.fuel_moles, eq);
-    if (moles_at_x_fuel == moles_fuel) {
+    if (AlmostEqual(moles_at_x_fuel, moles_fuel)) {
       const double x_ignite = std::min(x_fuel, options.ignition_position);
       Complete<IdealGasMix<1>> complete(eq);
       ForEachFab(data, [&](const ::amrex::MFIter& mfi) {
