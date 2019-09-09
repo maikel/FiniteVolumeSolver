@@ -23,6 +23,7 @@
 
 #include "fub/AMReX/BoundaryCondition.hpp"
 #include "fub/AMReX/ForEachFab.hpp"
+#include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/Execution.hpp"
 #include "fub/boundary_condition/ReflectiveBoundary.hpp"
 

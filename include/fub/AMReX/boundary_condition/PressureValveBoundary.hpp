@@ -18,31 +18,54 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_AMREX_BOUNDARY_CONDITION_ISENTROPIC_HPP
-#define FUB_AMREX_BOUNDARY_CONDITION_ISENTROPIC_HPP
+#ifndef FUB_AMREX_BOUNDARY_CONDITION_PRESSURE_VALVE_HPP
+#define FUB_AMREX_BOUNDARY_CONDITION_PRESSURE_VALVE_HPP
 
-#include "fub/AMReX/BoundaryCondition.hpp"
-#include "fub/equations/IdealGasMix.hpp"
+#include "fub/AMReX/boundary_condition/ReflectiveBoundary.hpp"
+#include "fub/AMReX/boundary_condition/IsentropicPressureBoundary.hpp"
+#include "fub/AMReX/GriddingAlgorithm.hpp"
+
+#include "fub/Duration.hpp"
+
+#include <boost/program_options.hpp>
 
 namespace fub::amrex {
 
-class IsentropicBoundary {
+struct PressureValveOptions {
+  std::string fuel_moles;
+  std::string air_moles;
+  double outer_pressure;
+  double pressure_value_which_opens_boudnary;
+  double pressure_value_which_closes_boundary;
+  double air_buffer_length;
+  double fuel_length;
+  double ignition_position;
+};
+
+enum class PressureValveState {
+  open_air, open_fuel, ignition, closed
+};
+
+void PrintOptions(const PressureValveOptions& options);
+
+class PressureValveBoundary {
 public:
-  IsentropicBoundary(const IdealGasMix<1>& eq, double outer_pressure,
-                     Direction dir, int side);
+  PressureValveBoundary(const IdealGasMix<1>& equation, PressureValveOptions options);
+  PressureValveBoundary(const IdealGasMix<1>& equation, const boost::program_options::variables_map& options);
+
+  static boost::program_options::options_description GetProgramOptions();
+
+  [[nodiscard]] const PressureValveOptions& GetOptions() const noexcept;
 
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
                     Duration dt, const GriddingAlgorithm&);
 
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom);
-
 private:
+  PressureValveOptions options_;
   IdealGasMix<1> equation_;
-  double outer_pressure_;
-  Direction dir_;
-  int side_;
+  PressureValveState state_;
 };
 
-} // namespace fub::amrex
+}
 
-#endif
+#endif // FINITEVOLUMESOLVER_PRESSUREVALVE_HPP

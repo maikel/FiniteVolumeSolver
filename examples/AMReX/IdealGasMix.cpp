@@ -27,70 +27,97 @@
 
 #include <iostream>
 
+#include <fub/AMReX/boundary_condition/PressureValveBoundary.hpp>
 #include <xmmintrin.h>
+//
+//struct TemperatureRamp {
+//  using Complete = fub::IdealGasMix<1>::Complete;
+//
+//  fub::IdealGasMix<1> equation_;
+//  double ignition_pos_{-1.0};
+//  double air_position_{0.0};
+//  double equiv_raito_{1.0};
+//
+//  void InitializeData(::amrex::MultiFab& data, const ::amrex::Geometry& geom) {
+//    fub::FlameMasterReactor& reactor = equation_.GetReactor();
+//    const double high_temp = 1450.0;
+//    const double low_temp = 300.0;
+//    Complete complete(equation_);
+//    Complete burnt{equation_};
+//    Complete cold(equation_);
+//    Complete air(equation_);
+//
+//    double h2_moles = 42.0 * equiv_raito_;
+////    double o2_moles = std::max(21.0 - 0.5 * h2_moles, 0.0);
+//
+//    std::string fuel_moles = fmt::format("N2:79,O2:21,H2:{}", h2_moles);
+//    reactor.SetMoleFractions(fuel_moles);
+//    reactor.SetTemperature(low_temp);
+//    reactor.SetPressure(101325.0);
+//    equation_.CompleteFromReactor(cold);
+//
+//    reactor.SetMoleFractions("N2:79,O2:21");
+//    reactor.SetTemperature(low_temp);
+//    reactor.SetPressure(101325.0);
+//    equation_.CompleteFromReactor(air);
+//
+//    reactor.SetMoleFractions(fuel_moles);
+//    reactor.SetTemperature(high_temp);
+//    reactor.SetPressure(101325.0);
+//    equation_.CompleteFromReactor(burnt);
+//    reactor.Advance(1.0);
+//    equation_.CompleteFromReactor(burnt);
+//    reactor.SetDensity(cold.density);
+//    reactor.SetInternalEnergy(cold.energy / cold.density);
+//    equation_.CompleteFromReactor(burnt);
+//
+//    fub::amrex::ForEachFab(data, [&](const ::amrex::MFIter& mfi) {
+//      fub::View<Complete> states =
+//          fub::amrex::MakeView<Complete>(data[mfi], equation_, mfi.tilebox());
+//      fub::ForEachIndex(fub::Box<0>(states), [&](std::ptrdiff_t i) {
+//        double x[AMREX_SPACEDIM] = {};
+//        geom.CellCenter(::amrex::IntVect{int(i)}, x);
+//        if (x[0] < ignition_pos_) {
+//          fub::Store(states, burnt, {i});
+//        } else if (x[0] < ignition_pos_ + 0.05) {
+//          const double x0 = x[0] - ignition_pos_;
+//          const double d = std::clamp(x0 / 0.05, 0.0, 1.0);
+//          reactor.SetMoleFractions(fuel_moles);
+//          reactor.SetTemperature(d * low_temp + (1.0 - d) * high_temp);
+//          reactor.SetPressure(101325.0);
+//          equation_.CompleteFromReactor(complete);
+//          fub::Store(states, complete, {i});
+//        } else if (x[0] < air_position_) {
+//          fub::Store(states, cold, {i});
+//        } else {
+//          fub::Store(states, air, {i});
+//        }
+//      });
+//    });
+//  }
+//};
 
-struct TemperatureRamp {
+struct Constant {
   using Complete = fub::IdealGasMix<1>::Complete;
 
   fub::IdealGasMix<1> equation_;
-  double ignition_pos_{-1.0};
-  double air_position_{0.0};
-  double equiv_raito_{1.0};
 
   void InitializeData(::amrex::MultiFab& data, const ::amrex::Geometry& geom) {
     fub::FlameMasterReactor& reactor = equation_.GetReactor();
-    const double high_temp = 1450.0;
-    const double low_temp = 300.0;
+    constexpr double temp = 300.0;
+    constexpr double pressure = 101325.0;
     Complete complete(equation_);
-    Complete burnt{equation_};
-    Complete cold(equation_);
-    Complete air(equation_);
-
-    double h2_moles = 42.0 * equiv_raito_;
-//    double o2_moles = std::max(21.0 - 0.5 * h2_moles, 0.0);
-
-    std::string fuel_moles = fmt::format("N2:79,O2:21,H2:{}", h2_moles);
-    reactor.SetMoleFractions(fuel_moles);
-    reactor.SetTemperature(low_temp);
-    reactor.SetPressure(101325.0);
-    equation_.CompleteFromReactor(cold);
 
     reactor.SetMoleFractions("N2:79,O2:21");
-    reactor.SetTemperature(low_temp);
-    reactor.SetPressure(101325.0);
-    equation_.CompleteFromReactor(air);
-
-    reactor.SetMoleFractions(fuel_moles);
-    reactor.SetTemperature(high_temp);
-    reactor.SetPressure(101325.0);
-    equation_.CompleteFromReactor(burnt);
-    reactor.Advance(1.0);
-    equation_.CompleteFromReactor(burnt);
-    reactor.SetDensity(cold.density);
-    reactor.SetInternalEnergy(cold.energy / cold.density);
-    equation_.CompleteFromReactor(burnt);
+    reactor.SetTemperature(temp);
+    reactor.SetPressure(pressure);
+    equation_.CompleteFromReactor(complete);
 
     fub::amrex::ForEachFab(data, [&](const ::amrex::MFIter& mfi) {
       fub::View<Complete> states =
           fub::amrex::MakeView<Complete>(data[mfi], equation_, mfi.tilebox());
       fub::ForEachIndex(fub::Box<0>(states), [&](std::ptrdiff_t i) {
-        double x[AMREX_SPACEDIM] = {};
-        geom.CellCenter(::amrex::IntVect{int(i)}, x);
-        if (x[0] < ignition_pos_) {
-          fub::Store(states, burnt, {i});
-        } else if (x[0] < ignition_pos_ + 0.05) {
-          const double x0 = x[0] - ignition_pos_;
-          const double d = std::clamp(x0 / 0.05, 0.0, 1.0);
-          reactor.SetMoleFractions(fuel_moles);
-          reactor.SetTemperature(d * low_temp + (1.0 - d) * high_temp);
-          reactor.SetPressure(101325.0);
-          equation_.CompleteFromReactor(complete);
-          fub::Store(states, complete, {i});
-        } else if (x[0] < air_position_) {
-          fub::Store(states, cold, {i});
-        } else {
-          fub::Store(states, air, {i});
-        }
+        fub::Store(states, complete, {i});
       });
     });
   }
@@ -102,13 +129,11 @@ struct ProgramOptions {
   int n_cells{200};
   int max_refinement_level{1};
   double domain_length{1.5};
-  double ignition_position{0.6};
-  double air_position{0.5 + 0.35};
-  double equiv_ratio{1.0};
   double output_interval{1.0E-5};
 };
 
-std::optional<ProgramOptions> ParseCommandLine(int argc, char** argv) {
+std::optional<std::pair<ProgramOptions, boost::program_options::variables_map>>
+ParseCommandLine(int argc, char** argv) {
   namespace po = boost::program_options;
   ProgramOptions opts;
   po::options_description desc("Program Options");
@@ -128,22 +153,11 @@ std::optional<ProgramOptions> ParseCommandLine(int argc, char** argv) {
       po::value<double>(&opts.domain_length)
           ->default_value(opts.domain_length),
       "Set the base length for the tube")(
-      "ignition_pos",
-      po::value<double>(&opts.ignition_position)
-          ->default_value(opts.ignition_position),
-      "Set the position for the ignition of the detonation inside the tube")(
-      "air_buffer_start",
-      po::value<double>(&opts.air_position)
-          ->default_value(opts.air_position),
-      "Sets the starting position for an air buffer in the tube.")(
-      "equiv_ratio",
-      po::value<double>(&opts.equiv_ratio)
-          ->default_value(opts.equiv_ratio),
-      "Sets the equivalence ratio of the fuel in the tube")(
       "output_interval",
       po::value<double>(&opts.output_interval)
           ->default_value(opts.output_interval),
       "Sets the output interval");
+  desc.add(fub::amrex::PressureValveBoundary::GetProgramOptions());
   po::variables_map vm;
   try {
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -178,17 +192,11 @@ std::optional<ProgramOptions> ParseCommandLine(int argc, char** argv) {
   amrex::Print() << fmt::format(
       "[Info] n_cells = {}\n[Info] dx = {}\n",
       opts.n_cells, opts.domain_length / opts.n_cells);
-  amrex::Print() << fmt::format("[Info] ignition_pos = {}\n",
-                                opts.ignition_position);
-  amrex::Print() << fmt::format("[Info] equiv_ratio = {}\n",
-                                opts.equiv_ratio);
-  amrex::Print() << fmt::format("[Info] air_position = {}\n",
-                                opts.air_position);
 
-  return opts;
+  return std::make_pair(opts, vm);
 }
 
-void MyMain(const ProgramOptions& opts) {
+void MyMain(const ProgramOptions& opts, const boost::program_options::variables_map& map) {
   // Store a reference timepoint to measure the wall time duration
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
@@ -216,11 +224,6 @@ void MyMain(const ProgramOptions& opts) {
   geometry.cell_dimensions = n_cells;
   geometry.coordinates = amrex::RealBox(xlower, xupper);
 
-  TemperatureRamp initial_data{equation};
-  initial_data.equiv_raito_ = opts.equiv_ratio;
-  initial_data.ignition_pos_ = opts.ignition_position;
-  initial_data.air_position_ = opts.air_position;
-
   using Complete = fub::IdealGasMix<1>::Complete;
   fub::amrex::GradientDetector gradient{
       equation, std::make_pair(&Complete::pressure, 1e-3),
@@ -228,21 +231,21 @@ void MyMain(const ProgramOptions& opts) {
       std::make_pair(&Complete::temperature, 1e-1)};
 
   fub::amrex::BoundarySet boundary;
-  using fub::amrex::IsentropicBoundary;
+  using fub::amrex::PressureValveBoundary;
+  using fub::amrex::IsentropicPressureBoundary;
   using fub::amrex::ReflectiveBoundary;
   using fub::amrex::TransmissiveBoundary;
-  boundary.conditions.push_back(
-      ReflectiveBoundary{fub::execution::seq, equation, fub::Direction::X, 0});
+  boundary.conditions.push_back(PressureValveBoundary{equation, map});
   //  boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::X, 1});
   boundary.conditions.push_back(
-      IsentropicBoundary{equation, 101325.0, fub::Direction::X, 1});
+      IsentropicPressureBoundary{equation, 101325.0, fub::Direction::X, 1});
 
   fub::amrex::PatchHierarchyOptions hier_opts;
   hier_opts.max_number_of_levels = nlevels;
   hier_opts.refine_ratio = ::amrex::IntVect{AMREX_D_DECL(2, 1, 1)};
 
   std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
-      fub::amrex::PatchHierarchy(equation, geometry, hier_opts), initial_data,
+      fub::amrex::PatchHierarchy(equation, geometry, hier_opts), Constant{equation},
       gradient, boundary);
   gridding->InitializeHierarchy(0.0);
   // }}}
@@ -299,9 +302,9 @@ int main(int argc, char** argv) {
   MPI_Init(nullptr, nullptr);
   {
     fub::amrex::ScopeGuard _{};
-    std::optional<ProgramOptions> po = ParseCommandLine(argc, argv);
+    std::optional<std::pair<ProgramOptions, boost::program_options::variables_map>> po = ParseCommandLine(argc, argv);
     if (po) {
-      MyMain(*po);
+      MyMain(std::get<0>(*po), std::get<1>(*po));
     }
   }
   int flag = -1;

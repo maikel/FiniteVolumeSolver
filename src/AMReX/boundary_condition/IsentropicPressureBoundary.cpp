@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/AMReX/boundary_condition/IsentropicBoundary.hpp"
+#include "fub/AMReX/boundary_condition/IsentropicPressureBoundary.hpp"
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/ForEachIndex.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
@@ -69,18 +69,18 @@ void IsentropicExpansionWithoutDissipation(IdealGasMix<1>& eq,
 
 } // namespace
 
-IsentropicBoundary::IsentropicBoundary(const IdealGasMix<1>& eq,
+IsentropicPressureBoundary::IsentropicPressureBoundary(const IdealGasMix<1>& eq,
                                        double outer_pressure, Direction dir,
                                        int side)
     : equation_{eq}, outer_pressure_{outer_pressure}, dir_{dir}, side_{side} {}
 
-void IsentropicBoundary::FillBoundary(::amrex::MultiFab& mf,
+void IsentropicPressureBoundary::FillBoundary(::amrex::MultiFab& mf,
                                       const ::amrex::Geometry& geom, Duration,
                                       const GriddingAlgorithm&) {
   FillBoundary(mf, geom);
 }
 
-void IsentropicBoundary::FillBoundary(::amrex::MultiFab& mf,
+void IsentropicPressureBoundary::FillBoundary(::amrex::MultiFab& mf,
                                       const ::amrex::Geometry& geom) {
   const int ngrow = mf.nGrow(int(dir_));
   ::amrex::Box grown_box = geom.growNonPeriodicDomain(ngrow);

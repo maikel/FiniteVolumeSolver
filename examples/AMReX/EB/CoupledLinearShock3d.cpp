@@ -315,9 +315,10 @@ auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism) {
   fub::ideal_gas::MusclHancockPrimMethod<Plenum_Rank> flux_method(equation);
   fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
 
-  HyperbolicMethod method{FluxMethod{fub::execution::openmp_simd, cutcell_method},
-                          fub::amrex::cutcell::TimeIntegrator{},
-                          Reconstruction{fub::execution::openmp_simd, equation}};
+  HyperbolicMethod method{
+      FluxMethod{fub::execution::openmp_simd, cutcell_method},
+      fub::amrex::cutcell::TimeIntegrator{},
+      Reconstruction{fub::execution::openmp_simd, equation}};
 
   return fub::amrex::cutcell::IntegratorContext(gridding, method);
 }
@@ -527,8 +528,12 @@ void MyMain(const ProgramOptions& po) {
           fub::amrex::cutcell::WriteCheckpointFile(
               fmt::format("{}/Checkpoint/Plenum_{:05}", base_name, cycle),
               gridding->GetPlena()[0]->GetPatchHierarchy());
-          fub::amrex::WritePlotFile(fmt::format("{}/Plotfile/Tube_plt{}", base_name, cycle), gridding->GetTubes()[0]->GetPatchHierarchy(), tube_equation);
-          fub::amrex::cutcell::WritePlotFile(fmt::format("{}/Plotfile/Plenum_plt{}", base_name, cycle), gridding->GetPlena()[0]->GetPatchHierarchy(), equation);
+          fub::amrex::WritePlotFile(
+              fmt::format("{}/Plotfile/Tube_plt{}", base_name, cycle),
+              gridding->GetTubes()[0]->GetPatchHierarchy(), tube_equation);
+          fub::amrex::cutcell::WritePlotFile(
+              fmt::format("{}/Plotfile/Plenum_plt{}", base_name, cycle),
+              gridding->GetPlena()[0]->GetPatchHierarchy(), equation);
           ::amrex::Print() << "Finish Checkpointing.\n";
 
           ::amrex::Print() << "Begin Matlab Output.\n";
@@ -581,12 +586,11 @@ void MyMain(const ProgramOptions& po) {
             fub::mdspan<const double, 2> states(buffer.data(), probes.extent(1),
                                                 buffer.size() /
                                                     probes.extent(1));
-            ::amrex::Print()
-                << fmt::format("{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}"
-                               "{:24s}{:24s}\n",
-                               "Position", "Time", "Density", "VelocityX",
-                               "VelocityY", "VelocityZ",
-                               "SpeedOfSound", "Temperature", "Pressure");
+            ::amrex::Print() << fmt::format(
+                "{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}"
+                "{:24s}{:24s}\n",
+                "Position", "Time", "Density", "VelocityX", "VelocityY",
+                "VelocityZ", "SpeedOfSound", "Temperature", "Pressure");
             for (int i = 0; i < probes.extent(1); ++i) {
               const double rho = states(i, 0);
               const double u = states(i, 1) / rho;

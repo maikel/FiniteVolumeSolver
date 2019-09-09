@@ -99,18 +99,13 @@ MultiBlockIntegratorContext::GetRatioToCoarserLevel(int level) const noexcept {
   return plena_[0].GetRatioToCoarserLevel(level);
 }
 
-template <typename T, typename F> void ForEachBlock(T&& tuple, F&& function) {
-  std::apply(
-      [&](auto&&... ts) {
-        (
-            [&](auto&& xs) {
-              for (auto&& x : xs) {
-                function(x);
-              }
-            }(ts),
-            ...);
-      },
-      std::forward<T>(tuple));
+template <typename T, typename S, typename F> void ForEachBlock(const std::tuple<T, S>& tuple, F function) {
+	for (auto&& x : std::get<0>(tuple)) {
+		function(x);
+	}
+	for (auto&& x : std::get<1>(tuple)) {
+		function(x);
+	}
 }
 
 /// \brief Replaces the underlying gridding algorithm with the specified one.
@@ -140,7 +135,7 @@ void MultiBlockIntegratorContext::ResetHierarchyConfiguration(
 /// \param[in] level  The level number of the coarsest level which changed its
 /// shape. Regrid all levels finer than level.
 void MultiBlockIntegratorContext::ResetHierarchyConfiguration(int level) {
-  ForEachBlock(std::tuple{span{tubes_}, span{plena_}}, [=](auto& block) {
+  ForEachBlock(std::tuple{span{tubes_}, span{plena_}}, [level](auto& block) {
     if (block.LevelExists(level)) {
       block.ResetHierarchyConfiguration(level);
     }
@@ -149,7 +144,7 @@ void MultiBlockIntegratorContext::ResetHierarchyConfiguration(int level) {
 
 /// \brief Sets the cycle count for a specific level number and direction.
 void MultiBlockIntegratorContext::SetCycles(std::ptrdiff_t cycle, int level) {
-  ForEachBlock(std::tuple{span{tubes_}, span{plena_}}, [=](auto& block) {
+  ForEachBlock(std::tuple{span{tubes_}, span{plena_}}, [cycle,level](auto& block) {
     if (block.LevelExists(level)) {
       block.SetCycles(cycle, level);
     }
@@ -158,7 +153,7 @@ void MultiBlockIntegratorContext::SetCycles(std::ptrdiff_t cycle, int level) {
 
 /// \brief Sets the time point for a specific level number and direction.
 void MultiBlockIntegratorContext::SetTimePoint(Duration t, int level) {
-  ForEachBlock(std::tuple{span{tubes_}, span{plena_}}, [=](auto& block) {
+  ForEachBlock(std::tuple{span{tubes_}, span{plena_}}, [t,level](auto& block) {
     if (block.LevelExists(level)) {
       block.SetTimePoint(t, level);
     }
@@ -172,7 +167,7 @@ void MultiBlockIntegratorContext::SetTimePoint(Duration t, int level) {
 /// \brief On each first subcycle this will regrid the data if neccessary.
 void MultiBlockIntegratorContext::PreAdvanceLevel(int level_num, Duration dt,
                                                   int subcycle) {
-  ForEachBlock(std::tuple{span{tubes_}, span{plena_}}, [=](auto& block) {
+  ForEachBlock(std::tuple{span{tubes_}, span{plena_}}, [level_num,dt,subcycle](auto& block) {
     if (block.LevelExists(level_num)) {
       block.PreAdvanceLevel(level_num, dt, subcycle);
     }
@@ -549,7 +544,7 @@ void MultiBlockIntegratorContext::ResetCoarseFineFluxes(int fine, int coarse) {
 /// \brief Coarsen scratch data from a fine level number to a coarse level
 /// number.
 void MultiBlockIntegratorContext::CoarsenConservatively(int fine, int coarse) {
-  ForEachBlock(std::tuple{span{tubes_}, span{plena_}}, [=](auto& block) {
+  ForEachBlock(std::tuple{span{tubes_}, span{plena_}}, [fine, coarse](auto& block) {
     if (block.LevelExists(fine)) {
       block.CoarsenConservatively(fine, coarse);
     }
