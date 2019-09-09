@@ -405,7 +405,7 @@ GatherStates(const PatchHierarchy& hierarchy,
 }
 
   
-void WriteTubeData(std::ostream& out, const PatchHierarchy& hierarchy,
+void WriteTubeData(std::ostream* out, const PatchHierarchy& hierarchy,
                    const IdealGasMix<1>& eq, fub::Duration time_point,
                    std::ptrdiff_t cycle_number, MPI_Comm comm) {
   const std::size_t n_level =
@@ -451,11 +451,11 @@ void WriteTubeData(std::ostream& out, const PatchHierarchy& hierarchy,
         }
       }
       if (level == n_level - 1) {
-        out << fmt::format("nx = {}\n", domain.length(0));
-        out << fmt::format("t = {}\n", time_point.count());
-        out << fmt::format("cycle = {}\n", cycle_number);
-        WriteMatlabData(out, fab, eq, level_geom);
-        out.flush();
+        (*out) << fmt::format("nx = {}\n", domain.length(0));
+        (*out) << fmt::format("t = {}\n", time_point.count());
+        (*out) << fmt::format("cycle = {}\n", cycle_number);
+        WriteMatlabData(*out, fab, eq, level_geom);
+        out->flush();
       }
     } else {
       ::MPI_Reduce(local_fab.dataPtr(), nullptr, local_fab.size(), MPI_DOUBLE,

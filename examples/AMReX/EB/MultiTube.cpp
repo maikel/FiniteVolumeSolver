@@ -267,7 +267,7 @@ int main(int /* argc */, char** /* argv */) {
   fub::amrex::ScopeGuard _{};
   fub::Burke2012 mechanism{};
 
-  const int n_level = 1;
+  const int n_level = 2;
   auto plenum = MakePlenumSolver(64, n_level, mechanism);
   auto tube = MakeTubeSolver(200, n_level, 0.0, mechanism);
 

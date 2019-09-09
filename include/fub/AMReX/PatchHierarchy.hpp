@@ -311,7 +311,7 @@ std::vector<double> GatherStates(
     basic_mdspan<const double, extents<AMREX_SPACEDIM, dynamic_extent>> xs,
     MPI_Comm comm);
 
-void WriteTubeData(std::ostream& out, const PatchHierarchy& hierarchy,
+void WriteTubeData(std::ostream* out, const PatchHierarchy& hierarchy,
                    const IdealGasMix<1>& eq, fub::Duration time_point,
                    std::ptrdiff_t cycle_number, MPI_Comm comm);
 

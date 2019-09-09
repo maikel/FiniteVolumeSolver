@@ -273,23 +273,34 @@ void MyMain(const ProgramOptions& opts, const boost::program_options::variables_
   // Run the simulation with given feedback functions
 
   std::string base_name = "IdealGasMix/";
-
+  int rank = -1;
+  MPI_Comm_rank(solver.GetContext().GetMpiCommunicator(), &rank);
   auto output =
       [&](const std::shared_ptr<fub::amrex::GriddingAlgorithm>& gridding,
-          std::ptrdiff_t cycle, fub::Duration timepoint, int) {
+          std::ptrdiff_t cycle, fub::Duration timepoint, int = 0) {
         std::string name = fmt::format("{}plt{:05}", base_name, cycle);
-        std::ofstream out(name + ".dat");
         amrex::Print() << "Start output to '" << name << "'.\n";
         fub::amrex::WritePlotFile(name, gridding->GetPatchHierarchy(),
                                   equation);
-        fub::amrex::WriteTubeData(out, gridding->GetPatchHierarchy(), equation,
+
+        if (rank == 0) {
+          std::ofstream out(name + ".dat");
+          if (!out) {
+            throw std::runtime_error(fmt::format("Could not open {}.dat.\n", name));
+          }
+          fub::amrex::WriteTubeData(&out, gridding->GetPatchHierarchy(), equation,
+                                    timepoint, cycle,
+                                    solver.GetContext().GetMpiCommunicator());
+        } else {
+        fub::amrex::WriteTubeData(nullptr, gridding->GetPatchHierarchy(), equation,
                                   timepoint, cycle,
                                   solver.GetContext().GetMpiCommunicator());
+        }
         amrex::Print() << "Finished output to '" << name << "'.\n";
       };
 
   using namespace std::literals::chrono_literals;
-  output(solver.GetGriddingAlgorithm(), solver.GetCycles(), solver.GetTimePoint(), -1);
+  output(solver.GetGriddingAlgorithm(), solver.GetCycles(), solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.cfl = opts.cfl;
   run_options.final_time = fub::Duration(opts.final_time);
