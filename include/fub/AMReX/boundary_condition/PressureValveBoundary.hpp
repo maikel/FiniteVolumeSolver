@@ -68,6 +68,7 @@ private:
   PressureValveOptions options_;
   IdealGasMix<1> equation_;
   PressureValveState state_;
+  Duration last_opened_{0.0};
 };
 
 } // namespace fub::amrex

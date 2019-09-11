@@ -198,16 +198,19 @@ std::vector<double> GatherMoles_(const GriddingAlgorithm& grid, double x,
 }
 
 double ChangeState_(PressureValveState& state, const ::amrex::Geometry& geom,
-                    const GriddingAlgorithm& grid,
+                    const GriddingAlgorithm& grid, Duration& last_opened,
                     const PressureValveOptions& options, IdealGasMix<1>& eq) {
   const double mean_pressure = GetMeanPressure_(grid, eq);
   const double dx_2 = geom.CellSize(0);
   const double xlo = geom.ProbDomain().lo(0) + dx_2;
   const double xhi = geom.ProbDomain().hi(0) - dx_2;
+  const Duration current_time = grid.GetPatchHierarchy().GetTimePoint(0);
+  const Duration next_time = last_opened + options.open_at_interval;
   switch (state) {
   case PressureValveState::closed:
-    if (mean_pressure < options.pressure_value_which_opens_boundary) {
+    if (next_time < current_time && mean_pressure < options.pressure_value_which_opens_boundary) {
       state = PressureValveState::open_air;
+      last_opened = next_time;
     }
     break;
   case PressureValveState::open_air:
@@ -278,7 +281,7 @@ void PressureValveBoundary::FillBoundary(::amrex::MultiFab& mf,
 
   // Change State Machine if neccessary
   const double mean_pressure =
-      ChangeState_(state_, geom, grid, options_, equation_);
+      ChangeState_(state_, geom, grid, last_opened_, options_, equation_);
 
   ReflectiveBoundary closed(execution::openmp, equation_, Direction::X, 0);
   switch (state_) {
