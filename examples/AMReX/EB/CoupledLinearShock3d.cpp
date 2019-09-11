@@ -338,6 +338,10 @@ ParseCommandLine(int argc, char** argv) {
       "n_cells",
       po::value<int>(&opts.plenum_n_cells)->default_value(opts.plenum_n_cells),
       "Set number of cells in each direction for the plenum")(
+      "max_refinement_level",
+      po::value<int>(&opts.max_refinement_level)
+          ->default_value(opts.max_refinement_level),
+      "Set the maximal number of refinement levels (>= 1)")(
       "plenum_len",
       po::value<double>(&opts.plenum_domain_length)
           ->default_value(opts.plenum_domain_length),

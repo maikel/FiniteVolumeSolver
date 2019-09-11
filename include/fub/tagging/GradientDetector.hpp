@@ -154,7 +154,10 @@ template <int TagRank>
 void ScalarGradientDetector<Equation, Projections...>::TagCellsForRefinement(
     const PatchDataView<char, TagRank, layout_stride>& tags,
     const View<const Complete<Equation>>& states) {
-  constexpr std::size_t sTagRank = static_cast<std::size_t>(TagRank);
+  // GCC-7 complains that sTagRank is unused although we use this value at a
+  // constexpr context.
+  [[maybe_unused]] constexpr std::size_t sTagRank =
+      static_cast<std::size_t>(TagRank);
   const auto tagbox = tags.Box();
   for (std::size_t dir = 0; dir < Extents<0>(states).rank(); ++dir) {
     ForEachIndex(
