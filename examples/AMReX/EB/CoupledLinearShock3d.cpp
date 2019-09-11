@@ -115,8 +115,6 @@ struct TemperatureRamp {
 
 struct ProgramOptions {
   int max_cycles{-1};
-  double final_time{0.20};
-  double cfl{0.8};
   double plenum_domain_length{1.0};
   int plenum_n_cells{128};
   int max_refinement_level{1};
@@ -124,7 +122,6 @@ struct ProgramOptions {
   double tube_ignition_position{0.6 - 1.47};
   double tube_air_position{0.0};
   double tube_equiv_ratio{1.0};
-  double output_interval{1.0E-4};
   std::string plenum_checkpoint{};
   std::string tube_checkpoint{};
 };
@@ -315,40 +312,32 @@ auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism) {
   fub::ideal_gas::MusclHancockPrimMethod<Plenum_Rank> flux_method(equation);
   fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
 
-  HyperbolicMethod method{FluxMethod{fub::execution::openmp_simd, cutcell_method},
-                          fub::amrex::cutcell::TimeIntegrator{},
-                          Reconstruction{fub::execution::openmp_simd, equation}};
+  HyperbolicMethod method{
+      FluxMethod{fub::execution::openmp_simd, cutcell_method},
+      fub::amrex::cutcell::TimeIntegrator{},
+      Reconstruction{fub::execution::openmp_simd, equation}};
 
   return fub::amrex::cutcell::IntegratorContext(gridding, method);
 }
 
-void MyMain(const ProgramOptions& po);
+void MyMain(const ProgramOptions& po,
+            const boost::program_options::variables_map& vm);
 
-std::optional<ProgramOptions> ParseCommandLine(int argc, char** argv) {
+std::optional<std::pair<ProgramOptions, boost::program_options::variables_map>>
+ParseCommandLine(int argc, char** argv) {
   namespace po = boost::program_options;
   ProgramOptions opts;
-  po::options_description desc("Program Options");
-  desc.add_options()("help", "Print help messages")(
-      "max_cycles",
-      po::value<int>(&opts.max_cycles)->default_value(opts.max_cycles),
-      "Set maximal number of coarse time steps done.")(
+  po::options_description desc = fub::GetCommandLineRunOptions();
+  desc.add_options()(
       "plenum_checkpoint",
       po::value<std::string>(&opts.plenum_checkpoint)->default_value(""),
       "Restart the simulation from a given plenum checkpoint.")(
       "tube_checkpoint",
       po::value<std::string>(&opts.tube_checkpoint)->default_value(""),
       "Restart the simulation from a given tube checkpoint.")(
-      "cfl", po::value<double>(&opts.cfl)->default_value(opts.cfl),
-      "Set the CFL condition")("max_refinement_level,r",
-                               po::value<int>(&opts.max_refinement_level)
-                                   ->default_value(opts.plenum_domain_length),
-                               "Set the maximal refinement level")(
-      "ncells",
+      "n_cells",
       po::value<int>(&opts.plenum_n_cells)->default_value(opts.plenum_n_cells),
       "Set number of cells in each direction for the plenum")(
-      "final_time",
-      po::value<double>(&opts.final_time)->default_value(opts.final_time),
-      "Set the final simulation time")(
       "plenum_len",
       po::value<double>(&opts.plenum_domain_length)
           ->default_value(opts.plenum_domain_length),
@@ -368,11 +357,7 @@ std::optional<ProgramOptions> ParseCommandLine(int argc, char** argv) {
       "tube_equiv_ratio",
       po::value<double>(&opts.tube_equiv_ratio)
           ->default_value(opts.tube_equiv_ratio),
-      "Sets the equivalence ratio of the fuel in the tube")(
-      "output_interval",
-      po::value<double>(&opts.output_interval)
-          ->default_value(opts.output_interval),
-      "Sets the output interval");
+      "Sets the equivalence ratio of the fuel in the tube");
   po::variables_map vm;
   try {
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -388,13 +373,11 @@ std::optional<ProgramOptions> ParseCommandLine(int argc, char** argv) {
     amrex::Print() << desc << "\n";
     return {};
   }
-
-  amrex::Print() << fmt::format(
-      "[Info] Simulation will run with the following options:\n[Info]\n");
-  amrex::Print() << fmt::format("[Info] final_time = {}s\n", opts.final_time);
-  amrex::Print() << fmt::format("[Info] output_interval = {}s\n",
-                                opts.output_interval);
-  amrex::Print() << fmt::format("[Info] cfl = {}\n", opts.cfl);
+  std::ostringstream sout{};
+  fub::PrintRunOptions(sout, fub::GetRunOptions(vm));
+  amrex::Print() << sout.str();
+  amrex::Print() << fmt::format("[Info] Simulation will run with the following "
+                                "additional options:\n[Info]\n");
   amrex::Print() << fmt::format("[Info] max_refinement_level = {}\n",
                                 opts.max_refinement_level);
   std::array<double, 3> plo{-0.03, -0.5 * opts.plenum_domain_length,
@@ -439,16 +422,16 @@ std::optional<ProgramOptions> ParseCommandLine(int argc, char** argv) {
                    << '\n';
   }
 
-  return opts;
+  return std::make_pair(opts, vm);
 }
 
 int main(int argc, char** argv) {
   MPI_Init(nullptr, nullptr);
   {
     fub::amrex::ScopeGuard _{};
-    std::optional<ProgramOptions> po = ParseCommandLine(argc, argv);
+    auto po = ParseCommandLine(argc, argv);
     if (po) {
-      MyMain(*po);
+      MyMain(po->first, po->second);
     }
   }
   int flag = -1;
@@ -458,7 +441,8 @@ int main(int argc, char** argv) {
   }
 }
 
-void MyMain(const ProgramOptions& po) {
+void MyMain(const ProgramOptions& po,
+            const boost::program_options::variables_map& vm) {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
   fub::Burke2012 mechanism{};
@@ -516,6 +500,8 @@ void MyMain(const ProgramOptions& po) {
   // Write Checkpoints 0min + every 5min
   //  const fub::Duration checkpoint_offest = std::chrono::minutes(5);
   //  fub::Duration next_checkpoint = std::chrono::minutes(0);
+  int rank = -1;
+  MPI_Comm_rank(context.GetMpiCommunicator(), &rank);
   auto output =
       [&](std::shared_ptr<fub::amrex::MultiBlockGriddingAlgorithm> gridding,
           auto cycle, auto timepoint, int output_num) {
@@ -527,8 +513,12 @@ void MyMain(const ProgramOptions& po) {
           fub::amrex::cutcell::WriteCheckpointFile(
               fmt::format("{}/Checkpoint/Plenum_{:05}", base_name, cycle),
               gridding->GetPlena()[0]->GetPatchHierarchy());
-          fub::amrex::WritePlotFile(fmt::format("{}/Plotfile/Tube_plt{}", base_name, cycle), gridding->GetTubes()[0]->GetPatchHierarchy(), tube_equation);
-          fub::amrex::cutcell::WritePlotFile(fmt::format("{}/Plotfile/Plenum_plt{}", base_name, cycle), gridding->GetPlena()[0]->GetPatchHierarchy(), equation);
+          fub::amrex::WritePlotFile(
+              fmt::format("{}/Plotfile/Tube_plt{}", base_name, cycle),
+              gridding->GetTubes()[0]->GetPatchHierarchy(), tube_equation);
+          fub::amrex::cutcell::WritePlotFile(
+              fmt::format("{}/Plotfile/Plenum_plt{}", base_name, cycle),
+              gridding->GetPlena()[0]->GetPatchHierarchy(), equation);
           ::amrex::Print() << "Finish Checkpointing.\n";
 
           ::amrex::Print() << "Begin Matlab Output.\n";
@@ -538,12 +528,18 @@ void MyMain(const ProgramOptions& po) {
           fub::amrex::cutcell::Write2Dfrom3D(
               out, gridding->GetPlena()[0]->GetPatchHierarchy(), equation,
               timepoint, cycle, context.GetMpiCommunicator());
-          out =
-              std::ofstream(fmt::format("{}/Tube_{:05}.dat", base_name, cycle),
-                            std::ios::trunc);
-          fub::amrex::WriteTubeData(
-              out, gridding->GetTubes()[0]->GetPatchHierarchy(), tube_equation,
-              timepoint, cycle, context.GetMpiCommunicator());
+          if (rank == 0) {
+            out = std::ofstream(
+                fmt::format("{}/Tube_{:05}.dat", base_name, cycle),
+                std::ios::trunc);
+            fub::amrex::WriteTubeData(
+                &out, gridding->GetTubes()[0]->GetPatchHierarchy(),
+                tube_equation, timepoint, cycle, context.GetMpiCommunicator());
+          } else {
+            fub::amrex::WriteTubeData(
+                nullptr, gridding->GetTubes()[0]->GetPatchHierarchy(),
+                tube_equation, timepoint, cycle, context.GetMpiCommunicator());
+          }
           ::amrex::Print() << "End Matlab Output.\n";
         }
         if (output_num >= 0) {
@@ -581,12 +577,11 @@ void MyMain(const ProgramOptions& po) {
             fub::mdspan<const double, 2> states(buffer.data(), probes.extent(1),
                                                 buffer.size() /
                                                     probes.extent(1));
-            ::amrex::Print()
-                << fmt::format("{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}"
-                               "{:24s}{:24s}\n",
-                               "Position", "Time", "Density", "VelocityX",
-                               "VelocityY", "VelocityZ",
-                               "SpeedOfSound", "Temperature", "Pressure");
+            ::amrex::Print() << fmt::format(
+                "{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}"
+                "{:24s}{:24s}\n",
+                "Position", "Time", "Density", "VelocityX", "VelocityY",
+                "VelocityZ", "SpeedOfSound", "Temperature", "Pressure");
             for (int i = 0; i < probes.extent(1); ++i) {
               const double rho = states(i, 0);
               const double u = states(i, 1) / rho;
@@ -611,13 +606,8 @@ void MyMain(const ProgramOptions& po) {
   using namespace std::literals::chrono_literals;
   output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
          solver.GetTimePoint(), 0);
-  fub::RunOptions run_options{};
-  run_options.final_time = fub::Duration(po.final_time);
-  run_options.output_interval =
-      std::vector<fub::Duration>{fub::Duration(po.output_interval), 0.0s};
-  run_options.output_frequency = std::vector<int>{0, 1};
-  run_options.cfl = po.cfl;
-  run_options.max_cycles = po.max_cycles;
+  fub::RunOptions run_options = fub::GetRunOptions(vm);
+  run_options.output_frequency.push_back(1);
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      fub::amrex::print);
 }

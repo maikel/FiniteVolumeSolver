@@ -298,22 +298,20 @@ PatchHierarchy::PatchHierarchy(const Equation& equation,
                                const PatchHierarchyOptions& options)
     : PatchHierarchy(MakeDataDescription(equation), geometry, options) {}
 
-
-  void WriteMatlabData(std::ostream& out, const ::amrex::FArrayBox& fab,
+void WriteMatlabData(std::ostream& out, const ::amrex::FArrayBox& fab,
                      const fub::IdealGasMix<1>& eq,
-                       const ::amrex::Geometry& geom);
+                     const ::amrex::Geometry& geom);
 
-  void WriteMatlabData(std::ostream& out, const ::amrex::FArrayBox& fab,
+void WriteMatlabData(std::ostream& out, const ::amrex::FArrayBox& fab,
                      const fub::IdealGasMix<3>& eq,
-                       const ::amrex::Geometry& geom);
+                     const ::amrex::Geometry& geom);
 
-std::vector<double>
-GatherStates(const PatchHierarchy& hierarchy,
-             basic_mdspan<const double, extents<AMREX_SPACEDIM, dynamic_extent>> xs,
-             MPI_Comm comm);
+std::vector<double> GatherStates(
+    const PatchHierarchy& hierarchy,
+    basic_mdspan<const double, extents<AMREX_SPACEDIM, dynamic_extent>> xs,
+    MPI_Comm comm);
 
-
-void WriteTubeData(std::ostream& out, const PatchHierarchy& hierarchy,
+void WriteTubeData(std::ostream* out, const PatchHierarchy& hierarchy,
                    const IdealGasMix<1>& eq, fub::Duration time_point,
                    std::ptrdiff_t cycle_number, MPI_Comm comm);
 

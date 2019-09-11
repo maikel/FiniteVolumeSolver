@@ -1,4 +1,4 @@
-function [X, time, data, columns] = ReadTubeData(directory_path)
+function [X, time, data] = ReadTubeData(directory_path)
   files_structure = dir(sprintf('%s%s', directory_path, '/*.dat'));
   ntimesteps = length(files_structure);
   if (ntimesteps == 0) 
@@ -9,9 +9,9 @@ function [X, time, data, columns] = ReadTubeData(directory_path)
   all_filenames = {files_structure(:).name};
   timestep = importdata(sprintf('%s/%s', directory_path, all_filenames{1}), ' ', 4);
   nx = size(timestep.data, 1);
-  nspecies = length(timestep.colheaders) - 8;
+  nspecies = size(timestep.data, 2) - 8;
 
-  columns = timestep.colheaders;
+%   columns = timestep.colheaders;
   X = timestep.data(:, 1);
   time = zeros(length(all_filenames), 1);
   data.rho = zeros(nx, length(all_filenames));

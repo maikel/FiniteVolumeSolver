@@ -18,36 +18,31 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_AMREX_HPP
-#define FUB_AMREX_HPP
+#ifndef FUB_AMREX_BOUNDARY_CONDITION_ISENTROPIC_HPP
+#define FUB_AMREX_BOUNDARY_CONDITION_ISENTROPIC_HPP
 
-#include <AMReX.H>
-#include <AMReX_IntVect.H>
+#include "fub/AMReX/BoundaryCondition.hpp"
+#include "fub/equations/IdealGasMix.hpp"
 
-#include "fub/AMReX/GriddingAlgorithm.hpp"
-#include "fub/AMReX/IntegratorContext.hpp"
+namespace fub::amrex {
 
-#include "fub/AMReX/ScopeGuard.hpp"
+class IsentropicPressureBoundary {
+public:
+  IsentropicPressureBoundary(const IdealGasMix<1>& eq, double outer_pressure,
+                     Direction dir, int side);
 
-#include "fub/AMReX/tagging/ConstantRegion.hpp"
-#include "fub/AMReX/tagging/GradientDetector.hpp"
-#include "fub/AMReX/tagging/TagBuffer.hpp"
+  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
+                    Duration dt, const GriddingAlgorithm&);
 
-#include "fub/AMReX/boundary_condition/BoundarySet.hpp"
-#include "fub/AMReX/boundary_condition/IsentropicPressureBoundary.hpp"
-#include "fub/AMReX/boundary_condition/ReflectiveBoundary.hpp"
-#include "fub/AMReX/boundary_condition/TransmissiveBoundary.hpp"
-#include "fub/AMReX/boundary_condition/PressureValveBoundary.hpp"
+  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom);
 
-#include "fub/AMReX/ForEachFab.hpp"
-#include "fub/AMReX/ForEachIndex.hpp"
-#include "fub/AMReX/Print.hpp"
+private:
+  IdealGasMix<1> equation_;
+  double outer_pressure_;
+  Direction dir_;
+  int side_;
+};
 
-#include "fub/AMReX/FluxMethod.hpp"
-#include "fub/AMReX/Reconstruction.hpp"
-#include "fub/AMReX/TimeIntegrator.hpp"
-
-#include "fub/equations/ideal_gas_mix/KineticSourceTerm.hpp"
-#include "fub/AMReX/AxialSourceTerm.hpp"
+} // namespace fub::amrex
 
 #endif

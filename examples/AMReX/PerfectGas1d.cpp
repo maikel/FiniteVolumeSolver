@@ -38,14 +38,13 @@ struct RiemannProblem {
         fub::execution::openmp, data, [&](amrex::MFIter& mfi) {
           fub::View<Complete> state = fub::amrex::MakeView<Complete>(
               data[mfi], equation_, mfi.tilebox());
-          fub::ForEachIndex(fub::amrex::AsIndexBox<1>(mfi.tilebox()),
-                            [this, &state, &geom](auto... is) {
-                              double x[AMREX_SPACEDIM] = {};
-                              geom.CellCenter(amrex::IntVect{int(is)...}, x);
-                              if (x[0] < -0.04) {
-                                Store(state, left_, {is...});
+          fub::ForEachIndex(fub::Box<0>(state),
+                            [this, &state, &geom](std::ptrdiff_t i) {
+                              const double x = geom.CellCenter(int(i), 0);
+                              if (x < -0.04) {
+                                Store(state, left_, {i});
                               } else {
-                                Store(state, right_, {is...});
+                                Store(state, right_, {i});
                               }
                             });
         });
@@ -131,7 +130,7 @@ int main(int argc, char** argv) {
 
   using namespace fub::amrex;
   auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,
-                    std::ptrdiff_t cycle, fub::Duration) {
+                    std::ptrdiff_t cycle, fub::Duration, int = 0) {
     std::string name = fmt::format("{}plt{:05}", base_name, cycle);
     amrex::Print() << "Start output to '" << name << "'.\n";
     WritePlotFile(name, gridding->GetPatchHierarchy(), equation);
@@ -144,7 +143,7 @@ int main(int argc, char** argv) {
   fub::RunOptions run_options{};
   run_options.cfl = 0.8;
   run_options.final_time = 1.0s;
-  run_options.output_interval = 1.0s / 180.;
+  run_options.output_interval = {1.0s / 180.};
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      fub::amrex::print);
 }

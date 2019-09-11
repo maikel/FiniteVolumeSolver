@@ -152,7 +152,10 @@ template <typename Equation> struct ReconstructionKernel<Equation, true> {
 
 template <typename Tag, typename Equation>
 Reconstruction<Tag, Equation>::Reconstruction(const Tag&, const Equation& eq)
-    : kernel_(detail::ReconstructionKernel<Equation, IsSimd>{eq}) {}
+    : kernel_() {
+
+  kernel_ = Local<Tag, detail::ReconstructionKernel<Equation, IsSimd>>{detail::ReconstructionKernel<Equation, IsSimd>{eq}};
+    }
 
 template <typename Tag, typename Equation>
 void Reconstruction<Tag, Equation>::CompleteFromCons(IntegratorContext& context,

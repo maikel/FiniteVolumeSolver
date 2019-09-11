@@ -57,7 +57,7 @@ MakeGriddingAlgorithm(const fub::PerfectGas<2>& equation) {
   const amrex::Box domain{{}, {n_cells[0] - 1, n_cells[1] - 1}};
   amrex::Geometry coarse_geom(domain, &xbox, -1, geometry.periodicity.data());
 
-  const int n_level = 1;
+  const int n_level = 4;
 
   using namespace fub::amrex::cutcell;
 

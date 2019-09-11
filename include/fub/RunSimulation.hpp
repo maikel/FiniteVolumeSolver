@@ -26,6 +26,7 @@
 #include "fub/core/assert.hpp"
 
 #include <boost/outcome.hpp>
+#include <boost/program_options.hpp>
 
 #include <fmt/format.h>
 
@@ -35,16 +36,22 @@
 namespace fub {
 
 struct RunOptions {
-  std::chrono::duration<double> final_time;
+  std::chrono::duration<double> final_time{1.0};
   std::ptrdiff_t max_cycles{-1};
   std::vector<std::chrono::duration<double>> output_interval{final_time};
   std::vector<int> output_frequency{0};
   std::chrono::duration<double> smallest_time_step_size{1e-12};
-  int regrid_frequency{2};
-  double cfl{1.0};
+  double cfl{0.8};
 };
 
-  std::optional<int> AnyOutputCondition(std::ptrdiff_t cycle, Duration time_point, const RunOptions& options);
+boost::program_options::options_description GetCommandLineRunOptions();
+
+RunOptions GetRunOptions(const boost::program_options::variables_map& vm);
+
+void PrintRunOptions(std::ostream& out, const RunOptions& opts);
+
+std::optional<int> AnyOutputCondition(std::ptrdiff_t cycle, Duration time_point,
+                                      const RunOptions& options);
 
 Duration NextOutputTime(Duration time_point, const RunOptions& options);
 
@@ -74,7 +81,8 @@ Solver RunSimulation(Solver& solver, RunOptions options,
          (options.max_cycles < 0 || solver.GetCycles() < options.max_cycles)) {
     // We have a nested loop to exactly reach output time points.
     do {
-      const fub::Duration next_output_time = NextOutputTime(time_point, options);
+      const fub::Duration next_output_time =
+          NextOutputTime(time_point, options);
       solver.PreAdvanceHierarchy();
       // Compute the next time step size. If an estimate is available from a
       // prior failure we use that one.
@@ -116,7 +124,8 @@ Solver RunSimulation(Solver& solver, RunOptions options,
         backup =
             std::make_shared<GriddingAlgorithm>(*solver.GetGriddingAlgorithm());
       }
-      output_condition = AnyOutputCondition(solver.GetCycles(), solver.GetTimePoint(), options);
+      output_condition = AnyOutputCondition(solver.GetCycles(),
+                                            solver.GetTimePoint(), options);
     } while (!output_condition);
     output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
            solver.GetTimePoint(), *output_condition);

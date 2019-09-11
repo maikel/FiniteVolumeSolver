@@ -60,16 +60,16 @@ MakeIndexSpaces(GShop&& shop, const ::amrex::Geometry& coarse_geom,
 
 template <typename GShop>
 std::vector<const ::amrex::EB2::IndexSpace*>
-MakeIndexSpaces(GShop&& shop, const ::amrex::Geometry& coarse_geom,
-                int n_level, const ::amrex::IntVect& refine_ratio) {
+MakeIndexSpaces(GShop&& shop, const ::amrex::Geometry& coarse_geom, int n_level,
+                const ::amrex::IntVect& refine_ratio) {
   FUB_ASSERT(n_level > 0);
   std::vector<const ::amrex::EB2::IndexSpace*> index_spaces(
-                                                            static_cast<std::size_t>(n_level));
+      static_cast<std::size_t>(n_level));
   ::amrex::Geometry geom = coarse_geom;
   for (int level = 0; level < n_level; ++level) {
     ::amrex::EB2::Build(shop, geom, refine_ratio, level, level);
     index_spaces[static_cast<std::size_t>(level)] =
-    &::amrex::EB2::IndexSpace::top();
+        &::amrex::EB2::IndexSpace::top();
     geom.refine(refine_ratio);
   }
   return index_spaces;

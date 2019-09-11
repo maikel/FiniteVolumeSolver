@@ -122,16 +122,17 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
     const ::amrex::Box box = mfi.growntilebox();
     const ::amrex::FabType type = context.GetFabType(level, mfi);
     if (type == ::amrex::FabType::singlevalued) {
-        CutCellData<AMREX_SPACEDIM> geom = hierarchy.GetCutCellData(level, mfi);
-        auto boundary_flux = MakeView<Conservative<Equation>>(
-                                                              boundary_fluxes[mfi], equation, box);
-        auto states = MakeView<const Complete<Equation>>(scratch[mfi], equation,
-                                                         box);
-        auto refs = MakeView<const Complete<Equation>>(references[mfi],
-                                                       equation, box);
-        flux_method_->ComputeBoundaryFluxes(boundary_flux, states, refs, geom,
-                                            dt, dx, dir);
-    }});
+      CutCellData<AMREX_SPACEDIM> geom = hierarchy.GetCutCellData(level, mfi);
+      auto boundary_flux =
+          MakeView<Conservative<Equation>>(boundary_fluxes[mfi], equation, box);
+      auto states =
+          MakeView<const Complete<Equation>>(scratch[mfi], equation, box);
+      auto refs =
+          MakeView<const Complete<Equation>>(references[mfi], equation, box);
+      flux_method_->ComputeBoundaryFluxes(boundary_flux, states, refs, geom, dt,
+                                          dx, dir);
+    }
+  });
 
   ForEachFab(Tag(), fluxes, [&](const ::amrex::MFIter& mfi) {
     const Equation& equation = flux_method_->GetEquation();

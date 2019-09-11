@@ -385,6 +385,7 @@ PatchHierarchy ReadCheckpointFile(const std::string& checkpointname,
   return hierarchy;
 }
 
+#if AMREX_SPACEDIM == 3
 void Write2Dfrom3D(std::ostream& out, const PatchHierarchy& hierarchy,
                    const IdealGasMix<3>& eq, fub::Duration time_point,
                    std::ptrdiff_t cycle_number, MPI_Comm comm) {
@@ -461,6 +462,7 @@ void Write2Dfrom3D(std::ostream& out, const PatchHierarchy& hierarchy,
     }
   }
 }
+#endif
 
 std::vector<double>
 GatherStates(const PatchHierarchy& hierarchy,

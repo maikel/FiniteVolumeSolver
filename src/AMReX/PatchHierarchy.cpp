@@ -287,7 +287,7 @@ PatchHierarchy ReadCheckpointFile(const std::string& checkpointname,
   out << names[nspecies - 1] << '\n';
   ForEachIndex(Box<0>(view), [&](std::ptrdiff_t i) {
     double x[3] = {0.0, 0.0, 0.0};
-    ::amrex::IntVect iv{int(i), 0, 0};
+    ::amrex::IntVect iv{AMREX_D_DECL(int(i), 0, 0)};
     geom.CellCenter(iv, x);
     const double density = view.density(i);
     const double velocity_x =
@@ -308,7 +308,8 @@ PatchHierarchy ReadCheckpointFile(const std::string& checkpointname,
   });
 }
 
-  void WriteMatlabData(std::ostream& out, const ::amrex::FArrayBox& fab,
+#if AMREX_SPACEDIM == 3
+void WriteMatlabData(std::ostream& out, const ::amrex::FArrayBox& fab,
                      const fub::IdealGasMix<3>& eq,
                        const ::amrex::Geometry& geom) {
   auto view = MakeView<const Complete<IdealGasMix<3>>>(fab, eq);
@@ -349,6 +350,7 @@ PatchHierarchy ReadCheckpointFile(const std::string& checkpointname,
     out << '\n';
   });
 }
+#endif
 
 std::vector<double>
 GatherStates(const PatchHierarchy& hierarchy,
@@ -403,7 +405,7 @@ GatherStates(const PatchHierarchy& hierarchy,
 }
 
   
-void WriteTubeData(std::ostream& out, const PatchHierarchy& hierarchy,
+void WriteTubeData(std::ostream* out, const PatchHierarchy& hierarchy,
                    const IdealGasMix<1>& eq, fub::Duration time_point,
                    std::ptrdiff_t cycle_number, MPI_Comm comm) {
   const std::size_t n_level =
@@ -430,34 +432,30 @@ void WriteTubeData(std::ostream& out, const PatchHierarchy& hierarchy,
                    MPI_DOUBLE, MPI_SUM, 0, comm);
       if (level > 0) {
         for (int comp = 1; comp < level_data.nComp(); ++comp) {
-          for (int j = domain.smallEnd(1); j <= domain.bigEnd(1); ++j) {
-            for (int i = domain.smallEnd(0); i <= domain.bigEnd(0); ++i) {
-              ::amrex::IntVect fine_i{i, j, domain.smallEnd(2)};
-              ::amrex::IntVect coarse_i = fine_i;
-              coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(level));
-              if (fab(fine_i, 0) == 0.0) {
-                fab(fine_i, comp) = fabs[level - 1](coarse_i, comp);
-              }
-            }
-          }
-        }
-        for (int j = domain.smallEnd(1); j <= domain.bigEnd(1); ++j) {
           for (int i = domain.smallEnd(0); i <= domain.bigEnd(0); ++i) {
-            ::amrex::IntVect fine_i{i, j, domain.smallEnd(2)};
+            ::amrex::IntVect fine_i{AMREX_D_DECL(i, domain.smallEnd(1), domain.smallEnd(2))};
             ::amrex::IntVect coarse_i = fine_i;
             coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(level));
             if (fab(fine_i, 0) == 0.0) {
-              fab(fine_i, 0) = fabs[level - 1](coarse_i, 0);
+              fab(fine_i, comp) = fabs[level - 1](coarse_i, comp);
             }
+          }
+        }
+        for (int i = domain.smallEnd(0); i <= domain.bigEnd(0); ++i) {
+          ::amrex::IntVect fine_i{AMREX_D_DECL(i, domain.smallEnd(1), domain.smallEnd(2))};
+          ::amrex::IntVect coarse_i = fine_i;
+          coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(level));
+          if (fab(fine_i, 0) == 0.0) {
+            fab(fine_i, 0) = fabs[level - 1](coarse_i, 0);
           }
         }
       }
       if (level == n_level - 1) {
-        out << fmt::format("nx = {}\n", domain.length(0));
-        out << fmt::format("t = {}\n", time_point.count());
-        out << fmt::format("cycle = {}\n", cycle_number);
-        WriteMatlabData(out, fab, eq, level_geom);
-        out.flush();
+        (*out) << fmt::format("nx = {}\n", domain.length(0));
+        (*out) << fmt::format("t = {}\n", time_point.count());
+        (*out) << fmt::format("cycle = {}\n", cycle_number);
+        WriteMatlabData(*out, fab, eq, level_geom);
+        out->flush();
       }
     } else {
       ::MPI_Reduce(local_fab.dataPtr(), nullptr, local_fab.size(), MPI_DOUBLE,
