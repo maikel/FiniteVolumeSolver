@@ -46,6 +46,7 @@ struct PressureValveOptions {
   double pressure_value_which_closes_boundary{1.5 * 101325.0};
   double oxygen_measurement_position{1.0};
   double oxygen_measurement_criterium{0.1};
+  double valve_efficiency{1.0};
   Duration open_at_interval{0.0};
 };
 

@@ -48,7 +48,7 @@ std::vector<double> GatherMoles_(const GriddingAlgorithm& grid, double x,
     int local_found = 0;
     Complete<IdealGasMix<1>> state(eq);
     ForEachFab(data, [&local_moles, &local_found, &eq, &data, &geom, x,
-        &state](const ::amrex::MFIter& mfi) {
+                      &state](const ::amrex::MFIter& mfi) {
       const ::amrex::FArrayBox& fab = data[mfi];
       auto view = MakeView<const Complete<IdealGasMix<1>>>(fab, eq);
       ForEachIndex(Box<0>(view), [&](std::ptrdiff_t i) {
@@ -79,15 +79,18 @@ std::vector<double> GatherMoles_(const GriddingAlgorithm& grid, double x,
   }
   return moles;
 }
-}
+} // namespace
 
-Result<void, TimeStepTooLarge> IgniteDetonation::AdvanceLevel(int level, fub::Duration /* dt */) {
+Result<void, TimeStepTooLarge>
+IgniteDetonation::AdvanceLevel(int level, fub::Duration /* dt */) {
   PatchHierarchy& hier = gridding_->GetPatchHierarchy();
   Duration current_time = hier.GetTimePoint(level);
   Duration next_ignition_time = last_ignition_ + options_.ignite_interval;
   if (next_ignition_time < current_time) {
-    std::vector<double> moles = GatherMoles_(*gridding_, options_.measurement_position, equation_);
-    const double equivalence_ratio = 0.5 * moles[Burke2012::sH2] / moles[Burke2012::sO2];
+    std::vector<double> moles =
+        GatherMoles_(*gridding_, options_.measurement_position, equation_);
+    const double equivalence_ratio = moles[Burke2012::sO2] ?
+        0.5 * moles[Burke2012::sH2] / moles[Burke2012::sO2] : 0.0;
     if (equivalence_ratio > options_.equivalence_ratio_criterium) {
       ::amrex::MultiFab& data = hier.GetPatchLevel(level).data;
       const ::amrex::Geometry& geom = hier.GetGeometry(level);

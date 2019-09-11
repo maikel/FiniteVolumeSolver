@@ -42,7 +42,8 @@ PressureValveOptions::GetCommandLineOptions(std::string prefix) {
     ("oxygen_measurement_position", po::value<double>()->default_value(opts.oxygen_measurement_position), "The position within the tube where the oxygen concentration will be measured. [m]")
     ("oxygen_measurement_criterium", po::value<double>()->default_value(opts.oxygen_measurement_criterium), "The oxygen concentration which will trigger fuel instead of air inflow. [-]")
     ("equivalence_ratio", po::value<double>()->default_value(opts.equivalence_ratio), "The equivalence ratio of the fuel which will be used. [-]")
-    ("open_at_interval", po::value<double>()->default_value(opts.open_at_interval.count()), "If set to non-zero value this pressure valve will only open up once in a specified time interval. [s]");
+    ("open_at_interval", po::value<double>()->default_value(opts.open_at_interval.count()), "If set to non-zero value this pressure valve will only open up once in a specified time interval. [s]")
+        ("valve_efficiency", po::value<double>()->default_value(opts.valve_efficiency), "Sets the efficiency of the enthalpy to velocity conversion [-]");
     // clang-format on
   } else {
     using fmt::format;
@@ -118,6 +119,7 @@ PressureValveOptions::PressureValveOptions(const po::variables_map& map) {
       map["oxygen_measurement_criterium"].as<double>();
   equivalence_ratio = map["equivalence_ratio"].as<double>();
   open_at_interval = Duration(map["open_at_interval"].as<double>());
+  valve_efficiency = map["valve_efficiency"].as<double>();
 }
 
 PressureValveBoundary::PressureValveBoundary(const IdealGasMix<1>& eq,
@@ -305,7 +307,8 @@ void PressureValveBoundary::FillBoundary(::amrex::MultiFab& mf,
             equation_.GetReactor().SetPressure(options_.outer_pressure);
             equation_.CompleteFromReactor(state);
             IsentropicExpansionWithoutDissipation_(equation_, state, state,
-                                                   mean_pressure, 0.0);
+                                                   mean_pressure,
+                                                   options_.valve_efficiency);
             Store(states, state, dest);
           });
         }
