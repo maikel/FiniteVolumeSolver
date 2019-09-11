@@ -21,10 +21,52 @@
 #include "fub/RunSimulation.hpp"
 
 #include <fmt/format.h>
+#include <fmt/chrono.h>
 
 #include <cmath>
 
 namespace fub {
+
+boost::program_options::options_description GetCommandLineRunOptions() {
+  namespace po = boost::program_options;
+  RunOptions opts{};
+  po::options_description desc{};
+  // clang-format off
+  desc.add_options()
+    ("help", "Print help messages")
+    ("max_cycles", po::value<int>()->default_value(opts.max_cycles), "Set maximal number of coarse time steps done.")
+    ("cfl", po::value<double>()->default_value(opts.cfl), "Set the CFL condition")
+    ("output_interval", po::value<double>()->default_value(0.0), "Sets the output interval")
+    ("output_frequency", po::value<int>()->default_value(0), "Sets the output frequency")
+    ("final_time", po::value<double>()->default_value(0.0), "Sets the final time point for this simulation");
+  // clang-format on
+  return desc;
+}
+
+RunOptions GetRunOptions(const boost::program_options::variables_map& vm) {
+  RunOptions opts{};
+  opts.cfl = vm["cfl"].as<double>();
+  opts.final_time = Duration(vm["final_time"].as<double>());
+  opts.output_interval = {Duration(vm["output_interval"].as<double>())};
+  opts.output_frequency = {vm["output_frequency"].as<int>()};
+  opts.max_cycles = vm["max_cycles"].as<int>();
+  return opts;
+}
+
+void PrintRunOptions(std::ostream& out, const RunOptions& opts) {
+  out << fmt::format(
+      R"fmt([Info] ========================================================================
+[Info] Run Options:
+[Info] final_time = {}s
+[Info] max_cycles = {}
+[Info] output_interval = {}s
+[Info] output_frequency = {}
+[Info] cfl = {}
+[Info] ========================================================================
+)fmt",
+      opts.final_time.count(), opts.max_cycles, opts.output_interval[0].count(),
+      fmt::join(opts.output_frequency, ", "), opts.cfl);
+}
 
 std::string
 FormatTimeStepLine(std::ptrdiff_t cycle,
@@ -53,13 +95,13 @@ std::optional<int> AnyOutputCondition(std::ptrdiff_t cycle, Duration time_point,
                                       const RunOptions& options) {
   const fub::Duration eps = options.smallest_time_step_size;
   if (!(time_point + eps < options.final_time &&
-      (options.max_cycles < 0 || cycle < options.max_cycles))) {
+        (options.max_cycles < 0 || cycle < options.max_cycles))) {
     return -1;
   }
   for (std::size_t i = 0; i < options.output_interval.size(); ++i) {
     if (options.output_interval[i].count() > 0.0 &&
         std::fmod(time_point.count(), options.output_interval[i].count()) <
-            2*eps.count()) {
+            2 * eps.count()) {
       return static_cast<int>(i);
     }
   }
@@ -76,7 +118,8 @@ Duration NextOutputTime(Duration time_point, const RunOptions& options) {
   Duration next_output_time(std::numeric_limits<double>::infinity());
   for (std::size_t i = 0; i < options.output_interval.size(); ++i) {
     if (options.output_interval[i].count() > 0.0) {
-      Duration dt(options.output_interval[i].count() -
+      Duration dt(
+          options.output_interval[i].count() -
           std::fmod(time_point.count(), options.output_interval[i].count()));
       dt += options.smallest_time_step_size;
       next_output_time = std::min(next_output_time, time_point + dt);
