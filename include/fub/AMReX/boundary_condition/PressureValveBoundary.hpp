@@ -21,9 +21,9 @@
 #ifndef FUB_AMREX_BOUNDARY_CONDITION_PRESSURE_VALVE_HPP
 #define FUB_AMREX_BOUNDARY_CONDITION_PRESSURE_VALVE_HPP
 
-#include "fub/AMReX/boundary_condition/ReflectiveBoundary.hpp"
-#include "fub/AMReX/boundary_condition/IsentropicPressureBoundary.hpp"
 #include "fub/AMReX/GriddingAlgorithm.hpp"
+#include "fub/AMReX/boundary_condition/IsentropicPressureBoundary.hpp"
+#include "fub/AMReX/boundary_condition/ReflectiveBoundary.hpp"
 
 #include "fub/Duration.hpp"
 
@@ -32,28 +32,31 @@
 namespace fub::amrex {
 
 struct PressureValveOptions {
-  std::string fuel_moles;
-  std::string air_moles;
-  double outer_pressure;
-  double pressure_value_which_opens_boudnary;
-  double pressure_value_which_closes_boundary;
-  double air_buffer_length;
-  double fuel_length;
-  double ignition_position;
+  PressureValveOptions() = default;
+  explicit PressureValveOptions(const boost::program_options::variables_map& vm);
+
+  static boost::program_options::options_description GetCommandLineOptions(std::string prefix = {});
+
+  void PrintOptions(std::ostream& out);
+
+  double equivalence_ratio{1.0};
+  double outer_pressure{1.5 * 101325.0};
+  double outer_temperature{300.0};
+  double pressure_value_which_opens_boundary{101325.0};
+  double pressure_value_which_closes_boundary{1.5 * 101325.0};
+  double oxygen_measurement_position{1.0};
+  double oxygen_measurement_criterium{0.1};
+  Duration open_at_interval{0.0};
 };
 
-enum class PressureValveState {
-  open_air, open_fuel, ignition, closed
-};
-
-void PrintOptions(const PressureValveOptions& options);
+enum class PressureValveState { open_air, open_fuel, closed };
 
 class PressureValveBoundary {
 public:
-  PressureValveBoundary(const IdealGasMix<1>& equation, PressureValveOptions options);
-  PressureValveBoundary(const IdealGasMix<1>& equation, const boost::program_options::variables_map& options);
-
-  static boost::program_options::options_description GetProgramOptions();
+  PressureValveBoundary(const IdealGasMix<1>& equation,
+                        PressureValveOptions options);
+  PressureValveBoundary(const IdealGasMix<1>& equation,
+                        const boost::program_options::variables_map& options);
 
   [[nodiscard]] const PressureValveOptions& GetOptions() const noexcept;
 
@@ -66,6 +69,6 @@ private:
   PressureValveState state_;
 };
 
-}
+} // namespace fub::amrex
 
 #endif // FINITEVOLUMESOLVER_PRESSUREVALVE_HPP

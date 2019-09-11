@@ -248,6 +248,7 @@ target_link_libraries(FiniteVolumeSolver.Solver
     FiniteVolumeSolver.OdeSolver
     fmt::fmt-header-only
     Boost::container
+    Boost::program_options
     Eigen3::Eigen
     Vc::Vc)
 target_compile_options(FiniteVolumeSolver.Solver 
@@ -272,8 +273,10 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     include/fub/AMReX/boundary_condition/ReflectiveBoundary.hpp
     include/fub/AMReX/boundary_condition/IsentropicPressureBoundary.hpp
     include/fub/AMReX/boundary_condition/PressureValveBoundary.hpp
+    include/fub/AMReX/initial_data/ConstantData.hpp
     include/fub/AMReX/AxialSourceTerm.hpp
     include/fub/AMReX/GriddingAlgorithm.hpp
+    include/fub/AMReX/IgniteDetonation.hpp
     include/fub/AMReX/PatchHierarchy.hpp
     include/fub/AMReX/Reconstruction.hpp
     include/fub/AMReX/RunSimulation.hpp
@@ -293,6 +296,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     src/AMReX/boundary_condition/IsentropicPressureBoundary.cpp
     src/AMReX/boundary_condition/PressureValveBoundary.cpp
     src/AMReX/AxialSourceTerm.cpp
+    src/AMReX/IgniteDetonation.cpp
     src/AMReX/FluxMethod.cpp
     src/AMReX/ScopeGuard.cpp
     src/AMReX/CartesianGridGeometry.cpp
