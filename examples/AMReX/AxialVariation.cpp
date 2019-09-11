@@ -48,7 +48,7 @@ struct TemperatureRamp {
     Complete right_air{equation_};
 
     double h2_moles = 42.0 * equiv_raito_;
-//    double o2_moles = std::max(21.0 - 0.5 * h2_moles, 0.0);
+    //    double o2_moles = std::max(21.0 - 0.5 * h2_moles, 0.0);
 
     std::string fuel_moles = fmt::format("N2:79,O2:21,H2:{}", h2_moles);
     reactor.SetMoleFractions(fuel_moles);
@@ -106,37 +106,32 @@ std::optional<ProgramOptions> ParseCommandLine(int argc, char** argv) {
                                po::value<int>(&opts.max_refinement_level)
                                    ->default_value(opts.max_refinement_level),
                                "Set the maximal refinement level")(
-      "n_cells",
-      po::value<int>(&opts.n_cells)->default_value(opts.n_cells),
+      "n_cells", po::value<int>(&opts.n_cells)->default_value(opts.n_cells),
       "Set number of cells in each direction for the plenum")(
       "final_time",
       po::value<double>(&opts.final_time)->default_value(opts.final_time),
       "Set the final simulation time")(
       "domain_length",
-      po::value<double>(&opts.domain_length)
-          ->default_value(opts.domain_length),
+      po::value<double>(&opts.domain_length)->default_value(opts.domain_length),
       "Set the base length for the tube")(
       "ignition_pos",
       po::value<double>(&opts.ignition_position)
           ->default_value(opts.ignition_position),
       "Set the position for the ignition of the detonation inside the tube")(
       "air_buffer_start",
-      po::value<double>(&opts.air_position)
-          ->default_value(opts.air_position),
+      po::value<double>(&opts.air_position)->default_value(opts.air_position),
       "Sets the starting position for an air buffer in the tube.")(
       "equiv_ratio",
-      po::value<double>(&opts.equiv_ratio)
-          ->default_value(opts.equiv_ratio),
+      po::value<double>(&opts.equiv_ratio)->default_value(opts.equiv_ratio),
       "Sets the equivalence ratio of the fuel in the tube")(
       "output_interval",
       po::value<double>(&opts.output_interval)
           ->default_value(opts.output_interval),
-      "Sets the output interval")
-  (
-   "output_frequency",
-   po::value<std::ptrdiff_t>(&opts.output_frequency)
-   ->default_value(opts.output_frequency),
-   "Sets the output frequency");
+      "Sets the output interval")(
+      "output_frequency",
+      po::value<std::ptrdiff_t>(&opts.output_frequency)
+          ->default_value(opts.output_frequency),
+      "Sets the output frequency");
   po::variables_map vm;
   try {
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -168,13 +163,12 @@ std::optional<ProgramOptions> ParseCommandLine(int argc, char** argv) {
   amrex::Print() << fmt::format(
       "[Info] domain = [{}, {}] x [{}, {}] x [{}, {}]\n", xlo[0], xup[0],
       xlo[1], xup[1], xlo[2], xup[2]);
-  amrex::Print() << fmt::format(
-      "[Info] n_cells = {}\n[Info] dx = {}\n",
-      opts.n_cells, opts.domain_length / opts.n_cells);
+  amrex::Print() << fmt::format("[Info] n_cells = {}\n[Info] dx = {}\n",
+                                opts.n_cells,
+                                opts.domain_length / opts.n_cells);
   amrex::Print() << fmt::format("[Info] ignition_pos = {}\n",
                                 opts.ignition_position);
-  amrex::Print() << fmt::format("[Info] equiv_ratio = {}\n",
-                                opts.equiv_ratio);
+  amrex::Print() << fmt::format("[Info] equiv_ratio = {}\n", opts.equiv_ratio);
   amrex::Print() << fmt::format("[Info] air_position = {}\n",
                                 opts.air_position);
 
@@ -197,7 +191,8 @@ void MyMain(const ProgramOptions& opts) {
   const std::array<int, Dim> n_cells{AMREX_D_DECL(opts.n_cells, 1, 1)};
   const int nlevels = opts.max_refinement_level;
   const std::array<double, Dim> xlower{AMREX_D_DECL(0.0, 0.0, 0.0)};
-  const std::array<double, Dim> xupper{AMREX_D_DECL(opts.domain_length, +0.03, +0.03)};
+  const std::array<double, Dim> xupper{
+      AMREX_D_DECL(opts.domain_length, +0.03, +0.03)};
 
   // Define the equation which will be solved
   fub::Burke2012 mechanism{};
@@ -221,14 +216,14 @@ void MyMain(const ProgramOptions& opts) {
       std::make_pair(&Complete::temperature, 1e-1)};
 
   fub::amrex::BoundarySet boundary;
-  using fub::amrex::IsentropicBoundary;
+  using fub::amrex::IsentropicPressureBoundary;
   using fub::amrex::ReflectiveBoundary;
   using fub::amrex::TransmissiveBoundary;
   boundary.conditions.push_back(
       ReflectiveBoundary{fub::execution::seq, equation, fub::Direction::X, 0});
   //  boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::X, 1});
   boundary.conditions.push_back(
-      IsentropicBoundary{equation, 101325.0, fub::Direction::X, 1});
+      IsentropicPressureBoundary{equation, 101325.0, fub::Direction::X, 1});
 
   fub::amrex::PatchHierarchyOptions hier_opts;
   hier_opts.max_number_of_levels = nlevels;
@@ -267,34 +262,45 @@ void MyMain(const ProgramOptions& opts) {
 
   fub::amrex::AxialSourceTerm source_term(equation, diameter, gridding);
 
-  fub::DimensionalSplitSystemSourceSolver axial_solver(system_solver, source_term,
-                                                 fub::StrangSplitting());
+  fub::DimensionalSplitSystemSourceSolver axial_solver(
+      system_solver, source_term, fub::StrangSplitting());
 
   fub::ideal_gas::KineticSourceTerm<1> kinetic_source(equation, gridding);
 
-  fub::DimensionalSplitSystemSourceSolver solver(axial_solver, kinetic_source, fub::StrangSplitting());
+  fub::DimensionalSplitSystemSourceSolver solver(axial_solver, kinetic_source,
+                                                 fub::StrangSplitting());
   // }}}
 
   // Run the simulation with given feedback functions
 
   std::string base_name = "AxialSourceTerm/";
 
+  int rank = -1;
+  MPI_Comm_rank(solver.GetContext().GetMpiCommunicator(), &rank);
+
   auto output =
       [&](const std::shared_ptr<fub::amrex::GriddingAlgorithm>& gridding,
           std::ptrdiff_t cycle, fub::Duration timepoint, int) {
         std::string name = fmt::format("{}plt{:05}", base_name, cycle);
-        std::ofstream out(name + ".dat");
         amrex::Print() << "Start output to '" << name << "'.\n";
         fub::amrex::WritePlotFile(name, gridding->GetPatchHierarchy(),
                                   equation);
-        fub::amrex::WriteTubeData(out, gridding->GetPatchHierarchy(), equation,
-                                  timepoint, cycle,
-                                  solver.GetContext().GetMpiCommunicator());
+        if (rank == 0) {
+          std::ofstream out(name + ".dat");
+          fub::amrex::WriteTubeData(&out, gridding->GetPatchHierarchy(),
+                                    equation, timepoint, cycle,
+                                    solver.GetContext().GetMpiCommunicator());
+        } else {
+          fub::amrex::WriteTubeData(nullptr, gridding->GetPatchHierarchy(),
+                                    equation, timepoint, cycle,
+                                    solver.GetContext().GetMpiCommunicator());
+        }
         amrex::Print() << "Finished output to '" << name << "'.\n";
       };
 
   using namespace std::literals::chrono_literals;
-  output(solver.GetGriddingAlgorithm(), solver.GetCycles(), solver.GetTimePoint(), -1);
+  output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
+         solver.GetTimePoint(), -1);
   fub::RunOptions run_options{};
   run_options.cfl = opts.cfl;
   run_options.final_time = fub::Duration(opts.final_time);
