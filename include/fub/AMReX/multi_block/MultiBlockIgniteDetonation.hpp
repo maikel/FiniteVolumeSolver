@@ -18,52 +18,33 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_AMREX_IGNITE_DETONATION_HPP
-#define FUB_AMREX_IGNITE_DETONATION_HPP
+#ifndef FUB_AMREX_MULTI_BLOCK_IGNITE_DETONATION_HPP
+#define FUB_AMREX_MULTI_BLOCK_IGNITE_DETONATION_HPP
 
-#include "fub/AMReX/GriddingAlgorithm.hpp"
-#include "fub/TimeStepError.hpp"
-#include "fub/equations/IdealGasMix.hpp"
-#include "fub/ext/outcome.hpp"
+#include "fub/AMReX/IgniteDetonation.hpp"
+#include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp"
+
+#include <vector>
 
 namespace fub::amrex {
 
-struct IgniteDetonationOptions {
-  double measurement_position{1.0};
-  double equivalence_ratio_criterium{0.95};
-  double temperature_low{300.0};
-  double temperature_high{2000.0};
-  double ramp_width{0.05};
-  double ignite_position{0.0};
-  Duration ignite_interval{0.0};
-};
-
-class IgniteDetonation {
+class MultiBlockIgniteDetonation {
 public:
   static constexpr int Rank = 1;
 
-  IgniteDetonation(const IdealGasMix<1>& eq,
-                   std::shared_ptr<GriddingAlgorithm> grid,
-                   const IgniteDetonationOptions& opts = {});
+  MultiBlockIgniteDetonation(const IdealGasMix<1>& equation,
+                             std::shared_ptr<MultiBlockGriddingAlgorithm> grid);
 
-  /////////////////////////////////////////////////////////////////////////
-  // member functions needed for being a source term
+  void ResetHierarchyConfiguration(
+      std::shared_ptr<MultiBlockGriddingAlgorithm> grid);
 
-  void
-  ResetHierarchyConfiguration(std::shared_ptr<amrex::GriddingAlgorithm> grid) {
-    gridding_ = std::move(grid);
-  }
-
-  [[nodiscard]] Duration ComputeStableDt() const noexcept;
+  [[nodiscard]] Duration ComputeStableDt();
 
   [[nodiscard]] Result<void, TimeStepTooLarge> AdvanceLevel(int level,
                                                             Duration dt);
 
 private:
-  IdealGasMix<1> equation_;
-  std::shared_ptr<GriddingAlgorithm> gridding_;
-  IgniteDetonationOptions options_;
-  Duration last_ignition_{-std::numeric_limits<double>::infinity()};
+  std::vector<IgniteDetonation> source_terms_;
 };
 
 } // namespace fub::amrex

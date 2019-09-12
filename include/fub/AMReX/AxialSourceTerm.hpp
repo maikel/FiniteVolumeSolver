@@ -18,6 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#ifndef FUB_AMREX_AXIAL_SOURCE_TERM_HPP
+#define FUB_AMREX_AXIAL_SOURCE_TERM_HPP
+
 #include "fub/AMReX/GriddingAlgorithm.hpp"
 #include "fub/TimeStepError.hpp"
 #include "fub/equations/IdealGasMix.hpp"
@@ -77,3 +80,5 @@ private:
 };
 
 } // namespace fub::amrex
+
+#endif
