@@ -374,7 +374,8 @@ void MyMain(const boost::program_options::variables_map& vm) {
       tube_equation, context.GetGriddingAlgorithm(),
       fub::amrex::IgniteDetonationOptions(vm)};
 
-  fub::DimensionalSplitSystemSourceSolver ign_solver(system_solver, ignition);
+  fub::DimensionalSplitSystemSourceSolver ign_solver(system_solver, ignition,
+                                                     fub::GodunovSplitting{});
 
   fub::amrex::MultiBlockKineticSouceTerm source_term{
       fub::IdealGasMix<Tube_Rank>{mechanism}, context.GetGriddingAlgorithm()};
@@ -383,32 +384,109 @@ void MyMain(const boost::program_options::variables_map& vm) {
 
   std::string base_name = "MultiTube";
 
-  auto output =
-      [&](const std::shared_ptr<fub::amrex::MultiBlockGriddingAlgorithm>&
-              gridding,
-          std::ptrdiff_t cycle, fub::Duration, int = 0) {
-        auto tubes = gridding->GetTubes();
-        int k = 0;
-        for (auto& tube : tubes) {
-          std::string name =
-              fmt::format("{}/Tube_{}/plt{:05}", base_name, k, cycle);
-          ::amrex::Print() << "Start output to '" << name << "'.\n";
-          fub::amrex::WritePlotFile(name, tube->GetPatchHierarchy(),
-                                    tube_equation);
-          ::amrex::Print() << "Finished output to '" << name << "'.\n";
-          k = k + 1;
-        }
-        std::string name = fmt::format("{}/Plenum/plt{:05}", base_name, cycle);
+  std::vector<double> slice_xs = {-3e-3, 3e-3, 0.1, 0.2, 0.3, 0.4, 0.5 - 3e-3};
+  std::vector<::amrex::Box> output_boxes{};
+  output_boxes.reserve(slice_xs.size());
+
+  std::transform(
+      slice_xs.begin(), slice_xs.end(), std::back_inserter(output_boxes),
+      [&](double x0) {
+        const auto& plenum =
+            context.GetGriddingAlgorithm()->GetPlena()[0]->GetPatchHierarchy();
+        const int finest_level = plenum.GetNumberOfLevels() - 1;
+        const ::amrex::Geometry& geom = plenum.GetGeometry(finest_level);
+        const ::amrex::RealBox& probDomain = geom.ProbDomain();
+        const double xlo[] = {x0, probDomain.lo(1), probDomain.lo(2)};
+        const double* xhi = probDomain.hi();
+        const ::amrex::RealBox slice_x(xlo, xhi);
+        ::amrex::Box slice_box = BoxWhichContains(slice_x, geom);
+        slice_box.setBig(0, slice_box.smallEnd(0));
+        return slice_box;
+      });
+
+  auto output = [&](const std::shared_ptr<
+                        fub::amrex::MultiBlockGriddingAlgorithm>& gridding,
+                    std::ptrdiff_t cycle, fub::Duration time_point, int which) {
+    //
+    // Ouput MATLAB files on each timestep
+    //
+    if (which < 2) {
+      MPI_Comm comm = context.GetMpiCommunicator();
+      auto tubes = gridding->GetTubes();
+      int k = 0;
+      for (auto& tube : tubes) {
+        std::string name =
+            fmt::format("{}/Matlab/Tube_{}/plt{:05}.dat", base_name, k, cycle);
         ::amrex::Print() << "Start output to '" << name << "'.\n";
-        fub::amrex::cutcell::WritePlotFile(
-            name, gridding->GetPlena()[0]->GetPatchHierarchy(), equation);
+        fub::amrex::WriteTubeData(name, tube->GetPatchHierarchy(),
+                                  tube_equation, time_point, cycle, comm);
         ::amrex::Print() << "Finished output to '" << name << "'.\n";
-      };
+        k = k + 1;
+      }
+      k = 0;
+      for (const ::amrex::Box& out_box : output_boxes) {
+        std::string name = fmt::format("{}/Matlab/Plenum_x{}/plt{:05}.dat",
+                                       base_name, k, cycle);
+        auto& plenum = gridding->GetPlena()[0];
+        ::amrex::Print() << "Start output to '" << name << "'.\n";
+        fub::amrex::cutcell::Write2Dfrom3D(name, plenum->GetPatchHierarchy(),
+                                           out_box, equation, time_point, cycle,
+                                           comm);
+        ::amrex::Print() << "Finished output to '" << name << "'.\n";
+        k = k + 1;
+      }
+    }
+
+    //
+    // Output VisIt Plotfiles
+    //
+    if (which < 1) {
+      auto tubes = gridding->GetTubes();
+      int k = 0;
+      for (auto& tube : tubes) {
+        std::string name =
+            fmt::format("{}/Tube_{}/plt{:05}", base_name, k, cycle);
+        ::amrex::Print() << "Start output to '" << name << "'.\n";
+        fub::amrex::WritePlotFile(name, tube->GetPatchHierarchy(),
+                                  tube_equation);
+        ::amrex::Print() << "Finished output to '" << name << "'.\n";
+        k = k + 1;
+      }
+      std::string name = fmt::format("{}/Plenum/plt{:05}", base_name, cycle);
+      ::amrex::Print() << "Start output to '" << name << "'.\n";
+      fub::amrex::cutcell::WritePlotFile(
+          name, gridding->GetPlena()[0]->GetPatchHierarchy(), equation);
+      ::amrex::Print() << "Finished output to '" << name << "'.\n";
+    }
+
+    //
+    // Output Checkpoints for possible restarts of a simulation
+    //
+    if (which < 1) {
+      auto tubes = gridding->GetTubes();
+      int k = 0;
+      for (auto& tube : tubes) {
+        std::string name =
+            fmt::format("{}/Checkpoint/{:05}/Tube_{}", base_name, cycle, k);
+        ::amrex::Print() << "Start output to '" << name << "'.\n";
+        fub::amrex::WriteCheckpointFile(name, tube->GetPatchHierarchy());
+        ::amrex::Print() << "Finished output to '" << name << "'.\n";
+        k = k + 1;
+      }
+      std::string name =
+          fmt::format("{}/Checkpoint/{:05}/Plenum", base_name, cycle);
+      ::amrex::Print() << "Start output to '" << name << "'.\n";
+      fub::amrex::cutcell::WriteCheckpointFile(
+          name, gridding->GetPlena()[0]->GetPatchHierarchy());
+      ::amrex::Print() << "Finished output to '" << name << "'.\n";
+    }
+  };
 
   using namespace std::literals::chrono_literals;
   output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
-         solver.GetTimePoint());
+         solver.GetTimePoint(), 0);
   fub::RunOptions run_options = fub::GetRunOptions(vm);
+  run_options.output_frequency.push_back(1);
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      fub::amrex::print);
 }
