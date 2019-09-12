@@ -376,7 +376,6 @@ void MyMain(const boost::program_options::variables_map& vm) {
   std::string base_name = "MultiTube";
   fub::IdealGasMix<Tube_Rank> tube_equation{mechanism};
 
-  // Write Checkpoints 25min + every 30min
   auto output =
       [&](const std::shared_ptr<fub::amrex::MultiBlockGriddingAlgorithm>&
               gridding,

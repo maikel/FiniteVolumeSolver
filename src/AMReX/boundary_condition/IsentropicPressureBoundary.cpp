@@ -34,11 +34,11 @@ MapToSrc(const std::array<std::ptrdiff_t, 1>& dest,
          const ::amrex::Geometry& geom, int side, Direction dir) {
   const int boundary = (side == 0) * geom.Domain().smallEnd(int(dir)) +
                        (side == 1) * geom.Domain().bigEnd(int(dir));
-  //    const int distance = dest[int(dir)] - boundary;
-  //  const int sign = int((distance > 0) - (distance < 0));
+  const int distance = dest[int(dir)] - boundary;
+  const int sign = int((distance > 0) - (distance < 0));
   std::array<std::ptrdiff_t, 1> src{dest};
-  //  src[int(dir)] -= 2 * distance - sign;
-  src[std::size_t(dir)] = boundary;
+  src[int(dir)] -= 2 * distance - sign;
+//  src[std::size_t(dir)] = boundary;
   return src;
 }
 

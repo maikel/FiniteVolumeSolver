@@ -33,9 +33,11 @@ namespace fub::amrex {
 
 struct PressureValveOptions {
   PressureValveOptions() = default;
-  explicit PressureValveOptions(const boost::program_options::variables_map& vm);
+  explicit PressureValveOptions(
+      const boost::program_options::variables_map& vm);
 
-  static boost::program_options::options_description GetCommandLineOptions(std::string prefix = {});
+  static boost::program_options::options_description
+  GetCommandLineOptions(std::string prefix = {});
 
   void PrintOptions(std::ostream& out);
 
@@ -46,6 +48,8 @@ struct PressureValveOptions {
   double pressure_value_which_closes_boundary{1.5 * 101325.0};
   double oxygen_measurement_position{1.0};
   double oxygen_measurement_criterium{0.1};
+  double fuel_measurement_position{1.0};
+  double fuel_measurement_criterium{0.95};
   double valve_efficiency{1.0};
   Duration open_at_interval{0.0};
 };
@@ -56,6 +60,7 @@ class PressureValveBoundary {
 public:
   PressureValveBoundary(const IdealGasMix<1>& equation,
                         PressureValveOptions options);
+
   PressureValveBoundary(const IdealGasMix<1>& equation,
                         const boost::program_options::variables_map& options);
 

@@ -64,6 +64,7 @@ ParseCommandLine(int argc, char** argv) {
           ->default_value(opts.output_interval),
       "Sets the output interval");
   desc.add(fub::amrex::PressureValveOptions::GetCommandLineOptions());
+  desc.add(fub::amrex::IgniteDetonationOptions::GetCommandLineOptions());
   po::variables_map vm;
   try {
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -164,13 +165,15 @@ void MyMain(const ProgramOptions& opts,
 
   // Setup the numerical Method used to solve this problem.
   // {{{
-  fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>> signals{};
-  fub::HllMethod hll_method(equation, signals);
+//  fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>> signals{};
+//  fub::HllMethod hll_method(equation, signals);
+
+  fub::ideal_gas::MusclHancockPrimMethod<1> flux_method(equation);
 
   fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethod(fub::execution::simd, hll_method),
-      fub::amrex::ForwardIntegrator(fub::execution::simd),
-      fub::amrex::Reconstruction(fub::execution::simd, equation)};
+      fub::amrex::FluxMethod(fub::execution::seq, flux_method),
+      fub::amrex::ForwardIntegrator(fub::execution::seq),
+      fub::amrex::Reconstruction(fub::execution::seq, equation)};
 
   fub::DimensionalSplitLevelIntegrator system_solver(
       fub::int_c<1>, fub::amrex::IntegratorContext(gridding, method),
@@ -199,20 +202,10 @@ void MyMain(const ProgramOptions& opts,
         fub::amrex::WritePlotFile(name, gridding->GetPatchHierarchy(),
                                   equation);
 
-        if (rank == 0) {
-          std::ofstream out(name + ".dat");
-          if (!out) {
-            throw std::runtime_error(
-                fmt::format("Could not open {}.dat.\n", name));
-          }
-          fub::amrex::WriteTubeData(&out, gridding->GetPatchHierarchy(),
-                                    equation, timepoint, cycle,
-                                    solver.GetContext().GetMpiCommunicator());
-        } else {
-          fub::amrex::WriteTubeData(nullptr, gridding->GetPatchHierarchy(),
-                                    equation, timepoint, cycle,
-                                    solver.GetContext().GetMpiCommunicator());
-        }
+
+      fub::amrex::WriteTubeData(fmt::format("{}/Matlab/{:07}.dat", base_name, cycle), gridding->GetPatchHierarchy(),
+                                equation, timepoint, cycle,
+                                solver.GetContext().GetMpiCommunicator());
         amrex::Print() << "Finished output to '" << name << "'.\n";
       };
 

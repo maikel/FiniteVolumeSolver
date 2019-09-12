@@ -35,15 +35,17 @@ PressureValveOptions::GetCommandLineOptions(std::string prefix) {
   if (prefix.empty()) {
     // clang-format off
     desc.add_options()
-    ("outer_pressure", po::value<double>()->default_value(opts.outer_pressure), "The mean pressure value for the outer side [Pa]")
-    ("outer_temperature", po::value<double>()->default_value(opts.outer_temperature), "The mean pressure value for the outer side [K]")
-    ("pressure_value_which_opens_boundary", po::value<double>()->default_value(opts.pressure_value_which_opens_boundary), "The mean pressure value in the tube which opens the boundary. [Pa]")
-    ("pressure_value_which_closes_boundary", po::value<double>()->default_value(opts.pressure_value_which_closes_boundary), "The mean pressure value in the tube which closes the boundary. [Pa]")
-    ("oxygen_measurement_position", po::value<double>()->default_value(opts.oxygen_measurement_position), "The position within the tube where the oxygen concentration will be measured. [m]")
-    ("oxygen_measurement_criterium", po::value<double>()->default_value(opts.oxygen_measurement_criterium), "The oxygen concentration which will trigger fuel instead of air inflow. [-]")
-    ("equivalence_ratio", po::value<double>()->default_value(opts.equivalence_ratio), "The equivalence ratio of the fuel which will be used. [-]")
-    ("open_at_interval", po::value<double>()->default_value(opts.open_at_interval.count()), "If set to non-zero value this pressure valve will only open up once in a specified time interval. [s]")
-        ("valve_efficiency", po::value<double>()->default_value(opts.valve_efficiency), "Sets the efficiency of the enthalpy to velocity conversion [-]");
+      ("outer_pressure", po::value<double>()->default_value(opts.outer_pressure), "The mean pressure value for the outer side [Pa]")
+      ("outer_temperature", po::value<double>()->default_value(opts.outer_temperature), "The mean pressure value for the outer side [K]")
+      ("pressure_value_which_opens_boundary", po::value<double>()->default_value(opts.pressure_value_which_opens_boundary), "The mean pressure value in the tube which opens the boundary. [Pa]")
+      ("pressure_value_which_closes_boundary", po::value<double>()->default_value(opts.pressure_value_which_closes_boundary), "The mean pressure value in the tube which closes the boundary. [Pa]")
+      ("oxygen_measurement_position", po::value<double>()->default_value(opts.oxygen_measurement_position), "The position within the tube where the oxygen concentration will be measured. [m]")
+      ("oxygen_measurement_criterium", po::value<double>()->default_value(opts.oxygen_measurement_criterium), "The oxygen concentration which will trigger fuel instead of air inflow. [-]")
+      ("equivalence_ratio", po::value<double>()->default_value(opts.equivalence_ratio), "The equivalence ratio of the fuel which will be used. [-]")
+      ("open_at_interval", po::value<double>()->default_value(opts.open_at_interval.count()), "If set to non-zero value this pressure valve will only open up once in a specified time interval. [s]")
+    ("fuel_measurement_position", po::value<double>()->default_value(opts.fuel_measurement_position), "The position within the tube where the equivalence ratio for the fuel will be measured. [m]")
+    ("fuel_measurement_criterium", po::value<double>()->default_value(opts.fuel_measurement_criterium), "If the equivalence ratio at the fuel measurement position is greater than this value the boundary will be closed. [-]")
+      ("valve_efficiency", po::value<double>()->default_value(opts.valve_efficiency), "Sets the efficiency of the enthalpy to velocity conversion [-]");
     // clang-format on
   } else {
     using fmt::format;
@@ -120,6 +122,8 @@ PressureValveOptions::PressureValveOptions(const po::variables_map& map) {
   equivalence_ratio = map["equivalence_ratio"].as<double>();
   open_at_interval = Duration(map["open_at_interval"].as<double>());
   valve_efficiency = map["valve_efficiency"].as<double>();
+  fuel_measurement_criterium = map["fuel_measurement_criterium"].as<double>();
+  fuel_measurement_position = map["fuel_measurement_position"].as<double>();
 }
 
 PressureValveBoundary::PressureValveBoundary(const IdealGasMix<1>& eq,
@@ -208,7 +212,8 @@ double ChangeState_(PressureValveState& state, const ::amrex::Geometry& geom,
   const Duration next_time = last_opened + options.open_at_interval;
   switch (state) {
   case PressureValveState::closed:
-    if (next_time < current_time && mean_pressure < options.pressure_value_which_opens_boundary) {
+    if (next_time < current_time &&
+        mean_pressure < options.pressure_value_which_opens_boundary) {
       state = PressureValveState::open_air;
       last_opened = next_time;
     }
@@ -229,6 +234,14 @@ double ChangeState_(PressureValveState& state, const ::amrex::Geometry& geom,
                    [sum](double m) { return m / sum; });
     if (options.oxygen_measurement_criterium < moles[Burke2012::sO2]) {
       state = PressureValveState::open_fuel;
+    }
+  } else if (state == PressureValveState::open_fuel) {
+    const double x_fuel =
+    std::clamp(options.fuel_measurement_position, xlo, xhi);
+    std::vector<double> moles = GatherMoles_(grid, x_fuel, eq);
+    const double eqr = 0.5 * moles[Burke2012::sH2] / moles[Burke2012::sO2];
+    if (eqr > options.fuel_measurement_criterium) {
+      state = PressureValveState::closed;
     }
   }
   return mean_pressure;
