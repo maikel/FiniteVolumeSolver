@@ -464,5 +464,23 @@ void WriteTubeData(std::ostream* out, const PatchHierarchy& hierarchy,
   }
 }
 
+void WriteTubeData(std::string filename, const PatchHierarchy& hierarchy,
+                   const IdealGasMix<1>& eq, fub::Duration time_point,
+                   std::ptrdiff_t cycle_number, MPI_Comm comm) {
+  int rank = -1;
+  MPI_Comm_rank(comm, &rank);
+  if (rank == 0) {
+    std::ofstream out(filename);
+    if (!out) {
+      throw std::runtime_error(fmt::format("Could not open {}.\n", filename));
+    }
+    fub::amrex::WriteTubeData(&out, hierarchy,
+                              eq, time_point, cycle_number, comm);
+  } else {
+    fub::amrex::WriteTubeData(nullptr, hierarchy,
+                              eq, time_point, cycle_number, comm);
+  }
+}
+
 } // namespace amrex
 } // namespace fub

@@ -26,9 +26,18 @@
 #include "fub/equations/IdealGasMix.hpp"
 #include "fub/ext/outcome.hpp"
 
+#include <boost/program_options.hpp>
+
 namespace fub::amrex {
 
 struct IgniteDetonationOptions {
+  IgniteDetonationOptions() = default;
+
+  explicit IgniteDetonationOptions(const boost::program_options::variables_map& vm);
+
+  static boost::program_options::options_description
+  GetCommandLineOptions();
+
   double measurement_position{1.0};
   double equivalence_ratio_criterium{0.95};
   double temperature_low{300.0};
