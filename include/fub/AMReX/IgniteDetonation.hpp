@@ -27,16 +27,17 @@
 #include "fub/ext/outcome.hpp"
 
 #include <boost/program_options.hpp>
+#include <boost/serialization/access.hpp>
 
 namespace fub::amrex {
 
 struct IgniteDetonationOptions {
   IgniteDetonationOptions() = default;
 
-  explicit IgniteDetonationOptions(const boost::program_options::variables_map& vm);
+  explicit IgniteDetonationOptions(
+      const boost::program_options::variables_map& vm);
 
-  static boost::program_options::options_description
-  GetCommandLineOptions();
+  static boost::program_options::options_description GetCommandLineOptions();
 
   double measurement_position{1.0};
   double equivalence_ratio_criterium{0.95};
@@ -46,6 +47,18 @@ struct IgniteDetonationOptions {
   double ignite_position{0.0};
   Duration ignite_interval{0.0};
 };
+
+} // namespace fub::amrex
+
+namespace boost::serialization {
+
+template <typename Archive>
+void serialize(Archive& ar, ::fub::amrex::IgniteDetonationOptions& opts,
+               unsigned int version);
+
+} // namespace boost::serialization
+
+namespace fub::amrex {
 
 class IgniteDetonation {
 public:
@@ -68,13 +81,55 @@ public:
   [[nodiscard]] Result<void, TimeStepTooLarge> AdvanceLevel(int level,
                                                             Duration dt);
 
+  [[nodiscard]] const PatchHierarchy& GetPatchHierarchy() const noexcept {
+    return gridding_->GetPatchHierarchy();
+  }
+
+  [[nodiscard]] const IgniteDetonationOptions& GetOptions() const noexcept {
+    return options_;
+  }
+
+  [[nodiscard]] Duration GetLastIgnitionTimePoint() const noexcept {
+    return last_ignition_;
+  }
+
 private:
   IdealGasMix<1> equation_;
   std::shared_ptr<GriddingAlgorithm> gridding_;
   IgniteDetonationOptions options_;
   Duration last_ignition_{-std::numeric_limits<double>::infinity()};
+
+  friend class boost::serialization::access;
+  template <typename Archive>
+  void serialize(Archive& ar, unsigned int version);
 };
 
+
+
+template <typename Archive>
+void IgniteDetonation::serialize(Archive& ar, unsigned int /* version */) {
+  ar& options_;
+  double count = last_ignition_.count();
+  ar& count;
+  last_ignition_ = Duration(count);
+}
+
 } // namespace fub::amrex
+
+namespace boost::serialization {
+
+template <typename Archive>
+void serialize(Archive& ar, ::fub::amrex::IgniteDetonationOptions& opts,
+               unsigned int /* version */) {
+  ar& opts.equivalence_ratio_criterium;
+  ar& opts.measurement_position;
+  ar& opts.ramp_width;
+  ar& opts.temperature_high;
+  ar& opts.temperature_low;
+  ar& opts.ignite_interval;
+  ar& opts.ignite_position;
+}
+
+} // namespace boost::serialization
 
 #endif

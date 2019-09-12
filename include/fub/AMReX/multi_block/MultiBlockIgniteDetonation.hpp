@@ -32,13 +32,15 @@ class MultiBlockIgniteDetonation {
 public:
   static constexpr int Rank = 1;
 
-  MultiBlockIgniteDetonation(const IdealGasMix<1>& equation,
-                             std::shared_ptr<MultiBlockGriddingAlgorithm> grid);
+  MultiBlockIgniteDetonation(
+      const IdealGasMix<1>& equation,
+      const std::shared_ptr<MultiBlockGriddingAlgorithm>& grid,
+      const IgniteDetonationOptions& opts = {});
 
   void ResetHierarchyConfiguration(
-      std::shared_ptr<MultiBlockGriddingAlgorithm> grid);
+      const std::shared_ptr<MultiBlockGriddingAlgorithm>& grid);
 
-  [[nodiscard]] Duration ComputeStableDt();
+  [[nodiscard]] static Duration ComputeStableDt() noexcept;
 
   [[nodiscard]] Result<void, TimeStepTooLarge> AdvanceLevel(int level,
                                                             Duration dt);

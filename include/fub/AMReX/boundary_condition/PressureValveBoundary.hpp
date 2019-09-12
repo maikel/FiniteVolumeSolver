@@ -28,6 +28,7 @@
 #include "fub/Duration.hpp"
 
 #include <boost/program_options.hpp>
+#include <boost/serialization/access.hpp>
 
 namespace fub::amrex {
 
@@ -54,6 +55,17 @@ struct PressureValveOptions {
   Duration open_at_interval{0.0};
 };
 
+}
+
+namespace boost::serialization {
+
+template <typename Archive>
+void serialize(Archive& ar, ::fub::amrex::PressureValveOptions& opts, unsigned int version);
+
+}
+
+namespace fub::amrex {
+
 enum class PressureValveState { open_air, open_fuel, closed };
 
 class PressureValveBoundary {
@@ -74,8 +86,35 @@ private:
   IdealGasMix<1> equation_;
   PressureValveState state_;
   Duration last_opened_{0.0};
+
+  friend class boost::serialization::access;
+  template <typename Archive>
+  void serialize(Archive& ar, unsigned int version);
 };
 
+
+
+template <typename Archive>
+void PressureValveBoundary::serialize(Archive& ar, unsigned int /* version */) {
+  ar & options_;
+  int state = static_cast<int>(state_);
+  ar & state;
+  state_ = static_cast<PressureValveState>(state);
+  double count = last_opened_.count();
+  ar & count;
+  last_opened_ = Duration(count);
+}
+
 } // namespace fub::amrex
+
+namespace boost::serialization {
+
+template <typename Archive>
+void serialize(Archive& ar, ::fub::amrex::PressureValveOptions& opts,
+               unsigned int /* version */) {
+  ar & opts.open_at_interval;
+}
+
+} // namespace boost::serialization
 
 #endif // FINITEVOLUMESOLVER_PRESSUREVALVE_HPP

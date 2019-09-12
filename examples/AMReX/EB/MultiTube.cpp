@@ -271,6 +271,7 @@ ParseCommandLine(int argc, char** argv) {
   po::options_description desc = fub::GetCommandLineRunOptions();
   desc.add(ProgramOptions::GetCommandLineOptions());
   desc.add(fub::amrex::PressureValveOptions::GetCommandLineOptions());
+  desc.add(fub::amrex::IgniteDetonationOptions::GetCommandLineOptions());
   po::variables_map vm;
   try {
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -359,6 +360,7 @@ void MyMain(const boost::program_options::variables_map& vm) {
   connectivity.push_back(MakeConnection(3));
   connectivity.push_back(MakeConnection(4));
 
+  fub::IdealGasMix<Tube_Rank> tube_equation{mechanism};
   fub::IdealGasMix<Plenum_Rank> equation{mechanism};
 
   fub::amrex::MultiBlockIntegratorContext context(
@@ -367,14 +369,19 @@ void MyMain(const boost::program_options::variables_map& vm) {
 
   fub::DimensionalSplitLevelIntegrator system_solver(fub::int_c<Plenum_Rank>,
                                                      context);
-  fub::amrex::MultiBlockKineticSouceTerm source_term{
-      fub::IdealGasMix<Tube_Rank>{mechanism},
-      system_solver.GetGriddingAlgorithm()};
 
-  fub::DimensionalSplitSystemSourceSolver solver{system_solver, source_term};
+  fub::amrex::MultiBlockIgniteDetonation ignition{
+      tube_equation, context.GetGriddingAlgorithm(),
+      fub::amrex::IgniteDetonationOptions(vm)};
+
+  fub::DimensionalSplitSystemSourceSolver ign_solver(system_solver, ignition);
+
+  fub::amrex::MultiBlockKineticSouceTerm source_term{
+      fub::IdealGasMix<Tube_Rank>{mechanism}, context.GetGriddingAlgorithm()};
+
+  fub::DimensionalSplitSystemSourceSolver solver{ign_solver, source_term};
 
   std::string base_name = "MultiTube";
-  fub::IdealGasMix<Tube_Rank> tube_equation{mechanism};
 
   auto output =
       [&](const std::shared_ptr<fub::amrex::MultiBlockGriddingAlgorithm>&

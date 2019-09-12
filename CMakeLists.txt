@@ -353,6 +353,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         include/fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp
         include/fub/AMReX/multi_block/MultiBlockIntegratorContext.hpp
         include/fub/AMReX/multi_block/MultiBlockKineticSourceTerm.hpp
+        include/fub/AMReX/multi_block/MultiBlockIgniteDetonation.hpp
         src/AMReX/cutcell/BoundaryCondition.cpp
         src/AMReX/cutcell/IntegratorContext.cpp
         src/AMReX/cutcell/PatchHierarchy.cpp
@@ -368,7 +369,8 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         src/AMReX/multi_block/MultiBlockBoundary.cpp
         src/AMReX/multi_block/MultiBlockGriddingAlgorithm.cpp
         src/AMReX/multi_block/MultiBlockIntegratorContext.cpp
-        src/AMReX/multi_block/MultiBlockKineticSourceTerm.cpp)
+        src/AMReX/multi_block/MultiBlockKineticSourceTerm.cpp
+        src/AMReX/multi_block/MultiBlockIgniteDetonation.cpp)
     target_compile_options(FiniteVolumeSolver.AMReX.EB
       PRIVATE
         $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
