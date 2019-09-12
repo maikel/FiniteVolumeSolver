@@ -21,39 +21,60 @@
 #ifndef FUB_AMREX_BOUNDARY_CONDITION_PRESSURE_VALVE_HPP
 #define FUB_AMREX_BOUNDARY_CONDITION_PRESSURE_VALVE_HPP
 
-#include "fub/AMReX/boundary_condition/ReflectiveBoundary.hpp"
-#include "fub/AMReX/boundary_condition/IsentropicPressureBoundary.hpp"
 #include "fub/AMReX/GriddingAlgorithm.hpp"
+#include "fub/AMReX/boundary_condition/IsentropicPressureBoundary.hpp"
+#include "fub/AMReX/boundary_condition/ReflectiveBoundary.hpp"
 
 #include "fub/Duration.hpp"
 
 #include <boost/program_options.hpp>
+#include <boost/serialization/access.hpp>
 
 namespace fub::amrex {
 
 struct PressureValveOptions {
-  std::string fuel_moles;
-  std::string air_moles;
-  double outer_pressure;
-  double pressure_value_which_opens_boudnary;
-  double pressure_value_which_closes_boundary;
-  double air_buffer_length;
-  double fuel_length;
-  double ignition_position;
+  PressureValveOptions() = default;
+  explicit PressureValveOptions(
+      const boost::program_options::variables_map& vm);
+
+  static boost::program_options::options_description
+  GetCommandLineOptions(std::string prefix = {});
+
+  void PrintOptions(std::ostream& out);
+
+  double equivalence_ratio{1.0};
+  double outer_pressure{1.5 * 101325.0};
+  double outer_temperature{300.0};
+  double pressure_value_which_opens_boundary{101325.0};
+  double pressure_value_which_closes_boundary{1.5 * 101325.0};
+  double oxygen_measurement_position{1.0};
+  double oxygen_measurement_criterium{0.1};
+  double fuel_measurement_position{1.0};
+  double fuel_measurement_criterium{0.95};
+  double valve_efficiency{1.0};
+  Duration open_at_interval{0.0};
 };
 
-enum class PressureValveState {
-  open_air, open_fuel, ignition, closed
-};
+}
 
-void PrintOptions(const PressureValveOptions& options);
+namespace boost::serialization {
+
+template <typename Archive>
+void serialize(Archive& ar, ::fub::amrex::PressureValveOptions& opts, unsigned int version);
+
+}
+
+namespace fub::amrex {
+
+enum class PressureValveState { open_air, open_fuel, closed };
 
 class PressureValveBoundary {
 public:
-  PressureValveBoundary(const IdealGasMix<1>& equation, PressureValveOptions options);
-  PressureValveBoundary(const IdealGasMix<1>& equation, const boost::program_options::variables_map& options);
+  PressureValveBoundary(const IdealGasMix<1>& equation,
+                        PressureValveOptions options);
 
-  static boost::program_options::options_description GetProgramOptions();
+  PressureValveBoundary(const IdealGasMix<1>& equation,
+                        const boost::program_options::variables_map& options);
 
   [[nodiscard]] const PressureValveOptions& GetOptions() const noexcept;
 
@@ -64,8 +85,36 @@ private:
   PressureValveOptions options_;
   IdealGasMix<1> equation_;
   PressureValveState state_;
+  Duration last_opened_{0.0};
+
+  friend class boost::serialization::access;
+  template <typename Archive>
+  void serialize(Archive& ar, unsigned int version);
 };
 
+
+
+template <typename Archive>
+void PressureValveBoundary::serialize(Archive& ar, unsigned int /* version */) {
+  ar & options_;
+  int state = static_cast<int>(state_);
+  ar & state;
+  state_ = static_cast<PressureValveState>(state);
+  double count = last_opened_.count();
+  ar & count;
+  last_opened_ = Duration(count);
 }
+
+} // namespace fub::amrex
+
+namespace boost::serialization {
+
+template <typename Archive>
+void serialize(Archive& ar, ::fub::amrex::PressureValveOptions& opts,
+               unsigned int /* version */) {
+  ar & opts.open_at_interval;
+}
+
+} // namespace boost::serialization
 
 #endif // FINITEVOLUMESOLVER_PRESSUREVALVE_HPP

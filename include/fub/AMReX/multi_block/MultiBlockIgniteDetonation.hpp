@@ -18,38 +18,37 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_AMREX_HPP
-#define FUB_AMREX_HPP
+#ifndef FUB_AMREX_MULTI_BLOCK_IGNITE_DETONATION_HPP
+#define FUB_AMREX_MULTI_BLOCK_IGNITE_DETONATION_HPP
 
-#include <AMReX.H>
-#include <AMReX_IntVect.H>
+#include "fub/AMReX/IgniteDetonation.hpp"
+#include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp"
 
-#include "fub/AMReX/GriddingAlgorithm.hpp"
-#include "fub/AMReX/IntegratorContext.hpp"
+#include <vector>
 
-#include "fub/AMReX/ScopeGuard.hpp"
+namespace fub::amrex {
 
-#include "fub/AMReX/tagging/ConstantRegion.hpp"
-#include "fub/AMReX/tagging/GradientDetector.hpp"
-#include "fub/AMReX/tagging/TagBuffer.hpp"
+class MultiBlockIgniteDetonation {
+public:
+  static constexpr int Rank = 1;
 
-#include "fub/AMReX/boundary_condition/BoundarySet.hpp"
-#include "fub/AMReX/boundary_condition/IsentropicPressureBoundary.hpp"
-#include "fub/AMReX/boundary_condition/ReflectiveBoundary.hpp"
-#include "fub/AMReX/boundary_condition/TransmissiveBoundary.hpp"
-#include "fub/AMReX/boundary_condition/PressureValveBoundary.hpp"
+  MultiBlockIgniteDetonation(
+      const IdealGasMix<1>& equation,
+      const std::shared_ptr<MultiBlockGriddingAlgorithm>& grid,
+      const IgniteDetonationOptions& opts = {});
 
-#include "fub/AMReX/initial_data/ConstantData.hpp"
+  void ResetHierarchyConfiguration(
+      const std::shared_ptr<MultiBlockGriddingAlgorithm>& grid);
 
-#include "fub/AMReX/ForEachFab.hpp"
-#include "fub/AMReX/ForEachIndex.hpp"
-#include "fub/AMReX/Print.hpp"
+  [[nodiscard]] static Duration ComputeStableDt() noexcept;
 
-#include "fub/AMReX/FluxMethod.hpp"
-#include "fub/AMReX/Reconstruction.hpp"
-#include "fub/AMReX/TimeIntegrator.hpp"
+  [[nodiscard]] Result<void, TimeStepTooLarge> AdvanceLevel(int level,
+                                                            Duration dt);
 
-#include "fub/equations/ideal_gas_mix/KineticSourceTerm.hpp"
-#include "fub/AMReX/AxialSourceTerm.hpp"
+private:
+  std::vector<IgniteDetonation> source_terms_;
+};
+
+} // namespace fub::amrex
 
 #endif

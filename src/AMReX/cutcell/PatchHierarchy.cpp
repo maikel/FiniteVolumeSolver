@@ -20,10 +20,12 @@
 
 #include "fub/AMReX/cutcell/PatchHierarchy.hpp"
 #include "fub/AMReX/ForEachFab.hpp"
-#include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/AMReX/ForEachIndex.hpp"
+#include "fub/AMReX/ViewFArrayBox.hpp"
 
 #include "fub/AMReX/FillCutCellData.hpp"
+
+#include <boost/filesystem.hpp>
 
 namespace fub {
 namespace amrex {
@@ -385,29 +387,68 @@ PatchHierarchy ReadCheckpointFile(const std::string& checkpointname,
   return hierarchy;
 }
 
+namespace {
+
+::amrex::RealBox GetProbDomain_(const ::amrex::Geometry& geom,
+                                const ::amrex::Box& box) {
+  const double* dx = geom.CellSize();
+  double base[AMREX_SPACEDIM] = {};
+  geom.CellCenter({AMREX_D_DECL(0, 0, 0)}, base);
+  return ::amrex::RealBox(box, dx, base);
+}
+
+} // namespace
+
 #if AMREX_SPACEDIM == 3
-void Write2Dfrom3D(std::ostream& out, const PatchHierarchy& hierarchy,
-                   const IdealGasMix<3>& eq, fub::Duration time_point,
-                   std::ptrdiff_t cycle_number, MPI_Comm comm) {
+void Write2Dfrom3D(std::string name, const PatchHierarchy& hierarchy,
+                   const ::amrex::Box& finest_box, const IdealGasMix<3>& eq,
+                   fub::Duration time_point, std::ptrdiff_t cycle_number,
+                   MPI_Comm comm) {
+  int rank = -1;
+  MPI_Comm_rank(comm, &rank);
+  if (rank == 0) {
+    boost::filesystem::path path(name);
+    boost::filesystem::path dir = path.parent_path();
+    boost::filesystem::create_directories(dir);
+    std::ofstream out(name);
+    if (!out) {
+      throw std::runtime_error("Could not open output file!");
+    }
+    Write2Dfrom3D(&out, hierarchy, finest_box, eq, time_point, cycle_number,
+                  comm);
+  } else {
+    Write2Dfrom3D(nullptr, hierarchy, finest_box, eq, time_point, cycle_number,
+                  comm);
+  }
+}
+
+void Write2Dfrom3D(std::ostream* out, const PatchHierarchy& hierarchy,
+                   const ::amrex::Box& finest_box, const IdealGasMix<3>& eq,
+                   fub::Duration time_point, std::ptrdiff_t cycle_number,
+                   MPI_Comm comm) {
   const std::size_t n_level =
       static_cast<std::size_t>(hierarchy.GetNumberOfLevels());
   std::vector<::amrex::Geometry> geoms{};
-  geoms.reserve(n_level);
   std::vector<::amrex::MultiFab> data{};
   std::vector<::amrex::FArrayBox> fabs{};
+  std::vector<::amrex::Box> boxes{};
+  boxes.reserve(n_level);
+  boxes.push_back(finest_box);
+  ::amrex::Box box = finest_box;
+  for (std::size_t level = n_level - 1; level > 0; --level) {
+    ::amrex::IntVect refine_ratio = hierarchy.GetRatioToCoarserLevel(level);
+    box.coarsen(refine_ratio);
+    boxes.push_back(box);
+  }
+  std::reverse(boxes.begin(), boxes.end());
+  geoms.reserve(n_level);
   data.reserve(n_level);
+  fabs.reserve(n_level);
   for (std::size_t level = 0; level < n_level; ++level) {
     const int ilvl = static_cast<int>(level);
     const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(ilvl);
-    ::amrex::Box domain = level_geom.Domain();
-    const int k =
-        (level_geom.Domain().smallEnd(2) + level_geom.Domain().bigEnd(2)) / 2;
-    domain.setSmall(2, k);
-    domain.setBig(2, k);
-    ::amrex::RealBox probDomain = level_geom.ProbDomain();
-    //    const double dz = level_geom.CellSize(2);
-    probDomain.setLo(2, 0.0);
-    probDomain.setHi(2, 0.0);
+    ::amrex::Box domain = boxes[level];
+    ::amrex::RealBox probDomain = GetProbDomain_(level_geom, domain);
     ::amrex::Geometry& geom = geoms.emplace_back(domain, &probDomain);
     const ::amrex::MultiFab& level_data = hierarchy.GetPatchLevel(ilvl).data;
     ::amrex::FArrayBox local_fab(domain, level_data.nComp());
@@ -426,35 +467,40 @@ void Write2Dfrom3D(std::ostream& out, const PatchHierarchy& hierarchy,
                    MPI_DOUBLE, MPI_SUM, 0, comm);
       if (level > 0) {
         for (int comp = 1; comp < level_data.nComp(); ++comp) {
-          for (int j = domain.smallEnd(1); j <= domain.bigEnd(1); ++j) {
-            for (int i = domain.smallEnd(0); i <= domain.bigEnd(0); ++i) {
-              ::amrex::IntVect fine_i{i, j, domain.smallEnd(2)};
-              ::amrex::IntVect coarse_i = fine_i;
-              coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(level));
-              if (fab(fine_i, 0) == 0.0) {
-                fab(fine_i, comp) = fabs[level - 1](coarse_i, comp);
+          for (int k = domain.smallEnd(2); k <= domain.bigEnd(2); ++k) {
+            for (int j = domain.smallEnd(1); j <= domain.bigEnd(1); ++j) {
+              for (int i = domain.smallEnd(0); i <= domain.bigEnd(0); ++i) {
+                ::amrex::IntVect fine_i{i, j, k};
+                ::amrex::IntVect coarse_i = fine_i;
+                coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(level));
+                if (fab(fine_i, 0) == 0.0) {
+                  fab(fine_i, comp) = fabs[level - 1](coarse_i, comp);
+                }
               }
             }
           }
         }
-        for (int j = domain.smallEnd(1); j <= domain.bigEnd(1); ++j) {
-          for (int i = domain.smallEnd(0); i <= domain.bigEnd(0); ++i) {
-            ::amrex::IntVect fine_i{i, j, domain.smallEnd(2)};
-            ::amrex::IntVect coarse_i = fine_i;
-            coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(level));
-            if (fab(fine_i, 0) == 0.0) {
-              fab(fine_i, 0) = fabs[level - 1](coarse_i, 0);
+        for (int k = domain.smallEnd(2); k <= domain.bigEnd(2); ++k) {
+          for (int j = domain.smallEnd(1); j <= domain.bigEnd(1); ++j) {
+            for (int i = domain.smallEnd(0); i <= domain.bigEnd(0); ++i) {
+              ::amrex::IntVect fine_i{i, j, k};
+              ::amrex::IntVect coarse_i = fine_i;
+              coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(level));
+              if (fab(fine_i, 0) == 0.0) {
+                fab(fine_i, 0) = fabs[level - 1](coarse_i, 0);
+              }
             }
           }
         }
       }
       if (level == n_level - 1) {
-        out << fmt::format("nx = {}\n", domain.length(0));
-        out << fmt::format("ny = {}\n", domain.length(1));
-        out << fmt::format("t = {}\n", time_point.count());
-        out << fmt::format("cycle = {}\n", cycle_number);
-        WriteMatlabData(out, fab, eq, geom);
-        out.flush();
+        (*out) << fmt::format("nx = {}\n", domain.length(0));
+        (*out) << fmt::format("ny = {}\n", domain.length(1));
+        (*out) << fmt::format("nz = {}\n", domain.length(2));
+        (*out) << fmt::format("t = {}\n", time_point.count());
+        (*out) << fmt::format("cycle = {}\n", cycle_number);
+        WriteMatlabData(*out, fab, eq, geom);
+        out->flush();
       }
     } else {
       ::MPI_Reduce(local_fab.dataPtr(), nullptr, local_fab.size(), MPI_DOUBLE,
@@ -464,10 +510,10 @@ void Write2Dfrom3D(std::ostream& out, const PatchHierarchy& hierarchy,
 }
 #endif
 
-std::vector<double>
-GatherStates(const PatchHierarchy& hierarchy,
-             basic_mdspan<const double, extents<AMREX_SPACEDIM, dynamic_extent>> xs,
-             MPI_Comm comm) {
+std::vector<double> GatherStates(
+    const PatchHierarchy& hierarchy,
+    basic_mdspan<const double, extents<AMREX_SPACEDIM, dynamic_extent>> xs,
+    MPI_Comm comm) {
   const int nlevel = hierarchy.GetNumberOfLevels();
   const int finest_level = nlevel - 1;
   const int ncomp = hierarchy.GetDataDescription().n_state_components;

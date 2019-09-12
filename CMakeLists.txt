@@ -248,6 +248,7 @@ target_link_libraries(FiniteVolumeSolver.Solver
     FiniteVolumeSolver.OdeSolver
     fmt::fmt-header-only
     Boost::container
+    Boost::program_options
     Eigen3::Eigen
     Vc::Vc)
 target_compile_options(FiniteVolumeSolver.Solver 
@@ -272,8 +273,10 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     include/fub/AMReX/boundary_condition/ReflectiveBoundary.hpp
     include/fub/AMReX/boundary_condition/IsentropicPressureBoundary.hpp
     include/fub/AMReX/boundary_condition/PressureValveBoundary.hpp
+    include/fub/AMReX/initial_data/ConstantData.hpp
     include/fub/AMReX/AxialSourceTerm.hpp
     include/fub/AMReX/GriddingAlgorithm.hpp
+    include/fub/AMReX/IgniteDetonation.hpp
     include/fub/AMReX/PatchHierarchy.hpp
     include/fub/AMReX/Reconstruction.hpp
     include/fub/AMReX/RunSimulation.hpp
@@ -293,6 +296,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     src/AMReX/boundary_condition/IsentropicPressureBoundary.cpp
     src/AMReX/boundary_condition/PressureValveBoundary.cpp
     src/AMReX/AxialSourceTerm.cpp
+    src/AMReX/IgniteDetonation.cpp
     src/AMReX/FluxMethod.cpp
     src/AMReX/ScopeGuard.cpp
     src/AMReX/CartesianGridGeometry.cpp
@@ -349,6 +353,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         include/fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp
         include/fub/AMReX/multi_block/MultiBlockIntegratorContext.hpp
         include/fub/AMReX/multi_block/MultiBlockKineticSourceTerm.hpp
+        include/fub/AMReX/multi_block/MultiBlockIgniteDetonation.hpp
         src/AMReX/cutcell/BoundaryCondition.cpp
         src/AMReX/cutcell/IntegratorContext.cpp
         src/AMReX/cutcell/PatchHierarchy.cpp
@@ -364,7 +369,8 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         src/AMReX/multi_block/MultiBlockBoundary.cpp
         src/AMReX/multi_block/MultiBlockGriddingAlgorithm.cpp
         src/AMReX/multi_block/MultiBlockIntegratorContext.cpp
-        src/AMReX/multi_block/MultiBlockKineticSourceTerm.cpp)
+        src/AMReX/multi_block/MultiBlockKineticSourceTerm.cpp
+        src/AMReX/multi_block/MultiBlockIgniteDetonation.cpp)
     target_compile_options(FiniteVolumeSolver.AMReX.EB
       PRIVATE
         $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>

@@ -315,6 +315,10 @@ void WriteTubeData(std::ostream* out, const PatchHierarchy& hierarchy,
                    const IdealGasMix<1>& eq, fub::Duration time_point,
                    std::ptrdiff_t cycle_number, MPI_Comm comm);
 
+void WriteTubeData(std::string filename, const PatchHierarchy& hierarchy,
+                   const IdealGasMix<1>& eq, fub::Duration time_point,
+                   std::ptrdiff_t cycle_number, MPI_Comm comm);
+
 } // namespace amrex
 } // namespace fub
 

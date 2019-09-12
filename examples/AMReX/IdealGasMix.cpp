@@ -27,101 +27,9 @@
 
 #include <iostream>
 
+#include <fub/AMReX/IgniteDetonation.hpp>
 #include <fub/AMReX/boundary_condition/PressureValveBoundary.hpp>
 #include <xmmintrin.h>
-//
-//struct TemperatureRamp {
-//  using Complete = fub::IdealGasMix<1>::Complete;
-//
-//  fub::IdealGasMix<1> equation_;
-//  double ignition_pos_{-1.0};
-//  double air_position_{0.0};
-//  double equiv_raito_{1.0};
-//
-//  void InitializeData(::amrex::MultiFab& data, const ::amrex::Geometry& geom) {
-//    fub::FlameMasterReactor& reactor = equation_.GetReactor();
-//    const double high_temp = 1450.0;
-//    const double low_temp = 300.0;
-//    Complete complete(equation_);
-//    Complete burnt{equation_};
-//    Complete cold(equation_);
-//    Complete air(equation_);
-//
-//    double h2_moles = 42.0 * equiv_raito_;
-////    double o2_moles = std::max(21.0 - 0.5 * h2_moles, 0.0);
-//
-//    std::string fuel_moles = fmt::format("N2:79,O2:21,H2:{}", h2_moles);
-//    reactor.SetMoleFractions(fuel_moles);
-//    reactor.SetTemperature(low_temp);
-//    reactor.SetPressure(101325.0);
-//    equation_.CompleteFromReactor(cold);
-//
-//    reactor.SetMoleFractions("N2:79,O2:21");
-//    reactor.SetTemperature(low_temp);
-//    reactor.SetPressure(101325.0);
-//    equation_.CompleteFromReactor(air);
-//
-//    reactor.SetMoleFractions(fuel_moles);
-//    reactor.SetTemperature(high_temp);
-//    reactor.SetPressure(101325.0);
-//    equation_.CompleteFromReactor(burnt);
-//    reactor.Advance(1.0);
-//    equation_.CompleteFromReactor(burnt);
-//    reactor.SetDensity(cold.density);
-//    reactor.SetInternalEnergy(cold.energy / cold.density);
-//    equation_.CompleteFromReactor(burnt);
-//
-//    fub::amrex::ForEachFab(data, [&](const ::amrex::MFIter& mfi) {
-//      fub::View<Complete> states =
-//          fub::amrex::MakeView<Complete>(data[mfi], equation_, mfi.tilebox());
-//      fub::ForEachIndex(fub::Box<0>(states), [&](std::ptrdiff_t i) {
-//        double x[AMREX_SPACEDIM] = {};
-//        geom.CellCenter(::amrex::IntVect{int(i)}, x);
-//        if (x[0] < ignition_pos_) {
-//          fub::Store(states, burnt, {i});
-//        } else if (x[0] < ignition_pos_ + 0.05) {
-//          const double x0 = x[0] - ignition_pos_;
-//          const double d = std::clamp(x0 / 0.05, 0.0, 1.0);
-//          reactor.SetMoleFractions(fuel_moles);
-//          reactor.SetTemperature(d * low_temp + (1.0 - d) * high_temp);
-//          reactor.SetPressure(101325.0);
-//          equation_.CompleteFromReactor(complete);
-//          fub::Store(states, complete, {i});
-//        } else if (x[0] < air_position_) {
-//          fub::Store(states, cold, {i});
-//        } else {
-//          fub::Store(states, air, {i});
-//        }
-//      });
-//    });
-//  }
-//};
-
-struct Constant {
-  using Complete = fub::IdealGasMix<1>::Complete;
-
-  fub::IdealGasMix<1> equation_;
-
-  void InitializeData(::amrex::MultiFab& data, const ::amrex::Geometry& geom) {
-    fub::FlameMasterReactor& reactor = equation_.GetReactor();
-    constexpr double temp = 300.0;
-    constexpr double pressure = 101325.0;
-    Complete complete(equation_);
-
-    reactor.SetMoleFractions("N2:79,O2:21");
-    reactor.SetTemperature(temp);
-    reactor.SetPressure(pressure);
-    equation_.CompleteFromReactor(complete);
-
-    fub::amrex::ForEachFab(data, [&](const ::amrex::MFIter& mfi) {
-      fub::View<Complete> states =
-          fub::amrex::MakeView<Complete>(data[mfi], equation_, mfi.tilebox());
-      fub::ForEachIndex(fub::Box<0>(states), [&](std::ptrdiff_t i) {
-        fub::Store(states, complete, {i});
-      });
-    });
-  }
-};
 
 struct ProgramOptions {
   double final_time{0.20};
@@ -143,21 +51,20 @@ ParseCommandLine(int argc, char** argv) {
                                po::value<int>(&opts.max_refinement_level)
                                    ->default_value(opts.max_refinement_level),
                                "Set the maximal refinement level")(
-      "n_cells",
-      po::value<int>(&opts.n_cells)->default_value(opts.n_cells),
+      "n_cells", po::value<int>(&opts.n_cells)->default_value(opts.n_cells),
       "Set number of cells in each direction for the plenum")(
       "final_time",
       po::value<double>(&opts.final_time)->default_value(opts.final_time),
       "Set the final simulation time")(
       "domain_length",
-      po::value<double>(&opts.domain_length)
-          ->default_value(opts.domain_length),
+      po::value<double>(&opts.domain_length)->default_value(opts.domain_length),
       "Set the base length for the tube")(
       "output_interval",
       po::value<double>(&opts.output_interval)
           ->default_value(opts.output_interval),
       "Sets the output interval");
-  desc.add(fub::amrex::PressureValveBoundary::GetProgramOptions());
+  desc.add(fub::amrex::PressureValveOptions::GetCommandLineOptions());
+  desc.add(fub::amrex::IgniteDetonationOptions::GetCommandLineOptions());
   po::variables_map vm;
   try {
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -189,14 +96,15 @@ ParseCommandLine(int argc, char** argv) {
   amrex::Print() << fmt::format(
       "[Info] domain = [{}, {}] x [{}, {}] x [{}, {}]\n", xlo[0], xup[0],
       xlo[1], xup[1], xlo[2], xup[2]);
-  amrex::Print() << fmt::format(
-      "[Info] n_cells = {}\n[Info] dx = {}\n",
-      opts.n_cells, opts.domain_length / opts.n_cells);
+  amrex::Print() << fmt::format("[Info] n_cells = {}\n[Info] dx = {}\n",
+                                opts.n_cells,
+                                opts.domain_length / opts.n_cells);
 
   return std::make_pair(opts, vm);
 }
 
-void MyMain(const ProgramOptions& opts, const boost::program_options::variables_map& map) {
+void MyMain(const ProgramOptions& opts,
+            const boost::program_options::variables_map& map) {
   // Store a reference timepoint to measure the wall time duration
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
@@ -212,7 +120,8 @@ void MyMain(const ProgramOptions& opts, const boost::program_options::variables_
   const std::array<int, Dim> n_cells{AMREX_D_DECL(opts.n_cells, 1, 1)};
   const int nlevels = opts.max_refinement_level;
   const std::array<double, Dim> xlower{AMREX_D_DECL(0.0, 0.0, 0.0)};
-  const std::array<double, Dim> xupper{AMREX_D_DECL(opts.domain_length, +0.03, +0.03)};
+  const std::array<double, Dim> xupper{
+      AMREX_D_DECL(opts.domain_length, +0.03, +0.03)};
 
   // Define the equation which will be solved
   fub::Burke2012 mechanism{};
@@ -231,12 +140,9 @@ void MyMain(const ProgramOptions& opts, const boost::program_options::variables_
       std::make_pair(&Complete::temperature, 1e-1)};
 
   fub::amrex::BoundarySet boundary;
-  using fub::amrex::PressureValveBoundary;
   using fub::amrex::IsentropicPressureBoundary;
-  using fub::amrex::ReflectiveBoundary;
-  using fub::amrex::TransmissiveBoundary;
+  using fub::amrex::PressureValveBoundary;
   boundary.conditions.push_back(PressureValveBoundary{equation, map});
-  //  boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::X, 1});
   boundary.conditions.push_back(
       IsentropicPressureBoundary{equation, 101325.0, fub::Direction::X, 1});
 
@@ -244,29 +150,42 @@ void MyMain(const ProgramOptions& opts, const boost::program_options::variables_
   hier_opts.max_number_of_levels = nlevels;
   hier_opts.refine_ratio = ::amrex::IntVect{AMREX_D_DECL(2, 1, 1)};
 
+  fub::IdealGasMix<1>::Complete state(equation);
+  equation.GetReactor().SetMoleFractions("N2:79,O2:21");
+  equation.GetReactor().SetTemperature(300.0);
+  equation.GetReactor().SetPressure(101325.0);
+  equation.CompleteFromReactor(state);
+
+  using fub::amrex::ConstantData;
   std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
-      fub::amrex::PatchHierarchy(equation, geometry, hier_opts), Constant{equation},
-      gradient, boundary);
+      fub::amrex::PatchHierarchy(equation, geometry, hier_opts),
+      ConstantData{equation, state}, gradient, boundary);
   gridding->InitializeHierarchy(0.0);
   // }}}
 
   // Setup the numerical Method used to solve this problem.
   // {{{
-  fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>> signals{};
-  fub::HllMethod hll_method(equation, signals);
+//  fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>> signals{};
+//  fub::HllMethod hll_method(equation, signals);
+
+  fub::ideal_gas::MusclHancockPrimMethod<1> flux_method(equation);
 
   fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethod(fub::execution::simd, hll_method),
-      fub::amrex::ForwardIntegrator(fub::execution::simd),
-      fub::amrex::Reconstruction(fub::execution::simd, equation)};
+      fub::amrex::FluxMethod(fub::execution::seq, flux_method),
+      fub::amrex::ForwardIntegrator(fub::execution::seq),
+      fub::amrex::Reconstruction(fub::execution::seq, equation)};
 
   fub::DimensionalSplitLevelIntegrator system_solver(
       fub::int_c<1>, fub::amrex::IntegratorContext(gridding, method),
       fub::GodunovSplitting());
 
+  fub::amrex::IgniteDetonation ignite(equation, gridding);
+  fub::DimensionalSplitSystemSourceSolver ign_solver(system_solver, ignite,
+                                                     fub::GodunovSplitting{});
+
   fub::ideal_gas::KineticSourceTerm<1> source_term(equation, gridding);
 
-  fub::DimensionalSplitSystemSourceSolver solver(system_solver, source_term,
+  fub::DimensionalSplitSystemSourceSolver solver(ign_solver, source_term,
                                                  fub::StrangSplitting());
   // }}}
 
@@ -283,24 +202,16 @@ void MyMain(const ProgramOptions& opts, const boost::program_options::variables_
         fub::amrex::WritePlotFile(name, gridding->GetPatchHierarchy(),
                                   equation);
 
-        if (rank == 0) {
-          std::ofstream out(name + ".dat");
-          if (!out) {
-            throw std::runtime_error(fmt::format("Could not open {}.dat.\n", name));
-          }
-          fub::amrex::WriteTubeData(&out, gridding->GetPatchHierarchy(), equation,
-                                    timepoint, cycle,
-                                    solver.GetContext().GetMpiCommunicator());
-        } else {
-        fub::amrex::WriteTubeData(nullptr, gridding->GetPatchHierarchy(), equation,
-                                  timepoint, cycle,
-                                  solver.GetContext().GetMpiCommunicator());
-        }
+
+      fub::amrex::WriteTubeData(fmt::format("{}/Matlab/{:07}.dat", base_name, cycle), gridding->GetPatchHierarchy(),
+                                equation, timepoint, cycle,
+                                solver.GetContext().GetMpiCommunicator());
         amrex::Print() << "Finished output to '" << name << "'.\n";
       };
 
   using namespace std::literals::chrono_literals;
-  output(solver.GetGriddingAlgorithm(), solver.GetCycles(), solver.GetTimePoint());
+  output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
+         solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.cfl = opts.cfl;
   run_options.final_time = fub::Duration(opts.final_time);
@@ -313,7 +224,9 @@ int main(int argc, char** argv) {
   MPI_Init(nullptr, nullptr);
   {
     fub::amrex::ScopeGuard _{};
-    std::optional<std::pair<ProgramOptions, boost::program_options::variables_map>> po = ParseCommandLine(argc, argv);
+    std::optional<
+        std::pair<ProgramOptions, boost::program_options::variables_map>>
+        po = ParseCommandLine(argc, argv);
     if (po) {
       MyMain(std::get<0>(*po), std::get<1>(*po));
     }

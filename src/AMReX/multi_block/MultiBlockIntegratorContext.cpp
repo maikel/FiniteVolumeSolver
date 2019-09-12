@@ -372,6 +372,7 @@ void AverageFlux(span<double> average, const ::amrex::MultiFab& fluxes,
                  const ::amrex::EBFArrayBoxFactory& factory,
                  const ::amrex::Box& box, Direction dir, int side,
                  MPI_Comm comm) {
+  std::fill(average.begin(), average.end(), 0.0);
   const int d = static_cast<int>(dir);
   double local_total_area = 0.0;
   const ::amrex::MultiCutFab& betas = *factory.getAreaFrac()[d];
@@ -400,14 +401,14 @@ void AverageFlux(span<double> average, const ::amrex::MultiFab& fluxes,
       if (type == ::amrex::FabType::singlevalued) {
         const ::amrex::CutFab& area = betas[mfi];
         for (int component = 0; component < average.size(); ++component) {
-          ForEachIndex(mfi.validbox() & boundary, [&](auto... is) {
+          ForEachIndex(mfi.tilebox() & boundary, [&](auto... is) {
             ::amrex::IntVect iv{static_cast<int>(is)...};
             average[component] += area(iv) * fab(iv, component);
           });
         }
       } else if (type == ::amrex::FabType::regular) {
         for (int component = 0; component < average.size(); ++component) {
-          ForEachIndex(mfi.validbox() & boundary, [&](auto... is) {
+          ForEachIndex(mfi.tilebox() & boundary, [&](auto... is) {
             ::amrex::IntVect iv{static_cast<int>(is)...};
             average[component] += fab(iv, component);
           });
@@ -458,7 +459,8 @@ void MultiBlockIntegratorContext::ComputeNumericFluxes(int level, Duration dt,
       }
       ::amrex::IntVect iv = conn.side == 0 ? faces.bigEnd() : faces.smallEnd();
       ForEachFab(tube_fluxes, [&](const ::amrex::MFIter& mfi) {
-        if (mfi.validbox().contains(iv)) {
+        const ::amrex::Box box = mfi.tilebox();
+        if (box.contains(iv)) {
           ::amrex::FArrayBox& fab = tube_fluxes[mfi];
           fab(iv, 0) = average_flux[0];
           fab(iv, 1) = average_flux[1];

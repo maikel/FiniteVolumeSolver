@@ -22,6 +22,8 @@
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/ForEachIndex.hpp"
 
+#include <boost/filesystem.hpp>
+
 #ifdef AMREX_USE_EB
 #include "fub/AMReX/cutcell/IndexSpace.hpp"
 #include <AMReX_EB2.H>
@@ -79,7 +81,9 @@ PatchHierarchy::PatchHierarchy(DataDescription desc,
   }
 #ifdef AMREX_USE_EB
   auto shop = ::amrex::EB2::makeShop(::amrex::EB2::AllRegularIF());
-  index_spaces_ = cutcell::MakeIndexSpaces(shop, patch_level_geometry_[0], options.max_number_of_levels, options.refine_ratio);
+  index_spaces_ = cutcell::MakeIndexSpaces(shop, patch_level_geometry_[0],
+                                           options.max_number_of_levels,
+                                           options.refine_ratio);
 #endif
 }
 
@@ -131,7 +135,8 @@ PatchLevel& PatchHierarchy::GetPatchLevel(int level) {
   return patch_level_.at(static_cast<std::size_t>(level));
 }
 
-span<const ::amrex::EB2::IndexSpace*> PatchHierarchy::GetIndexSpaces() noexcept {
+span<const ::amrex::EB2::IndexSpace*>
+PatchHierarchy::GetIndexSpaces() noexcept {
   return index_spaces_;
 }
 
@@ -271,14 +276,13 @@ PatchHierarchy ReadCheckpointFile(const std::string& checkpointname,
   return hierarchy;
 }
 
-
-  void WriteMatlabData(std::ostream& out, const ::amrex::FArrayBox& fab,
+void WriteMatlabData(std::ostream& out, const ::amrex::FArrayBox& fab,
                      const fub::IdealGasMix<1>& eq,
-                       const ::amrex::Geometry& geom) {
+                     const ::amrex::Geometry& geom) {
   auto view = MakeView<const Complete<IdealGasMix<1>>>(fab, eq);
-  out << fmt::format("{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}",
-      "X", "Density", "VelocityX", "SpeedOfSound", "Temperature",
-      "Pressure", "Gamma", "HeatCapacityAtConstantPressure");
+  out << fmt::format("{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}", "X",
+                     "Density", "VelocityX", "SpeedOfSound", "Temperature",
+                     "Pressure", "Gamma", "HeatCapacityAtConstantPressure");
   const int nspecies = eq.GetReactor().GetNSpecies();
   span<const std::string> names = eq.GetReactor().GetSpeciesNames();
   for (int s = 0; s < nspecies - 1; ++s) {
@@ -311,11 +315,13 @@ PatchHierarchy ReadCheckpointFile(const std::string& checkpointname,
 #if AMREX_SPACEDIM == 3
 void WriteMatlabData(std::ostream& out, const ::amrex::FArrayBox& fab,
                      const fub::IdealGasMix<3>& eq,
-                       const ::amrex::Geometry& geom) {
+                     const ::amrex::Geometry& geom) {
   auto view = MakeView<const Complete<IdealGasMix<3>>>(fab, eq);
-  out << fmt::format("{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}",
-      "X", "Y", "Density", "VelocityX", "VelocityY", "VelocityZ", "SpeedOfSound", "Temperature",
-      "Pressure", "Gamma", "HeatCapacityAtConstantPressure");
+  out << fmt::format("{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}{:"
+                     "24s}{:24s}{:24s}",
+                     "X", "Y", "Z", "Density", "VelocityX", "VelocityY",
+                     "VelocityZ", "SpeedOfSound", "Temperature", "Pressure",
+                     "Gamma", "HeatCapacityAtConstantPressure");
   const int nspecies = eq.GetReactor().GetNSpecies();
   span<const std::string> names = eq.GetReactor().GetSpeciesNames();
   for (int s = 0; s < nspecies - 1; ++s) {
@@ -339,11 +345,12 @@ void WriteMatlabData(std::ostream& out, const ::amrex::FArrayBox& fab,
     const double gamma = view.gamma(i, j, k);
     const double c_p = view.c_p(i, j, k);
     const double pressure = view.pressure(i, j, k);
-    out << fmt::format("{:< 24.15e}{:< 24.15e}{:< 24.15e}{:< 24.15e}"
+    out << fmt::format("{:< 24.15e}{:< 24.15e}{:< 24.15e}{:< 24.15e}{:< 24.15e}"
                        "{:< 24.15e}{:< 24.15e}{:< 24.15e}{:< 24.15e}"
                        "{:< 24.15e}{:< 24.15e}{:< 24.15e}",
-                       x[0], x[1], density, velocity_x, velocity_y, velocity_z,
-                       speed_of_sound, temperature, pressure, gamma, c_p);
+                       x[0], x[1], x[2], density, velocity_x, velocity_y,
+                       velocity_z, speed_of_sound, temperature, pressure, gamma,
+                       c_p);
     for (int s = 0; s < nspecies; ++s) {
       out << fmt::format("{:< 24.15e}", view.species(i, j, k, s));
     }
@@ -352,10 +359,10 @@ void WriteMatlabData(std::ostream& out, const ::amrex::FArrayBox& fab,
 }
 #endif
 
-std::vector<double>
-GatherStates(const PatchHierarchy& hierarchy,
-             basic_mdspan<const double, extents<AMREX_SPACEDIM, dynamic_extent>> xs,
-             MPI_Comm comm) {
+std::vector<double> GatherStates(
+    const PatchHierarchy& hierarchy,
+    basic_mdspan<const double, extents<AMREX_SPACEDIM, dynamic_extent>> xs,
+    MPI_Comm comm) {
   const int nlevel = hierarchy.GetNumberOfLevels();
   const int finest_level = nlevel - 1;
   const int ncomp = hierarchy.GetDataDescription().n_state_components;
@@ -404,7 +411,6 @@ GatherStates(const PatchHierarchy& hierarchy,
   return result;
 }
 
-  
 void WriteTubeData(std::ostream* out, const PatchHierarchy& hierarchy,
                    const IdealGasMix<1>& eq, fub::Duration time_point,
                    std::ptrdiff_t cycle_number, MPI_Comm comm) {
@@ -433,7 +439,8 @@ void WriteTubeData(std::ostream* out, const PatchHierarchy& hierarchy,
       if (level > 0) {
         for (int comp = 1; comp < level_data.nComp(); ++comp) {
           for (int i = domain.smallEnd(0); i <= domain.bigEnd(0); ++i) {
-            ::amrex::IntVect fine_i{AMREX_D_DECL(i, domain.smallEnd(1), domain.smallEnd(2))};
+            ::amrex::IntVect fine_i{
+                AMREX_D_DECL(i, domain.smallEnd(1), domain.smallEnd(2))};
             ::amrex::IntVect coarse_i = fine_i;
             coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(level));
             if (fab(fine_i, 0) == 0.0) {
@@ -442,7 +449,8 @@ void WriteTubeData(std::ostream* out, const PatchHierarchy& hierarchy,
           }
         }
         for (int i = domain.smallEnd(0); i <= domain.bigEnd(0); ++i) {
-          ::amrex::IntVect fine_i{AMREX_D_DECL(i, domain.smallEnd(1), domain.smallEnd(2))};
+          ::amrex::IntVect fine_i{
+              AMREX_D_DECL(i, domain.smallEnd(1), domain.smallEnd(2))};
           ::amrex::IntVect coarse_i = fine_i;
           coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(level));
           if (fab(fine_i, 0) == 0.0) {
@@ -461,6 +469,27 @@ void WriteTubeData(std::ostream* out, const PatchHierarchy& hierarchy,
       ::MPI_Reduce(local_fab.dataPtr(), nullptr, local_fab.size(), MPI_DOUBLE,
                    MPI_SUM, 0, comm);
     }
+  }
+}
+
+void WriteTubeData(std::string filename, const PatchHierarchy& hierarchy,
+                   const IdealGasMix<1>& eq, fub::Duration time_point,
+                   std::ptrdiff_t cycle_number, MPI_Comm comm) {
+  int rank = -1;
+  MPI_Comm_rank(comm, &rank);
+  if (rank == 0) {
+    boost::filesystem::path path(filename);
+    boost::filesystem::path dir = path.parent_path();
+    boost::filesystem::create_directories(dir);
+    std::ofstream out(filename);
+    if (!out) {
+      throw std::runtime_error(fmt::format("Could not open {}.\n", filename));
+    }
+    fub::amrex::WriteTubeData(&out, hierarchy, eq, time_point, cycle_number,
+                              comm);
+  } else {
+    fub::amrex::WriteTubeData(nullptr, hierarchy, eq, time_point, cycle_number,
+                              comm);
   }
 }
 

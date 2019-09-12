@@ -18,38 +18,41 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_AMREX_HPP
-#define FUB_AMREX_HPP
-
-#include <AMReX.H>
-#include <AMReX_IntVect.H>
-
-#include "fub/AMReX/GriddingAlgorithm.hpp"
-#include "fub/AMReX/IntegratorContext.hpp"
-
-#include "fub/AMReX/ScopeGuard.hpp"
-
-#include "fub/AMReX/tagging/ConstantRegion.hpp"
-#include "fub/AMReX/tagging/GradientDetector.hpp"
-#include "fub/AMReX/tagging/TagBuffer.hpp"
-
-#include "fub/AMReX/boundary_condition/BoundarySet.hpp"
-#include "fub/AMReX/boundary_condition/IsentropicPressureBoundary.hpp"
-#include "fub/AMReX/boundary_condition/ReflectiveBoundary.hpp"
-#include "fub/AMReX/boundary_condition/TransmissiveBoundary.hpp"
-#include "fub/AMReX/boundary_condition/PressureValveBoundary.hpp"
-
-#include "fub/AMReX/initial_data/ConstantData.hpp"
+#ifndef FUB_AMREX_INITIAL_DATA_CONSTANT_DATA_HPP
+#define FUB_AMREX_INITIAL_DATA_CONSTANT_DATA_HPP
 
 #include "fub/AMReX/ForEachFab.hpp"
-#include "fub/AMReX/ForEachIndex.hpp"
-#include "fub/AMReX/Print.hpp"
+#include "fub/State.hpp"
 
-#include "fub/AMReX/FluxMethod.hpp"
-#include "fub/AMReX/Reconstruction.hpp"
-#include "fub/AMReX/TimeIntegrator.hpp"
+namespace fub::amrex {
 
-#include "fub/equations/ideal_gas_mix/KineticSourceTerm.hpp"
-#include "fub/AMReX/AxialSourceTerm.hpp"
+template <typename Equation> class ConstantData {
+public:
+  ConstantData(Equation eq, Complete<Equation> state);
+
+  void InitializeData(::amrex::MultiFab& mf,
+                      const ::amrex::Geometry& geom) const;
+
+private:
+  Equation equation_;
+  Complete<Equation> state_;
+};
+
+template <typename Equation>
+ConstantData<Equation>::ConstantData(Equation eq, Complete<Equation> state)
+    : equation_{std::move(eq)}, state_{std::move(state)} {}
+
+template <typename Equation>
+void ConstantData<Equation>::InitializeData(
+    ::amrex::MultiFab& mf, const ::amrex::Geometry& /* geom */) const {
+  ForEachFab(execution::openmp, mf, [&](const ::amrex::MFIter& mfi) {
+    ::amrex::FArrayBox& fab = mf[mfi];
+    auto view = MakeView<Complete<Equation>>(fab, equation_, mfi.tilebox());
+    ForEachIndex(Box<0>(view),
+                 [&](auto... is) { Store(view, state_, {is...}); });
+  });
+}
+
+} // namespace fub::amrex
 
 #endif
