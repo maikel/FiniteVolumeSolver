@@ -15,7 +15,7 @@ function [X, Y, Z, time, data, columns] = ReadPlenumData(directory_path)
   ny = sscanf(ny_string, 'ny = %d');
   nz_string = timestep.textdata{3};
   nz = sscanf(nz_string, 'nz = %d');
-  nspecies = length(timestep.colheaders) - 11;
+  nspecies = length(timestep.colheaders) - 12;
   
   columns = timestep.colheaders;
   

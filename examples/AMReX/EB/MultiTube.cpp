@@ -226,9 +226,9 @@ auto MakePlenumSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
   fub::ideal_gas::MusclHancockPrimMethod<Plenum_Rank> flux_method(equation);
   fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
 
-  HyperbolicMethod method{FluxMethod{fub::execution::openmp, cutcell_method},
+  HyperbolicMethod method{FluxMethod{fub::execution::openmp_simd, cutcell_method},
                           fub::amrex::cutcell::TimeIntegrator{},
-                          Reconstruction{fub::execution::openmp, equation}};
+                          Reconstruction{fub::execution::openmp_simd, equation}};
 
   return fub::amrex::cutcell::IntegratorContext(gridding, method);
 }
@@ -386,7 +386,7 @@ void MyMain(const boost::program_options::variables_map& vm) {
 
   std::vector<double> slice_xs = {-3e-3, 3e-3, 0.1, 0.2, 0.3, 0.4, 0.5 - 3e-3};
   std::vector<::amrex::Box> output_boxes{};
-  output_boxes.reserve(slice_xs.size());
+  output_boxes.reserve(slice_xs.size() + 1);
 
   std::transform(
       slice_xs.begin(), slice_xs.end(), std::back_inserter(output_boxes),
@@ -403,6 +403,20 @@ void MyMain(const boost::program_options::variables_map& vm) {
         slice_box.setBig(0, slice_box.smallEnd(0));
         return slice_box;
       });
+
+  output_boxes.push_back([&](double y0) {
+    const auto& plenum =
+    context.GetGriddingAlgorithm()->GetPlena()[0]->GetPatchHierarchy();
+    const int finest_level = plenum.GetNumberOfLevels() - 1;
+    const ::amrex::Geometry& geom = plenum.GetGeometry(finest_level);
+    const ::amrex::RealBox& probDomain = geom.ProbDomain();
+    const double xlo[] = {probDomain.lo(0), y0, probDomain.lo(2)};
+    const double* xhi = probDomain.hi();
+    const ::amrex::RealBox slice_x(xlo, xhi);
+    ::amrex::Box slice_box = BoxWhichContains(slice_x, geom);
+    slice_box.setBig(1, slice_box.smallEnd(1));
+    return slice_box;
+  }(0.0));
 
   auto output = [&](const std::shared_ptr<
                         fub::amrex::MultiBlockGriddingAlgorithm>& gridding,
@@ -424,7 +438,7 @@ void MyMain(const boost::program_options::variables_map& vm) {
         k = k + 1;
       }
       k = 0;
-      for (const ::amrex::Box& out_box : output_boxes) {
+      std::for_each(output_boxes.begin(), output_boxes.end() - 1, [&](const ::amrex::Box& out_box) {
         std::string name = fmt::format("{}/Matlab/Plenum_x{}/plt{:05}.dat",
                                        base_name, k, cycle);
         auto& plenum = gridding->GetPlena()[0];
@@ -434,7 +448,16 @@ void MyMain(const boost::program_options::variables_map& vm) {
                                            comm);
         ::amrex::Print() << "Finished output to '" << name << "'.\n";
         k = k + 1;
-      }
+      });
+      const ::amrex::Box out_box = output_boxes.back();
+      std::string name = fmt::format("{}/Matlab/Plenum_y0/plt{:05}.dat",
+                                     base_name, cycle);
+      auto& plenum = gridding->GetPlena()[0];
+      ::amrex::Print() << "Start output to '" << name << "'.\n";
+      fub::amrex::cutcell::Write2Dfrom3D(name, plenum->GetPatchHierarchy(),
+                                         out_box, equation, time_point, cycle,
+                                         comm);
+      ::amrex::Print() << "Finished output to '" << name << "'.\n";
     }
 
     //
@@ -486,7 +509,7 @@ void MyMain(const boost::program_options::variables_map& vm) {
   output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
          solver.GetTimePoint(), 0);
   fub::RunOptions run_options = fub::GetRunOptions(vm);
-  run_options.output_frequency.push_back(1);
+  run_options.output_interval.push_back(fub::Duration(1e-5));
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      fub::amrex::print);
 }
