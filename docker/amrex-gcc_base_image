@@ -1,5 +1,5 @@
-ARG GCC_VERSION
-FROM gcc:$GCC_VERSION
+ARG UBUNTU_VERSION
+FROM ubuntu:$UBUNTU_VERSION
 
 RUN apt-get update \
   && apt-get --yes dist-upgrade \

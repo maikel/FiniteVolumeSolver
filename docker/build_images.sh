@@ -6,7 +6,6 @@
 # Distributed under terms of the MIT license.
 #
 
-
 # This function builds a clang based image which containes a compiled AMReX version.
 # AMReX is built from the recent development branch on git.
 #
@@ -46,8 +45,20 @@ build_gcc_image() {
   COMPILER_ID="$1"
   AMREX_SPACEDIM="$2"
   GCC_VERSION=$(echo "${COMPILER_ID}" | sed 's/[^[0-9]*//g')
+  case "${GCC_VERSION}" in
+    7)
+      UBUNTU_VERSION="18.04"
+      ;;
+    8)
+      UBUNTU_VERSION="18.10"
+      ;;
+    9)
+      UBUNTU_VERSION="19.10"
+      ;;
+  esac
   docker build \
     -t "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:${AMREX_SPACEDIM}d_${COMPILER_ID}" \
+    --build-arg UBUNTU_VERSION="${UBUNTU_VERSION}" \
     --build-arg GCC_VERSION="${GCC_VERSION}" \
     --build-arg AMREX_SPACEDIM="${AMREX_SPACEDIM}" \
     --build-arg CACHEBUST="$(date +%s)" \
