@@ -215,17 +215,19 @@ private:
     ~LevelData() noexcept = default;
 
     /// Scratch space with ghost cell widths
-    std::array<::amrex::MultiFab, 3> scratch;
+    // std::array<::amrex::MultiFab, 3> scratch;
+    std::shared_ptr<SAMRAI::hier::PatchLevel> scratch;
 
     /// These arrays will store the fluxes for each patch level which is present
     /// in the patch hierarchy. These will need to be rebuilt if the
     /// PatchHierarchy changes.
-    std::array<::amrex::MultiFab, 3> fluxes;
+    // std::array<::amrex::MultiFab, 3> fluxes;
+    std::shared_ptr<SAMRAI::hier::PatchLevel> fluxes;
 
     /// FluxRegister accumulate fluxes on coarse fine interfaces between
     /// refinement level. These will need to be rebuilt whenever the hierarchy
     /// changes.
-    ::amrex::FluxRegister coarse_fine;
+    // ::amrex::FluxRegister coarse_fine;
 
     std::array<Duration, 3> time_point;
     std::array<Duration, 3> regrid_time_point;
