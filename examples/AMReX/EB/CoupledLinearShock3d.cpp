@@ -501,6 +501,20 @@ void MyMain(const ProgramOptions& po,
   tube_probes(0, 3) = -19.0 * 0.03;
   tube_probes(0, 4) = -24.0 * 0.03;
 
+  ::amrex::Box slice_box = [&](double z0) {
+    const auto& plenum =
+        context.GetGriddingAlgorithm()->GetPlena()[0]->GetPatchHierarchy();
+    const int finest_level = plenum.GetNumberOfLevels() - 1;
+    const ::amrex::Geometry& geom = plenum.GetGeometry(finest_level);
+    const ::amrex::RealBox& probDomain = geom.ProbDomain();
+    const double xlo[] = {probDomain.lo(0), z0, probDomain.lo(2)};
+    const double* xhi = probDomain.hi();
+    const ::amrex::RealBox slice_x(xlo, xhi);
+    ::amrex::Box slice_box = BoxWhichContains(slice_x, geom);
+    slice_box.setBig(2, slice_box.smallEnd(2));
+    return slice_box;
+  }(0.0);
+
   // Write Checkpoints 0min + every 5min
   //  const fub::Duration checkpoint_offest = std::chrono::minutes(5);
   //  fub::Duration next_checkpoint = std::chrono::minutes(0);
@@ -510,7 +524,7 @@ void MyMain(const ProgramOptions& po,
       [&](std::shared_ptr<fub::amrex::MultiBlockGriddingAlgorithm> gridding,
           auto cycle, auto timepoint, int output_num) {
         if (output_num == 0) {
-          ::amrex::Print() << "Start Checkpointing.\n";
+          ::amrex::Print() << "Checkpointing.\n";
           fub::amrex::WriteCheckpointFile(
               fmt::format("{}/Checkpoint/Tube_{:05}", base_name, cycle),
               gridding->GetTubes()[0]->GetPatchHierarchy());
@@ -523,28 +537,14 @@ void MyMain(const ProgramOptions& po,
           fub::amrex::cutcell::WritePlotFile(
               fmt::format("{}/Plotfile/Plenum_plt{}", base_name, cycle),
               gridding->GetPlena()[0]->GetPatchHierarchy(), equation);
-          ::amrex::Print() << "Finish Checkpointing.\n";
-
-          ::amrex::Print() << "Begin Matlab Output.\n";
-          std::ofstream out(
-              fmt::format("{}/Plenum_{:05}.dat", base_name, cycle),
-              std::ios::trunc);
           fub::amrex::cutcell::Write2Dfrom3D(
-              out, gridding->GetPlena()[0]->GetPatchHierarchy(), equation,
+              fmt::format("{}/Plenum_{:05}.dat", base_name, cycle),
+              gridding->GetPlena()[0]->GetPatchHierarchy(), slice_box, equation,
               timepoint, cycle, context.GetMpiCommunicator());
-          if (rank == 0) {
-            out = std::ofstream(
-                fmt::format("{}/Tube_{:05}.dat", base_name, cycle),
-                std::ios::trunc);
-            fub::amrex::WriteTubeData(
-                &out, gridding->GetTubes()[0]->GetPatchHierarchy(),
-                tube_equation, timepoint, cycle, context.GetMpiCommunicator());
-          } else {
-            fub::amrex::WriteTubeData(
-                nullptr, gridding->GetTubes()[0]->GetPatchHierarchy(),
-                tube_equation, timepoint, cycle, context.GetMpiCommunicator());
-          }
-          ::amrex::Print() << "End Matlab Output.\n";
+          fub::amrex::WriteTubeData(
+              fmt::format("{}/Tube_{:05}.dat", base_name, cycle),
+              gridding->GetTubes()[0]->GetPatchHierarchy(), tube_equation,
+              timepoint, cycle, context.GetMpiCommunicator());
         }
         if (output_num >= 0) {
           ::amrex::Print() << "Start Output for Probes.\n";
