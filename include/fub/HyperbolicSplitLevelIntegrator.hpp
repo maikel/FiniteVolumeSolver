@@ -160,15 +160,17 @@ DimensionalSplitLevelIntegrator<R, Context, SplitMethod>::GetSplitMethod() const
 template <int Rank, typename Context, typename SplitMethod>
 Duration
 DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::ComputeStableDt() {
+  for (int level_num = 0; Context::LevelExists(level_num); ++level_num) {
+    if (level_num > 0) {
+      Context::FillGhostLayerTwoLevels(level_num, level_num - 1);
+    } else {
+      Context::FillGhostLayerSingleLevel(level_num);
+    }
+  }
   auto ComputeStableDt_Split = [this](Direction dir) -> Duration {
     int refine_ratio = 1;
     double coarse_dt = std::numeric_limits<double>::infinity();
     for (int level_num = 0; Context::LevelExists(level_num); ++level_num) {
-      if (level_num > 0) {
-        Context::FillGhostLayerTwoLevels(level_num, level_num - 1);
-      } else {
-        Context::FillGhostLayerSingleLevel(level_num);
-      }
       const double level_dt = Context::ComputeStableDt(level_num, dir).count();
       refine_ratio *= Context::GetRatioToCoarserLevel(level_num).max();
       coarse_dt = std::min(refine_ratio * level_dt, coarse_dt);
