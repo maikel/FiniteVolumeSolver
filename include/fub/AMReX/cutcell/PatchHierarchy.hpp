@@ -289,11 +289,11 @@ PatchHierarchy ReadCheckpointFile(const std::string& checkpointname,
                                   const PatchHierarchyOptions& options);
 
 
-void Write2Dfrom3D(std::ostream* out, const PatchHierarchy& hierarchy, const ::amrex::Box& finest_box,
-                 const IdealGasMix<3>& eq, fub::Duration time_point,
-                 std::ptrdiff_t cycle_number, MPI_Comm comm);
+//void Write2Dfrom3D(std::ostream* out, const PatchHierarchy& hierarchy, const ::amrex::Box& finest_box,
+//                 const IdealGasMix<3>& eq, fub::Duration time_point,
+//                 std::ptrdiff_t cycle_number, MPI_Comm comm);
 
-void Write2Dfrom3D(std::string name, const PatchHierarchy& hierarchy, const ::amrex::Box& finest_box,
+void Write2Dfrom3D(const std::string& name, const PatchHierarchy& hierarchy, const ::amrex::Box& finest_box,
                    const IdealGasMix<3>& eq, fub::Duration time_point,
                    std::ptrdiff_t cycle_number, MPI_Comm comm);
 
