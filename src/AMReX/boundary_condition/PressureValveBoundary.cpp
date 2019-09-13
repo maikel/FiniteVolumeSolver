@@ -209,41 +209,49 @@ double ChangeState_(PressureValveState& state, const ::amrex::Geometry& geom,
   const double xlo = geom.ProbDomain().lo(0) + dx_2;
   const double xhi = geom.ProbDomain().hi(0) - dx_2;
   const Duration current_time = grid.GetPatchHierarchy().GetTimePoint(0);
-  const Duration next_time = last_opened + options.open_at_interval;
+  const Duration next_time = (last_opened.count() < 0.0) ? Duration{0.0} : last_opened + options.open_at_interval;
   switch (state) {
   case PressureValveState::closed:
-    if (next_time < current_time &&
-        mean_pressure < options.pressure_value_which_opens_boundary) {
+    if (mean_pressure < options.pressure_value_which_opens_boundary) {
       state = PressureValveState::open_air;
-      last_opened = next_time;
+      ::amrex::Print() << fmt::format("[Info][t = {}] pressure valve opened for air!\n", grid.GetPatchHierarchy().GetTimePoint().count());
     }
     break;
   case PressureValveState::open_air:
   case PressureValveState::open_fuel:
     if (mean_pressure > options.pressure_value_which_closes_boundary) {
       state = PressureValveState::closed;
+      ::amrex::Print() << fmt::format("[Info][t = {}] pressure valve closed!\n", grid.GetPatchHierarchy().GetTimePoint().count());
     }
     break;
   }
-  if (state == PressureValveState::open_air) {
+  if (next_time <= current_time &&
+      state == PressureValveState::open_air) {
     const double x_air =
         std::clamp(options.oxygen_measurement_position, xlo, xhi);
     std::vector<double> moles = GatherMoles_(grid, x_air, eq);
     const double sum = std::accumulate(moles.begin(), moles.end(), 0.0);
-    std::transform(moles.begin(), moles.end(), moles.begin(),
-                   [sum](double m) { return m / sum; });
+    FUB_ASSERT(sum >= 0.0);
+    if (sum > 0.0) {
+      std::transform(moles.begin(), moles.end(), moles.begin(),
+                     [sum](double m) { return m / sum; });
+    }
     if (options.oxygen_measurement_criterium < moles[Burke2012::sO2]) {
       state = PressureValveState::open_fuel;
+      last_opened = next_time;
+      ::amrex::Print() << fmt::format("[Info][t = {}] pressure valve changed to fuel!\n", grid.GetPatchHierarchy().GetTimePoint().count());
     }
   } else if (state == PressureValveState::open_fuel) {
     const double x_fuel =
     std::clamp(options.fuel_measurement_position, xlo, xhi);
     std::vector<double> moles = GatherMoles_(grid, x_fuel, eq);
-    const double eqr = 0.5 * moles[Burke2012::sH2] / moles[Burke2012::sO2];
+    const double eqr = moles[Burke2012::sO2] ? 0.5 * moles[Burke2012::sH2] / moles[Burke2012::sO2] : 0.0;
     if (eqr > options.fuel_measurement_criterium) {
       state = PressureValveState::closed;
+      ::amrex::Print() << fmt::format("[Info][t = {}] pressure valve closed!\n", grid.GetPatchHierarchy().GetTimePoint().count());
     }
   }
+
   return mean_pressure;
 }
 
