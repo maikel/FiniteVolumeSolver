@@ -400,30 +400,30 @@ namespace {
 } // namespace
 
 #if AMREX_SPACEDIM == 3
-void Write2Dfrom3D(std::string name, const PatchHierarchy& hierarchy,
-                   const ::amrex::Box& finest_box, const IdealGasMix<3>& eq,
-                   fub::Duration time_point, std::ptrdiff_t cycle_number,
-                   MPI_Comm comm) {
-  int rank = -1;
-  MPI_Comm_rank(comm, &rank);
-  if (rank == 0) {
-    boost::filesystem::path path(name);
-    boost::filesystem::path dir = path.parent_path();
-    boost::filesystem::create_directories(dir);
-    std::ofstream out(name);
-    if (!out) {
-      throw std::runtime_error("Could not open output file!");
-    }
-    Write2Dfrom3D(&out, hierarchy, finest_box, eq, time_point, cycle_number,
-                  comm);
-  } else {
-    Write2Dfrom3D(nullptr, hierarchy, finest_box, eq, time_point, cycle_number,
-                  comm);
-  }
-}
+//void Write2Dfrom3D(std::string name, const PatchHierarchy& hierarchy,
+//                   const ::amrex::Box& finest_box, const IdealGasMix<3>& eq,
+//                   fub::Duration time_point, std::ptrdiff_t cycle_number,
+//                   MPI_Comm comm) {
+//  int rank = -1;
+//  MPI_Comm_rank(comm, &rank);
+//  if (rank == 0) {
+//    boost::filesystem::path path(name);
+//    boost::filesystem::path dir = path.parent_path();
+//    boost::filesystem::create_directories(dir);
+//    std::ofstream out(name);
+//    if (!out) {
+//      throw std::runtime_error("Could not open output file!");
+//    }
+//    Write2Dfrom3D(&out, hierarchy, finest_box, eq, time_point, cycle_number,
+//                  comm);
+//  } else {
+//    Write2Dfrom3D(nullptr, hierarchy, finest_box, eq, time_point, cycle_number,
+//                  comm);
+//  }
+//}
 
-void Write2Dfrom3D(std::ostream* out, const PatchHierarchy& hierarchy,
-                   const ::amrex::Box& finest_box, const IdealGasMix<3>& eq,
+void Write2Dfrom3D(const std::string& name, const PatchHierarchy& hierarchy,
+                   const ::amrex::Box& finest_box, const IdealGasMix<3>& /* eq */,
                    fub::Duration time_point, std::ptrdiff_t cycle_number,
                    MPI_Comm comm) {
   const std::size_t n_level =
@@ -446,10 +446,9 @@ void Write2Dfrom3D(std::ostream* out, const PatchHierarchy& hierarchy,
   fabs.reserve(n_level);
   for (std::size_t level = 0; level < n_level; ++level) {
     const int ilvl = static_cast<int>(level);
-    const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(ilvl);
     ::amrex::Box domain = boxes[level];
-    ::amrex::RealBox probDomain = GetProbDomain_(level_geom, domain);
-    ::amrex::Geometry& geom = geoms.emplace_back(domain, &probDomain);
+//    ::amrex::RealBox probDomain = GetProbDomain_(level_geom, domain);
+//    ::amrex::Geometry& geom = geoms.emplace_back(domain, &probDomain);
     const ::amrex::MultiFab& level_data = hierarchy.GetPatchLevel(ilvl).data;
     ::amrex::FArrayBox local_fab(domain, level_data.nComp());
     local_fab.setVal(0.0);
@@ -494,13 +493,24 @@ void Write2Dfrom3D(std::ostream* out, const PatchHierarchy& hierarchy,
         }
       }
       if (level == n_level - 1) {
-        (*out) << fmt::format("nx = {}\n", domain.length(0));
-        (*out) << fmt::format("ny = {}\n", domain.length(1));
-        (*out) << fmt::format("nz = {}\n", domain.length(2));
-        (*out) << fmt::format("t = {}\n", time_point.count());
-        (*out) << fmt::format("cycle = {}\n", cycle_number);
-        WriteMatlabData(*out, fab, eq, geom);
-        out->flush();
+        boost::filesystem::path path(name);
+        boost::filesystem::path dir = path.parent_path();
+        boost::filesystem::create_directories(dir);
+        // Write Header File
+        {
+          const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(ilvl);
+          std::ofstream out(name);
+          out << fmt::format("size = ({}, {}, {}, {})\n", domain.length(0), domain.length(1), domain.length(2), fab.nComp());
+          out << fmt::format("dx = ({}, {}, {})\n", level_geom.CellSize(0), level_geom.CellSize(1), level_geom.CellSize(2));
+          out << fmt::format("x0 = ({}, {}, {})\n", level_geom.CellCenter(domain.smallEnd(0), 0), level_geom.CellCenter(domain.smallEnd(1), 1), level_geom.CellCenter(domain.smallEnd(2), 2));
+          out << fmt::format("t = {}\n", time_point.count());
+          out << fmt::format("cycle = {}\n", cycle_number);
+          out << fmt::format("data_file = {}.bin\n", path.filename().string());
+        }
+        // Dump binary data
+        std::ofstream bin(name + ".bin", std::ios::binary);
+        char* pointer = static_cast<char*>(static_cast<void*>(fab.dataPtr()));
+        bin.write(pointer, fab.size() * sizeof(double));
       }
     } else {
       ::MPI_Reduce(local_fab.dataPtr(), nullptr, local_fab.size(), MPI_DOUBLE,
