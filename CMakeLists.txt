@@ -325,6 +325,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
       FiniteVolumeSolver.Solver
       AMReX::amrex
       Boost::boost
+      Boost::filesystem
       Eigen3::Eigen)
 
   if (AMReX_EB_FOUND) 

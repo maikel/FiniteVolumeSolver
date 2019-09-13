@@ -85,7 +85,7 @@ private:
   PressureValveOptions options_;
   IdealGasMix<1> equation_;
   PressureValveState state_;
-  Duration last_opened_{0.0};
+  Duration last_opened_{-std::numeric_limits<double>::infinity()};
 
   friend class boost::serialization::access;
   template <typename Archive>
