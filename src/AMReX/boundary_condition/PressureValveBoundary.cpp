@@ -107,7 +107,7 @@ PressureValveOptions::GetCommandLineOptions(std::string prefix) {
 PressureValveBoundary::PressureValveBoundary(const IdealGasMix<1>& equation,
                                              PressureValveOptions options)
     : options_{std::move(options)}, equation_{equation},
-      state_{PressureValveState::open_air} {}
+  shared_valve_{std::make_shared<PressureValve>(PressureValve{})} {}
 
 PressureValveOptions::PressureValveOptions(const po::variables_map& map) {
   outer_pressure = map["outer_pressure"].as<double>();
@@ -302,10 +302,10 @@ void PressureValveBoundary::FillBoundary(::amrex::MultiFab& mf,
 
   // Change State Machine if neccessary
   const double mean_pressure =
-      ChangeState_(state_, geom, grid, last_opened_, options_, equation_);
+      ChangeState_(shared_valve_->state, geom, grid, shared_valve_->last_opened, options_, equation_);
 
   ReflectiveBoundary closed(execution::openmp, equation_, Direction::X, 0);
-  switch (state_) {
+  switch (shared_valve_->state) {
   case PressureValveState::closed:
     closed.FillBoundary(mf, geom);
     break;
@@ -326,7 +326,7 @@ void PressureValveBoundary::FillBoundary(::amrex::MultiFab& mf,
                                      &states](std::ptrdiff_t i, auto...) {
             std::array<std::ptrdiff_t, 1> dest{i};
             equation_.GetReactor().SetMoleFractions(
-                GetMolesString_(options_, state_));
+                GetMolesString_(options_, shared_valve_->state));
             equation_.GetReactor().SetTemperature(options_.outer_temperature);
             equation_.GetReactor().SetPressure(options_.outer_pressure);
             equation_.CompleteFromReactor(state);

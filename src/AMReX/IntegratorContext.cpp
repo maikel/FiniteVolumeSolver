@@ -385,7 +385,9 @@ void IntegratorContext::PreAdvanceLevel(int level_num, Duration, int subcycle) {
 Result<void, TimeStepTooLarge>
 IntegratorContext::PostAdvanceLevel(int level_num, Duration dt, int) {
   SetCycles(GetCycles(level_num) + 1, level_num);
-  SetTimePoint(GetTimePoint(level_num) + dt, level_num);
+  double timepoint = (GetTimePoint(level_num) + dt).count();
+  ::MPI_Bcast(&timepoint, 1, MPI_DOUBLE, 0, GetMpiCommunicator());
+  SetTimePoint(Duration(timepoint), level_num);
   PatchLevel& level = GetPatchHierarchy().GetPatchLevel(level_num);
   level.time_point = GetTimePoint(level_num);
   level.cycles = GetCycles(level_num);

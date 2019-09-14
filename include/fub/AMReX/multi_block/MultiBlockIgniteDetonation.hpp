@@ -24,6 +24,9 @@
 #include "fub/AMReX/IgniteDetonation.hpp"
 #include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp"
 
+#include <boost/serialization/access.hpp>
+#include <boost/serialization/vector.hpp>
+
 #include <vector>
 
 namespace fub::amrex {
@@ -45,8 +48,18 @@ public:
   [[nodiscard]] Result<void, TimeStepTooLarge> AdvanceLevel(int level,
                                                             Duration dt);
 
+  [[nodiscard]] std::vector<Duration> GetLastIgnitionTimePoints() const;
+  void SetLastIgnitionTimePoints(span<const Duration> timepoints);
+
 private:
   std::vector<IgniteDetonation> source_terms_;
+
+  friend class boost::serialization::access;
+  template<class Archive>
+  void serialize(Archive & ar, unsigned int /* version */)
+  {
+    ar & source_terms_;
+  }
 };
 
 } // namespace fub::amrex

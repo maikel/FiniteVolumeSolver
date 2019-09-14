@@ -93,6 +93,10 @@ public:
     return last_ignition_;
   }
 
+  void SetLastIgnitionTimePoint(Duration t) noexcept {
+    last_ignition_ = t;
+  }
+
 private:
   IdealGasMix<1> equation_;
   std::shared_ptr<GriddingAlgorithm> gridding_;
@@ -104,14 +108,12 @@ private:
   void serialize(Archive& ar, unsigned int version);
 };
 
-
-
 template <typename Archive>
 void IgniteDetonation::serialize(Archive& ar, unsigned int /* version */) {
-  ar& options_;
-  double count = last_ignition_.count();
-  ar& count;
-  last_ignition_ = Duration(count);
+  // clang-format off
+  ar & options_;
+  ar & last_ignition_;
+  // clang-format on
 }
 
 } // namespace fub::amrex
@@ -121,13 +123,15 @@ namespace boost::serialization {
 template <typename Archive>
 void serialize(Archive& ar, ::fub::amrex::IgniteDetonationOptions& opts,
                unsigned int /* version */) {
-  ar& opts.equivalence_ratio_criterium;
-  ar& opts.measurement_position;
-  ar& opts.ramp_width;
-  ar& opts.temperature_high;
-  ar& opts.temperature_low;
-  ar& opts.ignite_interval;
-  ar& opts.ignite_position;
+  // clang-format off
+  ar & opts.equivalence_ratio_criterium;
+  ar & opts.measurement_position;
+  ar & opts.ramp_width;
+  ar & opts.temperature_high;
+  ar & opts.temperature_low;
+  ar & opts.ignite_interval;
+  ar & opts.ignite_position;
+  // clang-format on
 }
 
 } // namespace boost::serialization

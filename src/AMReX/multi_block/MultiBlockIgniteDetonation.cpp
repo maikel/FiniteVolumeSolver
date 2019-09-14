@@ -39,4 +39,21 @@ MultiBlockIgniteDetonation::AdvanceLevel(int level, Duration dt) {
   return boost::outcome_v2::success();
 }
 
+  std::vector<Duration> MultiBlockIgniteDetonation::GetLastIgnitionTimePoints() const {
+    std::vector<Duration> times{};
+    times.reserve(source_terms_.size());
+    std::transform(source_terms_.begin(), source_terms_.end(), std::back_inserter(times), [](const IgniteDetonation& ign) {
+      return ign.GetLastIgnitionTimePoint();
+    });
+    return times;
+  }
+
+  void MultiBlockIgniteDetonation::SetLastIgnitionTimePoints(span<const Duration> timepoints) {
+    int k = 0;
+    for (Duration t_ign : timepoints) {
+      source_terms_[k].SetLastIgnitionTimePoint(t_ign);
+      k += 1;
+    }
+  }
+
 }
