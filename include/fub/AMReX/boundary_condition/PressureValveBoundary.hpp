@@ -68,6 +68,11 @@ namespace fub::amrex {
 
 enum class PressureValveState { open_air, open_fuel, closed };
 
+struct PressureValve {
+  PressureValveState state{PressureValveState::open_air};
+  Duration last_opened{-std::numeric_limits<double>::infinity()};
+};
+
 class PressureValveBoundary {
 public:
   PressureValveBoundary(const IdealGasMix<1>& equation,
@@ -81,33 +86,30 @@ public:
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
                     Duration dt, const GriddingAlgorithm&);
 
+  const std::shared_ptr<PressureValve>& GetSharedState() const noexcept {
+    return shared_valve_;
+  }
+
 private:
   PressureValveOptions options_;
   IdealGasMix<1> equation_;
-  PressureValveState state_;
-  Duration last_opened_{-std::numeric_limits<double>::infinity()};
-
-  friend class boost::serialization::access;
-  template <typename Archive>
-  void serialize(Archive& ar, unsigned int version);
+  std::shared_ptr<PressureValve> shared_valve_;
 };
-
-
-
-template <typename Archive>
-void PressureValveBoundary::serialize(Archive& ar, unsigned int /* version */) {
-  ar & options_;
-  int state = static_cast<int>(state_);
-  ar & state;
-  state_ = static_cast<PressureValveState>(state);
-  double count = last_opened_.count();
-  ar & count;
-  last_opened_ = Duration(count);
-}
 
 } // namespace fub::amrex
 
 namespace boost::serialization {
+
+template <typename Archive>
+void serialize(Archive& ar, ::fub::amrex::PressureValve& valve,
+               unsigned int /* version */) {
+  int state = static_cast<int>(valve.state);
+  ar & state;
+  valve.state = static_cast<::fub::amrex::PressureValveState>(state);
+  double count = valve.last_opened.count();
+  ar & count;
+  valve.last_opened = ::fub::Duration(count);
+}
 
 template <typename Archive>
 void serialize(Archive& ar, ::fub::amrex::PressureValveOptions& opts,

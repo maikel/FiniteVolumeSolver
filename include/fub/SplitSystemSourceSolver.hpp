@@ -63,6 +63,12 @@ public:
 
   // Accessors
 
+  SystemSolver& GetSystem() noexcept { return system_solver_; }
+  const SystemSolver& GetSystem() const noexcept { return system_solver_; }
+
+  SourceTerm& GetSource() noexcept { return source_term_; }
+  const SourceTerm& GetSource() const noexcept { return source_term_; }
+
   auto& GetContext() noexcept;
 
   const auto& GetContext() const noexcept;

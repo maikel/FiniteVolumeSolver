@@ -146,6 +146,7 @@ IgniteDetonation::AdvanceLevel(int level, fub::Duration /* dt */) {
         });
       });
       last_ignition_ = current_time;
+      ::amrex::Print() << fmt::format("[Info][t = {}] Detonation Ignited!\n", last_ignition_.count());
     }
   }
   return boost::outcome_v2::success();

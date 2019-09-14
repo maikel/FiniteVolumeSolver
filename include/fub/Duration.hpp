@@ -23,9 +23,22 @@
 
 #include <chrono>
 
+#include <boost/serialization/access.hpp>
+
 namespace fub {
 
 using Duration = std::chrono::duration<double>;
+
+}
+
+namespace boost::serialization {
+
+template <typename Archive>
+void serialize(Archive& ar, ::fub::Duration t, unsigned int) {
+  double count = t.count();
+  ar & count;
+  t = ::fub::Duration(count);
+}
 
 }
 

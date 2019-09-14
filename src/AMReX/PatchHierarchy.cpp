@@ -177,7 +177,7 @@ void WriteCheckpointFile(const std::string checkpointname,
     hout.precision(17);
 
     // write out title line
-    hout << "Checkpoint file for AmrCoreAdv\n";
+    hout << "Checkpoint File\n";
 
     // write out finest_level
     hout << nlevels - 1 << '\n';
