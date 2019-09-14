@@ -356,8 +356,9 @@ void WriteCheckpoint(
       std::ofstream valve_checkpoint(valve);
       boost::archive::text_oarchive oa(valve_checkpoint);
       oa << *valves[k];
-      k = k + 1;
     }
+
+    k = k + 1;
   }
   std::string name = fmt::format("{}/Plenum", path);
   fub::amrex::cutcell::WriteCheckpointFile(
