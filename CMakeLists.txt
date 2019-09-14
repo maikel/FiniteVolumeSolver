@@ -7,7 +7,7 @@ set(default_build_type "Release")
 if(EXISTS "${CMAKE_SOURCE_DIR}/.git")
   set(default_build_type "Debug")
 endif()
- 
+
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(STATUS "Setting build type to '${default_build_type}' as none was specified.")
   set(CMAKE_BUILD_TYPE "${default_build_type}" CACHE
@@ -24,7 +24,7 @@ endif()
 # linker options.
 if (EXISTS ${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
   include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-  conan_basic_setup()
+  conan_basic_setup(TARGETS)
 endif()
 
 # Try to find SAMRAI (optional)
@@ -50,7 +50,12 @@ else()
   option(FUB_WITH_AMREX "Compile with AMReX modules." OFF)
 endif()
 
-find_package(Eigen3 3.3 REQUIRED NO_MODULE)
+if (TARGET CONAN_PKG::eigen)
+  add_library(Eigen3::Eigen IMPORTED INTERFACE)
+  target_link_libraries(Eigen3::Eigen INTERFACE CONAN_PKG::eigen)
+else()
+  find_package(Eigen3 3.3 REQUIRED NO_MODULE)
+endif()
 
 # Attempt to find Sundials (which contains an optional ODE solver)
 find_package(Sundials QUIET)
