@@ -400,7 +400,7 @@ namespace {
 } // namespace
 
 #if AMREX_SPACEDIM == 3
-//void Write2Dfrom3D(std::string name, const PatchHierarchy& hierarchy,
+// void Write2Dfrom3D(std::string name, const PatchHierarchy& hierarchy,
 //                   const ::amrex::Box& finest_box, const IdealGasMix<3>& eq,
 //                   fub::Duration time_point, std::ptrdiff_t cycle_number,
 //                   MPI_Comm comm) {
@@ -417,15 +417,16 @@ namespace {
 //    Write2Dfrom3D(&out, hierarchy, finest_box, eq, time_point, cycle_number,
 //                  comm);
 //  } else {
-//    Write2Dfrom3D(nullptr, hierarchy, finest_box, eq, time_point, cycle_number,
+//    Write2Dfrom3D(nullptr, hierarchy, finest_box, eq, time_point,
+//    cycle_number,
 //                  comm);
 //  }
 //}
 
 void Write2Dfrom3D(const std::string& name, const PatchHierarchy& hierarchy,
-                   const ::amrex::Box& finest_box, const IdealGasMix<3>& /* eq */,
-                   fub::Duration time_point, std::ptrdiff_t cycle_number,
-                   MPI_Comm comm) {
+                   const ::amrex::Box& finest_box,
+                   const IdealGasMix<3>& /* eq */, fub::Duration time_point,
+                   std::ptrdiff_t cycle_number, MPI_Comm comm) {
   const std::size_t n_level =
       static_cast<std::size_t>(hierarchy.GetNumberOfLevels());
   std::vector<::amrex::Geometry> geoms{};
@@ -447,8 +448,8 @@ void Write2Dfrom3D(const std::string& name, const PatchHierarchy& hierarchy,
   for (std::size_t level = 0; level < n_level; ++level) {
     const int ilvl = static_cast<int>(level);
     ::amrex::Box domain = boxes[level];
-//    ::amrex::RealBox probDomain = GetProbDomain_(level_geom, domain);
-//    ::amrex::Geometry& geom = geoms.emplace_back(domain, &probDomain);
+    //    ::amrex::RealBox probDomain = GetProbDomain_(level_geom, domain);
+    //    ::amrex::Geometry& geom = geoms.emplace_back(domain, &probDomain);
     const ::amrex::MultiFab& level_data = hierarchy.GetPatchLevel(ilvl).data;
     ::amrex::FArrayBox local_fab(domain, level_data.nComp());
     local_fab.setVal(0.0);
@@ -500,9 +501,14 @@ void Write2Dfrom3D(const std::string& name, const PatchHierarchy& hierarchy,
         {
           const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(ilvl);
           std::ofstream out(name);
-          out << fmt::format("size = ({}, {}, {}, {})\n", domain.length(0), domain.length(1), domain.length(2), fab.nComp());
-          out << fmt::format("dx = ({}, {}, {})\n", level_geom.CellSize(0), level_geom.CellSize(1), level_geom.CellSize(2));
-          out << fmt::format("x0 = ({}, {}, {})\n", level_geom.CellCenter(domain.smallEnd(0), 0), level_geom.CellCenter(domain.smallEnd(1), 1), level_geom.CellCenter(domain.smallEnd(2), 2));
+          out << fmt::format("size = ({}, {}, {}, {})\n", domain.length(0),
+                             domain.length(1), domain.length(2), fab.nComp());
+          out << fmt::format("dx = ({}, {}, {})\n", level_geom.CellSize(0),
+                             level_geom.CellSize(1), level_geom.CellSize(2));
+          out << fmt::format("x0 = ({}, {}, {})\n",
+                             level_geom.CellCenter(domain.smallEnd(0), 0),
+                             level_geom.CellCenter(domain.smallEnd(1), 1),
+                             level_geom.CellCenter(domain.smallEnd(2), 2));
           out << fmt::format("t = {}\n", time_point.count());
           out << fmt::format("cycle = {}\n", cycle_number);
           out << fmt::format("data_file = {}.bin\n", path.filename().string());
