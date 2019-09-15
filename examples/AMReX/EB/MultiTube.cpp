@@ -68,6 +68,26 @@ struct TubeSolverOptions {
   double phi{0.0};
 };
 
+std::string ReadAndBroadcastFile(std::string filepath, MPI_Comm comm) {
+  int rank = -1;
+  MPI_Comm_rank(comm, &rank);
+  std::string buffer{};
+  int size = -1;
+  if (rank == 0) {
+    std::ifstream file(filepath);
+    file.seekg(0, std::ios::end);
+    size = static_cast<int>(file.tellg());
+  }
+  MPI_Bcast(&size, 1, MPI_INT, 0, comm);
+  buffer.resize(size);
+  if (rank == 0) {
+    std::ifstream file(filepath);
+    file.read(buffer.data(), size);
+  }
+  MPI_Bcast(buffer.data(), size, MPI_CHAR, 0, comm);
+  return buffer;
+}
+
 auto MakeTubeSolver(fub::Burke2012& mechanism, const TubeSolverOptions& opts,
                     const boost::program_options::variables_map& vm, int k) {
   const std::array<int, AMREX_SPACEDIM> n_cells{opts.n_cells, 1, 1};
@@ -423,7 +443,6 @@ void MyMain(const boost::program_options::variables_map& vm) {
   connectivity.push_back(MakeConnection(3));
   connectivity.push_back(MakeConnection(4));
 
-
   fub::IdealGasMix<Tube_Rank> tube_equation{mechanism};
   fub::IdealGasMix<Plenum_Rank> equation{mechanism};
 
@@ -440,7 +459,9 @@ void MyMain(const boost::program_options::variables_map& vm) {
 
   std::string checkpoint = vm["checkpoint"].as<std::string>();
   if (!checkpoint.empty()) {
-    std::ifstream ifs(checkpoint + "/Ignition");
+    MPI_Comm comm = context.GetMpiCommunicator();
+    std::string input = ReadAndBroadcastFile(checkpoint + "/Ignition", comm);
+    std::istringstream ifs(input);
     boost::archive::text_iarchive ia(ifs);
     std::vector<fub::Duration> last_ignitions;
     ia >> last_ignitions;
@@ -448,7 +469,8 @@ void MyMain(const boost::program_options::variables_map& vm) {
 
     int k = 0;
     for (const std::shared_ptr<fub::amrex::PressureValve>& valve : valves) {
-      ifs = std::ifstream(fmt::format("{}/Valve_{}", checkpoint, k));
+      input = ReadAndBroadcastFile(fmt::format("{}/Valve_{}", checkpoint, k), comm);
+      ifs = std::istringstream(input);
       boost::archive::text_iarchive ia(ifs);
       ia >> *valve;
     }
