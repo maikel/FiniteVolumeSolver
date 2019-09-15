@@ -72,9 +72,7 @@ public:
   // member functions needed for being a source term
 
   void
-  ResetHierarchyConfiguration(std::shared_ptr<amrex::GriddingAlgorithm> grid) {
-    gridding_ = std::move(grid);
-  }
+  ResetHierarchyConfiguration(std::shared_ptr<amrex::GriddingAlgorithm> grid);
 
   [[nodiscard]] Duration ComputeStableDt() const noexcept;
 
@@ -89,19 +87,16 @@ public:
     return options_;
   }
 
-  [[nodiscard]] Duration GetLastIgnitionTimePoint() const noexcept {
-    return last_ignition_;
-  }
+  [[nodiscard]] Duration GetLastIgnitionTimePoint(int level) const noexcept;
 
-  void SetLastIgnitionTimePoint(Duration t) noexcept {
-    last_ignition_ = t;
-  }
+  void SetLastIgnitionTimePoint(int level, Duration t) noexcept;
 
 private:
   IdealGasMix<1> equation_;
   std::shared_ptr<GriddingAlgorithm> gridding_;
   IgniteDetonationOptions options_;
-  Duration last_ignition_{-std::numeric_limits<double>::infinity()};
+  std::vector<Duration> last_ignition_backup_{};
+  std::vector<Duration> last_ignition_{};
 
   friend class boost::serialization::access;
   template <typename Archive>
