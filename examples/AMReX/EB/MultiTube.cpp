@@ -246,7 +246,7 @@ auto MakePlenumSolver(fub::Burke2012& mechanism, int num_cells, int n_level,
   ConstantBox constant_box{refine_box};
 
   BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
-                                  TransmissiveBoundary{fub::Direction::X, 1}}};
+                                  IsentropicPressureBoundary{equation, 101325.0, fub::Direction::X, 1}}};
 
   // If a checkpoint path is specified we will fill the patch hierarchy with
   // data from the checkpoint file, otherwise we will initialize the data by
@@ -525,7 +525,7 @@ void MyMain(const boost::program_options::variables_map& vm) {
                     std::ptrdiff_t cycle, fub::Duration time_point, int which) {
     MPI_Comm comm = context.GetMpiCommunicator();
     //
-    // Ouput MATLAB files on each timestep
+    // Ouput MATLAB files on each output interval
     //
     if (which < 2) {
       auto tubes = gridding->GetTubes();
