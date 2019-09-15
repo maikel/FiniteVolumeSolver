@@ -47,7 +47,7 @@ IgniteDetonationOptions::IgniteDetonationOptions(const po::variables_map& vm) {
 IgniteDetonation::IgniteDetonation(
     const fub::IdealGasMix<1>& eq, std::shared_ptr<GriddingAlgorithm> grid,
     const fub::amrex::IgniteDetonationOptions& opts)
-    : equation_(eq), gridding_(std::move(grid)), options_{opts} {}
+  : equation_(eq), gridding_(std::move(grid)), options_{opts},  last_ignition_backup_(gridding_->GetPatchHierarchy().GetMaxNumberOfLevels(), Duration(-std::numeric_limits<double>::infinity())), last_ignition_(last_ignition_backup_) {}
 
 Duration IgniteDetonation::ComputeStableDt() const noexcept {
   return Duration(std::numeric_limits<double>::infinity());
@@ -100,11 +100,28 @@ std::vector<double> GatherMoles_(const GriddingAlgorithm& grid, double x,
 }
 } // namespace
 
+Duration IgniteDetonation::GetLastIgnitionTimePoint(int level) const noexcept {
+  const std::size_t l = static_cast<std::size_t>(level);
+  return last_ignition_[l];
+}
+
+void IgniteDetonation::SetLastIgnitionTimePoint(int level, Duration t) noexcept {
+  const std::size_t l = static_cast<std::size_t>(level);
+  last_ignition_backup_[l] = std::exchange(last_ignition_[l], t);
+}
+
+void IgniteDetonation::ResetHierarchyConfiguration(std::shared_ptr<amrex::GriddingAlgorithm> grid) {
+  gridding_ = std::move(grid);
+  if (gridding_->GetPatchHierarchy().GetTimePoint() <= last_ignition_[0]) {
+    last_ignition_ = last_ignition_backup_;
+  }
+}
+
 Result<void, TimeStepTooLarge>
 IgniteDetonation::AdvanceLevel(int level, fub::Duration /* dt */) {
   PatchHierarchy& hier = gridding_->GetPatchHierarchy();
   Duration current_time = hier.GetTimePoint(level);
-  Duration next_ignition_time = last_ignition_ + options_.ignite_interval;
+  Duration next_ignition_time = GetLastIgnitionTimePoint(level) + options_.ignite_interval;
   if (next_ignition_time < current_time) {
     std::vector<double> moles =
         GatherMoles_(*gridding_, options_.measurement_position, equation_);
@@ -145,8 +162,8 @@ IgniteDetonation::AdvanceLevel(int level, fub::Duration /* dt */) {
           }
         });
       });
-      last_ignition_ = current_time;
-      ::amrex::Print() << fmt::format("[Info][t = {}] Detonation Ignited!\n", last_ignition_.count());
+      SetLastIgnitionTimePoint(level, current_time);
+      ::amrex::Print() << fmt::format("[Info][level = {}][t = {}] Detonation Ignited!\n", level, GetLastIgnitionTimePoint(level).count());
     }
   }
   return boost::outcome_v2::success();

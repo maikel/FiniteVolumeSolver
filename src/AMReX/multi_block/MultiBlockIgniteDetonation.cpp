@@ -43,7 +43,7 @@ MultiBlockIgniteDetonation::AdvanceLevel(int level, Duration dt) {
     std::vector<Duration> times{};
     times.reserve(source_terms_.size());
     std::transform(source_terms_.begin(), source_terms_.end(), std::back_inserter(times), [](const IgniteDetonation& ign) {
-      return ign.GetLastIgnitionTimePoint();
+      return ign.GetLastIgnitionTimePoint(0);
     });
     return times;
   }
@@ -51,7 +51,10 @@ MultiBlockIgniteDetonation::AdvanceLevel(int level, Duration dt) {
   void MultiBlockIgniteDetonation::SetLastIgnitionTimePoints(span<const Duration> timepoints) {
     int k = 0;
     for (Duration t_ign : timepoints) {
-      source_terms_[k].SetLastIgnitionTimePoint(t_ign);
+      const int nlevel = source_terms_[k].GetPatchHierarchy().GetNumberOfLevels();
+      for (int ilvl = 0; ilvl < nlevel; ++ilvl) {
+        source_terms_[k].SetLastIgnitionTimePoint(ilvl, t_ign);
+      }
       k += 1;
     }
   }
