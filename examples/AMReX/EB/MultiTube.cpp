@@ -108,7 +108,7 @@ auto MakeTubeSolver(fub::Burke2012& mechanism, const TubeSolverOptions& opts,
 
   equation.GetReactor().SetMoleFractions("N2:79,O2:21");
   equation.GetReactor().SetTemperature(300.0);
-  equation.GetReactor().SetPressure(101325.0);
+  equation.GetReactor().SetPressure(2 * 101325.0);
   fub::Complete<fub::IdealGasMix<Tube_Rank>> state(equation);
   equation.CompleteFromReactor(state);
   ConstantData initial_data{equation, state};
@@ -219,7 +219,7 @@ auto MakePlenumSolver(fub::Burke2012& mechanism, int num_cells, int n_level,
 
   using State = fub::Complete<fub::IdealGasMix<Plenum_Rank>>;
   GradientDetector gradients{equation, std::pair{&State::pressure, 0.05},
-                             std::pair{&State::density, 0.005}};
+                             std::pair{&State::density, 0.01}};
 
   ::amrex::RealBox inlet{{-0.1, -0.015, -0.015}, {0.05, +0.015, +0.015}};
   const ::amrex::Box refine_box = BoxWhichContains(inlet, coarse_geom);
@@ -281,9 +281,9 @@ struct ProgramOptions {
     po::options_description desc{};
     // clang-format off
     desc.add_options()
-        ("plenum_n_cells", po::value<int>()->default_value(128), "Base number of cells in the plenum for the coarsest level")
-        ("max_number_of_levels", po::value<int>()->default_value(1), "Maximal number of refinement levels across all domains.")
-    ("checkpoint", po::value<std::string>()->default_value(""), "The path to the checkpoint files to restart a simulation.");
+      ("plenum_n_cells", po::value<int>()->default_value(128), "Base number of cells in the plenum for the coarsest level")
+      ("max_number_of_levels", po::value<int>()->default_value(1), "Maximal number of refinement levels across all domains.")
+      ("checkpoint", po::value<std::string>()->default_value(""), "The path to the checkpoint files to restart a simulation.");
     // clang-format on
     return desc;
   }
