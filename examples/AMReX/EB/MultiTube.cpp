@@ -68,6 +68,26 @@ struct TubeSolverOptions {
   double phi{0.0};
 };
 
+std::string ReadAndBroadcastFile(std::string filepath, MPI_Comm comm) {
+  int rank = -1;
+  MPI_Comm_rank(comm, &rank);
+  std::string buffer{};
+  int size = -1;
+  if (rank == 0) {
+    std::ifstream file(filepath);
+    file.seekg(0, std::ios::end);
+    size = static_cast<int>(file.tellg());
+  }
+  MPI_Bcast(&size, 1, MPI_INT, 0, comm);
+  buffer.resize(size);
+  if (rank == 0) {
+    std::ifstream file(filepath);
+    file.read(buffer.data(), size);
+  }
+  MPI_Bcast(buffer.data(), size, MPI_CHAR, 0, comm);
+  return buffer;
+}
+
 auto MakeTubeSolver(fub::Burke2012& mechanism, const TubeSolverOptions& opts,
                     const boost::program_options::variables_map& vm, int k) {
   const std::array<int, AMREX_SPACEDIM> n_cells{opts.n_cells, 1, 1};
@@ -221,12 +241,17 @@ auto MakePlenumSolver(fub::Burke2012& mechanism, int num_cells, int n_level,
   GradientDetector gradients{equation, std::pair{&State::pressure, 0.05},
                              std::pair{&State::density, 0.01}};
 
-  ::amrex::RealBox inlet{{-0.1, -0.015, -0.015}, {0.05, +0.015, +0.015}};
+  ::amrex::RealBox inlet{{-0.1, -0.5, -0.5}, {0.05, +0.5, +0.5}};
   const ::amrex::Box refine_box = BoxWhichContains(inlet, coarse_geom);
   ConstantBox constant_box{refine_box};
 
-  BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
-                                  IsentropicPressureBoundary{equation, 101325.0, fub::Direction::X, 1}}};
+  ::amrex::RealBox outlet{{0.5, -0.5, -0.5}, {0.54, +0.5, +0.5}};
+  const ::amrex::Box outlet_box = BoxWhichContains(outlet, coarse_geom);
+
+  BoundarySet boundary_condition{
+      {TransmissiveBoundary{fub::Direction::X, 0},
+       IsentropicPressureBoundary{"RightPlenumBoundary", equation, outlet_box,
+                                  101325.0, fub::Direction::X, 1}}};
 
   // If a checkpoint path is specified we will fill the patch hierarchy with
   // data from the checkpoint file, otherwise we will initialize the data by
@@ -423,7 +448,6 @@ void MyMain(const boost::program_options::variables_map& vm) {
   connectivity.push_back(MakeConnection(3));
   connectivity.push_back(MakeConnection(4));
 
-
   fub::IdealGasMix<Tube_Rank> tube_equation{mechanism};
   fub::IdealGasMix<Plenum_Rank> equation{mechanism};
 
@@ -440,7 +464,9 @@ void MyMain(const boost::program_options::variables_map& vm) {
 
   std::string checkpoint = vm["checkpoint"].as<std::string>();
   if (!checkpoint.empty()) {
-    std::ifstream ifs(checkpoint + "/Ignition");
+    MPI_Comm comm = context.GetMpiCommunicator();
+    std::string input = ReadAndBroadcastFile(checkpoint + "/Ignition", comm);
+    std::istringstream ifs(input);
     boost::archive::text_iarchive ia(ifs);
     std::vector<fub::Duration> last_ignitions;
     ia >> last_ignitions;
@@ -448,7 +474,9 @@ void MyMain(const boost::program_options::variables_map& vm) {
 
     int k = 0;
     for (const std::shared_ptr<fub::amrex::PressureValve>& valve : valves) {
-      ifs = std::ifstream(fmt::format("{}/Valve_{}", checkpoint, k));
+      input =
+          ReadAndBroadcastFile(fmt::format("{}/Valve_{}", checkpoint, k), comm);
+      ifs = std::istringstream(input);
       boost::archive::text_iarchive ia(ifs);
       ia >> *valve;
     }

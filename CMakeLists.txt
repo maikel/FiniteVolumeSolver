@@ -28,7 +28,7 @@ if (EXISTS ${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 endif()
 
 # Try to find SAMRAI (optional)
-find_package(Boost REQUIRED COMPONENTS filesystem container program_options serialization)
+find_package(Boost REQUIRED COMPONENTS filesystem container program_options serialization log)
 
 find_package(SAMRAI QUIET)
 if (SAMRAI_FOUND)
@@ -253,6 +253,7 @@ target_link_libraries(FiniteVolumeSolver.Solver
     FiniteVolumeSolver.OdeSolver
     fmt::fmt-header-only
     Boost::container
+    Boost::log
     Boost::program_options
     Boost::serialization
     Eigen3::Eigen
