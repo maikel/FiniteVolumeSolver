@@ -29,6 +29,8 @@
 #include <AMReX.H>
 #include <AMReX_MultiFab.H>
 
+#include <boost/log/sources/channel_logger.hpp>
+
 #include <vector>
 
 namespace fub::amrex {
@@ -100,6 +102,8 @@ public:
                     Duration time_point, const GriddingAlgorithm& gridding);
 
 private:
+  boost::log::sources::channel_logger<> log_;
+
   IdealGasMix<Plenum_Rank> plenum_equation_;
   IdealGasMix<Tube_Rank> tube_equation_;
 

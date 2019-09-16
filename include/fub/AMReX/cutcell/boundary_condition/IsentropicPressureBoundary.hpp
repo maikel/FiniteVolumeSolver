@@ -25,22 +25,32 @@
 #include "fub/Direction.hpp"
 #include "fub/equations/IdealGasMix.hpp"
 
+#include <boost/log/common.hpp>
+#include <boost/log/core.hpp>
+#include <boost/log/sources/channel_logger.hpp>
+
 #include <AMReX.H>
 
 namespace fub::amrex::cutcell {
 
 class IsentropicPressureBoundary {
 public:
-  IsentropicPressureBoundary(const IdealGasMix<AMREX_SPACEDIM>& eq,
+  IsentropicPressureBoundary(const std::string& name,
+                             const IdealGasMix<AMREX_SPACEDIM>& eq,
+                             const ::amrex::Box& coarse_inner_box,
                              double outer_pressure, Direction dir, int side);
 
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration dt, const GriddingAlgorithm&);
+                    Duration dt, const GriddingAlgorithm& grid);
 
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom);
+  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::MultiFab& alphas,
+                    const ::amrex::Geometry& geom,
+                    const Complete<IdealGasMix<AMREX_SPACEDIM>>& state);
 
 private:
+  boost::log::sources::channel_logger<> log_;
   IdealGasMix<AMREX_SPACEDIM> equation_;
+  ::amrex::Box coarse_inner_box_;
   double outer_pressure_;
   Direction dir_;
   int side_;

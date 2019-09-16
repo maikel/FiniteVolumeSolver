@@ -241,12 +241,17 @@ auto MakePlenumSolver(fub::Burke2012& mechanism, int num_cells, int n_level,
   GradientDetector gradients{equation, std::pair{&State::pressure, 0.05},
                              std::pair{&State::density, 0.005}};
 
-  ::amrex::RealBox inlet{{-0.1, -0.015, -0.015}, {0.05, +0.015, +0.015}};
+  ::amrex::RealBox inlet{{-0.1, -0.5, -0.5}, {0.05, +0.5, +0.5}};
   const ::amrex::Box refine_box = BoxWhichContains(inlet, coarse_geom);
   ConstantBox constant_box{refine_box};
 
-  BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
-                                  IsentropicPressureBoundary{equation, 101325.0, fub::Direction::X, 1}}};
+  ::amrex::RealBox outlet{{0.5, -0.5, -0.5}, {0.54, +0.5, +0.5}};
+  const ::amrex::Box outlet_box = BoxWhichContains(outlet, coarse_geom);
+
+  BoundarySet boundary_condition{
+      {TransmissiveBoundary{fub::Direction::X, 0},
+       IsentropicPressureBoundary{"RightPlenumBoundary", equation, outlet_box,
+                                  101325.0, fub::Direction::X, 1}}};
 
   // If a checkpoint path is specified we will fill the patch hierarchy with
   // data from the checkpoint file, otherwise we will initialize the data by
@@ -303,7 +308,7 @@ struct ProgramOptions {
     desc.add_options()
         ("plenum_n_cells", po::value<int>()->default_value(128), "Base number of cells in the plenum for the coarsest level")
         ("max_number_of_levels", po::value<int>()->default_value(1), "Maximal number of refinement levels across all domains.")
-    ("checkpoint", po::value<std::string>()->default_value(""), "The path to the checkpoint files to restart a simulation.");
+        ("checkpoint", po::value<std::string>()->default_value(""), "The path to the checkpoint files to restart a simulation.");
     // clang-format on
     return desc;
   }
@@ -469,7 +474,8 @@ void MyMain(const boost::program_options::variables_map& vm) {
 
     int k = 0;
     for (const std::shared_ptr<fub::amrex::PressureValve>& valve : valves) {
-      input = ReadAndBroadcastFile(fmt::format("{}/Valve_{}", checkpoint, k), comm);
+      input =
+          ReadAndBroadcastFile(fmt::format("{}/Valve_{}", checkpoint, k), comm);
       ifs = std::istringstream(input);
       boost::archive::text_iarchive ia(ifs);
       ia >> *valve;
