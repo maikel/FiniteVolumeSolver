@@ -1,5 +1,8 @@
-function [X, Y, Z, time, data] = ReadPlenumData(directory_path)
-  files_structure = dir(sprintf('%s%s', directory_path, '/*.dat'));
+function [X, Y, Z, time, data] = ReadPlenumData(directory_path, pattern)
+  if nargin == 1
+    pattern = '/*.dat';
+  end
+  files_structure = dir(sprintf('%s%s', directory_path, pattern));
   ntimesteps = length(files_structure);
   if (ntimesteps == 0) 
      ME = MException('ReadPlenumData:noFilesFound', ...

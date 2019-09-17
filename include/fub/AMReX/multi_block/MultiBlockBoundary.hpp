@@ -66,6 +66,15 @@ public:
   ///
   /// This function might grow the specified mirror boxes to an extent which is
   /// required to fulfill the specified ghost cell width requirements.
+  MultiBlockBoundary(const std::string& name, const MultiBlockGriddingAlgorithm& gridding,
+                     const BlockConnection& connection, int gcw,
+                     const FlameMasterReactor& reactor, int level);
+
+  /// Constructs coupled boundary states by pre computing mirror and ghost
+  /// states for each of the specified domains.
+  ///
+  /// This function might grow the specified mirror boxes to an extent which is
+  /// required to fulfill the specified ghost cell width requirements.
   MultiBlockBoundary(const MultiBlockGriddingAlgorithm& gridding,
                      const BlockConnection& connection, int gcw,
                      const FlameMasterReactor& reactor, int level);
@@ -73,8 +82,8 @@ public:
   MultiBlockBoundary(const MultiBlockBoundary& other);
   MultiBlockBoundary& operator=(const MultiBlockBoundary& other);
 
-  MultiBlockBoundary(MultiBlockBoundary&& other) noexcept = default;
-  MultiBlockBoundary& operator=(MultiBlockBoundary&& other) noexcept = default;
+  MultiBlockBoundary(MultiBlockBoundary&& other) = default;
+  MultiBlockBoundary& operator=(MultiBlockBoundary&& other) = default;
 
   /// Precompute Boundary states for each domain.
   ///
@@ -103,6 +112,7 @@ public:
 
 private:
   boost::log::sources::channel_logger<> log_;
+  boost::log::attributes::mutable_constant<double> time_attr_;
 
   IdealGasMix<Plenum_Rank> plenum_equation_;
   IdealGasMix<Tube_Rank> tube_equation_;

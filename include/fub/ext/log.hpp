@@ -23,6 +23,7 @@
 
 #include <boost/log/common.hpp>
 #include <boost/program_options.hpp>
+#include <mpi.h>
 
 namespace fub {
 
@@ -35,7 +36,7 @@ struct LogOptions {
   std::string file_template{"%N.log"};
 };
 
-void InitializeLogging(MPI_Comm comm, const LogOptions& log);
+void InitializeLogging(MPI_Comm comm, const LogOptions& log = {});
 
 }
 

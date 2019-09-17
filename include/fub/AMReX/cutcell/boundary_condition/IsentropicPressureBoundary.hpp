@@ -28,6 +28,7 @@
 #include <boost/log/common.hpp>
 #include <boost/log/core.hpp>
 #include <boost/log/sources/channel_logger.hpp>
+#include <boost/log/attributes/mutable_constant.hpp>
 
 #include <AMReX.H>
 
@@ -49,6 +50,7 @@ public:
 
 private:
   boost::log::sources::channel_logger<> log_;
+  boost::log::attributes::mutable_constant<double> time_attr_;
   IdealGasMix<AMREX_SPACEDIM> equation_;
   ::amrex::Box coarse_inner_box_;
   double outer_pressure_;

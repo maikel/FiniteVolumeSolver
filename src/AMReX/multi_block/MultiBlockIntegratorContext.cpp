@@ -181,6 +181,7 @@ void MultiBlockIntegratorContext::PreAdvanceLevel(int level_num, Duration dt,
     cutcell::IntegratorContext& plenum = plena_[connection.plenum.id];
     boundary->ComputeBoundaryData(plenum.GetPatchHierarchy(),
                                   tube.GetPatchHierarchy());
+    ++boundary;
   }
 }
 

@@ -39,6 +39,8 @@ else()
   option(FUB_WITH_SAMRAI "Compile with SAMRAI modules." OFF)
 endif()
 
+find_package(MPI REQUIRED COMPONENTS C)
+
 # Try to find AMReX (optional)
 find_package(AMReX QUIET)
 
@@ -180,6 +182,7 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/equations/ShallowWater.hpp
   include/fub/ext/Eigen.hpp
   include/fub/ext/outcome.hpp
+  include/fub/ext/log.hpp
   include/fub/flux_method/FluxMethod.hpp
   include/fub/flux_method/GodunovMethod.hpp
   include/fub/flux_method/HllMethod.hpp
@@ -216,6 +219,7 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/split_method/SplittingMethod.hpp
   include/fub/split_method/GodunovSplitting.hpp
   include/fub/split_method/StrangSplitting.hpp
+  src/ext/log.cpp
   src/boundary_condition/ReflectiveBoundary.cpp
   src/equations/Advection.cpp
   src/equations/advection/GodunovMethod.cpp
@@ -251,6 +255,7 @@ target_link_libraries(FiniteVolumeSolver.Solver
   PUBLIC
     FiniteVolumeSolver.Core
     FiniteVolumeSolver.OdeSolver
+    MPI::MPI_C
     fmt::fmt-header-only
     Boost::container
     Boost::log

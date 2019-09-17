@@ -128,7 +128,7 @@ auto MakeTubeSolver(fub::Burke2012& mechanism, const TubeSolverOptions& opts,
 
   equation.GetReactor().SetMoleFractions("N2:79,O2:21");
   equation.GetReactor().SetTemperature(300.0);
-  equation.GetReactor().SetPressure(2 * 101325.0);
+  equation.GetReactor().SetPressure(101325.0);
   fub::Complete<fub::IdealGasMix<Tube_Rank>> state(equation);
   equation.CompleteFromReactor(state);
   ConstantData initial_data{equation, state};
@@ -607,6 +607,7 @@ void MyMain(const boost::program_options::variables_map& vm) {
 
 int main(int argc, char** argv) {
   MPI_Init(nullptr, nullptr);
+  fub::InitializeLogging(MPI_COMM_WORLD);
   {
     fub::amrex::ScopeGuard _{};
     auto vm = ParseCommandLine(argc, argv);
