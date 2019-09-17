@@ -25,10 +25,13 @@
 #include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp"
 
 #include "fub/AMReX/ForEachFab.hpp"
+#include "fub/AMReX/ForEachIndex.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/ForEach.hpp"
 
 #include <AMReX_EB2.H>
+
+#include <boost/log/common.hpp>
 
 #include <mpi.h>
 
@@ -305,7 +308,8 @@ int Flip(int side) { return (side == 0) * 1 + (side != 0) * 0; }
 } // namespace
 
 MultiBlockBoundary::MultiBlockBoundary(const MultiBlockBoundary& other)
-    : plenum_equation_(other.plenum_equation_),
+  : log_(other.log_), time_attr_{0.0},
+      plenum_equation_(other.plenum_equation_),
       tube_equation_(other.tube_equation_),
       plenum_mirror_box_(other.plenum_mirror_box_),
       tube_mirror_box_(other.tube_mirror_box_),
@@ -332,11 +336,16 @@ operator=(const MultiBlockBoundary& other) {
   return *this;
 }
 
-MultiBlockBoundary::MultiBlockBoundary(
+  MultiBlockBoundary::MultiBlockBoundary(const MultiBlockGriddingAlgorithm& gridding,
+                                         const BlockConnection& connection, int gcw,
+                                         const FlameMasterReactor& reactor, int level)
+  : MultiBlockBoundary("MultiBlockBoundary", gridding, connection, gcw, reactor, level) {}
+
+  MultiBlockBoundary::MultiBlockBoundary(const std::string& channel,
     const MultiBlockGriddingAlgorithm& gridding,
     const BlockConnection& connection, int gcw,
     const FlameMasterReactor& reactor, int level)
-    : plenum_equation_(reactor), tube_equation_(std::move(reactor)),
+  : log_(boost::log::keywords::channel = channel), time_attr_{0.0}, plenum_equation_(reactor), tube_equation_(std::move(reactor)),
       dir_{connection.direction}, side_{connection.side}, level_{level} {
   const std::ptrdiff_t pid = static_cast<std::ptrdiff_t>(connection.plenum.id);
   const cutcell::PatchHierarchy& plenum =
@@ -396,6 +405,8 @@ void MultiBlockBoundary::ComputeBoundaryData(
   const double plenum_dx = plenum.GetGeometry(level_).CellSize(d);
   const double tube_dx = tube.GetGeometry(level_).CellSize(d);
 
+  time_attr_.set(plenum.GetTimePoint().count());
+
   //////////////////////////////////////////////////////////////////////////////
   // Integrate plenum states over mirror volume and fill ghost cells of tube
   // {{{
@@ -425,6 +436,16 @@ void MultiBlockBoundary::ComputeBoundaryData(
       ReduceStateDimension(complete, tube_equation_, cons);
       Store(complete_states, complete, {j});
     });
+
+    const int ncomp = tube_ghost_data_->nComp();
+    BOOST_LOG(log_) << "Tube Ghost Data:";
+    ForEachIndex(tube_ghost_data_->box(), [&](auto... is) {
+      const ::amrex::IntVect iv{int(is)...};
+      const double rho =  (*tube_ghost_data_)(iv, 0);
+      const double u = (*tube_ghost_data_)(iv, 1) / rho;
+      const double p = (*tube_ghost_data_)(iv, ncomp - 5);
+      BOOST_LOG(log_) << fmt::format("{}: {} kg/m3, {} m/s, {} Pa", iv[0], rho, u, p);
+    });
   }
   // }}}
 
@@ -450,6 +471,16 @@ void MultiBlockBoundary::ComputeBoundaryData(
       Load(cons, cons_states, {i});
       EmbedState(complete, plenum_equation_, cons);
       Store(complete_states, complete, {j});
+    });
+
+    const int ncomp = plenum_ghost_data_->nComp();
+    BOOST_LOG(log_) << "Plenum Ghost Data:";
+    ForEachIndex(plenum_ghost_data_->box(), [&](auto... is) {
+      const ::amrex::IntVect iv{int(is)...};
+      const double rho =  (*plenum_ghost_data_)(iv, 0);
+      const double u = (*plenum_ghost_data_)(iv, 1) / rho;
+      const double p = (*plenum_ghost_data_)(iv, ncomp - 5);
+      BOOST_LOG(log_) << fmt::format("{}: {} kg/m3, {} m/s, {} Pa", iv[0], rho, u, p);
     });
   }
 }

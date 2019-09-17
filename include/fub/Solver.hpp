@@ -47,6 +47,8 @@
 #include "fub/flux_method/HllMethod.hpp"
 #include "fub/flux_method/MusclHancockMethod.hpp"
 
+#include "fub/ext/log.hpp"
+
 #include "fub/cutcell_method/KbnStabilisation.hpp"
 
 #include "fub/split_method/GodunovSplitting.hpp"
