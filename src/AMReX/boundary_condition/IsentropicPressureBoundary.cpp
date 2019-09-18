@@ -59,10 +59,17 @@ void IsentropicExpansionWithoutDissipation(IdealGasMix<1>& eq,
   const double h_after =
       dest.energy / dest.density + dest.pressure / dest.density;
   const double enthalpyDifference = h_before - h_after;
-  const double u_border =
-      Sign(enthalpyDifference) *
+  const double u_border = [&] {
+    if (Sign(old_velocity) == Sign(enthalpyDifference)) {
+      return Sign(enthalpyDifference) *
       std::sqrt(efficiency * std::abs(enthalpyDifference) * 2 +
                 old_velocity * old_velocity);
+    } else {
+        double inner = efficiency * std::abs(enthalpyDifference) * 2 -
+        old_velocity * old_velocity;
+      return inner > 0.0 ?  Sign(enthalpyDifference) * std::sqrt(std::abs(inner)) : Sign(inner) * std::sqrt(std::abs(inner));
+      }
+  }();
   dest.momentum[0] = dest.density * u_border;
   dest.energy += 0.5 * u_border * dest.momentum[0];
 }
