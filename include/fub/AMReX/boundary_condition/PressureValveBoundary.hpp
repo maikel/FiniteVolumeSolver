@@ -35,7 +35,7 @@ namespace fub::amrex {
 struct PressureValveOptions {
   PressureValveOptions() = default;
   explicit PressureValveOptions(
-      const boost::program_options::variables_map& vm);
+      const boost::program_options::variables_map& vm, std::string prefix = {});
 
   static boost::program_options::options_description
   GetCommandLineOptions(std::string prefix = {});
@@ -46,7 +46,7 @@ struct PressureValveOptions {
   double outer_pressure{1.5 * 101325.0};
   double outer_temperature{300.0};
   double pressure_value_which_opens_boundary{101325.0};
-  double pressure_value_which_closes_boundary{1.5 * 101325.0};
+  double pressure_value_which_closes_boundary{3.0 * 101325.0};
   double oxygen_measurement_position{1.0};
   double oxygen_measurement_criterium{0.1};
   double fuel_measurement_position{1.0};
@@ -86,7 +86,7 @@ public:
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
                     Duration dt, const GriddingAlgorithm&);
 
-  const std::shared_ptr<PressureValve>& GetSharedState() const noexcept {
+  [[nodiscard]] const std::shared_ptr<PressureValve>& GetSharedState() const noexcept {
     return shared_valve_;
   }
 

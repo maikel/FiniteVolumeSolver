@@ -63,7 +63,7 @@ ParseCommandLine(int argc, char** argv) {
       po::value<double>(&opts.output_interval)
           ->default_value(opts.output_interval),
       "Sets the output interval");
-  desc.add(fub::amrex::PressureValveOptions::GetCommandLineOptions());
+  desc.add(fub::amrex::PressureValveOptions::GetCommandLineOptions("valve"));
   desc.add(fub::amrex::IgniteDetonationOptions::GetCommandLineOptions());
   po::variables_map vm;
   try {
@@ -142,7 +142,8 @@ void MyMain(const ProgramOptions& opts,
   fub::amrex::BoundarySet boundary;
   using fub::amrex::IsentropicPressureBoundary;
   using fub::amrex::PressureValveBoundary;
-  boundary.conditions.push_back(PressureValveBoundary{equation, map});
+  fub::amrex::PressureValveOptions valve_options(map, "valve");
+  boundary.conditions.push_back(PressureValveBoundary{equation, valve_options});
   boundary.conditions.push_back(
       IsentropicPressureBoundary{equation, 101325.0, fub::Direction::X, 1});
 
@@ -179,7 +180,8 @@ void MyMain(const ProgramOptions& opts,
       fub::int_c<1>, fub::amrex::IntegratorContext(gridding, method),
       fub::GodunovSplitting());
 
-  fub::amrex::IgniteDetonation ignite(equation, gridding);
+  fub::amrex::IgniteDetonationOptions io(map);
+  fub::amrex::IgniteDetonation ignite(equation, gridding, io);
   fub::DimensionalSplitSystemSourceSolver ign_solver(system_solver, ignite,
                                                      fub::GodunovSplitting{});
 
