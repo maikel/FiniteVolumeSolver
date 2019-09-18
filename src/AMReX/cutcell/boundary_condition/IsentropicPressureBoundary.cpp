@@ -162,13 +162,16 @@ void IsentropicPressureBoundary::FillBoundary(::amrex::MultiFab& mf,
   AverageState(state, grid.GetPatchHierarchy(), 0, coarse_inner_box_);
   equation_.CompleteFromCons(state, state);
   time_attr_.set(t.count());
-  BOOST_LOG(log_) << fmt::format("Average inner pressure: {} Pa",
-                                 state.pressure);
+  double rho = state.density;
+  double u = state.momentum[0] / rho;
+  double p = state.pressure;
+  BOOST_LOG(log_) << fmt::format("Average inner state: {} kg/m3, {} m/s, {} Pa",
+                                 rho, u, p);
   IsentropicExpansionWithoutDissipation(equation_, state, state,
                                         outer_pressure_);
-  const double rho = state.density;
-  const double u = state.momentum[0] / rho;
-  const double p = state.pressure;
+  rho = state.density;
+  u = state.momentum[0] / rho;
+  p = state.pressure;
   BOOST_LOG(log_) << fmt::format("Outer State: {} kg/m3, {} m/s, {} Pa", rho, u,
                                  p);
   int level = FindLevel(geom, grid);
