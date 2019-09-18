@@ -451,6 +451,11 @@ void KbnCutCellMethod<FM, RiemannSolver>::ComputeRegularFluxes(
                  }
                  FM::ComputeNumericFlux(numeric_flux_array_, betas,
                                         stencil_array_, alphas, dt, dx, dir);
+                 for (int i = 0; i < betas.size(); ++i) {
+                   ForEachComponent([&](auto&& flux) {
+                     FUB_ASSERT(betas[i] == 0.0 || (betas[i] > 0.0 && !std::isnan(flux[i])));
+                   }, numeric_flux_array_);
+                 }
                  Store(fit, numeric_flux_array_);
                  Advance(fit, kDefaultChunkSize);
                  for (std::size_t i = 0; i < StencilSize; ++i) {
