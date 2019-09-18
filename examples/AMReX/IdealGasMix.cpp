@@ -222,6 +222,7 @@ void MyMain(const ProgramOptions& opts,
 
 int main(int argc, char** argv) {
   MPI_Init(nullptr, nullptr);
+  fub::InitializeLogging(MPI_COMM_WORLD);
   {
     fub::amrex::ScopeGuard _{};
     std::optional<

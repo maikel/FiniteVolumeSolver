@@ -285,15 +285,18 @@ void GriddingAlgorithm::MakeNewLevelFromScratch(
     if (hierarchy_.GetNumberOfLevels() == level) {
       hierarchy_.PushBack(PatchLevel(level, Duration(time_point), box_array,
                                      distribution_mapping, n_comps));
+      ::amrex::MultiFab& data = hierarchy_.GetPatchLevel(level).data;
+      const ::amrex::Geometry& geom = hierarchy_.GetGeometry(level);
+      initial_data_.InitializeData(data, geom);
     } else {
-      hierarchy_.GetPatchLevel(level) =
-          PatchLevel(level, Duration(time_point), box_array,
-                     distribution_mapping, n_comps);
+      PatchLevel patch_level(level, Duration(time_point), box_array,
+                 distribution_mapping, n_comps);
+      patch_level.data.ParallelCopy(hierarchy_.GetPatchLevel(level).data);
+      patch_level.cycles = hierarchy_.GetPatchLevel(level).cycles;
+      patch_level.time_point = hierarchy_.GetPatchLevel(level).time_point;
+      hierarchy_.GetPatchLevel(level) = std::move(patch_level);
     }
   }
-  ::amrex::MultiFab& data = hierarchy_.GetPatchLevel(level).data;
-  const ::amrex::Geometry& geom = hierarchy_.GetGeometry(level);
-  initial_data_.InitializeData(data, geom);
 }
 
 void GriddingAlgorithm::MakeNewLevelFromCoarse(
@@ -318,6 +321,9 @@ void GriddingAlgorithm::MakeNewLevelFromCoarse(
   if (level == hierarchy_.GetNumberOfLevels()) {
     hierarchy_.PushBack(std::move(fine_level));
   } else {
+    fine_level.data.ParallelCopy(hierarchy_.GetPatchLevel(level).data);
+    fine_level.cycles = hierarchy_.GetPatchLevel(level).cycles;
+    fine_level.time_point = hierarchy_.GetPatchLevel(level).time_point;
     hierarchy_.GetPatchLevel(level) = std::move(fine_level);
   }
 }
