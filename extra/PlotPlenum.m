@@ -5,7 +5,7 @@ videoPath = '/Volumes/Maikel_Intenso/Plenum_y0.avi';
 
 %%
 
-f = figure(1);
+f = figure('visible', 'off');
 MakeVideo(videoPath, X, Z, time, data);
 
 function MakeVideo(out, X, Y, time, data)
@@ -14,6 +14,7 @@ function MakeVideo(out, X, Y, time, data)
     nx = length(X);
     ny = length(Y);
     for k = 340:length(time)
+      fprintf("k = %d\n", k);
 %        subplot(2, 1, 1);       
 %        imagesc(X, Y, reshape(data.rho(:, 1, :, k), nx, ny)');
 %        axis equal;
