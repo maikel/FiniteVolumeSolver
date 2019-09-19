@@ -137,7 +137,8 @@ auto MakeTubeSolver(fub::Burke2012& mechanism, const TubeSolverOptions& opts,
   equation.CompleteFromReactor(state);
   ConstantData initial_data{equation, state};
 
-  PressureValveBoundary valve{equation, vm};
+  PressureValveOptions valve_opts(vm, fmt::format("valve{}", k));
+  PressureValveBoundary valve{equation, valve_opts};
   IsentropicPressureBoundary right{equation, 101325.0, fub::Direction::X, 1};
   BoundarySet boundaries{{valve, right}};
 
@@ -488,7 +489,7 @@ void MyMain(const boost::program_options::variables_map& vm) {
 
   fub::amrex::MultiBlockIgniteDetonation ignition{
       tube_equation, context.GetGriddingAlgorithm(),
-      fub::amrex::IgniteDetonationOptions(vm)};
+      fub::amrex::IgniteDetonationOptions(vm, "ignite")};
 
   std::string checkpoint{};
   if (vm.count("grid.checkpoint")) {
@@ -523,7 +524,7 @@ void MyMain(const boost::program_options::variables_map& vm) {
 
   std::string base_name = "MultiTube_Compressor";
 
-  std::vector<double> slice_xs = {4e-3, 0.1, 0.2, 0.3, 0.4, 0.5 - 3e-3};
+  std::vector<double> slice_xs = {0.05, 0.1, 0.2, 0.3, 0.4, 0.5 - 3e-3};
   std::vector<::amrex::Box> output_boxes{};
   output_boxes.reserve(slice_xs.size() + 1);
 

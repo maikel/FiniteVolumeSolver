@@ -137,7 +137,8 @@ auto MakeTubeSolver(fub::Burke2012& mechanism, const TubeSolverOptions& opts,
   equation.CompleteFromReactor(state);
   ConstantData initial_data{equation, state};
 
-  PressureValveBoundary valve{equation, vm};
+  PressureValveOptions valve_opts(vm, fmt::format("valve{}", k));
+  PressureValveBoundary valve{equation, valve_opts};
   BoundarySet boundaries{{valve}};
 
   // If a checkpoint path is specified we will fill the patch hierarchy with
