@@ -279,6 +279,7 @@ void GriddingAlgorithm::MakeNewLevelFromScratch(
   }
   ::amrex::MultiFab& data = hierarchy_.GetPatchLevel(level).data;
   const ::amrex::Geometry& geom = hierarchy_.GetGeometry(level);
+  data.setVal(0.0);
   initial_condition_.InitializeData(data, geom);
 }
 

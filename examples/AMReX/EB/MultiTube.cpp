@@ -270,7 +270,7 @@ auto MakePlenumSolver(fub::Burke2012& mechanism, int num_cells, int n_level,
   std::shared_ptr gridding = [&] {
     std::string checkpoint{};
     if (vm.count("grid.checkpoint")) {
-      checkpoint = vm["checkpoint"].as<std::string>();
+      checkpoint = vm["grid.checkpoint"].as<std::string>();
     }
     if (checkpoint.empty()) {
       std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
