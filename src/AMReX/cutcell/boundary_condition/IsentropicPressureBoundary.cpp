@@ -27,18 +27,6 @@
 
 namespace fub::amrex::cutcell {
 namespace {
-std::array<std::ptrdiff_t, AMREX_SPACEDIM>
-MapToSrc(const std::array<std::ptrdiff_t, AMREX_SPACEDIM>& dest,
-         const ::amrex::Geometry& geom, int side, Direction dir) {
-  const int boundary = (side == 0) * geom.Domain().smallEnd(int(dir)) +
-                       (side == 1) * geom.Domain().bigEnd(int(dir));
-  //    const int distance = dest[int(dir)] - boundary;
-  //  const int sign = int((distance > 0) - (distance < 0));
-  std::array<std::ptrdiff_t, AMREX_SPACEDIM> src{dest};
-  //  src[int(dir)] -= 2 * distance - sign;
-  src[std::size_t(dir)] = boundary;
-  return src;
-}
 
 inline int GetSign(int side) { return (side == 0) - (side == 1); }
 
@@ -50,8 +38,10 @@ void IsentropicExpansionWithoutDissipation(
     const Complete<IdealGasMix<AMREX_SPACEDIM>>& src, double dest_pressure,
     double efficiency = 1.0) {
   Array<double, AMREX_SPACEDIM, 1> old_velocity = src.momentum / src.density;
-  const double h_before = src.energy / src.density + src.pressure / src.density;
   eq.SetReactorStateFromComplete(src);
+  eq.CompleteFromReactor(dest);
+  // Ekin = 0 here!
+  const double h_before = dest.energy / dest.density + dest.pressure / dest.density;
   eq.GetReactor().SetPressureIsentropic(dest_pressure);
   eq.CompleteFromReactor(dest);
   const double h_after =
@@ -60,7 +50,7 @@ void IsentropicExpansionWithoutDissipation(
   const double u_border =
       Sign(enthalpyDifference) *
              std::sqrt(efficiency * std::abs(enthalpyDifference) * 2 +
-                       old_velocity[0] * old_velocity[0]);
+                       old_velocity.matrix().squaredNorm());
   dest.momentum[0] = dest.density * u_border;
   dest.energy += 0.5 * dest.density * u_border * u_border;
 }
@@ -164,8 +154,12 @@ void IsentropicPressureBoundary::FillBoundary(::amrex::MultiFab& mf,
   double p = state.pressure;
   BOOST_LOG(log_) << fmt::format("Average inner state: {} kg/m3, {} m/s, {} Pa",
                                  rho, u, p);
-  IsentropicExpansionWithoutDissipation(equation_, state, state,
-                                        outer_pressure_);
+
+  equation_.GetReactor().SetMassFractions(state.species);
+  equation_.GetReactor().SetTemperature(300.0);
+  equation_.GetReactor().SetPressure(outer_pressure_);
+  equation_.CompleteFromReactor(state);
+  IsentropicExpansionWithoutDissipation(equation_, state, state, p);
   rho = state.density;
   u = state.momentum[0] / rho;
   p = state.pressure;

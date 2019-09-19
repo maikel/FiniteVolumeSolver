@@ -53,6 +53,7 @@ struct PressureValveOptions {
   double fuel_measurement_criterium{0.95};
   double valve_efficiency{1.0};
   Duration open_at_interval{0.0};
+  Duration offset{0.0};
 };
 
 }
@@ -106,15 +107,14 @@ void serialize(Archive& ar, ::fub::amrex::PressureValve& valve,
   int state = static_cast<int>(valve.state);
   ar & state;
   valve.state = static_cast<::fub::amrex::PressureValveState>(state);
-  double count = valve.last_opened.count();
-  ar & count;
-  valve.last_opened = ::fub::Duration(count);
+  ar & valve.last_opened;
 }
 
 template <typename Archive>
 void serialize(Archive& ar, ::fub::amrex::PressureValveOptions& opts,
                unsigned int /* version */) {
   ar & opts.open_at_interval;
+  ar & opts.offset;
 }
 
 } // namespace boost::serialization

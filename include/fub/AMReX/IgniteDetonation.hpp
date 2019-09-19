@@ -35,9 +35,9 @@ struct IgniteDetonationOptions {
   IgniteDetonationOptions() = default;
 
   explicit IgniteDetonationOptions(
-      const boost::program_options::variables_map& vm);
+                                   const boost::program_options::variables_map& vm, const std::string& prefix = {});
 
-  static boost::program_options::options_description GetCommandLineOptions();
+  static boost::program_options::options_description GetCommandLineOptions(const std::string& prefix = {});
 
   double measurement_position{1.0};
   double equivalence_ratio_criterium{0.95};

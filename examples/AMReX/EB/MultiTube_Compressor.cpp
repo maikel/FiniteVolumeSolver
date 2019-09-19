@@ -64,7 +64,7 @@ auto DomainAroundCenter(const ::amrex::RealArray& x, double rx)
 struct TubeSolverOptions {
   int n_cells{200};
   int max_refinement_level{1};
-  std::array<double, 2> x_domain{-1.5, -0.03};
+  std::array<double, 2> x_domain{0.53, 2.0};
   double phi{0.0};
 };
 
@@ -138,7 +138,8 @@ auto MakeTubeSolver(fub::Burke2012& mechanism, const TubeSolverOptions& opts,
   ConstantData initial_data{equation, state};
 
   PressureValveBoundary valve{equation, vm};
-  BoundarySet boundaries{{valve}};
+  IsentropicPressureBoundary right{equation, 101325.0, fub::Direction::X, 1};
+  BoundarySet boundaries{{valve, right}};
 
   // If a checkpoint path is specified we will fill the patch hierarchy with
   // data from the checkpoint file, otherwise we will initialize the data by
@@ -172,7 +173,7 @@ auto MakeTubeSolver(fub::Burke2012& mechanism, const TubeSolverOptions& opts,
                           ForwardIntegrator(fub::execution::openmp),
                           Reconstruction(fub::execution::openmp, equation)};
 
-  return std::pair{fub::amrex::IntegratorContext(gridding, method), valve};
+  return std::make_pair(fub::amrex::IntegratorContext(gridding, method), valve);
 }
 
 ::amrex::Box BoxWhichContains(const ::amrex::RealBox& xbox,
@@ -197,8 +198,8 @@ auto MakeTubeSolver(fub::Burke2012& mechanism, const TubeSolverOptions& opts,
 auto MakePlenumSolver(fub::Burke2012& mechanism, int num_cells, int n_level,
                       const boost::program_options::variables_map& vm) {
   const std::array<int, Plenum_Rank> n_cells{num_cells, num_cells, num_cells};
-  const std::array<double, Plenum_Rank> xlower{-0.03, -0.5 * 0.56, -0.5 * 0.56};
-  const std::array<double, Plenum_Rank> xupper{+0.53, +0.5 * 0.56, +0.5 * 0.56};
+  const std::array<double, Plenum_Rank> xlower{0.03, -0.5 * 0.50, -0.5 * 0.50};
+  const std::array<double, Plenum_Rank> xupper{+0.53, +0.5 * 0.50, +0.5 * 0.50};
   const std::array<int, Plenum_Rank> periodicity{0, 0, 0};
 
   amrex::RealBox xbox(xlower, xupper);
@@ -208,17 +209,15 @@ auto MakePlenumSolver(fub::Burke2012& mechanism, int num_cells, int n_level,
   auto embedded_boundary = amrex::EB2::makeUnion(
       amrex::EB2::makeIntersection(
           amrex::EB2::CylinderIF(r_outer, 0.5, 0, {0.25, 0.0, 0.0}, true),
-          amrex::EB2::CylinderIF(r_tube_center, 1.0, 0,
-                                 {1.0 - 1.0e-6, 0.0, 0.0}, true),
-          amrex::EB2::CylinderIF(r_tube, 0.3, 0, Center(-0.1, 0.0 * alpha),
+          amrex::EB2::CylinderIF(r_tube, 0.3, 0, Center(0.6, 0.0 * alpha),
                                  true),
-          amrex::EB2::CylinderIF(r_tube, 0.3, 0, Center(-0.1, 1.0 * alpha),
+          amrex::EB2::CylinderIF(r_tube, 0.3, 0, Center(0.6, 1.0 * alpha),
                                  true),
-          amrex::EB2::CylinderIF(r_tube, 0.3, 0, Center(-0.1, 2.0 * alpha),
+          amrex::EB2::CylinderIF(r_tube, 0.3, 0, Center(0.6, 2.0 * alpha),
                                  true),
-          amrex::EB2::CylinderIF(r_tube, 0.3, 0, Center(-0.1, 3.0 * alpha),
+          amrex::EB2::CylinderIF(r_tube, 0.3, 0, Center(0.6, 3.0 * alpha),
                                  true),
-          amrex::EB2::CylinderIF(r_tube, 0.3, 0, Center(-0.1, 4.0 * alpha),
+          amrex::EB2::CylinderIF(r_tube, 0.3, 0, Center(0.6, 4.0 * alpha),
                                  true)),
       amrex::EB2::CylinderIF(r_inner, 1.0, 0, {0.25, 0.0, 0.0}, false));
   auto shop = amrex::EB2::makeShop(embedded_boundary);
@@ -252,16 +251,16 @@ auto MakePlenumSolver(fub::Burke2012& mechanism, int num_cells, int n_level,
                              std::pair{&State::density, 0.01}};
 
   ::amrex::RealBox inlet{{-0.1, -0.5, -0.5}, {0.05, +0.5, +0.5}};
-  const ::amrex::Box refine_box = BoxWhichContains(inlet, coarse_geom);
-  ConstantBox constant_box{refine_box};
-
   ::amrex::RealBox outlet{{0.5, -0.5, -0.5}, {0.54, +0.5, +0.5}};
+  const ::amrex::Box inlet_box = BoxWhichContains(inlet, coarse_geom);
   const ::amrex::Box outlet_box = BoxWhichContains(outlet, coarse_geom);
+  ConstantBox constant_box{outlet_box};
+
 
   BoundarySet boundary_condition{
-      {TransmissiveBoundary{fub::Direction::X, 0},
-       IsentropicPressureBoundary{"RightPlenumBoundary", equation, outlet_box,
-                                  101325.0, fub::Direction::X, 1}}};
+    {IsentropicPressureBoundary{"LeftPlenumBoundary", equation, inlet_box,
+      6*101325.0, fub::Direction::X, 0},
+       TransmissiveBoundary{fub::Direction::X, 1}}};
 
   // If a checkpoint path is specified we will fill the patch hierarchy with
   // data from the checkpoint file, otherwise we will initialize the data by
@@ -325,9 +324,9 @@ struct ProgramOptions {
     po::options_description desc{"Grid Options"};
     // clang-format off
     desc.add_options()
-      ("grid.plenum_n_cells", po::value<int>(), "Base number of cells in the plenum for the coarsest level")
-      ("grid.max_number_of_levels", po::value<int>(), "Maximal number of refinement levels across all domains.")
-      ("grid.checkpoint", po::value<std::string>(), "The path to the checkpoint files to restart a simulation.");
+    ("grid.plenum_n_cells", po::value<int>(), "Base number of cells in the plenum for the coarsest level")
+    ("grid.max_number_of_levels", po::value<int>(), "Maximal number of refinement levels across all domains.")
+    ("grid.checkpoint", po::value<std::string>(), "The path to the checkpoint files to restart a simulation.");
     // clang-format on
     return desc;
   }
@@ -363,7 +362,7 @@ ParseCommandLine(int argc, char** argv) {
     po::notify(vm);
   } catch (std::exception& e) {
     amrex::Print()
-        << "[Error] An Error occured while reading program options:\n";
+    << "[Error] An Error occured while reading program options:\n";
     amrex::Print() << e.what();
     return {};
   }
@@ -378,7 +377,7 @@ ParseCommandLine(int argc, char** argv) {
   amrex::Print() << sout.str();
 
   ProgramOptions o(vm);
-  constexpr double tube_len_over_plenum_len = 1.47 / 0.56;
+  constexpr double tube_len_over_plenum_len = 1.47 / 0.50;
   int tube_n_cells = static_cast<int>(tube_len_over_plenum_len *
                                       static_cast<double>(o.plenum_n_cells));
   tube_n_cells = tube_n_cells - tube_n_cells % 8;
@@ -436,7 +435,7 @@ void MyMain(const boost::program_options::variables_map& vm) {
   const int n_level = po.max_refinement_level;
   auto plenum = MakePlenumSolver(mechanism, po.plenum_n_cells, n_level, vm);
 
-  constexpr double tube_len_over_plenum_len = 1.47 / 0.56;
+  constexpr double tube_len_over_plenum_len = 1.47 / 0.50;
   int tube_n_cells = static_cast<int>(tube_len_over_plenum_len *
                                       static_cast<double>(po.plenum_n_cells));
   tube_n_cells = tube_n_cells - tube_n_cells % 8;
@@ -457,7 +456,7 @@ void MyMain(const boost::program_options::variables_map& vm) {
     valves.push_back(valve.GetSharedState());
     fub::amrex::BlockConnection connection;
     connection.direction = fub::Direction::X;
-    connection.side = 0;
+    connection.side = 1;
     connection.plenum.id = 0;
     connection.tube.id = k;
     connection.tube.mirror_box = tubes[k]
@@ -466,7 +465,7 @@ void MyMain(const boost::program_options::variables_map& vm) {
                                      .GetGeometry(0)
                                      .Domain();
     connection.plenum.mirror_box =
-        BoxWhichContains(DomainAroundCenter(Center(-0.03, k * alpha), 0.03),
+        BoxWhichContains(DomainAroundCenter(Center(+0.53, k * alpha), 0.03),
                          plenum.GetGeometry(0));
     return connection;
   };
@@ -489,7 +488,7 @@ void MyMain(const boost::program_options::variables_map& vm) {
 
   fub::amrex::MultiBlockIgniteDetonation ignition{
       tube_equation, context.GetGriddingAlgorithm(),
-      fub::amrex::IgniteDetonationOptions(vm, "ignite")};
+      fub::amrex::IgniteDetonationOptions(vm)};
 
   std::string checkpoint{};
   if (vm.count("grid.checkpoint")) {
@@ -522,9 +521,9 @@ void MyMain(const boost::program_options::variables_map& vm) {
 
   fub::DimensionalSplitSystemSourceSolver solver{ign_solver, source_term};
 
-  std::string base_name = "MultiTube";
+  std::string base_name = "MultiTube_Compressor";
 
-  std::vector<double> slice_xs = {-3e-3, 3e-3, 0.1, 0.2, 0.3, 0.4, 0.5 - 3e-3};
+  std::vector<double> slice_xs = {4e-3, 0.1, 0.2, 0.3, 0.4, 0.5 - 3e-3};
   std::vector<::amrex::Box> output_boxes{};
   output_boxes.reserve(slice_xs.size() + 1);
 
