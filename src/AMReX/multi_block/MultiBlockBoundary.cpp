@@ -24,10 +24,14 @@
 #include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
 #include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp"
 
+#include "fub/AMReX/cutcell/boundary_condition/ReflectiveBoundary.hpp"
+
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/ForEachIndex.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/ForEach.hpp"
+
+#include "fub/equations/ideal_gas_mix/mechanism/Burke2012.hpp"
 
 #include <AMReX_EB2.H>
 
@@ -427,7 +431,7 @@ void MultiBlockBoundary::ComputeBoundaryData(
         MakeView<Complete<Tube_Rank>>(*tube_ghost_data_, tube_equation_);
     Conservative<Plenum_Rank> cons(plenum_equation_);
     Complete<Tube_Rank> complete(tube_equation_);
-    const std::ptrdiff_t i0 = plenum_data.box().smallEnd(0);
+    const std::ptrdiff_t i0 = plenum_mirror_data_->box().smallEnd(0);
     const std::ptrdiff_t j0 = tube_ghost_data_->box().smallEnd(0);
     ForEachIndex(Box<0>(complete_states), [&](std::ptrdiff_t j) {
       const std::ptrdiff_t k = j - j0;
@@ -486,19 +490,41 @@ void MultiBlockBoundary::ComputeBoundaryData(
 }
 
 void MultiBlockBoundary::FillBoundary(::amrex::MultiFab& mf,
-                                      const ::amrex::Geometry& /* geom */,
-                                      Duration,
-                                      const GriddingAlgorithm& /* gridding */) {
+                                      const ::amrex::Geometry& geom,
+                                      Duration t,
+                                      const GriddingAlgorithm& grid) {
   //  const ::amrex::Box ghost_box = MakeGhostBox(plenum_mirror_box_, 3, dir_,
   //  side_);
   ::amrex::Box box = tube_ghost_data_->box();
-  ForEachFab(execution::openmp, mf, [&](const ::amrex::MFIter& mfi) {
+  ForEachFab(execution::seq, mf, [&](const ::amrex::MFIter& mfi) {
     const ::amrex::Box b = mfi.growntilebox() & box;
     if (!b.isEmpty()) {
-      for (int n = 0; n < mf.nComp(); ++n) {
-        ForEachIndex(AsIndexBox<AMREX_SPACEDIM>(b), [&](auto... is) {
-          const ::amrex::IntVect iv{int(is)...};
-          mf[mfi](iv, n) = (*tube_ghost_data_)(iv, n);
+      if (!valve_ || valve_->state == PressureValveState::open_air) {
+        for (int n = 0; n < mf.nComp(); ++n) {
+          ForEachIndex(AsIndexBox<AMREX_SPACEDIM>(b), [&](auto... is) {
+            const ::amrex::IntVect iv{int(is)...};
+            mf[mfi](iv, n) = (*tube_ghost_data_)(iv, n);
+          });
+        }
+      } else if (valve_->state == PressureValveState::closed) {
+        ReflectiveBoundary closed{execution::openmp, tube_equation_, dir_, side_};
+        closed.FillBoundary(mf, geom, t, grid);
+      }
+
+      if (valve_ && valve_->state == PressureValveState::open_fuel) {
+        IdealGasMix<Tube_Rank>::Complete state(tube_equation_);
+        auto view = MakeView<IdealGasMix<Tube_Rank>::Complete>(mf[mfi], tube_equation_, mfi.tilebox());
+        std::vector<double> moles(tube_equation_.GetReactor().GetNSpecies());
+        ForEachIndex(Box<0>(view), [&](auto... is) {
+          Load(state, view, {is...});
+          Array<double, 1, 1> velocity = state.momentum / state.density;
+          tube_equation_.SetReactorStateFromComplete(state);
+          span<const double> rmoles = tube_equation_.GetReactor().GetMoleFractions();
+          std::copy(rmoles.begin(), rmoles.end(), moles.begin());
+          moles[Burke2012::sH2] = 2 * moles[Burke2012::sO2];
+          tube_equation_.GetReactor().SetMoleFractions(moles);
+          tube_equation_.CompleteFromReactor(state, velocity);
+          Store(view, state, {is...});
         });
       }
     }
@@ -506,19 +532,24 @@ void MultiBlockBoundary::FillBoundary(::amrex::MultiFab& mf,
 }
 
 void MultiBlockBoundary::FillBoundary(
-    ::amrex::MultiFab& mf, const ::amrex::Geometry& /* geom */, Duration,
-    const cutcell::GriddingAlgorithm& /* gridding */) {
+    ::amrex::MultiFab& mf, const ::amrex::Geometry&  geom, Duration t,
+    const cutcell::GriddingAlgorithm& grid) {
   ::amrex::Box ghost_box = MakeGhostBox(plenum_mirror_box_, 3, dir_, side_);
   ForEachFab(execution::openmp, mf, [&](const ::amrex::MFIter& mfi) {
     const ::amrex::Box box = mfi.growntilebox() & ghost_box;
     if (!box.isEmpty()) {
-      ::amrex::FArrayBox& fab = mf[mfi];
-      for (int c = 0; c < mf.nComp(); ++c) {
-        ForEachIndex(AsIndexBox<Plenum_Rank>(box), [&](auto... is) {
-          const ::amrex::IntVect dest{int(is)...};
-          ::amrex::IntVect src = ReduceDimension(dest, dir_);
-          fab(dest, c) = (*plenum_ghost_data_)(src, c);
-        });
+      if (!valve_ || valve_->state != PressureValveState::closed) {
+        ::amrex::FArrayBox& fab = mf[mfi];
+        for (int c = 0; c < mf.nComp(); ++c) {
+          ForEachIndex(AsIndexBox<Plenum_Rank>(box), [&](auto... is) {
+            const ::amrex::IntVect dest{int(is)...};
+            ::amrex::IntVect src = ReduceDimension(dest, dir_);
+            fab(dest, c) = (*plenum_ghost_data_)(src, c);
+          });
+        }
+      } else {
+        cutcell::ReflectiveBoundary closed{execution::openmp, plenum_equation_, dir_, side_};
+        closed.FillBoundary(mf, geom, t, grid);
       }
     }
   });

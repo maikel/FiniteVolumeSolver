@@ -75,6 +75,9 @@ if (AMReX_FOUND AND AMReX_3D_FOUND)
 
     add_executable_with_warnings(AMReX.EB.MultiTube AMReX/EB/MultiTube.cpp)
     target_link_libraries(AMReX.EB.MultiTube FiniteVolumeSolver.AMReX.EB)
+    
+    add_executable_with_warnings(AMReX.EB.MultiTube_Compressor AMReX/EB/MultiTube_Compressor.cpp)
+    target_link_libraries(AMReX.EB.MultiTube_Compressor FiniteVolumeSolver.AMReX.EB)
 
     add_executable_with_warnings(AMReX.EB.Divider AMReX/EB/Divider.cpp)
     target_link_libraries(AMReX.EB.Divider FiniteVolumeSolver.AMReX.EB)
