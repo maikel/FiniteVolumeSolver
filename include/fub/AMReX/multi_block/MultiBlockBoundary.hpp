@@ -25,6 +25,7 @@
 #include "fub/Duration.hpp"
 #include "fub/PatchDataView.hpp"
 #include "fub/equations/IdealGasMix.hpp"
+#include "fub/AMReX/boundary_condition/PressureValveBoundary.hpp"
 
 #include <AMReX.H>
 #include <AMReX_MultiFab.H>
@@ -70,6 +71,10 @@ public:
                      const BlockConnection& connection, int gcw,
                      const FlameMasterReactor& reactor, int level);
 
+  MultiBlockBoundary(const std::string& name, const MultiBlockGriddingAlgorithm& gridding,
+                     const BlockConnection& connection, int gcw,
+                     const FlameMasterReactor& reactor, int level, std::shared_ptr<PressureValve> valve);
+
   /// Constructs coupled boundary states by pre computing mirror and ghost
   /// states for each of the specified domains.
   ///
@@ -113,6 +118,8 @@ public:
 private:
   boost::log::sources::channel_logger<> log_;
   boost::log::attributes::mutable_constant<double> time_attr_;
+
+  std::shared_ptr<PressureValve> valve_{};
 
   IdealGasMix<Plenum_Rank> plenum_equation_;
   IdealGasMix<Tube_Rank> tube_equation_;

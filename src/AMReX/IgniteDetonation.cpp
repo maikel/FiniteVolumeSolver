@@ -24,24 +24,37 @@
 #include "fub/equations/ideal_gas_mix/mechanism/Burke2012.hpp"
 
 namespace fub::amrex {
+namespace {
+  std::string PrefixedName(const std::string& prefix, const char* basename) {
+    if (prefix.empty()) {
+      return std::string(basename);
+    }
+    return fmt::format("{}.{}", prefix, basename);
+  }
+} // namespace
 namespace po = boost::program_options;
 
-po::options_description IgniteDetonationOptions::GetCommandLineOptions() {
-  IgniteDetonationOptions opts{};
-  po::options_description desc{};
+  po::options_description IgniteDetonationOptions::GetCommandLineOptions(const std::string& prefix) {
+  po::options_description desc{"Ignite Detonation"};
   desc.add_options()
-  ("measurement_position", po::value<double>()->default_value(opts.measurement_position), "Position within the tube which measures the fuel equivalence ratio. This position effectively determines the fill fraction. [m]")
-  ("equivalence_ratio_criterium", po::value<double>()->default_value(opts.equivalence_ratio_criterium), "Ignites the fuel if an equivalence ratio is measured which is greater than this value. [-]")
-  ("ignite_position", po::value<double>()->default_value(opts.ignite_position), "The position within the tube where the temperature will be risen to ignite the tube. This position should be smaller than `measure_position`. [m]")
-  ("ignite_interval", po::value<double>()->default_value(opts.ignite_interval.count()), "The time interval in which no second ignition can be triggered. [s]");
+  (PrefixedName(prefix, "measurement_position").c_str(), po::value<double>(), "Position within the tube which measures the fuel equivalence ratio. This position effectively determines the fill fraction. [m]")
+  (PrefixedName(prefix, "equivalence_ratio_criterium").c_str(), po::value<double>(), "Ignites the fuel if an equivalence ratio is measured which is greater than this value. [-]")
+  (PrefixedName(prefix, "position").c_str(), po::value<double>(), "The position within the tube where the temperature will be risen to ignite the tube. This position should be smaller than `measure_position`. [m]")
+  (PrefixedName(prefix, "interval").c_str(), po::value<double>(), "The time interval in which no second ignition can be triggered. [s]");
   return desc;
 }
 
-IgniteDetonationOptions::IgniteDetonationOptions(const po::variables_map& vm) {
-  measurement_position = vm["measurement_position"].as<double>();
-  equivalence_ratio_criterium = vm["equivalence_ratio_criterium"].as<double>();
-  ignite_position = vm["ignite_position"].as<double>();
-  ignite_interval = Duration(vm["ignite_interval"].as<double>());
+  IgniteDetonationOptions::IgniteDetonationOptions(const po::variables_map& vm, const std::string& prefix) {
+    auto GetOptionOr = [&](const char* opt, double default_value) {
+      if (vm.count(PrefixedName(prefix, opt))) {
+        return vm[PrefixedName(prefix, opt)].as<double>();
+      }
+      return default_value;
+    };
+  measurement_position = GetOptionOr("measurement_position", measurement_position);
+    equivalence_ratio_criterium = GetOptionOr("equivalence_ratio_criterium", equivalence_ratio_criterium);
+  ignite_position = GetOptionOr("position", ignite_position);
+  ignite_interval = Duration(GetOptionOr("interval", ignite_interval.count()));
 }
 
 IgniteDetonation::IgniteDetonation(

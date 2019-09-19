@@ -30,26 +30,32 @@ namespace fub {
 boost::program_options::options_description GetCommandLineRunOptions() {
   namespace po = boost::program_options;
   RunOptions opts{};
-  po::options_description desc{};
+  po::options_description desc{"Run Options"};
   // clang-format off
   desc.add_options()
     ("help", "Print help messages")
-    ("max_cycles", po::value<int>()->default_value(opts.max_cycles), "Set maximal number of coarse time steps done.")
-    ("cfl", po::value<double>()->default_value(opts.cfl), "Set the CFL condition")
-    ("output_interval", po::value<double>()->default_value(0.0), "Sets the output interval")
-    ("output_frequency", po::value<int>()->default_value(0), "Sets the output frequency")
-    ("final_time", po::value<double>()->default_value(0.0), "Sets the final time point for this simulation");
+    ("max_cycles", po::value<int>(), "Set maximal number of coarse time steps done.")
+    ("cfl", po::value<double>(), "Set the CFL condition")
+    ("output_interval", po::value<double>(), "Sets the output interval")
+    ("output_frequency", po::value<int>(), "Sets the output frequency")
+    ("final_time", po::value<double>(), "Sets the final time point for this simulation");
   // clang-format on
   return desc;
 }
 
 RunOptions GetRunOptions(const boost::program_options::variables_map& vm) {
   RunOptions opts{};
-  opts.cfl = vm["cfl"].as<double>();
-  opts.final_time = Duration(vm["final_time"].as<double>());
-  opts.output_interval = {Duration(vm["output_interval"].as<double>())};
-  opts.output_frequency = {vm["output_frequency"].as<int>()};
-  opts.max_cycles = vm["max_cycles"].as<int>();
+  auto GetOptionOr = [&](const char* opt, auto default_value) {
+    if (vm.count(opt)) {
+      return vm[opt].as<std::decay_t<decltype(default_value)>>();
+    }
+    return default_value;
+  };
+  opts.cfl = GetOptionOr("cfl", opts.cfl);
+  opts.final_time = Duration(GetOptionOr("final_time", opts.final_time.count()));
+  opts.output_interval = {Duration(GetOptionOr("output_interval", 0.0))};
+  opts.output_frequency = {GetOptionOr("output_frequency", 0)};
+  opts.max_cycles = GetOptionOr("max_cycles", -1);
   return opts;
 }
 

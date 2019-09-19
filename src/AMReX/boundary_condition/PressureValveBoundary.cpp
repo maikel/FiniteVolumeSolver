@@ -39,47 +39,48 @@ std::string PrefixedName(const std::string& prefix, const char* basename) {
 
 po::options_description
 PressureValveOptions::GetCommandLineOptions(std::string prefix) {
-  po::options_description desc{};
-  PressureValveOptions opts{};
+  po::options_description desc{"Valve"};
   desc.add_options()(PrefixedName(prefix, "outer_pressure").c_str(),
-                     po::value<double>()->default_value(opts.outer_pressure),
+                     po::value<double>(),
                      "The mean pressure value for the outer side [Pa]")(
       PrefixedName(prefix, "outer_temperature").c_str(),
-      po::value<double>()->default_value(opts.outer_temperature),
+      po::value<double>(),
       "The mean pressure value for the outer side [K]")(
       PrefixedName(prefix, "pressure_value_which_opens_boundary").c_str(),
-      po::value<double>()->default_value(
-          opts.pressure_value_which_opens_boundary),
+      po::value<double>(),
       "The mean pressure value in the tube which opens the boundary. [Pa]")(
       PrefixedName(prefix, "pressure_value_which_closes_boundary").c_str(),
-      po::value<double>()->default_value(
-          opts.pressure_value_which_closes_boundary),
+      po::value<double>(),
       "The mean pressure value in the tube which closes the boundary. [Pa]")(
       PrefixedName(prefix, "oxygen_measurement_position").c_str(),
-      po::value<double>()->default_value(opts.oxygen_measurement_position),
+      po::value<double>(),
       "The position within the tube where the oxygen concentration will be "
       "measured. [m]")(
       PrefixedName(prefix, "oxygen_measurement_criterium").c_str(),
-      po::value<double>()->default_value(opts.oxygen_measurement_criterium),
+      po::value<double>(),
       "The oxygen concentration which will trigger fuel instead of air inflow. "
       "[-]")(PrefixedName(prefix, "equivalence_ratio").c_str(),
-             po::value<double>()->default_value(opts.equivalence_ratio),
+             po::value<double>(),
              "The equivalence ratio of the fuel which will be used. [-]")(
       PrefixedName(prefix, "open_at_interval").c_str(),
-      po::value<double>()->default_value(opts.open_at_interval.count()),
+      po::value<double>(),
       "If set to non-zero value this pressure valve will only open up once in "
       "a specified time interval. [s]")(
       PrefixedName(prefix, "fuel_measurement_position").c_str(),
-      po::value<double>()->default_value(opts.fuel_measurement_position),
+      po::value<double>(),
       "The position within the tube where the equivalence ratio for the fuel "
       "will be measured. [m]")(
       PrefixedName(prefix, "fuel_measurement_criterium").c_str(),
-      po::value<double>()->default_value(opts.fuel_measurement_criterium),
+      po::value<double>(),
       "If the equivalence ratio at the fuel measurement position is greater "
       "than this value the boundary will be closed. [-]")(
-      PrefixedName(prefix, "valve_efficiency").c_str(),
-      po::value<double>()->default_value(opts.valve_efficiency),
-      "Sets the efficiency of the enthalpy to velocity conversion [-]");
+      PrefixedName(prefix, "efficiency").c_str(),
+      po::value<double>(),
+      "Sets the efficiency of the enthalpy to velocity conversion [-]")
+  (
+   PrefixedName(prefix, "offset").c_str(),
+   po::value<double>(),
+   "Sets an offset for using fuel through this valve. [s]");
   return desc;
 }
 
@@ -90,28 +91,26 @@ PressureValveBoundary::PressureValveBoundary(const IdealGasMix<1>& equation,
 
 PressureValveOptions::PressureValveOptions(const po::variables_map& map,
                                            std::string prefix) {
-  outer_pressure = map[PrefixedName(prefix, "outer_pressure")].as<double>();
-  outer_temperature =
-      map[PrefixedName(prefix, "outer_temperature")].as<double>();
-  pressure_value_which_opens_boundary =
-      map[PrefixedName(prefix, "pressure_value_which_opens_boundary")]
-          .as<double>();
-  pressure_value_which_closes_boundary =
-      map[PrefixedName(prefix, "pressure_value_which_closes_boundary")]
-          .as<double>();
-  oxygen_measurement_position =
-      map[PrefixedName(prefix, "oxygen_measurement_position")].as<double>();
-  oxygen_measurement_criterium =
-      map[PrefixedName(prefix, "oxygen_measurement_criterium")].as<double>();
-  equivalence_ratio =
-      map[PrefixedName(prefix, "equivalence_ratio")].as<double>();
+  auto GetOptionOr = [&](const char* opt, double default_value) {
+    if (map.count(PrefixedName(prefix, opt))) {
+      return map[PrefixedName(prefix, opt)].as<double>();
+    }
+    return default_value;
+  };
+  outer_pressure = GetOptionOr("outer_pressure", outer_pressure);
+  outer_temperature = GetOptionOr("outer_temperature", outer_temperature);
+  pressure_value_which_opens_boundary = GetOptionOr("pressure_value_which_opens_boundary", pressure_value_which_opens_boundary);
+  pressure_value_which_closes_boundary = GetOptionOr("pressure_value_which_closes_boundary", pressure_value_which_closes_boundary);
+  oxygen_measurement_position = GetOptionOr("oxygen_measurement_position", oxygen_measurement_position);
+  oxygen_measurement_criterium = GetOptionOr("oxygen_measurement_criterium", oxygen_measurement_criterium);
+  equivalence_ratio = GetOptionOr("equivalence_ratio", equivalence_ratio);
   open_at_interval =
-      Duration(map[PrefixedName(prefix, "open_at_interval")].as<double>());
-  valve_efficiency = map[PrefixedName(prefix, "valve_efficiency")].as<double>();
-  fuel_measurement_criterium =
-      map[PrefixedName(prefix, "fuel_measurement_criterium")].as<double>();
-  fuel_measurement_position =
-      map[PrefixedName(prefix, "fuel_measurement_position")].as<double>();
+      Duration(GetOptionOr("open_at_interval", open_at_interval.count()));
+  offset =
+  Duration(GetOptionOr("offset", offset.count()));
+  valve_efficiency = GetOptionOr("efficiency", valve_efficiency);
+  fuel_measurement_criterium = GetOptionOr("fuel_measurement_criterium", fuel_measurement_criterium);
+  fuel_measurement_position = GetOptionOr("fuel_measurement_position", fuel_measurement_position);
 }
 
 PressureValveBoundary::PressureValveBoundary(const IdealGasMix<1>& eq,
