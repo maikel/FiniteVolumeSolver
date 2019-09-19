@@ -68,10 +68,6 @@ IsentropicPressureBoundary::IsentropicPressureBoundary(
 }
 
 namespace {
-// double CellVolume(const ::amrex::Geometry& geom) {
-//  return AMREX_D_TERM(geom.CellSize(0), *geom.CellSize(1), *geom.CellSize(2));
-//}
-
 double TotalVolume(const PatchHierarchy& hier, int level,
                    const ::amrex::Box& box) {
   double local_volume(0.0);
@@ -155,11 +151,15 @@ void IsentropicPressureBoundary::FillBoundary(::amrex::MultiFab& mf,
   BOOST_LOG(log_) << fmt::format("Average inner state: {} kg/m3, {} m/s, {} Pa",
                                  rho, u, p);
 
+  equation_.GetReactor().SetDensity(state.density);
   equation_.GetReactor().SetMassFractions(state.species);
-  equation_.GetReactor().SetTemperature(300.0);
+  equation_.GetReactor().SetTemperature(state.temperature);
   equation_.GetReactor().SetPressure(outer_pressure_);
   equation_.CompleteFromReactor(state);
   IsentropicExpansionWithoutDissipation(equation_, state, state, p);
+  if (side_ == 1) {
+    state.momentum[0] = -state.momentum[0];
+  }
   rho = state.density;
   u = state.momentum[0] / rho;
   p = state.pressure;
