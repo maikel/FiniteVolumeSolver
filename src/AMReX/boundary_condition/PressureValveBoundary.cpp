@@ -197,7 +197,7 @@ double ChangeState_(PressureValveState& state, const ::amrex::Geometry& geom,
   const double xhi = geom.ProbDomain().hi(0) - dx_2;
   const Duration current_time = grid.GetPatchHierarchy().GetTimePoint(0);
   const Duration next_time = (last_opened.count() < 0.0)
-                                 ? Duration{0.0}
+                                 ? options.offset
                                  : last_opened + options.open_at_interval;
   switch (state) {
   case PressureValveState::closed:
