@@ -257,10 +257,11 @@ auto MakePlenumSolver(fub::Burke2012& mechanism, int num_cells, int n_level,
   const ::amrex::Box outlet_box = BoxWhichContains(outlet, coarse_geom);
   ConstantBox constant_box{outlet_box};
 
-
+  const double required_massflow = 1.25; // [kg / s]
+  const double surface_area = M_PI * (r_outer * r_outer - r_inner * r_inner);
   BoundarySet boundary_condition{
-    {IsentropicPressureBoundary{"LeftPlenumBoundary", equation, inlet_box,
-      6*101325.0, fub::Direction::X, 0},
+    {MassflowBoundary{"Massflow", equation, inlet_box,
+      required_massflow, surface_area, fub::Direction::X, 0},
        TransmissiveBoundary{fub::Direction::X, 1}}};
 
   // If a checkpoint path is specified we will fill the patch hierarchy with
