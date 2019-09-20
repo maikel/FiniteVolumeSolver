@@ -512,6 +512,7 @@ void MyMain(const boost::program_options::variables_map& vm) {
       ifs = std::istringstream(input);
       boost::archive::text_iarchive ia(ifs);
       ia >> *valve;
+      k = k + 1;
     }
   }
 

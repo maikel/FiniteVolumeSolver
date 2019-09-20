@@ -109,7 +109,7 @@ void serialize(Archive& ar, ::fub::amrex::PressureValve& valve,
   valve.state = static_cast<::fub::amrex::PressureValveState>(state);
   double count = valve.last_opened.count();
   ar & count;
-  valve.last_opened = fub::Duration(count);
+  valve.last_opened = ::fub::Duration(count);
 }
 
 template <typename Archive>
