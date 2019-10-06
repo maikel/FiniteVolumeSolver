@@ -166,8 +166,8 @@ void MyMain(const ProgramOptions& opts,
 
   // Setup the numerical Method used to solve this problem.
   // {{{
-//  fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>> signals{};
-//  fub::HllMethod hll_method(equation, signals);
+  //  fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>> signals{};
+  //  fub::HllMethod hll_method(equation, signals);
 
   fub::ideal_gas::MusclHancockPrimMethod<1> flux_method(equation);
 
@@ -204,10 +204,10 @@ void MyMain(const ProgramOptions& opts,
         fub::amrex::WritePlotFile(name, gridding->GetPatchHierarchy(),
                                   equation);
 
-
-      fub::amrex::WriteTubeData(fmt::format("{}/Matlab/{:07}.dat", base_name, cycle), gridding->GetPatchHierarchy(),
-                                equation, timepoint, cycle,
-                                solver.GetContext().GetMpiCommunicator());
+        fub::amrex::WriteTubeData(
+            fmt::format("{}/Matlab/{:07}.dat", base_name, cycle),
+            gridding->GetPatchHierarchy(), equation, timepoint, cycle,
+            solver.GetContext().GetMpiCommunicator());
         amrex::Print() << "Finished output to '" << name << "'.\n";
       };
 

@@ -53,7 +53,7 @@ int main(int argc, char** argv) {
   amrex::Geometry coarse_geom(amrex::Box{{}, {n_cells[0] - 1, n_cells[1] - 1}},
                               &xbox, -1, geometry.periodicity.data());
 
-  const int n_level = 1;
+  const int n_level = 4;
 
   auto embedded_boundary = ::amrex::EB2::rotate(
       ::amrex::EB2::BoxIF({-0.5, -0.5}, {+0.5, +0.5}, true), 0.25 * M_PI, 2);
@@ -102,7 +102,8 @@ int main(int argc, char** argv) {
                           TimeIntegrator{},
                           Reconstruction{fub::execution::seq, equation}};
 
-  fub::DimensionalSplitLevelIntegrator solver(fub::int_c<2>, IntegratorContext(gridding, method));
+  fub::DimensionalSplitLevelIntegrator solver(
+      fub::int_c<2>, IntegratorContext(gridding, method));
 
   std::string base_name = "Tube/";
   auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,

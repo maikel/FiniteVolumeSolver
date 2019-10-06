@@ -25,10 +25,10 @@
 #include "fub/Direction.hpp"
 #include "fub/equations/IdealGasMix.hpp"
 
+#include <boost/log/attributes/mutable_constant.hpp>
 #include <boost/log/common.hpp>
 #include <boost/log/core.hpp>
 #include <boost/log/sources/channel_logger.hpp>
-#include <boost/log/attributes/mutable_constant.hpp>
 
 #include <AMReX.H>
 
@@ -37,9 +37,10 @@ namespace fub::amrex::cutcell {
 class MassflowBoundary {
 public:
   MassflowBoundary(const std::string& name,
-                             const IdealGasMix<AMREX_SPACEDIM>& eq,
-                             const ::amrex::Box& coarse_inner_box,
-                             double required_massflow, double surface_area, Direction dir, int side);
+                   const IdealGasMix<AMREX_SPACEDIM>& eq,
+                   const ::amrex::Box& coarse_inner_box,
+                   double required_massflow, double surface_area, Direction dir,
+                   int side);
 
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
                     Duration dt, const GriddingAlgorithm& grid);

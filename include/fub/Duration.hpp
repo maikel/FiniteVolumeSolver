@@ -40,10 +40,10 @@ void serialize(Archive& ar, ::fub::Duration& t, unsigned int) {
   if (!std::isfinite(count)) {
     count = std::numeric_limits<double>::lowest();
   }
-  ar & count;
+  ar& count;
   t = ::fub::Duration(count);
 }
 
-}
+} // namespace boost::serialization
 
 #endif

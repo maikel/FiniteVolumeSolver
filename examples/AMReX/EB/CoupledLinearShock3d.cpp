@@ -377,40 +377,42 @@ ParseCommandLine(int argc, char** argv) {
     amrex::Print() << desc << "\n";
     return {};
   }
-  std::ostringstream sout{};
-  fub::PrintRunOptions(sout, fub::GetRunOptions(vm));
-  amrex::Print() << sout.str();
-  amrex::Print() << fmt::format("[Info] Simulation will run with the following "
-                                "additional options:\n[Info]\n");
-  amrex::Print() << fmt::format("[Info] max_refinement_level = {}\n",
+
+  fub::PrintRunOptions(fub::GetRunOptions(vm));
+
+  boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
+      boost::log::keywords::severity = boost::log::trivial::info);
+
+  BOOST_LOG(log) << "Grid Options:";
+  BOOST_LOG(log) << fmt::format("  - max_refinement_level = {}\n",
                                 opts.max_refinement_level);
   std::array<double, 3> plo{-0.03, -0.5 * opts.plenum_domain_length,
                             -0.5 * opts.plenum_domain_length};
   std::array<double, 3> pup{opts.plenum_domain_length - 0.03,
                             +0.5 * opts.plenum_domain_length,
                             +0.5 * opts.plenum_domain_length};
-  amrex::Print() << fmt::format(
-      "[Info] plenum_domain = [{}, {}] x [{}, {}] x [{}, {}]\n", plo[0], pup[0],
+  BOOST_LOG(log) << fmt::format(
+      "  - plenum_domain = [{}, {}] x [{}, {}] x [{}, {}]\n", plo[0], pup[0],
       plo[1], pup[1], plo[2], pup[2]);
-  amrex::Print() << fmt::format(
-      "[Info] plenum_n_cells = {}\n[Info] plenum_dx = {}\n",
-      opts.plenum_n_cells, opts.plenum_domain_length / opts.plenum_n_cells);
+  BOOST_LOG(log) << fmt::format(
+      "  - plenum_n_cells = {}\n  - plenum_dx = {}\n", opts.plenum_n_cells,
+      opts.plenum_domain_length / opts.plenum_n_cells);
   std::array<double, 3> tlo{-opts.tube_domain_length - 0.03, -0.015, -0.015};
   std::array<double, 3> tup{-0.03, +0.015, +0.015};
-  amrex::Print() << fmt::format(
-      "[Info] tube_domain = [{}, {}] x [{}, {}] x [{}, {}]\n", tlo[0], tup[0],
+  BOOST_LOG(log) << fmt::format(
+      "  - tube_domain = [{}, {}] x [{}, {}] x [{}, {}]\n", tlo[0], tup[0],
       tlo[1], tup[1], tlo[2], tup[2]);
   const double ratio = opts.tube_domain_length / opts.plenum_domain_length;
   const int tube_n_cells =
       static_cast<int>(ratio * static_cast<double>(opts.plenum_n_cells));
-  amrex::Print() << fmt::format(
-      "[Info] tube_n_cells = {}\n[Info] tube_dx = {}\n", tube_n_cells,
-      opts.tube_domain_length / tube_n_cells);
-  amrex::Print() << fmt::format("[Info] tube_ignition_pos = {}\n",
+  BOOST_LOG(log) << fmt::format("  - tube_n_cells = {}\n  - tube_dx = {}\n",
+                                tube_n_cells,
+                                opts.tube_domain_length / tube_n_cells);
+  BOOST_LOG(log) << fmt::format("  - tube_ignition_pos = {}\n",
                                 opts.tube_ignition_position);
-  amrex::Print() << fmt::format("[Info] tube_equiv_ratio = {}\n",
+  BOOST_LOG(log) << fmt::format("  - tube_equiv_ratio = {}\n",
                                 opts.tube_equiv_ratio);
-  amrex::Print() << fmt::format("[Info] tube_air_position = {}\n",
+  BOOST_LOG(log) << fmt::format("  - tube_air_position = {}\n",
                                 opts.tube_air_position);
 
   if (!opts.plenum_checkpoint.empty() || !opts.tube_checkpoint.empty()) {
@@ -419,10 +421,10 @@ ParseCommandLine(int argc, char** argv) {
                         "need a checkpoint for each domain.\n";
       return {};
     }
-    amrex::Print() << "[Info]\n[Info] Restart from a checkpoint!\n";
-    amrex::Print() << "[Info] Plenum Checkpoint: " << opts.plenum_checkpoint
+    BOOST_LOG(log) << "[Info]\n[Info] Restart from a checkpoint!\n";
+    BOOST_LOG(log) << "[Info] Plenum Checkpoint: " << opts.plenum_checkpoint
                    << '\n';
-    amrex::Print() << "[Info] Tube Checkpoint: " << opts.tube_checkpoint
+    BOOST_LOG(log) << "[Info] Tube Checkpoint: " << opts.tube_checkpoint
                    << '\n';
   }
 

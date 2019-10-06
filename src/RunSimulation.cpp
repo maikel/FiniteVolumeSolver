@@ -20,8 +20,8 @@
 
 #include "fub/RunSimulation.hpp"
 
-#include <fmt/format.h>
 #include <fmt/chrono.h>
+#include <fmt/format.h>
 
 #include <cmath>
 
@@ -52,24 +52,25 @@ RunOptions GetRunOptions(const boost::program_options::variables_map& vm) {
     return default_value;
   };
   opts.cfl = GetOptionOr("cfl", opts.cfl);
-  opts.final_time = Duration(GetOptionOr("final_time", opts.final_time.count()));
+  opts.final_time =
+      Duration(GetOptionOr("final_time", opts.final_time.count()));
   opts.output_interval = {Duration(GetOptionOr("output_interval", 0.0))};
   opts.output_frequency = {GetOptionOr("output_frequency", 0)};
   opts.max_cycles = GetOptionOr("max_cycles", -1);
   return opts;
 }
 
-void PrintRunOptions(std::ostream& out, const RunOptions& opts) {
-  out << fmt::format(
-      R"fmt([Info] ========================================================================
-[Info] Run Options:
-[Info] final_time = {}s
-[Info] max_cycles = {}
-[Info] output_interval = {}s
-[Info] output_frequency = {}
-[Info] cfl = {}
-[Info] ========================================================================
-)fmt",
+void PrintRunOptions(const RunOptions& opts) {
+  using namespace boost::log::trivial;
+  boost::log::sources::severity_logger<severity_level> log(
+      boost::log::keywords::severity = info);
+  BOOST_LOG(log) << fmt::format(
+      R"fmt(Run Options:
+  - final_time = {}s
+  - max_cycles = {}
+  - output_interval = {}s
+  - output_frequency = {}
+  - cfl = {})fmt",
       opts.final_time.count(), opts.max_cycles, opts.output_interval[0].count(),
       fmt::join(opts.output_frequency, ", "), opts.cfl);
 }
@@ -91,9 +92,9 @@ FormatTimeStepLine(std::ptrdiff_t cycle,
   const double wt_diff_seconds =
       duration_cast<duration<double>>(wall_time_difference).count();
   return fmt::format(
-      "[{:3}%] {:05}: T = {:>9.6}s dt = {:6e}s wall-time: {:02}h:"
-      "{:02}m:{:6f}s (+{:6e}s)\n",
-      total_progress, cycle, simulation_time.count(), time_step_size.count(),
+      "[{:3}%] {:05}: dt = {:6e}s wall-time: {:02}h:"
+      "{:02}m:{:6f}s (+{:6e}s)",
+      total_progress, cycle, time_step_size.count(),
       wt_hours, wt_minutes, wt_seconds, wt_diff_seconds);
 }
 

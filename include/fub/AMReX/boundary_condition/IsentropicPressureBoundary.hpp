@@ -29,7 +29,7 @@ namespace fub::amrex {
 class IsentropicPressureBoundary {
 public:
   IsentropicPressureBoundary(const IdealGasMix<1>& eq, double outer_pressure,
-                     Direction dir, int side);
+                             Direction dir, int side);
 
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
                     Duration dt, const GriddingAlgorithm&);

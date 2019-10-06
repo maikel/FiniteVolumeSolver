@@ -35,7 +35,7 @@ public:
   Geom& Base() noexcept { return *this; }
   const Geom& Base() const noexcept { return *this; }
 
-#ifdef AMREX_SPACEDIM == 1
+#if AMREX_SPACEDIM == 1
   double operator()(double x) const { return Base().ComputeDistanceTo(x); }
 #elif AMREX_SPACEDIM == 2
   double operator()(double x, double y) const {

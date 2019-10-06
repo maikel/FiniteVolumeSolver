@@ -25,6 +25,8 @@
 
 #include "fub/AMReX/FillCutCellData.hpp"
 
+#include "fub/equations/PerfectGas.hpp"
+
 #include <boost/filesystem.hpp>
 
 namespace fub {
@@ -386,18 +388,132 @@ PatchHierarchy ReadCheckpointFile(const std::string& checkpointname,
 
   return hierarchy;
 }
+//
+// namespace {
+//
+//::amrex::RealBox GetProbDomain_(const ::amrex::Geometry& geom,
+//                                const ::amrex::Box& box) {
+//  const double* dx = geom.CellSize();
+//  double base[AMREX_SPACEDIM] = {};
+//  geom.CellCenter({AMREX_D_DECL(0, 0, 0)}, base);
+//  return ::amrex::RealBox(box, dx, base);
+//}
+//
+//} // namespace
 
 namespace {
 
-::amrex::RealBox GetProbDomain_(const ::amrex::Geometry& geom,
-                                const ::amrex::Box& box) {
-  const double* dx = geom.CellSize();
-  double base[AMREX_SPACEDIM] = {};
-  geom.CellCenter({AMREX_D_DECL(0, 0, 0)}, base);
-  return ::amrex::RealBox(box, dx, base);
+  void WriteMatlabData_(std::ostream& out, const ::amrex::FArrayBox& fab,
+                       const PerfectGas<2>& eq,
+                       const ::amrex::Geometry& geom) {
+    auto view = MakeView<const Complete<PerfectGas<2>>>(fab, eq);
+    out << fmt::format("{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}\n", "X", "Y",
+                       "Density", "VelocityX", "VelocityY", "SpeedOfSound", "Pressure");
+    ForEachIndex(Box<0>(view), [&](std::ptrdiff_t i, std::ptrdiff_t j) {
+      double x[2] = {0.0, 0.0};
+      ::amrex::IntVect iv{int(i), int(j)};
+      geom.CellCenter(iv, x);
+      const double density = view.density(i, j);
+      const double velocity_x =
+      density > 0.0 ? view.momentum(i, j, 0) / density : 0.0;
+      const double velocity_y =
+      density > 0.0 ? view.momentum(i, j, 1) / density : 0.0;
+      const double speed_of_sound = view.speed_of_sound(i, j);
+      const double pressure = view.pressure(i, j);
+      out << fmt::format("{:< 24.15e}{:< 24.15e}{:< 24.15e}{:< 24.15e}{:< "
+                         "24.15e}{:< 24.15e}{:< 24.15e}",
+                         x[0], x[1], density, velocity_x, velocity_y, speed_of_sound,
+                         pressure);
+      out << '\n';
+    });
+  }
+
+void WriteMatlabData_(std::ostream* out, const PatchHierarchy& hierarchy,
+                   const PerfectGas<2>& eq, fub::Duration time_point,
+                   std::ptrdiff_t cycle_number, MPI_Comm comm) {
+  const std::size_t n_level =
+  static_cast<std::size_t>(hierarchy.GetNumberOfLevels());
+  std::vector<::amrex::FArrayBox> fabs{};
+  fabs.reserve(n_level);
+  for (std::size_t level = 0; level < n_level; ++level) {
+    const int ilvl = static_cast<int>(level);
+    const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(ilvl);
+    ::amrex::Box domain = level_geom.Domain();
+    const ::amrex::MultiFab& level_data = hierarchy.GetPatchLevel(ilvl).data;
+    ::amrex::FArrayBox local_fab(domain, level_data.nComp());
+    local_fab.setVal(0.0);
+    ForEachFab(level_data, [&](const ::amrex::MFIter& mfi) {
+      const ::amrex::FArrayBox& patch_data = level_data[mfi];
+      local_fab.copy(patch_data);
+    });
+    int rank = -1;
+    ::MPI_Comm_rank(comm, &rank);
+    if (rank == 0) {
+      ::amrex::FArrayBox& fab = fabs.emplace_back(domain, level_data.nComp());
+      fab.setVal(0.0);
+      ::MPI_Reduce(local_fab.dataPtr(), fab.dataPtr(), local_fab.size(),
+                   MPI_DOUBLE, MPI_SUM, 0, comm);
+      if (level > 0) {
+        for (int comp = 1; comp < level_data.nComp(); ++comp) {
+          for (int i = domain.smallEnd(0); i <= domain.bigEnd(0); ++i) {
+            for (int j = domain.smallEnd(1); j <= domain.bigEnd(1); ++j) {
+            ::amrex::IntVect fine_i{
+              AMREX_D_DECL(i, j, domain.smallEnd(2))};
+            ::amrex::IntVect coarse_i = fine_i;
+            coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(level));
+            if (fab(fine_i, 0) == 0.0) {
+              fab(fine_i, comp) = fabs[level - 1](coarse_i, comp);
+            }
+          }
+          }
+        }
+        for (int i = domain.smallEnd(0); i <= domain.bigEnd(0); ++i) {
+          for (int j = domain.smallEnd(1); j <= domain.bigEnd(1); ++j) {
+          ::amrex::IntVect fine_i{
+            AMREX_D_DECL(i, j, domain.smallEnd(2))};
+          ::amrex::IntVect coarse_i = fine_i;
+          coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(level));
+          if (fab(fine_i, 0) == 0.0) {
+            fab(fine_i, 0) = fabs[level - 1](coarse_i, 0);
+          }
+        }
+        }
+      }
+      if (level == n_level - 1) {
+        (*out) << fmt::format("nx = {}\n", domain.length(0));
+        (*out) << fmt::format("ny = {}\n", domain.length(1));
+        (*out) << fmt::format("t = {}\n", time_point.count());
+        (*out) << fmt::format("cycle = {}\n", cycle_number);
+        WriteMatlabData_(*out, fab, eq, level_geom);
+        out->flush();
+      }
+    } else {
+      ::MPI_Reduce(local_fab.dataPtr(), nullptr, local_fab.size(), MPI_DOUBLE,
+                   MPI_SUM, 0, comm);
+    }
+  }
 }
 
-} // namespace
+}
+
+void WriteMatlabData(const std::string& filename, const PatchHierarchy& hierarchy, const PerfectGas<2>& eq, fub::Duration time_point, std::ptrdiff_t cycle_number, MPI_Comm comm) {
+  int rank = -1;
+  MPI_Comm_rank(comm, &rank);
+  if (rank == 0) {
+    boost::filesystem::path path(filename);
+    boost::filesystem::path dir = path.parent_path();
+    boost::filesystem::create_directories(dir);
+    std::ofstream out(filename);
+    if (!out) {
+      throw std::runtime_error(fmt::format("Could not open {}.\n", filename));
+    }
+    WriteMatlabData_(&out, hierarchy, eq, time_point, cycle_number,
+                              comm);
+  } else {
+    WriteMatlabData_(nullptr, hierarchy, eq, time_point, cycle_number,
+                              comm);
+  }
+}
 
 #if AMREX_SPACEDIM == 3
 // void Write2Dfrom3D(std::string name, const PatchHierarchy& hierarchy,

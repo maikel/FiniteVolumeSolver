@@ -65,39 +65,44 @@ fub::Polygon ReadPolygonData(std::istream& input) {
   return fub::Polygon(std::move(xs), std::move(ys));
 }
 
-void WriteMatlabData(std::ostream& out, const amrex::MultiFab& data,
-                     const amrex::Geometry& geom, fub::Duration time_point,
-                     std::ptrdiff_t cycle_number) {
-  amrex::Box box = geom.Domain();
-  amrex::BoxArray ba{box};
-  amrex::DistributionMapping dm{ba, 1};
-  amrex::MultiFab local_copy(ba, dm, data.nComp(), 0, amrex::MFInfo(),
-                             data.Factory());
-  local_copy.ParallelCopy(data, 0, 0, data.nComp());
+template <typename Geometry>
+struct ShockMachnumber
+    : fub::amrex::cutcell::RiemannProblem<fub::PerfectGas<2>, Geometry> {
+  static fub::PerfectGas<2>::Complete
+  ComputePreShockState(fub::PerfectGas<2>& equation,
+                       const fub::PerfectGas<2>::Complete& post_shock,
+                       double M_S, const fub::Array<double, 2, 1>& normal) {
+    const double g = equation.gamma;
+    const double gp1 = g + 1.0;
+    const double gm1 = g - 1.0;
+    const double M_post = equation.Machnumber(post_shock);
+    const double M2 = (M_post - M_S) * (M_post - M_S);
 
-  if (amrex::ParallelDescriptor::MyProc() == 0) {
-    out << fmt::format("nx = {}\n", box.length(0));
-    out << fmt::format("ny = {}\n", box.length(1));
-    out << fmt::format("t = {}\n", time_point.count());
-    out << fmt::format("cycle = {}\n", cycle_number);
-    out << fmt::format("X Y Density VelocityX VelocityY Pressure\n");
-    const amrex::FArrayBox& fab = local_copy[0];
-    fub::ForEachIndex(
-        fub::amrex::AsIndexBox<2>(fab.box()),
-        [&](std::ptrdiff_t i, std::ptrdiff_t j) {
-          double x[2] = {0.0, 0.0};
-          amrex::IntVect iv{int(i), int(j)};
-          geom.CellCenter(iv, x);
-          const double density = fab(iv, 0) > 0.0 ? fab(iv, 0) : 0.0;
-          const double velocity_x = density > 0.0 ? fab(iv, 1) / density : 0.0;
-          const double velocity_y = density > 0.0 ? fab(iv, 2) / density : 0.0;
-          const double pressure = density > 0.0 ? fab(iv, 4) : 0.0;
-          out << fmt::format("{} {} {} {} {} {}\n", x[0], x[1], density,
-                             velocity_x, velocity_y, pressure);
-        });
-    out.flush();
+    const double rho_c = gp1 * M2 / (gm1 * M2 + 2.0);
+    const double rho_post = post_shock.density;
+    const double rho_pre = rho_post * rho_c;
+
+    const double p_c = (2.0 * g * M2 - gm1) / gp1;
+    const double p_post = post_shock.pressure;
+    const double p_pre = p_post * p_c;
+
+    const double t = rho_post / rho_pre;
+    const double a_post = post_shock.speed_of_sound;
+    const double u_S = M_S * a_post;
+    const double u_post = equation.Velocity(post_shock).matrix().norm();
+    const double u_pre = u_S * (1.0 - t) + u_post * t;
+
+    return equation.CompleteFromPrim(rho_pre, u_pre * normal, p_pre);
   }
-}
+
+  ShockMachnumber(fub::PerfectGas<2> equation, Geometry geometry,
+                  const fub::PerfectGas<2>::Complete& post_shock, double M_S,
+                  const fub::Array<double, 2, 1>& normal)
+      : fub::amrex::cutcell::RiemannProblem<fub::PerfectGas<2>, Geometry>(
+            equation, std::move(geometry),
+            ComputePreShockState(equation, post_shock, M_S, normal),
+            post_shock) {}
+};
 
 void WriteCheckpoint(const std::string& base_name,
                      const fub::amrex::cutcell::PatchHierarchy& hierarchy,
@@ -107,16 +112,19 @@ void WriteCheckpoint(const std::string& base_name,
   fub::amrex::cutcell::WriteCheckpointFile(path, hierarchy);
 }
 
-int main(int, char** argv) {
+int main() {
   static_assert(AMREX_SPACEDIM == 2);
 
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
-  char* my_argv[] = {argv[0]};
-  const fub::amrex::ScopeGuard _(1, my_argv);
+  const fub::amrex::ScopeGuard _{};
 
-  const std::array<int, 2> n_cells{8 * 150, 8 * 42};
+  fub::InitializeLogging(MPI_COMM_WORLD);
+  boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
+      boost::log::keywords::severity = boost::log::trivial::info);
+
+  const std::array<int, 2> n_cells{4 * 160, 4 * 42};
   const std::array<double, 2> xlower{0.005, -0.016};
   const std::array<double, 2> xupper{0.155, +0.026};
   const std::array<int, 2> periodicity{0, 0};
@@ -135,21 +143,22 @@ int main(int, char** argv) {
   fub::Complete<fub::PerfectGas<2>> post_shock_state;
   fub::CompleteFromCons(equation, post_shock_state, cons);
 
-  const double shock_mach_number = 5.8;
+  const double shock_mach_number = 1.7;
   const fub::Array<double, 2, 1> normal{1.0, 0.0};
 
-  ShockMachnumber initial_data(equation, fub::Halfspace({+1.0, 0.0, 0.0}, 0.01),
-                               post_shock_state, shock_mach_number, normal);
+  ShockMachnumber<fub::Halfspace> initial_data(
+      equation, fub::Halfspace({+1.0, 0.0, 0.0}, 0.01), post_shock_state,
+      shock_mach_number, normal);
 
-  const State& pre_shock_state = initial_data.GetRiemannProblem().left;
-  amrex::Print() << "Post-Shock-State:\n"
+  const State& pre_shock_state = initial_data.left_;
+  BOOST_LOG(log) << "Post-Shock-State:\n"
                  << "\tdensity: " << post_shock_state.density << " kg / m^3\n"
                  << "\tvelocity: "
                  << equation.Velocity(post_shock_state).transpose()
                  << " m / s\n"
                  << "\tpressure: " << post_shock_state.pressure << " Pa\n";
 
-  amrex::Print() << "Calculated Pre-Shock-State:\n"
+  BOOST_LOG(log) << "Calculated Pre-Shock-State:\n"
                  << "\tdensity: " << pre_shock_state.density << " kg / m^3\n"
                  << "\tvelocity: "
                  << equation.Velocity(pre_shock_state).transpose() << " m / s\n"
@@ -164,6 +173,7 @@ int main(int, char** argv) {
   std::ifstream input("wall_1.txt");
   fub::amrex::Geometry lower{ReadPolygonData(input)};
   input = std::ifstream("wall_2.txt");
+  //  std::ifstream input("wall_2.txt");
   fub::amrex::Geometry mid{ReadPolygonData(input)};
   input = std::ifstream("wall_4.txt");
   fub::amrex::Geometry upper{ReadPolygonData(input)};
@@ -202,19 +212,26 @@ int main(int, char** argv) {
   fub::DimensionalSplitLevelIntegrator solver(
       fub::int_c<2>, IntegratorContext(gridding, method));
 
-  std::string base_name = "Divider_58/";
+  std::string base_name = "Divider/";
 
-  auto output = [&, count =
-                        0LL](const std::shared_ptr<GriddingAlgorithm>& gridding,
-                             std::ptrdiff_t cycle, fub::Duration) mutable {
+  auto output = [&, count = 0LL](
+                    const std::shared_ptr<GriddingAlgorithm>& gridding,
+                    std::ptrdiff_t cycle, fub::Duration tp, int = 0) mutable {
     PatchHierarchy& hierarchy = gridding->GetPatchHierarchy();
-    WriteCheckpoint(base_name, hierarchy, cycle);
-    std::string name = fmt::format("{}{:05}.dat", base_name, count++);
-    std::ofstream file(name);
-    ::amrex::Print() << "Start output to '" << name << "'.\n";
-    WriteMatlabData(file, hierarchy.GetPatchLevel(0).data,
-                    hierarchy.GetGeometry(0), hierarchy.GetTimePoint(), cycle);
-    ::amrex::Print() << "Finished output to '" << name << "'.\n";
+    BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", tp.count());
+    BOOST_LOG(log) << "Write plot files";
+    std::string name = fmt::format("{}plt{:05}", base_name, count);
+    WritePlotFile(name, hierarchy, equation);
+    name = fmt::format("{}plt{:05}.dat", base_name, count);
+    fub::amrex::cutcell::WriteMatlabData(name, hierarchy, equation, tp, cycle,
+                                         MPI_COMM_WORLD);
+    count = count + 1;
+    //    std::ofstream file(name);
+    //    ::amrex::Print() << "Start output to '" << name << "'.\n";
+    //    WriteMatlabData(file, hierarchy.GetPatchLevel(0).data,
+    //                    hierarchy.GetGeometry(0), hierarchy.GetTimePoint(),
+    //                    cycle);
+    //    ::amrex::Print() << "Finished output to '" << name << "'.\n";
   };
 
   auto print_msg = [&](const std::string& msg) { ::amrex::Print() << msg; };
@@ -224,8 +241,8 @@ int main(int, char** argv) {
          solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.final_time = 0.0005s;
-  run_options.output_interval = 0.125 * 0.0000125s;
-  run_options.cfl = 0.25 * 0.9;
+  run_options.output_interval = {0.125 * 0.0000125s};
+  run_options.cfl = 0.8;
   fub::RunSimulation(solver, run_options, wall_time_reference, output,
                      print_msg);
 }

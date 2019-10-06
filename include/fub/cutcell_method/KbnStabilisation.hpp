@@ -347,53 +347,68 @@ double KbnCutCellMethod<FM, RiemannSolver>::ComputeStableDt(
     const View<const Complete>& states, const CutCellData<Rank>& geom,
     double dx, Direction dir) {
   double min_dt = std::numeric_limits<double>::infinity();
-  auto&& vols = geom.volume_fractions;
-  const Eigen::Matrix<double, Rank, 1> unit = UnitVector<Rank>(Direction::X);
-  ForEachIndex(
-      Shrink(Box<0>(states), dir, {0, StencilSize}), [&](const auto... is) {
-        using Index = std::array<std::ptrdiff_t, sizeof...(is)>;
-        const Index cell0{is...};
-        std::array<int, StencilSize> is_covered{};
-        if (IsCutCell(geom, cell0)) {
-          Load(state_, states, cell0);
-          const Eigen::Matrix<double, Rank, 1> normal =
-              GetBoundaryNormal(geom, cell0);
-          Rotate(state_, state_, MakeRotation(normal, unit), FM::GetEquation());
-          Reflect(reflected_, state_, unit, FM::GetEquation());
-          auto half = std::fill_n(stencil_.begin(), StencilWidth, reflected_);
-          std::fill_n(half, StencilWidth, state_);
-          const double dt = FM::ComputeStableDt(stencil_, dx, Direction::X);
-          min_dt = std::min(dt, min_dt);
-        }
-        for (std::size_t i = 0; i < stencil_.size(); ++i) {
-          const Index cell = Shift(cell0, dir, static_cast<int>(i));
-          Load(stencil_[i], states, cell);
-          if (IsCutCell(geom, cell)) {
-            is_covered[i] = 1;
-          } else if (vols(cell) == 1.0) {
-            is_covered[i] = 0;
-          } else {
-            is_covered[i] = 2;
-          }
-        }
-        const std::size_t iL = StencilWidth - 1;
-        const std::size_t iR = StencilWidth;
-        if (is_covered[iL] == 0 || is_covered[iR] == 0) {
-          ReflectCoveredStates(is_covered, cell0, geom, dir);
-          double dt = FM::ComputeStableDt(stencil_, dx, dir);
-          min_dt = std::min(dt, min_dt);
-        }
-        if (is_covered[iL] == 1 && is_covered[iR] == 1) {
-          for (std::size_t i = 0; i < iL; ++i) {
-            stencil_[i] = stencil_[iL];
-          }
-          for (std::size_t i = iR + 1; i < StencilSize; ++i) {
-            stencil_[i] = stencil_[iR];
-          }
-          double dt = FM::ComputeStableDt(stencil_, dx, dir);
-          min_dt = std::min(dt, min_dt);
-        }
-      });
+  static constexpr int kWidth = FM::GetStencilWidth();
+  IndexBox<Rank> cellbox = Box<0>(states);
+  IndexBox<Rank> fluxbox = Shrink(cellbox, dir, {kWidth, kWidth - 1});
+  View<const Complete> base = Subview(states, cellbox);
+  using ArrayView = PatchDataView<const double, Rank, layout_stride>;
+  ArrayView volumes = geom.volume_fractions.Subview(cellbox);
+  const int d = static_cast<int>(dir);
+  ArrayView faces = geom.face_fractions[d].Subview(fluxbox);
+  std::array<View<const Complete>, StencilSize> stencil_views;
+  std::array<ArrayView, StencilSize> stencil_volumes;
+  for (std::size_t i = 0; i < StencilSize; ++i) {
+    stencil_views[i] =
+        Shrink(base, dir,
+               {static_cast<std::ptrdiff_t>(i),
+                static_cast<std::ptrdiff_t>(StencilSize - i) - 1});
+    stencil_volumes[i] = volumes.Subview(
+        Shrink(cellbox, dir,
+               {static_cast<std::ptrdiff_t>(i),
+                static_cast<std::ptrdiff_t>(StencilSize - i) - 1}));
+  }
+  std::tuple views = std::tuple_cat(std::tuple(faces), AsTuple(stencil_volumes),
+                                    AsTuple(stencil_views));
+  ForEachRow(views, [this, &min_dt, dx, dir](span<const double> faces,
+                                             auto... rest) {
+    std::tuple args{rest...};
+    std::array<span<const double>, StencilSize> volumes =
+        AsArray(Take<StencilSize>(args));
+    std::array states = std::apply(
+        [](const auto&... xs)
+            -> std::array<ViewPointer<const Complete>, StencilSize> {
+          return {Begin(xs)...};
+        },
+        Drop<StencilSize>(args));
+    std::array<Array1d, StencilSize> alphas;
+    alphas.fill(Array1d::Zero());
+    Array1d betas = Array1d::Zero();
+    int n = static_cast<int>(faces.size());
+    while (n >= kDefaultChunkSize) {
+      betas = Array1d::Map(faces.data());
+      for (std::size_t i = 0; i < StencilSize; ++i) {
+        Load(stencil_array_[i], states[i]);
+        alphas[i] = Array1d::Map(volumes[i].data());
+      }
+      Array1d dts = FM::ComputeStableDt(stencil_array_, betas, alphas, dx, dir);
+      min_dt = std::min(min_dt, dts.minCoeff());
+      for (std::size_t i = 0; i < StencilSize; ++i) {
+        Advance(states[i], kDefaultChunkSize);
+        volumes[i] = volumes[i].subspan(kDefaultChunkSize);
+      }
+      faces = faces.subspan(kDefaultChunkSize);
+      n = static_cast<int>(faces.size());
+    }
+    std::copy_n(faces.data(), n, betas.data());
+    std::fill_n(betas.data() + n, kDefaultChunkSize - n, 0.0);
+    for (std::size_t i = 0; i < StencilSize; ++i) {
+      LoadN(stencil_array_[i], states[i], n);
+      std::copy_n(volumes[i].data(), n, alphas[i].data());
+      std::fill_n(alphas[i].data() + n, kDefaultChunkSize - n, 0.0);
+    }
+    Array1d dts = FM::ComputeStableDt(stencil_array_, betas, alphas, dx, dir);
+    min_dt = std::min(min_dt, dts.minCoeff());
+  });
   return min_dt;
 }
 
@@ -452,9 +467,12 @@ void KbnCutCellMethod<FM, RiemannSolver>::ComputeRegularFluxes(
                  FM::ComputeNumericFlux(numeric_flux_array_, betas,
                                         stencil_array_, alphas, dt, dx, dir);
                  for (int i = 0; i < betas.size(); ++i) {
-                   ForEachComponent([&](auto&& flux) {
-                     FUB_ASSERT(betas[i] == 0.0 || (betas[i] > 0.0 && !std::isnan(flux[i])));
-                   }, numeric_flux_array_);
+                   ForEachComponent(
+                       [&](auto&& flux [[maybe_unused]]) {
+                         FUB_ASSERT(betas[i] == 0.0 ||
+                                    (betas[i] > 0.0 && !std::isnan(flux[i])));
+                       },
+                       numeric_flux_array_);
                  }
                  Store(fit, numeric_flux_array_);
                  Advance(fit, kDefaultChunkSize);

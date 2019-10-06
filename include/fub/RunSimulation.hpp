@@ -25,6 +25,9 @@
 #include "fub/TimeStepError.hpp"
 #include "fub/core/assert.hpp"
 
+#include <boost/log/sources/severity_logger.hpp>
+#include <boost/log/trivial.hpp>
+#include <boost/log/common.hpp>
 #include <boost/outcome.hpp>
 #include <boost/program_options.hpp>
 
@@ -48,7 +51,7 @@ boost::program_options::options_description GetCommandLineRunOptions();
 
 RunOptions GetRunOptions(const boost::program_options::variables_map& vm);
 
-void PrintRunOptions(std::ostream& out, const RunOptions& opts);
+void PrintRunOptions(const RunOptions& opts);
 
 std::optional<int> AnyOutputCondition(std::ptrdiff_t cycle, Duration time_point,
                                       const RunOptions& options);
@@ -66,7 +69,11 @@ FormatTimeStepLine(std::ptrdiff_t cycle,
 template <typename Solver, typename Output, typename Print>
 Solver RunSimulation(Solver& solver, RunOptions options,
                      std::chrono::steady_clock::time_point wall_time_reference,
-                     Output output, Print print) {
+                     Output output, Print) {
+  namespace logger = boost::log;
+  using namespace logger::trivial;
+  logger::sources::severity_logger<severity_level> log(
+      logger::keywords::severity = info);
   fub::Duration time_point = solver.GetTimePoint();
   const fub::Duration eps = options.smallest_time_step_size;
   std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
@@ -100,11 +107,12 @@ Solver RunSimulation(Solver& solver, RunOptions options,
         // If the solver returned with an error, reduce the time step size with
         // the new estimate.
         failure_dt = result.error().coarse_dt;
-        print(fmt::format("Pre-estimated coarse time step size (dt_old = {}s) "
-                          "was too large.\nRestarting this time step with a "
-                          "smaller coarse time step size (dt_new = {}s).\n",
-                          limited_dt.count(),
-                          options.cfl * failure_dt->count()));
+        BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", time_point.count());
+        BOOST_LOG_SEV(log, warning) << fmt::format(
+            "Pre-estimated coarse time step size (dt_old = {}s) "
+            "was too large.\nRestarting this time step with a "
+            "smaller coarse time step size (dt_new = {}s).\n",
+            limited_dt.count(), options.cfl * failure_dt->count());
         solver.ResetHierarchyConfiguration(backup);
         backup = std::make_shared<GriddingAlgorithm>(*backup);
       } else {
@@ -117,9 +125,10 @@ Solver RunSimulation(Solver& solver, RunOptions options,
             (now - wall_time_reference) - wall_time;
         wall_time = now - wall_time_reference;
         const std::ptrdiff_t cycle = solver.GetCycles();
-        print(FormatTimeStepLine(cycle, time_point, limited_dt,
-                                 options.final_time, wall_time,
-                                 wall_time_difference));
+        BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", time_point.count());
+        BOOST_LOG(log) << FormatTimeStepLine(cycle, time_point, limited_dt,
+                                             options.final_time, wall_time,
+                                             wall_time_difference);
         failure_dt.reset();
         backup =
             std::make_shared<GriddingAlgorithm>(*solver.GetGriddingAlgorithm());

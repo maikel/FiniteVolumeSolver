@@ -59,3 +59,4 @@
 #include "fub/geometry/ExpandTube.hpp"
 #include "fub/geometry/Geometry.hpp"
 #include "fub/geometry/Halfspace.hpp"
+#include "fub/geometry/Polygon.hpp"

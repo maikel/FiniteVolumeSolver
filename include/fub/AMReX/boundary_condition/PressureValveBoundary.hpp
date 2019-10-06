@@ -34,8 +34,8 @@ namespace fub::amrex {
 
 struct PressureValveOptions {
   PressureValveOptions() = default;
-  explicit PressureValveOptions(
-      const boost::program_options::variables_map& vm, std::string prefix = {});
+  explicit PressureValveOptions(const boost::program_options::variables_map& vm,
+                                std::string prefix = {});
 
   static boost::program_options::options_description
   GetCommandLineOptions(std::string prefix = {});
@@ -56,12 +56,13 @@ struct PressureValveOptions {
   Duration offset{0.0};
 };
 
-}
+} // namespace fub::amrex
 
 namespace boost::serialization {
 
 template <typename Archive>
-void serialize(Archive& ar, ::fub::amrex::PressureValveOptions& opts, unsigned int version);
+void serialize(Archive& ar, ::fub::amrex::PressureValveOptions& opts,
+               unsigned int version);
 
 }
 
@@ -87,7 +88,8 @@ public:
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
                     Duration dt, const GriddingAlgorithm&);
 
-  [[nodiscard]] const std::shared_ptr<PressureValve>& GetSharedState() const noexcept {
+  [[nodiscard]] const std::shared_ptr<PressureValve>& GetSharedState() const
+      noexcept {
     return shared_valve_;
   }
 
@@ -105,16 +107,16 @@ template <typename Archive>
 void serialize(Archive& ar, ::fub::amrex::PressureValve& valve,
                unsigned int /* version */) {
   int state = static_cast<int>(valve.state);
-  ar & state;
+  ar& state;
   valve.state = static_cast<::fub::amrex::PressureValveState>(state);
-  ar & valve.last_opened;
+  ar& valve.last_opened;
 }
 
 template <typename Archive>
 void serialize(Archive& ar, ::fub::amrex::PressureValveOptions& opts,
                unsigned int /* version */) {
-  ar & opts.open_at_interval;
-  ar & opts.offset;
+  ar& opts.open_at_interval;
+  ar& opts.offset;
 }
 
 } // namespace boost::serialization

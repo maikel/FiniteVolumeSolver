@@ -23,6 +23,7 @@
 
 #include "fub/AMReX/CartesianGridGeometry.hpp"
 #include "fub/AMReX/PatchHierarchy.hpp"
+#include "fub/equations/PerfectGas.hpp"
 #include "fub/CutCellData.hpp"
 #include "fub/Duration.hpp"
 #include "fub/Equation.hpp"
@@ -288,14 +289,17 @@ PatchHierarchy ReadCheckpointFile(const std::string& checkpointname,
                                   const CartesianGridGeometry& geometry,
                                   const PatchHierarchyOptions& options);
 
-
-//void Write2Dfrom3D(std::ostream* out, const PatchHierarchy& hierarchy, const ::amrex::Box& finest_box,
+// void Write2Dfrom3D(std::ostream* out, const PatchHierarchy& hierarchy, const
+// ::amrex::Box& finest_box,
 //                 const IdealGasMix<3>& eq, fub::Duration time_point,
 //                 std::ptrdiff_t cycle_number, MPI_Comm comm);
 
-void Write2Dfrom3D(const std::string& name, const PatchHierarchy& hierarchy, const ::amrex::Box& finest_box,
-                   const IdealGasMix<3>& eq, fub::Duration time_point,
-                   std::ptrdiff_t cycle_number, MPI_Comm comm);
+void WriteMatlabData(const std::string& name, const PatchHierarchy& hierarchy, const PerfectGas<2>& eq, fub::Duration time_point, std::ptrdiff_t cycle_number, MPI_Comm comm);
+
+void Write2Dfrom3D(const std::string& name, const PatchHierarchy& hierarchy,
+                   const ::amrex::Box& finest_box, const IdealGasMix<3>& eq,
+                   fub::Duration time_point, std::ptrdiff_t cycle_number,
+                   MPI_Comm comm);
 
 std::vector<double> GatherStates(
     const PatchHierarchy& hierarchy,
