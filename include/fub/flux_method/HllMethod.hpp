@@ -118,6 +118,11 @@ public:
   Array1d ComputeStableDt(span<const CompleteArray, 2> states, double dx,
                           Direction dir);
 
+  Array1d ComputeStableDt(span<const CompleteArray, 2> states,
+                          Array1d face_fraction,
+                          span<const Array1d, 2> volume_fraction, double dx,
+                          Direction dir);
+
 private:
   ConservativeArray flux_left_array_{Base::GetEquation()};
   ConservativeArray flux_right_array_{Base::GetEquation()};
@@ -266,8 +271,9 @@ void HllArrayBase<Equation, SignalSpeeds, true>::ComputeNumericFlux(
 template <typename Equation, typename SignalSpeeds>
 void HllArrayBase<Equation, SignalSpeeds, true>::ComputeNumericFlux(
     ConservativeArray& numeric_flux, Array1d face_fraction,
-    span<const CompleteArray, 2> states, span<const Array1d, 2> volume_fractions,
-    Duration /* dt */, double /* dx */, Direction dir) {
+    span<const CompleteArray, 2> states,
+    span<const Array1d, 2> volume_fractions, Duration /* dt */, double /* dx */,
+    Direction dir) {
   const CompleteArray& left = states[0];
   const CompleteArray& right = states[1];
 
@@ -282,7 +288,8 @@ void HllArrayBase<Equation, SignalSpeeds, true>::ComputeNumericFlux(
   const Array1d sLsR = sL * sR;
   const Array1d ds = sR - sL;
 
-  MaskArray mask = face_fraction > 0.0 && volume_fractions[0] > 0.0 && volume_fractions[1] > 0.0;
+  MaskArray mask = face_fraction > 0.0 && volume_fractions[0] > 0.0 &&
+                   volume_fractions[1] > 0.0;
   ForEachComponent(
       [&](auto&& nf, Array1d fL, Array1d fR, Array1d qL, Array1d qR) {
         nf = mask.select((sR * fL - sL * fR + sLsR * (qR - qL)) / ds, zero);
@@ -301,6 +308,24 @@ Array1d HllArrayBase<Equation, SignalSpeeds, true>::ComputeStableDt(
       std::accumulate(signals.begin(), signals.end(), zero,
                       [](Array1d x, Array1d y) { return x.max(y.abs()); });
   return Array1d(dx) / max;
+}
+
+template <typename Equation, typename SignalSpeeds>
+Array1d HllArrayBase<Equation, SignalSpeeds, true>::ComputeStableDt(
+    span<const CompleteArray, 2> states, Array1d face_fraction,
+    span<const Array1d, 2>, double dx,
+
+    Direction dir) {
+  const auto signals =
+      GetSignalSpeeds()(GetEquation(), states[0], states[1], dir);
+  Array1d zero = Array1d::Zero();
+  const Array1d max =
+      std::accumulate(signals.begin(), signals.end(), zero,
+                      [](Array1d x, Array1d y) { return x.max(y.abs()); });
+  Array1d infs = Array1d::Constant(std::numeric_limits<double>::infinity());
+  Array1d stable_dts = Array1d(dx) / max;
+  Array1d valid_stable_dts = (face_fraction > 0.0).select(stable_dts, infs);
+  return valid_stable_dts;
 }
 
 } // namespace fub

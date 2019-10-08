@@ -38,7 +38,7 @@ MapToSrc(const std::array<std::ptrdiff_t, 1>& dest,
   const int sign = int((distance > 0) - (distance < 0));
   std::array<std::ptrdiff_t, 1> src{dest};
   src[int(dir)] -= 2 * distance - sign;
-//  src[std::size_t(dir)] = boundary;
+  //  src[std::size_t(dir)] = boundary;
   return src;
 }
 
@@ -62,13 +62,14 @@ void IsentropicExpansionWithoutDissipation(IdealGasMix<1>& eq,
   const double u_border = [&] {
     if (Sign(old_velocity) == Sign(enthalpyDifference)) {
       return Sign(enthalpyDifference) *
-      std::sqrt(efficiency * std::abs(enthalpyDifference) * 2 +
-                old_velocity * old_velocity);
+             std::sqrt(efficiency * std::abs(enthalpyDifference) * 2 +
+                       old_velocity * old_velocity);
     } else {
-        double inner = efficiency * std::abs(enthalpyDifference) * 2 -
-        old_velocity * old_velocity;
-      return inner > 0.0 ?  Sign(enthalpyDifference) * std::sqrt(std::abs(inner)) : Sign(inner) * std::sqrt(std::abs(inner));
-      }
+      double inner = efficiency * std::abs(enthalpyDifference) * 2 -
+                     old_velocity * old_velocity;
+      return inner > 0.0 ? Sign(enthalpyDifference) * std::sqrt(std::abs(inner))
+                         : Sign(inner) * std::sqrt(std::abs(inner));
+    }
   }();
   dest.momentum[0] = dest.density * u_border;
   dest.energy += 0.5 * u_border * dest.momentum[0];
@@ -77,18 +78,19 @@ void IsentropicExpansionWithoutDissipation(IdealGasMix<1>& eq,
 } // namespace
 
 IsentropicPressureBoundary::IsentropicPressureBoundary(const IdealGasMix<1>& eq,
-                                       double outer_pressure, Direction dir,
-                                       int side)
+                                                       double outer_pressure,
+                                                       Direction dir, int side)
     : equation_{eq}, outer_pressure_{outer_pressure}, dir_{dir}, side_{side} {}
 
 void IsentropicPressureBoundary::FillBoundary(::amrex::MultiFab& mf,
-                                      const ::amrex::Geometry& geom, Duration,
-                                      const GriddingAlgorithm&) {
+                                              const ::amrex::Geometry& geom,
+                                              Duration,
+                                              const GriddingAlgorithm&) {
   FillBoundary(mf, geom);
 }
 
 void IsentropicPressureBoundary::FillBoundary(::amrex::MultiFab& mf,
-                                      const ::amrex::Geometry& geom) {
+                                              const ::amrex::Geometry& geom) {
   const int ngrow = mf.nGrow(int(dir_));
   ::amrex::Box grown_box = geom.growNonPeriodicDomain(ngrow);
   ::amrex::BoxList boundaries =

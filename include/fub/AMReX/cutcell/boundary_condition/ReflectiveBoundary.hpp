@@ -36,7 +36,8 @@ public:
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
                     Duration dt, const GriddingAlgorithm& grid);
 
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom, const GriddingAlgorithm& grid);
+  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
+                    const GriddingAlgorithm& grid);
 
 private:
   Local<Tag, Equation> equation_;
@@ -46,7 +47,7 @@ private:
 
 template <typename GriddingAlgorithm>
 int FindLevel_(const ::amrex::Geometry& geom,
-              const GriddingAlgorithm& gridding) {
+               const GriddingAlgorithm& gridding) {
   for (int level = 0; level < gridding.GetPatchHierarchy().GetNumberOfLevels();
        ++level) {
     if (geom.Domain() ==
@@ -61,12 +62,12 @@ template <typename Tag, typename Equation>
 ReflectiveBoundary<Tag, Equation>::ReflectiveBoundary(Tag,
                                                       const Equation& equation,
                                                       Direction dir, int side)
-    : equation_{Local<Tag, Equation>{equation}}, dir_{dir},
-      side_{side} {}
+    : equation_{Local<Tag, Equation>{equation}}, dir_{dir}, side_{side} {}
 
 template <typename Tag, typename Equation>
 void ReflectiveBoundary<Tag, Equation>::FillBoundary(
-    ::amrex::MultiFab& mf, const ::amrex::Geometry& geom, const GriddingAlgorithm& grid) {
+    ::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
+    const GriddingAlgorithm& grid) {
   const int ngrow = mf.nGrow(int(dir_));
   ::amrex::Box grown_box = geom.growNonPeriodicDomain(ngrow);
   ::amrex::BoxList boundaries =
@@ -77,7 +78,8 @@ void ReflectiveBoundary<Tag, Equation>::FillBoundary(
   static constexpr int Rank = Equation::Rank();
   const Eigen::Matrix<double, Rank, 1> unit = UnitVector<Rank>(dir_);
   const int level_num = FindLevel_(geom, grid);
-  const ::amrex::MultiFab& alphas = grid.GetPatchHierarchy().GetEmbeddedBoundary(level_num)->getVolFrac();
+  const ::amrex::MultiFab& alphas =
+      grid.GetPatchHierarchy().GetEmbeddedBoundary(level_num)->getVolFrac();
   ForEachFab(Tag(), mf, [&](const ::amrex::MFIter& mfi) {
     Complete<Equation> state(*equation_);
     Complete<Equation> reflected(*equation_);
@@ -91,13 +93,15 @@ void ReflectiveBoundary<Tag, Equation>::FillBoundary(
       }
       ::amrex::Box box_to_fill = mfi.growntilebox() & boundary;
       if (!box_to_fill.isEmpty()) {
-        auto states = MakeView<Complete<Equation>>(
-            fab, *equation_, mfi.growntilebox());
+        auto states =
+            MakeView<Complete<Equation>>(fab, *equation_, mfi.growntilebox());
         auto box = AsIndexBox<Equation::Rank()>(box_to_fill);
         ForEachIndex(Box<0>(states), [&](auto... is) {
           std::array<std::ptrdiff_t, Rank> dest{is...};
-          std::array<std::ptrdiff_t, Rank> src = ReflectIndex(dest, box, dir_, side_);
-          ::amrex::IntVect iv{AMREX_D_DECL(int(src[0]), int(src[1]), int(src[2]))};
+          std::array<std::ptrdiff_t, Rank> src =
+              ReflectIndex(dest, box, dir_, side_);
+          ::amrex::IntVect iv{
+              AMREX_D_DECL(int(src[0]), int(src[1]), int(src[2]))};
           if (alpha(iv) > 0.0) {
             Load(state, states, src);
             FUB_ASSERT(state.density > 0.0);
@@ -121,6 +125,6 @@ template <typename Tag, typename Equation>
 ReflectiveBoundary(Tag, const Equation&, Direction, int)
     ->ReflectiveBoundary<Tag, Equation>;
 
-} // namespace fub::amrex
+} // namespace fub::amrex::cutcell
 
 #endif

@@ -306,8 +306,7 @@ void MyMain(const ProgramOptions& opts) {
   run_options.final_time = fub::Duration(opts.final_time);
   run_options.output_interval = {fub::Duration(opts.output_interval)};
   run_options.output_frequency = {int(opts.output_frequency)};
-  fub::RunSimulation(solver, run_options, wall_time_reference, output,
-                     fub::amrex::print);
+  fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }
 
 int main(int argc, char** argv) {

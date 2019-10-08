@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Maikel Nadolski
+// Copyright (c) 2018 Maikel Nadolski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,32 +18,25 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_AMREX_GEOMETRY_HPP
-#define FUB_AMREX_GEOMETRY_HPP
+#ifndef FUB_GEOMETRY_UNION_HPP
+#define FUB_GEOMETRY_UNION_HPP
 
-#include <AMReX.H>
+#include "fub/geometry/PolymorphicGeometry.hpp"
 
-#include <array>
+namespace fub {
 
-namespace fub::amrex {
-
-template <typename Geom> class Geometry : private Geom {
+class PolymorphicUnion : public Geometry {
 public:
-  Geometry(const Geom& base) : Geom(base) {}
-  Geometry(Geom&& base) : Geom(std::move(base)) {}
+  PolymorphicUnion(const std::vector<PolymorphicGeometry>& geoms);
 
-  Geom& Base() noexcept { return *this; }
-  const Geom& Base() const noexcept { return *this; }
+  std::unique_ptr<Geometry> Clone() const override;
 
-  double operator()(AMREX_D_DECL(double x, double y, double z)) const {
-    return Geom::ComputeDistanceTo({AMREX_D_DECL(x, y, z)});
-  }
+  double ComputeDistanceTo(const std::array<double, AMREX_SPACEDIM>& x) const override;
 
-  double operator()(const std::array<double, AMREX_SPACEDIM>& coords) const {
-    return Geom::ComputeDistanceTo(coords);
-  }
+private:
+  std::vector<PolymorphicGeometry> geoms_; 
 };
 
-} // namespace fub::amrex
+}
 
 #endif

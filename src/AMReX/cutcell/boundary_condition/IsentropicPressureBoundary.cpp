@@ -25,6 +25,8 @@
 #include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/ForEach.hpp"
 
+#include <boost/log/common.hpp>
+
 namespace fub::amrex::cutcell {
 namespace {
 
@@ -41,7 +43,8 @@ void IsentropicExpansionWithoutDissipation(
   eq.SetReactorStateFromComplete(src);
   eq.CompleteFromReactor(dest);
   // Ekin = 0 here!
-  const double h_before = dest.energy / dest.density + dest.pressure / dest.density;
+  const double h_before =
+      dest.energy / dest.density + dest.pressure / dest.density;
   eq.GetReactor().SetPressureIsentropic(dest_pressure);
   eq.CompleteFromReactor(dest);
   const double h_after =
@@ -49,8 +52,8 @@ void IsentropicExpansionWithoutDissipation(
   const double enthalpyDifference = h_before - h_after;
   const double u_border =
       Sign(enthalpyDifference) *
-             std::sqrt(efficiency * std::abs(enthalpyDifference) * 2 +
-                       old_velocity.matrix().squaredNorm());
+      std::sqrt(efficiency * std::abs(enthalpyDifference) * 2 +
+                old_velocity.matrix().squaredNorm());
   dest.momentum[0] = dest.density * u_border;
   dest.energy += 0.5 * dest.density * u_border * u_border;
 }
@@ -61,11 +64,10 @@ IsentropicPressureBoundary::IsentropicPressureBoundary(
     const std::string& name, const IdealGasMix<AMREX_SPACEDIM>& eq,
     const ::amrex::Box& coarse_inner_box, double outer_pressure, Direction dir,
     int side)
-    : log_(boost::log::keywords::channel = name),
-      time_attr_{0.0}, equation_{eq}, coarse_inner_box_{coarse_inner_box},
-      outer_pressure_{outer_pressure}, dir_{dir}, side_{side} {
-  log_.add_attribute("Time", time_attr_);
-}
+    : log_(boost::log::keywords::channel = name,
+           boost::log::keywords::severity = boost::log::trivial::debug),
+      equation_{eq}, coarse_inner_box_{coarse_inner_box},
+      outer_pressure_{outer_pressure}, dir_{dir}, side_{side} {}
 
 namespace {
 double TotalVolume(const PatchHierarchy& hier, int level,
@@ -144,7 +146,7 @@ void IsentropicPressureBoundary::FillBoundary(::amrex::MultiFab& mf,
   Complete<IdealGasMix<AMREX_SPACEDIM>> state(equation_);
   AverageState(state, grid.GetPatchHierarchy(), 0, coarse_inner_box_);
   equation_.CompleteFromCons(state, state);
-  time_attr_.set(t.count());
+  BOOST_LOG_SCOPED_LOGGER_TAG(log_, "Time", t.count());
   double rho = state.density;
   double u = state.momentum[0] / rho;
   double p = state.pressure;

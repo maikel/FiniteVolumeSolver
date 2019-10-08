@@ -28,14 +28,16 @@
 namespace fub::amrex::cutcell {
 namespace {
 inline int GetSign(int side) { return (side == 0) - (side == 1); }
-}
-MassflowBoundary::MassflowBoundary(
-    const std::string& name, const IdealGasMix<AMREX_SPACEDIM>& eq,
-    const ::amrex::Box& coarse_inner_box, double required_massflow, double surface_area, Direction dir,
-    int side)
+} // namespace
+MassflowBoundary::MassflowBoundary(const std::string& name,
+                                   const IdealGasMix<AMREX_SPACEDIM>& eq,
+                                   const ::amrex::Box& coarse_inner_box,
+                                   double required_massflow,
+                                   double surface_area, Direction dir, int side)
     : log_(boost::log::keywords::channel = name),
       time_attr_{0.0}, equation_{eq}, coarse_inner_box_{coarse_inner_box},
-  required_massflow_{required_massflow}, surface_area_{surface_area}, dir_{dir}, side_{side} {
+      required_massflow_{required_massflow},
+      surface_area_{surface_area}, dir_{dir}, side_{side} {
   log_.add_attribute("Time", time_attr_);
 }
 
@@ -110,9 +112,8 @@ int FindLevel(const ::amrex::Geometry& geom,
 } // namespace
 
 void MassflowBoundary::FillBoundary(::amrex::MultiFab& mf,
-                                              const ::amrex::Geometry& geom,
-                                              Duration t,
-                                              const GriddingAlgorithm& grid) {
+                                    const ::amrex::Geometry& geom, Duration t,
+                                    const GriddingAlgorithm& grid) {
   Complete<IdealGasMix<AMREX_SPACEDIM>> state(equation_);
   AverageState(state, grid.GetPatchHierarchy(), 0, coarse_inner_box_);
   equation_.CompleteFromCons(state, state);
@@ -126,28 +127,29 @@ void MassflowBoundary::FillBoundary(::amrex::MultiFab& mf,
   equation_.GetReactor().SetDensity(state.density);
   equation_.GetReactor().SetMassFractions(state.species);
   equation_.GetReactor().SetTemperature(state.temperature);
-//  const double rho = state.density
+  //  const double rho = state.density
   const double gamma = state.gamma;
   const double c = state.speed_of_sound;
-//  const double u = state.momentum[int(dir_)] / rho;
+  //  const double u = state.momentum[int(dir_)] / rho;
   const double Ma = u / c;
   const double gammaMinus = gamma - 1.0;
   const double gammaPlus = gamma + 1.0;
   const double rGammaPlus = 1.0 / gammaPlus;
   const double c_critical =
-  std::sqrt(c * c + 0.5 * gammaMinus * u * u) * std::sqrt(2 * rGammaPlus);
+      std::sqrt(c * c + 0.5 * gammaMinus * u * u) * std::sqrt(2 * rGammaPlus);
   const double u_n = required_massflow_ / rho / surface_area_;
   const double lambda = u / c_critical;
   const double lambda_n = u_n / c_critical;
   const double gammaQuot = gammaMinus * rGammaPlus;
-//  const double p = state.pressure;
+  //  const double p = state.pressure;
   const double p0_n =
-  p * std::pow(1. - gammaQuot * lambda_n * lambda_n, -gamma / gammaMinus);
+      p * std::pow(1. - gammaQuot * lambda_n * lambda_n, -gamma / gammaMinus);
   const double p_n =
-  p0_n * std::pow(1. - gammaQuot * lambda * lambda, gamma / gammaMinus);
+      p0_n * std::pow(1. - gammaQuot * lambda * lambda, gamma / gammaMinus);
 
   equation_.GetReactor().SetPressureIsentropic(p_n);
-  Eigen::Array<double, AMREX_SPACEDIM, 1> velocity = Eigen::Array<double, AMREX_SPACEDIM, 1>::Zero();
+  Eigen::Array<double, AMREX_SPACEDIM, 1> velocity =
+      Eigen::Array<double, AMREX_SPACEDIM, 1>::Zero();
   velocity[int(dir_)] = u_n;
 
   equation_.CompleteFromReactor(state, velocity);
@@ -155,8 +157,8 @@ void MassflowBoundary::FillBoundary(::amrex::MultiFab& mf,
   rho = state.density;
   u = u_n;
   p = state.pressure;
-  BOOST_LOG(log_) << fmt::format("Outer State: {} kg/m3, {} m/s, {} Pa, Ma = {}", rho, u,
-                                 p, Ma);
+  BOOST_LOG(log_) << fmt::format(
+      "Outer State: {} kg/m3, {} m/s, {} Pa, Ma = {}", rho, u, p, Ma);
   int level = FindLevel(geom, grid);
   auto factory = grid.GetPatchHierarchy().GetEmbeddedBoundary(level);
   const ::amrex::MultiFab& alphas = factory->getVolFrac();

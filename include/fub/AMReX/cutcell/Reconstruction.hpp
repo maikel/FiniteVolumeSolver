@@ -154,8 +154,9 @@ template <typename Tag, typename Equation>
 Reconstruction<Tag, Equation>::Reconstruction(const Tag&, const Equation& eq)
     : kernel_() {
 
-  kernel_ = Local<Tag, detail::ReconstructionKernel<Equation, IsSimd>>{detail::ReconstructionKernel<Equation, IsSimd>{eq}};
-    }
+  kernel_ = Local<Tag, detail::ReconstructionKernel<Equation, IsSimd>>{
+      detail::ReconstructionKernel<Equation, IsSimd>{eq}};
+}
 
 template <typename Tag, typename Equation>
 void Reconstruction<Tag, Equation>::CompleteFromCons(IntegratorContext& context,

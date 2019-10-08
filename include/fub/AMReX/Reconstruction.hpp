@@ -34,10 +34,10 @@ namespace fub::amrex {
 
 template <typename Tag, typename Equation> class Reconstruction {
 public:
-  explicit Reconstruction(Tag, const Equation& eq)
-      : rec_{} {
-      rec_ = Local<Tag, CompleteFromConsFn<Equation>>{CompleteFromConsFn<Equation>{eq}};
-      }
+  explicit Reconstruction(Tag, const Equation& eq) : rec_{} {
+    rec_ = Local<Tag, CompleteFromConsFn<Equation>>{
+        CompleteFromConsFn<Equation>{eq}};
+  }
 
   void CompleteFromCons(::amrex::MultiFab& dest, const ::amrex::MultiFab& src) {
     ForEachFab(Tag(), dest, [&](const ::amrex::MFIter& mfi) {

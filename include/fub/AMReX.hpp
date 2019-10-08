@@ -35,9 +35,9 @@
 
 #include "fub/AMReX/boundary_condition/BoundarySet.hpp"
 #include "fub/AMReX/boundary_condition/IsentropicPressureBoundary.hpp"
+#include "fub/AMReX/boundary_condition/PressureValveBoundary.hpp"
 #include "fub/AMReX/boundary_condition/ReflectiveBoundary.hpp"
 #include "fub/AMReX/boundary_condition/TransmissiveBoundary.hpp"
-#include "fub/AMReX/boundary_condition/PressureValveBoundary.hpp"
 
 #include "fub/AMReX/initial_data/ConstantData.hpp"
 
@@ -49,7 +49,11 @@
 #include "fub/AMReX/Reconstruction.hpp"
 #include "fub/AMReX/TimeIntegrator.hpp"
 
-#include "fub/equations/ideal_gas_mix/KineticSourceTerm.hpp"
+#include "fub/AMReX/Geometry.hpp"
+#include "fub/geometry/PolymorphicGeometry.hpp"
+#include "fub/geometry/Union.hpp"
+
 #include "fub/AMReX/AxialSourceTerm.hpp"
+#include "fub/equations/ideal_gas_mix/KineticSourceTerm.hpp"
 
 #endif

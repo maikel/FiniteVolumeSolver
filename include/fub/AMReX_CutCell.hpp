@@ -47,8 +47,8 @@
 
 #include "fub/AMReX/multi_block/MultiBlockBoundary.hpp"
 #include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp"
+#include "fub/AMReX/multi_block/MultiBlockIgniteDetonation.hpp"
 #include "fub/AMReX/multi_block/MultiBlockIntegratorContext.hpp"
 #include "fub/AMReX/multi_block/MultiBlockKineticSourceTerm.hpp"
-#include "fub/AMReX/multi_block/MultiBlockIgniteDetonation.hpp"
 
 #endif

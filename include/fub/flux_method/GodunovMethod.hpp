@@ -76,6 +76,11 @@ public:
   Array1d ComputeStableDt(span<const CompleteArray, 2> states, double dx,
                           Direction dir);
 
+  Array1d ComputeStableDt(span<const CompleteArray, 2> states,
+                          Array1d face_fraction,
+                          span<const Array1d, 2> volume_fraction, double dx,
+                          Direction dir);
+
 private:
   Equation equation_;
   RiemannSolver riemann_solver_{equation_};
@@ -174,6 +179,23 @@ Array1d Godunov<Equation, RiemannSolver>::ComputeStableDt(
                         return x.max(y.abs());
                       });
   return Array1d(dx) / s_max;
+}
+
+template <typename Equation, typename RiemannSolver>
+Array1d Godunov<Equation, RiemannSolver>::ComputeStableDt(span<const CompleteArray, 2> states,
+                        Array1d face_fraction,
+                        span<const Array1d, 2>, double dx,
+                                                          Direction dir) {
+  std::array<Complete, 2> state{};
+  Array1d dts = Array1d::Constant(std::numeric_limits<double>::infinity());
+  for (int i = 0; i < face_fraction.size(); ++i) {
+    if (face_fraction[i] > 0.0) {
+      Load(state[0], states[0], i);
+      Load(state[1], states[1], i);
+      dts[i] = ComputeStableDt(state, dx, dir);
+    }
+  }
+  return dts;
 }
 
 } // namespace fub
