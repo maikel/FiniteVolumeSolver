@@ -33,7 +33,7 @@
 
 #include "fub/equations/ideal_gas_mix/mechanism/Burke2012.hpp"
 
-#include "fub/ext/log.hpp"
+#include "fub/ext/Log.hpp"
 
 #include <AMReX_EB2.H>
 

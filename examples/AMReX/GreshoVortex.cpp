@@ -182,6 +182,5 @@ int main(int argc, char** argv) {
   run_options.output_interval = {fub::Duration(1.0 / 30.0)};
   run_options.output_frequency = {0, 1};
   run_options.cfl = 0.8;
-  fub::RunSimulation(solver, run_options, wall_time_reference, output,
-                     fub::amrex::print);
+  fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

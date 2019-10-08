@@ -362,7 +362,7 @@ void MyMain(const ProgramOptions& po,
 std::optional<boost::program_options::variables_map>
 ParseCommandLine(int argc, char** argv) {
   namespace po = boost::program_options;
-  po::options_description desc = fub::GetCommandLineRunOptions();
+  po::options_description desc = fub::RunOptions::GetCommandLineOptions();
   std::string config_path{};
   desc.add_options()("config", po::value<std::string>(&config_path),
                      "Path to the config file which can be parsed.");
@@ -394,10 +394,10 @@ ParseCommandLine(int argc, char** argv) {
     return {};
   }
 
-  fub::PrintRunOptions(fub::GetRunOptions(vm));
-
   boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
       boost::log::keywords::severity = boost::log::trivial::info);
+
+  fub::RunOptions(vm).Print(log);
   ProgramOptions(vm).Print(log);
   return vm;
 }
@@ -637,10 +637,9 @@ void MyMain(const boost::program_options::variables_map& vm) {
   using namespace std::literals::chrono_literals;
   output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
          solver.GetTimePoint(), 0);
-  fub::RunOptions run_options = fub::GetRunOptions(vm);
+  fub::RunOptions run_options(vm);
   run_options.output_interval.push_back(fub::Duration(1e-5));
-  fub::RunSimulation(solver, run_options, wall_time_reference, output,
-                     fub::amrex::print);
+  fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }
 
 int main(int argc, char** argv) {

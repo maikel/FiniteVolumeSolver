@@ -32,10 +32,13 @@ public:
 
   Polygon(Vector xs, Vector ys) : xs_{std::move(xs)}, ys_{std::move(ys)} {}
 
-  span<const double> GetXs() const noexcept { return xs_; }
-  span<const double> GetYs() const noexcept { return ys_; }
+  [[nodiscard]] span<const double> GetXs() const noexcept { return xs_; }
+  [[nodiscard]] span<const double> GetYs() const noexcept { return ys_; }
 
-  double ComputeDistanceTo(double x, double y) const noexcept;
+  [[nodiscard]] double ComputeDistanceTo(double x, double y) const noexcept;
+  [[nodiscard]] double ComputeDistanceTo(std::array<double, 2> xs) const noexcept { 
+    return ComputeDistanceTo(xs[0], xs[1]); 
+  }
 
 private:
   Vector xs_;

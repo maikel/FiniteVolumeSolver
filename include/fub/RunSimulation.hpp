@@ -39,17 +39,31 @@
 namespace fub {
 
 struct RunOptions {
-  std::chrono::duration<double> final_time{1.0};
+  RunOptions() = default;
+
+  explicit RunOptions(const boost::program_options::variables_map& vm);
+
+  static boost::program_options::options_description GetCommandLineOptions();
+
+  template <typename Logger>
+  void Print(Logger& log) {
+      BOOST_LOG(log) << "Run Options:"
+        << "\n  - final_time = " << final_time.count() << 's'
+        << "\n  - max_cycles = " << max_cycles
+        << "\n  - output.interval[0] = " << output_interval[0].count()
+        << "\n  - output.frequency[0] = " << output_frequency[0]
+        << "\n  - smallest_time_step_size = " << smallest_time_step_size.count()
+        << "\n  - cfl = " << cfl;
+  }
+
+  Duration final_time{1.0};
   std::ptrdiff_t max_cycles{-1};
-  std::vector<std::chrono::duration<double>> output_interval{final_time};
+  std::vector<Duration> output_interval{final_time};
   std::vector<int> output_frequency{0};
-  std::chrono::duration<double> smallest_time_step_size{1e-12};
+  Duration smallest_time_step_size{1e-12};
   double cfl{0.8};
 };
 
-boost::program_options::options_description GetCommandLineRunOptions();
-
-RunOptions GetRunOptions(const boost::program_options::variables_map& vm);
 
 void PrintRunOptions(const RunOptions& opts);
 
@@ -66,10 +80,10 @@ FormatTimeStepLine(std::ptrdiff_t cycle,
                    std::chrono::steady_clock::duration wall_time,
                    std::chrono::steady_clock::duration wall_time_difference);
 
-template <typename Solver, typename Output, typename Print>
+template <typename Solver, typename Output>
 Solver RunSimulation(Solver& solver, RunOptions options,
                      std::chrono::steady_clock::time_point wall_time_reference,
-                     Output output, Print) {
+                     Output output) {
   namespace logger = boost::log;
   using namespace logger::trivial;
   logger::sources::severity_logger<severity_level> log(

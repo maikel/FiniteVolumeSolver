@@ -47,7 +47,7 @@
 #include "fub/flux_method/HllMethod.hpp"
 #include "fub/flux_method/MusclHancockMethod.hpp"
 
-#include "fub/ext/log.hpp"
+#include "fub/ext/Log.hpp"
 
 #include "fub/cutcell_method/KbnStabilisation.hpp"
 

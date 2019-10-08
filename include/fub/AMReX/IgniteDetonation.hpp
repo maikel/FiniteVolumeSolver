@@ -28,6 +28,7 @@
 
 #include <boost/program_options.hpp>
 #include <boost/serialization/access.hpp>
+#include <boost/log/trivial.hpp>
 
 namespace fub::amrex {
 
@@ -41,6 +42,19 @@ struct IgniteDetonationOptions {
   static boost::program_options::options_description
   GetCommandLineOptions(const std::string& prefix = {});
 
+  template <typename Logger>
+  void Print(Logger& log) const {
+    BOOST_LOG(log) << fmt::format("Ignite Detonation '{}' Options:", prefix);
+    BOOST_LOG(log) << fmt::format("  - {}.measurement_position = {} [m]", prefix, measurement_position);
+    BOOST_LOG(log) << fmt::format("  - {}.equivalence_ratio_criterium = {} [-]", prefix, equivalence_ratio_criterium);
+    BOOST_LOG(log) << fmt::format("  - {}.temperature_low = {} [K]", prefix, temperature_low);
+    BOOST_LOG(log) << fmt::format("  - {}.temperature_high = {} [K]", prefix, temperature_high);
+    BOOST_LOG(log) << fmt::format("  - {}.ramp_width = {} [m]", prefix, ramp_width);
+    BOOST_LOG(log) << fmt::format("  - {}.ignite_position = {} [m]", prefix, ignite_position);
+    BOOST_LOG(log) << fmt::format("  - {}.ignite_interval = {} [s]", prefix, ignite_interval.count());
+  }
+
+  std::string prefix{"ignite"};
   double measurement_position{1.0};
   double equivalence_ratio_criterium{0.95};
   double temperature_low{300.0};

@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/ext/log.hpp"
+#include "fub/ext/Log.hpp"
 
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/core/null_deleter.hpp>
@@ -57,7 +57,7 @@ void FormatLogs_(const boost::log::record_view& rec,
   }
   auto time = log::extract<double>("Time", rec);
   if (time) {
-    prefix << fmt::format("[T = {:>10.6g}s] ", time.get());
+    prefix << fmt::format("[T = {:>12.6g}s] ", time.get());
   }
   auto level = log::extract<int>("Level", rec);
   if (level) {

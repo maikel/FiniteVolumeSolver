@@ -40,6 +40,114 @@
 #include <iostream>
 #include <string>
 
+struct DividerOptions {
+  std::vector<std::string> wall_filenames{};
+  double mach_number{1.77};
+  std::array<double, 2> x_range{0.0, 0.042};
+  std::array<double, 2> y_range{-0.016, +0.026};
+  std::array<int, 2> n_cells{200, 200};
+  int n_level{1};
+  std::string output_directory{"Divider"};
+
+  DividerOptions() = default;
+
+  DividerOptions(const boost::program_options::variables_map& vm) {
+    auto GetOptionOr = [&](const char* opt, auto default_value) {
+    if (vm.count(opt)) {
+      return vm[opt].as<std::decay_t<decltype(default_value)>>();
+    }
+    return default_value;
+    };
+
+    wall_filenames = GetOptionOr("wall_filenames", wall_filenames);
+    std::vector<double> rng = GetOptionOr("x_range", std::vector{0.0, 0.042});
+    if (rng.size() != 2) {
+      throw std::runtime_error("Parameter x_range needs exactly two arguments!");
+    }
+    x_range = std::array<double,2>{rng[0], rng[1]};
+    
+    rng = GetOptionOr("y_range", std::vector{-0.016, 0.026});
+    if (rng.size() != 2) {
+      throw std::runtime_error("Parameter y_range needs exactly two arguments!");
+    }
+    y_range = std::array<double,2>{rng[0], rng[1]};
+
+    std::vector<int> irng = GetOptionOr("n_cells", std::vector{200, 200});
+    if (rng.size() != 2) {
+      throw std::runtime_error("Parameter n_cells needs exactly two arguments!");
+    }
+    n_cells = std::array<int,2>{irng[0], irng[1]};
+
+    mach_number = GetOptionOr("mach_number", mach_number);
+    n_level  = GetOptionOr("n_level", n_level);
+
+    output_directory = GetOptionOr("output.directory", output_directory);
+  }
+
+  static boost::program_options::options_description GetCommandLineOptions() {
+  namespace po = boost::program_options;
+  po::options_description desc{"Run Options"};
+  // clang-format off
+  desc.add_options()
+    ("mach_number", po::value<double>(), "Set the mach number of the shock wave.")
+    ("n_cells", po::value<std::vector<int>>()->multitoken(), "Set the amount of cells nx ny for each direction")
+    ("x_range", po::value<std::vector<double>>()->multitoken(), "Set the range for the x coordinate direction")
+    ("y_range", po::value<std::vector<double>>()->multitoken(), "Set the range for the y coordinate direction")
+    ("n_level", po::value<int>(), "Set the number of refinement levels for this simulation")
+    ("wall_filenames", po::value<std::vector<std::string>>()->multitoken(), "Set paths to the wall filenames")
+    ("output.directory", po::value<std::string>(), "Set the output directory");
+  // clang-format on
+  return desc;
+  }
+
+  template <typename Logger> void Print(Logger& log) {
+    BOOST_LOG(log) << "Divider Options:"
+      << "\n  - mach_number = " << mach_number << " [-]"
+      << "\n  - x_range = {" << x_range[0] << ", " << x_range[1] << "} [m]"
+      << "\n  - y_range = {" << y_range[0] << ", " << y_range[1] << "} [m]"
+      << "\n  - n_cells = {" << n_cells[0] << ", " << n_cells[1] << "} [-]"
+      << "\n  - n_level = " << n_level << " [-]"
+      << fmt::format("\n  - wall_filenames = {{{}}}", fmt::join(wall_filenames, ", "))
+      << "\n  - output_directory = '" << output_directory << "'";
+  }
+};
+
+std::optional<boost::program_options::variables_map>
+ParseCommandLine(int argc, char** argv) {
+  boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
+      boost::log::keywords::severity = boost::log::trivial::info);
+
+  namespace po = boost::program_options;
+  po::options_description desc = fub::RunOptions::GetCommandLineOptions();
+  std::string config_path{};
+  desc.add_options()("config", po::value<std::string>(&config_path),
+                     "Path to the config file which can be parsed.");
+  desc.add(DividerOptions::GetCommandLineOptions());
+  po::variables_map vm;
+  try {
+    po::store(po::parse_command_line(argc, argv, desc), vm);
+    if (vm.count("config")) {
+      config_path = vm["config"].as<std::string>();
+      po::store(po::parse_config_file(config_path.c_str(), desc), vm);
+    }
+    po::notify(vm);
+  } catch (std::exception& e) {
+    BOOST_LOG_SEV(log, boost::log::trivial::error)
+        << "An Error occured while reading program options:\n" << e.what();
+    return {};
+  }
+
+  if (vm.count("help")) {
+    amrex::Print() << desc << "\n";
+    return {};
+  }
+
+  fub::RunOptions(vm).Print(log);
+
+  return vm;
+}
+
+
 fub::Polygon ReadPolygonData(std::istream& input) {
   std::string line{};
   namespace pmr = boost::container::pmr;
@@ -53,6 +161,10 @@ fub::Polygon ReadPolygonData(std::istream& input) {
       xs.push_back(x);
       ys.push_back(y);
     }
+  }
+  if (xs.empty() || ys.empty()) {
+    throw std::invalid_argument{
+      "Invalid Input File:: No data found!"};
   }
   const double x0 = xs.front();
   const double x1 = xs.back();
@@ -104,29 +216,28 @@ struct ShockMachnumber
             post_shock) {}
 };
 
-void WriteCheckpoint(const std::string& base_name,
+template <typename Logger>
+void WriteCheckpoint(Logger& log, const std::string& base_name,
                      const fub::amrex::cutcell::PatchHierarchy& hierarchy,
                      std::ptrdiff_t cycle) {
   std::string path = fmt::format("{}/Checkpoint_{:05}", base_name, cycle);
-  amrex::Print() << "Write Checkpoint File to '" << path << "'.\n";
+  BOOST_LOG(log) << "Write Checkpoint File to '" << path << "'.\n";
   fub::amrex::cutcell::WriteCheckpointFile(path, hierarchy);
 }
 
-int main() {
-  static_assert(AMREX_SPACEDIM == 2);
-
+void MyMain(const boost::program_options::variables_map& vm) {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
-  const fub::amrex::ScopeGuard _{};
-
-  fub::InitializeLogging(MPI_COMM_WORLD);
   boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
       boost::log::keywords::severity = boost::log::trivial::info);
 
-  const std::array<int, 2> n_cells{4 * 160, 4 * 42};
-  const std::array<double, 2> xlower{0.005, -0.016};
-  const std::array<double, 2> xupper{0.155, +0.026};
+  DividerOptions options(vm);
+  options.Print(log);
+
+  const std::array<int, 2> n_cells = options.n_cells;
+  const std::array<double, 2> xlower{options.x_range[0], options.y_range[0]};
+  const std::array<double, 2> xupper{options.x_range[1], options.y_range[1]};
   const std::array<int, 2> periodicity{0, 0};
 
   fub::PerfectGas<2> equation;
@@ -143,7 +254,7 @@ int main() {
   fub::Complete<fub::PerfectGas<2>> post_shock_state;
   fub::CompleteFromCons(equation, post_shock_state, cons);
 
-  const double shock_mach_number = 1.7;
+  const double shock_mach_number = options.mach_number;
   const fub::Array<double, 2, 1> normal{1.0, 0.0};
 
   ShockMachnumber<fub::Halfspace> initial_data(
@@ -152,33 +263,33 @@ int main() {
 
   const State& pre_shock_state = initial_data.left_;
   BOOST_LOG(log) << "Post-Shock-State:\n"
-                 << "\tdensity: " << post_shock_state.density << " kg / m^3\n"
+                 << "\tdensity: " << post_shock_state.density << " [kg/m^3]\n"
                  << "\tvelocity: "
                  << equation.Velocity(post_shock_state).transpose()
-                 << " m / s\n"
-                 << "\tpressure: " << post_shock_state.pressure << " Pa\n";
+                 << " [m/s]\n"
+                 << "\tpressure: " << post_shock_state.pressure << " [Pa]";
 
   BOOST_LOG(log) << "Calculated Pre-Shock-State:\n"
-                 << "\tdensity: " << pre_shock_state.density << " kg / m^3\n"
+                 << "\tdensity: " << pre_shock_state.density << " [kg/m^3]\n"
                  << "\tvelocity: "
-                 << equation.Velocity(pre_shock_state).transpose() << " m / s\n"
-                 << "\tpressure: " << pre_shock_state.pressure << " Pa\n";
+                 << equation.Velocity(pre_shock_state).transpose() << " [m/s]\n"
+                 << "\tpressure: " << pre_shock_state.pressure << " [Pa]";
 
   amrex::RealBox xbox(xlower, xupper);
   amrex::Geometry coarse_geom(amrex::Box{{}, {n_cells[0] - 1, n_cells[1] - 1}},
                               &xbox, -1, periodicity.data());
 
-  const int n_level = 1;
+  const int n_level = options.n_level;
 
-  std::ifstream input("wall_1.txt");
-  fub::amrex::Geometry lower{ReadPolygonData(input)};
-  input = std::ifstream("wall_2.txt");
-  //  std::ifstream input("wall_2.txt");
-  fub::amrex::Geometry mid{ReadPolygonData(input)};
-  input = std::ifstream("wall_4.txt");
-  fub::amrex::Geometry upper{ReadPolygonData(input)};
+  std::vector<fub::PolymorphicGeometry> geometries;
+  std::transform(options.wall_filenames.begin(), options.wall_filenames.end(),
+                 std::back_inserter(geometries),
+                 [](const std::string& filename) {
+                   std::ifstream ifs(filename);
+                   return fub::PolymorphicGeometry(ReadPolygonData(ifs));
+                 });
 
-  auto embedded_boundary = amrex::EB2::makeUnion(lower, mid, upper);
+  auto embedded_boundary = fub::amrex::Geometry(fub::PolymorphicUnion(geometries));
   auto shop = amrex::EB2::makeShop(embedded_boundary);
 
   fub::amrex::CartesianGridGeometry geometry;
@@ -186,9 +297,9 @@ int main() {
   geometry.coordinates = amrex::RealBox(xlower, xupper);
   geometry.periodicity = periodicity;
 
-  PatchHierarchyOptions options{};
-  options.max_number_of_levels = n_level;
-  options.index_spaces =
+  PatchHierarchyOptions hier_opts{};
+  hier_opts.max_number_of_levels = n_level;
+  hier_opts.index_spaces =
       fub::amrex::cutcell::MakeIndexSpaces(shop, coarse_geom, n_level);
 
   BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
@@ -197,7 +308,7 @@ int main() {
                                   TransmissiveBoundary{fub::Direction::Y, 1}}};
 
   std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
-      PatchHierarchy(equation, geometry, options), initial_data,
+      PatchHierarchy(equation, geometry, hier_opts), initial_data,
       TagAllOf(TagCutCells(), gradients, TagBuffer(4)), boundary_condition);
   gridding->InitializeHierarchy(0.0);
 
@@ -212,37 +323,43 @@ int main() {
   fub::DimensionalSplitLevelIntegrator solver(
       fub::int_c<2>, IntegratorContext(gridding, method));
 
-  std::string base_name = "Divider/";
+  std::string base_name = options.output_directory;
 
   auto output = [&, count = 0LL](
                     const std::shared_ptr<GriddingAlgorithm>& gridding,
                     std::ptrdiff_t cycle, fub::Duration tp, int = 0) mutable {
     PatchHierarchy& hierarchy = gridding->GetPatchHierarchy();
     BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", tp.count());
-    BOOST_LOG(log) << "Write plot files";
-    std::string name = fmt::format("{}plt{:05}", base_name, count);
+    std::string name = fmt::format("{}/plt{:05}", base_name, count);
+    BOOST_LOG(log) << "Write plot files to '" << name << "'.";
     WritePlotFile(name, hierarchy, equation);
-    name = fmt::format("{}plt{:05}.dat", base_name, count);
-    fub::amrex::cutcell::WriteMatlabData(name, hierarchy, equation, tp, cycle,
-                                         MPI_COMM_WORLD);
+    name = fmt::format("{}/Matlab/{:05}.dat", base_name, count);
+    BOOST_LOG(log) << "Write matlab files to '" << name << "'.";
+    MPI_Comm comm = solver.GetMpiCommunicator();
+    WriteMatlabData(name, hierarchy, tp, cycle, comm);
     count = count + 1;
-    //    std::ofstream file(name);
-    //    ::amrex::Print() << "Start output to '" << name << "'.\n";
-    //    WriteMatlabData(file, hierarchy.GetPatchLevel(0).data,
-    //                    hierarchy.GetGeometry(0), hierarchy.GetTimePoint(),
-    //                    cycle);
-    //    ::amrex::Print() << "Finished output to '" << name << "'.\n";
   };
-
-  auto print_msg = [&](const std::string& msg) { ::amrex::Print() << msg; };
 
   using namespace std::literals::chrono_literals;
   output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
          solver.GetTimePoint());
-  fub::RunOptions run_options{};
-  run_options.final_time = 0.0005s;
-  run_options.output_interval = {0.125 * 0.0000125s};
-  run_options.cfl = 0.8;
-  fub::RunSimulation(solver, run_options, wall_time_reference, output,
-                     print_msg);
+  fub::RunOptions run_options{vm};
+  fub::RunSimulation(solver, run_options, wall_time_reference, output);
+}
+
+int main(int argc, char** argv) {
+  MPI_Init(nullptr, nullptr);
+  fub::InitializeLogging(MPI_COMM_WORLD);
+  {
+    fub::amrex::ScopeGuard _{};
+    auto vm = ParseCommandLine(argc, argv);
+    if (vm) {
+      MyMain(*vm);
+    }
+  }
+  int flag = -1;
+  MPI_Finalized(&flag);
+  if (!flag) {
+    MPI_Finalize();
+  }
 }

@@ -401,35 +401,8 @@ PatchHierarchy ReadCheckpointFile(const std::string& checkpointname,
 //
 //} // namespace
 
-namespace {
-
-  void WriteMatlabData_(std::ostream& out, const ::amrex::FArrayBox& fab,
-                       const PerfectGas<2>& eq,
-                       const ::amrex::Geometry& geom) {
-    auto view = MakeView<const Complete<PerfectGas<2>>>(fab, eq);
-    out << fmt::format("{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}{:24s}\n", "X", "Y",
-                       "Density", "VelocityX", "VelocityY", "SpeedOfSound", "Pressure");
-    ForEachIndex(Box<0>(view), [&](std::ptrdiff_t i, std::ptrdiff_t j) {
-      double x[2] = {0.0, 0.0};
-      ::amrex::IntVect iv{int(i), int(j)};
-      geom.CellCenter(iv, x);
-      const double density = view.density(i, j);
-      const double velocity_x =
-      density > 0.0 ? view.momentum(i, j, 0) / density : 0.0;
-      const double velocity_y =
-      density > 0.0 ? view.momentum(i, j, 1) / density : 0.0;
-      const double speed_of_sound = view.speed_of_sound(i, j);
-      const double pressure = view.pressure(i, j);
-      out << fmt::format("{:< 24.15e}{:< 24.15e}{:< 24.15e}{:< 24.15e}{:< "
-                         "24.15e}{:< 24.15e}{:< 24.15e}",
-                         x[0], x[1], density, velocity_x, velocity_y, speed_of_sound,
-                         pressure);
-      out << '\n';
-    });
-  }
-
-void WriteMatlabData_(std::ostream* out, const PatchHierarchy& hierarchy,
-                   const PerfectGas<2>& eq, fub::Duration time_point,
+void WriteMatlabData(const std::string& name, const PatchHierarchy& hierarchy,
+                   fub::Duration time_point,
                    std::ptrdiff_t cycle_number, MPI_Comm comm) {
   const std::size_t n_level =
   static_cast<std::size_t>(hierarchy.GetNumberOfLevels());
@@ -480,38 +453,42 @@ void WriteMatlabData_(std::ostream* out, const PatchHierarchy& hierarchy,
         }
       }
       if (level == n_level - 1) {
-        (*out) << fmt::format("nx = {}\n", domain.length(0));
-        (*out) << fmt::format("ny = {}\n", domain.length(1));
-        (*out) << fmt::format("t = {}\n", time_point.count());
-        (*out) << fmt::format("cycle = {}\n", cycle_number);
-        WriteMatlabData_(*out, fab, eq, level_geom);
-        out->flush();
+        boost::filesystem::path path(name);
+        boost::filesystem::path dir = path.parent_path();
+        boost::filesystem::create_directories(dir);
+        {
+          const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(ilvl);
+          std::ofstream out(name);
+#if AMREX_SPACEDIM == 2
+          out << fmt::format("size = ({}, {}, {})\n", domain.length(0), domain.length(1), fab.nComp());
+          out << fmt::format("dx = ({}, {})\n", level_geom.CellSize(0),
+                             level_geom.CellSize(1));
+          out << fmt::format("x0 = ({}, {})\n",
+                             level_geom.CellCenter(domain.smallEnd(0), 0),
+                             level_geom.CellCenter(domain.smallEnd(1), 1));
+#else
+          out << fmt::format("size = ({}, {}, {}, {})\n", domain.length(0),
+                             domain.length(1), domain.length(2), fab.nComp());
+          out << fmt::format("dx = ({}, {}, {})\n", level_geom.CellSize(0),
+                             level_geom.CellSize(1), level_geom.CellSize(2));
+          out << fmt::format("x0 = ({}, {}, {})\n",
+                             level_geom.CellCenter(domain.smallEnd(0), 0),
+                             level_geom.CellCenter(domain.smallEnd(1), 1),
+                             level_geom.CellCenter(domain.smallEnd(2), 2));
+#endif
+          out << fmt::format("t = {}\n", time_point.count());
+          out << fmt::format("cycle = {}\n", cycle_number);
+          out << fmt::format("data_file = {}.bin\n", path.filename().string());
+        }
+        // Dump binary data
+        std::ofstream bin(name + ".bin", std::ios::binary);
+        char* pointer = static_cast<char*>(static_cast<void*>(fab.dataPtr()));
+        bin.write(pointer, fab.size() * sizeof(double));
       }
     } else {
       ::MPI_Reduce(local_fab.dataPtr(), nullptr, local_fab.size(), MPI_DOUBLE,
                    MPI_SUM, 0, comm);
     }
-  }
-}
-
-}
-
-void WriteMatlabData(const std::string& filename, const PatchHierarchy& hierarchy, const PerfectGas<2>& eq, fub::Duration time_point, std::ptrdiff_t cycle_number, MPI_Comm comm) {
-  int rank = -1;
-  MPI_Comm_rank(comm, &rank);
-  if (rank == 0) {
-    boost::filesystem::path path(filename);
-    boost::filesystem::path dir = path.parent_path();
-    boost::filesystem::create_directories(dir);
-    std::ofstream out(filename);
-    if (!out) {
-      throw std::runtime_error(fmt::format("Could not open {}.\n", filename));
-    }
-    WriteMatlabData_(&out, hierarchy, eq, time_point, cycle_number,
-                              comm);
-  } else {
-    WriteMatlabData_(nullptr, hierarchy, eq, time_point, cycle_number,
-                              comm);
   }
 }
 

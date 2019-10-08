@@ -325,6 +325,5 @@ int main(int argc, char** argv) {
   //  run_options.output_interval = std::vector<fub::Duration>{0.001s / 30.0s};
   run_options.output_frequency = std::vector<int>{1};
   run_options.cfl = 0.4;
-  fub::RunSimulation(solver, run_options, wall_time_reference, output,
-                     fub::amrex::print);
+  fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

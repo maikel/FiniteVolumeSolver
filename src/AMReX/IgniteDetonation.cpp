@@ -59,7 +59,7 @@ IgniteDetonationOptions::GetCommandLineOptions(const std::string& prefix) {
 }
 
 IgniteDetonationOptions::IgniteDetonationOptions(const po::variables_map& vm,
-                                                 const std::string& prefix) {
+                                                 const std::string& p) : prefix{p} {
   auto GetOptionOr = [&](const char* opt, double default_value) {
     if (vm.count(PrefixedName(prefix, opt))) {
       return vm[PrefixedName(prefix, opt)].as<double>();

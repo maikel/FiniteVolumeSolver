@@ -89,7 +89,7 @@ PressureValveBoundary::PressureValveBoundary(const IdealGasMix<1>& equation,
       shared_valve_{std::make_shared<PressureValve>(PressureValve{})} {}
 
 PressureValveOptions::PressureValveOptions(const po::variables_map& map,
-                                           std::string prefix) {
+                                           std::string p) : prefix{std::move(p)} {
   auto GetOptionOr = [&](const char* opt, double default_value) {
     if (map.count(PrefixedName(prefix, opt))) {
       return map[PrefixedName(prefix, opt)].as<double>();

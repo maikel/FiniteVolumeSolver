@@ -50,6 +50,8 @@
 #include "fub/AMReX/TimeIntegrator.hpp"
 
 #include "fub/AMReX/Geometry.hpp"
+#include "fub/geometry/PolymorphicGeometry.hpp"
+#include "fub/geometry/Union.hpp"
 
 #include "fub/AMReX/AxialSourceTerm.hpp"
 #include "fub/equations/ideal_gas_mix/KineticSourceTerm.hpp"

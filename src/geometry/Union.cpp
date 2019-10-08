@@ -18,32 +18,29 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_AMREX_GEOMETRY_HPP
-#define FUB_AMREX_GEOMETRY_HPP
+#include "fub/geometry/Union.hpp"
 
-#include <AMReX.H>
+#include <algorithm>
+#include <limits>
+#include <numeric>
 
-#include <array>
+namespace fub {
 
-namespace fub::amrex {
+PolymorphicUnion::PolymorphicUnion(
+    const std::vector<PolymorphicGeometry>& geoms)
+    : geoms_{geoms} {}
 
-template <typename Geom> class Geometry : private Geom {
-public:
-  Geometry(const Geom& base) : Geom(base) {}
-  Geometry(Geom&& base) : Geom(std::move(base)) {}
+std::unique_ptr<Geometry> PolymorphicUnion::Clone() const {
+  return std::make_unique<PolymorphicUnion>(*this);
+}
 
-  Geom& Base() noexcept { return *this; }
-  const Geom& Base() const noexcept { return *this; }
+double PolymorphicUnion::ComputeDistanceTo(
+    const std::array<double, AMREX_SPACEDIM>& x) const {
+  return std::accumulate(geoms_.begin(), geoms_.end(),
+                         std::numeric_limits<double>::lowest(),
+                         [x](double max, const PolymorphicGeometry& geom) {
+                           return std::max(max, geom.ComputeDistanceTo(x));
+                         });
+}
 
-  double operator()(AMREX_D_DECL(double x, double y, double z)) const {
-    return Geom::ComputeDistanceTo({AMREX_D_DECL(x, y, z)});
-  }
-
-  double operator()(const std::array<double, AMREX_SPACEDIM>& coords) const {
-    return Geom::ComputeDistanceTo(coords);
-  }
-};
-
-} // namespace fub::amrex
-
-#endif
+} // namespace fub

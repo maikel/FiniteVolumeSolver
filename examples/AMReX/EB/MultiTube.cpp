@@ -90,11 +90,6 @@ std::string ReadAndBroadcastFile(std::string filepath, MPI_Comm comm) {
   return buffer;
 }
 
-struct NoInit {
-  static void InitializeData(const ::amrex::MultiFab&,
-                             const ::amrex::Geometry&) noexcept {}
-};
-
 auto MakeTubeSolver(fub::Burke2012& mechanism, const TubeSolverOptions& opts,
                     const boost::program_options::variables_map& vm, int k) {
   const std::array<int, AMREX_SPACEDIM> n_cells{opts.n_cells, 1, 1};
@@ -162,12 +157,10 @@ auto MakeTubeSolver(fub::Burke2012& mechanism, const TubeSolverOptions& opts,
       checkpoint = fmt::format("{}/Tube_{}", checkpoint, k);
       PatchHierarchy h =
           ReadCheckpointFile(checkpoint, desc, geometry, hier_opts);
-      //      const double timepoint = h.GetTimePoint().count();
       std::shared_ptr<GriddingAlgorithm> gridding =
-          std::make_shared<GriddingAlgorithm>(std::move(h), NoInit{},
+          std::make_shared<GriddingAlgorithm>(std::move(h), initial_data,
                                               TagAllOf(gradient, constant_box),
                                               boundaries);
-      //      gridding->InitializeHierarchy(timepoint);
       return gridding;
     }
   }();
@@ -366,7 +359,7 @@ void MyMain(const ProgramOptions& po,
 std::optional<boost::program_options::variables_map>
 ParseCommandLine(int argc, char** argv) {
   namespace po = boost::program_options;
-  po::options_description desc = fub::GetCommandLineRunOptions();
+  po::options_description desc = fub::RunOptions::GetCommandLineOptions();
   std::string config_path{};
   desc.add_options()("config", po::value<std::string>(&config_path),
                      "Path to the config file which can be parsed.");
@@ -398,10 +391,10 @@ ParseCommandLine(int argc, char** argv) {
     return {};
   }
 
-  fub::PrintRunOptions(fub::GetRunOptions(vm));
-
   boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
-      boost::log::keywords::severity = boost::log::trivial::info);
+     boost::log::keywords::severity = boost::log::trivial::info);
+
+  fub::RunOptions(vm).Print(log);
   ProgramOptions(vm).Print(log);
   return vm;
 }
@@ -642,10 +635,9 @@ void MyMain(const boost::program_options::variables_map& vm) {
   using namespace std::literals::chrono_literals;
   output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
          solver.GetTimePoint(), 0);
-  fub::RunOptions run_options = fub::GetRunOptions(vm);
+  fub::RunOptions run_options(vm);
   run_options.output_interval.push_back(fub::Duration(1e-5));
-  fub::RunSimulation(solver, run_options, wall_time_reference, output,
-                     fub::amrex::print);
+  fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }
 
 int main(int argc, char** argv) {
