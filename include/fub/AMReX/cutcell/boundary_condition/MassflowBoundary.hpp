@@ -18,31 +18,48 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_AMREX_BOUNDARY_CONDITION_ISENTROPIC_HPP
-#define FUB_AMREX_BOUNDARY_CONDITION_ISENTROPIC_HPP
+#ifndef FUB_AMREX_CUTCELL_MASSFLOW_BOUNDARY_HPP
+#define FUB_AMREX_CUTCELL_MASSFLOW_BOUNDARY_HPP
 
-#include "fub/AMReX/BoundaryCondition.hpp"
+#include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
+#include "fub/Direction.hpp"
 #include "fub/equations/IdealGasMix.hpp"
 
-namespace fub::amrex {
+#include <boost/log/attributes/mutable_constant.hpp>
+#include <boost/log/common.hpp>
+#include <boost/log/core.hpp>
+#include <boost/log/sources/channel_logger.hpp>
 
-class IsentropicPressureBoundary {
+#include <AMReX.H>
+
+namespace fub::amrex::cutcell {
+
+class MassflowBoundary {
 public:
-  IsentropicPressureBoundary(const IdealGasMix<1>& eq, double outer_pressure,
-                             Direction dir, int side);
+  MassflowBoundary(const std::string& name,
+                   const IdealGasMix<AMREX_SPACEDIM>& eq,
+                   const ::amrex::Box& coarse_inner_box,
+                   double required_massflow, double surface_area, Direction dir,
+                   int side);
 
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration dt, const GriddingAlgorithm&);
+                    Duration dt, const GriddingAlgorithm& grid);
 
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom);
+  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::MultiFab& alphas,
+                    const ::amrex::Geometry& geom,
+                    const Complete<IdealGasMix<AMREX_SPACEDIM>>& state);
 
 private:
-  IdealGasMix<1> equation_;
-  double outer_pressure_;
+  boost::log::sources::channel_logger<> log_;
+  boost::log::attributes::mutable_constant<double> time_attr_;
+  IdealGasMix<AMREX_SPACEDIM> equation_;
+  ::amrex::Box coarse_inner_box_;
+  double required_massflow_;
+  double surface_area_;
   Direction dir_;
   int side_;
 };
 
-} // namespace fub::amrex
+} // namespace fub::amrex::cutcell
 
-#endif
+#endif // !FUB_AMREX_CUTCELL_ISENTROPIC_PRESSURE_BOUNDARY_HPP

@@ -21,7 +21,10 @@
 #ifndef FUB_EXT_BOOST_LOG_HPP
 #define FUB_EXT_BOOST_LOG_HPP
 
+#include "fub/Duration.hpp"
 #include <boost/log/common.hpp>
+#include <boost/log/expressions.hpp>
+#include <boost/log/trivial.hpp>
 #include <boost/program_options.hpp>
 #include <mpi.h>
 
@@ -38,6 +41,10 @@ struct LogOptions {
 
 void InitializeLogging(MPI_Comm comm, const LogOptions& log = {});
 
-}
+void Log(std::string message, Duration timepoint,
+         boost::log::trivial::severity_level level =
+             boost::log::trivial::severity_level::info);
+
+} // namespace fub
 
 #endif // FINITEVOLUMESOLVER_LOG_HPP

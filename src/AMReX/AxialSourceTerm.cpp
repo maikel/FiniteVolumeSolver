@@ -33,10 +33,9 @@ AxialSourceTerm::AxialSourceTerm(const IdealGasMix<1>& eq,
 }
 
 AxialSourceTerm::AxialSourceTerm(const AxialSourceTerm& other)
-  : diameter_(other.diameter_), equation_(other.equation_)
-  {
-    ResetHierarchyConfiguration(other.gridding_);
-  }
+    : diameter_(other.diameter_), equation_(other.equation_) {
+  ResetHierarchyConfiguration(other.gridding_);
+}
 
 AxialSourceTerm& AxialSourceTerm::operator=(const AxialSourceTerm& other) {
   AxialSourceTerm tmp(other);
@@ -50,7 +49,9 @@ void AxialSourceTerm::PreAdvanceLevel(int, Duration, int subcycle) {
 }
 
 namespace {
-std::vector<::amrex::MultiFab> ComputeDiameters(const amrex::GriddingAlgorithm& gridding, const std::function<double(double)>& diameter) {
+std::vector<::amrex::MultiFab>
+ComputeDiameters(const amrex::GriddingAlgorithm& gridding,
+                 const std::function<double(double)>& diameter) {
   const PatchHierarchy& hier = gridding.GetPatchHierarchy();
   const int nlevel = hier.GetNumberOfLevels();
   std::vector<::amrex::MultiFab> ds{};
@@ -59,7 +60,8 @@ std::vector<::amrex::MultiFab> ComputeDiameters(const amrex::GriddingAlgorithm& 
     const ::amrex::MultiFab& data = hier.GetPatchLevel(ilvl).data;
     const ::amrex::Geometry& geom = hier.GetGeometry(ilvl);
     const double dx = geom.CellSize(0);
-    ::amrex::MultiFab& mf = ds.emplace_back(data.boxArray(), data.DistributionMap(), 2, 0);
+    ::amrex::MultiFab& mf =
+        ds.emplace_back(data.boxArray(), data.DistributionMap(), 2, 0);
     ForEachFab(execution::openmp, mf, [&](const ::amrex::MFIter& mfi) {
       ::amrex::FArrayBox& fab = mf[mfi];
       ForEachIndex(fab.box(), [&](auto... is) {
@@ -73,8 +75,7 @@ std::vector<::amrex::MultiFab> ComputeDiameters(const amrex::GriddingAlgorithm& 
   }
   return ds;
 }
-}
-  
+} // namespace
 
 void AxialSourceTerm::ResetHierarchyConfiguration(
     std::shared_ptr<amrex::GriddingAlgorithm>&& gridding) {

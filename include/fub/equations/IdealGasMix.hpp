@@ -340,6 +340,11 @@ public:
   /// Returns an array of stable time step estimates based on HLL signal
   /// velocities.
   [[nodiscard]] Array1d ComputeStableDt(span<const CompleteArray, 4> states,
+                                        Array1d face_fraction,
+                                        span<const Array1d, 4> volume_fraction,
+                                        double dx, Direction dir) noexcept;
+
+  [[nodiscard]] Array1d ComputeStableDt(span<const CompleteArray, 4> states,
                                         double dx, Direction dir) noexcept;
 
   void ComputeNumericFlux(Conservative& flux, span<const Complete, 4> stencil,

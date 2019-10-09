@@ -104,6 +104,20 @@ ConservativeArrayBase<Eq, N>& AsCons(CompleteArray<Eq, N>& x) {
   return x;
 }
 
+template <typename Eq, int N>
+void Load(Conservative<Eq>& q, const ConservativeArray<Eq, N>& qs, int i) {
+  ForEachComponent([&](auto& qi, auto qsi) {
+    qi = qsi[i];
+  }, q, qs);
+}
+
+template <typename Eq, int N>
+void Load(Complete<Eq>& q, const CompleteArray<Eq, N>& qs, int i) {
+  ForEachComponent([&](auto& qi, auto qsi) {
+    qi = qsi[i];
+  }, q, qs);
+}
+
 template <typename Eq, int N, typename Layout, std::size_t Rank>
 void Load(ConservativeArray<Eq, N>& state,
           nodeduce_t<const BasicView<const Conservative<Eq>, Layout,

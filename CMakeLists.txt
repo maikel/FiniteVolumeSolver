@@ -182,7 +182,7 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/equations/ShallowWater.hpp
   include/fub/ext/Eigen.hpp
   include/fub/ext/outcome.hpp
-  include/fub/ext/log.hpp
+  include/fub/ext/Log.hpp
   include/fub/flux_method/FluxMethod.hpp
   include/fub/flux_method/GodunovMethod.hpp
   include/fub/flux_method/HllMethod.hpp
@@ -196,6 +196,7 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/geometry/Geometry.hpp
   include/fub/geometry/Halfspace.hpp
   include/fub/geometry/ExpandTube.hpp
+  include/fub/geometry/Polygon.hpp
   include/fub/Solver.hpp
   include/fub/CompleteFromCons.hpp
   include/fub/CutCellData.hpp
@@ -219,7 +220,7 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/split_method/SplittingMethod.hpp
   include/fub/split_method/GodunovSplitting.hpp
   include/fub/split_method/StrangSplitting.hpp
-  src/ext/log.cpp
+  src/ext/Log.cpp
   src/boundary_condition/ReflectiveBoundary.cpp
   src/equations/Advection.cpp
   src/equations/advection/GodunovMethod.cpp
@@ -302,6 +303,9 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     include/fub/AMReX/ViewFArrayBox.hpp
     include/fub/AMReX/tagging/TagBuffer.hpp
     include/fub/AMReX/tagging/ConstantRegion.hpp
+    include/fub/geometry/Geometry.hpp
+    include/fub/geometry/PolymorphicGeometry.hpp
+    include/fub/geometry/Union.hpp
     src/equations/ideal_gas_mix/KineticSourceTerm.cpp
     src/AMReX/boundary_condition/BoundarySet.cpp
     src/AMReX/boundary_condition/TransmissiveBoundary.cpp
@@ -319,7 +323,8 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     src/AMReX/TimeIntegrator.cpp
     src/AMReX/IntegratorContext.cpp
     src/AMReX/tagging/TagBuffer.cpp
-    src/AMReX//tagging/ConstantRegion.cpp)
+    src/AMReX/tagging/ConstantRegion.cpp
+    src/geometry/Union.cpp)
   target_include_directories(FiniteVolumeSolver.AMReX
     PUBLIC
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -363,6 +368,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         include/fub/AMReX/cutcell/boundary_condition/BoundarySet.hpp
         include/fub/AMReX/cutcell/boundary_condition/TransmissiveBoundary.hpp
         include/fub/AMReX/cutcell/boundary_condition/IsentropicPressureBoundary.hpp
+        include/fub/AMReX/cutcell/boundary_condition/MassflowBoundary.hpp
         include/fub/AMReX/cutcell/boundary_condition/ReflectiveBoundary.hpp
         include/fub/AMReX/multi_block/MultiBlockBoundary.hpp
         include/fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp
@@ -378,6 +384,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         src/AMReX/cutcell/boundary_condition/BoundarySet.cpp
         src/AMReX/cutcell/boundary_condition/TransmissiveBoundary.cpp
         src/AMReX/cutcell/boundary_condition/IsentropicPressureBoundary.cpp
+        src/AMReX/cutcell/boundary_condition/MassflowBoundary.cpp
         src/AMReX/cutcell/tagging/ConstantRegion.cpp
         src/AMReX/cutcell/tagging/TagBuffer.cpp
         src/AMReX/cutcell/tagging/TagCutCells.cpp

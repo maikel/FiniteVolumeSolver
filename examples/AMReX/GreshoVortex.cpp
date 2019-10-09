@@ -37,7 +37,8 @@ struct GreshoVortex {
           fub::amrex::MakeView<Complete>(data[mfi], equation_, mfi.tilebox());
 
       auto from_prim = [](Complete& state, const Equation& equation) {
-        state.energy = state.pressure * equation.gamma_minus_1_inv + 0.5 * state.momentum.matrix().squaredNorm();
+        state.energy = state.pressure * equation.gamma_minus_1_inv +
+                       0.5 * state.momentum.matrix().squaredNorm();
         state.speed_of_sound =
             std::sqrt(equation.gamma * state.pressure / state.density);
       };
@@ -96,6 +97,7 @@ int main(int argc, char** argv) {
                          _MM_MASK_INVALID);
 
   const fub::amrex::ScopeGuard guard(argc, argv);
+  fub::InitializeLogging(MPI_COMM_WORLD);
 
   constexpr int Dim = AMREX_SPACEDIM;
   static_assert(AMREX_SPACEDIM >= 2);
@@ -109,7 +111,7 @@ int main(int argc, char** argv) {
   geometry.periodicity = std::array<int, Dim>{AMREX_D_DECL(1, 1, 1)};
 
   fub::amrex::PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = 3;
+  hier_opts.max_number_of_levels = 2;
   hier_opts.refine_ratio = amrex::IntVect{AMREX_D_DECL(2, 2, 1)};
 
   using Complete = fub::PerfectGas<2>::Complete;
@@ -147,23 +149,29 @@ int main(int argc, char** argv) {
   std::string base_name = "GreshoVortex/";
 
   using namespace fub::amrex;
+  boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
+      boost::log::keywords::severity = boost::log::trivial::info);
   auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,
-                    std::ptrdiff_t cycle, fub::Duration, int t = 0) {
+                    std::ptrdiff_t cycle, fub::Duration tp, int t = 0) {
+    BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", tp.count());
     if (t <= 0) {
       std::string name = fmt::format("{}plt{:05}", base_name, cycle);
-      amrex::Print() << "Start output to '" << name << "'.\n";
+      BOOST_LOG(log) << "Start output to '" << name << "'.";
       WritePlotFile(name, gridding->GetPatchHierarchy(), equation);
-      amrex::Print() << "Finished output to '" << name << "'.\n";
+      BOOST_LOG(log) << "Finished output to '" << name << "'.";
     }
     double rho_max = 0.0;
     double rho_min = std::numeric_limits<double>::infinity();
-    for (int level = 0; level < gridding->GetPatchHierarchy().GetNumberOfLevels(); ++level) {
-      const ::amrex::MultiFab& mf = gridding->GetPatchHierarchy().GetPatchLevel(level).data;
+    for (int level = 0;
+         level < gridding->GetPatchHierarchy().GetNumberOfLevels(); ++level) {
+      const ::amrex::MultiFab& mf =
+          gridding->GetPatchHierarchy().GetPatchLevel(level).data;
       rho_max = std::max(rho_max, mf.max(0));
       rho_min = std::min(rho_min, mf.min(0));
     }
-    const double rho_err = std::max(std::abs(rho_max - 1.0), std::abs(rho_min - 1.0));
-    ::amrex::Print() << fmt::format("Density Max Error: {:.6E}\n", rho_err);
+    const double rho_err =
+        std::max(std::abs(rho_max - 1.0), std::abs(rho_min - 1.0));
+    BOOST_LOG(log) << fmt::format("Density Max Error: {:.6E}", rho_err);
   };
 
   using namespace std::literals::chrono_literals;
@@ -174,6 +182,5 @@ int main(int argc, char** argv) {
   run_options.output_interval = {fub::Duration(1.0 / 30.0)};
   run_options.output_frequency = {0, 1};
   run_options.cfl = 0.8;
-  fub::RunSimulation(solver, run_options, wall_time_reference, output,
-                     fub::amrex::print);
+  fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

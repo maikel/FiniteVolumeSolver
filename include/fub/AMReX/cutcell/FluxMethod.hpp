@@ -212,7 +212,8 @@ Duration FluxMethod<Tag, FM>::ComputeStableDt(IntegratorContext& context,
   });
   double local_count = Min(min_dt).count();
   double count{};
-  MPI_Allreduce(&local_count, &count, 1, MPI_DOUBLE, MPI_MIN, context.GetMpiCommunicator());
+  MPI_Allreduce(&local_count, &count, 1, MPI_DOUBLE, MPI_MIN,
+                context.GetMpiCommunicator());
   return Duration(count);
 }
 

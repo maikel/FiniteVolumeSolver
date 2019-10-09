@@ -36,7 +36,8 @@ MultiBlockGriddingAlgorithm::MultiBlockGriddingAlgorithm(
   for (auto& boundaries : boundaries_) {
     int k = 0;
     for (const BlockConnection& conn : connectivity_) {
-      boundaries.emplace_back(fmt::format("MultiBlockBoundary-{}", k++), *this, conn, 3, reactor_, level);
+      boundaries.emplace_back(fmt::format("MultiBlockBoundary-{}", k++), *this,
+                              conn, 3, reactor_, level);
     }
     level += 1;
   }

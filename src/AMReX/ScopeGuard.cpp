@@ -39,9 +39,7 @@ ScopeGuard::ScopeGuard() {
   ::amrex::Initialize(MPI_COMM_WORLD);
 }
 
-ScopeGuard::~ScopeGuard() {
-  ::amrex::Finalize();
-}
+ScopeGuard::~ScopeGuard() { ::amrex::Finalize(); }
 
 } // namespace amrex
 } // namespace fub

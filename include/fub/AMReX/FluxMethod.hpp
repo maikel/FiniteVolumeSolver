@@ -87,7 +87,8 @@ Duration FluxMethod<Tag, FM>::ComputeStableDt(IntegratorContext& context,
     }
     double local_count = min_dt;
     double count{};
-    MPI_Allreduce(&local_count, &count, 1, MPI_DOUBLE, MPI_MIN, context.GetMpiCommunicator());
+    MPI_Allreduce(&local_count, &count, 1, MPI_DOUBLE, MPI_MIN,
+                  context.GetMpiCommunicator());
     return Duration(count);
   } else {
     for (::amrex::MFIter mfi(fluxes); mfi.isValid(); ++mfi) {
@@ -106,7 +107,8 @@ Duration FluxMethod<Tag, FM>::ComputeStableDt(IntegratorContext& context,
     }
     double local_count = min_dt;
     double count{};
-    MPI_Allreduce(&local_count, &count, 1, MPI_DOUBLE, MPI_MIN, context.GetMpiCommunicator());
+    MPI_Allreduce(&local_count, &count, 1, MPI_DOUBLE, MPI_MIN,
+                  context.GetMpiCommunicator());
     return Duration(count);
   }
 }

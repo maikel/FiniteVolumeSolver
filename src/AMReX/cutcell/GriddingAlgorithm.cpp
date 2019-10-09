@@ -163,6 +163,14 @@ GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier, InitialData data,
       initial_condition_{std::move(data)}, tagging_{std::move(tagging)},
       boundary_condition_(std::size_t(hier.GetMaxNumberOfLevels()),
                           std::move(boundary)) {
+  if (hier.GetNumberOfLevels() > 0) {
+    for (int i = 0; i < hier.GetNumberOfLevels(); ++i) {
+      const std::size_t ii = static_cast<std::size_t>(i);
+      AmrMesh::geom[ii] = hierarchy_.GetGeometry(i);
+      AmrMesh::dmap[ii] = hierarchy_.GetPatchLevel(i).distribution_mapping;
+      AmrMesh::grids[ii] = hierarchy_.GetPatchLevel(i).box_array;
+    }
+  }
   for (int level = 0; level < hierarchy_.GetMaxNumberOfLevels(); ++level) {
     boundary_condition_[static_cast<std::size_t>(level)].geometry =
         hierarchy_.GetGeometry(level);
@@ -279,6 +287,7 @@ void GriddingAlgorithm::MakeNewLevelFromScratch(
   }
   ::amrex::MultiFab& data = hierarchy_.GetPatchLevel(level).data;
   const ::amrex::Geometry& geom = hierarchy_.GetGeometry(level);
+  data.setVal(0.0);
   initial_condition_.InitializeData(data, geom);
 }
 

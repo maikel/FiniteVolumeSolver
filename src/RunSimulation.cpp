@@ -20,14 +20,33 @@
 
 #include "fub/RunSimulation.hpp"
 
-#include <fmt/format.h>
 #include <fmt/chrono.h>
+#include <fmt/format.h>
 
 #include <cmath>
 
 namespace fub {
 
-boost::program_options::options_description GetCommandLineRunOptions() {
+RunOptions::RunOptions(const boost::program_options::variables_map& vm) {
+  auto GetOptionOr = [&](const char* opt, auto default_value) {
+    if (vm.count(opt)) {
+      return vm[opt].as<std::decay_t<decltype(default_value)>>();
+    }
+    return default_value;
+  };
+  final_time = Duration(GetOptionOr("final_time", 1.0));
+  max_cycles = GetOptionOr("max_cycles", -1);
+  std::vector<double> intervals = GetOptionOr("output.interval", std::vector{0.0});
+  output_interval.resize(intervals.size());
+  std::transform(intervals.begin(), intervals.end(), output_interval.begin(), [](double x) {
+      return Duration(x);
+  });
+  output_frequency = GetOptionOr("output.frequency", std::vector{0});
+  smallest_time_step_size = Duration(GetOptionOr("smallest_time_step_size", 1.0E-12));
+  cfl = GetOptionOr("cfl", 0.8);
+}
+
+boost::program_options::options_description RunOptions::GetCommandLineOptions() {
   namespace po = boost::program_options;
   RunOptions opts{};
   po::options_description desc{"Run Options"};
@@ -36,42 +55,12 @@ boost::program_options::options_description GetCommandLineRunOptions() {
     ("help", "Print help messages")
     ("max_cycles", po::value<int>(), "Set maximal number of coarse time steps done.")
     ("cfl", po::value<double>(), "Set the CFL condition")
-    ("output_interval", po::value<double>(), "Sets the output interval")
-    ("output_frequency", po::value<int>(), "Sets the output frequency")
-    ("final_time", po::value<double>(), "Sets the final time point for this simulation");
+    ("output.interval", po::value<std::vector<double>>()->multitoken(), "Sets the output interval")
+    ("output.frequency", po::value<std::vector<int>>()->multitoken(), "Sets the output frequency")
+    ("final_time", po::value<double>(), "Sets the final time point for this simulation")
+    ("smallest_time_step_size", po::value<double>(), "Set the minimal possible time step size");
   // clang-format on
   return desc;
-}
-
-RunOptions GetRunOptions(const boost::program_options::variables_map& vm) {
-  RunOptions opts{};
-  auto GetOptionOr = [&](const char* opt, auto default_value) {
-    if (vm.count(opt)) {
-      return vm[opt].as<std::decay_t<decltype(default_value)>>();
-    }
-    return default_value;
-  };
-  opts.cfl = GetOptionOr("cfl", opts.cfl);
-  opts.final_time = Duration(GetOptionOr("final_time", opts.final_time.count()));
-  opts.output_interval = {Duration(GetOptionOr("output_interval", 0.0))};
-  opts.output_frequency = {GetOptionOr("output_frequency", 0)};
-  opts.max_cycles = GetOptionOr("max_cycles", -1);
-  return opts;
-}
-
-void PrintRunOptions(std::ostream& out, const RunOptions& opts) {
-  out << fmt::format(
-      R"fmt([Info] ========================================================================
-[Info] Run Options:
-[Info] final_time = {}s
-[Info] max_cycles = {}
-[Info] output_interval = {}s
-[Info] output_frequency = {}
-[Info] cfl = {}
-[Info] ========================================================================
-)fmt",
-      opts.final_time.count(), opts.max_cycles, opts.output_interval[0].count(),
-      fmt::join(opts.output_frequency, ", "), opts.cfl);
 }
 
 std::string
@@ -91,9 +80,9 @@ FormatTimeStepLine(std::ptrdiff_t cycle,
   const double wt_diff_seconds =
       duration_cast<duration<double>>(wall_time_difference).count();
   return fmt::format(
-      "[{:3}%] {:05}: T = {:>9.6}s dt = {:6e}s wall-time: {:02}h:"
-      "{:02}m:{:6f}s (+{:6e}s)\n",
-      total_progress, cycle, simulation_time.count(), time_step_size.count(),
+      "[{:3}%] {:05}: dt = {:6e}s wall-time: {:02}h:"
+      "{:02}m:{:6f}s (+{:6e}s)",
+      total_progress, cycle, time_step_size.count(),
       wt_hours, wt_minutes, wt_seconds, wt_diff_seconds);
 }
 

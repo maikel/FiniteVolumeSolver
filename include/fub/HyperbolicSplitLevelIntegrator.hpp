@@ -92,8 +92,6 @@ public:
   Duration ComputeStableDt(int level_number);
   Duration ComputeStableDt();
 
-
-
   /// Advance a specified patch level and all finer levels by time `dt`.
   ///
   /// This method subcycles finer levels.
@@ -108,7 +106,8 @@ public:
   Result<void, TimeStepTooLarge> AdvanceLevel(int level_number, Duration dt,
                                               int subcycle);
 
-  Result<void, TimeStepTooLarge> AdvanceLevelNonRecursively(int level_number, Duration dt, int subcycle);
+  Result<void, TimeStepTooLarge>
+  AdvanceLevelNonRecursively(int level_number, Duration dt, int subcycle);
 
   Result<void, TimeStepTooLarge> AdvanceHierarchy(Duration dt);
 };
@@ -190,11 +189,13 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::ComputeStableDt() {
 }
 
 template <int Rank, typename Context, typename SplitMethod>
-Result<void, TimeStepTooLarge>
-DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::AdvanceLevelNonRecursively(int this_level, Duration dt, int subcycle) {
+Result<void, TimeStepTooLarge> DimensionalSplitLevelIntegrator<
+    Rank, Context, SplitMethod>::AdvanceLevelNonRecursively(int this_level,
+                                                            Duration dt,
+                                                            int subcycle) {
   auto AdvanceLevel_Split = [&](Direction dir) {
     return [&, this_level, dir, split_cycle = 0](
-                               Duration split_dt) mutable -> Result<void, TimeStepTooLarge> {
+               Duration split_dt) mutable -> Result<void, TimeStepTooLarge> {
       const int next_level = this_level + 1;
       if (dir == Direction::X && split_cycle == 0 && subcycle == 0 &&
           this_level > 0) {
@@ -233,11 +234,10 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::AdvanceLevelNonRecu
     };
   };
   return std::apply(
-                                                         [&](auto... directions) {
-                                                           return GetSplitMethod().Advance(dt,
-                                                                                           AdvanceLevel_Split(directions)...);
-                                                         },
-                                                         MakeSplitDirections<Rank>());
+      [&](auto... directions) {
+        return GetSplitMethod().Advance(dt, AdvanceLevel_Split(directions)...);
+      },
+      MakeSplitDirections<Rank>());
 }
 
 template <int Rank, typename Context, typename SplitMethod>
@@ -269,7 +269,8 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::AdvanceLevel(
   //    Context::FillGhostLayerSingleLevel(this_level);
   //  }
 
-  Result<void, TimeStepTooLarge> result = AdvanceLevelNonRecursively(this_level, dt, subcycle);
+  Result<void, TimeStepTooLarge> result =
+      AdvanceLevelNonRecursively(this_level, dt, subcycle);
   if (!result) {
     return result;
   }
