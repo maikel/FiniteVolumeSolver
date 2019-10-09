@@ -40,14 +40,14 @@ if len(missing) == 0:
     exit()
 
 # ask to copy from remote
-decision = input(f"{len(missing)} files are missing. Copy from {remote_server}? (yes/no): ")
+decision = input("{} files are missing. Copy from {}? (yes/no): ".format(len(missing), remote_server))
 if decision == "yes":
     # chunk missing files into 50 each iteration
     for i in range(0, len(missing), chunk_size):
         # join filenames and remote_path and convert to list for scp
         chunk = [join(remote_path, m) for m in missing[i:i+chunk_size]]
         copyfiles = ' '.join(chunk)
-        print(f"Copying Chunk {int(i/chunk_size)+1} / {int(len(missing)/chunk_size)+1}")
+        print("Copying Chunk {} / {}".format(int(i/chunk_size)+1, int(len(missing)/chunk_size)+1))
         check_output('scp ' + remote_server + ':"' + copyfiles + '" "' + local_path + '"', shell=True)
 else:
     print("No action performed.")
