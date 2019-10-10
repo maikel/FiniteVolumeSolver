@@ -123,7 +123,8 @@ struct ProgramOptions {
     tube_n_cells = int(double(plenum_n_cells[0]) * t_over_p);
     tube_n_cells = tube_n_cells - tube_n_cells % 8;
 
-    plenum_temperature = GetOptionOr("plenum_temperature", plenum_temperature);
+    plenum_temperature = GetOptionOr("plenum.temperature", plenum_temperature);
+    plenum_outlet_radius = GetOptionOr("plenum.outlet_radius", plenum_outlet_radius);
 
     output_directory = GetOptionOr("output.directory", output_directory);
     x_probes = GetOptionOr("output.x_probes", x_probes);
@@ -143,7 +144,8 @@ struct ProgramOptions {
 
     po::options_description prob_desc{"Problem Options"};
     prob_desc.add_options()
-    ("plenum_temperature", po::value<double>(), "Temperature value for the plenum")
+    ("plenum.temperature", po::value<double>(), "Temperature value for the plenum")
+    ("plenum.outlet_radius", po::value<double>(), "Radius of plenum outlet")
     ("output.directory", po::value<double>(), "Output directory")
     ("output.x_probes", po::value<std::vector<double>>()->multitoken(), "Coordinates in x direction for locations where the state is measured in each time step.");
     // clang-format on
@@ -169,7 +171,8 @@ struct ProgramOptions {
     BOOST_LOG(log) << "  - n_levels = " << n_levels;
 
     BOOST_LOG(log) << "Problem Options:";
-    BOOST_LOG(log) << "  - plenum_temperature = " << plenum_temperature;
+    BOOST_LOG(log) << "  - plenum.temperature = " << plenum_temperature;
+    BOOST_LOG(log) << "  - plenum.outlet_radius= " << plenum_outlet_radius;
     BOOST_LOG(log) << "  - output.directory = '" << output_directory << "'";
     BOOST_LOG(log) << fmt::format("  - output.x_probes = {{{}}}",
                                   fmt::join(x_probes, ", "));
@@ -187,6 +190,7 @@ struct ProgramOptions {
   int n_levels{1};
   std::string checkpoint{};
   double plenum_temperature{300};
+  double plenum_outlet_radius{r_tube};
   std::string output_directory{"SingleTube"};
   std::vector<double> x_probes{};
 };
