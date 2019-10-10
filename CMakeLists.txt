@@ -197,6 +197,7 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/geometry/Halfspace.hpp
   include/fub/geometry/ExpandTube.hpp
   include/fub/geometry/Polygon.hpp
+  include/fub/geometry/Cone.hpp
   include/fub/Solver.hpp
   include/fub/CompleteFromCons.hpp
   include/fub/CutCellData.hpp
@@ -239,6 +240,7 @@ add_library(FiniteVolumeSolver.Solver
   src/equations/ideal_gas_mix/HllMethod.cpp
   src/equations/ideal_gas_mix/MusclHancockMethod.cpp
   src/equations/ideal_gas_mix/FlameMasterReactor.cpp
+  src/geometry/Cone.cpp
   src/equations/ideal_gas_mix/mechanism/Burke2012.cpp
   src/cutcell_method/KbnStabilisation.cpp
   src/tagging/TagBuffer.cpp

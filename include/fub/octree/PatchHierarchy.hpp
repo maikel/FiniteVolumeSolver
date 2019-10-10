@@ -1,0 +1,7 @@
+namespace fub {
+
+struct PatchHierarchy {
+  
+};
+
+}
