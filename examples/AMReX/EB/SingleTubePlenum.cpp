@@ -747,7 +747,8 @@ void MyMain(const boost::program_options::variables_map& vm) {
           fub::amrex::WritePlotFile(
               name, gridding->GetTubes()[0]->GetPatchHierarchy(),
               tube_equation);
-          WriteCheckpoint(fmt::format("{}/Checkpoint/{:05}", cycle), *gridding, valve_state, rank, ignition);
+          name = fmt::format("{}/Checkpoint/{:05}", base_name, cycle);
+          WriteCheckpoint(name, *gridding, valve_state, rank, ignition);
         }
       };
 
