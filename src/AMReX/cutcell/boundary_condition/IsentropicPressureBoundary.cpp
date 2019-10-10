@@ -144,7 +144,12 @@ void IsentropicPressureBoundary::FillBoundary(::amrex::MultiFab& mf,
                                               Duration t,
                                               const GriddingAlgorithm& grid) {
   Complete<IdealGasMix<AMREX_SPACEDIM>> state(equation_);
-  AverageState(state, grid.GetPatchHierarchy(), 0, coarse_inner_box_);
+  int level = FindLevel(geom, grid);
+  ::amrex::Box refined_inner_box = coarse_inner_box_;
+  for (int l = 1; l <= level; ++l) {
+    refined_inner_box.refine(grid.GetPatchHierarchy().GetRatioToCoarserLevel(l));
+  }
+  AverageState(state, grid.GetPatchHierarchy(), level, refined_inner_box);
   equation_.CompleteFromCons(state, state);
   BOOST_LOG_SCOPED_LOGGER_TAG(log_, "Time", t.count());
   double rho = state.density;
@@ -167,7 +172,7 @@ void IsentropicPressureBoundary::FillBoundary(::amrex::MultiFab& mf,
   p = state.pressure;
   BOOST_LOG(log_) << fmt::format("Outer State: {} kg/m3, {} m/s, {} Pa", rho, u,
                                  p);
-  int level = FindLevel(geom, grid);
+  // int level = FindLevel(geom, grid);
   auto factory = grid.GetPatchHierarchy().GetEmbeddedBoundary(level);
   const ::amrex::MultiFab& alphas = factory->getVolFrac();
   FillBoundary(mf, alphas, geom, state);
