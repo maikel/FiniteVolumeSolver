@@ -53,41 +53,44 @@ struct DividerOptions {
 
   DividerOptions(const boost::program_options::variables_map& vm) {
     auto GetOptionOr = [&](const char* opt, auto default_value) {
-    if (vm.count(opt)) {
-      return vm[opt].as<std::decay_t<decltype(default_value)>>();
-    }
-    return default_value;
+      if (vm.count(opt)) {
+        return vm[opt].as<std::decay_t<decltype(default_value)>>();
+      }
+      return default_value;
     };
 
     wall_filenames = GetOptionOr("wall_filenames", wall_filenames);
     std::vector<double> rng = GetOptionOr("x_range", std::vector{0.0, 0.042});
     if (rng.size() != 2) {
-      throw std::runtime_error("Parameter x_range needs exactly two arguments!");
+      throw std::runtime_error(
+          "Parameter x_range needs exactly two arguments!");
     }
-    x_range = std::array<double,2>{rng[0], rng[1]};
-    
+    x_range = std::array<double, 2>{rng[0], rng[1]};
+
     rng = GetOptionOr("y_range", std::vector{-0.016, 0.026});
     if (rng.size() != 2) {
-      throw std::runtime_error("Parameter y_range needs exactly two arguments!");
+      throw std::runtime_error(
+          "Parameter y_range needs exactly two arguments!");
     }
-    y_range = std::array<double,2>{rng[0], rng[1]};
+    y_range = std::array<double, 2>{rng[0], rng[1]};
 
     std::vector<int> irng = GetOptionOr("n_cells", std::vector{200, 200});
     if (rng.size() != 2) {
-      throw std::runtime_error("Parameter n_cells needs exactly two arguments!");
+      throw std::runtime_error(
+          "Parameter n_cells needs exactly two arguments!");
     }
-    n_cells = std::array<int,2>{irng[0], irng[1]};
+    n_cells = std::array<int, 2>{irng[0], irng[1]};
 
     mach_number = GetOptionOr("mach_number", mach_number);
-    n_level  = GetOptionOr("n_level", n_level);
+    n_level = GetOptionOr("n_level", n_level);
 
     output_directory = GetOptionOr("output.directory", output_directory);
   }
 
   static boost::program_options::options_description GetCommandLineOptions() {
-  namespace po = boost::program_options;
-  po::options_description desc{"Run Options"};
-  // clang-format off
+    namespace po = boost::program_options;
+    po::options_description desc{"Run Options"};
+    // clang-format off
   desc.add_options()
     ("mach_number", po::value<double>(), "Set the mach number of the shock wave.")
     ("n_cells", po::value<std::vector<int>>()->multitoken(), "Set the amount of cells nx ny for each direction")
@@ -96,19 +99,23 @@ struct DividerOptions {
     ("n_level", po::value<int>(), "Set the number of refinement levels for this simulation")
     ("wall_filenames", po::value<std::vector<std::string>>()->multitoken(), "Set paths to the wall filenames")
     ("output.directory", po::value<std::string>(), "Set the output directory");
-  // clang-format on
-  return desc;
+    // clang-format on
+    return desc;
   }
 
   template <typename Logger> void Print(Logger& log) {
     BOOST_LOG(log) << "Divider Options:"
-      << "\n  - mach_number = " << mach_number << " [-]"
-      << "\n  - x_range = {" << x_range[0] << ", " << x_range[1] << "} [m]"
-      << "\n  - y_range = {" << y_range[0] << ", " << y_range[1] << "} [m]"
-      << "\n  - n_cells = {" << n_cells[0] << ", " << n_cells[1] << "} [-]"
-      << "\n  - n_level = " << n_level << " [-]"
-      << fmt::format("\n  - wall_filenames = {{{}}}", fmt::join(wall_filenames, ", "))
-      << "\n  - output_directory = '" << output_directory << "'";
+                   << "\n  - mach_number = " << mach_number << " [-]"
+                   << "\n  - x_range = {" << x_range[0] << ", " << x_range[1]
+                   << "} [m]"
+                   << "\n  - y_range = {" << y_range[0] << ", " << y_range[1]
+                   << "} [m]"
+                   << "\n  - n_cells = {" << n_cells[0] << ", " << n_cells[1]
+                   << "} [-]"
+                   << "\n  - n_level = " << n_level << " [-]"
+                   << fmt::format("\n  - wall_filenames = {{{}}}",
+                                  fmt::join(wall_filenames, ", "))
+                   << "\n  - output_directory = '" << output_directory << "'";
   }
 };
 
@@ -133,7 +140,8 @@ ParseCommandLine(int argc, char** argv) {
     po::notify(vm);
   } catch (std::exception& e) {
     BOOST_LOG_SEV(log, boost::log::trivial::error)
-        << "An Error occured while reading program options:\n" << e.what();
+        << "An Error occured while reading program options:\n"
+        << e.what();
     return {};
   }
 
@@ -146,7 +154,6 @@ ParseCommandLine(int argc, char** argv) {
 
   return vm;
 }
-
 
 fub::Polygon ReadPolygonData(std::istream& input) {
   std::string line{};
@@ -163,8 +170,7 @@ fub::Polygon ReadPolygonData(std::istream& input) {
     }
   }
   if (xs.empty() || ys.empty()) {
-    throw std::invalid_argument{
-      "Invalid Input File:: No data found!"};
+    throw std::invalid_argument{"Invalid Input File:: No data found!"};
   }
   const double x0 = xs.front();
   const double x1 = xs.back();
@@ -289,7 +295,8 @@ void MyMain(const boost::program_options::variables_map& vm) {
                    return fub::PolymorphicGeometry(ReadPolygonData(ifs));
                  });
 
-  auto embedded_boundary = fub::amrex::Geometry(fub::PolymorphicUnion(geometries));
+  auto embedded_boundary =
+      fub::amrex::Geometry(fub::PolymorphicUnion(geometries));
   auto shop = amrex::EB2::makeShop(embedded_boundary);
 
   fub::amrex::CartesianGridGeometry geometry;

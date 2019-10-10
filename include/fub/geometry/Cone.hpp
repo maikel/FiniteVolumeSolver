@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Maikel Nadolski
+// Copyright (c) 2018 Maikel Nadolski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,29 +18,27 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/geometry/Union.hpp"
+#ifndef FUB_GEOMETRY_CONE_HPP
+#define FUB_GEOMETRY_CONE_HPP 
 
-#include <algorithm>
-#include <limits>
-#include <numeric>
+#include <array>
 
 namespace fub {
 
-PolymorphicUnion::PolymorphicUnion(
-    const std::vector<PolymorphicGeometry>& geoms)
-    : geoms_(geoms) {}
+class ConeIF {
+public:
+  ConeIF() = default;
+  ConeIF(const std::array<double, 3>& point, double base_radius, double height, bool inside = true);
 
-std::unique_ptr<Geometry> PolymorphicUnion::Clone() const {
-  return std::make_unique<PolymorphicUnion>(*this);
+  double ComputeDistanceTo(const std::array<double, 3>& x) const noexcept;
+
+private:
+  std::array<double, 3> base_point_{0.0};
+  double base_radius_{1.0};
+  double height_{1.0};
+  bool inside_{true};
+};
+
 }
 
-double PolymorphicUnion::ComputeDistanceTo(
-    const std::array<double, AMREX_SPACEDIM>& x) const {
-  return std::accumulate(geoms_.begin(), geoms_.end(),
-                         std::numeric_limits<double>::lowest(),
-                         [x](double max, const PolymorphicGeometry& geom) {
-                           return std::max(max, geom.ComputeDistanceTo(x));
-                         });
-}
-
-} // namespace fub
+#endif

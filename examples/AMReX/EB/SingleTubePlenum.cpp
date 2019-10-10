@@ -54,6 +54,7 @@ static constexpr int Tube_Rank = 1;
 static constexpr int Plenum_Rank = AMREX_SPACEDIM;
 
 static constexpr double r_tube = 0.015;
+static constexpr double r_outer = 0.045;
 
 template <typename T>
 using ProbesView =
@@ -310,8 +311,10 @@ auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
       -1, periodicity.data());
 
   auto embedded_boundary = amrex::EB2::makeIntersection(
-      amrex::EB2::PlaneIF({0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, false),
-      amrex::EB2::CylinderIF(r_tube, 1.0, 0, {0.0, 0.0, 0.0}, true));
+      amrex::EB2::CylinderIF(r_outer, 0.5, 0, {0.25, 0.0, 0.0}, true),
+      amrex::EB2::CylinderIF(r_tube, 0.2, 0, {1e-6, 0.0, 0.0}, true),
+      amrex::EB2::CylinderIF(0.5 * r_tube, 0.2, 0, {0.5, 0.0, 0.0}, true),
+      fub::amrex::Geometry(fub::ConeIF({0.5, 0.0, 0.0}, r_outer, 0.04, true)) );
   auto shop = amrex::EB2::makeShop(embedded_boundary);
 
   fub::IdealGasMix<Plenum_Rank> equation{mechanism};
@@ -348,12 +351,11 @@ auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
   ConstantBox constant_box{refine_box};
 
   //  const double p0 = 101325.0;
+  ::amrex::RealBox outlet{{xbox.hi(0) - 0.01, xbox.lo(1), xbox.lo(2)}, {xbox.hi(0), xbox.hi(1), xbox.hi(2)}};
+  const ::amrex::Box outlet_box = BoxWhichContains(outlet, coarse_geom);
   BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
-                                  TransmissiveBoundary{fub::Direction::X, 1},
-                                  TransmissiveBoundary{fub::Direction::Y, 0},
-                                  TransmissiveBoundary{fub::Direction::Y, 1},
-                                  TransmissiveBoundary{fub::Direction::Z, 0},
-                                  TransmissiveBoundary{fub::Direction::Z, 1}}};
+                                  IsentropicPressureBoundary{"RightPlenumBoundary", equation, outlet_box,
+                                  101325.0, fub::Direction::X, 1}}};
 
   std::shared_ptr gridding = [&] {
     std::string checkpoint{};

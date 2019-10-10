@@ -29,7 +29,6 @@
 
 #include "fub/HyperbolicPatchIntegrator.hpp"
 #include "fub/HyperbolicSplitLevelIntegrator.hpp"
-//#include "fub/HyperbolicSplitSystemSolver.hpp"
 #include "fub/NewtonIteration.hpp"
 #include "fub/SplitSystemSourceSolver.hpp"
 
@@ -60,3 +59,4 @@
 #include "fub/geometry/Geometry.hpp"
 #include "fub/geometry/Halfspace.hpp"
 #include "fub/geometry/Polygon.hpp"
+#include "fub/geometry/Cone.hpp"
