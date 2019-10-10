@@ -34,6 +34,9 @@
 #include <boost/filesystem.hpp>
 #include <boost/program_options.hpp>
 
+#include <boost/archive/text_iarchive.hpp>
+#include <boost/archive/text_oarchive.hpp>
+
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/core/null_deleter.hpp>
 #include <boost/log/expressions.hpp>
@@ -456,6 +459,32 @@ int main(int argc, char** argv) {
   }
 }
 
+void WriteCheckpoint(
+    const std::string& path,
+    const fub::amrex::MultiBlockGriddingAlgorithm& grid,
+    std::shared_ptr<fub::amrex::PressureValve> valve,
+    int rank, const fub::amrex::MultiBlockIgniteDetonation& ignition) {
+  auto tubes = grid.GetTubes();
+  std::string name = fmt::format("{}/Tube", path);
+  fub::amrex::WriteCheckpointFile(name, tubes[0]->GetPatchHierarchy());
+  if (rank == 0) {
+    name = fmt::format("{}/Valve", path);
+    std::ofstream valve_checkpoint(name);
+    boost::archive::text_oarchive oa(valve_checkpoint);
+    oa << *valve;
+  }
+  name = fmt::format("{}/Plenum", path);
+  fub::amrex::cutcell::WriteCheckpointFile(
+      name, grid.GetPlena()[0]->GetPatchHierarchy());
+  if (rank == 0) {
+    name = fmt::format("{}/Ignition", path);
+    std::ofstream ignition_checkpoint(name);
+    boost::archive::text_oarchive oa(ignition_checkpoint);
+    oa << ignition.GetLastIgnitionTimePoints();
+  }
+}
+
+
 template <typename Logger>
 void LogTubeProbes(Logger& log, ProbesView<const double> probes,
                    const fub::amrex::PatchHierarchy& hierarchy, MPI_Comm comm) {
@@ -627,6 +656,7 @@ void MyMain(const boost::program_options::variables_map& vm) {
 
   auto plenum = MakePlenumSolver(po, mechanism, vm);
   auto [tube, valve] = MakeTubeSolver(po, mechanism, vm);
+  auto valve_state = valve.GetSharedState();
 
   ::amrex::RealBox inlet{{-0.1, -r_tube, -r_tube}, {0.05, +r_tube, +r_tube}};
 
@@ -689,6 +719,8 @@ void MyMain(const boost::program_options::variables_map& vm) {
   boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
       boost::log::keywords::severity = boost::log::trivial::info);
   MPI_Comm comm = context.GetMpiCommunicator();
+  int rank = -1;
+  MPI_Comm_rank(comm, &rank);
   auto output =
       [&](std::shared_ptr<fub::amrex::MultiBlockGriddingAlgorithm> gridding,
           auto cycle, auto timepoint, int output_num) {
@@ -715,6 +747,8 @@ void MyMain(const boost::program_options::variables_map& vm) {
           fub::amrex::WritePlotFile(
               name, gridding->GetTubes()[0]->GetPatchHierarchy(),
               tube_equation);
+          name = fmt::format("{}/Checkpoint/{:05}", base_name, cycle);
+          WriteCheckpoint(name, *gridding, valve_state, rank, ignition);
         }
       };
 
