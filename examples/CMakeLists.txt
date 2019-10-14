@@ -76,6 +76,9 @@ if (AMReX_FOUND AND AMReX_3D_FOUND)
     add_executable_with_warnings(AMReX.EB.SingleTubePlenum AMReX/EB/SingleTubePlenum.cpp)
     target_link_libraries(AMReX.EB.SingleTubePlenum FiniteVolumeSolver.AMReX.EB)
 
+    add_executable_with_warnings(AMReX.EB.SingleTubeRing AMReX/EB/SingleTubeRing.cpp)
+    target_link_libraries(AMReX.EB.SingleTubeRing FiniteVolumeSolver.AMReX.EB)
+
     add_executable_with_warnings(AMReX.EB.MultiTube AMReX/EB/MultiTube.cpp)
     target_link_libraries(AMReX.EB.MultiTube FiniteVolumeSolver.AMReX.EB)
     
