@@ -60,3 +60,5 @@
 #include "fub/geometry/Halfspace.hpp"
 #include "fub/geometry/Polygon.hpp"
 #include "fub/geometry/Cone.hpp"
+#include "fub/geometry/RotateAxis.hpp"
+#include "fub/geometry/Invert.hpp"
