@@ -129,6 +129,7 @@ struct ProgramOptions {
     plenum_jump = GetOptionOr("plenum.jump", plenum_jump);
 
     output_directory = GetOptionOr("output.directory", output_directory);
+    checkpoint_interval = fub::Duration(GetOptionOr("output.checkpoint_interval", checkpoint_interval.count()));
     x_probes = GetOptionOr("output.x_probes", x_probes);
   }
 
@@ -151,6 +152,7 @@ struct ProgramOptions {
     ("plenum.length", po::value<double>(), "Length of plenum body")
     ("plenum.jump", po::value<double>(), "Diameter Jump from plenum inlet to plenum body")
     ("output.directory", po::value<double>(), "Output directory")
+    ("output.checkpoint_interval", po::value<double>(), "Time interval to make checkpoint ")
     ("output.x_probes", po::value<std::vector<double>>()->multitoken(), "Coordinates in x direction for locations where the state is measured in each time step.");
     // clang-format on
     desc.add(prob_desc);
@@ -180,6 +182,7 @@ struct ProgramOptions {
     BOOST_LOG(log) << "  - plenum.length= " << plenum_length;
     BOOST_LOG(log) << "  - plenum.jump= " << plenum_jump;
     BOOST_LOG(log) << "  - output.directory = '" << output_directory << "'";
+    BOOST_LOG(log) << "  - output.checkpoint_interval = " << checkpoint_interval.count() << " [s]";
     BOOST_LOG(log) << fmt::format("  - output.x_probes = {{{}}}",
                                   fmt::join(x_probes, ", "));
 
@@ -199,6 +202,7 @@ struct ProgramOptions {
   double plenum_outlet_radius{r_tube};
   double plenum_jump{2 * r_tube};
   double plenum_length{0.25};
+  fub::Duration checkpoint_interval{0.0001};
   std::string output_directory{"SingleTube"};
   std::vector<double> x_probes{};
 };
@@ -766,6 +770,40 @@ void MyMain(const boost::program_options::variables_map& vm) {
     i = i + 1;
   });
 
+  std::vector<double> slice_xs = {-3e-3, 3e-3, 0.1, 0.2, 0.295, 0.3, 0.31};
+  std::vector<::amrex::Box> output_boxes{};
+  output_boxes.reserve(slice_xs.size() + 1);
+
+  std::transform(
+      slice_xs.begin(), slice_xs.end(), std::back_inserter(output_boxes),
+      [&](double x0) {
+        const auto& plenum =
+            context.GetGriddingAlgorithm()->GetPlena()[0]->GetPatchHierarchy();
+        const int finest_level = plenum.GetNumberOfLevels() - 1;
+        const ::amrex::Geometry& geom = plenum.GetGeometry(finest_level);
+        const ::amrex::RealBox& probDomain = geom.ProbDomain();
+        const double xlo[] = {x0, probDomain.lo(1), probDomain.lo(2)};
+        const double* xhi = probDomain.hi();
+        const ::amrex::RealBox slice_x(xlo, xhi);
+        ::amrex::Box slice_box = BoxWhichContains(slice_x, geom);
+        slice_box.setBig(0, slice_box.smallEnd(0));
+        return slice_box;
+      });
+
+  output_boxes.push_back([&](double y0) {
+    const auto& plenum =
+        context.GetGriddingAlgorithm()->GetPlena()[0]->GetPatchHierarchy();
+    const int finest_level = plenum.GetNumberOfLevels() - 1;
+    const ::amrex::Geometry& geom = plenum.GetGeometry(finest_level);
+    const ::amrex::RealBox& probDomain = geom.ProbDomain();
+    const double xlo[] = {probDomain.lo(0), y0, probDomain.lo(2)};
+    const double* xhi = probDomain.hi();
+    const ::amrex::RealBox slice_x(xlo, xhi);
+    ::amrex::Box slice_box = BoxWhichContains(slice_x, geom);
+    slice_box.setBig(1, slice_box.smallEnd(1));
+    return slice_box;
+  }(0.0));
+
   boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
       boost::log::keywords::severity = boost::log::trivial::info);
   MPI_Comm comm = context.GetMpiCommunicator();
@@ -800,12 +838,46 @@ void MyMain(const boost::program_options::variables_map& vm) {
           name = fmt::format("{}/Checkpoint/{:05}", base_name, cycle);
           WriteCheckpoint(name, *gridding, valve_state, rank, ignition);
         }
+        //
+        // Ouput MATLAB files on each output interval
+        //
+        if (output_num < 2) {
+          auto tubes = gridding->GetTubes();
+          int k = 0;
+          for (auto& tube : tubes) {
+            std::string name =
+                fmt::format("{}/Matlab/Tube_{}/plt{:05}.dat", base_name, k, cycle);
+            fub::amrex::WriteTubeData(name, tube->GetPatchHierarchy(),
+                                      tube_equation, timepoint, cycle, comm);
+            k = k + 1;
+          }
+          k = 0;
+          std::for_each(output_boxes.begin(), output_boxes.end() - 1,
+                        [&](const ::amrex::Box& out_box) {
+                          std::string name =
+                              fmt::format("{}/Matlab/Plenum_x{}/plt{:05}.dat",
+                                          base_name, k, cycle);
+                          auto& plenum = gridding->GetPlena()[0];
+                          fub::amrex::cutcell::Write2Dfrom3D(
+                              name, plenum->GetPatchHierarchy(), out_box, plenum_equation,
+                              timepoint, cycle, comm);
+                          k = k + 1;
+                        });
+          const ::amrex::Box out_box = output_boxes.back();
+          std::string name =
+              fmt::format("{}/Matlab/Plenum_y0/plt{:05}.dat", base_name, cycle);
+          auto& plenum = gridding->GetPlena()[0];
+          fub::amrex::cutcell::Write2Dfrom3D(name, plenum->GetPatchHierarchy(),
+                                            out_box, plenum_equation, timepoint, cycle,
+                                            comm);
+        }
       };
 
   using namespace std::literals::chrono_literals;
   output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
          solver.GetTimePoint(), 0);
   fub::RunOptions run_options(vm);
-  run_options.output_frequency.push_back(1);
+  run_options.output_interval = std::vector<fub::Duration>{po.checkpoint_interval, run_options.output_interval[0]};
+  run_options.output_frequency = std::vector{0, 0, 1};
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }
