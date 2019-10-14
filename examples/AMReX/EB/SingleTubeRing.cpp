@@ -754,10 +754,15 @@ void MyMain(const boost::program_options::variables_map& vm) {
     i = i + 1;
   });
 
+  const double r_inner = r_tube;
+  const double d_tube = 2 * r_tube;
+  const double r_tube_center = 0.5 * (r_inner + r_inner + 2*po.plenum_jump + d_tube);
+
   std::vector<double> probes_buffer(n_plenum_probes * 3);
   ProbesView<double> plenum_probes(probes_buffer.data(), n_plenum_probes);
   std::for_each(lb, xprobes.end(), [&, i = 0](double xpos) mutable {
     plenum_probes(0, i) = xpos;
+    plenum_probes(1, i) = r_tube_center;
     i = i + 1;
   });
 
