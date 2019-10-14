@@ -18,29 +18,22 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/geometry/Union.hpp"
-
-#include <algorithm>
-#include <limits>
-#include <numeric>
+#ifndef FUB_GEOMETRY_INVERT_HPP
+#define FUB_GEOMETRY_INVERT_HPP
 
 namespace fub {
 
-PolymorphicUnion::PolymorphicUnion(
-    const std::vector<PolymorphicGeometry>& geoms)
-    : geoms_(geoms) {}
+template <typename Base>
+class Invert : private Base {
+public:
+  Invert(const Base& base)
+    : Base(base) {}
 
-std::unique_ptr<Geometry> PolymorphicUnion::Clone() const {
-  return std::make_unique<PolymorphicUnion>(*this);
+  [[nodiscard]] double ComputeDistanceTo(std::array<double, 3> x) const noexcept { 
+    return -Base::ComputeDistanceTo(x);
+  }
+};
+
 }
 
-double PolymorphicUnion::ComputeDistanceTo(
-    const std::array<double, AMREX_SPACEDIM>& x) const {
-  return std::accumulate(geoms_.begin(), geoms_.end(),
-                         std::numeric_limits<double>::lowest(),
-                         [x](double max, const PolymorphicGeometry& geom) {
-                           return std::max(max, geom.ComputeDistanceTo(x));
-                         });
-}
-
-} // namespace fub
+#endif

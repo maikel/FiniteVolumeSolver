@@ -34,6 +34,9 @@
 #include <boost/filesystem.hpp>
 #include <boost/program_options.hpp>
 
+#include <boost/archive/text_iarchive.hpp>
+#include <boost/archive/text_oarchive.hpp>
+
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/core/null_deleter.hpp>
 #include <boost/log/expressions.hpp>
@@ -54,6 +57,7 @@ static constexpr int Tube_Rank = 1;
 static constexpr int Plenum_Rank = AMREX_SPACEDIM;
 
 static constexpr double r_tube = 0.015;
+static constexpr double r_outer = 0.045;
 
 template <typename T>
 using ProbesView =
@@ -119,7 +123,8 @@ struct ProgramOptions {
     tube_n_cells = int(double(plenum_n_cells[0]) * t_over_p);
     tube_n_cells = tube_n_cells - tube_n_cells % 8;
 
-    plenum_temperature = GetOptionOr("plenum_temperature", plenum_temperature);
+    plenum_temperature = GetOptionOr("plenum.temperature", plenum_temperature);
+    plenum_outlet_radius = GetOptionOr("plenum.outlet_radius", plenum_outlet_radius);
 
     output_directory = GetOptionOr("output.directory", output_directory);
     x_probes = GetOptionOr("output.x_probes", x_probes);
@@ -139,7 +144,8 @@ struct ProgramOptions {
 
     po::options_description prob_desc{"Problem Options"};
     prob_desc.add_options()
-    ("plenum_temperature", po::value<double>(), "Temperature value for the plenum")
+    ("plenum.temperature", po::value<double>(), "Temperature value for the plenum")
+    ("plenum.outlet_radius", po::value<double>(), "Radius of plenum outlet")
     ("output.directory", po::value<double>(), "Output directory")
     ("output.x_probes", po::value<std::vector<double>>()->multitoken(), "Coordinates in x direction for locations where the state is measured in each time step.");
     // clang-format on
@@ -165,7 +171,8 @@ struct ProgramOptions {
     BOOST_LOG(log) << "  - n_levels = " << n_levels;
 
     BOOST_LOG(log) << "Problem Options:";
-    BOOST_LOG(log) << "  - plenum_temperature = " << plenum_temperature;
+    BOOST_LOG(log) << "  - plenum.temperature = " << plenum_temperature;
+    BOOST_LOG(log) << "  - plenum.outlet_radius= " << plenum_outlet_radius;
     BOOST_LOG(log) << "  - output.directory = '" << output_directory << "'";
     BOOST_LOG(log) << fmt::format("  - output.x_probes = {{{}}}",
                                   fmt::join(x_probes, ", "));
@@ -183,6 +190,7 @@ struct ProgramOptions {
   int n_levels{1};
   std::string checkpoint{};
   double plenum_temperature{300};
+  double plenum_outlet_radius{r_tube};
   std::string output_directory{"SingleTube"};
   std::vector<double> x_probes{};
 };
@@ -310,8 +318,10 @@ auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
       -1, periodicity.data());
 
   auto embedded_boundary = amrex::EB2::makeIntersection(
-      amrex::EB2::PlaneIF({0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, false),
-      amrex::EB2::CylinderIF(r_tube, 1.0, 0, {0.0, 0.0, 0.0}, true));
+      amrex::EB2::CylinderIF(r_outer, 0.5, 0, {0.25, 0.0, 0.0}, true),
+      amrex::EB2::CylinderIF(r_tube, 0.2, 0, {1e-6, 0.0, 0.0}, true),
+      amrex::EB2::CylinderIF(0.5 * r_tube, 0.2, 0, {0.5, 0.0, 0.0}, true),
+      fub::amrex::Geometry(fub::ConeIF({0.5, 0.0, 0.0}, r_outer, 0.04, true)) );
   auto shop = amrex::EB2::makeShop(embedded_boundary);
 
   fub::IdealGasMix<Plenum_Rank> equation{mechanism};
@@ -348,12 +358,11 @@ auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
   ConstantBox constant_box{refine_box};
 
   //  const double p0 = 101325.0;
+  ::amrex::RealBox outlet{{xbox.hi(0) - 0.01, xbox.lo(1), xbox.lo(2)}, {xbox.hi(0), xbox.hi(1), xbox.hi(2)}};
+  const ::amrex::Box outlet_box = BoxWhichContains(outlet, coarse_geom);
   BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
-                                  TransmissiveBoundary{fub::Direction::X, 1},
-                                  TransmissiveBoundary{fub::Direction::Y, 0},
-                                  TransmissiveBoundary{fub::Direction::Y, 1},
-                                  TransmissiveBoundary{fub::Direction::Z, 0},
-                                  TransmissiveBoundary{fub::Direction::Z, 1}}};
+                                  IsentropicPressureBoundary{"RightPlenumBoundary", equation, outlet_box,
+                                  101325.0, fub::Direction::X, 1}}};
 
   std::shared_ptr gridding = [&] {
     std::string checkpoint{};
@@ -453,6 +462,32 @@ int main(int argc, char** argv) {
     MPI_Finalize();
   }
 }
+
+void WriteCheckpoint(
+    const std::string& path,
+    const fub::amrex::MultiBlockGriddingAlgorithm& grid,
+    std::shared_ptr<fub::amrex::PressureValve> valve,
+    int rank, const fub::amrex::MultiBlockIgniteDetonation& ignition) {
+  auto tubes = grid.GetTubes();
+  std::string name = fmt::format("{}/Tube", path);
+  fub::amrex::WriteCheckpointFile(name, tubes[0]->GetPatchHierarchy());
+  if (rank == 0) {
+    name = fmt::format("{}/Valve", path);
+    std::ofstream valve_checkpoint(name);
+    boost::archive::text_oarchive oa(valve_checkpoint);
+    oa << *valve;
+  }
+  name = fmt::format("{}/Plenum", path);
+  fub::amrex::cutcell::WriteCheckpointFile(
+      name, grid.GetPlena()[0]->GetPatchHierarchy());
+  if (rank == 0) {
+    name = fmt::format("{}/Ignition", path);
+    std::ofstream ignition_checkpoint(name);
+    boost::archive::text_oarchive oa(ignition_checkpoint);
+    oa << ignition.GetLastIgnitionTimePoints();
+  }
+}
+
 
 template <typename Logger>
 void LogTubeProbes(Logger& log, ProbesView<const double> probes,
@@ -625,6 +660,7 @@ void MyMain(const boost::program_options::variables_map& vm) {
 
   auto plenum = MakePlenumSolver(po, mechanism, vm);
   auto [tube, valve] = MakeTubeSolver(po, mechanism, vm);
+  auto valve_state = valve.GetSharedState();
 
   ::amrex::RealBox inlet{{-0.1, -r_tube, -r_tube}, {0.05, +r_tube, +r_tube}};
 
@@ -687,6 +723,8 @@ void MyMain(const boost::program_options::variables_map& vm) {
   boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
       boost::log::keywords::severity = boost::log::trivial::info);
   MPI_Comm comm = context.GetMpiCommunicator();
+  int rank = -1;
+  MPI_Comm_rank(comm, &rank);
   auto output =
       [&](std::shared_ptr<fub::amrex::MultiBlockGriddingAlgorithm> gridding,
           auto cycle, auto timepoint, int output_num) {
@@ -713,6 +751,8 @@ void MyMain(const boost::program_options::variables_map& vm) {
           fub::amrex::WritePlotFile(
               name, gridding->GetTubes()[0]->GetPatchHierarchy(),
               tube_equation);
+          name = fmt::format("{}/Checkpoint/{:05}", base_name, cycle);
+          WriteCheckpoint(name, *gridding, valve_state, rank, ignition);
         }
       };
 

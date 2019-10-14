@@ -18,29 +18,38 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/geometry/Union.hpp"
+#ifndef FUB_P4EST_MDARRAY_HPP
+#define FUB_P4EST_MDARRAY_HPP
 
-#include <algorithm>
-#include <limits>
-#include <numeric>
+namespace fub::p4est {
 
-namespace fub {
+template <typename T, std::size_t Rank, typename Allocator = std::allocator<T>>
+class MdArray {
+public: 
+  using container = std::vector<T, Allocator>;
+  using value_type = typename container::value_type;
+  using pointer = typename container::pointer;
+  using const_pointer = typename container::const_pointer;
+  using reference = typename container::reference;
+  using const_reference = typename container::const_reference;
 
-PolymorphicUnion::PolymorphicUnion(
-    const std::vector<PolymorphicGeometry>& geoms)
-    : geoms_(geoms) {}
+  MdArray();
 
-std::unique_ptr<Geometry> PolymorphicUnion::Clone() const {
-  return std::make_unique<PolymorphicUnion>(*this);
+  reference operator()(std::array<std::ptrdiff_t, Rank> i) noexcept;
+  const_reference operator()(std::array<std::ptrdiff_t, Rank> i) const noexcept;
+
+  template <typename... Is> reference operator()(Is... is) noexcept;
+  template <typename... Is> const_reference operator()(Is... is) const noexcept;
+
+  pointer data() noexcept;
+  const_pointer data() const noexcept;
+  const_pointer cdata() const noexcept;
+
+private:
+  std::vector<T, Allocator> container_;
+  std::array<std::ptrdiff_t, Rank> extents_;
+};
+
 }
 
-double PolymorphicUnion::ComputeDistanceTo(
-    const std::array<double, AMREX_SPACEDIM>& x) const {
-  return std::accumulate(geoms_.begin(), geoms_.end(),
-                         std::numeric_limits<double>::lowest(),
-                         [x](double max, const PolymorphicGeometry& geom) {
-                           return std::max(max, geom.ComputeDistanceTo(x));
-                         });
-}
-
-} // namespace fub
+#endif

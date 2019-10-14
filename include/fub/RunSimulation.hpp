@@ -94,6 +94,7 @@ Solver RunSimulation(Solver& solver, RunOptions options,
   std::chrono::steady_clock::duration wall_time = wall_time_reference - now;
   using GriddingAlgorithm =
       std::decay_t<decltype(*std::declval<Solver&>().GetGriddingAlgorithm())>;
+  // Deeply copy the grid for a fallback scenario in case of time step errors 
   std::shared_ptr backup =
       std::make_shared<GriddingAlgorithm>(*solver.GetGriddingAlgorithm());
   std::optional<Duration> failure_dt{};
