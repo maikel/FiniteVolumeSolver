@@ -57,18 +57,11 @@ static constexpr int Tube_Rank = 1;
 static constexpr int Plenum_Rank = AMREX_SPACEDIM;
 
 static constexpr double r_tube = 0.015;
-static constexpr double r_tube_center = 0.06;
 // static constexpr double r_outer = 0.045;
 
 template <typename T>
 using ProbesView =
     fub::basic_mdspan<T, fub::extents<AMREX_SPACEDIM, fub::dynamic_extent>>;
-
-auto Center(double x, double phi) -> ::amrex::RealArray {
-  using std::cos;
-  using std::sin;
-  return {x, r_tube_center * sin(phi), r_tube_center * cos(phi)};
-}
 
 std::string ReadAndBroadcastFile(std::string filepath, MPI_Comm comm) {
   int rank = -1;
@@ -133,6 +126,7 @@ struct ProgramOptions {
     plenum_temperature = GetOptionOr("plenum.temperature", plenum_temperature);
     plenum_outlet_radius = GetOptionOr("plenum.outlet_radius", plenum_outlet_radius);
     plenum_length = GetOptionOr("plenum.length", plenum_length);
+    plenum_jump = GetOptionOr("plenum.jump", plenum_jump);
 
     output_directory = GetOptionOr("output.directory", output_directory);
     x_probes = GetOptionOr("output.x_probes", x_probes);
@@ -155,6 +149,7 @@ struct ProgramOptions {
     ("plenum.temperature", po::value<double>(), "Temperature value for the plenum")
     ("plenum.outlet_radius", po::value<double>(), "Radius of plenum outlet")
     ("plenum.length", po::value<double>(), "Length of plenum body")
+    ("plenum.jump", po::value<double>(), "Diameter Jump from plenum inlet to plenum body")
     ("output.directory", po::value<double>(), "Output directory")
     ("output.x_probes", po::value<std::vector<double>>()->multitoken(), "Coordinates in x direction for locations where the state is measured in each time step.");
     // clang-format on
@@ -183,6 +178,7 @@ struct ProgramOptions {
     BOOST_LOG(log) << "  - plenum.temperature = " << plenum_temperature;
     BOOST_LOG(log) << "  - plenum.outlet_radius= " << plenum_outlet_radius;
     BOOST_LOG(log) << "  - plenum.length= " << plenum_length;
+    BOOST_LOG(log) << "  - plenum.jump= " << plenum_jump;
     BOOST_LOG(log) << "  - output.directory = '" << output_directory << "'";
     BOOST_LOG(log) << fmt::format("  - output.x_probes = {{{}}}",
                                   fmt::join(x_probes, ", "));
@@ -201,6 +197,7 @@ struct ProgramOptions {
   std::string checkpoint{};
   double plenum_temperature{300};
   double plenum_outlet_radius{r_tube};
+  double plenum_jump{2 * r_tube};
   double plenum_length{0.25};
   std::string output_directory{"SingleTube"};
   std::vector<double> x_probes{};
@@ -345,13 +342,21 @@ const double d_tube = 2 * r_tube;
 auto plenum2D = MakePlenum2D(
         std::pair{+0.00, r_inner},
         std::pair{+po.plenum_length, r_inner},
-        std::pair{+po.plenum_length + 0.03, r_inner + d_tube + r_tube - po.plenum_outlet_radius},
-        std::pair{+1.00, r_inner + d_tube + r_tube - po.plenum_outlet_radius},
-        std::pair{+1.00, r_inner + d_tube + r_tube + po.plenum_outlet_radius},
-        std::pair{+po.plenum_length + 0.03, r_inner + d_tube + r_tube + po.plenum_outlet_radius},
-        std::pair{+po.plenum_length, r_inner + 3*d_tube},
-        std::pair{+0.00, r_inner + 3*d_tube},
+        std::pair{+po.plenum_length + 0.03, r_inner + po.plenum_jump + r_tube - po.plenum_outlet_radius},
+        std::pair{+1.00, r_inner + po.plenum_jump + r_tube - po.plenum_outlet_radius},
+        std::pair{+1.00, r_inner + po.plenum_jump + r_tube + po.plenum_outlet_radius},
+        std::pair{+po.plenum_length + 0.03, r_inner + po.plenum_jump + r_tube + po.plenum_outlet_radius},
+        std::pair{+po.plenum_length, r_inner + 2*po.plenum_jump + d_tube},
+        std::pair{+0.00, r_inner + 2*po.plenum_jump + d_tube},
         std::pair{+0.00, r_inner});
+
+const double r_tube_center = 0.5 * (r_inner + r_inner + 2*po.plenum_jump + d_tube);
+
+auto Center = [r_tube_center](double x, double phi) -> ::amrex::RealArray {
+  using std::cos;
+  using std::sin;
+  return {x, r_tube_center * sin(phi), r_tube_center * cos(phi)};
+};
 
   auto embedded_boundary = amrex::EB2::makeUnion(
       amrex::EB2::makeIntersection(
@@ -703,9 +708,8 @@ void MyMain(const boost::program_options::variables_map& vm) {
   connection.direction = fub::Direction::X;
   connection.side = 0;
   connection.plenum.id = 0;
-  connection.plenum.mirror_box =
-        BoxWhichContains(DomainAroundCenter(Center(-0.03, 0.0), 0.03),
-                         plenum.GetGeometry(0));
+  connection.plenum.mirror_box = 
+      plenum.GetGriddingAlgorithm()->GetPatchHierarchy().GetGeometry(0).Domain();  
   connection.tube.id = 0;
   connection.tube.mirror_box =
       tube.GetGriddingAlgorithm()->GetPatchHierarchy().GetGeometry(0).Domain();
