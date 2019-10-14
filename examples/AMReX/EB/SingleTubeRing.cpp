@@ -770,7 +770,7 @@ void MyMain(const boost::program_options::variables_map& vm) {
     i = i + 1;
   });
 
-  std::vector<double> slice_xs = {-3e-3, 3e-3, 0.1, 0.2, 0.295, 0.3, 0.31};
+  std::vector<double> slice_xs = {-3e-3, 3e-3, 0.1, 0.2, 0.245, 0.25, 0.31};
   std::vector<::amrex::Box> output_boxes{};
   output_boxes.reserve(slice_xs.size() + 1);
 
