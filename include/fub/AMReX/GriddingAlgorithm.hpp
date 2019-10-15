@@ -23,7 +23,7 @@
 
 #include "fub/AMReX/BoundaryCondition.hpp"
 #include "fub/AMReX/InitialData.hpp"
-#include "fub/AMReX/PatchHierarchyExample.hpp"
+#include "fub/AMReX/PatchHierarchy.hpp"
 #include "fub/AMReX/Tagging.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
 

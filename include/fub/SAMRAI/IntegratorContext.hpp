@@ -97,15 +97,15 @@ public:
 
   /// \brief Returns the MultiFab associated with level data on the specifed
   /// level number.
-  ::amrex::MultiFab& GetData(int level);
+  SAMRAI::hier::PatchLevel& GetData(int level);
 
   /// \brief Returns the MultiFab associated with level data with ghost cells on
   /// the specifed level number and direction.
-  ::amrex::MultiFab& GetScratch(int level, Direction dir);
+  SAMRAI::hier::PatchLevel& GetScratch(int level, Direction dir);
 
   /// \brief Returns the MultiFab associated with flux data on the specifed
   /// level number and direction.
-  ::amrex::MultiFab& GetFluxes(int level, Direction dir);
+  SAMRAI::hier::PatchLevel& GetFluxes(int level, Direction dir);
 
   /// \brief Returns the current time level for data at the specified refinement
   /// level and direction.
@@ -116,7 +116,7 @@ public:
   std::ptrdiff_t GetCycles(int level, Direction dir) const;
 
   /// \brief Returns the geometry object for the specified refinement level.
-  const ::amrex::Geometry& GetGeometry(int level) const;
+  const SAMRAI::geom::CartesianGridGeometry& GetGeometry(int level) const;
 
   /// @}
 
@@ -215,29 +215,19 @@ private:
     ~LevelData() noexcept = default;
 
     /// Scratch space with ghost cell widths
-    // std::array<::amrex::MultiFab, 3> scratch;
-    std::shared_ptr<SAMRAI::hier::PatchLevel> scratch;
+    std::shared_ptr<SAMRAI::hier::PatchLevel> scratch{};
 
     /// These arrays will store the fluxes for each patch level which is present
     /// in the patch hierarchy. These will need to be rebuilt if the
     /// PatchHierarchy changes.
-    // std::array<::amrex::MultiFab, 3> fluxes;
-    std::shared_ptr<SAMRAI::hier::PatchLevel> fluxes;
-
-    /// FluxRegister accumulate fluxes on coarse fine interfaces between
-    /// refinement level. These will need to be rebuilt whenever the hierarchy
-    /// changes.
-    // ::amrex::FluxRegister coarse_fine;
-
-    std::array<Duration, 3> time_point;
-    std::array<Duration, 3> regrid_time_point;
-    std::array<std::ptrdiff_t, 3> cycles;
+    std::shared_ptr<SAMRAI::hier::PatchLevel> fluxes{};
   };
 
-  int ghost_cell_width_;
-  std::shared_ptr<GriddingAlgorithm> gridding_;
-  std::vector<LevelData> data_;
-  HyperbolicMethod method_;
+  int ghost_cell_width_{};
+  std::shared_ptr<GriddingAlgorithm> gridding_{};
+  std::vector<LevelData> level_data_{};
+  HyperbolicMethod method_{};
+  std::shared_ptr<SAMRAI::hier::PatchDescriptor> descriptor_{};
 };
 
 } // namespace amrex

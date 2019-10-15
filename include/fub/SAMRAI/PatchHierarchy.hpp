@@ -82,11 +82,11 @@ public:
   PatchHierarchy& operator=(PatchHierarchy&& ph) = default;
 
   /// \brief Return some additional patch hierarchy options.
-  const PatchHierarchyOptions& GetOptions() const noexcept;
+  [[nodiscard]] const PatchHierarchyOptions& GetOptions() const noexcept;
 
-  const DataDescription& GetDataDescription() const noexcept;
+  [[nodiscard]] const DataDescription& GetDataDescription() const noexcept;
 
-  const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& GetNative() const
+  [[nodiscard]] const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& GetNative() const
       noexcept;
 
 private:

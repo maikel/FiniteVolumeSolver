@@ -110,7 +110,7 @@ if (SAMRAI_FOUND)
   target_link_libraries(SAMRAI.VariableDatabase FiniteVolumeSolver.SAMRAI)
 
   add_executable_with_warnings(SAMRAI.PatchHierarchy SAMRAI/PatchHierarchyExample.cpp)
-  target_link_libraries(SAMRAI.PatchHierarchy FiniteVolumeSolver.SAMRAI)
+  target_link_libraries(SAMRAI.PatchHierarchy FiniteVolumeSolver.SAMRAI FiniteVolumeSolver.AMReX)
 endif()
 
 add_executable_with_warnings(small_eps small_eps.cpp)

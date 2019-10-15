@@ -54,6 +54,7 @@ PatchHierarchy::PatchHierarchy(
   hierarchy_->setMaxNumberOfLevels(options_.max_number_of_levels);
   for (int i = 1; i < options_.max_number_of_levels; ++i) {
     hierarchy_->setRatioToCoarserLevel(options_.refine_ratio, i);
+    hierarchy_->setSmallestPatchSize(SAMRAI::hier::IntVector(hierarchy_->getDim(), 8), i);
   }
 }
 
