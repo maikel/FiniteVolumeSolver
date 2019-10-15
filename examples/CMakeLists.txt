@@ -16,7 +16,10 @@ if (AMReX_FOUND)
   target_link_libraries(AMReX.PerfectGas1d FiniteVolumeSolver.AMReX)
 
   add_executable_with_warnings(AMReX.IdealGasMix AMReX/IdealGasMix.cpp)
-  target_link_libraries(AMReX.IdealGasMix FiniteVolumeSolver.AMReX)
+  target_link_libraries(AMReX.IdealGasMix FiniteVolumeSolver.AMReX Boost::program_options)
+
+  add_executable_with_warnings(AMReX.AxialSourceTerm AMReX/AxialVariation.cpp)
+  target_link_libraries(AMReX.AxialSourceTerm FiniteVolumeSolver.AMReX Boost::program_options)
 
   add_executable_with_warnings(AMReX.Advection2d_Godunov AMReX/Advection2d_Godunov.cpp)
   target_link_libraries(AMReX.Advection2d_Godunov FiniteVolumeSolver.AMReX)
@@ -36,8 +39,8 @@ if (AMReX_FOUND AND AMReX_2D_FOUND)
   target_link_libraries(NodalPoisson FiniteVolumeSolver.AMReX)
 
   if (AMReX_EB_FOUND)
-    # add_executable_with_warnings(AMReX.EB.Divider2D AMReX/EB/Divider2D.cpp)
-    # target_link_libraries(AMReX.EB.Divider2D FiniteVolumeSolver.AMReX.EB)
+    add_executable_with_warnings(AMReX.EB.Divider2D AMReX/EB/Divider2D.cpp)
+    target_link_libraries(AMReX.EB.Divider2D FiniteVolumeSolver.AMReX.EB)
 
     add_executable_with_warnings(AMReX.EB.LinearShock2d AMReX/EB/LinearShock2d.cpp)
     target_link_libraries(AMReX.EB.LinearShock2d FiniteVolumeSolver.AMReX.EB)
@@ -58,23 +61,32 @@ if (AMReX_FOUND AND AMReX_2D_FOUND)
     target_link_libraries(AMReX.EB.Tube FiniteVolumeSolver.AMReX.EB)
 
     add_executable_with_warnings(AMReX.EB.CoupledLinearShock2d AMReX/EB/CoupledLinearShock2d.cpp)
-    target_link_libraries(AMReX.EB.CoupledLinearShock2d FiniteVolumeSolver.AMReX.EB Boost::filesystem)
+    target_link_libraries(AMReX.EB.CoupledLinearShock2d FiniteVolumeSolver.AMReX.EB)
   endif()
 endif()
 
 if (AMReX_FOUND AND AMReX_3D_FOUND)
   if (AMReX_EB_FOUND)
     add_executable_with_warnings(AMReX.EB.LinearShock3d AMReX/EB/LinearShock3d.cpp)
-    target_link_libraries(AMReX.EB.LinearShock3d FiniteVolumeSolver.AMReX.EB Boost::filesystem)
+    target_link_libraries(AMReX.EB.LinearShock3d FiniteVolumeSolver.AMReX.EB)
 
     add_executable_with_warnings(AMReX.EB.CoupledLinearShock3d AMReX/EB/CoupledLinearShock3d.cpp)
-    target_link_libraries(AMReX.EB.CoupledLinearShock3d FiniteVolumeSolver.AMReX.EB Boost::filesystem)
+    target_link_libraries(AMReX.EB.CoupledLinearShock3d FiniteVolumeSolver.AMReX.EB)
+
+    add_executable_with_warnings(AMReX.EB.SingleTubePlenum AMReX/EB/SingleTubePlenum.cpp)
+    target_link_libraries(AMReX.EB.SingleTubePlenum FiniteVolumeSolver.AMReX.EB)
+
+    add_executable_with_warnings(AMReX.EB.SingleTubeRing AMReX/EB/SingleTubeRing.cpp)
+    target_link_libraries(AMReX.EB.SingleTubeRing FiniteVolumeSolver.AMReX.EB)
 
     add_executable_with_warnings(AMReX.EB.MultiTube AMReX/EB/MultiTube.cpp)
-    target_link_libraries(AMReX.EB.MultiTube FiniteVolumeSolver.AMReX.EB Boost::filesystem)
+    target_link_libraries(AMReX.EB.MultiTube FiniteVolumeSolver.AMReX.EB)
+    
+    add_executable_with_warnings(AMReX.EB.MultiTube_Compressor AMReX/EB/MultiTube_Compressor.cpp)
+    target_link_libraries(AMReX.EB.MultiTube_Compressor FiniteVolumeSolver.AMReX.EB)
 
     add_executable_with_warnings(AMReX.EB.Divider AMReX/EB/Divider.cpp)
-    target_link_libraries(AMReX.EB.Divider FiniteVolumeSolver.AMReX.EB Boost::filesystem)
+    target_link_libraries(AMReX.EB.Divider FiniteVolumeSolver.AMReX.EB)
   endif()
 endif()
 

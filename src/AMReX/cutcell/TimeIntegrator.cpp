@@ -85,8 +85,8 @@ void UpdateConservatively_Row(double* next, const double* prev,
       const double betaL_sR = cc.faceL.beta_sR[i];
       const double dBeta_over_alpha =
           std::clamp((betaL_sR * distance_to_boundary) / alpha, 0.0, 1.0);
-      const double dF_us = (fluxL.unshielded[i] - fluxR.stabilized[i]);
-      const double dF_sL = (fluxL.shielded_left[i] - fluxR.stabilized[i]);
+      const double dF_us = fluxL.unshielded[i] - fluxR.stabilized[i];
+      const double dF_sL = fluxL.shielded_left[i] - fluxR.stabilized[i];
       const double dB = fluxL.unshielded[i] - fluxB[i];
       const double next = prev[i] + dt_over_dx * betaL_us_over_alpha * dF_us +
                           dt_over_dx * betaL_sL_over_alpha * dF_sL +
@@ -115,10 +115,10 @@ void UpdateConservatively_Row(double* next, const double* prev,
       return next;
     }();
 
-    next[i] = alpha > 0.0 ? betaL == betaR || alpha == 1.0
+    next[i] = alpha > 0.0 ? betaL == betaR // || alpha == 1.0
                                 ? regular
                                 : betaL > betaR ? left_greater : right_greater
-                          : next[i];
+                          : 0.0;
     FUB_ASSERT(!std::isnan(next[i]));
   }
 }
@@ -244,11 +244,12 @@ void TimeIntegrator::UpdateConservatively(IntegratorContext& context, int level,
 
   const double dx = context.GetDx(level, dir);
   const double dt_over_dx = dt.count() / dx;
+  const int d = static_cast<int>(dir);
 
   //  const int gcw =
   //  context.GetHyperbolicMethod().flux_method.GetStencilWidth();
 
-  ForEachFab(execution::openmp, scratch, [&](const ::amrex::MFIter& mfi) {
+  ForEachFab(scratch, [&](const ::amrex::MFIter& mfi) {
     ::amrex::FabType type = context.GetFabType(level, mfi);
     const IndexBox<AMREX_SPACEDIM> cells =
         AsIndexBox<AMREX_SPACEDIM>(GetCellBoxToUpdate(mfi, dir));
@@ -270,20 +271,23 @@ void TimeIntegrator::UpdateConservatively(IntegratorContext& context, int level,
         fluxesR.shielded_left = MakeView(shielded_left[mfi], facesR, comp);
         fluxesR.shielded_right = MakeView(shielded_right[mfi], facesR, comp);
 
-        CutCellData<AMREX_SPACEDIM> cc =
-            hierarchy.GetCutCellData(level, mfi, dir);
+        CutCellData<AMREX_SPACEDIM> geom = hierarchy.GetCutCellData(level, mfi);
         CutCellFractions<View<const double>> fractions;
-        fractions.cell.alpha = cc.volume_fractions.Subview(cells);
+        fractions.cell.alpha = geom.volume_fractions.Subview(cells);
         fractions.cell.center =
-            MakeView(cc.boundary_centeroids, cells, static_cast<int>(dir));
-        fractions.faceL.beta = cc.face_fractions.Subview(facesL);
-        fractions.faceL.beta_us = cc.unshielded_fractions.Subview(facesL);
-        fractions.faceL.beta_sL = cc.shielded_left_fractions.Subview(facesL);
-        fractions.faceL.beta_sR = cc.shielded_right_fractions.Subview(facesL);
-        fractions.faceR.beta = cc.face_fractions.Subview(facesR);
-        fractions.faceR.beta_us = cc.unshielded_fractions.Subview(facesR);
-        fractions.faceR.beta_sL = cc.shielded_left_fractions.Subview(facesR);
-        fractions.faceR.beta_sR = cc.shielded_right_fractions.Subview(facesR);
+            MakeView(geom.boundary_centeroids, cells, static_cast<int>(dir));
+        fractions.faceL.beta = geom.face_fractions[d].Subview(facesL);
+        fractions.faceL.beta_us = geom.unshielded_fractions[d].Subview(facesL);
+        fractions.faceL.beta_sL =
+            geom.shielded_left_fractions[d].Subview(facesL);
+        fractions.faceL.beta_sR =
+            geom.shielded_right_fractions[d].Subview(facesL);
+        fractions.faceR.beta = geom.face_fractions[d].Subview(facesR);
+        fractions.faceR.beta_us = geom.unshielded_fractions[d].Subview(facesR);
+        fractions.faceR.beta_sL =
+            geom.shielded_left_fractions[d].Subview(facesR);
+        fractions.faceR.beta_sR =
+            geom.shielded_right_fractions[d].Subview(facesR);
 
         View<const double> fluxesB = MakeView(boundary[mfi], cells, comp);
 

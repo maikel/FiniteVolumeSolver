@@ -104,7 +104,10 @@ public:
   ///
   /// \param[in] dt A stable time step size for the level_num-th patch level.
   Result<void, TimeStepTooLarge> AdvanceLevel(int level_number, Duration dt,
-                                              int subcycle = 0);
+                                              int subcycle);
+
+  Result<void, TimeStepTooLarge>
+  AdvanceLevelNonRecursively(int level_number, Duration dt, int subcycle);
 
   Result<void, TimeStepTooLarge> AdvanceHierarchy(Duration dt);
 };
@@ -156,15 +159,17 @@ DimensionalSplitLevelIntegrator<R, Context, SplitMethod>::GetSplitMethod() const
 template <int Rank, typename Context, typename SplitMethod>
 Duration
 DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::ComputeStableDt() {
+  for (int level_num = 0; Context::LevelExists(level_num); ++level_num) {
+    if (level_num > 0) {
+      Context::FillGhostLayerTwoLevels(level_num, level_num - 1);
+    } else {
+      Context::FillGhostLayerSingleLevel(level_num);
+    }
+  }
   auto ComputeStableDt_Split = [this](Direction dir) -> Duration {
     int refine_ratio = 1;
     double coarse_dt = std::numeric_limits<double>::infinity();
     for (int level_num = 0; Context::LevelExists(level_num); ++level_num) {
-      if (level_num > 0) {
-        Context::FillGhostLayerTwoLevels(level_num, level_num - 1);
-      } else {
-        Context::FillGhostLayerSingleLevel(level_num);
-      }
       const double level_dt = Context::ComputeStableDt(level_num, dir).count();
       refine_ratio *= Context::GetRatioToCoarserLevel(level_num).max();
       coarse_dt = std::min(refine_ratio * level_dt, coarse_dt);
@@ -184,38 +189,16 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::ComputeStableDt() {
 }
 
 template <int Rank, typename Context, typename SplitMethod>
-Result<void, TimeStepTooLarge>
-DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::AdvanceLevel(
-    int this_level, Duration dt, int subcycle) {
-  // PreAdvanceLevel might regrid all finer levels.
-  // The Context must make sure that scratch data is allocated
-  Context::PreAdvanceLevel(this_level, dt, subcycle);
-
-  // If a finer level exists in the hierarchy, we subcycle that finer level
-  // multiple times and use the fine fluxes on coarse-fine interfaces
-  const int next_level = this_level + 1;
-  if (Context::LevelExists(next_level)) {
-    Context::ResetCoarseFineFluxes(next_level, this_level);
-    const int refine_ratio = Context::GetRatioToCoarserLevel(next_level).max();
-    for (int r = 0; r < refine_ratio; ++r) {
-      auto result = AdvanceLevel(next_level, dt / refine_ratio, r);
-      if (!result) {
-        return result.as_failure();
-      }
-    }
-  }
-
-  //  // Fill the ghost layer which is needed for this split direction
-  //  if (subcycle == 0 && this_level > 0) {
-  //    Context::FillGhostLayerTwoLevels(this_level, this_level - 1);
-  //  } else {
-  //    Context::FillGhostLayerSingleLevel(this_level);
-  //  }
-
+Result<void, TimeStepTooLarge> DimensionalSplitLevelIntegrator<
+    Rank, Context, SplitMethod>::AdvanceLevelNonRecursively(int this_level,
+                                                            Duration dt,
+                                                            int subcycle) {
   auto AdvanceLevel_Split = [&](Direction dir) {
-    return [&, dir, split_cycle = 0](
+    return [&, this_level, dir, split_cycle = 0](
                Duration split_dt) mutable -> Result<void, TimeStepTooLarge> {
-      if (dir == Direction::X && split_cycle == 0 && subcycle == 0 && this_level > 0) {
+      const int next_level = this_level + 1;
+      if (dir == Direction::X && split_cycle == 0 && subcycle == 0 &&
+          this_level > 0) {
         Context::FillGhostLayerTwoLevels(this_level, this_level - 1);
       } else {
         Context::FillGhostLayerSingleLevel(this_level);
@@ -250,12 +233,45 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::AdvanceLevel(
       return boost::outcome_v2::success();
     };
   };
-  if (Result<void, TimeStepTooLarge> result = std::apply(
-          [&](auto... directions) {
-            return GetSplitMethod().Advance(dt, AdvanceLevel_Split(directions)...);
-          },
-          MakeSplitDirections<Rank>());
-      !result) {
+  return std::apply(
+      [&](auto... directions) {
+        return GetSplitMethod().Advance(dt, AdvanceLevel_Split(directions)...);
+      },
+      MakeSplitDirections<Rank>());
+}
+
+template <int Rank, typename Context, typename SplitMethod>
+Result<void, TimeStepTooLarge>
+DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::AdvanceLevel(
+    int this_level, Duration dt, int subcycle) {
+  // PreAdvanceLevel might regrid all finer levels.
+  // The Context must make sure that scratch data is allocated
+  Context::PreAdvanceLevel(this_level, dt, subcycle);
+
+  // If a finer level exists in the hierarchy, we subcycle that finer level
+  // multiple times and use the fine fluxes on coarse-fine interfaces
+  const int next_level = this_level + 1;
+  if (Context::LevelExists(next_level)) {
+    Context::ResetCoarseFineFluxes(next_level, this_level);
+    const int refine_ratio = Context::GetRatioToCoarserLevel(next_level).max();
+    for (int r = 0; r < refine_ratio; ++r) {
+      auto result = AdvanceLevel(next_level, dt / refine_ratio, r);
+      if (!result) {
+        return result.as_failure();
+      }
+    }
+  }
+
+  //  // Fill the ghost layer which is needed for this split direction
+  //  if (subcycle == 0 && this_level > 0) {
+  //    Context::FillGhostLayerTwoLevels(this_level, this_level - 1);
+  //  } else {
+  //    Context::FillGhostLayerSingleLevel(this_level);
+  //  }
+
+  Result<void, TimeStepTooLarge> result =
+      AdvanceLevelNonRecursively(this_level, dt, subcycle);
+  if (!result) {
     return result;
   }
 

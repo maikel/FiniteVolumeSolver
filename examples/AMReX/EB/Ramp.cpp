@@ -57,7 +57,7 @@ MakeGriddingAlgorithm(const fub::PerfectGas<2>& equation) {
   const amrex::Box domain{{}, {n_cells[0] - 1, n_cells[1] - 1}};
   amrex::Geometry coarse_geom(domain, &xbox, -1, geometry.periodicity.data());
 
-  const int n_level = 1;
+  const int n_level = 4;
 
   using namespace fub::amrex::cutcell;
 
@@ -107,7 +107,8 @@ auto MakeSolver(const fub::PerfectGas<2>& equation) {
                           TimeIntegrator{},
                           Reconstruction{fub::execution::seq, equation}};
 
-  return fub::DimensionalSplitLevelIntegrator(fub::int_c<2>, IntegratorContext(gridding, method));
+  return fub::DimensionalSplitLevelIntegrator(
+      fub::int_c<2>, IntegratorContext(gridding, method));
 }
 
 int main(int argc, char** argv) {
@@ -128,7 +129,7 @@ int main(int argc, char** argv) {
 
   using namespace fub::amrex::cutcell;
   auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,
-                    std::ptrdiff_t cycle, fub::Duration) {
+                    std::ptrdiff_t cycle, fub::Duration, int) {
     std::string name = fmt::format("{}plt{:05}", base_name, cycle);
     amrex::Print() << "Start output to '" << name << "'.\n";
     WritePlotFile(name, gridding->GetPatchHierarchy(), equation);
@@ -137,11 +138,10 @@ int main(int argc, char** argv) {
 
   using namespace std::literals::chrono_literals;
   output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
-         solver.GetTimePoint());
+         solver.GetTimePoint(), 0);
   fub::RunOptions run_options{};
   run_options.final_time = 1s;
-  run_options.output_frequency = 1;
-  run_options.cfl = 0.4;
-  fub::RunSimulation(solver, run_options, wall_time_reference, output,
-                     fub::amrex::print);
+  run_options.output_frequency = {1};
+  run_options.cfl = 0.8;
+  fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

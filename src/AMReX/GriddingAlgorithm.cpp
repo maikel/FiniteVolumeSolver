@@ -30,9 +30,11 @@ int PrepareParmParseAndReturnNumberOfRefinementLevels(
   ::amrex::ParmParse pp("amr");
   const int dim = hier.GetDataDescription().dimension;
   FUB_ASSERT(dim >= 1);
-  pp.add("blocking_factor_x", 8);
-  pp.add("blocking_factor_y", dim >= 2 ? 8 : 1);
-  pp.add("blocking_factor_z", dim >= 3 ? 8 : 1);
+  if (!pp.contains("blocking_factor_x")) {
+    pp.add("blocking_factor_x", 8);
+    pp.add("blocking_factor_y", dim >= 2 ? 8 : 1);
+    pp.add("blocking_factor_z", dim >= 3 ? 8 : 1);
+  }
   return hier.GetMaxNumberOfLevels() - 1;
 }
 
@@ -176,7 +178,16 @@ GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier,
                   hier.GetOptions().max_number_of_levels - 1))),
       hierarchy_{std::move(hier)},
       initial_data_{std::move(initial_data)}, tagging_{std::move(tagging)},
-      boundary_condition_(size_t(hierarchy_.GetMaxNumberOfLevels())) {}
+      boundary_condition_(size_t(hierarchy_.GetMaxNumberOfLevels())) {
+  if (hier.GetNumberOfLevels() > 0) {
+    for (int i = 0; i < hier.GetNumberOfLevels(); ++i) {
+      const std::size_t ii = static_cast<std::size_t>(i);
+      AmrMesh::geom[ii] = hierarchy_.GetGeometry(i);
+      AmrMesh::dmap[ii] = hierarchy_.GetPatchLevel(i).distribution_mapping;
+      AmrMesh::grids[ii] = hierarchy_.GetPatchLevel(i).box_array;
+    }
+  }
+}
 
 GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier,
                                      InitialData initial_data, Tagging tagging,
@@ -194,6 +205,14 @@ GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier,
       hierarchy_{std::move(hier)},
       initial_data_{std::move(initial_data)}, tagging_{std::move(tagging)},
       boundary_condition_(size_t(hierarchy_.GetMaxNumberOfLevels()), bc) {
+  if (hier.GetNumberOfLevels() > 0) {
+    for (int i = 0; i < hier.GetNumberOfLevels(); ++i) {
+      const std::size_t ii = static_cast<std::size_t>(i);
+      AmrMesh::geom[ii] = hierarchy_.GetGeometry(i);
+      AmrMesh::dmap[ii] = hierarchy_.GetPatchLevel(i).distribution_mapping;
+      AmrMesh::grids[ii] = hierarchy_.GetPatchLevel(i).box_array;
+    }
+  }
   for (int level = 0; level < hierarchy_.GetMaxNumberOfLevels(); ++level) {
     boundary_condition_[static_cast<std::size_t>(level)].geometry =
         hierarchy_.GetGeometry(level);
@@ -256,10 +275,20 @@ void GriddingAlgorithm::FillMultiFabFromLevel(::amrex::MultiFab& multifab,
     const std::size_t coarse = std::size_t(level_number - 1);
     BoundaryCondition& fine_boundary = boundary_condition_[fine];
     BoundaryCondition& coarse_boundary = boundary_condition_[coarse];
+#ifdef AMREX_USE_EB
+    span<const ::amrex::EB2::IndexSpace*> index_space =
+        hierarchy_.GetIndexSpaces();
+    ::amrex::FillPatchTwoLevels(
+        multifab, level.time_point.count(), *index_space[fine], cmf, ct, fmf,
+        ft, 0, 0, n_comps, cgeom, fgeom, coarse_boundary, 0, fine_boundary, 0,
+        ratio, mapper, bcr, 0, ::amrex::NullInterpHook(),
+        ::amrex::NullInterpHook());
+#else
     ::amrex::FillPatchTwoLevels(multifab, level.time_point.count(), cmf, ct,
                                 fmf, ft, 0, 0, n_comps, cgeom, fgeom,
                                 coarse_boundary, 0, fine_boundary, 0, ratio,
                                 mapper, bcr, 0);
+#endif
   }
 }
 
@@ -272,16 +301,14 @@ void GriddingAlgorithm::MakeNewLevelFromScratch(
     int level, double time_point, const ::amrex::BoxArray& box_array,
     const ::amrex::DistributionMapping& distribution_mapping) {
   // Allocate level data.
-  {
-    const int n_comps = hierarchy_.GetDataDescription().n_state_components;
-    if (hierarchy_.GetNumberOfLevels() == level) {
-      hierarchy_.PushBack(PatchLevel(level, Duration(time_point), box_array,
-                                     distribution_mapping, n_comps));
-    } else {
-      hierarchy_.GetPatchLevel(level) =
-          PatchLevel(level, Duration(time_point), box_array,
-                     distribution_mapping, n_comps);
-    }
+  const int n_comps = hierarchy_.GetDataDescription().n_state_components;
+  if (hierarchy_.GetNumberOfLevels() == level) {
+    hierarchy_.PushBack(PatchLevel(level, Duration(time_point), box_array,
+                                   distribution_mapping, n_comps));
+  } else {
+    PatchLevel patch_level(level, Duration(time_point), box_array,
+                           distribution_mapping, n_comps);
+    hierarchy_.GetPatchLevel(level) = std::move(patch_level);
   }
   ::amrex::MultiFab& data = hierarchy_.GetPatchLevel(level).data;
   const ::amrex::Geometry& geom = hierarchy_.GetGeometry(level);
@@ -310,6 +337,9 @@ void GriddingAlgorithm::MakeNewLevelFromCoarse(
   if (level == hierarchy_.GetNumberOfLevels()) {
     hierarchy_.PushBack(std::move(fine_level));
   } else {
+    fine_level.data.ParallelCopy(hierarchy_.GetPatchLevel(level).data);
+    fine_level.cycles = hierarchy_.GetPatchLevel(level).cycles;
+    fine_level.time_point = hierarchy_.GetPatchLevel(level).time_point;
     hierarchy_.GetPatchLevel(level) = std::move(fine_level);
   }
 }

@@ -38,6 +38,7 @@
 #include <fmt/format.h>
 
 #include <functional>
+#include <iosfwd>
 #include <vector>
 
 namespace fub::amrex::cutcell {
@@ -174,8 +175,8 @@ public:
   const std::shared_ptr<::amrex::EBFArrayBoxFactory>&
   GetEmbeddedBoundary(int level) const;
 
-  CutCellData<AMREX_SPACEDIM>
-  GetCutCellData(int level, const ::amrex::MFIter& mfi, Direction dir) const;
+  CutCellData<AMREX_SPACEDIM> GetCutCellData(int level,
+                                             const ::amrex::MFIter& mfi) const;
 
   /// @}
 
@@ -218,7 +219,7 @@ void WritePlotFile(const std::string& plotfilename, const PatchHierarchy& hier,
       std::tuple_size<remove_cvref_t<decltype(names)>>::value;
   ::amrex::Vector<std::string> varnames;
   varnames.reserve(n_names);
-  boost::mp11::tuple_for_each(Zip(names, ToTuple(depths)), [&](auto xs) {
+  boost::mp11::tuple_for_each(Zip(names, StateToTuple(depths)), [&](auto xs) {
     const int ncomp = std::get<1>(xs);
     if (ncomp == 1) {
       varnames.push_back(std::get<0>(xs));
@@ -233,51 +234,51 @@ void WritePlotFile(const std::string& plotfilename, const PatchHierarchy& hier,
                                       ref_ratio);
 }
 
-  template <int Rank>
-  void WritePlotFile(const std::string& plotfilename, const PatchHierarchy& hier,
-                     const IdealGasMix<Rank>& equation) {
-    using Equation = IdealGasMix<Rank>;
-    const int nlevels = hier.GetNumberOfLevels();
-    const double time_point = hier.GetTimePoint().count();
-    FUB_ASSERT(nlevels >= 0);
-    std::size_t size = static_cast<std::size_t>(nlevels);
-    ::amrex::Vector<const ::amrex::MultiFab*> mf(size);
-    ::amrex::Vector<::amrex::Geometry> geoms(size);
-    ::amrex::Vector<int> level_steps(size);
-    ::amrex::Vector<::amrex::IntVect> ref_ratio(size);
-    for (std::size_t i = 0; i < size; ++i) {
-      mf[i] = &hier.GetPatchLevel(static_cast<int>(i)).data;
-      geoms[i] = hier.GetGeometry(static_cast<int>(i));
-      level_steps[i] = static_cast<int>(hier.GetCycles(static_cast<int>(i)));
-      ref_ratio[i] = hier.GetRatioToCoarserLevel(static_cast<int>(i)) *
-      ::amrex::IntVect::TheUnitVector();
-    }
-    using Traits = StateTraits<Complete<Equation>>;
-    constexpr auto names = Traits::names;
-    const auto depths = Depths<Complete<Equation>>(equation);
-    const std::size_t n_names =
-    std::tuple_size<remove_cvref_t<decltype(names)>>::value;
-    ::amrex::Vector<std::string> varnames;
-    varnames.reserve(n_names);
-    boost::mp11::tuple_for_each(Zip(names, ToTuple(depths)), [&](auto xs) {
-      const int ncomp = std::get<1>(xs);
-      if (ncomp == 1) {
-        varnames.push_back(std::get<0>(xs));
-      } else {
-        span<const std::string> species = equation.GetReactor().GetSpeciesNames();
-        for (int i = 0; i < ncomp; ++i) {
-          if (std::get<0>(xs) == std::string{"Species"}) {
-            varnames.push_back(species[i]);
-          } else {
-            varnames.push_back(fmt::format("{}_{}", std::get<0>(xs), i));
-          }
+template <int Rank>
+void WritePlotFile(const std::string& plotfilename, const PatchHierarchy& hier,
+                   const IdealGasMix<Rank>& equation) {
+  using Equation = IdealGasMix<Rank>;
+  const int nlevels = hier.GetNumberOfLevels();
+  const double time_point = hier.GetTimePoint().count();
+  FUB_ASSERT(nlevels >= 0);
+  std::size_t size = static_cast<std::size_t>(nlevels);
+  ::amrex::Vector<const ::amrex::MultiFab*> mf(size);
+  ::amrex::Vector<::amrex::Geometry> geoms(size);
+  ::amrex::Vector<int> level_steps(size);
+  ::amrex::Vector<::amrex::IntVect> ref_ratio(size);
+  for (std::size_t i = 0; i < size; ++i) {
+    mf[i] = &hier.GetPatchLevel(static_cast<int>(i)).data;
+    geoms[i] = hier.GetGeometry(static_cast<int>(i));
+    level_steps[i] = static_cast<int>(hier.GetCycles(static_cast<int>(i)));
+    ref_ratio[i] = hier.GetRatioToCoarserLevel(static_cast<int>(i)) *
+                   ::amrex::IntVect::TheUnitVector();
+  }
+  using Traits = StateTraits<Complete<Equation>>;
+  constexpr auto names = Traits::names;
+  const auto depths = Depths<Complete<Equation>>(equation);
+  const std::size_t n_names =
+      std::tuple_size<remove_cvref_t<decltype(names)>>::value;
+  ::amrex::Vector<std::string> varnames;
+  varnames.reserve(n_names);
+  boost::mp11::tuple_for_each(Zip(names, StateToTuple(depths)), [&](auto xs) {
+    const int ncomp = std::get<1>(xs);
+    if (ncomp == 1) {
+      varnames.push_back(std::get<0>(xs));
+    } else {
+      span<const std::string> species = equation.GetReactor().GetSpeciesNames();
+      for (int i = 0; i < ncomp; ++i) {
+        if (std::get<0>(xs) == std::string{"Species"}) {
+          varnames.push_back(species[i]);
+        } else {
+          varnames.push_back(fmt::format("{}_{}", std::get<0>(xs), i));
         }
       }
-    });
-    ::amrex::EB_WriteMultiLevelPlotfile(plotfilename, nlevels, mf, varnames,
-                                        geoms, time_point, level_steps,
-                                        ref_ratio);
-  }
+    }
+  });
+  ::amrex::EB_WriteMultiLevelPlotfile(plotfilename, nlevels, mf, varnames,
+                                      geoms, time_point, level_steps,
+                                      ref_ratio);
+}
 
 void WriteCheckpointFile(const std::string& checkpointname,
                          const PatchHierarchy& hier);
@@ -286,6 +287,23 @@ PatchHierarchy ReadCheckpointFile(const std::string& checkpointname,
                                   DataDescription desc,
                                   const CartesianGridGeometry& geometry,
                                   const PatchHierarchyOptions& options);
+
+// void Write2Dfrom3D(std::ostream* out, const PatchHierarchy& hierarchy, const
+// ::amrex::Box& finest_box,
+//                 const IdealGasMix<3>& eq, fub::Duration time_point,
+//                 std::ptrdiff_t cycle_number, MPI_Comm comm);
+
+void WriteMatlabData(const std::string& name, const PatchHierarchy& hierarchy, fub::Duration time_point, std::ptrdiff_t cycle_number, MPI_Comm comm);
+
+void Write2Dfrom3D(const std::string& name, const PatchHierarchy& hierarchy,
+                   const ::amrex::Box& finest_box, const IdealGasMix<3>& eq,
+                   fub::Duration time_point, std::ptrdiff_t cycle_number,
+                   MPI_Comm comm);
+
+std::vector<double> GatherStates(
+    const PatchHierarchy& hierarchy,
+    basic_mdspan<const double, extents<AMREX_SPACEDIM, dynamic_extent>> xs,
+    MPI_Comm comm);
 
 } // namespace fub::amrex::cutcell
 

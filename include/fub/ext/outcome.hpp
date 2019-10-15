@@ -21,13 +21,19 @@
 #ifndef FUB_EXT_OUTCOME_HPP
 #define FUB_EXT_OUTCOME_HPP
 
+#include "fub/TimeStepError.hpp"
 #include <boost/outcome.hpp>
+
+#include <mpi.h>
 
 namespace fub {
 
 template <typename T, typename E>
 using Result = boost::outcome_v2::result<T, E>;
 
-}
+Result<void, TimeStepTooLarge> Reduceall(MPI_Comm comm,
+                                         Result<void, TimeStepTooLarge> result);
+
+} // namespace fub
 
 #endif

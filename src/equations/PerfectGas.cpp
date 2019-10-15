@@ -96,6 +96,23 @@ void PerfectGas<Dim>::CompleteFromCons(
 }
 
 template <int Dim>
+void PerfectGas<Dim>::CompleteFromCons(
+    CompleteArray& complete, const ConservativeArrayBase<PerfectGas>& cons,
+    MaskArray mask) const noexcept {
+  Array1d zero = Array1d::Zero();
+  complete.density = mask.select(cons.density, zero);
+  for (int d = 0; d < Dim; ++d) {
+    complete.momentum.row(d) = mask.select(cons.momentum.row(d), zero);
+  }
+  complete.energy = mask.select(cons.energy, zero);
+  const Array1d e_kin = KineticEnergy(cons.density, cons.momentum);
+  const Array1d e_int = cons.energy - e_kin;
+  complete.pressure = mask.select(e_int / gamma_minus_1_inv, zero);
+  complete.speed_of_sound = mask.select(
+      (gamma_array_ * complete.pressure / complete.density).sqrt(), zero);
+}
+
+template <int Dim>
 Complete<PerfectGas<Dim>>
 PerfectGas<Dim>::CompleteFromPrim(double rho, const Array<double, Dim, 1>& v,
                                   double p) const noexcept {
@@ -504,6 +521,43 @@ void ExactRiemannSolver<PerfectGas<Dim>>::SolveRiemannProblem(
             pR * std::pow(2.0 / gp1 - g_ratio * uR / aR, 2.0 * g / gm1);
         from_prim(state);
       }
+    }
+  }
+}
+
+template <int Dim>
+void ExactRiemannSolver<PerfectGas<Dim>>::SolveRiemannProblem(
+    CompleteArray& state, const CompleteArray& left, const CompleteArray& right,
+    MaskArray mask, Direction dir) {
+  for (int i = 0; i < mask.size(); ++i) {
+    if (mask(i)) {
+      typename PerfectGas<Dim>::Complete qL;
+      qL.density = left.density(i);
+      for (int d = 0; d < Dim; ++d) {
+        qL.momentum(d) = left.momentum(d, i);
+      }
+      qL.energy = left.energy(i);
+      qL.pressure = left.pressure(i);
+      qL.speed_of_sound = left.speed_of_sound(i);
+
+      typename PerfectGas<Dim>::Complete qR;
+      qR.density = right.density(i);
+      for (int d = 0; d < Dim; ++d) {
+        qR.momentum(d) = right.momentum(d, i);
+      }
+      qR.energy = right.energy(i);
+      qR.pressure = right.pressure(i);
+      qR.speed_of_sound = right.speed_of_sound(i);
+
+      typename PerfectGas<Dim>::Complete q;
+      SolveRiemannProblem(q, qL, qR, dir);
+      state.density(i) = q.density;
+      for (int d = 0; d < Dim; ++d) {
+        state.momentum(d, i) = q.momentum(d);
+      }
+      state.energy(i) = q.energy;
+      state.pressure(i) = q.pressure;
+      state.speed_of_sound(i) = q.speed_of_sound;
     }
   }
 }

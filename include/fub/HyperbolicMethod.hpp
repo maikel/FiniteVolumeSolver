@@ -184,7 +184,8 @@ struct ReconstructionWrapper : ReconstructionBase<IntegratorContext> {
   Clone() const override {
     return std::make_unique<ReconstructionWrapper>(rec_);
   }
-  void CompleteFromCons(IntegratorContext& context, int level, Duration dt) override {
+  void CompleteFromCons(IntegratorContext& context, int level,
+                        Duration dt) override {
     rec_.CompleteFromCons(context, level, dt);
   }
   R rec_;

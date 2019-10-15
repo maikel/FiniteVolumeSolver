@@ -34,8 +34,10 @@ namespace fub::amrex {
 
 template <typename Tag, typename Equation> class Reconstruction {
 public:
-  explicit Reconstruction(Tag, const Equation& eq)
-      : rec_{CompleteFromConsFn<Equation>{eq}} {}
+  explicit Reconstruction(Tag, const Equation& eq) : rec_{} {
+    rec_ = Local<Tag, CompleteFromConsFn<Equation>>{
+        CompleteFromConsFn<Equation>{eq}};
+  }
 
   void CompleteFromCons(::amrex::MultiFab& dest, const ::amrex::MultiFab& src) {
     ForEachFab(Tag(), dest, [&](const ::amrex::MFIter& mfi) {
@@ -43,7 +45,8 @@ public:
       View<Complete<Equation>> complete =
           MakeView<Complete<Equation>>(dest[mfi], eq, mfi.tilebox());
       View<const Conservative<Equation>> conservative =
-          MakeView<const Conservative<Equation>>(src[mfi], eq, mfi.growntilebox());
+          MakeView<const Conservative<Equation>>(src[mfi], eq,
+                                                 mfi.growntilebox());
       rec_->CompleteFromCons(Tag(), complete, conservative);
     });
   }

@@ -32,13 +32,14 @@ extern "C" {
 }
 #endif
 
-#include <vector>
 #include <algorithm>
+#include <vector>
 
 namespace fub {
 
 template <typename T, typename Allocator = std::allocator<T>> class OmpLocal {
 public:
+  OmpLocal() = default;
   explicit OmpLocal(const T& value, Allocator alloc = Allocator());
 
   T& Get() noexcept;
@@ -53,7 +54,7 @@ public:
   const T& Min() const noexcept;
 
 private:
-  std::vector<T, Allocator> instances_;
+  std::vector<T, Allocator> instances_{};
 };
 
 #if defined(_OPENMP)
@@ -80,7 +81,7 @@ const T& OmpLocal<T, Allocator>::Get() const noexcept {
 #else
 template <typename T, typename Allocator>
 OmpLocal<T, Allocator>::OmpLocal(const T& value, Allocator alloc)
-    : instances_({value}, alloc) {}
+    : instances_(1, value, alloc) {}
 
 template <typename T, typename Allocator>
 T& OmpLocal<T, Allocator>::Get() noexcept {

@@ -36,6 +36,6 @@ private:
   ::amrex::Box coarse_region_;
 };
 
-} // namespace fub::amrex
+} // namespace fub::amrex::cutcell
 
 #endif

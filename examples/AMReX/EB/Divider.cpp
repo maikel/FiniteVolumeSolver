@@ -123,12 +123,12 @@ int main(int argc, char** argv) {
   HyperbolicMethod method{FluxMethod{fub::execution::seq, cutcell_method},
                           TimeIntegrator{},
                           Reconstruction{fub::execution::seq, equation}};
-  fub::DimensionalSplitLevelIntegrator solver(fub::int_c<3>,
-      IntegratorContext(gridding, method));
+  fub::DimensionalSplitLevelIntegrator solver(
+      fub::int_c<3>, IntegratorContext(gridding, method));
   std::string base_name = "Divider/";
 
   auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,
-                    std::ptrdiff_t cycle, fub::Duration) {
+                    std::ptrdiff_t cycle, fub::Duration, int = 0) {
     std::string name = fmt::format("{}plt{:05}", base_name, cycle);
     ::amrex::Print() << "Start output to '" << name << "'.\n";
     WritePlotFile(name, gridding->GetPatchHierarchy(), equation);
@@ -140,8 +140,7 @@ int main(int argc, char** argv) {
          solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.final_time = 0.0005s;
-  run_options.output_interval = 0.5 * 0.0000125s;
+  run_options.output_interval = {0.5 * 0.0000125s};
   run_options.cfl = 0.5 * 0.9;
-  fub::RunSimulation(solver, run_options, wall_time_reference, output,
-                     fub::amrex::print);
+  fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

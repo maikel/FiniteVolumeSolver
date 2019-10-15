@@ -39,4 +39,37 @@ Eigen::Vector3d GetBoundaryNormal(const CutCellData<3>& ccdata,
   return normal;
 }
 
+namespace {
+template <int Rank>
+bool IsCutCell_(const CutCellData<Rank>& geom,
+                const std::array<std::ptrdiff_t, Rank>& index) {
+  if (geom.volume_fractions(index) <= 0.0) {
+    return false;
+  }
+  if (geom.volume_fractions(index) < 1.0) {
+    return true;
+  }
+  FUB_ASSERT(geom.volume_fractions(index) == 1.0);
+  auto left = index;
+  for (int i = 0; i < Rank; ++i) {
+    auto right = Shift(left, Direction(i), 1);
+    if (geom.face_fractions[i](left) < 1.0 ||
+        geom.face_fractions[i](right) < 1.0) {
+      return true;
+    }
+  }
+  return false;
+}
+} // namespace
+
+bool IsCutCell(const CutCellData<2>& geom,
+               const std::array<std::ptrdiff_t, 2>& index) {
+  return IsCutCell_<2>(geom, index);
+}
+
+bool IsCutCell(const CutCellData<3>& geom,
+               const std::array<std::ptrdiff_t, 3>& index) {
+  return IsCutCell_<3>(geom, index);
+}
+
 } // namespace fub

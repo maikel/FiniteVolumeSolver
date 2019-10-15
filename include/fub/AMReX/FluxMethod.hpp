@@ -85,7 +85,11 @@ Duration FluxMethod<Tag, FM>::ComputeStableDt(IntegratorContext& context,
       const Duration dt(flux_method_->ComputeStableDt(Tag(), states, dx, dir));
       min_dt = std::min(min_dt, dt.count());
     }
-    return Duration(min_dt);
+    double local_count = min_dt;
+    double count{};
+    MPI_Allreduce(&local_count, &count, 1, MPI_DOUBLE, MPI_MIN,
+                  context.GetMpiCommunicator());
+    return Duration(count);
   } else {
     for (::amrex::MFIter mfi(fluxes); mfi.isValid(); ++mfi) {
       const int gcw = GetStencilWidth();
@@ -101,7 +105,11 @@ Duration FluxMethod<Tag, FM>::ComputeStableDt(IntegratorContext& context,
       const Duration dt(flux_method_->ComputeStableDt(Tag(), states, dx, dir));
       min_dt = std::min(min_dt, dt.count());
     }
-    return Duration(min_dt);
+    double local_count = min_dt;
+    double count{};
+    MPI_Allreduce(&local_count, &count, 1, MPI_DOUBLE, MPI_MIN,
+                  context.GetMpiCommunicator());
+    return Duration(count);
   }
 }
 

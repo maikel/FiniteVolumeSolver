@@ -108,8 +108,8 @@ auto MakeSolver(const fub::PerfectGas<2>& equation) {
                           TimeIntegrator{},
                           Reconstruction{fub::execution::seq, equation}};
 
-  return fub::DimensionalSplitLevelIntegrator(fub::int_c<2>,
-      fub::amrex::cutcell::IntegratorContext(gridding, method));
+  return fub::DimensionalSplitLevelIntegrator(
+      fub::int_c<2>, fub::amrex::cutcell::IntegratorContext(gridding, method));
 }
 
 int main(int argc, char** argv) {
@@ -130,7 +130,7 @@ int main(int argc, char** argv) {
 
   using namespace fub::amrex::cutcell;
   auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,
-                    std::ptrdiff_t cycle, fub::Duration) {
+                    std::ptrdiff_t cycle, fub::Duration, int = 0) {
     std::string name = fmt::format("{}plt{:05}", base_name, cycle);
     amrex::Print() << "Start output to '" << name << "'.\n";
     WritePlotFile(name, gridding->GetPatchHierarchy(), equation);
@@ -142,8 +142,7 @@ int main(int argc, char** argv) {
          solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.final_time = 1s;
-  run_options.output_frequency = 1;
+  run_options.output_frequency = {1};
   run_options.cfl = 0.4;
-  fub::RunSimulation(solver, run_options, wall_time_reference, output,
-                     fub::amrex::print);
+  fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

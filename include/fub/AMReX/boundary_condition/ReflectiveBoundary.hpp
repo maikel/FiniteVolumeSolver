@@ -23,6 +23,7 @@
 
 #include "fub/AMReX/BoundaryCondition.hpp"
 #include "fub/AMReX/ForEachFab.hpp"
+#include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/Execution.hpp"
 #include "fub/boundary_condition/ReflectiveBoundary.hpp"
 
@@ -70,8 +71,8 @@ void ReflectiveBoundary<Tag, Equation>::FillBoundary(
       }
       ::amrex::Box box_to_fill = mfi.growntilebox() & boundary;
       if (!box_to_fill.isEmpty()) {
-        auto states =
-            MakeView<Complete<Equation>>(fab, implementation_->GetEquation(), mfi.growntilebox());
+        auto states = MakeView<Complete<Equation>>(
+            fab, implementation_->GetEquation(), mfi.growntilebox());
         auto box = AsIndexBox<Equation::Rank()>(box_to_fill);
         implementation_->FillBoundary(states, box, dir_, side_);
       }
@@ -79,14 +80,16 @@ void ReflectiveBoundary<Tag, Equation>::FillBoundary(
   });
 }
 
-  template <typename Tag, typename Equation>
-  void ReflectiveBoundary<Tag, Equation>::FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                                                       Duration, const GriddingAlgorithm&) {
-    return FillBoundary(mf, geom);
-  }
+template <typename Tag, typename Equation>
+void ReflectiveBoundary<Tag, Equation>::FillBoundary(
+    ::amrex::MultiFab& mf, const ::amrex::Geometry& geom, Duration,
+    const GriddingAlgorithm&) {
+  return FillBoundary(mf, geom);
+}
 
 template <typename Tag, typename Equation>
-ReflectiveBoundary(Tag, const Equation&, Direction, int) -> ReflectiveBoundary<Tag, Equation>;
+ReflectiveBoundary(Tag, const Equation&, Direction, int)
+    ->ReflectiveBoundary<Tag, Equation>;
 
 } // namespace fub::amrex
 

@@ -21,6 +21,7 @@
 #ifndef FUB_AMREX_MULTI_BLOCK_BOUNDARY_HPP
 #define FUB_AMREX_MULTI_BLOCK_BOUNDARY_HPP
 
+#include "fub/AMReX/boundary_condition/PressureValveBoundary.hpp"
 #include "fub/Direction.hpp"
 #include "fub/Duration.hpp"
 #include "fub/PatchDataView.hpp"
@@ -28,6 +29,9 @@
 
 #include <AMReX.H>
 #include <AMReX_MultiFab.H>
+
+#include <boost/log/sources/severity_channel_logger.hpp>
+#include <boost/log/trivial.hpp>
 
 #include <vector>
 
@@ -64,15 +68,31 @@ public:
   ///
   /// This function might grow the specified mirror boxes to an extent which is
   /// required to fulfill the specified ghost cell width requirements.
+  MultiBlockBoundary(const std::string& name,
+                     const MultiBlockGriddingAlgorithm& gridding,
+                     const BlockConnection& connection, int gcw,
+                     const FlameMasterReactor& reactor, int level);
+
+  MultiBlockBoundary(const std::string& name,
+                     const MultiBlockGriddingAlgorithm& gridding,
+                     const BlockConnection& connection, int gcw,
+                     const FlameMasterReactor& reactor, int level,
+                     std::shared_ptr<PressureValve> valve);
+
+  /// Constructs coupled boundary states by pre computing mirror and ghost
+  /// states for each of the specified domains.
+  ///
+  /// This function might grow the specified mirror boxes to an extent which is
+  /// required to fulfill the specified ghost cell width requirements.
   MultiBlockBoundary(const MultiBlockGriddingAlgorithm& gridding,
                      const BlockConnection& connection, int gcw,
-                     const FlameMasterReactor& reactor);
+                     const FlameMasterReactor& reactor, int level);
 
   MultiBlockBoundary(const MultiBlockBoundary& other);
   MultiBlockBoundary& operator=(const MultiBlockBoundary& other);
 
-  MultiBlockBoundary(MultiBlockBoundary&& other) noexcept = default;
-  MultiBlockBoundary& operator=(MultiBlockBoundary&& other) noexcept = default;
+  MultiBlockBoundary(MultiBlockBoundary&& other) = default;
+  MultiBlockBoundary& operator=(MultiBlockBoundary&& other) = default;
 
   /// Precompute Boundary states for each domain.
   ///
@@ -100,6 +120,12 @@ public:
                     Duration time_point, const GriddingAlgorithm& gridding);
 
 private:
+  using logger_type = boost::log::sources::severity_channel_logger<
+      boost::log::trivial::severity_level>;
+  logger_type log_;
+
+  std::shared_ptr<PressureValve> valve_{};
+
   IdealGasMix<Plenum_Rank> plenum_equation_;
   IdealGasMix<Tube_Rank> tube_equation_;
 
@@ -114,6 +140,7 @@ private:
 
   Direction dir_{};
   int side_{};
+  int level_{};
 };
 
 //

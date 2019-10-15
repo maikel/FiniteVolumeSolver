@@ -52,14 +52,15 @@ int main(int argc, char** argv) {
   const std::array<double, 2> xlower{-0.10, -0.6};
   const std::array<double, 2> xupper{+1.10, +0.6};
 
-  const int n_level = 5;
+  const int n_level = 3;
 
   auto embedded_boundary =
       amrex::EB2::makeUnion(Rectangle({-1.0, +0.015}, {0.0, 1.0}),
                             Rectangle({-1.0, -1.0}, {0.0, -0.015}));
   auto shop = amrex::EB2::makeShop(embedded_boundary);
 
-  fub::PerfectGas<2> equation;
+  fub::Burke2012 mech{};
+  fub::IdealGasMix<2> equation(mech);
 
   fub::amrex::CartesianGridGeometry geometry;
   geometry.cell_dimensions = n_cells;
@@ -78,23 +79,24 @@ int main(int argc, char** argv) {
   //  auto hierarchy = fub::amrex::cutcell::ReadCheckpointFile(
   //      "LinearShock2d/Checkpoint", desc, geometry, options);
 
-  fub::Conservative<fub::PerfectGas<2>> cons;
-  cons.density = 1.0;
-  cons.momentum << 0.0, 0.0;
-  cons.energy = 101325.0 * equation.gamma_minus_1_inv;
-  fub::Complete<fub::PerfectGas<2>> right;
-  fub::CompleteFromCons(equation, right, cons);
+  fub::Conservative<fub::IdealGasMix<2>> cons;
+  fub::FlameMasterReactor& reactor = equation.GetReactor();
+  reactor.SetMoleFractions("O2:20,N2:80");
+  reactor.SetTemperature(300.0);
+  reactor.SetPressure(101325.0);
+  fub::Complete<fub::IdealGasMix<2>> right{equation};
+  equation.CompleteFromReactor(right);
 
-  cons.energy *= 4;
-  fub::Complete<fub::PerfectGas<2>> left;
-  fub::CompleteFromCons(equation, left, cons);
+  reactor.SetPressure(4 * 101325.0);
+  fub::Complete<fub::IdealGasMix<2>> left{equation};
+  equation.CompleteFromReactor(left);
 
   RiemannProblem initial_data(equation, fub::Halfspace({+1.0, 0.0, 0.0}, -0.04),
                               left, right);
 
-  using State = fub::Complete<fub::PerfectGas<2>>;
+  using State = fub::Complete<fub::IdealGasMix<2>>;
   GradientDetector gradients{equation, std::pair{&State::pressure, 0.05},
-                             std::pair{&State::density, 0.005}};
+                             std::pair{&State::density, 0.05}};
 
   BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
                                   TransmissiveBoundary{fub::Direction::X, 1},
@@ -106,14 +108,14 @@ int main(int argc, char** argv) {
       TagAllOf(TagCutCells(), gradients, TagBuffer(4)), boundary_condition);
   gridding->InitializeHierarchy(0.0);
 
-  fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
+  fub::EinfeldtSignalVelocities<fub::IdealGasMix<2>> signals{};
   fub::HllMethod hll_method{equation, signals};
-  fub::MusclHancockMethod flux_method(equation, hll_method);
+  fub::ideal_gas::MusclHancockPrimMethod<2> flux_method(equation);
   fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
 
-  HyperbolicMethod method{FluxMethod{fub::execution::openmp, cutcell_method},
+  HyperbolicMethod method{FluxMethod{fub::execution::simd, cutcell_method},
                           TimeIntegrator{},
-                          Reconstruction{fub::execution::openmp, equation}};
+                          Reconstruction{fub::execution::simd, equation}};
 
   fub::DimensionalSplitLevelIntegrator solver(
       fub::int_c<2>, IntegratorContext(gridding, method),
@@ -122,7 +124,7 @@ int main(int argc, char** argv) {
   std::string base_name = "LinearShock2d";
 
   auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,
-                    std::ptrdiff_t cycle, fub::Duration) {
+                    std::ptrdiff_t cycle, fub::Duration, int = 0) {
     std::string name = fmt::format("{}/plt{:04}", base_name, cycle);
     ::amrex::Print() << "Start output to '" << name << "'.\n";
     WritePlotFile(name, gridding->GetPatchHierarchy(), equation);
@@ -134,8 +136,7 @@ int main(int argc, char** argv) {
          solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.final_time = 0.002s;
-  run_options.output_interval = 0.0000125s;
+  run_options.output_interval = {0.0000125s};
   run_options.cfl = 0.8;
-  fub::RunSimulation(solver, run_options, wall_time_reference, output,
-                     fub::amrex::print);
+  fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

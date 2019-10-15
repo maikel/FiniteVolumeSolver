@@ -53,7 +53,7 @@ int main(int argc, char** argv) {
   amrex::Geometry coarse_geom(amrex::Box{{}, {n_cells[0] - 1, n_cells[1] - 1}},
                               &xbox, -1, geometry.periodicity.data());
 
-  const int n_level = 1;
+  const int n_level = 4;
 
   auto embedded_boundary = ::amrex::EB2::rotate(
       ::amrex::EB2::BoxIF({-0.5, -0.5}, {+0.5, +0.5}, true), 0.25 * M_PI, 2);
@@ -102,12 +102,12 @@ int main(int argc, char** argv) {
                           TimeIntegrator{},
                           Reconstruction{fub::execution::seq, equation}};
 
-  fub::DimensionalSplitLevelIntegrator solver(fub::int_c<2>,
-      fub::amrex::cutcell::IntegratorContext(gridding, method));
+  fub::DimensionalSplitLevelIntegrator solver(
+      fub::int_c<2>, IntegratorContext(gridding, method));
 
   std::string base_name = "Tube/";
   auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,
-                    std::ptrdiff_t cycle, fub::Duration) {
+                    std::ptrdiff_t cycle, fub::Duration, int = 0) {
     std::string name = fmt::format("{}plt{:05}", base_name, cycle);
     ::amrex::Print() << "Start output to '" << name << "'.\n";
     fub::amrex::cutcell::WritePlotFile(name, gridding->GetPatchHierarchy(),
@@ -121,8 +121,7 @@ int main(int argc, char** argv) {
   fub::RunOptions run_options{};
   run_options.final_time = 1e4s;
   //   run_options.output_interval = 1e-5s;
-  run_options.output_frequency = 1;
+  run_options.output_frequency = {1};
   run_options.cfl = 0.5 * 0.9;
-  fub::RunSimulation(solver, run_options, wall_time_reference, output,
-                     fub::amrex::print);
+  fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

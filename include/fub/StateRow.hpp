@@ -22,6 +22,7 @@
 #define FUB_STATE_ROW_HPP
 
 #include "fub/State.hpp"
+#include "fub/core/tuple.hpp"
 
 namespace fub {
 
@@ -106,11 +107,6 @@ template <typename State> ViewPointer<State> End(const Row<State>& row) {
           }},
       pointer, row);
   return pointer;
-}
-
-template <typename Tuple, typename Function>
-auto Transform(Tuple&& tuple, Function f) {
-  return std::apply([&](auto&&... xs) { return std::tuple{f(xs)...}; }, tuple);
 }
 
 template <Direction Dir> struct ToStride {
@@ -206,22 +202,22 @@ void ForEachRow(const Tuple& views, Function f) {
     std::tuple strides_z = Transform(views, ToStride<Direction::Z>());
     for (std::ptrdiff_t j = 0; j < nz; ++j) {
       std::tuple pointers = firsts;
-    for (std::ptrdiff_t i = 0; i < ny; ++i) {
-      std::tuple rows = Transform(pointers, ToRow{row_extent});
-      std::apply(f, rows);
-      pointers = std::apply(
-                          [](auto... ps) {
-                            (Advance(std::get<0>(ps), std::get<1>(ps)), ...);
-                            return std::tuple{std::get<0>(ps)...};
-                          },
-                          Zip(pointers, strides_y));
-    }
+      for (std::ptrdiff_t i = 0; i < ny; ++i) {
+        std::tuple rows = Transform(pointers, ToRow{row_extent});
+        std::apply(f, rows);
+        pointers = std::apply(
+            [](auto... ps) {
+              (Advance(std::get<0>(ps), std::get<1>(ps)), ...);
+              return std::tuple{std::get<0>(ps)...};
+            },
+            Zip(pointers, strides_y));
+      }
       firsts = std::apply(
-                 [](auto... ps) {
-                   (Advance(std::get<0>(ps), std::get<1>(ps)), ...);
-                   return std::tuple{std::get<0>(ps)...};
-                 },
-                 Zip(firsts, strides_z));
+          [](auto... ps) {
+            (Advance(std::get<0>(ps), std::get<1>(ps)), ...);
+            return std::tuple{std::get<0>(ps)...};
+          },
+          Zip(firsts, strides_z));
     }
   }
 }

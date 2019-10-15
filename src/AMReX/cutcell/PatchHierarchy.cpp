@@ -19,9 +19,15 @@
 // SOFTWARE.
 
 #include "fub/AMReX/cutcell/PatchHierarchy.hpp"
+#include "fub/AMReX/ForEachFab.hpp"
+#include "fub/AMReX/ForEachIndex.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
 
 #include "fub/AMReX/FillCutCellData.hpp"
+
+#include "fub/equations/PerfectGas.hpp"
+
+#include <boost/filesystem.hpp>
 
 namespace fub {
 namespace amrex {
@@ -38,7 +44,7 @@ MultiCutFabs MakeMultiCutFabs(const ::amrex::BoxArray& ba,
   for (std::unique_ptr<::amrex::MultiCutFab>& mf : mfabs) {
     ::amrex::IntVect unit = ::amrex::IntVect::TheDimensionVector(dir);
     mf = std::make_unique<::amrex::MultiCutFab>(
-        ::amrex::convert(ba, unit), dm, 1, 4, factory.getMultiEBCellFlagFab());
+        ::amrex::convert(ba, unit), dm, 2, 4, factory.getMultiEBCellFlagFab());
     dir += 1;
   }
   return mfabs;
@@ -59,30 +65,38 @@ PatchLevel::PatchLevel(const PatchLevel& other)
   const ::amrex::MultiCutFab& centeroids = factory->getBndryCent();
   const ::amrex::FabArray<::amrex::EBCellFlagFab>& flags =
       factory->getMultiEBCellFlagFab();
-  for (std::size_t d = 0; d < static_cast<std::size_t>(AMREX_SPACEDIM); ++d) {
-    const ::amrex::MultiCutFab& betas = *factory->getAreaFrac()[d];
-    for (::amrex::MFIter mfi(box_array, distribution_mapping); mfi.isValid();
-         ++mfi) {
-      if (flags[mfi].getType(mfi.growntilebox(4)) ==
-          ::amrex::FabType::singlevalued) {
-        CutCellData<AMREX_SPACEDIM> cutcell_data;
-        cutcell_data.volume_fractions = MakePatchDataView(alphas[mfi], 0);
-        cutcell_data.face_fractions = MakePatchDataView(betas[mfi], 0);
-        cutcell_data.boundary_normals = MakePatchDataView(normals[mfi]);
-        cutcell_data.boundary_centeroids = MakePatchDataView(centeroids[mfi]);
-        PatchDataView<double, AMREX_SPACEDIM> us =
-            MakePatchDataView((*unshielded[d])[mfi], 0);
-        PatchDataView<double, AMREX_SPACEDIM> sL =
-            MakePatchDataView((*shielded_left[d])[mfi], 0);
-        PatchDataView<double, AMREX_SPACEDIM> sR =
-            MakePatchDataView((*shielded_right[d])[mfi], 0);
-        PatchDataView<double, AMREX_SPACEDIM> ds =
-            MakePatchDataView((*doubly_shielded[d])[mfi], 0);
-        FillCutCellData(us, sL, sR, ds, cutcell_data,
-                        static_cast<Direction>(d));
+  ForEachFab(execution::openmp, alphas, [&](const ::amrex::MFIter& mfi) {
+    if (flags[mfi].getType(mfi.growntilebox(4)) ==
+        ::amrex::FabType::singlevalued) {
+      static constexpr int Rank = AMREX_SPACEDIM;
+      CutCellData<Rank> cutcell_data;
+      std::array<PatchDataView<double, Rank>, Rank> us;
+      std::array<PatchDataView<double, Rank>, Rank> sL;
+      std::array<PatchDataView<double, Rank>, Rank> sR;
+      std::array<PatchDataView<double, Rank>, Rank> ds;
+      std::array<PatchDataView<double, Rank>, Rank> us_rel;
+      std::array<PatchDataView<double, Rank>, Rank> sL_rel;
+      std::array<PatchDataView<double, Rank>, Rank> sR_rel;
+      std::array<PatchDataView<double, Rank>, Rank> ds_rel;
+      cutcell_data.volume_fractions = MakePatchDataView(alphas[mfi], 0);
+      for (std::size_t d = 0; d < static_cast<std::size_t>(Rank); ++d) {
+        const ::amrex::MultiCutFab& betas = *factory->getAreaFrac()[d];
+        cutcell_data.face_fractions[d] = MakePatchDataView(betas[mfi], 0);
+        us[d] = MakePatchDataView((*unshielded[d])[mfi], 0);
+        sL[d] = MakePatchDataView((*shielded_left[d])[mfi], 0);
+        sR[d] = MakePatchDataView((*shielded_right[d])[mfi], 0);
+        ds[d] = MakePatchDataView((*doubly_shielded[d])[mfi], 0);
+        us_rel[d] = MakePatchDataView((*unshielded[d])[mfi], 1);
+        sL_rel[d] = MakePatchDataView((*shielded_left[d])[mfi], 1);
+        sR_rel[d] = MakePatchDataView((*shielded_right[d])[mfi], 1);
+        ds_rel[d] = MakePatchDataView((*doubly_shielded[d])[mfi], 1);
       }
+      cutcell_data.boundary_normals = MakePatchDataView(normals[mfi]);
+      cutcell_data.boundary_centeroids = MakePatchDataView(centeroids[mfi]);
+      FillCutCellData(us, sL, sR, ds, us_rel, sL_rel, sR_rel, ds_rel,
+                      cutcell_data);
     }
-  }
+  });
 }
 
 PatchLevel& PatchLevel::operator=(const PatchLevel& other) {
@@ -103,29 +117,38 @@ PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
   const ::amrex::MultiCutFab& centeroids = factory->getBndryCent();
   const ::amrex::FabArray<::amrex::EBCellFlagFab>& flags =
       factory->getMultiEBCellFlagFab();
-  for (std::size_t d = 0; d < static_cast<std::size_t>(AMREX_SPACEDIM); ++d) {
-    const ::amrex::MultiCutFab& betas = *factory->getAreaFrac()[d];
-    for (::amrex::MFIter mfi(ba, dm); mfi.isValid(); ++mfi) {
-      if (flags[mfi].getType(mfi.growntilebox(4)) ==
-          ::amrex::FabType::singlevalued) {
-        CutCellData<AMREX_SPACEDIM> cutcell_data;
-        cutcell_data.volume_fractions = MakePatchDataView(alphas[mfi], 0);
-        cutcell_data.face_fractions = MakePatchDataView(betas[mfi], 0);
-        cutcell_data.boundary_normals = MakePatchDataView(normals[mfi]);
-        cutcell_data.boundary_centeroids = MakePatchDataView(centeroids[mfi]);
-        PatchDataView<double, AMREX_SPACEDIM> us =
-            MakePatchDataView((*unshielded[d])[mfi], 0);
-        PatchDataView<double, AMREX_SPACEDIM> sL =
-            MakePatchDataView((*shielded_left[d])[mfi], 0);
-        PatchDataView<double, AMREX_SPACEDIM> sR =
-            MakePatchDataView((*shielded_right[d])[mfi], 0);
-        PatchDataView<double, AMREX_SPACEDIM> ds =
-            MakePatchDataView((*doubly_shielded[d])[mfi], 0);
-        FillCutCellData(us, sL, sR, ds, cutcell_data,
-                        static_cast<Direction>(d));
+  ForEachFab(execution::openmp, alphas, [&](const ::amrex::MFIter& mfi) {
+    if (flags[mfi].getType(mfi.growntilebox(4)) ==
+        ::amrex::FabType::singlevalued) {
+      static constexpr int Rank = AMREX_SPACEDIM;
+      CutCellData<Rank> cutcell_data;
+      std::array<PatchDataView<double, Rank>, Rank> us;
+      std::array<PatchDataView<double, Rank>, Rank> sL;
+      std::array<PatchDataView<double, Rank>, Rank> sR;
+      std::array<PatchDataView<double, Rank>, Rank> ds;
+      std::array<PatchDataView<double, Rank>, Rank> us_rel;
+      std::array<PatchDataView<double, Rank>, Rank> sL_rel;
+      std::array<PatchDataView<double, Rank>, Rank> sR_rel;
+      std::array<PatchDataView<double, Rank>, Rank> ds_rel;
+      cutcell_data.volume_fractions = MakePatchDataView(alphas[mfi], 0);
+      for (std::size_t d = 0; d < static_cast<std::size_t>(Rank); ++d) {
+        const ::amrex::MultiCutFab& betas = *factory->getAreaFrac()[d];
+        cutcell_data.face_fractions[d] = MakePatchDataView(betas[mfi], 0);
+        us[d] = MakePatchDataView((*unshielded[d])[mfi], 0);
+        sL[d] = MakePatchDataView((*shielded_left[d])[mfi], 0);
+        sR[d] = MakePatchDataView((*shielded_right[d])[mfi], 0);
+        ds[d] = MakePatchDataView((*doubly_shielded[d])[mfi], 0);
+        us_rel[d] = MakePatchDataView((*unshielded[d])[mfi], 1);
+        sL_rel[d] = MakePatchDataView((*shielded_left[d])[mfi], 1);
+        sR_rel[d] = MakePatchDataView((*shielded_right[d])[mfi], 1);
+        ds_rel[d] = MakePatchDataView((*doubly_shielded[d])[mfi], 1);
       }
+      cutcell_data.boundary_normals = MakePatchDataView(normals[mfi]);
+      cutcell_data.boundary_centeroids = MakePatchDataView(centeroids[mfi]);
+      FillCutCellData(us, sL, sR, ds, us_rel, sL_rel, sR_rel, ds_rel,
+                      cutcell_data);
     }
-  }
+  });
 }
 
 PatchHierarchy::PatchHierarchy(DataDescription desc,
@@ -151,28 +174,36 @@ PatchHierarchy::PatchHierarchy(DataDescription desc,
 }
 
 CutCellData<AMREX_SPACEDIM>
-PatchHierarchy::GetCutCellData(int level_number, const ::amrex::MFIter& mfi,
-                               Direction dir) const {
-  const std::size_t d = static_cast<std::size_t>(dir);
+PatchHierarchy::GetCutCellData(int level_number,
+                               const ::amrex::MFIter& mfi) const {
   CutCellData<AMREX_SPACEDIM> cutcell_data;
   const PatchLevel& level = GetPatchLevel(level_number);
-  cutcell_data.dir = dir;
   cutcell_data.volume_fractions =
       MakePatchDataView(level.factory->getVolFrac()[mfi], 0);
-  cutcell_data.face_fractions =
-      MakePatchDataView((*level.factory->getAreaFrac()[d])[mfi], 0);
   cutcell_data.boundary_normals =
       MakePatchDataView(level.factory->getBndryNormal()[mfi]);
   cutcell_data.boundary_centeroids =
       MakePatchDataView(level.factory->getBndryCent()[mfi]);
-  cutcell_data.unshielded_fractions =
-      MakePatchDataView((*level.unshielded[d])[mfi], 0);
-  cutcell_data.shielded_left_fractions =
-      MakePatchDataView((*level.shielded_left[d])[mfi], 0);
-  cutcell_data.shielded_right_fractions =
-      MakePatchDataView((*level.shielded_right[d])[mfi], 0);
-  cutcell_data.doubly_shielded_fractions =
-      MakePatchDataView((*level.doubly_shielded[d])[mfi], 0);
+  for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+    cutcell_data.face_fractions[d] =
+        MakePatchDataView((*level.factory->getAreaFrac()[d])[mfi], 0);
+    cutcell_data.unshielded_fractions[d] =
+        MakePatchDataView((*level.unshielded[d])[mfi], 0);
+    cutcell_data.shielded_left_fractions[d] =
+        MakePatchDataView((*level.shielded_left[d])[mfi], 0);
+    cutcell_data.shielded_right_fractions[d] =
+        MakePatchDataView((*level.shielded_right[d])[mfi], 0);
+    cutcell_data.doubly_shielded_fractions[d] =
+        MakePatchDataView((*level.doubly_shielded[d])[mfi], 0);
+    cutcell_data.unshielded_fractions_rel[d] =
+        MakePatchDataView((*level.unshielded[d])[mfi], 1);
+    cutcell_data.shielded_left_fractions_rel[d] =
+        MakePatchDataView((*level.shielded_left[d])[mfi], 1);
+    cutcell_data.shielded_right_fractions_rel[d] =
+        MakePatchDataView((*level.shielded_right[d])[mfi], 1);
+    cutcell_data.doubly_shielded_fractions_rel[d] =
+        MakePatchDataView((*level.doubly_shielded[d])[mfi], 1);
+  }
   return cutcell_data;
 }
 
@@ -356,6 +387,288 @@ PatchHierarchy ReadCheckpointFile(const std::string& checkpointname,
   }
 
   return hierarchy;
+}
+//
+// namespace {
+//
+//::amrex::RealBox GetProbDomain_(const ::amrex::Geometry& geom,
+//                                const ::amrex::Box& box) {
+//  const double* dx = geom.CellSize();
+//  double base[AMREX_SPACEDIM] = {};
+//  geom.CellCenter({AMREX_D_DECL(0, 0, 0)}, base);
+//  return ::amrex::RealBox(box, dx, base);
+//}
+//
+//} // namespace
+
+void WriteMatlabData(const std::string& name, const PatchHierarchy& hierarchy,
+                   fub::Duration time_point,
+                   std::ptrdiff_t cycle_number, MPI_Comm comm) {
+  const std::size_t n_level =
+  static_cast<std::size_t>(hierarchy.GetNumberOfLevels());
+  std::vector<::amrex::FArrayBox> fabs{};
+  fabs.reserve(n_level);
+  for (std::size_t level = 0; level < n_level; ++level) {
+    const int ilvl = static_cast<int>(level);
+    const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(ilvl);
+    ::amrex::Box domain = level_geom.Domain();
+    const ::amrex::MultiFab& level_data = hierarchy.GetPatchLevel(ilvl).data;
+    ::amrex::FArrayBox local_fab(domain, level_data.nComp());
+    local_fab.setVal(0.0);
+    ForEachFab(level_data, [&](const ::amrex::MFIter& mfi) {
+      const ::amrex::FArrayBox& patch_data = level_data[mfi];
+      local_fab.copy(patch_data);
+    });
+    int rank = -1;
+    ::MPI_Comm_rank(comm, &rank);
+    if (rank == 0) {
+      ::amrex::FArrayBox& fab = fabs.emplace_back(domain, level_data.nComp());
+      fab.setVal(0.0);
+      ::MPI_Reduce(local_fab.dataPtr(), fab.dataPtr(), local_fab.size(),
+                   MPI_DOUBLE, MPI_SUM, 0, comm);
+      if (level > 0) {
+        for (int comp = 1; comp < level_data.nComp(); ++comp) {
+          for (int i = domain.smallEnd(0); i <= domain.bigEnd(0); ++i) {
+            for (int j = domain.smallEnd(1); j <= domain.bigEnd(1); ++j) {
+            ::amrex::IntVect fine_i{
+              AMREX_D_DECL(i, j, domain.smallEnd(2))};
+            ::amrex::IntVect coarse_i = fine_i;
+            coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(level));
+            if (fab(fine_i, 0) == 0.0) {
+              fab(fine_i, comp) = fabs[level - 1](coarse_i, comp);
+            }
+          }
+          }
+        }
+        for (int i = domain.smallEnd(0); i <= domain.bigEnd(0); ++i) {
+          for (int j = domain.smallEnd(1); j <= domain.bigEnd(1); ++j) {
+          ::amrex::IntVect fine_i{
+            AMREX_D_DECL(i, j, domain.smallEnd(2))};
+          ::amrex::IntVect coarse_i = fine_i;
+          coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(level));
+          if (fab(fine_i, 0) == 0.0) {
+            fab(fine_i, 0) = fabs[level - 1](coarse_i, 0);
+          }
+        }
+        }
+      }
+      if (level == n_level - 1) {
+        boost::filesystem::path path(name);
+        boost::filesystem::path dir = path.parent_path();
+        boost::filesystem::create_directories(dir);
+        {
+          const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(ilvl);
+          std::ofstream out(name);
+#if AMREX_SPACEDIM == 2
+          out << fmt::format("size = ({}, {}, {})\n", domain.length(0), domain.length(1), fab.nComp());
+          out << fmt::format("dx = ({}, {})\n", level_geom.CellSize(0),
+                             level_geom.CellSize(1));
+          out << fmt::format("x0 = ({}, {})\n",
+                             level_geom.CellCenter(domain.smallEnd(0), 0),
+                             level_geom.CellCenter(domain.smallEnd(1), 1));
+#else
+          out << fmt::format("size = ({}, {}, {}, {})\n", domain.length(0),
+                             domain.length(1), domain.length(2), fab.nComp());
+          out << fmt::format("dx = ({}, {}, {})\n", level_geom.CellSize(0),
+                             level_geom.CellSize(1), level_geom.CellSize(2));
+          out << fmt::format("x0 = ({}, {}, {})\n",
+                             level_geom.CellCenter(domain.smallEnd(0), 0),
+                             level_geom.CellCenter(domain.smallEnd(1), 1),
+                             level_geom.CellCenter(domain.smallEnd(2), 2));
+#endif
+          out << fmt::format("t = {}\n", time_point.count());
+          out << fmt::format("cycle = {}\n", cycle_number);
+          out << fmt::format("data_file = {}.bin\n", path.filename().string());
+        }
+        // Dump binary data
+        std::ofstream bin(name + ".bin", std::ios::binary);
+        char* pointer = static_cast<char*>(static_cast<void*>(fab.dataPtr()));
+        bin.write(pointer, fab.size() * sizeof(double));
+      }
+    } else {
+      ::MPI_Reduce(local_fab.dataPtr(), nullptr, local_fab.size(), MPI_DOUBLE,
+                   MPI_SUM, 0, comm);
+    }
+  }
+}
+
+#if AMREX_SPACEDIM == 3
+// void Write2Dfrom3D(std::string name, const PatchHierarchy& hierarchy,
+//                   const ::amrex::Box& finest_box, const IdealGasMix<3>& eq,
+//                   fub::Duration time_point, std::ptrdiff_t cycle_number,
+//                   MPI_Comm comm) {
+//  int rank = -1;
+//  MPI_Comm_rank(comm, &rank);
+//  if (rank == 0) {
+//    boost::filesystem::path path(name);
+//    boost::filesystem::path dir = path.parent_path();
+//    boost::filesystem::create_directories(dir);
+//    std::ofstream out(name);
+//    if (!out) {
+//      throw std::runtime_error("Could not open output file!");
+//    }
+//    Write2Dfrom3D(&out, hierarchy, finest_box, eq, time_point, cycle_number,
+//                  comm);
+//  } else {
+//    Write2Dfrom3D(nullptr, hierarchy, finest_box, eq, time_point,
+//    cycle_number,
+//                  comm);
+//  }
+//}
+
+void Write2Dfrom3D(const std::string& name, const PatchHierarchy& hierarchy,
+                   const ::amrex::Box& finest_box,
+                   const IdealGasMix<3>& /* eq */, fub::Duration time_point,
+                   std::ptrdiff_t cycle_number, MPI_Comm comm) {
+  const std::size_t n_level =
+      static_cast<std::size_t>(hierarchy.GetNumberOfLevels());
+  std::vector<::amrex::Geometry> geoms{};
+  std::vector<::amrex::MultiFab> data{};
+  std::vector<::amrex::FArrayBox> fabs{};
+  std::vector<::amrex::Box> boxes{};
+  boxes.reserve(n_level);
+  boxes.push_back(finest_box);
+  ::amrex::Box box = finest_box;
+  for (std::size_t level = n_level - 1; level > 0; --level) {
+    ::amrex::IntVect refine_ratio = hierarchy.GetRatioToCoarserLevel(level);
+    box.coarsen(refine_ratio);
+    boxes.push_back(box);
+  }
+  std::reverse(boxes.begin(), boxes.end());
+  geoms.reserve(n_level);
+  data.reserve(n_level);
+  fabs.reserve(n_level);
+  for (std::size_t level = 0; level < n_level; ++level) {
+    const int ilvl = static_cast<int>(level);
+    ::amrex::Box domain = boxes[level];
+    //    ::amrex::RealBox probDomain = GetProbDomain_(level_geom, domain);
+    //    ::amrex::Geometry& geom = geoms.emplace_back(domain, &probDomain);
+    const ::amrex::MultiFab& level_data = hierarchy.GetPatchLevel(ilvl).data;
+    ::amrex::FArrayBox local_fab(domain, level_data.nComp());
+    local_fab.setVal(0.0);
+    ForEachFab(level_data, [&](const ::amrex::MFIter& mfi) {
+      const ::amrex::FArrayBox& patch_data = level_data[mfi];
+      const ::amrex::Box box = mfi.tilebox() & domain;
+      local_fab.copy(patch_data, box);
+    });
+    int rank = -1;
+    ::MPI_Comm_rank(comm, &rank);
+    if (rank == 0) {
+      ::amrex::FArrayBox& fab = fabs.emplace_back(domain, level_data.nComp());
+      fab.setVal(0.0);
+      ::MPI_Reduce(local_fab.dataPtr(), fab.dataPtr(), local_fab.size(),
+                   MPI_DOUBLE, MPI_SUM, 0, comm);
+      if (level > 0) {
+        for (int comp = 1; comp < level_data.nComp(); ++comp) {
+          for (int k = domain.smallEnd(2); k <= domain.bigEnd(2); ++k) {
+            for (int j = domain.smallEnd(1); j <= domain.bigEnd(1); ++j) {
+              for (int i = domain.smallEnd(0); i <= domain.bigEnd(0); ++i) {
+                ::amrex::IntVect fine_i{i, j, k};
+                ::amrex::IntVect coarse_i = fine_i;
+                coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(level));
+                if (fab(fine_i, 0) == 0.0) {
+                  fab(fine_i, comp) = fabs[level - 1](coarse_i, comp);
+                }
+              }
+            }
+          }
+        }
+        for (int k = domain.smallEnd(2); k <= domain.bigEnd(2); ++k) {
+          for (int j = domain.smallEnd(1); j <= domain.bigEnd(1); ++j) {
+            for (int i = domain.smallEnd(0); i <= domain.bigEnd(0); ++i) {
+              ::amrex::IntVect fine_i{i, j, k};
+              ::amrex::IntVect coarse_i = fine_i;
+              coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(level));
+              if (fab(fine_i, 0) == 0.0) {
+                fab(fine_i, 0) = fabs[level - 1](coarse_i, 0);
+              }
+            }
+          }
+        }
+      }
+      if (level == n_level - 1) {
+        boost::filesystem::path path(name);
+        boost::filesystem::path dir = path.parent_path();
+        boost::filesystem::create_directories(dir);
+        // Write Header File
+        {
+          const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(ilvl);
+          std::ofstream out(name);
+          out << fmt::format("size = ({}, {}, {}, {})\n", domain.length(0),
+                             domain.length(1), domain.length(2), fab.nComp());
+          out << fmt::format("dx = ({}, {}, {})\n", level_geom.CellSize(0),
+                             level_geom.CellSize(1), level_geom.CellSize(2));
+          out << fmt::format("x0 = ({}, {}, {})\n",
+                             level_geom.CellCenter(domain.smallEnd(0), 0),
+                             level_geom.CellCenter(domain.smallEnd(1), 1),
+                             level_geom.CellCenter(domain.smallEnd(2), 2));
+          out << fmt::format("t = {}\n", time_point.count());
+          out << fmt::format("cycle = {}\n", cycle_number);
+          out << fmt::format("data_file = {}.bin\n", path.filename().string());
+        }
+        // Dump binary data
+        std::ofstream bin(name + ".bin", std::ios::binary);
+        char* pointer = static_cast<char*>(static_cast<void*>(fab.dataPtr()));
+        bin.write(pointer, fab.size() * sizeof(double));
+      }
+    } else {
+      ::MPI_Reduce(local_fab.dataPtr(), nullptr, local_fab.size(), MPI_DOUBLE,
+                   MPI_SUM, 0, comm);
+    }
+  }
+}
+#endif
+
+std::vector<double> GatherStates(
+    const PatchHierarchy& hierarchy,
+    basic_mdspan<const double, extents<AMREX_SPACEDIM, dynamic_extent>> xs,
+    MPI_Comm comm) {
+  const int nlevel = hierarchy.GetNumberOfLevels();
+  const int finest_level = nlevel - 1;
+  const int ncomp = hierarchy.GetDataDescription().n_state_components;
+  std::vector<double> buffer(xs.extent(1) * ncomp * nlevel);
+  mdspan<double, 3> states(buffer.data(), xs.extent(1), ncomp, nlevel);
+  for (int level = 0; level < nlevel; ++level) {
+    const ::amrex::MultiFab& level_data = hierarchy.GetPatchLevel(level).data;
+    const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(level);
+    ForEachFab(level_data, [&](const ::amrex::MFIter& mfi) {
+      ForEachIndex(mfi.tilebox(), [&](auto... is) {
+        double lo[AMREX_SPACEDIM]{};
+        double hi[AMREX_SPACEDIM]{};
+        const ::amrex::IntVect iv{int(is)...};
+        level_geom.LoNode(iv, lo);
+        level_geom.HiNode(iv, hi);
+        for (int k = 0; k < xs.extent(1); ++k) {
+          bool is_in_range = true;
+          for (int i = 0; i < AMREX_SPACEDIM; ++i) {
+            is_in_range = is_in_range && lo[i] <= xs(i, k) && xs(i, k) < hi[i];
+          }
+          if (is_in_range) {
+            for (int comp = 0; comp < level_data.nComp(); ++comp) {
+              states(k, comp, level) = level_data[mfi](iv, comp);
+            }
+          }
+        }
+      });
+    });
+  }
+  std::vector<double> global_buffer(buffer.size());
+  ::MPI_Allreduce(buffer.data(), global_buffer.data(), global_buffer.size(),
+                  MPI_DOUBLE, MPI_SUM, comm);
+  states = mdspan<double, 3>(global_buffer.data(), xs.extent(1), ncomp, nlevel);
+  for (int level = 1; level < nlevel; ++level) {
+    for (int comp = 0; comp < ncomp; ++comp) {
+      for (int i = 0; i < xs.extent(1); ++i) {
+        if (states(i, comp, level) == 0.0) {
+          states(i, comp, level) = states(i, comp, level - 1);
+        }
+      }
+    }
+  }
+  std::vector<double> result(&states(0, 0, finest_level),
+                             &states(0, 0, finest_level) +
+                                 xs.extent(1) * ncomp);
+  return result;
 }
 
 } // namespace cutcell

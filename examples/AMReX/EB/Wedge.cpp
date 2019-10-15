@@ -120,13 +120,13 @@ int main(int argc, char** argv) {
                           TimeIntegrator{},
                           Reconstruction{fub::execution::seq, equation}};
 
-  fub::DimensionalSplitLevelIntegrator solver(fub::int_c<2>,
-      fub::amrex::cutcell::IntegratorContext(gridding, method));
+  fub::DimensionalSplitLevelIntegrator solver(
+      fub::int_c<2>, fub::amrex::cutcell::IntegratorContext(gridding, method));
 
   std::string base_name = "Wedge/";
 
   auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,
-                    std::ptrdiff_t cycle, fub::Duration) {
+                    std::ptrdiff_t cycle, fub::Duration, int = 0) {
     std::string name = fmt::format("{}plt{:05}", base_name, cycle);
     amrex::Print() << "Start output to '" << name << "'.\n";
     WritePlotFile(name, gridding->GetPatchHierarchy(), equation);
@@ -138,8 +138,7 @@ int main(int argc, char** argv) {
          solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.final_time = 1e-4s;
-  run_options.output_interval = 1e-5s;
+  run_options.output_interval = {1e-5s};
   run_options.cfl = 0.5 * 0.9;
-  fub::RunSimulation(solver, run_options, wall_time_reference, output,
-                     fub::amrex::print);
+  fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

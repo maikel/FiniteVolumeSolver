@@ -37,12 +37,12 @@ int main(int argc, char** argv) {
       std::chrono::steady_clock::now();
   fub::amrex::ScopeGuard _(argc, argv);
 
-  const std::array<int, 3> n_cells{128, 128, 128};
+  const std::array<int, 3> n_cells{64, 64, 64};
   const std::array<double, 3> xlower{-0.10, -0.15, -0.15};
   const std::array<double, 3> xupper{+0.20, +0.15, +0.15};
   const std::array<int, 3> periodicity{0, 0, 0};
 
-  const int n_level = 1;
+  const int n_level = 3;
 
   auto embedded_boundary = amrex::EB2::makeIntersection(
       amrex::EB2::PlaneIF({0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, false),
@@ -94,12 +94,12 @@ int main(int argc, char** argv) {
   //  fub::CompleteFromCons(equation, left, cons);
 
   RiemannProblem initial_data(equation, fub::Halfspace({+1.0, 0.0, 0.0}, -0.04),
-                              left, left);
+                              left, right);
 
   //  using Complete = fub::Complete<fub::PerfectGas<3>>;
   using Complete = fub::Complete<fub::IdealGasMix<3>>;
   GradientDetector gradients{equation, std::pair{&Complete::pressure, 0.05},
-                             std::pair{&Complete::density, 0.005}};
+                             std::pair{&Complete::density, 0.05}};
 
   BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
                                   TransmissiveBoundary{fub::Direction::X, 1},
@@ -116,20 +116,21 @@ int main(int argc, char** argv) {
   //  fub::EinfeldtSignalVelocities<fub::PerfectGas<3>> signals{};
   fub::EinfeldtSignalVelocities<fub::IdealGasMix<3>> signals{};
   fub::HllMethod hll_method{equation, signals};
-  fub::MusclHancockMethod flux_method(equation, hll_method);
+  //  fub::MusclHancockMethod flux_method(equation, hll_method);
+  fub::ideal_gas::MusclHancockPrimMethod<3> flux_method(equation);
   fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
 
-  HyperbolicMethod method{FluxMethod{fub::execution::seq, cutcell_method},
+  HyperbolicMethod method{FluxMethod{fub::execution::simd, cutcell_method},
                           TimeIntegrator{},
-                          Reconstruction{fub::execution::seq, equation}};
+                          Reconstruction{fub::execution::simd, equation}};
 
-  fub::DimensionalSplitLevelIntegrator solver(fub::int_c<3>,
-      IntegratorContext(gridding, method));
+  fub::DimensionalSplitLevelIntegrator solver(
+      fub::int_c<3>, IntegratorContext(gridding, method));
 
   std::string base_name = "LinearShock3d/";
 
   auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,
-                    std::ptrdiff_t cycle, fub::Duration) {
+                    std::ptrdiff_t cycle, fub::Duration, int = 0) {
     std::string name = fmt::format("{}plt{:05}", base_name, cycle);
     amrex::Print() << "Start output to '" << name << "'.\n";
     WritePlotFile(name, gridding->GetPatchHierarchy(), equation);
@@ -141,8 +142,7 @@ int main(int argc, char** argv) {
          solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.final_time = 0.002s;
-  run_options.output_interval = 0.0000125s;
-  run_options.cfl = 0.5;
-  fub::RunSimulation(solver, run_options, wall_time_reference, output,
-                     fub::amrex::print);
+  run_options.output_interval = {0.0000125s};
+  run_options.cfl = 0.8;
+  fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

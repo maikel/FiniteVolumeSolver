@@ -114,6 +114,10 @@ template <int N> struct PerfectGas {
                         const ConservativeArrayBase<PerfectGas>& cons) const
       noexcept;
 
+  void CompleteFromCons(CompleteArray& complete,
+                        const ConservativeArrayBase<PerfectGas>& cons,
+                        MaskArray mask) const noexcept;
+
   Complete CompleteFromPrim(double density, const Array<double, N, 1>& u,
                             double pressure) const noexcept;
   Array<double, N, 1> Velocity(const Complete& q) const noexcept;
@@ -182,6 +186,10 @@ public:
   void SolveRiemannProblem(CompleteArray& state, const CompleteArray& left,
                            const CompleteArray& right, Direction dir);
 
+  void SolveRiemannProblem(CompleteArray& state, const CompleteArray& left,
+                           const CompleteArray& right, MaskArray mask,
+                           Direction dir);
+
   /// Returns the upwind velocity in the specified direction.
   std::array<double, 2> ComputeSignals(const Complete&, const Complete&,
                                        Direction dir);
@@ -219,12 +227,12 @@ extern template struct EinfeldtSignalVelocities<PerfectGas<1>>;
 extern template struct EinfeldtSignalVelocities<PerfectGas<2>>;
 extern template struct EinfeldtSignalVelocities<PerfectGas<3>>;
 
-//extern template class FluxMethod<Godunov<PerfectGas<1>>>;
-//extern template class FluxMethod<MusclHancock<PerfectGas<1>>>;
-//extern template class FluxMethod<Godunov<PerfectGas<2>>>;
-//extern template class FluxMethod<MusclHancock<PerfectGas<2>>>;
-//extern template class FluxMethod<Godunov<PerfectGas<3>>>;
-//extern template class FluxMethod<MusclHancock<PerfectGas<3>>>;
+// extern template class FluxMethod<Godunov<PerfectGas<1>>>;
+// extern template class FluxMethod<MusclHancock<PerfectGas<1>>>;
+// extern template class FluxMethod<Godunov<PerfectGas<2>>>;
+// extern template class FluxMethod<MusclHancock<PerfectGas<2>>>;
+// extern template class FluxMethod<Godunov<PerfectGas<3>>>;
+// extern template class FluxMethod<MusclHancock<PerfectGas<3>>>;
 
 } // namespace fub
 

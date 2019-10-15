@@ -29,14 +29,17 @@
 
 #include "fub/AMReX/ScopeGuard.hpp"
 
-#include "fub/AMReX/tagging/GradientDetector.hpp"
 #include "fub/AMReX/tagging/ConstantRegion.hpp"
+#include "fub/AMReX/tagging/GradientDetector.hpp"
 #include "fub/AMReX/tagging/TagBuffer.hpp"
 
 #include "fub/AMReX/boundary_condition/BoundarySet.hpp"
-#include "fub/AMReX/boundary_condition/TransmissiveBoundary.hpp"
+#include "fub/AMReX/boundary_condition/IsentropicPressureBoundary.hpp"
+#include "fub/AMReX/boundary_condition/PressureValveBoundary.hpp"
 #include "fub/AMReX/boundary_condition/ReflectiveBoundary.hpp"
-#include "fub/AMReX/boundary_condition/IsentropicBoundary.hpp"
+#include "fub/AMReX/boundary_condition/TransmissiveBoundary.hpp"
+
+#include "fub/AMReX/initial_data/ConstantData.hpp"
 
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/ForEachIndex.hpp"
@@ -46,6 +49,11 @@
 #include "fub/AMReX/Reconstruction.hpp"
 #include "fub/AMReX/TimeIntegrator.hpp"
 
+#include "fub/AMReX/Geometry.hpp"
+#include "fub/geometry/PolymorphicGeometry.hpp"
+#include "fub/geometry/Union.hpp"
+
+#include "fub/AMReX/AxialSourceTerm.hpp"
 #include "fub/equations/ideal_gas_mix/KineticSourceTerm.hpp"
 
 #endif

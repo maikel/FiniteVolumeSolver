@@ -7,7 +7,7 @@ set(default_build_type "Release")
 if(EXISTS "${CMAKE_SOURCE_DIR}/.git")
   set(default_build_type "Debug")
 endif()
- 
+
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(STATUS "Setting build type to '${default_build_type}' as none was specified.")
   set(CMAKE_BUILD_TYPE "${default_build_type}" CACHE
@@ -24,11 +24,11 @@ endif()
 # linker options.
 if (EXISTS ${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
   include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-  conan_basic_setup()
+  conan_basic_setup(TARGETS)
 endif()
 
 # Try to find SAMRAI (optional)
-find_package(Boost REQUIRED COMPONENTS filesystem container)
+find_package(Boost REQUIRED COMPONENTS filesystem container program_options serialization log)
 
 find_package(SAMRAI QUIET)
 if (SAMRAI_FOUND)
@@ -38,6 +38,8 @@ else()
   message(STATUS "SAMRAI: Not Found.")
   option(FUB_WITH_SAMRAI "Compile with SAMRAI modules." OFF)
 endif()
+
+find_package(MPI REQUIRED COMPONENTS C)
 
 # Try to find AMReX (optional)
 find_package(AMReX QUIET)
@@ -50,7 +52,12 @@ else()
   option(FUB_WITH_AMREX "Compile with AMReX modules." OFF)
 endif()
 
-find_package(Eigen3 3.3 REQUIRED NO_MODULE)
+if (TARGET CONAN_PKG::eigen)
+  add_library(Eigen3::Eigen IMPORTED INTERFACE)
+  target_link_libraries(Eigen3::Eigen INTERFACE CONAN_PKG::eigen)
+else()
+  find_package(Eigen3 3.3 REQUIRED NO_MODULE)
+endif()
 
 # Attempt to find Sundials (which contains an optional ODE solver)
 find_package(Sundials QUIET)
@@ -175,6 +182,7 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/equations/ShallowWater.hpp
   include/fub/ext/Eigen.hpp
   include/fub/ext/outcome.hpp
+  include/fub/ext/Log.hpp
   include/fub/flux_method/FluxMethod.hpp
   include/fub/flux_method/GodunovMethod.hpp
   include/fub/flux_method/HllMethod.hpp
@@ -188,8 +196,11 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/geometry/Geometry.hpp
   include/fub/geometry/Halfspace.hpp
   include/fub/geometry/ExpandTube.hpp
+  include/fub/geometry/Polygon.hpp
+  include/fub/geometry/Cone.hpp
   include/fub/Solver.hpp
   include/fub/CompleteFromCons.hpp
+  include/fub/CutCellData.hpp
   include/fub/Direction.hpp
   include/fub/Duration.hpp
   include/fub/EinfeldtSignalVelocities.hpp
@@ -210,6 +221,7 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/split_method/SplittingMethod.hpp
   include/fub/split_method/GodunovSplitting.hpp
   include/fub/split_method/StrangSplitting.hpp
+  src/ext/Log.cpp
   src/boundary_condition/ReflectiveBoundary.cpp
   src/equations/Advection.cpp
   src/equations/advection/GodunovMethod.cpp
@@ -228,7 +240,9 @@ add_library(FiniteVolumeSolver.Solver
   src/equations/ideal_gas_mix/HllMethod.cpp
   src/equations/ideal_gas_mix/MusclHancockMethod.cpp
   src/equations/ideal_gas_mix/FlameMasterReactor.cpp
+  src/geometry/Cone.cpp
   src/equations/ideal_gas_mix/mechanism/Burke2012.cpp
+  src/cutcell_method/KbnStabilisation.cpp
   src/tagging/TagBuffer.cpp
   src/tagging/TagCutCells.cpp
   src/CartesianCoordinates.cpp
@@ -237,14 +251,19 @@ add_library(FiniteVolumeSolver.Solver
   src/geometry/Halfspace.cpp
   src/geometry/Polygon.cpp
   src/geometry/ExpandTube.cpp
+  src/CutCellData.cpp
   src/HyperbolicPatchIntegrator.cpp
   src/RunSimulation.cpp)
 target_link_libraries(FiniteVolumeSolver.Solver
   PUBLIC
     FiniteVolumeSolver.Core
     FiniteVolumeSolver.OdeSolver
+    MPI::MPI_C
     fmt::fmt-header-only
     Boost::container
+    Boost::log
+    Boost::program_options
+    Boost::serialization
     Eigen3::Eigen
     Vc::Vc)
 target_compile_options(FiniteVolumeSolver.Solver 
@@ -267,9 +286,13 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     include/fub/AMReX/boundary_condition/BoundarySet.hpp
     include/fub/AMReX/boundary_condition/TransmissiveBoundary.hpp
     include/fub/AMReX/boundary_condition/ReflectiveBoundary.hpp
-    include/fub/AMReX/boundary_condition/IsentropicBoundary.hpp
+    include/fub/AMReX/boundary_condition/IsentropicPressureBoundary.hpp
+    include/fub/AMReX/boundary_condition/PressureValveBoundary.hpp
+    include/fub/AMReX/initial_data/ConstantData.hpp
+    include/fub/AMReX/AxialSourceTerm.hpp
     include/fub/AMReX/GriddingAlgorithm.hpp
-          include/fub/AMReX/PatchHierarchyExample.hpp
+    include/fub/AMReX/IgniteDetonation.hpp
+    include/fub/AMReX/PatchHierarchy.hpp
     include/fub/AMReX/Reconstruction.hpp
     include/fub/AMReX/RunSimulation.hpp
     include/fub/AMReX/BoundaryCondition.hpp
@@ -282,10 +305,16 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     include/fub/AMReX/ViewFArrayBox.hpp
     include/fub/AMReX/tagging/TagBuffer.hpp
     include/fub/AMReX/tagging/ConstantRegion.hpp
+    include/fub/geometry/Geometry.hpp
+    include/fub/geometry/PolymorphicGeometry.hpp
+    include/fub/geometry/Union.hpp
     src/equations/ideal_gas_mix/KineticSourceTerm.cpp
     src/AMReX/boundary_condition/BoundarySet.cpp
     src/AMReX/boundary_condition/TransmissiveBoundary.cpp
-    src/AMReX/boundary_condition/IsentropicBoundary.cpp
+    src/AMReX/boundary_condition/IsentropicPressureBoundary.cpp
+    src/AMReX/boundary_condition/PressureValveBoundary.cpp
+    src/AMReX/AxialSourceTerm.cpp
+    src/AMReX/IgniteDetonation.cpp
     src/AMReX/FluxMethod.cpp
     src/AMReX/ScopeGuard.cpp
     src/AMReX/CartesianGridGeometry.cpp
@@ -296,7 +325,8 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     src/AMReX/TimeIntegrator.cpp
     src/AMReX/IntegratorContext.cpp
     src/AMReX/tagging/TagBuffer.cpp
-    src/AMReX//tagging/ConstantRegion.cpp)
+    src/AMReX/tagging/ConstantRegion.cpp
+    src/geometry/Union.cpp)
   target_include_directories(FiniteVolumeSolver.AMReX
     PUBLIC
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -314,11 +344,12 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
       FiniteVolumeSolver.Solver
       AMReX::amrex
       Boost::boost
+      Boost::filesystem
+      Boost::serialization
       Eigen3::Eigen)
 
   if (AMReX_EB_FOUND) 
     add_library(FiniteVolumeSolver.AMReX.EB
-        src/CutCellData.cpp
         src/geometry/ExpandTube.cpp
         include/fub/AMReX_CutCell.hpp
         include/fub/AMReX/cutcell/BoundaryCondition.hpp
@@ -338,10 +369,14 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         include/fub/AMReX/cutcell/tagging/TagCutCells.hpp
         include/fub/AMReX/cutcell/boundary_condition/BoundarySet.hpp
         include/fub/AMReX/cutcell/boundary_condition/TransmissiveBoundary.hpp
+        include/fub/AMReX/cutcell/boundary_condition/IsentropicPressureBoundary.hpp
+        include/fub/AMReX/cutcell/boundary_condition/MassflowBoundary.hpp
+        include/fub/AMReX/cutcell/boundary_condition/ReflectiveBoundary.hpp
         include/fub/AMReX/multi_block/MultiBlockBoundary.hpp
         include/fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp
         include/fub/AMReX/multi_block/MultiBlockIntegratorContext.hpp
         include/fub/AMReX/multi_block/MultiBlockKineticSourceTerm.hpp
+        include/fub/AMReX/multi_block/MultiBlockIgniteDetonation.hpp
         src/AMReX/cutcell/BoundaryCondition.cpp
         src/AMReX/cutcell/IntegratorContext.cpp
         src/AMReX/cutcell/PatchHierarchy.cpp
@@ -350,13 +385,16 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         src/AMReX/cutcell/TimeIntegrator.cpp
         src/AMReX/cutcell/boundary_condition/BoundarySet.cpp
         src/AMReX/cutcell/boundary_condition/TransmissiveBoundary.cpp
+        src/AMReX/cutcell/boundary_condition/IsentropicPressureBoundary.cpp
+        src/AMReX/cutcell/boundary_condition/MassflowBoundary.cpp
         src/AMReX/cutcell/tagging/ConstantRegion.cpp
         src/AMReX/cutcell/tagging/TagBuffer.cpp
         src/AMReX/cutcell/tagging/TagCutCells.cpp
         src/AMReX/multi_block/MultiBlockBoundary.cpp
         src/AMReX/multi_block/MultiBlockGriddingAlgorithm.cpp
         src/AMReX/multi_block/MultiBlockIntegratorContext.cpp
-        src/AMReX/multi_block/MultiBlockKineticSourceTerm.cpp)
+        src/AMReX/multi_block/MultiBlockKineticSourceTerm.cpp
+        src/AMReX/multi_block/MultiBlockIgniteDetonation.cpp)
     target_compile_options(FiniteVolumeSolver.AMReX.EB
       PRIVATE
         $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>

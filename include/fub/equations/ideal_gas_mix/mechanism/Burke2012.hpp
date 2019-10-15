@@ -24,6 +24,7 @@
 #include "fub/core/assert.hpp"
 #include "fub/core/span.hpp"
 #include "fub/equations/ideal_gas_mix/FlameMasterReactor.hpp"
+#include "fub/ext/Eigen.hpp"
 
 #include <string>
 #include <vector>
@@ -124,12 +125,18 @@ struct Burke2012 : public FlameMasterMechanism {
                               span<double> c, span<double> M, double temp,
                               double pressure) const override;
 
+  // void ComputeProductionRates(ArrayXd& cdot, ArrayXd& w, ArrayXd& k,
+  //                            ArrayXd& c, ArrayXd& M, Array1d temp,
+  //                            Array1d pressure) const override;
+
   virtual void ComputeThermoData(span<double> h, span<double> cp, double T,
                                  span<double> /* s */) const override {
     ComputeThermoData(h, cp, T);
-  };
+  }
 
   void ComputeThermoData(span<double> h, span<double> cp, double T) const;
+
+  void ComputeThermoData(ArrayXd& h, ArrayXd& cp, Array1d T) const override;
 
   int getNSpecies() const override { return sEnd; }
 

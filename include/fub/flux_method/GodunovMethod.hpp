@@ -64,10 +64,21 @@ public:
                           span<const CompleteArray, 2> states,
                           Duration /* dt */, double /* dx */, Direction dir);
 
+  void ComputeNumericFlux(ConservativeArray& numeric_flux,
+                          Array1d face_fraction,
+                          span<const CompleteArray, 2> states,
+                          span<const Array1d, 2> volume_fraction,
+                          Duration /* dt */, double /* dx */, Direction dir);
+
   double ComputeStableDt(span<const Complete, 2> states, double dx,
                          Direction dir);
 
   Array1d ComputeStableDt(span<const CompleteArray, 2> states, double dx,
+                          Direction dir);
+
+  Array1d ComputeStableDt(span<const CompleteArray, 2> states,
+                          Array1d face_fraction,
+                          span<const Array1d, 2> volume_fraction, double dx,
                           Direction dir);
 
 private:
@@ -133,6 +144,21 @@ void Godunov<Equation, RiemannSolver>::ComputeNumericFlux(
 }
 
 template <typename Equation, typename RiemannSolver>
+void Godunov<Equation, RiemannSolver>::ComputeNumericFlux(
+    ConservativeArray& numeric_flux, Array1d face_fraction,
+    span<const CompleteArray, 2> states,
+    span<const Array1d, 2> /* volume_fraction */, Duration /* dt */,
+    double /* dx */, Direction dir) {
+  MaskArray mask = face_fraction > 0.0;
+  riemann_solver_.SolveRiemannProblem(riemann_solution_arr_, states[0],
+                                      states[1], mask, dir);
+  Flux(equation_, numeric_flux, riemann_solution_arr_, dir);
+  const Array1d zero = Array1d::Zero();
+  ForEachComponent([&](auto&& nf, Array1d f) { nf = mask.select(f, zero); },
+                   numeric_flux, numeric_flux);
+}
+
+template <typename Equation, typename RiemannSolver>
 double Godunov<Equation, RiemannSolver>::ComputeStableDt(
     span<const Complete, 2> states, double dx, Direction dir) {
   auto signals = riemann_solver_.ComputeSignals(states[0], states[1], dir);
@@ -153,6 +179,23 @@ Array1d Godunov<Equation, RiemannSolver>::ComputeStableDt(
                         return x.max(y.abs());
                       });
   return Array1d(dx) / s_max;
+}
+
+template <typename Equation, typename RiemannSolver>
+Array1d Godunov<Equation, RiemannSolver>::ComputeStableDt(span<const CompleteArray, 2> states,
+                        Array1d face_fraction,
+                        span<const Array1d, 2>, double dx,
+                                                          Direction dir) {
+  std::array<Complete, 2> state{};
+  Array1d dts = Array1d::Constant(std::numeric_limits<double>::infinity());
+  for (int i = 0; i < face_fraction.size(); ++i) {
+    if (face_fraction[i] > 0.0) {
+      Load(state[0], states[0], i);
+      Load(state[1], states[1], i);
+      dts[i] = ComputeStableDt(state, dx, dir);
+    }
+  }
+  return dts;
 }
 
 } // namespace fub

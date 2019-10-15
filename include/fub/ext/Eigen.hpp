@@ -50,6 +50,8 @@ using Array2d = Array<double, 2>;
 using Array3d = Array<double, 3>;
 using ArrayXd = Array<double, Eigen::Dynamic>;
 
+using MaskArray = Array<bool, 1>;
+
 inline void LoadN(Array<char, 1>& array, const char* pointer, int n) {
   for (int i = 0; i < n; ++i) {
     array[i] = pointer[i];

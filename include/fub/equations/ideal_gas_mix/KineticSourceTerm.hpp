@@ -59,8 +59,7 @@ public:
 
 private:
   OmpLocal<IdealGasMix<Rank>> equation_;
-  OmpLocal<Complete<IdealGasMix<Rank>>> state_{
-      Complete<IdealGasMix<Rank>>(*equation_)};
+  OmpLocal<Complete<IdealGasMix<Rank>>> state_;
   std::shared_ptr<amrex::GriddingAlgorithm> gridding_;
 };
 
