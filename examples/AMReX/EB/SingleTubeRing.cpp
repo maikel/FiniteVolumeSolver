@@ -732,6 +732,27 @@ void MyMain(const boost::program_options::variables_map& vm) {
       tube_equation, context.GetGriddingAlgorithm(),
       fub::amrex::IgniteDetonationOptions(vm, "ignite")};
 
+  std::string checkpoint{};
+  if (vm.count("grid.checkpoint")) {
+    checkpoint = vm["grid.checkpoint"].as<std::string>();
+  }
+  if (!checkpoint.empty()) {
+    MPI_Comm comm = context.GetMpiCommunicator();
+    std::string input = ReadAndBroadcastFile(checkpoint + "/Ignition", comm);
+    std::istringstream ifs(input);
+    {
+      boost::archive::text_iarchive ia(ifs);
+      std::vector<fub::Duration> last_ignitions;
+      ia >> last_ignitions;
+    }
+    ignition.SetLastIgnitionTimePoints(last_ignitions);
+    input =
+        ReadAndBroadcastFile(checkpoint + "/Valve", comm);
+    ifs = std::istringstream(input);
+    boost::archive::text_iarchive ia(ifs);
+    ia >> *valve;
+  }
+
   fub::DimensionalSplitSystemSourceSolver ign_solver(system_solver, ignition,
                                                      fub::GodunovSplitting{});
 
