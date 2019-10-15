@@ -21,7 +21,7 @@
 #ifndef FUB_BOUNDARY_CONDITION_TRANSMISSIVE_BOUNDARY_HPP
 #define FUB_BOUNDARY_CONDITION_TRANSMISSIVE_BOUNDARY_HPP
 
-#include "fub/AMReX/PatchHierarchy.hpp"
+#include "fub/AMReX/PatchHierarchyExample.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/AMReX/cutcell/PatchHierarchy.hpp"
 #include "fub/Equation.hpp"

@@ -1,4 +1,5 @@
 // Copyright (c) 2019 Maikel Nadolski
+// Copyright (c) 2019 Patrick Denzler
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,8 +19,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_AMREX_INTEGRATOR_CONTEXT_HPP
-#define FUB_AMREX_INTEGRATOR_CONTEXT_HPP
+#ifndef FUB_SAMRAI_INTEGRATOR_CONTEXT_HPP
+#define FUB_SAMRAI_INTEGRATOR_CONTEXT_HPP
 
 #include "fub/Direction.hpp"
 #include "fub/Duration.hpp"
@@ -27,18 +28,14 @@
 #include "fub/TimeStepError.hpp"
 #include "fub/ext/outcome.hpp"
 
-#include "fub/AMReX/GriddingAlgorithm.hpp"
-#include "fub/AMReX/PatchHierarchyExample.hpp"
-
-#include <AMReX_FluxRegister.H>
-#include <AMReX_MultiFab.H>
+#include "fub/SAMRAI/GriddingAlgorithm.hpp"
 
 #include <array>
 #include <memory>
 #include <vector>
 
 namespace fub {
-namespace amrex {
+namespace samrai {
 
 class IntegratorContext;
 
@@ -74,8 +71,6 @@ public:
   /// @{
   /// \name Member Accessors
 
-  int Rank() const noexcept;
-
   /// \brief Returns the current boundary condition for the specified level.
   const BoundaryCondition& GetBoundaryCondition(int level) const;
   BoundaryCondition& GetBoundaryCondition(int level);
@@ -83,7 +78,7 @@ public:
   /// \brief Returns a shared pointer to the underlying GriddingAlgorithm which
   /// owns the simulation.
   const std::shared_ptr<GriddingAlgorithm>& GetGriddingAlgorithm() const
-      noexcept;
+  noexcept;
 
   /// \brief Returns a reference to const PatchHierarchy which is a member of
   /// the GriddingAlgorithm.
@@ -106,7 +101,7 @@ public:
 
   /// \brief Returns the MultiFab associated with level data with ghost cells on
   /// the specifed level number and direction.
-  ::amrex::MultiFab& GetScratch(int level);
+  ::amrex::MultiFab& GetScratch(int level, Direction dir);
 
   /// \brief Returns the MultiFab associated with flux data on the specifed
   /// level number and direction.
@@ -114,11 +109,11 @@ public:
 
   /// \brief Returns the current time level for data at the specified refinement
   /// level and direction.
-  Duration GetTimePoint(int level = 0) const;
+  Duration GetTimePoint(int level, Direction dir) const;
 
   /// \brief Returns the current number of cycles for data at the specified
   /// refinement level and direction.
-  std::ptrdiff_t GetCycles(int level = 0) const;
+  std::ptrdiff_t GetCycles(int level, Direction dir) const;
 
   /// \brief Returns the geometry object for the specified refinement level.
   const ::amrex::Geometry& GetGeometry(int level) const;
@@ -153,36 +148,30 @@ public:
   void ResetHierarchyConfiguration(int level = 0);
 
   /// \brief Sets the cycle count for a specific level number and direction.
-  void SetCycles(std::ptrdiff_t cycle, int level);
+  void SetCycles(std::ptrdiff_t cycle, int level, Direction dir);
 
   /// \brief Sets the time point for a specific level number and direction.
-  void SetTimePoint(Duration t, int level);
+  void SetTimePoint(Duration t, int level, Direction dir);
   /// @}
 
   /// @{
   /// \name Member functions relevant for the level integrator algorithm.
 
-  /// \brief Updates time point and cycle counter for the patch hierarchy.
-  void PostAdvanceHierarchy();
-
   /// \brief On each first subcycle this will regrid the data if neccessary.
-  void PreAdvanceLevel(int level_num, Duration dt, int subcycle);
+  void PreAdvanceLevel(int level_num, Direction dir, Duration dt, int subcycle);
 
   /// \brief Increases the internal time stamps and cycle counters for the
   /// specified level number and direction.
-  Result<void, TimeStepTooLarge> PostAdvanceLevel(int level_num, Duration dt,
-                                                  int subcycle);
+  Result<void, TimeStepTooLarge> PostAdvanceLevel(int level_num, Direction dir,
+                                                  Duration dt, int subcycle);
 
   /// \brief Fills the ghost layer of the scratch data and interpolates in the
   /// coarse fine layer.
-  void FillGhostLayerTwoLevels(int level, BoundaryCondition& fbc, int coarse,
-                               BoundaryCondition& cbc);
-  void FillGhostLayerTwoLevels(int level, int coarse);
+  void FillGhostLayerTwoLevels(int level, int coarse, Direction direction);
 
   /// \brief Fills the ghost layer of the scratch data and does nothing in the
   /// coarse fine layer.
-  void FillGhostLayerSingleLevel(int level, BoundaryCondition& bc);
-  void FillGhostLayerSingleLevel(int level);
+  void FillGhostLayerSingleLevel(int level, Direction direction);
 
   /// \brief Returns a estimate for a stable time step size which can be taken
   /// for specified level number in direction dir.
@@ -197,22 +186,22 @@ public:
   void UpdateConservatively(int level, Duration dt, Direction dir);
 
   /// \brief Reconstruct complete state variables from conservative ones.
-  void CompleteFromCons(int level, Duration dt);
+  void CompleteFromCons(int level, Duration dt, Direction dir);
 
   /// \brief Accumulate fluxes on the coarse fine interfaces for a specified
   /// fine level number.
-  void AccumulateCoarseFineFluxes(int level, double time_scale, Direction dir);
+  void AccumulateCoarseFineFluxes(int level, Duration dt, Direction dir);
 
   /// \brief Replace the coarse fluxes by accumulated fine fluxes on the coarse
   /// fine interfaces.
-  void ApplyFluxCorrection(int fine, int coarse, Duration dt);
+  void ApplyFluxCorrection(int fine, int coarse, Duration dt, Direction dir);
 
   /// \brief Resets all accumulates fluxes to zero.
-  void ResetCoarseFineFluxes(int fine, int coarse);
+  void ResetCoarseFineFluxes(int fine, int coarse, Direction dir);
 
   /// \brief Coarsen scratch data from a fine level number to a coarse level
   /// number.
-  void CoarsenConservatively(int fine, int coarse);
+  void CoarsenConservatively(int fine, int coarse, Direction dir);
   ///@}
 
 private:
@@ -226,21 +215,23 @@ private:
     ~LevelData() noexcept = default;
 
     /// Scratch space with ghost cell widths
-    ::amrex::MultiFab scratch;
+    // std::array<::amrex::MultiFab, 3> scratch;
+    std::shared_ptr<SAMRAI::hier::PatchLevel> scratch;
 
     /// These arrays will store the fluxes for each patch level which is present
     /// in the patch hierarchy. These will need to be rebuilt if the
     /// PatchHierarchy changes.
-    std::array<::amrex::MultiFab, 3> fluxes;
+    // std::array<::amrex::MultiFab, 3> fluxes;
+    std::shared_ptr<SAMRAI::hier::PatchLevel> fluxes;
 
     /// FluxRegister accumulate fluxes on coarse fine interfaces between
     /// refinement level. These will need to be rebuilt whenever the hierarchy
     /// changes.
-    ::amrex::FluxRegister coarse_fine;
+    // ::amrex::FluxRegister coarse_fine;
 
-    Duration time_point{};
-    Duration regrid_time_point{};
-    std::ptrdiff_t cycles{};
+    std::array<Duration, 3> time_point;
+    std::array<Duration, 3> regrid_time_point;
+    std::array<std::ptrdiff_t, 3> cycles;
   };
 
   int ghost_cell_width_;
