@@ -21,18 +21,19 @@
 #ifndef FUB_SAMRAI_TAGGING_HPP
 #define FUB_SAMRAI_TAGGING_HPP
 
+#include "GriddingAlgorithm.hpp"
 #include "fub/CartesianCoordinates.hpp"
 #include "fub/SAMRAI/ViewPatch.hpp"
 #include "fub/core/mdspan.hpp"
 
 namespace fub {
 namespace samrai {
+
+struct GriddingAlgorithm;
+
 struct TaggingStrategy {
   virtual ~TaggingStrategy() = default;
-  virtual void
-  TagCellsForRefinement(SAMRAI::pdat::CellData<int>& tags,
-                        span<SAMRAI::pdat::CellData<double>*> states,
-                        const CartesianCoordinates& coords) = 0;
+  virtual void TagCellsForRefinement(GriddingAlgorithm& gridding, int level, int tag_id, Duration time_point) = 0;
 
   virtual std::unique_ptr<TaggingStrategy> Clone() const = 0;
 };
@@ -41,10 +42,8 @@ template <typename T> struct TaggingWrapper : public TaggingStrategy {
   TaggingWrapper(const T& tag) : tag_{tag} {}
   TaggingWrapper(T&& tag) : tag_{std::move(tag)} {}
 
-  void TagCellsForRefinement(SAMRAI::pdat::CellData<int>& tags,
-                             span<SAMRAI::pdat::CellData<double>*> states,
-                             const CartesianCoordinates& coords) override {
-    tag_.TagCellsForRefinement(tags, states, coords);
+  void TagCellsForRefinement(GriddingAlgorithm& gridding, int level, int tag_id, Duration time_point) override {
+    tag_.TagCellsForRefinement(gridding, level, tag_id, time_point);
   }
 
   std::unique_ptr<TaggingStrategy> Clone() const override {
@@ -55,6 +54,8 @@ template <typename T> struct TaggingWrapper : public TaggingStrategy {
 };
 
 struct Tagging {
+  Tagging() = default;
+
   Tagging(const Tagging& other) : tag_{other.tag_->Clone()} {}
 
   Tagging& operator=(const Tagging& other) {
@@ -67,36 +68,19 @@ struct Tagging {
 
   template <typename T>
   Tagging(const T& tag) : tag_{std::make_unique<TaggingWrapper<T>>(tag)} {}
+
   template <typename T>
   Tagging(T&& tag)
       : tag_{std::make_unique<TaggingWrapper<remove_cvref_t<T>>>(
             std::move(tag))} {}
 
-  void TagCellsForRefinement(SAMRAI::pdat::CellData<int>& tags,
-                             span<SAMRAI::pdat::CellData<double>*> states,
-                             const CartesianCoordinates& coords) {
+  void TagCellsForRefinement(GriddingAlgorithm& gridding, int level, int tag_id, Duration time_point) {
     if (tag_) {
-      return tag_->TagCellsForRefinement(tags, states, coords);
+      return tag_->TagCellsForRefinement(gridding, level, tag_id, time_point);
     }
   }
 
   std::unique_ptr<TaggingStrategy> tag_;
-};
-
-template <typename Tagging, typename Equation> struct AdaptTagging {
-  AdaptTagging(Tagging tagging, Equation equation)
-      : tagging_{std::move(tagging)}, equation_{std::move(equation)} {}
-
-  void TagCellsForRefinement(SAMRAI::pdat::CellData<int>& tags,
-                             span<SAMRAI::pdat::CellData<double>*> states,
-                             const CartesianCoordinates& coords) {
-    auto state_view = MakeView<Complete<Equation>>(states, equation_);
-    auto tags_view = MakeMdSpan<Equation::Rank()>(tags.getArrayData());
-    tagging_.TagCellsForRefinement(tags_view, state_view, coords);
-  }
-
-  Tagging tagging_;
-  Equation equation_;
 };
 
 } // namespace samrai

@@ -412,14 +412,15 @@ endif()
 # [FiniteVolumeSolver.SAMRAI]
 
 if (SAMRAI_FOUND)
+  find_package(HDF5 REQUIRED)
+
   add_library(FiniteVolumeSolver.SAMRAI
-    src/SAMRAI/HyperbolicSplitIntegratorContext.cpp
+    src/SAMRAI/PatchHierarchy.cpp
     src/SAMRAI/ScopeGuard.cpp
-    src/SAMRAI/utility.cpp
-    src/SAMRAI/CartesianPatchHierarchy.cpp
+    src/SAMRAI/RegisterVariables.cpp
     src/SAMRAI/GriddingAlgorithm.cpp
     src/SAMRAI/ViewPatch.cpp
-    src/SAMRAI/RegisterVariables.cpp)
+    src/SAMRAI/tagging/ConstantBox.cpp)
   target_include_directories(FiniteVolumeSolver.SAMRAI 
     PUBLIC 
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

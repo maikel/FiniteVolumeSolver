@@ -105,6 +105,12 @@ if (SAMRAI_FOUND)
 
   add_executable_with_warnings(SAMRAI.PerfectGas3d SAMRAI/PerfectGas3d.cpp)
   target_link_libraries(SAMRAI.PerfectGas3d FiniteVolumeSolver.SAMRAI)
+
+  add_executable_with_warnings(SAMRAI.VariableDatabase SAMRAI/VariableDatabase.cpp)
+  target_link_libraries(SAMRAI.VariableDatabase FiniteVolumeSolver.SAMRAI)
+
+  add_executable_with_warnings(SAMRAI.PatchHierarchy SAMRAI/PatchHierarchyExample.cpp)
+  target_link_libraries(SAMRAI.PatchHierarchy FiniteVolumeSolver.SAMRAI)
 endif()
 
 add_executable_with_warnings(small_eps small_eps.cpp)

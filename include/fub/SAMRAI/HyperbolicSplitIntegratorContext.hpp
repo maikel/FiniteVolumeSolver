@@ -48,14 +48,38 @@
 namespace fub {
 namespace samrai {
 
+class HyperbolicSplitIntegratorContext;
+
+using HyperbolicMethod =
+    ::fub::HyperbolicMethod<HyperbolicSplitIntegratorContext>;
+
 /// This integrator context delegates grid related tasks to the SAMRAI library.
 class HyperbolicSplitIntegratorContext {
 public:
   using PatchHandle = SAMRAI::hier::Patch*;
-  using BoundaryCondition = function_ref<void(PatchHandle, Location, Duration)>;
 
-  HyperbolicSplitIntegratorContext(const GriddingAlgorithm& gridding,
-                                   DataDescription description, int gcw);
+  /// @{
+  /// \name Constructors and Assignments
+
+  /// \brief Constructs a context object from given a gridding algorithm and a
+  /// numerical method.
+  HyperbolicSplitIntegratorContext(std::shared_ptr<GriddingAlgorithm> gridding,
+                                   HyperbolicMethod method);
+
+  /// \brief Deeply copies a context and all its distributed data for all MPI
+  /// ranks.
+  HyperbolicSplitIntegratorContext(const IntegratorContext&);
+
+  /// \brief Deeply copies a context and all its distributed data for all MPI
+  /// ranks.
+  HyperbolicSplitIntegratorContext& operator=(const IntegratorContext&);
+
+  HyperbolicSplitIntegratorContext(IntegratorContext&&) noexcept = default;
+
+  HyperbolicSplitIntegratorContext& operator=(IntegratorContext&&) noexcept = default;
+
+  ~HyperbolicSplitIntegratorContext() = default;
+  /// @}
 
   /// Invoke a specified function for each patch of a patch level.
   template <typename F> void ForEachPatch(int level_num, F function) {

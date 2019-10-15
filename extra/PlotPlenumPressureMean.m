@@ -1,4 +1,4 @@
-pathToPlenum = '/Volumes/Maikel_Intenso/FiniteVolumeSolver_Build_3d/MultiTube/Matlab/Plenum_x0';
+pathToPlenum = '/group/ag_klima/SFB1029_C01/HLRN/MultiTube/Plenum_x5/';
 
 [X, Y, Z, time, data] = ReadPlenumData(pathToPlenum);
 
@@ -11,8 +11,11 @@ for k = 1:length(time)
 end
 
 %%
-figure
+figure('visible', 'off');
 plot(time, p);
 axis([time(1) time(end) 3e4 3e5]);
 ylabel('Pressure [Pa]');
 xlabel('Time [s]');
+saveas(gcf,'PressureOverTime.png')
+
+fprintf('Mean Pressure: %f Pa\n', mean(p));
