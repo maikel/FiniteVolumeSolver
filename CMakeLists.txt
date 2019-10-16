@@ -39,7 +39,7 @@ else()
   option(FUB_WITH_SAMRAI "Compile with SAMRAI modules." OFF)
 endif()
 
-find_package(MPI REQUIRED COMPONENTS C)
+find_package(MPI REQUIRED COMPONENTS C CXX)
 
 # Try to find AMReX (optional)
 find_package(AMReX QUIET)

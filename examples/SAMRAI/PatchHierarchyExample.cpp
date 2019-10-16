@@ -25,6 +25,8 @@
 #include <SAMRAI/appu/VisItDataWriter.h>
 #include <SAMRAI/geom/CartesianGridGeometry.h>
 #include <SAMRAI/hier/Patch.h>
+#include <SAMRAI/pdat/SideDataFactory.h>
+
 #include <boost/container/static_vector.hpp>
 #include "fub/SAMRAI/GriddingAlgorithm.hpp"
 #include "fub/SAMRAI/tagging/ConstantBox.hpp"
@@ -153,11 +155,30 @@ int main(int argc, char** argv) {
     std::transform(data_ids.begin(), data_ids.end(), datas.begin(), [&](int id) -> SAMRAI::pdat::CellData<double>* {
         return static_cast<SAMRAI::pdat::CellData<double>*>(patch->getPatchData(id).get());
     });
-
-    //fub::BasicView<fub::Complete<Eq>> basic_view = fub::samrai::MakeView<fub::Complete<Eq>>(datas, equation);
-    //fub::View<fub::Complete<Eq>> view = Subview(basic_view, fub::Box<0>(basic_view));
-    //ForEachIndex(fub::Box<0>(view), [&](std::ptrdiff_t i, std::ptrdiff_t j) {
-    //  fmt::print("mass({}, {}) = {}\n", i, j, view.mass(i, j));
-    //});
   }
+
+  const SAMRAI::hier::IntVector ghosts(dim, 2);
+  std::shared_ptr<SAMRAI::hier::PatchDescriptor> scratch_descriptor = std::make_shared<SAMRAI::hier::PatchDescriptor>();
+  for (int id : data_desc.data_ids) {
+    std::shared_ptr<SAMRAI::hier::Variable> variable{};
+    if (vardb->mapIndexToVariable(id, variable)) {
+      const std::string& name = variable->getName();
+      const int depth = static_cast<SAMRAI::pdat::CellVariable<double>*>(variable.get())->getDepth();
+      scratch_descriptor->definePatchDataComponent(name, std::make_shared<SAMRAI::pdat::CellDataFactory<double>>(depth, ghosts));
+    }
+  }
+  scratch_descriptor->printClassData(SAMRAI::tbox::pout);
+
+
+  const SAMRAI::hier::IntVector face_ghosts(dim, 1);
+  std::shared_ptr<SAMRAI::hier::PatchDescriptor> flux_descriptor = std::make_shared<SAMRAI::hier::PatchDescriptor>();
+  for (int id : fub::span(data_desc.data_ids.data(), data_desc.n_cons_variables)) {
+    std::shared_ptr<SAMRAI::hier::Variable> variable{};
+    if (vardb->mapIndexToVariable(id, variable)) {
+      const std::string& name = variable->getName();
+      const int depth = static_cast<SAMRAI::pdat::CellVariable<double>*>(variable.get())->getDepth();
+      flux_descriptor->definePatchDataComponent(name, std::make_shared<SAMRAI::pdat::SideDataFactory<double>>(depth, face_ghosts, true));
+    }
+  }
+  flux_descriptor->printClassData(SAMRAI::tbox::pout);
 }

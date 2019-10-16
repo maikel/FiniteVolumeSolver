@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/AMReX/PatchHierarchyExample.hpp"
+#include "fub/AMReX/PatchHierarchy.hpp"
 #include "fub/AMReX/ScopeGuard.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/equations/PerfectGas.hpp"
