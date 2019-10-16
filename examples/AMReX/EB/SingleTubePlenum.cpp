@@ -105,6 +105,8 @@ struct ProgramOptions {
 
     output_directory = GetOptionOr("output.directory", output_directory);
     x_probes = GetOptionOr("output.x_probes", x_probes);
+    checkpoint_interval = fub::Duration(
+                                        GetOptionOr("output.checkpoint_interval", checkpoint_interval.count()));
   }
 
   static boost::program_options::options_description GetCommandLineOptions() {
@@ -124,6 +126,7 @@ struct ProgramOptions {
     ("plenum.temperature", po::value<double>(), "Temperature value for the plenum")
     ("plenum.outlet_radius", po::value<double>(), "Radius of plenum outlet")
     ("output.directory", po::value<double>(), "Output directory")
+    ("output.checkpoint_interval", po::value<double>(), "Time interval to make checkpoint ")
     ("output.x_probes", po::value<std::vector<double>>()->multitoken(), "Coordinates in x direction for locations where the state is measured in each time step.");
     // clang-format on
     desc.add(prob_desc);
@@ -153,7 +156,8 @@ struct ProgramOptions {
     BOOST_LOG(log) << "  - output.directory = '" << output_directory << "'";
     BOOST_LOG(log) << fmt::format("  - output.x_probes = {{{}}}",
                                   fmt::join(x_probes, ", "));
-
+    BOOST_LOG(log) << "  - output.checkpoint_interval = "
+    << checkpoint_interval.count() << " [s]";
     if (!checkpoint.empty()) {
       BOOST_LOG(log) << "Restart simulation from checkpoint '" << checkpoint
                      << "'!";
@@ -170,6 +174,7 @@ struct ProgramOptions {
   double plenum_outlet_radius{r_tube};
   std::string output_directory{"SingleTube"};
   std::vector<double> x_probes{};
+  fub::Duration checkpoint_interval{0.0001};
 };
 
 struct TubeSolverOptions {
@@ -835,6 +840,8 @@ void MyMain(const boost::program_options::variables_map& vm) {
   output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
          solver.GetTimePoint(), 0);
   fub::RunOptions run_options(vm);
-  run_options.output_frequency.push_back(1);
+  run_options.output_interval =
+  std::vector{po.checkpoint_interval, run_options.output_interval[0]};
+  run_options.output_frequency = std::vector{0, 0, 1};
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }
