@@ -744,13 +744,13 @@ void MyMain(const boost::program_options::variables_map& vm) {
       boost::archive::text_iarchive ia(ifs);
       std::vector<fub::Duration> last_ignitions;
       ia >> last_ignitions;
+      ignition.SetLastIgnitionTimePoints(last_ignitions);
     }
-    ignition.SetLastIgnitionTimePoints(last_ignitions);
     input =
         ReadAndBroadcastFile(checkpoint + "/Valve", comm);
     ifs = std::istringstream(input);
     boost::archive::text_iarchive ia(ifs);
-    ia >> *valve;
+    ia >> *valve.GetSharedState();
   }
 
   fub::DimensionalSplitSystemSourceSolver ign_solver(system_solver, ignition,
