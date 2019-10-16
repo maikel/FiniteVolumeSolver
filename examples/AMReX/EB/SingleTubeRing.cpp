@@ -718,7 +718,7 @@ void MyMain(const boost::program_options::variables_map& vm) {
   }
   if (!checkpoint.empty()) {
     MPI_Comm comm = context.GetMpiCommunicator();
-    std::string input = ReadAndBroadcastFile(checkpoint + "/Ignition", comm);
+    std::string input = fub::ReadAndBroadcastFile(checkpoint + "/Ignition", comm);
     std::istringstream ifs(input);
     {
       boost::archive::text_iarchive ia(ifs);
@@ -726,7 +726,7 @@ void MyMain(const boost::program_options::variables_map& vm) {
       ia >> last_ignitions;
       ignition.SetLastIgnitionTimePoints(last_ignitions);
     }
-    input = ReadAndBroadcastFile(checkpoint + "/Valve", comm);
+    input = fub::ReadAndBroadcastFile(checkpoint + "/Valve", comm);
     ifs = std::istringstream(input);
     boost::archive::text_iarchive ia(ifs);
     ia >> *valve.GetSharedState();
