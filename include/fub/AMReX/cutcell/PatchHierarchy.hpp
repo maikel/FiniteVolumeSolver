@@ -22,7 +22,7 @@
 #define FUB_AMREX_CUTCELL_PATCH_HIERARCHY_HPP
 
 #include "fub/AMReX/CartesianGridGeometry.hpp"
-#include "fub/AMReX/PatchHierarchyExample.hpp"
+#include "fub/AMReX/PatchHierarchy.hpp"
 #include "fub/CutCellData.hpp"
 #include "fub/Duration.hpp"
 #include "fub/Equation.hpp"
