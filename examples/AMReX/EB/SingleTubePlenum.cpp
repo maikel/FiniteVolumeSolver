@@ -320,7 +320,7 @@ auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
   auto embedded_boundary = amrex::EB2::makeIntersection(
       amrex::EB2::CylinderIF(r_outer, 0.5, 0, {0.25, 0.0, 0.0}, true),
       amrex::EB2::CylinderIF(r_tube, 0.2, 0, {1e-6, 0.0, 0.0}, true),
-      amrex::EB2::CylinderIF(0.5 * r_tube, 0.2, 0, {0.5, 0.0, 0.0}, true),
+      amrex::EB2::CylinderIF(po.plenum_outlet_radius, 0.2, 0, {0.5, 0.0, 0.0}, true),
       fub::amrex::Geometry(fub::ConeIF({0.5, 0.0, 0.0}, r_outer, 0.04, true)) );
   auto shop = amrex::EB2::makeShop(embedded_boundary);
 
@@ -354,12 +354,18 @@ auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
 
   ::amrex::RealBox inlet{{xbox.lo(0), -r_tube, -r_tube},
                          {0.01, +r_tube, +r_tube}};
-  const ::amrex::Box refine_box = BoxWhichContains(inlet, coarse_geom);
-  ConstantBox constant_box{refine_box};
+  ::amrex::Box refine_box = BoxWhichContains(inlet, coarse_geom);
+  ConstantBox constant_in_box{refine_box};
+
+
+  ::amrex::RealBox outlet{{0.5, xbox.lo(1), xbox.lo(2)}, {xbox.hi(0), xbox.hi(1), xbox.hi(2)}};
+  refine_box = BoxWhichContains(outlet, coarse_geom);
+  ConstantBox constant_out_box{refine_box};
+  
+  outlet = amrex::RealBox{{xbox.hi(0) - 0.01, xbox.lo(1), xbox.lo(2)}, {xbox.hi(0), xbox.hi(1), xbox.hi(2)}};
+  const ::amrex::Box outlet_box = BoxWhichContains(outlet, coarse_geom);
 
   //  const double p0 = 101325.0;
-  ::amrex::RealBox outlet{{xbox.hi(0) - 0.01, xbox.lo(1), xbox.lo(2)}, {xbox.hi(0), xbox.hi(1), xbox.hi(2)}};
-  const ::amrex::Box outlet_box = BoxWhichContains(outlet, coarse_geom);
   BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
                                   IsentropicPressureBoundary{"RightPlenumBoundary", equation, outlet_box,
                                   101325.0, fub::Direction::X, 1}}};
@@ -372,7 +378,7 @@ auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
     if (checkpoint.empty()) {
       std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
           PatchHierarchy(equation, geometry, options), initial_data,
-          TagAllOf(TagCutCells(), gradients, constant_box, TagBuffer(2)),
+          TagAllOf(TagCutCells(), gradients, constant_in_box, constant_out_box, TagBuffer(2)),
           boundary_condition);
       gridding->InitializeHierarchy(0.0);
       return gridding;
@@ -383,7 +389,7 @@ auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
           options);
       return std::make_shared<GriddingAlgorithm>(
           std::move(h), initial_data,
-          TagAllOf(TagCutCells(), gradients, constant_box, TagBuffer(2)),
+          TagAllOf(TagCutCells(), gradients, constant_in_box, constant_out_box, TagBuffer(2)),
           boundary_condition);
     }
   }();
