@@ -57,35 +57,10 @@ static constexpr int Tube_Rank = 1;
 static constexpr int Plenum_Rank = AMREX_SPACEDIM;
 
 static constexpr double r_tube = 0.015;
-// static constexpr double r_outer = 0.045;
 
 template <typename T>
 using ProbesView =
     fub::basic_mdspan<T, fub::extents<AMREX_SPACEDIM, fub::dynamic_extent>>;
-
-std::string ReadAndBroadcastFile(std::string filepath, MPI_Comm comm) {
-  int rank = -1;
-  MPI_Comm_rank(comm, &rank);
-  std::string buffer{};
-  int size = -1;
-  if (rank == 0) {
-    std::ifstream file(filepath);
-    if (!file) {
-      throw std::runtime_error(
-          fmt::format("Could not open file '{}'.", filepath));
-    }
-    file.seekg(0, std::ios::end);
-    size = static_cast<int>(file.tellg());
-  }
-  MPI_Bcast(&size, 1, MPI_INT, 0, comm);
-  buffer.resize(size);
-  if (rank == 0) {
-    std::ifstream file(filepath);
-    file.read(buffer.data(), size);
-  }
-  MPI_Bcast(buffer.data(), size, MPI_CHAR, 0, comm);
-  return buffer;
-}
 
 struct ProgramOptions {
   ProgramOptions() = default;
