@@ -99,12 +99,14 @@ struct ProgramOptions {
     tube_n_cells = tube_n_cells - tube_n_cells % 8;
 
     plenum_temperature = GetOptionOr("plenum.temperature", plenum_temperature);
-    plenum_outlet_radius = GetOptionOr("plenum.outlet_radius", plenum_outlet_radius);
+    plenum_outlet_radius =
+        GetOptionOr("plenum.outlet_radius", plenum_outlet_radius);
     plenum_length = GetOptionOr("plenum.length", plenum_length);
     plenum_jump = GetOptionOr("plenum.jump", plenum_jump);
 
     output_directory = GetOptionOr("output.directory", output_directory);
-    checkpoint_interval = fub::Duration(GetOptionOr("output.checkpoint_interval", checkpoint_interval.count()));
+    checkpoint_interval = fub::Duration(
+        GetOptionOr("output.checkpoint_interval", checkpoint_interval.count()));
     x_probes = GetOptionOr("output.x_probes", x_probes);
   }
 
@@ -157,7 +159,8 @@ struct ProgramOptions {
     BOOST_LOG(log) << "  - plenum.length= " << plenum_length;
     BOOST_LOG(log) << "  - plenum.jump= " << plenum_jump;
     BOOST_LOG(log) << "  - output.directory = '" << output_directory << "'";
-    BOOST_LOG(log) << "  - output.checkpoint_interval = " << checkpoint_interval.count() << " [s]";
+    BOOST_LOG(log) << "  - output.checkpoint_interval = "
+                   << checkpoint_interval.count() << " [s]";
     BOOST_LOG(log) << fmt::format("  - output.x_probes = {{{}}}",
                                   fmt::join(x_probes, ", "));
 
@@ -178,7 +181,7 @@ struct ProgramOptions {
   double plenum_jump{2 * r_tube};
   double plenum_length{0.25};
   fub::Duration checkpoint_interval{0.0001};
-  std::string output_directory{"SingleTube"};
+  std::string output_directory{"SingleTubeRing"};
   std::vector<double> x_probes{};
 };
 
@@ -304,43 +307,45 @@ auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
       amrex::Box{{}, {n_cells[0] - 1, n_cells[1] - 1, n_cells[2] - 1}}, &xbox,
       -1, periodicity.data());
 
-  
-auto MakePlenum2D = [](auto... points) {
-  fub::Polygon::Vector xs{};
-  fub::Polygon::Vector ys{};
+  auto MakePlenum2D = [](auto... points) {
+    fub::Polygon::Vector xs{};
+    fub::Polygon::Vector ys{};
 
-  (xs.push_back(std::get<0>(points)), ...);
-  (ys.push_back(std::get<1>(points)), ...);
+    (xs.push_back(std::get<0>(points)), ...);
+    (ys.push_back(std::get<1>(points)), ...);
 
-  return fub::Polygon(std::move(xs), std::move(ys));
-};
+    return fub::Polygon(std::move(xs), std::move(ys));
+  };
 
-const double r_inner = r_tube;
-const double d_tube = 2 * r_tube;
+  const double r_inner = r_tube;
+  const double d_tube = 2 * r_tube;
 
-auto plenum2D = MakePlenum2D(
-        std::pair{+0.00, r_inner},
-        std::pair{+po.plenum_length, r_inner},
-        std::pair{+po.plenum_length + 0.03, r_inner + po.plenum_jump + r_tube - po.plenum_outlet_radius},
-        std::pair{+1.00, r_inner + po.plenum_jump + r_tube - po.plenum_outlet_radius},
-        std::pair{+1.00, r_inner + po.plenum_jump + r_tube + po.plenum_outlet_radius},
-        std::pair{+po.plenum_length + 0.03, r_inner + po.plenum_jump + r_tube + po.plenum_outlet_radius},
-        std::pair{+po.plenum_length, r_inner + 2*po.plenum_jump + d_tube},
-        std::pair{+0.00, r_inner + 2*po.plenum_jump + d_tube},
-        std::pair{+0.00, r_inner});
+  auto plenum2D = MakePlenum2D(
+      std::pair{+0.00, r_inner}, std::pair{+po.plenum_length, r_inner},
+      std::pair{+po.plenum_length + 0.03,
+                r_inner + po.plenum_jump + r_tube - po.plenum_outlet_radius},
+      std::pair{+1.00,
+                r_inner + po.plenum_jump + r_tube - po.plenum_outlet_radius},
+      std::pair{+1.00,
+                r_inner + po.plenum_jump + r_tube + po.plenum_outlet_radius},
+      std::pair{+po.plenum_length + 0.03,
+                r_inner + po.plenum_jump + r_tube + po.plenum_outlet_radius},
+      std::pair{+po.plenum_length, r_inner + 2 * po.plenum_jump + d_tube},
+      std::pair{+0.00, r_inner + 2 * po.plenum_jump + d_tube},
+      std::pair{+0.00, r_inner});
 
-const double r_tube_center = 0.5 * (r_inner + r_inner + 2*po.plenum_jump + d_tube);
+  const double r_tube_center =
+      0.5 * (r_inner + r_inner + 2 * po.plenum_jump + d_tube);
 
-auto Center = [r_tube_center](double x, double phi) -> ::amrex::RealArray {
-  using std::cos;
-  using std::sin;
-  return {x, r_tube_center * sin(phi), r_tube_center * cos(phi)};
-};
+  auto Center = [r_tube_center](double x, double phi) -> ::amrex::RealArray {
+    using std::cos;
+    using std::sin;
+    return {x, r_tube_center * sin(phi), r_tube_center * cos(phi)};
+  };
 
-  auto embedded_boundary = amrex::EB2::makeUnion(
-      amrex::EB2::makeIntersection(
-          fub::amrex::Geometry(fub::Invert(fub::RotateAxis(plenum2D))),
-          amrex::EB2::CylinderIF(r_tube, 0.3, 0, Center(-0.1, 0.0), true)));
+  auto embedded_boundary = amrex::EB2::makeUnion(amrex::EB2::makeIntersection(
+      fub::amrex::Geometry(fub::Invert(fub::RotateAxis(plenum2D))),
+      amrex::EB2::CylinderIF(r_tube, 0.3, 0, Center(-0.1, 0.0), true)));
   auto shop = amrex::EB2::makeShop(embedded_boundary);
 
   fub::IdealGasMix<Plenum_Rank> equation{mechanism};
@@ -377,10 +382,12 @@ auto Center = [r_tube_center](double x, double phi) -> ::amrex::RealArray {
   ConstantBox constant_box{refine_box};
 
   //  const double p0 = 101325.0;
-  ::amrex::RealBox outlet{{xbox.hi(0) - 0.01, xbox.lo(1), xbox.lo(2)}, {xbox.hi(0), xbox.hi(1), xbox.hi(2)}};
+  ::amrex::RealBox outlet{{xbox.hi(0) - 0.01, xbox.lo(1), xbox.lo(2)},
+                          {xbox.hi(0), xbox.hi(1), xbox.hi(2)}};
   const ::amrex::Box outlet_box = BoxWhichContains(outlet, coarse_geom);
-  BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
-                                  IsentropicPressureBoundary{"RightPlenumBoundary", equation, outlet_box,
+  BoundarySet boundary_condition{
+      {TransmissiveBoundary{fub::Direction::X, 0},
+       IsentropicPressureBoundary{"RightPlenumBoundary", equation, outlet_box,
                                   101325.0, fub::Direction::X, 1}}};
 
   std::shared_ptr gridding = [&] {
@@ -482,11 +489,10 @@ int main(int argc, char** argv) {
   }
 }
 
-void WriteCheckpoint(
-    const std::string& path,
-    const fub::amrex::MultiBlockGriddingAlgorithm& grid,
-    std::shared_ptr<fub::amrex::PressureValve> valve,
-    int rank, const fub::amrex::MultiBlockIgniteDetonation& ignition) {
+void WriteCheckpoint(const std::string& path,
+                     const fub::amrex::MultiBlockGriddingAlgorithm& grid,
+                     std::shared_ptr<fub::amrex::PressureValve> valve, int rank,
+                     const fub::amrex::MultiBlockIgniteDetonation& ignition) {
   auto tubes = grid.GetTubes();
   std::string name = fmt::format("{}/Tube", path);
   fub::amrex::WriteCheckpointFile(name, tubes[0]->GetPatchHierarchy());
@@ -506,7 +512,6 @@ void WriteCheckpoint(
     oa << ignition.GetLastIgnitionTimePoints();
   }
 }
-
 
 template <typename Logger>
 void LogTubeProbes(Logger& log, ProbesView<const double> probes,
@@ -633,10 +638,10 @@ void InitializeProbeOutput(const ProgramOptions& po) {
         });
     init_probe_output(
         fmt::format("{}/ProbesPlenum.dat", po.output_directory),
-                      fmt::format("{:24}{:24}{:24}{:24}{:24}{:24}{:24}{:24}{:24}{:24}{:24}{:24}\n",
-                    "Time", "X", "Density", "VelocityX", "VelocityY",
-                    "VelocityZ", "Temperature", "Pressure", "SpeedOfSound",
-                    "H2", "O2", "H2O"),
+        fmt::format(
+            "{:24}{:24}{:24}{:24}{:24}{:24}{:24}{:24}{:24}{:24}{:24}{:24}\n",
+            "Time", "X", "Density", "VelocityX", "VelocityY", "VelocityZ",
+            "Temperature", "Pressure", "SpeedOfSound", "H2", "O2", "H2O"),
         [](const boost::log::attribute_value_set& attrs) -> bool {
           if (attrs.count("Channel")) {
             auto channel = attrs["Channel"].extract<std::string>();
@@ -681,14 +686,14 @@ void MyMain(const boost::program_options::variables_map& vm) {
   auto [tube, valve] = MakeTubeSolver(po, mechanism, vm);
   auto valve_state = valve.GetSharedState();
 
-  ::amrex::RealBox inlet{{-0.1, -r_tube, -r_tube}, {0.05, +r_tube, +r_tube}};
-
   fub::amrex::BlockConnection connection;
   connection.direction = fub::Direction::X;
   connection.side = 0;
   connection.plenum.id = 0;
-  connection.plenum.mirror_box = 
-      plenum.GetGriddingAlgorithm()->GetPatchHierarchy().GetGeometry(0).Domain();  
+  connection.plenum.mirror_box = plenum.GetGriddingAlgorithm()
+                                     ->GetPatchHierarchy()
+                                     .GetGeometry(0)
+                                     .Domain();
   connection.tube.id = 0;
   connection.tube.mirror_box =
       tube.GetGriddingAlgorithm()->GetPatchHierarchy().GetGeometry(0).Domain();
@@ -721,8 +726,7 @@ void MyMain(const boost::program_options::variables_map& vm) {
       ia >> last_ignitions;
       ignition.SetLastIgnitionTimePoints(last_ignitions);
     }
-    input =
-        ReadAndBroadcastFile(checkpoint + "/Valve", comm);
+    input = ReadAndBroadcastFile(checkpoint + "/Valve", comm);
     ifs = std::istringstream(input);
     boost::archive::text_iarchive ia(ifs);
     ia >> *valve.GetSharedState();
@@ -756,7 +760,8 @@ void MyMain(const boost::program_options::variables_map& vm) {
 
   const double r_inner = r_tube;
   const double d_tube = 2 * r_tube;
-  const double r_tube_center = 0.5 * (r_inner + r_inner + 2*po.plenum_jump + d_tube);
+  const double r_tube_center =
+      0.5 * (r_inner + r_inner + 2 * po.plenum_jump + d_tube);
 
   std::vector<double> probes_buffer(n_plenum_probes * 3);
   ProbesView<double> plenum_probes(probes_buffer.data(), n_plenum_probes);
@@ -841,8 +846,8 @@ void MyMain(const boost::program_options::variables_map& vm) {
           auto tubes = gridding->GetTubes();
           int k = 0;
           for (auto& tube : tubes) {
-            std::string name =
-                fmt::format("{}/Matlab/Tube_{}/plt{:05}.dat", base_name, k, cycle);
+            std::string name = fmt::format("{}/Matlab/Tube_{}/plt{:05}.dat",
+                                           base_name, k, cycle);
             fub::amrex::WriteTubeData(name, tube->GetPatchHierarchy(),
                                       tube_equation, timepoint, cycle, comm);
             k = k + 1;
@@ -855,8 +860,8 @@ void MyMain(const boost::program_options::variables_map& vm) {
                                           base_name, k, cycle);
                           auto& plenum = gridding->GetPlena()[0];
                           fub::amrex::cutcell::Write2Dfrom3D(
-                              name, plenum->GetPatchHierarchy(), out_box, plenum_equation,
-                              timepoint, cycle, comm);
+                              name, plenum->GetPatchHierarchy(), out_box,
+                              plenum_equation, timepoint, cycle, comm);
                           k = k + 1;
                         });
           const ::amrex::Box out_box = output_boxes.back();
@@ -864,8 +869,8 @@ void MyMain(const boost::program_options::variables_map& vm) {
               fmt::format("{}/Matlab/Plenum_y0/plt{:05}.dat", base_name, cycle);
           auto& plenum = gridding->GetPlena()[0];
           fub::amrex::cutcell::Write2Dfrom3D(name, plenum->GetPatchHierarchy(),
-                                            out_box, plenum_equation, timepoint, cycle,
-                                            comm);
+                                             out_box, plenum_equation,
+                                             timepoint, cycle, comm);
         }
       };
 
@@ -873,7 +878,8 @@ void MyMain(const boost::program_options::variables_map& vm) {
   output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
          solver.GetTimePoint(), 0);
   fub::RunOptions run_options(vm);
-  run_options.output_interval = std::vector<fub::Duration>{po.checkpoint_interval, run_options.output_interval[0]};
+  run_options.output_interval = std::vector<fub::Duration>{
+      po.checkpoint_interval, run_options.output_interval[0]};
   run_options.output_frequency = std::vector{0, 0, 1};
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

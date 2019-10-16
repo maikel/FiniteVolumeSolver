@@ -63,30 +63,6 @@ template <typename T>
 using ProbesView =
     fub::basic_mdspan<T, fub::extents<AMREX_SPACEDIM, fub::dynamic_extent>>;
 
-std::string ReadAndBroadcastFile(std::string filepath, MPI_Comm comm) {
-  int rank = -1;
-  MPI_Comm_rank(comm, &rank);
-  std::string buffer{};
-  int size = -1;
-  if (rank == 0) {
-    std::ifstream file(filepath);
-    if (!file) {
-      throw std::runtime_error(
-          fmt::format("Could not open file '{}'.", filepath));
-    }
-    file.seekg(0, std::ios::end);
-    size = static_cast<int>(file.tellg());
-  }
-  MPI_Bcast(&size, 1, MPI_INT, 0, comm);
-  buffer.resize(size);
-  if (rank == 0) {
-    std::ifstream file(filepath);
-    file.read(buffer.data(), size);
-  }
-  MPI_Bcast(buffer.data(), size, MPI_CHAR, 0, comm);
-  return buffer;
-}
-
 struct ProgramOptions {
   ProgramOptions() = default;
 
@@ -124,7 +100,8 @@ struct ProgramOptions {
     tube_n_cells = tube_n_cells - tube_n_cells % 8;
 
     plenum_temperature = GetOptionOr("plenum.temperature", plenum_temperature);
-    plenum_outlet_radius = GetOptionOr("plenum.outlet_radius", plenum_outlet_radius);
+    plenum_outlet_radius =
+        GetOptionOr("plenum.outlet_radius", plenum_outlet_radius);
 
     output_directory = GetOptionOr("output.directory", output_directory);
     x_probes = GetOptionOr("output.x_probes", x_probes);
@@ -320,8 +297,9 @@ auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
   auto embedded_boundary = amrex::EB2::makeIntersection(
       amrex::EB2::CylinderIF(r_outer, 0.5, 0, {0.25, 0.0, 0.0}, true),
       amrex::EB2::CylinderIF(r_tube, 0.2, 0, {1e-6, 0.0, 0.0}, true),
-      amrex::EB2::CylinderIF(po.plenum_outlet_radius, 0.2, 0, {0.5, 0.0, 0.0}, true),
-      fub::amrex::Geometry(fub::ConeIF({0.5, 0.0, 0.0}, r_outer, 0.04, true)) );
+      amrex::EB2::CylinderIF(po.plenum_outlet_radius, 0.2, 0, {0.5, 0.0, 0.0},
+                             true),
+      fub::amrex::Geometry(fub::ConeIF({0.5, 0.0, 0.0}, r_outer, 0.04, true)));
   auto shop = amrex::EB2::makeShop(embedded_boundary);
 
   fub::IdealGasMix<Plenum_Rank> equation{mechanism};
@@ -357,17 +335,19 @@ auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
   ::amrex::Box refine_box = BoxWhichContains(inlet, coarse_geom);
   ConstantBox constant_in_box{refine_box};
 
-
-  ::amrex::RealBox outlet{{0.5, xbox.lo(1), xbox.lo(2)}, {xbox.hi(0), xbox.hi(1), xbox.hi(2)}};
+  ::amrex::RealBox outlet{{0.5, xbox.lo(1), xbox.lo(2)},
+                          {xbox.hi(0), xbox.hi(1), xbox.hi(2)}};
   refine_box = BoxWhichContains(outlet, coarse_geom);
   ConstantBox constant_out_box{refine_box};
-  
-  outlet = amrex::RealBox{{xbox.hi(0) - 0.01, xbox.lo(1), xbox.lo(2)}, {xbox.hi(0), xbox.hi(1), xbox.hi(2)}};
+
+  outlet = amrex::RealBox{{xbox.hi(0) - 0.01, xbox.lo(1), xbox.lo(2)},
+                          {xbox.hi(0), xbox.hi(1), xbox.hi(2)}};
   const ::amrex::Box outlet_box = BoxWhichContains(outlet, coarse_geom);
 
   //  const double p0 = 101325.0;
-  BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
-                                  IsentropicPressureBoundary{"RightPlenumBoundary", equation, outlet_box,
+  BoundarySet boundary_condition{
+      {TransmissiveBoundary{fub::Direction::X, 0},
+       IsentropicPressureBoundary{"RightPlenumBoundary", equation, outlet_box,
                                   101325.0, fub::Direction::X, 1}}};
 
   std::shared_ptr gridding = [&] {
@@ -378,7 +358,8 @@ auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
     if (checkpoint.empty()) {
       std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
           PatchHierarchy(equation, geometry, options), initial_data,
-          TagAllOf(TagCutCells(), gradients, constant_in_box, constant_out_box, TagBuffer(2)),
+          TagAllOf(TagCutCells(), gradients, constant_in_box, constant_out_box,
+                   TagBuffer(2)),
           boundary_condition);
       gridding->InitializeHierarchy(0.0);
       return gridding;
@@ -389,7 +370,8 @@ auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
           options);
       return std::make_shared<GriddingAlgorithm>(
           std::move(h), initial_data,
-          TagAllOf(TagCutCells(), gradients, constant_in_box, constant_out_box, TagBuffer(2)),
+          TagAllOf(TagCutCells(), gradients, constant_in_box, constant_out_box,
+                   TagBuffer(2)),
           boundary_condition);
     }
   }();
@@ -469,11 +451,10 @@ int main(int argc, char** argv) {
   }
 }
 
-void WriteCheckpoint(
-    const std::string& path,
-    const fub::amrex::MultiBlockGriddingAlgorithm& grid,
-    std::shared_ptr<fub::amrex::PressureValve> valve,
-    int rank, const fub::amrex::MultiBlockIgniteDetonation& ignition) {
+void WriteCheckpoint(const std::string& path,
+                     const fub::amrex::MultiBlockGriddingAlgorithm& grid,
+                     std::shared_ptr<fub::amrex::PressureValve> valve, int rank,
+                     const fub::amrex::MultiBlockIgniteDetonation& ignition) {
   auto tubes = grid.GetTubes();
   std::string name = fmt::format("{}/Tube", path);
   fub::amrex::WriteCheckpointFile(name, tubes[0]->GetPatchHierarchy());
@@ -493,7 +474,6 @@ void WriteCheckpoint(
     oa << ignition.GetLastIgnitionTimePoints();
   }
 }
-
 
 template <typename Logger>
 void LogTubeProbes(Logger& log, ProbesView<const double> probes,
@@ -620,10 +600,10 @@ void InitializeProbeOutput(const ProgramOptions& po) {
         });
     init_probe_output(
         fmt::format("{}/ProbesPlenum.dat", po.output_directory),
-                      fmt::format("{:24}{:24}{:24}{:24}{:24}{:24}{:24}{:24}{:24}{:24}{:24}{:24}\n",
-                    "Time", "X", "Density", "VelocityX", "VelocityY",
-                    "VelocityZ", "Temperature", "Pressure", "SpeedOfSound",
-                    "H2", "O2", "H2O"),
+        fmt::format(
+            "{:24}{:24}{:24}{:24}{:24}{:24}{:24}{:24}{:24}{:24}{:24}{:24}\n",
+            "Time", "X", "Density", "VelocityX", "VelocityY", "VelocityZ",
+            "Temperature", "Pressure", "SpeedOfSound", "H2", "O2", "H2O"),
         [](const boost::log::attribute_value_set& attrs) -> bool {
           if (attrs.count("Channel")) {
             auto channel = attrs["Channel"].extract<std::string>();
@@ -693,6 +673,27 @@ void MyMain(const boost::program_options::variables_map& vm) {
       tube_equation, context.GetGriddingAlgorithm(),
       fub::amrex::IgniteDetonationOptions(vm, "ignite")};
 
+  std::string checkpoint{};
+  if (vm.count("grid.checkpoint")) {
+    checkpoint = vm["grid.checkpoint"].as<std::string>();
+  }
+  if (!checkpoint.empty()) {
+    MPI_Comm comm = context.GetMpiCommunicator();
+    std::string input =
+        fub::ReadAndBroadcastFile(checkpoint + "/Ignition", comm);
+    std::istringstream ifs(input);
+    {
+      boost::archive::text_iarchive ia(ifs);
+      std::vector<fub::Duration> last_ignitions;
+      ia >> last_ignitions;
+      ignition.SetLastIgnitionTimePoints(last_ignitions);
+    }
+    input = fub::ReadAndBroadcastFile(checkpoint + "/Valve", comm);
+    ifs = std::istringstream(input);
+    boost::archive::text_iarchive ia(ifs);
+    ia >> *valve.GetSharedState();
+  }
+
   fub::DimensionalSplitSystemSourceSolver ign_solver(system_solver, ignition,
                                                      fub::GodunovSplitting{});
 
@@ -725,6 +726,41 @@ void MyMain(const boost::program_options::variables_map& vm) {
     plenum_probes(0, i) = xpos;
     i = i + 1;
   });
+
+  std::vector<double> slice_xs = {-3e-3, 3e-3, 0.1,  0.2, 0.245,
+                                  0.3,   0.4,  0.49, 0.51};
+  std::vector<::amrex::Box> output_boxes{};
+  output_boxes.reserve(slice_xs.size() + 1);
+
+  std::transform(
+      slice_xs.begin(), slice_xs.end(), std::back_inserter(output_boxes),
+      [&](double x0) {
+        const auto& plenum =
+            context.GetGriddingAlgorithm()->GetPlena()[0]->GetPatchHierarchy();
+        const int finest_level = plenum.GetNumberOfLevels() - 1;
+        const ::amrex::Geometry& geom = plenum.GetGeometry(finest_level);
+        const ::amrex::RealBox& probDomain = geom.ProbDomain();
+        const double xlo[] = {x0, probDomain.lo(1), probDomain.lo(2)};
+        const double* xhi = probDomain.hi();
+        const ::amrex::RealBox slice_x(xlo, xhi);
+        ::amrex::Box slice_box = BoxWhichContains(slice_x, geom);
+        slice_box.setBig(0, slice_box.smallEnd(0));
+        return slice_box;
+      });
+
+  output_boxes.push_back([&](double y0) {
+    const auto& plenum =
+        context.GetGriddingAlgorithm()->GetPlena()[0]->GetPatchHierarchy();
+    const int finest_level = plenum.GetNumberOfLevels() - 1;
+    const ::amrex::Geometry& geom = plenum.GetGeometry(finest_level);
+    const ::amrex::RealBox& probDomain = geom.ProbDomain();
+    const double xlo[] = {probDomain.lo(0), y0, probDomain.lo(2)};
+    const double* xhi = probDomain.hi();
+    const ::amrex::RealBox slice_x(xlo, xhi);
+    ::amrex::Box slice_box = BoxWhichContains(slice_x, geom);
+    slice_box.setBig(1, slice_box.smallEnd(1));
+    return slice_box;
+  }(0.0));
 
   boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
       boost::log::keywords::severity = boost::log::trivial::info);
@@ -759,6 +795,39 @@ void MyMain(const boost::program_options::variables_map& vm) {
               tube_equation);
           name = fmt::format("{}/Checkpoint/{:05}", base_name, cycle);
           WriteCheckpoint(name, *gridding, valve_state, rank, ignition);
+        }
+        //
+        // Ouput MATLAB files on each output interval
+        //
+        if (output_num < 2) {
+          auto tubes = gridding->GetTubes();
+          int k = 0;
+          for (auto& tube : tubes) {
+            std::string name = fmt::format("{}/Matlab/Tube_{}/plt{:05}.dat",
+                                           base_name, k, cycle);
+            fub::amrex::WriteTubeData(name, tube->GetPatchHierarchy(),
+                                      tube_equation, timepoint, cycle, comm);
+            k = k + 1;
+          }
+          k = 0;
+          std::for_each(output_boxes.begin(), output_boxes.end() - 1,
+                        [&](const ::amrex::Box& out_box) {
+                          std::string name =
+                              fmt::format("{}/Matlab/Plenum_x{}/plt{:05}.dat",
+                                          base_name, k, cycle);
+                          auto& plenum = gridding->GetPlena()[0];
+                          fub::amrex::cutcell::Write2Dfrom3D(
+                              name, plenum->GetPatchHierarchy(), out_box,
+                              plenum_equation, timepoint, cycle, comm);
+                          k = k + 1;
+                        });
+          const ::amrex::Box out_box = output_boxes.back();
+          std::string name =
+              fmt::format("{}/Matlab/Plenum_y0/plt{:05}.dat", base_name, cycle);
+          auto& plenum = gridding->GetPlena()[0];
+          fub::amrex::cutcell::Write2Dfrom3D(name, plenum->GetPatchHierarchy(),
+                                             out_box, plenum_equation,
+                                             timepoint, cycle, comm);
         }
       };
 

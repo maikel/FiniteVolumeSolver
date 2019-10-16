@@ -183,6 +183,7 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/ext/Eigen.hpp
   include/fub/ext/outcome.hpp
   include/fub/ext/Log.hpp
+  include/fub/ext/Mpi.hpp
   include/fub/flux_method/FluxMethod.hpp
   include/fub/flux_method/GodunovMethod.hpp
   include/fub/flux_method/HllMethod.hpp
@@ -246,6 +247,7 @@ add_library(FiniteVolumeSolver.Solver
   src/tagging/TagBuffer.cpp
   src/tagging/TagCutCells.cpp
   src/CartesianCoordinates.cpp
+  src/ext/Mpi.cpp
   src/split_method/GodunovSplitting.cpp
   src/split_method/StrangSplitting.cpp
   src/geometry/Halfspace.cpp
@@ -415,7 +417,11 @@ if (SAMRAI_FOUND)
   find_package(HDF5 REQUIRED)
 
   add_library(FiniteVolumeSolver.SAMRAI
+    include/fub/SAMRAI/PatchHierarchy.hpp
+    include/fub/SAMRAI/IntegratorContext.hpp
+    include/fub/SAMRAI/GriddingAlgorithm.hpp
     src/SAMRAI/PatchHierarchy.cpp
+    src/SAMRAI/IntegratorContext.cpp
     src/SAMRAI/ScopeGuard.cpp
     src/SAMRAI/RegisterVariables.cpp
     src/SAMRAI/GriddingAlgorithm.cpp
