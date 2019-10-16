@@ -55,10 +55,9 @@ private:
   std::vector<IgniteDetonation> source_terms_;
 
   friend class boost::serialization::access;
-  template<class Archive>
-  void serialize(Archive & ar, unsigned int /* version */)
-  {
-    ar & source_terms_;
+  template <class Archive>
+  void serialize(Archive& ar, unsigned int /* version */) {
+    ar& source_terms_;
   }
 };
 

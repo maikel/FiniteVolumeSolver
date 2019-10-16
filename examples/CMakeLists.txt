@@ -39,8 +39,8 @@ if (AMReX_FOUND AND AMReX_2D_FOUND)
   target_link_libraries(NodalPoisson FiniteVolumeSolver.AMReX)
 
   if (AMReX_EB_FOUND)
-    # add_executable_with_warnings(AMReX.EB.Divider2D AMReX/EB/Divider2D.cpp)
-    # target_link_libraries(AMReX.EB.Divider2D FiniteVolumeSolver.AMReX.EB)
+    add_executable_with_warnings(AMReX.EB.Divider2D AMReX/EB/Divider2D.cpp)
+    target_link_libraries(AMReX.EB.Divider2D FiniteVolumeSolver.AMReX.EB)
 
     add_executable_with_warnings(AMReX.EB.LinearShock2d AMReX/EB/LinearShock2d.cpp)
     target_link_libraries(AMReX.EB.LinearShock2d FiniteVolumeSolver.AMReX.EB)
@@ -73,6 +73,12 @@ if (AMReX_FOUND AND AMReX_3D_FOUND)
     add_executable_with_warnings(AMReX.EB.CoupledLinearShock3d AMReX/EB/CoupledLinearShock3d.cpp)
     target_link_libraries(AMReX.EB.CoupledLinearShock3d FiniteVolumeSolver.AMReX.EB)
 
+    add_executable_with_warnings(AMReX.EB.SingleTubePlenum AMReX/EB/SingleTubePlenum.cpp)
+    target_link_libraries(AMReX.EB.SingleTubePlenum FiniteVolumeSolver.AMReX.EB)
+
+    add_executable_with_warnings(AMReX.EB.SingleTubeRing AMReX/EB/SingleTubeRing.cpp)
+    target_link_libraries(AMReX.EB.SingleTubeRing FiniteVolumeSolver.AMReX.EB)
+
     add_executable_with_warnings(AMReX.EB.MultiTube AMReX/EB/MultiTube.cpp)
     target_link_libraries(AMReX.EB.MultiTube FiniteVolumeSolver.AMReX.EB)
     
@@ -99,6 +105,12 @@ if (SAMRAI_FOUND)
 
   add_executable_with_warnings(SAMRAI.PerfectGas3d SAMRAI/PerfectGas3d.cpp)
   target_link_libraries(SAMRAI.PerfectGas3d FiniteVolumeSolver.SAMRAI)
+
+  add_executable_with_warnings(SAMRAI.VariableDatabase SAMRAI/VariableDatabase.cpp)
+  target_link_libraries(SAMRAI.VariableDatabase FiniteVolumeSolver.SAMRAI)
+
+  add_executable_with_warnings(SAMRAI.PatchHierarchy SAMRAI/PatchHierarchyExample.cpp)
+  target_link_libraries(SAMRAI.PatchHierarchy FiniteVolumeSolver.SAMRAI FiniteVolumeSolver.AMReX)
 endif()
 
 add_executable_with_warnings(small_eps small_eps.cpp)

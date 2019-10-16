@@ -22,6 +22,7 @@
 #define FUB_DURATION_HPP
 
 #include <chrono>
+#include <cmath>
 
 #include <boost/serialization/access.hpp>
 
@@ -34,12 +35,15 @@ using Duration = std::chrono::duration<double>;
 namespace boost::serialization {
 
 template <typename Archive>
-void serialize(Archive& ar, ::fub::Duration t, unsigned int) {
+void serialize(Archive& ar, ::fub::Duration& t, unsigned int) {
   double count = t.count();
-  ar & count;
+  if (!std::isfinite(count)) {
+    count = std::numeric_limits<double>::lowest();
+  }
+  ar& count;
   t = ::fub::Duration(count);
 }
 
-}
+} // namespace boost::serialization
 
 #endif

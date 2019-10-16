@@ -24,6 +24,10 @@
 
 #include <utility>
 
+#include <boost/log/common.hpp>
+#include <boost/log/sources/severity_logger.hpp>
+#include <boost/log/trivial.hpp>
+
 namespace fub::amrex {
 
 namespace po = boost::program_options;
@@ -43,8 +47,7 @@ PressureValveOptions::GetCommandLineOptions(std::string prefix) {
   desc.add_options()(PrefixedName(prefix, "outer_pressure").c_str(),
                      po::value<double>(),
                      "The mean pressure value for the outer side [Pa]")(
-      PrefixedName(prefix, "outer_temperature").c_str(),
-      po::value<double>(),
+      PrefixedName(prefix, "outer_temperature").c_str(), po::value<double>(),
       "The mean pressure value for the outer side [K]")(
       PrefixedName(prefix, "pressure_value_which_opens_boundary").c_str(),
       po::value<double>(),
@@ -62,8 +65,7 @@ PressureValveOptions::GetCommandLineOptions(std::string prefix) {
       "[-]")(PrefixedName(prefix, "equivalence_ratio").c_str(),
              po::value<double>(),
              "The equivalence ratio of the fuel which will be used. [-]")(
-      PrefixedName(prefix, "open_at_interval").c_str(),
-      po::value<double>(),
+      PrefixedName(prefix, "open_at_interval").c_str(), po::value<double>(),
       "If set to non-zero value this pressure valve will only open up once in "
       "a specified time interval. [s]")(
       PrefixedName(prefix, "fuel_measurement_position").c_str(),
@@ -74,13 +76,10 @@ PressureValveOptions::GetCommandLineOptions(std::string prefix) {
       po::value<double>(),
       "If the equivalence ratio at the fuel measurement position is greater "
       "than this value the boundary will be closed. [-]")(
-      PrefixedName(prefix, "efficiency").c_str(),
-      po::value<double>(),
-      "Sets the efficiency of the enthalpy to velocity conversion [-]")
-  (
-   PrefixedName(prefix, "offset").c_str(),
-   po::value<double>(),
-   "Sets an offset for using fuel through this valve. [s]");
+      PrefixedName(prefix, "efficiency").c_str(), po::value<double>(),
+      "Sets the efficiency of the enthalpy to velocity conversion [-]")(
+      PrefixedName(prefix, "offset").c_str(), po::value<double>(),
+      "Sets an offset for using fuel through this valve. [s]");
   return desc;
 }
 
@@ -90,7 +89,7 @@ PressureValveBoundary::PressureValveBoundary(const IdealGasMix<1>& equation,
       shared_valve_{std::make_shared<PressureValve>(PressureValve{})} {}
 
 PressureValveOptions::PressureValveOptions(const po::variables_map& map,
-                                           std::string prefix) {
+                                           std::string p) : prefix{std::move(p)} {
   auto GetOptionOr = [&](const char* opt, double default_value) {
     if (map.count(PrefixedName(prefix, opt))) {
       return map[PrefixedName(prefix, opt)].as<double>();
@@ -99,18 +98,25 @@ PressureValveOptions::PressureValveOptions(const po::variables_map& map,
   };
   outer_pressure = GetOptionOr("outer_pressure", outer_pressure);
   outer_temperature = GetOptionOr("outer_temperature", outer_temperature);
-  pressure_value_which_opens_boundary = GetOptionOr("pressure_value_which_opens_boundary", pressure_value_which_opens_boundary);
-  pressure_value_which_closes_boundary = GetOptionOr("pressure_value_which_closes_boundary", pressure_value_which_closes_boundary);
-  oxygen_measurement_position = GetOptionOr("oxygen_measurement_position", oxygen_measurement_position);
-  oxygen_measurement_criterium = GetOptionOr("oxygen_measurement_criterium", oxygen_measurement_criterium);
+  pressure_value_which_opens_boundary =
+      GetOptionOr("pressure_value_which_opens_boundary",
+                  pressure_value_which_opens_boundary);
+  pressure_value_which_closes_boundary =
+      GetOptionOr("pressure_value_which_closes_boundary",
+                  pressure_value_which_closes_boundary);
+  oxygen_measurement_position =
+      GetOptionOr("oxygen_measurement_position", oxygen_measurement_position);
+  oxygen_measurement_criterium =
+      GetOptionOr("oxygen_measurement_criterium", oxygen_measurement_criterium);
   equivalence_ratio = GetOptionOr("equivalence_ratio", equivalence_ratio);
   open_at_interval =
       Duration(GetOptionOr("open_at_interval", open_at_interval.count()));
-  offset =
-  Duration(GetOptionOr("offset", offset.count()));
+  offset = Duration(GetOptionOr("offset", offset.count()));
   valve_efficiency = GetOptionOr("efficiency", valve_efficiency);
-  fuel_measurement_criterium = GetOptionOr("fuel_measurement_criterium", fuel_measurement_criterium);
-  fuel_measurement_position = GetOptionOr("fuel_measurement_position", fuel_measurement_position);
+  fuel_measurement_criterium =
+      GetOptionOr("fuel_measurement_criterium", fuel_measurement_criterium);
+  fuel_measurement_position =
+      GetOptionOr("fuel_measurement_position", fuel_measurement_position);
 }
 
 PressureValveBoundary::PressureValveBoundary(const IdealGasMix<1>& eq,
@@ -188,6 +194,19 @@ std::vector<double> GatherMoles_(const GriddingAlgorithm& grid, double x,
   return moles;
 }
 
+template <typename GriddingAlgorithm>
+int FindLevel(const ::amrex::Geometry& geom,
+              const GriddingAlgorithm& gridding) {
+  for (int level = 0; level < gridding.GetPatchHierarchy().GetNumberOfLevels();
+       ++level) {
+    if (geom.Domain() ==
+        gridding.GetPatchHierarchy().GetGeometry(level).Domain()) {
+      return level;
+    }
+  }
+  return -1;
+}
+
 double ChangeState_(PressureValveState& state, const ::amrex::Geometry& geom,
                     const GriddingAlgorithm& grid, Duration& last_opened,
                     const PressureValveOptions& options, IdealGasMix<1>& eq) {
@@ -199,22 +218,23 @@ double ChangeState_(PressureValveState& state, const ::amrex::Geometry& geom,
   const Duration next_time = (last_opened.count() < 0.0)
                                  ? options.offset
                                  : last_opened + options.open_at_interval;
+  const int level = FindLevel(geom, grid);
+  boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
+      boost::log::keywords::severity = boost::log::trivial::info);
+  BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", current_time.count());
+  BOOST_LOG_SCOPED_LOGGER_TAG(log, "Level", level);
   switch (state) {
   case PressureValveState::closed:
     if (mean_pressure < options.pressure_value_which_opens_boundary) {
       state = PressureValveState::open_air;
-      ::amrex::Print() << fmt::format(
-          "[Info][t = {}] pressure valve opened for air!\n",
-          grid.GetPatchHierarchy().GetTimePoint().count());
+      BOOST_LOG(log) << "pressure valve opened for air!";
     }
     break;
   case PressureValveState::open_air:
   case PressureValveState::open_fuel:
     if (mean_pressure > options.pressure_value_which_closes_boundary) {
       state = PressureValveState::closed;
-      ::amrex::Print() << fmt::format(
-          "[Info][t = {}] pressure valve closed!\n",
-          grid.GetPatchHierarchy().GetTimePoint().count());
+      BOOST_LOG(log) << "pressure valve closed!";
     }
     break;
   }
@@ -231,9 +251,7 @@ double ChangeState_(PressureValveState& state, const ::amrex::Geometry& geom,
     if (options.oxygen_measurement_criterium < moles[Burke2012::sO2]) {
       state = PressureValveState::open_fuel;
       last_opened = next_time;
-      ::amrex::Print() << fmt::format(
-          "[Info][t = {}] pressure valve changed to fuel!\n",
-          grid.GetPatchHierarchy().GetTimePoint().count());
+      BOOST_LOG(log) << "pressure valve changed to fuel!";
     }
   } else if (state == PressureValveState::open_fuel) {
     const double x_fuel =
@@ -244,9 +262,7 @@ double ChangeState_(PressureValveState& state, const ::amrex::Geometry& geom,
                            : 0.0;
     if (eqr > options.fuel_measurement_criterium) {
       state = PressureValveState::closed;
-      ::amrex::Print() << fmt::format(
-          "[Info][t = {}] pressure valve closed!\n",
-          grid.GetPatchHierarchy().GetTimePoint().count());
+      BOOST_LOG(log) << "pressure valve closed!";
     }
   }
 

@@ -23,36 +23,53 @@
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/equations/ideal_gas_mix/mechanism/Burke2012.hpp"
 
+#include <boost/log/common.hpp>
+#include <boost/log/sources/severity_logger.hpp>
+#include <boost/log/trivial.hpp>
+
 namespace fub::amrex {
 namespace {
-  std::string PrefixedName(const std::string& prefix, const char* basename) {
-    if (prefix.empty()) {
-      return std::string(basename);
-    }
-    return fmt::format("{}.{}", prefix, basename);
+std::string PrefixedName(const std::string& prefix, const char* basename) {
+  if (prefix.empty()) {
+    return std::string(basename);
   }
+  return fmt::format("{}.{}", prefix, basename);
+}
 } // namespace
 namespace po = boost::program_options;
 
-  po::options_description IgniteDetonationOptions::GetCommandLineOptions(const std::string& prefix) {
+po::options_description
+IgniteDetonationOptions::GetCommandLineOptions(const std::string& prefix) {
   po::options_description desc{"Ignite Detonation"};
-  desc.add_options()
-  (PrefixedName(prefix, "measurement_position").c_str(), po::value<double>(), "Position within the tube which measures the fuel equivalence ratio. This position effectively determines the fill fraction. [m]")
-  (PrefixedName(prefix, "equivalence_ratio_criterium").c_str(), po::value<double>(), "Ignites the fuel if an equivalence ratio is measured which is greater than this value. [-]")
-  (PrefixedName(prefix, "position").c_str(), po::value<double>(), "The position within the tube where the temperature will be risen to ignite the tube. This position should be smaller than `measure_position`. [m]")
-  (PrefixedName(prefix, "interval").c_str(), po::value<double>(), "The time interval in which no second ignition can be triggered. [s]");
+  desc.add_options()(
+      PrefixedName(prefix, "measurement_position").c_str(), po::value<double>(),
+      "Position within the tube which measures the fuel equivalence ratio. "
+      "This position effectively determines the fill fraction. [m]")(
+      PrefixedName(prefix, "equivalence_ratio_criterium").c_str(),
+      po::value<double>(),
+      "Ignites the fuel if an equivalence ratio is measured which is greater "
+      "than this value. [-]")(
+      PrefixedName(prefix, "position").c_str(), po::value<double>(),
+      "The position within the tube where the temperature will be risen to "
+      "ignite the tube. This position should be smaller than "
+      "`measure_position`. [m]")(
+      PrefixedName(prefix, "interval").c_str(), po::value<double>(),
+      "The time interval in which no second ignition can be triggered. [s]");
   return desc;
 }
 
-  IgniteDetonationOptions::IgniteDetonationOptions(const po::variables_map& vm, const std::string& prefix) {
-    auto GetOptionOr = [&](const char* opt, double default_value) {
-      if (vm.count(PrefixedName(prefix, opt))) {
-        return vm[PrefixedName(prefix, opt)].as<double>();
-      }
-      return default_value;
-    };
-  measurement_position = GetOptionOr("measurement_position", measurement_position);
-    equivalence_ratio_criterium = GetOptionOr("equivalence_ratio_criterium", equivalence_ratio_criterium);
+IgniteDetonationOptions::IgniteDetonationOptions(const po::variables_map& vm,
+                                                 const std::string& p) : prefix{p} {
+  auto GetOptionOr = [&](const char* opt, double default_value) {
+    if (vm.count(PrefixedName(prefix, opt))) {
+      return vm[PrefixedName(prefix, opt)].as<double>();
+    }
+    return default_value;
+  };
+  measurement_position =
+      GetOptionOr("measurement_position", measurement_position);
+  equivalence_ratio_criterium =
+      GetOptionOr("equivalence_ratio_criterium", equivalence_ratio_criterium);
   ignite_position = GetOptionOr("position", ignite_position);
   ignite_interval = Duration(GetOptionOr("interval", ignite_interval.count()));
 }
@@ -60,7 +77,11 @@ namespace po = boost::program_options;
 IgniteDetonation::IgniteDetonation(
     const fub::IdealGasMix<1>& eq, std::shared_ptr<GriddingAlgorithm> grid,
     const fub::amrex::IgniteDetonationOptions& opts)
-  : equation_(eq), gridding_(std::move(grid)), options_{opts},  last_ignition_backup_(gridding_->GetPatchHierarchy().GetMaxNumberOfLevels(), Duration(-std::numeric_limits<double>::infinity())), last_ignition_(last_ignition_backup_) {}
+    : equation_(eq), gridding_(std::move(grid)), options_{opts},
+      last_ignition_backup_(
+          gridding_->GetPatchHierarchy().GetMaxNumberOfLevels(),
+          Duration(-std::numeric_limits<double>::infinity())),
+      last_ignition_(last_ignition_backup_) {}
 
 Duration IgniteDetonation::ComputeStableDt() const noexcept {
   return Duration(std::numeric_limits<double>::infinity());
@@ -118,12 +139,14 @@ Duration IgniteDetonation::GetLastIgnitionTimePoint(int level) const noexcept {
   return last_ignition_[l];
 }
 
-void IgniteDetonation::SetLastIgnitionTimePoint(int level, Duration t) noexcept {
+void IgniteDetonation::SetLastIgnitionTimePoint(int level,
+                                                Duration t) noexcept {
   const std::size_t l = static_cast<std::size_t>(level);
   last_ignition_backup_[l] = std::exchange(last_ignition_[l], t);
 }
 
-void IgniteDetonation::ResetHierarchyConfiguration(std::shared_ptr<amrex::GriddingAlgorithm> grid) {
+void IgniteDetonation::ResetHierarchyConfiguration(
+    std::shared_ptr<amrex::GriddingAlgorithm> grid) {
   gridding_ = std::move(grid);
   if (gridding_->GetPatchHierarchy().GetTimePoint() <= last_ignition_[0]) {
     last_ignition_ = last_ignition_backup_;
@@ -134,12 +157,15 @@ Result<void, TimeStepTooLarge>
 IgniteDetonation::AdvanceLevel(int level, fub::Duration /* dt */) {
   PatchHierarchy& hier = gridding_->GetPatchHierarchy();
   Duration current_time = hier.GetTimePoint(level);
-  Duration next_ignition_time = GetLastIgnitionTimePoint(level) + options_.ignite_interval;
+  Duration next_ignition_time =
+      GetLastIgnitionTimePoint(level) + options_.ignite_interval;
   if (next_ignition_time < current_time) {
     std::vector<double> moles =
         GatherMoles_(*gridding_, options_.measurement_position, equation_);
-    const double equivalence_ratio = moles[Burke2012::sO2] ?
-        0.5 * moles[Burke2012::sH2] / moles[Burke2012::sO2] : 0.0;
+    const double equivalence_ratio =
+        moles[Burke2012::sO2]
+            ? 0.5 * moles[Burke2012::sH2] / moles[Burke2012::sO2]
+            : 0.0;
     if (equivalence_ratio > options_.equivalence_ratio_criterium) {
       ::amrex::MultiFab& data = hier.GetPatchLevel(level).data;
       const ::amrex::Geometry& geom = hier.GetGeometry(level);
@@ -176,7 +202,11 @@ IgniteDetonation::AdvanceLevel(int level, fub::Duration /* dt */) {
         });
       });
       SetLastIgnitionTimePoint(level, current_time);
-      ::amrex::Print() << fmt::format("[Info][level = {}][t = {}] Detonation Ignited!\n", level, GetLastIgnitionTimePoint(level).count());
+      boost::log::sources::severity_logger<boost::log::trivial::severity_level>
+          log(boost::log::keywords::severity = boost::log::trivial::info);
+      BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", current_time.count());
+      BOOST_LOG_SCOPED_LOGGER_TAG(log, "Level", level);
+      BOOST_LOG(log) << "Detonation Ignited!";
     }
   }
   return boost::outcome_v2::success();

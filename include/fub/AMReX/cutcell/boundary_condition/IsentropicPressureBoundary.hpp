@@ -25,10 +25,8 @@
 #include "fub/Direction.hpp"
 #include "fub/equations/IdealGasMix.hpp"
 
-#include <boost/log/common.hpp>
-#include <boost/log/core.hpp>
-#include <boost/log/sources/channel_logger.hpp>
-#include <boost/log/attributes/mutable_constant.hpp>
+#include <boost/log/sources/severity_channel_logger.hpp>
+#include <boost/log/trivial.hpp>
 
 #include <AMReX.H>
 
@@ -49,8 +47,9 @@ public:
                     const Complete<IdealGasMix<AMREX_SPACEDIM>>& state);
 
 private:
-  boost::log::sources::channel_logger<> log_;
-  boost::log::attributes::mutable_constant<double> time_attr_;
+  boost::log::sources::severity_channel_logger<
+      boost::log::trivial::severity_level>
+      log_;
   IdealGasMix<AMREX_SPACEDIM> equation_;
   ::amrex::Box coarse_inner_box_;
   double outer_pressure_;

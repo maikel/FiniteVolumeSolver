@@ -65,7 +65,7 @@ void RegisterVariables(std::vector<int>& data_ids, const Equation& equation,
                        const std::string& prefix,
                        const std::string& context_name) {
   constexpr auto names = StateTraits<State>::names;
-  const auto sizes = Depths<State>(equation);
+  const auto sizes = StateToTuple(Depths<State>(equation));
   SAMRAI::hier::VariableDatabase* vardb =
       SAMRAI::hier::VariableDatabase::getDatabase();
   std::shared_ptr<SAMRAI::hier::VariableContext> context =

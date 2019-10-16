@@ -28,6 +28,22 @@
 
 namespace fub {
 
+template <typename G>
+struct GeometryWrapper : Geometry {
+  GeometryWrapper(const G& base) : base_{base} {} // NOLINT
+  GeometryWrapper(G&& base) : base_{std::move(base)} {} // NOLINT
+
+  std::unique_ptr<Geometry> Clone() const override { 
+    return std::make_unique<GeometryWrapper>(base_); 
+  }
+
+  double ComputeDistanceTo(const std::array<double, AMREX_SPACEDIM>& x) const override {
+    return base_.ComputeDistanceTo(x);
+  }
+
+  G base_;
+};
+
 class PolymorphicGeometry : public Geometry {
 public:
   PolymorphicGeometry(const PolymorphicGeometry& other)
@@ -35,11 +51,19 @@ public:
 
   template <
       typename G,
+      std::enable_if_t<!std::is_base_of<Geometry, G>::value>* = nullptr,
+      std::enable_if_t<!std::is_same<G, PolymorphicGeometry>::value>* = nullptr>
+  PolymorphicGeometry(const G& geometry)
+      : base_{std::make_unique<GeometryWrapper<G>>(geometry)} {}
+
+  template <
+      typename G,
+      std::enable_if_t<std::is_base_of<Geometry, G>::value>* = nullptr,
       std::enable_if_t<!std::is_same<G, PolymorphicGeometry>::value>* = nullptr>
   PolymorphicGeometry(const G& geometry)
       : base_{std::make_unique<G>(geometry)} {}
 
-  double ComputeDistanceTo(const Coordinates& x) const override {
+  double ComputeDistanceTo(const std::array<double, AMREX_SPACEDIM>& x) const override {
     return base_->ComputeDistanceTo(x);
   }
 

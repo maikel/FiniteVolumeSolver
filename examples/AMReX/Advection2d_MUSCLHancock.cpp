@@ -117,6 +117,5 @@ int main(int argc, char** argv) {
   run_options.final_time = 2.0s;
   run_options.output_interval = {0.1s};
   run_options.cfl = 0.9;
-  fub::RunSimulation(solver, run_options, wall_time_reference, output,
-                     fub::amrex::print);
+  fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

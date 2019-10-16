@@ -34,6 +34,8 @@
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/log/sources/severity_logger.hpp>
+#include <boost/log/trivial.hpp>
 
 #include <cmath>
 #include <iostream>
@@ -88,10 +90,6 @@ std::string ReadAndBroadcastFile(std::string filepath, MPI_Comm comm) {
   return buffer;
 }
 
-struct NoInit {
-  static void InitializeData(const ::amrex::MultiFab&, const ::amrex::Geometry&) noexcept {}
-};
-
 auto MakeTubeSolver(fub::Burke2012& mechanism, const TubeSolverOptions& opts,
                     const boost::program_options::variables_map& vm, int k) {
   const std::array<int, AMREX_SPACEDIM> n_cells{opts.n_cells, 1, 1};
@@ -137,7 +135,8 @@ auto MakeTubeSolver(fub::Burke2012& mechanism, const TubeSolverOptions& opts,
   equation.CompleteFromReactor(state);
   ConstantData initial_data{equation, state};
 
-  PressureValveBoundary valve{equation, vm};
+  PressureValveOptions valve_opts(vm, fmt::format("valve{}", k));
+  PressureValveBoundary valve{equation, valve_opts};
   BoundarySet boundaries{{valve}};
 
   // If a checkpoint path is specified we will fill the patch hierarchy with
@@ -158,11 +157,10 @@ auto MakeTubeSolver(fub::Burke2012& mechanism, const TubeSolverOptions& opts,
       checkpoint = fmt::format("{}/Tube_{}", checkpoint, k);
       PatchHierarchy h =
           ReadCheckpointFile(checkpoint, desc, geometry, hier_opts);
-      const double timepoint = h.GetTimePoint().count();
-      std::shared_ptr<GriddingAlgorithm> gridding = std::make_shared<GriddingAlgorithm>(
-                                                 std::move(h), NoInit{}, TagAllOf(gradient, constant_box),
-          boundaries);
-      gridding->InitializeHierarchy(timepoint);
+      std::shared_ptr<GriddingAlgorithm> gridding =
+          std::make_shared<GriddingAlgorithm>(std::move(h), initial_data,
+                                              TagAllOf(gradient, constant_box),
+                                              boundaries);
       return gridding;
     }
   }();
@@ -269,7 +267,7 @@ auto MakePlenumSolver(fub::Burke2012& mechanism, int num_cells, int n_level,
   std::shared_ptr gridding = [&] {
     std::string checkpoint{};
     if (vm.count("grid.checkpoint")) {
-      checkpoint = vm["checkpoint"].as<std::string>();
+      checkpoint = vm["grid.checkpoint"].as<std::string>();
     }
     if (checkpoint.empty()) {
       std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
@@ -294,8 +292,8 @@ auto MakePlenumSolver(fub::Burke2012& mechanism, int num_cells, int n_level,
 
   fub::EinfeldtSignalVelocities<fub::IdealGasMix<Plenum_Rank>> signals{};
   fub::HllMethod hll_method{equation, signals};
-  fub::ideal_gas::MusclHancockPrimMethod<Plenum_Rank> flux_method(equation);
-  fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
+  //  fub::ideal_gas::MusclHancockPrimMethod<Plenum_Rank> flux_method(equation);
+  fub::KbnCutCellMethod cutcell_method(hll_method, hll_method);
 
   HyperbolicMethod method{
       FluxMethod{fub::execution::openmp_simd, cutcell_method},
@@ -316,8 +314,13 @@ struct ProgramOptions {
       return default_value;
     };
     plenum_n_cells = GetOptionOr("grid.plenum_n_cells", plenum_n_cells);
-    max_refinement_level = GetOptionOr("grid.max_number_of_levels", max_refinement_level);
+    max_refinement_level =
+        GetOptionOr("grid.max_number_of_levels", max_refinement_level);
     checkpoint = GetOptionOr("grid.checkpoint", checkpoint);
+    constexpr double tube_len_over_plenum_len = 1.47 / 0.56;
+    tube_n_cells = static_cast<int>(tube_len_over_plenum_len *
+                                    static_cast<double>(plenum_n_cells));
+    tube_n_cells = tube_n_cells - tube_n_cells % 8;
   }
 
   static boost::program_options::options_description GetCommandLineOptions() {
@@ -332,7 +335,20 @@ struct ProgramOptions {
     return desc;
   }
 
+  template <typename Logger> void Print(Logger& log) const {
+    BOOST_LOG(log) << "Grid Options:";
+    BOOST_LOG(log) << "  - plenum_n_cells = " << plenum_n_cells;
+    BOOST_LOG(log) << "  - tube_n_cells = " << tube_n_cells;
+    BOOST_LOG(log) << "  - max_refinement_level = " << max_refinement_level;
+
+    if (!checkpoint.empty()) {
+      BOOST_LOG(log) << "Restart simulation from checkpoint '" << checkpoint
+                     << "'!";
+    }
+  }
+
   int plenum_n_cells{128};
+  int tube_n_cells{};
   int max_refinement_level{1};
   std::string checkpoint{};
 };
@@ -343,16 +359,18 @@ void MyMain(const ProgramOptions& po,
 std::optional<boost::program_options::variables_map>
 ParseCommandLine(int argc, char** argv) {
   namespace po = boost::program_options;
-  po::options_description desc = fub::GetCommandLineRunOptions();
+  po::options_description desc = fub::RunOptions::GetCommandLineOptions();
   std::string config_path{};
-  desc.add_options()("config", po::value<std::string>(&config_path), "Path to the config file which can be parsed.");
+  desc.add_options()("config", po::value<std::string>(&config_path),
+                     "Path to the config file which can be parsed.");
   desc.add(ProgramOptions::GetCommandLineOptions());
   desc.add(fub::amrex::PressureValveOptions::GetCommandLineOptions("valve0"));
   desc.add(fub::amrex::PressureValveOptions::GetCommandLineOptions("valve1"));
   desc.add(fub::amrex::PressureValveOptions::GetCommandLineOptions("valve2"));
   desc.add(fub::amrex::PressureValveOptions::GetCommandLineOptions("valve3"));
   desc.add(fub::amrex::PressureValveOptions::GetCommandLineOptions("valve4"));
-  desc.add(fub::amrex::IgniteDetonationOptions::GetCommandLineOptions("ignite"));
+  desc.add(
+      fub::amrex::IgniteDetonationOptions::GetCommandLineOptions("ignite"));
   po::variables_map vm;
   try {
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -373,24 +391,11 @@ ParseCommandLine(int argc, char** argv) {
     return {};
   }
 
-  std::ostringstream sout{};
-  fub::PrintRunOptions(sout, fub::GetRunOptions(vm));
-  amrex::Print() << sout.str();
+  boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
+     boost::log::keywords::severity = boost::log::trivial::info);
 
-  ProgramOptions o(vm);
-  constexpr double tube_len_over_plenum_len = 1.47 / 0.56;
-  int tube_n_cells = static_cast<int>(tube_len_over_plenum_len *
-                                      static_cast<double>(o.plenum_n_cells));
-  tube_n_cells = tube_n_cells - tube_n_cells % 8;
-  ::amrex::Print() << "[Info] plenum_n_cells = " << o.plenum_n_cells << '\n';
-  ::amrex::Print() << "[Info] tube_n_cells = " << tube_n_cells << '\n';
-  ::amrex::Print() << "[Info] max_refinement_level = " << o.max_refinement_level
-                   << '\n';
-
-  if (!o.checkpoint.empty()) {
-    ::amrex::Print() << "[Info] Restart simulation from '" << o.checkpoint
-                     << "'!\n";
-  }
+  fub::RunOptions(vm).Print(log);
+  ProgramOptions(vm).Print(log);
   return vm;
 }
 
@@ -436,10 +441,7 @@ void MyMain(const boost::program_options::variables_map& vm) {
   const int n_level = po.max_refinement_level;
   auto plenum = MakePlenumSolver(mechanism, po.plenum_n_cells, n_level, vm);
 
-  constexpr double tube_len_over_plenum_len = 1.47 / 0.56;
-  int tube_n_cells = static_cast<int>(tube_len_over_plenum_len *
-                                      static_cast<double>(po.plenum_n_cells));
-  tube_n_cells = tube_n_cells - tube_n_cells % 8;
+  int tube_n_cells = po.tube_n_cells;
   std::vector<fub::amrex::IntegratorContext> tubes;
 
   //  ::amrex::RealBox inlet{{-0.1, -0.015, -0.015}, {0.05, +0.015, +0.015}};
@@ -511,6 +513,7 @@ void MyMain(const boost::program_options::variables_map& vm) {
       ifs = std::istringstream(input);
       boost::archive::text_iarchive ia(ifs);
       ia >> *valve;
+      k = k + 1;
     }
   }
 
@@ -558,6 +561,8 @@ void MyMain(const boost::program_options::variables_map& vm) {
     return slice_box;
   }(0.0));
 
+  boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
+      boost::log::keywords::severity = boost::log::trivial::info);
   auto output = [&](const std::shared_ptr<
                         fub::amrex::MultiBlockGriddingAlgorithm>& gridding,
                     std::ptrdiff_t cycle, fub::Duration time_point, int which) {
@@ -619,22 +624,20 @@ void MyMain(const boost::program_options::variables_map& vm) {
     //
     if (which < 1) {
       std::string name = fmt::format("{}/Checkpoint/{:05}", base_name, cycle);
-      ::amrex::Print() << "[Info] Write Checkpoint: " << name << '\n';
+      BOOST_LOG(log) << "Write Checkpoint to '" << name << '\'';
       int rank = -1;
       MPI_Comm_rank(comm, &rank);
       WriteCheckpoint(name, *gridding, valves, rank,
                       solver.GetSystem().GetSource());
-      ::MPI_Barrier(comm);
     }
   };
 
   using namespace std::literals::chrono_literals;
   output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
          solver.GetTimePoint(), 0);
-  fub::RunOptions run_options = fub::GetRunOptions(vm);
+  fub::RunOptions run_options(vm);
   run_options.output_interval.push_back(fub::Duration(1e-5));
-  fub::RunSimulation(solver, run_options, wall_time_reference, output,
-                     fub::amrex::print);
+  fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }
 
 int main(int argc, char** argv) {

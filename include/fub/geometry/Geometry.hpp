@@ -23,6 +23,7 @@
 
 #include <AMReX.H>
 #include <memory>
+#include <array>
 
 namespace fub {
 

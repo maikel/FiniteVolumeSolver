@@ -29,19 +29,36 @@
 
 #include <boost/program_options.hpp>
 #include <boost/serialization/access.hpp>
+#include <boost/log/trivial.hpp>
 
 namespace fub::amrex {
 
 struct PressureValveOptions {
   PressureValveOptions() = default;
-  explicit PressureValveOptions(
-      const boost::program_options::variables_map& vm, std::string prefix = {});
+  explicit PressureValveOptions(const boost::program_options::variables_map& vm,
+                                std::string prefix = "valve");
 
   static boost::program_options::options_description
-  GetCommandLineOptions(std::string prefix = {});
+  GetCommandLineOptions(std::string prefix = "valve");
 
-  void PrintOptions(std::ostream& out);
+  template <typename Logger>
+  void Print(Logger& log) {
+    BOOST_LOG(log) << fmt::format("Pressure Valve '{}' Options:", prefix);
+    BOOST_LOG(log) << fmt::format("  - {}.equivalence_ratio = {} [-]", prefix, equivalence_ratio);
+    BOOST_LOG(log) << fmt::format("  - {}.outer_pressure = {} [Pa]", prefix, outer_pressure);
+    BOOST_LOG(log) << fmt::format("  - {}.outer_temperature = {} [K]", prefix, outer_temperature);
+    BOOST_LOG(log) << fmt::format("  - {}.pressure_value_which_opens_boundary = {} [Pa]", prefix, pressure_value_which_opens_boundary);
+    BOOST_LOG(log) << fmt::format("  - {}.pressure_value_which_closes_boundary = {} [Pa]", prefix, pressure_value_which_closes_boundary);
+    BOOST_LOG(log) << fmt::format("  - {}.oxygen_measurement_position = {} [m]", prefix, oxygen_measurement_position);
+    BOOST_LOG(log) << fmt::format("  - {}.oxygen_measurement_criterium = {} [mole]", prefix, oxygen_measurement_criterium);
+    BOOST_LOG(log) << fmt::format("  - {}.fuel_measurement_position = {} [m]", prefix, fuel_measurement_position);
+    BOOST_LOG(log) << fmt::format("  - {}.fuel_measurement_criterium = {} [-]", prefix, fuel_measurement_criterium);
+    BOOST_LOG(log) << fmt::format("  - {}.valve_efficiency = {} [-]", prefix, valve_efficiency);
+    BOOST_LOG(log) << fmt::format("  - {}.open_at_interval = {} [s]", prefix, open_at_interval.count());
+    BOOST_LOG(log) << fmt::format("  - {}.offset = {} [s]", prefix, offset.count());
+  }
 
+  std::string prefix;
   double equivalence_ratio{1.0};
   double outer_pressure{1.5 * 101325.0};
   double outer_temperature{300.0};
@@ -56,12 +73,13 @@ struct PressureValveOptions {
   Duration offset{0.0};
 };
 
-}
+} // namespace fub::amrex
 
 namespace boost::serialization {
 
 template <typename Archive>
-void serialize(Archive& ar, ::fub::amrex::PressureValveOptions& opts, unsigned int version);
+void serialize(Archive& ar, ::fub::amrex::PressureValveOptions& opts,
+               unsigned int version);
 
 }
 
@@ -87,7 +105,8 @@ public:
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
                     Duration dt, const GriddingAlgorithm&);
 
-  [[nodiscard]] const std::shared_ptr<PressureValve>& GetSharedState() const noexcept {
+  [[nodiscard]] const std::shared_ptr<PressureValve>& GetSharedState() const
+      noexcept {
     return shared_valve_;
   }
 
@@ -105,16 +124,16 @@ template <typename Archive>
 void serialize(Archive& ar, ::fub::amrex::PressureValve& valve,
                unsigned int /* version */) {
   int state = static_cast<int>(valve.state);
-  ar & state;
+  ar& state;
   valve.state = static_cast<::fub::amrex::PressureValveState>(state);
-  ar & valve.last_opened;
+  ar& valve.last_opened;
 }
 
 template <typename Archive>
 void serialize(Archive& ar, ::fub::amrex::PressureValveOptions& opts,
                unsigned int /* version */) {
-  ar & opts.open_at_interval;
-  ar & opts.offset;
+  ar& opts.open_at_interval;
+  ar& opts.offset;
 }
 
 } // namespace boost::serialization

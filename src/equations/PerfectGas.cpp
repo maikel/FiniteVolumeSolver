@@ -97,8 +97,8 @@ void PerfectGas<Dim>::CompleteFromCons(
 
 template <int Dim>
 void PerfectGas<Dim>::CompleteFromCons(
-                                       CompleteArray& complete,
-                                       const ConservativeArrayBase<PerfectGas>& cons, MaskArray mask) const noexcept {
+    CompleteArray& complete, const ConservativeArrayBase<PerfectGas>& cons,
+    MaskArray mask) const noexcept {
   Array1d zero = Array1d::Zero();
   complete.density = mask.select(cons.density, zero);
   for (int d = 0; d < Dim; ++d) {
@@ -109,7 +109,7 @@ void PerfectGas<Dim>::CompleteFromCons(
   const Array1d e_int = cons.energy - e_kin;
   complete.pressure = mask.select(e_int / gamma_minus_1_inv, zero);
   complete.speed_of_sound = mask.select(
-  (gamma_array_ * complete.pressure / complete.density).sqrt(), zero);
+      (gamma_array_ * complete.pressure / complete.density).sqrt(), zero);
 }
 
 template <int Dim>
@@ -527,8 +527,8 @@ void ExactRiemannSolver<PerfectGas<Dim>>::SolveRiemannProblem(
 
 template <int Dim>
 void ExactRiemannSolver<PerfectGas<Dim>>::SolveRiemannProblem(
-                                                              CompleteArray& state, const CompleteArray& left, const CompleteArray& right, MaskArray mask,
-                                                              Direction dir) {
+    CompleteArray& state, const CompleteArray& left, const CompleteArray& right,
+    MaskArray mask, Direction dir) {
   for (int i = 0; i < mask.size(); ++i) {
     if (mask(i)) {
       typename PerfectGas<Dim>::Complete qL;

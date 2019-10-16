@@ -755,6 +755,15 @@ Array1d MusclHancockPrimitive<Rank>::ComputeStableDt(
   return 0.5 * hll_.ComputeStableDt(states.template subspan<1, 2>(), dx, dir);
 }
 
+template <int Rank>
+Array1d MusclHancockPrimitive<Rank>::ComputeStableDt(
+    span<const CompleteArray, 4> states, Array1d face_fraction,
+    span<const Array1d, 4> volume_fraction, double dx, Direction dir) noexcept {
+  return 0.5 * hll_.ComputeStableDt(
+                   states.template subspan<1, 2>(), face_fraction,
+                   volume_fraction.template subspan<1, 2>(), dx, dir);
+}
+
 template class MusclHancockPrimitive<1>;
 template class MusclHancockPrimitive<2>;
 template class MusclHancockPrimitive<3>;

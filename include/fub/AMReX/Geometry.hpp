@@ -35,21 +35,12 @@ public:
   Geom& Base() noexcept { return *this; }
   const Geom& Base() const noexcept { return *this; }
 
-#ifdef AMREX_SPACEDIM == 1
-  double operator()(double x) const { return Base().ComputeDistanceTo(x); }
-#elif AMREX_SPACEDIM == 2
-  double operator()(double x, double y) const {
-    return Base().ComputeDistanceTo(x, y);
+  double operator()(AMREX_D_DECL(double x, double y, double z)) const {
+    return Geom::ComputeDistanceTo({AMREX_D_DECL(x, y, z)});
   }
-#elif AMREX_SPACEDIM == 3
-  double operator()(double x, double y, double z) const {
-    return Base().ComputeDistanceTo(x, y, z);
-  }
-#endif
 
   double operator()(const std::array<double, AMREX_SPACEDIM>& coords) const {
-    return Base().ComputeDistanceTo(
-        AMREX_D_DECL(coords[0], coords[1], coords[2]));
+    return Geom::ComputeDistanceTo(coords);
   }
 };
 

@@ -112,6 +112,15 @@ struct MusclHancock {
                                         dir);
   }
 
+  Array1d ComputeStableDt(span<const CompleteArray, 4> states,
+                          Array1d face_fraction,
+                          span<const Array1d, 4> volume_fraction, double dx,
+                          Direction dir) {
+    return flux_method_.ComputeStableDt(
+        states.template subspan<1, 2>(), face_fraction,
+        volume_fraction.template subspan<1, 2>(), dx, dir);
+  }
+
   void ComputeNumericFlux(Conservative& flux, span<const Complete, 4> stencil,
                           Duration dt, double dx, Direction dir);
 

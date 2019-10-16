@@ -69,10 +69,11 @@ IntegratorContext::IntegratorContext(
   // Allocate auxiliary data arrays for each refinement level in the hierarchy
   ResetHierarchyConfiguration();
   std::size_t n_levels =
-  static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels());
+      static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels());
   for (std::size_t i = 0; i < n_levels; ++i) {
     data_[i].cycles = gridding_->GetPatchHierarchy().GetPatchLevel(i).cycles;
-    data_[i].time_point = gridding_->GetPatchHierarchy().GetPatchLevel(i).time_point;
+    data_[i].time_point =
+        gridding_->GetPatchHierarchy().GetPatchLevel(i).time_point;
     data_[i].regrid_time_point = data_[i].time_point;
   }
 }
@@ -263,9 +264,10 @@ void IntegratorContext::FillGhostLayerTwoLevels(
   ::amrex::Interpolater* mapper = &::amrex::pc_interp;
 #ifdef AMREX_USE_EB
   auto index_space = GetPatchHierarchy().GetIndexSpaces();
-  ::amrex::FillPatchTwoLevels(scratch, ft[0], *index_space[fine], cmf, ct, fmf, ft, 0, 0, nc, cgeom,
-                              fgeom, coarse_condition, 0, fine_condition, 0,
-                              ratio, mapper, bcr, 0, ::amrex::NullInterpHook(), ::amrex::NullInterpHook());
+  ::amrex::FillPatchTwoLevels(
+      scratch, ft[0], *index_space[fine], cmf, ct, fmf, ft, 0, 0, nc, cgeom,
+      fgeom, coarse_condition, 0, fine_condition, 0, ratio, mapper, bcr, 0,
+      ::amrex::NullInterpHook(), ::amrex::NullInterpHook());
 #else
   ::amrex::FillPatchTwoLevels(scratch, ft[0], cmf, ct, fmf, ft, 0, 0, nc, cgeom,
                               fgeom, coarse_condition, 0, fine_condition, 0,

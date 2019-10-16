@@ -31,6 +31,7 @@ function [X, Y, Z, time, data] = ReadPlenumData(directory_path, pattern)
 
   for k = 1 : ntimesteps
     filename = sprintf('%s/%s', directory_path, all_filenames{k});
+    fprintf('Process %s\n', filename);
     [~, ~, ~, ~, t, timestep] = ReadTimestepData(filename);
     time(k) = t;
     

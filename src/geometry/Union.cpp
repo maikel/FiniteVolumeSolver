@@ -18,26 +18,29 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_EXT_BOOST_LOG_HPP
-#define FUB_EXT_BOOST_LOG_HPP
+#include "fub/geometry/Union.hpp"
 
-#include <boost/log/common.hpp>
-#include <boost/program_options.hpp>
-#include <mpi.h>
+#include <algorithm>
+#include <limits>
+#include <numeric>
 
 namespace fub {
 
-struct LogOptions {
-  LogOptions() = default;
-  LogOptions(const boost::program_options::variables_map& vm);
+PolymorphicUnion::PolymorphicUnion(
+    const std::vector<PolymorphicGeometry>& geoms)
+    : geoms_(geoms) {}
 
-  static boost::program_options::options_description GetCommandLineOptions();
-
-  std::string file_template{"%N.log"};
-};
-
-void InitializeLogging(MPI_Comm comm, const LogOptions& log = {});
-
+std::unique_ptr<Geometry> PolymorphicUnion::Clone() const {
+  return std::make_unique<PolymorphicUnion>(*this);
 }
 
-#endif // FINITEVOLUMESOLVER_LOG_HPP
+double PolymorphicUnion::ComputeDistanceTo(
+    const std::array<double, AMREX_SPACEDIM>& x) const {
+  return std::accumulate(geoms_.begin(), geoms_.end(),
+                         std::numeric_limits<double>::lowest(),
+                         [x](double max, const PolymorphicGeometry& geom) {
+                           return std::max(max, geom.ComputeDistanceTo(x));
+                         });
+}
+
+} // namespace fub
