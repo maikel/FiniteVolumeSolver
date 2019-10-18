@@ -41,6 +41,13 @@ public:
       std::vector<std::shared_ptr<cutcell::GriddingAlgorithm>> plena,
       std::vector<BlockConnection> connectivity);
 
+  MultiBlockGriddingAlgorithm(
+      FlameMasterReactor reactor,
+      std::vector<std::shared_ptr<GriddingAlgorithm>> tubes,
+      std::vector<std::shared_ptr<cutcell::GriddingAlgorithm>> plena,
+      std::vector<BlockConnection> connectivity,
+      std::vector<std::shared_ptr<PressureValve>> valves);
+
   MultiBlockGriddingAlgorithm(const MultiBlockGriddingAlgorithm& other);
   MultiBlockGriddingAlgorithm&
   operator=(const MultiBlockGriddingAlgorithm& other);

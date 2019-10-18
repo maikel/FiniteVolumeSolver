@@ -353,10 +353,19 @@ MultiBlockBoundary::MultiBlockBoundary(
     const std::string& channel, const MultiBlockGriddingAlgorithm& gridding,
     const BlockConnection& connection, int gcw,
     const FlameMasterReactor& reactor, int level)
+    : MultiBlockBoundary(channel, gridding, connection, gcw, reactor, level,
+                         nullptr) {}
+
+MultiBlockBoundary::MultiBlockBoundary(
+    const std::string& channel, const MultiBlockGriddingAlgorithm& gridding,
+    const BlockConnection& connection, int gcw,
+    const FlameMasterReactor& reactor, int level,
+    std::shared_ptr<PressureValve> valve)
     : log_(boost::log::keywords::channel = channel,
            boost::log::keywords::severity = boost::log::trivial::debug),
-      plenum_equation_(reactor), tube_equation_(std::move(reactor)),
-      dir_{connection.direction}, side_{connection.side}, level_{level} {
+      valve_{std::move(valve)}, plenum_equation_(reactor),
+      tube_equation_(std::move(reactor)), dir_{connection.direction},
+      side_{connection.side}, level_{level} {
   const std::ptrdiff_t pid = static_cast<std::ptrdiff_t>(connection.plenum.id);
   const cutcell::PatchHierarchy& plenum =
       gridding.GetPlena()[pid]->GetPatchHierarchy();

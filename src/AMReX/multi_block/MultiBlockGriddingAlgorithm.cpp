@@ -44,6 +44,30 @@ MultiBlockGriddingAlgorithm::MultiBlockGriddingAlgorithm(
 }
 
 MultiBlockGriddingAlgorithm::MultiBlockGriddingAlgorithm(
+    FlameMasterReactor reactor,
+    std::vector<std::shared_ptr<GriddingAlgorithm>> tubes,
+    std::vector<std::shared_ptr<cutcell::GriddingAlgorithm>> plena,
+    std::vector<BlockConnection> connectivity,
+    std::vector<std::shared_ptr<PressureValve>> valves)
+    : reactor_{std::move(reactor)}, tubes_{std::move(tubes)}, plena_{std::move(
+                                                                  plena)},
+      connectivity_(std::move(connectivity)) {
+  const int nlevel = plena_[0]->GetPatchHierarchy().GetMaxNumberOfLevels();
+  boundaries_.resize(nlevel);
+  int level = 0;
+  for (auto& boundaries : boundaries_) {
+    int k = 0;
+    FUB_ASSERT(valves.size() == connectivity_.size());
+    for (const BlockConnection& conn : connectivity_) {
+      boundaries.emplace_back(fmt::format("MultiBlockBoundary-{}", k), *this,
+                              conn, 3, reactor_, level, valves[k]);
+      ++k;
+    }
+    level += 1;
+  }
+}
+
+MultiBlockGriddingAlgorithm::MultiBlockGriddingAlgorithm(
     const MultiBlockGriddingAlgorithm& other)
     : reactor_{other.reactor_}, tubes_(other.tubes_.size()),
       plena_(other.plena_.size()), connectivity_(other.connectivity_),

@@ -38,6 +38,12 @@ public:
                               std::vector<cutcell::IntegratorContext> plena,
                               std::vector<BlockConnection> connectivity);
 
+  MultiBlockIntegratorContext(
+      FlameMasterReactor reactor, std::vector<IntegratorContext> tubes,
+      std::vector<cutcell::IntegratorContext> plena,
+      std::vector<BlockConnection> connectivity,
+      std::vector<std::shared_ptr<PressureValve>> valves);
+
   /// @{
   /// \name Member Accessors
   span<IntegratorContext> Tubes() noexcept;
