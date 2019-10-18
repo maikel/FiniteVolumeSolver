@@ -257,7 +257,7 @@ auto MakePlenumSolver(fub::Burke2012& mechanism, int num_cells, int n_level,
   const ::amrex::Box outlet_box = BoxWhichContains(outlet, coarse_geom);
   ConstantBox constant_box{outlet_box};
 
-  const double required_massflow = 1.25; // [kg / s]
+  const double required_massflow = 0.5; // [kg / s]
   const double surface_area = M_PI * (r_outer * r_outer - r_inner * r_inner);
   BoundarySet boundary_condition{
       {MassflowBoundary{"Massflow", equation, inlet_box, required_massflow,
@@ -487,7 +487,7 @@ void MyMain(const boost::program_options::variables_map& vm) {
 
   fub::amrex::MultiBlockIntegratorContext context(
       fub::FlameMasterReactor(mechanism), std::move(tubes), {std::move(plenum)},
-      std::move(connectivity));
+      std::move(connectivity), valves);
 
   fub::DimensionalSplitLevelIntegrator system_solver(fub::int_c<Plenum_Rank>,
                                                      context);
@@ -529,7 +529,7 @@ void MyMain(const boost::program_options::variables_map& vm) {
 
   std::string base_name = "MultiTube_Compressor";
 
-  std::vector<double> slice_xs = {0.05, 0.1, 0.2, 0.3, 0.4, 0.5 - 3e-3};
+  std::vector<double> slice_xs = {3e-3, 0.1, 0.2, 0.3, 0.4, 0.5 - 3e-3};
   std::vector<::amrex::Box> output_boxes{};
   output_boxes.reserve(slice_xs.size() + 1);
 
@@ -606,20 +606,20 @@ void MyMain(const boost::program_options::variables_map& vm) {
     //
     // Output VisIt Plotfiles
     //
-    if (which < 1) {
-      auto tubes = gridding->GetTubes();
-      int k = 0;
-      for (auto& tube : tubes) {
-        std::string name =
-            fmt::format("{}/Tube_{}/plt{:05}", base_name, k, cycle);
-        fub::amrex::WritePlotFile(name, tube->GetPatchHierarchy(),
-                                  tube_equation);
-        k = k + 1;
-      }
-      std::string name = fmt::format("{}/Plenum/plt{:05}", base_name, cycle);
-      fub::amrex::cutcell::WritePlotFile(
-          name, gridding->GetPlena()[0]->GetPatchHierarchy(), equation);
-    }
+//    if (which < 1) {
+//      auto tubes = gridding->GetTubes();
+//      int k = 0;
+//      for (auto& tube : tubes) {
+//        std::string name =
+//            fmt::format("{}/Tube_{}/plt{:05}", base_name, k, cycle);
+//        fub::amrex::WritePlotFile(name, tube->GetPatchHierarchy(),
+//                                  tube_equation);
+//        k = k + 1;
+//      }
+//      std::string name = fmt::format("{}/Plenum/plt{:05}", base_name, cycle);
+//      fub::amrex::cutcell::WritePlotFile(
+//          name, gridding->GetPlena()[0]->GetPatchHierarchy(), equation);
+//    }
 
     //
     // Output Checkpoints for possible restarts of a simulation
@@ -638,7 +638,7 @@ void MyMain(const boost::program_options::variables_map& vm) {
   output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
          solver.GetTimePoint(), 0);
   fub::RunOptions run_options(vm);
-  run_options.output_interval.push_back(fub::Duration(1e-5));
+//  run_options.output_interval.push_back(fub::Duration(1e-4));
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }
 

@@ -44,6 +44,27 @@ MultiBlockIntegratorContext::MultiBlockIntegratorContext(
       std::move(connectivity));
 }
 
+MultiBlockIntegratorContext::MultiBlockIntegratorContext(
+    FlameMasterReactor reactor, std::vector<IntegratorContext> tubes,
+    std::vector<cutcell::IntegratorContext> plena,
+    std::vector<BlockConnection> connectivity,
+    std::vector<std::shared_ptr<PressureValve>> valves)
+    : tubes_{std::move(tubes)}, plena_{std::move(plena)} {
+  std::vector<std::shared_ptr<GriddingAlgorithm>> tube_grids(tubes_.size());
+  std::transform(
+      tubes_.begin(), tubes_.end(), tube_grids.begin(),
+      [](IntegratorContext& ctx) { return ctx.GetGriddingAlgorithm(); });
+  std::vector<std::shared_ptr<cutcell::GriddingAlgorithm>> plenum_grids(
+      plena_.size());
+  std::transform(plena_.begin(), plena_.end(), plenum_grids.begin(),
+                 [](cutcell::IntegratorContext& ctx) {
+                   return ctx.GetGriddingAlgorithm();
+                 });
+  gridding_ = std::make_shared<MultiBlockGriddingAlgorithm>(
+      std::move(reactor), std::move(tube_grids), std::move(plenum_grids),
+      std::move(connectivity), std::move(valves));
+}
+
 span<IntegratorContext> MultiBlockIntegratorContext::Tubes() noexcept {
   return tubes_;
 }
