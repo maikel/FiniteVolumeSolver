@@ -94,7 +94,7 @@ void ReflectiveBoundary<Tag, Equation>::FillBoundary(
       ::amrex::Box box_to_fill = mfi.growntilebox() & boundary;
       if (!box_to_fill.isEmpty()) {
         auto states =
-            MakeView<Complete<Equation>>(fab, *equation_, box_to_fill);
+            MakeView<Complete<Equation>>(fab, *equation_, mfi.growntilebox());
         auto box = AsIndexBox<Equation::Rank()>(box_to_fill);
         ForEachIndex(box, [&](auto... is) {
           std::array<std::ptrdiff_t, Rank> dest{is...};
