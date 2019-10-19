@@ -316,6 +316,7 @@ int Flip(int side) { return (side == 0) * 1 + (side != 0) * 0; }
 
 MultiBlockBoundary::MultiBlockBoundary(const MultiBlockBoundary& other)
     : log_(other.log_), plenum_equation_(other.plenum_equation_),
+      valve_{other.valve_},
       tube_equation_(other.tube_equation_),
       plenum_mirror_box_(other.plenum_mirror_box_),
       tube_mirror_box_(other.tube_mirror_box_),
@@ -516,14 +517,14 @@ void MultiBlockBoundary::FillBoundary(::amrex::MultiFab& mf,
   ForEachFab(execution::seq, mf, [&](const ::amrex::MFIter& mfi) {
     const ::amrex::Box b = mfi.growntilebox() & box;
     if (!b.isEmpty()) {
-      if (!valve_ || valve_->state == PressureValveState::open_air) {
+      if (!valve_ || valve_->state != PressureValveState::closed) {
         for (int n = 0; n < mf.nComp(); ++n) {
           ForEachIndex(AsIndexBox<AMREX_SPACEDIM>(b), [&](auto... is) {
             const ::amrex::IntVect iv{int(is)...};
             mf[mfi](iv, n) = (*tube_ghost_data_)(iv, n);
           });
         }
-      } else if (valve_->state == PressureValveState::closed) {
+      } else {
         ReflectiveBoundary closed{execution::openmp, tube_equation_, dir_,
                                   side_};
         closed.FillBoundary(mf, geom, t, grid);
@@ -534,17 +535,19 @@ void MultiBlockBoundary::FillBoundary(::amrex::MultiFab& mf,
         auto view = MakeView<IdealGasMix<Tube_Rank>::Complete>(
             mf[mfi], tube_equation_, mfi.tilebox());
         std::vector<double> moles(tube_equation_.GetReactor().GetNSpecies());
-        ForEachIndex(Box<0>(view), [&](auto... is) {
-          Load(state, view, {is...});
-          Array<double, 1, 1> velocity = state.momentum / state.density;
-          tube_equation_.SetReactorStateFromComplete(state);
-          span<const double> rmoles =
-              tube_equation_.GetReactor().GetMoleFractions();
-          std::copy(rmoles.begin(), rmoles.end(), moles.begin());
-          moles[Burke2012::sH2] = 2 * moles[Burke2012::sO2];
-          tube_equation_.GetReactor().SetMoleFractions(moles);
-          tube_equation_.CompleteFromReactor(state, velocity);
-          Store(view, state, {is...});
+        ForEachIndex(Box<0>(view), [&](std::ptrdiff_t i) {
+          if (i < 5) {
+            Load(state, view, {i});
+            Array<double, 1, 1> velocity = state.momentum / state.density;
+            tube_equation_.SetReactorStateFromComplete(state);
+            span<const double> rmoles =
+                tube_equation_.GetReactor().GetMoleFractions();
+            std::copy(rmoles.begin(), rmoles.end(), moles.begin());
+            moles[Burke2012::sH2] = 2 * moles[Burke2012::sO2];
+            tube_equation_.GetReactor().SetMoleFractions(moles);
+            tube_equation_.CompleteFromReactor(state, velocity);
+            Store(view, state, {i});
+          }
         });
       }
     }
