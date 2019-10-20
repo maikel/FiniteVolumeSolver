@@ -467,8 +467,10 @@ void MultiBlockIntegratorContext::ComputeNumericFluxes(int level, Duration dt,
   }
   std::vector<double> average_flux(
       plena_[0].GetFluxes(0, Direction::X).nComp());
+  span<const MultiBlockBoundary> boundaries = gridding_->GetBoundaries(level);
+  const MultiBlockBoundary* boundary = boundaries.begin();
   for (const BlockConnection& conn : gridding_->GetConnectivity()) {
-    if (dir == conn.direction) {
+    if (dir == conn.direction && boundary->GetValve()->state != PressureValveState::closed) {
       cutcell::IntegratorContext& plenum = plena_[conn.plenum.id];
       IntegratorContext& tube = tubes_[conn.tube.id];
       const ::amrex::EBFArrayBoxFactory& factory =
@@ -499,6 +501,7 @@ void MultiBlockIntegratorContext::ComputeNumericFluxes(int level, Duration dt,
         }
       });
     }
+    ++boundary;
   }
 }
 
