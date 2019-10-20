@@ -315,8 +315,7 @@ int Flip(int side) { return (side == 0) * 1 + (side != 0) * 0; }
 } // namespace
 
 MultiBlockBoundary::MultiBlockBoundary(const MultiBlockBoundary& other)
-    : log_(other.log_), plenum_equation_(other.plenum_equation_),
-      valve_{other.valve_},
+    : log_(other.log_), valve_{other.valve_}, plenum_equation_(other.plenum_equation_),
       tube_equation_(other.tube_equation_),
       plenum_mirror_box_(other.plenum_mirror_box_),
       tube_mirror_box_(other.tube_mirror_box_),
@@ -513,8 +512,8 @@ const std::shared_ptr<PressureValve>& MultiBlockBoundary::GetValve() const noexc
 }
 
 void MultiBlockBoundary::FillBoundary(::amrex::MultiFab& mf,
-                                      const ::amrex::Geometry& geom, Duration t,
-                                      const GriddingAlgorithm& grid) {
+                                      const ::amrex::Geometry&, Duration,
+                                      const GriddingAlgorithm&) {
   if (valve_ && valve_->state == PressureValveState::closed) {
 //    ReflectiveBoundary closed{execution::openmp, tube_equation_, dir_,
 //      Flip(side_)};

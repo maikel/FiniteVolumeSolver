@@ -470,7 +470,7 @@ void MultiBlockIntegratorContext::ComputeNumericFluxes(int level, Duration dt,
   span<const MultiBlockBoundary> boundaries = gridding_->GetBoundaries(level);
   const MultiBlockBoundary* boundary = boundaries.begin();
   for (const BlockConnection& conn : gridding_->GetConnectivity()) {
-    if (dir == conn.direction && boundary->GetValve()->state != PressureValveState::closed) {
+    if (dir == conn.direction && !(boundary->GetValve() && boundary->GetValve()->state == PressureValveState::closed)) {
       cutcell::IntegratorContext& plenum = plena_[conn.plenum.id];
       IntegratorContext& tube = tubes_[conn.tube.id];
       const ::amrex::EBFArrayBoxFactory& factory =
