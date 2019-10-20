@@ -119,6 +119,8 @@ public:
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
                     Duration time_point, const GriddingAlgorithm& gridding);
 
+  const std::shared_ptr<PressureValve>& GetValve() const noexcept;
+
 private:
   using logger_type = boost::log::sources::severity_channel_logger<
       boost::log::trivial::severity_level>;
