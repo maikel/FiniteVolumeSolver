@@ -208,24 +208,27 @@ int FindLevel(const ::amrex::Geometry& geom,
 }
 
 double ChangeState_(PressureValveState& state, const ::amrex::Geometry& geom,
-                    const GriddingAlgorithm& grid, Duration& last_opened,
+                    const GriddingAlgorithm& grid, Duration& last_closed, Duration& last_fuel_change,
                     const PressureValveOptions& options, IdealGasMix<1>& eq) {
   const double mean_pressure = GetMeanPressure_(grid, eq);
   const double dx_2 = geom.CellSize(0);
   const double xlo = geom.ProbDomain().lo(0) + dx_2;
   const double xhi = geom.ProbDomain().hi(0) - dx_2;
   const Duration current_time = grid.GetPatchHierarchy().GetTimePoint(0);
-  const Duration next_time = (last_opened.count() < 0.0)
+  const Duration next_open_time = (last_closed.count() < 0.0)
+    ? Duration(0.0) : last_closed + Duration(1e-3);
+  const Duration next_fuel_time = (last_fuel_change.count() < 0.0)
                                  ? options.offset
-                                 : last_opened + options.open_at_interval;
+                                 : last_fuel_change + options.open_at_interval;
   const int level = FindLevel(geom, grid);
   boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
       boost::log::keywords::severity = boost::log::trivial::info);
+  BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", options.prefix);
   BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", current_time.count());
   BOOST_LOG_SCOPED_LOGGER_TAG(log, "Level", level);
   switch (state) {
   case PressureValveState::closed:
-    if (mean_pressure < options.pressure_value_which_opens_boundary) {
+    if (next_open_time < current_time && mean_pressure < options.pressure_value_which_opens_boundary) {
       state = PressureValveState::open_air;
       BOOST_LOG(log) << "pressure valve opened for air!";
     }
@@ -233,12 +236,13 @@ double ChangeState_(PressureValveState& state, const ::amrex::Geometry& geom,
   case PressureValveState::open_air:
   case PressureValveState::open_fuel:
     if (mean_pressure > options.pressure_value_which_closes_boundary) {
+      last_closed = current_time;
       state = PressureValveState::closed;
       BOOST_LOG(log) << "pressure valve closed!";
     }
     break;
   }
-  if (next_time <= current_time && state == PressureValveState::open_air) {
+  if (next_fuel_time < current_time && state == PressureValveState::open_air) {
     const double x_air =
         std::clamp(options.oxygen_measurement_position, xlo, xhi);
     std::vector<double> moles = GatherMoles_(grid, x_air, eq);
@@ -250,7 +254,7 @@ double ChangeState_(PressureValveState& state, const ::amrex::Geometry& geom,
     }
     if (options.oxygen_measurement_criterium < moles[Burke2012::sO2]) {
       state = PressureValveState::open_fuel;
-      last_opened = next_time;
+      last_fuel_change = next_fuel_time;
       BOOST_LOG(log) << "pressure valve changed to fuel!";
     }
   } else if (state == PressureValveState::open_fuel) {
@@ -261,6 +265,7 @@ double ChangeState_(PressureValveState& state, const ::amrex::Geometry& geom,
                            ? 0.5 * moles[Burke2012::sH2] / moles[Burke2012::sO2]
                            : 0.0;
     if (eqr > options.fuel_measurement_criterium) {
+      last_closed = current_time;
       state = PressureValveState::closed;
       BOOST_LOG(log) << "pressure valve closed!";
     }
@@ -316,7 +321,7 @@ void PressureValveBoundary::FillBoundary(::amrex::MultiFab& mf,
 
   // Change State Machine if neccessary
   const double mean_pressure =
-      ChangeState_(shared_valve_->state, geom, grid, shared_valve_->last_opened,
+      ChangeState_(shared_valve_->state, geom, grid, shared_valve_->last_closed,shared_valve_->last_fuel,
                    options_, equation_);
 
   ReflectiveBoundary closed(execution::openmp, equation_, Direction::X, 0);
