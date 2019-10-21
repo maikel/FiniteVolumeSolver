@@ -89,7 +89,8 @@ enum class PressureValveState { open_air, open_fuel, closed };
 
 struct PressureValve {
   PressureValveState state{PressureValveState::open_air};
-  Duration last_opened{-std::numeric_limits<double>::infinity()};
+  Duration last_closed{-std::numeric_limits<double>::infinity()};
+  Duration last_fuel{-std::numeric_limits<double>::infinity()};
 };
 
 class PressureValveBoundary {
@@ -126,7 +127,8 @@ void serialize(Archive& ar, ::fub::amrex::PressureValve& valve,
   int state = static_cast<int>(valve.state);
   ar& state;
   valve.state = static_cast<::fub::amrex::PressureValveState>(state);
-  ar& valve.last_opened;
+  ar& valve.last_closed;
+  ar& valve.last_fuel;
 }
 
 template <typename Archive>
