@@ -261,13 +261,13 @@ double ChangeState_(PressureValveState& state, const ::amrex::Geometry& geom,
     const double x_fuel =
         std::clamp(options.fuel_measurement_position, xlo, xhi);
     std::vector<double> moles = GatherMoles_(grid, x_fuel, eq);
-    const double eqr = moles[Burke2012::sO2]
+    const double equivalence_ratio = moles[Burke2012::sO2]
                            ? 0.5 * moles[Burke2012::sH2] / moles[Burke2012::sO2]
                            : 0.0;
-    if (eqr > options.fuel_measurement_criterium) {
+    if (equivalence_ratio > options.fuel_measurement_criterium) {
       last_closed = current_time;
       state = PressureValveState::closed;
-      BOOST_LOG(log) << "pressure valve closed!";
+      BOOST_LOG(log) << "pressure valve closed due to measured fuel: equivalence ratio at " << x_fuel << " [m] is " << equivalence_ratio << " [-]!";
     }
   }
 
