@@ -24,12 +24,12 @@
 #include "fub/Duration.hpp"
 #include "fub/TimeStepError.hpp"
 #include "fub/core/assert.hpp"
+#include "fub/ext/ProgramOptions.hpp"
 
 #include <boost/log/sources/severity_logger.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/log/common.hpp>
 #include <boost/outcome.hpp>
-#include <boost/program_options.hpp>
 
 #include <fmt/format.h>
 
@@ -41,9 +41,7 @@ namespace fub {
 struct RunOptions {
   RunOptions() = default;
 
-  explicit RunOptions(const boost::program_options::variables_map& vm);
-
-  static boost::program_options::options_description GetCommandLineOptions();
+  explicit RunOptions(const std::map<std::string, pybind11::object>& vm);
 
   template <typename Logger>
   void Print(Logger& log) {

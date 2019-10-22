@@ -168,6 +168,7 @@ install(
 
 find_package(fmt REQUIRED)
 find_package(Vc REQUIRED)
+find_package(pybind11 REQUIRED)
 
 add_library(FiniteVolumeSolver.Solver
   include/fub/boundary_condition/TransmissiveBoundary.hpp
@@ -255,7 +256,9 @@ add_library(FiniteVolumeSolver.Solver
   src/geometry/ExpandTube.cpp
   src/CutCellData.cpp
   src/HyperbolicPatchIntegrator.cpp
-  src/RunSimulation.cpp)
+  src/RunSimulation.cpp
+  src/ext/ProgramOptions.cpp
+  include/fub/ext/ProgramOptions.hpp)
 target_link_libraries(FiniteVolumeSolver.Solver
   PUBLIC
     FiniteVolumeSolver.Core
@@ -267,7 +270,8 @@ target_link_libraries(FiniteVolumeSolver.Solver
     Boost::program_options
     Boost::serialization
     Eigen3::Eigen
-    Vc::Vc)
+    Vc::Vc
+    pybind11::embed)
 target_compile_options(FiniteVolumeSolver.Solver 
   PRIVATE 
   $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>

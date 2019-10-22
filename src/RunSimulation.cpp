@@ -27,40 +27,25 @@
 
 namespace fub {
 
-RunOptions::RunOptions(const boost::program_options::variables_map& vm) {
-  auto GetOptionOr = [&](const char* opt, auto default_value) {
+RunOptions::RunOptions(const std::map<std::string, pybind11::object>& vm) {
+  auto GetOptionOr = [&](const std::string& opt, auto default_value) {
+    auto iter = vm.find(opt);
     if (vm.count(opt)) {
-      return vm[opt].as<std::decay_t<decltype(default_value)>>();
+      return iter->second.cast<std::decay_t<decltype(default_value)>>();
     }
     return default_value;
   };
-  final_time = Duration(GetOptionOr("final_time", 1.0));
+  final_time = Duration(GetOptionOr("final_time", final_time.count()));
   max_cycles = GetOptionOr("max_cycles", -1);
-  std::vector<double> intervals = GetOptionOr("output.interval", std::vector{0.0});
+  std::vector<double> intervals =
+      GetOptionOr("output.interval", std::vector{0.0});
   output_interval.resize(intervals.size());
-  std::transform(intervals.begin(), intervals.end(), output_interval.begin(), [](double x) {
-      return Duration(x);
-  });
+  std::transform(intervals.begin(), intervals.end(), output_interval.begin(),
+                 [](double x) { return Duration(x); });
   output_frequency = GetOptionOr("output.frequency", std::vector{0});
-  smallest_time_step_size = Duration(GetOptionOr("smallest_time_step_size", 1.0E-12));
+  smallest_time_step_size =
+      Duration(GetOptionOr("smallest_time_step_size", 1.0E-12));
   cfl = GetOptionOr("cfl", 0.8);
-}
-
-boost::program_options::options_description RunOptions::GetCommandLineOptions() {
-  namespace po = boost::program_options;
-  RunOptions opts{};
-  po::options_description desc{"Run Options"};
-  // clang-format off
-  desc.add_options()
-    ("help", "Print help messages")
-    ("max_cycles", po::value<int>(), "Set maximal number of coarse time steps done.")
-    ("cfl", po::value<double>(), "Set the CFL condition")
-    ("output.interval", po::value<std::vector<double>>()->multitoken(), "Sets the output interval")
-    ("output.frequency", po::value<std::vector<int>>()->multitoken(), "Sets the output frequency")
-    ("final_time", po::value<double>(), "Sets the final time point for this simulation")
-    ("smallest_time_step_size", po::value<double>(), "Set the minimal possible time step size");
-  // clang-format on
-  return desc;
 }
 
 std::string
@@ -79,11 +64,10 @@ FormatTimeStepLine(std::ptrdiff_t cycle,
       std::fmod(duration_cast<duration<double>>(wall_time).count(), 60.);
   const double wt_diff_seconds =
       duration_cast<duration<double>>(wall_time_difference).count();
-  return fmt::format(
-      "[{:3}%] {:05}: dt = {:6e}s wall-time: {:02}h:"
-      "{:02}m:{:6f}s (+{:6e}s)",
-      total_progress, cycle, time_step_size.count(),
-      wt_hours, wt_minutes, wt_seconds, wt_diff_seconds);
+  return fmt::format("[{:3}%] {:05}: dt = {:6e}s wall-time: {:02}h:"
+                     "{:02}m:{:6f}s (+{:6e}s)",
+                     total_progress, cycle, time_step_size.count(), wt_hours,
+                     wt_minutes, wt_seconds, wt_diff_seconds);
 }
 
 std::optional<int> AnyOutputCondition(std::ptrdiff_t cycle, Duration time_point,

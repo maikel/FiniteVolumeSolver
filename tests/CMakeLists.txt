@@ -60,7 +60,7 @@ if (AMReX_FOUND AND AMREX_DIM EQUAL 3 AND AMREX_ENABLE_EB)
       $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>)
 endif()
 
-find_package(benchmark)
+find_package(benchmark QUIET)
 if (TARGET benchmark::benchmark)
   add_executable(benchmark.HyperbolicSplitPatchIntegrator benchmark/HyperbolicSplitPatchIntegrator.cpp)
   target_link_libraries(benchmark.HyperbolicSplitPatchIntegrator FiniteVolumeSolver.Solver benchmark::benchmark)
