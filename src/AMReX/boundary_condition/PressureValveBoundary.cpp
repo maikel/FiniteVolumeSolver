@@ -216,7 +216,7 @@ double ChangeState_(PressureValveState& state, const ::amrex::Geometry& geom,
   const double xhi = geom.ProbDomain().hi(0) - dx_2;
   const Duration current_time = grid.GetPatchHierarchy().GetTimePoint(0);
   const Duration next_open_time = (last_closed.count() < 0.0)
-    ? Duration(0.0) : last_closed + Duration(1e-3);
+    ? Duration(0.0) : last_closed + Duration(3e-3);
   const Duration next_fuel_time = (last_fuel_change.count() < 0.0)
                                  ? options.offset
                                  : last_fuel_change + options.open_at_interval;
@@ -238,7 +238,7 @@ double ChangeState_(PressureValveState& state, const ::amrex::Geometry& geom,
     if (mean_pressure > options.pressure_value_which_closes_boundary) {
       last_closed = current_time;
       state = PressureValveState::closed;
-      BOOST_LOG(log) << "pressure valve closed!";
+      BOOST_LOG(log) << "pressure valve closed due to mean pressure (which is " << mean_pressure << " [Pa])!";
     }
     break;
   }
