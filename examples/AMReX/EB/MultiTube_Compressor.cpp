@@ -170,6 +170,8 @@ auto MakeTubeSolver(fub::Burke2012& mechanism, const TubeSolverOptions& opts,
   }();
 
   fub::ideal_gas::MusclHancockPrimMethod<Tube_Rank> flux_method{equation};
+ // fub::EinfeldtSignalVelocities<fub::IdealGasMix<Tube_Rank>> signals{};
+ // fub::HllMethod hll_method{equation, signals};
   HyperbolicMethod method{FluxMethod(fub::execution::openmp, flux_method),
                           ForwardIntegrator(fub::execution::openmp),
                           Reconstruction(fub::execution::openmp, equation)};
@@ -295,8 +297,8 @@ auto MakePlenumSolver(fub::Burke2012& mechanism, int num_cells, int n_level,
 
   fub::EinfeldtSignalVelocities<fub::IdealGasMix<Plenum_Rank>> signals{};
   fub::HllMethod hll_method{equation, signals};
-  fub::ideal_gas::MusclHancockPrimMethod<Plenum_Rank> flux_method(equation);
-  fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
+  // fub::ideal_gas::MusclHancockPrimMethod<Plenum_Rank> flux_method(equation);
+  fub::KbnCutCellMethod cutcell_method(hll_method, hll_method);
 
   HyperbolicMethod method{
       FluxMethod{fub::execution::openmp_simd, cutcell_method},
@@ -516,6 +518,7 @@ void MyMain(const boost::program_options::variables_map& vm) {
       ifs = std::istringstream(input);
       boost::archive::text_iarchive ia(ifs);
       ia >> *valve;
+      ++k;
     }
   }
 
