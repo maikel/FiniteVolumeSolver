@@ -1,4 +1,5 @@
-pathToTube='/Volumes/Maikel_Intenso/FiniteVolumeSolver_Build/IdealGasMix/Matlab';
+pathToTube='/scratch/guttula/Compressor/551385/MultiTube_Compressor/Matlab/Tube_0/';
+destPath='/scratch/guttula/Compressor/551385/';
 
 [X, time, data] = ReadTubeData(pathToTube);
 
@@ -19,10 +20,15 @@ ylabel('Zeit [ms]');
 colorbar;
 title('x/t-Diagramm für die Dichte [kg/m3]');
 
-figure(3)
+f = figure(3)
 imagesc(X, time, (0.25 * data.species(:, :, 7) ./ (data.species(:, :, 4) / 32))'); 
 set(gca, 'Ydir', 'normal');
-colorbar;
+xlabel('Position im Rohr [m]');
+ylabel('Zeit [ms]');
+c = colorbar;
+c.Label.String('Equivalence Ratio [-]')
+caxis([0 1])
+saveas(f, sprintf('%s/equivalence_ratio.eps', destPath));
 
 figure(4)
 imagesc(X, time * 1000, (data.u ./ data.speed_of_sound)'); 
