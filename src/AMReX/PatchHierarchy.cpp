@@ -278,6 +278,21 @@ PatchHierarchy ReadCheckpointFile(const std::string& checkpointname,
 }
 
 namespace {
+template <typename Deleter> struct H5Handle {
+  H5Handle() = default;
+  H5Handle(hid_t id) : id_{id} {}
+
+  ~H5Handle() {
+    if (id_ > 0) {
+      Deleter{}(id_);
+    }
+  }
+
+  operator hid_t() const noexcept { return id_; }
+
+  hid_t id_{};
+};
+
 std::array<hsize_t, AMREX_SPACEDIM + 1>
 GetExtents(const ::amrex::FArrayBox& fab) {
   std::array<hsize_t, AMREX_SPACEDIM + 1> extents = {hsize_t(fab.nComp())};
@@ -291,31 +306,31 @@ struct H5Fdeleter {
   using pointer = hid_t;
   void operator()(hid_t file) const noexcept { H5Fclose(file); }
 };
-using H5File = std::unique_ptr<hid_t, H5Fdeleter>;
+using H5File = H5Handle<H5Fdeleter>;
 
 struct H5Sdeleter {
   using pointer = hid_t;
   void operator()(hid_t dataspace) const noexcept { H5Sclose(dataspace); }
 };
-using H5Space = std::unique_ptr<hid_t, H5Sdeleter>;
+using H5Space = H5Handle<H5Sdeleter>;
 
 struct H5Ddeleter {
   using pointer = hid_t;
   void operator()(hid_t dataset) const noexcept { H5Dclose(dataset); }
 };
-using H5Dataset = std::unique_ptr<hid_t, H5Ddeleter>;
+using H5Dataset = H5Handle<H5Ddeleter>;
 
 struct H5Adeleter {
   using pointer = hid_t;
   void operator()(hid_t attributes) const noexcept { H5Aclose(attributes); }
 };
-using H5Attribute = std::unique_ptr<hid_t, H5Adeleter>;
+using H5Attribute = H5Handle<H5Adeleter>;
 
 struct H5Pdeleter {
   using pointer = hid_t;
   void operator()(hid_t properties) const noexcept { H5Pclose(properties); }
 };
-using H5Properties = std::unique_ptr<hid_t, H5Pdeleter>;
+using H5Properties = H5Handle<H5Pdeleter>;
 
 void CreateHdf5Database(const std::string& name, const ::amrex::FArrayBox& fab,
                         const ::amrex::Geometry& geom, Duration tp,
@@ -331,41 +346,38 @@ void CreateHdf5Database(const std::string& name, const ::amrex::FArrayBox& fab,
         AMREX_D_DECL(extents[1], extents[2], extents[3])};
 
     H5Properties properties(H5Pcreate(H5P_DATASET_CREATE));
-    H5Pset_chunk(properties.get(), 5, dims.data());
-    H5Pset_alloc_time(properties.get(), H5D_ALLOC_TIME_EARLY);
+    H5Pset_chunk(properties, 5, dims.data());
+    H5Pset_alloc_time(properties, H5D_ALLOC_TIME_EARLY);
     H5Space dataspace(H5Screate_simple(5, dims.data(), maxdims.data()));
-    H5Dataset dataset(H5Dcreate(file.get(), "/data", H5T_IEEE_F64LE,
-                                dataspace.get(), H5P_DEFAULT, properties.get(),
-                                H5P_DEFAULT));
-    H5Dwrite(dataset.get(), H5T_IEEE_F64LE, H5S_ALL, H5S_ALL, H5P_DEFAULT,
+    H5Dataset dataset(H5Dcreate(file, "/data", H5T_IEEE_F64LE, dataspace,
+                                H5P_DEFAULT, properties, H5P_DEFAULT));
+    H5Dwrite(dataset, H5T_IEEE_F64LE, H5S_ALL, H5S_ALL, H5P_DEFAULT,
              fab.dataPtr());
     hsize_t spacedim_value = AMREX_SPACEDIM;
     H5Space spacedim(H5Screate_simple(1, &spacedim_value, nullptr));
 
-    H5Attribute xlower(H5Acreate2(dataset.get(), "xlower", H5T_IEEE_F64LE,
-                                  spacedim.get(), H5P_DEFAULT, H5P_DEFAULT));
-    H5Awrite(xlower.get(), H5T_IEEE_F64LE, geom.ProbLo());
+    H5Attribute xlower(H5Acreate2(dataset, "xlower", H5T_IEEE_F64LE, spacedim,
+                                  H5P_DEFAULT, H5P_DEFAULT));
+    H5Awrite(xlower, H5T_IEEE_F64LE, geom.ProbLo());
 
-    H5Attribute cell_size(H5Acreate2(dataset.get(), "cell_size", H5T_IEEE_F64LE,
-                                     spacedim.get(), H5P_DEFAULT, H5P_DEFAULT));
-    H5Awrite(cell_size.get(), H5T_IEEE_F64LE, geom.CellSize());
+    H5Attribute cell_size(H5Acreate2(dataset, "cell_size", H5T_IEEE_F64LE,
+                                     spacedim, H5P_DEFAULT, H5P_DEFAULT));
+    H5Awrite(cell_size, H5T_IEEE_F64LE, geom.CellSize());
   }
   hsize_t dims[1] = {1};
   hsize_t maxdims[1] = {H5S_UNLIMITED};
   H5Properties properties(H5Pcreate(H5P_DATASET_CREATE));
-  H5Pset_chunk(properties.get(), 1, dims);
+  H5Pset_chunk(properties, 1, dims);
   H5Space dataspace(H5Screate_simple(1, dims, maxdims));
 
-  H5Dataset times(H5Dcreate(file.get(), "/times", H5T_IEEE_F64LE,
-                            dataspace.get(), H5P_DEFAULT, properties.get(),
-                            H5P_DEFAULT));
+  H5Dataset times(H5Dcreate(file, "/times", H5T_IEEE_F64LE, dataspace,
+                            H5P_DEFAULT, properties, H5P_DEFAULT));
   const double count = tp.count();
-  H5Dwrite(times.get(), H5T_IEEE_F64LE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &count);
-  H5Dataset cycles(H5Dcreate(file.get(), "/cycles", H5T_STD_I64LE_g,
-                             dataspace.get(), H5P_DEFAULT, properties.get(),
-                             H5P_DEFAULT));
+  H5Dwrite(times, H5T_IEEE_F64LE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &count);
+  H5Dataset cycles(H5Dcreate(file, "/cycles", H5T_STD_I64LE_g, dataspace,
+                             H5P_DEFAULT, properties, H5P_DEFAULT));
   const std::int64_t cycle_count = static_cast<std::int64_t>(cycle);
-  H5Dwrite(cycles.get(), H5T_STD_I64LE_g, H5S_ALL, H5S_ALL, H5P_DEFAULT,
+  H5Dwrite(cycles, H5T_STD_I64LE_g, H5S_ALL, H5S_ALL, H5P_DEFAULT,
            &cycle_count);
 }
 
@@ -373,11 +385,10 @@ void OpenHdf5Database(const std::string& name, const ::amrex::FArrayBox& fab,
                       Duration tp, std::ptrdiff_t cycle) {
   // Open or Create Data Set
   H5File file(H5Fopen(name.c_str(), H5F_ACC_RDWR, H5P_DEFAULT));
-  if (file.get() < 0) {
+  if (file < 0) {
     return;
   }
-  if (H5Dataset dataset(H5Dopen(file.get(), "/data", H5P_DEFAULT));
-      dataset.get() < 0) {
+  if (H5Dataset dataset(H5Dopen(file, "/data", H5P_DEFAULT)); dataset < 0) {
     return;
   } else {
     auto map_first = [](const std::array<hsize_t, AMREX_SPACEDIM + 2>& x,
@@ -387,64 +398,62 @@ void OpenHdf5Database(const std::string& name, const ::amrex::FArrayBox& fab,
     };
     std::array<hsize_t, AMREX_SPACEDIM + 2> dims = {};
     std::array<hsize_t, AMREX_SPACEDIM + 2> maxdims = {};
-    H5Space dataspace(H5Dget_space(dataset.get()));
-    H5Sget_simple_extent_dims(dataspace.get(), dims.data(), maxdims.data());
+    H5Space dataspace(H5Dget_space(dataset));
+    H5Sget_simple_extent_dims(dataspace, dims.data(), maxdims.data());
     FUB_ASSERT(maxdims[0] == H5S_UNLIMITED);
     std::array<hsize_t, AMREX_SPACEDIM + 2> new_dims =
         map_first(dims, [](hsize_t dim) { return dim + 1; });
-    H5Dset_extent(dataset.get(), new_dims.data());
-    H5Space filespace(H5Dget_space(dataset.get()));
+    H5Dset_extent(dataset, new_dims.data());
+    H5Space filespace(H5Dget_space(dataset));
     std::array<hsize_t, AMREX_SPACEDIM + 2> count =
         map_first(dims, [](hsize_t) { return 1; });
     std::array<hsize_t, AMREX_SPACEDIM + 2> offset{dims[0]};
-    H5Sselect_hyperslab(filespace.get(), H5S_SELECT_SET, offset.data(), nullptr,
+    H5Sselect_hyperslab(filespace, H5S_SELECT_SET, offset.data(), nullptr,
                         count.data(), nullptr);
     H5Space memspace(
         H5Screate_simple(AMREX_SPACEDIM + 2, count.data(), nullptr));
-    H5Dwrite(dataset.get(), H5T_IEEE_F64LE, memspace.get(), filespace.get(),
-             H5P_DEFAULT, fab.dataPtr());
+    H5Dwrite(dataset, H5T_IEEE_F64LE, memspace, filespace, H5P_DEFAULT,
+             fab.dataPtr());
   }
-  if (H5Dataset times(H5Dopen(file.get(), "/times", H5P_DEFAULT));
-      times.get() < 0) {
+  if (H5Dataset times(H5Dopen(file, "/times", H5P_DEFAULT)); times < 0) {
     return;
   } else {
     hsize_t dims{};
     hsize_t maxdims{};
-    H5Space dataspace(H5Dget_space(times.get()));
-    H5Sget_simple_extent_dims(dataspace.get(), &dims, &maxdims);
+    H5Space dataspace(H5Dget_space(times));
+    H5Sget_simple_extent_dims(dataspace, &dims, &maxdims);
     FUB_ASSERT(maxdims == H5S_UNLIMITED);
     const hsize_t new_dims = dims + 1;
-    H5Dset_extent(times.get(), &new_dims);
-    H5Space filespace(H5Dget_space(times.get()));
+    H5Dset_extent(times, &new_dims);
+    H5Space filespace(H5Dget_space(times));
     const hsize_t count = 1;
     const hsize_t offset = dims;
-    H5Sselect_hyperslab(filespace.get(), H5S_SELECT_SET, &offset, &count,
-                        &count, &count);
+    H5Sselect_hyperslab(filespace, H5S_SELECT_SET, &offset, &count, &count,
+                        &count);
     const double tp_count = tp.count();
     H5Space memspace(H5Screate_simple(1, &count, nullptr));
-    H5Dwrite(times.get(), H5T_IEEE_F64LE, memspace.get(), filespace.get(),
-             H5P_DEFAULT, &tp_count);
+    H5Dwrite(times, H5T_IEEE_F64LE, memspace, filespace, H5P_DEFAULT,
+             &tp_count);
   }
-  if (H5Dataset cycles(H5Dopen(file.get(), "/cycles", H5P_DEFAULT));
-      cycles.get() < 0) {
+  if (H5Dataset cycles(H5Dopen(file, "/cycles", H5P_DEFAULT)); cycles < 0) {
     return;
   } else {
     hsize_t dims{};
     hsize_t maxdims{};
-    H5Space dataspace(H5Dget_space(cycles.get()));
-    H5Sget_simple_extent_dims(dataspace.get(), &dims, &maxdims);
+    H5Space dataspace(H5Dget_space(cycles));
+    H5Sget_simple_extent_dims(dataspace, &dims, &maxdims);
     FUB_ASSERT(maxdims == H5S_UNLIMITED);
     const hsize_t new_dims = dims + 1;
-    H5Dset_extent(cycles.get(), &new_dims);
-    H5Space filespace(H5Dget_space(cycles.get()));
+    H5Dset_extent(cycles, &new_dims);
+    H5Space filespace(H5Dget_space(cycles));
     const hsize_t count = 1;
     const hsize_t offset = dims;
-    H5Sselect_hyperslab(filespace.get(), H5S_SELECT_SET, &offset, nullptr,
-                        &count, nullptr);
+    H5Sselect_hyperslab(filespace, H5S_SELECT_SET, &offset, nullptr, &count,
+                        nullptr);
     const std::int64_t cycle_count = static_cast<std::int64_t>(cycle);
     H5Space memspace(H5Screate_simple(1, &count, nullptr));
-    H5Dwrite(cycles.get(), H5T_IEEE_F64LE, memspace.get(), filespace.get(),
-             H5P_DEFAULT, &cycle_count);
+    H5Dwrite(cycles, H5T_IEEE_F64LE, memspace, filespace, H5P_DEFAULT,
+             &cycle_count);
   }
 }
 } // namespace
