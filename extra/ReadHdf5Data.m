@@ -1,0 +1,19 @@
+function [X, Y, Z, time, data] = ReadHdf5Data(path)
+  raw_data = h5read(path, '/data');  
+  sizes = size(raw_data);
+  dx = h5readatt(path, '/data', 'cell_size');
+  x0 = h5readatt(path, '/data', 'xlower');
+  X = linspace(x0(1), x0(1) + (sizes(1) - 1)*dx(1), sizes(1));
+  Y = linspace(x0(2), x0(2) + (sizes(2) - 1)*dx(2), sizes(2));
+  Z = linspace(x0(3), x0(3) + (sizes(3) - 1)*dx(3), sizes(3));
+  time = h5read(path, '/times');
+  data.rho = raw_data(:,:,:,1,:);
+  data.rhou = raw_data(:,:,:,[2,3,4],:);
+  data.rhoE = raw_data(:,:,:,5,:);
+  data.rhoY = raw_data(:,:,:,6:16,:);
+  data.p = raw_data(:,:,:,17,:);
+  data.T = raw_data(:,:,:,18,:);
+  data.speed_of_sound = raw_data(:,:,:,19,:);
+  data.heat_capacity_at_constant_pressure = raw_data(:,:,:,20,:);
+  data.gamma = raw_data(:,:,:,21,:);
+end

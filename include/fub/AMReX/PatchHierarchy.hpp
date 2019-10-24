@@ -311,13 +311,13 @@ std::vector<double> GatherStates(
     basic_mdspan<const double, extents<AMREX_SPACEDIM, dynamic_extent>> xs,
     MPI_Comm comm);
 
-void WriteTubeData(std::ostream* out, const PatchHierarchy& hierarchy,
+void WriteTubeData(const std::string& filename, const PatchHierarchy& hierarchy,
                    const IdealGasMix<1>& eq, fub::Duration time_point,
                    std::ptrdiff_t cycle_number, MPI_Comm comm);
 
-void WriteTubeData(std::string filename, const PatchHierarchy& hierarchy,
-                   const IdealGasMix<1>& eq, fub::Duration time_point,
-                   std::ptrdiff_t cycle_number, MPI_Comm comm);
+void WriteToHDF5(const std::string& name, const ::amrex::FArrayBox& fab,
+                 const ::amrex::Geometry& geom, Duration time_point,
+                 std::ptrdiff_t cycle) noexcept;
 
 } // namespace amrex
 } // namespace fub

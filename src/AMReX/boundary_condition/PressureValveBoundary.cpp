@@ -89,7 +89,8 @@ PressureValveBoundary::PressureValveBoundary(const IdealGasMix<1>& equation,
       shared_valve_{std::make_shared<PressureValve>(PressureValve{})} {}
 
 PressureValveOptions::PressureValveOptions(const po::variables_map& map,
-                                           std::string p) : prefix{std::move(p)} {
+                                           std::string p)
+    : prefix{std::move(p)} {
   auto GetOptionOr = [&](const char* opt, double default_value) {
     if (map.count(PrefixedName(prefix, opt))) {
       return map[PrefixedName(prefix, opt)].as<double>();
@@ -208,7 +209,8 @@ int FindLevel(const ::amrex::Geometry& geom,
 }
 
 double ChangeState_(PressureValveState& state, const ::amrex::Geometry& geom,
-                    const GriddingAlgorithm& grid, Duration& last_closed, Duration& last_fuel_change,
+                    const GriddingAlgorithm& grid, Duration& last_closed,
+                    Duration& last_fuel_change,
                     const PressureValveOptions& options, IdealGasMix<1>& eq) {
   const double mean_pressure = GetMeanPressure_(grid, eq);
   const double dx_2 = geom.CellSize(0);
@@ -216,10 +218,12 @@ double ChangeState_(PressureValveState& state, const ::amrex::Geometry& geom,
   const double xhi = geom.ProbDomain().hi(0) - dx_2;
   const Duration current_time = grid.GetPatchHierarchy().GetTimePoint(0);
   const Duration next_open_time = (last_closed.count() < 0.0)
-    ? Duration(0.0) : last_closed + Duration(1e-3);
-  const Duration next_fuel_time = (last_fuel_change.count() < 0.0)
-                                 ? options.offset
-                                 : last_fuel_change + options.open_at_interval;
+                                      ? Duration(0.0)
+                                      : last_closed + Duration(1e-3);
+  const Duration next_fuel_time =
+      (last_fuel_change.count() < 0.0)
+          ? options.offset
+          : last_fuel_change + options.open_at_interval;
   const int level = FindLevel(geom, grid);
   boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
       boost::log::keywords::severity = boost::log::trivial::info);
@@ -228,7 +232,8 @@ double ChangeState_(PressureValveState& state, const ::amrex::Geometry& geom,
   BOOST_LOG_SCOPED_LOGGER_TAG(log, "Level", level);
   switch (state) {
   case PressureValveState::closed:
-    if (next_open_time < current_time && mean_pressure < options.pressure_value_which_opens_boundary) {
+    if (next_open_time < current_time &&
+        mean_pressure < options.pressure_value_which_opens_boundary) {
       state = PressureValveState::open_air;
       BOOST_LOG(log) << "pressure valve opened for air!";
     }
@@ -261,13 +266,16 @@ double ChangeState_(PressureValveState& state, const ::amrex::Geometry& geom,
     const double x_fuel =
         std::clamp(options.fuel_measurement_position, xlo, xhi);
     std::vector<double> moles = GatherMoles_(grid, x_fuel, eq);
-    const double equivalence_ratio = moles[Burke2012::sO2]
-                           ? 0.5 * moles[Burke2012::sH2] / moles[Burke2012::sO2]
-                           : 0.0;
+    const double equivalence_ratio =
+        moles[Burke2012::sO2]
+            ? 0.5 * moles[Burke2012::sH2] / moles[Burke2012::sO2]
+            : 0.0;
     if (equivalence_ratio > options.fuel_measurement_criterium) {
       last_closed = current_time;
       state = PressureValveState::closed;
-      BOOST_LOG(log) << "pressure valve closed due to measured fuel: equivalence ratio at " << x_fuel << " [m] is " << equivalence_ratio << " [-]!";
+      BOOST_LOG(log)
+          << "pressure valve closed due to measured fuel: equivalence ratio at "
+          << x_fuel << " [m] is " << equivalence_ratio << " [-]!";
     }
   }
 
@@ -321,8 +329,8 @@ void PressureValveBoundary::FillBoundary(::amrex::MultiFab& mf,
 
   // Change State Machine if neccessary
   const double mean_pressure =
-      ChangeState_(shared_valve_->state, geom, grid, shared_valve_->last_closed,shared_valve_->last_fuel,
-                   options_, equation_);
+      ChangeState_(shared_valve_->state, geom, grid, shared_valve_->last_closed,
+                   shared_valve_->last_fuel, options_, equation_);
 
   ReflectiveBoundary closed(execution::openmp, equation_, Direction::X, 0);
   switch (shared_valve_->state) {

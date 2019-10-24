@@ -38,6 +38,8 @@
 #include <cmath>
 #include <iostream>
 
+#include <hdf5.h>
+
 #include <xmmintrin.h>
 
 static constexpr int Tube_Rank = 1;
@@ -151,6 +153,14 @@ auto MakeTubeSolver(fub::Burke2012& mechanism, const TubeSolverOptions& opts,
     if (vm.count("grid.checkpoint")) {
       checkpoint = vm["grid.checkpoint"].as<std::string>();
     }
+    if (!checkpoint.empty()) {
+      MPI_Comm comm = MPI_COMM_WORLD;
+      std::string input =
+            ReadAndBroadcastFile(fmt::format("{}/Valve_{}", checkpoint, k), comm);
+      auto ifs = std::istringstream(input);
+      boost::archive::text_iarchive ia(ifs);
+      ia >> *(valve.GetSharedState());
+    }
     if (checkpoint.empty()) {
       std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
           PatchHierarchy(desc, geometry, hier_opts), initial_data,
@@ -169,8 +179,10 @@ auto MakeTubeSolver(fub::Burke2012& mechanism, const TubeSolverOptions& opts,
     }
   }();
 
-  fub::ideal_gas::MusclHancockPrimMethod<Tube_Rank> flux_method{equation};
-  HyperbolicMethod method{FluxMethod(fub::execution::openmp, flux_method),
+  fub::EinfeldtSignalVelocities<fub::IdealGasMix<Tube_Rank>> signals{};
+  fub::HllMethod hll_method{equation, signals};
+//  fub::ideal_gas::MusclHancockPrimMethod<Tube_Rank> flux_method{equation};
+  HyperbolicMethod method{FluxMethod(fub::execution::openmp, hll_method),
                           ForwardIntegrator(fub::execution::openmp),
                           Reconstruction(fub::execution::openmp, equation)};
 
@@ -295,8 +307,8 @@ auto MakePlenumSolver(fub::Burke2012& mechanism, int num_cells, int n_level,
 
   fub::EinfeldtSignalVelocities<fub::IdealGasMix<Plenum_Rank>> signals{};
   fub::HllMethod hll_method{equation, signals};
-  fub::ideal_gas::MusclHancockPrimMethod<Plenum_Rank> flux_method(equation);
-  fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
+//  fub::ideal_gas::MusclHancockPrimMethod<Plenum_Rank> flux_method(equation);
+  fub::KbnCutCellMethod cutcell_method(hll_method, hll_method);
 
   HyperbolicMethod method{
       FluxMethod{fub::execution::openmp_simd, cutcell_method},
@@ -508,15 +520,6 @@ void MyMain(const boost::program_options::variables_map& vm) {
     std::vector<fub::Duration> last_ignitions;
     ia >> last_ignitions;
     ignition.SetLastIgnitionTimePoints(last_ignitions);
-
-    int k = 0;
-    for (const std::shared_ptr<fub::amrex::PressureValve>& valve : valves) {
-      input =
-          ReadAndBroadcastFile(fmt::format("{}/Valve_{}", checkpoint, k), comm);
-      ifs = std::istringstream(input);
-      boost::archive::text_iarchive ia(ifs);
-      ia >> *valve;
-    }
   }
 
   fub::DimensionalSplitSystemSourceSolver ign_solver(system_solver, ignition,
@@ -577,7 +580,7 @@ void MyMain(const boost::program_options::variables_map& vm) {
       int k = 0;
       for (auto& tube : tubes) {
         std::string name =
-            fmt::format("{}/Matlab/Tube_{}/plt{:05}.dat", base_name, k, cycle);
+            fmt::format("{}/Matlab/Tube_{}.h5", base_name, k);
         fub::amrex::WriteTubeData(name, tube->GetPatchHierarchy(),
                                   tube_equation, time_point, cycle, comm);
         k = k + 1;
@@ -586,7 +589,7 @@ void MyMain(const boost::program_options::variables_map& vm) {
       std::for_each(output_boxes.begin(), output_boxes.end() - 1,
                     [&](const ::amrex::Box& out_box) {
                       std::string name =
-                          fmt::format("{}/Matlab/Plenum_x{}/plt{:05}.dat",
+                          fmt::format("{}/Matlab/Plenum_x{}.h5",
                                       base_name, k, cycle);
                       auto& plenum = gridding->GetPlena()[0];
                       fub::amrex::cutcell::Write2Dfrom3D(
@@ -596,7 +599,7 @@ void MyMain(const boost::program_options::variables_map& vm) {
                     });
       const ::amrex::Box out_box = output_boxes.back();
       std::string name =
-          fmt::format("{}/Matlab/Plenum_y0/plt{:05}.dat", base_name, cycle);
+          fmt::format("{}/Matlab/Plenum_y0.h5", base_name, cycle);
       auto& plenum = gridding->GetPlena()[0];
       fub::amrex::cutcell::Write2Dfrom3D(name, plenum->GetPatchHierarchy(),
                                          out_box, equation, time_point, cycle,
@@ -606,20 +609,20 @@ void MyMain(const boost::program_options::variables_map& vm) {
     //
     // Output VisIt Plotfiles
     //
-//    if (which < 1) {
-//      auto tubes = gridding->GetTubes();
-//      int k = 0;
-//      for (auto& tube : tubes) {
-//        std::string name =
-//            fmt::format("{}/Tube_{}/plt{:05}", base_name, k, cycle);
-//        fub::amrex::WritePlotFile(name, tube->GetPatchHierarchy(),
-//                                  tube_equation);
-//        k = k + 1;
-//      }
-//      std::string name = fmt::format("{}/Plenum/plt{:05}", base_name, cycle);
-//      fub::amrex::cutcell::WritePlotFile(
-//          name, gridding->GetPlena()[0]->GetPatchHierarchy(), equation);
-//    }
+    if (which < 1) {
+      auto tubes = gridding->GetTubes();
+      int k = 0;
+      for (auto& tube : tubes) {
+        std::string name =
+            fmt::format("{}/Tube_{}/plt{:05}", base_name, k, cycle);
+        fub::amrex::WritePlotFile(name, tube->GetPatchHierarchy(),
+                                  tube_equation);
+        k = k + 1;
+      }
+      std::string name = fmt::format("{}/Plenum/plt{:05}", base_name, cycle);
+      fub::amrex::cutcell::WritePlotFile(
+          name, gridding->GetPlena()[0]->GetPatchHierarchy(), equation);
+    }
 
     //
     // Output Checkpoints for possible restarts of a simulation

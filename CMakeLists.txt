@@ -24,7 +24,7 @@ endif()
 # linker options.
 if (EXISTS ${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
   include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-  conan_basic_setup(TARGETS)
+  conan_basic_setup(TARGETS NO_OUTPUT_DIRS)
 endif()
 
 # Try to find SAMRAI (optional)
@@ -168,6 +168,7 @@ install(
 
 find_package(fmt REQUIRED)
 find_package(Vc REQUIRED)
+find_package(HDF5 REQUIRED COMPONENTS C)
 
 add_library(FiniteVolumeSolver.Solver
   include/fub/boundary_condition/TransmissiveBoundary.hpp
@@ -348,7 +349,9 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
       Boost::boost
       Boost::filesystem
       Boost::serialization
-      Eigen3::Eigen)
+      Eigen3::Eigen
+      CONAN_PKG::HDF5)
+  target_include_directories(FiniteVolumeSolver.AMReX PUBLIC ${HDF5_C_INCLUDE_DIR})
 
   if (AMReX_EB_FOUND) 
     add_library(FiniteVolumeSolver.AMReX.EB

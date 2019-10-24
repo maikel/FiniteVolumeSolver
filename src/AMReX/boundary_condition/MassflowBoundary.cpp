@@ -33,16 +33,16 @@ MassflowBoundary::MassflowBoundary(const IdealGasMix<AMREX_SPACEDIM>& eq,
                                    const ::amrex::Box& coarse_inner_box,
                                    double required_massflow,
                                    double surface_area, Direction dir, int side)
-    : MassflowBoundary("MassflowBoundary", eq, coarse_inner_box, required_massflow, surface_area, dir, side) 
-{}
+    : MassflowBoundary("MassflowBoundary", eq, coarse_inner_box,
+                       required_massflow, surface_area, dir, side) {}
 
 MassflowBoundary::MassflowBoundary(const std::string& name,
                                    const IdealGasMix<AMREX_SPACEDIM>& eq,
                                    const ::amrex::Box& coarse_inner_box,
                                    double required_massflow,
                                    double surface_area, Direction dir, int side)
-    : log_(boost::log::keywords::channel = name),
-      equation_{eq}, coarse_inner_box_{coarse_inner_box},
+    : log_(boost::log::keywords::channel = name), equation_{eq},
+      coarse_inner_box_{coarse_inner_box},
       required_massflow_{required_massflow},
       surface_area_{surface_area}, dir_{dir}, side_{side} {}
 
@@ -117,8 +117,9 @@ void MassflowBoundary::FillBoundary(::amrex::MultiFab& mf,
   double rho = state.density;
   double u = state.momentum[int(dir_)] / rho;
   double p = state.pressure;
-  BOOST_LOG(log_) << fmt::format("average inner state: rho = {} [kg/m3], u = {} [m/s], p = {} [Pa]",
-                                 rho, u, p);
+  BOOST_LOG(log_) << fmt::format(
+      "average inner state: rho = {} [kg/m3], u = {} [m/s], p = {} [Pa]", rho,
+      u, p);
 
   equation_.GetReactor().SetDensity(state.density);
   equation_.GetReactor().SetMassFractions(state.species);
@@ -150,16 +151,18 @@ void MassflowBoundary::FillBoundary(::amrex::MultiFab& mf,
   rho = state.density;
   u = u_n;
   p = state.pressure;
-  BOOST_LOG(log_) << boost::log::add_value("Time", t.count()) << boost::log::add_value("Level", level) << fmt::format(
-      "outer state: rho = {} [kg/m3], u = {} [m/s], p = {} [Pa], Ma = {} [-]", rho, u, p, Ma);
+  BOOST_LOG(log_) << boost::log::add_value("Time", t.count())
+                  << boost::log::add_value("Level", level)
+                  << fmt::format("outer state: rho = {} [kg/m3], u = {} [m/s], "
+                                 "p = {} [Pa], Ma = {} [-]",
+                                 rho, u, p, Ma);
   auto factory = grid.GetPatchHierarchy().GetEmbeddedBoundary(level);
   const ::amrex::MultiFab& alphas = factory->getVolFrac();
   FillBoundary(mf, alphas, geom, state);
 }
 
 void MassflowBoundary::FillBoundary(
-    ::amrex::MultiFab& mf,
-    const ::amrex::Geometry& geom,
+    ::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
     const Complete<IdealGasMix<AMREX_SPACEDIM>>& state) {
   const int ngrow = mf.nGrow(int(dir_));
   ::amrex::Box grown_box = geom.growNonPeriodicDomain(ngrow);
@@ -190,4 +193,4 @@ void MassflowBoundary::FillBoundary(
   });
 }
 
-} // namespace fub::amrex::cutcell
+} // namespace fub::amrex

@@ -26,6 +26,7 @@ function [X, time, data] = ReadTubeData(directory_path)
 
   for k = 1 : length(all_filenames)
     filename = sprintf('%s/%s', directory_path, all_filenames{k});
+    fprintf('Process %s\n', filename);
     timestep = importdata(filename, ' ', 4);
     timepoint_string = timestep.textdata{2};
     time(k) = sscanf(timepoint_string, 't = %f');

@@ -23,6 +23,7 @@
 #include "fub/AMReX/ForEachIndex.hpp"
 
 #include <boost/filesystem.hpp>
+#include <hdf5.h>
 
 #ifdef AMREX_USE_EB
 #include "fub/AMReX/cutcell/IndexSpace.hpp"
@@ -276,6 +277,188 @@ PatchHierarchy ReadCheckpointFile(const std::string& checkpointname,
   return hierarchy;
 }
 
+namespace {
+std::array<hsize_t, AMREX_SPACEDIM + 1>
+GetExtents(const ::amrex::FArrayBox& fab) {
+  std::array<hsize_t, AMREX_SPACEDIM + 1> extents = {hsize_t(fab.nComp())};
+  for (int i = 0; i < AMREX_SPACEDIM; ++i) {
+    extents[size_t(i + 1)] = hsize_t(fab.box().length(i));
+  }
+  return extents;
+}
+
+struct H5Fdeleter {
+  using pointer = hid_t;
+  void operator()(hid_t file) const noexcept { H5Fclose(file); }
+};
+using H5File = std::unique_ptr<hid_t, H5Fdeleter>;
+
+struct H5Sdeleter {
+  using pointer = hid_t;
+  void operator()(hid_t dataspace) const noexcept { H5Sclose(dataspace); }
+};
+using H5Space = std::unique_ptr<hid_t, H5Sdeleter>;
+
+struct H5Ddeleter {
+  using pointer = hid_t;
+  void operator()(hid_t dataset) const noexcept { H5Dclose(dataset); }
+};
+using H5Dataset = std::unique_ptr<hid_t, H5Ddeleter>;
+
+struct H5Adeleter {
+  using pointer = hid_t;
+  void operator()(hid_t attributes) const noexcept { H5Aclose(attributes); }
+};
+using H5Attribute = std::unique_ptr<hid_t, H5Adeleter>;
+
+struct H5Pdeleter {
+  using pointer = hid_t;
+  void operator()(hid_t properties) const noexcept { H5Pclose(properties); }
+};
+using H5Properties = std::unique_ptr<hid_t, H5Pdeleter>;
+
+void CreateHdf5Database(const std::string& name, const ::amrex::FArrayBox& fab,
+                        const ::amrex::Geometry& geom, Duration tp,
+                        std::ptrdiff_t cycle) {
+  H5File file(H5Fcreate(name.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT));
+  // Create Data Set
+  {
+    std::array<hsize_t, AMREX_SPACEDIM + 1> extents = GetExtents(fab);
+    std::array<hsize_t, AMREX_SPACEDIM + 2> dims = {
+        1, extents[0], AMREX_D_DECL(extents[1], extents[2], extents[3])};
+    std::array<hsize_t, AMREX_SPACEDIM + 2> maxdims = {
+        H5S_UNLIMITED, extents[0],
+        AMREX_D_DECL(extents[1], extents[2], extents[3])};
+
+    H5Properties properties(H5Pcreate(H5P_DATASET_CREATE));
+    H5Pset_chunk(properties.get(), 5, dims.data());
+    H5Pset_alloc_time(properties.get(), H5D_ALLOC_TIME_EARLY);
+    H5Space dataspace(H5Screate_simple(5, dims.data(), maxdims.data()));
+    H5Dataset dataset(H5Dcreate(file.get(), "/data", H5T_IEEE_F64LE,
+                                dataspace.get(), H5P_DEFAULT, properties.get(),
+                                H5P_DEFAULT));
+    H5Dwrite(dataset.get(), H5T_IEEE_F64LE, H5S_ALL, H5S_ALL, H5P_DEFAULT,
+             fab.dataPtr());
+    hsize_t spacedim_value = AMREX_SPACEDIM;
+    H5Space spacedim(H5Screate_simple(1, &spacedim_value, nullptr));
+
+    H5Attribute xlower(H5Acreate2(dataset.get(), "xlower", H5T_IEEE_F64LE,
+                                  spacedim.get(), H5P_DEFAULT, H5P_DEFAULT));
+    H5Awrite(xlower.get(), H5T_IEEE_F64LE, geom.ProbLo());
+
+    H5Attribute cell_size(H5Acreate2(dataset.get(), "cell_size", H5T_IEEE_F64LE,
+                                     spacedim.get(), H5P_DEFAULT, H5P_DEFAULT));
+    H5Awrite(cell_size.get(), H5T_IEEE_F64LE, geom.CellSize());
+  }
+  hsize_t dims[1] = {1};
+  hsize_t maxdims[1] = {H5S_UNLIMITED};
+  H5Properties properties(H5Pcreate(H5P_DATASET_CREATE));
+  H5Pset_chunk(properties.get(), 1, dims);
+  H5Space dataspace(H5Screate_simple(1, dims, maxdims));
+
+  H5Dataset times(H5Dcreate(file.get(), "/times", H5T_IEEE_F64LE,
+                            dataspace.get(), H5P_DEFAULT, properties.get(),
+                            H5P_DEFAULT));
+  const double count = tp.count();
+  H5Dwrite(times.get(), H5T_IEEE_F64LE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &count);
+  H5Dataset cycles(H5Dcreate(file.get(), "/cycles", H5T_STD_I64LE_g,
+                             dataspace.get(), H5P_DEFAULT, properties.get(),
+                             H5P_DEFAULT));
+  const std::int64_t cycle_count = static_cast<std::int64_t>(cycle);
+  H5Dwrite(cycles.get(), H5T_STD_I64LE_g, H5S_ALL, H5S_ALL, H5P_DEFAULT,
+           &cycle_count);
+}
+
+void OpenHdf5Database(const std::string& name, const ::amrex::FArrayBox& fab,
+                      Duration tp, std::ptrdiff_t cycle) {
+  // Open or Create Data Set
+  H5File file(H5Fopen(name.c_str(), H5F_ACC_RDWR, H5P_DEFAULT));
+  if (file.get() < 0) {
+    return;
+  }
+  if (H5Dataset dataset(H5Dopen(file.get(), "/data", H5P_DEFAULT));
+      dataset.get() < 0) {
+    return;
+  } else {
+    auto map_first = [](const std::array<hsize_t, AMREX_SPACEDIM + 2>& x,
+                        auto f) {
+      return std::array<hsize_t, AMREX_SPACEDIM + 2>{
+          hsize_t(f(x[0])), x[1], AMREX_D_DECL(x[2], x[3], x[4])};
+    };
+    std::array<hsize_t, AMREX_SPACEDIM + 2> dims = {};
+    std::array<hsize_t, AMREX_SPACEDIM + 2> maxdims = {};
+    H5Space dataspace(H5Dget_space(dataset.get()));
+    H5Sget_simple_extent_dims(dataspace.get(), dims.data(), maxdims.data());
+    FUB_ASSERT(maxdims[0] == H5S_UNLIMITED);
+    std::array<hsize_t, AMREX_SPACEDIM + 2> new_dims =
+        map_first(dims, [](hsize_t dim) { return dim + 1; });
+    H5Dset_extent(dataset.get(), new_dims.data());
+    H5Space filespace(H5Dget_space(dataset.get()));
+    std::array<hsize_t, AMREX_SPACEDIM + 2> count =
+        map_first(dims, [](hsize_t) { return 1; });
+    std::array<hsize_t, AMREX_SPACEDIM + 2> offset{dims[0]};
+    H5Sselect_hyperslab(filespace.get(), H5S_SELECT_SET, offset.data(), nullptr,
+                        count.data(), nullptr);
+    H5Space memspace(
+        H5Screate_simple(AMREX_SPACEDIM + 2, count.data(), nullptr));
+    H5Dwrite(dataset.get(), H5T_IEEE_F64LE, memspace.get(), filespace.get(),
+             H5P_DEFAULT, fab.dataPtr());
+  }
+  if (H5Dataset times(H5Dopen(file.get(), "/times", H5P_DEFAULT));
+      times.get() < 0) {
+    return;
+  } else {
+    hsize_t dims{};
+    hsize_t maxdims{};
+    H5Space dataspace(H5Dget_space(times.get()));
+    H5Sget_simple_extent_dims(dataspace.get(), &dims, &maxdims);
+    FUB_ASSERT(maxdims == H5S_UNLIMITED);
+    const hsize_t new_dims = dims + 1;
+    H5Dset_extent(times.get(), &new_dims);
+    H5Space filespace(H5Dget_space(times.get()));
+    const hsize_t count = 1;
+    const hsize_t offset = dims;
+    H5Sselect_hyperslab(filespace.get(), H5S_SELECT_SET, &offset, &count,
+                        &count, &count);
+    const double tp_count = tp.count();
+    H5Space memspace(H5Screate_simple(1, &count, nullptr));
+    H5Dwrite(times.get(), H5T_IEEE_F64LE, memspace.get(), filespace.get(),
+             H5P_DEFAULT, &tp_count);
+  }
+  if (H5Dataset cycles(H5Dopen(file.get(), "/cycles", H5P_DEFAULT));
+      cycles.get() < 0) {
+    return;
+  } else {
+    hsize_t dims{};
+    hsize_t maxdims{};
+    H5Space dataspace(H5Dget_space(cycles.get()));
+    H5Sget_simple_extent_dims(dataspace.get(), &dims, &maxdims);
+    FUB_ASSERT(maxdims == H5S_UNLIMITED);
+    const hsize_t new_dims = dims + 1;
+    H5Dset_extent(cycles.get(), &new_dims);
+    H5Space filespace(H5Dget_space(cycles.get()));
+    const hsize_t count = 1;
+    const hsize_t offset = dims;
+    H5Sselect_hyperslab(filespace.get(), H5S_SELECT_SET, &offset, nullptr,
+                        &count, nullptr);
+    const std::int64_t cycle_count = static_cast<std::int64_t>(cycle);
+    H5Space memspace(H5Screate_simple(1, &count, nullptr));
+    H5Dwrite(cycles.get(), H5T_IEEE_F64LE, memspace.get(), filespace.get(),
+             H5P_DEFAULT, &cycle_count);
+  }
+}
+} // namespace
+
+void WriteToHDF5(const std::string& name, const ::amrex::FArrayBox& fab,
+                 const ::amrex::Geometry& geom, Duration time_point,
+                 std::ptrdiff_t cycle) noexcept {
+  if (!boost::filesystem::exists(name)) {
+    CreateHdf5Database(name, fab, geom, time_point, cycle);
+  } else if (boost::filesystem::is_regular_file(name)) {
+    OpenHdf5Database(name, fab, time_point, cycle);
+  }
+}
+
 void WriteMatlabData(std::ostream& out, const ::amrex::FArrayBox& fab,
                      const fub::IdealGasMix<1>& eq,
                      const ::amrex::Geometry& geom) {
@@ -411,9 +594,16 @@ std::vector<double> GatherStates(
   return result;
 }
 
-void WriteTubeData(std::ostream* out, const PatchHierarchy& hierarchy,
-                   const IdealGasMix<1>& eq, fub::Duration time_point,
+void WriteTubeData(const std::string& name, const PatchHierarchy& hierarchy,
+                   const IdealGasMix<1>&, fub::Duration time_point,
                    std::ptrdiff_t cycle_number, MPI_Comm comm) {
+  int rank = -1;
+  ::MPI_Comm_rank(comm, &rank);
+  if (rank == 0) {
+    boost::filesystem::path path(name);
+    boost::filesystem::path dir = path.parent_path();
+    boost::filesystem::create_directories(dir);
+  }
   const std::size_t n_level =
       static_cast<std::size_t>(hierarchy.GetNumberOfLevels());
   std::vector<::amrex::FArrayBox> fabs{};
@@ -429,8 +619,6 @@ void WriteTubeData(std::ostream* out, const PatchHierarchy& hierarchy,
       const ::amrex::FArrayBox& patch_data = level_data[mfi];
       local_fab.copy(patch_data);
     });
-    int rank = -1;
-    ::MPI_Comm_rank(comm, &rank);
     if (rank == 0) {
       ::amrex::FArrayBox& fab = fabs.emplace_back(domain, level_data.nComp());
       fab.setVal(0.0);
@@ -459,37 +647,12 @@ void WriteTubeData(std::ostream* out, const PatchHierarchy& hierarchy,
         }
       }
       if (level == n_level - 1) {
-        (*out) << fmt::format("nx = {}\n", domain.length(0));
-        (*out) << fmt::format("t = {}\n", time_point.count());
-        (*out) << fmt::format("cycle = {}\n", cycle_number);
-        WriteMatlabData(*out, fab, eq, level_geom);
-        out->flush();
+        WriteToHDF5(name, fab, level_geom, time_point, cycle_number);
       }
     } else {
       ::MPI_Reduce(local_fab.dataPtr(), nullptr, local_fab.size(), MPI_DOUBLE,
                    MPI_SUM, 0, comm);
     }
-  }
-}
-
-void WriteTubeData(std::string filename, const PatchHierarchy& hierarchy,
-                   const IdealGasMix<1>& eq, fub::Duration time_point,
-                   std::ptrdiff_t cycle_number, MPI_Comm comm) {
-  int rank = -1;
-  MPI_Comm_rank(comm, &rank);
-  if (rank == 0) {
-    boost::filesystem::path path(filename);
-    boost::filesystem::path dir = path.parent_path();
-    boost::filesystem::create_directories(dir);
-    std::ofstream out(filename);
-    if (!out) {
-      throw std::runtime_error(fmt::format("Could not open {}.\n", filename));
-    }
-    fub::amrex::WriteTubeData(&out, hierarchy, eq, time_point, cycle_number,
-                              comm);
-  } else {
-    fub::amrex::WriteTubeData(nullptr, hierarchy, eq, time_point, cycle_number,
-                              comm);
   }
 }
 

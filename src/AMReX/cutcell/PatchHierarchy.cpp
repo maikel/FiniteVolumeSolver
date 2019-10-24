@@ -402,10 +402,10 @@ PatchHierarchy ReadCheckpointFile(const std::string& checkpointname,
 //} // namespace
 
 void WriteMatlabData(const std::string& name, const PatchHierarchy& hierarchy,
-                   fub::Duration time_point,
-                   std::ptrdiff_t cycle_number, MPI_Comm comm) {
+                     fub::Duration time_point, std::ptrdiff_t cycle_number,
+                     MPI_Comm comm) {
   const std::size_t n_level =
-  static_cast<std::size_t>(hierarchy.GetNumberOfLevels());
+      static_cast<std::size_t>(hierarchy.GetNumberOfLevels());
   std::vector<::amrex::FArrayBox> fabs{};
   fabs.reserve(n_level);
   for (std::size_t level = 0; level < n_level; ++level) {
@@ -430,26 +430,24 @@ void WriteMatlabData(const std::string& name, const PatchHierarchy& hierarchy,
         for (int comp = 1; comp < level_data.nComp(); ++comp) {
           for (int i = domain.smallEnd(0); i <= domain.bigEnd(0); ++i) {
             for (int j = domain.smallEnd(1); j <= domain.bigEnd(1); ++j) {
-            ::amrex::IntVect fine_i{
-              AMREX_D_DECL(i, j, domain.smallEnd(2))};
-            ::amrex::IntVect coarse_i = fine_i;
-            coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(level));
-            if (fab(fine_i, 0) == 0.0) {
-              fab(fine_i, comp) = fabs[level - 1](coarse_i, comp);
+              ::amrex::IntVect fine_i{AMREX_D_DECL(i, j, domain.smallEnd(2))};
+              ::amrex::IntVect coarse_i = fine_i;
+              coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(level));
+              if (fab(fine_i, 0) == 0.0) {
+                fab(fine_i, comp) = fabs[level - 1](coarse_i, comp);
+              }
             }
-          }
           }
         }
         for (int i = domain.smallEnd(0); i <= domain.bigEnd(0); ++i) {
           for (int j = domain.smallEnd(1); j <= domain.bigEnd(1); ++j) {
-          ::amrex::IntVect fine_i{
-            AMREX_D_DECL(i, j, domain.smallEnd(2))};
-          ::amrex::IntVect coarse_i = fine_i;
-          coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(level));
-          if (fab(fine_i, 0) == 0.0) {
-            fab(fine_i, 0) = fabs[level - 1](coarse_i, 0);
+            ::amrex::IntVect fine_i{AMREX_D_DECL(i, j, domain.smallEnd(2))};
+            ::amrex::IntVect coarse_i = fine_i;
+            coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(level));
+            if (fab(fine_i, 0) == 0.0) {
+              fab(fine_i, 0) = fabs[level - 1](coarse_i, 0);
+            }
           }
-        }
         }
       }
       if (level == n_level - 1) {
@@ -460,7 +458,8 @@ void WriteMatlabData(const std::string& name, const PatchHierarchy& hierarchy,
           const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(ilvl);
           std::ofstream out(name);
 #if AMREX_SPACEDIM == 2
-          out << fmt::format("size = ({}, {}, {})\n", domain.length(0), domain.length(1), fab.nComp());
+          out << fmt::format("size = ({}, {}, {})\n", domain.length(0),
+                             domain.length(1), fab.nComp());
           out << fmt::format("dx = ({}, {})\n", level_geom.CellSize(0),
                              level_geom.CellSize(1));
           out << fmt::format("x0 = ({}, {})\n",
@@ -520,6 +519,13 @@ void Write2Dfrom3D(const std::string& name, const PatchHierarchy& hierarchy,
                    const ::amrex::Box& finest_box,
                    const IdealGasMix<3>& /* eq */, fub::Duration time_point,
                    std::ptrdiff_t cycle_number, MPI_Comm comm) {
+  int rank = -1;
+  ::MPI_Comm_rank(comm, &rank);
+  if (rank == 0) {
+    boost::filesystem::path path(name);
+    boost::filesystem::path dir = path.parent_path();
+    boost::filesystem::create_directories(dir);
+  }
   const std::size_t n_level =
       static_cast<std::size_t>(hierarchy.GetNumberOfLevels());
   std::vector<::amrex::Geometry> geoms{};
@@ -551,8 +557,6 @@ void Write2Dfrom3D(const std::string& name, const PatchHierarchy& hierarchy,
       const ::amrex::Box box = mfi.tilebox() & domain;
       local_fab.copy(patch_data, box);
     });
-    int rank = -1;
-    ::MPI_Comm_rank(comm, &rank);
     if (rank == 0) {
       ::amrex::FArrayBox& fab = fabs.emplace_back(domain, level_data.nComp());
       fab.setVal(0.0);
@@ -591,25 +595,35 @@ void Write2Dfrom3D(const std::string& name, const PatchHierarchy& hierarchy,
         boost::filesystem::path dir = path.parent_path();
         boost::filesystem::create_directories(dir);
         // Write Header File
-        {
-          const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(ilvl);
-          std::ofstream out(name);
-          out << fmt::format("size = ({}, {}, {}, {})\n", domain.length(0),
-                             domain.length(1), domain.length(2), fab.nComp());
-          out << fmt::format("dx = ({}, {}, {})\n", level_geom.CellSize(0),
-                             level_geom.CellSize(1), level_geom.CellSize(2));
-          out << fmt::format("x0 = ({}, {}, {})\n",
-                             level_geom.CellCenter(domain.smallEnd(0), 0),
-                             level_geom.CellCenter(domain.smallEnd(1), 1),
-                             level_geom.CellCenter(domain.smallEnd(2), 2));
-          out << fmt::format("t = {}\n", time_point.count());
-          out << fmt::format("cycle = {}\n", cycle_number);
-          out << fmt::format("data_file = {}.bin\n", path.filename().string());
-        }
-        // Dump binary data
-        std::ofstream bin(name + ".bin", std::ios::binary);
-        char* pointer = static_cast<char*>(static_cast<void*>(fab.dataPtr()));
-        bin.write(pointer, fab.size() * sizeof(double));
+        //        {
+        const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(ilvl);
+        //          std::ofstream out(name);
+        //          out << fmt::format("size = ({}, {}, {}, {})\n",
+        //          domain.length(0),
+        //                             domain.length(1), domain.length(2),
+        //                             fab.nComp());
+        //          out << fmt::format("dx = ({}, {}, {})\n",
+        //          level_geom.CellSize(0),
+        //                             level_geom.CellSize(1),
+        //                             level_geom.CellSize(2));
+        //          out << fmt::format("x0 = ({}, {}, {})\n",
+        //                             level_geom.CellCenter(domain.smallEnd(0),
+        //                             0),
+        //                             level_geom.CellCenter(domain.smallEnd(1),
+        //                             1),
+        //                             level_geom.CellCenter(domain.smallEnd(2),
+        //                             2));
+        //          out << fmt::format("t = {}\n", time_point.count());
+        //          out << fmt::format("cycle = {}\n", cycle_number);
+        //          out << fmt::format("data_file = {}.bin\n",
+        //          path.filename().string());
+        //        }
+        //        // Dump binary data
+        //        std::ofstream bin(name + ".bin", std::ios::binary);
+        //        char* pointer =
+        //        static_cast<char*>(static_cast<void*>(fab.dataPtr()));
+        //        bin.write(pointer, fab.size() * sizeof(double));
+        WriteToHDF5(name, fab, level_geom, time_point, cycle_number);
       }
     } else {
       ::MPI_Reduce(local_fab.dataPtr(), nullptr, local_fab.size(), MPI_DOUBLE,

@@ -1,17 +1,17 @@
-pathToPlenum = '/group/ag_klima/SFB1029_C01/SingleTubeRing/1769235/Matlab/Plenum_y0/';
+pathToPlenum = '/Volumes/Maikel_Intenso/Selection/Plenum_x6';
 pattern = '/*.dat';
-videoPath = '/srv/public/SingleTubeRing_outlet004.avi';
+videoPath = '/Users/maikel/Plenum.avi';
 
 files_structure = dir(sprintf('%s%s', pathToPlenum, pattern));
-nFiles = length(files_structure);
+nFiles = 100;
 chunkSize = 100;
 
 f = figure('visible', 'off', 'Units', 'centimeters', 'Position', [0, 0, 24, 24]);
 v = VideoWriter(videoPath);
 open(v);
 for firstFile = 1:chunkSize:nFiles
-  [X, ~, Z, time, data] = ReadPlenumDataN(pathToPlenum, firstFile, chunkSize, pattern);
-  MakeVideo(v, X, Z, time, data);
+  [~, Y, Z, time, data] = ReadPlenumDataN(pathToPlenum, firstFile, chunkSize, pattern);
+  MakeVideo(v, Y, Z, time, data);
 end
 close(v);
 
