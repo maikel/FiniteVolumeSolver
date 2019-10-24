@@ -179,10 +179,10 @@ auto MakeTubeSolver(fub::Burke2012& mechanism, const TubeSolverOptions& opts,
     }
   }();
 
-  fub::EinfeldtSignalVelocities<fub::IdealGasMix<Tube_Rank>> signals{};
-  fub::HllMethod hll_method{equation, signals};
-//  fub::ideal_gas::MusclHancockPrimMethod<Tube_Rank> flux_method{equation};
-  HyperbolicMethod method{FluxMethod(fub::execution::openmp, hll_method),
+  fub::ideal_gas::MusclHancockPrimMethod<Tube_Rank> flux_method{equation};
+ // fub::EinfeldtSignalVelocities<fub::IdealGasMix<Tube_Rank>> signals{};
+ // fub::HllMethod hll_method{equation, signals};
+  HyperbolicMethod method{FluxMethod(fub::execution::openmp, flux_method),
                           ForwardIntegrator(fub::execution::openmp),
                           Reconstruction(fub::execution::openmp, equation)};
 
@@ -307,7 +307,7 @@ auto MakePlenumSolver(fub::Burke2012& mechanism, int num_cells, int n_level,
 
   fub::EinfeldtSignalVelocities<fub::IdealGasMix<Plenum_Rank>> signals{};
   fub::HllMethod hll_method{equation, signals};
-//  fub::ideal_gas::MusclHancockPrimMethod<Plenum_Rank> flux_method(equation);
+  // fub::ideal_gas::MusclHancockPrimMethod<Plenum_Rank> flux_method(equation);
   fub::KbnCutCellMethod cutcell_method(hll_method, hll_method);
 
   HyperbolicMethod method{

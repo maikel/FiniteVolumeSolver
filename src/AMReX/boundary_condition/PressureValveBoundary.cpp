@@ -243,7 +243,7 @@ double ChangeState_(PressureValveState& state, const ::amrex::Geometry& geom,
     if (mean_pressure > options.pressure_value_which_closes_boundary) {
       last_closed = current_time;
       state = PressureValveState::closed;
-      BOOST_LOG(log) << "pressure valve closed!";
+      BOOST_LOG(log) << "pressure valve closed due to mean pressure (which is " << mean_pressure << " [Pa])!";
     }
     break;
   }
