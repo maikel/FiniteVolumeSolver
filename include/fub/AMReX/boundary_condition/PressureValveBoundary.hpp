@@ -27,35 +27,34 @@
 
 #include "fub/Duration.hpp"
 
-#include <boost/program_options.hpp>
 #include <boost/serialization/access.hpp>
 #include <boost/log/trivial.hpp>
+
+#include "fub/ext/ProgramOptions.hpp"
 
 namespace fub::amrex {
 
 struct PressureValveOptions {
   PressureValveOptions() = default;
-  explicit PressureValveOptions(const boost::program_options::variables_map& vm,
+  explicit PressureValveOptions(const std::map<std::string, pybind11::object>& vm,
                                 std::string prefix = "valve");
 
-  static boost::program_options::options_description
-  GetCommandLineOptions(std::string prefix = "valve");
 
   template <typename Logger>
   void Print(Logger& log) {
     BOOST_LOG(log) << fmt::format("Pressure Valve '{}' Options:", prefix);
-    BOOST_LOG(log) << fmt::format("  - {}.equivalence_ratio = {} [-]", prefix, equivalence_ratio);
-    BOOST_LOG(log) << fmt::format("  - {}.outer_pressure = {} [Pa]", prefix, outer_pressure);
-    BOOST_LOG(log) << fmt::format("  - {}.outer_temperature = {} [K]", prefix, outer_temperature);
-    BOOST_LOG(log) << fmt::format("  - {}.pressure_value_which_opens_boundary = {} [Pa]", prefix, pressure_value_which_opens_boundary);
-    BOOST_LOG(log) << fmt::format("  - {}.pressure_value_which_closes_boundary = {} [Pa]", prefix, pressure_value_which_closes_boundary);
-    BOOST_LOG(log) << fmt::format("  - {}.oxygen_measurement_position = {} [m]", prefix, oxygen_measurement_position);
-    BOOST_LOG(log) << fmt::format("  - {}.oxygen_measurement_criterium = {} [mole]", prefix, oxygen_measurement_criterium);
-    BOOST_LOG(log) << fmt::format("  - {}.fuel_measurement_position = {} [m]", prefix, fuel_measurement_position);
-    BOOST_LOG(log) << fmt::format("  - {}.fuel_measurement_criterium = {} [-]", prefix, fuel_measurement_criterium);
-    BOOST_LOG(log) << fmt::format("  - {}.valve_efficiency = {} [-]", prefix, valve_efficiency);
-    BOOST_LOG(log) << fmt::format("  - {}.open_at_interval = {} [s]", prefix, open_at_interval.count());
-    BOOST_LOG(log) << fmt::format("  - {}.offset = {} [s]", prefix, offset.count());
+    BOOST_LOG(log) << fmt::format("  - equivalence_ratio = {} [-]", equivalence_ratio);
+    BOOST_LOG(log) << fmt::format("  - outer_pressure = {} [Pa]", outer_pressure);
+    BOOST_LOG(log) << fmt::format("  - outer_temperature = {} [K]", outer_temperature);
+    BOOST_LOG(log) << fmt::format("  - pressure_value_which_opens_boundary = {} [Pa]", pressure_value_which_opens_boundary);
+    BOOST_LOG(log) << fmt::format("  - pressure_value_which_closes_boundary = {} [Pa]", pressure_value_which_closes_boundary);
+    BOOST_LOG(log) << fmt::format("  - oxygen_measurement_position = {} [m]", oxygen_measurement_position);
+    BOOST_LOG(log) << fmt::format("  - oxygen_measurement_criterium = {} [mole]", oxygen_measurement_criterium);
+    BOOST_LOG(log) << fmt::format("  - fuel_measurement_position = {} [m]", fuel_measurement_position);
+    BOOST_LOG(log) << fmt::format("  - fuel_measurement_criterium = {} [-]", fuel_measurement_criterium);
+    BOOST_LOG(log) << fmt::format("  - valve_efficiency = {} [-]", valve_efficiency);
+    BOOST_LOG(log) << fmt::format("  - open_at_interval = {} [s]", open_at_interval.count());
+    BOOST_LOG(log) << fmt::format("  - offset = {} [s]", offset.count());
   }
 
   std::string prefix;
@@ -99,7 +98,7 @@ public:
                         PressureValveOptions options);
 
   PressureValveBoundary(const IdealGasMix<1>& equation,
-                        const boost::program_options::variables_map& options);
+                        const std::map<std::string, pybind11::object>& options);
 
   [[nodiscard]] const PressureValveOptions& GetOptions() const noexcept;
 

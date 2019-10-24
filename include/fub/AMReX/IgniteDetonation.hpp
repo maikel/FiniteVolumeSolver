@@ -26,9 +26,10 @@
 #include "fub/equations/IdealGasMix.hpp"
 #include "fub/ext/outcome.hpp"
 
-#include <boost/program_options.hpp>
-#include <boost/serialization/access.hpp>
+#include "fub/ext/ProgramOptions.hpp"
+
 #include <boost/log/trivial.hpp>
+#include <boost/serialization/access.hpp>
 
 namespace fub::amrex {
 
@@ -36,22 +37,20 @@ struct IgniteDetonationOptions {
   IgniteDetonationOptions() = default;
 
   explicit IgniteDetonationOptions(
-      const boost::program_options::variables_map& vm,
-      const std::string& prefix = {});
+      const std::map<std::string, pybind11::object>& vm,
+      const std::string& prefix = "ignite");
 
-  static boost::program_options::options_description
-  GetCommandLineOptions(const std::string& prefix = {});
-
-  template <typename Logger>
-  void Print(Logger& log) const {
+  template <typename Logger> void Print(Logger& log) const {
+    // clang-format off
     BOOST_LOG(log) << fmt::format("Ignite Detonation '{}' Options:", prefix);
-    BOOST_LOG(log) << fmt::format("  - {}.measurement_position = {} [m]", prefix, measurement_position);
-    BOOST_LOG(log) << fmt::format("  - {}.equivalence_ratio_criterium = {} [-]", prefix, equivalence_ratio_criterium);
-    BOOST_LOG(log) << fmt::format("  - {}.temperature_low = {} [K]", prefix, temperature_low);
-    BOOST_LOG(log) << fmt::format("  - {}.temperature_high = {} [K]", prefix, temperature_high);
-    BOOST_LOG(log) << fmt::format("  - {}.ramp_width = {} [m]", prefix, ramp_width);
-    BOOST_LOG(log) << fmt::format("  - {}.ignite_position = {} [m]", prefix, ignite_position);
-    BOOST_LOG(log) << fmt::format("  - {}.ignite_interval = {} [s]", prefix, ignite_interval.count());
+    BOOST_LOG(log) << fmt::format("  - measurement_position = {} [m]", measurement_position);
+    BOOST_LOG(log) << fmt::format("  - equivalence_ratio_criterium = {} [-]", equivalence_ratio_criterium);
+    BOOST_LOG(log) << fmt::format("  - temperature_low = {} [K]", temperature_low);
+    BOOST_LOG(log) << fmt::format("  - temperature_high = {} [K]", temperature_high);
+    BOOST_LOG(log) << fmt::format("  - ramp_width = {} [m]", ramp_width);
+    BOOST_LOG(log) << fmt::format("  - ignite_position = {} [m]", ignite_position);
+    BOOST_LOG(log) << fmt::format("  - ignite_interval = {} [s]", ignite_interval.count());
+    // clang-format on
   }
 
   std::string prefix{"ignite"};

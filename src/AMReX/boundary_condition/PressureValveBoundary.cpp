@@ -30,98 +30,41 @@
 
 namespace fub::amrex {
 
-namespace po = boost::program_options;
-
-namespace {
-std::string PrefixedName(const std::string& prefix, const char* basename) {
-  if (prefix.empty()) {
-    return std::string(basename);
-  }
-  return fmt::format("{}.{}", prefix, basename);
-}
-} // namespace
-
-po::options_description
-PressureValveOptions::GetCommandLineOptions(std::string prefix) {
-  po::options_description desc{"Valve"};
-  desc.add_options()(PrefixedName(prefix, "outer_pressure").c_str(),
-                     po::value<double>(),
-                     "The mean pressure value for the outer side [Pa]")(
-      PrefixedName(prefix, "outer_temperature").c_str(), po::value<double>(),
-      "The mean pressure value for the outer side [K]")(
-      PrefixedName(prefix, "pressure_value_which_opens_boundary").c_str(),
-      po::value<double>(),
-      "The mean pressure value in the tube which opens the boundary. [Pa]")(
-      PrefixedName(prefix, "pressure_value_which_closes_boundary").c_str(),
-      po::value<double>(),
-      "The mean pressure value in the tube which closes the boundary. [Pa]")(
-      PrefixedName(prefix, "oxygen_measurement_position").c_str(),
-      po::value<double>(),
-      "The position within the tube where the oxygen concentration will be "
-      "measured. [m]")(
-      PrefixedName(prefix, "oxygen_measurement_criterium").c_str(),
-      po::value<double>(),
-      "The oxygen concentration which will trigger fuel instead of air inflow. "
-      "[-]")(PrefixedName(prefix, "equivalence_ratio").c_str(),
-             po::value<double>(),
-             "The equivalence ratio of the fuel which will be used. [-]")(
-      PrefixedName(prefix, "open_at_interval").c_str(), po::value<double>(),
-      "If set to non-zero value this pressure valve will only open up once in "
-      "a specified time interval. [s]")(
-      PrefixedName(prefix, "fuel_measurement_position").c_str(),
-      po::value<double>(),
-      "The position within the tube where the equivalence ratio for the fuel "
-      "will be measured. [m]")(
-      PrefixedName(prefix, "fuel_measurement_criterium").c_str(),
-      po::value<double>(),
-      "If the equivalence ratio at the fuel measurement position is greater "
-      "than this value the boundary will be closed. [-]")(
-      PrefixedName(prefix, "efficiency").c_str(), po::value<double>(),
-      "Sets the efficiency of the enthalpy to velocity conversion [-]")(
-      PrefixedName(prefix, "offset").c_str(), po::value<double>(),
-      "Sets an offset for using fuel through this valve. [s]");
-  return desc;
-}
-
 PressureValveBoundary::PressureValveBoundary(const IdealGasMix<1>& equation,
                                              PressureValveOptions options)
     : options_{std::move(options)}, equation_{equation},
       shared_valve_{std::make_shared<PressureValve>(PressureValve{})} {}
 
-PressureValveOptions::PressureValveOptions(const po::variables_map& map,
-                                           std::string p)
-    : prefix{std::move(p)} {
-  auto GetOptionOr = [&](const char* opt, double default_value) {
-    if (map.count(PrefixedName(prefix, opt))) {
-      return map[PrefixedName(prefix, opt)].as<double>();
-    }
-    return default_value;
-  };
-  outer_pressure = GetOptionOr("outer_pressure", outer_pressure);
-  outer_temperature = GetOptionOr("outer_temperature", outer_temperature);
+PressureValveOptions::PressureValveOptions(const std::map<std::string, pybind11::object>& map,
+                                           std::string p) : prefix{std::move(p)} {
+  if (map.count(prefix)) {
+  std::map<std::string, pybind11::object> opts = ToMap(pybind11::dict(map.at(prefix)));
+  outer_pressure = GetOptionOr(opts, "outer_pressure", outer_pressure);
+  outer_temperature = GetOptionOr(opts, "outer_temperature", outer_temperature);
   pressure_value_which_opens_boundary =
-      GetOptionOr("pressure_value_which_opens_boundary",
+      GetOptionOr(opts, "pressure_value_which_opens_boundary",
                   pressure_value_which_opens_boundary);
   pressure_value_which_closes_boundary =
-      GetOptionOr("pressure_value_which_closes_boundary",
+      GetOptionOr(opts, "pressure_value_which_closes_boundary",
                   pressure_value_which_closes_boundary);
   oxygen_measurement_position =
-      GetOptionOr("oxygen_measurement_position", oxygen_measurement_position);
+      GetOptionOr(opts, "oxygen_measurement_position", oxygen_measurement_position);
   oxygen_measurement_criterium =
-      GetOptionOr("oxygen_measurement_criterium", oxygen_measurement_criterium);
-  equivalence_ratio = GetOptionOr("equivalence_ratio", equivalence_ratio);
+      GetOptionOr(opts, "oxygen_measurement_criterium", oxygen_measurement_criterium);
+  equivalence_ratio = GetOptionOr(opts, "equivalence_ratio", equivalence_ratio);
   open_at_interval =
-      Duration(GetOptionOr("open_at_interval", open_at_interval.count()));
-  offset = Duration(GetOptionOr("offset", offset.count()));
-  valve_efficiency = GetOptionOr("efficiency", valve_efficiency);
+      Duration(GetOptionOr(opts, "open_at_interval", open_at_interval.count()));
+  offset = Duration(GetOptionOr(opts, "offset", offset.count()));
+  valve_efficiency = GetOptionOr(opts, "efficiency", valve_efficiency);
   fuel_measurement_criterium =
-      GetOptionOr("fuel_measurement_criterium", fuel_measurement_criterium);
+      GetOptionOr(opts, "fuel_measurement_criterium", fuel_measurement_criterium);
   fuel_measurement_position =
-      GetOptionOr("fuel_measurement_position", fuel_measurement_position);
+      GetOptionOr(opts, "fuel_measurement_position", fuel_measurement_position);
+  }
 }
 
 PressureValveBoundary::PressureValveBoundary(const IdealGasMix<1>& eq,
-                                             const po::variables_map& map)
+                                             const std::map<std::string, pybind11::object>& map)
     : PressureValveBoundary(eq, PressureValveOptions(map)) {}
 
 const PressureValveOptions& PressureValveBoundary::GetOptions() const noexcept {

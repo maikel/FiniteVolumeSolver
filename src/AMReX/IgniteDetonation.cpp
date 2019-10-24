@@ -28,50 +28,21 @@
 #include <boost/log/trivial.hpp>
 
 namespace fub::amrex {
-namespace {
-std::string PrefixedName(const std::string& prefix, const char* basename) {
-  if (prefix.empty()) {
-    return std::string(basename);
+
+IgniteDetonationOptions::IgniteDetonationOptions(
+    const std::map<std::string, pybind11::object>& vm, const std::string& p)
+    : prefix{p} {
+  if (vm.count(p)) {
+    std::map<std::string, pybind11::object> opts =
+        ToMap(pybind11::dict(vm.at(p)));
+    measurement_position =
+        GetOptionOr(opts, "measurement_position", measurement_position);
+    equivalence_ratio_criterium = GetOptionOr(
+        opts, "equivalence_ratio_criterium", equivalence_ratio_criterium);
+    ignite_position = GetOptionOr(opts, "position", ignite_position);
+    ignite_interval =
+        Duration(GetOptionOr(opts, "interval", ignite_interval.count()));
   }
-  return fmt::format("{}.{}", prefix, basename);
-}
-} // namespace
-namespace po = boost::program_options;
-
-po::options_description
-IgniteDetonationOptions::GetCommandLineOptions(const std::string& prefix) {
-  po::options_description desc{"Ignite Detonation"};
-  desc.add_options()(
-      PrefixedName(prefix, "measurement_position").c_str(), po::value<double>(),
-      "Position within the tube which measures the fuel equivalence ratio. "
-      "This position effectively determines the fill fraction. [m]")(
-      PrefixedName(prefix, "equivalence_ratio_criterium").c_str(),
-      po::value<double>(),
-      "Ignites the fuel if an equivalence ratio is measured which is greater "
-      "than this value. [-]")(
-      PrefixedName(prefix, "position").c_str(), po::value<double>(),
-      "The position within the tube where the temperature will be risen to "
-      "ignite the tube. This position should be smaller than "
-      "`measure_position`. [m]")(
-      PrefixedName(prefix, "interval").c_str(), po::value<double>(),
-      "The time interval in which no second ignition can be triggered. [s]");
-  return desc;
-}
-
-IgniteDetonationOptions::IgniteDetonationOptions(const po::variables_map& vm,
-                                                 const std::string& p) : prefix{p} {
-  auto GetOptionOr = [&](const char* opt, double default_value) {
-    if (vm.count(PrefixedName(prefix, opt))) {
-      return vm[PrefixedName(prefix, opt)].as<double>();
-    }
-    return default_value;
-  };
-  measurement_position =
-      GetOptionOr("measurement_position", measurement_position);
-  equivalence_ratio_criterium =
-      GetOptionOr("equivalence_ratio_criterium", equivalence_ratio_criterium);
-  ignite_position = GetOptionOr("position", ignite_position);
-  ignite_interval = Duration(GetOptionOr("interval", ignite_interval.count()));
 }
 
 IgniteDetonation::IgniteDetonation(
