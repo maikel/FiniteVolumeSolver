@@ -232,6 +232,7 @@ void MultiWriteHdf5::operator()(const MultiBlockGriddingAlgorithm& grid) {
   boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
       boost::log::keywords::severity = boost::log::trivial::info);
   BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "HDF5");
+  BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", grid.GetTimePoint.count());
   BOOST_LOG(log) << fmt::format("Write Hdf5 output to '{}'.", path_to_file_);
   if (type_ == Type::plenum && grid_id_ < grid.GetPlena().size()) {
     const auto& hierarchy = grid.GetPlena()[grid_id_]->GetPatchHierarchy();
