@@ -43,7 +43,7 @@ namespace fub::amrex {
     }
     IdealGasMix<1> tube_eq(burke2012);
     for (int i = 0; i < grid.GetTubes().size(); ++i) {
-      std::string name = fmt::format("{}/Tube{}/plt{:09}", parent_path_, i, grid.GetCycles())
+      std::string name = fmt::format("{}/Tube{}/plt{:09}", parent_path_, i, grid.GetCycles());
       BOOST_LOG(log) << fmt::format("Write Plotfile output to '{}'.", name);
       WritePlotFile(name, grid.GetTubes()[i]->GetPatchHierarchy(), tube_eq);
     }
