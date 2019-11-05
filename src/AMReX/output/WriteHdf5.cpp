@@ -223,6 +223,7 @@ void WriteHdf5::operator()(const GriddingAlgorithm& grid) {
   boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
       boost::log::keywords::severity = boost::log::trivial::info);
   BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "HDF5");
+  BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", grid.GetTimePoint().count());
   BOOST_LOG(log) << fmt::format("Write Hdf5 output to '{}'.", path_to_file_);
   if (output_box_) {
     WriteHdf5RestrictedToBox(path_to_file_, grid.GetPatchHierarchy(),

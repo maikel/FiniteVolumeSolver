@@ -35,7 +35,7 @@ namespace fub::amrex {
     boost::log::sources::severity_logger<boost::log::trivial::severity_level>
           log(boost::log::keywords::severity = boost::log::trivial::info);
     BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "Plotfile");
-    BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", grid.GetTimePoint.count());
+    BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", grid.GetTimePoint().count());
     for (int i = 0; i < grid.GetPlena().size(); ++i) {
       std::string name = fmt::format("{}/Plenum{}/plt{:09}", parent_path_, i, grid.GetCycles());
       BOOST_LOG(log) << fmt::format("Write Plotfile output to '{}'.", name);
