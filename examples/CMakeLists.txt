@@ -32,6 +32,9 @@ if (AMReX_FOUND)
 
   add_executable_with_warnings(AMReX.ShallowWater2d AMReX/ShallowWater2d.cpp)
   target_link_libraries(AMReX.ShallowWater2d FiniteVolumeSolver.AMReX)
+
+  add_executable(AMReX.EB.SingleTubeRingPlenum AMReX/EB/SingleTubeRingPlenum.cpp)
+  target_link_libraries(AMReX.EB.SingleTubeRingPlenum FiniteVolumeSolver.AMReX.EB)
 endif()
 
 if (AMReX_FOUND AND AMReX_2D_FOUND)
@@ -91,20 +94,20 @@ if (AMReX_FOUND AND AMReX_3D_FOUND)
 endif()
 
 if (SAMRAI_FOUND)
-  add_executable_with_warnings(SAMRAI.Advection2d SAMRAI/Advection2d.cpp)
-  target_link_libraries(SAMRAI.Advection2d FiniteVolumeSolver.SAMRAI)
+  add_executable_with_warnings(SAMRAI.Advection2d_Godunov SAMRAI/Advection2d_Godunov.cpp)
+  target_link_libraries(SAMRAI.Advection2d_Godunov FiniteVolumeSolver.SAMRAI)
 
-  add_executable_with_warnings(SAMRAI.Burgers1d SAMRAI/Burgers1d.cpp)
-  target_link_libraries(SAMRAI.Burgers1d FiniteVolumeSolver.SAMRAI)
+#  add_executable_with_warnings(SAMRAI.Burgers1d SAMRAI/Burgers1d.cpp)
+#  target_link_libraries(SAMRAI.Burgers1d FiniteVolumeSolver.SAMRAI)
 
-  add_executable_with_warnings(SAMRAI.ShallowWater2d SAMRAI/ShallowWater2d.cpp)
-  target_link_libraries(SAMRAI.ShallowWater2d FiniteVolumeSolver.SAMRAI)
+#  add_executable_with_warnings(SAMRAI.ShallowWater2d SAMRAI/ShallowWater2d.cpp)
+#  target_link_libraries(SAMRAI.ShallowWater2d FiniteVolumeSolver.SAMRAI)
 
-  add_executable_with_warnings(SAMRAI.PerfectGas2d SAMRAI/PerfectGas2d.cpp)
-  target_link_libraries(SAMRAI.PerfectGas2d FiniteVolumeSolver.SAMRAI)
+#  add_executable_with_warnings(SAMRAI.PerfectGas2d SAMRAI/PerfectGas2d.cpp)
+#  target_link_libraries(SAMRAI.PerfectGas2d FiniteVolumeSolver.SAMRAI)
 
-  add_executable_with_warnings(SAMRAI.PerfectGas3d SAMRAI/PerfectGas3d.cpp)
-  target_link_libraries(SAMRAI.PerfectGas3d FiniteVolumeSolver.SAMRAI)
+#  add_executable_with_warnings(SAMRAI.PerfectGas3d SAMRAI/PerfectGas3d.cpp)
+#  target_link_libraries(SAMRAI.PerfectGas3d FiniteVolumeSolver.SAMRAI)
 
   add_executable_with_warnings(SAMRAI.VariableDatabase SAMRAI/VariableDatabase.cpp)
   target_link_libraries(SAMRAI.VariableDatabase FiniteVolumeSolver.SAMRAI)

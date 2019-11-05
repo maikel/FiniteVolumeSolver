@@ -81,36 +81,59 @@ template <int Rank> IndexBox<Rank> AsIndexBox(const SAMRAI::hier::Box& box) {
 }
 
 template <int Rank, typename T>
+PatchDataView<const T, Rank>
+MakePatchDataView(const SAMRAI::pdat::ArrayData<T>& array) {
+  IndexBox<Rank> box = AsIndexBox<Rank>(array.getBox());
+  return PatchDataView<const T, Rank>(MakeMdSpan<Rank, T>(array), box.lower);
+}
+
+template <int Rank, typename T>
 PatchDataView<T, Rank> MakePatchDataView(SAMRAI::pdat::ArrayData<T>& array) {
   IndexBox<Rank> box = AsIndexBox<Rank>(array.getBox());
   return PatchDataView<T, Rank>(MakeMdSpan<Rank, T>(array), box.lower);
 }
 
+template <typename PatchData>
+std::enable_if_t<std::is_pointer_v<PatchData>, void>
+GetPatchData(span<PatchData> patch_datas, SAMRAI::hier::Patch& patch,
+             span<const int> data_ids) {
+  FUB_ASSERT(data_ids.size() == patch_datas.size());
+  std::transform(data_ids.begin(), data_ids.end(), patch_datas.begin(),
+                 [&patch](int id) {
+                   PatchData pointer_to_data =
+                       dynamic_cast<PatchData>(patch.getPatchData(id).get());
+                   FUB_ASSERT(pointer_to_data);
+                   return pointer_to_data;
+                 });
+}
 
 template <typename State>
 BasicView<State> MakeView(span<SAMRAI::pdat::CellData<double>*> span,
-              const typename State::Equation& /* equation */) {
+                          const typename State::Equation& /* equation */) {
   BasicView<State> view;
   int i = 0;
   static constexpr int Rank = State::Equation::Rank();
-  ForEachVariable(overloaded{[&](PatchDataView<double, Rank>& variable) {
-    variable = MakePatchDataView<Rank>(span[i]->getArrayData());
-    ++i;
-  },
-                             [&](PatchDataView<double, Rank + 1>& variable) {
-                               variable = MakePatchDataView<Rank + 1>(span[i]->getArrayData());
-                               ++i;
-                             }}, view);
+  ForEachVariable(
+      overloaded{[&](PatchDataView<double, Rank>& variable) {
+                   variable = MakePatchDataView<Rank>(span[i]->getArrayData());
+                   ++i;
+                 },
+                 [&](PatchDataView<double, Rank + 1>& variable) {
+                   variable =
+                       MakePatchDataView<Rank + 1>(span[i]->getArrayData());
+                   ++i;
+                 }},
+      view);
   return view;
 }
 
 int GetDirection(const SAMRAI::hier::IntVector& directions);
 
-
-//template <typename State, typename Equation>
-//auto MakeView(span<SAMRAI::pdat::SideData<double>*> span,
+// template <typename State, typename Equation>
+// auto MakeView(span<SAMRAI::pdat::SideData<double>*> span,
 //              const Equation& equation) {
-//  return MakeView(std::make_index_sequence<NumVariables<State>::value>(), span,
+//  return MakeView(std::make_index_sequence<NumVariables<State>::value>(),
+//  span,
 //                  equation);
 //}
 

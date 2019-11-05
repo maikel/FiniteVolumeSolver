@@ -25,7 +25,8 @@ namespace fub {
 template <int Dim>
 void IdealGasMix<Dim>::Flux(Conservative& flux, const Complete& state,
                             Direction dir) const noexcept {
-  FUB_ASSERT(state.density > 0);
+  if (state.density <= 0) return;
+//  FUB_ASSERT(state.density > 0);
   const int d0 = static_cast<int>(dir);
   const double velocity = state.momentum[d0] / state.density;
   flux.density = state.momentum[d0];

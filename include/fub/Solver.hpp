@@ -64,3 +64,9 @@
 #include "fub/geometry/Cone.hpp"
 #include "fub/geometry/RotateAxis.hpp"
 #include "fub/geometry/Invert.hpp"
+
+#include "fub/output/BasicOutput.hpp"
+#include "fub/output/InvokeFunction.hpp"
+#include "fub/output/OutputAtFrequencyOrInterval.hpp"
+#include "fub/output/OutputFactory.hpp"
+#include "fub/output/MultipleOutputs.hpp"

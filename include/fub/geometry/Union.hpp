@@ -23,19 +23,26 @@
 
 #include "fub/geometry/PolymorphicGeometry.hpp"
 
+#include <vector>
+#include <memory>
+
 namespace fub {
 
-class PolymorphicUnion : public Geometry {
+template <std::size_t Rank>
+class PolymorphicUnion : public Geometry<Rank> {
 public:
-  PolymorphicUnion(const std::vector<PolymorphicGeometry>& geoms);
+  PolymorphicUnion(const std::vector<PolymorphicGeometry<Rank>>& geoms);
 
-  std::unique_ptr<Geometry> Clone() const override;
+  std::unique_ptr<Geometry<Rank>> Clone() const override;
 
-  double ComputeDistanceTo(const std::array<double, AMREX_SPACEDIM>& x) const override;
+  double ComputeDistanceTo(const std::array<double, Rank>& x) const override;
 
 private:
-  std::vector<PolymorphicGeometry> geoms_; 
+  std::vector<PolymorphicGeometry<Rank>> geoms_; 
 };
+
+extern template class PolymorphicUnion<2>;
+extern template class PolymorphicUnion<3>;
 
 }
 

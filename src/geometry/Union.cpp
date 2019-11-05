@@ -26,21 +26,27 @@
 
 namespace fub {
 
-PolymorphicUnion::PolymorphicUnion(
-    const std::vector<PolymorphicGeometry>& geoms)
+template <std::size_t Rank>
+PolymorphicUnion<Rank>::PolymorphicUnion(
+    const std::vector<PolymorphicGeometry<Rank>>& geoms)
     : geoms_(geoms) {}
 
-std::unique_ptr<Geometry> PolymorphicUnion::Clone() const {
-  return std::make_unique<PolymorphicUnion>(*this);
+template <std::size_t Rank>
+std::unique_ptr<Geometry<Rank>> PolymorphicUnion<Rank>::Clone() const {
+  return std::make_unique<PolymorphicUnion<Rank>>(*this);
 }
 
-double PolymorphicUnion::ComputeDistanceTo(
-    const std::array<double, AMREX_SPACEDIM>& x) const {
+template <std::size_t Rank>
+double PolymorphicUnion<Rank>::ComputeDistanceTo(
+    const std::array<double, Rank>& x) const {
   return std::accumulate(geoms_.begin(), geoms_.end(),
                          std::numeric_limits<double>::lowest(),
-                         [x](double max, const PolymorphicGeometry& geom) {
+                         [x](double max, const PolymorphicGeometry<Rank>& geom) {
                            return std::max(max, geom.ComputeDistanceTo(x));
                          });
 }
+
+template class PolymorphicUnion<2>;
+template class PolymorphicUnion<3>;
 
 } // namespace fub

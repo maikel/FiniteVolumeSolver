@@ -26,6 +26,7 @@
 #include "fub/SAMRAI/RegisterVariables.hpp"
 #include "fub/SAMRAI/Tagging.hpp"
 #include "fub/SAMRAI/ViewPatch.hpp"
+#include "fub/SAMRAI/BoundaryCondition.hpp"
 
 #include "fub/Duration.hpp"
 
@@ -41,7 +42,8 @@ struct GriddingAlgorithm {
   GriddingAlgorithm(const GriddingAlgorithm& ga);
   GriddingAlgorithm& operator=(const GriddingAlgorithm& ga) {
     GriddingAlgorithm tmp(ga);
-    return (*this = std::move(tmp));
+    std::swap(*this, tmp);
+    return *this;
   }
 
   GriddingAlgorithm(GriddingAlgorithm&& ph) = default;
@@ -51,6 +53,9 @@ struct GriddingAlgorithm {
 
   void InitializeHierarchy(Duration initial_time = Duration(),
                            std::ptrdiff_t initial_cycle = 0);
+
+  std::ptrdiff_t GetCycles() const noexcept;
+  Duration GetTimePoint() const noexcept;
 
   const PatchHierarchy& GetPatchHierarchy() const noexcept;
   PatchHierarchy& GetPatchHierarchy() noexcept;
@@ -67,9 +72,13 @@ struct GriddingAlgorithm {
   const std::vector<int>& GetTagBuffer() const noexcept;
   std::vector<int>& GetTagBuffer() noexcept;
 
+  const BoundaryCondition& GetBoundaryCondition(int level) const;
+  BoundaryCondition& GetBoundaryCondition(int level);
+
   PatchHierarchy hierarchy_;
   InitialData initial_data_;
   Tagging tagging_;
+  std::vector<BoundaryCondition> level_to_boundary_;
   DataDescription id_set_;
   std::vector<int> tag_buffer_;
   std::shared_ptr<SAMRAI::xfer::RefineAlgorithm> refine_data_algorithm_{};

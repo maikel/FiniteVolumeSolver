@@ -60,6 +60,14 @@ public:
   void SetBoundaryCondition(int level, BoundaryCondition&& condition);
   void SetBoundaryCondition(int level, const BoundaryCondition& condition);
 
+  [[nodiscard]] std::ptrdiff_t GetCycles() const noexcept {
+    return hierarchy_.GetCycles();
+  }
+
+  [[nodiscard]] Duration GetTimePoint() const noexcept {
+    return hierarchy_.GetTimePoint();
+  }
+
   [[nodiscard]] const BoundaryCondition& GetBoundaryCondition(int level) const
       noexcept;
   [[nodiscard]] BoundaryCondition& GetBoundaryCondition(int level) noexcept;

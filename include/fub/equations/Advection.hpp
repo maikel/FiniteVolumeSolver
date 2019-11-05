@@ -43,6 +43,9 @@ template <typename... Xs> struct StateTraits<AdvectionVariables<Xs...>> {
       std::make_tuple(&AdvectionVariables<Xs...>::mass);
 };
 
+/// \ingroup Equations
+/// This class descibes the 2-dimensional advection equation with constant
+/// transport velocity.
 struct Advection2d {
   using ConservativeDepths = AdvectionVariables<ScalarDepth>;
   using CompleteDepths = ConservativeDepths;

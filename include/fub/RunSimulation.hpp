@@ -26,9 +26,11 @@
 #include "fub/core/assert.hpp"
 #include "fub/ext/ProgramOptions.hpp"
 
+#include "fub/output/BasicOutput.hpp"
+
+#include <boost/log/common.hpp>
 #include <boost/log/sources/severity_logger.hpp>
 #include <boost/log/trivial.hpp>
-#include <boost/log/common.hpp>
 #include <boost/outcome.hpp>
 
 #include <fmt/format.h>
@@ -43,15 +45,21 @@ struct RunOptions {
 
   explicit RunOptions(const std::map<std::string, pybind11::object>& vm);
 
-  template <typename Logger>
-  void Print(Logger& log) {
-      BOOST_LOG(log) << "Run Options:"
-        << "\n  - final_time = " << final_time.count() << 's'
-        << "\n  - max_cycles = " << max_cycles
-        << "\n  - output.interval[0] = " << output_interval[0].count()
-        << "\n  - output.frequency[0] = " << output_frequency[0]
-        << "\n  - smallest_time_step_size = " << smallest_time_step_size.count()
-        << "\n  - cfl = " << cfl;
+  template <typename Logger> void Print(Logger& log) {
+    std::vector<double> ivs(output_interval.size());
+    std::transform(output_interval.begin(), output_interval.end(), ivs.begin(),
+                   [](Duration dur) { return dur.count(); });
+    BOOST_LOG(log) << "Run Options:"
+                   << "\n  - final_time = " << final_time.count() << " [s]"
+                   << "\n  - max_cycles = " << max_cycles << " [-]"
+                   << "\n  - output.interval = "
+                   << fmt::format("{{{}}}", fmt::join(ivs, ", "))
+                   << "\n  - output.frequency = "
+                   << fmt::format("{{{}}} [s]",
+                                  fmt::join(output_frequency, ", "))
+                   << "\n  - smallest_time_step_size = "
+                   << smallest_time_step_size.count() << " [s]"
+                   << "\n  - cfl = " << cfl << " [-]";
   }
 
   Duration final_time{1.0};
@@ -61,7 +69,6 @@ struct RunOptions {
   Duration smallest_time_step_size{1e-12};
   double cfl{0.8};
 };
-
 
 void PrintRunOptions(const RunOptions& opts);
 
@@ -78,10 +85,12 @@ FormatTimeStepLine(std::ptrdiff_t cycle,
                    std::chrono::steady_clock::duration wall_time,
                    std::chrono::steady_clock::duration wall_time_difference);
 
-template <typename Solver, typename Output>
+template <typename Solver,
+          typename Grid = std::decay_t<
+              decltype(*std::declval<Solver&>().GetGriddingAlgorithm())>>
 Solver RunSimulation(Solver& solver, RunOptions options,
                      std::chrono::steady_clock::time_point wall_time_reference,
-                     Output output) {
+                     BasicOutput<Grid>& output) {
   namespace logger = boost::log;
   using namespace logger::trivial;
   logger::sources::severity_logger<severity_level> log(
@@ -92,17 +101,15 @@ Solver RunSimulation(Solver& solver, RunOptions options,
   std::chrono::steady_clock::duration wall_time = wall_time_reference - now;
   using GriddingAlgorithm =
       std::decay_t<decltype(*std::declval<Solver&>().GetGriddingAlgorithm())>;
-  // Deeply copy the grid for a fallback scenario in case of time step errors 
+  // Deeply copy the grid for a fallback scenario in case of time step errors
   std::shared_ptr backup =
       std::make_shared<GriddingAlgorithm>(*solver.GetGriddingAlgorithm());
   std::optional<Duration> failure_dt{};
-  std::optional<int> output_condition{};
   while (time_point + eps < options.final_time &&
          (options.max_cycles < 0 || solver.GetCycles() < options.max_cycles)) {
     // We have a nested loop to exactly reach output time points.
     do {
-      const fub::Duration next_output_time =
-          NextOutputTime(time_point, options);
+      const fub::Duration next_output_time = output.NextOutputTime(time_point);
       solver.PreAdvanceHierarchy();
       // Compute the next time step size. If an estimate is available from a
       // prior failure we use that one.
@@ -146,13 +153,12 @@ Solver RunSimulation(Solver& solver, RunOptions options,
         backup =
             std::make_shared<GriddingAlgorithm>(*solver.GetGriddingAlgorithm());
       }
-      output_condition = AnyOutputCondition(solver.GetCycles(),
-                                            solver.GetTimePoint(), options);
-    } while (!output_condition);
-    output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
-           solver.GetTimePoint(), *output_condition);
+    } while (
+        time_point + eps < options.final_time &&
+        (options.max_cycles < 0 || solver.GetCycles() < options.max_cycles) &&
+        !output.ShallOutputNow(*solver.GetGriddingAlgorithm()));
+    output(*solver.GetGriddingAlgorithm());
   }
-
   return solver;
 }
 

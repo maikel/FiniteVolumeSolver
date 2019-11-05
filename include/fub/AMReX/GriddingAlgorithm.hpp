@@ -52,9 +52,16 @@ public:
                     Tagging tagging, BoundaryCondition boundary);
 
   PatchHierarchy& GetPatchHierarchy() noexcept { return hierarchy_; }
-
   const PatchHierarchy& GetPatchHierarchy() const noexcept {
     return hierarchy_;
+  }
+
+  [[nodiscard]] std::ptrdiff_t GetCycles() const noexcept {
+    return hierarchy_.GetCycles();
+  }
+
+  [[nodiscard]] Duration GetTimePoint() const noexcept {
+    return hierarchy_.GetTimePoint();
   }
 
   bool RegridAllFinerlevels(int which_level);

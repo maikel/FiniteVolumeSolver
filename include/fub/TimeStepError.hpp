@@ -34,7 +34,7 @@ namespace std {
 // Tell the C++ 11 STL metaprogramming that enum TimeStepErrc
 // is registered with the standard error code system
 template <> struct is_error_code_enum<::fub::TimeStepErrc> : true_type {};
-} // namespace std
+} // namespace std 
 
 namespace fub {
 

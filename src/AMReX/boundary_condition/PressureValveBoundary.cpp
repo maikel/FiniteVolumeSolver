@@ -35,36 +35,41 @@ PressureValveBoundary::PressureValveBoundary(const IdealGasMix<1>& equation,
     : options_{std::move(options)}, equation_{equation},
       shared_valve_{std::make_shared<PressureValve>(PressureValve{})} {}
 
-PressureValveOptions::PressureValveOptions(const std::map<std::string, pybind11::object>& map,
-                                           std::string p) : prefix{std::move(p)} {
+PressureValveOptions::PressureValveOptions(
+    const std::map<std::string, pybind11::object>& map, std::string p)
+    : prefix{std::move(p)} {
   if (map.count(prefix)) {
-  std::map<std::string, pybind11::object> opts = ToMap(pybind11::dict(map.at(prefix)));
-  outer_pressure = GetOptionOr(opts, "outer_pressure", outer_pressure);
-  outer_temperature = GetOptionOr(opts, "outer_temperature", outer_temperature);
-  pressure_value_which_opens_boundary =
-      GetOptionOr(opts, "pressure_value_which_opens_boundary",
-                  pressure_value_which_opens_boundary);
-  pressure_value_which_closes_boundary =
-      GetOptionOr(opts, "pressure_value_which_closes_boundary",
-                  pressure_value_which_closes_boundary);
-  oxygen_measurement_position =
-      GetOptionOr(opts, "oxygen_measurement_position", oxygen_measurement_position);
-  oxygen_measurement_criterium =
-      GetOptionOr(opts, "oxygen_measurement_criterium", oxygen_measurement_criterium);
-  equivalence_ratio = GetOptionOr(opts, "equivalence_ratio", equivalence_ratio);
-  open_at_interval =
-      Duration(GetOptionOr(opts, "open_at_interval", open_at_interval.count()));
-  offset = Duration(GetOptionOr(opts, "offset", offset.count()));
-  valve_efficiency = GetOptionOr(opts, "efficiency", valve_efficiency);
-  fuel_measurement_criterium =
-      GetOptionOr(opts, "fuel_measurement_criterium", fuel_measurement_criterium);
-  fuel_measurement_position =
-      GetOptionOr(opts, "fuel_measurement_position", fuel_measurement_position);
+    std::map<std::string, pybind11::object> opts =
+        ToMap(pybind11::dict(map.at(prefix)));
+    outer_pressure = GetOptionOr(opts, "outer_pressure", outer_pressure);
+    outer_temperature =
+        GetOptionOr(opts, "outer_temperature", outer_temperature);
+    pressure_value_which_opens_boundary =
+        GetOptionOr(opts, "pressure_value_which_opens_boundary",
+                    pressure_value_which_opens_boundary);
+    pressure_value_which_closes_boundary =
+        GetOptionOr(opts, "pressure_value_which_closes_boundary",
+                    pressure_value_which_closes_boundary);
+    oxygen_measurement_position = GetOptionOr(
+        opts, "oxygen_measurement_position", oxygen_measurement_position);
+    oxygen_measurement_criterium = GetOptionOr(
+        opts, "oxygen_measurement_criterium", oxygen_measurement_criterium);
+    equivalence_ratio =
+        GetOptionOr(opts, "equivalence_ratio", equivalence_ratio);
+    open_at_interval = Duration(
+        GetOptionOr(opts, "open_at_interval", open_at_interval.count()));
+    offset = Duration(GetOptionOr(opts, "offset", offset.count()));
+    valve_efficiency = GetOptionOr(opts, "efficiency", valve_efficiency);
+    fuel_measurement_criterium = GetOptionOr(opts, "fuel_measurement_criterium",
+                                             fuel_measurement_criterium);
+    fuel_measurement_position = GetOptionOr(opts, "fuel_measurement_position",
+                                            fuel_measurement_position);
   }
 }
 
-PressureValveBoundary::PressureValveBoundary(const IdealGasMix<1>& eq,
-                                             const std::map<std::string, pybind11::object>& map)
+PressureValveBoundary::PressureValveBoundary(
+    const IdealGasMix<1>& eq,
+    const std::map<std::string, pybind11::object>& map)
     : PressureValveBoundary(eq, PressureValveOptions(map)) {}
 
 const PressureValveOptions& PressureValveBoundary::GetOptions() const noexcept {
@@ -186,7 +191,8 @@ double ChangeState_(PressureValveState& state, const ::amrex::Geometry& geom,
     if (mean_pressure > options.pressure_value_which_closes_boundary) {
       last_closed = current_time;
       state = PressureValveState::closed;
-      BOOST_LOG(log) << "pressure valve closed due to mean pressure (which is " << mean_pressure << " [Pa])!";
+      BOOST_LOG(log) << "pressure valve closed due to mean pressure (which is "
+                     << mean_pressure << " [Pa])!";
     }
     break;
   }

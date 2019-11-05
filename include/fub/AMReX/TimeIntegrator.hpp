@@ -36,7 +36,7 @@ namespace fub::amrex {
 
 template <typename Tag> struct ForwardIntegrator {
   ForwardIntegrator() = default;
-  ForwardIntegrator(Tag) {}
+  explicit ForwardIntegrator(Tag) {}
 
   void UpdateConservatively(::amrex::MultiFab& dest,
                             const ::amrex::MultiFab& src,

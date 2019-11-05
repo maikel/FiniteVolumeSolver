@@ -315,7 +315,8 @@ int Flip(int side) { return (side == 0) * 1 + (side != 0) * 0; }
 } // namespace
 
 MultiBlockBoundary::MultiBlockBoundary(const MultiBlockBoundary& other)
-    : log_(other.log_), valve_{other.valve_}, plenum_equation_(other.plenum_equation_),
+    : log_(other.log_), valve_{other.valve_},
+      plenum_equation_(other.plenum_equation_),
       tube_equation_(other.tube_equation_),
       plenum_mirror_box_(other.plenum_mirror_box_),
       tube_mirror_box_(other.tube_mirror_box_),
@@ -507,7 +508,8 @@ void MultiBlockBoundary::ComputeBoundaryData(
   }
 }
 
-const std::shared_ptr<PressureValve>& MultiBlockBoundary::GetValve() const noexcept {
+const std::shared_ptr<PressureValve>& MultiBlockBoundary::GetValve() const
+    noexcept {
   return valve_;
 }
 
@@ -515,9 +517,9 @@ void MultiBlockBoundary::FillBoundary(::amrex::MultiFab& mf,
                                       const ::amrex::Geometry&, Duration,
                                       const GriddingAlgorithm&) {
   if (valve_ && valve_->state == PressureValveState::closed) {
-//    ReflectiveBoundary closed{execution::openmp, tube_equation_, dir_,
-//      Flip(side_)};
-//    closed.FillBoundary(mf, geom, t, grid);
+    //    ReflectiveBoundary closed{execution::openmp, tube_equation_, dir_,
+    //      Flip(side_)};
+    //    closed.FillBoundary(mf, geom, t, grid);
     return;
   }
   ::amrex::Box box = tube_ghost_data_->box();
@@ -560,10 +562,11 @@ void MultiBlockBoundary::FillBoundary(::amrex::MultiFab& mf,
                                       const cutcell::GriddingAlgorithm& grid) {
   ::amrex::Box ghost_box = MakeGhostBox(plenum_mirror_box_, 3, dir_, side_);
   if (valve_ && valve_->state == PressureValveState::closed) {
-    const Eigen::Matrix<double, Plenum_Rank, 1> unit = UnitVector<Plenum_Rank>(dir_);
+    const Eigen::Matrix<double, Plenum_Rank, 1> unit =
+        UnitVector<Plenum_Rank>(dir_);
     const int level_num = FindLevel_(geom, grid);
     const ::amrex::MultiFab& alphas =
-    grid.GetPatchHierarchy().GetEmbeddedBoundary(level_num)->getVolFrac();
+        grid.GetPatchHierarchy().GetEmbeddedBoundary(level_num)->getVolFrac();
     OmpLocal<IdealGasMix<Plenum_Rank>::Complete> state(plenum_equation_);
     OmpLocal<IdealGasMix<Plenum_Rank>::Complete> reflected(plenum_equation_);
     ForEachFab(execution::openmp, mf, [&](const ::amrex::MFIter& mfi) {
@@ -571,15 +574,15 @@ void MultiBlockBoundary::FillBoundary(::amrex::MultiFab& mf,
       const ::amrex::FArrayBox& alpha = alphas[mfi];
       ::amrex::Box box_to_fill = mfi.growntilebox() & ghost_box;
       if (!box_to_fill.isEmpty()) {
-        auto states =
-        MakeView<IdealGasMix<Plenum_Rank>::Complete>(fab, plenum_equation_, mfi.growntilebox());
+        auto states = MakeView<IdealGasMix<Plenum_Rank>::Complete>(
+            fab, plenum_equation_, mfi.growntilebox());
         auto box = AsIndexBox<Plenum_Rank>(box_to_fill);
         ForEachIndex(box, [&](auto... is) {
           std::array<std::ptrdiff_t, Plenum_Rank> dest{is...};
           std::array<std::ptrdiff_t, Plenum_Rank> src =
-          ReflectIndex(dest, box, dir_, side_);
+              ReflectIndex(dest, box, dir_, side_);
           ::amrex::IntVect iv{
-            AMREX_D_DECL(int(src[0]), int(src[1]), int(src[2]))};
+              AMREX_D_DECL(int(src[0]), int(src[1]), int(src[2]))};
           if (alpha(iv) > 0.0) {
             Load(*state, states, src);
             FUB_ASSERT(state->density > 0.0);

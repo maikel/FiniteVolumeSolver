@@ -193,16 +193,16 @@ Result<void, TimeStepTooLarge> DimensionalSplitLevelIntegrator<
     Rank, Context, SplitMethod>::AdvanceLevelNonRecursively(int this_level,
                                                             Duration dt,
                                                             int subcycle) {
+  if (subcycle == 0 && this_level > 0) {
+    Context::FillGhostLayerTwoLevels(this_level, this_level - 1);
+  } else {
+    Context::FillGhostLayerSingleLevel(this_level);
+  }
+
   auto AdvanceLevel_Split = [&](Direction dir) {
-    return [&, this_level, dir, split_cycle = 0](
-               Duration split_dt) mutable -> Result<void, TimeStepTooLarge> {
+    return [&, this_level, dir](
+               Duration split_dt) -> Result<void, TimeStepTooLarge> {
       const int next_level = this_level + 1;
-      if (dir == Direction::X && split_cycle == 0 && subcycle == 0 &&
-          this_level > 0) {
-        Context::FillGhostLayerTwoLevels(this_level, this_level - 1);
-      } else {
-        Context::FillGhostLayerSingleLevel(this_level);
-      }
       const Duration level_dt = Context::ComputeStableDt(this_level, dir);
       if (level_dt < split_dt) {
         const int refine_ratio = GetTotalRefineRatio(this_level);
@@ -229,7 +229,6 @@ Result<void, TimeStepTooLarge> DimensionalSplitLevelIntegrator<
       // We have to reconstruct the missing variables in the complete state.
       Context::CompleteFromCons(this_level, split_dt);
 
-      split_cycle += 1;
       return boost::outcome_v2::success();
     };
   };
@@ -261,13 +260,6 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::AdvanceLevel(
       }
     }
   }
-
-  //  // Fill the ghost layer which is needed for this split direction
-  //  if (subcycle == 0 && this_level > 0) {
-  //    Context::FillGhostLayerTwoLevels(this_level, this_level - 1);
-  //  } else {
-  //    Context::FillGhostLayerSingleLevel(this_level);
-  //  }
 
   Result<void, TimeStepTooLarge> result =
       AdvanceLevelNonRecursively(this_level, dt, subcycle);

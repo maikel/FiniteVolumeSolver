@@ -21,6 +21,8 @@
 #include "fub/SAMRAI.hpp"
 #include "fub/Solver.hpp"
 
+#include <SAMRAI/hier/IntVector.h>
+
 #include <fmt/format.h>
 #include <iostream>
 
@@ -33,14 +35,17 @@ struct CircleData {
   fub::samrai::DataDescription data_description_;
   fub::Advection2d equation_;
 
-  void InitializeData(fub::samrai::PatchHierarchy& hierarchy, int level_number, Duration) const {
+  void InitializeData(fub::samrai::PatchHierarchy& hierarchy, int level_number,
+                      fub::Duration) const {
     SAMRAI::hier::PatchLevel& level = *hierarchy.GetPatchLevel(level_number);
+    const SAMRAI::geom::CartesianGridGeometry& geom =
+        hierarchy.GetGeometry(level_number);
     for (const std::shared_ptr<SAMRAI::hier::Patch>& patch : level) {
-      fub::View<Complete> states = fub::samrai::MakeView<Complete>(patch, equation_, hierarchy.GetDataDescription());
-      const SAMRAI::geom::CartesianPatchGeometry& geom = GetPatchGeometry(patch);
+      fub::View<Complete> states = fub::samrai::MakeView<Complete>(
+          patch, equation_, hierarchy.GetDataIds(), patch.getBox());
       fub::ForEachIndex(
           fub::Box<0>(states), [&](std::ptrdiff_t i, std::ptrdiff_t j) {
-            std::array<double, 2> x = GetCellCenter(patch, i, j);
+            std::array<double, 2> x = GetCellCenter(geom, patch, i, j);
             const double norm = std::sqrt(x[0] * x[0] + x[1] * x[1]);
             if (norm < 0.25) {
               states.mass(i, j) = 3.0;
@@ -56,66 +61,55 @@ int main(int argc, char** argv) {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
-  const fub::amrex::ScopeGuard guard(argc, argv);
+  using namespace fub::samrai;
 
-  constexpr int Dim = AMREX_SPACEDIM;
-  static_assert(AMREX_SPACEDIM >= 2);
+  const ScopeGuard guard(argc, argv);
+  fub::InitializeLogging(MPI_COMM_WORLD);
 
-  const std::array<int, Dim> n_cells{AMREX_D_DECL(128, 128, 1)};
-  const std::array<double, Dim> xlower{AMREX_D_DECL(-1.0, -1.0, -1.0)};
-  const std::array<double, Dim> xupper{AMREX_D_DECL(+1.0, +1.0, +1.0)};
+  fub::Advection2d equation{{1.0, 0.6}};
+  constexpr int Dim = fub::Advection2d::Rank();
+  SAMRAI::tbox::Dimension dim(Dim);
 
-  fub::Advection2d equation{{1.0, 1.0}};
+  const std::array<int, Dim> n_cells{128, 128};
+  const CoordinateRange<Dim> coordinates{{-1.0, -1.0}, {+1.0, +1.0}};
+  std::shared_ptr<SAMRAI::geom::CartesianGridGeometry> geometry =
+      MakeCartesianGridGeometry(n_cells, coordinates);
+  geometry->initializePeriodicShift(SAMRAI::hier::IntVector(dim, 1));
 
-  fub::samrai::CartesianGridGeometry geometry;
-  geometry.cell_dimensions = n_cells;
-  geometry.coordinates = amrex::RealBox(xlower, xupper);
-  geometry.periodicity = std::array<int, Dim>{AMREX_D_DECL(1, 1, 1)};
-
-  fub::samrai::PatchHierarchyOptions hier_opts{};
-  hier_opts.max_number_of_levels = 3;
+  PatchHierarchyOptions hier_opts{.refine_ratio =
+                                      SAMRAI::hier::IntVector(dim, 2),
+                                  .max_number_of_levels = 3};
 
   using State = fub::Advection2d::Complete;
-  fub::samrai::GradientDetector gradient{equation,
-                                        std::pair{&State::mass, 1e-3}};
+  GradientDetector gradient{equation, std::pair{&State::mass, 1e-3}};
 
-  fub::samrai::BoundarySet boundary;
-  using fub::samrai::TransmissiveBoundary;
-  boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::X, 0});
-  boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::X, 1});
-  boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::Y, 0});
-  boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::Y, 1});
-
-  std::shared_ptr gridding = std::make_shared<fub::samrai::GriddingAlgorithm>(
-      fub::samrai::PatchHierarchy(equation, geometry, hier_opts), CircleData{equation},
-      gradient, boundary);
+  std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
+      PatchHierarchy(equation, geometry, hier_opts), CircleData{equation},
+      gradient, std::vector{2, 2, 2});
   gridding->InitializeHierarchy(0.0);
 
-  fub::samrai::HyperbolicMethod method{
-      fub::samrai::FluxMethod(fub::execution::seq, fub::GodunovMethod{equation}),
-      fub::samrai::ForwardIntegrator(fub::execution::seq),
-      fub::samrai::Reconstruction(fub::execution::seq, equation)};
+  HyperbolicMethod method{
+      FluxMethod(fub::execution::seq, fub::GodunovMethod{equation}),
+      TimeIntegrator(), Reconstruction(fub::execution::seq, equation)};
 
-  fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
-      equation, fub::samrai::IntegratorContext(gridding, method)));
+  fub::DimensionalSplitLevelIntegrator solver(
+      fub::int_c<Dim>, IntegratorContext(gridding, method));
 
-  std::string base_name = "Advection_Godunov/";
+  SAMRAI::appu::VisItDataWriter writer(dim, "VisItWriter", "SAMRAI/Advection");
+  writer.registerPlotQuantity("mass", "SCALAR", desc.data_ids[0]);
 
-  auto output = [&](const fub::samrai::PatchHierarchy& hierarchy,
-                    std::ptrdiff_t cycle, fub::Duration) {
-    std::string name = fmt::format("{}{:04}", base_name, cycle);
-    ::amrex::Print() << "Start output to '" << name << "'.\n";
-    fub::samrai::WritePlotFile(name, hierarchy, equation);
-    ::amrex::Print() << "Finished output to '" << name << "'.\n";
+  auto output = [&](const GriddingAlgorithm& grid) {
+    SAMRAI::tbox::pout << "Start output to 'SAMRAI/Advection'.\n";
+    writer.writePlotData(grid.GetHierarchy().GetNative(), grid.GetCycles(),
+                         grid.GetTimePoint().count());
+    SAMRAI::tbox::pout << "Finished output to 'SAMRAI/Advection'.\n";
   };
-  auto print_msg = [](const std::string& msg) { ::amrex::Print() << msg; };
 
-  using namespace std::literals::chrono_literals;
-  output(solver.GetPatchHierarchy(), 0, 0s);
   fub::RunOptions run_options{};
   run_options.final_time = 2.0s;
   run_options.output_interval = 0.1s;
   run_options.cfl = 0.9;
-  fub::RunSimulation(solver, run_options, wall_time_reference, output,
-                     print_msg);
+  output(*solver.GetGriddingAlgorithm());
+  fub::InvokeFunction<GriddingAlgorithm> out{{1}, {}, output};
+  fub::RunSimulation(solver, run_options, wall_time_reference, out);
 }

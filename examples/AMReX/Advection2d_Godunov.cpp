@@ -55,6 +55,7 @@ int main(int argc, char** argv) {
       std::chrono::steady_clock::now();
 
   const fub::amrex::ScopeGuard guard(argc, argv);
+  fub::InitializeLogging(MPI_COMM_WORLD);
 
   constexpr int Dim = AMREX_SPACEDIM;
   static_assert(AMREX_SPACEDIM >= 2);
@@ -71,7 +72,7 @@ int main(int argc, char** argv) {
   geometry.periodicity = std::array<int, Dim>{AMREX_D_DECL(1, 1, 1)};
 
   fub::amrex::PatchHierarchyOptions hier_opts{};
-  hier_opts.max_number_of_levels = 3;
+  hier_opts.max_number_of_levels = 2;
 
   using State = fub::Advection2d::Complete;
   fub::amrex::GradientDetector gradient{equation,
@@ -86,7 +87,7 @@ int main(int argc, char** argv) {
 
   std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       fub::amrex::PatchHierarchy(equation, geometry, hier_opts), CircleData{},
-      gradient, boundary);
+      fub::amrex::TagAllOf(gradient, fub::amrex::TagBuffer(2)), boundary);
   gridding->InitializeHierarchy(0.0);
 
   fub::amrex::HyperbolicMethod method{
@@ -99,22 +100,19 @@ int main(int argc, char** argv) {
 
   std::string base_name = "Advection_Godunov/";
 
-  auto output =
-      [&](const std::shared_ptr<fub::amrex::GriddingAlgorithm>& gridding,
-          std::ptrdiff_t cycle, fub::Duration, int = 0) {
-        std::string name = fmt::format("{}plt{:04}", base_name, cycle);
-        ::amrex::Print() << "Start output to '" << name << "'.\n";
-        fub::amrex::WritePlotFile(name, gridding->GetPatchHierarchy(),
-                                  equation);
-        ::amrex::Print() << "Finished output to '" << name << "'.\n";
-      };
+  auto output = [&](const fub::amrex::GriddingAlgorithm& gridding) {
+    std::string name =
+        fmt::format("{}plt{:04}", base_name, gridding.GetCycles());
+    ::amrex::Print() << "Start output to '" << name << "'.\n";
+    fub::amrex::WritePlotFile(name, gridding.GetPatchHierarchy(), equation);
+    ::amrex::Print() << "Finished output to '" << name << "'.\n";
+  };
 
   using namespace std::literals::chrono_literals;
-  output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
-         solver.GetTimePoint());
+  output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
   run_options.final_time = 2.0s;
-  run_options.output_interval = {0.1s};
   run_options.cfl = 0.9;
-  fub::RunSimulation(solver, run_options, wall_time_reference, output);
+  fub::InvokeFunction<fub::amrex::GriddingAlgorithm> out{{1}, {}, output};
+  fub::RunSimulation(solver, run_options, wall_time_reference, out);
 }

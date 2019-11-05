@@ -20,6 +20,7 @@
 
 #include "fub/SAMRAI/GriddingAlgorithm.hpp"
 
+#include <SAMRAI/tbox/MemoryDatabase.h>
 #include <SAMRAI/mesh/BergerRigoutsos.h>
 #include <SAMRAI/mesh/CascadePartitioner.h>
 #include <SAMRAI/mesh/StandardTagAndInitStrategy.h>
@@ -29,17 +30,6 @@
 namespace fub {
 namespace samrai {
 namespace {
-std::vector<SAMRAI::pdat::CellData<double>*>
-GetCellData(SAMRAI::hier::Patch& patch, span<const int> ids) {
-  std::vector<SAMRAI::pdat::CellData<double>*> data;
-  data.reserve(ids.size());
-  for (int id : ids) {
-    data.push_back(static_cast<SAMRAI::pdat::CellData<double>*>(
-        patch.getPatchData(id).get()));
-  }
-  return data;
-}
-
 struct TagAndInit : SAMRAI::mesh::TagAndInitializeStrategy {
   TagAndInit(GriddingAlgorithm* parent,
              SAMRAI::hier::ComponentSelector which_to_allocate)
@@ -153,12 +143,14 @@ GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier, InitialData init,
         id, id, id, std::make_shared<SAMRAI::pdat::CellDoubleConstantRefine>());
   }
 
+  std::shared_ptr cascade_options = std::make_shared<SAMRAI::tbox::MemoryDatabase>("CascadePartitioner");
+  cascade_options->putVector("tile_size", std::vector{8, 8});
   algorithm_ = std::make_shared<SAMRAI::mesh::GriddingAlgorithm>(
       hierarchy_.GetNative(), MakeUniqueName(), nullptr,
       std::make_shared<TagAndInit>(this, which_to_allocate),
       std::make_shared<SAMRAI::mesh::TileClustering>(dim),
       std::make_shared<SAMRAI::mesh::CascadePartitioner>(dim,
-                                                         MakeUniqueName()));
+                                                         MakeUniqueName(), cascade_options));
 }
 
 GriddingAlgorithm::GriddingAlgorithm(const GriddingAlgorithm& ga)
@@ -240,6 +232,16 @@ void GriddingAlgorithm::InitializeHierarchy(Duration initial_time_point,
     algorithm_->makeFinerLevel(buffer, initial_time, initial_cycle,
                                initial_time_point.count());
   }
+}
+
+const BoundaryCondition& GriddingAlgorithm::GetBoundaryCondition(int level) const {
+  FUB_ASSERT(0 <= level && level < int(level_to_boundary_.size()));
+  return level_to_boundary_[static_cast<std::size_t>(level)];
+}
+
+BoundaryCondition& GriddingAlgorithm::GetBoundaryCondition(int level) {
+  FUB_ASSERT(0 <= level && level < int(level_to_boundary_.size()));
+  return level_to_boundary_[static_cast<std::size_t>(level)];
 }
 
 } // namespace samrai

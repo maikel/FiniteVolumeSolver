@@ -42,6 +42,8 @@ struct RiemannProblem {
                             [this, &state, &geom](std::ptrdiff_t i) {
                               const double x = geom.CellCenter(int(i), 0);
                               if (x < -0.04) {
+                                Store(state, right_, {i});
+                              } else if (x < 0.04) {
                                 Store(state, left_, {i});
                               } else {
                                 Store(state, right_, {i});
@@ -100,11 +102,13 @@ int main(int argc, char** argv) {
 
   fub::amrex::BoundarySet boundary;
   using fub::amrex::TransmissiveBoundary;
-  boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::X, 0});
+  using fub::amrex::ReflectiveBoundary;
+  auto seq = fub::execution::seq;
+  boundary.conditions.push_back(ReflectiveBoundary{seq, equation, fub::Direction::X, 0});
   boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::X, 1});
 
   fub::amrex::PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = 6;
+  hier_opts.max_number_of_levels = 3;
   hier_opts.refine_ratio = ::amrex::IntVect{AMREX_D_DECL(2, 1, 1)};
 
   std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(

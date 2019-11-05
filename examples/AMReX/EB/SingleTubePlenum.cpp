@@ -66,16 +66,15 @@ using ProbesView =
 struct ProgramOptions {
   ProgramOptions() = default;
 
-  explicit ProgramOptions(const boost::program_options::variables_map& vm) {
-    auto GetOptionOr = [&](const char* opt, auto default_value) {
-      if (vm.count(opt)) {
-        return vm[opt].as<std::decay_t<decltype(default_value)>>();
-      }
-      return default_value;
-    };
-    std::vector xs = GetOptionOr("grid.x_range", std::vector{-0.03, 0.27});
-    std::vector ys = GetOptionOr("grid.y_range", std::vector{-0.15, 0.15});
-    std::vector zs = GetOptionOr("grid.z_range", std::vector{-0.15, 0.15});
+  explicit ProgramOptions(const std::map<std::string, pybind11::object>& vm) {
+    std::map<std::string, pybind11::object> grid =
+        fub::ToMap(fub::GetOptionOr(vm, "grid", pybind11::dict()));
+    std::vector xs =
+        fub::GetOptionOr(grid, "x_range", std::vector{-0.03, 0.57});
+    std::vector ys =
+        fub::GetOptionOr(grid, "y_range", std::vector{-0.15, 0.15});
+    std::vector zs =
+        fub::GetOptionOr(grid, "z_range", std::vector{-0.15, 0.15});
     auto check_size = [](auto& xs, int n, const char* name) {
       if (int(xs.size()) != n) {
         throw std::runtime_error(
@@ -86,78 +85,65 @@ struct ProgramOptions {
     check_size(ys, 2, "grid.y_range");
     check_size(zs, 2, "grid.z_range");
     plenum_xbox = amrex::RealBox(xs[0], ys[0], zs[0], xs[1], ys[1], zs[1]);
-    std::vector n_cells = GetOptionOr("grid.n_cells", std::vector{64, 64, 64});
+    std::vector n_cells =
+        fub::GetOptionOr(grid, "n_cells", std::vector{64, 64, 64});
     check_size(n_cells, 3, "grid.n_cells");
     plenum_n_cells = amrex::IntVect{n_cells[0], n_cells[1], n_cells[2]};
-    n_levels = GetOptionOr("grid.max_number_of_levels", n_levels);
-    checkpoint = GetOptionOr("grid.checkpoint", checkpoint);
+    n_levels = fub::GetOptionOr(grid, "max_number_of_levels", n_levels);
+    checkpoint = fub::GetOptionOr(vm, "checkpoint", checkpoint);
 
     tube_xbox = amrex::RealBox(-1.5, -r_tube, -r_tube, xs[0], +r_tube, +r_tube);
     const double tube_length = tube_xbox.hi(0) - tube_xbox.lo(0);
-    const double plenum_length = plenum_xbox.hi(0) - plenum_xbox.lo(0);
-    const double t_over_p = tube_length / plenum_length;
+    const double plenum_domain_length = plenum_xbox.hi(0) - plenum_xbox.lo(0);
+    const double t_over_p = tube_length / plenum_domain_length;
     tube_n_cells = int(double(plenum_n_cells[0]) * t_over_p);
     tube_n_cells = tube_n_cells - tube_n_cells % 8;
 
-    plenum_temperature = GetOptionOr("plenum.temperature", plenum_temperature);
+    auto plenum = fub::ToMap(fub::GetOptionOr(vm, "plenum", pybind11::dict()));
+    plenum_temperature =
+        fub::GetOptionOr(plenum, "temperature", plenum_temperature);
     plenum_outlet_radius =
-        GetOptionOr("plenum.outlet_radius", plenum_outlet_radius);
+        fub::GetOptionOr(plenum, "outlet_radius", plenum_outlet_radius);
+    plenum_length = fub::GetOptionOr(plenum, "length", plenum_length);
+    plenum_jump = fub::GetOptionOr(plenum, "jump", plenum_jump);
 
-    output_directory = GetOptionOr("output.directory", output_directory);
-    x_probes = GetOptionOr("output.x_probes", x_probes);
-    checkpoint_interval = fub::Duration(
-                                        GetOptionOr("output.checkpoint_interval", checkpoint_interval.count()));
-  }
-
-  static boost::program_options::options_description GetCommandLineOptions() {
-    namespace po = boost::program_options;
-    po::options_description desc{"Grid Options"};
-    // clang-format off
-    desc.add_options()
-    ("grid.n_cells", po::value<std::vector<int>>()->multitoken(), "Base number of cells in the plenum for the coarsest level")
-    ("grid.x_range", po::value<std::vector<double>>()->multitoken(), "Coordinate range for the x coordinate direction.")
-    ("grid.y_range", po::value<std::vector<double>>()->multitoken(), "Coordinate range for the y coordinate direction.")
-    ("grid.z_range", po::value<std::vector<double>>()->multitoken(), "Coordinate range for the z coordinate direction.")
-    ("grid.max_number_of_levels", po::value<int>(), "Maximal number of refinement levels across tube and plenum domains.")
-    ("grid.checkpoint", po::value<std::string>(), "The path to the checkpoint files. Used to restart a simulation.");
-
-    po::options_description prob_desc{"Problem Options"};
-    prob_desc.add_options()
-    ("plenum.temperature", po::value<double>(), "Temperature value for the plenum")
-    ("plenum.outlet_radius", po::value<double>(), "Radius of plenum outlet")
-    ("output.directory", po::value<double>(), "Output directory")
-    ("output.checkpoint_interval", po::value<double>(), "Time interval to make checkpoint ")
-    ("output.x_probes", po::value<std::vector<double>>()->multitoken(), "Coordinates in x direction for locations where the state is measured in each time step.");
-    // clang-format on
-    desc.add(prob_desc);
-    return desc;
+    auto output = fub::ToMap(fub::GetOptionOr(vm, "output", pybind11::dict()));
+    output_directory = fub::GetOptionOr(output, "directory", output_directory);
+    checkpoint_interval = fub::Duration(fub::GetOptionOr(
+        output, "checkpoint_interval", checkpoint_interval.count()));
+    x_probes = fub::GetOptionOr(output, "x_probes", x_probes);
   }
 
   template <typename Logger> void Print(Logger& log) const {
     BOOST_LOG(log) << "Grid Options:";
     BOOST_LOG(log) << fmt::format(
-        "  - plenum_xbox = {{{{{}, {}, {}}}, {{{}, {}, {}}}}}",
+        "  - plenum_xbox = {{{{{}, {}, {}}}, {{{}, {}, {}}}}} [m]",
         plenum_xbox.lo(0), plenum_xbox.lo(1), plenum_xbox.lo(2),
         plenum_xbox.hi(0), plenum_xbox.hi(1), plenum_xbox.hi(2));
     std::array<int, 3> n_cells{plenum_n_cells[0], plenum_n_cells[1],
                                plenum_n_cells[2]};
-    BOOST_LOG(log) << fmt::format("  - plenum_n_cells = {{{}}}",
+    BOOST_LOG(log) << fmt::format("  - plenum_n_cells = {{{}}} [-]",
                                   fmt::join(n_cells, ", "));
     BOOST_LOG(log) << fmt::format(
-        "  - tube_xbox = {{{{{}, {}, {}}}, {{{}, {}, {}}}}}", tube_xbox.lo(0),
-        tube_xbox.lo(1), tube_xbox.lo(2), tube_xbox.hi(0), tube_xbox.hi(1),
-        tube_xbox.hi(2));
-    BOOST_LOG(log) << "  - tube_n_cells = " << tube_n_cells;
-    BOOST_LOG(log) << "  - n_levels = " << n_levels;
+        "  - tube_xbox = {{{{{}, {}, {}}}, {{{}, {}, {}}}}} [m]",
+        tube_xbox.lo(0), tube_xbox.lo(1), tube_xbox.lo(2), tube_xbox.hi(0),
+        tube_xbox.hi(1), tube_xbox.hi(2));
+    BOOST_LOG(log) << "  - tube_n_cells = " << tube_n_cells << " [-]";
+    BOOST_LOG(log) << "  - n_levels = " << n_levels << " [-]";
 
     BOOST_LOG(log) << "Problem Options:";
-    BOOST_LOG(log) << "  - plenum.temperature = " << plenum_temperature;
-    BOOST_LOG(log) << "  - plenum.outlet_radius= " << plenum_outlet_radius;
+    BOOST_LOG(log) << "  - plenum.temperature = " << plenum_temperature
+                   << " [K]";
+    BOOST_LOG(log) << "  - plenum.outlet_radius= " << plenum_outlet_radius
+                   << " [m]";
+    BOOST_LOG(log) << "  - plenum.length= " << plenum_length << " [m]";
+    BOOST_LOG(log) << "  - plenum.jump= " << plenum_jump << " [m]";
     BOOST_LOG(log) << "  - output.directory = '" << output_directory << "'";
+    BOOST_LOG(log) << "  - output.checkpoint_interval = "
+                   << checkpoint_interval.count() << " [s]";
     BOOST_LOG(log) << fmt::format("  - output.x_probes = {{{}}}",
                                   fmt::join(x_probes, ", "));
-    BOOST_LOG(log) << "  - output.checkpoint_interval = "
-    << checkpoint_interval.count() << " [s]";
+
     if (!checkpoint.empty()) {
       BOOST_LOG(log) << "Restart simulation from checkpoint '" << checkpoint
                      << "'!";
@@ -172,9 +158,11 @@ struct ProgramOptions {
   std::string checkpoint{};
   double plenum_temperature{300};
   double plenum_outlet_radius{r_tube};
-  std::string output_directory{"SingleTube"};
-  std::vector<double> x_probes{};
+  double plenum_jump{2 * r_tube};
+  double plenum_length{0.25};
   fub::Duration checkpoint_interval{0.0001};
+  std::string output_directory{"SingleTubePlenum"};
+  std::vector<double> x_probes{};
 };
 
 struct TubeSolverOptions {
@@ -191,7 +179,7 @@ auto DomainAroundCenter(const ::amrex::RealArray& x, double rx)
 }
 
 auto MakeTubeSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
-                    const boost::program_options::variables_map& vm) {
+                    const std::map<std::string, pybind11::object>& vm) {
   const std::array<int, AMREX_SPACEDIM> n_cells{po.tube_n_cells, 1, 1};
   amrex::RealBox xbox = po.tube_xbox;
   const std::array<int, AMREX_SPACEDIM> periodicity{0, 0, 0};
@@ -237,10 +225,7 @@ auto MakeTubeSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
   // data from the checkpoint file, otherwise we will initialize the data by
   // the initial data function.
   std::shared_ptr<GriddingAlgorithm> gridding = [&] {
-    std::string checkpoint{};
-    if (vm.count("grid.checkpoint")) {
-      checkpoint = vm["grid.checkpoint"].as<std::string>();
-    }
+    std::string checkpoint = fub::GetOptionOr(vm, "checkpoint", std::string{});
     if (checkpoint.empty()) {
       std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
           PatchHierarchy(desc, geometry, hier_opts), initial_data,
@@ -287,7 +272,7 @@ auto MakeTubeSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
 }
 
 auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
-                      const boost::program_options::variables_map& vm) {
+                      const std::map<std::string, pybind11::object>& vm) {
   const std::array<int, Plenum_Rank> n_cells{
       po.plenum_n_cells[0], po.plenum_n_cells[1], po.plenum_n_cells[2]};
   const int n_level = po.n_levels;
@@ -356,10 +341,7 @@ auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
                                   101325.0, fub::Direction::X, 1}}};
 
   std::shared_ptr gridding = [&] {
-    std::string checkpoint{};
-    if (vm.count("grid.checkpoint")) {
-      checkpoint = vm["grid.checkpoint"].as<std::string>();
-    }
+    std::string checkpoint = fub::GetOptionOr(vm, "checkpoint", std::string{});
     if (checkpoint.empty()) {
       std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
           PatchHierarchy(equation, geometry, options), initial_data,
@@ -396,25 +378,20 @@ auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
   return fub::amrex::cutcell::IntegratorContext(gridding, method);
 }
 
-void MyMain(const boost::program_options::variables_map& vm);
-
-std::optional<boost::program_options::variables_map>
+std::optional<std::map<std::string, pybind11::object>>
 ParseCommandLine(int argc, char** argv) {
   namespace po = boost::program_options;
-  po::options_description desc = fub::RunOptions::GetCommandLineOptions();
+  po::options_description desc{};
   std::string config_path{};
   desc.add_options()("config", po::value<std::string>(&config_path),
                      "Path to the config file which can be parsed.");
-  desc.add(ProgramOptions::GetCommandLineOptions());
-  desc.add(fub::amrex::PressureValveOptions::GetCommandLineOptions());
-  desc.add(
-      fub::amrex::IgniteDetonationOptions::GetCommandLineOptions("ignite"));
   po::variables_map vm;
+  std::map<std::string, pybind11::object> options{};
   try {
     po::store(po::parse_command_line(argc, argv, desc), vm);
     if (vm.count("config")) {
       config_path = vm["config"].as<std::string>();
-      po::store(po::parse_config_file(config_path.c_str(), desc), vm);
+      options = fub::ParsePythonScript(config_path, MPI_COMM_WORLD);
     }
     po::notify(vm);
   } catch (std::exception& e) {
@@ -432,12 +409,14 @@ ParseCommandLine(int argc, char** argv) {
   boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
       boost::log::keywords::severity = boost::log::trivial::info);
 
-  fub::RunOptions(vm).Print(log);
-  ProgramOptions(vm).Print(log);
-  fub::amrex::PressureValveOptions(vm).Print(log);
-  fub::amrex::IgniteDetonationOptions(vm, "ignite").Print(log);
-  return vm;
+  fub::RunOptions(options).Print(log);
+  ProgramOptions(options).Print(log);
+  fub::amrex::PressureValveOptions(options).Print(log);
+  fub::amrex::IgniteDetonationOptions(options, "ignite").Print(log);
+  return options;
 }
+
+void MyMain(const std::map<std::string, pybind11::object>& vm);
 
 int main(int argc, char** argv) {
   MPI_Init(nullptr, nullptr);
@@ -640,7 +619,7 @@ void InitializeProbeOutput(const ProgramOptions& po) {
   }
 }
 
-void MyMain(const boost::program_options::variables_map& vm) {
+void MyMain(const std::map<std::string, pybind11::object>& vm) {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
@@ -678,10 +657,7 @@ void MyMain(const boost::program_options::variables_map& vm) {
       tube_equation, context.GetGriddingAlgorithm(),
       fub::amrex::IgniteDetonationOptions(vm, "ignite")};
 
-  std::string checkpoint{};
-  if (vm.count("grid.checkpoint")) {
-    checkpoint = vm["grid.checkpoint"].as<std::string>();
-  }
+  std::string checkpoint = fub::GetOptionOr(vm, "checkpoint", std::string{});
   if (!checkpoint.empty()) {
     MPI_Comm comm = context.GetMpiCommunicator();
     std::string input =
@@ -772,76 +748,69 @@ void MyMain(const boost::program_options::variables_map& vm) {
   MPI_Comm comm = context.GetMpiCommunicator();
   int rank = -1;
   MPI_Comm_rank(comm, &rank);
-  auto output =
-      [&](std::shared_ptr<fub::amrex::MultiBlockGriddingAlgorithm> gridding,
-          auto cycle, auto timepoint, int output_num) {
-        BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", timepoint.count());
-        if (output_num >= 0) {
-          BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "ProbesTube");
-          LogTubeProbes(log, tube_probes,
-                        gridding->GetTubes()[0]->GetPatchHierarchy(), comm);
-        }
-        if (output_num >= 0) {
-          BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "ProbesPlenum");
-          LogPlenumProbes(log, plenum_probes,
-                          gridding->GetPlena()[0]->GetPatchHierarchy(), comm);
-        }
-        if (output_num == 0) {
-          BOOST_LOG(log) << fmt::format("Write Plotfiles to '{}/Plotfiles'.",
-                                        base_name);
-          std::string name =
-              fmt::format("{}/Plotfiles/Plenum/plt{:05}", base_name, cycle);
-          fub::amrex::cutcell::WritePlotFile(
-              name, gridding->GetPlena()[0]->GetPatchHierarchy(),
-              plenum_equation);
-          name = fmt::format("{}/Plotfiles/Tube/plt{:05}", base_name, cycle);
-          fub::amrex::WritePlotFile(
-              name, gridding->GetTubes()[0]->GetPatchHierarchy(),
-              tube_equation);
-          name = fmt::format("{}/Checkpoint/{:05}", base_name, cycle);
-          WriteCheckpoint(name, *gridding, valve_state, rank, ignition);
-        }
-        //
-        // Ouput MATLAB files on each output interval
-        //
-        if (output_num < 2) {
-          auto tubes = gridding->GetTubes();
-          int k = 0;
-          for (auto& tube : tubes) {
-            std::string name = fmt::format("{}/Matlab/Tube_{}/plt{:05}.dat",
-                                           base_name, k, cycle);
-            fub::amrex::WriteTubeData(name, tube->GetPatchHierarchy(),
-                                      tube_equation, timepoint, cycle, comm);
-            k = k + 1;
-          }
-          k = 0;
-          std::for_each(output_boxes.begin(), output_boxes.end() - 1,
-                        [&](const ::amrex::Box& out_box) {
-                          std::string name =
-                              fmt::format("{}/Matlab/Plenum_x{}/plt{:05}.dat",
-                                          base_name, k, cycle);
-                          auto& plenum = gridding->GetPlena()[0];
-                          fub::amrex::cutcell::Write2Dfrom3D(
-                              name, plenum->GetPatchHierarchy(), out_box,
-                              plenum_equation, timepoint, cycle, comm);
-                          k = k + 1;
-                        });
-          const ::amrex::Box out_box = output_boxes.back();
-          std::string name =
-              fmt::format("{}/Matlab/Plenum_y0/plt{:05}.dat", base_name, cycle);
-          auto& plenum = gridding->GetPlena()[0];
-          fub::amrex::cutcell::Write2Dfrom3D(name, plenum->GetPatchHierarchy(),
-                                             out_box, plenum_equation,
-                                             timepoint, cycle, comm);
-        }
-      };
+  auto output = [&](const fub::amrex::MultiBlockGriddingAlgorithm& grid) {
+    BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", grid.GetTimePoint().count());
+    // if (output_num >= 0) {
+    // BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "ProbesTube");
+    // LogTubeProbes(log, tube_probes, grid.GetTubes()[0]->GetPatchHierarchy(),
+    // comm);
+    // }
+    // if (output_num >= 0) {
+    // BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "ProbesPlenum");
+    // LogPlenumProbes(log, plenum_probes,
+    // grid.GetPlena()[0]->GetPatchHierarchy(), comm);
+    // }
+    // if (output_num == 0) {
+    BOOST_LOG(log) << fmt::format("Write Plotfiles to '{}/Plotfiles'.",
+                                  base_name);
+    std::string name = fmt::format("{}/Plotfiles/Plenum/plt{:05}", base_name,
+                                   grid.GetCycles());
+    fub::amrex::cutcell::WritePlotFile(
+        name, grid.GetPlena()[0]->GetPatchHierarchy(), plenum_equation);
+    name =
+        fmt::format("{}/Plotfiles/Tube/plt{:05}", base_name, grid.GetCycles());
+    fub::amrex::WritePlotFile(name, grid.GetTubes()[0]->GetPatchHierarchy(),
+                              tube_equation);
+    name = fmt::format("{}/Checkpoint/{:05}", base_name, grid.GetCycles());
+    WriteCheckpoint(name, grid, valve_state, rank, ignition);
+    // }
+    //
+    // Ouput MATLAB files on each output interval
+    //
+    // if (output_num < 2) {
+    auto tubes = grid.GetTubes();
+    int k = 0;
+    for (auto& tube : tubes) {
+      std::string name = fmt::format("{}/Matlab/Tube_{}.h5", base_name, k);
+      fub::amrex::WriteTubeData(name, tube->GetPatchHierarchy(), tube_equation,
+                                grid.GetTimePoint(), grid.GetCycles(), comm);
+      k = k + 1;
+    }
+    k = 0;
+    std::for_each(output_boxes.begin(), output_boxes.end() - 1,
+                  [&](const ::amrex::Box& out_box) {
+                    std::string name =
+                        fmt::format("{}/Matlab/Plenum_x{}.h5", base_name, k);
+                    auto& plenum = grid.GetPlena()[0];
+                    fub::amrex::cutcell::Write2Dfrom3D(
+                        name, plenum->GetPatchHierarchy(), out_box,
+                        plenum_equation, grid.GetTimePoint(), grid.GetCycles(),
+                        comm);
+                    k = k + 1;
+                  });
+    const ::amrex::Box out_box = output_boxes.back();
+    name = fmt::format("{}/Matlab/Plenum_y0.h5", base_name);
+    auto& plenum = grid.GetPlena()[0];
+    fub::amrex::cutcell::Write2Dfrom3D(
+        name, plenum->GetPatchHierarchy(), out_box, plenum_equation,
+        grid.GetTimePoint(), grid.GetCycles(), comm);
+    // }
+  };
 
   using namespace std::literals::chrono_literals;
-  output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
-         solver.GetTimePoint(), 0);
+  output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options(vm);
-  run_options.output_interval =
-  std::vector{po.checkpoint_interval, run_options.output_interval[0]};
-  run_options.output_frequency = std::vector{0, 0, 1};
-  fub::RunSimulation(solver, run_options, wall_time_reference, output);
+  fub::InvokeFunction<fub::amrex::MultiBlockGriddingAlgorithm> out{
+      {1}, run_options.output_interval, output};
+  fub::RunSimulation(solver, run_options, wall_time_reference, out);
 }

@@ -597,32 +597,6 @@ void Write2Dfrom3D(const std::string& name, const PatchHierarchy& hierarchy,
         // Write Header File
         //        {
         const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(ilvl);
-        //          std::ofstream out(name);
-        //          out << fmt::format("size = ({}, {}, {}, {})\n",
-        //          domain.length(0),
-        //                             domain.length(1), domain.length(2),
-        //                             fab.nComp());
-        //          out << fmt::format("dx = ({}, {}, {})\n",
-        //          level_geom.CellSize(0),
-        //                             level_geom.CellSize(1),
-        //                             level_geom.CellSize(2));
-        //          out << fmt::format("x0 = ({}, {}, {})\n",
-        //                             level_geom.CellCenter(domain.smallEnd(0),
-        //                             0),
-        //                             level_geom.CellCenter(domain.smallEnd(1),
-        //                             1),
-        //                             level_geom.CellCenter(domain.smallEnd(2),
-        //                             2));
-        //          out << fmt::format("t = {}\n", time_point.count());
-        //          out << fmt::format("cycle = {}\n", cycle_number);
-        //          out << fmt::format("data_file = {}.bin\n",
-        //          path.filename().string());
-        //        }
-        //        // Dump binary data
-        //        std::ofstream bin(name + ".bin", std::ios::binary);
-        //        char* pointer =
-        //        static_cast<char*>(static_cast<void*>(fab.dataPtr()));
-        //        bin.write(pointer, fab.size() * sizeof(double));
         WriteToHDF5(name, fab, level_geom, time_point, cycle_number);
       }
     } else {

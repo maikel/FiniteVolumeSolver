@@ -299,6 +299,9 @@ SliceLast(const PatchDataView<T, Rank, Layout>& pdv, int component = 0) {
   }
 }
 
+template <typename T, int Rank>
+using StridedDataView = PatchDataView<T, Rank, layout_stride>;
+
 } // namespace fub
 
 #endif

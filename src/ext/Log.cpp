@@ -75,18 +75,19 @@ void InitializeLogging(MPI_Comm comm, const LogOptions&) {
   boost::log::core::get()->add_global_attribute(
       "TimeStamp", boost::log::attributes::local_clock());
   int rank = -1;
-
   MPI_Comm_rank(comm, &rank);
-  using text_sink = boost::log::sinks::synchronous_sink<
-      boost::log::sinks::text_ostream_backend>;
-  boost::shared_ptr<text_sink> file = boost::make_shared<text_sink>();
-  namespace expr = boost::log::expressions;
-  file->locked_backend()->add_stream(
-      boost::make_shared<std::ofstream>(fmt::format("{:05}.log", rank)));
-  file->set_formatter(&FormatLogs_);
-  boost::log::core::get()->add_sink(file);
-
   if (rank == 0) {
+    using text_sink = boost::log::sinks::synchronous_sink<
+        boost::log::sinks::text_ostream_backend>;
+    boost::shared_ptr<text_sink> file = boost::make_shared<text_sink>();
+    namespace expr = boost::log::expressions;
+    file->locked_backend()->add_stream(
+        boost::make_shared<std::ofstream>(fmt::format("{:05}.log", rank)));
+    file->set_formatter(&FormatLogs_);
+    file->set_filter([](const boost::log::attribute_value_set& attrs) -> bool {
+      return attrs.count(boost::log::aux::default_attribute_names::message());
+    });
+    boost::log::core::get()->add_sink(file);
     boost::shared_ptr<text_sink> console = boost::make_shared<text_sink>();
     boost::shared_ptr<std::ostream> cout(&std::cout, boost::null_deleter{});
     console->locked_backend()->add_stream(cout);
@@ -94,6 +95,8 @@ void InitializeLogging(MPI_Comm comm, const LogOptions&) {
     console->set_filter(boost::log::trivial::severity >=
                         boost::log::trivial::info);
     boost::log::core::get()->add_sink(console);
+  } else {
+    boost::log::core::get()->set_filter([](auto&&) { return false; });
   }
 }
 

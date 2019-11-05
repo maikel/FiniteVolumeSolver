@@ -201,6 +201,9 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/geometry/ExpandTube.hpp
   include/fub/geometry/Polygon.hpp
   include/fub/geometry/Cone.hpp
+  include/fub/output/BasicOutput.hpp
+  include/fub/output/OutputAtFrequencyOrInterval.hpp
+  include/fub/output/InvokeFunction.hpp
   include/fub/Solver.hpp
   include/fub/CompleteFromCons.hpp
   include/fub/CutCellData.hpp
@@ -315,6 +318,12 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     include/fub/geometry/Geometry.hpp
     include/fub/geometry/PolymorphicGeometry.hpp
     include/fub/geometry/Union.hpp
+    include/fub/AMReX/output/WriteHDF5.hpp
+    include/fub/AMReX/output/LogProbes.hpp
+    include/fub/AMReX/output/WritePlotfiles.hpp
+    src/AMReX/output/LogProbes.cpp
+    src/AMReX/output/WritePlotfiles.cpp
+    src/AMReX/output/WriteHdf5.cpp
     src/equations/ideal_gas_mix/KineticSourceTerm.cpp
     src/AMReX/boundary_condition/BoundarySet.cpp
     src/AMReX/boundary_condition/TransmissiveBoundary.cpp
@@ -386,6 +395,8 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         include/fub/AMReX/multi_block/MultiBlockIntegratorContext.hpp
         include/fub/AMReX/multi_block/MultiBlockKineticSourceTerm.hpp
         include/fub/AMReX/multi_block/MultiBlockIgniteDetonation.hpp
+        include/fub/AMReX/multi_block/MultiWriteHdf5.hpp
+        src/AMReX/multi_block/MultiWriteHdf5.cpp
         src/AMReX/cutcell/BoundaryCondition.cpp
         src/AMReX/cutcell/IntegratorContext.cpp
         src/AMReX/cutcell/PatchHierarchy.cpp
@@ -426,13 +437,24 @@ if (SAMRAI_FOUND)
   add_library(FiniteVolumeSolver.SAMRAI
     include/fub/SAMRAI/PatchHierarchy.hpp
     include/fub/SAMRAI/IntegratorContext.hpp
+    include/fub/SAMRAI/RegisterVariables.hpp
+    include/fub/SAMRAI/ScopeGuard.hpp
     include/fub/SAMRAI/GriddingAlgorithm.hpp
+    include/fub/SAMRAI/TimeIntegrator.hpp
+    include/fub/SAMRAI/BoundaryCondition.hpp
+    include/fub/SAMRAI/FluxMethod.hpp
+    include/fub/SAMRAI/InitialData.hpp
+    include/fub/SAMRAI/Reconstruction.hpp
+    include/fub/SAMRAI/ViewPatch.hpp
+    include/fub/SAMRAI/tagging/GradientDetector.hpp
+    include/fub/SAMRAI/tagging/ConstantBox.hpp
     src/SAMRAI/PatchHierarchy.cpp
     src/SAMRAI/IntegratorContext.cpp
     src/SAMRAI/ScopeGuard.cpp
     src/SAMRAI/RegisterVariables.cpp
     src/SAMRAI/GriddingAlgorithm.cpp
     src/SAMRAI/ViewPatch.cpp
+    src/SAMRAI/TimeIntegrator.cpp
     src/SAMRAI/tagging/ConstantBox.cpp)
   target_include_directories(FiniteVolumeSolver.SAMRAI 
     PUBLIC 

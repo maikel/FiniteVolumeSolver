@@ -25,16 +25,22 @@
 //#include "fub/AMReX/IntegratorContext.hpp"
 
 #include "fub/SAMRAI/ScopeGuard.hpp"
+#include "fub/SAMRAI/RegisterVariables.hpp"
+#include "fub/SAMRAI/PatchHierarchy.hpp"
+#include "fub/SAMRAI/GriddingAlgorithm.hpp"
+#include "fub/SAMRAI/IntegratorContext.hpp"
+#include "fub/SAMRAI/BoundaryCondition.hpp"
+#include "fub/SAMRAI/ViewPatch.hpp"
+
 
 //#include "fub/AMReX/tagging/GradientDetector.hpp"
-//#include "fub/SAMRAI/Tagging.hpp"
+#include "fub/SAMRAI/tagging/GradientDetector.hpp"
+#include "fub/SAMRAI/tagging/ConstantBox.hpp"
 
 //#include "fub/SAMRAI/CartesianPatchHierarchy.hpp"
 //#include "fub/SAMRAI/HyperbolicSplitIntegratorContext.hpp"
-#include "fub/SAMRAI/RegisterVariables.hpp"
-//#include "fub/SAMRAI/ViewPatch.hpp"
 
-#include "fub/SAMRAI/PatchHierarchy.hpp"
+//#include "fub/SAMRAI/ViewPatch.hpp"
 
 //#include "fub/AMReX/boundary_condition/BoundarySet.hpp"
 //#include "fub/AMReX/boundary_condition/TransmissiveBoundary.hpp"

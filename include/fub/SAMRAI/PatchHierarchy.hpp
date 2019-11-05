@@ -27,10 +27,13 @@
 #include "fub/ext/uuid.hpp"
 
 #include <SAMRAI/geom/CartesianGridGeometry.h>
+#include <SAMRAI/geom/CartesianPatchGeometry.h>
 #include <SAMRAI/hier/PatchHierarchy.h>
 
 namespace fub::samrai {
 
+SAMRAI::hier::ComponentSelector
+SelectComponents(const SAMRAI::hier::PatchDescriptor& desc);
 SAMRAI::hier::ComponentSelector SelectComponents(span<const int> data_ids);
 
 struct PatchHierarchyOptions {
@@ -43,14 +46,14 @@ template <std::size_t Rank> struct CoordinateRange {
   std::array<double, Rank> upper;
 };
 
-template <std::size_t Rank>
-std::shared_ptr<SAMRAI::geom::CartesianGridGeometry>
-MakeCartesianGridGeometry(const std::array<std::ptrdiff_t, Rank>& n_cells,
+template <typename I, std::size_t Rank>
+std::enable_if_t<std::is_integral_v<I>, std::shared_ptr<SAMRAI::geom::CartesianGridGeometry>>
+MakeCartesianGridGeometry(const std::array<I, Rank>& n_cells,
                           const CoordinateRange<Rank>& coordinates) {
   const double* x_lo = coordinates.lower.data();
   const double* x_up = coordinates.upper.data();
   const SAMRAI::hier::Index idx_up = std::apply(
-      [](auto... is) { return SAMRAI::hier::Index((is - 1)...); }, n_cells);
+      [](auto... is) { return SAMRAI::hier::Index(int(is - 1)...); }, n_cells);
   const SAMRAI::tbox::Dimension dim(Rank);
   const SAMRAI::hier::Box domain_box(SAMRAI::hier::Index::getZeroIndex(dim),
                                      idx_up, SAMRAI::hier::BlockId(0));
@@ -72,22 +75,28 @@ public:
                  std::shared_ptr<SAMRAI::geom::CartesianGridGeometry> geom,
                  PatchHierarchyOptions hier_opts);
 
+  PatchHierarchy(PatchHierarchy&& ph) = default;
+  PatchHierarchy& operator=(PatchHierarchy&& ph) = default;
+
   PatchHierarchy(const PatchHierarchy& ph);
   PatchHierarchy& operator=(const PatchHierarchy& ph) {
     PatchHierarchy tmp(ph);
-    return (*this = std::move(tmp));
+    std::swap(*this, tmp);
+    return *this;
   }
-
-  PatchHierarchy(PatchHierarchy&& ph) = default;
-  PatchHierarchy& operator=(PatchHierarchy&& ph) = default;
 
   /// \brief Return some additional patch hierarchy options.
   [[nodiscard]] const PatchHierarchyOptions& GetOptions() const noexcept;
 
+  [[nodiscard]] int GetMaxNumberOfLevels() const noexcept;
+
   [[nodiscard]] const DataDescription& GetDataDescription() const noexcept;
 
-  [[nodiscard]] const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& GetNative() const
-      noexcept;
+  [[nodiscard]] const std::shared_ptr<SAMRAI::hier::PatchHierarchy>&
+  GetNative() const noexcept;
+
+  [[nodiscard]] const std::shared_ptr<SAMRAI::hier::PatchLevel>&
+  GetPatchLevel(int level) const;
 
 private:
   std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy_;

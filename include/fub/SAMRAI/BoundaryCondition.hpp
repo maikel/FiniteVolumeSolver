@@ -23,27 +23,42 @@
 
 #include <SAMRAI/xfer/RefinePatchStrategy.h>
 
+#include <functional>
+#include <type_traits>
+
 namespace fub::samrai {
 
-struct BoundaryConditionConcept {
-  virtual ~BoundaryConditionConcept() = default;
-  virtual void
-  SetPhysicalBoundaryConditions(hier::Patch& patch, const double fill_time,
-                                const hier::IntVector& ghost_width_to_fill) = 0;
-  virtual std::unique_ptr<BoundaryConditionConcept> Clone() const = 0;
-};
-
-struct BoundaryConditionConcept {
-  virtual ~BoundaryConditionConcept() = default;
-  virtual void
-  SetPhysicalBoundaryConditions(hier::Patch& patch, const double fill_time,
-                                const hier::IntVector& ghost_width_to_fill) = 0;
-  virtual std::unique_ptr<BoundaryConditionConcept> Clone() const = 0;
-};
-
 class BoundaryCondition : public SAMRAI::xfer::RefinePatchStrategy {
+public:
+  BoundaryCondition() = default;
+
+  template <typename BC, typename = std::enable_if_t<!std::is_same_v<
+                             std::decay_t<BC>, BoundaryCondition>>>
+  BoundaryCondition(BC&& some_condition)
+      : fn_{[cond = std::forward<BC>(some_condition)](
+                SAMRAI::hier::Patch& patch, Duration t,
+                const SAMRAI::hier::IntVector& ghosts) {
+          return cond.SetPhysicalBoundaryConditions(patch, t, ghosts);
+        }} {}
+
+  void setPhysicalBoundaryConditions(
+      SAMRAI::hier::Patch& patch, double fill_time,
+      const SAMRAI::hier::IntVector& ghost_width_to_fill) override {
+    if (fn_) {
+      fn_(patch, Duration(fill_time), ghost_width_to_fill);
+    }
+  }
+
+  void preprocessRefine(SAMRAI::hier::Patch&, const SAMRAI::hier::Patch&, const SAMRAI::hier::Box&,
+                        const SAMRAI::hier::IntVector&) override {}
+
+  void postprocessRefine(SAMRAI::hier::Patch&, const SAMRAI::hier::Patch&, const SAMRAI::hier::Box&,
+                         const SAMRAI::hier::IntVector&) override {}
+
 private:
-  std::unique_ptr<BoundaryConditionConcept> impl_;
+  using PhysicalBoundaryFunction = std::function<void(
+      SAMRAI::hier::Patch&, Duration, const SAMRAI::hier::IntVector&)>;
+  PhysicalBoundaryFunction fn_{};
 };
 
 } // namespace fub::samrai

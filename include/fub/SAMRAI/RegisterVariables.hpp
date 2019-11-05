@@ -33,6 +33,7 @@ namespace fub {
 namespace samrai {
 
 struct DataDescription {
+  int dim;
   std::vector<int> data_ids;
   int n_cons_variables;
 };
@@ -101,18 +102,18 @@ DataDescription RegisterVariables(const Equation& equation,
   using Conservative = typename Equation::Conservative;
   using ConsTraits = typename Conservative::Traits;
 
-  DataDescription data_ids;
-
-  const SAMRAI::tbox::Dimension dim(equation.Rank());
+  DataDescription desc{equation.Rank(), {}, 0};
+  SAMRAI::tbox::Dimension dim(desc.dim);
 
   const SAMRAI::hier::IntVector zero = SAMRAI::hier::IntVector::getZero(dim);
   RegisterVariables<Complete, SAMRAI::pdat::CellVariable<double>>(
-      data_ids.data_ids, equation, dim, zero, prefix, "current");
+      desc.data_ids, equation, dim, zero, prefix,
+      "current");
 
-  data_ids.n_cons_variables =
+  desc.n_cons_variables =
       std::tuple_size_v<std::decay_t<decltype(ConsTraits::names)>>;
 
-  return data_ids;
+  return desc;
 }
 
 } // namespace samrai

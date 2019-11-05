@@ -23,6 +23,15 @@
 
 namespace fub::samrai {
 
+SAMRAI::hier::ComponentSelector SelectComponents(const SAMRAI::hier::PatchDescriptor& desc) {
+  int n_comps = desc.getMaxNumberRegisteredComponents();
+  SAMRAI::hier::ComponentSelector selector;
+  for (int i = 0; i < n_comps; ++i) {
+    selector.setFlag(i);
+  } 
+  return selector;
+}
+
 SAMRAI::hier::ComponentSelector SelectComponents(span<const int> data_ids) {
   SAMRAI::hier::ComponentSelector selector;
   for (int id : data_ids) {

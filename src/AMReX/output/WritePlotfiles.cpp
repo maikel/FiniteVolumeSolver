@@ -18,20 +18,28 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_AMREX_PRINT_HPP
-#define FUB_AMREX_PRINT_HPP
-
-#include <AMReX.H>
-#include <AMReX_Print.H>
+#include "fub/AMReX/output/WritePlotfiles.hpp"
+#include "fub/equations/ideal_gas_mix/mechanism/Burke2012.hpp"
 
 namespace fub::amrex {
 
-struct Print {
-  void operator()(const std::string& s) const { ::amrex::Print() << s; }
-};
+  MultiBlockPlotfileOutput::MultiBlockPlotfileOutput(const std::map<std::string, pybind11::object>& vm)
+  : OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm>(vm) {
+    parent_path_ = GetOptionOr(vm, "directory", std::string("."));
+  }
 
-constexpr Print print{};
+  void
+  MultiBlockPlotfileOutput::operator()(const MultiBlockGriddingAlgorithm& grid) {
+    Burke2012 burke2012;
+    IdealGasMix<AMREX_SPACEDIM> plenum_eq(burke2012);
+    for (int i = 0; i < grid.GetPlena().size(); ++i) {
+      cutcell::WritePlotFile(fmt::format("{}/Plenum{}", parent_path_, i), grid.GetPlena()[i]->GetPatchHierarchy(), plenum_eq);
+    }
+    IdealGasMix<1> tube_eq(burke2012);
+    for (int i = 0; i < grid.GetTubes().size(); ++i) {
+      WritePlotFile(fmt::format("{}/Tube{}", parent_path_, i), grid.GetTubes()[i]->GetPatchHierarchy(), tube_eq);
+    }
+  }
 
-} // namespace fub::amrex
 
-#endif
+}

@@ -167,7 +167,7 @@ void Reconstruction<Tag, Equation>::CompleteFromCons(IntegratorContext& context,
   const ::amrex::MultiFab& src = context.GetScratch(level);
 
   ForEachFab(Tag(), dest, [&](const ::amrex::MFIter& mfi) {
-    const ::amrex::Box box = mfi.tilebox();
+    const ::amrex::Box box = mfi.growntilebox();
     auto state =
         MakeView<Complete<Equation>>(dest[mfi], kernel_->equation_, box);
     auto scratch = MakeView<const Conservative<Equation>>(

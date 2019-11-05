@@ -287,12 +287,12 @@ void MyMain(const boost::program_options::variables_map& vm) {
 
   const int n_level = options.n_level;
 
-  std::vector<fub::PolymorphicGeometry> geometries;
+  std::vector<fub::PolymorphicGeometry<2>> geometries;
   std::transform(options.wall_filenames.begin(), options.wall_filenames.end(),
                  std::back_inserter(geometries),
                  [](const std::string& filename) {
                    std::ifstream ifs(filename);
-                   return fub::PolymorphicGeometry(ReadPolygonData(ifs));
+                   return fub::PolymorphicGeometry<2>(ReadPolygonData(ifs));
                  });
 
   auto embedded_boundary =

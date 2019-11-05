@@ -43,17 +43,19 @@
 
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/ForEachIndex.hpp"
-#include "fub/AMReX/Print.hpp"
 
 #include "fub/AMReX/FluxMethod.hpp"
 #include "fub/AMReX/Reconstruction.hpp"
 #include "fub/AMReX/TimeIntegrator.hpp"
 
 #include "fub/AMReX/Geometry.hpp"
-#include "fub/geometry/PolymorphicGeometry.hpp"
 #include "fub/geometry/Union.hpp"
 
 #include "fub/AMReX/AxialSourceTerm.hpp"
 #include "fub/equations/ideal_gas_mix/KineticSourceTerm.hpp"
+
+#include "fub/AMReX/output/WriteHDF5.hpp"
+#include "fub/AMReX/output/WritePlotfiles.hpp"
+#include "fub/AMReX/output/LogProbes.hpp"
 
 #endif

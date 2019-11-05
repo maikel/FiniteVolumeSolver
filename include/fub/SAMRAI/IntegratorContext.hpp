@@ -30,6 +30,9 @@
 
 #include "fub/SAMRAI/GriddingAlgorithm.hpp"
 
+#include <SAMRAI/xfer/CoarsenAlgorithm.h>
+#include <SAMRAI/xfer/RefineAlgorithm.h>
+
 #include <array>
 #include <memory>
 #include <vector>
@@ -45,6 +48,43 @@ using HyperbolicMethod = ::fub::HyperbolicMethod<IntegratorContext>;
 /// delegates AMR related tasks to the AMReX library.
 class IntegratorContext {
 public:
+  /// \brief This class holds auxiliary data on each refinement level.
+  struct LevelData {
+    LevelData() = default;
+
+    LevelData(std::shared_ptr<SAMRAI::hier::PatchLevel> level_in_hier,
+              std::shared_ptr<SAMRAI::hier::PatchDescriptor> scratch_desc,
+              std::shared_ptr<SAMRAI::hier::PatchDescriptor> flux_desc);
+
+    LevelData(std::shared_ptr<SAMRAI::hier::PatchLevel> level_in_hier,
+              const DataDescription& desc, int gcw);
+
+    LevelData(const LevelData& other);
+    LevelData& operator=(const LevelData& other);
+
+    LevelData(LevelData&&) noexcept = default;
+    LevelData& operator=(LevelData&&) noexcept = default;
+
+    ~LevelData() noexcept = default;
+
+    /// Shared pointer to the original patch level in the hierarchy
+    std::shared_ptr<SAMRAI::hier::PatchLevel> data{};
+
+    /// Scratch space with ghost cell widths
+    std::shared_ptr<SAMRAI::hier::PatchLevel> scratch{};
+
+    /// These arrays will store the fluxes for each patch level which is present
+    /// in the patch hierarchy. These will need to be rebuilt if the
+    /// PatchHierarchy changes.
+    std::shared_ptr<SAMRAI::hier::PatchLevel> fluxes{};
+
+    /// This algorithm and schedules
+
+    std::ptrdiff_t cycles{};
+    Duration regrid_time_point{};
+    Duration time_point{};
+  };
+
   /// @{
   /// \name Constructors and Assignments
 
@@ -72,24 +112,24 @@ public:
   /// \name Member Accessors
 
   /// \brief Returns the current boundary condition for the specified level.
-  const BoundaryCondition& GetBoundaryCondition(int level) const;
-  BoundaryCondition& GetBoundaryCondition(int level);
+  [[nodiscard]] const BoundaryCondition& GetBoundaryCondition(int level) const;
+  [[nodiscard]] BoundaryCondition& GetBoundaryCondition(int level);
 
   /// \brief Returns a shared pointer to the underlying GriddingAlgorithm which
   /// owns the simulation.
-  const std::shared_ptr<GriddingAlgorithm>& GetGriddingAlgorithm() const
-  noexcept;
+  [[nodiscard]] const std::shared_ptr<GriddingAlgorithm>&
+  GetGriddingAlgorithm() const noexcept;
 
   /// \brief Returns a reference to const PatchHierarchy which is a member of
   /// the GriddingAlgorithm.
-  const PatchHierarchy& GetPatchHierarchy() const noexcept;
+  [[nodiscard]] const PatchHierarchy& GetPatchHierarchy() const noexcept;
 
   /// \brief Returns a reference to PatchHierarchy which is a member of the
   /// GriddingAlgorithm.
-  PatchHierarchy& GetPatchHierarchy() noexcept;
+  [[nodiscard]] PatchHierarchy& GetPatchHierarchy() noexcept;
 
   /// \brief Returns the MPI communicator which is associated with this context.
-  MPI_Comm GetMpiCommunicator() const noexcept;
+  [[nodiscard]] MPI_Comm GetMpiCommunicator() const noexcept;
   /// @}
 
   /// @{
@@ -97,40 +137,50 @@ public:
 
   /// \brief Returns the MultiFab associated with level data on the specifed
   /// level number.
-  SAMRAI::hier::PatchLevel& GetData(int level);
+  [[nodiscard]] SAMRAI::hier::PatchLevel& GetData(int level);
+  [[nodiscard]] const SAMRAI::hier::PatchLevel& GetData(int level) const;
+
+  [[nodiscard]] span<const int> GetDataIds() const;
 
   /// \brief Returns the MultiFab associated with level data with ghost cells on
   /// the specifed level number and direction.
-  SAMRAI::hier::PatchLevel& GetScratch(int level, Direction dir);
+  [[nodiscard]] SAMRAI::hier::PatchLevel& GetScratch(int level);
+  [[nodiscard]] const SAMRAI::hier::PatchLevel& GetScratch(int level) const;
+
+  [[nodiscard]] span<const int> GetScratchIds() const;
+  [[nodiscard]] span<const int> GetFluxIds() const;
 
   /// \brief Returns the MultiFab associated with flux data on the specifed
   /// level number and direction.
-  SAMRAI::hier::PatchLevel& GetFluxes(int level, Direction dir);
+  [[nodiscard]] SAMRAI::hier::PatchLevel& GetFluxes(int level);
+  [[nodiscard]] const SAMRAI::hier::PatchLevel& GetFluxes(int level) const;
 
   /// \brief Returns the current time level for data at the specified refinement
   /// level and direction.
-  Duration GetTimePoint(int level, Direction dir) const;
+  [[nodiscard]] Duration GetTimePoint(int level) const;
 
   /// \brief Returns the current number of cycles for data at the specified
   /// refinement level and direction.
-  std::ptrdiff_t GetCycles(int level, Direction dir) const;
+  [[nodiscard]] std::ptrdiff_t GetCycles(int level) const;
 
   /// \brief Returns the geometry object for the specified refinement level.
-  const SAMRAI::geom::CartesianGridGeometry& GetGeometry(int level) const;
-
+  [[nodiscard]] const SAMRAI::geom::CartesianGridGeometry&
+  GetGeometry(int level) const;
   /// @}
 
   /// @{
   /// \name Observers
 
   /// \brief Returns true if the data exists for the specified level number.
-  bool LevelExists(int level) const noexcept;
+  [[nodiscard]] bool LevelExists(int level) const noexcept;
 
   /// \brief Returns the refinement ratio in the specified direction.
-  int GetRatioToCoarserLevel(int level, Direction dir) const noexcept;
+  [[nodiscard]] int GetRatioToCoarserLevel(int level, Direction dir) const
+      noexcept;
 
   /// \brief Returns the refinement ratio for all directions.
-  ::amrex::IntVect GetRatioToCoarserLevel(int level) const noexcept;
+  [[nodiscard]] SAMRAI::hier::IntVector GetRatioToCoarserLevel(int level) const
+      noexcept;
   /// @}
 
   /// @{
@@ -148,34 +198,34 @@ public:
   void ResetHierarchyConfiguration(int level = 0);
 
   /// \brief Sets the cycle count for a specific level number and direction.
-  void SetCycles(std::ptrdiff_t cycle, int level, Direction dir);
+  void SetCycles(std::ptrdiff_t cycle, int level);
 
   /// \brief Sets the time point for a specific level number and direction.
-  void SetTimePoint(Duration t, int level, Direction dir);
+  void SetTimePoint(Duration t, int level);
   /// @}
 
   /// @{
   /// \name Member functions relevant for the level integrator algorithm.
 
   /// \brief On each first subcycle this will regrid the data if neccessary.
-  void PreAdvanceLevel(int level_num, Direction dir, Duration dt, int subcycle);
+  void PreAdvanceLevel(int level_num, Duration dt, int subcycle);
 
   /// \brief Increases the internal time stamps and cycle counters for the
   /// specified level number and direction.
-  Result<void, TimeStepTooLarge> PostAdvanceLevel(int level_num, Direction dir,
-                                                  Duration dt, int subcycle);
+  [[nodiscard]] Result<void, TimeStepTooLarge>
+  PostAdvanceLevel(int level_num, Duration dt, int subcycle);
 
   /// \brief Fills the ghost layer of the scratch data and interpolates in the
   /// coarse fine layer.
-  void FillGhostLayerTwoLevels(int level, int coarse, Direction direction);
+  void FillGhostLayerTwoLevels(int level, int coarse);
 
   /// \brief Fills the ghost layer of the scratch data and does nothing in the
   /// coarse fine layer.
-  void FillGhostLayerSingleLevel(int level, Direction direction);
+  void FillGhostLayerSingleLevel(int level);
 
   /// \brief Returns a estimate for a stable time step size which can be taken
   /// for specified level number in direction dir.
-  Duration ComputeStableDt(int level, Direction dir);
+  [[nodiscard]] Duration ComputeStableDt(int level, Direction dir);
 
   /// \brief Fill the flux MultiFab with numeric fluxes based on current states
   /// in scratch.
@@ -186,51 +236,47 @@ public:
   void UpdateConservatively(int level, Duration dt, Direction dir);
 
   /// \brief Reconstruct complete state variables from conservative ones.
-  void CompleteFromCons(int level, Duration dt, Direction dir);
+  void CompleteFromCons(int level, Duration dt);
 
   /// \brief Accumulate fluxes on the coarse fine interfaces for a specified
   /// fine level number.
-  void AccumulateCoarseFineFluxes(int level, Duration dt, Direction dir);
+  void AccumulateCoarseFineFluxes(int level, double time_scale, Direction dir);
 
   /// \brief Replace the coarse fluxes by accumulated fine fluxes on the coarse
   /// fine interfaces.
-  void ApplyFluxCorrection(int fine, int coarse, Duration dt, Direction dir);
+  void ApplyFluxCorrection(int fine, int coarse, Duration dt);
 
   /// \brief Resets all accumulates fluxes to zero.
-  void ResetCoarseFineFluxes(int fine, int coarse, Direction dir);
+  void ResetCoarseFineFluxes(int fine, int coarse);
 
   /// \brief Coarsen scratch data from a fine level number to a coarse level
   /// number.
-  void CoarsenConservatively(int fine, int coarse, Direction dir);
+  void CoarsenConservatively(int fine, int coarse);
   ///@}
 
 private:
-  /// \brief This class holds auxiliary data on each refinement level.
-  struct LevelData {
-    LevelData() = default;
-    LevelData(const LevelData& other) = delete;
-    LevelData& operator=(const LevelData& other) = delete;
-    LevelData(LevelData&&) noexcept = default;
-    LevelData& operator=(LevelData&&) noexcept;
-    ~LevelData() noexcept = default;
-
-    /// Scratch space with ghost cell widths
-    std::shared_ptr<SAMRAI::hier::PatchLevel> scratch{};
-
-    /// These arrays will store the fluxes for each patch level which is present
-    /// in the patch hierarchy. These will need to be rebuilt if the
-    /// PatchHierarchy changes.
-    std::shared_ptr<SAMRAI::hier::PatchLevel> fluxes{};
-  };
-
   int ghost_cell_width_{};
   std::shared_ptr<GriddingAlgorithm> gridding_{};
   std::vector<LevelData> level_data_{};
-  HyperbolicMethod method_{};
-  std::shared_ptr<SAMRAI::hier::PatchDescriptor> descriptor_{};
+  HyperbolicMethod method_;
+
+  std::shared_ptr<SAMRAI::hier::PatchDescriptor> scratch_desc_;
+  std::shared_ptr<SAMRAI::hier::PatchDescriptor> flux_desc_;
+  std::shared_ptr<SAMRAI::xfer::RefineAlgorithm> fill_scratch_;
+  std::shared_ptr<SAMRAI::xfer::CoarsenAlgorithm> coarsen_fluxes_;
+  std::shared_ptr<SAMRAI::xfer::CoarsenAlgorithm> coarsen_scratch_;
+
+  std::vector<std::shared_ptr<SAMRAI::xfer::RefineSchedule>>
+      fill_scratch_two_level_schedule_;
+  std::vector<std::shared_ptr<SAMRAI::xfer::RefineSchedule>>
+      fill_scratch_one_level_schedule_;
+  std::vector<std::shared_ptr<SAMRAI::xfer::CoarsenSchedule>>
+      coarsen_scratch_schedule_;
+  std::vector<std::shared_ptr<SAMRAI::xfer::CoarsenSchedule>>
+      coarsen_fluxes_schedule_;
 };
 
-} // namespace amrex
+} // namespace samrai
 } // namespace fub
 
 #endif
