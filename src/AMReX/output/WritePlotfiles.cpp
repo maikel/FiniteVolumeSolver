@@ -21,6 +21,10 @@
 #include "fub/AMReX/output/WritePlotfiles.hpp"
 #include "fub/equations/ideal_gas_mix/mechanism/Burke2012.hpp"
 
+#include <boost/log/common.hpp>
+#include <boost/log/sources/severity_logger.hpp>
+#include <boost/log/trivial.hpp>
+
 namespace fub::amrex {
 
   MultiBlockPlotfileOutput::MultiBlockPlotfileOutput(const std::map<std::string, pybind11::object>& vm)
@@ -35,7 +39,7 @@ namespace fub::amrex {
     boost::log::sources::severity_logger<boost::log::trivial::severity_level>
           log(boost::log::keywords::severity = boost::log::trivial::info);
     BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "Plotfile");
-    BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", grid.GetTimePoint.count());
+    BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", grid.GetTimePoint().count());
     for (int i = 0; i < grid.GetPlena().size(); ++i) {
       std::string name = fmt::format("{}/Plenum{}/plt{:09}", parent_path_, i, grid.GetCycles());
       BOOST_LOG(log) << fmt::format("Write Plotfile output to '{}'.", name);
@@ -43,7 +47,7 @@ namespace fub::amrex {
     }
     IdealGasMix<1> tube_eq(burke2012);
     for (int i = 0; i < grid.GetTubes().size(); ++i) {
-      std::string name = fmt::format("{}/Tube{}/plt{:09}", parent_path_, i, grid.GetCycles())
+      std::string name = fmt::format("{}/Tube{}/plt{:09}", parent_path_, i, grid.GetCycles());
       BOOST_LOG(log) << fmt::format("Write Plotfile output to '{}'.", name);
       WritePlotFile(name, grid.GetTubes()[i]->GetPatchHierarchy(), tube_eq);
     }
