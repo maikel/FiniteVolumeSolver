@@ -32,12 +32,13 @@ namespace fub::amrex {
   MultiBlockPlotfileOutput::operator()(const MultiBlockGriddingAlgorithm& grid) {
     Burke2012 burke2012;
     IdealGasMix<AMREX_SPACEDIM> plenum_eq(burke2012);
+
     for (int i = 0; i < grid.GetPlena().size(); ++i) {
-      cutcell::WritePlotFile(fmt::format("{}/Plenum{}", parent_path_, i), grid.GetPlena()[i]->GetPatchHierarchy(), plenum_eq);
+      cutcell::WritePlotFile(fmt::format("{}/Plenum{}/plt{:09}", parent_path_, i, grid.GetCycles()), grid.GetPlena()[i]->GetPatchHierarchy(), plenum_eq);
     }
     IdealGasMix<1> tube_eq(burke2012);
     for (int i = 0; i < grid.GetTubes().size(); ++i) {
-      WritePlotFile(fmt::format("{}/Tube{}", parent_path_, i), grid.GetTubes()[i]->GetPatchHierarchy(), tube_eq);
+      WritePlotFile(fmt::format("{}/Tube{}/plt{:09}", parent_path_, i, grid.GetCycles()), grid.GetTubes()[i]->GetPatchHierarchy(), tube_eq);
     }
   }
 
