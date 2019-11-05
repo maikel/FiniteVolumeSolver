@@ -48,33 +48,37 @@ MultiWriteHdf5::MultiWriteHdf5(
         GetOptionOr(box, "upper", std::array<int, AMREX_SPACEDIM>{});
     output_box_.emplace(::amrex::IntVect(lo), ::amrex::IntVect(hi));
   }
-  if (boost::filesystem::is_regular_file(path_to_file_)) {
-    boost::log::sources::severity_logger<boost::log::trivial::severity_level>
-        log(boost::log::keywords::severity = boost::log::trivial::info);
-    BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "HDF5");
-    for (int i = 1; i < std::numeric_limits<int>::max(); ++i) {
-      std::string new_name = fmt::format("{}.{}", path_to_file_, i);
-      if (!boost::filesystem::exists(new_name)) {
-        BOOST_LOG(log) << fmt::format(
-            "Old output file '{}' detected. Rename old file to '{}'",
-            path_to_file_, new_name);
-        boost::filesystem::rename(path_to_file_, new_name);
-        break;
+  int rank = -1;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  if (rank == 0) {
+    if (boost::filesystem::is_regular_file(path_to_file_)) {
+      boost::log::sources::severity_logger<boost::log::trivial::severity_level>
+          log(boost::log::keywords::severity = boost::log::trivial::info);
+      BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "HDF5");
+      for (int i = 1; i < std::numeric_limits<int>::max(); ++i) {
+        std::string new_name = fmt::format("{}.{}", path_to_file_, i);
+        if (!boost::filesystem::exists(new_name)) {
+          BOOST_LOG(log) << fmt::format(
+              "Old output file '{}' detected. Rename old file to '{}'",
+              path_to_file_, new_name);
+          boost::filesystem::rename(path_to_file_, new_name);
+          break;
+        }
       }
-    }
-  } else if (boost::filesystem::exists(path_to_file_)) {
-    boost::log::sources::severity_logger<boost::log::trivial::severity_level>
-        log(boost::log::keywords::severity = boost::log::trivial::warning);
-    BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "HDF5");
-    for (int i = 1; i < std::numeric_limits<int>::max(); ++i) {
-      std::string new_name = fmt::format("{}.{}", path_to_file_, i);
-      if (!boost::filesystem::exists(new_name)) {
-        BOOST_LOG(log) << fmt::format(
-            "Path'{}' points to some non-file. Output will be directory to "
-            "'{}' instead.",
-            path_to_file_, new_name);
-        path_to_file_ = new_name;
-        break;
+    } else if (boost::filesystem::exists(path_to_file_)) {
+      boost::log::sources::severity_logger<boost::log::trivial::severity_level>
+          log(boost::log::keywords::severity = boost::log::trivial::warning);
+      BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "HDF5");
+      for (int i = 1; i < std::numeric_limits<int>::max(); ++i) {
+        std::string new_name = fmt::format("{}.{}", path_to_file_, i);
+        if (!boost::filesystem::exists(new_name)) {
+          BOOST_LOG(log) << fmt::format(
+              "Path'{}' points to some non-file. Output will be directory to "
+              "'{}' instead.",
+              path_to_file_, new_name);
+          path_to_file_ = new_name;
+          break;
+        }
       }
     }
   }
