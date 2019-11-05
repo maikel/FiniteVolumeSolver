@@ -21,6 +21,10 @@
 #include "fub/AMReX/output/WritePlotfiles.hpp"
 #include "fub/equations/ideal_gas_mix/mechanism/Burke2012.hpp"
 
+#include <boost/log/common.hpp>
+#include <boost/log/sources/severity_logger.hpp>
+#include <boost/log/trivial.hpp>
+
 namespace fub::amrex {
 
   MultiBlockPlotfileOutput::MultiBlockPlotfileOutput(const std::map<std::string, pybind11::object>& vm)
