@@ -54,7 +54,7 @@
 #include "fub/AMReX/AxialSourceTerm.hpp"
 #include "fub/equations/ideal_gas_mix/KineticSourceTerm.hpp"
 
-#include "fub/AMReX/output/WriteHDF5.hpp"
+#include "fub/AMReX/output/WriteHdf5.hpp"
 #include "fub/AMReX/output/WritePlotfiles.hpp"
 #include "fub/AMReX/output/LogProbes.hpp"
 

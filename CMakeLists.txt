@@ -168,7 +168,7 @@ install(
 
 find_package(fmt REQUIRED)
 find_package(Vc REQUIRED)
-find_package(HDF5 REQUIRED COMPONENTS C)
+#find_package(HDF5 REQUIRED COMPONENTS C)
 find_package(pybind11 REQUIRED)
 
 add_library(FiniteVolumeSolver.Solver
@@ -318,7 +318,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     include/fub/geometry/Geometry.hpp
     include/fub/geometry/PolymorphicGeometry.hpp
     include/fub/geometry/Union.hpp
-    include/fub/AMReX/output/WriteHDF5.hpp
+    include/fub/AMReX/output/WriteHdf5.hpp
     include/fub/AMReX/output/LogProbes.hpp
     include/fub/AMReX/output/WritePlotfiles.hpp
     src/AMReX/output/LogProbes.cpp
@@ -432,8 +432,6 @@ endif()
 # [FiniteVolumeSolver.SAMRAI]
 
 if (SAMRAI_FOUND)
-  find_package(HDF5 REQUIRED)
-
   add_library(FiniteVolumeSolver.SAMRAI
     include/fub/SAMRAI/PatchHierarchy.hpp
     include/fub/SAMRAI/IntegratorContext.hpp
