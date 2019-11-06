@@ -28,6 +28,7 @@
 #include <AMReX_EB2_IF_Cylinder.H>
 #include <AMReX_EB2_IF_Intersection.H>
 #include <AMReX_EB2_IF_Plane.H>
+#include <AMReX_EB2_IF_Rotation.H>
 #include <AMReX_EB2_IF_Union.H>
 #include <AMReX_EB_LSCore.H>
 
@@ -48,6 +49,8 @@
 #include <boost/log/utility/setup/common_attributes.hpp>
 #include <boost/log/utility/setup/file.hpp>
 
+#include <pybind11/stl.h>
+
 #include <cmath>
 #include <iostream>
 
@@ -57,7 +60,6 @@ static constexpr int Tube_Rank = 1;
 static constexpr int Plenum_Rank = AMREX_SPACEDIM;
 
 static constexpr double r_tube = 0.015;
-static constexpr double r_outer = 0.045;
 
 template <typename T>
 using ProbesView =
@@ -92,7 +94,7 @@ struct ProgramOptions {
     n_levels = fub::GetOptionOr(grid, "max_number_of_levels", n_levels);
     checkpoint = fub::GetOptionOr(vm, "checkpoint", checkpoint);
 
-    tube_xbox = amrex::RealBox(-1.5, -r_tube, -r_tube, xs[0], +r_tube, +r_tube);
+    tube_xbox = amrex::RealBox(-1.5, -r_tube, -r_tube, xs[0], +r_tube, r_tube);
     const double tube_length = tube_xbox.hi(0) - tube_xbox.lo(0);
     const double plenum_domain_length = plenum_xbox.hi(0) - plenum_xbox.lo(0);
     const double t_over_p = tube_length / plenum_domain_length;
@@ -102,16 +104,13 @@ struct ProgramOptions {
     auto plenum = fub::ToMap(fub::GetOptionOr(vm, "plenum", pybind11::dict()));
     plenum_temperature =
         fub::GetOptionOr(plenum, "temperature", plenum_temperature);
+    plenum_radius = fub::GetOptionOr(plenum, "radius", plenum_radius);
     plenum_outlet_radius =
         fub::GetOptionOr(plenum, "outlet_radius", plenum_outlet_radius);
     plenum_length = fub::GetOptionOr(plenum, "length", plenum_length);
-    plenum_jump = fub::GetOptionOr(plenum, "jump", plenum_jump);
 
     auto output = fub::ToMap(fub::GetOptionOr(vm, "output", pybind11::dict()));
     output_directory = fub::GetOptionOr(output, "directory", output_directory);
-    checkpoint_interval = fub::Duration(fub::GetOptionOr(
-        output, "checkpoint_interval", checkpoint_interval.count()));
-    x_probes = fub::GetOptionOr(output, "x_probes", x_probes);
   }
 
   template <typename Logger> void Print(Logger& log) const {
@@ -132,17 +131,12 @@ struct ProgramOptions {
     BOOST_LOG(log) << "  - n_levels = " << n_levels << " [-]";
 
     BOOST_LOG(log) << "Problem Options:";
+    BOOST_LOG(log) << "  - plenum.radius = " << plenum_radius << " [m]";
     BOOST_LOG(log) << "  - plenum.temperature = " << plenum_temperature
                    << " [K]";
     BOOST_LOG(log) << "  - plenum.outlet_radius= " << plenum_outlet_radius
                    << " [m]";
-    BOOST_LOG(log) << "  - plenum.length= " << plenum_length << " [m]";
-    BOOST_LOG(log) << "  - plenum.jump= " << plenum_jump << " [m]";
-    BOOST_LOG(log) << "  - output.directory = '" << output_directory << "'";
-    BOOST_LOG(log) << "  - output.checkpoint_interval = "
-                   << checkpoint_interval.count() << " [s]";
-    BOOST_LOG(log) << fmt::format("  - output.x_probes = {{{}}}",
-                                  fmt::join(x_probes, ", "));
+    BOOST_LOG(log) << "  - plenum.length = " << plenum_length << " [m]";
 
     if (!checkpoint.empty()) {
       BOOST_LOG(log) << "Restart simulation from checkpoint '" << checkpoint
@@ -156,13 +150,11 @@ struct ProgramOptions {
   int tube_n_cells{};
   int n_levels{1};
   std::string checkpoint{};
+  double plenum_radius{0.5};
   double plenum_temperature{300};
   double plenum_outlet_radius{r_tube};
-  double plenum_jump{2 * r_tube};
   double plenum_length{0.25};
-  fub::Duration checkpoint_interval{0.0001};
   std::string output_directory{"SingleTubePlenum"};
-  std::vector<double> x_probes{};
 };
 
 struct TubeSolverOptions {
@@ -285,11 +277,13 @@ auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
       -1, periodicity.data());
 
   auto embedded_boundary = amrex::EB2::makeIntersection(
-      amrex::EB2::CylinderIF(r_outer, 0.5, 0, {0.25, 0.0, 0.0}, true),
+      amrex::EB2::CylinderIF(po.plenum_radius, po.plenum_length, 0,
+                             {0.5 * po.plenum_length, 0.0, 0.0}, true),
       amrex::EB2::CylinderIF(r_tube, 0.2, 0, {1e-6, 0.0, 0.0}, true),
-      amrex::EB2::CylinderIF(po.plenum_outlet_radius, 0.2, 0, {0.5, 0.0, 0.0},
-                             true),
-      fub::amrex::Geometry(fub::ConeIF({0.5, 0.0, 0.0}, r_outer, 0.04, true)));
+      amrex::EB2::CylinderIF(po.plenum_outlet_radius, 0.2, 0,
+                             {po.plenum_length, 0.0, 0.0}, true),
+      fub::amrex::Geometry(fub::ConeIF({po.plenum_length, 0.0, 0.0},
+                                       po.plenum_radius, 0.04, true)));
   auto shop = amrex::EB2::makeShop(embedded_boundary);
 
   fub::IdealGasMix<Plenum_Rank> equation{mechanism};
@@ -378,6 +372,8 @@ auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
   return fub::amrex::cutcell::IntegratorContext(gridding, method);
 }
 
+void MyMain(const std::map<std::string, pybind11::object>& vm);
+
 std::optional<std::map<std::string, pybind11::object>>
 ParseCommandLine(int argc, char** argv) {
   namespace po = boost::program_options;
@@ -416,11 +412,10 @@ ParseCommandLine(int argc, char** argv) {
   return options;
 }
 
-void MyMain(const std::map<std::string, pybind11::object>& vm);
-
 int main(int argc, char** argv) {
   MPI_Init(nullptr, nullptr);
   fub::InitializeLogging(MPI_COMM_WORLD);
+  pybind11::scoped_interpreter interpreter{};
   {
     fub::amrex::ScopeGuard _{};
     auto vm = ParseCommandLine(argc, argv);
@@ -459,166 +454,6 @@ void WriteCheckpoint(const std::string& path,
   }
 }
 
-template <typename Logger>
-void LogTubeProbes(Logger& log, ProbesView<const double> probes,
-                   const fub::amrex::PatchHierarchy& hierarchy, MPI_Comm comm) {
-  std::vector<double> buffer = GatherStates(hierarchy, probes, comm);
-  fub::mdspan<const double, 2> states(buffer.data(), probes.extent(1),
-                                      buffer.size() / probes.extent(1));
-  fub::Burke2012 burke2012{};
-  std::array<double, 11> molar_mass{};
-  burke2012.getMolarMass(molar_mass);
-  auto sH2 = fub::Burke2012::sH2;
-  auto sO2 = fub::Burke2012::sO2;
-  auto sH2O = fub::Burke2012::sH2O;
-  for (int i = 0; i < probes.extent(1); ++i) {
-    const double rho = states(i, 0);
-    const double u = states(i, 1) / rho;
-    const double h2 = states(i, 3 + sH2) / molar_mass[size_t(sH2)];
-    const double o2 = states(i, 3 + sO2) / molar_mass[size_t(sO2)];
-    const double h2o = states(i, 3 + sH2O) / molar_mass[size_t(sH2O)];
-    const double T = states(i, 16);
-    const double p = states(i, 14);
-    const double a = states(i, 15);
-    const double x = probes(0, i);
-    using boost::log::add_value;
-    using boost::log::trivial::trace;
-    BOOST_LOG_SEV(log, trace)
-        << add_value("X", x) << add_value("Density", rho)
-        << add_value("VelocityX", u) << add_value("Temperature", T)
-        << add_value("Pressure", p) << add_value("SpeedOfSound", a)
-        << add_value("H2", h2) << add_value("O2", o2) << add_value("H2O", h2o);
-  }
-}
-
-template <typename Logger>
-void LogPlenumProbes(Logger& log, ProbesView<const double> probes,
-                     const fub::amrex::cutcell::PatchHierarchy& hierarchy,
-                     MPI_Comm comm) {
-  std::vector<double> buffer = GatherStates(hierarchy, probes, comm);
-  fub::mdspan<const double, 2> states(buffer.data(), probes.extent(1),
-                                      buffer.size() / probes.extent(1));
-  fub::Burke2012 burke2012{};
-  std::array<double, 11> molar_mass{};
-  burke2012.getMolarMass(molar_mass);
-  auto sH2 = fub::Burke2012::sH2;
-  auto sO2 = fub::Burke2012::sO2;
-  auto sH2O = fub::Burke2012::sH2O;
-  for (int i = 0; i < probes.extent(1); ++i) {
-    const double rho = states(i, 0);
-    const double u = states(i, 1) / rho;
-    const double v = states(i, 2) / rho;
-    const double w = states(i, 3) / rho;
-    const double h2 = states(i, 5 + sH2) / molar_mass[size_t(sH2)];
-    const double o2 = states(i, 5 + sO2) / molar_mass[size_t(sO2)];
-    const double h2o = states(i, 5 + sH2O) / molar_mass[size_t(sH2O)];
-    const double a = states(i, 17);
-    const double T = states(i, 18);
-    const double p = states(i, 16);
-    const double x = probes(0, i);
-    using boost::log::add_value;
-    using boost::log::trivial::trace;
-    BOOST_LOG_SEV(log, trace)
-        << add_value("X", x) << add_value("Density", rho)
-        << add_value("VelocityX", u) << add_value("VelocityY", v)
-        << add_value("VelocityZ", w) << add_value("Temperature", T)
-        << add_value("Pressure", p) << add_value("SpeedOfSound", a)
-        << add_value("H2", h2) << add_value("O2", o2) << add_value("H2O", h2o);
-  }
-}
-
-void InitializeProbeOutput(const ProgramOptions& po) {
-  int rank = -1;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  if (rank == 0) {
-    auto init_probe_output = [](std::string file_name, std::string header,
-                                auto filter, auto formatter) {
-      using text_sink = boost::log::sinks::synchronous_sink<
-          boost::log::sinks::text_ostream_backend>;
-      boost::filesystem::path path{file_name};
-      boost::filesystem::path dir = path.parent_path();
-      if (!boost::filesystem::exists(dir)) {
-        boost::filesystem::create_directory(dir);
-      }
-      boost::shared_ptr<text_sink> file = boost::make_shared<text_sink>();
-      boost::shared_ptr stream = boost::make_shared<std::ofstream>(file_name);
-      if (!*stream) {
-        throw std::runtime_error(
-            fmt::format("Could not create '{}'.", file_name));
-      }
-      *stream << header;
-      file->locked_backend()->add_stream(stream);
-      file->set_formatter(formatter);
-      file->set_filter(filter);
-      boost::log::core::get()->add_sink(file);
-    };
-    init_probe_output(
-        fmt::format("{}/ProbesTube.dat", po.output_directory),
-        fmt::format("{:24}{:24}{:24}{:24}{:24}{:24}{:24}{:24}{:24}{:24}\n",
-                    "Time", "X", "Density", "VelocityX", "Temperature",
-                    "Pressure", "SpeedOfSound", "H2", "O2", "H2O"),
-        [](const boost::log::attribute_value_set& attrs) -> bool {
-          if (attrs.count("Channel")) {
-            auto channel = attrs["Channel"].extract<std::string>();
-            return channel && channel.get() == "ProbesTube";
-          }
-          return false;
-        },
-        [](const boost::log::record_view& rec,
-           boost::log::formatting_ostream& stream) {
-          namespace log = boost::log;
-          double t = log::extract<double>("Time", rec).get();
-          double x = log::extract<double>("X", rec).get();
-          double rho = log::extract<double>("Density", rec).get();
-          double u = log::extract<double>("VelocityX", rec).get();
-          double T = log::extract<double>("Temperature", rec).get();
-          double p = log::extract<double>("Pressure", rec).get();
-          double a = log::extract<double>("SpeedOfSound", rec).get();
-          double h2 = log::extract<double>("H2", rec).get();
-          double o2 = log::extract<double>("O2", rec).get();
-          double h2o = log::extract<double>("H2O", rec).get();
-          stream << fmt::format(
-              "{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}"
-              "{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}",
-              t, x, rho, u, T, p, a, h2, o2, h2o);
-        });
-    init_probe_output(
-        fmt::format("{}/ProbesPlenum.dat", po.output_directory),
-        fmt::format(
-            "{:24}{:24}{:24}{:24}{:24}{:24}{:24}{:24}{:24}{:24}{:24}{:24}\n",
-            "Time", "X", "Density", "VelocityX", "VelocityY", "VelocityZ",
-            "Temperature", "Pressure", "SpeedOfSound", "H2", "O2", "H2O"),
-        [](const boost::log::attribute_value_set& attrs) -> bool {
-          if (attrs.count("Channel")) {
-            auto channel = attrs["Channel"].extract<std::string>();
-            return channel && channel.get() == "ProbesPlenum";
-          }
-          return false;
-        },
-        [](const boost::log::record_view& rec,
-           boost::log::formatting_ostream& stream) {
-          namespace log = boost::log;
-          double t = log::extract<double>("Time", rec).get();
-          double x = log::extract<double>("X", rec).get();
-          double rho = log::extract<double>("Density", rec).get();
-          double u = log::extract<double>("VelocityX", rec).get();
-          double v = log::extract<double>("VelocityY", rec).get();
-          double w = log::extract<double>("VelocityZ", rec).get();
-          double T = log::extract<double>("Temperature", rec).get();
-          double p = log::extract<double>("Pressure", rec).get();
-          double a = log::extract<double>("SpeedOfSound", rec).get();
-          double h2 = log::extract<double>("H2", rec).get();
-          double o2 = log::extract<double>("O2", rec).get();
-          double h2o = log::extract<double>("H2O", rec).get();
-          stream << fmt::format(
-              "{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}"
-              "{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}"
-              "{:< 24.15g}{:< 24.15g}",
-              t, x, rho, u, v, w, T, p, a, h2, o2, h2o);
-        });
-  }
-}
-
 void MyMain(const std::map<std::string, pybind11::object>& vm) {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
@@ -626,19 +461,19 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   fub::Burke2012 mechanism{};
 
   const ProgramOptions po(vm);
-  InitializeProbeOutput(po);
 
   auto plenum = MakePlenumSolver(po, mechanism, vm);
   auto [tube, valve] = MakeTubeSolver(po, mechanism, vm);
   auto valve_state = valve.GetSharedState();
 
-  ::amrex::RealBox inlet{{-0.1, -r_tube, -r_tube}, {0.05, +r_tube, +r_tube}};
-
   fub::amrex::BlockConnection connection;
   connection.direction = fub::Direction::X;
   connection.side = 0;
   connection.plenum.id = 0;
-  connection.plenum.mirror_box = BoxWhichContains(inlet, plenum.GetGeometry(0));
+  connection.plenum.mirror_box = plenum.GetGriddingAlgorithm()
+                                     ->GetPatchHierarchy()
+                                     .GetGeometry(0)
+                                     .Domain();
   connection.tube.id = 0;
   connection.tube.mirror_box =
       tube.GetGriddingAlgorithm()->GetPatchHierarchy().GetGeometry(0).Domain();
@@ -685,132 +520,25 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
 
   std::string base_name = po.output_directory;
 
-  std::vector<double> xprobes = po.x_probes;
-  std::sort(xprobes.begin(), xprobes.end());
-  auto lb =
-      std::lower_bound(xprobes.begin(), xprobes.end(), po.plenum_xbox.lo(0));
-  const int n_tube_probes =
-      static_cast<int>(std::distance(xprobes.begin(), lb));
-  const int n_plenum_probes = static_cast<int>(xprobes.size()) - n_tube_probes;
-  FUB_ASSERT(n_tube_probes + n_plenum_probes == int(xprobes.size()));
-
-  std::vector<double> tube_probes_buffer(n_tube_probes * 3);
-  ProbesView<double> tube_probes(tube_probes_buffer.data(), n_tube_probes);
-  std::for_each(xprobes.begin(), lb, [&, i = 0](double xpos) mutable {
-    tube_probes(0, i) = xpos;
-    i = i + 1;
-  });
-
-  std::vector<double> probes_buffer(n_plenum_probes * 3);
-  ProbesView<double> plenum_probes(probes_buffer.data(), n_plenum_probes);
-  std::for_each(lb, xprobes.end(), [&, i = 0](double xpos) mutable {
-    plenum_probes(0, i) = xpos;
-    i = i + 1;
-  });
-
-  std::vector<double> slice_xs = {-3e-3, 3e-3, 0.1,  0.2, 0.245,
-                                  0.3,   0.4,  0.49, 0.51};
-  std::vector<::amrex::Box> output_boxes{};
-  output_boxes.reserve(slice_xs.size() + 1);
-
-  std::transform(
-      slice_xs.begin(), slice_xs.end(), std::back_inserter(output_boxes),
-      [&](double x0) {
-        const auto& plenum =
-            context.GetGriddingAlgorithm()->GetPlena()[0]->GetPatchHierarchy();
-        const int finest_level = plenum.GetNumberOfLevels() - 1;
-        const ::amrex::Geometry& geom = plenum.GetGeometry(finest_level);
-        const ::amrex::RealBox& probDomain = geom.ProbDomain();
-        const double xlo[] = {x0, probDomain.lo(1), probDomain.lo(2)};
-        const double* xhi = probDomain.hi();
-        const ::amrex::RealBox slice_x(xlo, xhi);
-        ::amrex::Box slice_box = BoxWhichContains(slice_x, geom);
-        slice_box.setBig(0, slice_box.smallEnd(0));
-        return slice_box;
-      });
-
-  output_boxes.push_back([&](double y0) {
-    const auto& plenum =
-        context.GetGriddingAlgorithm()->GetPlena()[0]->GetPatchHierarchy();
-    const int finest_level = plenum.GetNumberOfLevels() - 1;
-    const ::amrex::Geometry& geom = plenum.GetGeometry(finest_level);
-    const ::amrex::RealBox& probDomain = geom.ProbDomain();
-    const double xlo[] = {probDomain.lo(0), y0, probDomain.lo(2)};
-    const double* xhi = probDomain.hi();
-    const ::amrex::RealBox slice_x(xlo, xhi);
-    ::amrex::Box slice_box = BoxWhichContains(slice_x, geom);
-    slice_box.setBig(1, slice_box.smallEnd(1));
-    return slice_box;
-  }(0.0));
-
-  boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
-      boost::log::keywords::severity = boost::log::trivial::info);
-  MPI_Comm comm = context.GetMpiCommunicator();
   int rank = -1;
-  MPI_Comm_rank(comm, &rank);
-  auto output = [&](const fub::amrex::MultiBlockGriddingAlgorithm& grid) {
-    BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", grid.GetTimePoint().count());
-    // if (output_num >= 0) {
-    // BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "ProbesTube");
-    // LogTubeProbes(log, tube_probes, grid.GetTubes()[0]->GetPatchHierarchy(),
-    // comm);
-    // }
-    // if (output_num >= 0) {
-    // BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "ProbesPlenum");
-    // LogPlenumProbes(log, plenum_probes,
-    // grid.GetPlena()[0]->GetPatchHierarchy(), comm);
-    // }
-    // if (output_num == 0) {
-    BOOST_LOG(log) << fmt::format("Write Plotfiles to '{}/Plotfiles'.",
-                                  base_name);
-    std::string name = fmt::format("{}/Plotfiles/Plenum/plt{:05}", base_name,
-                                   grid.GetCycles());
-    fub::amrex::cutcell::WritePlotFile(
-        name, grid.GetPlena()[0]->GetPatchHierarchy(), plenum_equation);
-    name =
-        fmt::format("{}/Plotfiles/Tube/plt{:05}", base_name, grid.GetCycles());
-    fub::amrex::WritePlotFile(name, grid.GetTubes()[0]->GetPatchHierarchy(),
-                              tube_equation);
-    name = fmt::format("{}/Checkpoint/{:05}", base_name, grid.GetCycles());
-    WriteCheckpoint(name, grid, valve_state, rank, ignition);
-    // }
-    //
-    // Ouput MATLAB files on each output interval
-    //
-    // if (output_num < 2) {
-    auto tubes = grid.GetTubes();
-    int k = 0;
-    for (auto& tube : tubes) {
-      std::string name = fmt::format("{}/Matlab/Tube_{}.h5", base_name, k);
-      fub::amrex::WriteTubeData(name, tube->GetPatchHierarchy(), tube_equation,
-                                grid.GetTimePoint(), grid.GetCycles(), comm);
-      k = k + 1;
-    }
-    k = 0;
-    std::for_each(output_boxes.begin(), output_boxes.end() - 1,
-                  [&](const ::amrex::Box& out_box) {
-                    std::string name =
-                        fmt::format("{}/Matlab/Plenum_x{}.h5", base_name, k);
-                    auto& plenum = grid.GetPlena()[0];
-                    fub::amrex::cutcell::Write2Dfrom3D(
-                        name, plenum->GetPatchHierarchy(), out_box,
-                        plenum_equation, grid.GetTimePoint(), grid.GetCycles(),
-                        comm);
-                    k = k + 1;
-                  });
-    const ::amrex::Box out_box = output_boxes.back();
-    name = fmt::format("{}/Matlab/Plenum_y0.h5", base_name);
-    auto& plenum = grid.GetPlena()[0];
-    fub::amrex::cutcell::Write2Dfrom3D(
-        name, plenum->GetPatchHierarchy(), out_box, plenum_equation,
-        grid.GetTimePoint(), grid.GetCycles(), comm);
-    // }
-  };
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  using namespace std::literals::chrono_literals;
-  output(*solver.GetGriddingAlgorithm());
-  fub::RunOptions run_options(vm);
-  fub::InvokeFunction<fub::amrex::MultiBlockGriddingAlgorithm> out{
-      {1}, run_options.output_interval, output};
-  fub::RunSimulation(solver, run_options, wall_time_reference, out);
+  using namespace fub::amrex;
+  fub::OutputFactory<MultiBlockGriddingAlgorithm> factory{};
+  factory.RegisterFactory<MultiWriteHdf5>("HDF5");
+  factory.RegisterFactory<MultiBlockPlotfileOutput>("Plotfiles");
+  factory.RegisterFactory<LogProbesOutput>("Probes");
+  factory.RegisterFactory<fub::InvokeFunction<MultiBlockGriddingAlgorithm>>(
+      "Checkpoint", [&](const MultiBlockGriddingAlgorithm& grid) {
+        std::string name =
+            fmt::format("{}/Checkpoint/{:05}", base_name, grid.GetCycles());
+        amrex::Print() << "Write Checkpoint to '" << name << "'!\n";
+        WriteCheckpoint(name, grid, valve_state, rank, ignition);
+      });
+  fub::MultipleOutputs<MultiBlockGriddingAlgorithm> outputs(
+      std::move(factory),
+      fub::ToMap(fub::GetOptionOr(vm, "output", pybind11::dict{})));
+
+  outputs(*solver.GetGriddingAlgorithm());
+  fub::RunSimulation(solver, fub::RunOptions(vm), wall_time_reference, outputs);
 }

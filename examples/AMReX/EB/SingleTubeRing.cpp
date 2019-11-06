@@ -100,8 +100,8 @@ struct ProgramOptions {
     const double d_tube = 2 * r_tube;
     const double r_tube_center =
         0.5 * (r_inner + r_inner + 2 * plenum_jump + d_tube);
-    tube_xbox = amrex::RealBox(-1.5, -r_tube, r_tube_center - r_tube, xs[0],
-                               +r_tube, r_tube_center + r_tube);
+    tube_xbox = amrex::RealBox(-1.5, r_tube_center-r_tube,  - r_tube, xs[0],
+                               r_tube_center+r_tube,  + r_tube);
     const double tube_length = tube_xbox.hi(0) - tube_xbox.lo(0);
     const double plenum_domain_length = plenum_xbox.hi(0) - plenum_xbox.lo(0);
     const double t_over_p = tube_length / plenum_domain_length;
@@ -325,7 +325,7 @@ auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
   auto Center = [r_tube_center](double x, double phi) -> ::amrex::RealArray {
     using std::cos;
     using std::sin;
-    return {x, r_tube_center * sin(phi), r_tube_center * cos(phi)};
+    return {x, r_tube_center * cos(phi), r_tube_center * sin(phi)};
   };
 
   const double alpha = po.plenum_alpha;
@@ -566,21 +566,20 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
 
   int rank = -1;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  auto checkpoint_fn =
-      [&](const fub::amrex::MultiBlockGriddingAlgorithm& grid) {
+
+  using namespace fub::amrex;
+  fub::OutputFactory<MultiBlockGriddingAlgorithm> factory{};
+  factory.RegisterFactory<MultiWriteHdf5>("HDF5");
+  factory.RegisterFactory<MultiBlockPlotfileOutput>("Plotfiles");
+  factory.RegisterFactory<LogProbesOutput>("Probes");
+  factory.RegisterFactory<fub::InvokeFunction<MultiBlockGriddingAlgorithm>>(
+      "Checkpoint", [&](const MultiBlockGriddingAlgorithm& grid) {
         std::string name =
             fmt::format("{}/Checkpoint/{:05}", base_name, grid.GetCycles());
         amrex::Print() << "Write Checkpoint to '" << name << "'!\n";
         WriteCheckpoint(name, grid, valve_state, rank, ignition);
-      };
-  fub::OutputFactory<fub::amrex::MultiBlockGriddingAlgorithm> factory{};
-  factory.RegisterFactory<fub::amrex::MultiWriteHdf5>("HDF5");
-  factory.RegisterFactory<fub::amrex::MultiBlockPlotfileOutput>("Plotfiles");
-  factory.RegisterFactory<
-      fub::InvokeFunction<fub::amrex::MultiBlockGriddingAlgorithm>>(
-      "Checkpoint", checkpoint_fn);
-  factory.RegisterFactory<fub::amrex::LogProbesOutput>("Probes");
-  fub::MultipleOutputs<fub::amrex::MultiBlockGriddingAlgorithm> outputs(
+      });
+  fub::MultipleOutputs<MultiBlockGriddingAlgorithm> outputs(
       std::move(factory),
       fub::ToMap(fub::GetOptionOr(vm, "output", pybind11::dict{})));
 
