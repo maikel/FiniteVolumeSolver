@@ -216,7 +216,7 @@ auto MakeTubeSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
   ConstantBox constant_box{refine_box};
 
   equation.GetReactor().SetMoleFractions("N2:79,O2:21");
-  equation.GetReactor().SetTemperature(po.plenum_temperature);
+  equation.GetReactor().SetTemperature(300.0);
   equation.GetReactor().SetPressure(101325.0);
   fub::Complete<fub::IdealGasMix<Tube_Rank>> state(equation);
   equation.CompleteFromReactor(state);
