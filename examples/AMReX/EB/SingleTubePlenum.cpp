@@ -29,6 +29,7 @@
 #include <AMReX_EB2_IF_Intersection.H>
 #include <AMReX_EB2_IF_Plane.H>
 #include <AMReX_EB2_IF_Rotation.H>
+#include <AMReX_EB2_IF_Translation.H>
 #include <AMReX_EB2_IF_Union.H>
 #include <AMReX_EB_LSCore.H>
 
@@ -107,6 +108,12 @@ struct ProgramOptions {
     plenum_radius = fub::GetOptionOr(plenum, "radius", plenum_radius);
     plenum_outlet_radius =
         fub::GetOptionOr(plenum, "outlet_radius", plenum_outlet_radius);
+    plenum_outlet_exit_radius =
+        fub::GetOptionOr(plenum, "outlet_exit_radius", plenum_outlet_exit_radius);
+    plenum_outlet_exit_length =
+        fub::GetOptionOr(plenum, "outlet_exit_length", plenum_outlet_exit_length);
+    plenum_outlet_length =
+        fub::GetOptionOr(plenum, "outlet_length", plenum_outlet_length);
     plenum_length = fub::GetOptionOr(plenum, "length", plenum_length);
 
     auto output = fub::ToMap(fub::GetOptionOr(vm, "output", pybind11::dict()));
@@ -136,6 +143,9 @@ struct ProgramOptions {
                    << " [K]";
     BOOST_LOG(log) << "  - plenum.outlet_radius= " << plenum_outlet_radius
                    << " [m]";
+    BOOST_LOG(log) << "  - plenum.outlet_length = " << plenum_outlet_length << " [m]";
+    BOOST_LOG(log) << "  - plenum.outlet_exit_radius = " << plenum_outlet_exit_radius << " [m]";
+    BOOST_LOG(log) << "  - plenum.outlet_exit_length = " << plenum_outlet_exit_length << " [m]";
     BOOST_LOG(log) << "  - plenum.length = " << plenum_length << " [m]";
 
     if (!checkpoint.empty()) {
@@ -153,7 +163,10 @@ struct ProgramOptions {
   double plenum_radius{0.5};
   double plenum_temperature{300};
   double plenum_outlet_radius{r_tube};
+  double plenum_outlet_exit_radius{plenum_outlet_radius};
+  double plenum_outlet_exit_length{plenum_outlet_radius};
   double plenum_length{0.25};
+  double plenum_outlet_length{0.04+0.04+0.03};
   std::string output_directory{"SingleTubePlenum"};
 };
 
@@ -283,7 +296,9 @@ auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
       amrex::EB2::CylinderIF(po.plenum_outlet_radius, 0.2, 0,
                              {po.plenum_length, 0.0, 0.0}, true),
       fub::amrex::Geometry(fub::ConeIF({po.plenum_length, 0.0, 0.0},
-                                       po.plenum_radius, 0.04, true)));
+                                       po.plenum_radius, 0.04, true)),
+      amrex::EB2::translate(amrex::EB2::rotate(fub::amrex::Geometry(fub::ConeIF({0.0, 0.0, 0.0},
+                                       po.plenum_outlet_exit_radius, po.plenum_outlet_exit_length, true)), M_PI, 2), {po.plenum_length+po.plenum_outlet_length, 0.0, 0.0}));
   auto shop = amrex::EB2::makeShop(embedded_boundary);
 
   fub::IdealGasMix<Plenum_Rank> equation{mechanism};
@@ -372,8 +387,6 @@ auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
   return fub::amrex::cutcell::IntegratorContext(gridding, method);
 }
 
-void MyMain(const std::map<std::string, pybind11::object>& vm);
-
 std::optional<std::map<std::string, pybind11::object>>
 ParseCommandLine(int argc, char** argv) {
   namespace po = boost::program_options;
@@ -411,6 +424,8 @@ ParseCommandLine(int argc, char** argv) {
   fub::amrex::IgniteDetonationOptions(options, "ignite").Print(log);
   return options;
 }
+
+void MyMain(const std::map<std::string, pybind11::object>& vm);
 
 int main(int argc, char** argv) {
   MPI_Init(nullptr, nullptr);
