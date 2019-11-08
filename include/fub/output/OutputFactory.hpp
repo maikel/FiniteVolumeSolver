@@ -35,7 +35,7 @@ public:
   using ProgramOptions = std::map<std::string, pybind11::object>;
   OutputFactory() = default;
 
-  template <typename Output, typename... Args> bool RegisterFactory(std::string name, Args&&... args) {
+  template <typename Output, typename... Args> bool RegisterOutput(std::string name, Args&&... args) {
     return factories_.emplace(name, [=](const ProgramOptions& opts) {
       return std::make_unique<Output>(opts, args...);
     }).second;

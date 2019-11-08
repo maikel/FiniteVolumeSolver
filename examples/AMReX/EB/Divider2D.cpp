@@ -51,56 +51,13 @@ struct DividerOptions {
 
   DividerOptions() = default;
 
-  DividerOptions(const boost::program_options::variables_map& vm) {
-    auto GetOptionOr = [&](const char* opt, auto default_value) {
-      if (vm.count(opt)) {
-        return vm[opt].as<std::decay_t<decltype(default_value)>>();
-      }
-      return default_value;
-    };
-
-    wall_filenames = GetOptionOr("wall_filenames", wall_filenames);
-    std::vector<double> rng = GetOptionOr("x_range", std::vector{0.0, 0.042});
-    if (rng.size() != 2) {
-      throw std::runtime_error(
-          "Parameter x_range needs exactly two arguments!");
-    }
-    x_range = std::array<double, 2>{rng[0], rng[1]};
-
-    rng = GetOptionOr("y_range", std::vector{-0.016, 0.026});
-    if (rng.size() != 2) {
-      throw std::runtime_error(
-          "Parameter y_range needs exactly two arguments!");
-    }
-    y_range = std::array<double, 2>{rng[0], rng[1]};
-
-    std::vector<int> irng = GetOptionOr("n_cells", std::vector{200, 200});
-    if (rng.size() != 2) {
-      throw std::runtime_error(
-          "Parameter n_cells needs exactly two arguments!");
-    }
-    n_cells = std::array<int, 2>{irng[0], irng[1]};
-
-    mach_number = GetOptionOr("mach_number", mach_number);
-    n_level = GetOptionOr("n_level", n_level);
-
-    output_directory = GetOptionOr("output.directory", output_directory);
-  }
-
-  static boost::program_options::options_description GetCommandLineOptions() {
-    namespace po = boost::program_options;
-    po::options_description desc{"Run Options"};
-    // clang-format off
-  desc.add_options()
-    ("mach_number", po::value<double>(), "Set the mach number of the shock wave.")
-    ("n_cells", po::value<std::vector<int>>()->multitoken(), "Set the amount of cells nx ny for each direction")
-    ("x_range", po::value<std::vector<double>>()->multitoken(), "Set the range for the x coordinate direction")
-    ("y_range", po::value<std::vector<double>>()->multitoken(), "Set the range for the y coordinate direction")
-    ("n_level", po::value<int>(), "Set the number of refinement levels for this simulation")
-    ("wall_filenames", po::value<std::vector<std::string>>()->multitoken(), "Set paths to the wall filenames")
-    ("output.directory", po::value<std::string>(), "Set the output directory");
-    // clang-format on
-    return desc;
+  DividerOptions(const std::map<std::string, pybind11::object>& map) {
+    wall_filenames = fub::GetOptionOr(map, "wall_filenames", wall_filenames);
+    x_range = fub::GetOptionOr(map, "x_range", x_range);
+    y_range = fub::GetOptionOr(map, "y_range", y_range);
+    n_cells = fub::GetOptionOr(map, "n_cells", n_cells);
+    mach_number = fub::GetOptionOr(map, "Mach_number", mach_number);
+    n_level = fub::GetOptionOr(map, "n_level", n_level);
   }
 
   template <typename Logger> void Print(Logger& log) {
@@ -119,29 +76,29 @@ struct DividerOptions {
   }
 };
 
-std::optional<boost::program_options::variables_map>
+std::optional<std::map<std::string, pybind11::object>>
 ParseCommandLine(int argc, char** argv) {
   boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
       boost::log::keywords::severity = boost::log::trivial::info);
 
   namespace po = boost::program_options;
-  po::options_description desc = fub::RunOptions::GetCommandLineOptions();
+  po::options_description desc;
   std::string config_path{};
   desc.add_options()("config", po::value<std::string>(&config_path),
                      "Path to the config file which can be parsed.");
-  desc.add(DividerOptions::GetCommandLineOptions());
   po::variables_map vm;
+  std::map<std::string, pybind11::object> options{};
   try {
     po::store(po::parse_command_line(argc, argv, desc), vm);
     if (vm.count("config")) {
       config_path = vm["config"].as<std::string>();
-      po::store(po::parse_config_file(config_path.c_str(), desc), vm);
+      options = fub::ParsePythonScript(config_path, MPI_COMM_WORLD);
     }
     po::notify(vm);
   } catch (std::exception& e) {
-    BOOST_LOG_SEV(log, boost::log::trivial::error)
-        << "An Error occured while reading program options:\n"
-        << e.what();
+    amrex::Print()
+        << "[Error] An Error occured while reading program options:\n";
+    amrex::Print() << e.what();
     return {};
   }
 
@@ -150,9 +107,10 @@ ParseCommandLine(int argc, char** argv) {
     return {};
   }
 
-  fub::RunOptions(vm).Print(log);
+  fub::RunOptions(options).Print(log);
+  DividerOptions(options).Print(log);
 
-  return vm;
+  return options;
 }
 
 fub::Polygon ReadPolygonData(std::istream& input) {
@@ -223,15 +181,14 @@ struct ShockMachnumber
 };
 
 template <typename Logger>
-void WriteCheckpoint(Logger& log, const std::string& base_name,
-                     const fub::amrex::cutcell::PatchHierarchy& hierarchy,
-                     std::ptrdiff_t cycle) {
-  std::string path = fmt::format("{}/Checkpoint_{:05}", base_name, cycle);
+void WriteCheckpoint(Logger& log, const std::string& path,
+                     const fub::amrex::cutcell::PatchHierarchy& hierarchy) {
+  const std::ptrdiff_t cycle = hierarchy.GetCycles();
   BOOST_LOG(log) << "Write Checkpoint File to '" << path << "'.\n";
   fub::amrex::cutcell::WriteCheckpointFile(path, hierarchy);
 }
 
-void MyMain(const boost::program_options::variables_map& vm) {
+void MyMain(const std::map<std::string, pybind11::object>& vm) {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
@@ -239,7 +196,6 @@ void MyMain(const boost::program_options::variables_map& vm) {
       boost::log::keywords::severity = boost::log::trivial::info);
 
   DividerOptions options(vm);
-  options.Print(log);
 
   const std::array<int, 2> n_cells = options.n_cells;
   const std::array<double, 2> xlower{options.x_range[0], options.y_range[0]};
@@ -332,31 +288,28 @@ void MyMain(const boost::program_options::variables_map& vm) {
 
   std::string base_name = options.output_directory;
 
-  auto output = [&, count = 0LL](
-                    const std::shared_ptr<GriddingAlgorithm>& gridding,
-                    std::ptrdiff_t cycle, fub::Duration tp, int = 0) mutable {
-    PatchHierarchy& hierarchy = gridding->GetPatchHierarchy();
-    BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", tp.count());
-    std::string name = fmt::format("{}/plt{:05}", base_name, count);
-    BOOST_LOG(log) << "Write plot files to '" << name << "'.";
-    WritePlotFile(name, hierarchy, equation);
-    name = fmt::format("{}/Matlab/{:05}.dat", base_name, count);
-    BOOST_LOG(log) << "Write matlab files to '" << name << "'.";
-    MPI_Comm comm = solver.GetMpiCommunicator();
-    WriteMatlabData(name, hierarchy, tp, cycle, comm);
-    count = count + 1;
-  };
+  fub::OutputFactory<GriddingAlgorithm> factory{};
+  factory.RegisterOutput<WriteHdf5>("HDF5");
+  factory.RegisterOutput<fub::AsOutput<GriddingAlgorithm>>(
+      "Plotfiles", fub::amrex::PlotfileOutput{equation, base_name + "/Plotfiles"});
+  factory.RegisterOutput<fub::AsOutput<GriddingAlgorithm>>(
+      "Checkpoint", [&](const GriddingAlgorithm& grid) {
+        std::string name =
+            fmt::format("{}/Checkpoint/{:09}", base_name, grid.GetCycles());
+        WriteCheckpoint(log, name, grid.GetPatchHierarchy());
+      });
+  fub::MultipleOutputs<GriddingAlgorithm> outputs(
+      std::move(factory),
+      fub::ToMap(fub::GetOptionOr(vm, "output", pybind11::dict{})));
 
-  using namespace std::literals::chrono_literals;
-  output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
-         solver.GetTimePoint());
-  fub::RunOptions run_options{vm};
-  fub::RunSimulation(solver, run_options, wall_time_reference, output);
+  outputs(*solver.GetGriddingAlgorithm());
+  fub::RunSimulation(solver, fub::RunOptions(vm), wall_time_reference, outputs);
 }
 
 int main(int argc, char** argv) {
   MPI_Init(nullptr, nullptr);
   fub::InitializeLogging(MPI_COMM_WORLD);
+  pybind11::scoped_interpreter interpreter{};
   {
     fub::amrex::ScopeGuard _{};
     auto vm = ParseCommandLine(argc, argv);

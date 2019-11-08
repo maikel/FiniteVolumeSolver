@@ -346,9 +346,9 @@ void CreateHdf5Database(const std::string& name, const ::amrex::FArrayBox& fab,
         AMREX_D_DECL(extents[1], extents[2], extents[3])};
 
     H5Properties properties(H5Pcreate(H5P_DATASET_CREATE));
-    H5Pset_chunk(properties, 5, dims.data());
+    H5Pset_chunk(properties, AMREX_SPACEDIM + 2, dims.data());
     H5Pset_alloc_time(properties, H5D_ALLOC_TIME_EARLY);
-    H5Space dataspace(H5Screate_simple(5, dims.data(), maxdims.data()));
+    H5Space dataspace(H5Screate_simple(AMREX_SPACEDIM + 2, dims.data(), maxdims.data()));
     H5Dataset dataset(H5Dcreate(file, "/data", H5T_IEEE_F64LE, dataspace,
                                 H5P_DEFAULT, properties, H5P_DEFAULT));
     H5Dwrite(dataset, H5T_IEEE_F64LE, H5S_ALL, H5S_ALL, H5P_DEFAULT,

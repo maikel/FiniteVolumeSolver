@@ -113,6 +113,6 @@ int main(int argc, char** argv) {
   fub::RunOptions run_options{};
   run_options.final_time = 2.0s;
   run_options.cfl = 0.9;
-  fub::InvokeFunction<fub::amrex::GriddingAlgorithm> out{{1}, {}, output};
+  fub::AsOutput<fub::amrex::GriddingAlgorithm> out{{1}, {}, output};
   fub::RunSimulation(solver, run_options, wall_time_reference, out);
 }

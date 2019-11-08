@@ -168,19 +168,6 @@ struct ProgramOptions {
   std::string output_directory{"SingleTubeRing"};
 };
 
-struct TubeSolverOptions {
-  int n_cells{200};
-  int max_refinement_level{1};
-  std::array<double, 2> x_domain{-1.5, -0.03};
-  double phi{0.0};
-};
-
-auto DomainAroundCenter(const ::amrex::RealArray& x, double rx)
-    -> ::amrex::RealBox {
-  return ::amrex::RealBox{{x[0] - rx, x[1] - r_tube, x[2] - r_tube},
-                          {x[0] + rx, x[1] + r_tube, x[2] + r_tube}};
-}
-
 auto MakeTubeSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
                     const std::map<std::string, pybind11::object>& vm) {
   const std::array<int, AMREX_SPACEDIM> n_cells{po.tube_n_cells, 1, 1};
@@ -375,8 +362,6 @@ auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
   const ::amrex::Box outlet_box = BoxWhichContains(outlet, coarse_geom);
   BoundarySet boundary_condition{
       {TransmissiveBoundary{fub::Direction::X, 0},
-       TransmissiveBoundary{fub::Direction::Y, 0},
-       TransmissiveBoundary{fub::Direction::Y, 1},
        IsentropicPressureBoundary{"RightPlenumBoundary", equation, outlet_box,
                                   101325.0, fub::Direction::X, 1}}};
 
@@ -405,8 +390,8 @@ auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
 
   fub::EinfeldtSignalVelocities<fub::IdealGasMix<Plenum_Rank>> signals{};
   fub::HllMethod hll_method{equation, signals};
-  //  fub::ideal_gas::MusclHancockPrimMethod<Plenum_Rank> flux_method(equation);
-  fub::KbnCutCellMethod cutcell_method(hll_method, hll_method);
+  fub::ideal_gas::MusclHancockPrimMethod<Plenum_Rank> flux_method(equation);
+  fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
 
   HyperbolicMethod method{
       FluxMethod{fub::execution::openmp_simd, cutcell_method},
@@ -537,8 +522,8 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
       fub::amrex::IgniteDetonationOptions(vm, "ignite")};
 
   std::string checkpoint = fub::GetOptionOr(vm, "checkpoint", std::string{});
-  if (!checkpoint.empty()) {
-    MPI_Comm comm = context.GetMpiCommunicator();
+  MPI_Comm comm = context.GetMpiCommunicator();
+  if (!checkpoint.empty()) {;
     std::string input =
         fub::ReadAndBroadcastFile(checkpoint + "/Ignition", comm);
     std::istringstream ifs(input);
@@ -565,14 +550,14 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   std::string base_name = po.output_directory;
 
   int rank = -1;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_rank(comm, &rank);
 
   using namespace fub::amrex;
   fub::OutputFactory<MultiBlockGriddingAlgorithm> factory{};
-  factory.RegisterFactory<MultiWriteHdf5>("HDF5");
-  factory.RegisterFactory<MultiBlockPlotfileOutput>("Plotfiles");
-  factory.RegisterFactory<LogProbesOutput>("Probes");
-  factory.RegisterFactory<fub::InvokeFunction<MultiBlockGriddingAlgorithm>>(
+  factory.RegisterOutput<MultiWriteHdf5>("HDF5");
+  factory.RegisterOutput<MultiBlockPlotfileOutput>("Plotfiles");
+  factory.RegisterOutput<LogProbesOutput>("Probes");
+  factory.RegisterOutput<fub::AsOutput<MultiBlockGriddingAlgorithm>>(
       "Checkpoint", [&](const MultiBlockGriddingAlgorithm& grid) {
         std::string name =
             fmt::format("{}/Checkpoint/{:05}", base_name, grid.GetCycles());

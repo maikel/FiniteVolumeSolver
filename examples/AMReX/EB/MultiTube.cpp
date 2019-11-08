@@ -480,7 +480,7 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   fub::DimensionalSplitSystemSourceSolver solver{ign_solver, source_term};
 
   fub::OutputFactory<fub::amrex::MultiBlockGriddingAlgorithm> factory{};
-  factory.RegisterFactory<fub::amrex::MultiWriteHdf5>("HDF5");
+  factory.RegisterOutput<fub::amrex::MultiWriteHdf5>("HDF5");
   fub::MultipleOutputs<fub::amrex::MultiBlockGriddingAlgorithm> outputs(
       std::move(factory),
       fub::ToMap(fub::GetOptionOr(vm, "output", pybind11::dict{})));

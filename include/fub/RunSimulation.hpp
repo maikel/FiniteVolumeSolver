@@ -46,17 +46,9 @@ struct RunOptions {
   explicit RunOptions(const std::map<std::string, pybind11::object>& vm);
 
   template <typename Logger> void Print(Logger& log) {
-    std::vector<double> ivs(output_interval.size());
-    std::transform(output_interval.begin(), output_interval.end(), ivs.begin(),
-                   [](Duration dur) { return dur.count(); });
     BOOST_LOG(log) << "Run Options:"
                    << "\n  - final_time = " << final_time.count() << " [s]"
                    << "\n  - max_cycles = " << max_cycles << " [-]"
-                   << "\n  - output.interval = "
-                   << fmt::format("{{{}}}", fmt::join(ivs, ", "))
-                   << "\n  - output.frequency = "
-                   << fmt::format("{{{}}} [s]",
-                                  fmt::join(output_frequency, ", "))
                    << "\n  - smallest_time_step_size = "
                    << smallest_time_step_size.count() << " [s]"
                    << "\n  - cfl = " << cfl << " [-]";
@@ -64,18 +56,9 @@ struct RunOptions {
 
   Duration final_time{1.0};
   std::ptrdiff_t max_cycles{-1};
-  std::vector<Duration> output_interval{final_time};
-  std::vector<int> output_frequency{0};
   Duration smallest_time_step_size{1e-12};
   double cfl{0.8};
 };
-
-void PrintRunOptions(const RunOptions& opts);
-
-std::optional<int> AnyOutputCondition(std::ptrdiff_t cycle, Duration time_point,
-                                      const RunOptions& options);
-
-Duration NextOutputTime(Duration time_point, const RunOptions& options);
 
 std::string
 FormatTimeStepLine(std::ptrdiff_t cycle,

@@ -21,23 +21,59 @@
 #ifndef FUB_AMREX_PLOT_FILES_HPP
 #define FUB_AMREX_PLOT_FILES_HPP
 
+#include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp"
 #include "fub/ext/ProgramOptions.hpp"
 #include "fub/output/OutputAtFrequencyOrInterval.hpp"
-#include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp"
+
+#include <boost/log/common.hpp>
+#include <boost/log/sources/severity_logger.hpp>
+#include <boost/log/trivial.hpp>
 
 namespace fub::amrex {
 
-class MultiBlockPlotfileOutput : public OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm> {
+template <typename Equation> class PlotfileOutput {
+public:
+  PlotfileOutput(const Equation& equation, const std::string& path)
+      : equation_(equation), parent_path_(path) {}
+
+  void operator()(const cutcell::GriddingAlgorithm& grid) const {
+    boost::log::sources::severity_logger<boost::log::trivial::severity_level>
+        log(boost::log::keywords::severity = boost::log::trivial::info);
+    BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "Plotfile");
+    BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", grid.GetTimePoint().count());
+    std::string name =
+        fmt::format("{}/plt{:09}", parent_path_, grid.GetCycles());
+    BOOST_LOG(log) << fmt::format("Write Plotfile output to '{}'.", name);
+    cutcell::WritePlotFile(name, grid.GetPatchHierarchy(), equation_);
+  }
+
+  void operator()(const GriddingAlgorithm& grid) const {
+    boost::log::sources::severity_logger<boost::log::trivial::severity_level>
+        log(boost::log::keywords::severity = boost::log::trivial::info);
+    BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "Plotfile");
+    BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", grid.GetTimePoint().count());
+    std::string name =
+        fmt::format("{}/plt{:09}", parent_path_, grid.GetCycles());
+    BOOST_LOG(log) << fmt::format("Write Plotfile output to '{}'.", name);
+    WritePlotFile(name, grid.GetPatchHierarchy(), equation_);
+  }
+
+private:
+  Equation equation_;
+  std::string parent_path_;
+};
+
+class MultiBlockPlotfileOutput
+    : public OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm> {
 public:
   MultiBlockPlotfileOutput(const std::map<std::string, pybind11::object>& vm);
 
-  void
-  operator()(const MultiBlockGriddingAlgorithm& grid) override;
+  void operator()(const MultiBlockGriddingAlgorithm& grid) override;
 
 private:
   std::string parent_path_;
 };
 
-}
+} // namespace fub::amrex
 
 #endif

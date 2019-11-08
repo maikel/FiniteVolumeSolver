@@ -36,7 +36,7 @@ public:
 
   void
   operator()(const GriddingAlgorithm& grid) override;
-
+  
 private:
   std::string path_to_file_{};
   std::optional<::amrex::Box> output_box_{};

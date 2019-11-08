@@ -108,10 +108,10 @@ struct ProgramOptions {
     plenum_radius = fub::GetOptionOr(plenum, "radius", plenum_radius);
     plenum_outlet_radius =
         fub::GetOptionOr(plenum, "outlet_radius", plenum_outlet_radius);
-    plenum_outlet_exit_radius =
-        fub::GetOptionOr(plenum, "outlet_exit_radius", plenum_outlet_exit_radius);
-    plenum_outlet_exit_length =
-        fub::GetOptionOr(plenum, "outlet_exit_length", plenum_outlet_exit_length);
+    plenum_outlet_exit_radius = fub::GetOptionOr(plenum, "outlet_exit_radius",
+                                                 plenum_outlet_exit_radius);
+    plenum_outlet_exit_length = fub::GetOptionOr(plenum, "outlet_exit_length",
+                                                 plenum_outlet_exit_length);
     plenum_outlet_length =
         fub::GetOptionOr(plenum, "outlet_length", plenum_outlet_length);
     plenum_length = fub::GetOptionOr(plenum, "length", plenum_length);
@@ -143,9 +143,12 @@ struct ProgramOptions {
                    << " [K]";
     BOOST_LOG(log) << "  - plenum.outlet_radius= " << plenum_outlet_radius
                    << " [m]";
-    BOOST_LOG(log) << "  - plenum.outlet_length = " << plenum_outlet_length << " [m]";
-    BOOST_LOG(log) << "  - plenum.outlet_exit_radius = " << plenum_outlet_exit_radius << " [m]";
-    BOOST_LOG(log) << "  - plenum.outlet_exit_length = " << plenum_outlet_exit_length << " [m]";
+    BOOST_LOG(log) << "  - plenum.outlet_length = " << plenum_outlet_length
+                   << " [m]";
+    BOOST_LOG(log) << "  - plenum.outlet_exit_radius = "
+                   << plenum_outlet_exit_radius << " [m]";
+    BOOST_LOG(log) << "  - plenum.outlet_exit_length = "
+                   << plenum_outlet_exit_length << " [m]";
     BOOST_LOG(log) << "  - plenum.length = " << plenum_length << " [m]";
 
     if (!checkpoint.empty()) {
@@ -166,7 +169,7 @@ struct ProgramOptions {
   double plenum_outlet_exit_radius{plenum_outlet_radius};
   double plenum_outlet_exit_length{plenum_outlet_radius};
   double plenum_length{0.25};
-  double plenum_outlet_length{0.04+0.04+0.03};
+  double plenum_outlet_length{0.04 + 0.04 + 0.03};
   std::string output_directory{"SingleTubePlenum"};
 };
 
@@ -297,8 +300,12 @@ auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
                              {po.plenum_length, 0.0, 0.0}, true),
       fub::amrex::Geometry(fub::ConeIF({po.plenum_length, 0.0, 0.0},
                                        po.plenum_radius, 0.04, true)),
-      amrex::EB2::translate(amrex::EB2::rotate(fub::amrex::Geometry(fub::ConeIF({0.0, 0.0, 0.0},
-                                       po.plenum_outlet_exit_radius, po.plenum_outlet_exit_length, true)), M_PI, 2), {po.plenum_length+po.plenum_outlet_length, 0.0, 0.0}));
+      amrex::EB2::translate(
+          amrex::EB2::rotate(fub::amrex::Geometry(fub::ConeIF(
+                                 {0.0, 0.0, 0.0}, po.plenum_outlet_exit_radius,
+                                 po.plenum_outlet_exit_length, true)),
+                             M_PI, 2),
+          {po.plenum_length + po.plenum_outlet_length, 0.0, 0.0}));
   auto shop = amrex::EB2::makeShop(embedded_boundary);
 
   fub::IdealGasMix<Plenum_Rank> equation{mechanism};
@@ -540,10 +547,10 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
 
   using namespace fub::amrex;
   fub::OutputFactory<MultiBlockGriddingAlgorithm> factory{};
-  factory.RegisterFactory<MultiWriteHdf5>("HDF5");
-  factory.RegisterFactory<MultiBlockPlotfileOutput>("Plotfiles");
-  factory.RegisterFactory<LogProbesOutput>("Probes");
-  factory.RegisterFactory<fub::InvokeFunction<MultiBlockGriddingAlgorithm>>(
+  factory.RegisterOutput<MultiWriteHdf5>("HDF5");
+  factory.RegisterOutput<MultiBlockPlotfileOutput>("Plotfiles");
+  factory.RegisterOutput<LogProbesOutput>("Probes");
+  factory.RegisterOutput<fub::AsOutput<MultiBlockGriddingAlgorithm>>(
       "Checkpoint", [&](const MultiBlockGriddingAlgorithm& grid) {
         std::string name =
             fmt::format("{}/Checkpoint/{:05}", base_name, grid.GetCycles());

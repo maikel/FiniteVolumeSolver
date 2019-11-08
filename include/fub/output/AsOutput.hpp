@@ -28,14 +28,14 @@
 namespace fub {
 
 template <typename Grid>
-class InvokeFunction : public OutputAtFrequencyOrInterval<Grid> {
+class AsOutput : public OutputAtFrequencyOrInterval<Grid> {
 public:
-  InvokeFunction(std::vector<std::ptrdiff_t> frequencies,
+  AsOutput(std::vector<std::ptrdiff_t> frequencies,
       std::vector<fub::Duration> intervals, std::function<void(const Grid&)> fn)
     : OutputAtFrequencyOrInterval<Grid>(std::move(frequencies), std::move(intervals)), fn_(std::move(fn))
   {}
 
-  InvokeFunction(const std::map<std::string, pybind11::object>& vm, std::function<void(const Grid&)> fn)
+  AsOutput(const std::map<std::string, pybind11::object>& vm, std::function<void(const Grid&)> fn)
     : OutputAtFrequencyOrInterval<Grid>(vm), fn_(std::move(fn))
   {}
 

@@ -66,7 +66,7 @@
 #include "fub/geometry/Invert.hpp"
 
 #include "fub/output/BasicOutput.hpp"
-#include "fub/output/InvokeFunction.hpp"
+#include "fub/output/AsOutput.hpp"
 #include "fub/output/OutputAtFrequencyOrInterval.hpp"
 #include "fub/output/OutputFactory.hpp"
 #include "fub/output/MultipleOutputs.hpp"
