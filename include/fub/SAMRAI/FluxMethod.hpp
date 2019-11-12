@@ -25,6 +25,7 @@
 #include "fub/SAMRAI/ViewPatch.hpp"
 
 #include <limits>
+#include <numeric>
 
 namespace fub::samrai {
 /// This is a wrapper class which dispatches a given base method object and
@@ -34,10 +35,17 @@ namespace fub::samrai {
 template <typename Tag, typename BaseMethod>
 class FluxMethod : private BaseMethod {
 public:
-  using Equation = std::decay_t<decltype(std::declval<const BaseMethod&>().GetEquation())>;
+  using Equation =
+      std::decay_t<decltype(std::declval<const BaseMethod&>().GetEquation())>;
+  using Conservative = ::fub::Conservative<Equation>;
+  using Complete = ::fub::Complete<Equation>;
 
   FluxMethod(Tag, const BaseMethod& base) : BaseMethod(base) {}
-  FluxMethod(Tag, BaseMethod&& base) : BaseMethod(std::move(base))) {}
+  FluxMethod(Tag, BaseMethod&& base) : BaseMethod(std::move(base)) {}
+
+  using BaseMethod::GetEquation;
+
+  using BaseMethod::GetStencilWidth;
 
   /// Extracts the state variables patch data views including its ghost cells
   /// and compute a stable time step size in specified direction and refinement
@@ -51,14 +59,12 @@ public:
   void ComputeNumericFluxes(IntegratorContext& context, int level, Duration dt,
                             Direction dir);
 
-  void ComputeNumericFluxes(span<SAMRAI::pdat::SideData*> fluxes,
-                            span<SAMRAI::pdat::CellData const*> cells,
-                            const SAMRAI::geom::CartesianGridGeometry& geom,
-                            Duration dt, Direction dir);
+  void ComputeNumericFluxes(span<SAMRAI::pdat::SideData<double>*> fluxes,
+                            span<SAMRAI::pdat::CellData<double> const*> cells,
+                            double dx, Duration dt, Direction dir);
 
-  Duration ComputeStableDt(span<SAMRAI::pdat::CellData const*> data,
-                           const SAMRAI::geom::CartesianGridGeometry& geom,
-                           Direction dir);
+  Duration ComputeStableDt(span<SAMRAI::pdat::CellData<double> const*> data,
+                           double dx, Direction dir);
 };
 
 template <typename Tag, typename BaseMethod>
@@ -70,19 +76,65 @@ FluxMethod<Tag, BaseMethod>::ComputeStableDt(IntegratorContext& context,
   const SAMRAI::geom::CartesianGridGeometry& geom = context.GetGeometry(level);
   const int dir_value = static_cast<int>(dir);
   const double dx = geom.getDx()[dir_value];
-  std::vector<const SAMRAI::pdat::CellData*> patch_data(data_ids.size());
-  return std::accumulate(scratch.begin(), scratch.end(), Duration(std::numeric_limits<double>::max()), [&](Duration min_dt, auto&& patch) {
-    GetPatchData(patch_data, *patch, data_ids);
-    return std::min(min_dt, ComputeStableDt(patch_data, dx, dir));
-  });
+  std::vector<const SAMRAI::pdat::CellData<double>*> patch_data(
+      data_ids.size());
+  return std::accumulate(scratch.begin(), scratch.end(),
+                         Duration(std::numeric_limits<double>::max()),
+                         [&](Duration min_dt, auto&& patch) {
+                           GetPatchData(span{patch_data}, *patch, data_ids);
+                           return std::min(
+                               min_dt, ComputeStableDt(patch_data, dx, dir));
+                         });
 }
 
 template <typename Tag, typename BaseMethod>
 Duration FluxMethod<Tag, BaseMethod>::ComputeStableDt(
-    span<SAMRAI::pdat::CellData const*> data,
-    double dx, Direction dir) {
-  auto states = MakeView<const Complete<Equation>>(data, equation, data[0].getGhostBox());
-  return BaseMethod::ComputeStableDt(Tag(), states, dx, dir);
+    span<SAMRAI::pdat::CellData<double> const*> data, double dx,
+    Direction dir) {
+  constexpr int Rank = Equation::Rank();
+  auto states =
+      MakeView<const Complete>(data, BaseMethod::GetEquation(),
+                               AsIndexBox<Rank>(data[0]->getGhostBox()));
+  return Duration(BaseMethod::ComputeStableDt(Tag(), states, dx, dir));
+}
+
+template <typename Tag, typename BaseMethod>
+void FluxMethod<Tag, BaseMethod>::ComputeNumericFluxes(
+    fub::samrai::IntegratorContext& context, int level, fub::Duration dt,
+    fub::Direction dir) {
+  const SAMRAI::geom::CartesianGridGeometry& geom = context.GetGeometry(level);
+  const int dir_value = static_cast<int>(dir);
+  const double dx = geom.getDx()[dir_value];
+  const SAMRAI::hier::PatchLevel& scratch = context.GetScratch(level);
+  span<const int> scratch_ids = context.GetScratchIds();
+  std::vector<const SAMRAI::pdat::CellData<double>*> scratch_data(
+      scratch_ids.size());
+  SAMRAI::hier::PatchLevel& fluxes = context.GetFluxes(level);
+  span<const int> flux_ids = context.GetFluxIds();
+  std::vector<SAMRAI::pdat::SideData<double>*> flux_data(flux_ids.size());
+  auto scratch_iterator = scratch.begin();
+  auto scratch_end = scratch.end();
+  auto flux_iterator = fluxes.begin();
+  while (scratch_iterator != scratch_end) {
+    GetPatchData(span{flux_data}, **flux_iterator, flux_ids);
+    GetPatchData(span{scratch_data}, **scratch_iterator, scratch_ids);
+    ComputeNumericFluxes(flux_data, scratch_data, dx, dt, dir);
+    ++scratch_iterator;
+    ++flux_iterator;
+  }
+}
+
+template <typename Tag, typename BaseMethod>
+void FluxMethod<Tag, BaseMethod>::ComputeNumericFluxes(
+    span<SAMRAI::pdat::SideData<double>*> fluxes,
+    span<SAMRAI::pdat::CellData<double> const*> cells, double dx, Duration dt,
+    Direction dir) {
+  constexpr int Rank = Equation::Rank();
+  auto flux_view = MakeView<Conservative>(
+      fluxes, GetEquation(), dir, AsIndexBox<Rank>(fluxes[0]->getGhostBox()));
+  auto scratch_view = MakeView<const Complete>(
+      cells, GetEquation(), AsIndexBox<Rank>(cells[0]->getGhostBox()));
+  BaseMethod::ComputeNumericFluxes(flux_view, scratch_view, dt, dx, dir);
 }
 
 } // namespace fub::samrai

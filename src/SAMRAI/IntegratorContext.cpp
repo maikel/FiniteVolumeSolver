@@ -97,8 +97,8 @@ IntegratorContext::LevelData::LevelData(const LevelData& other)
     : LevelData(other.data, other.scratch->getPatchDescriptor(),
                 other.fluxes->getPatchDescriptor()) {}
 
-IntegratorContext::LevelData& IntegratorContext::LevelData::
-operator=(const LevelData& other) {
+IntegratorContext::LevelData&
+IntegratorContext::LevelData::operator=(const LevelData& other) {
   LevelData tmp(other);
   std::swap(*this, tmp);
   return *this;
@@ -168,6 +168,33 @@ void IntegratorContext::ResetHierarchyConfiguration(int level) {
   }
 }
 
+void IntegratorContext::ResetHierarchyConfiguration(
+    std::shared_ptr<GriddingAlgorithm> gridding) {
+  auto grid = gridding_;
+  gridding_ = std::move(gridding);
+  ResetHierarchyConfiguration();
+}
+
+const PatchHierarchy& IntegratorContext::GetPatchHierarchy() const noexcept {
+  return gridding_->GetPatchHierarchy();
+}
+
+PatchHierarchy& IntegratorContext::GetPatchHierarchy() noexcept {
+  return gridding_->GetPatchHierarchy();
+}
+
+MPI_Comm IntegratorContext::GetMpiCommunicator() const noexcept {
+  return gridding_->GetPatchHierarchy().GetNative()->getMPI().getCommunicator();
+}
+
+Duration IntegratorContext::GetTimePoint(int level) const {
+  return level_data_[static_cast<std::size_t>(level)].time_point;
+}
+
+std::ptrdiff_t IntegratorContext::GetCycles(int level) const {
+  return level_data_[static_cast<std::size_t>(level)].cycles;
+}
+
 void IntegratorContext::PreAdvanceLevel(int level_num,
                                         [[maybe_unused]] Duration dt,
                                         int subcycle) {
@@ -203,8 +230,8 @@ void IntegratorContext::FillGhostLayerSingleLevel(int level) {
   fill_scratch_one_level_schedule_[level]->fillData(fill_time);
 }
 
-void IntegratorContext::CoarsenConservatively(int fine_level,
-                                              [[maybe_unused]] int coarse_level) {
+void IntegratorContext::CoarsenConservatively(
+    int fine_level, [[maybe_unused]] int coarse_level) {
   coarsen_scratch_schedule_[fine_level]->coarsenData();
 }
 
@@ -249,9 +276,19 @@ void IntegratorContext::AccumulateCoarseFineFluxes(int level, double time_scale,
   }
 }
 
+void IntegratorContext::ApplyFluxCorrection(int fine,
+                                            [[maybe_unused]] int coarse,
+                                            [[maybe_unused]] fub::Duration dt) {
+  coarsen_fluxes_schedule_[fine]->coarsenData();
+}
+
 void IntegratorContext::ComputeNumericFluxes(int level, Duration dt,
                                              Direction dir) {
   method_.flux_method.ComputeNumericFluxes(*this, level, dt, dir);
+}
+
+Duration IntegratorContext::ComputeStableDt(int level, Direction dir) {
+  method_.flux_method.ComputeStableDt(*this, level, dir);
 }
 
 void IntegratorContext::CompleteFromCons(int level, Duration dt) {

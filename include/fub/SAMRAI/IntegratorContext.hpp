@@ -157,11 +157,11 @@ public:
 
   /// \brief Returns the current time level for data at the specified refinement
   /// level and direction.
-  [[nodiscard]] Duration GetTimePoint(int level) const;
+  [[nodiscard]] Duration GetTimePoint(int level = 0) const;
 
   /// \brief Returns the current number of cycles for data at the specified
   /// refinement level and direction.
-  [[nodiscard]] std::ptrdiff_t GetCycles(int level) const;
+  [[nodiscard]] std::ptrdiff_t GetCycles(int level = 0) const;
 
   /// \brief Returns the geometry object for the specified refinement level.
   [[nodiscard]] const SAMRAI::geom::CartesianGridGeometry&

@@ -55,8 +55,9 @@ void TimeIntegrator::UpdateConservatively(IntegratorContext& context, int level,
       auto prev = next;
       auto fluxes = MakePatchDataView<Rank + 1>(flux_data->getArrayData(dir_v))
                         .Subview(faces);
-      HyperbolicPatchIntegrator(execution::simd)
-          .UpdateConservatively(next, prev, fluxes, dt, dx, dir);
+      using simd = execution::SimdTag;
+      HyperbolicPatchIntegrator<simd>::UpdateConservatively(next, prev, fluxes,
+                                                            dt, dx, dir);
     }
     ++fit;
     ++sit;
