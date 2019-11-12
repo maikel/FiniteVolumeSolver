@@ -203,7 +203,7 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/geometry/Cone.hpp
   include/fub/output/BasicOutput.hpp
   include/fub/output/OutputAtFrequencyOrInterval.hpp
-  include/fub/output/InvokeFunction.hpp
+  include/fub/output/AsOutput.hpp
   include/fub/Solver.hpp
   include/fub/CompleteFromCons.hpp
   include/fub/CutCellData.hpp
@@ -390,6 +390,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         include/fub/AMReX/cutcell/boundary_condition/IsentropicPressureBoundary.hpp
         include/fub/AMReX/cutcell/boundary_condition/MassflowBoundary.hpp
         include/fub/AMReX/cutcell/boundary_condition/ReflectiveBoundary.hpp
+        include/fub/AMReX/cutcell/output/WriteHdf5.hpp
         include/fub/AMReX/multi_block/MultiBlockBoundary.hpp
         include/fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp
         include/fub/AMReX/multi_block/MultiBlockIntegratorContext.hpp
@@ -410,6 +411,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         src/AMReX/cutcell/tagging/ConstantRegion.cpp
         src/AMReX/cutcell/tagging/TagBuffer.cpp
         src/AMReX/cutcell/tagging/TagCutCells.cpp
+        src/AMReX/cutcell/output/WriteHdf5.cpp
         src/AMReX/multi_block/MultiBlockBoundary.cpp
         src/AMReX/multi_block/MultiBlockGriddingAlgorithm.cpp
         src/AMReX/multi_block/MultiBlockIntegratorContext.cpp
