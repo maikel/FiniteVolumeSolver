@@ -21,6 +21,7 @@
 #include "fub/SAMRAI.hpp"
 #include "fub/Solver.hpp"
 
+#include <SAMRAI/appu/VisItDataWriter.h>
 #include <SAMRAI/hier/IntVector.h>
 
 #include <fmt/format.h>
@@ -40,12 +41,16 @@ struct CircleData {
     SAMRAI::hier::PatchLevel& level = *hierarchy.GetPatchLevel(level_number);
     const SAMRAI::geom::CartesianGridGeometry& geom =
         hierarchy.GetGeometry(level_number);
+    fub::span<const int> data_ids{data_description_.data_ids};
+    std::vector<SAMRAI::pdat::CellData<double>*> datas(data_ids.size());
     for (const std::shared_ptr<SAMRAI::hier::Patch>& patch : level) {
+      fub::samrai::GetPatchData(fub::span{datas}, *patch, data_ids);
       fub::View<Complete> states = fub::samrai::MakeView<Complete>(
-          patch, equation_, hierarchy.GetDataIds(), patch.getBox());
+          fub::span{datas}, equation_,
+          fub::samrai::AsIndexBox<2>(patch->getBox()));
       fub::ForEachIndex(
           fub::Box<0>(states), [&](std::ptrdiff_t i, std::ptrdiff_t j) {
-            std::array<double, 2> x = GetCellCenter(geom, patch, i, j);
+            std::array<double, 2> x = fub::samrai::GetCellCenter(geom, *patch, i, j);
             const double norm = std::sqrt(x[0] * x[0] + x[1] * x[1]);
             if (norm < 0.25) {
               states.mass(i, j) = 3.0;
@@ -76,17 +81,16 @@ int main(int argc, char** argv) {
       MakeCartesianGridGeometry(n_cells, coordinates);
   geometry->initializePeriodicShift(SAMRAI::hier::IntVector(dim, 1));
 
-  PatchHierarchyOptions hier_opts{.refine_ratio =
-                                      SAMRAI::hier::IntVector(dim, 2),
-                                  .max_number_of_levels = 3};
+  PatchHierarchyOptions hier_opts{SAMRAI::hier::IntVector(dim, 2), 3};
 
   using State = fub::Advection2d::Complete;
   GradientDetector gradient{equation, std::pair{&State::mass, 1e-3}};
 
+  fub::samrai::DataDescription desc = fub::samrai::RegisterVariables(equation);
   std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
-      PatchHierarchy(equation, geometry, hier_opts), CircleData{equation},
+      PatchHierarchy(desc, geometry, hier_opts), CircleData{desc, equation},
       gradient, std::vector{2, 2, 2});
-  gridding->InitializeHierarchy(0.0);
+  gridding->InitializeHierarchy();
 
   HyperbolicMethod method{
       FluxMethod(fub::execution::seq, fub::GodunovMethod{equation}),
@@ -98,18 +102,17 @@ int main(int argc, char** argv) {
   SAMRAI::appu::VisItDataWriter writer(dim, "VisItWriter", "SAMRAI/Advection");
   writer.registerPlotQuantity("mass", "SCALAR", desc.data_ids[0]);
 
-  auto output = [&](const GriddingAlgorithm& grid) {
-    SAMRAI::tbox::pout << "Start output to 'SAMRAI/Advection'.\n";
-    writer.writePlotData(grid.GetHierarchy().GetNative(), grid.GetCycles(),
-                         grid.GetTimePoint().count());
-    SAMRAI::tbox::pout << "Finished output to 'SAMRAI/Advection'.\n";
-  };
+  fub::AsOutput<GriddingAlgorithm> output(
+      {}, {fub::Duration(0.1)}, [&](const GriddingAlgorithm& grid) {
+        SAMRAI::tbox::pout << "Start output to 'SAMRAI/Advection'.\n";
+        writer.writePlotData(grid.GetPatchHierarchy().GetNative(),
+                             grid.GetCycles(), grid.GetTimePoint().count());
+        SAMRAI::tbox::pout << "Finished output to 'SAMRAI/Advection'.\n";
+      });
 
   fub::RunOptions run_options{};
-  run_options.final_time = 2.0s;
-  run_options.output_interval = 0.1s;
+  run_options.final_time = fub::Duration(2.0);
   run_options.cfl = 0.9;
   output(*solver.GetGriddingAlgorithm());
-  fub::AsOutput<GriddingAlgorithm> out{{1}, {}, output};
-  fub::RunSimulation(solver, run_options, wall_time_reference, out);
+  fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

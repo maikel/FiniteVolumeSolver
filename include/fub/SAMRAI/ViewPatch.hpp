@@ -23,6 +23,7 @@
 
 #include "fub/Equation.hpp"
 
+#include <SAMRAI/hier/Patch.h>
 #include <SAMRAI/pdat/ArrayData.h>
 #include <SAMRAI/pdat/CellData.h>
 #include <SAMRAI/pdat/SideData.h>
@@ -107,24 +108,92 @@ GetPatchData(span<PatchData> patch_datas, SAMRAI::hier::Patch& patch,
                  });
 }
 
+template <typename PatchData>
+std::enable_if_t<std::is_pointer_v<PatchData>, void>
+GetPatchData(span<PatchData> patch_datas, const SAMRAI::hier::Patch& patch,
+             span<const int> data_ids) {
+  FUB_ASSERT(data_ids.size() == patch_datas.size());
+  std::transform(data_ids.begin(), data_ids.end(), patch_datas.begin(),
+                 [&patch](int id) {
+                   PatchData pointer_to_data =
+                       dynamic_cast<PatchData>(patch.getPatchData(id).get());
+                   FUB_ASSERT(pointer_to_data);
+                   return pointer_to_data;
+                 });
+}
+
+template <typename State>
+BasicView<State> MakeView(span<SAMRAI::pdat::SideData<double>*> span,
+                          const typename State::Equation& /* equation */,
+                          Direction dir) {
+  BasicView<State> view;
+  int i = 0;
+  const int dir_value = static_cast<int>(dir);
+  ForEachVariable(
+      [&](auto& variable) {
+        using type = typename remove_cvref<decltype(variable)>::type;
+        constexpr int Rank = type::rank();
+        variable = MakePatchDataView<Rank>(span[i]->getArrayData(dir_value));
+        ++i;
+      },
+      view);
+  return view;
+}
+
 template <typename State>
 BasicView<State> MakeView(span<SAMRAI::pdat::CellData<double>*> span,
                           const typename State::Equation& /* equation */) {
   BasicView<State> view;
   int i = 0;
   static constexpr int Rank = State::Equation::Rank();
+  using T = std::conditional_t<std::is_const_v<State>, const double, double>;
   ForEachVariable(
-      overloaded{[&](PatchDataView<double, Rank>& variable) {
+      overloaded{[&](PatchDataView<T, Rank>& variable) {
                    variable = MakePatchDataView<Rank>(span[i]->getArrayData());
                    ++i;
                  },
-                 [&](PatchDataView<double, Rank + 1>& variable) {
+                 [&](PatchDataView<T, Rank + 1>& variable) {
                    variable =
                        MakePatchDataView<Rank + 1>(span[i]->getArrayData());
                    ++i;
                  }},
       view);
   return view;
+}
+
+template <typename State>
+BasicView<const State>
+MakeView(span<SAMRAI::pdat::CellData<double> const*> span,
+         const typename State::Equation& /* equation */) {
+  BasicView<const State> view;
+  int i = 0;
+  static constexpr int Rank = State::Equation::Rank();
+  ForEachVariable(
+      overloaded{[&](PatchDataView<const double, Rank>& variable) {
+                   variable = MakePatchDataView<Rank>(span[i]->getArrayData());
+                   ++i;
+                 },
+                 [&](PatchDataView<const double, Rank + 1>& variable) {
+                   variable =
+                       MakePatchDataView<Rank + 1>(span[i]->getArrayData());
+                   ++i;
+                 }},
+      view);
+  return view;
+}
+
+template <typename State, typename Range>
+View<State> MakeView(Range&& span, const typename State::Equation& equation,
+                     const IndexBox<State::Equation::Rank()>& box) {
+  return Subview(MakeView<State>(std::forward<Range>(span), equation), box);
+}
+
+template <typename State, typename Range>
+View<State> MakeView(Range&& span, const typename State::Equation& equation,
+                     Direction dir,
+                     const IndexBox<State::Equation::Rank()>& box) {
+  return Subview(MakeView<State>(std::forward<Range>(span), equation, dir),
+                 box);
 }
 
 int GetDirection(const SAMRAI::hier::IntVector& directions);

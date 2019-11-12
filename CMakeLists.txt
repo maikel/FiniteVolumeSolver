@@ -203,7 +203,7 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/geometry/Cone.hpp
   include/fub/output/BasicOutput.hpp
   include/fub/output/OutputAtFrequencyOrInterval.hpp
-  include/fub/output/InvokeFunction.hpp
+  include/fub/output/AsOutput.hpp
   include/fub/Solver.hpp
   include/fub/CompleteFromCons.hpp
   include/fub/CutCellData.hpp

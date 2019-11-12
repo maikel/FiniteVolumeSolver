@@ -29,8 +29,10 @@ namespace fub::samrai {
 
 template <typename Tag, typename Equation_> class Reconstruction {
 public:
-  using Equation = Equation;
+  using Equation = Equation_;
   using ExecutionTag = Tag;
+
+  static constexpr int Rank = Equation::Rank();
 
   Reconstruction(Tag, const Equation& eq) : rec_{eq} {}
 
@@ -50,14 +52,17 @@ template <typename Tag, typename Equation>
 void Reconstruction<Tag, Equation>::CompleteFromCons(
     SAMRAI::hier::Patch& dest_patch, span<const int> dest_ids,
     const SAMRAI::hier::Patch& src_patch, span<const int> src_ids) {
-  Equation& equation = rec_->equation_;
-  IndexBox<Rank> box = AsIndexBox<Rank>(dest_patch.getGhostBox());
+  Equation& equation = rec_.equation_;
+  std::vector<SAMRAI::pdat::CellData<double>*> dest_data(dest_ids.size());
+  GetPatchData(span{dest_data}, dest_patch, dest_ids);
+  std::vector<SAMRAI::pdat::CellData<double>*> src_data(src_ids.size());
+  GetPatchData(span{src_data}, src_patch, src_ids);
+  IndexBox<Rank> box = AsIndexBox<Rank>(dest_data[0]->getGhostBox());
   View<Complete<Equation>> complete = MakeView<Complete<Equation>>(
-      GetCellData(dest_patch, dest_ids), equation, box);
+      span{dest_data}, equation, box);
   View<const Conservative<Equation>> conservative =
-      MakeView<const Conservative<Equation>>(GetCellData(src_patch, src_ids),
-                                             equation, box);
-  rec_->CompleteFromCons(Tag(), complete, conservative);
+      MakeView<const Conservative<Equation>>(src_data, equation, box);
+  rec_.CompleteFromCons(Tag(), complete, conservative);
 }
 
 template <typename Tag, typename Equation>

@@ -47,7 +47,8 @@ template <std::size_t Rank> struct CoordinateRange {
 };
 
 template <typename I, std::size_t Rank>
-std::enable_if_t<std::is_integral_v<I>, std::shared_ptr<SAMRAI::geom::CartesianGridGeometry>>
+std::enable_if_t<std::is_integral_v<I>,
+                 std::shared_ptr<SAMRAI::geom::CartesianGridGeometry>>
 MakeCartesianGridGeometry(const std::array<I, Rank>& n_cells,
                           const CoordinateRange<Rank>& coordinates) {
   const double* x_lo = coordinates.lower.data();
@@ -95,6 +96,11 @@ public:
   [[nodiscard]] const std::shared_ptr<SAMRAI::hier::PatchHierarchy>&
   GetNative() const noexcept;
 
+  [[nodiscard]] const SAMRAI::geom::CartesianGridGeometry&
+  GetGeometry(int level) const noexcept;
+
+  [[nodiscard]] span<const int> GetDataIds() const noexcept;
+
   [[nodiscard]] const std::shared_ptr<SAMRAI::hier::PatchLevel>&
   GetPatchLevel(int level) const;
 
@@ -111,6 +117,11 @@ PatchHierarchy::PatchHierarchy(
     PatchHierarchyOptions hier_opts)
     : PatchHierarchy(RegisterVariables(eq), std::move(geom),
                      std::move(hier_opts)) {}
+
+template <typename... Is>
+std::array<double, sizeof...(Is)>
+GetCellCenter(const SAMRAI::geom::CartesianGridGeometry& geom,
+              const SAMRAI::hier::Patch& patch, Is... is);
 
 } // namespace fub::samrai
 

@@ -21,9 +21,6 @@
 #ifndef FUB_SAMRAI_HPP
 #define FUB_SAMRAI_HPP
 
-//#include "fub/SAMRAI/GriddingAlgorithm.hpp"
-//#include "fub/AMReX/IntegratorContext.hpp"
-
 #include "fub/SAMRAI/ScopeGuard.hpp"
 #include "fub/SAMRAI/RegisterVariables.hpp"
 #include "fub/SAMRAI/PatchHierarchy.hpp"
@@ -32,27 +29,11 @@
 #include "fub/SAMRAI/BoundaryCondition.hpp"
 #include "fub/SAMRAI/ViewPatch.hpp"
 
+#include "fub/SAMRAI/Reconstruction.hpp"
+#include "fub/SAMRAI/TimeIntegrator.hpp"
+#include "fub/SAMRAI/FluxMethod.hpp"
 
-//#include "fub/AMReX/tagging/GradientDetector.hpp"
 #include "fub/SAMRAI/tagging/GradientDetector.hpp"
 #include "fub/SAMRAI/tagging/ConstantBox.hpp"
-
-//#include "fub/SAMRAI/CartesianPatchHierarchy.hpp"
-//#include "fub/SAMRAI/HyperbolicSplitIntegratorContext.hpp"
-
-//#include "fub/SAMRAI/ViewPatch.hpp"
-
-//#include "fub/AMReX/boundary_condition/BoundarySet.hpp"
-//#include "fub/AMReX/boundary_condition/TransmissiveBoundary.hpp"
-
-//#include "fub/AMReX/ForEachFab.hpp"
-//#include "fub/AMReX/ForEachIndex.hpp"
-//#include "fub/AMReX/Print.hpp"
-
-//#include "fub/AMReX/FluxMethod.hpp"
-//#include "fub/AMReX/Reconstruction.hpp"
-//#include "fub/AMReX/TimeIntegrator.hpp"
-
-//#include "fub/equations/ideal_gas_mix/KineticSourceTerm.hpp"
 
 #endif
