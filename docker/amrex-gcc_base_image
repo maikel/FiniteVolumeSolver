@@ -3,7 +3,7 @@ FROM ubuntu:$UBUNTU_VERSION
 
 RUN apt-get update \
   && apt-get --yes dist-upgrade \
-  && apt-get install --yes gfortran python3-pip wget libpthread-stubs0-dev git libopenmpi-dev \
+  && apt-get install --yes gfortran python3-pip wget libpthread-stubs0-dev git libopenmpi-dev m4 \
   && pip3 install conan
 
 # Install latest CMake files from the internet
