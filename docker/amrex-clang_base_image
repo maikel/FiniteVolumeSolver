@@ -1,7 +1,7 @@
 FROM ubuntu:16.04
 
 RUN apt-get update                                                                           \
- && apt-get install --yes python3-pip wget libopenmpi-dev libpthread-stubs0-dev git gfortran \
+ && apt-get install --yes python3-pip wget libopenmpi-dev libpthread-stubs0-dev git gfortran m4 \
  && pip3 install conan
 
 # Install latest CMake files from the internet
