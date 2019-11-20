@@ -6,6 +6,7 @@ AMReX/development@finite-volume/maikel
 Vc/1.4.1@finite-volume/stable
 SAMRAI/3.11.1@finite-volume/stable
 pybind11/[>=2]@conan/stable
+range-v3/0.9.1@ericniebler/stable
 
 [generators]
 cmake

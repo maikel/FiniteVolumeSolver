@@ -255,11 +255,11 @@ auto MakePlenumSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
   return fub::amrex::cutcell::IntegratorContext(gridding, method);
 }
 
-int main(int argc, char** argv) {
+int main() {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
-  fub::amrex::ScopeGuard _(argc, argv);
+  fub::amrex::ScopeGuard _{};
   fub::Burke2012 mechanism{};
 
   const int n_level = 2;
@@ -296,34 +296,31 @@ int main(int argc, char** argv) {
 
   std::string base_name = "MultiBlock_2d";
   fub::IdealGasMix<Tube_Rank> tube_equation{mechanism};
-  auto output =
-      [&](std::shared_ptr<fub::amrex::MultiBlockGriddingAlgorithm> gridding,
-          auto cycle, auto, int) {
-        ::amrex::Print() << "Checkpointing.\n";
-        fub::amrex::WriteCheckpointFile(
-            fmt::format("{}/Checkpoint/Tube_{:05}", base_name, cycle),
-            gridding->GetTubes()[0]->GetPatchHierarchy());
-        fub::amrex::cutcell::WriteCheckpointFile(
-            fmt::format("{}/Checkpoint/Plenum_{:05}", base_name, cycle),
-            gridding->GetPlena()[0]->GetPatchHierarchy());
-        std::string name = fmt::format("{}/Tube/plt{:05}", base_name, cycle);
-        ::amrex::Print() << "Start output to '" << name << "'.\n";
-        fub::amrex::WritePlotFile(
-            name, gridding->GetTubes()[0]->GetPatchHierarchy(), tube_equation);
-        ::amrex::Print() << "Finished output to '" << name << "'.\n";
-        name = fmt::format("{}/Plenum/plt{:05}", base_name, cycle);
-        ::amrex::Print() << "Start output to '" << name << "'.\n";
-        fub::amrex::cutcell::WritePlotFile(
-            name, gridding->GetPlena()[0]->GetPatchHierarchy(), equation);
-        ::amrex::Print() << "Finished output to '" << name << "'.\n";
-      };
   using namespace std::literals::chrono_literals;
-  output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
-         solver.GetTimePoint(), 0);
+  fub::AsOutput<fub::amrex::MultiBlockGriddingAlgorithm> output({}, {0.001s / 30.0},
+      [&](const fub::amrex::MultiBlockGriddingAlgorithm& gridding) {
+    std::ptrdiff_t cycle = gridding.GetCycles();
+    ::amrex::Print() << "Checkpointing.\n";
+    fub::amrex::WriteCheckpointFile(
+        fmt::format("{}/Checkpoint/Tube_{:05}", base_name, cycle),
+        gridding.GetTubes()[0]->GetPatchHierarchy());
+    fub::amrex::cutcell::WriteCheckpointFile(
+        fmt::format("{}/Checkpoint/Plenum_{:05}", base_name, cycle),
+        gridding.GetPlena()[0]->GetPatchHierarchy());
+    std::string name = fmt::format("{}/Tube/plt{:05}", base_name, cycle);
+    ::amrex::Print() << "Start output to '" << name << "'.\n";
+    fub::amrex::WritePlotFile(
+        name, gridding.GetTubes()[0]->GetPatchHierarchy(), tube_equation);
+    ::amrex::Print() << "Finished output to '" << name << "'.\n";
+    name = fmt::format("{}/Plenum/plt{:05}", base_name, cycle);
+    ::amrex::Print() << "Start output to '" << name << "'.\n";
+    fub::amrex::cutcell::WritePlotFile(
+        name, gridding.GetPlena()[0]->GetPatchHierarchy(), equation);
+    ::amrex::Print() << "Finished output to '" << name << "'.\n";
+      });
+  output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
   run_options.final_time = 0.004s;
-  //  run_options.output_interval = std::vector<fub::Duration>{0.001s / 30.0s};
-  run_options.output_frequency = std::vector<int>{1};
   run_options.cfl = 0.4;
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

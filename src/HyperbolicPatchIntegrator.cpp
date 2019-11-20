@@ -61,21 +61,19 @@ void UpdateConservatively_SIMD(span<double> nexts, span<const double> prevs,
 }
 
 template <int Rank>
-void UpdateConservatively_(
-    execution::SimdTag, const PatchDataView<double, Rank, layout_stride>& next,
-    const PatchDataView<const double, Rank, layout_stride>& prev,
-    const PatchDataView<const double, Rank, layout_stride>& fluxes, Duration dt,
-    double dx, Direction dir) {
+void UpdateConservatively_(execution::SimdTag,
+                           const StridedDataView<double, Rank>& next,
+                           const StridedDataView<const double, Rank>& prev,
+                           const StridedDataView<const double, Rank>& fluxes,
+                           Duration dt, double dx, Direction dir) {
   for (int comp = 0; comp < next.Extent(Rank - 1); ++comp) {
-    const PatchDataView<double, Rank - 1, layout_stride> n =
-        SliceLast(next, comp);
-    const PatchDataView<const double, Rank - 1, layout_stride> p =
-        SliceLast(prev, comp);
+    const StridedDataView<double, Rank - 1> n = SliceLast(next, comp);
+    const StridedDataView<const double, Rank - 1> p = SliceLast(prev, comp);
     const IndexBox<Rank> facesL = next.Box();
     const IndexBox<Rank> facesR = Grow(facesL, dir, {-1, 1});
-    const PatchDataView<const double, Rank - 1, layout_stride> fL =
+    const StridedDataView<const double, Rank - 1> fL =
         SliceLast(fluxes.Subview(facesL), comp);
-    const PatchDataView<const double, Rank - 1, layout_stride> fR =
+    const StridedDataView<const double, Rank - 1> fR =
         SliceLast(fluxes.Subview(facesR), comp);
     const double dt_dx = dt.count() / dx;
     ForEachRow(std::tuple{n, p, fL, fR},
@@ -87,12 +85,11 @@ void UpdateConservatively_(
 }
 
 template <int Rank>
-void UpdateConservatively_(
-    execution::SequentialTag,
-    const PatchDataView<double, Rank, layout_stride>& next,
-    const PatchDataView<const double, Rank, layout_stride>& prev,
-    const PatchDataView<const double, Rank, layout_stride>& fluxes, Duration dt,
-    double dx, Direction dir) {
+void UpdateConservatively_(execution::SequentialTag,
+                           const StridedDataView<double, Rank>& next,
+                           const StridedDataView<const double, Rank>& prev,
+                           const StridedDataView<const double, Rank>& fluxes,
+                           Duration dt, double dx, Direction dir) {
   double dt_dx = dt.count() / dx;
   ForEachIndex(next.Box(), [&](auto... is) {
     std::array<std::ptrdiff_t, sizeof...(is)> cell{is...};
@@ -103,22 +100,20 @@ void UpdateConservatively_(
 }
 
 template <int Rank>
-void UpdateConservatively_(
-    execution::OpenMpTag,
-    const PatchDataView<double, Rank, layout_stride>& next,
-    const PatchDataView<const double, Rank, layout_stride>& prev,
-    const PatchDataView<const double, Rank, layout_stride>& fluxes, Duration dt,
-    double dx, Direction dir) {
+void UpdateConservatively_(execution::OpenMpTag,
+                           const StridedDataView<double, Rank>& next,
+                           const StridedDataView<const double, Rank>& prev,
+                           const StridedDataView<const double, Rank>& fluxes,
+                           Duration dt, double dx, Direction dir) {
   return UpdateConservatively_(execution::seq, next, prev, fluxes, dt, dx, dir);
 }
 
 template <int Rank>
-void UpdateConservatively_(
-    execution::OpenMpSimdTag,
-    const PatchDataView<double, Rank, layout_stride>& next,
-    const PatchDataView<const double, Rank, layout_stride>& prev,
-    const PatchDataView<const double, Rank, layout_stride>& fluxes, Duration dt,
-    double dx, Direction dir) {
+void UpdateConservatively_(execution::OpenMpSimdTag,
+                           const StridedDataView<double, Rank>& next,
+                           const StridedDataView<const double, Rank>& prev,
+                           const StridedDataView<const double, Rank>& fluxes,
+                           Duration dt, double dx, Direction dir) {
   return UpdateConservatively_(execution::simd, next, prev, fluxes, dt, dx,
                                dir);
 }
@@ -129,27 +124,27 @@ HyperbolicPatchIntegrator<Tag>::HyperbolicPatchIntegrator(Tag) {}
 
 template <typename Tag>
 void HyperbolicPatchIntegrator<Tag>::UpdateConservatively(
-    const PatchDataView<double, 2>& next,
-    const PatchDataView<const double, 2>& prev,
-    const PatchDataView<const double, 2>& fluxes, Duration dt, double dx,
+    const StridedDataView<double, 2>& next,
+    const StridedDataView<const double, 2>& prev,
+    const StridedDataView<const double, 2>& fluxes, Duration dt, double dx,
     Direction dir) {
   UpdateConservatively_(Tag(), next, prev, fluxes, dt, dx, dir);
 }
 
 template <typename Tag>
 void HyperbolicPatchIntegrator<Tag>::UpdateConservatively(
-    const PatchDataView<double, 3>& next,
-    const PatchDataView<const double, 3>& prev,
-    const PatchDataView<const double, 3>& fluxes, Duration dt, double dx,
+    const StridedDataView<double, 3>& next,
+    const StridedDataView<const double, 3>& prev,
+    const StridedDataView<const double, 3>& fluxes, Duration dt, double dx,
     Direction dir) {
   UpdateConservatively_(Tag(), next, prev, fluxes, dt, dx, dir);
 }
 
 template <typename Tag>
 void HyperbolicPatchIntegrator<Tag>::UpdateConservatively(
-    const PatchDataView<double, 4>& next,
-    const PatchDataView<const double, 4>& prev,
-    const PatchDataView<const double, 4>& fluxes, Duration dt, double dx,
+    const StridedDataView<double, 4>& next,
+    const StridedDataView<const double, 4>& prev,
+    const StridedDataView<const double, 4>& fluxes, Duration dt, double dx,
     Direction dir) {
   UpdateConservatively_(Tag(), next, prev, fluxes, dt, dx, dir);
 }

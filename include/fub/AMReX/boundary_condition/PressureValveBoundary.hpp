@@ -57,7 +57,7 @@ struct PressureValveOptions {
     BOOST_LOG(log) << fmt::format("  - offset = {} [s]", offset.count());
   }
 
-  std::string prefix;
+  std::string prefix{"valve"};
   double equivalence_ratio{1.0};
   double outer_pressure{1.5 * 101325.0};
   double outer_temperature{300.0};

@@ -129,20 +129,18 @@ int main(int argc, char** argv) {
   std::string base_name = "Ramp2/";
 
   using namespace fub::amrex::cutcell;
-  auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,
-                    std::ptrdiff_t cycle, fub::Duration, int = 0) {
-    std::string name = fmt::format("{}plt{:05}", base_name, cycle);
+  auto output = [&](const GriddingAlgorithm& grid) {
+    std::string name = fmt::format("{}plt{:05}", base_name, grid.GetCycles());
     amrex::Print() << "Start output to '" << name << "'.\n";
-    WritePlotFile(name, gridding->GetPatchHierarchy(), equation);
+    WritePlotFile(name, grid.GetPatchHierarchy(), equation);
     amrex::Print() << "Finished output to '" << name << "'.\n";
   };
 
   using namespace std::literals::chrono_literals;
-  output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
-         solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.final_time = 1s;
-  run_options.output_frequency = {1};
-  run_options.cfl = 0.4;
-  fub::RunSimulation(solver, run_options, wall_time_reference, output);
+  run_options.cfl = 0.8;
+  output(*solver.GetGriddingAlgorithm());
+  fub::AsOutput<GriddingAlgorithm> out({1}, {}, output);
+  fub::RunSimulation(solver, run_options, wall_time_reference, out);
 }

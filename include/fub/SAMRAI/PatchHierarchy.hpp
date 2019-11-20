@@ -24,6 +24,7 @@
 
 #include "fub/SAMRAI/RegisterVariables.hpp"
 
+#include "fub/Duration.hpp"
 #include "fub/ext/uuid.hpp"
 
 #include <SAMRAI/geom/CartesianGridGeometry.h>
@@ -90,6 +91,7 @@ public:
   [[nodiscard]] const PatchHierarchyOptions& GetOptions() const noexcept;
 
   [[nodiscard]] int GetMaxNumberOfLevels() const noexcept;
+  [[nodiscard]] int GetNumberOfLevels() const noexcept;
 
   [[nodiscard]] const DataDescription& GetDataDescription() const noexcept;
 
@@ -101,13 +103,21 @@ public:
 
   [[nodiscard]] span<const int> GetDataIds() const noexcept;
 
-  [[nodiscard]] const std::shared_ptr<SAMRAI::hier::PatchLevel>&
+  [[nodiscard]] std::shared_ptr<SAMRAI::hier::PatchLevel>
   GetPatchLevel(int level) const;
+
+  [[nodiscard]] std::ptrdiff_t GetCycles(int level = 0) const;
+  [[nodiscard]] Duration GetTimePoint(int level = 0) const;
+
+  void SetCycles(std::ptrdiff_t cycles, int level);
+  void SetTimePoint(Duration time_point, int level);
 
 private:
   std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy_;
   DataDescription data_desc_;
   PatchHierarchyOptions options_;
+  std::vector<std::ptrdiff_t> cycles_;
+  std::vector<Duration> time_points_;
 };
 
 template <typename Equation>
@@ -120,8 +130,17 @@ PatchHierarchy::PatchHierarchy(
 
 template <typename... Is>
 std::array<double, sizeof...(Is)>
-GetCellCenter(const SAMRAI::geom::CartesianGridGeometry& geom,
-              const SAMRAI::hier::Patch& patch, Is... is);
+GetCellCenter(const SAMRAI::geom::CartesianGridGeometry& geom, Is... is) {
+  const double* dx = geom.getDx();
+  const double* xlo = geom.getXLower();
+  std::array<std::common_type_t<Is...>, sizeof...(Is)> index{
+      std::common_type_t<Is...>(is)...};
+  std::array<double, sizeof...(Is)> x;
+  for (std::size_t d = 0; d < sizeof...(Is); ++d) {
+    x[d] = xlo[d] + 0.5 * dx[d] + index[d] * dx[d];
+  }
+  return x;
+}
 
 } // namespace fub::samrai
 

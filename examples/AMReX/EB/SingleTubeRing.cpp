@@ -61,35 +61,21 @@ static constexpr int Plenum_Rank = AMREX_SPACEDIM;
 
 static constexpr double r_tube = 0.015;
 
-template <typename T>
-using ProbesView =
-    fub::basic_mdspan<T, fub::extents<AMREX_SPACEDIM, fub::dynamic_extent>>;
-
 struct ProgramOptions {
   ProgramOptions() = default;
 
   explicit ProgramOptions(const std::map<std::string, pybind11::object>& vm) {
     std::map<std::string, pybind11::object> grid =
         fub::ToMap(fub::GetOptionOr(vm, "grid", pybind11::dict()));
-    std::vector xs =
-        fub::GetOptionOr(grid, "x_range", std::vector{-0.03, 0.57});
-    std::vector ys =
-        fub::GetOptionOr(grid, "y_range", std::vector{-0.15, 0.15});
-    std::vector zs =
-        fub::GetOptionOr(grid, "z_range", std::vector{-0.15, 0.15});
-    auto check_size = [](auto& xs, int n, const char* name) {
-      if (int(xs.size()) != n) {
-        throw std::runtime_error(
-            fmt::format("Option '{}' need exactly {} values.", name, n));
-      }
-    };
-    check_size(xs, 2, "grid.x_range");
-    check_size(ys, 2, "grid.y_range");
-    check_size(zs, 2, "grid.z_range");
+    std::array<double, 2> xs =
+        fub::GetOptionOr(grid, "x_range", std::array<double, 2>{-0.03, 0.57});
+    std::array<double, 2> ys =
+        fub::GetOptionOr(grid, "y_range", std::array<double, 2>{-0.15, 0.15});
+    std::array<double, 2> zs =
+        fub::GetOptionOr(grid, "z_range", std::array<double, 2>{-0.15, 0.15});
     plenum_xbox = amrex::RealBox(xs[0], ys[0], zs[0], xs[1], ys[1], zs[1]);
-    std::vector n_cells =
-        fub::GetOptionOr(grid, "n_cells", std::vector{64, 64, 64});
-    check_size(n_cells, 3, "grid.n_cells");
+    std::array<int, 3> n_cells =
+        fub::GetOptionOr(grid, "n_cells", std::array<int, 3>{64, 64, 64});
     plenum_n_cells = amrex::IntVect{n_cells[0], n_cells[1], n_cells[2]};
     n_levels = fub::GetOptionOr(grid, "max_number_of_levels", n_levels);
     checkpoint = fub::GetOptionOr(vm, "checkpoint", checkpoint);
@@ -100,8 +86,8 @@ struct ProgramOptions {
     const double d_tube = 2 * r_tube;
     const double r_tube_center =
         0.5 * (r_inner + r_inner + 2 * plenum_jump + d_tube);
-    tube_xbox = amrex::RealBox(-1.5, r_tube_center-r_tube,  - r_tube, xs[0],
-                               r_tube_center+r_tube,  + r_tube);
+    tube_xbox = amrex::RealBox(-1.5, r_tube_center - r_tube, -r_tube, xs[0],
+                               r_tube_center + r_tube, +r_tube);
     const double tube_length = tube_xbox.hi(0) - tube_xbox.lo(0);
     const double plenum_domain_length = plenum_xbox.hi(0) - plenum_xbox.lo(0);
     const double t_over_p = tube_length / plenum_domain_length;
@@ -319,7 +305,7 @@ auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
   auto embedded_boundary = amrex::EB2::makeIntersection(
       amrex::EB2::rotate(
           fub::amrex::Geometry(fub::Invert(fub::RotateAxis(plenum2D))), alpha,
-          2),
+          1),
       amrex::EB2::CylinderIF(r_tube, 0.3, 0, Center(-0.1, 0.0), true));
   auto shop = amrex::EB2::makeShop(embedded_boundary);
 
@@ -518,12 +504,13 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
                                                      std::move(context));
 
   fub::amrex::MultiBlockIgniteDetonation ignition{
-      tube_equation, context.GetGriddingAlgorithm(),
+      tube_equation, system_solver.GetGriddingAlgorithm(),
       fub::amrex::IgniteDetonationOptions(vm, "ignite")};
 
   std::string checkpoint = fub::GetOptionOr(vm, "checkpoint", std::string{});
   MPI_Comm comm = context.GetMpiCommunicator();
-  if (!checkpoint.empty()) {;
+  if (!checkpoint.empty()) {
+    ;
     std::string input =
         fub::ReadAndBroadcastFile(checkpoint + "/Ignition", comm);
     std::istringstream ifs(input);
@@ -539,13 +526,15 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
     ia >> *valve.GetSharedState();
   }
 
-  fub::DimensionalSplitSystemSourceSolver ign_solver(system_solver, ignition,
-                                                     fub::GodunovSplitting{});
+  fub::DimensionalSplitSystemSourceSolver ign_solver(
+      std::move(system_solver), std::move(ignition), fub::GodunovSplitting{});
 
   fub::amrex::MultiBlockKineticSouceTerm source_term{
-      fub::IdealGasMix<Tube_Rank>{mechanism}, context.GetGriddingAlgorithm()};
+      fub::IdealGasMix<Tube_Rank>{mechanism},
+      ign_solver.GetGriddingAlgorithm()};
 
-  fub::DimensionalSplitSystemSourceSolver solver{ign_solver, source_term};
+  fub::DimensionalSplitSystemSourceSolver solver{std::move(ign_solver),
+                                                 std::move(source_term)};
 
   std::string base_name = po.output_directory;
 

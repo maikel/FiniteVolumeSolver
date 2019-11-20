@@ -46,11 +46,11 @@ auto Triangle(const Coord& p1, const Coord& p2, const Coord& p3) {
   return amrex::EB2::makeIntersection(plane1, plane2, plane3);
 }
 
-int main(int argc, char** argv) {
+int main() {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
-  fub::amrex::ScopeGuard _(argc, argv);
+  fub::amrex::ScopeGuard _{};
 
   _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() | _MM_MASK_DIV_ZERO |
                          _MM_MASK_OVERFLOW | _MM_MASK_UNDERFLOW |
@@ -130,20 +130,17 @@ int main(int argc, char** argv) {
       fub::int_c<2>, IntegratorContext(gridding, method));
 
   std::string base_name = "Schardin/";
-  auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,
-                    std::ptrdiff_t cycle, fub::Duration, int = 0) {
-    std::string name = fmt::format("{}/plt{:04}", base_name, cycle);
-    ::amrex::Print() << "Start output to '" << name << "'.\n";
-    WritePlotFile(name, gridding->GetPatchHierarchy(), equation);
-    ::amrex::Print() << "Finished output to '" << name << "'.\n";
-  };
-
   using namespace std::literals::chrono_literals;
-  output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
-         solver.GetTimePoint());
+  fub::AsOutput<GriddingAlgorithm> output({}, {1e-5s}, [&](const GriddingAlgorithm& gridding) {
+    std::string name = fmt::format("{}/plt{:04}", base_name, gridding.GetCycles());
+    ::amrex::Print() << "Start output to '" << name << "'.\n";
+    WritePlotFile(name, gridding.GetPatchHierarchy(), equation);
+    ::amrex::Print() << "Finished output to '" << name << "'.\n";
+  });
+
+  output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
   run_options.final_time = 3e-4s;
-  run_options.output_interval = {1e-5s};
   run_options.cfl = 0.4;
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

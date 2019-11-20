@@ -27,6 +27,11 @@ if (EXISTS ${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
   conan_basic_setup(TARGETS NO_OUTPUT_DIRS)
 endif()
 
+find_package(range-v3 REQUIRED)
+if (NOT TARGET range-v3) 
+  message(FATAL "Could not find range-v3 target.")
+endif()
+
 # Try to find SAMRAI (optional)
 find_package(Boost REQUIRED COMPONENTS filesystem container program_options serialization log)
 
@@ -43,6 +48,7 @@ find_package(MPI REQUIRED COMPONENTS C CXX)
 
 # Try to find AMReX (optional)
 find_package(AMReX QUIET)
+
 
 if (AMReX_FOUND)
   message(STATUS "AMReX version: ${AMReX_VERSION}")
@@ -168,7 +174,7 @@ install(
 
 find_package(fmt REQUIRED)
 find_package(Vc REQUIRED)
-#find_package(HDF5 REQUIRED COMPONENTS C)
+find_package(HDF5 REQUIRED COMPONENTS C)
 find_package(pybind11 REQUIRED)
 
 add_library(FiniteVolumeSolver.Solver
@@ -212,11 +218,14 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/EinfeldtSignalVelocities.hpp
   include/fub/Execution.hpp
   include/fub/ForEach.hpp
-  include/fub/HyperbolicSplitLevelIntegrator.hpp
+  include/fub/solver/DimensionalSplitLevelIntegrator.hpp
+  include/fub/solver/NoSubcycleSolver.hpp
+  include/fub/solver/SolverFacade.hpp
+  include/fub/solver/SplitSystemSourceLevelIntegrator.hpp
+  include/fub/solver/SubcycleCoarseFirstSolver.hpp
+  include/fub/solver/SubcycleFineFirstSolver.hpp
   include/fub/HyperbolicPatchIntegrator.hpp
-  include/fub/HyperbolicSplitSystemSolver.hpp
   include/fub/HyperbolicMethod.hpp
-  include/fub/SplitSystemSourceSolver.hpp
   include/fub/NewtonIteration.hpp
   include/fub/PatchDataView.hpp
   include/fub/RunSimulation.hpp
@@ -466,7 +475,7 @@ if (SAMRAI_FOUND)
     PUBLIC
       FiniteVolumeSolver.Solver
       SAMRAI_appu SAMRAI_xfer SAMRAI_mesh SAMRAI_geom
-      SAMRAI_pdat SAMRAI_hier SAMRAI_tbox)
+      SAMRAI_pdat SAMRAI_hier SAMRAI_tbox range-v3)
   target_compile_options(FiniteVolumeSolver.SAMRAI 
     PRIVATE 
       $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>

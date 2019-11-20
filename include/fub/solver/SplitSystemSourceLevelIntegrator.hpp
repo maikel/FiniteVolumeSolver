@@ -28,22 +28,6 @@
 
 namespace fub {
 
-template <typename Context, typename... Args>
-using PreAdvanceHierarchy = decltype(
-    std::declval<Context>().PreAdvanceHierarchy(std::declval<Args>()...));
-
-template <typename Context, typename... Args>
-using PostAdvanceHierarchy = decltype(
-    std::declval<Context>().PostAdvanceHierarchy(std::declval<Args>()...));
-
-template <typename Context, typename... Args>
-using PreAdvanceLevel =
-    decltype(std::declval<Context>().PreAdvanceLevel(std::declval<Args>()...));
-
-template <typename Context, typename... Args>
-using PostAdvanceLevel =
-    decltype(std::declval<Context>().PostAdvanceLevel(std::declval<Args>()...));
-
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                  Decleration
 
@@ -146,10 +130,10 @@ void DimensionalSplitSystemSourceSolver<
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
 void DimensionalSplitSystemSourceSolver<
     SystemSolver, SourceTerm, SplittingMethod>::PreAdvanceHierarchy() {
-  if constexpr (is_detected<::fub::PreAdvanceHierarchy, SystemSolver&>()) {
+  if constexpr (is_detected<meta::PreAdvanceHierarchy, SystemSolver&>()) {
     system_solver_.PreAdvanceHierarchy();
   }
-  if constexpr (is_detected<::fub::PreAdvanceHierarchy, SourceTerm&>()) {
+  if constexpr (is_detected<meta::PreAdvanceHierarchy, SourceTerm&>()) {
     source_term_.PreAdvanceHierarchy();
   }
 }
@@ -157,10 +141,10 @@ void DimensionalSplitSystemSourceSolver<
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
 void DimensionalSplitSystemSourceSolver<
     SystemSolver, SourceTerm, SplittingMethod>::PostAdvanceHierarchy() {
-  if constexpr (is_detected<::fub::PostAdvanceHierarchy, SourceTerm&>()) {
+  if constexpr (is_detected<meta::PostAdvanceHierarchy, SourceTerm&>()) {
     source_term_.PostAdvanceHierarchy();
   }
-  if constexpr (is_detected<::fub::PostAdvanceHierarchy, SystemSolver&>()) {
+  if constexpr (is_detected<meta::PostAdvanceHierarchy, SystemSolver&>()) {
     system_solver_.PostAdvanceHierarchy();
   }
 }
@@ -206,7 +190,7 @@ void DimensionalSplitSystemSourceSolver<
                                                                 Duration dt,
                                                                 int subcycle) {
   system_solver_.PreAdvanceLevel(this_level, dt, subcycle);
-  if constexpr (is_detected<::fub::PreAdvanceLevel, SourceTerm&, int, Duration,
+  if constexpr (is_detected<meta::PreAdvanceLevel, SourceTerm&, int, Duration,
                             int>()) {
     source_term_.PreAdvanceLevel(this_level, dt, subcycle);
   }
@@ -217,7 +201,7 @@ Result<void, TimeStepTooLarge> DimensionalSplitSystemSourceSolver<
     SystemSolver, SourceTerm, SplittingMethod>::PostAdvanceLevel(int this_level,
                                                                  Duration dt,
                                                                  int subcycle) {
-  if constexpr (is_detected<::fub::PostAdvanceLevel, SourceTerm&, int, Duration,
+  if constexpr (is_detected<meta::PostAdvanceLevel, SourceTerm&, int, Duration,
                             int>()) {
     source_term_.PostAdvanceLevel(this_level, dt, subcycle);
   }

@@ -49,10 +49,10 @@ public:
   //  void PostAdvanceLevel(int level, Duration dt, int subcycle);
 
   void ResetHierarchyConfiguration(
-      std::shared_ptr<amrex::GriddingAlgorithm>&& gridding);
+      std::shared_ptr<GriddingAlgorithm>&& gridding);
 
   void ResetHierarchyConfiguration(
-      const std::shared_ptr<amrex::GriddingAlgorithm>& gridding);
+      const std::shared_ptr<GriddingAlgorithm>& gridding);
 
   Duration ComputeStableDt();
 

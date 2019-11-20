@@ -119,7 +119,7 @@ Solver RunSimulation(Solver& solver, RunOptions options,
         solver.ResetHierarchyConfiguration(backup);
         backup = std::make_shared<GriddingAlgorithm>(*backup);
       } else {
-        solver.PostAdvanceHierarchy();
+        solver.PostAdvanceHierarchy(limited_dt);
         // If advancing the hierarchy was successfull print a successful time
         // step line and reset any failure indicators.
         now = std::chrono::steady_clock::now();

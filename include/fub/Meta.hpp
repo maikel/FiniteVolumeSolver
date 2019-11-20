@@ -18,38 +18,32 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_P4EST_MDARRAY_HPP
-#define FUB_P4EST_MDARRAY_HPP
+#include <type_traits>
 
-namespace fub::p4est {
+namespace fub::meta {
 
-template <typename T, std::size_t Rank, typename Allocator = std::allocator<T>>
-class MdArray {
-public: 
-  using container = std::vector<T, Allocator>;
-  using value_type = typename container::value_type;
-  using pointer = typename container::pointer;
-  using const_pointer = typename container::const_pointer;
-  using reference = typename container::reference;
-  using const_reference = typename container::const_reference;
+template <typename Context, typename... Args>
+using PreAdvanceHierarchy = decltype(
+    std::declval<Context>().PreAdvanceHierarchy(std::declval<Args>()...));
 
-  MdArray();
+template <typename Context, typename... Args>
+using PostAdvanceHierarchy = decltype(
+    std::declval<Context>().PostAdvanceHierarchy(std::declval<Args>()...));
 
-  reference operator()(std::array<std::ptrdiff_t, Rank> i) noexcept;
-  const_reference operator()(std::array<std::ptrdiff_t, Rank> i) const noexcept;
+template <typename Context, typename... Args>
+using PreAdvanceLevel =
+    decltype(std::declval<Context>().PreAdvanceLevel(std::declval<Args>()...));
 
-  template <typename... Is> reference operator()(Is... is) noexcept;
-  template <typename... Is> const_reference operator()(Is... is) const noexcept;
+template <typename Context, typename... Args>
+using PostAdvanceLevel =
+    decltype(std::declval<Context>().PostAdvanceLevel(std::declval<Args>()...));
 
-  pointer data() noexcept;
-  const_pointer data() const noexcept;
-  const_pointer cdata() const noexcept;
+template <typename T>
+using GriddingAlgorithm =
+    std::decay_t<decltype(*std::declval<T>().GetGriddingAlgorithm())>;
 
-private:
-  std::vector<T, Allocator> container_;
-  std::array<std::ptrdiff_t, Rank> extents_;
-};
+template <typename T>
+using Equation =
+    std::decay_t<decltype(std::declval<T>().GetEquation())>;
 
 }
-
-#endif

@@ -69,9 +69,9 @@ template <typename Tag, typename Equation>
 void Reconstruction<Tag, Equation>::CompleteFromCons(
     IntegratorContext& context, int level,
     [[maybe_unused]] Duration time_step_size) {
-  SAMRAI::hier::PatchLevel& scratch = context.GetScratch(level);
+  SAMRAI::hier::PatchLevel& patch_level = context.GetPatchLevel(level);
   const int n_cons = static_cast<int>(context.GetFluxIds().size());
-  for (const std::shared_ptr<SAMRAI::hier::Patch>& patch : scratch) {
+  for (const std::shared_ptr<SAMRAI::hier::Patch>& patch : patch_level) {
     CompleteFromCons(*patch, context.GetScratchIds(), *patch,
                      context.GetScratchIds().first(n_cons));
   }

@@ -116,20 +116,20 @@ int main(int argc, char** argv) {
   std::string base_name = "ShallowWater2d/";
 
   using namespace fub::amrex;
-  auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,
-                    std::ptrdiff_t cycle, fub::Duration, int = 0) {
-    std::string name = fmt::format("{}plt{:05}", base_name, cycle);
-    amrex::Print() << "Start output to '" << name << "'.\n";
-    WritePlotFile(name, gridding->GetPatchHierarchy(), equation);
-    amrex::Print() << "Finished output to '" << name << "'.\n";
-  };
-
   using namespace std::literals::chrono_literals;
-  output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
-         solver.GetTimePoint());
   fub::RunOptions run_options{};
   run_options.final_time = 1.0s;
-  run_options.output_interval = {run_options.final_time / 20};
   run_options.cfl = 0.8;
+
+  fub::AsOutput<GriddingAlgorithm> output(
+      {}, {run_options.final_time / 20},
+      [&](const GriddingAlgorithm& gridding) {
+        std::string name =
+            fmt::format("{}plt{:05}", base_name, gridding.GetCycles());
+        amrex::Print() << "Start output to '" << name << "'.\n";
+        WritePlotFile(name, gridding.GetPatchHierarchy(), equation);
+        amrex::Print() << "Finished output to '" << name << "'.\n";
+      });
+  output(*solver.GetGriddingAlgorithm());
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

@@ -39,14 +39,14 @@ auto Rectangle(const std::array<double, 2>& lower,
   return amrex::EB2::makeIntersection(lower_x, lower_y, upper_x, upper_y);
 }
 
-int main(int argc, char** argv) {
+int main() {
   _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() | _MM_MASK_DIV_ZERO |
                          _MM_MASK_OVERFLOW | _MM_MASK_UNDERFLOW |
                          _MM_MASK_INVALID);
 
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
-  fub::amrex::ScopeGuard _(argc, argv);
+  fub::amrex::ScopeGuard _{};
 
   const std::array<int, 2> n_cells{128, 128};
   const std::array<double, 2> xlower{-0.10, -0.6};
@@ -122,21 +122,16 @@ int main(int argc, char** argv) {
       fub::GodunovSplitting());
 
   std::string base_name = "LinearShock2d";
-
-  auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,
-                    std::ptrdiff_t cycle, fub::Duration, int = 0) {
-    std::string name = fmt::format("{}/plt{:04}", base_name, cycle);
-    ::amrex::Print() << "Start output to '" << name << "'.\n";
-    WritePlotFile(name, gridding->GetPatchHierarchy(), equation);
-    ::amrex::Print() << "Finished output to '" << name << "'.\n";
-  };
-
   using namespace std::literals::chrono_literals;
-  output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
-         solver.GetTimePoint());
+  fub::AsOutput<GriddingAlgorithm> output({}, {0.0000125s}, [&](const GriddingAlgorithm& gridding) {
+    std::string name = fmt::format("{}/plt{:04}", base_name, gridding.GetCycles());
+    ::amrex::Print() << "Start output to '" << name << "'.\n";
+    WritePlotFile(name, gridding.GetPatchHierarchy(), equation);
+    ::amrex::Print() << "Finished output to '" << name << "'.\n";
+  });
+  output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
   run_options.final_time = 0.002s;
-  run_options.output_interval = {0.0000125s};
   run_options.cfl = 0.8;
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

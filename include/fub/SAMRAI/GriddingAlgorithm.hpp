@@ -54,8 +54,8 @@ struct GriddingAlgorithm {
   void InitializeHierarchy(Duration initial_time = Duration(),
                            std::ptrdiff_t initial_cycle = 0);
 
-  std::ptrdiff_t GetCycles() const noexcept;
-  Duration GetTimePoint() const noexcept;
+  [[nodiscard]] std::ptrdiff_t GetCycles() const noexcept;
+  [[nodiscard]] Duration GetTimePoint() const noexcept;
 
   const PatchHierarchy& GetPatchHierarchy() const noexcept;
   PatchHierarchy& GetPatchHierarchy() noexcept;

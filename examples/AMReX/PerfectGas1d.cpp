@@ -101,10 +101,11 @@ int main(int argc, char** argv) {
   RiemannProblem initial_data{equation, left, right};
 
   fub::amrex::BoundarySet boundary;
-  using fub::amrex::TransmissiveBoundary;
   using fub::amrex::ReflectiveBoundary;
+  using fub::amrex::TransmissiveBoundary;
   auto seq = fub::execution::seq;
-  boundary.conditions.push_back(ReflectiveBoundary{seq, equation, fub::Direction::X, 0});
+  boundary.conditions.push_back(
+      ReflectiveBoundary{seq, equation, fub::Direction::X, 0});
   boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::X, 1});
 
   fub::amrex::PatchHierarchyOptions hier_opts;
@@ -133,20 +134,19 @@ int main(int argc, char** argv) {
   std::string base_name = "PerfectGas1d/";
 
   using namespace fub::amrex;
-  auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,
-                    std::ptrdiff_t cycle, fub::Duration, int = 0) {
-    std::string name = fmt::format("{}plt{:05}", base_name, cycle);
-    amrex::Print() << "Start output to '" << name << "'.\n";
-    WritePlotFile(name, gridding->GetPatchHierarchy(), equation);
-    amrex::Print() << "Finished output to '" << name << "'.\n";
-  };
-
   using namespace std::literals::chrono_literals;
-  output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
-         solver.GetTimePoint());
+  fub::AsOutput<GriddingAlgorithm> output(
+      {}, {1.0s / 180.}, [&](const GriddingAlgorithm& gridding) {
+        std::string name =
+            fmt::format("{}plt{:05}", base_name, gridding.GetCycles());
+        amrex::Print() << "Start output to '" << name << "'.\n";
+        WritePlotFile(name, gridding.GetPatchHierarchy(), equation);
+        amrex::Print() << "Finished output to '" << name << "'.\n";
+      });
+
+  output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
   run_options.cfl = 0.8;
   run_options.final_time = 1.0s;
-  run_options.output_interval = {1.0s / 180.};
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

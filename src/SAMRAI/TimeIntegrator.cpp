@@ -20,31 +20,28 @@
 
 #include "fub/SAMRAI/TimeIntegrator.hpp"
 #include "fub/HyperbolicPatchIntegrator.hpp"
+#include <range/v3/view/zip.hpp>
 
 namespace fub::samrai {
 
 void TimeIntegrator::UpdateConservatively(IntegratorContext& context, int level,
                                           Duration dt, Direction dir) {
-  SAMRAI::hier::PatchLevel& flux_level = context.GetFluxes(level);
-  SAMRAI::hier::PatchLevel& scratch_level = context.GetScratch(level);
-  auto fit = flux_level.begin();
-  auto fend = flux_level.end();
-  auto sit = scratch_level.begin();
+  SAMRAI::hier::PatchLevel& patch_level = context.GetPatchLevel(level);
+  span<const int> flux_ids = context.GetFluxIds();
+  span<const int> scratch_ids = context.GetScratchIds();
   const int n_conservative_variables =
       context.GetPatchHierarchy().GetDataDescription().n_cons_variables;
   const int dir_v = static_cast<int>(dir);
   const double dx = context.GetGeometry(level).getDx()[dir_v];
-  while (fit != fend) {
-    SAMRAI::hier::Patch& fp = **fit;
-    SAMRAI::hier::Patch& sp = **sit;
+  for (std::shared_ptr<SAMRAI::hier::Patch> patch : patch_level) {
     constexpr int Rank = SAMRAI_MAXIMUM_DIMENSION;
-    for (int variable = 0; variable < n_conservative_variables; ++variable) {
+    for (auto [flux, scratch] : ranges::views::zip(flux_ids, scratch_ids)) {
       SAMRAI::pdat::CellData<double>* state_data =
           dynamic_cast<SAMRAI::pdat::CellData<double>*>(
-              sp.getPatchData(variable).get());
+              patch->getPatchData(scratch).get());
       const SAMRAI::pdat::SideData<double>* flux_data =
           dynamic_cast<SAMRAI::pdat::SideData<double>*>(
-              fp.getPatchData(variable).get());
+              patch->getPatchData(flux).get());
       FUB_ASSERT(state_data && flux_data);
       IndexBox<Rank + 1> cells = Embed<Rank + 1>(
           Shrink(AsIndexBox<Rank>(state_data->getGhostBox()), dir, {1, 1}),
@@ -59,8 +56,6 @@ void TimeIntegrator::UpdateConservatively(IntegratorContext& context, int level,
       HyperbolicPatchIntegrator<simd>::UpdateConservatively(next, prev, fluxes,
                                                             dt, dx, dir);
     }
-    ++fit;
-    ++sit;
   }
 }
 

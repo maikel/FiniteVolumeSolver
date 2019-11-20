@@ -138,10 +138,7 @@ int main(int argc, char** argv) {
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
   run_options.final_time = 0.0005s;
-  run_options.output_interval = {0.5 * 0.0000125s};
-  run_options.cfl = 0.5 * 0.9;
+  run_options.cfl = 0.8;
   fub::AsOutput<GriddingAlgorithm> out{{}, {0.5 * 0.0000125s}, output};
-  fub::RunSimulation(
-      solver, run_options, wall_time_reference,
-      out);
+  fub::RunSimulation(solver, run_options, wall_time_reference, out);
 }

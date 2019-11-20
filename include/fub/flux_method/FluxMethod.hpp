@@ -25,6 +25,7 @@
 #include "fub/Duration.hpp"
 #include "fub/Equation.hpp"
 #include "fub/Execution.hpp"
+#include "fub/Meta.hpp"
 #include "fub/State.hpp"
 #include "fub/StateArray.hpp"
 #include "fub/StateRow.hpp"
@@ -32,14 +33,22 @@
 #include <array>
 
 namespace fub {
-/// \brief This class applies a Flux Method on a view of states.
+
+/// \brief This class applies a base flux nethod on a view of states.
 ///
-/// The Base class only needs to define its logic on single states instead
-/// of a multi dimensional arrray. By using this class the developer does
-/// not need to repeat that logic.
+/// The base class only needs to define its logic on single states or state
+/// arrays instead of on a multi dimensional arrray. By using this class the
+/// developer does not need to repeat the logic which might involve iterating
+/// through all indices of a patch, loading the states and applying the base
+/// method.
+///
+/// There are in total two strategies implemented, a cell-wise and a simdified
+/// one. The cell-wise strategy is easier to debug but less performant. The simd
+/// version does use the spatial grid index. This class also assumes that base
+/// class does not use the local coordinates.
 template <typename BaseMethod> class FluxMethod : public BaseMethod {
 public:
-  using Equation = typename BaseMethod::Equation;
+  using Equation = meta::Equation<const BaseMethod&>;
   using Complete = ::fub::Complete<Equation>;
   using Conservative = ::fub::Conservative<Equation>;
   using CompleteArray = ::fub::CompleteArray<Equation>;

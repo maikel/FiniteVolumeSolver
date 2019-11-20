@@ -1,22 +1,25 @@
-function MakeVideo(out, x, time, data)
+function MakeVideo(out, data)
     v = VideoWriter(out);
     open(v);
-    for k = 1:length(time)
-       subplot(3, 1, 1);       
-       plot(x, data.rho(:, k));
-       axis([x(1) x(end) 0 4]);
-       ylabel('Density [kg / m^3]');
-       title(sprintf('time = %fs', time(k)));
-       
+    for k = 1:length(data.t)    
+       subplot(3, 1, 1);
+       imagesc(data.x, data.y, data.rhou(:,:,1,k) ./ data.rho(:,:,k));
+       axis equal;
+       colorbar;
+%        caxis([0 16e5]);
+       title(sprintf('Velocity at time = %fs', data.t(k)));
        subplot(3, 1, 2);
-       plot(x, data.p(:, k)); axis([x(1) x(end) 0 2e5]);
-       ylabel('Pressure [Pa]');
-       
+       imagesc(data.x, data.y, data.rho(:,:,k));
+       axis equal;
+       colorbar;
+       caxis([0 5]);
+       title(sprintf('Density at time = %fs', data.t(k)));
        subplot(3, 1, 3);
-       plot(x, data.T(:, k)); axis([x(1) x(end) 0 3500]);
-       ylabel('Temperature [K]');
-       xlabel('X-Axis [m]');   
-       
+       imagesc(data.x, data.y, data.rhoY(:,:,9,k));
+       axis equal;
+       colorbar;
+       caxis([0 5]);
+       title(sprintf('Helium at time = %fs', data.t(k)));
        frame = getframe(gcf);
        writeVideo(v, frame);
     end

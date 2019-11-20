@@ -55,6 +55,10 @@ public:
   void postprocessRefine(SAMRAI::hier::Patch&, const SAMRAI::hier::Patch&, const SAMRAI::hier::Box&,
                          const SAMRAI::hier::IntVector&) override {}
 
+  SAMRAI::hier::IntVector getRefineOpStencilWidth(const SAMRAI::tbox::Dimension& dim) const override {
+    return SAMRAI::hier::IntVector::getZero(dim);
+  }
+
 private:
   using PhysicalBoundaryFunction = std::function<void(
       SAMRAI::hier::Patch&, Duration, const SAMRAI::hier::IntVector&)>;

@@ -62,7 +62,7 @@ Duration FluxMethod<Tag, FM>::ComputeStableDt(IntegratorContext& context,
                                               int level, Direction dir) {
   const ::amrex::Geometry& geom = context.GetGeometry(level);
   const double dx = geom.CellSize(int(dir));
-  double min_dt = std::numeric_limits<double>::infinity();
+  double min_dt = std::numeric_limits<double>::max();
   const ::amrex::MultiFab& scratch = context.GetScratch(level);
   const ::amrex::MultiFab& fluxes = context.GetFluxes(level, dir);
   if constexpr (std::is_base_of<execution::OpenMpTag, Tag>::value) {
@@ -86,10 +86,10 @@ Duration FluxMethod<Tag, FM>::ComputeStableDt(IntegratorContext& context,
       min_dt = std::min(min_dt, dt.count());
     }
     double local_count = min_dt;
-    double count{};
-    MPI_Allreduce(&local_count, &count, 1, MPI_DOUBLE, MPI_MIN,
-                  context.GetMpiCommunicator());
-    return Duration(count);
+    // double count{};
+    // MPI_Allreduce(&local_count, &count, 1, MPI_DOUBLE, MPI_MIN,
+    //               context.GetMpiCommunicator());
+    return Duration(local_count);
   } else {
     for (::amrex::MFIter mfi(fluxes); mfi.isValid(); ++mfi) {
       const int gcw = GetStencilWidth();
@@ -106,10 +106,10 @@ Duration FluxMethod<Tag, FM>::ComputeStableDt(IntegratorContext& context,
       min_dt = std::min(min_dt, dt.count());
     }
     double local_count = min_dt;
-    double count{};
-    MPI_Allreduce(&local_count, &count, 1, MPI_DOUBLE, MPI_MIN,
-                  context.GetMpiCommunicator());
-    return Duration(count);
+    // double count{};
+    // MPI_Allreduce(&local_count, &count, 1, MPI_DOUBLE, MPI_MIN,
+    //               context.GetMpiCommunicator());
+    return Duration(local_count);
   }
 }
 

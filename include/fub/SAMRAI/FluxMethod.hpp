@@ -71,14 +71,14 @@ template <typename Tag, typename BaseMethod>
 Duration
 FluxMethod<Tag, BaseMethod>::ComputeStableDt(IntegratorContext& context,
                                              int level, Direction dir) {
-  const SAMRAI::hier::PatchLevel& scratch = context.GetScratch(level);
+  const SAMRAI::hier::PatchLevel& patch_level = context.GetPatchLevel(level);
   span<const int> data_ids = context.GetScratchIds();
   const SAMRAI::geom::CartesianGridGeometry& geom = context.GetGeometry(level);
   const int dir_value = static_cast<int>(dir);
   const double dx = geom.getDx()[dir_value];
   std::vector<const SAMRAI::pdat::CellData<double>*> patch_data(
       data_ids.size());
-  return std::accumulate(scratch.begin(), scratch.end(),
+  return std::accumulate(patch_level.begin(), patch_level.end(),
                          Duration(std::numeric_limits<double>::max()),
                          [&](Duration min_dt, auto&& patch) {
                            GetPatchData(span{patch_data}, *patch, data_ids);
@@ -105,22 +105,16 @@ void FluxMethod<Tag, BaseMethod>::ComputeNumericFluxes(
   const SAMRAI::geom::CartesianGridGeometry& geom = context.GetGeometry(level);
   const int dir_value = static_cast<int>(dir);
   const double dx = geom.getDx()[dir_value];
-  const SAMRAI::hier::PatchLevel& scratch = context.GetScratch(level);
+  const SAMRAI::hier::PatchLevel& patch_level = context.GetPatchLevel(level);
   span<const int> scratch_ids = context.GetScratchIds();
   std::vector<const SAMRAI::pdat::CellData<double>*> scratch_data(
       scratch_ids.size());
-  SAMRAI::hier::PatchLevel& fluxes = context.GetFluxes(level);
   span<const int> flux_ids = context.GetFluxIds();
   std::vector<SAMRAI::pdat::SideData<double>*> flux_data(flux_ids.size());
-  auto scratch_iterator = scratch.begin();
-  auto scratch_end = scratch.end();
-  auto flux_iterator = fluxes.begin();
-  while (scratch_iterator != scratch_end) {
-    GetPatchData(span{flux_data}, **flux_iterator, flux_ids);
-    GetPatchData(span{scratch_data}, **scratch_iterator, scratch_ids);
+  for (std::shared_ptr<SAMRAI::hier::Patch> patch : patch_level) {
+    GetPatchData(span{flux_data}, *patch, flux_ids);
+    GetPatchData(span{scratch_data}, *patch, scratch_ids);
     ComputeNumericFluxes(flux_data, scratch_data, dx, dt, dir);
-    ++scratch_iterator;
-    ++flux_iterator;
   }
 }
 
@@ -130,10 +124,11 @@ void FluxMethod<Tag, BaseMethod>::ComputeNumericFluxes(
     span<SAMRAI::pdat::CellData<double> const*> cells, double dx, Duration dt,
     Direction dir) {
   constexpr int Rank = Equation::Rank();
-  auto flux_view = MakeView<Conservative>(
-      fluxes, GetEquation(), dir, AsIndexBox<Rank>(fluxes[0]->getGhostBox()));
-  auto scratch_view = MakeView<const Complete>(
-      cells, GetEquation(), AsIndexBox<Rank>(cells[0]->getGhostBox()));
+  auto cell_box = AsIndexBox<Rank>(cells[0]->getGhostBox());
+  const int gcw = GetStencilWidth();
+  auto face_box = Shrink(cell_box, dir, {gcw, gcw});
+  auto flux_view = MakeView<Conservative>(fluxes, GetEquation(), dir, face_box);
+  auto scratch_view = MakeView<const Complete>(cells, GetEquation(), cell_box);
   BaseMethod::ComputeNumericFluxes(flux_view, scratch_view, dt, dx, dir);
 }
 

@@ -71,12 +71,12 @@ public:
   void SetBoundaryCondition(int level, const BoundaryCondition& condition);
   void SetBoundaryCondition(int level, BoundaryCondition&& condition);
 
-  const BoundaryCondition& GetBoundaryCondition(int level) const noexcept;
-  BoundaryCondition& GetBoundaryCondition(int level) noexcept;
+  [[nodiscard]] const BoundaryCondition& GetBoundaryCondition(int level) const noexcept;
+  [[nodiscard]] BoundaryCondition& GetBoundaryCondition(int level) noexcept;
 
-  const InitialData& GetInitialCondition() const noexcept;
+  [[nodiscard]] const InitialData& GetInitialCondition() const noexcept;
 
-  const Tagging& GetTagging() const noexcept;
+  [[nodiscard]] const Tagging& GetTagging() const noexcept;
 
   void FillMultiFabFromLevel(::amrex::MultiFab& mf, int level_number);
 

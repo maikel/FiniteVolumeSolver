@@ -73,6 +73,7 @@ int main(int argc, char** argv) {
 
   fub::amrex::PatchHierarchyOptions hier_opts{};
   hier_opts.max_number_of_levels = 2;
+  hier_opts.refine_ratio = amrex::IntVect(AMREX_D_DECL(2, 2, 1));
 
   using State = fub::Advection2d::Complete;
   fub::amrex::GradientDetector gradient{equation,
@@ -100,19 +101,18 @@ int main(int argc, char** argv) {
 
   std::string base_name = "Advection_Godunov/";
 
-  auto output = [&](const fub::amrex::GriddingAlgorithm& gridding) {
-    std::string name =
-        fmt::format("{}plt{:04}", base_name, gridding.GetCycles());
-    ::amrex::Print() << "Start output to '" << name << "'.\n";
-    fub::amrex::WritePlotFile(name, gridding.GetPatchHierarchy(), equation);
-    ::amrex::Print() << "Finished output to '" << name << "'.\n";
-  };
-
   using namespace std::literals::chrono_literals;
+  fub::AsOutput<fub::amrex::GriddingAlgorithm> output({}, {0.1s},
+      [&](const fub::amrex::GriddingAlgorithm& gridding) {
+        std::string name = fmt::format("{}plt{:04}", base_name, gridding.GetCycles());
+        ::amrex::Print() << "Start output to '" << name << "'.\n";
+        fub::amrex::WritePlotFile(name, gridding.GetPatchHierarchy(), equation);
+        ::amrex::Print() << "Finished output to '" << name << "'.\n";
+      });
+
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
   run_options.final_time = 2.0s;
   run_options.cfl = 0.9;
-  fub::AsOutput<fub::amrex::GriddingAlgorithm> out{{1}, {}, output};
-  fub::RunSimulation(solver, run_options, wall_time_reference, out);
+  fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

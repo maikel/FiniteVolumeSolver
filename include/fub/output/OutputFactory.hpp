@@ -21,12 +21,12 @@
 #ifndef FUB_OUTPUT_FACTORY_HPP
 #define FUB_OUTPUT_FACTORY_HPP
 
-#include "fub/output/BasicOutput.hpp"
 #include "fub/ext/ProgramOptions.hpp"
+#include "fub/output/BasicOutput.hpp"
 
-#include <memory>
-#include <map>
 #include <functional>
+#include <map>
+#include <memory>
 
 namespace fub {
 
@@ -35,17 +35,17 @@ public:
   using ProgramOptions = std::map<std::string, pybind11::object>;
   OutputFactory() = default;
 
-  template <typename Output, typename... Args> bool RegisterOutput(std::string name, Args&&... args) {
-    return factories_.emplace(name, [=](const ProgramOptions& opts) {
-      return std::make_unique<Output>(opts, args...);
-    }).second;
+  template <typename Output, typename... Args>
+  bool RegisterOutput(std::string name, Args&&... args) {
+    return factories_
+        .emplace(name,
+                 [=](const ProgramOptions& opts) {
+                   return std::make_unique<Output>(opts, args...);
+                 })
+        .second;
   }
 
-
-
-  bool Contains(const std::string& name) {
-    return factories_.count(name) > 0;
-  }
+  bool Contains(const std::string& name) { return factories_.count(name) > 0; }
 
   std::unique_ptr<BasicOutput<Grid>> MakeOutput(const std::string& name,
                                                 const ProgramOptions& opts) {

@@ -260,14 +260,17 @@ void MyMain(const ProgramOptions& opts) {
     return 0.3;
   };
 
-  fub::amrex::AxialSourceTerm source_term(equation, diameter, gridding);
+  fub::amrex::AxialSourceTerm source_term(equation, diameter,
+                                          system_solver.GetGriddingAlgorithm());
 
   fub::DimensionalSplitSystemSourceSolver axial_solver(
-      system_solver, source_term, fub::StrangSplitting());
+      std::move(system_solver), std::move(source_term), fub::StrangSplitting());
 
-  fub::ideal_gas::KineticSourceTerm<1> kinetic_source(equation, gridding);
+  fub::ideal_gas::KineticSourceTerm<1> kinetic_source(
+      equation, axial_solver.GetGriddingAlgorithm());
 
-  fub::DimensionalSplitSystemSourceSolver solver(axial_solver, kinetic_source,
+  fub::DimensionalSplitSystemSourceSolver solver(std::move(axial_solver),
+                                                 std::move(kinetic_source),
                                                  fub::StrangSplitting());
   // }}}
 
@@ -278,34 +281,25 @@ void MyMain(const ProgramOptions& opts) {
   int rank = -1;
   MPI_Comm_rank(solver.GetContext().GetMpiCommunicator(), &rank);
 
-  auto output =
-      [&](const std::shared_ptr<fub::amrex::GriddingAlgorithm>& gridding,
-          std::ptrdiff_t cycle, fub::Duration timepoint, int) {
+  fub::AsOutput<fub::amrex::GriddingAlgorithm> output(
+      {}, {fub::Duration(opts.output_interval)},
+      [&](const fub::amrex::GriddingAlgorithm& gridding) {
+        std::ptrdiff_t cycle = gridding.GetCycles();
+        fub::Duration timepoint = gridding.GetTimePoint();
         std::string name = fmt::format("{}plt{:05}", base_name, cycle);
         amrex::Print() << "Start output to '" << name << "'.\n";
-        fub::amrex::WritePlotFile(name, gridding->GetPatchHierarchy(),
-                                  equation);
-        if (rank == 0) {
-          std::ofstream out(name + ".dat");
-          fub::amrex::WriteTubeData(&out, gridding->GetPatchHierarchy(),
-                                    equation, timepoint, cycle,
-                                    solver.GetContext().GetMpiCommunicator());
-        } else {
-          fub::amrex::WriteTubeData(nullptr, gridding->GetPatchHierarchy(),
-                                    equation, timepoint, cycle,
-                                    solver.GetContext().GetMpiCommunicator());
-        }
+        fub::amrex::WritePlotFile(name, gridding.GetPatchHierarchy(), equation);
+        fub::amrex::WriteTubeData(
+            base_name + "/Tube.h5", gridding.GetPatchHierarchy(), equation,
+            timepoint, cycle, solver.GetContext().GetMpiCommunicator());
         amrex::Print() << "Finished output to '" << name << "'.\n";
-      };
+      });
 
   using namespace std::literals::chrono_literals;
-  output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
-         solver.GetTimePoint(), -1);
+  output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
   run_options.cfl = opts.cfl;
   run_options.final_time = fub::Duration(opts.final_time);
-  run_options.output_interval = {fub::Duration(opts.output_interval)};
-  run_options.output_frequency = {int(opts.output_frequency)};
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }
 

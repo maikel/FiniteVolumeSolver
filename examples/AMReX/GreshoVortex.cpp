@@ -105,7 +105,7 @@ int main(int argc, char** argv) {
   fub::PerfectGas<2> equation{};
 
   fub::amrex::CartesianGridGeometry geometry{};
-  geometry.cell_dimensions = std::array<int, Dim>{AMREX_D_DECL(200, 200, 1)};
+  geometry.cell_dimensions = std::array<int, Dim>{AMREX_D_DECL(40, 40, 1)};
   geometry.coordinates = amrex::RealBox({AMREX_D_DECL(-0.5, -0.5, -0.5)},
                                         {AMREX_D_DECL(+0.5, +0.5, +0.5)});
   geometry.periodicity = std::array<int, Dim>{AMREX_D_DECL(1, 1, 1)};
@@ -115,14 +115,14 @@ int main(int argc, char** argv) {
   hier_opts.refine_ratio = amrex::IntVect{AMREX_D_DECL(2, 2, 1)};
 
   using Complete = fub::PerfectGas<2>::Complete;
-  auto velocity_norm = [](const Complete& state) {
-    return (state.momentum / state.density).matrix().norm();
-  };
-
   fub::amrex::GradientDetector gradient(
       equation, std::make_pair(&Complete::density, 1.0e-5),
       std::make_pair(&Complete::pressure, 1.0e-3),
-      std::make_pair(velocity_norm, 1.0e-4));
+      std::make_pair(
+          [](const Complete& state) {
+            return (state.momentum / state.density).matrix().norm();
+          },
+          1.0e-4));
 
   std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       fub::amrex::PatchHierarchy(equation, geometry, hier_opts),
@@ -142,45 +142,46 @@ int main(int argc, char** argv) {
       fub::amrex::ForwardIntegrator(tag),
       fub::amrex::Reconstruction(tag, equation)};
 
-  fub::DimensionalSplitLevelIntegrator solver(
+  fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<2>, fub::amrex::IntegratorContext(gridding, method),
       fub::StrangSplitting());
+
+  // fub::SubcycleFineFirstSolver solver(level_integrator);
+  fub::NoSubcycleSolver solver(level_integrator);
 
   std::string base_name = "GreshoVortex/";
 
   using namespace fub::amrex;
   boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
       boost::log::keywords::severity = boost::log::trivial::info);
-  auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,
-                    std::ptrdiff_t cycle, fub::Duration tp, int t = 0) {
-    BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", tp.count());
-    if (t <= 0) {
-      std::string name = fmt::format("{}plt{:05}", base_name, cycle);
-      BOOST_LOG(log) << "Start output to '" << name << "'.";
-      WritePlotFile(name, gridding->GetPatchHierarchy(), equation);
-      BOOST_LOG(log) << "Finished output to '" << name << "'.";
-    }
-    double rho_max = 0.0;
-    double rho_min = std::numeric_limits<double>::infinity();
-    for (int level = 0;
-         level < gridding->GetPatchHierarchy().GetNumberOfLevels(); ++level) {
-      const ::amrex::MultiFab& mf =
-          gridding->GetPatchHierarchy().GetPatchLevel(level).data;
-      rho_max = std::max(rho_max, mf.max(0));
-      rho_min = std::min(rho_min, mf.min(0));
-    }
-    const double rho_err =
-        std::max(std::abs(rho_max - 1.0), std::abs(rho_min - 1.0));
-    BOOST_LOG(log) << fmt::format("Density Max Error: {:.6E}", rho_err);
-  };
+  fub::AsOutput<GriddingAlgorithm> output(
+      {1}, {fub::Duration(1.0 / 30.0)}, [&](const GriddingAlgorithm& gridding) {
+        std::ptrdiff_t cycle = gridding.GetCycles();
+        fub::Duration tp = gridding.GetTimePoint();
+        BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", tp.count());
+        std::string name = fmt::format("{}plt{:05}", base_name, cycle);
+        BOOST_LOG(log) << "Start output to '" << name << "'.";
+        WritePlotFile(name, gridding.GetPatchHierarchy(), equation);
+        BOOST_LOG(log) << "Finished output to '" << name << "'.";
+        double rho_max = 0.0;
+        double rho_min = std::numeric_limits<double>::infinity();
+        for (int level = 0;
+             level < gridding.GetPatchHierarchy().GetNumberOfLevels(); 
+             ++level) {
+          const ::amrex::MultiFab& mf =
+              gridding.GetPatchHierarchy().GetPatchLevel(level).data;
+          rho_max = std::max(rho_max, mf.max(0));
+          rho_min = std::min(rho_min, mf.min(0));
+        }
+        const double rho_err =
+            std::max(std::abs(rho_max - 1.0), std::abs(rho_min - 1.0));
+        BOOST_LOG(log) << fmt::format("Density Max Error: {:.6E}", rho_err);
+      });
 
   using namespace std::literals::chrono_literals;
-  output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
-         solver.GetTimePoint());
+  output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
   run_options.final_time = 3.0s;
-  run_options.output_interval = {fub::Duration(1.0 / 30.0)};
-  run_options.output_frequency = {0, 1};
   run_options.cfl = 0.8;
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

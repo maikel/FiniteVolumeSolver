@@ -74,27 +74,27 @@ public:
   /// @{
   /// \name Member Accessors
 
-  int Rank() const noexcept;
+  [[nodiscard]] int Rank() const noexcept;
 
   /// \brief Returns the current boundary condition for the specified level.
-  const BoundaryCondition& GetBoundaryCondition(int level) const;
-  BoundaryCondition& GetBoundaryCondition(int level);
+  [[nodiscard]] const BoundaryCondition& GetBoundaryCondition(int level) const;
+  [[nodiscard]] BoundaryCondition& GetBoundaryCondition(int level);
 
   /// \brief Returns a shared pointer to the underlying GriddingAlgorithm which
   /// owns the simulation.
-  const std::shared_ptr<GriddingAlgorithm>& GetGriddingAlgorithm() const
+  [[nodiscard]] const std::shared_ptr<GriddingAlgorithm>& GetGriddingAlgorithm() const
       noexcept;
 
   /// \brief Returns a reference to const PatchHierarchy which is a member of
   /// the GriddingAlgorithm.
-  const PatchHierarchy& GetPatchHierarchy() const noexcept;
+  [[nodiscard]] const PatchHierarchy& GetPatchHierarchy() const noexcept;
 
   /// \brief Returns a reference to PatchHierarchy which is a member of the
   /// GriddingAlgorithm.
-  PatchHierarchy& GetPatchHierarchy() noexcept;
+  [[nodiscard]] PatchHierarchy& GetPatchHierarchy() noexcept;
 
   /// \brief Returns the MPI communicator which is associated with this context.
-  MPI_Comm GetMpiCommunicator() const noexcept;
+  [[nodiscard]] MPI_Comm GetMpiCommunicator() const noexcept;
   /// @}
 
   /// @{
@@ -102,26 +102,26 @@ public:
 
   /// \brief Returns the MultiFab associated with level data on the specifed
   /// level number.
-  ::amrex::MultiFab& GetData(int level);
+  [[nodiscard]] ::amrex::MultiFab& GetData(int level);
 
   /// \brief Returns the MultiFab associated with level data with ghost cells on
   /// the specifed level number and direction.
-  ::amrex::MultiFab& GetScratch(int level);
+  [[nodiscard]] ::amrex::MultiFab& GetScratch(int level);
 
   /// \brief Returns the MultiFab associated with flux data on the specifed
   /// level number and direction.
-  ::amrex::MultiFab& GetFluxes(int level, Direction dir);
+  [[nodiscard]] ::amrex::MultiFab& GetFluxes(int level, Direction dir);
 
   /// \brief Returns the current time level for data at the specified refinement
   /// level and direction.
-  Duration GetTimePoint(int level = 0) const;
+  [[nodiscard]] Duration GetTimePoint(int level = 0) const;
 
   /// \brief Returns the current number of cycles for data at the specified
   /// refinement level and direction.
-  std::ptrdiff_t GetCycles(int level = 0) const;
+  [[nodiscard]] std::ptrdiff_t GetCycles(int level = 0) const;
 
   /// \brief Returns the geometry object for the specified refinement level.
-  const ::amrex::Geometry& GetGeometry(int level) const;
+  [[nodiscard]] const ::amrex::Geometry& GetGeometry(int level) const;
 
   /// @}
 
@@ -129,13 +129,13 @@ public:
   /// \name Observers
 
   /// \brief Returns true if the data exists for the specified level number.
-  bool LevelExists(int level) const noexcept;
+  [[nodiscard]] bool LevelExists(int level) const noexcept;
 
   /// \brief Returns the refinement ratio in the specified direction.
-  int GetRatioToCoarserLevel(int level, Direction dir) const noexcept;
+  [[nodiscard]] int GetRatioToCoarserLevel(int level, Direction dir) const noexcept;
 
   /// \brief Returns the refinement ratio for all directions.
-  ::amrex::IntVect GetRatioToCoarserLevel(int level) const noexcept;
+  [[nodiscard]] ::amrex::IntVect GetRatioToCoarserLevel(int level) const noexcept;
   /// @}
 
   /// @{
@@ -186,7 +186,7 @@ public:
 
   /// \brief Returns a estimate for a stable time step size which can be taken
   /// for specified level number in direction dir.
-  Duration ComputeStableDt(int level, Direction dir);
+  [[nodiscard]] Duration ComputeStableDt(int level, Direction dir);
 
   /// \brief Fill the flux MultiFab with numeric fluxes based on current states
   /// in scratch.

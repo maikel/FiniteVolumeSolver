@@ -331,9 +331,6 @@ struct ProgramOptions {
   std::string checkpoint{};
 };
 
-void MyMain(const ProgramOptions& po,
-            const boost::program_options::variables_map& vm);
-
 std::optional<std::map<std::string, pybind11::object>>
 ParseCommandLine(int argc, char** argv) {
   namespace po = boost::program_options;

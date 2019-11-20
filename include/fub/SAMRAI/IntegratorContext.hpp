@@ -48,42 +48,22 @@ using HyperbolicMethod = ::fub::HyperbolicMethod<IntegratorContext>;
 /// delegates AMR related tasks to the AMReX library.
 class IntegratorContext {
 public:
-  /// \brief This class holds auxiliary data on each refinement level.
-  struct LevelData {
-    LevelData() = default;
-
-    LevelData(std::shared_ptr<SAMRAI::hier::PatchLevel> level_in_hier,
-              std::shared_ptr<SAMRAI::hier::PatchDescriptor> scratch_desc,
-              std::shared_ptr<SAMRAI::hier::PatchDescriptor> flux_desc);
-
-    LevelData(std::shared_ptr<SAMRAI::hier::PatchLevel> level_in_hier,
-              const DataDescription& desc, int gcw);
-
-    LevelData(const LevelData& other);
-    LevelData& operator=(const LevelData& other);
-
-    LevelData(LevelData&&) noexcept = default;
-    LevelData& operator=(LevelData&&) noexcept = default;
-
-    ~LevelData() noexcept = default;
-
-    /// Shared pointer to the original patch level in the hierarchy
-    std::shared_ptr<SAMRAI::hier::PatchLevel> data{};
-
-    /// Scratch space with ghost cell widths
-    std::shared_ptr<SAMRAI::hier::PatchLevel> scratch{};
-
-    /// These arrays will store the fluxes for each patch level which is present
-    /// in the patch hierarchy. These will need to be rebuilt if the
-    /// PatchHierarchy changes.
-    std::shared_ptr<SAMRAI::hier::PatchLevel> fluxes{};
-
-    /// This algorithm and schedules
-
-    std::ptrdiff_t cycles{};
-    Duration regrid_time_point{};
-    Duration time_point{};
+  struct AuxialiaryDataDescription {
+    std::vector<int> scratch_ids;
+    std::vector<int> new_ids;
+    std::vector<int> flux_ids;
+    std::vector<int> coarse_fine_ids;
   };
+
+  static AuxialiaryDataDescription
+  RegisterVariables(const DataDescription& desc, int ghost_cell_width,
+                    int flux_ghost_cell_width);
+
+  template <typename Method>
+  static AuxialiaryDataDescription
+  RegisterVariables(const DataDescription& desc, const Method& method) {
+    return IntegratorContext::RegisterVariables(desc, method.GetStencilWidth(), 1);
+  }
 
   /// @{
   /// \name Constructors and Assignments
@@ -91,15 +71,16 @@ public:
   /// \brief Constructs a context object from given a gridding algorithm and a
   /// numerical method.
   IntegratorContext(std::shared_ptr<GriddingAlgorithm> gridding,
-                    HyperbolicMethod method);
+                    HyperbolicMethod method,
+                    AuxialiaryDataDescription aux_desc);
 
   /// \brief Deeply copies a context and all its distributed data for all MPI
   /// ranks.
-  IntegratorContext(const IntegratorContext&);
+  IntegratorContext(const IntegratorContext&) = default;
 
   /// \brief Deeply copies a context and all its distributed data for all MPI
   /// ranks.
-  IntegratorContext& operator=(const IntegratorContext&);
+  IntegratorContext& operator=(const IntegratorContext&) = default;
 
   IntegratorContext(IntegratorContext&&) noexcept = default;
 
@@ -137,23 +118,13 @@ public:
 
   /// \brief Returns the MultiFab associated with level data on the specifed
   /// level number.
-  [[nodiscard]] SAMRAI::hier::PatchLevel& GetData(int level);
-  [[nodiscard]] const SAMRAI::hier::PatchLevel& GetData(int level) const;
+  [[nodiscard]] SAMRAI::hier::PatchLevel& GetPatchLevel(int level);
+  [[nodiscard]] const SAMRAI::hier::PatchLevel& GetPatchLevel(int level) const;
 
   [[nodiscard]] span<const int> GetDataIds() const;
-
-  /// \brief Returns the MultiFab associated with level data with ghost cells on
-  /// the specifed level number and direction.
-  [[nodiscard]] SAMRAI::hier::PatchLevel& GetScratch(int level);
-  [[nodiscard]] const SAMRAI::hier::PatchLevel& GetScratch(int level) const;
-
+  [[nodiscard]] span<const int> GetNewIds() const;
   [[nodiscard]] span<const int> GetScratchIds() const;
   [[nodiscard]] span<const int> GetFluxIds() const;
-
-  /// \brief Returns the MultiFab associated with flux data on the specifed
-  /// level number and direction.
-  [[nodiscard]] SAMRAI::hier::PatchLevel& GetFluxes(int level);
-  [[nodiscard]] const SAMRAI::hier::PatchLevel& GetFluxes(int level) const;
 
   /// \brief Returns the current time level for data at the specified refinement
   /// level and direction.
@@ -255,25 +226,28 @@ public:
   ///@}
 
 private:
-  int ghost_cell_width_{};
-  std::shared_ptr<GriddingAlgorithm> gridding_{};
-  std::vector<LevelData> level_data_{};
+  int ghost_cell_width_;
+  std::shared_ptr<GriddingAlgorithm> gridding_;
   HyperbolicMethod method_;
+  AuxialiaryDataDescription aux_desc_;
 
-  std::shared_ptr<SAMRAI::hier::PatchDescriptor> scratch_desc_;
-  std::shared_ptr<SAMRAI::hier::PatchDescriptor> flux_desc_;
-  std::shared_ptr<SAMRAI::xfer::RefineAlgorithm> fill_scratch_;
-  std::shared_ptr<SAMRAI::xfer::CoarsenAlgorithm> coarsen_fluxes_;
-  std::shared_ptr<SAMRAI::xfer::CoarsenAlgorithm> coarsen_scratch_;
+  std::vector<Duration> time_points_;
+  std::vector<Duration> regrid_time_points_;
+  std::vector<std::ptrdiff_t> cycles_;
 
-  std::vector<std::shared_ptr<SAMRAI::xfer::RefineSchedule>>
-      fill_scratch_two_level_schedule_;
-  std::vector<std::shared_ptr<SAMRAI::xfer::RefineSchedule>>
-      fill_scratch_one_level_schedule_;
-  std::vector<std::shared_ptr<SAMRAI::xfer::CoarsenSchedule>>
-      coarsen_scratch_schedule_;
-  std::vector<std::shared_ptr<SAMRAI::xfer::CoarsenSchedule>>
-      coarsen_fluxes_schedule_;
+  using RefineAlgorithm = SAMRAI::xfer::RefineAlgorithm;
+  using RefineSchedule = SAMRAI::xfer::RefineSchedule;
+  using CoarsenAlgorithm = SAMRAI::xfer::CoarsenAlgorithm;
+  using CoarsenSchedule = SAMRAI::xfer::CoarsenSchedule;
+
+  std::shared_ptr<RefineAlgorithm> fill_scratch_;
+  std::shared_ptr<CoarsenAlgorithm> coarsen_fluxes_;
+  std::shared_ptr<CoarsenAlgorithm> coarsen_scratch_;
+
+  std::vector<std::shared_ptr<RefineSchedule>> fill_scratch_two_level_schedule_;
+  std::vector<std::shared_ptr<RefineSchedule>> fill_scratch_one_level_schedule_;
+  std::vector<std::shared_ptr<CoarsenSchedule>> coarsen_scratch_schedule_;
+  std::vector<std::shared_ptr<CoarsenSchedule>> coarsen_fluxes_schedule_;
 };
 
 } // namespace samrai

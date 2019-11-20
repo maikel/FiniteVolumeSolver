@@ -28,24 +28,21 @@
 namespace fub {
 
 template <typename Tag> struct HyperbolicPatchIntegrator {
-  template <typename T, int Rank>
-  using PatchDataView = ::fub::PatchDataView<T, Rank, layout_stride>;
-
   HyperbolicPatchIntegrator(Tag);
 
-  static void UpdateConservatively(const PatchDataView<double, 2>& next,
-                                   const PatchDataView<const double, 2>& prev,
-                                   const PatchDataView<const double, 2>& fluxes,
+  static void UpdateConservatively(const StridedDataView<double, 2>& next,
+                                   const StridedDataView<const double, 2>& prev,
+                                   const StridedDataView<const double, 2>& fluxes,
                                    Duration dt, double dx, Direction dir);
 
-  static void UpdateConservatively(const PatchDataView<double, 3>& next,
-                                   const PatchDataView<const double, 3>& prev,
-                                   const PatchDataView<const double, 3>& fluxes,
+  static void UpdateConservatively(const StridedDataView<double, 3>& next,
+                                   const StridedDataView<const double, 3>& prev,
+                                   const StridedDataView<const double, 3>& fluxes,
                                    Duration dt, double dx, Direction dir);
 
-  static void UpdateConservatively(const PatchDataView<double, 4>& next,
-                                   const PatchDataView<const double, 4>& prev,
-                                   const PatchDataView<const double, 4>& fluxes,
+  static void UpdateConservatively(const StridedDataView<double, 4>& next,
+                                   const StridedDataView<const double, 4>& prev,
+                                   const StridedDataView<const double, 4>& fluxes,
                                    Duration dt, double dx, Direction dir);
 };
 

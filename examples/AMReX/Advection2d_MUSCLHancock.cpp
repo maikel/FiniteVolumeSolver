@@ -100,22 +100,18 @@ int main(int argc, char** argv) {
 
   std::string base_name = "Advection_Muscl_Hancock/";
 
-  auto output =
-      [&](const std::shared_ptr<fub::amrex::GriddingAlgorithm>& gridding,
-          std::ptrdiff_t cycle, fub::Duration, int = 0) {
-        std::string name = fmt::format("{}plt{:04}", base_name, cycle);
-        ::amrex::Print() << "Start output to '" << name << "'.\n";
-        fub::amrex::WritePlotFile(name, gridding->GetPatchHierarchy(),
-                                  equation);
-        ::amrex::Print() << "Finished output to '" << name << "'.\n";
-      };
-
   using namespace std::literals::chrono_literals;
-  output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
-         solver.GetTimePoint());
+  fub::AsOutput<fub::amrex::GriddingAlgorithm> output({}, {0.1s},
+      [&](const fub::amrex::GriddingAlgorithm& gridding) {
+        std::string name = fmt::format("{}plt{:04}", base_name, gridding.GetCycles());
+        ::amrex::Print() << "Start output to '" << name << "'.\n";
+        fub::amrex::WritePlotFile(name, gridding.GetPatchHierarchy(), equation);
+        ::amrex::Print() << "Finished output to '" << name << "'.\n";
+      });
+
+  output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
   run_options.final_time = 2.0s;
-  run_options.output_interval = {0.1s};
   run_options.cfl = 0.9;
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

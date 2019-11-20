@@ -126,7 +126,7 @@ GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier, InitialData init,
                                      Tagging tag, std::vector<int> buffer)
     : hierarchy_{std::move(hier)}, initial_data_{std::move(init)},
       tagging_{std::move(tag)}, id_set_{hierarchy_.GetDataDescription()},
-      tag_buffer_{std::move(buffer)} {
+      tag_buffer_{std::move(buffer)}, level_to_boundary_(hierarchy_.GetMaxNumberOfLevels()) {
 
   const SAMRAI::hier::ComponentSelector which_to_allocate =
       SelectComponents(hierarchy_.GetDataDescription().data_ids);
@@ -156,7 +156,7 @@ GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier, InitialData init,
 GriddingAlgorithm::GriddingAlgorithm(const GriddingAlgorithm& ga)
     : hierarchy_(ga.GetPatchHierarchy()), initial_data_(ga.GetInitialData()),
       tagging_(ga.GetTagging()), id_set_(ga.GetDataDescription()),
-      tag_buffer_(ga.GetTagBuffer()) {
+      tag_buffer_(ga.GetTagBuffer()), level_to_boundary_(ga.level_to_boundary_) {
 
   const SAMRAI::hier::ComponentSelector which_to_allocate =
       SelectComponents(hierarchy_.GetDataDescription().data_ids);
@@ -201,6 +201,14 @@ const Tagging& GriddingAlgorithm::GetTagging() const noexcept {
   return tagging_;
 }
 
+Duration GriddingAlgorithm::GetTimePoint() const noexcept {
+  return hierarchy_.GetTimePoint();
+}
+
+std::ptrdiff_t GriddingAlgorithm::GetCycles() const noexcept {
+  return hierarchy_.GetCycles();
+}
+
 Tagging& GriddingAlgorithm::GetTagging() noexcept { return tagging_; }
 
 const DataDescription& GriddingAlgorithm::GetDataDescription() const noexcept {
@@ -220,8 +228,12 @@ std::vector<int>& GriddingAlgorithm::GetTagBuffer() noexcept {
 
 void GriddingAlgorithm::RegridAllFinerLevels(int level_num, int cycle,
                                              Duration time_point) {
-  algorithm_->regridAllFinerLevels(level_num, tag_buffer_, cycle,
-                                   time_point.count());
+  if (level_num < 0) {
+    algorithm_->makeCoarsestLevel(time_point.count());
+  } else {
+    algorithm_->regridAllFinerLevels(level_num, tag_buffer_, cycle,
+                                     time_point.count());
+  }
 }
 
 void GriddingAlgorithm::InitializeHierarchy(Duration initial_time_point,
@@ -240,8 +252,9 @@ const BoundaryCondition& GriddingAlgorithm::GetBoundaryCondition(int level) cons
 }
 
 BoundaryCondition& GriddingAlgorithm::GetBoundaryCondition(int level) {
-  FUB_ASSERT(0 <= level && level < int(level_to_boundary_.size()));
-  return level_to_boundary_[static_cast<std::size_t>(level)];
+  std::size_t slevel = static_cast<std::size_t>(level);
+  FUB_ASSERT(slevel < level_to_boundary_.size());
+  return level_to_boundary_[slevel];
 }
 
 } // namespace samrai

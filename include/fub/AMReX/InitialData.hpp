@@ -88,26 +88,6 @@ struct InitialData {
   std::unique_ptr<InitialDataStrategy> initial_data_;
 };
 
-// template <typename InitialData, typename Equation> struct AdaptInitialData {
-//   AdaptInitialData(InitialData data, Equation equation)
-//       : data_{std::move(data)}, equation_{std::move(equation)} {}
-
-//   static const int Rank = Equation::Rank();
-
-//   void InitializeData(const PatchDataView<double, AMREX_SPACEDIM + 1>&
-//   states,
-//                       const PatchHierarchy& hierarchy,
-//                       const PatchHandle& patch) {
-//     const IndexBox<Rank> cells = AsIndexBox<Rank>(patch.iterator->tilebox());
-//     View<Complete<Equation>> state_view = Subview(
-//         MakeView<BasicView<Complete<Equation>>>(states, equation_), cells);
-//     data_.InitializeData(state_view, hierarchy, patch);
-//   }
-
-//   InitialData data_;
-//   Equation equation_;
-// };
-
 } // namespace amrex
 } // namespace fub
 

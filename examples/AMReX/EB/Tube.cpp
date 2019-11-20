@@ -106,22 +106,18 @@ int main(int argc, char** argv) {
       fub::int_c<2>, IntegratorContext(gridding, method));
 
   std::string base_name = "Tube/";
-  auto output = [&](const std::shared_ptr<GriddingAlgorithm>& gridding,
-                    std::ptrdiff_t cycle, fub::Duration, int = 0) {
-    std::string name = fmt::format("{}plt{:05}", base_name, cycle);
+  using namespace std::literals::chrono_literals;
+  fub::AsOutput<GriddingAlgorithm> output({1}, {}, [&](const GriddingAlgorithm& gridding) {
+    std::string name = fmt::format("{}plt{:05}", base_name, gridding.GetCycles());
     ::amrex::Print() << "Start output to '" << name << "'.\n";
-    fub::amrex::cutcell::WritePlotFile(name, gridding->GetPatchHierarchy(),
+    fub::amrex::cutcell::WritePlotFile(name, gridding.GetPatchHierarchy(),
                                        equation);
     ::amrex::Print() << "Finished output to '" << name << "'.\n";
-  };
+  });
 
-  using namespace std::literals::chrono_literals;
-  output(solver.GetGriddingAlgorithm(), solver.GetCycles(),
-         solver.GetTimePoint());
+  output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
   run_options.final_time = 1e4s;
-  //   run_options.output_interval = 1e-5s;
-  run_options.output_frequency = {1};
   run_options.cfl = 0.5 * 0.9;
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

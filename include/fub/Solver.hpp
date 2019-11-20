@@ -28,9 +28,12 @@
 #include "fub/PatchDataView.hpp"
 
 #include "fub/HyperbolicPatchIntegrator.hpp"
-#include "fub/HyperbolicSplitLevelIntegrator.hpp"
+#include "fub/solver/DimensionalSplitLevelIntegrator.hpp"
+#include "fub/solver/SubcycleFineFirstSolver.hpp"
+#include "fub/solver/NoSubcycleSolver.hpp"
+#include "fub/solver/SplitSystemSourceLevelIntegrator.hpp"
+
 #include "fub/NewtonIteration.hpp"
-#include "fub/SplitSystemSourceSolver.hpp"
 
 #include "fub/RunSimulation.hpp"
 

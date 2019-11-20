@@ -65,19 +65,19 @@ template <typename IntegratorContext> struct FluxMethodBase {
 
 /// This is a polymorphic wrapper class for reconstruction strategies used by
 /// \a IntegratorContext.
-template <typename IntegratorContext> class Reconstruction {
+template <typename IntegratorContext> class AnyReconstruction {
 public:
-  Reconstruction() = delete;
+  AnyReconstruction() = delete;
 
-  Reconstruction(const Reconstruction& other);
-  Reconstruction& operator=(const Reconstruction& other);
+  AnyReconstruction(const AnyReconstruction& other);
+  AnyReconstruction& operator=(const AnyReconstruction& other);
 
-  Reconstruction(Reconstruction&& other) noexcept = default;
-  Reconstruction& operator=(Reconstruction&& other) noexcept = default;
+  AnyReconstruction(AnyReconstruction&& other) noexcept = default;
+  AnyReconstruction& operator=(AnyReconstruction&& other) noexcept = default;
 
   template <typename R, typename = std::enable_if_t<
-                            !std::is_same_v<std::decay_t<R>, Reconstruction>>>
-  Reconstruction(R&& r); // NOLINT
+                            !std::is_same_v<std::decay_t<R>, AnyReconstruction>>>
+  AnyReconstruction(R&& r); // NOLINT
 
   void CompleteFromCons(IntegratorContext& context, int level, Duration dt);
 
@@ -87,19 +87,19 @@ private:
 
 /// This is a polymorphic wrapper class for TimeIntegator strategies used by
 /// \a IntegratorContext.
-template <typename IntegratorContext> class TimeIntegrator {
+template <typename IntegratorContext> class AnyTimeIntegrator {
 public:
-  TimeIntegrator() = delete;
+  AnyTimeIntegrator() = delete;
 
-  TimeIntegrator(const TimeIntegrator& other);
-  TimeIntegrator& operator=(const TimeIntegrator& other);
+  AnyTimeIntegrator(const AnyTimeIntegrator& other);
+  AnyTimeIntegrator& operator=(const AnyTimeIntegrator& other);
 
-  TimeIntegrator(TimeIntegrator&& other) noexcept = default;
-  TimeIntegrator& operator=(TimeIntegrator&& other) noexcept = default;
+  AnyTimeIntegrator(AnyTimeIntegrator&& other) noexcept = default;
+  AnyTimeIntegrator& operator=(AnyTimeIntegrator&& other) noexcept = default;
 
   template <typename R, typename = std::enable_if_t<
-                            !std::is_same_v<std::decay_t<R>, TimeIntegrator>>>
-  TimeIntegrator(R&& r); // NOLINT
+                            !std::is_same_v<std::decay_t<R>, AnyTimeIntegrator>>>
+  AnyTimeIntegrator(R&& r); // NOLINT
 
   void UpdateConservatively(IntegratorContext& context, int level, Duration dt,
                             Direction dir);
@@ -110,19 +110,19 @@ private:
 
 /// This is a polymorphic wrapper class for FluxMethod strategies used by
 /// \a IntegratorContext.
-template <typename IntegratorContext> class PolyFluxMethod {
+template <typename IntegratorContext> class AnyFluxMethod {
 public:
-  PolyFluxMethod() = delete;
+  AnyFluxMethod() = delete;
 
-  PolyFluxMethod(const PolyFluxMethod& other);
-  PolyFluxMethod& operator=(const PolyFluxMethod& other);
+  AnyFluxMethod(const AnyFluxMethod& other);
+  AnyFluxMethod& operator=(const AnyFluxMethod& other);
 
-  PolyFluxMethod(PolyFluxMethod&& other) noexcept = default;
-  PolyFluxMethod& operator=(PolyFluxMethod&& other) noexcept = default;
+  AnyFluxMethod(AnyFluxMethod&& other) noexcept = default;
+  AnyFluxMethod& operator=(AnyFluxMethod&& other) noexcept = default;
 
   template <typename R, typename = std::enable_if_t<
-                            !std::is_same_v<std::decay_t<R>, PolyFluxMethod>>>
-  PolyFluxMethod(R&& r); // NOLINT
+                            !std::is_same_v<std::decay_t<R>, AnyFluxMethod>>>
+  AnyFluxMethod(R&& r); // NOLINT
 
   Duration ComputeStableDt(IntegratorContext& context, int level,
                            Direction dir);
@@ -142,9 +142,9 @@ private:
 //                                                     Collection of Strategies
 
 template <typename IntegratorContext> struct HyperbolicMethod {
-  PolyFluxMethod<IntegratorContext> flux_method;
-  TimeIntegrator<IntegratorContext> time_integrator;
-  Reconstruction<IntegratorContext> reconstruction;
+  AnyFluxMethod<IntegratorContext> flux_method;
+  AnyTimeIntegrator<IntegratorContext> time_integrator;
+  AnyReconstruction<IntegratorContext> reconstruction;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -154,13 +154,13 @@ template <typename IntegratorContext> struct HyperbolicMethod {
 //                                                               Reconstruction
 
 template <typename IntegratorContext>
-Reconstruction<IntegratorContext>::Reconstruction(const Reconstruction& other)
+AnyReconstruction<IntegratorContext>::AnyReconstruction(const AnyReconstruction& other)
     : reconstruct_{other.reconstruct_ ? other.reconstruct_->Clone() : nullptr} {
 }
 
 template <typename IntegratorContext>
-Reconstruction<IntegratorContext>& Reconstruction<IntegratorContext>::
-operator=(const Reconstruction& other) {
+AnyReconstruction<IntegratorContext>& AnyReconstruction<IntegratorContext>::
+operator=(const AnyReconstruction& other) {
   if (other.reconstruct_) {
     reconstruct_ = other.reconstruct_->Clone();
   } else {
@@ -170,7 +170,7 @@ operator=(const Reconstruction& other) {
 }
 
 template <typename IntegratorContext>
-void Reconstruction<IntegratorContext>::CompleteFromCons(
+void AnyReconstruction<IntegratorContext>::CompleteFromCons(
     IntegratorContext& context, int level, Duration dt) {
   reconstruct_->CompleteFromCons(context, level, dt);
 }
@@ -194,7 +194,7 @@ struct ReconstructionWrapper : ReconstructionBase<IntegratorContext> {
 
 template <typename IntegratorContext>
 template <typename R, typename>
-Reconstruction<IntegratorContext>::Reconstruction(R&& rec)
+AnyReconstruction<IntegratorContext>::AnyReconstruction(R&& rec)
     : reconstruct_(
           std::make_unique<detail::ReconstructionWrapper<IntegratorContext,
                                                          std::decay_t<R>>>(
@@ -204,12 +204,12 @@ Reconstruction<IntegratorContext>::Reconstruction(R&& rec)
 //                                                               TimeIntegrator
 
 template <typename IntegratorContext>
-TimeIntegrator<IntegratorContext>::TimeIntegrator(const TimeIntegrator& other)
+AnyTimeIntegrator<IntegratorContext>::AnyTimeIntegrator(const AnyTimeIntegrator& other)
     : integrator_{other.integrator_ ? other.integrator_->Clone() : nullptr} {}
 
 template <typename IntegratorContext>
-TimeIntegrator<IntegratorContext>& TimeIntegrator<IntegratorContext>::
-operator=(const TimeIntegrator& other) {
+AnyTimeIntegrator<IntegratorContext>& AnyTimeIntegrator<IntegratorContext>::
+operator=(const AnyTimeIntegrator& other) {
   if (other.integrator_) {
     integrator_ = other.integrator_->Clone();
   } else {
@@ -219,7 +219,7 @@ operator=(const TimeIntegrator& other) {
 }
 
 template <typename IntegratorContext>
-void TimeIntegrator<IntegratorContext>::UpdateConservatively(
+void AnyTimeIntegrator<IntegratorContext>::UpdateConservatively(
     IntegratorContext& context, int level, Duration dt, Direction dir) {
   integrator_->UpdateConservatively(context, level, dt, dir);
 }
@@ -243,7 +243,7 @@ struct TimeIntegratorWrapper : TimeIntegratorBase<IntegratorContext> {
 
 template <typename IntegratorContext>
 template <typename I, typename>
-TimeIntegrator<IntegratorContext>::TimeIntegrator(I&& integrator)
+AnyTimeIntegrator<IntegratorContext>::AnyTimeIntegrator(I&& integrator)
     : integrator_(
           std::make_unique<detail::TimeIntegratorWrapper<IntegratorContext,
                                                          std::decay_t<I>>>(
@@ -253,13 +253,13 @@ TimeIntegrator<IntegratorContext>::TimeIntegrator(I&& integrator)
 //                                                                   FluxMethod
 
 template <typename IntegratorContext>
-PolyFluxMethod<IntegratorContext>::PolyFluxMethod(const PolyFluxMethod& other)
+AnyFluxMethod<IntegratorContext>::AnyFluxMethod(const AnyFluxMethod& other)
     : flux_method_{other.flux_method_ ? other.flux_method_->Clone() : nullptr} {
 }
 
 template <typename IntegratorContext>
-PolyFluxMethod<IntegratorContext>& PolyFluxMethod<IntegratorContext>::
-operator=(const PolyFluxMethod& other) {
+AnyFluxMethod<IntegratorContext>& AnyFluxMethod<IntegratorContext>::
+operator=(const AnyFluxMethod& other) {
   if (other.flux_method_) {
     flux_method_ = other.flux_method_->Clone();
   } else {
@@ -269,26 +269,26 @@ operator=(const PolyFluxMethod& other) {
 }
 
 template <typename IntegratorContext>
-void PolyFluxMethod<IntegratorContext>::PreAdvanceHierarchy(
+void AnyFluxMethod<IntegratorContext>::PreAdvanceHierarchy(
     IntegratorContext& context) {
   flux_method_->PreAdvanceHierarchy(context);
 }
 
 template <typename IntegratorContext>
 Duration
-PolyFluxMethod<IntegratorContext>::ComputeStableDt(IntegratorContext& context,
+AnyFluxMethod<IntegratorContext>::ComputeStableDt(IntegratorContext& context,
                                                    int level, Direction dir) {
   return flux_method_->ComputeStableDt(context, level, dir);
 }
 
 template <typename IntegratorContext>
-void PolyFluxMethod<IntegratorContext>::ComputeNumericFluxes(
+void AnyFluxMethod<IntegratorContext>::ComputeNumericFluxes(
     IntegratorContext& context, int level, Duration dt, Direction dir) {
   flux_method_->ComputeNumericFluxes(context, level, dt, dir);
 }
 
 template <typename IntegratorContext>
-int PolyFluxMethod<IntegratorContext>::GetStencilWidth() const {
+int AnyFluxMethod<IntegratorContext>::GetStencilWidth() const {
   return flux_method_->GetStencilWidth();
 }
 
@@ -327,7 +327,7 @@ struct FluxMethodWrapper : FluxMethodBase<IntegratorContext> {
 
 template <typename IntegratorContext>
 template <typename I, typename>
-PolyFluxMethod<IntegratorContext>::PolyFluxMethod(I&& flux_method)
+AnyFluxMethod<IntegratorContext>::AnyFluxMethod(I&& flux_method)
     : flux_method_(
           std::make_unique<
               detail::FluxMethodWrapper<IntegratorContext, std::decay_t<I>>>(
