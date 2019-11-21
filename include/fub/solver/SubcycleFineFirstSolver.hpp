@@ -77,7 +77,7 @@ public:
   ///
   /// \param[in] dt A stable time step size for the level_num-th patch level.
   Result<void, TimeStepTooLarge> AdvanceLevel(int level_number, Duration dt,
-                                              int subcycle);
+                                              std::pair<int, int> subcycle);
 
   Result<void, TimeStepTooLarge> AdvanceHierarchy(Duration dt);
 };
@@ -110,8 +110,8 @@ Duration SubcycleFineFirstSolver<LevelIntegrator>::ComputeStableDt() {
 
 template <typename LevelIntegrator>
 Result<void, TimeStepTooLarge>
-SubcycleFineFirstSolver<LevelIntegrator>::AdvanceLevel(int this_level,
-                                                       Duration dt, int subcycle) {
+SubcycleFineFirstSolver<LevelIntegrator>::AdvanceLevel(
+    int this_level, Duration dt, std::pair<int, int> subcycle) {
   // PreAdvanceLevel might regrid all finer levels.
   // The Context must make sure that scratch data is allocated
   Base::PreAdvanceLevel(this_level, dt, subcycle);
@@ -123,7 +123,8 @@ SubcycleFineFirstSolver<LevelIntegrator>::AdvanceLevel(int this_level,
     Base::ResetCoarseFineFluxes(next_level, this_level);
     const int refine_ratio = Base::GetRatioToCoarserLevel(next_level).max();
     for (int r = 0; r < refine_ratio; ++r) {
-      auto result = AdvanceLevel(next_level, dt / refine_ratio);
+      auto result =
+          AdvanceLevel(next_level, dt / refine_ratio, {r, refine_ratio});
       if (!result) {
         return result.as_failure();
       }
@@ -131,9 +132,12 @@ SubcycleFineFirstSolver<LevelIntegrator>::AdvanceLevel(int this_level,
   }
 
   Result<void, TimeStepTooLarge> result =
-      Base::AdvanceLevelNonRecursively(this_level, dt);
+      Base::AdvanceLevelNonRecursively(this_level, dt, subcycle);
   if (!result) {
     return result;
+  }
+  if (Base::LevelExists(next_level)) {
+    Base::ApplyFluxCorrection(next_level, this_level, dt);
   }
 
   // Coarsen inner regions from next finer level to this level.
@@ -156,7 +160,7 @@ SubcycleFineFirstSolver<LevelIntegrator>::AdvanceLevel(int this_level,
 template <typename LevelIntegrator>
 Result<void, TimeStepTooLarge>
 SubcycleFineFirstSolver<LevelIntegrator>::AdvanceHierarchy(Duration dt) {
-  return AdvanceLevel(0, dt, 0);
+  return AdvanceLevel(0, dt, {0, 1});
 }
 
 } // namespace fub

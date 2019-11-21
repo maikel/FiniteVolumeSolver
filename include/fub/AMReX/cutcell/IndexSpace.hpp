@@ -67,7 +67,7 @@ MakeIndexSpaces(GShop&& shop, const ::amrex::Geometry& coarse_geom, int n_level,
       static_cast<std::size_t>(n_level));
   ::amrex::Geometry geom = coarse_geom;
   for (int level = 0; level < n_level; ++level) {
-    ::amrex::EB2::Build(shop, geom, refine_ratio, level, level + 1);
+    ::amrex::EB2::Build(shop, geom, refine_ratio[0], level, level + 1);
     index_spaces[static_cast<std::size_t>(level)] =
         &::amrex::EB2::IndexSpace::top();
     geom.refine(refine_ratio);

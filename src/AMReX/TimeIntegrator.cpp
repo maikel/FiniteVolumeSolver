@@ -34,7 +34,7 @@ namespace {
   const int idir = static_cast<int>(dir);
   dest_box.setSmall(idir, box.smallEnd(idir) - 1);
   dest_box.setBig(idir, box.bigEnd(idir) + 1);
-  return box;
+  return dest_box;
 }
 } // namespace
 

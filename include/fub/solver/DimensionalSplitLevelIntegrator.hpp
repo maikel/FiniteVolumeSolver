@@ -21,6 +21,7 @@
 #ifndef FUB_DIMENSIONAL_SPLIT_LEVEL_INTEGRATOR_HPP
 #define FUB_DIMENSIONAL_SPLIT_LEVEL_INTEGRATOR_HPP
 
+#include "fub/core/algorithm.hpp"
 #include "fub/Direction.hpp"
 #include "fub/Duration.hpp"
 #include "fub/Equation.hpp"
@@ -67,12 +68,12 @@ public:
 
   void PreAdvanceLevel([[maybe_unused]] int level,
                        [[maybe_unused]] Duration time_step_size,
-                       [[maybe_unused]] int subcycle);
+                       [[maybe_unused]] std::pair<int, int> subcycle);
 
   Result<void, TimeStepTooLarge>
-      PostAdvanceLevel([[maybe_unused]] int level,
-                       [[maybe_unused]] Duration time_step_size,
-                       [[maybe_unused]] int subcycle);
+  PostAdvanceLevel([[maybe_unused]] int level,
+                   [[maybe_unused]] Duration time_step_size,
+                   [[maybe_unused]] std::pair<int, int> subcycle);
 
   using IntegratorContext::GetCycles;
   using IntegratorContext::GetMpiCommunicator;
@@ -110,8 +111,9 @@ public:
   ///
   /// \param[in] subcycle  The ith subcycle which we are currently in, starting
   /// at 0.
-  Result<void, TimeStepTooLarge> AdvanceLevelNonRecursively(int level_number,
-                                                            Duration dt);
+  Result<void, TimeStepTooLarge>
+  AdvanceLevelNonRecursively(int level_number, Duration dt,
+                             std::pair<int, int> subcycle);
 };
 
 template <int R, typename IntegratorContext, typename SplitMethod>
@@ -123,7 +125,7 @@ void DimensionalSplitLevelIntegrator<R, IntegratorContext,
 }
 template <int R, typename IntegratorContext, typename SplitMethod>
 void DimensionalSplitLevelIntegrator<R, IntegratorContext, SplitMethod>::
-    PostAdvanceHierarchy(Duration time_step_size) {
+    PostAdvanceHierarchy([[maybe_unused]] Duration time_step_size) {
   if constexpr (is_detected<meta::PostAdvanceHierarchy, IntegratorContext&>()) {
     IntegratorContext::PostAdvanceHierarchy();
   } else if constexpr (is_detected<meta::PostAdvanceHierarchy,
@@ -132,21 +134,21 @@ void DimensionalSplitLevelIntegrator<R, IntegratorContext, SplitMethod>::
   }
 }
 template <int R, typename IntegratorContext, typename SplitMethod>
-void DimensionalSplitLevelIntegrator<
-    R, IntegratorContext, SplitMethod>::PreAdvanceLevel(int level,
-                                                        Duration time_step_size,
-                                                        int subcycle) {
+void DimensionalSplitLevelIntegrator<R, IntegratorContext, SplitMethod>::
+    PreAdvanceLevel(int level, Duration time_step_size,
+                    std::pair<int, int> subcycle) {
   if constexpr (is_detected<meta::PreAdvanceLevel, IntegratorContext&, int,
-                            Duration, int>()) {
+                            Duration, std::pair<int, int>>()) {
     IntegratorContext::PreAdvanceLevel(level, time_step_size, subcycle);
   }
 }
 template <int R, typename IntegratorContext, typename SplitMethod>
 Result<void, TimeStepTooLarge>
 DimensionalSplitLevelIntegrator<R, IntegratorContext, SplitMethod>::
-    PostAdvanceLevel(int level, Duration time_step_size, int subcycle) {
+    PostAdvanceLevel(int level, Duration time_step_size,
+                     std::pair<int, int> subcycle) {
   if constexpr (is_detected<meta::PostAdvanceLevel, IntegratorContext&, int,
-                            Duration, int>()) {
+                            Duration, std::pair<int, int>>()) {
     return IntegratorContext::PostAdvanceLevel(level, time_step_size, subcycle);
   }
   return boost::outcome_v2::success();
@@ -156,6 +158,11 @@ template <int Rank, typename Context, typename SplitMethod>
 Duration
 DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::ComputeStableDt(
     int level) {
+  if (level > 0) {
+    Context::FillGhostLayerTwoLevels(level, level -1);
+  } else {
+    Context::FillGhostLayerSingleLevel(level);
+  }
   Duration min_dt(std::numeric_limits<double>::max());
   for (int d = 0; d < Rank; ++d) {
     const Direction dir = static_cast<Direction>(d);
@@ -165,19 +172,16 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::ComputeStableDt(
 }
 
 template <int Rank, typename Context, typename SplitMethod>
-Result<void, TimeStepTooLarge> DimensionalSplitLevelIntegrator<
-    Rank, Context, SplitMethod>::AdvanceLevelNonRecursively(int this_level,
-                                                            Duration dt) {
+Result<void, TimeStepTooLarge>
+DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::
+    AdvanceLevelNonRecursively(int this_level, Duration dt,
+                               std::pair<int, int> subcycle) {
+  const double subcycle_ratio = [](int ratio, int n_subs) {
+    double r = 1.0 / double(ipow(ratio, Rank - 1)) / n_subs;
+    return r;
+  }(2, subcycle.second);
   auto AdvanceLevel_Split = [&](Direction dir) {
-    return [&, this_level,
-            dir](Duration split_dt) -> Result<void, TimeStepTooLarge> {
-      // const int next_level = this_level + 1;
-      // const Duration level_dt = Context::ComputeStableDt(this_level, dir);
-      // if (level_dt < split_dt) {
-      //   // const int refine_ratio = GetTotalRefineRatio(this_level);
-      //   return TimeStepTooLarge{level_dt};
-      // }
-
+    return [&, this_level, dir, dt](Duration split_dt) -> Result<void, TimeStepTooLarge> {
       // Compute fluxes in the specified direction
       Context::ComputeNumericFluxes(this_level, split_dt, dir);
 
@@ -188,6 +192,9 @@ Result<void, TimeStepTooLarge> DimensionalSplitLevelIntegrator<
       // The conservative update and happened on conservative variables.
       // We have to reconstruct the missing variables in the complete state.
       Context::CompleteFromCons(this_level, split_dt);
+
+      const double ratio = (split_dt / dt) * subcycle_ratio;
+      Context::AccumulateCoarseFineFluxes(this_level, ratio, dir);
 
       return boost::outcome_v2::success();
     };

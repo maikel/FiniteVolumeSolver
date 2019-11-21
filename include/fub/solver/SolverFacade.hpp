@@ -56,6 +56,7 @@ public:
   using LevelIntegrator::ResetHierarchyConfiguration;
   using LevelIntegrator::ResetCoarseFineFluxes;
   using LevelIntegrator::GetRatioToCoarserLevel;
+  using LevelIntegrator::ApplyFluxCorrection;
 };
 
 } // namespace fub

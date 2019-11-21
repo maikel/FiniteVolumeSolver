@@ -74,9 +74,10 @@ template <typename LevelIntegrator>
 Result<void, TimeStepTooLarge>
 NoSubcycleSolver<LevelIntegrator>::AdvanceLevel(int level,
                                                 Duration time_step_size) {
-  Base::PreAdvanceLevel(level, time_step_size, 0);
+  Base::PreAdvanceLevel(level, time_step_size, {0,1});
   const int next_level = level + 1;
   if (Base::LevelExists(next_level)) {
+    Base::ResetCoarseFineFluxes(next_level, level);
     Result<void, TimeStepTooLarge> result =
         AdvanceLevel(next_level, time_step_size);
     if (!result) {
@@ -84,14 +85,18 @@ NoSubcycleSolver<LevelIntegrator>::AdvanceLevel(int level,
     }
   }
   Result<void, TimeStepTooLarge> result =
-      Base::AdvanceLevelNonRecursively(level, time_step_size, 0);
+      Base::AdvanceLevelNonRecursively(level, time_step_size, {0,1});
   if (!result) {
     return result;
   }
   if (Base::LevelExists(next_level)) {
-    Base::CoarsenConservatively(next_level, level);
+    Base::ApplyFluxCorrection(next_level, level, time_step_size);
   }
-  return Base::PostAdvanceLevel(level, time_step_size, 0);
+  if (Base::LevelExists(next_level)) {
+    Base::CoarsenConservatively(next_level, level);
+    Base::CompleteFromCons(level, time_step_size);
+  }
+  return Base::PostAdvanceLevel(level, time_step_size, {0,1});
 }
 
 } // namespace fub

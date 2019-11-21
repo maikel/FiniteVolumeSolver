@@ -1,6 +1,6 @@
-pathToPlenums = ["/scratch/guttula/Compressor/Selection/Plenum_x3/", "/scratch/guttula/Compressor/553215/MultiTube_Compressor/Matlab/Plenum_x3/", "/scratch/guttula/Compressor/553402/MultiTube_Compressor/Matlab/Plenum_x3/"];
-pattern = '/*.dat';
-videoPath = '/scratch/guttula/Compressor/553215/Plenum_x3.avi';
+pathToPlenums = ["/group/ag_klima/SFB1029_C01/Compressor/Plenum_x0.h5"];
+% pattern = '/*.dat';
+% videoPath = '/group/ag_klima/SFB1029_C01/Compressor/Plenum_x0.avi';
 
 % v = VideoWriter(videoPath);
 % open(v);
@@ -10,24 +10,35 @@ maxp_ = [];
 meanp_ = [];
 
 for pathToPlenum = pathToPlenums
-  fprintf('Process directory %s\n', pathToPlenum);
+  fprintf('Process HDF5 database %s\n', pathToPlenum);
 
-  files_structure = dir(sprintf('%s%s', pathToPlenum, pattern));
-  nFiles = length(files_structure);
+  info = h5info(pathToPlenum);
+  count = info.Datasets(2).Dataspace.Size;
+  nFiles = count(end);
   chunkSize = 100;
+  chunkCount = count;
+  chunkCount(end) = chunkSize;
+  first = ones(size(chunkCount));
+  X = 1;
 
   t = zeros(nFiles, 1);
   maxp = zeros(nFiles, 1);
   meanp = zeros(nFiles, 1);
 
   f = figure('visible', 'off', 'Units', 'centimeters', 'Position', [0, 0, 24, 24]);
+  totalChunks = ceil(nFiles / chunkSize);
+  counter = 1;
   for firstFile = 1:chunkSize:nFiles
-    [~, Y, Z, time, data] = ReadPlenumDataN(pathToPlenum, firstFile, chunkSize, pattern);
+    fprintf('Process Chunk %d of %d\n', counter, totalChunks);
+    counter = counter + 1;
+    first(end) = firstFile;
+    chunkCount(end) = min(chunkCount(end), nFiles - firstFile + 1);
+    [X, ~, ~, time, data] = ReadHdf5DataN(pathToPlenum, first, chunkCount);
     % MakeVideo(v, Y, Z, time, data, firstFile, nFiles);
     t(firstFile:firstFile+length(time) - 1) = time;
     for k = 1:length(time) 
-      maxp(k + firstFile - 1) = max(max(data.p(1, :, :, k)));
-      meanp(k + firstFile - 1) = sum(sum(data.p(1, :, :, k) / sum(sum(data.p(1, :, :, k) > 0.0))));
+      maxp(k + firstFile - 1) = max(max(data.p(:, :, 1, k)));
+      meanp(k + firstFile - 1) = sum(sum(data.p(:, :, 1, k) / sum(sum(data.p(:, :, 1, k) > 0.0))));
     end
   end
 
@@ -37,16 +48,15 @@ for pathToPlenum = pathToPlenums
 end
 % close(v);
 
-f2 = figure('visible', 'off', 'Units', 'centimeters', 'Position', [0, 0, 12, 24]);
-
-subplot(2, 1, 1);
+f2 = figure('visible', 'off', 'Units', 'centimeters', 'Position', [0, 0, 12, 12]);
 plot(t_, maxp_);
+title('Maximaler Druck in x_0 = 0.5m Entfernung');
+xlabel('Zeit [s]');
+ylabel('Druck [Pa]');
+axis([0 0.5 1e5 1.5e5]);
 
-subplot(2, 1, 2);
-plot(t_, meanp_);
-
-saveas(f2, '/scratch/guttula/Compressor/553215/Pressure.eps', 'epsc'); 
-save('pressure_plots')
+saveas(f2, 'Pressure0.fig');
+save('pressure_plots0')
 
 function MakeVideo(v, X, Y, time, data, k0, nFiles)
     nx = length(X);

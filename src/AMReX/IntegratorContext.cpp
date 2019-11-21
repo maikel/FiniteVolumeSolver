@@ -19,7 +19,9 @@
 // SOFTWARE.
 
 #include "fub/AMReX/IntegratorContext.hpp"
+
 #include "fub/AMReX/ViewFArrayBox.hpp"
+#include "fub/core/algorithm.hpp"
 
 #include <AMReX_FillPatchUtil.H>
 #include <AMReX_FluxReg_C.H>
@@ -167,17 +169,6 @@ bool IntegratorContext::LevelExists(int level) const noexcept {
   return 0 <= level && level < GetPatchHierarchy().GetNumberOfLevels();
 }
 
-namespace {
-constexpr std::ptrdiff_t ipow(int base, int exponent) {
-  std::ptrdiff_t prod{1};
-  while (exponent > 0) {
-    prod *= base;
-    exponent -= 1;
-  }
-  return prod;
-}
-} // namespace
-
 int IntegratorContext::GetRatioToCoarserLevel(int level, Direction dir) const
     noexcept {
   return GetPatchHierarchy().GetRatioToCoarserLevel(level, dir);
@@ -216,8 +207,6 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
       grow[i] = ghost_cell_width_;
     }
     data.scratch.define(ba, dm, n_comp, grow);
-    // We need to allocate data for each dimensions because of
-    // amrex::FluxBoundary::OverwriteFlux.
     for (std::size_t d = 0; d < static_cast<std::size_t>(AMREX_SPACEDIM); ++d) {
       const ::amrex::BoxArray fba =
           ::amrex::convert(ba, ::amrex::IntVect::TheDimensionVector(int(d)));
@@ -253,8 +242,8 @@ void IntegratorContext::FillGhostLayerTwoLevels(
   ::amrex::Vector<::amrex::BCRec> bcr(
       static_cast<std::size_t>(scratch.nComp()));
   const int nc = scratch.nComp();
-  const ::amrex::Vector<::amrex::MultiFab*> cmf{&GetData(coarse)};
-  const ::amrex::Vector<::amrex::MultiFab*> fmf{&GetData(fine)};
+  const ::amrex::Vector<::amrex::MultiFab*> cmf{&GetScratch(coarse)};
+  const ::amrex::Vector<::amrex::MultiFab*> fmf{&GetScratch(fine)};
   const ::amrex::Vector<double> ct{GetTimePoint(coarse).count()};
   const ::amrex::Vector<double> ft{GetTimePoint(fine).count()};
   const ::amrex::Geometry& cgeom = GetGeometry(coarse);
@@ -286,7 +275,7 @@ void IntegratorContext::FillGhostLayerSingleLevel(int level,
   ::amrex::Vector<::amrex::BCRec> bcr(
       static_cast<std::size_t>(scratch.nComp()));
   const int nc = scratch.nComp();
-  const ::amrex::Vector<::amrex::MultiFab*> smf{&GetData(level)};
+  const ::amrex::Vector<::amrex::MultiFab*> smf{&scratch};
   const ::amrex::Vector<double> stime{GetTimePoint(level).count()};
   const ::amrex::Geometry& geom = GetGeometry(level);
   ::amrex::FillPatchSingleLevel(scratch, stime[0], smf, stime, 0, 0, nc, geom,
@@ -311,41 +300,57 @@ void IntegratorContext::CoarsenConservatively(int fine_level,
                         GetRatioToCoarserLevel(fine_level));
 }
 
-void IntegratorContext::AccumulateCoarseFineFluxes(int level, double time_scale,
+void IntegratorContext::AccumulateCoarseFineFluxes(int level, double scale,
                                                    Direction dir) {
+  const ::amrex::MultiFab& fluxes = GetFluxes(level, dir);
+  const int dir_v = static_cast<int>(dir);
   if (level > 0) {
-    const ::amrex::MultiFab& fluxes = GetFluxes(level, dir);
-    const int dim = GetPatchHierarchy().GetDataDescription().dimension;
-    const double space_scale_inv =
-        static_cast<double>(ipow(GetRatioToCoarserLevel(level, dir), dim));
-    const double total_scale = time_scale / space_scale_inv;
-    data_[static_cast<std::size_t>(level)].coarse_fine.FineAdd(
-        fluxes, int(dir), 0, 0, fluxes.nComp(), total_scale);
+    const std::size_t slevel = static_cast<std::size_t>(level);
+    data_[slevel].coarse_fine.FineAdd(
+        fluxes, dir_v, 0, 0, fluxes.nComp(), scale);
+  }
+  if (LevelExists(level + 1)) {
+    const std::size_t next_level = static_cast<std::size_t>(level + 1);
+    ::amrex::Orientation faceL(dir_v, ::amrex::Orientation::low);
+    const ::amrex::FabSet& fabs = data_[next_level].coarse_fine[faceL];
+    std::cout << "Content before CrseAdd on level " << next_level << ":\n";
+    for (int k = 0; k < fabs.size(); ++k) {
+      std::cout << fabs[k];
+    }
+    data_[next_level].coarse_fine.CrseAdd(
+        fluxes, dir_v, 0, 0, fluxes.nComp(), -1.0, GetGeometry(level));
+    std::cout << "Content after CrseAdd on level " << next_level << ":\n";
+    for (int k = 0; k < fabs.size(); ++k) {
+      std::cout << fabs[k];
+    }
   }
 }
 
 void IntegratorContext::ResetCoarseFineFluxes(int fine, int coarse) {
-  for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-    std::size_t sfine = static_cast<std::size_t>(fine);
-    data_[sfine].coarse_fine.ClearInternalBorders(GetGeometry(coarse));
+  std::size_t sfine = static_cast<std::size_t>(fine);
+  data_[sfine].coarse_fine.ClearInternalBorders(GetGeometry(coarse));
+  for (int dir = 0; dir < Rank(); ++dir) {
     const ::amrex::MultiFab& flux = GetFluxes(coarse, Direction(dir));
     const ::amrex::BoxArray& boxes = flux.boxArray();
     const ::amrex::DistributionMapping& distribution = flux.DistributionMap();
     const int ncomp = flux.nComp();
-    ::amrex::MultiFab zero(boxes, distribution, ncomp, 0);
-    zero.setVal(0.0);
-    data_[sfine].coarse_fine.CrseInit(zero, dir, 0, 0, ncomp);
+    ::amrex::MultiFab zeros(boxes, distribution, ncomp, 0);
+    zeros.setVal(0.0);
+    data_[sfine].coarse_fine.CrseInit(zeros, dir, 0, 0, ncomp);
   }
 }
 
-void IntegratorContext::ApplyFluxCorrection(int fine, int coarse, Duration) {
+void IntegratorContext::ApplyFluxCorrection(int fine, int coarse,
+                                            Duration time_step_size) {
   const std::size_t sfine = static_cast<std::size_t>(fine);
   const int ncomp = GetPatchHierarchy().GetDataDescription().n_cons_components;
   const ::amrex::Geometry& cgeom = GetGeometry(coarse);
-  std::array<::amrex::MultiFab*, AMREX_SPACEDIM> crse_fluxes{AMREX_D_DECL(
-      &GetFluxes(coarse, Direction::X), &GetFluxes(coarse, Direction::Y),
-      &GetFluxes(coarse, Direction::Z))};
-  data_[sfine].coarse_fine.OverwriteFlux(crse_fluxes, 1.0, 0, 0, ncomp, cgeom);
+  ::amrex::MultiFab& scratch = GetScratch(coarse);
+  for (int dir = 0; dir < Rank(); ++dir) {
+    data_[sfine].coarse_fine.Reflux(
+        scratch, dir, time_step_size.count() / cgeom.CellSize(dir), 0, 0, ncomp,
+        cgeom);
+  }
 }
 
 Duration IntegratorContext::ComputeStableDt(int level, Direction dir) {
@@ -370,22 +375,33 @@ void IntegratorContext::UpdateConservatively(int level, Duration dt,
   method_.time_integrator.UpdateConservatively(*this, level, dt, dir);
 }
 
-void IntegratorContext::PreAdvanceLevel(int level_num, Duration, int subcycle) {
+void IntegratorContext::PreAdvanceLevel(int level_num, Duration,
+                                        std::pair<int, int> subcycle) {
   const std::size_t l = static_cast<std::size_t>(level_num);
-  if (subcycle == 0 && data_[l].regrid_time_point != data_[l].time_point) {
-    gridding_->RegridAllFinerlevels(level_num);
-    for (std::size_t lvl = l; lvl < data_.size(); ++lvl) {
-      data_[lvl].regrid_time_point = data_[lvl].time_point;
+  if (subcycle.first == 0) {
+    if (data_[l].regrid_time_point != data_[l].time_point) {
+      gridding_->RegridAllFinerlevels(level_num);
+      for (std::size_t lvl = l; lvl < data_.size(); ++lvl) {
+        data_[lvl].regrid_time_point = data_[lvl].time_point;
+      }
+      if (LevelExists(level_num + 1)) {
+        ResetHierarchyConfiguration(level_num + 1);
+      }
     }
-    if (LevelExists(level_num + 1)) {
-      ResetHierarchyConfiguration(level_num + 1);
-      ResetCoarseFineFluxes(level_num + 1, level_num);
-    }
+    gridding_->FillMultiFabFromLevel(GetScratch(level_num), level_num);
+  } else {
+    FillGhostLayerSingleLevel(level_num);
   }
 }
 
 Result<void, TimeStepTooLarge>
-IntegratorContext::PostAdvanceLevel(int level_num, Duration dt, int) {
+IntegratorContext::PostAdvanceLevel(int level_num, Duration dt,
+                                    std::pair<int, int> subcycle) {
+  if (subcycle.first == 0) {
+    GetData(level_num).ParallelCopy(
+        GetScratch(level_num),
+        GetPatchHierarchy().GetGeometry(level_num).periodicity());
+  }
   SetCycles(GetCycles(level_num) + 1, level_num);
   double timepoint = (GetTimePoint(level_num) + dt).count();
   ::MPI_Bcast(&timepoint, 1, MPI_DOUBLE, 0, GetMpiCommunicator());
@@ -400,12 +416,8 @@ void IntegratorContext::PostAdvanceHierarchy() {
   PatchHierarchy& hierarchy = GetPatchHierarchy();
   int nlevels = hierarchy.GetNumberOfLevels();
   for (int level = 0; level < nlevels; ++level) {
-    double timepoint = GetTimePoint(level).count();
-    ::MPI_Bcast(&timepoint, 1, MPI_DOUBLE, 0, GetMpiCommunicator());
-    int cycles = GetCycles(level);
-    ::MPI_Bcast(&cycles, 1, MPI_INT, 0, GetMpiCommunicator());
-    hierarchy.GetPatchLevel(level).time_point = Duration(timepoint);
-    hierarchy.GetPatchLevel(level).cycles = cycles;
+    hierarchy.GetPatchLevel(level).time_point = GetTimePoint(level);
+    hierarchy.GetPatchLevel(level).cycles = GetCycles(level);
   }
 }
 

@@ -40,16 +40,21 @@ void TagBuffer::TagCellsForRefinement(
 void TagBuffer::TagCellsForRefinement(
     const PatchDataView<char, 2, layout_stride>& tags) {
   mdspan<char, 2, layout_stride> data = tags.MdSpan();
-  for (std::ptrdiff_t j = buffer_width_; j < data.extent(1) - buffer_width_;
-       ++j) {
-    for (std::ptrdiff_t i = buffer_width_; i < data.extent(0) - buffer_width_;
-         ++i) {
+  const std::ptrdiff_t nx = data.extent(0);
+  const std::ptrdiff_t ny = data.extent(1);
+  for (std::ptrdiff_t j = 0; j < ny; ++j) {
+    for (std::ptrdiff_t i = 0; i < nx; ++i) {
       if (data(i, j) == '\1') {
-        for (std::ptrdiff_t k = 1; k < buffer_width_; ++k) {
-          data(i + k, j) = '\2' - data(i + k, j);
-          data(i - k, j) = '\2' - data(i - k, j);
-          data(i, j + k) = '\2' - data(i, j + k);
-          data(i, j - k) = '\2' - data(i, j - k);
+        const std::ptrdiff_t k0 =
+            std::max(i - buffer_width_, std::ptrdiff_t{0});
+        const std::ptrdiff_t k1 = std::min(i + buffer_width_, nx);
+        const std::ptrdiff_t l0 =
+            std::max(j - buffer_width_, std::ptrdiff_t{0});
+        const std::ptrdiff_t l1 = std::min(j + buffer_width_, ny);
+        for (std::ptrdiff_t l = l0; l < l1; ++l) {
+          for (std::ptrdiff_t k = k0; k < k1; ++k) {
+            data(k, l) = std::max(data(k, l), char('\2' - data(k, l)));
+          }
         }
       }
     }
