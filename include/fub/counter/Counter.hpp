@@ -1,16 +1,36 @@
+// Copyright (c) 2019 Patrick Denzler
+// Copyright (c) 2019 Maikel Nadolski
 //
-// Created by Patrick Denzler on 07.11.19.
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
 //
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 
 #ifndef FUB_COUNTER_COUNTER_HPP
 #define FUB_COUNTER_COUNTER_HPP
 
 #include "CounterResult.hpp"
 
+#include <algorithm>
+#include <numeric>
+#include <optional>
 #include <string>
 #include <vector>
-#include <optional>
-#include <numeric>
+
+#include <mpi.h>
 
 namespace fub {
 
@@ -18,44 +38,46 @@ class Counter {
 public:
   explicit Counter(std::string name);
   void add(long long value);
-  std::string const& get_name();
-  long long get_value();
-  unsigned long get_count();
-  long long get_min();
-  long long get_max();
-  double get_mean();
-  double get_variance();
-  double get_stddev();
+  std::string const& get_name() const noexcept;
+  long long get_value() const noexcept;
+  unsigned long get_count() const noexcept;
+  long long get_min() const noexcept;
+  long long get_max() const noexcept;
+  double get_mean() const noexcept;
+  double get_variance() const noexcept;
+  double get_stddev() const noexcept;
   void reset();
 
-  std::optional<CounterResult> gather_statistics(int root = 0);
+  std::optional<CounterResult> gather_statistics(MPI_Comm comm = MPI_COMM_WORLD,
+                                                 int root = 0) const;
 
 private:
   std::string name_;
   std::vector<long long> values_;
   double multiplier_{};
 
-  template <typename T> double calculate_mean(std::vector<T> v);
-  template <typename T> double calculate_variance(std::vector<T> v);
+  template <typename T> double calculate_mean(const std::vector<T>& v) const noexcept;
+  template <typename T> double calculate_variance(const std::vector<T>& v) const noexcept;
 };
 
-template <typename T> double Counter::calculate_mean(std::vector<T> v) {
-  auto sum = std::accumulate(v.begin(), v.end(), static_cast<T>(0));
-
-  return static_cast<double>(sum) / v.size();
+template <typename T> double Counter::calculate_mean(const std::vector<T>& v) const noexcept {
+  if (v.size()) {
+    auto sum = std::accumulate(v.begin(), v.end(), static_cast<T>(0));
+    return static_cast<double>(sum) / v.size();
+  }
+  return 0;
 }
 
-template <typename T> double Counter::calculate_variance(std::vector<T> v) {
-  std::vector<double> diff(v.size());
-  double mean = calculate_mean(v);
-
-  std::transform(v.begin(), v.end(), diff.begin(),
-                 [mean](double x) { return x - mean; });
-
-  double sq_sum =
-      std::inner_product(diff.begin(), diff.end(), diff.begin(), 0.0);
-
-  return (sq_sum / v.size());
+template <typename T>
+double Counter::calculate_variance(const std::vector<T>& v) const noexcept {
+  if (v.size()) {
+    const double mean = calculate_mean(v);
+    const double sq_sum = std::inner_product(
+        v.begin(), v.end(), v.begin(), 0.0, std::plus<>(),
+        [mean](double x, double y) { return (x - mean) * (y - mean); });
+    return (sq_sum / v.size());
+  }
+  return 0;
 }
 
 } // namespace fub

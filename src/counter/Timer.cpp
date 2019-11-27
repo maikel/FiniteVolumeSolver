@@ -1,6 +1,23 @@
+// Copyright (c) 2019 Patrick Denzler
+// Copyright (c) 2019 Maikel Nadolski
 //
-// Created by Patrick Denzler on 20.11.19.
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
 //
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 
 #include "fub/counter/Timer.hpp"
 
@@ -22,7 +39,9 @@ void Timer::stop() { stop_time_ = std::chrono::steady_clock::now(); }
 void Timer::submit() {
   auto duration = stop_time_ - start_time_;
   auto nano = std::chrono::duration_cast<std::chrono::nanoseconds>(duration);
-  counter_->add(nano.count());
+  static_assert(sizeof(long long) == sizeof(std::int64_t));
+  static_assert(std::is_same_v<std::chrono::nanoseconds::rep, std::int64_t>);
+  counter_->add(static_cast<long long>(nano.count()));
 }
 
 } // namespace fub
