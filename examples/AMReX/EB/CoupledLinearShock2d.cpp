@@ -292,7 +292,7 @@ int main() {
   fub::amrex::MultiBlockKineticSouceTerm source_term{
       fub::IdealGasMix<Tube_Rank>{mechanism},
       system_solver.GetGriddingAlgorithm()};
-  fub::DimensionalSplitSystemSourceSolver solver{system_solver, source_term};
+  fub::SplitSystemSourceLevelIntegrator solver{system_solver, source_term};
 
   std::string base_name = "MultiBlock_2d";
   fub::IdealGasMix<Tube_Rank> tube_equation{mechanism};

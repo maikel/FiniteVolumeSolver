@@ -51,11 +51,11 @@ IgniteDetonation::IgniteDetonation(
     : equation_(eq), gridding_(std::move(grid)), options_{opts},
       last_ignition_backup_(
           gridding_->GetPatchHierarchy().GetMaxNumberOfLevels(),
-          Duration(-std::numeric_limits<double>::infinity())),
+          Duration(std::numeric_limits<double>::lowest())),
       last_ignition_(last_ignition_backup_) {}
 
-Duration IgniteDetonation::ComputeStableDt() const noexcept {
-  return Duration(std::numeric_limits<double>::infinity());
+Duration IgniteDetonation::ComputeStableDt(int) const noexcept {
+  return Duration(std::numeric_limits<double>::max());
 }
 
 namespace {

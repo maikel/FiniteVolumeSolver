@@ -60,7 +60,7 @@ int main(int argc, char** argv) {
   constexpr int Dim = AMREX_SPACEDIM;
   static_assert(AMREX_SPACEDIM >= 2);
 
-  const std::array<int, Dim> n_cells{AMREX_D_DECL(256, 256, 1)};
+  const std::array<int, Dim> n_cells{AMREX_D_DECL(128, 128, 1)};
   const std::array<double, Dim> xlower{AMREX_D_DECL(-1.0, -1.0, -1.0)};
   const std::array<double, Dim> xupper{AMREX_D_DECL(+1.0, +1.0, +1.0)};
 
@@ -72,7 +72,7 @@ int main(int argc, char** argv) {
   geometry.periodicity = std::array<int, Dim>{AMREX_D_DECL(1, 1, 1)};
 
   fub::amrex::PatchHierarchyOptions hier_opts{};
-  hier_opts.max_number_of_levels = 2;
+  hier_opts.max_number_of_levels = 3;
   hier_opts.refine_ratio = amrex::IntVect(AMREX_D_DECL(2, 2, 1));
 
   using State = fub::Advection2d::Complete;
@@ -99,15 +99,19 @@ int main(int argc, char** argv) {
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<2>, fub::amrex::IntegratorContext(gridding, method));
 
-  fub::NoSubcycleSolver solver(std::move(level_integrator));
-  // fub::SubcycleFineFirstSolver solver(level_integrator);
+  // fub::NoSubcycleSolver solver(std::move(level_integrator));
+  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
   std::string base_name = "Advection_Godunov/";
 
   using namespace std::literals::chrono_literals;
   fub::AsOutput<fub::amrex::GriddingAlgorithm> output(
+<<<<<<< HEAD
       {1}, {0.1s}, [&](const fub::amrex::GriddingAlgorithm& gridding) {
         solver.GetContext();
+=======
+      {}, {0.1s}, [&](const fub::amrex::GriddingAlgorithm& gridding) {
+>>>>>>> 176c36ccb2a720d33481e1984fbd6a5151d0b123
         std::string name =
             fmt::format("{}plt{:04}", base_name, gridding.GetCycles());
         ::amrex::Print() << "Start output to '" << name << "'.\n";

@@ -26,7 +26,7 @@
 #include <hdf5.h>
 
 #ifdef AMREX_USE_EB
-#include "fub/AMReX/cutcell/IndexSpace.hpp"
+#include "fub/AMReX/cutcell/AllRegularIndexSpace.hpp"
 #include <AMReX_EB2.H>
 #endif
 
@@ -81,10 +81,8 @@ PatchHierarchy::PatchHierarchy(DataDescription desc,
     level_box.refine(options_.refine_ratio);
   }
 #ifdef AMREX_USE_EB
-  auto shop = ::amrex::EB2::makeShop(::amrex::EB2::AllRegularIF());
-  index_spaces_ = cutcell::MakeIndexSpaces(shop, patch_level_geometry_[0],
-                                           options.max_number_of_levels,
-                                           options.refine_ratio);
+  index_spaces_ = cutcell::BuildRegularSpace(patch_level_geometry_[0], options.refine_ratio,
+                                           options.max_number_of_levels);
 #endif
 }
 

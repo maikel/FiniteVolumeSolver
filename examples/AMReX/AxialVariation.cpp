@@ -85,7 +85,7 @@ struct TemperatureRamp {
 
 struct ProgramOptions {
   double final_time{0.20};
-  double cfl{0.8};
+  double cfl{0.4};
   int n_cells{200};
   int max_refinement_level{1};
   double domain_length{1.5};
@@ -263,15 +263,17 @@ void MyMain(const ProgramOptions& opts) {
   fub::amrex::AxialSourceTerm source_term(equation, diameter,
                                           system_solver.GetGriddingAlgorithm());
 
-  fub::DimensionalSplitSystemSourceSolver axial_solver(
-      std::move(system_solver), std::move(source_term), fub::StrangSplitting());
+  fub::SplitSystemSourceLevelIntegrator axial_solver(
+      std::move(system_solver), std::move(source_term), fub::GodunovSplitting());
 
   fub::ideal_gas::KineticSourceTerm<1> kinetic_source(
       equation, axial_solver.GetGriddingAlgorithm());
 
-  fub::DimensionalSplitSystemSourceSolver solver(std::move(axial_solver),
+  fub::SplitSystemSourceLevelIntegrator level_integrator(std::move(axial_solver),
                                                  std::move(kinetic_source),
-                                                 fub::StrangSplitting());
+                                                 fub::GodunovSplitting());
+
+  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
   // }}}
 
   // Run the simulation with given feedback functions
@@ -279,7 +281,7 @@ void MyMain(const ProgramOptions& opts) {
   std::string base_name = "AxialSourceTerm/";
 
   int rank = -1;
-  MPI_Comm_rank(solver.GetContext().GetMpiCommunicator(), &rank);
+  MPI_Comm_rank(solver.GetMpiCommunicator(), &rank);
 
   fub::AsOutput<fub::amrex::GriddingAlgorithm> output(
       {}, {fub::Duration(opts.output_interval)},
@@ -291,7 +293,7 @@ void MyMain(const ProgramOptions& opts) {
         fub::amrex::WritePlotFile(name, gridding.GetPatchHierarchy(), equation);
         fub::amrex::WriteTubeData(
             base_name + "/Tube.h5", gridding.GetPatchHierarchy(), equation,
-            timepoint, cycle, solver.GetContext().GetMpiCommunicator());
+            timepoint, cycle, solver.GetMpiCommunicator());
         amrex::Print() << "Finished output to '" << name << "'.\n";
       });
 

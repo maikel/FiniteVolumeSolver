@@ -89,7 +89,7 @@ void AxialSourceTerm::ResetHierarchyConfiguration(
   Ax_ = ComputeDiameters(*gridding_, diameter_);
 }
 
-Duration AxialSourceTerm::ComputeStableDt() {
+Duration AxialSourceTerm::ComputeStableDt(int) {
   return Duration(std::numeric_limits<double>::infinity());
 }
 

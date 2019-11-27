@@ -24,6 +24,41 @@
 #include <fmt/format.h>
 #include <iostream>
 
+struct ConstantBoundary {
+  void FillBoundary(amrex::MultiFab& mf, const amrex::Geometry& geom,
+                    fub::Duration, const fub::amrex::GriddingAlgorithm&) {
+    const int ngrow = mf.nGrow();
+    ::amrex::Box grown_box = geom.Domain();
+    grown_box.grow(ngrow);
+    ::amrex::BoxList boundaries =
+        ::amrex::complementIn(grown_box, ::amrex::BoxList{geom.Domain()});
+    if (boundaries.isEmpty()) {
+      return;
+    }
+    fub::amrex::ForEachFab(
+        fub::execution::openmp, mf, [&](const ::amrex::MFIter& mfi) {
+          ::amrex::FArrayBox& fab = mf[mfi];
+          for (const ::amrex::Box& boundary : boundaries) {
+            if (!boundary.intersects(mfi.growntilebox())) {
+              continue;
+            }
+            ::amrex::Box box_to_fill = mfi.growntilebox() & boundary;
+            if (!box_to_fill.isEmpty()) {
+              fub::amrex::ForEachIndex(box_to_fill,
+                                       [this, &fab, &geom](auto... is) {
+                                         ::amrex::IntVect dest{int(is)...};
+                                         if (fab(dest, 0) == 0.0) {
+                                           fab(dest, 0) = 1.0;
+                                           fab(dest, 1) = 0.0;
+                                           fab(dest, 2) = 0.0;
+                                         }
+                                       });
+            }
+          }
+        });
+  }
+};
+
 struct CircleData {
   using Complete = fub::Complete<fub::ShallowWater>;
 
@@ -68,6 +103,7 @@ int main(int argc, char** argv) {
                          _MM_MASK_INVALID);
 
   const fub::amrex::ScopeGuard guard(argc, argv);
+  fub::InitializeLogging(MPI_COMM_WORLD);
 
   constexpr int Dim = AMREX_SPACEDIM;
   static_assert(AMREX_SPACEDIM >= 2);
@@ -91,16 +127,11 @@ int main(int argc, char** argv) {
   fub::amrex::GradientDetector gradient{equation,
                                         std::pair(&State::height, 1e-2)};
 
-  fub::amrex::BoundarySet boundary;
-  using fub::amrex::TransmissiveBoundary;
-  boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::X, 0});
-  boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::X, 1});
-  boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::Y, 0});
-  boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::Y, 1});
-
   std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       fub::amrex::PatchHierarchy(equation, geometry, hier_opts),
-      CircleData{equation}, gradient, boundary);
+      CircleData{equation},
+      fub::amrex::TagAllOf(gradient, fub::amrex::TagBuffer(2)),
+      ConstantBoundary{});
   gridding->InitializeHierarchy(0.0);
 
   fub::HllMethod hll_method{equation, fub::ShallowWaterSignalVelocities{}};
@@ -110,8 +141,11 @@ int main(int argc, char** argv) {
       fub::amrex::ForwardIntegrator(fub::execution::seq),
       fub::amrex::Reconstruction(fub::execution::seq, equation)};
 
-  fub::DimensionalSplitLevelIntegrator solver(
+  fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<2>, fub::amrex::IntegratorContext(gridding, method));
+
+  // fub::NoSubcycleSolver solver(std::move(level_integrator));
+  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
   std::string base_name = "ShallowWater2d/";
 

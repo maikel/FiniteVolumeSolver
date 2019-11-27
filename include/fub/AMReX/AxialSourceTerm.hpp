@@ -54,7 +54,7 @@ public:
   void ResetHierarchyConfiguration(
       const std::shared_ptr<GriddingAlgorithm>& gridding);
 
-  Duration ComputeStableDt();
+  Duration ComputeStableDt(int level);
 
   Result<void, TimeStepTooLarge> AdvanceLevel(int level, Duration dt);
 

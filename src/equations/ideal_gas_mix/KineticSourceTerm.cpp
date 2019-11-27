@@ -42,7 +42,7 @@ KineticSourceTerm<Rank>::KineticSourceTerm(
     : equation_{eq}, state_{Complete<IdealGasMix<Rank>>(eq)},
       gridding_{std::move(gridding)} {}
 
-template <int Rank> Duration KineticSourceTerm<Rank>::ComputeStableDt() {
+template <int Rank> Duration KineticSourceTerm<Rank>::ComputeStableDt(int) {
   return Duration(std::numeric_limits<double>::infinity());
 }
 
@@ -71,18 +71,6 @@ KineticSourceTerm<Rank>::AdvanceLevel(int level, Duration dt) {
           Store(states, *state_, index);
         });
       });
-  return boost::outcome_v2::success();
-}
-
-template <int Rank>
-Result<void, TimeStepTooLarge>
-KineticSourceTerm<Rank>::AdvanceHierarchy(Duration dt) {
-  const int nlevels = GetPatchHierarchy().GetNumberOfLevels();
-  for (int level = 0; level < nlevels; ++level) {
-    if (auto result = AdvanceLevel(level, dt); !result) {
-      return result;
-    }
-  }
   return boost::outcome_v2::success();
 }
 

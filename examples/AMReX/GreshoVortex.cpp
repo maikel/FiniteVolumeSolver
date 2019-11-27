@@ -105,13 +105,13 @@ int main(int argc, char** argv) {
   fub::PerfectGas<2> equation{};
 
   fub::amrex::CartesianGridGeometry geometry{};
-  geometry.cell_dimensions = std::array<int, Dim>{AMREX_D_DECL(40, 40, 1)};
+  geometry.cell_dimensions = std::array<int, Dim>{AMREX_D_DECL(128, 128, 1)};
   geometry.coordinates = amrex::RealBox({AMREX_D_DECL(-0.5, -0.5, -0.5)},
                                         {AMREX_D_DECL(+0.5, +0.5, +0.5)});
   geometry.periodicity = std::array<int, Dim>{AMREX_D_DECL(1, 1, 1)};
 
   fub::amrex::PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = 2;
+  hier_opts.max_number_of_levels = 4;
   hier_opts.refine_ratio = amrex::IntVect{AMREX_D_DECL(2, 2, 1)};
 
   using Complete = fub::PerfectGas<2>::Complete;
@@ -122,7 +122,7 @@ int main(int argc, char** argv) {
           [](const Complete& state) {
             return (state.momentum / state.density).matrix().norm();
           },
-          1.0e-4));
+          1.0e-1));
 
   std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       fub::amrex::PatchHierarchy(equation, geometry, hier_opts),
@@ -130,20 +130,21 @@ int main(int argc, char** argv) {
       fub::amrex::TagAllOf(gradient, fub::amrex::TagBuffer(4)));
   gridding->InitializeHierarchy(0.0);
 
-  auto tag = fub::execution::openmp_simd;
+  auto tag = fub::execution::simd;
 
-  //  fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
-  //  fub::HllMethod hll_method(equation, signals);
-  //  fub::MusclHancockMethod muscl_method(equation, hll_method);
+   fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
+   fub::HllMethod hll_method(equation, signals);
+   fub::MusclHancockMethod muscl_method(equation, hll_method);
   //  fub::GodunovMethod godunov_method(equation, signals);
-  fub::MusclHancockMethod muscl_method(equation);
+  // fub::MusclHancockMethod muscl_method(equation);
   fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethod(fub::execution::openmp, muscl_method),
+      fub::amrex::FluxMethod(tag, muscl_method),
       fub::amrex::ForwardIntegrator(tag),
       fub::amrex::Reconstruction(tag, equation)};
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<2>, fub::amrex::IntegratorContext(gridding, method),
+      // fub::GodunovSplitting());
       fub::StrangSplitting());
 
   // fub::SubcycleFineFirstSolver solver(level_integrator);
@@ -155,7 +156,7 @@ int main(int argc, char** argv) {
   boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
       boost::log::keywords::severity = boost::log::trivial::info);
   fub::AsOutput<GriddingAlgorithm> output(
-      {1}, {fub::Duration(1.0 / 30.0)}, [&](const GriddingAlgorithm& gridding) {
+      {}, {fub::Duration(1.0 / 30.0)}, [&](const GriddingAlgorithm& gridding) {
         std::ptrdiff_t cycle = gridding.GetCycles();
         fub::Duration tp = gridding.GetTimePoint();
         BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", tp.count());

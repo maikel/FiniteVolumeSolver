@@ -89,7 +89,7 @@ public:
   void
   ResetHierarchyConfiguration(std::shared_ptr<amrex::GriddingAlgorithm> grid);
 
-  [[nodiscard]] Duration ComputeStableDt() const noexcept;
+  [[nodiscard]] Duration ComputeStableDt(int) const noexcept;
 
   [[nodiscard]] Result<void, TimeStepTooLarge> AdvanceLevel(int level,
                                                             Duration dt);

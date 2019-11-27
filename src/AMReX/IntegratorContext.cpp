@@ -20,6 +20,7 @@
 
 #include "fub/AMReX/IntegratorContext.hpp"
 
+#include "fub/AMReX/ForEachIndex.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/core/algorithm.hpp"
 
@@ -212,7 +213,6 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
           ::amrex::convert(ba, ::amrex::IntVect::TheDimensionVector(int(d)));
       ::amrex::IntVect fgrow = grow;
       fgrow[int(d)] = 1;
-      //          ::amrex::IntVect::TheDimensionVector(int(d));
       data.fluxes[d].define(fba, dm, n_cons_components, fgrow);
     }
     if (level > 0) {
@@ -221,6 +221,7 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
       data.coarse_fine.clear();
       data.coarse_fine.define(ba, dm, ref_ratio, level, n_cons_components);
     }
+    gridding_->FillMultiFabFromLevel(GetScratch(level), level);
   }
 }
 
@@ -304,55 +305,50 @@ void IntegratorContext::CoarsenConservatively(int fine_level,
 
 void IntegratorContext::AccumulateCoarseFineFluxes(int level, double scale,
                                                    Direction dir) {
-  const ::amrex::MultiFab& fluxes = GetFluxes(level, dir);
-  const int dir_v = static_cast<int>(dir);
-  if (level > 0) {
-    const std::size_t slevel = static_cast<std::size_t>(level);
-    data_[slevel].coarse_fine.FineAdd(
-        fluxes, dir_v, 0, 0, fluxes.nComp(), scale);
-  }
-  if (LevelExists(level + 1)) {
-    const std::size_t next_level = static_cast<std::size_t>(level + 1);
-    ::amrex::Orientation faceL(dir_v, ::amrex::Orientation::low);
-    const ::amrex::FabSet& fabs = data_[next_level].coarse_fine[faceL];
-    std::cout << "Content before CrseAdd on level " << next_level << ":\n";
-    for (int k = 0; k < fabs.size(); ++k) {
-      std::cout << fabs[k];
-    }
-    data_[next_level].coarse_fine.CrseAdd(
-        fluxes, dir_v, 0, 0, fluxes.nComp(), -1.0, GetGeometry(level));
-    std::cout << "Content after CrseAdd on level " << next_level << ":\n";
-    for (int k = 0; k < fabs.size(); ++k) {
-      std::cout << fabs[k];
-    }
-  }
+  // const ::amrex::MultiFab& fluxes = GetFluxes(level, dir);
+  // const int dir_v = static_cast<int>(dir);
+  // const int ncomp = fluxes.nComp();
+  // if (level > 0) {
+  //   const std::size_t slevel = static_cast<std::size_t>(level);
+  //   data_[slevel].coarse_fine.FineAdd(
+  //       fluxes, dir_v, 0, 0, ncomp, scale);
+  // }
+  // if (LevelExists(level + 1)) {
+  //   const std::size_t next_level = static_cast<std::size_t>(level + 1);
+  //   ::amrex::Orientation faceL(dir_v, ::amrex::Orientation::low);
+  //   const ::amrex::FabSet& fabs = data_[next_level].coarse_fine[faceL];
+  //   ::amrex::FluxRegister& flux_register = data_[next_level].coarse_fine;
+  //   const ::amrex::Geometry& coarse_geom = GetGeometry(level);
+  //   flux_register.CrseAdd(fluxes, dir_v, 0, 0, ncomp, -1.0, coarse_geom);
+  // }
 }
 
 void IntegratorContext::ResetCoarseFineFluxes(int fine, int coarse) {
-  std::size_t sfine = static_cast<std::size_t>(fine);
-  data_[sfine].coarse_fine.ClearInternalBorders(GetGeometry(coarse));
-  for (int dir = 0; dir < Rank(); ++dir) {
-    const ::amrex::MultiFab& flux = GetFluxes(coarse, Direction(dir));
-    const ::amrex::BoxArray& boxes = flux.boxArray();
-    const ::amrex::DistributionMapping& distribution = flux.DistributionMap();
-    const int ncomp = flux.nComp();
-    ::amrex::MultiFab zeros(boxes, distribution, ncomp, 0);
-    zeros.setVal(0.0);
-    data_[sfine].coarse_fine.CrseInit(zeros, dir, 0, 0, ncomp);
-  }
+  // std::size_t sfine = static_cast<std::size_t>(fine);
+  // data_[sfine].coarse_fine.ClearInternalBorders(GetGeometry(coarse));
+  // for (int dir = 0; dir < Rank(); ++dir) {
+  //   const ::amrex::MultiFab& flux = GetFluxes(coarse, Direction(dir));
+  //   const ::amrex::BoxArray& boxes = flux.boxArray();
+  //   const ::amrex::DistributionMapping& distribution =
+  //   flux.DistributionMap(); const int ncomp = flux.nComp();
+  //   ::amrex::MultiFab zeros(boxes, distribution, ncomp, 0);
+  //   zeros.setVal(0.0);
+  //   data_[sfine].coarse_fine.CrseInit(zeros, dir, 0, 0, ncomp, 1.0);
+  // }
 }
 
 void IntegratorContext::ApplyFluxCorrection(int fine, int coarse,
                                             Duration time_step_size) {
-  const std::size_t sfine = static_cast<std::size_t>(fine);
-  const int ncomp = GetPatchHierarchy().GetDataDescription().n_cons_components;
-  const ::amrex::Geometry& cgeom = GetGeometry(coarse);
-  ::amrex::MultiFab& scratch = GetScratch(coarse);
-  for (int dir = 0; dir < Rank(); ++dir) {
-    data_[sfine].coarse_fine.Reflux(
-        scratch, dir, time_step_size.count() / cgeom.CellSize(dir), 0, 0, ncomp,
-        cgeom);
-  }
+  // const std::size_t sfine = static_cast<std::size_t>(fine);
+  // const int ncomp =
+  // GetPatchHierarchy().GetDataDescription().n_cons_components; const
+  // ::amrex::Geometry& cgeom = GetGeometry(coarse);
+  // ::amrex::MultiFab& scratch = GetScratch(coarse);
+  // for (int dir = 0; dir < Rank(); ++dir) {
+  //   data_[sfine].coarse_fine.Reflux(
+  //       scratch, dir, time_step_size.count() / cgeom.CellSize(dir), 0, 0,
+  //       ncomp, cgeom);
+  // }
 }
 
 Duration IntegratorContext::ComputeStableDt(int level, Direction dir) {

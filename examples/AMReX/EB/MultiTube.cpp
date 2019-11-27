@@ -471,13 +471,13 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
     ignition.SetLastIgnitionTimePoints(last_ignitions);
   }
 
-  fub::DimensionalSplitSystemSourceSolver ign_solver(system_solver, ignition,
+  fub::SplitSystemSourceLevelIntegrator ign_solver(system_solver, ignition,
                                                      fub::GodunovSplitting{});
 
   fub::amrex::MultiBlockKineticSouceTerm source_term{
       fub::IdealGasMix<Tube_Rank>{mechanism}, context.GetGriddingAlgorithm()};
 
-  fub::DimensionalSplitSystemSourceSolver solver{ign_solver, source_term};
+  fub::SplitSystemSourceLevelIntegrator solver{ign_solver, source_term};
 
   fub::OutputFactory<fub::amrex::MultiBlockGriddingAlgorithm> factory{};
   factory.RegisterOutput<fub::amrex::MultiWriteHdf5>("HDF5");

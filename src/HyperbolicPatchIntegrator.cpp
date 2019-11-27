@@ -95,7 +95,11 @@ void UpdateConservatively_(execution::SequentialTag,
     std::array<std::ptrdiff_t, sizeof...(is)> cell{is...};
     std::array<std::ptrdiff_t, sizeof...(is)> fL{is...};
     std::array<std::ptrdiff_t, sizeof...(is)> fR = Shift(fL, dir, 1);
-    next(cell) = prev(cell) + dt_dx * (fluxes(fL) - fluxes(fR));
+    const double U_prev =  prev(cell);
+    const double f_left = fluxes(fL);
+    const double f_right = fluxes(fR);
+    const double U_next = U_prev + dt_dx * (f_left - f_right);
+    next(cell) = U_next;
   });
 }
 

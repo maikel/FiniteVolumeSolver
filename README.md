@@ -54,7 +54,7 @@ static_assert(InitialData<MyInitialDataPolicy>);
 
 
 
-## GriddingAlgorithm, DimensionalSplitSystemSolver, DimensionalSplitSystemSourceSolver
+## GriddingAlgorithm, DimensionalSplitSystemSolver, SplitSystemSourceLevelIntegrator
 
 When setting up a simulation we decompose the problem in roughly two parts.
 

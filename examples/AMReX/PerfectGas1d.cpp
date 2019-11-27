@@ -127,9 +127,11 @@ int main(int argc, char** argv) {
       fub::amrex::ForwardIntegrator(tag),
       fub::amrex::Reconstruction(tag, equation)};
 
-  fub::DimensionalSplitLevelIntegrator solver(
+  fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<1>, fub::amrex::IntegratorContext(gridding, method),
       fub::GodunovSplitting{});
+
+  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
   std::string base_name = "PerfectGas1d/";
 
