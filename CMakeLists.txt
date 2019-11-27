@@ -376,6 +376,10 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
   target_include_directories(FiniteVolumeSolver.AMReX PUBLIC ${HDF5_C_INCLUDE_DIR})
 
   if (AMReX_EB_FOUND) 
+    target_sources(FiniteVolumeSolver.AMReX PRIVATE
+        include/fub/AMReX/cutcell/AllRegularIndexSpace.hpp
+        src/AMReX/cutcell/AllRegularIndexSpace.cpp)
+
     add_library(FiniteVolumeSolver.AMReX.EB
         src/geometry/ExpandTube.cpp
         include/fub/AMReX_CutCell.hpp

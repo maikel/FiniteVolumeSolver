@@ -21,6 +21,7 @@
 #ifndef FUB_HYPERBOLIC_SPLIT_SYSTEM_SOURCE_SOLVER_HPP
 #define FUB_HYPERBOLIC_SPLIT_SYSTEM_SOURCE_SOLVER_HPP
 
+#include "fub/Meta.hpp"
 #include "fub/ext/outcome.hpp"
 #include "fub/split_method/StrangSplitting.hpp"
 
@@ -33,48 +34,56 @@ namespace fub {
 
 template <typename SystemSolver, typename SourceTerm,
           typename SplittingMethod = StrangSplitting>
-class DimensionalSplitSystemSourceSolver {
+class SplitSystemSourceLevelIntegrator : private SystemSolver {
 public:
-  using GriddingAlgorithm = std::decay_t<decltype(
-      *std::declval<SystemSolver&>().GetGriddingAlgorithm())>;
+  using GriddingAlgorithm = meta::GriddingAlgorithm<SystemSolver&>;
 
   static const int Rank = std::max(SystemSolver::Rank, SourceTerm::Rank);
 
   /// \brief Constructs a system source solver from given sub solvers.
-  DimensionalSplitSystemSourceSolver(SystemSolver system_solver,
-                                     SourceTerm source_term,
-                                     SplittingMethod split = SplittingMethod());
+  SplitSystemSourceLevelIntegrator(SystemSolver system_solver,
+                                   SourceTerm source_term,
+                                   SplittingMethod split = SplittingMethod());
 
   // Accessors
 
-  SystemSolver& GetSystem() noexcept { return system_solver_; }
-  const SystemSolver& GetSystem() const noexcept { return system_solver_; }
+  SystemSolver& GetSystem() noexcept { return *this; }
+  const SystemSolver& GetSystem() const noexcept { return *this; }
 
   SourceTerm& GetSource() noexcept { return source_term_; }
   const SourceTerm& GetSource() const noexcept { return source_term_; }
 
-  auto& GetContext() noexcept;
+  using SystemSolver::GetContext;
+  using SystemSolver::GetCycles;
+  using SystemSolver::GetGriddingAlgorithm;
+  using SystemSolver::GetMpiCommunicator;
+  using SystemSolver::GetTimePoint;
 
-  const auto& GetContext() const noexcept;
+  using SystemSolver::FillGhostLayerSingleLevel;
+  using SystemSolver::FillGhostLayerTwoLevels;
 
-  /// \brief Returns the shared gridding algorithm of both subsolvers.
-  [[nodiscard]] const std::shared_ptr<GriddingAlgorithm>&
-  GetGriddingAlgorithm() const noexcept {
-    return system_solver_.GetGriddingAlgorithm();
-  }
+  using SystemSolver::GetRatioToCoarserLevel;
+  using SystemSolver::LevelExists;
 
-  void PreAdvanceLevel(int level, Duration dt, int subcycle);
+  using SystemSolver::CoarsenConservatively;
+  using SystemSolver::CompleteFromCons;
+  using SystemSolver::ComputeNumericFluxes;
+  using SystemSolver::UpdateConservatively;
+
+  using SystemSolver::AccumulateCoarseFineFluxes;
+  using SystemSolver::ApplyFluxCorrection;
+  using SystemSolver::ResetCoarseFineFluxes;
+
+  /// \brief Invokes any "pre-advance" logic of both sub solvers.
+  void PreAdvanceHierarchy();
+
+  /// \brief Invokes any "post-advance" logic of both sub solvers.
+  void PostAdvanceHierarchy(Duration dt);
+
+  void PreAdvanceLevel(int level, Duration dt, std::pair<int, int> subcycle);
+
   [[nodiscard]] Result<void, TimeStepTooLarge>
-  PostAdvanceLevel(int level, Duration dt, int subcycle);
-
-  /// \brief Returns the shared patch hierarchy of both subsolvers.
-  [[nodiscard]] const auto& GetPatchHierarchy() const;
-
-  /// \brief Returns the global time point of the current data.
-  [[nodiscard]] Duration GetTimePoint() const;
-
-  /// \brief Returns the number of cycles at the coarsest level.
-  [[nodiscard]] std::ptrdiff_t GetCycles() const;
+  PostAdvanceLevel(int level, Duration dt, std::pair<int, int> subcycle);
 
   // Modifiers
 
@@ -82,27 +91,14 @@ public:
   template <typename... Args>
   void ResetHierarchyConfiguration(const Args&... args);
 
-  /// \brief Invokes any "pre-advance" logic of both sub solvers.
-  void PreAdvanceHierarchy();
-
-  /// \brief Invokes any "post-advance" logic of both sub solvers.
-  void PostAdvanceHierarchy();
-
-  [[nodiscard]] bool LevelExists(int level) const;
-
   /// \brief Returns the minimum of stable time step sizes for both sub solvers.
-  [[nodiscard]] Duration ComputeStableDt();
+  [[nodiscard]] Duration ComputeStableDt(int level);
 
-  /// \brief Advances the hierarchy by time step size dt.
   [[nodiscard]] Result<void, TimeStepTooLarge>
-  AdvanceLevel(int level, Duration dt, int subcycle = 0);
-  [[nodiscard]] Result<void, TimeStepTooLarge>
-  AdvanceLevelNonRecursively(int level, Duration dt, int subcycle = 0);
-
-  [[nodiscard]] Result<void, TimeStepTooLarge> AdvanceHierarchy(Duration dt);
+  AdvanceLevelNonRecursively(int level, Duration dt,
+                             std::pair<int, int> subcycle = {0, 1});
 
 private:
-  SystemSolver system_solver_;
   SourceTerm source_term_;
   SplittingMethod splitting_;
 };
@@ -111,27 +107,27 @@ private:
 //                                                               Implementation
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
-DimensionalSplitSystemSourceSolver<SystemSolver, SourceTerm, SplittingMethod>::
-    DimensionalSplitSystemSourceSolver(SystemSolver system_solver,
-                                       SourceTerm source_term,
-                                       SplittingMethod split)
-    : system_solver_{std::move(system_solver)},
+SplitSystemSourceLevelIntegrator<SystemSolver, SourceTerm, SplittingMethod>::
+    SplitSystemSourceLevelIntegrator(SystemSolver system_solver,
+                                     SourceTerm source_term,
+                                     SplittingMethod split)
+    : SystemSolver(std::move(system_solver)),
       source_term_{std::move(source_term)}, splitting_{split} {}
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
 template <typename... Args>
-void DimensionalSplitSystemSourceSolver<
+void SplitSystemSourceLevelIntegrator<
     SystemSolver, SourceTerm,
     SplittingMethod>::ResetHierarchyConfiguration(const Args&... args) {
-  system_solver_.ResetHierarchyConfiguration(args...);
+  SystemSolver::ResetHierarchyConfiguration(args...);
   source_term_.ResetHierarchyConfiguration(args...);
 }
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
-void DimensionalSplitSystemSourceSolver<
-    SystemSolver, SourceTerm, SplittingMethod>::PreAdvanceHierarchy() {
+void SplitSystemSourceLevelIntegrator<SystemSolver, SourceTerm,
+                                      SplittingMethod>::PreAdvanceHierarchy() {
   if constexpr (is_detected<meta::PreAdvanceHierarchy, SystemSolver&>()) {
-    system_solver_.PreAdvanceHierarchy();
+    SystemSolver::PreAdvanceHierarchy();
   }
   if constexpr (is_detected<meta::PreAdvanceHierarchy, SourceTerm&>()) {
     source_term_.PreAdvanceHierarchy();
@@ -139,95 +135,77 @@ void DimensionalSplitSystemSourceSolver<
 }
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
-void DimensionalSplitSystemSourceSolver<
-    SystemSolver, SourceTerm, SplittingMethod>::PostAdvanceHierarchy() {
-  if constexpr (is_detected<meta::PostAdvanceHierarchy, SourceTerm&>()) {
+void SplitSystemSourceLevelIntegrator<
+    SystemSolver, SourceTerm,
+    SplittingMethod>::PostAdvanceHierarchy([[maybe_unused]] Duration dt) {
+  if constexpr (is_detected<meta::PostAdvanceHierarchy, SourceTerm&,
+                            Duration>()) {
+    source_term_.PostAdvanceHierarchy(dt);
+  } else if constexpr (is_detected<meta::PostAdvanceHierarchy, SourceTerm&>()) {
     source_term_.PostAdvanceHierarchy();
   }
-  if constexpr (is_detected<meta::PostAdvanceHierarchy, SystemSolver&>()) {
-    system_solver_.PostAdvanceHierarchy();
+
+  if constexpr (is_detected<meta::PostAdvanceHierarchy, SystemSolver&,
+                            Duration>()) {
+    SystemSolver::PostAdvanceHierarchy(dt);
+  } else if constexpr (is_detected<meta::PostAdvanceHierarchy,
+                                   SystemSolver&>()) {
+    SystemSolver::PostAdvanceHierarchy();
   }
 }
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
 Duration
-DimensionalSplitSystemSourceSolver<SystemSolver, SourceTerm,
-                                   SplittingMethod>::ComputeStableDt() {
-  return std::min(system_solver_.ComputeStableDt(),
-                  source_term_.ComputeStableDt());
+SplitSystemSourceLevelIntegrator<SystemSolver, SourceTerm,
+                                 SplittingMethod>::ComputeStableDt(int level) {
+  return std::min(SystemSolver::ComputeStableDt(level),
+                  source_term_.ComputeStableDt(level));
 }
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
-const auto&
-DimensionalSplitSystemSourceSolver<SystemSolver, SourceTerm,
-                                   SplittingMethod>::GetPatchHierarchy() const {
-  return system_solver_.GetGriddingAlgorithm().GetPatchHierarchy();
-}
-
-template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
-bool DimensionalSplitSystemSourceSolver<
-    SystemSolver, SourceTerm, SplittingMethod>::LevelExists(int level) const {
-  return system_solver_.LevelExists(level);
-}
-
-template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
-Duration
-DimensionalSplitSystemSourceSolver<SystemSolver, SourceTerm,
-                                   SplittingMethod>::GetTimePoint() const {
-  return system_solver_.GetTimePoint();
-}
-
-template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
-std::ptrdiff_t
-DimensionalSplitSystemSourceSolver<SystemSolver, SourceTerm,
-                                   SplittingMethod>::GetCycles() const {
-  return system_solver_.GetCycles();
-}
-
-template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
-void DimensionalSplitSystemSourceSolver<
-    SystemSolver, SourceTerm, SplittingMethod>::PreAdvanceLevel(int this_level,
-                                                                Duration dt,
-                                                                int subcycle) {
-  system_solver_.PreAdvanceLevel(this_level, dt, subcycle);
+void SplitSystemSourceLevelIntegrator<
+    SystemSolver, SourceTerm,
+    SplittingMethod>::PreAdvanceLevel(int this_level, Duration dt,
+                                      std::pair<int, int> subcycle) {
+  SystemSolver::PreAdvanceLevel(this_level, dt, subcycle);
   if constexpr (is_detected<meta::PreAdvanceLevel, SourceTerm&, int, Duration,
-                            int>()) {
+                            std::pair<int, int>>()) {
     source_term_.PreAdvanceLevel(this_level, dt, subcycle);
   }
 }
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
-Result<void, TimeStepTooLarge> DimensionalSplitSystemSourceSolver<
-    SystemSolver, SourceTerm, SplittingMethod>::PostAdvanceLevel(int this_level,
-                                                                 Duration dt,
-                                                                 int subcycle) {
+Result<void, TimeStepTooLarge>
+SplitSystemSourceLevelIntegrator<SystemSolver, SourceTerm, SplittingMethod>::
+    PostAdvanceLevel(int this_level, Duration dt,
+                     std::pair<int, int> subcycle) {
   if constexpr (is_detected<meta::PostAdvanceLevel, SourceTerm&, int, Duration,
-                            int>()) {
+                            std::pair<int, int>>()) {
     source_term_.PostAdvanceLevel(this_level, dt, subcycle);
   }
-  return system_solver_.PostAdvanceLevel(this_level, dt, subcycle);
+  return SystemSolver::PostAdvanceLevel(this_level, dt, subcycle);
 }
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
 Result<void, TimeStepTooLarge>
-DimensionalSplitSystemSourceSolver<SystemSolver, SourceTerm, SplittingMethod>::
-    AdvanceLevelNonRecursively(int this_level, Duration dt, int subcycle) {
+SplitSystemSourceLevelIntegrator<SystemSolver, SourceTerm, SplittingMethod>::
+    AdvanceLevelNonRecursively(int this_level, Duration dt,
+                               std::pair<int, int> subcycle) {
   auto AdvanceSystem = [&](Duration dt) -> Result<void, TimeStepTooLarge> {
     Result<void, TimeStepTooLarge> result =
-        system_solver_.AdvanceLevelNonRecursively(this_level, dt, subcycle);
+        SystemSolver::AdvanceLevelNonRecursively(this_level, dt, subcycle);
     if (!result) {
       return result;
     }
     const int next_level = this_level + 1;
     // Coarsen inner regions from next finer level to this level.
-    if (system_solver_.LevelExists(next_level)) {
-      auto& context = system_solver_.GetContext();
-      context.CoarsenConservatively(next_level, this_level);
+    if (SystemSolver::LevelExists(next_level)) {
+      CoarsenConservatively(next_level, this_level);
 
       // The conservative update and the coarsening happened on conservative
       // variables. We have to reconstruct the missing variables in the complete
       // state.
-      context.CompleteFromCons(this_level, dt);
+      CompleteFromCons(this_level, dt);
     }
     return result;
   };
@@ -237,61 +215,6 @@ DimensionalSplitSystemSourceSolver<SystemSolver, SourceTerm, SplittingMethod>::
   };
 
   return splitting_.Advance(dt, AdvanceSource, AdvanceSystem);
-}
-
-template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
-Result<void, TimeStepTooLarge> DimensionalSplitSystemSourceSolver<
-    SystemSolver, SourceTerm, SplittingMethod>::AdvanceLevel(int this_level,
-                                                             Duration dt,
-                                                             int subcycle) {
-  // PreAdvanceLevel might regrid this and all finer levels.
-  // The Context must make sure that scratch data is allocated
-  PreAdvanceLevel(this_level, dt, subcycle);
-
-  // If a finer level exists in the hierarchy, we subcycle that finer level
-  // multiple times and use the fine fluxes on coarse-fine interfaces
-  const int next_level = this_level + 1;
-  if (system_solver_.LevelExists(next_level)) {
-    auto& context = system_solver_.GetContext();
-    context.ResetCoarseFineFluxes(next_level, this_level);
-    const int refine_ratio = context.GetRatioToCoarserLevel(next_level).max();
-    for (int r = 0; r < refine_ratio; ++r) {
-      auto result = AdvanceLevel(next_level, dt / refine_ratio, r);
-      if (!result) {
-        return result.as_failure();
-      }
-    }
-  }
-
-  Result<void, TimeStepTooLarge> result =
-      AdvanceLevelNonRecursively(this_level, dt, subcycle);
-  if (!result) {
-    return result;
-  }
-
-  // Apply any further context related work after advancing this level.
-  // This function can also indicate if some error occured.
-  // For example the context could detect unphysical states and return a
-  // TooLargeTimeStep error condition.
-  return PostAdvanceLevel(this_level, dt, subcycle);
-}
-
-template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
-Result<void, TimeStepTooLarge> DimensionalSplitSystemSourceSolver<
-    SystemSolver, SourceTerm, SplittingMethod>::AdvanceHierarchy(Duration dt) {
-  return AdvanceLevel(0, dt);
-}
-
-template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
-auto& DimensionalSplitSystemSourceSolver<
-    SystemSolver, SourceTerm, SplittingMethod>::GetContext() noexcept {
-  return system_solver_.GetContext();
-}
-
-template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
-const auto& DimensionalSplitSystemSourceSolver<
-    SystemSolver, SourceTerm, SplittingMethod>::GetContext() const noexcept {
-  return system_solver_.GetContext();
 }
 
 } // namespace fub

@@ -526,14 +526,14 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
     ia >> *valve.GetSharedState();
   }
 
-  fub::DimensionalSplitSystemSourceSolver ign_solver(
+  fub::SplitSystemSourceLevelIntegrator ign_solver(
       std::move(system_solver), std::move(ignition), fub::GodunovSplitting{});
 
   fub::amrex::MultiBlockKineticSouceTerm source_term{
       fub::IdealGasMix<Tube_Rank>{mechanism},
       ign_solver.GetGriddingAlgorithm()};
 
-  fub::DimensionalSplitSystemSourceSolver solver{std::move(ign_solver),
+  fub::SplitSystemSourceLevelIntegrator solver{std::move(ign_solver),
                                                  std::move(source_term)};
 
   std::string base_name = po.output_directory;

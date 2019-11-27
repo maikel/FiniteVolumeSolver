@@ -45,9 +45,8 @@ public:
   void ResetHierarchyConfiguration(
       const std::shared_ptr<amrex::GriddingAlgorithm>& griding);
 
-  Duration ComputeStableDt();
+  Duration ComputeStableDt(int level);
 
-  Result<void, TimeStepTooLarge> AdvanceHierarchy(Duration dt);
   Result<void, TimeStepTooLarge> AdvanceLevel(int level, Duration dt);
 
   Duration GetTimePoint() const;

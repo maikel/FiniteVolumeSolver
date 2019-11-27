@@ -125,6 +125,7 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
   ::amrex::MultiFab& fluxes = context.GetFluxes(level, dir);
   const ::amrex::MultiFab& scratch = context.GetScratch(level);
   const double dx = geom.CellSize(int(dir));
+  FUB_ASSERT(!scratch.contains_nan());
   ForEachFab(Tag(), fluxes, [&](::amrex::MFIter& mfi) {
     // Get a view of all complete state variables
     const int gcw = GetStencilWidth();
@@ -140,10 +141,9 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
     View<Conservative<Equation>> flux =
         MakeView<Conservative<Equation>>(fluxes[mfi], equation, face_box);
     // Pass views to implementation
-    FUB_ASSERT(!scratch[mfi].contains_nan());
     flux_method_->ComputeNumericFluxes(Tag(), flux, states, dt, dx, dir);
-    FUB_ASSERT(!fluxes[mfi].contains_nan());
   });
+  FUB_ASSERT(!fluxes.contains_nan());
 }
 
 template <typename Tag, typename FM>

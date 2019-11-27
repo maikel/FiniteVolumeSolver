@@ -55,6 +55,7 @@ int main(int argc, char** argv) {
       std::chrono::steady_clock::now();
 
   const fub::amrex::ScopeGuard guard(argc, argv);
+  fub::InitializeLogging(MPI_COMM_WORLD);
 
   constexpr int Dim = AMREX_SPACEDIM;
   static_assert(AMREX_SPACEDIM >= 2);
@@ -86,7 +87,7 @@ int main(int argc, char** argv) {
 
   std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       fub::amrex::PatchHierarchy(equation, geometry, hier_opts), CircleData{},
-      gradient, boundary);
+      fub::amrex::TagAllOf(gradient, fub::amrex::TagBuffer(4)), boundary);
   gridding->InitializeHierarchy(0.0);
 
   fub::amrex::HyperbolicMethod method{
@@ -95,15 +96,18 @@ int main(int argc, char** argv) {
       fub::amrex::ForwardIntegrator(fub::execution::seq),
       fub::amrex::Reconstruction(fub::execution::seq, equation)};
 
-  fub::DimensionalSplitLevelIntegrator solver(
+  fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<2>, fub::amrex::IntegratorContext(gridding, method));
+
+  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
   std::string base_name = "Advection_Muscl_Hancock/";
 
   using namespace std::literals::chrono_literals;
-  fub::AsOutput<fub::amrex::GriddingAlgorithm> output({}, {0.1s},
-      [&](const fub::amrex::GriddingAlgorithm& gridding) {
-        std::string name = fmt::format("{}plt{:04}", base_name, gridding.GetCycles());
+  fub::AsOutput<fub::amrex::GriddingAlgorithm> output(
+      {}, {0.1s}, [&](const fub::amrex::GriddingAlgorithm& gridding) {
+        std::string name =
+            fmt::format("{}plt{:04}", base_name, gridding.GetCycles());
         ::amrex::Print() << "Start output to '" << name << "'.\n";
         fub::amrex::WritePlotFile(name, gridding.GetPatchHierarchy(), equation);
         ::amrex::Print() << "Finished output to '" << name << "'.\n";

@@ -118,20 +118,22 @@ void MyMain(const ProgramOptions& opts) {
 
   fub::amrex::IgniteDetonationOptions io{};
   fub::amrex::IgniteDetonation ignite(equation, gridding, io);
-  fub::DimensionalSplitSystemSourceSolver ign_solver(system_solver, ignite,
+  fub::SplitSystemSourceLevelIntegrator ign_solver(system_solver, ignite,
                                                      fub::GodunovSplitting{});
 
   fub::ideal_gas::KineticSourceTerm<1> source_term(equation, gridding);
 
-  fub::DimensionalSplitSystemSourceSolver solver(ign_solver, source_term,
+  fub::SplitSystemSourceLevelIntegrator level_integrator(ign_solver, source_term,
                                                  fub::StrangSplitting());
+
+  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
   // }}}
 
   // Run the simulation with given feedback functions
 
   std::string base_name = "IdealGasMix/";
   int rank = -1;
-  MPI_Comm_rank(solver.GetContext().GetMpiCommunicator(), &rank);
+  MPI_Comm_rank(solver.GetMpiCommunicator(), &rank);
   fub::AsOutput<fub::amrex::GriddingAlgorithm> output({}, {fub::Duration(opts.output_interval)},
       [&](const fub::amrex::GriddingAlgorithm& gridding) {
         std::ptrdiff_t cycle = gridding.GetCycles();
@@ -144,7 +146,7 @@ void MyMain(const ProgramOptions& opts) {
         fub::amrex::WriteTubeData(
             fmt::format("{}/Tube.h5", base_name),
             gridding.GetPatchHierarchy(), equation, timepoint, cycle,
-            solver.GetContext().GetMpiCommunicator());
+            solver.GetMpiCommunicator());
         amrex::Print() << "Finished output to '" << name << "'.\n";
       });
 
@@ -156,7 +158,7 @@ void MyMain(const ProgramOptions& opts) {
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }
 
-int main(int argc, char** argv) {
+int main() {
   MPI_Init(nullptr, nullptr);
   fub::InitializeLogging(MPI_COMM_WORLD);
   {
