@@ -106,12 +106,8 @@ int main(int argc, char** argv) {
 
   using namespace std::literals::chrono_literals;
   fub::AsOutput<fub::amrex::GriddingAlgorithm> output(
-<<<<<<< HEAD
       {1}, {0.1s}, [&](const fub::amrex::GriddingAlgorithm& gridding) {
         solver.GetContext();
-=======
-      {}, {0.1s}, [&](const fub::amrex::GriddingAlgorithm& gridding) {
->>>>>>> 176c36ccb2a720d33481e1984fbd6a5151d0b123
         std::string name =
             fmt::format("{}plt{:04}", base_name, gridding.GetCycles());
         ::amrex::Print() << "Start output to '" << name << "'.\n";
