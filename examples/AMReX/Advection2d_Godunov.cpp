@@ -92,7 +92,7 @@ int main(int argc, char** argv) {
   gridding->InitializeHierarchy(0.0);
 
   fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethod(fub::execution::seq, fub::GodunovMethod{equation}),
+      fub::amrex::FluxMethod(fub::execution::simd, fub::GodunovMethod{equation}),
       fub::amrex::ForwardIntegrator(fub::execution::seq),
       fub::amrex::Reconstruction(fub::execution::seq, equation)};
 
@@ -102,12 +102,22 @@ int main(int argc, char** argv) {
   // fub::NoSubcycleSolver solver(std::move(level_integrator));
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
+  int rank = -1;
+  MPI_Comm comm = solver.GetMpiCommunicator();
+  MPI_Comm_rank(comm, &rank);
+
   std::string base_name = "Advection_Godunov/";
 
   using namespace std::literals::chrono_literals;
   fub::AsOutput<fub::amrex::GriddingAlgorithm> output(
       {1}, {0.1s}, [&](const fub::amrex::GriddingAlgorithm& gridding) {
-        solver.GetContext();
+        std::chrono::steady_clock::time_point now =
+            std::chrono::steady_clock::now();
+        auto diff = std::chrono::duration_cast<std::chrono::nanoseconds>(now - wall_time_reference);
+        auto statistics = solver.GetContext().registry_.gather_statistics();
+        if (rank == 0) {
+          fub::print_statistics(statistics, diff.count());
+        }
         std::string name =
             fmt::format("{}plt{:04}", base_name, gridding.GetCycles());
         ::amrex::Print() << "Start output to '" << name << "'.\n";

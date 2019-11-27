@@ -29,34 +29,31 @@ template <typename LevelIntegrator>
 class SolverFacade : private LevelIntegrator {
 public:
   template <typename... Args>
-      SolverFacade(Args&&... args)
-      : LevelIntegrator(std::forward<Args>(args)...){}
+  SolverFacade(Args&&... args) : LevelIntegrator(std::forward<Args>(args)...) {}
 
-            [[nodiscard]] LevelIntegrator
-        & GetLevelIntegrator() noexcept {
-    return *this;
-  }
+  [[nodiscard]] LevelIntegrator& GetLevelIntegrator() noexcept { return *this; }
   [[nodiscard]] const LevelIntegrator& GetLevelIntegrator() const noexcept {
     return *this;
   }
 
   using LevelIntegrator::AdvanceLevelNonRecursively;
+  using LevelIntegrator::ApplyFluxCorrection;
   using LevelIntegrator::CoarsenConservatively;
   using LevelIntegrator::CompleteFromCons;
   using LevelIntegrator::ComputeStableDt;
+  using LevelIntegrator::GetContext;
   using LevelIntegrator::GetCycles;
   using LevelIntegrator::GetGriddingAlgorithm;
   using LevelIntegrator::GetMpiCommunicator;
+  using LevelIntegrator::GetRatioToCoarserLevel;
   using LevelIntegrator::GetTimePoint;
   using LevelIntegrator::LevelExists;
   using LevelIntegrator::PostAdvanceHierarchy;
   using LevelIntegrator::PostAdvanceLevel;
   using LevelIntegrator::PreAdvanceHierarchy;
   using LevelIntegrator::PreAdvanceLevel;
-  using LevelIntegrator::ResetHierarchyConfiguration;
   using LevelIntegrator::ResetCoarseFineFluxes;
-  using LevelIntegrator::GetRatioToCoarserLevel;
-  using LevelIntegrator::ApplyFluxCorrection;
+  using LevelIntegrator::ResetHierarchyConfiguration;
 };
 
 } // namespace fub
