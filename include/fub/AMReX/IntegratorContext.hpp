@@ -26,6 +26,7 @@
 #include "fub/HyperbolicMethod.hpp"
 #include "fub/TimeStepError.hpp"
 #include "fub/ext/outcome.hpp"
+#include "fub/counter/CounterRegistry.hpp"
 
 #include "fub/AMReX/GriddingAlgorithm.hpp"
 #include "fub/AMReX/PatchHierarchy.hpp"
@@ -214,6 +215,8 @@ public:
   /// number.
   void CoarsenConservatively(int fine, int coarse);
   ///@}
+
+  CounterRegistry registry_;
 
 private:
   /// \brief This class holds auxiliary data on each refinement level.

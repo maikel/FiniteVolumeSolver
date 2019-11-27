@@ -237,6 +237,7 @@ void IntegratorContext::SetCycles(std::ptrdiff_t cycles, int level) {
 void IntegratorContext::FillGhostLayerTwoLevels(
     int fine, BoundaryCondition& fine_condition, int coarse,
     BoundaryCondition& coarse_condition) {
+  auto _ = registry_.get_timer("IntegratorContext::FillGhostLayerTwoLevels");
   FUB_ASSERT(coarse >= 0 && fine > coarse);
   ::amrex::MultiFab& scratch = GetScratch(fine);
   ::amrex::Vector<::amrex::BCRec> bcr(
@@ -271,6 +272,7 @@ void IntegratorContext::FillGhostLayerTwoLevels(int fine, int coarse) {
 
 void IntegratorContext::FillGhostLayerSingleLevel(int level,
                                                   BoundaryCondition& bc) {
+  auto _ = registry_.get_timer("IntegratorContext::FillGhostLayerSingleLevel");
   ::amrex::MultiFab& scratch = GetScratch(level);
   ::amrex::Vector<::amrex::BCRec> bcr(
       static_cast<std::size_t>(scratch.nComp()));
@@ -354,6 +356,7 @@ void IntegratorContext::ApplyFluxCorrection(int fine, int coarse,
 }
 
 Duration IntegratorContext::ComputeStableDt(int level, Direction dir) {
+  auto _ = registry_.get_timer("IntegratorContext::ComputeStableDt");
   return method_.flux_method.ComputeStableDt(*this, level, dir);
 }
 
@@ -363,6 +366,7 @@ int IntegratorContext::Rank() const noexcept {
 
 void IntegratorContext::ComputeNumericFluxes(int level, Duration dt,
                                              Direction dir) {
+  auto _ = registry_.get_timer("IntegratorContext::ComputeNumericFluxes");
   method_.flux_method.ComputeNumericFluxes(*this, level, dt, dir);
 }
 

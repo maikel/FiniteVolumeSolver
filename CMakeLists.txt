@@ -25,6 +25,9 @@ endif()
 if (EXISTS ${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
   include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
   conan_basic_setup(TARGETS NO_OUTPUT_DIRS)
+  set(Boost_NO_BOOST_CMAKE ON)
+  set(Boost_NO_SYSTEM_PATHS ON)
+  set(BOOST_ROOT ${CONAN_BOOST_ROOT})
 endif()
 
 find_package(range-v3 REQUIRED)
@@ -271,7 +274,14 @@ add_library(FiniteVolumeSolver.Solver
   src/HyperbolicPatchIntegrator.cpp
   src/RunSimulation.cpp
   src/ext/ProgramOptions.cpp
-  include/fub/ext/ProgramOptions.hpp)
+  include/fub/ext/ProgramOptions.hpp
+  include/fub/counter/Counter.hpp
+  include/fub/counter/CounterRegistry.hpp
+  include/fub/counter/CounterResult.hpp
+  include/fub/counter/Timer.hpp
+  src/counter/Counter.cpp
+  src/counter/CounterRegistry.cpp
+  src/counter/Timer.cpp)
 target_link_libraries(FiniteVolumeSolver.Solver
   PUBLIC
     FiniteVolumeSolver.Core
