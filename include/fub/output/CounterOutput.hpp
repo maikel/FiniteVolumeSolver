@@ -18,42 +18,44 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_OUTPUT_INVOKE_FUNCTIONS_HPP
-#define FUB_OUTPUT_INVOKE_FUNCTIONS_HPP
+#ifndef FUB_OUTPUT_COUNTER_OUTPUT_HPP
+#define FUB_OUTPUT_COUNTER_OUTPUT_HPP
 
-#include "fub/ext/ProgramOptions.hpp"
-#include "fub/output/BasicOutput.hpp"
+#include "fub/counter/CounterRegistry.hpp"
 #include "fub/output/OutputAtFrequencyOrInterval.hpp"
+
+#include <chrono>
+#include <memory>
 
 namespace fub {
 
-template <typename Grid, typename Fn>
-class AsOutput : public OutputAtFrequencyOrInterval<Grid> {
+template <typename Grid>
+class CounterOutput : public OutputAtFrequencyOrInterval<Grid> {
 public:
-  AsOutput(std::vector<std::ptrdiff_t> frequencies,
-           std::vector<Duration> intervals, Fn fn)
+  CounterOutput(std::shared_ptr<CounterRegistry> registry,
+                std::chrono::steady_clock::time_point reference,
+                std::vector<std::ptrdiff_t> frequencies,
+                std::vector<Duration> intervals)
       : OutputAtFrequencyOrInterval<Grid>(std::move(frequencies),
                                           std::move(intervals)),
-        fn_(std::move(fn)) {}
+        registry_(std::move(registry)), reference_(reference) {}
 
-  AsOutput(const std::map<std::string, pybind11::object>& vm,
-           std::function<void(const Grid&)> fn)
-      : OutputAtFrequencyOrInterval<Grid>(vm), fn_(std::move(fn)) {}
-
-  void operator()(const Grid& grid) override { std::invoke(fn_, grid); }
+  void operator()(const Grid&) override {
+    std::chrono::steady_clock::time_point now =
+        std::chrono::steady_clock::now();
+    auto diff =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(now - reference_);
+    std::vector<CounterResult> statistics = registry_->gather_statistics();
+    if (statistics.size()) {
+      print_statistics<std::chrono::microseconds>(statistics, diff.count());
+    }
+  }
 
 private:
-  Fn fn_;
+  std::shared_ptr<CounterRegistry> registry_;
+  std::chrono::steady_clock::time_point reference_;
 };
 
-template <typename Grid, typename Fn>
-std::unique_ptr<AsOutput<Grid, Fn>>
-MakeOutput(std::vector<std::ptrdiff_t> frequencies,
-           std::vector<Duration> intervals, Fn fn) {
-
-  return std::make_unique<AsOutput<Grid, Fn>>(
-      std::move(frequencies), std::move(intervals), std::move(fn));
-}
 } // namespace fub
 
 #endif

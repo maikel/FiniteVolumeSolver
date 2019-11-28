@@ -139,7 +139,12 @@ void print_statistics(const ResultRange& results, long long reference = -1) {
           last_column_value);
     }
   } else {
-    for (auto&& result : results) {
+    ResultRange copy = results;
+    std::sort(copy.begin(), copy.end(),
+              [](const CounterResult& r1, const CounterResult& r2) {
+                return r1.count * r1.mean > r2.count * r2.mean;
+              });
+    for (auto&& result : copy) {
       double last_column_value =
           (reference == -1
                ? duration_cast<Duration>(

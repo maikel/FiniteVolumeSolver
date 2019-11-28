@@ -94,8 +94,8 @@ std::optional<CounterResult> Counter::gather_statistics(MPI_Comm comm,
         *std::min_element(received_mins.begin(), received_mins.end()),
         *std::max_element(received_maxs.begin(), received_maxs.end()),
         calculate_mean(received_means),
-        global_variance,
-        std::sqrt(global_variance)};
+        std::sqrt(global_variance),
+        global_variance};
 
   } else {
     MPI_Gather(&local_min, send_size, MPI_LONG_LONG, nullptr,

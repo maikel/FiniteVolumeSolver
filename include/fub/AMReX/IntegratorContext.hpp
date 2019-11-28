@@ -216,7 +216,7 @@ public:
   void CoarsenConservatively(int fine, int coarse);
   ///@}
 
-  CounterRegistry registry_;
+  std::shared_ptr<CounterRegistry> registry_;
 
 private:
   /// \brief This class holds auxiliary data on each refinement level.

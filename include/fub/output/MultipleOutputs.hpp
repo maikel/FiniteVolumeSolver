@@ -37,6 +37,8 @@ template <typename Grid> class MultipleOutputs : public BasicOutput<Grid> {
 public:
   using ProgramOptions = std::map<std::string, pybind11::object>;
 
+  MultipleOutputs() = default;
+
   MultipleOutputs(OutputFactory<Grid> factory, const ProgramOptions& opts)
       : factory_(std::move(factory)), outputs_{} {
     std::vector<int> frequencies =
@@ -58,8 +60,9 @@ public:
     }
   }
 
-  void AddOutput(std::unique_ptr<BasicOutput<Grid>> output) {
-    outputs_.push_back(std::move(output));
+  template <typename T>
+  void AddOutput(std::unique_ptr<T>&& output) {
+    outputs_.emplace_back(output.release());
   }
 
   /// Returns the time point at which the simulation shall stop to do some
@@ -94,8 +97,8 @@ public:
   }
 
 private:
-  OutputFactory<Grid> factory_;
-  std::vector<std::unique_ptr<BasicOutput<Grid>>> outputs_;
+  OutputFactory<Grid> factory_{};
+  std::vector<std::unique_ptr<BasicOutput<Grid>>> outputs_{};
 };
 
 } // namespace fub

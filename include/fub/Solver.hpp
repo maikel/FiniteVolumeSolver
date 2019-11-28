@@ -73,3 +73,4 @@
 #include "fub/output/OutputAtFrequencyOrInterval.hpp"
 #include "fub/output/OutputFactory.hpp"
 #include "fub/output/MultipleOutputs.hpp"
+#include "fub/output/CounterOutput.hpp"

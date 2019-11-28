@@ -72,7 +72,7 @@ int main(int argc, char** argv) {
   geometry.periodicity = std::array<int, Dim>{AMREX_D_DECL(1, 1, 1)};
 
   fub::amrex::PatchHierarchyOptions hier_opts{};
-  hier_opts.max_number_of_levels = 3;
+  hier_opts.max_number_of_levels = 6;
 
   using State = fub::Advection2d::Complete;
   fub::amrex::GradientDetector gradient{equation,
@@ -104,14 +104,19 @@ int main(int argc, char** argv) {
   std::string base_name = "Advection_Muscl_Hancock/";
 
   using namespace std::literals::chrono_literals;
-  fub::AsOutput<fub::amrex::GriddingAlgorithm> output(
+  fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> output{};
+  output.AddOutput(fub::MakeOutput<fub::amrex::GriddingAlgorithm>(
       {}, {0.1s}, [&](const fub::amrex::GriddingAlgorithm& gridding) {
         std::string name =
             fmt::format("{}plt{:04}", base_name, gridding.GetCycles());
         ::amrex::Print() << "Start output to '" << name << "'.\n";
         fub::amrex::WritePlotFile(name, gridding.GetPatchHierarchy(), equation);
         ::amrex::Print() << "Finished output to '" << name << "'.\n";
-      });
+      }));
+  output.AddOutput(
+      std::make_unique<fub::CounterOutput<fub::amrex::GriddingAlgorithm>>(
+          solver.GetContext().registry_, wall_time_reference,
+          std::vector<std::ptrdiff_t>{10}, std::vector<fub::Duration>{}));
 
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};

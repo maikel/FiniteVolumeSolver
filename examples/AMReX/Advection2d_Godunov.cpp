@@ -72,7 +72,7 @@ int main(int argc, char** argv) {
   geometry.periodicity = std::array<int, Dim>{AMREX_D_DECL(1, 1, 1)};
 
   fub::amrex::PatchHierarchyOptions hier_opts{};
-  hier_opts.max_number_of_levels = 3;
+  hier_opts.max_number_of_levels = 4;
   hier_opts.refine_ratio = amrex::IntVect(AMREX_D_DECL(2, 2, 1));
 
   using State = fub::Advection2d::Complete;
@@ -92,38 +92,33 @@ int main(int argc, char** argv) {
   gridding->InitializeHierarchy(0.0);
 
   fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethod(fub::execution::simd, fub::GodunovMethod{equation}),
+      fub::amrex::FluxMethod(fub::execution::simd,
+                             fub::GodunovMethod{equation}),
       fub::amrex::ForwardIntegrator(fub::execution::seq),
       fub::amrex::Reconstruction(fub::execution::seq, equation)};
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<2>, fub::amrex::IntegratorContext(gridding, method));
+      fub::int_c<Dim>, fub::amrex::IntegratorContext(gridding, method));
 
   // fub::NoSubcycleSolver solver(std::move(level_integrator));
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
-  int rank = -1;
-  MPI_Comm comm = solver.GetMpiCommunicator();
-  MPI_Comm_rank(comm, &rank);
-
   std::string base_name = "Advection_Godunov/";
 
   using namespace std::literals::chrono_literals;
-  fub::AsOutput<fub::amrex::GriddingAlgorithm> output(
-      {1}, {0.1s}, [&](const fub::amrex::GriddingAlgorithm& gridding) {
-        std::chrono::steady_clock::time_point now =
-            std::chrono::steady_clock::now();
-        auto diff = std::chrono::duration_cast<std::chrono::nanoseconds>(now - wall_time_reference);
-        auto statistics = solver.GetContext().registry_.gather_statistics();
-        if (rank == 0) {
-          fub::print_statistics<std::chrono::microseconds>(statistics, diff.count());
-        }
+  fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> output{};
+  output.AddOutput(fub::MakeOutput<fub::amrex::GriddingAlgorithm>(
+      {}, {0.1s}, [&](const fub::amrex::GriddingAlgorithm& gridding) {
         std::string name =
             fmt::format("{}plt{:04}", base_name, gridding.GetCycles());
         ::amrex::Print() << "Start output to '" << name << "'.\n";
         fub::amrex::WritePlotFile(name, gridding.GetPatchHierarchy(), equation);
         ::amrex::Print() << "Finished output to '" << name << "'.\n";
-      });
+      }));
+  output.AddOutput(
+      std::make_unique<fub::CounterOutput<fub::amrex::GriddingAlgorithm>>(
+          solver.GetContext().registry_, wall_time_reference,
+          std::vector<std::ptrdiff_t>{10}, std::vector<fub::Duration>{}));
 
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};

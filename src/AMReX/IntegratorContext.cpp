@@ -65,7 +65,8 @@ operator=(LevelData&& other) noexcept {
 
 IntegratorContext::IntegratorContext(
     std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod nm)
-    : ghost_cell_width_{nm.flux_method.GetStencilWidth() + 1},
+    : registry_{std::make_shared<CounterRegistry>()},
+      ghost_cell_width_{nm.flux_method.GetStencilWidth() + 1},
       gridding_{std::move(gridding)}, data_{}, method_{std::move(nm)} {
   data_.reserve(
       static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
@@ -82,7 +83,8 @@ IntegratorContext::IntegratorContext(
 }
 
 IntegratorContext::IntegratorContext(const IntegratorContext& other)
-    : ghost_cell_width_{other.ghost_cell_width_}, gridding_{other.gridding_},
+    : registry_(other.registry_),
+      ghost_cell_width_{other.ghost_cell_width_}, gridding_{other.gridding_},
       data_(static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels())),
       method_{other.method_} {
   // Allocate auxiliary data arrays
@@ -190,6 +192,10 @@ void IntegratorContext::ResetHierarchyConfiguration(
 }
 
 void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
+  Timer timer1 =
+      registry_->get_timer("IntegratorContext::ResetHierarchyConfiguration");
+  Timer timer2 = registry_->get_timer(fmt::format(
+      "IntegratorContext::ResetHierarchyConfiguration({})", first_level));
   const int n_cons_components =
       GetPatchHierarchy().GetDataDescription().n_cons_components;
   const int new_n_levels = GetPatchHierarchy().GetNumberOfLevels();
@@ -238,7 +244,10 @@ void IntegratorContext::SetCycles(std::ptrdiff_t cycles, int level) {
 void IntegratorContext::FillGhostLayerTwoLevels(
     int fine, BoundaryCondition& fine_condition, int coarse,
     BoundaryCondition& coarse_condition) {
-  auto _ = registry_.get_timer("IntegratorContext::FillGhostLayerTwoLevels");
+  Timer timer1 =
+      registry_->get_timer("IntegratorContext::FillGhostLayerTwoLevels");
+  Timer timer2 = registry_->get_timer(
+      fmt::format("IntegratorContext::FillGhostLayerTwoLevels({})", fine));
   FUB_ASSERT(coarse >= 0 && fine > coarse);
   ::amrex::MultiFab& scratch = GetScratch(fine);
   ::amrex::Vector<::amrex::BCRec> bcr(
@@ -273,7 +282,10 @@ void IntegratorContext::FillGhostLayerTwoLevels(int fine, int coarse) {
 
 void IntegratorContext::FillGhostLayerSingleLevel(int level,
                                                   BoundaryCondition& bc) {
-  auto _ = registry_.get_timer("IntegratorContext::FillGhostLayerSingleLevel");
+  Timer timer1 =
+      registry_->get_timer("IntegratorContext::FillGhostLayerSingleLevel");
+  Timer timer2 = registry_->get_timer(
+      fmt::format("IntegratorContext::FillGhostLayerSingleLevel({})", level));
   ::amrex::MultiFab& scratch = GetScratch(level);
   ::amrex::Vector<::amrex::BCRec> bcr(
       static_cast<std::size_t>(scratch.nComp()));
@@ -291,6 +303,11 @@ void IntegratorContext::FillGhostLayerSingleLevel(int level) {
 
 void IntegratorContext::CoarsenConservatively(int fine_level,
                                               int coarse_level) {
+  Timer timer1 =
+      registry_->get_timer("IntegratorContext::CoarsenConservatively");
+  Timer timer2 = registry_->get_timer(
+      fmt::format("IntegratorContext::CoarsenConservatively({}, {})",
+                  fine_level, coarse_level));
   const int first =
       GetPatchHierarchy().GetDataDescription().first_cons_component;
   const int size = GetPatchHierarchy().GetDataDescription().n_cons_components;
@@ -352,7 +369,9 @@ void IntegratorContext::ApplyFluxCorrection(int fine, int coarse,
 }
 
 Duration IntegratorContext::ComputeStableDt(int level, Direction dir) {
-  auto _ = registry_.get_timer("IntegratorContext::ComputeStableDt");
+  Timer timer1 = registry_->get_timer("IntegratorContext::ComputeStableDt");
+  Timer timer2 = registry_->get_timer(
+      fmt::format("IntegratorContext::ComputeStableDt({})", level));
   return method_.flux_method.ComputeStableDt(*this, level, dir);
 }
 
@@ -362,7 +381,10 @@ int IntegratorContext::Rank() const noexcept {
 
 void IntegratorContext::ComputeNumericFluxes(int level, Duration dt,
                                              Direction dir) {
-  auto _ = registry_.get_timer("IntegratorContext::ComputeNumericFluxes");
+  Timer timer1 =
+      registry_->get_timer("IntegratorContext::ComputeNumericFluxes");
+  Timer timer2 = registry_->get_timer(
+      fmt::format("IntegratorContext::ComputeNumericFluxes({})", level));
   method_.flux_method.ComputeNumericFluxes(*this, level, dt, dir);
 }
 
@@ -372,11 +394,18 @@ void IntegratorContext::CompleteFromCons(int level, Duration dt) {
 
 void IntegratorContext::UpdateConservatively(int level, Duration dt,
                                              Direction dir) {
+  Timer timer1 =
+      registry_->get_timer("IntegratorContext::UpdateConservatively");
+  Timer timer2 = registry_->get_timer(
+      fmt::format("IntegratorContext::UpdateConservatively({})", level));
   method_.time_integrator.UpdateConservatively(*this, level, dt, dir);
 }
 
 void IntegratorContext::PreAdvanceLevel(int level_num, Duration,
                                         std::pair<int, int> subcycle) {
+  Timer timer1 = registry_->get_timer("IntegratorContext::PreAdvanceLevel");
+  Timer timer2 = registry_->get_timer(
+      fmt::format("IntegratorContext::PreAdvanceLevel({})", level_num));
   const std::size_t l = static_cast<std::size_t>(level_num);
   if (subcycle.first == 0) {
     if (data_[l].regrid_time_point != data_[l].time_point) {
@@ -397,6 +426,9 @@ void IntegratorContext::PreAdvanceLevel(int level_num, Duration,
 Result<void, TimeStepTooLarge>
 IntegratorContext::PostAdvanceLevel(int level_num, Duration dt,
                                     std::pair<int, int> subcycle) {
+  Timer timer1 = registry_->get_timer("IntegratorContext::PostAdvanceLevel");
+  Timer timer2 = registry_->get_timer(
+      fmt::format("IntegratorContext::PostAdvanceLevel({})", level_num));
   if (subcycle.first == 0) {
     GetData(level_num).ParallelCopy(
         GetScratch(level_num),
