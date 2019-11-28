@@ -116,7 +116,7 @@ int main(int argc, char** argv) {
         auto diff = std::chrono::duration_cast<std::chrono::nanoseconds>(now - wall_time_reference);
         auto statistics = solver.GetContext().registry_.gather_statistics();
         if (rank == 0) {
-          fub::print_statistics(statistics, diff.count());
+          fub::print_statistics<std::chrono::microseconds>(statistics, diff.count());
         }
         std::string name =
             fmt::format("{}plt{:04}", base_name, gridding.GetCycles());

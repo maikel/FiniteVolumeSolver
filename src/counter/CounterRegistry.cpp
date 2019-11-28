@@ -35,7 +35,7 @@ Timer CounterRegistry::get_timer(std::string const& name) {
 
 std::vector<CounterResult> CounterRegistry::gather_statistics() {
   std::vector<CounterResult> statistics;
-  for (const std::pair<std::string, Counter>& c : database_) {
+  for (const std::pair<const std::string, Counter>& c : database_) {
     std::optional<CounterResult> result = c.second.gather_statistics();
     if (result.has_value()) {
       statistics.push_back(*result);
@@ -47,7 +47,7 @@ std::vector<CounterResult> CounterRegistry::gather_statistics() {
 std::unordered_map<std::string, CounterResult>
 CounterRegistry::gather_statistics_map() {
   std::unordered_map<std::string, CounterResult> statistics;
-  for (const std::pair<std::string, Counter>& c : database_) {
+  for (const std::pair<const std::string, Counter>& c : database_) {
     std::optional<CounterResult> result = c.second.gather_statistics();
     if (result.has_value()) {
       statistics.emplace(result->name, *result);

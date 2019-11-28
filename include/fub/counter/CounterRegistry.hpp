@@ -22,9 +22,10 @@
 #ifndef FUB_COUNTER_COUNTER_REGISTRY_HPP
 #define FUB_COUNTER_COUNTER_REGISTRY_HPP
 
+#include <fmt/format.h>
+#include <map>
 #include <string>
 #include <unordered_map>
-#include <fmt/format.h>
 
 #include "Counter.hpp"
 #include "Timer.hpp"
@@ -44,47 +45,93 @@ private:
 };
 
 /*
- * Functions to print a table of all gathered counters (#call, min, max, avg, stddev and total or percent)
+ * Functions to print a table of all gathered counters (#call, min, max, avg,
+ * stddev and total or percent)
  */
-template <typename T> void print_statistics(const T& result) {
-  std::string format_string =
-      "{:>55} {:>15} {:>15} {:>15} {:>15} {:>15} {:>15}\n";
-  fmt::print("{:-<155}\n", "Table of Counters ");
-  fmt::print(format_string, "Counter Name", "#Calls", "Min [ns]", "Max [ns]",
-             "Avg [ns]", "StdDev [ns]", "Total [ns]");
-  for (auto& c : result) {
-    if constexpr (std::is_same_v<
-                      T, std::unordered_map<std::string, CounterResult>>) {
-      fmt::print(format_string, c.second.name, c.second.count, c.second.min,
-                 c.second.max, c.second.mean, c.second.stddev,
-                 c.second.count * c.second.mean);
-    } else {
-      fmt::print(format_string, c.name, c.count, c.min, c.max, c.mean, c.stddev,
-                 c.count * c.mean);
-    }
-    // fmt::print(format_string, c.name, c.count, std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::nanoseconds(std::llround(c.min))).count(), std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::nanoseconds(std::llround(c.mean))).count(), std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::nanoseconds(std::llround(c.max))).count(), std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::nanoseconds(std::llround(c.stddev))).count(), std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::nanoseconds(std::llround(c.count*c.mean))).count());
-  }
-  fmt::print("{:=<155}\n", "");
-}
+template <typename Duration> struct DurationName {
+  static constexpr const char* name = "unknown";
+};
 
-template <typename T> void print_statistics(T result, long long reference) {
+template <> struct DurationName<std::chrono::nanoseconds> {
+  static constexpr const char* name = "ns";
+};
+
+template <> struct DurationName<std::chrono::microseconds> {
+  static constexpr const char* name = "us";
+};
+
+template <> struct DurationName<std::chrono::milliseconds> {
+  static constexpr const char* name = "ms";
+};
+
+template <> struct DurationName<std::chrono::seconds> {
+  static constexpr const char* name = "s";
+};
+
+template <typename Duration, typename T>
+void print_statistics(T result, long long reference = -1) {
+  const char* last_column_title = [](long long r) {
+    return r == -1 ? "Total [{}]" : "Percent [%]";
+  }(reference);
+
   fmt::print("{:-<155}\n", "Table of Counters ");
   fmt::print("{:>55} {:>15} {:>15} {:>15} {:>15} {:>15} {:>15}\n",
-             "Counter Name", "#Calls", "Min [ns]", "Max [ns]", "Avg [ns]",
-             "StdDev [ns]", "Percent [%]");
+             "Counter Name", "#Calls",
+             fmt::format("Min [{}]", DurationName<Duration>{}.name),
+             fmt::format("Max [{}]", DurationName<Duration>{}.name),
+             fmt::format("Avg [{}]", DurationName<Duration>{}.name),
+             fmt::format("StdDev [{}]", DurationName<Duration>{}.name),
+             fmt::format(last_column_title, DurationName<Duration>{}.name));
+  if (result.empty()) {
+    fmt::print("{}", "Registry does not countain counters!");
+  }
   for (auto& c : result) {
-    if constexpr (std::is_same_v<
-                      T, std::unordered_map<std::string, CounterResult>>) {
+    if constexpr (std::is_same_v<decltype(c), std::pair<const std::string,
+                                                        CounterResult>&>) {
+      double last_column_value =
+          (reference == -1 ? std::chrono::duration_cast<Duration>(
+                                 std::chrono::nanoseconds(std::llround(
+                                     c.second.count * c.second.mean)))
+                                 .count()
+                           : ((c.second.count * c.second.mean) / reference)*100);
       fmt::print("{:>55} {:>15} {:>15} {:>15} {:>15} {:>15} {:>15.2}\n",
-                 c.second.name, c.second.count, c.second.min, c.second.max,
-                 c.second.mean, c.second.stddev,
-                 (c.second.count * c.second.mean) / reference);
+                 c.second.name, c.second.count,
+                 std::chrono::duration_cast<Duration>(
+                     std::chrono::nanoseconds(std::llround(c.second.min)))
+                     .count(),
+                 std::chrono::duration_cast<Duration>(
+                     std::chrono::nanoseconds(std::llround(c.second.max)))
+                     .count(),
+                 std::chrono::duration_cast<Duration>(
+                     std::chrono::nanoseconds(std::llround(c.second.mean)))
+                     .count(),
+                 std::chrono::duration_cast<Duration>(
+                     std::chrono::nanoseconds(std::llround(c.second.stddev)))
+                     .count(),
+                 last_column_value);
+    } else if constexpr (std::is_same_v<decltype(c), CounterResult&>) {
+      double last_column_value =
+          (reference == -1
+               ? std::chrono::duration_cast<Duration>(
+                     std::chrono::nanoseconds(std::llround(c.count * c.mean)))
+                     .count()
+               : ((c.count * c.mean) / reference)*100);
+      fmt::print("{:>55} {:>15} {:>15} {:>15} {:>15} {:>15} {:>15.2}\n", c.name,
+                 c.count,
+                 std::chrono::duration_cast<Duration>(std::chrono::nanoseconds(std::llround(c.min))).count(),
+                 std::chrono::duration_cast<Duration>(std::chrono::nanoseconds(std::llround(c.max))).count(),
+                 std::chrono::duration_cast<Duration>(std::chrono::nanoseconds(std::llround(c.mean))).count(),
+                 std::chrono::duration_cast<Duration>(std::chrono::nanoseconds(std::llround(c.stddev))).count(),
+                 last_column_value);
     } else {
-      fmt::print("{:>55} {:>15} {:>15} {:>15} {:>15} {:>15} {:>15.2}\n",
-                 c.name, c.count, c.min, c.max, c.mean, c.stddev,
-                 (c.count * c.mean) / reference);
+      fmt::print("{}", "Result type not supported!\n");
     }
-    // fmt::print(format_string, c.name, c.count, std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::nanoseconds(std::llround(c.min))).count(), std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::nanoseconds(std::llround(c.mean))).count(), std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::nanoseconds(std::llround(c.max))).count(), std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::nanoseconds(std::llround(c.stddev))).count(), std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::nanoseconds(std::llround(c.count*c.mean))).count());
+    // fmt::print(format_string, c.name, c.count,
+    // std::chrono::duration_cast<Duration>(std::chrono::nanoseconds(std::llround(c.min))).count(),
+    // std::chrono::duration_cast<Duration>(std::chrono::nanoseconds(std::llround(c.mean))).count(),
+    // std::chrono::duration_cast<Duration>(std::chrono::nanoseconds(std::llround(c.max))).count(),
+    // std::chrono::duration_cast<Duration>(std::chrono::nanoseconds(std::llround(c.stddev))).count(),
+    // std::chrono::duration_cast<Duration>(std::chrono::nanoseconds(std::llround(c.count*c.mean))).count());
   }
   fmt::print("{:=<155}\n", "");
 }

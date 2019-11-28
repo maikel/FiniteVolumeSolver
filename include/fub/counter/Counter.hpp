@@ -54,7 +54,6 @@ public:
 private:
   std::string name_;
   std::vector<long long> values_;
-  double multiplier_{};
 
   template <typename T> double calculate_mean(const std::vector<T>& v) const noexcept;
   template <typename T> double calculate_variance(const std::vector<T>& v) const noexcept;
