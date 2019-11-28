@@ -68,70 +68,94 @@ template <> struct DurationName<std::chrono::seconds> {
   static constexpr const char* name = "s";
 };
 
-template <typename Duration, typename T>
-void print_statistics(T result, long long reference = -1) {
+template <typename Range>
+struct IsMapType
+    : std::is_convertible<decltype(*std::declval<Range>().begin()),
+                          std::pair<const std::string, CounterResult>> {};
+
+template <typename ResultRange>
+int LengthOfFirstColumn(const ResultRange& results) {
+  if (results.size()) {
+    if constexpr (IsMapType<ResultRange>()) {
+      return std::max_element(results.begin(), results.end(),
+                              [](auto&& p1, auto&& p2) {
+                                const std::string& name1 = std::get<0>(p1);
+                                const std::string& name2 = std::get<0>(p1);
+                                return name1.size() < name2.size();
+                              })
+          ->first.size();
+    } else {
+      return std::max_element(
+                 results.begin(), results.end(),
+                 [](const CounterResult& r1, const CounterResult& r2) {
+                   return r1.name.size() < r2.name.size();
+                 })
+          ->name.size();
+    }
+  }
+  return std::string_view("      Counter Name").size();
+}
+
+template <typename Duration, typename ResultRange>
+void print_statistics(const ResultRange& results, long long reference = -1) {
   const char* last_column_title = [](long long r) {
     return r == -1 ? "Total [{}]" : "Percent [%]";
   }(reference);
 
+  std::string header_format = fmt::format(
+      "{{:>{}}} {{:>15}} {{:>15}} {{:>15}} {{:>15}} {{:>15}} {{:>15}}\n",
+      LengthOfFirstColumn(results));
+  std::string row_format = fmt::format(
+      "{{:>{}}} {{:>15}} {{:>15}} {{:>15}} {{:>15}} {{:>15}} {{:>15.2}}\n",
+      LengthOfFirstColumn(results));
+
   fmt::print("{:-<155}\n", "Table of Counters ");
-  fmt::print("{:>55} {:>15} {:>15} {:>15} {:>15} {:>15} {:>15}\n",
-             "Counter Name", "#Calls",
-             fmt::format("Min [{}]", DurationName<Duration>{}.name),
-             fmt::format("Max [{}]", DurationName<Duration>{}.name),
-             fmt::format("Avg [{}]", DurationName<Duration>{}.name),
-             fmt::format("StdDev [{}]", DurationName<Duration>{}.name),
-             fmt::format(last_column_title, DurationName<Duration>{}.name));
-  if (result.empty()) {
-    fmt::print("{}", "Registry does not countain counters!");
+  fmt::print(header_format.c_str(), "Counter Name", "#Calls",
+             fmt::format("Min [{}]", DurationName<Duration>::name),
+             fmt::format("Max [{}]", DurationName<Duration>::name),
+             fmt::format("Avg [{}]", DurationName<Duration>::name),
+             fmt::format("StdDev [{}]", DurationName<Duration>::name),
+             fmt::format(last_column_title, DurationName<Duration>::name));
+  if (results.empty()) {
+    fmt::print("Registry does not contain any counters!\n");
   }
-  for (auto& c : result) {
-    if constexpr (std::is_same_v<decltype(c), std::pair<const std::string,
-                                                        CounterResult>&>) {
-      double last_column_value =
-          (reference == -1 ? std::chrono::duration_cast<Duration>(
-                                 std::chrono::nanoseconds(std::llround(
-                                     c.second.count * c.second.mean)))
-                                 .count()
-                           : ((c.second.count * c.second.mean) / reference)*100);
-      fmt::print("{:>55} {:>15} {:>15} {:>15} {:>15} {:>15} {:>15.2}\n",
-                 c.second.name, c.second.count,
-                 std::chrono::duration_cast<Duration>(
-                     std::chrono::nanoseconds(std::llround(c.second.min)))
-                     .count(),
-                 std::chrono::duration_cast<Duration>(
-                     std::chrono::nanoseconds(std::llround(c.second.max)))
-                     .count(),
-                 std::chrono::duration_cast<Duration>(
-                     std::chrono::nanoseconds(std::llround(c.second.mean)))
-                     .count(),
-                 std::chrono::duration_cast<Duration>(
-                     std::chrono::nanoseconds(std::llround(c.second.stddev)))
-                     .count(),
-                 last_column_value);
-    } else if constexpr (std::is_same_v<decltype(c), CounterResult&>) {
+  using namespace std::chrono;
+  if constexpr (IsMapType<ResultRange>()) {
+    for (auto&& [name, result] : results) {
       double last_column_value =
           (reference == -1
-               ? std::chrono::duration_cast<Duration>(
-                     std::chrono::nanoseconds(std::llround(c.count * c.mean)))
+               ? duration_cast<Duration>(
+                     nanoseconds(std::llround(result.count * result.mean)))
                      .count()
-               : ((c.count * c.mean) / reference)*100);
-      fmt::print("{:>55} {:>15} {:>15} {:>15} {:>15} {:>15} {:>15.2}\n", c.name,
-                 c.count,
-                 std::chrono::duration_cast<Duration>(std::chrono::nanoseconds(std::llround(c.min))).count(),
-                 std::chrono::duration_cast<Duration>(std::chrono::nanoseconds(std::llround(c.max))).count(),
-                 std::chrono::duration_cast<Duration>(std::chrono::nanoseconds(std::llround(c.mean))).count(),
-                 std::chrono::duration_cast<Duration>(std::chrono::nanoseconds(std::llround(c.stddev))).count(),
-                 last_column_value);
-    } else {
-      fmt::print("{}", "Result type not supported!\n");
+               : ((result.count * result.mean) / reference) * 100);
+      fmt::print(
+          row_format.c_str(), name, result.count,
+          duration_cast<Duration>(nanoseconds(result.min)).count(),
+          duration_cast<Duration>(nanoseconds(result.max)).count(),
+          duration_cast<Duration>(nanoseconds(std::llround(result.mean)))
+              .count(),
+          duration_cast<Duration>(nanoseconds(std::llround(result.stddev)))
+              .count(),
+          last_column_value);
     }
-    // fmt::print(format_string, c.name, c.count,
-    // std::chrono::duration_cast<Duration>(std::chrono::nanoseconds(std::llround(c.min))).count(),
-    // std::chrono::duration_cast<Duration>(std::chrono::nanoseconds(std::llround(c.mean))).count(),
-    // std::chrono::duration_cast<Duration>(std::chrono::nanoseconds(std::llround(c.max))).count(),
-    // std::chrono::duration_cast<Duration>(std::chrono::nanoseconds(std::llround(c.stddev))).count(),
-    // std::chrono::duration_cast<Duration>(std::chrono::nanoseconds(std::llround(c.count*c.mean))).count());
+  } else {
+    for (auto&& result : results) {
+      double last_column_value =
+          (reference == -1
+               ? duration_cast<Duration>(
+                     nanoseconds(std::llround(result.count * result.mean)))
+                     .count()
+               : ((result.count * result.mean) / reference) * 100);
+      fmt::print(
+          row_format.c_str(), result.name, result.count,
+          duration_cast<Duration>(nanoseconds(result.min)).count(),
+          duration_cast<Duration>(nanoseconds(result.max)).count(),
+          duration_cast<Duration>(nanoseconds(std::llround(result.mean)))
+              .count(),
+          duration_cast<Duration>(nanoseconds(std::llround(result.stddev)))
+              .count(),
+          last_column_value);
+    }
   }
   fmt::print("{:=<155}\n", "");
 }
