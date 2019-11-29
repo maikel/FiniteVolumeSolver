@@ -52,13 +52,19 @@ public:
   }
 
   void CompleteFromCons(IntegratorContext& context, int level, Duration) {
-    ::amrex::MultiFab& data = context.GetData(level);
-    const ::amrex::MultiFab& scratch = context.GetScratch(level);
-    CompleteFromCons(data, scratch);
+    ::amrex::MultiFab& dest = context.GetScratch(level);
+    const ::amrex::MultiFab& src = context.GetScratch(level);
+    CompleteFromCons(dest, src);
   }
 
 private:
   Local<Tag, CompleteFromConsFn<Equation>> rec_;
+};
+
+struct NoReconstruction {
+  void CompleteFromCons([[maybe_unused]] IntegratorContext& context,
+                        [[maybe_unused]] int level,
+                        [[maybe_unused]] Duration time_step_size) {}
 };
 
 } // namespace fub::amrex

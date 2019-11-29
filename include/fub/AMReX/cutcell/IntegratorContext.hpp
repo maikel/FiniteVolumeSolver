@@ -24,6 +24,7 @@
 #include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
 #include "fub/HyperbolicMethod.hpp"
 #include "fub/TimeStepError.hpp"
+#include "fub/counter/CounterRegistry.hpp"
 #include "fub/ext/outcome.hpp"
 
 #include <mpi.h>
@@ -70,6 +71,9 @@ public:
   /// owns the simulation.
   const std::shared_ptr<GriddingAlgorithm>& GetGriddingAlgorithm() const
       noexcept;
+
+  /// \brief Returns a shared pointer to the counter registry.
+  const std::shared_ptr<CounterRegistry>& GetCounterRegistry() const noexcept;
 
   /// \brief Returns a reference to const PatchHierarchy which is a member of
   /// the GriddingAlgorithm.
@@ -189,12 +193,12 @@ public:
   void PostAdvanceHierarchy();
 
   /// \brief On each first subcycle this will regrid the data if neccessary.
-  void PreAdvanceLevel(int level_num, Duration dt, int subcycle);
+  void PreAdvanceLevel(int level_num, Duration dt, std::pair<int, int> subcycle);
 
   /// \brief Increases the internal time stamps and cycle counters for the
   /// specified level number and direction.
   Result<void, TimeStepTooLarge> PostAdvanceLevel(int level_num, Duration dt,
-                                                  int subcycle);
+                                                  std::pair<int, int> subcycle);
 
   /// \brief Fills the ghost layer of the scratch data and interpolates in the
   /// coarse fine layer.
@@ -291,6 +295,7 @@ private:
   std::shared_ptr<GriddingAlgorithm> gridding_;
   std::vector<LevelData> data_;
   HyperbolicMethod method_;
+  std::shared_ptr<CounterRegistry> registry_;
 };
 
 } // namespace fub::amrex::cutcell

@@ -71,7 +71,7 @@ operator=(LevelData&& other) noexcept {
 IntegratorContext::IntegratorContext(
     std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod nm)
     : ghost_cell_width_{nm.flux_method.GetStencilWidth() + 1},
-      gridding_{std::move(gridding)}, data_{}, method_{std::move(nm)} {
+      gridding_{std::move(gridding)}, data_{}, method_{std::move(nm)}, registry_{std::make_shared<CounterRegistry>()} {
   data_.reserve(
       static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
   // Allocate auxiliary data arrays for each refinement level in the hierarchy
@@ -89,7 +89,7 @@ IntegratorContext::IntegratorContext(
 IntegratorContext::IntegratorContext(const IntegratorContext& other)
     : ghost_cell_width_{other.ghost_cell_width_}, gridding_{other.gridding_},
       data_(static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels())),
-      method_{other.method_} {
+      method_{other.method_}, registry_(other.registry_) {
   // Allocate auxiliary data arrays
   ResetHierarchyConfiguration();
   // Copy time stamps and cycle counters
@@ -125,6 +125,11 @@ BoundaryCondition& IntegratorContext::GetBoundaryCondition(int level) {
 const std::shared_ptr<GriddingAlgorithm>&
 IntegratorContext::GetGriddingAlgorithm() const noexcept {
   return gridding_;
+}
+
+const std::shared_ptr<CounterRegistry>&
+IntegratorContext::GetCounterRegistry() const noexcept {
+  return registry_;
 }
 
 PatchHierarchy& IntegratorContext::GetPatchHierarchy() noexcept {
@@ -260,6 +265,10 @@ void IntegratorContext::ResetHierarchyConfiguration(
 }
 
 void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
+  Timer timer1 =
+      registry_->get_timer("IntegratorContext::ResetHierarchyConfiguration");
+  Timer timer2 = registry_->get_timer(fmt::format(
+      "IntegratorContext::ResetHierarchyConfiguration({})", first_level));
   const int n_components =
       GetPatchHierarchy().GetDataDescription().n_state_components;
   const int n_cons_components =
@@ -430,40 +439,70 @@ void IntegratorContext::ApplyFluxCorrection(int fine, int coarse, Duration) {
 }
 
 Duration IntegratorContext::ComputeStableDt(int level, Direction dir) {
+  Timer timer1 = registry_->get_timer("IntegratorContext::ComputeStableDt");
+  Timer timer2 = registry_->get_timer(
+      fmt::format("IntegratorContext::ComputeStableDt({})", level));
   return method_.flux_method.ComputeStableDt(*this, level, dir);
 }
 
 void IntegratorContext::ComputeNumericFluxes(int level, Duration dt,
                                              Direction dir) {
+  Timer timer1 =
+      registry_->get_timer("IntegratorContext::ComputeNumericFluxes");
+  Timer timer2 = registry_->get_timer(
+      fmt::format("IntegratorContext::ComputeNumericFluxes({})", level));
   method_.flux_method.ComputeNumericFluxes(*this, level, dt, dir);
 }
 
 void IntegratorContext::CompleteFromCons(int level, Duration dt) {
+  Timer timer1 =
+      registry_->get_timer("IntegratorContext::CompleteFromCons");
+  Timer timer2 = registry_->get_timer(
+      fmt::format("IntegratorContext::CompleteFromCons({})", level));
   method_.reconstruction.CompleteFromCons(*this, level, dt);
 }
 
 void IntegratorContext::UpdateConservatively(int level, Duration dt,
                                              Direction dir) {
+  Timer timer1 =
+      registry_->get_timer("IntegratorContext::UpdateConservatively");
+  Timer timer2 = registry_->get_timer(
+      fmt::format("IntegratorContext::UpdateConservatively({})", level));
   method_.time_integrator.UpdateConservatively(*this, level, dt, dir);
 }
 
-void IntegratorContext::PreAdvanceLevel(int level_num, Duration, int subcycle) {
+void IntegratorContext::PreAdvanceLevel(int level_num, Duration, std::pair<int,int> subcycle) {
+  Timer timer1 = registry_->get_timer("IntegratorContext::PreAdvanceLevel");
+  Timer timer2 = registry_->get_timer(
+      fmt::format("IntegratorContext::PreAdvanceLevel({})", level_num));
   const std::size_t l = static_cast<std::size_t>(level_num);
-  if (subcycle == 0 && data_[l].regrid_time_point != data_[l].time_point) {
-    gridding_->RegridAllFinerlevels(level_num);
-    for (std::size_t lvl = l; lvl < data_.size(); ++lvl) {
-      data_[lvl].regrid_time_point = data_[lvl].time_point;
+  if (subcycle.first == 0) {
+    if (data_[l].regrid_time_point != data_[l].time_point) {
+      gridding_->RegridAllFinerlevels(level_num);
+      for (std::size_t lvl = l; lvl < data_.size(); ++lvl) {
+        data_[lvl].regrid_time_point = data_[lvl].time_point;
+      }
+      if (LevelExists(level_num + 1)) {
+        ResetHierarchyConfiguration(level_num + 1);
+        ResetCoarseFineFluxes(level_num + 1, level_num);
+      }
     }
-    const int next_level = level_num + 1;
-    if (LevelExists(next_level)) {
-      ResetHierarchyConfiguration(next_level);
-      ResetCoarseFineFluxes(next_level, level_num);
-    }
+    gridding_->FillMultiFabFromLevel(GetScratch(level_num), level_num);
+  } else {
+    FillGhostLayerSingleLevel(level_num);
   }
 }
 
 Result<void, TimeStepTooLarge>
-IntegratorContext::PostAdvanceLevel(int level_num, Duration dt, int) {
+IntegratorContext::PostAdvanceLevel(int level_num, Duration dt, std::pair<int,int> subcycle) {
+  Timer timer1 = registry_->get_timer("IntegratorContext::PostAdvanceLevel");
+  Timer timer2 = registry_->get_timer(
+      fmt::format("IntegratorContext::PostAdvanceLevel({})", level_num));
+  if (subcycle.first == 0) {
+    GetData(level_num).ParallelCopy(
+        GetScratch(level_num),
+        GetPatchHierarchy().GetGeometry(level_num).periodicity());
+  }
   SetCycles(GetCycles(level_num) + 1, level_num);
   double timepoint = (GetTimePoint(level_num) + dt).count();
   ::MPI_Bcast(&timepoint, 1, MPI_DOUBLE, 0, GetMpiCommunicator());
@@ -482,12 +521,8 @@ void IntegratorContext::PostAdvanceHierarchy() {
   PatchHierarchy& hierarchy = GetPatchHierarchy();
   int nlevels = hierarchy.GetNumberOfLevels();
   for (int level = 0; level < nlevels; ++level) {
-    double timepoint = GetTimePoint(level).count();
-    ::MPI_Bcast(&timepoint, 1, MPI_DOUBLE, 0, GetMpiCommunicator());
-    int cycles = GetCycles(level);
-    ::MPI_Bcast(&cycles, 1, MPI_INT, 0, GetMpiCommunicator());
-    hierarchy.GetPatchLevel(level).time_point = Duration(timepoint);
-    hierarchy.GetPatchLevel(level).cycles = cycles;
+    hierarchy.GetPatchLevel(level).time_point = GetTimePoint(level);
+    hierarchy.GetPatchLevel(level).cycles = GetCycles(level);
   }
 }
 

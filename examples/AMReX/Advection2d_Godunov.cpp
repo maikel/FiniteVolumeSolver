@@ -24,8 +24,6 @@
 #include <fmt/format.h>
 #include <iostream>
 
-#include <xmmintrin.h>
-
 struct CircleData {
   using Complete = fub::Complete<fub::Advection2d>;
 
@@ -79,23 +77,16 @@ int main(int argc, char** argv) {
   fub::amrex::GradientDetector gradient{equation,
                                         std::pair{&State::mass, 1e-3}};
 
-  fub::amrex::BoundarySet boundary;
-  using fub::amrex::TransmissiveBoundary;
-  boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::X, 0});
-  boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::X, 1});
-  boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::Y, 0});
-  boundary.conditions.push_back(TransmissiveBoundary{fub::Direction::Y, 1});
-
   std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       fub::amrex::PatchHierarchy(equation, geometry, hier_opts), CircleData{},
-      fub::amrex::TagAllOf(gradient, fub::amrex::TagBuffer(4)), boundary);
+      fub::amrex::TagAllOf(gradient, fub::amrex::TagBuffer(4)));
   gridding->InitializeHierarchy(0.0);
 
   fub::amrex::HyperbolicMethod method{
       fub::amrex::FluxMethod(fub::execution::simd,
                              fub::GodunovMethod{equation}),
-      fub::amrex::ForwardIntegrator(fub::execution::seq),
-      fub::amrex::Reconstruction(fub::execution::seq, equation)};
+      fub::amrex::ForwardIntegrator(fub::execution::simd),
+      fub::amrex::NoReconstruction{}};
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<Dim>, fub::amrex::IntegratorContext(gridding, method));
@@ -118,7 +109,7 @@ int main(int argc, char** argv) {
   output.AddOutput(
       std::make_unique<fub::CounterOutput<fub::amrex::GriddingAlgorithm>>(
           solver.GetContext().registry_, wall_time_reference,
-          std::vector<std::ptrdiff_t>{10}, std::vector<fub::Duration>{}));
+          std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{0.5s}));
 
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
