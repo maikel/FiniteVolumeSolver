@@ -71,8 +71,8 @@ push_docker_image() {
   docker push "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:${AMREX_SPACEDIM}d_${COMPILER_ID}"
 }
 
-CLANG_VERSIONS=("clang5" "clang6" "clang7" "clang8")
-GCC_VERSIONS=("gcc7" "gcc8" "gcc9")
+CLANG_VERSIONS=("clang8")
+GCC_VERSIONS=("gcc9")
 AMREX_SPACEDIMS=("2" "3")
 
 main() {
