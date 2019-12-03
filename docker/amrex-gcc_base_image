@@ -24,4 +24,4 @@ RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/fin
     && conan install fmt/5.3.0@bincrafters/stable --build missing                          \
     && conan install Vc/1.4.1@finite-volume/stable --build missing                         \
     && conan install SAMRAI/3.11.1@finite-volume/stable --build missing                    \
-    && conan install pybind11/[>=2]@conan/stable --build missing
+    && conan install pybind11/2.3.0@conan/stable --build missing
