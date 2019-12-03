@@ -24,10 +24,6 @@
 
 #include <AMReX_EB2_IF_Plane.H>
 
-#include <iostream>
-
-#include <xmmintrin.h>
-
 Eigen::Vector2d OrthogonalTo(const Eigen::Vector2d& x) {
   return Eigen::Vector2d{x[1], -x[0]};
 }
@@ -57,7 +53,7 @@ MakeGriddingAlgorithm(const fub::PerfectGas<2>& equation) {
   const amrex::Box domain{{}, {n_cells[0] - 1, n_cells[1] - 1}};
   amrex::Geometry coarse_geom(domain, &xbox, -1, geometry.periodicity.data());
 
-  const int n_level = 4;
+  const int n_level = 2;
 
   using namespace fub::amrex::cutcell;
 
@@ -107,39 +103,36 @@ auto MakeSolver(const fub::PerfectGas<2>& equation) {
                           TimeIntegrator{},
                           Reconstruction{fub::execution::seq, equation}};
 
-  return fub::DimensionalSplitLevelIntegrator(
+  fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<2>, IntegratorContext(gridding, method));
+
+  return fub::SubcycleFineFirstSolver(std::move(level_integrator));
 }
 
 int main(int argc, char** argv) {
-  // This enables floating point exceptions on MacOS
-  // Stop the program if any NaN is part of a computation
-  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() | _MM_MASK_DIV_ZERO |
-                         _MM_MASK_OVERFLOW | _MM_MASK_UNDERFLOW |
-                         _MM_MASK_INVALID);
-
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
   fub::amrex::ScopeGuard _(argc, argv);
+  fub::InitializeLogging(MPI_COMM_WORLD);
   fub::PerfectGas<2> equation{};
-  fub::DimensionalSplitLevelIntegrator solver = MakeSolver(equation);
+  fub::SubcycleFineFirstSolver solver = MakeSolver(equation);
 
   std::string base_name = "Ramp/";
 
   using namespace fub::amrex::cutcell;
-  auto output = [&](const GriddingAlgorithm& grid) {
-    std::string name = fmt::format("{}plt{:05}", base_name, grid.GetCycles());
-    amrex::Print() << "Start output to '" << name << "'.\n";
-    WritePlotFile(name, grid.GetPatchHierarchy(), equation);
-    amrex::Print() << "Finished output to '" << name << "'.\n";
-  };
-
   using namespace std::literals::chrono_literals;
+  fub::MultipleOutputs<GriddingAlgorithm> output{};
+  output.AddOutput(fub::MakeOutput<GriddingAlgorithm>(
+      {}, {1.0s / 180.}, fub::amrex::PlotfileOutput(equation, base_name)));
+  output.AddOutput(
+      std::make_unique<
+          fub::CounterOutput<GriddingAlgorithm>>(
+          solver.GetContext().registry_, wall_time_reference,
+          std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{0.5s}));
   fub::RunOptions run_options{};
   run_options.final_time = 1s;
-  run_options.cfl = 0.8;
+  run_options.cfl = 0.4;
   output(*solver.GetGriddingAlgorithm());
-  fub::AsOutput<GriddingAlgorithm> out({1}, {}, output);
-  fub::RunSimulation(solver, run_options, wall_time_reference, out);
+  fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

@@ -189,7 +189,7 @@ void MultiBlockIntegratorContext::SetTimePoint(Duration t, int level) {
 
 /// \brief On each first subcycle this will regrid the data if neccessary.
 void MultiBlockIntegratorContext::PreAdvanceLevel(int level_num, Duration dt,
-                                                  int subcycle) {
+                                                  std::pair<int,int> subcycle) {
   ForEachBlock(std::tuple{span{tubes_}, span{plena_}},
                [level_num, dt, subcycle](auto& block) {
                  if (block.LevelExists(level_num)) {
@@ -210,7 +210,7 @@ void MultiBlockIntegratorContext::PreAdvanceLevel(int level_num, Duration dt,
 /// specified level number and direction.
 Result<void, TimeStepTooLarge>
 MultiBlockIntegratorContext::PostAdvanceLevel(int level_num, Duration dt,
-                                              int subcycle) {
+                                              std::pair<int,int> subcycle) {
   for (IntegratorContext& tube : tubes_) {
     if (tube.LevelExists(level_num)) {
       Result<void, TimeStepTooLarge> result =

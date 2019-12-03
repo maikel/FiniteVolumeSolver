@@ -48,7 +48,7 @@ struct TemperatureRamp {
   void InitializeData(::amrex::MultiFab& data, const ::amrex::Geometry& geom) {
     fub::FlameMasterReactor& reactor = equation_.GetReactor();
     reactor.SetMoleFractions("N2:79,O2:21,H2:42");
-    const double high_temp = 1450.0;
+    const double high_temp = 2000.0;
     const double low_temp = 300.0;
     Complete complete(equation_);
     Complete right(equation_);
@@ -110,8 +110,6 @@ auto MakeTubeSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
   amrex::Geometry geom(amrex::Box{{}, {n_cells[0] - 1, n_cells[1] - 1}}, &xbox,
                        -1, periodicity.data());
   geom.refine(hier_opts.refine_ratio);
-  ::amrex::EB2::Build(::amrex::EB2::makeShop(::amrex::EB2::AllRegularIF()),
-                      geom, hier_opts.refine_ratio, 1, 1);
 
   using Complete = fub::IdealGasMix<1>::Complete;
   GradientDetector gradient{equation, std::make_pair(&Complete::density, 5e-3),
@@ -134,15 +132,15 @@ auto MakeTubeSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
       TagAllOf(gradient, constant_box, TagBuffer(4)), boundary_condition);
   gridding->InitializeHierarchy(0.0);
 
-  //  fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>> signals{};
-  //  fub::HllMethod hll_method(equation, signals);
+   fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>> signals{};
+   fub::HllMethod hll_method(equation, signals);
   //   fub::MusclHancockMethod flux_method{equation, hll_method};
-  fub::ideal_gas::MusclHancockPrimMethod<1> flux_method(equation);
+  // fub::ideal_gas::MusclHancockPrimMethod<1> flux_method(equation);
 
   HyperbolicMethod method{
-      FluxMethod(fub::execution::openmp_simd, flux_method),
-      ForwardIntegrator(fub::execution::openmp),
-      Reconstruction(fub::execution::openmp_simd, equation)};
+      FluxMethod(fub::execution::simd, hll_method),
+      ForwardIntegrator(fub::execution::simd),
+      Reconstruction(fub::execution::simd, equation)};
 
   return fub::amrex::IntegratorContext(gridding, method);
 }
@@ -260,6 +258,9 @@ int main() {
       std::chrono::steady_clock::now();
 
   fub::amrex::ScopeGuard _{};
+
+  fub::InitializeLogging(MPI_COMM_WORLD);
+
   fub::Burke2012 mechanism{};
 
   const int n_level = 2;
@@ -292,12 +293,14 @@ int main() {
   fub::amrex::MultiBlockKineticSouceTerm source_term{
       fub::IdealGasMix<Tube_Rank>{mechanism},
       system_solver.GetGriddingAlgorithm()};
-  fub::SplitSystemSourceLevelIntegrator solver{system_solver, source_term};
+  fub::SplitSystemSourceLevelIntegrator level_integrator{std::move(system_solver), source_term};
+
+  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
   std::string base_name = "MultiBlock_2d";
   fub::IdealGasMix<Tube_Rank> tube_equation{mechanism};
   using namespace std::literals::chrono_literals;
-  fub::AsOutput<fub::amrex::MultiBlockGriddingAlgorithm> output({}, {0.001s / 30.0},
+  auto output = fub::MakeOutput<fub::amrex::MultiBlockGriddingAlgorithm>({}, {0.001s / 30.0},
       [&](const fub::amrex::MultiBlockGriddingAlgorithm& gridding) {
     std::ptrdiff_t cycle = gridding.GetCycles();
     ::amrex::Print() << "Checkpointing.\n";
@@ -318,9 +321,9 @@ int main() {
         name, gridding.GetPlena()[0]->GetPatchHierarchy(), equation);
     ::amrex::Print() << "Finished output to '" << name << "'.\n";
       });
-  output(*solver.GetGriddingAlgorithm());
+  (*output)(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
   run_options.final_time = 0.004s;
   run_options.cfl = 0.4;
-  fub::RunSimulation(solver, run_options, wall_time_reference, output);
+  fub::RunSimulation(solver, run_options, wall_time_reference, *output);
 }

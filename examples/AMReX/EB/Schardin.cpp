@@ -25,12 +25,7 @@
 #include <AMReX_EB2.H>
 #include <AMReX_EB2_IF_Intersection.H>
 #include <AMReX_EB2_IF_Plane.H>
-#include <AMReX_EB2_IF_Union.H>
 #include <AMReX_EB_LSCore.H>
-
-#include <iostream>
-
-#include <xmmintrin.h>
 
 using Coord = Eigen::Vector2d;
 
@@ -51,10 +46,6 @@ int main() {
       std::chrono::steady_clock::now();
 
   fub::amrex::ScopeGuard _{};
-
-  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() | _MM_MASK_DIV_ZERO |
-                         _MM_MASK_OVERFLOW | _MM_MASK_UNDERFLOW |
-                         _MM_MASK_INVALID);
 
   const std::array<int, AMREX_SPACEDIM> n_cells{
       AMREX_D_DECL(8 * 15, 8 * 10, 1)};
@@ -126,17 +117,22 @@ int main() {
                           TimeIntegrator{},
                           Reconstruction{fub::execution::seq, equation}};
 
-  fub::DimensionalSplitLevelIntegrator solver(
+  fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<2>, IntegratorContext(gridding, method));
 
+  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
+
   std::string base_name = "Schardin/";
+  using namespace fub::amrex::cutcell;
   using namespace std::literals::chrono_literals;
-  fub::AsOutput<GriddingAlgorithm> output({}, {1e-5s}, [&](const GriddingAlgorithm& gridding) {
-    std::string name = fmt::format("{}/plt{:04}", base_name, gridding.GetCycles());
-    ::amrex::Print() << "Start output to '" << name << "'.\n";
-    WritePlotFile(name, gridding.GetPatchHierarchy(), equation);
-    ::amrex::Print() << "Finished output to '" << name << "'.\n";
-  });
+  fub::MultipleOutputs<GriddingAlgorithm> output{};
+  output.AddOutput(fub::MakeOutput<GriddingAlgorithm>(
+      {}, {1.0s / 180.}, fub::amrex::PlotfileOutput(equation, base_name)));
+  output.AddOutput(
+      std::make_unique<
+          fub::CounterOutput<GriddingAlgorithm>>(
+          solver.GetContext().registry_, wall_time_reference,
+          std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{0.5s}));
 
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};

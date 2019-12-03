@@ -111,12 +111,12 @@ public:
   void PostAdvanceHierarchy();
 
   /// \brief On each first subcycle this will regrid the data if neccessary.
-  void PreAdvanceLevel(int level_num, Duration dt, int subcycle);
+  void PreAdvanceLevel(int level_num, Duration dt, std::pair<int,int> subcycle);
 
   /// \brief Increases the internal time stamps and cycle counters for the
   /// specified level number and direction.
   Result<void, TimeStepTooLarge> PostAdvanceLevel(int level_num, Duration dt,
-                                                  int subcycle);
+                                                  std::pair<int,int> subcycle);
 
   /// \brief Fills the ghost layer of the scratch data and interpolates in the
   /// coarse fine layer.

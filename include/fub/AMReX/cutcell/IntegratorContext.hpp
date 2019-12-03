@@ -200,6 +200,9 @@ public:
   Result<void, TimeStepTooLarge> PostAdvanceLevel(int level_num, Duration dt,
                                                   std::pair<int, int> subcycle);
 
+  void CopyDataToScratch(int level);
+  void CopyScratchToData(int level);
+
   /// \brief Fills the ghost layer of the scratch data and interpolates in the
   /// coarse fine layer.
   void FillGhostLayerTwoLevels(int level, BoundaryCondition& fbc, int coarse,
@@ -241,6 +244,9 @@ public:
   /// number.
   void CoarsenConservatively(int fine, int coarse);
   ///@}
+  
+  std::shared_ptr<CounterRegistry> registry_;
+  bool count_per_level{false};
 
 private:
   struct LevelData {
@@ -295,7 +301,6 @@ private:
   std::shared_ptr<GriddingAlgorithm> gridding_;
   std::vector<LevelData> data_;
   HyperbolicMethod method_;
-  std::shared_ptr<CounterRegistry> registry_;
 };
 
 } // namespace fub::amrex::cutcell

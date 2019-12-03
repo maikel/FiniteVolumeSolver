@@ -65,6 +65,7 @@ Duration FluxMethod<Tag, FM>::ComputeStableDt(IntegratorContext& context,
   double min_dt = std::numeric_limits<double>::max();
   const ::amrex::MultiFab& scratch = context.GetScratch(level);
   const ::amrex::MultiFab& fluxes = context.GetFluxes(level, dir);
+  FUB_ASSERT(!scratch.contains_nan());
   if constexpr (std::is_base_of<execution::OpenMpTag, Tag>::value) {
 #if defined(_OPENMP) && defined(AMREX_USE_OMP)
 #pragma omp parallel reduction(min : min_dt)

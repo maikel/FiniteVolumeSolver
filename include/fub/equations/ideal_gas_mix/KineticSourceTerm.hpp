@@ -26,6 +26,7 @@
 #include "fub/equations/IdealGasMix.hpp"
 #include "fub/ext/omp.hpp"
 #include "fub/ext/outcome.hpp"
+#include "fub/counter/CounterRegistry.hpp"
 
 #include <memory>
 
@@ -38,6 +39,10 @@ public:
 
   KineticSourceTerm(const IdealGasMix<Rank>& eq,
                     std::shared_ptr<amrex::GriddingAlgorithm> gridding);
+
+  KineticSourceTerm(const IdealGasMix<Rank>& eq,
+                    std::shared_ptr<amrex::GriddingAlgorithm> gridding, 
+                    std::shared_ptr<CounterRegistry> registry);
 
   void ResetHierarchyConfiguration(
       std::shared_ptr<amrex::GriddingAlgorithm>&& griding);
@@ -60,6 +65,7 @@ private:
   OmpLocal<IdealGasMix<Rank>> equation_;
   OmpLocal<Complete<IdealGasMix<Rank>>> state_;
   std::shared_ptr<amrex::GriddingAlgorithm> gridding_;
+  std::shared_ptr<CounterRegistry> registry_;
 };
 
 extern template class KineticSourceTerm<1>;

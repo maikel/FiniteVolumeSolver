@@ -106,8 +106,8 @@ int main(int argc, char** argv) {
 
   fub::amrex::CartesianGridGeometry geometry{};
   geometry.cell_dimensions = std::array<int, Dim>{AMREX_D_DECL(128, 128, 1)};
-  geometry.coordinates = amrex::RealBox({AMREX_D_DECL(-0.5, -0.5, -0.5)},
-                                        {AMREX_D_DECL(+0.5, +0.5, +0.5)});
+  geometry.coordinates = amrex::RealBox({AMREX_D_DECL(-1.0, -1.0, -1.0)},
+                                        {AMREX_D_DECL(+1.0, +1.0, +1.0)});
   geometry.periodicity = std::array<int, Dim>{AMREX_D_DECL(1, 1, 1)};
 
   fub::amrex::PatchHierarchyOptions hier_opts;
@@ -116,13 +116,13 @@ int main(int argc, char** argv) {
 
   using Complete = fub::PerfectGas<2>::Complete;
   fub::amrex::GradientDetector gradient(
-      equation, std::make_pair(&Complete::density, 1.0e-5),
-      std::make_pair(&Complete::pressure, 1.0e-3),
-      std::make_pair(
+      equation, std::pair{&Complete::density, 1.0e-4},
+      std::pair{&Complete::pressure, 1.0e-4},
+      std::pair{
           [](const Complete& state) {
             return (state.momentum / state.density).matrix().norm();
           },
-          1.0e-1));
+          1.0e-4});
 
   std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       fub::amrex::PatchHierarchy(equation, geometry, hier_opts),
@@ -132,9 +132,9 @@ int main(int argc, char** argv) {
 
   auto tag = fub::execution::simd;
 
-   fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
-   fub::HllMethod hll_method(equation, signals);
-   fub::MusclHancockMethod muscl_method(equation, hll_method);
+  fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
+  fub::HllMethod hll_method(equation, signals);
+  fub::MusclHancockMethod muscl_method(equation, hll_method);
   //  fub::GodunovMethod godunov_method(equation, signals);
   // fub::MusclHancockMethod muscl_method(equation);
   fub::amrex::HyperbolicMethod method{
@@ -147,16 +147,18 @@ int main(int argc, char** argv) {
       // fub::GodunovSplitting());
       fub::StrangSplitting());
 
-  // fub::SubcycleFineFirstSolver solver(level_integrator);
-  fub::NoSubcycleSolver solver(level_integrator);
+  fub::SubcycleFineFirstSolver solver(level_integrator);
+  // fub::NoSubcycleSolver solver(level_integrator);
 
   std::string base_name = "GreshoVortex/";
 
   using namespace fub::amrex;
+  using namespace std::literals::chrono_literals;
   boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
       boost::log::keywords::severity = boost::log::trivial::info);
-  fub::AsOutput<GriddingAlgorithm> output(
-      {}, {fub::Duration(1.0 / 30.0)}, [&](const GriddingAlgorithm& gridding) {
+  fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> output{};
+  output.AddOutput(fub::MakeOutput<GriddingAlgorithm>(
+      {1}, {fub::Duration(1.0 / 30.0)}, [&](const GriddingAlgorithm& gridding) {
         std::ptrdiff_t cycle = gridding.GetCycles();
         fub::Duration tp = gridding.GetTimePoint();
         BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", tp.count());
@@ -167,7 +169,7 @@ int main(int argc, char** argv) {
         double rho_max = 0.0;
         double rho_min = std::numeric_limits<double>::infinity();
         for (int level = 0;
-             level < gridding.GetPatchHierarchy().GetNumberOfLevels(); 
+             level < gridding.GetPatchHierarchy().GetNumberOfLevels();
              ++level) {
           const ::amrex::MultiFab& mf =
               gridding.GetPatchHierarchy().GetPatchLevel(level).data;
@@ -177,7 +179,12 @@ int main(int argc, char** argv) {
         const double rho_err =
             std::max(std::abs(rho_max - 1.0), std::abs(rho_min - 1.0));
         BOOST_LOG(log) << fmt::format("Density Max Error: {:.6E}", rho_err);
-      });
+      }));
+  output.AddOutput(
+      std::make_unique<fub::CounterOutput<fub::amrex::GriddingAlgorithm,
+                                          std::chrono::milliseconds>>(
+          solver.GetContext().registry_, wall_time_reference,
+          std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{0.01s}));
 
   using namespace std::literals::chrono_literals;
   output(*solver.GetGriddingAlgorithm());

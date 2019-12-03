@@ -24,6 +24,8 @@
 #include <fmt/format.h>
 #include <iostream>
 
+#include <cfenv>
+
 struct RiemannProblem {
   using Equation = fub::PerfectGas<1>;
   using Complete = fub::Complete<Equation>;
@@ -54,14 +56,12 @@ struct RiemannProblem {
 };
 
 int main(int argc, char** argv) {
+  feenableexcept(FE_DIVBYZERO | FE_INVALID);
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
   const fub::amrex::ScopeGuard guard(argc, argv);
-
-  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() | _MM_MASK_DIV_ZERO |
-                         _MM_MASK_OVERFLOW | _MM_MASK_UNDERFLOW |
-                         _MM_MASK_INVALID);
+  fub::InitializeLogging(MPI_COMM_WORLD);
 
   constexpr int Dim = AMREX_SPACEDIM;
 
@@ -117,7 +117,7 @@ int main(int argc, char** argv) {
       gradient, boundary);
   gridding->InitializeHierarchy(0.0);
 
-  auto tag = fub::execution::openmp_simd;
+  auto tag = fub::execution::simd;
 
   fub::EinfeldtSignalVelocities<fub::PerfectGas<1>> signals{};
   fub::HllMethod hll_method(equation, signals);
@@ -137,14 +137,14 @@ int main(int argc, char** argv) {
 
   using namespace fub::amrex;
   using namespace std::literals::chrono_literals;
-  fub::AsOutput<GriddingAlgorithm> output(
-      {}, {1.0s / 180.}, [&](const GriddingAlgorithm& gridding) {
-        std::string name =
-            fmt::format("{}plt{:05}", base_name, gridding.GetCycles());
-        amrex::Print() << "Start output to '" << name << "'.\n";
-        WritePlotFile(name, gridding.GetPatchHierarchy(), equation);
-        amrex::Print() << "Finished output to '" << name << "'.\n";
-      });
+  fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> output{};
+  output.AddOutput(fub::MakeOutput<GriddingAlgorithm>(
+      {}, {1.0s / 180.}, fub::amrex::PlotfileOutput(equation, base_name)));
+  output.AddOutput(
+      std::make_unique<
+          fub::CounterOutput<fub::amrex::GriddingAlgorithm>>(
+          solver.GetContext().registry_, wall_time_reference,
+          std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{0.5s}));
 
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};

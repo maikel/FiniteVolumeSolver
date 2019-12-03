@@ -28,6 +28,8 @@ struct ScopeGuard {
   ScopeGuard(int argc, char** argv);
   ScopeGuard();
   ~ScopeGuard();
+
+  bool owns_mpi{false};
 };
 
 } // namespace amrex

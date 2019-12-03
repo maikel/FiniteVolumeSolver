@@ -34,7 +34,7 @@ MultiBlockIgniteDetonation::MultiBlockIgniteDetonation(
                  });
 }
 
-Duration MultiBlockIgniteDetonation::ComputeStableDt() noexcept {
+Duration MultiBlockIgniteDetonation::ComputeStableDt([[maybe_unused]] int level) noexcept {
   return Duration(std::numeric_limits<double>::infinity());
 }
 

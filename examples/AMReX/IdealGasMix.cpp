@@ -134,7 +134,7 @@ void MyMain(const ProgramOptions& opts) {
   std::string base_name = "IdealGasMix/";
   int rank = -1;
   MPI_Comm_rank(solver.GetMpiCommunicator(), &rank);
-  fub::AsOutput<fub::amrex::GriddingAlgorithm> output({}, {fub::Duration(opts.output_interval)},
+  auto output = fub::MakeOutput<fub::amrex::GriddingAlgorithm>({}, {fub::Duration(opts.output_interval)},
       [&](const fub::amrex::GriddingAlgorithm& gridding) {
         std::ptrdiff_t cycle = gridding.GetCycles();
         fub::Duration timepoint = gridding.GetTimePoint();
@@ -151,11 +151,11 @@ void MyMain(const ProgramOptions& opts) {
       });
 
   using namespace std::literals::chrono_literals;
-  output(*solver.GetGriddingAlgorithm());
+  (*output)(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
   run_options.cfl = opts.cfl;
   run_options.final_time = fub::Duration(opts.final_time);
-  fub::RunSimulation(solver, run_options, wall_time_reference, output);
+  fub::RunSimulation(solver, run_options, wall_time_reference, *output);
 }
 
 int main() {

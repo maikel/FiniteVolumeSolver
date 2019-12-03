@@ -46,18 +46,16 @@ struct CircleData {
     for (const std::shared_ptr<SAMRAI::hier::Patch>& patch : level) {
       samrai::GetPatchData(span{datas}, *patch, data_ids);
       View<Complete> states = samrai::MakeView<Complete>(
-          span{datas}, equation_,
-          samrai::AsIndexBox<2>(patch->getBox()));
-      ForEachIndex(
-          Box<0>(states), [&](std::ptrdiff_t i, std::ptrdiff_t j) {
-            std::array<double, 2> x = samrai::GetCellCenter(geom, i, j);
-            const double norm = std::sqrt(x[0] * x[0] + x[1] * x[1]);
-            if (norm < 0.25) {
-              states.mass(i, j) = 3.0;
-            } else {
-              states.mass(i, j) = 1.0;
-            }
-          });
+          span{datas}, equation_, samrai::AsIndexBox<2>(patch->getBox()));
+      ForEachIndex(Box<0>(states), [&](std::ptrdiff_t i, std::ptrdiff_t j) {
+        std::array<double, 2> x = samrai::GetCellCenter(geom, i, j);
+        const double norm = std::sqrt(x[0] * x[0] + x[1] * x[1]);
+        if (norm < 0.25) {
+          states.mass(i, j) = 3.0;
+        } else {
+          states.mass(i, j) = 1.0;
+        }
+      });
     }
   }
 };
@@ -89,7 +87,8 @@ int main(int argc, char** argv) {
   GodunovMethod godunov_method{equation};
 
   DataDescription desc = RegisterVariables(equation);
-  IntegratorContext::AuxialiaryDataDescription aux_desc = IntegratorContext::RegisterVariables(desc, godunov_method);
+  IntegratorContext::AuxialiaryDataDescription aux_desc =
+      IntegratorContext::RegisterVariables(desc, godunov_method);
 
   std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
       PatchHierarchy(desc, geometry, hier_opts), CircleData{desc, equation},
@@ -98,7 +97,8 @@ int main(int argc, char** argv) {
 
   samrai::HyperbolicMethod method{
       samrai::FluxMethod(execution::seq, godunov_method),
-      samrai::TimeIntegrator(), samrai::Reconstruction(execution::seq, equation)};
+      samrai::TimeIntegrator(),
+      samrai::Reconstruction(execution::seq, equation)};
 
   DimensionalSplitLevelIntegrator level_integrator(
       int_c<Dim>, IntegratorContext(gridding, method, aux_desc));
@@ -108,7 +108,7 @@ int main(int argc, char** argv) {
   SAMRAI::appu::VisItDataWriter writer(dim, "VisItWriter", "SAMRAI/Advection");
   writer.registerPlotQuantity("Mass", "SCALAR", desc.data_ids[0]);
 
-  AsOutput<GriddingAlgorithm> output(
+  auto output = fub::MakeOutput<fub::samrai::GriddingAlgorithm>(
       {}, {Duration(0.1)}, [&](const GriddingAlgorithm& grid) {
         SAMRAI::tbox::pout << "Start output to 'SAMRAI/Advection'.\n";
         writer.writePlotData(grid.GetPatchHierarchy().GetNative(),
@@ -119,6 +119,6 @@ int main(int argc, char** argv) {
   RunOptions run_options{};
   run_options.final_time = Duration(2.0);
   run_options.cfl = 0.8;
-  output(*solver.GetGriddingAlgorithm());
+  (*output)(*solver.GetGriddingAlgorithm());
   // fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

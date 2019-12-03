@@ -161,7 +161,7 @@ Reconstruction<Tag, Equation>::Reconstruction(const Tag&, const Equation& eq)
 template <typename Tag, typename Equation>
 void Reconstruction<Tag, Equation>::CompleteFromCons(IntegratorContext& context,
                                                      int level, Duration) {
-  ::amrex::MultiFab& dest = context.GetData(level);
+  ::amrex::MultiFab& dest = context.GetScratch(level);
   const ::amrex::MultiFab& volumes =
       context.GetEmbeddedBoundary(level).getVolFrac();
   const ::amrex::MultiFab& src = context.GetScratch(level);

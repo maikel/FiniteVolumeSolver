@@ -70,7 +70,7 @@ int main(int argc, char** argv) {
   geometry.periodicity = std::array<int, Dim>{AMREX_D_DECL(1, 1, 1)};
 
   fub::amrex::PatchHierarchyOptions hier_opts{};
-  hier_opts.max_number_of_levels = 4;
+  hier_opts.max_number_of_levels = 6;
 
   using State = fub::Advection2d::Complete;
   fub::amrex::GradientDetector gradient{equation,

@@ -42,24 +42,13 @@ void MultiBlockKineticSouceTerm::ResetHierarchyConfiguration(
   }
 }
 
-Duration MultiBlockKineticSouceTerm::ComputeStableDt() {
+Duration MultiBlockKineticSouceTerm::ComputeStableDt(int level) {
   return std::accumulate(
       source_terms_.begin(), source_terms_.end(),
       Duration(std::numeric_limits<double>::infinity()),
-      [](Duration dt, ideal_gas::KineticSourceTerm<1>& source) {
-        return std::min(dt, source.ComputeStableDt());
+      [level](Duration dt, ideal_gas::KineticSourceTerm<1>& source) {
+        return std::min(dt, source.ComputeStableDt(level));
       });
-}
-
-Result<void, TimeStepTooLarge>
-MultiBlockKineticSouceTerm::AdvanceHierarchy(Duration dt) {
-  for (ideal_gas::KineticSourceTerm<1>& source : source_terms_) {
-    Result<void, TimeStepTooLarge> result = source.AdvanceHierarchy(dt);
-    if (!result) {
-      return result;
-    }
-  }
-  return boost::outcome_v2::success();
 }
 
 Result<void, TimeStepTooLarge>

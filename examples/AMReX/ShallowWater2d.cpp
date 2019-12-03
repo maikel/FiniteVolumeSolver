@@ -24,40 +24,7 @@
 #include <fmt/format.h>
 #include <iostream>
 
-struct ConstantBoundary {
-  void FillBoundary(amrex::MultiFab& mf, const amrex::Geometry& geom,
-                    fub::Duration, const fub::amrex::GriddingAlgorithm&) {
-    const int ngrow = mf.nGrow();
-    ::amrex::Box grown_box = geom.Domain();
-    grown_box.grow(ngrow);
-    ::amrex::BoxList boundaries =
-        ::amrex::complementIn(grown_box, ::amrex::BoxList{geom.Domain()});
-    if (boundaries.isEmpty()) {
-      return;
-    }
-    fub::amrex::ForEachFab(
-        fub::execution::openmp, mf, [&](const ::amrex::MFIter& mfi) {
-          ::amrex::FArrayBox& fab = mf[mfi];
-          for (const ::amrex::Box& boundary : boundaries) {
-            if (!boundary.intersects(mfi.growntilebox())) {
-              continue;
-            }
-            ::amrex::Box box_to_fill = mfi.growntilebox() & boundary;
-            if (!box_to_fill.isEmpty()) {
-              fub::amrex::ForEachIndex(box_to_fill,
-                                       [this, &fab, &geom](auto... is) {
-                                         ::amrex::IntVect dest{int(is)...};
-                                         if (fab(dest, 0) == 0.0) {
-                                           fab(dest, 0) = 1.0;
-                                           fab(dest, 1) = 0.0;
-                                           fab(dest, 2) = 0.0;
-                                         }
-                                       });
-            }
-          }
-        });
-  }
-};
+#include <cfenv>
 
 struct CircleData {
   using Complete = fub::Complete<fub::ShallowWater>;
@@ -95,12 +62,10 @@ struct CircleData {
 };
 
 int main(int argc, char** argv) {
+  feenableexcept(FE_DIVBYZERO | FE_INVALID);
+
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
-
-  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() | _MM_MASK_DIV_ZERO |
-                         _MM_MASK_OVERFLOW | _MM_MASK_UNDERFLOW |
-                         _MM_MASK_INVALID);
 
   const fub::amrex::ScopeGuard guard(argc, argv);
   fub::InitializeLogging(MPI_COMM_WORLD);
@@ -120,7 +85,7 @@ int main(int argc, char** argv) {
   geometry.periodicity = std::array<int, Dim>{AMREX_D_DECL(1, 1, 1)};
 
   fub::amrex::PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = 2;
+  hier_opts.max_number_of_levels = 4;
   hier_opts.refine_ratio = amrex::IntVect{AMREX_D_DECL(2, 2, 1)};
 
   using State = fub::ShallowWater::Complete;
@@ -130,16 +95,15 @@ int main(int argc, char** argv) {
   std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       fub::amrex::PatchHierarchy(equation, geometry, hier_opts),
       CircleData{equation},
-      fub::amrex::TagAllOf(gradient, fub::amrex::TagBuffer(2)),
-      ConstantBoundary{});
+      fub::amrex::TagAllOf(gradient, fub::amrex::TagBuffer(2)));
   gridding->InitializeHierarchy(0.0);
 
   fub::HllMethod hll_method{equation, fub::ShallowWaterSignalVelocities{}};
   fub::MusclHancockMethod muscl_method{equation, hll_method};
   fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethod(fub::execution::seq, muscl_method),
-      fub::amrex::ForwardIntegrator(fub::execution::seq),
-      fub::amrex::Reconstruction(fub::execution::seq, equation)};
+      fub::amrex::FluxMethod(fub::execution::simd, muscl_method),
+      fub::amrex::ForwardIntegrator(fub::execution::simd),
+      fub::amrex::NoReconstruction{}};
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<2>, fub::amrex::IntegratorContext(gridding, method));
@@ -155,15 +119,21 @@ int main(int argc, char** argv) {
   run_options.final_time = 1.0s;
   run_options.cfl = 0.8;
 
-  fub::AsOutput<GriddingAlgorithm> output(
-      {}, {run_options.final_time / 20},
-      [&](const GriddingAlgorithm& gridding) {
+  fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> output{};
+  output.AddOutput(fub::MakeOutput<fub::amrex::GriddingAlgorithm>(
+      {}, {0.05s}, [&](const fub::amrex::GriddingAlgorithm& gridding) {
         std::string name =
-            fmt::format("{}plt{:05}", base_name, gridding.GetCycles());
-        amrex::Print() << "Start output to '" << name << "'.\n";
-        WritePlotFile(name, gridding.GetPatchHierarchy(), equation);
-        amrex::Print() << "Finished output to '" << name << "'.\n";
-      });
+            fmt::format("{}plt{:04}", base_name, gridding.GetCycles());
+        ::amrex::Print() << "Start output to '" << name << "'.\n";
+        fub::amrex::WritePlotFile(name, gridding.GetPatchHierarchy(), equation);
+        ::amrex::Print() << "Finished output to '" << name << "'.\n";
+      }));
+  using std::chrono::microseconds;
+  output.AddOutput(
+      std::make_unique<
+          fub::CounterOutput<fub::amrex::GriddingAlgorithm, microseconds>>(
+          solver.GetContext().registry_, wall_time_reference,
+          std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{0.05s}));
   output(*solver.GetGriddingAlgorithm());
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

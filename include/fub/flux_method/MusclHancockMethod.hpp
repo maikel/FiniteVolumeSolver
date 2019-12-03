@@ -319,6 +319,7 @@ void MusclHancock<Equation, Method, SlopeLimiter>::ComputeNumericFlux(
     span<const CompleteArray, 4> stencil, span<Array1d, 4> volume_fractions,
     Duration dt, double dx, Direction dir) {
   MaskArray valid_face = face_fractions > 0.0;
+  if (valid_face.any()) {
 
   const Array1d lambda_half = Array1d::Constant(0.5 * dt.count() / dx);
 
@@ -396,6 +397,7 @@ void MusclHancock<Equation, Method, SlopeLimiter>::ComputeNumericFlux(
   flux_method_.ComputeNumericFlux(flux, face_fractions, span{rec_arr_},
                                   volume_fractions.template subspan<1, 2>(), dt,
                                   dx, dir);
+  }
 }
 
 } // namespace fub

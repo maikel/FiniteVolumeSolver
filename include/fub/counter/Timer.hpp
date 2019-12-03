@@ -32,18 +32,21 @@ namespace fub {
 
 class Timer {
 public:
+  Timer() = default;
   explicit Timer(Counter& counter);
   Timer(const Timer&) = delete;
   Timer& operator=(const Timer&) = delete;
+  Timer(Timer&&) noexcept;
+  Timer& operator=(Timer&&) noexcept;
 
   std::string const& get_name();
 
   ~Timer();
 
 private:
-  Counter* counter_;
-  std::chrono::steady_clock::time_point start_time_;
-  std::chrono::steady_clock::time_point stop_time_;
+  Counter* counter_{nullptr};
+  std::chrono::steady_clock::time_point start_time_{};
+  std::chrono::steady_clock::time_point stop_time_{};
 
   void start();
   void stop();

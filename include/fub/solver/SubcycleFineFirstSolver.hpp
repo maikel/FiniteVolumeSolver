@@ -150,6 +150,8 @@ SubcycleFineFirstSolver<LevelIntegrator>::AdvanceLevel(
     Base::CompleteFromCons(this_level, dt);
   }
 
+  Base::CopyScratchToData(this_level);
+
   // Apply any further context related work after advancing this level.
   // This function can also indicate if some error occured.
   // For example the context could detect unphysical states and return a

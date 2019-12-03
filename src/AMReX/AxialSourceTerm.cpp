@@ -42,8 +42,8 @@ AxialSourceTerm& AxialSourceTerm::operator=(const AxialSourceTerm& other) {
   return (*this = std::move(tmp));
 }
 
-void AxialSourceTerm::PreAdvanceLevel(int, Duration, int subcycle) {
-  if (subcycle == 0) {
+void AxialSourceTerm::PreAdvanceLevel(int, Duration, std::pair<int, int> subcycle) {
+  if (subcycle.first == 0) {
     ResetHierarchyConfiguration(gridding_);
   }
 }

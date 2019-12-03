@@ -85,6 +85,8 @@ public:
   using IntegratorContext::GetRatioToCoarserLevel;
   using IntegratorContext::LevelExists;
 
+  using IntegratorContext::CopyDataToScratch;
+  using IntegratorContext::CopyScratchToData;
   using IntegratorContext::CoarsenConservatively;
   using IntegratorContext::CompleteFromCons;
   using IntegratorContext::ComputeNumericFluxes;
@@ -93,6 +95,10 @@ public:
   using IntegratorContext::AccumulateCoarseFineFluxes;
   using IntegratorContext::ApplyFluxCorrection;
   using IntegratorContext::ResetCoarseFineFluxes;
+
+  /// Returns the total refinement ratio between specified coarse to fine level
+  /// number.
+  int GetTotalRefineRatio(int fine_level, int coarse_level = 0) const;
 
   /// Returns a stable dt across all levels and in one spatial direction.
   ///
@@ -172,16 +178,29 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::ComputeStableDt(
 }
 
 template <int Rank, typename Context, typename SplitMethod>
+int DimensionalSplitLevelIntegrator<
+    Rank, Context, SplitMethod>::GetTotalRefineRatio(int fine_level,
+                                                     int coarse_level) const {
+  int refine_ratio = 1;
+  for (int level = fine_level; level > coarse_level; --level) {
+    refine_ratio *= Context::GetRatioToCoarserLevel(level).max();
+  }
+  return refine_ratio;
+}
+
+template <int Rank, typename Context, typename SplitMethod>
 Result<void, TimeStepTooLarge>
 DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::
     AdvanceLevelNonRecursively(int this_level, Duration dt,
-                               std::pair<int, int> subcycle) {
-  const double subcycle_ratio = [](int ratio, int n_subs) {
-    double r = 1.0 / double(ipow(ratio, Rank - 1)) / n_subs;
-    return r;
-  }(2, subcycle.second);
+                               [[maybe_unused]] std::pair<int, int> subcycle) {
   auto AdvanceLevel_Split = [&](Direction dir) {
     return [&, this_level, dir, dt](Duration split_dt) -> Result<void, TimeStepTooLarge> {
+      const Duration level_dt = Context::ComputeStableDt(this_level, dir);
+      if (level_dt < split_dt) {
+        const int refine_ratio = GetTotalRefineRatio(this_level);
+        return TimeStepTooLarge{refine_ratio * level_dt};
+      }
+
       // Compute fluxes in the specified direction
       Context::ComputeNumericFluxes(this_level, split_dt, dir);
 
@@ -193,17 +212,22 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::
       // We have to reconstruct the missing variables in the complete state.
       Context::CompleteFromCons(this_level, split_dt);
 
-      const double ratio = (split_dt / dt) * subcycle_ratio;
-      Context::AccumulateCoarseFineFluxes(this_level, ratio, dir);
+      const double scale = split_dt.count();
+      Context::AccumulateCoarseFineFluxes(this_level, scale, dir);
 
       return boost::outcome_v2::success();
     };
   };
-  return std::apply(
+  Result<void, TimeStepTooLarge> result = std::apply(
       [&](auto... directions) {
         return GetSplitMethod().Advance(dt, AdvanceLevel_Split(directions)...);
       },
       MakeSplitDirections<Rank>());
+  if (!result) {
+    return result;
+  }
+  Context::CopyScratchToData(this_level);
+  return boost::outcome_v2::success();
 }
 
 } // namespace fub

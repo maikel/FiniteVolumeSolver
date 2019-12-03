@@ -41,6 +41,8 @@ public:
   using LevelIntegrator::CoarsenConservatively;
   using LevelIntegrator::CompleteFromCons;
   using LevelIntegrator::ComputeStableDt;
+  using LevelIntegrator::CopyDataToScratch;
+  using LevelIntegrator::CopyScratchToData;
   using LevelIntegrator::GetContext;
   using LevelIntegrator::GetCycles;
   using LevelIntegrator::GetGriddingAlgorithm;

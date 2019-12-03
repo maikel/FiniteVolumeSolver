@@ -91,11 +91,10 @@ NoSubcycleSolver<LevelIntegrator>::AdvanceLevel(int level,
   }
   if (Base::LevelExists(next_level)) {
     Base::ApplyFluxCorrection(next_level, level, time_step_size);
-  }
-  if (Base::LevelExists(next_level)) {
     Base::CoarsenConservatively(next_level, level);
     Base::CompleteFromCons(level, time_step_size);
   }
+  Base::CopyScratchToData(level);
   return Base::PostAdvanceLevel(level, time_step_size, {0,1});
 }
 

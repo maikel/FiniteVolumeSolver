@@ -40,7 +40,14 @@ KineticSourceTerm<Rank>::KineticSourceTerm(
     const IdealGasMix<Rank>& eq,
     std::shared_ptr<amrex::GriddingAlgorithm> gridding)
     : equation_{eq}, state_{Complete<IdealGasMix<Rank>>(eq)},
-      gridding_{std::move(gridding)} {}
+      gridding_{std::move(gridding)}, registry_(std::make_shared<CounterRegistry>()) {}
+
+template <int Rank>
+KineticSourceTerm<Rank>::KineticSourceTerm(
+    const IdealGasMix<Rank>& eq,
+    std::shared_ptr<amrex::GriddingAlgorithm> gridding, std::shared_ptr<CounterRegistry> reg)
+    : equation_{eq}, state_{Complete<IdealGasMix<Rank>>(eq)},
+      gridding_{std::move(gridding)}, registry_(std::move(reg)) {}
 
 template <int Rank> Duration KineticSourceTerm<Rank>::ComputeStableDt(int) {
   return Duration(std::numeric_limits<double>::infinity());
@@ -49,6 +56,7 @@ template <int Rank> Duration KineticSourceTerm<Rank>::ComputeStableDt(int) {
 template <int Rank>
 Result<void, TimeStepTooLarge>
 KineticSourceTerm<Rank>::AdvanceLevel(int level, Duration dt) {
+  Timer advance_timer = registry_->get_timer("KineticSourceTerm::AdvanceLevel");
   ::amrex::MultiFab& data =
       gridding_->GetPatchHierarchy().GetPatchLevel(level).data;
   fub::amrex::ForEachFab(

@@ -66,6 +66,8 @@ public:
   using SystemSolver::LevelExists;
 
   using SystemSolver::CoarsenConservatively;
+  using SystemSolver::CopyDataToScratch;
+  using SystemSolver::CopyScratchToData;
   using SystemSolver::CompleteFromCons;
   using SystemSolver::ComputeNumericFluxes;
   using SystemSolver::UpdateConservatively;
@@ -192,28 +194,16 @@ SplitSystemSourceLevelIntegrator<SystemSolver, SourceTerm, SplittingMethod>::
     AdvanceLevelNonRecursively(int this_level, Duration dt,
                                std::pair<int, int> subcycle) {
   auto AdvanceSystem = [&](Duration dt) -> Result<void, TimeStepTooLarge> {
-    Result<void, TimeStepTooLarge> result =
-        SystemSolver::AdvanceLevelNonRecursively(this_level, dt, subcycle);
-    if (!result) {
-      return result;
-    }
-    const int next_level = this_level + 1;
-    // Coarsen inner regions from next finer level to this level.
-    if (SystemSolver::LevelExists(next_level)) {
-      CoarsenConservatively(next_level, this_level);
-
-      // The conservative update and the coarsening happened on conservative
-      // variables. We have to reconstruct the missing variables in the complete
-      // state.
-      CompleteFromCons(this_level, dt);
-    }
-    return result;
+    return SystemSolver::AdvanceLevelNonRecursively(this_level, dt, subcycle);
   };
 
   auto AdvanceSource = [&](Duration dt) -> Result<void, TimeStepTooLarge> {
-    return source_term_.AdvanceLevel(this_level, dt);
+    Result<void, TimeStepTooLarge> result = source_term_.AdvanceLevel(this_level, dt);
+    if (result) {
+      SystemSolver::CopyDataToScratch(this_level);
+    }
+    return result;
   };
-
   return splitting_.Advance(dt, AdvanceSource, AdvanceSystem);
 }
 

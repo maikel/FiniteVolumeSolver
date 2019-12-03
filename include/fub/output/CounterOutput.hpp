@@ -29,7 +29,7 @@
 
 namespace fub {
 
-template <typename Grid>
+template <typename Grid, typename PrintDuration = std::chrono::nanoseconds>
 class CounterOutput : public OutputAtFrequencyOrInterval<Grid> {
 public:
   CounterOutput(std::shared_ptr<CounterRegistry> registry,
@@ -47,7 +47,7 @@ public:
         std::chrono::duration_cast<std::chrono::nanoseconds>(now - reference_);
     std::vector<CounterResult> statistics = registry_->gather_statistics();
     if (statistics.size()) {
-      print_statistics<std::chrono::microseconds>(statistics, diff.count());
+      print_statistics<PrintDuration>(statistics, diff.count());
     }
   }
 

@@ -20,14 +20,33 @@
 // SOFTWARE.
 
 #include "fub/counter/Timer.hpp"
+#include "fub/core/assert.hpp"
 
 namespace fub {
 
 Timer::Timer(Counter& counter) : counter_(&counter) { this->start(); }
 
+Timer::Timer(Timer&& other) noexcept
+    : counter_(std::exchange(other.counter_, nullptr)),
+      start_time_(std::exchange(other.start_time_,
+                                std::chrono::steady_clock::time_point())),
+      stop_time_(std::exchange(other.stop_time_,
+                               std::chrono::steady_clock::time_point())) {}
+
+Timer& Timer::operator=(Timer&& other) noexcept {
+  counter_ = std::exchange(other.counter_, nullptr);
+  start_time_ =
+      std::exchange(other.start_time_, std::chrono::steady_clock::time_point());
+  stop_time_ =
+      std::exchange(other.stop_time_, std::chrono::steady_clock::time_point());
+  return *this;
+}
+
 Timer::~Timer() {
-  this->stop();
-  this->submit();
+  if (counter_) {
+    this->stop();
+    this->submit();
+  }
 }
 
 std::string const& Timer::get_name() { return counter_->get_name(); }
@@ -41,6 +60,7 @@ void Timer::submit() {
   auto nano = std::chrono::duration_cast<std::chrono::nanoseconds>(duration);
   static_assert(sizeof(long long) == sizeof(std::int64_t));
   static_assert(std::is_same_v<std::chrono::nanoseconds::rep, std::int64_t>);
+  FUB_ASSERT(counter_);
   counter_->add(static_cast<long long>(nano.count()));
 }
 

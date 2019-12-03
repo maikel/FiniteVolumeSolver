@@ -174,6 +174,9 @@ public:
   Result<void, TimeStepTooLarge> PostAdvanceLevel(int level_num, Duration dt,
                                                   std::pair<int, int> subcycle);
 
+  void CopyDataToScratch(int level_num);
+  void CopyScratchToData(int level_num);
+
   /// \brief Fills the ghost layer of the scratch data and interpolates in the
   /// coarse fine layer.
   void FillGhostLayerTwoLevels(int level, BoundaryCondition& fbc, int coarse,
@@ -217,6 +220,7 @@ public:
   ///@}
 
   std::shared_ptr<CounterRegistry> registry_;
+  bool count_per_level = false;
 
 private:
   /// \brief This class holds auxiliary data on each refinement level.

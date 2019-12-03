@@ -39,7 +39,7 @@ struct TemperatureRamp {
 
   void InitializeData(::amrex::MultiFab& data, const ::amrex::Geometry& geom) {
     fub::FlameMasterReactor& reactor = equation_.GetReactor();
-    const double high_temp = 1000.0;
+    const double high_temp = 1400.0;
     const double temp = 300.0;
     const double low_pressure = 101325.0;
     const double high_pressure = 8.0 * low_pressure;
@@ -176,14 +176,12 @@ std::optional<ProgramOptions> ParseCommandLine(int argc, char** argv) {
 }
 
 void MyMain(const ProgramOptions& opts) {
+  // feenableexcept(FE_DIVBYZERO | FE_INVALID);
   // Store a reference timepoint to measure the wall time duration
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
-  // Enable floating point exceptions.
-  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() | _MM_MASK_DIV_ZERO |
-                         _MM_MASK_OVERFLOW | _MM_MASK_UNDERFLOW |
-                         _MM_MASK_INVALID);
+  fub::InitializeLogging(MPI_COMM_WORLD);
 
   constexpr int Dim = AMREX_SPACEDIM;
 
@@ -249,6 +247,8 @@ void MyMain(const ProgramOptions& opts) {
       fub::int_c<1>, fub::amrex::IntegratorContext(gridding, method),
       fub::GodunovSplitting());
 
+  std::shared_ptr<fub::CounterRegistry> registry = system_solver.GetContext().registry_;
+
   auto diameter = [](double x) -> double {
     if (x < 0.5) {
       return 0.45;
@@ -267,7 +267,7 @@ void MyMain(const ProgramOptions& opts) {
       std::move(system_solver), std::move(source_term), fub::GodunovSplitting());
 
   fub::ideal_gas::KineticSourceTerm<1> kinetic_source(
-      equation, axial_solver.GetGriddingAlgorithm());
+      equation, axial_solver.GetGriddingAlgorithm(), registry);
 
   fub::SplitSystemSourceLevelIntegrator level_integrator(std::move(axial_solver),
                                                  std::move(kinetic_source),
@@ -282,8 +282,9 @@ void MyMain(const ProgramOptions& opts) {
 
   int rank = -1;
   MPI_Comm_rank(solver.GetMpiCommunicator(), &rank);
-
-  fub::AsOutput<fub::amrex::GriddingAlgorithm> output(
+  using namespace std::literals::chrono_literals;
+  fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> output{};
+  output.AddOutput(fub::MakeOutput<fub::amrex::GriddingAlgorithm>(
       {}, {fub::Duration(opts.output_interval)},
       [&](const fub::amrex::GriddingAlgorithm& gridding) {
         std::ptrdiff_t cycle = gridding.GetCycles();
@@ -295,9 +296,13 @@ void MyMain(const ProgramOptions& opts) {
             base_name + "/Tube.h5", gridding.GetPatchHierarchy(), equation,
             timepoint, cycle, solver.GetMpiCommunicator());
         amrex::Print() << "Finished output to '" << name << "'.\n";
-      });
+      }));
+  output.AddOutput(
+      std::make_unique<
+          fub::CounterOutput<fub::amrex::GriddingAlgorithm>>(
+          registry, wall_time_reference,
+          std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{0.0001s}));
 
-  using namespace std::literals::chrono_literals;
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
   run_options.cfl = opts.cfl;

@@ -21,9 +21,6 @@
 #include "fub/AMReX.hpp"
 #include "fub/Solver.hpp"
 
-#include <fmt/format.h>
-#include <iostream>
-
 struct CircleData {
   using Complete = fub::Complete<fub::Advection2d>;
 
@@ -48,11 +45,12 @@ struct CircleData {
   }
 };
 
-int main(int argc, char** argv) {
+int main() {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
-  const fub::amrex::ScopeGuard guard(argc, argv);
+  fub::amrex::ScopeGuard guard{};  
+  
   fub::InitializeLogging(MPI_COMM_WORLD);
 
   constexpr int Dim = AMREX_SPACEDIM;
@@ -70,17 +68,17 @@ int main(int argc, char** argv) {
   geometry.periodicity = std::array<int, Dim>{AMREX_D_DECL(1, 1, 1)};
 
   fub::amrex::PatchHierarchyOptions hier_opts{};
-  hier_opts.max_number_of_levels = 4;
+  hier_opts.max_number_of_levels = 6;
   hier_opts.refine_ratio = amrex::IntVect(AMREX_D_DECL(2, 2, 1));
 
   using State = fub::Advection2d::Complete;
   fub::amrex::GradientDetector gradient{equation,
                                         std::pair{&State::mass, 1e-3}};
 
-  std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
+  std::shared_ptr grid = std::make_shared<fub::amrex::GriddingAlgorithm>(
       fub::amrex::PatchHierarchy(equation, geometry, hier_opts), CircleData{},
-      fub::amrex::TagAllOf(gradient, fub::amrex::TagBuffer(4)));
-  gridding->InitializeHierarchy(0.0);
+      fub::amrex::TagAllOf(gradient, fub::amrex::TagBuffer(2)));
+  grid->InitializeHierarchy(0.0);
 
   fub::amrex::HyperbolicMethod method{
       fub::amrex::FluxMethod(fub::execution::simd,
@@ -89,7 +87,7 @@ int main(int argc, char** argv) {
       fub::amrex::NoReconstruction{}};
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<Dim>, fub::amrex::IntegratorContext(gridding, method));
+      fub::int_c<Dim>, fub::amrex::IntegratorContext(grid, method));
 
   // fub::NoSubcycleSolver solver(std::move(level_integrator));
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
@@ -99,19 +97,13 @@ int main(int argc, char** argv) {
   using namespace std::literals::chrono_literals;
   fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> output{};
   output.AddOutput(fub::MakeOutput<fub::amrex::GriddingAlgorithm>(
-      {}, {0.1s}, [&](const fub::amrex::GriddingAlgorithm& gridding) {
-        std::string name =
-            fmt::format("{}plt{:04}", base_name, gridding.GetCycles());
-        ::amrex::Print() << "Start output to '" << name << "'.\n";
-        fub::amrex::WritePlotFile(name, gridding.GetPatchHierarchy(), equation);
-        ::amrex::Print() << "Finished output to '" << name << "'.\n";
-      }));
+      {}, {0.1s}, fub::amrex::PlotfileOutput(equation, base_name)));
   output.AddOutput(
       std::make_unique<fub::CounterOutput<fub::amrex::GriddingAlgorithm>>(
           solver.GetContext().registry_, wall_time_reference,
           std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{0.5s}));
 
-  output(*solver.GetGriddingAlgorithm());
+  output(*grid);
   fub::RunOptions run_options{};
   run_options.final_time = 2.0s;
   run_options.cfl = 0.9;

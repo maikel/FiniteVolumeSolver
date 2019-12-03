@@ -1,4 +1,4 @@
-pathToPlenums = ["/group/ag_klima/SFB1029_C01/Compressor/Plenum_x0.h5"];
+pathToPlenums = ["/group/ag_klima/SFB1029_C01/Compressor/Plenum_x1.h5"];
 % pattern = '/*.dat';
 % videoPath = '/group/ag_klima/SFB1029_C01/Compressor/Plenum_x0.avi';
 
@@ -6,8 +6,10 @@ pathToPlenums = ["/group/ag_klima/SFB1029_C01/Compressor/Plenum_x0.h5"];
 % open(v);
 
 t_ = [];
+minp_ = [];
 maxp_ = [];
 meanp_ = [];
+variance_ = [];
 
 for pathToPlenum = pathToPlenums
   fprintf('Process HDF5 database %s\n', pathToPlenum);
@@ -22,8 +24,10 @@ for pathToPlenum = pathToPlenums
   X = 1;
 
   t = zeros(nFiles, 1);
+  minp = zeros(nFiles, 1);
   maxp = zeros(nFiles, 1);
   meanp = zeros(nFiles, 1);
+  variance = zeros(nFiles, 1);
 
   f = figure('visible', 'off', 'Units', 'centimeters', 'Position', [0, 0, 24, 24]);
   totalChunks = ceil(nFiles / chunkSize);
@@ -37,20 +41,32 @@ for pathToPlenum = pathToPlenums
     % MakeVideo(v, Y, Z, time, data, firstFile, nFiles);
     t(firstFile:firstFile+length(time) - 1) = time;
     for k = 1:length(time) 
-      maxp(k + firstFile - 1) = max(max(data.p(:, :, 1, k)));
-      meanp(k + firstFile - 1) = sum(sum(data.p(:, :, 1, k) / sum(sum(data.p(:, :, 1, k) > 0.0))));
+      p = reshape(data.p(:, :, :, 1, k), count(1), count(2));
+      mask = p > 0.0;
+      minp(k + firstFile - 1) = min(p(mask));
+      maxp(k + firstFile - 1) = max(p(mask));
+      meanp(k + firstFile - 1) = mean(p(mask));
+      variance(k + firstFile - 1) = max(sqrt((p(mask) - mean(p(mask))).^2));
     end
+    is = firstFile:firstFile+length(time) - 1;
+    stddev = max(sqrt((p - mean(meanp(is)))**2))
+    fprintf('stddev %f of mean %f \n', max(variance(firstFile:firstFile+length(time) - 1)), mean(meanp(firstFile:firstFile+length(time) - 1)));
   end
 
   t_ = [t_; t];
+  minp_ = [minp_; minp];
   maxp_ = [maxp_; maxp];
   meanp_ = [meanp_; meanp];
+  variance_ = [variance_; variance];
 end
 % close(v);
 
 f2 = figure('visible', 'off', 'Units', 'centimeters', 'Position', [0, 0, 12, 12]);
+hold on;
 plot(t_, maxp_);
-title('Maximaler Druck in x_0 = 0.5m Entfernung');
+plot(t_, minp_);
+plot(t_, meanp_);
+title(sprintf('Druck in x_0 = %fm Entfernung', X(1)));
 xlabel('Zeit [s]');
 ylabel('Druck [Pa]');
 axis([0 0.5 1e5 1.5e5]);
