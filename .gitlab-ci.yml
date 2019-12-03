@@ -14,34 +14,9 @@ stages:
     - cd docker/
     - bash build_images.sh ${COMPILER_ID}
 
-build_clang5:
-  variables:
-    COMPILER_ID: "clang5"
-  <<: *build_base
-
-build_clang6:
-  variables:
-    COMPILER_ID: "clang6"
-  <<: *build_base
-
-build_clang7:
-  variables:
-    COMPILER_ID: "clang7"
-  <<: *build_base
-
 build_clang8:
   variables:
     COMPILER_ID: "clang8"
-  <<: *build_base
-
-build_gcc7:
-  variables:
-    COMPILER_ID: "gcc7"
-  <<: *build_base
-
-build_gcc8:
-  variables:
-    COMPILER_ID: "gcc8"
   <<: *build_base
 
 build_gcc9:
