@@ -77,7 +77,7 @@ IntegratorContext::IntegratorContext(
   // Allocate auxiliary data arrays for each refinement level in the hierarchy
   ResetHierarchyConfiguration();
   for (std::size_t level_num = 0; level_num < data_.size(); ++level_num) {
-    gridding_->FillMultiFabFromLevel(data_[level_num].scratch, int(level_num));
+    CopyDataToScratch(level_num);
   }
   std::size_t n_levels =
       static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels());
@@ -95,6 +95,9 @@ IntegratorContext::IntegratorContext(const IntegratorContext& other)
       method_{other.method_}{
   // Allocate auxiliary data arrays
   ResetHierarchyConfiguration();
+  for (std::size_t level_num = 0; level_num < data_.size(); ++level_num) {
+    CopyDataToScratch(level_num);
+  }
   // Copy time stamps and cycle counters
   std::size_t n_levels =
       static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels());
@@ -289,7 +292,7 @@ void IntegratorContext::ResetHierarchyConfiguration(
   gridding_ = std::move(gridding);
   ResetHierarchyConfiguration();
   for (std::size_t level_num = 0; level_num < data_.size(); ++level_num) {
-    gridding_->FillMultiFabFromLevel(data_[level_num].scratch, int(level_num));
+    CopyDataToScratch(level_num);
   }
 }
 
@@ -460,15 +463,19 @@ void IntegratorContext::AccumulateCoarseFineFluxes(int level, double scale,
   const ::amrex::MultiFab& fluxes = GetFluxes(level, dir);
   const int dir_v = static_cast<int>(dir);
   const int ncomp = fluxes.nComp();
+  const ::amrex::Geometry& geom = GetGeometry(level);
+  const double* dx = geom.CellSize();
+  const double vol = AMREX_D_TERM(dx[0], *dx[1], *dx[2]);
+  const double vol_dt_over_dx = vol * scale / dx[dir_v];
   if (level > 0) {
     const std::size_t slevel = static_cast<std::size_t>(level);
     ::amrex::FluxRegister& flux_register = data_[slevel].coarse_fine;
-    flux_register.FineAdd(fluxes, dir_v, 0, 0, ncomp, scale);
+    flux_register.FineAdd(fluxes, dir_v, 0, 0, ncomp, vol_dt_over_dx);
   }
   if (LevelExists(level + 1)) {
     const std::size_t next_level = static_cast<std::size_t>(level + 1);
     ::amrex::FluxRegister& flux_register = data_[next_level].coarse_fine;
-    flux_register.CrseInit(fluxes, dir_v, 0, 0, ncomp, -1.0,
+    flux_register.CrseInit(fluxes, dir_v, 0, 0, ncomp, -vol_dt_over_dx,
                            ::amrex::FluxRegister::ADD);
   }
 }
@@ -505,12 +512,9 @@ void IntegratorContext::ApplyFluxCorrection(int fine, int coarse,
   const int ncomp = GetPatchHierarchy().GetDataDescription().n_cons_components;
   const ::amrex::Geometry& cgeom = GetGeometry(coarse);
   ::amrex::MultiFab& scratch = GetScratch(coarse);
-  ::amrex::MultiFab volume(scratch.boxArray(), scratch.DistributionMap(), 1, 0);
-  volume.setVal(1.0);
   for (int dir = 0; dir < Rank; ++dir) {
     ::amrex::FluxRegister& flux_register = data_[next_level].coarse_fine;
-    const double scale = time_step_size.count() / cgeom.CellSize(dir);
-    flux_register.Reflux(scratch, volume, dir, scale, 0, 0, ncomp, cgeom);
+    flux_register.Reflux(scratch, dir, 1.0, 0, 0, ncomp, cgeom);
   }
 }
 
@@ -572,13 +576,13 @@ void IntegratorContext::PreAdvanceLevel(int level_num, Duration,
       gridding_->RegridAllFinerlevels(level_num);
       for (std::size_t lvl = l; lvl < data_.size(); ++lvl) {
         data_[lvl].regrid_time_point = data_[lvl].time_point;
-        CopyDataToScratch(int(lvl));
       }
       if (LevelExists(level_num + 1)) {
         ResetHierarchyConfiguration(level_num + 1);
         ResetCoarseFineFluxes(level_num + 1, level_num);
       }
     }
+    CopyDataToScratch(level_num);
   } else {
     FillGhostLayerSingleLevel(level_num);
   }

@@ -46,12 +46,13 @@ int main() {
       std::chrono::steady_clock::now();
 
   fub::amrex::ScopeGuard _{};
+  fub::InitializeLogging(MPI_COMM_WORLD);
 
   const std::array<int, AMREX_SPACEDIM> n_cells{
-      AMREX_D_DECL(8 * 15, 8 * 10, 1)};
+      AMREX_D_DECL(16 * 15, 16 * 10, 1)};
   const std::array<double, AMREX_SPACEDIM> xlower{AMREX_D_DECL(0.0, 0.0, 0.0)};
   const std::array<double, AMREX_SPACEDIM> xupper{
-      AMREX_D_DECL(+0.15, +0.10, +0.10)};
+      AMREX_D_DECL(+0.15001, +0.10, +0.10)};
   amrex::RealBox xbox(xlower, xupper);
   const std::array<int, AMREX_SPACEDIM> periodicity{};
 
@@ -60,7 +61,7 @@ int main() {
           {}, {AMREX_D_DECL(n_cells[0] - 1, n_cells[1] - 1, n_cells[2] - 1)}},
       &xbox, -1, periodicity.data());
 
-  const int n_level = 3;
+  const int n_level = 4;
 
   auto embedded_boundary =
       Triangle({0.02, 0.05}, {0.05, 0.0655}, {0.05, 0.0345});
@@ -105,7 +106,7 @@ int main() {
 
   std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
       PatchHierarchy(equation, geometry, options), initial_data,
-      TagAllOf(TagCutCells(), gradients, TagBuffer(4)), boundary_condition);
+      TagAllOf(TagCutCells(), gradients, TagBuffer(2)), boundary_condition);
   gridding->InitializeHierarchy(0.0);
 
   fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
@@ -113,7 +114,7 @@ int main() {
   fub::MusclHancockMethod muscl_method{equation, hll_method};
   fub::KbnCutCellMethod cutcell_method(muscl_method, hll_method);
 
-  HyperbolicMethod method{FluxMethod{fub::execution::seq, cutcell_method},
+  HyperbolicMethod method{FluxMethod{fub::execution::simd, cutcell_method},
                           TimeIntegrator{},
                           Reconstruction{fub::execution::seq, equation}};
 
@@ -127,12 +128,12 @@ int main() {
   using namespace std::literals::chrono_literals;
   fub::MultipleOutputs<GriddingAlgorithm> output{};
   output.AddOutput(fub::MakeOutput<GriddingAlgorithm>(
-      {}, {1.0s / 180.}, fub::amrex::PlotfileOutput(equation, base_name)));
+      {}, {3e-4s / 180.}, fub::amrex::PlotfileOutput(equation, base_name)));
   output.AddOutput(
       std::make_unique<
           fub::CounterOutput<GriddingAlgorithm>>(
-          solver.GetContext().registry_, wall_time_reference,
-          std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{0.5s}));
+          solver.GetContext().registry_, wall_time_reference, 
+          std::vector<std::ptrdiff_t>{50}, std::vector<fub::Duration>{}));
 
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
