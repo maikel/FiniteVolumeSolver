@@ -157,19 +157,6 @@ int main(int argc, char** argv) {
         BOOST_LOG(log) << "Start output to '" << name << "'.";
         WritePlotFile(name, gridding.GetPatchHierarchy(), equation);
         BOOST_LOG(log) << "Finished output to '" << name << "'.";
-        double rho_max = 0.0;
-        double rho_min = std::numeric_limits<double>::infinity();
-        for (int level = 0;
-             level < gridding.GetPatchHierarchy().GetNumberOfLevels();
-             ++level) {
-          const ::amrex::MultiFab& mf =
-              gridding.GetPatchHierarchy().GetPatchLevel(level).data;
-          rho_max = std::max(rho_max, mf.max(0));
-          rho_min = std::min(rho_min, mf.min(0));
-        }
-        const double rho_err =
-            std::max(std::abs(rho_max - 1.0), std::abs(rho_min - 1.0));
-        BOOST_LOG(log) << fmt::format("Density Max Error: {:.6E}", rho_err);
       }));
   output.AddOutput(
       std::make_unique<fub::CounterOutput<fub::amrex::GriddingAlgorithm,
