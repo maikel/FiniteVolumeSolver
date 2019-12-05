@@ -100,7 +100,7 @@ int main(int argc, char** argv) {
                                         {AMREX_D_DECL(+1.0, +1.0, +1.0)});
 
   fub::amrex::PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = 4;
+  hier_opts.max_number_of_levels = 3;
   hier_opts.refine_ratio = amrex::IntVect{AMREX_D_DECL(2, 2, 1)};
 
   using Complete = fub::PerfectGas<2>::Complete;
