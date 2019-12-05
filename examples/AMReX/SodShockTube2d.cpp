@@ -105,13 +105,8 @@ int main(int argc, char** argv) {
 
   using Complete = fub::PerfectGas<2>::Complete;
   fub::amrex::GradientDetector gradient(
-      equation, std::pair{&Complete::density, 1.0e-4},
-      std::pair{&Complete::pressure, 1.0e-4},
-      std::pair{
-          [](const Complete& state) {
-            return (state.momentum / state.density).matrix().norm();
-          },
-          1.0e-4});
+      equation, std::pair{&Complete::density, 1.0e-2},
+      std::pair{&Complete::pressure, 1.0e-2});
 
   fub::amrex::BoundarySet boundaries{{
     fub::amrex::ReflectiveBoundary(fub::execution::seq, equation, fub::Direction::X, 0),
