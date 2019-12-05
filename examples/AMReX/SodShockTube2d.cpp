@@ -50,33 +50,23 @@ struct ShockTubeData {
                      const double x = xy[0];
                      const double y = xy[1];
 
-                     const double r = std::sqrt(x * x + y * y);
-                     const double phi = std::atan2(y, x);
-
-                     double pr = 0 * r;
-                     double uth = 0 * r;
-
-                     if (r < 0.2) {
-                       uth = 5. * r;
-                       pr = 5. + 12.5 * r * r;
-                     } else if (r < 0.4) {
-                       uth = 2. - 5. * r;
-                       pr = 9. - 4. * std::log(0.2) + 12.5 * r * r - 20. * r +
-                            4. * std::log(r);
-                     } else {
-                       uth = 0.;
-                       pr = 3. + 4. * std::log(2.);
-                     }
-
-                     const double u = -std::sin(phi) * uth;
-                     const double v = std::cos(phi) * uth;
-
                      Complete state;
 
-                     state.density = 1.;
-                     state.momentum[0] = u;
-                     state.momentum[1] = v;
-                     state.pressure = pr;
+                      // "Left" states of Sod Shock Tube.
+                     if (x + y < 0.) {
+                       state.density     = 1.0;
+                       state.pressure    = 1.0;
+                       state.momentum[0] = 0.;
+                       state.momentum[1] = 0.;
+                     }
+                     // "Right" states.
+                     else
+                     {
+                       state.density     = 1.25e-1;
+                       state.pressure    = 1.0e-1;
+                       state.momentum[0] = 0.;
+                       state.momentum[1] = 0.;
+                     }
 
                      from_prim(state, equation_);
 
