@@ -21,8 +21,14 @@
 #ifndef FUB_EXECUTION_HPP
 #define FUB_EXECUTION_HPP
 
+#include "fub/ext/omp.hpp"
+#include <optional>
+
 namespace fub {
 namespace execution {
+
+struct SequentialTag {};
+inline constexpr SequentialTag seq{};
 
 struct SimdTag {};
 inline constexpr SimdTag simd{};
@@ -30,7 +36,31 @@ inline constexpr SimdTag simd{};
 struct OpenMpTag {};
 inline constexpr OpenMpTag openmp{};
 
+struct OpenMpSimdTag : OpenMpTag, SimdTag {};
+inline constexpr OpenMpSimdTag openmp_simd{};
+
 } // namespace execution
+
+namespace detail {
+template <typename Tag, typename T> struct LocalType {
+  using type = std::optional<T>;
+};
+template <typename T> struct LocalType<execution::OpenMpTag, T> {
+  using type = OmpLocal<T>;
+};
+template <typename T> struct LocalType<execution::OpenMpSimdTag, T> {
+  using type = OmpLocal<T>;
+};
+} // namespace detail
+template <typename Tag, typename T>
+using Local = typename detail::LocalType<Tag, T>::type;
+
+template <typename T> const T& Min(const std::optional<T>& x) {
+  return *x;
+}
+
+template <typename T> const T& Min(const OmpLocal<T>& x) { return x.Min(); }
+
 } // namespace fub
 
 #endif

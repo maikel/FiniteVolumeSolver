@@ -49,8 +49,8 @@ static void BM_GodunovMethod_X(benchmark::State& state) {
       Subview(AsConst(base_states), {{-1, 0}, {width, width}});
 
   for (auto _ : state) {
-    godunov.ComputeNumericFluxes(fluxes, states, Direction::X, Duration(0.7),
-                                 1.0);
+    godunov.ComputeNumericFluxes(fluxes, states, Duration(0.7), 1.0,
+                                 Direction::X);
   }
 }
 BENCHMARK(BM_GodunovMethod_X)->Range(8, 128);
@@ -79,8 +79,8 @@ static void BM_SIMD_GodunovMethod_X(benchmark::State& state) {
       Subview(AsConst(base_states), {{-1, 0}, {width, width}});
 
   for (auto _ : state) {
-    godunov.ComputeNumericFluxes(execution::simd, fluxes, states, Direction::X,
-                                 Duration(0.7), 1.0);
+    godunov.ComputeNumericFluxes(execution::simd, fluxes, states, Duration(0.7),
+                                 1.0, Direction::X);
   }
 }
 BENCHMARK(BM_SIMD_GodunovMethod_X)->Range(8, 128);

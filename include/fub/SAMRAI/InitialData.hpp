@@ -21,19 +21,21 @@
 #ifndef FUB_SAMRAI_INITIAL_DATA_HPP
 #define FUB_SAMRAI_INITIAL_DATA_HPP
 
-#include "fub/CartesianCoordinates.hpp"
-#include "fub/Equation.hpp"
-#include "fub/core/mdspan.hpp"
-#include "fub/grid/SAMRAI/CartesianPatchHierarchy.hpp"
-#include "fub/grid/SAMRAI/ViewPatch.hpp"
+#include "fub/core/type_traits.hpp"
+
+#include "fub/SAMRAI/PatchHierarchy.hpp"
+
+#include <fub/Duration.hpp>
+#include <memory>
 
 namespace fub {
 namespace samrai {
+
 struct InitialDataStrategy {
   virtual ~InitialDataStrategy() = default;
-  virtual void InitializeData(span<SAMRAI::pdat::CellData<double>*> states,
-                              const CartesianCoordinates& coords) = 0;
-  virtual void Reconstruct(span<SAMRAI::pdat::CellData<double>*> states) = 0;
+
+  virtual void InitializeData(PatchHierarchy& hierarchy, int level_number, Duration time_point) = 0;
+
   virtual std::unique_ptr<InitialDataStrategy> Clone() const = 0;
 };
 
@@ -42,19 +44,8 @@ template <typename T> struct InitialDataWrapper : public InitialDataStrategy {
   InitialDataWrapper(T&& initial_data)
       : initial_data_{std::move(initial_data)} {}
 
-  void InitializeData(span<SAMRAI::pdat::CellData<double>*> states,
-                      const CartesianCoordinates& coords) override {
-    initial_data_.InitializeData(states, coords);
-  }
-
-  template <typename S>
-  using ReconstructT = decltype(
-      std::declval<S&>().Reconstruct(span<SAMRAI::pdat::CellData<double>*>{}));
-
-  void Reconstruct(span<SAMRAI::pdat::CellData<double>*> states) override {
-    if constexpr (is_detected<ReconstructT, T>::value) {
-      initial_data_.Reconstruct(states);
-    }
+  void InitializeData(PatchHierarchy& hierarchy, int level_number, Duration time_point) override {
+    initial_data_.InitializeData(hierarchy, level_number, time_point);
   }
 
   std::unique_ptr<InitialDataStrategy> Clone() const override {
@@ -65,16 +56,18 @@ template <typename T> struct InitialDataWrapper : public InitialDataStrategy {
 };
 
 struct InitialData {
+  InitialData() = default;
+
   InitialData(const InitialData& other)
-      : initial_data_{other.initial_data_->Clone()} {}
+      : initial_data_(other.initial_data_->Clone()) {}
 
   InitialData& operator=(const InitialData& other) {
-    initial_data_ = other.initial_data_->Clone();
-    return *this;
+    InitialData tmp(other);
+    return *this = std::move(tmp);
   }
 
-  InitialData(InitialData&&) = default;
-  InitialData& operator=(InitialData&&) = default;
+  InitialData(InitialData&&) noexcept = default;
+  InitialData& operator=(InitialData&&) noexcept = default;
 
   template <typename T>
   InitialData(const T& initial_data)
@@ -85,45 +78,16 @@ struct InitialData {
       : initial_data_{std::make_unique<InitialDataWrapper<remove_cvref_t<T>>>(
             std::move(initial_data))} {}
 
-  void InitializeData(span<SAMRAI::pdat::CellData<double>*> states,
-                      const CartesianCoordinates& coords) {
+  void InitializeData(PatchHierarchy& hierarchy, int level_number, Duration time_point) {
     if (initial_data_) {
-      initial_data_->InitializeData(states, coords);
-    }
-  }
-
-  void Reconstruct(span<SAMRAI::pdat::CellData<double>*> states) {
-    if (initial_data_) {
-      initial_data_->Reconstruct(states);
+      initial_data_->InitializeData(hierarchy, level_number, time_point);
     }
   }
 
   std::unique_ptr<InitialDataStrategy> initial_data_;
 };
 
-template <typename InitialData, typename Equation> struct AdaptInitialData {
-  AdaptInitialData(InitialData data, Equation equation)
-      : data_{std::move(data)}, equation_{std::move(equation)} {}
-
-  void InitializeData(span<SAMRAI::pdat::CellData<double>*> states,
-                      const CartesianCoordinates& coords) {
-    BasicView<Complete<Equation>> state_view =
-        MakeView<BasicView<Complete<Equation>>>(states, equation_);
-    data_.InitializeData(state_view, coords);
-  }
-
-  void Reconstruct(span<SAMRAI::pdat::CellData<double>*> states) {
-    BasicView<Complete<Equation>> state_view =
-        MakeView<BasicView<Complete<Equation>>>(states, equation_);
-    BasicView<const Conservative<Equation>> cons_view = AsCons(state_view);
-    CompleteFromCons(equation_, state_view, cons_view);
-  }
-
-  InitialData data_;
-  Equation equation_;
-};
-
-} // namespace samrai
+} // namespace amrex
 } // namespace fub
 
 #endif

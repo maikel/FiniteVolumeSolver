@@ -133,7 +133,7 @@ ALWAYS_DETAILED_SEC    = YES
 # operators of the base classes will not be shown.
 # The default value is: NO.
 
-INLINE_INHERITED_MEMB  = NO
+INLINE_INHERITED_MEMB  = YES
 
 # If the FULL_PATH_NAMES tag is set to YES, doxygen will prepend the full path
 # before files name in the file list and in the header files. If set to NO the
@@ -366,7 +366,7 @@ GROUP_NESTED_COMPOUNDS = NO
 # \nosubgrouping command.
 # The default value is: YES.
 
-SUBGROUPING            = NO
+SUBGROUPING            = YES
 
 # When the INLINE_GROUPED_CLASSES tag is set to YES, classes, structs and unions
 # are shown inside the group in which they are included (e.g. using \ingroup)
@@ -787,9 +787,8 @@ INPUT                  = "../include/fub/" \
                          "../include/fub/cutcell_method/" \
                          "../include/fub/equations/" \
                          "../include/fub/geometry/" \
-                         "../include/fub/grid/" \
-                         "../include/fub/grid/AMReX/" \
-                         "../include/fub/grid/AMReX/cutcell" \
+                         "../include/fub/AMReX/" \
+                         "../include/fub/AMReX/cutcell/" \
                          "../"
 
 # This tag can be used to specify the character encoding of the source files

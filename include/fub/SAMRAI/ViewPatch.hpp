@@ -23,22 +23,19 @@
 
 #include "fub/Equation.hpp"
 
-#include <boost/hana/ext/std/array.hpp>
-
+#include <SAMRAI/hier/Patch.h>
 #include <SAMRAI/pdat/ArrayData.h>
 #include <SAMRAI/pdat/CellData.h>
-#include <SAMRAI/pdat/CellVariable.h>
+#include <SAMRAI/pdat/SideData.h>
 
 namespace fub {
 namespace samrai {
 
-template <typename MdSpan, typename T>
-MdSpan MakeMdSpan(boost::hana::basic_type<MdSpan>,
-                  SAMRAI::pdat::ArrayData<T>& array) {
+template <int Rank, typename T>
+mdspan<T, Rank> MakeMdSpan(SAMRAI::pdat::ArrayData<T>& array) {
   const SAMRAI::hier::Box& box = array.getBox();
   const int dim = box.getDim().getValue();
   const int depth = array.getDepth();
-  constexpr int Rank = MdSpan::rank();
   if ((depth > 1 && Rank < dim + 1) || (depth == 1 && Rank < dim)) {
     throw std::invalid_argument("Dimension mismatch in make_mdspan.");
   }
@@ -51,16 +48,14 @@ MdSpan MakeMdSpan(boost::hana::basic_type<MdSpan>,
     extents[dim] = depth;
   }
   T* pointer = array.getPointer();
-  return MdSpan(pointer, extents);
+  return mdspan<T, Rank>(pointer, extents);
 }
 
-template <typename MdSpan, typename T>
-MdSpan MakeMdSpan(boost::hana::basic_type<MdSpan>,
-                  const SAMRAI::pdat::ArrayData<T>& array) {
+template <int Rank, typename T>
+mdspan<const T, Rank> MakeMdSpan(const SAMRAI::pdat::ArrayData<T>& array) {
   const SAMRAI::hier::Box& box = array.getBox();
   const int dim = box.getDim().getValue();
   const int depth = array.getDepth();
-  constexpr int Rank = MdSpan::rank();
   if ((depth > 1 && Rank < dim + 1) || (depth == 1 && Rank < dim)) {
     throw std::invalid_argument("Dimension mismatch in make_mdspan.");
   }
@@ -73,44 +68,143 @@ MdSpan MakeMdSpan(boost::hana::basic_type<MdSpan>,
     extents[dim] = depth;
   }
   const T* pointer = array.getPointer();
-  return MdSpan(pointer, extents);
+  return mdspan<const T, Rank>(pointer, extents);
 }
 
-template <template <typename...> typename T, typename... Args>
-T<remove_cvref_t<Args>...> MakeTemplate(template_t<T>, Args&&... args) {
-  return T<remove_cvref_t<Args>...>{std::forward<Args>(args)...};
+template <int Rank> IndexBox<Rank> AsIndexBox(const SAMRAI::hier::Box& box) {
+  IndexBox<Rank> index_box{};
+  const std::size_t dim = static_cast<std::size_t>(box.getDim().getValue());
+  for (std::size_t i = 0; i < dim; ++i) {
+    index_box.lower[i] = box.lower(static_cast<SAMRAI::hier::Box::dir_t>(i));
+    index_box.upper[i] = box.upper(static_cast<SAMRAI::hier::Box::dir_t>(i)) + 1;
+  }
+  return index_box;
 }
 
-template <typename State, typename Equation,
-          int N = boost::hana::length(State::ValueTypes())>
-auto MakeView(boost::hana::basic_type<State>,
-              nodeduce_t<span<SAMRAI::pdat::CellData<double>*, N>> span,
-              const Equation&) {
-  constexpr auto types = State::ValueTypes();
-  const auto pointers = boost::hana::to_tuple(span);
-  return boost::hana::unpack(
-      boost::hana::zip(types, pointers), [](auto... args) {
-        return State{
-            MakeMdSpan(at_c<0>(args), at_c<1>(args)->getArrayData())...};
-      });
+template <int Rank, typename T>
+PatchDataView<const T, Rank>
+MakePatchDataView(const SAMRAI::pdat::ArrayData<T>& array) {
+  IndexBox<Rank> box = AsIndexBox<Rank>(array.getBox());
+  return PatchDataView<const T, Rank>(MakeMdSpan<Rank, T>(array), box.lower);
+}
+
+template <int Rank, typename T>
+PatchDataView<T, Rank> MakePatchDataView(SAMRAI::pdat::ArrayData<T>& array) {
+  IndexBox<Rank> box = AsIndexBox<Rank>(array.getBox());
+  return PatchDataView<T, Rank>(MakeMdSpan<Rank, T>(array), box.lower);
+}
+
+template <typename PatchData>
+std::enable_if_t<std::is_pointer_v<PatchData>, void>
+GetPatchData(span<PatchData> patch_datas, SAMRAI::hier::Patch& patch,
+             span<const int> data_ids) {
+  FUB_ASSERT(data_ids.size() == patch_datas.size());
+  std::transform(data_ids.begin(), data_ids.end(), patch_datas.begin(),
+                 [&patch](int id) {
+                   PatchData pointer_to_data =
+                       dynamic_cast<PatchData>(patch.getPatchData(id).get());
+                   FUB_ASSERT(pointer_to_data);
+                   return pointer_to_data;
+                 });
+}
+
+template <typename PatchData>
+std::enable_if_t<std::is_pointer_v<PatchData>, void>
+GetPatchData(span<PatchData> patch_datas, const SAMRAI::hier::Patch& patch,
+             span<const int> data_ids) {
+  FUB_ASSERT(data_ids.size() == patch_datas.size());
+  std::transform(data_ids.begin(), data_ids.end(), patch_datas.begin(),
+                 [&patch](int id) {
+                   PatchData pointer_to_data =
+                       dynamic_cast<PatchData>(patch.getPatchData(id).get());
+                   FUB_ASSERT(pointer_to_data);
+                   return pointer_to_data;
+                 });
+}
+
+template <typename State>
+BasicView<State> MakeView(span<SAMRAI::pdat::SideData<double>*> span,
+                          const typename State::Equation& /* equation */,
+                          Direction dir) {
+  BasicView<State> view;
+  int i = 0;
+  const int dir_value = static_cast<int>(dir);
+  ForEachVariable(
+      [&](auto& variable) {
+        using type = typename remove_cvref<decltype(variable)>::type;
+        constexpr int Rank = type::rank();
+        variable = MakePatchDataView<Rank>(span[i]->getArrayData(dir_value));
+        ++i;
+      },
+      view);
+  return view;
+}
+
+template <typename State>
+BasicView<State> MakeView(span<SAMRAI::pdat::CellData<double>*> span,
+                          const typename State::Equation& /* equation */) {
+  BasicView<State> view;
+  int i = 0;
+  static constexpr int Rank = State::Equation::Rank();
+  using T = std::conditional_t<std::is_const_v<State>, const double, double>;
+  ForEachVariable(
+      overloaded{[&](PatchDataView<T, Rank>& variable) {
+                   variable = MakePatchDataView<Rank>(span[i]->getArrayData());
+                   ++i;
+                 },
+                 [&](PatchDataView<T, Rank + 1>& variable) {
+                   variable =
+                       MakePatchDataView<Rank + 1>(span[i]->getArrayData());
+                   ++i;
+                 }},
+      view);
+  return view;
+}
+
+template <typename State>
+BasicView<const State>
+MakeView(span<SAMRAI::pdat::CellData<double> const*> span,
+         const typename State::Equation& /* equation */) {
+  BasicView<const State> view;
+  int i = 0;
+  static constexpr int Rank = State::Equation::Rank();
+  ForEachVariable(
+      overloaded{[&](PatchDataView<const double, Rank>& variable) {
+                   variable = MakePatchDataView<Rank>(span[i]->getArrayData());
+                   ++i;
+                 },
+                 [&](PatchDataView<const double, Rank + 1>& variable) {
+                   variable =
+                       MakePatchDataView<Rank + 1>(span[i]->getArrayData());
+                   ++i;
+                 }},
+      view);
+  return view;
+}
+
+template <typename State, typename Range>
+View<State> MakeView(Range&& span, const typename State::Equation& equation,
+                     const IndexBox<State::Equation::Rank()>& box) {
+  return Subview(MakeView<State>(std::forward<Range>(span), equation), box);
+}
+
+template <typename State, typename Range>
+View<State> MakeView(Range&& span, const typename State::Equation& equation,
+                     Direction dir,
+                     const IndexBox<State::Equation::Rank()>& box) {
+  return Subview(MakeView<State>(std::forward<Range>(span), equation, dir),
+                 box);
 }
 
 int GetDirection(const SAMRAI::hier::IntVector& directions);
 
-template <typename State, typename Equation,
-          int N = boost::hana::length(State::ValueTypes())>
-auto MakeView(boost::hana::basic_type<State>,
-              nodeduce_t<span<SAMRAI::pdat::SideData<double>*, N>> span,
-              const Equation&) {
-  constexpr auto types = State::ValueTypes();
-  const auto pointers = boost::hana::to_tuple(span);
-  const int direction = GetDirection(span[0]->getDirectionVector());
-  return boost::hana::unpack(
-      boost::hana::zip(types, pointers), [&](auto... args) {
-        return State{MakeMdSpan(at_c<0>(args),
-                                at_c<1>(args)->getArrayData(direction))...};
-      });
-}
+// template <typename State, typename Equation>
+// auto MakeView(span<SAMRAI::pdat::SideData<double>*> span,
+//              const Equation& equation) {
+//  return MakeView(std::make_index_sequence<NumVariables<State>::value>(),
+//  span,
+//                  equation);
+//}
 
 } // namespace samrai
 } // namespace fub

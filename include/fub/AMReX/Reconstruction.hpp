@@ -22,39 +22,51 @@
 #define FUB_AMREX_RECONSTRUCTION_HPP
 
 #include "fub/CompleteFromCons.hpp"
-#include "fub/ForEach.hpp"
+#include "fub/Execution.hpp"
 #include "fub/State.hpp"
 
-namespace fub {
-namespace amrex {
+#include "fub/AMReX/ForEachFab.hpp"
+#include "fub/AMReX/IntegratorContext.hpp"
 
-template <typename Equation> struct Reconstruction {
-  explicit Reconstruction(const Equation& eq) : equation_{eq} {}
+#include <AMReX_MultiFab.H>
 
-  static constexpr int Rank = Equation::Rank();
+namespace fub::amrex {
 
-  template <typename Context>
-  void CompleteFromCons(Context& context, PatchHandle patch, Direction dir,
-                        Duration) {
-    const IndexBox<Rank> tilebox = AsIndexBox<Rank>(patch.iterator->tilebox());
-
-    View<Complete<Equation>> state =
-        Subview(MakeView<BasicView<Complete<Equation>>>(context.GetData(patch),
-                                                        equation_),
-                tilebox);
-
-    View<Conservative<Equation>> scratch =
-        Subview(AsCons(MakeView<BasicView<Complete<Equation>>>(
-                    context.GetScratch(patch, dir), equation_)),
-                tilebox);
-
-    ::fub::CompleteFromCons(equation_, state, AsConst(scratch));
+template <typename Tag, typename Equation> class Reconstruction {
+public:
+  Reconstruction(Tag, const Equation& eq) : rec_{} {
+    rec_ = Local<Tag, CompleteFromConsFn<Equation>>{
+        CompleteFromConsFn<Equation>{eq}};
   }
 
-  Equation equation_;
+  void CompleteFromCons(::amrex::MultiFab& dest, const ::amrex::MultiFab& src) {
+    ForEachFab(Tag(), dest, [&](const ::amrex::MFIter& mfi) {
+      Equation& eq = rec_->equation_;
+      View<Complete<Equation>> complete =
+          MakeView<Complete<Equation>>(dest[mfi], eq, mfi.growntilebox());
+      View<const Conservative<Equation>> conservative =
+          MakeView<const Conservative<Equation>>(src[mfi], eq,
+                                                 mfi.growntilebox());
+      rec_->CompleteFromCons(Tag(), complete, conservative);
+    });
+  }
+
+  void CompleteFromCons(IntegratorContext& context, int level, Duration) {
+    ::amrex::MultiFab& dest = context.GetScratch(level);
+    const ::amrex::MultiFab& src = context.GetScratch(level);
+    CompleteFromCons(dest, src);
+  }
+
+private:
+  Local<Tag, CompleteFromConsFn<Equation>> rec_;
 };
 
-} // namespace amrex
-} // namespace fub
+struct NoReconstruction {
+  void CompleteFromCons([[maybe_unused]] IntegratorContext& context,
+                        [[maybe_unused]] int level,
+                        [[maybe_unused]] Duration time_step_size) {}
+};
+
+} // namespace fub::amrex
 
 #endif

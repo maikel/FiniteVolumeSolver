@@ -27,22 +27,30 @@
 #include "fub/ForEach.hpp"
 #include "fub/core/mdspan.hpp"
 
-namespace fub {
-namespace amrex {
+namespace fub::amrex::cutcell {
 
-void FillCutCellData(PatchDataView<double, 2> unshielded,
-                     PatchDataView<double, 2> shielded_left,
-                     PatchDataView<double, 2> shielded_right,
-                     PatchDataView<double, 2> doubly_shielded,
-                     const CutCellData<2>& data, Direction dir);
+void FillCutCellData(
+    std::array<PatchDataView<double, 2>, 2> unshielded,
+    std::array<PatchDataView<double, 2>, 2> shielded_left,
+    std::array<PatchDataView<double, 2>, 2> shielded_right,
+    std::array<PatchDataView<double, 2>, 2> doubly_shielded,
+    std::array<PatchDataView<double, 2>, 2> unshielded_rel,
+    std::array<PatchDataView<double, 2>, 2> shielded_left_rel,
+    std::array<PatchDataView<double, 2>, 2> shielded_right_rel,
+    std::array<PatchDataView<double, 2>, 2> doubly_shielded_rel,
+    const CutCellData<2>& data);
 
-void FillCutCellData(PatchDataView<double, 3> unshielded,
-                     PatchDataView<double, 3> shielded_left,
-                     PatchDataView<double, 3> shielded_right,
-                     PatchDataView<double, 3> doubly_shielded,
-                     const CutCellData<3>& data, Direction dir);
+void FillCutCellData(
+    std::array<PatchDataView<double, 3>, 3> unshielded,
+    std::array<PatchDataView<double, 3>, 3> shielded_left,
+    std::array<PatchDataView<double, 3>, 3> shielded_right,
+    std::array<PatchDataView<double, 3>, 3> doubly_shielded,
+    std::array<PatchDataView<double, 3>, 3> unshielded_rel,
+    std::array<PatchDataView<double, 3>, 3> shielded_left_rel,
+    std::array<PatchDataView<double, 3>, 3> shielded_right_rel,
+    std::array<PatchDataView<double, 3>, 3> doubly_shielded_rel,
+    const CutCellData<3>& data);
 
-} // namespace amrex
-} // namespace fub
+} // namespace fub::amrex::cutcell
 
 #endif

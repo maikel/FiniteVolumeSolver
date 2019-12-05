@@ -18,51 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/equations/IdealGasMix.hpp"
-#include "fub/equations/ideal_gas_mix/KineticSourceTerm.hpp"
-#include "fub/equations/ideal_gas_mix/mechanism/Burke2012.hpp"
-
-#include "fub/CartesianCoordinates.hpp"
-#include "fub/HyperbolicSplitCutCellPatchIntegrator.hpp"
-#include "fub/HyperbolicSplitLevelIntegrator.hpp"
-#include "fub/HyperbolicSplitSystemSolver.hpp"
-#include "fub/SplitSystemSourceSolver.hpp"
-
-#include "fub/boundary_condition/CoupledBoundary.hpp"
-
-#include "fub/AMReX/ScopeGuard.hpp"
-
-#include "fub/AMReX/FluxMethod.hpp"
-#include "fub/AMReX/GriddingAlgorithm.hpp"
-#include "fub/AMReX/HyperbolicSplitIntegratorContext.hpp"
-#include "fub/AMReX/HyperbolicSplitPatchIntegrator.hpp"
-#include "fub/AMReX/Reconstruction.hpp"
-
-#include "fub/AMReX/FillCutCellData.hpp"
-#include "fub/AMReX/cutcell/FluxMethod.hpp"
-#include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
-#include "fub/AMReX/cutcell/HyperbolicSplitIntegratorContext.hpp"
-#include "fub/AMReX/cutcell/HyperbolicSplitPatchIntegrator.hpp"
-#include "fub/AMReX/cutcell/IndexSpace.hpp"
-#include "fub/AMReX/cutcell/Reconstruction.hpp"
-#include "fub/AMReX/cutcell/Tagging.hpp"
-
-#include "fub/geometry/ExpandTube.hpp"
-#include "fub/geometry/Halfspace.hpp"
-#include "fub/initial_data/RiemannProblem.hpp"
-
-#include "fub/tagging/GradientDetector.hpp"
-#include "fub/tagging/TagBuffer.hpp"
-#include "fub/tagging/TagCutCells.hpp"
-
-#include "fub/boundary_condition/BoundarySet.hpp"
-#include "fub/boundary_condition/TransmissiveBoundary.hpp"
-
-#include "fub/cutcell_method/KbnStabilisation.hpp"
-#include "fub/flux_method/HllMethod.hpp"
-#include "fub/flux_method/MusclHancockMethod.hpp"
-
-#include "fub/AMReX/RunSimulation.hpp"
+#include "fub/AMReX.hpp"
+#include "fub/AMReX_CutCell.hpp"
+#include "fub/Solver.hpp"
 
 #include <AMReX_EB2.H>
 #include <AMReX_EB2_IF_Box.H>
@@ -74,218 +32,418 @@
 #include <AMReX_EB_LSCore.H>
 
 #include <boost/filesystem.hpp>
+#include <boost/program_options.hpp>
+
+#include <boost/archive/text_iarchive.hpp>
+#include <boost/archive/text_oarchive.hpp>
+
+#include <boost/algorithm/string/replace.hpp>
+#include <boost/core/null_deleter.hpp>
+#include <boost/log/expressions.hpp>
+#include <boost/log/sinks/text_ostream_backend.hpp>
+#include <boost/log/sources/logger.hpp>
+#include <boost/log/support/date_time.hpp>
+#include <boost/log/trivial.hpp>
+#include <boost/log/utility/manipulators/add_value.hpp>
+#include <boost/log/utility/setup/common_attributes.hpp>
+#include <boost/log/utility/setup/file.hpp>
 
 #include <cmath>
 #include <iostream>
 
-struct RiemannProblem {
-  fub::IdealGasMix<1> equation_;
-  void
-  InitializeData(const fub::View<fub::Complete<fub::IdealGasMix<1>>>& states,
-                 const fub::amrex::PatchHierarchy& hierarchy,
-                 fub::amrex::PatchHandle patch) {
-    const ::amrex::Geometry& geom = hierarchy.GetGeometry(patch.level);
-    const ::amrex::Box& box = patch.iterator->tilebox();
-    fub::CartesianCoordinates x =
-        fub::amrex::GetCartesianCoordinates(geom, box);
-    fub::FlameMasterReactor& reactor = equation_.GetReactor();
-    reactor.SetMoleFractions("N2:79,O2:21,H2:42");
-    const double high_temp = 1150.0;
-    const double low_temp = 300.0;
-    fub::Complete<fub::IdealGasMix<1>> complete(equation_);
-    fub::ForEachIndex(fub::Box<0>(states), [&](std::ptrdiff_t i) {
-      const double x0 = x(i)[0];
-      const double d = std::clamp(x0 / 0.1, 0.0, 1.0);
-      reactor.SetTemperature(d * low_temp + (1.0 - d) * high_temp);
-      reactor.SetPressure(101325.0);
-      equation_.CompleteFromReactor(complete);
-      Store(states, complete, {i});
-    });
+#include <xmmintrin.h>
+
+static constexpr int Tube_Rank = 1;
+static constexpr int Plenum_Rank = AMREX_SPACEDIM;
+
+static constexpr double r_tube = 0.015;
+
+template <typename T>
+using ProbesView =
+    fub::basic_mdspan<T, fub::extents<AMREX_SPACEDIM, fub::dynamic_extent>>;
+
+struct ProgramOptions {
+  ProgramOptions() = default;
+
+  explicit ProgramOptions(const std::map<std::string, pybind11::object>& vm) {
+    std::vector xs = fub::GetOptionOr(vm, "x_range", std::vector{-0.03, 0.27});
+    std::vector ys = fub::GetOptionOr(vm, "y_range", std::vector{-0.15, 0.15});
+    std::vector zs = fub::GetOptionOr(vm, "z_range", std::vector{-0.15, 0.15});
+    auto check_size = [](auto& xs, int n, const char* name) {
+      if (int(xs.size()) != n) {
+        throw std::runtime_error(
+            fmt::format("Option '{}' need exactly {} values.", name, n));
+      }
+    };
+    check_size(xs, 2, "x_range");
+    check_size(ys, 2, "y_range");
+    check_size(zs, 2, "z_range");
+    plenum_xbox = amrex::RealBox(xs[0], ys[0], zs[0], xs[1], ys[1], zs[1]);
+    std::vector n_cells =
+        fub::GetOptionOr(vm, "n_cells", std::vector{64, 64, 64});
+    check_size(n_cells, 3, "n_cells");
+    plenum_n_cells = amrex::IntVect{n_cells[0], n_cells[1], n_cells[2]};
+    n_levels = fub::GetOptionOr(vm, "max_number_of_levels", n_levels);
+    checkpoint = fub::GetOptionOr(vm, "checkpoint", checkpoint);
+
+    tube_xbox = amrex::RealBox(-1.5, -r_tube, -r_tube, xs[0], +r_tube, +r_tube);
+    const double tube_length = tube_xbox.hi(0) - tube_xbox.lo(0);
+    const double plenum_length = plenum_xbox.hi(0) - plenum_xbox.lo(0);
+    const double t_over_p = tube_length / plenum_length;
+    tube_n_cells = int(double(plenum_n_cells[0]) * t_over_p);
+    tube_n_cells = tube_n_cells - tube_n_cells % 8;
+
+    plenum_temperature =
+        fub::GetOptionOr(vm, "temperature", plenum_temperature);
   }
+
+  ::amrex::RealBox plenum_xbox{};
+  ::amrex::IntVect plenum_n_cells{64, 64, 64};
+  ::amrex::RealBox tube_xbox{};
+  int tube_n_cells{};
+  int n_levels{1};
+  std::string checkpoint{};
+  double plenum_temperature{300};
+  std::vector<double> x_probes{};
 };
 
-auto MakeTubeSolver(int num_cells, fub::Burke2012& mechanism) {
-  const std::array<int, 3> n_cells{num_cells, 1, 1};
-  const std::array<double, 3> xlower{0.0, 0.0, 0.0};
-  const std::array<double, 3> xupper{+1.0, +1.0, +1.0};
+struct TubeSolverOptions {
+  int n_cells{200};
+  int max_refinement_level{1};
+  std::array<double, 2> x_domain{-1.5, -0.03};
+  double phi{0.0};
+};
 
-  fub::IdealGasMix<1> equation{fub::FlameMasterReactor(mechanism)};
-
-  fub::amrex::CartesianGridGeometry geometry;
-  geometry.cell_dimensions = n_cells;
-  geometry.coordinates = amrex::RealBox(xlower, xupper);
-
-  fub::amrex::DataDescription desc = fub::amrex::MakeDataDescription(equation);
-
-  fub::amrex::PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = 1;
-  hier_opts.refine_ratio = amrex::IntVect{2, 1, 1};
-
-  using Complete = fub::IdealGasMix<1>::Complete;
-  fub::GradientDetector gradient{equation,
-                                 std::make_pair(&Complete::density, 5e-3),
-                                 std::make_pair(&Complete::pressure, 5e-2)};
-
-  RiemannProblem initial_data{equation};
-
-  auto gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
-      fub::amrex::PatchHierarchy(desc, geometry, hier_opts),
-      fub::amrex::AdaptInitialData(initial_data, equation),
-      fub::amrex::AdaptTagging(equation, gradient),
-      fub::TransmissiveBoundary(equation));
-  gridding->InitializeHierarchy(0.0);
-
-  fub::HyperbolicSplitPatchIntegrator patch_integrator{equation};
-  fub::HllMethod hlle(equation,
-                      fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>>{});
-  fub::MusclHancockMethod flux_method{equation, hlle};
-
-  const int gcw = flux_method.GetStencilWidth();
-  fub::HyperbolicSplitSystemSolver system_solver(
-      fub::HyperbolicSplitLevelIntegrator(
-          fub::amrex::HyperbolicSplitIntegratorContext(gridding, gcw),
-          fub::amrex::HyperbolicSplitPatchIntegrator(patch_integrator),
-          fub::amrex::FluxMethod(flux_method),
-          fub::amrex::Reconstruction(equation)));
-
-  fub::ideal_gas::KineticSourceTerm<1> source_term(equation, gridding);
-  fub::SplitSystemSourceSolver solver(system_solver, source_term);
-
-  return solver;
+auto DomainAroundCenter(const ::amrex::RealArray& x, double rx)
+    -> ::amrex::RealBox {
+  return ::amrex::RealBox{{x[0] - rx, x[1] - r_tube, x[2] - r_tube},
+                          {x[0] + rx, x[1] + r_tube, x[2] + r_tube}};
 }
 
-auto MakePlenumSolver(int num_cells, fub::Burke2012& mechanism) {
-  const std::array<int, 3> n_cells{num_cells, num_cells, num_cells};
-  const std::array<double, 3> xlower{-0.10, -0.15, -0.15};
-  const std::array<double, 3> xupper{+0.20, +0.15, +0.15};
-  const std::array<int, 3> periodicity{0, 0, 0};
+auto MakeTubeSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
+                    const std::map<std::string, pybind11::object>& vm) {
+  const std::array<int, AMREX_SPACEDIM> n_cells{po.tube_n_cells, 1, 1};
+  amrex::RealBox xbox = po.tube_xbox;
+  const std::array<int, AMREX_SPACEDIM> periodicity{0, 0, 0};
 
-  amrex::RealBox xbox(xlower, xupper);
+  fub::IdealGasMix<Tube_Rank> equation{fub::FlameMasterReactor(mechanism)};
+
+  using namespace fub::amrex;
+
+  CartesianGridGeometry geometry;
+  geometry.cell_dimensions = n_cells;
+  geometry.coordinates = xbox;
+
+  DataDescription desc = MakeDataDescription(equation);
+
+  PatchHierarchyOptions hier_opts;
+  hier_opts.max_number_of_levels = po.n_levels;
+  hier_opts.refine_ratio = amrex::IntVect{2, 1, 1};
+
+  amrex::Geometry geom(amrex::Box{{}, {n_cells[0] - 1, 0, 0}}, &xbox, -1,
+                       periodicity.data());
+  geom.refine(hier_opts.refine_ratio);
+
+  using Complete = fub::IdealGasMix<1>::Complete;
+  GradientDetector gradient{equation, std::make_pair(&Complete::density, 1e-3),
+                            std::make_pair(&Complete::pressure, 1e-2),
+                            std::make_pair(&Complete::temperature, 1e-1)};
+
+  ::amrex::Box refine_box{{n_cells[0] - 5, 0, 0}, {n_cells[0] - 1, 0, 0}};
+  ConstantBox constant_box{refine_box};
+
+  equation.GetReactor().SetMoleFractions("N2:79,O2:21");
+  equation.GetReactor().SetTemperature(po.plenum_temperature);
+  equation.GetReactor().SetPressure(101325.0);
+  fub::Complete<fub::IdealGasMix<Tube_Rank>> state(equation);
+  equation.CompleteFromReactor(state);
+  ConstantData initial_data{equation, state};
+
+  PressureValveOptions valve_opts(vm, "valve");
+  PressureValveBoundary valve{equation, valve_opts};
+  BoundarySet boundaries{{valve}};
+
+  // If a checkpoint path is specified we will fill the patch hierarchy with
+  // data from the checkpoint file, otherwise we will initialize the data by
+  // the initial data function.
+  std::shared_ptr<GriddingAlgorithm> gridding = [&] {
+    if (auto iter = vm.find("checkpoint"); iter != vm.end()) {
+      std::string checkpoint = iter->second.cast<std::string>() + "/Tube";
+      PatchHierarchy h =
+          ReadCheckpointFile(checkpoint, desc, geometry, hier_opts);
+      std::shared_ptr<GriddingAlgorithm> gridding =
+          std::make_shared<GriddingAlgorithm>(std::move(h), initial_data,
+                                              TagAllOf(gradient, constant_box),
+                                              boundaries);
+      return gridding;
+    }
+    std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
+        PatchHierarchy(desc, geometry, hier_opts), initial_data,
+        TagAllOf(gradient, constant_box), boundaries);
+    gridding->InitializeHierarchy(0.0);
+    return gridding;
+  }();
+
+  fub::ideal_gas::MusclHancockPrimMethod<Tube_Rank> flux_method{equation};
+  HyperbolicMethod method{FluxMethod(fub::execution::openmp, flux_method),
+                          ForwardIntegrator(fub::execution::openmp),
+                          Reconstruction(fub::execution::openmp, equation)};
+
+  return std::pair{fub::amrex::IntegratorContext(gridding, method), valve};
+}
+
+::amrex::Box BoxWhichContains(const ::amrex::RealBox& xbox,
+                              const ::amrex::Geometry& geom) {
+  ::amrex::Box domain = geom.Domain();
+  ::amrex::IntVect lo = domain.smallEnd();
+  ::amrex::IntVect up = domain.bigEnd();
+  for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+    for (int i = domain.smallEnd(d); i < domain.bigEnd(d); ++i) {
+      const double x = geom.CellCenter(i, d);
+      if (x < xbox.lo(d)) {
+        lo[d] = std::max(lo[d], i);
+      }
+      if (x > xbox.hi(d)) {
+        up[d] = std::min(up[d], i);
+      }
+    }
+  }
+  return ::amrex::Box{lo, up};
+}
+
+auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
+                      const std::map<std::string, pybind11::object>& vm) {
+  const std::array<int, Plenum_Rank> n_cells{
+      po.plenum_n_cells[0], po.plenum_n_cells[1], po.plenum_n_cells[2]};
+  const int n_level = po.n_levels;
+
+  const std::array<int, Plenum_Rank> periodicity{0, 0, 0};
+
+  amrex::RealBox xbox = po.plenum_xbox;
   amrex::Geometry coarse_geom(
-      amrex::Box{
-          {}, {AMREX_D_DECL(n_cells[0] - 1, n_cells[1] - 1, n_cells[2] - 1)}},
-      &xbox, -1, periodicity.data());
-
-  const int n_level = 1;
+      amrex::Box{{}, {n_cells[0] - 1, n_cells[1] - 1, n_cells[2] - 1}}, &xbox,
+      -1, periodicity.data());
 
   auto embedded_boundary = amrex::EB2::makeIntersection(
       amrex::EB2::PlaneIF({0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, false),
-      amrex::EB2::CylinderIF(0.015, -1.0, 0, {1e6, 0.0, 0.0}, true));
+      amrex::EB2::CylinderIF(r_tube, 1.0, 0, {0.0, 0.0, 0.0}, true));
   auto shop = amrex::EB2::makeShop(embedded_boundary);
 
-  fub::amrex::cutcell::PatchHierarchyOptions options{};
-  options.max_number_of_levels = n_level;
-  options.index_spaces =
-      fub::amrex::cutcell::MakeIndexSpaces(shop, coarse_geom, n_level);
+  fub::IdealGasMix<Plenum_Rank> equation{mechanism};
 
-  fub::IdealGasMix<3> equation{mechanism};
-  fub::amrex::DataDescription desc = fub::amrex::MakeDataDescription(equation);
+  // Make Gridding Algorithm
 
   fub::amrex::CartesianGridGeometry geometry;
   geometry.cell_dimensions = n_cells;
-  geometry.coordinates = amrex::RealBox(xlower, xupper);
+  geometry.coordinates = po.plenum_xbox;
   geometry.periodicity = periodicity;
 
   equation.GetReactor().SetMoleFractions("N2:79,O2:21");
-  equation.GetReactor().SetTemperature(300.0);
+  equation.GetReactor().SetTemperature(po.plenum_temperature);
   equation.GetReactor().SetPressure(101325.0);
-  fub::Complete<fub::IdealGasMix<3>> right(equation);
+  fub::Complete<fub::IdealGasMix<Plenum_Rank>> right(equation);
   equation.CompleteFromReactor(right);
 
+  using namespace fub::amrex::cutcell;
+
   fub::amrex::cutcell::RiemannProblem initial_data(
-      equation, fub::Halfspace({+1.0, 0.0, 0.0}, -0.04), right, right);
+      equation, fub::Halfspace({+1.0, 0.0, 0.0}, 0.0), right, right);
 
-  using Complete = fub::Complete<fub::IdealGasMix<3>>;
-  fub::GradientDetector gradients{equation,
-                                  std::pair{&Complete::pressure, 0.05},
-                                  std::pair{&Complete::density, 0.005}};
+  PatchHierarchyOptions options{};
+  options.max_number_of_levels = n_level;
+  options.index_spaces = MakeIndexSpaces(shop, coarse_geom, n_level);
 
-  fub::HyperbolicSplitCutCellPatchIntegrator patch_integrator{equation};
+  using State = fub::Complete<fub::IdealGasMix<Plenum_Rank>>;
+  GradientDetector gradients{equation, std::pair{&State::pressure, 0.01},
+                             std::pair{&State::density, 0.05}};
 
-  fub::EinfeldtSignalVelocities<fub::IdealGasMix<3>> signals{};
-  fub::Hll riemann_solver{equation, signals};
-  fub::MusclHancockMethod flux_method(equation,
-                                      fub::HllMethod{equation, signals});
-  fub::KbnCutCellMethod cutcell_method{flux_method, riemann_solver};
+  ::amrex::RealBox inlet{{xbox.lo(0), -r_tube, -r_tube},
+                         {0.01, +r_tube, +r_tube}};
+  const ::amrex::Box refine_box = BoxWhichContains(inlet, coarse_geom);
+  ConstantBox constant_box{refine_box};
 
-  auto gridding = std::make_shared<fub::amrex::cutcell::GriddingAlgorithm>(
-      fub::amrex::cutcell::PatchHierarchy(desc, geometry, options),
-      fub::amrex::cutcell::AdaptInitialData(initial_data, equation),
-      fub::amrex::cutcell::AdaptTagging(equation, fub::TagCutCells(), gradients,
-                                        fub::TagBuffer(4)),
-      fub::TransmissiveBoundary(equation));
-  gridding->InitializeHierarchy(0.0);
+  //  const double p0 = 101325.0;
+  BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
+                                  TransmissiveBoundary{fub::Direction::X, 1},
+                                  TransmissiveBoundary{fub::Direction::Y, 0},
+                                  TransmissiveBoundary{fub::Direction::Y, 1},
+                                  TransmissiveBoundary{fub::Direction::Z, 0},
+                                  TransmissiveBoundary{fub::Direction::Z, 1}}};
 
-  const int gcw = cutcell_method.GetStencilWidth();
-  fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
-      fub::amrex::cutcell::HyperbolicSplitIntegratorContext(std::move(gridding),
-                                                            gcw),
-      fub::amrex::cutcell::HyperbolicSplitPatchIntegrator(patch_integrator),
-      fub::amrex::cutcell::FluxMethod(std::move(cutcell_method)),
-      fub::amrex::cutcell::Reconstruction(equation)));
+  std::shared_ptr gridding = [&] {
+    if (auto iter = vm.find("checkpoint"); iter != vm.end()) {
+      std::string checkpoint = iter->second.cast<std::string>() + "/Plenum";
+      PatchHierarchy h = ReadCheckpointFile(
+          checkpoint, fub::amrex::MakeDataDescription(equation), geometry,
+          options);
+      return std::make_shared<GriddingAlgorithm>(
+          std::move(h), initial_data,
+          TagAllOf(TagCutCells(), gradients, constant_box, TagBuffer(2)),
+          boundary_condition);
+    }
+    std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
+        PatchHierarchy(equation, geometry, options), initial_data,
+        TagAllOf(TagCutCells(), gradients, constant_box, TagBuffer(2)),
+        boundary_condition);
+    gridding->InitializeHierarchy(0.0);
+    return gridding;
+  }();
 
-  return solver;
+  // Make Solver
+
+  fub::EinfeldtSignalVelocities<fub::IdealGasMix<Plenum_Rank>> signals{};
+  fub::HllMethod hll_method{equation, signals};
+  //    fub::ideal_gas::MusclHancockPrimMethod<Plenum_Rank>
+  //    flux_method(equation);
+  fub::KbnCutCellMethod cutcell_method(hll_method, hll_method);
+
+  HyperbolicMethod method{
+      FluxMethod{fub::execution::openmp_simd, cutcell_method},
+      fub::amrex::cutcell::TimeIntegrator{},
+      Reconstruction{fub::execution::openmp_simd, equation}};
+
+  return fub::amrex::cutcell::IntegratorContext(gridding, method);
+}
+
+void MyMain(const std::map<std::string, pybind11::object>& vm);
+
+std::optional<std::map<std::string, pybind11::object>>
+ParseCommandLine(int argc, char** argv) {
+  namespace po = boost::program_options;
+  po::options_description desc{};
+  std::string config_path{};
+  desc.add_options()("config", po::value<std::string>(&config_path),
+                     "Path to the config file which can be parsed.");
+  po::variables_map vm;
+  std::map<std::string, pybind11::object> options{};
+  try {
+    po::store(po::parse_command_line(argc, argv, desc), vm);
+    if (vm.count("config")) {
+      config_path = vm["config"].as<std::string>();
+      po::store(po::parse_config_file(config_path.c_str(), desc), vm);
+      options = fub::ParsePythonScript(config_path, MPI_COMM_WORLD);
+    }
+    po::notify(vm);
+  } catch (std::exception& e) {
+    amrex::Print()
+        << "[Error] An Error occured while reading program options:\n";
+    amrex::Print() << e.what();
+    return {};
+  }
+
+  return options;
 }
 
 int main(int argc, char** argv) {
+  MPI_Init(nullptr, nullptr);
+  fub::InitializeLogging(MPI_COMM_WORLD);
+  {
+    fub::amrex::ScopeGuard _{};
+    auto vm = ParseCommandLine(argc, argv);
+    if (vm) {
+      MyMain(*vm);
+    }
+  }
+  int flag = -1;
+  MPI_Finalized(&flag);
+  if (!flag) {
+    MPI_Finalize();
+  }
+}
+
+void WriteCheckpoint(const std::string& path,
+                     const fub::amrex::MultiBlockGriddingAlgorithm& grid,
+                     std::shared_ptr<fub::amrex::PressureValve> valve, int rank,
+                     const fub::amrex::MultiBlockIgniteDetonation& ignition) {
+  auto tubes = grid.GetTubes();
+  std::string name = fmt::format("{}/Tube", path);
+  fub::amrex::WriteCheckpointFile(name, tubes[0]->GetPatchHierarchy());
+  if (rank == 0) {
+    name = fmt::format("{}/Valve", path);
+    std::ofstream valve_checkpoint(name);
+    boost::archive::text_oarchive oa(valve_checkpoint);
+    oa << *valve;
+  }
+  name = fmt::format("{}/Plenum", path);
+  fub::amrex::cutcell::WriteCheckpointFile(
+      name, grid.GetPlena()[0]->GetPatchHierarchy());
+  if (rank == 0) {
+    name = fmt::format("{}/Ignition", path);
+    std::ofstream ignition_checkpoint(name);
+    boost::archive::text_oarchive oa(ignition_checkpoint);
+    oa << ignition.GetLastIgnitionTimePoints();
+  }
+}
+
+void MyMain(const std::map<std::string, pybind11::object>& vm) {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
-  fub::amrex::ScopeGuard _(argc, argv);
   fub::Burke2012 mechanism{};
-  auto plenum = MakePlenumSolver(64, mechanism);
-  auto tube = MakeTubeSolver(240, mechanism);
 
-  fub::amrex::CoupledBoundaryFunction coupled_boundary(
-      plenum.GetPatchHierarchy(), tube.GetPatchHierarchy(), 3,
-      plenum.GetEquation().GetReactor());
+  const ProgramOptions po(vm);
 
-  {
-    fub::TransmissiveBoundary transmissive{tube.GetEquation()};
-    fub::BoundarySet<fub::amrex::PatchHierarchy> boundaries;
-    boundaries.SetBoundaryCondition(fub::Location{0, 0}, transmissive);
-    boundaries.SetBoundaryCondition(fub::Location{0, 1}, coupled_boundary);
-    tube.GetGriddingAlgorithm()->SetBoundaryCondition(std::move(boundaries));
+  auto plenum = MakePlenumSolver(po, mechanism, vm);
+  auto [tube, valve] = MakeTubeSolver(po, mechanism, vm);
+  auto valve_state = valve.GetSharedState();
+
+  ::amrex::RealBox inlet{{-0.1, -r_tube, -r_tube}, {0.05, +r_tube, +r_tube}};
+
+  fub::amrex::BlockConnection connection;
+  connection.direction = fub::Direction::X;
+  connection.side = 0;
+  connection.plenum.id = 0;
+  connection.plenum.mirror_box = BoxWhichContains(inlet, plenum.GetGeometry(0));
+  connection.tube.id = 0;
+  connection.tube.mirror_box =
+      tube.GetGriddingAlgorithm()->GetPatchHierarchy().GetGeometry(0).Domain();
+
+  fub::IdealGasMix<Plenum_Rank> plenum_equation{mechanism};
+  fub::IdealGasMix<Tube_Rank> tube_equation{mechanism};
+
+  fub::amrex::MultiBlockIntegratorContext context(
+      fub::FlameMasterReactor(mechanism), {std::move(tube)},
+      {std::move(plenum)}, {connection});
+
+  fub::DimensionalSplitLevelIntegrator system_solver(fub::int_c<Plenum_Rank>,
+                                                     std::move(context));
+
+  fub::amrex::MultiBlockIgniteDetonation ignition{
+      tube_equation, system_solver.GetGriddingAlgorithm(),
+      fub::amrex::IgniteDetonationOptions(vm, "ignite")};
+
+  if (auto iter = vm.find("checkpoint"); iter != vm.end()) {
+    std::string checkpoint = iter->second.cast<std::string>();
+    MPI_Comm comm = system_solver.GetMpiCommunicator();
+    std::string input =
+        fub::ReadAndBroadcastFile(checkpoint + "/Ignition", comm);
+    std::istringstream ifs(input);
+    {
+      boost::archive::text_iarchive ia(ifs);
+      std::vector<fub::Duration> last_ignitions;
+      ia >> last_ignitions;
+      ignition.SetLastIgnitionTimePoints(last_ignitions);
+    }
+    input = fub::ReadAndBroadcastFile(checkpoint + "/Valve", comm);
+    ifs = std::istringstream(input);
+    boost::archive::text_iarchive ia(ifs);
+    ia >> *valve.GetSharedState();
   }
 
-  {
-    fub::TransmissiveBoundary transmissive{plenum.GetEquation()};
-    fub::BoundarySet<fub::amrex::cutcell::PatchHierarchy> boundaries;
-    boundaries.SetBoundaryCondition(fub::Location{0, 0}, coupled_boundary);
-    boundaries.SetBoundaryCondition(fub::Location{0, 1}, transmissive);
-    boundaries.SetBoundaryCondition(fub::Location{1, 0}, transmissive);
-    boundaries.SetBoundaryCondition(fub::Location{1, 1}, transmissive);
-    boundaries.SetBoundaryCondition(fub::Location{2, 0}, transmissive);
-    boundaries.SetBoundaryCondition(fub::Location{2, 1}, transmissive);
-    plenum.GetGriddingAlgorithm()->SetBoundaryCondition(std::move(boundaries));
-  }
+  fub::SplitSystemSourceLevelIntegrator ign_solver(system_solver, ignition,
+                                                     fub::GodunovSplitting{});
 
-  std::shared_ptr<fub::amrex::CoupledBoundary> boundary =
-      coupled_boundary.GetSharedState();
+  fub::amrex::MultiBlockKineticSouceTerm source_term{
+      fub::IdealGasMix<Tube_Rank>{mechanism}, context.GetGriddingAlgorithm()};
 
-  std::string base_name = "CoupledLinearShock3d";
-  auto output = [&](const fub::amrex::cutcell::PatchHierarchy& hierarchy,
-                    std::ptrdiff_t cycle, fub::Duration) {
-    std::string name = fmt::format("{}_Plenum/{:05}", base_name, cycle);
-    ::amrex::Print() << "Start output to '" << name << "'.\n";
-    fub::amrex::cutcell::WritePlotFile(name, hierarchy, plenum.GetEquation());
-    ::amrex::Print() << "Finished output to '" << name << "'.\n";
-    name = fmt::format("{}_Tube/{:05}", base_name, cycle);
-    ::amrex::Print() << "Start output to '" << name << "'.\n";
-    fub::amrex::WritePlotFile(name, tube.GetPatchHierarchy(),
-                              tube.GetEquation());
-    ::amrex::Print() << "Finished output to '" << name << "'.\n";
-  };
+  fub::SplitSystemSourceLevelIntegrator solver{ign_solver, source_term};
 
-  auto print_msg = [&](const std::string& msg) { ::amrex::Print() << msg; };
+  fub::OutputFactory<fub::amrex::MultiBlockGriddingAlgorithm> factory{};
+  factory.RegisterOutput<fub::amrex::MultiWriteHdf5>("HDF5");
+  fub::MultipleOutputs<fub::amrex::MultiBlockGriddingAlgorithm> output(
+      std::move(factory),
+      fub::ToMap(fub::GetOptionOr(vm, "output", pybind11::dict{})));
 
-  using namespace std::literals::chrono_literals;
-  output(plenum.GetPatchHierarchy(), plenum.GetCycles(), plenum.GetTimePoint());
-  fub::RunOptions run_options{};
-  run_options.final_time = 0.002s;
-  run_options.output_interval = 1.25e-5s;
-  run_options.cfl = 0.5 * 0.9;
-
-  fub::amrex::RunCoupledSimulation(plenum, tube, *boundary, run_options,
-                                   wall_time_reference, output, print_msg);
+  output(*solver.GetGriddingAlgorithm());
+  fub::RunSimulation(solver, fub::RunOptions(vm), wall_time_reference, output);
 }

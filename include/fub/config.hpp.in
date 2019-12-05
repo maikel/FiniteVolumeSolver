@@ -27,4 +27,6 @@
 
 #cmakedefine FUB_WITH_OPENMP
 
+#cmakedefine FUB_DEFAULT_CHUNK_SIZE @FUB_DEFAULT_CHUNK_SIZE@
+
 #endif

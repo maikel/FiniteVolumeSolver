@@ -22,12 +22,11 @@
 #define FUB_STATE_HPP
 
 #include "fub/PatchDataView.hpp"
+#include "fub/core/tuple.hpp"
 #include "fub/ext/Eigen.hpp"
 
 #include <boost/mp11/algorithm.hpp>
 #include <boost/mp11/tuple.hpp>
-
-#include <tuple>
 
 namespace fub {
 
@@ -42,6 +41,17 @@ template <std::size_t... Is, typename... Ts>
 constexpr auto ZipHelper(std::index_sequence<Is...>, Ts&&... ts) {
   return std::make_tuple(ZipNested<Is>(std::forward<Ts>(ts)...)...);
 }
+
+template <std::size_t I, typename... Ts>
+constexpr auto UnzipNested(const std::tuple<Ts...>& ts) {
+  return std::apply([](const auto& t) { return std::get<I>(t); }, ts);
+}
+
+template <std::size_t... Is, typename... Ts>
+constexpr auto UnzipHelper(std::index_sequence<Is...>,
+                           const std::tuple<Ts...>& ts) {
+  return std::make_tuple(UnzipNested<Is>(ts)...);
+}
 } // namespace detail
 
 template <typename... Ts> constexpr auto Zip(Ts&&... ts) {
@@ -50,6 +60,14 @@ template <typename... Ts> constexpr auto Zip(Ts&&... ts) {
   return detail::ZipHelper(
       std::make_index_sequence<std::tuple_size<First>::value>(),
       std::forward<Ts>(ts)...);
+}
+
+template <typename... Ts>
+constexpr auto Unzip(const std::tuple<Ts...>& zipped) {
+  using First =
+      std::decay_t<boost::mp11::mp_front<boost::mp11::mp_list<Ts...>>>;
+  return detail::UnzipHelper(
+      std::make_index_sequence<std::tuple_size<First>::value>(), zipped);
 }
 
 template <std::size_t I, typename State>
@@ -73,11 +91,11 @@ void ForEachVariable(F function, Ts&&... states) {
   });
 }
 
-template <typename State> auto ToTuple(const State& x) {
-  return boost::mp11::tuple_apply(
-      [&x](auto... pointer) { return std::make_tuple((x.*pointer)...); },
-      StateTraits<State>::pointers_to_member);
-}
+template <typename T>
+struct NumVariables
+    : std::integral_constant<
+          std::size_t,
+          std::tuple_size_v<std::decay_t<decltype(T::Traits::names)>>> {};
 
 /// This type is used to tag scalar quantities
 struct ScalarDepth : std::integral_constant<int, 1> {};
@@ -132,6 +150,8 @@ void InitializeState(const Equation&, const Complete<Equation>&) {}
 template <typename Eq> struct Conservative : ConservativeBase<Eq> {
   using Equation = Eq;
   using Depths = typename Equation::ConservativeDepths;
+  using ValueType = double;
+  using Traits = StateTraits<ConservativeBase<Equation>>;
 
   Conservative() = default;
   Conservative(const ConservativeBase<Eq>& x) : ConservativeBase<Eq>{x} {}
@@ -146,6 +166,12 @@ template <typename Eq> struct Conservative : ConservativeBase<Eq> {
 template <typename Eq>
 struct StateTraits<Conservative<Eq>> : StateTraits<ConservativeBase<Eq>> {};
 
+template <typename State> auto StateToTuple(const State& x) {
+  return boost::mp11::tuple_apply(
+      [&x](auto... pointer) { return std::make_tuple((x.*pointer)...); },
+      StateTraits<State>::pointers_to_member);
+}
+
 template <typename Equation>
 using CompleteBase =
     boost::mp11::mp_transform<DepthToStateValueType,
@@ -156,6 +182,7 @@ using CompleteBase =
 template <typename Eq> struct Complete : CompleteBase<Eq> {
   using Equation = Eq;
   using Depths = typename Equation::CompleteDepths;
+  using ValueType = double;
   using Traits = StateTraits<CompleteBase<Equation>>;
 
   Complete() = default;
@@ -210,6 +237,8 @@ struct BasicView : ViewBase<S, L, R> {
   using Equation = typename State::Equation;
   using Depths = typename Equation::ConservativeDepths;
   using Traits = StateTraits<ViewBase<S, L, R>>;
+
+  static constexpr int rank() noexcept { return Rank; }
 
   BasicView() = default;
 

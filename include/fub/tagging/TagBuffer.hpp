@@ -26,76 +26,18 @@
 #include "fub/State.hpp"
 #include "fub/core/mdspan.hpp"
 
-#include <boost/hana/tuple.hpp>
-
 #include <utility>
 
 namespace fub {
+
 struct TagBuffer {
   int buffer_width_;
 
   explicit TagBuffer(int width) : buffer_width_{width} {}
 
-  template <typename Tags, typename StateView>
-  void TagCellsForRefinement(const Tags& tags, const StateView& states,
-                             const CartesianCoordinates& /* coords */) {
-    for (std::size_t dir = 0; dir < Extents<0>(states).rank(); ++dir) {
-      const auto&& tagbox = tags.Box();
-      ForEachIndex(Shrink(Box<0>(states), Direction(dir),
-                          {buffer_width_, buffer_width_}),
-                   [&](auto... is) {
-                     constexpr std::size_t tag_rank =
-                         static_cast<std::size_t>(AMREX_SPACEDIM);
-                     using Index = std::array<std::ptrdiff_t, tag_rank>;
-                     if (Contains(tagbox, Index{is...}) && tags(is...) == 1) {
-                       Index index{is...};
-                       for (int width = 1; width <= buffer_width_; ++width) {
-                         const Index right =
-                             Shift(index, Direction(dir), width);
-                         if (Contains(tagbox, right) && !tags(right)) {
-                           tags(right) = 2;
-                         }
-                         const Index left =
-                             Shift(index, Direction(dir), -width);
-                         if (Contains(tagbox, left) && !tags(left)) {
-                           tags(left) = 2;
-                         }
-                       }
-                     }
-                   });
-    }
-  }
-
-  template <typename Tags, typename StateView, typename CutCellData>
-  void TagCellsForRefinement(const Tags& tags, const StateView& states,
-                             const CutCellData&,
-                             const CartesianCoordinates& /* coords */) {
-    for (std::size_t dir = 0; dir < Extents<0>(states).rank(); ++dir) {
-      const auto&& tagbox = tags.Box();
-      ForEachIndex(Shrink(Box<0>(states), Direction(dir),
-                          {buffer_width_, buffer_width_}),
-                   [&](auto... is) {
-                     constexpr std::size_t tag_rank =
-                         static_cast<std::size_t>(AMREX_SPACEDIM);
-                     using Index = std::array<std::ptrdiff_t, tag_rank>;
-                     if (Contains(tagbox, Index{is...}) && tags(is...) == 1) {
-                       Index index{is...};
-                       for (int width = 1; width <= buffer_width_; ++width) {
-                         const Index right =
-                             Shift(index, Direction(dir), width);
-                         if (Contains(tagbox, right) && !tags(right)) {
-                           tags(right) = 2;
-                         }
-                         const Index left =
-                             Shift(index, Direction(dir), -width);
-                         if (Contains(tagbox, left) && !tags(left)) {
-                           tags(left) = 2;
-                         }
-                       }
-                     }
-                   });
-    }
-  }
+  void TagCellsForRefinement(const PatchDataView<char, 1, layout_stride>& tags);
+  void TagCellsForRefinement(const PatchDataView<char, 2, layout_stride>& tags);
+  void TagCellsForRefinement(const PatchDataView<char, 3, layout_stride>& tags);
 };
 
 } // namespace fub

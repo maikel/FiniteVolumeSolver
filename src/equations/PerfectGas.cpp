@@ -66,8 +66,8 @@ void PerfectGas<Dim>::Flux(ConservativeArray& flux, const CompleteArray& state,
 }
 
 template <int Dim>
-void PerfectGas<Dim>::CompleteFromCons(Complete& complete,
-                                       const Conservative& cons) const
+void PerfectGas<Dim>::CompleteFromCons(
+    Complete& complete, const ConservativeBase<PerfectGas>& cons) const
     noexcept {
   complete.density = cons.density;
   complete.momentum = cons.momentum;
@@ -82,9 +82,9 @@ void PerfectGas<Dim>::CompleteFromCons(Complete& complete,
 }
 
 template <int Dim>
-void PerfectGas<Dim>::CompleteFromCons(CompleteArray& complete,
-                                       const ConservativeArray& cons) const
-    noexcept {
+void PerfectGas<Dim>::CompleteFromCons(
+    CompleteArray& complete,
+    const ConservativeArrayBase<PerfectGas>& cons) const noexcept {
   complete.density = cons.density;
   complete.momentum = cons.momentum;
   complete.energy = cons.energy;
@@ -93,6 +93,50 @@ void PerfectGas<Dim>::CompleteFromCons(CompleteArray& complete,
   complete.pressure = e_int / gamma_minus_1_inv;
   complete.speed_of_sound =
       (gamma_array_ * complete.pressure / complete.density).sqrt();
+}
+
+template <int Dim>
+void PerfectGas<Dim>::CompleteFromCons(
+    CompleteArray& complete, const ConservativeArrayBase<PerfectGas>& cons,
+    MaskArray mask) const noexcept {
+  Array1d zero = Array1d::Zero();
+  complete.density = mask.select(cons.density, zero);
+  for (int d = 0; d < Dim; ++d) {
+    complete.momentum.row(d) = mask.select(cons.momentum.row(d), zero);
+  }
+  complete.energy = mask.select(cons.energy, zero);
+  const Array1d e_kin = KineticEnergy(cons.density, cons.momentum);
+  const Array1d e_int = cons.energy - e_kin;
+  complete.pressure = mask.select(e_int / gamma_minus_1_inv, zero);
+  complete.speed_of_sound = mask.select(
+      (gamma_array_ * complete.pressure / complete.density).sqrt(), zero);
+}
+
+template <int Dim>
+Complete<PerfectGas<Dim>>
+PerfectGas<Dim>::CompleteFromPrim(double rho, const Array<double, Dim, 1>& v,
+                                  double p) const noexcept {
+  Complete q{};
+  q.density = rho;
+  q.momentum = rho * v;
+  q.pressure = p;
+  const double e_kin = KineticEnergy(q.density, q.momentum);
+  q.energy = e_kin + p * gamma_minus_1_inv;
+  q.speed_of_sound = std::sqrt(gamma * q.pressure / q.density);
+  return q;
+}
+
+template <int Dim>
+Array<double, Dim, 1> PerfectGas<Dim>::Velocity(const Complete& complete) const
+    noexcept {
+  Array<double, Dim, 1> u = complete.momentum / complete.density;
+  return u;
+}
+
+template <int Dim>
+double PerfectGas<Dim>::Machnumber(const Complete& complete) const noexcept {
+  double u = Velocity(complete).matrix().norm();
+  return u / complete.speed_of_sound;
 }
 
 template struct PerfectGas<1>;
@@ -135,6 +179,19 @@ void Rotate(Complete<PerfectGas<3>>& rotated,
   rotated.momentum = (rotation * state.momentum.matrix()).array();
 }
 
+void Reflect(Complete<PerfectGas<1>>& reflected,
+             const Complete<PerfectGas<1>>& state,
+             const Eigen::Matrix<double, 1, 1>& normal,
+             const PerfectGas<1>&) {
+  reflected.density = state.density;
+  reflected.energy = state.energy;
+  reflected.pressure = state.pressure;
+  reflected.speed_of_sound = state.speed_of_sound;
+  reflected.momentum =
+  state.momentum -
+  2 * (state.momentum.matrix().dot(normal) * normal).array();
+}
+
 void Reflect(Complete<PerfectGas<2>>& reflected,
              const Complete<PerfectGas<2>>& state,
              const Eigen::Vector2d& normal, const PerfectGas<2>&) {
@@ -160,9 +217,9 @@ void Reflect(Complete<PerfectGas<3>>& reflected,
 }
 
 template <int Dim>
-std::array<double, 2> EinfeldtSignalVelocities<PerfectGas<Dim>>::operator()(
-    const PerfectGas<Dim>&, const Complete& left, const Complete& right,
-    Direction dir) const noexcept {
+std::array<double, 2> EinfeldtSignalVelocities<PerfectGas<Dim>>::
+operator()(const PerfectGas<Dim>&, const Complete& left, const Complete& right,
+           Direction dir) const noexcept {
   FUB_ASSERT(left.density > 0.0);
   FUB_ASSERT(right.density > 0.0);
   const double rhoL = left.density;
@@ -190,9 +247,9 @@ std::array<double, 2> EinfeldtSignalVelocities<PerfectGas<Dim>>::operator()(
 }
 
 template <int Dim>
-std::array<Array1d, 2> EinfeldtSignalVelocities<PerfectGas<Dim>>::operator()(
-    const PerfectGas<Dim>&, const CompleteArray& left,
-    const CompleteArray& right, Direction dir) const noexcept {
+std::array<Array1d, 2> EinfeldtSignalVelocities<PerfectGas<Dim>>::
+operator()(const PerfectGas<Dim>&, const CompleteArray& left,
+           const CompleteArray& right, Direction dir) const noexcept {
   const Array1d rhoL = left.density;
   const Array1d rhoR = right.density;
   const Array1d rhoUL = left.momentum.row(int(dir));
@@ -477,6 +534,43 @@ void ExactRiemannSolver<PerfectGas<Dim>>::SolveRiemannProblem(
             pR * std::pow(2.0 / gp1 - g_ratio * uR / aR, 2.0 * g / gm1);
         from_prim(state);
       }
+    }
+  }
+}
+
+template <int Dim>
+void ExactRiemannSolver<PerfectGas<Dim>>::SolveRiemannProblem(
+    CompleteArray& state, const CompleteArray& left, const CompleteArray& right,
+    MaskArray mask, Direction dir) {
+  for (int i = 0; i < mask.size(); ++i) {
+    if (mask(i)) {
+      typename PerfectGas<Dim>::Complete qL;
+      qL.density = left.density(i);
+      for (int d = 0; d < Dim; ++d) {
+        qL.momentum(d) = left.momentum(d, i);
+      }
+      qL.energy = left.energy(i);
+      qL.pressure = left.pressure(i);
+      qL.speed_of_sound = left.speed_of_sound(i);
+
+      typename PerfectGas<Dim>::Complete qR;
+      qR.density = right.density(i);
+      for (int d = 0; d < Dim; ++d) {
+        qR.momentum(d) = right.momentum(d, i);
+      }
+      qR.energy = right.energy(i);
+      qR.pressure = right.pressure(i);
+      qR.speed_of_sound = right.speed_of_sound(i);
+
+      typename PerfectGas<Dim>::Complete q;
+      SolveRiemannProblem(q, qL, qR, dir);
+      state.density(i) = q.density;
+      for (int d = 0; d < Dim; ++d) {
+        state.momentum(d, i) = q.momentum(d);
+      }
+      state.energy(i) = q.energy;
+      state.pressure(i) = q.pressure;
+      state.speed_of_sound(i) = q.speed_of_sound;
     }
   }
 }

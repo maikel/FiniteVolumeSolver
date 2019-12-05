@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/grid/SAMRAI/CartesianPatchHierarchy.hpp"
+#include "fub/SAMRAI/CartesianPatchHierarchy.hpp"
 #include "fub/ext/Eigen.hpp"
 
 #include <SAMRAI/geom/CartesianGridGeometry.h>
@@ -50,6 +50,9 @@ CartesianPatchHierarchy(const SAMRAI::hier::Box& box,
   auto hier =
       std::make_shared<SAMRAI::hier::PatchHierarchy>("Hierarchy", geometry);
   hier->setMaxNumberOfLevels(options.max_number_of_levels);
+  for (int l = 0; l < options.max_number_of_levels; ++l) {
+    hier->setSmallestPatchSize(SAMRAI::hier::IntVector(dim, 8), l);
+  }
   return hier;
 }
 

@@ -21,7 +21,6 @@
 #ifndef FUB_AMREX_CUTCELL_INITIAL_DATA_HPP
 #define FUB_AMREX_CUTCELL_INITIAL_DATA_HPP
 
-#include "fub/AMReX/PatchHandle.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/AMReX/cutcell/PatchHierarchy.hpp"
 #include "fub/CartesianCoordinates.hpp"
@@ -37,9 +36,8 @@ namespace cutcell {
 struct InitialDataStrategy {
   virtual ~InitialDataStrategy() = default;
 
-  virtual void
-  InitializeData(const PatchDataView<double, AMREX_SPACEDIM + 1>& states,
-                 const PatchHierarchy& hierarchy, const PatchHandle& patch) = 0;
+  virtual void InitializeData(::amrex::MultiFab& data,
+                              const ::amrex::Geometry& geom) = 0;
 
   virtual std::unique_ptr<InitialDataStrategy> Clone() const = 0;
 };
@@ -49,10 +47,9 @@ template <typename T> struct InitialDataWrapper : public InitialDataStrategy {
   InitialDataWrapper(T&& initial_data)
       : initial_data_{std::move(initial_data)} {}
 
-  void InitializeData(const PatchDataView<double, AMREX_SPACEDIM + 1>& states,
-                      const PatchHierarchy& hierarchy,
-                      const PatchHandle& patch) override {
-    initial_data_.InitializeData(states, hierarchy, patch);
+  void InitializeData(::amrex::MultiFab& data,
+                      const ::amrex::Geometry& geom) override {
+    initial_data_.InitializeData(data, geom);
   }
 
   std::unique_ptr<InitialDataStrategy> Clone() const override {
@@ -84,34 +81,13 @@ struct InitialData {
       : initial_data_{std::make_unique<InitialDataWrapper<remove_cvref_t<T>>>(
             std::move(initial_data))} {}
 
-  void InitializeData(const PatchDataView<double, AMREX_SPACEDIM + 1>& states,
-                      const PatchHierarchy& hierarchy,
-                      const PatchHandle& patch) {
+  void InitializeData(::amrex::MultiFab& data, const ::amrex::Geometry& geom) {
     if (initial_data_) {
-      return initial_data_->InitializeData(states, hierarchy, patch);
+      return initial_data_->InitializeData(data, geom);
     }
   }
 
   std::unique_ptr<InitialDataStrategy> initial_data_;
-};
-
-template <typename InitialData, typename Equation> struct AdaptInitialData {
-  AdaptInitialData(InitialData data, Equation equation)
-      : data_{std::move(data)}, equation_{std::move(equation)} {}
-
-  static const int Rank = Equation::Rank();
-
-  void InitializeData(const PatchDataView<double, AMREX_SPACEDIM + 1>& states,
-                      const PatchHierarchy& hierarchy,
-                      const PatchHandle& patch) {
-    const IndexBox<Rank> cells = AsIndexBox<Rank>(patch.iterator->tilebox());
-    View<Complete<Equation>> state_view = Subview(
-        MakeView<BasicView<Complete<Equation>>>(states, equation_), cells);
-    data_.InitializeData(state_view, hierarchy, patch);
-  }
-
-  InitialData data_;
-  Equation equation_;
 };
 
 } // namespace cutcell

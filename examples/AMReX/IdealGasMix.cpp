@@ -18,149 +18,147 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/equations/IdealGasMix.hpp"
-#include "fub/CartesianCoordinates.hpp"
-#include "fub/equations/ideal_gas_mix/KineticSourceTerm.hpp"
-#include "fub/equations/ideal_gas_mix/mechanism/Burke2012.hpp"
+#include "fub/AMReX.hpp"
+#include "fub/Solver.hpp"
 
-#include "fub/HyperbolicSplitLevelIntegrator.hpp"
-#include "fub/HyperbolicSplitPatchIntegrator.hpp"
-#include "fub/HyperbolicSplitSystemSolver.hpp"
-#include "fub/SplitSystemSourceSolver.hpp"
-#include "fub/boundary_condition/TransmissiveBoundary.hpp"
-
-#include "fub/ext/Eigen.hpp"
-#include "fub/flux_method/HllMethod.hpp"
-#include "fub/flux_method/MusclHancockMethod.hpp"
-
-#include "fub/AMReX/FluxMethod.hpp"
-#include "fub/AMReX/GriddingAlgorithm.hpp"
-#include "fub/AMReX/HyperbolicSplitIntegratorContext.hpp"
-#include "fub/AMReX/HyperbolicSplitPatchIntegrator.hpp"
-#include "fub/AMReX/Reconstruction.hpp"
-#include "fub/AMReX/ScopeGuard.hpp"
-
-#include "fub/split_method/StrangSplitting.hpp"
-#include "fub/tagging/GradientDetector.hpp"
-#include "fub/tagging/TagBuffer.hpp"
-
-#include "fub/RunSimulation.hpp"
+#include <boost/program_options.hpp>
 
 #include <fmt/format.h>
+
 #include <iostream>
 
-#include <xmmintrin.h>
-
-namespace fub {
-struct TemperatureRamp {
-  IdealGasMix<1> equation_;
-  void
-  InitializeData(const View<Complete<IdealGasMix<1>>>& states,
-                 const amrex::PatchHierarchy& hierarchy,
-                 amrex::PatchHandle patch) {
-    const ::amrex::Geometry& geom = hierarchy.GetGeometry(patch.level);
-    const ::amrex::Box& box = patch.iterator->tilebox();
-    CartesianCoordinates x =
-        amrex::GetCartesianCoordinates(geom, box);
-    FlameMasterReactor& reactor = equation_.GetReactor();
-    reactor.SetMoleFractions("N2:79,O2:21,H2:42");
-    const double high_temp = 1150.0;
-    const double low_temp = 300.0;
-    Complete<IdealGasMix<1>> complete(equation_);
-    ForEachIndex(Box<0>(states), [&](auto... is) {
-      if (x(is...)[0] < 0.1) {
-        const double x0 = x(is...)[0];
-        const double d = x0 / 0.1;
-        reactor.SetTemperature(d * low_temp + (1.0 - d) * high_temp);
-        reactor.SetPressure(101325.0);
-      } else {
-        reactor.SetTemperature(low_temp);
-        reactor.SetPressure(101325.0);
-      }
-      equation_.CompleteFromReactor(complete);
-      Store(states, complete, {is...});
-    });
-  }
+struct ProgramOptions {
+  double final_time{0.20};
+  double cfl{0.8};
+  int n_cells{200};
+  int max_refinement_level{1};
+  double domain_length{1.5};
+  double output_interval{1.0E-5};
 };
-}
 
-int main(int argc, char** argv) {
+void MyMain(const ProgramOptions& opts) {
+  // Store a reference timepoint to measure the wall time duration
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
-  const fub::amrex::ScopeGuard guard(argc, argv);
-
-  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() | _MM_MASK_DIV_ZERO |
-                         _MM_MASK_OVERFLOW | _MM_MASK_UNDERFLOW |
-                         _MM_MASK_INVALID);
-
   constexpr int Dim = AMREX_SPACEDIM;
 
-  const std::array<int, Dim> n_cells{AMREX_D_DECL(128, 1, 1)};
+  // Setup the domain parameters
+  const std::array<int, Dim> n_cells{AMREX_D_DECL(opts.n_cells, 1, 1)};
+  const int nlevels = opts.max_refinement_level;
   const std::array<double, Dim> xlower{AMREX_D_DECL(0.0, 0.0, 0.0)};
-  const std::array<double, Dim> xupper{AMREX_D_DECL(+1.0, +1.0, +1.0)};
+  const std::array<double, Dim> xupper{
+      AMREX_D_DECL(opts.domain_length, +0.03, +0.03)};
 
+  // Define the equation which will be solved
   fub::Burke2012 mechanism{};
   fub::IdealGasMix<1> equation{fub::FlameMasterReactor(mechanism)};
 
+  // Define the GriddingAlgorithm for this simulation and initialize data.
+  // {{{
   fub::amrex::CartesianGridGeometry geometry;
   geometry.cell_dimensions = n_cells;
   geometry.coordinates = amrex::RealBox(xlower, xupper);
 
-  fub::amrex::DataDescription desc = fub::amrex::MakeDataDescription(equation);
+  using Complete = fub::IdealGasMix<1>::Complete;
+  fub::amrex::GradientDetector gradient{
+      equation, std::make_pair(&Complete::pressure, 1e-3),
+      std::make_pair(&Complete::density, 1e-3),
+      std::make_pair(&Complete::temperature, 1e-1)};
+
+  fub::amrex::BoundarySet boundary;
+  using fub::amrex::IsentropicPressureBoundary;
+  using fub::amrex::PressureValveBoundary;
+  fub::amrex::PressureValveOptions valve_options{};
+  boundary.conditions.push_back(PressureValveBoundary{equation, valve_options});
+  boundary.conditions.push_back(
+      IsentropicPressureBoundary{equation, 101325.0, fub::Direction::X, 1});
 
   fub::amrex::PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = 3;
-  hier_opts.refine_ratio = amrex::IntVect{AMREX_D_DECL(2, 1, 1)};
+  hier_opts.max_number_of_levels = nlevels;
+  hier_opts.refine_ratio = ::amrex::IntVect{AMREX_D_DECL(2, 1, 1)};
 
-  using Complete = fub::IdealGasMix<1>::Complete;
-  fub::GradientDetector gradient{equation,
-                                 std::make_pair(&Complete::temperature, 5e-3),
-                                 std::make_pair(&Complete::density, 5e-4)};
+  fub::IdealGasMix<1>::Complete state(equation);
+  equation.GetReactor().SetMoleFractions("N2:79,O2:21");
+  equation.GetReactor().SetTemperature(300.0);
+  equation.GetReactor().SetPressure(101325.0);
+  equation.CompleteFromReactor(state);
 
-  fub::TemperatureRamp initial_data{equation};
-
-  auto gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
-      fub::amrex::PatchHierarchy(desc, geometry, hier_opts),
-      fub::amrex::AdaptInitialData(initial_data, equation),
-      fub::amrex::AdaptTagging(equation, gradient),
-      fub::TransmissiveBoundary(equation));
+  using fub::amrex::ConstantData;
+  std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
+      fub::amrex::PatchHierarchy(equation, geometry, hier_opts),
+      ConstantData{equation, state}, gradient, boundary);
   gridding->InitializeHierarchy(0.0);
+  // }}}
 
-  fub::HyperbolicSplitPatchIntegrator patch_integrator{equation};
-  fub::HllMethod hlle(equation, fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>>{});
-  fub::MusclHancockMethod flux_method{equation, hlle};
+  // Setup the numerical Method used to solve this problem.
+  // {{{
+  //  fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>> signals{};
+  //  fub::HllMethod hll_method(equation, signals);
 
-  const int gcw = flux_method.GetStencilWidth();
-  fub::HyperbolicSplitSystemSolver system_solver(
-      fub::HyperbolicSplitLevelIntegrator(
-          fub::amrex::HyperbolicSplitIntegratorContext(gridding, gcw),
-          fub::amrex::HyperbolicSplitPatchIntegrator(patch_integrator),
-          fub::amrex::FluxMethod(flux_method),
-          fub::amrex::Reconstruction(equation)));
+  fub::ideal_gas::MusclHancockPrimMethod<1> flux_method(equation);
+
+  fub::amrex::HyperbolicMethod method{
+      fub::amrex::FluxMethod(fub::execution::seq, flux_method),
+      fub::amrex::ForwardIntegrator(fub::execution::seq),
+      fub::amrex::Reconstruction(fub::execution::seq, equation)};
+
+  fub::DimensionalSplitLevelIntegrator system_solver(
+      fub::int_c<1>, fub::amrex::IntegratorContext(gridding, method),
+      fub::GodunovSplitting());
+
+  fub::amrex::IgniteDetonationOptions io{};
+  fub::amrex::IgniteDetonation ignite(equation, gridding, io);
+  fub::SplitSystemSourceLevelIntegrator ign_solver(system_solver, ignite,
+                                                     fub::GodunovSplitting{});
 
   fub::ideal_gas::KineticSourceTerm<1> source_term(equation, gridding);
 
-  fub::SplitSystemSourceSolver solver(system_solver, source_term);
+  fub::SplitSystemSourceLevelIntegrator level_integrator(ign_solver, source_term,
+                                                 fub::StrangSplitting());
 
-  std::string base_name = "IdealGasMix_1d_embed_in_Nd/";
+  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
+  // }}}
 
-  auto output = [&](const fub::amrex::PatchHierarchy& hierarchy,
-                    std::ptrdiff_t cycle, fub::Duration) {
-    std::string name = fmt::format("{}{:05}", base_name, cycle);
-    amrex::Print() << "Start output to '" << name << "'.\n";
-    fub::amrex::WritePlotFile(name, hierarchy, equation);
-    amrex::Print() << "Finished output to '" << name << "'.\n";
-  };
+  // Run the simulation with given feedback functions
 
-  auto print_msg = [](const std::string& msg) { ::amrex::Print() << msg; };
+  std::string base_name = "IdealGasMix/";
+  int rank = -1;
+  MPI_Comm_rank(solver.GetMpiCommunicator(), &rank);
+  auto output = fub::MakeOutput<fub::amrex::GriddingAlgorithm>({}, {fub::Duration(opts.output_interval)},
+      [&](const fub::amrex::GriddingAlgorithm& gridding) {
+        std::ptrdiff_t cycle = gridding.GetCycles();
+        fub::Duration timepoint = gridding.GetTimePoint();
+        std::string name = fmt::format("{}plt{:05}", base_name, cycle);
+        amrex::Print() << "Start output to '" << name << "'.\n";
+        fub::amrex::WritePlotFile(name, gridding.GetPatchHierarchy(),
+                                  equation);
+
+        fub::amrex::WriteTubeData(
+            fmt::format("{}/Tube.h5", base_name),
+            gridding.GetPatchHierarchy(), equation, timepoint, cycle,
+            solver.GetMpiCommunicator());
+        amrex::Print() << "Finished output to '" << name << "'.\n";
+      });
 
   using namespace std::literals::chrono_literals;
-  output(solver.GetPatchHierarchy(), 0, 0.0s);
+  (*output)(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
-  run_options.cfl = 0.8;
-  run_options.final_time = 0.002s;
-  run_options.output_interval = 0.0001s;
-  fub::RunSimulation(solver, run_options, wall_time_reference, output,
-                     print_msg);
+  run_options.cfl = opts.cfl;
+  run_options.final_time = fub::Duration(opts.final_time);
+  fub::RunSimulation(solver, run_options, wall_time_reference, *output);
+}
+
+int main() {
+  MPI_Init(nullptr, nullptr);
+  fub::InitializeLogging(MPI_COMM_WORLD);
+  {
+    fub::amrex::ScopeGuard _{};
+    MyMain({});
+  }
+  int flag = -1;
+  MPI_Finalized(&flag);
+  if (!flag) {
+    MPI_Finalize();
+  }
 }

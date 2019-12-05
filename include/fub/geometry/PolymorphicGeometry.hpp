@@ -28,28 +28,53 @@
 
 namespace fub {
 
-class PolymorphicGeometry : public Geometry {
+template <std::size_t Rank, typename G>
+struct GeometryWrapper : Geometry<Rank> {
+  GeometryWrapper(const G& base) : base_{base} {} // NOLINT
+  GeometryWrapper(G&& base) : base_{std::move(base)} {} // NOLINT
+
+  std::unique_ptr<Geometry<Rank>> Clone() const override { 
+    return std::make_unique<GeometryWrapper>(base_); 
+  }
+
+  double ComputeDistanceTo(const std::array<double, Rank>& x) const override {
+    return base_.ComputeDistanceTo(x);
+  }
+
+  G base_;
+};
+
+template <std::size_t Rank>
+class PolymorphicGeometry : public Geometry<Rank> {
 public:
   PolymorphicGeometry(const PolymorphicGeometry& other)
       : base_{other.Clone()} {}
 
   template <
       typename G,
+      std::enable_if_t<!std::is_base_of<Geometry<Rank>, G>::value>* = nullptr,
+      std::enable_if_t<!std::is_same<G, PolymorphicGeometry>::value>* = nullptr>
+  PolymorphicGeometry(const G& geometry)
+      : base_{std::make_unique<GeometryWrapper<Rank, G>>(geometry)} {}
+
+  template <
+      typename G,
+      std::enable_if_t<std::is_base_of<Geometry<Rank>, G>::value>* = nullptr,
       std::enable_if_t<!std::is_same<G, PolymorphicGeometry>::value>* = nullptr>
   PolymorphicGeometry(const G& geometry)
       : base_{std::make_unique<G>(geometry)} {}
 
-  double ComputeDistanceTo(const Coordinates& x) const override {
+  double ComputeDistanceTo(const std::array<double, Rank>& x) const override {
     return base_->ComputeDistanceTo(x);
   }
 
-  std::unique_ptr<Geometry> Clone() const override { return base_->Clone(); }
+  std::unique_ptr<Geometry<Rank>> Clone() const override { return base_->Clone(); }
 
-  Geometry& Base() noexcept { return *base_; }
-  const Geometry& Base() const noexcept { return *base_; }
+  Geometry<Rank>& Base() noexcept { return *base_; }
+  const Geometry<Rank>& Base() const noexcept { return *base_; }
 
 private:
-  std::unique_ptr<Geometry> base_;
+  std::unique_ptr<Geometry<Rank>> base_;
 };
 
 } // namespace fub

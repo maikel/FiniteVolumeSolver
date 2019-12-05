@@ -1,3 +1,4 @@
+
 // Copyright (c) 2019 Maikel Nadolski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -24,7 +25,10 @@
 #include "fub/Direction.hpp"
 #include "fub/ExactRiemannSolver.hpp"
 #include "fub/State.hpp"
-#include "fub/VariableDescription.hpp"
+
+#include "fub/flux_method/FluxMethod.hpp"
+#include "fub/flux_method/GodunovMethod.hpp"
+#include "fub/flux_method/MusclHancockMethod.hpp"
 
 #include <array>
 
@@ -43,26 +47,39 @@ struct Burgers1d {
 
   using Complete = ::fub::Complete<Burgers1d>;
   using Conservative = ::fub::Conservative<Burgers1d>;
+  using CompleteArray = ::fub::CompleteArray<Burgers1d>;
+  using ConservativeArray = ::fub::ConservativeArray<Burgers1d>;
 
   static constexpr int Rank() { return 1; }
 
-  void Flux(Conservative& flux, const Complete& state,
-            Direction dir = Direction::X) const noexcept;
+  Conservative Flux(Complete state, Direction dir) const noexcept;
+  ConservativeArray Flux(CompleteArray state, Direction dir) const noexcept;
 };
 
 template <> class ExactRiemannSolver<Burgers1d> {
 public:
   using Complete = typename Burgers1d::Complete;
+  using CompleteArray = typename Burgers1d::CompleteArray;
 
   ExactRiemannSolver(const Burgers1d&) {}
 
   void SolveRiemannProblem(Complete& state, const Complete& left,
                            const Complete& right, Direction dir) const;
 
+  void SolveRiemannProblem(CompleteArray& state, const CompleteArray& left,
+                           const CompleteArray& right, Direction dir) const;
+
   std::array<double, 1> ComputeSignals(const Complete& left,
                                        const Complete& right,
                                        Direction dir) const;
+
+  std::array<Array1d, 1> ComputeSignals(const CompleteArray& left,
+                                        const CompleteArray& right,
+                                        Direction dir) const;
 };
+
+extern template class FluxMethod<Godunov<Burgers1d>>;
+extern template class FluxMethod<MusclHancock<Burgers1d>>;
 
 } // namespace fub
 

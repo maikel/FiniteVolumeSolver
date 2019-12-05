@@ -26,9 +26,12 @@
 #include "fub/CompleteFromCons.hpp"
 #include "fub/EinfeldtSignalVelocities.hpp"
 #include "fub/Equation.hpp"
-#include "fub/ExactRiemannSolver.hpp"
 #include "fub/State.hpp"
 #include "fub/ext/Eigen.hpp"
+
+#include "fub/flux_method/FluxMethod.hpp"
+#include "fub/flux_method/HllMethod.hpp"
+#include "fub/flux_method/MusclHancockMethod.hpp"
 
 #include <array>
 
@@ -109,6 +112,10 @@ public:
   using ConservativeBase = ::fub::ConservativeBase<IdealGasMix<N>>;
   using Complete = ::fub::Complete<IdealGasMix<N>>;
 
+  using ConservativeArray = ::fub::ConservativeArray<IdealGasMix<N>>;
+  using ConservativeArrayBase = ::fub::ConservativeArrayBase<IdealGasMix<N>>;
+  using CompleteArray = ::fub::CompleteArray<IdealGasMix<N>>;
+
   explicit IdealGasMix(const FlameMasterReactor& reactor)
       : reactor_(std::move(reactor)) {}
 
@@ -117,7 +124,19 @@ public:
   void Flux(Conservative& flux, const Complete& state,
             Direction dir = Direction::X) const noexcept;
 
-  void CompleteFromCons(Complete& state, const ConservativeBase& cons) noexcept;
+  void Flux(ConservativeArray& flux, const CompleteArray& state,
+            Direction dir = Direction::X) const noexcept;
+
+  void Flux(ConservativeArray& flux, const CompleteArray& state, Direction dir,
+            MaskArray mask) const noexcept;
+
+  void CompleteFromCons(Complete& state, const ConservativeBase& cons);
+
+  void CompleteFromCons(CompleteArray& state,
+                        const ConservativeArrayBase& cons);
+
+  void CompleteFromCons(CompleteArray& state, const ConservativeArrayBase& cons,
+                        MaskArray mask);
 
   FlameMasterReactor& GetReactor() noexcept { return reactor_; }
   const FlameMasterReactor& GetReactor() const noexcept { return reactor_; }
@@ -128,8 +147,13 @@ public:
                            const Eigen::Array<double, N, 1>& velocity =
                                Eigen::Array<double, N, 1>::Zero()) const;
 
+  void CompleteFromReactor(
+      CompleteArray& state,
+      const Array<double, N>& velocity = Array<double, N>::Zero()) const;
+
 private:
   FlameMasterReactor reactor_;
+  Array<double, Eigen::Dynamic, 1> species_buffer_{reactor_.GetNSpecies()};
 };
 
 template <typename Depth> struct ToConcreteDepthImpl { using type = Depth; };
@@ -180,6 +204,35 @@ void InitializeState(const IdealGasMix<Dim>& eq,
   state.species.resize(eq.GetReactor().GetNSpecies(), 1);
 }
 
+template <int Dim>
+void InitializeState(const IdealGasMix<Dim>& eq,
+                     ConservativeArray<IdealGasMix<Dim>>& cons) {
+  cons.species.resize(eq.GetReactor().GetNSpecies(), kDefaultChunkSize);
+}
+
+template <int Dim>
+void InitializeState(const IdealGasMix<Dim>& eq,
+                     CompleteArray<IdealGasMix<Dim>>& state) {
+  state.species.resize(eq.GetReactor().GetNSpecies(), kDefaultChunkSize);
+}
+
+template <int Dim>
+double KineticEnergy(double density,
+                     const Eigen::Array<double, Dim, 1>& momentum) noexcept {
+  return 0.5 * momentum.matrix().squaredNorm() / density;
+}
+
+template <int Dim>
+Array1d KineticEnergy(Array1d density,
+                      const Eigen::Array<double, Dim, kDefaultChunkSize,
+                                         Eigen::RowMajor>& momentum) noexcept {
+  Array1d square = Array1d::Zero();
+  for (int i = 0; i < Dim; ++i) {
+    square += momentum.row(i) * momentum.row(i);
+  }
+  return Array1d::Constant(0.5) * square / density;
+}
+
 /// @{
 /// \brief Defines how to rotate a given state of the euler equations.
 ///
@@ -217,15 +270,129 @@ void Reflect(Complete<IdealGasMix<3>>& reflected,
 
 template <int Dim> struct EinfeldtSignalVelocities<IdealGasMix<Dim>> {
   using Complete = typename IdealGasMix<Dim>::Complete;
+  using CompleteArray = typename IdealGasMix<Dim>::CompleteArray;
 
   std::array<double, 2> operator()(const IdealGasMix<Dim>& equation,
                                    const Complete& left, const Complete& right,
                                    Direction dir) const noexcept;
+
+  std::array<Array1d, 2> operator()(const IdealGasMix<Dim>& equation,
+                                    const CompleteArray& left,
+                                    const CompleteArray& right,
+                                    Direction dir) const noexcept;
 };
 
 extern template struct EinfeldtSignalVelocities<IdealGasMix<1>>;
 extern template struct EinfeldtSignalVelocities<IdealGasMix<2>>;
 extern template struct EinfeldtSignalVelocities<IdealGasMix<3>>;
+
+extern template class FluxMethod<
+    Hll<IdealGasMix<1>, EinfeldtSignalVelocities<IdealGasMix<1>>>>;
+extern template class FluxMethod<
+    Hll<IdealGasMix<2>, EinfeldtSignalVelocities<IdealGasMix<2>>>>;
+extern template class FluxMethod<
+    Hll<IdealGasMix<3>, EinfeldtSignalVelocities<IdealGasMix<3>>>>;
+
+extern template class FluxMethod<MusclHancock<
+    IdealGasMix<1>,
+    Hll<IdealGasMix<1>, EinfeldtSignalVelocities<IdealGasMix<1>>>>>;
+extern template class FluxMethod<MusclHancock<
+    IdealGasMix<2>,
+    Hll<IdealGasMix<2>, EinfeldtSignalVelocities<IdealGasMix<2>>>>>;
+extern template class FluxMethod<MusclHancock<
+    IdealGasMix<3>,
+    Hll<IdealGasMix<3>, EinfeldtSignalVelocities<IdealGasMix<3>>>>>;
+
+namespace ideal_gas {
+template <int Rank> struct Primitive {
+  double pressure;
+  Eigen::Array<double, Rank, 1> velocity;
+  double temperature;
+  Eigen::Array<double, Eigen::Dynamic, 1> mass_fractions;
+};
+
+template <int Rank> struct PrimitiveArray {
+  Array1d pressure;
+  Array<double, Rank> velocity;
+  Array1d temperature;
+  ArrayXd mass_fractions;
+};
+
+/// This is a variation of the Muscl Hancock Method where the reconstruction at
+/// the half time level is based on the primitive variables (p, u, T, Y) instead
+/// of on conservative variables.
+template <int Rank> class MusclHancockPrimitive {
+public:
+  using Equation = IdealGasMix<Rank>;
+  using Complete = ::fub::Complete<Equation>;
+  using Conservative = ::fub::Conservative<Equation>;
+  using CompleteArray = ::fub::CompleteArray<Equation>;
+  using ConservativeArray = ::fub::ConservativeArray<Equation>;
+
+  explicit MusclHancockPrimitive(const IdealGasMix<Rank>& equation);
+
+  [[nodiscard]] static constexpr int GetStencilWidth() noexcept { return 2; }
+
+  /// Returns a stable time step estimate based on HLL signal velocities.
+  [[nodiscard]] double ComputeStableDt(span<const Complete, 4> states,
+                                       double dx, Direction dir) noexcept;
+
+  /// Returns an array of stable time step estimates based on HLL signal
+  /// velocities.
+  [[nodiscard]] Array1d ComputeStableDt(span<const CompleteArray, 4> states,
+                                        Array1d face_fraction,
+                                        span<const Array1d, 4> volume_fraction,
+                                        double dx, Direction dir) noexcept;
+
+  [[nodiscard]] Array1d ComputeStableDt(span<const CompleteArray, 4> states,
+                                        double dx, Direction dir) noexcept;
+
+  void ComputeNumericFlux(Conservative& flux, span<const Complete, 4> stencil,
+                          Duration dt, double dx, Direction dir);
+
+  void ComputeNumericFlux(ConservativeArray& flux,
+                          span<const CompleteArray, 4> stencil, Duration dt,
+                          double dx, Direction dir);
+
+  void ComputeNumericFlux(ConservativeArray& flux, Array1d face_fractions,
+                          span<const CompleteArray, 4> stencil,
+                          span<const Array1d, 4> volume_fractions, Duration dt,
+                          double dx, Direction dir);
+
+  [[nodiscard]] const Equation& GetEquation() const noexcept {
+    return hll_.GetEquation();
+  }
+  [[nodiscard]] Equation& GetEquation() noexcept { return hll_.GetEquation(); }
+
+private:
+  using Signals = EinfeldtSignalVelocities<IdealGasMix<Rank>>;
+  Hll<IdealGasMix<Rank>, Signals> hll_;
+  Primitive<Rank> dpdx;
+  Primitive<Rank> dpdt;
+  Primitive<Rank> pL;
+  Primitive<Rank> pM;
+  Primitive<Rank> pR;
+  std::array<Complete, 2> stencil_{GetEquation(), GetEquation()};
+
+  PrimitiveArray<Rank> dpdx_array_;
+  PrimitiveArray<Rank> dpdt_array_;
+  PrimitiveArray<Rank> pL_array_;
+  PrimitiveArray<Rank> pM_array_;
+  PrimitiveArray<Rank> pR_array_;
+  std::array<CompleteArray, 2> stencil_array_{GetEquation(), GetEquation()};
+};
+
+template <int Rank>
+using MusclHancockPrimMethod = ::fub::FluxMethod<MusclHancockPrimitive<Rank>>;
+
+extern template class MusclHancockPrimitive<1>;
+extern template class MusclHancockPrimitive<2>;
+extern template class MusclHancockPrimitive<3>;
+} // namespace ideal_gas
+
+extern template class FluxMethod<ideal_gas::MusclHancockPrimitive<1>>;
+extern template class FluxMethod<ideal_gas::MusclHancockPrimitive<2>>;
+extern template class FluxMethod<ideal_gas::MusclHancockPrimitive<3>>;
 
 } // namespace fub
 

@@ -21,28 +21,24 @@
 #ifndef FUB_AMREX_CUT_CELL_GRIDDING_ALGORITHM_HPP
 #define FUB_AMREX_CUT_CELL_GRIDDING_ALGORITHM_HPP
 
-#include "fub/AMReX/BoundaryCondition.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
+#include "fub/AMReX/cutcell/BoundaryCondition.hpp"
 #include "fub/AMReX/cutcell/InitialData.hpp"
 #include "fub/AMReX/cutcell/PatchHierarchy.hpp"
 #include "fub/AMReX/cutcell/Tagging.hpp"
 
 #include <AMReX_AmrCore.H>
-#include <AMReX_MultiFabUtil.H>
+// #include <AMReX_MultiFabUtil.H>
 
 #include <memory>
 
-namespace fub {
-namespace amrex {
-namespace cutcell {
+namespace fub::amrex::cutcell {
 
 class GriddingAlgorithm : private ::amrex::AmrCore {
 public:
-  using BoundaryCondition = std::function<void(
-      const PatchDataView<double, AMREX_SPACEDIM + 1>&, const PatchHierarchy&,
-      PatchHandle, Location, int, Duration)>;
-
   static constexpr int Rank = AMREX_SPACEDIM;
+
+  GriddingAlgorithm() = delete;
 
   GriddingAlgorithm(const GriddingAlgorithm&);
   GriddingAlgorithm& operator=(const GriddingAlgorithm&);
@@ -50,25 +46,39 @@ public:
   GriddingAlgorithm(GriddingAlgorithm&&) noexcept;
   GriddingAlgorithm& operator=(GriddingAlgorithm&&) noexcept;
 
-  ~GriddingAlgorithm() noexcept = default;
+  ~GriddingAlgorithm() noexcept override = default;
 
   GriddingAlgorithm(PatchHierarchy hier, InitialData data, Tagging tagging,
                     BoundaryCondition boundary);
 
-  const PatchHierarchy& GetPatchHierarchy() const noexcept;
+  [[nodiscard]] const PatchHierarchy& GetPatchHierarchy() const noexcept;
   PatchHierarchy& GetPatchHierarchy() noexcept;
 
   bool RegridAllFinerlevels(int which_level);
   void InitializeHierarchy(double level_time);
 
-  void SetBoundaryCondition(BoundaryCondition condition);
-  const BoundaryCondition& GetBoundaryCondition() const noexcept;
-  const InitialData& GetInitialData() const noexcept;
-  const Tagging& GetTagging() const noexcept;
+  void SetBoundaryCondition(int level, BoundaryCondition&& condition);
+  void SetBoundaryCondition(int level, const BoundaryCondition& condition);
 
-private:
+  [[nodiscard]] std::ptrdiff_t GetCycles() const noexcept {
+    return hierarchy_.GetCycles();
+  }
+
+  [[nodiscard]] Duration GetTimePoint() const noexcept {
+    return hierarchy_.GetTimePoint();
+  }
+
+  [[nodiscard]] const BoundaryCondition& GetBoundaryCondition(int level) const
+      noexcept;
+  [[nodiscard]] BoundaryCondition& GetBoundaryCondition(int level) noexcept;
+
+  [[nodiscard]] const InitialData& GetInitialCondition() const noexcept;
+
+  [[nodiscard]] const Tagging& GetTagging() const noexcept;
+
   void FillMultiFabFromLevel(::amrex::MultiFab& mf, int level_number);
 
+private:
   void ErrorEst(int level, ::amrex::TagBoxArray& tags, double time_point,
                 int /* ngrow */) override;
 
@@ -88,12 +98,10 @@ private:
 
   PatchHierarchy hierarchy_;
   InitialData initial_condition_;
-  BoundaryCondition boundary_condition_;
   Tagging tagging_;
+  std::vector<BoundaryCondition> boundary_condition_;
 };
 
-} // namespace cutcell
-} // namespace amrex
-} // namespace fub
+} // namespace fub::amrex::cutcell
 
 #endif

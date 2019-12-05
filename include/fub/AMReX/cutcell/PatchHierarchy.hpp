@@ -22,12 +22,10 @@
 #define FUB_AMREX_CUTCELL_PATCH_HIERARCHY_HPP
 
 #include "fub/AMReX/CartesianGridGeometry.hpp"
-#include "fub/AMReX/PatchHandle.hpp"
 #include "fub/AMReX/PatchHierarchy.hpp"
 #include "fub/CutCellData.hpp"
 #include "fub/Duration.hpp"
 #include "fub/Equation.hpp"
-#include "fub/Execution.hpp"
 #include "fub/ext/Eigen.hpp"
 
 #include <AMReX_EBFabFactory.H>
@@ -40,11 +38,10 @@
 #include <fmt/format.h>
 
 #include <functional>
+#include <iosfwd>
 #include <vector>
 
-namespace fub {
-namespace amrex {
-namespace cutcell {
+namespace fub::amrex::cutcell {
 
 /// This class holds state data arrays for each refinement level of a patch
 /// hierarchy.
@@ -53,12 +50,29 @@ namespace cutcell {
 /// to the normal patch level type.
 struct PatchLevel : ::fub::amrex::PatchLevel {
   PatchLevel() = default;
-  PatchLevel(const PatchLevel&);
-  PatchLevel& operator=(const PatchLevel&);
-  PatchLevel(PatchLevel&&) noexcept = default;
-  PatchLevel& operator=(PatchLevel&&) noexcept = default;
   ~PatchLevel() = default;
 
+  /// \brief Deeply copy a patch level on each MPI Rank and recompute shielded
+  /// fractions.
+  PatchLevel(const PatchLevel&);
+
+  /// \brief Deeply copy a patch level on each MPI Rank and recompute shielded
+  /// fractions.
+  PatchLevel& operator=(const PatchLevel&);
+
+  /// @{
+  /// \brief Moves a patch level without any allocations happening.
+  PatchLevel(PatchLevel&&) noexcept = default;
+  PatchLevel& operator=(PatchLevel&&) noexcept = default;
+  /// @}
+
+  /// \brief Constructs a patch level and computes shielded fractions.
+  ///
+  /// \param[in] level  the refinement level number in a hierarchy
+  /// \param[in] tp  the time point associated with this level
+  /// \param[in] ba  the box array describing all boxes of this level
+  /// \param[in] dm  the distribution mapping for all boxes of this level
+  /// \param[in] factory  the boundary informations for cut cells.
   PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
              const ::amrex::DistributionMapping& dm, int n_components,
              std::shared_ptr<::amrex::EBFArrayBoxFactory> factory);
@@ -66,10 +80,23 @@ struct PatchLevel : ::fub::amrex::PatchLevel {
   using MultiCutFabs =
       std::array<std::unique_ptr<::amrex::MultiCutFab>, AMREX_SPACEDIM>;
 
+  /// \brief This stores the EB factory for this refinement level.
   std::shared_ptr<::amrex::EBFArrayBoxFactory> factory;
+
+  /// \brief Store unshielded face fractions for all faces which touch a cut
+  /// cell.
   MultiCutFabs unshielded;
+
+  /// \brief Store singly shielded from left face fractions for all faces which
+  /// touch a cut cell.
   MultiCutFabs shielded_left;
+
+  /// \brief Store singly shielded from right face fractions for all faces which
+  /// touch a cut cell.
   MultiCutFabs shielded_right;
+
+  /// \brief Store doubly shielded face fractions for all faces which touch a
+  /// cut cell.
   MultiCutFabs doubly_shielded;
 };
 
@@ -81,125 +108,77 @@ struct PatchHierarchyOptions : public ::fub::amrex::PatchHierarchyOptions {
 
 class PatchHierarchy {
 public:
-  using PatchHandle = ::fub::amrex::PatchHandle;
+  /// \brief Constructs a PatchHierarchy object which is capable of holding data
+  /// described by the secified data description on given geometry extents.
+  template <typename Equation>
+  PatchHierarchy(const Equation& equation,
+                 const CartesianGridGeometry& geometry,
+                 const PatchHierarchyOptions& options);
 
+  /// \brief Constructs a PatchHierarchy object which is capable of holding data
+  /// described by the secified data description on given geometry extents.
   PatchHierarchy(DataDescription description,
                  const CartesianGridGeometry& geometry,
                  const PatchHierarchyOptions& options);
 
-  const PatchHierarchyOptions& GetOptions() const noexcept { return options_; }
+  /// @{
+  /// \name Member Acccess
 
-  const CartesianGridGeometry& GetGridGeometry() const noexcept {
-    return grid_geometry_;
-  }
+  const DataDescription& GetDataDescription() const noexcept;
 
-  std::ptrdiff_t GetCycles(int level = 0) const {
-    return patch_level_[static_cast<std::size_t>(level)].cycles;
-  }
+  /// \brief Return some additional patch hierarchy options.
+  const PatchHierarchyOptions& GetOptions() const noexcept;
 
-  Duration GetTimePoint(int level = 0) const {
-    return patch_level_[static_cast<std::size_t>(level)].time_point;
-  }
+  /// \brief Returns the Grid Geometry which was used to create the hierarchy
+  /// with.
+  const CartesianGridGeometry& GetGridGeometry() const noexcept;
 
-  int GetNumberOfLevels() const noexcept {
-    return static_cast<int>(std::count_if(
-        patch_level_.begin(), patch_level_.end(),
-        [](const PatchLevel& level) { return !level.data.empty(); }));
-  }
+  /// @}
 
-  int GetMaxNumberOfLevels() const noexcept {
-    return static_cast<int>(patch_level_.size());
-  }
+  /// @{
+  /// \name Observers
 
-  int GetRatioToCoarserLevel(int level, Direction dir) const noexcept;
+  int GetNumberOfLevels() const noexcept;
 
-  ::amrex::IntVect GetRatioToCoarserLevel(int level) const noexcept;
+  int GetMaxNumberOfLevels() const noexcept;
 
-  const ::amrex::Geometry& GetGeometry(int level) const noexcept {
-    FUB_ASSERT(0 <= level && level < GetMaxNumberOfLevels());
-    const std::size_t level_num = static_cast<std::size_t>(level);
-    return patch_level_geometry_[level_num];
-  }
+  /// @}
 
-  PatchLevel& GetPatchLevel(int level) noexcept {
-    FUB_ASSERT(0 <= level && level < GetMaxNumberOfLevels());
-    const std::size_t level_num = static_cast<std::size_t>(level);
-    return patch_level_[level_num];
-  }
+  /// @{
+  /// \name Level specific Access
 
-  const PatchLevel& GetPatchLevel(int level) const noexcept {
-    FUB_ASSERT(0 <= level && level < GetMaxNumberOfLevels());
-    const std::size_t level_num = static_cast<std::size_t>(level);
-    return patch_level_[level_num];
-  }
+  /// \brief Returns the number of cycles done for a specific level.
+  ///
+  /// \param[in] level  the refinement level number
+  std::ptrdiff_t GetCycles(int level = 0) const;
 
-  const DataDescription& GetDataDescription() const noexcept {
-    return description_;
-  }
+  /// \brief Returns the time point of a specified level number.
+  ///
+  /// \param[in] level  the refinement level number
+  Duration GetTimePoint(int level = 0) const;
+
+  /// \brief Returns the ratio from fine to coarse for specified fine level
+  /// number and direction.
+  ///
+  /// \param[in] level  the fine refinement level number
+  /// \param[in] dir  the direction
+  int GetRatioToCoarserLevel(int level, Direction dir) const;
+
+  ::amrex::IntVect GetRatioToCoarserLevel(int level) const;
+
+  const ::amrex::Geometry& GetGeometry(int level) const;
+
+  PatchLevel& GetPatchLevel(int level);
+
+  const PatchLevel& GetPatchLevel(int level) const;
 
   const std::shared_ptr<::amrex::EBFArrayBoxFactory>&
-  GetEmbeddedBoundary(int level) const noexcept {
-    FUB_ASSERT(0 <= level && level < GetMaxNumberOfLevels());
-    const std::size_t level_num = static_cast<std::size_t>(level);
-    return patch_level_[level_num].factory;
-  }
+  GetEmbeddedBoundary(int level) const;
 
-  template <typename Feedback>
-  Feedback ForEachPatch(int level, Feedback feedback) const {
-    for (::amrex::MFIter mfi(GetPatchLevel(level).data); mfi.isValid();
-         ++mfi) {
-      PatchHandle handle{level, &mfi};
-      feedback(handle);
-    }
-    return feedback;
-  }
+  CutCellData<AMREX_SPACEDIM> GetCutCellData(int level,
+                                             const ::amrex::MFIter& mfi) const;
 
-  template <typename Feedback>
-  Feedback ForEachPatch(execution::OpenMpTag, int level, Feedback feedback) const {
-#ifdef _OPENMP
-#pragma omp parallel firstprivate(feedback)
-#endif
-    {
-      for (::amrex::MFIter mfi(GetPatchLevel(level).data, true); mfi.isValid();
-           ++mfi) {
-        PatchHandle handle{level, &mfi};
-        feedback(handle);
-      }
-    }
-    return feedback;
-  }
-
-  template <typename Feedback>
-  double Minimum(int level, Feedback feedback) const {
-    double global_min = std::numeric_limits<double>::infinity();
-    for (::amrex::MFIter mfi(GetPatchLevel(level).data); mfi.isValid();
-         ++mfi) {
-      PatchHandle handle{level, &mfi};
-      const double local_min = feedback(handle);
-      global_min = std::min(global_min, local_min);
-    }
-    return global_min;
-  }
-
-  template <typename Feedback>
-  double Minimum(execution::OpenMpTag, int level, Feedback feedback) const {
-    double global_min = std::numeric_limits<double>::infinity();
-#ifdef _OPENMP
-#pragma omp parallel reduction(min : global_min) firstprivate(feedback)
-#endif
-    {
-      for (::amrex::MFIter mfi(GetPatchLevel(level).data, true); mfi.isValid();
-           ++mfi) {
-        PatchHandle handle{level, &mfi};
-        const double local_min = feedback(handle);
-        global_min = std::min(global_min, local_min);
-      }
-    }
-    return global_min;
-  }
-
-  CutCellData<AMREX_SPACEDIM> GetCutCellData(PatchHandle patch,
-                                             Direction dir) const;
+  /// @}
 
 private:
   DataDescription description_;
@@ -210,7 +189,13 @@ private:
 };
 
 template <typename Equation>
-void WritePlotFile(const std::string plotfilename, const PatchHierarchy& hier,
+PatchHierarchy::PatchHierarchy(const Equation& equation,
+                               const CartesianGridGeometry& geometry,
+                               const PatchHierarchyOptions& options)
+    : PatchHierarchy(MakeDataDescription(equation), geometry, options) {}
+
+template <typename Equation>
+void WritePlotFile(const std::string& plotfilename, const PatchHierarchy& hier,
                    const Equation& equation) {
   const int nlevels = hier.GetNumberOfLevels();
   const double time_point = hier.GetTimePoint().count();
@@ -234,7 +219,7 @@ void WritePlotFile(const std::string plotfilename, const PatchHierarchy& hier,
       std::tuple_size<remove_cvref_t<decltype(names)>>::value;
   ::amrex::Vector<std::string> varnames;
   varnames.reserve(n_names);
-  boost::mp11::tuple_for_each(Zip(names, ToTuple(depths)), [&](auto xs) {
+  boost::mp11::tuple_for_each(Zip(names, StateToTuple(depths)), [&](auto xs) {
     const int ncomp = std::get<1>(xs);
     if (ncomp == 1) {
       varnames.push_back(std::get<0>(xs));
@@ -249,16 +234,77 @@ void WritePlotFile(const std::string plotfilename, const PatchHierarchy& hier,
                                       ref_ratio);
 }
 
-void WriteCheckpointFile(const std::string checkpointname,
+template <int Rank>
+void WritePlotFile(const std::string& plotfilename, const PatchHierarchy& hier,
+                   const IdealGasMix<Rank>& equation) {
+  using Equation = IdealGasMix<Rank>;
+  const int nlevels = hier.GetNumberOfLevels();
+  const double time_point = hier.GetTimePoint().count();
+  FUB_ASSERT(nlevels >= 0);
+  std::size_t size = static_cast<std::size_t>(nlevels);
+  ::amrex::Vector<const ::amrex::MultiFab*> mf(size);
+  ::amrex::Vector<::amrex::Geometry> geoms(size);
+  ::amrex::Vector<int> level_steps(size);
+  ::amrex::Vector<::amrex::IntVect> ref_ratio(size);
+  for (std::size_t i = 0; i < size; ++i) {
+    mf[i] = &hier.GetPatchLevel(static_cast<int>(i)).data;
+    geoms[i] = hier.GetGeometry(static_cast<int>(i));
+    level_steps[i] = static_cast<int>(hier.GetCycles(static_cast<int>(i)));
+    ref_ratio[i] = hier.GetRatioToCoarserLevel(static_cast<int>(i)) *
+                   ::amrex::IntVect::TheUnitVector();
+  }
+  using Traits = StateTraits<Complete<Equation>>;
+  constexpr auto names = Traits::names;
+  const auto depths = Depths<Complete<Equation>>(equation);
+  const std::size_t n_names =
+      std::tuple_size<remove_cvref_t<decltype(names)>>::value;
+  ::amrex::Vector<std::string> varnames;
+  varnames.reserve(n_names);
+  boost::mp11::tuple_for_each(Zip(names, StateToTuple(depths)), [&](auto xs) {
+    const int ncomp = std::get<1>(xs);
+    if (ncomp == 1) {
+      varnames.push_back(std::get<0>(xs));
+    } else {
+      span<const std::string> species = equation.GetReactor().GetSpeciesNames();
+      for (int i = 0; i < ncomp; ++i) {
+        if (std::get<0>(xs) == std::string{"Species"}) {
+          varnames.push_back(species[i]);
+        } else {
+          varnames.push_back(fmt::format("{}_{}", std::get<0>(xs), i));
+        }
+      }
+    }
+  });
+  ::amrex::EB_WriteMultiLevelPlotfile(plotfilename, nlevels, mf, varnames,
+                                      geoms, time_point, level_steps,
+                                      ref_ratio);
+}
+
+void WriteCheckpointFile(const std::string& checkpointname,
                          const PatchHierarchy& hier);
 
-std::shared_ptr<PatchHierarchy>
-ReadCheckpointFile(const std::string checkpointname, DataDescription desc,
-                   const CartesianGridGeometry& geometry,
-                   const PatchHierarchyOptions& options);
+PatchHierarchy ReadCheckpointFile(const std::string& checkpointname,
+                                  DataDescription desc,
+                                  const CartesianGridGeometry& geometry,
+                                  const PatchHierarchyOptions& options);
 
-} // namespace cutcell
-} // namespace amrex
-} // namespace fub
+// void Write2Dfrom3D(std::ostream* out, const PatchHierarchy& hierarchy, const
+// ::amrex::Box& finest_box,
+//                 const IdealGasMix<3>& eq, fub::Duration time_point,
+//                 std::ptrdiff_t cycle_number, MPI_Comm comm);
+
+void WriteMatlabData(const std::string& name, const PatchHierarchy& hierarchy, fub::Duration time_point, std::ptrdiff_t cycle_number, MPI_Comm comm);
+
+void Write2Dfrom3D(const std::string& name, const PatchHierarchy& hierarchy,
+                   const ::amrex::Box& finest_box, const IdealGasMix<3>& eq,
+                   fub::Duration time_point, std::ptrdiff_t cycle_number,
+                   MPI_Comm comm);
+
+std::vector<double> GatherStates(
+    const PatchHierarchy& hierarchy,
+    basic_mdspan<const double, extents<AMREX_SPACEDIM, dynamic_extent>> xs,
+    MPI_Comm comm);
+
+} // namespace fub::amrex::cutcell
 
 #endif

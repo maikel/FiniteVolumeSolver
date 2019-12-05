@@ -18,8 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/grid/SAMRAI/GriddingAlgorithm.hpp"
+#include "fub/SAMRAI/GriddingAlgorithm.hpp"
 
+#include <SAMRAI/tbox/MemoryDatabase.h>
 #include <SAMRAI/mesh/BergerRigoutsos.h>
 #include <SAMRAI/mesh/CascadePartitioner.h>
 #include <SAMRAI/mesh/StandardTagAndInitStrategy.h>
@@ -29,25 +30,6 @@
 namespace fub {
 namespace samrai {
 namespace {
-SAMRAI::hier::ComponentSelector SelectComponents(span<const int> data_ids) {
-  SAMRAI::hier::ComponentSelector selector;
-  for (int id : data_ids) {
-    selector.setFlag(id);
-  }
-  return selector;
-}
-
-std::vector<SAMRAI::pdat::CellData<double>*>
-GetCellData(SAMRAI::hier::Patch& patch, span<const int> ids) {
-  std::vector<SAMRAI::pdat::CellData<double>*> data;
-  data.reserve(ids.size());
-  for (int id : ids) {
-    data.push_back(static_cast<SAMRAI::pdat::CellData<double>*>(
-        patch.getPatchData(id).get()));
-  }
-  return data;
-}
-
 struct TagAndInit : SAMRAI::mesh::TagAndInitializeStrategy {
   TagAndInit(GriddingAlgorithm* parent,
              SAMRAI::hier::ComponentSelector which_to_allocate)
@@ -72,12 +54,8 @@ struct TagAndInit : SAMRAI::mesh::TagAndInitializeStrategy {
       level->allocatePatchData(which_to_allocate_, init_data_time);
     }
     if (initial_time) {
-      for (const std::shared_ptr<SAMRAI::hier::Patch>& patch : *level) {
-        std::vector<SAMRAI::pdat::CellData<double>*> states =
-            GetCellData(*patch, parent_->id_set.data_ids);
-        CartesianCoordinates coords = GetCartesianCoordinates(*patch);
-        parent_->initial_data.InitializeData(states, coords);
-      }
+      parent_->GetInitialData().InitializeData(
+          parent_->GetPatchHierarchy(), level_number, Duration(init_data_time));
     } else {
       // Fill from old_level and refine from coarser level where needed
       if (level_number > 0) {
@@ -91,7 +69,7 @@ struct TagAndInit : SAMRAI::mesh::TagAndInitializeStrategy {
 
   void tagCellsForRefinement(
       const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hierarchy,
-      int level_number, int /* regrid_cycle */, double /* regrid_time */,
+      int level_number, int /* regrid_cycle */, double regrid_time,
       int tag_index, bool /* initial_time */, bool /* coarsest_sync_level */,
       bool can_be_refined, double /* regrid_start_time */) override {
     std::shared_ptr<SAMRAI::hier::PatchLevel> level =
@@ -102,10 +80,8 @@ struct TagAndInit : SAMRAI::mesh::TagAndInitializeStrategy {
             static_cast<SAMRAI::pdat::CellData<int>*>(
                 patch->getPatchData(tag_index).get());
         tags->fill(0);
-        std::vector<SAMRAI::pdat::CellData<double>*> states =
-            GetCellData(*patch, parent_->id_set.data_ids);
-        CartesianCoordinates coords = GetCartesianCoordinates(*patch);
-        parent_->tagging.TagCellsForRefinement(*tags, states, coords);
+        parent_->tagging_.TagCellsForRefinement(
+            *parent_, level_number, tag_index, Duration(regrid_time));
       }
     }
   }
@@ -146,52 +122,140 @@ struct TagAndInit : SAMRAI::mesh::TagAndInitializeStrategy {
 };
 } // namespace
 
-GriddingAlgorithm::GriddingAlgorithm(
-    const std::shared_ptr<SAMRAI::hier::PatchHierarchy>& hier,
-    DataDescription description, InitialData init, Tagging tag,
-    std::vector<int> buffer)
-    : hierarchy{hier}, initial_data{std::move(init)}, tagging{std::move(tag)},
-      id_set{description}, tag_buffer{std::move(buffer)} {
+GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier, InitialData init,
+                                     Tagging tag, std::vector<int> buffer)
+    : hierarchy_{std::move(hier)}, initial_data_{std::move(init)},
+      tagging_{std::move(tag)}, id_set_{hierarchy_.GetDataDescription()},
+      tag_buffer_{std::move(buffer)}, level_to_boundary_(hierarchy_.GetMaxNumberOfLevels()) {
+
   const SAMRAI::hier::ComponentSelector which_to_allocate =
-      SelectComponents(description.data_ids);
-  const SAMRAI::tbox::Dimension dim = hier->getDim();
-  for (int level = 0; level < hier->getMaxNumberOfLevels(); ++level) {
-    hier->setRatioToCoarserLevel(SAMRAI::hier::IntVector(dim, 2), level);
+      SelectComponents(hierarchy_.GetDataDescription().data_ids);
+  const SAMRAI::tbox::Dimension dim = hierarchy_.GetNative()->getDim();
+  for (int level = 0; level < hierarchy_.GetNative()->getMaxNumberOfLevels();
+       ++level) {
+    hierarchy_.GetNative()->setRatioToCoarserLevel(
+        SAMRAI::hier::IntVector(dim, 2), level);
   }
 
   refine_data_algorithm_ = std::make_shared<SAMRAI::xfer::RefineAlgorithm>();
-  for (int id : id_set.data_ids) {
+  for (int id : id_set_.data_ids) {
     refine_data_algorithm_->registerRefine(
         id, id, id, std::make_shared<SAMRAI::pdat::CellDoubleConstantRefine>());
   }
 
-  algorithm = std::make_shared<SAMRAI::mesh::GriddingAlgorithm>(
-      hier, "GriddingAlgorithm", nullptr,
+  std::shared_ptr cascade_options = std::make_shared<SAMRAI::tbox::MemoryDatabase>("CascadePartitioner");
+  cascade_options->putVector("tile_size", std::vector{8, 8});
+  algorithm_ = std::make_shared<SAMRAI::mesh::GriddingAlgorithm>(
+      hierarchy_.GetNative(), MakeUniqueName(), nullptr,
       std::make_shared<TagAndInit>(this, which_to_allocate),
       std::make_shared<SAMRAI::mesh::TileClustering>(dim),
       std::make_shared<SAMRAI::mesh::CascadePartitioner>(dim,
-                                                         "CascadePartitioner"));
+                                                         MakeUniqueName(), cascade_options));
 }
 
-const std::shared_ptr<SAMRAI::hier::PatchHierarchy>&
-GriddingAlgorithm::GetPatchHierarchy() const noexcept {
-  return hierarchy;
+GriddingAlgorithm::GriddingAlgorithm(const GriddingAlgorithm& ga)
+    : hierarchy_(ga.GetPatchHierarchy()), initial_data_(ga.GetInitialData()),
+      tagging_(ga.GetTagging()), id_set_(ga.GetDataDescription()),
+      tag_buffer_(ga.GetTagBuffer()), level_to_boundary_(ga.level_to_boundary_) {
+
+  const SAMRAI::hier::ComponentSelector which_to_allocate =
+      SelectComponents(hierarchy_.GetDataDescription().data_ids);
+  const SAMRAI::tbox::Dimension dim = hierarchy_.GetNative()->getDim();
+  for (int level = 0; level < hierarchy_.GetNative()->getMaxNumberOfLevels();
+       ++level) {
+    hierarchy_.GetNative()->setRatioToCoarserLevel(
+        SAMRAI::hier::IntVector(dim, 2), level);
+  }
+
+  refine_data_algorithm_ = std::make_shared<SAMRAI::xfer::RefineAlgorithm>();
+  for (int id : id_set_.data_ids) {
+    refine_data_algorithm_->registerRefine(
+        id, id, id, std::make_shared<SAMRAI::pdat::CellDoubleConstantRefine>());
+  }
+
+  algorithm_ = std::make_shared<SAMRAI::mesh::GriddingAlgorithm>(
+      hierarchy_.GetNative(), MakeUniqueName(), nullptr,
+      std::make_shared<TagAndInit>(this, which_to_allocate),
+      std::make_shared<SAMRAI::mesh::TileClustering>(dim),
+      std::make_shared<SAMRAI::mesh::CascadePartitioner>(dim,
+                                                         MakeUniqueName()));
+}
+
+const PatchHierarchy& GriddingAlgorithm::GetPatchHierarchy() const noexcept {
+  return hierarchy_;
+}
+
+PatchHierarchy& GriddingAlgorithm::GetPatchHierarchy() noexcept {
+  return hierarchy_;
+}
+
+const InitialData& GriddingAlgorithm::GetInitialData() const noexcept {
+  return initial_data_;
+}
+
+InitialData& GriddingAlgorithm::GetInitialData() noexcept {
+  return initial_data_;
+}
+
+const Tagging& GriddingAlgorithm::GetTagging() const noexcept {
+  return tagging_;
+}
+
+Duration GriddingAlgorithm::GetTimePoint() const noexcept {
+  return hierarchy_.GetTimePoint();
+}
+
+std::ptrdiff_t GriddingAlgorithm::GetCycles() const noexcept {
+  return hierarchy_.GetCycles();
+}
+
+Tagging& GriddingAlgorithm::GetTagging() noexcept { return tagging_; }
+
+const DataDescription& GriddingAlgorithm::GetDataDescription() const noexcept {
+  return id_set_;
+}
+DataDescription& GriddingAlgorithm::GetDataDescription() noexcept {
+  return id_set_;
+}
+
+const std::vector<int>& GriddingAlgorithm::GetTagBuffer() const noexcept {
+  return tag_buffer_;
+}
+
+std::vector<int>& GriddingAlgorithm::GetTagBuffer() noexcept {
+  return tag_buffer_;
 }
 
 void GriddingAlgorithm::RegridAllFinerLevels(int level_num, int cycle,
                                              Duration time_point) {
-  algorithm->regridAllFinerLevels(level_num, tag_buffer, cycle,
-                                  time_point.count());
+  if (level_num < 0) {
+    algorithm_->makeCoarsestLevel(time_point.count());
+  } else {
+    algorithm_->regridAllFinerLevels(level_num, tag_buffer_, cycle,
+                                     time_point.count());
+  }
 }
 
 void GriddingAlgorithm::InitializeHierarchy(Duration initial_time_point,
                                             std::ptrdiff_t initial_cycle) {
-  algorithm->makeCoarsestLevel(initial_time_point.count());
+  algorithm_->makeCoarsestLevel(initial_time_point.count());
   bool initial_time = true;
-  for (int buffer : tag_buffer) {
-    algorithm->makeFinerLevel(buffer, initial_time, initial_cycle,
-                              initial_time_point.count());
+  for (int buffer : tag_buffer_) {
+    algorithm_->makeFinerLevel(buffer, initial_time, initial_cycle,
+                               initial_time_point.count());
   }
 }
+
+const BoundaryCondition& GriddingAlgorithm::GetBoundaryCondition(int level) const {
+  FUB_ASSERT(0 <= level && level < int(level_to_boundary_.size()));
+  return level_to_boundary_[static_cast<std::size_t>(level)];
+}
+
+BoundaryCondition& GriddingAlgorithm::GetBoundaryCondition(int level) {
+  std::size_t slevel = static_cast<std::size_t>(level);
+  FUB_ASSERT(slevel < level_to_boundary_.size());
+  return level_to_boundary_[slevel];
+}
+
 } // namespace samrai
 } // namespace fub

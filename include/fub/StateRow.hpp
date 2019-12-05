@@ -22,6 +22,7 @@
 #define FUB_STATE_ROW_HPP
 
 #include "fub/State.hpp"
+#include "fub/core/tuple.hpp"
 
 namespace fub {
 
@@ -108,29 +109,117 @@ template <typename State> ViewPointer<State> End(const Row<State>& row) {
   return pointer;
 }
 
-template <typename Tuple, typename Function>
-auto Transform(Tuple&& tuple, Function f) {
-  return std::apply([&](auto&&... xs) { return std::tuple{f(xs)...}; }, tuple);
+template <Direction Dir> struct ToStride {
+  template <typename T, int R, typename L>
+  std::ptrdiff_t operator()(const PatchDataView<T, R, L>& pdv) const {
+    if constexpr (R == 1) {
+      return pdv.Extent(0);
+    } else {
+      return pdv.Stride(static_cast<int>(Dir));
+    }
+  }
+
+  template <typename T, typename L, int R>
+  std::ptrdiff_t operator()(const BasicView<T, L, R>& view) const {
+    return get<0>(view).Stride(static_cast<int>(Dir));
+  }
+};
+
+template <Direction Dir, typename T, int R, typename L>
+std::ptrdiff_t Extent(const PatchDataView<T, R, L>& pdv) {
+  return pdv.Extent(static_cast<std::size_t>(Dir));
+}
+
+template <Direction Dir, typename T, typename L, int R>
+std::ptrdiff_t Extent(const BasicView<T, L, R>& view) {
+  return Extent<Dir>(get<0>(view));
+}
+
+struct ToRow {
+  std::ptrdiff_t extent;
+
+  template <typename T> span<T> operator()(T* pointer) {
+    return {pointer, extent};
+  }
+
+  template <typename T> Row<T> operator()(const ViewPointer<T>& pointer) {
+    return {pointer, extent};
+  }
+};
+
+template <typename T> void Advance(T*& pointer, std::ptrdiff_t n) {
+  pointer += n;
+}
+
+template <typename T, int R, typename L>
+T* Begin(const PatchDataView<T, R, L>& pdv) {
+  return pdv.Span().begin();
+}
+
+template <typename T, int R, typename L>
+T* End(const PatchDataView<T, R, L>& pdv) {
+  return pdv.Span().end();
+}
+
+template <int N, typename T> constexpr T* GetOrForward(T* pointer) noexcept {
+  return pointer;
+}
+
+template <int N, typename T>
+constexpr decltype(auto) GetOrForward(const ViewPointer<T>& pointer) noexcept {
+  return get<N>(pointer);
 }
 
 template <typename Tuple, typename Function>
 void ForEachRow(const Tuple& views, Function f) {
   std::tuple firsts = Transform(views, [](const auto& v) { return Begin(v); });
-  std::tuple lasts = Transform(views, [](const auto& v) { return End(v); });
-  const auto& view = get<0>(views);
-  const auto& first = get<0>(firsts);
-  const auto& last = get<0>(lasts);
-  std::ptrdiff_t row_extent = get<0>(view).Extent(0);
-  std::ptrdiff_t stride = get<0>(view).Stride(1);
-  while (get<0>(last) - get<0>(first) >= stride) {
-    std::tuple rows = Transform(firsts, [row_extent](const auto& pointer) {
-      return Row(pointer, row_extent);
-    });
+  const std::ptrdiff_t row_extent = Extent<Direction::X>(std::get<0>(views));
+  if constexpr (std::tuple_element_t<0, Tuple>::rank() == 1) {
+    std::tuple rows = Transform(firsts, ToRow{row_extent});
     std::apply(f, rows);
-    boost::mp11::tuple_for_each(firsts,
-                                [stride](auto& p) { Advance(p, stride); });
+  } else if constexpr (std::tuple_element_t<0, Tuple>::rank() == 2) {
+    std::tuple lasts = Transform(views, [](const auto& v) { return End(v); });
+    std::tuple strides = Transform(views, ToStride<Direction::Y>());
+    const auto& first = std::get<0>(firsts);
+    const auto& last = std::get<0>(lasts);
+    std::ptrdiff_t n = GetOrForward<0>(last) - GetOrForward<0>(first);
+    while (n >= std::get<0>(strides)) {
+      std::tuple rows = Transform(firsts, ToRow{row_extent});
+      std::apply(f, rows);
+      std::tuple firsts_and_strides = Zip(firsts, strides);
+      std::apply(
+          [](auto&... ps) { (Advance(std::get<0>(ps), std::get<1>(ps)), ...); },
+          firsts_and_strides);
+      firsts = std::apply(
+          [](auto&&... fs) { return std::tuple{std::get<0>(fs)...}; },
+          firsts_and_strides);
+      n = GetOrForward<0>(last) - GetOrForward<0>(first);
+    }
+  } else {
+    const std::ptrdiff_t ny = Extent<Direction::Y>(std::get<0>(views));
+    const std::ptrdiff_t nz = Extent<Direction::Z>(std::get<0>(views));
+    std::tuple strides_y = Transform(views, ToStride<Direction::Y>());
+    std::tuple strides_z = Transform(views, ToStride<Direction::Z>());
+    for (std::ptrdiff_t j = 0; j < nz; ++j) {
+      std::tuple pointers = firsts;
+      for (std::ptrdiff_t i = 0; i < ny; ++i) {
+        std::tuple rows = Transform(pointers, ToRow{row_extent});
+        std::apply(f, rows);
+        pointers = std::apply(
+            [](auto... ps) {
+              (Advance(std::get<0>(ps), std::get<1>(ps)), ...);
+              return std::tuple{std::get<0>(ps)...};
+            },
+            Zip(pointers, strides_y));
+      }
+      firsts = std::apply(
+          [](auto... ps) {
+            (Advance(std::get<0>(ps), std::get<1>(ps)), ...);
+            return std::tuple{std::get<0>(ps)...};
+          },
+          Zip(firsts, strides_z));
+    }
   }
-  FUB_ASSERT(get<0>(first) == get<0>(last));
 }
 
 } // namespace fub

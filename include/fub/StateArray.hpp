@@ -33,7 +33,7 @@ template <typename Eq, int Width> struct ConservativeArrayBaseImpl {
   using type = boost::mp11::mp_transform<fn, typename Eq::ConservativeDepths>;
 };
 
-template <typename Eq, int Width>
+template <typename Eq, int Width = kDefaultChunkSize>
 using ConservativeArrayBase =
     typename ConservativeArrayBaseImpl<Eq, Width>::type;
 
@@ -43,8 +43,10 @@ struct ConservativeArray : ConservativeArrayBase<Eq, Width> {
   using Depths = typename Equation::ConservativeDepths;
   using Traits = StateTraits<ConservativeArrayBase<Eq, Width>>;
 
+  static constexpr int Size() { return Width; }
+
   ConservativeArray() = default;
-  ConservativeArray(const Equation&) {}
+  ConservativeArray(const Equation& eq) { InitializeState(eq, *this); }
 };
 
 template <typename Eq, int Width>
@@ -66,9 +68,17 @@ struct CompleteArray : CompleteArrayBase<Eq, Width> {
   using Depths = typename Equation::CompleteDepths;
   using Traits = StateTraits<CompleteArrayBase<Eq, Width>>;
 
+  static constexpr int Size() { return Width; }
+
   CompleteArray() = default;
-  CompleteArray(const Equation&) {}
+  CompleteArray(const Equation& eq) { InitializeState(eq, *this); }
 };
+
+template <typename Equation>
+void InitializeState(const Equation&, CompleteArray<Equation>&) {}
+
+template <typename Equation>
+void InitializeState(const Equation&, ConservativeArray<Equation>&) {}
 
 template <typename Eq, int Width>
 struct StateTraits<CompleteArray<Eq, Width>>
@@ -94,6 +104,20 @@ ConservativeArrayBase<Eq, N>& AsCons(CompleteArray<Eq, N>& x) {
   return x;
 }
 
+template <typename Eq, int N>
+void Load(Conservative<Eq>& q, const ConservativeArray<Eq, N>& qs, int i) {
+  ForEachComponent([&](auto& qi, auto qsi) {
+    qi = qsi[i];
+  }, q, qs);
+}
+
+template <typename Eq, int N>
+void Load(Complete<Eq>& q, const CompleteArray<Eq, N>& qs, int i) {
+  ForEachComponent([&](auto& qi, auto qsi) {
+    qi = qsi[i];
+  }, q, qs);
+}
+
 template <typename Eq, int N, typename Layout, std::size_t Rank>
 void Load(ConservativeArray<Eq, N>& state,
           nodeduce_t<const BasicView<const Conservative<Eq>, Layout,
@@ -105,6 +129,18 @@ void Load(ConservativeArray<Eq, N>& state,
         component = std::apply(
             [&](auto... i) { return Load(int_constant<N>(), data, i...); },
             index);
+      },
+      state, view);
+}
+
+template <typename Eq, int N, typename Layout, int Rank>
+void Load(
+    ConservativeArray<Eq, N>& state,
+    const BasicView<const Conservative<Eq>, Layout, Rank>& view,
+    nodeduce_t<const std::array<std::ptrdiff_t, std::size_t(Rank)>&> index) {
+  ForEachComponent(
+      [&](auto&& component, auto data) {
+        component = Load(int_constant<N>(), data, index);
       },
       state, view);
 }
@@ -202,6 +238,34 @@ void LoadN(CompleteArray<Eq>& state,
 }
 
 template <typename Eq>
+void LoadN(ConservativeArray<Eq>& state,
+           nodeduce_t<ViewPointer<const Conservative<Eq>>> pointer, int n) {
+  FUB_ASSERT(n <= kDefaultChunkSize);
+  ForEachVariable(
+      overloaded{[n](Array1d& x, const double* p) {
+#ifdef __clang__
+#pragma clang loop vectorize(disable)
+#endif
+                   for (int i = 0; i < n; ++i) {
+                     x(i) = p[i];
+                   }
+                 },
+                 [n](auto& xs, std::pair<const double*, std::ptrdiff_t> ps) {
+                   const double* p = ps.first;
+                   for (int i = 0; i < xs.rows(); ++i) {
+#ifdef __clang__
+#pragma clang loop vectorize(disable)
+#endif
+                     for (int j = 0; j < n; ++j) {
+                       xs(i, j) = p[j];
+                     }
+                     p += ps.second;
+                   }
+                 }},
+      state, pointer);
+}
+
+template <typename Eq>
 void Store(nodeduce_t<ViewPointer<Conservative<Eq>>> pointer,
            const ConservativeArray<Eq>& state) {
   ForEachVariable(overloaded{[](double* p, const Array1d& x) {
@@ -217,8 +281,47 @@ void Store(nodeduce_t<ViewPointer<Conservative<Eq>>> pointer,
 }
 
 template <typename Eq>
+void Store(nodeduce_t<ViewPointer<Complete<Eq>>> pointer,
+           const CompleteArray<Eq>& state) {
+  ForEachVariable(overloaded{[](double* p, const Array1d& x) {
+                               Eigen::Map<Array1d>{p} = x;
+                             },
+                             [](auto& ptr, const auto& x) {
+                               for (int i = 0; i < x.rows(); ++i) {
+                                 Eigen::Map<Array1d>(ptr.first) = x.row(i);
+                                 ptr.first += ptr.second;
+                               }
+                             }},
+                  pointer, state);
+}
+
+template <typename Eq>
 void StoreN(nodeduce_t<ViewPointer<Conservative<Eq>>> pointer,
             const ConservativeArray<Eq>& state, int n) {
+  ForEachVariable(overloaded{[n](double* p, const Array1d& x) {
+#ifdef __clang__
+#pragma clang loop vectorize(disable)
+#endif
+                               for (int i = 0; i < n; ++i) {
+                                 p[i] = x(i);
+                               }
+                             },
+                             [n](auto& ptr, const auto& x) {
+                               for (int i = 0; i < x.rows(); ++i) {
+#ifdef __clang__
+#pragma clang loop vectorize(disable)
+#endif
+                                 for (int j = 0; j < n; ++j) {
+                                   ptr.first[i * ptr.second + j] = x(i, j);
+                                 }
+                               }
+                             }},
+                  pointer, state);
+}
+
+template <typename Eq>
+void StoreN(nodeduce_t<ViewPointer<Complete<Eq>>> pointer,
+            const CompleteArray<Eq>& state, int n) {
   ForEachVariable(overloaded{[n](double* p, const Array1d& x) {
 #ifdef __clang__
 #pragma clang loop vectorize(disable)

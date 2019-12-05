@@ -26,8 +26,8 @@
 namespace fub {
 
 template <typename LevelIntegrator>
-using IntegratorContext = std::decay_t<decltype(
-    std::declval<LevelIntegrator>().GetIntegratorContext())>;
+using IntegratorContext =
+    std::decay_t<decltype(std::declval<LevelIntegrator>().GetContext())>;
 
 template <typename Context, typename... Args>
 using PreAdvanceHierarchy = decltype(
@@ -37,10 +37,17 @@ template <typename Context, typename... Args>
 using PostAdvanceHierarchy = decltype(
     std::declval<Context>().PostAdvanceHierarchy(std::declval<Args>()...));
 
-template <typename LevelIntegrator, typename SplittingMethod = GodunovSplitting>
-struct HyperbolicSplitSystemSolver {
-  using Equation = typename LevelIntegrator::Equation;
-  using GriddingAlgorithm = typename LevelIntegrator::GriddingAlgorithm;
+template <typename LevelIntegrator> struct HyperbolicSplitSystemSolver {
+  using Equation =
+      std::decay_t<decltype(std::declval<LevelIntegrator&>().GetEquation())>;
+
+  using Context =
+      std::decay_t<decltype(std::declval<LevelIntegrator&>().GetContext())>;
+
+  using GriddingAlgorithm =
+      std::decay_t<decltype(*std::declval<Context&>().GetGriddingAlgorithm())>;
+
+  static constexpr int Rank = Equation::Rank();
 
   HyperbolicSplitSystemSolver(LevelIntegrator level_integrator,
                               SplittingMethod split = SplittingMethod())
@@ -58,66 +65,67 @@ struct HyperbolicSplitSystemSolver {
   void PreAdvanceHierarchy() {
     using Context = IntegratorContext<LevelIntegrator>;
     if constexpr (is_detected<::fub::PreAdvanceHierarchy, Context&>()) {
-      Context& context = integrator.GetIntegratorContext();
+      Context& context = integrator.GetContext();
       context.PreAdvanceHierarchy();
     }
-    using FluxMethod = std::decay_t<decltype(integrator.GetFluxMethod())>;
-    if constexpr (is_detected<::fub::PreAdvanceHierarchy, FluxMethod&,
-                              Context&>()) {
-      FluxMethod& method = integrator.GetFluxMethod();
-      Context& context = integrator.GetIntegratorContext();
-      method.PreAdvanceHierarchy(context);
-    }
+    // using FluxMethod = std::decay_t<decltype(integrator.GetFluxMethod())>;
+    // if constexpr (is_detected<::fub::PreAdvanceHierarchy, FluxMethod&,
+    //                           Context&>()) {
+    //   FluxMethod& method = integrator.GetFluxMethod();
+    //   Context& context = integrator.GetIntegratorContext();
+    //   method.PreAdvanceHierarchy(context);
+    // }
   }
 
   void PostAdvanceHierarchy() {
     using Context = IntegratorContext<LevelIntegrator>;
     if constexpr (is_detected<::fub::PostAdvanceHierarchy, Context&>()) {
-      Context& context = integrator.GetIntegratorContext();
+      Context& context = integrator.GetContext();
       context.PostAdvanceHierarchy();
     }
-    using FluxMethod = std::decay_t<decltype(integrator.GetFluxMethod())>;
-    if constexpr (is_detected<::fub::PostAdvanceHierarchy, FluxMethod&,
-                              Context&>()) {
-      FluxMethod& method = integrator.GetFluxMethod();
-      Context& context = integrator.GetIntegratorContext();
-      method.PostAdvanceHierarchy(context);
-    }
+    // using FluxMethod = std::decay_t<decltype(integrator.GetFluxMethod())>;
+    // if constexpr (is_detected<::fub::PostAdvanceHierarchy, FluxMethod&,
+    //                           Context&>()) {
+    //   FluxMethod& method = integrator.GetFluxMethod();
+    //   Context& context = integrator.GetIntegratorContext();
+    //   method.PostAdvanceHierarchy(context);
+    // }
   }
 
   Duration ComputeStableDt() {
     Duration dt(std::numeric_limits<double>::infinity());
-    for (int d = 0; d < LevelIntegrator::Rank(); ++d) {
+    for (int d = 0; d < Rank; ++d) {
       Direction dir = static_cast<Direction>(d);
       dt = std::min(dt, integrator.ComputeStableDt(dir));
     }
     return Duration(dt);
   }
 
-  std::array<Direction, LevelIntegrator::Rank()> MakeSplitDirections() {
-    std::array<Direction, LevelIntegrator::Rank()> dirs;
-    for (std::size_t i = 0;
-         i < static_cast<std::size_t>(LevelIntegrator::Rank()); ++i) {
+  std::array<Direction, static_cast<std::size_t>(Rank)> MakeSplitDirections() {
+    std::array<Direction, static_cast<std::size_t>(Rank)> dirs;
+    for (std::size_t i = 0; i < static_cast<std::size_t>(Rank); ++i) {
       dirs[i] = static_cast<Direction>(i);
     }
     return dirs;
   }
 
-  const std::shared_ptr<GriddingAlgorithm>& GetGriddingAlgorithm() const
-      noexcept {
-    return integrator.GetGriddingAlgorithm();
-  }
+  auto& GetContext() noexcept { return integrator.GetContext(); }
+  const auto& GetContext() const noexcept { return integrator.GetContext(); }
 
-  const auto& GetPatchHierarchy() const {
-    return integrator.GetPatchHierarchy();
+  const std::shared_ptr<GriddingAlgorithm>& GetGriddingAlgorithm() const {
+    return integrator.GetContext().GetGriddingAlgorithm();
   }
+  //
+  //  const auto& GetPatchHierarchy() const {
+  //    return GetGriddingAlgorithm()->GetPatchHierarchy();
+  //  }
 
   Duration GetTimePoint() const {
-    return integrator.GetTimePoint(0, Direction::X);
+    return integrator.GetContext().GetTimePoint(0, Direction::X);
   }
 
   std::ptrdiff_t GetCycles() const {
-    return integrator.GetCycles(0, Direction::X);
+    return integrator.GetContext().GetCycles(0, Direction::X);
   }
 
   Result<void, TimeStepTooLarge>
@@ -126,7 +134,7 @@ struct HyperbolicSplitSystemSolver {
     // is_invokable<void, Duration>.
     auto MakeAdvanceFunction = [&](Direction dir) {
       return [&, dir](std::chrono::duration<double> dt) {
-        return integrator.AdvanceLevel(0, dir, dt);
+        return integrator.AdvanceLevel(0, dir, dt, 0);
       };
     };
     // We construct for each split direction a function which will be passed to
@@ -138,10 +146,6 @@ struct HyperbolicSplitSystemSolver {
         // TODO: Maybe randomize the directions array?
         MakeSplitDirections());
   }
-
-  //  Equation& GetEquation() {
-  //    return integrator.GetEquation();
-  //  }
 
   const Equation& GetEquation() const { return integrator.GetEquation(); }
 

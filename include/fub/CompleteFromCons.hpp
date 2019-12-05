@@ -21,8 +21,10 @@
 #ifndef FUB_COMPLETE_FROM_CONS_HPP
 #define FUB_COMPLETE_FROM_CONS_HPP
 
+#include "Execution.hpp"
 #include "fub/State.hpp"
 #include "fub/StateArray.hpp"
+#include "fub/StateRow.hpp"
 
 #include <cstring>
 #include <type_traits>
@@ -82,6 +84,24 @@ void CompleteFromCons(Equation&& equation,
 template <typename Equation>
 void CompleteFromCons(Equation&& equation,
                       CompleteArray<std::decay_t<Equation>>& complete,
+                      const ConservativeArrayBase<std::decay_t<Equation>>& cons,
+                      MaskArray mask) {
+  using Eq = std::decay_t<Equation>;
+  if constexpr (is_detected<CompleteFromConsMemberFunction, Equation,
+                            CompleteArray<Eq>&, const ConservativeArray<Eq>&,
+                            MaskArray>::value) {
+    equation.CompleteFromCons(complete, cons, mask);
+  } else {
+    static_assert(sizeof(Complete<Eq>) == sizeof(Conservative<Eq>));
+    ForEachVariable(
+        [&](auto& dest, const auto& src) { dest = mask.select(src, dest); },
+        AsCons(complete), cons);
+  }
+}
+
+template <typename Equation>
+void CompleteFromCons(Equation&& equation,
+                      CompleteArray<std::decay_t<Equation>>& complete,
                       const CompleteArray<std::decay_t<Equation>>& cons) {
   using Eq = std::decay_t<Equation>;
   if constexpr (is_detected<CompleteFromConsMemberFunction, Equation,
@@ -107,6 +127,71 @@ void CompleteFromCons(
     Store(complete_view, complete, {is...});
   });
 }
+
+template <typename Equation> struct CompleteFromConsFn {
+  Equation equation_;
+  CompleteArray<Equation> complete_array_{equation_};
+  ConservativeArray<Equation> cons_array_{equation_};
+  Complete<Equation> complete_{equation_};
+  Conservative<Equation> cons_{equation_};
+
+  struct CompleteFromCons_Rows {
+    CompleteFromConsFn<Equation>* this_;
+
+    void operator()(const Row<Complete<Equation>>& complete_row,
+                    const Row<const Conservative<Equation>>& cons_row) const {
+      ViewPointer in = Begin(cons_row);
+      ViewPointer end = End(cons_row);
+      ViewPointer out = Begin(complete_row);
+      Equation& equation = this_->equation_;
+      CompleteArray<Equation>& complete = this_->complete_array_;
+      ConservativeArray<Equation>& cons = this_->cons_array_;
+      int n = static_cast<int>(get<0>(end) - get<0>(in));
+      while (n >= kDefaultChunkSize) {
+        Load(cons, in);
+        ::fub::CompleteFromCons(equation, complete, cons);
+        Store(out, complete);
+        Advance(in, kDefaultChunkSize);
+        Advance(out, kDefaultChunkSize);
+        n = static_cast<int>(get<0>(end) - get<0>(in));
+      }
+      LoadN(cons, in, n);
+      ::fub::CompleteFromCons(equation, complete, cons);
+      StoreN(out, complete, n);
+    }
+  };
+
+  void CompleteFromCons(execution::SimdTag,
+                        const View<Complete<Equation>>& complete_view,
+                        const View<const Conservative<Equation>>& cons_view) {
+    FUB_ASSERT(Box<0>(complete_view) == Box<0>(cons_view));
+    ForEachRow(std::tuple{complete_view, cons_view},
+               CompleteFromCons_Rows{this});
+  }
+
+  void CompleteFromCons(execution::SequentialTag,
+                        const View<Complete<Equation>>& complete_view,
+                        const View<const Conservative<Equation>>& cons_view) {
+    FUB_ASSERT(Box<0>(complete_view) == Box<0>(cons_view));
+    ForEachIndex(Box<0>(cons_view), [&](auto... is) {
+      Load(cons_, cons_view, {is...});
+      ::fub::CompleteFromCons(equation_, complete_, cons_);
+      Store(complete_view, complete_, {is...});
+    });
+  }
+
+  void CompleteFromCons(execution::OpenMpTag,
+                        const View<Complete<Equation>>& complete_view,
+                        const View<const Conservative<Equation>>& cons_view) {
+    return CompleteFromCons(execution::seq, complete_view, cons_view);
+  }
+
+  void CompleteFromCons(execution::OpenMpSimdTag,
+                        const View<Complete<Equation>>& complete_view,
+                        const View<const Conservative<Equation>>& cons_view) {
+    return CompleteFromCons(execution::simd, complete_view, cons_view);
+  }
+};
 
 } // namespace fub
 

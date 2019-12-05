@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/grid/SAMRAI/utility.hpp"
+#include "fub/SAMRAI/utility.hpp"
 #include "fub/core/assert.hpp"
 
 #include "SAMRAI/geom/CartesianGridGeometry.h"

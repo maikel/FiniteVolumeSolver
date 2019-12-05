@@ -24,6 +24,7 @@
 
 #include "fub/core/function_ref.hpp"
 #include "fub/core/span.hpp"
+#include "fub/ext/Eigen.hpp"
 #include "fub/ode_solver/OdeSolver.hpp"
 
 #include <limits>
@@ -60,6 +61,8 @@ struct FlameMasterMechanism {
 
   virtual void ComputeThermoData(span<double> h, span<double> cp, double t,
                                  span<double> s) const = 0;
+
+  virtual void ComputeThermoData(ArrayXd& h, ArrayXd& cp, Array1d t) const = 0;
 
   virtual int getNSpecies() const = 0;
 
@@ -125,7 +128,29 @@ struct FlameMasterState {
   std::array<double, 2> setPVector;
 
   /// Temperature at which the thermodynamic state was last evaluated
-  double thermoTemp;
+  double thermoTemp{};
+};
+
+struct FlameMasterArrayState {
+  ArrayXd massFractions;
+  ArrayXd moles;
+  ArrayXd molesStorage;
+
+  /// We make this a pointer because we want to make sure it is stored at the
+  /// beginning of moles (for CVode)
+  Array1d temperature{Array1d::Zero()};
+  /// Temperature at which the thermodynamic state was last evaluated
+  Array1d thermoTemp{Array1d::Zero()};
+  Array1d density{Array1d::Zero()};
+
+  /// Computational space for the reaction mechanism
+  ArrayXd production_rates;
+  ArrayXd reaction_rates;
+  ArrayXd rate_coefficients;
+  ArrayXd third_body_concentrations;
+  ArrayXd enthalpies;
+  ArrayXd heat_capacities_at_constant_pressure;
+  ArrayXd entropies;
 };
 
 /// \ingroup Euler
@@ -199,6 +224,11 @@ public:
            GetTemperature();
   }
 
+  Array1d GetPressureArray() const {
+    return GetDensityArray() * GetUniversalGasConstant() /
+           GetMeanMolarMassArray() * GetTemperatureArray();
+  }
+
   /**
    * Set the pressure of the mixture
    *
@@ -210,6 +240,11 @@ public:
   void SetPressure(double pressure) {
     SetDensity(pressure * GetMeanMolarMass() / GetTemperature() /
                GetUniversalGasConstant());
+  }
+
+  void SetPressureArray(Array1d pressure) {
+    SetDensityArray(pressure * GetMeanMolarMassArray() / GetTemperatureArray() /
+                    GetUniversalGasConstant());
   }
 
   /**
@@ -232,6 +267,7 @@ public:
   ///
   /// The units are \f$kg/m^3\f$
   double GetDensity() const { return state_.density; }
+  Array1d GetDensityArray() const { return array_state_.density; }
 
   /**
    * Sets the density of the current mixture
@@ -239,13 +275,19 @@ public:
    * The units are \f$kg/m^3\f$
    */
   void SetDensity(double density) { state_.density = density; }
+  void SetDensityArray(Array1d density) { array_state_.density = density; }
 
   /**
    * Returns the temperature of the current mixture
    *
    * In Kelvin
    */
-  double GetTemperature() const { return *(state_.temperature); }
+  [[nodiscard]] double GetTemperature() const noexcept {
+    return *(state_.temperature);
+  }
+  [[nodiscard]] Array1d GetTemperatureArray() const noexcept {
+    return array_state_.temperature;
+  }
 
   /**
    * Set the temperature of the current mixture
@@ -253,21 +295,25 @@ public:
    * In Kelvin
    */
   void SetTemperature(double temperature);
+  void SetTemperatureArray(Array1d temperature);
 
   /**
    * Return the specific heat capacity cv
    */
   double GetCv() const;
+  Array1d GetCvArray() const;
 
   /**
    * Return the specific heat capacity cp
    */
   double GetCp() const;
+  Array1d GetCpArray() const;
 
   /**
    * Return the specific heat capacities cp for all species
    */
   span<const double> GetCps() const;
+  const ArrayXd& GetCpsArray() const;
 
   /**
    * Return the specific entropy
@@ -301,11 +347,13 @@ public:
    * Average a quantity over the mole fractions
    */
   double MeanX(span<const double> quantity) const;
+  Array1d MeanX(const ArrayXd& quantity) const;
 
   /**
    * Average a quantity over the mass fractions
    */
   double MeanY(span<const double> quantity) const;
+  Array1d MeanY(const ArrayXd& quantity) const;
 
   ///@{
   /**
@@ -317,6 +365,7 @@ public:
    *
    */
   void SetMassFractions(span<const double> newMassFractions);
+  void SetMassFractionsArray(const ArrayXd& newMassFractions);
   void SetMassFractions(std::string massFractions);
   ///@}
 
@@ -329,6 +378,7 @@ public:
    *   species: fraction, species: fraction, ..
    */
   void SetMoleFractions(span<const double> newMoleFractions);
+  void SetMoleFractionsArray(const ArrayXd& newMoleFractions);
   void SetMoleFractions(std::string newMoleFractions);
   ///@}
 
@@ -337,6 +387,10 @@ public:
    */
   span<const double> GetMassFractions() const { return state_.massFractions; }
   span<const double> GetMoleFractions();
+  const ArrayXd& GetMassFractionsArray() const {
+    return array_state_.massFractions;
+  }
+  const ArrayXd& GetMoleFractionsArray();
 
   /**
    * get the molar mass of a single species
@@ -356,6 +410,7 @@ public:
    * Units are \f$kg/kmol\f$
    */
   double GetMeanMolarMass() const;
+  Array1d GetMeanMolarMassArray() const;
 
   /**
    * get the species' enthalpies
@@ -368,6 +423,7 @@ public:
    * The unit is \f$J/kg\f$
    */
   double GetEnthalpy() const;
+  Array1d GetEnthalpyArray() const;
 
   /**
    * Set the mix'es specific enthalpy
@@ -385,6 +441,7 @@ public:
    * The unit is \f$J/kg\f$
    */
   double GetInternalEnergy() const;
+  Array1d GetInternalEnergyArray() const;
 
   /**
    * Set the mix'es specific internal energy
@@ -394,13 +451,18 @@ public:
    * using the same Newton algorithm which is also used by Cantera.
    */
   void SetInternalEnergy(double energy, double dTtol = 1E-6);
+  void SetInternalEnergyArray(Array1d energy, double dTtol = 1E-6);
+  void SetInternalEnergyArray(Array1d energy, MaskArray mask,
+                              double dTtol = 1E-6);
   ///@}
 
   /// \brief get the current reaction rates d/dt m, where m denotes the actual
   /// mole counts: Y = m * molarMasses / density
   span<const double> GetReactionRates() const;
+  const ArrayXd& GetReactionRatesArray() const;
 
   span<const double> GetProductionRates();
+  const ArrayXd& GetProductionRatesArray() const;
 
   /// \brief Retrieve the universal gas constant.
   ///
@@ -411,6 +473,7 @@ public:
 private:
   const FlameMasterMechanism* mechanism_;
   FlameMasterState state_;
+  FlameMasterArrayState array_state_;
   std::unique_ptr<OdeSolver> ode_solver_;
 };
 

@@ -2,16 +2,41 @@ cmake_minimum_required(VERSION 3.13)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 project(FiniteVolumeSolver C CXX Fortran)
 
+# Set a default build type if none was specified
+set(default_build_type "Release")
+if(EXISTS "${CMAKE_SOURCE_DIR}/.git")
+  set(default_build_type "Debug")
+endif()
+
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+  message(STATUS "Setting build type to '${default_build_type}' as none was specified.")
+  set(CMAKE_BUILD_TYPE "${default_build_type}" CACHE
+      STRING "Choose the type of build." FORCE)
+  # Set the possible values of build type for cmake-gui
+  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
+    "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+else()
+  message(STATUS "Setting build type to '${CMAKE_BUILD_TYPE}'.")
+endif()
+
 # Detect if we use conan to build this project and its dependencies.
 # If yes, we include the neccessary build information, i.e. include paths and
 # linker options.
 if (EXISTS ${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
   include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-  conan_basic_setup()
+  conan_basic_setup(TARGETS NO_OUTPUT_DIRS)
+  set(Boost_NO_BOOST_CMAKE ON)
+  set(Boost_NO_SYSTEM_PATHS ON)
+  set(BOOST_ROOT ${CONAN_BOOST_ROOT})
+endif()
+
+find_package(range-v3 REQUIRED)
+if (NOT TARGET range-v3) 
+  message(FATAL "Could not find range-v3 target.")
 endif()
 
 # Try to find SAMRAI (optional)
-find_package(Boost REQUIRED COMPONENTS filesystem)
+find_package(Boost REQUIRED COMPONENTS filesystem container program_options serialization log)
 
 find_package(SAMRAI QUIET)
 if (SAMRAI_FOUND)
@@ -22,8 +47,11 @@ else()
   option(FUB_WITH_SAMRAI "Compile with SAMRAI modules." OFF)
 endif()
 
+find_package(MPI REQUIRED COMPONENTS C CXX)
+
 # Try to find AMReX (optional)
 find_package(AMReX QUIET)
+
 
 if (AMReX_FOUND)
   message(STATUS "AMReX version: ${AMReX_VERSION}")
@@ -33,7 +61,12 @@ else()
   option(FUB_WITH_AMREX "Compile with AMReX modules." OFF)
 endif()
 
-find_package(Eigen3 3.3 REQUIRED NO_MODULE)
+if (TARGET CONAN_PKG::Eigen3)
+  add_library(Eigen3::Eigen IMPORTED INTERFACE)
+  target_link_libraries(Eigen3::Eigen INTERFACE CONAN_PKG::Eigen3)
+else()
+  find_package(Eigen3 3.3 REQUIRED NO_MODULE)
+endif()
 
 # Attempt to find Sundials (which contains an optional ODE solver)
 find_package(Sundials QUIET)
@@ -68,6 +101,8 @@ else()
   option(FUB_WITH_OPENMP "Fallback to OpenMP for shared memory parallelism." OFF)
 endif()
 
+set(FUB_DEFAULT_CHUNK_SIZE "8" CACHE STRING "The Array width for vectorization routines")
+
 # In a multi-threaded environment we have to specify '-fopenmp' else we risk 
 # data races in the fortran implementation of RADAU.
 add_library(RadauSolverFortran
@@ -86,7 +121,7 @@ install(
 )
 
 # Write information about found libraries into fub/config.hpp
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/include/fub/config.hpp.in 
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/include/fub/config.hpp.in
                ${CMAKE_BINARY_DIR}/include/fub/config.hpp)
 
 ################################################################################
@@ -111,7 +146,10 @@ install(
 ################################################################################
 # [FiniteVolumeSolver.OdeSolver]
 
-add_library(FiniteVolumeSolver.OdeSolver 
+add_library(FiniteVolumeSolver.OdeSolver
+  include/fub/ode_solver/OdeSolver.hpp
+  include/fub/ode_solver/RadauSolver.hpp 
+  include/fub/ode_solver/OdeSolverFactory.hpp
   src/ode_solver/RadauSolver.cpp
   src/ode_solver/OdeSolverFactory.cpp)
 
@@ -138,34 +176,129 @@ install(
 )
 
 find_package(fmt REQUIRED)
+find_package(Vc REQUIRED)
+find_package(HDF5 REQUIRED COMPONENTS C)
+find_package(pybind11 REQUIRED)
 
 add_library(FiniteVolumeSolver.Solver
+  include/fub/boundary_condition/TransmissiveBoundary.hpp
+  include/fub/boundary_condition/ReflectiveBoundary.hpp
+  include/fub/equations/ideal_gas_mix/mechanism/Burke2012.hpp
+  include/fub/equations/ideal_gas_mix/FlameMasterReactor.hpp
+  include/fub/equations/ideal_gas_mix/KineticSourceTerm.hpp
+  include/fub/equations/Advection.hpp
+  include/fub/equations/Burgers.hpp
+  include/fub/equations/IdealGasMix.hpp
+  include/fub/equations/PerfectGas.hpp
+  include/fub/equations/ShallowWater.hpp
+  include/fub/ext/Eigen.hpp
+  include/fub/ext/outcome.hpp
+  include/fub/ext/Log.hpp
+  include/fub/ext/Mpi.hpp
+  include/fub/flux_method/FluxMethod.hpp
+  include/fub/flux_method/GodunovMethod.hpp
+  include/fub/flux_method/HllMethod.hpp
+  include/fub/flux_method/MusclHancockMethod.hpp
+  include/fub/cutcell_method/KbnStabilisation.hpp
+  include/fub/initial_data/Constant.hpp
+  include/fub/initial_data/ShockMachnumber.hpp
+  include/fub/tagging/GradientDetector.hpp
+  include/fub/tagging/TagBuffer.hpp
+  include/fub/tagging/TagCutCells.hpp
+  include/fub/geometry/Geometry.hpp
+  include/fub/geometry/Halfspace.hpp
+  include/fub/geometry/ExpandTube.hpp
+  include/fub/geometry/Polygon.hpp
+  include/fub/geometry/Cone.hpp
+  include/fub/output/BasicOutput.hpp
+  include/fub/output/OutputAtFrequencyOrInterval.hpp
+  include/fub/output/AsOutput.hpp
+  include/fub/Solver.hpp
+  include/fub/CompleteFromCons.hpp
+  include/fub/CutCellData.hpp
+  include/fub/Direction.hpp
+  include/fub/Duration.hpp
+  include/fub/EinfeldtSignalVelocities.hpp
+  include/fub/Execution.hpp
+  include/fub/ForEach.hpp
+  include/fub/solver/DimensionalSplitLevelIntegrator.hpp
+  include/fub/solver/NoSubcycleSolver.hpp
+  include/fub/solver/SolverFacade.hpp
+  include/fub/solver/SplitSystemSourceLevelIntegrator.hpp
+  include/fub/solver/SubcycleCoarseFirstSolver.hpp
+  include/fub/solver/SubcycleFineFirstSolver.hpp
+  include/fub/HyperbolicPatchIntegrator.hpp
+  include/fub/HyperbolicMethod.hpp
+  include/fub/NewtonIteration.hpp
+  include/fub/PatchDataView.hpp
+  include/fub/RunSimulation.hpp
+  include/fub/State.hpp
+  include/fub/StateArray.hpp
+  include/fub/StateRow.hpp
+  include/fub/TimeStepError.hpp
+  include/fub/split_method/SplittingMethod.hpp
+  include/fub/split_method/GodunovSplitting.hpp
+  include/fub/split_method/StrangSplitting.hpp
+  include/fub/ext/ProgramOptions.hpp
+  include/fub/counter/Counter.hpp
+  include/fub/counter/CounterRegistry.hpp
+  include/fub/counter/CounterResult.hpp
+  include/fub/counter/Timer.hpp
+  src/ext/Log.cpp
+  src/boundary_condition/ReflectiveBoundary.cpp
   src/equations/Advection.cpp
+  src/equations/advection/GodunovMethod.cpp
+  src/equations/advection/MusclHancockMethod.cpp
   src/equations/Burgers.cpp
+  src/equations/burgers/GodunovMethod.cpp
+  src/equations/burgers/MusclHancockMethod.cpp
   src/equations/ShallowWater.cpp
+  src/equations/shallow_water/GodunovMethod.cpp
+  src/equations/shallow_water/HllMethod.cpp
+  src/equations/shallow_water/MusclHancockMethod.cpp
   src/equations/PerfectGas.cpp
+  src/equations/perfect_gas/GodunovMethod.cpp
+  src/equations/perfect_gas/MusclHancockMethod.cpp
   src/equations/IdealGasMix.cpp
+  src/equations/ideal_gas_mix/HllMethod.cpp
+  src/equations/ideal_gas_mix/MusclHancockMethod.cpp
   src/equations/ideal_gas_mix/FlameMasterReactor.cpp
+  src/geometry/Cone.cpp
   src/equations/ideal_gas_mix/mechanism/Burke2012.cpp
-  src/CartesianCoordinates.cpp
+  src/cutcell_method/KbnStabilisation.cpp
+  src/tagging/TagBuffer.cpp
+  src/tagging/TagCutCells.cpp
+  src/ext/Mpi.cpp
   src/split_method/GodunovSplitting.cpp
   src/split_method/StrangSplitting.cpp
   src/geometry/Halfspace.cpp
-  src/RunSimulation.cpp)
+  src/geometry/Polygon.cpp
+  src/geometry/ExpandTube.cpp
+  src/CutCellData.cpp
+  src/HyperbolicPatchIntegrator.cpp
+  src/RunSimulation.cpp
+  src/ext/ProgramOptions.cpp
+  src/counter/Counter.cpp
+  src/counter/CounterRegistry.cpp
+  src/counter/Timer.cpp)
 target_link_libraries(FiniteVolumeSolver.Solver
   PUBLIC
     FiniteVolumeSolver.Core
     FiniteVolumeSolver.OdeSolver
+    MPI::MPI_C
     fmt::fmt-header-only
-    Boost::boost
-    Eigen3::Eigen)
+    Boost::container
+    Boost::log
+    Boost::program_options
+    Boost::serialization
+    Eigen3::Eigen
+    Vc::Vc
+    pybind11::embed)
 target_compile_options(FiniteVolumeSolver.Solver 
   PRIVATE 
   $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
   $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall>
-  $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>
-  $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wconversion>
-  $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wsign-conversion>)
+  $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>)
 install(
   TARGETS FiniteVolumeSolver.Solver
   EXPORT FiniteVolumeSolver
@@ -177,13 +310,56 @@ install(
 
 if (AMReX_FOUND AND TARGET AMReX::amrex)
   add_library(FiniteVolumeSolver.AMReX
+    include/fub/AMReX.hpp
+    include/fub/AMReX/boundary_condition/BoundarySet.hpp
+    include/fub/AMReX/boundary_condition/TransmissiveBoundary.hpp
+    include/fub/AMReX/boundary_condition/ReflectiveBoundary.hpp
+    include/fub/AMReX/boundary_condition/IsentropicPressureBoundary.hpp
+    include/fub/AMReX/boundary_condition/PressureValveBoundary.hpp
+    include/fub/AMReX/initial_data/ConstantData.hpp
+    include/fub/AMReX/AxialSourceTerm.hpp
+    include/fub/AMReX/GriddingAlgorithm.hpp
+    include/fub/AMReX/IgniteDetonation.hpp
+    include/fub/AMReX/PatchHierarchy.hpp
+    include/fub/AMReX/Reconstruction.hpp
+    include/fub/AMReX/RunSimulation.hpp
+    include/fub/AMReX/BoundaryCondition.hpp
+    include/fub/AMReX/Tagging.hpp
+    include/fub/AMReX/TimeIntegrator.hpp
+    include/fub/AMReX/IntegratorContext.hpp
+    include/fub/AMReX/InitialData.hpp
+    include/fub/AMReX/FluxMethod.hpp
+    include/fub/AMReX/ScopeGuard.hpp
+    include/fub/AMReX/ViewFArrayBox.hpp
+    include/fub/AMReX/tagging/TagBuffer.hpp
+    include/fub/AMReX/tagging/ConstantRegion.hpp
+    include/fub/geometry/Geometry.hpp
+    include/fub/geometry/PolymorphicGeometry.hpp
+    include/fub/geometry/Union.hpp
+    include/fub/AMReX/output/WriteHdf5.hpp
+    include/fub/AMReX/output/LogProbes.hpp
+    include/fub/AMReX/output/WritePlotfiles.hpp
+    src/AMReX/output/LogProbes.cpp
+    src/AMReX/output/WriteHdf5.cpp
+    src/equations/ideal_gas_mix/KineticSourceTerm.cpp
+    src/AMReX/boundary_condition/BoundarySet.cpp
+    src/AMReX/boundary_condition/TransmissiveBoundary.cpp
+    src/AMReX/boundary_condition/IsentropicPressureBoundary.cpp
+    src/AMReX/boundary_condition/PressureValveBoundary.cpp
+    src/AMReX/AxialSourceTerm.cpp
+    src/AMReX/IgniteDetonation.cpp
+    src/AMReX/FluxMethod.cpp
     src/AMReX/ScopeGuard.cpp
     src/AMReX/CartesianGridGeometry.cpp
     src/AMReX/ViewFArrayBox.cpp
     src/AMReX/PatchHierarchy.cpp
     src/AMReX/GriddingAlgorithm.cpp
     src/AMReX/BoundaryCondition.cpp
-    src/AMReX/HyperbolicSplitIntegratorContext.cpp)
+    src/AMReX/TimeIntegrator.cpp
+    src/AMReX/IntegratorContext.cpp
+    src/AMReX/tagging/TagBuffer.cpp
+    src/AMReX/tagging/ConstantRegion.cpp
+    src/geometry/Union.cpp)
   target_include_directories(FiniteVolumeSolver.AMReX
     PUBLIC
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -195,33 +371,81 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     PRIVATE
       $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
       $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall>
-      $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>
-      $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wconversion>
-      $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wsign-conversion>)
+      $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>)
   target_link_libraries(FiniteVolumeSolver.AMReX
     PUBLIC
       FiniteVolumeSolver.Solver
       AMReX::amrex
       Boost::boost
-      Eigen3::Eigen)
+      Boost::filesystem
+      Boost::serialization
+      Eigen3::Eigen
+      CONAN_PKG::HDF5)
+  target_include_directories(FiniteVolumeSolver.AMReX PUBLIC ${HDF5_C_INCLUDE_DIR})
 
-  if (AMREX_ENABLE_EB) 
+  if (AMReX_EB_FOUND) 
+    target_sources(FiniteVolumeSolver.AMReX PRIVATE
+        include/fub/AMReX/cutcell/AllRegularIndexSpace.hpp
+        src/AMReX/cutcell/AllRegularIndexSpace.cpp)
+
     add_library(FiniteVolumeSolver.AMReX.EB
-        src/CutCellData.cpp
         src/geometry/ExpandTube.cpp
+        include/fub/AMReX_CutCell.hpp
+        include/fub/AMReX/cutcell/BoundaryCondition.hpp
+        include/fub/AMReX/cutcell/FluxMethod.hpp
+        include/fub/AMReX/cutcell/GriddingAlgorithm.hpp
+        include/fub/AMReX/cutcell/IndexSpace.hpp
+        include/fub/AMReX/cutcell/InitialData.hpp
+        include/fub/AMReX/cutcell/PatchHierarchy.hpp
+        include/fub/AMReX/cutcell/Reconstruction.hpp
+        include/fub/AMReX/cutcell/IntegratorContext.hpp
+        include/fub/AMReX/cutcell/Tagging.hpp
+        include/fub/AMReX/cutcell/TimeIntegrator.hpp
+        include/fub/AMReX/cutcell/initial_data/RiemannProblem.hpp
+        include/fub/AMReX/cutcell/tagging/ConstantRegion.hpp
+        include/fub/AMReX/cutcell/tagging/GradientDetector.hpp
+        include/fub/AMReX/cutcell/tagging/TagBuffer.hpp
+        include/fub/AMReX/cutcell/tagging/TagCutCells.hpp
+        include/fub/AMReX/cutcell/boundary_condition/BoundarySet.hpp
+        include/fub/AMReX/cutcell/boundary_condition/TransmissiveBoundary.hpp
+        include/fub/AMReX/cutcell/boundary_condition/IsentropicPressureBoundary.hpp
+        include/fub/AMReX/cutcell/boundary_condition/MassflowBoundary.hpp
+        include/fub/AMReX/cutcell/boundary_condition/ReflectiveBoundary.hpp
+        include/fub/AMReX/cutcell/output/WriteHdf5.hpp
+        include/fub/AMReX/cutcell/output/WritePlotfiles.hpp
+        include/fub/AMReX/multi_block/MultiBlockBoundary.hpp
+        include/fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp
+        include/fub/AMReX/multi_block/MultiBlockIntegratorContext.hpp
+        include/fub/AMReX/multi_block/MultiBlockKineticSourceTerm.hpp
+        include/fub/AMReX/multi_block/MultiBlockIgniteDetonation.hpp
+        include/fub/AMReX/multi_block/MultiWriteHdf5.hpp
+        include/fub/AMReX/multi_block/MultiBlockPlotfileOutput.hpp
+        src/AMReX/multi_block/MultiBlockPlotfileOutput.cpp
+        src/AMReX/multi_block/MultiWriteHdf5.cpp
         src/AMReX/cutcell/BoundaryCondition.cpp
-        src/AMReX/cutcell/HyperbolicSplitIntegratorContext.cpp
+        src/AMReX/cutcell/IntegratorContext.cpp
         src/AMReX/cutcell/PatchHierarchy.cpp
         src/AMReX/cutcell/FillCutCellData.cpp
         src/AMReX/cutcell/GriddingAlgorithm.cpp
-        src/boundary_condition/CoupledBoundary.cpp)
+        src/AMReX/cutcell/TimeIntegrator.cpp
+        src/AMReX/cutcell/boundary_condition/BoundarySet.cpp
+        src/AMReX/cutcell/boundary_condition/TransmissiveBoundary.cpp
+        src/AMReX/cutcell/boundary_condition/IsentropicPressureBoundary.cpp
+        src/AMReX/cutcell/boundary_condition/MassflowBoundary.cpp
+        src/AMReX/cutcell/tagging/ConstantRegion.cpp
+        src/AMReX/cutcell/tagging/TagBuffer.cpp
+        src/AMReX/cutcell/tagging/TagCutCells.cpp
+        src/AMReX/cutcell/output/WriteHdf5.cpp
+        src/AMReX/multi_block/MultiBlockBoundary.cpp
+        src/AMReX/multi_block/MultiBlockGriddingAlgorithm.cpp
+        src/AMReX/multi_block/MultiBlockIntegratorContext.cpp
+        src/AMReX/multi_block/MultiBlockKineticSourceTerm.cpp
+        src/AMReX/multi_block/MultiBlockIgniteDetonation.cpp)
     target_compile_options(FiniteVolumeSolver.AMReX.EB
       PRIVATE
         $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
         $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall>
-        $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>
-        $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wconversion>
-        $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wsign-conversion>)
+        $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>)
     target_link_libraries(FiniteVolumeSolver.AMReX.EB PUBLIC FiniteVolumeSolver.AMReX)
   endif()
 
@@ -235,13 +459,27 @@ endif()
 
 if (SAMRAI_FOUND)
   add_library(FiniteVolumeSolver.SAMRAI
-    src/SAMRAI/HyperbolicSplitIntegratorContext.cpp
+    include/fub/SAMRAI/PatchHierarchy.hpp
+    include/fub/SAMRAI/IntegratorContext.hpp
+    include/fub/SAMRAI/RegisterVariables.hpp
+    include/fub/SAMRAI/ScopeGuard.hpp
+    include/fub/SAMRAI/GriddingAlgorithm.hpp
+    include/fub/SAMRAI/TimeIntegrator.hpp
+    include/fub/SAMRAI/BoundaryCondition.hpp
+    include/fub/SAMRAI/FluxMethod.hpp
+    include/fub/SAMRAI/InitialData.hpp
+    include/fub/SAMRAI/Reconstruction.hpp
+    include/fub/SAMRAI/ViewPatch.hpp
+    include/fub/SAMRAI/tagging/GradientDetector.hpp
+    include/fub/SAMRAI/tagging/ConstantBox.hpp
+    src/SAMRAI/PatchHierarchy.cpp
+    src/SAMRAI/IntegratorContext.cpp
     src/SAMRAI/ScopeGuard.cpp
-    src/SAMRAI/utility.cpp
-    src/SAMRAI/CartesianPatchHierarchy.cpp
+    src/SAMRAI/RegisterVariables.cpp
     src/SAMRAI/GriddingAlgorithm.cpp
     src/SAMRAI/ViewPatch.cpp
-    src/SAMRAI/RegisterVariables.cpp)
+    src/SAMRAI/TimeIntegrator.cpp
+    src/SAMRAI/tagging/ConstantBox.cpp)
   target_include_directories(FiniteVolumeSolver.SAMRAI 
     PUBLIC 
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -252,7 +490,7 @@ if (SAMRAI_FOUND)
     PUBLIC
       FiniteVolumeSolver.Solver
       SAMRAI_appu SAMRAI_xfer SAMRAI_mesh SAMRAI_geom
-      SAMRAI_pdat SAMRAI_hier SAMRAI_tbox)
+      SAMRAI_pdat SAMRAI_hier SAMRAI_tbox range-v3)
   target_compile_options(FiniteVolumeSolver.SAMRAI 
     PRIVATE 
       $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>

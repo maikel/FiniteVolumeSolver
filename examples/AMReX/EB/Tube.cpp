@@ -18,46 +18,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/equations/PerfectGas.hpp"
-
-#include "fub/CartesianCoordinates.hpp"
-#include "fub/HyperbolicSplitCutCellPatchIntegrator.hpp"
-#include "fub/HyperbolicSplitLevelIntegrator.hpp"
-#include "fub/HyperbolicSplitSystemSolver.hpp"
-
-#include "fub/AMReX/FillCutCellData.hpp"
-#include "fub/AMReX/GriddingAlgorithm.hpp"
-#include "fub/AMReX/ScopeGuard.hpp"
-#include "fub/AMReX/cutcell/FluxMethod.hpp"
-#include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
-#include "fub/AMReX/cutcell/HyperbolicSplitIntegratorContext.hpp"
-#include "fub/AMReX/cutcell/HyperbolicSplitPatchIntegrator.hpp"
-#include "fub/AMReX/cutcell/IndexSpace.hpp"
-#include "fub/AMReX/cutcell/Reconstruction.hpp"
-#include "fub/AMReX/cutcell/Tagging.hpp"
-
-#include "fub/geometry/Halfspace.hpp"
-#include "fub/initial_data/RiemannProblem.hpp"
-
-#include "fub/tagging/GradientDetector.hpp"
-#include "fub/tagging/TagBuffer.hpp"
-#include "fub/tagging/TagCutCells.hpp"
-
-#include "fub/boundary_condition/TransmissiveBoundary.hpp"
-
-#include "fub/cutcell_method/KbnStabilisation.hpp"
-#include "fub/flux_method/MusclHancockMethod.hpp"
-
-#include "fub/RunSimulation.hpp"
-
-#include "fub/ForEach.hpp"
+#include <fub/AMReX.hpp>
+#include <fub/AMReX_CutCell.hpp>
+#include <fub/Solver.hpp>
 
 #include <AMReX_EB2_IF_Box.H>
 #include <AMReX_EB2_IF_Rotation.H>
-
-#include <iostream>
-
-#include <xmmintrin.h>
 
 int main(int argc, char** argv) {
   std::chrono::steady_clock::time_point wall_time_reference =
@@ -65,45 +31,37 @@ int main(int argc, char** argv) {
 
   fub::amrex::ScopeGuard _(argc, argv);
 
-  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() | _MM_MASK_DIV_ZERO |
-                         _MM_MASK_OVERFLOW | _MM_MASK_UNDERFLOW |
-                         _MM_MASK_INVALID);
+  static constexpr int Rank = AMREX_SPACEDIM;
 
-  const std::array<int, AMREX_SPACEDIM> n_cells{AMREX_D_DECL(128, 128, 1)};
-  const std::array<double, AMREX_SPACEDIM> xlower{
-      AMREX_D_DECL(-1.0, -1.0, -1.0)};
-  const std::array<double, AMREX_SPACEDIM> xupper{
-      AMREX_D_DECL(+1.0, +1.0, +1.0)};
+  const std::array<int, Rank> n_cells{128, 128};
+  const std::array<double, Rank> xlower{-1.0, -1.0};
+  const std::array<double, Rank> xupper{+1.0, +1.0};
   amrex::RealBox xbox(xlower, xupper);
-  const std::array<int, AMREX_SPACEDIM> periodicity{};
 
-  amrex::Geometry coarse_geom(
-      amrex::Box{
-          {}, {AMREX_D_DECL(n_cells[0] - 1, n_cells[1] - 1, n_cells[2] - 1)}},
-      &xbox, -1, periodicity.data());
+  fub::amrex::CartesianGridGeometry geometry;
+  geometry.cell_dimensions = n_cells;
+  geometry.coordinates = xbox;
 
-  const int n_level = 1;
+  amrex::Geometry coarse_geom(amrex::Box{{}, {n_cells[0] - 1, n_cells[1] - 1}},
+                              &xbox, -1, geometry.periodicity.data());
+
+  const int n_level = 4;
 
   auto embedded_boundary = ::amrex::EB2::rotate(
       ::amrex::EB2::BoxIF({-0.5, -0.5}, {+0.5, +0.5}, true), 0.25 * M_PI, 2);
   auto shop = amrex::EB2::makeShop(embedded_boundary);
 
   fub::PerfectGas<2> equation;
-  fub::amrex::DataDescription desc = fub::amrex::MakeDataDescription(equation);
 
-  fub::amrex::CartesianGridGeometry geometry;
-  geometry.cell_dimensions = n_cells;
-  geometry.coordinates = amrex::RealBox(xlower, xupper);
-  geometry.periodicity = periodicity;
+  using namespace fub::amrex::cutcell;
 
-  fub::amrex::cutcell::PatchHierarchyOptions options{};
+  PatchHierarchyOptions options{};
   options.max_number_of_levels = n_level;
-  options.index_spaces =
-      fub::amrex::cutcell::MakeIndexSpaces(shop, coarse_geom, n_level);
+  options.index_spaces = MakeIndexSpaces(shop, coarse_geom, n_level);
 
   fub::Conservative<fub::PerfectGas<2>> cons;
   cons.density = 1.0;
-  cons.momentum << 0.0, 0.0; // +100.0, -100.0;
+  cons.momentum << 0.0, 0.0;
   cons.energy = equation.gamma_minus_1_inv;
   fub::Complete<fub::PerfectGas<2>> right;
   fub::CompleteFromCons(equation, right, cons);
@@ -112,50 +70,48 @@ int main(int argc, char** argv) {
   fub::Complete<fub::PerfectGas<2>> left;
   fub::CompleteFromCons(equation, left, cons);
 
-  fub::amrex::cutcell::RiemannProblem initial_data(
-      equation, fub::Halfspace({+1.0, +1.0, 0.0}, 0.2), left, right);
+  RiemannProblem initial_data(equation, fub::Halfspace({+1.0, +1.0, 0.0}, 0.2),
+                              left, right);
 
   using State = fub::Complete<fub::PerfectGas<2>>;
-  fub::GradientDetector gradients{equation, std::pair{&State::pressure, 0.05},
-                                  std::pair{&State::density, 0.005}};
+  GradientDetector gradients{equation, std::pair{&State::pressure, 0.05},
+                             std::pair{&State::density, 0.005}};
 
-  fub::HyperbolicSplitCutCellPatchIntegrator patch_integrator{equation};
+  BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
+                                  TransmissiveBoundary{fub::Direction::X, 1},
+                                  TransmissiveBoundary{fub::Direction::Y, 0},
+                                  TransmissiveBoundary{fub::Direction::Y, 1}}};
+
+  std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
+      PatchHierarchy(equation, geometry, options), initial_data,
+      TagAllOf(TagCutCells(), gradients, TagBuffer(4)), boundary_condition);
+  gridding->InitializeHierarchy(0.0);
+
   fub::MusclHancockMethod flux_method(equation);
   fub::KbnCutCellMethod cutcell_method(std::move(flux_method));
 
-  auto gridding = std::make_shared<fub::amrex::cutcell::GriddingAlgorithm>(
-      fub::amrex::cutcell::PatchHierarchy(desc, geometry, options),
-      fub::amrex::cutcell::AdaptInitialData(initial_data, equation),
-      fub::amrex::cutcell::AdaptTagging(equation, fub::TagCutCells(), gradients,
-                                        fub::TagBuffer(4)),
-      fub::TransmissiveBoundary{equation});
-  gridding->InitializeHierarchy(0.0);
+  HyperbolicMethod method{FluxMethod{fub::execution::seq, cutcell_method},
+                          TimeIntegrator{},
+                          Reconstruction{fub::execution::seq, equation}};
 
-  const int gcw = cutcell_method.GetStencilWidth();
-  fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
-      fub::amrex::cutcell::HyperbolicSplitIntegratorContext(std::move(gridding),
-                                                            gcw),
-      fub::amrex::cutcell::HyperbolicSplitPatchIntegrator(patch_integrator),
-      fub::amrex::cutcell::FluxMethod(cutcell_method),
-      fub::amrex::cutcell::Reconstruction(equation)));
+  fub::DimensionalSplitLevelIntegrator level_integrator(
+      fub::int_c<2>, IntegratorContext(gridding, method));
+
+  fub::SubcycleFineFirstSolver solver(level_integrator);
 
   std::string base_name = "Tube/";
-  auto output = [&](const fub::amrex::cutcell::PatchHierarchy& hierarchy,
-                    std::ptrdiff_t cycle, fub::Duration) {
-    std::string name = fmt::format("{}{:05}", base_name, cycle);
-    ::amrex::Print() << "Start output to '" << name << "'.\n";
-    fub::amrex::cutcell::WritePlotFile(name, hierarchy, equation);
-    ::amrex::Print() << "Finished output to '" << name << "'.\n";
-  };
-  auto print_msg = [](const std::string& msg) { ::amrex::Print() << msg; };
-
   using namespace std::literals::chrono_literals;
-  output(solver.GetPatchHierarchy(), solver.GetCycles(), solver.GetTimePoint());
+  fub::AnyOutput<GriddingAlgorithm> output({1}, {}, [&](const GriddingAlgorithm& gridding) {
+    std::string name = fmt::format("{}plt{:05}", base_name, gridding.GetCycles());
+    ::amrex::Print() << "Start output to '" << name << "'.\n";
+    fub::amrex::cutcell::WritePlotFile(name, gridding.GetPatchHierarchy(),
+                                       equation);
+    ::amrex::Print() << "Finished output to '" << name << "'.\n";
+  });
+
+  output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
   run_options.final_time = 1e4s;
-  //   run_options.output_interval = 1e-5s;
-  run_options.output_frequency = 1;
   run_options.cfl = 0.5 * 0.9;
-  fub::RunSimulation(solver, run_options, wall_time_reference, output,
-                     print_msg);
+  fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }
