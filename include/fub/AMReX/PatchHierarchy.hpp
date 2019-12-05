@@ -47,6 +47,17 @@ struct PatchHierarchyOptions {
   ::amrex::IntVect refine_ratio{AMREX_D_DECL(2, 2, 2)};
 };
 
+/// The DataDescription class contains all information which is neccessary to
+/// describe the complete and conservative state data of an equation.
+struct DataDescription {
+  int n_state_components;
+  int first_cons_component;
+  int n_cons_components;
+  int n_node_components{0};
+  int n_face_components{0};
+  int dimension{AMREX_SPACEDIM};
+};
+
 /// \brief The PatchLevel represents a distributed grid containing plain
 /// simulation data without a ghost cell layer.
 ///
@@ -81,6 +92,16 @@ struct PatchLevel {
   PatchLevel(int num, Duration tp, const ::amrex::BoxArray& ba,
              const ::amrex::DistributionMapping& dm, int n_components);
 
+  /// \brief Allocates arrays with specified box array and distribution mapping.
+  ///
+  /// \param num the refinement level number
+  /// \param tp  the time point of the simulation
+  /// \param ba  the box array of the distributed array
+  /// \param dm  the distribution mapping for the array
+  /// \param n_components the number of components of the array
+  PatchLevel(int num, Duration tp, const ::amrex::BoxArray& ba,
+             const ::amrex::DistributionMapping& dm, const DataDescription& desc);
+
   /// Allocates arrays with specified box array and distribution mapping.
   ///
   /// \param num the refinement level number
@@ -99,15 +120,8 @@ struct PatchLevel {
   ::amrex::BoxArray box_array{};
   ::amrex::DistributionMapping distribution_mapping{};
   ::amrex::MultiFab data{};
-};
-
-/// The DataDescription class contains all information which is neccessary to
-/// describe the complete and conservative state data of an equation.
-struct DataDescription {
-  int n_state_components;
-  int first_cons_component;
-  int n_cons_components;
-  int dimension{AMREX_SPACEDIM};
+  ::amrex::MultiFab nodes{};
+  std::array<::amrex::MultiFab, AMREX_SPACEDIM> faces{};
 };
 
 template <typename Equation>
