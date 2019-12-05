@@ -37,10 +37,8 @@ template <typename Tag, typename FM> struct FluxMethod {
   static const int Rank = Equation::Rank();
 
   FluxMethod(Tag, const FM& fm);
-  // FluxMethod(Tag, FM&& fm) noexcept;
 
-  Duration ComputeStableDt(IntegratorContext& context, int level,
-                           Direction dir);
+  Duration ComputeStableDt(IntegratorContext& context, int level, Direction dir);
 
   void ComputeNumericFluxes(IntegratorContext& context, int level, Duration dt,
                             Direction dir);
@@ -53,13 +51,15 @@ template <typename Tag, typename FM> struct FluxMethod {
 template <typename Tag, typename FM>
 FluxMethod<Tag, FM>::FluxMethod(Tag, const FM& fm) : flux_method_{fm} {}
 
-// template <typename Tag, typename FM>
-// FluxMethod<Tag, FM>::FluxMethod(Tag, FM&& fm) noexcept
-//     : flux_method_{std::move(fm)} {}
+template <typename T, typename... Args>
+using ComputeStableDt_t = decltype(std::declval<T>().ComputeStableDt(std::declval<Args>()...));
 
 template <typename Tag, typename FM>
 Duration FluxMethod<Tag, FM>::ComputeStableDt(IntegratorContext& context,
                                               int level, Direction dir) {
+  if constexpr (is_detected<ComputeStableDt_t, FM&, IntegratorContext&, int, Direction>::value) {
+    flux_method_->ComputeStableDt(context, level, dir);
+  } else {
   const ::amrex::Geometry& geom = context.GetGeometry(level);
   const double dx = geom.CellSize(int(dir));
   double min_dt = std::numeric_limits<double>::max();
@@ -87,9 +87,6 @@ Duration FluxMethod<Tag, FM>::ComputeStableDt(IntegratorContext& context,
       min_dt = std::min(min_dt, dt.count());
     }
     double local_count = min_dt;
-    // double count{};
-    // MPI_Allreduce(&local_count, &count, 1, MPI_DOUBLE, MPI_MIN,
-    //               context.GetMpiCommunicator());
     return Duration(local_count);
   } else {
     for (::amrex::MFIter mfi(fluxes); mfi.isValid(); ++mfi) {
@@ -107,10 +104,8 @@ Duration FluxMethod<Tag, FM>::ComputeStableDt(IntegratorContext& context,
       min_dt = std::min(min_dt, dt.count());
     }
     double local_count = min_dt;
-    // double count{};
-    // MPI_Allreduce(&local_count, &count, 1, MPI_DOUBLE, MPI_MIN,
-    //               context.GetMpiCommunicator());
     return Duration(local_count);
+  }
   }
 }
 
