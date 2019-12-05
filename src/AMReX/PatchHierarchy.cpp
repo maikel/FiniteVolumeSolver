@@ -36,10 +36,25 @@ namespace amrex {
 PatchLevel::PatchLevel(const PatchLevel& other)
     : level_number(other.level_number), time_point(other.time_point),
       cycles(other.cycles), box_array(other.box_array.boxList()),
-      distribution_mapping(other.distribution_mapping.ProcessorMap()),
-      data(box_array, distribution_mapping, other.data.nComp(),
-           other.data.nGrowVect(), ::amrex::MFInfo(), other.data.Factory()) {
-  data.copy(other.data);
+      distribution_mapping(other.distribution_mapping.ProcessorMap()) {
+  if (other.data.ok()) {
+    data.define(box_array, distribution_mapping, other.data.nComp(),
+           other.data.nGrowVect(), ::amrex::MFInfo(), other.data.Factory());
+    data.copy(other.data);
+  }
+  if (other.nodes.ok()) {
+    nodes.define(box_array.surroundingNodes(), distribution_mapping,
+                 other.nodes.nComp(), other.nodes.nGrowVect(), ::amrex::MFInfo(), other.nodes.Factory());
+  }
+  if (other.faces[0].ok()) {
+    faces[0].define(box_array.convert({AMREX_D_DECL(1, 0, 0)}), distribution_mapping, other.faces[0].nComp(), other.faces[0].nGrowVect(), ::amrex::MFInfo(), other.faces[0].Factory());
+    if (other.faces[2].ok()) {
+      faces[2].define(box_array.convert({AMREX_D_DECL(0, 0, 1)}), distribution_mapping, other.faces[2].nComp(), other.faces[2].nGrowVect(), ::amrex::MFInfo(), other.faces[2].Factory());
+    }
+    if (other.faces[1].ok()) {
+      faces[1].define(box_array.convert({AMREX_D_DECL(0, 1, 0)}), distribution_mapping, other.faces[1].nComp(), other.faces[1].nGrowVect(), ::amrex::MFInfo(), other.faces[1].Factory());
+    }
+  }
 }
 
 PatchLevel& PatchLevel::operator=(const PatchLevel& other) {
@@ -51,7 +66,35 @@ PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
                        const ::amrex::DistributionMapping& dm, int n_components)
     : level_number{level}, time_point{tp}, box_array{ba},
       distribution_mapping{dm}, data{box_array, distribution_mapping,
-                                     n_components, 0} {}
+                                     n_components, 0} {
+
+}
+
+PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
+                       const ::amrex::DistributionMapping& dm,
+                       const DataDescription& desc) : 
+    level_number{level},
+    time_point{tp}, box_array{ba}, distribution_mapping{dm} {
+  if (desc.n_state_components) {
+    data.define(box_array, distribution_mapping, desc.n_state_components, 0);
+  }
+  if (desc.n_node_components) {
+    nodes.define(box_array.surroundingNodes(), distribution_mapping,
+                 desc.n_node_components, 0);
+  }
+  if (desc.n_face_components) {
+    switch (desc.dimension) {
+    case 3:
+      faces[2].define(box_array.convert({AMREX_D_DECL(0, 0, 1)}), distribution_mapping, desc.n_face_components, 0);
+      [[fallthrough]];
+    case 2:
+      faces[1].define(box_array.convert({AMREX_D_DECL(0, 1, 0)}), distribution_mapping, desc.n_face_components, 0);
+      [[fallthrough]];
+    default:
+      faces[0].define(box_array.convert({AMREX_D_DECL(1, 0, 0)}), distribution_mapping, desc.n_face_components, 0);
+    }
+  }
+}
 
 PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
                        const ::amrex::DistributionMapping& dm, int n_components,
@@ -81,8 +124,9 @@ PatchHierarchy::PatchHierarchy(DataDescription desc,
     level_box.refine(options_.refine_ratio);
   }
 #ifdef AMREX_USE_EB
-  index_spaces_ = cutcell::BuildRegularSpace(patch_level_geometry_[0], options.refine_ratio,
-                                           options.max_number_of_levels);
+  index_spaces_ =
+      cutcell::BuildRegularSpace(patch_level_geometry_[0], options.refine_ratio,
+                                 options.max_number_of_levels);
 #endif
 }
 
@@ -346,7 +390,8 @@ void CreateHdf5Database(const std::string& name, const ::amrex::FArrayBox& fab,
     H5Properties properties(H5Pcreate(H5P_DATASET_CREATE));
     H5Pset_chunk(properties, AMREX_SPACEDIM + 2, dims.data());
     H5Pset_alloc_time(properties, H5D_ALLOC_TIME_EARLY);
-    H5Space dataspace(H5Screate_simple(AMREX_SPACEDIM + 2, dims.data(), maxdims.data()));
+    H5Space dataspace(
+        H5Screate_simple(AMREX_SPACEDIM + 2, dims.data(), maxdims.data()));
     H5Dataset dataset(H5Dcreate(file, "/data", H5T_IEEE_F64LE, dataspace,
                                 H5P_DEFAULT, properties, H5P_DEFAULT));
     H5Dwrite(dataset, H5T_IEEE_F64LE, H5S_ALL, H5S_ALL, H5P_DEFAULT,

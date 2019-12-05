@@ -24,6 +24,9 @@ if (AMReX_FOUND)
   add_executable_with_warnings(AMReX.InitialHierarchy AMReX/InitialHierarchy.cpp)
   target_link_libraries(AMReX.InitialHierarchy FiniteVolumeSolver.AMReX)
 
+  add_executable(AMReX.CompressibleAdvection AMReX/CompressibleAdvection.cpp)
+  target_link_libraries(AMReX.CompressibleAdvection FiniteVolumeSolver.AMReX)
+
   add_executable_with_warnings(AMReX.Advection2d_Godunov AMReX/Advection2d_Godunov.cpp)
   target_link_libraries(AMReX.Advection2d_Godunov FiniteVolumeSolver.AMReX)
 
