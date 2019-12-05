@@ -126,7 +126,7 @@ int main(int argc, char** argv) {
   using namespace std::literals::chrono_literals;
   fub::MultipleOutputs<GriddingAlgorithm> output{};
   output.AddOutput(fub::MakeOutput<GriddingAlgorithm>(
-      {1}, {1.0s / 180.}, fub::amrex::PlotfileOutput(equation, base_name)));
+      {1}, {1.0s / 180.}, PlotfileOutput(equation, base_name)));
   output.AddOutput(
       std::make_unique<
           fub::CounterOutput<GriddingAlgorithm>>(
