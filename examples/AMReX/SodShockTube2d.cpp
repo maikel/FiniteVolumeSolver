@@ -26,7 +26,7 @@
 
 #include <xmmintrin.h>
 
-struct GreshoVortex {
+struct ShockTubeData {
   using Equation = fub::PerfectGas<2>;
   using Complete = fub::Complete<Equation>;
   using Conservative = fub::Conservative<Equation>;
@@ -126,7 +126,7 @@ int main(int argc, char** argv) {
 
   std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       fub::amrex::PatchHierarchy(equation, geometry, hier_opts),
-      GreshoVortex{equation},
+      ShockTubeData{equation},
       fub::amrex::TagAllOf(gradient, fub::amrex::TagBuffer(4)));
   gridding->InitializeHierarchy(0.0);
 
@@ -150,7 +150,7 @@ int main(int argc, char** argv) {
   fub::SubcycleFineFirstSolver solver(level_integrator);
   // fub::NoSubcycleSolver solver(level_integrator);
 
-  std::string base_name = "GreshoVortex/";
+  std::string base_name = "SodShockTube/";
 
   using namespace fub::amrex;
   using namespace std::literals::chrono_literals;
