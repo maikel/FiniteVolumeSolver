@@ -151,13 +151,13 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   fub::Complete<fub::IdealGasMix<2>> right(equation);
   equation.CompleteFromReactor(right);
 
-  const double shock_mach_number = options.mach_number;
+  // const double shock_mach_number = options.mach_number;
   const fub::Array<double, 2, 1> normal{1.0, 0.0};
 
   fub::amrex::cutcell::RiemannProblem initial_data(
       equation, fub::Halfspace({+1.0, 0.0, 0.0}, 0.25), left, right);
 
-  const State& pre_shock_state = initial_data.left_;
+  // const State& pre_shock_state = initial_data.left_;
   BOOST_LOG(log) << "Post-Shock-State:\n"
                  << "\tdensity: " << left.density << " [kg/m^3]\n"
                  << "\tpressure: " << left.pressure << " [Pa]";
@@ -189,7 +189,7 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   constexpr double r_small = d_small * 0.5;
   constexpr double r_smallest = d_smallest * 0.5;
 
-  constexpr double start_big = 0.0;
+  // constexpr double start_big = 0.0;
   constexpr double end_big = 0.29828;
   constexpr double start_small = 0.3250;
   constexpr double end_small = 1.0200;
@@ -252,18 +252,14 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
 
   fub::OutputFactory<GriddingAlgorithm> factory{};
   factory.RegisterOutput<WriteHdf5>("HDF5");
-  factory.RegisterOutput<fub::AsOutput<GriddingAlgorithm>>(
-      "Plotfiles",
-      fub::amrex::PlotfileOutput{equation, base_name + "/Plotfiles"});
-  factory.RegisterOutput<fub::AsOutput<GriddingAlgorithm>>(
-      "Checkpoint", [&](const GriddingAlgorithm& grid) {
-        std::string name =
-            fmt::format("{}/Checkpoint/{:09}", base_name, grid.GetCycles());
-        WriteCheckpoint(log, name, grid.GetPatchHierarchy());
-      });
   fub::MultipleOutputs<GriddingAlgorithm> outputs(
       std::move(factory),
       fub::ToMap(fub::GetOptionOr(vm, "output", pybind11::dict{})));
+
+  using namespace std::literals::chrono_literals;
+  outputs.AddOutput(std::make_unique<PlotfileOutput<fub::IdealGasMix<2>>>(
+      std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{1e-6s}, equation,
+      base_name + "/Plotfiles"));
 
   outputs(*solver.GetGriddingAlgorithm());
   fub::RunSimulation(solver, fub::RunOptions(vm), wall_time_reference, outputs);

@@ -25,10 +25,6 @@
 #include <AMReX_EB2_IF_Complement.H>
 #include <AMReX_EB2_IF_Plane.H>
 
-#include <iostream>
-
-#include <xmmintrin.h>
-
 Eigen::Vector2d OrthogonalTo(const Eigen::Vector2d& x) {
   return Eigen::Vector2d{x[1], -x[0]};
 }
@@ -108,23 +104,18 @@ auto MakeSolver(const fub::PerfectGas<2>& equation) {
                           TimeIntegrator{},
                           Reconstruction{fub::execution::seq, equation}};
 
-  return fub::DimensionalSplitLevelIntegrator(
-      fub::int_c<2>, fub::amrex::cutcell::IntegratorContext(gridding, method));
+  return fub::SubcycleFineFirstSolver(fub::DimensionalSplitLevelIntegrator(
+      fub::int_c<2>, fub::amrex::cutcell::IntegratorContext(gridding, method)));
 }
 
 int main(int argc, char** argv) {
-  // This enables floating point exceptions on MacOS
-  // Stop the program if any NaN is part of a computation
-  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() | _MM_MASK_DIV_ZERO |
-                         _MM_MASK_OVERFLOW | _MM_MASK_UNDERFLOW |
-                         _MM_MASK_INVALID);
 
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
   fub::amrex::ScopeGuard _(argc, argv);
   fub::PerfectGas<2> equation{};
-  fub::DimensionalSplitLevelIntegrator solver = MakeSolver(equation);
+  auto solver = MakeSolver(equation);
 
   std::string base_name = "Ramp2/";
 
@@ -141,6 +132,6 @@ int main(int argc, char** argv) {
   run_options.final_time = 1s;
   run_options.cfl = 0.8;
   output(*solver.GetGriddingAlgorithm());
-  fub::AsOutput<GriddingAlgorithm> out({1}, {}, output);
+  fub::AnyOutput<GriddingAlgorithm> out({1}, {}, output);
   fub::RunSimulation(solver, run_options, wall_time_reference, out);
 }

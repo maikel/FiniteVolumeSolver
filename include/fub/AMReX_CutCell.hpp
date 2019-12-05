@@ -45,12 +45,15 @@
 #include "fub/AMReX/cutcell/boundary_condition/MassflowBoundary.hpp"
 #include "fub/AMReX/cutcell/boundary_condition/TransmissiveBoundary.hpp"
 #include "fub/AMReX/cutcell/output/WriteHdf5.hpp"
+#include "fub/AMReX/cutcell/output/WritePlotfiles.hpp"
 
 #include "fub/AMReX/multi_block/MultiBlockBoundary.hpp"
 #include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp"
 #include "fub/AMReX/multi_block/MultiBlockIgniteDetonation.hpp"
 #include "fub/AMReX/multi_block/MultiBlockIntegratorContext.hpp"
 #include "fub/AMReX/multi_block/MultiBlockKineticSourceTerm.hpp"
+#include "fub/AMReX/multi_block/MultiBlockPlotfileOutput.hpp"
 #include "fub/AMReX/multi_block/MultiWriteHdf5.hpp"
+
 
 #endif

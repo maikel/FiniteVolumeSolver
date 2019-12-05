@@ -239,6 +239,11 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/split_method/SplittingMethod.hpp
   include/fub/split_method/GodunovSplitting.hpp
   include/fub/split_method/StrangSplitting.hpp
+  include/fub/ext/ProgramOptions.hpp
+  include/fub/counter/Counter.hpp
+  include/fub/counter/CounterRegistry.hpp
+  include/fub/counter/CounterResult.hpp
+  include/fub/counter/Timer.hpp
   src/ext/Log.cpp
   src/boundary_condition/ReflectiveBoundary.cpp
   src/equations/Advection.cpp
@@ -263,7 +268,6 @@ add_library(FiniteVolumeSolver.Solver
   src/cutcell_method/KbnStabilisation.cpp
   src/tagging/TagBuffer.cpp
   src/tagging/TagCutCells.cpp
-  src/CartesianCoordinates.cpp
   src/ext/Mpi.cpp
   src/split_method/GodunovSplitting.cpp
   src/split_method/StrangSplitting.cpp
@@ -274,11 +278,6 @@ add_library(FiniteVolumeSolver.Solver
   src/HyperbolicPatchIntegrator.cpp
   src/RunSimulation.cpp
   src/ext/ProgramOptions.cpp
-  include/fub/ext/ProgramOptions.hpp
-  include/fub/counter/Counter.hpp
-  include/fub/counter/CounterRegistry.hpp
-  include/fub/counter/CounterResult.hpp
-  include/fub/counter/Timer.hpp
   src/counter/Counter.cpp
   src/counter/CounterRegistry.cpp
   src/counter/Timer.cpp)
@@ -341,7 +340,6 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     include/fub/AMReX/output/LogProbes.hpp
     include/fub/AMReX/output/WritePlotfiles.hpp
     src/AMReX/output/LogProbes.cpp
-    src/AMReX/output/WritePlotfiles.cpp
     src/AMReX/output/WriteHdf5.cpp
     src/equations/ideal_gas_mix/KineticSourceTerm.cpp
     src/AMReX/boundary_condition/BoundarySet.cpp
@@ -414,12 +412,15 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         include/fub/AMReX/cutcell/boundary_condition/MassflowBoundary.hpp
         include/fub/AMReX/cutcell/boundary_condition/ReflectiveBoundary.hpp
         include/fub/AMReX/cutcell/output/WriteHdf5.hpp
+        include/fub/AMReX/cutcell/output/WritePlotfiles.hpp
         include/fub/AMReX/multi_block/MultiBlockBoundary.hpp
         include/fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp
         include/fub/AMReX/multi_block/MultiBlockIntegratorContext.hpp
         include/fub/AMReX/multi_block/MultiBlockKineticSourceTerm.hpp
         include/fub/AMReX/multi_block/MultiBlockIgniteDetonation.hpp
         include/fub/AMReX/multi_block/MultiWriteHdf5.hpp
+        include/fub/AMReX/multi_block/MultiBlockPlotfileOutput.hpp
+        src/AMReX/multi_block/MultiBlockPlotfileOutput.cpp
         src/AMReX/multi_block/MultiWriteHdf5.cpp
         src/AMReX/cutcell/BoundaryCondition.cpp
         src/AMReX/cutcell/IntegratorContext.cpp

@@ -84,6 +84,9 @@ public:
   /// @{
   /// \name Modifiers
 
+  void CopyDataToScratch(int level);
+  void CopyScratchToData(int level);
+
   /// \brief Replaces the underlying gridding algorithm with the specified one.
   void ResetHierarchyConfiguration(
       std::shared_ptr<MultiBlockGriddingAlgorithm> gridding);

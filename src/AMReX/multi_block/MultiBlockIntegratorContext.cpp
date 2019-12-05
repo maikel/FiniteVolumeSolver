@@ -65,6 +65,40 @@ MultiBlockIntegratorContext::MultiBlockIntegratorContext(
       std::move(connectivity), std::move(valves));
 }
 
+void MultiBlockIntegratorContext::CopyDataToScratch(int level) {
+  {
+    auto new_tube = gridding_->GetTubes().begin();
+    for (IntegratorContext& ctx : tubes_) {
+      ctx.CopyDataToScratch(level);
+      ++new_tube;
+    }
+  }
+  {
+    auto new_plenum = gridding_->GetPlena().begin();
+    for (cutcell::IntegratorContext& ctx : plena_) {
+      ctx.CopyDataToScratch(level);
+      ++new_plenum;
+    }
+  }
+}
+
+void MultiBlockIntegratorContext::CopyScratchToData(int level) {
+  {
+    auto new_tube = gridding_->GetTubes().begin();
+    for (IntegratorContext& ctx : tubes_) {
+      ctx.CopyScratchToData(level);
+      ++new_tube;
+    }
+  }
+  {
+    auto new_plenum = gridding_->GetPlena().begin();
+    for (cutcell::IntegratorContext& ctx : plena_) {
+      ctx.CopyScratchToData(level);
+      ++new_plenum;
+    }
+  }
+}
+
 span<IntegratorContext> MultiBlockIntegratorContext::Tubes() noexcept {
   return tubes_;
 }
@@ -188,8 +222,8 @@ void MultiBlockIntegratorContext::SetTimePoint(Duration t, int level) {
 /// \name Member functions relevant for the level integrator algorithm.
 
 /// \brief On each first subcycle this will regrid the data if neccessary.
-void MultiBlockIntegratorContext::PreAdvanceLevel(int level_num, Duration dt,
-                                                  std::pair<int,int> subcycle) {
+void MultiBlockIntegratorContext::PreAdvanceLevel(
+    int level_num, Duration dt, std::pair<int, int> subcycle) {
   ForEachBlock(std::tuple{span{tubes_}, span{plena_}},
                [level_num, dt, subcycle](auto& block) {
                  if (block.LevelExists(level_num)) {
@@ -210,7 +244,7 @@ void MultiBlockIntegratorContext::PreAdvanceLevel(int level_num, Duration dt,
 /// specified level number and direction.
 Result<void, TimeStepTooLarge>
 MultiBlockIntegratorContext::PostAdvanceLevel(int level_num, Duration dt,
-                                              std::pair<int,int> subcycle) {
+                                              std::pair<int, int> subcycle) {
   for (IntegratorContext& tube : tubes_) {
     if (tube.LevelExists(level_num)) {
       Result<void, TimeStepTooLarge> result =
@@ -470,7 +504,9 @@ void MultiBlockIntegratorContext::ComputeNumericFluxes(int level, Duration dt,
   span<const MultiBlockBoundary> boundaries = gridding_->GetBoundaries(level);
   const MultiBlockBoundary* boundary = boundaries.begin();
   for (const BlockConnection& conn : gridding_->GetConnectivity()) {
-    if (dir == conn.direction && !(boundary->GetValve() && boundary->GetValve()->state == PressureValveState::closed)) {
+    if (dir == conn.direction &&
+        !(boundary->GetValve() &&
+          boundary->GetValve()->state == PressureValveState::closed)) {
       cutcell::IntegratorContext& plenum = plena_[conn.plenum.id];
       IntegratorContext& tube = tubes_[conn.tube.id];
       const ::amrex::EBFArrayBoxFactory& factory =

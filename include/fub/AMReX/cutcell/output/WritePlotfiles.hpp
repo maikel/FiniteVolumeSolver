@@ -18,10 +18,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_AMREX_PLOT_FILES_HPP
-#define FUB_AMREX_PLOT_FILES_HPP
+#ifndef FUB_AMREX_CUTCELL_PLOT_FILES_HPP
+#define FUB_AMREX_CUTCELL_PLOT_FILES_HPP
 
-#include "fub/AMReX/GriddingAlgorithm.hpp"
+#include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
 #include "fub/ext/ProgramOptions.hpp"
 #include "fub/output/OutputAtFrequencyOrInterval.hpp"
 
@@ -29,7 +29,7 @@
 #include <boost/log/sources/severity_logger.hpp>
 #include <boost/log/trivial.hpp>
 
-namespace fub::amrex {
+namespace fub::amrex::cutcell {
 
 template <typename Equation>
 class PlotfileOutput : public OutputAtFrequencyOrInterval<GriddingAlgorithm> {
@@ -61,6 +61,6 @@ private:
   std::string parent_path_;
 };
 
-} // namespace fub::amrex
+} // namespace fub::amrex::cutcell
 
 #endif

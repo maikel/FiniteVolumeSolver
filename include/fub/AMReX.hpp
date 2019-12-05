@@ -41,6 +41,8 @@
 
 #include "fub/AMReX/initial_data/ConstantData.hpp"
 
+#include "fub/AMReX/IgniteDetonation.hpp"
+
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/ForEachIndex.hpp"
 

@@ -70,7 +70,8 @@ operator=(LevelData&& other) noexcept {
 
 IntegratorContext::IntegratorContext(
     std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod nm)
-    : registry_{std::make_shared<CounterRegistry>()}, ghost_cell_width_{nm.flux_method.GetStencilWidth() + 1},
+    : registry_{std::make_shared<CounterRegistry>()},
+      ghost_cell_width_{nm.flux_method.GetStencilWidth() + 1},
       gridding_{std::move(gridding)}, data_{}, method_{std::move(nm)} {
   data_.reserve(
       static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
@@ -90,9 +91,10 @@ IntegratorContext::IntegratorContext(
 }
 
 IntegratorContext::IntegratorContext(const IntegratorContext& other)
-    : registry_(other.registry_), ghost_cell_width_{other.ghost_cell_width_}, gridding_{other.gridding_},
+    : registry_(other.registry_),
+      ghost_cell_width_{other.ghost_cell_width_}, gridding_{other.gridding_},
       data_(static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels())),
-      method_{other.method_}{
+      method_{other.method_} {
   // Allocate auxiliary data arrays
   ResetHierarchyConfiguration();
   for (std::size_t level_num = 0; level_num < data_.size(); ++level_num) {
@@ -274,7 +276,6 @@ void IntegratorContext::CopyDataToScratch(int level_num) {
   gridding_->FillMultiFabFromLevel(GetScratch(level_num), level_num);
 }
 
-
 void IntegratorContext::CopyScratchToData(int level_num) {
   Timer timer1 = registry_->get_timer("IntegratorContext::CopyScratchToData");
   Timer timer_per_level{};
@@ -283,8 +284,8 @@ void IntegratorContext::CopyScratchToData(int level_num) {
         fmt::format("IntegratorContext::CopyScratchToData({})", level_num));
   }
   GetData(level_num).ParallelCopy(
-        GetScratch(level_num),
-        GetPatchHierarchy().GetGeometry(level_num).periodicity());
+      GetScratch(level_num),
+      GetPatchHierarchy().GetGeometry(level_num).periodicity());
 }
 
 void IntegratorContext::ResetHierarchyConfiguration(
@@ -497,8 +498,8 @@ void IntegratorContext::ResetCoarseFineFluxes(int fine, int coarse) {
   flux_register.setVal(0.0);
 }
 
-void IntegratorContext::ApplyFluxCorrection(int fine, int coarse,
-                                            Duration time_step_size) {
+void IntegratorContext::ApplyFluxCorrection(
+    int fine, int coarse, [[maybe_unused]] Duration time_step_size) {
   Timer timer1 = registry_->get_timer("IntegratorContext::ApplyFluxCorrection");
   Timer timer_per_level{};
   if (count_per_level) {

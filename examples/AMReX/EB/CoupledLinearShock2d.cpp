@@ -132,15 +132,14 @@ auto MakeTubeSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
       TagAllOf(gradient, constant_box, TagBuffer(4)), boundary_condition);
   gridding->InitializeHierarchy(0.0);
 
-   fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>> signals{};
-   fub::HllMethod hll_method(equation, signals);
+  fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>> signals{};
+  fub::HllMethod hll_method(equation, signals);
   //   fub::MusclHancockMethod flux_method{equation, hll_method};
   // fub::ideal_gas::MusclHancockPrimMethod<1> flux_method(equation);
 
-  HyperbolicMethod method{
-      FluxMethod(fub::execution::simd, hll_method),
-      ForwardIntegrator(fub::execution::simd),
-      Reconstruction(fub::execution::simd, equation)};
+  HyperbolicMethod method{FluxMethod(fub::execution::simd, hll_method),
+                          ForwardIntegrator(fub::execution::simd),
+                          Reconstruction(fub::execution::simd, equation)};
 
   return fub::amrex::IntegratorContext(gridding, method);
 }
@@ -293,33 +292,35 @@ int main() {
   fub::amrex::MultiBlockKineticSouceTerm source_term{
       fub::IdealGasMix<Tube_Rank>{mechanism},
       system_solver.GetGriddingAlgorithm()};
-  fub::SplitSystemSourceLevelIntegrator level_integrator{std::move(system_solver), source_term};
+  fub::SplitSystemSourceLevelIntegrator level_integrator{
+      std::move(system_solver), source_term};
 
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
   std::string base_name = "MultiBlock_2d";
   fub::IdealGasMix<Tube_Rank> tube_equation{mechanism};
   using namespace std::literals::chrono_literals;
-  auto output = fub::MakeOutput<fub::amrex::MultiBlockGriddingAlgorithm>({}, {0.001s / 30.0},
+  auto output = fub::MakeOutput<fub::amrex::MultiBlockGriddingAlgorithm>(
+      {}, {0.001s / 30.0},
       [&](const fub::amrex::MultiBlockGriddingAlgorithm& gridding) {
-    std::ptrdiff_t cycle = gridding.GetCycles();
-    ::amrex::Print() << "Checkpointing.\n";
-    fub::amrex::WriteCheckpointFile(
-        fmt::format("{}/Checkpoint/Tube_{:05}", base_name, cycle),
-        gridding.GetTubes()[0]->GetPatchHierarchy());
-    fub::amrex::cutcell::WriteCheckpointFile(
-        fmt::format("{}/Checkpoint/Plenum_{:05}", base_name, cycle),
-        gridding.GetPlena()[0]->GetPatchHierarchy());
-    std::string name = fmt::format("{}/Tube/plt{:05}", base_name, cycle);
-    ::amrex::Print() << "Start output to '" << name << "'.\n";
-    fub::amrex::WritePlotFile(
-        name, gridding.GetTubes()[0]->GetPatchHierarchy(), tube_equation);
-    ::amrex::Print() << "Finished output to '" << name << "'.\n";
-    name = fmt::format("{}/Plenum/plt{:05}", base_name, cycle);
-    ::amrex::Print() << "Start output to '" << name << "'.\n";
-    fub::amrex::cutcell::WritePlotFile(
-        name, gridding.GetPlena()[0]->GetPatchHierarchy(), equation);
-    ::amrex::Print() << "Finished output to '" << name << "'.\n";
+        std::ptrdiff_t cycle = gridding.GetCycles();
+        ::amrex::Print() << "Checkpointing.\n";
+        fub::amrex::WriteCheckpointFile(
+            fmt::format("{}/Checkpoint/Tube_{:05}", base_name, cycle),
+            gridding.GetTubes()[0]->GetPatchHierarchy());
+        fub::amrex::cutcell::WriteCheckpointFile(
+            fmt::format("{}/Checkpoint/Plenum_{:05}", base_name, cycle),
+            gridding.GetPlena()[0]->GetPatchHierarchy());
+        std::string name = fmt::format("{}/Tube/plt{:05}", base_name, cycle);
+        ::amrex::Print() << "Start output to '" << name << "'.\n";
+        fub::amrex::WritePlotFile(
+            name, gridding.GetTubes()[0]->GetPatchHierarchy(), tube_equation);
+        ::amrex::Print() << "Finished output to '" << name << "'.\n";
+        name = fmt::format("{}/Plenum/plt{:05}", base_name, cycle);
+        ::amrex::Print() << "Start output to '" << name << "'.\n";
+        fub::amrex::cutcell::WritePlotFile(
+            name, gridding.GetPlena()[0]->GetPatchHierarchy(), equation);
+        ::amrex::Print() << "Finished output to '" << name << "'.\n";
       });
   (*output)(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};

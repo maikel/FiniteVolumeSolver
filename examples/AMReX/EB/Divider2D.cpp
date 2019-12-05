@@ -183,7 +183,6 @@ struct ShockMachnumber
 template <typename Logger>
 void WriteCheckpoint(Logger& log, const std::string& path,
                      const fub::amrex::cutcell::PatchHierarchy& hierarchy) {
-  const std::ptrdiff_t cycle = hierarchy.GetCycles();
   BOOST_LOG(log) << "Write Checkpoint File to '" << path << "'.\n";
   fub::amrex::cutcell::WriteCheckpointFile(path, hierarchy);
 }
@@ -283,16 +282,19 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
                           TimeIntegrator{},
                           Reconstruction{fub::execution::seq, equation}};
 
-  fub::DimensionalSplitLevelIntegrator solver(
+  fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<2>, IntegratorContext(gridding, method));
+
+  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
   std::string base_name = options.output_directory;
 
   fub::OutputFactory<GriddingAlgorithm> factory{};
   factory.RegisterOutput<WriteHdf5>("HDF5");
-  factory.RegisterOutput<fub::AsOutput<GriddingAlgorithm>>(
-      "Plotfiles", fub::amrex::PlotfileOutput{equation, base_name + "/Plotfiles"});
-  factory.RegisterOutput<fub::AsOutput<GriddingAlgorithm>>(
+  factory.RegisterOutput<
+      fub::AnyOutput<GriddingAlgorithm>>(
+      "Plotfiles", PlotfileOutput{equation, base_name + "/Plotfiles"});
+  factory.RegisterOutput<fub::AnyOutput<GriddingAlgorithm>>(
       "Checkpoint", [&](const GriddingAlgorithm& grid) {
         std::string name =
             fmt::format("{}/Checkpoint/{:09}", base_name, grid.GetCycles());

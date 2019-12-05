@@ -27,10 +27,6 @@
 
 #include <iostream>
 
-#include <fub/AMReX/IgniteDetonation.hpp>
-#include <fub/AMReX/boundary_condition/PressureValveBoundary.hpp>
-#include <xmmintrin.h>
-
 struct ProgramOptions {
   double final_time{0.20};
   double cfl{0.8};
@@ -44,11 +40,6 @@ void MyMain(const ProgramOptions& opts) {
   // Store a reference timepoint to measure the wall time duration
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
-
-  // Enable floating point exceptions.
-  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() | _MM_MASK_DIV_ZERO |
-                         _MM_MASK_OVERFLOW | _MM_MASK_UNDERFLOW |
-                         _MM_MASK_INVALID);
 
   constexpr int Dim = AMREX_SPACEDIM;
 

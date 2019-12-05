@@ -26,10 +26,6 @@
 #include <AMReX_EB2_IF_Plane.H>
 #include <AMReX_EB2_IF_Union.H>
 
-#include <iostream>
-
-#include <xmmintrin.h>
-
 auto Rectangle(const std::array<double, 2>& lower,
                const std::array<double, 2>& upper) {
   amrex::EB2::PlaneIF lower_x({lower[0], lower[1]}, {0, +1});
@@ -40,10 +36,6 @@ auto Rectangle(const std::array<double, 2>& lower,
 }
 
 int main() {
-  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() | _MM_MASK_DIV_ZERO |
-                         _MM_MASK_OVERFLOW | _MM_MASK_UNDERFLOW |
-                         _MM_MASK_INVALID);
-
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
   fub::amrex::ScopeGuard _{};
@@ -117,18 +109,16 @@ int main() {
                           TimeIntegrator{},
                           Reconstruction{fub::execution::simd, equation}};
 
-  fub::DimensionalSplitLevelIntegrator solver(
+  fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<2>, IntegratorContext(gridding, method),
       fub::GodunovSplitting());
 
+  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
+
   std::string base_name = "LinearShock2d";
   using namespace std::literals::chrono_literals;
-  fub::AsOutput<GriddingAlgorithm> output({}, {0.0000125s}, [&](const GriddingAlgorithm& gridding) {
-    std::string name = fmt::format("{}/plt{:04}", base_name, gridding.GetCycles());
-    ::amrex::Print() << "Start output to '" << name << "'.\n";
-    WritePlotFile(name, gridding.GetPatchHierarchy(), equation);
-    ::amrex::Print() << "Finished output to '" << name << "'.\n";
-  });
+  fub::AnyOutput<GriddingAlgorithm> output(
+      {}, {0.0000125s}, PlotfileOutput{equation, base_name});
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
   run_options.final_time = 0.002s;

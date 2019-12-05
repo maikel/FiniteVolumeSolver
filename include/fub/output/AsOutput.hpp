@@ -36,8 +36,7 @@ public:
                                           std::move(intervals)),
         fn_(std::move(fn)) {}
 
-  AsOutput(const std::map<std::string, pybind11::object>& vm,
-           std::function<void(const Grid&)> fn)
+  AsOutput(const std::map<std::string, pybind11::object>& vm, Fn fn)
       : OutputAtFrequencyOrInterval<Grid>(vm), fn_(std::move(fn)) {}
 
   void operator()(const Grid& grid) override { std::invoke(fn_, grid); }
@@ -50,10 +49,28 @@ template <typename Grid, typename Fn>
 std::unique_ptr<AsOutput<Grid, Fn>>
 MakeOutput(std::vector<std::ptrdiff_t> frequencies,
            std::vector<Duration> intervals, Fn fn) {
-
   return std::make_unique<AsOutput<Grid, Fn>>(
       std::move(frequencies), std::move(intervals), std::move(fn));
 }
+
+template <typename Grid>
+class AnyOutput : public OutputAtFrequencyOrInterval<Grid> {
+public:
+  AnyOutput(std::vector<std::ptrdiff_t> frequencies,
+           std::vector<Duration> intervals, std::function<void(const Grid&)> fn)
+      : OutputAtFrequencyOrInterval<Grid>(std::move(frequencies),
+                                          std::move(intervals)),
+        fn_(std::move(fn)) {}
+
+  AnyOutput(const std::map<std::string, pybind11::object>& vm,
+           std::function<void(const Grid&)> fn)
+      : OutputAtFrequencyOrInterval<Grid>(vm), fn_(std::move(fn)) {}
+
+  void operator()(const Grid& grid) override { fn_(grid); }
+
+private:
+  std::function<void(const Grid&)> fn_;
+};
 } // namespace fub
 
 #endif

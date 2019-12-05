@@ -18,49 +18,28 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_EXECUTION_HPP
-#define FUB_EXECUTION_HPP
+#ifndef FUB_AMREX_MULTI_BLOCK_PLOT_FILE_OUTPUT_HPP
+#define FUB_AMREX_MULTI_BLOCK_PLOT_FILE_OUTPUT_HPP
 
-#include "fub/ext/omp.hpp"
-#include <optional>
+#include "fub/ext/ProgramOptions.hpp"
+#include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp"
+#include "fub/output/OutputAtFrequencyOrInterval.hpp"
 
-namespace fub {
-namespace execution {
+#include <string>
 
-struct SequentialTag {};
-inline constexpr SequentialTag seq{};
+namespace fub::amrex {
 
-struct SimdTag {};
-inline constexpr SimdTag simd{};
+class MultiBlockPlotfileOutput
+    : public OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm> {
+public:
+  MultiBlockPlotfileOutput(const std::map<std::string, pybind11::object>& vm);
 
-struct OpenMpTag {};
-inline constexpr OpenMpTag openmp{};
+  void operator()(const MultiBlockGriddingAlgorithm& grid) override;
 
-struct OpenMpSimdTag : OpenMpTag, SimdTag {};
-inline constexpr OpenMpSimdTag openmp_simd{};
-
-} // namespace execution
-
-namespace detail {
-template <typename Tag, typename T> struct LocalType {
-  using type = std::optional<T>;
+private:
+  std::string parent_path_;
 };
-template <typename T> struct LocalType<execution::OpenMpTag, T> {
-  using type = OmpLocal<T>;
-};
-template <typename T> struct LocalType<execution::OpenMpSimdTag, T> {
-  using type = OmpLocal<T>;
-};
-} // namespace detail
-template <typename Tag, typename T>
-using Local = typename detail::LocalType<Tag, T>::type;
 
-template <typename T> const T& Min(const std::optional<T>& x) {
-  return *x;
 }
-
-template <typename T> const T& Min(const OmpLocal<T>& x) { return x.Min(); }
-
-} // namespace fub
 
 #endif

@@ -24,8 +24,6 @@
 #include <fmt/format.h>
 #include <iostream>
 
-#include <cfenv>
-
 struct CircleData {
   using Complete = fub::Complete<fub::ShallowWater>;
 
@@ -62,8 +60,6 @@ struct CircleData {
 };
 
 int main(int argc, char** argv) {
-  feenableexcept(FE_DIVBYZERO | FE_INVALID);
-
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 

@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/AMReX/output/WritePlotfiles.hpp"
+#include "fub/AMReX/multi_block/MultiBlockPlotfileOutput.hpp"
 #include "fub/equations/ideal_gas_mix/mechanism/Burke2012.hpp"
 
 #include <boost/log/common.hpp>

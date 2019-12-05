@@ -29,10 +29,6 @@
 #include <iostream>
 
 int main(int argc, char** argv) {
-  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() | _MM_MASK_DIV_ZERO |
-                         _MM_MASK_OVERFLOW | _MM_MASK_UNDERFLOW |
-                         _MM_MASK_INVALID);
-
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
   fub::amrex::ScopeGuard _(argc, argv);
@@ -124,13 +120,15 @@ int main(int argc, char** argv) {
                           TimeIntegrator{},
                           Reconstruction{fub::execution::simd, equation}};
 
-  fub::DimensionalSplitLevelIntegrator solver(
+  fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<3>, IntegratorContext(gridding, method));
+
+  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
   std::string base_name = "LinearShock3d/";
 
   using namespace std::literals::chrono_literals;
-  fub::AsOutput<GriddingAlgorithm> output(
+  fub::AnyOutput<GriddingAlgorithm> output(
       {}, {0.0000125s}, [&](const GriddingAlgorithm& gridding) {
         std::ptrdiff_t cycle = gridding.GetCycles();
         std::string name = fmt::format("{}plt{:05}", base_name, cycle);

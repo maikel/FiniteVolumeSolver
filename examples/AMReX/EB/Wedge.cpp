@@ -29,10 +29,6 @@
 #include <AMReX_EB2_IF_Union.H>
 #include <AMReX_EB_LSCore.H>
 
-#include <iostream>
-
-#include <xmmintrin.h>
-
 using Coord = Eigen::Vector2d;
 
 Coord OrthogonalTo(const Coord& x) { return Coord{x[1], -x[0]}; }
@@ -48,10 +44,6 @@ auto Wedge(const Coord& p1, const Coord& p2) {
 }
 
 int main() {
-  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() | _MM_MASK_DIV_ZERO |
-                         _MM_MASK_OVERFLOW | _MM_MASK_UNDERFLOW |
-                         _MM_MASK_INVALID);
-
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
@@ -120,13 +112,15 @@ int main() {
                           TimeIntegrator{},
                           Reconstruction{fub::execution::seq, equation}};
 
-  fub::DimensionalSplitLevelIntegrator solver(
+  fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<2>, fub::amrex::cutcell::IntegratorContext(gridding, method));
+
+  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
   std::string base_name = "Wedge/";
 
   using namespace std::literals::chrono_literals;
-  fub::AsOutput<GriddingAlgorithm> output({}, {1e-5s}, [&](const GriddingAlgorithm& gridding) {
+  fub::AnyOutput<GriddingAlgorithm> output({}, {1e-5s}, [&](const GriddingAlgorithm& gridding) {
     std::string name =
         fmt::format("{}plt{:05}", base_name, gridding.GetCycles());
     amrex::Print() << "Start output to '" << name << "'.\n";

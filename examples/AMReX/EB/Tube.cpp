@@ -25,19 +25,11 @@
 #include <AMReX_EB2_IF_Box.H>
 #include <AMReX_EB2_IF_Rotation.H>
 
-#include <iostream>
-
-#include <xmmintrin.h>
-
 int main(int argc, char** argv) {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
   fub::amrex::ScopeGuard _(argc, argv);
-
-  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() | _MM_MASK_DIV_ZERO |
-                         _MM_MASK_OVERFLOW | _MM_MASK_UNDERFLOW |
-                         _MM_MASK_INVALID);
 
   static constexpr int Rank = AMREX_SPACEDIM;
 
@@ -102,12 +94,14 @@ int main(int argc, char** argv) {
                           TimeIntegrator{},
                           Reconstruction{fub::execution::seq, equation}};
 
-  fub::DimensionalSplitLevelIntegrator solver(
+  fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<2>, IntegratorContext(gridding, method));
+
+  fub::SubcycleFineFirstSolver solver(level_integrator);
 
   std::string base_name = "Tube/";
   using namespace std::literals::chrono_literals;
-  fub::AsOutput<GriddingAlgorithm> output({1}, {}, [&](const GriddingAlgorithm& gridding) {
+  fub::AnyOutput<GriddingAlgorithm> output({1}, {}, [&](const GriddingAlgorithm& gridding) {
     std::string name = fmt::format("{}plt{:05}", base_name, gridding.GetCycles());
     ::amrex::Print() << "Start output to '" << name << "'.\n";
     fub::amrex::cutcell::WritePlotFile(name, gridding.GetPatchHierarchy(),
