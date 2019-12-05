@@ -98,7 +98,6 @@ int main(int argc, char** argv) {
   geometry.cell_dimensions = std::array<int, Dim>{AMREX_D_DECL(128, 128, 1)};
   geometry.coordinates = amrex::RealBox({AMREX_D_DECL(-1.0, -1.0, -1.0)},
                                         {AMREX_D_DECL(+1.0, +1.0, +1.0)});
-  geometry.periodicity = std::array<int, Dim>{AMREX_D_DECL(1, 1, 1)};
 
   fub::amrex::PatchHierarchyOptions hier_opts;
   hier_opts.max_number_of_levels = 4;
@@ -114,10 +113,17 @@ int main(int argc, char** argv) {
           },
           1.0e-4});
 
+  fub::amrex::BoundarySet boundaries{{
+    fub::amrex::ReflectiveBoundary(fub::execution::seq, equation, fub::Direction::X, 0),
+    fub::amrex::ReflectiveBoundary(fub::execution::seq, equation, fub::Direction::X, 1),
+    fub::amrex::ReflectiveBoundary(fub::execution::seq, equation, fub::Direction::Y, 0),
+    fub::amrex::ReflectiveBoundary(fub::execution::seq, equation, fub::Direction::Y, 1)
+  }};
+
   std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       fub::amrex::PatchHierarchy(equation, geometry, hier_opts),
       ShockTubeData{equation},
-      fub::amrex::TagAllOf(gradient, fub::amrex::TagBuffer(4)));
+      fub::amrex::TagAllOf(gradient, fub::amrex::TagBuffer(4)), boundaries);
   gridding->InitializeHierarchy(0.0);
 
   auto tag = fub::execution::simd;
