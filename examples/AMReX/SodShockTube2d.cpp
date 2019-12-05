@@ -185,7 +185,7 @@ int main(int argc, char** argv) {
   using namespace std::literals::chrono_literals;
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
-  run_options.final_time = 3.0s;
+  run_options.final_time = 1.0s;
   run_options.cfl = 0.8;
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }
