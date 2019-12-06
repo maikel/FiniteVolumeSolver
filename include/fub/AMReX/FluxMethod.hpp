@@ -58,7 +58,7 @@ template <typename Tag, typename FM>
 Duration FluxMethod<Tag, FM>::ComputeStableDt(IntegratorContext& context,
                                               int level, Direction dir) {
   if constexpr (is_detected<ComputeStableDt_t, FM&, IntegratorContext&, int, Direction>::value) {
-    flux_method_->ComputeStableDt(context, level, dir);
+    return flux_method_->ComputeStableDt(context, level, dir);
   } else {
   const ::amrex::Geometry& geom = context.GetGeometry(level);
   const double dx = geom.CellSize(int(dir));
@@ -80,7 +80,7 @@ Duration FluxMethod<Tag, FM>::ComputeStableDt(IntegratorContext& context,
         cells.grow(static_cast<int>(dir), gcw);
         return cells;
       }();
-      Equation& equation = flux_method_->GetEquation();
+      auto&& equation = flux_method_->GetEquation();
       View<const Complete<Equation>> states =
           MakeView<const Complete<Equation>>(scratch[mfi], equation, cell_box);
       const Duration dt(flux_method_->ComputeStableDt(Tag(), states, dx, dir));
@@ -97,7 +97,7 @@ Duration FluxMethod<Tag, FM>::ComputeStableDt(IntegratorContext& context,
         cells.grow(static_cast<int>(dir), gcw);
         return cells;
       }();
-      Equation& equation = flux_method_->GetEquation();
+      auto&& equation = flux_method_->GetEquation();
       View<const Complete<Equation>> states =
           MakeView<const Complete<Equation>>(scratch[mfi], equation, cell_box);
       const Duration dt(flux_method_->ComputeStableDt(Tag(), states, dx, dir));
@@ -120,18 +120,26 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
   const ::amrex::Geometry& geom = context.GetGeometry(level);
   ::amrex::MultiFab& fluxes = context.GetFluxes(level, dir);
   const ::amrex::MultiFab& scratch = context.GetScratch(level);
-  const double dx = geom.CellSize(int(dir));
+  const int dir_v = int(dir);
+  const double dx = geom.CellSize(dir_v);
   FUB_ASSERT(!scratch.contains_nan());
   ForEachFab(Tag(), fluxes, [&](::amrex::MFIter& mfi) {
     // Get a view of all complete state variables
     const int gcw = GetStencilWidth();
-    const ::amrex::Box face_box = mfi.growntilebox();
-    const ::amrex::Box cell_box = [&face_box, dir, gcw] {
+    const ::amrex::Box box = mfi.tilebox();
+    const ::amrex::Box grownbox = mfi.growntilebox();
+    const ::amrex::Box face_box = [&box, &grownbox, dir_v, gcw] {
+      ::amrex::Box all_faces = grownbox;
+      all_faces.setSmall(dir_v, box.smallEnd(dir_v) - 1);
+      all_faces.setBig(dir_v, box.bigEnd(dir_v) + 1);
+      return all_faces;
+    }();
+    const ::amrex::Box cell_box = [&face_box, dir_v, gcw] {
       ::amrex::Box cells = enclosedCells(face_box);
-      cells.grow(static_cast<int>(dir), gcw);
+      cells.grow(dir_v, gcw);
       return cells;
     }();
-    Equation& equation = flux_method_->GetEquation();
+    auto&& equation = flux_method_->GetEquation();
     View<const Complete<Equation>> states =
         MakeView<const Complete<Equation>>(scratch[mfi], equation, cell_box);
     View<Conservative<Equation>> flux =
@@ -139,7 +147,7 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
     // Pass views to implementation
     flux_method_->ComputeNumericFluxes(Tag(), flux, states, dt, dx, dir);
   });
-  FUB_ASSERT(!fluxes.contains_nan());
+  // FUB_ASSERT(!fluxes.contains_nan());
 }
 
 template <typename Tag, typename FM>
