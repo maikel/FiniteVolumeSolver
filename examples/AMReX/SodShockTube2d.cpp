@@ -24,8 +24,6 @@
 #include <fmt/format.h>
 #include <iostream>
 
-#include <xmmintrin.h>
-
 struct ShockTubeData {
   using Equation = fub::PerfectGas<2>;
   using Complete = fub::Complete<Equation>;
@@ -81,10 +79,6 @@ struct ShockTubeData {
 int main(int argc, char** argv) {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
-
-  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() | _MM_MASK_DIV_ZERO |
-                         _MM_MASK_OVERFLOW | _MM_MASK_UNDERFLOW |
-                         _MM_MASK_INVALID);
 
   const fub::amrex::ScopeGuard guard(argc, argv);
   fub::InitializeLogging(MPI_COMM_WORLD);
@@ -145,21 +139,15 @@ int main(int argc, char** argv) {
 
   using namespace fub::amrex;
   using namespace std::literals::chrono_literals;
-  boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
-      boost::log::keywords::severity = boost::log::trivial::info);
-  fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> output{};
+  fub::MultipleOutputs<GriddingAlgorithm> output{};
+
+  // Add an output to write AMReX Plotfiles each 1.0/30 seconds
   output.AddOutput(fub::MakeOutput<GriddingAlgorithm>(
-      {1}, {fub::Duration(1.0 / 30.0)}, [&](const GriddingAlgorithm& gridding) {
-        std::ptrdiff_t cycle = gridding.GetCycles();
-        fub::Duration tp = gridding.GetTimePoint();
-        BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", tp.count());
-        std::string name = fmt::format("{}plt{:05}", base_name, cycle);
-        BOOST_LOG(log) << "Start output to '" << name << "'.";
-        WritePlotFile(name, gridding.GetPatchHierarchy(), equation);
-        BOOST_LOG(log) << "Finished output to '" << name << "'.";
-      }));
+      {}, {fub::Duration(1.0 / 30.0)}, PlotfileOutput(equation, base_name)));
+
+  // Add an output to print performance timer statistics each 0.01 second
   output.AddOutput(
-      std::make_unique<fub::CounterOutput<fub::amrex::GriddingAlgorithm,
+      std::make_unique<fub::CounterOutput<GriddingAlgorithm,
                                           std::chrono::milliseconds>>(
           solver.GetContext().registry_, wall_time_reference,
           std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{0.01s}));
