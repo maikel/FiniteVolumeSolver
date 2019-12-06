@@ -41,6 +41,9 @@ if (AMReX_FOUND)
 
   add_executable(AMReX.EB.SingleTubeRingPlenum AMReX/EB/SingleTubeRingPlenum.cpp)
   target_link_libraries(AMReX.EB.SingleTubeRingPlenum FiniteVolumeSolver.AMReX.EB)
+
+  add_executable_with_warnings(AMReX.SodShockTube2d AMReX/SodShockTube2d.cpp)
+  target_link_libraries(AMReX.SodShockTube2d FiniteVolumeSolver.AMReX)
 endif()
 
 if (AMReX_FOUND AND AMReX_2D_FOUND)
