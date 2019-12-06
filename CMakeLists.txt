@@ -339,6 +339,8 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     include/fub/AMReX/output/WriteHdf5.hpp
     include/fub/AMReX/output/LogProbes.hpp
     include/fub/AMReX/output/WritePlotfiles.hpp
+    include/fub/equations/CompressibleAdvection.hpp
+    src/equations/CompressibleAdvection.cpp
     src/AMReX/output/LogProbes.cpp
     src/AMReX/output/WriteHdf5.cpp
     src/equations/ideal_gas_mix/KineticSourceTerm.cpp
