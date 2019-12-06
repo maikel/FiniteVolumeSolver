@@ -120,8 +120,8 @@ struct PatchLevel {
   ::amrex::BoxArray box_array{};
   ::amrex::DistributionMapping distribution_mapping{};
   ::amrex::MultiFab data{};
-  ::amrex::MultiFab nodes{};
-  std::array<::amrex::MultiFab, AMREX_SPACEDIM> faces{};
+  std::unique_ptr<::amrex::MultiFab> nodes{};
+  std::array<std::unique_ptr<::amrex::MultiFab>, AMREX_SPACEDIM> faces{};
 };
 
 template <typename Equation>

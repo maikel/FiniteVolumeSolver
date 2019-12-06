@@ -66,7 +66,30 @@ operator=(LevelData&& other) noexcept {
 IntegratorContext::IntegratorContext(
     std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod nm)
     : registry_{std::make_shared<CounterRegistry>()},
-      ghost_cell_width_{nm.flux_method.GetStencilWidth() + 5},
+      ghost_cell_width_{nm.flux_method.GetStencilWidth() + 1}, face_gcw_{1},
+      gridding_{std::move(gridding)}, data_{}, method_{std::move(nm)} {
+  data_.reserve(
+      static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
+  // Allocate auxiliary data arrays for each refinement level in the hierarchy
+  ResetHierarchyConfiguration();
+  for (std::size_t level_num = 0; level_num < data_.size(); ++level_num) {
+    CopyDataToScratch(level_num);
+  }
+  std::size_t n_levels =
+      static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels());
+  for (std::size_t i = 0; i < n_levels; ++i) {
+    data_[i].cycles = gridding_->GetPatchHierarchy().GetPatchLevel(i).cycles;
+    data_[i].time_point =
+        gridding_->GetPatchHierarchy().GetPatchLevel(i).time_point;
+    data_[i].regrid_time_point = data_[i].time_point;
+  }
+}
+
+IntegratorContext::IntegratorContext(
+    std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod nm,
+    int cell_gcw, int face_gcw)
+    : registry_{std::make_shared<CounterRegistry>()},
+      ghost_cell_width_{cell_gcw}, face_gcw_{face_gcw},
       gridding_{std::move(gridding)}, data_{}, method_{std::move(nm)} {
   data_.reserve(
       static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
@@ -86,8 +109,8 @@ IntegratorContext::IntegratorContext(
 }
 
 IntegratorContext::IntegratorContext(const IntegratorContext& other)
-    : registry_(other.registry_),
-      ghost_cell_width_{other.ghost_cell_width_}, gridding_{other.gridding_},
+    : registry_(other.registry_), ghost_cell_width_{other.ghost_cell_width_},
+      face_gcw_{other.face_gcw_}, gridding_{other.gridding_},
       data_(static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels())),
       method_{other.method_} {
   // Allocate auxiliary data arrays
@@ -230,7 +253,7 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
       const ::amrex::BoxArray fba =
           ::amrex::convert(ba, ::amrex::IntVect::TheDimensionVector(int(d)));
       ::amrex::IntVect fgrow = grow;
-      fgrow[int(d)] = 1;
+      fgrow[int(d)] = face_gcw_;
       data.fluxes[d].define(fba, dm, n_cons_components, fgrow);
     }
     if (level > 0) {
@@ -468,7 +491,8 @@ void IntegratorContext::PreAdvanceLevel(int level_num, Duration,
         ResetHierarchyConfiguration(level_num + 1);
         ResetCoarseFineFluxes(level_num + 1, level_num);
       }
-      for (int lvl = level_num; lvl < GetPatchHierarchy().GetNumberOfLevels(); ++lvl) {
+      for (int lvl = level_num; lvl < GetPatchHierarchy().GetNumberOfLevels();
+           ++lvl) {
         CopyDataToScratch(lvl);
       }
     }

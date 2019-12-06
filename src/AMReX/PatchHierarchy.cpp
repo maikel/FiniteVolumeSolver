@@ -39,20 +39,36 @@ PatchLevel::PatchLevel(const PatchLevel& other)
       distribution_mapping(other.distribution_mapping.ProcessorMap()) {
   if (other.data.ok()) {
     data.define(box_array, distribution_mapping, other.data.nComp(),
-           other.data.nGrowVect(), ::amrex::MFInfo(), other.data.Factory());
+                other.data.nGrowVect(), ::amrex::MFInfo(),
+                other.data.Factory());
     data.copy(other.data);
   }
-  if (other.nodes.ok()) {
-    nodes.define(box_array.surroundingNodes(), distribution_mapping,
-                 other.nodes.nComp(), other.nodes.nGrowVect(), ::amrex::MFInfo(), other.nodes.Factory());
+  if (other.nodes) {
+    nodes = std::make_unique<::amrex::MultiFab>(
+        box_array.surroundingNodes(), distribution_mapping,
+        other.nodes->nComp(), other.nodes->nGrowVect(), ::amrex::MFInfo(),
+        other.nodes->Factory());
+    nodes->copy(*other.nodes);
   }
-  if (other.faces[0].ok()) {
-    faces[0].define(box_array.convert({AMREX_D_DECL(1, 0, 0)}), distribution_mapping, other.faces[0].nComp(), other.faces[0].nGrowVect(), ::amrex::MFInfo(), other.faces[0].Factory());
-    if (other.faces[2].ok()) {
-      faces[2].define(box_array.convert({AMREX_D_DECL(0, 0, 1)}), distribution_mapping, other.faces[2].nComp(), other.faces[2].nGrowVect(), ::amrex::MFInfo(), other.faces[2].Factory());
+  if (other.faces[0]) {
+    faces[0] = std::make_unique<::amrex::MultiFab>(
+        box_array.convert({AMREX_D_DECL(1, 0, 0)}), distribution_mapping,
+        other.faces[0]->nComp(), other.faces[0]->nGrowVect(), ::amrex::MFInfo(),
+        other.faces[0]->Factory());
+    faces[0]->copy(*other.faces[0]);
+    if (other.faces[2]) {
+      faces[2] = std::make_unique<::amrex::MultiFab>(
+          box_array.convert({AMREX_D_DECL(0, 0, 1)}), distribution_mapping,
+          other.faces[2]->nComp(), other.faces[2]->nGrowVect(),
+          ::amrex::MFInfo(), other.faces[2]->Factory());
+      faces[2]->copy(*other.faces[2]);
     }
-    if (other.faces[1].ok()) {
-      faces[1].define(box_array.convert({AMREX_D_DECL(0, 1, 0)}), distribution_mapping, other.faces[1].nComp(), other.faces[1].nGrowVect(), ::amrex::MFInfo(), other.faces[1].Factory());
+    if (other.faces[1]) {
+      faces[1] = std::make_unique<::amrex::MultiFab>(
+          box_array.convert({AMREX_D_DECL(0, 1, 0)}), distribution_mapping,
+          other.faces[1]->nComp(), other.faces[1]->nGrowVect(),
+          ::amrex::MFInfo(), other.faces[1]->Factory());
+      faces[1]->copy(*other.faces[1]);
     }
   }
 }
@@ -66,32 +82,37 @@ PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
                        const ::amrex::DistributionMapping& dm, int n_components)
     : level_number{level}, time_point{tp}, box_array{ba},
       distribution_mapping{dm}, data{box_array, distribution_mapping,
-                                     n_components, 0} {
-
-}
+                                     n_components, 0} {}
 
 PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
                        const ::amrex::DistributionMapping& dm,
-                       const DataDescription& desc) : 
-    level_number{level},
-    time_point{tp}, box_array{ba}, distribution_mapping{dm} {
+                       const DataDescription& desc)
+    : level_number{level}, time_point{tp}, box_array{ba}, distribution_mapping{
+                                                              dm} {
   if (desc.n_state_components) {
     data.define(box_array, distribution_mapping, desc.n_state_components, 0);
   }
   if (desc.n_node_components) {
-    nodes.define(box_array.surroundingNodes(), distribution_mapping,
-                 desc.n_node_components, 0);
+    nodes = std::make_unique<::amrex::MultiFab>(box_array.surroundingNodes(),
+                                                distribution_mapping,
+                                                desc.n_node_components, 0);
   }
   if (desc.n_face_components) {
     switch (desc.dimension) {
     case 3:
-      faces[2].define(box_array.convert({AMREX_D_DECL(0, 0, 1)}), distribution_mapping, desc.n_face_components, 0);
+      faces[2] = std::make_unique<::amrex::MultiFab>(
+          box_array.convert({AMREX_D_DECL(0, 0, 1)}), distribution_mapping,
+          desc.n_face_components, 0);
       [[fallthrough]];
     case 2:
-      faces[1].define(box_array.convert({AMREX_D_DECL(0, 1, 0)}), distribution_mapping, desc.n_face_components, 0);
+      faces[1] = std::make_unique<::amrex::MultiFab>(
+          box_array.convert({AMREX_D_DECL(0, 1, 0)}), distribution_mapping,
+          desc.n_face_components, 0);
       [[fallthrough]];
     default:
-      faces[0].define(box_array.convert({AMREX_D_DECL(1, 0, 0)}), distribution_mapping, desc.n_face_components, 0);
+      faces[0] = std::make_unique<::amrex::MultiFab>(
+          box_array.convert({AMREX_D_DECL(1, 0, 0)}), distribution_mapping,
+          desc.n_face_components, 0);
     }
   }
 }
