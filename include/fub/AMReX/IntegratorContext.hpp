@@ -25,8 +25,8 @@
 #include "fub/Duration.hpp"
 #include "fub/HyperbolicMethod.hpp"
 #include "fub/TimeStepError.hpp"
-#include "fub/ext/outcome.hpp"
 #include "fub/counter/CounterRegistry.hpp"
+#include "fub/ext/outcome.hpp"
 
 #include "fub/AMReX/GriddingAlgorithm.hpp"
 #include "fub/AMReX/PatchHierarchy.hpp"
@@ -57,6 +57,11 @@ public:
   IntegratorContext(std::shared_ptr<GriddingAlgorithm> gridding,
                     HyperbolicMethod method);
 
+  IntegratorContext(std::shared_ptr<GriddingAlgorithm> gridding,
+                    HyperbolicMethod method,
+                    int cell_gcw,
+                    int face_gcw = 1);
+
   /// \brief Deeply copies a context and all its distributed data for all MPI
   /// ranks.
   IntegratorContext(const IntegratorContext&);
@@ -83,8 +88,8 @@ public:
 
   /// \brief Returns a shared pointer to the underlying GriddingAlgorithm which
   /// owns the simulation.
-  [[nodiscard]] const std::shared_ptr<GriddingAlgorithm>& GetGriddingAlgorithm() const
-      noexcept;
+  [[nodiscard]] const std::shared_ptr<GriddingAlgorithm>&
+  GetGriddingAlgorithm() const noexcept;
 
   /// \brief Returns a reference to const PatchHierarchy which is a member of
   /// the GriddingAlgorithm.
@@ -133,10 +138,12 @@ public:
   [[nodiscard]] bool LevelExists(int level) const noexcept;
 
   /// \brief Returns the refinement ratio in the specified direction.
-  [[nodiscard]] int GetRatioToCoarserLevel(int level, Direction dir) const noexcept;
+  [[nodiscard]] int GetRatioToCoarserLevel(int level, Direction dir) const
+      noexcept;
 
   /// \brief Returns the refinement ratio for all directions.
-  [[nodiscard]] ::amrex::IntVect GetRatioToCoarserLevel(int level) const noexcept;
+  [[nodiscard]] ::amrex::IntVect GetRatioToCoarserLevel(int level) const
+      noexcept;
   /// @}
 
   /// @{
@@ -167,7 +174,8 @@ public:
   void PostAdvanceHierarchy();
 
   /// \brief On each first subcycle this will regrid the data if neccessary.
-  void PreAdvanceLevel(int level_num, Duration dt, std::pair<int, int> subcycle);
+  void PreAdvanceLevel(int level_num, Duration dt,
+                       std::pair<int, int> subcycle);
 
   /// \brief Increases the internal time stamps and cycle counters for the
   /// specified level number and direction.
@@ -251,6 +259,7 @@ private:
   };
 
   int ghost_cell_width_;
+  int face_gcw_;
   std::shared_ptr<GriddingAlgorithm> gridding_;
   std::vector<LevelData> data_;
   HyperbolicMethod method_;
