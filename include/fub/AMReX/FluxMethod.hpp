@@ -123,21 +123,15 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
   const int dir_v = int(dir);
   const double dx = geom.CellSize(dir_v);
   FUB_ASSERT(!scratch.contains_nan());
-  ForEachFab(Tag(), fluxes, [&](::amrex::MFIter& mfi) {
+  ForEachFab(Tag(), scratch, [&](::amrex::MFIter& mfi) {
     // Get a view of all complete state variables
     const int gcw = GetStencilWidth();
-    const ::amrex::Box box = mfi.tilebox();
-    const ::amrex::Box grownbox = mfi.growntilebox();
-    const ::amrex::Box face_box = [&box, &grownbox, dir_v, gcw] {
-      ::amrex::Box all_faces = grownbox;
-      all_faces.setSmall(dir_v, box.smallEnd(dir_v) - 1);
-      all_faces.setBig(dir_v, box.bigEnd(dir_v) + 1);
+    const ::amrex::Box cell_box = mfi.growntilebox();
+    const ::amrex::Box face_box = [&cell_box, dir_v, gcw] {
+      ::amrex::Box all_faces = cell_box;
+      all_faces.surroundingNodes(dir_v);
+      all_faces.grow(dir_v, -gcw);
       return all_faces;
-    }();
-    const ::amrex::Box cell_box = [&face_box, dir_v, gcw] {
-      ::amrex::Box cells = enclosedCells(face_box);
-      cells.grow(dir_v, gcw);
-      return cells;
     }();
     auto&& equation = flux_method_->GetEquation();
     View<const Complete<Equation>> states =
