@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #include "fub/equations/CompressibleAdvection.hpp"
+#include "fub/AMReX/ForEachFab.hpp"
 
 namespace fub {
 namespace {
@@ -35,28 +36,72 @@ double LimitSlopes(double qL, double qM, double qR) {
     return 0.5 * std::min(2 * r / (1 + r), 2 / (1 + r)) * (sL + sR);
   }
 }
+} // namespace
+
+template <int SpaceDimension>
+Duration CompressibleAdvectionFluxMethod<SpaceDimension>::ComputeStableDt(
+    amrex::IntegratorContext& context, int level, Direction dir) {
+  CompressibleAdvection<SpaceDimension> equation{};
+  const ::amrex::Geometry& geom = context.GetGeometry(level);
+  const double dx = geom.CellSize(int(dir));
+  ::amrex::MultiFab& fluxes = context.GetFluxes(level, dir);
+  Duration time_point = context.GetTimePoint(level);
+  amrex::ForEachFab(fluxes, [&](const ::amrex::MFIter& mfi) {
+    ::amrex::FArrayBox& fab = fluxes[mfi];
+    const ::amrex::Box box = mfi.growntilebox();
+    View<Conservative> flux = amrex::MakeView<Conservative>(fab, equation, box);
+    ForEachIndex(Box<0>(flux), [&](auto... is) {
+      ::amrex::IntVect face{int(is)...};
+      std::array<double, AMREX_SPACEDIM> x{};
+      geom.LoFace(face, int(dir), x.data());
+      flux.PTdensity(is...) = Pv_function_(x, time_point, dir);
+    });
+  });
+
+  const ::amrex::MultiFab& scratch = context.GetScratch(level);
+  Duration min_dt(std::numeric_limits<double>::max());
+  amrex::ForEachFab(fluxes, [&](const ::amrex::MFIter& mfi) {
+    const ::amrex::Box& face_box = mfi.growntilebox();
+    const ::amrex::Box cell_box = [&] {
+      ::amrex::Box box = face_box;
+      box.enclosedCells();
+      return box;
+    }();
+    View<const Complete> cells =
+        amrex::MakeView<const Complete>(scratch[mfi], equation, cell_box);
+    View<const Conservative> flux =
+        amrex::MakeView<const Conservative>(fluxes[mfi], equation, face_box);
+    StridedDataView<const double, SpaceDimension> Pv = flux.PTdensity;
+    Duration local_dt = ComputeStableDt(cells, Pv, dx, dir);
+    min_dt = std::min(local_dt, min_dt);
+  });
+  return min_dt;
+}
 
 template <int SpaceDimension>
 Duration CompressibleAdvectionFluxMethod<SpaceDimension>::ComputeStableDt(
     const View<const Complete>& states,
-    const StridedDataView<const double, SpaceDimension> Pv, double dx, Direction dir) {
+    const StridedDataView<const double, SpaceDimension> Pv, double dx,
+    Direction dir) {
   double max_signal = std::numeric_limits<double>::lowest();
   ForEachIndex(Box<0>(states), [&](auto... is) {
-    using Index = std::array<std::ptrdiff_t, SpaceDim>;
+    using Index = std::array<std::ptrdiff_t, SpaceDimension>;
     Index cell{is...};
     Index faceL = cell;
     Index faceR = Shift(cell, dir, 1);
-    double v_advect = 0.5 * (Pv(faceL) + Pv(faceR)) / stencil[i].PTdensity;
+    double v_advect = 0.5 * (Pv(faceL) + Pv(faceR)) / states.PTdensity(cell);
     max_signal = std::max(max_signal, std::abs(v_advect));
   });
-  FUB_ASSERT(max_signal > 0.0);
-  return dx / max_signal;
+  // FUB_ASSERT(max_signal > 0.0);
+  return max_signal > 0 ? Duration(dx / max_signal)
+                        : Duration(std::numeric_limits<double>::max());
 }
 
 template <int SpaceDimension>
-void CompressibleAdvectionFluxMethod<SpaceDimension>::ComputeNumericFluxes(
+typename CompressibleAdvection<SpaceDimension>::Conservative
+CompressibleAdvectionFluxMethod<SpaceDimension>::ComputeNumericFluxes(
     const std::array<Complete, 4>& stencil, const std::array<double, 5> Pvs,
-    Duration dt, double dx, Direction dir) {
+    Duration dt, double dx, Direction) {
   // Reconstruction
   double slope_chi_L = LimitSlopes(stencil[0].PTinverse, stencil[1].PTinverse,
                                    stencil[2].PTinverse) /
@@ -80,8 +125,9 @@ void CompressibleAdvectionFluxMethod<SpaceDimension>::ComputeNumericFluxes(
   }
 
   std::array<double, 4> v_advect{};
-  for (int i = 0; i < 4; ++i) {
-  // for (int i = 1; i < 2; ++i) {
+  // for (int i = 0; i < 4; ++i) {
+  // We only use the inner two v_advects
+  for (int i = 1; i < 2; ++i) {
     v_advect[i] = 0.5 * (Pvs[i] + Pvs[i + 1]) / stencil[i].PTdensity;
   }
 
@@ -106,26 +152,28 @@ void CompressibleAdvectionFluxMethod<SpaceDimension>::ComputeNumericFluxes(
 
   int upwind = (Pvs[2] > 0.0) - (Pvs[2] < 0.0);
 
-  fluxes.density =
+  Conservative flux{};
+  flux.density =
       Pvs[2] * 0.5 * ((1 + upwind) * rec_chi_L + (1 - upwind) * rec_chi_R);
   for (int dim = 0; dim < SpaceDimension; ++dim) {
-    fluxes.velocity[dim] = Pvs[2] * 0.5 *
-                           ((1 + upwind) * rec_velocity_L[dim] +
-                            (1 - upwind) * rec_velocity_R[dim]);
+    flux.momentum[dim] = Pvs[2] * 0.5 *
+                         ((1 + upwind) * rec_velocity_L[dim] +
+                          (1 - upwind) * rec_velocity_R[dim]);
   }
-  fluxes.PTdensity = Pvs[2];
+  flux.PTdensity = Pvs[2];
+  return flux;
 }
 
 template <int SpaceDimension>
 void CompressibleAdvectionFluxMethod<SpaceDimension>::ComputeNumericFluxes(
     const View<Conservative>& fluxes, const View<const Complete>& states,
-    const StridedDataView<const double, SpaceDimension> Pv_array, Duration dt,
+    const StridedDataView<const double, SpaceDimension>& Pv_array, Duration dt,
     double dx, Direction dir) {
-  Conservative flux;
-  std::array<Complete, 4> stencil;
-  std::array<double, 5> Pvs;
-  ForEachIndex(Box<0>(fluxes), [](auto... is) {
-    using Index = std::array<std::ptrdiff_t, SpaceDim>;
+  std::array<Complete, 4> stencil{};
+  std::array<double, 5> Pvs{};
+
+  ForEachIndex(Box<0>(fluxes), [&](auto... is) {
+    using Index = std::array<std::ptrdiff_t, SpaceDimension>;
     Index face{is...};
     Index cell_LL = Shift(face, dir, -2);
     Index cell_L = Shift(face, dir, -1);
@@ -140,7 +188,7 @@ void CompressibleAdvectionFluxMethod<SpaceDimension>::ComputeNumericFluxes(
     Pvs[2] = Pv_array(Shift(face, dir, +0));
     Pvs[3] = Pv_array(Shift(face, dir, +1));
     // Pvs[4] = Pv_array(Shift(face, dir, +2));
-    flux = ComputeNumericFlux(stencil, Pvs, dt, dx, dir);
+    Conservative flux = ComputeNumericFluxes(stencil, Pvs, dt, dx, dir);
     Store(fluxes, flux, face);
   });
 }
@@ -148,9 +196,10 @@ void CompressibleAdvectionFluxMethod<SpaceDimension>::ComputeNumericFluxes(
 template <int SpaceDimension>
 void CompressibleAdvectionFluxMethod<SpaceDimension>::ComputeNumericFluxes(
     const View<Conservative>& fluxes, const View<const Complete>& states,
-    Duration dt, double dx, Direction dir)
-{
-  
+    Duration dt, double dx, Direction dir) {
+  ComputeNumericFluxes(fluxes, states, fluxes.PTdensity, dt, dx, dir);
 }
 
-} // namespace
+template struct CompressibleAdvectionFluxMethod<2>;
+
+} // namespace fub

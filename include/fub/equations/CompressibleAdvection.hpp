@@ -91,8 +91,6 @@ using CompressibleAdvectionCompleteShape =
     CompressibleAdvectionComplete<ScalarDepth, VectorDepth<Rank>, ScalarDepth,
                                   VectorDepth<Rank>, ScalarDepth>;
 
-template <int Rank> struct CompressibleAdvection;
-
 template <int N> struct CompressibleAdvection {
   using ConservativeDepths = CompressibleAdvectionConsShape<N>;
   using CompleteDepths = CompressibleAdvectionCompleteShape<N>;
@@ -101,6 +99,14 @@ template <int N> struct CompressibleAdvection {
   using Complete = ::fub::Complete<CompressibleAdvection<N>>;
 
   static constexpr int Rank() noexcept { return N; }
+
+  void CompleteFromCons(Complete& state, const Conservative& cons) {
+    state.density = cons.density;
+    state.momentum = cons.momentum;
+    state.PTdensity = cons.PTdensity;
+    state.velocity = cons.momentum / cons.density;
+    state.PTinverse = cons.density / cons.PTdensity;
+  }
 };
 
 template <int SpaceDimension> struct CompressibleAdvectionFluxMethod {
@@ -109,6 +115,8 @@ template <int SpaceDimension> struct CompressibleAdvectionFluxMethod {
 
   constexpr static int GetStencilWidth() { return 2; }
 
+  CompressibleAdvection<2> GetEquation() const noexcept { return {}; }
+
   Duration ComputeStableDt(amrex::IntegratorContext& context, int level, Direction dir);
 
   static Duration
@@ -116,7 +124,7 @@ template <int SpaceDimension> struct CompressibleAdvectionFluxMethod {
                   const StridedDataView<const double, SpaceDimension> Pv,
                   double dx, Direction dir);
 
-  static void ComputeNumericFluxes(const std::array<Complete, 4>& stencil,
+  static Conservative ComputeNumericFluxes(const std::array<Complete, 4>& stencil,
                                    const std::array<double, 5> Pvs, Duration dt,
                                    double dx, Direction dir);
 
@@ -124,19 +132,26 @@ template <int SpaceDimension> struct CompressibleAdvectionFluxMethod {
   static void
   ComputeNumericFluxes(const View<Conservative>& fluxes,
                        const View<const Complete>& states,
-                       const StridedDataView<const double, SpaceDimension> Pv,
+                       const StridedDataView<const double, SpaceDimension>& Pv,
                        Duration dt, double dx, Direction dir);
 
   static void ComputeNumericFluxes(const View<Conservative>& fluxes,
                                    const View<const Complete>& states,
                                    Duration dt, double dx, Direction dir);
+
+  static void ComputeNumericFluxes(execution::SequentialTag, const View<Conservative>& fluxes,
+                                   const View<const Complete>& states,
+                                   Duration dt, double dx, Direction dir) {
+                                     ComputeNumericFluxes(fluxes, states, dt, dx, dir);
+                                   }
+
+  std::function<double(std::array<double, SpaceDimension>, Duration, Direction)> Pv_function_;
 };
 
 // We define this class only for dimensions 1 to 3.
 // The definitions will be found in its source file PerfetGas.cpp
-extern template struct CompressibleAdvection<1>;
-extern template struct CompressibleAdvection<2>;
-extern template struct CompressibleAdvection<3>;
+// extern template struct CompressibleAdvection<2>;
+extern template struct CompressibleAdvectionFluxMethod<2>;
 
 } // namespace fub
 
