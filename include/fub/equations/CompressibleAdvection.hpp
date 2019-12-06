@@ -110,23 +110,26 @@ template <int N> struct CompressibleAdvection {
 };
 
 template <int SpaceDimension> struct CompressibleAdvectionFluxMethod {
-  using Conservative = typename CompressibleAdvection<SpaceDimension>::Conservative;
+  using Conservative =
+      typename CompressibleAdvection<SpaceDimension>::Conservative;
   using Complete = typename CompressibleAdvection<SpaceDimension>::Complete;
 
   constexpr static int GetStencilWidth() { return 2; }
 
   CompressibleAdvection<2> GetEquation() const noexcept { return {}; }
 
-  Duration ComputeStableDt(amrex::IntegratorContext& context, int level, Direction dir);
+  Duration ComputeStableDt(amrex::IntegratorContext& context, int level,
+                           Direction dir);
 
   static Duration
   ComputeStableDt(const View<const Complete>& states,
                   const StridedDataView<const double, SpaceDimension> Pv,
                   double dx, Direction dir);
 
-  static Conservative ComputeNumericFluxes(const std::array<Complete, 4>& stencil,
-                                   const std::array<double, 5> Pvs, Duration dt,
-                                   double dx, Direction dir);
+  static Conservative
+  ComputeNumericFluxes(const std::array<Complete, 4>& stencil,
+                       const std::array<double, 5> Pvs, Duration dt, double dx,
+                       Direction dir);
 
   /// Pv is face centered
   static void
@@ -139,13 +142,15 @@ template <int SpaceDimension> struct CompressibleAdvectionFluxMethod {
                                    const View<const Complete>& states,
                                    Duration dt, double dx, Direction dir);
 
-  static void ComputeNumericFluxes(execution::SequentialTag, const View<Conservative>& fluxes,
+  static void ComputeNumericFluxes(execution::SequentialTag,
+                                   const View<Conservative>& fluxes,
                                    const View<const Complete>& states,
                                    Duration dt, double dx, Direction dir) {
-                                     ComputeNumericFluxes(fluxes, states, dt, dx, dir);
-                                   }
+    ComputeNumericFluxes(fluxes, states, dt, dx, dir);
+  }
 
-  std::function<double(std::array<double, SpaceDimension>, Duration, Direction)> Pv_function_;
+  std::function<double(std::array<double, SpaceDimension>, Duration, Direction)>
+      Pv_function_;
 };
 
 // We define this class only for dimensions 1 to 3.
