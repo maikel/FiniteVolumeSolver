@@ -66,7 +66,8 @@ operator=(LevelData&& other) noexcept {
 IntegratorContext::IntegratorContext(
     std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod nm)
     : registry_{std::make_shared<CounterRegistry>()},
-      ghost_cell_width_{nm.flux_method.GetStencilWidth() + 1}, face_gcw_{1},
+      ghost_cell_width_{nm.flux_method.GetStencilWidth() + 2},
+      face_gcw_{nm.flux_method.GetStencilWidth() + 2},
       gridding_{std::move(gridding)}, data_{}, method_{std::move(nm)} {
   data_.reserve(
       static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));

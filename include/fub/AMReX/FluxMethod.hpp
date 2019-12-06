@@ -64,21 +64,22 @@ Duration FluxMethod<Tag, FM>::ComputeStableDt(IntegratorContext& context,
   const double dx = geom.CellSize(int(dir));
   double min_dt = std::numeric_limits<double>::max();
   const ::amrex::MultiFab& scratch = context.GetScratch(level);
-  const ::amrex::MultiFab& fluxes = context.GetFluxes(level, dir);
+  const int dir_v = static_cast<int>(dir);
   FUB_ASSERT(!scratch.contains_nan());
   if constexpr (std::is_base_of<execution::OpenMpTag, Tag>::value) {
 #if defined(_OPENMP) && defined(AMREX_USE_OMP)
 #pragma omp parallel reduction(min : min_dt)
 #endif
-    for (::amrex::MFIter mfi(fluxes,
+    for (::amrex::MFIter mfi(scratch,
                              ::amrex::IntVect(AMREX_D_DECL(1024000, 8, 8)));
          mfi.isValid(); ++mfi) {
       const int gcw = GetStencilWidth();
-      const ::amrex::Box face_box = mfi.growntilebox();
-      const ::amrex::Box cell_box = [&face_box, dir, gcw] {
-        ::amrex::Box cells = enclosedCells(face_box);
-        cells.grow(static_cast<int>(dir), gcw);
-        return cells;
+      const ::amrex::Box cell_box = mfi.growntilebox();
+      const ::amrex::Box face_box = [&cell_box, dir_v, gcw] {
+        ::amrex::Box all_faces = cell_box;
+        all_faces.surroundingNodes(dir_v);
+        all_faces.grow(dir_v, -gcw);
+        return all_faces;
       }();
       auto&& equation = flux_method_->GetEquation();
       View<const Complete<Equation>> states =
@@ -89,13 +90,14 @@ Duration FluxMethod<Tag, FM>::ComputeStableDt(IntegratorContext& context,
     double local_count = min_dt;
     return Duration(local_count);
   } else {
-    for (::amrex::MFIter mfi(fluxes); mfi.isValid(); ++mfi) {
+    for (::amrex::MFIter mfi(scratch); mfi.isValid(); ++mfi) {
       const int gcw = GetStencilWidth();
-      const ::amrex::Box face_box = mfi.growntilebox();
-      const ::amrex::Box cell_box = [&face_box, dir, gcw] {
-        ::amrex::Box cells = enclosedCells(face_box);
-        cells.grow(static_cast<int>(dir), gcw);
-        return cells;
+      const ::amrex::Box cell_box = mfi.growntilebox();
+      const ::amrex::Box face_box = [&cell_box, dir_v, gcw] {
+        ::amrex::Box all_faces = cell_box;
+        all_faces.surroundingNodes(dir_v);
+        all_faces.grow(dir_v, -gcw);
+        return all_faces;
       }();
       auto&& equation = flux_method_->GetEquation();
       View<const Complete<Equation>> states =

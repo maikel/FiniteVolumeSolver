@@ -27,13 +27,12 @@
 namespace fub::amrex {
 namespace {
 ::amrex::Box GetCellBoxToUpdate(const ::amrex::MFIter& mfi, Direction dir) {
-  // const ::amrex::Box one_box = mfi.growntilebox(1);
   const ::amrex::Box grown_box = mfi.growntilebox();
   const ::amrex::Box box = mfi.tilebox();
   ::amrex::Box dest_box = grown_box;
   const int idir = static_cast<int>(dir);
-  dest_box.setSmall(idir, box.smallEnd(idir) - 1);
-  dest_box.setBig(idir, box.bigEnd(idir) + 1);
+  dest_box.setSmall(idir, box.smallEnd(idir) - 2);
+  dest_box.setBig(idir, box.bigEnd(idir) + 2);
   return dest_box;
 }
 } // namespace
