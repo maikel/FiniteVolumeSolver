@@ -90,7 +90,7 @@ IntegratorContext::IntegratorContext(
     std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod nm,
     int cell_gcw, int face_gcw)
     : registry_{std::make_shared<CounterRegistry>()},
-      ghost_cell_width_{cell_gcw}, face_gcw_{face_gcw},
+      ghost_cell_width_{cell_gcw}, face_ghost_cell_width_{face_gcw},
       gridding_{std::move(gridding)}, data_{}, method_{std::move(nm)} {
   data_.reserve(
       static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
