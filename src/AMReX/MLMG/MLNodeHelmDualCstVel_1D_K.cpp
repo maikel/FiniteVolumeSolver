@@ -174,45 +174,6 @@ void mlndhelm_res_cf_contrib (int i, int j, int k, Array4<Real> const& res,
                              GpuArray<LinOpBCType, AMREX_SPACEDIM> const& hibc) noexcept
 {}
 
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_set_stencil (Box const& bx, Array4<Real> const& sten,
-                          Array4<Real const> const& sig,
-                          GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
-{}
-
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_set_stencil_s0 (int i, int j, int k, Array4<Real> const& sten) noexcept
-{}
-
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_stencil_rap (int i, int j, int k, Array4<Real> const& csten,
-                          Array4<Real const> const& fsten) noexcept
-{}
-
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_adotx_sten (int i, int j, int k, Array4<Real> const& y, Array4<Real const> const& x,
-                         Array4<Real const> const& sten, Array4<int const> const& msk) noexcept
-{}
-
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_gauss_seidel_sten (Box const& bx, Array4<Real> const& sol,
-                                Array4<Real const> const& rhs,
-                                Array4<Real const> const& sten,
-                                Array4<int const> const& msk) noexcept
-{}
-
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_interpadd_rap (int i, int j, int k, Array4<Real> const& fine,
-                            Array4<Real const> const& crse, Array4<Real const> const& sten,
-                            Array4<int const> const& msk) noexcept
-{}
-
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_restriction_rap (int i, int j, int k, Array4<Real> const& crse,
-                              Array4<Real const> const& fine, Array4<Real const> const& sten,
-                              Array4<int const> const& msk) noexcept
-{}
-
 }
 
 #endif

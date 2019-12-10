@@ -17,13 +17,6 @@ public:
                      const Vector<DistributionMapping>& a_dmap,
                      const LPInfo& a_info = LPInfo(),
                      const Vector<FabFactory<FArrayBox> const*>& a_factory = {});
-#ifdef AMREX_USE_EB
-    MLNodeHelmDualCstVel (const Vector<Geometry>& a_geom,
-                     const Vector<BoxArray>& a_grids,
-                     const Vector<DistributionMapping>& a_dmap,
-                     const LPInfo& a_info,
-                     const Vector<EBFArrayBoxFactory const*>& a_factory);
-#endif
     virtual ~MLNodeHelmDualCstVel ();
 
     MLNodeHelmDualCstVel (const MLNodeHelmDualCstVel&) = delete;
@@ -37,17 +30,7 @@ public:
                  const LPInfo& a_info = LPInfo(),
                  const Vector<FabFactory<FArrayBox> const*>& a_factory = {});
 
-#ifdef AMREX_USE_EB
-    void define (const Vector<Geometry>& a_geom,
-                 const Vector<BoxArray>& a_grids,
-                 const Vector<DistributionMapping>& a_dmap,
-                 const LPInfo& a_info,
-                 const Vector<EBFArrayBoxFactory const*>& a_factory);
-#endif
-
     virtual std::string name () const override { return std::string("MLNodeHelmDualCstVel"); }
-
-    void setRZCorrection (bool rz) noexcept { m_is_rz = rz; }
 
     void setNormalizationThreshold (Real t) noexcept { m_normalization_threshold = t; }
 
@@ -74,8 +57,7 @@ public:
     void setCoarseningStrategy (CoarseningStrategy cs) noexcept { m_coarsening_strategy = cs; }
 
     virtual BottomSolver getDefaultBottomSolver () const final override {
-        return (m_coarsening_strategy == CoarseningStrategy::RAP) ?
-            BottomSolver::bicgcg : BottomSolver::bicgstab;
+        return BottomSolver::bicgstab;
     }
 
     virtual void restriction (int amrlev, int cmglev, MultiFab& crse, MultiFab& fine) const final override;
@@ -94,15 +76,15 @@ public:
 
     virtual void fixUpResidualMask (int amrlev, iMultiFab& resmsk) final override;
 
-    virtual void getFluxes (const Vector<Array<MultiFab*,AMREX_SPACEDIM> >& a_flux,
-                            const Vector<MultiFab*>& a_sol,
-                            Location a_loc) const final override {
+    virtual void getFluxes (const Vector<Array<MultiFab*,AMREX_SPACEDIM> >& ,
+                            const Vector<MultiFab*>& ,
+                            Location ) const final override {
         amrex::Abort("MLNodeHelmDualCstVel::getFluxes: How did we get here?");
     }
     virtual void getFluxes (const Vector<MultiFab*>& a_flux,
                             const Vector<MultiFab*>& a_sol) const final override;
 
-    virtual void unimposeNeumannBC (int amrlev, MultiFab& rhs) const final override;
+    virtual void unimposeNeumannBC (int , MultiFab& ) const final override {};
 
     void averageDownCoeffs ();
     void averageDownCoeffsToCoarseAmrLevel (int flev);
@@ -112,34 +94,11 @@ public:
 
     void FillBoundaryCoeff (MultiFab& sigma, const Geometry& geom);
 
-    void buildStencil ();
-
-#ifdef AMREX_USE_EB
-    void buildIntegral ();
-#endif
-
-#ifdef AMREX_USE_HYPRE
-    virtual void fillIJMatrix (MFIter const& mfi, Array4<HypreNodeLap::Int const> const& nid,
-                               Array4<int const> const& owner,
-                               Vector<HypreNodeLap::Int>& ncols, Vector<HypreNodeLap::Int>& rows,
-                               Vector<HypreNodeLap::Int>& cols, Vector<Real>& mat) const override;
-#endif
-
 private:
 
-    int m_is_rz = 0;
-
     Vector<Vector<Array<std::unique_ptr<MultiFab>,AMREX_SPACEDIM> > > m_sigma;
-    Vector<Vector<std::unique_ptr<MultiFab> > > m_stencil;
-    Vector<Vector<Real> > m_s0_norm0;
 
     Real m_normalization_threshold = 1.e-10;
-
-#ifdef AMREX_USE_EB
-    // they could be MultiCutFab
-    Vector<std::unique_ptr<MultiFab> > m_integral;
-    bool m_integral_built = false;
-#endif
 
     bool m_use_gauss_seidel = true;
     bool m_use_harmonic_average = false;
@@ -147,6 +106,6 @@ private:
     virtual void checkPoint (std::string const& file_name) const final;
 };
 
-} // namespace fub::amrex
+} // namespace amrex
 
 #endif

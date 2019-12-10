@@ -3,11 +3,6 @@
 #include <AMReX_MLMG.H>
 #include <AMReX_MultiFabUtil.H>
 
-#ifdef AMREX_USE_EB
-#include <AMReX_EBMultiFabUtil.H>
-#include <AMReX_algoim.H>
-#endif
-
 #include <fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp>
 #include <src/AMReX/MLMG/MLNodeHelmDualCstVel_K.cpp>
 
@@ -29,17 +24,6 @@ MLNodeHelmDualCstVel::MLNodeHelmDualCstVel (const Vector<Geometry>& a_geom,
 {
     define(a_geom, a_grids, a_dmap, a_info, a_factory);
 }
-
-#ifdef AMREX_USE_EB
-MLNodeHelmDualCstVel::MLNodeHelmDualCstVel (const Vector<Geometry>& a_geom,
-                                  const Vector<BoxArray>& a_grids,
-                                  const Vector<DistributionMapping>& a_dmap,
-                                  const LPInfo& a_info,
-                                  const Vector<EBFArrayBoxFactory const*>& a_factory)
-{
-    define(a_geom, a_grids, a_dmap, a_info, a_factory);
-}
-#endif
 
 MLNodeHelmDualCstVel::~MLNodeHelmDualCstVel ()
 {}
@@ -72,67 +56,6 @@ MLNodeHelmDualCstVel::define (const Vector<Geometry>& a_geom,
         m_sigma[amrlev][mglev][idim]->setVal(0.0);
     }
 
-#ifdef AMREX_USE_EB
-#if (AMREX_SPACEDIM == 2)
-    const int ncomp_i = 5;
-#else
-    const int ncomp_i = algoim::numIntgs;
-#endif
-    m_integral.resize(m_num_amr_levels);
-    for (int amrlev = 0; amrlev < m_num_amr_levels; ++amrlev)
-    {
-#ifdef AMREX_USE_EB
-        m_integral[amrlev].reset
-            (new MultiFab(m_grids[amrlev][0], m_dmap[amrlev][0], ncomp_i, 1,
-                          MFInfo(), *m_factory[amrlev][0]));
-#else
-        m_integral[amrlev].reset
-            (new MultiFab(m_grids[amrlev][0], m_dmap[amrlev][0], ncomp_i, 1));
-#endif
-    }
-#endif
-
-#if (AMREX_SPACEDIM == 2)
-    m_is_rz = m_geom[0][0].IsRZ();
-#endif
-}
-
-#ifdef AMREX_USE_EB
-void
-MLNodeHelmDualCstVel::define (const Vector<Geometry>& a_geom,
-                         const Vector<BoxArray>& a_grids,
-                         const Vector<DistributionMapping>& a_dmap,
-                         const LPInfo& a_info,
-                         const Vector<EBFArrayBoxFactory const*>& a_factory)
-{
-    Vector<FabFactory<FArrayBox> const*> _factory;
-    for (auto x : a_factory) {
-        _factory.push_back(static_cast<FabFactory<FArrayBox> const*>(x));
-    }
-    define(a_geom, a_grids, a_dmap, a_info, _factory);
-}
-#endif
-
-void
-MLNodeHelmDualCstVel::unimposeNeumannBC (int amrlev, MultiFab& rhs) const
-{
-    if (m_coarsening_strategy == CoarseningStrategy::RAP) {
-        const Box& nddom = amrex::surroundingNodes(Geom(amrlev).Domain());
-        const auto lobc = LoBC();
-        const auto hibc = HiBC();
-
-        MFItInfo mfi_info;
-        if (Gpu::notInLaunchRegion()) mfi_info.EnableTiling().SetDynamic(true);
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-        for (MFIter mfi(rhs,mfi_info); mfi.isValid(); ++mfi)
-        {
-            const Box& bx = mfi.tilebox();
-            Array4<Real> const& rhsarr = rhs.array(mfi);
-            mlndhelm_unimpose_neumann_bc(bx, rhsarr, nddom, lobc, hibc);
-        }
-    }
 }
 
 void
@@ -155,14 +78,6 @@ MLNodeHelmDualCstVel::compRHS (const Vector<MultiFab*>& rhs, const Vector<MultiF
     BL_PROFILE("MLNodeHelmDualCstVel::compRHS()");
 
     if (!m_masks_built) buildMasks();
-
-#ifdef AMREX_USE_EB
-    if (!m_integral_built) buildIntegral();
-#endif
-
-#if (AMREX_SPACEDIM == 2)
-    bool is_rz = m_is_rz;
-#endif
 
     const auto lobc = LoBC();
     const auto hibc = HiBC();
@@ -194,13 +109,6 @@ MLNodeHelmDualCstVel::compRHS (const Vector<MultiFab*>& rhs, const Vector<MultiF
 
         const iMultiFab& dmsk = *m_dirichlet_mask[ilev][0];
 
-#ifdef AMREX_USE_EB
-        auto factory = dynamic_cast<EBFArrayBoxFactory const*>(m_factory[ilev][0].get());
-        const FabArray<EBCellFlagFab>* flags = (factory) ? &(factory->getMultiEBCellFlagFab()) : nullptr;
-        const MultiFab* vfrac = (factory) ? &(factory->getVolFrac()) : nullptr;
-        const MultiFab* intg = m_integral[ilev].get();
-#endif
-
         MFItInfo mfi_info;
         if (Gpu::notInLaunchRegion()) mfi_info.EnableTiling().SetDynamic(true);
 #ifdef _OPENMP
@@ -213,46 +121,11 @@ MLNodeHelmDualCstVel::compRHS (const Vector<MultiFab*>& rhs, const Vector<MultiF
             Array4<Real const> const& velarr = vel[ilev]->const_array(mfi);
             Array4<int const> const& dmskarr = dmsk.const_array(mfi);
 
-#ifdef AMREX_USE_EB
-            bool regular = !factory;
-            FabType typ = FabType::regular;
-            if (factory)
-            {
-                const auto& flag = (*flags)[mfi];
-                const auto& ccbx = amrex::grow(amrex::enclosedCells(bx),1);
-                typ = flag.getType(ccbx);
-                if (typ == FabType::covered)
-                {
-                    AMREX_HOST_DEVICE_PARALLEL_FOR_3D(bx, i, j, k,
-                    {
-                        rhsarr(i,j,k) = 0.0;
-                    });
-                }
-                else if (typ == FabType::singlevalued)
-                {
-                    Array4<Real const> const& vfracarr = vfrac->const_array(mfi);
-                    Array4<Real const> const& intgarr = intg->const_array(mfi);
-                    AMREX_HOST_DEVICE_FOR_3D(bx, i, j, k,
-                    {
-                        mlndhelm_divu_eb(i,j,k,rhsarr,velarr,vfracarr,intgarr,dmskarr,dxinvarr);
-                    });
-                }
-                else
-                {
-                    regular = true;
-                }
-            }
-            if (regular)
-#endif
             {
                 AMREX_HOST_DEVICE_PARALLEL_FOR_3D (bx, i, j, k,
                 {
 
-#if (AMREX_SPACEDIM == 2)
-                    mlndhelm_divu(i,j,k,rhsarr,velarr,dmskarr,dxinvarr,is_rz);
-#else
                     mlndhelm_divu(i,j,k,rhsarr,velarr,dmskarr,dxinvarr);
-#endif
                 });
             }
 
@@ -262,18 +135,6 @@ MLNodeHelmDualCstVel::compRHS (const Vector<MultiFab*>& rhs, const Vector<MultiF
             {
                 Array4<Real> const& rhs_cc_a = rhs_cc[ilev]->array(mfi);
                 Array4<Real const> const& rhccarr = rhcc[ilev]->const_array(mfi);
-#ifdef AMREX_USE_EB
-                if (typ == FabType::singlevalued)
-                {
-                    Array4<Real const> const& vfracarr = vfrac->const_array(mfi);
-                    Array4<Real const> const& intgarr = intg->const_array(mfi);
-                    AMREX_HOST_DEVICE_FOR_3D(bx, i, j, k,
-                    {
-                        rhs_cc_a(i,j,k) = mlndhelm_rhcc_eb(i,j,k,rhccarr,vfracarr,intgarr,dmskarr);
-                    });
-                }
-                else if (typ == FabType::regular)
-#endif
                 {
                     AMREX_HOST_DEVICE_PARALLEL_FOR_3D(bx, i, j, k,
                     {
@@ -364,11 +225,7 @@ MLNodeHelmDualCstVel::compRHS (const Vector<MultiFab*>& rhs, const Vector<MultiF
                     } else {
                         rarr(i,j,k) = 0.0;
                     }
-#if (AMREX_SPACEDIM == 2)
-                    mlndhelm_divu_compute_fine_contrib(i,j,k,fvbx,rarr,varr,is_rz,fdxinv);
-#else
                     mlndhelm_divu_compute_fine_contrib(i,j,k,fvbx,rarr,varr,fdxinv);
-#endif
                 });
 
                 Array4<Real> const& rhsarr = frhs[ilev]->array(mfi);
@@ -454,9 +311,6 @@ MLNodeHelmDualCstVel::compRHS (const Vector<MultiFab*>& rhs, const Vector<MultiF
                 {
                     mlndhelm_divu_cf_contrib(i,j,k,rhsarr,velarr,crhsarr,rhccarr,
                                             cdmskarr,ndmskarr,ccmskarr,
-#if (AMREX_SPACEDIM == 2)
-                                            is_rz,
-#endif
                                             cdxinv,cnddom,lobc,hibc);
                 });
             }
@@ -470,19 +324,11 @@ MLNodeHelmDualCstVel::compRHS (const Vector<MultiFab*>& rhs, const Vector<MultiF
         }
     }
 
-#ifdef AMREX_USE_EB
-    for (int ilev = 0; ilev < m_num_amr_levels; ++ilev) {
-        amrex::EB_set_covered(*rhs[ilev], 0.0);
-    }
-#endif
 }
 
 void
 MLNodeHelmDualCstVel::updateVelocity (const Vector<MultiFab*>& vel, const Vector<MultiFab const*>& sol) const
 {
-#if (AMREX_SPACEDIM == 2)
-    bool is_rz = m_is_rz;
-#endif
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -491,54 +337,16 @@ MLNodeHelmDualCstVel::updateVelocity (const Vector<MultiFab*>& vel, const Vector
     {
         const auto& sigma = *m_sigma[amrlev][0][0];
         const auto dxinv = m_geom[amrlev][0].InvCellSizeArray();
-#ifdef AMREX_USE_EB
-        auto factory = dynamic_cast<EBFArrayBoxFactory const*>(m_factory[amrlev][0].get());
-        const FabArray<EBCellFlagFab>* flags = (factory) ? &(factory->getMultiEBCellFlagFab()) : nullptr;
-        const MultiFab* vfrac = (factory) ? &(factory->getVolFrac()) : nullptr;
-        const MultiFab* intg = m_integral[amrlev].get();
-#endif
         for (MFIter mfi(*vel[amrlev], TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             const Box& bx = mfi.tilebox();
             Array4<Real> const& varr = vel[amrlev]->array(mfi);
             Array4<Real const> const& solarr = sol[amrlev]->const_array(mfi);
             Array4<Real const> const& sigmaarr = sigma.const_array(mfi);
-#ifdef AMREX_USE_EB
-            bool regular = !factory;
-            if (factory)
-            {
-                auto type = (*flags)[mfi].getType(bx);
-                Array4<Real const> const& vfracarr = vfrac->const_array(mfi);
-                Array4<Real const> const& intgarr = intg->const_array(mfi);
-                if (type == FabType::covered)
-                {
-                    AMREX_HOST_DEVICE_PARALLEL_FOR_4D(bx, AMREX_SPACEDIM, i, j, k, n,
-                    {
-                        varr(i,j,k,n) = 0.0;
-                    });
-                }
-                else if (type == FabType::singlevalued)
-                {
-                    AMREX_HOST_DEVICE_FOR_3D(bx, i, j, k,
-                    {
-                        mlndhelm_mknewu_eb(i,j,k, varr, solarr, sigmaarr, vfracarr, intgarr, dxinv);
-                    });
-                }
-                else
-                {
-                    regular = true;
-                }
-            }
-            if (regular)
-#endif
             {
                 AMREX_HOST_DEVICE_PARALLEL_FOR_3D (bx, i, j, k,
                 {
-#if (AMREX_SPACEDIM == 2)
-                    mlndhelm_mknewu(i,j,k,varr,solarr,sigmaarr,dxinv,is_rz);
-#else
                     mlndhelm_mknewu(i,j,k,varr,solarr,sigmaarr,dxinv);
-#endif
                 });
             }
         }
@@ -548,9 +356,6 @@ MLNodeHelmDualCstVel::updateVelocity (const Vector<MultiFab*>& vel, const Vector
 void
 MLNodeHelmDualCstVel::getFluxes (const Vector<MultiFab*> & a_flux, const Vector<MultiFab*>& a_sol) const
 {
-#if (AMREX_SPACEDIM == 2)
-    bool is_rz = m_is_rz;
-#endif
 
     AMREX_ASSERT(a_flux[0]->nComp() >= AMREX_SPACEDIM);
 
@@ -561,12 +366,6 @@ MLNodeHelmDualCstVel::getFluxes (const Vector<MultiFab*> & a_flux, const Vector<
     {
         const auto& sigma = *m_sigma[amrlev][0][0];
         const auto dxinv = m_geom[amrlev][0].InvCellSizeArray();
-#ifdef AMREX_USE_EB
-        auto factory = dynamic_cast<EBFArrayBoxFactory const*>(m_factory[amrlev][0].get());
-        const FabArray<EBCellFlagFab>* flags = (factory) ? &(factory->getMultiEBCellFlagFab()) : nullptr;
-        const MultiFab* vfrac = (factory) ? &(factory->getVolFrac()) : nullptr;
-        const MultiFab* intg = m_integral[amrlev].get();
-#endif
 
         // Initialize to zero because we only want -(sigma * grad(phi))
 
@@ -582,37 +381,10 @@ MLNodeHelmDualCstVel::getFluxes (const Vector<MultiFab*> & a_flux, const Vector<
                 farr(i,j,k,n) = 0.0;
             });
 
-#ifdef AMREX_USE_EB
-            bool regular = !factory;
-            if (factory)
-            {
-                auto type = (*flags)[mfi].getType(bx);
-                Array4<Real const> const& vfracarr = vfrac->const_array(mfi);
-                Array4<Real const> const& intgarr = intg->const_array(mfi);
-                if (type == FabType::covered)
-                { }
-                else if (type == FabType::singlevalued)
-                {
-                    AMREX_HOST_DEVICE_FOR_3D(bx, i, j, k,
-                    {
-                        mlndhelm_mknewu_eb(i,j,k, farr, solarr, sigmaarr, vfracarr, intgarr, dxinv);
-                    });
-                }
-                else
-                {
-                    regular = true;
-                }
-            }
-            if (regular)
-#endif
             {
                 AMREX_HOST_DEVICE_PARALLEL_FOR_3D (bx, i, j, k,
                 {
-#if (AMREX_SPACEDIM == 2)
-                    mlndhelm_mknewu(i,j,k,farr,solarr,sigmaarr,dxinv,is_rz);
-#else
                     mlndhelm_mknewu(i,j,k,farr,solarr,sigmaarr,dxinv);
-#endif
                 });
             }
         }
@@ -624,24 +396,21 @@ MLNodeHelmDualCstVel::averageDownCoeffs ()
 {
     BL_PROFILE("MLNodeHelmDualCstVel::averageDownCoeffs()");
 
-    if (m_coarsening_strategy == CoarseningStrategy::Sigma)
+    for (int amrlev = 0; amrlev < m_num_amr_levels; ++amrlev)
     {
-        for (int amrlev = 0; amrlev < m_num_amr_levels; ++amrlev)
+        for (int mglev = 0; mglev < m_num_mg_levels[amrlev]; ++mglev)
         {
-            for (int mglev = 0; mglev < m_num_mg_levels[amrlev]; ++mglev)
+            int ndims = (m_use_harmonic_average) ? AMREX_SPACEDIM : 1;
+            for (int idim = 0; idim < ndims; ++idim)
             {
-                int ndims = (m_use_harmonic_average) ? AMREX_SPACEDIM : 1;
-                for (int idim = 0; idim < ndims; ++idim)
-                {
-                    if (m_sigma[amrlev][mglev][idim] == nullptr) {
-                        if (mglev == 0) {
-                            m_sigma[amrlev][mglev][idim].reset
-                                (new MultiFab(*m_sigma[amrlev][mglev][0], amrex::make_alias, 0, 1));
-                        } else {
-                            m_sigma[amrlev][mglev][idim].reset
-                                (new MultiFab(m_grids[amrlev][mglev], m_dmap[amrlev][mglev], 1, 1));
-                            m_sigma[amrlev][mglev][idim]->setVal(0.0);
-                        }
+                if (m_sigma[amrlev][mglev][idim] == nullptr) {
+                    if (mglev == 0) {
+                        m_sigma[amrlev][mglev][idim].reset
+                            (new MultiFab(*m_sigma[amrlev][mglev][0], amrex::make_alias, 0, 1));
+                    } else {
+                        m_sigma[amrlev][mglev][idim].reset
+                            (new MultiFab(m_grids[amrlev][mglev], m_dmap[amrlev][mglev], 1, 1));
+                        m_sigma[amrlev][mglev][idim]->setVal(0.0);
                     }
                 }
             }
@@ -693,8 +462,6 @@ MLNodeHelmDualCstVel::averageDownCoeffsToCoarseAmrLevel (int flev)
 void
 MLNodeHelmDualCstVel::averageDownCoeffsSameAmrLevel (int amrlev)
 {
-    if (m_coarsening_strategy != CoarseningStrategy::Sigma) return;
-
     const int nsigma = (m_use_harmonic_average) ? AMREX_SPACEDIM : 1;
 
     for (int mglev = 1; mglev < m_num_mg_levels[amrlev]; ++mglev)
@@ -756,240 +523,20 @@ MLNodeHelmDualCstVel::FillBoundaryCoeff (MultiFab& sigma, const Geometry& geom)
 
     sigma.FillBoundary(geom.periodicity());
 
-    if (m_coarsening_strategy == CoarseningStrategy::Sigma)
+    const Box& domain = geom.Domain();
+    const auto lobc = LoBC();
+    const auto hibc = HiBC();
+
+    MFItInfo mfi_info;
+    if (Gpu::notInLaunchRegion()) mfi_info.SetDynamic(true);
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(sigma, mfi_info); mfi.isValid(); ++mfi)
     {
-        const Box& domain = geom.Domain();
-        const auto lobc = LoBC();
-        const auto hibc = HiBC();
-
-        MFItInfo mfi_info;
-        if (Gpu::notInLaunchRegion()) mfi_info.SetDynamic(true);
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-        for (MFIter mfi(sigma, mfi_info); mfi.isValid(); ++mfi)
-        {
-            Array4<Real> const& sfab = sigma.array(mfi);
-            mlndhelm_fillbc_cc<Real>(mfi.validbox(),sfab,domain,lobc,hibc);
-        }
+        Array4<Real> const& sfab = sigma.array(mfi);
+        mlndhelm_fillbc_cc<Real>(mfi.validbox(),sfab,domain,lobc,hibc);
     }
-}
-
-void
-MLNodeHelmDualCstVel::buildStencil ()
-{
-    m_stencil.resize(m_num_amr_levels);
-    m_s0_norm0.resize(m_num_amr_levels);
-    for (int amrlev = 0; amrlev < m_num_amr_levels; ++amrlev)
-    {
-        m_stencil[amrlev].resize(m_num_mg_levels[amrlev]);
-        m_s0_norm0[amrlev].resize(m_num_mg_levels[amrlev],0.0);
-    }
-
-    if (m_coarsening_strategy != CoarseningStrategy::RAP) return;
-
-    const int ncomp_s = (AMREX_SPACEDIM == 2) ? 5 : 9;
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(AMREX_SPACEDIM != 1,
-                                     "MLNodeHelmDualCstVel::buildStencil: 1d not supported");
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!m_geom[0][0].IsRZ(),
-                                     "MLNodeHelmDualCstVel::buildStencil: cylindrical not supported for RAP");
-
-    for (int amrlev = 0; amrlev < m_num_amr_levels; ++amrlev)
-    {
-        for (int mglev = 0; mglev < m_num_mg_levels[amrlev]; ++mglev)
-        {
-            const int nghost = (0 == amrlev && mglev+1 == m_num_mg_levels[amrlev]) ? 1 : 4;
-            m_stencil[amrlev][mglev].reset
-                (new MultiFab(amrex::convert(m_grids[amrlev][mglev],
-                                             IntVect::TheNodeVector()),
-                              m_dmap[amrlev][mglev], ncomp_s, nghost));
-            m_stencil[amrlev][mglev]->setVal(0.0);
-        }
-
-        {
-            const Geometry& geom = m_geom[amrlev][0];
-            const auto dxinvarr = geom.InvCellSizeArray();
-
-#ifdef AMREX_USE_EB
-            auto factory = dynamic_cast<EBFArrayBoxFactory const*>(m_factory[amrlev][0].get());
-            const FabArray<EBCellFlagFab>* flags = (factory) ? &(factory->getMultiEBCellFlagFab()) : nullptr;
-            const MultiFab* intg = m_integral[amrlev].get();
-            const MultiFab* vfrac = (factory) ? &(factory->getVolFrac()) : nullptr;
-#endif
-
-            MFItInfo mfi_info;
-            if (Gpu::notInLaunchRegion()) mfi_info.EnableTiling().SetDynamic(true);
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-            {
-                FArrayBox sgfab;
-                FArrayBox cnfab;
-
-                for (MFIter mfi(*m_stencil[amrlev][0],mfi_info); mfi.isValid(); ++mfi)
-                {
-                    Box vbx = mfi.validbox();
-                    AMREX_D_TERM(vbx.growLo(0,1);, vbx.growLo(1,1);, vbx.growLo(2,1));
-                    Box bx = mfi.growntilebox(1);
-                    bx &= vbx;
-                    const Box& ccbx = amrex::enclosedCells(bx);
-                    const Box& ccbxg1 = amrex::grow(ccbx,1);
-                    const FArrayBox& sgfab_orig = (*m_sigma[amrlev][0][0])[mfi];
-                    Array4<Real const> const& sgarr_orig = sgfab_orig.const_array();
-
-                    Array4<Real> const& starr = m_stencil[amrlev][0]->array(mfi);
-#ifdef AMREX_USE_EB
-                    Array4<Real const> const& intgarr = intg->const_array(mfi);
-
-                    const int ncomp_c = (AMREX_SPACEDIM == 2) ? 6 : 27;
-                    bool regular = !factory;
-                    if (factory)
-                    {
-                        Array4<EBCellFlag const> const& flagarr = flags->const_array(mfi);
-                        Array4<Real const> const& vfracarr = vfrac->const_array(mfi);
-                        const auto& flag = (*flags)[mfi];
-                        const auto& typ = flag.getType(ccbxg1);
-                        if (typ == FabType::covered)
-                        {
-                            AMREX_HOST_DEVICE_PARALLEL_FOR_4D(bx,ncomp_s,i,j,k,n,
-                            {
-                                starr(i,j,k,n) = 0.0;
-                            });
-                        }
-                        else if (typ == FabType::singlevalued)
-                        {
-                            const Box& btmp = ccbxg1 & sgfab_orig.box();
-
-                            cnfab.resize(ccbxg1, ncomp_c);
-                            Elixir cneli = cnfab.elixir();
-                            Array4<Real> const& cnarr = cnfab.array();
-
-                            sgfab.resize(ccbxg1);
-                            Elixir sgeli = sgfab.elixir();
-                            Array4<Real> const& sgarr = sgfab.array();
-
-                            AMREX_HOST_DEVICE_FOR_3D(ccbxg1, i, j, k,
-                            {
-                                if (btmp.contains(IntVect(AMREX_D_DECL(i,j,k)))) {
-                                    mlndhelm_set_connection(i,j,k,cnarr,intgarr,vfracarr,flagarr);
-                                    sgarr(i,j,k) = sgarr_orig(i,j,k);
-                                } else {
-                                    for (int n = 0; n < ncomp_c; ++n) {
-                                        cnarr(i,j,k,n) = 0.0;
-                                    }
-                                    sgarr(i,j,k) = 0.0;
-                                }
-                            });
-
-                            AMREX_HOST_DEVICE_FOR_3D(bx, i, j, k,
-                            {
-                                mlndhelm_set_stencil_eb(i, j, k, starr, sgarr, cnarr, dxinvarr);
-                            });
-                        }
-                        else
-                        {
-                            regular = true;
-                        }
-                    }
-                    if (regular)
-#endif
-                    {
-                        const Box& btmp = ccbxg1 & sgfab_orig.box();
-
-                        sgfab.resize(ccbxg1);
-                        Elixir sgeli = sgfab.elixir();
-                        Array4<Real> const& sgarr = sgfab.array();
-
-                        AMREX_HOST_DEVICE_FOR_3D(ccbxg1, i, j, k,
-                        {
-                            if (btmp.contains(IntVect(AMREX_D_DECL(i,j,k)))) {
-                                sgarr(i,j,k) = sgarr_orig(i,j,k);
-                            } else {
-                                sgarr(i,j,k) = 0.0;
-                            }
-                        });
-
-                        AMREX_LAUNCH_HOST_DEVICE_LAMBDA ( bx, tbx,
-                        {
-                            mlndhelm_set_stencil(tbx,starr,sgarr,dxinvarr);
-                        });
-                    }
-                }
-            }
-
-            // set_stencil_s0 has to be in a separate MFIter from set_stencil
-            // because it uses other cells' data.
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-            for (MFIter mfi(*m_stencil[amrlev][0],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                const Box& bx = mfi.tilebox();
-                Array4<Real> const& starr = m_stencil[amrlev][0]->array(mfi);
-                AMREX_HOST_DEVICE_PARALLEL_FOR_3D(bx, i, j, k,
-                {
-                    mlndhelm_set_stencil_s0(i,j,k,starr);
-                });
-            }
-
-            m_stencil[amrlev][0]->FillBoundary(geom.periodicity());
-        }
-
-        for (int mglev = 1; mglev < m_num_mg_levels[amrlev]; ++mglev)
-        {
-            const MultiFab& fine = *m_stencil[amrlev][mglev-1];
-            MultiFab& crse = *m_stencil[amrlev][mglev];
-            bool need_parallel_copy = !amrex::isMFIterSafe(crse, fine);
-            MultiFab cfine;
-            if (need_parallel_copy) {
-                const BoxArray& ba = amrex::coarsen(fine.boxArray(), 2);
-                cfine.define(ba, fine.DistributionMap(), fine.nComp(), 1);
-                cfine.setVal(0.0);
-            }
-
-            MultiFab* pcrse = (need_parallel_copy) ? &cfine : &crse;
-
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-            for (MFIter mfi(*pcrse, TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                Box vbx = mfi.validbox();
-                AMREX_D_TERM(vbx.growLo(0,1);, vbx.growLo(1,1);, vbx.growLo(2,1));
-                Box bx = mfi.growntilebox(1);
-                bx &= vbx;
-                Array4<Real> const& csten = pcrse->array(mfi);
-                Array4<Real const> const& fsten = fine.const_array(mfi);
-                AMREX_HOST_DEVICE_FOR_3D(bx, i, j, k,
-                {
-                    mlndhelm_stencil_rap(i,j,k,csten,fsten);
-                });
-            }
-
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-            for (MFIter mfi(*pcrse,TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                const Box& bx = mfi.tilebox();
-                Array4<Real> const& starr = pcrse->array(mfi);
-                AMREX_HOST_DEVICE_PARALLEL_FOR_3D(bx, i, j, k,
-                {
-                    mlndhelm_set_stencil_s0(i,j,k,starr);
-                });
-            }
-
-            if (need_parallel_copy) {
-                crse.ParallelCopy(cfine);
-            }
-
-            m_stencil[amrlev][mglev]->FillBoundary(m_geom[amrlev][mglev].periodicity());
-        }
-    }
-
-
-    // This is only needed at the bottom.
-    m_s0_norm0[0].back() = m_stencil[0].back()->norm0(0,0) * m_normalization_threshold;
 }
 
 void
@@ -1024,12 +571,6 @@ MLNodeHelmDualCstVel::prepareForSolve ()
     buildMasks();
 
     averageDownCoeffs();
-
-#ifdef AMREX_USE_EB
-    buildIntegral();
-#endif
-
-    buildStencil();
 }
 
 void
@@ -1049,8 +590,6 @@ MLNodeHelmDualCstVel::restriction (int amrlev, int cmglev, MultiFab& crse, Multi
     MultiFab* pcrse = (need_parallel_copy) ? &cfine : &crse;
     const iMultiFab& dmsk = *m_dirichlet_mask[amrlev][cmglev-1];
 
-    const auto& stencil = m_stencil[amrlev][cmglev-1];
-
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -1060,21 +599,10 @@ MLNodeHelmDualCstVel::restriction (int amrlev, int cmglev, MultiFab& crse, Multi
         Array4<Real> cfab = pcrse->array(mfi);
         Array4<Real const> const& ffab = fine.const_array(mfi);
         Array4<int const> const& mfab = dmsk.const_array(mfi);
-        if (m_coarsening_strategy == CoarseningStrategy::Sigma)
+        AMREX_HOST_DEVICE_PARALLEL_FOR_3D(bx, i, j, k,
         {
-            AMREX_HOST_DEVICE_PARALLEL_FOR_3D(bx, i, j, k,
-            {
-                mlndhelm_restriction(i,j,k,cfab,ffab,mfab);
-            });
-        }
-        else
-        {
-            Array4<Real const> const& stfab = stencil->const_array(mfi);
-            AMREX_HOST_DEVICE_PARALLEL_FOR_3D(bx, i, j, k,
-            {
-                mlndhelm_restriction_rap(i,j,k,cfab,ffab,stfab,mfab);
-            });
-        }
+            mlndhelm_restriction(i,j,k,cfab,ffab,mfab);
+        });
     }
 
     if (need_parallel_copy) {
@@ -1088,7 +616,6 @@ MLNodeHelmDualCstVel::interpolation (int amrlev, int fmglev, MultiFab& fine, con
     BL_PROFILE("MLNodeHelmDualCstVel::interpolation()");
 
     const auto& sigma = m_sigma[amrlev][fmglev];
-    const auto& stencil = m_stencil[amrlev][fmglev];
 
     bool need_parallel_copy = !amrex::isMFIterSafe(crse, fine);
     MultiFab cfine;
@@ -1111,15 +638,7 @@ MLNodeHelmDualCstVel::interpolation (int amrlev, int fmglev, MultiFab& fine, con
         Array4<Real> const& ffab = fine.array(mfi);
         Array4<Real const> const& cfab = cmf->const_array(mfi);
         Array4<int const> const& mfab = dmsk.const_array(mfi);
-        if (m_coarsening_strategy == CoarseningStrategy::RAP)
-        {
-            Array4<Real const> const& stfab = stencil->const_array(mfi);
-            AMREX_HOST_DEVICE_PARALLEL_FOR_3D(bx, i, j, k,
-            {
-                mlndhelm_interpadd_rap(i,j,k,ffab,cfab,stfab,mfab);
-            });
-        }
-        else if (m_use_harmonic_average && fmglev > 0)
+        if (m_use_harmonic_average && fmglev > 0)
         {
             AMREX_D_TERM(Array4<Real const> const& sxfab = sigma[0]->const_array(mfi);,
                          Array4<Real const> const& syfab = sigma[1]->const_array(mfi);,
@@ -1177,7 +696,6 @@ MLNodeHelmDualCstVel::restrictInteriorNodes (int camrlev, MultiFab& crhs, MultiF
     const Geometry& cgeom = m_geom[camrlev  ][0];
 
     const iMultiFab& fdmsk = *m_dirichlet_mask[camrlev+1][0];
-    const auto& stencil    =  m_stencil[camrlev+1][0];
 
     MultiFab cfine(amrex::coarsen(fba, 2), fdm, 1, 0);
 
@@ -1192,18 +710,10 @@ MLNodeHelmDualCstVel::restrictInteriorNodes (int camrlev, MultiFab& crhs, MultiF
         Array4<Real> const& cfab = cfine.array(mfi);
         Array4<Real const> const& ffab = frhs->const_array(mfi);
         Array4<int const> const& mfab = fdmsk.const_array(mfi);
-        if (m_coarsening_strategy == CoarseningStrategy::Sigma) {
-            AMREX_HOST_DEVICE_PARALLEL_FOR_3D(bx, i, j, k,
-            {
-                mlndhelm_restriction(i,j,k,cfab,ffab,mfab);
-            });
-        } else {
-            Array4<Real const> const& stfab = stencil->const_array(mfi);
-            AMREX_HOST_DEVICE_PARALLEL_FOR_3D(bx, i, j, k,
-            {
-                mlndhelm_restriction_rap(i,j,k,cfab,ffab,stfab,mfab);
-            });
-        }
+        AMREX_HOST_DEVICE_PARALLEL_FOR_3D(bx, i, j, k,
+        {
+            mlndhelm_restriction(i,j,k,cfab,ffab,mfab);
+        });
     }
 
     MultiFab tmp_crhs(crhs.boxArray(), crhs.DistributionMap(), 1, 0);
@@ -1240,11 +750,7 @@ MLNodeHelmDualCstVel::Fapply (int amrlev, int mglev, MultiFab& out, const MultiF
     BL_PROFILE("MLNodeHelmDualCstVel::Fapply()");
 
     const auto& sigma = m_sigma[amrlev][mglev];
-    const auto& stencil = m_stencil[amrlev][mglev];
     const auto dxinvarr = m_geom[amrlev][mglev].InvCellSizeArray();
-#if (AMREX_SPACEDIM == 2)
-    bool is_rz = m_is_rz;
-#endif
 
     const iMultiFab& dmsk = *m_dirichlet_mask[amrlev][mglev];
 
@@ -1258,15 +764,7 @@ MLNodeHelmDualCstVel::Fapply (int amrlev, int mglev, MultiFab& out, const MultiF
         Array4<Real> const& yarr = out.array(mfi);
         Array4<int const> const& dmskarr = dmsk.const_array(mfi);
 
-        if (m_coarsening_strategy == CoarseningStrategy::RAP)
-        {
-            Array4<Real const> const& stenarr = stencil->const_array(mfi);
-            AMREX_HOST_DEVICE_PARALLEL_FOR_3D ( bx, i, j, k,
-            {
-                mlndhelm_adotx_sten(i,j,k,yarr,xarr,stenarr,dmskarr);
-            });
-        }
-        else if (m_use_harmonic_average && mglev > 0)
+        if (m_use_harmonic_average && mglev > 0)
         {
             AMREX_D_TERM(Array4<Real const> const& sxarr = sigma[0]->const_array(mfi);,
                          Array4<Real const> const& syarr = sigma[1]->const_array(mfi);,
@@ -1274,9 +772,6 @@ MLNodeHelmDualCstVel::Fapply (int amrlev, int mglev, MultiFab& out, const MultiF
             AMREX_HOST_DEVICE_PARALLEL_FOR_3D ( bx, i, j, k,
             {
                 mlndhelm_adotx_ha(i,j,k,yarr,xarr,AMREX_D_DECL(sxarr,syarr,szarr), dmskarr,
-#if (AMREX_SPACEDIM == 2)
-                                 is_rz,
-#endif
                                  dxinvarr);
             });
         }
@@ -1286,9 +781,6 @@ MLNodeHelmDualCstVel::Fapply (int amrlev, int mglev, MultiFab& out, const MultiF
             AMREX_HOST_DEVICE_PARALLEL_FOR_3D ( bx, i, j, k,
             {
                 mlndhelm_adotx_aa(i,j,k,yarr,xarr,sarr,dmskarr,
-#if (AMREX_SPACEDIM == 2)
-                                 is_rz,
-#endif
                                  dxinvarr);
             });
         }
@@ -1301,11 +793,7 @@ MLNodeHelmDualCstVel::Fsmooth (int amrlev, int mglev, MultiFab& sol, const Multi
     BL_PROFILE("MLNodeHelmDualCstVel::Fsmooth()");
 
     const auto& sigma = m_sigma[amrlev][mglev];
-    const auto& stencil = m_stencil[amrlev][mglev];
     const auto dxinvarr = m_geom[amrlev][mglev].InvCellSizeArray();
-#if (AMREX_SPACEDIM == 2)
-    bool is_rz = m_is_rz;
-#endif
 
     constexpr int nsweeps = 2;
 
@@ -1313,49 +801,7 @@ MLNodeHelmDualCstVel::Fsmooth (int amrlev, int mglev, MultiFab& sol, const Multi
 
     if (m_use_gauss_seidel)
     {
-        if (m_coarsening_strategy == CoarseningStrategy::RAP)
-        {
-#ifdef AMREX_USE_EB
-            MultiFab Ax;
-            if (Gpu::inLaunchRegion()) {
-                Ax.define(sol.boxArray(), sol.DistributionMap(), 1, 0);
-            }
-#endif
-
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-            for (MFIter mfi(sol); mfi.isValid(); ++mfi)
-            {
-                const Box& bx = mfi.validbox();
-                Array4<Real> const& solarr = sol.array(mfi);
-                Array4<Real const> const& rhsarr = rhs.const_array(mfi);
-                Array4<Real const> const& starr = stencil->const_array(mfi);
-                Array4<int const> const& dmskarr = dmsk.const_array(mfi);
-
-#ifdef AMREX_USE_EB
-                if (Gpu::inLaunchRegion()) {
-                    Array4<Real> const& Axarr = Ax.array(mfi);
-                    AMREX_HOST_DEVICE_PARALLEL_FOR_3D(bx, i, j, k,
-                    {
-                        mlndhelm_adotx_sten(i,j,k,Axarr,solarr,starr,dmskarr);
-                    });
-                    AMREX_LAUNCH_HOST_DEVICE_LAMBDA ( bx, tbx,
-                    {
-                        mlndhelm_jacobi_sten(tbx,solarr,Axarr,rhsarr,starr,dmskarr);
-                    });
-                }
-#endif
-
-                for (int ns = 0; ns < nsweeps; ++ns) {
-                    AMREX_LAUNCH_HOST_DEVICE_LAMBDA ( bx, tbx,
-                    {
-                        mlndhelm_gauss_seidel_sten(tbx,solarr,rhsarr,starr,dmskarr);
-                    });
-                }
-            }
-        }
-        else if (m_use_harmonic_average && mglev > 0)
+        if (m_use_harmonic_average && mglev > 0)
         {
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -1375,11 +821,7 @@ MLNodeHelmDualCstVel::Fsmooth (int amrlev, int mglev, MultiFab& sol, const Multi
                     {
                         mlndhelm_gauss_seidel_ha(tbx, solarr, rhsarr,
                                                 AMREX_D_DECL(sxarr,syarr,szarr),
-                                                dmskarr, dxinvarr
-#if (AMREX_SPACEDIM == 2)
-                                                ,is_rz
-#endif
-                            );
+                                                dmskarr, dxinvarr);
                     });
                 }
             }
@@ -1401,11 +843,7 @@ MLNodeHelmDualCstVel::Fsmooth (int amrlev, int mglev, MultiFab& sol, const Multi
                     AMREX_LAUNCH_HOST_DEVICE_LAMBDA ( bx, tbx,
                     {
                         mlndhelm_gauss_seidel_aa(tbx, solarr, rhsarr,
-                                                sarr, dmskarr, dxinvarr
-#if (AMREX_SPACEDIM == 2)
-                                                ,is_rz
-#endif
-                            );
+                                                sarr, dmskarr, dxinvarr);
                     });
                 }
             }
@@ -1418,27 +856,7 @@ MLNodeHelmDualCstVel::Fsmooth (int amrlev, int mglev, MultiFab& sol, const Multi
         MultiFab Ax(sol.boxArray(), sol.DistributionMap(), 1, 0);
         Fapply(amrlev, mglev, Ax, sol);
 
-        if (m_coarsening_strategy == CoarseningStrategy::RAP)
-        {
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-            for (MFIter mfi(sol,TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                const Box& bx = mfi.tilebox();
-                Array4<Real> const& solarr = sol.array(mfi);
-                Array4<Real const> const& Axarr = Ax.const_array(mfi);
-                Array4<Real const> const& rhsarr = rhs.const_array(mfi);
-                Array4<Real const> const& stenarr = stencil->const_array(mfi);
-                Array4<int const> const& dmskarr = dmsk.const_array(mfi);
-
-                AMREX_LAUNCH_HOST_DEVICE_LAMBDA ( bx, tbx,
-                {
-                    mlndhelm_jacobi_sten(tbx,solarr,Axarr,rhsarr,stenarr,dmskarr);
-                });
-            }
-        }
-        else if (m_use_harmonic_average && mglev > 0)
+        if (m_use_harmonic_average && mglev > 0)
         {
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -1491,10 +909,8 @@ MLNodeHelmDualCstVel::normalize (int amrlev, int mglev, MultiFab& mf) const
     BL_PROFILE("MLNodeHelmDualCstVel::normalize()");
 
     const auto& sigma = m_sigma[amrlev][mglev];
-    const auto& stencil = m_stencil[amrlev][mglev];
     const auto dxinv = m_geom[amrlev][mglev].InvCellSizeArray();
     const iMultiFab& dmsk = *m_dirichlet_mask[amrlev][mglev];
-    const Real s0_norm0 = m_s0_norm0[amrlev][mglev];
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -1504,15 +920,7 @@ MLNodeHelmDualCstVel::normalize (int amrlev, int mglev, MultiFab& mf) const
         const Box& bx = mfi.tilebox();
         Array4<Real> const& arr = mf.array(mfi);
         Array4<int const> const& dmskarr = dmsk.const_array(mfi);
-        if (m_coarsening_strategy == CoarseningStrategy::RAP)
-        {
-            Array4<Real const> const& stenarr = stencil->const_array(mfi);
-            AMREX_LAUNCH_HOST_DEVICE_LAMBDA ( bx, tbx,
-            {
-                mlndhelm_normalize_sten(tbx,arr,stenarr,dmskarr,s0_norm0);
-            });
-        }
-        else if (m_use_harmonic_average && mglev > 0)
+        if (m_use_harmonic_average && mglev > 0)
         {
             AMREX_D_TERM(Array4<Real const> const& sxarr = sigma[0]->const_array(mfi);,
                          Array4<Real const> const& syarr = sigma[1]->const_array(mfi);,
@@ -1594,19 +1002,8 @@ MLNodeHelmDualCstVel::compSyncResidualCoarse (MultiFab& sync_resid, const MultiF
 
     const auto dxinv = geom.InvCellSizeArray();
 
-#if (AMREX_SPACEDIM == 2)
-    bool is_rz = m_is_rz;
-#endif
-
     const MultiFab& sigma_orig = *m_sigma[0][0][0];
     const iMultiFab& dmsk = *m_dirichlet_mask[0][0];
-
-#ifdef AMREX_USE_EB
-    auto factory = dynamic_cast<EBFArrayBoxFactory const*>(m_factory[0][0].get());
-    const FabArray<EBCellFlagFab>* flags = (factory) ? &(factory->getMultiEBCellFlagFab()) : nullptr;
-    const MultiFab* intg = m_integral[0].get();
-    const MultiFab* vfrac = (factory) ? &(factory->getVolFrac()) : nullptr;
-#endif
 
     MFItInfo mfi_info;
     if (Gpu::notInLaunchRegion()) mfi_info.EnableTiling().SetDynamic(true);
@@ -1615,19 +1012,11 @@ MLNodeHelmDualCstVel::compSyncResidualCoarse (MultiFab& sync_resid, const MultiF
 #endif
     {
         FArrayBox rhs, u;
-#ifdef AMREX_USE_EB
-        FArrayBox sten, cn;
-#endif
         for (MFIter mfi(sync_resid,mfi_info); mfi.isValid(); ++mfi)
         {
             const Box& bx = mfi.tilebox();
 
             auto typ = FabType::regular;
-#ifdef AMREX_USE_EB
-            if (factory) {
-                typ = (*flags)[mfi].getType(amrex::enclosedCells(bx));
-            }
-#endif
             if (typ != FabType::covered)
             {
                 const Box& bxg1 = amrex::grow(bx,1);
@@ -1690,26 +1079,10 @@ MLNodeHelmDualCstVel::compSyncResidualCoarse (MultiFab& sync_resid, const MultiF
                     Array4<Real> const& rhsarr = rhs.array();
                     Array4<int const> const& dmskarr = dmsk.const_array(mfi);
 
-#ifdef AMREX_USE_EB
-                    if (typ == FabType::singlevalued)
-                    {
-                        Array4<Real const> const& vfracarr = vfrac->const_array(mfi);
-                        Array4<Real const> const& intgarr = intg->const_array(mfi);
-                        AMREX_HOST_DEVICE_FOR_3D(bx, i, j, k,
-                        {
-                            mlndhelm_divu_eb(i,j,k,rhsarr,uarr,vfracarr,intgarr,dmskarr,dxinv);
-                        });
-                    }
-                    else
-#endif
                     {
                         AMREX_HOST_DEVICE_PARALLEL_FOR_3D (bx, i, j, k,
                         {
-#if (AMREX_SPACEDIM == 2)
-                            mlndhelm_divu(i,j,k,rhsarr,uarr,dmskarr,dxinv,is_rz);
-#else
                             mlndhelm_divu(i,j,k,rhsarr,uarr,dmskarr,dxinv);
-#endif
                         });
                     }
 
@@ -1727,19 +1100,6 @@ MLNodeHelmDualCstVel::compSyncResidualCoarse (MultiFab& sync_resid, const MultiF
                             }
                         });
 
-#ifdef AMREX_USE_EB
-                        if (typ == FabType::singlevalued)
-                        {
-                            Array4<Real const> const& vfracarr = vfrac->const_array(mfi);
-                            Array4<Real const> const& intgarr = intg->const_array(mfi);
-                            AMREX_HOST_DEVICE_FOR_3D(bx, i, j, k,
-                            {
-                                Real rhs2 = mlndhelm_rhcc_eb(i,j,k,rhccarr,vfracarr,intgarr,dmskarr);
-                                rhsarr(i,j,k) += rhs2;
-                            });
-                        }
-                        else
-#endif
                         {
                             AMREX_HOST_DEVICE_FOR_3D (bx, i, j, k,
                             {
@@ -1752,56 +1112,6 @@ MLNodeHelmDualCstVel::compSyncResidualCoarse (MultiFab& sync_resid, const MultiF
                     Array4<Real> const& sync_resid_a = sync_resid.array(mfi);
                     Array4<Real const> const& phiarr = phi.const_array(mfi);
                     Array4<Real const> const& sigmaarr_orig = sigma_orig.const_array(mfi);
-#ifdef AMREX_USE_EB
-                    if (typ == FabType::singlevalued)
-                    {
-                        Box stbx = bx;
-                        AMREX_D_TERM(stbx.growLo(0,1);, stbx.growLo(1,1);, stbx.growLo(2,1));
-                        Box const& sgbx = amrex::grow(amrex::enclosedCells(stbx),1);
-
-                        constexpr int ncomp_s = (AMREX_SPACEDIM == 2) ? 5 : 9;
-                        sten.resize(stbx,ncomp_s);
-                        Elixir steneli = sten.elixir();
-                        Array4<Real> const& stenarr = sten.array();
-
-                        constexpr int ncomp_c = (AMREX_SPACEDIM == 2) ? 6 : 27;
-                        cn.resize(sgbx,ncomp_c+1);
-                        Elixir cneli = cn.elixir();
-                        Array4<Real> const& cnarr = cn.array();
-                        Array4<Real> const& sgarr = cn.array(ncomp_c);
-
-                        Array4<EBCellFlag const> const& flagarr = flags->const_array(mfi);
-                        Array4<Real const> const& vfracarr = vfrac->const_array(mfi);
-                        Array4<Real const> const& intgarr = intg->const_array(mfi);
-
-                        const Box& ibx = sgbx & amrex::enclosedCells(mfi.validbox());
-                        AMREX_HOST_DEVICE_FOR_3D(sgbx, i, j, k,
-                        {
-                            if (ibx.contains(IntVect(AMREX_D_DECL(i,j,k))) and cccmsk(i,j,k)) {
-                                mlndhelm_set_connection(i,j,k,cnarr,intgarr,vfracarr,flagarr);
-                                sgarr(i,j,k) = sigmaarr_orig(i,j,k);
-                            } else {
-                                for (int n = 0; n < ncomp_c; ++n) {
-                                    cnarr(i,j,k,n) = 0.0;
-                                }
-                                sgarr(i,j,k) = 0.0;
-                            }
-                        });
-
-                        AMREX_HOST_DEVICE_FOR_3D(stbx, i, j, k,
-                        {
-                            mlndhelm_set_stencil_eb(i, j, k, stenarr, sgarr, cnarr, dxinv);
-                        });
-
-                        AMREX_HOST_DEVICE_PARALLEL_FOR_3D(bx, i, j, k,
-                        {
-                            mlndhelm_set_stencil_s0(i, j, k, stenarr);
-                            mlndhelm_adotx_sten(i, j, k, sync_resid_a, phiarr, stenarr, dmskarr);
-                            mlndhelm_crse_resid(i, j, k, sync_resid_a, rhsarr, cccmsk, nddom, lobc, hibc);
-                        });
-                    }
-                    else
-#endif
                     {
                         Array4<Real> sigmaarr = uarr;
                         const Box& ibx = ccbxg1 & amrex::enclosedCells(mfi.validbox());
@@ -1817,9 +1127,6 @@ MLNodeHelmDualCstVel::compSyncResidualCoarse (MultiFab& sync_resid, const MultiF
                         AMREX_HOST_DEVICE_PARALLEL_FOR_3D(bx, i, j, k,
                         {
                             mlndhelm_adotx_aa(i, j, k, sync_resid_a, phiarr, sigmaarr, dmskarr,
-#if (AMREX_SPACEDIM == 2)
-                                             is_rz,
-#endif
                                              dxinv);
                             mlndhelm_crse_resid(i, j, k, sync_resid_a, rhsarr, cccmsk, nddom, lobc, hibc);
                         });
@@ -1839,19 +1146,9 @@ MLNodeHelmDualCstVel::compSyncResidualFine (MultiFab& sync_resid, const MultiFab
     const MultiFab& sigma_orig = *m_sigma[0][0][0];
     const iMultiFab& dmsk = *m_dirichlet_mask[0][0];
 
-#ifdef AMREX_USE_EB
-    auto factory = dynamic_cast<EBFArrayBoxFactory const*>(m_factory[0][0].get());
-    const FabArray<EBCellFlagFab>* flags = (factory) ? &(factory->getMultiEBCellFlagFab()) : nullptr;
-    const MultiFab* intg = m_integral[0].get();
-    const MultiFab* vfrac = (factory) ? &(factory->getVolFrac()) : nullptr;
-#endif
-
     const Geometry& geom = m_geom[0][0];
     const Box& ccdom = geom.Domain();
     const auto dxinv = geom.InvCellSizeArray();
-#if (AMREX_SPACEDIM == 2)
-    bool is_rz = m_is_rz;
-#endif
 
     MFItInfo mfi_info;
     if (Gpu::notInLaunchRegion()) mfi_info.EnableTiling().SetDynamic(true);
@@ -1861,19 +1158,11 @@ MLNodeHelmDualCstVel::compSyncResidualFine (MultiFab& sync_resid, const MultiFab
     {
         FArrayBox rhs, u;
         IArrayBox tmpmask;
-#ifdef AMREX_USE_EB
-        FArrayBox sten, cn;
-#endif
         for (MFIter mfi(sync_resid,mfi_info); mfi.isValid(); ++mfi)
         {
             const Box& bx = mfi.tilebox();
 
             auto typ = FabType::regular;
-#ifdef AMREX_USE_EB
-            if (factory) {
-                typ = (*flags)[mfi].getType(amrex::enclosedCells(bx));
-            }
-#endif
             if (typ != FabType::covered)
             {
                 const Box& gbx = mfi.growntilebox();
@@ -1930,26 +1219,10 @@ MLNodeHelmDualCstVel::compSyncResidualFine (MultiFab& sync_resid, const MultiFab
                 Elixir rhseli = rhs.elixir();
                 Array4<Real> const& rhsarr = rhs.array();
 
-#ifdef AMREX_USE_EB
-                if (typ == FabType::singlevalued)
-                {
-                    Array4<Real const> const& vfracarr = vfrac->const_array(mfi);
-                    Array4<Real const> const& intgarr = intg->const_array(mfi);
-                    AMREX_HOST_DEVICE_FOR_3D(bx, i, j, k,
-                    {
-                        mlndhelm_divu_eb(i,j,k,rhsarr,uarr,vfracarr,intgarr,tmpmaskarr,dxinv);
-                    });
-                }
-                else
-#endif
-                {
+               {
                     AMREX_HOST_DEVICE_PARALLEL_FOR_3D (bx, i, j, k,
                     {
-#if (AMREX_SPACEDIM == 2)
-                        mlndhelm_divu(i,j,k,rhsarr,uarr,tmpmaskarr,dxinv,is_rz);
-#else
                         mlndhelm_divu(i,j,k,rhsarr,uarr,tmpmaskarr,dxinv);
-#endif
                     });
                 }
 
@@ -1966,19 +1239,6 @@ MLNodeHelmDualCstVel::compSyncResidualFine (MultiFab& sync_resid, const MultiFab
                             rhccarr(i,j,k) = 0.0;
                         }
                     });
-#ifdef AMREX_USE_EB
-                    if (typ == FabType::singlevalued)
-                    {
-                        Array4<Real const> const& vfracarr = vfrac->const_array(mfi);
-                        Array4<Real const> const& intgarr = intg->const_array(mfi);
-                        AMREX_HOST_DEVICE_FOR_3D(bx, i, j, k,
-                        {
-                            Real rhs2 = mlndhelm_rhcc_eb(i,j,k,rhccarr,vfracarr,intgarr,tmpmaskarr);
-                            rhsarr(i,j,k) += rhs2;
-                        });
-                    }
-                    else
-#endif
                     {
                         AMREX_HOST_DEVICE_FOR_3D(bx, i, j, k,
                         {
@@ -1991,60 +1251,6 @@ MLNodeHelmDualCstVel::compSyncResidualFine (MultiFab& sync_resid, const MultiFab
                 Array4<Real> const& sync_resid_a = sync_resid.array(mfi);
                 Array4<Real const> const& phiarr = phi.const_array(mfi);
                 Array4<Real const> const& sigmaarr_orig = sigma_orig.const_array(mfi);
-#ifdef AMREX_USE_EB
-                if (typ == FabType::singlevalued)
-                {
-                    Box stbx = bx;
-                    AMREX_D_TERM(stbx.growLo(0,1);, stbx.growLo(1,1);, stbx.growLo(2,1));
-                    Box const& sgbx = amrex::grow(amrex::enclosedCells(stbx),1);
-
-                    constexpr int ncomp_s = (AMREX_SPACEDIM == 2) ? 5 : 9;
-                    sten.resize(stbx,ncomp_s);
-                    Elixir steneli = sten.elixir();
-                    Array4<Real> const& stenarr = sten.array();
-
-                    constexpr int ncomp_c = (AMREX_SPACEDIM == 2) ? 6 : 27;
-                    cn.resize(sgbx,ncomp_c+1);
-                    Elixir cneli = cn.elixir();
-                    Array4<Real> const& cnarr = cn.array();
-                    Array4<Real> const& sgarr = cn.array(ncomp_c);
-
-                    Array4<EBCellFlag const> const& flagarr = flags->const_array(mfi);
-                    Array4<Real const> const& vfracarr = vfrac->const_array(mfi);
-                    Array4<Real const> const& intgarr = intg->const_array(mfi);
-
-                    const Box& ibx = sgbx & amrex::enclosedCells(mfi.validbox());
-                    AMREX_HOST_DEVICE_FOR_3D(sgbx, i, j, k,
-                    {
-                        if (ibx.contains(IntVect(AMREX_D_DECL(i,j,k)))) {
-                            mlndhelm_set_connection(i,j,k,cnarr,intgarr,vfracarr,flagarr);
-                            sgarr(i,j,k) = sigmaarr_orig(i,j,k);
-                        } else {
-                            for (int n = 0; n < ncomp_c; ++n) {
-                                cnarr(i,j,k,n) = 0.0;
-                            }
-                            sgarr(i,j,k) = 0.0;
-                        }
-                    });
-
-                    AMREX_HOST_DEVICE_FOR_3D(stbx, i, j, k,
-                    {
-                        mlndhelm_set_stencil_eb(i, j, k, stenarr, sgarr, cnarr, dxinv);
-                    });
-
-                    AMREX_HOST_DEVICE_FOR_3D(gbx, i, j, k,
-                    {
-                        if (bx.contains(IntVect(AMREX_D_DECL(i,j,k)))) {
-                            mlndhelm_set_stencil_s0(i, j, k, stenarr);
-                            mlndhelm_adotx_sten(i,j,k, sync_resid_a, phiarr, stenarr, tmpmaskarr);
-                            sync_resid_a(i,j,k) = rhsarr(i,j,k) - sync_resid_a(i,j,k);
-                        } else {
-                            sync_resid_a(i,j,k) = 0.0;
-                        }
-                    });
-                }
-                else
-#endif
                 {
                     Array4<Real> sigmaarr = uarr;
                     const Box& ovlp2 = ccvbx & ccbxg1;
@@ -2061,9 +1267,6 @@ MLNodeHelmDualCstVel::compSyncResidualFine (MultiFab& sync_resid, const MultiFab
                     {
                         if (bx.contains(IntVect(AMREX_D_DECL(i,j,k)))) {
                             mlndhelm_adotx_aa(i,j,k, sync_resid_a, phiarr, sigmaarr, tmpmaskarr,
-#if (AMREX_SPACEDIM == 2)
-                                             is_rz,
-#endif
                                              dxinv);
                             sync_resid_a(i,j,k) = rhsarr(i,j,k) - sync_resid_a(i,j,k);
                         } else {
@@ -2091,15 +1294,11 @@ MLNodeHelmDualCstVel::reflux (int crse_amrlev,
     const auto fdxinv = fgeom.InvCellSizeArray();
     const Box& c_cc_domain = cgeom.Domain();
     const Box& c_nd_domain = amrex::surroundingNodes(c_cc_domain);
-#if (AMREX_SPACEDIM == 2)
-    bool is_rz = m_is_rz;
-#endif
 
     const BoxArray& fba = fine_sol.boxArray();
     const DistributionMapping& fdm = fine_sol.DistributionMap();
 
     const iMultiFab& fdmsk = *m_dirichlet_mask[crse_amrlev+1][0];
-    const auto& stencil    =  m_stencil[crse_amrlev+1][0];
 
     MultiFab fine_res_for_coarse(amrex::coarsen(fba, 2), fdm, 1, 0);
 
@@ -2114,18 +1313,10 @@ MLNodeHelmDualCstVel::reflux (int crse_amrlev,
         Array4<Real> const& cfab = fine_res_for_coarse.array(mfi);
         Array4<Real const> const& ffab = fine_res.const_array(mfi);
         Array4<int const> const& mfab = fdmsk.const_array(mfi);
-        if (m_coarsening_strategy == CoarseningStrategy::Sigma) {
-            AMREX_HOST_DEVICE_PARALLEL_FOR_3D(bx, i, j, k,
-            {
-                mlndhelm_restriction(i,j,k,cfab,ffab,mfab);
-            });
-        } else {
-            Array4<Real const> const& stfab = stencil->const_array(mfi);
-            AMREX_HOST_DEVICE_PARALLEL_FOR_3D(bx, i, j, k,
-            {
-                mlndhelm_restriction_rap(i,j,k,cfab,ffab,stfab,mfab);
-            });
-        }
+        AMREX_HOST_DEVICE_PARALLEL_FOR_3D(bx, i, j, k,
+        {
+            mlndhelm_restriction(i,j,k,cfab,ffab,mfab);
+        });
     }
     res.ParallelCopy(fine_res_for_coarse, cgeom.periodicity());
 
@@ -2183,9 +1374,6 @@ MLNodeHelmDualCstVel::reflux (int crse_amrlev,
                     Axarr(i,j,k) = 0.0;
                 }
                 mlndhelm_res_fine_Ax(i,j,k, fvbx, Axarr, solarr, sigarr,
-#if (AMREX_SPACEDIM == 2)
-                                    is_rz,
-#endif
                                     fdxinv);
             });
 
@@ -2234,87 +1422,11 @@ MLNodeHelmDualCstVel::reflux (int crse_amrlev,
                 mlndhelm_res_cf_contrib(i,j,k,resarr,csolarr,crhsarr,csigarr,
                                        cdmskarr,ndmskarr,ccmskarr,fcocarr,
                                        cdxinv,c_nd_domain,
-#if (AMREX_SPACEDIM == 2)
-                                       is_rz,
-#endif
                                        lobc,hibc);
             });
         }
     }
-#ifdef AMREX_USE_EB
-    // Make sure to zero out the residual on any nodes completely surrounded by covered cells
-    amrex::EB_set_covered(res,0.0);
-#endif
 }
-
-#ifdef AMREX_USE_EB
-void
-MLNodeHelmDualCstVel::buildIntegral ()
-{
-    if (m_integral_built) return;
-
-    BL_PROFILE("MLNodeHelmDualCstVel::buildIntegral()");
-
-    m_integral_built = true;
-
-#if (AMREX_SPACEDIM == 2)
-    for (int amrlev = 0; amrlev < m_num_amr_levels; ++amrlev)
-    {
-        MultiFab* intg = m_integral[amrlev].get();
-
-        auto factory = dynamic_cast<EBFArrayBoxFactory const*>(m_factory[amrlev][0].get());
-        if (factory)
-        {
-            const int ncomp = intg->nComp();
-            const auto& flags = factory->getMultiEBCellFlagFab();
-            const auto& vfrac = factory->getVolFrac();
-            const auto& area = factory->getAreaFrac();
-            const auto& bcent = factory->getBndryCent();
-
-            MFItInfo mfi_info;
-            if (Gpu::notInLaunchRegion()) mfi_info.EnableTiling().SetDynamic(true);
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-            for (MFIter mfi(*intg,mfi_info); mfi.isValid(); ++mfi)
-            {
-                const Box& bx = mfi.growntilebox();
-                Array4<Real> const& garr = intg->array(mfi);
-                const auto& flag = flags[mfi];
-                auto typ = flag.getType(bx);
-
-                if (typ == FabType::covered) {
-                    AMREX_HOST_DEVICE_PARALLEL_FOR_4D(bx, ncomp, i, j, k, n,
-                    {
-                        garr(i,j,k,n) = 0.0;
-                    });
-                } else if (typ == FabType::regular) {
-                    AMREX_HOST_DEVICE_PARALLEL_FOR_3D(bx, i, j, k,
-                    {
-                        mlndhelm_set_integral(i,j,k,garr);
-                    });
-                } else {
-                    Array4<EBCellFlag const> const& flagarr = flags.const_array(mfi);
-                    Array4<Real const> const& vfracarr = vfrac.const_array(mfi);
-                    Array4<Real const> const& axarr = area[0]->const_array(mfi);
-                    Array4<Real const> const& ayarr = area[1]->const_array(mfi);
-                    Array4<Real const> const& bcarr = bcent.const_array(mfi);
-                    AMREX_HOST_DEVICE_FOR_3D(bx, i, j, k,
-                    {
-                        mlndhelm_set_integral_eb(i,j,k,garr,flagarr,vfracarr,axarr,ayarr,bcarr);
-                    });
-                }
-            }
-        }
-    }
-#else
-    for (int amrlev = 0; amrlev < m_num_amr_levels; ++amrlev)
-    {
-        amrex::algoim::compute_integrals(*m_integral[amrlev]);
-    }
-#endif
-}
-#endif
 
 void
 MLNodeHelmDualCstVel::checkPoint (std::string const& file_name) const
@@ -2367,7 +1479,6 @@ MLNodeHelmDualCstVel::checkPoint (std::string const& file_name) const
             HeaderFile << "maxorder = " << getMaxOrder() << "\n";
 
             // MLNodeHelmDualCstVel stuff
-            HeaderFile << "is_rz = " << m_is_rz << "\n";
             HeaderFile << "use_gauss_seidel = " << m_use_gauss_seidel << "\n";
             HeaderFile << "use_harmonic_average = " << m_use_harmonic_average << "\n";
             HeaderFile << "coarsen_strategy = " << static_cast<int>(m_coarsening_strategy) << "\n";
@@ -2400,289 +1511,5 @@ MLNodeHelmDualCstVel::checkPoint (std::string const& file_name) const
         VisMF::Write(*m_sigma[ilev][0][0], file_name+"/Level_"+std::to_string(ilev)+"/sigma");
     }
 }
-
-#ifdef AMREX_USE_HYPRE
-
-#if (AMREX_SPACEDIM == 2)
-void
-MLNodeHelmDualCstVel::fillIJMatrix (MFIter const& mfi, Array4<HypreNodeLap::Int const> const& nid,
-                               Array4<int const> const& owner,
-                               Vector<HypreNodeLap::Int>& ncols, Vector<HypreNodeLap::Int>& rows,
-                               Vector<HypreNodeLap::Int>& cols, Vector<Real>& mat) const
-{
-    const Box& ndbx = mfi.validbox();
-    const auto lo = amrex::lbound(ndbx);
-    const auto hi = amrex::ubound(ndbx);
-
-    AMREX_ASSERT(m_coarsening_strategy == CoarseningStrategy::RAP);
-
-    const auto& sten = m_stencil[0][0]->array(mfi);
-
-    constexpr int k = 0;
-    for     (int j = lo.y; j <= hi.y; ++j) {
-        for (int i = lo.x; i <= hi.x; ++i) {
-            if (nid(i,j,k) >= 0 && owner(i,j,k))
-            {
-                rows.push_back(nid(i,j,k));
-                cols.push_back(nid(i,j,k));
-                mat.push_back(sten(i,j,k,0));
-                HypreNodeLap::Int nc = 1;
-
-                if                (nid(i-1,j-1,k) >= 0) {
-                    cols.push_back(nid(i-1,j-1,k));
-                    mat.push_back(sten(i-1,j-1,k,3));
-                    ++nc;
-                }
-
-                if                (nid(i,j-1,k) >= 0) {
-                    cols.push_back(nid(i,j-1,k));
-                    mat.push_back(sten(i,j-1,k,2));
-                    ++nc;
-                }
-
-                if                (nid(i+1,j-1,k) >= 0) {
-                    cols.push_back(nid(i+1,j-1,k));
-                    mat.push_back(sten(i  ,j-1,k,3));
-                    ++nc;
-                }
-
-                if                (nid(i-1,j,k) >= 0) {
-                    cols.push_back(nid(i-1,j,k));
-                    mat.push_back(sten(i-1,j,k,1));
-                    ++nc;
-                }
-
-                if                (nid(i+1,j,k) >= 0) {
-                    cols.push_back(nid(i+1,j,k));
-                    mat.push_back(sten(i  ,j,k,1));
-                    ++nc;
-                }
-
-                if                (nid(i-1,j+1,k) >= 0) {
-                    cols.push_back(nid(i-1,j+1,k));
-                    mat.push_back(sten(i-1,j  ,k,3));
-                    ++nc;
-                }
-
-                if                (nid(i,j+1,k) >= 0) {
-                    cols.push_back(nid(i,j+1,k));
-                    mat.push_back(sten(i,j  ,k,2));
-                    ++nc;
-                }
-
-                if                (nid(i+1,j+1,k) >= 0) {
-                    cols.push_back(nid(i+1,j+1,k));
-                    mat.push_back(sten(i  ,j  ,k,3));
-                    ++nc;
-                }
-
-                ncols.push_back(nc);
-            }
-        }
-    }
-}
-#else
-void
-MLNodeHelmDualCstVel::fillIJMatrix (MFIter const& mfi, Array4<HypreNodeLap::Int const> const& nid,
-                               Array4<int const> const& owner,
-                               Vector<HypreNodeLap::Int>& ncols, Vector<HypreNodeLap::Int>& rows,
-                               Vector<HypreNodeLap::Int>& cols, Vector<Real>& mat) const
-{
-    AMREX_ASSERT(NMGLevels(0) == 1);
-
-    const Real* dxinv = m_geom[0][0].InvCellSize();
-
-    const Box& ndbx = mfi.validbox();
-    const auto lo = amrex::lbound(ndbx);
-    const auto hi = amrex::ubound(ndbx);
-
-    AMREX_ASSERT(m_coarsening_strategy == CoarseningStrategy::RAP);
-
-    const auto& sten = m_stencil[0][0]->array(mfi);
-
-    constexpr int ist_000 = 1-1;
-    constexpr int ist_p00 = 2-1;
-    constexpr int ist_0p0 = 3-1;
-    constexpr int ist_00p = 4-1;
-    constexpr int ist_pp0 = 5-1;
-    constexpr int ist_p0p = 6-1;
-    constexpr int ist_0pp = 7-1;
-    constexpr int ist_ppp = 8-1;
-
-    for         (int k = lo.z; k <= hi.z; ++k) {
-        for     (int j = lo.y; j <= hi.y; ++j) {
-            for (int i = lo.x; i <= hi.x; ++i) {
-                if (nid(i,j,k) >= 0 && owner(i,j,k))
-                {
-                    rows.push_back(nid(i,j,k));
-                    cols.push_back(nid(i,j,k));
-                    mat.push_back(sten(i,j,k,ist_000));
-                    HypreNodeLap::Int nc = 1;
-
-                    if                (nid(i-1,j-1,k-1) >= 0) {
-                        cols.push_back(nid(i-1,j-1,k-1));
-                        mat.push_back(sten(i-1,j-1,k-1,ist_ppp));
-                        ++nc;
-                    }
-
-                    if                (nid(i,j-1,k-1) >= 0) {
-                        cols.push_back(nid(i,j-1,k-1));
-                        mat.push_back(sten(i,j-1,k-1,ist_0pp));
-                        ++nc;
-                    }
-
-                    if                (nid(i+1,j-1,k-1) >= 0) {
-                        cols.push_back(nid(i+1,j-1,k-1));
-                        mat.push_back(sten(i,j-1,k-1,ist_ppp));
-                        ++nc;
-                    }
-
-                    if                (nid(i-1,j,k-1) >= 0) {
-                        cols.push_back(nid(i-1,j,k-1));
-                        mat.push_back(sten(i-1,j,k-1,ist_p0p));
-                        ++nc;
-                    }
-
-                    if                (nid(i,j,k-1) >= 0) {
-                        cols.push_back(nid(i,j,k-1));
-                        mat.push_back(sten(i,j,k-1,ist_00p));
-                        ++nc;
-                    }
-
-                    if                (nid(i+1,j,k-1) >= 0) {
-                        cols.push_back(nid(i+1,j,k-1));
-                        mat.push_back(sten(i,j,k-1,ist_p0p));
-                        ++nc;
-                    }
-
-                    if                (nid(i-1,j+1,k-1) >= 0) {
-                        cols.push_back(nid(i-1,j+1,k-1));
-                        mat.push_back(sten(i-1,j,k-1,ist_ppp));
-                        ++nc;
-                    }
-
-                    if                (nid(i,j+1,k-1) >= 0) {
-                        cols.push_back(nid(i,j+1,k-1));
-                        mat.push_back(sten(i,j,k-1,ist_0pp));
-                        ++nc;
-                    }
-
-                    if                (nid(i+1,j+1,k-1) >= 0) {
-                        cols.push_back(nid(i+1,j+1,k-1));
-                        mat.push_back(sten(i,j,k-1,ist_ppp));
-                        ++nc;
-                    }
-
-                    if                (nid(i-1,j-1,k) >= 0) {
-                        cols.push_back(nid(i-1,j-1,k));
-                        mat.push_back(sten(i-1,j-1,k,ist_pp0));
-                        ++nc;
-                    }
-
-                    if                (nid(i,j-1,k) >= 0) {
-                        cols.push_back(nid(i,j-1,k));
-                        mat.push_back(sten(i,j-1,k,ist_0p0));
-                        ++nc;
-                    }
-
-                    if                (nid(i+1,j-1,k) >= 0) {
-                        cols.push_back(nid(i+1,j-1,k));
-                        mat.push_back(sten(i,j-1,k,ist_pp0));
-                        ++nc;
-                    }
-
-                    if                (nid(i-1,j,k) >= 0) {
-                        cols.push_back(nid(i-1,j,k));
-                        mat.push_back(sten(i-1,j,k,ist_p00));
-                        ++nc;
-                    }
-
-                    if                (nid(i+1,j,k) >= 0) {
-                        cols.push_back(nid(i+1,j,k));
-                        mat.push_back(sten(i,j,k,ist_p00));
-                        ++nc;
-                    }
-
-                    if                (nid(i-1,j+1,k) >= 0) {
-                        cols.push_back(nid(i-1,j+1,k));
-                        mat.push_back(sten(i-1,j,k,ist_pp0));
-                        ++nc;
-                    }
-
-                    if                (nid(i,j+1,k) >= 0) {
-                        cols.push_back(nid(i,j+1,k));
-                        mat.push_back(sten(i,j,k,ist_0p0));
-                        ++nc;
-                    }
-
-                    if                (nid(i+1,j+1,k) >= 0) {
-                        cols.push_back(nid(i+1,j+1,k));
-                        mat.push_back(sten(i,j,k,ist_pp0));
-                        ++nc;
-                    }
-
-                    if                (nid(i-1,j-1,k+1) >= 0) {
-                        cols.push_back(nid(i-1,j-1,k+1));
-                        mat.push_back(sten(i-1,j-1,k,ist_ppp));
-                        ++nc;
-                    }
-
-                    if                (nid(i,j-1,k+1) >= 0) {
-                        cols.push_back(nid(i,j-1,k+1));
-                        mat.push_back(sten(i,j-1,k,ist_0pp));
-                        ++nc;
-                    }
-
-                    if                (nid(i+1,j-1,k+1) >= 0) {
-                        cols.push_back(nid(i+1,j-1,k+1));
-                        mat.push_back(sten(i,j-1,k,ist_ppp));
-                        ++nc;
-                    }
-
-                    if                (nid(i-1,j,k+1) >= 0) {
-                        cols.push_back(nid(i-1,j,k+1));
-                        mat.push_back(sten(i-1,j,k,ist_p0p));
-                        ++nc;
-                    }
-
-                    if                (nid(i,j,k+1) >= 0) {
-                        cols.push_back(nid(i,j,k+1));
-                        mat.push_back(sten(i,j,k,ist_00p));
-                        ++nc;
-                    }
-
-                    if                (nid(i+1,j,k+1) >= 0) {
-                        cols.push_back(nid(i+1,j,k+1));
-                        mat.push_back(sten(i,j,k,ist_p0p));
-                        ++nc;
-                    }
-
-                    if                (nid(i-1,j+1,k+1) >= 0) {
-                        cols.push_back(nid(i-1,j+1,k+1));
-                        mat.push_back(sten(i-1,j,k,ist_ppp));
-                        ++nc;
-                    }
-
-                    if                (nid(i,j+1,k+1) >= 0) {
-                        cols.push_back(nid(i,j+1,k+1));
-                        mat.push_back(sten(i,j,k,ist_0pp));
-                        ++nc;
-                    }
-
-                    if                (nid(i+1,j+1,k+1) >= 0) {
-                        cols.push_back(nid(i+1,j+1,k+1));
-                        mat.push_back(sten(i,j,k,ist_ppp));
-                        ++nc;
-                    }
-
-                    ncols.push_back(nc);
-                }
-            }
-        }
-    }
-}
-#endif
-
-#endif
 
 }

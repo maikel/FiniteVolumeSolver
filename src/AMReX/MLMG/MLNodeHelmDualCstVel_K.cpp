@@ -3,9 +3,6 @@
 
 #include <AMReX_FArrayBox.H>
 #include <AMReX_LO_BCTYPES.H>
-#ifdef AMREX_USE_EB
-#include <AMReX_EBCellFlag.H>
-#endif
 
 namespace amrex {
 namespace {
@@ -113,36 +110,6 @@ void mlndhelm_applybc (Box const& vbx, Array4<T> const& phi, Box const& domain,
                                                     bchi[2] == LinOpBCType::Neumann or
                                                     bchi[2] == LinOpBCType::inflow)};
     mlndhelm_bc_doit(vbx, phi, domain, bflo, bfhi);
-}
-
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_normalize_sten (Box const& bx, Array4<Real> const& x,
-                             Array4<Real const> const& sten,
-                             Array4<int const> const& msk, Real s0_norm0) noexcept
-{
-    amrex::LoopConcurrent(bx, [=] (int i, int j, int k) noexcept
-    {
-        if (!msk(i,j,k) and std::abs(sten(i,j,k,0)) > s0_norm0) {
-            x(i,j,k) /= sten(i,j,k,0);
-        }
-    });
-}
-
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_jacobi_sten (Box const& bx, Array4<Real> const& sol,
-                          Array4<Real const> const& Ax,
-                          Array4<Real const> const& rhs,
-                          Array4<Real const> const& sten,
-                          Array4<int const> const& msk) noexcept
-{
-    amrex::LoopConcurrent(bx, [=] (int i, int j, int k) noexcept
-    {
-        if (msk(i,j,k)) {
-            sol(i,j,k) = 0.0;
-        } else if (sten(i,j,k,0) != 0.0) {
-            sol(i,j,k) += (2./3.) * (rhs(i,j,k) - Ax(i,j,k)) / sten(i,j,k,0);
-        }
-    });
 }
 
 AMREX_FORCE_INLINE
