@@ -15,14 +15,10 @@ int main(int argc, char** argv) {
   int mg_verbose     = 4;
   int bottom_verbose = 4;
   int max_iter       = 100;
-  int n_cell         = 32;
+  int n_cell         = 64;
   int max_grid_size  = 32;
   amrex::Real reltol = 1.e-10;
   amrex::Real abstol = 1.e-15;
-
-        // Define the absolute tolerance; note that this argument is optional
-//         Real abstol = 1.e-15;
-
 
   amrex::RealBox rb({AMREX_D_DECL(0., 0., 0.)}, {AMREX_D_DECL(1., 1., 1.)});
   amrex::Array<int, AMREX_SPACEDIM> is_periodic{AMREX_D_DECL(1, 1, 1)};
@@ -143,7 +139,7 @@ int main(int argc, char** argv) {
 
   amrex::Print() << "Start output to '" << name << "'.\n";
   WriteSingleLevelPlotfile(name, plotfile_mf,
-    { "xvelold", "yvelold", "rhsold" ,"xvelnew", "yvelnew", "rhsnew" },
+    { "velxold", "velyold", "rhsold" ,"velxnew", "velynew", "rhsnew" },
     geom, 0.0, 0);
   amrex::Print() << "Finished output to '" << name << "'.\n";
 
