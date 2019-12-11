@@ -1,6 +1,7 @@
 variables:
   IMP_REGISTRY: git.imp.fu-berlin.de:5000
-
+  DOCKER_DRIVER: overlay2
+  
 stages:
   - build
 
