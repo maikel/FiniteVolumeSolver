@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/grid/SAMRAI/ViewPatch.hpp"
+#include "fub/SAMRAI/ViewPatch.hpp"
 
 namespace fub {
 namespace samrai {

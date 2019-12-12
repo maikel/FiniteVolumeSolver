@@ -18,9 +18,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/grid/AMReX/ScopeGuard.hpp"
+#include "fub/AMReX/ScopeGuard.hpp"
 
 #include <AMReX.H>
+#include <mpi.h>
 
 namespace fub {
 namespace amrex {
@@ -29,7 +30,24 @@ ScopeGuard::ScopeGuard(int argc, char** argv) {
   ::amrex::Initialize(argc, argv);
 }
 
-ScopeGuard::~ScopeGuard() { ::amrex::Finalize(); }
+ScopeGuard::ScopeGuard() {
+  int is_initialized = -1;
+  MPI_Initialized(&is_initialized);
+  if (!is_initialized) {
+    MPI_Init(nullptr, nullptr);
+    owns_mpi = true;
+  }
+  ::amrex::Initialize(MPI_COMM_WORLD, std::cout, std::cerr, [](const char* msg) { throw std::runtime_error(msg); });
+}
+
+ScopeGuard::~ScopeGuard() { 
+  ::amrex::Finalize(); 
+  int is_initialized = -1;
+  MPI_Initialized(&is_initialized);
+  if (is_initialized && owns_mpi) {
+    MPI_Finalize();
+  }
+}
 
 } // namespace amrex
 } // namespace fub

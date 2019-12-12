@@ -36,44 +36,24 @@ static void BM_GodunovMethod_X(benchmark::State& state) {
   Advection2d equation{{0.4, 0.8}};
   GodunovMethod godunov{equation};
 
-  View<Conservative<Advection2d>> fluxes;
-  fluxes.mass = mdspan<double, 2>(mass_flux.data(), width, width);
+  BasicView<Conservative<Advection2d>> base_fluxes;
+  base_fluxes.mass = PatchDataView<double, 2, layout_left>(
+      mdspan<double, 2>(mass_flux.data(), width, width), {});
+  View<Conservative<Advection2d>> fluxes =
+      Subview(base_fluxes, {{}, {width, width}});
 
-  View<Complete<Advection2d>> states;
-  states.mass = mdspan<double, 2>(mass.data(), width + 1, width);
+  BasicView<Complete<Advection2d>> base_states;
+  base_states.mass = PatchDataView<double, 2, layout_left>(
+      mdspan<double, 2>(mass.data(), width + 1, width), {-1, 0});
+  View<const Complete<Advection2d>> states =
+      Subview(AsConst(base_states), {{-1, 0}, {width, width}});
 
-  static_assert(IsView<View<Complete<Advection2d>>>::value);
   for (auto _ : state) {
     godunov.ComputeNumericFluxes(fluxes, states, Duration(0.7), 1.0,
                                  Direction::X);
   }
 }
-BENCHMARK(BM_GodunovMethod_X)->Range(8, 512);
-
-static void BM_GodunovMethod_Y(benchmark::State& state) {
-  int width = state.range(0);
-  std::vector<double> mass_flux(width * width);
-  std::vector<double> mass((width + 1) * width);
-  std::iota(mass_flux.begin(), mass_flux.end(), 0.0);
-  std::iota(mass.begin(), mass.end(), 0.0);
-
-  using namespace fub;
-  Advection2d equation{{0.4, 0.8}};
-  GodunovMethod godunov{equation};
-
-  View<Conservative<Advection2d>> fluxes;
-  fluxes.mass = mdspan<double, 2>(mass_flux.data(), width, width);
-
-  View<const Complete<Advection2d>> states;
-  states.mass = mdspan<const double, 2>(mass.data(), width, width + 1);
-
-  static_assert(IsView<View<Complete<Advection2d>>>::value);
-  for (auto _ : state) {
-    godunov.ComputeNumericFluxes(fluxes, states, Duration(0.7), 1.0,
-                                 Direction::Y);
-  }
-}
-BENCHMARK(BM_GodunovMethod_Y)->Range(8, 512);
+BENCHMARK(BM_GodunovMethod_X)->Range(8, 128);
 
 static void BM_SIMD_GodunovMethod_X(benchmark::State& state) {
   int width = state.range(0);
@@ -86,143 +66,202 @@ static void BM_SIMD_GodunovMethod_X(benchmark::State& state) {
   Advection2d equation{{0.4, 0.8}};
   GodunovMethod godunov{equation};
 
-  View<Conservative<Advection2d>> fluxes;
-  fluxes.mass = mdspan<double, 2>(mass_flux.data(), width, width);
+  BasicView<Conservative<Advection2d>> base_fluxes;
+  base_fluxes.mass = PatchDataView<double, 2, layout_left>(
+      mdspan<double, 2>(mass_flux.data(), width, width), {});
+  View<Conservative<Advection2d>> fluxes =
+      Subview(base_fluxes, {{}, {width, width}});
 
-  View<Complete<Advection2d>> states;
-  states.mass = mdspan<double, 2>(mass.data(), width + 1, width);
+  BasicView<Complete<Advection2d>> base_states;
+  base_states.mass = PatchDataView<double, 2, layout_left>(
+      mdspan<double, 2>(mass.data(), width + 1, width), {-1, 0});
+  View<const Complete<Advection2d>> states =
+      Subview(AsConst(base_states), {{-1, 0}, {width, width}});
 
-  static_assert(IsView<View<Complete<Advection2d>>>::value);
   for (auto _ : state) {
     godunov.ComputeNumericFluxes(execution::simd, fluxes, states, Duration(0.7),
                                  1.0, Direction::X);
   }
 }
-BENCHMARK(BM_SIMD_GodunovMethod_X)->Range(8, 512);
-
-static void BM_SIMD_GodunovMethod_Y(benchmark::State& state) {
-  int width = state.range(0);
-  std::vector<double> mass_flux(width * width);
-  std::vector<double> mass((width + 1) * width);
-  std::iota(mass_flux.begin(), mass_flux.end(), 0.0);
-  std::iota(mass.begin(), mass.end(), 0.0);
-
-  using namespace fub;
-  Advection2d equation{{0.4, 0.8}};
-  GodunovMethod godunov{equation};
-
-  View<Conservative<Advection2d>> fluxes;
-  fluxes.mass = mdspan<double, 2>(mass_flux.data(), width, width);
-
-  View<Complete<Advection2d>> states;
-  states.mass = mdspan<double, 2>(mass.data(), width, width + 1);
-
-  static_assert(IsView<View<Complete<Advection2d>>>::value);
-  for (auto _ : state) {
-    godunov.ComputeNumericFluxes(execution::simd, fluxes, states, Duration(0.7),
-                                 1.0, Direction::Y);
-  }
-}
-BENCHMARK(BM_SIMD_GodunovMethod_Y)->Range(8, 512);
-
-static void BM_MusclHancockMethod_X(benchmark::State& state) {
-  int width = state.range(0);
-  std::vector<double> mass_flux(width * width);
-  std::vector<double> mass((width + 3) * width);
-  std::iota(mass_flux.begin(), mass_flux.end(), 0.0);
-  std::iota(mass.begin(), mass.end(), 0.0);
-
-  using namespace fub;
-  Advection2d equation{{0.4, 0.8}};
-  MusclHancockMethod method{equation};
-
-  View<Conservative<Advection2d>> fluxes;
-  fluxes.mass = mdspan<double, 2>(mass_flux.data(), width, width);
-
-  View<Complete<Advection2d>> states;
-  states.mass = mdspan<double, 2>(mass.data(), width + 3, width);
-
-  static_assert(IsView<View<Complete<Advection2d>>>::value);
-  for (auto _ : state) {
-    method.ComputeNumericFluxes(fluxes, states, Duration(0.7), 1.0,
-                                Direction::X);
-  }
-}
-BENCHMARK(BM_MusclHancockMethod_X)->Range(8, 512);
-
-static void BM_MusclHancockMethod_Y(benchmark::State& state) {
-  int width = state.range(0);
-  std::vector<double> mass_flux(width * width);
-  std::vector<double> mass((width + 3) * width);
-  std::iota(mass_flux.begin(), mass_flux.end(), 0.0);
-  std::iota(mass.begin(), mass.end(), 0.0);
-
-  using namespace fub;
-  Advection2d equation{{0.4, 0.8}};
-  MusclHancockMethod method{equation};
-
-  View<Conservative<Advection2d>> fluxes;
-  fluxes.mass = mdspan<double, 2>(mass_flux.data(), width, width);
-
-  View<const Complete<Advection2d>> states;
-  states.mass = mdspan<const double, 2>(mass.data(), width, width + 3);
-
-  static_assert(IsView<View<Complete<Advection2d>>>::value);
-  for (auto _ : state) {
-    method.ComputeNumericFluxes(fluxes, states, Duration(0.7), 1.0,
-                                Direction::Y);
-  }
-}
-BENCHMARK(BM_MusclHancockMethod_Y)->Range(8, 512);
-
-static void BM_SIMD_MusclHancockMethod_X(benchmark::State& state) {
-  int width = state.range(0);
-  std::vector<double> mass_flux(width * width);
-  std::vector<double> mass((width + 3) * width);
-  std::iota(mass_flux.begin(), mass_flux.end(), 0.0);
-  std::iota(mass.begin(), mass.end(), 0.0);
-
-  using namespace fub;
-  Advection2d equation{{0.4, 0.8}};
-  MusclHancockMethod godunov{equation};
-
-  View<Conservative<Advection2d>> fluxes;
-  fluxes.mass = mdspan<double, 2>(mass_flux.data(), width, width);
-
-  View<Complete<Advection2d>> states;
-  states.mass = mdspan<double, 2>(mass.data(), width + 3, width);
-
-  static_assert(IsView<View<Complete<Advection2d>>>::value);
-  for (auto _ : state) {
-    godunov.ComputeNumericFluxes(execution::simd, fluxes, states, Duration(0.7),
-                                 1.0, Direction::X);
-  }
-}
-BENCHMARK(BM_SIMD_MusclHancockMethod_X)->Range(8, 512);
-
-static void BM_SIMD_MusclHancockMethod_Y(benchmark::State& state) {
-  int width = state.range(0);
-  std::vector<double> mass_flux(width * width);
-  std::vector<double> mass((width + 3) * width);
-  std::iota(mass_flux.begin(), mass_flux.end(), 0.0);
-  std::iota(mass.begin(), mass.end(), 0.0);
-
-  using namespace fub;
-  Advection2d equation{{0.4, 0.8}};
-  MusclHancockMethod godunov{equation};
-
-  View<Conservative<Advection2d>> fluxes;
-  fluxes.mass = mdspan<double, 2>(mass_flux.data(), width, width);
-
-  View<Complete<Advection2d>> states;
-  states.mass = mdspan<double, 2>(mass.data(), width, width + 3);
-
-  static_assert(IsView<View<Complete<Advection2d>>>::value);
-  for (auto _ : state) {
-    godunov.ComputeNumericFluxes(execution::simd, fluxes, states, Duration(0.7),
-                                 1.0, Direction::Y);
-  }
-}
-BENCHMARK(BM_SIMD_MusclHancockMethod_Y)->Range(8, 512);
+BENCHMARK(BM_SIMD_GodunovMethod_X)->Range(8, 128);
+//
+// static void BM_GodunovMethod_Y(benchmark::State& state) {
+//  int width = state.range(0);
+//  std::vector<double> mass_flux(width * width);
+//  std::vector<double> mass((width + 1) * width);
+//  std::iota(mass_flux.begin(), mass_flux.end(), 0.0);
+//  std::iota(mass.begin(), mass.end(), 0.0);
+//
+//  using namespace fub;
+//  Advection2d equation{{0.4, 0.8}};
+//  GodunovMethod godunov{equation};
+//
+//  View<Conservative<Advection2d>> fluxes;
+//  fluxes.mass = mdspan<double, 2>(mass_flux.data(), width, width);
+//
+//  View<const Complete<Advection2d>> states;
+//  states.mass = mdspan<const double, 2>(mass.data(), width, width + 1);
+//
+//  static_assert(IsView<View<Complete<Advection2d>>>::value);
+//  for (auto _ : state) {
+//    godunov.ComputeNumericFluxes(fluxes, states, Duration(0.7), 1.0,
+//                                 Direction::Y);
+//  }
+//}
+// BENCHMARK(BM_GodunovMethod_Y)->Range(8, 512);
+//
+// static void BM_SIMD_GodunovMethod_X(benchmark::State& state) {
+//  int width = state.range(0);
+//  std::vector<double> mass_flux(width * width);
+//  std::vector<double> mass((width + 1) * width);
+//  std::iota(mass_flux.begin(), mass_flux.end(), 0.0);
+//  std::iota(mass.begin(), mass.end(), 0.0);
+//
+//  using namespace fub;
+//  Advection2d equation{{0.4, 0.8}};
+//  GodunovMethod godunov{equation};
+//
+//  View<Conservative<Advection2d>> fluxes;
+//  fluxes.mass = mdspan<double, 2>(mass_flux.data(), width, width);
+//
+//  View<Complete<Advection2d>> states;
+//  states.mass = mdspan<double, 2>(mass.data(), width + 1, width);
+//
+//  static_assert(IsView<View<Complete<Advection2d>>>::value);
+//  for (auto _ : state) {
+//    godunov.ComputeNumericFluxes(execution::simd, fluxes, states,
+//    Duration(0.7),
+//                                 1.0, Direction::X);
+//  }
+//}
+// BENCHMARK(BM_SIMD_GodunovMethod_X)->Range(8, 512);
+//
+// static void BM_SIMD_GodunovMethod_Y(benchmark::State& state) {
+//  int width = state.range(0);
+//  std::vector<double> mass_flux(width * width);
+//  std::vector<double> mass((width + 1) * width);
+//  std::iota(mass_flux.begin(), mass_flux.end(), 0.0);
+//  std::iota(mass.begin(), mass.end(), 0.0);
+//
+//  using namespace fub;
+//  Advection2d equation{{0.4, 0.8}};
+//  GodunovMethod godunov{equation};
+//
+//  View<Conservative<Advection2d>> fluxes;
+//  fluxes.mass = mdspan<double, 2>(mass_flux.data(), width, width);
+//
+//  View<Complete<Advection2d>> states;
+//  states.mass = mdspan<double, 2>(mass.data(), width, width + 1);
+//
+//  static_assert(IsView<View<Complete<Advection2d>>>::value);
+//  for (auto _ : state) {
+//    godunov.ComputeNumericFluxes(execution::simd, fluxes, states,
+//    Duration(0.7),
+//                                 1.0, Direction::Y);
+//  }
+//}
+// BENCHMARK(BM_SIMD_GodunovMethod_Y)->Range(8, 512);
+//
+// static void BM_MusclHancockMethod_X(benchmark::State& state) {
+//  int width = state.range(0);
+//  std::vector<double> mass_flux(width * width);
+//  std::vector<double> mass((width + 3) * width);
+//  std::iota(mass_flux.begin(), mass_flux.end(), 0.0);
+//  std::iota(mass.begin(), mass.end(), 0.0);
+//
+//  using namespace fub;
+//  Advection2d equation{{0.4, 0.8}};
+//  MusclHancockMethod method{equation};
+//
+//  View<Conservative<Advection2d>> fluxes;
+//  fluxes.mass = mdspan<double, 2>(mass_flux.data(), width, width);
+//
+//  View<Complete<Advection2d>> states;
+//  states.mass = mdspan<double, 2>(mass.data(), width + 3, width);
+//
+//  static_assert(IsView<View<Complete<Advection2d>>>::value);
+//  for (auto _ : state) {
+//    method.ComputeNumericFluxes(fluxes, states, Duration(0.7), 1.0,
+//                                Direction::X);
+//  }
+//}
+// BENCHMARK(BM_MusclHancockMethod_X)->Range(8, 512);
+//
+// static void BM_MusclHancockMethod_Y(benchmark::State& state) {
+//  int width = state.range(0);
+//  std::vector<double> mass_flux(width * width);
+//  std::vector<double> mass((width + 3) * width);
+//  std::iota(mass_flux.begin(), mass_flux.end(), 0.0);
+//  std::iota(mass.begin(), mass.end(), 0.0);
+//
+//  using namespace fub;
+//  Advection2d equation{{0.4, 0.8}};
+//  MusclHancockMethod method{equation};
+//
+//  View<Conservative<Advection2d>> fluxes;
+//  fluxes.mass = mdspan<double, 2>(mass_flux.data(), width, width);
+//
+//  View<const Complete<Advection2d>> states;
+//  states.mass = mdspan<const double, 2>(mass.data(), width, width + 3);
+//
+//  static_assert(IsView<View<Complete<Advection2d>>>::value);
+//  for (auto _ : state) {
+//    method.ComputeNumericFluxes(fluxes, states, Duration(0.7), 1.0,
+//                                Direction::Y);
+//  }
+//}
+// BENCHMARK(BM_MusclHancockMethod_Y)->Range(8, 512);
+//
+// static void BM_SIMD_MusclHancockMethod_X(benchmark::State& state) {
+//  int width = state.range(0);
+//  std::vector<double> mass_flux(width * width);
+//  std::vector<double> mass((width + 3) * width);
+//  std::iota(mass_flux.begin(), mass_flux.end(), 0.0);
+//  std::iota(mass.begin(), mass.end(), 0.0);
+//
+//  using namespace fub;
+//  Advection2d equation{{0.4, 0.8}};
+//  MusclHancockMethod godunov{equation};
+//
+//  View<Conservative<Advection2d>> fluxes;
+//  fluxes.mass = mdspan<double, 2>(mass_flux.data(), width, width);
+//
+//  View<Complete<Advection2d>> states;
+//  states.mass = mdspan<double, 2>(mass.data(), width + 3, width);
+//
+//  static_assert(IsView<View<Complete<Advection2d>>>::value);
+//  for (auto _ : state) {
+//    godunov.ComputeNumericFluxes(execution::simd, fluxes, states,
+//    Duration(0.7),
+//                                 1.0, Direction::X);
+//  }
+//}
+// BENCHMARK(BM_SIMD_MusclHancockMethod_X)->Range(8, 512);
+//
+// static void BM_SIMD_MusclHancockMethod_Y(benchmark::State& state) {
+//  int width = state.range(0);
+//  std::vector<double> mass_flux(width * width);
+//  std::vector<double> mass((width + 3) * width);
+//  std::iota(mass_flux.begin(), mass_flux.end(), 0.0);
+//  std::iota(mass.begin(), mass.end(), 0.0);
+//
+//  using namespace fub;
+//  Advection2d equation{{0.4, 0.8}};
+//  MusclHancockMethod godunov{equation};
+//
+//  View<Conservative<Advection2d>> fluxes;
+//  fluxes.mass = mdspan<double, 2>(mass_flux.data(), width, width);
+//
+//  View<Complete<Advection2d>> states;
+//  states.mass = mdspan<double, 2>(mass.data(), width, width + 3);
+//
+//  static_assert(IsView<View<Complete<Advection2d>>>::value);
+//  for (auto _ : state) {
+//    godunov.ComputeNumericFluxes(execution::simd, fluxes, states,
+//    Duration(0.7),
+//                                 1.0, Direction::Y);
+//  }
+//}
+// BENCHMARK(BM_SIMD_MusclHancockMethod_Y)->Range(8, 512);
 
 BENCHMARK_MAIN();

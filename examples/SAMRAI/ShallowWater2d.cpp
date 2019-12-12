@@ -45,7 +45,7 @@ struct TwoShockProblem {
   void InitializeData(fub::View<fub::Complete<fub::ShallowWater>> states,
                       const fub::CartesianCoordinates& x) const {
     fub::ForEachIndex(fub::Mapping<0>(states), [&](int i, int j) {
-      states.heigth(i, j) = 1.0;
+      states.height(i, j) = 1.0;
       if (x(i, j)[0] < 0) {
         states.momentum(i, j, 0) = +1.0;
       } else {
@@ -60,11 +60,11 @@ struct DamBreakProblem {
                       const fub::CartesianCoordinates& x) const {
     fub::ForEachIndex(fub::Mapping<0>(states), [&](int i, int j) {
       if (x(i, j).norm() < 0.25) {
-        states.heigth(i, j) = 1.5;
+        states.height(i, j) = 1.5;
         states.momentum(i, j, 0) = 0.0;
         states.momentum(i, j, 1) = 0.0;
       } else {
-        states.heigth(i, j) = 1.0;
+        states.height(i, j) = 1.0;
         states.momentum(i, j, 0) = 0.0;
         states.momentum(i, j, 1) = 0.0;
       }
@@ -96,7 +96,7 @@ int main(int argc, char** argv) {
 
   // Setup our gridding algorithm which manages refining and load balancing
 
-  fub::GradientDetector tagging{std::pair{&Complete::heigth, 1e-1}};
+  fub::GradientDetector tagging{std::pair{&Complete::height, 1e-1}};
   DamBreakProblem initial_data{};
   const fub::samrai::DataDescription reg =
       fub::samrai::RegisterVariables(equation);
@@ -124,7 +124,7 @@ int main(int argc, char** argv) {
 
   SAMRAI::appu::VisItDataWriter writer(dim, "VisItWriter",
                                        "SAMRAI/ShallowWater");
-  writer.registerPlotQuantity("heigth", "SCALAR", reg.data_ids[0]);
+  writer.registerPlotQuantity("height", "SCALAR", reg.data_ids[0]);
   writer.registerPlotQuantity("momentum", "VECTOR", reg.data_ids[1]);
 
   auto output =

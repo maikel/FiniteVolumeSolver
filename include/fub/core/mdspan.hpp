@@ -738,9 +738,9 @@ struct IsSliceRange_
           std::is_convertible<T, all_type>> {};
 
 template <typename I, typename... Is> constexpr I Accumulate_(I x0, Is... xi) {
-  const I x[] = {xi...};
-  constexpr int size = sizeof...(Is);
-  I total = x0;
+  const I x[] = {x0, xi...};
+  constexpr int size = 1 + static_cast<int>(sizeof...(Is));
+  I total = I{};
   for (int i = 0; i < size; ++i) {
     total += x[i];
   }

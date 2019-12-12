@@ -22,12 +22,16 @@
 #define FUB_EQUATIONS_PERFECT_GAS_HPP
 
 #include "fub/State.hpp"
+#include "fub/StateArray.hpp"
 
 #include "fub/CompleteFromCons.hpp"
-#include "fub/EinfeldtSignalVelocities.hpp"
 #include "fub/Equation.hpp"
 #include "fub/ExactRiemannSolver.hpp"
 #include "fub/ext/Eigen.hpp"
+
+#include "fub/EinfeldtSignalVelocities.hpp"
+#include "fub/flux_method/HllMethod.hpp"
+#include "fub/flux_method/MusclHancockMethod.hpp"
 
 #include <array>
 
@@ -91,14 +95,39 @@ template <int N> struct PerfectGas {
 
   using Conservative = ::fub::Conservative<PerfectGas<N>>;
   using Complete = ::fub::Complete<PerfectGas<N>>;
+  using ConservativeArray = ::fub::ConservativeArray<PerfectGas<N>>;
+  using CompleteArray = ::fub::CompleteArray<PerfectGas<N>>;
 
   static constexpr int Rank() noexcept { return N; }
 
   void Flux(Conservative& flux, const Complete& state,
             [[maybe_unused]] Direction dir = Direction::X) const noexcept;
 
+  void Flux(ConservativeArray& flux, const CompleteArray& state,
+            [[maybe_unused]] Direction dir) const noexcept;
+
+  void CompleteFromCons(Complete& complete,
+                        const ConservativeBase<PerfectGas>& cons) const
+      noexcept;
+
+  void CompleteFromCons(CompleteArray& complete,
+                        const ConservativeArrayBase<PerfectGas>& cons) const
+      noexcept;
+
+  void CompleteFromCons(CompleteArray& complete,
+                        const ConservativeArrayBase<PerfectGas>& cons,
+                        MaskArray mask) const noexcept;
+
+  Complete CompleteFromPrim(double density, const Array<double, N, 1>& u,
+                            double pressure) const noexcept;
+  Array<double, N, 1> Velocity(const Complete& q) const noexcept;
+  double Machnumber(const Complete& q) const noexcept;
+
   double gamma{1.4};
   double gamma_minus_1_inv{1.0 / (gamma - 1.0)};
+
+  Array1d gamma_array_{Array1d::Constant(gamma)};
+  Array1d gamma_minus_1_inv_array_{Array1d::Constant(gamma_minus_1_inv)};
 };
 
 // We define this class only for dimensions 1 to 3.
@@ -142,36 +171,10 @@ void Reflect(Complete<PerfectGas<3>>& reflected,
              const Complete<PerfectGas<3>>& state,
              const Eigen::Vector3d& normal, const PerfectGas<3>& gas);
 
-template <int Dim> struct CompleteFromConsImpl<PerfectGas<Dim>> {
-  static void apply(const PerfectGas<Dim>& equation,
-                    Complete<PerfectGas<Dim>>& complete,
-                    const Conservative<PerfectGas<Dim>>& cons);
-
-  static void apply(const PerfectGas<Dim>& equation,
-                    Complete<PerfectGas<Dim>>& complete,
-                    const Complete<PerfectGas<Dim>>& cons);
-};
-
-extern template struct CompleteFromConsImpl<PerfectGas<1>>;
-extern template struct CompleteFromConsImpl<PerfectGas<2>>;
-extern template struct CompleteFromConsImpl<PerfectGas<3>>;
-
-template <int Dim> struct EinfeldtSignalVelocitiesImpl<PerfectGas<Dim>> {
-  using Complete = typename PerfectGas<Dim>::Complete;
-
-  static std::array<double, 2> apply(const PerfectGas<Dim>& equation,
-                                     const Complete& left,
-                                     const Complete& right,
-                                     [[maybe_unused]] Direction dir) noexcept;
-};
-
-extern template struct EinfeldtSignalVelocitiesImpl<PerfectGas<1>>;
-extern template struct EinfeldtSignalVelocitiesImpl<PerfectGas<2>>;
-extern template struct EinfeldtSignalVelocitiesImpl<PerfectGas<3>>;
-
 template <int Dim> class ExactRiemannSolver<PerfectGas<Dim>> {
 public:
   using Complete = typename PerfectGas<Dim>::Complete;
+  using CompleteArray = typename PerfectGas<Dim>::CompleteArray;
 
   explicit ExactRiemannSolver(const PerfectGas<Dim>& equation)
       : equation_{equation} {}
@@ -180,9 +183,19 @@ public:
   void SolveRiemannProblem(Complete& state, const Complete& left,
                            const Complete& right, Direction dir);
 
+  void SolveRiemannProblem(CompleteArray& state, const CompleteArray& left,
+                           const CompleteArray& right, Direction dir);
+
+  void SolveRiemannProblem(CompleteArray& state, const CompleteArray& left,
+                           const CompleteArray& right, MaskArray mask,
+                           Direction dir);
+
   /// Returns the upwind velocity in the specified direction.
   std::array<double, 2> ComputeSignals(const Complete&, const Complete&,
                                        Direction dir);
+
+  std::array<Array1d, 2> ComputeSignals(const CompleteArray&,
+                                        const CompleteArray&, Direction dir);
 
   std::array<double, 2> ComputeMiddleState(const Complete& left,
                                            const Complete& right,
@@ -195,6 +208,31 @@ private:
 extern template class ExactRiemannSolver<PerfectGas<1>>;
 extern template class ExactRiemannSolver<PerfectGas<2>>;
 extern template class ExactRiemannSolver<PerfectGas<3>>;
+
+template <int Dim> struct EinfeldtSignalVelocities<PerfectGas<Dim>> {
+  using Complete = ::fub::Complete<PerfectGas<Dim>>;
+  using CompleteArray = ::fub::CompleteArray<PerfectGas<Dim>>;
+
+  std::array<double, 2> operator()(const PerfectGas<Dim>& equation,
+                                   const Complete& left, const Complete& right,
+                                   Direction dir) const noexcept;
+
+  std::array<Array1d, 2> operator()(const PerfectGas<Dim>& equation,
+                                    const CompleteArray& left,
+                                    const CompleteArray& right,
+                                    Direction dir) const noexcept;
+};
+
+extern template struct EinfeldtSignalVelocities<PerfectGas<1>>;
+extern template struct EinfeldtSignalVelocities<PerfectGas<2>>;
+extern template struct EinfeldtSignalVelocities<PerfectGas<3>>;
+
+// extern template class FluxMethod<Godunov<PerfectGas<1>>>;
+// extern template class FluxMethod<MusclHancock<PerfectGas<1>>>;
+// extern template class FluxMethod<Godunov<PerfectGas<2>>>;
+// extern template class FluxMethod<MusclHancock<PerfectGas<2>>>;
+// extern template class FluxMethod<Godunov<PerfectGas<3>>>;
+// extern template class FluxMethod<MusclHancock<PerfectGas<3>>>;
 
 } // namespace fub
 

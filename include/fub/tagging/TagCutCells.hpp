@@ -18,34 +18,20 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/CartesianCoordinates.hpp"
-#include "fub/CutCellData.hpp"
-#include "fub/State.hpp"
+#include "fub/PatchDataView.hpp"
 
 namespace fub {
 
 struct TagCutCells {
-  template <int Rank, typename Eq>
-  void TagCellsForRefinement(const PatchDataView<char, Rank>& tags,
-                             const BasicView<const Complete<Eq>>&,
-                             const CartesianCoordinates&) {
-    const span<char> span = tags.Span();
-    std::fill(span.begin(), span.end(), char(0));
-  }
-
-  template <int Rank, typename Eq>
-  void TagCellsForRefinement(const PatchDataView<char, Rank>& tags,
-                             const BasicView<const Complete<Eq>>&,
-                             const CutCellData<Rank>& cutcell_data,
-                             const CartesianCoordinates&) {
-    const auto& flags = cutcell_data.flags;
-    ForEachIndex(Intersect(flags.Box(), tags.Box()), [&](auto... is) {
-      const ::amrex::EBCellFlag& flag = flags(is...);
-      if (flag.isSingleValued() && !tags(is...)) {
-        tags(is...) = 1;
-      }
-    });
-  }
+  void TagCellsForRefinement(
+      const PatchDataView<char, 1, layout_stride>& tags,
+      const PatchDataView<const double, 1, layout_stride>& volume_fractions);
+  void TagCellsForRefinement(
+      const PatchDataView<char, 2, layout_stride>& tags,
+      const PatchDataView<const double, 2, layout_stride>& volume_fractions);
+  void TagCellsForRefinement(
+      const PatchDataView<char, 3, layout_stride>& tags,
+      const PatchDataView<const double, 3, layout_stride>& volume_fractions);
 };
 
 } // namespace fub

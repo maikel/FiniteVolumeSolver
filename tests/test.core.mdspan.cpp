@@ -76,8 +76,7 @@ TEST_CASE("subspan of mdspan") {
   std::iota(array.begin(), array.end(), 0);
   fub::static_mdspan<int, 10, 10> ghost_view(array.data());
   SECTION("Keep Dimension") {
-    auto inner =
-        fub::subspan(ghost_view, std::pair{1, 9}, std::pair{1, 9});
+    auto inner = fub::subspan(ghost_view, std::pair{1, 9}, std::pair{1, 9});
     REQUIRE(inner.rank() == 2);
     REQUIRE(inner.extent(0) == 8);
     REQUIRE(inner.extent(1) == 8);

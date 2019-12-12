@@ -26,16 +26,17 @@
 
 #include <array>
 #include <functional>
+#include <tuple>
 #include <utility>
 
-#include <boost/mp11/tuple.hpp>
-
 namespace fub {
+template <int Rank>
+using Index = std::array<std::ptrdiff_t, static_cast<std::size_t>(Rank)>;
+
 template <int Rank> struct IndexBox {
   static_assert(Rank >= 0);
-  static constexpr std::size_t sRank = static_cast<std::size_t>(Rank);
-  std::array<std::ptrdiff_t, sRank> lower;
-  std::array<std::ptrdiff_t, sRank> upper;
+  Index<Rank> lower;
+  Index<Rank> upper;
 };
 
 template <int Rank>
@@ -54,6 +55,14 @@ bool Contains(const IndexBox<Rank>& b1, const IndexBox<Rank>& b2) {
                     std::less_equal<>{}) &&
          std::equal(b2.upper.begin(), b2.upper.end(), b1.upper.begin(),
                     std::less_equal<>{});
+}
+
+template <int Rank>
+bool Contains(const IndexBox<Rank>& box, const Index<Rank>& index) {
+  Index<Rank> upper;
+  std::transform(index.begin(), index.end(), upper.begin(),
+                 [](std::ptrdiff_t i) { return i + 1; });
+  return Contains(box, IndexBox<Rank>{index, upper});
 }
 
 template <int Rank>
@@ -76,6 +85,7 @@ IndexBox<Rank> Intersect(const IndexBox<Rank>& b1, const IndexBox<Rank>& b2) {
 template <int Rank>
 IndexBox<Rank> Grow(const IndexBox<Rank>& box, Direction dir,
                     const std::array<std::ptrdiff_t, 2>& shifts) {
+  assert(static_cast<int>(dir) < Rank);
   constexpr std::size_t sRank = static_cast<std::size_t>(Rank);
   std::array<std::ptrdiff_t, sRank> lower = box.lower;
   lower[static_cast<std::size_t>(dir)] -= shifts[0];
@@ -87,6 +97,7 @@ IndexBox<Rank> Grow(const IndexBox<Rank>& box, Direction dir,
 template <int Rank>
 IndexBox<Rank> Shrink(const IndexBox<Rank>& box, Direction dir,
                       const std::array<std::ptrdiff_t, 2>& shifts) {
+  assert(static_cast<int>(dir) < Rank);
   constexpr std::size_t sRank = static_cast<std::size_t>(Rank);
   std::array<std::ptrdiff_t, sRank> lower = box.lower;
   lower[static_cast<std::size_t>(dir)] += shifts[0];
@@ -106,6 +117,26 @@ IndexBox<Rank> Embed(const IndexBox<Rank - 1>& box,
   std::copy_n(box.upper.begin(), Rank - 1, upper.begin());
   upper[Rank - 1] = limits[1];
   return IndexBox<Rank>{lower, upper};
+}
+
+template <int Rank, int OtherRank>
+IndexBox<Rank> Project(const IndexBox<OtherRank>& box) {
+  constexpr std::size_t sRank = static_cast<std::size_t>(Rank);
+  std::array<std::ptrdiff_t, sRank> lower;
+  std::copy_n(box.lower.begin(), Rank, lower.begin());
+  std::array<std::ptrdiff_t, sRank> upper;
+  std::copy_n(box.upper.begin(), Rank, upper.begin());
+  return IndexBox<Rank>{lower, upper};
+}
+
+template <typename Extents>
+constexpr std::array<std::ptrdiff_t, Extents::rank()>
+AsArray(Extents e) noexcept {
+  std::array<std::ptrdiff_t, Extents::rank()> array{};
+  for (std::size_t r = 0; r < Extents::rank(); ++r) {
+    array[r] = e.extent(r);
+  }
+  return array;
 }
 
 template <typename T, int Rank, typename Layout = layout_left>
@@ -170,6 +201,7 @@ struct PatchDataView : public PatchDataViewBase<T, R, Layout> {
   }
 
   static constexpr int Rank() noexcept { return R; }
+  static constexpr int rank() noexcept { return R; }
 
   span<T> Span() const noexcept { return this->mdspan_.get_span(); }
 
@@ -211,7 +243,7 @@ struct PatchDataView : public PatchDataViewBase<T, R, Layout> {
                    [](std::ptrdiff_t offset, std::ptrdiff_t extents) {
                      return std::make_pair(offset, offset + extents);
                    });
-    return boost::mp11::tuple_apply(
+    return std::apply(
         [&](const auto&... slices) {
           return PatchDataView<T, R, layout_stride>(
               subspan(MdSpan(), slices...), box.lower);
@@ -239,6 +271,36 @@ struct PatchDataView : public PatchDataViewBase<T, R, Layout> {
     return this->mdspan_(local_index);
   }
 };
+
+template <typename T, int Rank, typename Layout>
+PatchDataView<T, Rank - 1, Layout>
+SliceLast(const PatchDataView<T, Rank, Layout>& pdv, int component = 0) {
+  constexpr std::size_t sRank = static_cast<std::size_t>(Rank - 1);
+  std::array<std::ptrdiff_t, sRank + 1> index{};
+  index[sRank] = component;
+  std::array<std::ptrdiff_t, sRank> extents;
+  for (std::size_t r = 0; r < sRank; ++r) {
+    extents[r] = pdv.Extent(r);
+  }
+  std::array<std::ptrdiff_t, sRank> strides;
+  for (std::size_t r = 0; r < sRank; ++r) {
+    strides[r] = pdv.Stride(r);
+  }
+  std::array<std::ptrdiff_t, sRank> origin;
+  std::copy_n(pdv.Origin().begin(), Rank - 1, origin.begin());
+  if constexpr (std::is_same_v<Layout, layout_stride>) {
+    layout_stride::mapping<dynamic_extents<sRank>> mapping{
+        dynamic_extents<sRank>(extents), strides};
+    mdspan<T, sRank, Layout> mds(&pdv.MdSpan()(index), mapping);
+    return PatchDataView<T, Rank - 1, Layout>(mds, origin);
+  } else {
+    mdspan<T, sRank, Layout> mds(&pdv.MdSpan()(index), extents);
+    return PatchDataView<T, Rank - 1, Layout>(mds, origin);
+  }
+}
+
+template <typename T, int Rank>
+using StridedDataView = PatchDataView<T, Rank, layout_stride>;
 
 } // namespace fub
 

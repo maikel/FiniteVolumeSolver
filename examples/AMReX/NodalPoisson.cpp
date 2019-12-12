@@ -1,7 +1,7 @@
+#include "fub/AMReX/CartesianGridGeometry.hpp"
+#include "fub/AMReX/ScopeGuard.hpp"
+#include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/core/mdspan.hpp"
-#include "fub/grid/AMReX/CartesianGridGeometry.hpp"
-#include "fub/grid/AMReX/ScopeGuard.hpp"
-#include "fub/grid/AMReX/ViewFArrayBox.hpp"
 
 #include <AMReX.H>
 #include <AMReX_MLMG.H>

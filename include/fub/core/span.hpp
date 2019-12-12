@@ -976,7 +976,10 @@ private:
   index_type size_{0};
 };
 
-#ifdef __cpp_deduction_guides
+//#ifdef __cpp_deduction_guides
+
+template <class T, typename I> span(T*, I)->span<T>;
+
 template <class T, size_t N>
 span(T (&)[N])->span<T, static_cast<std::ptrdiff_t>(N)>;
 
@@ -991,7 +994,8 @@ span(Container&)->span<typename Container::value_type>;
 
 template <class Container>
 span(const Container&)->span<const typename Container::value_type>;
-#endif
+
+//#endif
 
 template <class T, size_t N>
 auto make_span(T (&array)[N]) -> span<T, static_cast<std::ptrdiff_t>(N)> {
@@ -1030,6 +1034,6 @@ class tuple_size<fub::span<T, N>>
     : public std::integral_constant<std::size_t, static_cast<std::size_t>(N)> {
 };
 
-} // namespace stde
+} // namespace std
 
 #endif // !SPAN_HPP

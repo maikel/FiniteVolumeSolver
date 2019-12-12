@@ -1,101 +1,92 @@
 # Finite Volume Solver
 
-This repository is an example of how to use SAMRAI and AMReX. 
-It also serves as a first attempt to talk about more concrete types and algorithms.
-Questions which are going to be tackled are 
+This C++17 project provides a framework to solve hyperbolic equations with finite volume methods.
+The framework assumes an external structured grid library like AMReX or SAMRAI to adaptively refine regions of interest.
 
- * What are the right abstractions which we can define to help us in different projects.
- * How to setup a build system and contiguous integration
- * How to write documentation
- * How does proper unit testing look like
+One of the main design philosophies is to make the numerical methods re-usable and consistent across different grid implementations.
+We provide some standard flux methods which can be used out-of-the-box with a large set of hyperbolic equations.
+Furthermore lot of helper classes exist to generate distributed grids for data mangement which simplify and modernize the usage of libraries like AMReX or SAMRAI.
 
-# Physical Project Structure
+At last, this library is also capable of handling embedded boundaries in a dimensionally split setting as defined in [Klein2009].
 
-- `docs/` contains a Doxygen.in file to generate documentation
-- `docker/` contains Dockerfiles to create docker images with preinstalled development environments. Read the [Docker Tutorial](https://git.imp.fu-berlin.de/ag-klein/FiniteVolumeSolver/tree/develop/docker) for more information. 
-- `examples/` contains exemplary applications using this framework.
-- `include/` contains public header files which are consumable via some exportable library.
-- `src/` contains private header and source files to the library.
-- `tests/` contains unit test files written with [Catch2](https://github.com/catchorg/Catch2)
-- `third_party/` contains third party libraries which are included as submodules in this project.
-- `.clang-format` Format definitions for this project. Auto-format files with the tool `clang-format`
+# Overview
 
-# Build Instructions
+## Policy Pattern
 
-This project has currently the follwing dependencies on third party libraries
+To provide customization points for the many algorithmic choices in an AMR-enabled simulation we make heavily use of the so called _policy pattern_.
 
-- [Eigen3](https://eigen.tuxfamily.org) for basic linear algebra and vectorization.
-- [fmtlib](http://fmtlib.net), a library to format string which got partially standardized in C++20.
-- [boost](https://www.boost.org) hana for simpler template meta programming and some basic reflection.
-- [AMReX](https://amrex-codes.github.io) an optional AMR library.
-- [SAMRAI](https://github.com/LLNL/SAMRAI) an optional AMR library.
+> **_From Wikipedia_**: In computer programming, the strategy pattern (also known as the policy pattern) is a behavioral software design pattern that enables selecting an algorithm at runtime. Instead of implementing a single algorithm directly, code receives run-time instructions as to which in a family of algorithms to use.
 
-## How To Build Finite Volume Solver
+For each algorithmic customization point we define a concept, which is simply a set of syntactic requirements.
+Any type which satisfy a particular policy concept can be used as a drop-in replacement for existing algorithms in order to adjust the method to your special needs.
+The customization points are chosen to be orthogonal and thus enable to freely concentrate on a single aspect of the method. 
 
-Given that all dependencies are installed. you have to invoke CMake with all paths configured for your locally installed depedencies.
-These paths need to point to directories contiaining the `LibraryConig.cmake` for each `Library` in question.
+<details>
+<summary>Click to read an example for an InitialData concept</summary>
 
-What follows is an example of how to setup a build of FiniteVolumeSolver for the case that your AMReX installation is contained in a folder `${AMREX_INSTALL_PREFIX}` while Eigen3, boost and fmtlib are installed via a package manager.
+Any type which has a member function called `void InitializeData(amrex::MultiFab& data, const amrex::Geometry& geom)` satisfies the `InitialData` concept for usage with the AMReX library.
+This means in practise that an object of type `T` can be used in code as in the example
 
-```bash
-git clone git@git.imp.fu-berlin.de:ag-klein/FiniteVolumeSolver.git FiniteVolumeSolver/
-cd FiniteVolumeSolver
-mkdir build
-cd build
-cmake ../ -DCMAKE_BUILD_TYPE=Release -DAMReX_DIR="${AMREX_INSTALL_PREFIX}/lib/cmake/AMReX/"
+```cpp
+MyInitialDataPolicy my_intial_data{};
+amrex::MultiFab data = /* obtain AMReX MultiFab from somewhere */
+amrex::Geometry geom = /* obtain AMReX Geometry from somewhere */
+my_intial_data.InitializeData(data, geom); 
 ```
 
-Being in your preconfigured build folder, you can see possible configure options and make adjustments via the command `ccmake .` (configure cmake).
+The notion of concepts will be part of the C++ language as of the C++20 standard. 
+In compilers which will support C++20 concepts already this type requirement can be expressed in the code as
 
-As as example, to generate a Xcode project I use the following command line
+```cpp
+template <typename I>
+concept InitialData = requires (I& initial_data, amrex::MultiFab& data, const amrex::Geometry& geometry) {
+  { initial_data.InitializeData(data, geometry) };
+};
 
-```bash
-cmake -G Xcode ../ -DCMAKE_Fortran_COMPILER=/usr/local/Cellar/gcc/8.2.0/bin/gfortran -DAMReX_DIR=/Users/maikel/amrex/amrex2d-eb-debug/lib/cmake/AMReX/ -DCMAKE_BUILD_TYPE=Debug -DEigen3_DIR=/usr/local/Cellar/eigen/3.3.7/share/eigen3/cmake/ -DCMAKE_EXE_LINKER_FLAGS="-lgfortran -L/usr/local/Cellar/gcc/8.2.0/lib/gcc/8" -DBOOST_ROOT=/usr/local/Cellar/boost/1.69.0/ -DCMAKE_CXX_COMPILER=mpic++
+// This line checks at compile-time if the class MyInitialDataPolicy satisfies the InitialData concept.
+static_assert(InitialData<MyInitialDataPolicy>);
 ```
 
-## AMReX
+[Try it on godbolt!](https://godbolt.org/z/pu0Hh4)
+</details>
 
-To install [AMReX](https://github.com/AMReX-Codes/amrex) use the git develop branch and build it on your local machine. 
-AMReX comes in multiple flavors which can be configured via CMake. To use the CutCell methods we need to enable the embedded boundaries extentions to AMReX.
+## Hyperbolic Equations
 
-To build AMReX with support for 2D meshes and embedded boundaries and OpenMP parallelisation an invocation can look like
 
-```bash
-AMREX_INSTALL_PREFIX="/Your/Path/To/AMReX/Installation/Prefix"
-git clone --single-branch -b development https://github.com/AMReX-Codes/amrex AMReX/
-cd AMReX/
-mkdir build/
-cmake ../ -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="${AMREX_INSTALL_PREFIX}" -DENABLE_EB=ON -ENABLE_OMP=ON
-make install
+
+## GriddingAlgorithm, DimensionalSplitSystemSolver, SplitSystemSourceLevelIntegrator
+
+When setting up a simulation we decompose the problem in roughly two parts.
+
+1. Manage a locally refined grid containing simulation data distributed over multiple MPI ranks.
+2. Set up a numerical method to solve the problem on a distributed grid.
+
+A `PatchHierarchy` holds simulation data for each refinement level on a `PatchLevel` and can be generated by a `GriddingAlgorithm`.
+A gridding algorithm generates hierarchies by using a `TaggingMethod` policy object which masks cells which need additional refinement.
+The present gridding algorithms use AMReX or SAMRAI to generate patches and hierarchies to cover such tagged cells.
+In addition to the `TaggingMethod` policy the `GriddingAlgorithm` also need boundary and initial conditions, given by `BoundaryCondition` and `InitialData` policies.
+The boundary conditions are used in communication routines to fill the ghost cell layer touching the computational domain.
+
+Multiple solvers can share a common gridding algorithm and will hold a member variable of type `std::shared_ptr<GriddingAlgorithm>`.
+Given a shared `GriddingAlgorithm` a solver is being able to refine the patch hierarchy or to fill ghost cell boundaries at any given time of its algorithm.
+Copying a `GriddingAlgorithm` by value will deeply copy all data on all MPI ranks. This can be usefull to create fall-back scenarios of a simulation.
+
+<details>
+<summary>Click to read an example for creating an initial `PatchHierarchy`</summary>
+```cpp
+
 ```
+</details>
 
-## SAMRAI
+### SAMRAI Repair: Task List
 
-*SAMRAI is currently not maintained*
-
-To build this example you will need an installed [SAMRAI](https://github.com/LLNL/SAMRAI) version with [CMake](https://cmake.org) support.
-To install such a SAMRAI version download the newest SAMRAI from git
-
-```bash
-git clone --single-branch -b feature/blt https://github.com/LLNL/SAMRAI.git SAMRAI/
-cd SAMRAI
-git submodule init
-git submodule update
-```
-
-And build it with commands similar to
-
-```bash
-mkdir build && cd build
-cmake ../ -DCMAKE_INSTALL_PREFIX="YOUR_LOCAL_INSTALL_PATH" -DCMAKE_BUILD_TYPE="Release" -DHDF5_ROOT="YOUR_HDF5_PATH" -DENABLE_OPENMP=OFF -DCMAKE_CXX_COMPILER=mpic++
-make -j4 install
-```
-
-Tip: You can use `ccmake .` in the build directory to get an interactive view for configurable variables. Press `t` to toggle advanced options.
-
-*Note: You will need MPI and HDF5.*
-
-Then download this repository and invoke this CMakefile with a proper SAMRAI path.
-use following commands in the project source directory.
-
-
+- [ ] Install SAMRAI via conan
+- [ ] Build Doxygen Documentation
+- [ ] Build AMReX Advection example
+- [ ] Prepare a simple Advection example
+- [ ] Check if equations register correctly with the `SAMRAI::hier::VariableDatabase`
+- [ ] Make a wrapper of fub::SAMRAI::PatchHierarchy which deeply copies.
+  - [ ] Given an equation allocate data for all variables of this equation
+  - [ ] Provide member functions to access patch level data and hierarchy geometry
+- [ ] `fub::SAMRAI::GriddingAlgorithm`
+- [ ] `fub::SAMRAI::IntegratorContext`

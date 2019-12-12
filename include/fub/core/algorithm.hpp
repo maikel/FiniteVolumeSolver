@@ -21,6 +21,9 @@
 #ifndef FUB_CORE_ALGORITHM_HPP
 #define FUB_CORE_ALGORITHM_HPP
 
+#include <cassert>
+#include <cstdint>
+
 namespace fub {
 
 template <class T, class Compare>
@@ -31,6 +34,15 @@ constexpr const T& clamp(const T& v, const T& lo, const T& hi, Compare comp) {
 template <class T>
 constexpr const T& clamp(const T& v, const T& lo, const T& hi) {
   return clamp(v, lo, hi, std::less<>());
+}
+
+constexpr std::ptrdiff_t ipow(int base, int exponent) {
+  std::ptrdiff_t prod{1};
+  while (exponent > 0) {
+    prod *= base;
+    exponent -= 1;
+  }
+  return prod;
 }
 
 } // namespace fub

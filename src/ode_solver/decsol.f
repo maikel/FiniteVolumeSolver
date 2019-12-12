@@ -44,14 +44,16 @@ C-----------------------------------------------------------------------
         IF (T .EQ. 0.D0) GO TO 80
         T = 1.D0/T
         DO 30 I = KP1,N
- 30       A(I,K) = -A(I,K)*T
+          A(I,K) = -A(I,K)*T
+ 30     CONTINUE
         DO 50 J = KP1,N
           T = A(M,J)
           A(M,J) = A(K,J)
           A(K,J) = T
           IF (T .EQ. 0.D0) GO TO 45
           DO 40 I = KP1,N
- 40         A(I,J) = A(I,J) + A(I,K)*T
+            A(I,J) = A(I,J) + A(I,K)*T
+ 40       CONTINUE
  45       CONTINUE
  50       CONTINUE
  60     CONTINUE
@@ -91,7 +93,8 @@ C-----------------------------------------------------------------------
         B(M) = B(K)
         B(K) = T
         DO 10 I = KP1,N
- 10       B(I) = B(I) + A(I,K)*T
+          B(I) = B(I) + A(I,K)*T
+ 10       CONTINUE
  20     CONTINUE
       DO 40 KB = 1,NM1
         KM1 = N - KB
@@ -99,7 +102,8 @@ C-----------------------------------------------------------------------
         B(K) = B(K)/A(K,K)
         T = -B(K)
         DO 30 I = 1,KM1
- 30       B(I) = B(I) + A(I,K)*T
+          B(I) = B(I) + A(I,K)*T
+ 30       CONTINUE
  40     CONTINUE
  50   B(1) = B(1)/A(1,1)
       RETURN
@@ -146,7 +150,7 @@ C-----------------------------------------------------------------------
         NA = MIN0(N,LB+K)
         DO 10 I = KP1,NA
           IF (DABS(A(I,K)) .GT. DABS(A(M,K))) M = I
- 10     CONTINUE
+ 10       CONTINUE
         IP(K) = M
         T = A(M,K)
         IF (M .EQ. K) GO TO 20
@@ -157,14 +161,16 @@ C-----------------------------------------------------------------------
         IF (T .EQ. 0.D0) GO TO 80
         T = 1.D0/T
         DO 30 I = KP1,NA
- 30       A(I,K) = -A(I,K)*T
+          A(I,K) = -A(I,K)*T
+ 30       CONTINUE
         DO 50 J = KP1,N
           T = A(M,J)
           A(M,J) = A(K,J)
           A(K,J) = T
           IF (T .EQ. 0.D0) GO TO 45
           DO 40 I = KP1,NA
- 40         A(I,J) = A(I,J) + A(I,K)*T
+            A(I,J) = A(I,J) + A(I,K)*T
+ 40         CONTINUE
  45       CONTINUE
  50       CONTINUE
  60     CONTINUE
@@ -206,7 +212,8 @@ C-----------------------------------------------------------------------
         B(K) = T
         NA = MIN0(N,LB+K)
         DO 10 I = KP1,NA
- 10       B(I) = B(I) + A(I,K)*T
+          B(I) = B(I) + A(I,K)*T
+ 10     CONTINUE
  20     CONTINUE
       DO 40 KB = 1,NM1
         KM1 = N - KB
@@ -214,7 +221,8 @@ C-----------------------------------------------------------------------
         B(K) = B(K)/A(K,K)
         T = -B(K)
         DO 30 I = 1,KM1
- 30       B(I) = B(I) + A(I,K)*T
+          B(I) = B(I) + A(I,K)*T
+ 30     CONTINUE
  40     CONTINUE
  50   B(1) = B(1)/A(1,1)
       RETURN
@@ -604,8 +612,10 @@ C-----------------------------------------------------------------------
       IF (N .EQ. 1) GO TO 70
       IF (N .LT. MU+2) GO TO 7
       DO 5 J = MU+2,N
-      DO 5 I = 1,ML
-  5   A(I,J) = 0.D0
+      DO 6 I = 1,ML
+      A(I,J) = 0.D0
+  6   CONTINUE
+  5   CONTINUE
   7   NM1 = N - 1
       DO 60 K = 1,NM1
         KP1 = K + 1
@@ -624,7 +634,8 @@ C-----------------------------------------------------------------------
         IF (T .EQ. 0.D0) GO TO 80
         T = 1.D0/T
         DO 30 I = MD1,MDL
- 30       A(I,K) = -A(I,K)*T 
+          A(I,K) = -A(I,K)*T 
+ 30     CONTINUE
         JU = MIN0(MAX0(JU,MU+IP(K)),N)
         MM = MD
         IF (JU .LT. KP1) GO TO 55
@@ -640,7 +651,8 @@ C-----------------------------------------------------------------------
           JK = J - K
           DO 40 I = MD1,MDL
             IJK = I - JK
- 40         A(IJK,J) = A(IJK,J) + A(I,K)*T
+            A(IJK,J) = A(IJK,J) + A(I,K)*T
+ 40         CONTINUE
  45       CONTINUE
  50       CONTINUE
  55     CONTINUE
@@ -686,7 +698,8 @@ C-----------------------------------------------------------------------
         MDL = MIN(ML,N-K) + MD
         DO 10 I = MD1,MDL
           IMD = I + K - MD
- 10       B(IMD) = B(IMD) + A(I,K)*T
+          B(IMD) = B(IMD) + A(I,K)*T
+ 10       CONTINUE
  20     CONTINUE
  25   CONTINUE
       DO 40 KB = 1,NM1
@@ -697,7 +710,8 @@ C-----------------------------------------------------------------------
         LM = MAX0(1,KMD+1)
         DO 30 I = LM,MDM
           IMD = I - KMD
- 30       B(IMD) = B(IMD) + A(I,K)*T
+          B(IMD) = B(IMD) + A(I,K)*T
+ 30       CONTINUE
  40     CONTINUE
  50   B(1) = B(1)/A(MD,1)
       RETURN
@@ -745,9 +759,10 @@ C-----------------------------------------------------------------------
       IF (N .EQ. 1) GO TO 70
       IF (N .LT. MU+2) GO TO 7
       DO 5 J = MU+2,N
-      DO 5 I = 1,ML
+      DO 6 I = 1,ML
       AR(I,J) = 0.D0
       AI(I,J) = 0.D0
+  6   CONTINUE
   5   CONTINUE
   7   NM1 = N - 1
       DO 60 K = 1,NM1
@@ -992,10 +1007,12 @@ C
           a(i,mm1) = y
 C
           do 140 j = m, n
-  140      a(i,j) = a(i,j) - y * a(m,j)
+           a(i,j) = a(i,j) - y * a(m,j)
+  140      continue
 C
           do 150 j = 1, igh
-  150      a(j,m) = a(j,m) + y * a(j,i)
+           a(j,m) = a(j,m) + y * a(j,i)
+  150      continue
 C
   160   continue
 C

@@ -22,6 +22,7 @@
 #define FUB_GEOMETRY_HALFSPACE_HPP
 
 #include <Eigen/Dense>
+#include <array>
 
 namespace fub {
 

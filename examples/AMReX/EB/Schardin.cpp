@@ -18,47 +18,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/equations/PerfectGas.hpp"
-
-#include "fub/CartesianCoordinates.hpp"
-#include "fub/HyperbolicSplitCutCellPatchIntegrator.hpp"
-#include "fub/HyperbolicSplitLevelIntegrator.hpp"
-#include "fub/HyperbolicSplitSystemSolver.hpp"
-
-#include "fub/grid/AMReX/FillCutCellData.hpp"
-#include "fub/grid/AMReX/GriddingAlgorithm.hpp"
-#include "fub/grid/AMReX/ScopeGuard.hpp"
-#include "fub/grid/AMReX/cutcell/FluxMethod.hpp"
-#include "fub/grid/AMReX/cutcell/GriddingAlgorithm.hpp"
-#include "fub/grid/AMReX/cutcell/HyperbolicSplitIntegratorContext.hpp"
-#include "fub/grid/AMReX/cutcell/HyperbolicSplitPatchIntegrator.hpp"
-#include "fub/grid/AMReX/cutcell/IndexSpace.hpp"
-#include "fub/grid/AMReX/cutcell/Reconstruction.hpp"
-#include "fub/grid/AMReX/cutcell/Tagging.hpp"
-
-#include "fub/geometry/Halfspace.hpp"
-#include "fub/initial_data/RiemannProblem.hpp"
-
-#include "fub/tagging/GradientDetector.hpp"
-#include "fub/tagging/TagBuffer.hpp"
-#include "fub/tagging/TagCutCells.hpp"
-
-#include "fub/boundary_condition/TransmissiveBoundary.hpp"
-
-#include "fub/cutcell_method/KbnStabilisation.hpp"
-#include "fub/flux_method/MusclHancockMethod.hpp"
-
-#include "fub/RunSimulation.hpp"
+#include "fub/AMReX.hpp"
+#include "fub/AMReX_CutCell.hpp"
+#include "fub/Solver.hpp"
 
 #include <AMReX_EB2.H>
 #include <AMReX_EB2_IF_Intersection.H>
 #include <AMReX_EB2_IF_Plane.H>
-#include <AMReX_EB2_IF_Union.H>
 #include <AMReX_EB_LSCore.H>
-
-#include <iostream>
-
-#include <xmmintrin.h>
 
 using Coord = Eigen::Vector2d;
 
@@ -74,21 +41,18 @@ auto Triangle(const Coord& p1, const Coord& p2, const Coord& p3) {
   return amrex::EB2::makeIntersection(plane1, plane2, plane3);
 }
 
-int main(int argc, char** argv) {
+int main() {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
-  fub::amrex::ScopeGuard _(argc, argv);
-
-  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() | _MM_MASK_DIV_ZERO |
-                         _MM_MASK_OVERFLOW | _MM_MASK_UNDERFLOW |
-                         _MM_MASK_INVALID);
+  fub::amrex::ScopeGuard _{};
+  fub::InitializeLogging(MPI_COMM_WORLD);
 
   const std::array<int, AMREX_SPACEDIM> n_cells{
-      AMREX_D_DECL(8 * 15, 8 * 10, 1)};
+      AMREX_D_DECL(16 * 15, 16 * 10, 1)};
   const std::array<double, AMREX_SPACEDIM> xlower{AMREX_D_DECL(0.0, 0.0, 0.0)};
   const std::array<double, AMREX_SPACEDIM> xupper{
-      AMREX_D_DECL(+0.15, +0.10, +0.10)};
+      AMREX_D_DECL(+0.15001, +0.10, +0.10)};
   amrex::RealBox xbox(xlower, xupper);
   const std::array<int, AMREX_SPACEDIM> periodicity{};
 
@@ -97,27 +61,25 @@ int main(int argc, char** argv) {
           {}, {AMREX_D_DECL(n_cells[0] - 1, n_cells[1] - 1, n_cells[2] - 1)}},
       &xbox, -1, periodicity.data());
 
-  const int n_level = 3;
+  const int n_level = 4;
 
   auto embedded_boundary =
       Triangle({0.02, 0.05}, {0.05, 0.0655}, {0.05, 0.0345});
   auto shop = amrex::EB2::makeShop(embedded_boundary);
 
   fub::PerfectGas<2> equation;
-  fub::amrex::DataDescription desc = fub::amrex::MakeDataDescription(equation);
 
   fub::amrex::CartesianGridGeometry geometry;
   geometry.cell_dimensions = n_cells;
   geometry.coordinates = amrex::RealBox(xlower, xupper);
   geometry.periodicity = periodicity;
 
-  fub::amrex::cutcell::PatchHierarchyOptions options{};
+  using namespace fub::amrex::cutcell;
+
+  PatchHierarchyOptions options{};
   options.max_number_of_levels = n_level;
   options.index_spaces =
       fub::amrex::cutcell::MakeIndexSpaces(shop, coarse_geom, n_level);
-
-  auto hierarchy = std::make_shared<fub::amrex::cutcell::PatchHierarchy>(
-      desc, geometry, options);
 
   fub::Conservative<fub::PerfectGas<2>> cons;
   cons.density = 1.0;
@@ -130,50 +92,52 @@ int main(int argc, char** argv) {
   fub::Complete<fub::PerfectGas<2>> left;
   fub::CompleteFromCons(equation, left, cons);
 
-  fub::amrex::cutcell::RiemannProblem initial_data(
-      hierarchy, equation, fub::Halfspace({+1.0, 0.0, 0.0}, 0.015), left,
-      right);
+  RiemannProblem initial_data(equation, fub::Halfspace({+1.0, 0.0, 0.0}, 0.015),
+                              left, right);
 
   using State = fub::Complete<fub::PerfectGas<2>>;
-  fub::GradientDetector gradients{std::pair{&State::pressure, 0.05},
-                                  std::pair{&State::density, 0.005}};
+  GradientDetector gradients{equation, std::pair{&State::pressure, 0.05},
+                             std::pair{&State::density, 0.005}};
 
-  fub::TransmissiveBoundary boundary{equation};
+  BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
+                                  TransmissiveBoundary{fub::Direction::X, 1},
+                                  TransmissiveBoundary{fub::Direction::Y, 0},
+                                  TransmissiveBoundary{fub::Direction::Y, 1}}};
 
-  fub::HyperbolicSplitCutCellPatchIntegrator patch_integrator{equation};
-  fub::MusclHancockMethod muscl_method{equation};
-  fub::KbnCutCellMethod cutcell_method(muscl_method);
-
-  auto gridding = std::make_shared<fub::amrex::cutcell::GriddingAlgorithm>(
-      hierarchy, fub::amrex::AdaptInitialData(initial_data, equation),
-      fub::amrex::cutcell::AdaptTagging(equation, hierarchy, fub::TagCutCells(),
-                                        gradients, fub::TagBuffer(4)),
-      boundary);
-
+  std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
+      PatchHierarchy(equation, geometry, options), initial_data,
+      TagAllOf(TagCutCells(), gradients, TagBuffer(2)), boundary_condition);
   gridding->InitializeHierarchy(0.0);
 
-  const int gcw = muscl_method.GetStencilWidth();
-  fub::HyperbolicSplitSystemSolver solver(fub::HyperbolicSplitLevelIntegrator(
-      fub::amrex::cutcell::HyperbolicSplitIntegratorContext(gridding, gcw),
-      fub::amrex::cutcell::HyperbolicSplitPatchIntegrator(patch_integrator),
-      fub::amrex::cutcell::FluxMethod(cutcell_method),
-      fub::amrex::cutcell::Reconstruction(equation)));
+  fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
+  fub::HllMethod hll_method{equation, signals};
+  fub::MusclHancockMethod muscl_method{equation, hll_method};
+  fub::KbnCutCellMethod cutcell_method(muscl_method, hll_method);
+
+  HyperbolicMethod method{FluxMethod{fub::execution::simd, cutcell_method},
+                          TimeIntegrator{},
+                          Reconstruction{fub::execution::seq, equation}};
+
+  fub::DimensionalSplitLevelIntegrator level_integrator(
+      fub::int_c<2>, IntegratorContext(gridding, method));
+
+  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
   std::string base_name = "Schardin/";
-  auto output = [&](auto& hierarchy, std::ptrdiff_t cycle, fub::Duration) {
-    std::string name = fmt::format("{}{:05}", base_name, cycle);
-    ::amrex::Print() << "Start output to '" << name << "'.\n";
-    fub::amrex::cutcell::WritePlotFile(name, *hierarchy, equation);
-    ::amrex::Print() << "Finished output to '" << name << "'.\n";
-  };
-  auto print_msg = [](const std::string& msg) { ::amrex::Print() << msg; };
-
+  using namespace fub::amrex::cutcell;
   using namespace std::literals::chrono_literals;
-  output(hierarchy, 0, 0s);
+  fub::MultipleOutputs<GriddingAlgorithm> output{};
+  output.AddOutput(fub::MakeOutput<GriddingAlgorithm>(
+      {}, {3e-4s / 180.}, PlotfileOutput(equation, base_name)));
+  output.AddOutput(
+      std::make_unique<
+          fub::CounterOutput<GriddingAlgorithm>>(
+          solver.GetContext().registry_, wall_time_reference, 
+          std::vector<std::ptrdiff_t>{50}, std::vector<fub::Duration>{}));
+
+  output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
   run_options.final_time = 3e-4s;
-  run_options.output_interval = 1e-5s;
-  run_options.cfl = 0.5 * 0.9;
-  fub::RunSimulation(solver, run_options, wall_time_reference, output,
-                     print_msg);
+  run_options.cfl = 0.4;
+  fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

@@ -18,18 +18,19 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_EULER_SOLVER_MECHANISM_BURKE2012_HPP
-#define FUB_EULER_SOLVER_MECHANISM_BURKE2012_HPP
+#ifndef FUB_IDEAL_GAS_MIX_MECHANISM_BURKE2012_HPP
+#define FUB_IDEAL_GAS_MIX_MECHANISM_BURKE2012_HPP
 
 #include "fub/core/assert.hpp"
 #include "fub/core/span.hpp"
-#include "fub/ideal_gas/FlameMasterReactor.hpp"
+#include "fub/equations/ideal_gas_mix/FlameMasterReactor.hpp"
+#include "fub/ext/Eigen.hpp"
 
 #include <string>
 #include <vector>
 
 namespace fub {
-namespace ideal_gas {
+
 /// \ingroup Euler
 struct Burke2012 : public FlameMasterMechanism {
   typedef enum SpeciesLabel {
@@ -124,12 +125,18 @@ struct Burke2012 : public FlameMasterMechanism {
                               span<double> c, span<double> M, double temp,
                               double pressure) const override;
 
+  // void ComputeProductionRates(ArrayXd& cdot, ArrayXd& w, ArrayXd& k,
+  //                            ArrayXd& c, ArrayXd& M, Array1d temp,
+  //                            Array1d pressure) const override;
+
   virtual void ComputeThermoData(span<double> h, span<double> cp, double T,
                                  span<double> /* s */) const override {
     ComputeThermoData(h, cp, T);
-  };
+  }
 
   void ComputeThermoData(span<double> h, span<double> cp, double T) const;
+
+  void ComputeThermoData(ArrayXd& h, ArrayXd& cp, Array1d T) const override;
 
   int getNSpecies() const override { return sEnd; }
 
@@ -164,7 +171,6 @@ struct Burke2012 : public FlameMasterMechanism {
   }
 };
 
-} // namespace ideal_gas
 } // namespace fub
 
 #endif

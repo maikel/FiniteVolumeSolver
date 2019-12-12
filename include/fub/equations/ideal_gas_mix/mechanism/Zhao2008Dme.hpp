@@ -22,8 +22,8 @@
 #define FUB_IDEAL_GAS_MECHANISM_ZHAO_2008_DME_HPP
 
 #include "fub/core/span.hpp"
-#include "fub/ideal_gas/FlameMasterReactor.hpp"
-#include "fub/ideal_gas/TChemReactor.hpp"
+#include "fub/equations/ideal_gas_mix/FlameMasterReactor.hpp"
+#include "fub/equations/ideal_gas_mix/TChemReactor.hpp"
 
 #include <vector>
 

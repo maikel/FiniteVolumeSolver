@@ -26,66 +26,18 @@
 #include "fub/State.hpp"
 #include "fub/core/mdspan.hpp"
 
-#include <boost/hana/tuple.hpp>
-
 #include <utility>
 
 namespace fub {
+
 struct TagBuffer {
   int buffer_width_;
 
   explicit TagBuffer(int width) : buffer_width_{width} {}
 
-  template <typename Tags, typename StateView>
-  void TagCellsForRefinement(const Tags& tags, const StateView& states,
-                             const CartesianCoordinates& /* coords */) {
-    for (std::size_t dir = 0; dir < Extents<0>(states).rank(); ++dir) {
-      ForEachIndex(Shrink(Box<0>(states), Direction(dir),
-                          {buffer_width_, buffer_width_}),
-                   [&](auto... is) {
-                     if (tags(is...) == 1) {
-                       std::array<std::ptrdiff_t, sizeof...(is)> index{is...};
-                       for (int width = 1; width <= buffer_width_; ++width) {
-                         if (index[dir] + width <
-                                 Extents<0>(states).extent(dir) &&
-                             !tags(Shift(index, Direction(dir), width))) {
-                           tags(Shift(index, Direction(dir), width)) = 2;
-                         }
-                         if (0 <= index[dir] - width &&
-                             !tags(Shift(index, Direction(dir), -width))) {
-                           tags(Shift(index, Direction(dir), -width)) = 2;
-                         }
-                       }
-                     }
-                   });
-    }
-  }
-
-  template <typename Tags, typename StateView, typename CutCellData>
-  void TagCellsForRefinement(const Tags& tags, const StateView& states,
-                             const CutCellData&,
-                             const CartesianCoordinates& /* coords */) {
-    for (std::size_t dir = 0; dir < Extents<0>(states).rank(); ++dir) {
-      ForEachIndex(Shrink(Box<0>(states), Direction(dir),
-                          {buffer_width_, buffer_width_}),
-                   [&](auto... is) {
-                     if (tags(is...) == 1) {
-                       std::array<std::ptrdiff_t, sizeof...(is)> index{is...};
-                       for (int width = 1; width <= buffer_width_; ++width) {
-                         if (index[dir] + width <
-                                 Extents<0>(states).extent(dir) &&
-                             !tags(Shift(index, Direction(dir), width))) {
-                           tags(Shift(index, Direction(dir), width)) = 2;
-                         }
-                         if (0 <= index[dir] - width &&
-                             !tags(Shift(index, Direction(dir), -width))) {
-                           tags(Shift(index, Direction(dir), -width)) = 2;
-                         }
-                       }
-                     }
-                   });
-    }
-  }
+  void TagCellsForRefinement(const PatchDataView<char, 1, layout_stride>& tags);
+  void TagCellsForRefinement(const PatchDataView<char, 2, layout_stride>& tags);
+  void TagCellsForRefinement(const PatchDataView<char, 3, layout_stride>& tags);
 };
 
 } // namespace fub

@@ -26,8 +26,8 @@
 namespace fub {
 
 template <typename LevelIntegrator>
-using IntegratorContext = std::decay_t<decltype(
-    std::declval<LevelIntegrator>().GetIntegratorContext())>;
+using IntegratorContext =
+    std::decay_t<decltype(std::declval<LevelIntegrator>().GetContext())>;
 
 template <typename Context, typename... Args>
 using PreAdvanceHierarchy = decltype(
@@ -37,82 +37,117 @@ template <typename Context, typename... Args>
 using PostAdvanceHierarchy = decltype(
     std::declval<Context>().PostAdvanceHierarchy(std::declval<Args>()...));
 
-template <typename LevelIntegrator, typename SplittingMethod = GodunovSplitting>
-struct HyperbolicSplitSystemSolver {
+template <typename LevelIntegrator> struct HyperbolicSplitSystemSolver {
+  using Equation =
+      std::decay_t<decltype(std::declval<LevelIntegrator&>().GetEquation())>;
+
+  using Context =
+      std::decay_t<decltype(std::declval<LevelIntegrator&>().GetContext())>;
+
+  using GriddingAlgorithm =
+      std::decay_t<decltype(*std::declval<Context&>().GetGriddingAlgorithm())>;
+
+  static constexpr int Rank = Equation::Rank();
+
   HyperbolicSplitSystemSolver(LevelIntegrator level_integrator,
                               SplittingMethod split = SplittingMethod())
       : integrator{std::move(level_integrator)}, splitting{split} {}
+
+  void
+  ResetHierarchyConfiguration(std::shared_ptr<GriddingAlgorithm> gridding) {
+    integrator.ResetHierarchyConfiguration(std::move(gridding));
+  }
 
   void ResetHierarchyConfiguration() {
     integrator.ResetHierarchyConfiguration();
   }
 
-  Duration ComputeStableDt() {
+  void PreAdvanceHierarchy() {
     using Context = IntegratorContext<LevelIntegrator>;
-    using FluxMethod = std::decay_t<decltype(integrator.GetFluxMethod())>;
-    if constexpr (is_detected<PreAdvanceHierarchy, Context&>()) {
-      Context& context = integrator.GetIntegratorContext();
+    if constexpr (is_detected<::fub::PreAdvanceHierarchy, Context&>()) {
+      Context& context = integrator.GetContext();
       context.PreAdvanceHierarchy();
     }
-    if constexpr (is_detected<PreAdvanceHierarchy, FluxMethod, Context&>()) {
-      FluxMethod& method = integrator.GetFluxMethod();
-      Context& context = integrator.GetIntegratorContext();
-      method.PreAdvanceHierarchy(context);
-    }
+    // using FluxMethod = std::decay_t<decltype(integrator.GetFluxMethod())>;
+    // if constexpr (is_detected<::fub::PreAdvanceHierarchy, FluxMethod&,
+    //                           Context&>()) {
+    //   FluxMethod& method = integrator.GetFluxMethod();
+    //   Context& context = integrator.GetIntegratorContext();
+    //   method.PreAdvanceHierarchy(context);
+    // }
+  }
 
+  void PostAdvanceHierarchy() {
+    using Context = IntegratorContext<LevelIntegrator>;
+    if constexpr (is_detected<::fub::PostAdvanceHierarchy, Context&>()) {
+      Context& context = integrator.GetContext();
+      context.PostAdvanceHierarchy();
+    }
+    // using FluxMethod = std::decay_t<decltype(integrator.GetFluxMethod())>;
+    // if constexpr (is_detected<::fub::PostAdvanceHierarchy, FluxMethod&,
+    //                           Context&>()) {
+    //   FluxMethod& method = integrator.GetFluxMethod();
+    //   Context& context = integrator.GetIntegratorContext();
+    //   method.PostAdvanceHierarchy(context);
+    // }
+  }
+
+  Duration ComputeStableDt() {
     Duration dt(std::numeric_limits<double>::infinity());
-    for (int d = 0; d < LevelIntegrator::Rank(); ++d) {
+    for (int d = 0; d < Rank; ++d) {
       Direction dir = static_cast<Direction>(d);
       dt = std::min(dt, integrator.ComputeStableDt(dir));
     }
     return Duration(dt);
   }
 
-  std::array<Direction, LevelIntegrator::Rank()> MakeSplitDirections() {
-    std::array<Direction, LevelIntegrator::Rank()> dirs;
-    for (std::size_t i = 0;
-         i < static_cast<std::size_t>(LevelIntegrator::Rank()); ++i) {
+  std::array<Direction, static_cast<std::size_t>(Rank)> MakeSplitDirections() {
+    std::array<Direction, static_cast<std::size_t>(Rank)> dirs;
+    for (std::size_t i = 0; i < static_cast<std::size_t>(Rank); ++i) {
       dirs[i] = static_cast<Direction>(i);
     }
     return dirs;
   }
 
-  const auto& GetPatchHierarchy() const {
-    return integrator.GetPatchHierarchy();
+  auto& GetContext() noexcept { return integrator.GetContext(); }
+  const auto& GetContext() const noexcept { return integrator.GetContext(); }
+
+  const std::shared_ptr<GriddingAlgorithm>& GetGriddingAlgorithm() const {
+    return integrator.GetContext().GetGriddingAlgorithm();
   }
+  //
+  //  const auto& GetPatchHierarchy() const {
+  //    return GetGriddingAlgorithm()->GetPatchHierarchy();
+  //  }
 
   Duration GetTimePoint() const {
-    return integrator.GetTimePoint(0, Direction::X);
+    return integrator.GetContext().GetTimePoint(0, Direction::X);
   }
 
   std::ptrdiff_t GetCycles() const {
-    return integrator.GetCycles(0, Direction::X);
+    return integrator.GetContext().GetCycles(0, Direction::X);
   }
 
-  void AdvanceHierarchy(std::chrono::duration<double> dt) {
-
+  Result<void, TimeStepTooLarge>
+  AdvanceHierarchy(std::chrono::duration<double> dt) {
     // This transforms a direction into a function which statisfies
     // is_invokable<void, Duration>.
     auto MakeAdvanceFunction = [&](Direction dir) {
       return [&, dir](std::chrono::duration<double> dt) {
-        integrator.AdvanceLevel(0, dir, dt);
+        return integrator.AdvanceLevel(0, dir, dt, 0);
       };
     };
     // We construct for each split direction a function which will be passed to
     // our splitting method.
-    std::apply(
+    return std::apply(
         [&](auto... dir) {
-          splitting.Advance(dt, MakeAdvanceFunction(dir)...);
+          return splitting.Advance(dt, MakeAdvanceFunction(dir)...);
         },
         // TODO: Maybe randomize the directions array?
         MakeSplitDirections());
-
-    using Context = IntegratorContext<LevelIntegrator>;
-    if constexpr (is_detected<PostAdvanceHierarchy, Context&>()) {
-      Context& context = integrator.GetIntegratorContext();
-      context.PostAdvanceHierarchy();
-    }
   }
+
+  const Equation& GetEquation() const { return integrator.GetEquation(); }
 
   LevelIntegrator integrator;
   SplittingMethod splitting;

@@ -21,6 +21,57 @@
 #ifndef FUB_BOUNDARY_CONDITION_REFLECTIVE_BOUNDARY_HPP
 #define FUB_BOUNDARY_CONDITION_REFLECTIVE_BOUNDARY_HPP
 
-namespace fub {}
+#include "fub/State.hpp"
+#include "fub/ext/Eigen.hpp"
+
+namespace fub {
+std::array<std::ptrdiff_t, 1> ReflectIndex(std::array<std::ptrdiff_t, 1> i,
+                                           const IndexBox<1>& domain,
+                                           Direction dir, int side);
+std::array<std::ptrdiff_t, 2> ReflectIndex(std::array<std::ptrdiff_t, 2> i,
+                                           const IndexBox<2>& domain,
+                                           Direction dir, int side);
+std::array<std::ptrdiff_t, 3> ReflectIndex(std::array<std::ptrdiff_t, 3> i,
+                                           const IndexBox<3>& domain,
+                                           Direction dir, int side);
+
+template <typename Equation> class ReflectiveBoundary {
+public:
+  using Complete = ::fub::Complete<Equation>;
+  static constexpr int Rank = Equation::Rank();
+
+  ReflectiveBoundary(const Equation& equation);
+
+  void FillBoundary(const View<Complete>& states,
+                    const IndexBox<Rank>& box_to_fill, Direction dir, int side);
+
+  const Equation& GetEquation() const noexcept { return equation_; }
+
+private:
+  Equation equation_;
+  Complete state_{equation_};
+  Complete reflected_{equation_};
+};
+
+template <typename Equation>
+ReflectiveBoundary<Equation>::ReflectiveBoundary(const Equation& equation)
+    : equation_{equation} {}
+
+template <typename Equation>
+void ReflectiveBoundary<Equation>::FillBoundary(
+    const View<Complete>& states, const IndexBox<Rank>& box_to_fill,
+    Direction dir, int side) {
+  const Eigen::Matrix<double, Rank, 1> unit = UnitVector<Rank>(dir);
+  ForEachIndex(box_to_fill, [&](auto... is) {
+    std::array<std::ptrdiff_t, Rank> dest{is...};
+    std::array<std::ptrdiff_t, Rank> src =
+        ReflectIndex(dest, box_to_fill, dir, side);
+    Load(state_, states, src);
+    Reflect(reflected_, state_, unit, equation_);
+    Store(states, reflected_, dest);
+  });
+}
+
+} // namespace fub
 
 #endif

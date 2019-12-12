@@ -1,5 +1,5 @@
-OpenDatabase("localhost:/Users/maikel/Development/HyperbolicSolver/build/Schardin.visit", 0)
-AddPlot("Pseudocolor", "density", 1, 1)
+OpenDatabase("localhost:/Users/maikel/Development/HyperbolicSolver/build_2d/Schardin.visit", 0)
+AddPlot("Pseudocolor", "Density", 1, 1)
 SetActivePlots(0)
 PseudocolorAtts = PseudocolorAttributes()
 PseudocolorAtts.scaling = PseudocolorAtts.Linear  # Linear, Log, Skew
