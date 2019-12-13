@@ -16,4 +16,4 @@ ARG CACHEBUST=1
 RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/finite-volume
 RUN conan profile new /root/.conan/profiles/default --detect
 RUN sed s/libstdc++/libstdc++11/ -i /root/.conan/profiles/default
-RUN conan install /FiniteVolumeSolver --build missing -o AMReX:dim="${AMREX_SPACEDIM}"
+RUN conan install . --build missing -o AMReX:dim="${AMREX_SPACEDIM}"
