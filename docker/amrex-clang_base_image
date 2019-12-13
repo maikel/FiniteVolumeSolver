@@ -23,6 +23,8 @@ RUN mkdir llvm_download \
 ARG CLANG_VERSION
 ARG AMREX_SPACEDIM
 ARG CACHEBUST=1
+RUN ls -l .
+RUN ls -l /root
 RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/finite-volume  \
  && conan profile new /root/.conan/profiles/default --detect
 RUN sed s/libstdc++/libc++/ -i /root/.conan/profiles/default                                \
