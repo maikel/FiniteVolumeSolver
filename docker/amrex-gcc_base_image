@@ -11,9 +11,11 @@ RUN wget https://github.com/Kitware/CMake/releases/download/v3.14.2/cmake-3.14.2
     && tar xzf cmake-3.14.2-Linux-x86_64.tar.gz && rm cmake-3.14.2-Linux-x86_64.tar.gz \
     && cp -r cmake-3.14.2-Linux-x86_64/* /usr/ && rm -r cmake-3.14.2-Linux-x86_64/
 
+RUN git clone https://git.imp.fu-berlin.de/ag-klein/FiniteVolumeSolver.git FiniteVolumeSolver/
+
 ARG AMREX_SPACEDIM
 ARG CACHEBUST=1
 RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/finite-volume
 RUN conan profile new /root/.conan/profiles/default --detect
 RUN sed s/libstdc++/libstdc++11/ -i /root/.conan/profiles/default
-RUN conan install ../ --build missing -o AMReX:dim="${AMREX_SPACEDIM}"
+RUN conan install FiniteVolumeSolver/ --build missing -o AMReX:dim="${AMREX_SPACEDIM}"

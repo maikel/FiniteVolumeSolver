@@ -20,6 +20,8 @@ RUN mkdir llvm_download \
   && cd ../ \
   && rm -r llvm_download
 
+RUN git clone https://git.imp.fu-berlin.de/ag-klein/FiniteVolumeSolver.git FiniteVolumeSolver/
+
 ARG CLANG_VERSION
 ARG AMREX_SPACEDIM
 ARG CACHEBUST=1
@@ -28,5 +30,5 @@ RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/fin
 RUN sed s/libstdc++/libc++/ -i /root/.conan/profiles/default                                \
  && sed s/gcc/clang/ -i /root/.conan/profiles/default                                       \
  && sed "s/version=5/version=${CLANG_VERSION}/" -i /root/.conan/profiles/default      
-RUN conan install ../ -o AMReX:dim="${AMREX_SPACEDIM}" --build missing --env CXX=clang++ --env CC=clang
+RUN conan install FiniteVolumeSolver/ -o AMReX:dim="${AMREX_SPACEDIM}" --build missing --env CXX=clang++ --env CC=clang
 
