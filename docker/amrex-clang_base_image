@@ -23,12 +23,10 @@ RUN mkdir llvm_download \
 ARG CLANG_VERSION
 ARG AMREX_SPACEDIM
 ARG CACHEBUST=1
-RUN ls -l .
-RUN ls -l /root
 RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/finite-volume  \
  && conan profile new /root/.conan/profiles/default --detect
 RUN sed s/libstdc++/libc++/ -i /root/.conan/profiles/default                                \
  && sed s/gcc/clang/ -i /root/.conan/profiles/default                                       \
  && sed "s/version=5/version=${CLANG_VERSION}/" -i /root/.conan/profiles/default      
-RUN conan install . -o AMReX:dim="${AMREX_SPACEDIM}" --build missing --env CXX=clang++ --env CC=clang
+RUN conan install ../ -o AMReX:dim="${AMREX_SPACEDIM}" --build missing --env CXX=clang++ --env CC=clang
 
