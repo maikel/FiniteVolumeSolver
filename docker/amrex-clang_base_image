@@ -20,9 +20,6 @@ RUN mkdir llvm_download \
   && cd ../ \
   && rm -r llvm_download
 
-ARG CLANG_VERSION
-ARG AMREX_SPACEDIM
-ARG CACHEBUST=1
 RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/finite-volume \
  && conan profile new /root/.conan/profiles/default --detect
 RUN sed s/libstdc++/libc++/ -i /root/.conan/profiles/default                                \
@@ -34,6 +31,10 @@ RUN conan install boost/1.71.0@conan/stable --build missing --env CXX=clang++ --
  && conan install Vc/1.4.1@finite-volume/stable --build missing --env CXX=clang++ --env CC=clang \
  && conan install SAMRAI/3.11.1@finite-volume/stable --build missing --env CXX=clang++ --env CC=clang \
  && conan install pybind11/2.3.0@conan/stable --build missing --env CXX=clang++ --env CC=clang
-              
-RUN conan install /FiniteVolumeSolver -o AMReX:dim="${AMREX_SPACEDIM}" --build missing  --env CXX=clang++ --env CC=clang
 
+ARG CLANG_VERSION
+ARG AMREX_SPACEDIM
+ARG CACHEBUST=1
+RUN conan install "AMReX/development@finite-volume/stable"                              \
+                     -o AMReX:dim="${AMREX_SPACEDIM}"                                      \
+                     --build AMReX --env CXX=clang++ --env CC=clang
