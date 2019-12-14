@@ -259,7 +259,7 @@ private:
   };
 
   int ghost_cell_width_;
-  int face_gcw_;
+  int face_ghost_cell_width_{ghost_cell_width_};
   std::shared_ptr<GriddingAlgorithm> gridding_;
   std::vector<LevelData> data_;
   HyperbolicMethod method_;
