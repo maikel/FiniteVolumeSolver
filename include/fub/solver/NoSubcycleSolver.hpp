@@ -58,10 +58,8 @@ Duration NoSubcycleSolver<LevelIntegrator>::ComputeStableDt() {
     min_dt = std::min(min_dt, Base::ComputeStableDt(level_num));
   }
   MPI_Comm comm = Base::GetMpiCommunicator();
-  const double local_dt = min_dt.count();
-  double global_min_dt{0};
-  MPI_Allreduce(&local_dt, &global_min_dt, 1, MPI_DOUBLE, MPI_MIN, comm);
-  return Duration(global_min_dt);
+  const Duration global_min_dt = MinAll(comm,  min_dt);
+  return global_min_dt;
 }
 
 template <typename LevelIntegrator>
