@@ -69,7 +69,8 @@ inline std::error_code make_error_code(TimeStepErrc error) {
 }
 
 struct TimeStepTooLarge {
-  Duration coarse_dt;
+  Duration dt;
+  int level;
 };
 
 inline std::error_code make_error_code(const TimeStepTooLarge&) {
