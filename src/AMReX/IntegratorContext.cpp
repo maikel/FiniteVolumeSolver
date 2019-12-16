@@ -63,11 +63,13 @@ operator=(LevelData&& other) noexcept {
 ////////////////////////////////////////////////////////////////////////////////
 // Constructor and Assignment Operators
 
+// By default we assume Strang-Splitting and subcycling from AMR.
+// Each adds a factor of two to the ghost cell width requirements on coarse fine
+// boundaries.
 IntegratorContext::IntegratorContext(
     std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod nm)
     : registry_{std::make_shared<CounterRegistry>()},
-      ghost_cell_width_{nm.flux_method.GetStencilWidth() + 2},
-      face_gcw_{nm.flux_method.GetStencilWidth() + 2},
+      ghost_cell_width_{nm.flux_method.GetStencilWidth() * 2 * 2},
       gridding_{std::move(gridding)}, data_{}, method_{std::move(nm)} {
   data_.reserve(
       static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
@@ -111,7 +113,8 @@ IntegratorContext::IntegratorContext(
 
 IntegratorContext::IntegratorContext(const IntegratorContext& other)
     : registry_(other.registry_), ghost_cell_width_{other.ghost_cell_width_},
-      face_gcw_{other.face_gcw_}, gridding_{other.gridding_},
+      face_ghost_cell_width_{other.face_ghost_cell_width_},
+      gridding_{other.gridding_},
       data_(static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels())),
       method_{other.method_} {
   // Allocate auxiliary data arrays
@@ -254,8 +257,9 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
       const ::amrex::BoxArray fba =
           ::amrex::convert(ba, ::amrex::IntVect::TheDimensionVector(int(d)));
       ::amrex::IntVect fgrow = grow;
-      fgrow[int(d)] = face_gcw_;
+      fgrow[int(d)] = face_ghost_cell_width_;
       data.fluxes[d].define(fba, dm, n_cons_components, fgrow);
+      data.fluxes[d].setVal(0.0);
     }
     if (level > 0) {
       const ::amrex::IntVect ref_ratio =

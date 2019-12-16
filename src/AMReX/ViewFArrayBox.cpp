@@ -32,5 +32,14 @@ AsArray(const ::amrex::IntVect& vec) {
   return array;
 }
 
+::amrex::Box GetFacesInStencilRange(const ::amrex::Box& cell_box,
+                                    int stencil_width, Direction dir) {
+  const int dir_v = static_cast<int>(dir);
+  ::amrex::Box all_faces = cell_box;
+  all_faces.surroundingNodes(dir_v);
+  all_faces.grow(dir_v, -stencil_width);
+  return all_faces;
+}
+
 } // namespace amrex
 } // namespace fub

@@ -60,13 +60,11 @@ Duration CompressibleAdvectionFluxMethod<SpaceDimension>::ComputeStableDt(
 
   const ::amrex::MultiFab& scratch = context.GetScratch(level);
   Duration min_dt(std::numeric_limits<double>::max());
-  amrex::ForEachFab(fluxes, [&](const ::amrex::MFIter& mfi) {
-    const ::amrex::Box& face_box = mfi.growntilebox();
-    const ::amrex::Box cell_box = [&] {
-      ::amrex::Box box = face_box;
-      box.enclosedCells();
-      return box;
-    }();
+  const int stencil = GetStencilWidth();
+  amrex::ForEachFab(scratch, [&](const ::amrex::MFIter& mfi) {
+    const ::amrex::Box cell_box = mfi.growntilebox();
+    const ::amrex::Box face_box =
+        amrex::GetFacesInStencilRange(cell_box, stencil, dir);
     View<const Complete> cells =
         amrex::MakeView<const Complete>(scratch[mfi], equation, cell_box);
     View<const Conservative> flux =
@@ -157,8 +155,8 @@ CompressibleAdvectionFluxMethod<SpaceDimension>::ComputeNumericFluxes(
       Pvs[2] * 0.5 * ((1 + upwind) * rec_chi_L + (1 - upwind) * rec_chi_R);
   for (int dim = 0; dim < SpaceDimension; ++dim) {
     flux.momentum[dim] = Pvs[2] * 0.5 *
-                         ((1 + upwind) * rec_velocity_L[dim] +
-                          (1 - upwind) * rec_velocity_R[dim]);
+                         ((1.0 + upwind) * rec_velocity_L[dim] +
+                          (1.0 - upwind) * rec_velocity_R[dim]);
   }
   flux.PTdensity = Pvs[2];
   return flux;
