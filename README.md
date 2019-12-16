@@ -158,7 +158,7 @@ In our case
 ./FiniteVolumeSolver/build> conan install ../ -o AMReX:dim=2 -o AMReX:omp=False 
 ```
 
-This will look into the file `FiniteVolumeSolver/conanfile.txt` and tries to locally install all dependencies which are listet there. After installing these it creates a `conanfile.cmake` in the build directory which will be read by our `CMakeLists.txt` file. This in turn injects all necessary include and library paths which we need to build our application. Now we use `cmake` to configure our specific build, i.e.
+This will look into the file `FiniteVolumeSolver/conanfile.txt` and tries to locally install all dependencies which are listed there. After installing these it creates a `conanfile.cmake` in the build directory which will be read by our `CMakeLists.txt` file. This in turn injects all necessary include and library paths which we need to build our application. Now we use `cmake` to configure our specific build, i.e.
 
 ```
 ./FiniteVolumeSolver/build> cmake ../
