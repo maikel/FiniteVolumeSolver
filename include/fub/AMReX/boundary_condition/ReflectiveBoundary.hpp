@@ -36,6 +36,9 @@ public:
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
                     Duration dt, const GriddingAlgorithm&);
 
+  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
+                    Duration dt, const GriddingAlgorithm& grid, Direction dir);
+
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom);
 
 private:
@@ -84,8 +87,16 @@ template <typename Tag, typename Equation>
 void ReflectiveBoundary<Tag, Equation>::FillBoundary(
     ::amrex::MultiFab& mf, const ::amrex::Geometry& geom, Duration,
     const GriddingAlgorithm&) {
-  return FillBoundary(mf, geom);
+  FillBoundary(mf, geom);
 }
+
+template <typename Tag, typename Equation>
+void ReflectiveBoundary<Tag, Equation>::FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
+                    Duration, const GriddingAlgorithm&, Direction dir) {
+                      if (dir == dir_) {
+                      FillBoundary(mf, geom);
+                      }
+                    }
 
 template <typename Tag, typename Equation>
 ReflectiveBoundary(Tag, const Equation&, Direction, int)

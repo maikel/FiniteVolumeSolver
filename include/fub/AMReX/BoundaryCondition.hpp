@@ -45,7 +45,8 @@ struct BoundaryConditionBase {
 
   virtual void FillBoundary(::amrex::MultiFab& mf,
                             const ::amrex::Geometry& geom, Duration time_point,
-                            const GriddingAlgorithm& gridding, Direction dir) = 0;
+                            const GriddingAlgorithm& gridding,
+                            Direction dir) = 0;
 };
 
 template <typename BC>
@@ -60,8 +61,8 @@ struct BoundaryConditionWrapper : public BoundaryConditionBase {
                     const GriddingAlgorithm& gridding) override;
 
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration time_point,
-                    const GriddingAlgorithm& gridding, Direction dir) override;
+                    Duration time_point, const GriddingAlgorithm& gridding,
+                    Direction dir) override;
 
   BC boundary_condition_;
 };
@@ -87,7 +88,8 @@ public:
                     Duration timepoint, const GriddingAlgorithm& gridding);
 
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration timepoint, const GriddingAlgorithm& gridding, Direction dir);
+                    Duration timepoint, const GriddingAlgorithm& gridding,
+                    Direction dir);
 
   const GriddingAlgorithm* parent{};
   ::amrex::Geometry geometry{};
@@ -144,12 +146,12 @@ inline void BoundaryCondition::FillBoundary(::amrex::MultiFab& mf,
 inline void BoundaryCondition::FillBoundary(::amrex::MultiFab& mf,
                                             const ::amrex::Geometry& geom,
                                             Duration timepoint,
-                                            const GriddingAlgorithm& gridding, Direction dir) {
+                                            const GriddingAlgorithm& gridding,
+                                            Direction dir) {
   if (boundary_condition_) {
     boundary_condition_->FillBoundary(mf, geom, timepoint, gridding, dir);
   }
 }
-
 
 } // namespace amrex
 } // namespace fub
