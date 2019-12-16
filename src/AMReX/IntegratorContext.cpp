@@ -253,10 +253,19 @@ void IntegratorContext::SetCycles(std::ptrdiff_t cycles, int level) {
 }
 
 void IntegratorContext::ApplyBoundaryCondition(int level, Direction dir) {
+  Timer timer =
+      registry_->get_timer("IntegratorContext::ApplyBoundaryCondition");
+  Timer timer_per_level{};
+  if (count_per_level) {
+    timer_per_level = registry_->get_timer(
+        fmt::format("IntegratorContext::ApplyBoundaryCondition({})", level));
+  }
   BoundaryCondition& boundary_condition = GetBoundaryCondition(level);
   ::amrex::MultiFab& scratch = GetScratch(level);
   Duration time_point = GetTimePoint(level);
-  
+  const ::amrex::Geometry& geometry = GetGeometry(level);
+  GriddingAlgorithm& grid = *GetGriddingAlgorithm();
+  boundary_condition.FillBoundary(scratch, geometry, time_point, grid, dir);
 }
 
 void IntegratorContext::FillGhostLayerTwoLevels(
