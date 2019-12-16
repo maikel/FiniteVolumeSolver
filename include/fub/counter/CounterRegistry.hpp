@@ -80,7 +80,7 @@ int LengthOfFirstColumn(const ResultRange& results) {
       return std::max_element(results.begin(), results.end(),
                               [](auto&& p1, auto&& p2) {
                                 const std::string& name1 = std::get<0>(p1);
-                                const std::string& name2 = std::get<0>(p1);
+                                const std::string& name2 = std::get<1>(p2);
                                 return name1.size() < name2.size();
                               })
           ->first.size();
