@@ -195,6 +195,8 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::
                                [[maybe_unused]] std::pair<int, int> subcycle) {
   auto AdvanceLevel_Split = [&](Direction dir) {
     return [&, this_level, dir](Duration split_dt) -> Result<void, TimeStepTooLarge> {
+      Context::ApplyBoundaryCondition(this_level, dir);
+
       const Duration level_dt = Context::ComputeStableDt(this_level, dir);
       if (level_dt < split_dt) {
         const int refine_ratio = GetTotalRefineRatio(this_level);

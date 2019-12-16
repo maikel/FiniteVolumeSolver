@@ -78,6 +78,9 @@ public:
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
                     Duration timepoint, const GriddingAlgorithm& gridding);
 
+  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
+                    Duration timepoint, const GriddingAlgorithm& gridding, Direction dir);
+
   const GriddingAlgorithm* parent{};
   ::amrex::Geometry geometry{};
 

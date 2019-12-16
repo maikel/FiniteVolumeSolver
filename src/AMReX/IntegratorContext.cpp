@@ -252,6 +252,13 @@ void IntegratorContext::SetCycles(std::ptrdiff_t cycles, int level) {
   data_[l].cycles = cycles;
 }
 
+void IntegratorContext::ApplyBoundaryCondition(int level, Direction dir) {
+  BoundaryCondition& boundary_condition = GetBoundaryCondition(level);
+  ::amrex::MultiFab& scratch = GetScratch(level);
+  Duration time_point = GetTimePoint(level);
+  
+}
+
 void IntegratorContext::FillGhostLayerTwoLevels(
     int fine, BoundaryCondition& fine_condition, int coarse,
     BoundaryCondition& coarse_condition) {
