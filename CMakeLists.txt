@@ -519,7 +519,7 @@ endif()
 #  Tests
 
 include(CTest)
-if (BUILD_TESTING)
+if (EXISTS "${CMAKE_SOURCE_DIR}/third_party/Catch2/.git" AND BUILD_TESTING)
   # We use Catch2 for unit tests. We include that via a git submodule.
   add_library(Catch2 INTERFACE)
   target_include_directories(Catch2 INTERFACE third_party/Catch2/single_include)
