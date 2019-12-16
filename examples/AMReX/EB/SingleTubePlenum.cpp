@@ -538,7 +538,9 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   fub::amrex::MultiBlockKineticSouceTerm source_term{
       fub::IdealGasMix<Tube_Rank>{mechanism}, context.GetGriddingAlgorithm()};
 
-  fub::SplitSystemSourceLevelIntegrator solver{ign_solver, source_term};
+  fub::SplitSystemSourceLevelIntegrator level_integrator{ign_solver, source_term};
+
+  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
   std::string base_name = po.output_directory;
 

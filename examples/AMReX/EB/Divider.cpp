@@ -32,9 +32,6 @@
 #include <iostream>
 
 int main(int argc, char** argv) {
-  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() | _MM_MASK_DIV_ZERO |
-                         _MM_MASK_OVERFLOW | _MM_MASK_UNDERFLOW |
-                         _MM_MASK_INVALID);
 
   static_assert(AMREX_SPACEDIM == 3);
 
@@ -123,8 +120,12 @@ int main(int argc, char** argv) {
   HyperbolicMethod method{FluxMethod{fub::execution::seq, cutcell_method},
                           TimeIntegrator{},
                           Reconstruction{fub::execution::seq, equation}};
-  fub::DimensionalSplitLevelIntegrator solver(
+
+  fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<3>, IntegratorContext(gridding, method));
+
+  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
+
   std::string base_name = "Divider/";
 
   auto output = [&](const GriddingAlgorithm& grid) {

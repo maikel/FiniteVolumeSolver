@@ -533,8 +533,10 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
       fub::IdealGasMix<Tube_Rank>{mechanism},
       ign_solver.GetGriddingAlgorithm()};
 
-  fub::SplitSystemSourceLevelIntegrator solver{std::move(ign_solver),
+  fub::SplitSystemSourceLevelIntegrator level_integrator{std::move(ign_solver),
                                                  std::move(source_term)};
+
+  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
   std::string base_name = po.output_directory;
 
