@@ -38,7 +38,8 @@ template <typename Tag, typename FM> struct FluxMethod {
 
   FluxMethod(Tag, const FM& fm);
 
-  Duration ComputeStableDt(IntegratorContext& context, int level, Direction dir);
+  Duration ComputeStableDt(IntegratorContext& context, int level,
+                           Direction dir);
 
   void ComputeNumericFluxes(IntegratorContext& context, int level, Duration dt,
                             Direction dir);
@@ -52,62 +53,53 @@ template <typename Tag, typename FM>
 FluxMethod<Tag, FM>::FluxMethod(Tag, const FM& fm) : flux_method_{fm} {}
 
 template <typename T, typename... Args>
-using ComputeStableDt_t = decltype(std::declval<T>().ComputeStableDt(std::declval<Args>()...));
+using ComputeStableDt_t =
+    decltype(std::declval<T>().ComputeStableDt(std::declval<Args>()...));
 
 template <typename Tag, typename FM>
 Duration FluxMethod<Tag, FM>::ComputeStableDt(IntegratorContext& context,
                                               int level, Direction dir) {
-  if constexpr (is_detected<ComputeStableDt_t, FM&, IntegratorContext&, int, Direction>::value) {
+  if constexpr (is_detected<ComputeStableDt_t, FM&, IntegratorContext&, int,
+                            Direction>::value) {
     return flux_method_->ComputeStableDt(context, level, dir);
   } else {
-  const ::amrex::Geometry& geom = context.GetGeometry(level);
-  const double dx = geom.CellSize(int(dir));
-  double min_dt = std::numeric_limits<double>::max();
-  const ::amrex::MultiFab& scratch = context.GetScratch(level);
-  const int dir_v = static_cast<int>(dir);
-  FUB_ASSERT(!scratch.contains_nan());
-  if constexpr (std::is_base_of<execution::OpenMpTag, Tag>::value) {
+    const ::amrex::Geometry& geom = context.GetGeometry(level);
+    const double dx = geom.CellSize(int(dir));
+    double min_dt = std::numeric_limits<double>::max();
+    const ::amrex::MultiFab& scratch = context.GetScratch(level);
+    FUB_ASSERT(!scratch.contains_nan());
+    if constexpr (std::is_base_of<execution::OpenMpTag, Tag>::value) {
 #if defined(_OPENMP) && defined(AMREX_USE_OMP)
 #pragma omp parallel reduction(min : min_dt)
 #endif
-    for (::amrex::MFIter mfi(scratch,
-                             ::amrex::IntVect(AMREX_D_DECL(1024000, 8, 8)));
-         mfi.isValid(); ++mfi) {
-      const int gcw = GetStencilWidth();
-      const ::amrex::Box cell_box = mfi.growntilebox();
-      const ::amrex::Box face_box = [&cell_box, dir_v, gcw] {
-        ::amrex::Box all_faces = cell_box;
-        all_faces.surroundingNodes(dir_v);
-        all_faces.grow(dir_v, -gcw);
-        return all_faces;
-      }();
-      auto&& equation = flux_method_->GetEquation();
-      View<const Complete<Equation>> states =
-          MakeView<const Complete<Equation>>(scratch[mfi], equation, cell_box);
-      const Duration dt(flux_method_->ComputeStableDt(Tag(), states, dx, dir));
-      min_dt = std::min(min_dt, dt.count());
+      for (::amrex::MFIter mfi(scratch,
+                               ::amrex::IntVect(AMREX_D_DECL(1024000, 8, 8)));
+           mfi.isValid(); ++mfi) {
+        const ::amrex::Box cell_box = mfi.growntilebox();
+        auto&& equation = flux_method_->GetEquation();
+        View<const Complete<Equation>> states =
+            MakeView<const Complete<Equation>>(scratch[mfi], equation,
+                                               cell_box);
+        const Duration dt(
+            flux_method_->ComputeStableDt(Tag(), states, dx, dir));
+        min_dt = std::min(min_dt, dt.count());
+      }
+      double local_count = min_dt;
+      return Duration(local_count);
+    } else {
+      for (::amrex::MFIter mfi(scratch); mfi.isValid(); ++mfi) {
+        const ::amrex::Box cell_box = mfi.growntilebox();
+        auto&& equation = flux_method_->GetEquation();
+        View<const Complete<Equation>> states =
+            MakeView<const Complete<Equation>>(scratch[mfi], equation,
+                                               cell_box);
+        const Duration dt(
+            flux_method_->ComputeStableDt(Tag(), states, dx, dir));
+        min_dt = std::min(min_dt, dt.count());
+      }
+      double local_count = min_dt;
+      return Duration(local_count);
     }
-    double local_count = min_dt;
-    return Duration(local_count);
-  } else {
-    for (::amrex::MFIter mfi(scratch); mfi.isValid(); ++mfi) {
-      const int gcw = GetStencilWidth();
-      const ::amrex::Box cell_box = mfi.growntilebox();
-      const ::amrex::Box face_box = [&cell_box, dir_v, gcw] {
-        ::amrex::Box all_faces = cell_box;
-        all_faces.surroundingNodes(dir_v);
-        all_faces.grow(dir_v, -gcw);
-        return all_faces;
-      }();
-      auto&& equation = flux_method_->GetEquation();
-      View<const Complete<Equation>> states =
-          MakeView<const Complete<Equation>>(scratch[mfi], equation, cell_box);
-      const Duration dt(flux_method_->ComputeStableDt(Tag(), states, dx, dir));
-      min_dt = std::min(min_dt, dt.count());
-    }
-    double local_count = min_dt;
-    return Duration(local_count);
-  }
   }
 }
 
@@ -125,16 +117,12 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
   const int dir_v = int(dir);
   const double dx = geom.CellSize(dir_v);
   FUB_ASSERT(!scratch.contains_nan());
+  const int stencil = GetStencilWidth();
   ForEachFab(Tag(), scratch, [&](::amrex::MFIter& mfi) {
     // Get a view of all complete state variables
-    const int gcw = GetStencilWidth();
     const ::amrex::Box cell_box = mfi.growntilebox();
-    const ::amrex::Box face_box = [&cell_box, dir_v, gcw] {
-      ::amrex::Box all_faces = cell_box;
-      all_faces.surroundingNodes(dir_v);
-      all_faces.grow(dir_v, -gcw);
-      return all_faces;
-    }();
+    const ::amrex::Box face_box =
+        GetFacesInStencilRange(cell_box, stencil, dir);
     auto&& equation = flux_method_->GetEquation();
     View<const Complete<Equation>> states =
         MakeView<const Complete<Equation>>(scratch[mfi], equation, cell_box);
