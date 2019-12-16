@@ -140,6 +140,6 @@ int main(int argc, char** argv) {
   fub::RunOptions run_options{};
   run_options.final_time = 0.0005s;
   run_options.cfl = 0.8;
-  fub::AsOutput<GriddingAlgorithm> out{{}, {0.5 * 0.0000125s}, output};
-  fub::RunSimulation(solver, run_options, wall_time_reference, out);
+  auto out = fub::MakeOutput<GriddingAlgorithm>({}, {0.5 * 0.0000125s}, output);
+  fub::RunSimulation(solver, run_options, wall_time_reference, *out);
 }
