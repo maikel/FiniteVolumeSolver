@@ -21,9 +21,6 @@ if (AMReX_FOUND)
   add_executable_with_warnings(AMReX.AxialSourceTerm AMReX/AxialVariation.cpp)
   target_link_libraries(AMReX.AxialSourceTerm FiniteVolumeSolver.AMReX Boost::program_options)
 
-  add_executable_with_warnings(AMReX.InitialHierarchy AMReX/InitialHierarchy.cpp)
-  target_link_libraries(AMReX.InitialHierarchy FiniteVolumeSolver.AMReX)
-
   add_executable_with_warnings(AMReX.Advection2d_Godunov AMReX/Advection2d_Godunov.cpp)
   target_link_libraries(AMReX.Advection2d_Godunov FiniteVolumeSolver.AMReX)
 
@@ -46,6 +43,9 @@ endif()
 if (AMReX_FOUND AND AMReX_2D_FOUND)
   add_executable(NodalPoisson AMReX/NodalPoisson.cpp)
   target_link_libraries(NodalPoisson FiniteVolumeSolver.AMReX)
+
+  add_executable_with_warnings(AMReX.InitialHierarchy AMReX/InitialHierarchy.cpp)
+  target_link_libraries(AMReX.InitialHierarchy FiniteVolumeSolver.AMReX)
 
   if (AMReX_EB_FOUND)
     add_executable_with_warnings(AMReX.EB.Divider2D AMReX/EB/Divider2D.cpp)
