@@ -123,11 +123,19 @@ First use git and clone the library to a local directory
 > git clone git@git.imp.fu-berlin.de:ag-klein/FiniteVolumeSolver.git
 ```
 
+If you want to build the unit tests you need to pull `Catch2` as a git submodule. Enter the source direction and call
+
+```
+> cd FiniteVolumeSolver/
+./FiniteVolumeSolver> git submodule update --init
+```
+
 This will checkout the `develop` branch by default and create folder named with relative path `./FiniteVolumeSolver`. Next, we create a out-of-source build directory where we want to build the library archives and example binaries. 
 
 ```
-> mkdir FiniteVolumeSolver/build
-> cd FiniteVolumeSolver/build
+./FiniteVolumeSolver> mkdir build
+./FiniteVolumeSolver> cd build
+./FiniteVolumeSolver/build> cd build
 ```
 
 Inside the `build` directory we use conan to install the dependencies with the options which we want to use. `AMReX` for examples has the following configurable build options:
@@ -141,37 +149,37 @@ AMReX:dim = 1|2|3 [3] # spatial dimension used by AMReX
 To install AMReX with embedded boundaries and without OpenMP support (there is no OpenMp support on Apple for example) use within the build directory
 
 ```
-> conan install <Path-to-FiniteVolumeSolver-Source-Dir> -o AMReX:dim=2 -o AMReX:omp=False 
+./FiniteVolumeSolver/build> conan install <Path-to-FiniteVolumeSolver-Source-Dir> -o AMReX:dim=2 -o AMReX:omp=False 
 ```
 
 In our case
 
 ```
-> conan install ../ -o AMReX:dim=2 -o AMReX:omp=False 
+./FiniteVolumeSolver/build> conan install ../ -o AMReX:dim=2 -o AMReX:omp=False 
 ```
 
-This will look into the file `FiniteVolumeSolver/conanfile.txt` and tries to locally install all dependencies which are listet there. After installing these it creates a `conanfile.cmake` in the build directory which will be read by our CMake file. This in turn injects all necessary include and library paths which we need to build our application. Now we use `CMake` to configure our specific build, i.e.
+This will look into the file `FiniteVolumeSolver/conanfile.txt` and tries to locally install all dependencies which are listet there. After installing these it creates a `conanfile.cmake` in the build directory which will be read by our `CMakeLists.txt` file. This in turn injects all necessary include and library paths which we need to build our application. Now we use `cmake` to configure our specific build, i.e.
 
 ```
-> cmake ../
+./FiniteVolumeSolver/build> cmake ../
 ```
 
 to configure a Debug build, or  
 
 ```
-> cmake ../ -DCMAKE_BUILD_TYPE=Release
+./FiniteVolumeSolver/build> cmake ../ -DCMAKE_BUILD_TYPE=Release
 ```
 
 for a Release build. On Linux and MacOs this will create Makefiles by default which you can invoke by typing
 
 ```
-> make
+./FiniteVolumeSolver/build> make
 ```
 
 which should build all targets. For other systems a more general call would be
 
 ```
-> cmake --build .
+./FiniteVolumeSolver/build> cmake --build .
 ```
 
 If some targets fails to build feel free to raise an issue in GitLab.
