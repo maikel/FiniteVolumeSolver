@@ -24,7 +24,7 @@
 #include <fmt/format.h>
 #include <iostream>
 
-#include <xmmintrin.h>
+#include <boost/log/utility/manipulators/add_value.hpp>
 
 struct ShockTubeData {
   using Equation = fub::PerfectGas<2>;
@@ -48,15 +48,15 @@ struct ShockTubeData {
                      double xy[AMREX_SPACEDIM];
                      geom.CellCenter({AMREX_D_DECL(int(i), int(j), 0)}, xy);
                      const double x = xy[0];
-                     const double y = xy[1];
+                     // const double y = xy[1];
 
                      Complete state;
 
                       // "Left" states of Sod Shock Tube.
-                     if (x + y < 0.) {
+                     if (x  < 0.) {
                        state.density     = 1.0;
                        state.pressure    = 1.0;
-                       state.momentum[0] = 0.;
+                       state.momentum[0] = 1.;
                        state.momentum[1] = 0.;
                      }
                      // "Right" states.
@@ -64,7 +64,7 @@ struct ShockTubeData {
                      {
                        state.density     = 1.25e-1;
                        state.pressure    = 1.0e-1;
-                       state.momentum[0] = 0.;
+                       state.momentum[0] = 1.;
                        state.momentum[1] = 0.;
                      }
 
@@ -82,10 +82,6 @@ int main(int argc, char** argv) {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
-  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() | _MM_MASK_DIV_ZERO |
-                         _MM_MASK_OVERFLOW | _MM_MASK_UNDERFLOW |
-                         _MM_MASK_INVALID);
-
   const fub::amrex::ScopeGuard guard(argc, argv);
   fub::InitializeLogging(MPI_COMM_WORLD);
 
@@ -100,7 +96,7 @@ int main(int argc, char** argv) {
                                         {AMREX_D_DECL(+1.0, +1.0, +1.0)});
 
   fub::amrex::PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = 3;
+  hier_opts.max_number_of_levels = 1;
   hier_opts.refine_ratio = amrex::IntVect{AMREX_D_DECL(2, 2, 1)};
 
   using Complete = fub::PerfectGas<2>::Complete;
@@ -121,53 +117,65 @@ int main(int argc, char** argv) {
       fub::amrex::TagAllOf(gradient, fub::amrex::TagBuffer(4)), boundaries);
   gridding->InitializeHierarchy(0.0);
 
-  auto tag = fub::execution::simd;
+  auto tag = fub::execution::seq;
 
   fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
   fub::HllMethod hll_method(equation, signals);
-  fub::MusclHancockMethod muscl_method(equation, hll_method);
-  //  fub::GodunovMethod godunov_method(equation, signals);
+  // fub::MusclHancockMethod muscl_method(equation, hll_method);
+  //  fub::GodunovMethod godunov_method(equation);
   // fub::MusclHancockMethod muscl_method(equation);
   fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethod(tag, muscl_method),
+      fub::amrex::FluxMethod(tag, hll_method),
       fub::amrex::ForwardIntegrator(tag),
       fub::amrex::Reconstruction(tag, equation)};
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<2>, fub::amrex::IntegratorContext(gridding, method),
-      // fub::GodunovSplitting());
-      fub::StrangSplitting());
+      fub::GodunovSplitting());
+      // fub::StrangSplitting());
 
-  fub::SubcycleFineFirstSolver solver(level_integrator);
-  // fub::NoSubcycleSolver solver(level_integrator);
+  // fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
+  fub::NoSubcycleSolver solver(std::move(level_integrator));
 
   std::string base_name = "SodShockTube/";
 
   using namespace fub::amrex;
   using namespace std::literals::chrono_literals;
+
   boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
       boost::log::keywords::severity = boost::log::trivial::info);
-  fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> output{};
+
+  double mass0 = 0.0;
+  auto compute_mass = [&log, &mass0](const GriddingAlgorithm& grid) {
+    const ::amrex::MultiFab& data = grid.GetPatchHierarchy().GetPatchLevel(0).data;
+    const ::amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(0);
+    const double volume_per_cell = geom.CellSize(0) * geom.CellSize(1);
+    const double density_sum = data.sum(0);
+    const double mass = density_sum * volume_per_cell;
+    if (mass0 == 0.0) {
+      mass0 = mass;
+    }
+    const double mass_error = std::abs(mass - mass0);
+    const double time_point = grid.GetTimePoint().count();
+    BOOST_LOG(log) << boost::log::add_value("Time", time_point) << fmt::format("Mass: {:.6e}\n", mass_error);
+  };
+
+  fub::MultipleOutputs<GriddingAlgorithm> output{};
   output.AddOutput(fub::MakeOutput<GriddingAlgorithm>(
-      {1}, {fub::Duration(1.0 / 30.0)}, [&](const GriddingAlgorithm& gridding) {
-        std::ptrdiff_t cycle = gridding.GetCycles();
-        fub::Duration tp = gridding.GetTimePoint();
-        BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", tp.count());
-        std::string name = fmt::format("{}plt{:05}", base_name, cycle);
-        BOOST_LOG(log) << "Start output to '" << name << "'.";
-        WritePlotFile(name, gridding.GetPatchHierarchy(), equation);
-        BOOST_LOG(log) << "Finished output to '" << name << "'.";
-      }));
+      {1}, {}, compute_mass));
+  output.AddOutput(fub::MakeOutput<GriddingAlgorithm>(
+      {1}, {}, PlotfileOutput(equation, base_name)));
   output.AddOutput(
-      std::make_unique<fub::CounterOutput<fub::amrex::GriddingAlgorithm,
+      std::make_unique<fub::CounterOutput<GriddingAlgorithm,
                                           std::chrono::milliseconds>>(
           solver.GetContext().registry_, wall_time_reference,
-          std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{0.01s}));
+          std::vector<std::ptrdiff_t>{10}, std::vector<fub::Duration>{}));
 
   using namespace std::literals::chrono_literals;
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
   run_options.final_time = 1.0s;
   run_options.cfl = 0.8;
+  run_options.max_cycles = 100;
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

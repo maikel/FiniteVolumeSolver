@@ -68,7 +68,7 @@ int main() {
   geometry.periodicity = std::array<int, Dim>{AMREX_D_DECL(1, 1, 1)};
 
   fub::amrex::PatchHierarchyOptions hier_opts{};
-  hier_opts.max_number_of_levels = 6;
+  hier_opts.max_number_of_levels = 1;
   hier_opts.refine_ratio = amrex::IntVect(AMREX_D_DECL(2, 2, 1));
 
   using State = fub::Advection2d::Complete;
