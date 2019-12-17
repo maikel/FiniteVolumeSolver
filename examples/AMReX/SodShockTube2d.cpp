@@ -49,22 +49,22 @@ struct ShockTubeData {
                      double xy[AMREX_SPACEDIM];
                      geom.CellCenter({AMREX_D_DECL(int(i), int(j), 0)}, xy);
                      const double x = xy[0];
-                     // const double y = xy[1];
+                     const double y = xy[1];
 
                      Complete state;
 
                      // "Left" states of Sod Shock Tube.
-                     if (x < 0.) {
+                     if (x + y < 0.0) {
                        state.density = 1.0;
                        state.pressure = 1.0;
-                       state.momentum[0] = 1.;
+                       state.momentum[0] = 0.;
                        state.momentum[1] = 0.;
                      }
                      // "Right" states.
                      else {
                        state.density = 1.25e-1;
                        state.pressure = 1.0e-1;
-                       state.momentum[0] = 1.;
+                       state.momentum[0] = 0.;
                        state.momentum[1] = 0.;
                      }
 
@@ -91,7 +91,7 @@ int main(int argc, char** argv) {
   fub::PerfectGas<2> equation{};
 
   fub::amrex::CartesianGridGeometry geometry{};
-  geometry.cell_dimensions = std::array<int, Dim>{AMREX_D_DECL(128, 128, 1)};
+  geometry.cell_dimensions = std::array<int, Dim>{AMREX_D_DECL(512, 512, 1)};
   geometry.coordinates = amrex::RealBox({AMREX_D_DECL(-1.0, -1.0, -1.0)},
                                         {AMREX_D_DECL(+1.0, +1.0, +1.0)});
 
@@ -104,15 +104,13 @@ int main(int argc, char** argv) {
                                         std::pair{&Complete::density, 1.0e-2},
                                         std::pair{&Complete::pressure, 1.0e-2});
 
+  auto seq = fub::execution::seq;
+  using fub::amrex::ReflectiveBoundary;
   fub::amrex::BoundarySet boundaries{
-      {fub::amrex::ReflectiveBoundary(fub::execution::seq, equation,
-                                      fub::Direction::X, 0),
-       fub::amrex::ReflectiveBoundary(fub::execution::seq, equation,
-                                      fub::Direction::X, 1),
-       fub::amrex::ReflectiveBoundary(fub::execution::seq, equation,
-                                      fub::Direction::Y, 0),
-       fub::amrex::ReflectiveBoundary(fub::execution::seq, equation,
-                                      fub::Direction::Y, 1)}};
+      {ReflectiveBoundary(seq, equation, fub::Direction::X, 0),
+       ReflectiveBoundary(seq, equation, fub::Direction::X, 1),
+       ReflectiveBoundary(seq, equation, fub::Direction::Y, 0),
+       ReflectiveBoundary(seq, equation, fub::Direction::Y, 1)}};
 
   std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       fub::amrex::PatchHierarchy(equation, geometry, hier_opts),
@@ -120,7 +118,7 @@ int main(int argc, char** argv) {
       fub::amrex::TagAllOf(gradient, fub::amrex::TagBuffer(4)), boundaries);
   gridding->InitializeHierarchy(0.0);
 
-  auto tag = fub::execution::seq;
+  auto simd = fub::execution::simd;
 
   fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
   fub::HllMethod hll_method(equation, signals);
@@ -128,9 +126,9 @@ int main(int argc, char** argv) {
   //  fub::GodunovMethod godunov_method(equation);
   // fub::MusclHancockMethod muscl_method(equation);
   fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethod(tag, hll_method),
-      fub::amrex::ForwardIntegrator(tag),
-      fub::amrex::Reconstruction(tag, equation)};
+      fub::amrex::FluxMethod(simd, hll_method),
+      fub::amrex::ForwardIntegrator(simd),
+      fub::amrex::Reconstruction(simd, equation)};
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<2>, fub::amrex::IntegratorContext(gridding, method, 1, 0),
@@ -169,19 +167,18 @@ int main(int argc, char** argv) {
   fub::MultipleOutputs<GriddingAlgorithm> output{};
   output.AddOutput(fub::MakeOutput<GriddingAlgorithm>({1}, {}, compute_mass));
   output.AddOutput(fub::MakeOutput<GriddingAlgorithm>(
-      {1}, {}, PlotfileOutput(equation, base_name)));
+      {}, {0.01s}, PlotfileOutput(equation, base_name)));
 
   output.AddOutput(
       std::make_unique<
           fub::CounterOutput<GriddingAlgorithm, std::chrono::milliseconds>>(
           solver.GetContext().registry_, wall_time_reference,
-          std::vector<std::ptrdiff_t>{10}, std::vector<fub::Duration>{}));
+          std::vector<std::ptrdiff_t>{25}, std::vector<fub::Duration>{}));
 
   using namespace std::literals::chrono_literals;
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
   run_options.final_time = 1.0s;
   run_options.cfl = 0.9;
-  run_options.max_cycles = 100;
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }
