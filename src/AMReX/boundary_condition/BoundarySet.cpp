@@ -31,4 +31,14 @@ void BoundarySet::FillBoundary(::amrex::MultiFab& mf,
   }
 }
 
+void BoundarySet::FillBoundary(::amrex::MultiFab& mf,
+                               const ::amrex::Geometry& geom,
+                               Duration timepoint,
+                               const GriddingAlgorithm& gridding,
+                               Direction dir) {
+  for (BoundaryCondition& condition : conditions) {
+    condition.FillBoundary(mf, geom, timepoint, gridding, dir);
+  }
+}
+
 } // namespace fub::amrex
