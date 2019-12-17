@@ -37,8 +37,9 @@ struct ShockTubeData {
           fub::amrex::MakeView<Complete>(data[mfi], equation_, mfi.tilebox());
 
       auto from_prim = [](Complete& state, const Equation& equation) {
-        state.energy = state.pressure * equation.gamma_minus_1_inv +
-                       0.5 * state.momentum.matrix().squaredNorm();
+        state.energy =
+            state.pressure * equation.gamma_minus_1_inv +
+            0.5 * state.momentum.matrix().squaredNorm() / state.density;
         state.speed_of_sound =
             std::sqrt(equation.gamma * state.pressure / state.density);
       };
@@ -52,18 +53,17 @@ struct ShockTubeData {
 
                      Complete state;
 
-                      // "Left" states of Sod Shock Tube.
-                     if (x  < 0.) {
-                       state.density     = 1.0;
-                       state.pressure    = 1.0;
+                     // "Left" states of Sod Shock Tube.
+                     if (x < 0.) {
+                       state.density = 1.0;
+                       state.pressure = 1.0;
                        state.momentum[0] = 1.;
                        state.momentum[1] = 0.;
                      }
                      // "Right" states.
-                     else
-                     {
-                       state.density     = 1.25e-1;
-                       state.pressure    = 1.0e-1;
+                     else {
+                       state.density = 1.25e-1;
+                       state.pressure = 1.0e-1;
                        state.momentum[0] = 1.;
                        state.momentum[1] = 0.;
                      }
@@ -100,16 +100,19 @@ int main(int argc, char** argv) {
   hier_opts.refine_ratio = amrex::IntVect{AMREX_D_DECL(2, 2, 1)};
 
   using Complete = fub::PerfectGas<2>::Complete;
-  fub::amrex::GradientDetector gradient(
-      equation, std::pair{&Complete::density, 1.0e-2},
-      std::pair{&Complete::pressure, 1.0e-2});
+  fub::amrex::GradientDetector gradient(equation,
+                                        std::pair{&Complete::density, 1.0e-2},
+                                        std::pair{&Complete::pressure, 1.0e-2});
 
-  fub::amrex::BoundarySet boundaries{{
-    fub::amrex::ReflectiveBoundary(fub::execution::seq, equation, fub::Direction::X, 0),
-    fub::amrex::ReflectiveBoundary(fub::execution::seq, equation, fub::Direction::X, 1),
-    fub::amrex::ReflectiveBoundary(fub::execution::seq, equation, fub::Direction::Y, 0),
-    fub::amrex::ReflectiveBoundary(fub::execution::seq, equation, fub::Direction::Y, 1)
-  }};
+  fub::amrex::BoundarySet boundaries{
+      {fub::amrex::ReflectiveBoundary(fub::execution::seq, equation,
+                                      fub::Direction::X, 0),
+       fub::amrex::ReflectiveBoundary(fub::execution::seq, equation,
+                                      fub::Direction::X, 1),
+       fub::amrex::ReflectiveBoundary(fub::execution::seq, equation,
+                                      fub::Direction::Y, 0),
+       fub::amrex::ReflectiveBoundary(fub::execution::seq, equation,
+                                      fub::Direction::Y, 1)}};
 
   std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       fub::amrex::PatchHierarchy(equation, geometry, hier_opts),
@@ -130,9 +133,9 @@ int main(int argc, char** argv) {
       fub::amrex::Reconstruction(tag, equation)};
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<2>, fub::amrex::IntegratorContext(gridding, method),
+      fub::int_c<2>, fub::amrex::IntegratorContext(gridding, method, 1, 0),
       fub::GodunovSplitting());
-      // fub::StrangSplitting());
+  // fub::StrangSplitting());
 
   // fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
   fub::NoSubcycleSolver solver(std::move(level_integrator));
@@ -147,7 +150,8 @@ int main(int argc, char** argv) {
 
   double mass0 = 0.0;
   auto compute_mass = [&log, &mass0](const GriddingAlgorithm& grid) {
-    const ::amrex::MultiFab& data = grid.GetPatchHierarchy().GetPatchLevel(0).data;
+    const ::amrex::MultiFab& data =
+        grid.GetPatchHierarchy().GetPatchLevel(0).data;
     const ::amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(0);
     const double volume_per_cell = geom.CellSize(0) * geom.CellSize(1);
     const double density_sum = data.sum(0);
@@ -155,20 +159,21 @@ int main(int argc, char** argv) {
     if (mass0 == 0.0) {
       mass0 = mass;
     }
-    const double mass_error = std::abs(mass - mass0);
+    const double mass_error = mass - mass0;
     const double time_point = grid.GetTimePoint().count();
-    BOOST_LOG(log) << boost::log::add_value("Time", time_point) << fmt::format("Mass: {:.6e}\n", mass_error);
+    BOOST_LOG(log) << boost::log::add_value("Time", time_point)
+                   << fmt::format("Conservation Error in Mass: {:.6e}",
+                                  mass_error);
   };
 
   fub::MultipleOutputs<GriddingAlgorithm> output{};
-  output.AddOutput(fub::MakeOutput<GriddingAlgorithm>(
-      {1}, {}, compute_mass));
+  output.AddOutput(fub::MakeOutput<GriddingAlgorithm>({1}, {}, compute_mass));
   output.AddOutput(fub::MakeOutput<GriddingAlgorithm>(
       {1}, {}, PlotfileOutput(equation, base_name)));
 
   output.AddOutput(
-      std::make_unique<fub::CounterOutput<GriddingAlgorithm,
-                                          std::chrono::milliseconds>>(
+      std::make_unique<
+          fub::CounterOutput<GriddingAlgorithm, std::chrono::milliseconds>>(
           solver.GetContext().registry_, wall_time_reference,
           std::vector<std::ptrdiff_t>{10}, std::vector<fub::Duration>{}));
 
@@ -176,7 +181,7 @@ int main(int argc, char** argv) {
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
   run_options.final_time = 1.0s;
-  run_options.cfl = 0.8;
+  run_options.cfl = 0.9;
   run_options.max_cycles = 100;
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }
