@@ -10,14 +10,18 @@ endif()
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(STATUS "Setting build type to '${default_build_type}' as none was specified.")
-  set(CMAKE_BUILD_TYPE "${default_build_type}" CACHE
-      STRING "Choose the type of build." FORCE)
+  set(CMAKE_BUILD_TYPE "${default_build_type}" CACHE STRING "Choose the type of build." FORCE)
   # Set the possible values of build type for cmake-gui
-  set_property(TARGET CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
+  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
     "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 else()
   message(STATUS "Setting build type to '${CMAKE_BUILD_TYPE}'.")
 endif()
+
+if (NOT CMAKE_VISIBILITY_INLINES_HIDDEN)
+  set(CMAKE_VISIBILITY_INLINES_HIDDEN "hidden" CACHE STRING "Choose visibility for inline symbols" FORCE)
+endif()
+message(STATUS "Setting the visbility for inline symbols to '${CMAKE_VISIBILITY_INLINES_HIDDEN}'.")
 
 # Detect if we use conan to build this project and its dependencies.
 # If yes, we include the neccessary build information, i.e. include paths and
@@ -303,6 +307,7 @@ target_compile_options(FiniteVolumeSolver.Solver
   $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall>
   $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>)
 set_property(TARGET FiniteVolumeSolver.Solver PROPERTY CXX_VISIBILITY_PRESET "hidden")
+set_property(TARGET FiniteVolumeSolver.Solver PROPERTY VISIBILITY_INLINES_HIDDEN "hidden")
 install(
   TARGETS FiniteVolumeSolver.Solver
   EXPORT FiniteVolumeSolver
