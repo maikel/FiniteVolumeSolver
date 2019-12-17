@@ -165,6 +165,7 @@ int main(int argc, char** argv) {
       {1}, {}, compute_mass));
   output.AddOutput(fub::MakeOutput<GriddingAlgorithm>(
       {1}, {}, PlotfileOutput(equation, base_name)));
+
   output.AddOutput(
       std::make_unique<fub::CounterOutput<GriddingAlgorithm,
                                           std::chrono::milliseconds>>(

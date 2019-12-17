@@ -25,18 +25,6 @@
 #include "fub/HyperbolicPatchIntegrator.hpp"
 
 namespace fub::amrex {
-namespace {
-::amrex::Box GetCellBoxToUpdate(const ::amrex::MFIter& mfi, Direction dir) {
-  // const ::amrex::Box one_box = mfi.growntilebox(1);
-  const ::amrex::Box grown_box = mfi.growntilebox();
-  const ::amrex::Box box = mfi.tilebox();
-  ::amrex::Box dest_box = grown_box;
-  const int idir = static_cast<int>(dir);
-  dest_box.setSmall(idir, box.smallEnd(idir) - 1);
-  dest_box.setBig(idir, box.bigEnd(idir) + 1);
-  return dest_box;
-}
-} // namespace
 
 template <typename Tag>
 void ForwardIntegrator<Tag>::UpdateConservatively(
@@ -49,12 +37,14 @@ void ForwardIntegrator<Tag>::UpdateConservatively(
     ::amrex::FArrayBox& next = dest[mfi];
     const ::amrex::FArrayBox& prev = src[mfi];
     const ::amrex::FArrayBox& flux = fluxes[mfi];
-    const ::amrex::Box& cell_box = GetCellBoxToUpdate(mfi, dir);
+    const ::amrex::Box& flux_box = flux.box();
+    ::amrex::Box cell_box = ::amrex::enclosedCells(flux_box);
     const IndexBox<AMREX_SPACEDIM + 1> cells = Embed<AMREX_SPACEDIM + 1>(
         AsIndexBox<AMREX_SPACEDIM>(cell_box), {0, n_cons});
     auto nv = MakePatchDataView(next).Subview(cells);
     auto pv = MakePatchDataView(prev).Subview(cells);
-    const auto faces = Grow(cells, dir, {0, 1});
+    const auto faces = Embed<AMREX_SPACEDIM + 1>(
+        AsIndexBox<AMREX_SPACEDIM>(flux_box), {0, n_cons});
     auto fv = MakePatchDataView(flux).Subview(faces);
     HyperbolicPatchIntegrator<Tag>::UpdateConservatively(nv, pv, fv, dt, dx,
                                                          dir);

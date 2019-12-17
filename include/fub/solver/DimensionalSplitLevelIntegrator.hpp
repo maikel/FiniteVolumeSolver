@@ -29,6 +29,7 @@
 #include "fub/Meta.hpp"
 #include "fub/TimeStepError.hpp"
 #include "fub/ext/outcome.hpp"
+#include "fub/ext/Mpi.hpp"
 
 #include "fub/split_method/GodunovSplitting.hpp"
 
@@ -98,7 +99,7 @@ public:
 
   /// Returns the total refinement ratio between specified coarse to fine level
   /// number.
-  int GetTotalRefineRatio(int fine_level, int coarse_level = 0) const;
+  // int GetTotalRefineRatio(int fine_level, int coarse_level = 0) const;
 
   /// Returns a stable dt across all levels and in one spatial direction.
   ///
@@ -177,16 +178,16 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::ComputeStableDt(
   return min_dt;
 }
 
-template <int Rank, typename Context, typename SplitMethod>
-int DimensionalSplitLevelIntegrator<
-    Rank, Context, SplitMethod>::GetTotalRefineRatio(int fine_level,
-                                                     int coarse_level) const {
-  int refine_ratio = 1;
-  for (int level = fine_level; level > coarse_level; --level) {
-    refine_ratio *= Context::GetRatioToCoarserLevel(level).max();
-  }
-  return refine_ratio;
-}
+// template <int Rank, typename Context, typename SplitMethod>
+// int DimensionalSplitLevelIntegrator<
+//     Rank, Context, SplitMethod>::GetTotalRefineRatio(int fine_level,
+//                                                      int coarse_level) const {
+//   int refine_ratio = 1;
+//   for (int level = fine_level; level > coarse_level; --level) {
+//     refine_ratio *= Context::GetRatioToCoarserLevel(level).max();
+//   }
+//   return refine_ratio;
+// }
 
 template <int Rank, typename Context, typename SplitMethod>
 Result<void, TimeStepTooLarge>
@@ -196,11 +197,11 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::
   auto AdvanceLevel_Split = [&](Direction dir) {
     return [&, this_level, dir](Duration split_dt) -> Result<void, TimeStepTooLarge> {
       Context::ApplyBoundaryCondition(this_level, dir);
-
-      const Duration level_dt = Context::ComputeStableDt(this_level, dir);
+      const Duration local_dt = Context::ComputeStableDt(this_level, dir);
+      MPI_Comm comm = GetMpiCommunicator();
+      const Duration level_dt = MinAll(comm, local_dt);
       if (level_dt < split_dt) {
-        const int refine_ratio = GetTotalRefineRatio(this_level);
-        return TimeStepTooLarge{refine_ratio * level_dt};
+        return TimeStepTooLarge{level_dt, this_level};
       }
 
       // Compute fluxes in the specified direction

@@ -116,6 +116,14 @@ SubcycleFineFirstSolver<LevelIntegrator>::AdvanceLevel(
   // The Context must make sure that scratch data is allocated
   Base::PreAdvanceLevel(this_level, dt, subcycle);
 
+  auto scale_dt_on_error = [this](Result<void, TimeStepTooLarge> result) {
+    TimeStepTooLarge error = result.error();
+    int ratio = GetTotalRefineRatio(error.level);
+    error.level = 0;
+    error.dt *= ratio;
+    return error;
+  };
+
   // If a finer level exists in the hierarchy, we subcycle that finer level
   // multiple times and use the fine fluxes on coarse-fine interfaces
   const int next_level = this_level + 1;
@@ -126,7 +134,7 @@ SubcycleFineFirstSolver<LevelIntegrator>::AdvanceLevel(
       auto result =
           AdvanceLevel(next_level, dt / refine_ratio, {r, refine_ratio});
       if (!result) {
-        return result.as_failure();
+        return scale_dt_on_error(result);
       }
     }
   }
@@ -134,7 +142,7 @@ SubcycleFineFirstSolver<LevelIntegrator>::AdvanceLevel(
   Result<void, TimeStepTooLarge> result =
       Base::AdvanceLevelNonRecursively(this_level, dt, subcycle);
   if (!result) {
-    return result;
+    return scale_dt_on_error(result);
   }
   if (Base::LevelExists(next_level)) {
     Base::ApplyFluxCorrection(next_level, this_level, dt);
@@ -156,7 +164,7 @@ SubcycleFineFirstSolver<LevelIntegrator>::AdvanceLevel(
   // This function can also indicate if some error occured.
   // For example the context could detect unphysical states and return a
   // TooLargeTimeStep error condition.
-  return Base::PostAdvanceLevel(this_level, dt, subcycle);
+  return scale_dt_on_error(Base::PostAdvanceLevel(this_level, dt, subcycle));
 }
 
 template <typename LevelIntegrator>
