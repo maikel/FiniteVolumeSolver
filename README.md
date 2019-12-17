@@ -9,6 +9,181 @@ Furthermore lot of helper classes exist to generate distributed grids for data m
 
 At last, this library is also capable of handling embedded boundaries in a dimensionally split setting as defined in [Klein2009].
 
+# Installation
+
+## Conan Configuration
+
+We use the C++ package manager [conan](https://conan.io) to install dependencies for this library. `conan` is a python3 package and installable via the python package manager `pip3`. To install conan open a terminal and use
+
+```bash
+> pip3 install --user conan # install in user directory, might need to add $HOME/.local/bin to $PATH
+```
+
+or
+
+```bash
+> sudo pip3 install conan   # try to install conan system-wide
+```
+
+To test whether conan is installed type `> conan` in your command line window.
+
+Expected Output:
+```
+> conan
+Consumer commands
+  install    Installs the requirements specified in a recipe (conanfile.py or conanfile.txt).
+  config     Manages Conan configuration.
+  get        Gets a file or list a directory of a given reference or package.
+  info       Gets information about the dependency graph of a recipe.
+  search     Searches package recipes and binaries in the local cache or in a remote.
+Creator commands
+  new        Creates a new package recipe template with a 'conanfile.py' and optionally,
+             'test_package' testing files.
+  create     Builds a binary package for a recipe (conanfile.py).
+  upload     Uploads a recipe and binary packages to a remote.
+  export     Copies the recipe (conanfile.py & associated files) to your local cache.
+  export-pkg Exports a recipe, then creates a package from local source and build folders.
+  test       Tests a package consuming it from a conanfile.py with a test() method.
+Package development commands
+  source     Calls your local conanfile.py 'source()' method.
+  build      Calls your local conanfile.py 'build()' method.
+  package    Calls your local conanfile.py 'package()' method.
+  editable   Manages editable packages (package that resides in the user workspace, but are
+             consumed as if they were in the cache).
+  workspace  Manages a workspace (a set of packages consumed from the user workspace that
+             belongs to the same project).
+Misc commands
+  profile    Lists profiles in the '.conan/profiles' folder, or shows profile details.
+  remote     Manages the remote list and the package recipes associated to a remote.
+  user       Authenticates against a remote with user/pass, caching the auth token.
+  imports    Calls your local conanfile.py or conanfile.txt 'imports' method.
+  copy       Copies conan recipes and packages to another user/channel.
+  remove     Removes packages or binaries matching pattern from local cache or remote.
+  alias      Creates and exports an 'alias package recipe'.
+  download   Downloads recipe and binaries to the local cache, without using settings.
+  inspect    Displays conanfile attributes, like name, version and options. Works locally, in
+             local cache and remote.
+  help       Shows help for a specific command.
+  graph      Generates and manipulates lock files.
+
+Conan commands. Type "conan <command> -h" for help
+```
+
+As a first step you have to create a [conan profile](https://docs.conan.io/en/latest/reference/commands/misc/profile.html), which descibes which tool chain you want to use.
+To create an auto-detected tool-chain use the command
+
+```
+> conan profile new default --detect 
+```
+
+In case of GCC make sure to use the C++11 ABI. Unfortunately conan does not choose this by default and we have to adjust the configuration by
+
+```
+> conan profile update settings.compiler.libcxx=libstdc++11 default
+> conan profile show default
+Configuration for profile default:
+
+[settings]
+os=Linux
+os_build=Linux
+arch=x86_64
+arch_build=x86_64
+compiler=gcc
+compiler.version=9
+compiler.libcxx=libstdc++11
+build_type=Release
+[options]
+[build_requires]
+[env]
+```
+
+Note: We need a minimum GCC version of 8 or a minimum LLVM clang version of 5.
+
+We added some custom installation recipes which conan can use to install dependencies like `AMReX` or `HDF5`. These are stored in a conan reposiory and we need to point conan to this repository. This is done via the command line 
+
+```
+> conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/finite-volume
+```
+
+## MPI Installation
+
+Make sure to have a installed some MPI implementation such that your current conan profile is able to link against it. This can be achieved by adapting the compiler option of your profile. 
+
+## CMake Installation
+
+CMake is a build generation tool and generates build configuration as Makefiles for example. 
+
+Before we start installing all dependencies with conan we need to install a rather new version of `CMake`. `AMReX` requires a minimal `CMake` version of 3.14 but updates that requirement fairly regular. Forunately `CMake` is quite simple to download and binary packages can be found at https://cmake.org/download/.
+
+## Building the Library
+
+First use git and clone the library to a local directory 
+ 
+```
+> git clone git@git.imp.fu-berlin.de:ag-klein/FiniteVolumeSolver.git
+```
+
+If you want to build the unit tests you need to pull `Catch2` as a git submodule. Enter the source direction and call
+
+```
+> cd FiniteVolumeSolver/
+./FiniteVolumeSolver> git submodule update --init
+```
+
+This will checkout the `develop` branch by default and create folder named with relative path `./FiniteVolumeSolver`. Next, we create a out-of-source build directory where we want to build the library archives and example binaries. 
+
+```
+./FiniteVolumeSolver> mkdir build
+./FiniteVolumeSolver> cd build
+./FiniteVolumeSolver/build> cd build
+```
+
+Inside the `build` directory we use conan to install the dependencies with the options which we want to use. `AMReX` for examples has the following configurable build options:
+
+```bash
+AMReX:eb = True|False [True] # enable embedded boundaries / cut-cells
+AMReX:omp = True|False [True] # enable OpenMP parallelization 
+AMReX:dim = 1|2|3 [3] # spatial dimension used by AMReX
+```
+
+To install AMReX with embedded boundaries and without OpenMP support (there is no OpenMp support on Apple for example) use within the build directory
+
+```
+./FiniteVolumeSolver/build> conan install <Path-to-FiniteVolumeSolver-Source-Dir> -o AMReX:dim=2 -o AMReX:omp=False 
+```
+
+In our case
+
+```
+./FiniteVolumeSolver/build> conan install ../ -o AMReX:dim=2 -o AMReX:omp=False 
+```
+
+This will look into the file `FiniteVolumeSolver/conanfile.txt` and tries to locally install all dependencies which are listed there. After installing these it creates a `conanfile.cmake` in the build directory which will be read by our `CMakeLists.txt` file. This in turn injects all necessary include and library paths which we need to build our application. Now we use `cmake` to configure our specific build, i.e.
+
+```
+./FiniteVolumeSolver/build> cmake ../
+```
+
+to configure a Debug build, or  
+
+```
+./FiniteVolumeSolver/build> cmake ../ -DCMAKE_BUILD_TYPE=Release
+```
+
+for a Release build. On Linux and MacOs this will create Makefiles by default which you can invoke by typing
+
+```
+./FiniteVolumeSolver/build> make
+```
+
+which should build all targets. For other systems a more general call would be
+
+```
+./FiniteVolumeSolver/build> cmake --build .
+```
+
+If some targets fails to build feel free to raise an issue in GitLab.
+
 # Overview
 
 ## Policy Pattern

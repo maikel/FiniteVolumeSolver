@@ -533,8 +533,10 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
       fub::IdealGasMix<Tube_Rank>{mechanism},
       ign_solver.GetGriddingAlgorithm()};
 
-  fub::SplitSystemSourceLevelIntegrator solver{std::move(ign_solver),
-                                                 std::move(source_term)};
+  fub::SplitSystemSourceLevelIntegrator level_integrator{
+      std::move(ign_solver), std::move(source_term)};
+
+  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
   std::string base_name = po.output_directory;
 
@@ -542,17 +544,21 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   MPI_Comm_rank(comm, &rank);
 
   using namespace fub::amrex;
+  auto make_checkpoint = [&](const MultiBlockGriddingAlgorithm& grid) {
+    std::string name =
+        fmt::format("{}/Checkpoint/{:05}", base_name, grid.GetCycles());
+    amrex::Print() << "Write Checkpoint to '" << name << "'!\n";
+    WriteCheckpoint(name, grid, valve_state, rank, ignition);
+  };
+  using MakeCheckpoint = std::decay_t<decltype(make_checkpoint)>;
+
   fub::OutputFactory<MultiBlockGriddingAlgorithm> factory{};
   factory.RegisterOutput<MultiWriteHdf5>("HDF5");
   factory.RegisterOutput<MultiBlockPlotfileOutput>("Plotfiles");
   factory.RegisterOutput<LogProbesOutput>("Probes");
-  factory.RegisterOutput<fub::AsOutput<MultiBlockGriddingAlgorithm>>(
-      "Checkpoint", [&](const MultiBlockGriddingAlgorithm& grid) {
-        std::string name =
-            fmt::format("{}/Checkpoint/{:05}", base_name, grid.GetCycles());
-        amrex::Print() << "Write Checkpoint to '" << name << "'!\n";
-        WriteCheckpoint(name, grid, valve_state, rank, ignition);
-      });
+  factory.RegisterOutput<
+      fub::AsOutput<MultiBlockGriddingAlgorithm, MakeCheckpoint>>(
+      "Checkpoint", make_checkpoint);
   fub::MultipleOutputs<MultiBlockGriddingAlgorithm> outputs(
       std::move(factory),
       fub::ToMap(fub::GetOptionOr(vm, "output", pybind11::dict{})));

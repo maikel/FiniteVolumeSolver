@@ -10,14 +10,18 @@ endif()
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(STATUS "Setting build type to '${default_build_type}' as none was specified.")
-  set(CMAKE_BUILD_TYPE "${default_build_type}" CACHE
-      STRING "Choose the type of build." FORCE)
+  set(CMAKE_BUILD_TYPE "${default_build_type}" CACHE STRING "Choose the type of build." FORCE)
   # Set the possible values of build type for cmake-gui
   set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
     "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 else()
   message(STATUS "Setting build type to '${CMAKE_BUILD_TYPE}'.")
 endif()
+
+if (NOT CMAKE_VISIBILITY_INLINES_HIDDEN)
+  set(CMAKE_VISIBILITY_INLINES_HIDDEN "hidden" CACHE STRING "Choose visibility for inline symbols" FORCE)
+endif()
+message(STATUS "Setting the visbility for inline symbols to '${CMAKE_VISIBILITY_INLINES_HIDDEN}'.")
 
 # Detect if we use conan to build this project and its dependencies.
 # If yes, we include the neccessary build information, i.e. include paths and
@@ -64,6 +68,9 @@ endif()
 if (TARGET CONAN_PKG::Eigen3)
   add_library(Eigen3::Eigen IMPORTED INTERFACE)
   target_link_libraries(Eigen3::Eigen INTERFACE CONAN_PKG::Eigen3)
+elseif (TARGET CONAN_PKG::eigen)
+  add_library(Eigen3::Eigen IMPORTED INTERFACE)
+  target_link_libraries(Eigen3::Eigen INTERFACE CONAN_PKG::eigen)
 else()
   find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 endif()
@@ -299,6 +306,8 @@ target_compile_options(FiniteVolumeSolver.Solver
   $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
   $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall>
   $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>)
+set_property(TARGET FiniteVolumeSolver.Solver PROPERTY CXX_VISIBILITY_PRESET "hidden")
+set_property(TARGET FiniteVolumeSolver.Solver PROPERTY VISIBILITY_INLINES_HIDDEN "hidden")
 install(
   TARGETS FiniteVolumeSolver.Solver
   EXPORT FiniteVolumeSolver
@@ -338,9 +347,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     include/fub/geometry/PolymorphicGeometry.hpp
     include/fub/geometry/Union.hpp
     include/fub/AMReX/output/WriteHdf5.hpp
-    include/fub/AMReX/output/LogProbes.hpp
     include/fub/AMReX/output/WritePlotfiles.hpp
-    src/AMReX/output/LogProbes.cpp
     src/AMReX/output/WriteHdf5.cpp
     src/equations/ideal_gas_mix/KineticSourceTerm.cpp
     src/AMReX/boundary_condition/BoundarySet.cpp
@@ -375,6 +382,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
       $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
       $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall>
       $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>)
+  set_property(TARGET FiniteVolumeSolver.AMReX PROPERTY CXX_VISIBILITY_PRESET "hidden")
   target_link_libraries(FiniteVolumeSolver.AMReX
     PUBLIC
       FiniteVolumeSolver.Solver
@@ -423,6 +431,8 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         include/fub/AMReX/multi_block/MultiBlockIgniteDetonation.hpp
         include/fub/AMReX/multi_block/MultiWriteHdf5.hpp
         include/fub/AMReX/multi_block/MultiBlockPlotfileOutput.hpp
+        include/fub/AMReX/cutcell/output/LogProbes.hpp
+        src/AMReX/cutcell/output/LogProbes.cpp
         src/AMReX/multi_block/MultiBlockPlotfileOutput.cpp
         src/AMReX/multi_block/MultiWriteHdf5.cpp
         src/AMReX/cutcell/BoundaryCondition.cpp
@@ -449,6 +459,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
         $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall>
         $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>)
+    set_property(TARGET FiniteVolumeSolver.AMReX.EB PROPERTY CXX_VISIBILITY_PRESET "hidden")
     target_link_libraries(FiniteVolumeSolver.AMReX.EB PUBLIC FiniteVolumeSolver.AMReX)
   endif()
 
@@ -522,7 +533,7 @@ endif()
 #  Tests
 
 include(CTest)
-if (BUILD_TESTING)
+if (EXISTS "${CMAKE_SOURCE_DIR}/third_party/Catch2/.git" AND BUILD_TESTING)
   # We use Catch2 for unit tests. We include that via a git submodule.
   add_library(Catch2 INTERFACE)
   target_include_directories(Catch2 INTERFACE third_party/Catch2/single_include)

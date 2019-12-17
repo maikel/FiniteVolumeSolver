@@ -194,7 +194,7 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::
     AdvanceLevelNonRecursively(int this_level, Duration dt,
                                [[maybe_unused]] std::pair<int, int> subcycle) {
   auto AdvanceLevel_Split = [&](Direction dir) {
-    return [&, this_level, dir, dt](Duration split_dt) -> Result<void, TimeStepTooLarge> {
+    return [&, this_level, dir](Duration split_dt) -> Result<void, TimeStepTooLarge> {
       const Duration level_dt = Context::ComputeStableDt(this_level, dir);
       if (level_dt < split_dt) {
         const int refine_ratio = GetTotalRefineRatio(this_level);
