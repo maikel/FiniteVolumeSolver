@@ -105,6 +105,9 @@ public:
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
                     Duration dt, const GriddingAlgorithm&);
 
+  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
+                    Duration dt, const GriddingAlgorithm& grid, Direction dir);
+
   [[nodiscard]] const std::shared_ptr<PressureValve>& GetSharedState() const
       noexcept {
     return shared_valve_;

@@ -197,7 +197,8 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::
     AdvanceLevelNonRecursively(int this_level, Duration dt,
                                [[maybe_unused]] std::pair<int, int> subcycle) {
   auto AdvanceLevel_Split = [&](Direction dir) {
-    return [&, this_level, dir, dt](Duration split_dt) -> Result<void, TimeStepTooLarge> {
+    return [&, this_level, dir](Duration split_dt) -> Result<void, TimeStepTooLarge> {
+      Context::ApplyBoundaryCondition(this_level, dir);
       const Duration local_dt = Context::ComputeStableDt(this_level, dir);
       MPI_Comm comm = GetMpiCommunicator();
       const Duration level_dt = MinAll(comm, local_dt);

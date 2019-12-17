@@ -34,6 +34,9 @@ public:
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
                     Duration dt, const GriddingAlgorithm&);
 
+  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
+                    Duration dt, const GriddingAlgorithm&, Direction dir);
+
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom);
 
 private:

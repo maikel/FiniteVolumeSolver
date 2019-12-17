@@ -50,6 +50,9 @@ public:
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
                     Duration dt, const GriddingAlgorithm& grid);
 
+  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
+                    Duration dt, const GriddingAlgorithm& grid, Direction dir);
+
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::MultiFab& alphas,
                     const ::amrex::Geometry& geom,
                     const Complete<IdealGasMix<AMREX_SPACEDIM>>& state);

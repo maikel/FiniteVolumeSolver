@@ -24,6 +24,8 @@
 #include <fmt/format.h>
 #include <iostream>
 
+#include <boost/log/utility/manipulators/add_value.hpp>
+
 struct ShockTubeData {
   using Equation = fub::PerfectGas<2>;
   using Complete = fub::Complete<Equation>;
@@ -35,8 +37,9 @@ struct ShockTubeData {
           fub::amrex::MakeView<Complete>(data[mfi], equation_, mfi.tilebox());
 
       auto from_prim = [](Complete& state, const Equation& equation) {
-        state.energy = state.pressure * equation.gamma_minus_1_inv +
-                       0.5 * state.momentum.matrix().squaredNorm();
+        state.energy =
+            state.pressure * equation.gamma_minus_1_inv +
+            0.5 * state.momentum.matrix().squaredNorm() / state.density;
         state.speed_of_sound =
             std::sqrt(equation.gamma * state.pressure / state.density);
       };
@@ -50,18 +53,17 @@ struct ShockTubeData {
 
                      Complete state;
 
-                      // "Left" states of Sod Shock Tube.
-                     if (x + y < 0.) {
-                       state.density     = 1.0;
-                       state.pressure    = 1.0;
+                     // "Left" states of Sod Shock Tube.
+                     if (x + y < 0.0) {
+                       state.density = 1.0;
+                       state.pressure = 1.0;
                        state.momentum[0] = 0.;
                        state.momentum[1] = 0.;
                      }
                      // "Right" states.
-                     else
-                     {
-                       state.density     = 1.25e-1;
-                       state.pressure    = 1.0e-1;
+                     else {
+                       state.density = 1.25e-1;
+                       state.pressure = 1.0e-1;
                        state.momentum[0] = 0.;
                        state.momentum[1] = 0.;
                      }
@@ -89,25 +91,26 @@ int main(int argc, char** argv) {
   fub::PerfectGas<2> equation{};
 
   fub::amrex::CartesianGridGeometry geometry{};
-  geometry.cell_dimensions = std::array<int, Dim>{AMREX_D_DECL(128, 128, 1)};
+  geometry.cell_dimensions = std::array<int, Dim>{AMREX_D_DECL(512, 512, 1)};
   geometry.coordinates = amrex::RealBox({AMREX_D_DECL(-1.0, -1.0, -1.0)},
                                         {AMREX_D_DECL(+1.0, +1.0, +1.0)});
 
   fub::amrex::PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = 3;
+  hier_opts.max_number_of_levels = 1;
   hier_opts.refine_ratio = amrex::IntVect{AMREX_D_DECL(2, 2, 1)};
 
   using Complete = fub::PerfectGas<2>::Complete;
-  fub::amrex::GradientDetector gradient(
-      equation, std::pair{&Complete::density, 1.0e-2},
-      std::pair{&Complete::pressure, 1.0e-2});
+  fub::amrex::GradientDetector gradient(equation,
+                                        std::pair{&Complete::density, 1.0e-2},
+                                        std::pair{&Complete::pressure, 1.0e-2});
 
-  fub::amrex::BoundarySet boundaries{{
-    fub::amrex::ReflectiveBoundary(fub::execution::seq, equation, fub::Direction::X, 0),
-    fub::amrex::ReflectiveBoundary(fub::execution::seq, equation, fub::Direction::X, 1),
-    fub::amrex::ReflectiveBoundary(fub::execution::seq, equation, fub::Direction::Y, 0),
-    fub::amrex::ReflectiveBoundary(fub::execution::seq, equation, fub::Direction::Y, 1)
-  }};
+  auto seq = fub::execution::seq;
+  using fub::amrex::ReflectiveBoundary;
+  fub::amrex::BoundarySet boundaries{
+      {ReflectiveBoundary(seq, equation, fub::Direction::X, 0),
+       ReflectiveBoundary(seq, equation, fub::Direction::X, 1),
+       ReflectiveBoundary(seq, equation, fub::Direction::Y, 0),
+       ReflectiveBoundary(seq, equation, fub::Direction::Y, 1)}};
 
   std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       fub::amrex::PatchHierarchy(equation, geometry, hier_opts),
@@ -115,47 +118,67 @@ int main(int argc, char** argv) {
       fub::amrex::TagAllOf(gradient, fub::amrex::TagBuffer(4)), boundaries);
   gridding->InitializeHierarchy(0.0);
 
-  auto tag = fub::execution::simd;
+  auto simd = fub::execution::simd;
 
   fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
   fub::HllMethod hll_method(equation, signals);
-  fub::MusclHancockMethod muscl_method(equation, hll_method);
-  //  fub::GodunovMethod godunov_method(equation, signals);
+  // fub::MusclHancockMethod muscl_method(equation, hll_method);
+  //  fub::GodunovMethod godunov_method(equation);
   // fub::MusclHancockMethod muscl_method(equation);
   fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethod(tag, muscl_method),
-      fub::amrex::ForwardIntegrator(tag),
-      fub::amrex::Reconstruction(tag, equation)};
+      fub::amrex::FluxMethod(simd, hll_method),
+      fub::amrex::ForwardIntegrator(simd),
+      fub::amrex::Reconstruction(simd, equation)};
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<2>, fub::amrex::IntegratorContext(gridding, method),
-      // fub::GodunovSplitting());
-      fub::StrangSplitting());
+      fub::int_c<2>, fub::amrex::IntegratorContext(gridding, method, 1, 0),
+      fub::GodunovSplitting());
+  // fub::StrangSplitting());
 
-  fub::SubcycleFineFirstSolver solver(level_integrator);
-  // fub::NoSubcycleSolver solver(level_integrator);
+  // fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
+  fub::NoSubcycleSolver solver(std::move(level_integrator));
 
   std::string base_name = "SodShockTube/";
 
   using namespace fub::amrex;
   using namespace std::literals::chrono_literals;
+
+  boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
+      boost::log::keywords::severity = boost::log::trivial::info);
+
+  double mass0 = 0.0;
+  auto compute_mass = [&log, &mass0](const GriddingAlgorithm& grid) {
+    const ::amrex::MultiFab& data =
+        grid.GetPatchHierarchy().GetPatchLevel(0).data;
+    const ::amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(0);
+    const double volume_per_cell = geom.CellSize(0) * geom.CellSize(1);
+    const double density_sum = data.sum(0);
+    const double mass = density_sum * volume_per_cell;
+    if (mass0 == 0.0) {
+      mass0 = mass;
+    }
+    const double mass_error = mass - mass0;
+    const double time_point = grid.GetTimePoint().count();
+    BOOST_LOG(log) << boost::log::add_value("Time", time_point)
+                   << fmt::format("Conservation Error in Mass: {:.6e}",
+                                  mass_error);
+  };
+
   fub::MultipleOutputs<GriddingAlgorithm> output{};
-
-  // Add an output to write AMReX Plotfiles each 1.0/30 seconds
+  output.AddOutput(fub::MakeOutput<GriddingAlgorithm>({1}, {}, compute_mass));
   output.AddOutput(fub::MakeOutput<GriddingAlgorithm>(
-      {}, {fub::Duration(1.0 / 30.0)}, PlotfileOutput(equation, base_name)));
+      {}, {0.01s}, PlotfileOutput(equation, base_name)));
 
-  // Add an output to print performance timer statistics each 0.01 second
   output.AddOutput(
-      std::make_unique<fub::CounterOutput<GriddingAlgorithm,
-                                          std::chrono::milliseconds>>(
+      std::make_unique<
+          fub::CounterOutput<GriddingAlgorithm, std::chrono::milliseconds>>(
           solver.GetContext().registry_, wall_time_reference,
-          std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{0.01s}));
+          std::vector<std::ptrdiff_t>{25}, std::vector<fub::Duration>{}));
 
   using namespace std::literals::chrono_literals;
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
   run_options.final_time = 1.0s;
-  run_options.cfl = 0.8;
+  run_options.cfl = 0.9;
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }
