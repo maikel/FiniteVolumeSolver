@@ -436,7 +436,9 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   fub::amrex::MultiBlockKineticSouceTerm source_term{
       fub::IdealGasMix<Tube_Rank>{mechanism}, context.GetGriddingAlgorithm()};
 
-  fub::SplitSystemSourceLevelIntegrator solver{ign_solver, source_term};
+  fub::SplitSystemSourceLevelIntegrator level_integrator{ign_solver, source_term};
+
+  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
   fub::OutputFactory<fub::amrex::MultiBlockGriddingAlgorithm> factory{};
   factory.RegisterOutput<fub::amrex::MultiWriteHdf5>("HDF5");

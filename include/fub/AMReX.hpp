@@ -58,6 +58,5 @@
 
 #include "fub/AMReX/output/WriteHdf5.hpp"
 #include "fub/AMReX/output/WritePlotfiles.hpp"
-#include "fub/AMReX/output/LogProbes.hpp"
 
 #endif
