@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_AMREX_LOG_PROBES_HPP
-#define FUB_AMREX_LOG_PROBES_HPP
+#ifndef FUB_AMREX_CUTCELL_LOG_PROBES_HPP
+#define FUB_AMREX_CUTCELL_LOG_PROBES_HPP
 
 #include "fub/ext/ProgramOptions.hpp"
 #include "fub/output/OutputAtFrequencyOrInterval.hpp"
