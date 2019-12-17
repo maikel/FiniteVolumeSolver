@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/AMReX/output/LogProbes.hpp"
+#include "fub/AMReX/cutcell/output/LogProbes.hpp"
 #include "fub/equations/ideal_gas_mix/mechanism/Burke2012.hpp"
 
 #include <boost/filesystem.hpp>
@@ -135,7 +135,8 @@ void LogPlenumProbes(const std::string& p, ProbesView<const double> probes,
 } // namespace
 
 LogProbesOutput::LogProbesOutput(
-    const std::map<std::string, pybind11::object>& vm) : OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm>(vm) {
+    const std::map<std::string, pybind11::object>& vm)
+    : OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm>(vm) {
   plenum_output_path_ =
       GetOptionOr(vm, "plenum_filename", std::string("plenum.dat"));
   tube_output_path_ = GetOptionOr(vm, "tube_filename", std::string("tube.dat"));
@@ -185,7 +186,7 @@ void LogProbesOutput::operator()(const MultiBlockGriddingAlgorithm& grid) {
                                       n_tube_probes, n_tubes);
   MPI_Comm comm = ::amrex::ParallelDescriptor::Communicator();
   std::ptrdiff_t i_block = 0;
-  for (const std::shared_ptr<GriddingAlgorithm>& tube : grid.GetTubes()) {
+  for (const auto& tube : grid.GetTubes()) {
     ProbesView<const double> probes(&tube_coords(0, 0, i_block), n_tube_probes);
     LogTubeProbes(tube_output_path_, probes, tube->GetPatchHierarchy(), comm);
     ++i_block;
@@ -196,8 +197,7 @@ void LogProbesOutput::operator()(const MultiBlockGriddingAlgorithm& grid) {
       plenum_probes_.size() / n_plena / AMREX_SPACEDIM);
   mdspan<const double, 3> plenum_coords(plenum_probes_.data(), AMREX_SPACEDIM,
                                         n_plenum_probes, n_plena);
-  for (const std::shared_ptr<cutcell::GriddingAlgorithm>& plenum :
-       grid.GetPlena()) {
+  for (const auto& plenum : grid.GetPlena()) {
     ProbesView<const double> probes(&plenum_coords(0, 0, i_block),
                                     n_plenum_probes);
     LogPlenumProbes(plenum_output_path_, probes, plenum->GetPatchHierarchy(),
@@ -206,4 +206,4 @@ void LogProbesOutput::operator()(const MultiBlockGriddingAlgorithm& grid) {
   }
 }
 
-} // namespace fub::amrex
+} // namespace fub::amrex::cutcell
