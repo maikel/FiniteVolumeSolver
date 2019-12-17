@@ -331,7 +331,6 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     include/fub/AMReX/IgniteDetonation.hpp
     include/fub/AMReX/PatchHierarchy.hpp
     include/fub/AMReX/Reconstruction.hpp
-    include/fub/AMReX/RunSimulation.hpp
     include/fub/AMReX/BoundaryCondition.hpp
     include/fub/AMReX/Tagging.hpp
     include/fub/AMReX/TimeIntegrator.hpp
