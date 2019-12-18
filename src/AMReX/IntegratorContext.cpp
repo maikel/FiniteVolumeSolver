@@ -69,7 +69,7 @@ operator=(LevelData&& other) noexcept {
 IntegratorContext::IntegratorContext(
     std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod nm)
     : registry_{std::make_shared<CounterRegistry>()},
-      ghost_cell_width_{nm.flux_method.GetStencilWidth() * 2 * 2},
+      cell_ghost_cell_width_{nm.flux_method.GetStencilWidth() * 2 * 2},
       gridding_{std::move(gridding)}, data_{}, method_{std::move(nm)} {
   data_.reserve(
       static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
@@ -92,7 +92,7 @@ IntegratorContext::IntegratorContext(
     std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod nm,
     int cell_gcw, int face_gcw)
     : registry_{std::make_shared<CounterRegistry>()},
-      ghost_cell_width_{cell_gcw}, face_ghost_cell_width_{face_gcw},
+      cell_ghost_cell_width_{cell_gcw}, face_ghost_cell_width_{face_gcw},
       gridding_{std::move(gridding)}, data_{}, method_{std::move(nm)} {
   data_.reserve(
       static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
@@ -112,7 +112,7 @@ IntegratorContext::IntegratorContext(
 }
 
 IntegratorContext::IntegratorContext(const IntegratorContext& other)
-    : registry_(other.registry_), ghost_cell_width_{other.ghost_cell_width_},
+    : registry_(other.registry_), cell_ghost_cell_width_{other.cell_ghost_cell_width_},
       face_ghost_cell_width_{other.face_ghost_cell_width_},
       gridding_{other.gridding_},
       data_(static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels())),
@@ -250,7 +250,7 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
     ::amrex::IntVect grow = ::amrex::IntVect::TheZeroVector();
     for (int i = 0; i < GetPatchHierarchy().GetDataDescription().dimension;
          ++i) {
-      grow[i] = ghost_cell_width_;
+      grow[i] = cell_ghost_cell_width_;
     }
     data.scratch.define(ba, dm, n_comp, grow);
     for (std::size_t d = 0; d < static_cast<std::size_t>(AMREX_SPACEDIM); ++d) {
