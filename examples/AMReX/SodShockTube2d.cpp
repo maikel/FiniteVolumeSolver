@@ -122,18 +122,18 @@ int main(int argc, char** argv) {
 
   fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
   fub::HllMethod hll_method(equation, signals);
-  // fub::MusclHancockMethod muscl_method(equation, hll_method);
+  fub::MusclHancockMethod muscl_method(equation, hll_method);
   //  fub::GodunovMethod godunov_method(equation);
   // fub::MusclHancockMethod muscl_method(equation);
   fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethod(simd, hll_method),
+      fub::amrex::FluxMethod(simd, muscl_method),
       fub::amrex::ForwardIntegrator(simd),
       fub::amrex::Reconstruction(simd, equation)};
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<2>, fub::amrex::IntegratorContext(gridding, method, 1, 0),
-      fub::GodunovSplitting());
-  // fub::StrangSplitting());
+      fub::int_c<2>, fub::amrex::IntegratorContext(gridding, method, 4, 2),
+      // fub::GodunovSplitting());
+      fub::StrangSplitting());
 
   // fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
   fub::NoSubcycleSolver solver(std::move(level_integrator));
