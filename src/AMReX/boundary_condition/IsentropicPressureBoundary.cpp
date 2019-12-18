@@ -90,6 +90,15 @@ void IsentropicPressureBoundary::FillBoundary(::amrex::MultiFab& mf,
 }
 
 void IsentropicPressureBoundary::FillBoundary(::amrex::MultiFab& mf,
+                                              const ::amrex::Geometry& geom,
+                                              Duration,
+                                              const GriddingAlgorithm&, Direction dir) {
+  if (dir == dir_) {
+    FillBoundary(mf, geom);
+  }
+}
+
+void IsentropicPressureBoundary::FillBoundary(::amrex::MultiFab& mf,
                                               const ::amrex::Geometry& geom) {
   const int ngrow = mf.nGrow(int(dir_));
   ::amrex::Box grown_box = geom.growNonPeriodicDomain(ngrow);
