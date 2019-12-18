@@ -69,9 +69,11 @@ int main() {
   desc.n_cons_components = 4;
 
   fub::amrex::CartesianGridGeometry geometry{};
-  geometry.cell_dimensions = std::array<int, 2>{256, 256};
-  geometry.coordinates = amrex::RealBox({-1.0, -1.0}, {+1.0, +1.0});
-  geometry.periodicity = std::array<int, 2>{1, 1};
+  geometry.cell_dimensions =
+      std::array<int, AMREX_SPACEDIM>{AMREX_D_DECL(256, 256, 1)};
+  geometry.coordinates = amrex::RealBox({AMREX_D_DECL(-1.0, -1.0, -1.0)},
+                                        {AMREX_D_DECL(+1.0, +1.0, +1.0)});
+  geometry.periodicity = std::array<int, AMREX_SPACEDIM>{AMREX_D_DECL(1, 1, 1)};
 
   fub::amrex::PatchHierarchyOptions hier_opts;
   hier_opts.max_number_of_levels = 1;
@@ -91,8 +93,8 @@ int main() {
 
   using namespace fub;
   CompressibleAdvectionFluxMethod<2> flux_method;
-  flux_method.Pv_function_ = [](std::array<double, 2> xy, Duration timepoint,
-                                Direction dir) -> double {
+  flux_method.Pv_function_ = [](std::array<double, AMREX_SPACEDIM> xy,
+                                Duration timepoint, Direction dir) -> double {
     const double t = timepoint.count();
     switch (dir) {
     case Direction::X:
@@ -111,9 +113,9 @@ int main() {
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<2>, fub::amrex::IntegratorContext(grid, method, 4, 3),
-      fub::StrangSplitting());
+      fub::GodunovSplitting());
 
-  fub::NoSubcycleSolver solver(level_integrator);
+  fub::NoSubcycleSolver solver(std::move(level_integrator));
 
   using namespace std::literals::chrono_literals;
   std::string base_name = "CompressibleAdvection";
