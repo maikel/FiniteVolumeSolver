@@ -52,8 +52,10 @@ Duration CompressibleAdvectionFluxMethod<SpaceDimension>::ComputeStableDt(
     View<Conservative> flux = amrex::MakeView<Conservative>(fab, equation, box);
     ForEachIndex(Box<0>(flux), [&](auto... is) {
       ::amrex::IntVect face{int(is)...};
-      std::array<double, AMREX_SPACEDIM> x{};
-      geom.LoFace(face, int(dir), x.data());
+      std::array<double, AMREX_SPACEDIM> xs{};
+      geom.LoFace(face, int(dir), xs.data());
+      std::array<double, SpaceDimension> x{};
+      std::copy_n(xs.data(), SpaceDimension, x.data());
       flux.PTdensity(is...) = Pv_function_(x, time_point, dir);
     });
   });
