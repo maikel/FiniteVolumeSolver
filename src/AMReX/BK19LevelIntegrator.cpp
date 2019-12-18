@@ -54,6 +54,29 @@ double EvaluateRhsW_(const Equation& equation, const Complete& state, Duration t
   const double dt_times_f_square = dt_times_f * dt_times_f;
   return (V - dt * f * U) / (1 + dt_times_f_square);
 }
-
 }
+
+Result<void, TimeStepTooLargeError> BK19LevelIntegrator::AdvanceLevel(int level, Duration dt) {
+  /// we compute Pv on cell centered data given from scratch in the advection context
+  // ::amrex::MultiFab Pv_cell = ComputePvFromScratch();
+  // ::amrex::MultiFab Pv_face = AverageCellToFace(Pv_cell);
+
+  ::amrex::MultiFab Pv_face = RecomputeAdvectiveFluxes();
+  DoAdvection(Pv_face, 0.5 * dt);
+
+  EulerBackwardNonAdvectiveExplicitPart(0.5 * dt);
+  EulerBackwardNonAdvectiveImplicitPart(0.5 * dt);
+
+  /// Pv at half time step
+  Pv_face = RecomputeAdvectiveFluxes();
+
+  EulerForwardNonAdvective(0.5 * dt);
+  DoAdvection(Pv_face, dt);
+
+  EulerBackwardNonAdvectiveExplicitPart(0.5 * dt);
+  EulerBackwardNonAdvectiveImplicitPart(0.5 * dt);
+
+  // scratch is
+}
+
 }

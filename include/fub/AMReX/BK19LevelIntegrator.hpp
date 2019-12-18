@@ -21,6 +21,7 @@
 
 #include "fub/amrex/IntegratorContext.hpp"
 #include "fub/solver/DimensionalSplitLevelIntegrator.hpp"
+#include "fub/amrex/MLMG/MLNodeHelmDualCstVel.hpp"
 
 namespace fub::amrex {
 
