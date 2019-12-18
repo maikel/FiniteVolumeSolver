@@ -43,7 +43,7 @@ namespace fub {
 /// method.
 ///
 /// There are in total two strategies implemented, a cell-wise and a simdified
-/// one. The cell-wise strategy is easier to debug but less performant. The simd
+/// one. The sequential strategy is easier to debug but less performant. The simd
 /// version does use the spatial grid index. This class also assumes that base
 /// class does not use the local coordinates.
 template <typename BaseMethod> class FluxMethod : public BaseMethod {
