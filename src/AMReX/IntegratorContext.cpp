@@ -222,9 +222,6 @@ void IntegratorContext::ResetHierarchyConfiguration(
     std::shared_ptr<GriddingAlgorithm> gridding) {
   gridding_ = std::move(gridding);
   ResetHierarchyConfiguration();
-  for (std::size_t level_num = 0; level_num < data_.size(); ++level_num) {
-    CopyDataToScratch(level_num);
-  }
 }
 
 void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
@@ -267,6 +264,9 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
       data.coarse_fine.clear();
       data.coarse_fine.define(ba, dm, ref_ratio, level, n_cons_components);
     }
+  }
+  for (std::size_t level_num = 0; level_num < data_.size(); ++level_num) {
+    CopyDataToScratch(level_num);
   }
 }
 
