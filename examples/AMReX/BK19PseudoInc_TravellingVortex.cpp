@@ -107,18 +107,13 @@ int main() {
 
   auto box_array = hierarchy.GetPatchLevel(0).box_array;
   auto dmap = hierarchy.GetPatchLevel(0).distribution_mapping;
-  amrex::MLNodeHelmDualCstVel linop({hierarchy.GetGeometry(0)}, {box_array}, {dmap}, lp_info);
+  auto linop = amrex::MLNodeHelmDualCstVel>(amrex::Vector<amrex::Geometry>{hierarchy.GetGeometry(0)}, amrex::Vector<amrex::BoxArray>{box_array}, amrex::Vector<amrex::DistributionMapping>{dmap}, lp_info);
 
-  linop.setDomainBC(
+  linop->setDomainBC(
       {AMREX_D_DECL(amrex::LinOpBCType::Periodic, amrex::LinOpBCType::Periodic,
                     amrex::LinOpBCType::Periodic)},
       {AMREX_D_DECL(amrex::LinOpBCType::Periodic, amrex::LinOpBCType::Periodic,
                     amrex::LinOpBCType::Periodic)});
-
-  auto nodal_solver = std::make_shared<amrex::MLMG>(linop);
-  nodal_solver->setVerbose(mg_verbose);
-  nodal_solver->setBottomVerbose(bottom_verbose);
-  nodal_solver->setMaxIter(max_iter);
 
   using namespace fub;
   CompressibleAdvectionFluxMethod<2> flux_method{};
