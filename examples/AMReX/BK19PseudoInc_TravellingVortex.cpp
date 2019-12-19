@@ -84,6 +84,16 @@ int main() {
 
   fub::amrex::PatchHierarchy hierarchy(desc, geometry, hier_opts);
 
+  using Complete = fub::CompressibleAdvection<2>::Complete;
+  fub::CompressibleAdvection<2> equation{};
+  fub::amrex::GradientDetector gradient(
+      equation, std::pair{&Complete::PTinverse, 1.0e-2});
+
+  std::shared_ptr grid = std::make_shared<fub::amrex::GriddingAlgorithm>(
+      std::move(hierarchy), InitialData{},
+      fub::amrex::TagAllOf{gradient, fub::amrex::TagBuffer(2)});
+  grid->InitializeHierarchy(0.0);
+
   // setup linear operator and solver, AKA the nodal Laplacian
   int mg_verbose     = 4;
   int bottom_verbose = 4;
@@ -97,23 +107,18 @@ int main() {
 
   auto box_array = hierarchy.GetPatchLevel(0).box_array;
   auto dmap = hierarchy.GetPatchLevel(0).distribution_mapping;
-  auto linop = std::make_shared<amrex::MLNodeHelmDualCstVel>(amrex::Vector<amrex::Geometry>{hierarchy.GetGeometry(0)}, amrex::Vector<amrex::BoxArray>{box_array}, amrex::Vector<amrex::DistributionMapping>{dmap}, lp_info);
+  amrex::MLNodeHelmDualCstVel linop({hierarchy.GetGeometry(0)}, {box_array}, {dmap}, lp_info);
 
-  linop->setDomainBC(
+  linop.setDomainBC(
       {AMREX_D_DECL(amrex::LinOpBCType::Periodic, amrex::LinOpBCType::Periodic,
                     amrex::LinOpBCType::Periodic)},
       {AMREX_D_DECL(amrex::LinOpBCType::Periodic, amrex::LinOpBCType::Periodic,
                     amrex::LinOpBCType::Periodic)});
 
-  using Complete = fub::CompressibleAdvection<2>::Complete;
-  fub::CompressibleAdvection<2> equation{};
-  fub::amrex::GradientDetector gradient(
-      equation, std::pair{&Complete::PTinverse, 1.0e-2});
-
-  std::shared_ptr grid = std::make_shared<fub::amrex::GriddingAlgorithm>(
-      std::move(hierarchy), InitialData{},
-      fub::amrex::TagAllOf{gradient, fub::amrex::TagBuffer(2)});
-  grid->InitializeHierarchy(0.0);
+  auto nodal_solver = std::make_shared<amrex::MLMG>(linop);
+  nodal_solver->setVerbose(mg_verbose);
+  nodal_solver->setBottomVerbose(bottom_verbose);
+  nodal_solver->setMaxIter(max_iter);
 
   using namespace fub;
   CompressibleAdvectionFluxMethod<2> flux_method{};
