@@ -58,9 +58,7 @@ public:
                     HyperbolicMethod method);
 
   IntegratorContext(std::shared_ptr<GriddingAlgorithm> gridding,
-                    HyperbolicMethod method,
-                    int cell_gcw,
-                    int face_gcw = 1);
+                    HyperbolicMethod method, int cell_gcw, int face_gcw);
 
   /// \brief Deeply copies a context and all its distributed data for all MPI
   /// ranks.
@@ -74,7 +72,7 @@ public:
 
   IntegratorContext& operator=(IntegratorContext&&) noexcept = default;
 
-  ~IntegratorContext() = default;
+  virtual ~IntegratorContext() = default;
   /// @}
 
   /// @{
@@ -150,7 +148,8 @@ public:
   /// \name Modifiers
 
   /// \brief Replaces the underlying gridding algorithm with the specified one.
-  void ResetHierarchyConfiguration(std::shared_ptr<GriddingAlgorithm> gridding);
+  virtual void
+  ResetHierarchyConfiguration(std::shared_ptr<GriddingAlgorithm> gridding);
 
   /// \brief Whenever the gridding algorithm changes the data hierarchy this
   /// function will regrid all distributed helper variables managed by the
@@ -158,7 +157,7 @@ public:
   ///
   /// \param[in] level  The level number of the coarsest level which changed its
   /// shape. Regrid all levels finer than level.
-  void ResetHierarchyConfiguration(int level = 0);
+  virtual void ResetHierarchyConfiguration(int level = 0);
 
   /// \brief Sets the cycle count for a specific level number and direction.
   void SetCycles(std::ptrdiff_t cycle, int level);
@@ -185,10 +184,13 @@ public:
   void CopyDataToScratch(int level_num);
   void CopyScratchToData(int level_num);
 
-  /// \brief Applies the boundary condition for the scratch space on level `level` in direcition `dir`.
+  /// \brief Applies the boundary condition for the scratch space on level
+  /// `level` in direcition `dir`.
   ///
-  /// \param level  The refinement level on which the boundary condition shall be used.
+  /// \param level  The refinement level on which the boundary condition shall
+  /// be used.
   void ApplyBoundaryCondition(int level, Direction dir);
+  void ApplyBoundaryCondition(int level, Direction dir, BoundaryCondition& bc);
 
   /// \brief Fills the ghost layer of the scratch data and interpolates in the
   /// coarse fine layer.
@@ -251,7 +253,7 @@ private:
     /// These arrays will store the fluxes for each patch level which is present
     /// in the patch hierarchy. These will need to be rebuilt if the
     /// PatchHierarchy changes.
-    std::array<::amrex::MultiFab, 3> fluxes;
+    std::array<::amrex::MultiFab, AMREX_SPACEDIM> fluxes;
 
     /// FluxRegister accumulate fluxes on coarse fine interfaces between
     /// refinement level. These will need to be rebuilt whenever the hierarchy
@@ -263,8 +265,8 @@ private:
     std::ptrdiff_t cycles{};
   };
 
-  int ghost_cell_width_;
-  int face_ghost_cell_width_{ghost_cell_width_};
+  int cell_ghost_cell_width_;
+  int face_ghost_cell_width_{cell_ghost_cell_width_};
   std::shared_ptr<GriddingAlgorithm> gridding_;
   std::vector<LevelData> data_;
   HyperbolicMethod method_;

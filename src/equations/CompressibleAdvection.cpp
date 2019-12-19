@@ -20,6 +20,7 @@
 
 #include "fub/equations/CompressibleAdvection.hpp"
 #include "fub/AMReX/ForEachFab.hpp"
+#include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
 
 namespace fub {
 namespace {
@@ -40,27 +41,19 @@ double LimitSlopes(double qL, double qM, double qR) {
 
 template <int SpaceDimension>
 Duration CompressibleAdvectionFluxMethod<SpaceDimension>::ComputeStableDt(
-    amrex::IntegratorContext& context, int level, Direction dir) {
+    amrex::IntegratorContext& base_context, int level, Direction dir) {
+  // try to convert the IntegratorContext to BK19IntegratorContext
+  // if this terminate the program.
+  amrex::BK19IntegratorContext* pointer_to_context =
+      dynamic_cast<amrex::BK19IntegratorContext*>(&base_context);
+  FUB_ASSERT(pointer_to_context);
+  amrex::BK19IntegratorContext& context = *pointer_to_context;
   CompressibleAdvection<SpaceDimension> equation{};
   const ::amrex::Geometry& geom = context.GetGeometry(level);
-  const double dx = geom.CellSize(int(dir));
-  ::amrex::MultiFab& fluxes = context.GetFluxes(level, dir);
-  Duration time_point = context.GetTimePoint(level);
-  amrex::ForEachFab(fluxes, [&](const ::amrex::MFIter& mfi) {
-    ::amrex::FArrayBox& fab = fluxes[mfi];
-    const ::amrex::Box box = mfi.growntilebox();
-    View<Conservative> flux = amrex::MakeView<Conservative>(fab, equation, box);
-    ForEachIndex(Box<0>(flux), [&](auto... is) {
-      ::amrex::IntVect face{int(is)...};
-      std::array<double, AMREX_SPACEDIM> xs{};
-      geom.LoFace(face, int(dir), xs.data());
-      std::array<double, SpaceDimension> x{};
-      std::copy_n(xs.data(), SpaceDimension, x.data());
-      flux.PTdensity(is...) = Pv_function_(x, time_point, dir);
-    });
-  });
-
+  const int dir_v = static_cast<int>(dir);
+  const double dx = geom.CellSize(dir_v);
   const ::amrex::MultiFab& scratch = context.GetScratch(level);
+  const amrex::BK19AdvectiveFluxes& Pvs = context.GetAdvectiveFluxes(level);
   Duration min_dt(std::numeric_limits<double>::max());
   const int stencil = GetStencilWidth();
   amrex::ForEachFab(scratch, [&](const ::amrex::MFIter& mfi) {
@@ -69,9 +62,9 @@ Duration CompressibleAdvectionFluxMethod<SpaceDimension>::ComputeStableDt(
         amrex::GetFacesInStencilRange(cell_box, stencil, dir);
     View<const Complete> cells =
         amrex::MakeView<const Complete>(scratch[mfi], equation, cell_box);
-    View<const Conservative> flux =
-        amrex::MakeView<const Conservative>(fluxes[mfi], equation, face_box);
-    StridedDataView<const double, SpaceDimension> Pv = flux.PTdensity;
+    StridedDataView<const double, SpaceDimension> Pv =
+        amrex::MakePatchDataView(Pvs.on_faces[dir_v][mfi], 0)
+            .Subview(amrex::AsIndexBox<SpaceDimension>(face_box));
     Duration local_dt = ComputeStableDt(cells, Pv, dx, dir);
     min_dt = std::min(local_dt, min_dt);
   });
@@ -195,9 +188,38 @@ void CompressibleAdvectionFluxMethod<SpaceDimension>::ComputeNumericFluxes(
 
 template <int SpaceDimension>
 void CompressibleAdvectionFluxMethod<SpaceDimension>::ComputeNumericFluxes(
-    const View<Conservative>& fluxes, const View<const Complete>& states,
-    Duration dt, double dx, Direction dir) {
-  ComputeNumericFluxes(fluxes, states, fluxes.PTdensity, dt, dx, dir);
+    amrex::IntegratorContext& base_context, int level, Duration dt,
+    Direction dir) {
+  // try to convert the IntegratorContext to BK19IntegratorContext
+  // if this terminate the program.
+  amrex::BK19IntegratorContext* pointer_to_context =
+      dynamic_cast<amrex::BK19IntegratorContext*>(&base_context);
+  FUB_ASSERT(pointer_to_context);
+  amrex::BK19IntegratorContext& context = *pointer_to_context;
+  CompressibleAdvection<SpaceDimension> equation{};
+  const ::amrex::Geometry& geom = context.GetGeometry(level);
+  const int dir_v = static_cast<int>(dir);
+  const double dx = geom.CellSize(dir_v);
+  const ::amrex::MultiFab& scratch = context.GetScratch(level);
+  ::amrex::MultiFab& fluxes = context.GetFluxes(level, dir);
+  const amrex::BK19AdvectiveFluxes& Pvs = context.GetAdvectiveFluxes(level);
+  const int stencil = GetStencilWidth();
+  amrex::ForEachFab(execution::openmp, fluxes, [&](const ::amrex::MFIter& mfi) {
+    const ::amrex::FArrayBox& sfab = scratch[mfi];
+    ::amrex::FArrayBox& ffab = fluxes[mfi];
+    const ::amrex::Box face_box = ffab.box();
+    const ::amrex::Box cell_box =
+        ::amrex::grow(::amrex::enclosedCells(face_box), dir_v, stencil);
+    View<const Complete> cells =
+        amrex::MakeView<const Complete>(sfab, equation, cell_box);
+    View<Conservative> fluxes =
+        amrex::MakeView<Conservative>(ffab, equation, face_box);
+    StridedDataView<const double, SpaceDimension> Pv =
+        amrex::MakePatchDataView(Pvs.on_faces[dir_v][mfi], 0)
+            .Subview(amrex::AsIndexBox<SpaceDimension>(
+                ::amrex::grow(face_box, dir_v, 1)));
+    ComputeNumericFluxes(fluxes, cells, Pv, dt, dx, dir);
+  });
 }
 
 template struct CompressibleAdvectionFluxMethod<2>;

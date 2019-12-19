@@ -19,9 +19,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/amrex/IntegratorContext.hpp"
+#include "fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp"
+#include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
+#include "fub/equations/CompressibleAdvection.hpp"
+#include "fub/ext/Eigen.hpp"
 #include "fub/solver/DimensionalSplitLevelIntegrator.hpp"
-#include "fub/amrex/MLMG/MLNodeHelmDualCstVel.hpp"
 
 namespace fub::amrex {
 
@@ -29,16 +31,17 @@ class BK19LevelIntegrator {
 public:
   static constexpr int Rank = AMREX_SPACEDIM;
 
-  using Coordinates = Eigen::Vector<double, Rank>;
+  using Coordinates = Eigen::Matrix<double, Rank, 1>;
   using Equation = CompressibleAdvection<Rank>;
   using Complete = ::fub::Complete<Equation>;
   using Conservative = ::fub::Conservative<Equation>;
 
   using NodalEllipticSolver = ::amrex::MLNodeLinOp;
-  using AdvectionSolver = DimensionalSplitLevelIntegrator<Rank, IntegratorContext>;
+  using AdvectionSolver =
+      DimensionalSplitLevelIntegrator<Rank, BK19IntegratorContext>;
 
-  BK19LevelIntegrator(const CompressibleAdvection<Rank>& equation,
-      DimensionalSplitLevelIntegrator advection,
+  BK19LevelIntegrator(
+      const CompressibleAdvection<Rank>& equation, AdvectionSolver advection,
       std::shared_ptr<NodalEllipticSolver> nodal_elliptic_solver);
 
   void ResetPatchHierarchy(std::shared_ptr<GriddingAlgorithm> grid);
@@ -47,7 +50,7 @@ public:
 
   double EvaluateRhs(const Complete& state, const Coordinates& x);
 
-  Result<void, TimeStepTooLargeError> AdvanceLevel(int level, Duration dt);
+  Result<void, TimeStepTooLarge> AdvanceLevel(int level, Duration dt);
 
 private:
   CompressibleAdvection<Rank> equation_;

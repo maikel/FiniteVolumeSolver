@@ -31,9 +31,9 @@ int PrepareParmParseAndReturnNumberOfRefinementLevels(
   const int dim = hier.GetDataDescription().dimension;
   FUB_ASSERT(dim >= 1);
   if (!pp.contains("blocking_factor_x")) {
-    pp.add("blocking_factor_x", 8);
-    pp.add("blocking_factor_y", dim >= 2 ? 8 : 1);
-    pp.add("blocking_factor_z", dim >= 3 ? 8 : 1);
+    pp.add("blocking_factor_x", 32);
+    pp.add("blocking_factor_y", dim >= 2 ? 32 : 1);
+    pp.add("blocking_factor_z", dim >= 3 ? 32 : 1);
   }
   return hier.GetMaxNumberOfLevels() - 1;
 }

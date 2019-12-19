@@ -115,7 +115,7 @@ template <int N> struct CompressibleAdvection {
   double c_p{2.5 * R};
 
   /// Gravitational acceleration
-  double g{10.0};  //  [m / s^2]
+  double g{10.0}; //  [m / s^2]
 
   /// Coriolis parameter in beta plane
   double f{0.0};
@@ -143,26 +143,14 @@ template <int SpaceDimension> struct CompressibleAdvectionFluxMethod {
                        const std::array<double, 5> Pvs, Duration dt, double dx,
                        Direction dir);
 
-  /// Pv is face centered
+  static void ComputeNumericFluxes(amrex::IntegratorContext& context, int level,
+                                   Duration dt, Direction dir);
+
   static void
   ComputeNumericFluxes(const View<Conservative>& fluxes,
                        const View<const Complete>& states,
                        const StridedDataView<const double, SpaceDimension>& Pv,
                        Duration dt, double dx, Direction dir);
-
-  static void ComputeNumericFluxes(const View<Conservative>& fluxes,
-                                   const View<const Complete>& states,
-                                   Duration dt, double dx, Direction dir);
-
-  static void ComputeNumericFluxes(execution::SequentialTag,
-                                   const View<Conservative>& fluxes,
-                                   const View<const Complete>& states,
-                                   Duration dt, double dx, Direction dir) {
-    ComputeNumericFluxes(fluxes, states, dt, dx, dir);
-  }
-
-  std::function<double(std::array<double, SpaceDimension>, Duration, Direction)>
-      Pv_function_;
 };
 
 // We define this class only for dimensions 1 to 3.

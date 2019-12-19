@@ -19,7 +19,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/AMReX/BK19LevelIntegrator.hpp"
+#include "fub/AMReX/bk19/BK19LevelIntegrator.hpp"
+#include "fub/AMReX/ForEachFab.hpp"
+#include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
 
 namespace fub::amrex {
 
@@ -34,40 +36,30 @@ using Equation = CompressibleAdvection<Rank>;
 static_assert(Rank == 2);
 
 namespace {
-double EvaluateRhsU_(const Equation& equation, const Complete& state,
+double EvaluateRhsU_(const Equation& equation, const Complete<Equation>& state,
                      Duration time_step_size) {
   const double f = equation.f;
   const double dt = time_step_size.count();
-  const double U = state.velocity[0];
-  const double V = state.velocity[1];
+  const double U = state.velocity[0] * state.PTdensity;
+  const double V = state.velocity[1] * state.PTdensity;
   const double dt_times_f = dt * f;
   const double dt_times_f_square = dt_times_f * dt_times_f;
   return (U + dt * f * V) / (1 + dt_times_f_square);
 }
 
-double EvaluateRhsV_(const Equation& equation, const Complete& state,
+double EvaluateRhsV_(const Equation& equation, const Complete<Equation>& state,
                      Duration time_step_size) {
-  const double f = equation.f(x);
+  const double f = equation.f;
   const double dt = time_step_size.count();
-  const double U = state.velocity[0];
-  const double V = state.velocity[1];
+  const double U = state.velocity[0] * state.PTdensity;
+  const double V = state.velocity[1] * state.PTdensity;
   const double dt_times_f = dt * f;
   const double dt_times_f_square = dt_times_f * dt_times_f;
   return (V - dt * f * U) / (1 + dt_times_f_square);
 }
 
-double EvaluateRhsW_(const Equation& equation, const Complete& state,
-                     Duration time_step_size) {
-  const double dt = time_step_size.count();
-  const double U = state.velocity[0];
-  const double V = state.velocity[1];
-  const double dt_times_f = dt * f;
-  const double dt_times_f_square = dt_times_f * dt_times_f;
-  return (V - dt * f * U) / (1 + dt_times_f_square);
-}
-
-void AverageCellToFace_(MultiFab& mf_faces, const MultiFab& mf_cells, int src_component, int dest_component,
-                        Direction dir) {
+void AverageCellToFace_(MultiFab& mf_faces, const MultiFab& mf_cells,
+                        int src_component, int dest_component, Direction dir) {
   if constexpr (AMREX_SPACEDIM == 2) {
     FUB_ASSERT(dir == Direction::X || dir == Direction::Y);
     if (dir == Direction::X) {
@@ -75,7 +67,7 @@ void AverageCellToFace_(MultiFab& mf_faces, const MultiFab& mf_cells, int src_co
         auto cells = SliceLast(MakePatchDataView(mf_cells[mfi]), src_component);
         auto faces =
             SliceLast(MakePatchDataView(mf_faces[mfi]), dest_component);
-        ForEachIndex(faces.Box(), [](int i, int j) {
+        ForEachIndex(faces.Box(), [&](int i, int j) {
           // clang-format off
           faces(i, j) = 1.0 * cells(i - 1, j - 1) + 1.0 * cells(i, j - 1) +
                         2.0 * cells(i - 1,     j) + 2.0 * cells(i,     j) +
@@ -85,11 +77,11 @@ void AverageCellToFace_(MultiFab& mf_faces, const MultiFab& mf_cells, int src_co
         });
       });
     } else {
-      ForEachFab(exection::openmp, mf_cells, [&](const MFIter& mfi) {
+      ForEachFab(execution::openmp, mf_cells, [&](const MFIter& mfi) {
         auto cells = SliceLast(MakePatchDataView(mf_cells[mfi]), src_component);
         auto faces =
             SliceLast(MakePatchDataView(mf_faces[mfi]), dest_component);
-        ForEachIndex(faces.Box(), [](int i, int j) {
+        ForEachIndex(faces.Box(), [&](int i, int j) {
           // clang-format off
           faces(i, j) = 1.0 * cells(i - 1,     j) + 2.0 * cells(i,     j) + 1.0 * cells(i + 1,     j) +
                         1.0 * cells(i - 1, j - 1) + 2.0 * cells(i, j - 1) + 1.0 * cells(i + 1, j - 1);
@@ -101,11 +93,12 @@ void AverageCellToFace_(MultiFab& mf_faces, const MultiFab& mf_cells, int src_co
   }
 }
 
-void ComputePvFromScratch_(const Equation& equation, MultiFab& Pv, const MultiFab& scratch) {
-  ForEachFab(execution::openmp, Pv, [&](const MFIter& mfi) {
-    auto states = MakeView<Complete>(equation, scratch[mfi]);
-    auto dest = MakePatchDataView(Pv[mfi], 0);
-    ForEachIndex(dest.Box(), [&](int i, int j) {
+void ComputePvFromScratch_(const Equation& equation, MultiFab& dest,
+                           const MultiFab& scratch) {
+  ForEachFab(execution::openmp, dest, [&](const MFIter& mfi) {
+    auto states = MakeView<const Complete<Equation>>(scratch[mfi], equation);
+    auto Pv = MakePatchDataView(dest[mfi], 0);
+    ForEachIndex(Pv.Box(), [&](int i, int j) {
       const double P = states.PTdensity(i, j);
       const double v = states.velocity(i, j);
       Pv(i, j) = P * v;
@@ -113,42 +106,46 @@ void ComputePvFromScratch_(const Equation& equation, MultiFab& Pv, const MultiFa
   });
 }
 
-void RecomputeAdvectiveFluxes_(std::array<MultiFab, Rank>& Pv_faces, MultiFab& Pv_cells, const MultiFab& scratch) {
-  ComputePvFromScratch_(Pv_cells, scratch);
+void RecomputeAdvectiveFluxes_(const Equation& equation,
+                               std::array<MultiFab, Rank>& Pv_faces,
+                               MultiFab& Pv_cells, const MultiFab& scratch) {
+  ComputePvFromScratch_(equation, Pv_cells, scratch);
   for (int dir = 0; dir < Rank; ++dir) {
-    AverageCellToFace_(Pv_faces[dir], Pv_cells, Direction(dir));
+    AverageCellToFace_(Pv_faces[dir], Pv_cells, 0, 0, Direction(dir));
   }
 }
 } // namespace
 
-Result<void, TimeStepTooLargeError>
-BK19LevelIntegrator::AdvanceLevel(int level, Duration dt) {
+Result<void, TimeStepTooLarge> BK19LevelIntegrator::AdvanceLevel(int level,
+                                                                 Duration dt) {
   MultiFab& scratch = advection_.GetScratch(level);
-  AdvectiveFluxes& Pv = advection_.GetPv(level);
+  BK19AdvectiveFluxes& Pv = advection_.GetContext().GetAdvectiveFluxes(level);
 
-  const Duration half_dt = 0.5 * dt;
+  [[maybe_unused]] const Duration half_dt = 0.5 * dt;
 
   // 1) Compute current Pv and interpolate to face centered quantity
-  RecomputeAdvectiveFluxes_(Pv.on_faces, Pv.on_cells, scratch);
+  RecomputeAdvectiveFluxes_(equation_, Pv.on_faces, Pv.on_cells, scratch);
 
-  // 2) Do the advection with these Pv on its faces
+  // 2) Do the advection with the face-centered Pv
   // No accumulation
-  Advect_(advection_, half_dt);
+  // Advect_(advection_, half_dt);
 
   // 3) Do the first euler backward integration step for the source term
-  DoEulerBackward_(nodal_solver_, half_dt);
+  // DoEulerBackward_(nodal_solver_, half_dt);
 
   // 4) Recompute Pv at half time
-  RecomputeAdvectiveFluxes_(Pv_faces, Pv_cells, scratch);
+  // RecomputeAdvectiveFluxes_(Pv_faces, Pv_cells, scratch);
 
   // 5) Do the euler forward step for the source term
-  DoEulerForward_(scratch, half_dt);
+  // DoEulerForward_(scratch, half_dt);
 
   // 6) Do the ssecond advection step with half-time Pv
-  Advect_(advection_, dt);
+  // Advect_(advection_, dt);
 
   // 6) Do the second euler backward integration step for the source term
-  DoEulerBackward_(nodal_solver_, half_dt);
+  // DoEulerBackward_(nodal_solver_, half_dt);
+
+  return boost::outcome_v2::success();
 }
 
 } // namespace fub::amrex

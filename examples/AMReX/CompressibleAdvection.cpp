@@ -21,6 +21,7 @@
 #include "fub/AMReX.hpp"
 #include "fub/Solver.hpp"
 
+#include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
 #include "fub/equations/CompressibleAdvection.hpp"
 
 struct InitialData {
@@ -70,7 +71,7 @@ int main() {
 
   fub::amrex::CartesianGridGeometry geometry{};
   geometry.cell_dimensions =
-      std::array<int, AMREX_SPACEDIM>{AMREX_D_DECL(256, 256, 1)};
+      std::array<int, AMREX_SPACEDIM>{AMREX_D_DECL(64, 64, 1)};
   geometry.coordinates = amrex::RealBox({AMREX_D_DECL(-1.0, -1.0, -1.0)},
                                         {AMREX_D_DECL(+1.0, +1.0, +1.0)});
   geometry.periodicity = std::array<int, AMREX_SPACEDIM>{AMREX_D_DECL(1, 1, 1)};
@@ -92,28 +93,33 @@ int main() {
   grid->InitializeHierarchy(0.0);
 
   using namespace fub;
-  CompressibleAdvectionFluxMethod<2> flux_method;
-  flux_method.Pv_function_ = [](std::array<double, AMREX_SPACEDIM> xy,
-                                Duration timepoint, Direction dir) -> double {
-    const double t = timepoint.count();
-    switch (dir) {
-    case Direction::X:
-      return 1.0 +
-             0.25 * std::sin(2.0 * M_PI * xy[0]) * std::sin(2.0 * M_PI * t);
-    default:
-      return 0.0;
-    }
-  };
+  CompressibleAdvectionFluxMethod<2> flux_method{};
+  // flux_method.Pv_function_ = [](std::array<double, AMREX_SPACEDIM> xy,
+  //                               Duration timepoint, Direction dir) -> double
+  //                               {
+  //   const double t = timepoint.count();
+  //   switch (dir) {
+  //   case Direction::X:
+  //     return 1.0 +
+  //            0.25 * std::sin(2.0 * M_PI * xy[0]) * std::sin(2.0 * M_PI * t);
+  //   default:
+  //     return 0.0;
+  //   }
+  // };
 
   auto tag = fub::execution::seq;
   fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethod(tag, flux_method),
-      fub::amrex::ForwardIntegrator(tag),
+      flux_method, fub::amrex::ForwardIntegrator(tag),
       fub::amrex::Reconstruction(tag, equation)};
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<2>, fub::amrex::IntegratorContext(grid, method, 4, 3),
+      fub::int_c<2>, fub::amrex::BK19IntegratorContext(grid, method, 2, 0),
       fub::GodunovSplitting());
+
+  fub::amrex::BK19AdvectiveFluxes& Pv =
+      level_integrator.GetContext().GetAdvectiveFluxes(0);
+  Pv.on_faces[0].setVal(1.0);
+  Pv.on_faces[1].setVal(0.0);
 
   fub::NoSubcycleSolver solver(std::move(level_integrator));
 

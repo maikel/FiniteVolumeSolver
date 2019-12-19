@@ -328,7 +328,8 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     include/fub/AMReX/initial_data/ConstantData.hpp
     include/fub/AMReX/AxialSourceTerm.hpp
     include/fub/AMReX/GriddingAlgorithm.hpp
-    include/fub/AMReX/BK19GriddingAlgorithm.hpp
+    include/fub/AMReX/bk19/BK19LevelIntegrator.hpp
+    include/fub/AMReX/bk19/BK19IntegratorContext.hpp
     include/fub/AMReX/IgniteDetonation.hpp
     include/fub/AMReX/PatchHierarchy.hpp
     include/fub/AMReX/Reconstruction.hpp
@@ -366,7 +367,8 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     src/AMReX/MLMG/MLNodeHelmDualCstVel_K.cpp
     src/AMReX/PatchHierarchy.cpp
     src/AMReX/GriddingAlgorithm.cpp
-    # src/AMReX/BK19GriddingAlgorithm.cpp
+    src/AMReX/bk19/BK19LevelIntegrator.cpp
+    src/AMReX/bk19/BK19IntegratorContext.cpp
     src/AMReX/BoundaryCondition.cpp
     src/AMReX/TimeIntegrator.cpp
     src/AMReX/IntegratorContext.cpp
