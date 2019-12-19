@@ -41,6 +41,10 @@ public:
   /// \brief Deeply copies a context and all its distributed data for all MPI
   /// ranks.
   BK19IntegratorContext(const BK19IntegratorContext&);
+  BK19IntegratorContext operator=(const BK19IntegratorContext&);
+
+  BK19IntegratorContext(BK19IntegratorContext&&) = default;
+  BK19IntegratorContext& operator=(BK19IntegratorContext&&) = default;
 
   BK19AdvectiveFluxes& GetAdvectiveFluxes(int level);
   const BK19AdvectiveFluxes& GetAdvectiveFluxes(int level) const;
