@@ -96,8 +96,8 @@ int main() {
   grid->InitializeHierarchy(0.0);
 
   // setup linear operator and solver, AKA the nodal Laplacian
-  int mg_verbose = 4;
-  int bottom_verbose = 4;
+  int mg_verbose = 1;
+  int bottom_verbose = 1;
   int max_iter = 100;
   double reltol = 1.e-10;
   double abstol = 1.e-13;

@@ -66,7 +66,8 @@ public:
 
 private:
   std::vector<BK19AdvectiveFluxes> Pv_;
-  std::vector<::amrex::MultiFab> pi_; // solution of nodes
+  // node centered solution of previous step
+  std::vector<::amrex::MultiFab> pi_;
 };
 
 } // namespace fub::amrex
