@@ -66,12 +66,12 @@ double EvaluateRhsW_(const Equation& equation, const Complete& state,
   return (V - dt * f * U) / (1 + dt_times_f_square);
 }
 
-void AverageCellToFace_(MultiFab& mf_faces, const MultiFab& mf_cells,
+void AverageCellToFace_(MultiFab& mf_faces, const MultiFab& mf_cells, int src_component, int dest_component,
                         Direction dir) {
   if constexpr (AMREX_SPACEDIM == 2) {
     FUB_ASSERT(dir == Direction::X || dir == Direction::Y);
     if (dir == Direction::X) {
-      ForEachFab(exection::openmp, mf_cells, [&](const MFIter& mfi) {
+      ForEachFab(execution::openmp, mf_cells, [&](const MFIter& mfi) {
         auto cells = SliceLast(MakePatchDataView(mf_cells[mfi]), src_component);
         auto faces =
             SliceLast(MakePatchDataView(mf_faces[mfi]), dest_component);
@@ -80,6 +80,7 @@ void AverageCellToFace_(MultiFab& mf_faces, const MultiFab& mf_cells,
           faces(i, j) = 1.0 * cells(i - 1, j - 1) + 1.0 * cells(i, j - 1) +
                         2.0 * cells(i - 1,     j) + 2.0 * cells(i,     j) +
                         1.0 * cells(i - 1, j + 1) + 1.0 * cells(i, j + 1);
+          faces(i, j) *= 0.125;
           // clang-format on
         });
       });
@@ -92,6 +93,7 @@ void AverageCellToFace_(MultiFab& mf_faces, const MultiFab& mf_cells,
           // clang-format off
           faces(i, j) = 1.0 * cells(i - 1,     j) + 2.0 * cells(i,     j) + 1.0 * cells(i + 1,     j) +
                         1.0 * cells(i - 1, j - 1) + 2.0 * cells(i, j - 1) + 1.0 * cells(i + 1, j - 1);
+          faces(i, j) *= 0.125;
           // clang-format on
         });
       });
@@ -99,16 +101,12 @@ void AverageCellToFace_(MultiFab& mf_faces, const MultiFab& mf_cells,
   }
 }
 
-void RecoverPressure_(const Equation& equation, const MultiFab& scratch) {
-
-}
-
 void ComputePvFromScratch_(const Equation& equation, MultiFab& Pv, const MultiFab& scratch) {
-  ForEachFab(Pv, [&](const MFIter& mfi) {
+  ForEachFab(execution::openmp, Pv, [&](const MFIter& mfi) {
     auto states = MakeView<Complete>(equation, scratch[mfi]);
     auto dest = MakePatchDataView(Pv[mfi], 0);
     ForEachIndex(dest.Box(), [&](int i, int j) {
-      const double P = states.pressure(i, j);
+      const double P = states.PTdensity(i, j);
       const double v = states.velocity(i, j);
       Pv(i, j) = P * v;
     });
