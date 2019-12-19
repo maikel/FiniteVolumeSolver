@@ -114,10 +114,18 @@ void RecomputeAdvectiveFluxes_(const Equation& equation,
     AverageCellToFace_(Pv_faces[dir], Pv_cells, 0, 0, Direction(dir));
   }
 }
+
+void Advect_(BK19LevelIntegrator::AdvectionSolver& advection, int level, Duration dt, std::pair<int, int> subcycle) {
+  advection.AdvanceLevelNonRecursively(level, dt, subcycle);
+}
+
+void DoEulerBackward_(::amrex::MLMG& nodal_solver, BK19IntegratorContext& context, int level, Duration dt) {
+
+}
 } // namespace
 
-Result<void, TimeStepTooLarge> BK19LevelIntegrator::AdvanceLevel(int level,
-                                                                 Duration dt) {
+Result<void, TimeStepTooLarge> BK19LevelIntegrator::AdvanceLevelNonRecursively(int level,
+                                                                 Duration dt, std::pair<int, int> subcycle) {
   MultiFab& scratch = advection_.GetScratch(level);
   BK19AdvectiveFluxes& Pv = advection_.GetContext().GetAdvectiveFluxes(level);
 
@@ -128,10 +136,10 @@ Result<void, TimeStepTooLarge> BK19LevelIntegrator::AdvanceLevel(int level,
 
   // 2) Do the advection with the face-centered Pv
   // No accumulation
-  // Advect_(advection_, half_dt);
+  Advect_(advection_, level, half_dt, subcycle);
 
   // 3) Do the first euler backward integration step for the source term
-  // DoEulerBackward_(nodal_solver_, half_dt);
+  DoEulerBackward_(*nodal_solver_, advection_.GetContext(), int level, half_dt);
 
   // 4) Recompute Pv at half time
   // RecomputeAdvectiveFluxes_(Pv_faces, Pv_cells, scratch);

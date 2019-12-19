@@ -36,27 +36,26 @@ public:
   using Complete = ::fub::Complete<Equation>;
   using Conservative = ::fub::Conservative<Equation>;
 
-  using NodalEllipticSolver = ::amrex::MLNodeLinOp;
   using AdvectionSolver =
       DimensionalSplitLevelIntegrator<Rank, BK19IntegratorContext>;
 
   BK19LevelIntegrator(
       const CompressibleAdvection<Rank>& equation, AdvectionSolver advection,
-      std::shared_ptr<NodalEllipticSolver> nodal_elliptic_solver);
+      std::shared_ptr<::amrex::MLMG> nodal_elliptic_solver);
 
   void ResetPatchHierarchy(std::shared_ptr<GriddingAlgorithm> grid);
 
   Duration ComputeStableDt(int level);
 
-  double EvaluateRhs(const Complete& state, const Coordinates& x);
-
-  Result<void, TimeStepTooLarge> AdvanceLevel(int level, Duration dt);
+  Result<void, TimeStepTooLarge>
+  AdvanceLevelNonRecursively(int level, Duration dt,
+                             std::pair<int, int> subcycle);
 
 private:
   CompressibleAdvection<Rank> equation_;
   std::shared_ptr<GriddingAlgorithm> grid_;
   AdvectionSolver advection_;
-  std::shared_ptr<::amrex::MLNodeLinOp> nodal_solver_;
+  std::shared_ptr<::amrex::MLMG> nodal_solver_;
 };
 
 } // namespace fub::amrex
