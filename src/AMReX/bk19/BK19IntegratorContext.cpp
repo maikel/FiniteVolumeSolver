@@ -89,7 +89,7 @@ void BK19IntegratorContext::ResetHierarchyConfiguration(int coarsest_level) {
       ::amrex::MultiFab pi_new(nodes, dm, 1, 0);
       pi_new.ParallelCopy(pi_[level], GetGeometry(level).periodicity());
       pi_[level] = std::move(pi_new);
-      Pv_[level].on_cells = ::amrex::MultiFab(ba, dm, 1, ngrow_Pv_on_cells);
+      Pv_[level].on_cells = ::amrex::MultiFab(ba, dm, 2, ngrow_Pv_on_cells);
     }
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
       const ::amrex::BoxArray& ba = GetFluxes(level, Direction(dir)).boxArray();

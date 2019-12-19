@@ -86,12 +86,12 @@ void AverageCellToFace_(MultiFab& mf_faces, const MultiFab& mf_cells,
 }
 
 void ComputePvFromScratch_(const Equation&, MultiFab& dest,
-                           const MultiFab& scratch, Direction dir) {
+                           const MultiFab& scratch) {
   // Shall be: Pv = PTdensity * v
   // LinComb (MultiFab &dst, Real a, const MultiFab &x, int xcomp, Real b, const MultiFab &y, int ycomp, int dstcomp, int numcomp, int nghost)
   // dst = a*x + b*y
-  const int d = static_cast<int>(dir);
-  MultiFab::LinComb(dest, 1.0, scratch, index_PTdensity, 1.0, scratch, index_velocity_x + d, 1. dest.nGrow());
+  MultiFab::LinComb(dest, 1.0, scratch, index_PTdensity, 1.0, scratch, index_velocity_x, 0, 1, dest.nGrow());
+  MultiFab::LinComb(dest, 1.0, scratch, index_PTdensity, 1.0, scratch, index_velocity_y, 1, 1, dest.nGrow());
 }
 
 void RecomputeAdvectiveFluxes_(const Equation& equation,
@@ -99,7 +99,7 @@ void RecomputeAdvectiveFluxes_(const Equation& equation,
                                MultiFab& Pv_cells, const MultiFab& scratch) {
   ComputePvFromScratch_(equation, Pv_cells, scratch);
   for (int dir = 0; dir < Rank; ++dir) {
-    AverageCellToFace_(Pv_faces[dir], Pv_cells, 0, 0, Direction(dir));
+    AverageCellToFace_(Pv_faces[dir], Pv_cells, 0, dir, Direction(dir));
   }
 }
 
