@@ -64,12 +64,14 @@ BK19IntegratorContext::GetAdvectiveFluxes(int level) const {
 void BK19IntegratorContext::ResetHierarchyConfiguration(
     std::shared_ptr<GriddingAlgorithm> gridding) {
   Pv_.resize(gridding->GetPatchHierarchy().GetMaxNumberOfLevels());
+  pi_.resize(gridding->GetPatchHierarchy().GetMaxNumberOfLevels());
   IntegratorContext::ResetHierarchyConfiguration(std::move(gridding));
 }
 
 void BK19IntegratorContext::ResetHierarchyConfiguration(int coarsest_level) {
   if (Pv_.size() == 0) {
     Pv_.resize(GetPatchHierarchy().GetMaxNumberOfLevels());
+    pi_.resize(GetPatchHierarchy().GetMaxNumberOfLevels());
   }
   IntegratorContext::ResetHierarchyConfiguration(coarsest_level);
   PatchHierarchy& hier = GetPatchHierarchy();
@@ -82,6 +84,11 @@ void BK19IntegratorContext::ResetHierarchyConfiguration(int coarsest_level) {
       const ::amrex::BoxArray& ba = hier.GetPatchLevel(level).box_array;
       const ::amrex::DistributionMapping& dm =
           hier.GetPatchLevel(level).distribution_mapping;
+      ::amrex::BoxArray nodes = ba;
+      nodes.surroundingNodes();
+      ::amrex::MultiFab pi_new(nodes, dm, 1, 0);
+      pi_new.ParallelCopy(pi_[level], GetGeometry(level).periodicity());
+      pi_[level] = std::move(pi_new);
       Pv_[level].on_cells = ::amrex::MultiFab(ba, dm, 1, ngrow_Pv_on_cells);
     }
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {

@@ -46,6 +46,9 @@ public:
   BK19IntegratorContext(BK19IntegratorContext&&) = default;
   BK19IntegratorContext& operator=(BK19IntegratorContext&&) = default;
 
+  ::amrex::MultiFab& GetPi(int level) { return pi_[level]; }
+  const ::amrex::MultiFab& GetPi(int level) const { return pi_[level]; }
+
   BK19AdvectiveFluxes& GetAdvectiveFluxes(int level);
   const BK19AdvectiveFluxes& GetAdvectiveFluxes(int level) const;
 
@@ -63,6 +66,7 @@ public:
 
 private:
   std::vector<BK19AdvectiveFluxes> Pv_;
+  std::vector<::amrex::MultiFab> pi_; // solution of nodes
 };
 
 } // namespace fub::amrex

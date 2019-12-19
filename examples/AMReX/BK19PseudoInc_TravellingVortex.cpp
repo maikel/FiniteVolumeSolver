@@ -22,9 +22,10 @@
 #include "fub/Solver.hpp"
 #include <AMReX_MLMG.H>
 
-#include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
-#include "fub/equations/CompressibleAdvection.hpp"
 #include "fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp"
+#include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
+#include "fub/AMReX/bk19/BK19LevelIntegrator.hpp"
+#include "fub/equations/CompressibleAdvection.hpp"
 
 struct InitialData {
   using Complete = fub::CompressibleAdvection<2>::Complete;
@@ -95,19 +96,22 @@ int main() {
   grid->InitializeHierarchy(0.0);
 
   // setup linear operator and solver, AKA the nodal Laplacian
-  int mg_verbose     = 4;
+  int mg_verbose = 4;
   int bottom_verbose = 4;
-  int max_iter       = 100;
-  double reltol      = 1.e-10;
-  double abstol      = 1.e-13;
+  int max_iter = 100;
+  double reltol = 1.e-10;
+  double abstol = 1.e-13;
 
-  //set number of MG levels to 1 (effectively no MG)
+  // set number of MG levels to 1 (effectively no MG)
   amrex::LPInfo lp_info;
   lp_info.setMaxCoarseningLevel(0);
 
-  auto box_array = hierarchy.GetPatchLevel(0).box_array;
-  auto dmap = hierarchy.GetPatchLevel(0).distribution_mapping;
-  auto linop = amrex::MLNodeHelmDualCstVel>(amrex::Vector<amrex::Geometry>{hierarchy.GetGeometry(0)}, amrex::Vector<amrex::BoxArray>{box_array}, amrex::Vector<amrex::DistributionMapping>{dmap}, lp_info);
+  auto box_array = grid->GetPatchHierarchy().GetPatchLevel(0).box_array;
+  auto dmap = grid->GetPatchHierarchy().GetPatchLevel(0).distribution_mapping;
+  auto linop = std::make_shared<amrex::MLNodeHelmDualCstVel>(
+      amrex::Vector<amrex::Geometry>{grid->GetPatchHierarchy().GetGeometry(0)},
+      amrex::Vector<amrex::BoxArray>{box_array},
+      amrex::Vector<amrex::DistributionMapping>{dmap}, lp_info);
 
   linop->setDomainBC(
       {AMREX_D_DECL(amrex::LinOpBCType::Periodic, amrex::LinOpBCType::Periodic,
@@ -117,45 +121,39 @@ int main() {
 
   using namespace fub;
   CompressibleAdvectionFluxMethod<2> flux_method{};
-  // flux_method.Pv_function_ = [](std::array<double, AMREX_SPACEDIM> xy,
-  //                               Duration timepoint, Direction dir) -> double
-  //                               {
-  //   const double t = timepoint.count();
-  //   switch (dir) {
-  //   case Direction::X:
-  //     return 1.0 +
-  //            0.25 * std::sin(2.0 * M_PI * xy[0]) * std::sin(2.0 * M_PI * t);
-  //   default:
-  //     return 0.0;
-  //   }
-  // };
 
   auto tag = fub::execution::seq;
   fub::amrex::HyperbolicMethod method{
       flux_method, fub::amrex::ForwardIntegrator(tag),
       fub::amrex::Reconstruction(tag, equation)};
 
-  fub::DimensionalSplitLevelIntegrator level_integrator(
+  fub::DimensionalSplitLevelIntegrator advection(
       fub::int_c<2>, fub::amrex::BK19IntegratorContext(grid, method, 2, 0),
       fub::GodunovSplitting());
 
+  fub::amrex::BK19LevelIntegrator level_integrator(equation,
+                                                   std::move(advection), linop);
+
   fub::amrex::BK19AdvectiveFluxes& Pv =
       level_integrator.GetContext().GetAdvectiveFluxes(0);
-  Pv.on_faces[0].setVal(1.0);
+  Pv.on_faces[0].setVal(0.0);
   Pv.on_faces[1].setVal(0.0);
+
+  level_integrator.GetContext().GetPi(0).setVal(0.0);
 
   fub::NoSubcycleSolver solver(std::move(level_integrator));
 
   using namespace std::literals::chrono_literals;
-  std::string base_name = "CompressibleAdvection";
+  std::string base_name = "Bk19_Pseudo_Incompressible/";
 
   fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> output{};
   output.AddOutput(fub::MakeOutput<fub::amrex::GriddingAlgorithm>(
-      {1}, {}, fub::amrex::PlotfileOutput(equation, base_name)));
+      {1}, {0.1s}, fub::amrex::PlotfileOutput(equation, base_name)));
 
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
   run_options.final_time = 3.0s;
   run_options.cfl = 0.8;
+  run_options.max_cycles = 1;
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

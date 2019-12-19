@@ -59,7 +59,8 @@ void Timer::submit() {
   auto duration = stop_time_ - start_time_;
   auto nano = std::chrono::duration_cast<std::chrono::nanoseconds>(duration);
   static_assert(sizeof(long long) == sizeof(std::int64_t));
-  static_assert(std::is_same_v<std::chrono::nanoseconds::rep, long long>);
+  static_assert(std::is_same_v<std::chrono::nanoseconds::rep, long long> ||
+                std::is_same_v<std::chrono::nanoseconds::rep, std::int64_t>);
   FUB_ASSERT(counter_);
   counter_->add(static_cast<long long>(nano.count()));
 }

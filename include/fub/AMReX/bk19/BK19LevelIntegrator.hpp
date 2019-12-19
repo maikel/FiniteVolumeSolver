@@ -25,9 +25,11 @@
 #include "fub/ext/Eigen.hpp"
 #include "fub/solver/DimensionalSplitLevelIntegrator.hpp"
 
+#include <AMReX_MLMG.H>
+
 namespace fub::amrex {
 
-class BK19LevelIntegrator {
+class BK19LevelIntegrator : private DimensionalSplitLevelIntegrator<AMREX_SPACEDIM, BK19IntegratorContext> {
 public:
   static constexpr int Rank = AMREX_SPACEDIM;
 
@@ -39,22 +41,41 @@ public:
   using AdvectionSolver =
       DimensionalSplitLevelIntegrator<Rank, BK19IntegratorContext>;
 
+  using AdvectionSolver::AdvanceLevelNonRecursively;
+  using AdvectionSolver::ApplyFluxCorrection;
+  using AdvectionSolver::CoarsenConservatively;
+  using AdvectionSolver::CompleteFromCons;
+  using AdvectionSolver::ComputeStableDt;
+  using AdvectionSolver::CopyDataToScratch;
+  using AdvectionSolver::CopyScratchToData;
+  using AdvectionSolver::GetContext;
+  using AdvectionSolver::GetCycles;
+  using AdvectionSolver::GetGriddingAlgorithm;
+  using AdvectionSolver::GetMpiCommunicator;
+  using AdvectionSolver::GetRatioToCoarserLevel;
+  using AdvectionSolver::GetTimePoint;
+  using AdvectionSolver::LevelExists;
+  using AdvectionSolver::PostAdvanceHierarchy;
+  using AdvectionSolver::PostAdvanceLevel;
+  using AdvectionSolver::PreAdvanceHierarchy;
+  using AdvectionSolver::PreAdvanceLevel;
+  using AdvectionSolver::ResetCoarseFineFluxes;
+  using AdvectionSolver::ResetHierarchyConfiguration;
+
+  AdvectionSolver& GetAdvection() { return *this; }
+  const AdvectionSolver& GetAdvection() const { return *this; }
+
   BK19LevelIntegrator(
       const CompressibleAdvection<Rank>& equation, AdvectionSolver advection,
-      std::shared_ptr<::amrex::MLMG> nodal_elliptic_solver);
+      std::shared_ptr<::amrex::MLNodeHelmDualCstVel> linop);
 
   void ResetPatchHierarchy(std::shared_ptr<GriddingAlgorithm> grid);
 
-  Duration ComputeStableDt(int level);
-
-  Result<void, TimeStepTooLarge>
-  AdvanceLevelNonRecursively(int level, Duration dt,
-                             std::pair<int, int> subcycle);
+  Result<void, TimeStepTooLarge> AdvanceLevelNonRecursively(int level, Duration dt, std::pair<int, int> subcycle);
 
 private:
   CompressibleAdvection<Rank> equation_;
-  std::shared_ptr<GriddingAlgorithm> grid_;
-  AdvectionSolver advection_;
+  std::shared_ptr<::amrex::MLNodeHelmDualCstVel> lin_op_;
   std::shared_ptr<::amrex::MLMG> nodal_solver_;
 };
 
