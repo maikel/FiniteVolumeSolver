@@ -47,10 +47,6 @@ public:
 
   double EvaluateRhs(const Complete& state, const Coordinates& x);
 
-  static void AverageCellToFace(::amrex::MultiFab& faces,
-                                const ::amrex::MultiFab& cells, int src_comp,
-                                int dest_comp, int n_comp, int dir);
-
   Result<void, TimeStepTooLargeError> AdvanceLevel(int level, Duration dt);
 
 private:
