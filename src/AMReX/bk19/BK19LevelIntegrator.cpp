@@ -123,7 +123,7 @@ Advect_(BK19LevelIntegrator::AdvectionSolver& advection, int level, Duration dt,
   on_nodes.surroundingNodes();
   MultiFab rhs(on_nodes, distribution_map, 1, 0);
 
-  // Copy velocity into seperate MultiFab to use compDivergence
+  // Copy momentum into seperate MultiFab to use compDivergence
   // This assumes f = 0 and N = 0
   // Construct right hand side by: -dt div(momentum)
   // Equation (28) in [BK19]
@@ -254,7 +254,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
 
   // 6) Do the second advection step with half-time Pv and full time step
   //   - Currently, scratch contains the result of euler forward step, 
-  //     which startet at the old time level.
+  //     which started at the old time level.
   context.FillGhostLayerSingleLevel(level);
   result = Advect_(advection_, level, dt, subcycle);
   if (!result) {
