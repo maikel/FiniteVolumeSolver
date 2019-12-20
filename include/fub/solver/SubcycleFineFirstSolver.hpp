@@ -164,7 +164,7 @@ SubcycleFineFirstSolver<LevelIntegrator>::AdvanceLevel(
   // This function can also indicate if some error occured.
   // For example the context could detect unphysical states and return a
   // TooLargeTimeStep error condition.
-  result = Base::PostAdvanceLevel(this_level, dt, subcycle));
+  result = Base::PostAdvanceLevel(this_level, dt, subcycle);
   if (!result) {
     return scale_dt_on_error(result);
   }
