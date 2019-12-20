@@ -41,7 +41,6 @@ public:
   using AdvectionSolver =
       DimensionalSplitLevelIntegrator<Rank, BK19IntegratorContext>;
 
-  using AdvectionSolver::AdvanceLevelNonRecursively;
   using AdvectionSolver::ApplyFluxCorrection;
   using AdvectionSolver::CoarsenConservatively;
   using AdvectionSolver::CompleteFromCons;

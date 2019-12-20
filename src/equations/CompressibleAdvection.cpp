@@ -62,9 +62,14 @@ Duration CompressibleAdvectionFluxMethod<SpaceDimension>::ComputeStableDt(
         amrex::GetFacesInStencilRange(cell_box, stencil, dir);
     View<const Complete> cells =
         amrex::MakeView<const Complete>(scratch[mfi], equation, cell_box);
-    StridedDataView<const double, SpaceDimension> Pv =
-        amrex::MakePatchDataView(Pvs.on_faces[dir_v][mfi], 0)
+    StridedDataView<const double, SpaceDimension> Pv;
+    if constexpr (SpaceDimension == AMREX_SPACEDIM) {
+        Pv = amrex::MakePatchDataView(Pvs.on_faces[dir_v][mfi], 0)
             .Subview(amrex::AsIndexBox<SpaceDimension>(face_box));
+    } else if constexpr (SpaceDimension + 1 == AMREX_SPACEDIM) {
+        Pv = SliceLast(amrex::MakePatchDataView(Pvs.on_faces[dir_v][mfi], 0)
+            .Subview(amrex::AsIndexBox<AMREX_SPACEDIM>(face_box)), 0);
+    }
     Duration local_dt = ComputeStableDt(cells, Pv, dx, dir);
     min_dt = std::min(local_dt, min_dt);
   });
@@ -214,10 +219,16 @@ void CompressibleAdvectionFluxMethod<SpaceDimension>::ComputeNumericFluxes(
         amrex::MakeView<const Complete>(sfab, equation, cell_box);
     View<Conservative> fluxes =
         amrex::MakeView<Conservative>(ffab, equation, face_box);
-    StridedDataView<const double, SpaceDimension> Pv =
-        amrex::MakePatchDataView(Pvs.on_faces[dir_v][mfi], 0)
+    StridedDataView<const double, SpaceDimension> Pv;
+    if constexpr (SpaceDimension == AMREX_SPACEDIM) {
+        Pv = amrex::MakePatchDataView(Pvs.on_faces[dir_v][mfi], 0)
             .Subview(amrex::AsIndexBox<SpaceDimension>(
                 ::amrex::grow(face_box, dir_v, 1)));
+    } else if constexpr (SpaceDimension + 1 == AMREX_SPACEDIM) {
+        Pv = SliceLast(amrex::MakePatchDataView(Pvs.on_faces[dir_v][mfi], 0)
+            .Subview(amrex::AsIndexBox<AMREX_SPACEDIM>(
+                ::amrex::grow(face_box, dir_v, 1))), 0);
+    }
     ComputeNumericFluxes(fluxes, cells, Pv, dt, dx, dir);
   });
 }
