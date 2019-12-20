@@ -289,6 +289,19 @@ struct WrapBoundaryCondition {
   }
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
                     Duration time_point,
+                    const GriddingAlgorithm& gridding, Direction dir) const {
+    FUB_ASSERT(base_condition != nullptr);
+    base_condition->FillBoundary(mf, geom, time_point, gridding, dir);
+    MultiBlockBoundary* boundary = boundaries.begin();
+    for (const BlockConnection& connection : connectivity) {
+      if (id == connection.tube.id) {
+        boundary->FillBoundary(mf, geom, time_point, gridding, dir);
+      }
+      ++boundary;
+    }
+  }
+  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
+                    Duration time_point,
                     const cutcell::GriddingAlgorithm& gridding) const {
     FUB_ASSERT(base_cc_condition != nullptr);
     base_cc_condition->FillBoundary(mf, geom, time_point, gridding);
@@ -300,8 +313,50 @@ struct WrapBoundaryCondition {
       ++boundary;
     }
   }
+  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
+                    Duration time_point,
+                    const cutcell::GriddingAlgorithm& gridding, Direction dir) const {
+    FUB_ASSERT(base_cc_condition != nullptr);
+    base_cc_condition->FillBoundary(mf, geom, time_point, gridding, dir);
+    MultiBlockBoundary* boundary = boundaries.begin();
+    for (const BlockConnection& connection : connectivity) {
+      if (id == connection.plenum.id) {
+        boundary->FillBoundary(mf, geom, time_point, gridding, dir);
+      }
+      ++boundary;
+    }
+  }
 };
 } // namespace
+
+void MultiBlockIntegratorContext::ApplyBoundaryCondition(int level, Direction dir) {
+  std::size_t id = 0;
+  for (IntegratorContext& tube : tubes_) {
+    if (tube.LevelExists(level)) {
+      BoundaryCondition& bc = tube.GetBoundaryCondition(level);
+      BoundaryCondition wrapped =
+          WrapBoundaryCondition{id, gridding_->GetConnectivity(),
+                                gridding_->GetBoundaries(level), &bc, nullptr};
+      wrapped.parent = tube.GetGriddingAlgorithm().get();
+      wrapped.geometry = tube.GetGeometry(level);
+      tube.ApplyBoundaryCondition(level, dir, wrapped);
+    }
+    id += 1;
+  }
+  id = 0;
+  for (cutcell::IntegratorContext& plenum : plena_) {
+    if (plenum.LevelExists(level)) {
+      cutcell::BoundaryCondition& bc = plenum.GetBoundaryCondition(level);
+      cutcell::BoundaryCondition wrapped =
+          WrapBoundaryCondition{id, gridding_->GetConnectivity(),
+                                gridding_->GetBoundaries(level), nullptr, &bc};
+      wrapped.parent = plenum.GetGriddingAlgorithm().get();
+      wrapped.geometry = plenum.GetGeometry(level);
+      plenum.ApplyBoundaryCondition(level, dir, wrapped);
+    }
+    id += 1;
+  }
+}
 
 /// \brief Fills the ghost layer of the scratch data and interpolates in the
 /// coarse fine layer.

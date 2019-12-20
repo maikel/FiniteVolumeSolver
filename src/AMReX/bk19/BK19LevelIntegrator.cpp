@@ -31,7 +31,7 @@ using ::amrex::MultiFab;
 inline constexpr int Rank = AMREX_SPACEDIM;
 
 // This works for now but we need something better.
-// TODO Introduct some kind of map between variables and indices 
+// TODO Introduce some kind of map between variables and indices 
 //   IndexMapping<Equation> index = MapIndices(equation);
 // with
 //   index.density, index.momentum[d], ...

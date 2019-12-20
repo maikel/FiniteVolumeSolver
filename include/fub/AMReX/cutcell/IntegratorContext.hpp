@@ -203,6 +203,14 @@ public:
   void CopyDataToScratch(int level);
   void CopyScratchToData(int level);
 
+  /// \brief Applies the boundary condition for the scratch space on level
+  /// `level` in direcition `dir`.
+  ///
+  /// \param level  The refinement level on which the boundary condition shall
+  /// be used.
+  void ApplyBoundaryCondition(int level, Direction dir);
+  void ApplyBoundaryCondition(int level, Direction dir, BoundaryCondition& bc);
+
   /// \brief Fills the ghost layer of the scratch data and interpolates in the
   /// coarse fine layer.
   void FillGhostLayerTwoLevels(int level, BoundaryCondition& fbc, int coarse,

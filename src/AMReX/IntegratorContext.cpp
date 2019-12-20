@@ -281,6 +281,11 @@ void IntegratorContext::SetCycles(std::ptrdiff_t cycles, int level) {
 }
 
 void IntegratorContext::ApplyBoundaryCondition(int level, Direction dir) {
+  BoundaryCondition& boundary_condition = GetBoundaryCondition(level);
+  ApplyBoundaryCondition(level, dir, boundary_condition);
+}
+
+void IntegratorContext::ApplyBoundaryCondition(int level, Direction dir, BoundaryCondition& bc) {
   Timer timer =
       registry_->get_timer("IntegratorContext::ApplyBoundaryCondition");
   Timer timer_per_level{};
@@ -288,12 +293,11 @@ void IntegratorContext::ApplyBoundaryCondition(int level, Direction dir) {
     timer_per_level = registry_->get_timer(
         fmt::format("IntegratorContext::ApplyBoundaryCondition({})", level));
   }
-  BoundaryCondition& boundary_condition = GetBoundaryCondition(level);
   ::amrex::MultiFab& scratch = GetScratch(level);
   Duration time_point = GetTimePoint(level);
   const ::amrex::Geometry& geometry = GetGeometry(level);
   GriddingAlgorithm& grid = *GetGriddingAlgorithm();
-  boundary_condition.FillBoundary(scratch, geometry, time_point, grid, dir);
+  bc.FillBoundary(scratch, geometry, time_point, grid, dir);
 }
 
 void IntegratorContext::FillGhostLayerTwoLevels(

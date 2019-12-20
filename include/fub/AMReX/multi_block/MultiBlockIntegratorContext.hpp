@@ -121,6 +121,13 @@ public:
   Result<void, TimeStepTooLarge> PostAdvanceLevel(int level_num, Duration dt,
                                                   std::pair<int,int> subcycle);
 
+  /// \brief Applies the boundary condition for the scratch space on level
+  /// `level` in direcition `dir`.
+  ///
+  /// \param level  The refinement level on which the boundary condition shall
+  /// be used.
+  void ApplyBoundaryCondition(int level, Direction dir);
+
   /// \brief Fills the ghost layer of the scratch data and interpolates in the
   /// coarse fine layer.
   void FillGhostLayerTwoLevels(int level, int coarse);
