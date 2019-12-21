@@ -12,6 +12,11 @@ function(add_executable_with_warnings TARGET)
 endfunction()
 
 if (AMReX_FOUND)
+  if (AMReX_EB_FOUND)
+    add_executable(AMReX.EB.SingleTubeRingPlenum AMReX/EB/SingleTubeRingPlenum.cpp)
+    target_link_libraries(AMReX.EB.SingleTubeRingPlenum FiniteVolumeSolver.AMReX.EB)
+  endif()
+
   add_executable_with_warnings(AMReX.PerfectGas1d AMReX/PerfectGas1d.cpp)
   target_link_libraries(AMReX.PerfectGas1d FiniteVolumeSolver.AMReX)
 
@@ -33,9 +38,6 @@ if (AMReX_FOUND)
   add_executable_with_warnings(AMReX.ShallowWater2d AMReX/ShallowWater2d.cpp)
   target_link_libraries(AMReX.ShallowWater2d FiniteVolumeSolver.AMReX)
 
-  add_executable(AMReX.EB.SingleTubeRingPlenum AMReX/EB/SingleTubeRingPlenum.cpp)
-  target_link_libraries(AMReX.EB.SingleTubeRingPlenum FiniteVolumeSolver.AMReX.EB)
-
   add_executable_with_warnings(AMReX.SodShockTube2d AMReX/SodShockTube2d.cpp)
   target_link_libraries(AMReX.SodShockTube2d FiniteVolumeSolver.AMReX)
 endif()
@@ -44,6 +46,9 @@ if (AMReX_FOUND AND AMReX_2D_FOUND)
 
   add_executable_with_warnings(AMReX.InitialHierarchy AMReX/InitialHierarchy.cpp)
   target_link_libraries(AMReX.InitialHierarchy FiniteVolumeSolver.AMReX)
+
+  add_executable(AMReX.NodalProjectionSingleLevel AMReX/NodalProjectionSingleLevel.cpp)
+  target_link_libraries(AMReX.NodalProjectionSingleLevel FiniteVolumeSolver.AMReX)
 
   if (AMReX_EB_FOUND)
     add_executable_with_warnings(AMReX.EB.Divider2D AMReX/EB/Divider2D.cpp)

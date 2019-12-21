@@ -10,14 +10,18 @@ endif()
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(STATUS "Setting build type to '${default_build_type}' as none was specified.")
-  set(CMAKE_BUILD_TYPE "${default_build_type}" CACHE
-      STRING "Choose the type of build." FORCE)
+  set(CMAKE_BUILD_TYPE "${default_build_type}" CACHE STRING "Choose the type of build." FORCE)
   # Set the possible values of build type for cmake-gui
   set_property(TARGET CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
     "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 else()
   message(STATUS "Setting build type to '${CMAKE_BUILD_TYPE}'.")
 endif()
+
+if (NOT CMAKE_VISIBILITY_INLINES_HIDDEN)
+  set(CMAKE_VISIBILITY_INLINES_HIDDEN "hidden" CACHE STRING "Choose visibility for inline symbols" FORCE)
+endif()
+message(STATUS "Setting the visbility for inline symbols to '${CMAKE_VISIBILITY_INLINES_HIDDEN}'.")
 
 # Detect if we use conan to build this project and its dependencies.
 # If yes, we include the neccessary build information, i.e. include paths and
@@ -31,7 +35,7 @@ if (EXISTS ${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 endif()
 
 find_package(range-v3 REQUIRED)
-if (NOT TARGET range-v3) 
+if (NOT TARGET range-v3)
   message(FATAL "Could not find range-v3 target.")
 endif()
 
@@ -106,13 +110,13 @@ endif()
 
 set(FUB_DEFAULT_CHUNK_SIZE "8" CACHE STRING "The Array width for vectorization routines")
 
-# In a multi-threaded environment we have to specify '-fopenmp' else we risk 
+# In a multi-threaded environment we have to specify '-fopenmp' else we risk
 # data races in the fortran implementation of RADAU.
 add_library(RadauSolverFortran
   src/ode_solver/decsol.f
   src/ode_solver/dc_decsol.f
   src/ode_solver/radau.f)
-if (FUB_WITH_FORTRAN_OPENMP_SUPPORT) 
+if (FUB_WITH_FORTRAN_OPENMP_SUPPORT)
  target_compile_options(RadauSolverFortran PRIVATE "-fopenmp")
 endif()
 
@@ -131,7 +135,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/include/fub/config.hpp.in
 # [FiniteVolumeSolver.Core]
 
 add_library(FiniteVolumeSolver.Core INTERFACE)
-target_include_directories(FiniteVolumeSolver.Core 
+target_include_directories(FiniteVolumeSolver.Core
   INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
@@ -151,21 +155,21 @@ install(
 
 add_library(FiniteVolumeSolver.OdeSolver
   include/fub/ode_solver/OdeSolver.hpp
-  include/fub/ode_solver/RadauSolver.hpp 
+  include/fub/ode_solver/RadauSolver.hpp
   include/fub/ode_solver/OdeSolverFactory.hpp
   src/ode_solver/RadauSolver.cpp
   src/ode_solver/OdeSolverFactory.cpp)
 
 # If we found Sundials::cvode then we include its sources to the target.
 if (Sundials_FOUND AND FUB_WITH_SUNDIALS)
-  target_sources(FiniteVolumeSolver.OdeSolver 
-    PRIVATE 
+  target_sources(FiniteVolumeSolver.OdeSolver
+    PRIVATE
       src/ode_solver/CVodeSolver.cpp)
   target_link_libraries(FiniteVolumeSolver.OdeSolver PUBLIC Sundials::cvode)
 endif()
 
 target_link_libraries(FiniteVolumeSolver.OdeSolver
-  PUBLIC 
+  PUBLIC
     FiniteVolumeSolver.Core
     RadauSolverFortran)
 target_include_directories(FiniteVolumeSolver.OdeSolver
@@ -297,12 +301,13 @@ target_link_libraries(FiniteVolumeSolver.Solver
     Eigen3::Eigen
     Vc::Vc
     pybind11::embed)
-target_compile_options(FiniteVolumeSolver.Solver 
-  PRIVATE 
+target_compile_options(FiniteVolumeSolver.Solver
+  PRIVATE
   $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
   $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall>
   $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>)
 set_property(TARGET FiniteVolumeSolver.Solver PROPERTY CXX_VISIBILITY_PRESET "hidden")
+set_property(TARGET FiniteVolumeSolver.Solver PROPERTY VISIBILITY_INLINES_HIDDEN "hidden")
 install(
   TARGETS FiniteVolumeSolver.Solver
   EXPORT FiniteVolumeSolver
@@ -335,15 +340,14 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     include/fub/AMReX/FluxMethod.hpp
     include/fub/AMReX/ScopeGuard.hpp
     include/fub/AMReX/ViewFArrayBox.hpp
+    include/fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp
     include/fub/AMReX/tagging/TagBuffer.hpp
     include/fub/AMReX/tagging/ConstantRegion.hpp
     include/fub/geometry/Geometry.hpp
     include/fub/geometry/PolymorphicGeometry.hpp
     include/fub/geometry/Union.hpp
     include/fub/AMReX/output/WriteHdf5.hpp
-    include/fub/AMReX/output/LogProbes.hpp
     include/fub/AMReX/output/WritePlotfiles.hpp
-    src/AMReX/output/LogProbes.cpp
     src/AMReX/output/WriteHdf5.cpp
     src/equations/ideal_gas_mix/KineticSourceTerm.cpp
     src/AMReX/boundary_condition/BoundarySet.cpp
@@ -356,6 +360,8 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     src/AMReX/ScopeGuard.cpp
     src/AMReX/CartesianGridGeometry.cpp
     src/AMReX/ViewFArrayBox.cpp
+    src/AMReX/MLMG/MLNodeHelmDualCstVel.cpp
+    src/AMReX/MLMG/MLNodeHelmDualCstVel_K.cpp
     src/AMReX/PatchHierarchy.cpp
     src/AMReX/GriddingAlgorithm.cpp
     src/AMReX/BoundaryCondition.cpp
@@ -388,7 +394,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
       CONAN_PKG::HDF5)
   target_include_directories(FiniteVolumeSolver.AMReX PUBLIC ${HDF5_C_INCLUDE_DIR})
 
-  if (AMReX_EB_FOUND) 
+  if (AMReX_EB_FOUND)
     target_sources(FiniteVolumeSolver.AMReX PRIVATE
         include/fub/AMReX/cutcell/AllRegularIndexSpace.hpp
         src/AMReX/cutcell/AllRegularIndexSpace.cpp)
@@ -425,6 +431,8 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         include/fub/AMReX/multi_block/MultiBlockIgniteDetonation.hpp
         include/fub/AMReX/multi_block/MultiWriteHdf5.hpp
         include/fub/AMReX/multi_block/MultiBlockPlotfileOutput.hpp
+        include/fub/AMReX/cutcell/output/LogProbes.hpp
+        src/AMReX/cutcell/output/LogProbes.cpp
         src/AMReX/multi_block/MultiBlockPlotfileOutput.cpp
         src/AMReX/multi_block/MultiWriteHdf5.cpp
         src/AMReX/cutcell/BoundaryCondition.cpp
@@ -486,19 +494,19 @@ if (SAMRAI_FOUND)
     src/SAMRAI/ViewPatch.cpp
     src/SAMRAI/TimeIntegrator.cpp
     src/SAMRAI/tagging/ConstantBox.cpp)
-  target_include_directories(FiniteVolumeSolver.SAMRAI 
-    PUBLIC 
+  target_include_directories(FiniteVolumeSolver.SAMRAI
+    PUBLIC
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
       $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>
-    PRIVATE 
+    PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR})
   target_link_libraries(FiniteVolumeSolver.SAMRAI
     PUBLIC
       FiniteVolumeSolver.Solver
       SAMRAI_appu SAMRAI_xfer SAMRAI_mesh SAMRAI_geom
       SAMRAI_pdat SAMRAI_hier SAMRAI_tbox range-v3)
-  target_compile_options(FiniteVolumeSolver.SAMRAI 
-    PRIVATE 
+  target_compile_options(FiniteVolumeSolver.SAMRAI
+    PRIVATE
       $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
       $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall>
       $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>)
