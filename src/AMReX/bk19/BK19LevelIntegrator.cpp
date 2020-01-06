@@ -41,6 +41,8 @@ using Equation = CompressibleAdvection<Rank>;
 static_assert(Rank == 2);
 
 namespace {
+// Apply the cell to face average to a specified cell_component on mf_cells and
+// write its result into face_component of mf_faces.
 void AverageCellToFace_(MultiFab& mf_faces, int face_component,
                         const MultiFab& mf_cells, int cell_component,
                         Direction dir) {
@@ -82,11 +84,13 @@ void AverageCellToFace_(MultiFab& mf_faces, int face_component,
 void ComputePvFromScratch_(const IndexMapping<Equation>& index, MultiFab& dest,
                            const MultiFab& scratch) {
   // Shall be: Pv[i] = PTdensity * v[i]
+  // Compute Pv_i for each velocity direction
   for (std::size_t i = 0; i < index.momentum.size(); ++i) {
-    MultiFab::Copy(dest, scratch, index.PTdensity, i, one_component,
-                   dest.nGrow());
-    MultiFab::Multiply(dest, scratch, index.velocity[i], i, one_component,
-                       dest.nGrow());
+    const int dest_component = static_cast<int>(i);
+    MultiFab::Copy(dest, scratch, index.PTdensity, dest_component,
+                   one_component, dest.nGrow());
+    MultiFab::Multiply(dest, scratch, index.velocity[i], dest_component,
+                       one_component, dest.nGrow());
   }
 }
 
@@ -94,8 +98,9 @@ void RecomputeAdvectiveFluxes_(const IndexMapping<Equation>& index,
                                std::array<MultiFab, Rank>& Pv_faces,
                                MultiFab& Pv_cells, const MultiFab& scratch) {
   ComputePvFromScratch_(index, Pv_cells, scratch);
-  constexpr int cell_component = 0;
+  // Average Pv_i for each velocity direction
   for (std::size_t dir = 0; dir < index.velocity.size(); ++dir) {
+    const int cell_component = static_cast<int>(dir);
     const int face_component = static_cast<int>(dir);
     AverageCellToFace_(Pv_faces[dir], face_component, Pv_cells, cell_component,
                        Direction(dir));
