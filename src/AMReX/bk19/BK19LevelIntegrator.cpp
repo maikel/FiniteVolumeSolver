@@ -41,15 +41,17 @@ using Equation = CompressibleAdvection<Rank>;
 static_assert(Rank == 2);
 
 namespace {
-void AverageCellToFace_(MultiFab& mf_faces, const MultiFab& mf_cells,
-                        int src_component, int dest_component, Direction dir) {
+void AverageCellToFace_(MultiFab& mf_faces, int face_component,
+                        const MultiFab& mf_cells, int cell_component,
+                        Direction dir) {
   if constexpr (Rank == 2) {
     FUB_ASSERT(dir == Direction::X || dir == Direction::Y);
     if (dir == Direction::X) {
       ForEachFab(execution::openmp, mf_cells, [&](const MFIter& mfi) {
-        auto cells = SliceLast(MakePatchDataView(mf_cells[mfi]), src_component);
+        auto cells =
+            SliceLast(MakePatchDataView(mf_cells[mfi]), cell_component);
         auto faces =
-            SliceLast(MakePatchDataView(mf_faces[mfi]), dest_component);
+            SliceLast(MakePatchDataView(mf_faces[mfi]), face_component);
         ForEachIndex(faces.Box(), [&](int i, int j) {
           // clang-format off
           faces(i, j) = 1.0 * cells(i - 1, j - 1) + 1.0 * cells(i, j - 1) +
@@ -61,9 +63,10 @@ void AverageCellToFace_(MultiFab& mf_faces, const MultiFab& mf_cells,
       });
     } else {
       ForEachFab(execution::openmp, mf_cells, [&](const MFIter& mfi) {
-        auto cells = SliceLast(MakePatchDataView(mf_cells[mfi]), src_component);
+        auto cells =
+            SliceLast(MakePatchDataView(mf_cells[mfi]), cell_component);
         auto faces =
-            SliceLast(MakePatchDataView(mf_faces[mfi]), dest_component);
+            SliceLast(MakePatchDataView(mf_faces[mfi]), face_component);
         ForEachIndex(faces.Box(), [&](int i, int j) {
           // clang-format off
           faces(i, j) = 1.0 * cells(i - 1,     j) + 2.0 * cells(i,     j) + 1.0 * cells(i + 1,     j) +
@@ -80,8 +83,10 @@ void ComputePvFromScratch_(const IndexMapping<Equation>& index, MultiFab& dest,
                            const MultiFab& scratch) {
   // Shall be: Pv[i] = PTdensity * v[i]
   for (std::size_t i = 0; i < index.momentum.size(); ++i) {
-    MultiFab::Copy(dest, scratch, index.PTdensity, i, one_component, dest.nGrow());
-    MultiFab::Multiply(dest, scratch, index.velocity[i], i, one_component, dest.nGrow());
+    MultiFab::Copy(dest, scratch, index.PTdensity, i, one_component,
+                   dest.nGrow());
+    MultiFab::Multiply(dest, scratch, index.velocity[i], i, one_component,
+                       dest.nGrow());
   }
 }
 
@@ -89,8 +94,11 @@ void RecomputeAdvectiveFluxes_(const IndexMapping<Equation>& index,
                                std::array<MultiFab, Rank>& Pv_faces,
                                MultiFab& Pv_cells, const MultiFab& scratch) {
   ComputePvFromScratch_(index, Pv_cells, scratch);
+  constexpr int cell_component = 0;
   for (std::size_t dir = 0; dir < index.velocity.size(); ++dir) {
-    AverageCellToFace_(Pv_faces[dir], Pv_cells, 0, dir, Direction(dir));
+    const int face_component = static_cast<int>(dir);
+    AverageCellToFace_(Pv_faces[dir], face_component, Pv_cells, cell_component,
+                       Direction(dir));
   }
 }
 
@@ -142,9 +150,9 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   momentum.mult(-dt.count());
   lin_op.compDivergence({&rhs}, {&momentum});
   // Rupert sagt:
-  // Moment,  [BK19] (28) nimmt nicht die Divergenz des Impulses, 
+  // Moment,  [BK19] (28) nimmt nicht die Divergenz des Impulses,
   // sondern die Divergenz von  Pv . Siehe Definition von U, V, W in
-  // der ersten Zeile nach  [BK19] (23).  
+  // der ersten Zeile nach  [BK19] (23).
 
   // Construct sigma by: -cp dt^2 (P Theta)^o (Equation (27) in [BK19])
   // MultiFab::Divide(dest, src, src_comp, dest_comp, n_comp, n_grow);
@@ -165,8 +173,8 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   // Rupert sagt:
   // Nicht klar, wo die Funktionalität lin_op.getFluxes()  definiert ist.
   // Wird da eine Funktionalität aufgerufen, die schon in AMReX verdrahtet ist?
-  // Falls ja, ist das denn auch diejenige, die wir brauchen? 
-  
+  // Falls ja, ist das denn auch diejenige, die wir brauchen?
+
   // Rupert sagt:
   // Achtung: Die Divergenz von  Pv   wird kontrolliert, aber es wird
   // \rho v   am Ende auf das neue Zeitniveau gehoben. Ist sichergestellt,
@@ -226,8 +234,8 @@ void DoEulerForward_(const Equation& equation,
   lin_op.getFluxes({&momentum_correction}, {&pi});
 
   // Rupert sagt:  (**)
-  // Hier müssten besagte zwei Zeilen stehen, wenn oben mit dt^2 
-  // multipliziert worden wäre. 
+  // Hier müssten besagte zwei Zeilen stehen, wenn oben mit dt^2
+  // multipliziert worden wäre.
 
   for (std::size_t i = 0; i < index.momentum.size(); ++i) {
     MultiFab::Add(scratch, momentum_correction, i, index.momentum[i],
@@ -237,9 +245,9 @@ void DoEulerForward_(const Equation& equation,
   RecoverVelocityFromMomentum_(scratch, index);
 
   // Rupert sagt:
-  // Achtung, auch hier muss beachtet werden, dass  Pv  nicht dasselbe 
+  // Achtung, auch hier muss beachtet werden, dass  Pv  nicht dasselbe
   // ist wie  \rho v !   Ich bin mir eben nicht sicher, ob   lin_op.getFluxes()
-  // das weiss. 
+  // das weiss.
 }
 
 } // namespace
