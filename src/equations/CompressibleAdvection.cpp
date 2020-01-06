@@ -84,11 +84,11 @@ Duration CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
                     const StridedDataView<const double, SpaceDimension> Pv,
                     double dx, Direction dir) {
   double max_signal = std::numeric_limits<double>::lowest();
-  ForEachIndex(Box<0>(states), [&](auto... is) {
+  ForEachIndex(Shrink(Pv.Box(), dir, {0, 1}), [&](auto... is) {
     using Index = std::array<std::ptrdiff_t, SpaceDimension>;
-    Index cell{is...};
-    Index faceL = cell;
-    Index faceR = Shift(cell, dir, 1);
+    Index faceL{is...};
+    Index faceR = Shift(faceL, dir, 1);
+    Index cell = faceL;
     double v_advect = 0.5 * (Pv(faceL) + Pv(faceR)) / states.PTdensity(cell);
     max_signal = std::max(max_signal, std::abs(v_advect));
   });
