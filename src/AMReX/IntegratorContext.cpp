@@ -67,10 +67,11 @@ operator=(LevelData&& other) noexcept {
 // Each adds a factor of two to the ghost cell width requirements on coarse fine
 // boundaries.
 IntegratorContext::IntegratorContext(
-    std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod nm)
+    std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod hm)
     : registry_{std::make_shared<CounterRegistry>()},
-      cell_ghost_cell_width_{nm.flux_method.GetStencilWidth() * 2 * 2},
-      gridding_{std::move(gridding)}, data_{}, method_{std::move(nm)} {
+      cell_ghost_cell_width_{hm.flux_method.GetStencilWidth() * 2 * 2},
+      face_ghost_cell_width_{cell_ghost_cell_width_ - hm.flux_method.GetStencilWidth()},
+      gridding_{std::move(gridding)}, data_{}, method_{std::move(hm)} {
   data_.reserve(
       static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
   // Allocate auxiliary data arrays for each refinement level in the hierarchy
