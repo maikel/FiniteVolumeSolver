@@ -81,24 +81,26 @@ struct StateTraits<CompressibleAdvectionComplete<Xs...>> {
                       &CompressibleAdvectionComplete<Xs...>::PTinverse);
 };
 
-template <int Rank>
+template <int VelocityRank>
 using CompressibleAdvectionConsShape =
-    CompressibleAdvectionConservative<ScalarDepth, VectorDepth<Rank>,
+    CompressibleAdvectionConservative<ScalarDepth, VectorDepth<VelocityRank>,
                                       ScalarDepth>;
 
-template <int Rank>
+template <int VelocityRank>
 using CompressibleAdvectionCompleteShape =
-    CompressibleAdvectionComplete<ScalarDepth, VectorDepth<Rank>, ScalarDepth,
-                                  VectorDepth<Rank>, ScalarDepth>;
+    CompressibleAdvectionComplete<ScalarDepth, VectorDepth<VelocityRank>,
+                                  ScalarDepth, VectorDepth<VelocityRank>,
+                                  ScalarDepth>;
 
-template <int N> struct CompressibleAdvection {
-  using ConservativeDepths = CompressibleAdvectionConsShape<N>;
-  using CompleteDepths = CompressibleAdvectionCompleteShape<N>;
+template <int N, int VelocityDim = N> struct CompressibleAdvection {
+  using ConservativeDepths = CompressibleAdvectionConsShape<VelocityDim>;
+  using CompleteDepths = CompressibleAdvectionCompleteShape<VelocityDim>;
 
   using Conservative = ::fub::Conservative<CompressibleAdvection<N>>;
   using Complete = ::fub::Complete<CompressibleAdvection<N>>;
 
   static constexpr int Rank() noexcept { return N; }
+  static constexpr int VelocityRank() noexcept { return VelocityDim; }
 
   void CompleteFromCons(Complete& state, const Conservative& cons) {
     state.density = cons.density;
@@ -121,14 +123,20 @@ template <int N> struct CompressibleAdvection {
   double f{0.0};
 };
 
-template <int SpaceDimension> struct CompressibleAdvectionFluxMethod {
+template <int SpaceDimension, int VelocityDimension = SpaceDimension>
+struct CompressibleAdvectionFluxMethod {
   using Conservative =
-      typename CompressibleAdvection<SpaceDimension>::Conservative;
-  using Complete = typename CompressibleAdvection<SpaceDimension>::Complete;
+      typename CompressibleAdvection<SpaceDimension,
+                                     VelocityDimension>::Conservative;
+  using Complete = typename CompressibleAdvection<SpaceDimension,
+                                                  VelocityDimension>::Complete;
 
   constexpr static int GetStencilWidth() { return 2; }
 
-  CompressibleAdvection<2> GetEquation() const noexcept { return {}; }
+  CompressibleAdvection<SpaceDimension, VelocityDimension> GetEquation() const
+      noexcept {
+    return {};
+  }
 
   Duration ComputeStableDt(amrex::IntegratorContext& context, int level,
                            Direction dir);

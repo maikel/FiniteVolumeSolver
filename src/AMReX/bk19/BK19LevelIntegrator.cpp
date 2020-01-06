@@ -135,7 +135,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   // Divergence needs on ghost cell width.
   MultiFab momentum(on_cells, distribution_map, index.momentum.size(),
                     one_ghost_cell_width);
-  for (std::size_t i = 0; index.momentum.size(); ++i) {
+  for (std::size_t i = 0; i < index.momentum.size(); ++i) {
     MultiFab::Copy(momentum, scratch, index.momentum[i], i, one_component,
                    one_ghost_cell_width);
   }
@@ -163,7 +163,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   momentum_correction.mult(-1.0 / dt.count(), 0);
 
   // Fix Momentum
-  for (std::size_t i = 0; index.momentum.size(); ++i) {
+  for (std::size_t i = 0; i < index.momentum.size(); ++i) {
     MultiFab::Add(scratch, momentum_correction, i, index.momentum[i],
                   one_component, no_ghosts);
   }
@@ -205,7 +205,7 @@ void DoEulerForward_(const Equation& equation,
                                index.momentum.size(), no_ghosts);
   momentum_correction.setVal(0.0);
   lin_op.getFluxes({&momentum_correction}, {&pi});
-  for (std::size_t i = 0; index.momentum.size(); ++i) {
+  for (std::size_t i = 0; i < index.momentum.size(); ++i) {
     MultiFab::Add(scratch, momentum_correction, i, index.momentum[i],
                   one_component, no_ghosts);
   }

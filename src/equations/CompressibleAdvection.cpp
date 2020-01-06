@@ -39,9 +39,10 @@ double LimitSlopes(double qL, double qM, double qR) {
 }
 } // namespace
 
-template <int SpaceDimension>
-Duration CompressibleAdvectionFluxMethod<SpaceDimension>::ComputeStableDt(
-    amrex::IntegratorContext& base_context, int level, Direction dir) {
+template <int SpaceDimension, int VelocityDimension>
+Duration CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
+    ComputeStableDt(amrex::IntegratorContext& base_context, int level,
+                    Direction dir) {
   // try to convert the IntegratorContext to BK19IntegratorContext
   // if this terminate the program.
   amrex::BK19IntegratorContext* pointer_to_context =
@@ -64,11 +65,12 @@ Duration CompressibleAdvectionFluxMethod<SpaceDimension>::ComputeStableDt(
         amrex::MakeView<const Complete>(scratch[mfi], equation, cell_box);
     StridedDataView<const double, SpaceDimension> Pv;
     if constexpr (SpaceDimension == AMREX_SPACEDIM) {
-        Pv = amrex::MakePatchDataView(Pvs.on_faces[dir_v][mfi], 0)
-            .Subview(amrex::AsIndexBox<SpaceDimension>(face_box));
+      Pv = amrex::MakePatchDataView(Pvs.on_faces[dir_v][mfi], 0)
+               .Subview(amrex::AsIndexBox<SpaceDimension>(face_box));
     } else if constexpr (SpaceDimension + 1 == AMREX_SPACEDIM) {
-        Pv = SliceLast(amrex::MakePatchDataView(Pvs.on_faces[dir_v][mfi], 0)
-            .Subview(amrex::AsIndexBox<AMREX_SPACEDIM>(face_box)), 0);
+      Pv = SliceLast(amrex::MakePatchDataView(Pvs.on_faces[dir_v][mfi], 0)
+                         .Subview(amrex::AsIndexBox<AMREX_SPACEDIM>(face_box)),
+                     0);
     }
     Duration local_dt = ComputeStableDt(cells, Pv, dx, dir);
     min_dt = std::min(local_dt, min_dt);
@@ -76,11 +78,11 @@ Duration CompressibleAdvectionFluxMethod<SpaceDimension>::ComputeStableDt(
   return min_dt;
 }
 
-template <int SpaceDimension>
-Duration CompressibleAdvectionFluxMethod<SpaceDimension>::ComputeStableDt(
-    const View<const Complete>& states,
-    const StridedDataView<const double, SpaceDimension> Pv, double dx,
-    Direction dir) {
+template <int SpaceDimension, int VelocityDimension>
+Duration CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
+    ComputeStableDt(const View<const Complete>& states,
+                    const StridedDataView<const double, SpaceDimension> Pv,
+                    double dx, Direction dir) {
   double max_signal = std::numeric_limits<double>::lowest();
   ForEachIndex(Box<0>(states), [&](auto... is) {
     using Index = std::array<std::ptrdiff_t, SpaceDimension>;
@@ -95,11 +97,12 @@ Duration CompressibleAdvectionFluxMethod<SpaceDimension>::ComputeStableDt(
                         : Duration(std::numeric_limits<double>::max());
 }
 
-template <int SpaceDimension>
-typename CompressibleAdvection<SpaceDimension>::Conservative
-CompressibleAdvectionFluxMethod<SpaceDimension>::ComputeNumericFluxes(
-    const std::array<Complete, 4>& stencil, const std::array<double, 5> Pvs,
-    Duration dt, double dx, Direction) {
+template <int SpaceDimension, int VelocityDimension>
+typename CompressibleAdvection<SpaceDimension, VelocityDimension>::Conservative
+CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
+    ComputeNumericFluxes(const std::array<Complete, 4>& stencil,
+                         const std::array<double, 5> Pvs, Duration dt,
+                         double dx, Direction) {
   // Reconstruction
   double slope_chi_L = LimitSlopes(stencil[0].PTinverse, stencil[1].PTinverse,
                                    stencil[2].PTinverse) /
@@ -162,11 +165,12 @@ CompressibleAdvectionFluxMethod<SpaceDimension>::ComputeNumericFluxes(
   return flux;
 }
 
-template <int SpaceDimension>
-void CompressibleAdvectionFluxMethod<SpaceDimension>::ComputeNumericFluxes(
-    const View<Conservative>& fluxes, const View<const Complete>& states,
-    const StridedDataView<const double, SpaceDimension>& Pv_array, Duration dt,
-    double dx, Direction dir) {
+template <int SpaceDimension, int VelocityDimension>
+void CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
+    ComputeNumericFluxes(
+        const View<Conservative>& fluxes, const View<const Complete>& states,
+        const StridedDataView<const double, SpaceDimension>& Pv_array,
+        Duration dt, double dx, Direction dir) {
   std::array<Complete, 4> stencil{};
   std::array<double, 5> Pvs{};
 
@@ -191,10 +195,10 @@ void CompressibleAdvectionFluxMethod<SpaceDimension>::ComputeNumericFluxes(
   });
 }
 
-template <int SpaceDimension>
-void CompressibleAdvectionFluxMethod<SpaceDimension>::ComputeNumericFluxes(
-    amrex::IntegratorContext& base_context, int level, Duration dt,
-    Direction dir) {
+template <int SpaceDimension, int VelocityDimension>
+void CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
+    ComputeNumericFluxes(amrex::IntegratorContext& base_context, int level,
+                         Duration dt, Direction dir) {
   // try to convert the IntegratorContext to BK19IntegratorContext
   // if this terminate the program.
   amrex::BK19IntegratorContext* pointer_to_context =
@@ -221,13 +225,14 @@ void CompressibleAdvectionFluxMethod<SpaceDimension>::ComputeNumericFluxes(
         amrex::MakeView<Conservative>(ffab, equation, face_box);
     StridedDataView<const double, SpaceDimension> Pv;
     if constexpr (SpaceDimension == AMREX_SPACEDIM) {
-        Pv = amrex::MakePatchDataView(Pvs.on_faces[dir_v][mfi], 0)
-            .Subview(amrex::AsIndexBox<SpaceDimension>(
-                ::amrex::grow(face_box, dir_v, 1)));
+      Pv = amrex::MakePatchDataView(Pvs.on_faces[dir_v][mfi], 0)
+               .Subview(amrex::AsIndexBox<SpaceDimension>(
+                   ::amrex::grow(face_box, dir_v, 1)));
     } else if constexpr (SpaceDimension + 1 == AMREX_SPACEDIM) {
-        Pv = SliceLast(amrex::MakePatchDataView(Pvs.on_faces[dir_v][mfi], 0)
-            .Subview(amrex::AsIndexBox<AMREX_SPACEDIM>(
-                ::amrex::grow(face_box, dir_v, 1))), 0);
+      Pv = SliceLast(amrex::MakePatchDataView(Pvs.on_faces[dir_v][mfi], 0)
+                         .Subview(amrex::AsIndexBox<AMREX_SPACEDIM>(
+                             ::amrex::grow(face_box, dir_v, 1))),
+                     0);
     }
     ComputeNumericFluxes(fluxes, cells, Pv, dt, dx, dir);
   });
