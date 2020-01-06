@@ -158,6 +158,15 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
                                index.momentum.size(), no_ghosts);
   momentum_correction.setVal(0.0);
   lin_op.getFluxes({&momentum_correction}, {&pi});
+  // Rupert sagt:
+  // Nicht klar, wo die Funktionalität lin_op.getFluxes()  definiert ist.
+  // Wird da eine Funktionalität aufgerufen, die schon in AMReX verdrahtet ist?
+  // Falls ja, ist das denn auch diejenige, die wir brauchen? 
+  
+  // Rupert sagt:
+  // Achtung: Die Divergenz von  Pv   wird kontrolliert, aber es wird
+  // \rho v   am Ende auf das neue Zeitniveau gehoben. Ist sichergestellt,
+  // dass die hier verwendeten Routinen das alles richtig machen?
 
   // TODO check sign output of AMReX
   momentum_correction.mult(-1.0 / dt.count(), 0);
@@ -183,6 +192,12 @@ void DoEulerForward_(const Equation& equation,
 
   // Construct sigma as in EulerBackward, but with -cp dt instead of -cp dt^2
   // Maikel: This needs a comment for me, why it is so
+  // Rupert sagt:
+  // Wenn ich das richtig sehe, liegt das daran, dass die folgenden zwei Zeilen:
+  // // TODO check sign output of AMReX
+  // momentum_correction.mult(-1.0 / dt.count(), 0);
+  // in EulerForward nicht existieren, in EulerBackward aber schon.
+  // Siehe auch Kommentar (**) weiter unten.
   MultiFab sigma(on_cells, distribution_map, one_component, no_ghosts);
   sigma.setVal(-equation.c_p * dt.count());
   MultiFab::Multiply(sigma, scratch, index.PTdensity, 0, one_component,
@@ -205,12 +220,22 @@ void DoEulerForward_(const Equation& equation,
                                index.momentum.size(), no_ghosts);
   momentum_correction.setVal(0.0);
   lin_op.getFluxes({&momentum_correction}, {&pi});
+
+  // Rupert sagt:  (**)
+  // Hier müssten besagte zwei Zeilen stehen, wenn oben mit dt^2 
+  // multipliziert worden wäre. 
+
   for (std::size_t i = 0; i < index.momentum.size(); ++i) {
     MultiFab::Add(scratch, momentum_correction, i, index.momentum[i],
                   one_component, no_ghosts);
   }
 
   RecoverVelocityFromMomentum_(scratch, index);
+
+  // Rupert sagt:
+  // Achtung, auch hier muss beachtet werden, dass  Pv  nicht dasselbe 
+  // ist wie  \rho v !   Ich bin mir eben nicht sicher, ob   lin_op.getFluxes()
+  // das weiss. 
 }
 
 } // namespace
