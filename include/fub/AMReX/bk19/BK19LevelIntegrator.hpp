@@ -74,6 +74,7 @@ public:
 
 private:
   CompressibleAdvection<Rank> equation_;
+  fub::IndexMapping<fub::CompressibleAdvection<2>> index_;
   std::shared_ptr<::amrex::MLNodeHelmDualCstVel> lin_op_;
   std::shared_ptr<::amrex::MLMG> nodal_solver_;
 };

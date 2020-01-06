@@ -28,22 +28,13 @@ namespace fub::amrex {
 using ::amrex::MFIter;
 using ::amrex::MultiFab;
 
+// We give names to some magic zeros and ones.
+inline constexpr int no_ghosts = 0;
+inline constexpr int one_ghost_cell_width = 1;
+inline constexpr int one_component = 1;
+
 inline constexpr int Rank = AMREX_SPACEDIM;
 
-// This works for now but we need something better.
-// TODO Introduce some kind of map between variables and indices 
-//   IndexMapping<Equation> index = MapIndices(equation);
-// with
-//   index.density, index.momentum[d], ...
-inline constexpr int index_density = 0;
-inline constexpr int index_momentum_x = 1;
-inline constexpr int index_momentum_y = 2;
-inline constexpr int index_momentum_z = 3;
-inline constexpr int index_PTdensity = index_momentum_x + AMREX_SPACEDIM;
-inline constexpr int index_velocity_x = index_PTdensity + 1;
-inline constexpr int index_velocity_y = index_velocity_x + 1;
-inline constexpr int index_velocity_z = index_velocity_x + 2;
-inline constexpr int index_PTinverse = index_velocity_x + AMREX_SPACEDIM;
 using Equation = CompressibleAdvection<Rank>;
 
 // For now the implementation assumes Rank == 2
@@ -52,7 +43,7 @@ static_assert(Rank == 2);
 namespace {
 void AverageCellToFace_(MultiFab& mf_faces, const MultiFab& mf_cells,
                         int src_component, int dest_component, Direction dir) {
-  if constexpr (AMREX_SPACEDIM == 2) {
+  if constexpr (Rank == 2) {
     FUB_ASSERT(dir == Direction::X || dir == Direction::Y);
     if (dir == Direction::X) {
       ForEachFab(execution::openmp, mf_cells, [&](const MFIter& mfi) {
@@ -85,20 +76,20 @@ void AverageCellToFace_(MultiFab& mf_faces, const MultiFab& mf_cells,
   }
 }
 
-void ComputePvFromScratch_(const Equation&, MultiFab& dest,
+void ComputePvFromScratch_(const IndexMapping<Equation>& index, MultiFab& dest,
                            const MultiFab& scratch) {
-  // Shall be: Pv = PTdensity * v
-  MultiFab::Copy(dest, scratch, 0, index.PTdensity, 1, dest.nGrow());
-  MultiFab::Copy(dest, scratch, 1, index.PTdensity, 1, dest.nGrow());
-  MultiFab::Multiply(dest, scratch, 0, index.velocity[0], 1, dest.nGrow());
-  MultiFab::Multiply(dest, scratch, 1, index.velocity[1], 1, dest.nGrow());
+  // Shall be: Pv[i] = PTdensity * v[i]
+  for (std::size_t i = 0; i < index.momentum.size(); ++i) {
+    MultiFab::Copy(dest, scratch, index.PTdensity, i, one_component, dest.nGrow());
+    MultiFab::Multiply(dest, scratch, index.velocity[i], i, one_component, dest.nGrow());
+  }
 }
 
-void RecomputeAdvectiveFluxes_(const Equation& equation,
+void RecomputeAdvectiveFluxes_(const IndexMapping<Equation>& index,
                                std::array<MultiFab, Rank>& Pv_faces,
                                MultiFab& Pv_cells, const MultiFab& scratch) {
-  ComputePvFromScratch_(equation, Pv_cells, scratch);
-  for (int dir = 0; dir < Rank; ++dir) {
+  ComputePvFromScratch_(index, Pv_cells, scratch);
+  for (std::size_t dir = 0; dir < index.velocity.size(); ++dir) {
     AverageCellToFace_(Pv_faces[dir], Pv_cells, 0, dir, Direction(dir));
   }
 }
@@ -109,7 +100,20 @@ Advect_(BK19LevelIntegrator::AdvectionSolver& advection, int level, Duration dt,
   return advection.AdvanceLevelNonRecursively(level, dt, subcycle);
 }
 
+void RecoverVelocityFromMomentum_(MultiFab& scratch,
+                                  const IndexMapping<Equation>& index) {
+  // MultiFab::Copy(dest, src, src_comp, dest_comp, n_comp, n_grow);
+  // MultiFab::Divide(dest, src, src_comp, dest_comp, n_comp, n_grow);
+  for (std::size_t i = 0; i < index.momentum.size(); ++i) {
+    MultiFab::Copy(scratch, scratch, index.momentum[i], index.velocity[i],
+                   one_component, no_ghosts);
+    MultiFab::Divide(scratch, scratch, index.density, index.velocity[i],
+                     one_component, no_ghosts);
+  }
+}
+
 ::amrex::MultiFab DoEulerBackward_(const Equation& equation,
+                                   const IndexMapping<Equation>& index,
                                    ::amrex::MLMG& nodal_solver,
                                    ::amrex::MLNodeHelmDualCstVel& lin_op,
                                    BK19IntegratorContext& context, int level,
@@ -121,31 +125,37 @@ Advect_(BK19LevelIntegrator::AdvectionSolver& advection, int level, Duration dt,
   ::amrex::BoxArray on_cells = scratch.boxArray();
   ::amrex::BoxArray on_nodes = on_cells;
   on_nodes.surroundingNodes();
-  MultiFab rhs(on_nodes, distribution_map, 1, 0);
+  MultiFab rhs(on_nodes, distribution_map, one_component, no_ghosts);
 
   // Copy momentum into seperate MultiFab to use compDivergence
   // This assumes f = 0 and N = 0
   // Construct right hand side by: -dt div(momentum)
   // Equation (28) in [BK19]
-  MultiFab momentum(on_cells, distribution_map, AMREX_SPACEDIM, 1);
-  MultiFab::Copy(momentum, scratch, index_momentum_x, 0, AMREX_SPACEDIM, 1);
+  //
+  // Divergence needs on ghost cell width.
+  MultiFab momentum(on_cells, distribution_map, index.momentum.size(),
+                    one_ghost_cell_width);
+  for (std::size_t i = 0; index.momentum.size(); ++i) {
+    MultiFab::Copy(momentum, scratch, index.momentum[i], i, one_component,
+                   one_ghost_cell_width);
+  }
   momentum.mult(-dt.count());
   lin_op.compDivergence({&rhs}, {&momentum});
 
-  // Construct sigma by: -cp dt^2 (P Theta)^o (Equation (27) in [BK19]) 
-  MultiFab sigma(on_cells, distribution_map, 1, 0);
-  sigma.setVal(-equation.c_p * dt.count() * dt.count());
+  // Construct sigma by: -cp dt^2 (P Theta)^o (Equation (27) in [BK19])
   // MultiFab::Divide(dest, src, src_comp, dest_comp, n_comp, n_grow);
-  MultiFab::Divide(sigma, scratch, index_PTinverse, 0, 1, 0);
-  // Maikel: Why is this -cp dt^2 / PTinverse and not -cp dt^2 PTdensity / PTinverse
-  // MultiFab::Multiply(sigma, scratch, index_PTdensity, 0, 1, 0);
-
+  MultiFab sigma(on_cells, distribution_map, one_component, no_ghosts);
+  sigma.setVal(-equation.c_p * dt.count() * dt.count());
+  MultiFab::Multiply(sigma, scratch, index.PTdensity, 0, one_component,
+                     sigma.nGrow());
+  MultiFab::Divide(sigma, scratch, index.PTinverse, 0, one_component,
+                   sigma.nGrow());
   lin_op.setSigma(level, sigma);
-
-  MultiFab pi(on_nodes, distribution_map, 1, 0);
+  MultiFab pi(on_nodes, distribution_map, one_component, no_ghosts);
   nodal_solver.solve({&pi}, {&rhs}, 1e-10, 1e-10);
 
-  MultiFab momentum_correction(on_cells, distribution_map, AMREX_SPACEDIM, 0);
+  MultiFab momentum_correction(on_cells, distribution_map,
+                               index.momentum.size(), no_ghosts);
   momentum_correction.setVal(0.0);
   lin_op.getFluxes({&momentum_correction}, {&pi});
 
@@ -153,53 +163,54 @@ Advect_(BK19LevelIntegrator::AdvectionSolver& advection, int level, Duration dt,
   momentum_correction.mult(-1.0 / dt.count(), 0);
 
   // Fix Momentum
-  MultiFab::Add(scratch, momentum_correction, 0, index_momentum_x, AMREX_SPACEDIM, 0);
+  for (std::size_t i = 0; index.momentum.size(); ++i) {
+    MultiFab::Add(scratch, momentum_correction, i, index.momentum[i],
+                  one_component, no_ghosts);
+  }
 
-  // Recover Velocity from Momentum
-  // MultiFab::Copy(dest, src, src_comp, dest_comp, n_comp, n_grow);
-  // MultiFab::Divide(dest, src, src_comp, dest_comp, n_comp, n_grow);
-  MultiFab::Copy(scratch, scratch, index_momentum_x, index_velocity_x, AMREX_SPACEDIM, 0);
-  MultiFab::Divide(scratch, scratch, index_density, index_velocity_x, 1, 0);
-  MultiFab::Divide(scratch, scratch, index_density, index_velocity_y, 1, 0);
+  RecoverVelocityFromMomentum_(scratch, index);
 
   return pi;
 }
 
 void DoEulerForward_(const Equation& equation,
+                     const IndexMapping<Equation>& index,
                      ::amrex::MLNodeHelmDualCstVel& lin_op,
                      BK19IntegratorContext& context, int level, Duration dt) {
   MultiFab& scratch = context.GetScratch(level);
-  ::amrex::BoxArray cells = scratch.boxArray();
-  ::amrex::DistributionMapping dm = scratch.DistributionMap();
+  ::amrex::BoxArray on_cells = scratch.boxArray();
+  ::amrex::DistributionMapping distribution_map = scratch.DistributionMap();
 
   // Construct sigma as in EulerBackward, but with -cp dt instead of -cp dt^2
   // Maikel: This needs a comment for me, why it is so
-  MultiFab sigma(cells, dm, 1, 0);
+  MultiFab sigma(on_cells, distribution_map, one_component, no_ghosts);
   sigma.setVal(-equation.c_p * dt.count());
-  // sigma = - c_p dt / PTinverse   (Maikel: ????)
-  MultiFab::Divide(sigma, scratch, index_PTinverse, 0, 1, 0);
-
+  MultiFab::Multiply(sigma, scratch, index.PTdensity, 0, one_component,
+                     sigma.nGrow());
+  MultiFab::Divide(sigma, scratch, index.PTinverse, 0, one_component,
+                   sigma.nGrow());
   lin_op.setSigma(level, sigma);
 
   // To compute the fluxes from the old pi we need one ghost cell width
-  // Thus, we use periodic boundaries for now and redistribute the pi_n onto the boundary
+  // Thus, we use periodic boundaries for now and redistribute the pi_n onto the
+  // boundary
   // TODO: What happens to pi otherwise?
   const MultiFab& pi_old = context.GetPi(level);
-  MultiFab pi(pi_old.boxArray(), pi_old.DistributionMap(), 1, 1);
+  MultiFab pi(pi_old.boxArray(), pi_old.DistributionMap(), one_component,
+              one_ghost_cell_width);
   // This assumes periodicity in each direction
   pi.ParallelCopy(pi_old, context.GetGeometry(level).periodicity());
-  MultiFab momentum_correction(cells, dm, AMREX_SPACEDIM, 0);
+
+  MultiFab momentum_correction(on_cells, distribution_map,
+                               index.momentum.size(), no_ghosts);
   momentum_correction.setVal(0.0);
   lin_op.getFluxes({&momentum_correction}, {&pi});
+  for (std::size_t i = 0; index.momentum.size(); ++i) {
+    MultiFab::Add(scratch, momentum_correction, i, index.momentum[i],
+                  one_component, no_ghosts);
+  }
 
-  // Fix Momentum
-  MultiFab::Add(scratch, momentum_correction, 0, index_momentum_x, AMREX_SPACEDIM, 0);
-
-  // Recover Velocity from Momentum
-  // MultiFab::Copy(dest, src, src_comp, dest_comp, n_comp, n_grow);
-  MultiFab::Copy(scratch, scratch, index_momentum_x, index_velocity_x, AMREX_SPACEDIM, 0);
-  MultiFab::Divide(scratch, scratch, index_density, index_velocity_x, 1, 0);
-  MultiFab::Divide(scratch, scratch, index_density, index_velocity_y, 1, 0);
+  RecoverVelocityFromMomentum_(scratch, index);
 }
 
 } // namespace
@@ -208,7 +219,7 @@ BK19LevelIntegrator::BK19LevelIntegrator(
     const CompressibleAdvection<Rank>& equation, AdvectionSolver advection,
     std::shared_ptr<::amrex::MLNodeHelmDualCstVel> linop)
     : AdvectionSolver(std::move(advection)), equation_(equation),
-      lin_op_(std::move(linop)),
+      index_(equation_), lin_op_(std::move(linop)),
       nodal_solver_(std::make_shared<::amrex::MLMG>(*lin_op_)) {}
 
 Result<void, TimeStepTooLarge>
@@ -228,10 +239,10 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
 
   // 1) Compute current Pv and interpolate to face centered quantity
   //    Current Pv is given by: Pv = PTdensity * velocity
-  RecomputeAdvectiveFluxes_(equation_, Pv.on_faces, Pv.on_cells, scratch);
+  RecomputeAdvectiveFluxes_(index_, Pv.on_faces, Pv.on_cells, scratch);
 
   // 2) Do the advection with the face-centered Pv
-  //    Open Question: Coarse Fine Boundary? 
+  //    Open Question: Coarse Fine Boundary?
   //      - Need an option to do nothing there
   Result<void, TimeStepTooLarge> result =
       Advect_(advection_, level, half_dt, subcycle);
@@ -240,20 +251,21 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   }
 
   // 3) Do the first euler backward integration step for the source term
-  DoEulerBackward_(equation_, *nodal_solver_, *lin_op_, advection_.GetContext(),
-                   level, half_dt);
+  DoEulerBackward_(equation_, index_, *nodal_solver_, *lin_op_,
+                   advection_.GetContext(), level, half_dt);
 
   // 4) Recompute Pv at half time
-  RecomputeAdvectiveFluxes_(equation_, Pv.on_faces, Pv.on_cells, scratch);
+  RecomputeAdvectiveFluxes_(index_, Pv.on_faces, Pv.on_cells, scratch);
   std::swap(scratch_aux, scratch);
   context.FillGhostLayerSingleLevel(level);
 
   // 5) Explicit Euler with old scratch data
   //   - We need a current pi_n here. What is the initial one?
-  DoEulerForward_(equation_, *lin_op_, advection_.GetContext(), level, half_dt);
+  DoEulerForward_(equation_, index_, *lin_op_, advection_.GetContext(), level,
+                  half_dt);
 
   // 6) Do the second advection step with half-time Pv and full time step
-  //   - Currently, scratch contains the result of euler forward step, 
+  //   - Currently, scratch contains the result of euler forward step,
   //     which started at the old time level.
   context.FillGhostLayerSingleLevel(level);
   result = Advect_(advection_, level, dt, subcycle);
@@ -262,8 +274,9 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   }
 
   // 6) Do the second euler backward integration step for the source term
-  MultiFab pi_new = DoEulerBackward_(equation_, *nodal_solver_, *lin_op_,
-                                     advection_.GetContext(), level, half_dt);
+  MultiFab pi_new =
+      DoEulerBackward_(equation_, index_, *nodal_solver_, *lin_op_,
+                       advection_.GetContext(), level, half_dt);
 
   // Copy pi_n+1 to pi_n
   context.GetPi(level).copy(pi_new);
