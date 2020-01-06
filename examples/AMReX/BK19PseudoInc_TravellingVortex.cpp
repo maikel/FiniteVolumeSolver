@@ -87,6 +87,8 @@ int main() {
 
   using Complete = fub::CompressibleAdvection<2>::Complete;
   fub::CompressibleAdvection<2> equation{};
+  fub::IndexMapping<fub::CompressibleAdvection<2>> index(equation); 
+
   fub::amrex::GradientDetector gradient(
       equation, std::pair{&Complete::PTinverse, 1.0e-2});
 
