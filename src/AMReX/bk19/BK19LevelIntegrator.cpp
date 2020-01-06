@@ -41,6 +41,12 @@ using Equation = CompressibleAdvection<Rank>;
 static_assert(Rank == 2);
 
 namespace {
+IndexBox<2> BoxFromStencil_(const IndexBox<2>& box,
+                            std::array<std::ptrdiff_t, 2> x_stencil,
+                            std::array<std::ptrdiff_t, 2> y_stencil) {
+  return Shrink(Shrink(box, Direction::X, x_stencil), Direction::Y, y_stencil);
+}
+
 // Apply the cell to face average to a specified cell_component on mf_cells and
 // write its result into face_component of mf_faces.
 void AverageCellToFace_(MultiFab& mf_faces, int face_component,
@@ -52,8 +58,15 @@ void AverageCellToFace_(MultiFab& mf_faces, int face_component,
       ForEachFab(execution::openmp, mf_cells, [&](const MFIter& mfi) {
         auto cells =
             SliceLast(MakePatchDataView(mf_cells[mfi]), cell_component);
-        auto faces =
+        auto all_faces =
             SliceLast(MakePatchDataView(mf_faces[mfi]), face_component);
+        // We are cautious and only compute the average for faces which exists
+        // and are in range for the cells which exists on our grid
+        auto cell_box_for_stencil =
+            BoxFromStencil_(cells.Box(), {1, 0}, {1, 1});
+        auto face_box_for_stencil = Shrink(cell_box_for_stencil, dir, {0, 1});
+        auto face_box = Intersect(all_faces.Box(), face_box_for_stencil);
+        auto faces = all_faces.Subview(face_box);
         ForEachIndex(faces.Box(), [&](int i, int j) {
           // clang-format off
           faces(i, j) = 1.0 * cells(i - 1, j - 1) + 1.0 * cells(i, j - 1) +
@@ -67,8 +80,15 @@ void AverageCellToFace_(MultiFab& mf_faces, int face_component,
       ForEachFab(execution::openmp, mf_cells, [&](const MFIter& mfi) {
         auto cells =
             SliceLast(MakePatchDataView(mf_cells[mfi]), cell_component);
-        auto faces =
+        auto all_faces =
             SliceLast(MakePatchDataView(mf_faces[mfi]), face_component);
+        // We are cautious and only compute the average for faces which exists
+        // and are in range for the cells which exists on our grid
+        auto cell_box_for_stencil =
+            BoxFromStencil_(cells.Box(), {1, 1}, {1, 0});
+        auto face_box_for_stencil = Shrink(cell_box_for_stencil, dir, {0, 1});
+        auto face_box = Intersect(all_faces.Box(), face_box_for_stencil);
+        auto faces = all_faces.Subview(face_box);
         ForEachIndex(faces.Box(), [&](int i, int j) {
           // clang-format off
           faces(i, j) = 1.0 * cells(i - 1,     j) + 2.0 * cells(i,     j) + 1.0 * cells(i + 1,     j) +
@@ -99,9 +119,9 @@ void RecomputeAdvectiveFluxes_(const IndexMapping<Equation>& index,
                                MultiFab& Pv_cells, const MultiFab& scratch) {
   ComputePvFromScratch_(index, Pv_cells, scratch);
   // Average Pv_i for each velocity direction
+  constexpr int face_component = 0;
   for (std::size_t dir = 0; dir < index.velocity.size(); ++dir) {
     const int cell_component = static_cast<int>(dir);
-    const int face_component = static_cast<int>(dir);
     AverageCellToFace_(Pv_faces[dir], face_component, Pv_cells, cell_component,
                        Direction(dir));
   }
@@ -149,8 +169,9 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   MultiFab momentum(on_cells, distribution_map, index.momentum.size(),
                     one_ghost_cell_width);
   for (std::size_t i = 0; i < index.momentum.size(); ++i) {
-    MultiFab::Copy(momentum, scratch, index.momentum[i], i, one_component,
-                   one_ghost_cell_width);
+    const int dest_component = static_cast<int>(i);
+    MultiFab::Copy(momentum, scratch, index.momentum[i], dest_component,
+                   one_component, one_ghost_cell_width);
   }
   momentum.mult(-dt.count());
   lin_op.compDivergence({&rhs}, {&momentum});
