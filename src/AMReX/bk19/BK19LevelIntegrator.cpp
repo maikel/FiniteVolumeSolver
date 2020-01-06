@@ -190,8 +190,9 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
 
   // Fix Momentum
   for (std::size_t i = 0; i < index.momentum.size(); ++i) {
-    MultiFab::Add(scratch, momentum_correction, i, index.momentum[i],
-                  one_component, no_ghosts);
+    const int src_component = static_cast<int>(i);
+    MultiFab::Add(scratch, momentum_correction, src_component,
+                  index.momentum[i], one_component, no_ghosts);
   }
 
   RecoverVelocityFromMomentum_(scratch, index);
@@ -243,8 +244,9 @@ void DoEulerForward_(const Equation& equation,
   // multipliziert worden wäre.
 
   for (std::size_t i = 0; i < index.momentum.size(); ++i) {
-    MultiFab::Add(scratch, momentum_correction, i, index.momentum[i],
-                  one_component, no_ghosts);
+    const int src_component = static_cast<int>(i);
+    MultiFab::Add(scratch, momentum_correction, src_component,
+                  index.momentum[i], one_component, no_ghosts);
   }
 
   RecoverVelocityFromMomentum_(scratch, index);
