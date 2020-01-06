@@ -141,6 +141,10 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   }
   momentum.mult(-dt.count());
   lin_op.compDivergence({&rhs}, {&momentum});
+  // Rupert sagt:
+  // Moment,  [BK19] (28) nimmt nicht die Divergenz des Impulses, 
+  // sondern die Divergenz von  Pv . Siehe Definition von U, V, W in
+  // der ersten Zeile nach  [BK19] (23).  
 
   // Construct sigma by: -cp dt^2 (P Theta)^o (Equation (27) in [BK19])
   // MultiFab::Divide(dest, src, src_comp, dest_comp, n_comp, n_grow);
