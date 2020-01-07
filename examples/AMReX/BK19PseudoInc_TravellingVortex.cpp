@@ -94,16 +94,16 @@ struct InitialData {
           states.density(i, j) = rho0 + del_rho * std::pow(1.0 - r_over_R0*r_over_R0, 6);
           states.momentum(i, j, 0) = states.density(i, j) * states.velocity(i, j, 0);
           states.momentum(i, j, 1) = states.density(i, j) * states.velocity(i, j, 1);
-          states.PTdensity(i, j) = p_coeff();
-          states.PTinverse(i, j) = 42.0;
+          states.PTdensity(i, j) = 1.0 + p_coeff(r_over_R0, coefficients);
+          states.PTinverse(i, j) = states.density(i, j) / states.PTdensity(i, j);
         } else {
-          states.density(i, j) = 24.0;
+          states.density(i, j) = rho0;
           states.momentum(i, j, 0) = 0.0;
           states.momentum(i, j, 1) = 0.0;
           states.PTdensity(i, j) = 1.0;
           states.velocity(i, j, 0) = 0.0;
           states.velocity(i, j, 1) = 0.0;
-          states.PTinverse(i, j) = 24.0;
+          states.PTinverse(i, j) = states.density(i, j) / states.PTdensity(i, j);
         }
       });
     });
@@ -131,9 +131,9 @@ int main() {
 
   fub::amrex::CartesianGridGeometry geometry{};
   geometry.cell_dimensions =
-      std::array<int, AMREX_SPACEDIM>{AMREX_D_DECL(64, 64, 1)};
-  geometry.coordinates = amrex::RealBox({AMREX_D_DECL(-1.0, -1.0, -1.0)},
-                                        {AMREX_D_DECL(+1.0, +1.0, +1.0)});
+      std::array<int, AMREX_SPACEDIM>{AMREX_D_DECL(128, 128, 1)};
+  geometry.coordinates = amrex::RealBox({AMREX_D_DECL(0.0, 0.0, 0.0)},
+                                        {AMREX_D_DECL(1.0, 1.0, 1.0)});
   geometry.periodicity = std::array<int, AMREX_SPACEDIM>{AMREX_D_DECL(1, 1, 1)};
 
   fub::amrex::PatchHierarchyOptions hier_opts;
