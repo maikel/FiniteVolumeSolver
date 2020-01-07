@@ -56,25 +56,26 @@ Duration CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
   const ::amrex::MultiFab& scratch = context.GetScratch(level);
   const amrex::BK19AdvectiveFluxes& Pvs = context.GetAdvectiveFluxes(level);
   Duration min_dt(std::numeric_limits<double>::max());
-  const int stencil = GetStencilWidth();
-  amrex::ForEachFab(scratch, [&](const ::amrex::MFIter& mfi) {
-    const ::amrex::Box cell_box = mfi.growntilebox();
-    const ::amrex::Box face_box =
-        amrex::GetFacesInStencilRange(cell_box, stencil, dir);
-    View<const Complete> cells =
-        amrex::MakeView<const Complete>(scratch[mfi], equation, cell_box);
-    StridedDataView<const double, SpaceDimension> Pv;
-    if constexpr (SpaceDimension == AMREX_SPACEDIM) {
-      Pv = amrex::MakePatchDataView(Pvs.on_faces[dir_v][mfi], 0)
-               .Subview(amrex::AsIndexBox<SpaceDimension>(face_box));
-    } else if constexpr (SpaceDimension + 1 == AMREX_SPACEDIM) {
-      Pv = SliceLast(amrex::MakePatchDataView(Pvs.on_faces[dir_v][mfi], 0)
-                         .Subview(amrex::AsIndexBox<AMREX_SPACEDIM>(face_box)),
-                     0);
-    }
-    Duration local_dt = ComputeStableDt(cells, Pv, dx, dir);
-    min_dt = std::min(local_dt, min_dt);
-  });
+  // const int stencil = GetStencilWidth();
+  amrex::ForEachFab(
+      execution::openmp, Pvs.on_faces[dir_v], [&](const ::amrex::MFIter& mfi) {
+        const ::amrex::Box face_tilebox = mfi.growntilebox();
+        ::amrex::Box cell_tilebox = ::amrex::enclosedCells(face_tilebox);
+        View<const Complete> cells = amrex::MakeView<const Complete>(
+            scratch[mfi], equation, cell_tilebox);
+        StridedDataView<const double, SpaceDimension> Pv;
+        if constexpr (SpaceDimension == AMREX_SPACEDIM) {
+          Pv = amrex::MakePatchDataView(Pvs.on_faces[dir_v][mfi], 0)
+                   .Subview(amrex::AsIndexBox<SpaceDimension>(face_tilebox));
+        } else if constexpr (SpaceDimension + 1 == AMREX_SPACEDIM) {
+          Pv = SliceLast(
+              amrex::MakePatchDataView(Pvs.on_faces[dir_v][mfi], 0)
+                  .Subview(amrex::AsIndexBox<AMREX_SPACEDIM>(face_tilebox)),
+              0);
+        }
+        Duration local_dt = ComputeStableDt(cells, Pv, dx, dir);
+        min_dt = std::min(local_dt, min_dt);
+      });
   return min_dt;
 }
 
@@ -213,29 +214,32 @@ void CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
   ::amrex::MultiFab& fluxes = context.GetFluxes(level, dir);
   const amrex::BK19AdvectiveFluxes& Pvs = context.GetAdvectiveFluxes(level);
   const int stencil = GetStencilWidth();
-  amrex::ForEachFab(execution::openmp, fluxes, [&](const ::amrex::MFIter& mfi) {
-    const ::amrex::FArrayBox& sfab = scratch[mfi];
-    ::amrex::FArrayBox& ffab = fluxes[mfi];
-    const ::amrex::Box face_box = ffab.box();
-    const ::amrex::Box cell_box =
-        ::amrex::grow(::amrex::enclosedCells(face_box), dir_v, stencil);
-    View<const Complete> cells =
-        amrex::MakeView<const Complete>(sfab, equation, cell_box);
-    View<Conservative> fluxes =
-        amrex::MakeView<Conservative>(ffab, equation, face_box);
-    StridedDataView<const double, SpaceDimension> Pv;
-    if constexpr (SpaceDimension == AMREX_SPACEDIM) {
-      Pv = amrex::MakePatchDataView(Pvs.on_faces[dir_v][mfi], 0)
-               .Subview(amrex::AsIndexBox<SpaceDimension>(
-                   ::amrex::grow(face_box, dir_v, 1)));
-    } else if constexpr (SpaceDimension + 1 == AMREX_SPACEDIM) {
-      Pv = SliceLast(amrex::MakePatchDataView(Pvs.on_faces[dir_v][mfi], 0)
-                         .Subview(amrex::AsIndexBox<AMREX_SPACEDIM>(
-                             ::amrex::grow(face_box, dir_v, 1))),
-                     0);
-    }
-    ComputeNumericFluxes(fluxes, cells, Pv, dt, dx, dir);
-  });
+  amrex::ForEachFab(
+      execution::openmp, scratch, [&](const ::amrex::MFIter& mfi) {
+        // Get a view of all complete state variables
+        const ::amrex::Box cell_tilebox = mfi.growntilebox();
+        const ::amrex::Box face_validbox = fluxes[mfi].box();
+        const auto [cell_box, face_box] = amrex::GetCellsAndFacesInStencilRange(
+            cell_tilebox, face_validbox, stencil, dir);
+        const ::amrex::FArrayBox& sfab = scratch[mfi];
+        ::amrex::FArrayBox& ffab = fluxes[mfi];
+        View<const Complete> cells =
+            amrex::MakeView<const Complete>(sfab, equation, cell_box);
+        View<Conservative> fluxes =
+            amrex::MakeView<Conservative>(ffab, equation, face_box);
+        StridedDataView<const double, SpaceDimension> Pv;
+        if constexpr (SpaceDimension == AMREX_SPACEDIM) {
+          Pv = amrex::MakePatchDataView(Pvs.on_faces[dir_v][mfi], 0)
+                   .Subview(amrex::AsIndexBox<SpaceDimension>(
+                       ::amrex::grow(face_box, dir_v, 1)));
+        } else if constexpr (SpaceDimension + 1 == AMREX_SPACEDIM) {
+          Pv = SliceLast(amrex::MakePatchDataView(Pvs.on_faces[dir_v][mfi], 0)
+                             .Subview(amrex::AsIndexBox<AMREX_SPACEDIM>(
+                                 ::amrex::grow(face_box, dir_v, 1))),
+                         0);
+        }
+        ComputeNumericFluxes(fluxes, cells, Pv, dt, dx, dir);
+      });
 }
 
 template struct CompressibleAdvectionFluxMethod<2>;

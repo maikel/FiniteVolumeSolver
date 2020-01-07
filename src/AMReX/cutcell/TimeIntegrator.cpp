@@ -217,19 +217,6 @@ void UpdateConservatively_View(
              });
 }
 
-namespace {
-::amrex::Box GetCellBoxToUpdate(const ::amrex::MFIter& mfi, Direction dir) {
-  // const ::amrex::Box one_box = mfi.growntilebox(1);
-  const ::amrex::Box grown_box = mfi.growntilebox();
-  const ::amrex::Box box = mfi.tilebox();
-  ::amrex::Box dest_box = grown_box;
-  const int idir = static_cast<int>(dir);
-  dest_box.setSmall(idir, box.smallEnd(idir) - 1);
-  dest_box.setBig(idir, box.bigEnd(idir) + 1);
-  return dest_box;
-}
-} // namespace
-
 void TimeIntegrator::UpdateConservatively(IntegratorContext& context, int level,
                                           Duration dt, Direction dir) {
   ::amrex::MultiFab& scratch = context.GetScratch(level);
@@ -250,10 +237,11 @@ void TimeIntegrator::UpdateConservatively(IntegratorContext& context, int level,
   //  const int gcw =
   //  context.GetHyperbolicMethod().flux_method.GetStencilWidth();
 
-  ForEachFab(scratch, [&](const ::amrex::MFIter& mfi) {
+  ForEachFab(unshielded, [&](const ::amrex::MFIter& mfi) {
     ::amrex::FabType type = context.GetFabType(level, mfi);
-    const IndexBox<AMREX_SPACEDIM> cells =
-        AsIndexBox<AMREX_SPACEDIM>(GetCellBoxToUpdate(mfi, dir));
+    const ::amrex::Box flux_box = mfi.growntilebox();
+    const ::amrex::Box cell_box = enclosedCells(flux_box);
+    const IndexBox<AMREX_SPACEDIM> cells = AsIndexBox<AMREX_SPACEDIM>(cell_box);
     if (type == ::amrex::FabType::singlevalued) {
       const IndexBox<AMREX_SPACEDIM> facesL = cells;
       const IndexBox<AMREX_SPACEDIM> facesR = Grow(cells, dir, {-1, 1});
@@ -296,16 +284,20 @@ void TimeIntegrator::UpdateConservatively(IntegratorContext& context, int level,
                                   fractions, dt_over_dx);
       }
     } else if (type == ::amrex::FabType::regular) {
-      const int n_cons = hierarchy.GetDataDescription().n_cons_components;
-      const IndexBox<AMREX_SPACEDIM + 1> embed_cells =
-          Embed<AMREX_SPACEDIM + 1>(cells, {0, n_cons});
-      const IndexBox<AMREX_SPACEDIM + 1> faces = Grow(embed_cells, dir, {0, 1});
-      PatchDataView<double, AMREX_SPACEDIM + 1, layout_stride> next =
-          MakePatchDataView(scratch[mfi]).Subview(embed_cells);
-      PatchDataView<const double, AMREX_SPACEDIM + 1, layout_stride> fluxes =
-          MakePatchDataView(unshielded[mfi]).Subview(faces);
-      fub::HyperbolicPatchIntegrator integrator{fub::execution::simd};
-      integrator.UpdateConservatively(next, next, fluxes, dt, dx, dir);
+      ::amrex::FArrayBox& next = scratch[mfi];
+      const ::amrex::FArrayBox& prev = scratch[mfi];
+      const ::amrex::FArrayBox& flux = unshielded[mfi];
+      const ::amrex::Box& flux_box = mfi.growntilebox();
+      ::amrex::Box cell_box = ::amrex::enclosedCells(flux_box);
+      const IndexBox<AMREX_SPACEDIM + 1> cells = Embed<AMREX_SPACEDIM + 1>(
+          AsIndexBox<AMREX_SPACEDIM>(cell_box), {0, n_cons});
+      auto nv = MakePatchDataView(next).Subview(cells);
+      auto pv = MakePatchDataView(prev).Subview(cells);
+      const auto faces = Embed<AMREX_SPACEDIM + 1>(
+          AsIndexBox<AMREX_SPACEDIM>(flux_box), {0, n_cons});
+      auto fv = MakePatchDataView(flux).Subview(faces);
+      HyperbolicPatchIntegrator<execution::OpenMpSimdTag>::UpdateConservatively(
+          nv, pv, fv, dt, dx, dir);
     }
   });
 }

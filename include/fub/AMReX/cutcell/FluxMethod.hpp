@@ -134,15 +134,14 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
     }
   });
 
-  ForEachFab(Tag(), fluxes, [&](const ::amrex::MFIter& mfi) {
+  static constexpr int gcw = GetStencilWidth();
+
+  ForEachFab(Tag(), scratch, [&](const ::amrex::MFIter& mfi) {
     const Equation& equation = flux_method_->GetEquation();
-    static constexpr int gcw = GetStencilWidth();
-    const ::amrex::Box face_box = mfi.growntilebox();
-    const ::amrex::Box cell_box = [&face_box, dir] {
-      ::amrex::Box cells = enclosedCells(face_box);
-      cells.grow(static_cast<int>(dir), gcw);
-      return cells;
-    }();
+    const ::amrex::Box cell_tilebox = mfi.growntilebox();
+    const ::amrex::Box face_validbox = fluxes[mfi].box();
+    auto [cell_box, face_box] =
+        GetCellsAndFacesInStencilRange(cell_tilebox, face_validbox, gcw, dir);
     const ::amrex::FabType type = context.GetFabType(level, mfi);
     if (type == ::amrex::FabType::singlevalued) {
       CutCellData<AMREX_SPACEDIM> geom = hierarchy.GetCutCellData(level, mfi);
@@ -188,15 +187,15 @@ Duration FluxMethod<Tag, FM>::ComputeStableDt(IntegratorContext& context,
   const double dx = context.GetDx(level, dir);
   Local<Tag, Duration> min_dt{
       Duration(std::numeric_limits<double>::infinity())};
-  ForEachFab(Tag(), fluxes, [&](const ::amrex::MFIter& mfi) {
+
+  static constexpr int gcw = GetStencilWidth();
+
+  ForEachFab(Tag(), scratch, [&](const ::amrex::MFIter& mfi) {
     const Equation& equation = flux_method_->GetEquation();
-    const ::amrex::Box face_box = mfi.growntilebox();
-    static constexpr int gcw = GetStencilWidth();
-    const ::amrex::Box cell_box = [&face_box, dir] {
-      ::amrex::Box cells = enclosedCells(face_box);
-      cells.grow(static_cast<int>(dir), gcw);
-      return cells;
-    }();
+    const ::amrex::Box cell_tilebox = mfi.growntilebox();
+    const ::amrex::Box face_validbox = fluxes[mfi].box();
+    auto [cell_box, face_box] =
+        GetCellsAndFacesInStencilRange(cell_tilebox, face_validbox, gcw, dir);
     auto states =
         MakeView<const Complete<Equation>>(scratch[mfi], equation, cell_box);
     const ::amrex::FabType type = context.GetFabType(level, mfi);
@@ -210,11 +209,7 @@ Duration FluxMethod<Tag, FM>::ComputeStableDt(IntegratorContext& context,
                                       Tag(), states, dx, dir)));
     }
   });
-  double local_count = Min(min_dt).count();
-  double count{};
-  MPI_Allreduce(&local_count, &count, 1, MPI_DOUBLE, MPI_MIN,
-                context.GetMpiCommunicator());
-  return Duration(count);
+  return Min(min_dt);
 }
 
 } // namespace fub::amrex::cutcell

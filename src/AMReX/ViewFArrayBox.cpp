@@ -32,13 +32,19 @@ AsArray(const ::amrex::IntVect& vec) {
   return array;
 }
 
-::amrex::Box GetFacesInStencilRange(const ::amrex::Box& cell_box,
-                                    int stencil_width, Direction dir) {
+std::array<::amrex::Box, 2>
+GetCellsAndFacesInStencilRange(const ::amrex::Box& cell_tilebox,
+                               const ::amrex::Box& face_validbox,
+                               int stencil_width, Direction dir) {
   const int dir_v = static_cast<int>(dir);
-  ::amrex::Box all_faces = cell_box;
-  all_faces.surroundingNodes(dir_v);
-  all_faces.grow(dir_v, -stencil_width);
-  return all_faces;
+  ::amrex::Box all_faces_in_tile = cell_tilebox;
+  all_faces_in_tile.surroundingNodes(dir_v);
+  all_faces_in_tile.grow(dir_v, -stencil_width);
+  const ::amrex::Box face_tilebox = face_validbox & all_faces_in_tile;
+  ::amrex::Box cells_in_stencil_range = face_tilebox;
+  cells_in_stencil_range.enclosedCells();
+  cells_in_stencil_range.grow(dir_v, stencil_width);
+  return {cells_in_stencil_range, face_tilebox};
 }
 
 } // namespace amrex
