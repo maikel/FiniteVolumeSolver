@@ -27,8 +27,52 @@
 #include "fub/AMReX/bk19/BK19LevelIntegrator.hpp"
 #include "fub/equations/CompressibleAdvection.hpp"
 
+
+double p_coeff(double r, const std::vector<double>& coefficients) {
+  if (r >= 1.0) {
+    return 0.0;
+  }
+
+  double result = 0.0;
+  int exponent = 12;
+  for (double c : coefficients) {
+    result += c * (std::pow(r, exponent) - 1.0);
+    exponent += 1;
+  }
+  return result;
+}
+
 struct InitialData {
   using Complete = fub::CompressibleAdvection<2>::Complete;
+  InitialData() {
+    coefficients.resize(25);
+    coefficients[0]  =     1.0 / 12.0;
+    coefficients[1]  = -  12.0 / 13.0;
+    coefficients[2]  =     9.0 /  2.0;
+    coefficients[3]  = - 184.0 / 15.0;
+    coefficients[4]  =   609.0 / 32.0;
+    coefficients[5]  = - 222.0 / 17.0;
+    coefficients[6]  = -  38.0 /  9.0;
+    coefficients[7]  =    54.0 / 19.0;
+    coefficients[8]  =   783.0 / 20.0;
+    coefficients[9]  = - 558.0 /  7.0;
+    coefficients[10] =  1053.0 / 22.0;
+    coefficients[11] =  1014.0 / 23.0;
+    coefficients[12] = -1473.0 / 16.0;
+    coefficients[13] =   204.0 /  5.0;
+    coefficients[14] =   510.0 / 13.0;
+    coefficients[15] = -1564.0 / 27.0;
+    coefficients[16] =   153.0 /  8.0;
+    coefficients[17] =   450.0 / 29.0;
+    coefficients[18] = - 269.0 / 15.0;
+    coefficients[19] =   174.0 / 31.0;
+    coefficients[20] =    57.0 / 32.0;
+    coefficients[21] = -  74.0 / 33.0;
+    coefficients[22] =    15.0 / 17.0;
+    coefficients[23] = -   6.0 / 35.0;
+    coefficients[24] =     1.0 / 72.0;
+  }
+
   void InitializeData(amrex::MultiFab& mf, const amrex::Geometry& geom) {
     fub::amrex::ForEachFab(mf, [&](const amrex::MFIter& mfi) {
       fub::CompressibleAdvection<2> equation{};
@@ -38,14 +82,19 @@ struct InitialData {
           fub::amrex::MakeView<Complete>(fab, equation, box);
       fub::ForEachIndex(fub::Box<0>(states), [&](int i, int j) {
         const double x = geom.CellCenter(i, 0);
-        const double y = geom.CellCenter(j, 0);
-        if (x * x + y * y < 0.25 * 0.25) {
-          states.density(i, j) = 42.0;
-          states.momentum(i, j, 0) = 0.0;
-          states.momentum(i, j, 1) = 0.0;
-          states.PTdensity(i, j) = 1.0;
-          states.velocity(i, j, 0) = 0.0;
-          states.velocity(i, j, 1) = 0.0;
+        const double y = geom.CellCenter(j, 1);
+        const double dx = x - center[0];
+        const double dy = y - center[1];
+        const double r = std::sqrt(dx*dx + dy*dy);
+        if (r < R0) {
+          const double r_over_R0 = r / R0;
+          const double uth = fac * std::pow(1.0 - r_over_R0, 6) * std::pow(r_over_R0, 6);
+          states.velocity(i, j, 0) = -uth * (dy / r);
+          states.velocity(i, j, 1) = +uth * (dx / r);
+          states.density(i, j) = rho0 + del_rho * std::pow(1.0 - r_over_R0*r_over_R0, 6);
+          states.momentum(i, j, 0) = states.density(i, j) * states.velocity(i, j, 0);
+          states.momentum(i, j, 1) = states.density(i, j) * states.velocity(i, j, 1);
+          states.PTdensity(i, j) = p_coeff();
           states.PTinverse(i, j) = 42.0;
         } else {
           states.density(i, j) = 24.0;
@@ -59,6 +108,14 @@ struct InitialData {
       });
     });
   }
+
+  std::vector<double> coefficients;
+  double a_rho{1.0};
+  double rho0{a_rho * 0.5};
+  double del_rho{a_rho * 0.5};
+  double R0{0.4};
+  double fac{1024.0};
+  std::array<double, 2> center{0.5, 0.5};
 };
 
 int main() {
