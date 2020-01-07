@@ -29,7 +29,9 @@
 
 namespace fub::amrex {
 
-class BK19LevelIntegrator : private DimensionalSplitLevelIntegrator<AMREX_SPACEDIM, BK19IntegratorContext> {
+class BK19LevelIntegrator
+    : private DimensionalSplitLevelIntegrator<AMREX_SPACEDIM,
+                                              BK19IntegratorContext> {
 public:
   static constexpr int Rank = AMREX_SPACEDIM;
 
@@ -64,13 +66,15 @@ public:
   AdvectionSolver& GetAdvection() { return *this; }
   const AdvectionSolver& GetAdvection() const { return *this; }
 
-  BK19LevelIntegrator(
-      const CompressibleAdvection<Rank>& equation, AdvectionSolver advection,
-      std::shared_ptr<::amrex::MLNodeHelmDualCstVel> linop);
+  BK19LevelIntegrator(const CompressibleAdvection<Rank>& equation,
+                      AdvectionSolver advection,
+                      std::shared_ptr<::amrex::MLNodeHelmDualCstVel> linop);
 
   void ResetPatchHierarchy(std::shared_ptr<GriddingAlgorithm> grid);
 
-  Result<void, TimeStepTooLarge> AdvanceLevelNonRecursively(int level, Duration dt, std::pair<int, int> subcycle);
+  Result<void, TimeStepTooLarge>
+  AdvanceLevelNonRecursively(int level, Duration dt,
+                             std::pair<int, int> subcycle);
 
 private:
   CompressibleAdvection<Rank> equation_;

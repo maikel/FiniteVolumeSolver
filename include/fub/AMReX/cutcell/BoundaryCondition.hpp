@@ -41,7 +41,8 @@ struct BoundaryConditionBase {
                             const GriddingAlgorithm& gridding) = 0;
   virtual void FillBoundary(::amrex::MultiFab& mf,
                             const ::amrex::Geometry& geom, Duration time_point,
-                            const GriddingAlgorithm& gridding, Direction dir) = 0;
+                            const GriddingAlgorithm& gridding,
+                            Direction dir) = 0;
 };
 
 template <typename BC>
@@ -56,8 +57,8 @@ struct BoundaryConditionWrapper : public BoundaryConditionBase {
                     const GriddingAlgorithm& gridding) override;
 
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration time_point,
-                    const GriddingAlgorithm& gridding, Direction dir) override;
+                    Duration time_point, const GriddingAlgorithm& gridding,
+                    Direction dir) override;
 
   BC boundary_condition_;
 };
@@ -76,14 +77,15 @@ public:
             typename = std::enable_if_t<!decays_to<BC, BoundaryCondition>()>>
   BoundaryCondition(BC&& bc);
 
-  void FillBoundary(::amrex::MultiFab& mf, int, int, double time_point,
-                    int) override;
+  void FillBoundary(::amrex::MultiFab& mf, int, int, const ::amrex::IntVect&,
+                    double time_point, int) override;
 
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
                     Duration timepoint, const GriddingAlgorithm& gridding);
 
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration timepoint, const GriddingAlgorithm& gridding, Direction dir);
+                    Duration timepoint, const GriddingAlgorithm& gridding,
+                    Direction dir);
 
   const GriddingAlgorithm* parent{};
   ::amrex::Geometry geometry{};
@@ -121,6 +123,7 @@ BoundaryCondition::BoundaryCondition(BC&& bc)
               std::forward<BC>(bc))} {}
 
 inline void BoundaryCondition::FillBoundary(::amrex::MultiFab& mf, int, int,
+                                            const ::amrex::IntVect&,
                                             double time_point, int) {
   if (boundary_condition_ && parent) {
     boundary_condition_->FillBoundary(mf, geometry, Duration(time_point),
@@ -140,7 +143,8 @@ inline void BoundaryCondition::FillBoundary(::amrex::MultiFab& mf,
 inline void BoundaryCondition::FillBoundary(::amrex::MultiFab& mf,
                                             const ::amrex::Geometry& geom,
                                             Duration timepoint,
-                                            const GriddingAlgorithm& gridding, Direction dir) {
+                                            const GriddingAlgorithm& gridding,
+                                            Direction dir) {
   if (boundary_condition_) {
     boundary_condition_->FillBoundary(mf, geom, timepoint, gridding, dir);
   }

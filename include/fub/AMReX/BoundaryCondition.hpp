@@ -81,8 +81,8 @@ public:
             typename = std::enable_if_t<!decays_to<BC, BoundaryCondition>()>>
   BoundaryCondition(BC&& bc);
 
-  void FillBoundary(::amrex::MultiFab& mf, int, int, double time_point,
-                    int) override;
+  void FillBoundary(::amrex::MultiFab& mf, int, int, const ::amrex::IntVect&,
+                    double time_point, int) override;
 
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
                     Duration timepoint, const GriddingAlgorithm& gridding);
@@ -127,6 +127,7 @@ BoundaryCondition::BoundaryCondition(BC&& bc)
               std::forward<BC>(bc))} {}
 
 inline void BoundaryCondition::FillBoundary(::amrex::MultiFab& mf, int, int,
+                                            const ::amrex::IntVect&,
                                             double time_point, int) {
   if (boundary_condition_ && parent) {
     boundary_condition_->FillBoundary(mf, geometry, Duration(time_point),

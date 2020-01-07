@@ -122,12 +122,12 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
     const double dx = geom.CellSize(dir_v);
     FUB_ASSERT(!scratch.contains_nan());
     const int stencil = GetStencilWidth();
-    ForEachFab(Tag(), scratch, [&](::amrex::MFIter& mfi) {
+    ForEachFab(Tag(), fluxes, [&](::amrex::MFIter& mfi) {
       // Get a view of all complete state variables
-      const ::amrex::Box cell_tilebox = mfi.growntilebox();
-      const ::amrex::Box face_validbox = fluxes[mfi].box();
+      const ::amrex::Box face_tilebox = mfi.growntilebox();
+      const ::amrex::Box cell_validbox = scratch[mfi].box();
       const auto [cell_box, face_box] =
-          GetCellsAndFacesInStencilRange(cell_tilebox, face_validbox, stencil, dir);
+          GetCellsAndFacesInStencilRange(cell_validbox, face_tilebox, stencil, dir);
       auto&& equation = flux_method_->GetEquation();
       View<const Complete<Equation>> states =
           MakeView<const Complete<Equation>>(scratch[mfi], equation, cell_box);

@@ -102,15 +102,15 @@ int main() {
 
   fub::EinfeldtSignalVelocities<fub::IdealGasMix<2>> signals{};
   fub::HllMethod hll_method{equation, signals};
-  fub::ideal_gas::MusclHancockPrimMethod<2> flux_method(equation);
-  fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
+  // fub::ideal_gas::MusclHancockPrimMethod<2> flux_method(equation);
+  fub::KbnCutCellMethod cutcell_method(hll_method, hll_method);
 
   HyperbolicMethod method{FluxMethod{fub::execution::simd, cutcell_method},
                           TimeIntegrator{},
                           Reconstruction{fub::execution::simd, equation}};
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<2>, IntegratorContext(gridding, method),
+      fub::int_c<2>, IntegratorContext(gridding, method, 1, 0),
       fub::GodunovSplitting());
 
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));

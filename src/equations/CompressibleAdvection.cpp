@@ -215,12 +215,12 @@ void CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
   const amrex::BK19AdvectiveFluxes& Pvs = context.GetAdvectiveFluxes(level);
   const int stencil = GetStencilWidth();
   amrex::ForEachFab(
-      execution::openmp, scratch, [&](const ::amrex::MFIter& mfi) {
+      execution::openmp, fluxes, [&](const ::amrex::MFIter& mfi) {
         // Get a view of all complete state variables
-        const ::amrex::Box cell_tilebox = mfi.growntilebox();
-        const ::amrex::Box face_validbox = fluxes[mfi].box();
+        const ::amrex::Box face_tilebox = mfi.growntilebox();
+        const ::amrex::Box cell_validbox = scratch[mfi].box();
         const auto [cell_box, face_box] = amrex::GetCellsAndFacesInStencilRange(
-            cell_tilebox, face_validbox, stencil, dir);
+            cell_validbox, face_tilebox, stencil, dir);
         const ::amrex::FArrayBox& sfab = scratch[mfi];
         ::amrex::FArrayBox& ffab = fluxes[mfi];
         View<const Complete> cells =

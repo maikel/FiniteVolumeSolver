@@ -100,6 +100,7 @@ IntegratorContext::IntegratorContext(
 IntegratorContext::IntegratorContext(const IntegratorContext& other)
     : registry_(other.registry_),
       scratch_ghost_cell_width_{other.scratch_ghost_cell_width_},
+      flux_ghost_cell_width_{other.flux_ghost_cell_width_},
       gridding_{other.gridding_},
       data_(static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels())),
       method_{other.method_} {

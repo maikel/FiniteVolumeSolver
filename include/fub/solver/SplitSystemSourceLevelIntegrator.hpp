@@ -198,11 +198,7 @@ SplitSystemSourceLevelIntegrator<SystemSolver, SourceTerm, SplittingMethod>::
   };
 
   auto AdvanceSource = [&](Duration dt) -> Result<void, TimeStepTooLarge> {
-    Result<void, TimeStepTooLarge> result = source_term_.AdvanceLevel(this_level, dt);
-    if (result) {
-      SystemSolver::CopyDataToScratch(this_level);
-    }
-    return result;
+    return source_term_.AdvanceLevel(this_level, dt);
   };
   return splitting_.Advance(dt, AdvanceSource, AdvanceSystem);
 }
