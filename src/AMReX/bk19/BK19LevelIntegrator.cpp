@@ -160,25 +160,23 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   on_nodes.surroundingNodes();
   MultiFab rhs(on_nodes, distribution_map, one_component, no_ghosts);
 
-  // Copy momentum into seperate MultiFab to use compDivergence
+  // Copy UV into seperate MultiFab to use compDivergence
   // This assumes f = 0 and N = 0
-  // Construct right hand side by: -dt div(momentum)
+  // Construct right hand side by: -dt div(UV)
   // Equation (28) in [BK19]
   //
   // Divergence needs on ghost cell width.
-  MultiFab momentum(on_cells, distribution_map, index.momentum.size(),
-                    one_ghost_cell_width);
-  for (std::size_t i = 0; i < index.momentum.size(); ++i) {
-    const int dest_component = static_cast<int>(i);
-    MultiFab::Copy(momentum, scratch, index.momentum[i], dest_component,
-                   one_component, one_ghost_cell_width);
-  }
-  momentum.mult(-dt.count());
-  lin_op.compDivergence({&rhs}, {&momentum});
+  MultiFab UV(on_cells, distribution_map, index.momentum.size(),
+              one_ghost_cell_width);
+  ComputePvFromScratch_(index, UV, scratch);
+
+  UV.mult(-dt.count());
+  lin_op.compDivergence({&rhs}, {&UV});
   // Rupert sagt:
   // Moment,  [BK19] (28) nimmt nicht die Divergenz des Impulses,
   // sondern die Divergenz von  Pv . Siehe Definition von U, V, W in
   // der ersten Zeile nach  [BK19] (23).
+  // DONE (Stefan)
 
   // Construct sigma by: -cp dt^2 (P Theta)^o (Equation (27) in [BK19])
   // MultiFab::Divide(dest, src, src_comp, dest_comp, n_comp, n_grow);
@@ -192,10 +190,10 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   MultiFab pi(on_nodes, distribution_map, one_component, no_ghosts);
   nodal_solver.solve({&pi}, {&rhs}, 1e-10, 1e-10);
 
-  MultiFab momentum_correction(on_cells, distribution_map,
+  MultiFab UV_correction(on_cells, distribution_map,
                                index.momentum.size(), no_ghosts);
-  momentum_correction.setVal(0.0);
-  lin_op.getFluxes({&momentum_correction}, {&pi});
+  UV_correction.setVal(0.0);
+  lin_op.getFluxes({&UV_correction}, {&pi});
   // Rupert sagt:
   // Nicht klar, wo die Funktionalität lin_op.getFluxes()  definiert ist.
   // Wird da eine Funktionalität aufgerufen, die schon in AMReX verdrahtet ist?
@@ -207,13 +205,12 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   // dass die hier verwendeten Routinen das alles richtig machen?
 
   // TODO check sign output of AMReX
-  momentum_correction.mult(-1.0 / dt.count(), 0);
-
-  // Fix Momentum
+  UV_correction.mult(-1.0 / dt.count(), 0);
   for (std::size_t i = 0; i < index.momentum.size(); ++i) {
-    const int src_component = static_cast<int>(i);
-    MultiFab::Add(scratch, momentum_correction, src_component,
-                  index.momentum[i], one_component, no_ghosts);
+    const int UV_component = static_cast<int>(i);
+    MultiFab::Multiply(UV_correction, scratch, index.PTinverse, UV_component, one_component, no_ghosts);
+    // UV_correction is now a momentum correction. Thus add it.
+    MultiFab::Add(scratch, UV_correction, UV_component, index.momentum[i], one_component, no_ghosts);
   }
 
   RecoverVelocityFromMomentum_(scratch, index);
@@ -241,8 +238,8 @@ void DoEulerForward_(const Equation& equation,
   sigma.setVal(-equation.c_p * dt.count());
   MultiFab::Multiply(sigma, scratch, index.PTdensity, 0, one_component,
                      sigma.nGrow());
-  MultiFab::Divide(sigma, scratch, index.PTinverse, 0, one_component,
-                   sigma.nGrow());
+//   MultiFab::Divide(sigma, scratch, index.PTinverse, 0, one_component,
+//                    sigma.nGrow());
   lin_op.setSigma(level, sigma);
 
   // To compute the fluxes from the old pi we need one ghost cell width
