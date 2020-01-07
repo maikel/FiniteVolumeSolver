@@ -190,8 +190,8 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   MultiFab pi(on_nodes, distribution_map, one_component, no_ghosts);
   nodal_solver.solve({&pi}, {&rhs}, 1e-10, 1e-10);
 
-  MultiFab UV_correction(on_cells, distribution_map,
-                               index.momentum.size(), no_ghosts);
+  MultiFab UV_correction(on_cells, distribution_map, index.momentum.size(),
+                         no_ghosts);
   UV_correction.setVal(0.0);
   lin_op.getFluxes({&UV_correction}, {&pi});
   // Rupert sagt:
@@ -208,9 +208,11 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   UV_correction.mult(-1.0 / dt.count(), 0);
   for (std::size_t i = 0; i < index.momentum.size(); ++i) {
     const int UV_component = static_cast<int>(i);
-    MultiFab::Multiply(UV_correction, scratch, index.PTinverse, UV_component, one_component, no_ghosts);
+    MultiFab::Multiply(UV_correction, scratch, index.PTinverse, UV_component,
+                       one_component, no_ghosts);
     // UV_correction is now a momentum correction. Thus add it.
-    MultiFab::Add(scratch, UV_correction, UV_component, index.momentum[i], one_component, no_ghosts);
+    MultiFab::Add(scratch, UV_correction, UV_component, index.momentum[i],
+                  one_component, no_ghosts);
   }
 
   RecoverVelocityFromMomentum_(scratch, index);
@@ -238,8 +240,8 @@ void DoEulerForward_(const Equation& equation,
   sigma.setVal(-equation.c_p * dt.count());
   MultiFab::Multiply(sigma, scratch, index.PTdensity, 0, one_component,
                      sigma.nGrow());
-//   MultiFab::Divide(sigma, scratch, index.PTinverse, 0, one_component,
-//                    sigma.nGrow());
+  //   MultiFab::Divide(sigma, scratch, index.PTinverse, 0, one_component,
+  //                    sigma.nGrow());
   lin_op.setSigma(level, sigma);
 
   // To compute the fluxes from the old pi we need one ghost cell width
