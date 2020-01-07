@@ -153,11 +153,12 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
                                    Duration dt) {
   MultiFab& scratch = context.GetScratch(level);
 
-  // Construct right hand side
   ::amrex::DistributionMapping distribution_map = scratch.DistributionMap();
   ::amrex::BoxArray on_cells = scratch.boxArray();
   ::amrex::BoxArray on_nodes = on_cells;
   on_nodes.surroundingNodes();
+
+  // compute RHS for elliptic solve
   MultiFab rhs(on_nodes, distribution_map, one_component, no_ghosts);
 
   // Copy UV into seperate MultiFab to use compDivergence
@@ -172,11 +173,6 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
 
   UV.mult(-dt.count());
   lin_op.compDivergence({&rhs}, {&UV});
-  // Rupert sagt:
-  // Moment,  [BK19] (28) nimmt nicht die Divergenz des Impulses,
-  // sondern die Divergenz von  Pv . Siehe Definition von U, V, W in
-  // der ersten Zeile nach  [BK19] (23).
-  // DONE (Stefan)
 
   // Construct sigma by: -cp dt^2 (P Theta)^o (Equation (27) in [BK19])
   // MultiFab::Divide(dest, src, src_comp, dest_comp, n_comp, n_grow);
@@ -223,8 +219,9 @@ void DoEulerForward_(const Equation& equation,
                      ::amrex::MLNodeHelmDualCstVel& lin_op,
                      BK19IntegratorContext& context, int level, Duration dt) {
   MultiFab& scratch = context.GetScratch(level);
-  ::amrex::BoxArray on_cells = scratch.boxArray();
+
   ::amrex::DistributionMapping distribution_map = scratch.DistributionMap();
+  ::amrex::BoxArray on_cells = scratch.boxArray();
 
   // Construct sigma as in EulerBackward, but with -cp dt instead of -cp dt^2
   // Maikel: This needs a comment for me, why it is so
