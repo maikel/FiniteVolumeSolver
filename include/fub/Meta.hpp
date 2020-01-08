@@ -58,7 +58,7 @@ namespace fub {
 
 // This is a helper function which invokes ResetHierarchyConfiguration if the
 // specified object obj has such a member function It is used by generic
-// algorithms in fub/sovler/*
+// algorithms in fub/solver/*
 template <typename T, typename Grid>
 void ResetHierarchyConfiguration(T&& obj, Grid&& grid) {
   if constexpr (is_detected<meta::ResetHierarchyConfiguration, T, Grid>()) {
