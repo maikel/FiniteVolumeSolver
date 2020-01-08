@@ -9,6 +9,8 @@ function(add_executable_with_warnings TARGET)
       $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
       $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall>
       $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>)
+  set_property(TARGET "${TARGET}" PROPERTY CXX_VISIBILITY_PRESET "hidden")
+  set_property(TARGET "${TARGET}" PROPERTY VISIBILITY_INLINES_HIDDEN "hidden")
 endfunction()
 
 if (AMReX_FOUND)

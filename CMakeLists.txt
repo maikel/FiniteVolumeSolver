@@ -382,6 +382,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
       $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall>
       $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>)
   set_property(TARGET FiniteVolumeSolver.AMReX PROPERTY CXX_VISIBILITY_PRESET "hidden")
+  set_property(TARGET FiniteVolumeSolver.AMReX PROPERTY VISIBILITY_INLINES_HIDDEN "hidden")
   target_link_libraries(FiniteVolumeSolver.AMReX
     PUBLIC
       FiniteVolumeSolver.Solver
@@ -459,6 +460,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall>
         $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>)
     set_property(TARGET FiniteVolumeSolver.AMReX.EB PROPERTY CXX_VISIBILITY_PRESET "hidden")
+    set_property(TARGET FiniteVolumeSolver.AMReX.EB PROPERTY VISIBILITY_INLINES_HIDDEN "hidden")
     target_link_libraries(FiniteVolumeSolver.AMReX.EB PUBLIC FiniteVolumeSolver.AMReX)
   endif()
 
