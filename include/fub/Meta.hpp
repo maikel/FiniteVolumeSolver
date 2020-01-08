@@ -18,7 +18,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include <type_traits>
+#ifndef FUB_META_HPP
+#define FUB_META_HPP
+
+#include "fub/core/type_traits.hpp"
 
 namespace fub::meta {
 
@@ -38,12 +41,31 @@ template <typename Context, typename... Args>
 using PostAdvanceLevel =
     decltype(std::declval<Context>().PostAdvanceLevel(std::declval<Args>()...));
 
+template <typename T, typename... Args>
+using ResetHierarchyConfiguration = decltype(
+    std::declval<T>().ResetHierarchyConfiguration(std::declval<Args>()...));
+
 template <typename T>
 using GriddingAlgorithm =
     std::decay_t<decltype(*std::declval<T>().GetGriddingAlgorithm())>;
 
 template <typename T>
-using Equation =
-    std::decay_t<decltype(std::declval<T>().GetEquation())>;
+using Equation = std::decay_t<decltype(std::declval<T>().GetEquation())>;
 
+} // namespace fub::meta
+
+namespace fub {
+
+// This is a helper function which invokes ResetHierarchyConfiguration if the
+// specified object obj has such a member function It is used by generic
+// algorithms in fub/sovler/*
+template <typename T, typename Grid>
+void ResetHierarchyConfiguration(T&& obj, Grid&& grid) {
+  if constexpr (is_detected<meta::ResetHierarchyConfiguration, T, Grid>()) {
+    std::forward<T>(obj).ResetHierarchyConfiguration(std::forward<Grid>(grid));
+  }
 }
+
+} // namespace fub
+
+#endif
