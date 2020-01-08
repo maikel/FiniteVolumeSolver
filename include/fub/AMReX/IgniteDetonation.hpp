@@ -79,6 +79,15 @@ class IgniteDetonation {
 public:
   static constexpr int Rank = 1;
 
+  /// \brief Constructs the source term
+  ///
+  /// \param[in] eq  The equation which knows the species
+  /// 
+  /// \param[in] max_refinement_level  This is needed to allocate storate for
+  /// ignition times at each refinement level.
+  ///
+  /// \param[in] opts  Options which
+  /// manipulate the way of igniting the the gas mixture
   IgniteDetonation(const IdealGasMix<1>& eq, int max_refinement_level,
                    const IgniteDetonationOptions& opts = {});
 
@@ -87,12 +96,12 @@ public:
   /// Resets the last ignition time points if the time point on grid is lower
   /// than the last recorded ignition. This happens when the CFL condition gets
   /// violated right after the ignition.
-  void
-  ResetHierarchyConfiguration(std::shared_ptr<GriddingAlgorithm> grid);
+  void ResetHierarchyConfiguration(std::shared_ptr<GriddingAlgorithm> grid);
 
   /// \brief Returns numeric_limits<double>::max()
   ///
-  /// This operator artificially ignites a detonation and has no restriction on the time step size.
+  /// This operator artificially ignites a detonation and has no restriction on
+  /// the time step size.
   [[nodiscard]] Duration ComputeStableDt(int) const noexcept;
 
   /// Uses the scratch space of simulation_data to evaluate the criterion on the
@@ -106,7 +115,8 @@ public:
     return options_;
   }
 
-  /// \brief Returns the time points for the last ignition on refinement level `level`.
+  /// \brief Returns the time points for the last ignition on refinement level
+  /// `level`.
   [[nodiscard]] Duration GetLastIgnitionTimePoint(int level) const noexcept;
 
   /// \brief Set a time point for an ignition on refinement level `level`.

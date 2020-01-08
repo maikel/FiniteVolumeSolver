@@ -23,10 +23,10 @@
 
 #include "fub/AMReX/IntegratorContext.hpp"
 #include "fub/TimeStepError.hpp"
+#include "fub/counter/CounterRegistry.hpp"
 #include "fub/equations/IdealGasMix.hpp"
 #include "fub/ext/omp.hpp"
 #include "fub/ext/outcome.hpp"
-#include "fub/counter/CounterRegistry.hpp"
 
 #include <memory>
 
@@ -44,7 +44,10 @@ public:
 
   Duration ComputeStableDt(int level);
 
-  Result<void, TimeStepTooLarge> AdvanceLevel(amrex::IntegratorContext& simulation_data, int level, Duration dt, const ::amrex::IntVect& ngrow = ::amrex::IntVect(0));
+  Result<void, TimeStepTooLarge>
+  AdvanceLevel(amrex::IntegratorContext& simulation_data, int level,
+               Duration dt,
+               const ::amrex::IntVect& ngrow = ::amrex::IntVect(0));
 
 private:
   OmpLocal<IdealGasMix<Rank>> equation_;

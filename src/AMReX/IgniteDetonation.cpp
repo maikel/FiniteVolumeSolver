@@ -119,7 +119,7 @@ void IgniteDetonation::SetLastIgnitionTimePoint(int level,
 
 void IgniteDetonation::ResetHierarchyConfiguration(
     std::shared_ptr<amrex::GriddingAlgorithm> grid) {
-  if (grid->GetPatchHierarchy().GetTimePoint() < last_ignition_[0]) {
+  if (grid->GetPatchHierarchy().GetTimePoint() <= last_ignition_[0]) {
     last_ignition_ = last_ignition_backup_;
   }
 }
