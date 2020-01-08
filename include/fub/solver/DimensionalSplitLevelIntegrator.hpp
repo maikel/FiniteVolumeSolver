@@ -21,16 +21,19 @@
 #ifndef FUB_DIMENSIONAL_SPLIT_LEVEL_INTEGRATOR_HPP
 #define FUB_DIMENSIONAL_SPLIT_LEVEL_INTEGRATOR_HPP
 
-#include "fub/core/algorithm.hpp"
 #include "fub/Direction.hpp"
 #include "fub/Duration.hpp"
 #include "fub/Equation.hpp"
 #include "fub/Execution.hpp"
 #include "fub/Meta.hpp"
 #include "fub/TimeStepError.hpp"
+#include "fub/core/algorithm.hpp"
+#include "fub/ext/Mpi.hpp"
 #include "fub/ext/outcome.hpp"
 
 #include "fub/split_method/GodunovSplitting.hpp"
+
+#include <utility>
 
 namespace fub {
 
@@ -85,25 +88,20 @@ public:
   using IntegratorContext::GetRatioToCoarserLevel;
   using IntegratorContext::LevelExists;
 
-  using IntegratorContext::CopyDataToScratch;
-  using IntegratorContext::CopyScratchToData;
   using IntegratorContext::CoarsenConservatively;
   using IntegratorContext::CompleteFromCons;
   using IntegratorContext::ComputeNumericFluxes;
+  using IntegratorContext::CopyDataToScratch;
+  using IntegratorContext::CopyScratchToData;
   using IntegratorContext::UpdateConservatively;
 
   using IntegratorContext::AccumulateCoarseFineFluxes;
   using IntegratorContext::ApplyFluxCorrection;
   using IntegratorContext::ResetCoarseFineFluxes;
 
-  /// Returns the total refinement ratio between specified coarse to fine level
-  /// number.
-  int GetTotalRefineRatio(int fine_level, int coarse_level = 0) const;
-
-  /// Returns a stable dt across all levels and in one spatial direction.
+  /// Returns a stable dt on a specified level across all spatial directions.
   ///
-  /// This function takes the refinement level into account.
-  /// For stability it is advised to use some additional CFL condition.
+  /// For stability it is advised to multiply some additional CFL factor < 1.0.
   Duration ComputeStableDt(int level_number);
 
   /// Advance a specified patch level and all finer levels by time `dt`.
@@ -165,7 +163,7 @@ Duration
 DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::ComputeStableDt(
     int level) {
   if (level > 0) {
-    Context::FillGhostLayerTwoLevels(level, level -1);
+    Context::FillGhostLayerTwoLevels(level, level - 1);
   } else {
     Context::FillGhostLayerSingleLevel(level);
   }
@@ -178,27 +176,26 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::ComputeStableDt(
 }
 
 template <int Rank, typename Context, typename SplitMethod>
-int DimensionalSplitLevelIntegrator<
-    Rank, Context, SplitMethod>::GetTotalRefineRatio(int fine_level,
-                                                     int coarse_level) const {
-  int refine_ratio = 1;
-  for (int level = fine_level; level > coarse_level; --level) {
-    refine_ratio *= Context::GetRatioToCoarserLevel(level).max();
-  }
-  return refine_ratio;
-}
-
-template <int Rank, typename Context, typename SplitMethod>
 Result<void, TimeStepTooLarge>
 DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::
     AdvanceLevelNonRecursively(int this_level, Duration dt,
-                               [[maybe_unused]] std::pair<int, int> subcycle) {
+                               std::pair<int, int>) {
   auto AdvanceLevel_Split = [&](Direction dir) {
-    return [&, this_level, dir](Duration split_dt) -> Result<void, TimeStepTooLarge> {
-      const Duration level_dt = Context::ComputeStableDt(this_level, dir);
+    return [&, this_level, dir, count_split_steps = 0](
+               Duration split_dt) mutable -> Result<void, TimeStepTooLarge> {
+      if (count_split_steps > 0) {
+        // Apply boundary condition for the physical boundary only.
+        Context::ApplyBoundaryCondition(this_level, dir);
+      }
+      count_split_steps += 1;
+
+      // Check stable time step size and if the CFL condition is violated then
+      // restart the coarse time step
+      const Duration local_dt = Context::ComputeStableDt(this_level, dir);
+      MPI_Comm comm = GetMpiCommunicator();
+      const Duration level_dt = MinAll(comm, local_dt);
       if (level_dt < split_dt) {
-        const int refine_ratio = GetTotalRefineRatio(this_level);
-        return TimeStepTooLarge{refine_ratio * level_dt};
+        return TimeStepTooLarge{level_dt, this_level};
       }
 
       // Compute fluxes in the specified direction
@@ -212,22 +209,27 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::
       // We have to reconstruct the missing variables in the complete state.
       Context::CompleteFromCons(this_level, split_dt);
 
+      // We have to accumulate the fluxes now,
       const double scale = split_dt.count();
       Context::AccumulateCoarseFineFluxes(this_level, scale, dir);
 
       return boost::outcome_v2::success();
     };
   };
+
+  // Depending on the space dimension of this dimensional split operator we
+  // apply the configured splitting method with multiple operators
+
   Result<void, TimeStepTooLarge> result = std::apply(
       [&](auto... directions) {
         return GetSplitMethod().Advance(dt, AdvanceLevel_Split(directions)...);
       },
       MakeSplitDirections<Rank>());
-  if (!result) {
-    return result;
+
+  if (result) {
+    Context::CopyScratchToData(this_level);
   }
-  Context::CopyScratchToData(this_level);
-  return boost::outcome_v2::success();
+  return result;
 }
 
 } // namespace fub

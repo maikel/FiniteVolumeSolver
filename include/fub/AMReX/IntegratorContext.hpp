@@ -25,8 +25,8 @@
 #include "fub/Duration.hpp"
 #include "fub/HyperbolicMethod.hpp"
 #include "fub/TimeStepError.hpp"
-#include "fub/ext/outcome.hpp"
 #include "fub/counter/CounterRegistry.hpp"
+#include "fub/ext/outcome.hpp"
 
 #include "fub/AMReX/GriddingAlgorithm.hpp"
 #include "fub/AMReX/PatchHierarchy.hpp"
@@ -57,6 +57,9 @@ public:
   IntegratorContext(std::shared_ptr<GriddingAlgorithm> gridding,
                     HyperbolicMethod method);
 
+  IntegratorContext(std::shared_ptr<GriddingAlgorithm> gridding,
+                    HyperbolicMethod method, int cell_gcw, int face_gcw);
+
   /// \brief Deeply copies a context and all its distributed data for all MPI
   /// ranks.
   IntegratorContext(const IntegratorContext&);
@@ -69,7 +72,7 @@ public:
 
   IntegratorContext& operator=(IntegratorContext&&) noexcept = default;
 
-  ~IntegratorContext() = default;
+  virtual ~IntegratorContext() = default;
   /// @}
 
   /// @{
@@ -83,8 +86,8 @@ public:
 
   /// \brief Returns a shared pointer to the underlying GriddingAlgorithm which
   /// owns the simulation.
-  [[nodiscard]] const std::shared_ptr<GriddingAlgorithm>& GetGriddingAlgorithm() const
-      noexcept;
+  [[nodiscard]] const std::shared_ptr<GriddingAlgorithm>&
+  GetGriddingAlgorithm() const noexcept;
 
   /// \brief Returns a reference to const PatchHierarchy which is a member of
   /// the GriddingAlgorithm.
@@ -133,17 +136,20 @@ public:
   [[nodiscard]] bool LevelExists(int level) const noexcept;
 
   /// \brief Returns the refinement ratio in the specified direction.
-  [[nodiscard]] int GetRatioToCoarserLevel(int level, Direction dir) const noexcept;
+  [[nodiscard]] int GetRatioToCoarserLevel(int level, Direction dir) const
+      noexcept;
 
   /// \brief Returns the refinement ratio for all directions.
-  [[nodiscard]] ::amrex::IntVect GetRatioToCoarserLevel(int level) const noexcept;
+  [[nodiscard]] ::amrex::IntVect GetRatioToCoarserLevel(int level) const
+      noexcept;
   /// @}
 
   /// @{
   /// \name Modifiers
 
   /// \brief Replaces the underlying gridding algorithm with the specified one.
-  void ResetHierarchyConfiguration(std::shared_ptr<GriddingAlgorithm> gridding);
+  virtual void
+  ResetHierarchyConfiguration(std::shared_ptr<GriddingAlgorithm> gridding);
 
   /// \brief Whenever the gridding algorithm changes the data hierarchy this
   /// function will regrid all distributed helper variables managed by the
@@ -151,7 +157,7 @@ public:
   ///
   /// \param[in] level  The level number of the coarsest level which changed its
   /// shape. Regrid all levels finer than level.
-  void ResetHierarchyConfiguration(int level = 0);
+  virtual void ResetHierarchyConfiguration(int level = 0);
 
   /// \brief Sets the cycle count for a specific level number and direction.
   void SetCycles(std::ptrdiff_t cycle, int level);
@@ -167,7 +173,8 @@ public:
   void PostAdvanceHierarchy();
 
   /// \brief On each first subcycle this will regrid the data if neccessary.
-  void PreAdvanceLevel(int level_num, Duration dt, std::pair<int, int> subcycle);
+  void PreAdvanceLevel(int level_num, Duration dt,
+                       std::pair<int, int> subcycle);
 
   /// \brief Increases the internal time stamps and cycle counters for the
   /// specified level number and direction.
@@ -176,6 +183,14 @@ public:
 
   void CopyDataToScratch(int level_num);
   void CopyScratchToData(int level_num);
+
+  /// \brief Applies the boundary condition for the scratch space on level
+  /// `level` in direcition `dir`.
+  ///
+  /// \param level  The refinement level on which the boundary condition shall
+  /// be used.
+  void ApplyBoundaryCondition(int level, Direction dir);
+  void ApplyBoundaryCondition(int level, Direction dir, BoundaryCondition& bc);
 
   /// \brief Fills the ghost layer of the scratch data and interpolates in the
   /// coarse fine layer.
@@ -238,7 +253,7 @@ private:
     /// These arrays will store the fluxes for each patch level which is present
     /// in the patch hierarchy. These will need to be rebuilt if the
     /// PatchHierarchy changes.
-    std::array<::amrex::MultiFab, 3> fluxes;
+    std::array<::amrex::MultiFab, AMREX_SPACEDIM> fluxes;
 
     /// FluxRegister accumulate fluxes on coarse fine interfaces between
     /// refinement level. These will need to be rebuilt whenever the hierarchy
@@ -250,7 +265,8 @@ private:
     std::ptrdiff_t cycles{};
   };
 
-  int ghost_cell_width_;
+  int cell_ghost_cell_width_;
+  int face_ghost_cell_width_{cell_ghost_cell_width_};
   std::shared_ptr<GriddingAlgorithm> gridding_;
   std::vector<LevelData> data_;
   HyperbolicMethod method_;

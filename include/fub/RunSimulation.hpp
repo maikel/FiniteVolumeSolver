@@ -71,7 +71,7 @@ FormatTimeStepLine(std::ptrdiff_t cycle,
 template <typename Solver,
           typename Grid = std::decay_t<
               decltype(*std::declval<Solver&>().GetGriddingAlgorithm())>>
-Solver RunSimulation(Solver& solver, RunOptions options,
+void RunSimulation(Solver& solver, RunOptions options,
                      std::chrono::steady_clock::time_point wall_time_reference,
                      BasicOutput<Grid>& output) {
   namespace logger = boost::log;
@@ -109,7 +109,7 @@ Solver RunSimulation(Solver& solver, RunOptions options,
       if (result.has_error()) {
         // If the solver returned with an error, reduce the time step size with
         // the new estimate.
-        failure_dt = result.error().coarse_dt;
+        failure_dt = result.error().dt;
         BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", time_point.count());
         BOOST_LOG_SEV(log, warning) << fmt::format(
             "Pre-estimated coarse time step size (dt_old = {}s) "
@@ -142,7 +142,7 @@ Solver RunSimulation(Solver& solver, RunOptions options,
         !output.ShallOutputNow(*solver.GetGriddingAlgorithm()));
     output(*solver.GetGriddingAlgorithm());
   }
-  return solver;
+  // return solver;
 }
 
 } // namespace fub

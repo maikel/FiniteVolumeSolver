@@ -37,6 +37,13 @@ public:
                     Duration dt, const GriddingAlgorithm& grid);
 
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
+                    Duration dt, const GriddingAlgorithm& grid, Direction dir) {
+    if (dir == dir_) {
+      FillBoundary(mf, geom, dt, grid, dir);
+    }
+  }
+
+  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
                     const GriddingAlgorithm& grid);
 
 private:

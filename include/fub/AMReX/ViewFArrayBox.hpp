@@ -236,6 +236,11 @@ auto MakeView(FAB&& fab, const Equation& eq, const ::amrex::Box& box) {
                          AsIndexBox<Equation::Rank()>(box));
 }
 
+std::array<::amrex::Box, 2>
+GetCellsAndFacesInStencilRange(const ::amrex::Box& cell_tilebox,
+                               const ::amrex::Box& face_validbox,
+                               int stencil_width, Direction dir);
+
 } // namespace amrex
 } // namespace fub
 
