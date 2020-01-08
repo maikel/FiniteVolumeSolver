@@ -45,6 +45,7 @@ namespace amrex {
 struct PatchHierarchyOptions {
   int max_number_of_levels{1};
   ::amrex::IntVect refine_ratio{AMREX_D_DECL(2, 2, 2)};
+  ::amrex::IntVect blocking_factor{AMREX_D_DECL(32, 32, 32)};
 };
 
 /// The DataDescription class contains all information which is neccessary to
