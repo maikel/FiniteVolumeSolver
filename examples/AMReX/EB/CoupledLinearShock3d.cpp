@@ -80,7 +80,7 @@ struct ProgramOptions {
     check_size(zs, 2, "z_range");
     plenum_xbox = amrex::RealBox(xs[0], ys[0], zs[0], xs[1], ys[1], zs[1]);
     std::vector n_cells =
-        fub::GetOptionOr(vm, "n_cells", std::vector{64, 64, 64});
+        fub::GetOptionOr(vm, "n_cells", std::vector{32, 32, 32});
     check_size(n_cells, 3, "n_cells");
     plenum_n_cells = amrex::IntVect{n_cells[0], n_cells[1], n_cells[2]};
     n_levels = fub::GetOptionOr(vm, "max_number_of_levels", n_levels);
@@ -91,27 +91,20 @@ struct ProgramOptions {
     const double plenum_length = plenum_xbox.hi(0) - plenum_xbox.lo(0);
     const double t_over_p = tube_length / plenum_length;
     tube_n_cells = int(double(plenum_n_cells[0]) * t_over_p);
-    tube_n_cells = tube_n_cells - tube_n_cells % 8;
+    tube_n_cells = tube_n_cells - tube_n_cells % 32;
 
     plenum_temperature =
         fub::GetOptionOr(vm, "temperature", plenum_temperature);
   }
 
   ::amrex::RealBox plenum_xbox{};
-  ::amrex::IntVect plenum_n_cells{64, 64, 64};
+  ::amrex::IntVect plenum_n_cells{32, 32, 32};
   ::amrex::RealBox tube_xbox{};
   int tube_n_cells{};
   int n_levels{1};
   std::string checkpoint{};
   double plenum_temperature{300};
   std::vector<double> x_probes{};
-};
-
-struct TubeSolverOptions {
-  int n_cells{200};
-  int max_refinement_level{1};
-  std::array<double, 2> x_domain{-1.5, -0.03};
-  double phi{0.0};
 };
 
 auto DomainAroundCenter(const ::amrex::RealArray& x, double rx)
@@ -184,12 +177,14 @@ auto MakeTubeSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
     return gridding;
   }();
 
-  fub::ideal_gas::MusclHancockPrimMethod<Tube_Rank> flux_method{equation};
-  HyperbolicMethod method{FluxMethod(fub::execution::openmp, flux_method),
+//  fub::ideal_gas::MusclHancockPrimMethod<Tube_Rank> flux_method{equation};
+  fub::EinfeldtSignalVelocities<fub::IdealGasMix<Tube_Rank>> signals{};
+  fub::HllMethod hll_method{equation, signals};
+  HyperbolicMethod method{FluxMethod(fub::execution::openmp, hll_method),
                           ForwardIntegrator(fub::execution::openmp),
                           Reconstruction(fub::execution::openmp, equation)};
 
-  return std::pair{fub::amrex::IntegratorContext(gridding, method), valve};
+  return std::pair{fub::amrex::IntegratorContext(gridding, method, 1, 0), valve};
 }
 
 ::amrex::Box BoxWhichContains(const ::amrex::RealBox& xbox,
@@ -298,11 +293,11 @@ auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
   fub::KbnCutCellMethod cutcell_method(hll_method, hll_method);
 
   HyperbolicMethod method{
-      FluxMethod{fub::execution::openmp_simd, cutcell_method},
+      FluxMethod{fub::execution::simd, cutcell_method},
       fub::amrex::cutcell::TimeIntegrator{},
-      Reconstruction{fub::execution::openmp_simd, equation}};
+      Reconstruction{fub::execution::simd, equation}};
 
-  return fub::amrex::cutcell::IntegratorContext(gridding, method);
+  return fub::amrex::cutcell::IntegratorContext(gridding, method, 1, 0);
 }
 
 void MyMain(const std::map<std::string, pybind11::object>& vm);
@@ -337,6 +332,7 @@ ParseCommandLine(int argc, char** argv) {
 int main(int argc, char** argv) {
   MPI_Init(nullptr, nullptr);
   fub::InitializeLogging(MPI_COMM_WORLD);
+  pybind11::scoped_interpreter interpreter{};
   {
     fub::amrex::ScopeGuard _{};
     auto vm = ParseCommandLine(argc, argv);
@@ -430,13 +426,13 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
     ia >> *valve.GetSharedState();
   }
 
-  fub::SplitSystemSourceLevelIntegrator ign_solver(system_solver, ignition,
+  fub::SplitSystemSourceLevelIntegrator ign_solver(std::move(system_solver), std::move(ignition),
                                                      fub::GodunovSplitting{});
 
   fub::amrex::MultiBlockKineticSouceTerm source_term{
-      fub::IdealGasMix<Tube_Rank>{mechanism}, context.GetGriddingAlgorithm()};
+      fub::IdealGasMix<Tube_Rank>{mechanism}, ign_solver.GetContext().GetGriddingAlgorithm()};
 
-  fub::SplitSystemSourceLevelIntegrator level_integrator{ign_solver, source_term};
+  fub::SplitSystemSourceLevelIntegrator level_integrator{std::move(ign_solver), std::move(source_term)};
 
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
