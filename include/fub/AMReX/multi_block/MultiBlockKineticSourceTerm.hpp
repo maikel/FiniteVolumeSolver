@@ -21,34 +21,29 @@
 #ifndef FUB_AMREX_MULTI_BLOCK_KINETIC_SOURCE_TERM_HPP
 #define FUB_AMREX_MULTI_BLOCK_KINETIC_SOURCE_TERM_HPP
 
-#include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp"
+#include "fub/AMReX/multi_block/MultiBlockIntegratorContext.hpp"
 #include "fub/equations/ideal_gas_mix/KineticSourceTerm.hpp"
 
 #include <vector>
 
 namespace fub::amrex {
 
-class MultiBlockKineticSouceTerm {
+/// This class manages multiple kinetic source terms which are associated to
+/// independend one-dimensional domains
+class MultiBlockKineticSouceTerm : private ideal_gas::KineticSourceTerm<1> {
 public:
   static constexpr int Rank = 1;
 
-  MultiBlockKineticSouceTerm(
-      const IdealGasMix<1>& equation,
-      std::shared_ptr<MultiBlockGriddingAlgorithm> gridding);
+  using ideal_gas::KineticSourceTerm<1>::KineticSourceTerm;
+  using ideal_gas::KineticSourceTerm<1>::ComputeStableDt;
 
-  void ResetHierarchyConfiguration(
-      std::shared_ptr<MultiBlockGriddingAlgorithm> gridding);
-
-  Duration ComputeStableDt(int level);
-
-  Result<void, TimeStepTooLarge> AdvanceLevel(int level, Duration dt);
-
-  Duration GetTimePoint() const;
-
-  std::ptrdiff_t GetCycles() const;
+  /// \brief Integrates the source term for each tube in the specified context
+  [[nodiscard]] Result<void, TimeStepTooLarge>
+  AdvanceLevel(MultiBlockIntegratorContext& context, int level, Duration dt,
+               const ::amrex::IntVect& ngrow = ::amrex::IntVect(0));
 
 private:
-  std::vector<ideal_gas::KineticSourceTerm<1>> source_terms_;
+  ideal_gas::KineticSourceTerm<1> source_term_;
 };
 
 } // namespace fub::amrex

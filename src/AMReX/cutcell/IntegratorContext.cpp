@@ -84,9 +84,6 @@ IntegratorContext::IntegratorContext(
       static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
   // Allocate auxiliary data arrays for each refinement level in the hierarchy
   ResetHierarchyConfiguration();
-  for (std::size_t level_num = 0; level_num < data_.size(); ++level_num) {
-    CopyDataToScratch(level_num);
-  }
   std::size_t n_levels =
       static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels());
   for (std::size_t i = 0; i < n_levels; ++i) {
@@ -106,9 +103,6 @@ IntegratorContext::IntegratorContext(const IntegratorContext& other)
       method_{other.method_} {
   // Allocate auxiliary data arrays
   ResetHierarchyConfiguration();
-  for (std::size_t level_num = 0; level_num < data_.size(); ++level_num) {
-    CopyDataToScratch(level_num);
-  }
   // Copy time stamps and cycle counters
   std::size_t n_levels =
       static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels());
@@ -301,9 +295,6 @@ void IntegratorContext::ResetHierarchyConfiguration(
     std::shared_ptr<GriddingAlgorithm> gridding) {
   gridding_ = std::move(gridding);
   ResetHierarchyConfiguration();
-  for (std::size_t level_num = 0; level_num < data_.size(); ++level_num) {
-    CopyDataToScratch(level_num);
-  }
 }
 
 void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
@@ -370,6 +361,10 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
       data.coarse_fine.clear();
       data.coarse_fine.define(ba, dm, ref_ratio, level, n_cons_components);
     }
+  }
+
+  for (std::size_t level_num = first_level; level_num < data_.size(); ++level_num) {
+    CopyDataToScratch(level_num);
   }
 }
 

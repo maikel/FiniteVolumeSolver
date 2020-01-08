@@ -226,9 +226,6 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::
       },
       MakeSplitDirections<Rank>());
 
-  if (result) {
-    Context::CopyScratchToData(this_level);
-  }
   return result;
 }
 
