@@ -66,27 +66,29 @@ void FormatLogs_(const boost::log::record_view& rec,
 
   const std::string replace_by = std::string("\n") + prefix.str();
   std::string message = rec[expr::smessage].get();
-  boost::replace_all(message, "\n", replace_by);
-  stream << prefix.str() << message;
+  if (message.size() > 1) {
+    boost::replace_all(message, "\n", replace_by);
+    stream << prefix.str() << message;
+  }
 }
 } // namespace
 
-void InitializeLogging(MPI_Comm comm, const LogOptions&) {
+void InitializeLogging(MPI_Comm comm, const LogOptions& options) {
   boost::log::core::get()->add_global_attribute(
       "TimeStamp", boost::log::attributes::local_clock());
   int rank = -1;
   MPI_Comm_rank(comm, &rank);
-  if (rank == 0) {
+  auto first = options.which_mpi_ranks_do_log.begin();
+  auto last = options.which_mpi_ranks_do_log.end();
+  auto found = std::find(first, last, rank);
+  if (found != last) {
     using text_sink = boost::log::sinks::synchronous_sink<
         boost::log::sinks::text_ostream_backend>;
     boost::shared_ptr<text_sink> file = boost::make_shared<text_sink>();
     namespace expr = boost::log::expressions;
     file->locked_backend()->add_stream(
-        boost::make_shared<std::ofstream>(fmt::format("{:05}.log", rank)));
+        boost::make_shared<std::ofstream>(fmt::format(options.file_template, fmt::arg("rank", rank))));
     file->set_formatter(&FormatLogs_);
-    file->set_filter([](const boost::log::attribute_value_set& attrs) -> bool {
-      return attrs.count(boost::log::aux::default_attribute_names::message());
-    });
     boost::log::core::get()->add_sink(file);
     boost::shared_ptr<text_sink> console = boost::make_shared<text_sink>();
     boost::shared_ptr<std::ostream> cout(&std::cout, boost::null_deleter{});

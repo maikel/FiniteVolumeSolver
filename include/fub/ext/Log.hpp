@@ -36,7 +36,8 @@ struct LogOptions {
 
   static boost::program_options::options_description GetCommandLineOptions();
 
-  std::string file_template{"%N.log"};
+  std::string file_template{"{rank:04d}.log"};
+  std::vector<int> which_mpi_ranks_do_log{0};
 };
 
 void InitializeLogging(MPI_Comm comm, const LogOptions& log = {});
