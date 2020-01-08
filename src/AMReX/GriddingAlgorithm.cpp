@@ -29,11 +29,12 @@ int PrepareParmParseAndReturnNumberOfRefinementLevels(
     const PatchHierarchy& hier) {
   ::amrex::ParmParse pp("amr");
   const int dim = hier.GetDataDescription().dimension;
+  const ::amrex::IntVect blocking_factor = hier.GetOptions().blocking_factor;
   FUB_ASSERT(dim >= 1);
   if (!pp.contains("blocking_factor_x")) {
-    pp.add("blocking_factor_x", 32);
-    pp.add("blocking_factor_y", dim >= 2 ? 32 : 1);
-    pp.add("blocking_factor_z", dim >= 3 ? 32 : 1);
+    pp.add("blocking_factor_x", blocking_factor[0]);
+    pp.add("blocking_factor_y", dim >= 2 ? blocking_factor[1] : 1);
+    pp.add("blocking_factor_z", dim >= 3 ? blocking_factor[2] : 1);
   }
   return hier.GetMaxNumberOfLevels() - 1;
 }

@@ -62,7 +62,7 @@ int main(int argc, char** argv) {
 
   constexpr int Dim = AMREX_SPACEDIM;
 
-  const std::array<int, Dim> n_cells{AMREX_D_DECL(32, 1, 1)};
+  const std::array<int, Dim> n_cells{AMREX_D_DECL(200, 1, 1)};
   const std::array<double, Dim> xlower{AMREX_D_DECL(-1.0, -1.0, -1.0)};
   const std::array<double, Dim> xupper{AMREX_D_DECL(+1.0, +1.0, +1.0)};
 
@@ -107,8 +107,9 @@ int main(int argc, char** argv) {
       ReflectiveBoundary{seq, equation, fub::Direction::X, 1});
 
   fub::amrex::PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = 1;
+  hier_opts.max_number_of_levels = 4;
   hier_opts.refine_ratio = ::amrex::IntVect{AMREX_D_DECL(2, 1, 1)};
+  hier_opts.blocking_factor = ::amrex::IntVect{AMREX_D_DECL(8, 1, 1)};
 
   std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       fub::amrex::PatchHierarchy(equation, geometry, hier_opts), initial_data,
@@ -121,12 +122,17 @@ int main(int argc, char** argv) {
   fub::HllMethod hll_method(equation, signals);
   fub::MusclHancockMethod flux_method{equation, hll_method};
   fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethod(simd, hll_method),
+      fub::amrex::FluxMethod(simd, flux_method),
       fub::amrex::ForwardIntegrator(simd),
       fub::amrex::Reconstruction(simd, equation)};
 
+  const intxw scratch_ghost_cell_width = 4;
+  const int flux_ghost_cell_width = 2;
+
   fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<1>, fub::amrex::IntegratorContext(gridding, method, 1, 0));
+      fub::int_c<1>,
+      fub::amrex::IntegratorContext(gridding, method, scratch_ghost_cell_width,
+                                    flux_ghost_cell_width));
 
   fub::NoSubcycleSolver solver(std::move(level_integrator));
 
@@ -159,11 +165,11 @@ int main(int argc, char** argv) {
 
   fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> output{};
 
-  output.AddOutput(fub::MakeOutput<GriddingAlgorithm>(
-      {1}, {}, conservation_error));
+  output.AddOutput(
+      fub::MakeOutput<GriddingAlgorithm>({1}, {}, conservation_error));
 
   output.AddOutput(fub::MakeOutput<GriddingAlgorithm>(
-      {1}, {}, fub::amrex::PlotfileOutput(equation, base_name)));
+      {}, {0.01s}, fub::amrex::PlotfileOutput(equation, base_name)));
 
   output.AddOutput(
       std::make_unique<fub::CounterOutput<fub::amrex::GriddingAlgorithm>>(
@@ -173,6 +179,6 @@ int main(int argc, char** argv) {
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
   run_options.cfl = 0.9;
-  run_options.final_time = 1.0s;
+  run_options.final_time = 0.2s;
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }
