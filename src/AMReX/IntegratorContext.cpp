@@ -63,10 +63,37 @@ operator=(LevelData&& other) noexcept {
 ////////////////////////////////////////////////////////////////////////////////
 // Constructor and Assignment Operators
 
+// By default we assume Strang-Splitting and subcycling from AMR.
+// Each adds a factor of two to the ghost cell width requirements on coarse fine
+// boundaries.
 IntegratorContext::IntegratorContext(
-    std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod nm)
+    std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod hm)
     : registry_{std::make_shared<CounterRegistry>()},
-      ghost_cell_width_{nm.flux_method.GetStencilWidth() + 5},
+      cell_ghost_cell_width_{hm.flux_method.GetStencilWidth() * 2 * 2},
+      face_ghost_cell_width_{cell_ghost_cell_width_ - hm.flux_method.GetStencilWidth()},
+      gridding_{std::move(gridding)}, data_{}, method_{std::move(hm)} {
+  data_.reserve(
+      static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
+  // Allocate auxiliary data arrays for each refinement level in the hierarchy
+  ResetHierarchyConfiguration();
+  for (std::size_t level_num = 0; level_num < data_.size(); ++level_num) {
+    CopyDataToScratch(level_num);
+  }
+  std::size_t n_levels =
+      static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels());
+  for (std::size_t i = 0; i < n_levels; ++i) {
+    data_[i].cycles = gridding_->GetPatchHierarchy().GetPatchLevel(i).cycles;
+    data_[i].time_point =
+        gridding_->GetPatchHierarchy().GetPatchLevel(i).time_point;
+    data_[i].regrid_time_point = data_[i].time_point;
+  }
+}
+
+IntegratorContext::IntegratorContext(
+    std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod nm,
+    int cell_gcw, int face_gcw)
+    : registry_{std::make_shared<CounterRegistry>()},
+      cell_ghost_cell_width_{cell_gcw}, face_ghost_cell_width_{face_gcw},
       gridding_{std::move(gridding)}, data_{}, method_{std::move(nm)} {
   data_.reserve(
       static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
@@ -86,8 +113,9 @@ IntegratorContext::IntegratorContext(
 }
 
 IntegratorContext::IntegratorContext(const IntegratorContext& other)
-    : registry_(other.registry_),
-      ghost_cell_width_{other.ghost_cell_width_}, gridding_{other.gridding_},
+    : registry_(other.registry_), cell_ghost_cell_width_{other.cell_ghost_cell_width_},
+      face_ghost_cell_width_{other.face_ghost_cell_width_},
+      gridding_{other.gridding_},
       data_(static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels())),
       method_{other.method_} {
   // Allocate auxiliary data arrays
@@ -195,9 +223,6 @@ void IntegratorContext::ResetHierarchyConfiguration(
     std::shared_ptr<GriddingAlgorithm> gridding) {
   gridding_ = std::move(gridding);
   ResetHierarchyConfiguration();
-  for (std::size_t level_num = 0; level_num < data_.size(); ++level_num) {
-    CopyDataToScratch(level_num);
-  }
 }
 
 void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
@@ -223,15 +248,16 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
     ::amrex::IntVect grow = ::amrex::IntVect::TheZeroVector();
     for (int i = 0; i < GetPatchHierarchy().GetDataDescription().dimension;
          ++i) {
-      grow[i] = ghost_cell_width_;
+      grow[i] = cell_ghost_cell_width_;
     }
     data.scratch.define(ba, dm, n_comp, grow);
     for (std::size_t d = 0; d < static_cast<std::size_t>(AMREX_SPACEDIM); ++d) {
       const ::amrex::BoxArray fba =
           ::amrex::convert(ba, ::amrex::IntVect::TheDimensionVector(int(d)));
       ::amrex::IntVect fgrow = grow;
-      fgrow[int(d)] = 1;
+      fgrow[int(d)] = face_ghost_cell_width_;
       data.fluxes[d].define(fba, dm, n_cons_components, fgrow);
+      data.fluxes[d].setVal(0.0);
     }
     if (level > 0) {
       const ::amrex::IntVect ref_ratio =
@@ -239,6 +265,9 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
       data.coarse_fine.clear();
       data.coarse_fine.define(ba, dm, ref_ratio, level, n_cons_components);
     }
+  }
+  for (std::size_t level_num = 0; level_num < data_.size(); ++level_num) {
+    CopyDataToScratch(level_num);
   }
 }
 
@@ -250,6 +279,26 @@ void IntegratorContext::SetTimePoint(Duration dt, int level) {
 void IntegratorContext::SetCycles(std::ptrdiff_t cycles, int level) {
   const std::size_t l = static_cast<std::size_t>(level);
   data_[l].cycles = cycles;
+}
+
+void IntegratorContext::ApplyBoundaryCondition(int level, Direction dir) {
+  BoundaryCondition& boundary_condition = GetBoundaryCondition(level);
+  ApplyBoundaryCondition(level, dir, boundary_condition);
+}
+
+void IntegratorContext::ApplyBoundaryCondition(int level, Direction dir, BoundaryCondition& bc) {
+  Timer timer =
+      registry_->get_timer("IntegratorContext::ApplyBoundaryCondition");
+  Timer timer_per_level{};
+  if (count_per_level) {
+    timer_per_level = registry_->get_timer(
+        fmt::format("IntegratorContext::ApplyBoundaryCondition({})", level));
+  }
+  ::amrex::MultiFab& scratch = GetScratch(level);
+  Duration time_point = GetTimePoint(level);
+  const ::amrex::Geometry& geometry = GetGeometry(level);
+  GriddingAlgorithm& grid = *GetGriddingAlgorithm();
+  bc.FillBoundary(scratch, geometry, time_point, grid, dir);
 }
 
 void IntegratorContext::FillGhostLayerTwoLevels(
@@ -468,7 +517,8 @@ void IntegratorContext::PreAdvanceLevel(int level_num, Duration,
         ResetHierarchyConfiguration(level_num + 1);
         ResetCoarseFineFluxes(level_num + 1, level_num);
       }
-      for (int lvl = level_num; lvl < GetPatchHierarchy().GetNumberOfLevels(); ++lvl) {
+      for (int lvl = level_num; lvl < GetPatchHierarchy().GetNumberOfLevels();
+           ++lvl) {
         CopyDataToScratch(lvl);
       }
     }

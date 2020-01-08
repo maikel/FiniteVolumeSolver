@@ -69,10 +69,17 @@ operator=(LevelData&& other) noexcept {
 //                                          Constructor and Assignment Operators
 
 IntegratorContext::IntegratorContext(
-    std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod nm)
+    std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod hm)
+    : IntegratorContext(std::move(gridding), hm,
+                        hm.flux_method.GetStencilWidth() * 4,
+                        hm.flux_method.GetStencilWidth() * 4) {}
+
+IntegratorContext::IntegratorContext(
+    std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod hm,
+    int scratch_gcw, int flux_gcw)
     : registry_{std::make_shared<CounterRegistry>()},
-      ghost_cell_width_{nm.flux_method.GetStencilWidth() + 1},
-      gridding_{std::move(gridding)}, data_{}, method_{std::move(nm)} {
+      scratch_ghost_cell_width_{scratch_gcw}, flux_ghost_cell_width_{flux_gcw},
+      gridding_{std::move(gridding)}, data_{}, method_{std::move(hm)} {
   data_.reserve(
       static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
   // Allocate auxiliary data arrays for each refinement level in the hierarchy
@@ -92,7 +99,9 @@ IntegratorContext::IntegratorContext(
 
 IntegratorContext::IntegratorContext(const IntegratorContext& other)
     : registry_(other.registry_),
-      ghost_cell_width_{other.ghost_cell_width_}, gridding_{other.gridding_},
+      scratch_ghost_cell_width_{other.scratch_ghost_cell_width_},
+      flux_ghost_cell_width_{other.flux_ghost_cell_width_},
+      gridding_{other.gridding_},
       data_(static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels())),
       method_{other.method_} {
   // Allocate auxiliary data arrays
@@ -322,25 +331,25 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
         GetPatchHierarchy().GetEmbeddedBoundary(level);
 
     { // Redistribute reference states
-      ::amrex::MultiFab refs(ba, dm, n_components, ghost_cell_width_,
+      ::amrex::MultiFab refs(ba, dm, n_components, scratch_ghost_cell_width_,
                              ::amrex::MFInfo(), *ebf);
       if (data.reference_states) {
         refs.ParallelCopy(*data.reference_states, 0, 0, n_components,
-                          ghost_cell_width_, ghost_cell_width_);
+                          scratch_ghost_cell_width_, scratch_ghost_cell_width_);
       }
       data.reference_states = std::move(refs);
     }
 
     data.boundary_fluxes = std::make_unique<::amrex::MultiCutFab>(
-        ba, dm, n_cons_components, ghost_cell_width_,
+        ba, dm, n_cons_components, scratch_ghost_cell_width_,
         ebf->getMultiEBCellFlagFab());
 
-    data.scratch.define(ba, dm, n_components, ghost_cell_width_);
-    ::amrex::IntVect grow(ghost_cell_width_);
+    data.scratch.define(ba, dm, n_components, scratch_ghost_cell_width_);
+    ::amrex::IntVect grow(scratch_ghost_cell_width_);
 
     for (std::size_t d = 0; d < static_cast<std::size_t>(AMREX_SPACEDIM); ++d) {
       ::amrex::IntVect fgrow = grow;
-      fgrow[int(d)] = 1;
+      fgrow[int(d)] = flux_ghost_cell_width_;
       const ::amrex::IntVect unit =
           ::amrex::IntVect::TheDimensionVector(int(d));
       data.fluxes[d].define(::amrex::convert(ba, unit), dm, n_cons_components,
@@ -372,6 +381,27 @@ void IntegratorContext::SetTimePoint(Duration dt, int level) {
 void IntegratorContext::SetCycles(std::ptrdiff_t cycles, int level) {
   const std::size_t l = static_cast<std::size_t>(level);
   data_[l].cycles = cycles;
+}
+
+void IntegratorContext::ApplyBoundaryCondition(int level, Direction dir) {
+  BoundaryCondition& boundary_condition = GetBoundaryCondition(level);
+  ApplyBoundaryCondition(level, dir, boundary_condition);
+}
+
+void IntegratorContext::ApplyBoundaryCondition(int level, Direction dir,
+                                               BoundaryCondition& bc) {
+  Timer timer =
+      registry_->get_timer("IntegratorContext::ApplyBoundaryCondition");
+  Timer timer_per_level{};
+  if (count_per_level) {
+    timer_per_level = registry_->get_timer(
+        fmt::format("IntegratorContext::ApplyBoundaryCondition({})", level));
+  }
+  ::amrex::MultiFab& scratch = GetScratch(level);
+  Duration time_point = GetTimePoint(level);
+  const ::amrex::Geometry& geometry = GetGeometry(level);
+  GriddingAlgorithm& grid = *GetGriddingAlgorithm();
+  bc.FillBoundary(scratch, geometry, time_point, grid, dir);
 }
 
 void IntegratorContext::FillGhostLayerTwoLevels(int fine,

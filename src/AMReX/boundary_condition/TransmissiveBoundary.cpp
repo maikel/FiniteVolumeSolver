@@ -51,6 +51,14 @@ void TransmissiveBoundary::FillBoundary(::amrex::MultiFab& mf,
 }
 
 void TransmissiveBoundary::FillBoundary(::amrex::MultiFab& mf,
+                                        const ::amrex::Geometry& geom, Duration,
+                                        const GriddingAlgorithm&, Direction dir) {
+  if (dir == this->dir) {
+    FillBoundary(mf, geom);
+  }
+}
+
+void TransmissiveBoundary::FillBoundary(::amrex::MultiFab& mf,
                                         const ::amrex::Geometry& geom) {
   const int ngrow = mf.nGrow(int(dir));
   ::amrex::Box grown_box = geom.growNonPeriodicDomain(ngrow);

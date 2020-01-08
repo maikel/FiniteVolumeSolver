@@ -113,11 +113,27 @@ public:
                     Duration time_point,
                     const cutcell::GriddingAlgorithm& gridding);
 
+  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
+                    Duration time_point,
+                    const cutcell::GriddingAlgorithm& gridding, Direction dir) {
+    if (dir == dir_) {
+      FillBoundary(mf, geom, time_point, gridding);
+    }
+  }
+
   /// Assuming that mf represents a MultiFab living in the one dimensional tube
   /// simulation its ghost layer will be filled with data from the plenum
   /// simulation.
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
                     Duration time_point, const GriddingAlgorithm& gridding);
+
+  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
+                    Duration time_point, const GriddingAlgorithm& gridding,
+                    Direction dir) {
+    if (dir == dir_) {
+      FillBoundary(mf, geom, time_point, gridding);
+    }
+  }
 
   const std::shared_ptr<PressureValve>& GetValve() const noexcept;
 
@@ -144,38 +160,6 @@ private:
   int side_{};
   int level_{};
 };
-
-//
-// class MultiBlockBoundaryFunction {
-// public:
-//  CoupledBoundaryFunction(const cutcell::PatchHierarchy& plenum,
-//                          const PatchHierarchy& tube, int gcw,
-//                          const FlameMasterReactor& reactor)
-//      : boundary_state_(
-//            std::make_shared<CoupledBoundary>(plenum, tube, gcw, reactor)) {}
-//
-//  void operator()(const PatchDataView<double, AMREX_SPACEDIM + 1>& states,
-//                  const cutcell::PatchHierarchy& plenum, PatchHandle patch,
-//                  Location loc, int fill_width, Duration time_point) const {
-//    boundary_state_->FillPlenumBoundary(states, plenum, patch, loc,
-//    fill_width,
-//                                        time_point);
-//  }
-//
-//  void operator()(const PatchDataView<double, AMREX_SPACEDIM + 1>& states,
-//                  const PatchHierarchy& plenum, PatchHandle patch, Location
-//                  loc, int fill_width, Duration time_point) const {
-//    boundary_state_->FillTubeBoundary(states, plenum, patch, loc, fill_width,
-//                                      time_point);
-//  }
-//
-//  const std::shared_ptr<CoupledBoundary>& GetSharedState() const noexcept {
-//    return boundary_state_;
-//  }
-//
-// private:
-//  std::shared_ptr<CoupledBoundary> boundary_state_;
-//};
 
 } // namespace fub::amrex
 

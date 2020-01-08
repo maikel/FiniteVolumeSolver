@@ -93,10 +93,8 @@ void WriteHdf5UnRestricted(const std::string& name,
   ::MPI_Comm_rank(comm, &rank);
   if (rank == 0) {
     boost::filesystem::path path(name);
-    boost::filesystem::path dir = boost::filesystem::absolute(path.parent_path());
-    if (!boost::filesystem::exists(dir)) {
-      boost::filesystem::create_directories(dir);
-    }
+    boost::filesystem::path dir = path.parent_path();
+    boost::filesystem::create_directories(dir);
   }
   const std::size_t n_level =
       static_cast<std::size_t>(hierarchy.GetNumberOfLevels());

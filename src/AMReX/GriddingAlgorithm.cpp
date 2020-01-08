@@ -31,9 +31,9 @@ int PrepareParmParseAndReturnNumberOfRefinementLevels(
   const int dim = hier.GetDataDescription().dimension;
   FUB_ASSERT(dim >= 1);
   if (!pp.contains("blocking_factor_x")) {
-    pp.add("blocking_factor_x", 8);
-    pp.add("blocking_factor_y", dim >= 2 ? 8 : 1);
-    pp.add("blocking_factor_z", dim >= 3 ? 8 : 1);
+    pp.add("blocking_factor_x", 32);
+    pp.add("blocking_factor_y", dim >= 2 ? 32 : 1);
+    pp.add("blocking_factor_z", dim >= 3 ? 32 : 1);
   }
   return hier.GetMaxNumberOfLevels() - 1;
 }
@@ -301,13 +301,13 @@ void GriddingAlgorithm::MakeNewLevelFromScratch(
     int level, double time_point, const ::amrex::BoxArray& box_array,
     const ::amrex::DistributionMapping& distribution_mapping) {
   // Allocate level data.
-  const int n_comps = hierarchy_.GetDataDescription().n_state_components;
+  const DataDescription& desc = hierarchy_.GetDataDescription();
   if (hierarchy_.GetNumberOfLevels() == level) {
     hierarchy_.PushBack(PatchLevel(level, Duration(time_point), box_array,
-                                   distribution_mapping, n_comps));
+                                   distribution_mapping, desc));
   } else {
     PatchLevel patch_level(level, Duration(time_point), box_array,
-                           distribution_mapping, n_comps);
+                           distribution_mapping, desc);
     hierarchy_.GetPatchLevel(level) = std::move(patch_level);
   }
   ::amrex::MultiFab& data = hierarchy_.GetPatchLevel(level).data;
@@ -322,7 +322,7 @@ void GriddingAlgorithm::MakeNewLevelFromCoarse(
   const PatchLevel& coarse_level = hierarchy_.GetPatchLevel(level - 1);
   const int n_comps = hierarchy_.GetDataDescription().n_state_components;
   PatchLevel fine_level(level, Duration(time_point), box_array,
-                        distribution_mapping, n_comps);
+                        distribution_mapping, hierarchy_.GetDataDescription());
   const int cons_start = hierarchy_.GetDataDescription().first_cons_component;
   const int n_cons_components =
       hierarchy_.GetDataDescription().n_cons_components;
@@ -347,9 +347,9 @@ void GriddingAlgorithm::MakeNewLevelFromCoarse(
 void GriddingAlgorithm::RemakeLevel(
     int level_number, double time_point, const ::amrex::BoxArray& box_array,
     const ::amrex::DistributionMapping& distribution_mapping) {
-  const int n_comps = hierarchy_.GetDataDescription().n_state_components;
+  const DataDescription desc = hierarchy_.GetDataDescription();
   PatchLevel new_level(level_number, Duration(time_point), box_array,
-                       distribution_mapping, n_comps);
+                       distribution_mapping, desc);
   FillMultiFabFromLevel(new_level.data, level_number);
   hierarchy_.GetPatchLevel(level_number) = std::move(new_level);
 }

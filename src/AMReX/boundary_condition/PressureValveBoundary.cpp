@@ -265,6 +265,16 @@ std::string GetMolesString_(const PressureValveOptions& options,
 
 void PressureValveBoundary::FillBoundary(::amrex::MultiFab& mf,
                                          const ::amrex::Geometry& geom,
+                                         Duration dt,
+                                         const GriddingAlgorithm& grid,
+                                         Direction dir) {
+  if (dir == Direction::X) {
+    FillBoundary(mf, geom, dt, grid, dir);
+  }
+}
+
+void PressureValveBoundary::FillBoundary(::amrex::MultiFab& mf,
+                                         const ::amrex::Geometry& geom,
                                          Duration /* dt */,
                                          const GriddingAlgorithm& grid) {
   const int ngrow = mf.nGrow(0);

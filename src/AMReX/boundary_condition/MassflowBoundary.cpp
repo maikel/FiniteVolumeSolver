@@ -107,6 +107,15 @@ int FindLevel(const ::amrex::Geometry& geom,
 } // namespace
 
 void MassflowBoundary::FillBoundary(::amrex::MultiFab& mf,
+                                    const ::amrex::Geometry& geom, Duration dt,
+                                    const GriddingAlgorithm& grid,
+                                    Direction dir) {
+  if (dir == dir_) {
+    FillBoundary(mf, geom, dt, grid, dir);
+  }
+}
+
+void MassflowBoundary::FillBoundary(::amrex::MultiFab& mf,
                                     const ::amrex::Geometry& geom, Duration t,
                                     const GriddingAlgorithm& grid) {
   const int level = FindLevel(geom, grid);
