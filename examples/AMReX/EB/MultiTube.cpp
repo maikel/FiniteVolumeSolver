@@ -155,11 +155,11 @@ auto MakeTubeSolver(fub::Burke2012& mechanism, const TubeSolverOptions& opts,
   }();
 
   fub::ideal_gas::MusclHancockPrimMethod<Tube_Rank> flux_method{equation};
-  HyperbolicMethod method{FluxMethod(fub::execution::openmp_simd, flux_method),
-                          ForwardIntegrator(fub::execution::openmp_simd),
-                          Reconstruction(fub::execution::openmp_simd, equation)};
+  HyperbolicMethod method{FluxMethod(fub::execution::openmp, flux_method),
+                          ForwardIntegrator(fub::execution::openmp),
+                          Reconstruction(fub::execution::openmp, equation)};
 
-  return std::pair{fub::amrex::IntegratorContext(gridding, method, 2, 0), valve};
+  return std::pair{fub::amrex::IntegratorContext(gridding, method), valve};
 }
 
 ::amrex::Box BoxWhichContains(const ::amrex::RealBox& xbox,
@@ -289,7 +289,7 @@ auto MakePlenumSolver(fub::Burke2012& mechanism, int num_cells, int n_level,
       fub::amrex::cutcell::TimeIntegrator{},
       Reconstruction{fub::execution::openmp_simd, equation}};
 
-  return fub::amrex::cutcell::IntegratorContext(gridding, method, 1, 0);
+  return fub::amrex::cutcell::IntegratorContext(gridding, method);
 }
 
 struct ProgramOptions {

@@ -86,13 +86,13 @@ int main(int argc, char** argv) {
 
   Complete left;
   left.density = 1.0;
-  left.momentum = -1.0;
+  left.momentum = 0.0;
   left.pressure = 8.0;
   from_prim(left, equation);
 
   Complete right;
   right.density = 1.0;
-  right.momentum = -1.0;
+  right.momentum = 0.0;
   right.pressure = 1.0;
   from_prim(right, equation);
 
@@ -126,7 +126,7 @@ int main(int argc, char** argv) {
       fub::amrex::ForwardIntegrator(simd),
       fub::amrex::Reconstruction(simd, equation)};
 
-  const intxw scratch_ghost_cell_width = 4;
+  const int scratch_ghost_cell_width = 4;
   const int flux_ghost_cell_width = 2;
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
@@ -134,7 +134,7 @@ int main(int argc, char** argv) {
       fub::amrex::IntegratorContext(gridding, method, scratch_ghost_cell_width,
                                     flux_ghost_cell_width));
 
-  fub::NoSubcycleSolver solver(std::move(level_integrator));
+  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
   std::string base_name = "PerfectGas1d/";
 
