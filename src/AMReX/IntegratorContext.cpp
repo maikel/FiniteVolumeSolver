@@ -70,7 +70,8 @@ IntegratorContext::IntegratorContext(
     std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod hm)
     : registry_{std::make_shared<CounterRegistry>()},
       cell_ghost_cell_width_{hm.flux_method.GetStencilWidth() * 2 * 2},
-      face_ghost_cell_width_{cell_ghost_cell_width_ - hm.flux_method.GetStencilWidth()},
+      face_ghost_cell_width_{cell_ghost_cell_width_ -
+                             hm.flux_method.GetStencilWidth()},
       gridding_{std::move(gridding)}, data_{}, method_{std::move(hm)} {
   data_.reserve(
       static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
@@ -113,7 +114,8 @@ IntegratorContext::IntegratorContext(
 }
 
 IntegratorContext::IntegratorContext(const IntegratorContext& other)
-    : registry_(other.registry_), cell_ghost_cell_width_{other.cell_ghost_cell_width_},
+    : registry_(other.registry_),
+      cell_ghost_cell_width_{other.cell_ghost_cell_width_},
       face_ghost_cell_width_{other.face_ghost_cell_width_},
       gridding_{other.gridding_},
       data_(static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels())),
@@ -174,12 +176,28 @@ MPI_Comm IntegratorContext::GetMpiCommunicator() const noexcept {
   return GetPatchHierarchy().GetPatchLevel(level).data;
 }
 
+const ::amrex::MultiFab& IntegratorContext::GetData(int level) const {
+  return GetPatchHierarchy().GetPatchLevel(level).data;
+}
+
 ::amrex::MultiFab& IntegratorContext::GetScratch(int level) {
   const std::size_t l = static_cast<std::size_t>(level);
   return data_[l].scratch;
 }
 
+const ::amrex::MultiFab& IntegratorContext::GetScratch(int level) const {
+  const std::size_t l = static_cast<std::size_t>(level);
+  return data_[l].scratch;
+}
+
 ::amrex::MultiFab& IntegratorContext::GetFluxes(int level, Direction dir) {
+  const std::size_t d = static_cast<std::size_t>(dir);
+  const std::size_t l = static_cast<std::size_t>(level);
+  return data_[l].fluxes[d];
+}
+
+const ::amrex::MultiFab& IntegratorContext::GetFluxes(int level,
+                                                      Direction dir) const {
   const std::size_t d = static_cast<std::size_t>(dir);
   const std::size_t l = static_cast<std::size_t>(level);
   return data_[l].fluxes[d];
@@ -286,7 +304,8 @@ void IntegratorContext::ApplyBoundaryCondition(int level, Direction dir) {
   ApplyBoundaryCondition(level, dir, boundary_condition);
 }
 
-void IntegratorContext::ApplyBoundaryCondition(int level, Direction dir, BoundaryCondition& bc) {
+void IntegratorContext::ApplyBoundaryCondition(int level, Direction dir,
+                                               BoundaryCondition& bc) {
   Timer timer =
       registry_->get_timer("IntegratorContext::ApplyBoundaryCondition");
   Timer timer_per_level{};
