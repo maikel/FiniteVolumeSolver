@@ -76,7 +76,8 @@ void MyMain(const ProgramOptions& opts) {
 
   fub::amrex::PatchHierarchyOptions hier_opts;
   hier_opts.max_number_of_levels = nlevels;
-  hier_opts.refine_ratio = ::amrex::IntVect{AMREX_D_DECL(2, 1, 1)};
+  hier_opts.refine_ratio = amrex::IntVect{AMREX_D_DECL(2, 1, 1)};
+  hier_opts.blocking_factor = amrex::IntVect{AMREX_D_DECL(8, 1, 1)};
 
   fub::IdealGasMix<1>::Complete state(equation);
   equation.GetReactor().SetMoleFractions("N2:79,O2:21");
@@ -93,29 +94,34 @@ void MyMain(const ProgramOptions& opts) {
 
   // Setup the numerical Method used to solve this problem.
   // {{{
-  //  fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>> signals{};
-  //  fub::HllMethod hll_method(equation, signals);
-
   fub::ideal_gas::MusclHancockPrimMethod<1> flux_method(equation);
 
   fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethod(fub::execution::seq, flux_method),
-      fub::amrex::ForwardIntegrator(fub::execution::seq),
-      fub::amrex::Reconstruction(fub::execution::seq, equation)};
+      fub::amrex::FluxMethod(fub::execution::simd, flux_method),
+      fub::amrex::ForwardIntegrator(fub::execution::simd),
+      fub::amrex::Reconstruction(fub::execution::simd, equation)};
+
+  const int scratch_gcw = 2 * flux_method.GetStencilWidth();
+  const int flux_gcw = flux_method.GetStencilWidth();
 
   fub::DimensionalSplitLevelIntegrator system_solver(
-      fub::int_c<1>, fub::amrex::IntegratorContext(gridding, method),
+      fub::int_c<1>,
+      fub::amrex::IntegratorContext(gridding, method, scratch_gcw, flux_gcw),
       fub::GodunovSplitting());
 
   fub::amrex::IgniteDetonationOptions io{};
-  fub::amrex::IgniteDetonation ignite(equation, gridding, io);
-  fub::SplitSystemSourceLevelIntegrator ign_solver(system_solver, ignite,
-                                                   fub::GodunovSplitting{});
+  io.ignite_interval = fub::Duration(0.01);
+  fub::amrex::IgniteDetonation ignite(equation, hier_opts.max_number_of_levels,
+                                      io);
 
-  fub::ideal_gas::KineticSourceTerm<1> source_term(equation, gridding);
+  fub::SplitSystemSourceLevelIntegrator ign_solver(
+      std::move(system_solver), std::move(ignite), fub::GodunovSplitting{});
+
+  fub::ideal_gas::KineticSourceTerm<1> source_term(
+      equation, ign_solver.GetContext().registry_);
 
   fub::SplitSystemSourceLevelIntegrator level_integrator(
-      ign_solver, source_term, fub::StrangSplitting());
+      std::move(ign_solver), std::move(source_term), fub::StrangSplitting());
 
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
   // }}}
@@ -125,27 +131,21 @@ void MyMain(const ProgramOptions& opts) {
   std::string base_name = "IdealGasMix/";
   int rank = -1;
   MPI_Comm_rank(solver.GetMpiCommunicator(), &rank);
-  auto output = fub::MakeOutput<fub::amrex::GriddingAlgorithm>(
-      {}, {fub::Duration(opts.output_interval)},
-      [&](const fub::amrex::GriddingAlgorithm& gridding) {
-        std::ptrdiff_t cycle = gridding.GetCycles();
-        fub::Duration timepoint = gridding.GetTimePoint();
-        std::string name = fmt::format("{}plt{:05}", base_name, cycle);
-        amrex::Print() << "Start output to '" << name << "'.\n";
-        fub::amrex::WritePlotFile(name, gridding.GetPatchHierarchy(), equation);
-
-        fub::amrex::WriteTubeData(
-            fmt::format("{}/Tube.h5", base_name), gridding.GetPatchHierarchy(),
-            equation, timepoint, cycle, solver.GetMpiCommunicator());
-        amrex::Print() << "Finished output to '" << name << "'.\n";
-      });
 
   using namespace std::literals::chrono_literals;
-  (*output)(*solver.GetGriddingAlgorithm());
+  fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> output{};
+  output.AddOutput(fub::MakeOutput<fub::amrex::GriddingAlgorithm>(
+      {}, {0.00025s}, fub::amrex::PlotfileOutput(equation, base_name)));
+  output.AddOutput(
+      std::make_unique<fub::CounterOutput<fub::amrex::GriddingAlgorithm>>(
+          solver.GetContext().registry_, wall_time_reference,
+          std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{0.001s}));
+
+  output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
   run_options.cfl = opts.cfl;
   run_options.final_time = fub::Duration(opts.final_time);
-  fub::RunSimulation(solver, run_options, wall_time_reference, *output);
+  fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }
 
 int main() {

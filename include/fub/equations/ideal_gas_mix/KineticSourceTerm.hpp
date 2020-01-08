@@ -21,7 +21,7 @@
 #ifndef FUB_IDEAL_GAS_MIX_KINETIC_SOURCE_TERM_HPP
 #define FUB_IDEAL_GAS_MIX_KINETIC_SOURCE_TERM_HPP
 
-#include "fub/AMReX/GriddingAlgorithm.hpp"
+#include "fub/AMReX/IntegratorContext.hpp"
 #include "fub/TimeStepError.hpp"
 #include "fub/equations/IdealGasMix.hpp"
 #include "fub/ext/omp.hpp"
@@ -37,34 +37,18 @@ public:
   static constexpr int Rank = R;
   static constexpr std::size_t sRank = static_cast<std::size_t>(Rank);
 
-  KineticSourceTerm(const IdealGasMix<Rank>& eq,
-                    std::shared_ptr<amrex::GriddingAlgorithm> gridding);
+  KineticSourceTerm(const IdealGasMix<Rank>& eq);
 
   KineticSourceTerm(const IdealGasMix<Rank>& eq,
-                    std::shared_ptr<amrex::GriddingAlgorithm> gridding, 
                     std::shared_ptr<CounterRegistry> registry);
-
-  void ResetHierarchyConfiguration(
-      std::shared_ptr<amrex::GriddingAlgorithm>&& griding);
-
-  void ResetHierarchyConfiguration(
-      const std::shared_ptr<amrex::GriddingAlgorithm>& griding);
 
   Duration ComputeStableDt(int level);
 
-  Result<void, TimeStepTooLarge> AdvanceLevel(int level, Duration dt);
-
-  Duration GetTimePoint() const;
-
-  std::ptrdiff_t GetCycles() const;
-
-  amrex::PatchHierarchy& GetPatchHierarchy();
-  const amrex::PatchHierarchy& GetPatchHierarchy() const;
+  Result<void, TimeStepTooLarge> AdvanceLevel(amrex::IntegratorContext& simulation_data, int level, Duration dt, const ::amrex::IntVect& ngrow = ::amrex::IntVect(0));
 
 private:
   OmpLocal<IdealGasMix<Rank>> equation_;
   OmpLocal<Complete<IdealGasMix<Rank>>> state_;
-  std::shared_ptr<amrex::GriddingAlgorithm> gridding_;
   std::shared_ptr<CounterRegistry> registry_;
 };
 
