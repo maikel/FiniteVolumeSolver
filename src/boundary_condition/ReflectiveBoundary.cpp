@@ -31,7 +31,7 @@ Index<Rank> ReflectIndex_(Index<Rank> i, const IndexBox<Rank>& fillbox,
     i[d] += 2 * distance - 1;
   } else {
     std::ptrdiff_t distance = i[d] - (fillbox.lower[d] - 1);
-    i[d] -= 2 * distance + 1;
+    i[d] = i[d] - 2 * distance + 1;
   }
   return i;
 }

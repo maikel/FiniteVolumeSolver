@@ -48,4 +48,11 @@ std::string ReadAndBroadcastFile(std::string filepath, MPI_Comm comm) {
   return buffer;
 }
 
+Duration MinAll(MPI_Comm comm, Duration local) {
+  double local_count = local.count();
+  double global_count = 0.0;
+  MPI_Allreduce(&local_count, &global_count, 1, MPI_DOUBLE, MPI_MIN, comm);
+  return Duration(global_count);
+}
+
 }
