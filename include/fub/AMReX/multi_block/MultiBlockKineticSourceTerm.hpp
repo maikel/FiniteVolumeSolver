@@ -41,9 +41,6 @@ public:
   [[nodiscard]] Result<void, TimeStepTooLarge>
   AdvanceLevel(MultiBlockIntegratorContext& context, int level, Duration dt,
                const ::amrex::IntVect& ngrow = ::amrex::IntVect(0));
-
-private:
-  ideal_gas::KineticSourceTerm<1> source_term_;
 };
 
 } // namespace fub::amrex
