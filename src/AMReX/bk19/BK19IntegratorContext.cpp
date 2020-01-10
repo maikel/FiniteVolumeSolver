@@ -66,6 +66,33 @@ void BK19IntegratorContext::ResetHierarchyConfiguration(
   Pv_.resize(gridding->GetPatchHierarchy().GetMaxNumberOfLevels());
   pi_.resize(gridding->GetPatchHierarchy().GetMaxNumberOfLevels());
   IntegratorContext::ResetHierarchyConfiguration(std::move(gridding));
+  PatchHierarchy& hier = GetPatchHierarchy();
+  const int nlevel = GetPatchHierarchy().GetNumberOfLevels();
+  for (int level = 0; level < nlevel; ++level) {
+    const int ngrow_numeric_flux = GetFluxes(level, Direction::X).nGrow();
+    const int ngrow_Pv_on_faces = ngrow_numeric_flux + 1;
+    const int ngrow_Pv_on_cells = ngrow_Pv_on_faces + 1;
+    {
+      const ::amrex::BoxArray& ba = hier.GetPatchLevel(level).box_array;
+      const ::amrex::DistributionMapping& dm =
+      hier.GetPatchLevel(level).distribution_mapping;
+      ::amrex::BoxArray nodes = ba;
+      nodes.surroundingNodes();
+      ::amrex::MultiFab pi_new(nodes, dm, 1, 0);
+      pi_new.ParallelCopy(pi_[level], GetGeometry(level).periodicity());
+      pi_[level] = std::move(pi_new);
+      Pv_[level].on_cells = ::amrex::MultiFab(ba, dm, 2, ngrow_Pv_on_cells);
+    }
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+      const ::amrex::BoxArray& ba = GetFluxes(level, Direction(dir)).boxArray();
+      const ::amrex::DistributionMapping& dm =
+      GetFluxes(level, Direction(dir)).DistributionMap();
+      ::amrex::IntVect ngrow_Pv(ngrow_Pv_on_cells);
+      ngrow_Pv[dir] = ngrow_Pv_on_faces;
+      Pv_[level].on_faces[dir] =
+      ::amrex::MultiFab(ba, dm, 1, ngrow_Pv);
+    }
+  }
 }
 
 void BK19IntegratorContext::ResetHierarchyConfiguration(int coarsest_level) {
