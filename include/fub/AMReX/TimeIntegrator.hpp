@@ -48,6 +48,8 @@ template <typename Tag> struct ForwardIntegrator {
                             Direction dir);
 };
 
+ForwardIntegrator() -> ForwardIntegrator<execution::OpenMpSimdTag>;
+
 extern template struct ForwardIntegrator<execution::SequentialTag>;
 extern template struct ForwardIntegrator<execution::OpenMpTag>;
 extern template struct ForwardIntegrator<execution::SimdTag>;
