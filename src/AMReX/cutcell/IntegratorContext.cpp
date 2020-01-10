@@ -362,7 +362,6 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
       data.coarse_fine.define(ba, dm, ref_ratio, level, n_cons_components);
     }
   }
-
   for (std::size_t level_num = first_level; level_num < data_.size(); ++level_num) {
     CopyDataToScratch(level_num);
   }
@@ -608,9 +607,6 @@ void IntegratorContext::PreAdvanceLevel(int level_num, Duration,
         ResetCoarseFineFluxes(level_num + 1, level_num);
       }
     }
-    CopyDataToScratch(level_num);
-  } else {
-    FillGhostLayerSingleLevel(level_num);
   }
 }
 

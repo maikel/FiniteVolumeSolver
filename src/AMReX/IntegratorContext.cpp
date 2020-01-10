@@ -527,10 +527,7 @@ void IntegratorContext::PreAdvanceLevel(int level_num, Duration,
         ResetHierarchyConfiguration(level_num + 1);
         ResetCoarseFineFluxes(level_num + 1, level_num);
       }
-      CopyDataToScratch(level_num);
     }
-  } else {
-    FillGhostLayerSingleLevel(level_num);
   }
 }
 
