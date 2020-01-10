@@ -110,12 +110,12 @@ void MyMain(const ProgramOptions& opts) {
   fub::amrex::IgniteDetonationOptions io{};
   fub::amrex::IgniteDetonation ignite(equation, gridding, io);
   fub::SplitSystemSourceLevelIntegrator ign_solver(system_solver, ignite,
-                                                     fub::GodunovSplitting{});
+                                                   fub::GodunovSplitting{});
 
   fub::ideal_gas::KineticSourceTerm<1> source_term(equation, gridding);
 
-  fub::SplitSystemSourceLevelIntegrator level_integrator(ign_solver, source_term,
-                                                 fub::StrangSplitting());
+  fub::SplitSystemSourceLevelIntegrator level_integrator(
+      ign_solver, source_term, fub::StrangSplitting());
 
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
   // }}}
@@ -125,19 +125,18 @@ void MyMain(const ProgramOptions& opts) {
   std::string base_name = "IdealGasMix/";
   int rank = -1;
   MPI_Comm_rank(solver.GetMpiCommunicator(), &rank);
-  auto output = fub::MakeOutput<fub::amrex::GriddingAlgorithm>({}, {fub::Duration(opts.output_interval)},
+  auto output = fub::MakeOutput<fub::amrex::GriddingAlgorithm>(
+      {}, {fub::Duration(opts.output_interval)},
       [&](const fub::amrex::GriddingAlgorithm& gridding) {
         std::ptrdiff_t cycle = gridding.GetCycles();
         fub::Duration timepoint = gridding.GetTimePoint();
         std::string name = fmt::format("{}plt{:05}", base_name, cycle);
         amrex::Print() << "Start output to '" << name << "'.\n";
-        fub::amrex::WritePlotFile(name, gridding.GetPatchHierarchy(),
-                                  equation);
+        fub::amrex::WritePlotFile(name, gridding.GetPatchHierarchy(), equation);
 
         fub::amrex::WriteTubeData(
-            fmt::format("{}/Tube.h5", base_name),
-            gridding.GetPatchHierarchy(), equation, timepoint, cycle,
-            solver.GetMpiCommunicator());
+            fmt::format("{}/Tube.h5", base_name), gridding.GetPatchHierarchy(),
+            equation, timepoint, cycle, solver.GetMpiCommunicator());
         amrex::Print() << "Finished output to '" << name << "'.\n";
       });
 
