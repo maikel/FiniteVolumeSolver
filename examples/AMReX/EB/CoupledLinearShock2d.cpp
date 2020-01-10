@@ -132,16 +132,16 @@ auto MakeTubeSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
       TagAllOf(gradient, constant_box, TagBuffer(4)), boundary_condition);
   gridding->InitializeHierarchy(0.0);
 
-  fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>> signals{};
-  fub::HllMethod hll_method(equation, signals);
+  // fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>> signals{};
+  // fub::HllMethod hll_method(equation, signals);
   //   fub::MusclHancockMethod flux_method{equation, hll_method};
-  // fub::ideal_gas::MusclHancockPrimMethod<1> flux_method(equation);
+  fub::ideal_gas::MusclHancockPrimMethod<1> flux_method(equation);
 
-  HyperbolicMethod method{FluxMethod(fub::execution::openmp_simd, hll_method),
+  HyperbolicMethod method{FluxMethod(fub::execution::openmp_simd, flux_method),
                           ForwardIntegrator(fub::execution::openmp_simd),
                           Reconstruction(fub::execution::openmp_simd, equation)};
 
-  return fub::amrex::IntegratorContext(gridding, method, 1, 0);
+  return fub::amrex::IntegratorContext(gridding, method, 3, 1);
 }
 
 auto Rectangle(const std::array<double, 2>& lower,
@@ -240,16 +240,16 @@ auto MakePlenumSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
 
   fub::EinfeldtSignalVelocities<fub::IdealGasMix<Plenum_Rank>> signals{};
   fub::HllMethod hll_method{equation, signals};
-//  fub::ideal_gas::MusclHancockPrimMethod<Plenum_Rank> flux_method(equation);
+ fub::ideal_gas::MusclHancockPrimMethod<Plenum_Rank> flux_method(equation);
   //  fub::MusclHancockMethod flux_method{equation, hll_method};
-  fub::KbnCutCellMethod cutcell_method(hll_method, hll_method);
+  fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
 
   HyperbolicMethod method{
-      FluxMethod{fub::execution::openmp_simd, cutcell_method},
+      FluxMethod{fub::execution::simd, cutcell_method},
       fub::amrex::cutcell::TimeIntegrator{},
       Reconstruction{fub::execution::simd, equation}};
 
-  return fub::amrex::cutcell::IntegratorContext(gridding, method, 1, 0);
+  return fub::amrex::cutcell::IntegratorContext(gridding, method, 3, 1);
 }
 
 int main() {
@@ -263,7 +263,7 @@ int main() {
   fub::Burke2012 mechanism{};
 
   const int n_level = 1;
-  const int num_cells = 32;
+  const int num_cells = 200 - 200 % 32;
 
   auto plenum = MakePlenumSolver(num_cells, n_level, mechanism);
   auto tube = MakeTubeSolver(3 * num_cells / 2 - ((3 * num_cells / 2) % 32),
@@ -289,11 +289,10 @@ int main() {
                                                      std::move(context));
 
   fub::amrex::MultiBlockKineticSouceTerm source_term{
-      fub::IdealGasMix<Tube_Rank>{mechanism},
-      system_solver.GetGriddingAlgorithm()};
+      fub::IdealGasMix<Tube_Rank>{mechanism}};
 
   fub::SplitSystemSourceLevelIntegrator level_integrator{
-      std::move(system_solver), source_term};
+      std::move(system_solver), std::move(source_term)};
 
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 

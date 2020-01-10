@@ -226,6 +226,7 @@ void MyMain(const ProgramOptions& opts) {
   fub::amrex::PatchHierarchyOptions hier_opts;
   hier_opts.max_number_of_levels = nlevels;
   hier_opts.refine_ratio = ::amrex::IntVect{AMREX_D_DECL(2, 1, 1)};
+  hier_opts.blocking_factor = amrex::IntVect(AMREX_D_DECL(8, 1, 1));
 
   std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       fub::amrex::PatchHierarchy(equation, geometry, hier_opts), initial_data,
@@ -244,7 +245,7 @@ void MyMain(const ProgramOptions& opts) {
       fub::amrex::Reconstruction(fub::execution::simd, equation)};
 
   fub::DimensionalSplitLevelIntegrator system_solver(
-      fub::int_c<1>, fub::amrex::IntegratorContext(gridding, method),
+      fub::int_c<1>, fub::amrex::IntegratorContext(gridding, method, 2, 1),
       fub::GodunovSplitting());
 
   std::shared_ptr<fub::CounterRegistry> registry = system_solver.GetContext().registry_;
@@ -267,7 +268,7 @@ void MyMain(const ProgramOptions& opts) {
       std::move(system_solver), std::move(source_term), fub::GodunovSplitting());
 
   fub::ideal_gas::KineticSourceTerm<1> kinetic_source(
-      equation, axial_solver.GetGriddingAlgorithm(), registry);
+      equation, registry);
 
   fub::SplitSystemSourceLevelIntegrator level_integrator(std::move(axial_solver),
                                                  std::move(kinetic_source),

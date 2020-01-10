@@ -70,6 +70,7 @@ int main() {
   fub::amrex::PatchHierarchyOptions hier_opts{};
   hier_opts.max_number_of_levels = 6;
   hier_opts.refine_ratio = amrex::IntVect(AMREX_D_DECL(2, 2, 1));
+  hier_opts.blocking_factor = amrex::IntVect(AMREX_D_DECL(8, 8, 1));
 
   using State = fub::Advection2d::Complete;
   fub::amrex::GradientDetector gradient{equation,

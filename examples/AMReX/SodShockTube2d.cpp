@@ -91,13 +91,14 @@ int main(int argc, char** argv) {
   fub::PerfectGas<2> equation{};
 
   fub::amrex::CartesianGridGeometry geometry{};
-  geometry.cell_dimensions = std::array<int, Dim>{AMREX_D_DECL(512, 512, 1)};
+  geometry.cell_dimensions = std::array<int, Dim>{AMREX_D_DECL(256, 256, 1)};
   geometry.coordinates = amrex::RealBox({AMREX_D_DECL(-1.0, -1.0, -1.0)},
                                         {AMREX_D_DECL(+1.0, +1.0, +1.0)});
 
   fub::amrex::PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = 1;
+  hier_opts.max_number_of_levels = 2;
   hier_opts.refine_ratio = amrex::IntVect{AMREX_D_DECL(2, 2, 1)};
+  hier_opts.blocking_factor = amrex::IntVect{AMREX_D_DECL(8, 8, 1)};
 
   using Complete = fub::PerfectGas<2>::Complete;
   fub::amrex::GradientDetector gradient(equation,
@@ -132,11 +133,11 @@ int main(int argc, char** argv) {
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<2>, fub::amrex::IntegratorContext(gridding, method, 4, 2),
-      // fub::GodunovSplitting());
-      fub::StrangSplitting());
+      fub::GodunovSplitting());
+      // fub::StrangSplitting());
 
   // fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
-  fub::NoSubcycleSolver solver(std::move(level_integrator));
+  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
   std::string base_name = "SodShockTube/";
 
