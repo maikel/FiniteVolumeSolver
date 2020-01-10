@@ -24,8 +24,6 @@
 #include <fmt/format.h>
 #include <iostream>
 
-#include <xmmintrin.h>
-
 struct GreshoVortex {
   using Equation = fub::PerfectGas<2>;
   using Complete = fub::Complete<Equation>;
@@ -92,10 +90,6 @@ int main(int argc, char** argv) {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
-  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() | _MM_MASK_DIV_ZERO |
-                         _MM_MASK_OVERFLOW | _MM_MASK_UNDERFLOW |
-                         _MM_MASK_INVALID);
-
   const fub::amrex::ScopeGuard guard(argc, argv);
   fub::InitializeLogging(MPI_COMM_WORLD);
 
@@ -118,37 +112,33 @@ int main(int argc, char** argv) {
   fub::amrex::GradientDetector gradient(
       equation, std::pair{&Complete::density, 1.0e-4},
       std::pair{&Complete::pressure, 1.0e-4},
-      std::pair{
-          [](const Complete& state) {
-            return (state.momentum / state.density).matrix().norm();
-          },
-          1.0e-4});
+      std::pair{[](const Complete& state) {
+                  return (state.momentum / state.density).matrix().norm();
+                },
+                1.0e-4});
 
   std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       fub::amrex::PatchHierarchy(equation, geometry, hier_opts),
       GreshoVortex{equation},
-      fub::amrex::TagAllOf(gradient, fub::amrex::TagBuffer(4)));
+      fub::amrex::TagAllOf(gradient, fub::amrex::TagBuffer(2)));
   gridding->InitializeHierarchy(0.0);
-
-  auto tag = fub::execution::simd;
 
   fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
   fub::HllMethod hll_method(equation, signals);
   fub::MusclHancockMethod muscl_method(equation, hll_method);
-  //  fub::GodunovMethod godunov_method(equation, signals);
-  // fub::MusclHancockMethod muscl_method(equation);
-  fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethod(tag, muscl_method),
-      fub::amrex::ForwardIntegrator(tag),
-      fub::amrex::Reconstruction(tag, equation)};
+  fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(muscl_method),
+                                      fub::amrex::ForwardIntegrator(),
+                                      fub::amrex::Reconstruction(equation)};
+
+  const int scratch_gcw = 4 * flux_method.GetStencilWidth();
+  const int flux_gcw = 3 * flux_method.GetStencilWidth();
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<2>, fub::amrex::IntegratorContext(gridding, method),
-      // fub::GodunovSplitting());
+      fub::int_c<2>,
+      fub::amrex::IntegratorContext(gridding, method, scratch_gcw, flux_gcw),
       fub::StrangSplitting());
 
-  fub::SubcycleFineFirstSolver solver(level_integrator);
-  // fub::NoSubcycleSolver solver(level_integrator);
+  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
   std::string base_name = "GreshoVortex/";
 

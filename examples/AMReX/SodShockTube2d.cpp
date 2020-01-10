@@ -124,19 +124,19 @@ int main(int argc, char** argv) {
   fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
   fub::HllMethod hll_method(equation, signals);
   fub::MusclHancockMethod muscl_method(equation, hll_method);
-  //  fub::GodunovMethod godunov_method(equation);
-  // fub::MusclHancockMethod muscl_method(equation);
-  fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethod(simd, muscl_method),
-      fub::amrex::ForwardIntegrator(simd),
-      fub::amrex::Reconstruction(simd, equation)};
+  fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(muscl_method),
+                                      fub::amrex::ForwardIntegrator(),
+                                      fub::amrex::Reconstruction(equation)};
+
+  const int scratch_ghost_cell_width = 8;
+  const int flux_ghost_cell_width = 6;
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<2>, fub::amrex::IntegratorContext(gridding, method, 4, 2),
-      fub::GodunovSplitting());
-      // fub::StrangSplitting());
+      fub::int_c<2>,
+      fub::amrex::IntegratorContext(gridding, method, scratch_ghost_cell_width,
+                                    flux_ghost_cell_width),
+      fub::StrangSplitting());
 
-  // fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
   std::string base_name = "SodShockTube/";
@@ -147,6 +147,8 @@ int main(int argc, char** argv) {
   boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
       boost::log::keywords::severity = boost::log::trivial::info);
 
+  // Define a function to compute the mass in the domain and output the
+  // difference to the intial mass.
   double mass0 = 0.0;
   auto compute_mass = [&log, &mass0](const GriddingAlgorithm& grid) {
     const ::amrex::MultiFab& data =
@@ -166,10 +168,15 @@ int main(int argc, char** argv) {
   };
 
   fub::MultipleOutputs<GriddingAlgorithm> output{};
+
+  // Add output to show the conservation error in mass after each time step
   output.AddOutput(fub::MakeOutput<GriddingAlgorithm>({1}, {}, compute_mass));
+
+  // Add output to write AMReX plotfiles in a set time interval
   output.AddOutput(fub::MakeOutput<GriddingAlgorithm>(
       {}, {0.01s}, PlotfileOutput(equation, base_name)));
 
+  // Add output for the timer database after each 25 cycles
   output.AddOutput(
       std::make_unique<
           fub::CounterOutput<GriddingAlgorithm, std::chrono::milliseconds>>(

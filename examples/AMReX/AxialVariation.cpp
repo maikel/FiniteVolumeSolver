@@ -239,16 +239,16 @@ void MyMain(const ProgramOptions& opts) {
   fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>> signals{};
   fub::HllMethod hll_method(equation, signals);
 
-  fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethod(fub::execution::simd, hll_method),
-      fub::amrex::ForwardIntegrator(fub::execution::simd),
-      fub::amrex::Reconstruction(fub::execution::simd, equation)};
+  fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(hll_method),
+                                      fub::amrex::ForwardIntegrator(),
+                                      fub::amrex::Reconstruction(equation)};
 
   fub::DimensionalSplitLevelIntegrator system_solver(
       fub::int_c<1>, fub::amrex::IntegratorContext(gridding, method, 2, 1),
       fub::GodunovSplitting());
 
-  std::shared_ptr<fub::CounterRegistry> registry = system_solver.GetContext().registry_;
+  std::shared_ptr<fub::CounterRegistry> registry =
+      system_solver.GetContext().registry_;
 
   auto diameter = [](double x) -> double {
     if (x < 0.5) {
@@ -264,15 +264,16 @@ void MyMain(const ProgramOptions& opts) {
   fub::amrex::AxialSourceTerm source_term(equation, diameter,
                                           system_solver.GetGriddingAlgorithm());
 
-  fub::SplitSystemSourceLevelIntegrator axial_solver(
-      std::move(system_solver), std::move(source_term), fub::GodunovSplitting());
+  fub::SplitSystemSourceLevelIntegrator axial_solver(std::move(system_solver),
+                                                     std::move(source_term),
+                                                     fub::GodunovSplitting());
 
   fub::ideal_gas::KineticSourceTerm<1> kinetic_source(
       equation, registry);
 
-  fub::SplitSystemSourceLevelIntegrator level_integrator(std::move(axial_solver),
-                                                 std::move(kinetic_source),
-                                                 fub::GodunovSplitting());
+  fub::SplitSystemSourceLevelIntegrator level_integrator(
+      std::move(axial_solver), std::move(kinetic_source),
+      fub::GodunovSplitting());
 
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
   // }}}
@@ -299,10 +300,9 @@ void MyMain(const ProgramOptions& opts) {
         amrex::Print() << "Finished output to '" << name << "'.\n";
       }));
   output.AddOutput(
-      std::make_unique<
-          fub::CounterOutput<fub::amrex::GriddingAlgorithm>>(
-          registry, wall_time_reference,
-          std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{0.0001s}));
+      std::make_unique<fub::CounterOutput<fub::amrex::GriddingAlgorithm>>(
+          registry, wall_time_reference, std::vector<std::ptrdiff_t>{},
+          std::vector<fub::Duration>{0.0001s}));
 
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
