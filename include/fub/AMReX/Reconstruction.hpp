@@ -64,10 +64,11 @@ private:
 };
 
 template <typename Equation>
-Reconstruction(const Equation& eq) -> Reconstruction<execution::OpenMpSimdTag, Equation>;
+Reconstruction(const Equation& eq)
+    -> Reconstruction<execution::OpenMpSimdTag, Equation>;
 
 template <typename Tag, typename Equation>
-Reconstruction(Tag, const Equation& eq) -> Reconstruction<Tag, execution::OpenMpSimdTag, Equation>;
+Reconstruction(Tag, const Equation& eq)->Reconstruction<Tag, Equation>;
 
 struct NoReconstruction {
   void CompleteFromCons([[maybe_unused]] IntegratorContext& context,
