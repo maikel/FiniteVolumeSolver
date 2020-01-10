@@ -90,6 +90,7 @@ Duration CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
     Index faceL{is...};
     Index faceR = Shift(faceL, dir, 1);
     Index cell = faceL;
+    FUB_ASSERT(states.PTdensity(cell) > 0.0);
     double v_advect = 0.5 * (Pv(faceL) + Pv(faceR)) / states.PTdensity(cell);
     max_signal = std::max(max_signal, std::abs(v_advect));
   });

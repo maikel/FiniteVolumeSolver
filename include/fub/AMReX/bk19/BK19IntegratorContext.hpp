@@ -46,8 +46,11 @@ public:
   BK19IntegratorContext(BK19IntegratorContext&&) = default;
   BK19IntegratorContext& operator=(BK19IntegratorContext&&) = default;
 
-  ::amrex::MultiFab& GetPi(int level) { return pi_[level]; }
-  const ::amrex::MultiFab& GetPi(int level) const { return pi_[level]; }
+  ::amrex::MultiFab& GetPi(int level) { std::unique_ptr<::amrex::MultiFab>& mf = GetPatchHierarchy().GetPatchLevel(level).nodes;
+    FUB_ASSERT(mf);
+    return *mf;
+  }
+  const ::amrex::MultiFab& GetPi(int level) const { return *GetPatchHierarchy().GetPatchLevel(level).nodes; }
 
   BK19AdvectiveFluxes& GetAdvectiveFluxes(int level);
   const BK19AdvectiveFluxes& GetAdvectiveFluxes(int level) const;

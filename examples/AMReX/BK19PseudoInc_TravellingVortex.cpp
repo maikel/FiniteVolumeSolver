@@ -20,6 +20,8 @@
 
 #include "fub/AMReX.hpp"
 #include "fub/Solver.hpp"
+#include "fub/AMReX/ForEachFab.hpp"
+#include "fub/AMReX/ForEachIndex.hpp"
 #include <AMReX_MLMG.H>
 
 #include "fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp"
@@ -86,37 +88,48 @@ struct InitialData {
         const double dx = x - center[0];
         const double dy = y - center[1];
         const double r = std::sqrt(dx*dx + dy*dy);
+
+        states.PTdensity(i, j) = 1.0;
+
         if (r < R0) {
           const double r_over_R0 = r / R0;
           const double uth = fac * std::pow(1.0 - r_over_R0, 6) * std::pow(r_over_R0, 6);
-          states.velocity(i, j, 0) = -uth * (dy / r);
-          states.velocity(i, j, 1) = +uth * (dx / r);
+
           states.density(i, j) = rho0 + del_rho * std::pow(1.0 - r_over_R0*r_over_R0, 6);
-          states.momentum(i, j, 0) = states.density(i, j) * states.velocity(i, j, 0);
-          states.momentum(i, j, 1) = states.density(i, j) * states.velocity(i, j, 1);
-          states.PTdensity(i, j) = 1.0 + p_coeff(r_over_R0, coefficients);
-          states.PTinverse(i, j) = states.density(i, j) / states.PTdensity(i, j);
+          states.velocity(i, j, 0) = U0[0] - uth * (dy / r);
+          states.velocity(i, j, 1) = U0[1] + uth * (dx / r);
+
+          // pi(i, j) = Gamma * fac*fac * p_coeff(r_over_R0, coefficients);
+
         } else {
           states.density(i, j) = rho0;
-          states.momentum(i, j, 0) = 0.0;
-          states.momentum(i, j, 1) = 0.0;
-          states.PTdensity(i, j) = 1.0;
-          states.velocity(i, j, 0) = 0.0;
-          states.velocity(i, j, 1) = 0.0;
-          states.PTinverse(i, j) = states.density(i, j) / states.PTdensity(i, j);
+          states.velocity(i, j, 0) = U0[0];
+          states.velocity(i, j, 1) = U0[1];
+
+//           pi(i, j) = 0.0
         }
+        states.momentum(i, j, 0) = states.density(i, j) * states.velocity(i, j, 0);
+        states.momentum(i, j, 1) = states.density(i, j) * states.velocity(i, j, 1);
+        states.PTinverse(i, j) = states.density(i, j) / states.PTdensity(i, j);
       });
     });
   }
 
   std::vector<double> coefficients;
-  double a_rho{1.0};
-  double rho0{a_rho * 0.5};
-  double del_rho{a_rho * 0.5};
-  double R0{0.4};
-  double fac{1024.0};
+  const double a_rho{1.0};
+  const double rho0{a_rho * 0.5};
+  const double del_rho{a_rho * 0.5};
+  const double R0{0.4};
+  const double fac{1024.0};
   std::array<double, 2> center{0.5, 0.5};
+  std::array<double, 2> U0{1.0, 1.0};
 };
+
+void WriteBK19Plotfile(const fub::amrex::GriddingAlgorithm& grid)
+{
+  fub::CompressibleAdvection<2> equation{};
+  // fub::amrex::WritePlotfile("", grid.GetPatchHierarchy(),
+}
 
 int main() {
   std::chrono::steady_clock::time_point wall_time_reference =
@@ -128,10 +141,12 @@ int main() {
   fub::amrex::DataDescription desc{};
   desc.n_state_components = 7;
   desc.n_cons_components = 4;
+  desc.n_node_components = 1;
 
   fub::amrex::CartesianGridGeometry geometry{};
   geometry.cell_dimensions =
-      std::array<int, AMREX_SPACEDIM>{AMREX_D_DECL(128, 128, 1)};
+      std::array<int, AMREX_SPACEDIM>{AMREX_D_DECL(32, 32, 1)};
+//       std::array<int, AMREX_SPACEDIM>{AMREX_D_DECL(128, 128, 1)};
   geometry.coordinates = amrex::RealBox({AMREX_D_DECL(0.0, 0.0, 0.0)},
                                         {AMREX_D_DECL(1.0, 1.0, 1.0)});
   geometry.periodicity = std::array<int, AMREX_SPACEDIM>{AMREX_D_DECL(1, 1, 1)};
@@ -144,13 +159,15 @@ int main() {
 
   using Complete = fub::CompressibleAdvection<2>::Complete;
   fub::CompressibleAdvection<2> equation{};
-  fub::IndexMapping<fub::CompressibleAdvection<2>> index(equation); 
+  fub::IndexMapping<fub::CompressibleAdvection<2>> index(equation);
 
   fub::amrex::GradientDetector gradient(
       equation, std::pair{&Complete::PTinverse, 1.0e-2});
 
+  InitialData inidat{};
+
   std::shared_ptr grid = std::make_shared<fub::amrex::GriddingAlgorithm>(
-      std::move(hierarchy), InitialData{},
+      std::move(hierarchy), inidat,
       fub::amrex::TagAllOf{gradient, fub::amrex::TagBuffer(2)});
   grid->InitializeHierarchy(0.0);
 
@@ -185,6 +202,40 @@ int main() {
   fub::amrex::HyperbolicMethod method{
       flux_method, fub::amrex::ForwardIntegrator(tag),
       fub::amrex::Reconstruction(tag, equation)};
+
+  fub::amrex::BK19IntegratorContext simulation_data(grid, method, 2, 0);
+  const int nlevel = simulation_data.GetPatchHierarchy().GetNumberOfLevels();
+
+  // set initial values of pi
+  const double gamma{1.4};
+  const double Gamma = (gamma - 1.0) / gamma;
+
+  for (int level = 0; level < nlevel; ++level) {
+    ::amrex::MultiFab& pi = simulation_data.GetPi(level);
+    const ::amrex::Geometry& geom = grid->GetPatchHierarchy().GetGeometry(level);
+    fub::amrex::ForEachFab(execution::openmp, pi, [&](const ::amrex::MFIter& mfi) {
+      ::amrex::FArrayBox& fab = pi[mfi];
+      fub::amrex::ForEachIndex(fab.box(), [&](auto... is) {
+        ::amrex::IntVect i{int(is)...};
+
+        ::amrex::Vector<double> coor(2);
+        geom.LoNode(i, coor);
+        const double dx = coor[0] - inidat.center[0];
+        const double dy = coor[1] - inidat.center[1];
+        const double r = std::sqrt(dx*dx + dy*dy);
+
+       if (r < inidat.R0) {
+          const double r_over_R0 = r / inidat.R0;
+          fab(i, 0) = Gamma * inidat.fac*inidat.fac * p_coeff(r_over_R0, inidat.coefficients);
+
+        } else {
+          fab(i, 0) = 0.0;
+        }
+
+      });
+    });
+
+  }
 
   fub::DimensionalSplitLevelIntegrator advection(
       fub::int_c<2>, fub::amrex::BK19IntegratorContext(grid, method, 2, 0),
