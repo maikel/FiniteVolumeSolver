@@ -268,8 +268,7 @@ void MyMain(const ProgramOptions& opts) {
                                                      std::move(source_term),
                                                      fub::GodunovSplitting());
 
-  fub::ideal_gas::KineticSourceTerm<1> kinetic_source(
-      equation, registry);
+  fub::ideal_gas::KineticSourceTerm<1> kinetic_source(equation, registry);
 
   fub::SplitSystemSourceLevelIntegrator level_integrator(
       std::move(axial_solver), std::move(kinetic_source),
