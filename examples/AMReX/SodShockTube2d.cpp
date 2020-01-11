@@ -107,18 +107,16 @@ int main(int argc, char** argv) {
   auto seq = fub::execution::seq;
   using fub::amrex::ReflectiveBoundary;
   fub::amrex::BoundarySet boundaries{
-      {ReflectiveBoundary(seq, equation, fub::Direction::X, 0),
-       ReflectiveBoundary(seq, equation, fub::Direction::X, 1),
-       ReflectiveBoundary(seq, equation, fub::Direction::Y, 0),
-       ReflectiveBoundary(seq, equation, fub::Direction::Y, 1)}};
+      {ReflectiveBoundary(equation, fub::Direction::X, 0),
+       ReflectiveBoundary(equation, fub::Direction::X, 1),
+       ReflectiveBoundary(equation, fub::Direction::Y, 0),
+       ReflectiveBoundary(equation, fub::Direction::Y, 1)}};
 
   std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       fub::amrex::PatchHierarchy(equation, geometry, hier_opts),
       ShockTubeData{equation},
       fub::amrex::TagAllOf(gradient, fub::amrex::TagBuffer(4)), boundaries);
   gridding->InitializeHierarchy(0.0);
-
-  auto simd = fub::execution::simd;
 
   fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
   fub::HllMethod hll_method(equation, signals);
