@@ -128,8 +128,9 @@ int main(int argc, char** argv) {
                                       fub::amrex::ForwardIntegrator(),
                                       fub::amrex::Reconstruction(equation)};
 
-  const int scratch_ghost_cell_width = 8;
-  const int flux_ghost_cell_width = 6;
+  const int base_gcw = muscl_method.GetStencilWidth();
+  const int scratch_ghost_cell_width = 4 * base_gcw;
+  const int flux_ghost_cell_width = 3 * base_gcw;
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<2>,
@@ -187,6 +188,6 @@ int main(int argc, char** argv) {
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
   run_options.final_time = 1.0s;
-  run_options.cfl = 0.9;
+  run_options.cfl = 0.5;
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }
