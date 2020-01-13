@@ -286,7 +286,7 @@ BK19LevelIntegrator::BK19LevelIntegrator(
 Result<void, TimeStepTooLarge>
 BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
                                                 std::pair<int, int> subcycle) {
-  AdvectionSolver advection_ = GetAdvection();
+  AdvectionSolver& advection_ = GetAdvection();
   BK19IntegratorContext& context = advection_.GetContext();
   MultiFab& scratch = context.GetScratch(level);
 
