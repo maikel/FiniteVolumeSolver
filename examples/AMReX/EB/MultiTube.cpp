@@ -309,7 +309,7 @@ struct ProgramOptions {
     constexpr double tube_len_over_plenum_len = 1.47 / 0.56;
     tube_n_cells = static_cast<int>(tube_len_over_plenum_len *
                                     static_cast<double>(plenum_n_cells));
-    tube_n_cells = tube_n_cells - tube_n_cells % 8;
+    tube_n_cells = tube_n_cells - tube_n_cells % 32;
   }
 
   template <typename Logger> void Print(Logger& log) const {
