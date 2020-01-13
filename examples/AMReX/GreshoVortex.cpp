@@ -130,8 +130,8 @@ int main(int argc, char** argv) {
                                       fub::amrex::ForwardIntegrator(),
                                       fub::amrex::Reconstruction(equation)};
 
-  const int scratch_gcw = 4 * flux_method.GetStencilWidth();
-  const int flux_gcw = 3 * flux_method.GetStencilWidth();
+  const int scratch_gcw = 4 * muscl_method.GetStencilWidth();
+  const int flux_gcw = 3 * muscl_method.GetStencilWidth();
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<2>,
