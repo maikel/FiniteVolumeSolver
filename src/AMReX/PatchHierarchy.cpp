@@ -44,28 +44,34 @@ PatchLevel::PatchLevel(const PatchLevel& other)
     data.copy(other.data);
   }
   if (other.nodes) {
+    ::amrex::BoxArray on_nodes = box_array;
+    on_nodes.surroundingNodes();
     nodes = std::make_unique<::amrex::MultiFab>(
-        box_array.surroundingNodes(), distribution_mapping,
+        on_nodes, distribution_mapping,
         other.nodes->nComp(), other.nodes->nGrowVect(), ::amrex::MFInfo(),
         other.nodes->Factory());
     nodes->copy(*other.nodes);
   }
   if (other.faces[0]) {
+    ::amrex::BoxArray on_faces = box_array;
+    on_faces.convert({AMREX_D_DECL(1, 0, 0)});
     faces[0] = std::make_unique<::amrex::MultiFab>(
-        box_array.convert({AMREX_D_DECL(1, 0, 0)}), distribution_mapping,
+        on_faces, distribution_mapping,
         other.faces[0]->nComp(), other.faces[0]->nGrowVect(), ::amrex::MFInfo(),
         other.faces[0]->Factory());
     faces[0]->copy(*other.faces[0]);
     if (other.faces[2]) {
+      on_faces.convert({AMREX_D_DECL(0, 0, 1)});
       faces[2] = std::make_unique<::amrex::MultiFab>(
-          box_array.convert({AMREX_D_DECL(0, 0, 1)}), distribution_mapping,
+          on_faces, distribution_mapping,
           other.faces[2]->nComp(), other.faces[2]->nGrowVect(),
           ::amrex::MFInfo(), other.faces[2]->Factory());
       faces[2]->copy(*other.faces[2]);
     }
     if (other.faces[1]) {
+      on_faces.convert({AMREX_D_DECL(0, 1, 0)});
       faces[1] = std::make_unique<::amrex::MultiFab>(
-          box_array.convert({AMREX_D_DECL(0, 1, 0)}), distribution_mapping,
+          on_faces, distribution_mapping,
           other.faces[1]->nComp(), other.faces[1]->nGrowVect(),
           ::amrex::MFInfo(), other.faces[1]->Factory());
       faces[1]->copy(*other.faces[1]);
