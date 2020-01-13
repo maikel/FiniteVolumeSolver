@@ -290,6 +290,9 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   BK19IntegratorContext& context = advection_.GetContext();
   MultiFab& scratch = context.GetScratch(level);
 
+  WriteBK19Plotfile writeoutput{};
+  writeoutput.plotfilename = "BK19_Pseudo_Incompressible-a/";
+
   // Save data on current time level for later use
   MultiFab scratch_aux(scratch.boxArray(), scratch.DistributionMap(),
                        scratch.nComp(), scratch.nGrow());

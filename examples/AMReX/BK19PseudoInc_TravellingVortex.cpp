@@ -125,12 +125,6 @@ struct InitialData {
   std::array<double, 2> U0{1.0, 1.0};
 };
 
-void WriteBK19Plotfile(const fub::amrex::GriddingAlgorithm& grid)
-{
-  fub::CompressibleAdvection<2> equation{};
-  // fub::amrex::WritePlotfile("", grid.GetPatchHierarchy(),
-}
-
 int main() {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
@@ -213,8 +207,9 @@ int main() {
   for (int level = 0; level < nlevel; ++level) {
     ::amrex::MultiFab& pi = simulation_data.GetPi(level);
     const ::amrex::Geometry& geom = grid->GetPatchHierarchy().GetGeometry(level);
-    fub::amrex::ForEachFab(execution::openmp, pi, [&](const ::amrex::MFIter& mfi) {
+    fub::amrex::ForEachFab(pi, [&](const ::amrex::MFIter& mfi) {
       ::amrex::FArrayBox& fab = pi[mfi];
+      InitialData inidat{};
       fub::amrex::ForEachIndex(fab.box(), [&](auto... is) {
         ::amrex::IntVect i{int(is)...};
 
@@ -249,18 +244,18 @@ int main() {
   Pv.on_faces[0].setVal(0.0);
   Pv.on_faces[1].setVal(0.0);
 
-  level_integrator.GetContext().GetPi(0).setVal(0.0);
-
   fub::NoSubcycleSolver solver(std::move(level_integrator));
 
   using namespace std::literals::chrono_literals;
-  std::string base_name = "Bk19_Pseudo_Incompressible/";
+  std::string base_name = "BK19_Pseudo_Incompressible/";
 
   fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> output{};
+//   output.AddOutput(fub::MakeOutput<fub::amrex::GriddingAlgorithm>(
+//       {1}, {0.1s}, fub::amrex::PlotfileOutput(equation, base_name)));
   output.AddOutput(fub::MakeOutput<fub::amrex::GriddingAlgorithm>(
-      {1}, {0.1s}, fub::amrex::PlotfileOutput(equation, base_name)));
+      {1}, {}, fub::amrex::WriteBK19Plotfile{base_name}));
 
-  output(*solver.GetGriddingAlgorithm());
+//   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
   run_options.final_time = 3.0s;
   run_options.cfl = 0.8;
