@@ -1,0 +1,2 @@
+warpx.plot_raw_fields = 1
+geometry.is_periodic = 1 1
