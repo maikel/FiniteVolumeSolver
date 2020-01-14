@@ -247,20 +247,6 @@ void ComputePvFromScratch_(const IndexMapping<Equation>& index, MultiFab& dest,
   dest.FillBoundary(periodicity);
 }
 
-void RecomputeAdvectiveFluxes_(const IndexMapping<Equation>& index,
-                               std::array<MultiFab, Rank>& Pv_faces,
-                               MultiFab& Pv_cells, const MultiFab& scratch,
-                               const ::amrex::Periodicity& periodicity) {
-  ComputePvFromScratch_(index, Pv_cells, scratch, periodicity);
-  // Average Pv_i for each velocity direction
-  constexpr int face_component = 0;
-  for (std::size_t dir = 0; dir < index.velocity.size(); ++dir) {
-    const int cell_component = static_cast<int>(dir);
-    AverageCellToFace_(Pv_faces[dir], face_component, Pv_cells, cell_component,
-                       Direction(dir));
-  }
-}
-
 Result<void, TimeStepTooLarge>
 Advect_(BK19LevelIntegrator::AdvectionSolver& advection, int level, Duration dt,
         std::pair<int, int> subcycle) {
@@ -319,6 +305,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
                    sigma.nGrow());
   lin_op.setSigma(level, sigma);
   MultiFab pi(on_nodes, distribution_map, one_component, no_ghosts);
+  pi.setVal(0.0);
   nodal_solver.solve({&pi}, {&rhs}, 1e-10, 1e-10);
 
   MultiFab UV_correction(on_cells, distribution_map, index.momentum.size(),
@@ -411,6 +398,21 @@ void DoEulerForward_(const Equation& equation,
 
 } // namespace
 
+
+void RecomputeAdvectiveFluxes(const IndexMapping<Equation>& index,
+                               std::array<MultiFab, Rank>& Pv_faces,
+                               MultiFab& Pv_cells, const MultiFab& scratch,
+                               const ::amrex::Periodicity& periodicity) {
+  ComputePvFromScratch_(index, Pv_cells, scratch, periodicity);
+  // Average Pv_i for each velocity direction
+  constexpr int face_component = 0;
+  for (std::size_t dir = 0; dir < index.velocity.size(); ++dir) {
+    const int cell_component = static_cast<int>(dir);
+    AverageCellToFace_(Pv_faces[dir], face_component, Pv_cells, cell_component,
+                       Direction(dir));
+  }
+}
+
 BK19LevelIntegrator::BK19LevelIntegrator(
     const CompressibleAdvection<Rank>& equation, AdvectionSolver advection,
     std::shared_ptr<::amrex::MLNodeHelmDualCstVel> linop)
@@ -443,7 +445,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
 
   // 1) Compute current Pv and interpolate to face centered quantity
   //    Current Pv is given by: Pv = PTdensity * velocity
-  RecomputeAdvectiveFluxes_(index_, Pv.on_faces, Pv.on_cells, scratch,
+  RecomputeAdvectiveFluxes(index_, Pv.on_faces, Pv.on_cells, scratch,
                             periodicity);
 
   debug.plotfilename = "BK19_Pseudo_Incompressible-advective_fluxes/";
@@ -470,7 +472,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   debug(context);
 
   // 4) Recompute Pv at half time
-  RecomputeAdvectiveFluxes_(index_, Pv.on_faces, Pv.on_cells, scratch,
+  RecomputeAdvectiveFluxes(index_, Pv.on_faces, Pv.on_cells, scratch,
                             periodicity);
   scratch.copy(scratch_aux);
   context.FillGhostLayerSingleLevel(level);

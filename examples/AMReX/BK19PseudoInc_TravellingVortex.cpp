@@ -241,6 +241,7 @@ int main() {
       level_integrator.GetContext().GetAdvectiveFluxes(0);
   Pv.on_faces[0].setVal(0.0);
   Pv.on_faces[1].setVal(0.0);
+  //fub::amrex::RecomputeAdvectiveFluxes(index, Pv.on_faces, Pv.on_cells, level_integrator.GetContext().GetScratch(0), level_integrator.GetContext().GetGeometry(0).periodicity());
 
   fub::NoSubcycleSolver solver(std::move(level_integrator));
 
@@ -257,6 +258,6 @@ int main() {
   fub::RunOptions run_options{};
   run_options.final_time = 3.0s;
   run_options.cfl = 0.8;
-  run_options.max_cycles = 1;
+  run_options.max_cycles = 2;
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

@@ -32,6 +32,11 @@
 
 namespace fub::amrex {
 
+    void RecomputeAdvectiveFluxes(const IndexMapping<CompressibleAdvection<2>>& index,
+                                  std::array<::amrex::MultiFab, 2>& Pv_faces,
+                                  ::amrex::MultiFab& Pv_cells, const ::amrex::MultiFab& scratch,
+                                  const ::amrex::Periodicity& periodicity);
+
 class BK19LevelIntegrator
     : private DimensionalSplitLevelIntegrator<AMREX_SPACEDIM,
                                               BK19IntegratorContext> {
