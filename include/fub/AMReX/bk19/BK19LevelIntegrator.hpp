@@ -86,63 +86,17 @@ private:
   std::shared_ptr<::amrex::MLMG> nodal_solver_;
 };
 
+void WriteRawField(const std::string& path, const std::string& name,
+                   const ::amrex::MultiFab& data, int level);
+
+void WriteAdvectiveFluxes(const std::string& path,
+                          const BK19AdvectiveFluxes& pv, int level);
+
 struct WriteBK19Plotfile {
   std::string plotfilename{};
-void operator()(const fub::amrex::GriddingAlgorithm& grid) const
-{
-  using Equation = CompressibleAdvection<2>;
-  fub::CompressibleAdvection<2> equation{};
-  const fub::amrex::PatchHierarchy& hier = grid.GetPatchHierarchy();
-  std::string name = fmt::format("{}/plt{:09}", plotfilename, grid.GetCycles());
-  const int nlevels = hier.GetNumberOfLevels();
-  const double time_point = hier.GetTimePoint().count();
-  FUB_ASSERT(nlevels >= 0);
-  std::size_t size = static_cast<std::size_t>(nlevels);
-  ::amrex::Vector<const ::amrex::MultiFab*> mf(size);
-  ::amrex::Vector<const ::amrex::MultiFab*> mfnodes(size);
-  ::amrex::Vector<::amrex::Geometry> geoms(size);
-  ::amrex::Vector<int> level_steps(size);
-  ::amrex::Vector<::amrex::IntVect> ref_ratio(size);
-  for (std::size_t i = 0; i < size; ++i) {
-    mf[i] = &hier.GetPatchLevel(static_cast<int>(i)).data;
-    mfnodes[i] = hier.GetPatchLevel(static_cast<int>(i)).nodes.get();
-    geoms[i] = hier.GetGeometry(static_cast<int>(i));
-    level_steps[i] = static_cast<int>(hier.GetCycles(static_cast<int>(i)));
-    ref_ratio[i] = hier.GetRatioToCoarserLevel(static_cast<int>(i));
-  }
-  using Traits = StateTraits<Complete<Equation>>;
-  constexpr auto names = Traits::names;
-  const auto depths = Depths<Complete<Equation>>(equation);
-  const std::size_t n_names =
-      std::tuple_size<remove_cvref_t<decltype(names)>>::value;
-  ::amrex::Vector<std::string> varnames;
-  varnames.reserve(n_names);
-  boost::mp11::tuple_for_each(Zip(names, StateToTuple(depths)), [&](auto xs) {
-    const int ncomp = std::get<1>(xs);
-    if (ncomp == 1) {
-      varnames.push_back(std::get<0>(xs));
-    } else {
-      for (int i = 0; i < ncomp; ++i) {
-        varnames.push_back(fmt::format("{}_{}", std::get<0>(xs), i));
-      }
-    }
-  });
 
-  ::amrex::Vector<std::string> rfs {"raw_fields"};
-  ::amrex::WriteMultiLevelPlotfile(name, nlevels, mf, varnames, geoms,
-                                   time_point, level_steps, ref_ratio,
-                                   "HyperCLaw-V1.1", "Level_", "Cell", rfs);
-
-  // write nodal raw fields
-  ::amrex::VisMF::Header::Version plotfile_headerversion = ::amrex::VisMF::Header::Version_v1;
-  ::amrex::VisMF::SetHeaderVersion(plotfile_headerversion);
-  const std::string raw_pltname = name + "/" + rfs[0];
-  for (int lev = 0; lev < nlevels; ++lev) {
-    ::amrex::VisMF::Write(*mfnodes[lev],
-      ::amrex::MultiFabFileFullPrefix(lev, raw_pltname, "Level_", "pi"));
-  }
-
-}
+  void operator()(BK19IntegratorContext& context) const;
+  void operator()(const GriddingAlgorithm& grid) const;
 };
 
 } // namespace fub::amrex

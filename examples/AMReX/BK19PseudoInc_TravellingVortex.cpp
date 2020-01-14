@@ -75,7 +75,7 @@ struct InitialData {
     coefficients[24] =     1.0 / 72.0;
   }
 
-  void InitializeData(amrex::MultiFab& mf, const amrex::Geometry& geom) {
+  void InitializeData(amrex::MultiFab& mf, const amrex::Geometry& geom) const {
     fub::amrex::ForEachFab(mf, [&](const amrex::MFIter& mfi) {
       fub::CompressibleAdvection<2> equation{};
       amrex::FArrayBox& fab = mf[mfi];
@@ -158,7 +158,7 @@ int main() {
   fub::amrex::GradientDetector gradient(
       equation, std::pair{&Complete::PTinverse, 1.0e-2});
 
-  InitialData inidat{};
+  const InitialData inidat{};
 
   std::shared_ptr grid = std::make_shared<fub::amrex::GriddingAlgorithm>(
       std::move(hierarchy), inidat,
@@ -209,7 +209,6 @@ int main() {
     const ::amrex::Geometry& geom = grid->GetPatchHierarchy().GetGeometry(level);
     fub::amrex::ForEachFab(pi, [&](const ::amrex::MFIter& mfi) {
       ::amrex::FArrayBox& fab = pi[mfi];
-      InitialData inidat{};
       fub::amrex::ForEachIndex(fab.box(), [&](auto... is) {
         ::amrex::IntVect i{int(is)...};
 
@@ -229,8 +228,7 @@ int main() {
 
       });
     });
-
-  }
+  } 
 
   fub::DimensionalSplitLevelIntegrator advection(
       fub::int_c<2>, fub::amrex::BK19IntegratorContext(grid, method, 2, 0),

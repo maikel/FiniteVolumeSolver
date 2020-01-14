@@ -45,9 +45,11 @@ BK19IntegratorContext::BK19IntegratorContext(const BK19IntegratorContext& other)
   const int rank = Rank();
   for (int level = 0; level < nlevel; ++level) {
     const ::amrex::Geometry& geom = GetGeometry(level);
-    Pv_[level].on_cells.ParallelCopy(other.Pv_[level].on_cells, geom.periodicity());
+    Pv_[level].on_cells.ParallelCopy(other.Pv_[level].on_cells,
+                                     geom.periodicity());
     for (int d = 0; d < rank; ++d) {
-      Pv_[level].on_faces[d].ParallelCopy(other.Pv_[level].on_faces[d], geom.periodicity());
+      Pv_[level].on_faces[d].ParallelCopy(other.Pv_[level].on_faces[d],
+                                          geom.periodicity());
     }
   }
 }
@@ -64,33 +66,26 @@ BK19IntegratorContext::GetAdvectiveFluxes(int level) const {
 void BK19IntegratorContext::ResetHierarchyConfiguration(
     std::shared_ptr<GriddingAlgorithm> gridding) {
   Pv_.resize(gridding->GetPatchHierarchy().GetMaxNumberOfLevels());
-  pi_.resize(gridding->GetPatchHierarchy().GetMaxNumberOfLevels());
   IntegratorContext::ResetHierarchyConfiguration(std::move(gridding));
   PatchHierarchy& hier = GetPatchHierarchy();
   const int nlevel = GetPatchHierarchy().GetNumberOfLevels();
   for (int level = 0; level < nlevel; ++level) {
-    const int ngrow_numeric_flux = GetFluxes(level, Direction::X).nGrow();
-    const int ngrow_Pv_on_faces = ngrow_numeric_flux + 1;
-    const int ngrow_Pv_on_cells = ngrow_Pv_on_faces + 1;
+    const int ngrow_Pv_on_cells = GetScratch(level).nGrow() + 1;
     {
       const ::amrex::BoxArray& ba = hier.GetPatchLevel(level).box_array;
       const ::amrex::DistributionMapping& dm =
-      hier.GetPatchLevel(level).distribution_mapping;
-      ::amrex::BoxArray nodes = ba;
-      nodes.surroundingNodes();
-      ::amrex::MultiFab pi_new(nodes, dm, 1, 0);
-      pi_new.ParallelCopy(pi_[level], GetGeometry(level).periodicity());
-      pi_[level] = std::move(pi_new);
+          hier.GetPatchLevel(level).distribution_mapping;
       Pv_[level].on_cells = ::amrex::MultiFab(ba, dm, 2, ngrow_Pv_on_cells);
     }
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+      ::amrex::IntVect ngrow_Pv_on_faces =
+          GetFluxes(level, Direction(dir)).nGrowVect();
+      ngrow_Pv_on_faces[dir] += 1;
       const ::amrex::BoxArray& ba = GetFluxes(level, Direction(dir)).boxArray();
       const ::amrex::DistributionMapping& dm =
-      GetFluxes(level, Direction(dir)).DistributionMap();
-      ::amrex::IntVect ngrow_Pv(ngrow_Pv_on_cells);
-      ngrow_Pv[dir] = ngrow_Pv_on_faces;
+          GetFluxes(level, Direction(dir)).DistributionMap();
       Pv_[level].on_faces[dir] =
-      ::amrex::MultiFab(ba, dm, 1, ngrow_Pv);
+          ::amrex::MultiFab(ba, dm, 1, ngrow_Pv_on_faces);
     }
   }
 }
@@ -98,34 +93,27 @@ void BK19IntegratorContext::ResetHierarchyConfiguration(
 void BK19IntegratorContext::ResetHierarchyConfiguration(int coarsest_level) {
   if (Pv_.size() == 0) {
     Pv_.resize(GetPatchHierarchy().GetMaxNumberOfLevels());
-    pi_.resize(GetPatchHierarchy().GetMaxNumberOfLevels());
   }
   IntegratorContext::ResetHierarchyConfiguration(coarsest_level);
   PatchHierarchy& hier = GetPatchHierarchy();
   const int nlevel = GetPatchHierarchy().GetNumberOfLevels();
   for (int level = coarsest_level; level < nlevel; ++level) {
-    const int ngrow_numeric_flux = GetFluxes(level, Direction::X).nGrow();
-    const int ngrow_Pv_on_faces = ngrow_numeric_flux + 1;
-    const int ngrow_Pv_on_cells = ngrow_Pv_on_faces + 1;
+    const int ngrow_Pv_on_cells = GetScratch(level).nGrow() + 1;
     {
       const ::amrex::BoxArray& ba = hier.GetPatchLevel(level).box_array;
       const ::amrex::DistributionMapping& dm =
           hier.GetPatchLevel(level).distribution_mapping;
-      ::amrex::BoxArray nodes = ba;
-      nodes.surroundingNodes();
-      ::amrex::MultiFab pi_new(nodes, dm, 1, 0);
-      pi_new.ParallelCopy(pi_[level], GetGeometry(level).periodicity());
-      pi_[level] = std::move(pi_new);
       Pv_[level].on_cells = ::amrex::MultiFab(ba, dm, 2, ngrow_Pv_on_cells);
     }
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+      ::amrex::IntVect ngrow_Pv_on_faces =
+          GetFluxes(level, Direction(dir)).nGrowVect();
+      ngrow_Pv_on_faces[dir] += 1;
       const ::amrex::BoxArray& ba = GetFluxes(level, Direction(dir)).boxArray();
       const ::amrex::DistributionMapping& dm =
           GetFluxes(level, Direction(dir)).DistributionMap();
-      ::amrex::IntVect ngrow_Pv(ngrow_Pv_on_cells);
-      ngrow_Pv[dir] = ngrow_Pv_on_faces;
       Pv_[level].on_faces[dir] =
-          ::amrex::MultiFab(ba, dm, 1, ngrow_Pv);
+          ::amrex::MultiFab(ba, dm, 1, ngrow_Pv_on_faces);
     }
   }
 }
