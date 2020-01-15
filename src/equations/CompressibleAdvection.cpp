@@ -130,7 +130,7 @@ CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
   std::array<double, 4> v_advect{};
   // for (int i = 0; i < 4; ++i) {
   // We only use the inner two v_advects
-  for (int i = 1; i < 2; ++i) {
+  for (int i = 1; i < 3; ++i) {
     v_advect[i] = 0.5 * (Pvs[i] + Pvs[i + 1]) / stencil[i].PTdensity;
   }
 
@@ -160,8 +160,8 @@ CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
       Pvs[2] * 0.5 * ((1 + upwind) * rec_chi_L + (1 - upwind) * rec_chi_R);
   for (int dim = 0; dim < SpaceDimension; ++dim) {
     flux.momentum[dim] = Pvs[2] * 0.5 *
-                         ((1.0 + upwind) * rec_velocity_L[dim] +
-                          (1.0 - upwind) * rec_velocity_R[dim]);
+                         ((1.0 + upwind) * rec_chi_L * rec_velocity_L[dim] +
+                          (1.0 - upwind) * rec_chi_R * rec_velocity_R[dim]);
   }
   flux.PTdensity = Pvs[2];
   return flux;
