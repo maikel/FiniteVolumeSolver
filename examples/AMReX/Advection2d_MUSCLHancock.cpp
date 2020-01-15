@@ -71,6 +71,8 @@ int main(int argc, char** argv) {
 
   fub::amrex::PatchHierarchyOptions hier_opts{};
   hier_opts.max_number_of_levels = 6;
+  hier_opts.refine_ratio = amrex::IntVect(AMREX_D_DECL(2, 2, 1));
+  hier_opts.blocking_factor = amrex::IntVect(AMREX_D_DECL(8, 8, 1));
 
   using State = fub::Advection2d::Complete;
   fub::amrex::GradientDetector gradient{equation,
@@ -82,13 +84,16 @@ int main(int argc, char** argv) {
   gridding->InitializeHierarchy(0.0);
 
   fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethod(fub::execution::simd,
-                             fub::MusclHancockMethod{equation}),
-      fub::amrex::ForwardIntegrator(fub::execution::simd),
-      fub::amrex::NoReconstruction{}};
+      fub::amrex::FluxMethod(fub::MusclHancockMethod{equation}),
+      fub::amrex::ForwardIntegrator(), fub::amrex::NoReconstruction{}};
+
+  const int scratch_gcw = 8;
+  const int flux_gcw = 6;
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<Dim>, fub::amrex::IntegratorContext(gridding, method));
+      fub::int_c<Dim>,
+      fub::amrex::IntegratorContext(gridding, method, scratch_gcw, flux_gcw),
+      fub::StrangSplitting());
 
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
@@ -96,14 +101,10 @@ int main(int argc, char** argv) {
 
   using namespace std::literals::chrono_literals;
   fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> output{};
+
   output.AddOutput(fub::MakeOutput<fub::amrex::GriddingAlgorithm>(
-      {}, {0.1s}, [&](const fub::amrex::GriddingAlgorithm& gridding) {
-        std::string name =
-            fmt::format("{}plt{:04}", base_name, gridding.GetCycles());
-        ::amrex::Print() << "Start output to '" << name << "'.\n";
-        fub::amrex::WritePlotFile(name, gridding.GetPatchHierarchy(), equation);
-        ::amrex::Print() << "Finished output to '" << name << "'.\n";
-      }));
+      {}, {0.1s}, fub::amrex::PlotfileOutput(equation, base_name)));
+
   output.AddOutput(
       std::make_unique<fub::CounterOutput<fub::amrex::GriddingAlgorithm>>(
           solver.GetContext().registry_, wall_time_reference,

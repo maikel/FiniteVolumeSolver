@@ -49,8 +49,8 @@ int main() {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
-  fub::amrex::ScopeGuard guard{};  
-  
+  fub::amrex::ScopeGuard guard{};
+
   fub::InitializeLogging(MPI_COMM_WORLD);
 
   constexpr int Dim = AMREX_SPACEDIM;
@@ -70,6 +70,7 @@ int main() {
   fub::amrex::PatchHierarchyOptions hier_opts{};
   hier_opts.max_number_of_levels = 6;
   hier_opts.refine_ratio = amrex::IntVect(AMREX_D_DECL(2, 2, 1));
+  hier_opts.blocking_factor = amrex::IntVect(AMREX_D_DECL(8, 8, 1));
 
   using State = fub::Advection2d::Complete;
   fub::amrex::GradientDetector gradient{equation,
@@ -81,13 +82,16 @@ int main() {
   grid->InitializeHierarchy(0.0);
 
   fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethod(fub::execution::simd,
-                             fub::GodunovMethod{equation}),
-      fub::amrex::ForwardIntegrator(fub::execution::simd),
-      fub::amrex::NoReconstruction{}};
+      fub::amrex::FluxMethod(fub::GodunovMethod{equation}),
+      fub::amrex::ForwardIntegrator(), fub::amrex::NoReconstruction{}};
+
+  const int scratch_gcw = 2;
+  const int flux_gcw = 1;
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<Dim>, fub::amrex::IntegratorContext(grid, method));
+      fub::int_c<Dim>,
+      fub::amrex::IntegratorContext(grid, method, scratch_gcw, flux_gcw),
+      fub::GodunovSplitting());
 
   // fub::NoSubcycleSolver solver(std::move(level_integrator));
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));

@@ -24,81 +24,47 @@
 namespace fub::ideal_gas {
 
 template <int Rank>
-void KineticSourceTerm<Rank>::ResetHierarchyConfiguration(
-    std::shared_ptr<amrex::GriddingAlgorithm>&& gridding) {
-  gridding_ = std::move(gridding);
-}
-
-template <int Rank>
-void KineticSourceTerm<Rank>::ResetHierarchyConfiguration(
-    const std::shared_ptr<amrex::GriddingAlgorithm>& gridding) {
-  gridding_ = gridding;
-}
-
-template <int Rank>
-KineticSourceTerm<Rank>::KineticSourceTerm(
-    const IdealGasMix<Rank>& eq,
-    std::shared_ptr<amrex::GriddingAlgorithm> gridding)
+KineticSourceTerm<Rank>::KineticSourceTerm(const IdealGasMix<Rank> &eq)
     : equation_{eq}, state_{Complete<IdealGasMix<Rank>>(eq)},
-      gridding_{std::move(gridding)}, registry_(std::make_shared<CounterRegistry>()) {}
+      registry_(std::make_shared<CounterRegistry>()) {}
 
 template <int Rank>
-KineticSourceTerm<Rank>::KineticSourceTerm(
-    const IdealGasMix<Rank>& eq,
-    std::shared_ptr<amrex::GriddingAlgorithm> gridding, std::shared_ptr<CounterRegistry> reg)
+KineticSourceTerm<Rank>::KineticSourceTerm(const IdealGasMix<Rank> &eq,
+                                           std::shared_ptr<CounterRegistry> reg)
     : equation_{eq}, state_{Complete<IdealGasMix<Rank>>(eq)},
-      gridding_{std::move(gridding)}, registry_(std::move(reg)) {}
+      registry_(std::move(reg)) {}
 
 template <int Rank> Duration KineticSourceTerm<Rank>::ComputeStableDt(int) {
-  return Duration(std::numeric_limits<double>::infinity());
+  return Duration(std::numeric_limits<double>::max());
 }
 
 template <int Rank>
 Result<void, TimeStepTooLarge>
-KineticSourceTerm<Rank>::AdvanceLevel(int level, Duration dt) {
+KineticSourceTerm<Rank>::AdvanceLevel(amrex::IntegratorContext &simulation_data,
+                                      int level, Duration dt,
+                                      const ::amrex::IntVect &ngrow) {
   Timer advance_timer = registry_->get_timer("KineticSourceTerm::AdvanceLevel");
-  ::amrex::MultiFab& data =
-      gridding_->GetPatchHierarchy().GetPatchLevel(level).data;
-  fub::amrex::ForEachFab(
-      execution::openmp, data, [&](const ::amrex::MFIter& mfi) {
-        using Complete = ::fub::Complete<IdealGasMix<Rank>>;
-        View<Complete> states =
-            amrex::MakeView<Complete>(data[mfi], *equation_, mfi.tilebox());
-        FlameMasterReactor& reactor = equation_->GetReactor();
-        ForEachIndex(Box<0>(states), [&](auto... is) {
-          std::array<std::ptrdiff_t, sRank> index{is...};
-          Load(*state_, states, index);
-          // equation_->SetReactorStateFromComplete(*state_);
-          reactor.SetMassFractions(state_->species);
-          reactor.SetTemperature(state_->temperature);
-          reactor.SetDensity(state_->density);
-          reactor.Advance(dt.count());
-          Eigen::Matrix<double, Rank, 1> velocity =
-              state_->momentum / state_->density;
-          equation_->CompleteFromReactor(*state_, velocity);
-          Store(states, *state_, index);
-        });
-      });
+  ::amrex::MultiFab &data = simulation_data.GetScratch(level);
+  amrex::ForEachFab(execution::openmp, data, [&](const ::amrex::MFIter &mfi) {
+    using Complete = ::fub::Complete<IdealGasMix<Rank>>;
+    View<Complete> states = amrex::MakeView<Complete>(data[mfi], *equation_,
+                                                      mfi.growntilebox(ngrow));
+    FlameMasterReactor &reactor = equation_->GetReactor();
+    ForEachIndex(Box<0>(states), [&](auto... is) {
+      std::array<std::ptrdiff_t, sRank> index{is...};
+      Load(*state_, states, index);
+      // equation_->SetReactorStateFromComplete(*state_);
+      reactor.SetMassFractions(state_->species);
+      reactor.SetTemperature(state_->temperature);
+      reactor.SetDensity(state_->density);
+      reactor.Advance(dt.count());
+      Eigen::Matrix<double, Rank, 1> velocity =
+          state_->momentum / state_->density;
+      equation_->CompleteFromReactor(*state_, velocity);
+      Store(states, *state_, index);
+    });
+  });
   return boost::outcome_v2::success();
-}
-
-template <int Rank> Duration KineticSourceTerm<Rank>::GetTimePoint() const {
-  return GetPatchHierarchy().GetTimePoint();
-}
-
-template <int Rank> std::ptrdiff_t KineticSourceTerm<Rank>::GetCycles() const {
-  return GetPatchHierarchy().GetCycles();
-}
-
-template <int Rank>
-const amrex::PatchHierarchy&
-KineticSourceTerm<Rank>::GetPatchHierarchy() const {
-  return gridding_->GetPatchHierarchy();
-}
-
-template <int Rank>
-amrex::PatchHierarchy& KineticSourceTerm<Rank>::GetPatchHierarchy() {
-  return gridding_->GetPatchHierarchy();
 }
 
 template class KineticSourceTerm<1>;

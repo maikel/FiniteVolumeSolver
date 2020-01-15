@@ -154,12 +154,17 @@ auto MakeTubeSolver(fub::Burke2012& mechanism, const TubeSolverOptions& opts,
     }
   }();
 
-  fub::ideal_gas::MusclHancockPrimMethod<Tube_Rank> flux_method{equation};
-  HyperbolicMethod method{FluxMethod(fub::execution::openmp, flux_method),
-                          ForwardIntegrator(fub::execution::openmp),
-                          Reconstruction(fub::execution::openmp, equation)};
+  fub::EinfeldtSignalVelocities<fub::IdealGasMix<Tube_Rank>> signals{};
+  fub::HllMethod hll_method{equation, signals};
+  // fub::ideal_gas::MusclHancockPrimMethod<Tube_Rank> flux_method{equation};
+  HyperbolicMethod method{FluxMethod(hll_method), ForwardIntegrator(),
+                          Reconstruction(equation)};
 
-  return std::pair{fub::amrex::IntegratorContext(gridding, method), valve};
+  const int scratch_gcw = 2;
+  const int flux_gcw = 1;
+
+  return std::pair{IntegratorContext(gridding, method, scratch_gcw, flux_gcw),
+                   valve};
 }
 
 ::amrex::Box BoxWhichContains(const ::amrex::RealBox& xbox,
@@ -284,12 +289,13 @@ auto MakePlenumSolver(fub::Burke2012& mechanism, int num_cells, int n_level,
   //  fub::ideal_gas::MusclHancockPrimMethod<Plenum_Rank> flux_method(equation);
   fub::KbnCutCellMethod cutcell_method(hll_method, hll_method);
 
-  HyperbolicMethod method{
-      FluxMethod{fub::execution::openmp_simd, cutcell_method},
-      fub::amrex::cutcell::TimeIntegrator{},
-      Reconstruction{fub::execution::openmp_simd, equation}};
+  HyperbolicMethod method{FluxMethod{cutcell_method}, TimeIntegrator{},
+                          Reconstruction{equation}};
 
-  return fub::amrex::cutcell::IntegratorContext(gridding, method);
+  const int scratch_gcw = 2;
+  const int flux_gcw = 1;
+
+  return IntegratorContext(gridding, method, scratch_gcw, flux_gcw);
 }
 
 struct ProgramOptions {
@@ -303,7 +309,7 @@ struct ProgramOptions {
     constexpr double tube_len_over_plenum_len = 1.47 / 0.56;
     tube_n_cells = static_cast<int>(tube_len_over_plenum_len *
                                     static_cast<double>(plenum_n_cells));
-    tube_n_cells = tube_n_cells - tube_n_cells % 8;
+    tube_n_cells = tube_n_cells - tube_n_cells % 32;
   }
 
   template <typename Logger> void Print(Logger& log) const {
@@ -424,6 +430,7 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
     fub::amrex::BlockConnection connection;
     connection.direction = fub::Direction::X;
     connection.side = 0;
+    connection.ghost_cell_width = 2;
     connection.plenum.id = 0;
     connection.tube.id = k;
     connection.tube.mirror_box = tubes[k]
@@ -451,10 +458,16 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
       std::move(connectivity));
 
   fub::DimensionalSplitLevelIntegrator system_solver(fub::int_c<Plenum_Rank>,
-                                                     context);
+                                                     std::move(context));
+
+  const std::size_t n_tubes = system_solver.GetContext().Tubes().size();
+  const int max_number_of_levels = system_solver.GetContext()
+                                       .Tubes()[0]
+                                       .GetPatchHierarchy()
+                                       .GetMaxNumberOfLevels();
 
   fub::amrex::MultiBlockIgniteDetonation ignition{
-      tube_equation, context.GetGriddingAlgorithm(),
+      tube_equation, n_tubes, max_number_of_levels,
       fub::amrex::IgniteDetonationOptions(vm, "ignite")};
 
   std::string checkpoint{};
@@ -463,7 +476,8 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   }
   if (!checkpoint.empty()) {
     MPI_Comm comm = context.GetMpiCommunicator();
-    std::string input = fub::ReadAndBroadcastFile(checkpoint + "/Ignition", comm);
+    std::string input =
+        fub::ReadAndBroadcastFile(checkpoint + "/Ignition", comm);
     std::istringstream ifs(input);
     boost::archive::text_iarchive ia(ifs);
     std::vector<fub::Duration> last_ignitions;
@@ -471,21 +485,29 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
     ignition.SetLastIgnitionTimePoints(last_ignitions);
   }
 
-  fub::SplitSystemSourceLevelIntegrator ign_solver(system_solver, ignition,
-                                                     fub::GodunovSplitting{});
+  fub::SplitSystemSourceLevelIntegrator ign_solver(
+      std::move(system_solver), std::move(ignition), fub::GodunovSplitting{});
 
-  fub::amrex::MultiBlockKineticSouceTerm source_term{
-      fub::IdealGasMix<Tube_Rank>{mechanism}, context.GetGriddingAlgorithm()};
+  fub::amrex::MultiBlockKineticSouceTerm source_term(
+      fub::IdealGasMix<Tube_Rank>{mechanism});
 
-  fub::SplitSystemSourceLevelIntegrator level_integrator{ign_solver, source_term};
+  fub::SplitSystemSourceLevelIntegrator level_integrator(
+      std::move(ign_solver), std::move(source_term));
 
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
   fub::OutputFactory<fub::amrex::MultiBlockGriddingAlgorithm> factory{};
   factory.RegisterOutput<fub::amrex::MultiWriteHdf5>("HDF5");
+  factory.RegisterOutput<fub::amrex::MultiBlockPlotfileOutput>("Plotfile");
   fub::MultipleOutputs<fub::amrex::MultiBlockGriddingAlgorithm> outputs(
       std::move(factory),
       fub::ToMap(fub::GetOptionOr(vm, "output", pybind11::dict{})));
+  outputs.AddOutput(
+      std::make_unique<
+          fub::CounterOutput<fub::amrex::MultiBlockGriddingAlgorithm>>(
+          solver.GetContext().Plena()[0].registry_, wall_time_reference,
+          std::vector<std::ptrdiff_t>{},
+          std::vector<fub::Duration>{fub::Duration(0.001)}));
 
   outputs(*solver.GetGriddingAlgorithm());
   fub::RunSimulation(solver, fub::RunOptions(vm), wall_time_reference, outputs);

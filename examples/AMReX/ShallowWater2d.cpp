@@ -96,13 +96,18 @@ int main(int argc, char** argv) {
 
   fub::HllMethod hll_method{equation, fub::ShallowWaterSignalVelocities{}};
   fub::MusclHancockMethod muscl_method{equation, hll_method};
-  fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethod(fub::execution::simd, muscl_method),
-      fub::amrex::ForwardIntegrator(fub::execution::simd),
-      fub::amrex::NoReconstruction{}};
+  fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(muscl_method),
+                                      fub::amrex::ForwardIntegrator(),
+                                      fub::amrex::NoReconstruction{}};
+
+  const int scratch_ghost_cell_width = 8;
+  const int flux_ghost_cell_width = 6;
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<2>, fub::amrex::IntegratorContext(gridding, method));
+      fub::int_c<2>,
+      fub::amrex::IntegratorContext(gridding, method, scratch_ghost_cell_width,
+                                    flux_ghost_cell_width),
+      fub::StrangSplitting());
 
   // fub::NoSubcycleSolver solver(std::move(level_integrator));
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
@@ -116,20 +121,19 @@ int main(int argc, char** argv) {
   run_options.cfl = 0.8;
 
   fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> output{};
+
+  // Add a standard AMReX Plotfile output readable in VisIt
   output.AddOutput(fub::MakeOutput<fub::amrex::GriddingAlgorithm>(
-      {}, {0.05s}, [&](const fub::amrex::GriddingAlgorithm& gridding) {
-        std::string name =
-            fmt::format("{}plt{:04}", base_name, gridding.GetCycles());
-        ::amrex::Print() << "Start output to '" << name << "'.\n";
-        fub::amrex::WritePlotFile(name, gridding.GetPatchHierarchy(), equation);
-        ::amrex::Print() << "Finished output to '" << name << "'.\n";
-      }));
+      {}, {0.05s}, fub::amrex::PlotfileOutput(equation, base_name)));
+
+  // Add an output to print the timer database
   using std::chrono::microseconds;
   output.AddOutput(
       std::make_unique<
           fub::CounterOutput<fub::amrex::GriddingAlgorithm, microseconds>>(
           solver.GetContext().registry_, wall_time_reference,
           std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{0.05s}));
+
   output(*solver.GetGriddingAlgorithm());
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

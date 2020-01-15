@@ -37,7 +37,7 @@ MultiBlockGriddingAlgorithm::MultiBlockGriddingAlgorithm(
     int k = 0;
     for (const BlockConnection& conn : connectivity_) {
       boundaries.emplace_back(fmt::format("MultiBlockBoundary-{}", k++), *this,
-                              conn, 3, reactor_, level);
+                              conn, conn.ghost_cell_width, reactor_, level);
     }
     level += 1;
   }
@@ -60,7 +60,8 @@ MultiBlockGriddingAlgorithm::MultiBlockGriddingAlgorithm(
     FUB_ASSERT(valves.size() == connectivity_.size());
     for (const BlockConnection& conn : connectivity_) {
       boundaries.emplace_back(fmt::format("MultiBlockBoundary-{}", k), *this,
-                              conn, 3, reactor_, level, valves[k]);
+                              conn, conn.ghost_cell_width, reactor_, level,
+                              valves[k]);
       ++k;
     }
     level += 1;

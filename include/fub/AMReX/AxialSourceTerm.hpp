@@ -21,7 +21,7 @@
 #ifndef FUB_AMREX_AXIAL_SOURCE_TERM_HPP
 #define FUB_AMREX_AXIAL_SOURCE_TERM_HPP
 
-#include "fub/AMReX/GriddingAlgorithm.hpp"
+#include "fub/AMReX/IntegratorContext.hpp"
 #include "fub/TimeStepError.hpp"
 #include "fub/equations/IdealGasMix.hpp"
 #include "fub/ext/outcome.hpp"
@@ -34,7 +34,7 @@ public:
 
   AxialSourceTerm(const IdealGasMix<1>& eq,
                   std::function<double(double)> diameter,
-                  std::shared_ptr<GriddingAlgorithm> gridding);
+                  const std::shared_ptr<GriddingAlgorithm>& grid);
 
   AxialSourceTerm(const AxialSourceTerm& other);
   AxialSourceTerm& operator=(const AxialSourceTerm& other);
@@ -45,37 +45,22 @@ public:
   /////////////////////////////////////////////////////////////////////////
   // member functions needed for being a source term
 
-  void PreAdvanceLevel(int level, Duration dt, std::pair<int,int> subcycle);
-  //  void PostAdvanceLevel(int level, Duration dt, int subcycle);
-
   void ResetHierarchyConfiguration(
-      std::shared_ptr<GriddingAlgorithm>&& gridding);
-
-  void ResetHierarchyConfiguration(
-      const std::shared_ptr<GriddingAlgorithm>& gridding);
+      const std::shared_ptr<GriddingAlgorithm>& grid);
 
   Duration ComputeStableDt(int level);
 
-  Result<void, TimeStepTooLarge> AdvanceLevel(int level, Duration dt);
+  Result<void, TimeStepTooLarge>
+  AdvanceLevel(IntegratorContext& simulation_data, int level, Duration dt);
 
   //////////////////////////////////////////////////////////////////////////
   // additional member functions to get class data
 
-  const IdealGasMix<1>& GetEquation() const;
-
   span<const ::amrex::MultiFab> GetAxialVariations() const;
-
-  Duration GetTimePoint() const;
-
-  std::ptrdiff_t GetCycles() const;
-
-  amrex::PatchHierarchy& GetPatchHierarchy();
-  const amrex::PatchHierarchy& GetPatchHierarchy() const;
 
 private:
   std::function<double(double)> diameter_;
   IdealGasMix<1> equation_;
-  std::shared_ptr<GriddingAlgorithm> gridding_;
   std::vector<::amrex::MultiFab> Ax_;
 };
 

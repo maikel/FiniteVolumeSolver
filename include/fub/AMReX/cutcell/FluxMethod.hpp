@@ -36,6 +36,8 @@ template <typename Tag, typename Base> class FluxMethod {
 public:
   using Equation = typename Base::Equation;
 
+  explicit FluxMethod(Base&& fm) : FluxMethod(Tag(), std::move(fm)) {}
+  explicit FluxMethod(const Base& fm) : FluxMethod(Tag(), fm) {}
   FluxMethod(Tag, const Base& fm);
   FluxMethod(Tag, Base&& fm);
 
@@ -55,10 +57,11 @@ private:
   Local<Tag, Base> flux_method_;
 };
 
+template <typename F>
+FluxMethod(F &&)->FluxMethod<execution::OpenMpSimdTag, std::decay_t<F>>;
+
 template <typename Tag, typename FM>
 FluxMethod(Tag, FM &&)->FluxMethod<Tag, std::decay_t<FM>>;
-template <typename Tag, typename FM>
-FluxMethod(Tag, const FM&)->FluxMethod<Tag, FM>;
 
 template <typename Tag, typename FM>
 FluxMethod<Tag, FM>::FluxMethod(Tag, FM&& flux_method)

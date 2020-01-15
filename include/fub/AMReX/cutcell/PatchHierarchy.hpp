@@ -75,7 +75,7 @@ struct PatchLevel : ::fub::amrex::PatchLevel {
   /// \param[in] factory  the boundary informations for cut cells.
   PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
              const ::amrex::DistributionMapping& dm, int n_components,
-             std::shared_ptr<::amrex::EBFArrayBoxFactory> factory);
+             std::shared_ptr<::amrex::EBFArrayBoxFactory> factory, int ngrow = 4);
 
   using MultiCutFabs =
       std::array<std::unique_ptr<::amrex::MultiCutFab>, AMREX_SPACEDIM>;
@@ -104,6 +104,7 @@ struct PatchLevel : ::fub::amrex::PatchLevel {
 /// embedded boundary index space for each possible refinement level.
 struct PatchHierarchyOptions : public ::fub::amrex::PatchHierarchyOptions {
   std::vector<const ::amrex::EB2::IndexSpace*> index_spaces;
+  int ngrow_eb_level_set{4};
 };
 
 class PatchHierarchy {

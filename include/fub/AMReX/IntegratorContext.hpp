@@ -107,14 +107,18 @@ public:
   /// \brief Returns the MultiFab associated with level data on the specifed
   /// level number.
   [[nodiscard]] ::amrex::MultiFab& GetData(int level);
+  [[nodiscard]] const ::amrex::MultiFab& GetData(int level) const;
 
   /// \brief Returns the MultiFab associated with level data with ghost cells on
   /// the specifed level number and direction.
   [[nodiscard]] ::amrex::MultiFab& GetScratch(int level);
+  [[nodiscard]] const ::amrex::MultiFab& GetScratch(int level) const;
 
   /// \brief Returns the MultiFab associated with flux data on the specifed
   /// level number and direction.
   [[nodiscard]] ::amrex::MultiFab& GetFluxes(int level, Direction dir);
+  [[nodiscard]] const ::amrex::MultiFab& GetFluxes(int level,
+                                                   Direction dir) const;
 
   /// \brief Returns the current time level for data at the specified refinement
   /// level and direction.

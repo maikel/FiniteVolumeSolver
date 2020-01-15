@@ -366,7 +366,7 @@ MultiBlockBoundary::MultiBlockBoundary(
            boost::log::keywords::severity = boost::log::trivial::debug),
       valve_{std::move(valve)}, plenum_equation_(reactor),
       tube_equation_(std::move(reactor)), dir_{connection.direction},
-      side_{connection.side}, level_{level} {
+      side_{connection.side}, level_{level}, gcw_{gcw} {
   const std::ptrdiff_t pid = static_cast<std::ptrdiff_t>(connection.plenum.id);
   const cutcell::PatchHierarchy& plenum =
       gridding.GetPlena()[pid]->GetPatchHierarchy();
@@ -560,7 +560,7 @@ void MultiBlockBoundary::FillBoundary(::amrex::MultiFab& mf,
 void MultiBlockBoundary::FillBoundary(::amrex::MultiFab& mf,
                                       const ::amrex::Geometry& geom, Duration,
                                       const cutcell::GriddingAlgorithm& grid) {
-  ::amrex::Box ghost_box = MakeGhostBox(plenum_mirror_box_, 3, dir_, side_);
+  ::amrex::Box ghost_box = MakeGhostBox(plenum_mirror_box_, gcw_, dir_, side_);
   if (valve_ && valve_->state == PressureValveState::closed) {
     const Eigen::Matrix<double, Plenum_Rank, 1> unit =
         UnitVector<Plenum_Rank>(dir_);

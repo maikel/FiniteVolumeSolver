@@ -36,13 +36,18 @@ template <typename Tag, typename Equation> struct Reconstruction {
   static constexpr int Rank = Equation::Rank();
   static constexpr bool IsSimd = std::is_base_of<execution::SimdTag, Tag>();
 
-  explicit Reconstruction(const Tag& tag, const Equation& eq);
+  explicit Reconstruction(const Equation& eq) : Reconstruction(Tag(), eq) {}
+  Reconstruction(const Tag& tag, const Equation& eq);
 
   void CompleteFromCons(IntegratorContext& context, int level,
                         [[maybe_unused]] Duration dt);
 
   Local<Tag, detail::ReconstructionKernel<Equation, IsSimd>> kernel_;
 };
+
+template <typename Equation>
+Reconstruction(const Equation&)
+    -> Reconstruction<execution::OpenMpSimdTag, Equation>;
 
 ////////////////////////////////////////////////////////////////////////////////
 //                                                              Implementation

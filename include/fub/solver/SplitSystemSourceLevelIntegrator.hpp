@@ -122,7 +122,7 @@ void SplitSystemSourceLevelIntegrator<
     SystemSolver, SourceTerm,
     SplittingMethod>::ResetHierarchyConfiguration(const Args&... args) {
   SystemSolver::ResetHierarchyConfiguration(args...);
-  source_term_.ResetHierarchyConfiguration(args...);
+  ::fub::ResetHierarchyConfiguration(source_term_, args...);
 }
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
@@ -198,7 +198,7 @@ SplitSystemSourceLevelIntegrator<SystemSolver, SourceTerm, SplittingMethod>::
   };
 
   auto AdvanceSource = [&](Duration dt) -> Result<void, TimeStepTooLarge> {
-    return source_term_.AdvanceLevel(this_level, dt);
+    return source_term_.AdvanceLevel(SystemSolver::GetContext(), this_level, dt);
   };
   return splitting_.Advance(dt, AdvanceSource, AdvanceSystem);
 }

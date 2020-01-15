@@ -21,7 +21,7 @@
 #ifndef FUB_AMREX_IGNITE_DETONATION_HPP
 #define FUB_AMREX_IGNITE_DETONATION_HPP
 
-#include "fub/AMReX/GriddingAlgorithm.hpp"
+#include "fub/AMReX/IntegratorContext.hpp"
 #include "fub/TimeStepError.hpp"
 #include "fub/equations/IdealGasMix.hpp"
 #include "fub/ext/outcome.hpp"
@@ -79,36 +79,51 @@ class IgniteDetonation {
 public:
   static constexpr int Rank = 1;
 
-  IgniteDetonation(const IdealGasMix<1>& eq,
-                   std::shared_ptr<GriddingAlgorithm> grid,
+  /// \brief Constructs the source term
+  ///
+  /// \param[in] eq  The equation which knows the species
+  /// 
+  /// \param[in] max_refinement_level  This is needed to allocate storate for
+  /// ignition times at each refinement level.
+  ///
+  /// \param[in] opts  Options which
+  /// manipulate the way of igniting the the gas mixture
+  IgniteDetonation(const IdealGasMix<1>& eq, int max_refinement_level,
                    const IgniteDetonationOptions& opts = {});
 
-  /////////////////////////////////////////////////////////////////////////
-  // member functions needed for being a source term
+  /// \brief Resets internal configuration
+  ///
+  /// Resets the last ignition time points if the time point on grid is lower
+  /// than the last recorded ignition. This happens when the CFL condition gets
+  /// violated right after the ignition.
+  void ResetHierarchyConfiguration(std::shared_ptr<GriddingAlgorithm> grid);
 
-  void
-  ResetHierarchyConfiguration(std::shared_ptr<amrex::GriddingAlgorithm> grid);
-
+  /// \brief Returns numeric_limits<double>::max()
+  ///
+  /// This operator artificially ignites a detonation and has no restriction on
+  /// the time step size.
   [[nodiscard]] Duration ComputeStableDt(int) const noexcept;
 
-  [[nodiscard]] Result<void, TimeStepTooLarge> AdvanceLevel(int level,
-                                                            Duration dt);
+  /// Uses the scratch space of simulation_data to evaluate the criterion on the
+  /// current equivalence ratio.
+  [[nodiscard]] Result<void, TimeStepTooLarge>
+  AdvanceLevel(IntegratorContext& simulation_data, int level, Duration dt,
+               const ::amrex::IntVect& ngrow = ::amrex::IntVect(0));
 
-  [[nodiscard]] const PatchHierarchy& GetPatchHierarchy() const noexcept {
-    return gridding_->GetPatchHierarchy();
-  }
-
+  /// \brief Returns the options for this operator
   [[nodiscard]] const IgniteDetonationOptions& GetOptions() const noexcept {
     return options_;
   }
 
+  /// \brief Returns the time points for the last ignition on refinement level
+  /// `level`.
   [[nodiscard]] Duration GetLastIgnitionTimePoint(int level) const noexcept;
 
+  /// \brief Set a time point for an ignition on refinement level `level`.
   void SetLastIgnitionTimePoint(int level, Duration t) noexcept;
 
 private:
   IdealGasMix<1> equation_;
-  std::shared_ptr<GriddingAlgorithm> gridding_;
   IgniteDetonationOptions options_;
   std::vector<Duration> last_ignition_backup_{};
   std::vector<Duration> last_ignition_{};
