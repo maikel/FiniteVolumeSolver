@@ -293,7 +293,21 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   ComputePvFromScratch_(index, UV, scratch, periodicity);
 
   UV.mult(-dt.count());
+  rhs.setVal(0.0);
   lin_op.compDivergence({&rhs}, {&UV});
+
+  ::amrex::Box node_domain = geom.Domain();
+  node_domain.surroundingNodes();
+  node_domain.setBig(0, node_domain.bigEnd(0) - 1);
+  node_domain.setBig(1, node_domain.bigEnd(1) - 1);
+  double rhs_sum = 0.0;
+  ForEachFab(rhs, [&](const ::amrex::MFIter& mfi) {
+    const ::amrex::Box subbox = mfi.validbox() & node_domain;
+    rhs_sum += rhs[mfi].sum(subbox, 0);
+  });
+  if (rhs_sum > 1e-6) {
+    throw std::runtime_error("Fehler!");
+  }
 
   // Construct sigma by: -cp dt^2 (P Theta)^o (Equation (27) in [BK19])
   // MultiFab::Divide(dest, src, src_comp, dest_comp, n_comp, n_grow);
@@ -306,7 +320,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   lin_op.setSigma(level, sigma);
   MultiFab pi(on_nodes, distribution_map, one_component, no_ghosts);
   pi.setVal(0.0);
-  nodal_solver.solve({&pi}, {&rhs}, 1e-10, 1e-10);
+  nodal_solver.solve({&pi}, {&rhs}, 1e-6, 1e-6);
 
   MultiFab UV_correction(on_cells, distribution_map, index.momentum.size(),
                          no_ghosts);
@@ -377,7 +391,8 @@ void DoEulerForward_(const Equation& equation,
                                index.momentum.size(), no_ghosts);
   momentum_correction.setVal(0.0);
   lin_op.getFluxes({&momentum_correction}, {&pi});
-
+  
+//  momentum_correction.mult(-1.0);
   // Rupert sagt:  (**)
   // Hier müssten besagte zwei Zeilen stehen, wenn oben mit dt^2
   // multipliziert worden wäre.
@@ -419,7 +434,13 @@ BK19LevelIntegrator::BK19LevelIntegrator(
     : AdvectionSolver(std::move(advection)), equation_(equation),
       index_(equation_), lin_op_(std::move(linop)),
       nodal_solver_(std::make_shared<::amrex::MLMG>(*lin_op_)) {
-  nodal_solver_->setMaxIter(100);
+  nodal_solver_->setMaxIter(3);
+  nodal_solver_->setVerbose(1);
+  nodal_solver_->setBottomVerbose(1);
+  nodal_solver_->setBottomMaxIter(1'000);
+//  nodal_solver_->setBottomToleranceAbs(1e-7);
+  nodal_solver_->setBottomTolerance(1e-7);
+//  nodal_solver_->setAlwaysUseBNorm(1);
 }
 
 Result<void, TimeStepTooLarge>
