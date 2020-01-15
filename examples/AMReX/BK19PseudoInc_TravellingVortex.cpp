@@ -19,16 +19,15 @@
 // SOFTWARE.
 
 #include "fub/AMReX.hpp"
-#include "fub/Solver.hpp"
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/ForEachIndex.hpp"
+#include "fub/Solver.hpp"
 #include <AMReX_MLMG.H>
 
 #include "fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp"
 #include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
 #include "fub/AMReX/bk19/BK19LevelIntegrator.hpp"
 #include "fub/equations/CompressibleAdvection.hpp"
-
 
 double p_coeff(double r, const std::vector<double>& coefficients) {
   if (r >= 1.0) {
@@ -48,31 +47,31 @@ struct InitialData {
   using Complete = fub::CompressibleAdvection<2>::Complete;
   InitialData() {
     coefficients.resize(25);
-    coefficients[0]  =     1.0 / 12.0;
-    coefficients[1]  = -  12.0 / 13.0;
-    coefficients[2]  =     9.0 /  2.0;
-    coefficients[3]  = - 184.0 / 15.0;
-    coefficients[4]  =   609.0 / 32.0;
-    coefficients[5]  = - 222.0 / 17.0;
-    coefficients[6]  = -  38.0 /  9.0;
-    coefficients[7]  =    54.0 / 19.0;
-    coefficients[8]  =   783.0 / 20.0;
-    coefficients[9]  = - 558.0 /  7.0;
-    coefficients[10] =  1053.0 / 22.0;
-    coefficients[11] =  1014.0 / 23.0;
+    coefficients[0] = 1.0 / 12.0;
+    coefficients[1] = -12.0 / 13.0;
+    coefficients[2] = 9.0 / 2.0;
+    coefficients[3] = -184.0 / 15.0;
+    coefficients[4] = 609.0 / 32.0;
+    coefficients[5] = -222.0 / 17.0;
+    coefficients[6] = -38.0 / 9.0;
+    coefficients[7] = 54.0 / 19.0;
+    coefficients[8] = 783.0 / 20.0;
+    coefficients[9] = -558.0 / 7.0;
+    coefficients[10] = 1053.0 / 22.0;
+    coefficients[11] = 1014.0 / 23.0;
     coefficients[12] = -1473.0 / 16.0;
-    coefficients[13] =   204.0 /  5.0;
-    coefficients[14] =   510.0 / 13.0;
+    coefficients[13] = 204.0 / 5.0;
+    coefficients[14] = 510.0 / 13.0;
     coefficients[15] = -1564.0 / 27.0;
-    coefficients[16] =   153.0 /  8.0;
-    coefficients[17] =   450.0 / 29.0;
-    coefficients[18] = - 269.0 / 15.0;
-    coefficients[19] =   174.0 / 31.0;
-    coefficients[20] =    57.0 / 32.0;
-    coefficients[21] = -  74.0 / 33.0;
-    coefficients[22] =    15.0 / 17.0;
-    coefficients[23] = -   6.0 / 35.0;
-    coefficients[24] =     1.0 / 72.0;
+    coefficients[16] = 153.0 / 8.0;
+    coefficients[17] = 450.0 / 29.0;
+    coefficients[18] = -269.0 / 15.0;
+    coefficients[19] = 174.0 / 31.0;
+    coefficients[20] = 57.0 / 32.0;
+    coefficients[21] = -74.0 / 33.0;
+    coefficients[22] = 15.0 / 17.0;
+    coefficients[23] = -6.0 / 35.0;
+    coefficients[24] = 1.0 / 72.0;
   }
 
   void InitializeData(amrex::MultiFab& mf, const amrex::Geometry& geom) const {
@@ -87,15 +86,17 @@ struct InitialData {
         const double y = geom.CellCenter(j, 1);
         const double dx = x - center[0];
         const double dy = y - center[1];
-        const double r = std::sqrt(dx*dx + dy*dy);
+        const double r = std::sqrt(dx * dx + dy * dy);
 
         states.PTdensity(i, j) = 1.0;
 
         if (r < R0) {
           const double r_over_R0 = r / R0;
-          const double uth = fac * std::pow(1.0 - r_over_R0, 6) * std::pow(r_over_R0, 6);
+          const double uth =
+              fac * std::pow(1.0 - r_over_R0, 6) * std::pow(r_over_R0, 6);
 
-          states.density(i, j) = rho0 + del_rho * std::pow(1.0 - r_over_R0*r_over_R0, 6);
+          states.density(i, j) =
+              rho0 + del_rho * std::pow(1.0 - r_over_R0 * r_over_R0, 6);
           states.velocity(i, j, 0) = U0[0] - uth * (dy / r);
           states.velocity(i, j, 1) = U0[1] + uth * (dx / r);
 
@@ -106,10 +107,12 @@ struct InitialData {
           states.velocity(i, j, 0) = U0[0];
           states.velocity(i, j, 1) = U0[1];
 
-//           pi(i, j) = 0.0
+          //           pi(i, j) = 0.0
         }
-        states.momentum(i, j, 0) = states.density(i, j) * states.velocity(i, j, 0);
-        states.momentum(i, j, 1) = states.density(i, j) * states.velocity(i, j, 1);
+        states.momentum(i, j, 0) =
+            states.density(i, j) * states.velocity(i, j, 0);
+        states.momentum(i, j, 1) =
+            states.density(i, j) * states.velocity(i, j, 1);
         states.PTinverse(i, j) = states.density(i, j) / states.PTdensity(i, j);
       });
     });
@@ -140,7 +143,7 @@ int main() {
   fub::amrex::CartesianGridGeometry geometry{};
   geometry.cell_dimensions =
       std::array<int, AMREX_SPACEDIM>{AMREX_D_DECL(32, 32, 1)};
-//       std::array<int, AMREX_SPACEDIM>{AMREX_D_DECL(128, 128, 1)};
+  //       std::array<int, AMREX_SPACEDIM>{AMREX_D_DECL(128, 128, 1)};
   geometry.coordinates = amrex::RealBox({AMREX_D_DECL(0.0, 0.0, 0.0)},
                                         {AMREX_D_DECL(1.0, 1.0, 1.0)});
   geometry.periodicity = std::array<int, AMREX_SPACEDIM>{AMREX_D_DECL(1, 1, 1)};
@@ -197,16 +200,18 @@ int main() {
       flux_method, fub::amrex::ForwardIntegrator(tag),
       fub::amrex::Reconstruction(tag, equation)};
 
-  fub::amrex::BK19IntegratorContext simulation_data(grid, method, 2, 0);
+  fub::amrex::BK19IntegratorContext simulation_data(grid, method, 4, 2);
   const int nlevel = simulation_data.GetPatchHierarchy().GetNumberOfLevels();
 
   // set initial values of pi
   const double gamma{1.4};
   const double Gamma = (gamma - 1.0) / gamma;
+  // simulation_data.GetPi(0).setVal(1.0);
 
   for (int level = 0; level < nlevel; ++level) {
     ::amrex::MultiFab& pi = simulation_data.GetPi(level);
-    const ::amrex::Geometry& geom = grid->GetPatchHierarchy().GetGeometry(level);
+    const ::amrex::Geometry& geom =
+        grid->GetPatchHierarchy().GetGeometry(level);
     fub::amrex::ForEachFab(pi, [&](const ::amrex::MFIter& mfi) {
       ::amrex::FArrayBox& fab = pi[mfi];
       fub::amrex::ForEachIndex(fab.box(), [&](auto... is) {
@@ -216,32 +221,34 @@ int main() {
         geom.LoNode(i, coor);
         const double dx = coor[0] - inidat.center[0];
         const double dy = coor[1] - inidat.center[1];
-        const double r = std::sqrt(dx*dx + dy*dy);
+        const double r = std::sqrt(dx * dx + dy * dy);
 
-       if (r < inidat.R0) {
+        if (r < inidat.R0) {
           const double r_over_R0 = r / inidat.R0;
-          fab(i, 0) = Gamma * inidat.fac*inidat.fac * p_coeff(r_over_R0, inidat.coefficients);
+          fab(i, 0) = Gamma * inidat.fac * inidat.fac *
+                      p_coeff(r_over_R0, inidat.coefficients);
 
         } else {
           fab(i, 0) = 0.0;
         }
-
       });
     });
-  } 
+  }
 
   fub::DimensionalSplitLevelIntegrator advection(
-      fub::int_c<2>, fub::amrex::BK19IntegratorContext(grid, method, 2, 0),
-      fub::GodunovSplitting());
+      fub::int_c<2>, std::move(simulation_data), fub::StrangSplitting());
 
   fub::amrex::BK19LevelIntegrator level_integrator(equation,
                                                    std::move(advection), linop);
 
   fub::amrex::BK19AdvectiveFluxes& Pv =
       level_integrator.GetContext().GetAdvectiveFluxes(0);
-  Pv.on_faces[0].setVal(0.0);
-  Pv.on_faces[1].setVal(0.0);
-  //fub::amrex::RecomputeAdvectiveFluxes(index, Pv.on_faces, Pv.on_cells, level_integrator.GetContext().GetScratch(0), level_integrator.GetContext().GetGeometry(0).periodicity());
+  // Pv.on_faces[0].setVal(0.0);
+  // Pv.on_faces[1].setVal(0.0);
+  fub::amrex::RecomputeAdvectiveFluxes(
+      index, Pv.on_faces, Pv.on_cells,
+      level_integrator.GetContext().GetScratch(0),
+      level_integrator.GetContext().GetGeometry(0).periodicity());
 
   fub::NoSubcycleSolver solver(std::move(level_integrator));
 
@@ -249,15 +256,13 @@ int main() {
   std::string base_name = "BK19_Pseudo_Incompressible/";
 
   fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> output{};
-//   output.AddOutput(fub::MakeOutput<fub::amrex::GriddingAlgorithm>(
-//       {1}, {0.1s}, fub::amrex::PlotfileOutput(equation, base_name)));
   output.AddOutput(fub::MakeOutput<fub::amrex::GriddingAlgorithm>(
       {1}, {}, fub::amrex::WriteBK19Plotfile{base_name}));
 
-//   output(*solver.GetGriddingAlgorithm());
+  output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
-  run_options.final_time = 3.0s;
-  run_options.cfl = 0.8;
-  run_options.max_cycles = 2;
+  run_options.final_time = 1.0s;
+  run_options.cfl = 0.45;
+  // run_options.max_cycles = 10;
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }
