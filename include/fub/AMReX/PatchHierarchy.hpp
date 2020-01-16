@@ -27,6 +27,8 @@
 #include "fub/Execution.hpp"
 #include "fub/equations/IdealGasMix.hpp"
 #include "fub/ext/Eigen.hpp"
+#include "fub/ext/ProgramOptions.hpp"
+#include "fub/ext/Log.hpp"
 
 #include <AMReX_FluxRegister.H>
 #include <AMReX_Geometry.H>
@@ -36,6 +38,7 @@
 #include <AMReX_VisMF.H>
 
 #include <fmt/format.h>
+#include <fmt/ranges.h>
 
 #include <vector>
 
@@ -43,9 +46,15 @@ namespace fub {
 namespace amrex {
 
 struct PatchHierarchyOptions {
+  PatchHierarchyOptions() = default;
+  PatchHierarchyOptions(const ProgramOptions& options);
+
+  template <typename Log> void Print(Log& log);
+
   int max_number_of_levels{1};
   ::amrex::IntVect refine_ratio{AMREX_D_DECL(2, 2, 2)};
   ::amrex::IntVect blocking_factor{AMREX_D_DECL(32, 32, 32)};
+  ::amrex::IntVect max_grid_size{AMREX_D_DECL(128, 128, 128)};
 };
 
 /// The DataDescription class contains all information which is neccessary to
@@ -101,7 +110,8 @@ struct PatchLevel {
   /// \param dm  the distribution mapping for the array
   /// \param n_components the number of components of the array
   PatchLevel(int num, Duration tp, const ::amrex::BoxArray& ba,
-             const ::amrex::DistributionMapping& dm, const DataDescription& desc);
+             const ::amrex::DistributionMapping& dm,
+             const DataDescription& desc);
 
   /// Allocates arrays with specified box array and distribution mapping.
   ///
@@ -308,7 +318,7 @@ PatchHierarchy ReadCheckpointFile(const std::string& checkpointname,
                                   const PatchHierarchyOptions& options);
 
 template <typename Equation>
-PatchHierarchy:: PatchHierarchy(const Equation& equation,
+PatchHierarchy::PatchHierarchy(const Equation& equation,
                                const CartesianGridGeometry& geometry,
                                const PatchHierarchyOptions& options)
     : PatchHierarchy(MakeDataDescription(equation), geometry, options) {}
@@ -333,6 +343,23 @@ void WriteTubeData(const std::string& filename, const PatchHierarchy& hierarchy,
 void WriteToHDF5(const std::string& name, const ::amrex::FArrayBox& fab,
                  const ::amrex::Geometry& geom, Duration time_point,
                  std::ptrdiff_t cycle) noexcept;
+
+template <typename Log> void PatchHierarchyOptions::Print(Log& log) {
+  std::array<int, AMREX_SPACEDIM> ref_ratio{};
+  std::array<int, AMREX_SPACEDIM> blocking{};
+  std::array<int, AMREX_SPACEDIM> max_grid{};
+  std::copy_n(refine_ratio.begin(), AMREX_SPACEDIM, ref_ratio.begin());
+  std::copy_n(blocking_factor.begin(), AMREX_SPACEDIM, blocking.begin());
+  std::copy_n(max_grid_size.begin(), AMREX_SPACEDIM, max_grid.begin());
+  BOOST_LOG(log) << fmt::format(" - max_number_of_levels = {}",
+                                max_number_of_levels);
+  BOOST_LOG(log) << fmt::format(" - refine_ratio = {{{}}}",
+                                fmt::join(ref_ratio, ", "));
+  BOOST_LOG(log) << fmt::format(" - blocking_factor = {{{}}}",
+                                fmt::join(blocking, ", "));
+  BOOST_LOG(log) << fmt::format(" - max_grid_size = {{{}}}",
+                                fmt::join(max_grid, ", "));
+}
 
 } // namespace amrex
 } // namespace fub

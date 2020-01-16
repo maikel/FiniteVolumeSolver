@@ -128,29 +128,22 @@ struct InitialData {
   std::array<double, 2> U0{1.0, 1.0};
 };
 
-int main() {
+void MyMain(const fub::ProgramOptions& options) {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
-
-  fub::amrex::ScopeGuard guard{};
-  fub::InitializeLogging(MPI_COMM_WORLD);
 
   fub::amrex::DataDescription desc{};
   desc.n_state_components = 7;
   desc.n_cons_components = 4;
   desc.n_node_components = 1;
 
-  fub::amrex::CartesianGridGeometry geometry{};
-  geometry.cell_dimensions =
-      std::array<int, AMREX_SPACEDIM>{AMREX_D_DECL(32, 32, 1)};
-  //       std::array<int, AMREX_SPACEDIM>{AMREX_D_DECL(128, 128, 1)};
-  geometry.coordinates = amrex::RealBox({AMREX_D_DECL(0.0, 0.0, 0.0)},
-                                        {AMREX_D_DECL(1.0, 1.0, 1.0)});
-  geometry.periodicity = std::array<int, AMREX_SPACEDIM>{AMREX_D_DECL(1, 1, 1)};
+  fub::ProgramOptions grid_options =
+      fub::ToMap(fub::GetOptionOr(options, "GridGeometry", pybind11::dict()));
+  fub::amrex::CartesianGridGeometry geometry{grid_options};
 
-  fub::amrex::PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = 1;
-  hier_opts.refine_ratio = amrex::IntVect{AMREX_D_DECL(2, 2, 1)};
+  fub::ProgramOptions hierarchy_options = fub::ToMap(
+      fub::GetOptionOr(options, "PatchHierarchyOptions", pybind11::dict()));
+  fub::amrex::PatchHierarchyOptions hier_opts(hierarchy_options);
 
   fub::amrex::PatchHierarchy hierarchy(desc, geometry, hier_opts);
 
@@ -167,13 +160,6 @@ int main() {
       std::move(hierarchy), inidat,
       fub::amrex::TagAllOf{gradient, fub::amrex::TagBuffer(2)});
   grid->InitializeHierarchy(0.0);
-
-  // setup linear operator and solver, AKA the nodal Laplacian
-  int mg_verbose = 1;
-  int bottom_verbose = 1;
-  int max_iter = 100;
-  double reltol = 1.e-10;
-  double abstol = 1.e-13;
 
   // set number of MG levels to 1 (effectively no MG)
   amrex::LPInfo lp_info;
@@ -238,8 +224,10 @@ int main() {
   fub::DimensionalSplitLevelIntegrator advection(
       fub::int_c<2>, std::move(simulation_data), fub::StrangSplitting());
 
-  fub::amrex::BK19LevelIntegrator level_integrator(equation,
-                                                   std::move(advection), linop);
+  fub::ProgramOptions integrator_options = fub::ToMap(
+      fub::GetOptionOr(options, "BK19LevelIntegrator", pybind11::dict()));
+  fub::amrex::BK19LevelIntegrator level_integrator(
+      equation, std::move(advection), linop, integrator_options);
 
   fub::amrex::BK19AdvectiveFluxes& Pv =
       level_integrator.GetContext().GetAdvectiveFluxes(0);
@@ -265,4 +253,67 @@ int main() {
   run_options.cfl = 0.45;
   // run_options.max_cycles = 10;
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
+}
+
+std::optional<fub::ProgramOptions> ParseCommandLine(int argc, char** argv) {
+  namespace po = boost::program_options;
+  po::options_description desc{};
+  std::string config_path{};
+  desc.add_options()("config", po::value<std::string>(&config_path),
+                     "Path to the config file which can be parsed.");
+  po::variables_map vm;
+  fub::ProgramOptions options{};
+  try {
+    po::store(po::parse_command_line(argc, argv, desc), vm);
+    if (vm.count("config")) {
+      config_path = vm["config"].as<std::string>();
+      options = fub::ParsePythonScript(config_path, MPI_COMM_WORLD);
+    }
+    po::notify(vm);
+  } catch (std::exception& e) {
+    amrex::Print()
+        << "[Error] An Error occured while reading program options:\n";
+    amrex::Print() << e.what();
+    return {};
+  }
+
+  if (vm.count("help")) {
+    amrex::Print() << desc << "\n";
+    return {};
+  }
+  return options;
+}
+
+int main(int argc, char** argv) {
+  MPI_Init(nullptr, nullptr);
+  fub::InitializeLogging(MPI_COMM_WORLD);
+  pybind11::scoped_interpreter interpreter{};
+  {
+    fub::amrex::ScopeGuard _{};
+    std::optional<fub::ProgramOptions> vm = ParseCommandLine(argc, argv);
+    boost::log::sources::severity_logger<boost::log::trivial::severity_level>
+        log(boost::log::keywords::severity = boost::log::trivial::info);
+    if (vm) {
+      fub::ProgramOptions integrator_options = fub::ToMap(
+          fub::GetOptionOr(*vm, "BK19LevelIntegrator", pybind11::dict()));
+      BOOST_LOG(log) << "BK19LevelIntegrator Options:";
+      fub::amrex::BK19LevelIntegratorOptions(integrator_options).Print(log);
+
+      fub::ProgramOptions hierarchy_options = fub::ToMap(
+          fub::GetOptionOr(*vm, "PatchHierarchyOptions", pybind11::dict()));
+      BOOST_LOG(log) << "PatchHierarchy Options:";
+      fub::amrex::PatchHierarchyOptions(hierarchy_options).Print(log);
+
+      fub::ProgramOptions grid_options =
+          fub::ToMap(fub::GetOptionOr(*vm, "GridGeometry", pybind11::dict()));
+      BOOST_LOG(log) << "CartesianGridGeometry Options:";
+      fub::amrex::CartesianGridGeometry(grid_options).Print(log);
+      MyMain(*vm);
+    }
+  }
+  int flag = -1;
+  MPI_Finalized(&flag);
+  if (!flag) {
+    MPI_Finalize();
+  }
 }

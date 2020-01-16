@@ -30,17 +30,20 @@
 #include <boost/filesystem.hpp>
 #include <mpi.h>
 #include <pybind11/embed.h>
+#include <pybind11/stl.h>
 
 namespace fub {
 
-std::map<std::string, pybind11::object>
-ParsePythonScript(const boost::filesystem::path& path, MPI_Comm comm);
+using ProgramOptions = std::map<std::string, pybind11::object>;
 
-std::map<std::string, pybind11::object> ToMap(const pybind11::dict& dict);
+ProgramOptions ParsePythonScript(const boost::filesystem::path& path,
+                                 MPI_Comm comm);
+
+ProgramOptions ToMap(const pybind11::dict& dict);
 
 template <typename T>
-T GetOptionOr(const std::map<std::string, pybind11::object>& map,
-              const std::string& name, const T& value) {
+T GetOptionOr(const ProgramOptions& map, const std::string& name,
+              const T& value) {
   auto iter = map.find(name);
   if (iter != map.end()) {
     return iter->second.cast<T>();

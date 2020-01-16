@@ -186,6 +186,7 @@ GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier,
       AmrMesh::geom[ii] = hierarchy_.GetGeometry(i);
       AmrMesh::dmap[ii] = hierarchy_.GetPatchLevel(i).distribution_mapping;
       AmrMesh::grids[ii] = hierarchy_.GetPatchLevel(i).box_array;
+      AmrMesh::max_grid_size[ii] = hierarchy_.GetOptions().max_grid_size;
     }
   }
 }
@@ -212,6 +213,7 @@ GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier,
       AmrMesh::geom[ii] = hierarchy_.GetGeometry(i);
       AmrMesh::dmap[ii] = hierarchy_.GetPatchLevel(i).distribution_mapping;
       AmrMesh::grids[ii] = hierarchy_.GetPatchLevel(i).box_array;
+      AmrMesh::max_grid_size[ii] = hierarchy_.GetOptions().max_grid_size;
     }
   }
   for (int level = 0; level < hierarchy_.GetMaxNumberOfLevels(); ++level) {
