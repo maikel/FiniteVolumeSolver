@@ -88,6 +88,13 @@ void WriteBK19Plotfile::operator()(BK19IntegratorContext& context) const {
       name, nlevels, mf, varnames, geoms, time_point, level_steps, ref_ratio,
       "HyperCLaw-V1.1", "Level_", "Cell", {"raw_fields"});
 
+  ::amrex::WriteSingleLevelPlotfile(
+      fmt::format("{}/Pv_plt{:09}", plotfilename, context.GetCycles()),
+      context.GetAdvectiveFluxes(0).on_cells, {"Pv_0", "Pv_1"},
+      context.GetGeometry(0), context.GetTimePoint(0).count(),
+      context.GetCycles(0));
+  //  WriteRawField(path, "Pv", cells, level);
+
   for (int lev = 0; lev < nlevels; ++lev) {
     WriteRawField(name, "pi", context.GetPi(lev), lev);
     WriteAdvectiveFluxes(name, context.GetAdvectiveFluxes(lev), lev);
