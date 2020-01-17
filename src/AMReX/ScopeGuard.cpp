@@ -21,6 +21,8 @@
 #include "fub/AMReX/ScopeGuard.hpp"
 
 #include <AMReX.H>
+#include <AMReX_ParmParse.H>
+
 #include <mpi.h>
 
 namespace fub {
@@ -38,6 +40,8 @@ ScopeGuard::ScopeGuard() {
     owns_mpi = true;
   }
   ::amrex::Initialize(MPI_COMM_WORLD, std::cout, std::cerr, [](const char* msg) { throw std::runtime_error(msg); });
+  ::amrex::ParmParse pp("amr");
+  pp.add("check_input", false);
 }
 
 ScopeGuard::~ScopeGuard() { 
