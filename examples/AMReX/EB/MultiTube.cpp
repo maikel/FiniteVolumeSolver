@@ -49,7 +49,7 @@ static constexpr double r_tube = 0.015;
 static constexpr double r_inner = 0.5 * 0.130;
 static constexpr double r_outer = 0.5 * 0.385;
 static constexpr double r_tube_center = 0.5 * r_inner + 0.5 * r_outer;
-static constexpr double alpha = 2. * M_PI / 5.;
+static constexpr double alpha = 2. * M_PI / 6.;
 
 auto Center(double x, double phi) -> ::amrex::RealArray {
   using std::cos;
@@ -95,6 +95,8 @@ auto MakeTubeSolver(fub::Burke2012& mechanism, const TubeSolverOptions& opts,
   PatchHierarchyOptions hier_opts;
   hier_opts.max_number_of_levels = opts.max_refinement_level;
   hier_opts.refine_ratio = amrex::IntVect{2, 1, 1};
+  hier_opts.blocking_factor = amrex::IntVect{8, 1, 1};
+  hier_opts.max_grid_size = amrex::IntVect{1024, 1, 1};
 
   amrex::Geometry geom(
       amrex::Box{{}, {n_cells[0] - 1, n_cells[1] - 1, n_cells[2] - 1}}, &xbox,
@@ -157,7 +159,7 @@ auto MakeTubeSolver(fub::Burke2012& mechanism, const TubeSolverOptions& opts,
   fub::EinfeldtSignalVelocities<fub::IdealGasMix<Tube_Rank>> signals{};
   fub::HllMethod hll_method{equation, signals};
   // fub::ideal_gas::MusclHancockPrimMethod<Tube_Rank> flux_method{equation};
-  HyperbolicMethod method{FluxMethod(hll_method), ForwardIntegrator(),
+  HyperbolicMethod method{FluxMethod(hll_method), ForwardIntegrator(fub::execution::openmp_simd),
                           Reconstruction(equation)};
 
   const int scratch_gcw = 2;
@@ -211,6 +213,8 @@ auto MakePlenumSolver(fub::Burke2012& mechanism, int num_cells, int n_level,
           amrex::EB2::CylinderIF(r_tube, 0.3, 0, Center(-0.1, 3.0 * alpha),
                                  true),
           amrex::EB2::CylinderIF(r_tube, 0.3, 0, Center(-0.1, 4.0 * alpha),
+                                 true)),
+          amrex::EB2::CylinderIF(r_tube, 0.3, 0, Center(-0.1, 5.0 * alpha),
                                  true)),
       amrex::EB2::CylinderIF(r_inner, 1.0, 0, {0.25, 0.0, 0.0}, false));
   auto shop = amrex::EB2::makeShop(embedded_boundary);
@@ -449,6 +453,7 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   connectivity.push_back(MakeConnection(2));
   connectivity.push_back(MakeConnection(3));
   connectivity.push_back(MakeConnection(4));
+  connectivity.push_back(MakeConnection(5));
 
   fub::IdealGasMix<Tube_Rank> tube_equation{mechanism};
   fub::IdealGasMix<Plenum_Rank> equation{mechanism};
