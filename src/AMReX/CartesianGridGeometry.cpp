@@ -32,4 +32,28 @@ CartesianGridGeometry::CartesianGridGeometry(const ProgramOptions& options) {
   periodicity = GetOptionOr(options, "periodicity", periodicity);
 }
 
+::amrex::Box BoxWhichContains(const ::amrex::RealBox& xbox,
+                              const ::amrex::Geometry& geom) {
+  ::amrex::Box domain = geom.Domain();
+  ::amrex::IntVect lo = domain.smallEnd();
+  ::amrex::IntVect up = domain.bigEnd();
+  for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+    for (int i = domain.smallEnd(d); i < domain.bigEnd(d); ++i) {
+      const double x = geom.CellCenter(i, d);
+      if (x < xbox.lo(d)) {
+        lo[d] = std::max(lo[d], i);
+      }
+      if (x > xbox.hi(d)) {
+        up[d] = std::min(up[d], i);
+      }
+    }
+  }
+  return ::amrex::Box{lo, up};
+}
+
+::amrex::RealBox DomainAroundCenter(const ::amrex::RealArray& x, const ::amrex::RealArray& rx) {
+  return ::amrex::RealBox{{AMREX_D_DECL(x[0] - rx[0], x[1] - rx[1], x[2] - rx[2])},
+                          {AMREX_D_DECL(x[0] + rx[0], x[1] + rx[1], x[2] + rx[2])}};
+}
+
 } // namespace fub::amrex

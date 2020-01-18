@@ -26,6 +26,7 @@
 
 #include <map>
 #include <string>
+#include <optional>
 
 #include <boost/filesystem.hpp>
 #include <mpi.h>
@@ -50,6 +51,10 @@ T GetOptionOr(const ProgramOptions& map, const std::string& name,
   }
   return value;
 }
+
+ProgramOptions GetOptions(const ProgramOptions& options, const std::string& name);
+
+std::optional<ProgramOptions> ParseCommandLine(int argc, char** argv);
 
 } // namespace fub
 

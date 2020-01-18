@@ -22,6 +22,11 @@
 #include "fub/ext/Mpi.hpp"
 
 #include <fmt/format.h>
+
+#include <boost/program_options.hpp>
+#include <boost/log/sources/severity_logger.hpp>
+#include <boost/log/trivial.hpp>
+
 #include <fstream>
 #include <string>
 
@@ -52,6 +57,46 @@ std::map<std::string, pybind11::object> ToMap(const pybind11::dict& dict) {
     options.emplace(key, pybind11::cast<pybind11::object>(v));
   }
   return options;
+}
+
+std::optional<ProgramOptions> ParseCommandLine(int argc, char** argv) {
+  namespace po = boost::program_options;
+  po::options_description desc{};
+  std::string config_path{};
+  desc.add_options()("config", po::value<std::string>(&config_path),
+                     "Path to the config file which can be parsed.");
+  desc.add_options()("help", "Print this help message.");
+  po::variables_map vm;
+  ProgramOptions options{};
+  namespace logger = boost::log;
+  using namespace logger::trivial;
+  try {
+    po::store(po::parse_command_line(argc, argv, desc), vm);
+    if (vm.count("config")) {
+      config_path = vm["config"].as<std::string>();
+      options = ParsePythonScript(config_path, MPI_COMM_WORLD);
+    }
+    po::notify(vm);
+  } catch (std::exception& e) {
+    logger::sources::severity_logger<severity_level> log(
+      logger::keywords::severity = error);
+    BOOST_LOG(log) << "An Error occured while reading program options:";
+    BOOST_LOG(log) << e.what();
+    return {};
+  }
+
+  if (vm.count("help")) {
+    logger::sources::severity_logger<severity_level> log(
+      logger::keywords::severity = info);
+    BOOST_LOG(log) << desc;
+    return {};
+  }
+
+  return options;
+}
+
+ProgramOptions GetOptions(const ProgramOptions& options, const std::string& name) {
+  return ToMap(GetOptionOr(options, name, pybind11::dict()));
 }
 
 }

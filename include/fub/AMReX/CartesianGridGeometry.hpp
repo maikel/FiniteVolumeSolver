@@ -58,6 +58,11 @@ template <typename Log> void CartesianGridGeometry::Print(Log& log) {
                                 fmt::join(periodicity, ", "));
 }
 
+::amrex::RealBox DomainAroundCenter(const ::amrex::RealArray& x, double rx);
+
+::amrex::Box BoxWhichContains(const ::amrex::RealBox& xbox,
+                              const ::amrex::Geometry& geom);
+
 } // namespace amrex
 } // namespace fub
 

@@ -55,6 +55,15 @@ extern template struct ForwardIntegrator<execution::OpenMpTag>;
 extern template struct ForwardIntegrator<execution::SimdTag>;
 extern template struct ForwardIntegrator<execution::OpenMpSimdTag>;
 
+inline ForwardIntegrator<execution::OpenMpSimdTag> EulerForwardTimeIntegrator() {
+  return {};
+}
+
+template <typename Tag>
+ForwardIntegrator<Tag> EulerForwardTimeIntegrator(Tag) {
+  return {};
+}
+
 } // namespace fub::amrex
 
 #endif

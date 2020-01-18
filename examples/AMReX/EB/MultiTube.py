@@ -1,8 +1,8 @@
 cfl = 0.95
 final_time = 1.0
-# max_cycles = 0
+max_cycles = 10
 max_number_of_levels = 1
-plenum_n_cells = 32
+plenum_n_cells = 64
 
 
 output = {
@@ -21,7 +21,7 @@ ignite = {
 }
 
 valves = dict()
-for i in range(5):
+for i in range(6):
   valves[i] = {
     'efficiency': 1.0,
     'open_at_interval': 0.03333333,
@@ -40,5 +40,6 @@ valve1 = valves[1]
 valve2 = valves[2]
 valve3 = valves[3]
 valve4 = valves[4]
+valve5 = valves[5]
 
 
