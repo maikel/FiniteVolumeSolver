@@ -163,6 +163,15 @@ GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier, InitialData data,
       initial_condition_{std::move(data)}, tagging_{std::move(tagging)},
       boundary_condition_(std::size_t(hier.GetMaxNumberOfLevels()),
                           std::move(boundary)) {
+  const PatchHierarchyOptions& options = hierarchy_.GetOptions();
+  AmrMesh::SetMaxGridSize(options.max_grid_size);
+  AmrMesh::SetBlockingFactor(options.blocking_factor);
+  AmrMesh::SetNProper(options.n_proper);
+  AmrMesh::SetGridEff(options.grid_efficiency);
+  AmrMesh::verbose = options.verbose;
+  AmrCore::verbose = options.verbose;
+  AmrMesh::n_error_buf = ::amrex::Vector<::amrex::IntVect>(
+      AmrMesh::n_error_buf.size(), options.n_error_buf);
   if (hier.GetNumberOfLevels() > 0) {
     for (int i = 0; i < hier.GetNumberOfLevels(); ++i) {
       const std::size_t ii = static_cast<std::size_t>(i);

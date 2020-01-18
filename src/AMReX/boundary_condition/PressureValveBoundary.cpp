@@ -35,12 +35,9 @@ PressureValveBoundary::PressureValveBoundary(const IdealGasMix<1>& equation,
     : options_{std::move(options)}, equation_{equation},
       shared_valve_{std::make_shared<PressureValve>(PressureValve{})} {}
 
-PressureValveOptions::PressureValveOptions(
-    const std::map<std::string, pybind11::object>& map, std::string p)
-    : prefix{std::move(p)} {
-  if (map.count(prefix)) {
-    std::map<std::string, pybind11::object> opts =
-        ToMap(pybind11::dict(map.at(prefix)));
+PressureValveOptions::PressureValveOptions(const ProgramOptions& opts)
+{
+    prefix = GetOptionOr(opts, "prefix", prefix);
     outer_pressure = GetOptionOr(opts, "outer_pressure", outer_pressure);
     outer_temperature =
         GetOptionOr(opts, "outer_temperature", outer_temperature);
@@ -64,7 +61,6 @@ PressureValveOptions::PressureValveOptions(
                                              fuel_measurement_criterium);
     fuel_measurement_position = GetOptionOr(opts, "fuel_measurement_position",
                                             fuel_measurement_position);
-  }
 }
 
 PressureValveBoundary::PressureValveBoundary(

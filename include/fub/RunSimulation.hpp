@@ -43,15 +43,14 @@ namespace fub {
 struct RunOptions {
   RunOptions() = default;
 
-  explicit RunOptions(const std::map<std::string, pybind11::object>& vm);
+  explicit RunOptions(const ProgramOptions& vm);
 
   template <typename Logger> void Print(Logger& log) {
-    BOOST_LOG(log) << "Run Options:"
-                   << "\n  - final_time = " << final_time.count() << " [s]"
-                   << "\n  - max_cycles = " << max_cycles << " [-]"
-                   << "\n  - smallest_time_step_size = "
-                   << smallest_time_step_size.count() << " [s]"
-                   << "\n  - cfl = " << cfl << " [-]";
+    BOOST_LOG(log) << " - final_time = " << final_time.count() << " [s]";
+    BOOST_LOG(log) << " - max_cycles = " << max_cycles << " [-]";
+    BOOST_LOG(log) << " - smallest_time_step_size = "
+                   << smallest_time_step_size.count() << " [s]";
+    BOOST_LOG(log) << " - cfl = " << cfl << " [-]";
   }
 
   Duration final_time{1.0};
@@ -72,8 +71,8 @@ template <typename Solver,
           typename Grid = std::decay_t<
               decltype(*std::declval<Solver&>().GetGriddingAlgorithm())>>
 void RunSimulation(Solver& solver, RunOptions options,
-                     std::chrono::steady_clock::time_point wall_time_reference,
-                     BasicOutput<Grid>& output) {
+                   std::chrono::steady_clock::time_point wall_time_reference,
+                   BasicOutput<Grid>& output) {
   namespace logger = boost::log;
   using namespace logger::trivial;
   logger::sources::severity_logger<severity_level> log(

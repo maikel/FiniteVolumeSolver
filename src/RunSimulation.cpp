@@ -29,10 +29,10 @@ namespace fub {
 
 RunOptions::RunOptions(const std::map<std::string, pybind11::object>& vm) {
   final_time = Duration(GetOptionOr(vm, "final_time", final_time.count()));
-  max_cycles = GetOptionOr(vm, "max_cycles", -1);
-  smallest_time_step_size =
-      Duration(GetOptionOr(vm, "smallest_time_step_size", 1.0E-12));
-  cfl = GetOptionOr(vm, "cfl", 0.8);
+  max_cycles = GetOptionOr(vm, "max_cycles", max_cycles);
+  smallest_time_step_size = Duration(GetOptionOr(
+      vm, "smallest_time_step_size", smallest_time_step_size.count()));
+  cfl = GetOptionOr(vm, "cfl", cfl);
 }
 
 std::string
