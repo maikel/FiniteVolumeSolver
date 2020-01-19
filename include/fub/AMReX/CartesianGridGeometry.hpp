@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/ext/ProgramOptions.hpp"
 #include "fub/ext/Log.hpp"
+#include "fub/ext/ProgramOptions.hpp"
 
 #include <AMReX_Geometry.H>
 
@@ -58,7 +58,8 @@ template <typename Log> void CartesianGridGeometry::Print(Log& log) {
                                 fmt::join(periodicity, ", "));
 }
 
-::amrex::RealBox DomainAroundCenter(const ::amrex::RealArray& x, const ::amrex::RealArray& rx);
+::amrex::RealBox DomainAroundCenter(const ::amrex::RealArray& x,
+                                    const ::amrex::RealArray& rx);
 
 ::amrex::Box BoxWhichContains(const ::amrex::RealBox& xbox,
                               const ::amrex::Geometry& geom);
