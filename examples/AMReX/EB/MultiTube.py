@@ -5,15 +5,13 @@ max_number_of_levels = 1
 plenum_n_cells = 64
 
 
-output = {
-    'Plotfile': { 
+Output = [{ 
     'type': 'Plotfile',
     'directory': 'MultiTube/Test/',
     'intervals': [1e-4],
-  }
-}
+}]
 
-ignite = {
+IgniteDetonation = {
   'interval': 0.03333333,
   'measurement_position': -0.2,
   'equivalence_ratio_criterium': 0.8,

@@ -56,13 +56,13 @@ auto Center(double x, double phi) -> ::amrex::RealArray {
 }
 
 auto MakeTubeSolver(fub::Burke2012& mechanism,
-                    const fub::ProgramOptions& options,
-                    int k, const std::shared_ptr<fub::CounterRegistry>& counters) {
+                    const fub::ProgramOptions& options, int k,
+                    const std::shared_ptr<fub::CounterRegistry>& counters) {
   using namespace fub::amrex;
 
-  DataDescription desc = MakeDataDescription(equation);
   CartesianGridGeometry grid_geometry(fub::GetOptions(options, "GridGeometry"));
-  PatchHierarchyOptions hierarchy_options(fub::GetOptions(options, "PatchHierarchy"));
+  PatchHierarchyOptions hierarchy_options(
+      fub::GetOptions(options, "PatchHierarchy"));
 
   using Complete = fub::IdealGasMix<Tube_Rank>::Complete;
   fub::IdealGasMix<Tube_Rank> equation{fub::FlameMasterReactor(mechanism)};
@@ -70,15 +70,21 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
                             std::make_pair(&Complete::pressure, 1e-2),
                             std::make_pair(&Complete::temperature, 1e-1)};
 
-  ::amrex::Box refine_box{{grid_geometry.cell_dimensions[0] - 5, 0, 0}, {grid_geometry.cell_dimensions[0] - 1, 0, 0}};
+  ::amrex::Box refine_box{{grid_geometry.cell_dimensions[0] - 5, 0, 0},
+                          {grid_geometry.cell_dimensions[0] - 1, 0, 0}};
   ConstantBox constant_box{refine_box};
 
   Complete state(equation);
   {
-    const fub::ProgramOptions intial_options = fub::GetOptions(options, "InitialCondition");
-    const std::string moles = fub::GetOption(initial_options, "moles", "N2:79,O2:21"s);
-    const double temperature = fub::GetOption(initial_options, "temperature", 300.0);
-    const double pressure = fub::GetOption(initial_options, "pressure", 101325.0);
+    using namespace std::literals;
+    const fub::ProgramOptions initial_options =
+        fub::GetOptions(options, "InitialCondition");
+    const std::string moles =
+        fub::GetOptionOr(initial_options, "moles", "N2:79,O2:21"s);
+    const double temperature =
+        fub::GetOptionOr(initial_options, "temperature", 300.0);
+    const double pressure =
+        fub::GetOptionOr(initial_options, "pressure", 101325.0);
     equation.GetReactor().SetMoleFractions(moles);
     equation.GetReactor().SetTemperature(temperature);
     equation.GetReactor().SetPressure(pressure);
@@ -86,7 +92,8 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
   }
   ConstantData initial_data{equation, state};
 
-  PressureValveOptions valve_options = fub::GetOptions(options, "PressureValve");
+  PressureValveOptions valve_options =
+      fub::GetOptions(options, "PressureValve");
   PressureValveBoundary valve{equation, valve_options};
   BoundarySet boundaries{{valve}};
 
@@ -108,14 +115,16 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
     }
     if (checkpoint.empty()) {
       std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
-          PatchHierarchy(desc, geometry, hier_opts), initial_data,
-          TagAllOf(gradient, constant_box), boundaries);
+          PatchHierarchy(equation, grid_geometry, hierarchy_options),
+          initial_data, TagAllOf(gradient, constant_box), boundaries);
       gridding->InitializeHierarchy(0.0);
       return gridding;
     } else {
       checkpoint = fmt::format("{}/Tube_{}", checkpoint, k);
-      PatchHierarchy h =
-          ReadCheckpointFile(checkpoint, desc, geometry, hier_opts);
+      fub::amrex::DataDescription desc =
+          fub::amrex::MakeDataDescription(equation);
+      PatchHierarchy h = ReadCheckpointFile(checkpoint, desc, grid_geometry,
+                                            hierarchy_options);
       std::shared_ptr<GriddingAlgorithm> gridding =
           std::make_shared<GriddingAlgorithm>(std::move(h), initial_data,
                                               TagAllOf(gradient, constant_box),
@@ -141,60 +150,70 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
 
 auto MakePlenumSolver(fub::Burke2012& mechanism,
                       const fub::ProgramOptions& options) {
-  fub::amrex::CartesianGridGeometry grid_geometry(fub::GetOptions(options, "GridGeometry"));
-  amrex::Geometry coarse_geometry(amrex::Box{{}, grid_geom.cell_dimensions},
-                              &grid_geom.coordinates, -1, 
-                              grid_geom.periodicity.data());
+  fub::amrex::CartesianGridGeometry grid_geometry(
+      fub::GetOptions(options, "GridGeometry"));
+  amrex::Geometry coarse_geometry(
+      amrex::Box{{}, amrex::IntVect(grid_geometry.cell_dimensions)},
+      &grid_geometry.coordinates, -1, grid_geometry.periodicity.data());
+
+  auto Cylinder = [&](double radius, double height,
+                      const std::array<double, 3>& center) {
+    return amrex::EB2::CylinderIF(radius, height, 0, center, true);
+  };
 
   auto embedded_boundary = amrex::EB2::makeUnion(
       amrex::EB2::makeIntersection(
-          amrex::EB2::CylinderIF(r_outer, 0.5, 0, {0.25, 0.0, 0.0}, true),
-          amrex::EB2::CylinderIF(r_tube, 0.3, 0, Center(-0.1, 0.0 * alpha),
-                                 true),
-          amrex::EB2::CylinderIF(r_tube, 0.3, 0, Center(-0.1, 1.0 * alpha),
-                                 true),
-          amrex::EB2::CylinderIF(r_tube, 0.3, 0, Center(-0.1, 2.0 * alpha),
-                                 true),
-          amrex::EB2::CylinderIF(r_tube, 0.3, 0, Center(-0.1, 3.0 * alpha),
-                                 true),
-          amrex::EB2::CylinderIF(r_tube, 0.3, 0, Center(-0.1, 4.0 * alpha),
-                                 true),
-          amrex::EB2::CylinderIF(r_tube, 0.3, 0, Center(-0.1, 5.0 * alpha),
-                                 true)),
+          Cylinder(r_outer, 0.5, {0.25, 0.0, 0.0}),
+          Cylinder(r_tube, 0.3, Center(-0.1, 0.0 * alpha)),
+          Cylinder(r_tube, 0.3, Center(-0.1, 1.0 * alpha)),
+          Cylinder(r_tube, 0.3, Center(-0.1, 2.0 * alpha)),
+          Cylinder(r_tube, 0.3, Center(-0.1, 3.0 * alpha)),
+          Cylinder(r_tube, 0.3, Center(-0.1, 4.0 * alpha)),
+          Cylinder(r_tube, 0.3, Center(-0.1, 5.0 * alpha))),
       amrex::EB2::CylinderIF(r_inner, 1.0, 0, {0.25, 0.0, 0.0}, false));
   auto shop = amrex::EB2::makeShop(embedded_boundary);
 
   fub::IdealGasMix<Plenum_Rank> equation{mechanism};
-  fub::Complete<fub::IdealGasMix<Plenum_Rank>> initial_state(equation);
+  fub::Complete<fub::IdealGasMix<Plenum_Rank>> state(equation);
   {
-    const fub::ProgramOptions intial_options = fub::GetOptions(options, "InitialCondition");
-    const std::string moles = fub::GetOption(initial_options, "moles", "N2:79,O2:21"s);
-    const double temperature = fub::GetOption(initial_options, "temperature", 300.0);
-    const double pressure = fub::GetOption(initial_options, "pressure", 101325.0);
+    using namespace std::literals;
+    const fub::ProgramOptions initial_options =
+        fub::GetOptions(options, "InitialCondition");
+    const std::string moles =
+        fub::GetOptionOr(initial_options, "moles", "N2:79,O2:21"s);
+    const double temperature =
+        fub::GetOptionOr(initial_options, "temperature", 300.0);
+    const double pressure =
+        fub::GetOptionOr(initial_options, "pressure", 101325.0);
     equation.GetReactor().SetMoleFractions(moles);
     equation.GetReactor().SetTemperature(temperature);
     equation.GetReactor().SetPressure(pressure);
     equation.CompleteFromReactor(state);
   }
   using namespace fub::amrex::cutcell;
-  RiemannProblem initial_data(
-      equation, fub::Halfspace({+1.0, 0.0, 0.0}, 0.0), state, state);
+  RiemannProblem initial_data(equation, fub::Halfspace({+1.0, 0.0, 0.0}, 0.0),
+                              state, state);
 
-  PatchHierarchyOptions hierarchy_options(fub::GetOptions(options, "PatchHierarchy"));
-  hierarchy_options.index_spaces = MakeIndexSpaces(shop, coarse_geom, hierarchy_options.max_number_of_level);
+  PatchHierarchyOptions hierarchy_options(
+      fub::GetOptions(options, "PatchHierarchy"));
+  hierarchy_options.index_spaces = MakeIndexSpaces(
+      shop, coarse_geometry, hierarchy_options.max_number_of_levels);
 
   using State = fub::Complete<fub::IdealGasMix<Plenum_Rank>>;
   GradientDetector gradients{equation, std::pair{&State::pressure, 0.05},
                              std::pair{&State::density, 0.01}};
 
   ::amrex::RealBox inlet{{-0.1, -0.5, -0.5}, {0.05, +0.5, +0.5}};
-  const ::amrex::Box refine_box = fub::amrex::BoxWhichContains(inlet, coarse_geom);
+  const ::amrex::Box refine_box =
+      fub::amrex::BoxWhichContains(inlet, coarse_geometry);
   ConstantBox constant_box{refine_box};
 
   ::amrex::RealBox outlet{{0.5, -0.5, -0.5}, {0.54, +0.5, +0.5}};
-  const ::amrex::Box outlet_box = fub::amrex::BoxWhichContains(outlet, coarse_geom);
+  const ::amrex::Box outlet_box =
+      fub::amrex::BoxWhichContains(outlet, coarse_geometry);
 
-  IsentropicPressureBoundaryOptions boundary_options = fub::GetOptions(options, "IsentropicPressureBoundary");
+  IsentropicPressureBoundaryOptions boundary_options =
+      fub::GetOptions(options, "IsentropicPressureBoundary");
   BoundarySet boundary_condition{
       {TransmissiveBoundary{fub::Direction::X, 0},
        IsentropicPressureBoundary{equation, boundary_options}}};
@@ -209,7 +228,8 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
     }
     if (checkpoint.empty()) {
       std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
-          PatchHierarchy(equation, geometry, hier_opts), initial_data,
+          PatchHierarchy(equation, grid_geometry, hierarchy_options),
+          initial_data,
           TagAllOf(TagCutCells(), gradients, constant_box, TagBuffer(2)),
           boundary_condition);
       gridding->InitializeHierarchy(0.0);
@@ -217,8 +237,8 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
     } else {
       checkpoint += "/Plenum";
       PatchHierarchy h = ReadCheckpointFile(
-          checkpoint, fub::amrex::MakeDataDescription(equation), geometry,
-          hier_opts);
+          checkpoint, fub::amrex::MakeDataDescription(equation), grid_geometry,
+          hierarchy_options);
       return std::make_shared<GriddingAlgorithm>(
           std::move(h), initial_data,
           TagAllOf(TagCutCells(), gradients, constant_box, TagBuffer(2)),
@@ -251,11 +271,14 @@ struct CheckpointOptions {
 
   template <typename Logger> void Print(Logger& log) const {
     if (!checkpoint.empty()) {
-      BOOST_LOG(log) << "Restart simulation from checkpoint '" << checkpoint << "'!";
+      BOOST_LOG(log) << "Restart simulation from checkpoint '" << checkpoint
+                     << "'!";
     } else {
       BOOST_LOG(log) << "No Checkpoint given.";
     }
   }
+
+  std::string checkpoint{};
 };
 
 void WriteCheckpoint(
@@ -296,14 +319,15 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::Burke2012 mechanism{};
 
   auto plenum = MakePlenumSolver(mechanism, options);
-  auto counter_database = solver.GetContext().Plena()[0].registry_;
+  auto counter_database = plenum.registry_;
 
-  std::vector<fub::amrex::IntegratorContext> tubes;
+  std::vector<fub::amrex::IntegratorContext> tubes{};
   std::vector<fub::amrex::BlockConnection> connectivity{};
   std::vector<std::shared_ptr<fub::amrex::PressureValve>> valves{};
 
   auto MakeConnection = [&](int k) {
-    auto&& [tube, valve] = MakeTubeSolver(mechanism, options, k, counter_database);
+    auto&& [tube, valve] =
+        MakeTubeSolver(mechanism, options, k, counter_database);
     tubes.push_back(std::move(tube));
     valves.push_back(valve.GetSharedState());
     fub::amrex::BlockConnection connection;
@@ -317,9 +341,10 @@ void MyMain(const fub::ProgramOptions& options) {
                                      ->GetPatchHierarchy()
                                      .GetGeometry(0)
                                      .Domain();
-    connection.plenum.mirror_box =
-        fub::BoxWhichContains(fub::amrex::DomainAroundCenter(Center(-0.03, k * alpha), {0.03, r_tube, r_tube}),
-                         plenum.GetGeometry(0));
+    connection.plenum.mirror_box = fub::amrex::BoxWhichContains(
+        fub::amrex::DomainAroundCenter(Center(-0.03, k * alpha),
+                                       {0.03, r_tube, r_tube}),
+        plenum.GetGeometry(0));
     return connection;
   };
 
@@ -368,11 +393,10 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::SplitSystemSourceLevelIntegrator ign_solver(
       std::move(system_solver), std::move(ignition), fub::GodunovSplitting{});
 
-  fub::amrex::MultiBlockKineticSouceTerm source_term(
-      fub::IdealGasMix<Tube_Rank>{mechanism});
+  fub::amrex::MultiBlockKineticSouceTerm source_term(tube_equation);
 
   fub::SplitSystemSourceLevelIntegrator level_integrator(
-      std::move(ign_solver), std::move(source_term));
+      std::move(ign_solver), std::move(source_term), fub::GodunovSplitting{});
 
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
@@ -382,14 +406,14 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::MultipleOutputs<fub::amrex::MultiBlockGriddingAlgorithm> outputs(
       std::move(factory), fub::GetOptions(options, "Output"));
   outputs.AddOutput(
-      std::make_unique<
-          fub::CounterOutput<fub::amrex::MultiBlockGriddingAlgorithm, std::chrono::milliseconds>>(
-          solver.GetContext().Plena()[0].registry_, wall_time_reference,
-          std::vector<std::ptrdiff_t>{10},
-          std::vector<fub::Duration>{}));
+      std::make_unique<fub::CounterOutput<
+          fub::amrex::MultiBlockGriddingAlgorithm, std::chrono::milliseconds>>(
+          counter_database, wall_time_reference,
+          std::vector<std::ptrdiff_t>{10}, std::vector<fub::Duration>{}));
 
   outputs(*solver.GetGriddingAlgorithm());
-  fub::RunSimulation(solver, fub::RunOptions(vm), wall_time_reference, outputs);
+  fub::RunSimulation(solver, fub::GetOptions(options, "RunOptions"),
+                     wall_time_reference, outputs);
 }
 
 int main(int argc, char** argv) {

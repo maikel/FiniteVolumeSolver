@@ -43,7 +43,7 @@ namespace fub {
 struct RunOptions {
   RunOptions() = default;
 
-  explicit RunOptions(const ProgramOptions& vm);
+  RunOptions(const ProgramOptions& vm);
 
   template <typename Logger> void Print(Logger& log) {
     BOOST_LOG(log) << " - final_time = " << final_time.count() << " [s]";
