@@ -21,6 +21,23 @@
 #include "fub/AMReX/ViewFArrayBox.hpp"
 
 namespace fub {
+template <> 
+::amrex::IntVect GetOptionOr(const ProgramOptions& map, const std::string& name,
+              const ::amrex::IntVect& value) {
+  std::array<int, AMREX_SPACEDIM> iv{};
+  std::copy_n(value.begin(), AMREX_SPACEDIM, iv.begin());
+  iv = GetOptionOr(map, name, iv);
+  return ::amrex::IntVect(iv);
+}
+
+template <>
+::amrex::Box GetOptionOr(const ProgramOptions& map, const std::string& name,
+              const ::amrex::Box& value) {
+  ProgramOptions box = GetOptions(map, name);
+  ::amrex::IntVect lo = GetOptionOr(map, "lower", value.smallEnd());
+  ::amrex::IntVect hi = GetOptionOr(map, "upper", value.bigEnd());
+  return ::amrex::Box(lo, hi);
+}
 namespace amrex {
 
 std::array<std::ptrdiff_t, static_cast<std::size_t>(AMREX_SPACEDIM)>

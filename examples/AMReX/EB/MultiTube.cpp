@@ -152,9 +152,13 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
                       const fub::ProgramOptions& options) {
   fub::amrex::CartesianGridGeometry grid_geometry(
       fub::GetOptions(options, "GridGeometry"));
-  amrex::Geometry coarse_geometry(
-      amrex::Box{{}, amrex::IntVect(grid_geometry.cell_dimensions)},
-      &grid_geometry.coordinates, -1, grid_geometry.periodicity.data());
+  amrex::IntVect hi{};
+  std::transform(grid_geometry.cell_dimensions.begin(),
+                 grid_geometry.cell_dimensions.end(), hi.begin(),
+                 [](int iv) { return iv - 1; });
+  amrex::Geometry coarse_geometry(amrex::Box{{}, hi},
+                                  &grid_geometry.coordinates, -1,
+                                  grid_geometry.periodicity.data());
 
   auto Cylinder = [&](double radius, double height,
                       const std::array<double, 3>& center) {
@@ -208,9 +212,9 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
       fub::amrex::BoxWhichContains(inlet, coarse_geometry);
   ConstantBox constant_box{refine_box};
 
-  ::amrex::RealBox outlet{{0.5, -0.5, -0.5}, {0.54, +0.5, +0.5}};
-  const ::amrex::Box outlet_box =
-      fub::amrex::BoxWhichContains(outlet, coarse_geometry);
+  // ::amrex::RealBox outlet{{0.5, -0.5, -0.5}, {0.54, +0.5, +0.5}};
+  // const ::amrex::Box outlet_box =
+  //     fub::amrex::BoxWhichContains(outlet, coarse_geometry);
 
   IsentropicPressureBoundaryOptions boundary_options =
       fub::GetOptions(options, "IsentropicPressureBoundary");
@@ -315,6 +319,7 @@ void WriteCheckpoint(
 void MyMain(const fub::ProgramOptions& options) {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
+  fub::amrex::ScopeGuard scope_guard{};
 
   fub::Burke2012 mechanism{};
 
@@ -420,12 +425,9 @@ int main(int argc, char** argv) {
   MPI_Init(nullptr, nullptr);
   fub::InitializeLogging(MPI_COMM_WORLD);
   pybind11::scoped_interpreter interpreter{};
-  {
-    fub::amrex::ScopeGuard _{};
-    auto vm = fub::ParseCommandLine(argc, argv);
-    if (vm) {
-      MyMain(*vm);
-    }
+  std::optional<fub::ProgramOptions> opts = fub::ParseCommandLine(argc, argv);
+  if (opts) {
+    MyMain(*opts);
   }
   int flag = -1;
   MPI_Finalized(&flag);

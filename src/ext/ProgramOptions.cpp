@@ -23,14 +23,20 @@
 
 #include <fmt/format.h>
 
-#include <boost/program_options.hpp>
 #include <boost/log/sources/severity_logger.hpp>
 #include <boost/log/trivial.hpp>
+#include <boost/program_options.hpp>
 
 #include <fstream>
 #include <string>
 
 namespace fub {
+template <>
+Direction GetOptionOr(const ProgramOptions& map, const std::string& name,
+                      const Direction& value) {
+  int dir_v = GetOptionOr(map, name, static_cast<int>(value));
+  return static_cast<Direction>(dir_v);
+}
 
 std::map<std::string, pybind11::object>
 ParsePythonScript(const boost::filesystem::path& path, MPI_Comm comm) {
@@ -79,7 +85,7 @@ std::optional<ProgramOptions> ParseCommandLine(int argc, char** argv) {
     po::notify(vm);
   } catch (std::exception& e) {
     logger::sources::severity_logger<severity_level> log(
-      logger::keywords::severity = error);
+        logger::keywords::severity = error);
     BOOST_LOG(log) << "An Error occured while reading program options:";
     BOOST_LOG(log) << e.what();
     return {};
@@ -87,7 +93,7 @@ std::optional<ProgramOptions> ParseCommandLine(int argc, char** argv) {
 
   if (vm.count("help")) {
     logger::sources::severity_logger<severity_level> log(
-      logger::keywords::severity = info);
+        logger::keywords::severity = info);
     BOOST_LOG(log) << desc;
     return {};
   }
@@ -95,8 +101,9 @@ std::optional<ProgramOptions> ParseCommandLine(int argc, char** argv) {
   return options;
 }
 
-ProgramOptions GetOptions(const ProgramOptions& options, const std::string& name) {
+ProgramOptions GetOptions(const ProgramOptions& options,
+                          const std::string& name) {
   return ToMap(GetOptionOr(options, name, pybind11::dict()));
 }
 
-}
+} // namespace fub
