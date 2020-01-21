@@ -71,7 +71,7 @@ void UpdateConservatively_Row(double* next, const double* prev,
     const double betaR = cc.faceR.beta[i];
 
     const double regular =
-        prev[i] + dt_over_dx * (fluxL.unshielded[i] - fluxR.unshielded[i]);
+        prev[i] + dt_over_dx * (fluxL.stabilized[i] - fluxR.stabilized[i]);
 
     ////////////////////////////////////////////////////////////////////////////////////
     //                 beta_L > beta_R
