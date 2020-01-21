@@ -58,6 +58,7 @@ public:
   using SystemSolver::GetGriddingAlgorithm;
   using SystemSolver::GetMpiCommunicator;
   using SystemSolver::GetTimePoint;
+  using SystemSolver::GetCounterRegistry;
 
   using SystemSolver::FillGhostLayerSingleLevel;
   using SystemSolver::FillGhostLayerTwoLevels;
