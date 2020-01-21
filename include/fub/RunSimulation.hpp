@@ -71,7 +71,7 @@ FormatTimeStepLine(std::ptrdiff_t cycle,
                    std::chrono::steady_clock::duration wall_time_difference);
 
 template <typename DestGrid, typename SrcGrid>
-void MakeBackup(std::shared_ptr<DestGrid>& dest, const std::shared_ptr<const SrcGrid>& src, CounterRegistry& counter_database) {
+void MakeBackup(std::shared_ptr<DestGrid>& dest, const std::shared_ptr<SrcGrid>& src, CounterRegistry& counter_database) {
   Timer counter = counter_database.get_timer("MakeBackup()");
   dest = std::make_shared<DestGrid>(*src);
 }
