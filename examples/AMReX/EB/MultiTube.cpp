@@ -59,10 +59,16 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
                     const fub::ProgramOptions& options, int k,
                     const std::shared_ptr<fub::CounterRegistry>& counters) {
   using namespace fub::amrex;
+  std::vector<pybind11::dict> dicts{};
+  dicts = fub::GetOptionOr(options, "Tubes", dicts);
+  if (dicts.size() < size_t(k)) {
+    throw std::runtime_error("You need to specify options for each tube.");
+  }
+  fub::ProgramOptions tube_options = fub::ToMap(dicts[k]);
 
-  CartesianGridGeometry grid_geometry(fub::GetOptions(options, "GridGeometry"));
+  CartesianGridGeometry grid_geometry(fub::GetOptions(tube_options, "GridGeometry"));
   PatchHierarchyOptions hierarchy_options(
-      fub::GetOptions(options, "PatchHierarchy"));
+      fub::GetOptions(tube_options, "PatchHierarchy"));
 
   using Complete = fub::IdealGasMix<Tube_Rank>::Complete;
   fub::IdealGasMix<Tube_Rank> equation{fub::FlameMasterReactor(mechanism)};
@@ -78,7 +84,7 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
   {
     using namespace std::literals;
     const fub::ProgramOptions initial_options =
-        fub::GetOptions(options, "InitialCondition");
+        fub::GetOptions(tube_options, "InitialCondition");
     const std::string moles =
         fub::GetOptionOr(initial_options, "moles", "N2:79,O2:21"s);
     const double temperature =
@@ -93,7 +99,7 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
   ConstantData initial_data{equation, state};
 
   PressureValveOptions valve_options =
-      fub::GetOptions(options, "PressureValve");
+      fub::GetOptions(tube_options, "PressureValveBoundary");
   PressureValveBoundary valve{equation, valve_options};
   BoundarySet boundaries{{valve}};
 
@@ -150,8 +156,10 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
 
 auto MakePlenumSolver(fub::Burke2012& mechanism,
                       const fub::ProgramOptions& options) {
+  const fub::ProgramOptions plenum_options = fub::GetOptions(options, "Plenum");
+                    
   fub::amrex::CartesianGridGeometry grid_geometry(
-      fub::GetOptions(options, "GridGeometry"));
+      fub::GetOptions(plenum_options, "GridGeometry"));
   amrex::IntVect hi{};
   std::transform(grid_geometry.cell_dimensions.begin(),
                  grid_geometry.cell_dimensions.end(), hi.begin(),
@@ -182,7 +190,7 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
   {
     using namespace std::literals;
     const fub::ProgramOptions initial_options =
-        fub::GetOptions(options, "InitialCondition");
+        fub::GetOptions(plenum_options, "InitialCondition");
     const std::string moles =
         fub::GetOptionOr(initial_options, "moles", "N2:79,O2:21"s);
     const double temperature =
@@ -199,7 +207,7 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
                               state, state);
 
   PatchHierarchyOptions hierarchy_options(
-      fub::GetOptions(options, "PatchHierarchy"));
+      fub::GetOptions(plenum_options, "PatchHierarchy"));
   hierarchy_options.index_spaces = MakeIndexSpaces(
       shop, coarse_geometry, hierarchy_options.max_number_of_levels);
 
@@ -217,7 +225,7 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
   //     fub::amrex::BoxWhichContains(outlet, coarse_geometry);
 
   IsentropicPressureBoundaryOptions boundary_options =
-      fub::GetOptions(options, "IsentropicPressureBoundary");
+      fub::GetOptions(plenum_options, "IsentropicPressureBoundary");
   BoundarySet boundary_condition{
       {TransmissiveBoundary{fub::Direction::X, 0},
        IsentropicPressureBoundary{equation, boundary_options}}};
