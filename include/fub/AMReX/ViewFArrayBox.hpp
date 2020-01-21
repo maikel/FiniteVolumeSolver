@@ -28,6 +28,7 @@
 
 #include <AMReX_BaseFab.H>
 #include <AMReX_FArrayBox.H>
+#include <AMReX_RealBox.H>
 
 namespace fub {
 template <> 
@@ -37,6 +38,10 @@ template <>
 template <> 
 ::amrex::Box GetOptionOr(const ProgramOptions& map, const std::string& name,
               const ::amrex::Box& value);
+
+template <> 
+::amrex::RealBox GetOptionOr(const ProgramOptions& map, const std::string& name,
+              const ::amrex::RealBox& value);
 
 namespace amrex {
 

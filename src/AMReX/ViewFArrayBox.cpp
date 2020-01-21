@@ -34,10 +34,25 @@ template <>
 ::amrex::Box GetOptionOr(const ProgramOptions& map, const std::string& name,
               const ::amrex::Box& value) {
   ProgramOptions box = GetOptions(map, name);
-  ::amrex::IntVect lo = GetOptionOr(map, "lower", value.smallEnd());
-  ::amrex::IntVect hi = GetOptionOr(map, "upper", value.bigEnd());
+  ::amrex::IntVect lo = GetOptionOr(box, "lower", value.smallEnd());
+  ::amrex::IntVect hi = GetOptionOr(box, "upper", value.bigEnd());
   return ::amrex::Box(lo, hi);
 }
+
+
+template <> 
+::amrex::RealBox GetOptionOr(const ProgramOptions& map, const std::string& name,
+              const ::amrex::RealBox& value) {
+  ProgramOptions box = GetOptions(map, name);
+  std::array<double, AMREX_SPACEDIM> lo{};
+  std::array<double, AMREX_SPACEDIM> hi{};
+  std::copy_n(value.lo(), AMREX_SPACEDIM, lo.begin());
+  std::copy_n(value.hi(), AMREX_SPACEDIM, hi.begin());
+  lo = GetOptionOr(box, "lower", lo);
+  hi = GetOptionOr(box, "upper", hi);
+  return ::amrex::RealBox(lo, hi);
+}
+
 namespace amrex {
 
 std::array<std::ptrdiff_t, static_cast<std::size_t>(AMREX_SPACEDIM)>
