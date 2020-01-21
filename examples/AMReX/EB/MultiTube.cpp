@@ -139,14 +139,14 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
     }
   }();
 
-  fub::EinfeldtSignalVelocities<fub::IdealGasMix<Tube_Rank>> signals{};
-  fub::HllMethod hll_method{equation, signals};
-  // fub::ideal_gas::MusclHancockPrimMethod<Tube_Rank> flux_method{equation};
-  HyperbolicMethod method{FluxMethod(hll_method), EulerForwardTimeIntegrator(),
+  // fub::EinfeldtSignalVelocities<fub::IdealGasMix<Tube_Rank>> signals{};
+  // fub::HllMethod hll_method{equation, signals};
+  fub::ideal_gas::MusclHancockPrimMethod<Tube_Rank> flux_method{equation};
+  HyperbolicMethod method{FluxMethod(flux_method), EulerForwardTimeIntegrator(),
                           Reconstruction(equation)};
 
-  const int scratch_gcw = 2;
-  const int flux_gcw = 1;
+  const int scratch_gcw = 4;
+  const int flux_gcw = 2;
 
   IntegratorContext context(gridding, method, scratch_gcw, flux_gcw);
   context.registry_ = counters;
@@ -262,14 +262,14 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
 
   fub::EinfeldtSignalVelocities<fub::IdealGasMix<Plenum_Rank>> signals{};
   fub::HllMethod hll_method{equation, signals};
-  //  fub::ideal_gas::MusclHancockPrimMethod<Plenum_Rank> flux_method(equation);
-  fub::KbnCutCellMethod cutcell_method(hll_method, hll_method);
+   fub::ideal_gas::MusclHancockPrimMethod<Plenum_Rank> flux_method(equation);
+  fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
 
   HyperbolicMethod method{FluxMethod{cutcell_method}, TimeIntegrator{},
                           Reconstruction{equation}};
 
-  const int scratch_gcw = 2;
-  const int flux_gcw = 1;
+  const int scratch_gcw = 4;
+  const int flux_gcw = 2;
 
   return IntegratorContext(gridding, method, scratch_gcw, flux_gcw);
 }
@@ -346,7 +346,7 @@ void MyMain(const fub::ProgramOptions& options) {
     fub::amrex::BlockConnection connection;
     connection.direction = fub::Direction::X;
     connection.side = 0;
-    connection.ghost_cell_width = 2;
+    connection.ghost_cell_width = 4;
     connection.plenum.id = 0;
     connection.tube.id = k;
     connection.tube.mirror_box = tubes[k]
@@ -406,10 +406,10 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::SplitSystemSourceLevelIntegrator ign_solver(
       std::move(system_solver), std::move(ignition), fub::GodunovSplitting{});
 
-  fub::amrex::MultiBlockKineticSouceTerm source_term(tube_equation);
+  fub::amrex::MultiBlockKineticSouceTerm source_term(tube_equation, counter_database);
 
   fub::SplitSystemSourceLevelIntegrator level_integrator(
-      std::move(ign_solver), std::move(source_term), fub::GodunovSplitting{});
+      std::move(ign_solver), std::move(source_term), fub::StrangSplitting{});
 
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
