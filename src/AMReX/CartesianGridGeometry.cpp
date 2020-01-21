@@ -24,11 +24,7 @@ namespace fub::amrex {
 
 CartesianGridGeometry::CartesianGridGeometry(const ProgramOptions& options) {
   cell_dimensions = GetOptionOr(options, "cell_dimensions", cell_dimensions);
-  std::array<double, AMREX_SPACEDIM> xlo{};
-  xlo = GetOptionOr(options, "x_lower", xlo);
-  std::array<double, AMREX_SPACEDIM> xup{AMREX_D_DECL(1.0, 1.0, 1.0)};
-  xup = GetOptionOr(options, "x_upper", xup);
-  coordinates = ::amrex::RealBox(xlo, xup);
+  coordinates = GetOptionOr(options, "coordinates", coordinates);
   periodicity = GetOptionOr(options, "periodicity", periodicity);
 }
 
