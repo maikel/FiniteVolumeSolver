@@ -45,7 +45,10 @@ KineticSourceTerm<Rank>::AdvanceLevel(amrex::IntegratorContext &simulation_data,
                                       const ::amrex::IntVect &ngrow) {
   Timer advance_timer = registry_->get_timer("KineticSourceTerm::AdvanceLevel");
   ::amrex::MultiFab &data = simulation_data.GetScratch(level);
-  amrex::ForEachFab(execution::openmp, data, [&](const ::amrex::MFIter &mfi) {
+#if defined(_OPENMP) && defined(AMREX_USE_OMP)
+#pragma omp parallel
+#endif
+  for (::amrex::MFIter mfi(data, ::amrex::IntVect(8)); mfi.isValid(); ++mfi) {
     using Complete = ::fub::Complete<IdealGasMix<Rank>>;
     View<Complete> states = amrex::MakeView<Complete>(data[mfi], *equation_,
                                                       mfi.growntilebox(ngrow));
@@ -63,7 +66,7 @@ KineticSourceTerm<Rank>::AdvanceLevel(amrex::IntegratorContext &simulation_data,
       equation_->CompleteFromReactor(*state_, velocity);
       Store(states, *state_, index);
     });
-  });
+  }
   return boost::outcome_v2::success();
 }
 
