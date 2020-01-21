@@ -45,17 +45,16 @@ public:
         GetOptionOr(opts, "frequencies", std::vector<int>{});
     std::vector<double> intervals =
         GetOptionOr(opts, "intervals", std::vector<double>{});
-    for (const auto& [key, val] : opts) {
-      if (pybind11::isinstance<pybind11::dict>(val)) {
-        auto opts = ToMap(pybind11::dict(val));
-        if (auto type = opts.find("type"); type != opts.end()) {
-          using namespace std::literals;
-          const std::string type_name = type->second.cast<std::string>();
-          opts.emplace(std::pair{"name", pybind11::cast(key)});
-          opts.emplace(std::pair{"frequencies", pybind11::cast(frequencies)});
-          opts.emplace(std::pair{"intervals", pybind11::cast(intervals)});
-          outputs_.push_back(factory_.MakeOutput(type_name, opts));
-        }
+    std::vector<pybind11::dict> outputs{};
+    outputs = GetOptionOr(opts, "outputs", outputs);
+    for (const pybind11::dict& output : outputs) {
+      auto opts = ToMap(output);
+      if (auto type = opts.find("type"); type != opts.end()) {
+        using namespace std::literals;
+        const std::string type_name = type->second.cast<std::string>();
+        opts.emplace(std::pair{"frequencies", pybind11::cast(frequencies)});
+        opts.emplace(std::pair{"intervals", pybind11::cast(intervals)});
+        outputs_.push_back(factory_.MakeOutput(type_name, opts));
       }
     }
   }
