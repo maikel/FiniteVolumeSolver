@@ -163,6 +163,11 @@ MPI_Comm IntegratorContext::GetMpiCommunicator() const noexcept {
   return ::amrex::ParallelContext::CommunicatorAll();
 }
 
+const std::shared_ptr<CounterRegistry>&
+IntegratorContext::GetCounterRegistry() const noexcept {
+  return registry_;
+}
+
 ::amrex::MultiFab& IntegratorContext::GetData(int level) {
   return GetPatchHierarchy().GetPatchLevel(level).data;
 }

@@ -131,6 +131,10 @@ public:
   /// \brief Returns the geometry object for the specified refinement level.
   [[nodiscard]] const ::amrex::Geometry& GetGeometry(int level) const;
 
+  /// \brief Returns a shared pointer to the counter registry.
+  [[nodiscard]] const std::shared_ptr<CounterRegistry>&
+  GetCounterRegistry() const noexcept;
+
   /// @}
 
   /// @{

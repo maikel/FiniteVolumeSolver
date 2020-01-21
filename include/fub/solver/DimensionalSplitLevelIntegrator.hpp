@@ -80,6 +80,7 @@ public:
 
   using IntegratorContext::GetCycles;
   using IntegratorContext::GetMpiCommunicator;
+  using IntegratorContext::GetCounterRegistry;
   using IntegratorContext::GetTimePoint;
 
   using IntegratorContext::FillGhostLayerSingleLevel;
