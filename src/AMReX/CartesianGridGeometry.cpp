@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #include "fub/AMReX/CartesianGridGeometry.hpp"
+#include "fub/AMReX/ViewFArrayBox.hpp"
 
 namespace fub::amrex {
 
