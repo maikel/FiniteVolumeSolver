@@ -22,6 +22,7 @@
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/HyperbolicPatchIntegrator.hpp"
 #include "fub/StateRow.hpp"
+#include "fub/ext/Vc.hpp"
 
 #include <algorithm>
 
@@ -51,19 +52,91 @@ template <typename T> struct CutCellFractions {
   FaceData<T> faceR;
 };
 
+
+Vc::double_v clamp(Vc::double_v x, Vc::double_v lo, Vc::double_v hi) noexcept {
+    return min(max(x, lo), hi);
+}
+
 void UpdateConservatively_Row(double* next, const double* prev,
                               const FluxData<const double*>& fluxL,
                               const FluxData<const double*>& fluxR,
                               const double* fluxB,
                               const CutCellFractions<const double*>& cc, int n,
                               double dt_over_dx) {
-#ifdef __clang__
-#pragma clang loop vectorize(enable)
-#elif _OPENMP
-#pragma omp simd
-#endif
-  for (std::ptrdiff_t i = 0; i < n; ++i) {
+   
+
+  std::ptrdiff_t i = 0;
+  for (i = 0; i + int(Vc::double_v::size()) < n; i += Vc::double_v::size()) {
     ////////////////////////////////////////////////////////////////////////////////////
+    //                beta_L == beta_R  => regular update
+    
+    const Vc::double_v alpha(&cc.cell.alpha[i], Vc::Unaligned);
+    const Vc::double_v betaL(&cc.faceL.beta[i], Vc::Unaligned);
+    const Vc::double_v betaR(&cc.faceR.beta[i], Vc::Unaligned);
+    const Vc::double_v cell_center(&cc.cell.center[i], Vc::Unaligned);
+
+    const Vc::double_v fL(&fluxL.stabilized[i], Vc::Unaligned);
+    const Vc::double_v fR(&fluxR.stabilized[i], Vc::Unaligned);
+    const Vc::double_v fB(&fluxB[i], Vc::Unaligned);
+
+    const Vc::double_v u_prev(&prev[i], Vc::Unaligned);
+
+    const Vc::double_v regular = u_prev + dt_over_dx * (fL - fR);
+
+    ////////////////////////////////////////////////////////////////////////////////////
+    //                 beta_L > beta_R
+
+    const Vc::double_v left_greater = [&] {
+      const Vc::double_v betaL_us(&cc.faceL.beta_us[i], Vc::Unaligned);
+      const Vc::double_v betaL_us_over_alpha = betaL_us / alpha;
+      const Vc::double_v betaL_sL(&cc.faceL.beta_sL[i], Vc::Unaligned);
+      const Vc::double_v betaL_sL_over_alpha = betaL_sL / alpha;
+      const Vc::double_v distance_to_boundary = Vc::double_v(0.5) + cell_center;
+      const Vc::double_v betaL_sR(&cc.faceL.beta_sR[i], Vc::Unaligned);
+      const Vc::double_v dBeta_over_alpha =
+          clamp((betaL_sR * distance_to_boundary) / alpha, Vc::double_v(0.0), Vc::double_v(1.0));
+      const Vc::double_v fLus(&fluxL.unshielded[i], Vc::Unaligned);
+      const Vc::double_v fLssL(&fluxL.shielded_left[i], Vc::Unaligned);
+      const Vc::double_v dF_us = fLus - fR;
+      const Vc::double_v dF_sL = fLssL - fR;
+      const Vc::double_v dB = fLus - fB;
+      const Vc::double_v next = u_prev + dt_over_dx * betaL_us_over_alpha * dF_us +
+                          dt_over_dx * betaL_sL_over_alpha * dF_sL +
+                          dt_over_dx * dBeta_over_alpha * dB;
+      return next;
+    }();
+
+    ////////////////////////////////////////////////////////////////////////////////////
+    //                 beta_L < beta_R
+
+    const Vc::double_v right_greater = [&] {
+      const Vc::double_v betaR_us(&cc.faceR.beta_us[i], Vc::Unaligned);
+      const Vc::double_v betaR_us_over_alpha = betaR_us / alpha;
+      const Vc::double_v betaR_sR(&cc.faceR.beta_sR[i], Vc::Unaligned);
+      const Vc::double_v betaR_sR_over_alpha = betaR_sR / alpha;
+      const Vc::double_v betaR_sL(&cc.faceR.beta_sL[i], Vc::Unaligned);
+      const Vc::double_v distance_to_boundary = Vc::double_v(0.5) - cell_center;
+      const Vc::double_v dBeta_over_alpha =
+          clamp((betaR_sL * distance_to_boundary) / alpha, Vc::double_v(0.0), Vc::double_v(1.0));
+      const Vc::double_v fRus(&fluxR.unshielded[i], Vc::Unaligned);
+      const Vc::double_v fRssR(&fluxR.shielded_right[i], Vc::Unaligned);
+      const Vc::double_v dF_us = fL - fRus;
+      const Vc::double_v dF_sR = fL - fRssR;
+      const Vc::double_v dB = fB - fRus;
+      const Vc::double_v next = u_prev + dt_over_dx * betaR_us_over_alpha * dF_us +
+                          dt_over_dx * betaR_sR_over_alpha * dF_sR +
+                          dt_over_dx * dBeta_over_alpha * dB;
+      return next;
+    }();
+
+    Vc::double_v u_next(0.0);
+    where(alpha > 0.0, u_next) = regular;
+    where(alpha > 0.0 && betaL > betaR, u_next) = left_greater;
+    where(alpha > 0.0 && betaL < betaR, u_next) = right_greater;
+    u_next.store(&next[i], Vc::Unaligned);
+  }
+  for (; i < n; ++i) {
+          ////////////////////////////////////////////////////////////////////////////////////
     //                beta_L == beta_R  => regular update
 
     const double alpha = cc.cell.alpha[i];
@@ -115,11 +188,14 @@ void UpdateConservatively_Row(double* next, const double* prev,
       return next;
     }();
 
-    next[i] = alpha > 0.0 ? betaL == betaR // || alpha == 1.0
+    next[i] = alpha > 0.0 ? betaL == betaR
                                 ? regular
                                 : betaL > betaR ? left_greater : right_greater
                           : 0.0;
-    FUB_ASSERT(!std::isnan(next[i]));
+  }
+
+  for (i = 0; i < n; ++i) {
+    assert(!std::isnan(next[i]));
   }
 }
 
