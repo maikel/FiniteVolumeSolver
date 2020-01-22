@@ -30,6 +30,28 @@
 namespace fub::amrex::cutcell {
 
 void FillCutCellData(
+    std::array<StridedDataView<double, 2>, 2> unshielded,
+    std::array<StridedDataView<double, 2>, 2> shielded_left,
+    std::array<StridedDataView<double, 2>, 2> shielded_right,
+    std::array<StridedDataView<double, 2>, 2> doubly_shielded,
+    std::array<StridedDataView<double, 2>, 2> unshielded_rel,
+    std::array<StridedDataView<double, 2>, 2> shielded_left_rel,
+    std::array<StridedDataView<double, 2>, 2> shielded_right_rel,
+    std::array<StridedDataView<double, 2>, 2> doubly_shielded_rel,
+    const CutCellData<2>& data);
+
+void FillCutCellData(
+    std::array<StridedDataView<double, 3>, 3> unshielded,
+    std::array<StridedDataView<double, 3>, 3> shielded_left,
+    std::array<StridedDataView<double, 3>, 3> shielded_right,
+    std::array<StridedDataView<double, 3>, 3> doubly_shielded,
+    std::array<StridedDataView<double, 3>, 3> unshielded_rel,
+    std::array<StridedDataView<double, 3>, 3> shielded_left_rel,
+    std::array<StridedDataView<double, 3>, 3> shielded_right_rel,
+    std::array<StridedDataView<double, 3>, 3> doubly_shielded_rel,
+    const CutCellData<3>& data);
+
+void FillCutCellData(
     std::array<PatchDataView<double, 2>, 2> unshielded,
     std::array<PatchDataView<double, 2>, 2> shielded_left,
     std::array<PatchDataView<double, 2>, 2> shielded_right,

@@ -22,21 +22,21 @@
 
 namespace fub::amrex::cutcell {
 namespace {
-template <int Rank>
+template <int Rank, typename Layout>
 void FillCutCellData_(
-    std::array<PatchDataView<double, Rank>, Rank> unshielded,
-    std::array<PatchDataView<double, Rank>, Rank> shielded_left,
-    std::array<PatchDataView<double, Rank>, Rank> shielded_right,
-    std::array<PatchDataView<double, Rank>, Rank> doubly_shielded,
-    std::array<PatchDataView<double, Rank>, Rank> unshielded_rel,
-    std::array<PatchDataView<double, Rank>, Rank> shielded_left_rel,
-    std::array<PatchDataView<double, Rank>, Rank> shielded_right_rel,
-    std::array<PatchDataView<double, Rank>, Rank> doubly_shielded_rel,
+    std::array<PatchDataView<double, Rank, Layout>, Rank> unshielded,
+    std::array<PatchDataView<double, Rank, Layout>, Rank> shielded_left,
+    std::array<PatchDataView<double, Rank, Layout>, Rank> shielded_right,
+    std::array<PatchDataView<double, Rank, Layout>, Rank> doubly_shielded,
+    std::array<PatchDataView<double, Rank, Layout>, Rank> unshielded_rel,
+    std::array<PatchDataView<double, Rank, Layout>, Rank> shielded_left_rel,
+    std::array<PatchDataView<double, Rank, Layout>, Rank> shielded_right_rel,
+    std::array<PatchDataView<double, Rank, Layout>, Rank> doubly_shielded_rel,
     const CutCellData<Rank>& geom) {
   for (int d = 0; d < Rank; ++d) {
     const Direction dir = static_cast<Direction>(d);
     const IndexBox<Rank> indices =
-        Shrink(geom.face_fractions[d].Box(), dir, {1, 1});
+        Intersect(Shrink(geom.face_fractions[d].Box(), dir, {1, 1}), unshielded[d].Box());
     ForEachIndex(indices, [&](auto... is) {
       const std::array<std::ptrdiff_t, Rank> mid{is...};
       const std::array<std::ptrdiff_t, Rank> left = Shift(mid, dir, -1);
@@ -71,6 +71,37 @@ void FillCutCellData_(
 }
 
 } // namespace
+
+
+  void FillCutCellData(
+                       std::array<StridedDataView<double, 2>, 2> unshielded,
+                       std::array<StridedDataView<double, 2>, 2> shielded_left,
+                       std::array<StridedDataView<double, 2>, 2> shielded_right,
+                       std::array<StridedDataView<double, 2>, 2> doubly_shielded,
+                       std::array<StridedDataView<double, 2>, 2> unshielded_rel,
+                       std::array<StridedDataView<double, 2>, 2> shielded_left_rel,
+                       std::array<StridedDataView<double, 2>, 2> shielded_right_rel,
+                       std::array<StridedDataView<double, 2>, 2> doubly_shielded_rel,
+                       const CutCellData<2>& geom) {
+    FillCutCellData_<2>(unshielded, shielded_left, shielded_right,
+                        doubly_shielded, unshielded_rel, shielded_left_rel,
+                        shielded_right_rel, doubly_shielded_rel, geom);
+  }
+
+  void FillCutCellData(
+                       std::array<StridedDataView<double, 3>, 3> unshielded,
+                       std::array<StridedDataView<double, 3>, 3> shielded_left,
+                       std::array<StridedDataView<double, 3>, 3> shielded_right,
+                       std::array<StridedDataView<double, 3>, 3> doubly_shielded,
+                       std::array<StridedDataView<double, 3>, 3> unshielded_rel,
+                       std::array<StridedDataView<double, 3>, 3> shielded_left_rel,
+                       std::array<StridedDataView<double, 3>, 3> shielded_right_rel,
+                       std::array<StridedDataView<double, 3>, 3> doubly_shielded_rel,
+                       const CutCellData<3>& geom) {
+    FillCutCellData_<3>(unshielded, shielded_left, shielded_right,
+                        doubly_shielded, unshielded_rel, shielded_left_rel,
+                        shielded_right_rel, doubly_shielded_rel, geom);
+  }
 
 void FillCutCellData(
     std::array<PatchDataView<double, 2>, 2> unshielded,
