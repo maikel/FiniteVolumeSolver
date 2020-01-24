@@ -54,7 +54,9 @@ template <typename T> struct CutCellFractions {
 
 
 Vc::double_v clamp(Vc::double_v x, Vc::double_v lo, Vc::double_v hi) noexcept {
-    return min(max(x, lo), hi);
+  where(x < lo, x) = lo;
+  where(hi < x, x) = hi;
+  return x;
 }
 
 void UpdateConservatively_Row(double* next, const double* prev,
@@ -66,7 +68,7 @@ void UpdateConservatively_Row(double* next, const double* prev,
    
 
   std::ptrdiff_t i = 0;
-  for (i = 0; i + int(Vc::double_v::size()) < n; i += Vc::double_v::size()) {
+  for (i = 0; i + int(Vc::double_v::size()) <= n; i += Vc::double_v::size()) {
     ////////////////////////////////////////////////////////////////////////////////////
     //                beta_L == beta_R  => regular update
     
@@ -366,8 +368,10 @@ void TimeIntegrator::UpdateConservatively(IntegratorContext& context, int level,
       ::amrex::FArrayBox& next = scratch[mfi];
       const ::amrex::FArrayBox& prev = scratch[mfi];
       const ::amrex::FArrayBox& flux = unshielded[mfi];
-      const ::amrex::Box& flux_box = mfi.growntilebox();
-      ::amrex::Box cell_box = ::amrex::enclosedCells(flux_box);
+      const ::amrex::Box all_faces_tilebox = mfi.grownnodaltilebox(int(dir));
+      const ::amrex::Box all_fluxes_box = flux.box();
+      const ::amrex::Box flux_box = all_faces_tilebox & all_fluxes_box;
+      const ::amrex::Box cell_box = enclosedCells(flux_box);
       const IndexBox<AMREX_SPACEDIM + 1> cells = Embed<AMREX_SPACEDIM + 1>(
           AsIndexBox<AMREX_SPACEDIM>(cell_box), {0, n_cons});
       auto nv = MakePatchDataView(next).Subview(cells);
