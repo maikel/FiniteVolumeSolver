@@ -1,5 +1,11 @@
 import math
 
+plenum_x_n_cells = 16 * 8
+tube_blocking_factor = 8
+plenum_blocking_factor = 8
+
+n_level = 1
+
 n_tubes = 6
 r_tube = 0.015
 r_inner = 0.5 * 0.130
@@ -7,36 +13,69 @@ r_outer = 0.5 * 0.385
 r_tube_center = 0.5 * r_inner + 0.5 * r_outer
 alpha = 2.0 * math.pi / n_tubes
 
+tube_length = 1.50 # [m]
+inlet_length = 0.03 # [m]
+plenum_length = 0.50 # [m]
+
+plenum_max_grid_size = max(plenum_blocking_factor, 32)
+
+plenum_domain_length = plenum_length + inlet_length
+tube_domain_length = tube_length - inlet_length
+
+tube_over_plenum_length_ratio = tube_domain_length / plenum_domain_length
+
+# plenum_yz_upper = +(r_outer + 0.01)
+# plenum_yz_lower = -plenum_yz_upper
+
+# plenum_yz_length = plenum_yz_upper - plenum_yz_lower
+
+plenum_x_upper = plenum_length
+plenum_x_lower = -inlet_length
+
+plenum_x_length = plenum_x_upper - plenum_x_lower
+
+plenum_yz_length = plenum_x_length
+plenum_yz_lower = -plenum_yz_length * 0.5
+plenum_yz_upper = +plenum_yz_length * 0.5
+
+plenum_yz_over_x_ratio = plenum_yz_length / plenum_x_length
+
+plenum_yz_n_cells = plenum_x_n_cells * plenum_yz_over_x_ratio
+plenum_yz_n_cells -= plenum_yz_n_cells % plenum_blocking_factor
+plenum_yz_n_cells = int(plenum_yz_n_cells)
+
+tube_n_cells = plenum_x_n_cells * tube_over_plenum_length_ratio
+tube_n_cells -= tube_n_cells % tube_blocking_factor
+tube_n_cells = int(tube_n_cells)
+
 RunOptions = {
-  'cfl': 0.95,
-  'final_time': 1.0,
-  'max_cycles': 0
+  'cfl': 0.5,
+  'final_time': 0.02,
+  # 'max_cycles': 0
 }
 
 Plenum = {
   'GridGeometry': {
-    'cell_dimensions': [64, 64, 64],
+    'cell_dimensions': [plenum_x_n_cells, plenum_yz_n_cells, plenum_yz_n_cells],
     'coordinates': {
-      'lower': [-0.03, -0.53 / 2, -0.53 / 2],
-      'upper': [ 0.50, +0.53 / 2, +0.53 / 2],
+      'lower': [plenum_x_lower, plenum_yz_lower, plenum_yz_lower],
+      'upper': [plenum_x_upper, plenum_yz_upper, plenum_yz_upper],
     },
     'periodicity': [0, 0, 0]
   },
   'PatchHierarchy': {
-    'max_number_of_levels': 1, 
-    'blocking_factor': [64, 64, 64],
-    'max_grid_size': [64, 64, 64]
+    'max_number_of_levels': n_level, 
+    'blocking_factor': [plenum_blocking_factor, plenum_blocking_factor, plenum_blocking_factor],
+    'max_grid_size': [plenum_max_grid_size, plenum_max_grid_size, plenum_max_grid_size]
   },
   'IsentropicPressureBoundary': {
     'outer_pressure': 101325.0,
-    'coarse_inner_box': { 'lower': [31, 0, 0], 'upper': [31, 31, 31] },
+    'coarse_inner_box': { 
+      'lower': [plenum_x_n_cells - 1, 0, 0],
+      'upper': [plenum_x_n_cells - 1, plenum_yz_n_cells - 1, plenum_yz_n_cells - 1] 
+    },
     'side': 1,
     'direction': 0
-  },
-  'InitialCondition': {
-    'moles': 'O2:20,N2:80',
-    'temperature': 300.0,
-    'pressure': 101325.0
   }
 }
 
@@ -57,16 +96,17 @@ def UpperX(x0, k, alpha):
 
 Tubes = [{
   'GridGeometry': {
-    'cell_dimensions': [64, 1, 1],
+    'cell_dimensions': [tube_n_cells, 1, 1],
     'coordinates': {
-      'lower': LowerX(-0.56, i, alpha),
-      'upper': UpperX(-0.03, i, alpha),
+      'lower': LowerX(-tube_length, i, alpha),
+      'upper': UpperX(-inlet_length, i, alpha),
     },
     'periodicity': [0, 0, 0]
   },
   'PatchHierarchy': {
-    'max_number_of_levels': 1, 
-    'blocking_factor': [32, 1, 1]
+    'max_number_of_levels': n_level, 
+    'blocking_factor': [tube_blocking_factor, 1, 1],
+    'refine_ratio': [2, 1, 1]
   },
   'PressureValveBoundary': {
     'efficiency': 1.0,
@@ -87,7 +127,20 @@ Output = {
   'outputs': [{
     'type': 'Plotfile',
     'directory': 'MultiTube/Test/',
-    'intervals': [1e-4],
+    # 'intervals': [1e-4],
+    'frequencies': [1],
+  }, {
+    'type': 'LogProbes',
+    'directory': 'MultiTube/Probes/',
+    'frequencies': [1],
+    'Plenum': {
+      'filename': 'MultiTube/Probes/Plenum.h5',
+      'coordinates': [TubeCenterPoint(0.0, 0, alpha)],
+    },
+    'Tube': {
+      'filename': 'MultiTube/Probes/Tubes.h5',
+      'coordinates': [TubeCenterPoint(-1.0, 0, alpha), TubeCenterPoint(-0.2, 0, alpha)],
+    }
   }]
 }
 
@@ -95,7 +148,7 @@ IgniteDetonation = {
   'interval': 0.03333333,
   'measurement_position': -0.2,
   'equivalence_ratio_criterium': 0.8,
-  'position': 0.8
+  'position': -0.8
 }
 
 
