@@ -185,7 +185,7 @@ template <int Rank, typename Context, typename SplitMethod>
 Result<void, TimeStepTooLarge>
 DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::
     AdvanceLevelNonRecursively(int this_level, Duration dt,
-                               std::pair<int, int>) {
+                               std::pair<int, int> subcycle) {
   auto AdvanceLevel_Split = [&](Direction dir) {
     return [&, this_level, dir, count_split_steps = 0](
                Duration split_dt) mutable -> Result<void, TimeStepTooLarge> {
@@ -230,7 +230,7 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::
       [&](auto... directions) {
         return GetSplitMethod().Advance(dt, AdvanceLevel_Split(directions)...);
       },
-      MakeSplitDirections<Rank>());
+      MakeSplitDirections<Rank>(subcycle));
 
   return result;
 }
