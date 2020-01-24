@@ -278,10 +278,31 @@ BoundaryCondition& GriddingAlgorithm::GetBoundaryCondition(int level) noexcept {
   return boundary_condition_[std::size_t(level)];
 }
 
+::amrex::DistributionMapping GriddingAlgorithm::LoadBalance(int level, const ::amrex::BoxArray& box_array,
+    const ::amrex::DistributionMapping& distribution_mapping) const {
+  std::unique_ptr<::amrex::EBFArrayBoxFactory> eb_factory =
+        ::amrex::makeEBFabFactory(
+            hierarchy_.GetOptions()
+                .index_spaces[static_cast<std::size_t>(level)],
+            hierarchy_.GetGeometry(level), box_array, distribution_mapping,
+            {0, 0, 0}, ::amrex::EBSupport::basic);
+  const ::amrex::FabArray<::amrex::EBCellFlagFab>& flags = eb_factory->getMultiEBCellFlagFab();
+  ::amrex::MultiFab weigths(box_array, distribution_mapping, 1, 0);
+  weigths.setVal(1.0);
+  for (::amrex::MFIter mfi(weigths); mfi.isValid(); ++mfi) {
+    if (flags[mfi].getType() == ::amrex::FabType::singlevalued) {
+      weigths[mfi].setVal(6.0);
+    }
+  }
+  EB_set_covered(weigths, 0.001);
+  return ::amrex::DistributionMapping::makeKnapSack(weigths);
+}
+
 void GriddingAlgorithm::MakeNewLevelFromScratch(
     int level, double time_point, const ::amrex::BoxArray& box_array,
-    const ::amrex::DistributionMapping& distribution_mapping) {
+    const ::amrex::DistributionMapping& distribution_map) {
   // Allocate level data.
+  const ::amrex::DistributionMapping balanced_distribution_map = LoadBalance(level, box_array, distribution_map);
   {
     const int n_comps = hierarchy_.GetDataDescription().n_state_components;
     const int ngrow = hierarchy_.GetOptions().ngrow_eb_level_set;
@@ -289,22 +310,24 @@ void GriddingAlgorithm::MakeNewLevelFromScratch(
         ::amrex::makeEBFabFactory(
             hierarchy_.GetOptions()
                 .index_spaces[static_cast<std::size_t>(level)],
-            hierarchy_.GetGeometry(level), box_array, distribution_mapping,
+            hierarchy_.GetGeometry(level), box_array, balanced_distribution_map,
             {ngrow, ngrow, ngrow}, ::amrex::EBSupport::full);
     hierarchy_.GetPatchLevel(level) =
-        PatchLevel(level, Duration(time_point), box_array, distribution_mapping,
+        PatchLevel(level, Duration(time_point), box_array, balanced_distribution_map,
                    n_comps, std::move(eb_factory), ngrow);
   }
   ::amrex::MultiFab& data = hierarchy_.GetPatchLevel(level).data;
   const ::amrex::Geometry& geom = hierarchy_.GetGeometry(level);
   data.setVal(0.0);
   initial_condition_.InitializeData(data, geom);
+  SetDistributionMap(level, balanced_distribution_map);
 }
 
 void GriddingAlgorithm::MakeNewLevelFromCoarse(
     int level, double time_point, const ::amrex::BoxArray& box_array,
-    const ::amrex::DistributionMapping& distribution_mapping) {
+    const ::amrex::DistributionMapping& distribution_map) {
   FUB_ASSERT(level > 0);
+  const ::amrex::DistributionMapping balanced_distribution_map = LoadBalance(level, box_array, distribution_map);
   const PatchLevel& coarse_level = hierarchy_.GetPatchLevel(level - 1);
   const int n_comps = hierarchy_.GetDataDescription().n_state_components;
   const int ngrow = hierarchy_.GetOptions().ngrow_eb_level_set;
@@ -312,10 +335,10 @@ void GriddingAlgorithm::MakeNewLevelFromCoarse(
   std::shared_ptr<::amrex::EBFArrayBoxFactory> factory =
       ::amrex::makeEBFabFactory(
           hierarchy_.GetOptions().index_spaces[static_cast<std::size_t>(level)],
-          geom, box_array, distribution_mapping, {ngrow, ngrow, ngrow},
+          geom, box_array, balanced_distribution_map, {ngrow, ngrow, ngrow},
           ::amrex::EBSupport::full);
   PatchLevel fine_level(level, Duration(time_point), box_array,
-                        distribution_mapping, n_comps, std::move(factory),
+                        balanced_distribution_map, n_comps, std::move(factory),
                         ngrow);
   const int cons_start = hierarchy_.GetDataDescription().first_cons_component;
   const int n_cons_components =
@@ -331,11 +354,13 @@ void GriddingAlgorithm::MakeNewLevelFromCoarse(
       hierarchy_.GetGeometry(level), fine_boundary, 0, coarse_boundary, 0,
       {AMREX_D_DECL(2, 2, 2)}, &::amrex::pc_interp, bcr, 0);
   hierarchy_.GetPatchLevel(level) = std::move(fine_level);
+  SetDistributionMap(level, balanced_distribution_map);
 }
 
 void GriddingAlgorithm::RemakeLevel(
     int level_number, double time_point, const ::amrex::BoxArray& box_array,
-    const ::amrex::DistributionMapping& distribution_mapping) {
+    const ::amrex::DistributionMapping& distribution_map) {
+  const ::amrex::DistributionMapping balanced_distribution_map = LoadBalance(level_number, box_array, distribution_map);
   const int n_comps = hierarchy_.GetDataDescription().n_state_components;
   const int ngrow = hierarchy_.GetOptions().ngrow_eb_level_set;
   const ::amrex::Geometry& geom = hierarchy_.GetGeometry(level_number);
@@ -343,13 +368,14 @@ void GriddingAlgorithm::RemakeLevel(
       ::amrex::makeEBFabFactory(
           hierarchy_.GetOptions()
               .index_spaces[static_cast<std::size_t>(level_number)],
-          geom, box_array, distribution_mapping, {ngrow, ngrow, ngrow},
+          geom, box_array, balanced_distribution_map, {ngrow, ngrow, ngrow},
           ::amrex::EBSupport::full);
   PatchLevel new_level(level_number, Duration(time_point), box_array,
-                       distribution_mapping, n_comps, std::move(factory),
+                       balanced_distribution_map, n_comps, std::move(factory),
                        ngrow);
   FillMultiFabFromLevel(new_level.data, level_number);
   hierarchy_.GetPatchLevel(level_number) = std::move(new_level);
+  SetDistributionMap(level_number, balanced_distribution_map);
 }
 
 void GriddingAlgorithm::ClearLevel(int level) {
