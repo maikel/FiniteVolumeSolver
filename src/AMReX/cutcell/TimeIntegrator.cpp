@@ -313,14 +313,17 @@ void TimeIntegrator::UpdateConservatively(IntegratorContext& context, int level,
   //  const int gcw =
   //  context.GetHyperbolicMethod().flux_method.GetStencilWidth();
 
-  ForEachFab(execution::openmp, unshielded, [&](const ::amrex::MFIter& mfi) {
+  ForEachFab(execution::openmp, scratch, [&](const ::amrex::MFIter& mfi) {
     ::amrex::FabType type = context.GetFabType(level, mfi);
-    const ::amrex::Box flux_box = mfi.growntilebox();
+    const ::amrex::Box all_faces_tilebox = mfi.grownnodaltilebox(int(dir));
+    const ::amrex::Box all_fluxes_box = unshielded[mfi].box();
+    const ::amrex::Box flux_box = all_faces_tilebox & all_fluxes_box;
     const ::amrex::Box cell_box = enclosedCells(flux_box);
     const IndexBox<AMREX_SPACEDIM> cells = AsIndexBox<AMREX_SPACEDIM>(cell_box);
+    const IndexBox<AMREX_SPACEDIM> faces = AsIndexBox<AMREX_SPACEDIM>(flux_box);
     if (type == ::amrex::FabType::singlevalued) {
-      const IndexBox<AMREX_SPACEDIM> facesL = cells;
-      const IndexBox<AMREX_SPACEDIM> facesR = Grow(cells, dir, {-1, 1});
+      const IndexBox<AMREX_SPACEDIM> facesL = Grow(faces, dir, {0, -1});
+      const IndexBox<AMREX_SPACEDIM> facesR = Grow(faces, dir, {-1, 0});
       for (int comp = 0; comp < n_cons; ++comp) {
         View<double> scratch_view = MakeView(scratch[mfi], cells, comp);
 
