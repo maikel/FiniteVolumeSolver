@@ -63,26 +63,19 @@ void TagBuffer::TagCellsForRefinement(
 
 void TagBuffer::TagCellsForRefinement(
     const PatchDataView<char, 3, layout_stride>& tags) {
-  mdspan<char, 3, layout_stride> data = tags.MdSpan();
-  for (std::ptrdiff_t k = buffer_width_; k < data.extent(2) - buffer_width_;
-       ++k) {
-    for (std::ptrdiff_t j = buffer_width_; j < data.extent(1) - buffer_width_;
-         ++j) {
-      for (std::ptrdiff_t i = buffer_width_; i < data.extent(0) - buffer_width_;
-           ++i) {
-        if (data(i, j, k) == '\1') {
-          for (std::ptrdiff_t l = 1; l < buffer_width_; ++l) {
-            data(i + l, j, k) = '\2' - data(i + l, j, k);
-            data(i - l, j, k) = '\2' - data(i - l, j, k);
-            data(i, j + l, k) = '\2' - data(i, j + l, k);
-            data(i, j - l, k) = '\2' - data(i, j - l, k);
-            data(i, j, k + l) = '\2' - data(i, j, k + l);
-            data(i, j, k - l) = '\2' - data(i, j, k - l);
-          }
-        }
-      }
-    }
-  }
+  const std::array<std::ptrdiff_t, 2> shift{buffer_width_, buffer_width_};
+  const Direction X = Direction::X;
+  const Direction Y = Direction::Y;
+  const Direction Z = Direction::Z;
+  IndexBox<3> box = Shrink(Shrink(Shrink(tags.Box(), X, shift), Y, shift), Z, shift);
+  ForEachIndex(box, [&](std::ptrdiff_t i0, std::ptrdiff_t j0, std::ptrdiff_t k0) {
+    Index<3> lower{i0 - buffer_width_, j0 - buffer_width_, k0 - buffer_width_};
+    Index<3> upper{i0 + buffer_width_, j0 + buffer_width_, k0 + buffer_width_};
+    IndexBox<3> neighborhood{lower, upper};
+    ForEachIndex(neighborhood, [&](std::ptrdiff_t i, std::ptrdiff_t j, std::ptrdiff_t k) {
+      tags(i, j, k) = std::max(tags(i, j, k), char('\2' - tags(i, j, k)));
+    });
+  });
 }
 
 } // namespace fub
