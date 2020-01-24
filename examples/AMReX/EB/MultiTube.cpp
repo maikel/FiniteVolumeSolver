@@ -175,7 +175,7 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
 
   auto embedded_boundary = amrex::EB2::makeUnion(
       amrex::EB2::makeIntersection(
-          Cylinder(r_outer, 0.5, {0.25, 0.0, 0.0}),
+          Cylinder(r_outer, 1.0, {0.5, 0.0, 0.0}),
           Cylinder(r_tube, 0.3, Center(-0.1, 0.0 * alpha)),
           Cylinder(r_tube, 0.3, Center(-0.1, 1.0 * alpha)),
           Cylinder(r_tube, 0.3, Center(-0.1, 2.0 * alpha)),
@@ -262,7 +262,7 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
 
   fub::EinfeldtSignalVelocities<fub::IdealGasMix<Plenum_Rank>> signals{};
   fub::HllMethod hll_method{equation, signals};
-   fub::ideal_gas::MusclHancockPrimMethod<Plenum_Rank> flux_method(equation);
+  fub::ideal_gas::MusclHancockPrimMethod<Plenum_Rank> flux_method(equation);
   fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
 
   HyperbolicMethod method{FluxMethod{cutcell_method}, TimeIntegrator{},
@@ -376,7 +376,7 @@ void MyMain(const fub::ProgramOptions& options) {
       std::move(connectivity));
 
   fub::DimensionalSplitLevelIntegrator system_solver(fub::int_c<Plenum_Rank>,
-                                                     std::move(context));
+                                                     std::move(context), fub::GodunovSplitting{});
 
   const std::size_t n_tubes = system_solver.GetContext().Tubes().size();
   const int max_number_of_levels = system_solver.GetContext()
@@ -416,6 +416,7 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::OutputFactory<fub::amrex::MultiBlockGriddingAlgorithm> factory{};
   factory.RegisterOutput<fub::amrex::MultiWriteHdf5>("HDF5");
   factory.RegisterOutput<fub::amrex::MultiBlockPlotfileOutput>("Plotfile");
+  factory.RegisterOutput<fub::amrex::LogProbesOutput>("LogProbes");
   fub::MultipleOutputs<fub::amrex::MultiBlockGriddingAlgorithm> outputs(
       std::move(factory), fub::GetOptions(options, "Output"));
   outputs.AddOutput(
