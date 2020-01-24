@@ -33,7 +33,7 @@ namespace fub::amrex {
 
 class LogProbesOutput : public OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm> {
 public:
-  LogProbesOutput(const std::map<std::string, pybind11::object>& vm);
+  LogProbesOutput(const ProgramOptions& vm);
 
   void
   operator()(const MultiBlockGriddingAlgorithm& grid) override;
