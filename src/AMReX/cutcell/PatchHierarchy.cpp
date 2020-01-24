@@ -70,8 +70,14 @@ PatchLevel::PatchLevel(const PatchLevel& other)
   const ::amrex::MultiCutFab& centeroids = factory->getBndryCent();
   const ::amrex::FabArray<::amrex::EBCellFlagFab>& flags =
       factory->getMultiEBCellFlagFab();
-  ForEachFab(execution::openmp, alphas, [&](const ::amrex::MFIter& mfi) {
-    if (flags[mfi].getType(mfi.growntilebox(4)) ==
+  for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+    unshielded[d]->setVal(0.0);
+    shielded_left[d]->setVal(0.0);
+    shielded_right[d]->setVal(0.0);
+    doubly_shielded[d]->setVal(0.0);
+  }
+  ForEachFab(alphas, [&](const ::amrex::MFIter& mfi) {
+    if (flags[mfi].getType(mfi.growntilebox()) ==
         ::amrex::FabType::singlevalued) {
       static constexpr int Rank = AMREX_SPACEDIM;
       CutCellData<Rank> cutcell_data;
@@ -120,13 +126,19 @@ PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
       shielded_left(MakeMultiCutFabs(ba, dm, *factory, ngrow)),
       shielded_right(MakeMultiCutFabs(ba, dm, *factory, ngrow)),
       doubly_shielded(MakeMultiCutFabs(ba, dm, *factory, ngrow)) {
+  for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+    unshielded[d]->setVal(0.0);
+    shielded_left[d]->setVal(0.0);
+    shielded_right[d]->setVal(0.0);
+    doubly_shielded[d]->setVal(0.0);
+  }
   const ::amrex::MultiFab& alphas = factory->getVolFrac();
   const ::amrex::MultiCutFab& normals = factory->getBndryNormal();
   const ::amrex::MultiCutFab& centeroids = factory->getBndryCent();
   const ::amrex::FabArray<::amrex::EBCellFlagFab>& flags =
       factory->getMultiEBCellFlagFab();
-  ForEachFab(execution::openmp, alphas, [&](const ::amrex::MFIter& mfi) {
-    if (flags[mfi].getType(mfi.growntilebox(4)) ==
+  ForEachFab(alphas, [&](const ::amrex::MFIter& mfi) {
+    if (flags[mfi].getType(mfi.growntilebox()) ==
         ::amrex::FabType::singlevalued) {
       static constexpr int Rank = AMREX_SPACEDIM;
       CutCellData<Rank> cutcell_data;
