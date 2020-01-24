@@ -331,8 +331,9 @@ void MyMain(const fub::ProgramOptions& options) {
 
   fub::Burke2012 mechanism{};
 
-  auto plenum = MakePlenumSolver(mechanism, options);
-  auto counter_database = plenum.registry_;
+  std::vector<fub::amrex::cutcell::IntegratorContext> plenum{};
+  plenum.push_back(MakePlenumSolver(mechanism, options));
+  auto counter_database = plenum[0].registry_;
 
   std::vector<fub::amrex::IntegratorContext> tubes{};
   std::vector<fub::amrex::BlockConnection> connectivity{};
@@ -357,7 +358,7 @@ void MyMain(const fub::ProgramOptions& options) {
     connection.plenum.mirror_box = fub::amrex::BoxWhichContains(
         fub::amrex::DomainAroundCenter(Center(-0.03, k * alpha),
                                        {0.03, r_tube, r_tube}),
-        plenum.GetGeometry(0));
+        plenum[0].GetGeometry(0));
     return connection;
   };
 
@@ -372,7 +373,7 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::IdealGasMix<Plenum_Rank> plenum_equation{mechanism};
 
   fub::amrex::MultiBlockIntegratorContext context(
-      fub::FlameMasterReactor(mechanism), std::move(tubes), {std::move(plenum)},
+      fub::FlameMasterReactor(mechanism), std::move(tubes), std::move(plenum),
       std::move(connectivity));
 
   fub::DimensionalSplitLevelIntegrator system_solver(fub::int_c<Plenum_Rank>,
@@ -411,7 +412,7 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::SplitSystemSourceLevelIntegrator level_integrator(
       std::move(ign_solver), std::move(source_term), fub::StrangSplitting{});
 
-  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
+  fub::NoSubcycleSolver solver(std::move(level_integrator));
 
   fub::OutputFactory<fub::amrex::MultiBlockGriddingAlgorithm> factory{};
   factory.RegisterOutput<fub::amrex::MultiWriteHdf5>("HDF5");
