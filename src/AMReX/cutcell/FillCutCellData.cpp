@@ -20,117 +20,127 @@
 
 #include "fub/AMReX/FillCutCellData.hpp"
 
+#include "fub/StateRow.hpp"
+#include "fub/ext/Vc.hpp"
+
 namespace fub::amrex::cutcell {
 namespace {
+void FillCutCellData__(const span<double>& us, const span<double>& ssL,
+                       const span<double>& ssR, const span<double>& ds,
+                       const span<double>& us_rel, const span<double>& ssL_rel,
+                       const span<double>& ssR_rel, const span<double>& ds_rel,
+                       const span<const double>& beta_left,
+                       const span<const double>& beta_mid,
+                       const span<const double>& beta_right) {
+  int n = us.size();
+  int i = 0;
+  for (; static_cast<int>(i + Vc::double_v::size()) <= n; i += Vc::double_v::size()) {
+    const Vc::double_v betaL(&beta_left[i], Vc::Unaligned);
+    const Vc::double_v betaM(&beta_mid[i], Vc::Unaligned);
+    const Vc::double_v betaR(&beta_right[i], Vc::Unaligned);
+    const Vc::double_v dBetaL = max(Vc::double_v(0.0), betaM - betaL);
+    const Vc::double_v dBetaR = max(Vc::double_v(0.0), betaM - betaR);
+    const Vc::double_v unshielded =
+        max(Vc::double_v(0.0), betaM - max(dBetaL, dBetaR));
+    const Vc::double_v doubly_shielded = min(dBetaL, dBetaR);
+    const Vc::double_v shielded_left = dBetaL - doubly_shielded;
+    const Vc::double_v shielded_right = dBetaR - doubly_shielded;
+    Vc::double_v unshielded_rel(0);
+    Vc::double_v doubly_shielded_rel(0);
+    Vc::double_v shielded_left_rel(0);
+    Vc::double_v shielded_right_rel(0);
+    auto positive_beta = betaM > 0;
+    where(positive_beta, unshielded_rel) = unshielded / betaM;
+    where(positive_beta, doubly_shielded_rel) = doubly_shielded / betaM;
+    where(positive_beta, shielded_left_rel) = shielded_left / betaM;
+    where(positive_beta, shielded_right_rel) = shielded_right / betaM;
+    unshielded.store(&us[i], Vc::Unaligned);
+    unshielded_rel.store(&us_rel[i], Vc::Unaligned);
+    doubly_shielded.store(&ds[i], Vc::Unaligned);
+    doubly_shielded_rel.store(&ds_rel[i], Vc::Unaligned);
+    shielded_left.store(&ssL[i], Vc::Unaligned);
+    shielded_left_rel.store(&ssL_rel[i], Vc::Unaligned);
+    shielded_right.store(&ssR[i], Vc::Unaligned);
+    shielded_right_rel.store(&ssR_rel[i], Vc::Unaligned);
+  }
+  for (; i < n; ++i) {
+    const double betaL = beta_left[i];
+    const double betaM = beta_mid[i];
+    const double betaR = beta_right[i];
+    FUB_ASSERT(betaM >= 0.0);
+    const double dBetaL = std::max(0.0, betaM - betaL);
+    const double dBetaR = std::max(0.0, betaM - betaR);
+    const double unshielded = std::max(0.0, betaM - std::max(dBetaL, dBetaR));
+    const double doubly_shielded = std::min(dBetaL, dBetaR);
+    const double shielded_left = dBetaL - doubly_shielded;
+    const double shielded_right = dBetaR - doubly_shielded;
+    const double unshielded_rel = betaM > 0.0 ? unshielded / betaM : 0.0;
+    const double doubly_shielded_rel = betaM > 0.0 ? doubly_shielded / betaM : 0.0;
+    const double shielded_left_rel = betaM > 0.0 ? shielded_left / betaM : 0.0;
+    const double shielded_right_rel = betaM > 0.0 ? shielded_right / betaM : 0.0;
+    us[i] = unshielded;
+    us_rel[i] = unshielded_rel;
+    ds[i] = doubly_shielded;
+    ds_rel[i] = doubly_shielded_rel;
+    ssL[i] = shielded_left;
+    ssL_rel[i] = shielded_left_rel;
+    ssR[i] = shielded_right;
+    ssR_rel[i] = shielded_right_rel;
+  }
+}
+
 template <int Rank, typename Layout>
 void FillCutCellData_(
-    std::array<PatchDataView<double, Rank, Layout>, Rank> unshielded,
-    std::array<PatchDataView<double, Rank, Layout>, Rank> shielded_left,
-    std::array<PatchDataView<double, Rank, Layout>, Rank> shielded_right,
-    std::array<PatchDataView<double, Rank, Layout>, Rank> doubly_shielded,
-    std::array<PatchDataView<double, Rank, Layout>, Rank> unshielded_rel,
-    std::array<PatchDataView<double, Rank, Layout>, Rank> shielded_left_rel,
-    std::array<PatchDataView<double, Rank, Layout>, Rank> shielded_right_rel,
-    std::array<PatchDataView<double, Rank, Layout>, Rank> doubly_shielded_rel,
-    const CutCellData<Rank>& geom) {
-  for (int d = 0; d < Rank; ++d) {
-    const Direction dir = static_cast<Direction>(d);
-    const IndexBox<Rank> indices =
-        Intersect(Shrink(geom.face_fractions[d].Box(), dir, {1, 1}), unshielded[d].Box());
-    ForEachIndex(indices, [&](auto... is) {
-      const std::array<std::ptrdiff_t, Rank> mid{is...};
-      const std::array<std::ptrdiff_t, Rank> left = Shift(mid, dir, -1);
-      const std::array<std::ptrdiff_t, Rank> right = Shift(mid, dir, +1);
-      const double beta_left = geom.face_fractions[d](left);
-      const double beta_mid = geom.face_fractions[d](mid);
-      const double beta_right = geom.face_fractions[d](right);
-      FUB_ASSERT(beta_mid >= 0.0);
-      const double dBetaL = std::max(0.0, beta_mid - beta_left);
-      const double dBetaR = std::max(0.0, beta_mid - beta_right);
-      unshielded[d](mid) = std::max(0.0, beta_mid - std::max(dBetaL, dBetaR));
-      unshielded_rel[d](mid) =
-          beta_mid > 0.0 ? std::clamp(unshielded[d](mid) / beta_mid, 0.0, 1.0)
-                         : 0.0;
-      doubly_shielded[d](mid) = std::min(dBetaL, dBetaR);
-      doubly_shielded_rel[d](mid) =
-          beta_mid > 0.0
-              ? std::clamp(doubly_shielded[d](mid) / beta_mid, 0.0, 1.0)
-              : 0.0;
-      shielded_left[d](mid) = std::max(0.0, dBetaL - doubly_shielded[d](mid));
-      shielded_left_rel[d](mid) =
-          beta_mid > 0.0
-              ? std::clamp(shielded_left[d](mid) / beta_mid, 0.0, 1.0)
-              : 0.0;
-      shielded_right[d](mid) = std::max(0.0, dBetaR - doubly_shielded[d](mid));
-      shielded_right_rel[d](mid) =
-          beta_mid > 0.0
-              ? std::clamp(shielded_right[d](mid) / beta_mid, 0.0, 1.0)
-              : 0.0;
-    });
-  }
+    const PatchDataView<double, Rank, Layout>& unshielded,
+    const PatchDataView<double, Rank, Layout>& shielded_left,
+    const PatchDataView<double, Rank, Layout>& shielded_right,
+    const PatchDataView<double, Rank, Layout>& doubly_shielded,
+    const PatchDataView<double, Rank, Layout>& unshielded_rel,
+    const PatchDataView<double, Rank, Layout>& shielded_left_rel,
+    const PatchDataView<double, Rank, Layout>& shielded_right_rel,
+    const PatchDataView<double, Rank, Layout>& doubly_shielded_rel,
+    const PatchDataView<const double, Rank>& beta, Direction dir) {
+  IndexBox<Rank> box = unshielded.Box();
+  IndexBox<Rank> betaL_box = Grow(box, dir, {1, -1});
+  IndexBox<Rank> betaR_box = Grow(box, dir, {-1, 1});
+  PatchDataView<const double, Rank, Layout> betaL = beta.Subview(betaL_box);
+  PatchDataView<const double, Rank, Layout> betaM = beta.Subview(box);
+  PatchDataView<const double, Rank, Layout> betaR = beta.Subview(betaR_box);
+  ForEachRow(std::tuple{unshielded, shielded_left, shielded_right,
+             doubly_shielded, unshielded_rel, shielded_left_rel,
+             shielded_right_rel, doubly_shielded_rel, betaL, betaM, betaR}, &FillCutCellData__);
 }
 
 } // namespace
 
-
-  void FillCutCellData(
-                       std::array<StridedDataView<double, 2>, 2> unshielded,
-                       std::array<StridedDataView<double, 2>, 2> shielded_left,
-                       std::array<StridedDataView<double, 2>, 2> shielded_right,
-                       std::array<StridedDataView<double, 2>, 2> doubly_shielded,
-                       std::array<StridedDataView<double, 2>, 2> unshielded_rel,
-                       std::array<StridedDataView<double, 2>, 2> shielded_left_rel,
-                       std::array<StridedDataView<double, 2>, 2> shielded_right_rel,
-                       std::array<StridedDataView<double, 2>, 2> doubly_shielded_rel,
-                       const CutCellData<2>& geom) {
-    FillCutCellData_<2>(unshielded, shielded_left, shielded_right,
-                        doubly_shielded, unshielded_rel, shielded_left_rel,
-                        shielded_right_rel, doubly_shielded_rel, geom);
-  }
-
-  void FillCutCellData(
-                       std::array<StridedDataView<double, 3>, 3> unshielded,
-                       std::array<StridedDataView<double, 3>, 3> shielded_left,
-                       std::array<StridedDataView<double, 3>, 3> shielded_right,
-                       std::array<StridedDataView<double, 3>, 3> doubly_shielded,
-                       std::array<StridedDataView<double, 3>, 3> unshielded_rel,
-                       std::array<StridedDataView<double, 3>, 3> shielded_left_rel,
-                       std::array<StridedDataView<double, 3>, 3> shielded_right_rel,
-                       std::array<StridedDataView<double, 3>, 3> doubly_shielded_rel,
-                       const CutCellData<3>& geom) {
-    FillCutCellData_<3>(unshielded, shielded_left, shielded_right,
-                        doubly_shielded, unshielded_rel, shielded_left_rel,
-                        shielded_right_rel, doubly_shielded_rel, geom);
-  }
-
-void FillCutCellData(
-    std::array<PatchDataView<double, 2>, 2> unshielded,
-    std::array<PatchDataView<double, 2>, 2> shielded_left,
-    std::array<PatchDataView<double, 2>, 2> shielded_right,
-    std::array<PatchDataView<double, 2>, 2> doubly_shielded,
-    std::array<PatchDataView<double, 2>, 2> unshielded_rel,
-    std::array<PatchDataView<double, 2>, 2> shielded_left_rel,
-    std::array<PatchDataView<double, 2>, 2> shielded_right_rel,
-    std::array<PatchDataView<double, 2>, 2> doubly_shielded_rel,
-    const CutCellData<2>& geom) {
-  FillCutCellData_<2>(unshielded, shielded_left, shielded_right,
-                      doubly_shielded, unshielded_rel, shielded_left_rel,
-                      shielded_right_rel, doubly_shielded_rel, geom);
+void FillCutCellData(const StridedDataView<double, 2>& unshielded,
+                     const StridedDataView<double, 2>& shielded_left,
+                     const StridedDataView<double, 2>& shielded_right,
+                     const StridedDataView<double, 2>& doubly_shielded,
+                     const StridedDataView<double, 2>& unshielded_rel,
+                     const StridedDataView<double, 2>& shielded_left_rel,
+                     const StridedDataView<double, 2>& shielded_right_rel,
+                     const StridedDataView<double, 2>& doubly_shielded_rel,
+                     const PatchDataView<const double, 2>& beta,
+                     Direction dir) {
+  FillCutCellData_(unshielded, shielded_left, shielded_right, doubly_shielded,
+                   unshielded_rel, shielded_left_rel, shielded_right_rel,
+                   doubly_shielded_rel, beta, dir);
 }
 
-void FillCutCellData(
-    std::array<PatchDataView<double, 3>, 3> unshielded,
-    std::array<PatchDataView<double, 3>, 3> shielded_left,
-    std::array<PatchDataView<double, 3>, 3> shielded_right,
-    std::array<PatchDataView<double, 3>, 3> doubly_shielded,
-    std::array<PatchDataView<double, 3>, 3> unshielded_rel,
-    std::array<PatchDataView<double, 3>, 3> shielded_left_rel,
-    std::array<PatchDataView<double, 3>, 3> shielded_right_rel,
-    std::array<PatchDataView<double, 3>, 3> doubly_shielded_rel,
-    const CutCellData<3>& geom) {
-  FillCutCellData_<3>(unshielded, shielded_left, shielded_right,
-                      doubly_shielded, unshielded_rel, shielded_left_rel,
-                      shielded_right_rel, doubly_shielded_rel, geom);
+void FillCutCellData(const StridedDataView<double, 3>& unshielded,
+                     const StridedDataView<double, 3>& shielded_left,
+                     const StridedDataView<double, 3>& shielded_right,
+                     const StridedDataView<double, 3>& doubly_shielded,
+                     const StridedDataView<double, 3>& unshielded_rel,
+                     const StridedDataView<double, 3>& shielded_left_rel,
+                     const StridedDataView<double, 3>& shielded_right_rel,
+                     const StridedDataView<double, 3>& doubly_shielded_rel,
+                     const PatchDataView<const double, 3>& beta,
+                     Direction dir) {
+  FillCutCellData_(unshielded, shielded_left, shielded_right, doubly_shielded,
+                   unshielded_rel, shielded_left_rel, shielded_right_rel,
+                   doubly_shielded_rel, beta, dir);
 }
 
 } // namespace fub::amrex::cutcell

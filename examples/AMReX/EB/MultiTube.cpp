@@ -123,6 +123,7 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
       std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
           PatchHierarchy(equation, grid_geometry, hierarchy_options),
           initial_data, TagAllOf(gradient, constant_box), boundaries);
+      gridding->GetPatchHierarchy().SetCounterRegistry(counters);
       gridding->InitializeHierarchy(0.0);
       return gridding;
     } else {
@@ -131,6 +132,7 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
           fub::amrex::MakeDataDescription(equation);
       PatchHierarchy h = ReadCheckpointFile(checkpoint, desc, grid_geometry,
                                             hierarchy_options);
+      h.SetCounterRegistry(counters);
       std::shared_ptr<GriddingAlgorithm> gridding =
           std::make_shared<GriddingAlgorithm>(std::move(h), initial_data,
                                               TagAllOf(gradient, constant_box),
@@ -149,7 +151,6 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
   const int flux_gcw = 2;
 
   IntegratorContext context(gridding, method, scratch_gcw, flux_gcw);
-  context.registry_ = counters;
 
   return std::pair{std::move(context), valve};
 }
@@ -333,7 +334,7 @@ void MyMain(const fub::ProgramOptions& options) {
 
   std::vector<fub::amrex::cutcell::IntegratorContext> plenum{};
   plenum.push_back(MakePlenumSolver(mechanism, options));
-  auto counter_database = plenum[0].registry_;
+  auto counter_database = plenum[0].GetCounterRegistry();
 
   std::vector<fub::amrex::IntegratorContext> tubes{};
   std::vector<fub::amrex::BlockConnection> connectivity{};
@@ -418,13 +419,10 @@ void MyMain(const fub::ProgramOptions& options) {
   factory.RegisterOutput<fub::amrex::MultiWriteHdf5>("HDF5");
   factory.RegisterOutput<fub::amrex::MultiBlockPlotfileOutput>("Plotfile");
   factory.RegisterOutput<fub::amrex::LogProbesOutput>("LogProbes");
+  using CounterOutput = fub::CounterOutput<fub::amrex::MultiBlockGriddingAlgorithm, std::chrono::milliseconds>;
+  factory.RegisterOutput<CounterOutput>("CounterOutput");
   fub::MultipleOutputs<fub::amrex::MultiBlockGriddingAlgorithm> outputs(
       std::move(factory), fub::GetOptions(options, "Output"));
-  outputs.AddOutput(
-      std::make_unique<fub::CounterOutput<
-          fub::amrex::MultiBlockGriddingAlgorithm, std::chrono::milliseconds>>(
-          counter_database, wall_time_reference,
-          std::vector<std::ptrdiff_t>{10}, std::vector<fub::Duration>{}));
 
   outputs(*solver.GetGriddingAlgorithm());
   fub::RunSimulation(solver, fub::GetOptions(options, "RunOptions"),

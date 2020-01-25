@@ -71,8 +71,10 @@ FormatTimeStepLine(std::ptrdiff_t cycle,
                    std::chrono::steady_clock::duration wall_time_difference);
 
 template <typename DestGrid, typename SrcGrid>
-void MakeBackup(std::shared_ptr<DestGrid>& dest, const std::shared_ptr<SrcGrid>& src, CounterRegistry& counter_database) {
-  Timer counter = counter_database.get_timer("MakeBackup()");
+void MakeBackup(std::shared_ptr<DestGrid>& dest,
+                const std::shared_ptr<SrcGrid>& src,
+                CounterRegistry& counter_database) {
+  Timer counter = counter_database.get_timer("RunSimulation::MakeBackup");
   dest = std::make_shared<DestGrid>(*src);
 }
 
@@ -94,7 +96,8 @@ void RunSimulation(Solver& solver, RunOptions options,
       std::decay_t<decltype(*std::declval<Solver&>().GetGriddingAlgorithm())>;
   // Deeply copy the grid for a fallback scenario in case of time step errors
   std::shared_ptr<GriddingAlgorithm> backup{};
-  MakeBackup(backup, solver.GetGriddingAlgorithm(), *solver.GetCounterRegistry());
+  MakeBackup(backup, solver.GetGriddingAlgorithm(),
+             *solver.GetCounterRegistry());
   std::optional<Duration> failure_dt{};
   while (time_point + eps < options.final_time &&
          (options.max_cycles < 0 || solver.GetCycles() < options.max_cycles)) {
@@ -141,7 +144,8 @@ void RunSimulation(Solver& solver, RunOptions options,
                                              options.final_time, wall_time,
                                              wall_time_difference);
         failure_dt.reset();
-        MakeBackup(backup, solver.GetGriddingAlgorithm(), *solver.GetCounterRegistry());
+        MakeBackup(backup, solver.GetGriddingAlgorithm(),
+                   *solver.GetCounterRegistry());
       }
     } while (
         time_point + eps < options.final_time &&

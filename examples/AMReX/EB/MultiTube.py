@@ -1,10 +1,10 @@
 import math
 
-plenum_x_n_cells = 16 * 8
+plenum_x_n_cells = 32
 tube_blocking_factor = 8
 plenum_blocking_factor = 8
 
-n_level = 1
+n_level = 3
 
 n_tubes = 6
 r_tube = 0.015
@@ -51,7 +51,7 @@ tube_n_cells = int(tube_n_cells)
 RunOptions = {
   'cfl': 0.5,
   'final_time': 0.02,
-  # 'max_cycles': 0
+  'max_cycles': 5
 }
 
 Plenum = {
@@ -66,7 +66,8 @@ Plenum = {
   'PatchHierarchy': {
     'max_number_of_levels': n_level, 
     'blocking_factor': [plenum_blocking_factor, plenum_blocking_factor, plenum_blocking_factor],
-    'max_grid_size': [plenum_max_grid_size, plenum_max_grid_size, plenum_max_grid_size]
+    'max_grid_size': [plenum_max_grid_size, plenum_max_grid_size, plenum_max_grid_size],
+    'ngrow_eb_level_set': 5
   },
   'IsentropicPressureBoundary': {
     'outer_pressure': 101325.0,
@@ -126,13 +127,13 @@ Tubes = [{
 Output = { 
   'outputs': [{
     'type': 'Plotfile',
-    'directory': 'MultiTube/Test/',
+    'directory': 'MultiTube/',
     # 'intervals': [1e-4],
     'frequencies': [1],
   }, {
     'type': 'LogProbes',
     'directory': 'MultiTube/Probes/',
-    'frequencies': [1],
+    # 'frequencies': [1],
     'Plenum': {
       'filename': 'MultiTube/Probes/Plenum.h5',
       'coordinates': [TubeCenterPoint(0.0, 0, alpha)],
@@ -141,6 +142,9 @@ Output = {
       'filename': 'MultiTube/Probes/Tubes.h5',
       'coordinates': [TubeCenterPoint(-1.0, 0, alpha), TubeCenterPoint(-0.2, 0, alpha)],
     }
+  }, {
+    'type': 'CounterOutput',
+    'frequencies': [1]
   }]
 }
 

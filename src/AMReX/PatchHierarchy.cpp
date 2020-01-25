@@ -50,12 +50,9 @@ PatchHierarchyOptions::PatchHierarchyOptions(const ProgramOptions& options) {
   blocking = GetOptionOr(options, "blocking_factor", blocking);
   max_grid = GetOptionOr(options, "max_grid_size", max_grid);
   n_err = GetOptionOr(options, "n_error_buf", n_err);
-  verbose =
-      GetOptionOr(options, "verbose", verbose);
-  grid_efficiency =
-      GetOptionOr(options, "grid_efficiency", grid_efficiency);
-  n_proper =
-      GetOptionOr(options, "n_proper", n_proper);
+  verbose = GetOptionOr(options, "verbose", verbose);
+  grid_efficiency = GetOptionOr(options, "grid_efficiency", grid_efficiency);
+  n_proper = GetOptionOr(options, "n_proper", n_proper);
 
   std::copy_n(ref_ratio.begin(), AMREX_SPACEDIM, refine_ratio.begin());
   std::copy_n(blocking.begin(), AMREX_SPACEDIM, blocking_factor.begin());
@@ -166,7 +163,7 @@ PatchHierarchy::PatchHierarchy(DataDescription desc,
                                const CartesianGridGeometry& geometry,
                                const PatchHierarchyOptions& options)
     : description_{std::move(desc)}, grid_geometry_{geometry},
-      options_{options}, patch_level_{}, patch_level_geometry_{} {
+      options_{options}, patch_level_{}, patch_level_geometry_{}, registry_{std::make_shared<CounterRegistry>()} {
   patch_level_.reserve(static_cast<std::size_t>(options.max_number_of_levels));
   patch_level_geometry_.resize(
       static_cast<std::size_t>(options.max_number_of_levels));
@@ -202,6 +199,16 @@ int PatchHierarchy::GetRatioToCoarserLevel(int level, Direction dir) const
     return ::amrex::IntVect::TheUnitVector();
   }
   return options_.refine_ratio;
+}
+
+const std::shared_ptr<CounterRegistry>&
+PatchHierarchy::GetCounterRegistry() const noexcept {
+  return registry_;
+}
+
+void PatchHierarchy::SetCounterRegistry(
+    std::shared_ptr<CounterRegistry> registry) {
+  registry_ = std::move(registry);
 }
 
 const ::amrex::Geometry& PatchHierarchy::GetGeometry(int level) const {
