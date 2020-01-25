@@ -85,7 +85,8 @@ void WriteHdf5UnRestricted(const std::string& name,
   ::MPI_Comm_rank(comm, &rank);
   if (rank == 0) {
     boost::filesystem::path path(name);
-    boost::filesystem::path dir = boost::filesystem::absolute(path.parent_path(), boost::filesystem::current_path());
+    boost::filesystem::path dir = boost::filesystem::absolute(
+        path.parent_path(), boost::filesystem::current_path());
     if (!boost::filesystem::exists(dir)) {
       boost::filesystem::create_directories(dir);
     }
@@ -150,7 +151,8 @@ void WriteHdf5RestrictedToBox(const std::string& name,
   ::MPI_Comm_rank(comm, &rank);
   if (rank == 0) {
     boost::filesystem::path path(name);
-    boost::filesystem::path dir = boost::filesystem::absolute(path.parent_path(), boost::filesystem::current_path());
+    boost::filesystem::path dir = boost::filesystem::absolute(
+        path.parent_path(), boost::filesystem::current_path());
     if (!boost::filesystem::exists(dir)) {
       boost::filesystem::create_directories(dir);
     }
@@ -237,4 +239,4 @@ void WriteHdf5::operator()(const GriddingAlgorithm& grid) {
   }
 }
 
-} // namespace fub::amrex
+} // namespace fub::amrex::cutcell

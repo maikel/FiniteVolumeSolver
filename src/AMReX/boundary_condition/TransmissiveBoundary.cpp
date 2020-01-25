@@ -52,7 +52,8 @@ void TransmissiveBoundary::FillBoundary(::amrex::MultiFab& mf,
 
 void TransmissiveBoundary::FillBoundary(::amrex::MultiFab& mf,
                                         const ::amrex::Geometry& geom, Duration,
-                                        const GriddingAlgorithm&, Direction dir) {
+                                        const GriddingAlgorithm&,
+                                        Direction dir) {
   if (dir == this->dir) {
     FillBoundary(mf, geom);
   }

@@ -48,19 +48,19 @@ template <typename Tag> struct ForwardIntegrator {
                             Direction dir);
 };
 
-ForwardIntegrator() -> ForwardIntegrator<execution::OpenMpSimdTag>;
+ForwardIntegrator()->ForwardIntegrator<execution::OpenMpSimdTag>;
 
 extern template struct ForwardIntegrator<execution::SequentialTag>;
 extern template struct ForwardIntegrator<execution::OpenMpTag>;
 extern template struct ForwardIntegrator<execution::SimdTag>;
 extern template struct ForwardIntegrator<execution::OpenMpSimdTag>;
 
-inline ForwardIntegrator<execution::OpenMpSimdTag> EulerForwardTimeIntegrator() {
+inline ForwardIntegrator<execution::OpenMpSimdTag>
+EulerForwardTimeIntegrator() {
   return {};
 }
 
-template <typename Tag>
-ForwardIntegrator<Tag> EulerForwardTimeIntegrator(Tag) {
+template <typename Tag> ForwardIntegrator<Tag> EulerForwardTimeIntegrator(Tag) {
   return {};
 }
 

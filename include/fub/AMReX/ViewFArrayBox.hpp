@@ -31,17 +31,17 @@
 #include <AMReX_RealBox.H>
 
 namespace fub {
-template <> 
+template <>
 ::amrex::IntVect GetOptionOr(const ProgramOptions& map, const std::string& name,
-              const ::amrex::IntVect& value);
+                             const ::amrex::IntVect& value);
 
-template <> 
+template <>
 ::amrex::Box GetOptionOr(const ProgramOptions& map, const std::string& name,
-              const ::amrex::Box& value);
+                         const ::amrex::Box& value);
 
-template <> 
+template <>
 ::amrex::RealBox GetOptionOr(const ProgramOptions& map, const std::string& name,
-              const ::amrex::RealBox& value);
+                             const ::amrex::RealBox& value);
 
 namespace amrex {
 

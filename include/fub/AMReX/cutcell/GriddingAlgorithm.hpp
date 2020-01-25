@@ -79,8 +79,9 @@ public:
   void FillMultiFabFromLevel(::amrex::MultiFab& mf, int level_number);
 
 private:
-  [[nodiscard]] ::amrex::DistributionMapping LoadBalance(int level, const ::amrex::BoxArray& box_array,
-    const ::amrex::DistributionMapping& distribution_mapping) const;
+  [[nodiscard]] ::amrex::DistributionMapping
+  LoadBalance(int level, const ::amrex::BoxArray& box_array,
+              const ::amrex::DistributionMapping& distribution_mapping) const;
 
   void ErrorEst(int level, ::amrex::TagBoxArray& tags, double time_point,
                 int /* ngrow */) override;

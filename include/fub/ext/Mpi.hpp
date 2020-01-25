@@ -30,4 +30,4 @@ std::string ReadAndBroadcastFile(std::string filepath, MPI_Comm comm);
 
 Duration MinAll(MPI_Comm comm, Duration local_duration);
 
-}
+} // namespace fub

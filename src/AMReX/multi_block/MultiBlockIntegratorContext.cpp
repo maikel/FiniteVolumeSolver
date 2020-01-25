@@ -293,8 +293,8 @@ struct WrapBoundaryCondition {
     }
   }
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration time_point,
-                    const GriddingAlgorithm& gridding, Direction dir) const {
+                    Duration time_point, const GriddingAlgorithm& gridding,
+                    Direction dir) const {
     FUB_ASSERT(base_condition != nullptr);
     base_condition->FillBoundary(mf, geom, time_point, gridding, dir);
     MultiBlockBoundary* boundary = boundaries.begin();
@@ -320,7 +320,8 @@ struct WrapBoundaryCondition {
   }
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
                     Duration time_point,
-                    const cutcell::GriddingAlgorithm& gridding, Direction dir) const {
+                    const cutcell::GriddingAlgorithm& gridding,
+                    Direction dir) const {
     FUB_ASSERT(base_cc_condition != nullptr);
     base_cc_condition->FillBoundary(mf, geom, time_point, gridding, dir);
     MultiBlockBoundary* boundary = boundaries.begin();
@@ -334,7 +335,8 @@ struct WrapBoundaryCondition {
 };
 } // namespace
 
-void MultiBlockIntegratorContext::ApplyBoundaryCondition(int level, Direction dir) {
+void MultiBlockIntegratorContext::ApplyBoundaryCondition(int level,
+                                                         Direction dir) {
   std::size_t id = 0;
   for (IntegratorContext& tube : tubes_) {
     if (tube.LevelExists(level)) {

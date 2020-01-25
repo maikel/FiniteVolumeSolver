@@ -78,9 +78,9 @@ public:
                    [[maybe_unused]] Duration time_step_size,
                    [[maybe_unused]] std::pair<int, int> subcycle);
 
+  using IntegratorContext::GetCounterRegistry;
   using IntegratorContext::GetCycles;
   using IntegratorContext::GetMpiCommunicator;
-  using IntegratorContext::GetCounterRegistry;
   using IntegratorContext::GetTimePoint;
 
   using IntegratorContext::FillGhostLayerSingleLevel;

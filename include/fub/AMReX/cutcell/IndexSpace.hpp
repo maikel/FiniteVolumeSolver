@@ -43,8 +43,8 @@ constexpr std::ptrdiff_t ipow(int base, int exponent) {
 
 template <typename GShop>
 std::vector<const ::amrex::EB2::IndexSpace*>
-MakeIndexSpaces(GShop&& shop, const ::amrex::Geometry& coarse_geom,
-                int n_level, int ngrow = 4) {
+MakeIndexSpaces(GShop&& shop, const ::amrex::Geometry& coarse_geom, int n_level,
+                int ngrow = 4) {
   FUB_ASSERT(n_level > 0);
   std::vector<const ::amrex::EB2::IndexSpace*> index_spaces(
       static_cast<std::size_t>(n_level));

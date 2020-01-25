@@ -48,9 +48,11 @@ CartesianGridGeometry::CartesianGridGeometry(const ProgramOptions& options) {
   return ::amrex::Box{lo, up};
 }
 
-::amrex::RealBox DomainAroundCenter(const ::amrex::RealArray& x, const ::amrex::RealArray& rx) {
-  return ::amrex::RealBox{{AMREX_D_DECL(x[0] - rx[0], x[1] - rx[1], x[2] - rx[2])},
-                          {AMREX_D_DECL(x[0] + rx[0], x[1] + rx[1], x[2] + rx[2])}};
+::amrex::RealBox DomainAroundCenter(const ::amrex::RealArray& x,
+                                    const ::amrex::RealArray& rx) {
+  return ::amrex::RealBox{
+      {AMREX_D_DECL(x[0] - rx[0], x[1] - rx[1], x[2] - rx[2])},
+      {AMREX_D_DECL(x[0] + rx[0], x[1] + rx[1], x[2] + rx[2])}};
 }
 
 } // namespace fub::amrex

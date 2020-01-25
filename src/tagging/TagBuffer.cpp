@@ -67,12 +67,15 @@ void TagBuffer::TagCellsForRefinement(
   const Direction X = Direction::X;
   const Direction Y = Direction::Y;
   const Direction Z = Direction::Z;
-  IndexBox<3> box = Shrink(Shrink(Shrink(tags.Box(), X, shift), Y, shift), Z, shift);
-  ForEachIndex(box, [&](std::ptrdiff_t i0, std::ptrdiff_t j0, std::ptrdiff_t k0) {
+  IndexBox<3> box =
+      Shrink(Shrink(Shrink(tags.Box(), X, shift), Y, shift), Z, shift);
+  ForEachIndex(box, [&](std::ptrdiff_t i0, std::ptrdiff_t j0,
+                        std::ptrdiff_t k0) {
     Index<3> lower{i0 - buffer_width_, j0 - buffer_width_, k0 - buffer_width_};
     Index<3> upper{i0 + buffer_width_, j0 + buffer_width_, k0 + buffer_width_};
     IndexBox<3> neighborhood{lower, upper};
-    ForEachIndex(neighborhood, [&](std::ptrdiff_t i, std::ptrdiff_t j, std::ptrdiff_t k) {
+    ForEachIndex(neighborhood, [&](std::ptrdiff_t i, std::ptrdiff_t j,
+                                   std::ptrdiff_t k) {
       tags(i, j, k) = std::max(tags(i, j, k), char('\2' - tags(i, j, k)));
     });
   });

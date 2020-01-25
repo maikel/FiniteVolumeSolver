@@ -21,9 +21,9 @@
 #include "fub/AMReX/ViewFArrayBox.hpp"
 
 namespace fub {
-template <> 
+template <>
 ::amrex::IntVect GetOptionOr(const ProgramOptions& map, const std::string& name,
-              const ::amrex::IntVect& value) {
+                             const ::amrex::IntVect& value) {
   std::array<int, AMREX_SPACEDIM> iv{};
   std::copy_n(value.begin(), AMREX_SPACEDIM, iv.begin());
   iv = GetOptionOr(map, name, iv);
@@ -32,17 +32,16 @@ template <>
 
 template <>
 ::amrex::Box GetOptionOr(const ProgramOptions& map, const std::string& name,
-              const ::amrex::Box& value) {
+                         const ::amrex::Box& value) {
   ProgramOptions box = GetOptions(map, name);
   ::amrex::IntVect lo = GetOptionOr(box, "lower", value.smallEnd());
   ::amrex::IntVect hi = GetOptionOr(box, "upper", value.bigEnd());
   return ::amrex::Box(lo, hi);
 }
 
-
-template <> 
+template <>
 ::amrex::RealBox GetOptionOr(const ProgramOptions& map, const std::string& name,
-              const ::amrex::RealBox& value) {
+                             const ::amrex::RealBox& value) {
   ProgramOptions box = GetOptions(map, name);
   std::array<double, AMREX_SPACEDIM> lo{};
   std::array<double, AMREX_SPACEDIM> hi{};
@@ -73,7 +72,8 @@ GetCellsAndFacesInStencilRange(const ::amrex::Box& cell_validbox,
       cell_validbox &
       ::amrex::grow(::amrex::enclosedCells(face_tilebox), dir_v, stencil_width);
   const ::amrex::Box face_tilebox_in_range =
-      face_tilebox & ::amrex::surroundingNodes(
+      face_tilebox &
+      ::amrex::surroundingNodes(
           ::amrex::grow(cell_tilebox, dir_v, -stencil_width), dir_v);
   return {cell_tilebox, face_tilebox_in_range};
 }

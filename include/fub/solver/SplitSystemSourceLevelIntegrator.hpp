@@ -54,11 +54,11 @@ public:
   const SourceTerm& GetSource() const noexcept { return source_term_; }
 
   using SystemSolver::GetContext;
+  using SystemSolver::GetCounterRegistry;
   using SystemSolver::GetCycles;
   using SystemSolver::GetGriddingAlgorithm;
   using SystemSolver::GetMpiCommunicator;
   using SystemSolver::GetTimePoint;
-  using SystemSolver::GetCounterRegistry;
 
   using SystemSolver::FillGhostLayerSingleLevel;
   using SystemSolver::FillGhostLayerTwoLevels;
@@ -67,10 +67,10 @@ public:
   using SystemSolver::LevelExists;
 
   using SystemSolver::CoarsenConservatively;
-  using SystemSolver::CopyDataToScratch;
-  using SystemSolver::CopyScratchToData;
   using SystemSolver::CompleteFromCons;
   using SystemSolver::ComputeNumericFluxes;
+  using SystemSolver::CopyDataToScratch;
+  using SystemSolver::CopyScratchToData;
   using SystemSolver::UpdateConservatively;
 
   using SystemSolver::AccumulateCoarseFineFluxes;
@@ -199,7 +199,8 @@ SplitSystemSourceLevelIntegrator<SystemSolver, SourceTerm, SplittingMethod>::
   };
 
   auto AdvanceSource = [&](Duration dt) -> Result<void, TimeStepTooLarge> {
-    return source_term_.AdvanceLevel(SystemSolver::GetContext(), this_level, dt);
+    return source_term_.AdvanceLevel(SystemSolver::GetContext(), this_level,
+                                     dt);
   };
   return splitting_.Advance(dt, AdvanceSource, AdvanceSystem);
 }

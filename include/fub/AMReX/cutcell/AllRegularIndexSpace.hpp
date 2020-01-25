@@ -32,7 +32,8 @@ public:
                        int n_required_levels, int max_coarsening_level,
                        int n_grow = 4);
 
-  const ::amrex::EB2::Level& getLevel(const ::amrex::Geometry& geom) const final;
+  const ::amrex::EB2::Level&
+  getLevel(const ::amrex::Geometry& geom) const final;
   const ::amrex::Geometry& getGeometry(const ::amrex::Box& dom) const final;
   const ::amrex::Box& coarsestDomain() const final;
 
@@ -45,10 +46,10 @@ private:
   std::vector<int> n_grows_;
 };
 
-std::vector<const ::amrex::EB2::IndexSpace*> BuildRegularSpace(const ::amrex::Geometry& coarse_geometry,
-                       const ::amrex::IntVect& refine_ratio,
-                       int n_required_levels);
+std::vector<const ::amrex::EB2::IndexSpace*>
+BuildRegularSpace(const ::amrex::Geometry& coarse_geometry,
+                  const ::amrex::IntVect& refine_ratio, int n_required_levels);
 
-} // namespace fub::amrex
+} // namespace fub::amrex::cutcell
 
 #endif

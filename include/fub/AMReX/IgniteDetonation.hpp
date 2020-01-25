@@ -82,7 +82,7 @@ public:
   /// \brief Constructs the source term
   ///
   /// \param[in] eq  The equation which knows the species
-  /// 
+  ///
   /// \param[in] max_refinement_level  This is needed to allocate storate for
   /// ignition times at each refinement level.
   ///

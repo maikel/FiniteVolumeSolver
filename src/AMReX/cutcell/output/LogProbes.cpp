@@ -142,11 +142,11 @@ void LogPlenumProbes(const std::string& p, ProbesView<const double> probes,
 
 LogProbesOutput::LogProbesOutput(const ProgramOptions& vm)
     : OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm>(vm) {
-  using namespace std::literals; 
+  using namespace std::literals;
   {
     const ProgramOptions plenum_vm = GetOptions(vm, "Plenum");
     plenum_output_path_ = GetOptionOr(plenum_vm, "filename", "plenum.dat"s);
-    std::vector<std::array<double, AMREX_SPACEDIM>> xs{};  
+    std::vector<std::array<double, AMREX_SPACEDIM>> xs{};
     xs = GetOptionOr(plenum_vm, "coordinates", xs);
     plenum_probes_.resize(AMREX_SPACEDIM * xs.size());
     ProbesView<double> probes(plenum_probes_.data(), xs.size());
@@ -197,4 +197,4 @@ void LogProbesOutput::operator()(const MultiBlockGriddingAlgorithm& grid) {
   }
 }
 
-} // namespace fub::amrex::cutcell
+} // namespace fub::amrex

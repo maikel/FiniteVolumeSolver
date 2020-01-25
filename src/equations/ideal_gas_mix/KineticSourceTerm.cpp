@@ -24,12 +24,12 @@
 namespace fub::ideal_gas {
 
 template <int Rank>
-KineticSourceTerm<Rank>::KineticSourceTerm(const IdealGasMix<Rank> &eq)
+KineticSourceTerm<Rank>::KineticSourceTerm(const IdealGasMix<Rank>& eq)
     : equation_{eq}, state_{Complete<IdealGasMix<Rank>>(eq)},
       registry_(std::make_shared<CounterRegistry>()) {}
 
 template <int Rank>
-KineticSourceTerm<Rank>::KineticSourceTerm(const IdealGasMix<Rank> &eq,
+KineticSourceTerm<Rank>::KineticSourceTerm(const IdealGasMix<Rank>& eq,
                                            std::shared_ptr<CounterRegistry> reg)
     : equation_{eq}, state_{Complete<IdealGasMix<Rank>>(eq)},
       registry_(std::move(reg)) {}
@@ -40,11 +40,11 @@ template <int Rank> Duration KineticSourceTerm<Rank>::ComputeStableDt(int) {
 
 template <int Rank>
 Result<void, TimeStepTooLarge>
-KineticSourceTerm<Rank>::AdvanceLevel(amrex::IntegratorContext &simulation_data,
+KineticSourceTerm<Rank>::AdvanceLevel(amrex::IntegratorContext& simulation_data,
                                       int level, Duration dt,
-                                      const ::amrex::IntVect &ngrow) {
+                                      const ::amrex::IntVect& ngrow) {
   Timer advance_timer = registry_->get_timer("KineticSourceTerm::AdvanceLevel");
-  ::amrex::MultiFab &data = simulation_data.GetScratch(level);
+  ::amrex::MultiFab& data = simulation_data.GetScratch(level);
 #if defined(_OPENMP) && defined(AMREX_USE_OMP)
 #pragma omp parallel
 #endif
@@ -52,7 +52,7 @@ KineticSourceTerm<Rank>::AdvanceLevel(amrex::IntegratorContext &simulation_data,
     using Complete = ::fub::Complete<IdealGasMix<Rank>>;
     View<Complete> states = amrex::MakeView<Complete>(data[mfi], *equation_,
                                                       mfi.growntilebox(ngrow));
-    FlameMasterReactor &reactor = equation_->GetReactor();
+    FlameMasterReactor& reactor = equation_->GetReactor();
     ForEachIndex(Box<0>(states), [&](auto... is) {
       std::array<std::ptrdiff_t, sRank> index{is...};
       Load(*state_, states, index);
