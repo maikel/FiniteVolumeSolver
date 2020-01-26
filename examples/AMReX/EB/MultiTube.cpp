@@ -413,7 +413,7 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::SplitSystemSourceLevelIntegrator level_integrator(
       std::move(ign_solver), std::move(source_term), fub::StrangSplitting{});
 
-  fub::NoSubcycleSolver solver(std::move(level_integrator));
+  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
   fub::OutputFactory<fub::amrex::MultiBlockGriddingAlgorithm> factory{};
   factory.RegisterOutput<fub::amrex::MultiWriteHdf5>("HDF5");
