@@ -420,7 +420,7 @@ void MyMain(const fub::ProgramOptions& options) {
   factory.RegisterOutput<fub::amrex::MultiBlockPlotfileOutput>("Plotfile");
   factory.RegisterOutput<fub::amrex::LogProbesOutput>("LogProbes");
   using CounterOutput = fub::CounterOutput<fub::amrex::MultiBlockGriddingAlgorithm, std::chrono::milliseconds>;
-  factory.RegisterOutput<CounterOutput>("CounterOutput");
+  factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
   fub::MultipleOutputs<fub::amrex::MultiBlockGriddingAlgorithm> outputs(
       std::move(factory), fub::GetOptions(options, "Output"));
 

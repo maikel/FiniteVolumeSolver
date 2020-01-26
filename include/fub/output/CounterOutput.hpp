@@ -33,6 +33,9 @@ namespace fub {
 template <typename Grid, typename PrintDuration = std::chrono::nanoseconds>
 class CounterOutput : public OutputAtFrequencyOrInterval<Grid> {
 public:
+  CounterOutput(const ProgramOptions& po, std::chrono::steady_clock::time_point ref)
+    : OutputAtFrequencyOrInterval<Grid>(po), reference_{ref} {}
+
   CounterOutput(const ProgramOptions& po)
     : OutputAtFrequencyOrInterval<Grid>(po), reference_{std::chrono::steady_clock::now()} {}
 

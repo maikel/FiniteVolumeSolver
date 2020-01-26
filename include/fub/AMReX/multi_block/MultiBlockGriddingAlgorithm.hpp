@@ -89,6 +89,9 @@ private:
 template <typename PrintDuration>
 class CounterOutput<amrex::MultiBlockGriddingAlgorithm, PrintDuration> : public OutputAtFrequencyOrInterval<amrex::MultiBlockGriddingAlgorithm> {
 public:
+  CounterOutput(const ProgramOptions& po, std::chrono::steady_clock::time_point ref)
+    : OutputAtFrequencyOrInterval<amrex::MultiBlockGriddingAlgorithm>(po), reference_{ref} {}
+
   CounterOutput(const ProgramOptions& po)
     : OutputAtFrequencyOrInterval<amrex::MultiBlockGriddingAlgorithm>(po), reference_{std::chrono::steady_clock::now()} {}
 
