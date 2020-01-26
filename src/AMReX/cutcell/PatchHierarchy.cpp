@@ -70,11 +70,11 @@ PatchLevel::PatchLevel(const PatchLevel& other)
       factory->getMultiEBCellFlagFab();
   static constexpr int Rank = AMREX_SPACEDIM;
   for (std::size_t d = 0; d < static_cast<std::size_t>(Rank); ++d) {
-    const ::amrex::MultiCutFab& betas = *factory->getAreaFrac()[d];
-    ForEachFab(execution::openmp, betas.boxArray(), betas.DistributionMap(), [&](const ::amrex::MFIter& mfi) {
+    const ::amrex::MultiFab& alphas = factory->getVolFrac();
+    ForEachFab(execution::openmp, alphas, [&](const ::amrex::MFIter& mfi) {
       if (flags[mfi].getType() == ::amrex::FabType::singlevalued) {
         const int ngrow = unshielded[d]->nGrow();
-        ::amrex::Box tilebox = mfi.growntilebox(ngrow);
+        ::amrex::Box tilebox = mfi.grownnodaltilebox(d, ngrow);
         (*unshielded[d])[mfi].copy((*other.unshielded[d])[mfi], tilebox, ::amrex::SrcComp(0), ::amrex::DestComp(0), ::amrex::NumComps(2));
         (*shielded_left[d])[mfi].copy((*other.shielded_left[d])[mfi], tilebox, ::amrex::SrcComp(0), ::amrex::DestComp(0), ::amrex::NumComps(2));
         (*shielded_right[d])[mfi].copy((*other.shielded_right[d])[mfi], tilebox, ::amrex::SrcComp(0), ::amrex::DestComp(0), ::amrex::NumComps(2));
@@ -108,12 +108,14 @@ PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
     doubly_shielded[d]->setVal(0.0);
   }
   static constexpr int Rank = AMREX_SPACEDIM;
+  const ::amrex::MultiFab& alphas = factory->getVolFrac();
   for (std::size_t d = 0; d < static_cast<std::size_t>(Rank); ++d) {
     const ::amrex::MultiCutFab& betas = *factory->getAreaFrac()[d];
-    ForEachFab(execution::openmp, betas.boxArray(), betas.DistributionMap(), [&](const ::amrex::MFIter& mfi) {
+    ForEachFab(execution::openmp, alphas, [&](const ::amrex::MFIter& mfi) {
       if (flags[mfi].getType() == ::amrex::FabType::singlevalued) {
-        IndexBox<AMREX_SPACEDIM> face_box =
-            AsIndexBox<AMREX_SPACEDIM>(mfi.growntilebox(unshielded[d]->nGrow()));
+        const int ngrow = unshielded[d]->nGrow();
+        ::amrex::Box tilebox = mfi.grownnodaltilebox(d, ngrow);
+        IndexBox<AMREX_SPACEDIM> face_box = AsIndexBox<AMREX_SPACEDIM>(tilebox);
         PatchDataView<const double, Rank> beta =
             MakePatchDataView(betas[mfi], 0);
         StridedDataView<double, Rank> us =
