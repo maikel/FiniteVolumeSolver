@@ -27,16 +27,26 @@ namespace fub::amrex {
 
 void WriteAdvectiveFluxes(const std::string& path,
                           const BK19AdvectiveFluxes& pv, int level) {
-  const ::amrex::MultiFab& faces_x = pv.on_faces[0];
-  WriteRawField(path, "Pv_x", faces_x, level);
-
+  {
+    const ::amrex::BoxArray& ba = pv.on_faces[0].boxArray();
+    const ::amrex::DistributionMapping& dm = pv.on_faces[0].DistributionMap();
+    ::amrex::MultiFab faces_x(ba, dm, 1, 0);
+    ::amrex::MultiFab::Copy(faces_x, pv.on_faces[0], 0, 0, 1, 0);
+    WriteRawField(path, "Pv_x", faces_x, level);
+  }
   if (pv.on_faces.size() > 1) {
-    const ::amrex::MultiFab& faces_y = pv.on_faces[1];
+    const ::amrex::BoxArray& ba = pv.on_faces[1].boxArray();
+    const ::amrex::DistributionMapping& dm = pv.on_faces[1].DistributionMap();
+    ::amrex::MultiFab faces_y(ba, dm, 1, 0);
+    ::amrex::MultiFab::Copy(faces_y, pv.on_faces[1], 0, 0, 1, 0);
     WriteRawField(path, "Pv_y", faces_y, level);
   }
 
   if (pv.on_faces.size() > 2) {
-    const ::amrex::MultiFab& faces_z = pv.on_faces[2];
+    const ::amrex::BoxArray& ba = pv.on_faces[2].boxArray();
+    const ::amrex::DistributionMapping& dm = pv.on_faces[2].DistributionMap();
+    ::amrex::MultiFab faces_z(ba, dm, 1, 0);
+    ::amrex::MultiFab::Copy(faces_z, pv.on_faces[2], 0, 0, 1, 0);
     WriteRawField(path, "Pv_z", faces_z, level);
   }
 }
