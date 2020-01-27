@@ -71,15 +71,14 @@ void RiemannProblem<Eq, Geometry>::InitializeData(
   const ::amrex::FabArray<::amrex::EBCellFlagFab>& flags =
       factory.getMultiEBCellFlagFab();
   const ::amrex::MultiFab& alphas = factory.getVolFrac();
-  ForEachFab(data, [&](const ::amrex::MFIter& mfi) {
+  ForEachFab(execution::openmp, data, [&](const ::amrex::MFIter& mfi) {
     const ::amrex::FabType type = flags[mfi].getType();
     if (type == ::amrex::FabType::covered) {
-      span<double> span(data[mfi].dataPtr(), data[mfi].size());
-      std::fill(span.begin(), span.end(), 0.0);
+      data[mfi].setVal(0.0, mfi.growntilebox(), 0, data.nComp());
       return;
     }
     View<Complete> states =
-        MakeView<Complete>(data[mfi], equation_, mfi.tilebox());
+        MakeView<Complete>(data[mfi], equation_, mfi.growntilebox());
     Eigen::Vector3d x = Eigen::Vector3d::Zero();
     if (type == ::amrex::FabType::regular) {
       ForEachIndex(Box<0>(states), [&](auto... is) {
