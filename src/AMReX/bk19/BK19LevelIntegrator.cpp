@@ -22,6 +22,8 @@
 #include "fub/AMReX/bk19/BK19LevelIntegrator.hpp"
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
+#include "fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp"
+#include <AMReX_MLMG.H>
 
 namespace fub::amrex {
 
@@ -310,6 +312,15 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   ::amrex::BoxArray on_nodes = on_cells;
   on_nodes.surroundingNodes();
 
+  ::amrex::MLMG ndsolver(lin_op);
+  ndsolver.setMaxIter(options.mlmg_max_iter);
+  ndsolver.setVerbose(options.mlmg_verbose);
+  ndsolver.setBottomVerbose(options.bottom_verbose);
+  ndsolver.setBottomMaxIter(options.bottom_max_iter);
+  ndsolver.setBottomToleranceAbs(options.bottom_tolerance_abs);
+  ndsolver.setBottomTolerance(options.bottom_tolerance_rel);
+  ndsolver.setAlwaysUseBNorm(options.always_use_bnorm);
+
   // compute RHS for elliptic solve
   MultiFab rhs(on_nodes, distribution_map, one_component, no_ghosts);
 
@@ -327,6 +338,19 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   rhs.setVal(0.0);
   lin_op.compDivergence({&rhs}, {&UV});
 
+  //  ::amrex::Box node_domain = geom.Domain();
+  //  node_domain.surroundingNodes();
+  //  node_domain.setBig(0, node_domain.bigEnd(0) - 1);
+  //  node_domain.setBig(1, node_domain.bigEnd(1) - 1);
+  //  double rhs_sum = 0.0;
+  //  ForEachFab(rhs, [&](const ::amrex::MFIter& mfi) {
+  //    const ::amrex::Box subbox = mfi.validbox() & node_domain;
+  //    rhs_sum += rhs[mfi].sum(subbox, 0);
+  //  });
+  //  if (rhs_sum > 1e-6) {
+  //    throw std::runtime_error("Fehler!");
+  //  }
+
   // Construct sigma by: -cp dt^2 (P Theta)^o (Equation (27) in [BK19])
   // MultiFab::Divide(dest, src, src_comp, dest_comp, n_comp, n_grow);
   MultiFab sigma(on_cells, distribution_map, one_component, no_ghosts);
@@ -338,7 +362,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   lin_op.setSigma(level, sigma);
   MultiFab pi(on_nodes, distribution_map, one_component, no_ghosts);
   pi.setVal(0.0);
-  nodal_solver.solve({&pi}, {&rhs}, options.mlmg_tolerance_rel,
+  ndsolver.solve({&pi}, {&rhs}, options.mlmg_tolerance_rel,
                      options.mlmg_tolerance_abs);
 
   MultiFab UV_correction(on_cells, distribution_map, index.momentum.size(),
@@ -491,15 +515,29 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
 
   // 3) Do the first euler backward integration step for the source term
   context.FillGhostLayerSingleLevel(level);
-  DoEulerBackward_(equation_, index_, *nodal_solver_, *lin_op_, options_,
+  MultiFab pi_tmp =
+      DoEulerBackward_(equation_, index_, *nodal_solver_, *lin_op_, options_,
                    context, level, half_dt);
 
-  debug.plotfilename = "BK19_Pseudo_Incompressible-advect-backward/";
-  debug(context);
+  // Copy pi to context for visualization
+  ::amrex::BoxArray on_cells = scratch.boxArray();
+  ::amrex::BoxArray on_nodes = on_cells;
+  on_nodes.surroundingNodes();
+  const MultiFab& pi_old = context.GetPi(level);
+  MultiFab pi(on_nodes, scratch.DistributionMap(), one_component,
+              one_ghost_cell_width);
+  pi.ParallelCopy(pi_old, context.GetGeometry(level).periodicity());
+  context.GetPi(level).copy(pi_tmp);
 
   // 4) Recompute Pv at half time
   RecomputeAdvectiveFluxes(index_, Pv.on_faces, Pv.on_cells, scratch,
                            periodicity);
+
+  debug.plotfilename = "BK19_Pseudo_Incompressible-advect-backward/";
+  debug(context);
+  context.GetPi(level).copy(pi);
+
+  // Copy data from old time level back to scratch
   scratch.copy(scratch_aux);
   context.FillGhostLayerSingleLevel(level);
 
@@ -518,6 +556,16 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   if (!result) {
     return result;
   }
+
+//   MultiFab rhs(on_nodes, scratch.DistributionMap(), one_component, no_ghosts);
+//   MultiFab UV(on_cells, scratch.DistributionMap(), index_.momentum.size(),
+//               one_ghost_cell_width);
+//   ComputePvFromScratch_(index_, UV, scratch, periodicity);
+//
+//   UV.mult(-dt.count(), UV.nGrow());
+//   rhs.setVal(0.0);
+//   lin_op_->compDivergence({&rhs}, {&UV});
+//   context.GetPi(level).copy(rhs);
 
   debug.plotfilename =
       "BK19_Pseudo_Incompressible-advect-backward-forward-advect/";
