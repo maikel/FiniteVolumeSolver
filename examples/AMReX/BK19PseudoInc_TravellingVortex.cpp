@@ -186,7 +186,7 @@ void MyMain(const fub::ProgramOptions& options) {
       flux_method, fub::amrex::ForwardIntegrator(tag),
       fub::amrex::Reconstruction(tag, equation)};
 
-  fub::amrex::BK19IntegratorContext simulation_data(grid, method, 4, 2);
+  fub::amrex::BK19IntegratorContext simulation_data(grid, method, 2, 0);
   const int nlevel = simulation_data.GetPatchHierarchy().GetNumberOfLevels();
 
   // set initial values of pi
@@ -222,7 +222,7 @@ void MyMain(const fub::ProgramOptions& options) {
   }
 
   fub::DimensionalSplitLevelIntegrator advection(
-      fub::int_c<2>, std::move(simulation_data), fub::StrangSplitting());
+      fub::int_c<2>, std::move(simulation_data), fub::GodunovSplitting());
 
   fub::ProgramOptions integrator_options = fub::ToMap(
       fub::GetOptionOr(options, "BK19LevelIntegrator", pybind11::dict()));

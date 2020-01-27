@@ -55,6 +55,10 @@ struct PatchHierarchyOptions {
   ::amrex::IntVect refine_ratio{AMREX_D_DECL(2, 2, 2)};
   ::amrex::IntVect blocking_factor{AMREX_D_DECL(32, 32, 32)};
   ::amrex::IntVect max_grid_size{AMREX_D_DECL(128, 128, 128)};
+  ::amrex::IntVect n_error_buf{};
+  double grid_efficiency{0.7};
+  int verbose{0};
+  int n_proper{2};
 };
 
 /// The DataDescription class contains all information which is neccessary to
