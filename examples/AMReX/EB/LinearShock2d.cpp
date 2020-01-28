@@ -117,8 +117,8 @@ int main() {
 
   std::string base_name = "LinearShock2d";
   using namespace std::literals::chrono_literals;
-  fub::AnyOutput<GriddingAlgorithm> output(
-      {}, {0.0000125s}, PlotfileOutput{equation, base_name});
+  fub::AnyOutput<GriddingAlgorithm> output({}, {0.0000125s},
+                                           PlotfileOutput{equation, base_name});
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
   run_options.final_time = 0.002s;

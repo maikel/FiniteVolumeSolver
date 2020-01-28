@@ -30,11 +30,11 @@ namespace fub {
 
 template <std::size_t Rank, typename G>
 struct GeometryWrapper : Geometry<Rank> {
-  GeometryWrapper(const G& base) : base_{base} {} // NOLINT
+  GeometryWrapper(const G& base) : base_{base} {}       // NOLINT
   GeometryWrapper(G&& base) : base_{std::move(base)} {} // NOLINT
 
-  std::unique_ptr<Geometry<Rank>> Clone() const override { 
-    return std::make_unique<GeometryWrapper>(base_); 
+  std::unique_ptr<Geometry<Rank>> Clone() const override {
+    return std::make_unique<GeometryWrapper>(base_);
   }
 
   double ComputeDistanceTo(const std::array<double, Rank>& x) const override {
@@ -44,8 +44,7 @@ struct GeometryWrapper : Geometry<Rank> {
   G base_;
 };
 
-template <std::size_t Rank>
-class PolymorphicGeometry : public Geometry<Rank> {
+template <std::size_t Rank> class PolymorphicGeometry : public Geometry<Rank> {
 public:
   PolymorphicGeometry(const PolymorphicGeometry& other)
       : base_{other.Clone()} {}
@@ -68,7 +67,9 @@ public:
     return base_->ComputeDistanceTo(x);
   }
 
-  std::unique_ptr<Geometry<Rank>> Clone() const override { return base_->Clone(); }
+  std::unique_ptr<Geometry<Rank>> Clone() const override {
+    return base_->Clone();
+  }
 
   Geometry<Rank>& Base() noexcept { return *base_; }
   const Geometry<Rank>& Base() const noexcept { return *base_; }

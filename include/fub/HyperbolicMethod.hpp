@@ -75,8 +75,8 @@ public:
   AnyReconstruction(AnyReconstruction&& other) noexcept = default;
   AnyReconstruction& operator=(AnyReconstruction&& other) noexcept = default;
 
-  template <typename R, typename = std::enable_if_t<
-                            !std::is_same_v<std::decay_t<R>, AnyReconstruction>>>
+  template <typename R, typename = std::enable_if_t<!std::is_same_v<
+                            std::decay_t<R>, AnyReconstruction>>>
   AnyReconstruction(R&& r); // NOLINT
 
   void CompleteFromCons(IntegratorContext& context, int level, Duration dt);
@@ -97,8 +97,8 @@ public:
   AnyTimeIntegrator(AnyTimeIntegrator&& other) noexcept = default;
   AnyTimeIntegrator& operator=(AnyTimeIntegrator&& other) noexcept = default;
 
-  template <typename R, typename = std::enable_if_t<
-                            !std::is_same_v<std::decay_t<R>, AnyTimeIntegrator>>>
+  template <typename R, typename = std::enable_if_t<!std::is_same_v<
+                            std::decay_t<R>, AnyTimeIntegrator>>>
   AnyTimeIntegrator(R&& r); // NOLINT
 
   void UpdateConservatively(IntegratorContext& context, int level, Duration dt,
@@ -154,7 +154,8 @@ template <typename IntegratorContext> struct HyperbolicMethod {
 //                                                               Reconstruction
 
 template <typename IntegratorContext>
-AnyReconstruction<IntegratorContext>::AnyReconstruction(const AnyReconstruction& other)
+AnyReconstruction<IntegratorContext>::AnyReconstruction(
+    const AnyReconstruction& other)
     : reconstruct_{other.reconstruct_ ? other.reconstruct_->Clone() : nullptr} {
 }
 
@@ -204,7 +205,8 @@ AnyReconstruction<IntegratorContext>::AnyReconstruction(R&& rec)
 //                                                               TimeIntegrator
 
 template <typename IntegratorContext>
-AnyTimeIntegrator<IntegratorContext>::AnyTimeIntegrator(const AnyTimeIntegrator& other)
+AnyTimeIntegrator<IntegratorContext>::AnyTimeIntegrator(
+    const AnyTimeIntegrator& other)
     : integrator_{other.integrator_ ? other.integrator_->Clone() : nullptr} {}
 
 template <typename IntegratorContext>
@@ -277,7 +279,7 @@ void AnyFluxMethod<IntegratorContext>::PreAdvanceHierarchy(
 template <typename IntegratorContext>
 Duration
 AnyFluxMethod<IntegratorContext>::ComputeStableDt(IntegratorContext& context,
-                                                   int level, Direction dir) {
+                                                  int level, Direction dir) {
   return flux_method_->ComputeStableDt(context, level, dir);
 }
 

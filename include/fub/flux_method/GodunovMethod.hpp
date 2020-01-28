@@ -182,10 +182,9 @@ Array1d Godunov<Equation, RiemannSolver>::ComputeStableDt(
 }
 
 template <typename Equation, typename RiemannSolver>
-Array1d Godunov<Equation, RiemannSolver>::ComputeStableDt(span<const CompleteArray, 2> states,
-                        Array1d face_fraction,
-                        span<const Array1d, 2>, double dx,
-                                                          Direction dir) {
+Array1d Godunov<Equation, RiemannSolver>::ComputeStableDt(
+    span<const CompleteArray, 2> states, Array1d face_fraction,
+    span<const Array1d, 2>, double dx, Direction dir) {
   std::array<Complete, 2> state{};
   Array1d dts = Array1d::Constant(std::numeric_limits<double>::infinity());
   for (int i = 0; i < face_fraction.size(); ++i) {

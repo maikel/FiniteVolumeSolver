@@ -30,6 +30,6 @@ struct TimeIntegrator {
                                    Duration dt, Direction dir);
 };
 
-}
+} // namespace fub::samrai
 
 #endif

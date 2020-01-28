@@ -35,11 +35,13 @@ public:
   [[nodiscard]] Geom& Base() noexcept { return *this; }
   [[nodiscard]] const Geom& Base() const noexcept { return *this; }
 
-  [[nodiscard]] double operator()(AMREX_D_DECL(double x, double y, double z)) const {
+  [[nodiscard]] double operator()(AMREX_D_DECL(double x, double y,
+                                               double z)) const {
     return Geom::ComputeDistanceTo({AMREX_D_DECL(x, y, z)});
   }
 
-  [[nodiscard]] double operator()(const std::array<double, AMREX_SPACEDIM>& coords) const {
+  [[nodiscard]] double
+  operator()(const std::array<double, AMREX_SPACEDIM>& coords) const {
     return Geom::ComputeDistanceTo(coords);
   }
 };

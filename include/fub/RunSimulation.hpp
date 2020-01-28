@@ -72,8 +72,8 @@ template <typename Solver,
           typename Grid = std::decay_t<
               decltype(*std::declval<Solver&>().GetGriddingAlgorithm())>>
 void RunSimulation(Solver& solver, RunOptions options,
-                     std::chrono::steady_clock::time_point wall_time_reference,
-                     BasicOutput<Grid>& output) {
+                   std::chrono::steady_clock::time_point wall_time_reference,
+                   BasicOutput<Grid>& output) {
   namespace logger = boost::log;
   using namespace logger::trivial;
   logger::sources::severity_logger<severity_level> log(

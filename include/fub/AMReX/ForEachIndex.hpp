@@ -18,6 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#ifndef FUB_AMREX_FOR_EACH_INDEX_HPP
+#define FUB_AMREX_FOR_EACH_INDEX_HPP
+
 #include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/ForEach.hpp"
 
@@ -36,3 +39,5 @@ void ForEachIndex(const ::amrex::Box& box, int n_components, F function) {
 }
 
 } // namespace fub::amrex
+
+#endif

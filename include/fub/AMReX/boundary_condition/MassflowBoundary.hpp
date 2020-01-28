@@ -33,16 +33,14 @@
 
 namespace fub::amrex {
 
-template <int Rank>
-class MassflowBoundary {
+template <int Rank> class MassflowBoundary {
 public:
   MassflowBoundary(const IdealGasMix<Rank>& eq,
                    const ::amrex::Box& coarse_inner_box,
                    double required_massflow, double surface_area, Direction dir,
                    int side);
 
-  MassflowBoundary(const std::string& name,
-                   const IdealGasMix<Rank>& eq,
+  MassflowBoundary(const std::string& name, const IdealGasMix<Rank>& eq,
                    const ::amrex::Box& coarse_inner_box,
                    double required_massflow, double surface_area, Direction dir,
                    int side);
@@ -67,6 +65,6 @@ private:
   int side_;
 };
 
-} // namespace fub::amrex::cutcell
+} // namespace fub::amrex
 
 #endif // !FUB_AMREX_CUTCELL_ISENTROPIC_PRESSURE_BOUNDARY_HPP
