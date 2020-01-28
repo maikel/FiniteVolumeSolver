@@ -27,6 +27,8 @@
 #include <AMReX_EB2_IF_Plane.H>
 #include <AMReX_EB_LSCore.H>
 
+static_assert(AMREX_SPACEDIM == 2);
+
 using Coord = Eigen::Vector2d;
 
 Coord OrthogonalTo(const Coord& x) { return Coord{x[1], -x[0]}; }
@@ -48,20 +50,19 @@ int main() {
   fub::amrex::ScopeGuard _{};
   fub::InitializeLogging(MPI_COMM_WORLD);
 
-  const std::array<int, AMREX_SPACEDIM> n_cells{
-      AMREX_D_DECL(16 * 15, 16 * 10, 1)};
-  const std::array<double, AMREX_SPACEDIM> xlower{AMREX_D_DECL(0.0, 0.0, 0.0)};
-  const std::array<double, AMREX_SPACEDIM> xupper{
-      AMREX_D_DECL(+0.15001, +0.10, +0.10)};
+  const std::array<int, 2> n_cells{16 * 15, 16 * 10};
+  const std::array<double, 2> xlower{0.0, 0.0};
+  const std::array<double, 2> xupper{+0.15001, +0.10};
   amrex::RealBox xbox(xlower, xupper);
-  const std::array<int, AMREX_SPACEDIM> periodicity{};
+  const std::array<int, 2> periodicity{};
 
-  amrex::Geometry coarse_geom(
-      amrex::Box{
-          {}, {AMREX_D_DECL(n_cells[0] - 1, n_cells[1] - 1, n_cells[2] - 1)}},
-      &xbox, -1, periodicity.data());
+  amrex::Geometry coarse_geom(amrex::Box{{}, {n_cells[0] - 1, n_cells[1] - 1}},
+                              &xbox, -1, periodicity.data());
 
-  const int n_level = 4;
+  const int n_level = 3;
+
+  const int scratch_gcw = 8;
+  const int flux_gcw = 6;
 
   auto embedded_boundary =
       Triangle({0.02, 0.05}, {0.05, 0.0655}, {0.05, 0.0345});
@@ -78,8 +79,9 @@ int main() {
 
   PatchHierarchyOptions options{};
   options.max_number_of_levels = n_level;
-  options.index_spaces =
-      fub::amrex::cutcell::MakeIndexSpaces(shop, coarse_geom, n_level);
+  options.index_spaces = fub::amrex::cutcell::MakeIndexSpaces(
+      shop, coarse_geom, n_level, scratch_gcw);
+  options.ngrow_eb_level_set = scratch_gcw;
 
   fub::Conservative<fub::PerfectGas<2>> cons;
   cons.density = 1.0;
@@ -116,15 +118,15 @@ int main() {
 
   HyperbolicMethod method{FluxMethod{fub::execution::simd, cutcell_method},
                           TimeIntegrator{},
-                          Reconstruction{fub::execution::seq, equation}};
+                          Reconstruction{fub::execution::simd, equation}};
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<2>, IntegratorContext(gridding, method));
+      fub::int_c<2>, IntegratorContext(gridding, method, scratch_gcw, flux_gcw),
+      fub::StrangSplitting());
 
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
   std::string base_name = "Schardin/";
-  using namespace fub::amrex::cutcell;
   using namespace std::literals::chrono_literals;
   fub::MultipleOutputs<GriddingAlgorithm> output{};
   output.AddOutput(fub::MakeOutput<GriddingAlgorithm>(
