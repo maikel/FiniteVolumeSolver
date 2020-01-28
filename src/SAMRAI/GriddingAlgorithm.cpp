@@ -20,12 +20,12 @@
 
 #include "fub/SAMRAI/GriddingAlgorithm.hpp"
 
-#include <SAMRAI/tbox/MemoryDatabase.h>
 #include <SAMRAI/mesh/BergerRigoutsos.h>
 #include <SAMRAI/mesh/CascadePartitioner.h>
 #include <SAMRAI/mesh/StandardTagAndInitStrategy.h>
 #include <SAMRAI/mesh/TileClustering.h>
 #include <SAMRAI/pdat/CellDoubleConstantRefine.h>
+#include <SAMRAI/tbox/MemoryDatabase.h>
 
 namespace fub {
 namespace samrai {
@@ -126,7 +126,8 @@ GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier, InitialData init,
                                      Tagging tag, std::vector<int> buffer)
     : hierarchy_{std::move(hier)}, initial_data_{std::move(init)},
       tagging_{std::move(tag)}, id_set_{hierarchy_.GetDataDescription()},
-      tag_buffer_{std::move(buffer)}, level_to_boundary_(hierarchy_.GetMaxNumberOfLevels()) {
+      tag_buffer_{std::move(buffer)},
+      level_to_boundary_(hierarchy_.GetMaxNumberOfLevels()) {
 
   const SAMRAI::hier::ComponentSelector which_to_allocate =
       SelectComponents(hierarchy_.GetDataDescription().data_ids);
@@ -143,20 +144,22 @@ GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier, InitialData init,
         id, id, id, std::make_shared<SAMRAI::pdat::CellDoubleConstantRefine>());
   }
 
-  std::shared_ptr cascade_options = std::make_shared<SAMRAI::tbox::MemoryDatabase>("CascadePartitioner");
+  std::shared_ptr cascade_options =
+      std::make_shared<SAMRAI::tbox::MemoryDatabase>("CascadePartitioner");
   cascade_options->putVector("tile_size", std::vector{8, 8});
   algorithm_ = std::make_shared<SAMRAI::mesh::GriddingAlgorithm>(
       hierarchy_.GetNative(), MakeUniqueName(), nullptr,
       std::make_shared<TagAndInit>(this, which_to_allocate),
       std::make_shared<SAMRAI::mesh::TileClustering>(dim),
-      std::make_shared<SAMRAI::mesh::CascadePartitioner>(dim,
-                                                         MakeUniqueName(), cascade_options));
+      std::make_shared<SAMRAI::mesh::CascadePartitioner>(dim, MakeUniqueName(),
+                                                         cascade_options));
 }
 
 GriddingAlgorithm::GriddingAlgorithm(const GriddingAlgorithm& ga)
     : hierarchy_(ga.GetPatchHierarchy()), initial_data_(ga.GetInitialData()),
       tagging_(ga.GetTagging()), id_set_(ga.GetDataDescription()),
-      tag_buffer_(ga.GetTagBuffer()), level_to_boundary_(ga.level_to_boundary_) {
+      tag_buffer_(ga.GetTagBuffer()),
+      level_to_boundary_(ga.level_to_boundary_) {
 
   const SAMRAI::hier::ComponentSelector which_to_allocate =
       SelectComponents(hierarchy_.GetDataDescription().data_ids);
@@ -246,7 +249,8 @@ void GriddingAlgorithm::InitializeHierarchy(Duration initial_time_point,
   }
 }
 
-const BoundaryCondition& GriddingAlgorithm::GetBoundaryCondition(int level) const {
+const BoundaryCondition&
+GriddingAlgorithm::GetBoundaryCondition(int level) const {
   FUB_ASSERT(0 <= level && level < int(level_to_boundary_.size()));
   return level_to_boundary_[static_cast<std::size_t>(level)];
 }

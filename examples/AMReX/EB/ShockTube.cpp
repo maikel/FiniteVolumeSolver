@@ -258,8 +258,8 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
 
   using namespace std::literals::chrono_literals;
   outputs.AddOutput(std::make_unique<PlotfileOutput<fub::IdealGasMix<2>>>(
-      std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{1e-6s}, equation,
-      base_name + "/Plotfiles"));
+      std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{1e-6s},
+      equation, base_name + "/Plotfiles"));
 
   outputs(*solver.GetGriddingAlgorithm());
   fub::RunSimulation(solver, fub::RunOptions(vm), wall_time_reference, outputs);

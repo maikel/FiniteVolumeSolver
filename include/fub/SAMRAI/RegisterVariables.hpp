@@ -107,8 +107,7 @@ DataDescription RegisterVariables(const Equation& equation,
 
   const SAMRAI::hier::IntVector zero = SAMRAI::hier::IntVector::getZero(dim);
   RegisterVariables<Complete, SAMRAI::pdat::CellVariable<double>>(
-      desc.data_ids, equation, dim, zero, prefix,
-      "current");
+      desc.data_ids, equation, dim, zero, prefix, "current");
 
   desc.n_cons_variables =
       std::tuple_size_v<std::decay_t<decltype(ConsTraits::names)>>;

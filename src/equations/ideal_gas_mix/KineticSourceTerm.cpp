@@ -40,12 +40,14 @@ KineticSourceTerm<Rank>::KineticSourceTerm(
     const IdealGasMix<Rank>& eq,
     std::shared_ptr<amrex::GriddingAlgorithm> gridding)
     : equation_{eq}, state_{Complete<IdealGasMix<Rank>>(eq)},
-      gridding_{std::move(gridding)}, registry_(std::make_shared<CounterRegistry>()) {}
+      gridding_{std::move(gridding)},
+      registry_(std::make_shared<CounterRegistry>()) {}
 
 template <int Rank>
 KineticSourceTerm<Rank>::KineticSourceTerm(
     const IdealGasMix<Rank>& eq,
-    std::shared_ptr<amrex::GriddingAlgorithm> gridding, std::shared_ptr<CounterRegistry> reg)
+    std::shared_ptr<amrex::GriddingAlgorithm> gridding,
+    std::shared_ptr<CounterRegistry> reg)
     : equation_{eq}, state_{Complete<IdealGasMix<Rank>>(eq)},
       gridding_{std::move(gridding)}, registry_(std::move(reg)) {}
 

@@ -123,8 +123,7 @@ PatchHierarchy::GetGeometry(int level) const noexcept {
   return *pointer_to_geom;
 }
 
-span<const int>
-PatchHierarchy::GetDataIds() const noexcept {
+span<const int> PatchHierarchy::GetDataIds() const noexcept {
   return data_desc_.data_ids;
 }
 

@@ -101,7 +101,8 @@ struct PatchLevel {
   /// \param dm  the distribution mapping for the array
   /// \param n_components the number of components of the array
   PatchLevel(int num, Duration tp, const ::amrex::BoxArray& ba,
-             const ::amrex::DistributionMapping& dm, const DataDescription& desc);
+             const ::amrex::DistributionMapping& dm,
+             const DataDescription& desc);
 
   /// Allocates arrays with specified box array and distribution mapping.
   ///
@@ -308,7 +309,7 @@ PatchHierarchy ReadCheckpointFile(const std::string& checkpointname,
                                   const PatchHierarchyOptions& options);
 
 template <typename Equation>
-PatchHierarchy:: PatchHierarchy(const Equation& equation,
+PatchHierarchy::PatchHierarchy(const Equation& equation,
                                const CartesianGridGeometry& geometry,
                                const PatchHierarchyOptions& options)
     : PatchHierarchy(MakeDataDescription(equation), geometry, options) {}

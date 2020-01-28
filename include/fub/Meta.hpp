@@ -43,7 +43,6 @@ using GriddingAlgorithm =
     std::decay_t<decltype(*std::declval<T>().GetGriddingAlgorithm())>;
 
 template <typename T>
-using Equation =
-    std::decay_t<decltype(std::declval<T>().GetEquation())>;
+using Equation = std::decay_t<decltype(std::declval<T>().GetEquation())>;
 
-}
+} // namespace fub::meta

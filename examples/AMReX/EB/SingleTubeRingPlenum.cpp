@@ -27,8 +27,8 @@
 
 #include <algorithm>
 #include <cmath>
-#include <vector>
 #include <utility>
+#include <vector>
 
 /// Rotates a specified 2d geometry around the x axis and produce a 3d geometry
 template <typename Base> class Extrude : private Base {
@@ -175,7 +175,6 @@ int main(int argc, char** argv) {
   }
   amrex::Finalize();
 }
-
 
 // implementation of the polygon distance function
 

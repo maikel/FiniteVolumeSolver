@@ -66,10 +66,10 @@ public:
   using SystemSolver::LevelExists;
 
   using SystemSolver::CoarsenConservatively;
-  using SystemSolver::CopyDataToScratch;
-  using SystemSolver::CopyScratchToData;
   using SystemSolver::CompleteFromCons;
   using SystemSolver::ComputeNumericFluxes;
+  using SystemSolver::CopyDataToScratch;
+  using SystemSolver::CopyScratchToData;
   using SystemSolver::UpdateConservatively;
 
   using SystemSolver::AccumulateCoarseFineFluxes;

@@ -49,13 +49,16 @@ public:
     }
   }
 
-  void preprocessRefine(SAMRAI::hier::Patch&, const SAMRAI::hier::Patch&, const SAMRAI::hier::Box&,
+  void preprocessRefine(SAMRAI::hier::Patch&, const SAMRAI::hier::Patch&,
+                        const SAMRAI::hier::Box&,
                         const SAMRAI::hier::IntVector&) override {}
 
-  void postprocessRefine(SAMRAI::hier::Patch&, const SAMRAI::hier::Patch&, const SAMRAI::hier::Box&,
+  void postprocessRefine(SAMRAI::hier::Patch&, const SAMRAI::hier::Patch&,
+                         const SAMRAI::hier::Box&,
                          const SAMRAI::hier::IntVector&) override {}
 
-  SAMRAI::hier::IntVector getRefineOpStencilWidth(const SAMRAI::tbox::Dimension& dim) const override {
+  SAMRAI::hier::IntVector
+  getRefineOpStencilWidth(const SAMRAI::tbox::Dimension& dim) const override {
     return SAMRAI::hier::IntVector::getZero(dim);
   }
 

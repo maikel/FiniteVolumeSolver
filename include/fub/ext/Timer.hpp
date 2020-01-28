@@ -5,9 +5,9 @@
 #ifndef FUB_EXT_TIMER_HPP
 #define FUB_EXT_TIMER_HPP
 
-#include <string>
 #include <chrono>
 #include <functional>
+#include <string>
 
 namespace fub {
 
@@ -25,7 +25,7 @@ private:
   std::chrono::time_point stop_time_;
 };
 
-template<typename F, typename... Args>
+template <typename F, typename... Args>
 void Timer::Measure(F&& function, Args&&... args) {
   this->Start();
   std::invoke(function, args...);

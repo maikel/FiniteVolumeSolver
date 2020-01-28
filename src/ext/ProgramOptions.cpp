@@ -54,4 +54,4 @@ std::map<std::string, pybind11::object> ToMap(const pybind11::dict& dict) {
   return options;
 }
 
-}
+} // namespace fub
