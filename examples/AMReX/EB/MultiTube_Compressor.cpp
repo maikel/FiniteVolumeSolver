@@ -480,12 +480,13 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   }
 
   fub::SplitSystemSourceLevelIntegrator ign_solver(system_solver, ignition,
-                                                     fub::GodunovSplitting{});
+                                                   fub::GodunovSplitting{});
 
   fub::amrex::MultiBlockKineticSouceTerm source_term{
       fub::IdealGasMix<Tube_Rank>{mechanism}, context.GetGriddingAlgorithm()};
 
-  fub::SplitSystemSourceLevelIntegrator level_integrator{ign_solver, source_term};
+  fub::SplitSystemSourceLevelIntegrator level_integrator{ign_solver,
+                                                         source_term};
 
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 

@@ -291,8 +291,7 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
 
   fub::OutputFactory<GriddingAlgorithm> factory{};
   factory.RegisterOutput<WriteHdf5>("HDF5");
-  factory.RegisterOutput<
-      fub::AnyOutput<GriddingAlgorithm>>(
+  factory.RegisterOutput<fub::AnyOutput<GriddingAlgorithm>>(
       "Plotfiles", PlotfileOutput{equation, base_name + "/Plotfiles"});
   factory.RegisterOutput<fub::AnyOutput<GriddingAlgorithm>>(
       "Checkpoint", [&](const GriddingAlgorithm& grid) {

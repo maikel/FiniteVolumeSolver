@@ -58,8 +58,8 @@ void Reconstruction<Tag, Equation>::CompleteFromCons(
   std::vector<SAMRAI::pdat::CellData<double>*> src_data(src_ids.size());
   GetPatchData(span{src_data}, src_patch, src_ids);
   IndexBox<Rank> box = AsIndexBox<Rank>(dest_data[0]->getGhostBox());
-  View<Complete<Equation>> complete = MakeView<Complete<Equation>>(
-      span{dest_data}, equation, box);
+  View<Complete<Equation>> complete =
+      MakeView<Complete<Equation>>(span{dest_data}, equation, box);
   View<const Conservative<Equation>> conservative =
       MakeView<const Conservative<Equation>>(src_data, equation, box);
   rec_.CompleteFromCons(Tag(), complete, conservative);

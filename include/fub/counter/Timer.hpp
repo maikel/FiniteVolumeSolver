@@ -22,9 +22,9 @@
 #ifndef FUB_COUNTER_TIMER_HPP
 #define FUB_COUNTER_TIMER_HPP
 
-#include <string>
 #include <chrono>
 #include <functional>
+#include <string>
 
 #include "Counter.hpp"
 

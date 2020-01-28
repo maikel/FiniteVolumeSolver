@@ -206,4 +206,4 @@ void LogProbesOutput::operator()(const MultiBlockGriddingAlgorithm& grid) {
   }
 }
 
-} // namespace fub::amrex::cutcell
+} // namespace fub::amrex

@@ -57,13 +57,14 @@ template <typename Grid>
 class AnyOutput : public OutputAtFrequencyOrInterval<Grid> {
 public:
   AnyOutput(std::vector<std::ptrdiff_t> frequencies,
-           std::vector<Duration> intervals, std::function<void(const Grid&)> fn)
+            std::vector<Duration> intervals,
+            std::function<void(const Grid&)> fn)
       : OutputAtFrequencyOrInterval<Grid>(std::move(frequencies),
                                           std::move(intervals)),
         fn_(std::move(fn)) {}
 
   AnyOutput(const std::map<std::string, pybind11::object>& vm,
-           std::function<void(const Grid&)> fn)
+            std::function<void(const Grid&)> fn)
       : OutputAtFrequencyOrInterval<Grid>(vm), fn_(std::move(fn)) {}
 
   void operator()(const Grid& grid) override { fn_(grid); }

@@ -126,8 +126,8 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
       // Get a view of all complete state variables
       const ::amrex::Box face_tilebox = mfi.growntilebox();
       const ::amrex::Box cell_validbox = scratch[mfi].box();
-      const auto [cell_box, face_box] =
-          GetCellsAndFacesInStencilRange(cell_validbox, face_tilebox, stencil, dir);
+      const auto [cell_box, face_box] = GetCellsAndFacesInStencilRange(
+          cell_validbox, face_tilebox, stencil, dir);
       auto&& equation = flux_method_->GetEquation();
       View<const Complete<Equation>> states =
           MakeView<const Complete<Equation>>(scratch[mfi], equation, cell_box);

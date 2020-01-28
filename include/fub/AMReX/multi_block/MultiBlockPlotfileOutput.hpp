@@ -21,8 +21,8 @@
 #ifndef FUB_AMREX_MULTI_BLOCK_PLOT_FILE_OUTPUT_HPP
 #define FUB_AMREX_MULTI_BLOCK_PLOT_FILE_OUTPUT_HPP
 
-#include "fub/ext/ProgramOptions.hpp"
 #include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp"
+#include "fub/ext/ProgramOptions.hpp"
 #include "fub/output/OutputAtFrequencyOrInterval.hpp"
 
 #include <string>
@@ -40,6 +40,6 @@ private:
   std::string parent_path_;
 };
 
-}
+} // namespace fub::amrex
 
 #endif

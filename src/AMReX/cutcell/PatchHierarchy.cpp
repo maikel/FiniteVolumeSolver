@@ -38,13 +38,16 @@ using MultiCutFabs =
 
 MultiCutFabs MakeMultiCutFabs(const ::amrex::BoxArray& ba,
                               const ::amrex::DistributionMapping& dm,
-                              const ::amrex::EBFArrayBoxFactory& factory) {
+                              const ::amrex::EBFArrayBoxFactory& factory,
+                              int ngrow = 4) {
   MultiCutFabs mfabs;
   int dir = 0;
+  const int ncomp = 2;
   for (std::unique_ptr<::amrex::MultiCutFab>& mf : mfabs) {
     ::amrex::IntVect unit = ::amrex::IntVect::TheDimensionVector(dir);
     mf = std::make_unique<::amrex::MultiCutFab>(
-        ::amrex::convert(ba, unit), dm, 2, 4, factory.getMultiEBCellFlagFab());
+        ::amrex::convert(ba, unit), dm, ncomp, ngrow,
+        factory.getMultiEBCellFlagFab());
     dir += 1;
   }
   return mfabs;
@@ -53,13 +56,15 @@ MultiCutFabs MakeMultiCutFabs(const ::amrex::BoxArray& ba,
 
 PatchLevel::PatchLevel(const PatchLevel& other)
     : ::fub::amrex::PatchLevel(other), factory(other.factory),
-      unshielded(MakeMultiCutFabs(box_array, distribution_mapping, *factory)),
-      shielded_left(
-          MakeMultiCutFabs(box_array, distribution_mapping, *factory)),
-      shielded_right(
-          MakeMultiCutFabs(box_array, distribution_mapping, *factory)),
-      doubly_shielded(
-          MakeMultiCutFabs(box_array, distribution_mapping, *factory)) {
+      unshielded(MakeMultiCutFabs(box_array, distribution_mapping, *factory,
+                                  other.unshielded[0]->nGrow())),
+      shielded_left(MakeMultiCutFabs(box_array, distribution_mapping, *factory,
+                                     other.shielded_left[0]->nGrow())),
+      shielded_right(MakeMultiCutFabs(box_array, distribution_mapping, *factory,
+                                      other.shielded_right[0]->nGrow())),
+      doubly_shielded(MakeMultiCutFabs(box_array, distribution_mapping,
+                                       *factory,
+                                       other.doubly_shielded[0]->nGrow())) {
   const ::amrex::MultiFab& alphas = factory->getVolFrac();
   const ::amrex::MultiCutFab& normals = factory->getBndryNormal();
   const ::amrex::MultiCutFab& centeroids = factory->getBndryCent();
@@ -106,12 +111,14 @@ PatchLevel& PatchLevel::operator=(const PatchLevel& other) {
 
 PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
                        const ::amrex::DistributionMapping& dm, int n_components,
-                       std::shared_ptr<::amrex::EBFArrayBoxFactory> f)
+                       std::shared_ptr<::amrex::EBFArrayBoxFactory> f,
+                       int ngrow)
     : ::fub::amrex::PatchLevel(level, tp, ba, dm, n_components, *f),
-      factory(std::move(f)), unshielded(MakeMultiCutFabs(ba, dm, *factory)),
-      shielded_left(MakeMultiCutFabs(ba, dm, *factory)),
-      shielded_right(MakeMultiCutFabs(ba, dm, *factory)),
-      doubly_shielded(MakeMultiCutFabs(ba, dm, *factory)) {
+      factory(std::move(f)),
+      unshielded(MakeMultiCutFabs(ba, dm, *factory, ngrow)),
+      shielded_left(MakeMultiCutFabs(ba, dm, *factory, ngrow)),
+      shielded_right(MakeMultiCutFabs(ba, dm, *factory, ngrow)),
+      doubly_shielded(MakeMultiCutFabs(ba, dm, *factory, ngrow)) {
   const ::amrex::MultiFab& alphas = factory->getVolFrac();
   const ::amrex::MultiCutFab& normals = factory->getBndryNormal();
   const ::amrex::MultiCutFab& centeroids = factory->getBndryCent();

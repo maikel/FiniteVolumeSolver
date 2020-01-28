@@ -58,7 +58,7 @@ Duration NoSubcycleSolver<LevelIntegrator>::ComputeStableDt() {
     min_dt = std::min(min_dt, Base::ComputeStableDt(level_num));
   }
   MPI_Comm comm = Base::GetMpiCommunicator();
-  const Duration global_min_dt = MinAll(comm,  min_dt);
+  const Duration global_min_dt = MinAll(comm, min_dt);
   return global_min_dt;
 }
 
@@ -72,7 +72,7 @@ template <typename LevelIntegrator>
 Result<void, TimeStepTooLarge>
 NoSubcycleSolver<LevelIntegrator>::AdvanceLevel(int level,
                                                 Duration time_step_size) {
-  Base::PreAdvanceLevel(level, time_step_size, {0,1});
+  Base::PreAdvanceLevel(level, time_step_size, {0, 1});
   const int next_level = level + 1;
   if (Base::LevelExists(next_level)) {
     Base::ResetCoarseFineFluxes(next_level, level);
@@ -83,7 +83,7 @@ NoSubcycleSolver<LevelIntegrator>::AdvanceLevel(int level,
     }
   }
   Result<void, TimeStepTooLarge> result =
-      Base::AdvanceLevelNonRecursively(level, time_step_size, {0,1});
+      Base::AdvanceLevelNonRecursively(level, time_step_size, {0, 1});
   if (!result) {
     return result;
   }
@@ -93,7 +93,7 @@ NoSubcycleSolver<LevelIntegrator>::AdvanceLevel(int level,
     Base::CompleteFromCons(level, time_step_size);
   }
   Base::CopyScratchToData(level);
-  return Base::PostAdvanceLevel(level, time_step_size, {0,1});
+  return Base::PostAdvanceLevel(level, time_step_size, {0, 1});
 }
 
 } // namespace fub

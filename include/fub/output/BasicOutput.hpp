@@ -28,20 +28,22 @@
 namespace fub {
 
 /// This is a abstract base class for an output strategy.
-/// Objects of this class are intended to be passt to the fub::RunSimulation function.
+/// Objects of this class are intended to be passt to the fub::RunSimulation
+/// function.
 template <typename GriddingAlgorithm> struct BasicOutput {
   /// The destructor needs to be virtual to prevent leaking resources.
   virtual ~BasicOutput() = default;
 
-  /// Returns the time point at which the simulation shall stop to do some output.
+  /// Returns the time point at which the simulation shall stop to do some
+  /// output.
   virtual Duration NextOutputTime(Duration time_point) = 0;
 
-  /// Returns true if this output class shall be invoked at the specified time point.
+  /// Returns true if this output class shall be invoked at the specified time
+  /// point.
   virtual bool ShallOutputNow(const GriddingAlgorithm& grid) = 0;
 
   /// Invoke the actual output logic.
-  virtual void
-  operator()(const GriddingAlgorithm& grid) = 0;
+  virtual void operator()(const GriddingAlgorithm& grid) = 0;
 };
 
 } // namespace fub
