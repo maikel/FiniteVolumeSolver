@@ -39,9 +39,6 @@ public:
 
   KineticSourceTerm(const IdealGasMix<Rank>& eq);
 
-  KineticSourceTerm(const IdealGasMix<Rank>& eq,
-                    std::shared_ptr<CounterRegistry> registry);
-
   Duration ComputeStableDt(int level);
 
   Result<void, TimeStepTooLarge>
@@ -52,7 +49,6 @@ public:
 private:
   OmpLocal<IdealGasMix<Rank>> equation_;
   OmpLocal<Complete<IdealGasMix<Rank>>> state_;
-  std::shared_ptr<CounterRegistry> registry_;
 };
 
 extern template class KineticSourceTerm<1>;
