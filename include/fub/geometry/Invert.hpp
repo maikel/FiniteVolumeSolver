@@ -23,17 +23,16 @@
 
 namespace fub {
 
-template <typename Base>
-class Invert : private Base {
+template <typename Base> class Invert : private Base {
 public:
-  Invert(const Base& base)
-    : Base(base) {}
+  Invert(const Base& base) : Base(base) {}
 
-  [[nodiscard]] double ComputeDistanceTo(std::array<double, 3> x) const noexcept { 
+  [[nodiscard]] double ComputeDistanceTo(std::array<double, 3> x) const
+      noexcept {
     return -Base::ComputeDistanceTo(x);
   }
 };
 
-}
+} // namespace fub
 
 #endif

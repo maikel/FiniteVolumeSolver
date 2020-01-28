@@ -91,12 +91,13 @@ void ReflectiveBoundary<Tag, Equation>::FillBoundary(
 }
 
 template <typename Tag, typename Equation>
-void ReflectiveBoundary<Tag, Equation>::FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration, const GriddingAlgorithm&, Direction dir) {
-                      if (dir == dir_) {
-                      FillBoundary(mf, geom);
-                      }
-                    }
+void ReflectiveBoundary<Tag, Equation>::FillBoundary(
+    ::amrex::MultiFab& mf, const ::amrex::Geometry& geom, Duration,
+    const GriddingAlgorithm&, Direction dir) {
+  if (dir == dir_) {
+    FillBoundary(mf, geom);
+  }
+}
 
 template <typename Tag, typename Equation>
 ReflectiveBoundary(Tag, const Equation&, Direction, int)

@@ -76,7 +76,8 @@ template <int Rank> IndexBox<Rank> AsIndexBox(const SAMRAI::hier::Box& box) {
   const std::size_t dim = static_cast<std::size_t>(box.getDim().getValue());
   for (std::size_t i = 0; i < dim; ++i) {
     index_box.lower[i] = box.lower(static_cast<SAMRAI::hier::Box::dir_t>(i));
-    index_box.upper[i] = box.upper(static_cast<SAMRAI::hier::Box::dir_t>(i)) + 1;
+    index_box.upper[i] =
+        box.upper(static_cast<SAMRAI::hier::Box::dir_t>(i)) + 1;
   }
   return index_box;
 }

@@ -21,12 +21,12 @@
 #ifndef FUB_AMREX_OUTPUT_WRITE_HDF5_HPP
 #define FUB_AMREX_OUTPUT_WRITE_HDF5_HPP
 
+#include "fub/AMReX/GriddingAlgorithm.hpp"
 #include "fub/ext/ProgramOptions.hpp"
 #include "fub/output/OutputAtFrequencyOrInterval.hpp"
-#include "fub/AMReX/GriddingAlgorithm.hpp"
 
-#include <string>
 #include <optional>
+#include <string>
 
 namespace fub::amrex {
 
@@ -34,14 +34,13 @@ class WriteHdf5 : public OutputAtFrequencyOrInterval<GriddingAlgorithm> {
 public:
   WriteHdf5(const std::map<std::string, pybind11::object>& vm);
 
-  void
-  operator()(const GriddingAlgorithm& grid) override;
-  
+  void operator()(const GriddingAlgorithm& grid) override;
+
 private:
   std::string path_to_file_{};
   std::optional<::amrex::Box> output_box_{};
 };
 
-}
+} // namespace fub::amrex
 
 #endif

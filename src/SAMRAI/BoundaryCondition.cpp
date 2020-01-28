@@ -21,5 +21,5 @@ operator=(const BoundaryCondition& other) {
   return (*this = std::move(tmp));
 }
 
-} // namespace amrex
+} // namespace samrai
 } // namespace fub

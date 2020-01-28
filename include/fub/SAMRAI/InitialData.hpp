@@ -34,7 +34,8 @@ namespace samrai {
 struct InitialDataStrategy {
   virtual ~InitialDataStrategy() = default;
 
-  virtual void InitializeData(PatchHierarchy& hierarchy, int level_number, Duration time_point) = 0;
+  virtual void InitializeData(PatchHierarchy& hierarchy, int level_number,
+                              Duration time_point) = 0;
 
   virtual std::unique_ptr<InitialDataStrategy> Clone() const = 0;
 };
@@ -44,7 +45,8 @@ template <typename T> struct InitialDataWrapper : public InitialDataStrategy {
   InitialDataWrapper(T&& initial_data)
       : initial_data_{std::move(initial_data)} {}
 
-  void InitializeData(PatchHierarchy& hierarchy, int level_number, Duration time_point) override {
+  void InitializeData(PatchHierarchy& hierarchy, int level_number,
+                      Duration time_point) override {
     initial_data_.InitializeData(hierarchy, level_number, time_point);
   }
 
@@ -78,7 +80,8 @@ struct InitialData {
       : initial_data_{std::make_unique<InitialDataWrapper<remove_cvref_t<T>>>(
             std::move(initial_data))} {}
 
-  void InitializeData(PatchHierarchy& hierarchy, int level_number, Duration time_point) {
+  void InitializeData(PatchHierarchy& hierarchy, int level_number,
+                      Duration time_point) {
     if (initial_data_) {
       initial_data_->InitializeData(hierarchy, level_number, time_point);
     }
@@ -87,7 +90,7 @@ struct InitialData {
   std::unique_ptr<InitialDataStrategy> initial_data_;
 };
 
-} // namespace amrex
+} // namespace samrai
 } // namespace fub
 
 #endif

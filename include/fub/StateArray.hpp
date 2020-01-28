@@ -106,16 +106,12 @@ ConservativeArrayBase<Eq, N>& AsCons(CompleteArray<Eq, N>& x) {
 
 template <typename Eq, int N>
 void Load(Conservative<Eq>& q, const ConservativeArray<Eq, N>& qs, int i) {
-  ForEachComponent([&](auto& qi, auto qsi) {
-    qi = qsi[i];
-  }, q, qs);
+  ForEachComponent([&](auto& qi, auto qsi) { qi = qsi[i]; }, q, qs);
 }
 
 template <typename Eq, int N>
 void Load(Complete<Eq>& q, const CompleteArray<Eq, N>& qs, int i) {
-  ForEachComponent([&](auto& qi, auto qsi) {
-    qi = qsi[i];
-  }, q, qs);
+  ForEachComponent([&](auto& qi, auto qsi) { qi = qsi[i]; }, q, qs);
 }
 
 template <typename Eq, int N, typename Layout, std::size_t Rank>
