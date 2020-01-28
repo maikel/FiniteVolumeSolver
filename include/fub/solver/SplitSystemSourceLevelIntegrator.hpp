@@ -122,8 +122,8 @@ template <typename... Args>
 void SplitSystemSourceLevelIntegrator<
     SystemSolver, SourceTerm,
     SplittingMethod>::ResetHierarchyConfiguration(const Args&... args) {
-  SystemSolver::ResetHierarchyConfiguration(args...);
-  ::fub::ResetHierarchyConfiguration(source_term_, args...);
+  ResetHierarchyConfigurationIfDetected(GetSystem(), args...);
+  ResetHierarchyConfigurationIfDetected(source_term_, args...);
 }
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
