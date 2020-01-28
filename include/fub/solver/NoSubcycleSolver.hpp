@@ -24,6 +24,7 @@
 #include "fub/Meta.hpp"
 #include "fub/TimeStepError.hpp"
 #include "fub/ext/outcome.hpp"
+#include "fub/solver/SolverFacade.hpp"
 
 namespace fub {
 
