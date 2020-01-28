@@ -31,11 +31,12 @@ class ConstantBox {
 public:
   ConstantBox(const SAMRAI::hier::Box&);
 
-  void TagCellsForRefinement(GriddingAlgorithm& gridding, int level, int tag_id, Duration time_point);
+  void TagCellsForRefinement(GriddingAlgorithm& gridding, int level, int tag_id,
+                             Duration time_point);
+
 private:
   SAMRAI::hier::Box box_;
 };
-
 
 } // namespace fub::samrai
 #endif // FUB_SAMRAI_TAGGING_CONSTANT_BOX_HPP

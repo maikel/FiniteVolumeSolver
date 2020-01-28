@@ -135,10 +135,8 @@ IgniteDetonation::AdvanceLevel(int level, fub::Duration /* dt */) {
     const double dx_2 = geom.CellSize(0);
     const double xlo = geom.ProbDomain().lo(0) + dx_2;
     const double xhi = geom.ProbDomain().hi(0) - dx_2;
-    const double x_fuel =
-        std::clamp(options_.measurement_position, xlo, xhi);
-    std::vector<double> moles =
-        GatherMoles_(*gridding_, x_fuel, equation_);
+    const double x_fuel = std::clamp(options_.measurement_position, xlo, xhi);
+    std::vector<double> moles = GatherMoles_(*gridding_, x_fuel, equation_);
     const double equivalence_ratio =
         moles[Burke2012::sO2]
             ? 0.5 * moles[Burke2012::sH2] / moles[Burke2012::sO2]
@@ -183,7 +181,9 @@ IgniteDetonation::AdvanceLevel(int level, fub::Duration /* dt */) {
           log(boost::log::keywords::severity = boost::log::trivial::info);
       BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", current_time.count());
       BOOST_LOG_SCOPED_LOGGER_TAG(log, "Level", level);
-      BOOST_LOG(log) << "Detonation triggered at " << options_.ignite_position << " [m], because equivalence ratio at " << x_fuel << " [m] is " << equivalence_ratio << " [-]!";
+      BOOST_LOG(log) << "Detonation triggered at " << options_.ignite_position
+                     << " [m], because equivalence ratio at " << x_fuel
+                     << " [m] is " << equivalence_ratio << " [-]!";
     }
   }
   return boost::outcome_v2::success();

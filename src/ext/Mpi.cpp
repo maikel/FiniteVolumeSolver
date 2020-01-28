@@ -19,8 +19,8 @@
 // SOFTWARE.
 
 #include "fub/ext/Mpi.hpp"
-#include <fstream>
 #include <fmt/format.h>
+#include <fstream>
 
 namespace fub {
 
@@ -55,4 +55,4 @@ Duration MinAll(MPI_Comm comm, Duration local) {
   return Duration(global_count);
 }
 
-}
+} // namespace fub

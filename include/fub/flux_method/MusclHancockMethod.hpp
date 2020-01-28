@@ -321,82 +321,82 @@ void MusclHancock<Equation, Method, SlopeLimiter>::ComputeNumericFlux(
   MaskArray valid_face = face_fractions > 0.0;
   if (valid_face.any()) {
 
-  const Array1d lambda_half = Array1d::Constant(0.5 * dt.count() / dx);
+    const Array1d lambda_half = Array1d::Constant(0.5 * dt.count() / dx);
 
-  ////////////////////////////////////////////////////////////////////////////
-  // Compute Left Reconstructed Complete State
+    ////////////////////////////////////////////////////////////////////////////
+    // Compute Left Reconstructed Complete State
 
-  slope_limiter_.ComputeLimitedSlope(slope_arr_, stencil.template first<3>());
+    slope_limiter_.ComputeLimitedSlope(slope_arr_, stencil.template first<3>());
 
-  ForEachComponent(
-      [&](auto&& slope) {
-        slope = (volume_fractions[0] > 0.0).select(slope, Array1d::Zero());
-      },
-      slope_arr_);
+    ForEachComponent(
+        [&](auto&& slope) {
+          slope = (volume_fractions[0] > 0.0).select(slope, Array1d::Zero());
+        },
+        slope_arr_);
 
-  ForEachComponent(
-      [](auto&& qL, auto&& qR, const auto& state, const auto& slope) {
-        qL = state - 0.5 * slope;
-        qR = state + 0.5 * slope;
-      },
-      AsCons(q_left_arr_), AsCons(q_right_arr_), AsCons(stencil[1]),
-      slope_arr_);
+    ForEachComponent(
+        [](auto&& qL, auto&& qR, const auto& state, const auto& slope) {
+          qL = state - 0.5 * slope;
+          qR = state + 0.5 * slope;
+        },
+        AsCons(q_left_arr_), AsCons(q_right_arr_), AsCons(stencil[1]),
+        slope_arr_);
 
-  CompleteFromCons(equation_, q_left_arr_, q_left_arr_, valid_face);
-  CompleteFromCons(equation_, q_right_arr_, q_right_arr_, valid_face);
+    CompleteFromCons(equation_, q_left_arr_, q_left_arr_, valid_face);
+    CompleteFromCons(equation_, q_right_arr_, q_right_arr_, valid_face);
 
-  Flux(equation_, flux_left_arr_, q_left_arr_, dir);
-  Flux(equation_, flux_right_arr_, q_right_arr_, dir);
+    Flux(equation_, flux_left_arr_, q_left_arr_, dir);
+    Flux(equation_, flux_right_arr_, q_right_arr_, dir);
 
-  ForEachComponent(
-      [&lambda_half](auto&& rec, auto qR, auto fL, auto fR) {
-        rec = qR + lambda_half * (fL - fR);
-      },
-      AsCons(rec_arr_[0]), AsCons(q_right_arr_), flux_left_arr_,
-      flux_right_arr_);
+    ForEachComponent(
+        [&lambda_half](auto&& rec, auto qR, auto fL, auto fR) {
+          rec = qR + lambda_half * (fL - fR);
+        },
+        AsCons(rec_arr_[0]), AsCons(q_right_arr_), flux_left_arr_,
+        flux_right_arr_);
 
-  CompleteFromCons(equation_, rec_arr_[0], rec_arr_[0], valid_face);
+    CompleteFromCons(equation_, rec_arr_[0], rec_arr_[0], valid_face);
 
-  ///////////////////////////////////////////////////////////////////////////
-  // Compute Right Reconstructed Complete State
+    ///////////////////////////////////////////////////////////////////////////
+    // Compute Right Reconstructed Complete State
 
-  slope_limiter_.ComputeLimitedSlope(slope_arr_, stencil.template last<3>());
+    slope_limiter_.ComputeLimitedSlope(slope_arr_, stencil.template last<3>());
 
-  ForEachComponent(
-      [&](auto&& slope) {
-        slope = (volume_fractions[3] > 0.0).select(slope, Array1d::Zero());
-      },
-      slope_arr_);
+    ForEachComponent(
+        [&](auto&& slope) {
+          slope = (volume_fractions[3] > 0.0).select(slope, Array1d::Zero());
+        },
+        slope_arr_);
 
-  ForEachComponent(
-      [](auto&& qL, auto&& qR, const auto& state, const auto& slope) {
-        qL = state - 0.5 * slope;
-        qR = state + 0.5 * slope;
-      },
-      AsCons(q_left_arr_), AsCons(q_right_arr_), AsCons(stencil[2]),
-      slope_arr_);
+    ForEachComponent(
+        [](auto&& qL, auto&& qR, const auto& state, const auto& slope) {
+          qL = state - 0.5 * slope;
+          qR = state + 0.5 * slope;
+        },
+        AsCons(q_left_arr_), AsCons(q_right_arr_), AsCons(stencil[2]),
+        slope_arr_);
 
-  CompleteFromCons(equation_, q_left_arr_, q_left_arr_, valid_face);
-  CompleteFromCons(equation_, q_right_arr_, q_right_arr_, valid_face);
+    CompleteFromCons(equation_, q_left_arr_, q_left_arr_, valid_face);
+    CompleteFromCons(equation_, q_right_arr_, q_right_arr_, valid_face);
 
-  Flux(equation_, flux_left_arr_, q_left_arr_, dir);
-  Flux(equation_, flux_right_arr_, q_right_arr_, dir);
+    Flux(equation_, flux_left_arr_, q_left_arr_, dir);
+    Flux(equation_, flux_right_arr_, q_right_arr_, dir);
 
-  ForEachComponent(
-      [&lambda_half](auto&& rec, auto qL, auto fL, auto fR) {
-        rec = qL + lambda_half * (fL - fR);
-      },
-      AsCons(rec_arr_[1]), AsCons(q_left_arr_), flux_left_arr_,
-      flux_right_arr_);
+    ForEachComponent(
+        [&lambda_half](auto&& rec, auto qL, auto fL, auto fR) {
+          rec = qL + lambda_half * (fL - fR);
+        },
+        AsCons(rec_arr_[1]), AsCons(q_left_arr_), flux_left_arr_,
+        flux_right_arr_);
 
-  CompleteFromCons(equation_, rec_arr_[1], rec_arr_[1], valid_face);
+    CompleteFromCons(equation_, rec_arr_[1], rec_arr_[1], valid_face);
 
-  ///////////////////////////////////////////////////////////////////////////
-  // Invoke Lower Order Flux Method
+    ///////////////////////////////////////////////////////////////////////////
+    // Invoke Lower Order Flux Method
 
-  flux_method_.ComputeNumericFlux(flux, face_fractions, span{rec_arr_},
-                                  volume_fractions.template subspan<1, 2>(), dt,
-                                  dx, dir);
+    flux_method_.ComputeNumericFlux(flux, face_fractions, span{rec_arr_},
+                                    volume_fractions.template subspan<1, 2>(),
+                                    dt, dx, dir);
   }
 }
 

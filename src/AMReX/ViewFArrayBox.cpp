@@ -41,7 +41,8 @@ GetCellsAndFacesInStencilRange(const ::amrex::Box& cell_validbox,
       cell_validbox &
       ::amrex::grow(::amrex::enclosedCells(face_tilebox), dir_v, stencil_width);
   const ::amrex::Box face_tilebox_in_range =
-      face_tilebox & ::amrex::surroundingNodes(
+      face_tilebox &
+      ::amrex::surroundingNodes(
           ::amrex::grow(cell_tilebox, dir_v, -stencil_width), dir_v);
   return {cell_tilebox, face_tilebox_in_range};
 }

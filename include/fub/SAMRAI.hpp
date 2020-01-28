@@ -21,19 +21,19 @@
 #ifndef FUB_SAMRAI_HPP
 #define FUB_SAMRAI_HPP
 
-#include "fub/SAMRAI/ScopeGuard.hpp"
-#include "fub/SAMRAI/RegisterVariables.hpp"
-#include "fub/SAMRAI/PatchHierarchy.hpp"
+#include "fub/SAMRAI/BoundaryCondition.hpp"
 #include "fub/SAMRAI/GriddingAlgorithm.hpp"
 #include "fub/SAMRAI/IntegratorContext.hpp"
-#include "fub/SAMRAI/BoundaryCondition.hpp"
+#include "fub/SAMRAI/PatchHierarchy.hpp"
+#include "fub/SAMRAI/RegisterVariables.hpp"
+#include "fub/SAMRAI/ScopeGuard.hpp"
 #include "fub/SAMRAI/ViewPatch.hpp"
 
+#include "fub/SAMRAI/FluxMethod.hpp"
 #include "fub/SAMRAI/Reconstruction.hpp"
 #include "fub/SAMRAI/TimeIntegrator.hpp"
-#include "fub/SAMRAI/FluxMethod.hpp"
 
-#include "fub/SAMRAI/tagging/GradientDetector.hpp"
 #include "fub/SAMRAI/tagging/ConstantBox.hpp"
+#include "fub/SAMRAI/tagging/GradientDetector.hpp"
 
 #endif

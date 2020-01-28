@@ -86,8 +86,8 @@ void InitializeLogging(MPI_Comm comm, const LogOptions& options) {
         boost::log::sinks::text_ostream_backend>;
     boost::shared_ptr<text_sink> file = boost::make_shared<text_sink>();
     namespace expr = boost::log::expressions;
-    file->locked_backend()->add_stream(
-        boost::make_shared<std::ofstream>(fmt::format(options.file_template, fmt::arg("rank", rank))));
+    file->locked_backend()->add_stream(boost::make_shared<std::ofstream>(
+        fmt::format(options.file_template, fmt::arg("rank", rank))));
     file->set_formatter(&FormatLogs_);
     boost::log::core::get()->add_sink(file);
     boost::shared_ptr<text_sink> console = boost::make_shared<text_sink>();

@@ -127,11 +127,9 @@ int main(int argc, char** argv) {
   fub::MultipleOutputs<GriddingAlgorithm> output{};
   output.AddOutput(fub::MakeOutput<GriddingAlgorithm>(
       {1}, {1.0s / 180.}, PlotfileOutput(equation, base_name)));
-  output.AddOutput(
-      std::make_unique<
-          fub::CounterOutput<GriddingAlgorithm>>(
-          solver.GetContext().registry_, wall_time_reference,
-          std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{0.5s}));
+  output.AddOutput(std::make_unique<fub::CounterOutput<GriddingAlgorithm>>(
+      solver.GetContext().registry_, wall_time_reference,
+      std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{0.5s}));
   fub::RunOptions run_options{};
   run_options.final_time = 1s;
   run_options.cfl = 0.4;

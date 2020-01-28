@@ -60,8 +60,7 @@ public:
     }
   }
 
-  template <typename T>
-  void AddOutput(std::unique_ptr<T>&& output) {
+  template <typename T> void AddOutput(std::unique_ptr<T>&& output) {
     outputs_.emplace_back(output.release());
   }
 

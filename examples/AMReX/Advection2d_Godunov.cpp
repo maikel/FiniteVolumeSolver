@@ -49,8 +49,8 @@ int main() {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
-  fub::amrex::ScopeGuard guard{};  
-  
+  fub::amrex::ScopeGuard guard{};
+
   fub::InitializeLogging(MPI_COMM_WORLD);
 
   constexpr int Dim = AMREX_SPACEDIM;

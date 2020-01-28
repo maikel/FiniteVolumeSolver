@@ -58,13 +58,9 @@ public:
   MultiBlockGriddingAlgorithm&
   operator=(MultiBlockGriddingAlgorithm&& other) noexcept = default;
 
-  std::ptrdiff_t GetCycles() const noexcept {
-    return plena_[0]->GetCycles();
-  }
+  std::ptrdiff_t GetCycles() const noexcept { return plena_[0]->GetCycles(); }
 
-  Duration GetTimePoint() const noexcept {
-    return plena_[0]->GetTimePoint();
-  }
+  Duration GetTimePoint() const noexcept { return plena_[0]->GetTimePoint(); }
 
   [[nodiscard]] span<const std::shared_ptr<GriddingAlgorithm>> GetTubes() const
       noexcept;
