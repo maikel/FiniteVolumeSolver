@@ -44,33 +44,16 @@ constexpr std::ptrdiff_t ipow(int base, int exponent) {
 template <typename GShop>
 std::vector<const ::amrex::EB2::IndexSpace*>
 MakeIndexSpaces(GShop&& shop, const ::amrex::Geometry& coarse_geom,
-                int n_level) {
+                int n_level, int ngrow = 4) {
   FUB_ASSERT(n_level > 0);
   std::vector<const ::amrex::EB2::IndexSpace*> index_spaces(
       static_cast<std::size_t>(n_level));
   ::amrex::Geometry geom = coarse_geom;
   for (int level = 0; level < n_level; ++level) {
-    ::amrex::EB2::Build(shop, geom, level, level + 1);
+    ::amrex::EB2::Build(shop, geom, level, level + 1, ngrow);
     index_spaces[static_cast<std::size_t>(level)] =
         &::amrex::EB2::IndexSpace::top();
     geom.refine({AMREX_D_DECL(2, 2, 2)});
-  }
-  return index_spaces;
-}
-
-template <typename GShop>
-std::vector<const ::amrex::EB2::IndexSpace*>
-MakeIndexSpaces(GShop&& shop, const ::amrex::Geometry& coarse_geom, int n_level,
-                const ::amrex::IntVect& refine_ratio) {
-  FUB_ASSERT(n_level > 0);
-  std::vector<const ::amrex::EB2::IndexSpace*> index_spaces(
-      static_cast<std::size_t>(n_level));
-  ::amrex::Geometry geom = coarse_geom;
-  for (int level = 0; level < n_level; ++level) {
-    ::amrex::EB2::Build(shop, geom, refine_ratio[0], level, level + 1);
-    index_spaces[static_cast<std::size_t>(level)] =
-        &::amrex::EB2::IndexSpace::top();
-    geom.refine(refine_ratio);
   }
   return index_spaces;
 }
