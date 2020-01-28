@@ -70,7 +70,7 @@ namespace fub {
 ///
 /// This functionality is used by generic algorithms in include/fub/solver/*
 template <typename T, typename Grid>
-void ResetHierarchyConfiguration(T&& obj, Grid&& grid) {
+void ResetHierarchyConfigurationIfDetected(T&& obj, Grid&& grid) {
   if constexpr (is_detected<meta::ResetHierarchyConfiguration, T, Grid>()) {
     std::forward<T>(obj).ResetHierarchyConfiguration(std::forward<Grid>(grid));
   }
