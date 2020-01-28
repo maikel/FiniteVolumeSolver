@@ -25,14 +25,7 @@ namespace fub::ideal_gas {
 
 template <int Rank>
 KineticSourceTerm<Rank>::KineticSourceTerm(const IdealGasMix<Rank>& eq)
-    : equation_{eq}, state_{Complete<IdealGasMix<Rank>>(eq)},
-      registry_(std::make_shared<CounterRegistry>()) {}
-
-template <int Rank>
-KineticSourceTerm<Rank>::KineticSourceTerm(const IdealGasMix<Rank>& eq,
-                                           std::shared_ptr<CounterRegistry> reg)
-    : equation_{eq}, state_{Complete<IdealGasMix<Rank>>(eq)},
-      registry_(std::move(reg)) {}
+    : equation_{eq}, state_{Complete<IdealGasMix<Rank>>(eq)} {}
 
 template <int Rank> Duration KineticSourceTerm<Rank>::ComputeStableDt(int) {
   return Duration(std::numeric_limits<double>::max());
@@ -43,7 +36,7 @@ Result<void, TimeStepTooLarge>
 KineticSourceTerm<Rank>::AdvanceLevel(amrex::IntegratorContext& simulation_data,
                                       int level, Duration dt,
                                       const ::amrex::IntVect& ngrow) {
-  Timer advance_timer = registry_->get_timer("KineticSourceTerm::AdvanceLevel");
+  Timer advance_timer = simulation_data.GetCounterRegistry()->get_timer("KineticSourceTerm::AdvanceLevel");
   ::amrex::MultiFab& data = simulation_data.GetScratch(level);
 #if defined(_OPENMP) && defined(AMREX_USE_OMP)
 #pragma omp parallel

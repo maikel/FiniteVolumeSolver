@@ -41,6 +41,8 @@ ScopeGuard::ScopeGuard() {
   }
   ::amrex::Initialize(MPI_COMM_WORLD, std::cout, std::cerr,
                       [](const char* msg) { throw std::runtime_error(msg); });
+  // This deactivates the input checking in ::amrex::AmrMesh which is neccessary
+  // for 1d grids embedded in 3d or 2d.
   ::amrex::ParmParse pp("amr");
   pp.add("check_input", false);
 }

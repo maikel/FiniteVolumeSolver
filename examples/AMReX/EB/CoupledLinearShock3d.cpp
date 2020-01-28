@@ -192,9 +192,8 @@ auto MakeTubeSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
   //  fub::ideal_gas::MusclHancockPrimMethod<Tube_Rank> flux_method{equation};
   fub::EinfeldtSignalVelocities<fub::IdealGasMix<Tube_Rank>> signals{};
   fub::HllMethod hll_method{equation, signals};
-  HyperbolicMethod method{FluxMethod(fub::execution::openmp, hll_method),
-                          ForwardIntegrator(fub::execution::openmp),
-                          Reconstruction(fub::execution::openmp, equation)};
+  HyperbolicMethod method{FluxMethod(hll_method), ForwardIntegrator(),
+                          Reconstruction(equation)};
 
   return std::pair{IntegratorContext(gridding, method, 2, 1), valve};
 }
@@ -340,8 +339,7 @@ ParseCommandLine(int argc, char** argv) {
 
   fub::RunOptions(options).Print(log);
   ProgramOptions(options).Print(log);
-  fub::amrex::PressureValveOptions(options, fmt::format("valve"))
-        .Print(log);
+  fub::amrex::PressureValveOptions(options, fmt::format("valve")).Print(log);
   fub::amrex::IgniteDetonationOptions(options, "ignite").Print(log);
 
   return options;

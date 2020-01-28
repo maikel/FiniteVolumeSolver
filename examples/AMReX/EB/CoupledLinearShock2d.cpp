@@ -236,8 +236,8 @@ auto MakePlenumSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
 
   fub::EinfeldtSignalVelocities<fub::IdealGasMix<Plenum_Rank>> signals{};
   fub::HllMethod hll_method{equation, signals};
-  // fub::ideal_gas::MusclHancockPrimMethod<Plenum_Rank> flux_method(equation);
-  // fub::MusclHancockMethod flux_method{equation, hll_method};
+  //  fub::ideal_gas::MusclHancockPrimMethod<Plenum_Rank> flux_method(equation);
+  //  fub::MusclHancockMethod flux_method{equation, hll_method};
   fub::KbnCutCellMethod cutcell_method(hll_method, hll_method);
 
   HyperbolicMethod method{FluxMethod{cutcell_method}, TimeIntegrator{},
