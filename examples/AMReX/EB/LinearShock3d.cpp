@@ -66,18 +66,21 @@ void MyMain(const fub::ProgramOptions& options) {
     equation.GetReactor().SetMoleFractions(moles);
     equation.GetReactor().SetTemperature(temperature);
     equation.GetReactor().SetPressure(pressure);
-    equation.CompleteFromReactor(left, fub::AsEigenVector(velocity));
+    equation.CompleteFromReactor(left);
+    fub::CompleteFromCons(equation, left, left);
 
     const fub::ProgramOptions right_options =
         fub::GetOptions(initial_options, "right");
     moles = fub::GetOptionOr(right_options, "moles", "N2:79,O2:21"s);
     temperature = fub::GetOptionOr(right_options, "temperature", 300.0);
     pressure = fub::GetOptionOr(right_options, "pressure", 101325.0);
+    velocity = std::array<double, 3>{};
     velocity = fub::GetOptionOr(right_options, "velocity", velocity);
     equation.GetReactor().SetMoleFractions(moles);
     equation.GetReactor().SetTemperature(temperature);
     equation.GetReactor().SetPressure(pressure);
-    equation.CompleteFromReactor(right, fub::AsEigenVector(velocity));
+    equation.CompleteFromReactor(right);
+    fub::CompleteFromCons(equation, right, right);
   }
   RiemannProblem initial_data(equation, fub::Halfspace({+1.0, 0.0, 0.0}, -0.04),
                               left, right);
