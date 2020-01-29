@@ -41,7 +41,7 @@ constexpr const int kDefaultChunkSize = 8;
 
 template <std::size_t N>
 Eigen::Matrix<double, N, 1> AsEigenVector(const std::array<double, N>& x) {
-  return Eigen::Matrix<double, N, 1>::Map(&x.data());
+  return Eigen::Matrix<double, N, 1>::Map(x.data());
 }
 
 template <typename T, int N, int M = kDefaultChunkSize>
