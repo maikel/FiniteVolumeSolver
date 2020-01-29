@@ -125,7 +125,7 @@ void MyMain(const fub::ProgramOptions& options) {
   factory.RegisterOutput<Plotfile>("Plotfile", equation);
   factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
 
-  fub::MultipleOutputs<fub::amrex::MultiBlockGriddingAlgorithm> outputs(
+  fub::MultipleOutputs<GriddingAlgorithm> outputs(
       std::move(factory), fub::GetOptions(options, "Output"));
 
   outputs(*solver.GetGriddingAlgorithm());
