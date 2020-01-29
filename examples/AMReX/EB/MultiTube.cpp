@@ -66,7 +66,8 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
   }
   fub::ProgramOptions tube_options = fub::ToMap(dicts[k]);
 
-  CartesianGridGeometry grid_geometry(fub::GetOptions(tube_options, "GridGeometry"));
+  CartesianGridGeometry grid_geometry(
+      fub::GetOptions(tube_options, "GridGeometry"));
   PatchHierarchyOptions hierarchy_options(
       fub::GetOptions(tube_options, "PatchHierarchy"));
 
@@ -141,8 +142,6 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
     }
   }();
 
-  // fub::EinfeldtSignalVelocities<fub::IdealGasMix<Tube_Rank>> signals{};
-  // fub::HllMethod hll_method{equation, signals};
   fub::ideal_gas::MusclHancockPrimMethod<Tube_Rank> flux_method{equation};
   HyperbolicMethod method{FluxMethod(flux_method), EulerForwardTimeIntegrator(),
                           Reconstruction(equation)};
@@ -158,7 +157,7 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
 auto MakePlenumSolver(fub::Burke2012& mechanism,
                       const fub::ProgramOptions& options) {
   const fub::ProgramOptions plenum_options = fub::GetOptions(options, "Plenum");
-                    
+
   fub::amrex::CartesianGridGeometry grid_geometry(
       fub::GetOptions(plenum_options, "GridGeometry"));
   amrex::IntVect hi{};
@@ -377,8 +376,8 @@ void MyMain(const fub::ProgramOptions& options) {
       fub::FlameMasterReactor(mechanism), std::move(tubes), std::move(plenum),
       std::move(connectivity));
 
-  fub::DimensionalSplitLevelIntegrator system_solver(fub::int_c<Plenum_Rank>,
-                                                     std::move(context), fub::GodunovSplitting{});
+  fub::DimensionalSplitLevelIntegrator system_solver(
+      fub::int_c<Plenum_Rank>, std::move(context), fub::GodunovSplitting{});
 
   const std::size_t n_tubes = system_solver.GetContext().Tubes().size();
   const int max_number_of_levels = system_solver.GetContext()
@@ -408,7 +407,7 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::SplitSystemSourceLevelIntegrator ign_solver(
       std::move(system_solver), std::move(ignition), fub::GodunovSplitting{});
 
-  fub::amrex::MultiBlockKineticSouceTerm source_term(tube_equation, counter_database);
+  fub::amrex::MultiBlockKineticSouceTerm source_term(tube_equation);
 
   fub::SplitSystemSourceLevelIntegrator level_integrator(
       std::move(ign_solver), std::move(source_term), fub::StrangSplitting{});
@@ -419,7 +418,9 @@ void MyMain(const fub::ProgramOptions& options) {
   factory.RegisterOutput<fub::amrex::MultiWriteHdf5>("HDF5");
   factory.RegisterOutput<fub::amrex::MultiBlockPlotfileOutput>("Plotfile");
   factory.RegisterOutput<fub::amrex::LogProbesOutput>("LogProbes");
-  using CounterOutput = fub::CounterOutput<fub::amrex::MultiBlockGriddingAlgorithm, std::chrono::milliseconds>;
+  using CounterOutput =
+      fub::CounterOutput<fub::amrex::MultiBlockGriddingAlgorithm,
+                         std::chrono::milliseconds>;
   factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
   fub::MultipleOutputs<fub::amrex::MultiBlockGriddingAlgorithm> outputs(
       std::move(factory), fub::GetOptions(options, "Output"));
