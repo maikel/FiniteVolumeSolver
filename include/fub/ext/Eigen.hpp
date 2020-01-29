@@ -39,6 +39,11 @@ constexpr const int kDefaultChunkSize = FUB_DEFAULT_CHUNK_SIZE;
 constexpr const int kDefaultChunkSize = 8;
 #endif
 
+template <std::size_t N>
+Eigen::Matrix<double, N, 1> AsEigenVector(const std::array<double, N>& x) {
+  return Eigen::Matrix<double, N, 1>::Map(&x.data());
+}
+
 template <typename T, int N, int M = kDefaultChunkSize>
 using Array = std::conditional_t<N == 1 || M == 1, Eigen::Array<T, N, M>,
                                  Eigen::Array<T, N, M, Eigen::RowMajor>>;
