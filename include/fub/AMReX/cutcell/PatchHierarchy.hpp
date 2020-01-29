@@ -111,7 +111,7 @@ struct PatchHierarchyOptions : public ::fub::amrex::PatchHierarchyOptions {
   }
 
   std::vector<const ::amrex::EB2::IndexSpace*> index_spaces{};
-  int ngrow_eb_level_set{4};
+  int ngrow_eb_level_set{5};
 };
 
 class PatchHierarchy {
