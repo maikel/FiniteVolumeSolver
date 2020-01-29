@@ -24,6 +24,9 @@
 #include <AMReX.H>
 
 #ifdef AMREX_USE_EB
+#include "fub/AMReX/CartesianGridGeometry.hpp"
+#include "fub/AMReX/PatchHierarchy.hpp"
+
 #include <AMReX_EB2.H>
 
 #include <vector>
@@ -56,6 +59,13 @@ MakeIndexSpaces(GShop&& shop, const ::amrex::Geometry& coarse_geom, int n_level,
     geom.refine({AMREX_D_DECL(2, 2, 2)});
   }
   return index_spaces;
+}
+
+template <typename GShop>
+std::vector<const ::amrex::EB2::IndexSpace*>
+MakeIndexSpaces(GShop&& shop, const CartesianGridGeometry& grid_geometry,
+                const fub::amrex::PatchHierarchyOptions& hierarchy_options) {
+  return MakeIndexSpaces(shop, GetCoarseGeometry(grid_geometry), hierarchy_options.max_number_of_levels);
 }
 
 } // namespace cutcell
