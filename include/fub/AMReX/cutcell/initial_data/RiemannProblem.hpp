@@ -24,6 +24,8 @@
 #include "fub/AMReX/cutcell/PatchHierarchy.hpp"
 #include "fub/Equation.hpp"
 #include "fub/ForEach.hpp"
+#include "fub/CompleteFromCons.hpp"
+#include "fub/ext/omp.hpp"
 
 #include <AMReX.H>
 
@@ -43,11 +45,11 @@ template <typename Eq, typename Geometry> struct RiemannProblem {
 
   void InitializeData(::amrex::MultiFab& data, const ::amrex::Geometry& geom);
 
-  Equation equation_;
+  OmpLocal<Equation> equation_;
   Geometry geometry_;
-  Complete left_{equation_};
-  Complete right_{equation_};
-  Complete boundary_{equation_};
+  Complete left_{*equation_};
+  Complete right_{*equation_};
+  Complete boundary_{*equation_};
 };
 
 template <typename Eq, typename Geom>
@@ -78,7 +80,7 @@ void RiemannProblem<Eq, Geometry>::InitializeData(
       return;
     }
     View<Complete> states =
-        MakeView<Complete>(data[mfi], equation_, mfi.growntilebox());
+        MakeView<Complete>(data[mfi], *equation_, mfi.growntilebox());
     Eigen::Vector3d x = Eigen::Vector3d::Zero();
     if (type == ::amrex::FabType::regular) {
       ForEachIndex(Box<0>(states), [&](auto... is) {
