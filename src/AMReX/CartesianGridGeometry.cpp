@@ -48,6 +48,16 @@ CartesianGridGeometry::CartesianGridGeometry(const ProgramOptions& options) {
   return ::amrex::Box{lo, up};
 }
 
+::amrex::Geometry
+GetCoarseGeometry(const CartesianGridGeometry& grid_geometry) {
+  ::amrex::Box domain{{},
+                      {AMREX_D_DECL(grid_geometry.cell_dimensions[0] - 1,
+                                    grid_geometry.cell_dimensions[1] - 1,
+                                    grid_geometry.cell_dimensions[2] - 1)}};
+  return ::amrex::Geometry(domain, &grid_geometry.coordinates, -1,
+                           grid_geometry.periodicity.data());
+}
+
 ::amrex::RealBox DomainAroundCenter(const ::amrex::RealArray& x,
                                     const ::amrex::RealArray& rx) {
   return ::amrex::RealBox{
