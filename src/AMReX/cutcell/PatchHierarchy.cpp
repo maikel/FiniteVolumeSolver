@@ -70,15 +70,23 @@ PatchLevel::PatchLevel(const PatchLevel& other)
       factory->getMultiEBCellFlagFab();
   static constexpr int Rank = AMREX_SPACEDIM;
   for (std::size_t d = 0; d < static_cast<std::size_t>(Rank); ++d) {
-    const ::amrex::MultiFab& alphas = factory->getVolFrac();
-    ForEachFab(execution::openmp, alphas, [&](const ::amrex::MFIter& mfi) {
+    const ::amrex::BoxArray& ba = unshielded[d]->boxArray();
+    const ::amrex::DistributionMapping& dm = unshielded[d]->DistributionMap();
+    ForEachFab(execution::openmp, ba, dm, [&](const ::amrex::MFIter& mfi) {
       if (flags[mfi].getType() == ::amrex::FabType::singlevalued) {
-        const int ngrow = unshielded[d]->nGrow();
-        ::amrex::Box tilebox = mfi.grownnodaltilebox(d, ngrow);
-        (*unshielded[d])[mfi].copy((*other.unshielded[d])[mfi], tilebox, ::amrex::SrcComp(0), ::amrex::DestComp(0), ::amrex::NumComps(2));
-        (*shielded_left[d])[mfi].copy((*other.shielded_left[d])[mfi], tilebox, ::amrex::SrcComp(0), ::amrex::DestComp(0), ::amrex::NumComps(2));
-        (*shielded_right[d])[mfi].copy((*other.shielded_right[d])[mfi], tilebox, ::amrex::SrcComp(0), ::amrex::DestComp(0), ::amrex::NumComps(2));
-        (*doubly_shielded[d])[mfi].copy((*other.doubly_shielded[d])[mfi], tilebox, ::amrex::SrcComp(0), ::amrex::DestComp(0), ::amrex::NumComps(2));
+        ::amrex::Box tilebox = mfi.growntilebox();
+        (*unshielded[d])[mfi].copy((*other.unshielded[d])[mfi], tilebox,
+                                   ::amrex::SrcComp(0), ::amrex::DestComp(0),
+                                   ::amrex::NumComps(2));
+        (*shielded_left[d])[mfi].copy((*other.shielded_left[d])[mfi], tilebox,
+                                      ::amrex::SrcComp(0), ::amrex::DestComp(0),
+                                      ::amrex::NumComps(2));
+        (*shielded_right[d])[mfi].copy(
+            (*other.shielded_right[d])[mfi], tilebox, ::amrex::SrcComp(0),
+            ::amrex::DestComp(0), ::amrex::NumComps(2));
+        (*doubly_shielded[d])[mfi].copy(
+            (*other.doubly_shielded[d])[mfi], tilebox, ::amrex::SrcComp(0),
+            ::amrex::DestComp(0), ::amrex::NumComps(2));
       }
     });
   }
@@ -108,13 +116,14 @@ PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
     doubly_shielded[d]->setVal(0.0);
   }
   static constexpr int Rank = AMREX_SPACEDIM;
-  const ::amrex::MultiFab& alphas = factory->getVolFrac();
   for (std::size_t d = 0; d < static_cast<std::size_t>(Rank); ++d) {
     const ::amrex::MultiCutFab& betas = *factory->getAreaFrac()[d];
-    ForEachFab(execution::openmp, alphas, [&](const ::amrex::MFIter& mfi) {
+    const ::amrex::BoxArray& ba = unshielded[d]->boxArray();
+    const ::amrex::DistributionMapping& dm = unshielded[d]->DistributionMap();
+    const int ngrow = unshielded[d]->nGrow();
+    ForEachFab(execution::openmp, ba, dm, [&](const ::amrex::MFIter& mfi) {
       if (flags[mfi].getType() == ::amrex::FabType::singlevalued) {
-        const int ngrow = unshielded[d]->nGrow();
-        ::amrex::Box tilebox = mfi.grownnodaltilebox(d, ngrow);
+        ::amrex::Box tilebox = mfi.growntilebox(ngrow);
         IndexBox<AMREX_SPACEDIM> face_box = AsIndexBox<AMREX_SPACEDIM>(tilebox);
         PatchDataView<const double, Rank> beta =
             MakePatchDataView(betas[mfi], 0);
@@ -144,8 +153,9 @@ PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
 PatchHierarchy::PatchHierarchy(DataDescription desc,
                                const CartesianGridGeometry& geometry,
                                const PatchHierarchyOptions& options)
-    : description_{std::move(desc)}, grid_geometry_{geometry},
-      options_{options}, patch_level_{}, patch_level_geometry_{}, registry_{std::make_shared<CounterRegistry>()} {
+    : description_{std::move(desc)},
+      grid_geometry_{geometry}, options_{options}, patch_level_{},
+      patch_level_geometry_{}, registry_{std::make_shared<CounterRegistry>()} {
   const std::size_t size =
       static_cast<std::size_t>(options.max_number_of_levels);
   patch_level_.resize(size);
@@ -372,12 +382,13 @@ PatchHierarchy ReadCheckpointFile(const std::string& checkpointname,
     const int ngrow = options.ngrow_eb_level_set;
 
     std::unique_ptr<::amrex::EBFArrayBoxFactory> eb_factory =
-        ::amrex::makeEBFabFactory(hierarchy.GetGeometry(lev), ba, dm, {ngrow, ngrow, ngrow},
+        ::amrex::makeEBFabFactory(hierarchy.GetGeometry(lev), ba, dm,
+                                  {ngrow, ngrow, ngrow},
                                   ::amrex::EBSupport::full);
 
-    hierarchy.GetPatchLevel(lev) =
-        PatchLevel(lev, Duration(time_points[static_cast<std::size_t>(lev)]),
-                   ba, dm, desc.n_state_components, std::move(eb_factory), ngrow - 1);
+    hierarchy.GetPatchLevel(lev) = PatchLevel(
+        lev, Duration(time_points[static_cast<std::size_t>(lev)]), ba, dm,
+        desc.n_state_components, std::move(eb_factory), ngrow - 1);
     hierarchy.GetPatchLevel(lev).cycles = cycles[static_cast<std::size_t>(lev)];
   }
 
