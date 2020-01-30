@@ -137,7 +137,7 @@ auto MakeTubeSolver(int num_cells, int n_level, fub::Burke2012& mechanism) {
   // fub::MusclHancockMethod flux_method{equation, hll_method};
   // fub::ideal_gas::MusclHancockPrimMethod<1> flux_method(equation);
 
-  HyperbolicMethod method{FluxMethod(hll_method), ForwardIntegrator(),
+  HyperbolicMethod method{FluxMethod(hll_method), EulerForwardTimeIntegrator(),
                           Reconstruction(equation)};
 
   return IntegratorContext(gridding, method, 2, 1);

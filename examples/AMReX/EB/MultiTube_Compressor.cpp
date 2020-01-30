@@ -147,7 +147,7 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
   }();
 
   fub::ideal_gas::MusclHancockPrimMethod<Tube_Rank> flux_method{equation};
-  HyperbolicMethod method{FluxMethod(flux_method), ForwardIntegrator(),
+  HyperbolicMethod method{FluxMethod(flux_method), EulerForwardTimeIntegrator(),
                           Reconstruction(equation)};
 
   const int scratch_gcw = 4;
