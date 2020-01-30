@@ -239,7 +239,7 @@ void MyMain(const fub::ProgramOptions& options) {
 
   fub::MultipleOutputs<GriddingAlgorithm> output{};
   output.AddOutput(fub::MakeOutput<GriddingAlgorithm>(
-      {1}, {}, WriteBK19Plotfile{base_name}));
+      {1}, {0.01}, WriteBK19Plotfile{base_name}));
 
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options = fub::GetOptions(options, "RunOptions");
