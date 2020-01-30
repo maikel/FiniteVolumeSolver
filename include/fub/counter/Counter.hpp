@@ -55,11 +55,14 @@ private:
   std::string name_;
   std::vector<long long> values_;
 
-  template <typename T> double calculate_mean(const std::vector<T>& v) const noexcept;
-  template <typename T> double calculate_variance(const std::vector<T>& v) const noexcept;
+  template <typename T>
+  double calculate_mean(const std::vector<T>& v) const noexcept;
+  template <typename T>
+  double calculate_variance(const std::vector<T>& v) const noexcept;
 };
 
-template <typename T> double Counter::calculate_mean(const std::vector<T>& v) const noexcept {
+template <typename T>
+double Counter::calculate_mean(const std::vector<T>& v) const noexcept {
   if (v.size()) {
     auto sum = std::accumulate(v.begin(), v.end(), static_cast<T>(0));
     return static_cast<double>(sum) / v.size();

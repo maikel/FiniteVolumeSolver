@@ -85,7 +85,7 @@ int main(int argc, char** argv) {
 
   fub::amrex::HyperbolicMethod method{
       fub::amrex::FluxMethod(fub::MusclHancockMethod{equation}),
-      fub::amrex::ForwardIntegrator(), fub::amrex::NoReconstruction{}};
+      fub::amrex::EulerForwardTimeIntegrator(), fub::amrex::NoReconstruction{}};
 
   const int scratch_gcw = 8;
   const int flux_gcw = 6;
@@ -107,8 +107,8 @@ int main(int argc, char** argv) {
 
   output.AddOutput(
       std::make_unique<fub::CounterOutput<fub::amrex::GriddingAlgorithm>>(
-          solver.GetContext().registry_, wall_time_reference,
-          std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{0.5s}));
+          wall_time_reference, std::vector<std::ptrdiff_t>{},
+          std::vector<fub::Duration>{0.5s}));
 
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};

@@ -45,8 +45,8 @@ public:
   /////////////////////////////////////////////////////////////////////////
   // member functions needed for being a source term
 
-  void ResetHierarchyConfiguration(
-      const std::shared_ptr<GriddingAlgorithm>& grid);
+  void
+  ResetHierarchyConfiguration(const std::shared_ptr<GriddingAlgorithm>& grid);
 
   Duration ComputeStableDt(int level);
 

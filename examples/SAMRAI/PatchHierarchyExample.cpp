@@ -27,10 +27,10 @@
 #include <SAMRAI/hier/Patch.h>
 #include <SAMRAI/pdat/SideDataFactory.h>
 
-#include <boost/container/static_vector.hpp>
 #include "fub/SAMRAI/GriddingAlgorithm.hpp"
 #include "fub/SAMRAI/tagging/ConstantBox.hpp"
 #include "fub/SAMRAI/tagging/GradientDetector.hpp"
+#include <boost/container/static_vector.hpp>
 
 namespace fub {
 void ComputeCoordinates(span<double> x, const SAMRAI::pdat::CellIndex& cell,
@@ -45,9 +45,11 @@ void ComputeCoordinates(span<double> x, const SAMRAI::pdat::CellIndex& cell,
 
 std::shared_ptr<const SAMRAI::geom::CartesianGridGeometry>
 GetCartesianGridGeometry(const SAMRAI::hier::PatchLevel& level) {
-  const SAMRAI::geom::CartesianGridGeometry& base_geom = static_cast<const SAMRAI::geom::CartesianGridGeometry&>(
-      *level.getGridGeometry());
-  return std::static_pointer_cast<SAMRAI::geom::CartesianGridGeometry>(base_geom.makeRefinedGridGeometry("", level.getRatioToLevelZero()));
+  const SAMRAI::geom::CartesianGridGeometry& base_geom =
+      static_cast<const SAMRAI::geom::CartesianGridGeometry&>(
+          *level.getGridGeometry());
+  return std::static_pointer_cast<SAMRAI::geom::CartesianGridGeometry>(
+      base_geom.makeRefinedGridGeometry("", level.getRatioToLevelZero()));
 }
 
 } // namespace fub
@@ -114,15 +116,19 @@ int main(int argc, char** argv) {
   fub::samrai::PatchHierarchy ph(equation, geom, hier_opts);
   fub::samrai::DataDescription data_desc = ph.GetDataDescription();
 
-  SAMRAI::hier::Box tagbox(SAMRAI::hier::Index(40, 40), SAMRAI::hier::Index(80, 80), SAMRAI::hier::BlockId(0));
+  SAMRAI::hier::Box tagbox(SAMRAI::hier::Index(40, 40),
+                           SAMRAI::hier::Index(80, 80),
+                           SAMRAI::hier::BlockId(0));
   fub::samrai::ConstantBox constbox{tagbox};
 
   using State = fub::Advection2d::Complete;
-  fub::samrai::GradientDetector gradient{equation, std::pair{&State::mass, 1e-3}};
+  fub::samrai::GradientDetector gradient{equation,
+                                         std::pair{&State::mass, 1e-3}};
 
   std::vector<int> tb(hier_opts.max_number_of_levels - 1, 4);
-  fub::samrai::GriddingAlgorithm ga(
-      std::move(ph), CircleData{data_desc, equation}, fub::samrai::Tagging{gradient}, tb);
+  fub::samrai::GriddingAlgorithm ga(std::move(ph),
+                                    CircleData{data_desc, equation},
+                                    fub::samrai::Tagging{gradient}, tb);
 
   ga.InitializeHierarchy();
 
@@ -131,11 +137,13 @@ int main(int argc, char** argv) {
   vardb->printClassData(std::cout, false);
 
   ga.GetPatchHierarchy().GetNative()->recursivePrint(std::cout, "", 2);
-  //std::cout << std::endl << std::endl << "---------------------------------------------------------------------" << std::endl << std::endl;
-  //ph1.GetNative()->recursivePrint(std::cout, "", 2);
+  // std::cout << std::endl << std::endl <<
+  // "---------------------------------------------------------------------" <<
+  // std::endl << std::endl; ph1.GetNative()->recursivePrint(std::cout, "", 2);
 
   fub::samrai::GriddingAlgorithm ga2(ga);
-  ga2.GetPatchHierarchy().GetNative()->removePatchLevel(ga2.GetPatchHierarchy().GetNative()->getNumberOfLevels() - 1);
+  ga2.GetPatchHierarchy().GetNative()->removePatchLevel(
+      ga2.GetPatchHierarchy().GetNative()->getNumberOfLevels() - 1);
 
   ph = ga.GetPatchHierarchy();
   ph.GetNative()->removePatchLevel(ph.GetNative()->getNumberOfLevels() - 1);
@@ -148,36 +156,50 @@ int main(int argc, char** argv) {
   writer.writePlotData(ph.GetNative(), 1);
   writer.writePlotData(ga2.GetPatchHierarchy().GetNative(), 2);
 
-  const std::vector<int>& data_ids = ga.GetPatchHierarchy().GetDataDescription().data_ids;
+  const std::vector<int>& data_ids =
+      ga.GetPatchHierarchy().GetDataDescription().data_ids;
   std::vector<SAMRAI::pdat::CellData<double>*> datas(data_ids.size());
   // Generate View
-  for(const std::shared_ptr<SAMRAI::hier::Patch>& patch : *ga.GetPatchHierarchy().GetNative()->getPatchLevel(0)) {
-    std::transform(data_ids.begin(), data_ids.end(), datas.begin(), [&](int id) -> SAMRAI::pdat::CellData<double>* {
-        return static_cast<SAMRAI::pdat::CellData<double>*>(patch->getPatchData(id).get());
-    });
+  for (const std::shared_ptr<SAMRAI::hier::Patch>& patch :
+       *ga.GetPatchHierarchy().GetNative()->getPatchLevel(0)) {
+    std::transform(data_ids.begin(), data_ids.end(), datas.begin(),
+                   [&](int id) -> SAMRAI::pdat::CellData<double>* {
+                     return static_cast<SAMRAI::pdat::CellData<double>*>(
+                         patch->getPatchData(id).get());
+                   });
   }
 
   const SAMRAI::hier::IntVector ghosts(dim, 2);
-  std::shared_ptr<SAMRAI::hier::PatchDescriptor> scratch_descriptor = std::make_shared<SAMRAI::hier::PatchDescriptor>();
+  std::shared_ptr<SAMRAI::hier::PatchDescriptor> scratch_descriptor =
+      std::make_shared<SAMRAI::hier::PatchDescriptor>();
   for (int id : data_desc.data_ids) {
     std::shared_ptr<SAMRAI::hier::Variable> variable{};
     if (vardb->mapIndexToVariable(id, variable)) {
       const std::string& name = variable->getName();
-      const int depth = static_cast<SAMRAI::pdat::CellVariable<double>*>(variable.get())->getDepth();
-      scratch_descriptor->definePatchDataComponent(name, std::make_shared<SAMRAI::pdat::CellDataFactory<double>>(depth, ghosts));
+      const int depth =
+          static_cast<SAMRAI::pdat::CellVariable<double>*>(variable.get())
+              ->getDepth();
+      scratch_descriptor->definePatchDataComponent(
+          name, std::make_shared<SAMRAI::pdat::CellDataFactory<double>>(
+                    depth, ghosts));
     }
   }
   scratch_descriptor->printClassData(SAMRAI::tbox::pout);
 
-
   const SAMRAI::hier::IntVector face_ghosts(dim, 1);
-  std::shared_ptr<SAMRAI::hier::PatchDescriptor> flux_descriptor = std::make_shared<SAMRAI::hier::PatchDescriptor>();
-  for (int id : fub::span(data_desc.data_ids.data(), data_desc.n_cons_variables)) {
+  std::shared_ptr<SAMRAI::hier::PatchDescriptor> flux_descriptor =
+      std::make_shared<SAMRAI::hier::PatchDescriptor>();
+  for (int id :
+       fub::span(data_desc.data_ids.data(), data_desc.n_cons_variables)) {
     std::shared_ptr<SAMRAI::hier::Variable> variable{};
     if (vardb->mapIndexToVariable(id, variable)) {
       const std::string& name = variable->getName();
-      const int depth = static_cast<SAMRAI::pdat::CellVariable<double>*>(variable.get())->getDepth();
-      flux_descriptor->definePatchDataComponent(name, std::make_shared<SAMRAI::pdat::SideDataFactory<double>>(depth, face_ghosts, true));
+      const int depth =
+          static_cast<SAMRAI::pdat::CellVariable<double>*>(variable.get())
+              ->getDepth();
+      flux_descriptor->definePatchDataComponent(
+          name, std::make_shared<SAMRAI::pdat::SideDataFactory<double>>(
+                    depth, face_ghosts, true));
     }
   }
   flux_descriptor->printClassData(SAMRAI::tbox::pout);

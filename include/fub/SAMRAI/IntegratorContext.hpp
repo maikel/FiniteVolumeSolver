@@ -62,7 +62,8 @@ public:
   template <typename Method>
   static AuxialiaryDataDescription
   RegisterVariables(const DataDescription& desc, const Method& method) {
-    return IntegratorContext::RegisterVariables(desc, method.GetStencilWidth(), 1);
+    return IntegratorContext::RegisterVariables(desc, method.GetStencilWidth(),
+                                                1);
   }
 
   /// @{

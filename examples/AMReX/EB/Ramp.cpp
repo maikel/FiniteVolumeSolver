@@ -101,10 +101,8 @@ auto MakeSolver(const fub::PerfectGas<2>& equation) {
   fub::HllMethod hll_method{equation, signals};
   fub::MusclHancockMethod flux_method(equation, hll_method);
   fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
-  auto openmp_simd = fub::execution::openmp_simd;
-  HyperbolicMethod method{FluxMethod{openmp_simd, cutcell_method},
-                          TimeIntegrator{},
-                          Reconstruction{openmp_simd, equation}};
+  HyperbolicMethod method{FluxMethod{cutcell_method}, TimeIntegrator{},
+                          Reconstruction{equation}};
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<2>, IntegratorContext(gridding, method, 4, 2),
@@ -117,7 +115,7 @@ int main(int argc, char** argv) {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
-  fub::amrex::ScopeGuard _(argc, argv);
+  fub::amrex::ScopeGuard amrex_scope_guard{};
   fub::InitializeLogging(MPI_COMM_WORLD);
   fub::PerfectGas<2> equation{};
   fub::NoSubcycleSolver solver = MakeSolver(equation);
@@ -130,8 +128,8 @@ int main(int argc, char** argv) {
   output.AddOutput(fub::MakeOutput<GriddingAlgorithm>(
       {}, {1.0s / 180.}, PlotfileOutput(equation, base_name)));
   output.AddOutput(std::make_unique<fub::CounterOutput<GriddingAlgorithm>>(
-      solver.GetContext().registry_, wall_time_reference,
-      std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{0.1s}));
+      wall_time_reference, std::vector<std::ptrdiff_t>{},
+      std::vector<fub::Duration>{0.1s}));
   fub::RunOptions run_options{};
   run_options.final_time = 1s;
   run_options.cfl = 0.95;

@@ -44,6 +44,7 @@ public:
   using LevelIntegrator::CopyDataToScratch;
   using LevelIntegrator::CopyScratchToData;
   using LevelIntegrator::GetContext;
+  using LevelIntegrator::GetCounterRegistry;
   using LevelIntegrator::GetCycles;
   using LevelIntegrator::GetGriddingAlgorithm;
   using LevelIntegrator::GetMpiCommunicator;

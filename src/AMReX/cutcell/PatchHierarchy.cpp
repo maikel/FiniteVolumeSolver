@@ -36,10 +36,10 @@ namespace {
 using MultiCutFabs =
     std::array<std::unique_ptr<::amrex::MultiCutFab>, AMREX_SPACEDIM>;
 
-MultiCutFabs MakeMultiCutFabs(const ::amrex::BoxArray& ba,
-                              const ::amrex::DistributionMapping& dm,
-                              const ::amrex::EBFArrayBoxFactory& factory,
-                              int ngrow = 4) {
+MultiCutFabs MakeMultiCutFabs_(const ::amrex::BoxArray& ba,
+                               const ::amrex::DistributionMapping& dm,
+                               const ::amrex::EBFArrayBoxFactory& factory,
+                               int ngrow) {
   MultiCutFabs mfabs;
   int dir = 0;
   const int ncomp = 2;
@@ -56,52 +56,40 @@ MultiCutFabs MakeMultiCutFabs(const ::amrex::BoxArray& ba,
 
 PatchLevel::PatchLevel(const PatchLevel& other)
     : ::fub::amrex::PatchLevel(other), factory(other.factory),
-      unshielded(MakeMultiCutFabs(box_array, distribution_mapping, *factory,
-                                  other.unshielded[0]->nGrow())),
-      shielded_left(MakeMultiCutFabs(box_array, distribution_mapping, *factory,
-                                     other.shielded_left[0]->nGrow())),
-      shielded_right(MakeMultiCutFabs(box_array, distribution_mapping, *factory,
-                                      other.shielded_right[0]->nGrow())),
-      doubly_shielded(MakeMultiCutFabs(box_array, distribution_mapping,
+      unshielded(MakeMultiCutFabs_(box_array, distribution_mapping, *factory,
+                                   other.unshielded[0]->nGrow())),
+      shielded_left(MakeMultiCutFabs_(box_array, distribution_mapping, *factory,
+                                      other.shielded_left[0]->nGrow())),
+      shielded_right(MakeMultiCutFabs_(box_array, distribution_mapping,
                                        *factory,
-                                       other.doubly_shielded[0]->nGrow())) {
-  const ::amrex::MultiFab& alphas = factory->getVolFrac();
-  const ::amrex::MultiCutFab& normals = factory->getBndryNormal();
-  const ::amrex::MultiCutFab& centeroids = factory->getBndryCent();
+                                       other.shielded_right[0]->nGrow())),
+      doubly_shielded(MakeMultiCutFabs_(box_array, distribution_mapping,
+                                        *factory,
+                                        other.doubly_shielded[0]->nGrow())) {
   const ::amrex::FabArray<::amrex::EBCellFlagFab>& flags =
       factory->getMultiEBCellFlagFab();
-  ForEachFab(execution::openmp, alphas, [&](const ::amrex::MFIter& mfi) {
-    if (flags[mfi].getType(mfi.growntilebox(4)) ==
-        ::amrex::FabType::singlevalued) {
-      static constexpr int Rank = AMREX_SPACEDIM;
-      CutCellData<Rank> cutcell_data;
-      std::array<PatchDataView<double, Rank>, Rank> us;
-      std::array<PatchDataView<double, Rank>, Rank> sL;
-      std::array<PatchDataView<double, Rank>, Rank> sR;
-      std::array<PatchDataView<double, Rank>, Rank> ds;
-      std::array<PatchDataView<double, Rank>, Rank> us_rel;
-      std::array<PatchDataView<double, Rank>, Rank> sL_rel;
-      std::array<PatchDataView<double, Rank>, Rank> sR_rel;
-      std::array<PatchDataView<double, Rank>, Rank> ds_rel;
-      cutcell_data.volume_fractions = MakePatchDataView(alphas[mfi], 0);
-      for (std::size_t d = 0; d < static_cast<std::size_t>(Rank); ++d) {
-        const ::amrex::MultiCutFab& betas = *factory->getAreaFrac()[d];
-        cutcell_data.face_fractions[d] = MakePatchDataView(betas[mfi], 0);
-        us[d] = MakePatchDataView((*unshielded[d])[mfi], 0);
-        sL[d] = MakePatchDataView((*shielded_left[d])[mfi], 0);
-        sR[d] = MakePatchDataView((*shielded_right[d])[mfi], 0);
-        ds[d] = MakePatchDataView((*doubly_shielded[d])[mfi], 0);
-        us_rel[d] = MakePatchDataView((*unshielded[d])[mfi], 1);
-        sL_rel[d] = MakePatchDataView((*shielded_left[d])[mfi], 1);
-        sR_rel[d] = MakePatchDataView((*shielded_right[d])[mfi], 1);
-        ds_rel[d] = MakePatchDataView((*doubly_shielded[d])[mfi], 1);
+  static constexpr int Rank = AMREX_SPACEDIM;
+  for (std::size_t d = 0; d < static_cast<std::size_t>(Rank); ++d) {
+    const ::amrex::BoxArray& ba = unshielded[d]->boxArray();
+    const ::amrex::DistributionMapping& dm = unshielded[d]->DistributionMap();
+    ForEachFab(execution::openmp, ba, dm, [&](const ::amrex::MFIter& mfi) {
+      if (flags[mfi].getType() == ::amrex::FabType::singlevalued) {
+        ::amrex::Box tilebox = mfi.growntilebox();
+        (*unshielded[d])[mfi].copy((*other.unshielded[d])[mfi], tilebox,
+                                   ::amrex::SrcComp(0), ::amrex::DestComp(0),
+                                   ::amrex::NumComps(2));
+        (*shielded_left[d])[mfi].copy((*other.shielded_left[d])[mfi], tilebox,
+                                      ::amrex::SrcComp(0), ::amrex::DestComp(0),
+                                      ::amrex::NumComps(2));
+        (*shielded_right[d])[mfi].copy(
+            (*other.shielded_right[d])[mfi], tilebox, ::amrex::SrcComp(0),
+            ::amrex::DestComp(0), ::amrex::NumComps(2));
+        (*doubly_shielded[d])[mfi].copy(
+            (*other.doubly_shielded[d])[mfi], tilebox, ::amrex::SrcComp(0),
+            ::amrex::DestComp(0), ::amrex::NumComps(2));
       }
-      cutcell_data.boundary_normals = MakePatchDataView(normals[mfi]);
-      cutcell_data.boundary_centeroids = MakePatchDataView(centeroids[mfi]);
-      FillCutCellData(us, sL, sR, ds, us_rel, sL_rel, sR_rel, ds_rel,
-                      cutcell_data);
-    }
-  });
+    });
+  }
 }
 
 PatchLevel& PatchLevel::operator=(const PatchLevel& other) {
@@ -115,54 +103,59 @@ PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
                        int ngrow)
     : ::fub::amrex::PatchLevel(level, tp, ba, dm, n_components, *f),
       factory(std::move(f)),
-      unshielded(MakeMultiCutFabs(ba, dm, *factory, ngrow)),
-      shielded_left(MakeMultiCutFabs(ba, dm, *factory, ngrow)),
-      shielded_right(MakeMultiCutFabs(ba, dm, *factory, ngrow)),
-      doubly_shielded(MakeMultiCutFabs(ba, dm, *factory, ngrow)) {
-  const ::amrex::MultiFab& alphas = factory->getVolFrac();
-  const ::amrex::MultiCutFab& normals = factory->getBndryNormal();
-  const ::amrex::MultiCutFab& centeroids = factory->getBndryCent();
+      unshielded(MakeMultiCutFabs_(ba, dm, *factory, ngrow)),
+      shielded_left(MakeMultiCutFabs_(ba, dm, *factory, ngrow)),
+      shielded_right(MakeMultiCutFabs_(ba, dm, *factory, ngrow)),
+      doubly_shielded(MakeMultiCutFabs_(ba, dm, *factory, ngrow)) {
   const ::amrex::FabArray<::amrex::EBCellFlagFab>& flags =
       factory->getMultiEBCellFlagFab();
-  ForEachFab(execution::openmp, alphas, [&](const ::amrex::MFIter& mfi) {
-    if (flags[mfi].getType(mfi.growntilebox(4)) ==
-        ::amrex::FabType::singlevalued) {
-      static constexpr int Rank = AMREX_SPACEDIM;
-      CutCellData<Rank> cutcell_data;
-      std::array<PatchDataView<double, Rank>, Rank> us;
-      std::array<PatchDataView<double, Rank>, Rank> sL;
-      std::array<PatchDataView<double, Rank>, Rank> sR;
-      std::array<PatchDataView<double, Rank>, Rank> ds;
-      std::array<PatchDataView<double, Rank>, Rank> us_rel;
-      std::array<PatchDataView<double, Rank>, Rank> sL_rel;
-      std::array<PatchDataView<double, Rank>, Rank> sR_rel;
-      std::array<PatchDataView<double, Rank>, Rank> ds_rel;
-      cutcell_data.volume_fractions = MakePatchDataView(alphas[mfi], 0);
-      for (std::size_t d = 0; d < static_cast<std::size_t>(Rank); ++d) {
-        const ::amrex::MultiCutFab& betas = *factory->getAreaFrac()[d];
-        cutcell_data.face_fractions[d] = MakePatchDataView(betas[mfi], 0);
-        us[d] = MakePatchDataView((*unshielded[d])[mfi], 0);
-        sL[d] = MakePatchDataView((*shielded_left[d])[mfi], 0);
-        sR[d] = MakePatchDataView((*shielded_right[d])[mfi], 0);
-        ds[d] = MakePatchDataView((*doubly_shielded[d])[mfi], 0);
-        us_rel[d] = MakePatchDataView((*unshielded[d])[mfi], 1);
-        sL_rel[d] = MakePatchDataView((*shielded_left[d])[mfi], 1);
-        sR_rel[d] = MakePatchDataView((*shielded_right[d])[mfi], 1);
-        ds_rel[d] = MakePatchDataView((*doubly_shielded[d])[mfi], 1);
+  for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+    unshielded[d]->setVal(0.0);
+    shielded_left[d]->setVal(0.0);
+    shielded_right[d]->setVal(0.0);
+    doubly_shielded[d]->setVal(0.0);
+  }
+  static constexpr int Rank = AMREX_SPACEDIM;
+  for (std::size_t d = 0; d < static_cast<std::size_t>(Rank); ++d) {
+    const ::amrex::MultiCutFab& betas = *factory->getAreaFrac()[d];
+    const ::amrex::BoxArray& ba = unshielded[d]->boxArray();
+    const ::amrex::DistributionMapping& dm = unshielded[d]->DistributionMap();
+    const int ngrow = unshielded[d]->nGrow();
+    ForEachFab(execution::openmp, ba, dm, [&](const ::amrex::MFIter& mfi) {
+      if (flags[mfi].getType() == ::amrex::FabType::singlevalued) {
+        ::amrex::Box tilebox = mfi.growntilebox(ngrow);
+        IndexBox<AMREX_SPACEDIM> face_box = AsIndexBox<AMREX_SPACEDIM>(tilebox);
+        PatchDataView<const double, Rank> beta =
+            MakePatchDataView(betas[mfi], 0);
+        StridedDataView<double, Rank> us =
+            MakePatchDataView((*unshielded[d])[mfi], 0).Subview(face_box);
+        StridedDataView<double, Rank> sL =
+            MakePatchDataView((*shielded_left[d])[mfi], 0).Subview(face_box);
+        StridedDataView<double, Rank> sR =
+            MakePatchDataView((*shielded_right[d])[mfi], 0).Subview(face_box);
+        StridedDataView<double, Rank> ds =
+            MakePatchDataView((*doubly_shielded[d])[mfi], 0).Subview(face_box);
+        StridedDataView<double, Rank> us_rel =
+            MakePatchDataView((*unshielded[d])[mfi], 1).Subview(face_box);
+        StridedDataView<double, Rank> sL_rel =
+            MakePatchDataView((*shielded_left[d])[mfi], 1).Subview(face_box);
+        StridedDataView<double, Rank> sR_rel =
+            MakePatchDataView((*shielded_right[d])[mfi], 1).Subview(face_box);
+        StridedDataView<double, Rank> ds_rel =
+            MakePatchDataView((*doubly_shielded[d])[mfi], 1).Subview(face_box);
+        FillCutCellData(us, sL, sR, ds, us_rel, sL_rel, sR_rel, ds_rel, beta,
+                        Direction(d));
       }
-      cutcell_data.boundary_normals = MakePatchDataView(normals[mfi]);
-      cutcell_data.boundary_centeroids = MakePatchDataView(centeroids[mfi]);
-      FillCutCellData(us, sL, sR, ds, us_rel, sL_rel, sR_rel, ds_rel,
-                      cutcell_data);
-    }
-  });
+    });
+  }
 }
 
 PatchHierarchy::PatchHierarchy(DataDescription desc,
                                const CartesianGridGeometry& geometry,
                                const PatchHierarchyOptions& options)
-    : description_{std::move(desc)}, grid_geometry_{geometry},
-      options_{options}, patch_level_{}, patch_level_geometry_{} {
+    : description_{std::move(desc)},
+      grid_geometry_{geometry}, options_{options}, patch_level_{},
+      patch_level_geometry_{}, registry_{std::make_shared<CounterRegistry>()} {
   const std::size_t size =
       static_cast<std::size_t>(options.max_number_of_levels);
   patch_level_.resize(size);
@@ -244,6 +237,16 @@ const PatchHierarchyOptions& PatchHierarchy::GetOptions() const noexcept {
 
 const CartesianGridGeometry& PatchHierarchy::GetGridGeometry() const noexcept {
   return grid_geometry_;
+}
+
+const std::shared_ptr<CounterRegistry>&
+PatchHierarchy::GetCounterRegistry() const noexcept {
+  return registry_;
+}
+
+void PatchHierarchy::SetCounterRegistry(
+    std::shared_ptr<CounterRegistry> registry) {
+  registry_ = std::move(registry);
 }
 
 std::ptrdiff_t PatchHierarchy::GetCycles(int level) const {
@@ -376,13 +379,16 @@ PatchHierarchy ReadCheckpointFile(const std::string& checkpointname,
     // create a distribution mapping
     ::amrex::DistributionMapping dm{ba, ::amrex::ParallelDescriptor::NProcs()};
 
+    const int ngrow = options.ngrow_eb_level_set;
+
     std::unique_ptr<::amrex::EBFArrayBoxFactory> eb_factory =
-        ::amrex::makeEBFabFactory(hierarchy.GetGeometry(lev), ba, dm, {4, 4, 4},
+        ::amrex::makeEBFabFactory(hierarchy.GetGeometry(lev), ba, dm,
+                                  {ngrow, ngrow, ngrow},
                                   ::amrex::EBSupport::full);
 
-    hierarchy.GetPatchLevel(lev) =
-        PatchLevel(lev, Duration(time_points[static_cast<std::size_t>(lev)]),
-                   ba, dm, desc.n_state_components, std::move(eb_factory));
+    hierarchy.GetPatchLevel(lev) = PatchLevel(
+        lev, Duration(time_points[static_cast<std::size_t>(lev)]), ba, dm,
+        desc.n_state_components, std::move(eb_factory), ngrow - 1);
     hierarchy.GetPatchLevel(lev).cycles = cycles[static_cast<std::size_t>(lev)];
   }
 

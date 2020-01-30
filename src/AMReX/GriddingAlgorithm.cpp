@@ -25,24 +25,10 @@
 
 namespace fub::amrex {
 
-int PrepareParmParseAndReturnNumberOfRefinementLevels(
-    const PatchHierarchy& hier) {
-  ::amrex::ParmParse pp("amr");
-  const int dim = hier.GetDataDescription().dimension;
-  const ::amrex::IntVect blocking_factor = hier.GetOptions().blocking_factor;
-  FUB_ASSERT(dim >= 1);
-  if (!pp.contains("blocking_factor_x")) {
-    pp.add("blocking_factor_x", blocking_factor[0]);
-    pp.add("blocking_factor_y", dim >= 2 ? blocking_factor[1] : 1);
-    pp.add("blocking_factor_z", dim >= 3 ? blocking_factor[2] : 1);
-  }
-  return hier.GetMaxNumberOfLevels() - 1;
-}
-
 GriddingAlgorithm::GriddingAlgorithm(const GriddingAlgorithm& other)
     : AmrCore(
           &other.hierarchy_.GetGridGeometry().coordinates,
-          PrepareParmParseAndReturnNumberOfRefinementLevels(other.hierarchy_),
+          other.hierarchy_.GetMaxNumberOfLevels() - 1,
           ::amrex::Vector<int>(
               other.hierarchy_.GetGridGeometry().cell_dimensions.begin(),
               other.hierarchy_.GetGridGeometry().cell_dimensions.end()),

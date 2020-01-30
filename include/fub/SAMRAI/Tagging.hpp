@@ -33,7 +33,8 @@ struct GriddingAlgorithm;
 
 struct TaggingStrategy {
   virtual ~TaggingStrategy() = default;
-  virtual void TagCellsForRefinement(GriddingAlgorithm& gridding, int level, int tag_id, Duration time_point) = 0;
+  virtual void TagCellsForRefinement(GriddingAlgorithm& gridding, int level,
+                                     int tag_id, Duration time_point) = 0;
 
   virtual std::unique_ptr<TaggingStrategy> Clone() const = 0;
 };
@@ -42,7 +43,8 @@ template <typename T> struct TaggingWrapper : public TaggingStrategy {
   TaggingWrapper(const T& tag) : tag_{tag} {}
   TaggingWrapper(T&& tag) : tag_{std::move(tag)} {}
 
-  void TagCellsForRefinement(GriddingAlgorithm& gridding, int level, int tag_id, Duration time_point) override {
+  void TagCellsForRefinement(GriddingAlgorithm& gridding, int level, int tag_id,
+                             Duration time_point) override {
     tag_.TagCellsForRefinement(gridding, level, tag_id, time_point);
   }
 
@@ -74,7 +76,8 @@ struct Tagging {
       : tag_{std::make_unique<TaggingWrapper<remove_cvref_t<T>>>(
             std::move(tag))} {}
 
-  void TagCellsForRefinement(GriddingAlgorithm& gridding, int level, int tag_id, Duration time_point) {
+  void TagCellsForRefinement(GriddingAlgorithm& gridding, int level, int tag_id,
+                             Duration time_point) {
     if (tag_) {
       return tag_->TagCellsForRefinement(gridding, level, tag_id, time_point);
     }

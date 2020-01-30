@@ -54,9 +54,13 @@ long long Counter::get_max() const noexcept {
 
 double Counter::get_mean() const noexcept { return calculate_mean(values_); }
 
-double Counter::get_variance() const noexcept { return calculate_variance(values_); }
+double Counter::get_variance() const noexcept {
+  return calculate_variance(values_);
+}
 
-double Counter::get_stddev() const noexcept { return std::sqrt(get_variance()); }
+double Counter::get_stddev() const noexcept {
+  return std::sqrt(get_variance());
+}
 
 void Counter::reset() { values_.clear(); }
 

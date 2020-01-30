@@ -25,10 +25,11 @@
 #include "fub/Duration.hpp"
 #include "fub/Equation.hpp"
 #include "fub/Execution.hpp"
+#include "fub/counter/CounterRegistry.hpp"
 #include "fub/equations/IdealGasMix.hpp"
 #include "fub/ext/Eigen.hpp"
-#include "fub/ext/ProgramOptions.hpp"
 #include "fub/ext/Log.hpp"
+#include "fub/ext/ProgramOptions.hpp"
 
 #include <AMReX_FluxRegister.H>
 #include <AMReX_Geometry.H>
@@ -201,6 +202,12 @@ public:
 
   [[nodiscard]] span<const ::amrex::EB2::IndexSpace*> GetIndexSpaces() noexcept;
 
+  /// \brief Returns a shared pointer to the counter registry.
+  [[nodiscard]] const std::shared_ptr<CounterRegistry>&
+  GetCounterRegistry() const noexcept;
+
+  void SetCounterRegistry(std::shared_ptr<CounterRegistry> registry);
+
 private:
   DataDescription description_;
   CartesianGridGeometry grid_geometry_;
@@ -208,6 +215,7 @@ private:
   std::vector<PatchLevel> patch_level_;
   std::vector<::amrex::Geometry> patch_level_geometry_;
   std::vector<const ::amrex::EB2::IndexSpace*> index_spaces_;
+  std::shared_ptr<CounterRegistry> registry_;
 };
 
 template <typename Equation>

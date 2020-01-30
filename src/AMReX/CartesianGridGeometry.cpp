@@ -19,17 +19,50 @@
 // SOFTWARE.
 
 #include "fub/AMReX/CartesianGridGeometry.hpp"
+#include "fub/AMReX/ViewFArrayBox.hpp"
 
 namespace fub::amrex {
 
 CartesianGridGeometry::CartesianGridGeometry(const ProgramOptions& options) {
   cell_dimensions = GetOptionOr(options, "cell_dimensions", cell_dimensions);
-  std::array<double, AMREX_SPACEDIM> xlo{};
-  xlo = GetOptionOr(options, "x_lower", xlo);
-  std::array<double, AMREX_SPACEDIM> xup{AMREX_D_DECL(1.0, 1.0, 1.0)};
-  xup = GetOptionOr(options, "x_upper", xup);
-  coordinates = ::amrex::RealBox(xlo, xup);
+  coordinates = GetOptionOr(options, "coordinates", coordinates);
   periodicity = GetOptionOr(options, "periodicity", periodicity);
+}
+
+::amrex::Box BoxWhichContains(const ::amrex::RealBox& xbox,
+                              const ::amrex::Geometry& geom) {
+  ::amrex::Box domain = geom.Domain();
+  ::amrex::IntVect lo = domain.smallEnd();
+  ::amrex::IntVect up = domain.bigEnd();
+  for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+    for (int i = domain.smallEnd(d); i < domain.bigEnd(d); ++i) {
+      const double x = geom.CellCenter(i, d);
+      if (x < xbox.lo(d)) {
+        lo[d] = std::max(lo[d], i);
+      }
+      if (x > xbox.hi(d)) {
+        up[d] = std::min(up[d], i);
+      }
+    }
+  }
+  return ::amrex::Box{lo, up};
+}
+
+::amrex::Geometry
+GetCoarseGeometry(const CartesianGridGeometry& grid_geometry) {
+  ::amrex::Box domain{{},
+                      {AMREX_D_DECL(grid_geometry.cell_dimensions[0] - 1,
+                                    grid_geometry.cell_dimensions[1] - 1,
+                                    grid_geometry.cell_dimensions[2] - 1)}};
+  return ::amrex::Geometry(domain, &grid_geometry.coordinates, -1,
+                           grid_geometry.periodicity.data());
+}
+
+::amrex::RealBox DomainAroundCenter(const ::amrex::RealArray& x,
+                                    const ::amrex::RealArray& rx) {
+  return ::amrex::RealBox{
+      {AMREX_D_DECL(x[0] - rx[0], x[1] - rx[1], x[2] - rx[2])},
+      {AMREX_D_DECL(x[0] + rx[0], x[1] + rx[1], x[2] + rx[2])}};
 }
 
 } // namespace fub::amrex

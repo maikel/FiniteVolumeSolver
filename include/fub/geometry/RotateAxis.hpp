@@ -23,19 +23,18 @@
 
 namespace fub {
 
-template <typename Base>
-class RotateAxis : private Base {
+template <typename Base> class RotateAxis : private Base {
 public:
-  RotateAxis(const Base& base)
-    : Base(base) {}
+  RotateAxis(const Base& base) : Base(base) {}
 
-  [[nodiscard]] double ComputeDistanceTo(std::array<double, 3> x) const noexcept { 
+  [[nodiscard]] double ComputeDistanceTo(std::array<double, 3> x) const
+      noexcept {
     const double x0 = x[0];
     const double y0 = std::sqrt(x[1] * x[1] + x[2] * x[2]);
     return Base::ComputeDistanceTo(x0, y0);
   }
 };
 
-}
+} // namespace fub
 
 #endif

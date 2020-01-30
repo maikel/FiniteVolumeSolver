@@ -21,6 +21,37 @@
 #include "fub/AMReX/ViewFArrayBox.hpp"
 
 namespace fub {
+template <>
+::amrex::IntVect GetOptionOr(const ProgramOptions& map, const std::string& name,
+                             const ::amrex::IntVect& value) {
+  std::array<int, AMREX_SPACEDIM> iv{};
+  std::copy_n(value.begin(), AMREX_SPACEDIM, iv.begin());
+  iv = GetOptionOr(map, name, iv);
+  return ::amrex::IntVect(iv);
+}
+
+template <>
+::amrex::Box GetOptionOr(const ProgramOptions& map, const std::string& name,
+                         const ::amrex::Box& value) {
+  ProgramOptions box = GetOptions(map, name);
+  ::amrex::IntVect lo = GetOptionOr(box, "lower", value.smallEnd());
+  ::amrex::IntVect hi = GetOptionOr(box, "upper", value.bigEnd());
+  return ::amrex::Box(lo, hi);
+}
+
+template <>
+::amrex::RealBox GetOptionOr(const ProgramOptions& map, const std::string& name,
+                             const ::amrex::RealBox& value) {
+  ProgramOptions box = GetOptions(map, name);
+  std::array<double, AMREX_SPACEDIM> lo{};
+  std::array<double, AMREX_SPACEDIM> hi{};
+  std::copy_n(value.lo(), AMREX_SPACEDIM, lo.begin());
+  std::copy_n(value.hi(), AMREX_SPACEDIM, hi.begin());
+  lo = GetOptionOr(box, "lower", lo);
+  hi = GetOptionOr(box, "upper", hi);
+  return ::amrex::RealBox(lo, hi);
+}
+
 namespace amrex {
 
 std::array<std::ptrdiff_t, static_cast<std::size_t>(AMREX_SPACEDIM)>
@@ -41,7 +72,8 @@ GetCellsAndFacesInStencilRange(const ::amrex::Box& cell_validbox,
       cell_validbox &
       ::amrex::grow(::amrex::enclosedCells(face_tilebox), dir_v, stencil_width);
   const ::amrex::Box face_tilebox_in_range =
-      face_tilebox & ::amrex::surroundingNodes(
+      face_tilebox &
+      ::amrex::surroundingNodes(
           ::amrex::grow(cell_tilebox, dir_v, -stencil_width), dir_v);
   return {cell_tilebox, face_tilebox_in_range};
 }

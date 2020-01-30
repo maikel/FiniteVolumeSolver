@@ -25,46 +25,40 @@
 #include "fub/Direction.hpp"
 #include "fub/equations/IdealGasMix.hpp"
 
-#include <boost/log/attributes/mutable_constant.hpp>
-#include <boost/log/common.hpp>
-#include <boost/log/core.hpp>
-#include <boost/log/sources/channel_logger.hpp>
-
 #include <AMReX.H>
 
 namespace fub::amrex::cutcell {
 
+struct MassflowBoundaryOptions {
+  MassflowBoundaryOptions() = default;
+  MassflowBoundaryOptions(const ProgramOptions& options);
+
+  std::string channel_name{"MassflowBoundary"};
+  ::amrex::Box coarse_inner_box{};
+  double required_massflow = 0.0;
+  double surface_area = 0.0;
+  Direction dir = Direction::X;
+  int side = 0;
+};
+
 class MassflowBoundary {
 public:
-  MassflowBoundary(const std::string& name,
-                   const IdealGasMix<AMREX_SPACEDIM>& eq,
-                   const ::amrex::Box& coarse_inner_box,
-                   double required_massflow, double surface_area, Direction dir,
-                   int side);
+  MassflowBoundary(const IdealGasMix<AMREX_SPACEDIM>& eq,
+                   const MassflowBoundaryOptions& options);
 
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
                     Duration dt, const GriddingAlgorithm& grid);
 
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration dt, const GriddingAlgorithm& grid, Direction dir) {
-    if (dir == dir_) {
-      FillBoundary(mf, geom, dt, grid);
-    }
-  }
+                    Duration dt, const GriddingAlgorithm& grid, Direction dir);
 
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::MultiFab& alphas,
                     const ::amrex::Geometry& geom,
                     const Complete<IdealGasMix<AMREX_SPACEDIM>>& state);
 
 private:
-  boost::log::sources::channel_logger<> log_;
-  boost::log::attributes::mutable_constant<double> time_attr_;
   IdealGasMix<AMREX_SPACEDIM> equation_;
-  ::amrex::Box coarse_inner_box_;
-  double required_massflow_;
-  double surface_area_;
-  Direction dir_;
-  int side_;
+  MassflowBoundaryOptions options_;
 };
 
 } // namespace fub::amrex::cutcell
