@@ -80,6 +80,7 @@ public:
   using AdvectionSolver::GetContext;
   using AdvectionSolver::GetCycles;
   using AdvectionSolver::GetGriddingAlgorithm;
+  using AdvectionSolver::GetCounterRegistry;
   using AdvectionSolver::GetMpiCommunicator;
   using AdvectionSolver::GetRatioToCoarserLevel;
   using AdvectionSolver::GetTimePoint;

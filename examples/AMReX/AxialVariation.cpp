@@ -240,7 +240,7 @@ void MyMain(const ProgramOptions& opts) {
   fub::HllMethod hll_method(equation, signals);
 
   fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(hll_method),
-                                      fub::amrex::ForwardIntegrator(),
+                                      fub::amrex::EulerForwardTimeIntegrator(),
                                       fub::amrex::Reconstruction(equation)};
 
   fub::DimensionalSplitLevelIntegrator system_solver(
@@ -248,7 +248,7 @@ void MyMain(const ProgramOptions& opts) {
       fub::GodunovSplitting());
 
   std::shared_ptr<fub::CounterRegistry> registry =
-      system_solver.GetContext().registry_;
+      system_solver.GetCounterRegistry();
 
   auto diameter = [](double x) -> double {
     if (x < 0.5) {
@@ -268,7 +268,7 @@ void MyMain(const ProgramOptions& opts) {
                                                      std::move(source_term),
                                                      fub::GodunovSplitting());
 
-  fub::ideal_gas::KineticSourceTerm<1> kinetic_source(equation, registry);
+  fub::ideal_gas::KineticSourceTerm<1> kinetic_source(equation);
 
   fub::SplitSystemSourceLevelIntegrator level_integrator(
       std::move(axial_solver), std::move(kinetic_source),
@@ -300,7 +300,7 @@ void MyMain(const ProgramOptions& opts) {
       }));
   output.AddOutput(
       std::make_unique<fub::CounterOutput<fub::amrex::GriddingAlgorithm>>(
-          registry, wall_time_reference, std::vector<std::ptrdiff_t>{},
+          wall_time_reference, std::vector<std::ptrdiff_t>{},
           std::vector<fub::Duration>{0.0001s}));
 
   output(*solver.GetGriddingAlgorithm());

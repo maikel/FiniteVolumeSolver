@@ -123,7 +123,7 @@ int main(int argc, char** argv) {
   fub::HllMethod hll_method(equation, signals);
   fub::MusclHancockMethod muscl_method(equation, hll_method);
   fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(muscl_method),
-                                      fub::amrex::ForwardIntegrator(),
+                                      fub::amrex::EulerForwardTimeIntegrator(),
                                       fub::amrex::Reconstruction(equation)};
 
   const int base_gcw = muscl_method.GetStencilWidth();
@@ -179,8 +179,8 @@ int main(int argc, char** argv) {
   output.AddOutput(
       std::make_unique<
           fub::CounterOutput<GriddingAlgorithm, std::chrono::milliseconds>>(
-          solver.GetContext().registry_, wall_time_reference,
-          std::vector<std::ptrdiff_t>{25}, std::vector<fub::Duration>{}));
+          wall_time_reference, std::vector<std::ptrdiff_t>{25},
+          std::vector<fub::Duration>{}));
 
   using namespace std::literals::chrono_literals;
   output(*solver.GetGriddingAlgorithm());

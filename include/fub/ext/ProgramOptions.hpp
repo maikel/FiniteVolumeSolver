@@ -24,7 +24,10 @@
 #ifndef FUB_EXT_PROGRAM_OPTIONS_HPP
 #define FUB_EXT_PROGRAM_OPTIONS_HPP
 
+#include "fub/Direction.hpp"
+
 #include <map>
+#include <optional>
 #include <string>
 
 #include <boost/filesystem.hpp>
@@ -50,6 +53,15 @@ T GetOptionOr(const ProgramOptions& map, const std::string& name,
   }
   return value;
 }
+
+template <>
+Direction GetOptionOr(const ProgramOptions& map, const std::string& name,
+                      const Direction& value);
+
+ProgramOptions GetOptions(const ProgramOptions& options,
+                          const std::string& name);
+
+std::optional<ProgramOptions> ParseCommandLine(int argc, char** argv);
 
 } // namespace fub
 

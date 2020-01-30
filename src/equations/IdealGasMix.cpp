@@ -25,8 +25,9 @@ namespace fub {
 template <int Dim>
 void IdealGasMix<Dim>::Flux(Conservative& flux, const Complete& state,
                             Direction dir) const noexcept {
-  if (state.density <= 0) return;
-//  FUB_ASSERT(state.density > 0);
+  if (state.density <= 0)
+    return;
+  //  FUB_ASSERT(state.density > 0);
   const int d0 = static_cast<int>(dir);
   const double velocity = state.momentum[d0] / state.density;
   flux.density = state.momentum[d0];
@@ -654,12 +655,6 @@ void MusclHancockPrimitive<Rank>::ComputeNumericFlux(
     Direction dir) {
   const int nspecies = GetEquation().GetReactor().GetNSpecies();
   const Array1d dt_over_dx = Array1d::Constant(dt.count() / dx);
-  if ((volume_fractions[0] < 1.0).any() || (volume_fractions[3].any() < 1.0)) {
-    hll_.ComputeNumericFlux(flux, face_fractions, stencil.template subspan<1, 2>(),
-                                   volume_fractions.template subspan<1, 2>(), dt, dx,
-                                   dir);
-    return;
-  }
 
   ToPrim(pL_array_, stencil[0]);
   ToPrim(pM_array_, stencil[1]);

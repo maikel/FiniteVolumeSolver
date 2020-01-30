@@ -92,7 +92,8 @@ void IsentropicPressureBoundary::FillBoundary(::amrex::MultiFab& mf,
 void IsentropicPressureBoundary::FillBoundary(::amrex::MultiFab& mf,
                                               const ::amrex::Geometry& geom,
                                               Duration,
-                                              const GriddingAlgorithm&, Direction dir) {
+                                              const GriddingAlgorithm&,
+                                              Direction dir) {
   if (dir == dir_) {
     FillBoundary(mf, geom);
   }

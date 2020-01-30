@@ -77,8 +77,9 @@ public:
     if (time_point == Duration{} ||
         std::any_of(intervals_.begin(), intervals_.end(),
                     [this, time_point](Duration freq) {
-                      return std::abs(std::fmod(time_point.count(), freq.count())) <
-                             2*smallest_time_step_size_.count();
+                      return std::abs(
+                                 std::fmod(time_point.count(), freq.count())) <
+                             2 * smallest_time_step_size_.count();
                     })) {
       return true;
     }

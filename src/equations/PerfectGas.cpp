@@ -181,15 +181,14 @@ void Rotate(Complete<PerfectGas<3>>& rotated,
 
 void Reflect(Complete<PerfectGas<1>>& reflected,
              const Complete<PerfectGas<1>>& state,
-             const Eigen::Matrix<double, 1, 1>& normal,
-             const PerfectGas<1>&) {
+             const Eigen::Matrix<double, 1, 1>& normal, const PerfectGas<1>&) {
   reflected.density = state.density;
   reflected.energy = state.energy;
   reflected.pressure = state.pressure;
   reflected.speed_of_sound = state.speed_of_sound;
   reflected.momentum =
-  state.momentum -
-  2 * (state.momentum.matrix().dot(normal) * normal).array();
+      state.momentum -
+      2 * (state.momentum.matrix().dot(normal) * normal).array();
 }
 
 void Reflect(Complete<PerfectGas<2>>& reflected,

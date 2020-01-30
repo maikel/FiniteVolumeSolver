@@ -32,6 +32,9 @@ using ProbesView = basic_mdspan<T, extents<AMREX_SPACEDIM, dynamic_extent>>;
 
 void LogTubeProbes(const std::string& p, ProbesView<const double> probes,
                    const fub::amrex::PatchHierarchy& hierarchy, MPI_Comm comm) {
+  if (probes.extent(1) == 0) {
+    return;
+  }
   int rank = -1;
   MPI_Comm_rank(comm, &rank);
 
@@ -81,6 +84,9 @@ void LogTubeProbes(const std::string& p, ProbesView<const double> probes,
 void LogPlenumProbes(const std::string& p, ProbesView<const double> probes,
                      const fub::amrex::cutcell::PatchHierarchy& hierarchy,
                      MPI_Comm comm) {
+  if (probes.extent(1) == 0) {
+    return;
+  }
   int rank = -1;
   MPI_Comm_rank(comm, &rank);
 
@@ -134,47 +140,32 @@ void LogPlenumProbes(const std::string& p, ProbesView<const double> probes,
 
 } // namespace
 
-LogProbesOutput::LogProbesOutput(
-    const std::map<std::string, pybind11::object>& vm)
+LogProbesOutput::LogProbesOutput(const ProgramOptions& vm)
     : OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm>(vm) {
-  plenum_output_path_ =
-      GetOptionOr(vm, "plenum_filename", std::string("plenum.dat"));
-  tube_output_path_ = GetOptionOr(vm, "tube_filename", std::string("tube.dat"));
+  using namespace std::literals;
   {
-    const std::map<std::string, pybind11::object> plenum_vm =
-        ToMap(GetOptionOr(vm, "plenum", pybind11::dict()));
-    std::vector<double> xs =
-        GetOptionOr(plenum_vm, "x_coordinates", std::vector<double>());
-    std::vector<double> ys =
-        GetOptionOr(plenum_vm, "y_coordinates", std::vector<double>());
-    std::vector<double> zs =
-        GetOptionOr(plenum_vm, "z_coordinates", std::vector<double>());
-    FUB_ASSERT(xs.size() == ys.size());
-    FUB_ASSERT(zs.size() == ys.size());
+    const ProgramOptions plenum_vm = GetOptions(vm, "Plenum");
+    plenum_output_path_ = GetOptionOr(plenum_vm, "filename", "plenum.dat"s);
+    std::vector<std::array<double, AMREX_SPACEDIM>> xs{};
+    xs = GetOptionOr(plenum_vm, "coordinates", xs);
     plenum_probes_.resize(AMREX_SPACEDIM * xs.size());
     ProbesView<double> probes(plenum_probes_.data(), xs.size());
     for (std::size_t i = 0; i < xs.size(); ++i) {
-      probes(0, i) = xs[i];
-      probes(1, i) = ys[i];
-      probes(2, i) = zs[i];
+      probes(0, i) = xs[i][0];
+      probes(1, i) = xs[i][1];
+      probes(2, i) = xs[i][2];
     }
   }
-  const std::map<std::string, pybind11::object> tube_vm =
-      ToMap(GetOptionOr(vm, "tube", pybind11::dict()));
-  std::vector<double> xs =
-      GetOptionOr(tube_vm, "x_coordinates", std::vector<double>());
-  std::vector<double> ys =
-      GetOptionOr(tube_vm, "y_coordinates", std::vector<double>());
-  std::vector<double> zs =
-      GetOptionOr(tube_vm, "z_coordinates", std::vector<double>());
-  FUB_ASSERT(xs.size() == ys.size());
-  FUB_ASSERT(zs.size() == ys.size());
+  const ProgramOptions tube_vm = GetOptions(vm, "Tube");
+  tube_output_path_ = GetOptionOr(tube_vm, "filename", "tube.dat"s);
+  std::vector<std::array<double, AMREX_SPACEDIM>> xs{};
+  xs = GetOptionOr(tube_vm, "coordinates", xs);
   tube_probes_.resize(AMREX_SPACEDIM * xs.size());
   ProbesView<double> probes(tube_probes_.data(), xs.size());
   for (std::size_t i = 0; i < xs.size(); ++i) {
-    probes(0, i) = xs[i];
-    probes(1, i) = ys[i];
-    probes(2, i) = zs[i];
+    probes(0, i) = xs[i][0];
+    probes(1, i) = xs[i][1];
+    probes(2, i) = xs[i][2];
   }
 }
 
@@ -206,4 +197,4 @@ void LogProbesOutput::operator()(const MultiBlockGriddingAlgorithm& grid) {
   }
 }
 
-} // namespace fub::amrex::cutcell
+} // namespace fub::amrex

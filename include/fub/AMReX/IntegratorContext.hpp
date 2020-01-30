@@ -25,7 +25,6 @@
 #include "fub/Duration.hpp"
 #include "fub/HyperbolicMethod.hpp"
 #include "fub/TimeStepError.hpp"
-#include "fub/counter/CounterRegistry.hpp"
 #include "fub/ext/outcome.hpp"
 
 #include "fub/AMReX/GriddingAlgorithm.hpp"
@@ -130,6 +129,10 @@ public:
 
   /// \brief Returns the geometry object for the specified refinement level.
   [[nodiscard]] const ::amrex::Geometry& GetGeometry(int level) const;
+
+  /// \brief Returns a shared pointer to the counter registry.
+  [[nodiscard]] const std::shared_ptr<CounterRegistry>&
+  GetCounterRegistry() const noexcept;
 
   /// @}
 
@@ -238,7 +241,6 @@ public:
   void CoarsenConservatively(int fine, int coarse);
   ///@}
 
-  std::shared_ptr<CounterRegistry> registry_;
   bool count_per_level = false;
 
 private:

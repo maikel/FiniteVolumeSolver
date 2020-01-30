@@ -42,72 +42,18 @@
 
 struct DividerOptions {
   double mach_number{1.77};
-  std::array<double, 2> x_range{0.0, 0.042};
-  std::array<double, 2> y_range{-0.016, +0.026};
-  std::array<int, 2> n_cells{200, 200};
-  int n_level{1};
-  std::string output_directory{"ShockTube"};
 
   DividerOptions() = default;
 
-  DividerOptions(const std::map<std::string, pybind11::object>& map) {
-    x_range = fub::GetOptionOr(map, "x_range", x_range);
-    y_range = fub::GetOptionOr(map, "y_range", y_range);
-    n_cells = fub::GetOptionOr(map, "n_cells", n_cells);
+  DividerOptions(const fub::ProgramOptions& map) {
     mach_number = fub::GetOptionOr(map, "Mach_number", mach_number);
-    n_level = fub::GetOptionOr(map, "n_level", n_level);
   }
 
   template <typename Logger> void Print(Logger& log) {
     BOOST_LOG(log) << "Divider Options:"
-                   << "\n  - mach_number = " << mach_number << " [-]"
-                   << "\n  - x_range = {" << x_range[0] << ", " << x_range[1]
-                   << "} [m]"
-                   << "\n  - y_range = {" << y_range[0] << ", " << y_range[1]
-                   << "} [m]"
-                   << "\n  - n_cells = {" << n_cells[0] << ", " << n_cells[1]
-                   << "} [-]"
-                   << "\n  - n_level = " << n_level << " [-]"
-                   << "\n  - output_directory = '" << output_directory << "'";
+                   << "\n  - mach_number = " << mach_number << " [-]";
   }
 };
-
-std::optional<std::map<std::string, pybind11::object>>
-ParseCommandLine(int argc, char** argv) {
-  boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
-      boost::log::keywords::severity = boost::log::trivial::info);
-
-  namespace po = boost::program_options;
-  po::options_description desc;
-  std::string config_path{};
-  desc.add_options()("config", po::value<std::string>(&config_path),
-                     "Path to the config file which can be parsed.");
-  po::variables_map vm;
-  std::map<std::string, pybind11::object> options{};
-  try {
-    po::store(po::parse_command_line(argc, argv, desc), vm);
-    if (vm.count("config")) {
-      config_path = vm["config"].as<std::string>();
-      options = fub::ParsePythonScript(config_path, MPI_COMM_WORLD);
-    }
-    po::notify(vm);
-  } catch (std::exception& e) {
-    amrex::Print()
-        << "[Error] An Error occured while reading program options:\n";
-    amrex::Print() << e.what();
-    return {};
-  }
-
-  if (vm.count("help")) {
-    amrex::Print() << desc << "\n";
-    return {};
-  }
-
-  fub::RunOptions(options).Print(log);
-  DividerOptions(options).Print(log);
-
-  return options;
-}
 
 template <typename Logger>
 void WriteCheckpoint(Logger& log, const std::string& path,
@@ -116,19 +62,15 @@ void WriteCheckpoint(Logger& log, const std::string& path,
   fub::amrex::cutcell::WriteCheckpointFile(path, hierarchy);
 }
 
-void MyMain(const std::map<std::string, pybind11::object>& vm) {
+void MyMain(const fub::ProgramOptions& vm) {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
+  fub::amrex::ScopeGuard scope_guard{};
 
   boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
       boost::log::keywords::severity = boost::log::trivial::info);
 
   DividerOptions options(vm);
-
-  const std::array<int, 2> n_cells = options.n_cells;
-  const std::array<double, 2> xlower{options.x_range[0], options.y_range[0]};
-  const std::array<double, 2> xupper{options.x_range[1], options.y_range[1]};
-  const std::array<int, 2> periodicity{0, 0};
 
   fub::Burke2012 burke_2012{};
   fub::IdealGasMix<2> equation(burke_2012);
@@ -165,12 +107,6 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   BOOST_LOG(log) << "Pre-Shock-State:\n"
                  << "\tdensity: " << right.density << " [kg/m^3]\n"
                  << "\tpressure: " << right.pressure << " [Pa]";
-
-  amrex::RealBox xbox(xlower, xupper);
-  amrex::Geometry coarse_geom(amrex::Box{{}, {n_cells[0] - 1, n_cells[1] - 1}},
-                              &xbox, -1, periodicity.data());
-
-  const int n_level = options.n_level;
 
   auto MakePlenum2D = [](auto... points) {
     fub::Polygon::Vector xs{};
@@ -209,72 +145,65 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
 
   auto shop = amrex::EB2::makeShop(amrex::EB2::makeUnion(wall));
 
-  fub::amrex::CartesianGridGeometry geometry;
-  geometry.cell_dimensions = n_cells;
-  geometry.coordinates = amrex::RealBox(xlower, xupper);
-  geometry.periodicity = periodicity;
+  fub::amrex::CartesianGridGeometry grid_geometry(
+      fub::GetOptions(vm, "GridGeometry"));
 
-  PatchHierarchyOptions hier_opts{};
-  hier_opts.max_number_of_levels = n_level;
-  hier_opts.index_spaces =
-      fub::amrex::cutcell::MakeIndexSpaces(shop, coarse_geom, n_level);
+  PatchHierarchyOptions hierarchy_options =
+      fub::GetOptions(vm, "PatchHierarchy");
+  hierarchy_options.index_spaces =
+      MakeIndexSpaces(shop, grid_geometry, hierarchy_options);
 
-  amrex::Box box = coarse_geom.Domain();
-  box.setSmall(0, box.bigEnd(0) - 1);
+  IsentropicPressureBoundaryOptions boundary_options =
+      fub::GetOptions(vm, "IsentropicPressureBoundary");
   BoundarySet boundary_condition{
-      {IsentropicPressureBoundary{"PressureExpansion", equation, box, 101325.0,
-                                  fub::Direction::X, 1},
+      {IsentropicPressureBoundary{equation, boundary_options},
        TransmissiveBoundary{fub::Direction::X, 0},
        TransmissiveBoundary{fub::Direction::Y, 0},
        TransmissiveBoundary{fub::Direction::Y, 1}}};
 
   std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
-      PatchHierarchy(equation, geometry, hier_opts), initial_data,
-      TagAllOf(TagCutCells(), gradients, TagBuffer(4)), boundary_condition);
+      PatchHierarchy(equation, grid_geometry, hierarchy_options), initial_data,
+      TagAllOf(TagCutCells(), gradients, TagBuffer(2)), boundary_condition);
   gridding->InitializeHierarchy(0.0);
 
   fub::EinfeldtSignalVelocities<fub::IdealGasMix<2>> signals{};
   fub::HllMethod hll_method{equation, signals};
-  // fub::MusclHancockMethod flux_method(equation, hll_method);
   fub::ideal_gas::MusclHancockPrimMethod<2> flux_method(equation);
   fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
 
-  HyperbolicMethod method{FluxMethod{fub::execution::simd, cutcell_method},
-                          TimeIntegrator{},
-                          Reconstruction{fub::execution::simd, equation}};
+  HyperbolicMethod method{FluxMethod{cutcell_method}, TimeIntegrator{},
+                          Reconstruction{equation}};
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<2>, IntegratorContext(gridding, method));
+      fub::int_c<2>, IntegratorContext(gridding, method, 4, 2),
+      fub::GodunovSplitting{});
 
-  fub::SubcycleFineFirstSolver solver(level_integrator);
+  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
-  std::string base_name = options.output_directory;
+  std::string base_name = "ShockTube";
 
   fub::OutputFactory<GriddingAlgorithm> factory{};
   factory.RegisterOutput<WriteHdf5>("HDF5");
   fub::MultipleOutputs<GriddingAlgorithm> outputs(
-      std::move(factory),
-      fub::ToMap(fub::GetOptionOr(vm, "output", pybind11::dict{})));
+      std::move(factory), fub::GetOptions(vm, "Output"));
 
   using namespace std::literals::chrono_literals;
   outputs.AddOutput(std::make_unique<PlotfileOutput<fub::IdealGasMix<2>>>(
-      std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{1e-6s}, equation,
-      base_name + "/Plotfiles"));
+      std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{1e-6s},
+      equation, base_name + "/Plotfiles"));
 
   outputs(*solver.GetGriddingAlgorithm());
-  fub::RunSimulation(solver, fub::RunOptions(vm), wall_time_reference, outputs);
+  fub::RunSimulation(solver, fub::GetOptions(vm, "RunOptions"),
+                     wall_time_reference, outputs);
 }
 
 int main(int argc, char** argv) {
   MPI_Init(nullptr, nullptr);
   fub::InitializeLogging(MPI_COMM_WORLD);
   pybind11::scoped_interpreter interpreter{};
-  {
-    fub::amrex::ScopeGuard _{};
-    auto vm = ParseCommandLine(argc, argv);
-    if (vm) {
-      MyMain(*vm);
-    }
+  std::optional<fub::ProgramOptions> opts = fub::ParseCommandLine(argc, argv);
+  if (opts) {
+    MyMain(*opts);
   }
   int flag = -1;
   MPI_Finalized(&flag);

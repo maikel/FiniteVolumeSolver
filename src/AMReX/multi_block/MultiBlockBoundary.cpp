@@ -329,7 +329,8 @@ MultiBlockBoundary::MultiBlockBoundary(const MultiBlockBoundary& other)
           other.tube_mirror_data_->box(), other.tube_mirror_data_->nComp())),
       plenum_ghost_data_(std::make_unique<::amrex::FArrayBox>(
           other.plenum_ghost_data_->box(), other.plenum_ghost_data_->nComp())),
-      dir_(other.dir_), side_(other.side_), level_{other.level_} {
+      dir_(other.dir_),
+      side_(other.side_), level_{other.level_}, gcw_{other.gcw_} {
   plenum_mirror_data_->copy(*other.plenum_mirror_data_);
   tube_ghost_data_->copy(*other.tube_ghost_data_);
   tube_mirror_data_->copy(*other.tube_mirror_data_);

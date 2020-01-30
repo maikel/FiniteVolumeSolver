@@ -35,8 +35,8 @@ class MultiBlockIgniteDetonation {
 public:
   static constexpr int Rank = 1;
 
-  MultiBlockIgniteDetonation(const IdealGasMix<1>& equation, std::size_t n_tubes,
-                             int max_refinement_level,
+  MultiBlockIgniteDetonation(const IdealGasMix<1>& equation,
+                             std::size_t n_tubes, int max_refinement_level,
                              const IgniteDetonationOptions& opts = {});
 
   void ResetHierarchyConfiguration(

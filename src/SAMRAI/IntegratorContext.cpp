@@ -20,9 +20,9 @@
 
 #include "fub/SAMRAI/IntegratorContext.hpp"
 
-#include <SAMRAI/pdat/SideVariable.h>
 #include <SAMRAI/pdat/SideData.h>
 #include <SAMRAI/pdat/SideDataFactory.h>
+#include <SAMRAI/pdat/SideVariable.h>
 
 #include <SAMRAI/geom/CartesianCellDoubleWeightedAverage.h>
 #include <SAMRAI/geom/CartesianSideDoubleWeightedAverage.h>
@@ -118,7 +118,8 @@ IntegratorContext::IntegratorContext(std::shared_ptr<GriddingAlgorithm> grid,
   time_points_.resize(nlevel);
   regrid_time_points_.resize(nlevel);
   cycles_.resize(nlevel);
-  SAMRAI::tbox::Dimension dim(gridding_->GetPatchHierarchy().GetDataDescription().dim);
+  SAMRAI::tbox::Dimension dim(
+      gridding_->GetPatchHierarchy().GetDataDescription().dim);
   fill_scratch_ = std::make_shared<SAMRAI::xfer::RefineAlgorithm>();
   coarsen_scratch_ = std::make_shared<SAMRAI::xfer::CoarsenAlgorithm>(dim);
   coarsen_fluxes_ = std::make_shared<SAMRAI::xfer::CoarsenAlgorithm>(dim);
@@ -256,8 +257,7 @@ void IntegratorContext::PreAdvanceLevel(int level_num,
 }
 
 Result<void, TimeStepTooLarge>
-IntegratorContext::PostAdvanceLevel(int level_num, Duration dt,
-                                    int subcycle) {
+IntegratorContext::PostAdvanceLevel(int level_num, Duration dt, int subcycle) {
   SetCycles(GetCycles(level_num) + 1, level_num);
   double timepoint = (GetTimePoint(level_num) + dt).count();
   ::MPI_Bcast(&timepoint, 1, MPI_DOUBLE, 0, GetMpiCommunicator());
@@ -303,7 +303,8 @@ IntegratorContext::GetBoundaryCondition(int level) const {
   return gridding_->GetBoundaryCondition(level);
 }
 
-void IntegratorContext::ResetCoarseFineFluxes([[maybe_unused]] int fine, int /* coarse */) {
+void IntegratorContext::ResetCoarseFineFluxes([[maybe_unused]] int fine,
+                                              int /* coarse */) {
   // SAMRAI::hier::PatchLevel& patch_level = GetPatchLevel(fine);
   // span<const int> coarse_fine_ids = GetCoarseFineIds();
   // for (const std::shared_ptr<SAMRAI::hier::Patch>& patch : fluxes) {
@@ -315,8 +316,9 @@ void IntegratorContext::ResetCoarseFineFluxes([[maybe_unused]] int fine, int /* 
   // }
 }
 
-void IntegratorContext::AccumulateCoarseFineFluxes([[maybe_unused]] int level, [[maybe_unused]] double scale,
-                                                   [[maybe_unused]] Direction dir) {
+void IntegratorContext::AccumulateCoarseFineFluxes(
+    [[maybe_unused]] int level, [[maybe_unused]] double scale,
+    [[maybe_unused]] Direction dir) {
   // SAMRAI::hier::PatchLevel& fluxes = GetPatchLevel(level);
   // const int ncomps = flux_desc_->getMaxNumberRegisteredComponents() / 2;
   // const int d = static_cast<int>(dir);

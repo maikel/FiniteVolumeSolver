@@ -47,7 +47,7 @@ template <typename Tag, typename Equation> struct Reconstruction {
 
 template <typename Equation>
 Reconstruction(const Equation&)
-    -> Reconstruction<execution::OpenMpSimdTag, Equation>;
+    ->Reconstruction<execution::OpenMpSimdTag, Equation>;
 
 ////////////////////////////////////////////////////////////////////////////////
 //                                                              Implementation

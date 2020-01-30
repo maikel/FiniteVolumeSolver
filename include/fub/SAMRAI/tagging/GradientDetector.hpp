@@ -54,7 +54,8 @@ template <typename Equation, typename... Projections>
 void GradientDetector<Equation, Projections...>::TagCellsForRefinement(
     GriddingAlgorithm& gridding, int level, int tag_id,
     Duration /* time_point */) {
-  const fub::samrai::PatchHierarchy& patch_hierarchy = gridding.GetPatchHierarchy();
+  const fub::samrai::PatchHierarchy& patch_hierarchy =
+      gridding.GetPatchHierarchy();
   const std::vector<int>& data_ids =
       patch_hierarchy.GetDataDescription().data_ids;
   std::vector<SAMRAI::pdat::CellData<double>*> datas(data_ids.size());
@@ -67,15 +68,18 @@ void GradientDetector<Equation, Projections...>::TagCellsForRefinement(
                      return static_cast<SAMRAI::pdat::CellData<double>*>(
                          patch->getPatchData(id).get());
                    });
-    fub::BasicView basic_view = fub::samrai::MakeView<fub::Complete<Equation>>(datas, detector_.GetEquation());
-    fub::View<const fub::Complete<Equation>> statesview = AsConst(Subview(basic_view, fub::Box<0>(basic_view)));
+    fub::BasicView basic_view = fub::samrai::MakeView<fub::Complete<Equation>>(
+        datas, detector_.GetEquation());
+    fub::View<const fub::Complete<Equation>> statesview =
+        AsConst(Subview(basic_view, fub::Box<0>(basic_view)));
 
     // Get Tags
     SAMRAI::pdat::CellData<int>& tags =
         *static_cast<SAMRAI::pdat::CellData<int>*>( // NOLINT
             patch->getPatchData(tag_id).get());
 
-    auto tagsview = MakePatchDataView<Equation::Rank()>(tags.getArrayData()).Subview(Box<0>(statesview));
+    auto tagsview = MakePatchDataView<Equation::Rank()>(tags.getArrayData())
+                        .Subview(Box<0>(statesview));
 
     detector_.TagCellsForRefinement(tagsview, statesview);
   }

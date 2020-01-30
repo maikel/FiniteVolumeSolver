@@ -39,11 +39,11 @@ std::unique_ptr<Geometry<Rank>> PolymorphicUnion<Rank>::Clone() const {
 template <std::size_t Rank>
 double PolymorphicUnion<Rank>::ComputeDistanceTo(
     const std::array<double, Rank>& x) const {
-  return std::accumulate(geoms_.begin(), geoms_.end(),
-                         std::numeric_limits<double>::lowest(),
-                         [x](double max, const PolymorphicGeometry<Rank>& geom) {
-                           return std::max(max, geom.ComputeDistanceTo(x));
-                         });
+  return std::accumulate(
+      geoms_.begin(), geoms_.end(), std::numeric_limits<double>::lowest(),
+      [x](double max, const PolymorphicGeometry<Rank>& geom) {
+        return std::max(max, geom.ComputeDistanceTo(x));
+      });
 }
 
 template class PolymorphicUnion<2>;

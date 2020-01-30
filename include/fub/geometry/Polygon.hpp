@@ -36,8 +36,9 @@ public:
   [[nodiscard]] span<const double> GetYs() const noexcept { return ys_; }
 
   [[nodiscard]] double ComputeDistanceTo(double x, double y) const noexcept;
-  [[nodiscard]] double ComputeDistanceTo(std::array<double, 2> xs) const noexcept { 
-    return ComputeDistanceTo(xs[0], xs[1]); 
+  [[nodiscard]] double ComputeDistanceTo(std::array<double, 2> xs) const
+      noexcept {
+    return ComputeDistanceTo(xs[0], xs[1]);
   }
 
 private:

@@ -228,6 +228,9 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/EinfeldtSignalVelocities.hpp
   include/fub/Execution.hpp
   include/fub/ForEach.hpp
+  include/fub/split_method/GodunovSplitting.hpp
+  include/fub/split_method/SplittingMethod.hpp
+  include/fub/split_method/StrangSplitting.hpp
   include/fub/solver/DimensionalSplitLevelIntegrator.hpp
   include/fub/solver/NoSubcycleSolver.hpp
   include/fub/solver/SolverFacade.hpp

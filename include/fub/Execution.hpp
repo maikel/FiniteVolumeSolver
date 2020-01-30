@@ -55,9 +55,7 @@ template <typename T> struct LocalType<execution::OpenMpSimdTag, T> {
 template <typename Tag, typename T>
 using Local = typename detail::LocalType<Tag, T>::type;
 
-template <typename T> const T& Min(const std::optional<T>& x) {
-  return *x;
-}
+template <typename T> const T& Min(const std::optional<T>& x) { return *x; }
 
 template <typename T> const T& Min(const OmpLocal<T>& x) { return x.Min(); }
 

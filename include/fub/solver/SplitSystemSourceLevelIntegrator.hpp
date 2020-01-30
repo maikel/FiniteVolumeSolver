@@ -54,6 +54,7 @@ public:
   const SourceTerm& GetSource() const noexcept { return source_term_; }
 
   using SystemSolver::GetContext;
+  using SystemSolver::GetCounterRegistry;
   using SystemSolver::GetCycles;
   using SystemSolver::GetGriddingAlgorithm;
   using SystemSolver::GetMpiCommunicator;
@@ -66,10 +67,10 @@ public:
   using SystemSolver::LevelExists;
 
   using SystemSolver::CoarsenConservatively;
-  using SystemSolver::CopyDataToScratch;
-  using SystemSolver::CopyScratchToData;
   using SystemSolver::CompleteFromCons;
   using SystemSolver::ComputeNumericFluxes;
+  using SystemSolver::CopyDataToScratch;
+  using SystemSolver::CopyScratchToData;
   using SystemSolver::UpdateConservatively;
 
   using SystemSolver::AccumulateCoarseFineFluxes;
@@ -121,8 +122,8 @@ template <typename... Args>
 void SplitSystemSourceLevelIntegrator<
     SystemSolver, SourceTerm,
     SplittingMethod>::ResetHierarchyConfiguration(const Args&... args) {
-  SystemSolver::ResetHierarchyConfiguration(args...);
-  ::fub::ResetHierarchyConfiguration(source_term_, args...);
+  ResetHierarchyConfigurationIfDetected(GetSystem(), args...);
+  ResetHierarchyConfigurationIfDetected(source_term_, args...);
 }
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
@@ -198,7 +199,8 @@ SplitSystemSourceLevelIntegrator<SystemSolver, SourceTerm, SplittingMethod>::
   };
 
   auto AdvanceSource = [&](Duration dt) -> Result<void, TimeStepTooLarge> {
-    return source_term_.AdvanceLevel(SystemSolver::GetContext(), this_level, dt);
+    return source_term_.AdvanceLevel(SystemSolver::GetContext(), this_level,
+                                     dt);
   };
   return splitting_.Advance(dt, AdvanceSource, AdvanceSystem);
 }

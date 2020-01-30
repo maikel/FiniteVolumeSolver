@@ -21,12 +21,12 @@
 #ifndef FUB_SAMRAI_GRIDDING_ALGORITHM_HPP
 #define FUB_SAMRAI_GRIDDING_ALGORITHM_HPP
 
-#include "fub/SAMRAI/PatchHierarchy.hpp"
+#include "fub/SAMRAI/BoundaryCondition.hpp"
 #include "fub/SAMRAI/InitialData.hpp"
+#include "fub/SAMRAI/PatchHierarchy.hpp"
 #include "fub/SAMRAI/RegisterVariables.hpp"
 #include "fub/SAMRAI/Tagging.hpp"
 #include "fub/SAMRAI/ViewPatch.hpp"
-#include "fub/SAMRAI/BoundaryCondition.hpp"
 
 #include "fub/Duration.hpp"
 

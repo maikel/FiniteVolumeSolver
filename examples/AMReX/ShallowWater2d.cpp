@@ -97,7 +97,7 @@ int main(int argc, char** argv) {
   fub::HllMethod hll_method{equation, fub::ShallowWaterSignalVelocities{}};
   fub::MusclHancockMethod muscl_method{equation, hll_method};
   fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(muscl_method),
-                                      fub::amrex::ForwardIntegrator(),
+                                      fub::amrex::EulerForwardTimeIntegrator(),
                                       fub::amrex::NoReconstruction{}};
 
   const int scratch_ghost_cell_width = 8;
@@ -131,8 +131,8 @@ int main(int argc, char** argv) {
   output.AddOutput(
       std::make_unique<
           fub::CounterOutput<fub::amrex::GriddingAlgorithm, microseconds>>(
-          solver.GetContext().registry_, wall_time_reference,
-          std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{0.05s}));
+          wall_time_reference, std::vector<std::ptrdiff_t>{},
+          std::vector<fub::Duration>{0.05s}));
 
   output(*solver.GetGriddingAlgorithm());
   fub::RunSimulation(solver, run_options, wall_time_reference, output);

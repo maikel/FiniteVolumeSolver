@@ -34,10 +34,14 @@ namespace fub::amrex::cutcell {
 template <typename Equation>
 class PlotfileOutput : public OutputAtFrequencyOrInterval<GriddingAlgorithm> {
 public:
-  PlotfileOutput(const Equation& equation,
-                 const std::string& path)
-      : OutputAtFrequencyOrInterval(),
-        equation_(equation), parent_path_(path) {}
+  PlotfileOutput(const ProgramOptions& options, const Equation& equation)
+      : OutputAtFrequencyOrInterval(options), equation_(equation) {
+    parent_path_ = fub::GetOptionOr(options, "directory", parent_path_);
+  }
+
+  PlotfileOutput(const Equation& equation, const std::string& path)
+      : OutputAtFrequencyOrInterval(), equation_(equation), parent_path_(path) {
+  }
 
   PlotfileOutput(std::vector<std::ptrdiff_t> freqs,
                  std::vector<Duration> intervals, const Equation& equation,

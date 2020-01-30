@@ -22,8 +22,10 @@
 #define FUB_INITIAL_DATA_RIEMANN_PROBLEM_HPP
 
 #include "fub/AMReX/cutcell/PatchHierarchy.hpp"
+#include "fub/CompleteFromCons.hpp"
 #include "fub/Equation.hpp"
 #include "fub/ForEach.hpp"
+#include "fub/ext/omp.hpp"
 
 #include <AMReX.H>
 
@@ -43,11 +45,11 @@ template <typename Eq, typename Geometry> struct RiemannProblem {
 
   void InitializeData(::amrex::MultiFab& data, const ::amrex::Geometry& geom);
 
-  Equation equation_;
+  OmpLocal<Equation> equation_;
   Geometry geometry_;
-  Complete left_{equation_};
-  Complete right_{equation_};
-  Complete boundary_{equation_};
+  Complete left_{*equation_};
+  Complete right_{*equation_};
+  Complete boundary_{*equation_};
 };
 
 template <typename Eq, typename Geom>
@@ -71,15 +73,14 @@ void RiemannProblem<Eq, Geometry>::InitializeData(
   const ::amrex::FabArray<::amrex::EBCellFlagFab>& flags =
       factory.getMultiEBCellFlagFab();
   const ::amrex::MultiFab& alphas = factory.getVolFrac();
-  ForEachFab(data, [&](const ::amrex::MFIter& mfi) {
+  ForEachFab(execution::openmp, data, [&](const ::amrex::MFIter& mfi) {
     const ::amrex::FabType type = flags[mfi].getType();
     if (type == ::amrex::FabType::covered) {
-      span<double> span(data[mfi].dataPtr(), data[mfi].size());
-      std::fill(span.begin(), span.end(), 0.0);
+      data[mfi].setVal(0.0, mfi.growntilebox(), 0, data.nComp());
       return;
     }
     View<Complete> states =
-        MakeView<Complete>(data[mfi], equation_, mfi.tilebox());
+        MakeView<Complete>(data[mfi], *equation_, mfi.growntilebox());
     Eigen::Vector3d x = Eigen::Vector3d::Zero();
     if (type == ::amrex::FabType::regular) {
       ForEachIndex(Box<0>(states), [&](auto... is) {

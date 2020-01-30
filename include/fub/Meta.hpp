@@ -25,6 +25,11 @@
 
 namespace fub::meta {
 
+/// @{
+/// \brief A template typedef to detect the member function
+///
+/// This is a template typedef which can be used in conjunction with is_detected
+/// to detect in a generic context if a given expression is valid or not.
 template <typename Context, typename... Args>
 using PreAdvanceHierarchy = decltype(
     std::declval<Context>().PreAdvanceHierarchy(std::declval<Args>()...));
@@ -51,16 +56,21 @@ using GriddingAlgorithm =
 
 template <typename T>
 using Equation = std::decay_t<decltype(std::declval<T>().GetEquation())>;
+/// @}
 
 } // namespace fub::meta
 
 namespace fub {
 
-// This is a helper function which invokes ResetHierarchyConfiguration if the
-// specified object obj has such a member function It is used by generic
-// algorithms in fub/sovler/*
+/// \brief Invokes member function obj.ResetHierarchyConfiguration(grid)
+///
+/// This is a helper function which invokes ResetHierarchyConfiguration if the
+/// specified object obj has such a member function. If obj does not have such
+/// a member function the function body will be empty.
+///
+/// This functionality is used by generic algorithms in include/fub/solver/*
 template <typename T, typename Grid>
-void ResetHierarchyConfiguration(T&& obj, Grid&& grid) {
+void ResetHierarchyConfigurationIfDetected(T&& obj, Grid&& grid) {
   if constexpr (is_detected<meta::ResetHierarchyConfiguration, T, Grid>()) {
     std::forward<T>(obj).ResetHierarchyConfiguration(std::forward<Grid>(grid));
   }

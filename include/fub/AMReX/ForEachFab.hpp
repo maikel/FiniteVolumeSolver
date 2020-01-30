@@ -34,15 +34,32 @@ void ForEachFab(Tag, const ::amrex::FabArrayBase& fabarray, F function) {
   }
 }
 
+template <typename Tag, typename F>
+void ForEachFab(Tag, const ::amrex::BoxArray& ba,
+                const ::amrex::DistributionMapping& dm, F function) {
+  for (::amrex::MFIter mfi(ba, dm); mfi.isValid(); ++mfi) {
+    function(mfi);
+  }
+}
+
 template <typename F>
 void ForEachFab(execution::OpenMpTag, const ::amrex::FabArrayBase& fabarray,
                 F function) {
 #if defined(_OPENMP) && defined(AMREX_USE_OMP)
 #pragma omp parallel
 #endif
-  for (::amrex::MFIter mfi(fabarray,
-                           ::amrex::IntVect(AMREX_D_DECL(1024000, 8, 8)));
-       mfi.isValid(); ++mfi) {
+  for (::amrex::MFIter mfi(fabarray, true); mfi.isValid(); ++mfi) {
+    function(mfi);
+  }
+}
+
+template <typename F>
+void ForEachFab(execution::OpenMpTag, const ::amrex::BoxArray& ba,
+                const ::amrex::DistributionMapping& dm, F function) {
+#if defined(_OPENMP) && defined(AMREX_USE_OMP)
+#pragma omp parallel
+#endif
+  for (::amrex::MFIter mfi(ba, dm, true); mfi.isValid(); ++mfi) {
     function(mfi);
   }
 }
@@ -54,8 +71,20 @@ void ForEachFab(execution::OpenMpSimdTag, const ::amrex::FabArrayBase& fabarray,
 }
 
 template <typename F>
-void ForEachFab(const ::amrex::FabArrayBase& fabarray, F&& function) {
-  ForEachFab(execution::seq, fabarray, std::forward<F>(function));
+void ForEachFab(const ::amrex::FabArrayBase& fabarray, F function) {
+  ForEachFab(execution::seq, fabarray, std::move(function));
+}
+
+template <typename F>
+void ForEachFab(execution::OpenMpSimdTag, const ::amrex::BoxArray& ba,
+                const ::amrex::DistributionMapping& dm, F function) {
+  ForEachFab(execution::openmp, ba, dm, std::move(function));
+}
+
+template <typename F>
+void ForEachFab(const ::amrex::BoxArray& ba,
+                const ::amrex::DistributionMapping& dm, F function) {
+  ForEachFab(execution::seq, ba, dm, std::move(function));
 }
 
 } // namespace fub::amrex
