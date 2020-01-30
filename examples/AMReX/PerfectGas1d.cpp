@@ -120,7 +120,7 @@ int main(int argc, char** argv) {
   fub::HllMethod hll_method(equation, signals);
   fub::MusclHancockMethod flux_method{equation, hll_method};
   fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(flux_method),
-                                      fub::amrex::ForwardIntegrator(),
+                                      fub::amrex::EulerForwardTimeIntegrator(),
                                       fub::amrex::Reconstruction(equation)};
 
   const int scratch_ghost_cell_width = 4;

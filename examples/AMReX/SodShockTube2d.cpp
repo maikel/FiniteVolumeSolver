@@ -123,7 +123,7 @@ int main(int argc, char** argv) {
   fub::HllMethod hll_method(equation, signals);
   fub::MusclHancockMethod muscl_method(equation, hll_method);
   fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(muscl_method),
-                                      fub::amrex::ForwardIntegrator(),
+                                      fub::amrex::EulerForwardTimeIntegrator(),
                                       fub::amrex::Reconstruction(equation)};
 
   const int base_gcw = muscl_method.GetStencilWidth();

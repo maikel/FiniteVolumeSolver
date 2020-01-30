@@ -97,7 +97,7 @@ void MyMain(const ProgramOptions& opts) {
   fub::ideal_gas::MusclHancockPrimMethod<1> flux_method(equation);
 
   fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(flux_method),
-                                      fub::amrex::ForwardIntegrator(),
+                                      fub::amrex::EulerForwardTimeIntegrator(),
                                       fub::amrex::Reconstruction(equation)};
 
   const int scratch_gcw = 2 * flux_method.GetStencilWidth();

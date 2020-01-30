@@ -85,7 +85,7 @@ int main(int argc, char** argv) {
 
   fub::amrex::HyperbolicMethod method{
       fub::amrex::FluxMethod(fub::MusclHancockMethod{equation}),
-      fub::amrex::ForwardIntegrator(), fub::amrex::NoReconstruction{}};
+      fub::amrex::EulerForwardTimeIntegrator(), fub::amrex::NoReconstruction{}};
 
   const int scratch_gcw = 8;
   const int flux_gcw = 6;

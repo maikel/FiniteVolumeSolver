@@ -83,7 +83,7 @@ int main() {
 
   fub::amrex::HyperbolicMethod method{
       fub::amrex::FluxMethod(fub::GodunovMethod{equation}),
-      fub::amrex::ForwardIntegrator(), fub::amrex::NoReconstruction{}};
+      fub::amrex::EulerForwardTimeIntegrator(), fub::amrex::NoReconstruction{}};
 
   const int scratch_gcw = 2;
   const int flux_gcw = 1;

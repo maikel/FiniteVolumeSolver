@@ -97,7 +97,7 @@ int main(int argc, char** argv) {
   fub::HllMethod hll_method{equation, fub::ShallowWaterSignalVelocities{}};
   fub::MusclHancockMethod muscl_method{equation, hll_method};
   fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(muscl_method),
-                                      fub::amrex::ForwardIntegrator(),
+                                      fub::amrex::EulerForwardTimeIntegrator(),
                                       fub::amrex::NoReconstruction{}};
 
   const int scratch_ghost_cell_width = 8;

@@ -240,7 +240,7 @@ void MyMain(const ProgramOptions& opts) {
   fub::HllMethod hll_method(equation, signals);
 
   fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(hll_method),
-                                      fub::amrex::ForwardIntegrator(),
+                                      fub::amrex::EulerForwardTimeIntegrator(),
                                       fub::amrex::Reconstruction(equation)};
 
   fub::DimensionalSplitLevelIntegrator system_solver(
