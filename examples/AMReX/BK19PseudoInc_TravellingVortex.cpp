@@ -223,6 +223,7 @@ void MyMain(const fub::ProgramOptions& options) {
 
   fub::DimensionalSplitLevelIntegrator advection(
       fub::int_c<2>, std::move(simulation_data), fub::GodunovSplitting());
+//       fub::int_c<2>, std::move(simulation_data), fub::StrangSplitting());
 
   fub::ProgramOptions integrator_options = fub::ToMap(
       fub::GetOptionOr(options, "BK19LevelIntegrator", pybind11::dict()));
@@ -245,7 +246,7 @@ void MyMain(const fub::ProgramOptions& options) {
 
   fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> output{};
   output.AddOutput(fub::MakeOutput<fub::amrex::GriddingAlgorithm>(
-      {1}, {}, fub::amrex::WriteBK19Plotfile{base_name}));
+      {1}, {0.01s}, fub::amrex::WriteBK19Plotfile{base_name}));
 
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
