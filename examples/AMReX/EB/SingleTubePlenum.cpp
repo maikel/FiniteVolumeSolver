@@ -112,7 +112,8 @@ struct ProgramOptions {
   double plenum_outlet_length{0.04 + 0.04 + 0.03};
 };
 
-auto MakeTubeSolver(fub::Burke2012& mechanism, const ProgramOptions& options,
+auto MakeTubeSolver(fub::Burke2012& mechanism,
+                    const fub::ProgramOptions& options,
                     const std::shared_ptr<fub::CounterRegistry>& counters) {
   using namespace fub::amrex;
 
@@ -164,14 +165,15 @@ auto MakeTubeSolver(fub::Burke2012& mechanism, const ProgramOptions& options,
         fub::GetOptionOr(options, "checkpoint", std::string{});
     if (checkpoint.empty()) {
       std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
-          PatchHierarchy(desc, geometry, hier_opts), initial_data,
+          PatchHierarchy(desc, grid_geometry, hierarchy_options), initial_data,
           TagAllOf(gradient, constant_box), boundaries);
+      gridding->GetPatchHierarchy().SetCounterRegistry(counters);
       gridding->InitializeHierarchy(0.0);
       return gridding;
     } else {
       checkpoint = fmt::format("{}/Tube", checkpoint);
-      PatchHierarchy h =
-          ReadCheckpointFile(checkpoint, desc, geometry, hier_opts);
+      PatchHierarchy h = ReadCheckpointFile(checkpoint, desc, grid_geometry,
+                                            hierarchy_options);
       std::shared_ptr<GriddingAlgorithm> gridding =
           std::make_shared<GriddingAlgorithm>(std::move(h), initial_data,
                                               TagAllOf(gradient, constant_box),
@@ -229,7 +231,7 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
   {
     using namespace std::literals;
     const fub::ProgramOptions initial_options =
-        fub::GetOptions(plenum_options, "InitialCondition");
+        fub::GetOptions(options, "InitialCondition");
     const std::string moles =
         fub::GetOptionOr(initial_options, "moles", "N2:79,O2:21"s);
     const double temperature =
@@ -245,7 +247,8 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
   RiemannProblem initial_data(equation, fub::Halfspace({+1.0, 0.0, 0.0}, -0.04),
                               state, state);
 
-  ::amrex::Geometry xbox = grid_geometry.coordinates;
+  ::amrex::RealBox xbox = grid_geometry.coordinates;
+  ::amrex::Geometry coarse_geom = fub::amrex::GetCoarseGeometry(grid_geometry);
 
   ::amrex::RealBox inlet{{xbox.lo(0), -r_tube, -r_tube},
                          {0.01, +r_tube, +r_tube}};
@@ -257,219 +260,215 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
   refine_box = fub::amrex::BoxWhichContains(outlet, coarse_geom);
   ConstantBox constant_out_box{refine_box};
 
-  outlet = amrex::RealBox{{xbox.hi(0) - 0.01, xbox.lo(1), xbox.lo(2)},
-                          {xbox.hi(0), xbox.hi(1), xbox.hi(2)}};
-  const ::amrex::Box outlet_box =
-      fub::amrex::BoxWhichContains(outlet, coarse_geom);
-
   IsentropicPressureBoundaryOptions boundary_options =
-      fub::GetOptions(plenum_options, "IsentropicPressureBoundary");
-  BoundarySet boundary_condition {
-    {TransmissiveBoundary{fub::Direction::X, 0},
-     IsentropicPressureBoundary{equation, boundary_options}};
+      fub::GetOptions(options, "IsentropicPressureBoundary");
+  BoundarySet boundary_condition{
+      {TransmissiveBoundary{fub::Direction::X, 0},
+       IsentropicPressureBoundary{equation, boundary_options}}};
 
-    std::shared_ptr gridding = [&] {
-      std::string checkpoint =
-          fub::GetOptionOr(options, "checkpoint", std::string{});
-      if (checkpoint.empty()) {
-        std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
-            PatchHierarchy(equation, grid_geometry, hierarchy_options),
-            initial_data,
-            TagAllOf(TagCutCells(), gradients, constant_in_box,
-                     constant_out_box, TagBuffer(2)),
-            boundary_condition);
-        gridding->InitializeHierarchy(0.0);
-        return gridding;
-      } else {
-        checkpoint += "/Plenum";
-        PatchHierarchy h = ReadCheckpointFile(
-            checkpoint, fub::amrex::MakeDataDescription(equation),
-            grid_geometry, hierarchy_options);
-        return std::make_shared<GriddingAlgorithm>(
-            std::move(h), initial_data,
-            TagAllOf(TagCutCells(), gradients, constant_in_box,
-                     constant_out_box, TagBuffer(2)),
-            boundary_condition);
-      }
-    }();
+  std::shared_ptr gridding = [&] {
+    std::string checkpoint =
+        fub::GetOptionOr(options, "checkpoint", std::string{});
+    if (checkpoint.empty()) {
+      std::shared_ptr grid = std::make_shared<GriddingAlgorithm>(
+          PatchHierarchy(equation, grid_geometry, hierarchy_options),
+          initial_data,
+          TagAllOf(TagCutCells(), gradients, constant_in_box, constant_out_box,
+                   TagBuffer(2)),
+          boundary_condition);
+      grid->InitializeHierarchy(0.0);
+      return grid;
+    } else {
+      checkpoint += "/Plenum";
+      PatchHierarchy h = ReadCheckpointFile(
+          checkpoint, fub::amrex::MakeDataDescription(equation), grid_geometry,
+          hierarchy_options);
+      std::shared_ptr grid = std::make_shared<GriddingAlgorithm>(
+          std::move(h), initial_data,
+          TagAllOf(TagCutCells(), gradients, constant_in_box, constant_out_box,
+                   TagBuffer(2)),
+          boundary_condition);
+      return grid;
+    }
+  }();
 
-    // Make Solver
+  // Make Solver
 
-    fub::EinfeldtSignalVelocities<fub::IdealGasMix<Plenum_Rank>> signals{};
-    fub::HllMethod hll_method{equation, signals};
-    fub::ideal_gas::MusclHancockPrimMethod<Plenum_Rank> flux_method(equation);
-    fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
+  fub::EinfeldtSignalVelocities<fub::IdealGasMix<Plenum_Rank>> signals{};
+  fub::HllMethod hll_method{equation, signals};
+  fub::ideal_gas::MusclHancockPrimMethod<Plenum_Rank> flux_method(equation);
+  fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
 
-    HyperbolicMethod method{FluxMethod{cutcell_method}, TimeIntegrator{},
-                            Reconstruction{equation}};
+  HyperbolicMethod method{FluxMethod{cutcell_method}, TimeIntegrator{},
+                          Reconstruction{equation}};
 
-    const int scratch_gcw = 4;
-    const int flux_gcw = 2;
+  const int scratch_gcw = 4;
+  const int flux_gcw = 2;
 
-    return IntegratorContext(gridding, method, scratch_gcw, flux_gcw);
+  return IntegratorContext(gridding, method, scratch_gcw, flux_gcw);
+}
+
+void MyMain(const std::map<std::string, pybind11::object>& vm);
+
+int main(int argc, char** argv) {
+  MPI_Init(nullptr, nullptr);
+  fub::InitializeLogging(MPI_COMM_WORLD);
+  pybind11::scoped_interpreter interpreter{};
+  std::optional<fub::ProgramOptions> opts = fub::ParseCommandLine(argc, argv);
+  if (opts) {
+    MyMain(*opts);
   }
-
-  void MyMain(const std::map<std::string, pybind11::object>& vm);
-
-  int main(int argc, char** argv) {
-    MPI_Init(nullptr, nullptr);
-    fub::InitializeLogging(MPI_COMM_WORLD);
-    pybind11::scoped_interpreter interpreter{};
-    std::optional<fub::ProgramOptions> opts = fub::ParseCommandLine(argc, argv);
-    if (opts) {
-      MyMain(*opts);
-    }
-    int flag = -1;
-    MPI_Finalized(&flag);
-    if (!flag) {
-      MPI_Finalize();
-    }
+  int flag = -1;
+  MPI_Finalized(&flag);
+  if (!flag) {
+    MPI_Finalize();
   }
+}
 
-  void WriteCheckpoint(const std::string& path,
-                       const fub::amrex::MultiBlockGriddingAlgorithm& grid,
-                       std::shared_ptr<fub::amrex::PressureValve> valve,
-                       int rank,
-                       const fub::amrex::MultiBlockIgniteDetonation& ignition) {
-    auto tubes = grid.GetTubes();
-    std::string name = fmt::format("{}/Tube", path);
-    fub::amrex::WriteCheckpointFile(name, tubes[0]->GetPatchHierarchy());
-    if (rank == 0) {
-      name = fmt::format("{}/Valve", path);
-      std::ofstream valve_checkpoint(name);
-      boost::archive::text_oarchive oa(valve_checkpoint);
-      oa << *valve;
-    }
-    name = fmt::format("{}/Plenum", path);
-    fub::amrex::cutcell::WriteCheckpointFile(
-        name, grid.GetPlena()[0]->GetPatchHierarchy());
-    if (rank == 0) {
-      name = fmt::format("{}/Ignition", path);
-      std::ofstream ignition_checkpoint(name);
-      boost::archive::text_oarchive oa(ignition_checkpoint);
-      oa << ignition.GetLastIgnitionTimePoints();
-    }
+void WriteCheckpoint(const std::string& path,
+                     const fub::amrex::MultiBlockGriddingAlgorithm& grid,
+                     std::shared_ptr<fub::amrex::PressureValve> valve, int rank,
+                     const fub::amrex::MultiBlockIgniteDetonation& ignition) {
+  auto tubes = grid.GetTubes();
+  std::string name = fmt::format("{}/Tube", path);
+  fub::amrex::WriteCheckpointFile(name, tubes[0]->GetPatchHierarchy());
+  if (rank == 0) {
+    name = fmt::format("{}/Valve", path);
+    std::ofstream valve_checkpoint(name);
+    boost::archive::text_oarchive oa(valve_checkpoint);
+    oa << *valve;
   }
+  name = fmt::format("{}/Plenum", path);
+  fub::amrex::cutcell::WriteCheckpointFile(
+      name, grid.GetPlena()[0]->GetPatchHierarchy());
+  if (rank == 0) {
+    name = fmt::format("{}/Ignition", path);
+    std::ofstream ignition_checkpoint(name);
+    boost::archive::text_oarchive oa(ignition_checkpoint);
+    oa << ignition.GetLastIgnitionTimePoints();
+  }
+}
 
-  void MyMain(const std::map<std::string, pybind11::object>& vm) {
-    std::chrono::steady_clock::time_point wall_time_reference =
-        std::chrono::steady_clock::now();
-    fub::amrex::ScopeGuard scope_guard{};
+void MyMain(const std::map<std::string, pybind11::object>& vm) {
+  std::chrono::steady_clock::time_point wall_time_reference =
+      std::chrono::steady_clock::now();
+  fub::amrex::ScopeGuard scope_guard{};
 
-    fub::Burke2012 mechanism{};
+  fub::Burke2012 mechanism{};
 
-    auto plenum = MakePlenumSolver(po, mechanism, vm);
-    auto [tube, valve] = MakeTubeSolver(po, mechanism, vm);
-    auto valve_state = valve.GetSharedState();
+  std::vector<fub::amrex::cutcell::IntegratorContext> plenum{};
+  std::vector<fub::amrex::IntegratorContext> tubes{};
+  std::vector<fub::amrex::BlockConnection> connectivity{};
+  std::vector<std::shared_ptr<fub::amrex::PressureValve>> valves{};
 
-    std::vector<fub::amrex::cutcell::IntegratorContext> plenum{};
-    std::vector<fub::amrex::IntegratorContext> tubes{};
-    std::vector<fub::amrex::BlockConnection> connectivity{};
-    std::vector<std::shared_ptr<fub::amrex::PressureValve>> valves{};
+  plenum.push_back(MakePlenumSolver(mechanism, fub::GetOptions(vm, "Plenum")));
+  auto counter_database = plenum[0].GetCounterRegistry();
 
-    plenum.push_back(
-        MakePlenumSolver(mechanism, fub::GetOptions(vm, "Plenum")));
-    auto counter_database = plenum[0].GetCounterRegistry();
+  auto&& [tube, valve] =
+      MakeTubeSolver(mechanism, fub::GetOptions(vm, "Tube"), counter_database);
+  fub::amrex::BlockConnection connection;
+  connection.direction = fub::Direction::X;
+  connection.side = 0;
+  connection.ghost_cell_width = 4;
+  connection.plenum.id = 0;
+  connection.tube.id = 0;
+  connection.tube.mirror_box =
+      tube.GetGriddingAlgorithm()->GetPatchHierarchy().GetGeometry(0).Domain();
+  connection.plenum.mirror_box = plenum[0]
+                                     .GetGriddingAlgorithm()
+                                     ->GetPatchHierarchy()
+                                     .GetGeometry(0)
+                                     .Domain();
+  tubes.push_back(std::move(tube));
+  valves.push_back(valve.GetSharedState());
+  connectivity.push_back(connection);
 
-    auto MakeConnection = [&] {
-      auto&& [tube, valve] = MakeTubeSolver(
-          mechanism, fub::GetOptions(vm, "Tube"), counter_database);
-      fub::amrex::BlockConnection connection;
-      connection.direction = fub::Direction::X;
-      connection.side = 0;
-      connection.ghost_cell_width = 4;
-      connection.plenum.id = 0;
-      connection.tube.id = 0;
-      connection.tube.mirror_box = tubes[0]
-                                       .GetGriddingAlgorithm()
-                                       ->GetPatchHierarchy()
-                                       .GetGeometry(0)
-                                       .Domain();
-      connection.plenum.mirror_box = plenum[0]
-                                         .GetGriddingAlgorithm()
-                                         ->GetPatchHierarchy()
-                                         .GetGeometry(0)
-                                         .Domain();
-      tubes.push_back(std::move(tube));
-      valves.push_back(valve.GetSharedState());
-      connectivity.push_back(connection);
-    }();
+  fub::IdealGasMix<Plenum_Rank> plenum_equation{mechanism};
+  fub::IdealGasMix<Tube_Rank> tube_equation{mechanism};
 
-    fub::IdealGasMix<Plenum_Rank> plenum_equation{mechanism};
-    fub::IdealGasMix<Tube_Rank> tube_equation{mechanism};
+  fub::amrex::MultiBlockIntegratorContext context(
+      fub::FlameMasterReactor(mechanism), std::move(tubes), std::move(plenum),
+      std::move(connectivity));
 
-    fub::amrex::MultiBlockIntegratorContext context(
-        fub::FlameMasterReactor(mechanism), std::move(tubes), std::move(plenum),
-        std::move(connectivity));
+  fub::DimensionalSplitLevelIntegrator system_solver(
+      fub::int_c<Plenum_Rank>, std::move(context), fub::GodunovSplitting{});
 
-    fub::DimensionalSplitLevelIntegrator system_solver(
-        fub::int_c<Plenum_Rank>, std::move(context), fub::GodunovSplitting{});
+  const std::size_t n_tubes = system_solver.GetContext().Tubes().size();
+  const int max_number_of_levels = system_solver.GetContext()
+                                       .Tubes()[0]
+                                       .GetPatchHierarchy()
+                                       .GetMaxNumberOfLevels();
 
-    const std::size_t n_tubes = system_solver.GetContext().Tubes().size();
-    const int max_number_of_levels = system_solver.GetContext()
-                                         .Tubes()[0]
-                                         .GetPatchHierarchy()
-                                         .GetMaxNumberOfLevels();
+  fub::amrex::MultiBlockIgniteDetonation ignition{
+      tube_equation, n_tubes, max_number_of_levels,
+      fub::amrex::IgniteDetonationOptions(vm, "IgniteDetonation")};
 
-    fub::amrex::MultiBlockIgniteDetonation ignition{
-        tube_equation, n_tubes, max_number_of_levels,
-        fub::amrex::IgniteDetonationOptions(options, "IgniteDetonation")};
-
-    std::string checkpoint = fub::GetOptionOr(vm, "checkpoint", std::string{});
-    if (!checkpoint.empty()) {
-      MPI_Comm comm = context.GetMpiCommunicator();
-      std::string input =
-          fub::ReadAndBroadcastFile(checkpoint + "/Ignition", comm);
-      std::istringstream ifs(input);
-      {
-        boost::archive::text_iarchive ia(ifs);
-        std::vector<fub::Duration> last_ignitions;
-        ia >> last_ignitions;
-        ignition.SetLastIgnitionTimePoints(last_ignitions);
-      }
-      input = fub::ReadAndBroadcastFile(checkpoint + "/Valve", comm);
-      ifs = std::istringstream(input);
+  std::string checkpoint = fub::GetOptionOr(vm, "checkpoint", std::string{});
+  if (!checkpoint.empty()) {
+    MPI_Comm comm = context.GetMpiCommunicator();
+    std::string input =
+        fub::ReadAndBroadcastFile(checkpoint + "/Ignition", comm);
+    std::istringstream ifs(input);
+    {
       boost::archive::text_iarchive ia(ifs);
-      ia >> *valve.GetSharedState();
+      std::vector<fub::Duration> last_ignitions;
+      ia >> last_ignitions;
+      ignition.SetLastIgnitionTimePoints(last_ignitions);
     }
-    fub::SplitSystemSourceLevelIntegrator ign_solver(
-        std::move(system_solver), std::move(ignition), fub::GodunovSplitting{});
-
-    fub::amrex::MultiBlockKineticSouceTerm source_term(tube_equation);
-
-    fub::SplitSystemSourceLevelIntegrator level_integrator(
-        std::move(ign_solver), std::move(source_term), fub::StrangSplitting{});
-
-    fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
-
-    int rank = -1;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-    using namespace fub::amrex;
-    auto make_checkpoint = [&](const MultiBlockGriddingAlgorithm& grid) {
-      std::string name =
-          fmt::format("{}/Checkpoint/{:05}", base_name, grid.GetCycles());
-      amrex::Print() << "Write Checkpoint to '" << name << "'!\n";
-      WriteCheckpoint(name, grid, valve_state, rank, ignition);
-    };
-    using MakeCheckpoint = std::decay_t<decltype(make_checkpoint)>;
-
-    fub::OutputFactory<MultiBlockGriddingAlgorithm> factory{};
-    factory.RegisterOutput<MultiWriteHdf5>("HDF5");
-    factory.RegisterOutput<MultiBlockPlotfileOutput>("Plotfiles");
-    factory.RegisterOutput<LogProbesOutput>("LogProbes");
-    factory.RegisterOutput<
-        fub::AsOutput<MultiBlockGriddingAlgorithm, MakeCheckpoint>>(
-        "Checkpoint", make_checkpoint);
-    using CounterOutput =
-        fub::CounterOutput<fub::amrex::MultiBlockGriddingAlgorithm,
-                           std::chrono::milliseconds>;
-    factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
-    fub::MultipleOutputs<MultiBlockGriddingAlgorithm> outputs(
-        std::move(factory),
-        fub::ToMap(fub::GetOptionOr(vm, "Output", pybind11::dict{})));
-
-    outputs(*solver.GetGriddingAlgorithm());
-    fub::RunSimulation(solver, fub::GetOptions(vm, "RunOptions"),
-                       wall_time_reference, outputs);
+    input = fub::ReadAndBroadcastFile(checkpoint + "/Valve", comm);
+    ifs = std::istringstream(input);
+    boost::archive::text_iarchive ia(ifs);
+    ia >> *valve.GetSharedState();
   }
+  fub::SplitSystemSourceLevelIntegrator ign_solver(
+      std::move(system_solver), std::move(ignition), fub::GodunovSplitting{});
+
+  fub::amrex::MultiBlockKineticSouceTerm source_term(tube_equation);
+
+  fub::SplitSystemSourceLevelIntegrator level_integrator(
+      std::move(ign_solver), std::move(source_term), fub::StrangSplitting{});
+
+  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
+
+  using namespace fub::amrex;
+  struct MakeCheckpoint
+      : public fub::OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm> {
+    std::string directory_ = "SingleTubePlenum";
+    std::shared_ptr<fub::amrex::PressureValve> valve_state_{};
+    const fub::amrex::MultiBlockIgniteDetonation* ignition_{};
+    MakeCheckpoint(
+        const fub::ProgramOptions& options,
+        const std::shared_ptr<fub::amrex::PressureValve>& valve_state,
+        const fub::amrex::MultiBlockIgniteDetonation* ignite)
+        : OutputAtFrequencyOrInterval(options),
+          valve_state_(valve_state), ignition_{ignite} {
+      directory_ = fub::GetOptionOr(options, "directory", directory_);
+    }
+    void operator()(const MultiBlockGriddingAlgorithm& grid) override {
+      int rank = -1;
+      MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+      std::string name =
+          fmt::format("{}/Checkpoint/{:05}", directory_, grid.GetCycles());
+      amrex::Print() << "Write Checkpoint to '" << name << "'!\n";
+      WriteCheckpoint(name, grid, valve_state_, rank, *ignition_);
+    }
+  };
+
+  fub::OutputFactory<MultiBlockGriddingAlgorithm> factory{};
+  factory.RegisterOutput<MultiWriteHdf5>("HDF5");
+  factory.RegisterOutput<MultiBlockPlotfileOutput>("Plotfiles");
+  factory.RegisterOutput<LogProbesOutput>("LogProbes");
+  factory.RegisterOutput<MakeCheckpoint>(
+      "Checkpoint", valve.GetSharedState(),
+      &solver.GetLevelIntegrator().GetSystem().GetSource());
+  using CounterOutput =
+      fub::CounterOutput<fub::amrex::MultiBlockGriddingAlgorithm,
+                         std::chrono::milliseconds>;
+  factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
+  fub::MultipleOutputs<MultiBlockGriddingAlgorithm> outputs(
+      std::move(factory), fub::GetOptions(vm, "Output"));
+
+  outputs(*solver.GetGriddingAlgorithm());
+  fub::RunSimulation(solver, fub::GetOptions(vm, "RunOptions"),
+                     wall_time_reference, outputs);
+}

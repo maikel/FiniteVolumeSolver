@@ -116,8 +116,7 @@ void MyMain(const ProgramOptions& opts) {
   fub::SplitSystemSourceLevelIntegrator ign_solver(
       std::move(system_solver), std::move(ignite), fub::GodunovSplitting{});
 
-  fub::ideal_gas::KineticSourceTerm<1> source_term(
-      equation, ign_solver.GetContext().registry_);
+  fub::ideal_gas::KineticSourceTerm<1> source_term(equation);
 
   fub::SplitSystemSourceLevelIntegrator level_integrator(
       std::move(ign_solver), std::move(source_term), fub::StrangSplitting());
@@ -137,7 +136,7 @@ void MyMain(const ProgramOptions& opts) {
       {}, {0.00025s}, fub::amrex::PlotfileOutput(equation, base_name)));
   output.AddOutput(
       std::make_unique<fub::CounterOutput<fub::amrex::GriddingAlgorithm>>(
-          solver.GetContext().registry_, wall_time_reference,
+          wall_time_reference,
           std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{0.001s}));
 
   output(*solver.GetGriddingAlgorithm());

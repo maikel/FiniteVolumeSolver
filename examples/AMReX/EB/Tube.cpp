@@ -42,11 +42,6 @@ int main(int argc, char** argv) {
   geometry.cell_dimensions = n_cells;
   geometry.coordinates = xbox;
 
-  amrex::Geometry coarse_geom(amrex::Box{{}, {n_cells[0] - 1, n_cells[1] - 1}},
-                              &xbox, -1, geometry.periodicity.data());
-
-  const int n_level = 4;
-
   auto embedded_boundary = ::amrex::EB2::rotate(
       ::amrex::EB2::BoxIF({-0.5, -0.5}, {+0.5, +0.5}, true), 0.25 * M_PI, 2);
   auto shop = amrex::EB2::makeShop(embedded_boundary);
@@ -56,8 +51,8 @@ int main(int argc, char** argv) {
   using namespace fub::amrex::cutcell;
 
   PatchHierarchyOptions options{};
-  options.max_number_of_levels = n_level;
-  options.index_spaces = MakeIndexSpaces(shop, coarse_geom, n_level);
+  options.max_number_of_levels = 2;
+  options.index_spaces = MakeIndexSpaces(shop, geometry, options);
 
   fub::Conservative<fub::PerfectGas<2>> cons;
   cons.density = 1.0;
@@ -84,18 +79,17 @@ int main(int argc, char** argv) {
 
   std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
       PatchHierarchy(equation, geometry, options), initial_data,
-      TagAllOf(TagCutCells(), gradients, TagBuffer(4)), boundary_condition);
+      TagAllOf(TagCutCells(), gradients, TagBuffer(2)), boundary_condition);
   gridding->InitializeHierarchy(0.0);
 
   fub::MusclHancockMethod flux_method(equation);
   fub::KbnCutCellMethod cutcell_method(std::move(flux_method));
 
-  HyperbolicMethod method{FluxMethod{fub::execution::seq, cutcell_method},
-                          TimeIntegrator{},
-                          Reconstruction{fub::execution::seq, equation}};
+  HyperbolicMethod method{FluxMethod{fub::execution::seq, cutcell_method}, TimeIntegrator{},
+                          Reconstruction{equation}};
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<2>, IntegratorContext(gridding, method));
+      fub::int_c<2>, IntegratorContext(gridding, method, 4, 2), fub::GodunovSplitting{});
 
   fub::SubcycleFineFirstSolver solver(level_integrator);
 

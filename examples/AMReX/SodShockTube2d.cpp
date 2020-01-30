@@ -179,8 +179,7 @@ int main(int argc, char** argv) {
   output.AddOutput(
       std::make_unique<
           fub::CounterOutput<GriddingAlgorithm, std::chrono::milliseconds>>(
-          solver.GetContext().registry_, wall_time_reference,
-          std::vector<std::ptrdiff_t>{25}, std::vector<fub::Duration>{}));
+          wall_time_reference, std::vector<std::ptrdiff_t>{25}, std::vector<fub::Duration>{}));
 
   using namespace std::literals::chrono_literals;
   output(*solver.GetGriddingAlgorithm());
