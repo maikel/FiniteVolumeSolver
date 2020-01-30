@@ -43,9 +43,9 @@ double p_coeff(double r, const std::vector<double>& coefficients) {
   return result;
 }
 
-struct InitialData {
+struct TravellingVortexInitialData {
   using Complete = fub::CompressibleAdvection<2>::Complete;
-  InitialData() {
+  TravellingVortexInitialData() {
     coefficients.resize(25);
     coefficients[0] = 1.0 / 12.0;
     coefficients[1] = -12.0 / 13.0;
@@ -129,36 +129,33 @@ struct InitialData {
 };
 
 void MyMain(const fub::ProgramOptions& options) {
+  using namespace fub::amrex;
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
+  fub::amrex::ScopeGuard amrex_scope_guard{};
 
   fub::amrex::DataDescription desc{};
   desc.n_state_components = 7;
   desc.n_cons_components = 4;
   desc.n_node_components = 1;
 
-  fub::ProgramOptions grid_options =
-      fub::ToMap(fub::GetOptionOr(options, "GridGeometry", pybind11::dict()));
-  fub::amrex::CartesianGridGeometry geometry{grid_options};
+  CartesianGridGeometry grid_geometry =
+      fub::GetOptions(options, "GridGeometry");
+  PatchHierarchyOptions hierarchy_options =
+      fub::GetOptions(options, "PatchHierarchy");
 
-  fub::ProgramOptions hierarchy_options = fub::ToMap(
-      fub::GetOptionOr(options, "PatchHierarchyOptions", pybind11::dict()));
-  fub::amrex::PatchHierarchyOptions hier_opts(hierarchy_options);
-
-  fub::amrex::PatchHierarchy hierarchy(desc, geometry, hier_opts);
+  PatchHierarchy hierarchy(desc, grid_geometry, hierarchy_options);
 
   using Complete = fub::CompressibleAdvection<2>::Complete;
   fub::CompressibleAdvection<2> equation{};
   fub::IndexMapping<fub::CompressibleAdvection<2>> index(equation);
 
-  fub::amrex::GradientDetector gradient(
-      equation, std::pair{&Complete::PTinverse, 1.0e-2});
+  GradientDetector gradient(equation, std::pair{&Complete::PTinverse, 1.0e-2});
 
-  const InitialData inidat{};
+  const TravellingVortexInitialData inidat{};
 
-  std::shared_ptr grid = std::make_shared<fub::amrex::GriddingAlgorithm>(
-      std::move(hierarchy), inidat,
-      fub::amrex::TagAllOf{gradient, fub::amrex::TagBuffer(2)});
+  std::shared_ptr grid = std::make_shared<GriddingAlgorithm>(
+      std::move(hierarchy), inidat, TagAllOf{gradient, TagBuffer(2)});
   grid->InitializeHierarchy(0.0);
 
   // set number of MG levels to 1 (effectively no MG)
@@ -178,15 +175,12 @@ void MyMain(const fub::ProgramOptions& options) {
       {AMREX_D_DECL(amrex::LinOpBCType::Periodic, amrex::LinOpBCType::Periodic,
                     amrex::LinOpBCType::Periodic)});
 
-  using namespace fub;
-  CompressibleAdvectionFluxMethod<2> flux_method{};
+  fub::CompressibleAdvectionFluxMethod<2> flux_method{};
 
-  auto tag = fub::execution::seq;
-  fub::amrex::HyperbolicMethod method{
-      flux_method, fub::amrex::ForwardIntegrator(tag),
-      fub::amrex::Reconstruction(tag, equation)};
+  HyperbolicMethod method{flux_method, EulerForwardTimeIntegrator(),
+                          Reconstruction(fub::execution::seq, equation)};
 
-  fub::amrex::BK19IntegratorContext simulation_data(grid, method, 2, 0);
+  BK19IntegratorContext simulation_data(grid, method, 4, 2);
   const int nlevel = simulation_data.GetPatchHierarchy().GetNumberOfLevels();
 
   // set initial values of pi
@@ -198,9 +192,9 @@ void MyMain(const fub::ProgramOptions& options) {
     ::amrex::MultiFab& pi = simulation_data.GetPi(level);
     const ::amrex::Geometry& geom =
         grid->GetPatchHierarchy().GetGeometry(level);
-    fub::amrex::ForEachFab(pi, [&](const ::amrex::MFIter& mfi) {
+    ForEachFab(pi, [&](const ::amrex::MFIter& mfi) {
       ::amrex::FArrayBox& fab = pi[mfi];
-      fub::amrex::ForEachIndex(fab.box(), [&](auto... is) {
+      ForEachIndex(fab.box(), [&](auto... is) {
         ::amrex::IntVect i{int(is)...};
 
         ::amrex::Vector<double> coor(2);
@@ -222,18 +216,18 @@ void MyMain(const fub::ProgramOptions& options) {
   }
 
   fub::DimensionalSplitLevelIntegrator advection(
-      fub::int_c<2>, std::move(simulation_data), fub::GodunovSplitting());
+      fub::int_c<2>, std::move(simulation_data), fub::StrangSplitting());
 
-  fub::ProgramOptions integrator_options = fub::ToMap(
-      fub::GetOptionOr(options, "BK19LevelIntegrator", pybind11::dict()));
-  fub::amrex::BK19LevelIntegrator level_integrator(
-      equation, std::move(advection), linop, integrator_options);
+  BK19LevelIntegratorOptions integrator_options =
+      fub::GetOptions(options, "BK19LevelIntegrator");
+  // integrator_options.Print(log);
+  BK19LevelIntegrator level_integrator(equation, std::move(advection), linop,
+                                       integrator_options);
 
-  fub::amrex::BK19AdvectiveFluxes& Pv =
-      level_integrator.GetContext().GetAdvectiveFluxes(0);
+  BK19AdvectiveFluxes& Pv = level_integrator.GetContext().GetAdvectiveFluxes(0);
   // Pv.on_faces[0].setVal(0.0);
   // Pv.on_faces[1].setVal(0.0);
-  fub::amrex::RecomputeAdvectiveFluxes(
+  RecomputeAdvectiveFluxes(
       index, Pv.on_faces, Pv.on_cells,
       level_integrator.GetContext().GetScratch(0),
       level_integrator.GetContext().GetGeometry(0).periodicity());
@@ -243,45 +237,14 @@ void MyMain(const fub::ProgramOptions& options) {
   using namespace std::literals::chrono_literals;
   std::string base_name = "BK19_Pseudo_Incompressible/";
 
-  fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> output{};
-  output.AddOutput(fub::MakeOutput<fub::amrex::GriddingAlgorithm>(
-      {1}, {}, fub::amrex::WriteBK19Plotfile{base_name}));
+  fub::MultipleOutputs<GriddingAlgorithm> output{};
+  output.AddOutput(fub::MakeOutput<GriddingAlgorithm>(
+      {1}, {}, WriteBK19Plotfile{base_name}));
 
   output(*solver.GetGriddingAlgorithm());
-  fub::RunOptions run_options{};
-  run_options.final_time = 1.0s;
-  run_options.cfl = 0.45;
-  // run_options.max_cycles = 10;
+  fub::RunOptions run_options = fub::GetOptions(options, "RunOptions");
+  // run_options.Print(log);
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
-}
-
-std::optional<fub::ProgramOptions> ParseCommandLine(int argc, char** argv) {
-  namespace po = boost::program_options;
-  po::options_description desc{};
-  std::string config_path{};
-  desc.add_options()("config", po::value<std::string>(&config_path),
-                     "Path to the config file which can be parsed.");
-  po::variables_map vm;
-  fub::ProgramOptions options{};
-  try {
-    po::store(po::parse_command_line(argc, argv, desc), vm);
-    if (vm.count("config")) {
-      config_path = vm["config"].as<std::string>();
-      options = fub::ParsePythonScript(config_path, MPI_COMM_WORLD);
-    }
-    po::notify(vm);
-  } catch (std::exception& e) {
-    amrex::Print()
-        << "[Error] An Error occured while reading program options:\n";
-    amrex::Print() << e.what();
-    return {};
-  }
-
-  if (vm.count("help")) {
-    amrex::Print() << desc << "\n";
-    return {};
-  }
-  return options;
 }
 
 int main(int argc, char** argv) {
@@ -289,25 +252,9 @@ int main(int argc, char** argv) {
   fub::InitializeLogging(MPI_COMM_WORLD);
   pybind11::scoped_interpreter interpreter{};
   {
-    fub::amrex::ScopeGuard _{};
-    std::optional<fub::ProgramOptions> vm = ParseCommandLine(argc, argv);
-    boost::log::sources::severity_logger<boost::log::trivial::severity_level>
-        log(boost::log::keywords::severity = boost::log::trivial::info);
+    std::optional<fub::ProgramOptions> vm = fub::ParseCommandLine(argc, argv);
     if (vm) {
-      fub::ProgramOptions integrator_options = fub::ToMap(
-          fub::GetOptionOr(*vm, "BK19LevelIntegrator", pybind11::dict()));
-      BOOST_LOG(log) << "BK19LevelIntegrator Options:";
-      fub::amrex::BK19LevelIntegratorOptions(integrator_options).Print(log);
 
-      fub::ProgramOptions hierarchy_options = fub::ToMap(
-          fub::GetOptionOr(*vm, "PatchHierarchyOptions", pybind11::dict()));
-      BOOST_LOG(log) << "PatchHierarchy Options:";
-      fub::amrex::PatchHierarchyOptions(hierarchy_options).Print(log);
-
-      fub::ProgramOptions grid_options =
-          fub::ToMap(fub::GetOptionOr(*vm, "GridGeometry", pybind11::dict()));
-      BOOST_LOG(log) << "CartesianGridGeometry Options:";
-      fub::amrex::CartesianGridGeometry(grid_options).Print(log);
       MyMain(*vm);
     }
   }
