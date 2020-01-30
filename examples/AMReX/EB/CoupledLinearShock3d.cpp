@@ -59,7 +59,7 @@ static constexpr int Plenum_Rank = AMREX_SPACEDIM;
 static constexpr double r_tube = 0.015;
 
 auto MakeTubeSolver(fub::Burke2012& mechanism,
-                    const fub::ProgramOptions& options, 
+                    const fub::ProgramOptions& options,
                     const std::shared_ptr<fub::CounterRegistry>& counters) {
   using namespace fub::amrex;
 

@@ -335,7 +335,7 @@ void MyMain(const fub::ProgramOptions& options) {
   std::vector<fub::amrex::IntegratorContext> tubes{};
   std::vector<fub::amrex::BlockConnection> connectivity{};
   std::vector<std::shared_ptr<fub::amrex::PressureValve>> valves{};
-  
+
   plenum.push_back(MakePlenumSolver(mechanism, options));
   auto counter_database = plenum[0].GetCounterRegistry();
 

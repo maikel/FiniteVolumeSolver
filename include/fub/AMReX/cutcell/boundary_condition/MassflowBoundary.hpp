@@ -43,7 +43,8 @@ struct MassflowBoundaryOptions {
 
 class MassflowBoundary {
 public:
-  MassflowBoundary(const IdealGasMix<AMREX_SPACEDIM>& eq, const MassflowBoundaryOptions& options);
+  MassflowBoundary(const IdealGasMix<AMREX_SPACEDIM>& eq,
+                   const MassflowBoundaryOptions& options);
 
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
                     Duration dt, const GriddingAlgorithm& grid);

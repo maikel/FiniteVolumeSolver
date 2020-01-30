@@ -131,8 +131,8 @@ int main(int argc, char** argv) {
   output.AddOutput(
       std::make_unique<
           fub::CounterOutput<fub::amrex::GriddingAlgorithm, microseconds>>(
-          wall_time_reference,
-          std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{0.05s}));
+          wall_time_reference, std::vector<std::ptrdiff_t>{},
+          std::vector<fub::Duration>{0.05s}));
 
   output(*solver.GetGriddingAlgorithm());
   fub::RunSimulation(solver, run_options, wall_time_reference, output);

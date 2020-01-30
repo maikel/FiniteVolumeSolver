@@ -162,8 +162,9 @@ PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
 PatchHierarchy::PatchHierarchy(DataDescription desc,
                                const CartesianGridGeometry& geometry,
                                const PatchHierarchyOptions& options)
-    : description_{std::move(desc)}, grid_geometry_{geometry},
-      options_{options}, patch_level_{}, patch_level_geometry_{}, registry_{std::make_shared<CounterRegistry>()} {
+    : description_{std::move(desc)},
+      grid_geometry_{geometry}, options_{options}, patch_level_{},
+      patch_level_geometry_{}, registry_{std::make_shared<CounterRegistry>()} {
   patch_level_.reserve(static_cast<std::size_t>(options.max_number_of_levels));
   patch_level_geometry_.resize(
       static_cast<std::size_t>(options.max_number_of_levels));

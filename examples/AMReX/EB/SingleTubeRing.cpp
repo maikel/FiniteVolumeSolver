@@ -54,7 +54,6 @@
 #include <cmath>
 #include <iostream>
 
-
 static constexpr int Tube_Rank = 1;
 static constexpr int Plenum_Rank = AMREX_SPACEDIM;
 

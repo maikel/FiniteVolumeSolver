@@ -85,11 +85,12 @@ int main(int argc, char** argv) {
   fub::MusclHancockMethod flux_method(equation);
   fub::KbnCutCellMethod cutcell_method(std::move(flux_method));
 
-  HyperbolicMethod method{FluxMethod{fub::execution::seq, cutcell_method}, TimeIntegrator{},
-                          Reconstruction{equation}};
+  HyperbolicMethod method{FluxMethod{fub::execution::seq, cutcell_method},
+                          TimeIntegrator{}, Reconstruction{equation}};
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<2>, IntegratorContext(gridding, method, 4, 2), fub::GodunovSplitting{});
+      fub::int_c<2>, IntegratorContext(gridding, method, 4, 2),
+      fub::GodunovSplitting{});
 
   fub::SubcycleFineFirstSolver solver(level_integrator);
 

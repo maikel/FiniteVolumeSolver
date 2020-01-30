@@ -22,8 +22,8 @@
 #define FUB_OUTPUT_COUNTER_OUTPUT_HPP
 
 #include "fub/counter/CounterRegistry.hpp"
-#include "fub/output/OutputAtFrequencyOrInterval.hpp"
 #include "fub/ext/ProgramOptions.hpp"
+#include "fub/output/OutputAtFrequencyOrInterval.hpp"
 
 #include <chrono>
 #include <memory>
@@ -33,11 +33,13 @@ namespace fub {
 template <typename Grid, typename PrintDuration = std::chrono::nanoseconds>
 class CounterOutput : public OutputAtFrequencyOrInterval<Grid> {
 public:
-  CounterOutput(const ProgramOptions& po, std::chrono::steady_clock::time_point ref)
-    : OutputAtFrequencyOrInterval<Grid>(po), reference_{ref} {}
+  CounterOutput(const ProgramOptions& po,
+                std::chrono::steady_clock::time_point ref)
+      : OutputAtFrequencyOrInterval<Grid>(po), reference_{ref} {}
 
   CounterOutput(const ProgramOptions& po)
-    : OutputAtFrequencyOrInterval<Grid>(po), reference_{std::chrono::steady_clock::now()} {}
+      : OutputAtFrequencyOrInterval<Grid>(po),
+        reference_{std::chrono::steady_clock::now()} {}
 
   CounterOutput(std::chrono::steady_clock::time_point reference,
                 std::vector<std::ptrdiff_t> frequencies,
@@ -51,7 +53,8 @@ public:
         std::chrono::steady_clock::now();
     auto diff =
         std::chrono::duration_cast<std::chrono::nanoseconds>(now - reference_);
-    std::vector<CounterResult> statistics = grid.GetPatchHierarchy().GetCounterRegistry()->gather_statistics();
+    std::vector<CounterResult> statistics =
+        grid.GetPatchHierarchy().GetCounterRegistry()->gather_statistics();
     if (statistics.size()) {
       print_statistics<PrintDuration>(statistics, diff.count());
     }

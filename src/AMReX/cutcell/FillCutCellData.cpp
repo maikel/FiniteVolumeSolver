@@ -34,7 +34,8 @@ void FillCutCellData__(const span<double>& us, const span<double>& ssL,
                        const span<const double>& beta_right) {
   int n = us.size();
   int i = 0;
-  for (; static_cast<int>(i + Vc::double_v::size()) <= n; i += Vc::double_v::size()) {
+  for (; static_cast<int>(i + Vc::double_v::size()) <= n;
+       i += Vc::double_v::size()) {
     const Vc::double_v betaL(&beta_left[i], Vc::Unaligned);
     const Vc::double_v betaM(&beta_mid[i], Vc::Unaligned);
     const Vc::double_v betaR(&beta_right[i], Vc::Unaligned);
@@ -75,9 +76,11 @@ void FillCutCellData__(const span<double>& us, const span<double>& ssL,
     const double shielded_left = dBetaL - doubly_shielded;
     const double shielded_right = dBetaR - doubly_shielded;
     const double unshielded_rel = betaM > 0.0 ? unshielded / betaM : 0.0;
-    const double doubly_shielded_rel = betaM > 0.0 ? doubly_shielded / betaM : 0.0;
+    const double doubly_shielded_rel =
+        betaM > 0.0 ? doubly_shielded / betaM : 0.0;
     const double shielded_left_rel = betaM > 0.0 ? shielded_left / betaM : 0.0;
-    const double shielded_right_rel = betaM > 0.0 ? shielded_right / betaM : 0.0;
+    const double shielded_right_rel =
+        betaM > 0.0 ? shielded_right / betaM : 0.0;
     us[i] = unshielded;
     us_rel[i] = unshielded_rel;
     ds[i] = doubly_shielded;
@@ -107,8 +110,10 @@ void FillCutCellData_(
   PatchDataView<const double, Rank, Layout> betaM = beta.Subview(box);
   PatchDataView<const double, Rank, Layout> betaR = beta.Subview(betaR_box);
   ForEachRow(std::tuple{unshielded, shielded_left, shielded_right,
-             doubly_shielded, unshielded_rel, shielded_left_rel,
-             shielded_right_rel, doubly_shielded_rel, betaL, betaM, betaR}, &FillCutCellData__);
+                        doubly_shielded, unshielded_rel, shielded_left_rel,
+                        shielded_right_rel, doubly_shielded_rel, betaL, betaM,
+                        betaR},
+             &FillCutCellData__);
 }
 
 } // namespace

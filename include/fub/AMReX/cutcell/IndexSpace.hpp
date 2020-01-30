@@ -65,7 +65,8 @@ template <typename GShop>
 std::vector<const ::amrex::EB2::IndexSpace*>
 MakeIndexSpaces(GShop&& shop, const CartesianGridGeometry& grid_geometry,
                 const fub::amrex::PatchHierarchyOptions& hierarchy_options) {
-  return MakeIndexSpaces(shop, GetCoarseGeometry(grid_geometry), hierarchy_options.max_number_of_levels);
+  return MakeIndexSpaces(shop, GetCoarseGeometry(grid_geometry),
+                         hierarchy_options.max_number_of_levels);
 }
 
 } // namespace cutcell

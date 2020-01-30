@@ -140,7 +140,7 @@ void MassflowBoundary::FillBoundary(::amrex::MultiFab& mf,
   double u = state.momentum[int(options_.dir)] / rho;
   double p = state.pressure;
   BOOST_LOG(log) << fmt::format("Average inner state: {} kg/m3, {} m/s, {} Pa",
-                                 rho, u, p);
+                                rho, u, p);
 
   equation_.GetReactor().SetDensity(state.density);
   equation_.GetReactor().SetMassFractions(state.species);
@@ -175,8 +175,8 @@ void MassflowBoundary::FillBoundary(::amrex::MultiFab& mf,
   rho = state.density;
   u = u_n;
   p = state.pressure;
-  BOOST_LOG(log) << fmt::format(
-      "Outer State: {} kg/m3, {} m/s, {} Pa, Ma = {}", rho, u, p, Ma);
+  BOOST_LOG(log) << fmt::format("Outer State: {} kg/m3, {} m/s, {} Pa, Ma = {}",
+                                rho, u, p, Ma);
   int level = FindLevel(geom, grid);
   auto factory = grid.GetPatchHierarchy().GetEmbeddedBoundary(level);
   const ::amrex::MultiFab& alphas = factory->getVolFrac();
@@ -199,8 +199,8 @@ void MassflowBoundary::FillBoundary(
     ::amrex::FArrayBox& fab = mf[mfi];
     const ::amrex::FArrayBox& alpha = alphas[mfi];
     for (const ::amrex::Box& boundary : boundaries) {
-      ::amrex::Box shifted =
-          ::amrex::shift(boundary, int(options_.dir), GetSign(options_.side) * ngrow);
+      ::amrex::Box shifted = ::amrex::shift(boundary, int(options_.dir),
+                                            GetSign(options_.side) * ngrow);
       if (!geom.Domain().intersects(shifted)) {
         continue;
       }

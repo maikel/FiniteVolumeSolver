@@ -136,8 +136,8 @@ void MyMain(const ProgramOptions& opts) {
       {}, {0.00025s}, fub::amrex::PlotfileOutput(equation, base_name)));
   output.AddOutput(
       std::make_unique<fub::CounterOutput<fub::amrex::GriddingAlgorithm>>(
-          wall_time_reference,
-          std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{0.001s}));
+          wall_time_reference, std::vector<std::ptrdiff_t>{},
+          std::vector<fub::Duration>{0.001s}));
 
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};

@@ -237,8 +237,8 @@ void IntegratorContext::ResetHierarchyConfiguration(
 }
 
 void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
-  Timer timer1 =
-      GetCounterRegistry()->get_timer("IntegratorContext::ResetHierarchyConfiguration");
+  Timer timer1 = GetCounterRegistry()->get_timer(
+      "IntegratorContext::ResetHierarchyConfiguration");
   Timer timer_per_level{};
   if (count_per_level) {
     timer_per_level = GetCounterRegistry()->get_timer(fmt::format(
@@ -300,8 +300,8 @@ void IntegratorContext::ApplyBoundaryCondition(int level, Direction dir) {
 
 void IntegratorContext::ApplyBoundaryCondition(int level, Direction dir,
                                                BoundaryCondition& bc) {
-  Timer timer =
-      GetCounterRegistry()->get_timer("IntegratorContext::ApplyBoundaryCondition");
+  Timer timer = GetCounterRegistry()->get_timer(
+      "IntegratorContext::ApplyBoundaryCondition");
   Timer timer_per_level{};
   if (count_per_level) {
     timer_per_level = GetCounterRegistry()->get_timer(
@@ -317,8 +317,8 @@ void IntegratorContext::ApplyBoundaryCondition(int level, Direction dir,
 void IntegratorContext::FillGhostLayerTwoLevels(
     int fine, BoundaryCondition& fine_condition, int coarse,
     BoundaryCondition& coarse_condition) {
-  Timer timer1 =
-      GetCounterRegistry()->get_timer("IntegratorContext::FillGhostLayerTwoLevels");
+  Timer timer1 = GetCounterRegistry()->get_timer(
+      "IntegratorContext::FillGhostLayerTwoLevels");
   Timer timer_per_level{};
   if (count_per_level) {
     timer_per_level = GetCounterRegistry()->get_timer(
@@ -358,8 +358,8 @@ void IntegratorContext::FillGhostLayerTwoLevels(int fine, int coarse) {
 
 void IntegratorContext::FillGhostLayerSingleLevel(int level,
                                                   BoundaryCondition& bc) {
-  Timer timer1 =
-      GetCounterRegistry()->get_timer("IntegratorContext::FillGhostLayerSingleLevel");
+  Timer timer1 = GetCounterRegistry()->get_timer(
+      "IntegratorContext::FillGhostLayerSingleLevel");
   Timer timer_per_level{};
   if (count_per_level) {
     timer_per_level = GetCounterRegistry()->get_timer(
@@ -382,8 +382,8 @@ void IntegratorContext::FillGhostLayerSingleLevel(int level) {
 
 void IntegratorContext::CoarsenConservatively(int fine_level,
                                               int coarse_level) {
-  Timer timer1 =
-      GetCounterRegistry()->get_timer("IntegratorContext::CoarsenConservatively");
+  Timer timer1 = GetCounterRegistry()->get_timer(
+      "IntegratorContext::CoarsenConservatively");
   Timer timer_per_level{};
   if (count_per_level) {
     timer_per_level = GetCounterRegistry()->get_timer(
@@ -404,8 +404,8 @@ void IntegratorContext::CoarsenConservatively(int fine_level,
 
 void IntegratorContext::AccumulateCoarseFineFluxes(int level, double scale,
                                                    Direction dir) {
-  Timer timer1 =
-      GetCounterRegistry()->get_timer("IntegratorContext::AccumulateCoarseFineFluxes");
+  Timer timer1 = GetCounterRegistry()->get_timer(
+      "IntegratorContext::AccumulateCoarseFineFluxes");
   Timer timer_per_level{};
   if (count_per_level) {
     timer_per_level = GetCounterRegistry()->get_timer(fmt::format(
@@ -432,8 +432,8 @@ void IntegratorContext::AccumulateCoarseFineFluxes(int level, double scale,
 }
 
 void IntegratorContext::ResetCoarseFineFluxes(int fine, int coarse) {
-  Timer timer1 =
-      GetCounterRegistry()->get_timer("IntegratorContext::ResetCoarseFineFluxes");
+  Timer timer1 = GetCounterRegistry()->get_timer(
+      "IntegratorContext::ResetCoarseFineFluxes");
   Timer timer_per_level{};
   if (count_per_level) {
     timer_per_level = GetCounterRegistry()->get_timer(fmt::format(
@@ -447,7 +447,8 @@ void IntegratorContext::ResetCoarseFineFluxes(int fine, int coarse) {
 
 void IntegratorContext::ApplyFluxCorrection(
     int fine, int coarse, [[maybe_unused]] Duration time_step_size) {
-  Timer timer1 = GetCounterRegistry()->get_timer("IntegratorContext::ApplyFluxCorrection");
+  Timer timer1 =
+      GetCounterRegistry()->get_timer("IntegratorContext::ApplyFluxCorrection");
   Timer timer_per_level{};
   if (count_per_level) {
     timer_per_level = GetCounterRegistry()->get_timer(fmt::format(
@@ -464,7 +465,8 @@ void IntegratorContext::ApplyFluxCorrection(
 }
 
 Duration IntegratorContext::ComputeStableDt(int level, Direction dir) {
-  Timer timer1 = GetCounterRegistry()->get_timer("IntegratorContext::ComputeStableDt");
+  Timer timer1 =
+      GetCounterRegistry()->get_timer("IntegratorContext::ComputeStableDt");
   Timer timer_per_level{};
   if (count_per_level) {
     timer_per_level = GetCounterRegistry()->get_timer(
@@ -479,8 +481,8 @@ int IntegratorContext::Rank() const noexcept {
 
 void IntegratorContext::ComputeNumericFluxes(int level, Duration dt,
                                              Direction dir) {
-  Timer timer1 =
-      GetCounterRegistry()->get_timer("IntegratorContext::ComputeNumericFluxes");
+  Timer timer1 = GetCounterRegistry()->get_timer(
+      "IntegratorContext::ComputeNumericFluxes");
   Timer timer_per_level{};
   if (count_per_level) {
     timer_per_level = GetCounterRegistry()->get_timer(
@@ -490,7 +492,8 @@ void IntegratorContext::ComputeNumericFluxes(int level, Duration dt,
 }
 
 void IntegratorContext::CompleteFromCons(int level, Duration dt) {
-  Timer timer1 = GetCounterRegistry()->get_timer("IntegratorContext::CompleteFromCons");
+  Timer timer1 =
+      GetCounterRegistry()->get_timer("IntegratorContext::CompleteFromCons");
   Timer timer_per_level{};
   if (count_per_level) {
     timer_per_level = GetCounterRegistry()->get_timer(
@@ -501,8 +504,8 @@ void IntegratorContext::CompleteFromCons(int level, Duration dt) {
 
 void IntegratorContext::UpdateConservatively(int level, Duration dt,
                                              Direction dir) {
-  Timer timer1 =
-      GetCounterRegistry()->get_timer("IntegratorContext::UpdateConservatively");
+  Timer timer1 = GetCounterRegistry()->get_timer(
+      "IntegratorContext::UpdateConservatively");
   Timer timer_per_level{};
   if (count_per_level) {
     timer_per_level = GetCounterRegistry()->get_timer(
@@ -513,7 +516,8 @@ void IntegratorContext::UpdateConservatively(int level, Duration dt,
 
 void IntegratorContext::PreAdvanceLevel(int level_num, Duration,
                                         std::pair<int, int> subcycle) {
-  Timer timer = GetCounterRegistry()->get_timer("IntegratorContext::PreAdvanceLevel");
+  Timer timer =
+      GetCounterRegistry()->get_timer("IntegratorContext::PreAdvanceLevel");
   Timer timer_per_level{};
   if (count_per_level) {
     timer_per_level = GetCounterRegistry()->get_timer(
@@ -535,7 +539,8 @@ void IntegratorContext::PreAdvanceLevel(int level_num, Duration,
 }
 
 void IntegratorContext::CopyDataToScratch(int level_num) {
-  Timer timer1 = GetCounterRegistry()->get_timer("IntegratorContext::CopyDataToScratch");
+  Timer timer1 =
+      GetCounterRegistry()->get_timer("IntegratorContext::CopyDataToScratch");
   Timer timer_per_level{};
   if (count_per_level) {
     timer_per_level = GetCounterRegistry()->get_timer(
@@ -545,7 +550,8 @@ void IntegratorContext::CopyDataToScratch(int level_num) {
 }
 
 void IntegratorContext::CopyScratchToData(int level_num) {
-  Timer timer1 = GetCounterRegistry()->get_timer("IntegratorContext::CopyScratchToData");
+  Timer timer1 =
+      GetCounterRegistry()->get_timer("IntegratorContext::CopyScratchToData");
   Timer timer_per_level{};
   if (count_per_level) {
     timer_per_level = GetCounterRegistry()->get_timer(
@@ -559,7 +565,8 @@ void IntegratorContext::CopyScratchToData(int level_num) {
 Result<void, TimeStepTooLarge>
 IntegratorContext::PostAdvanceLevel(int level_num, Duration dt,
                                     std::pair<int, int> subcycle) {
-  Timer timer1 = GetCounterRegistry()->get_timer("IntegratorContext::PostAdvanceLevel");
+  Timer timer1 =
+      GetCounterRegistry()->get_timer("IntegratorContext::PostAdvanceLevel");
   Timer timer_per_level{};
   if (count_per_level) {
     timer_per_level = GetCounterRegistry()->get_timer(

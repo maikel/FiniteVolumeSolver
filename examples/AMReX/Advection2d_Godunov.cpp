@@ -104,7 +104,8 @@ int main() {
       {}, {0.1s}, fub::amrex::PlotfileOutput(equation, base_name)));
   output.AddOutput(
       std::make_unique<fub::CounterOutput<fub::amrex::GriddingAlgorithm>>(
-          wall_time_reference, std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{0.5s}));
+          wall_time_reference, std::vector<std::ptrdiff_t>{},
+          std::vector<fub::Duration>{0.5s}));
 
   output(*grid);
   fub::RunOptions run_options{};

@@ -84,22 +84,26 @@ private:
   std::vector<std::vector<MultiBlockBoundary>> boundaries_;
 };
 
-}
+} // namespace amrex
 
 template <typename PrintDuration>
-class CounterOutput<amrex::MultiBlockGriddingAlgorithm, PrintDuration> : public OutputAtFrequencyOrInterval<amrex::MultiBlockGriddingAlgorithm> {
+class CounterOutput<amrex::MultiBlockGriddingAlgorithm, PrintDuration>
+    : public OutputAtFrequencyOrInterval<amrex::MultiBlockGriddingAlgorithm> {
 public:
-  CounterOutput(const ProgramOptions& po, std::chrono::steady_clock::time_point ref)
-    : OutputAtFrequencyOrInterval<amrex::MultiBlockGriddingAlgorithm>(po), reference_{ref} {}
+  CounterOutput(const ProgramOptions& po,
+                std::chrono::steady_clock::time_point ref)
+      : OutputAtFrequencyOrInterval<amrex::MultiBlockGriddingAlgorithm>(po),
+        reference_{ref} {}
 
   CounterOutput(const ProgramOptions& po)
-    : OutputAtFrequencyOrInterval<amrex::MultiBlockGriddingAlgorithm>(po), reference_{std::chrono::steady_clock::now()} {}
+      : OutputAtFrequencyOrInterval<amrex::MultiBlockGriddingAlgorithm>(po),
+        reference_{std::chrono::steady_clock::now()} {}
 
   CounterOutput(std::chrono::steady_clock::time_point reference,
                 std::vector<std::ptrdiff_t> frequencies,
                 std::vector<Duration> intervals)
-      : OutputAtFrequencyOrInterval<amrex::MultiBlockGriddingAlgorithm>(std::move(frequencies),
-                                          std::move(intervals)),
+      : OutputAtFrequencyOrInterval<amrex::MultiBlockGriddingAlgorithm>(
+            std::move(frequencies), std::move(intervals)),
         reference_(reference) {}
 
   void operator()(const amrex::MultiBlockGriddingAlgorithm& grid) override {
@@ -107,7 +111,10 @@ public:
         std::chrono::steady_clock::now();
     auto diff =
         std::chrono::duration_cast<std::chrono::nanoseconds>(now - reference_);
-    std::vector<CounterResult> statistics = grid.GetPlena()[0]->GetPatchHierarchy().GetCounterRegistry()->gather_statistics();
+    std::vector<CounterResult> statistics = grid.GetPlena()[0]
+                                                ->GetPatchHierarchy()
+                                                .GetCounterRegistry()
+                                                ->gather_statistics();
     if (statistics.size()) {
       print_statistics<PrintDuration>(statistics, diff.count());
     }

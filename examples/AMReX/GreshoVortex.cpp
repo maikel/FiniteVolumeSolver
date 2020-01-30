@@ -173,8 +173,8 @@ int main(int argc, char** argv) {
   output.AddOutput(
       std::make_unique<fub::CounterOutput<fub::amrex::GriddingAlgorithm,
                                           std::chrono::milliseconds>>(
-          wall_time_reference,
-          std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{0.01s}));
+          wall_time_reference, std::vector<std::ptrdiff_t>{},
+          std::vector<fub::Duration>{0.01s}));
 
   using namespace std::literals::chrono_literals;
   output(*solver.GetGriddingAlgorithm());

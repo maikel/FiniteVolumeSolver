@@ -22,9 +22,9 @@
 #define FUB_INITIAL_DATA_RIEMANN_PROBLEM_HPP
 
 #include "fub/AMReX/cutcell/PatchHierarchy.hpp"
+#include "fub/CompleteFromCons.hpp"
 #include "fub/Equation.hpp"
 #include "fub/ForEach.hpp"
-#include "fub/CompleteFromCons.hpp"
 #include "fub/ext/omp.hpp"
 
 #include <AMReX.H>
