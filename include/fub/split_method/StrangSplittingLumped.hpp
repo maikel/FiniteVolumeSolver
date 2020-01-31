@@ -18,27 +18,37 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/split_method/StrangSplitting.hpp"
+#ifndef FUB_STRANG_SPLITTING_LUMPED_HPP
+#define FUB_STRANG_SPLITTING_LUMPED_HPP
+
+#include "fub/Duration.hpp"
+#include "fub/core/function_ref.hpp"
+#include "fub/split_method/SplittingMethod.hpp"
 
 namespace fub {
 
-boost::outcome_v2::result<void, TimeStepTooLarge>
-StrangSplitting::Advance(Duration time_step_size, AdvanceFunction advance1,
-                         AdvanceFunction advance2) const {
-  boost::outcome_v2::result<void, TimeStepTooLarge> result =
-      advance1(0.5 * time_step_size);
-  if (!result) {
-    return result.as_failure();
-  }
-  result = advance2(0.5 * time_step_size);
-  if (!result) {
-    return result.as_failure();
-  }
-  result = advance2(0.5 * time_step_size);
-  if (!result) {
-    return result.as_failure();
-  }
-  return advance1(0.5 * time_step_size);
-}
+/// \ingroup Solver
+/// \brief This class implements a second order splitting method.
+struct StrangSplittingLumped : public SplittingMethod {
+public:
+  using AdvanceFunction = SplittingMethod::AdvanceFunction;
+
+  using SplittingMethod::Advance;
+
+  /// \brief Invokes two operators a1, a2 by the following scheme:
+  /// a1(dt/2); a2(dt); a1(dt/2); in comparison with the ordinary
+  /// StrangSplitting two dt/2 steps of a2 are lumped into one dt
+  /// step
+  ///
+  /// \param[in] time_step_size  The time by which the hierarchy shall be
+  ///                            advanced.
+  /// \param[in] operator1  The first operator in the splitting.
+  /// \param[in] operator2  The second operator in the spligging.
+  boost::outcome_v2::result<void, TimeStepTooLarge>
+  Advance(Duration time_step_size, AdvanceFunction operator1,
+          AdvanceFunction operator2) const override;
+};
 
 } // namespace fub
+
+#endif

@@ -36,7 +36,7 @@ public:
   using SplittingMethod::Advance;
 
   /// \brief Invokes two operators a1, a2 by the following scheme:
-  /// a1(dt/2); a2(dt); a1(dt/2);
+  /// a1(dt/2); a2(dt/2); a2(dt/2); a1(dt/2);
   ///
   /// \param[in] time_step_size  The time by which the hierarchy shall be
   ///                            advanced.

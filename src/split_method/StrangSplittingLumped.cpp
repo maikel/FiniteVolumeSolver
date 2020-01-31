@@ -18,23 +18,20 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/split_method/StrangSplitting.hpp"
+#include "fub/split_method/StrangSplittingLumped.hpp"
 
 namespace fub {
 
 boost::outcome_v2::result<void, TimeStepTooLarge>
-StrangSplitting::Advance(Duration time_step_size, AdvanceFunction advance1,
-                         AdvanceFunction advance2) const {
+StrangSplittingLumped::Advance(Duration time_step_size,
+                               AdvanceFunction advance1,
+                               AdvanceFunction advance2) const {
   boost::outcome_v2::result<void, TimeStepTooLarge> result =
       advance1(0.5 * time_step_size);
   if (!result) {
     return result.as_failure();
   }
-  result = advance2(0.5 * time_step_size);
-  if (!result) {
-    return result.as_failure();
-  }
-  result = advance2(0.5 * time_step_size);
+  result = advance2(time_step_size);
   if (!result) {
     return result.as_failure();
   }

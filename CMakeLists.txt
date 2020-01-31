@@ -246,6 +246,7 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/split_method/SplittingMethod.hpp
   include/fub/split_method/GodunovSplitting.hpp
   include/fub/split_method/StrangSplitting.hpp
+  include/fub/split_method/StrangSplittingLumped.hpp
   include/fub/ext/ProgramOptions.hpp
   include/fub/counter/Counter.hpp
   include/fub/counter/CounterRegistry.hpp
@@ -278,6 +279,7 @@ add_library(FiniteVolumeSolver.Solver
   src/ext/Mpi.cpp
   src/split_method/GodunovSplitting.cpp
   src/split_method/StrangSplitting.cpp
+  src/split_method/StrangSplittingLumped.cpp
   src/geometry/Halfspace.cpp
   src/geometry/Polygon.cpp
   src/geometry/ExpandTube.cpp
