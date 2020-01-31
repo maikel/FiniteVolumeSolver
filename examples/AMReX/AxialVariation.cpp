@@ -238,10 +238,9 @@ void MyMain(const ProgramOptions& opts) {
   fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>> signals{};
   fub::HllMethod hll_method(equation, signals);
 
-  fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethod(fub::execution::simd, hll_method),
-      fub::amrex::ForwardIntegrator(fub::execution::simd),
-      fub::amrex::Reconstruction(fub::execution::simd, equation)};
+  fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(hll_method),
+                                      fub::amrex::ForwardIntegrator(),
+                                      fub::amrex::Reconstruction(equation)};
 
   fub::DimensionalSplitLevelIntegrator system_solver(
       fub::int_c<1>, fub::amrex::IntegratorContext(gridding, method),

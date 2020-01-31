@@ -34,6 +34,8 @@ namespace fub::amrex {
 
 template <typename Tag, typename Equation> class Reconstruction {
 public:
+  Reconstruction(const Equation& eq) : Reconstruction(Tag(), eq) {}
+
   Reconstruction(Tag, const Equation& eq) : rec_{} {
     rec_ = Local<Tag, CompleteFromConsFn<Equation>>{
         CompleteFromConsFn<Equation>{eq}};
@@ -60,6 +62,13 @@ public:
 private:
   Local<Tag, CompleteFromConsFn<Equation>> rec_;
 };
+
+template <typename Equation>
+Reconstruction(const Equation& eq)
+    -> Reconstruction<execution::OpenMpSimdTag, Equation>;
+
+template <typename Tag, typename Equation>
+Reconstruction(Tag, const Equation& eq)->Reconstruction<Tag, Equation>;
 
 struct NoReconstruction {
   void CompleteFromCons([[maybe_unused]] IntegratorContext& context,

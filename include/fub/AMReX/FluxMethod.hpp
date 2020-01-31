@@ -36,6 +36,7 @@ template <typename Tag, typename FM> struct FluxMethod {
   using Equation = std::decay_t<decltype(std::declval<FM&>().GetEquation())>;
   static const int Rank = Equation::Rank();
 
+  FluxMethod(const FM& fm) : FluxMethod(Tag(), fm) {}
   FluxMethod(Tag, const FM& fm);
 
   Duration ComputeStableDt(IntegratorContext& context, int level,
@@ -48,6 +49,12 @@ template <typename Tag, typename FM> struct FluxMethod {
 
   Local<Tag, FM> flux_method_{};
 };
+
+template <typename FM>
+FluxMethod(const FM& fm) -> FluxMethod<execution::OpenMpSimdTag, FM>;
+
+template <typename Tag, typename FM>
+FluxMethod(Tag, const FM& fm) -> FluxMethod<Tag, FM>;
 
 template <typename Tag, typename FM>
 FluxMethod<Tag, FM>::FluxMethod(Tag, const FM& fm) : flux_method_{fm} {}

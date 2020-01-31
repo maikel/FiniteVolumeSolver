@@ -107,10 +107,10 @@ int main(int argc, char** argv) {
   auto seq = fub::execution::seq;
   using fub::amrex::ReflectiveBoundary;
   fub::amrex::BoundarySet boundaries{
-      {ReflectiveBoundary(seq, equation, fub::Direction::X, 0),
-       ReflectiveBoundary(seq, equation, fub::Direction::X, 1),
-       ReflectiveBoundary(seq, equation, fub::Direction::Y, 0),
-       ReflectiveBoundary(seq, equation, fub::Direction::Y, 1)}};
+      {ReflectiveBoundary(equation, fub::Direction::X, 0),
+       ReflectiveBoundary(equation, fub::Direction::X, 1),
+       ReflectiveBoundary(equation, fub::Direction::Y, 0),
+       ReflectiveBoundary(equation, fub::Direction::Y, 1)}};
 
   std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       fub::amrex::PatchHierarchy(equation, geometry, hier_opts),
@@ -118,25 +118,24 @@ int main(int argc, char** argv) {
       fub::amrex::TagAllOf(gradient, fub::amrex::TagBuffer(4)), boundaries);
   gridding->InitializeHierarchy(0.0);
 
-  auto simd = fub::execution::simd;
-
   fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
   fub::HllMethod hll_method(equation, signals);
   fub::MusclHancockMethod muscl_method(equation, hll_method);
-  //  fub::GodunovMethod godunov_method(equation);
-  // fub::MusclHancockMethod muscl_method(equation);
-  fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethod(simd, muscl_method),
-      fub::amrex::ForwardIntegrator(simd),
-      fub::amrex::Reconstruction(simd, equation)};
+  fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(muscl_method),
+                                      fub::amrex::ForwardIntegrator(),
+                                      fub::amrex::Reconstruction(equation)};
+
+  const int base_gcw = muscl_method.GetStencilWidth();
+  const int scratch_ghost_cell_width = 4 * base_gcw;
+  const int flux_ghost_cell_width = 3 * base_gcw;
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<2>, fub::amrex::IntegratorContext(gridding, method, 4, 2),
-      // fub::GodunovSplitting());
+      fub::int_c<2>,
+      fub::amrex::IntegratorContext(gridding, method, scratch_ghost_cell_width,
+                                    flux_ghost_cell_width),
       fub::StrangSplitting());
 
-  // fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
-  fub::NoSubcycleSolver solver(std::move(level_integrator));
+  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
   std::string base_name = "SodShockTube/";
 
@@ -146,6 +145,8 @@ int main(int argc, char** argv) {
   boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
       boost::log::keywords::severity = boost::log::trivial::info);
 
+  // Define a function to compute the mass in the domain and output the
+  // difference to the intial mass.
   double mass0 = 0.0;
   auto compute_mass = [&log, &mass0](const GriddingAlgorithm& grid) {
     const ::amrex::MultiFab& data =
@@ -165,10 +166,15 @@ int main(int argc, char** argv) {
   };
 
   fub::MultipleOutputs<GriddingAlgorithm> output{};
+
+  // Add output to show the conservation error in mass after each time step
   output.AddOutput(fub::MakeOutput<GriddingAlgorithm>({1}, {}, compute_mass));
+
+  // Add output to write AMReX plotfiles in a set time interval
   output.AddOutput(fub::MakeOutput<GriddingAlgorithm>(
       {}, {0.01s}, PlotfileOutput(equation, base_name)));
 
+  // Add output for the timer database after each 25 cycles
   output.AddOutput(
       std::make_unique<
           fub::CounterOutput<GriddingAlgorithm, std::chrono::milliseconds>>(
@@ -179,6 +185,6 @@ int main(int argc, char** argv) {
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
   run_options.final_time = 1.0s;
-  run_options.cfl = 0.9;
+  run_options.cfl = 0.5;
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

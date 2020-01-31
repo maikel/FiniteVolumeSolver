@@ -98,13 +98,16 @@ void MyMain(const ProgramOptions& opts) {
 
   fub::ideal_gas::MusclHancockPrimMethod<1> flux_method(equation);
 
-  fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethod(fub::execution::seq, flux_method),
-      fub::amrex::ForwardIntegrator(fub::execution::seq),
-      fub::amrex::Reconstruction(fub::execution::seq, equation)};
+  fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(flux_method),
+                                      fub::amrex::ForwardIntegrator(),
+                                      fub::amrex::Reconstruction(equation)};
+
+  const int scratch_gcw = 2 * flux_method.GetStencilWidth();
+  const int flux_gcw = flux_method.GetStencilWidth();
 
   fub::DimensionalSplitLevelIntegrator system_solver(
-      fub::int_c<1>, fub::amrex::IntegratorContext(gridding, method),
+      fub::int_c<1>,
+      fub::amrex::IntegratorContext(gridding, method, scratch_gcw, flux_gcw),
       fub::GodunovSplitting());
 
   fub::amrex::IgniteDetonationOptions io{};

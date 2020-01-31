@@ -82,13 +82,16 @@ int main(int argc, char** argv) {
   gridding->InitializeHierarchy(0.0);
 
   fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethod(fub::execution::simd,
-                             fub::MusclHancockMethod{equation}),
-      fub::amrex::ForwardIntegrator(fub::execution::simd),
-      fub::amrex::NoReconstruction{}};
+      fub::amrex::FluxMethod(fub::MusclHancockMethod{equation}),
+      fub::amrex::ForwardIntegrator(), fub::amrex::NoReconstruction{}};
+
+  const int scratch_gcw = 8;
+  const int flux_gcw = 6;
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<Dim>, fub::amrex::IntegratorContext(gridding, method));
+      fub::int_c<Dim>,
+      fub::amrex::IntegratorContext(gridding, method, scratch_gcw, flux_gcw),
+      fub::StrangSplitting());
 
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 

@@ -116,15 +116,12 @@ int main(int argc, char** argv) {
       gradient, boundary);
   gridding->InitializeHierarchy(0.0);
 
-  auto simd = fub::execution::simd;
-
   fub::EinfeldtSignalVelocities<fub::PerfectGas<1>> signals{};
   fub::HllMethod hll_method(equation, signals);
   fub::MusclHancockMethod flux_method{equation, hll_method};
-  fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethod(simd, flux_method),
-      fub::amrex::ForwardIntegrator(simd),
-      fub::amrex::Reconstruction(simd, equation)};
+  fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(flux_method),
+                                      fub::amrex::ForwardIntegrator(),
+                                      fub::amrex::Reconstruction(equation)};
 
   const int scratch_ghost_cell_width = 4;
   const int flux_ghost_cell_width = 2;
@@ -132,7 +129,8 @@ int main(int argc, char** argv) {
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<1>,
       fub::amrex::IntegratorContext(gridding, method, scratch_ghost_cell_width,
-                                    flux_ghost_cell_width));
+                                    flux_ghost_cell_width),
+      fub::GodunovSplitting());
 
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
