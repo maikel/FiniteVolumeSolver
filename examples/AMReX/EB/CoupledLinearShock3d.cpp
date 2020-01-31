@@ -177,14 +177,15 @@ auto MakeTubeSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
     return gridding;
   }();
 
-//  fub::ideal_gas::MusclHancockPrimMethod<Tube_Rank> flux_method{equation};
+  //  fub::ideal_gas::MusclHancockPrimMethod<Tube_Rank> flux_method{equation};
   fub::EinfeldtSignalVelocities<fub::IdealGasMix<Tube_Rank>> signals{};
   fub::HllMethod hll_method{equation, signals};
   HyperbolicMethod method{FluxMethod(fub::execution::openmp, hll_method),
                           ForwardIntegrator(fub::execution::openmp),
                           Reconstruction(fub::execution::openmp, equation)};
 
-  return std::pair{fub::amrex::IntegratorContext(gridding, method, 1, 0), valve};
+  return std::pair{fub::amrex::IntegratorContext(gridding, method, 1, 0),
+                   valve};
 }
 
 ::amrex::Box BoxWhichContains(const ::amrex::RealBox& xbox,
@@ -292,10 +293,9 @@ auto MakePlenumSolver(const ProgramOptions& po, fub::Burke2012& mechanism,
   //    flux_method(equation);
   fub::KbnCutCellMethod cutcell_method(hll_method, hll_method);
 
-  HyperbolicMethod method{
-      FluxMethod{fub::execution::simd, cutcell_method},
-      fub::amrex::cutcell::TimeIntegrator{},
-      Reconstruction{fub::execution::simd, equation}};
+  HyperbolicMethod method{FluxMethod{fub::execution::simd, cutcell_method},
+                          fub::amrex::cutcell::TimeIntegrator{},
+                          Reconstruction{fub::execution::simd, equation}};
 
   return fub::amrex::cutcell::IntegratorContext(gridding, method, 1, 0);
 }
@@ -426,13 +426,15 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
     ia >> *valve.GetSharedState();
   }
 
-  fub::SplitSystemSourceLevelIntegrator ign_solver(std::move(system_solver), std::move(ignition),
-                                                     fub::GodunovSplitting{});
+  fub::SplitSystemSourceLevelIntegrator ign_solver(
+      std::move(system_solver), std::move(ignition), fub::GodunovSplitting{});
 
   fub::amrex::MultiBlockKineticSouceTerm source_term{
-      fub::IdealGasMix<Tube_Rank>{mechanism}, ign_solver.GetContext().GetGriddingAlgorithm()};
+      fub::IdealGasMix<Tube_Rank>{mechanism},
+      ign_solver.GetContext().GetGriddingAlgorithm()};
 
-  fub::SplitSystemSourceLevelIntegrator level_integrator{std::move(ign_solver), std::move(source_term)};
+  fub::SplitSystemSourceLevelIntegrator level_integrator{
+      std::move(ign_solver), std::move(source_term)};
 
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 

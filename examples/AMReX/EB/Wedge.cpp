@@ -120,13 +120,14 @@ int main() {
   std::string base_name = "Wedge/";
 
   using namespace std::literals::chrono_literals;
-  fub::AnyOutput<GriddingAlgorithm> output({}, {1e-5s}, [&](const GriddingAlgorithm& gridding) {
-    std::string name =
-        fmt::format("{}plt{:05}", base_name, gridding.GetCycles());
-    amrex::Print() << "Start output to '" << name << "'.\n";
-    WritePlotFile(name, gridding.GetPatchHierarchy(), equation);
-    amrex::Print() << "Finished output to '" << name << "'.\n";
-  });
+  fub::AnyOutput<GriddingAlgorithm> output(
+      {}, {1e-5s}, [&](const GriddingAlgorithm& gridding) {
+        std::string name =
+            fmt::format("{}plt{:05}", base_name, gridding.GetCycles());
+        amrex::Print() << "Start output to '" << name << "'.\n";
+        WritePlotFile(name, gridding.GetPatchHierarchy(), equation);
+        amrex::Print() << "Finished output to '" << name << "'.\n";
+      });
 
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};

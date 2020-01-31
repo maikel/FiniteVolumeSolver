@@ -31,6 +31,7 @@ namespace fub::amrex {
 
 template <typename Tag, typename Equation> class ReflectiveBoundary {
 public:
+  ReflectiveBoundary(const Equation& equation, Direction dir, int side) : ReflectiveBoundary(Tag(), equation, dir, side) {}
   ReflectiveBoundary(Tag, const Equation& equation, Direction dir, int side);
 
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
@@ -46,6 +47,9 @@ private:
   Direction dir_;
   int side_;
 };
+
+template <typename Equation>
+ReflectiveBoundary(const Equation&, Direction, int) -> ReflectiveBoundary<execution::SequentialTag, Equation>;
 
 template <typename Tag, typename Equation>
 ReflectiveBoundary<Tag, Equation>::ReflectiveBoundary(Tag,
@@ -91,12 +95,13 @@ void ReflectiveBoundary<Tag, Equation>::FillBoundary(
 }
 
 template <typename Tag, typename Equation>
-void ReflectiveBoundary<Tag, Equation>::FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration, const GriddingAlgorithm&, Direction dir) {
-                      if (dir == dir_) {
-                      FillBoundary(mf, geom);
-                      }
-                    }
+void ReflectiveBoundary<Tag, Equation>::FillBoundary(
+    ::amrex::MultiFab& mf, const ::amrex::Geometry& geom, Duration,
+    const GriddingAlgorithm&, Direction dir) {
+  if (dir == dir_) {
+    FillBoundary(mf, geom);
+  }
+}
 
 template <typename Tag, typename Equation>
 ReflectiveBoundary(Tag, const Equation&, Direction, int)

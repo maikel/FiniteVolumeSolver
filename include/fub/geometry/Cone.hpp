@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 #ifndef FUB_GEOMETRY_CONE_HPP
-#define FUB_GEOMETRY_CONE_HPP 
+#define FUB_GEOMETRY_CONE_HPP
 
 #include <array>
 
@@ -28,7 +28,8 @@ namespace fub {
 class ConeIF {
 public:
   ConeIF() = default;
-  ConeIF(const std::array<double, 3>& point, double base_radius, double height, bool inside = true);
+  ConeIF(const std::array<double, 3>& point, double base_radius, double height,
+         bool inside = true);
 
   double ComputeDistanceTo(const std::array<double, 3>& x) const noexcept;
 
@@ -39,6 +40,6 @@ private:
   bool inside_{true};
 };
 
-}
+} // namespace fub
 
 #endif

@@ -23,10 +23,10 @@
 
 #include "fub/AMReX/GriddingAlgorithm.hpp"
 #include "fub/TimeStepError.hpp"
+#include "fub/counter/CounterRegistry.hpp"
 #include "fub/equations/IdealGasMix.hpp"
 #include "fub/ext/omp.hpp"
 #include "fub/ext/outcome.hpp"
-#include "fub/counter/CounterRegistry.hpp"
 
 #include <memory>
 
@@ -41,7 +41,7 @@ public:
                     std::shared_ptr<amrex::GriddingAlgorithm> gridding);
 
   KineticSourceTerm(const IdealGasMix<Rank>& eq,
-                    std::shared_ptr<amrex::GriddingAlgorithm> gridding, 
+                    std::shared_ptr<amrex::GriddingAlgorithm> gridding,
                     std::shared_ptr<CounterRegistry> registry);
 
   void ResetHierarchyConfiguration(

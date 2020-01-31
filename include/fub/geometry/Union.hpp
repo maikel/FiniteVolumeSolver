@@ -23,13 +23,12 @@
 
 #include "fub/geometry/PolymorphicGeometry.hpp"
 
-#include <vector>
 #include <memory>
+#include <vector>
 
 namespace fub {
 
-template <std::size_t Rank>
-class PolymorphicUnion : public Geometry<Rank> {
+template <std::size_t Rank> class PolymorphicUnion : public Geometry<Rank> {
 public:
   PolymorphicUnion(const std::vector<PolymorphicGeometry<Rank>>& geoms);
 
@@ -38,12 +37,12 @@ public:
   double ComputeDistanceTo(const std::array<double, Rank>& x) const override;
 
 private:
-  std::vector<PolymorphicGeometry<Rank>> geoms_; 
+  std::vector<PolymorphicGeometry<Rank>> geoms_;
 };
 
 extern template class PolymorphicUnion<2>;
 extern template class PolymorphicUnion<3>;
 
-}
+} // namespace fub
 
 #endif

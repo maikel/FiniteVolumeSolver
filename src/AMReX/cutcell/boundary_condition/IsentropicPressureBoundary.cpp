@@ -147,7 +147,8 @@ void IsentropicPressureBoundary::FillBoundary(::amrex::MultiFab& mf,
   int level = FindLevel(geom, grid);
   ::amrex::Box refined_inner_box = coarse_inner_box_;
   for (int l = 1; l <= level; ++l) {
-    refined_inner_box.refine(grid.GetPatchHierarchy().GetRatioToCoarserLevel(l));
+    refined_inner_box.refine(
+        grid.GetPatchHierarchy().GetRatioToCoarserLevel(l));
   }
   AverageState(state, grid.GetPatchHierarchy(), level, refined_inner_box);
   equation_.CompleteFromCons(state, state);

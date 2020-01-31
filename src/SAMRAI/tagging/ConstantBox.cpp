@@ -25,22 +25,24 @@ namespace fub::samrai {
 
 ConstantBox::ConstantBox(const SAMRAI::hier::Box& box) : box_(box) {}
 
-void ConstantBox::TagCellsForRefinement(GriddingAlgorithm& gridding, int level, int tag_id, Duration /* time_point */) {
-  std::shared_ptr<SAMRAI::hier::PatchLevel> patch_level = gridding.GetPatchHierarchy().GetNative()->getPatchLevel(level);
+void ConstantBox::TagCellsForRefinement(GriddingAlgorithm& gridding, int level,
+                                        int tag_id, Duration /* time_point */) {
+  std::shared_ptr<SAMRAI::hier::PatchLevel> patch_level =
+      gridding.GetPatchHierarchy().GetNative()->getPatchLevel(level);
 
   for (const std::shared_ptr<SAMRAI::hier::Patch>& patch : *patch_level) {
     SAMRAI::pdat::CellData<int>& tags =
         *static_cast<SAMRAI::pdat::CellData<int>*>( // NOLINT
             patch->getPatchData(tag_id).get());
 
-      SAMRAI::hier::Box intersection(tags.getDim());
-      box_.intersect(tags.getBox(), intersection);
+    SAMRAI::hier::Box intersection(tags.getDim());
+    box_.intersect(tags.getBox(), intersection);
 
-      for (auto& i : intersection) {
-        SAMRAI::pdat::CellIndex cell(i);
-        tags(cell) = 1;
-      }
+    for (auto& i : intersection) {
+      SAMRAI::pdat::CellIndex cell(i);
+      tags(cell) = 1;
+    }
   }
 }
 
-}
+} // namespace fub::samrai

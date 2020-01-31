@@ -463,7 +463,8 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   }
   if (!checkpoint.empty()) {
     MPI_Comm comm = context.GetMpiCommunicator();
-    std::string input = fub::ReadAndBroadcastFile(checkpoint + "/Ignition", comm);
+    std::string input =
+        fub::ReadAndBroadcastFile(checkpoint + "/Ignition", comm);
     std::istringstream ifs(input);
     boost::archive::text_iarchive ia(ifs);
     std::vector<fub::Duration> last_ignitions;
@@ -472,12 +473,13 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   }
 
   fub::SplitSystemSourceLevelIntegrator ign_solver(system_solver, ignition,
-                                                     fub::GodunovSplitting{});
+                                                   fub::GodunovSplitting{});
 
   fub::amrex::MultiBlockKineticSouceTerm source_term{
       fub::IdealGasMix<Tube_Rank>{mechanism}, context.GetGriddingAlgorithm()};
 
-  fub::SplitSystemSourceLevelIntegrator level_integrator{ign_solver, source_term};
+  fub::SplitSystemSourceLevelIntegrator level_integrator{ign_solver,
+                                                         source_term};
 
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 

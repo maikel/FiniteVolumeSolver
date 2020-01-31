@@ -45,11 +45,11 @@ public:
   /////////////////////////////////////////////////////////////////////////
   // member functions needed for being a source term
 
-  void PreAdvanceLevel(int level, Duration dt, std::pair<int,int> subcycle);
+  void PreAdvanceLevel(int level, Duration dt, std::pair<int, int> subcycle);
   //  void PostAdvanceLevel(int level, Duration dt, int subcycle);
 
-  void ResetHierarchyConfiguration(
-      std::shared_ptr<GriddingAlgorithm>&& gridding);
+  void
+  ResetHierarchyConfiguration(std::shared_ptr<GriddingAlgorithm>&& gridding);
 
   void ResetHierarchyConfiguration(
       const std::shared_ptr<GriddingAlgorithm>& gridding);
