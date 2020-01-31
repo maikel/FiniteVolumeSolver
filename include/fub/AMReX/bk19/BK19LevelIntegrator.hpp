@@ -59,7 +59,7 @@ struct BK19LevelIntegratorOptions {
 
 class BK19LevelIntegrator
     : private DimensionalSplitLevelIntegrator<AMREX_SPACEDIM,
-                                              BK19IntegratorContext> {
+                                              BK19IntegratorContext, AnySplitMethod> {
 public:
   static constexpr int Rank = AMREX_SPACEDIM;
 
@@ -67,9 +67,10 @@ public:
   using Equation = CompressibleAdvection<Rank>;
   using Complete = ::fub::Complete<Equation>;
   using Conservative = ::fub::Conservative<Equation>;
+  using SplittingMethod = ::fub::AnySplitMethod;
 
   using AdvectionSolver =
-      DimensionalSplitLevelIntegrator<Rank, BK19IntegratorContext>;
+      DimensionalSplitLevelIntegrator<Rank, BK19IntegratorContext, SplittingMethod>;
 
   using AdvectionSolver::ApplyFluxCorrection;
   using AdvectionSolver::CoarsenConservatively;

@@ -144,6 +144,12 @@ void MyMain(const fub::ProgramOptions& options) {
   PatchHierarchyOptions hierarchy_options =
       fub::GetOptions(options, "PatchHierarchy");
 
+  fub::SeverityLogger info = fub::GetInfoLogger();
+  BOOST_LOG(info) << "GridGeometry:";
+  grid_geometry.Print(info);
+  BOOST_LOG(info) << "PatchHierarchy:";
+  hierarchy_options.Print(info);
+
   PatchHierarchy hierarchy(desc, grid_geometry, hierarchy_options);
 
   using Complete = fub::CompressibleAdvection<2>::Complete;
@@ -222,7 +228,8 @@ void MyMain(const fub::ProgramOptions& options) {
 
   BK19LevelIntegratorOptions integrator_options =
       fub::GetOptions(options, "BK19LevelIntegrator");
-  // integrator_options.Print(log);
+  BOOST_LOG(info) << "BK19LevelIntegrator:";
+  integrator_options.Print(info);
   BK19LevelIntegrator level_integrator(equation, std::move(advection), linop,
                                        integrator_options);
 
@@ -239,13 +246,14 @@ void MyMain(const fub::ProgramOptions& options) {
   using namespace std::literals::chrono_literals;
   std::string base_name = "BK19_Pseudo_Incompressible/";
 
-  fub::MultipleOutputs<GriddingAlgorithm> output{};
-  output.AddOutput(fub::MakeOutput<GriddingAlgorithm>(
-      {1}, {0.01s}, WriteBK19Plotfile{base_name}));
+  fub::OutputFactory<GriddingAlgorithm> factory;
+  factory.RegisterOutput<fub::AnyOutput<GriddingAlgorithm>>("Plotfile", WriteBK19Plotfile{base_name});
+  fub::MultipleOutputs<GriddingAlgorithm> output{std::move(factory), fub::GetOptions(options, "Output")};
 
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options = fub::GetOptions(options, "RunOptions");
-  // run_options.Print(log);
+  BOOST_LOG(info) << "RunOptions:";
+  run_options.Print(info);
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }
 

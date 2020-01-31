@@ -25,8 +25,7 @@
 #include "fub/Duration.hpp"
 #include "fub/TimeStepError.hpp"
 #include "fub/core/function_ref.hpp"
-
-#include <boost/outcome.hpp>
+#include "fub/ext/outcome.hpp"
 
 namespace fub {
 /// \ingroup Abstract
@@ -36,20 +35,18 @@ namespace fub {
 /// derived strategy recursively to generalize the derived splitting to N
 /// operators.
 struct SplittingMethod {
-  using AdvanceFunction =
-      function_ref<boost::outcome_v2::result<void, TimeStepTooLarge>(Duration)>;
+  using AdvanceFunction = function_ref<Result<void, TimeStepTooLarge>(Duration)>;
 
   virtual ~SplittingMethod() = default;
 
   template <typename F>
-  boost::outcome_v2::result<void, TimeStepTooLarge> Advance(Duration dt,
-                                                            F advance) const {
+  Result<void, TimeStepTooLarge> Advance(Duration dt, F advance) const {
     return advance(dt);
   }
 
   /// This method recurisvely applies the base case.
   template <typename F, typename... Fs>
-  boost::outcome_v2::result<void, TimeStepTooLarge>
+  Result<void, TimeStepTooLarge>
   Advance(Duration dt, AdvanceFunction advance1, AdvanceFunction advance2,
           F advance3, Fs... advances) const {
     return Advance(dt, advance1, [&](Duration time_step_size) {
@@ -58,16 +55,55 @@ struct SplittingMethod {
   }
 
   /// This is the base case of applying the splitting method with two operators.
-  virtual boost::outcome_v2::result<void, TimeStepTooLarge>
+  virtual Result<void, TimeStepTooLarge>
   Advance(Duration time_step_size, AdvanceFunction advance1,
           AdvanceFunction advance2) const = 0;
 };
 
+struct AnySplitMethod : public SplittingMethod {
+  AnySplitMethod(const AnySplitMethod&) = default;
+  AnySplitMethod(AnySplitMethod&&) = default;
+
+  AnySplitMethod& operator=(const AnySplitMethod&) = default;
+  AnySplitMethod& operator=(AnySplitMethod&&) = default;
+
+  template <typename SplitMethod,
+            typename = std::enable_if_t<
+                !std::is_same_v<AnySplitMethod, SplitMethod> &&
+                std::is_base_of_v<SplittingMethod, SplitMethod>>>
+  AnySplitMethod& operator=(const SplitMethod& split) {
+    split_method_ = [split](Duration dt, AdvanceFunction f1, AdvanceFunction f2) {
+      return split.Advance(dt, std::move(f1), std::move(f2));
+    };
+  }
+
+  template <typename SplitMethod,
+            typename = std::enable_if_t<
+                !std::is_same_v<AnySplitMethod, SplitMethod> &&
+                std::is_base_of_v<SplittingMethod, SplitMethod>>>
+  AnySplitMethod(const SplitMethod& split) : split_method_ {
+    [split](Duration dt, AdvanceFunction f1, AdvanceFunction f2) {
+      return split.Advance(dt, std::move(f1), std::move(f2));
+    }}
+  {}
+
+  Result<void, TimeStepTooLarge>
+  Advance(Duration time_step_size, AdvanceFunction advance1,
+          AdvanceFunction advance2) const override {
+    return split_method_(time_step_size, std::move(advance1),
+                         std::move(advance2));
+  }
+
+  std::function<Result<void, TimeStepTooLarge>(Duration, AdvanceFunction,
+                                               AdvanceFunction)>
+      split_method_;
+};
+
 template <int Rank>
 constexpr std::array<Direction, static_cast<std::size_t>(Rank)>
-MakeSplitDirections(std::pair<int, int> subcycle) noexcept {
+MakeSplitDirections(int cycle, std::pair<int, int> subcycle) noexcept {
   std::array<Direction, static_cast<std::size_t>(Rank)> directions{};
-  int is_odd = subcycle.first % 2;
+  int is_odd = (cycle % 2 + subcycle.first) % 2;
   int is_even = !is_odd;
   for (int i = 0; i < Rank; ++i) {
     int dir = (is_even * i + is_odd * (Rank - 1 - i));
