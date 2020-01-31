@@ -399,7 +399,6 @@ void DoEulerForward_(const Equation& equation,
   // Maikel: This needs a comment for me, why it is so
   // Rupert sagt:
   // Wenn ich das richtig sehe, liegt das daran, dass die folgenden zwei Zeilen:
-  // // TODO check sign output of AMReX
   // momentum_correction.mult(-1.0 / dt.count(), 0);
   // in EulerForward nicht existieren, in EulerBackward aber schon.
   // Siehe auch Kommentar (**) weiter unten.
@@ -428,11 +427,6 @@ void DoEulerForward_(const Equation& equation,
   }
 
   RecoverVelocityFromMomentum_(scratch, index);
-
-  // Rupert sagt:
-  // Achtung, auch hier muss beachtet werden, dass  Pv  nicht dasselbe
-  // ist wie  \rho v !   Ich bin mir eben nicht sicher, ob   lin_op.getFluxes()
-  // das weiss.
 }
 
 } // namespace
