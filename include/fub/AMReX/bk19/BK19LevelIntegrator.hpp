@@ -19,6 +19,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#ifndef FUB_BK19_LEVEL_INTEGRATOR_HPP
+#define FUB_BK19_LEVEL_INTEGRATOR_HPP
+
 #include "fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp"
 #include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
 #include "fub/equations/CompressibleAdvection.hpp"
@@ -143,3 +146,5 @@ template <typename Log> void BK19LevelIntegratorOptions::Print(Log& log) {
 }
 
 } // namespace fub::amrex
+
+#endif
