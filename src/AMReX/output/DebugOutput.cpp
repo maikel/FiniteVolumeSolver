@@ -30,9 +30,8 @@ void DebugStorage::SaveData(const ::amrex::MultiFab& mf,
   Hierarchy single_level_hierarchy{};
   ::amrex::BoxArray ba = mf.boxArray();
   ::amrex::DistributionMapping dm = mf.DistributionMap();
-  ::amrex::MultiFab& dest =
-      single_level_hierarchy.emplace_back(ba, dm, component.i, 0);
-  dest.copy(mf);
+  ::amrex::MultiFab& dest = single_level_hierarchy.emplace_back(ba, dm, 1, 0);
+  ::amrex::MultiFab::Copy(dest, mf, component.i, 0, 1, 0);
   saved_hierarchies_.push_back(std::move(single_level_hierarchy));
   names_per_hierarchy_.push_back(std::vector<std::string>{name});
 }
@@ -59,7 +58,7 @@ struct NumComps_ {
 struct equal_to {
   int i;
   const std::vector<std::vector<::amrex::BoxArray>>* bas_;
-  bool operator()(int j) { return bas_[i] == bas_[j]; }
+  bool operator()(int j) { return (*bas_)[i] == (*bas_)[j]; }
 };
 
 std::vector<std::vector<int>>
@@ -68,6 +67,9 @@ Partitions_(const std::vector<std::vector<::amrex::BoxArray>>& boxes) {
   std::vector<std::vector<int>> partitions{};
   auto first = selection.begin();
   auto last = selection.end();
+  if (first == last) {
+    return partitions;
+  }
   std::iota(first, last, 0);
   auto next = std::stable_partition(first, last, equal_to{*first, &boxes});
   partitions.emplace_back(first, next);
@@ -116,6 +118,33 @@ std::vector<std::vector<::amrex::DistributionMapping>> GatherDistributionMaps_(
   });
 }
 
+std::vector<const std::vector<::amrex::MultiFab>*> GatherHierarchies_(
+    const std::vector<std::vector<::amrex::MultiFab>>& hierarchies,
+    ::amrex::IndexType location) {
+  std::vector<const std::vector<::amrex::MultiFab>*> gathered{};
+  for (const std::vector<::amrex::MultiFab>& hierarchy : hierarchies) {
+    if (hierarchy[0].boxArray().ixType() == location) {
+      gathered.push_back(&hierarchy);
+    }
+  }
+  return gathered;
+}
+
+std::vector<std::vector<std::string>>
+GatherNames_(const std::vector<std::vector<std::string>>& names,
+             const std::vector<std::vector<::amrex::MultiFab>>& hierarchies,
+             ::amrex::IndexType location) {
+  std::vector<std::vector<std::string>> gathered{};
+  auto components = names.begin();
+  for (const std::vector<::amrex::MultiFab>& hierarchy : hierarchies) {
+    if (hierarchy[0].boxArray().ixType() == location) {
+      gathered.push_back(*components);
+    }
+    ++components;
+  }
+  return gathered;
+}
+
 std::vector<std::string>
 Select_(const std::vector<std::vector<std::string>>& names,
         const std::vector<int>& partition) {
@@ -150,14 +179,17 @@ DebugStorage::GatherFields(::amrex::IndexType location) const {
       GatherBoxArrays_(saved_hierarchies_, location);
   std::vector<std::vector<DistributionMapping>> distribution_maps =
       GatherDistributionMaps_(saved_hierarchies_, location);
+  std::vector<const std::vector<::amrex::MultiFab>*> filtered_hierarchies =
+      GatherHierarchies_(saved_hierarchies_, location);
   std::vector<std::vector<int>> partitions = Partitions_(box_arrays);
   std::vector<
       std::pair<std::vector<::amrex::MultiFab>, std::vector<std::string>>>
       hierarchies{};
   for (const std::vector<int>& partition : partitions) {
-    std::vector<std::string> all_components =
-        Select_(names_per_hierarchy_, partition);
-    int n_components = static_cast<int>(all_components.size());
+    std::vector<std::vector<std::string>> all_components =
+        GatherNames_(names_per_hierarchy_, saved_hierarchies_, location);
+    std::vector<std::string> components = Select_(all_components, partition);
+    int n_components = static_cast<int>(components.size());
     std::vector<::amrex::MultiFab> hierarchy{};
     std::vector<BoxArray> box_array = box_arrays[partition[0]];
     std::vector<DistributionMapping> distribution =
@@ -167,15 +199,14 @@ DebugStorage::GatherFields(::amrex::IndexType location) const {
           box_array[level], distribution[level], n_components, 0);
       int comp = 0;
       for (int i : partition) {
-        const MultiFab& src = saved_hierarchies_[i][level];
+        const MultiFab& src = (*filtered_hierarchies[i])[level];
         const int n = src.nComp();
-        MultiFab::Copy(dest, src, SrcComp_(0), DestComp_(comp), NumComps_(n),
-                       0);
+        MultiFab::Copy(dest, src, 0, comp, n, 0);
         comp += n;
       }
       FUB_ASSERT(comp == n_components);
     }
-    hierarchies.emplace_back(std::move(hierarchy), std::move(all_components));
+    hierarchies.emplace_back(std::move(hierarchy), std::move(components));
   }
   return hierarchies;
 }
@@ -183,6 +214,45 @@ DebugStorage::GatherFields(::amrex::IndexType location) const {
 void DebugStorage::ClearAll() {
   names_per_hierarchy_.clear();
   saved_hierarchies_.clear();
+}
+
+DebugOutput::DebugOutput(const ProgramOptions& opts)
+    : OutputAtFrequencyOrInterval(opts) {
+  directory_ = GetOptionOr(opts, "directory", directory_);
+}
+
+void DebugOutput::operator()(const GriddingAlgorithm& grid) {
+  DebugStorage& storage = *grid.GetPatchHierarchy().GetDebugStorage();
+
+  std::vector<
+      std::pair<std::vector<::amrex::MultiFab>, std::vector<std::string>>>
+      hierarchies = storage.GatherFields(::amrex::IndexType::TheCellType());
+
+  int partition_counter = 0;
+  for (auto&& [hierarchy, names] : hierarchies) {
+    const std::string plotfilename =
+        fmt::format("{}/partition_{}_plt{:09}", directory_, partition_counter,
+                    grid.GetPatchHierarchy().GetCycles());
+    const std::size_t size = hierarchy.size();
+    const double time_point = grid.GetTimePoint().count();
+    ::amrex::Vector<const ::amrex::MultiFab*> mf(size);
+    ::amrex::Vector<::amrex::Geometry> geoms(size);
+    ::amrex::Vector<int> level_steps(size);
+    ::amrex::Vector<::amrex::IntVect> ref_ratio(size);
+    for (std::size_t i = 0; i < size; ++i) {
+      mf[i] = &hierarchy[i];
+      const int ii = static_cast<int>(i);
+      geoms[i] = grid.GetPatchHierarchy().GetGeometry(ii);
+      level_steps[i] = static_cast<int>(grid.GetPatchHierarchy().GetCycles(ii));
+      ref_ratio[i] = grid.GetPatchHierarchy().GetRatioToCoarserLevel(ii);
+    }
+    ::amrex::Vector<std::string> vnames(names.begin(), names.end());
+    ::amrex::WriteMultiLevelPlotfile(plotfilename, size, mf, vnames, geoms,
+                                     time_point, level_steps, ref_ratio);
+    partition_counter += 1;
+  }
+
+  storage.ClearAll();
 }
 
 } // namespace fub::amrex

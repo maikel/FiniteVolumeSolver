@@ -247,6 +247,7 @@ void MyMain(const fub::ProgramOptions& options) {
 
   fub::OutputFactory<GriddingAlgorithm> factory;
   factory.RegisterOutput<fub::AnyOutput<GriddingAlgorithm>>("Plotfile", WriteBK19Plotfile{base_name});
+  factory.RegisterOutput<fub::amrex::DebugOutput>("DebugOutput");
   fub::MultipleOutputs<GriddingAlgorithm> output{std::move(factory), fub::GetOptions(options, "Output")};
 
   output(*solver.GetGriddingAlgorithm());

@@ -21,6 +21,7 @@
 #include "fub/AMReX/PatchHierarchy.hpp"
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/ForEachIndex.hpp"
+#include "fub/AMReX/output/DebugOutput.hpp"
 
 #include <boost/filesystem.hpp>
 #include <hdf5.h>
@@ -164,7 +165,7 @@ PatchHierarchy::PatchHierarchy(DataDescription desc,
                                const PatchHierarchyOptions& options)
     : description_{std::move(desc)},
       grid_geometry_{geometry}, options_{options}, patch_level_{},
-      patch_level_geometry_{}, registry_{std::make_shared<CounterRegistry>()} {
+  patch_level_geometry_{}, registry_{std::make_shared<CounterRegistry>()}, debug_storage_{std::make_shared<DebugStorage>()} {
   patch_level_.reserve(static_cast<std::size_t>(options.max_number_of_levels));
   patch_level_geometry_.resize(
       static_cast<std::size_t>(options.max_number_of_levels));

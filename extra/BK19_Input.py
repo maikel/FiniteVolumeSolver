@@ -32,6 +32,11 @@ RunOptions = {
 Output = {
     'outputs': [
         {
+            'type': 'DebugOutput',
+            'frequencies': [1],
+            'directory': './Debug/'
+        },
+        {
             'type': 'Plotfile',
             'intervals': [5e-2]
         },

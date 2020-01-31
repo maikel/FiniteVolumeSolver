@@ -75,17 +75,11 @@ private:
 
 class DebugOutput : public OutputAtFrequencyOrInterval<GriddingAlgorithm> {
 public:
-  DebugOutput(const ProgramOptions& opts,
-              std::shared_ptr<DebugStorage> storage);
-
-  const std::shared_ptr<DebugStorage>& GetStorage() noexcept {
-    return storage_;
-  }
+  explicit DebugOutput(const ProgramOptions& opts);
 
   void operator()(const GriddingAlgorithm& grid) override;
 
 private:
-  std::shared_ptr<DebugStorage> storage_{};
   std::string directory_;
 };
 

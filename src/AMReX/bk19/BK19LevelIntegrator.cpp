@@ -388,7 +388,8 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
                   one_component, no_ghosts);
 
   }
-  debug.SaveData(UV_correction, "momentum_correction_backward");
+  debug.SaveData(UV_correction, "momentum0_correction_backward", ::amrex::SrcComp(0));
+  debug.SaveData(UV_correction, "momentum1_correction_backward", ::amrex::SrcComp(1));
 
   RecoverVelocityFromMomentum_(scratch, index);
 
@@ -431,14 +432,16 @@ void DoEulerForward_(const Equation& equation,
                                index.momentum.size(), no_ghosts);
   momentum_correction.setVal(0.0);
   lin_op.getFluxes({&momentum_correction}, {&pi});
-  debug.SaveData(momentum_correction, "pi_fluxes_forward");
+  debug.SaveData(momentum_correction, "pi_fluxes0_forward", ::amrex::SrcComp(0));
+  debug.SaveData(momentum_correction, "pi_fluxes1_forward", ::amrex::SrcComp(1));
 
   for (std::size_t i = 0; i < index.momentum.size(); ++i) {
     const int src_component = static_cast<int>(i);
     MultiFab::Add(scratch, momentum_correction, src_component,
                   index.momentum[i], one_component, no_ghosts);
   }
-  debug.SaveData(momentum_correction, "momentum_correction_forward");
+  debug.SaveData(momentum_correction, "momentum0_correction_forward", ::amrex::SrcComp(0));
+  debug.SaveData(momentum_correction, "momentum1_correction_forward", ::amrex::SrcComp(1));
 
   RecoverVelocityFromMomentum_(scratch, index);
 }
@@ -481,10 +484,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   MultiFab& scratch = context.GetScratch(level);
   const ::amrex::Geometry& geom = context.GetGeometry(level);
   const ::amrex::Periodicity periodicity = geom.periodicity();
-
-  WriteBK19Plotfile debug{};
-  debug.plotfilename = "BK19_Pseudo_Incompressible-pre-step/";
-  debug(context);
+  DebugStorage& debug = *context.GetPatchHierarchy().GetDebugStorage();
 
   // Save data on current time level for later use
   MultiFab scratch_aux(scratch.boxArray(), scratch.DistributionMap(),
@@ -499,9 +499,6 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   RecomputeAdvectiveFluxes(index_, Pv.on_faces, Pv.on_cells, scratch,
                            periodicity);
 
-  debug.plotfilename = "BK19_Pseudo_Incompressible-advective_fluxes/";
-  debug(context);
-
   // 2) Do the advection with the face-centered Pv
   //    Open Question: Coarse Fine Boundary?
   //      - Need an option to do nothing there
@@ -510,9 +507,6 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   if (!result) {
     return result;
   }
-
-  debug.plotfilename = "BK19_Pseudo_Incompressible-advect/";
-  debug(context);
 
   // 3) Do the first euler backward integration step for the source term
   context.FillGhostLayerSingleLevel(level);
@@ -533,9 +527,9 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   // 4) Recompute Pv at half time
   RecomputeAdvectiveFluxes(index_, Pv.on_faces, Pv.on_cells, scratch,
                            periodicity);
+  debug.SaveData(Pv.on_cells, "Pu_half_time", ::amrex::SrcComp(0));
+  debug.SaveData(Pv.on_cells, "Pv_half_time", ::amrex::SrcComp(1));
 
-  debug.plotfilename = "BK19_Pseudo_Incompressible-advect-backward/";
-  debug(context);
   context.GetPi(level).copy(pi);
 
   // Copy data from old time level back to scratch
@@ -546,9 +540,6 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   //   - We need a current pi_n here. What is the initial one?
   DoEulerForward_(equation_, index_, *lin_op_, context, level, half_dt);
 
-  debug.plotfilename = "BK19_Pseudo_Incompressible-advect-backward-forward/";
-  debug(context);
-
   // 6) Do the second advection step with half-time Pv and full time step
   //   - Currently, scratch contains the result of euler forward step,
   //     which started at the old time level.
@@ -558,20 +549,6 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
     return result;
   }
 
-//   MultiFab rhs(on_nodes, scratch.DistributionMap(), one_component, no_ghosts);
-//   MultiFab UV(on_cells, scratch.DistributionMap(), index_.momentum.size(),
-//               one_ghost_cell_width);
-//   ComputePvFromScratch_(index_, UV, scratch, periodicity);
-//
-//   UV.mult(-dt.count(), UV.nGrow());
-//   rhs.setVal(0.0);
-//   lin_op_->compDivergence({&rhs}, {&UV});
-//   context.GetPi(level).copy(rhs);
-
-  debug.plotfilename =
-      "BK19_Pseudo_Incompressible-advect-backward-forward-advect/";
-  debug(context);
-
   // 6) Do the second euler backward integration step for the source term
   MultiFab pi_new =
       DoEulerBackward_(equation_, index_, *lin_op_, options_,
@@ -579,10 +556,6 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
 
   // Copy pi_n+1 to pi_n
   context.GetPi(level).copy(pi_new);
-
-  debug.plotfilename =
-      "BK19_Pseudo_Incompressible-advect-backward-forward-advect-backward/";
-  debug(context);
 
   return boost::outcome_v2::success();
 }
