@@ -333,10 +333,12 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   MultiFab UV(on_cells, distribution_map, index.momentum.size(),
               one_ghost_cell_width);
   ComputePvFromScratch_(index, UV, scratch, periodicity);
-
+  debug.SaveData(UV, "Pv_backward");
   UV.mult(-dt.count(), UV.nGrow());
+
   rhs.setVal(0.0);
   lin_op.compDivergence({&rhs}, {&UV});
+  debug.SaveData(rhs, "rhs")
 
   //  ::amrex::Box node_domain = geom.Domain();
   //  node_domain.surroundingNodes();
@@ -359,16 +361,19 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
                      sigma.nGrow());
   MultiFab::Divide(sigma, scratch, index.PTinverse, 0, one_component,
                    sigma.nGrow());
+  debug.SaveData(sigma, "sigma_backward");
   lin_op.setSigma(level, sigma);
   MultiFab pi(on_nodes, distribution_map, one_component, no_ghosts);
   pi.setVal(0.0);
   ndsolver.solve({&pi}, {&rhs}, options.mlmg_tolerance_rel,
                      options.mlmg_tolerance_abs);
+  debug.SaveData(pi, "pi");
 
   MultiFab UV_correction(on_cells, distribution_map, index.momentum.size(),
                          no_ghosts);
   UV_correction.setVal(0.0);
   lin_op.getFluxes({&UV_correction}, {&pi});
+  debug.SaveData(UV_correction, "pi_fluxes");
 
   UV_correction.mult(-1.0 / dt.count());
   for (std::size_t i = 0; i < index.momentum.size(); ++i) {
@@ -379,6 +384,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
     MultiFab::Add(scratch, UV_correction, UV_component, index.momentum[i],
                   one_component, no_ghosts);
   }
+  debug.SaveData(UV_correction, "UV_correction");
 
   RecoverVelocityFromMomentum_(scratch, index);
 
@@ -408,6 +414,7 @@ void DoEulerForward_(const Equation& equation,
                      sigma.nGrow());
   //MultiFab::Divide(sigma, scratch, index.PTinverse, 0, one_component,
   //                 sigma.nGrow());
+  debug.SaveData(sigma, "sigma_forward");
   lin_op.setSigma(level, sigma);
 
   // To compute the fluxes from the old pi we need one ghost cell width
@@ -415,16 +422,19 @@ void DoEulerForward_(const Equation& equation,
   // boundary
   // TODO: What happens to pi otherwise?
   MultiFab& pi = context.GetPi(level);
+  debug.SaveData(sigma, "pi_forward");
   MultiFab momentum_correction(on_cells, distribution_map,
                                index.momentum.size(), no_ghosts);
   momentum_correction.setVal(0.0);
   lin_op.getFluxes({&momentum_correction}, {&pi});
+  debug.SaveData(sigma, "pi_fluxes_forward");
 
   for (std::size_t i = 0; i < index.momentum.size(); ++i) {
     const int src_component = static_cast<int>(i);
     MultiFab::Add(scratch, momentum_correction, src_component,
                   index.momentum[i], one_component, no_ghosts);
   }
+  debug.SaveData(sigma, "momentum_correction");
 
   RecoverVelocityFromMomentum_(scratch, index);
 
