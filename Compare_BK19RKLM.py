@@ -33,6 +33,7 @@ def LoadRKLM(base_dir, filename, ts_label):
 
   data['velu'] = data['rhou'] / data['rho']
   data['velv'] = data['rhov'] / data['rho']
+  data['chi']  = 1.0 / data['Y']
 
   return data
 
@@ -50,43 +51,55 @@ def PlotVarComp(dsFVS, dsRKLM, vars_FVS, vars_RKLM, label, fignum = -1):
 
   numvars = len(vars_FVS)
   for i in range(numvars):
-    ax = plt.subplot(numvars,3,(i*3)+1)
+    ax = plt.subplot(numvars+1,3,(i*3)+1)
     im = ax.imshow(np.array(p.frb[vars_FVS[i]]), origin='lower', extent=np.array(p.bounds))
     im.set_cmap('Blue-Red')
     plt.colorbar(im, ax=ax, shrink=.75)
     ax.set_title(vars_FVS[i])
 
-    ax = plt.subplot(numvars,3,(i*3)+2)
+    ax = plt.subplot(numvars+1,3,(i*3)+2)
     im = ax.imshow(dsRKLM[vars_RKLM[i]].T, origin='lower', extent=np.array(p.bounds))
     im.set_cmap('Blue-Red')
     plt.colorbar(im, ax=ax, shrink=.75)
     ax.set_title(vars_RKLM[i])
 
-    ax = plt.subplot(numvars,3,(i*3)+3)
+    ax = plt.subplot(numvars+1,3,(i*3)+3)
     im = ax.imshow(np.array(p.frb[vars_FVS[i]])-dsRKLM[vars_RKLM[i]].T, origin='lower', extent=np.array(p.bounds))
     im.set_cmap('Blue-Red')
     plt.colorbar(im, ax=ax, shrink=.75)
     ax.set_title(vars_FVS[i]+' - '+vars_RKLM[i])
 
-  #g = ds.index.grids[0]
-  #data = np.squeeze(np.array(g['pi']))
+  g = dsFVS.index.grids[0]
+  data = np.squeeze(np.array(g['pi']))
 
-  #extent = [g.LeftEdge[0]  - g.dds[0]/2,
-            #g.RightEdge[0] + g.dds[0]/2,
-            #g.LeftEdge[1]  - g.dds[1]/2,
-            #g.RightEdge[1] + g.dds[1]/2]
+  extent = [g.LeftEdge[0]  - g.dds[0]/2,
+            g.RightEdge[0] + g.dds[0]/2,
+            g.LeftEdge[1]  - g.dds[1]/2,
+            g.RightEdge[1] + g.dds[1]/2]
 
-  #data_nd = np.zeros(g.shape[:2]+1)
-  #data_nd[:-1,:-1] = data[:,:,0]
-  #data_nd[:-1, -1] = data[:,-1,1]
-  #data_nd[ -1,:-1] = data[-1,:,2]
-  #data_nd[ -1, -1] = data[-1,-1,3]
+  data_nd = np.zeros(g.shape[:2]+1)
+  data_nd[:-1,:-1] = data[:,:,0]
+  data_nd[:-1, -1] = data[:,-1,1]
+  data_nd[ -1,:-1] = data[-1,:,2]
+  data_nd[ -1, -1] = data[-1,-1,3]
 
-  #ax = plt.subplot(2,4,5)
-  #im = ax.imshow(data_nd.T, origin='lower', extent=extent)
-  #im.set_cmap('Blue-Red')
-  #plt.colorbar(im, ax=ax, shrink=.75)
-  #ax.set_title('pi')
+  ax = plt.subplot(numvars+1,3,numvars*3+1)
+  im = ax.imshow(data_nd.T, origin='lower', extent=extent)
+  im.set_cmap('Blue-Red')
+  plt.colorbar(im, ax=ax, shrink=.75)
+  ax.set_title('pi')
+
+  ax = plt.subplot(numvars+1,3,numvars*3+2)
+  im = ax.imshow(dsRKLM['p2_nodes'].T, origin='lower', extent=extent)
+  im.set_cmap('Blue-Red')
+  plt.colorbar(im, ax=ax, shrink=.75)
+  ax.set_title('pi')
+
+  ax = plt.subplot(numvars+1,3,numvars*3+3)
+  im = ax.imshow(data_nd.T-dsRKLM['p2_nodes'].T, origin='lower', extent=extent)
+  im.set_cmap('Blue-Red')
+  plt.colorbar(im, ax=ax, shrink=.75)
+  ax.set_title('difference')
 
   fig.suptitle(label)
   plt.show()
@@ -100,19 +113,21 @@ substeps_FVS = ['BK19_Pseudo_Incompressible-pre-step',
                 'BK19_Pseudo_Incompressible-advect-backward-forward',
                 'BK19_Pseudo_Incompressible-advect-backward-forward-advect',
                 'BK19_Pseudo_Incompressible-advect-backward-forward-advect-backward']
-vars_FVS     = ['Density', 'Velocity_0', 'Velocity_1', 'PTdensity']
+vars_FVS     = ['Density', 'Velocity_0', 'Velocity_1', 'PTdensity', 'PTinverse']
+#vars_FVS     = ['Density', 'Momentum_0', 'Momentum_1', 'PTdensity', 'PTinverse']
 
 basedir_RKLM  = '/home/svater/rechnen/RKLM_Reference-Ray/RKLM_Python/output_travelling_vortex'
 filename_RKLM = "output_travelling_vortex_low_mach_gravity_psinc.h5"
 substeps_RKLM = ['before_advect',
                  'after_advect',
-                 'after_half_step',
+                 'after_ebnaimp',
                  'after_efna',
                  'after_full_advect',
-                 'after_ebnaimp']
-vars_RKLM = ['rho', 'velu', 'velv', 'rhoY']
+                 'after_full_ebnaexp']
+vars_RKLM = ['rho', 'velu', 'velv', 'rhoY', 'chi']
+#vars_RKLM = ['rho', 'rhou', 'rhov', 'rhoY', 'chi']
 
 for i in range(len(substeps_FVS)):
   dsFVS  = LoadFVS(basedir_FVS, substeps_FVS[i], timestep)
   dsRKLM = LoadRKLM(basedir_RKLM, filename_RKLM, '{0:03}_{1:s}'.format(timestep, substeps_RKLM[i]))
-  PlotVarComp(dsFVS, dsRKLM, vars_FVS, vars_RKLM, substeps_RKLM[i], i+1)
+  PlotVarComp(dsFVS, dsRKLM, vars_FVS, vars_RKLM, substeps_FVS[i][27:]+', '+substeps_RKLM[i], i+1)
