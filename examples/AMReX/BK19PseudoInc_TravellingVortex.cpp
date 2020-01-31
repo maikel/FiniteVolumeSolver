@@ -232,16 +232,15 @@ void MyMain(const fub::ProgramOptions& options) {
   integrator_options.Print(info);
   BK19LevelIntegrator level_integrator(equation, std::move(advection), linop,
                                        integrator_options);
+  fub::NoSubcycleSolver solver(std::move(level_integrator));
 
-  BK19AdvectiveFluxes& Pv = level_integrator.GetContext().GetAdvectiveFluxes(0);
+  BK19AdvectiveFluxes& Pv = solver.GetContext().GetAdvectiveFluxes(0);
   // Pv.on_faces[0].setVal(0.0);
   // Pv.on_faces[1].setVal(0.0);
   RecomputeAdvectiveFluxes(
       index, Pv.on_faces, Pv.on_cells,
-      level_integrator.GetContext().GetScratch(0),
-      level_integrator.GetContext().GetGeometry(0).periodicity());
-
-  fub::NoSubcycleSolver solver(std::move(level_integrator));
+      solver.GetContext().GetScratch(0),
+      solver.GetContext().GetGeometry(0).periodicity());
 
   using namespace std::literals::chrono_literals;
   std::string base_name = "BK19_Pseudo_Incompressible/";
