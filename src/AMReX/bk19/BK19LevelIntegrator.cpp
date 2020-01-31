@@ -312,15 +312,6 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   ::amrex::BoxArray on_nodes = on_cells;
   on_nodes.surroundingNodes();
 
-  ::amrex::MLMG ndsolver(lin_op);
-  ndsolver.setMaxIter(options.mlmg_max_iter);
-  ndsolver.setVerbose(options.mlmg_verbose);
-  ndsolver.setBottomVerbose(options.bottom_verbose);
-  ndsolver.setBottomMaxIter(options.bottom_max_iter);
-  ndsolver.setBottomToleranceAbs(options.bottom_tolerance_abs);
-  ndsolver.setBottomTolerance(options.bottom_tolerance_rel);
-  ndsolver.setAlwaysUseBNorm(options.always_use_bnorm);
-
   // compute RHS for elliptic solve
   MultiFab rhs(on_nodes, distribution_map, one_component, no_ghosts);
 
@@ -362,6 +353,16 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   lin_op.setSigma(level, sigma);
   MultiFab pi(on_nodes, distribution_map, one_component, no_ghosts);
   pi.setVal(0.0);
+
+  ::amrex::MLMG ndsolver(lin_op);
+  ndsolver.setMaxIter(options.mlmg_max_iter);
+  ndsolver.setVerbose(options.mlmg_verbose);
+  ndsolver.setBottomVerbose(options.bottom_verbose);
+  ndsolver.setBottomMaxIter(options.bottom_max_iter);
+  ndsolver.setBottomToleranceAbs(options.bottom_tolerance_abs);
+  ndsolver.setBottomTolerance(options.bottom_tolerance_rel);
+  ndsolver.setAlwaysUseBNorm(options.always_use_bnorm);
+
   ndsolver.solve({&pi}, {&rhs}, options.mlmg_tolerance_rel,
                      options.mlmg_tolerance_abs);
 
