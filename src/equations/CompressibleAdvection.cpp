@@ -27,7 +27,7 @@ namespace {
 double LimitSlopes(double qL, double qM, double qR) {
   const double sL = qM - qL;
   const double sR = qR - qM;
-  double r = 0.0;
+  // double r = 0.0;
   return 0.5 * (sL + sR);
 //   if (sL * sR > 0.0) {
 //     r = sL / sR;

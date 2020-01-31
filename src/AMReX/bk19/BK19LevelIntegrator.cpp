@@ -312,15 +312,6 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   ::amrex::BoxArray on_nodes = on_cells;
   on_nodes.surroundingNodes();
 
-  ::amrex::MLMG ndsolver(lin_op);
-  ndsolver.setMaxIter(options.mlmg_max_iter);
-  ndsolver.setVerbose(options.mlmg_verbose);
-  ndsolver.setBottomVerbose(options.bottom_verbose);
-  ndsolver.setBottomMaxIter(options.bottom_max_iter);
-  ndsolver.setBottomToleranceAbs(options.bottom_tolerance_abs);
-  ndsolver.setBottomTolerance(options.bottom_tolerance_rel);
-  ndsolver.setAlwaysUseBNorm(options.always_use_bnorm);
-
   // compute RHS for elliptic solve
   MultiFab rhs(on_nodes, distribution_map, one_component, no_ghosts);
 
@@ -365,6 +356,16 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   lin_op.setSigma(level, sigma);
   MultiFab pi(on_nodes, distribution_map, one_component, no_ghosts);
   pi.setVal(0.0);
+
+  ::amrex::MLMG ndsolver(lin_op);
+  ndsolver.setMaxIter(options.mlmg_max_iter);
+  ndsolver.setVerbose(options.mlmg_verbose);
+  ndsolver.setBottomVerbose(options.bottom_verbose);
+  ndsolver.setBottomMaxIter(options.bottom_max_iter);
+  ndsolver.setBottomToleranceAbs(options.bottom_tolerance_abs);
+  ndsolver.setBottomTolerance(options.bottom_tolerance_rel);
+  ndsolver.setAlwaysUseBNorm(options.always_use_bnorm);
+
   ndsolver.solve({&pi}, {&rhs}, options.mlmg_tolerance_rel,
                      options.mlmg_tolerance_abs);
   debug.SaveData(pi, "pi");
@@ -404,7 +405,6 @@ void DoEulerForward_(const Equation& equation,
   // Maikel: This needs a comment for me, why it is so
   // Rupert sagt:
   // Wenn ich das richtig sehe, liegt das daran, dass die folgenden zwei Zeilen:
-  // // TODO check sign output of AMReX
   // momentum_correction.mult(-1.0 / dt.count(), 0);
   // in EulerForward nicht existieren, in EulerBackward aber schon.
   // Siehe auch Kommentar (**) weiter unten.
@@ -437,11 +437,6 @@ void DoEulerForward_(const Equation& equation,
   debug.SaveData(sigma, "momentum_correction");
 
   RecoverVelocityFromMomentum_(scratch, index);
-
-  // Rupert sagt:
-  // Achtung, auch hier muss beachtet werden, dass  Pv  nicht dasselbe
-  // ist wie  \rho v !   Ich bin mir eben nicht sicher, ob   lin_op.getFluxes()
-  // das weiss.
 }
 
 } // namespace

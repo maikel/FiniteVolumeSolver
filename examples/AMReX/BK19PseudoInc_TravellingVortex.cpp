@@ -144,10 +144,18 @@ void MyMain(const fub::ProgramOptions& options) {
   PatchHierarchyOptions hierarchy_options =
       fub::GetOptions(options, "PatchHierarchy");
 
+  fub::SeverityLogger info = fub::GetInfoLogger();
+  BOOST_LOG(info) << "GridGeometry:";
+  grid_geometry.Print(info);
+  BOOST_LOG(info) << "PatchHierarchy:";
+  hierarchy_options.Print(info);
+
   PatchHierarchy hierarchy(desc, grid_geometry, hierarchy_options);
 
   using Complete = fub::CompressibleAdvection<2>::Complete;
   fub::CompressibleAdvection<2> equation{};
+  equation.R   = 1.0;
+  equation.c_p = 1.4/0.4 * equation.R;
   fub::IndexMapping<fub::CompressibleAdvection<2>> index(equation);
 
   GradientDetector gradient(equation, std::pair{&Complete::PTinverse, 1.0e-2});
@@ -220,30 +228,31 @@ void MyMain(const fub::ProgramOptions& options) {
 
   BK19LevelIntegratorOptions integrator_options =
       fub::GetOptions(options, "BK19LevelIntegrator");
-  // integrator_options.Print(log);
+  BOOST_LOG(info) << "BK19LevelIntegrator:";
+  integrator_options.Print(info);
   BK19LevelIntegrator level_integrator(equation, std::move(advection), linop,
                                        integrator_options);
+  fub::NoSubcycleSolver solver(std::move(level_integrator));
 
-  BK19AdvectiveFluxes& Pv = level_integrator.GetContext().GetAdvectiveFluxes(0);
+  BK19AdvectiveFluxes& Pv = solver.GetContext().GetAdvectiveFluxes(0);
   // Pv.on_faces[0].setVal(0.0);
   // Pv.on_faces[1].setVal(0.0);
   RecomputeAdvectiveFluxes(
       index, Pv.on_faces, Pv.on_cells,
-      level_integrator.GetContext().GetScratch(0),
-      level_integrator.GetContext().GetGeometry(0).periodicity());
-
-  fub::NoSubcycleSolver solver(std::move(level_integrator));
+      solver.GetContext().GetScratch(0),
+      solver.GetContext().GetGeometry(0).periodicity());
 
   using namespace std::literals::chrono_literals;
   std::string base_name = "BK19_Pseudo_Incompressible/";
 
-  fub::MultipleOutputs<GriddingAlgorithm> output{};
-  output.AddOutput(fub::MakeOutput<GriddingAlgorithm>(
-      {1}, {0.01s}, WriteBK19Plotfile{base_name}));
+  fub::OutputFactory<GriddingAlgorithm> factory;
+  factory.RegisterOutput<fub::AnyOutput<GriddingAlgorithm>>("Plotfile", WriteBK19Plotfile{base_name});
+  fub::MultipleOutputs<GriddingAlgorithm> output{std::move(factory), fub::GetOptions(options, "Output")};
 
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options = fub::GetOptions(options, "RunOptions");
-  // run_options.Print(log);
+  BOOST_LOG(info) << "RunOptions:";
+  run_options.Print(info);
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }
 

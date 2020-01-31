@@ -50,6 +50,17 @@ class DimensionalSplitLevelIntegrator : public IntegratorContext,
 public:
   static constexpr int Rank = R;
 
+  DimensionalSplitLevelIntegrator() = delete;
+
+  DimensionalSplitLevelIntegrator(
+      const DimensionalSplitLevelIntegrator& other) = default;
+
+  template <typename OtherSplitMethod>
+  DimensionalSplitLevelIntegrator(
+      const DimensionalSplitLevelIntegrator<Rank, IntegratorContext,
+                                            OtherSplitMethod>& other)
+      : IntegratorContext(other), SplitMethod(other.GetSplitMethod()) {}
+
   DimensionalSplitLevelIntegrator(IntegratorContext context,
                                   SplitMethod splitting = SplitMethod())
       : IntegratorContext(std::move(context)),
@@ -230,7 +241,7 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::
       [&](auto... directions) {
         return GetSplitMethod().Advance(dt, AdvanceLevel_Split(directions)...);
       },
-      MakeSplitDirections<Rank>(subcycle));
+      MakeSplitDirections<Rank>(GetCycles(0), subcycle));
 
   return result;
 }
