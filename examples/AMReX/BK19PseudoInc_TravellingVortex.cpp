@@ -224,7 +224,7 @@ void MyMain(const fub::ProgramOptions& options) {
   }
 
   fub::DimensionalSplitLevelIntegrator advection(
-      fub::int_c<2>, std::move(simulation_data), fub::GodunovSplitting());
+      fub::int_c<2>, std::move(simulation_data), fub::StrangSplitting());
 
   BK19LevelIntegratorOptions integrator_options =
       fub::GetOptions(options, "BK19LevelIntegrator");
