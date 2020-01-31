@@ -207,6 +207,11 @@ PatchHierarchy::GetCounterRegistry() const noexcept {
   return registry_;
 }
 
+const std::shared_ptr<DebugStorage>&
+PatchHierarchy::GetDebugStorage() const noexcept {
+  return debug_storage_;
+}
+
 void PatchHierarchy::SetCounterRegistry(
     std::shared_ptr<CounterRegistry> registry) {
   registry_ = std::move(registry);

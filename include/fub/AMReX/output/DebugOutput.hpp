@@ -26,14 +26,19 @@
 
 namespace fub::amrex {
 
-class DebugOutput{
+class DebugStorage {
 public:
   using Hierarchy = std::vector<::amrex::MultiFab>;
   using ComponentNames = std::vector<std::string>;
 
-  DebugOutput();
-  explicit DebugOutput(const ProgramOptions& options);
+  /// \brief Initializes an empty storage.
+  DebugStorage() = default;
 
+  /// @{
+  /// \brief Saves a current hierarchy state with given component names.
+  ///
+  /// The actual output will be handled by the DebugOutput class and will
+  /// usually happen at a later time point.
   void SaveData(const ::amrex::MultiFab& mf, const std::string& name,
                 ::amrex::SrcComp component = ::amrex::SrcComp(0));
 
@@ -47,18 +52,41 @@ public:
   void SaveData(const std::vector<const ::amrex::MultiFab*>& hierarchy,
                 const ComponentNames& names,
                 ::amrex::SrcComp first_component = ::amrex::SrcComp(0));
+  /// @}
 
+  /// \brief Deletes all currently stored data.
   void ClearAll();
 
-  std::vector<std::pair<Hierarchy, ComponentNames>> GatherCellCentered() const;
+  /// \brief Collects all hierachies and associated names which are stored on the
+  /// specified location.
+  ///
+  /// This function will join all compatible hierachies to a common big one if
+  /// possible. If two component names collide they will be renamed by numbering.
+  std::vector<std::pair<Hierarchy, ComponentNames>>
+  GatherFields(::amrex::IndexType location) const;
 
 private:
-  std::vector<ComponentNames> names_{};
-  std::vector<Hierarchy> cells_{};
-  std::vector<Hierarchy> faces_x_{};
-  std::vector<Hierarchy> faces_y_{};
-  std::vector<Hierarchy> faces_z_{};
-  std::vector<Hierarchy> nodes_{};
+  /// \brief Each SaveData will append a hierarchy
+  std::vector<Hierarchy> saved_hierarchies_{};
+
+  /// \brief Each SaveData will append a list of names on the hierachy
+  std::vector<ComponentNames> names_per_hierarchy_{};
+};
+
+class DebugOutput : public OutputAtFrequencyOrInterval<GriddingAlgorithm> {
+public:
+  DebugOutput(const ProgramOptions& opts,
+              std::shared_ptr<DebugStorage> storage);
+
+  const std::shared_ptr<DebugStorage>& GetStorage() noexcept {
+    return storage_;
+  }
+
+  void operator()(const GriddingAlgorithm& grid) override;
+
+private:
+  std::shared_ptr<DebugStorage> storage_{};
+  std::string directory_;
 };
 
 } // namespace fub::amrex

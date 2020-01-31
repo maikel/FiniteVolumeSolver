@@ -23,6 +23,7 @@
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
 #include "fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp"
+#include "fub/AMReX/output/DebugOutput.hpp"
 #include <AMReX_MLMG.H>
 
 namespace fub::amrex {
@@ -299,11 +300,12 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
 
 ::amrex::MultiFab DoEulerBackward_(const Equation& equation,
                                    const IndexMapping<Equation>& index,
-                                   ::amrex::MLMG& nodal_solver,
                                    ::amrex::MLNodeHelmDualCstVel& lin_op,
                                    const BK19LevelIntegratorOptions& options,
                                    BK19IntegratorContext& context, int level,
                                    Duration dt) {
+  DebugStorage& debug = *context.GetPatchHierarchy().GetDebugStorage();
+  
   MultiFab& scratch = context.GetScratch(level);
   const ::amrex::Geometry& geom = context.GetGeometry(level);
   const ::amrex::Periodicity periodicity = geom.periodicity();
@@ -329,7 +331,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
 
   rhs.setVal(0.0);
   lin_op.compDivergence({&rhs}, {&UV});
-  debug.SaveData(rhs, "rhs")
+  debug.SaveData(rhs, "rhs");
 
   //  ::amrex::Box node_domain = geom.Domain();
   //  node_domain.surroundingNodes();
@@ -357,16 +359,16 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   MultiFab pi(on_nodes, distribution_map, one_component, no_ghosts);
   pi.setVal(0.0);
 
-  ::amrex::MLMG ndsolver(lin_op);
-  ndsolver.setMaxIter(options.mlmg_max_iter);
-  ndsolver.setVerbose(options.mlmg_verbose);
-  ndsolver.setBottomVerbose(options.bottom_verbose);
-  ndsolver.setBottomMaxIter(options.bottom_max_iter);
-  ndsolver.setBottomToleranceAbs(options.bottom_tolerance_abs);
-  ndsolver.setBottomTolerance(options.bottom_tolerance_rel);
-  ndsolver.setAlwaysUseBNorm(options.always_use_bnorm);
+  ::amrex::MLMG nodal_solver(lin_op);
+  nodal_solver.setMaxIter(options.mlmg_max_iter);
+  nodal_solver.setVerbose(options.mlmg_verbose);
+  nodal_solver.setBottomVerbose(options.bottom_verbose);
+  nodal_solver.setBottomMaxIter(options.bottom_max_iter);
+  nodal_solver.setBottomToleranceAbs(options.bottom_tolerance_abs);
+  nodal_solver.setBottomTolerance(options.bottom_tolerance_rel);
+  nodal_solver.setAlwaysUseBNorm(options.always_use_bnorm);
 
-  ndsolver.solve({&pi}, {&rhs}, options.mlmg_tolerance_rel,
+  nodal_solver.solve({&pi}, {&rhs}, options.mlmg_tolerance_rel,
                      options.mlmg_tolerance_abs);
   debug.SaveData(pi, "pi");
 
@@ -384,8 +386,9 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
     // UV_correction is now a momentum correction. Thus add it.
     MultiFab::Add(scratch, UV_correction, UV_component, index.momentum[i],
                   one_component, no_ghosts);
+
   }
-  debug.SaveData(UV_correction, "UV_correction");
+  debug.SaveData(UV_correction, "momentum_correction_backward");
 
   RecoverVelocityFromMomentum_(scratch, index);
 
@@ -397,6 +400,7 @@ void DoEulerForward_(const Equation& equation,
                      ::amrex::MLNodeHelmDualCstVel& lin_op,
                      BK19IntegratorContext& context, int level, Duration dt) {
   MultiFab& scratch = context.GetScratch(level);
+  DebugStorage& debug = *context.GetPatchHierarchy().GetDebugStorage();
 
   ::amrex::DistributionMapping distribution_map = scratch.DistributionMap();
   ::amrex::BoxArray on_cells = scratch.boxArray();
@@ -422,19 +426,19 @@ void DoEulerForward_(const Equation& equation,
   // boundary
   // TODO: What happens to pi otherwise?
   MultiFab& pi = context.GetPi(level);
-  debug.SaveData(sigma, "pi_forward");
+  debug.SaveData(pi, "pi_forward");
   MultiFab momentum_correction(on_cells, distribution_map,
                                index.momentum.size(), no_ghosts);
   momentum_correction.setVal(0.0);
   lin_op.getFluxes({&momentum_correction}, {&pi});
-  debug.SaveData(sigma, "pi_fluxes_forward");
+  debug.SaveData(momentum_correction, "pi_fluxes_forward");
 
   for (std::size_t i = 0; i < index.momentum.size(); ++i) {
     const int src_component = static_cast<int>(i);
     MultiFab::Add(scratch, momentum_correction, src_component,
                   index.momentum[i], one_component, no_ghosts);
   }
-  debug.SaveData(sigma, "momentum_correction");
+  debug.SaveData(momentum_correction, "momentum_correction_forward");
 
   RecoverVelocityFromMomentum_(scratch, index);
 }
@@ -466,15 +470,7 @@ BK19LevelIntegrator::BK19LevelIntegrator(
     std::shared_ptr<::amrex::MLNodeHelmDualCstVel> linop,
     const BK19LevelIntegratorOptions& options)
     : AdvectionSolver(std::move(advection)), options_(options),
-      equation_(equation), index_(equation_), lin_op_(std::move(linop)),
-      nodal_solver_(std::make_shared<::amrex::MLMG>(*lin_op_)) {
-  nodal_solver_->setMaxIter(options.mlmg_max_iter);
-  nodal_solver_->setVerbose(options.mlmg_verbose);
-  nodal_solver_->setBottomVerbose(options.bottom_verbose);
-  nodal_solver_->setBottomMaxIter(options.bottom_max_iter);
-  nodal_solver_->setBottomToleranceAbs(options.bottom_tolerance_abs);
-  nodal_solver_->setBottomTolerance(options.bottom_tolerance_rel);
-  nodal_solver_->setAlwaysUseBNorm(options.always_use_bnorm);
+      equation_(equation), index_(equation_), lin_op_(std::move(linop)) {
 }
 
 Result<void, TimeStepTooLarge>
@@ -521,7 +517,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   // 3) Do the first euler backward integration step for the source term
   context.FillGhostLayerSingleLevel(level);
   MultiFab pi_tmp =
-      DoEulerBackward_(equation_, index_, *nodal_solver_, *lin_op_, options_,
+      DoEulerBackward_(equation_, index_, *lin_op_, options_,
                    context, level, half_dt);
 
   // Copy pi to context for visualization
@@ -578,7 +574,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
 
   // 6) Do the second euler backward integration step for the source term
   MultiFab pi_new =
-      DoEulerBackward_(equation_, index_, *nodal_solver_, *lin_op_, options_,
+      DoEulerBackward_(equation_, index_, *lin_op_, options_,
                        context, level, half_dt);
 
   // Copy pi_n+1 to pi_n

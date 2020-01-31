@@ -20,29 +20,21 @@
 
 #include "fub/AMReX/output/DebugOutput.hpp"
 
-namespace fub::amrex {
-namespace {
-void SaveCells_(std::vector<ComponentNames>& names,
-                std::vector<Hierarchy>& cells, const ::amrex::MultiFab& src,
-                const std::string& name, ::amrex::SrcComp component) {
-  Hierarchy single_level_hierarchy{};
-  ::amrex::BoxArray ba = cells.boxArray();
-  ::amrex::DistributionMapping dm = cells.DistributionMap();
-  ::amrex::MultiFab& dest = single_level_hierarchy.emplace_back(ba, dm, 1, 0);
-  dest.copy(src);
-  cells.push_back(std::move(single_level_hierarchy));
-  names.push_back(ComponentNames{name});
-}
-} // namespace
+#include <algorithm>
+#include <numeric>
 
-void DebugOutput::SaveData(const ::amrex::MultiFab& mf, const std::string& name,
-                           ::amrex::SrcComp component = ::amrex::SrcComp(0)) {
-  if (mf.boxArray.boxType() == ::amrex::IntVect{}) {
-    SaveCells_(names_, cells_, mf, name, component);
-  } else {
-    throw std::runtime_error{
-        "Debugging face or node cenetered data is not supported yet."};
-  }
+namespace fub::amrex {
+void DebugStorage::SaveData(const ::amrex::MultiFab& mf,
+                            const std::string& name,
+                            ::amrex::SrcComp component) {
+  Hierarchy single_level_hierarchy{};
+  ::amrex::BoxArray ba = mf.boxArray();
+  ::amrex::DistributionMapping dm = mf.DistributionMap();
+  ::amrex::MultiFab& dest =
+      single_level_hierarchy.emplace_back(ba, dm, component.i, 0);
+  dest.copy(mf);
+  saved_hierarchies_.push_back(std::move(single_level_hierarchy));
+  names_per_hierarchy_.push_back(std::vector<std::string>{name});
 }
 
 namespace {
@@ -76,42 +68,109 @@ Partitions_(const std::vector<std::vector<::amrex::BoxArray>>& boxes) {
   std::vector<std::vector<int>> partitions{};
   auto first = selection.begin();
   auto last = selection.end();
-  std::iota(first, last);
-  auto next = std::partition(first, last, equal_to(*first, &boxes));
+  std::iota(first, last, 0);
+  auto next = std::stable_partition(first, last, equal_to{*first, &boxes});
   partitions.emplace_back(first, next);
   while (next != last) {
     first = next;
-    next = std::partition(first, last, equal_to(*first, &boxes));
+    next = std::stable_partition(first, last, equal_to{*first, &boxes});
     partitions.emplace_back(first, next);
   }
   return partitions;
 }
 
+template <typename Proj>
+auto GatherBy(const std::vector<std::vector<::amrex::MultiFab>>& hierarchies,
+              ::amrex::IndexType location, Proj projection) {
+  using T = std::decay_t<decltype(projection(hierarchies[0][0]))>;
+  std::vector<std::vector<T>> projected{};
+  auto do_projection = [p = std::move(projection)](
+                           const std::vector<::amrex::MultiFab>& hierarchy) {
+    std::vector<T> projected(hierarchy.size());
+    std::transform(hierarchy.begin(), hierarchy.end(), projected.begin(),
+                   [proj = std::move(p)](const ::amrex::MultiFab& mf) {
+                     return proj(mf);
+                   });
+    return projected;
+  };
+  for (const std::vector<::amrex::MultiFab>& hierarchy : hierarchies) {
+    if (hierarchy[0].boxArray().ixType() == location) {
+      projected.push_back(do_projection(hierarchy));
+    }
+  }
+  return projected;
+}
+
+std::vector<std::vector<::amrex::BoxArray>>
+GatherBoxArrays_(const std::vector<std::vector<::amrex::MultiFab>>& hierarchies,
+                 ::amrex::IndexType location) {
+  return GatherBy(hierarchies, location,
+                  [](const ::amrex::MultiFab& mf) { return mf.boxArray(); });
+}
+
+std::vector<std::vector<::amrex::DistributionMapping>> GatherDistributionMaps_(
+    const std::vector<std::vector<::amrex::MultiFab>>& hierarchies,
+    ::amrex::IndexType location) {
+  return GatherBy(hierarchies, location, [](const ::amrex::MultiFab& mf) {
+    return mf.DistributionMap();
+  });
+}
+
+std::vector<std::string>
+Select_(const std::vector<std::vector<std::string>>& names,
+        const std::vector<int>& partition) {
+  using namespace std::literals;
+  std::vector<std::string> selected;
+  for (int i : partition) {
+    selected.insert(selected.end(), names[i].begin(), names[i].end());
+  }
+  auto last = selected.end();
+  for (std::size_t k = 0; k < selected.size(); ++k) {
+    const std::string candidate = selected[k];
+    auto first = selected.begin() + k + 1;
+    auto pos = std::find(first, last, candidate);
+    if (last != pos) {
+      selected[k] += "_0"s;
+    }
+    int counter = 1;
+    do {
+      *pos = fmt::format("{}_{}", *pos, counter);
+      counter += 1;
+      pos = std::find(first, last, candidate);
+    } while (last != pos);
+  }
+  return selected;
+}
 } // namespace
 
-std::vector<std::pair<Hierarchy, ComponentNames>>
-DebugOutput::GatherCellCentered() const {
+std::vector<std::pair<std::vector<::amrex::MultiFab>, std::vector<std::string>>>
+DebugStorage::GatherFields(::amrex::IndexType location) const {
   using namespace ::amrex;
-  std::vector<std::vector<BoxArray>> box_arrays = GatherBoxArrays_(cells_);
+  std::vector<std::vector<BoxArray>> box_arrays =
+      GatherBoxArrays_(saved_hierarchies_, location);
   std::vector<std::vector<DistributionMapping>> distribution_maps =
-      GatherDistributionMappings_(cells_);
+      GatherDistributionMaps_(saved_hierarchies_, location);
   std::vector<std::vector<int>> partitions = Partitions_(box_arrays);
-  std::vector<std::pair<Hierarchy, ComponentNames>> hierarchies{};
+  std::vector<
+      std::pair<std::vector<::amrex::MultiFab>, std::vector<std::string>>>
+      hierarchies{};
   for (const std::vector<int>& partition : partitions) {
-    ComponentNames all_components = Select(names_, partition);
+    std::vector<std::string> all_components =
+        Select_(names_per_hierarchy_, partition);
     int n_components = static_cast<int>(all_components.size());
-    Hierarchy hierarchy{};
+    std::vector<::amrex::MultiFab> hierarchy{};
     std::vector<BoxArray> box_array = box_arrays[partition[0]];
     std::vector<DistributionMapping> distribution =
         distribution_maps[partition[0]];
     for (std::size_t level = 0; level < box_array.size(); ++level) {
       MultiFab& dest = hierarchy.emplace_back(
-          box_array[level], distribution[level], n_components, no_ghosts);
+          box_array[level], distribution[level], n_components, 0);
       int comp = 0;
       for (int i : partition) {
-        const MultiFab& src = cells_[i][level];
+        const MultiFab& src = saved_hierarchies_[i][level];
         const int n = src.nComp();
-        MultiFab::Copy(dest, src, SrcComp_(0), DestComp_(comp), NumComps_(n));
+        MultiFab::Copy(dest, src, SrcComp_(0), DestComp_(comp), NumComps_(n),
+                       0);
         comp += n;
       }
       FUB_ASSERT(comp == n_components);
@@ -121,9 +180,9 @@ DebugOutput::GatherCellCentered() const {
   return hierarchies;
 }
 
-void DebugOutput::ClearAll() {
-  names_.clear();
-  cells_.clear();
+void DebugStorage::ClearAll() {
+  names_per_hierarchy_.clear();
+  saved_hierarchies_.clear();
 }
 
 } // namespace fub::amrex
