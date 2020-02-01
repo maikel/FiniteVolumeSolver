@@ -46,28 +46,33 @@ public:
 
   /// @{
   /// \name Member Accessors
-  span<IntegratorContext> Tubes() noexcept;
-  span<const IntegratorContext> Tubes() const noexcept;
+  [[nodiscard]] span<IntegratorContext> Tubes() noexcept;
+  [[nodiscard]] span<const IntegratorContext> Tubes() const noexcept;
 
-  span<cutcell::IntegratorContext> Plena() noexcept;
-  span<const cutcell::IntegratorContext> Plena() const noexcept;
+  [[nodiscard]] span<cutcell::IntegratorContext> Plena() noexcept;
+  [[nodiscard]] span<const cutcell::IntegratorContext> Plena() const noexcept;
 
-  const std::shared_ptr<MultiBlockGriddingAlgorithm>&
+  [[nodiscard]] const std::shared_ptr<MultiBlockGriddingAlgorithm>&
   GetGriddingAlgorithm() const noexcept;
 
   /// \brief Returns the current time level for data at the specified refinement
   /// level and direction.
-  Duration GetTimePoint(int level = 0) const;
+  [[nodiscard]] Duration GetTimePoint(int level = 0) const;
 
   /// \brief Returns the current number of cycles for data at the specified
   /// refinement level and direction.
-  std::ptrdiff_t GetCycles(int level = 0) const;
+  [[nodiscard]] std::ptrdiff_t GetCycles(int level = 0) const;
   /// @}
 
   /// \brief Returns the current boundary condition for the specified level.
-  MultiBlockBoundary& GetBoundaryCondition(int level);
+  [[nodiscard]] MultiBlockBoundary& GetBoundaryCondition(int level);
 
-  MPI_Comm GetMpiCommunicator() const noexcept;
+  [[nodiscard]] MPI_Comm GetMpiCommunicator() const noexcept;
+
+  /// \brief Returns a shared pointer to the counter registry.
+  [[nodiscard]] const std::shared_ptr<CounterRegistry>&
+  GetCounterRegistry() const noexcept;
+
   /// @{
   /// \name Observers
 

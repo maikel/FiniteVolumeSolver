@@ -23,20 +23,15 @@
 namespace fub::amrex {
 
 MultiBlockIgniteDetonation::MultiBlockIgniteDetonation(
-    const fub::IdealGasMix<1>& equation,
-    const std::shared_ptr<MultiBlockGriddingAlgorithm>& grid,
-    const IgniteDetonationOptions& opts) {
-  span<const std::shared_ptr<GriddingAlgorithm>> tubes = grid->GetTubes();
-  source_terms_.reserve(static_cast<std::size_t>(tubes.size()));
-  std::transform(tubes.begin(), tubes.end(), std::back_inserter(source_terms_),
-                 [&](const std::shared_ptr<GriddingAlgorithm>& tube) {
-                   return IgniteDetonation(equation, tube, opts);
-                 });
-}
+    const fub::IdealGasMix<1>& equation, std::size_t n_tubes,
+    int max_number_levels, const IgniteDetonationOptions& opts)
+    : source_terms_(n_tubes,
+                    IgniteDetonation(equation, max_number_levels, opts)),
+      max_number_levels_{max_number_levels} {}
 
 Duration MultiBlockIgniteDetonation::ComputeStableDt([
     [maybe_unused]] int level) noexcept {
-  return Duration(std::numeric_limits<double>::infinity());
+  return Duration(std::numeric_limits<double>::max());
 }
 
 void MultiBlockIgniteDetonation::ResetHierarchyConfiguration(
@@ -48,14 +43,19 @@ void MultiBlockIgniteDetonation::ResetHierarchyConfiguration(
 }
 
 Result<void, TimeStepTooLarge>
-MultiBlockIgniteDetonation::AdvanceLevel(int level, Duration dt) {
+MultiBlockIgniteDetonation::AdvanceLevel(MultiBlockIntegratorContext& context,
+                                         int level, Duration dt,
+                                         const ::amrex::IntVect& ngrow) {
+  IntegratorContext* tube = context.Tubes().begin();
   for (IgniteDetonation& source : source_terms_) {
-    if (level < source.GetPatchHierarchy().GetNumberOfLevels()) {
-      Result<void, TimeStepTooLarge> result = source.AdvanceLevel(level, dt);
+    if (level < tube->GetPatchHierarchy().GetNumberOfLevels()) {
+      Result<void, TimeStepTooLarge> result =
+          source.AdvanceLevel(*tube, level, dt, ngrow);
       if (!result) {
         return result;
       }
     }
+    ++tube;
   }
   return boost::outcome_v2::success();
 }
@@ -75,7 +75,7 @@ void MultiBlockIgniteDetonation::SetLastIgnitionTimePoints(
     span<const Duration> timepoints) {
   int k = 0;
   for (Duration t_ign : timepoints) {
-    const int nlevel = source_terms_[k].GetPatchHierarchy().GetNumberOfLevels();
+    const int nlevel = max_number_levels_;
     for (int ilvl = 0; ilvl < nlevel; ++ilvl) {
       source_terms_[k].SetLastIgnitionTimePoint(ilvl, t_ign);
     }

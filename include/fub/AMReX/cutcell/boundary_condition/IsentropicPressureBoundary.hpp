@@ -31,20 +31,28 @@
 #include <AMReX.H>
 
 namespace fub::amrex::cutcell {
+struct IsentropicPressureBoundaryOptions {
+  IsentropicPressureBoundaryOptions() = default;
+  IsentropicPressureBoundaryOptions(const ProgramOptions& options);
+
+  std::string channel_name{"IsentropicPressureBoundary"};
+  ::amrex::Box coarse_inner_box{};
+  double outer_pressure = 101325.0;
+  Direction direction = Direction::X;
+  int side = 0;
+};
 
 class IsentropicPressureBoundary {
 public:
-  IsentropicPressureBoundary(const std::string& name,
-                             const IdealGasMix<AMREX_SPACEDIM>& eq,
-                             const ::amrex::Box& coarse_inner_box,
-                             double outer_pressure, Direction dir, int side);
+  IsentropicPressureBoundary(const IdealGasMix<AMREX_SPACEDIM>& eq,
+                             const IsentropicPressureBoundaryOptions& options);
 
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
                     Duration dt, const GriddingAlgorithm& grid);
 
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
                     Duration dt, const GriddingAlgorithm& grid, Direction dir) {
-    if (dir == dir_) {
+    if (dir == options_.direction) {
       FillBoundary(mf, geom, dt, grid);
     }
   }
@@ -54,14 +62,8 @@ public:
                     const Complete<IdealGasMix<AMREX_SPACEDIM>>& state);
 
 private:
-  boost::log::sources::severity_channel_logger<
-      boost::log::trivial::severity_level>
-      log_;
   IdealGasMix<AMREX_SPACEDIM> equation_;
-  ::amrex::Box coarse_inner_box_;
-  double outer_pressure_;
-  Direction dir_;
-  int side_;
+  IsentropicPressureBoundaryOptions options_;
 };
 
 } // namespace fub::amrex::cutcell

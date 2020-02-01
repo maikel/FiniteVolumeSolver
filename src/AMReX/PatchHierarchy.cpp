@@ -33,6 +33,33 @@
 namespace fub {
 namespace amrex {
 
+PatchHierarchyOptions::PatchHierarchyOptions(const ProgramOptions& options) {
+  max_number_of_levels =
+      GetOptionOr(options, "max_number_of_levels", max_number_of_levels);
+
+  std::array<int, AMREX_SPACEDIM> ref_ratio{};
+  std::array<int, AMREX_SPACEDIM> blocking{};
+  std::array<int, AMREX_SPACEDIM> max_grid{};
+  std::array<int, AMREX_SPACEDIM> n_err{};
+  std::copy_n(refine_ratio.begin(), AMREX_SPACEDIM, ref_ratio.begin());
+  std::copy_n(blocking_factor.begin(), AMREX_SPACEDIM, blocking.begin());
+  std::copy_n(max_grid_size.begin(), AMREX_SPACEDIM, max_grid.begin());
+  std::copy_n(n_error_buf.begin(), AMREX_SPACEDIM, n_err.begin());
+
+  ref_ratio = GetOptionOr(options, "refine_ratio", ref_ratio);
+  blocking = GetOptionOr(options, "blocking_factor", blocking);
+  max_grid = GetOptionOr(options, "max_grid_size", max_grid);
+  n_err = GetOptionOr(options, "n_error_buf", n_err);
+  verbose = GetOptionOr(options, "verbose", verbose);
+  grid_efficiency = GetOptionOr(options, "grid_efficiency", grid_efficiency);
+  n_proper = GetOptionOr(options, "n_proper", n_proper);
+
+  std::copy_n(ref_ratio.begin(), AMREX_SPACEDIM, refine_ratio.begin());
+  std::copy_n(blocking.begin(), AMREX_SPACEDIM, blocking_factor.begin());
+  std::copy_n(max_grid.begin(), AMREX_SPACEDIM, max_grid_size.begin());
+  std::copy_n(n_err.begin(), AMREX_SPACEDIM, n_error_buf.begin());
+}
+
 PatchLevel::PatchLevel(const PatchLevel& other)
     : level_number(other.level_number), time_point(other.time_point),
       cycles(other.cycles), box_array(other.box_array.boxList()),
@@ -47,33 +74,32 @@ PatchLevel::PatchLevel(const PatchLevel& other)
     ::amrex::BoxArray on_nodes = box_array;
     on_nodes.surroundingNodes();
     nodes = std::make_unique<::amrex::MultiFab>(
-        on_nodes, distribution_mapping,
-        other.nodes->nComp(), other.nodes->nGrowVect(), ::amrex::MFInfo(),
-        other.nodes->Factory());
+        on_nodes, distribution_mapping, other.nodes->nComp(),
+        other.nodes->nGrowVect(), ::amrex::MFInfo(), other.nodes->Factory());
     nodes->copy(*other.nodes);
   }
   if (other.faces[0]) {
     ::amrex::BoxArray on_faces = box_array;
     on_faces.convert({AMREX_D_DECL(1, 0, 0)});
     faces[0] = std::make_unique<::amrex::MultiFab>(
-        on_faces, distribution_mapping,
-        other.faces[0]->nComp(), other.faces[0]->nGrowVect(), ::amrex::MFInfo(),
+        on_faces, distribution_mapping, other.faces[0]->nComp(),
+        other.faces[0]->nGrowVect(), ::amrex::MFInfo(),
         other.faces[0]->Factory());
     faces[0]->copy(*other.faces[0]);
     if (other.faces[2]) {
       on_faces.convert({AMREX_D_DECL(0, 0, 1)});
       faces[2] = std::make_unique<::amrex::MultiFab>(
-          on_faces, distribution_mapping,
-          other.faces[2]->nComp(), other.faces[2]->nGrowVect(),
-          ::amrex::MFInfo(), other.faces[2]->Factory());
+          on_faces, distribution_mapping, other.faces[2]->nComp(),
+          other.faces[2]->nGrowVect(), ::amrex::MFInfo(),
+          other.faces[2]->Factory());
       faces[2]->copy(*other.faces[2]);
     }
     if (other.faces[1]) {
       on_faces.convert({AMREX_D_DECL(0, 1, 0)});
       faces[1] = std::make_unique<::amrex::MultiFab>(
-          on_faces, distribution_mapping,
-          other.faces[1]->nComp(), other.faces[1]->nGrowVect(),
-          ::amrex::MFInfo(), other.faces[1]->Factory());
+          on_faces, distribution_mapping, other.faces[1]->nComp(),
+          other.faces[1]->nGrowVect(), ::amrex::MFInfo(),
+          other.faces[1]->Factory());
       faces[1]->copy(*other.faces[1]);
     }
   }
@@ -101,8 +127,7 @@ PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
   if (desc.n_node_components) {
     ::amrex::BoxArray on_nodes = box_array;
     on_nodes.surroundingNodes();
-    nodes = std::make_unique<::amrex::MultiFab>(on_nodes,
-                                                distribution_mapping,
+    nodes = std::make_unique<::amrex::MultiFab>(on_nodes, distribution_mapping,
                                                 desc.n_node_components, 0);
   }
   if (desc.n_face_components) {
@@ -111,20 +136,17 @@ PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
     case 3:
       on_faces.convert({AMREX_D_DECL(0, 0, 1)});
       faces[2] = std::make_unique<::amrex::MultiFab>(
-          on_faces, distribution_mapping,
-          desc.n_face_components, 0);
+          on_faces, distribution_mapping, desc.n_face_components, 0);
       [[fallthrough]];
     case 2:
       on_faces.convert({AMREX_D_DECL(0, 1, 0)});
       faces[1] = std::make_unique<::amrex::MultiFab>(
-          on_faces, distribution_mapping,
-          desc.n_face_components, 0);
+          on_faces, distribution_mapping, desc.n_face_components, 0);
       [[fallthrough]];
     default:
       on_faces.convert({AMREX_D_DECL(1, 0, 0)});
       faces[0] = std::make_unique<::amrex::MultiFab>(
-          on_faces, distribution_mapping,
-          desc.n_face_components, 0);
+          on_faces, distribution_mapping, desc.n_face_components, 0);
     }
   }
 }
@@ -140,8 +162,9 @@ PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
 PatchHierarchy::PatchHierarchy(DataDescription desc,
                                const CartesianGridGeometry& geometry,
                                const PatchHierarchyOptions& options)
-    : description_{std::move(desc)}, grid_geometry_{geometry},
-      options_{options}, patch_level_{}, patch_level_geometry_{} {
+    : description_{std::move(desc)},
+      grid_geometry_{geometry}, options_{options}, patch_level_{},
+      patch_level_geometry_{}, registry_{std::make_shared<CounterRegistry>()} {
   patch_level_.reserve(static_cast<std::size_t>(options.max_number_of_levels));
   patch_level_geometry_.resize(
       static_cast<std::size_t>(options.max_number_of_levels));
@@ -177,6 +200,16 @@ int PatchHierarchy::GetRatioToCoarserLevel(int level, Direction dir) const
     return ::amrex::IntVect::TheUnitVector();
   }
   return options_.refine_ratio;
+}
+
+const std::shared_ptr<CounterRegistry>&
+PatchHierarchy::GetCounterRegistry() const noexcept {
+  return registry_;
+}
+
+void PatchHierarchy::SetCounterRegistry(
+    std::shared_ptr<CounterRegistry> registry) {
+  registry_ = std::move(registry);
 }
 
 const ::amrex::Geometry& PatchHierarchy::GetGeometry(int level) const {

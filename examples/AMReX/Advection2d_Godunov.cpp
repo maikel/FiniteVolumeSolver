@@ -70,6 +70,7 @@ int main() {
   fub::amrex::PatchHierarchyOptions hier_opts{};
   hier_opts.max_number_of_levels = 6;
   hier_opts.refine_ratio = amrex::IntVect(AMREX_D_DECL(2, 2, 1));
+  hier_opts.blocking_factor = amrex::IntVect(AMREX_D_DECL(8, 8, 1));
 
   using State = fub::Advection2d::Complete;
   fub::amrex::GradientDetector gradient{equation,
@@ -82,7 +83,7 @@ int main() {
 
   fub::amrex::HyperbolicMethod method{
       fub::amrex::FluxMethod(fub::GodunovMethod{equation}),
-      fub::amrex::ForwardIntegrator(), fub::amrex::NoReconstruction{}};
+      fub::amrex::EulerForwardTimeIntegrator(), fub::amrex::NoReconstruction{}};
 
   const int scratch_gcw = 2;
   const int flux_gcw = 1;
@@ -103,8 +104,8 @@ int main() {
       {}, {0.1s}, fub::amrex::PlotfileOutput(equation, base_name)));
   output.AddOutput(
       std::make_unique<fub::CounterOutput<fub::amrex::GriddingAlgorithm>>(
-          solver.GetContext().registry_, wall_time_reference,
-          std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{0.5s}));
+          wall_time_reference, std::vector<std::ptrdiff_t>{},
+          std::vector<fub::Duration>{0.5s}));
 
   output(*grid);
   fub::RunOptions run_options{};

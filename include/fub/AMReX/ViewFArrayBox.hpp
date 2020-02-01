@@ -24,12 +24,27 @@
 #include "fub/Equation.hpp"
 #include "fub/PatchDataView.hpp"
 #include "fub/State.hpp"
+#include "fub/ext/ProgramOptions.hpp"
 
 #include <AMReX_BaseFab.H>
 #include <AMReX_FArrayBox.H>
+#include <AMReX_RealBox.H>
 
 namespace fub {
+template <>
+::amrex::IntVect GetOptionOr(const ProgramOptions& map, const std::string& name,
+                             const ::amrex::IntVect& value);
+
+template <>
+::amrex::Box GetOptionOr(const ProgramOptions& map, const std::string& name,
+                         const ::amrex::Box& value);
+
+template <>
+::amrex::RealBox GetOptionOr(const ProgramOptions& map, const std::string& name,
+                             const ::amrex::RealBox& value);
+
 namespace amrex {
+
 std::array<std::ptrdiff_t, AMREX_SPACEDIM> AsArray(const ::amrex::IntVect& vec);
 
 template <int Rank> IndexBox<Rank> AsIndexBox(const ::amrex::Box& box) {

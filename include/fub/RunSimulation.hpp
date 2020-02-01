@@ -26,6 +26,9 @@
 #include "fub/core/assert.hpp"
 #include "fub/ext/ProgramOptions.hpp"
 
+#include "fub/counter/CounterRegistry.hpp"
+#include "fub/counter/Timer.hpp"
+
 #include "fub/output/BasicOutput.hpp"
 
 #include <boost/log/common.hpp>
@@ -43,15 +46,14 @@ namespace fub {
 struct RunOptions {
   RunOptions() = default;
 
-  explicit RunOptions(const std::map<std::string, pybind11::object>& vm);
+  RunOptions(const ProgramOptions& vm);
 
   template <typename Logger> void Print(Logger& log) {
-    BOOST_LOG(log) << "Run Options:"
-                   << "\n  - final_time = " << final_time.count() << " [s]"
-                   << "\n  - max_cycles = " << max_cycles << " [-]"
-                   << "\n  - smallest_time_step_size = "
-                   << smallest_time_step_size.count() << " [s]"
-                   << "\n  - cfl = " << cfl << " [-]";
+    BOOST_LOG(log) << " - final_time = " << final_time.count() << " [s]";
+    BOOST_LOG(log) << " - max_cycles = " << max_cycles << " [-]";
+    BOOST_LOG(log) << " - smallest_time_step_size = "
+                   << smallest_time_step_size.count() << " [s]";
+    BOOST_LOG(log) << " - cfl = " << cfl << " [-]";
   }
 
   Duration final_time{1.0};
@@ -67,6 +69,14 @@ FormatTimeStepLine(std::ptrdiff_t cycle,
                    std::chrono::duration<double> final_time,
                    std::chrono::steady_clock::duration wall_time,
                    std::chrono::steady_clock::duration wall_time_difference);
+
+template <typename DestGrid, typename SrcGrid>
+void MakeBackup(std::shared_ptr<DestGrid>& dest,
+                const std::shared_ptr<SrcGrid>& src,
+                CounterRegistry& counter_database) {
+  Timer counter = counter_database.get_timer("RunSimulation::MakeBackup");
+  dest = std::make_shared<DestGrid>(*src);
+}
 
 template <typename Solver,
           typename Grid = std::decay_t<
@@ -85,8 +95,9 @@ void RunSimulation(Solver& solver, RunOptions options,
   using GriddingAlgorithm =
       std::decay_t<decltype(*std::declval<Solver&>().GetGriddingAlgorithm())>;
   // Deeply copy the grid for a fallback scenario in case of time step errors
-  std::shared_ptr backup =
-      std::make_shared<GriddingAlgorithm>(*solver.GetGriddingAlgorithm());
+  std::shared_ptr<GriddingAlgorithm> backup{};
+  MakeBackup(backup, solver.GetGriddingAlgorithm(),
+             *solver.GetCounterRegistry());
   std::optional<Duration> failure_dt{};
   while (time_point + eps < options.final_time &&
          (options.max_cycles < 0 || solver.GetCycles() < options.max_cycles)) {
@@ -117,7 +128,7 @@ void RunSimulation(Solver& solver, RunOptions options,
             "smaller coarse time step size (dt_new = {}s).\n",
             limited_dt.count(), options.cfl * failure_dt->count());
         solver.ResetHierarchyConfiguration(backup);
-        backup = std::make_shared<GriddingAlgorithm>(*backup);
+        MakeBackup(backup, backup, *solver.GetCounterRegistry());
       } else {
         solver.PostAdvanceHierarchy(limited_dt);
         // If advancing the hierarchy was successfull print a successful time
@@ -133,8 +144,8 @@ void RunSimulation(Solver& solver, RunOptions options,
                                              options.final_time, wall_time,
                                              wall_time_difference);
         failure_dt.reset();
-        backup =
-            std::make_shared<GriddingAlgorithm>(*solver.GetGriddingAlgorithm());
+        MakeBackup(backup, solver.GetGriddingAlgorithm(),
+                   *solver.GetCounterRegistry());
       }
     } while (
         time_point + eps < options.final_time &&

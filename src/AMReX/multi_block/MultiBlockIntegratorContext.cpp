@@ -132,6 +132,11 @@ MPI_Comm MultiBlockIntegratorContext::GetMpiCommunicator() const noexcept {
   return plena_[0].GetMpiCommunicator();
 }
 
+const std::shared_ptr<CounterRegistry>&
+MultiBlockIntegratorContext::GetCounterRegistry() const noexcept {
+  return plena_[0].GetCounterRegistry();
+}
+
 bool MultiBlockIntegratorContext::LevelExists(int level) const noexcept {
   return std::any_of(tubes_.begin(), tubes_.end(),
                      [=](const IntegratorContext& ctx) {

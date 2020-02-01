@@ -120,7 +120,7 @@ int main(int argc, char** argv) {
   fub::HllMethod hll_method(equation, signals);
   fub::MusclHancockMethod flux_method{equation, hll_method};
   fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(flux_method),
-                                      fub::amrex::ForwardIntegrator(),
+                                      fub::amrex::EulerForwardTimeIntegrator(),
                                       fub::amrex::Reconstruction(equation)};
 
   const int scratch_ghost_cell_width = 4;
@@ -171,8 +171,8 @@ int main(int argc, char** argv) {
 
   output.AddOutput(
       std::make_unique<fub::CounterOutput<fub::amrex::GriddingAlgorithm>>(
-          solver.GetContext().registry_, wall_time_reference,
-          std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{0.5s}));
+          wall_time_reference, std::vector<std::ptrdiff_t>{},
+          std::vector<fub::Duration>{0.5s}));
 
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};

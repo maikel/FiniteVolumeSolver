@@ -56,6 +56,7 @@ struct BlockConnection {
   BlockEntry plenum;
   Direction direction;
   int side;
+  int ghost_cell_width;
 };
 
 class MultiBlockBoundary {
@@ -159,6 +160,7 @@ private:
   Direction dir_{};
   int side_{};
   int level_{};
+  int gcw_{};
 };
 
 } // namespace fub::amrex

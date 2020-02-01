@@ -26,6 +26,8 @@
 #include "fub/AMReX/GriddingAlgorithm.hpp"
 #include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
 
+#include "fub/output/CounterOutput.hpp"
+
 #include "fub/core/span.hpp"
 
 #include "fub/equations/ideal_gas_mix/FlameMasterReactor.hpp"
@@ -83,6 +85,45 @@ private:
 };
 
 } // namespace amrex
+
+template <typename PrintDuration>
+class CounterOutput<amrex::MultiBlockGriddingAlgorithm, PrintDuration>
+    : public OutputAtFrequencyOrInterval<amrex::MultiBlockGriddingAlgorithm> {
+public:
+  CounterOutput(const ProgramOptions& po,
+                std::chrono::steady_clock::time_point ref)
+      : OutputAtFrequencyOrInterval<amrex::MultiBlockGriddingAlgorithm>(po),
+        reference_{ref} {}
+
+  CounterOutput(const ProgramOptions& po)
+      : OutputAtFrequencyOrInterval<amrex::MultiBlockGriddingAlgorithm>(po),
+        reference_{std::chrono::steady_clock::now()} {}
+
+  CounterOutput(std::chrono::steady_clock::time_point reference,
+                std::vector<std::ptrdiff_t> frequencies,
+                std::vector<Duration> intervals)
+      : OutputAtFrequencyOrInterval<amrex::MultiBlockGriddingAlgorithm>(
+            std::move(frequencies), std::move(intervals)),
+        reference_(reference) {}
+
+  void operator()(const amrex::MultiBlockGriddingAlgorithm& grid) override {
+    std::chrono::steady_clock::time_point now =
+        std::chrono::steady_clock::now();
+    auto diff =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(now - reference_);
+    std::vector<CounterResult> statistics = grid.GetPlena()[0]
+                                                ->GetPatchHierarchy()
+                                                .GetCounterRegistry()
+                                                ->gather_statistics();
+    if (statistics.size()) {
+      print_statistics<PrintDuration>(statistics, diff.count());
+    }
+  }
+
+private:
+  std::chrono::steady_clock::time_point reference_;
+};
+
 } // namespace fub
 
 #endif // FUB_AMREX_COUPLED_GRIDDING_ALGORITHM_HPP

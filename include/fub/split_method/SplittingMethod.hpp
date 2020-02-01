@@ -65,10 +65,13 @@ struct SplittingMethod {
 
 template <int Rank>
 constexpr std::array<Direction, static_cast<std::size_t>(Rank)>
-MakeSplitDirections() noexcept {
+MakeSplitDirections(std::pair<int, int> subcycle) noexcept {
   std::array<Direction, static_cast<std::size_t>(Rank)> directions{};
+  int is_odd = subcycle.first % 2;
+  int is_even = !is_odd;
   for (int i = 0; i < Rank; ++i) {
-    directions[static_cast<std::size_t>(i)] = static_cast<Direction>(i);
+    int dir = (is_even * i + is_odd * (Rank - 1 - i));
+    directions[static_cast<std::size_t>(i)] = static_cast<Direction>(dir);
   }
   return directions;
 }
