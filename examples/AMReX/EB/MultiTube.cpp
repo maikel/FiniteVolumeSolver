@@ -299,13 +299,14 @@ void WriteCheckpoint(
     fub::span<const std::shared_ptr<fub::amrex::PressureValve>> valves,
     int rank, const fub::amrex::MultiBlockIgniteDetonation& ignition) {
   auto tubes = grid.GetTubes();
+  std::ptrdiff_t cycles = grid.GetCycles();
   int k = 0;
   for (auto& tube : tubes) {
-    std::string name = fmt::format("{}/Tube_{}", path, k);
+    std::string name = fmt::format("{}/{:09}/Tube_{}", path, cycles, k);
     fub::amrex::WriteCheckpointFile(name, tube->GetPatchHierarchy());
 
     if (rank == 0) {
-      std::string valve = fmt::format("{}/Valve_{}", path, k);
+      std::string valve = fmt::format("{}/{:09}/Valve_{}", path, cycles, k);
       std::ofstream valve_checkpoint(valve);
       boost::archive::text_oarchive oa(valve_checkpoint);
       oa << *valves[k];
@@ -313,16 +314,43 @@ void WriteCheckpoint(
 
     k = k + 1;
   }
-  std::string name = fmt::format("{}/Plenum", path);
+  std::string name = fmt::format("{}/{:09}/Plenum", path, cycles);
   fub::amrex::cutcell::WriteCheckpointFile(
       name, grid.GetPlena()[0]->GetPatchHierarchy());
   if (rank == 0) {
-    name = fmt::format("{}/Ignition", path);
+    name = fmt::format("{}/{:09}/Ignition", path, cycles);
     std::ofstream ignition_checkpoint(name);
     boost::archive::text_oarchive oa(ignition_checkpoint);
     oa << ignition.GetLastIgnitionTimePoints();
   }
 }
+
+struct CheckpointOutput : fub::OutputAtFrequencyOrInterval<
+                              fub::amrex::MultiBlockGriddingAlgorithm> {
+  CheckpointOutput(
+      const fub::ProgramOptions& options,
+      std::vector<std::shared_ptr<fub::amrex::PressureValve>> valves,
+      const fub::amrex::MultiBlockIgniteDetonation* ignition)
+      : OutputAtFrequencyOrInterval(options), valves_{std::move(valves)},
+        ignition_{ignition} {
+    directory_ = fub::GetOptionOr(options, "directory", directory_);
+  }
+
+  void
+  operator()(const fub::amrex::MultiBlockGriddingAlgorithm& grid) override {
+    int rank = -1;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
+      boost::log::keywords::severity = boost::log::trivial::info);
+    BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", grid.GetTimePoint().count());
+    BOOST_LOG(log) << fmt::format("Write checkpoint to '{}'.", directory_);
+    WriteCheckpoint(directory_, grid, valves_, rank, *ignition_);
+  }
+
+  std::vector<std::shared_ptr<fub::amrex::PressureValve>> valves_{};
+  const fub::amrex::MultiBlockIgniteDetonation* ignition_{};
+  std::string directory_{"./Checkpoint/"};
+};
 
 void MyMain(const fub::ProgramOptions& options) {
   std::chrono::steady_clock::time_point wall_time_reference =
@@ -377,7 +405,8 @@ void MyMain(const fub::ProgramOptions& options) {
       std::move(connectivity));
 
   fub::DimensionalSplitLevelIntegrator system_solver(
-      fub::int_c<Plenum_Rank>, std::move(context), fub::GodunovSplitting{});
+      fub::int_c<Plenum_Rank>, std::move(context), fub::StrangSplitting{});
+      // fub::int_c<Plenum_Rank>, std::move(context), fub::GodunovSplitting{});
 
   const std::size_t n_tubes = system_solver.GetContext().Tubes().size();
   const int max_number_of_levels = system_solver.GetContext()
@@ -410,14 +439,18 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::amrex::MultiBlockKineticSouceTerm source_term(tube_equation);
 
   fub::SplitSystemSourceLevelIntegrator level_integrator(
-      std::move(ign_solver), std::move(source_term), fub::StrangSplitting{});
+      std::move(ign_solver), std::move(source_term),
+      fub::StrangSplittingLumped{});
 
-  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
+  fub::NoSubcycleSolver solver(std::move(level_integrator));
 
   fub::OutputFactory<fub::amrex::MultiBlockGriddingAlgorithm> factory{};
   factory.RegisterOutput<fub::amrex::MultiWriteHdf5>("HDF5");
   factory.RegisterOutput<fub::amrex::MultiBlockPlotfileOutput>("Plotfile");
   factory.RegisterOutput<fub::amrex::LogProbesOutput>("LogProbes");
+  factory.RegisterOutput<CheckpointOutput>(
+      "Checkpoint", valves,
+      &solver.GetLevelIntegrator().GetSystem().GetSource());
   using CounterOutput =
       fub::CounterOutput<fub::amrex::MultiBlockGriddingAlgorithm,
                          std::chrono::milliseconds>;
