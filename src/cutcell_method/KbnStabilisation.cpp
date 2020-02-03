@@ -20,6 +20,7 @@
 
 #include "fub/cutcell_method/KbnStabilisation.hpp"
 #include "fub/StateRow.hpp"
+#include "fub/ext/Vc.hpp"
 
 #include <algorithm>
 #include <array>
@@ -48,12 +49,31 @@ template <typename T> struct CutCellGeometry {
 void ComputeStableFluxes_Row(const Fluxes<double*, const double*>& fluxes,
                              const CutCellGeometry<const double*>& geom, int n,
                              Duration /* dt */, double /* dx */) {
-#if defined(__CLANG__)
-#pragma clang loop vectorize(enable)
-#elif defined(_OPENMP)
-#pragma omp simd
-#endif
-  for (int face = 0; face < n; ++face) {
+  int face = 0;
+  const int simd_width = Vc::double_v::size();
+  for (face = 0; face + simd_width <= n; face += simd_width) {
+    const Vc::double_v centerL(geom.centerL + face, Vc::Unaligned);
+    const Vc::double_v centerR(geom.centerR + face, Vc::Unaligned);
+    const Vc::double_v dL = Vc::double_v(0.5) - centerL;
+    const Vc::double_v dR = Vc::double_v(0.5) + centerR;
+
+    const Vc::double_v f(fluxes.regular + face, Vc::Unaligned);
+    const Vc::double_v fbL(fluxes.boundaryL + face, Vc::Unaligned);
+    const Vc::double_v fbR(fluxes.boundaryR + face, Vc::Unaligned);
+    const Vc::double_v fsL = dL * f + (Vc::double_v(1.0) - dL) * fbL;
+    const Vc::double_v fsR = dR * f + (Vc::double_v(1.0) - dR) * fbR;
+    
+    const Vc::double_v betaL(geom.betaL + face, Vc::Unaligned);
+    const Vc::double_v betaR(geom.betaR + face, Vc::Unaligned);
+    const Vc::double_v betaUS(geom.betaUS + face, Vc::Unaligned);
+    const Vc::double_v f_stable = betaUS * f + betaL * fsL + betaR * fsR;
+
+    fsL.store(fluxes.shielded_left + face, Vc::Unaligned);
+    fsR.store(fluxes.shielded_right + face, Vc::Unaligned);
+    f_stable.store(fluxes.stable + face, Vc::Unaligned);
+  }
+
+  for (; face < n; ++face) {
     const double dL = 0.5 - geom.centerL[face];
     const double dR = 0.5 + geom.centerR[face];
     const double f = fluxes.regular[face];
@@ -62,10 +82,9 @@ void ComputeStableFluxes_Row(const Fluxes<double*, const double*>& fluxes,
     const double betaL = geom.betaL[face];
     const double betaR = geom.betaR[face];
     const double betaUS = geom.betaUS[face];
-    fluxes.shielded_left[face] = betaL ? fsL : 0.0;
-    fluxes.shielded_right[face] = betaR ? fsR : 0.0;
-    fluxes.stable[face] = betaUS * f + betaL * fluxes.shielded_left[face] +
-                          betaR * fluxes.shielded_right[face];
+    fluxes.shielded_left[face] = fsL;  // betaL ? fsL : 0.0;
+    fluxes.shielded_right[face] = fsR; // betaR ? fsR : 0.0;
+    fluxes.stable[face] = betaUS * f + betaL * fsL + betaR * fsR;
     FUB_ASSERT(!std::isnan(fluxes.shielded_left[face]));
     FUB_ASSERT(!std::isnan(fluxes.shielded_right[face]));
     FUB_ASSERT(!std::isnan(fluxes.stable[face]));
