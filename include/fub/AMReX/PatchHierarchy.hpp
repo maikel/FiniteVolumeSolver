@@ -377,14 +377,6 @@ template <typename Log> void PatchHierarchyOptions::Print(Log& log) {
                                 fmt::join(error_buf, ", "));
   BOOST_LOG(log) << fmt::format(" - grid_efficiency = {}", grid_efficiency);
   BOOST_LOG(log) << fmt::format(" - n_proper = {}", n_proper);
-
-  int max_number_of_levels{1};
-  ::amrex::IntVect refine_ratio{AMREX_D_DECL(2, 2, 2)};
-  ::amrex::IntVect blocking_factor{AMREX_D_DECL(32, 32, 32)};
-  ::amrex::IntVect max_grid_size{AMREX_D_DECL(128, 128, 128)};
-  ::amrex::IntVect n_error_buf{};
-  double grid_efficiency{0.7};
-  int n_proper{2};
 };
 
 } // namespace amrex
