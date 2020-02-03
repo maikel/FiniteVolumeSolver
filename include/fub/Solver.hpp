@@ -58,6 +58,7 @@
 
 #include "fub/split_method/GodunovSplitting.hpp"
 #include "fub/split_method/StrangSplitting.hpp"
+#include "fub/split_method/StrangSplittingLumped.hpp"
 
 #include "fub/tagging/GradientDetector.hpp"
 
