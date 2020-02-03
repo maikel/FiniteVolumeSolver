@@ -47,13 +47,18 @@ struct SplittingMethod {
     return advance(dt);
   }
 
-  /// This method recurisvely applies the base case.
-  template <typename F, typename... Fs>
   boost::outcome_v2::result<void, TimeStepTooLarge>
-  Advance(Duration dt, AdvanceFunction advance1, AdvanceFunction advance2,
-          F advance3, Fs... advances) const {
+  AdvanceRecursively(Duration dt, AdvanceFunction advance1, AdvanceFunction advance2) const {
+    return Advance(dt, advance1, advance2);
+  }
+
+  /// This method recurisvely applies the base case.
+  template <typename... Fs>
+  boost::outcome_v2::result<void, TimeStepTooLarge>
+  AdvanceRecursively(Duration dt, AdvanceFunction advance1, AdvanceFunction advance2,
+          AdvanceFunction advance3, Fs... advances) const {
     return Advance(dt, advance1, [&](Duration time_step_size) {
-      return Advance(time_step_size, advance2, advance3, advances...);
+      return AdvanceRecursively(time_step_size, advance2, advance3, advances...);
     });
   }
 
@@ -61,6 +66,13 @@ struct SplittingMethod {
   virtual boost::outcome_v2::result<void, TimeStepTooLarge>
   Advance(Duration time_step_size, AdvanceFunction advance1,
           AdvanceFunction advance2) const = 0;
+
+  /// This is the base case of applying the splitting method with two operators.
+  virtual boost::outcome_v2::result<void, TimeStepTooLarge>
+  Advance(Duration time_step_size, AdvanceFunction advance1,
+          AdvanceFunction advance2, AdvanceFunction advance3) const {
+    return AdvanceRecursively(time_step_size, advance1, advance2, advance3);
+  }
 };
 
 template <int Rank>
