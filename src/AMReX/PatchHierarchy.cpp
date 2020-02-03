@@ -36,28 +36,12 @@ namespace amrex {
 PatchHierarchyOptions::PatchHierarchyOptions(const ProgramOptions& options) {
   max_number_of_levels =
       GetOptionOr(options, "max_number_of_levels", max_number_of_levels);
-
-  std::array<int, AMREX_SPACEDIM> ref_ratio{};
-  std::array<int, AMREX_SPACEDIM> blocking{};
-  std::array<int, AMREX_SPACEDIM> max_grid{};
-  std::array<int, AMREX_SPACEDIM> n_err{};
-  std::copy_n(refine_ratio.begin(), AMREX_SPACEDIM, ref_ratio.begin());
-  std::copy_n(blocking_factor.begin(), AMREX_SPACEDIM, blocking.begin());
-  std::copy_n(max_grid_size.begin(), AMREX_SPACEDIM, max_grid.begin());
-  std::copy_n(n_error_buf.begin(), AMREX_SPACEDIM, n_err.begin());
-
-  ref_ratio = GetOptionOr(options, "refine_ratio", ref_ratio);
-  blocking = GetOptionOr(options, "blocking_factor", blocking);
-  max_grid = GetOptionOr(options, "max_grid_size", max_grid);
-  n_err = GetOptionOr(options, "n_error_buf", n_err);
-  verbose = GetOptionOr(options, "verbose", verbose);
+  refine_ratio = GetOptionOr(options, "refine_ratio", refine_ratio);
+  blocking_factor = GetOptionOr(options, "blocking_factor", blocking_factor);
+  max_grid_size = GetOptionOr(options, "max_grid_size", max_grid_size);
+  n_error_buf = GetOptionOr(options, "n_error_buf", n_error_buf);
   grid_efficiency = GetOptionOr(options, "grid_efficiency", grid_efficiency);
   n_proper = GetOptionOr(options, "n_proper", n_proper);
-
-  std::copy_n(ref_ratio.begin(), AMREX_SPACEDIM, refine_ratio.begin());
-  std::copy_n(blocking.begin(), AMREX_SPACEDIM, blocking_factor.begin());
-  std::copy_n(max_grid.begin(), AMREX_SPACEDIM, max_grid_size.begin());
-  std::copy_n(n_err.begin(), AMREX_SPACEDIM, n_error_buf.begin());
 }
 
 PatchLevel::PatchLevel(const PatchLevel& other)
