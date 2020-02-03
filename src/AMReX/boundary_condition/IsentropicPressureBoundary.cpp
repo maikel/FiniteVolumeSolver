@@ -28,6 +28,15 @@
 
 namespace fub::amrex {
 
+IsentropicPressureBoundaryOptions::IsentropicPressureBoundaryOptions(
+    const ProgramOptions& options) {
+  channel_name = GetOptionOr(options, "channel_name",
+                             std::string("IsentropicPressureBoundary"));
+  outer_pressure = GetOptionOr(options, "outer_pressure", 101325.0);
+  direction = GetOptionOr(options, "direction", Direction::X);
+  side = GetOptionOr(options, "side", 0);
+}
+
 namespace {
 std::array<std::ptrdiff_t, 1>
 MapToSrc(const std::array<std::ptrdiff_t, 1>& dest,
@@ -76,6 +85,11 @@ void IsentropicExpansionWithoutDissipation(IdealGasMix<1>& eq,
 }
 
 } // namespace
+
+IsentropicPressureBoundary::IsentropicPressureBoundary(
+    const IdealGasMix<1>& eq, const IsentropicPressureBoundaryOptions& options)
+    : equation_{eq}, outer_pressure_{options.outer_pressure},
+      dir_{options.direction}, side_{options.side} {}
 
 IsentropicPressureBoundary::IsentropicPressureBoundary(const IdealGasMix<1>& eq,
                                                        double outer_pressure,
