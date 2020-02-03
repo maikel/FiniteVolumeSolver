@@ -431,6 +431,7 @@ void MyMain(const fub::ProgramOptions& options) {
 }
 
 int main(int argc, char** argv) {
+  // fub::EnableFloatingPointExceptions();
   MPI_Init(nullptr, nullptr);
   fub::InitializeLogging(MPI_COMM_WORLD);
   pybind11::scoped_interpreter interpreter{};

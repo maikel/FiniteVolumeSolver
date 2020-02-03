@@ -70,7 +70,8 @@ void UpdateConservatively_Row(double* next, const double* prev,
     ////////////////////////////////////////////////////////////////////////////////////
     //                beta_L == beta_R  => regular update
 
-    const Vc::double_v alpha(&cc.cell.alpha[i], Vc::Unaligned);
+    Vc::double_v alpha(&cc.cell.alpha[i], Vc::Unaligned);
+    where(alpha == 0.0, alpha) = 1.0;
     const Vc::double_v betaL(&cc.faceL.beta[i], Vc::Unaligned);
     const Vc::double_v betaR(&cc.faceR.beta[i], Vc::Unaligned);
     const Vc::double_v cell_center(&cc.cell.center[i], Vc::Unaligned);
@@ -143,7 +144,7 @@ void UpdateConservatively_Row(double* next, const double* prev,
     ////////////////////////////////////////////////////////////////////////////////////
     //                beta_L == beta_R  => regular update
 
-    const double alpha = cc.cell.alpha[i];
+    const double alpha = cc.cell.alpha[i] == 0.0 ? 1.0 : cc.cell.alpha[i];
     const double betaL = cc.faceL.beta[i];
     const double betaR = cc.faceR.beta[i];
 

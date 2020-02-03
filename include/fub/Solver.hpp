@@ -52,6 +52,7 @@
 #include "fub/ext/Log.hpp"
 #include "fub/ext/Mpi.hpp"
 #include "fub/ext/ProgramOptions.hpp"
+#include "fub/ext/Vc.hpp"
 
 #include "fub/cutcell_method/KbnStabilisation.hpp"
 

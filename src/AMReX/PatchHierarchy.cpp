@@ -309,6 +309,8 @@ void WriteCheckpointFile(const std::string checkpointname,
       hout << '\n';
     }
   }
+  // Force processors to wait until directory has been built.
+  ::amrex::ParallelDescriptor::Barrier();
 
   // write the MultiFab data to, e.g., chk00010/Level_0/
   for (int level = 0; level < nlevels; ++level) {

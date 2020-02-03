@@ -26,6 +26,9 @@
 #include <xmmintrin.h>
 
 namespace fub {
+inline void EnableFloatingPointExceptions() {
+  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() & ~_MM_MASK_INVALID);
+}
 
 template <typename Abi>
 Vc::Vector<double, Abi> mask_load(const double* p, Vc::Mask<double, Abi> mask) {
