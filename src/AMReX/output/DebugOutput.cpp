@@ -24,6 +24,18 @@
 #include <numeric>
 
 namespace fub::amrex {
+/// \brief Returns all the hierarchies which are stored via SaveData
+const std::vector<DebugStorage::Hierarchy>& DebugStorage::GetHierarchies() const
+    noexcept {
+  return saved_hierarchies_;
+}
+
+/// \brief Returns all the component names which are stored via SaveData
+const std::vector<DebugStorage::ComponentNames>& DebugStorage::GetNames() const
+    noexcept {
+  return names_per_hierarchy_;
+}
+
 void DebugStorage::SaveData(const ::amrex::MultiFab& mf,
                             const std::string& name,
                             ::amrex::SrcComp component) {
@@ -37,23 +49,6 @@ void DebugStorage::SaveData(const ::amrex::MultiFab& mf,
 }
 
 namespace {
-struct SrcComp_ {
-  explicit SrcComp_(int ii) : i{ii} {}
-  int i;
-  operator int() const noexcept { return i; }
-};
-
-struct DestComp_ {
-  explicit DestComp_(int ii) : i{ii} {}
-  int i;
-  operator int() const noexcept { return i; }
-};
-
-struct NumComps_ {
-  explicit NumComps_(int ii) : i{ii} {}
-  int i;
-  operator int() const noexcept { return i; }
-};
 
 struct equal_to {
   int i;
@@ -160,13 +155,13 @@ Select_(const std::vector<std::vector<std::string>>& names,
     auto pos = std::find(first, last, candidate);
     if (last != pos) {
       selected[k] += "_0"s;
+      int counter = 1;
+      do {
+        *pos = fmt::format("{}_{}", *pos, counter);
+        counter += 1;
+        pos = std::find(first, last, candidate);
+      } while (last != pos);
     }
-    int counter = 1;
-    do {
-      *pos = fmt::format("{}_{}", *pos, counter);
-      counter += 1;
-      pos = std::find(first, last, candidate);
-    } while (last != pos);
   }
   return selected;
 }
@@ -247,9 +242,90 @@ void DebugOutput::operator()(const GriddingAlgorithm& grid) {
       ref_ratio[i] = grid.GetPatchHierarchy().GetRatioToCoarserLevel(ii);
     }
     ::amrex::Vector<std::string> vnames(names.begin(), names.end());
-    ::amrex::WriteMultiLevelPlotfile(plotfilename, size, mf, vnames, geoms,
-                                     time_point, level_steps, ref_ratio);
+    ::amrex::WriteMultiLevelPlotfile(
+        plotfilename, size, mf, vnames, geoms, time_point, level_steps,
+        ref_ratio, "HyperCLaw-V1.1", "Level_", "Cell", {"raw_fields"});
     partition_counter += 1;
+  }
+
+  const std::vector<std::vector<::amrex::MultiFab>>& all_hierarchies =
+      storage.GetHierarchies();
+  const std::vector<std::vector<std::string>>& all_names = storage.GetNames();
+
+  auto hier_fields = all_names.begin();
+  const std::string level_prefix = "Level_";
+  partition_counter = 0;
+  ::amrex::VisMF::SetHeaderVersion(::amrex::VisMF::Header::Version_v1);
+
+  for (const std::vector<::amrex::MultiFab>& hierarchy : all_hierarchies) {
+    if (hierarchy[0].ixType() != ::amrex::IndexType::TheCellType()) {
+      const std::string plotfilename = fmt::format(
+          "{}/{}_{}_plt{:09}", directory_, all_names[partition_counter][0],
+          partition_counter, grid.GetPatchHierarchy().GetCycles());
+      const std::string raw_data = plotfilename + "/raw_fields";
+      const int nlevels = hierarchy.size();
+      ::amrex::PreBuildDirectorHierarchy(plotfilename, "Level_", nlevels, true);
+      ::amrex::PreBuildDirectorHierarchy(raw_data, "Level_", nlevels, true);
+      // write Header file
+      if (::amrex::ParallelDescriptor::IOProcessor()) {
+        const std::string header(plotfilename + "/Header");
+        ::amrex::Vector<::amrex::BoxArray> box_arrays(hierarchy.size());
+        ::amrex::Vector<::amrex::Geometry> geometries(hierarchy.size());
+        ::amrex::Vector<int> level_steps(hierarchy.size());
+        ::amrex::Vector<::amrex::IntVect> ref_ratio(hierarchy.size());
+        ::amrex::Vector<std::string> varnames(all_names[partition_counter]);
+        double time_point = grid.GetPatchHierarchy().GetTimePoint(0).count();
+
+        for (int level = 0; level < nlevels; ++level) {
+          box_arrays[level] = hierarchy[level].boxArray();
+          geometries[level] = grid.GetPatchHierarchy().GetGeometry(level);
+          level_steps[level] = grid.GetPatchHierarchy().GetCycles(level);
+          ref_ratio[level] =
+              grid.GetPatchHierarchy().GetRatioToCoarserLevel(level);
+        }
+
+        ::amrex::VisMF::IO_Buffer io_buffer(::amrex::VisMF::IO_Buffer_Size);
+        std::ofstream header_out;
+        header_out.rdbuf()->pubsetbuf(io_buffer.dataPtr(), io_buffer.size());
+        header_out.open(header.c_str(), std::ofstream::out |
+                                            std::ofstream::trunc |
+                                            std::ofstream::binary);
+        ::amrex::WriteGenericPlotfileHeader(header_out, nlevels, box_arrays,
+                                            varnames, geometries, time_point,
+                                            level_steps, ref_ratio);
+      }
+      // Force processors to wait until directory has been built.
+      ::amrex::ParallelDescriptor::Barrier();
+      for (int level = 0; level < nlevels; ++level) {
+        std::string prefix =
+            ::amrex::MultiFabFileFullPrefix(level, plotfilename);
+        std::string prefix_raw = ::amrex::MultiFabFileFullPrefix(
+            level, raw_data, level_prefix, hier_fields->front() + "_raw");
+        // if (::amrex::ParallelDescriptor::IOProcessor()) {
+        //   if (!::amrex::UtilCreateDirectory(prefix, 0755)) {
+        //     ::amrex::CreateDirectoryFailed(prefix);
+        //   }
+        // }
+        //
+        // Force other processors to wait until directory is built.
+        //
+        // ::amrex::ParallelDescriptor::Barrier();
+        ::amrex::BoxArray ba = hierarchy[level].boxArray();
+        ba.enclosedCells();
+        ::amrex::DistributionMapping dm = hierarchy[level].DistributionMap();
+        ::amrex::MultiFab on_cell(ba, dm, hierarchy[level].nComp(), 0);
+        if (hierarchy[level].ixType() == ::amrex::IndexType::TheNodeType()) {
+          ::amrex::average_node_to_cellcenter(on_cell, 0, hierarchy[level], 0,
+                                              hierarchy[level].nComp(), 0);
+        } else {
+          on_cell.setVal(0.0);
+        }
+        ::amrex::VisMF::Write(on_cell, prefix);
+        ::amrex::VisMF::Write(hierarchy[level], prefix_raw);
+      }
+    }
+    ++partition_counter;
+    ++hier_fields;
   }
 
   storage.ClearAll();

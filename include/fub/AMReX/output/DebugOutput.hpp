@@ -57,6 +57,12 @@ public:
   /// \brief Deletes all currently stored data.
   void ClearAll();
 
+  /// \brief Returns all the hierarchies which are stored via SaveData
+  const std::vector<Hierarchy>& GetHierarchies() const noexcept;
+
+  /// \brief Returns all the component names which are stored via SaveData
+  const std::vector<ComponentNames>& GetNames() const noexcept;
+
   /// \brief Collects all hierachies and associated names which are stored on the
   /// specified location.
   ///
