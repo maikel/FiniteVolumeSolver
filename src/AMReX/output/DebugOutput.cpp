@@ -273,7 +273,9 @@ void DebugOutput::operator()(const GriddingAlgorithm& grid) {
         ::amrex::Vector<::amrex::Geometry> geometries(hierarchy.size());
         ::amrex::Vector<int> level_steps(hierarchy.size());
         ::amrex::Vector<::amrex::IntVect> ref_ratio(hierarchy.size());
-        ::amrex::Vector<std::string> varnames(all_names[partition_counter]);
+        ::amrex::Vector<std::string> varnames(
+            all_names[partition_counter].begin(),
+            all_names[partition_counter].end());
         double time_point = grid.GetPatchHierarchy().GetTimePoint(0).count();
 
         for (int level = 0; level < nlevels; ++level) {
