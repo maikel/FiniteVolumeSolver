@@ -44,6 +44,7 @@
 #include "fub/AMReX/cutcell/boundary_condition/IsentropicPressureBoundary.hpp"
 #include "fub/AMReX/cutcell/boundary_condition/MassflowBoundary.hpp"
 #include "fub/AMReX/cutcell/boundary_condition/TransmissiveBoundary.hpp"
+#include "fub/AMReX/cutcell/boundary_condition/ReflectiveBoundary.hpp"
 #include "fub/AMReX/cutcell/output/LogProbes.hpp"
 #include "fub/AMReX/cutcell/output/WriteHdf5.hpp"
 #include "fub/AMReX/cutcell/output/WritePlotfiles.hpp"
