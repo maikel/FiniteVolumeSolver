@@ -27,7 +27,7 @@
 
 namespace fub {
 inline void EnableFloatingPointExceptions() {
-  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() & ~_MM_MASK_INVALID);
+  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() | _MM_MASK_INVALID | _MM_MASK_DIV_ZERO);
 }
 
 template <typename Abi>

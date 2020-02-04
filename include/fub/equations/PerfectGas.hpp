@@ -106,6 +106,9 @@ template <int N> struct PerfectGas {
   void Flux(ConservativeArray& flux, const CompleteArray& state,
             [[maybe_unused]] Direction dir) const noexcept;
 
+  void Flux(ConservativeArray& flux, const CompleteArray& state, MaskArray mask,
+            [[maybe_unused]] Direction dir) const noexcept;
+
   void CompleteFromCons(Complete& complete,
                         const ConservativeBase<PerfectGas>& cons) const
       noexcept;
@@ -122,6 +125,8 @@ template <int N> struct PerfectGas {
                             double pressure) const noexcept;
   Array<double, N, 1> Velocity(const Complete& q) const noexcept;
   double Machnumber(const Complete& q) const noexcept;
+
+  double Rspec{287.058};
 
   double gamma{1.4};
   double gamma_minus_1_inv{1.0 / (gamma - 1.0)};
@@ -220,6 +225,12 @@ template <int Dim> struct EinfeldtSignalVelocities<PerfectGas<Dim>> {
   std::array<Array1d, 2> operator()(const PerfectGas<Dim>& equation,
                                     const CompleteArray& left,
                                     const CompleteArray& right,
+                                    Direction dir) const noexcept;
+
+  std::array<Array1d, 2> operator()(const PerfectGas<Dim>& equation,
+                                    const CompleteArray& left,
+                                    const CompleteArray& right,
+                                    const MaskArray& mask,
                                     Direction dir) const noexcept;
 };
 

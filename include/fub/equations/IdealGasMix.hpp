@@ -280,6 +280,12 @@ template <int Dim> struct EinfeldtSignalVelocities<IdealGasMix<Dim>> {
                                     const CompleteArray& left,
                                     const CompleteArray& right,
                                     Direction dir) const noexcept;
+
+  std::array<Array1d, 2> operator()(const IdealGasMix<Dim>& equation,
+                                    const CompleteArray& left,
+                                    const CompleteArray& right,
+                                    const MaskArray& mask,
+                                    Direction dir) const noexcept;
 };
 
 extern template struct EinfeldtSignalVelocities<IdealGasMix<1>>;

@@ -148,6 +148,29 @@ void Flux(Eq&& equation, ConservativeArray<Equation>& flux,
   }
 }
 
+template <typename Eq, typename Equation = std::decay_t<Eq>>
+void Flux(Eq&& equation, ConservativeArray<Equation>& flux,
+          const CompleteArray<Equation>& state, MaskArray mask, Direction dir,
+          [[maybe_unused]] double x = 0.0) {
+  if constexpr (is_detected<FluxT, Eq, ConservativeArray<Equation>&,
+                            const CompleteArray<Equation>&, MaskArray, Direction,
+                            double>::value) {
+    equation.Flux(flux, state, mask, dir, x);
+  } else if constexpr (is_detected_exact<ConservativeArray<Equation>, FluxT, Eq,
+                                         const CompleteArray<Equation>&, MaskArray,
+                                         Direction, double>::value) {
+    flux = equation.Flux(state, mask, dir, x);
+  } else if constexpr (is_detected_exact<ConservativeArray<Equation>, FluxT, Eq,
+                                         const CompleteArray<Equation>&, MaskArray,
+                                         Direction>::value) {
+    flux = equation.Flux(state, mask, dir);
+  } else if constexpr (is_detected<FluxT, Eq, ConservativeArray<Equation>&,
+                                   const CompleteArray<Equation>&, MaskArray,
+                                   Direction>::value) {
+    equation.Flux(flux, state, mask, dir);
+  }
+}
+
 } // namespace fub
 
 #endif

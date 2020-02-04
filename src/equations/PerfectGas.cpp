@@ -36,6 +36,17 @@ Array1d KineticEnergy(
   Array1d squaredMomentum = momentum.matrix().colwise().squaredNorm();
   return 0.5 * squaredMomentum / density;
 }
+
+template <int Dim, int N, int O, int MR, int MC>
+Array1d KineticEnergy(const Array1d& density,
+                      const Eigen::Array<double, Dim, N, O, MR, MC>& momentum,
+                      MaskArray mask) noexcept {
+  Array1d squaredMomentum = momentum.matrix().colwise().squaredNorm();
+  Array1d safe_density = density;
+  safe_density = mask.select(density, 1.0);
+  FUB_ASSERT((safe_density > 0.0).all());
+  return 0.5 * squaredMomentum / safe_density;
+}
 } // namespace
 
 template <int Dim>
@@ -64,6 +75,22 @@ void PerfectGas<Dim>::Flux(ConservativeArray& flux, const CompleteArray& state,
   flux.momentum.row(d0) += state.pressure;
   flux.energy = velocity * (state.energy + state.pressure);
 }
+
+template <int Dim>
+void PerfectGas<Dim>::Flux(ConservativeArray& flux, const CompleteArray& state, MaskArray mask,
+                           Direction dir) const noexcept {
+  const int d0 = static_cast<int>(dir);
+  const Array1d density = mask.select(state.density, 1.0);
+  FUB_ASSERT((density > 0.0).all());
+  const Array1d velocity = state.momentum.row(d0) / density;
+  flux.density = state.momentum.row(d0);
+  for (int d = 0; d < Dim; ++d) {
+    flux.momentum.row(d) = velocity * state.momentum.row(d);
+  }
+  flux.momentum.row(d0) += state.pressure;
+  flux.energy = velocity * (state.energy + state.pressure);
+}
+
 
 template <int Dim>
 void PerfectGas<Dim>::CompleteFromCons(
@@ -105,11 +132,13 @@ void PerfectGas<Dim>::CompleteFromCons(
     complete.momentum.row(d) = mask.select(cons.momentum.row(d), zero);
   }
   complete.energy = mask.select(cons.energy, zero);
-  const Array1d e_kin = KineticEnergy(cons.density, cons.momentum);
+  const Array1d e_kin = KineticEnergy(cons.density, cons.momentum, mask);
   const Array1d e_int = cons.energy - e_kin;
   complete.pressure = mask.select(e_int / gamma_minus_1_inv, zero);
+  Array1d safe_density = mask.select(complete.density, 1.0);
+  FUB_ASSERT((safe_density > 0.0).all());
   complete.speed_of_sound = mask.select(
-      (gamma_array_ * complete.pressure / complete.density).sqrt(), zero);
+      (gamma_array_ * complete.pressure / safe_density).sqrt(), zero);
 }
 
 template <int Dim>
@@ -264,6 +293,39 @@ operator()(const PerfectGas<Dim>&, const CompleteArray& left,
       ((sqRhoL * aL * aL + sqRhoR * aR * aR) / (sqRhoL + sqRhoR) +
        0.5 * (sqRhoL * sqRhoR) / ((sqRhoL + sqRhoR) * (sqRhoL + sqRhoR)) *
            (uR - uL) * (uR - uL))
+          .sqrt();
+  const Array1d sL1 = uL - aL;
+  const Array1d sL2 = roeU - 0.5 * roeA;
+  const Array1d sR1 = roeU + 0.5 * roeA;
+  const Array1d sR2 = uR + aR;
+  return {sL1.min(sL2), sR1.max(sR2)};
+}
+
+template <int Dim>
+std::array<Array1d, 2> EinfeldtSignalVelocities<PerfectGas<Dim>>::
+operator()(const PerfectGas<Dim>&, const CompleteArray& left,
+           const CompleteArray& right, const MaskArray& mask,
+           Direction dir) const noexcept {
+  const Array1d rhoL = left.density;
+  const Array1d rhoR = right.density;
+  const Array1d rhoUL = left.momentum.row(int(dir));
+  const Array1d rhoUR = right.momentum.row(int(dir));
+  const Array1d aL = left.speed_of_sound;
+  const Array1d aR = right.speed_of_sound;
+  const Array1d sqRhoL = rhoL.sqrt();
+  const Array1d sqRhoR = rhoR.sqrt();
+  const Array1d sqRho = mask.select(sqRhoL + sqRhoR, 1.0);
+  const Array1d rhoLs = mask.select(rhoL, 1.0);
+  const Array1d rhoRs = mask.select(rhoR, 1.0);
+  FUB_ASSERT((rhoLs > 0.0).all());
+  FUB_ASSERT((rhoRs > 0.0).all());
+  FUB_ASSERT((sqRho > 0.0).all());
+  const Array1d uL = rhoUL / rhoLs;
+  const Array1d uR = rhoUR / rhoRs;
+  const Array1d roeU = (sqRhoL * uL + sqRhoR * uR) / sqRho;
+  const Array1d roeA =
+      ((sqRhoL * aL * aL + sqRhoR * aR * aR) / sqRho +
+       0.5 * (sqRhoL * sqRhoR) / (sqRho * sqRho) * (uR - uL) * (uR - uL))
           .sqrt();
   const Array1d sL1 = uL - aL;
   const Array1d sL2 = roeU - 0.5 * roeA;
