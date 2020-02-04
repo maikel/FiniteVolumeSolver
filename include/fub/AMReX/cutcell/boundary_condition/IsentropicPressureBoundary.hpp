@@ -24,9 +24,9 @@
 #include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
 #include "fub/Direction.hpp"
 #include "fub/equations/IdealGasMix.hpp"
+#include "fub/equations/PerfectGas.hpp"
 
-#include <boost/log/sources/severity_channel_logger.hpp>
-#include <boost/log/trivial.hpp>
+#include "fub/ext/ProgramOptions.hpp"
 
 #include <AMReX.H>
 
@@ -46,7 +46,7 @@ namespace perfect_gas {
 
 class IsentropicPressureExpansionBoundary {
 public:
-  IsentropicPressureBoundary(const PerfectGas<AMREX_SPACEDIM>& eq,
+  IsentropicPressureExpansionBoundary(const PerfectGas<AMREX_SPACEDIM>& eq,
                              const IsentropicPressureBoundaryOptions& options);
 
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
@@ -60,7 +60,7 @@ public:
   }
 
 private:
-  IdealGasMix<AMREX_SPACEDIM> equation_;
+  PerfectGas<AMREX_SPACEDIM> equation_;
   IsentropicPressureBoundaryOptions options_;
 };
 

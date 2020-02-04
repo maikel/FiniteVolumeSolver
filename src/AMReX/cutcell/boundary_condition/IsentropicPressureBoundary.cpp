@@ -25,7 +25,7 @@
 #include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/ForEach.hpp"
 
-#include <boost/log/common.hpp>
+#include "fub/ext/Log.hpp"
 
 namespace fub::amrex::cutcell {
 IsentropicPressureBoundaryOptions::IsentropicPressureBoundaryOptions(
@@ -252,17 +252,20 @@ Complete<PerfectGas<AMREX_SPACEDIM>> IsentropicExpansionWithoutDissipation_(
       Sign(enthalpyDifference) *
       std::sqrt(efficiency * std::abs(enthalpyDifference) * 2 + u_old_norm);
   const Array<double, AMREX_SPACEDIM, 1> u_new = u_border / u_old_norm * u_old;
-  return equation.CompleteFromPrim(density_new, u_old, outer_pressure);
+  return equation.CompleteFromPrim(density_new, u_new, outer_pressure);
 }
 
 IsentropicPressureExpansionBoundary::IsentropicPressureExpansionBoundary(
     const PerfectGas<AMREX_SPACEDIM>& eq,
-    const IsentropicPressureBoundaryOptions& options) equation_(eq),
-    options_{options} {}
+    const IsentropicPressureBoundaryOptions& options)
+    : equation_(eq), options_{options} {}
 
 void IsentropicPressureExpansionBoundary::FillBoundary(
-    ::amrex::MultiFab& mf, const ::amrex::Geometry& geom, Duration dt,
+    ::amrex::MultiFab& mf, const ::amrex::Geometry& geom, Duration /* dt */,
     const GriddingAlgorithm& grid) {
+  int level = FindLevel(geom, grid);
+  auto factory = grid.GetPatchHierarchy().GetEmbeddedBoundary(level);
+  const ::amrex::MultiFab& alphas = factory->getVolFrac();
   const int ngrow = mf.nGrow(int(options_.direction));
   ::amrex::Box grown_box = geom.growNonPeriodicDomain(ngrow);
   ::amrex::BoxList boundaries =
@@ -285,9 +288,9 @@ void IsentropicPressureExpansionBoundary::FillBoundary(
       const int x0 = options_.side ? box_to_fill.smallEnd(dir_v) - 1
                                    : box_to_fill.bigEnd(dir_v) + 1;
       if (!box_to_fill.isEmpty()) {
-        auto states = MakeView<Complete<IdealGasMix<AMREX_SPACEDIM>>>(
+        auto states = MakeView<Complete<PerfectGas<AMREX_SPACEDIM>>>(
             fab, equation_, mfi.growntilebox());
-        ForEachIndex(box_to_fill, [&alpha, &state, &states](auto... is) {
+        ForEachIndex(box_to_fill, [this, x0, dir_v, &alpha, &state, &states](auto... is) {
           std::array<std::ptrdiff_t, AMREX_SPACEDIM> dest{int(is)...};
           std::array<std::ptrdiff_t, AMREX_SPACEDIM> src = dest;
           src[dir_v] = x0;
