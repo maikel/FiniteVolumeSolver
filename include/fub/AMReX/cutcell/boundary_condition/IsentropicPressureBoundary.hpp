@@ -42,6 +42,30 @@ struct IsentropicPressureBoundaryOptions {
   int side = 0;
 };
 
+namespace perfect_gas {
+
+class IsentropicPressureExpansionBoundary {
+public:
+  IsentropicPressureBoundary(const PerfectGas<AMREX_SPACEDIM>& eq,
+                             const IsentropicPressureBoundaryOptions& options);
+
+  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
+                    Duration dt, const GriddingAlgorithm& grid);
+
+  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
+                    Duration dt, const GriddingAlgorithm& grid, Direction dir) {
+    if (dir == options_.direction) {
+      FillBoundary(mf, geom, dt, grid);
+    }
+  }
+
+private:
+  IdealGasMix<AMREX_SPACEDIM> equation_;
+  IsentropicPressureBoundaryOptions options_;
+};
+
+}
+
 class IsentropicPressureBoundary {
 public:
   IsentropicPressureBoundary(const IdealGasMix<AMREX_SPACEDIM>& eq,
