@@ -52,6 +52,10 @@ private:
   int side_;
 };
 
+template <typename Equation>
+ReflectiveBoundary(const Equation&, Direction, int)
+    ->ReflectiveBoundary<execution::SequentialTag, Equation>;
+
 template <typename GriddingAlgorithm>
 int FindLevel_(const ::amrex::Geometry& geom,
                const GriddingAlgorithm& gridding) {
