@@ -352,6 +352,10 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     include/fub/geometry/Union.hpp
     include/fub/AMReX/output/WriteHdf5.hpp
     include/fub/AMReX/output/WritePlotfiles.hpp
+    include/fub/equations/CompressibleAdvection.hpp
+    include/fub/AMReX/output/DebugOutput.hpp
+    src/AMReX/output/DebugOutput.cpp
+    src/equations/CompressibleAdvection.cpp
     src/AMReX/output/WriteHdf5.cpp
     src/equations/ideal_gas_mix/KineticSourceTerm.cpp
     src/AMReX/boundary_condition/BoundarySet.cpp
@@ -398,6 +402,14 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
       Eigen3::Eigen
       CONAN_PKG::HDF5)
   target_include_directories(FiniteVolumeSolver.AMReX PUBLIC ${HDF5_C_INCLUDE_DIR})
+
+  if (AMReX_2D_FOUND) 
+    target_sources(FiniteVolumeSolver.AMReX PRIVATE
+      include/fub/AMReX/bk19/BK19LevelIntegrator.hpp
+      include/fub/AMReX/bk19/BK19IntegratorContext.hpp
+      src/AMReX/bk19/BK19LevelIntegrator.cpp
+      src/AMReX/bk19/BK19IntegratorContext.cpp)
+  endif()
 
   if (AMReX_EB_FOUND)
     target_sources(FiniteVolumeSolver.AMReX PRIVATE
