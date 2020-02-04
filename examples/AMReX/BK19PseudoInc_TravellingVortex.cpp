@@ -43,9 +43,9 @@ double p_coeff(double r, const std::vector<double>& coefficients) {
   return result;
 }
 
-struct InitialData {
+struct TravellingVortexInitialData {
   using Complete = fub::CompressibleAdvection<2>::Complete;
-  InitialData() {
+  TravellingVortexInitialData() {
     coefficients.resize(25);
     coefficients[0] = 1.0 / 12.0;
     coefficients[1] = -12.0 / 13.0;
@@ -128,52 +128,43 @@ struct InitialData {
   std::array<double, 2> U0{1.0, 1.0};
 };
 
-int main() {
+void MyMain(const fub::ProgramOptions& options) {
+  using namespace fub::amrex;
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
-
-  fub::amrex::ScopeGuard guard{};
-  fub::InitializeLogging(MPI_COMM_WORLD);
+  fub::amrex::ScopeGuard amrex_scope_guard{};
 
   fub::amrex::DataDescription desc{};
   desc.n_state_components = 7;
   desc.n_cons_components = 4;
   desc.n_node_components = 1;
 
-  fub::amrex::CartesianGridGeometry geometry{};
-  geometry.cell_dimensions =
-      std::array<int, AMREX_SPACEDIM>{AMREX_D_DECL(32, 32, 1)};
-  //       std::array<int, AMREX_SPACEDIM>{AMREX_D_DECL(128, 128, 1)};
-  geometry.coordinates = amrex::RealBox({AMREX_D_DECL(0.0, 0.0, 0.0)},
-                                        {AMREX_D_DECL(1.0, 1.0, 1.0)});
-  geometry.periodicity = std::array<int, AMREX_SPACEDIM>{AMREX_D_DECL(1, 1, 1)};
+  CartesianGridGeometry grid_geometry =
+      fub::GetOptions(options, "GridGeometry");
+  PatchHierarchyOptions hierarchy_options =
+      fub::GetOptions(options, "PatchHierarchy");
 
-  fub::amrex::PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = 1;
-  hier_opts.refine_ratio = amrex::IntVect{AMREX_D_DECL(2, 2, 1)};
+  fub::SeverityLogger info = fub::GetInfoLogger();
+  BOOST_LOG(info) << "GridGeometry:";
+  grid_geometry.Print(info);
+  BOOST_LOG(info) << "PatchHierarchy:";
+  hierarchy_options.Print(info);
 
-  fub::amrex::PatchHierarchy hierarchy(desc, geometry, hier_opts);
+  PatchHierarchy hierarchy(desc, grid_geometry, hierarchy_options);
 
   using Complete = fub::CompressibleAdvection<2>::Complete;
   fub::CompressibleAdvection<2> equation{};
+  equation.R   = 1.0;
+  equation.c_p = 1.4/0.4 * equation.R;
   fub::IndexMapping<fub::CompressibleAdvection<2>> index(equation);
 
-  fub::amrex::GradientDetector gradient(
-      equation, std::pair{&Complete::PTinverse, 1.0e-2});
+  GradientDetector gradient(equation, std::pair{&Complete::PTinverse, 1.0e-2});
 
-  const InitialData inidat{};
+  const TravellingVortexInitialData inidat{};
 
-  std::shared_ptr grid = std::make_shared<fub::amrex::GriddingAlgorithm>(
-      std::move(hierarchy), inidat,
-      fub::amrex::TagAllOf{gradient, fub::amrex::TagBuffer(2)});
+  std::shared_ptr grid = std::make_shared<GriddingAlgorithm>(
+      std::move(hierarchy), inidat, TagAllOf{gradient, TagBuffer(2)});
   grid->InitializeHierarchy(0.0);
-
-  // setup linear operator and solver, AKA the nodal Laplacian
-  int mg_verbose = 1;
-  int bottom_verbose = 1;
-  int max_iter = 100;
-  double reltol = 1.e-10;
-  double abstol = 1.e-13;
 
   // set number of MG levels to 1 (effectively no MG)
   amrex::LPInfo lp_info;
@@ -192,15 +183,12 @@ int main() {
       {AMREX_D_DECL(amrex::LinOpBCType::Periodic, amrex::LinOpBCType::Periodic,
                     amrex::LinOpBCType::Periodic)});
 
-  using namespace fub;
-  CompressibleAdvectionFluxMethod<2> flux_method{};
+  fub::CompressibleAdvectionFluxMethod<2> flux_method{};
 
-  auto tag = fub::execution::seq;
-  fub::amrex::HyperbolicMethod method{
-      flux_method, fub::amrex::ForwardIntegrator(tag),
-      fub::amrex::Reconstruction(tag, equation)};
+  HyperbolicMethod method{flux_method, EulerForwardTimeIntegrator(),
+                          Reconstruction(fub::execution::seq, equation)};
 
-  fub::amrex::BK19IntegratorContext simulation_data(grid, method, 4, 2);
+  BK19IntegratorContext simulation_data(grid, method, 4, 2);
   const int nlevel = simulation_data.GetPatchHierarchy().GetNumberOfLevels();
 
   // set initial values of pi
@@ -212,9 +200,9 @@ int main() {
     ::amrex::MultiFab& pi = simulation_data.GetPi(level);
     const ::amrex::Geometry& geom =
         grid->GetPatchHierarchy().GetGeometry(level);
-    fub::amrex::ForEachFab(pi, [&](const ::amrex::MFIter& mfi) {
+    ForEachFab(pi, [&](const ::amrex::MFIter& mfi) {
       ::amrex::FArrayBox& fab = pi[mfi];
-      fub::amrex::ForEachIndex(fab.box(), [&](auto... is) {
+      ForEachIndex(fab.box(), [&](auto... is) {
         ::amrex::IntVect i{int(is)...};
 
         ::amrex::Vector<double> coor(2);
@@ -238,14 +226,17 @@ int main() {
   fub::DimensionalSplitLevelIntegrator advection(
       fub::int_c<2>, std::move(simulation_data), fub::StrangSplitting());
 
-  fub::amrex::BK19LevelIntegrator level_integrator(equation,
-                                                   std::move(advection), linop);
+  BK19LevelIntegratorOptions integrator_options =
+      fub::GetOptions(options, "BK19LevelIntegrator");
+  BOOST_LOG(info) << "BK19LevelIntegrator:";
+  integrator_options.Print(info);
+  BK19LevelIntegrator level_integrator(equation, std::move(advection), linop,
+                                       integrator_options);
 
-  fub::amrex::BK19AdvectiveFluxes& Pv =
-      level_integrator.GetContext().GetAdvectiveFluxes(0);
+  BK19AdvectiveFluxes& Pv = level_integrator.GetContext().GetAdvectiveFluxes(0);
   // Pv.on_faces[0].setVal(0.0);
   // Pv.on_faces[1].setVal(0.0);
-  fub::amrex::RecomputeAdvectiveFluxes(
+  RecomputeAdvectiveFluxes(
       index, Pv.on_faces, Pv.on_cells,
       level_integrator.GetContext().GetScratch(0),
       level_integrator.GetContext().GetGeometry(0).periodicity());
@@ -255,14 +246,31 @@ int main() {
   using namespace std::literals::chrono_literals;
   std::string base_name = "BK19_Pseudo_Incompressible/";
 
-  fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> output{};
-  output.AddOutput(fub::MakeOutput<fub::amrex::GriddingAlgorithm>(
-      {1}, {}, fub::amrex::WriteBK19Plotfile{base_name}));
+  fub::OutputFactory<GriddingAlgorithm> factory;
+  factory.RegisterOutput<fub::AnyOutput<GriddingAlgorithm>>("Plotfile", WriteBK19Plotfile{base_name});
+  fub::MultipleOutputs<GriddingAlgorithm> output{std::move(factory), fub::GetOptions(options, "Output")};
 
   output(*solver.GetGriddingAlgorithm());
-  fub::RunOptions run_options{};
-  run_options.final_time = 1.0s;
-  run_options.cfl = 0.45;
-  // run_options.max_cycles = 10;
+  fub::RunOptions run_options = fub::GetOptions(options, "RunOptions");
+  BOOST_LOG(info) << "RunOptions:";
+  run_options.Print(info);
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
+}
+
+int main(int argc, char** argv) {
+  MPI_Init(nullptr, nullptr);
+  fub::InitializeLogging(MPI_COMM_WORLD);
+  pybind11::scoped_interpreter interpreter{};
+  {
+    std::optional<fub::ProgramOptions> vm = fub::ParseCommandLine(argc, argv);
+    if (vm) {
+
+      MyMain(*vm);
+    }
+  }
+  int flag = -1;
+  MPI_Finalized(&flag);
+  if (!flag) {
+    MPI_Finalize();
+  }
 }

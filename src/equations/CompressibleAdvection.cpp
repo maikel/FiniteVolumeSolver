@@ -27,15 +27,16 @@ namespace {
 double LimitSlopes(double qL, double qM, double qR) {
   const double sL = qM - qL;
   const double sR = qR - qM;
-  double r = 0.0;
-  if (sL * sR > 0.0) {
-    r = sL / sR;
-  }
-  if (r < 0.0) {
-    return 0.0;
-  } else {
-    return 0.5 * std::min(2 * r / (1 + r), 2 / (1 + r)) * (sL + sR);
-  }
+  // double r = 0.0;
+  return 0.5 * (sL + sR);
+//   if (sL * sR > 0.0) {
+//     r = sL / sR;
+//   }
+//   if (r < 0.0) {
+//     return 0.0;
+//   } else {
+//     return 0.5 * std::min(2 * r / (1 + r), 2 / (1 + r)) * (sL + sR);
+//   }
 }
 } // namespace
 

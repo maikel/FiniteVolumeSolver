@@ -72,8 +72,8 @@ GriddingAlgorithm::GriddingAlgorithm(const GriddingAlgorithm& other)
   }
 }
 
-GriddingAlgorithm& GriddingAlgorithm::
-operator=(const GriddingAlgorithm& other) {
+GriddingAlgorithm&
+GriddingAlgorithm::operator=(const GriddingAlgorithm& other) {
   GriddingAlgorithm tmp{other};
   return *this = std::move(tmp);
 }
@@ -119,8 +119,8 @@ GriddingAlgorithm::GriddingAlgorithm(GriddingAlgorithm&& other) noexcept
   }
 }
 
-GriddingAlgorithm& GriddingAlgorithm::
-operator=(GriddingAlgorithm&& other) noexcept {
+GriddingAlgorithm&
+GriddingAlgorithm::operator=(GriddingAlgorithm&& other) noexcept {
   AmrMesh::verbose = std::move(other.verbose);
   AmrMesh::max_level = std::move(other.max_level);
   AmrMesh::ref_ratio = std::move(other.ref_ratio);

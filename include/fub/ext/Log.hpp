@@ -46,6 +46,12 @@ void Log(std::string message, Duration timepoint,
          boost::log::trivial::severity_level level =
              boost::log::trivial::severity_level::info);
 
+using SeverityLogger = boost::log::sources::severity_logger<boost::log::trivial::severity_level>;
+
+inline SeverityLogger GetInfoLogger() {
+  return SeverityLogger(boost::log::keywords::severity = boost::log::trivial::info);
+}
+
 } // namespace fub
 
 #endif // FINITEVOLUMESOLVER_LOG_HPP

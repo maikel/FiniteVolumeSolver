@@ -19,10 +19,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#ifndef FUB_BK19_LEVEL_INTEGRATOR_HPP
+#define FUB_BK19_LEVEL_INTEGRATOR_HPP
+
 #include "fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp"
 #include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
 #include "fub/equations/CompressibleAdvection.hpp"
 #include "fub/ext/Eigen.hpp"
+#include "fub/ext/ProgramOptions.hpp"
 #include "fub/solver/DimensionalSplitLevelIntegrator.hpp"
 
 #include <AMReX_MLMG.H>
@@ -32,14 +36,33 @@
 
 namespace fub::amrex {
 
-    void RecomputeAdvectiveFluxes(const IndexMapping<CompressibleAdvection<2>>& index,
-                                  std::array<::amrex::MultiFab, 2>& Pv_faces,
-                                  ::amrex::MultiFab& Pv_cells, const ::amrex::MultiFab& scratch,
-                                  const ::amrex::Periodicity& periodicity);
+void RecomputeAdvectiveFluxes(
+    const IndexMapping<CompressibleAdvection<2>>& index,
+    std::array<::amrex::MultiFab, 2>& Pv_faces, ::amrex::MultiFab& Pv_cells,
+    const ::amrex::MultiFab& scratch, const ::amrex::Periodicity& periodicity);
+
+struct BK19LevelIntegratorOptions {
+  BK19LevelIntegratorOptions() = default;
+  BK19LevelIntegratorOptions(const ProgramOptions& map);
+
+  template <typename Log> void Print(Log& log);
+
+  double mlmg_tolerance_rel = 1.0e-4;
+  double mlmg_tolerance_abs = -1.0;
+  int mlmg_max_iter = 100;
+  int mlmg_verbose = 0;
+  double bottom_tolerance_rel = 1.0e-4;
+  double bottom_tolerance_abs = -1.0;
+  int bottom_max_iter = 20;
+  int bottom_verbose = 0;
+  int always_use_bnorm = 0;
+  std::string prefix = "BK19LevelIntegrator";
+  bool output_between_steps = false;
+};
 
 class BK19LevelIntegrator
     : private DimensionalSplitLevelIntegrator<AMREX_SPACEDIM,
-                                              BK19IntegratorContext> {
+                                              BK19IntegratorContext, AnySplitMethod> {
 public:
   static constexpr int Rank = AMREX_SPACEDIM;
 
@@ -47,9 +70,10 @@ public:
   using Equation = CompressibleAdvection<Rank>;
   using Complete = ::fub::Complete<Equation>;
   using Conservative = ::fub::Conservative<Equation>;
+  using SplittingMethod = ::fub::AnySplitMethod;
 
   using AdvectionSolver =
-      DimensionalSplitLevelIntegrator<Rank, BK19IntegratorContext>;
+      DimensionalSplitLevelIntegrator<Rank, BK19IntegratorContext, SplittingMethod>;
 
   using AdvectionSolver::ApplyFluxCorrection;
   using AdvectionSolver::CoarsenConservatively;
@@ -60,6 +84,7 @@ public:
   using AdvectionSolver::GetContext;
   using AdvectionSolver::GetCycles;
   using AdvectionSolver::GetGriddingAlgorithm;
+  using AdvectionSolver::GetCounterRegistry;
   using AdvectionSolver::GetMpiCommunicator;
   using AdvectionSolver::GetRatioToCoarserLevel;
   using AdvectionSolver::GetTimePoint;
@@ -74,9 +99,10 @@ public:
   AdvectionSolver& GetAdvection() { return *this; }
   const AdvectionSolver& GetAdvection() const { return *this; }
 
-  BK19LevelIntegrator(const CompressibleAdvection<Rank>& equation,
-                      AdvectionSolver advection,
-                      std::shared_ptr<::amrex::MLNodeHelmDualCstVel> linop);
+  BK19LevelIntegrator(
+      const CompressibleAdvection<Rank>& equation, AdvectionSolver advection,
+      std::shared_ptr<::amrex::MLNodeHelmDualCstVel> linop,
+      const BK19LevelIntegratorOptions& options = BK19LevelIntegratorOptions());
 
   void ResetPatchHierarchy(std::shared_ptr<GriddingAlgorithm> grid);
 
@@ -85,6 +111,7 @@ public:
                              std::pair<int, int> subcycle);
 
 private:
+  BK19LevelIntegratorOptions options_;
   CompressibleAdvection<Rank> equation_;
   fub::IndexMapping<fub::CompressibleAdvection<2>> index_;
   std::shared_ptr<::amrex::MLNodeHelmDualCstVel> lin_op_;
@@ -100,8 +127,24 @@ void WriteAdvectiveFluxes(const std::string& path,
 struct WriteBK19Plotfile {
   std::string plotfilename{};
 
-  void operator()(BK19IntegratorContext& context) const;
+  void operator()(const BK19IntegratorContext& context) const;
   void operator()(const GriddingAlgorithm& grid) const;
 };
 
+template <typename Log> void BK19LevelIntegratorOptions::Print(Log& log) {
+  BOOST_LOG(log) << fmt::format(" - mlmg_tolerance_rel = {}", mlmg_tolerance_rel);
+  BOOST_LOG(log) << fmt::format(" - mlmg_tolerance_abs = {}", mlmg_tolerance_abs);
+  BOOST_LOG(log) << fmt::format(" - mlmg_max_iter = {}", mlmg_max_iter);
+  BOOST_LOG(log) << fmt::format(" - mlmg_verbose = {}", mlmg_verbose);
+  BOOST_LOG(log) << fmt::format(" - bottom_tolerance_rel = {}", bottom_tolerance_rel);
+  BOOST_LOG(log) << fmt::format(" - bottom_tolerance_abs = {}", bottom_tolerance_abs);
+  BOOST_LOG(log) << fmt::format(" - bottom_max_iter = {}", bottom_max_iter);
+  BOOST_LOG(log) << fmt::format(" - bottom_verbose = {}", bottom_verbose);
+  BOOST_LOG(log) << fmt::format(" - always_use_bnorm = {}", always_use_bnorm);
+  BOOST_LOG(log) << fmt::format(" - prefix = {}", prefix);
+  BOOST_LOG(log) << fmt::format(" - output_between_steps = {}", output_between_steps);
+}
+
 } // namespace fub::amrex
+
+#endif

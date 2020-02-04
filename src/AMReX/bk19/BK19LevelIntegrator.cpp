@@ -22,29 +22,38 @@
 #include "fub/AMReX/bk19/BK19LevelIntegrator.hpp"
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
+#include "fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp"
+#include <AMReX_MLMG.H>
 
 namespace fub::amrex {
 
 void WriteAdvectiveFluxes(const std::string& path,
                           const BK19AdvectiveFluxes& pv, int level) {
-  const ::amrex::MultiFab& cells = pv.on_cells;
-  WriteRawField(path, "Pv", cells, level);
-
-  const ::amrex::MultiFab& faces_x = pv.on_faces[0];
-  WriteRawField(path, "Pv_x", faces_x, level);
-
+  {
+    const ::amrex::BoxArray& ba = pv.on_faces[0].boxArray();
+    const ::amrex::DistributionMapping& dm = pv.on_faces[0].DistributionMap();
+    ::amrex::MultiFab faces_x(ba, dm, 1, 0);
+    ::amrex::MultiFab::Copy(faces_x, pv.on_faces[0], 0, 0, 1, 0);
+    WriteRawField(path, "Pv_x", faces_x, level);
+  }
   if (pv.on_faces.size() > 1) {
-    const ::amrex::MultiFab& faces_y = pv.on_faces[1];
+    const ::amrex::BoxArray& ba = pv.on_faces[1].boxArray();
+    const ::amrex::DistributionMapping& dm = pv.on_faces[1].DistributionMap();
+    ::amrex::MultiFab faces_y(ba, dm, 1, 0);
+    ::amrex::MultiFab::Copy(faces_y, pv.on_faces[1], 0, 0, 1, 0);
     WriteRawField(path, "Pv_y", faces_y, level);
   }
 
   if (pv.on_faces.size() > 2) {
-    const ::amrex::MultiFab& faces_z = pv.on_faces[2];
+    const ::amrex::BoxArray& ba = pv.on_faces[2].boxArray();
+    const ::amrex::DistributionMapping& dm = pv.on_faces[2].DistributionMap();
+    ::amrex::MultiFab faces_z(ba, dm, 1, 0);
+    ::amrex::MultiFab::Copy(faces_z, pv.on_faces[2], 0, 0, 1, 0);
     WriteRawField(path, "Pv_z", faces_z, level);
   }
 }
 
-void WriteBK19Plotfile::operator()(BK19IntegratorContext& context) const {
+void WriteBK19Plotfile::operator()(const BK19IntegratorContext& context) const {
   using Equation = CompressibleAdvection<2>;
   fub::CompressibleAdvection<2> equation{};
   std::string name =
@@ -87,6 +96,13 @@ void WriteBK19Plotfile::operator()(BK19IntegratorContext& context) const {
   ::amrex::WriteMultiLevelPlotfile(
       name, nlevels, mf, varnames, geoms, time_point, level_steps, ref_ratio,
       "HyperCLaw-V1.1", "Level_", "Cell", {"raw_fields"});
+
+  ::amrex::WriteSingleLevelPlotfile(
+      fmt::format("{}/Pv_plt{:09}", plotfilename, context.GetCycles()),
+      context.GetAdvectiveFluxes(0).on_cells, {"Pv_0", "Pv_1"},
+      context.GetGeometry(0), context.GetTimePoint(0).count(),
+      context.GetCycles(0));
+  //  WriteRawField(path, "Pv", cells, level);
 
   for (int lev = 0; lev < nlevels; ++lev) {
     WriteRawField(name, "pi", context.GetPi(lev), lev);
@@ -240,13 +256,29 @@ void ComputePvFromScratch_(const IndexMapping<Equation>& index, MultiFab& dest,
   for (std::size_t i = 0; i < index.momentum.size(); ++i) {
     const int dest_component = static_cast<int>(i);
     MultiFab::Copy(dest, scratch, index.PTdensity, dest_component,
-                   one_component, 0);
+                   one_component, no_ghosts);
     MultiFab::Multiply(dest, scratch, index.velocity[i], dest_component,
-                       one_component, 0);
+                       one_component, no_ghosts);
   }
   dest.FillBoundary(periodicity);
 }
+} // namespace
 
+void RecomputeAdvectiveFluxes(const IndexMapping<Equation>& index,
+                              std::array<MultiFab, Rank>& Pv_faces,
+                              MultiFab& Pv_cells, const MultiFab& scratch,
+                              const ::amrex::Periodicity& periodicity) {
+  ComputePvFromScratch_(index, Pv_cells, scratch, periodicity);
+  // Average Pv_i for each velocity direction
+  constexpr int face_component = 0;
+  for (std::size_t dir = 0; dir < index.velocity.size(); ++dir) {
+    const int cell_component = static_cast<int>(dir);
+    AverageCellToFace_(Pv_faces[dir], face_component, Pv_cells, cell_component,
+                       Direction(dir));
+  }
+}
+
+namespace {
 Result<void, TimeStepTooLarge>
 Advect_(BK19LevelIntegrator::AdvectionSolver& advection, int level, Duration dt,
         std::pair<int, int> subcycle) {
@@ -269,6 +301,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
                                    const IndexMapping<Equation>& index,
                                    ::amrex::MLMG& nodal_solver,
                                    ::amrex::MLNodeHelmDualCstVel& lin_op,
+                                   const BK19LevelIntegratorOptions& options,
                                    BK19IntegratorContext& context, int level,
                                    Duration dt) {
   MultiFab& scratch = context.GetScratch(level);
@@ -292,8 +325,22 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
               one_ghost_cell_width);
   ComputePvFromScratch_(index, UV, scratch, periodicity);
 
-  UV.mult(-dt.count());
+  UV.mult(-dt.count(), UV.nGrow());
+  rhs.setVal(0.0);
   lin_op.compDivergence({&rhs}, {&UV});
+
+  //  ::amrex::Box node_domain = geom.Domain();
+  //  node_domain.surroundingNodes();
+  //  node_domain.setBig(0, node_domain.bigEnd(0) - 1);
+  //  node_domain.setBig(1, node_domain.bigEnd(1) - 1);
+  //  double rhs_sum = 0.0;
+  //  ForEachFab(rhs, [&](const ::amrex::MFIter& mfi) {
+  //    const ::amrex::Box subbox = mfi.validbox() & node_domain;
+  //    rhs_sum += rhs[mfi].sum(subbox, 0);
+  //  });
+  //  if (rhs_sum > 1e-6) {
+  //    throw std::runtime_error("Fehler!");
+  //  }
 
   // Construct sigma by: -cp dt^2 (P Theta)^o (Equation (27) in [BK19])
   // MultiFab::Divide(dest, src, src_comp, dest_comp, n_comp, n_grow);
@@ -306,24 +353,25 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   lin_op.setSigma(level, sigma);
   MultiFab pi(on_nodes, distribution_map, one_component, no_ghosts);
   pi.setVal(0.0);
-  nodal_solver.solve({&pi}, {&rhs}, 1e-10, 1e-10);
+
+  ::amrex::MLMG ndsolver(lin_op);
+  ndsolver.setMaxIter(options.mlmg_max_iter);
+  ndsolver.setVerbose(options.mlmg_verbose);
+  ndsolver.setBottomVerbose(options.bottom_verbose);
+  ndsolver.setBottomMaxIter(options.bottom_max_iter);
+  ndsolver.setBottomToleranceAbs(options.bottom_tolerance_abs);
+  ndsolver.setBottomTolerance(options.bottom_tolerance_rel);
+  ndsolver.setAlwaysUseBNorm(options.always_use_bnorm);
+
+  ndsolver.solve({&pi}, {&rhs}, options.mlmg_tolerance_rel,
+                     options.mlmg_tolerance_abs);
 
   MultiFab UV_correction(on_cells, distribution_map, index.momentum.size(),
                          no_ghosts);
   UV_correction.setVal(0.0);
   lin_op.getFluxes({&UV_correction}, {&pi});
-  // Rupert sagt:
-  // Nicht klar, wo die Funktionalität lin_op.getFluxes()  definiert ist.
-  // Wird da eine Funktionalität aufgerufen, die schon in AMReX verdrahtet ist?
-  // Falls ja, ist das denn auch diejenige, die wir brauchen?
 
-  // Rupert sagt:
-  // Achtung: Die Divergenz von  Pv   wird kontrolliert, aber es wird
-  // \rho v   am Ende auf das neue Zeitniveau gehoben. Ist sichergestellt,
-  // dass die hier verwendeten Routinen das alles richtig machen?
-
-  // TODO check sign output of AMReX
-  UV_correction.mult(-1.0 / dt.count(), 0);
+  UV_correction.mult(-1.0 / dt.count());
   for (std::size_t i = 0; i < index.momentum.size(); ++i) {
     const int UV_component = static_cast<int>(i);
     MultiFab::Multiply(UV_correction, scratch, index.PTinverse, UV_component,
@@ -351,36 +399,26 @@ void DoEulerForward_(const Equation& equation,
   // Maikel: This needs a comment for me, why it is so
   // Rupert sagt:
   // Wenn ich das richtig sehe, liegt das daran, dass die folgenden zwei Zeilen:
-  // // TODO check sign output of AMReX
   // momentum_correction.mult(-1.0 / dt.count(), 0);
   // in EulerForward nicht existieren, in EulerBackward aber schon.
   // Siehe auch Kommentar (**) weiter unten.
   MultiFab sigma(on_cells, distribution_map, one_component, no_ghosts);
-  sigma.setVal(-equation.c_p * dt.count());
+  sigma.setVal(equation.c_p * dt.count());
   MultiFab::Multiply(sigma, scratch, index.PTdensity, 0, one_component,
                      sigma.nGrow());
-  //   MultiFab::Divide(sigma, scratch, index.PTinverse, 0, one_component,
-  //                    sigma.nGrow());
+  //MultiFab::Divide(sigma, scratch, index.PTinverse, 0, one_component,
+  //                 sigma.nGrow());
   lin_op.setSigma(level, sigma);
 
   // To compute the fluxes from the old pi we need one ghost cell width
   // Thus, we use periodic boundaries for now and redistribute the pi_n onto the
   // boundary
   // TODO: What happens to pi otherwise?
-  const MultiFab& pi_old = context.GetPi(level);
-  MultiFab pi(pi_old.boxArray(), pi_old.DistributionMap(), one_component,
-              one_ghost_cell_width);
-  // This assumes periodicity in each direction
-  pi.ParallelCopy(pi_old, context.GetGeometry(level).periodicity());
-
+  MultiFab& pi = context.GetPi(level);
   MultiFab momentum_correction(on_cells, distribution_map,
                                index.momentum.size(), no_ghosts);
   momentum_correction.setVal(0.0);
   lin_op.getFluxes({&momentum_correction}, {&pi});
-
-  // Rupert sagt:  (**)
-  // Hier müssten besagte zwei Zeilen stehen, wenn oben mit dt^2
-  // multipliziert worden wäre.
 
   for (std::size_t i = 0; i < index.momentum.size(); ++i) {
     const int src_component = static_cast<int>(i);
@@ -389,44 +427,51 @@ void DoEulerForward_(const Equation& equation,
   }
 
   RecoverVelocityFromMomentum_(scratch, index);
-
-  // Rupert sagt:
-  // Achtung, auch hier muss beachtet werden, dass  Pv  nicht dasselbe
-  // ist wie  \rho v !   Ich bin mir eben nicht sicher, ob   lin_op.getFluxes()
-  // das weiss.
 }
 
 } // namespace
 
-
-void RecomputeAdvectiveFluxes(const IndexMapping<Equation>& index,
-                               std::array<MultiFab, Rank>& Pv_faces,
-                               MultiFab& Pv_cells, const MultiFab& scratch,
-                               const ::amrex::Periodicity& periodicity) {
-  ComputePvFromScratch_(index, Pv_cells, scratch, periodicity);
-  // Average Pv_i for each velocity direction
-  constexpr int face_component = 0;
-  for (std::size_t dir = 0; dir < index.velocity.size(); ++dir) {
-    const int cell_component = static_cast<int>(dir);
-    AverageCellToFace_(Pv_faces[dir], face_component, Pv_cells, cell_component,
-                       Direction(dir));
-  }
+BK19LevelIntegratorOptions::BK19LevelIntegratorOptions(
+    const ProgramOptions& options) {
+  mlmg_tolerance_rel =
+      GetOptionOr(options, "mlmg_tolerance_rel", mlmg_tolerance_rel);
+  mlmg_tolerance_abs =
+      GetOptionOr(options, "mlmg_tolerance_abs", mlmg_tolerance_abs);
+  mlmg_max_iter = GetOptionOr(options, "mlmg_max_iter", mlmg_max_iter);
+  mlmg_verbose = GetOptionOr(options, "mlmg_verbose", mlmg_verbose);
+  bottom_tolerance_rel =
+      GetOptionOr(options, "bottom_tolerance_rel", bottom_tolerance_rel);
+  bottom_tolerance_abs =
+      GetOptionOr(options, "bottom_tolerance_abs", bottom_tolerance_abs);
+  bottom_max_iter = GetOptionOr(options, "bottom_max_iter", bottom_max_iter);
+  bottom_verbose = GetOptionOr(options, "bottom_verbose", bottom_verbose);
+  always_use_bnorm = GetOptionOr(options, "always_use_bnorm", always_use_bnorm);
+  prefix = GetOptionOr(options, "prefix", prefix);
+  output_between_steps =
+      GetOptionOr(options, "output_between_steps", output_between_steps);
 }
 
 BK19LevelIntegrator::BK19LevelIntegrator(
     const CompressibleAdvection<Rank>& equation, AdvectionSolver advection,
-    std::shared_ptr<::amrex::MLNodeHelmDualCstVel> linop)
-    : AdvectionSolver(std::move(advection)), equation_(equation),
-      index_(equation_), lin_op_(std::move(linop)),
+    std::shared_ptr<::amrex::MLNodeHelmDualCstVel> linop,
+    const BK19LevelIntegratorOptions& options)
+    : AdvectionSolver(std::move(advection)), options_(options),
+      equation_(equation), index_(equation_), lin_op_(std::move(linop)),
       nodal_solver_(std::make_shared<::amrex::MLMG>(*lin_op_)) {
-  nodal_solver_->setMaxIter(100);
+  nodal_solver_->setMaxIter(options.mlmg_max_iter);
+  nodal_solver_->setVerbose(options.mlmg_verbose);
+  nodal_solver_->setBottomVerbose(options.bottom_verbose);
+  nodal_solver_->setBottomMaxIter(options.bottom_max_iter);
+  nodal_solver_->setBottomToleranceAbs(options.bottom_tolerance_abs);
+  nodal_solver_->setBottomTolerance(options.bottom_tolerance_rel);
+  nodal_solver_->setAlwaysUseBNorm(options.always_use_bnorm);
 }
 
 Result<void, TimeStepTooLarge>
 BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
                                                 std::pair<int, int> subcycle) {
-  AdvectionSolver& advection_ = GetAdvection();
-  BK19IntegratorContext& context = advection_.GetContext();
+  AdvectionSolver& advection = GetAdvection();
+  BK19IntegratorContext& context = advection.GetContext();
   MultiFab& scratch = context.GetScratch(level);
   const ::amrex::Geometry& geom = context.GetGeometry(level);
   const ::amrex::Periodicity periodicity = geom.periodicity();
@@ -437,7 +482,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
 
   // Save data on current time level for later use
   MultiFab scratch_aux(scratch.boxArray(), scratch.DistributionMap(),
-                       scratch.nComp(), scratch.nGrow());
+                       scratch.nComp(), no_ghosts);
   scratch_aux.copy(scratch);
   BK19AdvectiveFluxes& Pv = context.GetAdvectiveFluxes(level);
 
@@ -446,7 +491,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   // 1) Compute current Pv and interpolate to face centered quantity
   //    Current Pv is given by: Pv = PTdensity * velocity
   RecomputeAdvectiveFluxes(index_, Pv.on_faces, Pv.on_cells, scratch,
-                            periodicity);
+                           periodicity);
 
   debug.plotfilename = "BK19_Pseudo_Incompressible-advective_fluxes/";
   debug(context);
@@ -455,7 +500,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   //    Open Question: Coarse Fine Boundary?
   //      - Need an option to do nothing there
   Result<void, TimeStepTooLarge> result =
-      Advect_(advection_, level, half_dt, subcycle);
+      Advect_(advection, level, half_dt, subcycle);
   if (!result) {
     return result;
   }
@@ -465,22 +510,35 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
 
   // 3) Do the first euler backward integration step for the source term
   context.FillGhostLayerSingleLevel(level);
-  DoEulerBackward_(equation_, index_, *nodal_solver_, *lin_op_,
-                   advection_.GetContext(), level, half_dt);
+  MultiFab pi_tmp =
+      DoEulerBackward_(equation_, index_, *nodal_solver_, *lin_op_, options_,
+                   context, level, half_dt);
 
-  debug.plotfilename = "BK19_Pseudo_Incompressible-advect-backward/";
-  debug(context);
+  // Copy pi to context for visualization
+  ::amrex::BoxArray on_cells = scratch.boxArray();
+  ::amrex::BoxArray on_nodes = on_cells;
+  on_nodes.surroundingNodes();
+  const MultiFab& pi_old = context.GetPi(level);
+  MultiFab pi(on_nodes, scratch.DistributionMap(), one_component,
+              one_ghost_cell_width);
+  pi.ParallelCopy(pi_old, context.GetGeometry(level).periodicity());
+  context.GetPi(level).copy(pi_tmp);
 
   // 4) Recompute Pv at half time
   RecomputeAdvectiveFluxes(index_, Pv.on_faces, Pv.on_cells, scratch,
-                            periodicity);
+                           periodicity);
+
+  debug.plotfilename = "BK19_Pseudo_Incompressible-advect-backward/";
+  debug(context);
+  context.GetPi(level).copy(pi);
+
+  // Copy data from old time level back to scratch
   scratch.copy(scratch_aux);
   context.FillGhostLayerSingleLevel(level);
 
   // 5) Explicit Euler with old scratch data
   //   - We need a current pi_n here. What is the initial one?
-  DoEulerForward_(equation_, index_, *lin_op_, advection_.GetContext(), level,
-                  half_dt);
+  DoEulerForward_(equation_, index_, *lin_op_, context, level, half_dt);
 
   debug.plotfilename = "BK19_Pseudo_Incompressible-advect-backward-forward/";
   debug(context);
@@ -489,10 +547,20 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   //   - Currently, scratch contains the result of euler forward step,
   //     which started at the old time level.
   context.FillGhostLayerSingleLevel(level);
-  result = Advect_(advection_, level, dt, subcycle);
+  result = Advect_(advection, level, dt, subcycle);
   if (!result) {
     return result;
   }
+
+//   MultiFab rhs(on_nodes, scratch.DistributionMap(), one_component, no_ghosts);
+//   MultiFab UV(on_cells, scratch.DistributionMap(), index_.momentum.size(),
+//               one_ghost_cell_width);
+//   ComputePvFromScratch_(index_, UV, scratch, periodicity);
+//
+//   UV.mult(-dt.count(), UV.nGrow());
+//   rhs.setVal(0.0);
+//   lin_op_->compDivergence({&rhs}, {&UV});
+//   context.GetPi(level).copy(rhs);
 
   debug.plotfilename =
       "BK19_Pseudo_Incompressible-advect-backward-forward-advect/";
@@ -500,8 +568,8 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
 
   // 6) Do the second euler backward integration step for the source term
   MultiFab pi_new =
-      DoEulerBackward_(equation_, index_, *nodal_solver_, *lin_op_,
-                       advection_.GetContext(), level, half_dt);
+      DoEulerBackward_(equation_, index_, *nodal_solver_, *lin_op_, options_,
+                       context, level, half_dt);
 
   // Copy pi_n+1 to pi_n
   context.GetPi(level).copy(pi_new);
