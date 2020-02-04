@@ -377,7 +377,7 @@ template <typename Log> void PatchHierarchyOptions::Print(Log& log) {
                                 fmt::join(error_buf, ", "));
   BOOST_LOG(log) << fmt::format(" - grid_efficiency = {}", grid_efficiency);
   BOOST_LOG(log) << fmt::format(" - n_proper = {}", n_proper);
-};
+}
 
 } // namespace amrex
 } // namespace fub
