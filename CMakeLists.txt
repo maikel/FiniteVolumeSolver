@@ -418,6 +418,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         include/fub/AMReX/cutcell/Tagging.hpp
         include/fub/AMReX/cutcell/TimeIntegrator.hpp
         include/fub/AMReX/cutcell/initial_data/RiemannProblem.hpp
+        include/fub/AMReX/cutcell/initial_data/InterpolateFrom1d.hpp
         include/fub/AMReX/cutcell/tagging/ConstantRegion.hpp
         include/fub/AMReX/cutcell/tagging/GradientDetector.hpp
         include/fub/AMReX/cutcell/tagging/TagBuffer.hpp
@@ -452,6 +453,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         src/AMReX/cutcell/boundary_condition/IsentropicPressureBoundary.cpp
         src/AMReX/cutcell/boundary_condition/MassflowBoundary.cpp
         src/AMReX/cutcell/boundary_condition/PressureOutflowBoundary.cpp
+        src/AMReX/cutcell/initial_data/InterpolateFrom1d.cpp
         src/AMReX/cutcell/tagging/ConstantRegion.cpp
         src/AMReX/cutcell/tagging/TagBuffer.cpp
         src/AMReX/cutcell/tagging/TagCutCells.cpp
