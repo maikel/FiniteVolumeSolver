@@ -37,8 +37,7 @@ struct TemperatureRamp {
     ramp_width_ = fub::GetOptionOr(opts, "ramp_width", ramp_width_);
     high_temperature_ =
         fub::GetOptionOr(opts, "high_temperature", high_temperature_);
-    fill_fraction_ =
-        fub::GetOptionOr(opts, "fill_fraction", fill_fraction_);
+    fill_fraction_ = fub::GetOptionOr(opts, "fill_fraction", fill_fraction_);
     using namespace std::literals;
     fub::ProgramOptions left = fub::GetOptions(opts, "left");
     left_moles_ = fub::GetOptionOr(left, "moles", left_moles_);
@@ -49,7 +48,7 @@ struct TemperatureRamp {
     reactor.SetMoleFractions(left_moles_);
     reactor.SetTemperature(temperature);
     reactor.SetPressure(pressure);
-    equation_.CompleteFromReactor(left_, Eigen::Array<double,1,1>{velocity});
+    equation_.CompleteFromReactor(left_, Eigen::Array<double, 1, 1>{velocity});
     equation_.CompleteFromCons(left_, left_);
 
     fub::ProgramOptions right = fub::GetOptions(opts, "right");
@@ -60,23 +59,28 @@ struct TemperatureRamp {
     reactor.SetMoleFractions(right_moles_);
     reactor.SetTemperature(temperature);
     reactor.SetPressure(pressure);
-    equation_.CompleteFromReactor(right_, Eigen::Array<double,1,1>{velocity});
+    equation_.CompleteFromReactor(right_, Eigen::Array<double, 1, 1>{velocity});
     equation_.CompleteFromCons(right_, right_);
   }
 
-  template <typename Log>
-  void Print(Log& log) {
+  template <typename Log> void Print(Log& log) {
     BOOST_LOG(log) << fmt::format(" - ignition_pos = {} [m]", ignition_pos_);
     BOOST_LOG(log) << fmt::format(" - ramp_width = {} [m]", ramp_width_);
-    BOOST_LOG(log) << fmt::format(" - high_temperature = {} [K]", high_temperature_);
+    BOOST_LOG(log) << fmt::format(" - high_temperature = {} [K]",
+                                  high_temperature_);
     BOOST_LOG(log) << fmt::format(" - left.moles = {} [-]", left_moles_);
-    BOOST_LOG(log) << fmt::format(" - left.temperature = {} [K]", left_.temperature);
+    BOOST_LOG(log) << fmt::format(" - left.temperature = {} [K]",
+                                  left_.temperature);
     BOOST_LOG(log) << fmt::format(" - left.pressure = {} [Pa]", left_.pressure);
-    BOOST_LOG(log) << fmt::format(" - left.velocity = {} [m/s]", left_.momentum[0] / left_.density);
+    BOOST_LOG(log) << fmt::format(" - left.velocity = {} [m/s]",
+                                  left_.momentum[0] / left_.density);
     BOOST_LOG(log) << fmt::format(" - right.moles = {} [-]", right_moles_);
-    BOOST_LOG(log) << fmt::format(" - right.temperature = {} [K]", right_.temperature);
-    BOOST_LOG(log) << fmt::format(" - right.pressure = {} [Pa]", right_.pressure);
-    BOOST_LOG(log) << fmt::format(" - right.velocity = {} [m/s]", right_.momentum[0] / right_.density);
+    BOOST_LOG(log) << fmt::format(" - right.temperature = {} [K]",
+                                  right_.temperature);
+    BOOST_LOG(log) << fmt::format(" - right.pressure = {} [Pa]",
+                                  right_.pressure);
+    BOOST_LOG(log) << fmt::format(" - right.velocity = {} [m/s]",
+                                  right_.momentum[0] / right_.density);
     BOOST_LOG(log) << fmt::format(" - fill_fraction = {} [m]", fill_fraction_);
   }
 
@@ -119,21 +123,23 @@ struct TemperatureRamp {
           const double T_soll =
               (1.0 - lambda) * state_.temperature + lambda * high_temperature_;
           equation_.GetReactor().SetTemperature(T_soll);
-          equation_.CompleteFromReactor(state_, state_.momentum / state_.density);
+          equation_.CompleteFromReactor(state_,
+                                        state_.momentum / state_.density);
           equation_.CompleteFromCons(state_, state_);
           fub::Store(states, state_, {i});
         } else if (ignition_pos_ < x && x < ignition_pos_ + ramp_width_) {
-            fub::Load(state_, states, {i});
-            equation_.SetReactorStateFromComplete(state_);
-            const double lambda =
-                std::clamp((x - ignition_pos_) / ramp_width_, 0.0, 1.0);
-            const double T_soll =
-                (1.0 - lambda) * high_temperature_ + lambda * state_.temperature;
-            equation_.GetReactor().SetTemperature(T_soll);
-          equation_.CompleteFromReactor(state_, state_.momentum / state_.density);
+          fub::Load(state_, states, {i});
+          equation_.SetReactorStateFromComplete(state_);
+          const double lambda =
+              std::clamp((x - ignition_pos_) / ramp_width_, 0.0, 1.0);
+          const double T_soll =
+              (1.0 - lambda) * high_temperature_ + lambda * state_.temperature;
+          equation_.GetReactor().SetTemperature(T_soll);
+          equation_.CompleteFromReactor(state_,
+                                        state_.momentum / state_.density);
           equation_.CompleteFromCons(state_, state_);
           fub::Store(states, state_, {i});
-          }
+        }
       });
     });
   }
@@ -147,7 +153,6 @@ void MyMain(const fub::ProgramOptions& opts) {
 
   using namespace fub::amrex;
 
-  constexpr int Dim = AMREX_SPACEDIM;
   constexpr int TubeDim = 1;
 
   // Define the equation which will be solved
@@ -163,7 +168,6 @@ void MyMain(const fub::ProgramOptions& opts) {
   BOOST_LOG(info) << "CartesianGridGeometry: ";
   grid_geometry.Print(info);
 
-
   PatchHierarchyOptions hierarchy_options =
       fub::GetOptions(opts, "PatchHierarchy");
   BOOST_LOG(info) << "PatchHierarchy: ";
@@ -176,23 +180,19 @@ void MyMain(const fub::ProgramOptions& opts) {
       std::make_pair(&Complete::temperature, 1e-1)};
 
   BoundarySet boundary;
-  
+
   IsentropicPressureBoundaryOptions right_boundary =
       fub::GetOptions(opts, "IsentropicPressureBoundary");
   BOOST_LOG(info) << "IsentropicPressureBoundary: ";
   right_boundary.Print(info);
 
-  boundary.conditions.push_back(ReflectiveBoundary{equation, fub::Direction::X, 0});
+  boundary.conditions.push_back(
+      ReflectiveBoundary{equation, fub::Direction::X, 0});
   boundary.conditions.push_back(
       IsentropicPressureBoundary{equation, right_boundary});
 
-  fub::IdealGasMix<1>::Complete state(equation);
-  equation.GetReactor().SetMoleFractions("N2:79,O2:21");
-  equation.GetReactor().SetTemperature(300.0);
-  equation.GetReactor().SetPressure(101325.0);
-  equation.CompleteFromReactor(state);
-
-  TemperatureRamp initial_data(equation, fub::GetOptions(opts, "TemperatureRamp"));
+  TemperatureRamp initial_data(equation,
+                               fub::GetOptions(opts, "TemperatureRamp"));
   BOOST_LOG(info) << "TemperatureRamp: ";
   initial_data.Print(info);
 
@@ -220,7 +220,8 @@ void MyMain(const fub::ProgramOptions& opts) {
 
   // fub::amrex::IgniteDetonationOptions io{};
   // io.ignite_interval = fub::Duration(0.01);
-  // fub::amrex::IgniteDetonation ignite(equation, hier_opts.max_number_of_levels,
+  // fub::amrex::IgniteDetonation ignite(equation,
+  // hier_opts.max_number_of_levels,
   //                                     io);
 
   // fub::SplitSystemSourceLevelIntegrator ign_solver(
@@ -237,24 +238,22 @@ void MyMain(const fub::ProgramOptions& opts) {
 
   // Run the simulation with given feedback functions
 
-  std::string base_name = "IdealGasMix/";
-  int rank = -1;
-  MPI_Comm_rank(solver.GetMpiCommunicator(), &rank);
-
   using namespace std::literals::chrono_literals;
-  fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> output{};
-  output.AddOutput(fub::MakeOutput<fub::amrex::GriddingAlgorithm>(
-      {}, {0.00025s}, fub::amrex::PlotfileOutput(equation, base_name)));
-  output.AddOutput(
-      std::make_unique<fub::CounterOutput<fub::amrex::GriddingAlgorithm>>(
-          wall_time_reference, std::vector<std::ptrdiff_t>{},
-          std::vector<fub::Duration>{0.001s}));
+  using Plotfile = PlotfileOutput<fub::IdealGasMix<1>>;
+  using CounterOutput =
+      fub::CounterOutput<GriddingAlgorithm, std::chrono::milliseconds>;
+  fub::OutputFactory<GriddingAlgorithm> factory{};
+  factory.RegisterOutput<Plotfile>("Plotfile", equation);
+  factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
+  factory.RegisterOutput<WriteHdf5>("HDF5");
+  fub::MultipleOutputs<GriddingAlgorithm> output(
+      std::move(factory), fub::GetOptions(opts, "Output"));
 
-  output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options = fub::GetOptions(opts, "RunOptions");
   BOOST_LOG(info) << "RunOptions: ";
   run_options.Print(info);
 
+  output(*solver.GetGriddingAlgorithm());
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }
 

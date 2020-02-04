@@ -1,11 +1,10 @@
 RunOptions = {
   'cfl': 0.5,
   'final_time': 0.001,
-  'max_cycles': 0
 }
 
 CartesianGridGeometry = {
-  'cell_dimensions': [200, 1],
+  'cell_dimensions': [15000, 1],
   'coordinates': {
     'lower': [-1.50, -0.015],
     'upper': [-0.06, +0.015],
@@ -23,20 +22,26 @@ PatchHierarchy = {
 
 TemperatureRamp = {
   'left': {
-    'pressure': 3.0 * 101325.0
+    'pressure': 1.0 * 101325.0
   }, 'right': {
     'pressure': 1.0 * 101325.0
-  }
+  },
+  'fill_fraction': -0.3,
+  'ramp_width': 0.01
+}
+
+IsentropicPressureBoundary = {
+  'outer_pressure': 101325.0,
+  'side': 1
 }
 
 Output = { 
   'outputs': [{
-    'type': 'Plotfile',
-    'directory': 'LinearShock3d/',
-    # 'intervals': [1e-4],
-    'frequencies': [1],
+    'type': 'HDF5',
+    'path': './IdealGasMix.h5',
+    'intervals': [1e-5],
   }, {
     'type': 'CounterOutput',
-    'frequencies': [1]
+    'frequencies': [100]
   }]
 }

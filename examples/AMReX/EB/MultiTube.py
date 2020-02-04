@@ -1,10 +1,10 @@
 import math
 
-plenum_x_n_cells = 32
+plenum_x_n_cells = 128
 tube_blocking_factor = 8
 plenum_blocking_factor = 8
 
-n_level = 3
+n_level = 1
 
 n_tubes = 6
 r_tube = 0.015
@@ -51,10 +51,14 @@ tube_n_cells = int(tube_n_cells)
 RunOptions = {
   'cfl': 0.5,
   'final_time': 0.02,
-  'max_cycles': 5
+  'max_cycles': 0
 }
 
+# checkpoint = '/Users/maikel/Development/FiniteVolumeSolver/build_3d/MultiTube/Checkpoint/000000010'
+checkpoint = ''
+
 Plenum = {
+  'checkpoint': checkpoint,
   'GridGeometry': {
     'cell_dimensions': [plenum_x_n_cells, plenum_yz_n_cells, plenum_yz_n_cells],
     'coordinates': {
@@ -96,6 +100,7 @@ def UpperX(x0, k, alpha):
   return center
 
 Tubes = [{
+  'checkpoint': checkpoint,
   'GridGeometry': {
     'cell_dimensions': [tube_n_cells, 1, 1],
     'coordinates': {
@@ -110,6 +115,7 @@ Tubes = [{
     'refine_ratio': [2, 1, 1]
   },
   'PressureValveBoundary': {
+    'prefix': 'PressureValve-{}'.format(i),
     'efficiency': 1.0,
     'open_at_interval': 0.03333333,
     'offset': 0.0,
@@ -127,24 +133,28 @@ Tubes = [{
 Output = { 
   'outputs': [{
     'type': 'Plotfile',
-    'directory': 'MultiTube/',
-    # 'intervals': [1e-4],
-    'frequencies': [1],
+    'directory': 'MultiTube2/',
+    'intervals': [1e-4],
+    # 'frequencies': [1],
   }, {
     'type': 'LogProbes',
-    'directory': 'MultiTube/Probes/',
-    # 'frequencies': [1],
+    'directory': 'MultiTube2/Probes/',
+    'frequencies': [1],
     'Plenum': {
-      'filename': 'MultiTube/Probes/Plenum.h5',
+      'filename': 'MultiTube2/Probes/Plenum.h5',
       'coordinates': [TubeCenterPoint(0.0, 0, alpha)],
     },
     'Tube': {
-      'filename': 'MultiTube/Probes/Tubes.h5',
+      'filename': 'MultiTube2/Probes/Tubes.h5',
       'coordinates': [TubeCenterPoint(-1.0, 0, alpha), TubeCenterPoint(-0.2, 0, alpha)],
     }
   }, {
     'type': 'CounterOutput',
     'frequencies': [1]
+  }, {
+    'type': 'Checkpoint',
+    'directory': 'MultiTube2/Checkpoint/',
+    'frequencies': [10]
   }]
 }
 
