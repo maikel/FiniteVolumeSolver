@@ -51,10 +51,10 @@ template <typename Tag, typename FM> struct FluxMethod {
 };
 
 template <typename FM>
-FluxMethod(const FM& fm) -> FluxMethod<execution::OpenMpSimdTag, FM>;
+FluxMethod(const FM& fm)->FluxMethod<execution::OpenMpSimdTag, FM>;
 
 template <typename Tag, typename FM>
-FluxMethod(Tag, const FM& fm) -> FluxMethod<Tag, FM>;
+FluxMethod(Tag, const FM& fm)->FluxMethod<Tag, FM>;
 
 template <typename Tag, typename FM>
 FluxMethod<Tag, FM>::FluxMethod(Tag, const FM& fm) : flux_method_{fm} {}

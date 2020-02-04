@@ -46,12 +46,11 @@ IgniteDetonationOptions::IgniteDetonationOptions(
 }
 
 IgniteDetonation::IgniteDetonation(
-    const fub::IdealGasMix<1>& eq, std::shared_ptr<GriddingAlgorithm> grid,
+    const fub::IdealGasMix<1>& eq, int max_number_levels,
     const fub::amrex::IgniteDetonationOptions& opts)
-    : equation_(eq), gridding_(std::move(grid)), options_{opts},
-      last_ignition_backup_(
-          gridding_->GetPatchHierarchy().GetMaxNumberOfLevels(),
-          Duration(std::numeric_limits<double>::lowest())),
+    : equation_(eq), options_{opts},
+      last_ignition_backup_(max_number_levels,
+                            Duration(std::numeric_limits<double>::lowest())),
       last_ignition_(last_ignition_backup_) {}
 
 Duration IgniteDetonation::ComputeStableDt(int) const noexcept {
@@ -60,15 +59,15 @@ Duration IgniteDetonation::ComputeStableDt(int) const noexcept {
 
 namespace {
 
-std::vector<double> GatherMoles_(const GriddingAlgorithm& grid, double x,
+std::vector<double> GatherMoles_(const IntegratorContext& grid, double x,
                                  IdealGasMix<1>& eq) {
   const PatchHierarchy& hier = grid.GetPatchHierarchy();
   const int nlevel = hier.GetNumberOfLevels();
   std::vector<double> moles(eq.GetReactor().GetNSpecies());
   std::vector<double> local_moles(moles.size());
   for (int level = nlevel - 1; level >= 0; --level) {
-    const ::amrex::MultiFab& data = hier.GetPatchLevel(level).data;
-    const ::amrex::Geometry& geom = hier.GetGeometry(level);
+    const ::amrex::MultiFab& data = grid.GetScratch(level);
+    const ::amrex::Geometry& geom = grid.GetGeometry(level);
     int local_found = 0;
     Complete<IdealGasMix<1>> state(eq);
     ForEachFab(data, [&local_moles, &local_found, &eq, &data, &geom, x,
@@ -92,6 +91,8 @@ std::vector<double> GatherMoles_(const GriddingAlgorithm& grid, double x,
         }
       });
     });
+    // TODO: Specify on which communicator shall be acted
+    // grid.GetMpiCommunicator() ?
     int found = 0;
     MPI_Allreduce(&local_found, &found, 1, MPI_INT, MPI_SUM,
                   ::amrex::ParallelContext::CommunicatorAll());
@@ -118,32 +119,31 @@ void IgniteDetonation::SetLastIgnitionTimePoint(int level,
 
 void IgniteDetonation::ResetHierarchyConfiguration(
     std::shared_ptr<amrex::GriddingAlgorithm> grid) {
-  gridding_ = std::move(grid);
-  if (gridding_->GetPatchHierarchy().GetTimePoint() <= last_ignition_[0]) {
+  if (grid->GetPatchHierarchy().GetTimePoint() <= last_ignition_[0]) {
     last_ignition_ = last_ignition_backup_;
   }
 }
-
 Result<void, TimeStepTooLarge>
-IgniteDetonation::AdvanceLevel(int level, fub::Duration /* dt */) {
-  PatchHierarchy& hier = gridding_->GetPatchHierarchy();
-  Duration current_time = hier.GetTimePoint(level);
+IgniteDetonation::AdvanceLevel(IntegratorContext& grid, int level,
+                               fub::Duration /* dt */,
+                               const ::amrex::IntVect& /* ngrow */) {
+  Duration current_time = grid.GetTimePoint(level);
   Duration next_ignition_time =
       GetLastIgnitionTimePoint(level) + options_.ignite_interval;
   if (next_ignition_time < current_time) {
-    const ::amrex::Geometry& geom = hier.GetGeometry(level);
+    const ::amrex::Geometry& geom = grid.GetGeometry(level);
     const double dx_2 = geom.CellSize(0);
     const double xlo = geom.ProbDomain().lo(0) + dx_2;
     const double xhi = geom.ProbDomain().hi(0) - dx_2;
     const double x_fuel = std::clamp(options_.measurement_position, xlo, xhi);
-    std::vector<double> moles = GatherMoles_(*gridding_, x_fuel, equation_);
+    std::vector<double> moles = GatherMoles_(grid, x_fuel, equation_);
     const double equivalence_ratio =
         moles[Burke2012::sO2]
             ? 0.5 * moles[Burke2012::sH2] / moles[Burke2012::sO2]
             : 0.0;
     if (equivalence_ratio > options_.equivalence_ratio_criterium) {
-      ::amrex::MultiFab& data = hier.GetPatchLevel(level).data;
-      const ::amrex::Geometry& geom = hier.GetGeometry(level);
+      ::amrex::MultiFab& data = grid.GetScratch(level);
+      const ::amrex::Geometry& geom = grid.GetGeometry(level);
       const double x_ignite = options_.ignite_position;
       const double T_lo = options_.temperature_low;
       const double T_hi = options_.temperature_high;

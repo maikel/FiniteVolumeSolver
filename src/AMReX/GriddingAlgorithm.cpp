@@ -25,24 +25,10 @@
 
 namespace fub::amrex {
 
-int PrepareParmParseAndReturnNumberOfRefinementLevels(
-    const PatchHierarchy& hier) {
-  ::amrex::ParmParse pp("amr");
-  const int dim = hier.GetDataDescription().dimension;
-  const ::amrex::IntVect blocking_factor = hier.GetOptions().blocking_factor;
-  FUB_ASSERT(dim >= 1);
-  if (!pp.contains("blocking_factor_x")) {
-    pp.add("blocking_factor_x", blocking_factor[0]);
-    pp.add("blocking_factor_y", dim >= 2 ? blocking_factor[1] : 1);
-    pp.add("blocking_factor_z", dim >= 3 ? blocking_factor[2] : 1);
-  }
-  return hier.GetMaxNumberOfLevels() - 1;
-}
-
 GriddingAlgorithm::GriddingAlgorithm(const GriddingAlgorithm& other)
     : AmrCore(
           &other.hierarchy_.GetGridGeometry().coordinates,
-          PrepareParmParseAndReturnNumberOfRefinementLevels(other.hierarchy_),
+          other.hierarchy_.GetMaxNumberOfLevels() - 1,
           ::amrex::Vector<int>(
               other.hierarchy_.GetGridGeometry().cell_dimensions.begin(),
               other.hierarchy_.GetGridGeometry().cell_dimensions.end()),
@@ -95,7 +81,7 @@ operator=(const GriddingAlgorithm& other) {
 GriddingAlgorithm::GriddingAlgorithm(GriddingAlgorithm&& other) noexcept
     : AmrCore(
           &other.hierarchy_.GetGridGeometry().coordinates,
-          PrepareParmParseAndReturnNumberOfRefinementLevels(other.hierarchy_),
+          other.hierarchy_.GetMaxNumberOfLevels() - 1,
           ::amrex::Vector<int>(
               other.hierarchy_.GetGridGeometry().cell_dimensions.begin(),
               other.hierarchy_.GetGridGeometry().cell_dimensions.end()),
@@ -168,8 +154,7 @@ operator=(GriddingAlgorithm&& other) noexcept {
 GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier,
                                      InitialData initial_data, Tagging tagging)
     : AmrCore(
-          &hier.GetGridGeometry().coordinates,
-          PrepareParmParseAndReturnNumberOfRefinementLevels(hier),
+          &hier.GetGridGeometry().coordinates, hier.GetMaxNumberOfLevels() - 1,
           ::amrex::Vector<int>(hier.GetGridGeometry().cell_dimensions.begin(),
                                hier.GetGridGeometry().cell_dimensions.end()),
           -1,
@@ -180,8 +165,17 @@ GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier,
       hierarchy_{std::move(hier)},
       initial_data_{std::move(initial_data)}, tagging_{std::move(tagging)},
       boundary_condition_(size_t(hierarchy_.GetMaxNumberOfLevels())) {
+  const PatchHierarchyOptions& options = hierarchy_.GetOptions();
+  AmrMesh::SetMaxGridSize(options.max_grid_size);
+  AmrMesh::SetBlockingFactor(options.blocking_factor);
+  AmrMesh::SetNProper(options.n_proper);
+  AmrMesh::SetGridEff(options.grid_efficiency);
+  AmrMesh::verbose = options.verbose;
+  AmrCore::verbose = options.verbose;
+  AmrMesh::n_error_buf = ::amrex::Vector<::amrex::IntVect>(
+      AmrMesh::n_error_buf.size(), options.n_error_buf);
   if (hier.GetNumberOfLevels() > 0) {
-    for (int i = 0; i < hier.GetNumberOfLevels(); ++i) {
+    for (int i = 0; i < hierarchy_.GetNumberOfLevels(); ++i) {
       const std::size_t ii = static_cast<std::size_t>(i);
       AmrMesh::geom[ii] = hierarchy_.GetGeometry(i);
       AmrMesh::dmap[ii] = hierarchy_.GetPatchLevel(i).distribution_mapping;
@@ -194,8 +188,7 @@ GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier,
                                      InitialData initial_data, Tagging tagging,
                                      BoundaryCondition bc)
     : AmrCore(
-          &hier.GetGridGeometry().coordinates,
-          PrepareParmParseAndReturnNumberOfRefinementLevels(hier),
+          &hier.GetGridGeometry().coordinates, hier.GetMaxNumberOfLevels() - 1,
           ::amrex::Vector<int>(hier.GetGridGeometry().cell_dimensions.begin(),
                                hier.GetGridGeometry().cell_dimensions.end()),
           -1,
@@ -206,8 +199,17 @@ GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier,
       hierarchy_{std::move(hier)},
       initial_data_{std::move(initial_data)}, tagging_{std::move(tagging)},
       boundary_condition_(size_t(hierarchy_.GetMaxNumberOfLevels()), bc) {
+  const PatchHierarchyOptions& options = hierarchy_.GetOptions();
+  AmrMesh::SetMaxGridSize(options.max_grid_size);
+  AmrMesh::SetBlockingFactor(options.blocking_factor);
+  AmrMesh::SetNProper(options.n_proper);
+  AmrMesh::SetGridEff(options.grid_efficiency);
+  AmrMesh::verbose = options.verbose;
+  AmrCore::verbose = options.verbose;
+  AmrMesh::n_error_buf = ::amrex::Vector<::amrex::IntVect>(
+      AmrMesh::n_error_buf.size(), options.n_error_buf);
   if (hier.GetNumberOfLevels() > 0) {
-    for (int i = 0; i < hier.GetNumberOfLevels(); ++i) {
+    for (int i = 0; i < hierarchy_.GetNumberOfLevels(); ++i) {
       const std::size_t ii = static_cast<std::size_t>(i);
       AmrMesh::geom[ii] = hierarchy_.GetGeometry(i);
       AmrMesh::dmap[ii] = hierarchy_.GetPatchLevel(i).distribution_mapping;

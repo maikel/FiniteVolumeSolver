@@ -78,6 +78,7 @@ public:
                    [[maybe_unused]] Duration time_step_size,
                    [[maybe_unused]] std::pair<int, int> subcycle);
 
+  using IntegratorContext::GetCounterRegistry;
   using IntegratorContext::GetCycles;
   using IntegratorContext::GetMpiCommunicator;
   using IntegratorContext::GetTimePoint;
@@ -145,6 +146,11 @@ void DimensionalSplitLevelIntegrator<R, IntegratorContext, SplitMethod>::
                             Duration, std::pair<int, int>>()) {
     IntegratorContext::PreAdvanceLevel(level, time_step_size, subcycle);
   }
+  if (level > 0) {
+    IntegratorContext::FillGhostLayerTwoLevels(level, level - 1);
+  } else {
+    IntegratorContext::FillGhostLayerSingleLevel(level);
+  }
 }
 template <int R, typename IntegratorContext, typename SplitMethod>
 Result<void, TimeStepTooLarge>
@@ -179,7 +185,7 @@ template <int Rank, typename Context, typename SplitMethod>
 Result<void, TimeStepTooLarge>
 DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::
     AdvanceLevelNonRecursively(int this_level, Duration dt,
-                               std::pair<int, int>) {
+                               std::pair<int, int> subcycle) {
   auto AdvanceLevel_Split = [&](Direction dir) {
     return [&, this_level, dir, count_split_steps = 0](
                Duration split_dt) mutable -> Result<void, TimeStepTooLarge> {
@@ -224,11 +230,8 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::
       [&](auto... directions) {
         return GetSplitMethod().Advance(dt, AdvanceLevel_Split(directions)...);
       },
-      MakeSplitDirections<Rank>());
+      MakeSplitDirections<Rank>(subcycle));
 
-  if (result) {
-    Context::CopyScratchToData(this_level);
-  }
   return result;
 }
 

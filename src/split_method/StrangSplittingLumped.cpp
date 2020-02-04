@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Maikel Nadolski
+// Copyright (c) 2020 Stefan Vater
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,43 +18,24 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/AMReX/ScopeGuard.hpp"
-
-#include <AMReX.H>
-#include <AMReX_ParmParse.H>
-
-#include <mpi.h>
+#include "fub/split_method/StrangSplittingLumped.hpp"
 
 namespace fub {
-namespace amrex {
 
-ScopeGuard::ScopeGuard(int argc, char** argv) {
-  ::amrex::Initialize(argc, argv);
-}
-
-ScopeGuard::ScopeGuard() {
-  int is_initialized = -1;
-  MPI_Initialized(&is_initialized);
-  if (!is_initialized) {
-    MPI_Init(nullptr, nullptr);
-    owns_mpi = true;
+boost::outcome_v2::result<void, TimeStepTooLarge>
+StrangSplittingLumped::Advance(Duration time_step_size,
+                               AdvanceFunction advance1,
+                               AdvanceFunction advance2) const {
+  boost::outcome_v2::result<void, TimeStepTooLarge> result =
+      advance1(0.5 * time_step_size);
+  if (!result) {
+    return result.as_failure();
   }
-  ::amrex::Initialize(MPI_COMM_WORLD, std::cout, std::cerr,
-                      [](const char* msg) { throw std::runtime_error(msg); });
-  // This deactivates the input checking in ::amrex::AmrMesh which is neccessary
-  // for 1d grids embedded in 3d or 2d.
-  ::amrex::ParmParse pp("amr");
-  pp.add("check_input", false);
-}
-
-ScopeGuard::~ScopeGuard() {
-  ::amrex::Finalize();
-  int is_initialized = -1;
-  MPI_Initialized(&is_initialized);
-  if (is_initialized && owns_mpi) {
-    MPI_Finalize();
+  result = advance2(time_step_size);
+  if (!result) {
+    return result.as_failure();
   }
+  return advance1(0.5 * time_step_size);
 }
 
-} // namespace amrex
 } // namespace fub

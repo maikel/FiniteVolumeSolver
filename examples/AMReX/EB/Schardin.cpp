@@ -132,8 +132,8 @@ int main() {
   output.AddOutput(fub::MakeOutput<GriddingAlgorithm>(
       {}, {3e-4s / 180.}, PlotfileOutput(equation, base_name)));
   output.AddOutput(std::make_unique<fub::CounterOutput<GriddingAlgorithm>>(
-      solver.GetContext().registry_, wall_time_reference,
-      std::vector<std::ptrdiff_t>{50}, std::vector<fub::Duration>{}));
+      wall_time_reference, std::vector<std::ptrdiff_t>{50},
+      std::vector<fub::Duration>{}));
 
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};

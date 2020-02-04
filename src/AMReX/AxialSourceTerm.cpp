@@ -27,14 +27,23 @@ namespace fub::amrex {
 
 AxialSourceTerm::AxialSourceTerm(const IdealGasMix<1>& eq,
                                  std::function<double(double)> diameter,
-                                 std::shared_ptr<GriddingAlgorithm> gridding)
+                                 const std::shared_ptr<GriddingAlgorithm>& grid)
     : diameter_(std::move(diameter)), equation_(eq) {
-  ResetHierarchyConfiguration(std::move(gridding));
+  ResetHierarchyConfiguration(grid);
 }
 
 AxialSourceTerm::AxialSourceTerm(const AxialSourceTerm& other)
     : diameter_(other.diameter_), equation_(other.equation_) {
-  ResetHierarchyConfiguration(other.gridding_);
+  Ax_.reserve(other.Ax_.size());
+  for (const ::amrex::MultiFab& other_Ax : other.Ax_) {
+    ::amrex::BoxArray box_array = other_Ax.boxArray();
+    ::amrex::DistributionMapping distribution_map = other_Ax.DistributionMap();
+    const int ncomp = other_Ax.nComp();
+    const int ngrow = other_Ax.nGrow();
+    ::amrex::MultiFab& Ax =
+        Ax_.emplace_back(box_array, distribution_map, ncomp, ngrow);
+    Ax.copy(other_Ax);
+  }
 }
 
 AxialSourceTerm& AxialSourceTerm::operator=(const AxialSourceTerm& other) {
@@ -42,18 +51,11 @@ AxialSourceTerm& AxialSourceTerm::operator=(const AxialSourceTerm& other) {
   return (*this = std::move(tmp));
 }
 
-void AxialSourceTerm::PreAdvanceLevel(int, Duration,
-                                      std::pair<int, int> subcycle) {
-  if (subcycle.first == 0) {
-    ResetHierarchyConfiguration(gridding_);
-  }
-}
-
 namespace {
 std::vector<::amrex::MultiFab>
-ComputeDiameters(const amrex::GriddingAlgorithm& gridding,
+ComputeDiameters(const amrex::GriddingAlgorithm& grid,
                  const std::function<double(double)>& diameter) {
-  const PatchHierarchy& hier = gridding.GetPatchHierarchy();
+  const PatchHierarchy& hier = grid.GetPatchHierarchy();
   const int nlevel = hier.GetNumberOfLevels();
   std::vector<::amrex::MultiFab> ds{};
   ds.reserve(static_cast<std::size_t>(nlevel));
@@ -79,25 +81,18 @@ ComputeDiameters(const amrex::GriddingAlgorithm& gridding,
 } // namespace
 
 void AxialSourceTerm::ResetHierarchyConfiguration(
-    std::shared_ptr<amrex::GriddingAlgorithm>&& gridding) {
-  gridding_ = std::move(gridding);
-  Ax_ = ComputeDiameters(*gridding_, diameter_);
+    const std::shared_ptr<amrex::GriddingAlgorithm>& grid) {
+  Ax_ = ComputeDiameters(*grid, diameter_);
 }
 
-void AxialSourceTerm::ResetHierarchyConfiguration(
-    const std::shared_ptr<amrex::GriddingAlgorithm>& gridding) {
-  gridding_ = gridding;
-  Ax_ = ComputeDiameters(*gridding_, diameter_);
-}
-
-Duration AxialSourceTerm::ComputeStableDt(int) {
-  return Duration(std::numeric_limits<double>::infinity());
+Duration AxialSourceTerm::ComputeStableDt(int /* level */) {
+  return Duration(std::numeric_limits<double>::max());
 }
 
 Result<void, TimeStepTooLarge>
-AxialSourceTerm::AdvanceLevel(int level, Duration time_step_size) {
-  ::amrex::MultiFab& data =
-      gridding_->GetPatchHierarchy().GetPatchLevel(level).data;
+AxialSourceTerm::AdvanceLevel(IntegratorContext& simulation_data, int level,
+                              Duration time_step_size) {
+  ::amrex::MultiFab& data = simulation_data.GetScratch(level);
   const double dt = time_step_size.count();
   Complete<IdealGasMix<1>> state(equation_);
   ForEachFab(data, [&](const ::amrex::MFIter& mfi) {
