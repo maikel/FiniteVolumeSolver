@@ -284,7 +284,7 @@ template <int Dim> struct EinfeldtSignalVelocities<IdealGasMix<Dim>> {
   std::array<Array1d, 2> operator()(const IdealGasMix<Dim>& equation,
                                     const CompleteArray& left,
                                     const CompleteArray& right,
-                                    const MaskArray& mask,
+                                    MaskArray mask,
                                     Direction dir) const noexcept;
 };
 
