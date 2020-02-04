@@ -86,7 +86,9 @@ void WriteHdf5UnRestricted(const std::string& name,
   if (rank == 0) {
     boost::filesystem::path path(name);
     boost::filesystem::path dir = path.parent_path();
-    boost::filesystem::create_directories(dir);
+    if (!boost::filesystem::exists(dir)) {
+        boost::filesystem::create_directories(dir);
+    }
   }
   const std::size_t n_level =
       static_cast<std::size_t>(hierarchy.GetNumberOfLevels());
@@ -149,7 +151,9 @@ void WriteHdf5RestrictedToBox(const std::string& name,
   if (rank == 0) {
     boost::filesystem::path path(name);
     boost::filesystem::path dir = path.parent_path();
-    boost::filesystem::create_directories(dir);
+    if (!boost::filesystem::exists(dir)) {
+      boost::filesystem::create_directories(dir);
+    }
   }
   const std::size_t n_level =
       static_cast<std::size_t>(hierarchy.GetNumberOfLevels());
