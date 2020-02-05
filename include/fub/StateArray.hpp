@@ -40,13 +40,30 @@ using ConservativeArrayBase =
 template <typename Eq, int Width = kDefaultChunkSize>
 struct ConservativeArray : ConservativeArrayBase<Eq, Width> {
   using Equation = Eq;
-  using Depths = typename Equation::ConservativeDepths;
+  // using Depths = typename Equation::ConservativeDepths;
   using Traits = StateTraits<ConservativeArrayBase<Eq, Width>>;
 
   static constexpr int Size() { return Width; }
 
   ConservativeArray() = default;
-  ConservativeArray(const Equation& eq) { InitializeState(eq, *this); }
+  ConservativeArray(const Equation& eq)
+  { 
+    auto depths = Depths<Conservative<Equation>>(eq);
+    ForEachVariable(
+        overloaded{
+            [&](Array1d& id, ScalarDepth) { id = Array1d::Zero(); },
+            [&](auto&& ids, auto depth) {
+              if constexpr (std::is_same_v<std::decay_t<decltype(depth)>,
+                                           int>) {
+                ids = ArrayXd::Zero(depth, kDefaultChunkSize);
+              } else {
+                ids = Array<double, decltype(depth)::value>::Zero();
+              }
+            },
+        },
+        *this, depths);
+    InitializeState(eq, *this); 
+  }
 };
 
 template <typename Eq, int Width>
