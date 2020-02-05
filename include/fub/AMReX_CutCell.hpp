@@ -34,6 +34,7 @@
 #include "fub/AMReX/cutcell/TimeIntegrator.hpp"
 
 #include "fub/AMReX/cutcell/initial_data/RiemannProblem.hpp"
+#include "fub/AMReX/cutcell/initial_data/InterpolateFrom1d.hpp"
 
 #include "fub/AMReX/cutcell/tagging/ConstantRegion.hpp"
 #include "fub/AMReX/cutcell/tagging/GradientDetector.hpp"
@@ -49,6 +50,7 @@
 #include "fub/AMReX/cutcell/output/LogProbes.hpp"
 #include "fub/AMReX/cutcell/output/WriteHdf5.hpp"
 #include "fub/AMReX/cutcell/output/WritePlotfiles.hpp"
+#include "fub/AMReX/cutcell/output/DebugOutput.hpp"
 
 #include "fub/AMReX/multi_block/MultiBlockBoundary.hpp"
 #include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp"
