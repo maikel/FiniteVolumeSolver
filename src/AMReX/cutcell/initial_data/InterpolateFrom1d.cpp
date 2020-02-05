@@ -85,9 +85,9 @@ void InterpolateFrom1d::InitializeData(::amrex::MultiFab& data, const ::amrex::G
         const double* velocity_first = &raw_prims(i0, i_velocity_x);
         const double* pressure_first = &raw_prims(i0, i_pressure);
 
-        const double density = std::accumulate(density_first + 1, density_first + n, 0.0) / n;
-        const double velocity = std::accumulate(velocity_first + 1, velocity_first + n, 0.0) / n;
-        const double pressure = std::accumulate(pressure_first + 1, pressure_first + n, 0.0) / n;
+        const double density = std::accumulate(density_first, density_first + n, 0.0) / n;
+        const double velocity = std::accumulate(velocity_first, velocity_first + n, 0.0) / n;
+        const double pressure = std::accumulate(pressure_first, pressure_first + n, 0.0) / n;
         FUB_ASSERT(density > 0.0);
         FUB_ASSERT(pressure > 0.0);
 
