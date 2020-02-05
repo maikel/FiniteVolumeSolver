@@ -308,15 +308,15 @@ operator()(const PerfectGas<Dim>&, const CompleteArray& left,
            Direction dir) const noexcept {
   const Array1d rhoL = left.density;
   const Array1d rhoR = right.density;
-  const Array1d rhoUL = left.momentum.row(int(dir));
-  const Array1d rhoUR = right.momentum.row(int(dir));
-  const Array1d aL = left.speed_of_sound;
-  const Array1d aR = right.speed_of_sound;
-  const Array1d sqRhoL = rhoL.sqrt();
-  const Array1d sqRhoR = rhoR.sqrt();
-  const Array1d sqRho = mask.select(sqRhoL + sqRhoR, 1.0);
+  const Array1d rhoUL = mask.select(left.momentum.row(int(dir)), 0.0);
+  const Array1d rhoUR = mask.select(right.momentum.row(int(dir)), 0.0);
+  const Array1d aL = mask.select(left.speed_of_sound, 0.0);
+  const Array1d aR = mask.select(right.speed_of_sound, 0.0);
   const Array1d rhoLs = mask.select(rhoL, 1.0);
   const Array1d rhoRs = mask.select(rhoR, 1.0);
+  const Array1d sqRhoL = rhoLs.sqrt();
+  const Array1d sqRhoR = rhoRs.sqrt();
+  const Array1d sqRho = sqRhoL + sqRhoR;
   FUB_ASSERT((rhoLs > 0.0).all());
   FUB_ASSERT((rhoRs > 0.0).all());
   FUB_ASSERT((sqRho > 0.0).all());
