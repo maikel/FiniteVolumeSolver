@@ -189,6 +189,9 @@ public:
   CutCellData<AMREX_SPACEDIM> GetCutCellData(int level,
                                              const ::amrex::MFIter& mfi) const;
 
+  const std::shared_ptr<DebugStorage>&
+  GetDebugStorage() const noexcept;
+
   /// @}
 
 private:
@@ -198,6 +201,7 @@ private:
   std::vector<PatchLevel> patch_level_;
   std::vector<::amrex::Geometry> patch_level_geometry_;
   std::shared_ptr<CounterRegistry> registry_;
+  std::shared_ptr<DebugStorage> debug_storage_;
 };
 
 template <typename Equation>

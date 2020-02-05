@@ -27,6 +27,8 @@
 
 #include "fub/equations/PerfectGas.hpp"
 
+#include "fub/AMReX/output/DebugOutput.hpp"
+
 #include <boost/filesystem.hpp>
 
 namespace fub {
@@ -155,7 +157,7 @@ PatchHierarchy::PatchHierarchy(DataDescription desc,
                                const PatchHierarchyOptions& options)
     : description_{std::move(desc)},
       grid_geometry_{geometry}, options_{options}, patch_level_{},
-      patch_level_geometry_{}, registry_{std::make_shared<CounterRegistry>()} {
+      patch_level_geometry_{}, registry_{std::make_shared<CounterRegistry>()}, debug_storage_{std::make_shared<DebugStorage>()} {
   const std::size_t size =
       static_cast<std::size_t>(options.max_number_of_levels);
   patch_level_.resize(size);
@@ -205,6 +207,11 @@ PatchHierarchy::GetCutCellData(int level_number,
         MakePatchDataView((*level.doubly_shielded[d])[mfi], 1);
   }
   return cutcell_data;
+}
+
+const std::shared_ptr<DebugStorage>&
+PatchHierarchy::GetDebugStorage() const noexcept {
+  return debug_storage_;
 }
 
 const std::shared_ptr<::amrex::EBFArrayBoxFactory>&

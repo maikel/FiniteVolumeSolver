@@ -21,6 +21,8 @@
 #include "fub/AMReX/cutcell/IntegratorContext.hpp"
 
 #include "fub/AMReX/ViewFArrayBox.hpp"
+#include "fub/AMReX/ForEachFab.hpp"
+#include "fub/AMReX/ForEachIndex.hpp"
 #include "fub/AMReX/cutcell/IndexSpace.hpp"
 
 #include <AMReX_EBMultiFabUtil.H>
@@ -28,6 +30,8 @@
 #include <AMReX_FluxReg_C.H>
 #include <AMReX_Interpolater.H>
 #include <AMReX_MultiFabUtil.H>
+
+#include "fub/AMReX/output/DebugOutput.hpp"
 
 namespace fub::amrex::cutcell {
 
@@ -569,6 +573,18 @@ void IntegratorContext::ComputeNumericFluxes(int level, Duration dt,
         "cutcell::IntegratorContext::ComputeNumericFluxes({})", level));
   }
   method_.flux_method.ComputeNumericFluxes(*this, level, dt, dir);
+//
+//  auto debug = GetPatchHierarchy().GetDebugStorage();
+//  // std::array<::amrex::MultiFab, Rank> fluxes{};
+//  //   std::array<::amrex::MultiFab, Rank> stabilized_fluxes{};
+//  //   std::array<::amrex::MultiFab, Rank> shielded_left_fluxes{};
+//  //   std::array<::amrex::MultiFab, Rank> shielded_right_fluxes{};
+//  //   std::array<::amrex::MultiFab, Rank> doubly_shielded_fluxes{}
+//   debug->SaveData(data_[level].fluxes[int(dir)], "flux_momentum_x", ::amrex::SrcComp(1));
+//   debug->SaveData(data_[level].fluxes[int(dir)], "flux_momentum_y", ::amrex::SrcComp(2));
+//   debug->SaveData(data_[level].fluxes[int(dir)], "flux_momentum_z", ::amrex::SrcComp(3));
+//   debug->SaveData(data_[level].fluxes[int(dir)], "flux_energy", ::amrex::SrcComp(4));
+//   debug->SaveData(data_[level].fluxes[int(dir)], "flux_density", ::amrex::SrcComp(0));
 }
 
 void IntegratorContext::CompleteFromCons(int level, Duration dt) {
@@ -580,6 +596,8 @@ void IntegratorContext::CompleteFromCons(int level, Duration dt) {
         fmt::format("cutcell::IntegratorContext::CompleteFromCons({})", level));
   }
   method_.reconstruction.CompleteFromCons(*this, level, dt);
+//  auto debug = GetPatchHierarchy().GetDebugStorage();
+//  debug->SaveData(data_[level].scratch, "Pressure", ::amrex::SrcComp(5));
 }
 
 void IntegratorContext::UpdateConservatively(int level, Duration dt,
@@ -592,6 +610,8 @@ void IntegratorContext::UpdateConservatively(int level, Duration dt,
         "cutcell::IntegratorContext::UpdateConservatively({})", level));
   }
   method_.time_integrator.UpdateConservatively(*this, level, dt, dir);
+//  auto debug = GetPatchHierarchy().GetDebugStorage();
+//  debug->SaveData(data_[level].scratch, "Energy", ::amrex::SrcComp(4));
 }
 
 void IntegratorContext::PreAdvanceLevel(int level_num, Duration,
@@ -616,6 +636,13 @@ void IntegratorContext::PreAdvanceLevel(int level_num, Duration,
       }
     }
   }
+  // for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+  //   data_[level_num].fluxes[d].setVal(0.0);
+  //   data_[level_num].stabilized_fluxes[d].setVal(0.0);
+  //   data_[level_num].shielded_left_fluxes[d].setVal(0.0);
+  //   data_[level_num].shielded_right_fluxes[d].setVal(0.0);
+  //   data_[level_num].doubly_shielded_fluxes[d].setVal(0.0);
+  // }
 }
 
 Result<void, TimeStepTooLarge>
