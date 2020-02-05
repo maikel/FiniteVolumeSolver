@@ -1,13 +1,24 @@
 import math
+import h5py
+import numpy as np
 
-plenum_y_n_cells = 32
-plenum_x_n_cells = 32
-plenum_z_n_cells = 32
+source = h5py.File("/Users/maikel/Development/FiniteVolumeSolver/build/initial_data2.h5", "r")
+dataset = source['DG_Solution']
+data = np.transpose(np.array(dataset)).copy()
+source.close()
+
+view = data.view()
+view.shape = (data.shape[0] * data.shape[1])
+data = view.copy()
+
+plenum_y_n_cells = 64
+plenum_x_n_cells = 64
+plenum_z_n_cells = 64
 
 tube_blocking_factor = 8
 plenum_blocking_factor = 8
 
-n_level = 2
+n_level = 1
 
 n_tubes = 6
 r_tube = 0.015
@@ -22,13 +33,13 @@ plenum_length = 0.50 # [m]
 plenum_max_grid_size = max(plenum_blocking_factor, 64)
 
 plenum_domain_length = plenum_length + tube_length
-plenum_x_upper = plenum_length
-plenum_x_lower = -tube_length
+plenum_x_upper = 0.25 # plenum_length
+plenum_x_lower = -0.1 # -tube_length
 
 plenum_x_length = plenum_x_upper - plenum_x_lower
 
-plenum_y_upper = r_outer + 0.05
-plenum_y_lower = -r_outer - 0.05
+plenum_y_upper = +r_outer + 0.07
+plenum_y_lower = 0.0 # -r_outer - 0.05
 plenum_y_length = plenum_y_upper - plenum_y_lower
 
 plenum_z_upper = r_outer + 0.05
@@ -49,9 +60,9 @@ plenum_y_n_cells = int(plenum_y_n_cells)
 
 
 RunOptions = {
-  'cfl': 0.5,
+  'cfl': 0.3,
   'final_time': 0.02,
-  'max_cycles': 0,
+  'max_cycles': 10,
   'do_backup': 0
 }
 
@@ -74,7 +85,11 @@ PatchHierarchy = {
   'ngrow_eb_level_set': 5
 }
 
-IsentropicPressureBoundary = {
+InitialCondition = {
+  'data': data
+}
+
+PressureBoundary = {
   'outer_pressure': 101325.0,
   'side': 1,
   'direction': 0
@@ -83,17 +98,16 @@ IsentropicPressureBoundary = {
 Output = { 
   'outputs': [{
     'type': 'Plotfile',
-    'directory': 'MultiTube2/',
-    'intervals': [1e-4],
-    'frequencies': [5],
+    'directory': 'MultiTube/',
+    # 'intervals': [1e-4],
+    'frequencies': [1],
   }, {
     'type': 'CounterOutput',
-    'frequencies': [10]
+    'frequencies': [20]
+  }, {
+    'type': 'Checkpoint',
+    'directory': 'MultiTube/Checkpoint/',
+    'frequencies': [100]
   }]
-  # , {
-  #   'type': 'Checkpoint',
-  #   'directory': 'MultiTube2/Checkpoint/',
-  #   'frequencies': [100]
-  # }]
 }
 

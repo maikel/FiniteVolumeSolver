@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Maikel Nadolski
+// Copyright (c) 2020 Maikel Nadolski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -39,6 +39,8 @@
 
 #include <cmath>
 #include <iostream>
+
+#include <pybind11/numpy.h>
 
 static constexpr int Plenum_Rank = 3;
 
@@ -90,39 +92,32 @@ auto MakePlenumSolver(fub::PerfectGas<3>& equation,
   using namespace std::literals;
   const fub::ProgramOptions initial_options =
       fub::GetOptions(options, "InitialCondition");
-  const double temperature =
-      fub::GetOptionOr(initial_options, "temperature", 300.0);
-  const double pressure =
-      fub::GetOptionOr(initial_options, "pressure", 101325.0);
-  const double density = pressure / (equation.Rspec * temperature);
-  fub::Complete<fub::PerfectGas<Plenum_Rank>> state = equation.CompleteFromPrim(
-      density, fub::Array<double, 3, 1>::Zero(), pressure);
+  std::vector<double> data{0.0, 1.1, 0.0, 0.0, 0.0, 101325.0};
+  data = fub::GetOptionOr(initial_options, "data", data);
 
-  RiemannProblem initial_data(equation, fub::Halfspace({+1.0, 0.0, 0.0}, 0.0),
-                              state, state);
+  InterpolateFrom1d initial_data(equation, std::move(data));
 
   using State = fub::Complete<fub::PerfectGas<Plenum_Rank>>;
   GradientDetector gradients{equation, std::pair{&State::pressure, 0.05},
                              std::pair{&State::density, 0.01}};
 
-  ::amrex::RealBox inlet{{-0.1, -0.5, -0.5}, {0.05, +0.5, +0.5}};
-  const ::amrex::Box refine_box = fub::amrex::BoxWhichContains(
-      inlet, fub::amrex::GetCoarseGeometry(grid_geometry));
-  ConstantBox constant_box{refine_box};
-
   // ::amrex::RealBox outlet{{0.5, -0.5, -0.5}, {0.54, +0.5, +0.5}};
   // const ::amrex::Box outlet_box =
   //     fub::amrex::BoxWhichContains(outlet, coarse_geometry);
 
-  // perfect_gas::IsentropicPressureBoundaryOptions boundary_options =
-  //     fub::GetOptions(options, "IsentropicPressureBoundary");
+  PressureOutflowOptions boundary_options =
+      fub::GetOptions(options, "PressureBoundary");
+  BOOST_LOG(log) << "PressureBoundary:";
+  boundary_options.Print(log);
   auto seq = fub::execution::seq;
-  
-  BoundarySet boundary_condition{{
-    ReflectiveBoundary{seq, equation, fub::Direction::X, 0},
-    ReflectiveBoundary{seq, equation, fub::Direction::X, 1},
-    ReflectiveBoundary{seq, equation, fub::Direction::Z, 0}
-  }};
+
+  BoundarySet boundary_condition{
+      {ReflectiveBoundary{seq, equation, fub::Direction::X, 0},
+       PressureOutflowBoundary{equation, boundary_options},
+       ReflectiveBoundary{seq, equation, fub::Direction::Z, 0},
+       ReflectiveBoundary{seq, equation, fub::Direction::Z, 1},
+       ReflectiveBoundary{seq, equation, fub::Direction::Y, 0},
+       ReflectiveBoundary{seq, equation, fub::Direction::Y, 1}}};
   //  perfect_gas::IsentropicPressureBoundary{equation, boundary_options}}};
 
   // If a checkpoint path is specified we will fill the patch hierarchy with
@@ -136,8 +131,7 @@ auto MakePlenumSolver(fub::PerfectGas<3>& equation,
     if (checkpoint.empty()) {
       std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
           PatchHierarchy(equation, grid_geometry, hierarchy_options),
-          initial_data,
-          TagAllOf(TagCutCells(), gradients, constant_box, TagBuffer(2)),
+          initial_data, TagAllOf(TagCutCells(), gradients, TagBuffer(2)),
           boundary_condition);
       gridding->InitializeHierarchy(0.0);
       return gridding;
@@ -147,8 +141,7 @@ auto MakePlenumSolver(fub::PerfectGas<3>& equation,
           hierarchy_options);
       return std::make_shared<GriddingAlgorithm>(
           std::move(h), initial_data,
-          TagAllOf(TagCutCells(), gradients, constant_box, TagBuffer(2)),
-          boundary_condition);
+          TagAllOf(TagCutCells(), gradients, TagBuffer(2)), boundary_condition);
     }
   }();
 
@@ -156,36 +149,17 @@ auto MakePlenumSolver(fub::PerfectGas<3>& equation,
 
   fub::EinfeldtSignalVelocities<fub::PerfectGas<Plenum_Rank>> signals{};
   fub::HllMethod hll_method{equation, signals};
-  fub::MusclHancockMethod flux_method(equation, hll_method);
-  fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
+  // fub::MusclHancockMethod flux_method(equation, hll_method);
+  fub::KbnCutCellMethod cutcell_method(hll_method, hll_method);
 
-  HyperbolicMethod method{FluxMethod{cutcell_method}, TimeIntegrator{},
+  HyperbolicMethod method{FluxMethod{seq, cutcell_method}, TimeIntegrator{},
                           Reconstruction{equation}};
 
-  const int scratch_gcw = 4;
-  const int flux_gcw = 2;
+  const int scratch_gcw = 1;
+  const int flux_gcw = 0;
 
   return IntegratorContext(gridding, method, scratch_gcw, flux_gcw);
 }
-
-struct CheckpointOptions {
-  CheckpointOptions() = default;
-
-  CheckpointOptions(const fub::ProgramOptions& vm) {
-    checkpoint = fub::GetOptionOr(vm, "checkpoint", checkpoint);
-  }
-
-  template <typename Logger> void Print(Logger& log) const {
-    if (!checkpoint.empty()) {
-      BOOST_LOG(log) << "Restart simulation from checkpoint '" << checkpoint
-                     << "'!";
-    } else {
-      BOOST_LOG(log) << "No Checkpoint given.";
-    }
-  }
-
-  std::string checkpoint{};
-};
 
 void WriteCheckpoint(const std::string& path,
                      const fub::amrex::cutcell::GriddingAlgorithm& grid) {
@@ -194,8 +168,8 @@ void WriteCheckpoint(const std::string& path,
   fub::amrex::cutcell::WriteCheckpointFile(name, grid.GetPatchHierarchy());
 }
 
-struct CheckpointOutput : fub::OutputAtFrequencyOrInterval<
-                              fub::amrex::cutcell::GriddingAlgorithm> {
+struct CheckpointOutput
+    : fub::OutputAtFrequencyOrInterval<fub::amrex::cutcell::GriddingAlgorithm> {
   CheckpointOutput(const fub::ProgramOptions& options)
       : OutputAtFrequencyOrInterval(options), log{fub::GetInfoLogger()} {
     directory_ = fub::GetOptionOr(options, "directory", directory_);
@@ -203,8 +177,7 @@ struct CheckpointOutput : fub::OutputAtFrequencyOrInterval<
     BOOST_LOG(log) << " - directory = " << directory_;
   }
 
-  void
-  operator()(const fub::amrex::cutcell::GriddingAlgorithm& grid) override {
+  void operator()(const fub::amrex::cutcell::GriddingAlgorithm& grid) override {
     int rank = -1;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", grid.GetTimePoint().count());
@@ -227,17 +200,19 @@ void MyMain(const fub::ProgramOptions& options) {
   IntegratorContext plenum = MakePlenumSolver(equation, options);
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<Plenum_Rank>, std::move(plenum), fub::StrangSplitting{});
+      fub::int_c<Plenum_Rank>, std::move(plenum), fub::GodunovSplitting{});
 
   fub::NoSubcycleSolver solver(std::move(level_integrator));
 
   fub::OutputFactory<GriddingAlgorithm> factory{};
   factory.RegisterOutput<WriteHdf5>("HDF5");
-  factory.RegisterOutput<PlotfileOutput<fub::PerfectGas<3>>>("Plotfile", equation);
+  factory.RegisterOutput<PlotfileOutput<fub::PerfectGas<3>>>("Plotfile",
+                                                             equation);
   factory.RegisterOutput<CheckpointOutput>("Checkpoint");
   using CounterOutput =
       fub::CounterOutput<GriddingAlgorithm, std::chrono::milliseconds>;
   factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
+  factory.RegisterOutput<fub::amrex::cutcell::DebugOutput>("DebugOutput");
   fub::MultipleOutputs<GriddingAlgorithm> outputs(
       std::move(factory), fub::GetOptions(options, "Output"));
 
@@ -250,12 +225,12 @@ void MyMain(const fub::ProgramOptions& options) {
 }
 
 int main(int argc, char** argv) {
-  // fub::EnableFloatingPointExceptions();
   MPI_Init(nullptr, nullptr);
   fub::InitializeLogging(MPI_COMM_WORLD);
   pybind11::scoped_interpreter interpreter{};
   std::optional<fub::ProgramOptions> opts = fub::ParseCommandLine(argc, argv);
   if (opts) {
+    fub::EnableFloatingPointExceptions();
     MyMain(*opts);
   }
   int flag = -1;
