@@ -18,16 +18,18 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_AMREX_CUTCELL_PRESSURE_OUTFLOW_BOUNDARY_HPP
-#define FUB_AMREX_CUTCELL_PRESSURE_OUTFLOW_BOUNDARY_HPP
-
 #include "fub/AMReX/cutcell/boundary_condition/PressureOutflowBoundary.hpp"
+
+#include "fub/AMReX/ForEachFab.hpp"
+#include "fub/AMReX/ForEachIndex.hpp"
 
 namespace fub::amrex::cutcell {
 namespace {
+inline int GetSign_(int side) { return (side == 0) - (side == 1); }
+
 template <typename GriddingAlgorithm>
-int FindLevel(const ::amrex::Geometry& geom,
-              const GriddingAlgorithm& gridding) {
+int FindLevel_(const ::amrex::Geometry& geom,
+               const GriddingAlgorithm& gridding) {
   for (int level = 0; level < gridding.GetPatchHierarchy().GetNumberOfLevels();
        ++level) {
     if (geom.Domain() ==
@@ -39,15 +41,27 @@ int FindLevel(const ::amrex::Geometry& geom,
 }
 } // namespace
 
-PressureOutflowOptions::PressureOutflowOptions(
-    const PerfectGas<AMREX_SPACEDIM>& eq, const ProgramOptions& options)
+PressureOutflowOptions::PressureOutflowOptions(const ProgramOptions& options) {
+  outer_pressure = GetOptionOr(options, "outer_pressure", outer_pressure);
+  direction = GetOptionOr(options, "direction", direction);
+  side = GetOptionOr(options, "side", side);
+}
+
+void PressureOutflowOptions::Print(SeverityLogger& log) {
+  BOOST_LOG(log) << " - outer_pressure = " << outer_pressure;
+  BOOST_LOG(log) << " - direction = " << int(direction);
+  BOOST_LOG(log) << " - side = " << side;
+}
+
+PressureOutflowBoundary::PressureOutflowBoundary(
+    const PerfectGas<AMREX_SPACEDIM>& eq, const PressureOutflowOptions& options)
     : equation_(eq), options_(options) {}
 
-void PressureOutlfowBoundary::FillBoundary(::amrex::MultiFab& mf,
+void PressureOutflowBoundary::FillBoundary(::amrex::MultiFab& mf,
                                            const ::amrex::Geometry& geom,
-                                           Duration dt,
+                                           Duration /* time_point */,
                                            const GriddingAlgorithm& grid) {
-  int level = FindLevel(geom, grid);
+  int level = FindLevel_(geom, grid);
   auto factory = grid.GetPatchHierarchy().GetEmbeddedBoundary(level);
   const ::amrex::MultiFab& alphas = factory->getVolFrac();
   const int ngrow = mf.nGrow(int(options_.direction));
@@ -59,6 +73,7 @@ void PressureOutlfowBoundary::FillBoundary(::amrex::MultiFab& mf,
   }
   const int dir_v = static_cast<int>(options_.direction);
   Complete<PerfectGas<AMREX_SPACEDIM>> state{equation_};
+  Complete<PerfectGas<AMREX_SPACEDIM>> zeros{equation_};
   const double pb = options_.outer_pressure;
   const double kappa = equation_.gamma;
   ForEachFab(execution::seq, mf, [&](const ::amrex::MFIter& mfi) {
@@ -66,7 +81,7 @@ void PressureOutlfowBoundary::FillBoundary(::amrex::MultiFab& mf,
     const ::amrex::FArrayBox& alpha = alphas[mfi];
     for (const ::amrex::Box& boundary : boundaries) {
       ::amrex::Box shifted =
-          ::amrex::shift(boundary, dir_v, GetSign(options_.side) * ngrow);
+          ::amrex::shift(boundary, dir_v, GetSign_(options_.side) * ngrow);
       if (!geom.Domain().intersects(shifted)) {
         continue;
       }
@@ -79,21 +94,26 @@ void PressureOutlfowBoundary::FillBoundary(::amrex::MultiFab& mf,
         ForEachIndex(box_to_fill, [&](auto... is) {
           std::array<std::ptrdiff_t, AMREX_SPACEDIM> dest{int(is)...};
           ::amrex::IntVect iv{int(is)...};
-          if (alpha(iv) > 0.0) {
-            std::array<std::ptrdiff_t, AMREX_SPACEDIM> src = dest;
-            src[dir_v] = x0;
+          std::array<std::ptrdiff_t, AMREX_SPACEDIM> src = dest;
+          src[dir_v] = x0;
+          ::amrex::IntVect src_iv{
+              AMREX_D_DECL(int(src[0]), int(src[1]), int(src[2]))};
+          if (alpha(iv) > 0.0 && alpha(src_iv) > 0.0) {
             Load(state, states, src);
             const double c = state.speed_of_sound;
+            FUB_ASSERT(c > 0.0);
             const double c2 = c * c;
             auto velocity = equation_.Velocity(state);
-            const double double velocity_norm2 = velocity.squaredNorm();
+            const double velocity_norm2 = velocity.matrix().squaredNorm();
             if (velocity_norm2 <= c2) {
-              Store(states, state, data);
+              Store(states, state, dest);
             } else {
               const double rho_new = kappa * pb / c2;
               state = equation_.CompleteFromPrim(rho_new, velocity, pb);
             }
             Store(states, state, dest);
+          } else {
+            Store(states, zeros, dest);
           }
         });
       }
@@ -102,5 +122,3 @@ void PressureOutlfowBoundary::FillBoundary(::amrex::MultiFab& mf,
 }
 
 } // namespace fub::amrex::cutcell
-
-#endif // !FUB_AMREX_CUTCELL_PRESSURE_OUTFLOW_BOUNDARY_HPP

@@ -24,24 +24,28 @@
 #include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
 #include "fub/Direction.hpp"
 #include "fub/equations/PerfectGas.hpp"
+#include "fub/ext/Log.hpp"
 #include "fub/ext/ProgramOptions.hpp"
 
-#include <AMReX.H>
+#include <AMReX_Geometry.H>
+#include <AMReX_MultiFab.H>
 
 namespace fub::amrex::cutcell {
 struct PressureOutflowOptions {
   PressureOutflowOptions() = default;
   PressureOutflowOptions(const ProgramOptions& options);
 
+  void Print(SeverityLogger& log);
+
   double outer_pressure = 101325.0;
   Direction direction = Direction::X;
   int side = 0;
 };
 
-class PressureOutlfowBoundary {
+class PressureOutflowBoundary {
 public:
-  PressureOutlfowBoundary(const PerfectGas<AMREX_SPACEDIM>& eq,
-                          const PressureOutlfowOptions& options);
+  PressureOutflowBoundary(const PerfectGas<AMREX_SPACEDIM>& eq,
+                          const PressureOutflowOptions& options);
 
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
                     Duration dt, const GriddingAlgorithm& grid);
@@ -58,7 +62,7 @@ public:
 
 private:
   PerfectGas<AMREX_SPACEDIM> equation_;
-  PressureOutlfowOptions options_;
+  PressureOutflowOptions options_;
 };
 
 } // namespace fub::amrex::cutcell
