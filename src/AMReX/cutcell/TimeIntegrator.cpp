@@ -200,7 +200,7 @@ void UpdateConservatively_Row(double* next, const double* prev,
   }
 
   for (i = 0; i < n; ++i) {
-    assert(!std::isnan(next[i]));
+    FUB_ASSERT(cc.cell.alpha[i] == 0.0 || !std::isnan(next[i]));
   }
 }
 
