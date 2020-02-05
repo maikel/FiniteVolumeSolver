@@ -230,7 +230,7 @@ int main(int argc, char** argv) {
   pybind11::scoped_interpreter interpreter{};
   std::optional<fub::ProgramOptions> opts = fub::ParseCommandLine(argc, argv);
   if (opts) {
-    fub::EnableFloatingPointExceptions();
+    // fub::EnableFloatingPointExceptions();
     MyMain(*opts);
   }
   int flag = -1;
