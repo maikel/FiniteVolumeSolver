@@ -296,7 +296,7 @@ BoundaryCondition& GriddingAlgorithm::GetBoundaryCondition(int level) noexcept {
   weigths.setVal(1.0);
   for (::amrex::MFIter mfi(weigths); mfi.isValid(); ++mfi) {
     if (flags[mfi].getType() == ::amrex::FabType::singlevalued) {
-      weigths[mfi].setVal(6.0);
+      weigths[mfi].setVal(hierarchy_.GetOptions().cutcell_load_balance_weight);
     }
   }
   EB_set_covered(weigths, 0.001);

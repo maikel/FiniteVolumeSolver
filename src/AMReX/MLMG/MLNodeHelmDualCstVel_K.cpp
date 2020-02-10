@@ -50,13 +50,13 @@ constexpr int fine_cell = 1;
 constexpr int crse_node = 0;
 constexpr int crse_fine_node = 1;
 constexpr int fine_node = 2;
-#if (BL_USE_FLOAT)
-constexpr double eps = 1.e-30;
-#else
-constexpr double eps = 1.e-100;
-#endif
-constexpr Real almostone =
-    1._rt - 100._rt * std::numeric_limits<Real>::epsilon();
+//#if (BL_USE_FLOAT)
+//constexpr double eps = 1.e-30;
+//#else
+//constexpr double eps = 1.e-100;
+//#endif
+//constexpr Real almostone =
+//    1._rt - 100._rt * std::numeric_limits<Real>::epsilon();
 
 } // namespace
 

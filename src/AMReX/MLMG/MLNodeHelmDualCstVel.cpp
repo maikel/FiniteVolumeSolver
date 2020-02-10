@@ -50,9 +50,9 @@
 
 namespace amrex {
 
-namespace {
-const Real bogus_value = std::numeric_limits<Real>::quiet_NaN();
-}
+//namespace {
+//const Real bogus_value = std::numeric_limits<Real>::quiet_NaN();
+//}
 
 MLNodeHelmDualCstVel::MLNodeHelmDualCstVel(
     const Vector<Geometry>& a_geom, const Vector<BoxArray>& a_grids,
@@ -952,7 +952,7 @@ void MLNodeHelmDualCstVel::compSyncResidualCoarse(MultiFab& sync_resid,
         if (Gpu::inLaunchRegion()) {
           AMREX_ASSERT(ccbxg1 == crse_cc_mask[mfi].box());
           has_fine = Reduce::AnyOf(
-              ccbxg1, [ cccmsk, nonowner ] AMREX_GPU_DEVICE(
+              ccbxg1, [ cccmsk ] AMREX_GPU_DEVICE(
                           int i, int j, int k) noexcept->bool {
                 return cccmsk(i, j, k) == nonowner;
               });

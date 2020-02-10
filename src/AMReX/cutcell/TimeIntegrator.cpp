@@ -81,7 +81,11 @@ void UpdateConservatively_Row(double* next, const double* prev,
     const Vc::double_v fB(&fluxB[i], Vc::Unaligned);
 
     const Vc::double_v u_prev(&prev[i], Vc::Unaligned);
-
+    
+    FUB_ASSERT(none_of(isnan(fL)));
+    FUB_ASSERT(none_of(isnan(fR)));
+    FUB_ASSERT(none_of(isnan(fB)));
+    FUB_ASSERT(none_of(isnan(u_prev)));
     const Vc::double_v regular = u_prev + dt_over_dx * (fL - fR);
 
     ////////////////////////////////////////////////////////////////////////////////////
@@ -318,7 +322,7 @@ void TimeIntegrator::UpdateConservatively(IntegratorContext& context, int level,
   //  const int gcw =
   //  context.GetHyperbolicMethod().flux_method.GetStencilWidth();
 
-  ForEachFab(execution::openmp, scratch, [&](const ::amrex::MFIter& mfi) {
+  ForEachFab(execution::seq, scratch, [&](const ::amrex::MFIter& mfi) {
     ::amrex::FabType type = context.GetFabType(level, mfi);
     const ::amrex::Box all_faces_tilebox = mfi.grownnodaltilebox(int(dir));
     const ::amrex::Box all_fluxes_box = unshielded[mfi].box();

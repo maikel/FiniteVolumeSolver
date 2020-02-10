@@ -350,14 +350,19 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
           ::amrex::IntVect::TheDimensionVector(int(d));
       data.fluxes[d].define(::amrex::convert(ba, unit), dm, n_cons_components,
                             fgrow);
+      data.fluxes[d].setVal(0.0);
       data.stabilized_fluxes[d].define(::amrex::convert(ba, unit), dm,
                                        n_cons_components, fgrow);
+      data.stabilized_fluxes[d].setVal(0.0);
       data.shielded_left_fluxes[d].define(::amrex::convert(ba, unit), dm,
                                           n_cons_components, fgrow);
+      data.shielded_left_fluxes[d].setVal(0.0);
       data.shielded_right_fluxes[d].define(::amrex::convert(ba, unit), dm,
                                            n_cons_components, fgrow);
+      data.shielded_right_fluxes[d].setVal(0.0);
       data.doubly_shielded_fluxes[d].define(::amrex::convert(ba, unit), dm,
                                             n_cons_components, fgrow);
+      data.doubly_shielded_fluxes[d].setVal(0.0);
     }
 
     data.eb_factory = ebf;

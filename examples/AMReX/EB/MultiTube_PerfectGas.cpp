@@ -147,16 +147,17 @@ auto MakePlenumSolver(fub::PerfectGas<3>& equation,
 
   // Make Solver
 
-  fub::EinfeldtSignalVelocities<fub::PerfectGas<Plenum_Rank>> signals{};
-  fub::HllMethod hll_method{equation, signals};
-  // fub::MusclHancockMethod flux_method(equation, hll_method);
-  fub::KbnCutCellMethod cutcell_method(hll_method, hll_method);
+  // fub::EinfeldtSignalVelocities<fub::PerfectGas<3>> signals;
+  // fub::HllMethod hll_method{equation, signals};v
+//  fub::HllemMethod<3> hllem_method{equation};
+  fub::FluxMethod<fub::MusclHancockPrim<3>> muscl_method{equation};
+  fub::KbnCutCellMethod cutcell_method(muscl_method);
 
-  HyperbolicMethod method{FluxMethod{seq, cutcell_method}, TimeIntegrator{},
+  HyperbolicMethod method{FluxMethod{cutcell_method}, TimeIntegrator{},
                           Reconstruction{equation}};
 
-  const int scratch_gcw = 1;
-  const int flux_gcw = 0;
+  const int scratch_gcw = 4;
+  const int flux_gcw = 2;
 
   return IntegratorContext(gridding, method, scratch_gcw, flux_gcw);
 }
@@ -200,7 +201,7 @@ void MyMain(const fub::ProgramOptions& options) {
   IntegratorContext plenum = MakePlenumSolver(equation, options);
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<Plenum_Rank>, std::move(plenum), fub::GodunovSplitting{});
+      fub::int_c<Plenum_Rank>, std::move(plenum), fub::StrangSplitting{});
 
   fub::NoSubcycleSolver solver(std::move(level_integrator));
 
@@ -230,7 +231,7 @@ int main(int argc, char** argv) {
   pybind11::scoped_interpreter interpreter{};
   std::optional<fub::ProgramOptions> opts = fub::ParseCommandLine(argc, argv);
   if (opts) {
-    // fub::EnableFloatingPointExceptions();
+    fub::EnableFloatingPointExceptions();
     MyMain(*opts);
   }
   int flag = -1;

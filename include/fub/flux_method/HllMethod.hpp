@@ -318,7 +318,6 @@ template <typename Equation, typename SignalSpeeds>
 Array1d HllArrayBase<Equation, SignalSpeeds, true>::ComputeStableDt(
     span<const CompleteArray, 2> states, Array1d face_fraction,
     span<const Array1d, 2>, double dx,
-
     Direction dir) {
   MaskArray mask = (face_fraction > 0.0);
   const auto signals =
