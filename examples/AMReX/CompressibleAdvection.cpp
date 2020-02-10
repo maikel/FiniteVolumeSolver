@@ -127,8 +127,9 @@ int main() {
   std::string base_name = "CompressibleAdvection";
 
   fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> output{};
-  output.AddOutput(fub::MakeOutput<fub::amrex::GriddingAlgorithm>(
-      {1}, {}, fub::amrex::PlotfileOutput(equation, base_name)));
+  output.AddOutput(
+    std::make_unique<fub::amrex::PlotfileOutput<fub::CompressibleAdvection<2>>>
+      (std::vector<std::ptrdiff_t>{1}, std::vector<fub::Duration>{}, equation, base_name));
 
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};

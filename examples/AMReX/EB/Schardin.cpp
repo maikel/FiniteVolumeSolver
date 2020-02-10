@@ -50,7 +50,7 @@ int main() {
   fub::amrex::ScopeGuard _{};
   fub::InitializeLogging(MPI_COMM_WORLD);
 
-  const std::array<int, 2> n_cells{16 * 15, 16 * 10};
+  const std::array<int, 2> n_cells{32 * 15, 32 * 10};
   const std::array<double, 2> xlower{0.0, 0.0};
   const std::array<double, 2> xupper{+0.15001, +0.10};
   amrex::RealBox xbox(xlower, xupper);
@@ -59,7 +59,7 @@ int main() {
   amrex::Geometry coarse_geom(amrex::Box{{}, {n_cells[0] - 1, n_cells[1] - 1}},
                               &xbox, -1, periodicity.data());
 
-  const int n_level = 3;
+  const int n_level = 2;
 
   const int scratch_gcw = 8;
   const int flux_gcw = 6;
@@ -79,9 +79,10 @@ int main() {
 
   PatchHierarchyOptions options{};
   options.max_number_of_levels = n_level;
+  options.max_grid_size = amrex::IntVect{512, 512};
   options.index_spaces = fub::amrex::cutcell::MakeIndexSpaces(
       shop, coarse_geom, n_level, scratch_gcw);
-  options.ngrow_eb_level_set = scratch_gcw;
+  options.ngrow_eb_level_set = scratch_gcw + 1;
 
   fub::Conservative<fub::PerfectGas<2>> cons;
   cons.density = 1.0;
@@ -116,9 +117,9 @@ int main() {
   fub::MusclHancockMethod muscl_method{equation, hll_method};
   fub::KbnCutCellMethod cutcell_method(muscl_method, hll_method);
 
-  HyperbolicMethod method{FluxMethod{fub::execution::simd, cutcell_method},
+  HyperbolicMethod method{FluxMethod{cutcell_method},
                           TimeIntegrator{},
-                          Reconstruction{fub::execution::simd, equation}};
+                          Reconstruction{equation}};
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<2>, IntegratorContext(gridding, method, scratch_gcw, flux_gcw),

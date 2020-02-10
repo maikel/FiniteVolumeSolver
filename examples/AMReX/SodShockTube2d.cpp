@@ -94,9 +94,10 @@ int main(int argc, char** argv) {
   geometry.cell_dimensions = std::array<int, Dim>{AMREX_D_DECL(256, 256, 1)};
   geometry.coordinates = amrex::RealBox({AMREX_D_DECL(-1.0, -1.0, -1.0)},
                                         {AMREX_D_DECL(+1.0, +1.0, +1.0)});
+//  geometry.periodicity = std::array<int, Dim>{1, 1};
 
   fub::amrex::PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = 2;
+  hier_opts.max_number_of_levels = 1;
   hier_opts.refine_ratio = amrex::IntVect{AMREX_D_DECL(2, 2, 1)};
   hier_opts.blocking_factor = amrex::IntVect{AMREX_D_DECL(8, 8, 1)};
 
@@ -120,24 +121,26 @@ int main(int argc, char** argv) {
 
   fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
   fub::HllMethod hll_method(equation, signals);
-  fub::MusclHancockMethod muscl_method(equation, hll_method);
+//  fub::MusclHancockMethod muscl_method(equation, hll_method);
+  fub::FluxMethod<fub::MusclHancockPrim<2>> muscl_method{equation};
   fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(muscl_method),
                                       fub::amrex::EulerForwardTimeIntegrator(),
                                       fub::amrex::Reconstruction(equation)};
 
   const int base_gcw = muscl_method.GetStencilWidth();
-  const int scratch_ghost_cell_width = 4 * base_gcw;
-  const int flux_ghost_cell_width = 3 * base_gcw;
+  const int scratch_ghost_cell_width = 2 * base_gcw;
+  const int flux_ghost_cell_width = 1 * base_gcw;
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<2>,
       fub::amrex::IntegratorContext(gridding, method, scratch_ghost_cell_width,
                                     flux_ghost_cell_width),
+//      fub::GodunovSplitting());
       fub::StrangSplitting());
 
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
-  std::string base_name = "SodShockTube/";
+  std::string base_name = "SodShockTube_muscl_prim/";
 
   using namespace fub::amrex;
   using namespace std::literals::chrono_literals;
@@ -171,8 +174,8 @@ int main(int argc, char** argv) {
   output.AddOutput(fub::MakeOutput<GriddingAlgorithm>({1}, {}, compute_mass));
 
   // Add output to write AMReX plotfiles in a set time interval
-  output.AddOutput(fub::MakeOutput<GriddingAlgorithm>(
-      {}, {0.01s}, PlotfileOutput(equation, base_name)));
+  output.AddOutput(std::make_unique<fub::amrex::PlotfileOutput<fub::PerfectGas<2>>>(std::vector<std::ptrdiff_t>{},
+          std::vector<fub::Duration>{0.1s}, equation, base_name));
 
   // Add output for the timer database after each 25 cycles
   output.AddOutput(

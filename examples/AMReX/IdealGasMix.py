@@ -7,7 +7,7 @@ CartesianGridGeometry = {
   'cell_dimensions': [15000, 1],
   'coordinates': {
     'lower': [-1.50, -0.015],
-    'upper': [-0.06, +0.015],
+    'upper': [-0.00, +0.015],
   },
   'periodicity': [0, 0]
 }

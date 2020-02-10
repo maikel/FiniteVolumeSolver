@@ -132,8 +132,8 @@ void MyMain(const ProgramOptions& opts) {
 
   using namespace std::literals::chrono_literals;
   fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> output{};
-  output.AddOutput(fub::MakeOutput<fub::amrex::GriddingAlgorithm>(
-      {}, {0.00025s}, fub::amrex::PlotfileOutput(equation, base_name)));
+  output.AddOutput(std::make_unique<fub::amrex::PlotfileOutput<fub::IdealGasMix<1>>>
+    (std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{0.00025s}, equation, base_name));
   output.AddOutput(
       std::make_unique<fub::CounterOutput<fub::amrex::GriddingAlgorithm>>(
           wall_time_reference, std::vector<std::ptrdiff_t>{},
