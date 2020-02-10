@@ -467,6 +467,10 @@ void MusclHancockPrim<Dim>::ComputeNumericFlux(
    span<const CompleteArray, 4> stencil, span<const Array1d, 4> volume_fractions,
    Duration dt, double dx, Direction dir)
 {
+  MaskArray mask = face_fractions > 0.0;
+  if (!mask.any()) {
+    return;
+  }
   auto limiter = [](Array1d qL, Array1d qM, Array1d qR) -> Array1d {
     Array1d delta_q = 0.5 * (qR - qL);
     Array1d zeros = Array1d::Zero();
@@ -484,7 +488,6 @@ void MusclHancockPrim<Dim>::ComputeNumericFlux(
     return sigma * delta_q;
   };
 
-  MaskArray mask = face_fractions > 0.0;
   MaskArray left_mask = volume_fractions[0] > 0.0;
   MaskArray right_mask = volume_fractions[3] > 0.0;
   Array1d zero = Array1d::Zero();
