@@ -34,6 +34,16 @@ struct AcousticWaveInitialData {
   AcousticWaveInitialData() {
   }
 
+  /*
+      v, w = v0, w0
+    p = mpv.HydroState.p0[y_idx] * (1.0 + del0 * np.sin(wn * x))**(2.0 * th.gamm * th.gm1inv)
+    rhoY = p**(th.gamminv)
+    rho = np.copy(rhoY)
+
+    c = np.sqrt(th.gamm * np.divide(p , rho))
+    u = u0 + (p - mpv.HydroState.p0[y_idx]) / (rho * c) / Ma
+  */
+
   void InitializeData(amrex::MultiFab& mf, const amrex::Geometry& geom) const {
     fub::amrex::ForEachFab(mf, [&](const amrex::MFIter& mfi) {
       fub::CompressibleAdvection<2> equation{};
@@ -44,13 +54,17 @@ struct AcousticWaveInitialData {
       fub::ForEachIndex(fub::Box<0>(states), [&](int i, int j) {
         const double x = geom.CellCenter(i, 0);
         const double y = geom.CellCenter(j, 1);
-        const double dx = x;
-        const double dy = y;
 
-        states.density(i, j)     = rho0;
-        states.velocity(i, j, 0) = U0[0];
+        const double p = std::pow((1.0 + del0 * std::sin(wn * x)),(2.0 * gamma / (gamma - 1.0)));
+
+        const double rho = std::pow(p, 1.0 / gamma);
+        const double c = std::sqrt(gamma * p / rho);
+        const double Ma  = std::sqrt(Msq);
+
+        states.density(i, j)     = rho;
+        states.velocity(i, j, 0) = U0[0] + (p - 1.0) / (rho * c) / Ma;
         states.velocity(i, j, 1) = U0[1];
-        states.PTdensity(i, j)   = 1.0;
+        states.PTdensity(i, j)   = rho;
 
         states.momentum(i, j, 0) =
             states.density(i, j) * states.velocity(i, j, 0);
@@ -61,15 +75,17 @@ struct AcousticWaveInitialData {
     });
   }
 
-  const double rho0{1.0};
-  const double R_gas{287.4};
-  const double gamma{1.4};
-  const double h_ref{100.0};
-  const double t_ref{100.0};
-  const double T_ref{300.0};
+  const double R_gas{287.0};
+  const double gamma{2.0};
+  const double h_ref{1.0};
+  const double t_ref{1.0};
+  const double T_ref{353.048780488};
   const double u_ref{h_ref / t_ref};
   const double Msq{u_ref * u_ref / (R_gas * T_ref)};
-  std::array<double, 2> U0{0.0, 0.0};
+  const double del0 = 0.05;
+  const double wn = 2.0 * M_PI;
+  // const double Ma = sqrt(Msq);
+  std::array<double, 2> U0{1.0, 0.0};
 };
 
 void MyMain(const fub::ProgramOptions& options) {
@@ -148,10 +164,11 @@ void MyMain(const fub::ProgramOptions& options) {
 
         ::amrex::Vector<double> coor(2);
         geom.LoNode(i, coor);
-        const double dx = coor[0];
-        const double dy = coor[1];
+        const double x = coor[0];
+        const double y = coor[1];
 
-        fab(i, 0) = 0.0;
+        const double p = pow((1.0 + inidat.del0 * sin(inidat.wn * x)), (2.0 * inidat.gamma / (inidat.gamma - 1.0)));
+        fab(i, 0) = pow(p, Gamma - 1.0) / inidat.Msq; // what is the second argument here?
       });
     });
   }
