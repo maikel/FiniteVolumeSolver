@@ -124,18 +124,18 @@ def PlotVariables(base_dir, step_dir, timestep, fignum = -1):
   plt.colorbar(im, ax=ax, shrink=.75)
   ax.set_title('div(Pv)')
 
-  fig.suptitle("timestep=%d, t=%.4f, stage=%s" %(timestep, ds.current_time.value, step_dir[27:]))
+  fig.suptitle("timestep=%d, t=%.4f, stage=%s" %(timestep, ds.current_time.value, step_dir[5:]))
   plt.show()
 
 timestep = 1
 base_dir = 'build2d'
 
-step_dirs = ['BK19_Pseudo_Incompressible-pre-step',
-             'BK19_Pseudo_Incompressible-advect',
-             'BK19_Pseudo_Incompressible-advect-backward',
-             'BK19_Pseudo_Incompressible-advect-backward-forward',
-             'BK19_Pseudo_Incompressible-advect-backward-forward-advect',
-             'BK19_Pseudo_Incompressible-advect-backward-forward-advect-backward']
+step_dirs = ['BK19_pre-step',
+             'BK19_advect',
+             'BK19_advect-backward',
+             'BK19_advect-backward-forward',
+             'BK19_advect-backward-forward-advect',
+             'BK19_advect-backward-forward-advect-backward']
 
 
 PlotVariables(base_dir, step_dirs[0], timestep, 1)

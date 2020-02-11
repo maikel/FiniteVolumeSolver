@@ -107,12 +107,12 @@ def PlotVarComp(dsFVS, dsRKLM, vars_FVS, vars_RKLM, label, fignum = -1):
 timestep = 0
 
 basedir_FVS  = 'build2d'
-substeps_FVS = ['BK19_Pseudo_Incompressible-pre-step',
-                'BK19_Pseudo_Incompressible-advect',
-                'BK19_Pseudo_Incompressible-advect-backward',
-                'BK19_Pseudo_Incompressible-advect-backward-forward',
-                'BK19_Pseudo_Incompressible-advect-backward-forward-advect',
-                'BK19_Pseudo_Incompressible-advect-backward-forward-advect-backward']
+substeps_FVS = ['BK19_pre-step',
+                'BK19_advect',
+                'BK19_advect-backward',
+                'BK19_advect-backward-forward',
+                'BK19_advect-backward-forward-advect',
+                'BK19_advect-backward-forward-advect-backward']
 vars_FVS     = ['Density', 'Velocity_0', 'Velocity_1', 'PTdensity', 'PTinverse']
 #vars_FVS     = ['Density', 'Momentum_0', 'Momentum_1', 'PTdensity', 'PTinverse']
 
@@ -130,4 +130,4 @@ vars_RKLM = ['rho', 'velu', 'velv', 'rhoY', 'chi']
 for i in range(len(substeps_FVS)):
   dsFVS  = LoadFVS(basedir_FVS, substeps_FVS[i], timestep)
   dsRKLM = LoadRKLM(basedir_RKLM, filename_RKLM, '{0:03}_{1:s}'.format(timestep, substeps_RKLM[i]))
-  PlotVarComp(dsFVS, dsRKLM, vars_FVS, vars_RKLM, substeps_FVS[i][27:]+', '+substeps_RKLM[i], i+1)
+  PlotVarComp(dsFVS, dsRKLM, vars_FVS, vars_RKLM, substeps_FVS[i][5:]+', '+substeps_RKLM[i], i+1)

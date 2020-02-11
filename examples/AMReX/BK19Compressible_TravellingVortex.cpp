@@ -162,7 +162,7 @@ void MyMain(const fub::ProgramOptions& options) {
 
   using Complete = fub::CompressibleAdvection<2>::Complete;
   fub::CompressibleAdvection<2> equation{};
-  // Here, this is not c_p but (gamma - 1) / gamma! Rename/Adjust???
+  // Here, c_p is non-dimensionalized. Adjust???
   equation.c_p = Gamma;
   fub::IndexMapping<fub::CompressibleAdvection<2>> index(equation);
 
@@ -194,12 +194,11 @@ void MyMain(const fub::ProgramOptions& options) {
   HyperbolicMethod method{flux_method, EulerForwardTimeIntegrator(),
                           Reconstruction(fub::execution::seq, equation)};
 
+//   BK19IntegratorContext simulation_data(grid, method, 2, 0);
   BK19IntegratorContext simulation_data(grid, method, 4, 2);
   const int nlevel = simulation_data.GetPatchHierarchy().GetNumberOfLevels();
 
   // set initial values of pi
-  // simulation_data.GetPi(0).setVal(1.0);
-
   for (int level = 0; level < nlevel; ++level) {
     ::amrex::MultiFab& pi = simulation_data.GetPi(level);
     const ::amrex::Geometry& geom =
@@ -228,6 +227,7 @@ void MyMain(const fub::ProgramOptions& options) {
   }
 
   fub::DimensionalSplitLevelIntegrator advection(
+//       fub::int_c<2>, std::move(simulation_data), fub::GodunovSplitting());
       fub::int_c<2>, std::move(simulation_data), fub::StrangSplitting());
 
   BK19LevelIntegratorOptions integrator_options =
@@ -238,8 +238,6 @@ void MyMain(const fub::ProgramOptions& options) {
                                        integrator_options);
 
   BK19AdvectiveFluxes& Pv = level_integrator.GetContext().GetAdvectiveFluxes(0);
-  // Pv.on_faces[0].setVal(0.0);
-  // Pv.on_faces[1].setVal(0.0);
   RecomputeAdvectiveFluxes(
       index, Pv.on_faces, Pv.on_cells,
       level_integrator.GetContext().GetScratch(0),

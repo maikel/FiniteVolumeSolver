@@ -469,7 +469,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   const ::amrex::Periodicity periodicity = geom.periodicity();
 
   WriteBK19Plotfile debug{};
-  debug.plotfilename = "BK19_Pseudo_Incompressible-pre-step/";
+  debug.plotfilename = "BK19_pre-step/";
   debug(context);
 
   // Save data on current time level for later use
@@ -485,7 +485,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   RecomputeAdvectiveFluxes(index_, Pv.on_faces, Pv.on_cells, scratch,
                            periodicity);
 
-  debug.plotfilename = "BK19_Pseudo_Incompressible-advective_fluxes/";
+  debug.plotfilename = "BK19_advective_fluxes/";
   debug(context);
 
   // 2) Do the advection with the face-centered Pv
@@ -497,7 +497,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
     return result;
   }
 
-  debug.plotfilename = "BK19_Pseudo_Incompressible-advect/";
+  debug.plotfilename = "BK19_advect/";
   debug(context);
 
   // 3) Do the first euler backward integration step for the source term
@@ -520,7 +520,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   RecomputeAdvectiveFluxes(index_, Pv.on_faces, Pv.on_cells, scratch,
                            periodicity);
 
-  debug.plotfilename = "BK19_Pseudo_Incompressible-advect-backward/";
+  debug.plotfilename = "BK19_advect-backward/";
   debug(context);
   context.GetPi(level).copy(pi);
 
@@ -532,7 +532,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   //   - We need a current pi_n here. What is the initial one?
   DoEulerForward_(equation_, index_, *lin_op_, context, level, half_dt);
 
-  debug.plotfilename = "BK19_Pseudo_Incompressible-advect-backward-forward/";
+  debug.plotfilename = "BK19_advect-backward-forward/";
   debug(context);
 
   // 6) Do the second advection step with half-time Pv and full time step
@@ -555,7 +555,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
 //   context.GetPi(level).copy(rhs);
 
   debug.plotfilename =
-      "BK19_Pseudo_Incompressible-advect-backward-forward-advect/";
+      "BK19_advect-backward-forward-advect/";
   debug(context);
 
   // 6) Do the second euler backward integration step for the source term
@@ -567,7 +567,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   context.GetPi(level).copy(pi_new);
 
   debug.plotfilename =
-      "BK19_Pseudo_Incompressible-advect-backward-forward-advect-backward/";
+      "BK19_advect-backward-forward-advect-backward/";
   debug(context);
 
   return boost::outcome_v2::success();

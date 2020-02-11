@@ -239,7 +239,7 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::NoSubcycleSolver solver(std::move(level_integrator));
 
   using namespace std::literals::chrono_literals;
-  std::string base_name = "BK19_Pseudo_Incompressible/";
+  std::string base_name = "BK19_PsIncTravellingVortex/";
 
   fub::OutputFactory<GriddingAlgorithm> factory;
   factory.RegisterOutput<fub::AnyOutput<GriddingAlgorithm>>("Plotfile", WriteBK19Plotfile{base_name});
