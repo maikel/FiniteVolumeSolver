@@ -832,7 +832,7 @@ void Hllem<Dim>::ComputeNumericFlux(
   const Array1d deltaRho = rhoR - rhoL;
   const Array1d deltaRhoU = rhoUR - rhoUL;
   const Array1d deltaRhoE = rhoER - rhoEL;
-  const Array<double, Dim> deltaRhoV = right.momentum - left.momentum;
+  [[maybe_unused]] const Array<double, Dim> deltaRhoV = right.momentum - left.momentum;
 
   const Array1d C1 = (deltaRhoU - deltaRho * roeU0) / roeA;
 

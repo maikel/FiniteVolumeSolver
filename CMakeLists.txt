@@ -444,6 +444,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         include/fub/AMReX/cutcell/output/WriteHdf5.hpp
         include/fub/AMReX/cutcell/output/DebugOutput.hpp
         include/fub/AMReX/cutcell/output/WritePlotfiles.hpp
+        include/fub/AMReX/cutcell/output/PerfectGasProbesOutput.hpp
         include/fub/AMReX/multi_block/MultiBlockBoundary.hpp
         include/fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp
         include/fub/AMReX/multi_block/MultiBlockIntegratorContext.hpp
@@ -472,6 +473,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         src/AMReX/cutcell/tagging/TagCutCells.cpp
         src/AMReX/cutcell/output/WriteHdf5.cpp
         src/AMReX/cutcell/output/DebugOutput.cpp
+        src/AMReX/cutcell/output/PerfectGasProbesOutput.cpp
         src/AMReX/multi_block/MultiBlockBoundary.cpp
         src/AMReX/multi_block/MultiBlockGriddingAlgorithm.cpp
         src/AMReX/multi_block/MultiBlockIntegratorContext.cpp

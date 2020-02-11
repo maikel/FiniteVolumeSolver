@@ -54,6 +54,10 @@ inline SeverityLogger GetInfoLogger() {
                             boost::log::trivial::info);
 }
 
+inline SeverityLogger GetLogger(boost::log::trivial::severity_level sev) {
+  return SeverityLogger(boost::log::keywords::severity = sev);
+}
+
 } // namespace fub
 
 #endif // FINITEVOLUMESOLVER_LOG_HPP

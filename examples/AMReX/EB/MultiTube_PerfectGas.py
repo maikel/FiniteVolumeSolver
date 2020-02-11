@@ -2,7 +2,7 @@ import math
 import h5py
 import numpy as np
 
-source = h5py.File("/Users/maikel/Development/FiniteVolumeSolver/build/initial_data2.h5", "r")
+source = h5py.File("/Users/maikel/Development/FiniteVolumeSolver/initial_data2.h5", "r")
 dataset = source['DG_Solution']
 data = np.transpose(np.array(dataset)).copy()
 source.close()
@@ -11,9 +11,9 @@ view = data.view()
 view.shape = (data.shape[0] * data.shape[1])
 data = view.copy()
 
-plenum_y_n_cells = 64
-plenum_x_n_cells = 64
-plenum_z_n_cells = 64
+plenum_y_n_cells = 32
+plenum_x_n_cells = 32
+plenum_z_n_cells = 32
 
 tube_blocking_factor = 8
 plenum_blocking_factor = 8
@@ -33,8 +33,8 @@ plenum_length = 0.50 # [m]
 plenum_max_grid_size = max(plenum_blocking_factor, 64)
 
 plenum_domain_length = plenum_length + tube_length
-plenum_x_upper = 0.25 # plenum_length
-plenum_x_lower = -0.1 # -tube_length
+plenum_x_upper = plenum_length
+plenum_x_lower = -tube_length
 
 plenum_x_length = plenum_x_upper - plenum_x_lower
 
@@ -62,7 +62,7 @@ plenum_y_n_cells = int(plenum_y_n_cells)
 RunOptions = {
   'cfl': 0.3,
   'final_time': 0.02,
-  'max_cycles': 10,
+  # 'max_cycles': 10,
   'do_backup': 0
 }
 
@@ -82,7 +82,8 @@ PatchHierarchy = {
   'max_number_of_levels': n_level, 
   'blocking_factor': [plenum_blocking_factor, plenum_blocking_factor, plenum_blocking_factor],
   'max_grid_size': [plenum_max_grid_size, plenum_max_grid_size, plenum_max_grid_size],
-  'ngrow_eb_level_set': 5
+  'ngrow_eb_level_set': 5,
+  'cutcell_load_balance_weight': 10
 }
 
 InitialCondition = {
@@ -98,16 +99,22 @@ PressureBoundary = {
 Output = { 
   'outputs': [{
     'type': 'Plotfile',
-    'directory': 'MultiTube/',
-    # 'intervals': [1e-4],
-    'frequencies': [1],
+    'directory': 'MultiTube/Plotfiles',
+    'intervals': [1e-5],
+    # 'frequencies': [1],
   }, {
     'type': 'CounterOutput',
-    'frequencies': [20]
-  }, {
-    'type': 'Checkpoint',
-    'directory': 'MultiTube/Checkpoint/',
     'frequencies': [100]
-  }]
+  }, {
+     'type': 'Checkpoint',
+     'directory': 'MultiTube/Checkpoint/',
+     'intervals': [1e-4]
+   }, {
+     'type': 'ProbesOutput',
+     'filename': 'Probes.h5',
+     'probes': [(0.0, 0.001, 0.5 * (plenum_z_lower + plenum_z_upper))],
+     'frequencies': [1]
+   }
+  ]
 }
 

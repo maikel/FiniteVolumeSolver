@@ -22,6 +22,8 @@
 #include "fub/AMReX_CutCell.hpp"
 #include "fub/Solver.hpp"
 
+#include "fub/AMReX/cutcell/output/PerfectGasProbesOutput.hpp"
+
 #include <AMReX_EB2.H>
 #include <AMReX_EB2_IF_Box.H>
 #include <AMReX_EB2_IF_Complement.H>
@@ -213,7 +215,8 @@ void MyMain(const fub::ProgramOptions& options) {
   using CounterOutput =
       fub::CounterOutput<GriddingAlgorithm, std::chrono::milliseconds>;
   factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
-  factory.RegisterOutput<fub::amrex::cutcell::DebugOutput>("DebugOutput");
+  factory.RegisterOutput<DebugOutput>("DebugOutput");
+  factory.RegisterOutput<PerfectGasProbesOutput>("ProbesOutput");
   fub::MultipleOutputs<GriddingAlgorithm> outputs(
       std::move(factory), fub::GetOptions(options, "Output"));
 
@@ -231,7 +234,7 @@ int main(int argc, char** argv) {
   pybind11::scoped_interpreter interpreter{};
   std::optional<fub::ProgramOptions> opts = fub::ParseCommandLine(argc, argv);
   if (opts) {
-    fub::EnableFloatingPointExceptions();
+    // fub::EnableFloatingPointExceptions();
     MyMain(*opts);
   }
   int flag = -1;

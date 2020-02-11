@@ -71,6 +71,11 @@ void UpdateConservatively_Row(double* next, const double* prev,
     //                beta_L == beta_R  => regular update
 
     Vc::double_v alpha(&cc.cell.alpha[i], Vc::Unaligned);
+    if (all_of(alpha == 0.0)) {
+      Vc::double_v u_next(0.0);
+      u_next.store(&next[i], Vc::Unaligned);
+      continue;
+    }
     where(alpha == 0.0, alpha) = 1.0;
     const Vc::double_v betaL(&cc.faceL.beta[i], Vc::Unaligned);
     const Vc::double_v betaR(&cc.faceR.beta[i], Vc::Unaligned);
@@ -145,10 +150,14 @@ void UpdateConservatively_Row(double* next, const double* prev,
     u_next.store(&next[i], Vc::Unaligned);
   }
   for (; i < n; ++i) {
+    if (cc.cell.alpha[i] == 0.0) {
+      next[i] = 0.0;
+      continue;
+    }
     ////////////////////////////////////////////////////////////////////////////////////
     //                beta_L == beta_R  => regular update
 
-    const double alpha = cc.cell.alpha[i] == 0.0 ? 1.0 : cc.cell.alpha[i];
+    const double alpha = cc.cell.alpha[i];
     const double betaL = cc.faceL.beta[i];
     const double betaR = cc.faceR.beta[i];
 
@@ -197,10 +206,8 @@ void UpdateConservatively_Row(double* next, const double* prev,
       return next;
     }();
 
-    next[i] = alpha > 0.0 ? betaL == betaR
-                                ? regular
-                                : betaL > betaR ? left_greater : right_greater
-                          : 0.0;
+    next[i] = betaL == betaR ? regular
+                             : betaL > betaR ? left_greater : right_greater;
   }
 
   for (i = 0; i < n; ++i) {

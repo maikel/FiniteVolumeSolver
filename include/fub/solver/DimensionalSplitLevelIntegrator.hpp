@@ -55,6 +55,13 @@ public:
   DimensionalSplitLevelIntegrator(
       const DimensionalSplitLevelIntegrator& other) = default;
 
+  DimensionalSplitLevelIntegrator& operator=(
+      const DimensionalSplitLevelIntegrator& other) = default;
+
+  DimensionalSplitLevelIntegrator(DimensionalSplitLevelIntegrator&& other) = default;
+
+  DimensionalSplitLevelIntegrator& operator=(DimensionalSplitLevelIntegrator&& other) = default;
+
   template <typename OtherSplitMethod>
   DimensionalSplitLevelIntegrator(
       const DimensionalSplitLevelIntegrator<Rank, IntegratorContext,
