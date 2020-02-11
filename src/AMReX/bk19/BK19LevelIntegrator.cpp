@@ -299,7 +299,6 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
 
 ::amrex::MultiFab DoEulerBackward_(const Equation& equation,
                                    const IndexMapping<Equation>& index,
-                                   ::amrex::MLMG& nodal_solver,
                                    ::amrex::MLNodeHelmDualCstVel& lin_op,
                                    const BK19LevelIntegratorOptions& options,
                                    BK19IntegratorContext& context, int level,
@@ -354,16 +353,16 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   MultiFab pi(on_nodes, distribution_map, one_component, no_ghosts);
   pi.setVal(0.0);
 
-  ::amrex::MLMG ndsolver(lin_op);
-  ndsolver.setMaxIter(options.mlmg_max_iter);
-  ndsolver.setVerbose(options.mlmg_verbose);
-  ndsolver.setBottomVerbose(options.bottom_verbose);
-  ndsolver.setBottomMaxIter(options.bottom_max_iter);
-  ndsolver.setBottomToleranceAbs(options.bottom_tolerance_abs);
-  ndsolver.setBottomTolerance(options.bottom_tolerance_rel);
-  ndsolver.setAlwaysUseBNorm(options.always_use_bnorm);
+  ::amrex::MLMG nodal_solver(lin_op);
+  nodal_solver.setMaxIter(options.mlmg_max_iter);
+  nodal_solver.setVerbose(options.mlmg_verbose);
+  nodal_solver.setBottomVerbose(options.bottom_verbose);
+  nodal_solver.setBottomMaxIter(options.bottom_max_iter);
+  nodal_solver.setBottomToleranceAbs(options.bottom_tolerance_abs);
+  nodal_solver.setBottomTolerance(options.bottom_tolerance_rel);
+  nodal_solver.setAlwaysUseBNorm(options.always_use_bnorm);
 
-  ndsolver.solve({&pi}, {&rhs}, options.mlmg_tolerance_rel,
+  nodal_solver.solve({&pi}, {&rhs}, options.mlmg_tolerance_rel,
                      options.mlmg_tolerance_abs);
 
   MultiFab UV_correction(on_cells, distribution_map, index.momentum.size(),
@@ -456,15 +455,8 @@ BK19LevelIntegrator::BK19LevelIntegrator(
     std::shared_ptr<::amrex::MLNodeHelmDualCstVel> linop,
     const BK19LevelIntegratorOptions& options)
     : AdvectionSolver(std::move(advection)), options_(options),
-      equation_(equation), index_(equation_), lin_op_(std::move(linop)),
-      nodal_solver_(std::make_shared<::amrex::MLMG>(*lin_op_)) {
-  nodal_solver_->setMaxIter(options.mlmg_max_iter);
-  nodal_solver_->setVerbose(options.mlmg_verbose);
-  nodal_solver_->setBottomVerbose(options.bottom_verbose);
-  nodal_solver_->setBottomMaxIter(options.bottom_max_iter);
-  nodal_solver_->setBottomToleranceAbs(options.bottom_tolerance_abs);
-  nodal_solver_->setBottomTolerance(options.bottom_tolerance_rel);
-  nodal_solver_->setAlwaysUseBNorm(options.always_use_bnorm);
+      equation_(equation), index_(equation_), lin_op_(std::move(linop)) {
+
 }
 
 Result<void, TimeStepTooLarge>
@@ -511,7 +503,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   // 3) Do the first euler backward integration step for the source term
   context.FillGhostLayerSingleLevel(level);
   MultiFab pi_tmp =
-      DoEulerBackward_(equation_, index_, *nodal_solver_, *lin_op_, options_,
+      DoEulerBackward_(equation_, index_, *lin_op_, options_,
                    context, level, half_dt);
 
   // Copy pi to context for visualization
@@ -568,7 +560,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
 
   // 6) Do the second euler backward integration step for the source term
   MultiFab pi_new =
-      DoEulerBackward_(equation_, index_, *nodal_solver_, *lin_op_, options_,
+      DoEulerBackward_(equation_, index_, *lin_op_, options_,
                        context, level, half_dt);
 
   // Copy pi_n+1 to pi_n
