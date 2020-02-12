@@ -165,10 +165,9 @@ void MyMain(const fub::ProgramOptions& options) {
   integrator_options.Print(info);
   BK19LevelIntegrator level_integrator(equation, std::move(advection), linop,
                                        integrator_options);
+  level_integrator.alpha_p = 1.0;
 
   BK19AdvectiveFluxes& Pv = level_integrator.GetContext().GetAdvectiveFluxes(0);
-  // Pv.on_faces[0].setVal(0.0);
-  // Pv.on_faces[1].setVal(0.0);
   RecomputeAdvectiveFluxes(
       index, Pv.on_faces, Pv.on_cells,
       level_integrator.GetContext().GetScratch(0),
