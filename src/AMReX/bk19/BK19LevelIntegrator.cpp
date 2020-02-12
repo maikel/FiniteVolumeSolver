@@ -207,8 +207,8 @@ void AverageCellToFace_(MultiFab& mf_faces, int face_component,
             SliceLast(MakePatchDataView(mf_cells[mfi]), cell_component);
         auto all_faces =
             SliceLast(MakePatchDataView(mf_faces[mfi]), face_component);
-        // We are cautious and only compute the average for faces which exists
-        // and are in range for the cells which exists on our grid
+        // We are cautious and only compute the average for faces which exist
+        // and are in range for the cells which exist on our grid
         auto cell_box_for_stencil =
             BoxFromStencil_(cells.Box(), {1, 0}, {1, 1});
         auto face_box_for_stencil = Shrink(cell_box_for_stencil, dir, {0, 1});
@@ -229,8 +229,8 @@ void AverageCellToFace_(MultiFab& mf_faces, int face_component,
             SliceLast(MakePatchDataView(mf_cells[mfi]), cell_component);
         auto all_faces =
             SliceLast(MakePatchDataView(mf_faces[mfi]), face_component);
-        // We are cautious and only compute the average for faces which exists
-        // and are in range for the cells which exists on our grid
+        // We are cautious and only compute the average for faces which exist
+        // and are in range for the cells which exist on our grid
         auto cell_box_for_stencil =
             BoxFromStencil_(cells.Box(), {1, 1}, {1, 0});
         auto face_box_for_stencil = Shrink(cell_box_for_stencil, dir, {0, 1});
@@ -245,6 +245,28 @@ void AverageCellToFace_(MultiFab& mf_faces, int face_component,
         });
       });
     }
+  }
+}
+
+// Apply the cell to node average to a specified cell_component on mf_cells and
+// write its result into node_component of mf_nodes.
+void AverageCellToNode_(MultiFab& mf_nodes, int node_component,
+                        const MultiFab& mf_cells, int cell_component) {
+  if constexpr (Rank == 2) {
+    ForEachFab(mf_cells, [&](const MFIter& mfi) {
+      auto cells =
+          SliceLast(MakePatchDataView(mf_cells[mfi]), cell_component);
+      auto nodes =
+          SliceLast(MakePatchDataView(mf_nodes[mfi]), node_component);
+      // We are cautious and only compute the average for nodes which exist
+      // and are in range for the cells which exist on our grid
+      ForEachIndex(nodes.Box(), [&](int i, int j) {
+        // clang-format off
+        nodes(i, j) = 0.25 * cells(i - 1, j - 1) + 0.25 * cells(i, j - 1) +
+                      0.25 * cells(i - 1,     j) + 0.25 * cells(i,     j);
+        // clang-format on
+      });
+    });
   }
 }
 
@@ -312,6 +334,29 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   on_nodes.surroundingNodes();
 
   // compute RHS for elliptic solve
+  MultiFab diagfac_cell(on_cells, distribution_map, one_component,
+                         one_ghost_cell_width);
+  ForEachFab(diagfac_cell, [&](const MFIter& mfi) {
+    auto PTdens =
+        SliceLast(MakePatchDataView(scratch[mfi]), index.PTdensity);
+    auto diagfac =
+        SliceLast(MakePatchDataView(diagfac_cell[mfi]), 0);
+    ForEachIndex(diagfac.Box(), [&](int i, int j) {
+      // clang-format off
+      diagfac(i, j) = equation.alpha_p * equation.Msq / (equation.gamma - 1.0) *
+        std::pow(PTdens(i, j), equation.gamma - 2.0);
+      // clang-format on
+    });
+  });
+  MultiFab diagfac_nodes(on_nodes, distribution_map, one_component, no_ghosts);
+  AverageCellToNode_(diagfac_nodes, 0, diagfac_cell, 0);
+
+  // get pi from scratch
+  const MultiFab& pi_old = context.GetPi(level);
+  MultiFab diagcomp(on_nodes, distribution_map, one_component, no_ghosts);
+  MultiFab::Copy(diagcomp, pi_old, 0, 0, one_component, no_ghosts);
+  MultiFab::Multiply(diagcomp, diagfac_nodes, 0, 0, one_component, no_ghosts);
+
   MultiFab rhs(on_nodes, distribution_map, one_component, no_ghosts);
 
   // Copy UV into seperate MultiFab to use compDivergence
@@ -328,6 +373,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   rhs.setVal(0.0);
   lin_op.compDivergence({&rhs}, {&UV});
 
+  MultiFab::Add(rhs, diagcomp, 0, 0, one_component, no_ghosts);
   //  ::amrex::Box node_domain = geom.Domain();
   //  node_domain.surroundingNodes();
   //  node_domain.setBig(0, node_domain.bigEnd(0) - 1);
@@ -350,6 +396,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   MultiFab::Divide(sigma, scratch, index.PTinverse, 0, one_component,
                    sigma.nGrow());
   lin_op.setSigma(level, sigma);
+  lin_op.setAlpha(level, diagfac_nodes);
   MultiFab pi(on_nodes, distribution_map, one_component, no_ghosts);
   pi.setVal(0.0);
 

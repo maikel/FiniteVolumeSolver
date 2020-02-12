@@ -117,8 +117,13 @@ void MyMain(const fub::ProgramOptions& options) {
 
   using Complete = fub::CompressibleAdvection<2>::Complete;
   fub::CompressibleAdvection<2> equation{};
-  // Here, this is not c_p but (gamma - 1) / gamma! Rename/Adjust???
-  equation.c_p = Gamma;
+  // Here, c_p is non-dimensionalized. Adjust???
+  // Is CompressibleAdvection the right place to store all this?
+  equation.c_p     = Gamma;
+  equation.alpha_p = 1.0;
+  equation.gamma   = inidat.gamma;
+  equation.Msq     = inidat.Msq;
+
   fub::IndexMapping<fub::CompressibleAdvection<2>> index(equation);
 
   GradientDetector gradient(equation, std::pair{&Complete::PTinverse, 1.0e-2});
@@ -182,7 +187,6 @@ void MyMain(const fub::ProgramOptions& options) {
   integrator_options.Print(info);
   BK19LevelIntegrator level_integrator(equation, std::move(advection), linop,
                                        integrator_options);
-  level_integrator.alpha_p = 1.0;
 
   BK19AdvectiveFluxes& Pv = level_integrator.GetContext().GetAdvectiveFluxes(0);
   RecomputeAdvectiveFluxes(

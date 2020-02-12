@@ -110,8 +110,6 @@ public:
   AdvanceLevelNonRecursively(int level, Duration dt,
                              std::pair<int, int> subcycle);
 
-  double alpha_p{0.0};
-
 private:
   BK19LevelIntegratorOptions options_;
   CompressibleAdvection<Rank> equation_;
