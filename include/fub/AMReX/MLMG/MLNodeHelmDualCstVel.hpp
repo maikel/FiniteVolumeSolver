@@ -74,6 +74,8 @@ public:
 
     void setSigma (int amrlev, const MultiFab& a_sigma);
 
+    void setAlpha (int amrlev, const MultiFab& a_alpha);
+
     void compDivergence (const Vector<MultiFab*>& rhs, const Vector<MultiFab*>& vel);
 
     void compRHS (const Vector<MultiFab*>& rhs, const Vector<MultiFab*>& vel,
@@ -82,12 +84,12 @@ public:
 
     void updateVelocity (const Vector<MultiFab*>& vel, const Vector<MultiFab const*>& sol) const;
 
-    void compSyncResidualCoarse (MultiFab& sync_resid, const MultiFab& phi,
-                                 const MultiFab& vold, const MultiFab* rhcc,
-                                 const BoxArray& fine_grids, const IntVect& ref_ratio);
-
-    void compSyncResidualFine (MultiFab& sync_resid, const MultiFab& phi, const MultiFab& vold,
-                               const MultiFab* rhcc);
+//     void compSyncResidualCoarse (MultiFab& sync_resid, const MultiFab& phi,
+//                                  const MultiFab& vold, const MultiFab* rhcc,
+//                                  const BoxArray& fine_grids, const IntVect& ref_ratio);
+//
+//     void compSyncResidualFine (MultiFab& sync_resid, const MultiFab& phi, const MultiFab& vold,
+//                                const MultiFab* rhcc);
 
     void setGaussSeidel (bool flag) noexcept { m_use_gauss_seidel = flag; }
     void setHarmonicAverage (bool flag) noexcept { m_use_harmonic_average = flag; }
@@ -135,6 +137,7 @@ public:
 private:
 
     Vector<Vector<Array<std::unique_ptr<MultiFab>,AMREX_SPACEDIM> > > m_sigma;
+    Vector<Vector<MultiFab> > m_alpha;
 
     Real m_normalization_threshold = 1.e-10;
 
