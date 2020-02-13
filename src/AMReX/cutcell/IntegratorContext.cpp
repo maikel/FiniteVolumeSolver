@@ -20,9 +20,9 @@
 
 #include "fub/AMReX/cutcell/IntegratorContext.hpp"
 
-#include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/ForEachIndex.hpp"
+#include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/AMReX/cutcell/IndexSpace.hpp"
 
 #include <AMReX_EBMultiFabUtil.H>
@@ -41,8 +41,8 @@ namespace fub::amrex::cutcell {
 ////////////////////////////////////////////////////////////////////////////////
 //                                                      Move Assignment Operator
 
-IntegratorContext::LevelData& IntegratorContext::LevelData::
-operator=(LevelData&& other) noexcept {
+IntegratorContext::LevelData&
+IntegratorContext::LevelData::operator=(LevelData&& other) noexcept {
   if (other.coarse_fine.fineLevel() > 0) {
     // If we do not invoke clear in beforehand it will throw an error in AMReX
     coarse_fine.clear();
@@ -115,8 +115,8 @@ IntegratorContext::IntegratorContext(const IntegratorContext& other)
   }
 }
 
-IntegratorContext& IntegratorContext::IntegratorContext::
-operator=(const IntegratorContext& other) {
+IntegratorContext& IntegratorContext::IntegratorContext::operator=(
+    const IntegratorContext& other) {
   // We use the copy and move idiom to provide the strong exception guarantee.
   // If an exception occurs we do not change the original object.
   IntegratorContext tmp{other};
@@ -293,6 +293,9 @@ void IntegratorContext::CopyScratchToData(int level_num) {
   GetData(level_num).ParallelCopy(
       GetScratch(level_num),
       GetPatchHierarchy().GetGeometry(level_num).periodicity());
+  EB_set_covered(GetData(level_num), 0, GetData(level_num).nComp(), 0, 0.0);
+  EB_set_covered(GetScratch(level_num), 0, GetScratch(level_num).nComp(),
+                 GetScratch(level_num).nGrow(), 0.0);
 }
 
 void IntegratorContext::ResetHierarchyConfiguration(
@@ -578,18 +581,6 @@ void IntegratorContext::ComputeNumericFluxes(int level, Duration dt,
         "cutcell::IntegratorContext::ComputeNumericFluxes({})", level));
   }
   method_.flux_method.ComputeNumericFluxes(*this, level, dt, dir);
-//
-//  auto debug = GetPatchHierarchy().GetDebugStorage();
-//  // std::array<::amrex::MultiFab, Rank> fluxes{};
-//  //   std::array<::amrex::MultiFab, Rank> stabilized_fluxes{};
-//  //   std::array<::amrex::MultiFab, Rank> shielded_left_fluxes{};
-//  //   std::array<::amrex::MultiFab, Rank> shielded_right_fluxes{};
-//  //   std::array<::amrex::MultiFab, Rank> doubly_shielded_fluxes{}
-//   debug->SaveData(data_[level].fluxes[int(dir)], "flux_momentum_x", ::amrex::SrcComp(1));
-//   debug->SaveData(data_[level].fluxes[int(dir)], "flux_momentum_y", ::amrex::SrcComp(2));
-//   debug->SaveData(data_[level].fluxes[int(dir)], "flux_momentum_z", ::amrex::SrcComp(3));
-//   debug->SaveData(data_[level].fluxes[int(dir)], "flux_energy", ::amrex::SrcComp(4));
-//   debug->SaveData(data_[level].fluxes[int(dir)], "flux_density", ::amrex::SrcComp(0));
 }
 
 void IntegratorContext::CompleteFromCons(int level, Duration dt) {
@@ -601,8 +592,8 @@ void IntegratorContext::CompleteFromCons(int level, Duration dt) {
         fmt::format("cutcell::IntegratorContext::CompleteFromCons({})", level));
   }
   method_.reconstruction.CompleteFromCons(*this, level, dt);
-//  auto debug = GetPatchHierarchy().GetDebugStorage();
-//  debug->SaveData(data_[level].scratch, "Pressure", ::amrex::SrcComp(5));
+  //  auto debug = GetPatchHierarchy().GetDebugStorage();
+  //  debug->SaveData(data_[level].scratch, "Pressure", ::amrex::SrcComp(5));
 }
 
 void IntegratorContext::UpdateConservatively(int level, Duration dt,
@@ -615,8 +606,8 @@ void IntegratorContext::UpdateConservatively(int level, Duration dt,
         "cutcell::IntegratorContext::UpdateConservatively({})", level));
   }
   method_.time_integrator.UpdateConservatively(*this, level, dt, dir);
-//  auto debug = GetPatchHierarchy().GetDebugStorage();
-//  debug->SaveData(data_[level].scratch, "Energy", ::amrex::SrcComp(4));
+  //  auto debug = GetPatchHierarchy().GetDebugStorage();
+  //  debug->SaveData(data_[level].scratch, "Energy", ::amrex::SrcComp(4));
 }
 
 void IntegratorContext::PreAdvanceLevel(int level_num, Duration,
