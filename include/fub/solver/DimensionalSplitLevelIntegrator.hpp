@@ -164,10 +164,12 @@ void DimensionalSplitLevelIntegrator<R, IntegratorContext, SplitMethod>::
                             Duration, std::pair<int, int>>()) {
     IntegratorContext::PreAdvanceLevel(level, time_step_size, subcycle);
   }
-  if (level > 0) {
-    IntegratorContext::FillGhostLayerTwoLevels(level, level - 1);
-  } else {
-    IntegratorContext::FillGhostLayerSingleLevel(level);
+  if (subcycle.first > 0) {
+    if (level > 0) {
+      IntegratorContext::FillGhostLayerTwoLevels(level, level - 1);
+    } else {
+      IntegratorContext::FillGhostLayerSingleLevel(level);
+    }
   }
 }
 template <int R, typename IntegratorContext, typename SplitMethod>
