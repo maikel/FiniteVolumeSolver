@@ -373,7 +373,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   rhs.setVal(0.0);
   lin_op.compDivergence({&rhs}, {&UV});
 
-  MultiFab::Add(rhs, diagcomp, 0, 0, one_component, no_ghosts);
+//   MultiFab::Add(rhs, diagcomp, 0, 0, one_component, no_ghosts);
   //  ::amrex::Box node_domain = geom.Domain();
   //  node_domain.surroundingNodes();
   //  node_domain.setBig(0, node_domain.bigEnd(0) - 1);
@@ -396,7 +396,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   MultiFab::Divide(sigma, scratch, index.PTinverse, 0, one_component,
                    sigma.nGrow());
   lin_op.setSigma(level, sigma);
-  lin_op.setAlpha(level, diagfac_nodes);
+//   lin_op.setAlpha(level, diagfac_nodes);
   MultiFab pi(on_nodes, distribution_map, one_component, no_ghosts);
   pi.setVal(0.0);
 
