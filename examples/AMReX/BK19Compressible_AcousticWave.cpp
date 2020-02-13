@@ -172,8 +172,8 @@ void MyMain(const fub::ProgramOptions& options) {
         const double x = coor[0];
         const double y = coor[1];
 
-        const double p = pow((1.0 + inidat.del0 * sin(inidat.wn * x)), (2.0 * inidat.gamma / (inidat.gamma - 1.0)));
-        fab(i, 0) = pow(p, Gamma - 1.0) / inidat.Msq; // what is the second argument here?
+        const double p = std::pow((1.0 + inidat.del0 * std::sin(inidat.wn * x)), (2.0 * inidat.gamma / (inidat.gamma - 1.0)));
+        fab(i, 0) = (pow(p, Gamma) - 1.0) / inidat.Msq; // what is the second argument here?
       });
     });
   }
