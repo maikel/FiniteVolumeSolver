@@ -25,6 +25,9 @@ if (AMReX_FOUND)
   add_executable_with_warnings(AMReX.IdealGasMix AMReX/IdealGasMix.cpp)
   target_link_libraries(AMReX.IdealGasMix FiniteVolumeSolver.AMReX)
 
+  add_executable_with_warnings(AMReX.IdealGasMix_Advection AMReX/IdealGasMix_Advection.cpp)
+  target_link_libraries(AMReX.IdealGasMix_Advection FiniteVolumeSolver.AMReX)
+
   add_executable_with_warnings(AMReX.IdealGasMix2 AMReX/IdealGasMix2.cpp)
   target_link_libraries(AMReX.IdealGasMix2 FiniteVolumeSolver.AMReX)
 

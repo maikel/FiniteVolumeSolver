@@ -88,6 +88,21 @@ void ToPrim(PrimitiveArray<Rank>& p,
 }
 
 template <int Rank>
+void ToPrim(PrimitiveArray<Rank>& p, const CompleteArray<IdealGasMix<Rank>>& q,
+            MaskArray mask) {
+  const Array1d zero = Array1d::Zero();
+  p.pressure = mask.select(q.pressure, zero);
+  Array1d rho_s = (q.density > 0.0).select(q.density, Array1d::Constant(1.0));
+  for (int i = 0; i < Rank; ++i) {
+    p.velocity.row(i) = mask.select(q.momentum.row(i) / rho_s, zero);
+  }
+  p.temperature = mask.select(q.temperature, zero);
+  for (int i = 0; i < p.mass_fractions.rows(); ++i) {
+    p.mass_fractions.row(i) = mask.select(q.species.row(i) / rho_s, zero);
+  }
+}
+
+template <int Rank>
 void PrimDerivatives(IdealGasMix<Rank>& eq, Primitive<Rank>& dt,
                      const Complete<IdealGasMix<Rank>>& q,
                      const Primitive<Rank>& dx, Direction dir) {
@@ -111,7 +126,7 @@ void PrimDerivatives(IdealGasMix<Rank>& eq, Primitive<Rank>& dt,
   for (int i = 1; i < dYdx.rows(); ++i) {
     sum_dXdx += dYdx[i] / M[i];
   }
-  double dRdt = Rhat * u * sum_dXdx;
+  double dRdt = -Rhat * u * sum_dXdx;
   double dTdt = (-p * dudx - rho * u * c_v * dTdx) / (rho * c_v);
   double drhodx =
       dpdx / (R * T) - p / (R * T * T) * dTdx - rho * Rhat * sum_dXdx / R;
@@ -148,7 +163,7 @@ void PrimDerivatives(IdealGasMix<Rank>& eq, PrimitiveArray<Rank>& dt,
   for (int i = 1; i < dYdx.rows(); ++i) {
     sum_dXdx += dYdx.row(i) / M[i];
   }
-  const Array1d dRdt = Rhat * u * sum_dXdx;
+  const Array1d dRdt = -Rhat * u * sum_dXdx;
   const Array1d dTdt = (-p * dudx - rho * u * c_v * dTdx) / (rho * c_v);
   const Array1d drhodx =
       dpdx / (R * T) - p / (R * T * T) * dTdx - rho * Rhat * sum_dXdx / R;
@@ -166,8 +181,56 @@ void PrimDerivatives(IdealGasMix<Rank>& eq, PrimitiveArray<Rank>& dt,
 }
 
 template <int Rank>
+void PrimDerivatives(IdealGasMix<Rank>& eq, PrimitiveArray<Rank>& dt,
+                     const CompleteArray<IdealGasMix<Rank>>& q,
+                     const PrimitiveArray<Rank>& dx, Direction dir,
+                     MaskArray mask) {
+  const Array1d zero = Array1d::Constant(0.0);
+  const Array1d one = Array1d::Constant(1.0);
+
+  FlameMasterReactor& reactor = eq.GetReactor();
+  const Array1d dTdx = dx.temperature;
+  const Array1d dpdx = dx.pressure;
+  const int d = static_cast<int>(dir);
+  const Array1d dudx = dx.velocity.row(d);
+  const auto& dYdx = dx.mass_fractions;
+
+  const Array1d p = mask.select(q.pressure, zero);
+  const Array1d rho = mask.select(q.density, zero);
+  const Array1d rho_s = mask.select(q.density, one);
+  const Array1d T = mask.select(q.temperature, zero);
+  const Array1d T_s = mask.select(q.temperature, one);
+  const Array1d u = mask.select(q.momentum.row(d) / rho_s, zero);
+  const Array1d Rhat = Array1d::Constant(reactor.GetUniversalGasConstant());
+
+  const Array1d c_v = mask.select(q.c_p / q.gamma, one);
+  const Array1d R = mask.select(q.c_p - c_v, zero);
+  const Array1d R_s = mask.select(q.c_p - c_v, one);
+  span<const double> M = reactor.GetMolarMasses();
+  Array1d sum_dXdx = dYdx.row(0) / M[0];
+  for (int i = 1; i < dYdx.rows(); ++i) {
+    sum_dXdx += dYdx.row(i) / M[i];
+  }
+  const Array1d dRdt = -u * Rhat * sum_dXdx;
+  const Array1d dTdt = (-p * dudx - rho * u * c_v * dTdx) / (rho_s * c_v);
+  const Array1d drhodx = dpdx / (R_s * T_s) - p / (R_s * T_s * T_s) * dTdx -
+                         rho * Rhat * sum_dXdx / R_s;
+  const Array1d dpdt =
+      -R * T * (u * drhodx + rho * dudx) + rho * R * dTdt + rho * T * dRdt;
+  for (int i = 0; i < Rank; ++i) {
+    dt.velocity.row(i) = -u * dx.velocity.row(i);
+  }
+  dt.velocity.row(d) -= dpdx / rho;
+  for (int i = 0; i < dYdx.rows(); ++i) {
+    dt.mass_fractions.row(i) = -u * dYdx.row(i);
+  }
+  dt.pressure = dpdt;
+  dt.temperature = dTdt;
+}
+
+template <int Rank>
 void ApplyLimiter(Primitive<Rank>& dpdx, const Primitive<Rank>& pL,
-                   const Primitive<Rank>& pM, const Primitive<Rank>& pR) {
+                  const Primitive<Rank>& pM, const Primitive<Rank>& pR) {
   auto Limiter = [](double& q, double qL, double qM, double qR) {
     const double sL = qM - qL;
     const double sR = qR - qM;
@@ -184,14 +247,14 @@ void ApplyLimiter(Primitive<Rank>& dpdx, const Primitive<Rank>& pL,
   }
   for (int i = 0; i < dpdx.mass_fractions.rows(); ++i) {
     Limiter(dpdx.mass_fractions[i], pL.mass_fractions[i], pM.mass_fractions[i],
-           pR.mass_fractions[i]);
+            pR.mass_fractions[i]);
   }
 }
 
 template <int Rank>
 void ApplyLimiter(PrimitiveArray<Rank>& dpdx, const PrimitiveArray<Rank>& pL,
-                   const PrimitiveArray<Rank>& pM,
-                   const PrimitiveArray<Rank>& pR) {
+                  const PrimitiveArray<Rank>& pM,
+                  const PrimitiveArray<Rank>& pR) {
   auto Limiter = [](auto&& dqdx, Array1d qL, Array1d qM, Array1d qR) {
     Array1d delta_q = 0.5 * (qR - qL);
     Array1d zeros = Array1d::Zero();
@@ -212,11 +275,11 @@ void ApplyLimiter(PrimitiveArray<Rank>& dpdx, const PrimitiveArray<Rank>& pL,
   Limiter(dpdx.temperature, pL.temperature, pM.temperature, pR.temperature);
   for (int i = 0; i < Rank; ++i) {
     Limiter(dpdx.velocity.row(i), pL.velocity.row(i), pM.velocity.row(i),
-           pR.velocity.row(i));
+            pR.velocity.row(i));
   }
   for (int i = 0; i < dpdx.mass_fractions.rows(); ++i) {
     Limiter(dpdx.mass_fractions.row(i), pL.mass_fractions.row(i),
-           pM.mass_fractions.row(i), pR.mass_fractions.row(i));
+            pM.mass_fractions.row(i), pR.mass_fractions.row(i));
   }
 }
 
@@ -278,19 +341,21 @@ void MusclHancockPrimitive<Rank>::ComputeNumericFlux(
   PrimDerivatives(GetEquation(), dpdt_array_, stencil[1], dpdx_array_, dir);
   pR_array_.pressure =
       pM_array_.pressure +
-      0.5 * (dpdx_array_.pressure - dt_over_dx * dpdt_array_.pressure);
+      0.5 * (dpdx_array_.pressure + dt_over_dx * dpdt_array_.pressure);
   for (int i = 0; i < Rank; ++i) {
     pR_array_.velocity.row(i) =
         pM_array_.velocity.row(i) +
-        0.5 * (dpdx_array_.velocity.row(i) - dt_over_dx * dpdt_array_.velocity.row(i));
+        0.5 * (dpdx_array_.velocity.row(i) +
+               dt_over_dx * dpdt_array_.velocity.row(i));
   }
   pR_array_.temperature =
       pM_array_.temperature +
-      0.5 * (dpdx_array_.temperature - dt_over_dx * dpdt_array_.temperature);
+      0.5 * (dpdx_array_.temperature + dt_over_dx * dpdt_array_.temperature);
   for (int i = 0; i < nspecies; ++i) {
     pR_array_.mass_fractions.row(i) =
         pM_array_.mass_fractions.row(i) +
-        0.5 * (dpdx_array_.mass_fractions.row(i) - dt_over_dx * dpdt_array_.mass_fractions.row(i));
+        0.5 * (dpdx_array_.mass_fractions.row(i) +
+               dt_over_dx * dpdt_array_.mass_fractions.row(i));
   }
   CompleteFromPrim(GetEquation(), stencil_array_[0], pR_array_);
 
@@ -300,22 +365,22 @@ void MusclHancockPrimitive<Rank>::ComputeNumericFlux(
   ApplyLimiter(dpdx_array_, pL_array_, pM_array_, pR_array_);
   PrimDerivatives(GetEquation(), dpdt_array_, stencil[2], dpdx_array_, dir);
   pL_array_.pressure =
-      pM_array_.pressure -
-      0.5 * (dt_over_dx * dpdt_array_.pressure + dpdx_array_.pressure);
+      pM_array_.pressure +
+      0.5 * (-dpdx_array_.pressure + dt_over_dx * dpdt_array_.pressure);
   for (int i = 0; i < Rank; ++i) {
     pL_array_.velocity.row(i) =
-        pM_array_.velocity.row(i) -
-        0.5 * (dt_over_dx * dpdt_array_.velocity.row(i) +
-               dpdx_array_.velocity.row(i));
+        pM_array_.velocity.row(i) +
+        0.5 * (-dpdx_array_.velocity.row(i) +
+               dt_over_dx * dpdt_array_.velocity.row(i));
   }
   pL_array_.temperature =
       pM_array_.temperature -
-      0.5 * (dt_over_dx * dpdt_array_.temperature + dpdx_array_.temperature);
+      0.5 * (-dpdx_array_.temperature + dt_over_dx * dpdt_array_.temperature);
   for (int i = 0; i < nspecies; ++i) {
     pL_array_.mass_fractions.row(i) =
-        pM_array_.mass_fractions.row(i) -
-        0.5 * (dt_over_dx * dpdt_array_.mass_fractions.row(i) +
-               dpdx_array_.mass_fractions.row(i));
+        pM_array_.mass_fractions.row(i) +
+        0.5 * (-dpdx_array_.mass_fractions.row(i) +
+               dt_over_dx * dpdt_array_.mass_fractions.row(i));
   }
   CompleteFromPrim(GetEquation(), stencil_array_[1], pL_array_);
   hll_.ComputeNumericFlux(flux, stencil_array_, dt, dx, dir);
@@ -327,72 +392,74 @@ void MusclHancockPrimitive<Rank>::ComputeNumericFlux(
     span<const CompleteArray, 4> stencil,
     span<const Array1d, 4> volume_fractions, Duration dt, double dx,
     Direction dir) {
-  // MaskArray mask = face_fractions > 0.0;
-  // if (!mask.any()) {
-  //   return;
-  // }
+  MaskArray mask = face_fractions > 0.0;
+  if (!mask.any()) {
+    return;
+  }
 
-  // const int nspecies = GetEquation().GetReactor().GetNSpecies();
-  // const Array1d dt_over_dx = Array1d::Constant(dt.count() / dx);
+  const int nspecies = GetEquation().GetReactor().GetNSpecies();
+  const Array1d dt_over_dx = Array1d::Constant(dt.count() / dx);
 
-  // MaskArray left_mask = volume_fractions[0] > 0.0;
-  // MaskArray right_mask = volume_fractions[3] > 0.0;
+  MaskArray left_mask = volume_fractions[0] > 0.0;
+  MaskArray right_mask = volume_fractions[3] > 0.0;
 
-  // ToPrim(pL_array_, stencil[0], left_mask);
-  // ToPrim(pM_array_, stencil[1], mask);
-  // ToPrim(pR_array_, stencil[2], mask);
-  // ApplyLimiter(dpdx_array_, pL_array_, pM_array_, pR_array_);
-  // PrimDerivatives(GetEquation(), dpdt_array_, stencil[1], dpdx_array_, dir);
+  ToPrim(pL_array_, stencil[0], left_mask);
+  ToPrim(pM_array_, stencil[1], mask);
+  ToPrim(pR_array_, stencil[2], mask);
+  ApplyLimiter(dpdx_array_, pL_array_, pM_array_, pR_array_);
+  PrimDerivatives(GetEquation(), dpdt_array_, stencil[1], dpdx_array_, dir,
+                  mask);
 
-  // pR_array_.pressure =
-  //     pM_array_.pressure +
-  //     0.5 * (dt_over_dx * dpdt_array_.pressure + dpdx_array_.pressure);
-  // for (int i = 0; i < Rank; ++i) {
-  //   pR_array_.velocity.row(i) =
-  //       pM_array_.velocity.row(i) +
-  //       0.5 * (dt_over_dx * dpdt_array_.velocity.row(i) +
-  //              dpdx_array_.velocity.row(i));
-  // }
-  // pR_array_.temperature =
-  //     pM_array_.temperature +
-  //     0.5 * (dt_over_dx * dpdt_array_.temperature + dpdx_array_.temperature);
-  // for (int i = 0; i < nspecies; ++i) {
-  //   pR_array_.mass_fractions.row(i) =
-  //       pM_array_.mass_fractions.row(i) +
-  //       0.5 * (dt_over_dx * dpdt_array_.mass_fractions.row(i) +
-  //              dpdx_array_.mass_fractions.row(i));
-  // }
-  // CompleteFromPrim(GetEquation(), stencil_array_[0], pR_array_);
+  pR_array_.pressure =
+      pM_array_.pressure +
+      0.5 * (dpdx_array_.pressure + dt_over_dx * dpdt_array_.pressure);
+  for (int i = 0; i < Rank; ++i) {
+    pR_array_.velocity.row(i) =
+        pM_array_.velocity.row(i) +
+        0.5 * (dpdx_array_.velocity.row(i) +
+               dt_over_dx * dpdt_array_.velocity.row(i));
+  }
+  pR_array_.temperature =
+      pM_array_.temperature +
+      0.5 * (dpdx_array_.temperature + dt_over_dx * dpdt_array_.temperature);
+  for (int i = 0; i < nspecies; ++i) {
+    pR_array_.mass_fractions.row(i) =
+        pM_array_.mass_fractions.row(i) +
+        0.5 * (dpdx_array_.mass_fractions.row(i) +
+               dt_over_dx * dpdt_array_.mass_fractions.row(i));
+  }
+  CompleteFromPrim(GetEquation(), stencil_array_[0], pR_array_);
 
-  // ToPrim(pL_array_, stencil[1]);
-  // ToPrim(pM_array_, stencil[2]);
-  // ToPrim(pR_array_, stencil[3]);
-  // ApplyLimiter(dpdx_array_, pL_array_, pM_array_, pR_array_);
-  // PrimDerivatives(GetEquation(), dpdt_array_, stencil[2], dpdx_array_, dir);
+  ToPrim(pL_array_, stencil[1], mask);
+  ToPrim(pM_array_, stencil[2], mask);
+  ToPrim(pR_array_, stencil[3], right_mask);
+  ApplyLimiter(dpdx_array_, pL_array_, pM_array_, pR_array_);
+  PrimDerivatives(GetEquation(), dpdt_array_, stencil[2], dpdx_array_, dir,
+                  mask);
 
-  // pL_array_.pressure =
-  //     pM_array_.pressure +
-  //     0.5 * (dt_over_dx * dpdt_array_.pressure - dpdx_array_.pressure);
-  // for (int i = 0; i < Rank; ++i) {
-  //   pL_array_.velocity.row(i) =
-  //       pM_array_.velocity.row(i) +
-  //       0.5 * (dt_over_dx * dpdt_array_.velocity.row(i) -
-  //              dpdx_array_.velocity.row(i));
-  // }
-  // pL_array_.temperature =
-  //     pM_array_.temperature +
-  //     0.5 * (dt_over_dx * dpdt_array_.temperature - dpdx_array_.temperature);
-  // for (int i = 0; i < nspecies; ++i) {
-  //   pL_array_.mass_fractions.row(i) =
-  //       pM_array_.mass_fractions.row(i) +
-  //       0.5 * (dt_over_dx * dpdt_array_.mass_fractions.row(i) -
-  //              dpdx_array_.mass_fractions.row(i));
-  // }
-  // CompleteFromPrim(GetEquation(), stencil_array_[1], pL_array_);
+  pL_array_.pressure =
+      pM_array_.pressure +
+      0.5 * (-dpdx_array_.pressure + dt_over_dx * dpdt_array_.pressure);
+  for (int i = 0; i < Rank; ++i) {
+    pL_array_.velocity.row(i) =
+        pM_array_.velocity.row(i) +
+        0.5 * (-dpdx_array_.velocity.row(i) +
+               dt_over_dx * dpdt_array_.velocity.row(i));
+  }
+  pL_array_.temperature =
+      pM_array_.temperature -
+      0.5 * (-dpdx_array_.temperature + dt_over_dx * dpdt_array_.temperature);
+  for (int i = 0; i < nspecies; ++i) {
+    pL_array_.mass_fractions.row(i) =
+        pM_array_.mass_fractions.row(i) +
+        0.5 * (-dpdx_array_.mass_fractions.row(i) +
+               dt_over_dx * dpdt_array_.mass_fractions.row(i));
+  }
+  CompleteFromPrim(GetEquation(), stencil_array_[1], pL_array_);
 
-  // hll_.ComputeNumericFlux(flux, face_fractions, stencil_array_,
-  //                         volume_fractions.template subspan<1, 2>(), dt, dx,
-  //                         dir);
+  hll_.ComputeNumericFlux(flux, face_fractions, stencil_array_,
+                          volume_fractions.template subspan<1, 2>(), dt, dx,
+                          dir);
 }
 
 template <int Rank>

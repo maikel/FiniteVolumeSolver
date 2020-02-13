@@ -83,7 +83,7 @@ int main(int argc, char** argv) {
       TagAllOf(TagCutCells(), gradients, TagBuffer(2)), boundary_condition);
   gridding->InitializeHierarchy(0.0);
 
-  fub::FluxMethod<fub::MusclHancockPrim<2>> flux_method{equation};
+  fub::FluxMethod<fub::perfect_gas::MusclHancockPrim<2>> flux_method{equation};
 //  fub::MusclHancockMethod flux_method(equation);
   fub::KbnCutCellMethod cutcell_method(std::move(flux_method));
 

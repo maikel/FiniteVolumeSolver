@@ -85,7 +85,7 @@ int main() {
   fub::IdealGasMix<2> equation{burke};
 
   fub::amrex::CartesianGridGeometry geometry{};
-  geometry.cell_dimensions = std::array<int, Dim>{AMREX_D_DECL(256, 256, 1)};
+  geometry.cell_dimensions = std::array<int, Dim>{AMREX_D_DECL(128, 128, 1)};
   geometry.coordinates = amrex::RealBox({AMREX_D_DECL(-1.0, -1.0, -1.0)},
                                         {AMREX_D_DECL(+1.0, +1.0, +1.0)});
 //  geometry.periodicity = std::array<int, Dim>{1, 1};
