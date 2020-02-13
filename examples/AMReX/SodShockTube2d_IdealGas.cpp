@@ -27,7 +27,7 @@
 #include <boost/log/utility/manipulators/add_value.hpp>
 
 struct ShockTubeData {
-  using Equation = fub::PerfectGas<2>;
+  using Equation = fub::IdealGasMix<2>;
   using Complete = fub::Complete<Equation>;
   using Conservative = fub::Conservative<Equation>;
 
@@ -36,14 +36,14 @@ struct ShockTubeData {
       fub::View<Complete> states =
           fub::amrex::MakeView<Complete>(data[mfi], equation_, mfi.tilebox());
 
-      auto from_prim = [](Complete& state, const Equation& equation) {
-        state.energy =
-            state.pressure * equation.gamma_minus_1_inv +
-            0.5 * state.momentum.matrix().squaredNorm() / state.density;
-        state.speed_of_sound =
-            std::sqrt(equation.gamma * state.pressure / state.density);
-      };
+      fub::FlameMasterReactor& reactor = equation_.GetReactor();
+      reactor.SetDensity(1.0);
+      reactor.SetMoleFractions("N2:79,O2:21");
 
+      auto SetPressure = [](fub::FlameMasterReactor& reactor, double pressure) {
+        reactor.SetTemperature(pressure / (reactor.GetDensity() * reactor.GetUniversalGasConstant() / reactor.GetMeanMolarMass()));
+      };
+      Complete state(equation_);
       ForEachIndex(fub::Box<0>(states),
                    [&](std::ptrdiff_t i, std::ptrdiff_t j) {
                      double xy[AMREX_SPACEDIM];
@@ -51,25 +51,18 @@ struct ShockTubeData {
                      const double x = xy[0];
                      const double y = xy[1];
 
-                     Complete state;
-
                      // "Left" states of Sod Shock Tube.
                      if (x + y < 0.0) {
-                       state.density = 1.0;
-                       state.pressure = 1.0;
-                       state.momentum[0] = 0.;
-                       state.momentum[1] = 0.;
+                       reactor.SetDensity(1.0);
+                       SetPressure(reactor, 1.01325e5);
                      }
                      // "Right" states.
                      else {
-                       state.density = 1.25e-1;
-                       state.pressure = 1.0e-1;
-                       state.momentum[0] = 0.;
-                       state.momentum[1] = 0.;
+                       reactor.SetDensity(1.0e-1);
+                       SetPressure(reactor, 1.25e-1 * 1.01325e5);
                      }
-
-                     from_prim(state, equation_);
-
+                     equation_.CompleteFromReactor(state);
+                     equation_.CompleteFromCons(state, state);
                      Store(states, state, {i, j});
                    });
     });
@@ -78,17 +71,18 @@ struct ShockTubeData {
   Equation equation_;
 };
 
-int main(int argc, char** argv) {
+int main() {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
-  const fub::amrex::ScopeGuard guard(argc, argv);
+  const fub::amrex::ScopeGuard guard{};
   fub::InitializeLogging(MPI_COMM_WORLD);
 
   constexpr int Dim = AMREX_SPACEDIM;
   static_assert(AMREX_SPACEDIM >= 2);
 
-  fub::PerfectGas<2> equation{};
+  fub::Burke2012 burke{};
+  fub::IdealGasMix<2> equation{burke};
 
   fub::amrex::CartesianGridGeometry geometry{};
   geometry.cell_dimensions = std::array<int, Dim>{AMREX_D_DECL(256, 256, 1)};
@@ -101,7 +95,7 @@ int main(int argc, char** argv) {
   hier_opts.refine_ratio = amrex::IntVect{AMREX_D_DECL(2, 2, 1)};
   hier_opts.blocking_factor = amrex::IntVect{AMREX_D_DECL(8, 8, 1)};
 
-  using Complete = fub::PerfectGas<2>::Complete;
+  using Complete = fub::IdealGasMix<2>::Complete;
   fub::amrex::GradientDetector gradient(equation,
                                         std::pair{&Complete::density, 1.0e-2},
                                         std::pair{&Complete::pressure, 1.0e-2});
@@ -119,15 +113,18 @@ int main(int argc, char** argv) {
       fub::amrex::TagAllOf(gradient, fub::amrex::TagBuffer(4)), boundaries);
   gridding->InitializeHierarchy(0.0);
 
-  fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
-  fub::HllMethod hll_method(equation, signals);
-//  fub::MusclHancockMethod muscl_method(equation, hll_method);
-  fub::FluxMethod<fub::perfect_gas::MusclHancockPrim<2>> muscl_method{equation};
+//  fub::EinfeldtSignalVelocities<fub::IdealGasMix<2>> signals{};
+//  fub::HllMethod hll_method(equation, signals);
+  fub::ideal_gas::MusclHancockPrimMethod<2> muscl_method{equation};
+  // fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(hll_method),
   fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(muscl_method),
                                       fub::amrex::EulerForwardTimeIntegrator(),
                                       fub::amrex::Reconstruction(equation)};
 
+//  const int base_gcw = hll_method.GetStencilWidth();
   const int base_gcw = muscl_method.GetStencilWidth();
+//  const int scratch_ghost_cell_width = 1 * base_gcw;
+//  const int flux_ghost_cell_width = 0 * base_gcw;
   const int scratch_ghost_cell_width = 2 * base_gcw;
   const int flux_ghost_cell_width = 1 * base_gcw;
 
@@ -135,12 +132,12 @@ int main(int argc, char** argv) {
       fub::int_c<2>,
       fub::amrex::IntegratorContext(gridding, method, scratch_ghost_cell_width,
                                     flux_ghost_cell_width),
-//      fub::GodunovSplitting());
-      fub::StrangSplitting());
+    // fub::GodunovSplitting());
+       fub::StrangSplitting());
 
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
-  std::string base_name = "SodShockTube_muscl_prim/";
+  std::string base_name = "SodShockTube_IdealGas_muscl_prim/";
 
   using namespace fub::amrex;
   using namespace std::literals::chrono_literals;
@@ -174,8 +171,8 @@ int main(int argc, char** argv) {
   output.AddOutput(fub::MakeOutput<GriddingAlgorithm>({1}, {}, compute_mass));
 
   // Add output to write AMReX plotfiles in a set time interval
-  output.AddOutput(std::make_unique<fub::amrex::PlotfileOutput<fub::PerfectGas<2>>>(std::vector<std::ptrdiff_t>{},
-          std::vector<fub::Duration>{0.1s}, equation, base_name));
+  output.AddOutput(std::make_unique<fub::amrex::PlotfileOutput<fub::IdealGasMix<2>>>(std::vector<std::ptrdiff_t>{},
+          std::vector<fub::Duration>{0.0001s}, equation, base_name));
 
   // Add output for the timer database after each 25 cycles
   output.AddOutput(
@@ -187,7 +184,7 @@ int main(int argc, char** argv) {
   using namespace std::literals::chrono_literals;
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
-  run_options.final_time = 1.0s;
-  run_options.cfl = 0.5;
+  run_options.final_time = 0.01s;
+  run_options.cfl = 0.4;
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

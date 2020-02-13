@@ -119,8 +119,8 @@ int main() {
 
   fub::EinfeldtSignalVelocities<fub::PerfectGas<1>> signals{};
   fub::HllMethod hll_method(equation, signals);
-  fub::HllemMethod<1> hllem_method{equation};
-  fub::FluxMethod<fub::MusclHancockPrim<1>> muscl_prim{equation};
+  fub::perfect_gas::HllemMethod<1> hllem_method{equation};
+  fub::FluxMethod<fub::perfect_gas::MusclHancockPrim<1>> muscl_prim{equation};
 //  fub::MusclHancockMethod flux_method{equation, hllem_method};
   fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(hll_method),
                                       fub::amrex::EulerForwardTimeIntegrator(),

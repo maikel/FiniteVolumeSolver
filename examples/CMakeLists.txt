@@ -45,6 +45,9 @@ if (AMReX_FOUND)
 
   add_executable_with_warnings(AMReX.SodShockTube2d AMReX/SodShockTube2d.cpp)
   target_link_libraries(AMReX.SodShockTube2d FiniteVolumeSolver.AMReX)
+
+  add_executable_with_warnings(AMReX.SodShockTube2d_IdealGas AMReX/SodShockTube2d_IdealGas.cpp)
+  target_link_libraries(AMReX.SodShockTube2d_IdealGas FiniteVolumeSolver.AMReX)
 endif()
 
 if (AMReX_FOUND AND AMReX_2D_FOUND)

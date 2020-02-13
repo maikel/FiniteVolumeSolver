@@ -99,9 +99,9 @@ auto MakeSolver(const fub::PerfectGas<2>& equation) {
 
    fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
   fub::HllMethod hll_method{equation, signals};
-  fub::HllemMethod<2> hllem_method{equation};
+  fub::perfect_gas::HllemMethod<2> hllem_method{equation};
 //  fub::MusclHancockMethod flux_method(equation, hllem_method);
-  fub::FluxMethod<fub::MusclHancockPrim<2>> flux_method{equation};
+  fub::FluxMethod<fub::perfect_gas::MusclHancockPrim<2>> flux_method{equation};
   fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
   HyperbolicMethod method{FluxMethod{cutcell_method}, TimeIntegrator{},
                           Reconstruction{equation}};

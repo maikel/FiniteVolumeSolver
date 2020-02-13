@@ -151,8 +151,8 @@ auto MakePlenumSolver(fub::PerfectGas<3>& equation,
 
   // fub::EinfeldtSignalVelocities<fub::PerfectGas<3>> signals;
   // fub::HllMethod hll_method{equation, signals};v
-//  fub::HllemMethod<3> hllem_method{equation};
-  fub::FluxMethod<fub::MusclHancockPrim<3>> muscl_method{equation};
+//  fub::perfect_gas::HllemMethod<3> hllem_method{equation};
+  fub::FluxMethod<fub::perfect_gas::MusclHancockPrim<3>> muscl_method{equation};
   fub::KbnCutCellMethod cutcell_method(muscl_method);
 
   HyperbolicMethod method{FluxMethod{cutcell_method}, TimeIntegrator{},

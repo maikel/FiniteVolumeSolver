@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Maikel Nadolski
+// Copyright (c) 2020 Maikel Nadolski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,17 +18,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/equations/ideal_gas_mix/HlleMethod.hpp"
+#include "fub/equations/perfect_gas/MusclHancockMethod.hpp"
 
-namespace fub::ideal_gas {
+namespace fub {
 
-template class FluxMethod<
-    Hll<IdealGasMix<1>, EinfeldtSignalVelocities<IdealGasMix<1>>>>;
+template struct MusclHancock<PerfectGas<2>>;
+template class FluxMethod<MusclHancock<PerfectGas<3>>>;
 
-template class FluxMethod<
-    Hll<IdealGasMix<2>, EinfeldtSignalVelocities<IdealGasMix<2>>>>;
-
-template class FluxMethod<
-    Hll<IdealGasMix<3>, EinfeldtSignalVelocities<IdealGasMix<3>>>>;
-
-} // namespace fub::ideal_gas
+} // namespace fub

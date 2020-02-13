@@ -19,9 +19,9 @@
 // SOFTWARE.
 
 #include "fub/equations/PerfectGas.hpp"
-
+#include "fub/equations/perfect_gas/EinfeldtSignalVelocities.hpp"
+#include "fub/equations/perfect_gas/HllMethod.hpp"
 #include "fub/flux_method/HllMethod.hpp"
-#include "fub/flux_method/MusclHancockMethod.hpp"
 
 #include <benchmark/benchmark.h>
 
