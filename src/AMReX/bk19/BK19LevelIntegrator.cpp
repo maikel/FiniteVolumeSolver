@@ -340,7 +340,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
     auto PTdens =
         SliceLast(MakePatchDataView(scratch[mfi]), index.PTdensity);
     auto diagfac =
-        SliceLast(MakePatchDataView(diagfac_cell[mfi]), 0);
+        SliceLast(MakePatchDataView(diagfac_cells[mfi]), 0);
     ForEachIndex(diagfac.Box(), [&](int i, int j) {
       // clang-format off
       diagfac(i, j) = equation.alpha_p * equation.Msq / (equation.gamma - 1.0) *
