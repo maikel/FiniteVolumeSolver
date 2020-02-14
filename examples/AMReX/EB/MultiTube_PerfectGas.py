@@ -2,7 +2,8 @@ import math
 import h5py
 import numpy as np
 
-source = h5py.File("/Users/maikel/Development/FiniteVolumeSolver/initial_data2.h5", "r")
+source = h5py.File("/home/guttula/initial_data2.h5", "r")
+# source = h5py.File("/Users/maikel/Development/FiniteVolumeSolver/initial_data2.h5", "r")
 dataset = source['DG_Solution']
 data = np.transpose(np.array(dataset)).copy()
 source.close()
@@ -11,14 +12,14 @@ view = data.view()
 view.shape = (data.shape[0] * data.shape[1])
 data = view.copy()
 
-plenum_y_n_cells = 32
-plenum_x_n_cells = 32
-plenum_z_n_cells = 32
+plenum_y_n_cells = 112
+plenum_x_n_cells = 112   
+plenum_z_n_cells = 112
 
 tube_blocking_factor = 8
 plenum_blocking_factor = 8
 
-n_level = 1
+n_level = 2
 
 n_tubes = 6
 r_tube = 0.015
@@ -38,11 +39,11 @@ plenum_x_lower = -tube_length
 
 plenum_x_length = plenum_x_upper - plenum_x_lower
 
-plenum_y_upper = +r_outer + 0.07
+plenum_y_upper = +r_outer + 0.005
 plenum_y_lower = 0.0 # -r_outer - 0.05
 plenum_y_length = plenum_y_upper - plenum_y_lower
 
-plenum_z_upper = r_outer + 0.05
+plenum_z_upper = r_outer + 0.005
 plenum_z_lower = 0.0
 plenum_z_length = plenum_z_upper - plenum_z_lower
 
@@ -62,7 +63,7 @@ plenum_y_n_cells = int(plenum_y_n_cells)
 RunOptions = {
   'cfl': 0.3,
   'final_time': 0.02,
-  # 'max_cycles': 10,
+  'max_cycles': -1,
   'do_backup': 0
 }
 
@@ -96,25 +97,26 @@ PressureBoundary = {
   'direction': 0
 }
 
+probe_xs = [0.5 - (7e-2 + i * 9e-2) for i in range(0, 5)]
+
 Output = { 
   'outputs': [{
     'type': 'Plotfile',
-    'directory': 'MultiTube/Plotfiles',
+    'directory': 'MultiTube/Plotfile/',
     'intervals': [1e-5],
-    # 'frequencies': [1],
   }, {
     'type': 'CounterOutput',
     'frequencies': [100]
+  },
+  {
+    'type': 'Checkpoint',
+    'directory': 'MultiTube/Checkpoint/',
+    'intervals': [1e-4]
   }, {
-     'type': 'Checkpoint',
-     'directory': 'MultiTube/Checkpoint/',
-     'intervals': [1e-4]
-   }, {
      'type': 'ProbesOutput',
      'filename': 'Probes.h5',
-     'probes': [(0.0, 0.001, 0.5 * (plenum_z_lower + plenum_z_upper))],
+     'probes': [(x, 0.001, 0.5 * (plenum_z_lower + plenum_z_upper)) for x in probe_xs],
      'frequencies': [1]
-   }
-  ]
+  }]
 }
 

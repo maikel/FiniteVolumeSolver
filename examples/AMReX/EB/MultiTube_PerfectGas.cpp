@@ -205,7 +205,8 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<Plenum_Rank>, std::move(plenum), fub::StrangSplitting{});
 
-  fub::NoSubcycleSolver solver(std::move(level_integrator));
+  // fub::NoSubcycleSolver solver(std::move(level_integrator));
+  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
   fub::OutputFactory<GriddingAlgorithm> factory{};
   factory.RegisterOutput<WriteHdf5>("HDF5");
