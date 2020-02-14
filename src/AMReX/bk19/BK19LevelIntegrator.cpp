@@ -334,9 +334,9 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   on_nodes.surroundingNodes();
 
   // compute RHS for elliptic solve
-  MultiFab diagfac_cell(on_cells, distribution_map, one_component,
+  MultiFab diagfac_cells(on_cells, distribution_map, one_component,
                          one_ghost_cell_width);
-  ForEachFab(diagfac_cell, [&](const MFIter& mfi) {
+  ForEachFab(diagfac_cells, [&](const MFIter& mfi) {
     auto PTdens =
         SliceLast(MakePatchDataView(scratch[mfi]), index.PTdensity);
     auto diagfac =
@@ -344,12 +344,13 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
     ForEachIndex(diagfac.Box(), [&](int i, int j) {
       // clang-format off
       diagfac(i, j) = equation.alpha_p * equation.Msq / (equation.gamma - 1.0) *
-        std::pow(PTdens(i, j), equation.gamma - 2.0);
+//         std::pow(PTdens(i, j), 2.0 - equation.gamma);
+        std::pow(PTdens(i, j), 2.0 - equation.gamma) / (-dt.count() * dt.count());
       // clang-format on
     });
   });
   MultiFab diagfac_nodes(on_nodes, distribution_map, one_component, no_ghosts);
-  AverageCellToNode_(diagfac_nodes, 0, diagfac_cell, 0);
+  AverageCellToNode_(diagfac_nodes, 0, diagfac_cells, 0);
 
   // get pi from scratch
   const MultiFab& pi_old = context.GetPi(level);
@@ -369,11 +370,12 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
               one_ghost_cell_width);
   ComputePvFromScratch_(index, UV, scratch, periodicity);
 
-  UV.mult(-dt.count(), UV.nGrow());
+//   UV.mult(-dt.count(), UV.nGrow());
+  UV.mult(1.0/dt.count(), UV.nGrow());
   rhs.setVal(0.0);
   lin_op.compDivergence({&rhs}, {&UV});
 
-//   MultiFab::Add(rhs, diagcomp, 0, 0, one_component, no_ghosts);
+  MultiFab::Add(rhs, diagcomp, 0, 0, one_component, no_ghosts);
   //  ::amrex::Box node_domain = geom.Domain();
   //  node_domain.surroundingNodes();
   //  node_domain.setBig(0, node_domain.bigEnd(0) - 1);
@@ -390,13 +392,14 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   // Construct sigma by: -cp dt^2 (P Theta)^o (Equation (27) in [BK19])
   // MultiFab::Divide(dest, src, src_comp, dest_comp, n_comp, n_grow);
   MultiFab sigma(on_cells, distribution_map, one_component, no_ghosts);
-  sigma.setVal(-equation.c_p * dt.count() * dt.count());
+//   sigma.setVal(-equation.c_p * dt.count() * dt.count());
+  sigma.setVal(equation.c_p);
   MultiFab::Multiply(sigma, scratch, index.PTdensity, 0, one_component,
                      sigma.nGrow());
   MultiFab::Divide(sigma, scratch, index.PTinverse, 0, one_component,
                    sigma.nGrow());
   lin_op.setSigma(level, sigma);
-//   lin_op.setAlpha(level, diagfac_nodes);
+  lin_op.setAlpha(level, diagfac_nodes);
   MultiFab pi(on_nodes, distribution_map, one_component, no_ghosts);
   pi.setVal(0.0);
 
