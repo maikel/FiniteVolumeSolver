@@ -98,6 +98,8 @@ private:
       int level, double time_point, const ::amrex::BoxArray& box_array,
       const ::amrex::DistributionMapping& distribution_mapping) override;
 
+  void PostProcessBaseGrids(::amrex::BoxArray& box_array) const override;
+
   void ClearLevel(int level) override;
 
   PatchHierarchy hierarchy_;

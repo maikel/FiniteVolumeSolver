@@ -20,6 +20,8 @@
 
 #include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
 
+#include "fub/AMReX/ForEachFab.hpp"
+
 #include <AMReX_EBMultiFabUtil.H>
 #include <AMReX_FillPatchUtil.H>
 
@@ -72,8 +74,8 @@ GriddingAlgorithm::GriddingAlgorithm(const GriddingAlgorithm& other)
   }
 }
 
-GriddingAlgorithm& GriddingAlgorithm::
-operator=(const GriddingAlgorithm& other) {
+GriddingAlgorithm&
+GriddingAlgorithm::operator=(const GriddingAlgorithm& other) {
   GriddingAlgorithm tmp{other};
   return *this = std::move(tmp);
 }
@@ -119,8 +121,8 @@ GriddingAlgorithm::GriddingAlgorithm(GriddingAlgorithm&& other) noexcept
   }
 }
 
-GriddingAlgorithm& GriddingAlgorithm::
-operator=(GriddingAlgorithm&& other) noexcept {
+GriddingAlgorithm&
+GriddingAlgorithm::operator=(GriddingAlgorithm&& other) noexcept {
   AmrMesh::verbose = std::move(other.verbose);
   AmrMesh::max_level = std::move(other.max_level);
   AmrMesh::ref_ratio = std::move(other.ref_ratio);
@@ -394,6 +396,26 @@ void GriddingAlgorithm::RemakeLevel(
 
 void GriddingAlgorithm::ClearLevel(int level) {
   hierarchy_.GetPatchLevel(level) = PatchLevel{};
+}
+
+void GriddingAlgorithm::PostProcessBaseGrids(::amrex::BoxArray& ba) const {
+  if (hierarchy_.GetOptions().remove_covered_grids) {
+    ::amrex::DistributionMapping dm(ba);
+    std::unique_ptr<::amrex::EBFArrayBoxFactory> eb_factory =
+        ::amrex::makeEBFabFactory(hierarchy_.GetOptions().index_spaces[0],
+                                  hierarchy_.GetGeometry(0), ba, dm, {0, 0, 0},
+                                  ::amrex::EBSupport::basic);
+    const ::amrex::FabArray<::amrex::EBCellFlagFab>& flags =
+        eb_factory->getMultiEBCellFlagFab();
+    ::amrex::Vector<::amrex::Box> not_covered{};
+    ForEachFab(ba, dm, [&](const ::amrex::MFIter& mfi) {
+      if (flags[mfi].getType() != ::amrex::FabType::covered) {
+        not_covered.push_back(mfi.validbox());
+      }
+    });
+    ::amrex::AllGatherBoxes(not_covered);
+    ba = ::amrex::BoxArray{::amrex::BoxList(std::move(not_covered))};
+  }
 }
 
 } // namespace fub::amrex::cutcell
