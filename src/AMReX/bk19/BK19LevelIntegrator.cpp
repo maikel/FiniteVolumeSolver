@@ -305,7 +305,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
                                    BK19IntegratorContext& context, int level,
                                    Duration dt) {
   DebugStorage& debug = *context.GetPatchHierarchy().GetDebugStorage();
-  
+
   MultiFab& scratch = context.GetScratch(level);
   const ::amrex::Geometry& geom = context.GetGeometry(level);
   const ::amrex::Periodicity periodicity = geom.periodicity();
@@ -558,10 +558,6 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
 //   rhs.setVal(0.0);
 //   lin_op_->compDivergence({&rhs}, {&UV});
 //   context.GetPi(level).copy(rhs);
-
-  debug.plotfilename =
-      "BK19_Pseudo_Incompressible-advect-backward-forward-advect/";
-  debug(context);
 
   // 6) Do the second euler backward integration step for the source term
   MultiFab pi_new =
