@@ -77,8 +77,8 @@ void CreateHdf5Database(const std::string& name, const GriddingAlgorithm& grid,
   // create a main data set with probe data for each time step
   {
     constexpr std::size_t size = 3;
-    hsize_t dims[size] = {1, n_probes, n_fields};
-    hsize_t maxdims[size] = {H5S_UNLIMITED, dims[1], dims[2]};
+    hsize_t dims[size] = {n_fields, n_probes, 1};
+    hsize_t maxdims[size] = {dims[0], dims[1], H5S_UNLIMITED};
     H5Properties properties(H5Pcreate(H5P_DATASET_CREATE));
     H5Pset_chunk(properties, size, dims);
     H5Pset_alloc_time(properties, H5D_ALLOC_TIME_EARLY);
@@ -98,7 +98,7 @@ void CreateHdf5Database(const std::string& name, const GriddingAlgorithm& grid,
   }
   // create a dataset to store all coordinates of the probes
   {
-    std::array<hsize_t, 2> dims{n_probes, AMREX_SPACEDIM};
+    std::array<hsize_t, 2> dims{AMREX_SPACEDIM, n_probes};
     H5Space dataspace(H5Screate_simple(2, dims.data(), nullptr));
     H5Dataset dataset(H5Dcreate(file, "/coordinates", H5T_IEEE_F64LE, dataspace,
                                 H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT));
@@ -135,22 +135,22 @@ void OpenHdf5Database(const std::string& name, const GriddingAlgorithm& grid,
   if (H5Dataset dataset(H5Dopen(file, "/data", H5P_DEFAULT)); dataset < 0) {
     return;
   } else {
-    auto map_first = [](const std::array<hsize_t, 3>& x,
+    auto map_last = [](const std::array<hsize_t, 3>& x,
                         auto f) {
-      return std::array<hsize_t, 3>{hsize_t(f(x[0])), x[1], x[2]};
+      return std::array<hsize_t, 3>{x[0], x[1], hsize_t(f(x[2]))};
     };
     std::array<hsize_t, 3> dims = {};
     std::array<hsize_t, 3> maxdims = {};
     H5Space dataspace(H5Dget_space(dataset));
     H5Sget_simple_extent_dims(dataspace, dims.data(), maxdims.data());
-    FUB_ASSERT(maxdims[0] == H5S_UNLIMITED);
+    FUB_ASSERT(maxdims[2] == H5S_UNLIMITED);
     std::array<hsize_t, 3> new_dims =
-        map_first(dims, [](hsize_t dim) { return dim + 1; });
+        map_last(dims, [](hsize_t dim) { return dim + 1; });
     H5Dset_extent(dataset, new_dims.data());
     H5Space filespace(H5Dget_space(dataset));
     std::array<hsize_t, 3> count =
-        map_first(dims, [](hsize_t) { return 1; });
-    std::array<hsize_t, 3> offset{dims[0]};
+        map_last(dims, [](hsize_t) { return 1; });
+    std::array<hsize_t, 3> offset{0, 0, dims[2]};
     H5Sselect_hyperslab(filespace, H5S_SELECT_SET, offset.data(), nullptr,
                         count.data(), nullptr);
     H5Space memspace(H5Screate_simple(3, count.data(), nullptr));
