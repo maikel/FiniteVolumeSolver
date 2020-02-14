@@ -99,16 +99,12 @@ struct TravellingVortexInitialData {
               rho0 + del_rho * std::pow(1.0 - r_over_R0 * r_over_R0, 6);
           states.velocity(i, j, 0) = U0[0] - uth * (dy / r);
           states.velocity(i, j, 1) = U0[1] + uth * (dx / r);
-
-          // pi(i, j) = Gamma * fac*fac * p_coeff(r_over_R0, coefficients);
-
         } else {
           states.density(i, j) = rho0;
           states.velocity(i, j, 0) = U0[0];
           states.velocity(i, j, 1) = U0[1];
-
-          //           pi(i, j) = 0.0
         }
+
         states.momentum(i, j, 0) =
             states.density(i, j) * states.velocity(i, j, 0);
         states.momentum(i, j, 1) =
@@ -124,6 +120,8 @@ struct TravellingVortexInitialData {
   const double del_rho{a_rho * 0.5};
   const double R0{0.4};
   const double fac{1024.0};
+  const double R_gas{287.4};
+  const double gamma{1.4};
   std::array<double, 2> center{0.5, 0.5};
   std::array<double, 2> U0{1.0, 1.0};
 };
@@ -152,15 +150,16 @@ void MyMain(const fub::ProgramOptions& options) {
 
   PatchHierarchy hierarchy(desc, grid_geometry, hierarchy_options);
 
+  const TravellingVortexInitialData inidat{};
+  const double Gamma = (inidat.gamma - 1.0) / inidat.gamma;
+
   using Complete = fub::CompressibleAdvection<2>::Complete;
   fub::CompressibleAdvection<2> equation{};
-  equation.R   = 1.0;
-  equation.c_p = 1.4/0.4 * equation.R;
+  // Here, c_p is non-dimensionalized. Adjust???
+  equation.c_p = Gamma;
   fub::IndexMapping<fub::CompressibleAdvection<2>> index(equation);
 
   GradientDetector gradient(equation, std::pair{&Complete::PTinverse, 1.0e-2});
-
-  const TravellingVortexInitialData inidat{};
 
   std::shared_ptr grid = std::make_shared<GriddingAlgorithm>(
       std::move(hierarchy), inidat, TagAllOf{gradient, TagBuffer(2)});
@@ -188,14 +187,11 @@ void MyMain(const fub::ProgramOptions& options) {
   HyperbolicMethod method{flux_method, EulerForwardTimeIntegrator(),
                           Reconstruction(fub::execution::seq, equation)};
 
+//   BK19IntegratorContext simulation_data(grid, method, 2, 0);
   BK19IntegratorContext simulation_data(grid, method, 4, 2);
   const int nlevel = simulation_data.GetPatchHierarchy().GetNumberOfLevels();
 
   // set initial values of pi
-  const double gamma{1.4};
-  const double Gamma = (gamma - 1.0) / gamma;
-  // simulation_data.GetPi(0).setVal(1.0);
-
   for (int level = 0; level < nlevel; ++level) {
     ::amrex::MultiFab& pi = simulation_data.GetPi(level);
     const ::amrex::Geometry& geom =
@@ -224,6 +220,7 @@ void MyMain(const fub::ProgramOptions& options) {
   }
 
   fub::DimensionalSplitLevelIntegrator advection(
+//       fub::int_c<2>, std::move(simulation_data), fub::GodunovSplitting());
       fub::int_c<2>, std::move(simulation_data), fub::StrangSplitting());
 
   BK19LevelIntegratorOptions integrator_options =
@@ -235,8 +232,6 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::NoSubcycleSolver solver(std::move(level_integrator));
 
   BK19AdvectiveFluxes& Pv = solver.GetContext().GetAdvectiveFluxes(0);
-  // Pv.on_faces[0].setVal(0.0);
-  // Pv.on_faces[1].setVal(0.0);
   RecomputeAdvectiveFluxes(
       index, Pv.on_faces, Pv.on_cells,
       solver.GetContext().GetScratch(0),

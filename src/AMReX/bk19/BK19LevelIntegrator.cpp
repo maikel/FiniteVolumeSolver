@@ -549,6 +549,20 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
     return result;
   }
 
+//   MultiFab rhs(on_nodes, scratch.DistributionMap(), one_component, no_ghosts);
+//   MultiFab UV(on_cells, scratch.DistributionMap(), index_.momentum.size(),
+//               one_ghost_cell_width);
+//   ComputePvFromScratch_(index_, UV, scratch, periodicity);
+//
+//   UV.mult(-dt.count(), UV.nGrow());
+//   rhs.setVal(0.0);
+//   lin_op_->compDivergence({&rhs}, {&UV});
+//   context.GetPi(level).copy(rhs);
+
+  debug.plotfilename =
+      "BK19_Pseudo_Incompressible-advect-backward-forward-advect/";
+  debug(context);
+
   // 6) Do the second euler backward integration step for the source term
   MultiFab pi_new =
       DoEulerBackward_(equation_, index_, *lin_op_, options_,

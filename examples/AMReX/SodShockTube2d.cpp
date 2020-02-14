@@ -105,7 +105,6 @@ int main(int argc, char** argv) {
                                         std::pair{&Complete::density, 1.0e-2},
                                         std::pair{&Complete::pressure, 1.0e-2});
 
-  auto seq = fub::execution::seq;
   using fub::amrex::ReflectiveBoundary;
   fub::amrex::BoundarySet boundaries{
       {ReflectiveBoundary(equation, fub::Direction::X, 0),
