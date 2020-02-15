@@ -336,6 +336,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   // compute RHS for elliptic solve
   MultiFab diagfac_cells(on_cells, distribution_map, one_component,
                          one_ghost_cell_width);
+  MultiFab diagfac_nodes(on_nodes, distribution_map, one_component, no_ghosts);
   ForEachFab(diagfac_cells, [&](const MFIter& mfi) {
     auto PTdens =
         SliceLast(MakePatchDataView(scratch[mfi]), index.PTdensity);
@@ -349,7 +350,6 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
       // clang-format on
     });
   });
-  MultiFab diagfac_nodes(on_nodes, distribution_map, one_component, no_ghosts);
   AverageCellToNode_(diagfac_nodes, 0, diagfac_cells, 0);
 
   // get pi from scratch
@@ -365,7 +365,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   // Construct right hand side by: -dt div(UV)
   // Equation (28) in [BK19]
   //
-  // Divergence needs on ghost cell width.
+  // velocity field needs needs one ghost cell width to compute divergence
   MultiFab UV(on_cells, distribution_map, index.momentum.size(),
               one_ghost_cell_width);
   ComputePvFromScratch_(index, UV, scratch, periodicity);
@@ -402,6 +402,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   lin_op.setAlpha(level, diagfac_nodes);
   MultiFab pi(on_nodes, distribution_map, one_component, no_ghosts);
   pi.setVal(0.0);
+  ::amrex::Print() << "lin_op.isSingular(0): " << lin_op.isSingular(0) << "\n";
 
   ::amrex::MLMG nodal_solver(lin_op);
   nodal_solver.setMaxIter(options.mlmg_max_iter);
@@ -420,7 +421,8 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   UV_correction.setVal(0.0);
   lin_op.getFluxes({&UV_correction}, {&pi});
 
-  UV_correction.mult(-1.0 / dt.count());
+//   UV_correction.mult(-1.0 / dt.count());
+  UV_correction.mult(dt.count());
   for (std::size_t i = 0; i < index.momentum.size(); ++i) {
     const int UV_component = static_cast<int>(i);
     MultiFab::Multiply(UV_correction, scratch, index.PTinverse, UV_component,
@@ -440,9 +442,16 @@ void DoEulerForward_(const Equation& equation,
                      ::amrex::MLNodeHelmDualCstVel& lin_op,
                      BK19IntegratorContext& context, int level, Duration dt) {
   MultiFab& scratch = context.GetScratch(level);
+  const ::amrex::Geometry& geom = context.GetGeometry(level);
+  const ::amrex::Periodicity periodicity = geom.periodicity();
 
   ::amrex::DistributionMapping distribution_map = scratch.DistributionMap();
   ::amrex::BoxArray on_cells = scratch.boxArray();
+
+  // velocity field needs needs one ghost cell width to compute divergence
+  MultiFab UV(on_cells, distribution_map, index.momentum.size(),
+              one_ghost_cell_width);
+  ComputePvFromScratch_(index, UV, scratch, periodicity);
 
   // Construct sigma as in EulerBackward, but with -cp dt instead of -cp dt^2
   // Maikel: This needs a comment for me, why it is so
@@ -476,6 +485,34 @@ void DoEulerForward_(const Equation& equation,
   }
 
   RecoverVelocityFromMomentum_(scratch, index);
+
+  // Compute update for pi (compressible case)
+  ::amrex::BoxArray on_nodes = on_cells;
+  on_nodes.surroundingNodes();
+  MultiFab div(on_nodes, distribution_map, one_component, no_ghosts);
+  div.setVal(0.0);
+  lin_op.compDivergence({&div}, {&UV});
+
+  MultiFab dpidP_cells(on_cells, distribution_map, one_component,
+                       one_ghost_cell_width);
+  MultiFab dpidP_nodes(on_nodes, distribution_map, one_component, no_ghosts);
+  ForEachFab(dpidP_cells, [&](const MFIter& mfi) {
+    auto PTdens =
+        SliceLast(MakePatchDataView(scratch[mfi]), index.PTdensity);
+    auto dpidP =
+        SliceLast(MakePatchDataView(dpidP_cells[mfi]), 0);
+    ForEachIndex(dpidP.Box(), [&](int i, int j) {
+      // clang-format off
+      dpidP(i, j) = -dt.count() * (equation.gamma - 1.0) /
+        equation.Msq * std::pow(PTdens(i, j), equation.gamma - 2.0);
+      // clang-format on
+    });
+  });
+  AverageCellToNode_(dpidP_nodes, 0, dpidP_cells, 0);
+  MultiFab::Multiply(div, dpidP_nodes, 0, 0, one_component, no_ghosts);
+  if (equation.alpha_p > 0.0) {
+    MultiFab::Add(pi, div, 0, 0, one_component, no_ghosts);
+  }
 }
 
 } // namespace
