@@ -158,13 +158,14 @@ void MyMain(const fub::ProgramOptions& options) {
   PatchHierarchy hierarchy(desc, grid_geometry, hierarchy_options);
 
   const TravellingVortexInitialData inidat{};
-  const double Gamma = (inidat.gamma - 1.0) / inidat.gamma;
+  const double Gamma    = (inidat.gamma - 1.0) / inidat.gamma;
+  const double Gammainv = 1.0 / Gamma;
 
   using Complete = fub::CompressibleAdvection<2>::Complete;
   fub::CompressibleAdvection<2> equation{};
   // Here, c_p is non-dimensionalized. Adjust???
   // Is CompressibleAdvection the right place to store all this?
-  equation.c_p = Gamma;
+  equation.c_p     = Gammainv;
   equation.alpha_p = 1.0;
   equation.gamma   = inidat.gamma;
   equation.Msq     = inidat.Msq;
