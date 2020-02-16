@@ -86,6 +86,17 @@ public:
     return false;
   }
 
+  template <typename Log>
+  void Print(Log& log) {
+    BOOST_LOG(log) << fmt::format(" - frequencies = {{{}}} [-]", fmt::join(frequencies_, ", "));
+    std::vector<double> interval_counts(intervals_.size());
+    std::transform(intervals_.begin(), intervals_.end(), interval_counts.begin(), [](fub::Duration dur) {
+      return dur.count();
+    });
+    BOOST_LOG(log) << fmt::format(" - intervals = {{{}}} [s]", fmt::join(interval_counts, ", "));
+    BOOST_LOG(log) << fmt::format(" - smallest_time_step_size = {} [s]", smallest_time_step_size_.count());
+  }
+
 protected:
   std::vector<std::ptrdiff_t> frequencies_{};
   std::vector<fub::Duration> intervals_{};

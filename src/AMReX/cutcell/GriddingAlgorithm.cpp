@@ -197,18 +197,28 @@ const PatchHierarchy& GriddingAlgorithm::GetPatchHierarchy() const noexcept {
   return hierarchy_;
 }
 
-bool GriddingAlgorithm::RegridAllFinerlevels(int which_level) {
+int GriddingAlgorithm::RegridAllFinerlevels(int which_level) {
   if (which_level < max_level) {
-    const int before = AmrMesh::finest_level;
+    auto timer = hierarchy_.GetCounterRegistry()->get_timer(
+      "cutcell::GriddingAlgorithm::RegridAllFinerLevels");
+    const ::amrex::Vector<::amrex::BoxArray> before = ::amrex::AmrMesh::boxArray();
     AmrCore::regrid(which_level,
                     hierarchy_.GetPatchLevel(which_level).time_point.count());
-    const int after = AmrMesh::finest_level;
-    return before != after;
+    const ::amrex::Vector<::amrex::BoxArray> after = ::amrex::AmrMesh::boxArray();
+    FUB_ASSERT(before.size() == after.size());
+    for (int i = which_level + 1; i < before.size(); ++i) {
+      if (before[i] != after[i]) {
+        return i;
+      }
+    }
+    return 0;
   }
-  return false;
+  return 0;
 }
 
 void GriddingAlgorithm::InitializeHierarchy(double level_time) {
+  auto timer = hierarchy_.GetCounterRegistry()->get_timer(
+      "cutcell::GriddingAlgorithm::InitializeHierarchy");
   ::amrex::AmrCore::MakeNewGrids(level_time);
   const int n_levels = hierarchy_.GetNumberOfLevels();
   const int first = hierarchy_.GetDataDescription().first_cons_component;
@@ -399,6 +409,8 @@ void GriddingAlgorithm::ClearLevel(int level) {
 }
 
 void GriddingAlgorithm::PostProcessBaseGrids(::amrex::BoxArray& ba) const {
+  auto timer = hierarchy_.GetCounterRegistry()->get_timer(
+      "cutcell::GriddingAlgorithm::PostProcessBaseGrids");
   if (hierarchy_.GetOptions().remove_covered_grids) {
     ::amrex::DistributionMapping dm(ba);
     std::unique_ptr<::amrex::EBFArrayBoxFactory> eb_factory =

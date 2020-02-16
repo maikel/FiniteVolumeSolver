@@ -126,8 +126,7 @@ public:
   void Flux(ConservativeArray& flux, const CompleteArray& state,
             Direction dir = Direction::X) const noexcept;
 
-  void Flux(ConservativeArray& flux, const CompleteArray& state, Direction dir,
-            MaskArray mask) const noexcept;
+  void Flux(ConservativeArray& flux, const CompleteArray& state, MaskArray mask, Direction dir) const noexcept;
 
   void CompleteFromCons(Complete& state, const ConservativeBase& cons);
 
@@ -149,6 +148,9 @@ public:
   void CompleteFromReactor(
       CompleteArray& state,
       const Array<double, N>& velocity = Array<double, N>::Zero()) const;
+
+  void CompleteFromReactor(CompleteArray& state,
+                           const Array<double, N>& velocit, MaskArray mask) const;
 
 private:
   FlameMasterReactor reactor_;
@@ -230,6 +232,19 @@ Array1d KineticEnergy(Array1d density,
     square += momentum.row(i) * momentum.row(i);
   }
   return Array1d::Constant(0.5) * square / density;
+}
+
+template <int Dim>
+Array1d KineticEnergy(Array1d density,
+                      const Eigen::Array<double, Dim, kDefaultChunkSize,
+                      Eigen::RowMajor>& momentum, MaskArray mask) noexcept {
+  Array1d square = Array1d::Zero();
+  for (int i = 0; i < Dim; ++i) {
+    Array1d rhou = mask.select(momentum.row(i), 0.0);
+    square += rhou * rhou;
+  }
+  Array1d density_s = mask.select(density, 1.0);
+  return Array1d::Constant(0.5) * square / density_s;
 }
 
 /// @{

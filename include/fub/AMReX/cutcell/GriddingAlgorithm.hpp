@@ -54,7 +54,7 @@ public:
   [[nodiscard]] const PatchHierarchy& GetPatchHierarchy() const noexcept;
   PatchHierarchy& GetPatchHierarchy() noexcept;
 
-  bool RegridAllFinerlevels(int which_level);
+  int RegridAllFinerlevels(int which_level);
   void InitializeHierarchy(double level_time);
 
   void SetBoundaryCondition(int level, BoundaryCondition&& condition);

@@ -86,6 +86,9 @@ auto MakePlenumSolver(fub::PerfectGas<3>& equation,
 
   PatchHierarchyOptions hierarchy_options(
       fub::GetOptions(options, "PatchHierarchy"));
+
+  BOOST_LOG(log) << "Build EB level set.";
+
   hierarchy_options.index_spaces =
       MakeIndexSpaces(shop, grid_geometry, hierarchy_options);
   BOOST_LOG(log) << "PatchHierarchy:";
@@ -131,6 +134,7 @@ auto MakePlenumSolver(fub::PerfectGas<3>& equation,
       checkpoint = options.at("checkpoint").cast<std::string>();
     }
     if (checkpoint.empty()) {
+      BOOST_LOG(log) << "Initialize hierarchy.";
       std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
           PatchHierarchy(equation, grid_geometry, hierarchy_options),
           initial_data, TagAllOf(TagCutCells(), gradients, TagBuffer(2)),
@@ -138,6 +142,7 @@ auto MakePlenumSolver(fub::PerfectGas<3>& equation,
       gridding->InitializeHierarchy(0.0);
       return gridding;
     } else {
+      BOOST_LOG(log) << "Initialize from checkpoint.";
       PatchHierarchy h = ReadCheckpointFile(
           checkpoint, fub::amrex::MakeDataDescription(equation), grid_geometry,
           hierarchy_options);
@@ -226,6 +231,7 @@ void MyMain(const fub::ProgramOptions& options) {
   BOOST_LOG(log) << "RunOptions:";
   run_options.Print(log);
   outputs(*solver.GetGriddingAlgorithm());
+  BOOST_LOG(log) << "Start simulation.";
   fub::RunSimulation(solver, run_options, wall_time_reference, outputs);
 }
 

@@ -167,7 +167,7 @@ void HllBase<Equation, SignalSpeeds>::SolveRiemannProblem(Complete& solution,
   Flux(GetEquation(), flux_right_, right, dir);
   const double sL = signals[0];
   const double sR = signals[1];
-  const double ds = sR - sL;
+  const double ds = sL != sR ? sR - sL : 1.0;
   if (0.0 < sL) {
     solution = left;
   } else if (sR < 0.0) {
@@ -296,7 +296,9 @@ void HllArrayBase<Equation, SignalSpeeds, true>::ComputeNumericFlux(
   FUB_ASSERT((safe_ds > 0.0).all());
   ForEachComponent(
       [&](auto&& nf, Array1d fL, Array1d fR, Array1d qL, Array1d qR) {
-        nf = (sR * fL - sL * fR + sLsR * (qR - qL)) / safe_ds;
+        Array1d qL_s = mask.select(qL, 0.0);
+        Array1d qR_s = mask.select(qR, 0.0);
+        nf = (sR * fL - sL * fR + sLsR * (qR_s - qL_s)) / safe_ds;
       },
       numeric_flux, flux_left_array_, flux_right_array_, AsCons(left),
       AsCons(right));

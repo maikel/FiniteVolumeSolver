@@ -35,6 +35,8 @@ struct IsentropicPressureBoundaryOptions {
   IsentropicPressureBoundaryOptions() = default;
   IsentropicPressureBoundaryOptions(const ProgramOptions& options);
 
+  void Print(SeverityLogger& log) const;
+
   std::string channel_name{"IsentropicPressureBoundary"};
   ::amrex::Box coarse_inner_box{};
   double outer_pressure = 101325.0;

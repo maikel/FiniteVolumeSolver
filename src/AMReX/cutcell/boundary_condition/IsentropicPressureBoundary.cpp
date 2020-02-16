@@ -37,6 +37,17 @@ IsentropicPressureBoundaryOptions::IsentropicPressureBoundaryOptions(
   side = GetOptionOr(options, "side", side);
 }
 
+void IsentropicPressureBoundaryOptions::Print(SeverityLogger& log) const {
+  BOOST_LOG(log) << fmt::format(" - channel_name = '{}'", channel_name);
+  std::array<int, AMREX_SPACEDIM> lower, upper;
+  std::copy_n(coarse_inner_box.smallEnd().getVect(), AMREX_SPACEDIM, lower.data());
+  std::copy_n(coarse_inner_box.bigEnd().getVect(), AMREX_SPACEDIM, upper.data());
+  BOOST_LOG(log) << fmt::format(" - coarse_inner_box = {{{{{}}}, {{{}}}}} [-]", lower, upper);
+  BOOST_LOG(log) << fmt::format(" - outer_pressure = {} [Pa]", outer_pressure);
+  BOOST_LOG(log) << fmt::format(" - direction = {} [-]", static_cast<int>(direction));
+  BOOST_LOG(log) << fmt::format(" - side = {} [-]", side);
+}
+
 namespace {
 inline int GetSign(int side) { return (side == 0) - (side == 1); }
 

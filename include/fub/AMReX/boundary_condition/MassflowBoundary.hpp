@@ -67,4 +67,4 @@ private:
 
 } // namespace fub::amrex
 
-#endif // !FUB_AMREX_CUTCELL_ISENTROPIC_PRESSURE_BOUNDARY_HPP
+#endif // !FUB_AMREX_MASSFLOW_BOUNDARY_HPP

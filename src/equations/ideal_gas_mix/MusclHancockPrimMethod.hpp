@@ -64,6 +64,18 @@ void CompleteFromPrim(IdealGasMix<Rank>& eq,
 }
 
 template <int Rank>
+void CompleteFromPrim(IdealGasMix<Rank>& eq,
+                      CompleteArray<IdealGasMix<Rank>>& complete,
+                      const PrimitiveArray<Rank>& prim, MaskArray mask) {
+  FlameMasterReactor& reactor = eq.GetReactor();
+  reactor.SetDensityArray(Array1d::Constant(1.0));
+  reactor.SetMassFractionsArray(prim.mass_fractions);
+  reactor.SetTemperatureArray(prim.temperature);
+  reactor.SetPressureArray(prim.pressure);
+  eq.CompleteFromReactor(complete, prim.velocity, mask);
+}
+
+template <int Rank>
 void ToPrim(Primitive<Rank>& p, const Complete<IdealGasMix<Rank>>& q) {
   p.pressure = q.pressure;
   p.velocity = q.momentum / q.density;
@@ -220,7 +232,7 @@ void PrimDerivatives(IdealGasMix<Rank>& eq, PrimitiveArray<Rank>& dt,
   for (int i = 0; i < Rank; ++i) {
     dt.velocity.row(i) = -u * dx.velocity.row(i);
   }
-  dt.velocity.row(d) -= dpdx / rho;
+  dt.velocity.row(d) -= dpdx / rho_s;
   for (int i = 0; i < dYdx.rows(); ++i) {
     dt.mass_fractions.row(i) = -u * dYdx.row(i);
   }
@@ -428,7 +440,7 @@ void MusclHancockPrimitive<Rank>::ComputeNumericFlux(
         0.5 * (dpdx_array_.mass_fractions.row(i) +
                dt_over_dx * dpdt_array_.mass_fractions.row(i));
   }
-  CompleteFromPrim(GetEquation(), stencil_array_[0], pR_array_);
+  CompleteFromPrim(GetEquation(), stencil_array_[0], pR_array_, mask);
 
   ToPrim(pL_array_, stencil[1], mask);
   ToPrim(pM_array_, stencil[2], mask);
@@ -455,7 +467,7 @@ void MusclHancockPrimitive<Rank>::ComputeNumericFlux(
         0.5 * (-dpdx_array_.mass_fractions.row(i) +
                dt_over_dx * dpdt_array_.mass_fractions.row(i));
   }
-  CompleteFromPrim(GetEquation(), stencil_array_[1], pL_array_);
+  CompleteFromPrim(GetEquation(), stencil_array_[1], pL_array_, mask);
 
   hll_.ComputeNumericFlux(flux, face_fractions, stencil_array_,
                           volume_fractions.template subspan<1, 2>(), dt, dx,

@@ -81,26 +81,30 @@ template <int Dim>
 std::array<Array1d, 2> EinfeldtSignalVelocities<IdealGasMix<Dim>>::
 operator()(const IdealGasMix<Dim>&, const CompleteArray& left,
            const CompleteArray& right, MaskArray mask, Direction dir) const noexcept {
-  const Array1d rhoL = left.density;
-  const Array1d rhoR = right.density;
-  const Array1d rhoUL = left.momentum.row(int(dir));
-  const Array1d rhoUR = right.momentum.row(int(dir));
-  const Array1d aL = left.speed_of_sound;
-  const Array1d aR = right.speed_of_sound;
+  const Array1d zero = Array1d::Zero();
+  const Array1d one = Array1d::Constant(1.0);
+  const Array1d rhoL = mask.select(left.density, zero);
+  const Array1d rhoR = mask.select(right.density, zero);
+  const Array1d rhoUL = mask.select(left.momentum.row(int(dir)), zero);
+  const Array1d rhoUR = mask.select(right.momentum.row(int(dir)), zero);
+  const Array1d aL = mask.select(left.speed_of_sound, zero);
+  const Array1d aR = mask.select(right.speed_of_sound, zero);
   const Array1d sqRhoL = rhoL.sqrt();
   const Array1d sqRhoR = rhoR.sqrt();
-  const Array1d sqRho = mask.select(sqRhoL + sqRhoR, 1.0);
-  const Array1d rhoLs = mask.select(rhoL, 1.0);
-  const Array1d rhoRs = mask.select(rhoR, 1.0);
+  const Array1d sqRho = mask.select(sqRhoL + sqRhoR, one);
+  const Array1d rhoLs = mask.select(rhoL, one);
+  const Array1d rhoRs = mask.select(rhoR, one);
   FUB_ASSERT((rhoLs > 0.0).all());
   FUB_ASSERT((rhoRs > 0.0).all());
   FUB_ASSERT((sqRho > 0.0).all());
   const Array1d uL = rhoUL / rhoLs;
   const Array1d uR = rhoUR / rhoRs;
-  const Array1d roeU = (sqRhoL * uL + sqRhoR * uR) / sqRho;
+  const Array1d sqRhoL_over_sqRho = sqRhoL / sqRho;
+  const Array1d sqRhoR_over_sqRho = sqRhoR / sqRho;
+  const Array1d roeU = sqRhoL_over_sqRho * uL + sqRhoR_over_sqRho * uR;
   const Array1d roeA =
-      ((sqRhoL * aL * aL + sqRhoR * aR * aR) / sqRho +
-       0.5 * (sqRhoL * sqRhoR) / (sqRho * sqRho) * (uR - uL) * (uR - uL))
+      (sqRhoL_over_sqRho * aL * aL + sqRhoR_over_sqRho * aR * aR +
+       0.5 * sqRhoL_over_sqRho * sqRhoR_over_sqRho * (uR - uL) * (uR - uL))
           .sqrt();
   const Array1d sL1 = uL - aL;
   const Array1d sL2 = roeU - 0.5 * roeA;

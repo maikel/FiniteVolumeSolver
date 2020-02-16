@@ -507,8 +507,10 @@ double FlameMasterReactor::GetCv() const {
 }
 
 Array1d FlameMasterReactor::GetCvArray() const {
-  return GetCpArray() -
-         Array1d::Constant(GetUniversalGasConstant()) / GetMeanMolarMassArray();
+  const Array1d mean_molar_mass = GetMeanMolarMassArray();
+  const Array1d mean_molar_mass_s = (mean_molar_mass > 0.0).select(mean_molar_mass, 1.0);
+  const Array1d R = Array1d::Constant(GetUniversalGasConstant());
+  return (mean_molar_mass > 0.0).select(GetCpArray() - R / mean_molar_mass_s, 0.0);
 }
 
 double FlameMasterReactor::GetMeanMolarMass() const {
@@ -523,7 +525,9 @@ Array1d FlameMasterReactor::GetMeanMolarMassArray() const {
   for (int i = 0; i < array_state_.massFractions.rows(); ++i) {
     minv += array_state_.massFractions.row(i) / state_.molarMasses[i];
   }
-  return Array1d::Constant(1.0) / minv;
+  minv = (minv > 0.0).select(minv, 1.0);
+  Array1d mean_molar_mass = (minv > 0.0).select(Array1d::Constant(1.0) / minv, 0.0);
+  return mean_molar_mass;
 }
 
 double FlameMasterReactor::GetEntropy() const {
@@ -676,9 +680,10 @@ void FlameMasterReactor::SetInternalEnergyArray(Array1d target, MaskArray mask,
                                                 double dTtol) {
   Array1d dT = Array1d::Zero();
 
-  Array1d Tnew = GetTemperatureArray();
-  Array1d Unew = GetInternalEnergyArray();
-  Array1d Cvnew = GetCvArray();
+  target = mask.select(target, 0.0);
+  Array1d Tnew = mask.select(GetTemperatureArray(), 0.0);
+  Array1d Unew = mask.select(GetInternalEnergyArray(), 0.0);
+  Array1d Cvnew = mask.select(GetCvArray(), 0.0);
 
   Array1d Utop = Unew;
   Array1d Ubot = Unew;
@@ -695,7 +700,7 @@ void FlameMasterReactor::SetInternalEnergyArray(Array1d target, MaskArray mask,
     const Array1d Told = Tnew;
     const Array1d Uold = Unew;
 
-    Array1d cvd = Cvnew;
+    Array1d cvd = mask.select(Cvnew, 1.0);
     unstablePhase = (cvd < 0.0);
 
     dT = ((target - Uold) / cvd).max(-100.).min(+100.);
@@ -709,10 +714,10 @@ void FlameMasterReactor::SetInternalEnergyArray(Array1d target, MaskArray mask,
     // Set the new temperature, but try to stay in the stable region
     // with cv > 0
     for (int its = 0; its < 10; its++) {
-      Tnew = Told + dT;
+      Tnew = mask.select(Told + dT, 300.0);
       SetTemperatureArray(Tnew);
-      Unew = GetInternalEnergyArray();
-      Cvnew = GetCvArray();
+      Unew = mask.select(GetInternalEnergyArray(), 0.0);
+      Cvnew = mask.select(GetCvArray(), 0.0);
       if ((Cvnew < 0.0).any()) {
         dT = (Cvnew < 0.0).select(0.25 * dT, dT);
       } else {
@@ -720,7 +725,7 @@ void FlameMasterReactor::SetInternalEnergyArray(Array1d target, MaskArray mask,
       }
     }
 
-    if ((!mask || Unew == target).all()) {
+    if ((Unew == target).all()) {
       return;
     }
 
@@ -735,11 +740,11 @@ void FlameMasterReactor::SetInternalEnergyArray(Array1d target, MaskArray mask,
     Tbot = update_bot.select(Tnew, Tbot);
 
     // Check for convergence
-    Array1d Uerr = target - Unew;
+    Array1d Uerr = mask.select(target - Unew, 0.0);
     Array1d acvd = cvd.abs().max(1e-5);
-    Array1d denom = target.abs().max(acvd * dTtol);
+    Array1d denom = mask.select(target.abs().max(acvd * dTtol), 1.0);
     UConvErr = (Uerr / denom).abs();
-    if ((!mask || UConvErr < (1e-5 * dTtol) || dT.abs() < dTtol).all()) {
+    if ((!mask || UConvErr < denom * (1e-5 * dTtol) || dT.abs() < dTtol).all()) {
       return;
     }
   }
@@ -848,6 +853,22 @@ void FlameMasterReactor::SetMassFractions(span<const double> fractions) {
   UpdateMolesFromMassFractions(state_);
 }
 
+void FlameMasterReactor::SetMassFractionsArray(const ArrayXd& newMassFractions, MaskArray mask) {
+  Array1d sum = Array1d::Zero();
+  Array1d Y0 = mask.select(newMassFractions.row(0), 1.0);
+  array_state_.massFractions.row(0) = Y0.abs();
+  for (int i = 1; i < array_state_.massFractions.rows(); ++i) {
+    Array1d Yi = mask.select(newMassFractions.row(i), 0.0);
+    array_state_.massFractions.row(i) = Yi.abs();
+    sum += array_state_.massFractions.row(i);
+  }
+  sum = (sum > 0.0).select(sum, 1.0);
+  for (int i = 0; i < array_state_.massFractions.rows(); ++i) {
+    array_state_.massFractions.row(i) /= sum;
+  }
+  UpdateMolesFromMassFractions(array_state_, state_);
+}
+
 void FlameMasterReactor::SetMassFractionsArray(
     const ArrayXd& newMassFractions) {
   Array1d sum = Array1d::Zero();
@@ -855,6 +876,7 @@ void FlameMasterReactor::SetMassFractionsArray(
     array_state_.massFractions.row(i) = newMassFractions.row(i).abs();
     sum += array_state_.massFractions.row(i);
   }
+  sum = (sum > 0.0).select(sum, 1.0);
   for (int i = 0; i < array_state_.massFractions.rows(); ++i) {
     array_state_.massFractions.row(i) /= sum;
   }
