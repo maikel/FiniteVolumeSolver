@@ -45,11 +45,11 @@
 namespace amrex {
 namespace {
 
-constexpr int crse_cell = 0;
-constexpr int fine_cell = 1;
-constexpr int crse_node = 0;
-constexpr int crse_fine_node = 1;
-constexpr int fine_node = 2;
+[[maybe_unused]] constexpr int crse_cell = 0;
+[[maybe_unused]] constexpr int fine_cell = 1;
+[[maybe_unused]] constexpr int crse_node = 0;
+[[maybe_unused]] constexpr int crse_fine_node = 1;
+[[maybe_unused]] constexpr int fine_node = 2;
 //#if (BL_USE_FLOAT)
 //constexpr double eps = 1.e-30;
 //#else
