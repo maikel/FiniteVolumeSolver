@@ -329,9 +329,10 @@ void TimeIntegrator::UpdateConservatively(IntegratorContext& context, int level,
   //  const int gcw =
   //  context.GetHyperbolicMethod().flux_method.GetStencilWidth();
 
-  ForEachFab(execution::seq, scratch, [&](const ::amrex::MFIter& mfi) {
+  ForEachFab(execution::openmp, scratch, [&](const ::amrex::MFIter& mfi) {
     ::amrex::FabType type = context.GetFabType(level, mfi);
-    const ::amrex::Box all_faces_tilebox = mfi.grownnodaltilebox(int(dir));
+    const ::amrex::Box tilebox = mfi.growntilebox();
+    const ::amrex::Box all_faces_tilebox = ::amrex::surroundingNodes(tilebox, d);
     const ::amrex::Box all_fluxes_box = unshielded[mfi].box();
     const ::amrex::Box flux_box = all_faces_tilebox & all_fluxes_box;
     const ::amrex::Box cell_box = enclosedCells(flux_box);
