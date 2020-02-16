@@ -168,6 +168,8 @@ void Flux(Eq&& equation, ConservativeArray<Equation>& flux,
                                    const CompleteArray<Equation>&, MaskArray,
                                    Direction>::value) {
     equation.Flux(flux, state, mask, dir);
+  } else {
+    Flux(equation, flux, state, dir, x);
   }
 }
 
