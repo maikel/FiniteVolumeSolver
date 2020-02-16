@@ -36,11 +36,11 @@ void InterpolateFrom1d::InitializeData(::amrex::MultiFab& data, const ::amrex::G
 {
   auto& factory = static_cast<const ::amrex::EBFArrayBoxFactory&>(data.Factory());
   const ::amrex::MultiFab& alphas = factory.getVolFrac();
-  static constexpr int n_vars = 6;
+  [[maybe_unused]] static constexpr int n_vars = 6;
 //  static constexpr int i_x = 0;
-  static constexpr int i_density = 1;
-  static constexpr int i_velocity_x = 2;
-  static constexpr int i_pressure = 5;
+  [[maybe_unused]] static constexpr int i_density = 1;
+  [[maybe_unused]] static constexpr int i_velocity_x = 2;
+  [[maybe_unused]] static constexpr int i_pressure = 5;
 //  const double dx = geom.CellSize(0);
   ForEachFab(fub::execution::openmp, data, [&](const ::amrex::MFIter& mfi) {
     mdspan<const double, 2> raw_prims(raw_prim_data_.data(), raw_prim_data_.size() / n_vars, n_vars);
