@@ -262,7 +262,7 @@ void PressureValveBoundary::FillBoundary(::amrex::MultiFab& mf,
                                          const GriddingAlgorithm& grid,
                                          Direction dir) {
   if (dir == Direction::X) {
-    FillBoundary(mf, geom, dt, grid, dir);
+    FillBoundary(mf, geom, dt, grid);
   }
 }
 
