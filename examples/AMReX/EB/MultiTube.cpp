@@ -297,7 +297,7 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
   fub::KbnCutCellMethod cutcell_method{flux_method, hll_method};
 
   HyperbolicMethod method{FluxMethod{cutcell_method}, TimeIntegrator{},
-                          Reconstruction{fub::execution::seq, equation}};
+                          Reconstruction{equation}};
 
   const int scratch_gcw = 4;
   const int flux_gcw = 2;
@@ -429,8 +429,8 @@ void MyMain(const fub::ProgramOptions& options) {
       std::move(connectivity));
 
   fub::DimensionalSplitLevelIntegrator system_solver(
-      fub::int_c<Plenum_Rank>, std::move(context), fub::StrangSplitting{});
-      // fub::int_c<Plenum_Rank>, std::move(context), fub::GodunovSplitting{});
+      // fub::int_c<Plenum_Rank>, std::move(context), fub::StrangSplitting{});
+      fub::int_c<Plenum_Rank>, std::move(context), fub::GodunovSplitting{});
 
   const std::size_t n_tubes = system_solver.GetContext().Tubes().size();
   const int max_number_of_levels = system_solver.GetContext()
