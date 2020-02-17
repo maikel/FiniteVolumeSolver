@@ -156,43 +156,43 @@ int FindLevel(const ::amrex::Geometry& geom,
 
 void IsentropicPressureBoundary::FillBoundary(::amrex::MultiFab& mf,
                                               const ::amrex::Geometry& geom,
-                                              Duration t,
+                                              Duration /*t*/,
                                               const GriddingAlgorithm& grid) {
   Complete<IdealGasMix<AMREX_SPACEDIM>> state(equation_);
   int level = FindLevel(geom, grid);
-  ::amrex::Box refined_inner_box = options_.coarse_inner_box;
-  for (int l = 1; l <= level; ++l) {
-    refined_inner_box.refine(
-        grid.GetPatchHierarchy().GetRatioToCoarserLevel(l));
-  }
-  AverageState(state, grid.GetPatchHierarchy(), level, refined_inner_box);
-  equation_.CompleteFromCons(state, state);
+  // ::amrex::Box refined_inner_box = options_.coarse_inner_box;
+  // for (int l = 1; l <= level; ++l) {
+  //   refined_inner_box.refine(
+  //       grid.GetPatchHierarchy().GetRatioToCoarserLevel(l));
+  // }
+  // AverageState(state, grid.GetPatchHierarchy(), level, refined_inner_box);
+  // equation_.CompleteFromCons(state, state);
 
-  boost::log::sources::severity_channel_logger<
-      boost::log::trivial::severity_level>
-      log(boost::log::keywords::channel = options_.channel_name,
-          boost::log::keywords::severity = boost::log::trivial::debug);
-  BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", t.count());
-  double rho = state.density;
-  double u = state.momentum[0] / rho;
-  double p = state.pressure;
-  BOOST_LOG(log) << fmt::format("Average inner state: {} kg/m3, {} m/s, {} Pa",
-                                rho, u, p);
+  // boost::log::sources::severity_channel_logger<
+  //     boost::log::trivial::severity_level>
+  //     log(boost::log::keywords::channel = options_.channel_name,
+  //         boost::log::keywords::severity = boost::log::trivial::debug);
+  // BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", t.count());
+  // double rho = state.density;
+  // double u = state.momentum[0] / rho;
+  // double p = state.pressure;
+  // BOOST_LOG(log) << fmt::format("Average inner state: {} kg/m3, {} m/s, {} Pa",
+  //                               rho, u, p);
 
-  equation_.GetReactor().SetDensity(state.density);
-  equation_.GetReactor().SetMassFractions(state.species);
-  equation_.GetReactor().SetTemperature(state.temperature);
-  equation_.GetReactor().SetPressure(options_.outer_pressure);
-  equation_.CompleteFromReactor(state);
-  IsentropicExpansionWithoutDissipation(equation_, state, state, p);
-  if (options_.side == 1) {
-    state.momentum[0] = -state.momentum[0];
-  }
-  rho = state.density;
-  u = state.momentum[0] / rho;
-  p = state.pressure;
-  BOOST_LOG(log) << fmt::format("Outer State: {} kg/m3, {} m/s, {} Pa", rho, u,
-                                p);
+  // equation_.GetReactor().SetDensity(state.density);
+  // equation_.GetReactor().SetMassFractions(state.species);
+  // equation_.GetReactor().SetTemperature(state.temperature);
+  // equation_.GetReactor().SetPressure(options_.outer_pressure);
+  // equation_.CompleteFromReactor(state);
+  // IsentropicExpansionWithoutDissipation(equation_, state, state, p);
+  // if (options_.side == 1) {
+  //   state.momentum[0] = -state.momentum[0];
+  // }
+  // rho = state.density;
+  // u = state.momentum[0] / rho;
+  // p = state.pressure;
+  // BOOST_LOG(log) << fmt::format("Outer State: {} kg/m3, {} m/s, {} Pa", rho, u,
+  //                               p);
   auto factory = grid.GetPatchHierarchy().GetEmbeddedBoundary(level);
   const ::amrex::MultiFab& alphas = factory->getVolFrac();
   FillBoundary(mf, alphas, geom, state);
@@ -201,7 +201,7 @@ void IsentropicPressureBoundary::FillBoundary(::amrex::MultiFab& mf,
 void IsentropicPressureBoundary::FillBoundary(
     ::amrex::MultiFab& mf, const ::amrex::MultiFab& alphas,
     const ::amrex::Geometry& geom,
-    const Complete<IdealGasMix<AMREX_SPACEDIM>>& state) {
+    const Complete<IdealGasMix<AMREX_SPACEDIM>>& /*state*/) {
   const int ngrow = mf.nGrow(int(options_.direction));
   ::amrex::Box grown_box = geom.growNonPeriodicDomain(ngrow);
   ::amrex::BoxList boundaries =
@@ -209,6 +209,7 @@ void IsentropicPressureBoundary::FillBoundary(
   if (boundaries.isEmpty()) {
     return;
   }
+  Complete<IdealGasMix<AMREX_SPACEDIM>> state_(equation_);
   ForEachFab(execution::seq, mf, [&](const ::amrex::MFIter& mfi) {
     ::amrex::FArrayBox& fab = mf[mfi];
     const ::amrex::FArrayBox& alpha = alphas[mfi];
@@ -220,13 +221,28 @@ void IsentropicPressureBoundary::FillBoundary(
       }
       ::amrex::Box box_to_fill = mfi.growntilebox() & boundary;
       if (!box_to_fill.isEmpty()) {
+        const int dir_v = static_cast<int>(options_.direction);
+        const int x0 = options_.side ? box_to_fill.smallEnd(dir_v) - 1
+                                     : box_to_fill.bigEnd(dir_v) + 1;
         auto states = MakeView<Complete<IdealGasMix<AMREX_SPACEDIM>>>(
             fab, equation_, mfi.growntilebox());
-        ForEachIndex(box_to_fill, [&alpha, &state, &states](auto... is) {
+        ForEachIndex(box_to_fill, [this, &alpha, &state_, &states, x0, dir_v](auto... is) {
           std::array<std::ptrdiff_t, AMREX_SPACEDIM> dest{int(is)...};
-          ::amrex::IntVect iv{int(is)...};
-          if (alpha(iv) > 0.0) {
-            Store(states, state, dest);
+          std::array<std::ptrdiff_t, AMREX_SPACEDIM> src = dest;
+          src[dir_v] = x0;
+          ::amrex::IntVect dest_iv{int(is)...};
+          ::amrex::IntVect src_iv{AMREX_D_DECL(int(src[0]), int(src[1]), int(src[2]))};
+          if (alpha(dest_iv) > 0.0 && alpha(src_iv)) {
+            Load(state_, states, src);
+            if ((state_.momentum[dir_v] / state_.density) < state_.speed_of_sound) {
+              equation_.GetReactor().SetDensity(state_.density);
+              equation_.GetReactor().SetMassFractions(state_.species);
+              equation_.GetReactor().SetTemperature(state_.temperature);
+              equation_.GetReactor().SetPressure(options_.outer_pressure);
+              equation_.CompleteFromReactor(state_);
+              IsentropicExpansionWithoutDissipation(equation_, state_, state_, options_.outer_pressure);
+            }
+            Store(states, state_, dest);
           }
         });
       }
