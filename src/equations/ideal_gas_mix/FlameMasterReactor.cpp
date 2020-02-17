@@ -857,6 +857,7 @@ void FlameMasterReactor::SetMassFractionsArray(const ArrayXd& newMassFractions, 
   Array1d sum = Array1d::Zero();
   Array1d Y0 = mask.select(newMassFractions.row(0), 1.0);
   array_state_.massFractions.row(0) = Y0.abs();
+  sum += array_state_.massFractions.row(0);
   for (int i = 1; i < array_state_.massFractions.rows(); ++i) {
     Array1d Yi = mask.select(newMassFractions.row(i), 0.0);
     array_state_.massFractions.row(i) = Yi.abs();

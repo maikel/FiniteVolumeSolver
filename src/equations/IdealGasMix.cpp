@@ -220,10 +220,21 @@ template <int Dim>
 void IdealGasMix<Dim>::CompleteFromCons(CompleteArray& complete,
                                         const ConservativeArrayBase& cons,
                                         MaskArray mask) {
+  const Array1d zero = Array1d::Zero();
   if (!mask.any()) {
+    complete.density = zero;
+    complete.momentum = Array<double, Dim>::Zero();
+    complete.energy = zero;
+    complete.species.fill(0.0);
+    complete.pressure = zero;
+    complete.temperature = zero;
+    complete.speed_of_sound = zero;
+    complete.c_p = zero;
+    complete.gamma = zero;
     return;
   }
   Array1d rho_s = mask.select(cons.density, 1.0);
+  FUB_ASSERT((rho_s > 0.0).all());
   reactor_.SetDensityArray(rho_s);
   reactor_.SetMassFractionsArray(cons.species, mask);
   reactor_.SetTemperatureArray(Array1d::Constant(300));
