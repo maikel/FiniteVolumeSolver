@@ -113,13 +113,14 @@ void MyMain(const fub::ProgramOptions& options) {
   PatchHierarchy hierarchy(desc, grid_geometry, hierarchy_options);
 
   const AcousticWaveInitialData inidat{};
-  const double Gamma = (inidat.gamma - 1.0) / inidat.gamma;
+  const double Gamma    = (inidat.gamma - 1.0) / inidat.gamma;
+  const double Gammainv = 1.0 / Gamma;
 
   using Complete = fub::CompressibleAdvection<2>::Complete;
   fub::CompressibleAdvection<2> equation{};
   // Here, c_p is non-dimensionalized. Adjust???
   // Is CompressibleAdvection the right place to store all this?
-  equation.c_p     = Gamma;
+  equation.c_p     = Gammainv;
   equation.alpha_p = 1.0;
   equation.gamma   = inidat.gamma;
   equation.Msq     = inidat.Msq;
@@ -154,6 +155,7 @@ void MyMain(const fub::ProgramOptions& options) {
   HyperbolicMethod method{flux_method, EulerForwardTimeIntegrator(),
                           Reconstruction(fub::execution::seq, equation)};
 
+//   BK19IntegratorContext simulation_data(grid, method, 2, 0);
   BK19IntegratorContext simulation_data(grid, method, 4, 2);
   const int nlevel = simulation_data.GetPatchHierarchy().GetNumberOfLevels();
 
@@ -179,6 +181,7 @@ void MyMain(const fub::ProgramOptions& options) {
   }
 
   fub::DimensionalSplitLevelIntegrator advection(
+//       fub::int_c<2>, std::move(simulation_data), fub::GodunovSplitting());
       fub::int_c<2>, std::move(simulation_data), fub::StrangSplitting());
 
   BK19LevelIntegratorOptions integrator_options =
