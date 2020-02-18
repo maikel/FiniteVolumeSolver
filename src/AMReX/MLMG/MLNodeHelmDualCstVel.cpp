@@ -112,6 +112,7 @@ void
 MLNodeHelmDualCstVel::setAlpha(int amrlev, const MultiFab& alpha)
 {
     MultiFab::Copy(m_alpha[amrlev][0], alpha, 0, 0, 1, 0);
+    m_is_bottom_singular = false;
 }
 
 void

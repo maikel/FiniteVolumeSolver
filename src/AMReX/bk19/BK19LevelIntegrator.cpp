@@ -394,7 +394,12 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
 
   // set weights in linear operator
   lin_op.setSigma(level, sigma);
-  lin_op.setAlpha(level, diagfac_nodes);
+  // We only set the diagonal term for alpha_p > 0, since this also tells then
+  // linear operator that it is non-singular and the RHS must not summ up to
+  // zero.
+  if (equation.alpha_p > 0.0) {
+    lin_op.setAlpha(level, diagfac_nodes);
+  }
 
   // solve elliptic equation for pi
   MultiFab pi(on_nodes, distribution_map, one_component, no_ghosts);
