@@ -71,10 +71,11 @@ void IsentropicExpansionWithoutDissipation(
   const double enthalpyDifference = h_before - h_after;
   const double u_border =
       Sign(enthalpyDifference) *
-      std::sqrt(efficiency * std::abs(enthalpyDifference) * 2 +
-                old_velocity.matrix().squaredNorm());
+      std::sqrt(efficiency * std::abs(enthalpyDifference) * 2 + old_velocity[0] * old_velocity[0]);
   dest.momentum[0] = dest.density * u_border;
-  dest.energy += 0.5 * dest.density * u_border * u_border;
+  dest.momentum[1] = dest.density * old_velocity[1];
+  dest.momentum[2] = dest.density * old_velocity[2];
+  dest.energy += 0.5 * dest.momentum.matrix().squaredNorm() / dest.density;
 }
 
 } // namespace
@@ -234,7 +235,10 @@ void IsentropicPressureBoundary::FillBoundary(
           ::amrex::IntVect src_iv{AMREX_D_DECL(int(src[0]), int(src[1]), int(src[2]))};
           if (alpha(dest_iv) > 0.0 && alpha(src_iv)) {
             Load(state_, states, src);
-            if ((state_.momentum[dir_v] / state_.density) < state_.speed_of_sound) {
+            const double c = state_.speed_of_sound;
+            const double c2 = c * c;
+            const double u2 = (state_.momentum / state_.density).matrix().squaredNorm();
+            if (u2 < c2) {
               equation_.GetReactor().SetDensity(state_.density);
               equation_.GetReactor().SetMassFractions(state_.species);
               equation_.GetReactor().SetTemperature(state_.temperature);
