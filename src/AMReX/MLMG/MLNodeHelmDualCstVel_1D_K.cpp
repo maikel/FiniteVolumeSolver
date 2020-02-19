@@ -84,7 +84,8 @@ void mlndhelm_adotx_ha (int i, int j, int k, Array4<Real> const& y, Array4<Real 
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void mlndhelm_adotx_aa (int i, int j, int k, Array4<Real> const& y, Array4<Real const> const& x,
-                       Array4<Real const> const& sig, Array4<int const> const& msk,
+                       Array4<Real const> const& sig, Array4<Real const> const& alp,
+                       Array4<int const> const& msk,
                        GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
 {}
 
@@ -95,7 +96,8 @@ void mlndhelm_normalize_ha (Box const& bx, Array4<Real> const& x, Array4<Real co
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void mlndhelm_normalize_aa (Box const& bx, Array4<Real> const& x, Array4<Real const> const& sig,
-                           Array4<int const> const& msk, GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
+                           Array4<Real const> const& alp, Array4<int const> const& msk,
+                           GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
 {}
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -107,7 +109,8 @@ void mlndhelm_jacobi_ha (Box const& bx, Array4<Real> const& sol, Array4<Real con
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void mlndhelm_jacobi_aa (Box const& bx, Array4<Real> const& sol, Array4<Real const> const& Ax,
                         Array4<Real const> const& rhs, Array4<Real const> const& sig,
-                        Array4<int const> const& msk, GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
+                        Array4<Real const> const& alp, Array4<int const> const& msk,
+                        GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
 {}
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -119,7 +122,8 @@ void mlndhelm_gauss_seidel_ha (Box const& bx, Array4<Real> const& sol,
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void mlndhelm_gauss_seidel_aa (Box const& bx, Array4<Real> const& sol,
                               Array4<Real const> const& rhs, Array4<Real const> const& sig,
-                              Array4<int const> const& msk, GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
+                              Array4<Real const> const& alp, Array4<int const> const& msk,
+                              GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
 {}
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE

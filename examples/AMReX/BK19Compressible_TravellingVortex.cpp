@@ -99,6 +99,8 @@ struct TravellingVortexInitialData {
               rho0 + del_rho * std::pow(1.0 - r_over_R0 * r_over_R0, 6);
           states.velocity(i, j, 0) = U0[0] - uth * (dy / r);
           states.velocity(i, j, 1) = U0[1] + uth * (dx / r);
+          const double p = 1.0 + Msq * fac*fac * a_rho * p_coeff(r_over_R0, coefficients);
+          states.PTdensity(i, j) = std::pow(p, 1.0 / gamma);
         } else {
           states.density(i, j) = rho0;
           states.velocity(i, j, 0) = U0[0];
@@ -122,6 +124,11 @@ struct TravellingVortexInitialData {
   const double fac{1024.0};
   const double R_gas{287.4};
   const double gamma{1.4};
+  const double h_ref{100.0};
+  const double t_ref{100.0};
+  const double T_ref{300.0};
+  const double u_ref{h_ref / t_ref};
+  const double Msq{u_ref * u_ref / (R_gas * T_ref)};
   std::array<double, 2> center{0.5, 0.5};
   std::array<double, 2> U0{1.0, 1.0};
 };
@@ -159,8 +166,9 @@ void MyMain(const fub::ProgramOptions& options) {
   // Here, c_p is non-dimensionalized. Adjust???
   // Is CompressibleAdvection the right place to store all this?
   equation.c_p     = Gammainv;
-  equation.alpha_p = 0.0;
+  equation.alpha_p = 1.0;
   equation.gamma   = inidat.gamma;
+  equation.Msq     = inidat.Msq;
 
   fub::IndexMapping<fub::CompressibleAdvection<2>> index(equation);
 
@@ -234,20 +242,20 @@ void MyMain(const fub::ProgramOptions& options) {
   integrator_options.Print(info);
   BK19LevelIntegrator level_integrator(equation, std::move(advection), linop,
                                        integrator_options);
-  fub::NoSubcycleSolver solver(std::move(level_integrator));
 
-  BK19AdvectiveFluxes& Pv = solver.GetContext().GetAdvectiveFluxes(0);
+  BK19AdvectiveFluxes& Pv = level_integrator.GetContext().GetAdvectiveFluxes(0);
   RecomputeAdvectiveFluxes(
       index, Pv.on_faces, Pv.on_cells,
-      solver.GetContext().GetScratch(0),
-      solver.GetContext().GetGeometry(0).periodicity());
+      level_integrator.GetContext().GetScratch(0),
+      level_integrator.GetContext().GetGeometry(0).periodicity());
+
+  fub::NoSubcycleSolver solver(std::move(level_integrator));
 
   using namespace std::literals::chrono_literals;
-  std::string base_name = "BK19_PsIncTravellingVortex/";
+  std::string base_name = "BK19_CompTravellingVortex/";
 
   fub::OutputFactory<GriddingAlgorithm> factory;
   factory.RegisterOutput<fub::AnyOutput<GriddingAlgorithm>>("Plotfile", WriteBK19Plotfile{base_name});
-  factory.RegisterOutput<fub::amrex::DebugOutput>("DebugOutput");
   fub::MultipleOutputs<GriddingAlgorithm> output{std::move(factory), fub::GetOptions(options, "Output")};
 
   output(*solver.GetGriddingAlgorithm());
@@ -264,6 +272,7 @@ int main(int argc, char** argv) {
   {
     std::optional<fub::ProgramOptions> vm = fub::ParseCommandLine(argc, argv);
     if (vm) {
+
       MyMain(*vm);
     }
   }

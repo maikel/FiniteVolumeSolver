@@ -21,8 +21,8 @@
 
 #include "fub/AMReX/bk19/BK19LevelIntegrator.hpp"
 #include "fub/AMReX/ForEachFab.hpp"
-#include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
 #include "fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp"
+#include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
 #include "fub/AMReX/output/DebugOutput.hpp"
 #include <AMReX_MLMG.H>
 
@@ -208,8 +208,8 @@ void AverageCellToFace_(MultiFab& mf_faces, int face_component,
             SliceLast(MakePatchDataView(mf_cells[mfi]), cell_component);
         auto all_faces =
             SliceLast(MakePatchDataView(mf_faces[mfi]), face_component);
-        // We are cautious and only compute the average for faces which exists
-        // and are in range for the cells which exists on our grid
+        // We are cautious and only compute the average for faces which exist
+        // and are in range for the cells which exist on our grid
         auto cell_box_for_stencil =
             BoxFromStencil_(cells.Box(), {1, 0}, {1, 1});
         auto face_box_for_stencil = Shrink(cell_box_for_stencil, dir, {0, 1});
@@ -230,8 +230,8 @@ void AverageCellToFace_(MultiFab& mf_faces, int face_component,
             SliceLast(MakePatchDataView(mf_cells[mfi]), cell_component);
         auto all_faces =
             SliceLast(MakePatchDataView(mf_faces[mfi]), face_component);
-        // We are cautious and only compute the average for faces which exists
-        // and are in range for the cells which exists on our grid
+        // We are cautious and only compute the average for faces which exist
+        // and are in range for the cells which exist on our grid
         auto cell_box_for_stencil =
             BoxFromStencil_(cells.Box(), {1, 1}, {1, 0});
         auto face_box_for_stencil = Shrink(cell_box_for_stencil, dir, {0, 1});
@@ -246,6 +246,26 @@ void AverageCellToFace_(MultiFab& mf_faces, int face_component,
         });
       });
     }
+  }
+}
+
+// Apply the cell to node average to a specified cell_component on mf_cells and
+// write its result into node_component of mf_nodes.
+void AverageCellToNode_(MultiFab& mf_nodes, int node_component,
+                        const MultiFab& mf_cells, int cell_component) {
+  if constexpr (Rank == 2) {
+    ForEachFab(mf_cells, [&](const MFIter& mfi) {
+      auto cells = SliceLast(MakePatchDataView(mf_cells[mfi]), cell_component);
+      auto nodes = SliceLast(MakePatchDataView(mf_nodes[mfi]), node_component);
+      // We are cautious and only compute the average for nodes which exist
+      // and are in range for the cells which exist on our grid
+      ForEachIndex(nodes.Box(), [&](int i, int j) {
+        // clang-format off
+        nodes(i, j) = 0.25 * cells(i - 1, j - 1) + 0.25 * cells(i, j - 1) +
+                      0.25 * cells(i - 1,     j) + 0.25 * cells(i,     j);
+        // clang-format on
+      });
+    });
   }
 }
 
@@ -314,25 +334,47 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   ::amrex::BoxArray on_nodes = on_cells;
   on_nodes.surroundingNodes();
 
-  // compute RHS for elliptic solve
-  MultiFab rhs(on_nodes, distribution_map, one_component, no_ghosts);
+  // compute RHS for elliptic solve (equation (28) in [BK19] divided by -dt)
+  // first compute diagonal part for compressibility
+  MultiFab diagfac_cells(on_cells, distribution_map, one_component,
+                         scratch.nGrow());
+  MultiFab diagfac_nodes(on_nodes, distribution_map, one_component, no_ghosts);
+  ForEachFab(diagfac_cells, [&](const MFIter& mfi) {
+    span<double> diagfac = MakePatchDataView(diagfac_cells[mfi], 0).Span();
+    span<double> PTdensity =
+        MakePatchDataView(scratch[mfi], index.PTdensity).Span();
+    FUB_ASSERT(diagfac.size() == PTdensity.size());
+    for (std::ptrdiff_t i = 0; i < diagfac.size(); ++i) {
+      diagfac[i] = -equation.alpha_p * equation.Msq / (equation.gamma - 1.0) *
+                   std::pow(PTdensity[i], 2.0 - equation.gamma) / dt.count();
+    }
+  });
+  AverageCellToNode_(diagfac_nodes, 0, diagfac_cells, 0);
 
-  // Copy UV into seperate MultiFab to use compDivergence
+  // get pi from scratch
+  const MultiFab& pi_old = context.GetPi(level);
+  MultiFab diagcomp(on_nodes, distribution_map, one_component, no_ghosts);
+  MultiFab::Copy(diagcomp, pi_old, 0, 0, one_component, no_ghosts);
+  MultiFab::Multiply(diagcomp, diagfac_nodes, 0, 0, one_component, no_ghosts);
+
+  // then compute divergence term
   // This assumes f = 0 and N = 0
-  // Construct right hand side by: -dt div(UV)
-  // Equation (28) in [BK19]
   //
-  // Divergence needs on ghost cell width.
+  // vector field needs one ghost cell width to compute divergence!
   MultiFab UV(on_cells, distribution_map, index.momentum.size(),
               one_ghost_cell_width);
   ComputePvFromScratch_(index, UV, scratch, periodicity);
   debug.SaveData(UV, "Pv_backward");
-  UV.mult(-dt.count(), UV.nGrow());
 
+  MultiFab rhs(on_nodes, distribution_map, one_component, no_ghosts);
   rhs.setVal(0.0);
   lin_op.compDivergence({&rhs}, {&UV});
   debug.SaveData(rhs, "rhs");
 
+  // take sum of diagonal term and divergence
+  MultiFab::Add(rhs, diagcomp, 0, 0, one_component, no_ghosts);
+
+  // This is to check if RHS sums up to zero in psinc case:
   //  ::amrex::Box node_domain = geom.Domain();
   //  node_domain.surroundingNodes();
   //  node_domain.setBig(0, node_domain.bigEnd(0) - 1);
@@ -346,16 +388,26 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   //    throw std::runtime_error("Fehler!");
   //  }
 
-  // Construct sigma by: -cp dt^2 (P Theta)^o (Equation (27) in [BK19])
-  // MultiFab::Divide(dest, src, src_comp, dest_comp, n_comp, n_grow);
+  // Construct sigma / weight of Laplacian (equation (27) in [BK19]
+  // divided by -dt)
   MultiFab sigma(on_cells, distribution_map, one_component, no_ghosts);
-  sigma.setVal(-equation.c_p * dt.count() * dt.count());
+  sigma.setVal(equation.c_p * dt.count());
   MultiFab::Multiply(sigma, scratch, index.PTdensity, 0, one_component,
                      sigma.nGrow());
   MultiFab::Divide(sigma, scratch, index.PTinverse, 0, one_component,
                    sigma.nGrow());
   debug.SaveData(sigma, "sigma_backward");
+
+  // set weights in linear operator
   lin_op.setSigma(level, sigma);
+  // We only set the diagonal term for alpha_p > 0, since this also tells then
+  // linear operator that it is non-singular and the RHS must not summ up to
+  // zero.
+  if (equation.alpha_p > 0.0) {
+    lin_op.setAlpha(level, diagfac_nodes);
+  }
+
+  // solve elliptic equation for pi
   MultiFab pi(on_nodes, distribution_map, one_component, no_ghosts);
   pi.setVal(0.0);
 
@@ -372,13 +424,14 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
                      options.mlmg_tolerance_abs);
   debug.SaveData(pi, "pi");
 
+  // compute momentum correction
   MultiFab UV_correction(on_cells, distribution_map, index.momentum.size(),
                          no_ghosts);
   UV_correction.setVal(0.0);
+  // this computes: -sigma Grad(pi)
   lin_op.getFluxes({&UV_correction}, {&pi});
   debug.SaveData(UV_correction, "pi_fluxes");
 
-  UV_correction.mult(-1.0 / dt.count());
   for (std::size_t i = 0; i < index.momentum.size(); ++i) {
     const int UV_component = static_cast<int>(i);
     MultiFab::Multiply(UV_correction, scratch, index.PTinverse, UV_component,
@@ -386,7 +439,6 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
     // UV_correction is now a momentum correction. Thus add it.
     MultiFab::Add(scratch, UV_correction, UV_component, index.momentum[i],
                   one_component, no_ghosts);
-
   }
   debug.SaveData(UV_correction, "momentum0_correction_backward", ::amrex::SrcComp(0));
   debug.SaveData(UV_correction, "momentum1_correction_backward", ::amrex::SrcComp(1));
@@ -402,23 +454,26 @@ void DoEulerForward_(const Equation& equation,
                      BK19IntegratorContext& context, int level, Duration dt) {
   MultiFab& scratch = context.GetScratch(level);
   DebugStorage& debug = *context.GetPatchHierarchy().GetDebugStorage();
+  const ::amrex::Geometry& geom = context.GetGeometry(level);
+  const ::amrex::Periodicity periodicity = geom.periodicity();
 
   ::amrex::DistributionMapping distribution_map = scratch.DistributionMap();
   ::amrex::BoxArray on_cells = scratch.boxArray();
 
-  // Construct sigma as in EulerBackward, but with -cp dt instead of -cp dt^2
-  // Maikel: This needs a comment for me, why it is so
-  // Rupert sagt:
-  // Wenn ich das richtig sehe, liegt das daran, dass die folgenden zwei Zeilen:
-  // momentum_correction.mult(-1.0 / dt.count(), 0);
-  // in EulerForward nicht existieren, in EulerBackward aber schon.
-  // Siehe auch Kommentar (**) weiter unten.
+  // vector field needs one ghost cell width to compute divergence
+  MultiFab UV(on_cells, distribution_map, index.momentum.size(),
+              one_ghost_cell_width);
+  ComputePvFromScratch_(index, UV, scratch, periodicity);
+
+  // construct sigma as in DoEulerBackward_, but without potential temperature
+  // factor, since we correct the momentum right away
   MultiFab sigma(on_cells, distribution_map, one_component, no_ghosts);
   sigma.setVal(equation.c_p * dt.count());
   MultiFab::Multiply(sigma, scratch, index.PTdensity, 0, one_component,
                      sigma.nGrow());
-  //MultiFab::Divide(sigma, scratch, index.PTinverse, 0, one_component,
-  //                 sigma.nGrow());
+
+  // we only need to set sigma in the linear operator, since we only need it
+  // for the flux correction
   debug.SaveData(sigma, "sigma_forward");
   lin_op.setSigma(level, sigma);
 
@@ -431,19 +486,46 @@ void DoEulerForward_(const Equation& equation,
   MultiFab momentum_correction(on_cells, distribution_map,
                                index.momentum.size(), no_ghosts);
   momentum_correction.setVal(0.0);
+  // this computes: -sigma Grad(pi)
   lin_op.getFluxes({&momentum_correction}, {&pi});
   debug.SaveData(momentum_correction, "pi_fluxes0_forward", ::amrex::SrcComp(0));
   debug.SaveData(momentum_correction, "pi_fluxes1_forward", ::amrex::SrcComp(1));
 
-  for (std::size_t i = 0; i < index.momentum.size(); ++i) {
-    const int src_component = static_cast<int>(i);
-    MultiFab::Add(scratch, momentum_correction, src_component,
-                  index.momentum[i], one_component, no_ghosts);
-  }
+  MultiFab::Add(scratch, momentum_correction, 0, index.momentum[0],
+                index.momentum.size(), no_ghosts);
   debug.SaveData(momentum_correction, "momentum0_correction_forward", ::amrex::SrcComp(0));
   debug.SaveData(momentum_correction, "momentum1_correction_forward", ::amrex::SrcComp(1));
 
   RecoverVelocityFromMomentum_(scratch, index);
+
+  // compute update for pi (compressible case), (equation (16) in [BK19])
+  ::amrex::BoxArray on_nodes = on_cells;
+  on_nodes.surroundingNodes();
+  MultiFab div(on_nodes, distribution_map, one_component, no_ghosts);
+  div.setVal(0.0);
+  lin_op.compDivergence({&div}, {&UV});
+
+  MultiFab dpidP_cells(on_cells, distribution_map, one_component,
+                       scratch.nGrow());
+  MultiFab dpidP_nodes(on_nodes, distribution_map, one_component, no_ghosts);
+  ForEachFab(dpidP_cells, [&](const MFIter& mfi) {
+    span<double> dpidP = MakePatchDataView(dpidP_cells[mfi], 0).Span();
+    span<double> PTdensity =
+        MakePatchDataView(scratch[mfi], index.PTdensity).Span();
+    FUB_ASSERT(dpidP.size() == PTdensity.size());
+    for (std::ptrdiff_t i = 0; i < dpidP.size(); ++i) {
+      dpidP[i] = -dt.count() * (equation.gamma - 1.0) / equation.Msq *
+                 std::pow(PTdensity[i], equation.gamma - 2.0);
+    }
+  });
+  AverageCellToNode_(dpidP_nodes, 0, dpidP_cells, 0);
+  MultiFab::Multiply(div, dpidP_nodes, 0, 0, one_component, no_ghosts);
+  // Note: It would be nice to just multiply by alpha_p=0 in the pseudo
+  // incompressible limit. But that does not work, since before we divide by
+  // Msq=0.
+  if (equation.alpha_p > 0.0) {
+    MultiFab::Add(pi, div, 0, 0, one_component, no_ghosts);
+  }
 }
 
 } // namespace
@@ -473,8 +555,7 @@ BK19LevelIntegrator::BK19LevelIntegrator(
     std::shared_ptr<::amrex::MLNodeHelmDualCstVel> linop,
     const BK19LevelIntegratorOptions& options)
     : AdvectionSolver(std::move(advection)), options_(options),
-      equation_(equation), index_(equation_), lin_op_(std::move(linop)) {
-}
+      equation_(equation), index_(equation_), lin_op_(std::move(linop)) {}
 
 Result<void, TimeStepTooLarge>
 BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
@@ -510,9 +591,8 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
 
   // 3) Do the first euler backward integration step for the source term
   context.FillGhostLayerSingleLevel(level);
-  MultiFab pi_tmp =
-      DoEulerBackward_(equation_, index_, *lin_op_, options_,
-                   context, level, half_dt);
+  MultiFab pi_tmp = DoEulerBackward_(equation_, index_, *lin_op_, options_,
+                                     context, level, half_dt);
 
   // Copy pi to context for visualization
   ::amrex::BoxArray on_cells = scratch.boxArray();
@@ -549,20 +629,9 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
     return result;
   }
 
-//   MultiFab rhs(on_nodes, scratch.DistributionMap(), one_component, no_ghosts);
-//   MultiFab UV(on_cells, scratch.DistributionMap(), index_.momentum.size(),
-//               one_ghost_cell_width);
-//   ComputePvFromScratch_(index_, UV, scratch, periodicity);
-//
-//   UV.mult(-dt.count(), UV.nGrow());
-//   rhs.setVal(0.0);
-//   lin_op_->compDivergence({&rhs}, {&UV});
-//   context.GetPi(level).copy(rhs);
-
   // 6) Do the second euler backward integration step for the source term
-  MultiFab pi_new =
-      DoEulerBackward_(equation_, index_, *lin_op_, options_,
-                       context, level, half_dt);
+  MultiFab pi_new = DoEulerBackward_(equation_, index_, *lin_op_, options_,
+                                     context, level, half_dt);
 
   // Copy pi_n+1 to pi_n
   context.GetPi(level).copy(pi_new);
