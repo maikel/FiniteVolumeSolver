@@ -267,7 +267,11 @@ template <int Rank>
 void ApplyLimiter(PrimitiveArray<Rank>& dpdx, const PrimitiveArray<Rank>& pL,
                   const PrimitiveArray<Rank>& pM,
                   const PrimitiveArray<Rank>& pR) {
-  auto Limiter = [](auto&& dqdx, Array1d qL, Array1d qM, Array1d qR) {
+  auto dqdx = [](Array1d qL, Array1d /*qM*/, Array1d qR) -> Array1d {
+    Array1d delta_q = 0.5 * (qR - qL);
+    return delta_q;
+  };
+  auto Limiter = [](Array1d qL, Array1d qM, Array1d qR) -> Array1d {
     Array1d delta_q = 0.5 * (qR - qL);
     Array1d zeros = Array1d::Zero();
     Array1d ones = Array1d::Constant(1.0);
@@ -277,21 +281,72 @@ void ApplyLimiter(PrimitiveArray<Rank>& dpdx, const PrimitiveArray<Rank>& pL,
     Array1d rR = is_relevant.select((qR - qM) / delta_q_if_relevant, zeros);
     MaskArray is_positive = rL > 0.0 && rR > 0.0;
     Array1d r = is_positive.select(rL.min(rR), zeros);
-    MaskArray less_than_one = r < 1.0;
     Array1d r_1 = 2 * r / (Array1d::Constant(1.0) + r);
     Array1d r_2 = 0.5 * (r + Array1d::Constant(1.0));
+    MaskArray less_than_one = r < 1.0;
     Array1d sigma = less_than_one.select(r_1, r_2);
-    dqdx = sigma * delta_q;
+    return sigma;
   };
-  Limiter(dpdx.pressure, pL.pressure, pM.pressure, pR.pressure);
-  Limiter(dpdx.temperature, pL.temperature, pM.temperature, pR.temperature);
+  dpdx.pressure = Limiter(pL.pressure, pM.pressure, pR.pressure) *
+                  dqdx(pL.pressure, pM.pressure, pR.pressure);
+  dpdx.temperature = Limiter(pL.temperature, pM.temperature, pR.temperature) *
+                     dqdx(pL.temperature, pM.temperature, pR.temperature);
   for (int i = 0; i < Rank; ++i) {
-    Limiter(dpdx.velocity.row(i), pL.velocity.row(i), pM.velocity.row(i),
-            pR.velocity.row(i));
+    dpdx.velocity.row(i) =
+        Limiter(pL.velocity.row(i), pM.velocity.row(i), pR.velocity.row(i)) *
+        dqdx(pL.velocity.row(i), pM.velocity.row(i), pR.velocity.row(i));
   }
+  Array1d limiter_rhoY =
+      Limiter(pL.mass_fractions.row(0), pM.mass_fractions.row(0),
+              pR.mass_fractions.row(0));
   for (int i = 0; i < dpdx.mass_fractions.rows(); ++i) {
-    Limiter(dpdx.mass_fractions.row(i), pL.mass_fractions.row(i),
-            pM.mass_fractions.row(i), pR.mass_fractions.row(i));
+    dpdx.mass_fractions.row(i) =
+        limiter_rhoY * dqdx(pL.mass_fractions.row(i), pM.mass_fractions.row(i),
+                            pR.mass_fractions.row(i));
+  }
+}
+
+template <int Rank>
+void ApplyLimiter(PrimitiveArray<Rank>& dpdx, const PrimitiveArray<Rank>& pL,
+                  const PrimitiveArray<Rank>& pM,
+                  const PrimitiveArray<Rank>& pR, MaskArray mask) {
+  auto dqdx = [](Array1d qL, Array1d /*qM*/, Array1d qR, MaskArray mask) -> Array1d {
+    Array1d delta_q = 0.5 * (qR - qL);
+    Array1d masked_delta_q = mask.select(delta_q, 0.0);
+    return masked_delta_q;
+  };
+  auto Limiter = [](Array1d qL, Array1d qM, Array1d qR, MaskArray mask) -> Array1d {
+    Array1d delta_q = mask.select(0.5 * (qR - qL), 0.0);
+    Array1d zeros = Array1d::Zero();
+    Array1d ones = Array1d::Constant(1.0);
+    MaskArray is_relevant = delta_q.abs() > 1e-12;
+    Array1d delta_q_if_relevant = is_relevant.select(delta_q, ones);
+    Array1d rL = is_relevant.select((qM - qL) / delta_q_if_relevant, zeros);
+    Array1d rR = is_relevant.select((qR - qM) / delta_q_if_relevant, zeros);
+    MaskArray is_positive = is_relevant && rL > 0.0 && rR > 0.0;
+    Array1d r = is_positive.select(rL.min(rR), zeros);
+    Array1d r_1 = 2 * r / (Array1d::Constant(1.0) + r);
+    Array1d r_2 = 0.5 * (r + Array1d::Constant(1.0));
+    MaskArray less_than_one = r < 1.0;
+    Array1d sigma = less_than_one.select(r_1, r_2);
+    return sigma;
+  };
+  dpdx.pressure = Limiter(pL.pressure, pM.pressure, pR.pressure, mask) *
+                  dqdx(pL.pressure, pM.pressure, pR.pressure, mask);
+  dpdx.temperature = Limiter(pL.temperature, pM.temperature, pR.temperature, mask) *
+                     dqdx(pL.temperature, pM.temperature, pR.temperature, mask);
+  for (int i = 0; i < Rank; ++i) {
+    dpdx.velocity.row(i) =
+        Limiter(pL.velocity.row(i), pM.velocity.row(i), pR.velocity.row(i), mask) *
+        dqdx(pL.velocity.row(i), pM.velocity.row(i), pR.velocity.row(i), mask);
+  }
+  Array1d limiter_Y =
+      Limiter(pL.mass_fractions.row(0), pM.mass_fractions.row(0),
+              pR.mass_fractions.row(0), mask);
+  for (int i = 0; i < dpdx.mass_fractions.rows(); ++i) {
+    dpdx.mass_fractions.row(i) =
+        limiter_Y * dqdx(pL.mass_fractions.row(i), pM.mass_fractions.row(i),
+                            pR.mass_fractions.row(i), mask);
   }
 }
 
@@ -418,7 +473,7 @@ void MusclHancockPrimitive<Rank>::ComputeNumericFlux(
   ToPrim(pL_array_, stencil[0], left_mask);
   ToPrim(pM_array_, stencil[1], mask);
   ToPrim(pR_array_, stencil[2], mask);
-  ApplyLimiter(dpdx_array_, pL_array_, pM_array_, pR_array_);
+  ApplyLimiter(dpdx_array_, pL_array_, pM_array_, pR_array_, left_mask && mask);
   PrimDerivatives(GetEquation(), dpdt_array_, stencil[1], dpdx_array_, dir,
                   mask);
 
@@ -445,7 +500,7 @@ void MusclHancockPrimitive<Rank>::ComputeNumericFlux(
   ToPrim(pL_array_, stencil[1], mask);
   ToPrim(pM_array_, stencil[2], mask);
   ToPrim(pR_array_, stencil[3], right_mask);
-  ApplyLimiter(dpdx_array_, pL_array_, pM_array_, pR_array_);
+  ApplyLimiter(dpdx_array_, pL_array_, pM_array_, pR_array_, mask && right_mask);
   PrimDerivatives(GetEquation(), dpdt_array_, stencil[2], dpdx_array_, dir,
                   mask);
 
