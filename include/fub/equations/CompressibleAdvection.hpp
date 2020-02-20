@@ -121,6 +121,7 @@ template <int N, int VelocityDim = N> struct CompressibleAdvection {
 
   /// Coriolis parameter in beta plane
   double f{0.0};
+  std::array<double, 2> f_swtch{1.0,1.0};
 
   double alpha_p{0.0};
   double gamma{1.4};

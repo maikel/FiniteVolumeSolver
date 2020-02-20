@@ -124,13 +124,14 @@ struct TravellingVortexInitialData {
   const double fac{1024.0};
   const double R_gas{287.4};
   const double gamma{1.4};
-  const double h_ref{100.0};
+  const double h_ref{10000.0};
   const double t_ref{100.0};
   const double T_ref{300.0};
   const double u_ref{h_ref / t_ref};
   const double Msq{u_ref * u_ref / (R_gas * T_ref)};
+  const double ratio{1.0};
   const double f{1.0};
-  const double ratio{0.5};
+  std::array<double, 2> f_swtch{0.0, 0.0};
   std::array<double, 2> center{0.5, 0.5};
   std::array<double, 2> U0{0.0, 0.0};
 };
