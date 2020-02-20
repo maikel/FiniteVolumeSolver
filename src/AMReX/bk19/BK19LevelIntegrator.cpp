@@ -374,10 +374,10 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
     const int current_component = static_cast<int>(i);
     const int other_component = static_cast<int>(j);
     MultiFab::Saxpy(UV, a, UV_expl, other_component, current_component, 0, one_ghost_cell_width);
-    // UV.mult(1.0 / (1.0 + std::pow(dt.count() * equation.f, 2)), current_component, 0, one_ghost_cell_width);
+    UV.mult(1.0 / (1.0 + std::pow(dt.count() * equation.f, 2)), current_component, 0, one_ghost_cell_width);
   }
 
-  UV.mult(1.0 / (1.0 + std::pow(dt.count() * equation.f, 2)), one_ghost_cell_width);
+  // UV.mult(1.0 / (1.0 + std::pow(dt.count() * equation.f, 2)), one_ghost_cell_width);
 
   MultiFab rhs(on_nodes, distribution_map, one_component, no_ghosts);
   rhs.setVal(0.0);
