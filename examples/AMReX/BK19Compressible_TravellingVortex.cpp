@@ -86,7 +86,7 @@ struct TravellingVortexInitialData {
         const double y = geom.CellCenter(j, 1);
         const double dx = x - center[0];
         const double dy = y - center[1];
-        const double r = std::sqrt(dx * dx + dy * dy);
+        const double r = std::sqrt(dx * dx + ratio*(dy * dy));
 
         states.PTdensity(i, j) = 1.0;
 
@@ -129,8 +129,10 @@ struct TravellingVortexInitialData {
   const double T_ref{300.0};
   const double u_ref{h_ref / t_ref};
   const double Msq{u_ref * u_ref / (R_gas * T_ref)};
+  const double f{1.0};
+  const double ratio{0.5};
   std::array<double, 2> center{0.5, 0.5};
-  std::array<double, 2> U0{1.0, 1.0};
+  std::array<double, 2> U0{0.0, 0.0};
 };
 
 void MyMain(const fub::ProgramOptions& options) {
@@ -169,6 +171,7 @@ void MyMain(const fub::ProgramOptions& options) {
   equation.alpha_p = 1.0;
   equation.gamma   = inidat.gamma;
   equation.Msq     = inidat.Msq;
+  equation.f       = inidat.f;
 
   fub::IndexMapping<fub::CompressibleAdvection<2>> index(equation);
 
@@ -218,7 +221,7 @@ void MyMain(const fub::ProgramOptions& options) {
         geom.LoNode(i, coor);
         const double dx = coor[0] - inidat.center[0];
         const double dy = coor[1] - inidat.center[1];
-        const double r = std::sqrt(dx * dx + dy * dy);
+        const double r = std::sqrt(dx * dx + inidat.ratio*(dy * dy));
 
         if (r < inidat.R0) {
           const double r_over_R0 = r / inidat.R0;
