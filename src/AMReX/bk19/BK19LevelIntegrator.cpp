@@ -366,15 +366,17 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   // UV_expl.mult(dt.count() * equation.f, one_ghost_cell_width);
 
   // Do an explicit update for the RHS terms with coriolis.
-  // Assume that zeroth and second indices are x- and y- axes.
+  // Assume that zeroth and first indices are x- and y- axes.
   for (std::size_t i = 0; i < index.momentum.size(); ++i) {
     size_t j = i == 0 ? 1: 0;
     double fac = i == 0 ? 1.0: -1.0;
-    double a = fac * dt.count() * equation.f;
     const int current_component = static_cast<int>(i);
     const int other_component = static_cast<int>(j);
-    MultiFab::Saxpy(UV, a, UV_expl, other_component, current_component, 0, one_ghost_cell_width);
-    UV.mult(1.0 / (1.0 + std::pow(dt.count() * equation.f, 2)), current_component, 0, one_ghost_cell_width);
+
+    double a = fac * dt.count() * equation.f_swtch[j] * equation.f;
+
+    MultiFab::Saxpy(UV, a, UV_expl, other_component, current_component, one_component, one_ghost_cell_width);
+    UV.mult(1.0 / (1.0 + std::pow(dt.count() * equation.f, 2)), current_component, one_component, one_ghost_cell_width);
   }
 
   // UV.mult(1.0 / (1.0 + std::pow(dt.count() * equation.f, 2)), one_ghost_cell_width);
@@ -438,16 +440,29 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   MultiFab UV_correction(on_cells, distribution_map, index.momentum.size(),
                          no_ghosts);
   UV_correction.setVal(0.0);
+
+  MultiFab pi_cross(on_cells, distribution_map, index.momentum.size(),
+                         no_ghosts);
+  pi_cross.setVal(0.0);
+
   // this computes: -sigma Grad(pi)
   lin_op.getFluxes({&UV_correction}, {&pi});
+  lin_op.getFluxes({&pi_cross}, {&pi});
 
   for (std::size_t i = 0; i < index.momentum.size(); ++i) {
+    size_t j = i == 0 ? 1 : 0;
+    double fac = i == 0 ? 1.0: -1.0;
     const int UV_component = static_cast<int>(i);
-    MultiFab::Multiply(UV_correction, scratch, index.PTinverse, UV_component,
-                       one_component, no_ghosts);
+    const int other_component = static_cast<int>(j);
+
+    double a = fac * dt.count() * equation.f_swtch[j] * equation.f;
+
+    MultiFab::Saxpy(UV_correction, a, pi_cross, other_component, UV_component, one_component, no_ghosts);
+
+    MultiFab::Multiply(UV_correction, scratch, index.PTinverse, UV_component, one_component, no_ghosts);
+    
     // UV_correction is now a momentum correction. Thus add it.
-    MultiFab::Add(scratch, UV_correction, UV_component, index.momentum[i],
-                  one_component, no_ghosts);
+    MultiFab::Add(scratch, UV_correction, UV_component, index.momentum[i], one_component, no_ghosts);
   }
 
   RecoverVelocityFromMomentum_(scratch, index);
