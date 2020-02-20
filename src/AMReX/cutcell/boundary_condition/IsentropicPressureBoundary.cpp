@@ -53,7 +53,7 @@ inline int GetSign(int side) { return (side == 0) - (side == 1); }
 
 int Sign(double x) { return (x > 0) - (x < 0); }
 
-void IsentropicExpansionWithoutDissipation(
+void IsentropicExpansionWithoutDissipation_(
     IdealGasMix<AMREX_SPACEDIM>& eq,
     Complete<IdealGasMix<AMREX_SPACEDIM>>& dest,
     const Complete<IdealGasMix<AMREX_SPACEDIM>>& src, double dest_pressure,
@@ -86,59 +86,59 @@ IsentropicPressureBoundary::IsentropicPressureBoundary(
     : equation_(eq), options_{options} {}
 
 namespace {
-double TotalVolume(const PatchHierarchy& hier, int level,
-                   const ::amrex::Box& box) {
-  double local_volume(0.0);
-  const ::amrex::EBFArrayBoxFactory& factory = *hier.GetEmbeddedBoundary(level);
-  const ::amrex::MultiFab& alphas = factory.getVolFrac();
-  ForEachFab(alphas, [&](const ::amrex::MFIter& mfi) {
-    const ::amrex::FArrayBox& alpha = alphas[mfi];
-    ForEachIndex(box & mfi.tilebox(), [&](auto... is) {
-      ::amrex::IntVect index{static_cast<int>(is)...};
-      const double frac = alpha(index);
-      local_volume += frac;
-    });
-  });
-  double global_volume = 0.0;
-  MPI_Allreduce(&local_volume, &global_volume, 1, MPI_DOUBLE, MPI_SUM,
-                ::amrex::ParallelDescriptor::Communicator());
-  return global_volume;
-}
+// double TotalVolume_(const PatchHierarchy& hier, int level,
+//                    const ::amrex::Box& box) {
+//   double local_volume(0.0);
+//   const ::amrex::EBFArrayBoxFactory& factory = *hier.GetEmbeddedBoundary(level);
+//   const ::amrex::MultiFab& alphas = factory.getVolFrac();
+//   ForEachFab(alphas, [&](const ::amrex::MFIter& mfi) {
+//     const ::amrex::FArrayBox& alpha = alphas[mfi];
+//     ForEachIndex(box & mfi.tilebox(), [&](auto... is) {
+//       ::amrex::IntVect index{static_cast<int>(is)...};
+//       const double frac = alpha(index);
+//       local_volume += frac;
+//     });
+//   });
+//   double global_volume = 0.0;
+//   MPI_Allreduce(&local_volume, &global_volume, 1, MPI_DOUBLE, MPI_SUM,
+//                 ::amrex::ParallelDescriptor::Communicator());
+//   return global_volume;
+// }
 
-void AverageState(Complete<IdealGasMix<AMREX_SPACEDIM>>& state,
-                  const PatchHierarchy& hier, int level,
-                  const ::amrex::Box& box) {
-  const double total_volume = TotalVolume(hier, level, box);
-  const int ncomp = hier.GetDataDescription().n_state_components;
-  std::vector<double> state_buffer(static_cast<std::size_t>(ncomp));
-  const ::amrex::EBFArrayBoxFactory& factory = *hier.GetEmbeddedBoundary(level);
-  const ::amrex::MultiFab& alphas = factory.getVolFrac();
-  const ::amrex::MultiFab& datas = hier.GetPatchLevel(level).data;
-  ForEachFab(alphas, [&](const ::amrex::MFIter& mfi) {
-    const ::amrex::FArrayBox& alpha = alphas[mfi];
-    const ::amrex::FArrayBox& data = datas[mfi];
-    IndexBox<AMREX_SPACEDIM> section =
-        AsIndexBox<AMREX_SPACEDIM>(box & mfi.tilebox());
-    for (int comp = 0; comp < ncomp; ++comp) {
-      ForEachIndex(section, [&](auto... is) {
-        ::amrex::IntVect index{static_cast<int>(is)...};
-        const double frac = alpha(index);
-        state_buffer[comp] += frac / total_volume * data(index, comp);
-      });
-    }
-  });
-  std::vector<double> global_state_buffer(static_cast<std::size_t>(ncomp));
-  MPI_Allreduce(state_buffer.data(), global_state_buffer.data(), ncomp,
-                MPI_DOUBLE, MPI_SUM,
-                ::amrex::ParallelDescriptor::Communicator());
-  int comp = 0;
-  ForEachComponent(
-      [&comp, &global_state_buffer](auto&& var) {
-        var = global_state_buffer[comp];
-        comp += 1;
-      },
-      state);
-}
+// void AverageState_(Complete<IdealGasMix<AMREX_SPACEDIM>>& state,
+//                   const PatchHierarchy& hier, int level,
+//                   const ::amrex::Box& box) {
+//   const double total_volume = TotalVolume_(hier, level, box);
+//   const int ncomp = hier.GetDataDescription().n_state_components;
+//   std::vector<double> state_buffer(static_cast<std::size_t>(ncomp));
+//   const ::amrex::EBFArrayBoxFactory& factory = *hier.GetEmbeddedBoundary(level);
+//   const ::amrex::MultiFab& alphas = factory.getVolFrac();
+//   const ::amrex::MultiFab& datas = hier.GetPatchLevel(level).data;
+//   ForEachFab(alphas, [&](const ::amrex::MFIter& mfi) {
+//     const ::amrex::FArrayBox& alpha = alphas[mfi];
+//     const ::amrex::FArrayBox& data = datas[mfi];
+//     IndexBox<AMREX_SPACEDIM> section =
+//         AsIndexBox<AMREX_SPACEDIM>(box & mfi.tilebox());
+//     for (int comp = 0; comp < ncomp; ++comp) {
+//       ForEachIndex(section, [&](auto... is) {
+//         ::amrex::IntVect index{static_cast<int>(is)...};
+//         const double frac = alpha(index);
+//         state_buffer[comp] += frac / total_volume * data(index, comp);
+//       });
+//     }
+//   });
+//   std::vector<double> global_state_buffer(static_cast<std::size_t>(ncomp));
+//   MPI_Allreduce(state_buffer.data(), global_state_buffer.data(), ncomp,
+//                 MPI_DOUBLE, MPI_SUM,
+//                 ::amrex::ParallelDescriptor::Communicator());
+//   int comp = 0;
+//   ForEachComponent(
+//       [&comp, &global_state_buffer](auto&& var) {
+//         var = global_state_buffer[comp];
+//         comp += 1;
+//       },
+//       state);
+// }
 
 template <typename GriddingAlgorithm>
 int FindLevel(const ::amrex::Geometry& geom,
@@ -166,7 +166,7 @@ void IsentropicPressureBoundary::FillBoundary(::amrex::MultiFab& mf,
   //   refined_inner_box.refine(
   //       grid.GetPatchHierarchy().GetRatioToCoarserLevel(l));
   // }
-  // AverageState(state, grid.GetPatchHierarchy(), level, refined_inner_box);
+  // AverageState_(state, grid.GetPatchHierarchy(), level, refined_inner_box);
   // equation_.CompleteFromCons(state, state);
 
   // boost::log::sources::severity_channel_logger<
@@ -185,7 +185,7 @@ void IsentropicPressureBoundary::FillBoundary(::amrex::MultiFab& mf,
   // equation_.GetReactor().SetTemperature(state.temperature);
   // equation_.GetReactor().SetPressure(options_.outer_pressure);
   // equation_.CompleteFromReactor(state);
-  // IsentropicExpansionWithoutDissipation(equation_, state, state, p);
+  // IsentropicExpansionWithoutDissipation_(equation_, state, state, p);
   // if (options_.side == 1) {
   //   state.momentum[0] = -state.momentum[0];
   // }
@@ -244,7 +244,7 @@ void IsentropicPressureBoundary::FillBoundary(
               equation_.GetReactor().SetTemperature(state_.temperature);
               equation_.GetReactor().SetPressure(options_.outer_pressure);
               equation_.CompleteFromReactor(state_);
-              IsentropicExpansionWithoutDissipation(equation_, state_, state_, options_.outer_pressure);
+              IsentropicExpansionWithoutDissipation_(equation_, state_, state_, options_.outer_pressure);
             }
             Store(states, state_, dest);
           }

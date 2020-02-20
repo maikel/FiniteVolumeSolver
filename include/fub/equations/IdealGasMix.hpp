@@ -141,6 +141,10 @@ public:
 
   void SetReactorStateFromComplete(const Complete& state);
 
+  static Array<double, N, 1> Velocity(const ConservativeBase& cons) noexcept;
+  static Array<double, N> Velocity(const ConservativeArrayBase& cons) noexcept;
+  static Array<double, N> Velocity(const ConservativeArrayBase& cons, MaskArray mask) noexcept;
+
   void CompleteFromReactor(Complete& state,
                            const Eigen::Array<double, N, 1>& velocity =
                                Eigen::Array<double, N, 1>::Zero()) const;

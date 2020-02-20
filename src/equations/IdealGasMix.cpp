@@ -109,6 +109,33 @@ auto ComputeSpeedOfSoundArray(const FlameMasterReactor& reactor, MaskArray mask)
 }
 } // namespace
 
+
+template <int Dim>
+Array<double, Dim, 1> IdealGasMix<Dim>::Velocity(const ConservativeBase& cons) noexcept {
+  Array<double, Dim, 1> velocity = cons.momentum / cons.density;
+  return velocity;
+}
+
+template <int Dim>
+Array<double, Dim> IdealGasMix<Dim>::Velocity(const ConservativeArrayBase& cons) noexcept {
+  Array<double, Dim> velocity;
+  for (int d = 0; d < Dim; ++d) {
+    velocity.row(d) = cons.momentum.row(d) / cons.density;
+  }
+  return velocity;
+}
+
+template <int Dim>
+Array<double, Dim> IdealGasMix<Dim>::Velocity(const ConservativeArrayBase& cons, MaskArray mask) noexcept {
+  Array<double, Dim> velocity;
+  Array1d density = mask.select(cons.density, 1.0);
+  for (int d = 0; d < Dim; ++d) {
+    Array1d momentum = mask.select(cons.momentum.row(d), 0.0);
+    velocity.row(d) = momentum / density;
+  }
+  return velocity;
+}
+
 template <int Dim>
 void IdealGasMix<Dim>::SetReactorStateFromComplete(const Complete& state) {
   reactor_.SetDensity(state.density);
@@ -183,18 +210,11 @@ void IdealGasMix<Dim>::CompleteFromCons(Complete& complete,
   const double rhoE_kin = KineticEnergy(cons.density, cons.momentum);
   const double e_internal = (cons.energy - rhoE_kin) / cons.density;
   reactor_.SetTemperature(300);
-  reactor_.SetInternalEnergy(e_internal, 1E-12);
+  reactor_.SetInternalEnergy(e_internal);
   FUB_ASSERT(reactor_.GetTemperature() > 0.0);
   FUB_ASSERT(cons.density == reactor_.GetDensity());
-  complete.density = cons.density;
-  complete.momentum = cons.momentum;
-  complete.energy = cons.energy;
-  complete.species = cons.species;
-  complete.pressure = reactor_.GetPressure();
-  complete.speed_of_sound = ComputeSpeedOfSound(reactor_);
-  complete.temperature = reactor_.GetTemperature();
-  complete.c_p = reactor_.GetCp();
-  complete.gamma = reactor_.GetCp() / reactor_.GetCv();
+  const Array<double, Dim, 1> velocity = Velocity(cons);
+  CompleteFromReactor(complete, velocity);
 }
 
 template <int Dim>
@@ -205,15 +225,9 @@ void IdealGasMix<Dim>::CompleteFromCons(CompleteArray& complete,
   reactor_.SetTemperatureArray(Array1d::Constant(300));
   const Array1d rhoE_kin = KineticEnergy(cons.density, cons.momentum);
   const Array1d e_internal = (cons.energy - rhoE_kin) / cons.density;
-  reactor_.SetInternalEnergyArray(e_internal, 1E-12);
-  complete.density = cons.density;
-  complete.momentum = cons.momentum;
-  complete.energy = cons.energy;
-  complete.species = cons.species;
-  complete.pressure = reactor_.GetPressureArray();
-  complete.temperature = reactor_.GetTemperatureArray();
-  std::tie(complete.speed_of_sound, complete.c_p, complete.gamma) =
-      ComputeSpeedOfSoundArray(reactor_);
+  reactor_.SetInternalEnergyArray(e_internal);
+  const Array<double, Dim> velocity = Velocity(cons);
+  CompleteFromReactor(complete, velocity);
 }
 
 template <int Dim>
@@ -241,24 +255,9 @@ void IdealGasMix<Dim>::CompleteFromCons(CompleteArray& complete,
   Array1d rhoE = mask.select(cons.energy, 0.0);
   const Array1d rhoE_kin = KineticEnergy(cons.density, cons.momentum, mask);
   const Array1d e_internal = (rhoE - rhoE_kin) / rho_s;
-  reactor_.SetInternalEnergyArray(e_internal, mask, 1E-12);
-  complete.density = mask.select(cons.density, 0.0);
-  for (int i = 0; i < Dim; ++i) {
-    complete.momentum.row(i) = mask.select(cons.momentum.row(i), 0.0);
-  }
-  complete.energy = rhoE;
-  for (int i = 0; i < cons.species.rows(); ++i) {
-    complete.species.row(i) = mask.select(cons.species.row(i), 0.0);
-  }
-  complete.pressure = mask.select(reactor_.GetPressureArray(), 0.0);
-  complete.temperature =
-      mask.select(reactor_.GetTemperatureArray(), 0.0);
-  std::tie(complete.speed_of_sound, complete.c_p, complete.gamma) =
-      ComputeSpeedOfSoundArray(reactor_);
-  complete.speed_of_sound =
-      mask.select(complete.speed_of_sound, 0.0);
-  complete.c_p = mask.select(complete.c_p, 0.0);
-  complete.gamma = mask.select(complete.gamma, 0.0);
+  reactor_.SetInternalEnergyArray(e_internal, mask);
+  const Array<double, Dim> velocity = Velocity(cons, mask);
+  CompleteFromReactor(complete, velocity, mask);
 }
 
 template class IdealGasMix<1>;
