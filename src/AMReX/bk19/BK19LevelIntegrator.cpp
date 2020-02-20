@@ -355,12 +355,29 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   MultiFab::Multiply(diagcomp, diagfac_nodes, 0, 0, one_component, no_ghosts);
 
   // then compute divergence term
-  // This assumes f = 0 and N = 0
-  //
   // vector field needs one ghost cell width to compute divergence!
   MultiFab UV(on_cells, distribution_map, index.momentum.size(),
               one_ghost_cell_width);
   ComputePvFromScratch_(index, UV, scratch, periodicity);
+
+  MultiFab UV_expl(on_cells, distribution_map, index.momentum.size(),one_ghost_cell_width);
+  ComputePvFromScratch_(index, UV_expl, scratch, periodicity);
+
+  // UV_expl.mult(dt.count() * equation.f, one_ghost_cell_width);
+
+  // Do an explicit update for the RHS terms with coriolis.
+  // Assume that zeroth and second indices are x- and y- axes.
+  for (std::size_t i = 0; i < index.momentum.size(); ++i) {
+    size_t j = i == 0 ? 1: 0;
+    double fac = i == 0 ? 1.0: -1.0;
+    double a = fac * dt.count() * equation.f;
+    const int current_component = static_cast<int>(i);
+    const int other_component = static_cast<int>(j);
+    MultiFab::Saxpy(UV, a, UV_expl, other_component, current_component, 0, one_ghost_cell_width);
+    // UV.mult(1.0 / (1.0 + std::pow(dt.count() * equation.f, 2)), current_component, 0, one_ghost_cell_width);
+  }
+
+  UV.mult(1.0 / (1.0 + std::pow(dt.count() * equation.f, 2)), one_ghost_cell_width);
 
   MultiFab rhs(on_nodes, distribution_map, one_component, no_ghosts);
   rhs.setVal(0.0);
@@ -386,7 +403,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   // Construct sigma / weight of Laplacian (equation (27) in [BK19]
   // divided by -dt)
   MultiFab sigma(on_cells, distribution_map, one_component, no_ghosts);
-  sigma.setVal(equation.c_p * dt.count());
+  sigma.setVal(equation.c_p * dt.count() / (1.0 + std::pow(dt.count() * equation.f, 2)));
   MultiFab::Multiply(sigma, scratch, index.PTdensity, 0, one_component,
                      sigma.nGrow());
   MultiFab::Divide(sigma, scratch, index.PTinverse, 0, one_component,
