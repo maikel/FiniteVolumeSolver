@@ -100,10 +100,12 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
         fub::GetOptionOr(initial_options, "temperature", 300.0);
     const double pressure =
         fub::GetOptionOr(initial_options, "pressure", 101325.0);
+    const double velocity =
+        fub::GetOptionOr(initial_options, "velocity", 0.0);
     equation.GetReactor().SetMoleFractions(moles);
     equation.GetReactor().SetTemperature(temperature);
     equation.GetReactor().SetPressure(pressure);
-    equation.CompleteFromReactor(state);
+    equation.CompleteFromReactor(state, fub::Array<double, 1, 1>(velocity));
     equation.CompleteFromCons(state, state);
   }
   ConstantData initial_data{equation, state};
@@ -210,10 +212,13 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
         fub::GetOptionOr(initial_options, "temperature", 300.0);
     const double pressure =
         fub::GetOptionOr(initial_options, "pressure", 101325.0);
+    std::array<double, 3> velocity{};
+    velocity =
+        fub::GetOptionOr(initial_options, "velocity", velocity);
     equation.GetReactor().SetMoleFractions(moles);
     equation.GetReactor().SetTemperature(temperature);
     equation.GetReactor().SetPressure(pressure);
-    equation.CompleteFromReactor(state);
+    equation.CompleteFromReactor(state, {velocity[0], velocity[1], velocity[2]});
     equation.CompleteFromCons(state, state);
   }
   using namespace fub::amrex::cutcell;
