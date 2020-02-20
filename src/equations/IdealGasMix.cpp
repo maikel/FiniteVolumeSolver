@@ -183,7 +183,7 @@ void IdealGasMix<Dim>::CompleteFromCons(Complete& complete,
   const double rhoE_kin = KineticEnergy(cons.density, cons.momentum);
   const double e_internal = (cons.energy - rhoE_kin) / cons.density;
   reactor_.SetTemperature(300);
-  reactor_.SetInternalEnergy(e_internal);
+  reactor_.SetInternalEnergy(e_internal, 1E-12);
   FUB_ASSERT(reactor_.GetTemperature() > 0.0);
   FUB_ASSERT(cons.density == reactor_.GetDensity());
   complete.density = cons.density;
@@ -205,7 +205,7 @@ void IdealGasMix<Dim>::CompleteFromCons(CompleteArray& complete,
   reactor_.SetTemperatureArray(Array1d::Constant(300));
   const Array1d rhoE_kin = KineticEnergy(cons.density, cons.momentum);
   const Array1d e_internal = (cons.energy - rhoE_kin) / cons.density;
-  reactor_.SetInternalEnergyArray(e_internal);
+  reactor_.SetInternalEnergyArray(e_internal, 1E-12);
   complete.density = cons.density;
   complete.momentum = cons.momentum;
   complete.energy = cons.energy;
@@ -241,7 +241,7 @@ void IdealGasMix<Dim>::CompleteFromCons(CompleteArray& complete,
   Array1d rhoE = mask.select(cons.energy, 0.0);
   const Array1d rhoE_kin = KineticEnergy(cons.density, cons.momentum, mask);
   const Array1d e_internal = (rhoE - rhoE_kin) / rho_s;
-  reactor_.SetInternalEnergyArray(e_internal, mask);
+  reactor_.SetInternalEnergyArray(e_internal, mask, 1E-12);
   complete.density = mask.select(cons.density, 0.0);
   for (int i = 0; i < Dim; ++i) {
     complete.momentum.row(i) = mask.select(cons.momentum.row(i), 0.0);

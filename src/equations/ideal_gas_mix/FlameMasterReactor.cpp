@@ -660,8 +660,8 @@ void FlameMasterReactor::SetInternalEnergyArray(Array1d target, double dTtol) {
     Array1d Uerr = target - Unew;
     Array1d acvd = cvd.abs().max(1e-5);
     Array1d denom = target.abs().max(acvd * dTtol);
-    UConvErr = (Uerr / denom).abs();
-    if ((UConvErr < (1e-5 * dTtol) || dT.abs() < dTtol).all()) {
+    UConvErr = Uerr.abs();
+    if ((UConvErr < denom * (1e-5 * dTtol) || dT.abs() < dTtol).all()) {
       return;
     }
   }
@@ -743,7 +743,7 @@ void FlameMasterReactor::SetInternalEnergyArray(Array1d target, MaskArray mask,
     Array1d Uerr = mask.select(target - Unew, 0.0);
     Array1d acvd = cvd.abs().max(1e-5);
     Array1d denom = mask.select(target.abs().max(acvd * dTtol), 1.0);
-    UConvErr = (Uerr / denom).abs();
+    UConvErr = Uerr.abs();
     if ((!mask || UConvErr < denom * (1e-5 * dTtol) || dT.abs() < dTtol).all()) {
       return;
     }
