@@ -24,29 +24,6 @@
 #include <numeric>
 
 namespace fub::amrex {
-/// \brief Returns all the hierarchies which are stored via SaveData
-const std::vector<DebugStorage::Hierarchy>& DebugStorage::GetHierarchies() const
-    noexcept {
-  return saved_hierarchies_;
-}
-
-/// \brief Returns all the component names which are stored via SaveData
-const std::vector<DebugStorage::ComponentNames>& DebugStorage::GetNames() const
-    noexcept {
-  return names_per_hierarchy_;
-}
-
-void DebugStorage::SaveData(const ::amrex::MultiFab& mf,
-                            const std::string& name,
-                            ::amrex::SrcComp component) {
-  Hierarchy single_level_hierarchy{};
-  ::amrex::BoxArray ba = mf.boxArray();
-  ::amrex::DistributionMapping dm = mf.DistributionMap();
-  ::amrex::MultiFab& dest = single_level_hierarchy.emplace_back(ba, dm, 1, 0);
-  ::amrex::MultiFab::Copy(dest, mf, component.i, 0, 1, 0);
-  saved_hierarchies_.push_back(std::move(single_level_hierarchy));
-  names_per_hierarchy_.push_back(std::vector<std::string>{name});
-}
 
 namespace {
 
@@ -77,12 +54,12 @@ Partitions_(const std::vector<std::vector<::amrex::BoxArray>>& boxes) {
 }
 
 template <typename Proj>
-auto GatherBy(const std::vector<std::vector<::amrex::MultiFab>>& hierarchies,
+auto GatherBy(const std::vector<DebugStorage::Hierarchy>& hierarchies,
               ::amrex::IndexType location, Proj projection) {
   using T = std::decay_t<decltype(projection(hierarchies[0][0]))>;
   std::vector<std::vector<T>> projected{};
   auto do_projection = [p = std::move(projection)](
-                           const std::vector<::amrex::MultiFab>& hierarchy) {
+                           const DebugStorage::Hierarchy& hierarchy) {
     std::vector<T> projected(hierarchy.size());
     std::transform(hierarchy.begin(), hierarchy.end(), projected.begin(),
                    [proj = std::move(p)](const ::amrex::MultiFab& mf) {
@@ -90,7 +67,7 @@ auto GatherBy(const std::vector<std::vector<::amrex::MultiFab>>& hierarchies,
                    });
     return projected;
   };
-  for (const std::vector<::amrex::MultiFab>& hierarchy : hierarchies) {
+  for (const DebugStorage::Hierarchy& hierarchy : hierarchies) {
     if (hierarchy[0].boxArray().ixType() == location) {
       projected.push_back(do_projection(hierarchy));
     }
@@ -99,25 +76,25 @@ auto GatherBy(const std::vector<std::vector<::amrex::MultiFab>>& hierarchies,
 }
 
 std::vector<std::vector<::amrex::BoxArray>>
-GatherBoxArrays_(const std::vector<std::vector<::amrex::MultiFab>>& hierarchies,
+GatherBoxArrays_(const std::vector<DebugStorage::Hierarchy>& hierarchies,
                  ::amrex::IndexType location) {
   return GatherBy(hierarchies, location,
                   [](const ::amrex::MultiFab& mf) { return mf.boxArray(); });
 }
 
 std::vector<std::vector<::amrex::DistributionMapping>> GatherDistributionMaps_(
-    const std::vector<std::vector<::amrex::MultiFab>>& hierarchies,
+    const std::vector<DebugStorage::Hierarchy>& hierarchies,
     ::amrex::IndexType location) {
   return GatherBy(hierarchies, location, [](const ::amrex::MultiFab& mf) {
     return mf.DistributionMap();
   });
 }
 
-std::vector<const std::vector<::amrex::MultiFab>*> GatherHierarchies_(
-    const std::vector<std::vector<::amrex::MultiFab>>& hierarchies,
+std::vector<const DebugStorage::Hierarchy*> GatherHierarchies_(
+    const std::vector<DebugStorage::Hierarchy>& hierarchies,
     ::amrex::IndexType location) {
-  std::vector<const std::vector<::amrex::MultiFab>*> gathered{};
-  for (const std::vector<::amrex::MultiFab>& hierarchy : hierarchies) {
+  std::vector<const DebugStorage::Hierarchy*> gathered{};
+  for (const DebugStorage::Hierarchy& hierarchy : hierarchies) {
     if (hierarchy[0].boxArray().ixType() == location) {
       gathered.push_back(&hierarchy);
     }
@@ -125,13 +102,13 @@ std::vector<const std::vector<::amrex::MultiFab>*> GatherHierarchies_(
   return gathered;
 }
 
-std::vector<std::vector<std::string>>
-GatherNames_(const std::vector<std::vector<std::string>>& names,
-             const std::vector<std::vector<::amrex::MultiFab>>& hierarchies,
+std::vector<DebugStorage::ComponentNames>
+GatherNames_(const std::vector<DebugStorage::ComponentNames>& names,
+             const std::vector<DebugStorage::Hierarchy>& hierarchies,
              ::amrex::IndexType location) {
-  std::vector<std::vector<std::string>> gathered{};
+  std::vector<DebugStorage::ComponentNames> gathered{};
   auto components = names.begin();
-  for (const std::vector<::amrex::MultiFab>& hierarchy : hierarchies) {
+  for (const DebugStorage::Hierarchy& hierarchy : hierarchies) {
     if (hierarchy[0].boxArray().ixType() == location) {
       gathered.push_back(*components);
     }
@@ -140,52 +117,130 @@ GatherNames_(const std::vector<std::vector<std::string>>& names,
   return gathered;
 }
 
-std::vector<std::string>
-Select_(const std::vector<std::vector<std::string>>& names,
+DebugStorage::ComponentNames
+Select_(const std::vector<DebugStorage::ComponentNames>& names,
         const std::vector<int>& partition) {
   using namespace std::literals;
-  std::vector<std::string> selected;
+  DebugStorage::ComponentNames selected;
   for (int i : partition) {
     selected.insert(selected.end(), names[i].begin(), names[i].end());
   }
-  auto last = selected.end();
-  for (std::size_t k = 0; k < selected.size(); ++k) {
-    const std::string candidate = selected[k];
-    auto first = selected.begin() + k + 1;
-    auto pos = std::find(first, last, candidate);
-    if (last != pos) {
-      selected[k] += "_0"s;
-      int counter = 1;
-      do {
-        *pos = fmt::format("{}_{}", *pos, counter);
-        counter += 1;
-        pos = std::find(first, last, candidate);
-      } while (last != pos);
-    }
-  }
+//   auto last = selected.end();
+//   for (std::size_t k = 0; k < selected.size(); ++k) {
+//     const std::string candidate = selected[k];
+//     auto first = selected.begin() + k + 1;
+//     auto pos = std::find(first, last, candidate);
+//     if (last != pos) {
+//       selected[k] += "_0"s;
+//       int counter = 1;
+//       do {
+//         *pos = fmt::format("{}_{}", *pos, counter);
+//         counter += 1;
+//         pos = std::find(first, last, candidate);
+//       } while (last != pos);
+//     }
+//   }
   return selected;
 }
 } // namespace
 
-std::vector<std::pair<std::vector<::amrex::MultiFab>, std::vector<std::string>>>
+/// \brief Returns all the hierarchies which are stored via SaveData
+const std::vector<DebugStorage::Hierarchy>& DebugStorage::GetHierarchies() const
+    noexcept {
+  return saved_hierarchies_;
+}
+
+/// \brief Returns all the component names which are stored via SaveData
+const std::vector<DebugStorage::ComponentNames>& DebugStorage::GetNames() const
+    noexcept {
+  return names_per_hierarchy_;
+}
+
+void DebugStorage::SaveData(const ::amrex::MultiFab& mf,
+                            const std::string& name,
+                            ::amrex::SrcComp component) {
+  Hierarchy single_level_hierarchy{};
+  ::amrex::BoxArray ba = mf.boxArray();
+  ::amrex::DistributionMapping dm = mf.DistributionMap();
+  ::amrex::MultiFab& dest = single_level_hierarchy.emplace_back(ba, dm, 1, 0);
+  ::amrex::MultiFab::Copy(dest, mf, component.i, 0, 1, 0);
+  saved_hierarchies_.push_back(std::move(single_level_hierarchy));
+  names_per_hierarchy_.push_back(ComponentNames{name});
+}
+
+void DebugStorage::UnifyComponentNames() {
+  using namespace std::literals;
+
+  std::size_t h = 0;
+  for (DebugStorage::ComponentNames& names : names_per_hierarchy_) {
+//   for (auto p=names_per_hierarchy_.begin(); p!=names_per_hierarchy_.end(); ++p) {
+//     DebugStorage::ComponentNames& names = *p;
+
+    auto last = names.end();
+    for (std::size_t k = 0; k < names.size(); ++k) {
+      const std::string candidate = names[k];
+      int counter = 0;
+      // search for candidate in current hierarchy
+      auto first = names.begin() + k + 1;
+      auto pos = std::find(first, last, candidate);
+      if (last != pos) {
+        names[k] += "_0"s;
+        counter += 1;
+        do {
+          *pos = fmt::format("{}_{}", *pos, counter);
+          counter += 1;
+          pos = std::find(first, last, candidate);
+        } while (last != pos);
+      }
+      // search for candidate in other hierarchies
+      auto nexthier = names_per_hierarchy_.begin() + h + 1;
+      auto lasthier = names_per_hierarchy_.end();
+      for (auto p=nexthier; p!=lasthier; ++p) {
+        DebugStorage::ComponentNames& hnames = *p;
+        auto first = hnames.begin();
+        auto last = hnames.end();
+        auto pos = std::find(first, last, candidate);
+        if (last != pos) {
+          if (counter == 0) {
+            names[k] += "_0"s;
+          }
+          counter += 1;
+          do {
+            *pos = fmt::format("{}_{}", *pos, counter);
+            counter += 1;
+            pos = std::find(first, last, candidate);
+          } while (last != pos);
+        }
+      }
+    }
+    ++h;
+  }
+  ::amrex::Print() << "Hierarchy names: \n";
+  for (const DebugStorage::ComponentNames& names : names_per_hierarchy_) {
+    for (std::size_t k = 0; k < names.size(); ++k) {
+      ::amrex::Print() << "    " << names[k] << "\n";
+    }
+  }
+
+}
+
+std::vector<std::pair<DebugStorage::Hierarchy, DebugStorage::ComponentNames>>
 DebugStorage::GatherFields(::amrex::IndexType location) const {
   using namespace ::amrex;
   std::vector<std::vector<BoxArray>> box_arrays =
       GatherBoxArrays_(saved_hierarchies_, location);
   std::vector<std::vector<DistributionMapping>> distribution_maps =
       GatherDistributionMaps_(saved_hierarchies_, location);
-  std::vector<const std::vector<::amrex::MultiFab>*> filtered_hierarchies =
+  std::vector<const DebugStorage::Hierarchy*> filtered_hierarchies =
       GatherHierarchies_(saved_hierarchies_, location);
   std::vector<std::vector<int>> partitions = Partitions_(box_arrays);
-  std::vector<
-      std::pair<std::vector<::amrex::MultiFab>, std::vector<std::string>>>
-      hierarchies{};
+  std::vector<std::pair<DebugStorage::Hierarchy, DebugStorage::ComponentNames>> hiers_names{};
   for (const std::vector<int>& partition : partitions) {
-    std::vector<std::vector<std::string>> all_components =
+    std::vector<ComponentNames> all_components =
         GatherNames_(names_per_hierarchy_, saved_hierarchies_, location);
-    std::vector<std::string> components = Select_(all_components, partition);
+    ComponentNames components = Select_(all_components, partition);
     int n_components = static_cast<int>(components.size());
-    std::vector<::amrex::MultiFab> hierarchy{};
+    DebugStorage::Hierarchy hierarchy{};
     std::vector<BoxArray> box_array = box_arrays[partition[0]];
     std::vector<DistributionMapping> distribution =
         distribution_maps[partition[0]];
@@ -201,9 +256,9 @@ DebugStorage::GatherFields(::amrex::IndexType location) const {
       }
       FUB_ASSERT(comp == n_components);
     }
-    hierarchies.emplace_back(std::move(hierarchy), std::move(components));
+    hiers_names.emplace_back(std::move(hierarchy), std::move(components));
   }
-  return hierarchies;
+  return hiers_names;
 }
 
 void DebugStorage::ClearAll() {
@@ -218,13 +273,13 @@ DebugOutput::DebugOutput(const ProgramOptions& opts)
 
 void DebugOutput::operator()(const GriddingAlgorithm& grid) {
   DebugStorage& storage = *grid.GetPatchHierarchy().GetDebugStorage();
+  storage.UnifyComponentNames();
 
-  std::vector<
-      std::pair<std::vector<::amrex::MultiFab>, std::vector<std::string>>>
-      hierarchies = storage.GatherFields(::amrex::IndexType::TheCellType());
+  std::vector<std::pair<DebugStorage::Hierarchy, DebugStorage::ComponentNames>>
+      hiers_names = storage.GatherFields(::amrex::IndexType::TheCellType());
 
   int partition_counter = 0;
-  for (auto&& [hierarchy, names] : hierarchies) {
+  for (auto&& [hierarchy, names] : hiers_names) {
     const std::string plotfilename =
         fmt::format("{}/partition_{}_plt{:09}", directory_, partition_counter,
                     grid.GetPatchHierarchy().GetCycles());
@@ -248,20 +303,19 @@ void DebugOutput::operator()(const GriddingAlgorithm& grid) {
     partition_counter += 1;
   }
 
-  const std::vector<std::vector<::amrex::MultiFab>>& all_hierarchies =
-      storage.GetHierarchies();
-  const std::vector<std::vector<std::string>>& all_names = storage.GetNames();
+  const std::vector<DebugStorage::Hierarchy>& all_hierarchies = storage.GetHierarchies();
+  const std::vector<DebugStorage::ComponentNames>& all_names = storage.GetNames();
 
   auto hier_fields = all_names.begin();
   const std::string level_prefix = "Level_";
   partition_counter = 0;
   ::amrex::VisMF::SetHeaderVersion(::amrex::VisMF::Header::Version_v1);
 
-  for (const std::vector<::amrex::MultiFab>& hierarchy : all_hierarchies) {
+  for (const DebugStorage::Hierarchy& hierarchy : all_hierarchies) {
     if (hierarchy[0].ixType() != ::amrex::IndexType::TheCellType()) {
       const std::string plotfilename = fmt::format(
-          "{}/{}_{}_plt{:09}", directory_, all_names[partition_counter][0],
-          partition_counter, grid.GetPatchHierarchy().GetCycles());
+          "{}/{}_plt{:09}", directory_, all_names[partition_counter][0],
+          grid.GetPatchHierarchy().GetCycles());
       const std::string raw_data = plotfilename + "/raw_fields";
       const int nlevels = hierarchy.size();
       ::amrex::PreBuildDirectorHierarchy(plotfilename, "Level_", nlevels, true);

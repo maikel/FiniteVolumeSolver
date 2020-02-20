@@ -31,11 +31,11 @@ public:
   using Hierarchy = std::vector<::amrex::MultiFab>;
   using ComponentNames = std::vector<std::string>;
 
-  /// \brief Initializes an empty storage.
+  /// \brief Initializes an empty storage
   DebugStorage() = default;
 
   /// @{
-  /// \brief Saves a current hierarchy state with given component names.
+  /// \brief Saves a current hierarchy state with given component names
   ///
   /// The actual output will be handled by the DebugOutput class and will
   /// usually happen at a later time point.
@@ -54,7 +54,7 @@ public:
                 ::amrex::SrcComp first_component = ::amrex::SrcComp(0));
   /// @}
 
-  /// \brief Deletes all currently stored data.
+  /// \brief Deletes all currently stored data
   void ClearAll();
 
   /// \brief Returns all the hierarchies which are stored via SaveData
@@ -62,6 +62,9 @@ public:
 
   /// \brief Returns all the component names which are stored via SaveData
   const std::vector<ComponentNames>& GetNames() const noexcept;
+
+  /// \brief Changes component names that appear more than once to be unique
+  void UnifyComponentNames();
 
   /// \brief Collects all hierachies and associated names which are stored on the
   /// specified location.
