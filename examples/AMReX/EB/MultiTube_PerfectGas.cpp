@@ -97,10 +97,10 @@ auto MakePlenumSolver(fub::PerfectGas<3>& equation,
   using namespace std::literals;
   const fub::ProgramOptions initial_options =
       fub::GetOptions(options, "InitialCondition");
-  std::vector<double> data{0.0, 1.1, 0.0, 0.0, 0.0, 101325.0};
-  data = fub::GetOptionOr(initial_options, "data", data);
+  std::string source{"initial_data.h5"};
+  source = fub::GetOptionOr(initial_options, "data", source);
 
-  InterpolateFrom1d initial_data(equation, std::move(data));
+  InterpolateFrom1d initial_data(equation, std::move(source));
 
   using State = fub::Complete<fub::PerfectGas<Plenum_Rank>>;
   GradientDetector gradients{equation, std::pair{&State::pressure, 0.05},

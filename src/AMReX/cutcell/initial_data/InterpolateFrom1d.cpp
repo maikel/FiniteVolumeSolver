@@ -24,12 +24,28 @@
 #include "fub/AMReX/ForEachIndex.hpp"
 #include "fub/AMReX/ForEachFab.hpp"
 
+#include "fub/output/Hdf5Handle.hpp"
+
 namespace fub::amrex::cutcell {
 
 InterpolateFrom1d::InterpolateFrom1d(const PerfectGas<AMREX_SPACEDIM>& equation,
-                    std::vector<double> data)
-  : equation_(equation), raw_prim_data_(std::move(data))
+                    const std::string& name)
+  : equation_(equation), raw_prim_data_{}
 {
+  H5File file(H5Fopen(name.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT));
+  if (file < 0) {
+    throw std::runtime_error("Could not open file " + name + ".");
+  }
+  if (H5Dataset dataset(H5Dopen(file, "DG_Solution", H5P_DEFAULT)); dataset < 0) {
+    throw std::runtime_error("Could not open dataset name://DGSolution.");
+  } else {
+    std::array<hsize_t, 2> dims = {};
+    H5Space dataspace(H5Dget_space(dataset));
+    H5Sget_simple_extent_dims(dataspace, dims.data(), nullptr);
+    std::size_t size = dims[0] * dims[1];
+    raw_prim_data_.resize(size);
+    H5Dread(dataset, H5T_IEEE_F64LE, H5S_ALL, H5S_ALL, H5P_DEFAULT, raw_prim_data_.data());
+  }
 }
 
 void InterpolateFrom1d::InitializeData(::amrex::MultiFab& data, const ::amrex::Geometry& geom)

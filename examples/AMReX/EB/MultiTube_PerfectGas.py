@@ -2,24 +2,25 @@ import math
 import h5py
 import numpy as np
 
-source = h5py.File("/home/guttula/initial_data2.h5", "r")
-# source = h5py.File("/Users/maikel/Development/FiniteVolumeSolver/initial_data2.h5", "r")
-dataset = source['DG_Solution']
-data = np.transpose(np.array(dataset)).copy()
-source.close()
+source = "/home/mi/guttula/initial_data2.h5";
+#source = h5py.File("/Users/maikel/Development/FiniteVolumeSolver/initial_data2.h5", "r")
+#dataset = source['DG_Solution']
+#data = np.array([-1.0, 1.0, 1.0, 0.0, 0.0, 1.0])
+#data2 = np.array(dataset)
+#source.close()
 
-view = data.view()
-view.shape = (data.shape[0] * data.shape[1])
-data = view.copy()
+#view = data.view()
+#view.shape = (data.shape[0] * data.shape[1])
+#data = view.copy()
 
 plenum_y_n_cells = 112
-plenum_x_n_cells = 112   
+plenum_x_n_cells = 112
 plenum_z_n_cells = 112
 
 tube_blocking_factor = 8
 plenum_blocking_factor = 8
 
-n_level = 2
+n_level = 1
 
 n_tubes = 6
 r_tube = 0.015
@@ -88,7 +89,7 @@ PatchHierarchy = {
 }
 
 InitialCondition = {
-  'data': data
+  'data': source
 }
 
 PressureBoundary = {
@@ -103,7 +104,7 @@ Output = {
   'outputs': [{
     'type': 'Plotfile',
     'directory': 'MultiTube/Plotfile/',
-    'intervals': [1e-5],
+    'intervals': [5e-5],
   }, {
     'type': 'CounterOutput',
     'frequencies': [100]
@@ -111,7 +112,7 @@ Output = {
   {
     'type': 'Checkpoint',
     'directory': 'MultiTube/Checkpoint/',
-    'intervals': [1e-4]
+    'intervals': [3e-4]
   }, {
      'type': 'ProbesOutput',
      'filename': 'Probes.h5',

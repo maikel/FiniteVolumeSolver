@@ -31,7 +31,7 @@ namespace fub::amrex::cutcell {
 class InterpolateFrom1d {
 public:
   InterpolateFrom1d(const PerfectGas<AMREX_SPACEDIM>& equation,
-                    std::vector<double> data);
+                    const std::string& source);
 
   void InitializeData(::amrex::MultiFab& data, const ::amrex::Geometry& geom);
 
