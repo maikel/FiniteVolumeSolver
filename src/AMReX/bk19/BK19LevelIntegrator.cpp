@@ -605,6 +605,8 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
                            periodicity);
   debug.SaveData(Pv.on_cells, "Pu_half_time", ::amrex::SrcComp(0));
   debug.SaveData(Pv.on_cells, "Pv_half_time", ::amrex::SrcComp(1));
+  debug.SaveData(Pv.on_faces[0], "Pu_faces_half_time", ::amrex::SrcComp(0));
+  debug.SaveData(Pv.on_faces[1], "Pv_faces_half_time", ::amrex::SrcComp(0));
 
   context.GetPi(level).copy(pi);
 

@@ -20,6 +20,7 @@
 // SOFTWARE.
 
 #include "fub/AMReX/output/DebugOutput.hpp"
+#include "fub/AMReX/ForEachFab.hpp"
 
 #include <algorithm>
 #include <numeric>
@@ -143,6 +144,38 @@ Select_(const std::vector<DebugStorage::ComponentNames>& names,
   }
   return selected;
 }
+
+// Apply face to cell average to a specified face_component on mf_faces and
+// write its result into cell_component of mf_cells.
+void
+AverageFaceToCell(::amrex::MultiFab& mf_cells, int cell_component,
+                  const ::amrex::MultiFab& mf_faces, int face_component) {
+  ::amrex::IndexType facetype = mf_faces.ixType();
+  Direction dir;
+  if (facetype == ::amrex::IndexType(::amrex::IntVect(AMREX_D_DECL(1, 0, 0)))) {
+    dir = Direction::X;
+  } else if (facetype == ::amrex::IndexType(::amrex::IntVect(AMREX_D_DECL(0, 1, 0)))) {
+    dir = Direction::Y;
+  } else if (facetype == ::amrex::IndexType(::amrex::IntVect(AMREX_D_DECL(0, 0, 1)))) {
+    dir = Direction::Z;
+  } else {
+    throw std::runtime_error("Invalid Index type of face variable!");
+  }
+  const int dir_v = static_cast<int>(dir);
+  fub::amrex::ForEachFab(mf_cells, [&](const ::amrex::MFIter& mfi) {
+    ::amrex::Box cell_box = mfi.tilebox();
+    ::amrex::Box face_box = ::amrex::surroundingNodes(cell_box, dir_v);
+    auto cells = MakePatchDataView(mf_cells[mfi], cell_component, cell_box);
+    auto faces = MakePatchDataView(mf_faces[mfi], face_component, face_box);
+    fub::ForEachIndex(cells.Box(), [&](auto... is) {
+      std::array<std::ptrdiff_t, AMREX_SPACEDIM> cell{is...};
+      std::array<std::ptrdiff_t, AMREX_SPACEDIM> face_left{is...};
+      std::array<std::ptrdiff_t, AMREX_SPACEDIM> face_right = Shift(face_left, dir, 1);
+      cells(cell) = 0.5 * faces(face_left) + 0.5 * faces(face_right);
+    });
+  });
+}
+
 } // namespace
 
 /// \brief Returns all the hierarchies which are stored via SaveData
@@ -313,27 +346,41 @@ void DebugOutput::operator()(const GriddingAlgorithm& grid) {
   for (const DebugStorage::Hierarchy& hierarchy : all_hierarchies) {
     if (hierarchy[0].ixType() != ::amrex::IndexType::TheCellType()) {
       const int nlevels = hierarchy.size();
-      DebugStorage::Hierarchy cell_average_hierarchy{};
-      cell_average_hierarchy.resize(nlevels);
-      for (int level = 0; level < nlevels; ++level) {
-        ::amrex::BoxArray ba = hierarchy[level].boxArray();
-        ba.enclosedCells();
-        ::amrex::DistributionMapping dm = hierarchy[level].DistributionMap();
-        cell_average_hierarchy[level].define(ba, dm, hierarchy[level].nComp(),
-                                             0);
-        if (hierarchy[level].ixType() == ::amrex::IndexType::TheNodeType()) {
+      const int nComp = hierarchy[0].nComp();
+      DebugStorage::Hierarchy cell_average_hierarchy(nlevels);
+      std::vector<std::string> names_avg(*hier_fields);
+
+      if (hierarchy[0].ixType() == ::amrex::IndexType::TheNodeType()) {
+        for (int level = 0; level < nlevels; ++level) {
+          ::amrex::BoxArray ba = hierarchy[level].boxArray();
+          ba.enclosedCells();
+          ::amrex::DistributionMapping dm = hierarchy[level].DistributionMap();
+          cell_average_hierarchy[level].define(ba, dm, nComp, 0);
+
           ::amrex::average_node_to_cellcenter(cell_average_hierarchy[level], 0,
-                                              hierarchy[level], 0,
-                                              hierarchy[level].nComp(), 0);
-        } else {
-          cell_average_hierarchy[level].setVal(0.0);
+                                              hierarchy[level], 0, nComp, 0);
+        }
+        for (std::string& vname : names_avg) {
+          vname += "_nd2cellavg"s;
+        }
+      } else {
+        for (int level = 0; level < nlevels; ++level) {
+          ::amrex::BoxArray ba = hierarchy[level].boxArray();
+          ba.enclosedCells();
+          ::amrex::DistributionMapping dm = hierarchy[level].DistributionMap();
+          cell_average_hierarchy[level].define(ba, dm, nComp, 0);
+
+          for (int Comp = 0; Comp < nComp; ++Comp) {
+            AverageFaceToCell(cell_average_hierarchy[level], Comp,
+                    hierarchy[level], Comp);
+          }
+        }
+        for (std::string& vname : names_avg) {
+          vname += "_fc2cellavg"s;
         }
       }
-      std::vector<std::string> vnames(*hier_fields);
-      for (std::string& vname : vnames) {
-        vname += "_nd2cellavg"s;
-      }
-      storage.SaveData(cell_average_hierarchy, vnames);
+
+      storage.SaveData(cell_average_hierarchy, names_avg);
     }
     ++hier_fields;
   }
