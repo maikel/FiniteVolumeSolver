@@ -26,6 +26,8 @@
 
 #include "fub/output/Hdf5Handle.hpp"
 
+#include "fub/ext/Eigen.hpp"
+
 namespace fub::amrex::cutcell {
 
 InterpolateFrom1d::InterpolateFrom1d(const PerfectGas<AMREX_SPACEDIM>& equation,
@@ -45,6 +47,8 @@ InterpolateFrom1d::InterpolateFrom1d(const PerfectGas<AMREX_SPACEDIM>& equation,
     std::size_t size = dims[0] * dims[1];
     raw_prim_data_.resize(size);
     H5Dread(dataset, H5T_IEEE_F64LE, H5S_ALL, H5S_ALL, H5P_DEFAULT, raw_prim_data_.data());
+    Eigen::MatrixXd transpose = Eigen::MatrixXd::Map(raw_prim_data_.data(), dims[1], dims[0]).transpose();
+    std::copy_n(&transpose(0, 0), size, raw_prim_data_.data());
   }
 }
 
