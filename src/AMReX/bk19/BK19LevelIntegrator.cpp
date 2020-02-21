@@ -331,6 +331,24 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   ::amrex::BoxArray on_nodes = on_cells;
   on_nodes.surroundingNodes();
 
+  MultiFab momenta(on_cells, distribution_map,
+                               index.momentum.size(), no_ghosts);
+  MultiFab::Copy(momenta, scratch, index.momentum[0], 0, index.momentum.size(), no_ghosts);
+
+  // Do an explicit update for the RHS terms with coriolis.
+  // Assume that zeroth and first indices are x- and y- axes.
+  for (std::size_t i = 0; i < index.momentum.size(); ++i) {
+    size_t j = i == 0 ? 1: 0;
+    double fac = i == 0 ? 1.0: -1.0;
+    const int current_component = static_cast<int>(i);
+    const int other_component = static_cast<int>(j);
+
+    double a = fac * dt.count() * equation.f_swtch[j] * equation.f;
+
+    MultiFab::Saxpy(scratch, a, momenta, other_component, index.momentum[i], one_component, no_ghosts);
+    scratch.mult(1.0 / (1.0 + std::pow(dt.count() * equation.f, 2)), index.momentum[i], one_component, no_ghosts);
+  }
+
   // compute RHS for elliptic solve (equation (28) in [BK19] divided by -dt)
   // first compute diagonal part for compressibility
   MultiFab diagfac_cells(on_cells, distribution_map, one_component,
@@ -343,7 +361,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
     FUB_ASSERT(diagfac.size() == PTdensity.size());
     for (std::ptrdiff_t i = 0; i < diagfac.size(); ++i) {
       diagfac[i] = -equation.alpha_p * equation.Msq / (equation.gamma - 1.0) *
-                   std::pow(PTdensity[i], 2.0 - equation.gamma) / dt.count();
+                   std::pow(PTdensity[i], 2.0 - equation.gamma) / dt.count() * dt.count();
     }
   });
   AverageCellToNode_(diagfac_nodes, 0, diagfac_cells, 0);
@@ -359,27 +377,6 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   MultiFab UV(on_cells, distribution_map, index.momentum.size(),
               one_ghost_cell_width);
   ComputePvFromScratch_(index, UV, scratch, periodicity);
-
-  MultiFab UV_expl(on_cells, distribution_map, index.momentum.size(),one_ghost_cell_width);
-  ComputePvFromScratch_(index, UV_expl, scratch, periodicity);
-
-  // UV_expl.mult(dt.count() * equation.f, one_ghost_cell_width);
-
-  // Do an explicit update for the RHS terms with coriolis.
-  // Assume that zeroth and first indices are x- and y- axes.
-  for (std::size_t i = 0; i < index.momentum.size(); ++i) {
-    size_t j = i == 0 ? 1: 0;
-    double fac = i == 0 ? 1.0: -1.0;
-    const int current_component = static_cast<int>(i);
-    const int other_component = static_cast<int>(j);
-
-    double a = fac * dt.count() * equation.f_swtch[j] * equation.f;
-
-    MultiFab::Saxpy(UV, a, UV_expl, other_component, current_component, one_component, one_ghost_cell_width);
-    UV.mult(1.0 / (1.0 + std::pow(dt.count() * equation.f, 2)), current_component, one_component, one_ghost_cell_width);
-  }
-
-  // UV.mult(1.0 / (1.0 + std::pow(dt.count() * equation.f, 2)), one_ghost_cell_width);
 
   MultiFab rhs(on_nodes, distribution_map, one_component, no_ghosts);
   rhs.setVal(0.0);
@@ -405,7 +402,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   // Construct sigma / weight of Laplacian (equation (27) in [BK19]
   // divided by -dt)
   MultiFab sigma(on_cells, distribution_map, one_component, no_ghosts);
-  sigma.setVal(equation.c_p * dt.count() / (1.0 + std::pow(dt.count() * equation.f, 2)));
+  sigma.setVal(equation.c_p / (1.0 + std::pow(dt.count() * equation.f, 2)));
   MultiFab::Multiply(sigma, scratch, index.PTdensity, 0, one_component,
                      sigma.nGrow());
   MultiFab::Divide(sigma, scratch, index.PTinverse, 0, one_component,
@@ -451,7 +448,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
 
   for (std::size_t i = 0; i < index.momentum.size(); ++i) {
     size_t j = i == 0 ? 1 : 0;
-    double fac = i == 0 ? 1.0: -1.0;
+    double fac = i == 0 ? -1.0: 1.0;
     const int UV_component = static_cast<int>(i);
     const int other_component = static_cast<int>(j);
 
@@ -460,6 +457,8 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
     MultiFab::Saxpy(UV_correction, a, pi_cross, other_component, UV_component, one_component, no_ghosts);
 
     MultiFab::Multiply(UV_correction, scratch, index.PTinverse, UV_component, one_component, no_ghosts);
+
+    UV_correction.mult(-dt.count(), UV_component, one_component, no_ghosts);
     
     // UV_correction is now a momentum correction. Thus add it.
     MultiFab::Add(scratch, UV_correction, UV_component, index.momentum[i], one_component, no_ghosts);
@@ -505,8 +504,24 @@ void DoEulerForward_(const Equation& equation,
   MultiFab momentum_correction(on_cells, distribution_map,
                                index.momentum.size(), no_ghosts);
   momentum_correction.setVal(0.0);
+
   // this computes: -sigma Grad(pi)
   lin_op.getFluxes({&momentum_correction}, {&pi});
+
+  MultiFab momentum_cross(on_cells, distribution_map,
+                               index.momentum.size(), no_ghosts);
+  MultiFab::Copy(momentum_cross, scratch, index.momentum[0], 0, index.momentum.size(), no_ghosts);
+
+  for (std::size_t i = 0; i < index.momentum.size(); ++i) {
+    size_t j = i == 0 ? 1 : 0;
+    double fac = i == 0 ? 1.0: -1.0;
+    const int current_component = static_cast<int>(i);
+    const int other_component = static_cast<int>(j);
+
+    double a = fac * dt.count() * equation.f_swtch[j] * equation.f;
+
+    MultiFab::Saxpy(momentum_correction, a, momentum_cross, other_component, current_component, one_component, no_ghosts);
+  }
 
   MultiFab::Add(scratch, momentum_correction, 0, index.momentum[0],
                 index.momentum.size(), no_ghosts);
