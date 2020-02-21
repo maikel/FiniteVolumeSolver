@@ -411,6 +411,36 @@ void DebugOutput::operator()(const GriddingAlgorithm& grid) {
     ::amrex::WriteMultiLevelPlotfile(
         plotfilename, size, mf, vnames, geoms, time_point, level_steps,
         ref_ratio, "HyperCLaw-V1.1", "Level_", "Cell", {"raw_fields"});
+
+    ::amrex::VisMF::SetHeaderVersion(::amrex::VisMF::Header::Version_v1);
+
+    // write nodal/face hierarchies as raw data
+    // TODO: Check partition!
+    auto hier_fields = all_names.begin();
+
+    for (const DebugStorage::Hierarchy& hierarchy : all_hierarchies) {
+      if (hierarchy[0].ixType() != ::amrex::IndexType::TheCellType()) {
+        const std::size_t size = hierarchy.size();
+        const int nComp = hierarchy[0].nComp();
+        std::vector<std::string> names(*hier_fields);
+
+        for (std::size_t i = 0; i < size; ++i) {
+          const int ii = static_cast<int>(i);
+            ::amrex::BoxArray ba = hierarchy[i].boxArray();
+            ::amrex::DistributionMapping dm = hierarchy[i].DistributionMap();
+          const std::string raw_pltname = fmt::format("{}/raw_fields", plotfilename);
+          const std::string level_prefix = "Level_";
+          for (int Comp = 0; Comp < nComp; ++Comp) {
+          const std::string full_prefix =
+            ::amrex::MultiFabFileFullPrefix(ii, raw_pltname, level_prefix, names[Comp]);
+            ::amrex::MultiFab data(ba, dm, 1, 0);
+            ::amrex::MultiFab::Copy(data, hierarchy[i], Comp, 0, 1, 0);
+            ::amrex::VisMF::Write(data, full_prefix);
+          }
+        }
+      }
+      ++hier_fields;
+    }
     partition_counter += 1;
   }
 
