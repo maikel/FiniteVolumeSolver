@@ -255,13 +255,16 @@ void MyMain(const fub::ProgramOptions& options) {
 
   fub::OutputFactory<GriddingAlgorithm> factory;
   factory.RegisterOutput<fub::AnyOutput<GriddingAlgorithm>>("Plotfile", WriteBK19Plotfile{base_name});
-  factory.RegisterOutput<fub::amrex::DebugOutput>("DebugOutput");
+  factory.RegisterOutput<fub::amrex::DebugOutput>(
+      "DebugOutput",
+      solver.GetGriddingAlgorithm()->GetPatchHierarchy().GetDebugStorage());
   fub::MultipleOutputs<GriddingAlgorithm> output{std::move(factory), fub::GetOptions(options, "Output")};
 
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options = fub::GetOptions(options, "RunOptions");
   BOOST_LOG(info) << "RunOptions:";
   run_options.Print(info);
+
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }
 

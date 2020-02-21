@@ -1,4 +1,5 @@
 // Copyright (c) 2020 Maikel Nadolski
+// Copyright (c) 2020 Stefan Vater
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -34,6 +35,11 @@ public:
   /// \brief Initializes an empty storage
   DebugStorage() = default;
 
+  bool IsEnabled() const noexcept { return is_enabled_; }
+
+  void Enable() { is_enabled_ = true; }
+  void Disable() { is_enabled_ = false; }
+
   /// @{
   /// \brief Saves a current hierarchy state with given component names
   ///
@@ -52,6 +58,10 @@ public:
   void SaveData(const std::vector<const ::amrex::MultiFab*>& hierarchy,
                 const ComponentNames& names,
                 ::amrex::SrcComp first_component = ::amrex::SrcComp(0));
+
+  void SaveData(const std::vector<::amrex::MultiFab>& hierarchy,
+                const ComponentNames& names,
+                ::amrex::SrcComp first_component = ::amrex::SrcComp(0));
   /// @}
 
   /// \brief Deletes all currently stored data
@@ -63,14 +73,17 @@ public:
   /// \brief Returns all the component names which are stored via SaveData
   const std::vector<ComponentNames>& GetNames() const noexcept;
 
-  /// \brief Changes component names that appear more than once to be unique
-  void UnifyComponentNames();
+  /// \brief Changes component names that appear more than once by appending
+  /// assending numbers to each. This also makes names unique, which appear
+  /// more than once in one hierarchy.
+  void MakeUniqueComponentNames();
 
-  /// \brief Collects all hierachies and associated names which are stored on the
-  /// specified location.
+  /// \brief Collects all hierachies and associated names which are stored on
+  /// the specified location.
   ///
   /// This function will join all compatible hierachies to a common big one if
-  /// possible. If two component names collide they will be renamed by numbering.
+  /// possible. If two component names collide they will be renamed by
+  /// numbering.
   std::vector<std::pair<Hierarchy, ComponentNames>>
   GatherFields(::amrex::IndexType location) const;
 
@@ -80,11 +93,15 @@ private:
 
   /// \brief Each SaveData will append a list of names on the hierachy
   std::vector<ComponentNames> names_per_hierarchy_{};
+
+  /// \brief If this is false no data will be saved.
+  bool is_enabled_{false};
 };
 
 class DebugOutput : public OutputAtFrequencyOrInterval<GriddingAlgorithm> {
 public:
-  explicit DebugOutput(const ProgramOptions& opts);
+  explicit DebugOutput(const ProgramOptions& opts,
+                       const std::shared_ptr<DebugStorage>& storage);
 
   void operator()(const GriddingAlgorithm& grid) override;
 

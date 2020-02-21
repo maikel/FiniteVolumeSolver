@@ -1,4 +1,5 @@
 // Copyright (c) 2020 Maikel Nadolski
+// Copyright (c) 2020 Stefan Vater
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +27,21 @@
 namespace fub::amrex {
 
 namespace {
+template <typename T>
+std::vector<T*> GetPointersFromVector(std::vector<T>& vector) {
+  std::vector<T*> pointers(vector.size());
+  std::transform(vector.begin(), vector.end(), pointers.begin(),
+                 [](T& obj) { return &obj; });
+  return pointers;
+}
+
+template <typename T>
+std::vector<const T*> GetConstPointersFromVector(const std::vector<T>& vector) {
+  std::vector<const T*> pointers(vector.size());
+  std::transform(vector.begin(), vector.end(), pointers.begin(),
+                 [](const T& obj) { return &obj; });
+  return pointers;
+}
 
 struct equal_to {
   int i;
@@ -58,15 +74,15 @@ auto GatherBy(const std::vector<DebugStorage::Hierarchy>& hierarchies,
               ::amrex::IndexType location, Proj projection) {
   using T = std::decay_t<decltype(projection(hierarchies[0][0]))>;
   std::vector<std::vector<T>> projected{};
-  auto do_projection = [p = std::move(projection)](
-                           const DebugStorage::Hierarchy& hierarchy) {
-    std::vector<T> projected(hierarchy.size());
-    std::transform(hierarchy.begin(), hierarchy.end(), projected.begin(),
-                   [proj = std::move(p)](const ::amrex::MultiFab& mf) {
-                     return proj(mf);
-                   });
-    return projected;
-  };
+  auto do_projection =
+      [p = std::move(projection)](const DebugStorage::Hierarchy& hierarchy) {
+        std::vector<T> projected(hierarchy.size());
+        std::transform(hierarchy.begin(), hierarchy.end(), projected.begin(),
+                       [proj = std::move(p)](const ::amrex::MultiFab& mf) {
+                         return proj(mf);
+                       });
+        return projected;
+      };
   for (const DebugStorage::Hierarchy& hierarchy : hierarchies) {
     if (hierarchy[0].boxArray().ixType() == location) {
       projected.push_back(do_projection(hierarchy));
@@ -82,17 +98,17 @@ GatherBoxArrays_(const std::vector<DebugStorage::Hierarchy>& hierarchies,
                   [](const ::amrex::MultiFab& mf) { return mf.boxArray(); });
 }
 
-std::vector<std::vector<::amrex::DistributionMapping>> GatherDistributionMaps_(
-    const std::vector<DebugStorage::Hierarchy>& hierarchies,
-    ::amrex::IndexType location) {
+std::vector<std::vector<::amrex::DistributionMapping>>
+GatherDistributionMaps_(const std::vector<DebugStorage::Hierarchy>& hierarchies,
+                        ::amrex::IndexType location) {
   return GatherBy(hierarchies, location, [](const ::amrex::MultiFab& mf) {
     return mf.DistributionMap();
   });
 }
 
-std::vector<const DebugStorage::Hierarchy*> GatherHierarchies_(
-    const std::vector<DebugStorage::Hierarchy>& hierarchies,
-    ::amrex::IndexType location) {
+std::vector<const DebugStorage::Hierarchy*>
+GatherHierarchies_(const std::vector<DebugStorage::Hierarchy>& hierarchies,
+                   ::amrex::IndexType location) {
   std::vector<const DebugStorage::Hierarchy*> gathered{};
   for (const DebugStorage::Hierarchy& hierarchy : hierarchies) {
     if (hierarchy[0].boxArray().ixType() == location) {
@@ -125,21 +141,6 @@ Select_(const std::vector<DebugStorage::ComponentNames>& names,
   for (int i : partition) {
     selected.insert(selected.end(), names[i].begin(), names[i].end());
   }
-//   auto last = selected.end();
-//   for (std::size_t k = 0; k < selected.size(); ++k) {
-//     const std::string candidate = selected[k];
-//     auto first = selected.begin() + k + 1;
-//     auto pos = std::find(first, last, candidate);
-//     if (last != pos) {
-//       selected[k] += "_0"s;
-//       int counter = 1;
-//       do {
-//         *pos = fmt::format("{}_{}", *pos, counter);
-//         counter += 1;
-//         pos = std::find(first, last, candidate);
-//       } while (last != pos);
-//     }
-//   }
   return selected;
 }
 } // namespace
@@ -159,22 +160,50 @@ const std::vector<DebugStorage::ComponentNames>& DebugStorage::GetNames() const
 void DebugStorage::SaveData(const ::amrex::MultiFab& mf,
                             const std::string& name,
                             ::amrex::SrcComp component) {
-  Hierarchy single_level_hierarchy{};
-  ::amrex::BoxArray ba = mf.boxArray();
-  ::amrex::DistributionMapping dm = mf.DistributionMap();
-  ::amrex::MultiFab& dest = single_level_hierarchy.emplace_back(ba, dm, 1, 0);
-  ::amrex::MultiFab::Copy(dest, mf, component.i, 0, 1, 0);
-  saved_hierarchies_.push_back(std::move(single_level_hierarchy));
-  names_per_hierarchy_.push_back(ComponentNames{name});
+  if (is_enabled_) {
+    Hierarchy single_level_hierarchy{};
+    ::amrex::BoxArray ba = mf.boxArray();
+    ::amrex::DistributionMapping dm = mf.DistributionMap();
+    ::amrex::MultiFab& dest = single_level_hierarchy.emplace_back(ba, dm, 1, 0);
+    ::amrex::MultiFab::Copy(dest, mf, component.i, 0, 1, 0);
+    saved_hierarchies_.push_back(std::move(single_level_hierarchy));
+    names_per_hierarchy_.push_back(ComponentNames{name});
+  }
 }
 
-void DebugStorage::UnifyComponentNames() {
+void DebugStorage::SaveData(const std::vector<::amrex::MultiFab>& hierarchy,
+                            const ComponentNames& names,
+                            ::amrex::SrcComp first_component) {
+  if (is_enabled_) {
+    SaveData(GetConstPointersFromVector(hierarchy), names, first_component);
+  }
+}
+
+void DebugStorage::SaveData(
+    const std::vector<const ::amrex::MultiFab*>& hierarchy,
+    const ComponentNames& names, ::amrex::SrcComp first_component) {
+  if (is_enabled_) {
+    std::size_t nlevels = hierarchy.size();
+    Hierarchy& multi_level_hierarchy = saved_hierarchies_.emplace_back();
+    multi_level_hierarchy.reserve(nlevels);
+    for (const ::amrex::MultiFab* mf_pointer : hierarchy) {
+      FUB_ASSERT(mf_pointer != nullptr);
+      const ::amrex::MultiFab& mf = *mf_pointer;
+      ::amrex::BoxArray ba = mf.boxArray();
+      ::amrex::DistributionMapping dm = mf.DistributionMap();
+      ::amrex::MultiFab& dest =
+          multi_level_hierarchy.emplace_back(ba, dm, names.size(), 0);
+      ::amrex::MultiFab::Copy(dest, mf, first_component.i, 0, names.size(), 0);
+    }
+    names_per_hierarchy_.push_back(names);
+  }
+}
+
+void DebugStorage::MakeUniqueComponentNames() {
   using namespace std::literals;
 
   std::size_t h = 0;
   for (DebugStorage::ComponentNames& names : names_per_hierarchy_) {
-//   for (auto p=names_per_hierarchy_.begin(); p!=names_per_hierarchy_.end(); ++p) {
-//     DebugStorage::ComponentNames& names = *p;
 
     auto last = names.end();
     for (std::size_t k = 0; k < names.size(); ++k) {
@@ -195,7 +224,7 @@ void DebugStorage::UnifyComponentNames() {
       // search for candidate in other hierarchies
       auto nexthier = names_per_hierarchy_.begin() + h + 1;
       auto lasthier = names_per_hierarchy_.end();
-      for (auto p=nexthier; p!=lasthier; ++p) {
+      for (auto p = nexthier; p != lasthier; ++p) {
         DebugStorage::ComponentNames& hnames = *p;
         auto first = hnames.begin();
         auto last = hnames.end();
@@ -215,13 +244,6 @@ void DebugStorage::UnifyComponentNames() {
     }
     ++h;
   }
-  ::amrex::Print() << "Hierarchy names: \n";
-  for (const DebugStorage::ComponentNames& names : names_per_hierarchy_) {
-    for (std::size_t k = 0; k < names.size(); ++k) {
-      ::amrex::Print() << "    " << names[k] << "\n";
-    }
-  }
-
 }
 
 std::vector<std::pair<DebugStorage::Hierarchy, DebugStorage::ComponentNames>>
@@ -234,7 +256,8 @@ DebugStorage::GatherFields(::amrex::IndexType location) const {
   std::vector<const DebugStorage::Hierarchy*> filtered_hierarchies =
       GatherHierarchies_(saved_hierarchies_, location);
   std::vector<std::vector<int>> partitions = Partitions_(box_arrays);
-  std::vector<std::pair<DebugStorage::Hierarchy, DebugStorage::ComponentNames>> hiers_names{};
+  std::vector<std::pair<DebugStorage::Hierarchy, DebugStorage::ComponentNames>>
+      hiers_with_names{};
   for (const std::vector<int>& partition : partitions) {
     std::vector<ComponentNames> all_components =
         GatherNames_(names_per_hierarchy_, saved_hierarchies_, location);
@@ -256,9 +279,9 @@ DebugStorage::GatherFields(::amrex::IndexType location) const {
       }
       FUB_ASSERT(comp == n_components);
     }
-    hiers_names.emplace_back(std::move(hierarchy), std::move(components));
+    hiers_with_names.emplace_back(std::move(hierarchy), std::move(components));
   }
-  return hiers_names;
+  return hiers_with_names;
 }
 
 void DebugStorage::ClearAll() {
@@ -266,20 +289,61 @@ void DebugStorage::ClearAll() {
   saved_hierarchies_.clear();
 }
 
-DebugOutput::DebugOutput(const ProgramOptions& opts)
+DebugOutput::DebugOutput(const ProgramOptions& opts,
+                         const std::shared_ptr<DebugStorage>& storage)
     : OutputAtFrequencyOrInterval(opts) {
+  OutputAtFrequencyOrInterval::frequencies_ = std::vector<std::ptrdiff_t>{1LL};
   directory_ = GetOptionOr(opts, "directory", directory_);
+  storage->Enable();
 }
 
 void DebugOutput::operator()(const GriddingAlgorithm& grid) {
+  using namespace std::literals;
   DebugStorage& storage = *grid.GetPatchHierarchy().GetDebugStorage();
-  storage.UnifyComponentNames();
+  storage.MakeUniqueComponentNames();
+
+  // average node/face data to cell data
+  const std::vector<DebugStorage::Hierarchy>& all_hierarchies =
+      storage.GetHierarchies();
+  const std::vector<DebugStorage::ComponentNames>& all_names =
+      storage.GetNames();
+
+  auto hier_fields = all_names.begin();
+
+  for (const DebugStorage::Hierarchy& hierarchy : all_hierarchies) {
+    if (hierarchy[0].ixType() != ::amrex::IndexType::TheCellType()) {
+      const int nlevels = hierarchy.size();
+      DebugStorage::Hierarchy cell_average_hierarchy{};
+      cell_average_hierarchy.resize(nlevels);
+      for (int level = 0; level < nlevels; ++level) {
+        ::amrex::BoxArray ba = hierarchy[level].boxArray();
+        ba.enclosedCells();
+        ::amrex::DistributionMapping dm = hierarchy[level].DistributionMap();
+        cell_average_hierarchy[level].define(ba, dm, hierarchy[level].nComp(),
+                                             0);
+        if (hierarchy[level].ixType() == ::amrex::IndexType::TheNodeType()) {
+          ::amrex::average_node_to_cellcenter(cell_average_hierarchy[level], 0,
+                                              hierarchy[level], 0,
+                                              hierarchy[level].nComp(), 0);
+        } else {
+          cell_average_hierarchy[level].setVal(0.0);
+        }
+      }
+      std::vector<std::string> vnames(*hier_fields);
+      for (std::string& vname : vnames) {
+        vname += "_nd2cellavg"s;
+      }
+      storage.SaveData(cell_average_hierarchy, vnames);
+    }
+    ++hier_fields;
+  }
 
   std::vector<std::pair<DebugStorage::Hierarchy, DebugStorage::ComponentNames>>
-      hiers_names = storage.GatherFields(::amrex::IndexType::TheCellType());
+      hiers_with_names =
+          storage.GatherFields(::amrex::IndexType::TheCellType());
 
   int partition_counter = 0;
-  for (auto&& [hierarchy, names] : hiers_names) {
+  for (auto&& [hierarchy, names] : hiers_with_names) {
     const std::string plotfilename =
         fmt::format("{}/partition_{}_plt{:09}", directory_, partition_counter,
                     grid.GetPatchHierarchy().GetCycles());
@@ -303,10 +367,7 @@ void DebugOutput::operator()(const GriddingAlgorithm& grid) {
     partition_counter += 1;
   }
 
-  const std::vector<DebugStorage::Hierarchy>& all_hierarchies = storage.GetHierarchies();
-  const std::vector<DebugStorage::ComponentNames>& all_names = storage.GetNames();
-
-  auto hier_fields = all_names.begin();
+  hier_fields = all_names.begin();
   const std::string level_prefix = "Level_";
   partition_counter = 0;
   ::amrex::VisMF::SetHeaderVersion(::amrex::VisMF::Header::Version_v1);
