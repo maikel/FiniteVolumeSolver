@@ -106,8 +106,6 @@ void PressureOutflowBoundary::FillBoundary(::amrex::MultiFab& mf,
             auto velocity = equation_.Velocity(state);
             const double velocity_norm2 = velocity.matrix().squaredNorm();
             if (velocity_norm2 <= c2) {
-              Store(states, state, dest);
-            } else {
               const double rho_new = kappa * pb / c2;
               state = equation_.CompleteFromPrim(rho_new, velocity, pb);
             }
