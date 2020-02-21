@@ -168,6 +168,16 @@ MakePatchDataView(const ::amrex::BaseFab<T>& fab, int component,
       .Subview(AsIndexBox<AMREX_SPACEDIM>(box));
 }
 
+template <typename T>
+PatchDataView<T, AMREX_SPACEDIM, layout_stride>
+MakePatchDataView(::amrex::BaseFab<T>& fab, int component,
+                  const ::amrex::Box& box) {
+  mdspan<T, AMREX_SPACEDIM> mdspan = MakeMdSpan(fab, component);
+  Index<AMREX_SPACEDIM> lower = AsArray(fab.box().smallEnd());
+  return PatchDataView<T, AMREX_SPACEDIM>(mdspan, lower)
+      .Subview(AsIndexBox<AMREX_SPACEDIM>(box));
+}
+
 template <typename State> struct MakeViewImpl {
   using Equation = typename State::Equation;
   using Depths = typename State::Depths;
