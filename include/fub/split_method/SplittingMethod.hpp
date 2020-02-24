@@ -75,6 +75,7 @@ struct AnySplitMethod : public SplittingMethod {
     split_method_ = [split](Duration dt, AdvanceFunction f1, AdvanceFunction f2) {
       return split.Advance(dt, std::move(f1), std::move(f2));
     };
+    return *this;
   }
 
   template <typename SplitMethod,

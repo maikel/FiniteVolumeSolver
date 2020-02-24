@@ -203,10 +203,8 @@ void AverageCellToFace_(MultiFab& mf_faces, int face_component,
     FUB_ASSERT(dir == Direction::X || dir == Direction::Y);
     if (dir == Direction::X) {
       ForEachFab(mf_cells, [&](const MFIter& mfi) {
-        auto cells =
-            SliceLast(MakePatchDataView(mf_cells[mfi]), cell_component);
-        auto all_faces =
-            SliceLast(MakePatchDataView(mf_faces[mfi]), face_component);
+        auto cells = MakePatchDataView(mf_cells[mfi], cell_component);
+        auto all_faces = MakePatchDataView(mf_faces[mfi], face_component);
         // We are cautious and only compute the average for faces which exist
         // and are in range for the cells which exist on our grid
         auto cell_box_for_stencil =
@@ -225,10 +223,8 @@ void AverageCellToFace_(MultiFab& mf_faces, int face_component,
       });
     } else {
       ForEachFab(mf_cells, [&](const MFIter& mfi) {
-        auto cells =
-            SliceLast(MakePatchDataView(mf_cells[mfi]), cell_component);
-        auto all_faces =
-            SliceLast(MakePatchDataView(mf_faces[mfi]), face_component);
+        auto cells = MakePatchDataView(mf_cells[mfi], cell_component);
+        auto all_faces = MakePatchDataView(mf_faces[mfi], face_component);
         // We are cautious and only compute the average for faces which exist
         // and are in range for the cells which exist on our grid
         auto cell_box_for_stencil =
@@ -254,8 +250,8 @@ void AverageCellToNode_(MultiFab& mf_nodes, int node_component,
                         const MultiFab& mf_cells, int cell_component) {
   if constexpr (Rank == 2) {
     ForEachFab(mf_cells, [&](const MFIter& mfi) {
-      auto cells = SliceLast(MakePatchDataView(mf_cells[mfi]), cell_component);
-      auto nodes = SliceLast(MakePatchDataView(mf_nodes[mfi]), node_component);
+      auto cells = MakePatchDataView(mf_cells[mfi], cell_component);
+      auto nodes = MakePatchDataView(mf_nodes[mfi], node_component);
       // We are cautious and only compute the average for nodes which exist
       // and are in range for the cells which exist on our grid
       ForEachIndex(nodes.Box(), [&](int i, int j) {
