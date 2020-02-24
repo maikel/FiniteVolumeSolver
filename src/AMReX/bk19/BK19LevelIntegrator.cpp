@@ -334,12 +334,12 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   // Do an explicit update for the RHS terms with coriolis.
   // Assume that zeroth and first indices are x- and y- axes.
   for (std::size_t i = 0; i < index.momentum.size(); ++i) {
-    size_t j = i == 0 ? 1: 0;
-    double fac = i == 0 ? 1.0: -1.0;
+    size_t j = 1 - i;
+    const double fac = i == 0 ? 1.0: -1.0;
     const int current_component = static_cast<int>(i);
     const int other_component = static_cast<int>(j);
 
-    double a = fac * dt.count() * equation.f_swtch[j] * equation.f;
+    const double a = fac * dt.count() * equation.f_swtch[j] * equation.f;
 
     MultiFab::Saxpy(scratch, a, momenta, other_component, index.momentum[i], one_component, no_ghosts);
     scratch.mult(1.0 / (1.0 + std::pow(dt.count() * equation.f, 2)), index.momentum[i], one_component, no_ghosts);
@@ -443,19 +443,19 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   lin_op.getFluxes({&pi_cross}, {&pi});
 
   for (std::size_t i = 0; i < index.momentum.size(); ++i) {
-    size_t j = i == 0 ? 1 : 0;
-    double fac = i == 0 ? -1.0: 1.0;
+    size_t j = 1 - i;
+    const double fac = i == 0 ? -1.0: 1.0;
     const int UV_component = static_cast<int>(i);
     const int other_component = static_cast<int>(j);
 
-    double a = fac * dt.count() * equation.f_swtch[j] * equation.f;
+    const double a = fac * dt.count() * equation.f_swtch[j] * equation.f;
 
     MultiFab::Saxpy(UV_correction, a, pi_cross, other_component, UV_component, one_component, no_ghosts);
 
     MultiFab::Multiply(UV_correction, scratch, index.PTinverse, UV_component, one_component, no_ghosts);
 
     UV_correction.mult(-dt.count(), UV_component, one_component, no_ghosts);
-    
+
     // UV_correction is now a momentum correction. Thus add it.
     MultiFab::Add(scratch, UV_correction, UV_component, index.momentum[i], one_component, no_ghosts);
   }
@@ -509,7 +509,7 @@ void DoEulerForward_(const Equation& equation,
   MultiFab::Copy(momentum_cross, scratch, index.momentum[0], 0, index.momentum.size(), no_ghosts);
 
   for (std::size_t i = 0; i < index.momentum.size(); ++i) {
-    size_t j = i == 0 ? 1 : 0;
+    size_t j = 1 - i;
     double fac = i == 0 ? 1.0: -1.0;
     const int current_component = static_cast<int>(i);
     const int other_component = static_cast<int>(j);

@@ -130,8 +130,8 @@ struct TravellingVortexInitialData {
   const double u_ref{h_ref / t_ref};
   const double Msq{u_ref * u_ref / (R_gas * T_ref)};
   const double ratio{1.0};
-  const double f{1.0};
-  std::array<double, 2> f_swtch{0.0, 0.0};
+  const double f{2.0*M_PI};
+  std::array<double, 2> f_swtch{1.0, 1.0};
   std::array<double, 2> center{0.5, 0.5};
   std::array<double, 2> U0{0.0, 0.0};
 };
@@ -173,6 +173,7 @@ void MyMain(const fub::ProgramOptions& options) {
   equation.gamma   = inidat.gamma;
   equation.Msq     = inidat.Msq;
   equation.f       = inidat.f;
+  equation.f_swtch = inidat.f_swtch;
 
   fub::IndexMapping<fub::CompressibleAdvection<2>> index(equation);
 
