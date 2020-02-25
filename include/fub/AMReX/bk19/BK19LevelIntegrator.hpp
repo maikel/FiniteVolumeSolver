@@ -121,9 +121,6 @@ private:
 void WriteRawField(const std::string& path, const std::string& name,
                    const ::amrex::MultiFab& data, int level);
 
-void WriteAdvectiveFluxes(const std::string& path,
-                          const BK19AdvectiveFluxes& pv, int level);
-
 struct WriteBK19Plotfile {
   std::string plotfilename{};
 

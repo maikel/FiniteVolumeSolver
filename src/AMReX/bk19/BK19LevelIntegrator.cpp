@@ -28,60 +28,15 @@
 
 namespace fub::amrex {
 
-void WriteAdvectiveFluxes(const std::string& path,
-                          const BK19AdvectiveFluxes& pv, int level) {
-  {
-    const ::amrex::BoxArray& ba = pv.on_faces[0].boxArray();
-    const ::amrex::DistributionMapping& dm = pv.on_faces[0].DistributionMap();
-    ::amrex::MultiFab faces_x(ba, dm, 1, 0);
-    ::amrex::MultiFab::Copy(faces_x, pv.on_faces[0], 0, 0, 1, 0);
-    WriteRawField(path, "Pv_x", faces_x, level);
-  }
-  if (pv.on_faces.size() > 1) {
-    const ::amrex::BoxArray& ba = pv.on_faces[1].boxArray();
-    const ::amrex::DistributionMapping& dm = pv.on_faces[1].DistributionMap();
-    ::amrex::MultiFab faces_y(ba, dm, 1, 0);
-    ::amrex::MultiFab::Copy(faces_y, pv.on_faces[1], 0, 0, 1, 0);
-    WriteRawField(path, "Pv_y", faces_y, level);
-  }
-
-  if (pv.on_faces.size() > 2) {
-    const ::amrex::BoxArray& ba = pv.on_faces[2].boxArray();
-    const ::amrex::DistributionMapping& dm = pv.on_faces[2].DistributionMap();
-    ::amrex::MultiFab faces_z(ba, dm, 1, 0);
-    ::amrex::MultiFab::Copy(faces_z, pv.on_faces[2], 0, 0, 1, 0);
-    WriteRawField(path, "Pv_z", faces_z, level);
-  }
-}
-
-void WriteBK19Plotfile::operator()(const BK19IntegratorContext& context) const {
+std::vector<std::string> GetCompletevariableNames() {
   using Equation = CompressibleAdvection<2>;
   fub::CompressibleAdvection<2> equation{};
-  std::string name =
-      fmt::format("{}/plt{:09}", plotfilename, context.GetCycles());
-  const int nlevels = context.GetPatchHierarchy().GetNumberOfLevels();
-  const double time_point = context.GetTimePoint().count();
-  FUB_ASSERT(nlevels >= 0);
-  std::size_t size = static_cast<std::size_t>(nlevels);
-  ::amrex::Vector<const ::amrex::MultiFab*> mf(size);
-  ::amrex::Vector<const ::amrex::MultiFab*> mfnodes(size);
-  ::amrex::Vector<::amrex::Geometry> geoms(size);
-  ::amrex::Vector<int> level_steps(size);
-  ::amrex::Vector<::amrex::IntVect> ref_ratio(size);
-  for (std::size_t i = 0; i < size; ++i) {
-    mf[i] = &context.GetScratch(static_cast<int>(i));
-    mfnodes[i] = &context.GetPi(static_cast<int>(i));
-    geoms[i] = context.GetGeometry(static_cast<int>(i));
-    level_steps[i] = static_cast<int>(context.GetCycles(static_cast<int>(i)));
-    ref_ratio[i] =
-        context.GetPatchHierarchy().GetRatioToCoarserLevel(static_cast<int>(i));
-  }
   using Traits = StateTraits<Complete<Equation>>;
   constexpr auto names = Traits::names;
   const auto depths = Depths<Complete<Equation>>(equation);
   const std::size_t n_names =
       std::tuple_size<remove_cvref_t<decltype(names)>>::value;
-  ::amrex::Vector<std::string> varnames;
+  std::vector<std::string> varnames;
   varnames.reserve(n_names);
   boost::mp11::tuple_for_each(Zip(names, StateToTuple(depths)), [&](auto xs) {
     const int ncomp = std::get<1>(xs);
@@ -93,27 +48,10 @@ void WriteBK19Plotfile::operator()(const BK19IntegratorContext& context) const {
       }
     }
   });
-
-  ::amrex::WriteMultiLevelPlotfile(
-      name, nlevels, mf, varnames, geoms, time_point, level_steps, ref_ratio,
-      "HyperCLaw-V1.1", "Level_", "Cell", {"raw_fields"});
-
-  ::amrex::WriteSingleLevelPlotfile(
-      fmt::format("{}/Pv_plt{:09}", plotfilename, context.GetCycles()),
-      context.GetAdvectiveFluxes(0).on_cells, {"Pv_0", "Pv_1"},
-      context.GetGeometry(0), context.GetTimePoint(0).count(),
-      context.GetCycles(0));
-  //  WriteRawField(path, "Pv", cells, level);
-
-  for (int lev = 0; lev < nlevels; ++lev) {
-    WriteRawField(name, "pi", context.GetPi(lev), lev);
-    WriteAdvectiveFluxes(name, context.GetAdvectiveFluxes(lev), lev);
-  }
+  return varnames;
 }
 
 void WriteBK19Plotfile::operator()(const GriddingAlgorithm& grid) const {
-  using Equation = CompressibleAdvection<2>;
-  fub::CompressibleAdvection<2> equation{};
   const fub::amrex::PatchHierarchy& hier = grid.GetPatchHierarchy();
   std::string name = fmt::format("{}/plt{:09}", plotfilename, grid.GetCycles());
   const int nlevels = hier.GetNumberOfLevels();
@@ -131,26 +69,12 @@ void WriteBK19Plotfile::operator()(const GriddingAlgorithm& grid) const {
     level_steps[i] = static_cast<int>(hier.GetCycles(static_cast<int>(i)));
     ref_ratio[i] = hier.GetRatioToCoarserLevel(static_cast<int>(i));
   }
-  using Traits = StateTraits<Complete<Equation>>;
-  constexpr auto names = Traits::names;
-  const auto depths = Depths<Complete<Equation>>(equation);
-  const std::size_t n_names =
-      std::tuple_size<remove_cvref_t<decltype(names)>>::value;
-  ::amrex::Vector<std::string> varnames;
-  varnames.reserve(n_names);
-  boost::mp11::tuple_for_each(Zip(names, StateToTuple(depths)), [&](auto xs) {
-    const int ncomp = std::get<1>(xs);
-    if (ncomp == 1) {
-      varnames.push_back(std::get<0>(xs));
-    } else {
-      for (int i = 0; i < ncomp; ++i) {
-        varnames.push_back(fmt::format("{}_{}", std::get<0>(xs), i));
-      }
-    }
-  });
+
+  std::vector<std::string> varnames = GetCompletevariableNames();
+  ::amrex::Vector<std::string> vnames(varnames.begin(), varnames.end());
 
   ::amrex::Vector<std::string> rfs{"raw_fields"};
-  ::amrex::WriteMultiLevelPlotfile(name, nlevels, mf, varnames, geoms,
+  ::amrex::WriteMultiLevelPlotfile(name, nlevels, mf, vnames, geoms,
                                    time_point, level_steps, ref_ratio,
                                    "HyperCLaw-V1.1", "Level_", "Cell", rfs);
 
@@ -360,7 +284,6 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   MultiFab UV(on_cells, distribution_map, index.momentum.size(),
               one_ghost_cell_width);
   ComputePvFromScratch_(index, UV, scratch, periodicity);
-  debug.SaveData(UV, "Pv_backward");
 
   MultiFab rhs(on_nodes, distribution_map, one_component, no_ghosts);
   rhs.setVal(0.0);
@@ -392,7 +315,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
                      sigma.nGrow());
   MultiFab::Divide(sigma, scratch, index.PTinverse, 0, one_component,
                    sigma.nGrow());
-  debug.SaveData(sigma, "sigma_backward");
+  debug.SaveData(sigma, "sigma");
 
   // set weights in linear operator
   lin_op.setSigma(level, sigma);
@@ -426,7 +349,6 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   UV_correction.setVal(0.0);
   // this computes: -sigma Grad(pi)
   lin_op.getFluxes({&UV_correction}, {&pi});
-  debug.SaveData(UV_correction, "pi_fluxes");
 
   for (std::size_t i = 0; i < index.momentum.size(); ++i) {
     const int UV_component = static_cast<int>(i);
@@ -436,8 +358,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
     MultiFab::Add(scratch, UV_correction, UV_component, index.momentum[i],
                   one_component, no_ghosts);
   }
-  debug.SaveData(UV_correction, "momentum0_correction_backward", ::amrex::SrcComp(0));
-  debug.SaveData(UV_correction, "momentum1_correction_backward", ::amrex::SrcComp(1));
+  debug.SaveData(UV_correction, std::vector<std::string>{"Momentum_corr0", "Momentum_corr1"});
 
   RecoverVelocityFromMomentum_(scratch, index);
 
@@ -470,7 +391,7 @@ void DoEulerForward_(const Equation& equation,
 
   // we only need to set sigma in the linear operator, since we only need it
   // for the flux correction
-  debug.SaveData(sigma, "sigma_forward");
+  debug.SaveData(sigma, "sigma");
   lin_op.setSigma(level, sigma);
 
   // To compute the fluxes from the old pi we need one ghost cell width
@@ -478,19 +399,15 @@ void DoEulerForward_(const Equation& equation,
   // boundary
   // TODO: What happens to pi otherwise?
   MultiFab& pi = context.GetPi(level);
-  debug.SaveData(pi, "pi_forward");
   MultiFab momentum_correction(on_cells, distribution_map,
                                index.momentum.size(), no_ghosts);
   momentum_correction.setVal(0.0);
   // this computes: -sigma Grad(pi)
   lin_op.getFluxes({&momentum_correction}, {&pi});
-  debug.SaveData(momentum_correction, "pi_fluxes0_forward", ::amrex::SrcComp(0));
-  debug.SaveData(momentum_correction, "pi_fluxes1_forward", ::amrex::SrcComp(1));
 
   MultiFab::Add(scratch, momentum_correction, 0, index.momentum[0],
                 index.momentum.size(), no_ghosts);
-  debug.SaveData(momentum_correction, "momentum0_correction_forward", ::amrex::SrcComp(0));
-  debug.SaveData(momentum_correction, "momentum1_correction_forward", ::amrex::SrcComp(1));
+  debug.SaveData(momentum_correction, std::vector<std::string>{"Momentum_corr0", "Momentum_corr1"});
 
   RecoverVelocityFromMomentum_(scratch, index);
 
@@ -559,9 +476,13 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   AdvectionSolver& advection = GetAdvection();
   BK19IntegratorContext& context = advection.GetContext();
   MultiFab& scratch = context.GetScratch(level);
+  MultiFab& pi = context.GetPi(level);
   const ::amrex::Geometry& geom = context.GetGeometry(level);
   const ::amrex::Periodicity periodicity = geom.periodicity();
   DebugStorage& debug = *context.GetPatchHierarchy().GetDebugStorage();
+  debug.SaveData(scratch, GetCompletevariableNames());
+  debug.SaveData(pi, "pi");
+  debug.FlushData("BK19_pre-step");
 
   // Save data on current time level for later use
   MultiFab scratch_aux(scratch.boxArray(), scratch.DistributionMap(),
@@ -575,6 +496,9 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   //    Current Pv is given by: Pv = PTdensity * velocity
   RecomputeAdvectiveFluxes(index_, Pv.on_faces, Pv.on_cells, scratch,
                            periodicity);
+  debug.SaveData(scratch, GetCompletevariableNames());
+  debug.SaveData(pi, "pi");
+  debug.FlushData("BK19_advective_fluxes");
 
   // 2) Do the advection with the face-centered Pv
   //    Open Question: Coarse Fine Boundary?
@@ -585,30 +509,24 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
     return result;
   }
 
+  debug.SaveData(scratch, GetCompletevariableNames());
+  debug.SaveData(pi, "pi");
+  debug.FlushData("BK19_advect");
+
   // 3) Do the first euler backward integration step for the source term
   context.FillGhostLayerSingleLevel(level);
-  MultiFab pi_tmp = DoEulerBackward_(equation_, index_, *lin_op_, options_,
-                                     context, level, half_dt);
-
-  // Copy pi to context for visualization
-  ::amrex::BoxArray on_cells = scratch.boxArray();
-  ::amrex::BoxArray on_nodes = on_cells;
-  on_nodes.surroundingNodes();
-  const MultiFab& pi_old = context.GetPi(level);
-  MultiFab pi(on_nodes, scratch.DistributionMap(), one_component,
-              one_ghost_cell_width);
-  pi.ParallelCopy(pi_old, context.GetGeometry(level).periodicity());
-  context.GetPi(level).copy(pi_tmp);
+  DoEulerBackward_(equation_, index_, *lin_op_, options_,
+                   context, level, half_dt);
 
   // 4) Recompute Pv at half time
   RecomputeAdvectiveFluxes(index_, Pv.on_faces, Pv.on_cells, scratch,
                            periodicity);
-  debug.SaveData(Pv.on_cells, "Pu_half_time", ::amrex::SrcComp(0));
-  debug.SaveData(Pv.on_cells, "Pv_half_time", ::amrex::SrcComp(1));
-  debug.SaveData(Pv.on_faces[0], "Pu_faces_half_time", ::amrex::SrcComp(0));
-  debug.SaveData(Pv.on_faces[1], "Pv_faces_half_time", ::amrex::SrcComp(0));
 
-  context.GetPi(level).copy(pi);
+  debug.SaveData(Pv.on_cells, std::vector<std::string>{"Pu", "Pv"});
+  debug.SaveData(Pv.on_faces[0], "Pu_faces", ::amrex::SrcComp(0));
+  debug.SaveData(Pv.on_faces[1], "Pv_faces", ::amrex::SrcComp(0));
+  debug.SaveData(scratch, GetCompletevariableNames());
+  debug.FlushData("BK19_advect-backward");
 
   // Copy data from old time level back to scratch
   scratch.copy(scratch_aux);
@@ -617,6 +535,10 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   // 5) Explicit Euler with old scratch data
   //   - We need a current pi_n here. What is the initial one?
   DoEulerForward_(equation_, index_, *lin_op_, context, level, half_dt);
+
+  debug.SaveData(scratch, GetCompletevariableNames());
+  debug.SaveData(pi, "pi");
+  debug.FlushData("BK19_advect-backward-forward");
 
   // 6) Do the second advection step with half-time Pv and full time step
   //   - Currently, scratch contains the result of euler forward step,
@@ -627,12 +549,19 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
     return result;
   }
 
+  debug.SaveData(scratch, GetCompletevariableNames());
+  debug.SaveData(pi, "pi");
+  debug.FlushData("BK19_advect-backward-forward-advect");
+
   // 6) Do the second euler backward integration step for the source term
   MultiFab pi_new = DoEulerBackward_(equation_, index_, *lin_op_, options_,
                                      context, level, half_dt);
 
   // Copy pi_n+1 to pi_n
   context.GetPi(level).copy(pi_new);
+
+  debug.SaveData(scratch, GetCompletevariableNames());
+  debug.FlushData("BK19_advect-backward-forward-advect-backward");
 
   return boost::outcome_v2::success();
 }
