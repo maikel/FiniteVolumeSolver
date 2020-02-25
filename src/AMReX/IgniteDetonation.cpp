@@ -30,19 +30,15 @@
 namespace fub::amrex {
 
 IgniteDetonationOptions::IgniteDetonationOptions(
-    const std::map<std::string, pybind11::object>& vm, const std::string& p)
+    const std::map<std::string, pybind11::object>& opts, const std::string& p)
     : prefix{p} {
-  if (vm.count(p)) {
-    std::map<std::string, pybind11::object> opts =
-        ToMap(pybind11::dict(vm.at(p)));
-    measurement_position =
-        GetOptionOr(opts, "measurement_position", measurement_position);
-    equivalence_ratio_criterium = GetOptionOr(
-        opts, "equivalence_ratio_criterium", equivalence_ratio_criterium);
-    ignite_position = GetOptionOr(opts, "position", ignite_position);
-    ignite_interval =
-        Duration(GetOptionOr(opts, "interval", ignite_interval.count()));
-  }
+  measurement_position =
+      GetOptionOr(opts, "measurement_position", measurement_position);
+  equivalence_ratio_criterium = GetOptionOr(
+      opts, "equivalence_ratio_criterium", equivalence_ratio_criterium);
+  ignite_position = GetOptionOr(opts, "position", ignite_position);
+  ignite_interval =
+      Duration(GetOptionOr(opts, "interval", ignite_interval.count()));
 }
 
 IgniteDetonation::IgniteDetonation(
