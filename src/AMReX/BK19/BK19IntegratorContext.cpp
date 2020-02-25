@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
+#include "fub/AMReX/BK19/BK19IntegratorContext.hpp"
 
 namespace fub::amrex {
 

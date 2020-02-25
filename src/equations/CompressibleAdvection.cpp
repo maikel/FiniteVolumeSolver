@@ -20,7 +20,7 @@
 
 #include "fub/equations/CompressibleAdvection.hpp"
 #include "fub/AMReX/ForEachFab.hpp"
-#include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
+#include "fub/AMReX/BK19/BK19IntegratorContext.hpp"
 
 namespace fub {
 namespace {

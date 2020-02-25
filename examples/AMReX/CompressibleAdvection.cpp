@@ -21,7 +21,7 @@
 #include "fub/AMReX.hpp"
 #include "fub/Solver.hpp"
 
-#include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
+#include "fub/AMReX/BK19/BK19IntegratorContext.hpp"
 #include "fub/equations/CompressibleAdvection.hpp"
 
 struct InitialData {

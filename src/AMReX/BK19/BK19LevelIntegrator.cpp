@@ -19,9 +19,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/AMReX/bk19/BK19LevelIntegrator.hpp"
+#include "fub/AMReX/BK19/BK19LevelIntegrator.hpp"
 #include "fub/AMReX/ForEachFab.hpp"
-#include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
+#include "fub/AMReX/BK19/BK19IntegratorContext.hpp"
 #include "fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp"
 #include "fub/AMReX/output/DebugOutput.hpp"
 #include <AMReX_MLMG.H>
