@@ -326,7 +326,8 @@ void PressureValveBoundary::FillBoundary(::amrex::MultiFab& mf,
             reactor.SetDensity(new_density);
             reactor.SetMoleFractions(new_moles);
             reactor.SetTemperature(state.temperature);
-            equation_.CompleteFromReactor(state);
+            Array<double, 1, 1> velocity = equation_.Velocity(state);
+            equation_.CompleteFromReactor(state, velocity);
             Store(states, state, dest);
           });
         }

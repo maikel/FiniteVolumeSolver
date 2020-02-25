@@ -2,7 +2,7 @@ import math
 
 RunOptions = {
   'cfl': 0.5,
-  'final_time': 0.5,
+  'final_time': 0.04,
 }
 
 #CartesianGridGeometry = {
@@ -54,7 +54,7 @@ PressureValveBoundary = {
       'upper': [1, 0, 0] 
     },
     'side': 0,
-    'direction': 1,
+    'direction': 0,
     'required_massflow': 120.0 / 3600.0,
     'surface_area': 2.0 * math.pi * 0.015 * 0.015
   }
