@@ -63,7 +63,7 @@ void MyMain(const fub::ProgramOptions& opts) {
 
   BoundarySet boundary;
 
-  PressureValveOptions valve_options = fub::GetOptions(opts, "PressureValve");
+  PressureValveOptions valve_options = fub::GetOptions(opts, "PressureValveBoundary");
   BOOST_LOG(info) << "PressureValveBoundary:";
   valve_options.Print(info);
 

@@ -27,6 +27,8 @@
 
 #include "fub/AMReX/AverageState.hpp"
 
+#include "fub/ext/Log.hpp"
+
 namespace fub::amrex {
 
 MassflowBoundaryOptions::MassflowBoundaryOptions(
@@ -38,6 +40,17 @@ MassflowBoundaryOptions::MassflowBoundaryOptions(
   surface_area = GetOptionOr(options, "surface_area", surface_area);
   dir = GetOptionOr(options, "direction", dir);
   side = GetOptionOr(options, "side", side);
+}
+
+void MassflowBoundaryOptions::Print(SeverityLogger& log) const {
+  BOOST_LOG(log) << fmt::format(" - required_massflow = {} [kg/s]", required_massflow);
+  BOOST_LOG(log) << fmt::format(" - surface_area = {} [m2]", surface_area);
+  BOOST_LOG(log) << fmt::format(" - direction = {} [-]", static_cast<int>(dir));
+  BOOST_LOG(log) << fmt::format(" - side = {} [-]", side);
+  std::array<int, AMREX_SPACEDIM> lower, upper;
+  std::copy_n(coarse_inner_box.smallEnd().getVect(), AMREX_SPACEDIM, lower.data());
+  std::copy_n(coarse_inner_box.bigEnd().getVect(), AMREX_SPACEDIM, upper.data());
+  BOOST_LOG(log) << fmt::format(" - coarse_inner_box = {{{{{}}}, {{{}}}}} [-]", lower, upper);
 }
 
 template <int Rank>

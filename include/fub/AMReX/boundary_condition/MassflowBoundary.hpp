@@ -36,6 +36,8 @@ struct MassflowBoundaryOptions {
   MassflowBoundaryOptions() = default;
   MassflowBoundaryOptions(const ProgramOptions& options);
 
+  void Print(SeverityLogger& log) const;
+
   std::string channel_name{"MassflowBoundary"};
   ::amrex::Box coarse_inner_box{};
   double required_massflow = 0.0;

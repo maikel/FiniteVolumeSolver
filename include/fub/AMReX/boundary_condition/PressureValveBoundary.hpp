@@ -66,7 +66,7 @@ struct PressureValveOptions {
     BOOST_LOG(log) << fmt::format(" - open_at_interval = {} [s]",
                                   open_at_interval.count());
     BOOST_LOG(log) << fmt::format(" - offset = {} [s]", offset.count());
-    BOOST_LOG(log) << fmt::format(" --- Massflow part:")
+    BOOST_LOG(log) << fmt::format(" --- Massflow part:");
     massflow_boundary.Print(log);
   }
 
