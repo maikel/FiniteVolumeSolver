@@ -362,6 +362,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     include/fub/AMReX/boundary_condition/ReflectiveBoundary.hpp
     include/fub/AMReX/boundary_condition/IsentropicPressureBoundary.hpp
     include/fub/AMReX/boundary_condition/PressureValveBoundary.hpp
+    include/fub/AMReX/boundary_condition/MassflowBoundary.hpp
     include/fub/AMReX/initial_data/ConstantData.hpp
     include/fub/AMReX/AxialSourceTerm.hpp
     include/fub/AMReX/GriddingAlgorithm.hpp
@@ -394,6 +395,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     src/AMReX/boundary_condition/TransmissiveBoundary.cpp
     src/AMReX/boundary_condition/IsentropicPressureBoundary.cpp
     src/AMReX/boundary_condition/PressureValveBoundary.cpp
+    src/AMReX/boundary_condition/MassflowBoundary.cpp
     src/AMReX/AxialSourceTerm.cpp
     src/AMReX/IgniteDetonation.cpp
     src/AMReX/FluxMethod.cpp
@@ -437,10 +439,10 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
 
   if (AMReX_2D_FOUND) 
     target_sources(FiniteVolumeSolver.AMReX PRIVATE
-      include/fub/AMReX/bk19/BK19LevelIntegrator.hpp
-      include/fub/AMReX/bk19/BK19IntegratorContext.hpp
-      src/AMReX/bk19/BK19LevelIntegrator.cpp
-      src/AMReX/bk19/BK19IntegratorContext.cpp)
+      include/fub/AMReX/BK19/BK19LevelIntegrator.hpp
+      include/fub/AMReX/BK19/BK19IntegratorContext.hpp
+      src/AMReX/BK19/BK19LevelIntegrator.cpp
+      src/AMReX/BK19/BK19IntegratorContext.cpp)
   endif()
 
   if (AMReX_EB_FOUND)

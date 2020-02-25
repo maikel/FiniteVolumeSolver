@@ -58,6 +58,7 @@ PressureValveOptions::PressureValveOptions(const ProgramOptions& opts) {
                                            fuel_measurement_criterium);
   fuel_measurement_position =
       GetOptionOr(opts, "fuel_measurement_position", fuel_measurement_position);
+  massflow_boundary = GetOptions(opts, "massflow_boundary");
 }
 
 PressureValveBoundary::PressureValveBoundary(
@@ -268,13 +269,12 @@ void PressureValveBoundary::FillBoundary(::amrex::MultiFab& mf,
 
 void PressureValveBoundary::FillBoundary(::amrex::MultiFab& mf,
                                          const ::amrex::Geometry& geom,
-                                         Duration /* dt */,
+                                         Duration dt,
                                          const GriddingAlgorithm& grid) {
   const int ngrow = mf.nGrow(0);
   ::amrex::Box grown_box = geom.growNonPeriodicDomain(ngrow);
   ::amrex::BoxList boundaries =
       ::amrex::complementIn(grown_box, ::amrex::BoxList{geom.Domain()});
-  Complete<IdealGasMix<1>> state{equation_};
   if (boundaries.isEmpty()) {
     return;
   }
@@ -285,12 +285,18 @@ void PressureValveBoundary::FillBoundary(::amrex::MultiFab& mf,
                    shared_valve_->last_fuel, options_, equation_);
 
   ReflectiveBoundary closed(execution::openmp, equation_, Direction::X, 0);
+  MassflowBoundary inflow_boundary(equation_, options_.massflow_boundary);
   switch (shared_valve_->state) {
   case PressureValveState::closed:
     closed.FillBoundary(mf, geom);
     break;
   case PressureValveState::open_air:
   case PressureValveState::open_fuel:
+    inflow_boundary.FillBoundary(mf, geom, dt, grid);
+  }
+  if (shared_valve_->state == PressureValveState::open_fuel) {
+    const double volume = AMREX_D_TERM(geom.CellSize(0), * geom.CellSize(1), * geom.CellSize(2));
+    Complete<IdealGasMix<1>> state{equation_};
     ForEachFab(execution::seq, mf, [&](const ::amrex::MFIter& mfi) {
       ::amrex::FArrayBox& fab = mf[mfi];
       for (const ::amrex::Box& boundary : boundaries) {
@@ -305,14 +311,22 @@ void PressureValveBoundary::FillBoundary(::amrex::MultiFab& mf,
           ForEachIndex(box_to_fill, [this, mean_pressure, &state,
                                      &states](std::ptrdiff_t i, auto...) {
             std::array<std::ptrdiff_t, 1> dest{i};
-            equation_.GetReactor().SetMoleFractions(
-                GetMolesString_(options_, shared_valve_->state));
-            equation_.GetReactor().SetTemperature(options_.outer_temperature);
-            equation_.GetReactor().SetPressure(options_.outer_pressure);
+            Load(state, states, dest);
+            FUB_ASSERT(state.density > 0.0);
+            FUB_ASSERT(state.pressure > 0.0);
+            FUB_ASSERT(state.temperature > 0.0);
+            equation_.SetReactorStateFromComplete(state);
+            FlameMasterReactor& reactor = equation_.GetReactor();
+            span<const double> mass_over_mole = reactor.GetMolarMasses(); // kg / kmol
+            span<const double> old_moles = reactor.GetMoleFractions();
+            std::vector<double> new_moles(old_moles.begin(), old_moles.end());
+            new_moles[Burke2012::sH2] = 2.0 * options_.equivalence_ratio * new_moles[Burke2012::sO2];
+            const double difference_h2_moles = new_moles[Burke2012::sH2] - old_moles[Burke2012::sH2];
+            const double new_density = state.density + difference_h2_moles * mass_over_mole[Burke2012::sH2];
+            reactor.SetDensity(new_density);
+            reactor.SetMoleFractions(new_moles);
+            reactor.SetTemperature(state.temperature);
             equation_.CompleteFromReactor(state);
-            IsentropicExpansionWithoutDissipation_(equation_, state, state,
-                                                   mean_pressure,
-                                                   options_.valve_efficiency);
             Store(states, state, dest);
           });
         }

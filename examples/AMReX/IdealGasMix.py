@@ -1,10 +1,10 @@
 RunOptions = {
   'cfl': 0.5,
-  'final_time': 0.001,
+  'final_time': 0.5,
 }
 
 CartesianGridGeometry = {
-  'cell_dimensions': [15000, 1],
+  'cell_dimensions': [800, 1],
   'coordinates': {
     'lower': [-1.50, -0.015],
     'upper': [-0.00, +0.015],
@@ -12,22 +12,47 @@ CartesianGridGeometry = {
   'periodicity': [0, 0]
 }
 
+#CartesianGridGeometry = {
+#  'cell_dimensions': [800, 1, 1],
+#  'coordinates': {
+#    'lower': [-1.50, -0.015, -0.015],
+#    'upper': [-0.00, +0.015, +0.015],
+#  },
+#  'periodicity': [0, 0, 0]
+#}
+
 PatchHierarchy = {
   'max_number_of_levels': 1, 
   'refine_ratio': [2, 1],
   'blocking_factor': [8, 1],
   'max_grid_size': [120, 1],
-  'periodicity': [0, 0]
 }
 
-TemperatureRamp = {
-  'left': {
-    'pressure': 1.0 * 101325.0
-  }, 'right': {
-    'pressure': 1.0 * 101325.0
-  },
-  'fill_fraction': -0.3,
-  'ramp_width': 0.01
+#PatchHierarchy = {
+#  'max_number_of_levels': 1, 
+#  'refine_ratio': [2, 1, 1],
+#  'blocking_factor': [8, 1, 1],
+#  'max_grid_size': [120, 1, 1],
+#}
+
+PressureValveBoundary = {
+  'efficiency': 1.0,
+  'open_at_interval': 0.04,
+  'offset': 0,
+  'fuel_measurement_position': -0.1,
+  'fuel_measurement_criterium': 0.9,
+  'pressure_value_which_opens_boundary': 101325.0,
+  'pressure_value_which_closes_boundary': 3.0e5,
+  'oxygen_measurement_position': -0.5,
+  'oxygen_measurement_criterium': 0.1,
+  'equivalence_ratio': 1.0
+}
+
+IgniteDetonation = {
+  'interval': 0.06,
+  'measurement_position': -0.1,
+  'equivalence_ratio_criterium': 0.9,
+  'position': -0.8,
 }
 
 IsentropicPressureBoundary = {

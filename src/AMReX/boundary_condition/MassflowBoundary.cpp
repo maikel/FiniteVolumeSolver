@@ -25,109 +25,55 @@
 #include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/ForEach.hpp"
 
+#include "fub/AMReX/AverageState.hpp"
+
 namespace fub::amrex {
-namespace {
-inline int GetSign(int side) { return (side == 0) - (side == 1); }
-} // namespace
-MassflowBoundary::MassflowBoundary(const IdealGasMix<AMREX_SPACEDIM>& eq,
-                                   const ::amrex::Box& coarse_inner_box,
-                                   double required_massflow,
-                                   double surface_area, Direction dir, int side)
-    : MassflowBoundary("MassflowBoundary", eq, coarse_inner_box,
-                       required_massflow, surface_area, dir, side) {}
 
-MassflowBoundary::MassflowBoundary(const std::string& name,
-                                   const IdealGasMix<AMREX_SPACEDIM>& eq,
-                                   const ::amrex::Box& coarse_inner_box,
-                                   double required_massflow,
-                                   double surface_area, Direction dir, int side)
-    : log_(boost::log::keywords::channel = name), equation_{eq},
-      coarse_inner_box_{coarse_inner_box},
-      required_massflow_{required_massflow},
-      surface_area_{surface_area}, dir_{dir}, side_{side} {}
-
-namespace {
-double TotalVolume(const PatchHierarchy& hier, int level,
-                   const ::amrex::Box& box) {
-  double local_volume(0.0);
-  const ::amrex::Geometry& geom = hier.GetGeometry(level);
-  const double cell_volume = goem.CellVolume();
-  return box.numcells() * cell_volume;
+MassflowBoundaryOptions::MassflowBoundaryOptions(
+    const ProgramOptions& options) {
+  channel_name = GetOptionOr(options, "channel_name", channel_name);
+  coarse_inner_box = GetOptionOr(options, "coarse_inner_box", coarse_inner_box);
+  required_massflow =
+      GetOptionOr(options, "required_massflow", required_massflow);
+  surface_area = GetOptionOr(options, "surface_area", surface_area);
+  dir = GetOptionOr(options, "direction", dir);
+  side = GetOptionOr(options, "side", side);
 }
 
 template <int Rank>
-void AverageState(Complete<IdealGasMix<Rank>>& state,
-                  const PatchHierarchy& hier, int level,
-                  const ::amrex::Box& box) {
-  const double total_volume = TotalVolume(hier, level, box);
-  const int ncomp = hier.GetDataDescription().n_state_components;
-  std::vector<double> state_buffer(static_cast<std::size_t>(ncomp));
-  const ::amrex::EBFArrayBoxFactory& factory = *hier.GetEmbeddedBoundary(level);
-  const ::amrex::MultiFab& alphas = factory.getVolFrac();
-  const ::amrex::MultiFab& datas = hier.GetPatchLevel(level).data;
-  ForEachFab(alphas, [&](const ::amrex::MFIter& mfi) {
-    const ::amrex::FArrayBox& alpha = alphas[mfi];
-    const ::amrex::FArrayBox& data = datas[mfi];
-    IndexBox<AMREX_SPACEDIM> section =
-        AsIndexBox<AMREX_SPACEDIM>(box & mfi.tilebox());
-    for (int comp = 0; comp < ncomp; ++comp) {
-      ForEachIndex(section, [&](auto... is) {
-        ::amrex::IntVect index{static_cast<int>(is)...};
-        const double frac = alpha(index);
-        state_buffer[comp] += frac / total_volume * data(index, comp);
-      });
-    }
-  });
-  std::vector<double> global_state_buffer(static_cast<std::size_t>(ncomp));
-  MPI_Allreduce(state_buffer.data(), global_state_buffer.data(), ncomp,
-                MPI_DOUBLE, MPI_SUM,
-                ::amrex::ParallelDescriptor::Communicator());
-  int comp = 0;
-  ForEachComponent(
-      [&comp, &global_state_buffer](auto&& var) {
-        var = global_state_buffer[comp];
-        comp += 1;
-      },
-      state);
-}
+MassflowBoundary<Rank>::MassflowBoundary(const IdealGasMix<Rank>& eq,
+                                   const MassflowBoundaryOptions& options)
+    : equation_{eq}, options_{options} {}
 
-template <typename GriddingAlgorithm>
-int FindLevel(const ::amrex::Geometry& geom,
-              const GriddingAlgorithm& gridding) {
-  for (int level = 0; level < gridding.GetPatchHierarchy().GetNumberOfLevels();
-       ++level) {
-    if (geom.Domain() ==
-        gridding.GetPatchHierarchy().GetGeometry(level).Domain()) {
-      return level;
-    }
-  }
-  return -1;
-}
 
-} // namespace
-
-void MassflowBoundary::FillBoundary(::amrex::MultiFab& mf,
+template <int Rank>
+void MassflowBoundary<Rank>::FillBoundary(::amrex::MultiFab& mf,
                                     const ::amrex::Geometry& geom, Duration dt,
                                     const GriddingAlgorithm& grid,
                                     Direction dir) {
-  if (dir == dir_) {
-    FillBoundary(mf, geom, dt, grid, dir);
+  if (dir == options_.dir) {
+    FillBoundary(mf, geom, dt, grid);
   }
 }
 
-void MassflowBoundary::FillBoundary(::amrex::MultiFab& mf,
+template <int Rank>
+void MassflowBoundary<Rank>::FillBoundary(::amrex::MultiFab& mf,
                                     const ::amrex::Geometry& geom, Duration t,
-                                    const GriddingAlgorithm& grid) {
-  const int level = FindLevel(geom, grid);
-  Complete<IdealGasMix<AMREX_SPACEDIM>> state(equation_);
-  AverageState(state, grid.GetPatchHierarchy(), level, coarse_inner_box_);
+                                    const GriddingAlgorithm&) {
+  boost::log::sources::severity_channel_logger<
+      boost::log::trivial::severity_level>
+      log(boost::log::keywords::channel = options_.channel_name,
+          boost::log::keywords::severity = boost::log::trivial::debug);
+  BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", t.count());
+
+  Complete<IdealGasMix<Rank>> state(equation_);
+  AverageState(state, mf, geom, options_.coarse_inner_box);
   equation_.CompleteFromCons(state, state);
-  time_attr_.set(t.count());
   double rho = state.density;
-  double u = state.momentum[int(dir_)] / rho;
+  double u = state.momentum[int(options_.dir)] / rho;
   double p = state.pressure;
-  BOOST_LOG(log_) << fmt::format(
-      "average inner state: rho = {} [kg/m3], u = {} [m/s], p = {} [Pa]", rho,
+  BOOST_LOG(log) << fmt::format(
+      "Average inner state: rho = {} [kg/m3], u = {} [m/s], p = {} [Pa]", rho,
       u, p);
 
   equation_.GetReactor().SetDensity(state.density);
@@ -135,45 +81,44 @@ void MassflowBoundary::FillBoundary(::amrex::MultiFab& mf,
   equation_.GetReactor().SetTemperature(state.temperature);
   const double gamma = state.gamma;
   const double c = state.speed_of_sound;
+  //  const double u = state.momentum[int(options_.dir)] / rho;
   const double Ma = u / c;
   const double gammaMinus = gamma - 1.0;
   const double gammaPlus = gamma + 1.0;
   const double rGammaPlus = 1.0 / gammaPlus;
   const double c_critical =
       std::sqrt(c * c + 0.5 * gammaMinus * u * u) * std::sqrt(2 * rGammaPlus);
-  const double u_n = required_massflow_ / rho / surface_area_;
+  const double u_n = options_.required_massflow / rho / options_.surface_area;
   const double lambda = u / c_critical;
   const double lambda_n = u_n / c_critical;
   const double gammaQuot = gammaMinus * rGammaPlus;
+  //  const double p = state.pressure;
   const double p0_n =
       p * std::pow(1. - gammaQuot * lambda_n * lambda_n, -gamma / gammaMinus);
   const double p_n =
       p0_n * std::pow(1. - gammaQuot * lambda * lambda, gamma / gammaMinus);
 
   equation_.GetReactor().SetPressureIsentropic(p_n);
-  Eigen::Array<double, AMREX_SPACEDIM, 1> velocity =
-      Eigen::Array<double, AMREX_SPACEDIM, 1>::Zero();
-  velocity[int(dir_)] = u_n;
+  Eigen::Array<double, Rank, 1> velocity =
+      Eigen::Array<double, Rank, 1>::Zero();
+  velocity[int(options_.dir)] = u_n;
 
   equation_.CompleteFromReactor(state, velocity);
 
   rho = state.density;
   u = u_n;
   p = state.pressure;
-  BOOST_LOG(log_) << boost::log::add_value("Time", t.count())
-                  << boost::log::add_value("Level", level)
-                  << fmt::format("outer state: rho = {} [kg/m3], u = {} [m/s], "
+  BOOST_LOG(log) << fmt::format("Outer state: rho = {} [kg/m3], u = {} [m/s], "
                                  "p = {} [Pa], Ma = {} [-]",
                                  rho, u, p, Ma);
-  auto factory = grid.GetPatchHierarchy().GetEmbeddedBoundary(level);
-  const ::amrex::MultiFab& alphas = factory->getVolFrac();
-  FillBoundary(mf, alphas, geom, state);
+  FillBoundary(mf, geom, state);
 }
 
-void MassflowBoundary::FillBoundary(
+template <int Rank>
+void MassflowBoundary<Rank>::FillBoundary(
     ::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-    const Complete<IdealGasMix<AMREX_SPACEDIM>>& state) {
-  const int ngrow = mf.nGrow(int(dir_));
+    const Complete<IdealGasMix<Rank>>& state) {
+  const int ngrow = mf.nGrow(int(options_.dir));
   ::amrex::Box grown_box = geom.growNonPeriodicDomain(ngrow);
   ::amrex::BoxList boundaries =
       ::amrex::complementIn(grown_box, ::amrex::BoxList{geom.Domain()});
@@ -182,24 +127,27 @@ void MassflowBoundary::FillBoundary(
   }
   ForEachFab(execution::seq, mf, [&](const ::amrex::MFIter& mfi) {
     ::amrex::FArrayBox& fab = mf[mfi];
-    const ::amrex::FArrayBox& alpha = alphas[mfi];
     for (const ::amrex::Box& boundary : boundaries) {
       ::amrex::Box shifted =
-          ::amrex::shift(boundary, int(dir_), GetSign(side_) * ngrow);
+          ::amrex::shift(boundary, int(options_.dir), GetSign(options_.side) * ngrow);
       if (!geom.Domain().intersects(shifted)) {
         continue;
       }
       ::amrex::Box box_to_fill = mfi.growntilebox() & boundary;
       if (!box_to_fill.isEmpty()) {
-        auto states = MakeView<Complete<IdealGasMix<AMREX_SPACEDIM>>>(
+        auto states = MakeView<Complete<IdealGasMix<Rank>>>(
             fab, equation_, mfi.growntilebox());
-        ForEachIndex(box_to_fill, [&alpha, &state, &states](auto... is) {
-          std::array<std::ptrdiff_t, AMREX_SPACEDIM> dest{int(is)...};
+        ForEachIndex(AsIndexBox<Rank>(box_to_fill), [&state, &states](auto... is) {
+          std::array<std::ptrdiff_t, Rank> dest{int(is)...};
           Store(states, state, dest);
         });
       }
     }
   });
 }
+
+template class MassflowBoundary<1>;
+template class MassflowBoundary<2>;
+template class MassflowBoundary<3>;
 
 } // namespace fub::amrex

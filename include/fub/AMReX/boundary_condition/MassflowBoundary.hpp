@@ -32,18 +32,22 @@
 #include <AMReX.H>
 
 namespace fub::amrex {
+struct MassflowBoundaryOptions {
+  MassflowBoundaryOptions() = default;
+  MassflowBoundaryOptions(const ProgramOptions& options);
+
+  std::string channel_name{"MassflowBoundary"};
+  ::amrex::Box coarse_inner_box{};
+  double required_massflow = 0.0;
+  double surface_area = 0.0;
+  Direction dir = Direction::X;
+  int side = 0;
+};
 
 template <int Rank> class MassflowBoundary {
 public:
   MassflowBoundary(const IdealGasMix<Rank>& eq,
-                   const ::amrex::Box& coarse_inner_box,
-                   double required_massflow, double surface_area, Direction dir,
-                   int side);
-
-  MassflowBoundary(const std::string& name, const IdealGasMix<Rank>& eq,
-                   const ::amrex::Box& coarse_inner_box,
-                   double required_massflow, double surface_area, Direction dir,
-                   int side);
+                   const MassflowBoundaryOptions& options);
 
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
                     Duration dt, const GriddingAlgorithm& grid);
@@ -51,19 +55,17 @@ public:
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
                     Duration dt, const GriddingAlgorithm& grid, Direction dir);
 
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::MultiFab& alphas,
-                    const ::amrex::Geometry& geom,
-                    const Complete<IdealGasMix<AMREX_SPACEDIM>>& state);
+  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
+                    const Complete<IdealGasMix<Rank>>& state);
 
 private:
-  boost::log::sources::channel_logger<> log_;
   IdealGasMix<Rank> equation_;
-  ::amrex::Box coarse_inner_box_;
-  double required_massflow_;
-  double surface_area_;
-  Direction dir_;
-  int side_;
+  MassflowBoundaryOptions options_;
 };
+
+extern template class MassflowBoundary<1>;
+extern template class MassflowBoundary<2>;
+extern template class MassflowBoundary<3>;
 
 } // namespace fub::amrex
 
