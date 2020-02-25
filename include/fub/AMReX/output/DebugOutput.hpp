@@ -27,18 +27,13 @@
 
 namespace fub::amrex {
 
-class DebugStorage {
+class DebugSnapshot {
 public:
   using Hierarchy = std::vector<::amrex::MultiFab>;
   using ComponentNames = std::vector<std::string>;
 
-  /// \brief Initializes an empty storage
-  DebugStorage() = default;
-
-  bool IsEnabled() const noexcept { return is_enabled_; }
-
-  void Enable() { is_enabled_ = true; }
-  void Disable() { is_enabled_ = false; }
+  /// \brief Initializes an empty snapshot
+  DebugSnapshot() = default;
 
   /// @{
   /// \brief Saves a current hierarchy state with given component names
@@ -82,10 +77,19 @@ public:
   /// the specified location.
   ///
   /// This function will join all compatible hierachies to a common big one if
-  /// possible. If two component names collide they will be renamed by
-  /// numbering.
+  /// possible.
   std::vector<std::pair<Hierarchy, ComponentNames>>
   GatherFields(::amrex::IndexType location) const;
+
+  /// \brief
+  void SetSnapshotDirectory(const std::string snapshot_directory) {
+    snapshot_directory_ = snapshot_directory;
+  }
+
+  /// \brief
+  const std::string GetSnapshotDirectory() const {
+    return snapshot_directory_;
+  }
 
 private:
   /// \brief Each SaveData will append a hierarchy
@@ -93,6 +97,60 @@ private:
 
   /// \brief Each SaveData will append a list of names on the hierachy
   std::vector<ComponentNames> names_per_hierarchy_{};
+
+  /// \brief output directory of storage;
+  std::string snapshot_directory_{"left_overs"};
+
+};
+
+class DebugStorage {
+public:
+
+  /// \brief Initializes the storage
+  DebugStorage() {saved_snapshots_.emplace_back(); };
+
+  bool IsEnabled() const noexcept { return is_enabled_; }
+
+  void Enable() { is_enabled_ = true; }
+  void Disable() { is_enabled_ = false; }
+
+  /// @{
+  /// \brief Saves a current hierarchy state with given component names
+  ///
+  /// The actual output will be handled by the DebugOutput class and will
+  /// usually happen at a later time point.
+  void SaveData(const ::amrex::MultiFab& mf, const std::string& name,
+                ::amrex::SrcComp component = ::amrex::SrcComp(0));
+
+  void SaveData(const ::amrex::MultiFab& mf, const DebugSnapshot::ComponentNames& names,
+                ::amrex::SrcComp first_component = ::amrex::SrcComp(0));
+
+  void SaveData(const std::vector<const ::amrex::MultiFab*>& hierarchy,
+                const std::string& name,
+                ::amrex::SrcComp component = ::amrex::SrcComp(0));
+
+  void SaveData(const std::vector<const ::amrex::MultiFab*>& hierarchy,
+                const DebugSnapshot::ComponentNames& names,
+                ::amrex::SrcComp first_component = ::amrex::SrcComp(0));
+
+  void SaveData(const std::vector<::amrex::MultiFab>& hierarchy,
+                const DebugSnapshot::ComponentNames& names,
+                ::amrex::SrcComp first_component = ::amrex::SrcComp(0));
+  /// @}
+
+  /// \brief Returns all the snapshots which are stored via FlushData
+  std::vector<DebugSnapshot>& GetSnapshots() noexcept;
+
+  /// \brief Saves a snapshot of hierarchies to be written at the end of the
+  /// time step.
+  void FlushData(const std::string& snapshot_name);
+
+  /// \brief Reinitializes the debug storage by clearing all currently stored data
+  void Reinitialize();
+
+private:
+  /// \brief Each FlushData will append a snapshot
+  std::vector<DebugSnapshot> saved_snapshots_;
 
   /// \brief If this is false no data will be saved.
   bool is_enabled_{false};
