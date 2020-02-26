@@ -225,36 +225,36 @@ double ChangeState_(PressureValveState& state, const ::amrex::Geometry& geom,
   return mean_pressure;
 }
 
-int Sign_(double x) { return (x > 0) - (x < 0); }
+// int Sign_(double x) { return (x > 0) - (x < 0); }
 
-void IsentropicExpansionWithoutDissipation_(IdealGasMix<1>& eq,
-                                            Complete<IdealGasMix<1>>& dest,
-                                            const Complete<IdealGasMix<1>>& src,
-                                            double dest_pressure,
-                                            double efficiency = 1.0) {
-  double old_velocity = src.momentum[0] / src.density;
-  const double h_before = src.energy / src.density + src.pressure / src.density;
-  eq.SetReactorStateFromComplete(src);
-  eq.GetReactor().SetPressureIsentropic(dest_pressure);
-  eq.CompleteFromReactor(dest);
-  const double h_after =
-      dest.energy / dest.density + dest.pressure / dest.density;
-  const double enthalpyDifference = h_before - h_after;
-  const double u_border =
-      Sign_(enthalpyDifference) *
-      std::sqrt(efficiency * std::abs(enthalpyDifference) * 2 +
-                old_velocity * old_velocity);
-  dest.momentum[0] = dest.density * u_border;
-  dest.energy += 0.5 * u_border * dest.momentum[0];
-}
+// void IsentropicExpansionWithoutDissipation_(IdealGasMix<1>& eq,
+//                                             Complete<IdealGasMix<1>>& dest,
+//                                             const Complete<IdealGasMix<1>>& src,
+//                                             double dest_pressure,
+//                                             double efficiency = 1.0) {
+//   double old_velocity = src.momentum[0] / src.density;
+//   const double h_before = src.energy / src.density + src.pressure / src.density;
+//   eq.SetReactorStateFromComplete(src);
+//   eq.GetReactor().SetPressureIsentropic(dest_pressure);
+//   eq.CompleteFromReactor(dest);
+//   const double h_after =
+//       dest.energy / dest.density + dest.pressure / dest.density;
+//   const double enthalpyDifference = h_before - h_after;
+//   const double u_border =
+//       Sign_(enthalpyDifference) *
+//       std::sqrt(efficiency * std::abs(enthalpyDifference) * 2 +
+//                 old_velocity * old_velocity);
+//   dest.momentum[0] = dest.density * u_border;
+//   dest.energy += 0.5 * u_border * dest.momentum[0];
+// }
 
-std::string GetMolesString_(const PressureValveOptions& options,
-                            PressureValveState state) {
-  if (state == PressureValveState::open_fuel) {
-    return fmt::format("N2:79,O2:21,H2:{}", options.equivalence_ratio * 42.0);
-  }
-  return "N2:79,O2:21";
-}
+// std::string GetMolesString_(const PressureValveOptions& options,
+//                             PressureValveState state) {
+//   if (state == PressureValveState::open_fuel) {
+//     return fmt::format("N2:79,O2:21,H2:{}", options.equivalence_ratio * 42.0);
+//   }
+//   return "N2:79,O2:21";
+// }
 } // namespace
 
 void PressureValveBoundary::FillBoundary(::amrex::MultiFab& mf,
@@ -269,7 +269,7 @@ void PressureValveBoundary::FillBoundary(::amrex::MultiFab& mf,
 
 void PressureValveBoundary::FillBoundary(::amrex::MultiFab& mf,
                                          const ::amrex::Geometry& geom,
-                                         Duration dt,
+                                         Duration /*dt*/,
                                          const GriddingAlgorithm& grid) {
   const int ngrow = mf.nGrow(0);
   ::amrex::Box grown_box = geom.growNonPeriodicDomain(ngrow);
@@ -286,17 +286,23 @@ void PressureValveBoundary::FillBoundary(::amrex::MultiFab& mf,
 
   ReflectiveBoundary closed(execution::openmp, equation_, Direction::X, 0);
   MassflowBoundary inflow_boundary(equation_, options_.massflow_boundary);
+  Complete<IdealGasMix<1>> state{equation_};
   switch (shared_valve_->state) {
   case PressureValveState::closed:
     closed.FillBoundary(mf, geom);
     break;
   case PressureValveState::open_air:
   case PressureValveState::open_fuel:
-    inflow_boundary.FillBoundary(mf, geom, dt, grid);
+    FlameMasterReactor& reactor = equation_.GetReactor();
+    reactor.SetDensity(1.0);
+    reactor.SetMoleFractions("O2:21,N2:79");
+    reactor.SetTemperature(300.0);
+    reactor.SetPressure(101325.0);
+    equation_.CompleteFromReactor(state);
+    inflow_boundary.ComputeBoundaryState(state, state);
+    inflow_boundary.FillBoundary(mf, geom, state);
   }
   if (shared_valve_->state == PressureValveState::open_fuel) {
-    const double volume = AMREX_D_TERM(geom.CellSize(0), * geom.CellSize(1), * geom.CellSize(2));
-    Complete<IdealGasMix<1>> state{equation_};
     ForEachFab(execution::seq, mf, [&](const ::amrex::MFIter& mfi) {
       ::amrex::FArrayBox& fab = mf[mfi];
       for (const ::amrex::Box& boundary : boundaries) {
