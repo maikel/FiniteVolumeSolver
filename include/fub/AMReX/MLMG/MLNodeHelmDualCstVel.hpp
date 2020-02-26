@@ -74,6 +74,8 @@ public:
 
     void setSigma (int amrlev, const MultiFab& a_sigma);
 
+    void setSigmaCross (int amrlev, const MultiFab& a_sigmacross);
+
     void setAlpha (int amrlev, const MultiFab& a_alpha);
 
     void compDivergence (const Vector<MultiFab*>& rhs, const Vector<MultiFab*>& vel);
@@ -137,6 +139,7 @@ public:
 private:
 
     Vector<Vector<Array<std::unique_ptr<MultiFab>,AMREX_SPACEDIM> > > m_sigma;
+    Vector<Vector<Array<std::unique_ptr<MultiFab>,AMREX_SPACEDIM> > > m_sigmacross;
     Vector<Vector<MultiFab> > m_alpha;
 
     Real m_normalization_threshold = 1.e-10;

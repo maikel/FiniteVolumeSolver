@@ -413,6 +413,14 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
     lin_op.setAlpha(level, diagfac_nodes);
   }
 
+  MultiFab sigmacross(on_cells, distribution_map, AMREX_SPACEDIM*(AMREX_SPACEDIM-1), no_ghosts);
+  for (std::size_t i = 0; i < AMREX_SPACEDIM*(AMREX_SPACEDIM-1); ++i) {
+    MultiFab::Copy(sigmacross, sigma, 0, i, one_component, no_ghosts);
+    const int facsign = static_cast<double>(std::pow(-1,i));
+    sigmacross.mult(facsign * dt.count() * equation.f, i, 1);
+  }
+  lin_op.setSigmaCross(level, sigmacross);
+
   // solve elliptic equation for pi
   MultiFab pi(on_nodes, distribution_map, one_component, no_ghosts);
   pi.setVal(0.0);
