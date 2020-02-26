@@ -55,7 +55,7 @@ static constexpr double alpha = 2. * M_PI / 6.;
 auto Center(double x, double phi) -> ::amrex::RealArray {
   using std::cos;
   using std::sin;
-  return {x, r_tube_center * sin(phi), r_tube_center * cos(phi)};
+  return {x, r_tube_center * cos(phi), r_tube_center * sin(phi)};
 }
 
 auto MakePlenumSolver(fub::PerfectGas<3>& equation,
