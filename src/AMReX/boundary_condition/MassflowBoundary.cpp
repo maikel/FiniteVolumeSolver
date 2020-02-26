@@ -70,6 +70,37 @@ void MassflowBoundary<Rank>::FillBoundary(::amrex::MultiFab& mf,
 }
 
 template <int Rank>
+void MassflowBoundary<Rank>::ComputeBoundaryState(Complete<IdealGasMix<Rank>>& boundary, const Complete<IdealGasMix<Rank>>& state) {
+  const double rho = state.density;
+  const double u = state.momentum[int(options_.dir)] / rho;
+  const double p = state.pressure;
+  const double gamma = state.gamma;
+  const double c = state.speed_of_sound;
+  const double gammaMinus = gamma - 1.0;
+  const double gammaPlus = gamma + 1.0;
+  const double rGammaPlus = 1.0 / gammaPlus;
+  const double c_critical =
+      std::sqrt(c * c + 0.5 * gammaMinus * u * u) * std::sqrt(2 * rGammaPlus);
+  const double u_n = options_.required_massflow / rho / options_.surface_area;
+  const double lambda = u / c_critical;
+  const double lambda_n = u_n / c_critical;
+  const double gammaQuot = gammaMinus * rGammaPlus;
+  const double p0_n =
+      p * std::pow(1. - gammaQuot * lambda_n * lambda_n, -gamma / gammaMinus);
+  const double p_n =
+      p0_n * std::pow(1. - gammaQuot * lambda * lambda, gamma / gammaMinus);
+
+  equation_.GetReactor().SetDensity(state.density);
+  equation_.GetReactor().SetMassFractions(state.species);
+  equation_.GetReactor().SetTemperature(state.temperature);
+  equation_.GetReactor().SetPressureIsentropic(p_n);
+  Eigen::Array<double, Rank, 1> velocity =
+      Eigen::Array<double, Rank, 1>::Zero();
+  velocity[int(options_.dir)] = u_n;
+  equation_.CompleteFromReactor(boundary, velocity);
+}
+
+template <int Rank>
 void MassflowBoundary<Rank>::FillBoundary(::amrex::MultiFab& mf,
                                     const ::amrex::Geometry& geom, Duration t,
                                     const GriddingAlgorithm&) {
@@ -83,44 +114,19 @@ void MassflowBoundary<Rank>::FillBoundary(::amrex::MultiFab& mf,
   AverageState(state, mf, geom, options_.coarse_inner_box);
   equation_.CompleteFromCons(state, state);
   double rho = state.density;
-  double u = state.momentum[int(options_.dir)] / rho;
+  double u = state.momentum[static_cast<int>(options_.dir)] / rho;
   double p = state.pressure;
   BOOST_LOG(log) << fmt::format(
       "Average inner state: rho = {} [kg/m3], u = {} [m/s], p = {} [Pa]", rho,
       u, p);
 
-  equation_.GetReactor().SetDensity(state.density);
-  equation_.GetReactor().SetMassFractions(state.species);
-  equation_.GetReactor().SetTemperature(state.temperature);
-  const double gamma = state.gamma;
-  const double c = state.speed_of_sound;
-  //  const double u = state.momentum[int(options_.dir)] / rho;
-  const double Ma = u / c;
-  const double gammaMinus = gamma - 1.0;
-  const double gammaPlus = gamma + 1.0;
-  const double rGammaPlus = 1.0 / gammaPlus;
-  const double c_critical =
-      std::sqrt(c * c + 0.5 * gammaMinus * u * u) * std::sqrt(2 * rGammaPlus);
-  const double u_n = options_.required_massflow / rho / options_.surface_area;
-  const double lambda = u / c_critical;
-  const double lambda_n = u_n / c_critical;
-  const double gammaQuot = gammaMinus * rGammaPlus;
-  //  const double p = state.pressure;
-  const double p0_n =
-      p * std::pow(1. - gammaQuot * lambda_n * lambda_n, -gamma / gammaMinus);
-  const double p_n =
-      p0_n * std::pow(1. - gammaQuot * lambda * lambda, gamma / gammaMinus);
-
-  equation_.GetReactor().SetPressureIsentropic(p_n);
-  Eigen::Array<double, Rank, 1> velocity =
-      Eigen::Array<double, Rank, 1>::Zero();
-  velocity[int(options_.dir)] = u_n;
-
-  equation_.CompleteFromReactor(state, velocity);
+  ComputeBoundaryState(state, state);
 
   rho = state.density;
-  u = u_n;
+  u = state.momentum[static_cast<int>(options_.dir)] / rho;
   p = state.pressure;
+  const double c = state.speed_of_sound;
+  const double Ma = u / c;
   BOOST_LOG(log) << fmt::format("Outer state: rho = {} [kg/m3], u = {} [m/s], "
                                  "p = {} [Pa], Ma = {} [-]",
                                  rho, u, p, Ma);
