@@ -383,10 +383,12 @@ void TimeIntegrator::UpdateConservatively(IntegratorContext& context, int level,
       ::amrex::FArrayBox& next = scratch[mfi];
       const ::amrex::FArrayBox& prev = scratch[mfi];
       const ::amrex::FArrayBox& flux = unshielded[mfi];
-      const ::amrex::Box all_faces_tilebox = mfi.grownnodaltilebox(int(dir));
+      const ::amrex::Box tilebox = mfi.growntilebox();
+      const ::amrex::Box all_faces_tilebox = ::amrex::surroundingNodes(tilebox, d);
       const ::amrex::Box all_fluxes_box = flux.box();
       const ::amrex::Box flux_box = all_faces_tilebox & all_fluxes_box;
       const ::amrex::Box cell_box = enclosedCells(flux_box);
+
       const IndexBox<AMREX_SPACEDIM + 1> cells = Embed<AMREX_SPACEDIM + 1>(
           AsIndexBox<AMREX_SPACEDIM>(cell_box), {0, n_cons});
       auto nv = MakePatchDataView(next).Subview(cells);
