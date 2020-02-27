@@ -467,9 +467,11 @@ void MyMain(const fub::ProgramOptions& options) {
                                        .GetPatchHierarchy()
                                        .GetMaxNumberOfLevels();
 
+  fub::amrex::IgniteDetonationOptions ignite_options(options, "IgniteDetonation");
+  BOOST_LOG(log) << "IgniteDetonation:";
+  ignite_options.Print(log);
   fub::amrex::MultiBlockIgniteDetonation ignition{
-      tube_equation, n_tubes, max_number_of_levels,
-      fub::amrex::IgniteDetonationOptions(options, "IgniteDetonation")};
+      tube_equation, n_tubes, max_number_of_levels, ignite_options};
 
   std::string checkpoint{};
   if (options.count("checkpoint")) {
