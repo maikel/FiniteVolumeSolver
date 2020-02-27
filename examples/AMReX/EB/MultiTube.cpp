@@ -467,7 +467,7 @@ void MyMain(const fub::ProgramOptions& options) {
                                        .GetPatchHierarchy()
                                        .GetMaxNumberOfLevels();
 
-  fub::amrex::IgniteDetonationOptions ignite_options(options, "IgniteDetonation");
+  fub::amrex::IgniteDetonationOptions ignite_options(fub::GetOptions(options, "IgniteDetonation"));
   BOOST_LOG(log) << "IgniteDetonation:";
   ignite_options.Print(log);
   fub::amrex::MultiBlockIgniteDetonation ignition{
