@@ -28,7 +28,7 @@
 
 namespace fub::amrex {
 
-std::vector<std::string> GetCompletevariableNames() {
+std::vector<std::string> GetCompleteVariableNames() {
   using Equation = CompressibleAdvection<2>;
   fub::CompressibleAdvection<2> equation{};
   using Traits = StateTraits<Complete<Equation>>;
@@ -70,7 +70,7 @@ void WriteBK19Plotfile::operator()(const GriddingAlgorithm& grid) const {
     ref_ratio[i] = hier.GetRatioToCoarserLevel(static_cast<int>(i));
   }
 
-  std::vector<std::string> varnames = GetCompletevariableNames();
+  std::vector<std::string> varnames = GetCompleteVariableNames();
   ::amrex::Vector<std::string> vnames(varnames.begin(), varnames.end());
 
   ::amrex::Vector<std::string> rfs{"raw_fields"};
@@ -480,7 +480,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   const ::amrex::Geometry& geom = context.GetGeometry(level);
   const ::amrex::Periodicity periodicity = geom.periodicity();
   DebugStorage& debug = *context.GetPatchHierarchy().GetDebugStorage();
-  debug.SaveData(scratch, GetCompletevariableNames());
+  debug.SaveData(scratch, GetCompleteVariableNames());
   debug.SaveData(pi, "pi");
   debug.FlushData("BK19_pre-step");
 
@@ -496,7 +496,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   //    Current Pv is given by: Pv = PTdensity * velocity
   RecomputeAdvectiveFluxes(index_, Pv.on_faces, Pv.on_cells, scratch,
                            periodicity);
-  debug.SaveData(scratch, GetCompletevariableNames());
+  debug.SaveData(scratch, GetCompleteVariableNames());
   debug.SaveData(pi, "pi");
   debug.FlushData("BK19_advective_fluxes");
 
@@ -509,7 +509,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
     return result;
   }
 
-  debug.SaveData(scratch, GetCompletevariableNames());
+  debug.SaveData(scratch, GetCompleteVariableNames());
   debug.SaveData(pi, "pi");
   debug.FlushData("BK19_advect");
 
@@ -525,7 +525,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   debug.SaveData(Pv.on_cells, std::vector<std::string>{"Pu", "Pv"});
   debug.SaveData(Pv.on_faces[0], "Pu_faces", ::amrex::SrcComp(0));
   debug.SaveData(Pv.on_faces[1], "Pv_faces", ::amrex::SrcComp(0));
-  debug.SaveData(scratch, GetCompletevariableNames());
+  debug.SaveData(scratch, GetCompleteVariableNames());
   debug.FlushData("BK19_advect-backward");
 
   // Copy data from old time level back to scratch
@@ -536,7 +536,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   //   - We need a current pi_n here. What is the initial one?
   DoEulerForward_(equation_, index_, *lin_op_, context, level, half_dt);
 
-  debug.SaveData(scratch, GetCompletevariableNames());
+  debug.SaveData(scratch, GetCompleteVariableNames());
   debug.SaveData(pi, "pi");
   debug.FlushData("BK19_advect-backward-forward");
 
@@ -549,7 +549,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
     return result;
   }
 
-  debug.SaveData(scratch, GetCompletevariableNames());
+  debug.SaveData(scratch, GetCompleteVariableNames());
   debug.SaveData(pi, "pi");
   debug.FlushData("BK19_advect-backward-forward-advect");
 
@@ -560,7 +560,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   // Copy pi_n+1 to pi_n
   context.GetPi(level).copy(pi_new);
 
-  debug.SaveData(scratch, GetCompletevariableNames());
+  debug.SaveData(scratch, GetCompleteVariableNames());
   debug.FlushData("BK19_advect-backward-forward-advect-backward");
 
   return boost::outcome_v2::success();
