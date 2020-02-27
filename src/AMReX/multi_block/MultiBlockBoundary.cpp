@@ -454,8 +454,10 @@ void MultiBlockBoundary::ComputeBoundaryData(
       const std::ptrdiff_t k = j - j0;
       const std::ptrdiff_t i = i0 + k;
       Load(cons, cons_states, {i});
-      ReduceStateDimension(complete, tube_equation_, cons);
-      Store(complete_states, complete, {j});
+      if (cons.density > 0.0) {
+        ReduceStateDimension(complete, tube_equation_, cons);
+        Store(complete_states, complete, {j});
+      }
     });
 
     const int ncomp = tube_ghost_data_->nComp();
@@ -492,8 +494,10 @@ void MultiBlockBoundary::ComputeBoundaryData(
       const std::ptrdiff_t k = i - i0;
       const std::ptrdiff_t j = j0 + k;
       Load(cons, cons_states, {i});
-      EmbedState(complete, plenum_equation_, cons);
-      Store(complete_states, complete, {j});
+      if (cons.density > 0.0) {
+        EmbedState(complete, plenum_equation_, cons);
+        Store(complete_states, complete, {j});
+      }
     });
 
     const int ncomp = plenum_ghost_data_->nComp();
@@ -530,7 +534,9 @@ void MultiBlockBoundary::FillBoundary(::amrex::MultiFab& mf,
       for (int n = 0; n < mf.nComp(); ++n) {
         ForEachIndex(AsIndexBox<AMREX_SPACEDIM>(b), [&](auto... is) {
           const ::amrex::IntVect iv{int(is)...};
-          mf[mfi](iv, n) = (*tube_ghost_data_)(iv, n);
+          if ((*tube_ghost_data_)(iv, 0) > 0.0) {
+            mf[mfi](iv, n) = (*tube_ghost_data_)(iv, n);
+          }
         });
       }
 
@@ -542,15 +548,17 @@ void MultiBlockBoundary::FillBoundary(::amrex::MultiFab& mf,
         ForEachIndex(Box<0>(view), [&](std::ptrdiff_t i) {
           if (2 < i && i < 5) {
             Load(state, view, {i});
-            Array<double, 1, 1> velocity = state.momentum / state.density;
-            tube_equation_.SetReactorStateFromComplete(state);
-            span<const double> rmoles =
-                tube_equation_.GetReactor().GetMoleFractions();
-            std::copy(rmoles.begin(), rmoles.end(), moles.begin());
-            moles[Burke2012::sH2] = 2 * moles[Burke2012::sO2];
-            tube_equation_.GetReactor().SetMoleFractions(moles);
-            tube_equation_.CompleteFromReactor(state, velocity);
-            Store(view, state, {i});
+            if (state.density > 0.0) {
+              Array<double, 1, 1> velocity = state.momentum / state.density;
+              tube_equation_.SetReactorStateFromComplete(state);
+              span<const double> rmoles =
+                  tube_equation_.GetReactor().GetMoleFractions();
+              std::copy(rmoles.begin(), rmoles.end(), moles.begin());
+              moles[Burke2012::sH2] = 2 * moles[Burke2012::sO2];
+              tube_equation_.GetReactor().SetMoleFractions(moles);
+              tube_equation_.CompleteFromReactor(state, velocity);
+              Store(view, state, {i});
+            }
           }
         });
       }
@@ -586,9 +594,11 @@ void MultiBlockBoundary::FillBoundary(::amrex::MultiFab& mf,
               AMREX_D_DECL(int(src[0]), int(src[1]), int(src[2]))};
           if (alpha(iv) > 0.0) {
             Load(*state, states, src);
-            FUB_ASSERT(state->density > 0.0);
-            Reflect(*reflected, *state, unit, plenum_equation_);
-            Store(states, *reflected, dest);
+            if (state->density > 0.0) {
+              FUB_ASSERT(state->density > 0.0);
+              Reflect(*reflected, *state, unit, plenum_equation_);
+              Store(states, *reflected, dest);
+            }
           }
         });
       }

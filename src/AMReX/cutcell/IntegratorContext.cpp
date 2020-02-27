@@ -293,9 +293,9 @@ void IntegratorContext::CopyScratchToData(int level_num) {
   GetData(level_num).ParallelCopy(
       GetScratch(level_num),
       GetPatchHierarchy().GetGeometry(level_num).periodicity());
-  EB_set_covered(GetData(level_num), 0, GetData(level_num).nComp(), 0, 0.0);
-  EB_set_covered(GetScratch(level_num), 0, GetScratch(level_num).nComp(),
-                 GetScratch(level_num).nGrow(), 0.0);
+  // EB_set_covered(GetData(level_num), 0, GetData(level_num).nComp(), 0, 0.0);
+  // EB_set_covered(GetScratch(level_num), 0, GetScratch(level_num).nComp(),
+  //                GetScratch(level_num).nGrow(), 0.0);
 }
 
 void IntegratorContext::ResetHierarchyConfiguration(
@@ -622,23 +622,16 @@ void IntegratorContext::PreAdvanceLevel(int level_num, Duration,
   const std::size_t l = static_cast<std::size_t>(level_num);
   if (subcycle.first == 0) {
     if (data_[l].regrid_time_point != data_[l].time_point) {
-      gridding_->RegridAllFinerlevels(level_num);
+      int level_which_changed = gridding_->RegridAllFinerlevels(level_num);
       for (std::size_t lvl = l; lvl < data_.size(); ++lvl) {
         data_[lvl].regrid_time_point = data_[lvl].time_point;
       }
-      if (LevelExists(level_num + 1)) {
+      if (level_which_changed > 0) {
         ResetHierarchyConfiguration(level_num + 1);
         ResetCoarseFineFluxes(level_num + 1, level_num);
       }
     }
   }
-  // for (int d = 0; d < AMREX_SPACEDIM; ++d) {
-  //   data_[level_num].fluxes[d].setVal(0.0);
-  //   data_[level_num].stabilized_fluxes[d].setVal(0.0);
-  //   data_[level_num].shielded_left_fluxes[d].setVal(0.0);
-  //   data_[level_num].shielded_right_fluxes[d].setVal(0.0);
-  //   data_[level_num].doubly_shielded_fluxes[d].setVal(0.0);
-  // }
 }
 
 Result<void, TimeStepTooLarge>

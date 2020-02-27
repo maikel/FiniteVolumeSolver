@@ -29,6 +29,7 @@
 #include <AMReX_EB2_IF_Intersection.H>
 #include <AMReX_EB2_IF_Plane.H>
 #include <AMReX_EB2_IF_Union.H>
+#include <AMReX_EB2_IF_Translation.H>
 #include <AMReX_EB_LSCore.H>
 
 #include <boost/archive/text_iarchive.hpp>
@@ -45,14 +46,14 @@ static constexpr int Plenum_Rank = 3;
 
 static constexpr double r_tube = 0.015;
 static constexpr double r_inner = 0.5 * 0.130;
-static constexpr double r_outer = 0.5 * 0.392;
-static constexpr double r_tube_center = 0.5 * r_inner + 0.5 * r_outer;
+static constexpr double r_outer = 0.5 * 0.389;
+static constexpr double r_tube_center = 2.0 * r_inner;
 static constexpr double alpha = 2. * M_PI / 6.;
 
 auto Center(double x, double phi) -> ::amrex::RealArray {
   using std::cos;
   using std::sin;
-  return {x, r_tube_center * sin(phi), r_tube_center * cos(phi)};
+  return {x, r_tube_center * cos(phi), r_tube_center * sin(phi)};
 }
 
 auto MakeTubeSolver(fub::Burke2012& mechanism,
@@ -116,7 +117,8 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
   valve_options.Print(log);
 
   PressureValveBoundary valve{equation, valve_options};
-  BoundarySet boundaries{{valve}};
+  IsentropicPressureBoundary right_boundary(equation, 101325.0, fub::Direction::X, 1);
+  BoundarySet boundaries{{valve, right_boundary}};
 
   // If a checkpoint path is specified we will fill the patch hierarchy with
   // data from the checkpoint file, otherwise we will initialize the data by
@@ -175,13 +177,37 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
 auto MakePlenumSolver(fub::Burke2012& mechanism,
                       const fub::ProgramOptions& options) {
   fub::SeverityLogger log = fub::GetInfoLogger();
-  BOOST_LOG(log) << fmt::format("==================== Plenum =========================");
+  BOOST_LOG(log) << "==================== Plenum =========================";
   const fub::ProgramOptions plenum_options = fub::GetOptions(options, "Plenum");
 
   fub::amrex::CartesianGridGeometry grid_geometry(
       fub::GetOptions(plenum_options, "GridGeometry"));
   BOOST_LOG(log) << "GridGeometry:";
   grid_geometry.Print(log);
+
+  auto MakePolygon = [](auto... points) {
+    fub::Polygon::Vector xs{};
+    fub::Polygon::Vector ys{};
+
+    (xs.push_back(std::get<0>(points)), ...);
+    (ys.push_back(std::get<1>(points)), ...);
+
+    return fub::Polygon(std::move(xs), std::move(ys));
+  };
+
+  auto DivergentInlet = [&](double height, const std::array<double, 3>& center) {
+    const double xlo = center[0] - height;
+    const double xhi = center[0];
+    const double xdiv = xhi - 0.075;
+    const double r = r_tube;
+    const double r2 = 0.0225;
+    auto polygon = MakePolygon(std::pair{xlo, r}, std::pair{xdiv, r}, std::pair{xhi, r2}, 
+                               std::pair{xhi, -r2}, std::pair{xdiv, -r}, std::pair{xlo, -r}, std::pair{xlo, r});
+    auto tube_in_zero = fub::Invert(fub::RotateAxis(polygon));
+    amrex::RealArray real_center{center[0], center[1], center[2]};
+    auto tube_in_center = amrex::EB2::TranslationIF(fub::amrex::Geometry(tube_in_zero), real_center);
+    return tube_in_center;
+  };
 
   auto Cylinder = [&](double radius, double height,
                       const std::array<double, 3>& center) {
@@ -191,13 +217,13 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
   auto embedded_boundary = amrex::EB2::makeUnion(
       amrex::EB2::makeIntersection(
           Cylinder(r_outer, 1.0, {0.5, 0.0, 0.0}),
-          Cylinder(r_tube, 0.3, Center(-0.1, 0.0 * alpha)),
-          Cylinder(r_tube, 0.3, Center(-0.1, 1.0 * alpha)),
-          Cylinder(r_tube, 0.3, Center(-0.1, 2.0 * alpha)),
-          Cylinder(r_tube, 0.3, Center(-0.1, 3.0 * alpha)),
-          Cylinder(r_tube, 0.3, Center(-0.1, 4.0 * alpha)),
-          Cylinder(r_tube, 0.3, Center(-0.1, 5.0 * alpha))),
-      amrex::EB2::CylinderIF(r_inner, 1.0, 0, {0.25, 0.0, 0.0}, false));
+          DivergentInlet(0.2, Center(0.0, 0.0 * alpha)),
+          DivergentInlet(0.2, Center(0.0, 1.0 * alpha)),
+          DivergentInlet(0.2, Center(0.0, 2.0 * alpha)),
+          DivergentInlet(0.2, Center(0.0, 3.0 * alpha)),
+          DivergentInlet(0.2, Center(0.0, 4.0 * alpha)),
+          DivergentInlet(0.2, Center(0.0, 5.0 * alpha))),
+       amrex::EB2::CylinderIF(r_inner, 1.0, 0, {0.25, 0.0, 0.0}, false));
   auto shop = amrex::EB2::makeShop(embedded_boundary);
 
   fub::IdealGasMix<Plenum_Rank> equation{mechanism};
@@ -309,7 +335,7 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
 
   IntegratorContext context(gridding, method, scratch_gcw, flux_gcw);
   
-  BOOST_LOG(log) << fmt::format("==================== End Plenum =========================");
+  BOOST_LOG(log) << "==================== End Plenum =========================";
   return context;
 }
 
@@ -407,15 +433,13 @@ void MyMain(const fub::ProgramOptions& options) {
     connection.ghost_cell_width = 4;
     connection.plenum.id = 0;
     connection.tube.id = k;
-    connection.tube.mirror_box = tubes[k]
-                                     .GetGriddingAlgorithm()
-                                     ->GetPatchHierarchy()
-                                     .GetGeometry(0)
-                                     .Domain();
+    connection.tube.mirror_box = tubes[k].GetGeometry(0).Domain();
+    const double xlo = plenum[0].GetGeometry(0).ProbLo(0);
     connection.plenum.mirror_box = fub::amrex::BoxWhichContains(
-        fub::amrex::DomainAroundCenter(Center(-0.03, k * alpha),
+        fub::amrex::DomainAroundCenter(Center(xlo, k * alpha),
                                        {0.03, r_tube, r_tube}),
         plenum[0].GetGeometry(0));
+    BOOST_LOG(log) << "Mirror Box = " << connection.plenum.mirror_box;
     return connection;
   };
 
