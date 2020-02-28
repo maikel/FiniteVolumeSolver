@@ -214,16 +214,18 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
     return amrex::EB2::CylinderIF(radius, height, 0, center, true);
   };
 
-  auto embedded_boundary = amrex::EB2::makeUnion(
+  auto embedded_boundary = amrex::EB2::makeIntersection(
+    amrex::EB2::makeUnion(
       amrex::EB2::makeIntersection(
-          Cylinder(r_outer, 1.0, {0.5, 0.0, 0.0}),
+          Cylinder(r_outer, 0.5, {0.25, 0.0, 0.0}),
           DivergentInlet(0.2, Center(0.0, 0.0 * alpha)),
           DivergentInlet(0.2, Center(0.0, 1.0 * alpha)),
           DivergentInlet(0.2, Center(0.0, 2.0 * alpha)),
           DivergentInlet(0.2, Center(0.0, 3.0 * alpha)),
           DivergentInlet(0.2, Center(0.0, 4.0 * alpha)),
           DivergentInlet(0.2, Center(0.0, 5.0 * alpha))),
-       amrex::EB2::CylinderIF(r_inner, 1.0, 0, {0.25, 0.0, 0.0}, false));
+      amrex::EB2::CylinderIF(r_inner, 1.0, 0, {0.25, 0.0, 0.0}, false)),
+    amrex::EB2::PlaneIF({0.5, 0.0, 0.0}, {1.0, 0.0, 0.0}, false));
   auto shop = amrex::EB2::makeShop(embedded_boundary);
 
   fub::IdealGasMix<Plenum_Rank> equation{mechanism};
@@ -286,7 +288,9 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
 
   BoundarySet boundary_condition{
       {TransmissiveBoundary{fub::Direction::X, 0},
-       IsentropicPressureBoundary{equation, boundary_options}}};
+       TransmissiveBoundary{fub::Direction::X, 1},
+       TransmissiveBoundary{fub::Direction::Y, 0}, TransmissiveBoundary{fub::Direction::Y, 1},
+       TransmissiveBoundary{fub::Direction::Z, 0}, TransmissiveBoundary{fub::Direction::Z, 1}}};
 
   // If a checkpoint path is specified we will fill the patch hierarchy with
   // data from the checkpoint file, otherwise we will initialize the data by
