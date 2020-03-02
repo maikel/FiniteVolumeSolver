@@ -83,56 +83,56 @@ void MyMain(const fub::ProgramOptions& options) {
   hierarchy_options.index_spaces =
       MakeIndexSpaces(shop, grid_geometry, hierarchy_options);
 
-//   fub::Burke2012 mechanism;
-//   fub::IdealGasMix<3> equation{mechanism};
-   fub::PerfectGas<3> equation{};
+  fub::Burke2012 mechanism;
+  fub::IdealGasMix<3> equation{mechanism};
+  //  fub::PerfectGas<3> equation{};
 
-//   fub::Complete<fub::IdealGasMix<3>> left(equation);
-  fub::Conservative<fub::PerfectGas<3>> cons;
-  cons.density = 1.2;
-  cons.momentum << 0.0, 0.0, 0.0;
-  cons.energy = 101325.0 * equation.gamma_minus_1_inv;
-  fub::Complete<fub::PerfectGas<3>> right;
-  fub::CompleteFromCons(equation, right, cons);
+  // fub::Conservative<fub::PerfectGas<3>> cons;
+  // cons.density = 1.2;
+  // cons.momentum << 0.0, 0.0, 0.0;
+  // cons.energy = 101325.0 * equation.gamma_minus_1_inv;
+  // fub::Complete<fub::PerfectGas<3>> right;
+  // fub::CompleteFromCons(equation, right, cons);
 
 
-  const double temperature = 2'000; // [K]
-  cons.density = 4.0 * 101325.0 / (equation.Rspec * temperature);
-  cons.energy *= 4.0;
-  fub::Complete<fub::PerfectGas<3>> left;
-  fub::CompleteFromCons(equation, left, cons);
+  // const double temperature = 2'000; // [K]
+  // cons.density = 4.0 * 101325.0 / (equation.Rspec * temperature);
+  // cons.energy *= 4.0;
+  // fub::Complete<fub::PerfectGas<3>> left;
+  // fub::CompleteFromCons(equation, left, cons);
 
-//   fub::Complete<fub::IdealGasMix<3>> right(equation);
-//   {
-//     using namespace std::literals;
-//     const fub::ProgramOptions initial_options =
-//         fub::GetOptions(options, "InitialCondition");
-//     const fub::ProgramOptions left_options =
-//         fub::GetOptions(initial_options, "left");
-//     std::string moles = fub::GetOptionOr(left_options, "moles", "N2:79,O2:21"s);
-//     double temperature = fub::GetOptionOr(left_options, "temperature", 300.0);
-//     double pressure = fub::GetOptionOr(left_options, "pressure", 101325.0);
-//     std::array<double, 3> velocity{};
-//     velocity = fub::GetOptionOr(left_options, "velocity", velocity);
-//     equation.GetReactor().SetMoleFractions(moles);
-//     equation.GetReactor().SetTemperature(temperature);
-//     equation.GetReactor().SetPressure(pressure);
-//     equation.CompleteFromReactor(left);
-//     fub::CompleteFromCons(equation, left, left);
+  fub::Complete<fub::IdealGasMix<3>> left(equation);
+  fub::Complete<fub::IdealGasMix<3>> right(equation);
+  {
+    using namespace std::literals;
+    const fub::ProgramOptions initial_options =
+        fub::GetOptions(options, "InitialCondition");
+    const fub::ProgramOptions left_options =
+        fub::GetOptions(initial_options, "left");
+    std::string moles = fub::GetOptionOr(left_options, "moles", "N2:79,O2:21"s);
+    double temperature = fub::GetOptionOr(left_options, "temperature", 300.0);
+    double pressure = fub::GetOptionOr(left_options, "pressure", 101325.0);
+    std::array<double, 3> velocity{};
+    velocity = fub::GetOptionOr(left_options, "velocity", velocity);
+    equation.GetReactor().SetMoleFractions(moles);
+    equation.GetReactor().SetTemperature(temperature);
+    equation.GetReactor().SetPressure(pressure);
+    equation.CompleteFromReactor(left);
+    fub::CompleteFromCons(equation, left, left);
 
-//     const fub::ProgramOptions right_options =
-//         fub::GetOptions(initial_options, "right");
-//     moles = fub::GetOptionOr(right_options, "moles", "N2:79,O2:21"s);
-//     temperature = fub::GetOptionOr(right_options, "temperature", 300.0);
-//     pressure = fub::GetOptionOr(right_options, "pressure", 101325.0);
-//     velocity = std::array<double, 3>{};
-//     velocity = fub::GetOptionOr(right_options, "velocity", velocity);
-//     equation.GetReactor().SetMoleFractions(moles);
-//     equation.GetReactor().SetTemperature(temperature);
-//     equation.GetReactor().SetPressure(pressure);
-//     equation.CompleteFromReactor(right);
-//     fub::CompleteFromCons(equation, right, right);
-//   }
+    const fub::ProgramOptions right_options =
+        fub::GetOptions(initial_options, "right");
+    moles = fub::GetOptionOr(right_options, "moles", "N2:79,O2:21"s);
+    temperature = fub::GetOptionOr(right_options, "temperature", 300.0);
+    pressure = fub::GetOptionOr(right_options, "pressure", 101325.0);
+    velocity = std::array<double, 3>{};
+    velocity = fub::GetOptionOr(right_options, "velocity", velocity);
+    equation.GetReactor().SetMoleFractions(moles);
+    equation.GetReactor().SetTemperature(temperature);
+    equation.GetReactor().SetPressure(pressure);
+    equation.CompleteFromReactor(right);
+    fub::CompleteFromCons(equation, right, right);
+  }
   RiemannProblem initial_data(equation, fub::Halfspace({+1.0, 0.0, 0.0}, -0.6),
                               left, right);
 
@@ -140,14 +140,14 @@ void MyMain(const fub::ProgramOptions& options) {
   // Eigen::Array<double, 3, 1> normal{1.0, 0.0, 0.0};
   // ShockMachnumber<fub::PerfectGas<3>, fub::Halfspace> initial_data(equation, fub::Halfspace({+1.0, 0.0, 0.0}, -0.6), right, Mach_number, normal);
 
-  using Complete = fub::Complete<fub::PerfectGas<3>>;
+  // using Complete = fub::Complete<fub::PerfectGas<3>>;
   // const Complete& left = initial_data.GetRiemannProblem().left_;
   // const Complete& right_ = initial_data.GetRiemannProblem().right_;
   // BOOST_LOG(log) << "Initial Condition 'ShockMachNumber':";
   // BOOST_LOG(log) << fmt::format("Post-shock state: {} kg/m3, {} m/s, {} Pa", right_.density, equation.Velocity(right_)[0], right_.pressure);
   // BOOST_LOG(log) << fmt::format("Shock Mach number: Ma = {} [-]", Mach_number);
   // BOOST_LOG(log) << fmt::format("Pre-shock state: {} kg/m3, {} m/s, {} Pa", left.density, equation.Velocity(left)[0], left.pressure);
-//   using Complete = fub::Complete<fub::IdealGasMix<3>>;
+  using Complete = fub::Complete<fub::IdealGasMix<3>>;
   GradientDetector gradients{equation, std::pair{&Complete::pressure, 0.05},
                              std::pair{&Complete::density, 0.05}};
 
@@ -163,13 +163,13 @@ void MyMain(const fub::ProgramOptions& options) {
   BOOST_LOG(log) << "Initialize Hierarchy...";
   gridding->InitializeHierarchy(0.0);
 
-//   fub::EinfeldtSignalVelocities<fub::IdealGasMix<3>> signals{};
+  fub::EinfeldtSignalVelocities<fub::IdealGasMix<3>> signals{};
   // fub::EinfeldtSignalVelocities<fub::PerfectGas<3>> signals{};
-  // fub::HllMethod hll_method{equation, signals};
+  fub::HllMethod hll_method{equation, signals};
   // fub::MusclHancockMethod flux_method(equation, hll_method);
-  // fub::ideal_gas::MusclHancockPrimMethod<3> flux_method(equation);
-  fub::FluxMethod<fub::perfect_gas::MusclHancockPrim<3>> flux_method{equation};
-  fub::KbnCutCellMethod cutcell_method(flux_method);
+  fub::ideal_gas::MusclHancockPrimMethod<3> flux_method(equation);
+  // fub::FluxMethod<fub::perfect_gas::MusclHancockPrim<3>> flux_method{equation};
+  fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
 
   HyperbolicMethod method{FluxMethod{cutcell_method}, TimeIntegrator{},
                           Reconstruction{equation}};
@@ -185,8 +185,8 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
   using namespace std::literals::chrono_literals;
-//   using Plotfile = PlotfileOutput<fub::IdealGasMix<3>>;
-  using Plotfile = PlotfileOutput<fub::PerfectGas<3>>;
+  using Plotfile = PlotfileOutput<fub::IdealGasMix<3>>;
+  // using Plotfile = PlotfileOutput<fub::PerfectGas<3>>;
   using CounterOutput =
       fub::CounterOutput<GriddingAlgorithm, std::chrono::milliseconds>;
   fub::OutputFactory<GriddingAlgorithm> factory{};

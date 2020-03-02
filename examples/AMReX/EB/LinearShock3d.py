@@ -36,7 +36,7 @@ n_cells_x = n_cells_y * x_over_y_ratio
 n_cells_x -= n_cells_x % blocking_factor
 n_cells_x = int(n_cells_x)
 
-Mach_number = 1.4
+Mach_number = 1.9
 
 RunOptions = {
   'cfl': 0.5,
@@ -50,6 +50,18 @@ GridGeometry = {
   'coordinates': {
     'lower': [x_lower, y_lower, z_lower],
     'upper': [x_upper, y_upper, z_upper],
+  }
+}
+
+InitialCondition = {
+  'left': {
+    'moles': 'H2O:0.2, N2:0.8',
+    'temperature': 1800,
+    'pressure': 4.0 * 101325.0
+  }, 'right': {
+    'moles': 'O2:0.2, N2:0.8',
+    'temperature': 300,
+    'pressure': 101325.0
   }
 }
 
