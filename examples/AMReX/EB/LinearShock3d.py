@@ -36,6 +36,8 @@ n_cells_x = n_cells_y * x_over_y_ratio
 n_cells_x -= n_cells_x % blocking_factor
 n_cells_x = int(n_cells_x)
 
+Mach_number = 1.4
+
 RunOptions = {
   'cfl': 0.5,
   'final_time': 0.004,
@@ -56,17 +58,17 @@ PatchHierarchy = {
   'blocking_factor': [blocking_factor, blocking_factor, blocking_factor],
   'max_grid_size': [max_grid_size, max_grid_size, max_grid_size],
   'ngrow_eb_level_set': 5,
-  'remove_covered_grids': False
+  'remove_covered_grids': True
 }
 
 Output = { 
   'outputs': [{
     'type': 'Plotfile',
-    'directory': 'LinearShock3d/',
-    # 'intervals': [1e-4],
-    'frequencies': [1],
+    'directory': 'Kugelplenum/',
+    'intervals': [1e-5],
+    # 'frequencies': [1],
   }, {
     'type': 'CounterOutput',
-    'frequencies': [1]
+    'frequencies': [25]
   }]
 }

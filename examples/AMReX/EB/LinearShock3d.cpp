@@ -22,6 +22,8 @@
 #include "fub/AMReX_CutCell.hpp"
 #include "fub/Solver.hpp"
 
+#include "fub/initial_data/ShockMachnumber.hpp"
+
 #include <AMReX_EB2_IF_Cylinder.H>
 #include <AMReX_EB2_IF_Intersection.H>
 #include <AMReX_EB2_IF_Plane.H>
@@ -93,9 +95,9 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::Complete<fub::PerfectGas<3>> right;
   fub::CompleteFromCons(equation, right, cons);
 
-  cons.energy *= 4;
-  fub::Complete<fub::PerfectGas<3>> left;
-  fub::CompleteFromCons(equation, left, cons);
+  // cons.energy *= 4;
+  // fub::Complete<fub::PerfectGas<3>> left;
+  // fub::CompleteFromCons(equation, left, cons);
 
 //   fub::Complete<fub::IdealGasMix<3>> right(equation);
 //   {
@@ -128,10 +130,20 @@ void MyMain(const fub::ProgramOptions& options) {
 //     equation.CompleteFromReactor(right);
 //     fub::CompleteFromCons(equation, right, right);
 //   }
-  RiemannProblem initial_data(equation, fub::Halfspace({+1.0, 0.0, 0.0}, -0.6),
-                              left, right);
+  // RiemannProblem initial_data(equation, fub::Halfspace({+1.0, 0.0, 0.0}, -0.6),
+  //                             left, right);
+
+  double Mach_number = fub::GetOptionOr(options, "Mach_number", 0.4);
+  Eigen::Array<double, 3, 1> normal{1.0, 0.0, 0.0};
+  ShockMachnumber initial_data(equation, fub::Halfspace({+1.0, 0.0, 0.0}, -0.6), right, Mach_number, normal);
 
   using Complete = fub::Complete<fub::PerfectGas<3>>;
+  const Complete& left = initial_data.GetRiemannProblem().left_;
+  const Complete& right_ = initial_data.GetRiemannProblem().right_;
+  BOOST_LOG(log) << "Initial Condition 'ShockMachNumber':";
+  BOOST_LOG(log) << fmt::format("Post-shock state: {} kg/m3, {} m/s, {} Pa", right_.density, equation.Velocity(right_)[0], right_.pressure);
+  BOOST_LOG(log) << fmt::format("Shock Mach number: Ma = {} [-]", Mach_number);
+  BOOST_LOG(log) << fmt::format("Pre-shock state: {} kg/m3, {} m/s, {} Pa", left.density, equation.Velocity(left)[0], left.pressure);
 //   using Complete = fub::Complete<fub::IdealGasMix<3>>;
   GradientDetector gradients{equation, std::pair{&Complete::pressure, 0.05},
                              std::pair{&Complete::density, 0.05}};
