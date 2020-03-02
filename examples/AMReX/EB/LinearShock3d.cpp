@@ -135,7 +135,7 @@ void MyMain(const fub::ProgramOptions& options) {
 
   double Mach_number = fub::GetOptionOr(options, "Mach_number", 0.4);
   Eigen::Array<double, 3, 1> normal{1.0, 0.0, 0.0};
-  ShockMachnumber initial_data(equation, fub::Halfspace({+1.0, 0.0, 0.0}, -0.6), right, Mach_number, normal);
+  ShockMachnumber<fub::PerfectGas<3>, fub::Halfspace> initial_data(equation, fub::Halfspace({+1.0, 0.0, 0.0}, -0.6), right, Mach_number, normal);
 
   using Complete = fub::Complete<fub::PerfectGas<3>>;
   const Complete& left = initial_data.GetRiemannProblem().left_;
@@ -171,13 +171,13 @@ void MyMain(const fub::ProgramOptions& options) {
   HyperbolicMethod method{FluxMethod{cutcell_method}, TimeIntegrator{},
                           Reconstruction{equation}};
 
-  const int scratch_gcw = 4;
-  const int flux_gcw = 2;
+  const int scratch_gcw = 2;
+  const int flux_gcw = 0;
 
   IntegratorContext context(gridding, method, scratch_gcw, flux_gcw);
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<3>, std::move(context), fub::StrangSplitting{});
+      fub::int_c<3>, std::move(context), fub::GodunovSplitting{});
 
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
