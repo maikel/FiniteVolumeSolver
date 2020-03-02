@@ -161,12 +161,12 @@ void MyMain(const fub::ProgramOptions& options) {
   gridding->InitializeHierarchy(0.0);
 
 //   fub::EinfeldtSignalVelocities<fub::IdealGasMix<3>> signals{};
-  fub::EinfeldtSignalVelocities<fub::PerfectGas<3>> signals{};
-  fub::HllMethod hll_method{equation, signals};
+  // fub::EinfeldtSignalVelocities<fub::PerfectGas<3>> signals{};
+  // fub::HllMethod hll_method{equation, signals};
   // fub::MusclHancockMethod flux_method(equation, hll_method);
   // fub::ideal_gas::MusclHancockPrimMethod<3> flux_method(equation);
   fub::FluxMethod<fub::perfect_gas::MusclHancockPrim<3>> flux_method{equation};
-  fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
+  fub::KbnCutCellMethod cutcell_method(flux_method);
 
   HyperbolicMethod method{FluxMethod{cutcell_method}, TimeIntegrator{},
                           Reconstruction{equation}};
