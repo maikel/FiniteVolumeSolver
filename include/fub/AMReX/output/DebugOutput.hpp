@@ -82,7 +82,7 @@ public:
   GatherFields(::amrex::IndexType location) const;
 
   /// \brief
-  void SetSnapshotDirectory(const std::string snapshot_directory) {
+  void SetSnapshotDirectory(const std::string& snapshot_directory) {
     snapshot_directory_ = snapshot_directory;
   }
 
