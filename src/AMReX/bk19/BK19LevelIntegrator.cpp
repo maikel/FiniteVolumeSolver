@@ -28,7 +28,7 @@
 
 namespace fub::amrex {
 
-std::vector<std::string> GetCompleteVariableNames() {
+DebugSnapshot::ComponentNames GetCompleteVariableNames() {
   using Equation = CompressibleAdvection<2>;
   fub::CompressibleAdvection<2> equation{};
   using Traits = StateTraits<Complete<Equation>>;
@@ -36,7 +36,7 @@ std::vector<std::string> GetCompleteVariableNames() {
   const auto depths = Depths<Complete<Equation>>(equation);
   const std::size_t n_names =
       std::tuple_size<remove_cvref_t<decltype(names)>>::value;
-  std::vector<std::string> varnames;
+  DebugSnapshot::ComponentNames varnames;
   varnames.reserve(n_names);
   boost::mp11::tuple_for_each(Zip(names, StateToTuple(depths)), [&](auto xs) {
     const int ncomp = std::get<1>(xs);
@@ -358,7 +358,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
     MultiFab::Add(scratch, UV_correction, UV_component, index.momentum[i],
                   one_component, no_ghosts);
   }
-  debug.SaveData(UV_correction, std::vector<std::string>{"Momentum_corr0", "Momentum_corr1"});
+  debug.SaveData(UV_correction, DebugSnapshot::ComponentNames{"Momentum_corr0", "Momentum_corr1"});
 
   RecoverVelocityFromMomentum_(scratch, index);
 
@@ -407,7 +407,7 @@ void DoEulerForward_(const Equation& equation,
 
   MultiFab::Add(scratch, momentum_correction, 0, index.momentum[0],
                 index.momentum.size(), no_ghosts);
-  debug.SaveData(momentum_correction, std::vector<std::string>{"Momentum_corr0", "Momentum_corr1"});
+  debug.SaveData(momentum_correction, DebugSnapshot::ComponentNames{"Momentum_corr0", "Momentum_corr1"});
 
   RecoverVelocityFromMomentum_(scratch, index);
 
@@ -522,7 +522,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   RecomputeAdvectiveFluxes(index_, Pv.on_faces, Pv.on_cells, scratch,
                            periodicity);
 
-  debug.SaveData(Pv.on_cells, std::vector<std::string>{"Pu", "Pv"});
+  debug.SaveData(Pv.on_cells, DebugSnapshot::ComponentNames{"Pu", "Pv"});
   debug.SaveData(Pv.on_faces[0], "Pu_faces", ::amrex::SrcComp(0));
   debug.SaveData(Pv.on_faces[1], "Pv_faces", ::amrex::SrcComp(0));
   debug.SaveData(scratch, GetCompleteVariableNames());

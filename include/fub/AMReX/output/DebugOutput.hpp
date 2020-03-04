@@ -29,8 +29,8 @@ namespace fub::amrex {
 
 class DebugSnapshot {
 public:
-  using Hierarchy = std::vector<::amrex::MultiFab>;
-  using ComponentNames = std::vector<std::string>;
+  using Hierarchy = ::amrex::Vector<::amrex::MultiFab>;
+  using ComponentNames = ::amrex::Vector<std::string>;
 
   /// \brief Initializes an empty snapshot
   DebugSnapshot() = default;
@@ -46,15 +46,15 @@ public:
   void SaveData(const ::amrex::MultiFab& mf, const ComponentNames& names,
                 ::amrex::SrcComp first_component = ::amrex::SrcComp(0));
 
-  void SaveData(const std::vector<const ::amrex::MultiFab*>& hierarchy,
+  void SaveData(const ::amrex::Vector<const ::amrex::MultiFab*>& hierarchy,
                 const std::string& name,
                 ::amrex::SrcComp component = ::amrex::SrcComp(0));
 
-  void SaveData(const std::vector<const ::amrex::MultiFab*>& hierarchy,
+  void SaveData(const ::amrex::Vector<const ::amrex::MultiFab*>& hierarchy,
                 const ComponentNames& names,
                 ::amrex::SrcComp first_component = ::amrex::SrcComp(0));
 
-  void SaveData(const std::vector<::amrex::MultiFab>& hierarchy,
+  void SaveData(const ::amrex::Vector<::amrex::MultiFab>& hierarchy,
                 const ComponentNames& names,
                 ::amrex::SrcComp first_component = ::amrex::SrcComp(0));
   /// @}
@@ -125,25 +125,25 @@ public:
   void SaveData(const ::amrex::MultiFab& mf, const DebugSnapshot::ComponentNames& names,
                 ::amrex::SrcComp first_component = ::amrex::SrcComp(0));
 
-  void SaveData(const std::vector<const ::amrex::MultiFab*>& hierarchy,
+  void SaveData(const ::amrex::Vector<const ::amrex::MultiFab*>& hierarchy,
                 const std::string& name,
                 ::amrex::SrcComp component = ::amrex::SrcComp(0));
 
-  void SaveData(const std::vector<const ::amrex::MultiFab*>& hierarchy,
+  void SaveData(const ::amrex::Vector<const ::amrex::MultiFab*>& hierarchy,
                 const DebugSnapshot::ComponentNames& names,
                 ::amrex::SrcComp first_component = ::amrex::SrcComp(0));
 
-  void SaveData(const std::vector<::amrex::MultiFab>& hierarchy,
+  void SaveData(const ::amrex::Vector<::amrex::MultiFab>& hierarchy,
                 const DebugSnapshot::ComponentNames& names,
                 ::amrex::SrcComp first_component = ::amrex::SrcComp(0));
   /// @}
 
-  /// \brief Returns all the snapshots which are stored via FlushData
+  /// \brief Returns all the snapshots which are stored in the debug storage
   std::vector<DebugSnapshot>& GetSnapshots() noexcept;
 
   /// \brief Saves a snapshot of hierarchies to be written at the end of the
   /// time step.
-  void FlushData(const std::string& snapshot_name);
+  void FlushData(const std::string& snapshot_directory);
 
   /// \brief Reinitializes the debug storage by clearing all currently stored data
   void Reinitialize();

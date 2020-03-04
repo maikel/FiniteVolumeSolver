@@ -28,22 +28,6 @@
 namespace fub::amrex {
 
 namespace {
-template <typename T>
-std::vector<T*> GetPointersFromVector(std::vector<T>& vector) {
-  std::vector<T*> pointers(vector.size());
-  std::transform(vector.begin(), vector.end(), pointers.begin(),
-                 [](T& obj) { return &obj; });
-  return pointers;
-}
-
-template <typename T>
-std::vector<const T*> GetConstPointersFromVector(const std::vector<T>& vector) {
-  std::vector<const T*> pointers(vector.size());
-  std::transform(vector.begin(), vector.end(), pointers.begin(),
-                 [](const T& obj) { return &obj; });
-  return pointers;
-}
-
 struct equal_to {
   int i;
   const std::vector<std::vector<::amrex::BoxArray>>* bas_;
@@ -219,16 +203,16 @@ void DebugSnapshot::SaveData(const ::amrex::MultiFab& mf,
 //   }
 }
 
-void DebugSnapshot::SaveData(const std::vector<::amrex::MultiFab>& hierarchy,
+void DebugSnapshot::SaveData(const ::amrex::Vector<::amrex::MultiFab>& hierarchy,
                             const ComponentNames& names,
                             ::amrex::SrcComp first_component) {
 //   if (is_enabled_) {
-    SaveData(GetConstPointersFromVector(hierarchy), names, first_component);
+    SaveData(::amrex::GetVecOfConstPtrs(hierarchy), names, first_component);
 //   }
 }
 
 void DebugSnapshot::SaveData(
-    const std::vector<const ::amrex::MultiFab*>& hierarchy,
+    const ::amrex::Vector<const ::amrex::MultiFab*>& hierarchy,
     const ComponentNames& names, ::amrex::SrcComp first_component) {
 //   if (is_enabled_) {
     std::size_t nlevels = hierarchy.size();
@@ -255,7 +239,7 @@ void DebugSnapshot::MakeUniqueComponentNames() {
   for (DebugSnapshot::ComponentNames& names : names_per_hierarchy_) {
 
     auto last = names.end();
-    for (std::size_t k = 0; k < names.size(); ++k) {
+    for (int k = 0; k < names.size(); ++k) {
       const std::string candidate = names[k];
       int counter = 0;
       // search for candidate in current hierarchy
@@ -357,7 +341,7 @@ void DebugStorage::SaveData(const ::amrex::MultiFab& mf,
   }
 }
 
-void DebugStorage::SaveData(const std::vector<::amrex::MultiFab>& hierarchy,
+void DebugStorage::SaveData(const ::amrex::Vector<::amrex::MultiFab>& hierarchy,
                             const DebugSnapshot::ComponentNames& names,
                             ::amrex::SrcComp first_component) {
   if (is_enabled_) {
@@ -367,7 +351,7 @@ void DebugStorage::SaveData(const std::vector<::amrex::MultiFab>& hierarchy,
 }
 
 void DebugStorage::SaveData(
-    const std::vector<const ::amrex::MultiFab*>& hierarchy,
+    const ::amrex::Vector<const ::amrex::MultiFab*>& hierarchy,
     const DebugSnapshot::ComponentNames& names, ::amrex::SrcComp first_component) {
   if (is_enabled_) {
     DebugSnapshot& snapshot = saved_snapshots_.back();
@@ -434,7 +418,7 @@ void DebugOutput::operator()(const GriddingAlgorithm& grid) {
         const int nlevels = hierarchy.size();
         const int nComp = hierarchy[0].nComp();
         DebugSnapshot::Hierarchy cell_average_hierarchy(nlevels);
-        std::vector<std::string> names_avg(*hier_fields);
+        DebugSnapshot::ComponentNames names_avg(*hier_fields);
 
         if (hierarchy[0].ixType() == ::amrex::IndexType::TheNodeType()) {
           for (int level = 0; level < nlevels; ++level) {
@@ -475,7 +459,7 @@ void DebugOutput::operator()(const GriddingAlgorithm& grid) {
 
     auto avg_fields = names_avg_hierarchies.begin();
     for (const DebugSnapshot::Hierarchy& hierarchy : avg_hierarchies) {
-      std::vector<std::string> names_avg(*avg_fields);
+      DebugSnapshot::ComponentNames names_avg(*avg_fields);
       snapshot.SaveData(hierarchy, names_avg);
       ++avg_fields;
     }
@@ -530,7 +514,7 @@ void DebugOutput::operator()(const GriddingAlgorithm& grid) {
             const std::string raw_pltname = fmt::format("{}/raw_fields", plotfilename);
             const std::string level_prefix = "Level_";
             for (int Comp = 0; Comp < nComp; ++Comp) {
-            const std::string full_prefix =
+              const std::string full_prefix =
               ::amrex::MultiFabFileFullPrefix(ii, raw_pltname, level_prefix, names[Comp]);
               ::amrex::MultiFab data(ba, dm, 1, 0);
               ::amrex::MultiFab::Copy(data, hierarchy[i], Comp, 0, 1, 0);
