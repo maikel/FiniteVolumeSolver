@@ -74,9 +74,9 @@ void WriteBK19Plotfile::operator()(const GriddingAlgorithm& grid) const {
   ::amrex::Vector<std::string> vnames(varnames.begin(), varnames.end());
 
   ::amrex::Vector<std::string> rfs{"raw_fields"};
-  ::amrex::WriteMultiLevelPlotfile(name, nlevels, mf, vnames, geoms,
-                                   time_point, level_steps, ref_ratio,
-                                   "HyperCLaw-V1.1", "Level_", "Cell", rfs);
+  ::amrex::WriteMultiLevelPlotfile(name, nlevels, mf, vnames, geoms, time_point,
+                                   level_steps, ref_ratio, "HyperCLaw-V1.1",
+                                   "Level_", "Cell", rfs);
 
   // write nodal raw fields
   for (int level = 0; level < int(size); ++level) {
@@ -357,7 +357,8 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
     MultiFab::Add(scratch, UV_correction, UV_component, index.momentum[i],
                   one_component, no_ghosts);
   }
-  dbg_sn.SaveData(UV_correction, DebugSnapshot::ComponentNames{"Momentum_corr0", "Momentum_corr1"});
+  dbg_sn.SaveData(UV_correction, DebugSnapshot::ComponentNames{
+                                     "Momentum_corr0", "Momentum_corr1"});
 
   RecoverVelocityFromMomentum_(scratch, index);
 
@@ -406,7 +407,8 @@ void DoEulerForward_(const Equation& equation,
 
   MultiFab::Add(scratch, momentum_correction, 0, index.momentum[0],
                 index.momentum.size(), no_ghosts);
-  dbg_sn.SaveData(momentum_correction, DebugSnapshot::ComponentNames{"Momentum_corr0", "Momentum_corr1"});
+  dbg_sn.SaveData(momentum_correction, DebugSnapshot::ComponentNames{
+                                           "Momentum_corr0", "Momentum_corr1"});
 
   RecoverVelocityFromMomentum_(scratch, index);
 
@@ -484,9 +486,12 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   DebugSnapshotProxy dbgAdvFlux = debug.AddSnapshot("BK19_advective_fluxes");
   DebugSnapshotProxy dbgAdv = debug.AddSnapshot("BK19_advect");
   DebugSnapshotProxy dbgAdvB = debug.AddSnapshot("BK19_advect-backward");
-  DebugSnapshotProxy dbgAdvBF = debug.AddSnapshot("BK19_advect-backward-forward");
-  DebugSnapshotProxy dbgAdvBFA = debug.AddSnapshot("BK19_advect-backward-forward-advect");
-  DebugSnapshotProxy dbgAdvBFAB = debug.AddSnapshot("BK19_advect-backward-forward-advect-backward");
+  DebugSnapshotProxy dbgAdvBF =
+      debug.AddSnapshot("BK19_advect-backward-forward");
+  DebugSnapshotProxy dbgAdvBFA =
+      debug.AddSnapshot("BK19_advect-backward-forward-advect");
+  DebugSnapshotProxy dbgAdvBFAB =
+      debug.AddSnapshot("BK19_advect-backward-forward-advect-backward");
 
   dbgPreStep.SaveData(scratch, GetCompleteVariableNames());
   dbgPreStep.SaveData(pi, "pi");
@@ -520,8 +525,8 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
 
   // 3) Do the first euler backward integration step for the source term
   context.FillGhostLayerSingleLevel(level);
-  DoEulerBackward_(equation_, index_, *lin_op_, options_,
-                   context, level, half_dt, dbgAdvB);
+  DoEulerBackward_(equation_, index_, *lin_op_, options_, context, level,
+                   half_dt, dbgAdvB);
 
   // 4) Recompute Pv at half time
   RecomputeAdvectiveFluxes(index_, Pv.on_faces, Pv.on_cells, scratch,
@@ -538,7 +543,8 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
 
   // 5) Explicit Euler with old scratch data
   //   - We need a current pi_n here. What is the initial one?
-  DoEulerForward_(equation_, index_, *lin_op_, context, level, half_dt, dbgAdvBF);
+  DoEulerForward_(equation_, index_, *lin_op_, context, level, half_dt,
+                  dbgAdvBF);
 
   dbgAdvBF.SaveData(scratch, GetCompleteVariableNames());
   dbgAdvBF.SaveData(pi, "pi");

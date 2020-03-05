@@ -91,9 +91,7 @@ public:
   }
 
   /// \brief
-  const std::string GetSnapshotDirectory() const {
-    return snapshot_directory_;
-  }
+  const std::string GetSnapshotDirectory() const { return snapshot_directory_; }
 
 private:
   /// \brief Each SaveData will append a hierarchy
@@ -104,7 +102,6 @@ private:
 
   /// \brief output directory of storage;
   std::string snapshot_directory_{};
-
 };
 
 class DebugSnapshotProxy {
@@ -113,7 +110,7 @@ public:
   DebugSnapshotProxy() = default;
 
   /// \brief Initializes a proxy snapshot for a real snapshot
-  DebugSnapshotProxy(DebugSnapshot& snapshot) : m_snapshot(&snapshot) {};
+  DebugSnapshotProxy(DebugSnapshot& snapshot) : m_snapshot(&snapshot){};
 
   /// @{
   /// \brief Saves a current hierarchy state with given component names
@@ -123,7 +120,8 @@ public:
   void SaveData(const ::amrex::MultiFab& mf, const std::string& name,
                 ::amrex::SrcComp component = ::amrex::SrcComp(0));
 
-  void SaveData(const ::amrex::MultiFab& mf, const DebugSnapshot::ComponentNames& names,
+  void SaveData(const ::amrex::MultiFab& mf,
+                const DebugSnapshot::ComponentNames& names,
                 ::amrex::SrcComp first_component = ::amrex::SrcComp(0));
 
   void SaveData(const ::amrex::Vector<const ::amrex::MultiFab*>& hierarchy,
@@ -146,12 +144,10 @@ public:
 private:
   /// \brief Pointer to the real snapshot
   DebugSnapshot* m_snapshot{nullptr};
-
 };
 
 class DebugStorage {
 public:
-
   /// \brief Initializes the storage
   DebugStorage() = default;
 

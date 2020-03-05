@@ -83,9 +83,9 @@ GatherBoxArrays_(const std::vector<DebugSnapshot::Hierarchy>& hierarchies,
                   [](const ::amrex::MultiFab& mf) { return mf.boxArray(); });
 }
 
-std::vector<std::vector<::amrex::DistributionMapping>>
-GatherDistributionMaps_(const std::vector<DebugSnapshot::Hierarchy>& hierarchies,
-                        ::amrex::IndexType location) {
+std::vector<std::vector<::amrex::DistributionMapping>> GatherDistributionMaps_(
+    const std::vector<DebugSnapshot::Hierarchy>& hierarchies,
+    ::amrex::IndexType location) {
   return GatherBy(hierarchies, location, [](const ::amrex::MultiFab& mf) {
     return mf.DistributionMap();
   });
@@ -131,16 +131,17 @@ Select_(const std::vector<DebugSnapshot::ComponentNames>& names,
 
 // Apply face to cell average to a specified face_component on mf_faces and
 // write its result into cell_component of mf_cells.
-void
-AverageFaceToCell(::amrex::MultiFab& mf_cells, int cell_component,
-                  const ::amrex::MultiFab& mf_faces, int face_component) {
+void AverageFaceToCell(::amrex::MultiFab& mf_cells, int cell_component,
+                       const ::amrex::MultiFab& mf_faces, int face_component) {
   ::amrex::IndexType facetype = mf_faces.ixType();
   Direction dir;
   if (facetype == ::amrex::IndexType(::amrex::IntVect(AMREX_D_DECL(1, 0, 0)))) {
     dir = Direction::X;
-  } else if (facetype == ::amrex::IndexType(::amrex::IntVect(AMREX_D_DECL(0, 1, 0)))) {
+  } else if (facetype ==
+             ::amrex::IndexType(::amrex::IntVect(AMREX_D_DECL(0, 1, 0)))) {
     dir = Direction::Y;
-  } else if (facetype == ::amrex::IndexType(::amrex::IntVect(AMREX_D_DECL(0, 0, 1)))) {
+  } else if (facetype ==
+             ::amrex::IndexType(::amrex::IntVect(AMREX_D_DECL(0, 0, 1)))) {
     dir = Direction::Z;
   } else {
     throw std::runtime_error("Invalid Index type of face variable!");
@@ -154,15 +155,15 @@ AverageFaceToCell(::amrex::MultiFab& mf_cells, int cell_component,
     fub::ForEachIndex(cells.Box(), [&](auto... is) {
       std::array<std::ptrdiff_t, AMREX_SPACEDIM> cell{is...};
       std::array<std::ptrdiff_t, AMREX_SPACEDIM> face_left{is...};
-      std::array<std::ptrdiff_t, AMREX_SPACEDIM> face_right = Shift(face_left, dir, 1);
+      std::array<std::ptrdiff_t, AMREX_SPACEDIM> face_right =
+          Shift(face_left, dir, 1);
       cells(cell) = 0.5 * faces(face_left) + 0.5 * faces(face_right);
     });
   });
-
 }
 
-
-::amrex::IntVect GetRefRatio_(::amrex::Geometry geom0, ::amrex::Geometry geom1) {
+::amrex::IntVect GetRefRatio_(::amrex::Geometry geom0,
+                              ::amrex::Geometry geom1) {
   ::amrex::Box dom0 = geom0.Domain();
   ::amrex::Box dom1 = geom1.Domain();
 
@@ -179,76 +180,78 @@ AverageFaceToCell(::amrex::MultiFab& mf_cells, int cell_component,
 } // namespace
 
 /// \brief Returns all the hierarchies which are stored via SaveData
-const std::vector<DebugSnapshot::Hierarchy>& DebugSnapshot::GetHierarchies() const
-    noexcept {
+const std::vector<DebugSnapshot::Hierarchy>&
+DebugSnapshot::GetHierarchies() const noexcept {
   return saved_hierarchies_;
 }
 
 /// \brief Returns all the component names which are stored via SaveData
-const std::vector<DebugSnapshot::ComponentNames>& DebugSnapshot::GetNames() const
-    noexcept {
+const std::vector<DebugSnapshot::ComponentNames>&
+DebugSnapshot::GetNames() const noexcept {
   return names_per_hierarchy_;
 }
 
 void DebugSnapshot::SaveData(const ::amrex::MultiFab& mf,
-                            const std::string& name,
-                            ::amrex::SrcComp component) {
-    Hierarchy single_level_hierarchy{};
-    ::amrex::BoxArray ba = mf.boxArray();
-    ::amrex::DistributionMapping dm = mf.DistributionMap();
-    ::amrex::MultiFab& dest = single_level_hierarchy.emplace_back(ba, dm, 1, 0);
-    ::amrex::MultiFab::Copy(dest, mf, component.i, 0, 1, 0);
-    saved_hierarchies_.push_back(std::move(single_level_hierarchy));
-    names_per_hierarchy_.push_back(ComponentNames{name});
+                             const std::string& name,
+                             ::amrex::SrcComp component) {
+  Hierarchy single_level_hierarchy{};
+  ::amrex::BoxArray ba = mf.boxArray();
+  ::amrex::DistributionMapping dm = mf.DistributionMap();
+  ::amrex::MultiFab& dest = single_level_hierarchy.emplace_back(ba, dm, 1, 0);
+  ::amrex::MultiFab::Copy(dest, mf, component.i, 0, 1, 0);
+  saved_hierarchies_.push_back(std::move(single_level_hierarchy));
+  names_per_hierarchy_.push_back(ComponentNames{name});
 }
 
 void DebugSnapshot::SaveData(const ::amrex::MultiFab& mf,
-                            const ComponentNames& names,
-                            ::amrex::SrcComp first_component) {
-    Hierarchy single_level_hierarchy{};
-    ::amrex::BoxArray ba = mf.boxArray();
-    ::amrex::DistributionMapping dm = mf.DistributionMap();
-    int n_components = static_cast<int>(names.size());
-    ::amrex::MultiFab& dest = single_level_hierarchy.emplace_back(ba, dm, n_components, 0);
-    ::amrex::MultiFab::Copy(dest, mf, first_component.i, 0, n_components, 0);
-    saved_hierarchies_.push_back(std::move(single_level_hierarchy));
-    names_per_hierarchy_.push_back(ComponentNames{names});
+                             const ComponentNames& names,
+                             ::amrex::SrcComp first_component) {
+  Hierarchy single_level_hierarchy{};
+  ::amrex::BoxArray ba = mf.boxArray();
+  ::amrex::DistributionMapping dm = mf.DistributionMap();
+  int n_components = static_cast<int>(names.size());
+  ::amrex::MultiFab& dest =
+      single_level_hierarchy.emplace_back(ba, dm, n_components, 0);
+  ::amrex::MultiFab::Copy(dest, mf, first_component.i, 0, n_components, 0);
+  saved_hierarchies_.push_back(std::move(single_level_hierarchy));
+  names_per_hierarchy_.push_back(ComponentNames{names});
 }
 
-void DebugSnapshot::SaveData(const ::amrex::Vector<const ::amrex::MultiFab*>& hierarchy,
-              const std::string& name,
-              ::amrex::SrcComp component) {
+void DebugSnapshot::SaveData(
+    const ::amrex::Vector<const ::amrex::MultiFab*>& hierarchy,
+    const std::string& name, ::amrex::SrcComp component) {
   SaveData(hierarchy, ComponentNames{name}, component);
 }
 
-void DebugSnapshot::SaveData(const ::amrex::Vector<::amrex::MultiFab>& hierarchy,
-              const std::string& name,
-              ::amrex::SrcComp component) {
-  SaveData(::amrex::GetVecOfConstPtrs(hierarchy), ComponentNames{name}, component);
+void DebugSnapshot::SaveData(
+    const ::amrex::Vector<::amrex::MultiFab>& hierarchy,
+    const std::string& name, ::amrex::SrcComp component) {
+  SaveData(::amrex::GetVecOfConstPtrs(hierarchy), ComponentNames{name},
+           component);
 }
 
 void DebugSnapshot::SaveData(
     const ::amrex::Vector<const ::amrex::MultiFab*>& hierarchy,
     const ComponentNames& names, ::amrex::SrcComp first_component) {
-    std::size_t nlevels = hierarchy.size();
-    Hierarchy& multi_level_hierarchy = saved_hierarchies_.emplace_back();
-    multi_level_hierarchy.reserve(nlevels);
-    for (const ::amrex::MultiFab* mf_pointer : hierarchy) {
-      FUB_ASSERT(mf_pointer != nullptr);
-      const ::amrex::MultiFab& mf = *mf_pointer;
-      ::amrex::BoxArray ba = mf.boxArray();
-      ::amrex::DistributionMapping dm = mf.DistributionMap();
-      ::amrex::MultiFab& dest =
-          multi_level_hierarchy.emplace_back(ba, dm, names.size(), 0);
-      ::amrex::MultiFab::Copy(dest, mf, first_component.i, 0, names.size(), 0);
-    }
-    names_per_hierarchy_.push_back(names);
+  std::size_t nlevels = hierarchy.size();
+  Hierarchy& multi_level_hierarchy = saved_hierarchies_.emplace_back();
+  multi_level_hierarchy.reserve(nlevels);
+  for (const ::amrex::MultiFab* mf_pointer : hierarchy) {
+    FUB_ASSERT(mf_pointer != nullptr);
+    const ::amrex::MultiFab& mf = *mf_pointer;
+    ::amrex::BoxArray ba = mf.boxArray();
+    ::amrex::DistributionMapping dm = mf.DistributionMap();
+    ::amrex::MultiFab& dest =
+        multi_level_hierarchy.emplace_back(ba, dm, names.size(), 0);
+    ::amrex::MultiFab::Copy(dest, mf, first_component.i, 0, names.size(), 0);
+  }
+  names_per_hierarchy_.push_back(names);
 }
 
-void DebugSnapshot::SaveData(const ::amrex::Vector<::amrex::MultiFab>& hierarchy,
-                            const ComponentNames& names,
-                            ::amrex::SrcComp first_component) {
-    SaveData(::amrex::GetVecOfConstPtrs(hierarchy), names, first_component);
+void DebugSnapshot::SaveData(
+    const ::amrex::Vector<::amrex::MultiFab>& hierarchy,
+    const ComponentNames& names, ::amrex::SrcComp first_component) {
+  SaveData(::amrex::GetVecOfConstPtrs(hierarchy), names, first_component);
 }
 
 void DebugSnapshot::MakeUniqueComponentNames() {
@@ -308,7 +311,8 @@ DebugSnapshot::GatherFields(::amrex::IndexType location) const {
   std::vector<const DebugSnapshot::Hierarchy*> filtered_hierarchies =
       GatherHierarchies_(saved_hierarchies_, location);
   std::vector<std::vector<int>> partitions = Partitions_(box_arrays);
-  std::vector<std::pair<DebugSnapshot::Hierarchy, DebugSnapshot::ComponentNames>>
+  std::vector<
+      std::pair<DebugSnapshot::Hierarchy, DebugSnapshot::ComponentNames>>
       hiers_with_names{};
   for (const std::vector<int>& partition : partitions) {
     std::vector<ComponentNames> all_components =
@@ -341,26 +345,25 @@ void DebugSnapshot::ClearAll() {
   saved_hierarchies_.clear();
 }
 
-
 void DebugSnapshotProxy::SaveData(const ::amrex::MultiFab& mf,
-                            const std::string& name,
-                            ::amrex::SrcComp component) {
+                                  const std::string& name,
+                                  ::amrex::SrcComp component) {
   if (m_snapshot) {
     m_snapshot->SaveData(mf, name, component);
   }
 }
 
 void DebugSnapshotProxy::SaveData(const ::amrex::MultiFab& mf,
-                            const DebugSnapshot::ComponentNames& names,
-                            ::amrex::SrcComp first_component) {
+                                  const DebugSnapshot::ComponentNames& names,
+                                  ::amrex::SrcComp first_component) {
   if (m_snapshot) {
     m_snapshot->SaveData(mf, names, first_component);
   }
 }
 
-void DebugSnapshotProxy::SaveData(const ::amrex::Vector<::amrex::MultiFab>& hierarchy,
-                            const std::string& name,
-                            ::amrex::SrcComp first_component) {
+void DebugSnapshotProxy::SaveData(
+    const ::amrex::Vector<::amrex::MultiFab>& hierarchy,
+    const std::string& name, ::amrex::SrcComp first_component) {
   if (m_snapshot) {
     m_snapshot->SaveData(hierarchy, name, first_component);
   }
@@ -376,28 +379,29 @@ void DebugSnapshotProxy::SaveData(
 
 void DebugSnapshotProxy::SaveData(
     const ::amrex::Vector<const ::amrex::MultiFab*>& hierarchy,
-    const DebugSnapshot::ComponentNames& names, ::amrex::SrcComp first_component) {
+    const DebugSnapshot::ComponentNames& names,
+    ::amrex::SrcComp first_component) {
   if (m_snapshot) {
     m_snapshot->SaveData(hierarchy, names, first_component);
   }
 }
 
-void DebugSnapshotProxy::SaveData(const ::amrex::Vector<::amrex::MultiFab>& hierarchy,
-                            const DebugSnapshot::ComponentNames& names,
-                            ::amrex::SrcComp first_component) {
+void DebugSnapshotProxy::SaveData(
+    const ::amrex::Vector<::amrex::MultiFab>& hierarchy,
+    const DebugSnapshot::ComponentNames& names,
+    ::amrex::SrcComp first_component) {
   if (m_snapshot) {
     m_snapshot->SaveData(hierarchy, names, first_component);
   }
 }
-
 
 /// \brief Returns all the snapshots which are stored via FlushData
-std::list<DebugSnapshot>& DebugStorage::GetSnapshots()
-    noexcept {
+std::list<DebugSnapshot>& DebugStorage::GetSnapshots() noexcept {
   return saved_snapshots_;
 }
 
-DebugSnapshotProxy DebugStorage::AddSnapshot(const std::string& snapshot_directory) {
+DebugSnapshotProxy
+DebugStorage::AddSnapshot(const std::string& snapshot_directory) {
   if (is_enabled_) {
     DebugSnapshot& snapshot = saved_snapshots_.emplace_back();
     snapshot.SetSnapshotDirectory(snapshot_directory);
@@ -444,11 +448,13 @@ void DebugOutput::operator()(const GriddingAlgorithm& grid) {
           for (int level = 0; level < nlevels; ++level) {
             ::amrex::BoxArray ba = hierarchy[level].boxArray();
             ba.enclosedCells();
-            ::amrex::DistributionMapping dm = hierarchy[level].DistributionMap();
+            ::amrex::DistributionMapping dm =
+                hierarchy[level].DistributionMap();
             cell_average_hierarchy[level].define(ba, dm, nComp, 0);
 
-            ::amrex::average_node_to_cellcenter(cell_average_hierarchy[level], 0,
-                                                hierarchy[level], 0, nComp, 0);
+            ::amrex::average_node_to_cellcenter(cell_average_hierarchy[level],
+                                                0, hierarchy[level], 0, nComp,
+                                                0);
           }
           for (std::string& vname : names_avg) {
             vname += "_nd2cellavg"s;
@@ -457,12 +463,13 @@ void DebugOutput::operator()(const GriddingAlgorithm& grid) {
           for (int level = 0; level < nlevels; ++level) {
             ::amrex::BoxArray ba = hierarchy[level].boxArray();
             ba.enclosedCells();
-            ::amrex::DistributionMapping dm = hierarchy[level].DistributionMap();
+            ::amrex::DistributionMapping dm =
+                hierarchy[level].DistributionMap();
             cell_average_hierarchy[level].define(ba, dm, nComp, 0);
 
             for (int Comp = 0; Comp < nComp; ++Comp) {
               AverageFaceToCell(cell_average_hierarchy[level], Comp,
-                      hierarchy[level], Comp);
+                                hierarchy[level], Comp);
             }
           }
           for (std::string& vname : names_avg) {
@@ -487,34 +494,36 @@ void DebugOutput::operator()(const GriddingAlgorithm& grid) {
     names_avg_hierarchies.clear();
 
     // save data from snapshot by partition (same patch hierarchy)
-    std::vector<std::pair<DebugSnapshot::Hierarchy, DebugSnapshot::ComponentNames>>
+    std::vector<
+        std::pair<DebugSnapshot::Hierarchy, DebugSnapshot::ComponentNames>>
         hiers_with_names =
             snapshot.GatherFields(::amrex::IndexType::TheCellType());
     const std::string snapshot_directory = snapshot.GetSnapshotDirectory();
 
     int partition_counter = 0;
     for (auto&& [hierarchy, names] : hiers_with_names) {
-      const std::string plotfilename =
-          fmt::format("{}/{}/partition_{}_plt{:09}", directory_, snapshot_directory, partition_counter,
-                      grid.GetPatchHierarchy().GetCycles());
+      const std::string plotfilename = fmt::format(
+          "{}/{}/partition_{}_plt{:09}", directory_, snapshot_directory,
+          partition_counter, grid.GetPatchHierarchy().GetCycles());
       const std::size_t size = hierarchy.size();
       const double time_point = grid.GetTimePoint().count();
       ::amrex::Vector<const ::amrex::MultiFab*> mf(size);
       ::amrex::Vector<::amrex::Geometry> geoms(size);
       ::amrex::Vector<int> level_steps(size);
-      ::amrex::Vector<::amrex::IntVect> ref_ratio(size-1);
+      ::amrex::Vector<::amrex::IntVect> ref_ratio(size - 1);
       std::vector<::amrex::BoxArray> cell_box_array(size);
 
       for (std::size_t i = 0; i < size; ++i) {
         mf[i] = &hierarchy[i];
         const int ii = static_cast<int>(i);
         geoms[i] = grid.GetPatchHierarchy().GetGeometry(ii);
-        level_steps[i] = static_cast<int>(grid.GetPatchHierarchy().GetCycles(ii));
+        level_steps[i] =
+            static_cast<int>(grid.GetPatchHierarchy().GetCycles(ii));
         cell_box_array[i] = hierarchy[i].boxArray();
       }
 
-      for (std::size_t i = 0; i < size-1; ++i) {
-        ref_ratio[i] = GetRefRatio_(geoms[i], geoms[i+1]);
+      for (std::size_t i = 0; i < size - 1; ++i) {
+        ref_ratio[i] = GetRefRatio_(geoms[i], geoms[i + 1]);
       }
 
       ::amrex::Vector<std::string> vnames(names.begin(), names.end());
@@ -542,13 +551,14 @@ void DebugOutput::operator()(const GriddingAlgorithm& grid) {
           if (cell_box_array == noncell_box_array) {
             for (std::size_t i = 0; i < size; ++i) {
               const int ii = static_cast<int>(i);
-                ::amrex::BoxArray ba = hierarchy[i].boxArray();
-                ::amrex::DistributionMapping dm = hierarchy[i].DistributionMap();
-              const std::string raw_pltname = fmt::format("{}/raw_fields", plotfilename);
+              ::amrex::BoxArray ba = hierarchy[i].boxArray();
+              ::amrex::DistributionMapping dm = hierarchy[i].DistributionMap();
+              const std::string raw_pltname =
+                  fmt::format("{}/raw_fields", plotfilename);
               const std::string level_prefix = "Level_";
               for (int Comp = 0; Comp < nComp; ++Comp) {
-                const std::string full_prefix =
-                ::amrex::MultiFabFileFullPrefix(ii, raw_pltname, level_prefix, names[Comp]);
+                const std::string full_prefix = ::amrex::MultiFabFileFullPrefix(
+                    ii, raw_pltname, level_prefix, names[Comp]);
                 ::amrex::MultiFab data(ba, dm, 1, 0);
                 ::amrex::MultiFab::Copy(data, hierarchy[i], Comp, 0, 1, 0);
                 ::amrex::VisMF::Write(data, full_prefix);
