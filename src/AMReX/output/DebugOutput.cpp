@@ -423,11 +423,12 @@ void DebugOutput::operator()(const GriddingAlgorithm& grid) {
   for (DebugSnapshot& snapshot : saved_snapshots) {
     snapshot.MakeUniqueComponentNames();
 
-    // average node/face data to cell data
     const std::vector<DebugSnapshot::Hierarchy>& all_hierarchies =
         snapshot.GetHierarchies();
     const std::vector<DebugSnapshot::ComponentNames>& all_names =
         snapshot.GetNames();
+
+    // average node/face data to cell data
     std::vector<DebugSnapshot::Hierarchy> avg_hierarchies{};
     std::vector<DebugSnapshot::ComponentNames> names_avg_hierarchies{};
 
@@ -485,6 +486,7 @@ void DebugOutput::operator()(const GriddingAlgorithm& grid) {
     avg_hierarchies.clear();
     names_avg_hierarchies.clear();
 
+    // save data from snapshot by partition (same patch hierarchy)
     std::vector<std::pair<DebugSnapshot::Hierarchy, DebugSnapshot::ComponentNames>>
         hiers_with_names =
             snapshot.GatherFields(::amrex::IndexType::TheCellType());
@@ -501,12 +503,14 @@ void DebugOutput::operator()(const GriddingAlgorithm& grid) {
       ::amrex::Vector<::amrex::Geometry> geoms(size);
       ::amrex::Vector<int> level_steps(size);
       ::amrex::Vector<::amrex::IntVect> ref_ratio(size-1);
+      std::vector<::amrex::BoxArray> cell_box_array(size);
 
       for (std::size_t i = 0; i < size; ++i) {
         mf[i] = &hierarchy[i];
         const int ii = static_cast<int>(i);
         geoms[i] = grid.GetPatchHierarchy().GetGeometry(ii);
         level_steps[i] = static_cast<int>(grid.GetPatchHierarchy().GetCycles(ii));
+        cell_box_array[i] = hierarchy[i].boxArray();
       }
 
       for (std::size_t i = 0; i < size-1; ++i) {
@@ -521,7 +525,6 @@ void DebugOutput::operator()(const GriddingAlgorithm& grid) {
       ::amrex::VisMF::SetHeaderVersion(::amrex::VisMF::Header::Version_v1);
 
       // write nodal/face hierarchies as raw data
-      // TODO: Check partition!
       auto hier_fields = all_names.begin();
 
       for (const DebugSnapshot::Hierarchy& hierarchy : all_hierarchies) {
@@ -530,18 +533,26 @@ void DebugOutput::operator()(const GriddingAlgorithm& grid) {
           const int nComp = hierarchy[0].nComp();
           std::vector<std::string> names(*hier_fields);
 
+          std::vector<::amrex::BoxArray> noncell_box_array(size);
           for (std::size_t i = 0; i < size; ++i) {
-            const int ii = static_cast<int>(i);
-              ::amrex::BoxArray ba = hierarchy[i].boxArray();
-              ::amrex::DistributionMapping dm = hierarchy[i].DistributionMap();
-            const std::string raw_pltname = fmt::format("{}/raw_fields", plotfilename);
-            const std::string level_prefix = "Level_";
-            for (int Comp = 0; Comp < nComp; ++Comp) {
-              const std::string full_prefix =
-              ::amrex::MultiFabFileFullPrefix(ii, raw_pltname, level_prefix, names[Comp]);
-              ::amrex::MultiFab data(ba, dm, 1, 0);
-              ::amrex::MultiFab::Copy(data, hierarchy[i], Comp, 0, 1, 0);
-              ::amrex::VisMF::Write(data, full_prefix);
+            noncell_box_array[i] = hierarchy[i].boxArray();
+            noncell_box_array[i].enclosedCells();
+          }
+          // check if we are working on the correct partition
+          if (cell_box_array == noncell_box_array) {
+            for (std::size_t i = 0; i < size; ++i) {
+              const int ii = static_cast<int>(i);
+                ::amrex::BoxArray ba = hierarchy[i].boxArray();
+                ::amrex::DistributionMapping dm = hierarchy[i].DistributionMap();
+              const std::string raw_pltname = fmt::format("{}/raw_fields", plotfilename);
+              const std::string level_prefix = "Level_";
+              for (int Comp = 0; Comp < nComp; ++Comp) {
+                const std::string full_prefix =
+                ::amrex::MultiFabFileFullPrefix(ii, raw_pltname, level_prefix, names[Comp]);
+                ::amrex::MultiFab data(ba, dm, 1, 0);
+                ::amrex::MultiFab::Copy(data, hierarchy[i], Comp, 0, 1, 0);
+                ::amrex::VisMF::Write(data, full_prefix);
+              }
             }
           }
         }
