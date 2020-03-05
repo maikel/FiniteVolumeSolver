@@ -1,6 +1,6 @@
 import math
 
-plenum_x_n_cells = 216
+plenum_x_n_cells = 128
 tube_blocking_factor = 8
 plenum_blocking_factor = 8
 
@@ -15,7 +15,7 @@ alpha = 2.0 * math.pi / n_tubes
 
 tube_length = 2.083 - 0.50 # [m]
 inlet_length = 0.1 # [m]
-plenum_length = 0.5001 # [m]
+plenum_length = 0.50 # [m]
 
 plenum_max_grid_size = max(plenum_blocking_factor, 64)
 
@@ -60,7 +60,7 @@ tube_n_cells = int(tube_n_cells)
 RunOptions = {
   'cfl': 0.8,
   'final_time': 0.04,
-  'max_cycles': 1
+  'max_cycles': -1
 }
 
 # checkpoint = '/Users/maikel/Development/FiniteVolumeSolver/build_3d/MultiTube/Checkpoint/000000063'
@@ -129,7 +129,7 @@ Tubes = [{
     'efficiency': 1.0,
     'open_at_interval': 0.03333333,
     'offset': 0.005 + i,
-    'fuel_measurement_position': -0.015,
+    'fuel_measurement_position': -0.15,
     'fuel_measurement_criterium': 0.9,
     'pressure_value_which_opens_boundary': 101325.0,
     'pressure_value_which_closes_boundary': 3.0e5,
@@ -154,10 +154,19 @@ def OuterProbe(x0, k, alpha):
 
 Output = { 
   'outputs': [{
-    'type': 'Plotfile',
-    'directory': 'MultiTube/',
-    'intervals': [5e-4],
-    'frequencies': [1],
+    'type': 'HDF5',
+    'which_block': 0,
+    'path': 'Plenum.h5',
+    'intervals': [1e-5],
+    'box': {
+      'lower': [plenum_x_n_cells - 5, 0, 0],
+      'upper': [plenum_x_n_cells - 5, plenum_y_n_cells - 1, plenum_z_n_cells - 1]
+    }
+  }, {
+    'type': 'HDF5',
+    'which_block': 1,
+    'path': 'Tube_0.h5',
+    'intervals': [1e-5],
   }, {
     'type': 'LogProbes',
     'directory': 'MultiTube/Probes/',

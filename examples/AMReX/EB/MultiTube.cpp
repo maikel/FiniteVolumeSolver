@@ -288,8 +288,8 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
 
   BoundarySet boundary_condition{
       {TransmissiveBoundary{fub::Direction::X, 0},
-       TransmissiveBoundary{fub::Direction::X, 1},
-       TransmissiveBoundary{fub::Direction::Y, 0}, TransmissiveBoundary{fub::Direction::Y, 1},
+       IsentropicPressureBoundary{equation, boundary_options},
+       TransmissiveBoundary{fub::Direction::Y, 0},TransmissiveBoundary{fub::Direction::Y, 1},
        TransmissiveBoundary{fub::Direction::Z, 0}, TransmissiveBoundary{fub::Direction::Z, 1}}};
 
   // If a checkpoint path is specified we will fill the patch hierarchy with
