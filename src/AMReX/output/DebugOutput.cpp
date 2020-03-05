@@ -158,6 +158,22 @@ AverageFaceToCell(::amrex::MultiFab& mf_cells, int cell_component,
       cells(cell) = 0.5 * faces(face_left) + 0.5 * faces(face_right);
     });
   });
+
+}
+
+
+::amrex::IntVect GetRefRatio_(::amrex::Geometry geom0, ::amrex::Geometry geom1) {
+  ::amrex::Box dom0 = geom0.Domain();
+  ::amrex::Box dom1 = geom1.Domain();
+
+  ::amrex::IntVect size0 = dom0.size();
+  ::amrex::IntVect size1 = dom1.size();
+
+  if (size1 < size0) {
+    throw std::runtime_error("geom0 must be coarser than geom1!");
+  }
+
+  return size1 / size0;
 }
 
 } // namespace
@@ -484,14 +500,19 @@ void DebugOutput::operator()(const GriddingAlgorithm& grid) {
       ::amrex::Vector<const ::amrex::MultiFab*> mf(size);
       ::amrex::Vector<::amrex::Geometry> geoms(size);
       ::amrex::Vector<int> level_steps(size);
-      ::amrex::Vector<::amrex::IntVect> ref_ratio(size);
+      ::amrex::Vector<::amrex::IntVect> ref_ratio(size-1);
+
       for (std::size_t i = 0; i < size; ++i) {
         mf[i] = &hierarchy[i];
         const int ii = static_cast<int>(i);
         geoms[i] = grid.GetPatchHierarchy().GetGeometry(ii);
         level_steps[i] = static_cast<int>(grid.GetPatchHierarchy().GetCycles(ii));
-        ref_ratio[i] = grid.GetPatchHierarchy().GetRatioToCoarserLevel(ii);
       }
+
+      for (std::size_t i = 0; i < size-1; ++i) {
+        ref_ratio[i] = GetRefRatio_(geoms[i], geoms[i+1]);
+      }
+
       ::amrex::Vector<std::string> vnames(names.begin(), names.end());
       ::amrex::WriteMultiLevelPlotfile(
           plotfilename, size, mf, vnames, geoms, time_point, level_steps,
