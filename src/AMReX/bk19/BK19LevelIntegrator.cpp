@@ -243,8 +243,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
                                    ::amrex::MLNodeHelmDualCstVel& lin_op,
                                    const BK19LevelIntegratorOptions& options,
                                    BK19IntegratorContext& context, int level,
-                                   Duration dt) {
-  DebugStorage& debug = *context.GetPatchHierarchy().GetDebugStorage();
+                                   Duration dt, DebugSnapshotProxy& dbg_sn) {
 
   MultiFab& scratch = context.GetScratch(level);
   const ::amrex::Geometry& geom = context.GetGeometry(level);
@@ -288,7 +287,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   MultiFab rhs(on_nodes, distribution_map, one_component, no_ghosts);
   rhs.setVal(0.0);
   lin_op.compDivergence({&rhs}, {&UV});
-  debug.SaveData(rhs, "rhs");
+  dbg_sn.SaveData(rhs, "rhs");
 
   // take sum of diagonal term and divergence
   MultiFab::Add(rhs, diagcomp, 0, 0, one_component, no_ghosts);
@@ -315,7 +314,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
                      sigma.nGrow());
   MultiFab::Divide(sigma, scratch, index.PTinverse, 0, one_component,
                    sigma.nGrow());
-  debug.SaveData(sigma, "sigma");
+  dbg_sn.SaveData(sigma, "sigma");
 
   // set weights in linear operator
   lin_op.setSigma(level, sigma);
@@ -341,7 +340,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
 
   nodal_solver.solve({&pi}, {&rhs}, options.mlmg_tolerance_rel,
                      options.mlmg_tolerance_abs);
-  debug.SaveData(pi, "pi");
+  dbg_sn.SaveData(pi, "pi");
 
   // compute momentum correction
   MultiFab UV_correction(on_cells, distribution_map, index.momentum.size(),
@@ -358,7 +357,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
     MultiFab::Add(scratch, UV_correction, UV_component, index.momentum[i],
                   one_component, no_ghosts);
   }
-  debug.SaveData(UV_correction, DebugSnapshot::ComponentNames{"Momentum_corr0", "Momentum_corr1"});
+  dbg_sn.SaveData(UV_correction, DebugSnapshot::ComponentNames{"Momentum_corr0", "Momentum_corr1"});
 
   RecoverVelocityFromMomentum_(scratch, index);
 
@@ -368,9 +367,9 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
 void DoEulerForward_(const Equation& equation,
                      const IndexMapping<Equation>& index,
                      ::amrex::MLNodeHelmDualCstVel& lin_op,
-                     BK19IntegratorContext& context, int level, Duration dt) {
+                     BK19IntegratorContext& context, int level, Duration dt,
+                     DebugSnapshotProxy& dbg_sn) {
   MultiFab& scratch = context.GetScratch(level);
-  DebugStorage& debug = *context.GetPatchHierarchy().GetDebugStorage();
   const ::amrex::Geometry& geom = context.GetGeometry(level);
   const ::amrex::Periodicity periodicity = geom.periodicity();
 
@@ -391,7 +390,7 @@ void DoEulerForward_(const Equation& equation,
 
   // we only need to set sigma in the linear operator, since we only need it
   // for the flux correction
-  debug.SaveData(sigma, "sigma");
+  dbg_sn.SaveData(sigma, "sigma");
   lin_op.setSigma(level, sigma);
 
   // To compute the fluxes from the old pi we need one ghost cell width
@@ -407,7 +406,7 @@ void DoEulerForward_(const Equation& equation,
 
   MultiFab::Add(scratch, momentum_correction, 0, index.momentum[0],
                 index.momentum.size(), no_ghosts);
-  debug.SaveData(momentum_correction, DebugSnapshot::ComponentNames{"Momentum_corr0", "Momentum_corr1"});
+  dbg_sn.SaveData(momentum_correction, DebugSnapshot::ComponentNames{"Momentum_corr0", "Momentum_corr1"});
 
   RecoverVelocityFromMomentum_(scratch, index);
 
@@ -479,10 +478,18 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   MultiFab& pi = context.GetPi(level);
   const ::amrex::Geometry& geom = context.GetGeometry(level);
   const ::amrex::Periodicity periodicity = geom.periodicity();
+
   DebugStorage& debug = *context.GetPatchHierarchy().GetDebugStorage();
-  debug.SaveData(scratch, GetCompleteVariableNames());
-  debug.SaveData(pi, "pi");
-  debug.FlushData("BK19_pre-step");
+  DebugSnapshotProxy dbgPreStep = debug.AddSnapshot("BK19_pre-step");
+  DebugSnapshotProxy dbgAdvFlux = debug.AddSnapshot("BK19_advective_fluxes");
+  DebugSnapshotProxy dbgAdv = debug.AddSnapshot("BK19_advect");
+  DebugSnapshotProxy dbgAdvB = debug.AddSnapshot("BK19_advect-backward");
+  DebugSnapshotProxy dbgAdvBF = debug.AddSnapshot("BK19_advect-backward-forward");
+  DebugSnapshotProxy dbgAdvBFA = debug.AddSnapshot("BK19_advect-backward-forward-advect");
+  DebugSnapshotProxy dbgAdvBFAB = debug.AddSnapshot("BK19_advect-backward-forward-advect-backward");
+
+  dbgPreStep.SaveData(scratch, GetCompleteVariableNames());
+  dbgPreStep.SaveData(pi, "pi");
 
   // Save data on current time level for later use
   MultiFab scratch_aux(scratch.boxArray(), scratch.DistributionMap(),
@@ -496,9 +503,8 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   //    Current Pv is given by: Pv = PTdensity * velocity
   RecomputeAdvectiveFluxes(index_, Pv.on_faces, Pv.on_cells, scratch,
                            periodicity);
-  debug.SaveData(scratch, GetCompleteVariableNames());
-  debug.SaveData(pi, "pi");
-  debug.FlushData("BK19_advective_fluxes");
+  dbgAdvFlux.SaveData(scratch, GetCompleteVariableNames());
+  dbgAdvFlux.SaveData(pi, "pi");
 
   // 2) Do the advection with the face-centered Pv
   //    Open Question: Coarse Fine Boundary?
@@ -509,24 +515,22 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
     return result;
   }
 
-  debug.SaveData(scratch, GetCompleteVariableNames());
-  debug.SaveData(pi, "pi");
-  debug.FlushData("BK19_advect");
+  dbgAdv.SaveData(scratch, GetCompleteVariableNames());
+  dbgAdv.SaveData(pi, "pi");
 
   // 3) Do the first euler backward integration step for the source term
   context.FillGhostLayerSingleLevel(level);
   DoEulerBackward_(equation_, index_, *lin_op_, options_,
-                   context, level, half_dt);
+                   context, level, half_dt, dbgAdvB);
 
   // 4) Recompute Pv at half time
   RecomputeAdvectiveFluxes(index_, Pv.on_faces, Pv.on_cells, scratch,
                            periodicity);
 
-  debug.SaveData(Pv.on_cells, DebugSnapshot::ComponentNames{"Pu", "Pv"});
-  debug.SaveData(Pv.on_faces[0], "Pu_faces", ::amrex::SrcComp(0));
-  debug.SaveData(Pv.on_faces[1], "Pv_faces", ::amrex::SrcComp(0));
-  debug.SaveData(scratch, GetCompleteVariableNames());
-  debug.FlushData("BK19_advect-backward");
+  dbgAdvB.SaveData(Pv.on_cells, DebugSnapshot::ComponentNames{"Pu", "Pv"});
+  dbgAdvB.SaveData(Pv.on_faces[0], "Pu_faces", ::amrex::SrcComp(0));
+  dbgAdvB.SaveData(Pv.on_faces[1], "Pv_faces", ::amrex::SrcComp(0));
+  dbgAdvB.SaveData(scratch, GetCompleteVariableNames());
 
   // Copy data from old time level back to scratch
   scratch.copy(scratch_aux);
@@ -534,11 +538,10 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
 
   // 5) Explicit Euler with old scratch data
   //   - We need a current pi_n here. What is the initial one?
-  DoEulerForward_(equation_, index_, *lin_op_, context, level, half_dt);
+  DoEulerForward_(equation_, index_, *lin_op_, context, level, half_dt, dbgAdvBF);
 
-  debug.SaveData(scratch, GetCompleteVariableNames());
-  debug.SaveData(pi, "pi");
-  debug.FlushData("BK19_advect-backward-forward");
+  dbgAdvBF.SaveData(scratch, GetCompleteVariableNames());
+  dbgAdvBF.SaveData(pi, "pi");
 
   // 6) Do the second advection step with half-time Pv and full time step
   //   - Currently, scratch contains the result of euler forward step,
@@ -549,19 +552,17 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
     return result;
   }
 
-  debug.SaveData(scratch, GetCompleteVariableNames());
-  debug.SaveData(pi, "pi");
-  debug.FlushData("BK19_advect-backward-forward-advect");
+  dbgAdvBFA.SaveData(scratch, GetCompleteVariableNames());
+  dbgAdvBFA.SaveData(pi, "pi");
 
   // 6) Do the second euler backward integration step for the source term
   MultiFab pi_new = DoEulerBackward_(equation_, index_, *lin_op_, options_,
-                                     context, level, half_dt);
+                                     context, level, half_dt, dbgAdvBFAB);
 
   // Copy pi_n+1 to pi_n
   context.GetPi(level).copy(pi_new);
 
-  debug.SaveData(scratch, GetCompleteVariableNames());
-  debug.FlushData("BK19_advect-backward-forward-advect-backward");
+  dbgAdvBFAB.SaveData(scratch, GetCompleteVariableNames());
 
   return boost::outcome_v2::success();
 }

@@ -50,6 +50,10 @@ public:
                 const std::string& name,
                 ::amrex::SrcComp component = ::amrex::SrcComp(0));
 
+  void SaveData(const ::amrex::Vector<::amrex::MultiFab>& hierarchy,
+                const std::string& name,
+                ::amrex::SrcComp component = ::amrex::SrcComp(0));
+
   void SaveData(const ::amrex::Vector<const ::amrex::MultiFab*>& hierarchy,
                 const ComponentNames& names,
                 ::amrex::SrcComp first_component = ::amrex::SrcComp(0));
@@ -99,20 +103,17 @@ private:
   std::vector<ComponentNames> names_per_hierarchy_{};
 
   /// \brief output directory of storage;
-  std::string snapshot_directory_{"left_overs"};
+  std::string snapshot_directory_{};
 
 };
 
-class DebugStorage {
+class DebugSnapshotProxy {
 public:
+  /// \brief Initializes an empty proxy snapshot
+  DebugSnapshotProxy() = default;
 
-  /// \brief Initializes the storage
-  DebugStorage() {saved_snapshots_.emplace_back(); };
-
-  bool IsEnabled() const noexcept { return is_enabled_; }
-
-  void Enable() { is_enabled_ = true; }
-  void Disable() { is_enabled_ = false; }
+  /// \brief Initializes a proxy snapshot for a real snapshot
+  DebugSnapshotProxy(DebugSnapshot& snapshot) : m_snapshot(&snapshot) {};
 
   /// @{
   /// \brief Saves a current hierarchy state with given component names
@@ -129,6 +130,10 @@ public:
                 const std::string& name,
                 ::amrex::SrcComp component = ::amrex::SrcComp(0));
 
+  void SaveData(const ::amrex::Vector<::amrex::MultiFab>& hierarchy,
+                const std::string& name,
+                ::amrex::SrcComp component = ::amrex::SrcComp(0));
+
   void SaveData(const ::amrex::Vector<const ::amrex::MultiFab*>& hierarchy,
                 const DebugSnapshot::ComponentNames& names,
                 ::amrex::SrcComp first_component = ::amrex::SrcComp(0));
@@ -138,19 +143,36 @@ public:
                 ::amrex::SrcComp first_component = ::amrex::SrcComp(0));
   /// @}
 
+private:
+  /// \brief Pointer to the real snapshot
+  DebugSnapshot* m_snapshot{nullptr};
+
+};
+
+class DebugStorage {
+public:
+
+  /// \brief Initializes the storage
+  DebugStorage() = default;
+
+  /// \brief Checks if debug storage is enabled
+  bool IsEnabled() const noexcept { return is_enabled_; }
+
+  void Enable() { is_enabled_ = true; }
+  void Disable() { is_enabled_ = false; }
+
   /// \brief Returns all the snapshots which are stored in the debug storage
-  std::vector<DebugSnapshot>& GetSnapshots() noexcept;
+  std::list<DebugSnapshot>& GetSnapshots() noexcept;
 
-  /// \brief Saves a snapshot of hierarchies to be written at the end of the
-  /// time step.
-  void FlushData(const std::string& snapshot_directory);
+  /// \brief Adds snapshot with given directory name to storage.
+  DebugSnapshotProxy AddSnapshot(const std::string& snapshot_directory);
 
-  /// \brief Reinitializes the debug storage by clearing all currently stored data
-  void Reinitialize();
+  /// \brief Deletes all currently stored snapshots in the debug storage
+  void ClearAll() { saved_snapshots_.clear(); }
 
 private:
-  /// \brief Each FlushData will append a snapshot
-  std::vector<DebugSnapshot> saved_snapshots_;
+  /// \brief List of snapshots
+  std::list<DebugSnapshot> saved_snapshots_;
 
   /// \brief If this is false no data will be saved.
   bool is_enabled_{false};

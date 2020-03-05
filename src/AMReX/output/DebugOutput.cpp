@@ -177,7 +177,6 @@ const std::vector<DebugSnapshot::ComponentNames>& DebugSnapshot::GetNames() cons
 void DebugSnapshot::SaveData(const ::amrex::MultiFab& mf,
                             const std::string& name,
                             ::amrex::SrcComp component) {
-//   if (is_enabled_) {
     Hierarchy single_level_hierarchy{};
     ::amrex::BoxArray ba = mf.boxArray();
     ::amrex::DistributionMapping dm = mf.DistributionMap();
@@ -185,13 +184,11 @@ void DebugSnapshot::SaveData(const ::amrex::MultiFab& mf,
     ::amrex::MultiFab::Copy(dest, mf, component.i, 0, 1, 0);
     saved_hierarchies_.push_back(std::move(single_level_hierarchy));
     names_per_hierarchy_.push_back(ComponentNames{name});
-//   }
 }
 
 void DebugSnapshot::SaveData(const ::amrex::MultiFab& mf,
                             const ComponentNames& names,
                             ::amrex::SrcComp first_component) {
-//   if (is_enabled_) {
     Hierarchy single_level_hierarchy{};
     ::amrex::BoxArray ba = mf.boxArray();
     ::amrex::DistributionMapping dm = mf.DistributionMap();
@@ -200,21 +197,23 @@ void DebugSnapshot::SaveData(const ::amrex::MultiFab& mf,
     ::amrex::MultiFab::Copy(dest, mf, first_component.i, 0, n_components, 0);
     saved_hierarchies_.push_back(std::move(single_level_hierarchy));
     names_per_hierarchy_.push_back(ComponentNames{names});
-//   }
+}
+
+void DebugSnapshot::SaveData(const ::amrex::Vector<const ::amrex::MultiFab*>& hierarchy,
+              const std::string& name,
+              ::amrex::SrcComp component) {
+  SaveData(hierarchy, ComponentNames{name}, component);
 }
 
 void DebugSnapshot::SaveData(const ::amrex::Vector<::amrex::MultiFab>& hierarchy,
-                            const ComponentNames& names,
-                            ::amrex::SrcComp first_component) {
-//   if (is_enabled_) {
-    SaveData(::amrex::GetVecOfConstPtrs(hierarchy), names, first_component);
-//   }
+              const std::string& name,
+              ::amrex::SrcComp component) {
+  SaveData(::amrex::GetVecOfConstPtrs(hierarchy), ComponentNames{name}, component);
 }
 
 void DebugSnapshot::SaveData(
     const ::amrex::Vector<const ::amrex::MultiFab*>& hierarchy,
     const ComponentNames& names, ::amrex::SrcComp first_component) {
-//   if (is_enabled_) {
     std::size_t nlevels = hierarchy.size();
     Hierarchy& multi_level_hierarchy = saved_hierarchies_.emplace_back();
     multi_level_hierarchy.reserve(nlevels);
@@ -228,9 +227,13 @@ void DebugSnapshot::SaveData(
       ::amrex::MultiFab::Copy(dest, mf, first_component.i, 0, names.size(), 0);
     }
     names_per_hierarchy_.push_back(names);
-//   }
 }
 
+void DebugSnapshot::SaveData(const ::amrex::Vector<::amrex::MultiFab>& hierarchy,
+                            const ComponentNames& names,
+                            ::amrex::SrcComp first_component) {
+    SaveData(::amrex::GetVecOfConstPtrs(hierarchy), names, first_component);
+}
 
 void DebugSnapshot::MakeUniqueComponentNames() {
   using namespace std::literals;
@@ -323,59 +326,69 @@ void DebugSnapshot::ClearAll() {
 }
 
 
-void DebugStorage::SaveData(const ::amrex::MultiFab& mf,
+void DebugSnapshotProxy::SaveData(const ::amrex::MultiFab& mf,
                             const std::string& name,
                             ::amrex::SrcComp component) {
-  if (is_enabled_) {
-    DebugSnapshot& snapshot = saved_snapshots_.back();
-    snapshot.SaveData(mf, name, component);
+  if (m_snapshot) {
+    m_snapshot->SaveData(mf, name, component);
   }
 }
 
-void DebugStorage::SaveData(const ::amrex::MultiFab& mf,
+void DebugSnapshotProxy::SaveData(const ::amrex::MultiFab& mf,
                             const DebugSnapshot::ComponentNames& names,
                             ::amrex::SrcComp first_component) {
-  if (is_enabled_) {
-    DebugSnapshot& snapshot = saved_snapshots_.back();
-    snapshot.SaveData(mf, names, first_component);
+  if (m_snapshot) {
+    m_snapshot->SaveData(mf, names, first_component);
   }
 }
 
-void DebugStorage::SaveData(const ::amrex::Vector<::amrex::MultiFab>& hierarchy,
-                            const DebugSnapshot::ComponentNames& names,
+void DebugSnapshotProxy::SaveData(const ::amrex::Vector<::amrex::MultiFab>& hierarchy,
+                            const std::string& name,
                             ::amrex::SrcComp first_component) {
-  if (is_enabled_) {
-    DebugSnapshot& snapshot = saved_snapshots_.back();
-    snapshot.SaveData(hierarchy, names, first_component);
+  if (m_snapshot) {
+    m_snapshot->SaveData(hierarchy, name, first_component);
   }
 }
 
-void DebugStorage::SaveData(
+void DebugSnapshotProxy::SaveData(
+    const ::amrex::Vector<const ::amrex::MultiFab*>& hierarchy,
+    const std::string& name, ::amrex::SrcComp first_component) {
+  if (m_snapshot) {
+    m_snapshot->SaveData(hierarchy, name, first_component);
+  }
+}
+
+void DebugSnapshotProxy::SaveData(
     const ::amrex::Vector<const ::amrex::MultiFab*>& hierarchy,
     const DebugSnapshot::ComponentNames& names, ::amrex::SrcComp first_component) {
-  if (is_enabled_) {
-    DebugSnapshot& snapshot = saved_snapshots_.back();
-    snapshot.SaveData(hierarchy, names, first_component);
+  if (m_snapshot) {
+    m_snapshot->SaveData(hierarchy, names, first_component);
   }
 }
 
+void DebugSnapshotProxy::SaveData(const ::amrex::Vector<::amrex::MultiFab>& hierarchy,
+                            const DebugSnapshot::ComponentNames& names,
+                            ::amrex::SrcComp first_component) {
+  if (m_snapshot) {
+    m_snapshot->SaveData(hierarchy, names, first_component);
+  }
+}
+
+
 /// \brief Returns all the snapshots which are stored via FlushData
-std::vector<DebugSnapshot>& DebugStorage::GetSnapshots()
+std::list<DebugSnapshot>& DebugStorage::GetSnapshots()
     noexcept {
   return saved_snapshots_;
 }
 
-void DebugStorage::FlushData(const std::string& snapshot_directory) {
+DebugSnapshotProxy DebugStorage::AddSnapshot(const std::string& snapshot_directory) {
   if (is_enabled_) {
-    DebugSnapshot& snapshot = saved_snapshots_.back();
+    DebugSnapshot& snapshot = saved_snapshots_.emplace_back();
     snapshot.SetSnapshotDirectory(snapshot_directory);
-    saved_snapshots_.emplace_back();
+    DebugSnapshotProxy snapshotproxy(snapshot);
+    return snapshotproxy;
   }
-}
-
-void DebugStorage::Reinitialize() {
-  saved_snapshots_.clear();
-  saved_snapshots_.emplace_back();
+  return DebugSnapshotProxy{};
 }
 
 DebugOutput::DebugOutput(const ProgramOptions& opts,
@@ -389,17 +402,7 @@ DebugOutput::DebugOutput(const ProgramOptions& opts,
 void DebugOutput::operator()(const GriddingAlgorithm& grid) {
   using namespace std::literals;
   DebugStorage& storage = *grid.GetPatchHierarchy().GetDebugStorage();
-  std::vector<DebugSnapshot>& saved_snapshots = storage.GetSnapshots();
-
-  // If there had been no FlushData, there is only one snapshot and the
-  // snapshot directory has its default value. Thus remove the extra snapshot
-  // directory level
-  if (saved_snapshots.size() == 1) {
-    const std::string snapshot_directory = saved_snapshots[0].GetSnapshotDirectory();
-    if (snapshot_directory == "left_overs") {
-      saved_snapshots[0].SetSnapshotDirectory("");
-    }
-  }
+  std::list<DebugSnapshot>& saved_snapshots = storage.GetSnapshots();
 
   for (DebugSnapshot& snapshot : saved_snapshots) {
     snapshot.MakeUniqueComponentNames();
@@ -450,7 +453,6 @@ void DebugOutput::operator()(const GriddingAlgorithm& grid) {
           }
         }
 
-//         snapshot.SaveData(cell_average_hierarchy, names_avg);
         avg_hierarchies.emplace_back(std::move(cell_average_hierarchy));
         names_avg_hierarchies.emplace_back(std::move(names_avg));
       }
@@ -527,7 +529,7 @@ void DebugOutput::operator()(const GriddingAlgorithm& grid) {
       partition_counter += 1;
     }
   }
-  storage.Reinitialize();
+  storage.ClearAll();
 }
 
 } // namespace fub::amrex
