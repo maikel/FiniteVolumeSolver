@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Maikel Nadolski
+// Copyright (c) 2020 Maikel Nadolski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,43 +18,38 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_EINFELDT_SIGNAL_VELOCITIES_HPP
-#define FUB_EINFELDT_SIGNAL_VELOCITIES_HPP
+#ifndef FUB_EQUATIONS_PERFECT_GAS_EINFELDT_SIGNALS_HPP
+#define FUB_EQUATIONS_PERFECT_GAS_EINFELDT_SIGNALS_HPP
 
-#include "fub/Direction.hpp"
-#include "fub/State.hpp"
-#include "fub/StateArray.hpp"
-
-#include <array>
+#include "fub/equations/PerfectGas.hpp"
+#include "fub/EinfeldtSignalVelocities.hpp"
 
 namespace fub {
 
-/// \defgroup EinfeldtSignalVelocities
-/// This is a customization point for equations which can define two signal
-/// velocities for usage with the \a HllMethod.
-///
-/// Semantically the velocities should be formed by the roe averaves of two
-/// states.
-template <typename Equation> struct EinfeldtSignalVelocities {
-  using Complete = ::fub::Complete<Equation>;
-  using CompleteArray = ::fub::CompleteArray<Equation>;
+template <int Dim> struct EinfeldtSignalVelocities<PerfectGas<Dim>> {
+  using Complete = ::fub::Complete<PerfectGas<Dim>>;
+  using CompleteArray = ::fub::CompleteArray<PerfectGas<Dim>>;
 
-  std::array<double, 2> operator()(const Equation& equation,
+  std::array<double, 2> operator()(const PerfectGas<Dim>& equation,
                                    const Complete& left, const Complete& right,
                                    Direction dir) const noexcept;
 
-  std::array<Array1d, 2> operator()(const Equation& equation,
+  std::array<Array1d, 2> operator()(const PerfectGas<Dim>& equation,
                                     const CompleteArray& left,
                                     const CompleteArray& right,
                                     Direction dir) const noexcept;
 
-  std::array<Array1d, 2> operator()(const Equation& equation,
+  std::array<Array1d, 2> operator()(const PerfectGas<Dim>& equation,
                                     const CompleteArray& left,
                                     const CompleteArray& right,
                                     const MaskArray& mask,
                                     Direction dir) const noexcept;
 };
 
-} // namespace fub
+extern template struct EinfeldtSignalVelocities<PerfectGas<1>>;
+extern template struct EinfeldtSignalVelocities<PerfectGas<2>>;
+extern template struct EinfeldtSignalVelocities<PerfectGas<3>>;
 
-#endif
+}
+
+#endif 

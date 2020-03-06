@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Maikel Nadolski
+// Copyright (c) 2020 Maikel Nadolski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,21 +18,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_IDEAL_GAS_HLLE_METHOD_HPP
-#define FUB_IDEAL_GAS_HLLE_METHOD_HPP
-
-#include "fub/equations/ideal_gas_mix/EinfeldtSignalVelocities.hpp"
-#include "fub/flux_method/HllMethod.hpp"
+#include "src/equations/perfect_gas/ExactRiemannSolver.hpp"
 
 namespace fub {
 
-extern template class FluxMethod<
-    Hll<IdealGasMix<1>, EinfeldtSignalVelocities<IdealGasMix<1>>>>;
-extern template class FluxMethod<
-    Hll<IdealGasMix<2>, EinfeldtSignalVelocities<IdealGasMix<2>>>>;
-extern template class FluxMethod<
-    Hll<IdealGasMix<3>, EinfeldtSignalVelocities<IdealGasMix<3>>>>;
+template class ExactRiemannSolver<PerfectGas<3>>;
 
-} // namespace fub
-
-#endif
+}

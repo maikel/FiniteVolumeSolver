@@ -21,6 +21,7 @@
 #include "fub/AMReX/IgniteDetonation.hpp"
 
 #include "fub/AMReX/ForEachFab.hpp"
+#include "fub/ForEach.hpp"
 #include "fub/equations/ideal_gas_mix/mechanism/Burke2012.hpp"
 
 #include <boost/log/common.hpp>

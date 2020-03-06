@@ -167,7 +167,7 @@ void HllBase<Equation, SignalSpeeds>::SolveRiemannProblem(Complete& solution,
   Flux(GetEquation(), flux_right_, right, dir);
   const double sL = signals[0];
   const double sR = signals[1];
-  const double ds = sR - sL;
+  const double ds = sL != sR ? sR - sL : 1.0;
   if (0.0 < sL) {
     solution = left;
   } else if (sR < 0.0) {
@@ -231,7 +231,8 @@ void HllArrayBase<Equation, SignalSpeeds, true>::SolveRiemannProblem(
   Flux(GetEquation(), flux_right_array_, right, dir);
   const Array1d sL = signals[0];
   const Array1d sR = signals[1];
-  const Array1d ds = sR - sL;
+  Array1d ds = sR - sL;
+  ds = (ds > 0.0).select(ds, Array1d::Constant(1.0));
   ForEachComponent(
       [&](auto&& sol, Array1d fL, Array1d fR, Array1d qL, Array1d qR) {
         sol = (sR * qR - sL * qL + fL - fR) / ds;
@@ -258,7 +259,8 @@ void HllArrayBase<Equation, SignalSpeeds, true>::ComputeNumericFlux(
   const Array1d sL = signals[0].min(zero);
   const Array1d sR = signals[1].max(zero);
   const Array1d sLsR = sL * sR;
-  const Array1d ds = sR - sL;
+  Array1d ds = sR - sL;
+  ds = (ds > 0.0).select(ds, Array1d::Constant(1.0));
 
   ForEachComponent(
       [&](auto&& nf, Array1d fL, Array1d fR, Array1d qL, Array1d qR) {
@@ -272,15 +274,17 @@ template <typename Equation, typename SignalSpeeds>
 void HllArrayBase<Equation, SignalSpeeds, true>::ComputeNumericFlux(
     ConservativeArray& numeric_flux, Array1d face_fraction,
     span<const CompleteArray, 2> states,
-    span<const Array1d, 2> volume_fractions, Duration /* dt */, double /* dx */,
-    Direction dir) {
+    span<const Array1d, 2> /* volume_fractions */, Duration /* dt */,
+    double /* dx */, Direction dir) {
   const CompleteArray& left = states[0];
   const CompleteArray& right = states[1];
 
-  const auto signals = GetSignalSpeeds()(GetEquation(), left, right, dir);
+  MaskArray mask = face_fraction > 0.0;
 
-  Flux(GetEquation(), flux_left_array_, left, dir);
-  Flux(GetEquation(), flux_right_array_, right, dir);
+  const auto signals = GetSignalSpeeds()(GetEquation(), left, right, mask, dir);
+
+  Flux(GetEquation(), flux_left_array_, left, mask, dir);
+  Flux(GetEquation(), flux_right_array_, right, mask, dir);
 
   const Array1d zero = Array1d::Zero();
   const Array1d sL = signals[0].min(zero);
@@ -288,11 +292,13 @@ void HllArrayBase<Equation, SignalSpeeds, true>::ComputeNumericFlux(
   const Array1d sLsR = sL * sR;
   const Array1d ds = sR - sL;
 
-  MaskArray mask = face_fraction > 0.0 && volume_fractions[0] > 0.0 &&
-                   volume_fractions[1] > 0.0;
+  const Array1d safe_ds = mask.select(ds, 1.0);
+  FUB_ASSERT((safe_ds > 0.0).all());
   ForEachComponent(
       [&](auto&& nf, Array1d fL, Array1d fR, Array1d qL, Array1d qR) {
-        nf = mask.select((sR * fL - sL * fR + sLsR * (qR - qL)) / ds, zero);
+        Array1d qL_s = mask.select(qL, 0.0);
+        Array1d qR_s = mask.select(qR, 0.0);
+        nf = (sR * fL - sL * fR + sLsR * (qR_s - qL_s)) / safe_ds;
       },
       numeric_flux, flux_left_array_, flux_right_array_, AsCons(left),
       AsCons(right));
@@ -314,17 +320,18 @@ template <typename Equation, typename SignalSpeeds>
 Array1d HllArrayBase<Equation, SignalSpeeds, true>::ComputeStableDt(
     span<const CompleteArray, 2> states, Array1d face_fraction,
     span<const Array1d, 2>, double dx,
-
     Direction dir) {
+  MaskArray mask = (face_fraction > 0.0);
   const auto signals =
-      GetSignalSpeeds()(GetEquation(), states[0], states[1], dir);
+      GetSignalSpeeds()(GetEquation(), states[0], states[1], mask, dir);
   Array1d zero = Array1d::Zero();
   const Array1d max =
       std::accumulate(signals.begin(), signals.end(), zero,
                       [](Array1d x, Array1d y) { return x.max(y.abs()); });
-  Array1d infs = Array1d::Constant(std::numeric_limits<double>::infinity());
-  Array1d stable_dts = Array1d(dx) / max;
-  Array1d valid_stable_dts = (face_fraction > 0.0).select(stable_dts, infs);
+  const Array1d safe_max = mask.select(max, 1.0);
+  Array1d infs = Array1d::Constant(std::numeric_limits<double>::max());
+  Array1d stable_dts = Array1d(dx) / safe_max;
+  Array1d valid_stable_dts = mask.select(stable_dts, infs);
   return valid_stable_dts;
 }
 

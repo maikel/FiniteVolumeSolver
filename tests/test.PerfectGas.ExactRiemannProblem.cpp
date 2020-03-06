@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #include "fub/equations/PerfectGas.hpp"
+#include "fub/equations/perfect_gas/ExactRiemannSolver.hpp"
 
 #include <iostream>
 #include <tuple>

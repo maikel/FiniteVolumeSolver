@@ -197,6 +197,12 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/equations/Burgers.hpp
   include/fub/equations/IdealGasMix.hpp
   include/fub/equations/PerfectGas.hpp
+  include/fub/equations/perfect_gas/ExactRiemannSolver.hpp
+  include/fub/equations/perfect_gas/EinfeldtSignalVelocities.hpp
+  include/fub/equations/perfect_gas/HllemMethod.hpp
+  include/fub/equations/perfect_gas/MusclHancockPrimMethod.hpp
+  include/fub/equations/perfect_gas/MusclHancockMethod.hpp
+  include/fub/equations/perfect_gas/GodunovMethod.hpp
   include/fub/equations/ShallowWater.hpp
   include/fub/ext/Eigen.hpp
   include/fub/ext/outcome.hpp
@@ -268,11 +274,34 @@ add_library(FiniteVolumeSolver.Solver
   src/equations/shallow_water/HllMethod.cpp
   src/equations/shallow_water/MusclHancockMethod.cpp
   src/equations/PerfectGas.cpp
-  src/equations/perfect_gas/GodunovMethod.cpp
-  src/equations/perfect_gas/MusclHancockMethod.cpp
+  src/equations/perfect_gas/EinfeldtSignalVelocities_1d.cpp
+  src/equations/perfect_gas/EinfeldtSignalVelocities_2d.cpp
+  src/equations/perfect_gas/EinfeldtSignalVelocities_3d.cpp
+  src/equations/perfect_gas/ExactRiemannSolver_1d.cpp
+  src/equations/perfect_gas/ExactRiemannSolver_2d.cpp
+  src/equations/perfect_gas/ExactRiemannSolver_3d.cpp
+  src/equations/perfect_gas/GodunovMethod_1d.cpp
+  src/equations/perfect_gas/GodunovMethod_2d.cpp
+  src/equations/perfect_gas/GodunovMethod_3d.cpp
+  src/equations/perfect_gas/HllemMethod_1d.cpp
+  src/equations/perfect_gas/HllemMethod_2d.cpp
+  src/equations/perfect_gas/HllemMethod_3d.cpp
+  src/equations/perfect_gas/MusclHancockMethod_1d.cpp
+  src/equations/perfect_gas/MusclHancockMethod_2d.cpp
+  src/equations/perfect_gas/MusclHancockMethod_3d.cpp
+  src/equations/perfect_gas/MusclHancockPrimMethod_1d.cpp
+  src/equations/perfect_gas/MusclHancockPrimMethod_2d.cpp
+  src/equations/perfect_gas/MusclHancockPrimMethod_3d.cpp
   src/equations/IdealGasMix.cpp
-  src/equations/ideal_gas_mix/HllMethod.cpp
-  src/equations/ideal_gas_mix/MusclHancockMethod.cpp
+  src/equations/ideal_gas_mix/EinfeldtSignalVelocities_1d.cpp
+  src/equations/ideal_gas_mix/EinfeldtSignalVelocities_2d.cpp
+  src/equations/ideal_gas_mix/EinfeldtSignalVelocities_3d.cpp
+  src/equations/ideal_gas_mix/HlleMethod_1d.cpp
+  src/equations/ideal_gas_mix/HlleMethod_2d.cpp
+  src/equations/ideal_gas_mix/HlleMethod_3d.cpp
+  src/equations/ideal_gas_mix/MusclHancockPrimMethod_1d.cpp
+  src/equations/ideal_gas_mix/MusclHancockPrimMethod_2d.cpp
+  src/equations/ideal_gas_mix/MusclHancockPrimMethod_3d.cpp
   src/equations/ideal_gas_mix/FlameMasterReactor.cpp
   src/geometry/Cone.cpp
   src/equations/ideal_gas_mix/mechanism/Burke2012.cpp
@@ -306,6 +335,9 @@ target_link_libraries(FiniteVolumeSolver.Solver
     Eigen3::Eigen
     Vc::Vc
     pybind11::embed)
+target_include_directories(FiniteVolumeSolver.Solver
+  PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
 target_compile_options(FiniteVolumeSolver.Solver
   PRIVATE
   $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
