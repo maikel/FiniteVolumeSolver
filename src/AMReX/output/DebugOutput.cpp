@@ -412,7 +412,8 @@ DebugStorage::AddSnapshot(const std::string& snapshot_directory) {
 }
 
 void DebugStorage::FlushData(const GriddingAlgorithm& grid,
-                             const std::string& directory) {
+                             const std::string& directory,
+                             const double time_point) {
   using namespace std::literals;
 
   std::list<DebugSnapshot>& saved_snapshots = GetSnapshots();
@@ -499,7 +500,6 @@ void DebugStorage::FlushData(const GriddingAlgorithm& grid,
           "{}/{}/partition_{}_plt{:09}", directory, snapshot_directory,
           partition_counter, grid.GetPatchHierarchy().GetCycles());
       const std::size_t size = hierarchy.size();
-      const double time_point = grid.GetTimePoint().count();
       ::amrex::Vector<const ::amrex::MultiFab*> mf(size);
       ::amrex::Vector<::amrex::Geometry> geoms(size);
       ::amrex::Vector<int> level_steps(size);
@@ -578,7 +578,7 @@ DebugOutput::DebugOutput(const ProgramOptions& opts,
 
 void DebugOutput::operator()(const GriddingAlgorithm& grid) {
   DebugStorage& storage = *grid.GetPatchHierarchy().GetDebugStorage();
-  storage.FlushData(grid, directory_);
+  storage.FlushData(grid, directory_, grid.GetTimePoint().count());
 }
 
 } // namespace fub::amrex
