@@ -163,6 +163,9 @@ public:
   /// \brief Adds snapshot with given directory name to storage.
   DebugSnapshotProxy AddSnapshot(const std::string& snapshot_directory);
 
+  /// \brief Writes data to disk and clears all data present in the storage.
+  void FlushData(const GriddingAlgorithm& grid, const std::string& directory);
+
   /// \brief Deletes all currently stored snapshots in the debug storage
   void ClearAll() { saved_snapshots_.clear(); }
 

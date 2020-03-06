@@ -411,18 +411,11 @@ DebugStorage::AddSnapshot(const std::string& snapshot_directory) {
   return DebugSnapshotProxy{};
 }
 
-DebugOutput::DebugOutput(const ProgramOptions& opts,
-                         const std::shared_ptr<DebugStorage>& storage)
-    : OutputAtFrequencyOrInterval(opts) {
-  OutputAtFrequencyOrInterval::frequencies_ = std::vector<std::ptrdiff_t>{1LL};
-  directory_ = GetOptionOr(opts, "directory", directory_);
-  storage->Enable();
-}
-
-void DebugOutput::operator()(const GriddingAlgorithm& grid) {
+void DebugStorage::FlushData(const GriddingAlgorithm& grid,
+                             const std::string& directory) {
   using namespace std::literals;
-  DebugStorage& storage = *grid.GetPatchHierarchy().GetDebugStorage();
-  std::list<DebugSnapshot>& saved_snapshots = storage.GetSnapshots();
+
+  std::list<DebugSnapshot>& saved_snapshots = GetSnapshots();
 
   for (DebugSnapshot& snapshot : saved_snapshots) {
     snapshot.MakeUniqueComponentNames();
@@ -503,7 +496,7 @@ void DebugOutput::operator()(const GriddingAlgorithm& grid) {
     int partition_counter = 0;
     for (auto&& [hierarchy, names] : hiers_with_names) {
       const std::string plotfilename = fmt::format(
-          "{}/{}/partition_{}_plt{:09}", directory_, snapshot_directory,
+          "{}/{}/partition_{}_plt{:09}", directory, snapshot_directory,
           partition_counter, grid.GetPatchHierarchy().GetCycles());
       const std::size_t size = hierarchy.size();
       const double time_point = grid.GetTimePoint().count();
@@ -571,7 +564,21 @@ void DebugOutput::operator()(const GriddingAlgorithm& grid) {
       partition_counter += 1;
     }
   }
-  storage.ClearAll();
+  ClearAll();
+
+}
+
+DebugOutput::DebugOutput(const ProgramOptions& opts,
+                         const std::shared_ptr<DebugStorage>& storage)
+    : OutputAtFrequencyOrInterval(opts) {
+  OutputAtFrequencyOrInterval::frequencies_ = std::vector<std::ptrdiff_t>{1LL};
+  directory_ = GetOptionOr(opts, "directory", directory_);
+  storage->Enable();
+}
+
+void DebugOutput::operator()(const GriddingAlgorithm& grid) {
+  DebugStorage& storage = *grid.GetPatchHierarchy().GetDebugStorage();
+  storage.FlushData(grid, directory_);
 }
 
 } // namespace fub::amrex
