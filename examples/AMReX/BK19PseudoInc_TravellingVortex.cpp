@@ -29,6 +29,7 @@
 #include "fub/AMReX/bk19/BK19LevelIntegrator.hpp"
 #include "fub/equations/CompressibleAdvection.hpp"
 
+
 double p_coeff(double r, const std::vector<double>& coefficients) {
   if (r >= 1.0) {
     return 0.0;
@@ -45,7 +46,8 @@ double p_coeff(double r, const std::vector<double>& coefficients) {
 
 struct TravellingVortexInitialData {
   using Complete = fub::CompressibleAdvection<2>::Complete;
-  TravellingVortexInitialData() {
+  TravellingVortexInitialData(const fub::amrex::BK19PhysicalParameters&
+  physical_parameters) : phys_param(physical_parameters) {
     coefficients.resize(25);
     coefficients[0] = 1.0 / 12.0;
     coefficients[1] = -12.0 / 13.0;
@@ -114,14 +116,13 @@ struct TravellingVortexInitialData {
     });
   }
 
+  fub::amrex::BK19PhysicalParameters phys_param;
   std::vector<double> coefficients;
   const double a_rho{1.0};
   const double rho0{a_rho * 0.5};
   const double del_rho{a_rho * 0.5};
   const double R0{0.4};
   const double fac{1024.0};
-  const double R_gas{287.4};
-  const double gamma{1.4};
   std::array<double, 2> center{0.5, 0.5};
   std::array<double, 2> U0{1.0, 1.0};
 };
@@ -130,9 +131,17 @@ void MyMain(const fub::ProgramOptions& options) {
   using namespace fub::amrex;
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
-  fub::amrex::ScopeGuard amrex_scope_guard{};
+  ScopeGuard amrex_scope_guard{};
 
-  fub::amrex::DataDescription desc{};
+  // Here, some things are dimensional and others non-dimensionalized. Adjust???
+  BK19PhysicalParameters phys_param;
+  phys_param.R_gas = 287.4;
+  phys_param.gamma = 1.4;
+  phys_param.Msq = 0.0;
+  phys_param.c_p = phys_param.gamma / (phys_param.gamma - 1.0);
+  phys_param.alpha_p = 0.0;
+
+  DataDescription desc{};
   desc.n_state_components = 7;
   desc.n_cons_components = 4;
   desc.n_node_components = 1;
@@ -150,17 +159,10 @@ void MyMain(const fub::ProgramOptions& options) {
 
   PatchHierarchy hierarchy(desc, grid_geometry, hierarchy_options);
 
-  const TravellingVortexInitialData inidat{};
-  const double Gamma    = (inidat.gamma - 1.0) / inidat.gamma;
-  const double Gammainv = 1.0 / Gamma;
+  const TravellingVortexInitialData inidat(phys_param);
 
   using Complete = fub::CompressibleAdvection<2>::Complete;
   fub::CompressibleAdvection<2> equation{};
-  // Here, c_p is non-dimensionalized. Adjust???
-  // Is CompressibleAdvection the right place to store all this?
-  equation.c_p     = Gammainv;
-  equation.alpha_p = 0.0;
-  equation.gamma   = inidat.gamma;
 
   fub::IndexMapping<fub::CompressibleAdvection<2>> index(equation);
 
@@ -197,6 +199,7 @@ void MyMain(const fub::ProgramOptions& options) {
   const int nlevel = simulation_data.GetPatchHierarchy().GetNumberOfLevels();
 
   // set initial values of pi
+  const double Gamma = (phys_param.gamma - 1.0) / phys_param.gamma;
   for (int level = 0; level < nlevel; ++level) {
     ::amrex::MultiFab& pi = simulation_data.GetPi(level);
     const ::amrex::Geometry& geom =
@@ -233,7 +236,7 @@ void MyMain(const fub::ProgramOptions& options) {
   BOOST_LOG(info) << "BK19LevelIntegrator:";
   integrator_options.Print(info);
   BK19LevelIntegrator level_integrator(equation, std::move(advection), linop,
-                                       integrator_options);
+                                       phys_param, integrator_options);
 
   BK19AdvectiveFluxes& Pv = level_integrator.GetContext().GetAdvectiveFluxes(0);
   RecomputeAdvectiveFluxes(
