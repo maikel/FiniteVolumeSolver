@@ -51,7 +51,7 @@
 namespace amrex {
 
 namespace {
-    const Real bogus_value = std::numeric_limits<Real>::quiet_NaN();
+    [[maybe_unused]] const Real bogus_value = std::numeric_limits<Real>::quiet_NaN();
 }
 
 MLNodeHelmDualCstVel::MLNodeHelmDualCstVel (const Vector<Geometry>& a_geom,
