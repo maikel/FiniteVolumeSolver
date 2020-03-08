@@ -37,7 +37,7 @@ auto Plane(const Eigen::Vector2d& p1) {
 
 std::shared_ptr<fub::amrex::cutcell::GriddingAlgorithm>
 MakeGriddingAlgorithm(const fub::PerfectGas<2>& equation) {
-  const std::array<int, 2> n_cells{128, 128};
+  const std::array<int, 2> n_cells{200, 200};
   const std::array<double, 2> xlower{-1.0, -1.0};
   const std::array<double, 2> xupper{+1.0, +1.0};
 
@@ -53,7 +53,7 @@ MakeGriddingAlgorithm(const fub::PerfectGas<2>& equation) {
   const amrex::Box domain{{}, {n_cells[0] - 1, n_cells[1] - 1}};
   amrex::Geometry coarse_geom(domain, &xbox, -1, geometry.periodicity.data());
 
-  const int n_level = 4;
+  const int n_level = 2;
 
   using namespace fub::amrex::cutcell;
 
@@ -97,9 +97,11 @@ auto MakeSolver(const fub::PerfectGas<2>& equation) {
   using namespace fub::amrex::cutcell;
   std::shared_ptr<GriddingAlgorithm> gridding = MakeGriddingAlgorithm(equation);
 
-  fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
+   fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
   fub::HllMethod hll_method{equation, signals};
-  fub::MusclHancockMethod flux_method(equation, hll_method);
+  fub::perfect_gas::HllemMethod<2> hllem_method{equation};
+//  fub::MusclHancockMethod flux_method(equation, hllem_method);
+  fub::FluxMethod<fub::perfect_gas::MusclHancockPrim<2>> flux_method{equation};
   fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
   HyperbolicMethod method{FluxMethod{cutcell_method}, TimeIntegrator{},
                           Reconstruction{equation}};
@@ -111,7 +113,8 @@ auto MakeSolver(const fub::PerfectGas<2>& equation) {
   return fub::NoSubcycleSolver(std::move(level_integrator));
 }
 
-int main(int argc, char** argv) {
+int main() {
+  // fub::EnableFloatingPointExceptions();
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
@@ -126,13 +129,13 @@ int main(int argc, char** argv) {
   using namespace std::literals::chrono_literals;
   fub::MultipleOutputs<GriddingAlgorithm> output{};
   output.AddOutput(fub::MakeOutput<GriddingAlgorithm>(
-      {}, {1.0s / 180.}, PlotfileOutput(equation, base_name)));
+      {1}, {1.0s / 180.}, PlotfileOutput(equation, base_name)));
   output.AddOutput(std::make_unique<fub::CounterOutput<GriddingAlgorithm>>(
-      wall_time_reference, std::vector<std::ptrdiff_t>{},
-      std::vector<fub::Duration>{0.1s}));
+      wall_time_reference, std::vector<std::ptrdiff_t>{2},
+      std::vector<fub::Duration>{}));
   fub::RunOptions run_options{};
   run_options.final_time = 1s;
-  run_options.cfl = 0.95;
+  run_options.cfl = 0.4;
   output(*solver.GetGriddingAlgorithm());
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

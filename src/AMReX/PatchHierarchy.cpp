@@ -21,6 +21,7 @@
 #include "fub/AMReX/PatchHierarchy.hpp"
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/ForEachIndex.hpp"
+#include "fub/output/Hdf5Handle.hpp"
 
 #include <boost/filesystem.hpp>
 #include <hdf5.h>
@@ -36,28 +37,12 @@ namespace amrex {
 PatchHierarchyOptions::PatchHierarchyOptions(const ProgramOptions& options) {
   max_number_of_levels =
       GetOptionOr(options, "max_number_of_levels", max_number_of_levels);
-
-  std::array<int, AMREX_SPACEDIM> ref_ratio{};
-  std::array<int, AMREX_SPACEDIM> blocking{};
-  std::array<int, AMREX_SPACEDIM> max_grid{};
-  std::array<int, AMREX_SPACEDIM> n_err{};
-  std::copy_n(refine_ratio.begin(), AMREX_SPACEDIM, ref_ratio.begin());
-  std::copy_n(blocking_factor.begin(), AMREX_SPACEDIM, blocking.begin());
-  std::copy_n(max_grid_size.begin(), AMREX_SPACEDIM, max_grid.begin());
-  std::copy_n(n_error_buf.begin(), AMREX_SPACEDIM, n_err.begin());
-
-  ref_ratio = GetOptionOr(options, "refine_ratio", ref_ratio);
-  blocking = GetOptionOr(options, "blocking_factor", blocking);
-  max_grid = GetOptionOr(options, "max_grid_size", max_grid);
-  n_err = GetOptionOr(options, "n_error_buf", n_err);
-  verbose = GetOptionOr(options, "verbose", verbose);
+  refine_ratio = GetOptionOr(options, "refine_ratio", refine_ratio);
+  blocking_factor = GetOptionOr(options, "blocking_factor", blocking_factor);
+  max_grid_size = GetOptionOr(options, "max_grid_size", max_grid_size);
+  n_error_buf = GetOptionOr(options, "n_error_buf", n_error_buf);
   grid_efficiency = GetOptionOr(options, "grid_efficiency", grid_efficiency);
   n_proper = GetOptionOr(options, "n_proper", n_proper);
-
-  std::copy_n(ref_ratio.begin(), AMREX_SPACEDIM, refine_ratio.begin());
-  std::copy_n(blocking.begin(), AMREX_SPACEDIM, blocking_factor.begin());
-  std::copy_n(max_grid.begin(), AMREX_SPACEDIM, max_grid_size.begin());
-  std::copy_n(n_err.begin(), AMREX_SPACEDIM, n_error_buf.begin());
 }
 
 PatchLevel::PatchLevel(const PatchLevel& other)
@@ -309,6 +294,8 @@ void WriteCheckpointFile(const std::string checkpointname,
       hout << '\n';
     }
   }
+  // Force processors to wait until directory has been built.
+  ::amrex::ParallelDescriptor::Barrier();
 
   // write the MultiFab data to, e.g., chk00010/Level_0/
   for (int level = 0; level < nlevels; ++level) {
@@ -386,21 +373,6 @@ PatchHierarchy ReadCheckpointFile(const std::string& checkpointname,
 }
 
 namespace {
-template <typename Deleter> struct H5Handle {
-  H5Handle() = default;
-  H5Handle(hid_t id) : id_{id} {}
-
-  ~H5Handle() {
-    if (id_ > 0) {
-      Deleter{}(id_);
-    }
-  }
-
-  operator hid_t() const noexcept { return id_; }
-
-  hid_t id_{};
-};
-
 std::array<hsize_t, AMREX_SPACEDIM + 1>
 GetExtents(const ::amrex::FArrayBox& fab) {
   std::array<hsize_t, AMREX_SPACEDIM + 1> extents = {hsize_t(fab.nComp())};
@@ -409,36 +381,6 @@ GetExtents(const ::amrex::FArrayBox& fab) {
   }
   return extents;
 }
-
-struct H5Fdeleter {
-  using pointer = hid_t;
-  void operator()(hid_t file) const noexcept { H5Fclose(file); }
-};
-using H5File = H5Handle<H5Fdeleter>;
-
-struct H5Sdeleter {
-  using pointer = hid_t;
-  void operator()(hid_t dataspace) const noexcept { H5Sclose(dataspace); }
-};
-using H5Space = H5Handle<H5Sdeleter>;
-
-struct H5Ddeleter {
-  using pointer = hid_t;
-  void operator()(hid_t dataset) const noexcept { H5Dclose(dataset); }
-};
-using H5Dataset = H5Handle<H5Ddeleter>;
-
-struct H5Adeleter {
-  using pointer = hid_t;
-  void operator()(hid_t attributes) const noexcept { H5Aclose(attributes); }
-};
-using H5Attribute = H5Handle<H5Adeleter>;
-
-struct H5Pdeleter {
-  using pointer = hid_t;
-  void operator()(hid_t properties) const noexcept { H5Pclose(properties); }
-};
-using H5Properties = H5Handle<H5Pdeleter>;
 
 void CreateHdf5Database(const std::string& name, const ::amrex::FArrayBox& fab,
                         const ::amrex::Geometry& geom, Duration tp,
@@ -561,7 +503,7 @@ void OpenHdf5Database(const std::string& name, const ::amrex::FArrayBox& fab,
                         nullptr);
     const std::int64_t cycle_count = static_cast<std::int64_t>(cycle);
     H5Space memspace(H5Screate_simple(1, &count, nullptr));
-    H5Dwrite(cycles, H5T_IEEE_F64LE, memspace, filespace, H5P_DEFAULT,
+    H5Dwrite(cycles, H5T_STD_I64LE_g, memspace, filespace, H5P_DEFAULT,
              &cycle_count);
   }
 }

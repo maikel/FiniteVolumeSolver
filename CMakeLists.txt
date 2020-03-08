@@ -362,6 +362,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     include/fub/AMReX/boundary_condition/ReflectiveBoundary.hpp
     include/fub/AMReX/boundary_condition/IsentropicPressureBoundary.hpp
     include/fub/AMReX/boundary_condition/PressureValveBoundary.hpp
+    include/fub/AMReX/boundary_condition/MassflowBoundary.hpp
     include/fub/AMReX/initial_data/ConstantData.hpp
     include/fub/AMReX/AxialSourceTerm.hpp
     include/fub/AMReX/GriddingAlgorithm.hpp
@@ -390,6 +391,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     src/AMReX/boundary_condition/TransmissiveBoundary.cpp
     src/AMReX/boundary_condition/IsentropicPressureBoundary.cpp
     src/AMReX/boundary_condition/PressureValveBoundary.cpp
+    src/AMReX/boundary_condition/MassflowBoundary.cpp
     src/AMReX/AxialSourceTerm.cpp
     src/AMReX/IgniteDetonation.cpp
     src/AMReX/FluxMethod.cpp
@@ -450,6 +452,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         include/fub/AMReX/cutcell/Tagging.hpp
         include/fub/AMReX/cutcell/TimeIntegrator.hpp
         include/fub/AMReX/cutcell/initial_data/RiemannProblem.hpp
+        include/fub/AMReX/cutcell/initial_data/InterpolateFrom1d.hpp
         include/fub/AMReX/cutcell/tagging/ConstantRegion.hpp
         include/fub/AMReX/cutcell/tagging/GradientDetector.hpp
         include/fub/AMReX/cutcell/tagging/TagBuffer.hpp
@@ -459,8 +462,10 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         include/fub/AMReX/cutcell/boundary_condition/IsentropicPressureBoundary.hpp
         include/fub/AMReX/cutcell/boundary_condition/MassflowBoundary.hpp
         include/fub/AMReX/cutcell/boundary_condition/ReflectiveBoundary.hpp
+        include/fub/AMReX/cutcell/boundary_condition/PressureOutflowBoundary.hpp
         include/fub/AMReX/cutcell/output/WriteHdf5.hpp
         include/fub/AMReX/cutcell/output/WritePlotfiles.hpp
+        include/fub/AMReX/cutcell/output/PerfectGasProbesOutput.hpp
         include/fub/AMReX/multi_block/MultiBlockBoundary.hpp
         include/fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp
         include/fub/AMReX/multi_block/MultiBlockIntegratorContext.hpp
@@ -482,10 +487,13 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         src/AMReX/cutcell/boundary_condition/TransmissiveBoundary.cpp
         src/AMReX/cutcell/boundary_condition/IsentropicPressureBoundary.cpp
         src/AMReX/cutcell/boundary_condition/MassflowBoundary.cpp
+        src/AMReX/cutcell/boundary_condition/PressureOutflowBoundary.cpp
+        src/AMReX/cutcell/initial_data/InterpolateFrom1d.cpp
         src/AMReX/cutcell/tagging/ConstantRegion.cpp
         src/AMReX/cutcell/tagging/TagBuffer.cpp
         src/AMReX/cutcell/tagging/TagCutCells.cpp
         src/AMReX/cutcell/output/WriteHdf5.cpp
+        src/AMReX/cutcell/output/PerfectGasProbesOutput.cpp
         src/AMReX/multi_block/MultiBlockBoundary.cpp
         src/AMReX/multi_block/MultiBlockGriddingAlgorithm.cpp
         src/AMReX/multi_block/MultiBlockIntegratorContext.cpp

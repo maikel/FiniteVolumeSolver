@@ -20,6 +20,8 @@
 
 #include "fub/AMReX/cutcell/IntegratorContext.hpp"
 
+#include "fub/AMReX/ForEachFab.hpp"
+#include "fub/AMReX/ForEachIndex.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/AMReX/cutcell/IndexSpace.hpp"
 
@@ -37,8 +39,8 @@ namespace fub::amrex::cutcell {
 ////////////////////////////////////////////////////////////////////////////////
 //                                                      Move Assignment Operator
 
-IntegratorContext::LevelData& IntegratorContext::LevelData::
-operator=(LevelData&& other) noexcept {
+IntegratorContext::LevelData&
+IntegratorContext::LevelData::operator=(LevelData&& other) noexcept {
   if (other.coarse_fine.fineLevel() > 0) {
     // If we do not invoke clear in beforehand it will throw an error in AMReX
     coarse_fine.clear();
@@ -111,8 +113,8 @@ IntegratorContext::IntegratorContext(const IntegratorContext& other)
   }
 }
 
-IntegratorContext& IntegratorContext::IntegratorContext::
-operator=(const IntegratorContext& other) {
+IntegratorContext& IntegratorContext::IntegratorContext::operator=(
+    const IntegratorContext& other) {
   // We use the copy and move idiom to provide the strong exception guarantee.
   // If an exception occurs we do not change the original object.
   IntegratorContext tmp{other};
@@ -346,14 +348,19 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
           ::amrex::IntVect::TheDimensionVector(int(d));
       data.fluxes[d].define(::amrex::convert(ba, unit), dm, n_cons_components,
                             fgrow);
+      data.fluxes[d].setVal(0.0);
       data.stabilized_fluxes[d].define(::amrex::convert(ba, unit), dm,
                                        n_cons_components, fgrow);
+      data.stabilized_fluxes[d].setVal(0.0);
       data.shielded_left_fluxes[d].define(::amrex::convert(ba, unit), dm,
                                           n_cons_components, fgrow);
+      data.shielded_left_fluxes[d].setVal(0.0);
       data.shielded_right_fluxes[d].define(::amrex::convert(ba, unit), dm,
                                            n_cons_components, fgrow);
+      data.shielded_right_fluxes[d].setVal(0.0);
       data.doubly_shielded_fluxes[d].define(::amrex::convert(ba, unit), dm,
                                             n_cons_components, fgrow);
+      data.doubly_shielded_fluxes[d].setVal(0.0);
     }
 
     data.eb_factory = ebf;
@@ -606,11 +613,11 @@ void IntegratorContext::PreAdvanceLevel(int level_num, Duration,
   const std::size_t l = static_cast<std::size_t>(level_num);
   if (subcycle.first == 0) {
     if (data_[l].regrid_time_point != data_[l].time_point) {
-      gridding_->RegridAllFinerlevels(level_num);
+      int level_which_changed = gridding_->RegridAllFinerlevels(level_num);
       for (std::size_t lvl = l; lvl < data_.size(); ++lvl) {
         data_[lvl].regrid_time_point = data_[lvl].time_point;
       }
-      if (LevelExists(level_num + 1)) {
+      if (level_which_changed > 0) {
         ResetHierarchyConfiguration(level_num + 1);
         ResetCoarseFineFluxes(level_num + 1, level_num);
       }

@@ -360,9 +360,11 @@ template <typename Log> void PatchHierarchyOptions::Print(Log& log) {
   std::array<int, AMREX_SPACEDIM> ref_ratio{};
   std::array<int, AMREX_SPACEDIM> blocking{};
   std::array<int, AMREX_SPACEDIM> max_grid{};
+  std::array<int, AMREX_SPACEDIM> error_buf{};
   std::copy_n(refine_ratio.begin(), AMREX_SPACEDIM, ref_ratio.begin());
   std::copy_n(blocking_factor.begin(), AMREX_SPACEDIM, blocking.begin());
   std::copy_n(max_grid_size.begin(), AMREX_SPACEDIM, max_grid.begin());
+  std::copy_n(n_error_buf.begin(), AMREX_SPACEDIM, error_buf.begin());
   BOOST_LOG(log) << fmt::format(" - max_number_of_levels = {}",
                                 max_number_of_levels);
   BOOST_LOG(log) << fmt::format(" - refine_ratio = {{{}}}",
@@ -371,6 +373,10 @@ template <typename Log> void PatchHierarchyOptions::Print(Log& log) {
                                 fmt::join(blocking, ", "));
   BOOST_LOG(log) << fmt::format(" - max_grid_size = {{{}}}",
                                 fmt::join(max_grid, ", "));
+  BOOST_LOG(log) << fmt::format(" - n_err_buf = {{{}}}",
+                                fmt::join(error_buf, ", "));
+  BOOST_LOG(log) << fmt::format(" - grid_efficiency = {}", grid_efficiency);
+  BOOST_LOG(log) << fmt::format(" - n_proper = {}", n_proper);
 }
 
 } // namespace amrex

@@ -33,6 +33,7 @@ RunOptions::RunOptions(const std::map<std::string, pybind11::object>& vm) {
   smallest_time_step_size = Duration(GetOptionOr(
       vm, "smallest_time_step_size", smallest_time_step_size.count()));
   cfl = GetOptionOr(vm, "cfl", cfl);
+  do_backup = GetOptionOr(vm, "do_backup", do_backup);
 }
 
 std::string

@@ -22,9 +22,13 @@
 #include "fub/AMReX_CutCell.hpp"
 #include "fub/Solver.hpp"
 
+#include "fub/initial_data/ShockMachnumber.hpp"
+
 #include <AMReX_EB2_IF_Cylinder.H>
 #include <AMReX_EB2_IF_Intersection.H>
 #include <AMReX_EB2_IF_Plane.H>
+#include <AMReX_EB2_IF_Sphere.H>
+#include <AMReX_EB2_IF_Translation.H>
 
 #include <iostream>
 
@@ -34,21 +38,68 @@ void MyMain(const fub::ProgramOptions& options) {
       std::chrono::steady_clock::now();
   fub::amrex::ScopeGuard _{};
 
+  auto MakePolygon = [](auto... points) {
+    fub::Polygon::Vector xs{};
+    fub::Polygon::Vector ys{};
+
+    (xs.push_back(std::get<0>(points)), ...);
+    (ys.push_back(std::get<1>(points)), ...);
+
+    return fub::Polygon(std::move(xs), std::move(ys));
+  };
+
+  auto DivergentInlet = [&](double height, const std::array<double, 3>& center) {
+    const double xlo = center[0] - height;
+    const double xhi = center[0];
+    const double xdiv = xhi - 0.075;
+    const double r = 0.015;
+    const double r2 = 0.015;
+    auto polygon = MakePolygon(std::pair{xlo, r}, std::pair{xdiv, r}, std::pair{xhi, r2}, 
+                               std::pair{xhi, -r2}, std::pair{xdiv, -r}, std::pair{xlo, -r}, std::pair{xlo, r});
+    auto tube_in_zero = fub::amrex::Geometry(fub::Invert(fub::RotateAxis(polygon)));
+    amrex::RealArray real_center{center[0], center[1], center[2]};
+    auto tube_in_center = amrex::EB2::TranslationIF(fub::amrex::Geometry(tube_in_zero), real_center);
+    return tube_in_center;
+  };
+
   auto embedded_boundary = amrex::EB2::makeIntersection(
-      amrex::EB2::PlaneIF({0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, false),
-      amrex::EB2::CylinderIF(0.015, -1.0, 0, {1e6, 0.0, 0.0}, true));
+      DivergentInlet(1.5, {0.0, 0.0, 0.0}),
+      amrex::EB2::SphereIF(0.150, {0.0, -0.15 + 0.01501, 0.0}, true));
   auto shop = amrex::EB2::makeShop(embedded_boundary);
+
+  fub::SeverityLogger log = fub::GetInfoLogger();
 
   fub::amrex::CartesianGridGeometry grid_geometry =
       fub::GetOptions(options, "GridGeometry");
+  BOOST_LOG(log) << "GridGeometry:";
+  grid_geometry.Print(log);
 
   PatchHierarchyOptions hierarchy_options =
       fub::GetOptions(options, "PatchHierarchy");
+  BOOST_LOG(log) << "PatchHierarchy:";
+  hierarchy_options.Print(log);
+    
+  BOOST_LOG(log) << "Build EB Level set...";
   hierarchy_options.index_spaces =
       MakeIndexSpaces(shop, grid_geometry, hierarchy_options);
 
   fub::Burke2012 mechanism;
   fub::IdealGasMix<3> equation{mechanism};
+  //  fub::PerfectGas<3> equation{};
+
+  // fub::Conservative<fub::PerfectGas<3>> cons;
+  // cons.density = 1.2;
+  // cons.momentum << 0.0, 0.0, 0.0;
+  // cons.energy = 101325.0 * equation.gamma_minus_1_inv;
+  // fub::Complete<fub::PerfectGas<3>> right;
+  // fub::CompleteFromCons(equation, right, cons);
+
+
+  // const double temperature = 2'000; // [K]
+  // cons.density = 4.0 * 101325.0 / (equation.Rspec * temperature);
+  // cons.energy *= 4.0;
+  // fub::Complete<fub::PerfectGas<3>> left;
+  // fub::CompleteFromCons(equation, left, cons);
 
   fub::Complete<fub::IdealGasMix<3>> left(equation);
   fub::Complete<fub::IdealGasMix<3>> right(equation);
@@ -82,36 +133,49 @@ void MyMain(const fub::ProgramOptions& options) {
     equation.CompleteFromReactor(right);
     fub::CompleteFromCons(equation, right, right);
   }
-  RiemannProblem initial_data(equation, fub::Halfspace({+1.0, 0.0, 0.0}, -0.04),
+  RiemannProblem initial_data(equation, fub::Halfspace({+1.0, 0.0, 0.0}, -0.6),
                               left, right);
 
-  //  using Complete = fub::Complete<fub::PerfectGas<3>>;
+  // double Mach_number = fub::GetOptionOr(options, "Mach_number", 0.4);
+  // Eigen::Array<double, 3, 1> normal{1.0, 0.0, 0.0};
+  // ShockMachnumber<fub::PerfectGas<3>, fub::Halfspace> initial_data(equation, fub::Halfspace({+1.0, 0.0, 0.0}, -0.6), right, Mach_number, normal);
+
+  // using Complete = fub::Complete<fub::PerfectGas<3>>;
+  // const Complete& left = initial_data.GetRiemannProblem().left_;
+  // const Complete& right_ = initial_data.GetRiemannProblem().right_;
+  // BOOST_LOG(log) << "Initial Condition 'ShockMachNumber':";
+  // BOOST_LOG(log) << fmt::format("Post-shock state: {} kg/m3, {} m/s, {} Pa", right_.density, equation.Velocity(right_)[0], right_.pressure);
+  // BOOST_LOG(log) << fmt::format("Shock Mach number: Ma = {} [-]", Mach_number);
+  // BOOST_LOG(log) << fmt::format("Pre-shock state: {} kg/m3, {} m/s, {} Pa", left.density, equation.Velocity(left)[0], left.pressure);
   using Complete = fub::Complete<fub::IdealGasMix<3>>;
   GradientDetector gradients{equation, std::pair{&Complete::pressure, 0.05},
                              std::pair{&Complete::density, 0.05}};
 
-  BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
-                                  TransmissiveBoundary{fub::Direction::X, 1},
-                                  TransmissiveBoundary{fub::Direction::Y, 0},
-                                  TransmissiveBoundary{fub::Direction::Y, 1},
-                                  TransmissiveBoundary{fub::Direction::Z, 0},
-                                  TransmissiveBoundary{fub::Direction::Z, 1}}};
+  auto seq = fub::execution::seq;
+  BoundarySet boundary_condition{{ReflectiveBoundary{seq, equation, fub::Direction::X, 0},
+                                  ReflectiveBoundary{seq, equation, fub::Direction::Z, 0},
+                                  ReflectiveBoundary{seq, equation, fub::Direction::Z, 1}}};
 
   std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
       PatchHierarchy(equation, grid_geometry, hierarchy_options), initial_data,
       TagAllOf(TagCutCells(), gradients, TagBuffer(2)), boundary_condition);
+
+  BOOST_LOG(log) << "Initialize Hierarchy...";
   gridding->InitializeHierarchy(0.0);
 
   fub::EinfeldtSignalVelocities<fub::IdealGasMix<3>> signals{};
+  // fub::EinfeldtSignalVelocities<fub::PerfectGas<3>> signals{};
   fub::HllMethod hll_method{equation, signals};
+  // fub::MusclHancockMethod flux_method(equation, hll_method);
   fub::ideal_gas::MusclHancockPrimMethod<3> flux_method(equation);
+  // fub::FluxMethod<fub::perfect_gas::MusclHancockPrim<3>> flux_method{equation};
   fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
 
   HyperbolicMethod method{FluxMethod{cutcell_method}, TimeIntegrator{},
                           Reconstruction{equation}};
 
-  const int scratch_gcw = 4;
-  const int flux_gcw = 2;
+  const int scratch_gcw = 2;
+  const int flux_gcw = 0;
 
   IntegratorContext context(gridding, method, scratch_gcw, flux_gcw);
 
@@ -122,6 +186,7 @@ void MyMain(const fub::ProgramOptions& options) {
 
   using namespace std::literals::chrono_literals;
   using Plotfile = PlotfileOutput<fub::IdealGasMix<3>>;
+  // using Plotfile = PlotfileOutput<fub::PerfectGas<3>>;
   using CounterOutput =
       fub::CounterOutput<GriddingAlgorithm, std::chrono::milliseconds>;
   fub::OutputFactory<GriddingAlgorithm> factory{};
@@ -133,6 +198,8 @@ void MyMain(const fub::ProgramOptions& options) {
 
   outputs(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options = fub::GetOptions(options, "RunOptions");
+  BOOST_LOG(log) << "RunOptions:";
+  run_options.Print(log);
   fub::RunSimulation(solver, run_options, wall_time_reference, outputs);
 }
 

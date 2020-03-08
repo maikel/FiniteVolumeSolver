@@ -50,6 +50,24 @@ class DimensionalSplitLevelIntegrator : public IntegratorContext,
 public:
   static constexpr int Rank = R;
 
+  DimensionalSplitLevelIntegrator() = delete;
+
+  DimensionalSplitLevelIntegrator(
+      const DimensionalSplitLevelIntegrator& other) = default;
+
+  DimensionalSplitLevelIntegrator& operator=(
+      const DimensionalSplitLevelIntegrator& other) = default;
+
+  DimensionalSplitLevelIntegrator(DimensionalSplitLevelIntegrator&& other) = default;
+
+  DimensionalSplitLevelIntegrator& operator=(DimensionalSplitLevelIntegrator&& other) = default;
+
+  template <typename OtherSplitMethod>
+  DimensionalSplitLevelIntegrator(
+      const DimensionalSplitLevelIntegrator<Rank, IntegratorContext,
+                                            OtherSplitMethod>& other)
+      : IntegratorContext(other), SplitMethod(other.GetSplitMethod()) {}
+
   DimensionalSplitLevelIntegrator(IntegratorContext context,
                                   SplitMethod splitting = SplitMethod())
       : IntegratorContext(std::move(context)),
@@ -146,10 +164,12 @@ void DimensionalSplitLevelIntegrator<R, IntegratorContext, SplitMethod>::
                             Duration, std::pair<int, int>>()) {
     IntegratorContext::PreAdvanceLevel(level, time_step_size, subcycle);
   }
-  if (level > 0) {
-    IntegratorContext::FillGhostLayerTwoLevels(level, level - 1);
-  } else {
-    IntegratorContext::FillGhostLayerSingleLevel(level);
+  if (subcycle.first > 0) {
+    if (level > 0) {
+      IntegratorContext::FillGhostLayerTwoLevels(level, level - 1);
+    } else {
+      IntegratorContext::FillGhostLayerSingleLevel(level);
+    }
   }
 }
 template <int R, typename IntegratorContext, typename SplitMethod>
@@ -230,7 +250,7 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::
       [&](auto... directions) {
         return GetSplitMethod().Advance(dt, AdvanceLevel_Split(directions)...);
       },
-      MakeSplitDirections<Rank>(subcycle));
+      MakeSplitDirections<Rank>(GetCycles(0), subcycle));
 
   return result;
 }

@@ -24,6 +24,7 @@
 #include "fub/AMReX/GriddingAlgorithm.hpp"
 #include "fub/AMReX/boundary_condition/IsentropicPressureBoundary.hpp"
 #include "fub/AMReX/boundary_condition/ReflectiveBoundary.hpp"
+#include "fub/AMReX/boundary_condition/MassflowBoundary.hpp"
 
 #include "fub/Duration.hpp"
 
@@ -65,6 +66,8 @@ struct PressureValveOptions {
     BOOST_LOG(log) << fmt::format(" - open_at_interval = {} [s]",
                                   open_at_interval.count());
     BOOST_LOG(log) << fmt::format(" - offset = {} [s]", offset.count());
+    BOOST_LOG(log) << fmt::format(" --- Massflow part:");
+    massflow_boundary.Print(log);
   }
 
   std::string prefix{"PressureValve"};
@@ -80,6 +83,7 @@ struct PressureValveOptions {
   double valve_efficiency{1.0};
   Duration open_at_interval{0.0};
   Duration offset{0.0};
+  MassflowBoundaryOptions massflow_boundary{};
 };
 
 } // namespace fub::amrex
@@ -98,8 +102,8 @@ enum class PressureValveState { open_air, open_fuel, closed };
 
 struct PressureValve {
   PressureValveState state{PressureValveState::open_air};
-  Duration last_closed{-std::numeric_limits<double>::infinity()};
-  Duration last_fuel{-std::numeric_limits<double>::infinity()};
+  Duration last_closed{std::numeric_limits<double>::lowest()};
+  Duration last_fuel{std::numeric_limits<double>::lowest()};
 };
 
 class PressureValveBoundary {
