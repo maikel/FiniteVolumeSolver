@@ -52,6 +52,9 @@ if (AMReX_FOUND AND AMReX_2D_FOUND)
   add_executable(AMReX.NodalProjectionSingleLevel AMReX/NodalProjectionSingleLevel.cpp)
   target_link_libraries(AMReX.NodalProjectionSingleLevel FiniteVolumeSolver.AMReX)
 
+  add_executable(AMReX.Viscosity AMReX/Viscosity.cpp)
+  target_link_libraries(AMReX.Viscosity FiniteVolumeSolver.AMReX)
+
   if (AMReX_EB_FOUND)
     add_executable_with_warnings(AMReX.EB.Divider2D AMReX/EB/Divider2D.cpp)
     target_link_libraries(AMReX.EB.Divider2D FiniteVolumeSolver.AMReX.EB)

@@ -332,6 +332,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     include/fub/AMReX/boundary_condition/PressureValveBoundary.hpp
     include/fub/AMReX/initial_data/ConstantData.hpp
     include/fub/AMReX/AxialSourceTerm.hpp
+    include/fub/AMReX/ViscositySourceTerm.hpp
     include/fub/AMReX/GriddingAlgorithm.hpp
     include/fub/AMReX/IgniteDetonation.hpp
     include/fub/AMReX/PatchHierarchy.hpp
@@ -359,6 +360,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     src/AMReX/boundary_condition/IsentropicPressureBoundary.cpp
     src/AMReX/boundary_condition/PressureValveBoundary.cpp
     src/AMReX/AxialSourceTerm.cpp
+    src/AMReX/ViscositySourceTerm.cpp
     src/AMReX/IgniteDetonation.cpp
     src/AMReX/FluxMethod.cpp
     src/AMReX/ScopeGuard.cpp
