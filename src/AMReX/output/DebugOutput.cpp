@@ -21,6 +21,7 @@
 
 #include "fub/AMReX/output/DebugOutput.hpp"
 #include "fub/AMReX/ForEachFab.hpp"
+#include "fub/AMReX/ForEachIndex.hpp"
 
 #include <algorithm>
 #include <numeric>
@@ -28,6 +29,16 @@
 namespace fub::amrex {
 
 namespace {
+
+template <class T>
+::amrex::Vector<const T*> GetVecOfConstPtrs (const ::amrex::Vector<T>& a) {
+  ::amrex::Vector<const T*> r;
+  r.reserve(a.size());
+  for (const auto& x : a)  r.push_back(&x);
+  return r;
+}
+
+
 struct equal_to {
   int i;
   const std::vector<std::vector<::amrex::BoxArray>>* bas_;
@@ -118,6 +129,21 @@ GatherNames_(const std::vector<DebugSnapshot::ComponentNames>& names,
   return gathered;
 }
 
+std::vector<const DebugSnapshot::GeomHierarchy*>
+GatherGeometries_(const std::vector<DebugSnapshot::GeomHierarchy>& geoms,
+             const std::vector<DebugSnapshot::Hierarchy>& hierarchies,
+             ::amrex::IndexType location) {
+  std::vector<const DebugSnapshot::GeomHierarchy*> gathered{};
+  auto geom = geoms.begin();
+  for (const DebugSnapshot::Hierarchy& hierarchy : hierarchies) {
+    if (hierarchy[0].boxArray().ixType() == location) {
+      gathered.emplace_back(&(*geom));
+    }
+    ++geom;
+  }
+  return gathered;
+}
+
 DebugSnapshot::ComponentNames
 Select_(const std::vector<DebugSnapshot::ComponentNames>& names,
         const std::vector<int>& partition) {
@@ -191,8 +217,15 @@ DebugSnapshot::GetNames() const noexcept {
   return names_per_hierarchy_;
 }
 
+/// \brief Returns all the associated geometries which are stored via SaveData
+const std::vector<DebugSnapshot::GeomHierarchy>&
+DebugSnapshot::GetGeometries() const noexcept {
+  return saved_geometries_;
+}
+
 void DebugSnapshot::SaveData(const ::amrex::MultiFab& mf,
                              const std::string& name,
+                             const ::amrex::Geometry& geom,
                              ::amrex::SrcComp component) {
   Hierarchy single_level_hierarchy{};
   ::amrex::BoxArray ba = mf.boxArray();
@@ -201,10 +234,12 @@ void DebugSnapshot::SaveData(const ::amrex::MultiFab& mf,
   ::amrex::MultiFab::Copy(dest, mf, component.i, 0, 1, 0);
   saved_hierarchies_.push_back(std::move(single_level_hierarchy));
   names_per_hierarchy_.push_back(ComponentNames{name});
+  saved_geometries_.push_back(GeomHierarchy{geom});
 }
 
 void DebugSnapshot::SaveData(const ::amrex::MultiFab& mf,
                              const ComponentNames& names,
+                             const ::amrex::Geometry& geom,
                              ::amrex::SrcComp first_component) {
   Hierarchy single_level_hierarchy{};
   ::amrex::BoxArray ba = mf.boxArray();
@@ -215,24 +250,31 @@ void DebugSnapshot::SaveData(const ::amrex::MultiFab& mf,
   ::amrex::MultiFab::Copy(dest, mf, first_component.i, 0, n_components, 0);
   saved_hierarchies_.push_back(std::move(single_level_hierarchy));
   names_per_hierarchy_.push_back(ComponentNames{names});
+  saved_geometries_.push_back(GeomHierarchy{geom});
 }
 
 void DebugSnapshot::SaveData(
     const ::amrex::Vector<const ::amrex::MultiFab*>& hierarchy,
-    const std::string& name, ::amrex::SrcComp component) {
-  SaveData(hierarchy, ComponentNames{name}, component);
+    const std::string& name,
+    const ::amrex::Vector<const ::amrex::Geometry*>& geomhier,
+    ::amrex::SrcComp component) {
+  SaveData(hierarchy, ComponentNames{name}, geomhier, component);
 }
 
 void DebugSnapshot::SaveData(
     const ::amrex::Vector<::amrex::MultiFab>& hierarchy,
-    const std::string& name, ::amrex::SrcComp component) {
+    const std::string& name,
+    const ::amrex::Vector<::amrex::Geometry>& geomhier,
+    ::amrex::SrcComp component) {
   SaveData(::amrex::GetVecOfConstPtrs(hierarchy), ComponentNames{name},
-           component);
+           GetVecOfConstPtrs(geomhier), component);
 }
 
 void DebugSnapshot::SaveData(
     const ::amrex::Vector<const ::amrex::MultiFab*>& hierarchy,
-    const ComponentNames& names, ::amrex::SrcComp first_component) {
+    const ComponentNames& names,
+    const ::amrex::Vector<const ::amrex::Geometry*>& geomhier,
+    ::amrex::SrcComp first_component) {
   std::size_t nlevels = hierarchy.size();
   Hierarchy& multi_level_hierarchy = saved_hierarchies_.emplace_back();
   multi_level_hierarchy.reserve(nlevels);
@@ -246,12 +288,20 @@ void DebugSnapshot::SaveData(
     ::amrex::MultiFab::Copy(dest, mf, first_component.i, 0, names.size(), 0);
   }
   names_per_hierarchy_.push_back(names);
+  GeomHierarchy& multi_level_geometry = saved_geometries_.emplace_back();
+  multi_level_geometry.reserve(nlevels);
+  for (const ::amrex::Geometry* geom_pointer : geomhier) {
+    multi_level_geometry.emplace_back(*geom_pointer);
+  }
 }
 
 void DebugSnapshot::SaveData(
     const ::amrex::Vector<::amrex::MultiFab>& hierarchy,
-    const ComponentNames& names, ::amrex::SrcComp first_component) {
-  SaveData(::amrex::GetVecOfConstPtrs(hierarchy), names, first_component);
+    const ComponentNames& names,
+    const ::amrex::Vector<::amrex::Geometry>& geomhier,
+    ::amrex::SrcComp first_component) {
+  SaveData(::amrex::GetVecOfConstPtrs(hierarchy), names,
+           GetVecOfConstPtrs(geomhier), first_component);
 }
 
 void DebugSnapshot::MakeUniqueComponentNames() {
@@ -301,7 +351,7 @@ void DebugSnapshot::MakeUniqueComponentNames() {
   }
 }
 
-std::vector<std::pair<DebugSnapshot::Hierarchy, DebugSnapshot::ComponentNames>>
+std::vector<std::tuple<DebugSnapshot::Hierarchy, DebugSnapshot::ComponentNames, DebugSnapshot::GeomHierarchy>>
 DebugSnapshot::GatherFields(::amrex::IndexType location) const {
   using namespace ::amrex;
   std::vector<std::vector<BoxArray>> box_arrays =
@@ -310,14 +360,17 @@ DebugSnapshot::GatherFields(::amrex::IndexType location) const {
       GatherDistributionMaps_(saved_hierarchies_, location);
   std::vector<const DebugSnapshot::Hierarchy*> filtered_hierarchies =
       GatherHierarchies_(saved_hierarchies_, location);
+  std::vector<const DebugSnapshot::GeomHierarchy*> filtered_geoms =
+      GatherGeometries_(saved_geometries_, saved_hierarchies_, location);
   std::vector<std::vector<int>> partitions = Partitions_(box_arrays);
   std::vector<
-      std::pair<DebugSnapshot::Hierarchy, DebugSnapshot::ComponentNames>>
-      hiers_with_names{};
+      std::tuple<DebugSnapshot::Hierarchy, DebugSnapshot::ComponentNames, DebugSnapshot::GeomHierarchy>>
+      hiers_tuple{};
   for (const std::vector<int>& partition : partitions) {
     std::vector<ComponentNames> all_components =
         GatherNames_(names_per_hierarchy_, saved_hierarchies_, location);
     ComponentNames components = Select_(all_components, partition);
+    GeomHierarchy geoms = *filtered_geoms[partition[0]];
     int n_components = static_cast<int>(components.size());
     DebugSnapshot::Hierarchy hierarchy{};
     std::vector<BoxArray> box_array = box_arrays[partition[0]];
@@ -335,69 +388,73 @@ DebugSnapshot::GatherFields(::amrex::IndexType location) const {
       }
       FUB_ASSERT(comp == n_components);
     }
-    hiers_with_names.emplace_back(std::move(hierarchy), std::move(components));
+    hiers_tuple.emplace_back(std::move(hierarchy), std::move(components), std::move(geoms));
   }
-  return hiers_with_names;
+  return hiers_tuple;
 }
 
 void DebugSnapshot::ClearAll() {
-  names_per_hierarchy_.clear();
   saved_hierarchies_.clear();
+  names_per_hierarchy_.clear();
+  saved_geometries_.clear();
 }
 
 void DebugSnapshotProxy::SaveData(const ::amrex::MultiFab& mf,
                                   const std::string& name,
+                                  const ::amrex::Geometry& geom,
                                   ::amrex::SrcComp component) {
   if (m_snapshot) {
-    m_snapshot->SaveData(mf, name, component);
+    m_snapshot->SaveData(mf, name, geom, component);
   }
 }
 
 void DebugSnapshotProxy::SaveData(const ::amrex::MultiFab& mf,
                                   const DebugSnapshot::ComponentNames& names,
+                                  const ::amrex::Geometry& geom,
                                   ::amrex::SrcComp first_component) {
   if (m_snapshot) {
-    m_snapshot->SaveData(mf, names, first_component);
-  }
-}
-
-void DebugSnapshotProxy::SaveData(
-    const ::amrex::Vector<::amrex::MultiFab>& hierarchy,
-    const std::string& name, ::amrex::SrcComp first_component) {
-  if (m_snapshot) {
-    m_snapshot->SaveData(hierarchy, name, first_component);
+    m_snapshot->SaveData(mf, names, geom, first_component);
   }
 }
 
 void DebugSnapshotProxy::SaveData(
     const ::amrex::Vector<const ::amrex::MultiFab*>& hierarchy,
-    const std::string& name, ::amrex::SrcComp first_component) {
+    const std::string& name,
+    const ::amrex::Vector<const ::amrex::Geometry*>& geomhier,
+    ::amrex::SrcComp first_component) {
   if (m_snapshot) {
-    m_snapshot->SaveData(hierarchy, name, first_component);
+    m_snapshot->SaveData(hierarchy, name, geomhier, first_component);
+  }
+}
+
+void DebugSnapshotProxy::SaveData(
+    const ::amrex::Vector<::amrex::MultiFab>& hierarchy,
+    const std::string& name,
+    const ::amrex::Vector<::amrex::Geometry>& geomhier,
+    ::amrex::SrcComp first_component) {
+  if (m_snapshot) {
+    m_snapshot->SaveData(hierarchy, name, geomhier, first_component);
   }
 }
 
 void DebugSnapshotProxy::SaveData(
     const ::amrex::Vector<const ::amrex::MultiFab*>& hierarchy,
     const DebugSnapshot::ComponentNames& names,
+    const ::amrex::Vector<const ::amrex::Geometry*>& geomhier,
     ::amrex::SrcComp first_component) {
   if (m_snapshot) {
-    m_snapshot->SaveData(hierarchy, names, first_component);
+    m_snapshot->SaveData(hierarchy, names, geomhier, first_component);
   }
 }
 
 void DebugSnapshotProxy::SaveData(
     const ::amrex::Vector<::amrex::MultiFab>& hierarchy,
     const DebugSnapshot::ComponentNames& names,
+    const ::amrex::Vector<::amrex::Geometry>& geomhier,
     ::amrex::SrcComp first_component) {
   if (m_snapshot) {
-    m_snapshot->SaveData(hierarchy, names, first_component);
+    m_snapshot->SaveData(hierarchy, names, geomhier, first_component);
   }
-}
-
-/// \brief Returns all the snapshots which are stored via FlushData
-std::list<DebugSnapshot>& DebugStorage::GetSnapshots() noexcept {
-  return saved_snapshots_;
 }
 
 DebugSnapshotProxy
@@ -411,32 +468,40 @@ DebugStorage::AddSnapshot(const std::string& snapshot_directory) {
   return DebugSnapshotProxy{};
 }
 
-void DebugStorage::FlushData(const GriddingAlgorithm& grid,
-                             const std::string& directory,
-                             const double time_point) {
+void DebugStorage::FlushData(const std::string& directory,
+                             const int cycle, const double time_point) {
   using namespace std::literals;
 
-  std::list<DebugSnapshot>& saved_snapshots = GetSnapshots();
+  if (cycle < 0) {
+    ++cycle_;
+  } else {
+    cycle_ = cycle;
+  }
 
-  for (DebugSnapshot& snapshot : saved_snapshots) {
+  for (DebugSnapshot& snapshot : saved_snapshots_) {
     snapshot.MakeUniqueComponentNames();
 
     const std::vector<DebugSnapshot::Hierarchy>& all_hierarchies =
         snapshot.GetHierarchies();
     const std::vector<DebugSnapshot::ComponentNames>& all_names =
         snapshot.GetNames();
+    const std::vector<DebugSnapshot::GeomHierarchy>& all_geometries =
+        snapshot.GetGeometries();
 
     // average node/face data to cell data
     std::vector<DebugSnapshot::Hierarchy> avg_hierarchies{};
     std::vector<DebugSnapshot::ComponentNames> names_avg_hierarchies{};
+    std::vector<DebugSnapshot::GeomHierarchy> avg_geoms{};
 
     auto hier_fields = all_names.begin();
+    auto hier_geoms = all_geometries.begin();
     for (const DebugSnapshot::Hierarchy& hierarchy : all_hierarchies) {
       if (hierarchy[0].ixType() != ::amrex::IndexType::TheCellType()) {
         const int nlevels = hierarchy.size();
         const int nComp = hierarchy[0].nComp();
         DebugSnapshot::Hierarchy cell_average_hierarchy(nlevels);
         DebugSnapshot::ComponentNames names_avg(*hier_fields);
+        DebugSnapshot::GeomHierarchy geoms(*hier_geoms);
 
         if (hierarchy[0].ixType() == ::amrex::IndexType::TheNodeType()) {
           for (int level = 0; level < nlevels; ++level) {
@@ -473,45 +538,49 @@ void DebugStorage::FlushData(const GriddingAlgorithm& grid,
 
         avg_hierarchies.emplace_back(std::move(cell_average_hierarchy));
         names_avg_hierarchies.emplace_back(std::move(names_avg));
+        avg_geoms.emplace_back(std::move(geoms));
       }
       ++hier_fields;
+      ++hier_geoms;
     }
 
-    auto avg_fields = names_avg_hierarchies.begin();
+    auto avg_fieldit = names_avg_hierarchies.begin();
+    auto avg_geomit = avg_geoms.begin();
     for (const DebugSnapshot::Hierarchy& hierarchy : avg_hierarchies) {
-      DebugSnapshot::ComponentNames names_avg(*avg_fields);
-      snapshot.SaveData(hierarchy, names_avg);
-      ++avg_fields;
+      DebugSnapshot::ComponentNames names_avg(*avg_fieldit);
+      snapshot.SaveData(hierarchy, names_avg, *avg_geomit);
+      ++avg_fieldit;
+      ++avg_geomit;
     }
 
     avg_hierarchies.clear();
     names_avg_hierarchies.clear();
+    avg_geoms.clear();
 
     // save data from snapshot by partition (same patch hierarchy)
     std::vector<
-        std::pair<DebugSnapshot::Hierarchy, DebugSnapshot::ComponentNames>>
-        hiers_with_names =
+        std::tuple<DebugSnapshot::Hierarchy, DebugSnapshot::ComponentNames, DebugSnapshot::GeomHierarchy>>
+        hiers_tuple =
             snapshot.GatherFields(::amrex::IndexType::TheCellType());
     const std::string snapshot_directory = snapshot.GetSnapshotDirectory();
 
     int partition_counter = 0;
-    for (auto&& [hierarchy, names] : hiers_with_names) {
+    for (auto&& [hierarchy, names, geoms] : hiers_tuple) {
       const std::string plotfilename = fmt::format(
           "{}/{}/partition_{}_plt{:09}", directory, snapshot_directory,
-          partition_counter, grid.GetPatchHierarchy().GetCycles());
+          partition_counter, cycle_);
       const std::size_t size = hierarchy.size();
       ::amrex::Vector<const ::amrex::MultiFab*> mf(size);
-      ::amrex::Vector<::amrex::Geometry> geoms(size);
       ::amrex::Vector<int> level_steps(size);
       ::amrex::Vector<::amrex::IntVect> ref_ratio(size - 1);
       std::vector<::amrex::BoxArray> cell_box_array(size);
 
       for (std::size_t i = 0; i < size; ++i) {
         mf[i] = &hierarchy[i];
-        const int ii = static_cast<int>(i);
-        geoms[i] = grid.GetPatchHierarchy().GetGeometry(ii);
-        level_steps[i] =
-            static_cast<int>(grid.GetPatchHierarchy().GetCycles(ii));
+        level_steps[i] = 0;
+//         const int ii = static_cast<int>(i);
+//         level_steps[i] =
+//             static_cast<int>(grid.GetPatchHierarchy().GetCycles(ii));
         cell_box_array[i] = hierarchy[i].boxArray();
       }
 
@@ -578,7 +647,7 @@ DebugOutput::DebugOutput(const ProgramOptions& opts,
 
 void DebugOutput::operator()(const GriddingAlgorithm& grid) {
   DebugStorage& storage = *grid.GetPatchHierarchy().GetDebugStorage();
-  storage.FlushData(grid, directory_, grid.GetTimePoint().count());
+  storage.FlushData(directory_, grid.GetPatchHierarchy().GetCycles(), grid.GetTimePoint().count());
 }
 
 } // namespace fub::amrex

@@ -30,6 +30,7 @@ namespace fub::amrex {
 class DebugSnapshot {
 public:
   using Hierarchy = ::amrex::Vector<::amrex::MultiFab>;
+  using GeomHierarchy = ::amrex::Vector<::amrex::Geometry>;
   using ComponentNames = ::amrex::Vector<std::string>;
 
   /// \brief Initializes an empty snapshot
@@ -41,25 +42,31 @@ public:
   /// The actual output will be handled by the DebugOutput class and will
   /// usually happen at a later time point.
   void SaveData(const ::amrex::MultiFab& mf, const std::string& name,
+                const ::amrex::Geometry& geom,
                 ::amrex::SrcComp component = ::amrex::SrcComp(0));
 
   void SaveData(const ::amrex::MultiFab& mf, const ComponentNames& names,
+                const ::amrex::Geometry& geom,
                 ::amrex::SrcComp first_component = ::amrex::SrcComp(0));
 
   void SaveData(const ::amrex::Vector<const ::amrex::MultiFab*>& hierarchy,
                 const std::string& name,
+                const ::amrex::Vector<const ::amrex::Geometry*>& geomhier,
                 ::amrex::SrcComp component = ::amrex::SrcComp(0));
 
   void SaveData(const ::amrex::Vector<::amrex::MultiFab>& hierarchy,
                 const std::string& name,
+                const ::amrex::Vector<::amrex::Geometry>& geomhier,
                 ::amrex::SrcComp component = ::amrex::SrcComp(0));
 
   void SaveData(const ::amrex::Vector<const ::amrex::MultiFab*>& hierarchy,
                 const ComponentNames& names,
+                const ::amrex::Vector<const ::amrex::Geometry*>& geomhier,
                 ::amrex::SrcComp first_component = ::amrex::SrcComp(0));
 
   void SaveData(const ::amrex::Vector<::amrex::MultiFab>& hierarchy,
                 const ComponentNames& names,
+                const ::amrex::Vector<::amrex::Geometry>& geomhier,
                 ::amrex::SrcComp first_component = ::amrex::SrcComp(0));
   /// @}
 
@@ -72,6 +79,9 @@ public:
   /// \brief Returns all the component names which are stored via SaveData
   const std::vector<ComponentNames>& GetNames() const noexcept;
 
+  /// \brief Returns all the associated geometries which are stored via SaveData
+  const std::vector<GeomHierarchy>& GetGeometries() const noexcept;
+
   /// \brief Changes component names that appear more than once by appending
   /// assending numbers to each. This also makes names unique, which appear
   /// more than once in one hierarchy.
@@ -82,7 +92,7 @@ public:
   ///
   /// This function will join all compatible hierachies to a common big one if
   /// possible.
-  std::vector<std::pair<Hierarchy, ComponentNames>>
+  std::vector<std::tuple<Hierarchy, ComponentNames, GeomHierarchy>>
   GatherFields(::amrex::IndexType location) const;
 
   /// \brief
@@ -99,6 +109,9 @@ private:
 
   /// \brief Each SaveData will append a list of names on the hierachy
   std::vector<ComponentNames> names_per_hierarchy_{};
+
+  /// \brief Each SaveData will append a hierarchy of corresponding geometries
+  std::vector<GeomHierarchy> saved_geometries_{};
 
   /// \brief output directory of storage;
   std::string snapshot_directory_{};
@@ -118,26 +131,32 @@ public:
   /// The actual output will be handled by the DebugOutput class and will
   /// usually happen at a later time point.
   void SaveData(const ::amrex::MultiFab& mf, const std::string& name,
+                const ::amrex::Geometry& geom,
                 ::amrex::SrcComp component = ::amrex::SrcComp(0));
 
   void SaveData(const ::amrex::MultiFab& mf,
                 const DebugSnapshot::ComponentNames& names,
+                const ::amrex::Geometry& geom,
                 ::amrex::SrcComp first_component = ::amrex::SrcComp(0));
 
   void SaveData(const ::amrex::Vector<const ::amrex::MultiFab*>& hierarchy,
                 const std::string& name,
+                const ::amrex::Vector<const ::amrex::Geometry*>& geomhier,
                 ::amrex::SrcComp component = ::amrex::SrcComp(0));
 
   void SaveData(const ::amrex::Vector<::amrex::MultiFab>& hierarchy,
                 const std::string& name,
+                const ::amrex::Vector<::amrex::Geometry>& geomhier,
                 ::amrex::SrcComp component = ::amrex::SrcComp(0));
 
   void SaveData(const ::amrex::Vector<const ::amrex::MultiFab*>& hierarchy,
                 const DebugSnapshot::ComponentNames& names,
+                const ::amrex::Vector<const ::amrex::Geometry*>& geomhier,
                 ::amrex::SrcComp first_component = ::amrex::SrcComp(0));
 
   void SaveData(const ::amrex::Vector<::amrex::MultiFab>& hierarchy,
                 const DebugSnapshot::ComponentNames& names,
+                const ::amrex::Vector<::amrex::Geometry>& geomhier,
                 ::amrex::SrcComp first_component = ::amrex::SrcComp(0));
   /// @}
 
@@ -157,14 +176,11 @@ public:
   void Enable() { is_enabled_ = true; }
   void Disable() { is_enabled_ = false; }
 
-  /// \brief Returns all the snapshots which are stored in the debug storage
-  std::list<DebugSnapshot>& GetSnapshots() noexcept;
-
   /// \brief Adds snapshot with given directory name to storage.
   DebugSnapshotProxy AddSnapshot(const std::string& snapshot_directory);
 
   /// \brief Writes data to disk and clears all data present in the storage.
-  void FlushData(const GriddingAlgorithm& grid, const std::string& directory,
+  void FlushData(const std::string& directory, const int cycle = -1,
                  const double time_point = 0.0);
 
   /// \brief Deletes all currently stored snapshots in the debug storage
@@ -176,6 +192,8 @@ private:
 
   /// \brief If this is false no data will be saved.
   bool is_enabled_{false};
+
+  int cycle_{-1};
 };
 
 class DebugOutput : public OutputAtFrequencyOrInterval<GriddingAlgorithm> {

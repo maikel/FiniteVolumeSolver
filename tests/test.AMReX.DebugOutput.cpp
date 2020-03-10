@@ -78,28 +78,44 @@ int main() {
   grid->InitializeHierarchy(0.0);
 
   const int nlevels = grid->GetPatchHierarchy().GetNumberOfLevels();
-  ::amrex::Print() << "levels " << nlevels << "\n";
   std::size_t size = static_cast<std::size_t>(nlevels);
   ::amrex::Vector<const ::amrex::MultiFab*> mf(size);
-  ::amrex::Vector<::amrex::Geometry> geoms(size);
-  ::amrex::Vector<int> level_steps(size);
+  ::amrex::Vector<const ::amrex::Geometry*> geoms(size);
   for (std::size_t i = 0; i < size; ++i) {
     mf[i] = &grid->GetPatchHierarchy().GetPatchLevel(static_cast<int>(i)).data;
-    geoms[i] = grid->GetPatchHierarchy().GetGeometry(static_cast<int>(i));
-    level_steps[i] = static_cast<int>(grid->GetPatchHierarchy().GetCycles(static_cast<int>(i)));
-    ::amrex::Print() << "level steps " << i << ": " << level_steps[i] << "\n";
+    geoms[i] = &grid->GetPatchHierarchy().GetGeometry(static_cast<int>(i));
   }
+
+  ::amrex::Vector<const ::amrex::MultiFab*> mf2(2);
+  ::amrex::Vector<const ::amrex::Geometry*> geoms2(2);
+  mf2[0] = &grid->GetPatchHierarchy().GetPatchLevel(1).data;
+  mf2[1] = &grid->GetPatchHierarchy().GetPatchLevel(3).data;
+  geoms2[0] = &grid->GetPatchHierarchy().GetGeometry(1);
+  geoms2[1] = &grid->GetPatchHierarchy().GetGeometry(3);
+
+  ::amrex::BoxArray ba3 = mf[3]->boxArray();
+  ba3.surroundingNodes();
+  ::amrex::DistributionMapping dm3 = mf[3]->DistributionMap();
+  ::amrex::Geometry geom3 = *geoms[3];
+  ::amrex::MultiFab mf3(ba3, dm3, 1, 0);
+  mf3.setVal(1.0);
+
   using Traits = fub::StateTraits<fub::Complete<fub::Advection2d>>;
   constexpr auto names = Traits::names;
-  ::amrex::Print() << std::get<0>(names) << "\n";
 
   fub::amrex::DebugStorage& debug = *grid->GetPatchHierarchy().GetDebugStorage();
   debug.Enable();
   fub::amrex::DebugSnapshotProxy dbg_snapshot = debug.AddSnapshot("test");
 
-  dbg_snapshot.SaveData(mf, std::get<0>(names));
-//   dbg_snapshot.SaveData(*mf[2], "Mass_level2");
+  dbg_snapshot.SaveData(mf, std::get<0>(names), geoms);
+  dbg_snapshot.SaveData(mf2, "Mass_sub", geoms2);
+  dbg_snapshot.SaveData(mf3, "const_val", geom3);
 
-  debug.FlushData(*grid, "DebugTest");
+  debug.FlushData("DebugTest");
+
+  dbg_snapshot = debug.AddSnapshot("test");
+  dbg_snapshot.SaveData(mf, std::get<0>(names), geoms);
+
+  debug.FlushData("DebugTest");
 
 }
