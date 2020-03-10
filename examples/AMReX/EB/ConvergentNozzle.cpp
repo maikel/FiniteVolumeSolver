@@ -397,9 +397,11 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
                                        .GetPatchHierarchy()
                                        .GetMaxNumberOfLevels();
 
+  fub::amrex::IgniteDetonationOptions ignite_options(fub::GetOptions(vm, "IgniteDetonation"));
+  BOOST_LOG(log) << "IgniteDetonation:";
+  ignite_options.Print(ignite_options);
   fub::amrex::MultiBlockIgniteDetonation ignition{
-      tube_equation, n_tubes, max_number_of_levels,
-      fub::amrex::IgniteDetonationOptions(vm, "IgniteDetonation")};
+      tube_equation, n_tubes, max_number_of_levels, ignite_options};
 
   std::string checkpoint = fub::GetOptionOr(vm, "checkpoint", std::string{});
   if (!checkpoint.empty()) {
