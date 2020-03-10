@@ -102,6 +102,9 @@ if (AMReX_FOUND AND AMReX_3D_FOUND)
     add_executable_with_warnings(AMReX.EB.LinearShock3d AMReX/EB/LinearShock3d.cpp)
     target_link_libraries(AMReX.EB.LinearShock3d FiniteVolumeSolver.AMReX.EB)
 
+    add_executable_with_warnings(AMReX.EB.ConvergentNozzle AMReX/EB/ConvergentNozzle.cpp)
+    target_link_libraries(AMReX.EB.ConvergentNozzle FiniteVolumeSolver.AMReX.EB)
+
     add_executable_with_warnings(AMReX.EB.CoupledLinearShock3d AMReX/EB/CoupledLinearShock3d.cpp)
     target_link_libraries(AMReX.EB.CoupledLinearShock3d FiniteVolumeSolver.AMReX.EB)
 
