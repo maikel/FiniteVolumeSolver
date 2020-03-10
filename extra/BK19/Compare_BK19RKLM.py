@@ -15,8 +15,8 @@ if (not funcs.get_interactivity()):
 
 def LoadFVS(base_dir, step_dir, timestep):
   path = os.path.join(base_dir, step_dir, 'plt{:09d}'.format(timestep))
-  shutil.copy2('extra/yt/WarpXHeader', path)
-  shutil.copy2('extra/yt/warpx_job_info', path)
+  shutil.copy2('../yt/WarpXHeader', path)
+  shutil.copy2('../yt/warpx_job_info', path)
   return yt.load(path)
 
 def LoadRKLM(base_dir, filename, ts_label):
@@ -106,7 +106,7 @@ def PlotVarComp(dsFVS, dsRKLM, vars_FVS, vars_RKLM, label, fignum = -1):
 
 timestep = 0
 
-basedir_FVS  = 'build2d'
+basedir_FVS  = '../../build2d'
 substeps_FVS = ['BK19_pre-step',
                 'BK19_advect',
                 'BK19_advect-backward',
