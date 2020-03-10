@@ -14,8 +14,8 @@ from mpl_toolkits.axes_grid1 import AxesGrid
 
 def Load(base_dir, step_dir, timestep):
   path = os.path.join(base_dir, step_dir, 'partition_0_plt{:09d}'.format(timestep))
-  shutil.copy2('extra/yt/WarpXHeader', path)
-  shutil.copy2('extra/yt/warpx_job_info', path)
+  shutil.copy2('../yt/WarpXHeader', path)
+  shutil.copy2('../yt/warpx_job_info', path)
   return yt.load(path)
 
 def PlotVariables(ds, variables, label, fignum = -1):
@@ -105,7 +105,7 @@ def PlotVariables(ds, variables, label, fignum = -1):
   plt.show()
 
 timestep = 1
-base_dir = 'build2d/Debug'
+base_dir = '../../build2d/Debug'
 
 substeps = ['BK19_pre-step',
             'BK19_advect',

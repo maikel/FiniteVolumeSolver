@@ -243,8 +243,11 @@ public:
   }
 
   void SetPressureArray(Array1d pressure) {
-    SetDensityArray(pressure * GetMeanMolarMassArray() / GetTemperatureArray() /
-                    GetUniversalGasConstant());
+    const Array1d mean_molar_mass = GetMeanMolarMassArray();
+    const Array1d temperature = GetTemperatureArray();
+    const Array1d temperature_s = (temperature > 0.0).select(temperature, 1.0);
+    const double R = GetUniversalGasConstant();
+    SetDensityArray(pressure * mean_molar_mass / temperature_s / R);
   }
 
   /**
@@ -366,6 +369,7 @@ public:
    */
   void SetMassFractions(span<const double> newMassFractions);
   void SetMassFractionsArray(const ArrayXd& newMassFractions);
+  void SetMassFractionsArray(const ArrayXd& newMassFractions, MaskArray mask);
   void SetMassFractions(std::string massFractions);
   ///@}
 

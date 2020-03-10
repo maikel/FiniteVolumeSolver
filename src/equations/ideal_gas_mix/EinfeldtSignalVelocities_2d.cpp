@@ -18,21 +18,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_IDEAL_GAS_HLLE_METHOD_HPP
-#define FUB_IDEAL_GAS_HLLE_METHOD_HPP
-
-#include "fub/equations/ideal_gas_mix/EinfeldtSignalVelocities.hpp"
-#include "fub/flux_method/HllMethod.hpp"
+#include "src/equations/ideal_gas_mix/EinfeldtSignalVelocities.hpp"
 
 namespace fub {
 
-extern template class FluxMethod<
-    Hll<IdealGasMix<1>, EinfeldtSignalVelocities<IdealGasMix<1>>>>;
-extern template class FluxMethod<
-    Hll<IdealGasMix<2>, EinfeldtSignalVelocities<IdealGasMix<2>>>>;
-extern template class FluxMethod<
-    Hll<IdealGasMix<3>, EinfeldtSignalVelocities<IdealGasMix<3>>>>;
+template struct EinfeldtSignalVelocities<IdealGasMix<2>>;
 
-} // namespace fub
-
-#endif
+}

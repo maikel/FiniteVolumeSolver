@@ -15,8 +15,8 @@ from mpl_toolkits.axes_grid1 import AxesGrid
 
 def LoadFVS(base_dir, step_dir, partname, timestep):
   path = os.path.join(base_dir, step_dir, partname+'plt{:09d}'.format(timestep))
-  shutil.copy2('extra/yt/WarpXHeader', path)
-  shutil.copy2('extra/yt/warpx_job_info', path)
+  shutil.copy2('../yt/WarpXHeader', path)
+  shutil.copy2('../yt/warpx_job_info', path)
   return yt.load(path)
 
 def LoadRKLM(base_dir, filename, ts_label):
@@ -104,10 +104,10 @@ def PlotVarComp(dsFVS, dsRKLM, vars_FVS, vars_RKLM, label, fignum = -1):
   fig.suptitle(label)
   plt.show()
 
-timestep = 1
+timestep = 0
 
-basedir_FVS  = 'build2d/Debug'
-#basedir_FVS  = 'build2d'
+basedir_FVS  = '../../build2d/Debug'
+#basedir_FVS  = '../../build2d'
 substeps_FVS = ['BK19_pre-step',
                 'BK19_advect',
                 'BK19_advect-backward',
@@ -119,9 +119,8 @@ vars_FVS     = ['Density', 'Velocity_0', 'Velocity_1', 'PTdensity', 'PTinverse']
 partname = 'partition_0_'
 #partname = ''
 
-basedir_RKLM  = '/home/svater/rechnen/RKLM_Reference-Ray/RKLM_Python/output'
-#filename_RKLM = "output_travelling_vortex_low_mach_gravity_psinc_032.h5"
-filename_RKLM = "output_travelling_vortex_low_mach_gravity_comp_032.h5"
+basedir_RKLM  = '/home/svater/rechnen/RKLM_Reference-Ray/RKLM_Python/output_travelling_vortex'
+filename_RKLM = "output_travelling_vortex_low_mach_gravity_psinc.h5"
 substeps_RKLM = ['before_advect',
                  'after_advect',
                  'after_ebnaimp',
