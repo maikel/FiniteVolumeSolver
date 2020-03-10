@@ -25,6 +25,7 @@
 #include "fub/Duration.hpp"
 #include "fub/Equation.hpp"
 #include "fub/Execution.hpp"
+#include "fub/ForEach.hpp"
 #include "fub/Meta.hpp"
 #include "fub/State.hpp"
 #include "fub/StateArray.hpp"

@@ -21,7 +21,11 @@
 #include "fub/AMReX/PatchHierarchy.hpp"
 #include "fub/AMReX/ScopeGuard.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
+#include "fub/ForEach.hpp"
 #include "fub/equations/PerfectGas.hpp"
+#include "fub/equations/perfect_gas/EinfeldtSignalVelocities.hpp"
+#include "fub/flux_method/HllMethod.hpp"
+#include "fub/flux_method/MusclHancockMethod.hpp"
 
 #include <AMReX_FArrayBox.H>
 
