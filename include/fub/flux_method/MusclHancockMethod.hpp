@@ -57,6 +57,19 @@ struct MinMod {
         },
         cons, AsCons(stencil[0]), AsCons(stencil[1]), AsCons(stencil[2]));
   }
+
+  template <typename Equation, int N>
+  void ComputeLimitedSlope(ConservativeArray<Equation, N>& cons,
+                           span<const CompleteArray<Equation, N>, 3> stencil, MaskArray mask) {
+    ForEachComponent(
+                     [=](auto&& cons, auto qL, auto qM, auto qR) {
+                       const Array<double, 1, N> zero = Array<double, 1, N>::Constant(0.0);
+                       const Array<double, 1, N> sL = mask.select(qM - qL, zero);
+                       const Array<double, 1, N> sR = mask.select(qR - qM, zero);
+                       cons = (sR > 0).select(zero.max(sL.min(sR)), zero.min(sL.max(sR)));
+                     },
+                     cons, AsCons(stencil[0]), AsCons(stencil[1]), AsCons(stencil[2]));
+  }
 };
 
 struct VanLeer {
@@ -320,24 +333,19 @@ void MusclHancock<Equation, Method, SlopeLimiter>::ComputeNumericFlux(
     Duration dt, double dx, Direction dir) {
   MaskArray valid_face = face_fractions > 0.0;
   if (valid_face.any()) {
-
     const Array1d lambda_half = Array1d::Constant(0.5 * dt.count() / dx);
 
     ////////////////////////////////////////////////////////////////////////////
     // Compute Left Reconstructed Complete State
 
-    slope_limiter_.ComputeLimitedSlope(slope_arr_, stencil.template first<3>());
+    MaskArray left_slope_mask = volume_fractions[0] > 0.0 && volume_fractions[1] > 0.0 && volume_fractions[2] > 0.0;
+    slope_limiter_.ComputeLimitedSlope(slope_arr_, stencil.template first<3>(), left_slope_mask);
 
     ForEachComponent(
-        [&](auto&& slope) {
-          slope = (volume_fractions[0] > 0.0).select(slope, Array1d::Zero());
-        },
-        slope_arr_);
-
-    ForEachComponent(
-        [](auto&& qL, auto&& qR, const auto& state, const auto& slope) {
-          qL = state - 0.5 * slope;
-          qR = state + 0.5 * slope;
+        [=](auto&& qL, auto&& qR, const auto& state, const auto& slope) {
+          Array1d q0 = valid_face.select(state, 0.0);
+          qL = q0 - 0.5 * slope;
+          qR = q0 + 0.5 * slope;
         },
         AsCons(q_left_arr_), AsCons(q_right_arr_), AsCons(stencil[1]),
         slope_arr_);
@@ -345,8 +353,8 @@ void MusclHancock<Equation, Method, SlopeLimiter>::ComputeNumericFlux(
     CompleteFromCons(equation_, q_left_arr_, q_left_arr_, valid_face);
     CompleteFromCons(equation_, q_right_arr_, q_right_arr_, valid_face);
 
-    Flux(equation_, flux_left_arr_, q_left_arr_, dir);
-    Flux(equation_, flux_right_arr_, q_right_arr_, dir);
+    Flux(equation_, flux_left_arr_, q_left_arr_, valid_face, dir);
+    Flux(equation_, flux_right_arr_, q_right_arr_, valid_face, dir);
 
     ForEachComponent(
         [&lambda_half](auto&& rec, auto qR, auto fL, auto fR) {
@@ -360,18 +368,14 @@ void MusclHancock<Equation, Method, SlopeLimiter>::ComputeNumericFlux(
     ///////////////////////////////////////////////////////////////////////////
     // Compute Right Reconstructed Complete State
 
-    slope_limiter_.ComputeLimitedSlope(slope_arr_, stencil.template last<3>());
+    MaskArray right_slope_mask = volume_fractions[1] > 0.0 && volume_fractions[2] > 0.0 && volume_fractions[3] > 0.0;
+    slope_limiter_.ComputeLimitedSlope(slope_arr_, stencil.template last<3>(), right_slope_mask);
 
     ForEachComponent(
-        [&](auto&& slope) {
-          slope = (volume_fractions[3] > 0.0).select(slope, Array1d::Zero());
-        },
-        slope_arr_);
-
-    ForEachComponent(
-        [](auto&& qL, auto&& qR, const auto& state, const auto& slope) {
-          qL = state - 0.5 * slope;
-          qR = state + 0.5 * slope;
+        [=](auto&& qL, auto&& qR, const auto& state, const auto& slope) {
+          Array1d q0 = valid_face.select(state, 0.0);
+          qL = q0 - 0.5 * slope;
+          qR = q0 + 0.5 * slope;
         },
         AsCons(q_left_arr_), AsCons(q_right_arr_), AsCons(stencil[2]),
         slope_arr_);
@@ -379,8 +383,8 @@ void MusclHancock<Equation, Method, SlopeLimiter>::ComputeNumericFlux(
     CompleteFromCons(equation_, q_left_arr_, q_left_arr_, valid_face);
     CompleteFromCons(equation_, q_right_arr_, q_right_arr_, valid_face);
 
-    Flux(equation_, flux_left_arr_, q_left_arr_, dir);
-    Flux(equation_, flux_right_arr_, q_right_arr_, dir);
+    Flux(equation_, flux_left_arr_, q_left_arr_, valid_face, dir);
+    Flux(equation_, flux_right_arr_, q_right_arr_, valid_face, dir);
 
     ForEachComponent(
         [&lambda_half](auto&& rec, auto qL, auto fL, auto fR) {
