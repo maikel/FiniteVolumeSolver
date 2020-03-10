@@ -14,14 +14,14 @@ if (not funcs.get_interactivity()):
 
 def Load(base_dir, step_dir, timestep):
   path = os.path.join(base_dir, step_dir, 'plt{:09d}'.format(timestep))
-  shutil.copy2('extra/yt/WarpXHeader', path)
-  shutil.copy2('extra/yt/warpx_job_info', path)
+  shutil.copy2('../yt/WarpXHeader', path)
+  shutil.copy2('../yt/warpx_job_info', path)
   return yt.load(path)
 
 def LoadPv(base_dir, step_dir, timestep):
   path = os.path.join(base_dir, step_dir, 'Pv_plt{:09d}'.format(timestep))
-  shutil.copy2('extra/yt/WarpXHeader', path)
-  shutil.copy2('extra/yt/warpx_job_info', path)
+  shutil.copy2('../yt/WarpXHeader', path)
+  shutil.copy2('../yt/warpx_job_info', path)
   return yt.load(path)
 
 def PlotVariables(base_dir, step_dir, timestep, fignum = -1):
@@ -128,7 +128,7 @@ def PlotVariables(base_dir, step_dir, timestep, fignum = -1):
   plt.show()
 
 timestep = 1
-base_dir = 'build2d'
+base_dir = '../../build2d'
 
 step_dirs = ['BK19_pre-step',
              'BK19_advect',

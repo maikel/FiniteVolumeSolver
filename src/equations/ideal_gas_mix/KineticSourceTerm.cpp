@@ -20,6 +20,7 @@
 
 #include "fub/equations/ideal_gas_mix/KineticSourceTerm.hpp"
 #include "fub/AMReX/ForEachFab.hpp"
+#include "fub/ForEach.hpp"
 
 namespace fub::ideal_gas {
 
