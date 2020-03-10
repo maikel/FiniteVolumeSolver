@@ -662,8 +662,9 @@ void IntegratorContext::PreAdvanceHierarchy() {
 void IntegratorContext::PostAdvanceHierarchy() {
   PatchHierarchy& hierarchy = GetPatchHierarchy();
   int nlevels = hierarchy.GetNumberOfLevels();
+  const Duration time_point = GetTimePoint();
   for (int level = 0; level < nlevels; ++level) {
-    hierarchy.GetPatchLevel(level).time_point = GetTimePoint(level);
+    hierarchy.GetPatchLevel(level).time_point = time_point;
     hierarchy.GetPatchLevel(level).cycles = GetCycles(level);
   }
 }
