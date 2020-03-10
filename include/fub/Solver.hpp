@@ -42,7 +42,6 @@
 #include "fub/equations/IdealGasMix.hpp"
 #include "fub/equations/PerfectGas.hpp"
 #include "fub/equations/ShallowWater.hpp"
-#include "fub/equations/CompressibleAdvection.hpp"
 
 #include "fub/equations/ideal_gas_mix/mechanism/Burke2012.hpp"
 #include "fub/equations/ideal_gas_mix/EinfeldtSignalVelocities.hpp"
