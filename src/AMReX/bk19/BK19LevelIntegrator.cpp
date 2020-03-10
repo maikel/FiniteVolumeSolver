@@ -21,6 +21,7 @@
 
 #include "fub/AMReX/bk19/BK19LevelIntegrator.hpp"
 #include "fub/AMReX/ForEachFab.hpp"
+#include "fub/AMReX/ForEachIndex.hpp"
 #include "fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp"
 #include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
 #include <AMReX_MLMG.H>
