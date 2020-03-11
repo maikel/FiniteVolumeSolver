@@ -358,8 +358,9 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
     MultiFab::Add(scratch, UV_correction, UV_component, index.momentum[i],
                   one_component, no_ghosts);
   }
-  dbg_sn.SaveData(UV_correction, DebugSnapshot::ComponentNames{
-                                     "Momentum_corr0", "Momentum_corr1"}, geom);
+  dbg_sn.SaveData(
+      UV_correction,
+      DebugSnapshot::ComponentNames{"Momentum_corr0", "Momentum_corr1"}, geom);
 
   RecoverVelocityFromMomentum_(scratch, index);
 
@@ -408,8 +409,9 @@ void DoEulerForward_(const Equation& equation,
 
   MultiFab::Add(scratch, momentum_correction, 0, index.momentum[0],
                 index.momentum.size(), no_ghosts);
-  dbg_sn.SaveData(momentum_correction, DebugSnapshot::ComponentNames{
-                                           "Momentum_corr0", "Momentum_corr1"}, geom);
+  dbg_sn.SaveData(
+      momentum_correction,
+      DebugSnapshot::ComponentNames{"Momentum_corr0", "Momentum_corr1"}, geom);
 
   RecoverVelocityFromMomentum_(scratch, index);
 
@@ -533,7 +535,8 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   RecomputeAdvectiveFluxes(index_, Pv.on_faces, Pv.on_cells, scratch,
                            periodicity);
 
-  dbgAdvB.SaveData(Pv.on_cells, DebugSnapshot::ComponentNames{"Pu", "Pv"}, geom);
+  dbgAdvB.SaveData(Pv.on_cells, DebugSnapshot::ComponentNames{"Pu", "Pv"},
+                   geom);
   dbgAdvB.SaveData(Pv.on_faces[0], "Pu_faces", geom, ::amrex::SrcComp(0));
   dbgAdvB.SaveData(Pv.on_faces[1], "Pv_faces", geom, ::amrex::SrcComp(0));
   dbgAdvB.SaveData(scratch, GetCompleteVariableNames(), geom);

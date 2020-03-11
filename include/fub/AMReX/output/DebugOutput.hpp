@@ -180,8 +180,8 @@ public:
   DebugSnapshotProxy AddSnapshot(const std::string& snapshot_directory);
 
   /// \brief Writes data to disk and clears all data present in the storage.
-  void FlushData(const std::string& directory, const int cycle = -1,
-                 const double time_point = 0.0);
+  void FlushData(const std::string& directory, int cycle = -1,
+                 Duration time_point = Duration(0.0));
 
   /// \brief Deletes all currently stored snapshots in the debug storage
   void ClearAll() { saved_snapshots_.clear(); }
