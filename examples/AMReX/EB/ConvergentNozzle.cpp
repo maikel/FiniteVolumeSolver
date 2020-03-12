@@ -250,15 +250,9 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
   ::amrex::RealBox xbox = grid_geometry.coordinates;
   ::amrex::Geometry coarse_geom = fub::amrex::GetCoarseGeometry(grid_geometry);
 
-  ::amrex::RealBox inlet{{xbox.lo(0), -r_tube, -r_tube},
-                         {0.01, +r_tube, +r_tube}};
+  ::amrex::RealBox inlet{{xbox.lo(0), -0.15, -0.15}, {0.18, +0.15, +0.15}};
   ::amrex::Box refine_box = fub::amrex::BoxWhichContains(inlet, coarse_geom);
-  ConstantBox constant_in_box{refine_box};
-
-  ::amrex::RealBox outlet{{0.5, xbox.lo(1), xbox.lo(2)},
-                          {xbox.hi(0), xbox.hi(1), xbox.hi(2)}};
-  refine_box = fub::amrex::BoxWhichContains(outlet, coarse_geom);
-  ConstantBox constant_out_box{refine_box};
+  ConstantBox constant_refinebox{refine_box};
 
   std::shared_ptr gridding = [&] {
     std::string checkpoint =
@@ -268,8 +262,7 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
       std::shared_ptr grid = std::make_shared<GriddingAlgorithm>(
           PatchHierarchy(equation, grid_geometry, hierarchy_options),
           initial_data,
-          TagAllOf(TagCutCells(), gradients, constant_in_box, constant_out_box,
-                   TagBuffer(2)),
+          TagAllOf(TagCutCells(), constant_refinebox),
           boundary_condition);
       grid->InitializeHierarchy(0.0);
       return grid;
@@ -281,8 +274,7 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
           hierarchy_options);
       std::shared_ptr grid = std::make_shared<GriddingAlgorithm>(
           std::move(h), initial_data,
-          TagAllOf(TagCutCells(), gradients, constant_in_box, constant_out_box,
-                   TagBuffer(2)),
+          TagAllOf(TagCutCells(), constant_refinebox),
           boundary_condition);
       return grid;
     }
@@ -434,7 +426,7 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   using namespace fub::amrex;
   struct MakeCheckpoint
       : public fub::OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm> {
-    std::string directory_ = "CoupledLinearShock3d";
+    std::string directory_ = "ConvergentNozzle";
     std::shared_ptr<fub::amrex::PressureValve> valve_state_{};
     const fub::amrex::MultiBlockIgniteDetonation* ignition_{};
     MakeCheckpoint(
@@ -449,8 +441,9 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
       int rank = -1;
       MPI_Comm_rank(MPI_COMM_WORLD, &rank);
       std::string name =
-          fmt::format("{}/Checkpoint/{:05}", directory_, grid.GetCycles());
-      amrex::Print() << "Write Checkpoint to '" << name << "'!\n";
+          fmt::format("{}/{:09}", directory_, grid.GetCycles());
+      fub::SeverityLogger log = fub::GetInfoLogger();
+      BOOST_LOG(log) << fmt::format("Write Checkpoint to '{}'!", name);
       WriteCheckpoint(name, grid, valve_state_, rank, *ignition_);
     }
   };

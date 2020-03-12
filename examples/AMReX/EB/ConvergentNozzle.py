@@ -4,18 +4,26 @@ plenum_x_n_cells = 64
 tube_blocking_factor = 8
 plenum_blocking_factor = 8
 
-n_level = 1
+n_level = 4
 
 n_tubes = 6
 r_tube = 0.015
+
+D = 2.0 * r_tube
+
 r_inner = 0.5 * 0.130
-r_outer = 0.5 * 0.389
+r_outer = 0.5 * 0.2
 r_tube_center = 2.0 * r_inner
 alpha = 2.0 * math.pi / n_tubes
 
-plenum_length = 2.0 * r_outer + 0.005 - 0.1 # [m]
+inlet_length = 3.0 * D # [m]
+
+plenum_x_upper = 20.0 * D
+plenum_x_lower = -inlet_length
+plenum_x_length = plenum_x_upper - plenum_x_lower
+
+plenum_length = plenum_x_length # [m]
 tube_length = 2.083 - 0.5 # [m]
-inlet_length = 0.1 # [m]
 
 plenum_max_grid_size = max(plenum_blocking_factor, 64)
 
@@ -29,16 +37,13 @@ tube_over_plenum_length_ratio = tube_domain_length / plenum_domain_length
 
 # plenum_yz_length = plenum_yz_upper - plenum_yz_lower
 
-plenum_x_upper = plenum_length
-plenum_x_lower = -inlet_length
-plenum_x_length = plenum_x_upper - plenum_x_lower
 
-plenum_y_lower = - (r_outer + 0.005)
-plenum_y_upper = + (r_outer + 0.005)
+plenum_y_lower = 0.0 #- 10.0 * D
+plenum_y_upper = + 10.0 * D
 plenum_y_length = plenum_y_upper - plenum_y_lower
 
-plenum_z_lower = - (r_outer + 0.005)
-plenum_z_upper = + (r_outer + 0.005)
+plenum_z_lower = 0.0 # - 20.0 * D
+plenum_z_upper = + 20.0 * D
 plenum_z_length = plenum_z_upper - plenum_z_lower
 
 plenum_y_over_x_ratio = plenum_y_length / plenum_x_length
@@ -58,9 +63,9 @@ tube_n_cells -= tube_n_cells % tube_blocking_factor
 tube_n_cells = int(tube_n_cells)
 
 RunOptions = {
-  'cfl': 0.8,
+  'cfl': 0.4,
   'final_time': 0.04,
-  'max_cycles': -1
+  'max_cycles': 0
 }
 
 # checkpoint = '/Users/maikel/Development/FiniteVolumeSolver/build_3d/MultiTube/Checkpoint/000000063'
@@ -81,7 +86,9 @@ Plenum = {
     'blocking_factor': [plenum_blocking_factor, plenum_blocking_factor, plenum_blocking_factor],
     'max_grid_size': [plenum_max_grid_size, plenum_max_grid_size, plenum_max_grid_size],
     'ngrow_eb_level_set': 5,
-    'remove_covered_grids': False
+    'remove_covered_grids': False,
+    'n_proper': 1,
+    'n_error_buf': [0, 0, 0]
   },
   'IsentropicPressureBoundary': {
     'outer_pressure': 101325.0,
@@ -122,7 +129,9 @@ Tube = {
   'PatchHierarchy': {
     'max_number_of_levels': n_level, 
     'blocking_factor': [tube_blocking_factor, 1, 1],
-    'refine_ratio': [2, 1, 1]
+    'refine_ratio': [2, 1, 1],
+    'n_proper': 1,
+    'n_error_buf': [4, 0, 0]
   },
   'PressureValveBoundary': {
     'prefix': 'PressureValve',
@@ -156,7 +165,8 @@ Output = {
   'outputs': [{
     'type': 'Plotfiles',
     'directory': 'ConvergentNozzle/Plotfiles/',
-    'intervals': [1e-5]
+    # 'intervals': [1e-5],
+    'frequencies': [1]
   }, {
     'type': 'Checkpoint',
     'directory': 'ConvergentNozzle/Checkpoint/',
@@ -164,7 +174,7 @@ Output = {
     'frequencies': []
   }, {
     'type': 'CounterOutput',
-    'frequencies': [1]
+    'frequencies': [100]
   }]
 }
 
