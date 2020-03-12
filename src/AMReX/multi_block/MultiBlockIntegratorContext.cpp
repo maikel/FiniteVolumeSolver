@@ -338,17 +338,19 @@ struct WrapBoundaryCondition {
 void MultiBlockIntegratorContext::ApplyBoundaryCondition(int level,
                                                          Direction dir) {
   std::size_t id = 0;
-  for (IntegratorContext& tube : tubes_) {
-    if (tube.LevelExists(level)) {
-      BoundaryCondition& bc = tube.GetBoundaryCondition(level);
-      BoundaryCondition wrapped =
-          WrapBoundaryCondition{id, gridding_->GetConnectivity(),
-                                gridding_->GetBoundaries(level), &bc, nullptr};
-      wrapped.parent = tube.GetGriddingAlgorithm().get();
-      wrapped.geometry = tube.GetGeometry(level);
-      tube.ApplyBoundaryCondition(level, dir, wrapped);
+  if (dir == Direction::X) {
+    for (IntegratorContext& tube : tubes_) {
+      if (tube.LevelExists(level)) {
+        BoundaryCondition& bc = tube.GetBoundaryCondition(level);
+        BoundaryCondition wrapped =
+            WrapBoundaryCondition{id, gridding_->GetConnectivity(),
+                                  gridding_->GetBoundaries(level), &bc, nullptr};
+        wrapped.parent = tube.GetGriddingAlgorithm().get();
+        wrapped.geometry = tube.GetGeometry(level);
+        tube.ApplyBoundaryCondition(level, dir, wrapped);
+      }
+      id += 1;
     }
-    id += 1;
   }
   id = 0;
   for (cutcell::IntegratorContext& plenum : plena_) {

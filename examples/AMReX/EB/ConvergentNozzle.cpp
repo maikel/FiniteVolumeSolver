@@ -463,6 +463,8 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
       std::move(factory), fub::GetOptions(vm, "Output"));
 
   outputs(*solver.GetGriddingAlgorithm());
-  fub::RunSimulation(solver, fub::GetOptions(vm, "RunOptions"),
-                     wall_time_reference, outputs);
+  fub::RunOptions run_options = fub::GetOptions(vm, "RunOptions");
+  BOOST_LOG(log) << "RunOptions:";
+  run_options.Print(log);
+  fub::RunSimulation(solver, run_options, wall_time_reference, outputs);
 }
