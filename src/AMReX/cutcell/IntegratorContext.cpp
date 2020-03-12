@@ -48,6 +48,7 @@ IntegratorContext::LevelData::operator=(LevelData&& other) noexcept {
                        other.coarse_fine.refRatio(),
                        other.coarse_fine.fineLevel(),
                        other.coarse_fine.nComp());
+    coarse_fine.setVal(0.0);
   }
   eb_factory = std::move(other.eb_factory);
   reference_states = std::move(other.reference_states);
@@ -368,6 +369,7 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
       const ::amrex::IntVect ref_ratio = GetRatioToCoarserLevel(level);
       data.coarse_fine.clear();
       data.coarse_fine.define(ba, dm, ref_ratio, level, n_cons_components);
+      data.coarse_fine.setVal(0.0);
     }
   }
   for (std::size_t level_num = first_level; level_num < data_.size();
@@ -618,8 +620,7 @@ void IntegratorContext::PreAdvanceLevel(int level_num, Duration,
         data_[lvl].regrid_time_point = data_[lvl].time_point;
       }
       if (level_which_changed > 0) {
-        ResetHierarchyConfiguration(level_num + 1);
-        ResetCoarseFineFluxes(level_num + 1, level_num);
+        ResetHierarchyConfiguration(level_which_changed);
       }
     }
   }

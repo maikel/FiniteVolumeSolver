@@ -280,8 +280,7 @@ void PressureValveBoundary::FillBoundary(::amrex::MultiFab& mf,
   }
 
   // Change State Machine if neccessary
-  const double mean_pressure =
-      ChangeState_(shared_valve_->state, geom, grid, shared_valve_->last_closed,
+  ChangeState_(shared_valve_->state, geom, grid, shared_valve_->last_closed,
                    shared_valve_->last_fuel, options_, equation_);
 
   ReflectiveBoundary closed(execution::openmp, equation_, Direction::X, 0);
@@ -314,8 +313,7 @@ void PressureValveBoundary::FillBoundary(::amrex::MultiFab& mf,
         if (!box_to_fill.isEmpty()) {
           auto states = MakeView<Complete<IdealGasMix<1>>>(fab, equation_,
                                                            mfi.growntilebox());
-          ForEachIndex(box_to_fill, [this, mean_pressure, &state,
-                                     &states](std::ptrdiff_t i, auto...) {
+          ForEachIndex(box_to_fill, [this, &state, &states](std::ptrdiff_t i, auto...) {
             std::array<std::ptrdiff_t, 1> dest{i};
             Load(state, states, dest);
             FUB_ASSERT(state.density > 0.0);
