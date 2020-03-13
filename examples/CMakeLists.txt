@@ -68,6 +68,9 @@ if (AMReX_FOUND AND AMReX_2D_FOUND)
   target_link_libraries(AMReX.BK19PseudoInc_TravellingVortex FiniteVolumeSolver.AMReX)
 
   if (AMReX_EB_FOUND)
+    add_executable_with_warnings(AMReX.EB.ConvergentNozzle2D AMReX/EB/2D/ConvergentNozzle.cpp)
+    target_link_libraries(AMReX.EB.ConvergentNozzle2D FiniteVolumeSolver.AMReX.EB)
+
     add_executable_with_warnings(AMReX.EB.Divider2D AMReX/EB/Divider2D.cpp)
     target_link_libraries(AMReX.EB.Divider2D FiniteVolumeSolver.AMReX.EB)
 

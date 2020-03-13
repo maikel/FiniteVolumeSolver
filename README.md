@@ -246,22 +246,69 @@ Multiple solvers can share a common gridding algorithm and will hold a member va
 Given a shared `GriddingAlgorithm` a solver is being able to refine the patch hierarchy or to fill ghost cell boundaries at any given time of its algorithm.
 Copying a `GriddingAlgorithm` by value will deeply copy all data on all MPI ranks. This can be usefull to create fall-back scenarios of a simulation.
 
-<details>
-<summary>Click to read an example for creating an initial `PatchHierarchy`</summary>
+## Conservative and Complete States
+
+Each equation defines two kind of states: `Conservative` and `Complete` states. 
+The conservative states contain variables which see a hyperbolic time update from `fub::amrex::TimeIntegrator`.
+The complete state variables are a super set of the conservative ones and may define more auxialiary member variables.
+This makes sense for variables which are auxialiary or needed very often but their computation cost is high. 
+The complete state is the location to cache those expensive computations. 
+
+For example, the template class `template <int Rank> class PerfectGas` defines the conservative variables
+
 ```cpp
-
+struct -implementation-defined-class-name- {
+  double density;
+  array<double, 2> momentum;
+  double energy;
+};
 ```
-</details>
 
-### SAMRAI Repair: Task List
+and the complete state variables are 
 
-- [ ] Install SAMRAI via conan
-- [ ] Build Doxygen Documentation
-- [ ] Build AMReX Advection example
-- [ ] Prepare a simple Advection example
-- [ ] Check if equations register correctly with the `SAMRAI::hier::VariableDatabase`
-- [ ] Make a wrapper of fub::SAMRAI::PatchHierarchy which deeply copies.
-  - [ ] Given an equation allocate data for all variables of this equation
-  - [ ] Provide member functions to access patch level data and hierarchy geometry
-- [ ] `fub::SAMRAI::GriddingAlgorithm`
-- [ ] `fub::SAMRAI::IntegratorContext`
+```cpp
+struct -implementation-defined-class-name- {
+  double density;
+  array<double, 2> momentum;
+  double energy;
+  double pressure;
+  double speed_of_sound;
+};
+```
+
+## Implement a new FluxMethod
+
+A class `FM` satisfies the concept `FluxMethod<Equation, StencilSize>` if the following constraints are satisfied.
+
+```cpp
+template <typename FM, typename Equation, int StencilSize>
+concept FluxMethod = requires (FM& flux_method, 
+                               Conservative<Equation> cons, 
+                               Complete<Equation> stencil[StencilSize], 
+                               double dx, double dt, int dir) {
+  { flux_method.ComputeNumericFlux(cons, stencil, dx, dt, dir) };
+  { flux_method.ComputeStableDt(stencil, dx, dir) } -> double;
+  { static_cast<const FM&>(flux_method).GetStencilSize() } -> int;
+};
+```
+
+For example the following class `MusclHancockMethod` satisfies this concept.
+
+```cpp
+struct MusclHancockMethod {
+    using Conservative = ::Conservative<PerfectGas<2>>;
+    using Complete = ::Complete<PerfectGas<2>>;
+
+    void ComputeNumericFlux(Conservative& cons, const Complete* stencil, 
+                              double dx, double dt, int dir);
+    
+    double ComputeStableDt(const Complete* stencil, double dx, int dir);
+
+    int GetStencilSize() const noexcept { return 4; }
+};
+```
+
+The implemented MUSCL-type flux methods for an equation `Equation` satisfy `FluxMethod<Equation, 4>` and are implemented in two steps.
+First we reconstruct a state to the left and to the right the face in question.
+This gives a reduction of the stencil array from `Complete state[4]` to `Complete reconstruced_states[2]`.
+Secondly, step we call a (lower-order) base method `BaseFM` which satisfies `FluxMethod<Equation, 2>`.
