@@ -50,7 +50,7 @@ int main() {
   fub::amrex::ScopeGuard _{};
   fub::InitializeLogging(MPI_COMM_WORLD);
 
-  const std::array<int, 2> n_cells{32 * 15, 32 * 10};
+  const std::array<int, 2> n_cells{16 * 15, 16 * 10};
   const std::array<double, 2> xlower{0.0, 0.0};
   const std::array<double, 2> xupper{+0.15001, +0.10};
   amrex::RealBox xbox(xlower, xupper);
@@ -59,10 +59,10 @@ int main() {
   amrex::Geometry coarse_geom(amrex::Box{{}, {n_cells[0] - 1, n_cells[1] - 1}},
                               &xbox, -1, periodicity.data());
 
-  const int n_level = 2;
+  const int n_level = 4;
 
-  const int scratch_gcw = 8;
-  const int flux_gcw = 6;
+  const int scratch_gcw = 4;
+  const int flux_gcw = 2;
 
   auto embedded_boundary =
       Triangle({0.02, 0.05}, {0.05, 0.0655}, {0.05, 0.0345});
@@ -83,6 +83,7 @@ int main() {
   options.index_spaces = fub::amrex::cutcell::MakeIndexSpaces(
       shop, coarse_geom, n_level, scratch_gcw);
   options.ngrow_eb_level_set = scratch_gcw + 1;
+  options.n_error_buf = amrex::IntVect{4, 4};
 
   fub::Conservative<fub::PerfectGas<2>> cons;
   cons.density = 1.0;
@@ -109,12 +110,12 @@ int main() {
 
   std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
       PatchHierarchy(equation, geometry, options), initial_data,
-      TagAllOf(TagCutCells(), gradients, TagBuffer(2)), boundary_condition);
+      TagAllOf(TagCutCells(), gradients), boundary_condition);
   gridding->InitializeHierarchy(0.0);
 
   fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
   fub::HllMethod hll_method{equation, signals};
-  fub::MusclHancockMethod muscl_method{equation, hll_method};
+  fub::FluxMethod<fub::perfect_gas::MusclHancockPrim<2>> muscl_method{equation};
   fub::KbnCutCellMethod cutcell_method(muscl_method, hll_method);
 
   HyperbolicMethod method{FluxMethod{cutcell_method},
@@ -123,9 +124,10 @@ int main() {
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<2>, IntegratorContext(gridding, method, scratch_gcw, flux_gcw),
-      fub::StrangSplitting());
+      fub::GodunovSplitting());
 
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
+//   fub::NoSubcycleSolver solver(std::move(level_integrator));
 
   std::string base_name = "Schardin/";
   using namespace std::literals::chrono_literals;
@@ -137,6 +139,7 @@ int main() {
       std::vector<fub::Duration>{}));
 
   output(*solver.GetGriddingAlgorithm());
+
   fub::RunOptions run_options{};
   run_options.final_time = 3e-4s;
   run_options.cfl = 0.4;
