@@ -27,6 +27,14 @@
 
 namespace fub::amrex {
 
+/// \brief This class stores debug data for a debug output for a single
+/// hierarchy state.
+///
+/// This class will be created by \a DebugStorage and modified through \a
+/// DebugSnapshotProxy.
+///
+/// \see DebugStorage
+/// \see DebugSnapshotProxy
 class DebugSnapshot {
 public:
   using Hierarchy = ::amrex::Vector<::amrex::MultiFab>;
@@ -95,12 +103,12 @@ public:
   std::vector<std::tuple<Hierarchy, ComponentNames, GeomHierarchy>>
   GatherFields(::amrex::IndexType location) const;
 
-  /// \brief
+  /// \brief Sets the directory in which the output will be saved to.
   void SetSnapshotDirectory(const std::string& snapshot_directory) {
     snapshot_directory_ = snapshot_directory;
   }
 
-  /// \brief
+  /// \brief Returns the directory in which the output will be saved to.
   const std::string GetSnapshotDirectory() const { return snapshot_directory_; }
 
 private:
@@ -117,6 +125,10 @@ private:
   std::string snapshot_directory_{};
 };
 
+/// \brief This class is a possibly empty handle to a existing
+/// DebugSnapshotProxy.
+///
+/// DebugSnapshotProxy maybe in a valid or invalid
 class DebugSnapshotProxy {
 public:
   /// \brief Initializes an empty proxy snapshot
@@ -165,6 +177,12 @@ private:
   DebugSnapshot* m_snapshot{nullptr};
 };
 
+/// \brief This class stores a list of snapshots and returns proxy objects to
+/// those.
+///
+/// As long as this class is in a disabled mode the returned proxy objects are
+/// invalid and subsequent calls to SaveData will have no effect. Only if this
+/// the storage is enabled debug data will be stored.
 class DebugStorage {
 public:
   /// \brief Initializes the storage
@@ -196,14 +214,19 @@ private:
   int cycle_{-1};
 };
 
+/// \brief This output method enables a debug storage and manages its output in
+/// every time step.
 class DebugOutput : public OutputAtFrequencyOrInterval<GriddingAlgorithm> {
 public:
+  /// \brief Read program options from opts and enable the storage.
   explicit DebugOutput(const ProgramOptions& opts,
                        const std::shared_ptr<DebugStorage>& storage);
 
+  /// \brief Write out the debug storage on the grid.
   void operator()(const GriddingAlgorithm& grid) override;
 
 private:
+  /// \brief This is the base directory where the snapshots will be output to.
   std::string directory_;
 };
 
