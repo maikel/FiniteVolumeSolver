@@ -35,8 +35,9 @@ template <class T>
 ::amrex::Vector<const T*> GetVecOfConstPtrs(const ::amrex::Vector<T>& a) {
   ::amrex::Vector<const T*> r;
   r.reserve(a.size());
-  for (const auto& x : a)
+  for (const auto& x : a) {
     r.push_back(&x);
+  }
   return r;
 }
 
@@ -309,7 +310,6 @@ void DebugSnapshot::MakeUniqueComponentNames() {
 
   std::size_t h = 0;
   for (DebugSnapshot::ComponentNames& names : names_per_hierarchy_) {
-
     auto last = names.end();
     for (int k = 0; k < names.size(); ++k) {
       const std::string candidate = names[k];
@@ -406,8 +406,8 @@ void DebugSnapshotProxy::SaveData(const ::amrex::MultiFab& mf,
                                   const std::string& name,
                                   const ::amrex::Geometry& geom,
                                   ::amrex::SrcComp component) {
-  if (m_snapshot) {
-    m_snapshot->SaveData(mf, name, geom, component);
+  if (snapshot_) {
+    snapshot_->SaveData(mf, name, geom, component);
   }
 }
 
@@ -415,8 +415,8 @@ void DebugSnapshotProxy::SaveData(const ::amrex::MultiFab& mf,
                                   const DebugSnapshot::ComponentNames& names,
                                   const ::amrex::Geometry& geom,
                                   ::amrex::SrcComp first_component) {
-  if (m_snapshot) {
-    m_snapshot->SaveData(mf, names, geom, first_component);
+  if (snapshot_) {
+    snapshot_->SaveData(mf, names, geom, first_component);
   }
 }
 
@@ -425,8 +425,8 @@ void DebugSnapshotProxy::SaveData(
     const std::string& name,
     const ::amrex::Vector<const ::amrex::Geometry*>& geomhier,
     ::amrex::SrcComp first_component) {
-  if (m_snapshot) {
-    m_snapshot->SaveData(hierarchy, name, geomhier, first_component);
+  if (snapshot_) {
+    snapshot_->SaveData(hierarchy, name, geomhier, first_component);
   }
 }
 
@@ -434,8 +434,8 @@ void DebugSnapshotProxy::SaveData(
     const ::amrex::Vector<::amrex::MultiFab>& hierarchy,
     const std::string& name, const ::amrex::Vector<::amrex::Geometry>& geomhier,
     ::amrex::SrcComp first_component) {
-  if (m_snapshot) {
-    m_snapshot->SaveData(hierarchy, name, geomhier, first_component);
+  if (snapshot_) {
+    snapshot_->SaveData(hierarchy, name, geomhier, first_component);
   }
 }
 
@@ -444,8 +444,8 @@ void DebugSnapshotProxy::SaveData(
     const DebugSnapshot::ComponentNames& names,
     const ::amrex::Vector<const ::amrex::Geometry*>& geomhier,
     ::amrex::SrcComp first_component) {
-  if (m_snapshot) {
-    m_snapshot->SaveData(hierarchy, names, geomhier, first_component);
+  if (snapshot_) {
+    snapshot_->SaveData(hierarchy, names, geomhier, first_component);
   }
 }
 
@@ -454,8 +454,8 @@ void DebugSnapshotProxy::SaveData(
     const DebugSnapshot::ComponentNames& names,
     const ::amrex::Vector<::amrex::Geometry>& geomhier,
     ::amrex::SrcComp first_component) {
-  if (m_snapshot) {
-    m_snapshot->SaveData(hierarchy, names, geomhier, first_component);
+  if (snapshot_) {
+    snapshot_->SaveData(hierarchy, names, geomhier, first_component);
   }
 }
 

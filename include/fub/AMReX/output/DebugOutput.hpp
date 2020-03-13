@@ -135,7 +135,7 @@ public:
   DebugSnapshotProxy() = default;
 
   /// \brief Initializes a proxy snapshot for a real snapshot
-  DebugSnapshotProxy(DebugSnapshot& snapshot) : m_snapshot(&snapshot){};
+  DebugSnapshotProxy(DebugSnapshot& snapshot) : snapshot_(&snapshot){};
 
   /// @{
   /// \brief Saves a current hierarchy state with given component names
@@ -172,10 +172,25 @@ public:
                 ::amrex::SrcComp first_component = ::amrex::SrcComp(0));
   /// @}
 
+  /// \brief Returns true if this object is valid.
+  explicit operator bool() const noexcept { return snapshot_ == nullptr; }
+
+  /// \brief Returns true if both proxy objects point to the same snapshot.
+  friend inline bool operator==(const DebugSnapshotProxy& p1,
+                                const DebugSnapshotProxy& p2) noexcept {
+    return p1.snapshot_ == p2.snapshot_;
+  }
+
 private:
   /// \brief Pointer to the real snapshot
-  DebugSnapshot* m_snapshot{nullptr};
+  DebugSnapshot* snapshot_{nullptr};
 };
+
+/// \brief Returns true if both proxy objects point to different snapshots.
+inline bool operator!=(const DebugSnapshotProxy& p1,
+                       const DebugSnapshotProxy& p2) noexcept {
+  return !(p1 == p2);
+}
 
 /// \brief This class stores a list of snapshots and returns proxy objects to
 /// those.
