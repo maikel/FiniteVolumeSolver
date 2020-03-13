@@ -22,6 +22,7 @@
 #include "fub/AMReX/output/DebugOutput.hpp"
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/ForEachIndex.hpp"
+#include "fub/ext/Log.hpp"
 
 #include <algorithm>
 #include <numeric>
@@ -646,6 +647,10 @@ DebugOutput::DebugOutput(const ProgramOptions& opts,
   OutputAtFrequencyOrInterval::frequencies_ = std::vector<std::ptrdiff_t>{1LL};
   directory_ = GetOptionOr(opts, "directory", directory_);
   storage->Enable();
+  SeverityLogger log = GetInfoLogger();
+  BOOST_LOG(log) << "DebugOutput configured:";
+  BOOST_LOG(log) << fmt::format(" - directory = '{}'", directory_);
+  OutputAtFrequencyOrInterval::Print(log);
 }
 
 void DebugOutput::operator()(const GriddingAlgorithm& grid) {
