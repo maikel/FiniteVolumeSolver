@@ -4,7 +4,7 @@ plenum_x_n_cells = 64
 tube_blocking_factor = 8
 plenum_blocking_factor = 8
 
-n_level = 4
+n_level = 2
 
 n_tubes = 6
 r_tube = 0.015
@@ -38,12 +38,12 @@ tube_over_plenum_length_ratio = tube_domain_length / plenum_domain_length
 # plenum_yz_length = plenum_yz_upper - plenum_yz_lower
 
 
-plenum_y_lower = 0.0 #- 10.0 * D
+plenum_y_lower = - 10.0 * D
 plenum_y_upper = + 10.0 * D
 plenum_y_length = plenum_y_upper - plenum_y_lower
 
-plenum_z_lower = 0.0 # - 20.0 * D
-plenum_z_upper = + 20.0 * D
+plenum_z_lower = - 10.0 * D
+plenum_z_upper = + 10.0 * D
 plenum_z_length = plenum_z_upper - plenum_z_lower
 
 plenum_y_over_x_ratio = plenum_y_length / plenum_x_length
@@ -65,7 +65,7 @@ tube_n_cells = int(tube_n_cells)
 RunOptions = {
   'cfl': 0.4,
   'final_time': 0.04,
-  'max_cycles': 0
+  'max_cycles': -1
 }
 
 # checkpoint = '/Users/maikel/Development/FiniteVolumeSolver/build_3d/MultiTube/Checkpoint/000000063'
