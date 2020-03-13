@@ -35,6 +35,9 @@ if (AMReX_FOUND)
   add_executable(test.AMReX.n_proper test.AMReX.n_proper.cpp)
   target_link_libraries(test.AMReX.n_proper FiniteVolumeSolver.AMReX)
 
+endif()
+
+if (AMReX_FOUND AND AMREX_DIM EQUAL 2)
   add_executable(test.AMReX.DebugOutput test.AMReX.DebugOutput.cpp)
   target_link_libraries(test.AMReX.DebugOutput FiniteVolumeSolver.AMReX)
 
