@@ -61,8 +61,8 @@ struct BK19LevelIntegratorOptions {
 };
 
 class BK19LevelIntegrator
-    : private DimensionalSplitLevelIntegrator<AMREX_SPACEDIM,
-                                              BK19IntegratorContext, AnySplitMethod> {
+    : private DimensionalSplitLevelIntegrator<
+          AMREX_SPACEDIM, BK19IntegratorContext, AnySplitMethod> {
 public:
   static constexpr int Rank = AMREX_SPACEDIM;
 
@@ -73,7 +73,8 @@ public:
   using SplittingMethod = ::fub::AnySplitMethod;
 
   using AdvectionSolver =
-      DimensionalSplitLevelIntegrator<Rank, BK19IntegratorContext, SplittingMethod>;
+      DimensionalSplitLevelIntegrator<Rank, BK19IntegratorContext,
+                                      SplittingMethod>;
 
   using AdvectionSolver::ApplyFluxCorrection;
   using AdvectionSolver::CoarsenConservatively;
@@ -82,9 +83,9 @@ public:
   using AdvectionSolver::CopyDataToScratch;
   using AdvectionSolver::CopyScratchToData;
   using AdvectionSolver::GetContext;
+  using AdvectionSolver::GetCounterRegistry;
   using AdvectionSolver::GetCycles;
   using AdvectionSolver::GetGriddingAlgorithm;
-  using AdvectionSolver::GetCounterRegistry;
   using AdvectionSolver::GetMpiCommunicator;
   using AdvectionSolver::GetRatioToCoarserLevel;
   using AdvectionSolver::GetTimePoint;
@@ -120,9 +121,6 @@ private:
 void WriteRawField(const std::string& path, const std::string& name,
                    const ::amrex::MultiFab& data, int level);
 
-void WriteAdvectiveFluxes(const std::string& path,
-                          const BK19AdvectiveFluxes& pv, int level);
-
 struct WriteBK19Plotfile {
   std::string plotfilename{};
 
@@ -131,17 +129,22 @@ struct WriteBK19Plotfile {
 };
 
 template <typename Log> void BK19LevelIntegratorOptions::Print(Log& log) {
-  BOOST_LOG(log) << fmt::format(" - mlmg_tolerance_rel = {}", mlmg_tolerance_rel);
-  BOOST_LOG(log) << fmt::format(" - mlmg_tolerance_abs = {}", mlmg_tolerance_abs);
+  BOOST_LOG(log) << fmt::format(" - mlmg_tolerance_rel = {}",
+                                mlmg_tolerance_rel);
+  BOOST_LOG(log) << fmt::format(" - mlmg_tolerance_abs = {}",
+                                mlmg_tolerance_abs);
   BOOST_LOG(log) << fmt::format(" - mlmg_max_iter = {}", mlmg_max_iter);
   BOOST_LOG(log) << fmt::format(" - mlmg_verbose = {}", mlmg_verbose);
-  BOOST_LOG(log) << fmt::format(" - bottom_tolerance_rel = {}", bottom_tolerance_rel);
-  BOOST_LOG(log) << fmt::format(" - bottom_tolerance_abs = {}", bottom_tolerance_abs);
+  BOOST_LOG(log) << fmt::format(" - bottom_tolerance_rel = {}",
+                                bottom_tolerance_rel);
+  BOOST_LOG(log) << fmt::format(" - bottom_tolerance_abs = {}",
+                                bottom_tolerance_abs);
   BOOST_LOG(log) << fmt::format(" - bottom_max_iter = {}", bottom_max_iter);
   BOOST_LOG(log) << fmt::format(" - bottom_verbose = {}", bottom_verbose);
   BOOST_LOG(log) << fmt::format(" - always_use_bnorm = {}", always_use_bnorm);
   BOOST_LOG(log) << fmt::format(" - prefix = {}", prefix);
-  BOOST_LOG(log) << fmt::format(" - output_between_steps = {}", output_between_steps);
+  BOOST_LOG(log) << fmt::format(" - output_between_steps = {}",
+                                output_between_steps);
 }
 
 } // namespace fub::amrex
