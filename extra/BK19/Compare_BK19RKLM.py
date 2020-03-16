@@ -10,11 +10,11 @@ import matplotlib.style
 from mpl_toolkits.axes_grid1 import AxesGrid
 #%matplotlib inline
 
-if (not funcs.get_interactivity()):
-  yt.toggle_interactivity()
+#if (not funcs.get_interactivity()):
+  #yt.toggle_interactivity()
 
-def LoadFVS(base_dir, step_dir, timestep):
-  path = os.path.join(base_dir, step_dir, 'plt{:09d}'.format(timestep))
+def LoadFVS(base_dir, step_dir, partname, timestep):
+  path = os.path.join(base_dir, step_dir, partname+'plt{:09d}'.format(timestep))
   shutil.copy2('../yt/WarpXHeader', path)
   shutil.copy2('../yt/warpx_job_info', path)
   return yt.load(path)
@@ -51,19 +51,19 @@ def PlotVarComp(dsFVS, dsRKLM, vars_FVS, vars_RKLM, label, fignum = -1):
 
   numvars = len(vars_FVS)
   for i in range(numvars):
-    ax = plt.subplot(numvars+1,3,(i*3)+1)
+    ax = plt.subplot(3,numvars+1,1+i)
     im = ax.imshow(np.array(p.frb[vars_FVS[i]]), origin='lower', extent=np.array(p.bounds))
     im.set_cmap('Blue-Red')
     plt.colorbar(im, ax=ax, shrink=.75)
     ax.set_title(vars_FVS[i])
 
-    ax = plt.subplot(numvars+1,3,(i*3)+2)
+    ax = plt.subplot(3,numvars+1,(numvars+1)+1+i)
     im = ax.imshow(dsRKLM[vars_RKLM[i]].T, origin='lower', extent=np.array(p.bounds))
     im.set_cmap('Blue-Red')
     plt.colorbar(im, ax=ax, shrink=.75)
     ax.set_title(vars_RKLM[i])
 
-    ax = plt.subplot(numvars+1,3,(i*3)+3)
+    ax = plt.subplot(3,numvars+1,(2*(numvars+1))+1+i)
     im = ax.imshow(np.array(p.frb[vars_FVS[i]])-dsRKLM[vars_RKLM[i]].T, origin='lower', extent=np.array(p.bounds))
     im.set_cmap('Blue-Red')
     plt.colorbar(im, ax=ax, shrink=.75)
@@ -83,19 +83,19 @@ def PlotVarComp(dsFVS, dsRKLM, vars_FVS, vars_RKLM, label, fignum = -1):
   data_nd[ -1,:-1] = data[-1,:,2]
   data_nd[ -1, -1] = data[-1,-1,3]
 
-  ax = plt.subplot(numvars+1,3,numvars*3+1)
+  ax = plt.subplot(3,numvars+1,numvars+1)
   im = ax.imshow(data_nd.T, origin='lower', extent=extent)
   im.set_cmap('Blue-Red')
   plt.colorbar(im, ax=ax, shrink=.75)
   ax.set_title('pi')
 
-  ax = plt.subplot(numvars+1,3,numvars*3+2)
+  ax = plt.subplot(3,numvars+1,(numvars+1)+numvars+1)
   im = ax.imshow(dsRKLM['p2_nodes'].T, origin='lower', extent=extent)
   im.set_cmap('Blue-Red')
   plt.colorbar(im, ax=ax, shrink=.75)
   ax.set_title('pi')
 
-  ax = plt.subplot(numvars+1,3,numvars*3+3)
+  ax = plt.subplot(3,numvars+1,2*(numvars+1)+numvars+1)
   im = ax.imshow(data_nd.T-dsRKLM['p2_nodes'].T, origin='lower', extent=extent)
   im.set_cmap('Blue-Red')
   plt.colorbar(im, ax=ax, shrink=.75)
@@ -106,7 +106,8 @@ def PlotVarComp(dsFVS, dsRKLM, vars_FVS, vars_RKLM, label, fignum = -1):
 
 timestep = 0
 
-basedir_FVS  = '../../build2d'
+basedir_FVS  = '../../build2d/Debug'
+#basedir_FVS  = '../../build2d'
 substeps_FVS = ['BK19_pre-step',
                 'BK19_advect',
                 'BK19_advect-backward',
@@ -115,6 +116,8 @@ substeps_FVS = ['BK19_pre-step',
                 'BK19_advect-backward-forward-advect-backward']
 vars_FVS     = ['Density', 'Velocity_0', 'Velocity_1', 'PTdensity', 'PTinverse']
 #vars_FVS     = ['Density', 'Momentum_0', 'Momentum_1', 'PTdensity', 'PTinverse']
+partname = 'partition_0_'
+#partname = ''
 
 basedir_RKLM  = '/home/svater/rechnen/RKLM_Reference-Ray/RKLM_Python/output_travelling_vortex'
 filename_RKLM = "output_travelling_vortex_low_mach_gravity_psinc.h5"
@@ -128,6 +131,6 @@ vars_RKLM = ['rho', 'velu', 'velv', 'rhoY', 'chi']
 #vars_RKLM = ['rho', 'rhou', 'rhov', 'rhoY', 'chi']
 
 for i in range(len(substeps_FVS)):
-  dsFVS  = LoadFVS(basedir_FVS, substeps_FVS[i], timestep)
-  dsRKLM = LoadRKLM(basedir_RKLM, filename_RKLM, '{0:03}_{1:s}'.format(timestep, substeps_RKLM[i]))
+  dsFVS  = LoadFVS(basedir_FVS, substeps_FVS[i], partname, timestep)
+  dsRKLM = LoadRKLM(basedir_RKLM, filename_RKLM, '{0:03}_{1:s}'.format(timestep-1, substeps_RKLM[i]))
   PlotVarComp(dsFVS, dsRKLM, vars_FVS, vars_RKLM, substeps_FVS[i][5:]+', '+substeps_RKLM[i], i+1)
