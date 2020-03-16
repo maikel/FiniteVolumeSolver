@@ -33,6 +33,10 @@ RunOptions = {
 Output = {
     'outputs': [
         {
+            'type': 'DebugOutput',
+            'directory': './Debug/'
+        },
+        {
             'type': 'Plotfile',
             #'intervals': [5e-5]
             'intervals': [2.5e-05]
