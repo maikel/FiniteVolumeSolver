@@ -50,10 +50,6 @@
 
 namespace amrex {
 
-namespace {
-    const Real bogus_value = std::numeric_limits<Real>::quiet_NaN();
-}
-
 MLNodeHelmDualCstVel::MLNodeHelmDualCstVel (const Vector<Geometry>& a_geom,
                                   const Vector<BoxArray>& a_grids,
                                   const Vector<DistributionMapping>& a_dmap,
@@ -94,7 +90,8 @@ MLNodeHelmDualCstVel::define (const Vector<Geometry>& a_geom,
         const int mglev = 0;
         const int idim = 0;
         m_sigma[amrlev][mglev][idim].reset
-            (new MultiFab(m_grids[amrlev][mglev], m_dmap[amrlev][mglev], 1, 1));
+            (new MultiFab(m_grids[amrlev][mglev], m_dmap[amrlev][mglev], 1, 1,
+                          MFInfo(), *m_factory[amrlev][0]));
         m_sigma[amrlev][mglev][idim]->setVal(0.0);
         m_sigmacross[amrlev][mglev][idim].reset
             (new MultiFab(m_grids[amrlev][mglev], m_dmap[amrlev][mglev], AMREX_SPACEDIM*(AMREX_SPACEDIM-1), 1));
@@ -152,7 +149,7 @@ MLNodeHelmDualCstVel::compRHS (const Vector<MultiFab*>& rhs, const Vector<MultiF
         const Geometry& geom = m_geom[ilev][0];
         AMREX_ASSERT(vel[ilev]->nComp() >= AMREX_SPACEDIM);
         AMREX_ASSERT(vel[ilev]->nGrow() >= 1);
-        vel[ilev]->FillBoundary(0, AMREX_SPACEDIM, geom.periodicity());
+        vel[ilev]->FillBoundary(0, AMREX_SPACEDIM, IntVect(1), geom.periodicity());
 
         if (ilev < a_rhcc.size() && a_rhcc[ilev])
         {
@@ -458,22 +455,22 @@ MLNodeHelmDualCstVel::averageDownCoeffs ()
 {
     BL_PROFILE("MLNodeHelmDualCstVel::averageDownCoeffs()");
 
-    for (int amrlev = 0; amrlev < m_num_amr_levels; ++amrlev)
-    {
-        for (int mglev = 0; mglev < m_num_mg_levels[amrlev]; ++mglev)
+        for (int amrlev = 0; amrlev < m_num_amr_levels; ++amrlev)
         {
-            int ndims = (m_use_harmonic_average) ? AMREX_SPACEDIM : 1;
-            for (int idim = 0; idim < ndims; ++idim)
+            for (int mglev = 0; mglev < m_num_mg_levels[amrlev]; ++mglev)
             {
-                if (m_sigma[amrlev][mglev][idim] == nullptr) {
-                    if (mglev == 0) {
-                        m_sigma[amrlev][mglev][idim].reset
-                            (new MultiFab(*m_sigma[amrlev][mglev][0], amrex::make_alias, 0, 1));
-                    } else {
-                        m_sigma[amrlev][mglev][idim].reset
-                            (new MultiFab(m_grids[amrlev][mglev], m_dmap[amrlev][mglev], 1, 1));
-                        m_sigma[amrlev][mglev][idim]->setVal(0.0);
-                    }
+                int ndims = (m_use_harmonic_average) ? AMREX_SPACEDIM : 1;
+                for (int idim = 0; idim < ndims; ++idim)
+                {
+                    if (m_sigma[amrlev][mglev][idim] == nullptr) {
+                        if (mglev == 0) {
+                            m_sigma[amrlev][mglev][idim].reset
+                                (new MultiFab(*m_sigma[amrlev][mglev][0], amrex::make_alias, 0, 1));
+                        } else {
+                            m_sigma[amrlev][mglev][idim].reset
+                                (new MultiFab(m_grids[amrlev][mglev], m_dmap[amrlev][mglev], 1, 1));
+                            m_sigma[amrlev][mglev][idim]->setVal(0.0);
+                        }
                 }
             }
         }
@@ -585,20 +582,20 @@ MLNodeHelmDualCstVel::FillBoundaryCoeff (MultiFab& sigma, const Geometry& geom)
 
     sigma.FillBoundary(geom.periodicity());
 
-    const Box& domain = geom.Domain();
-    const auto lobc = LoBC();
-    const auto hibc = HiBC();
+        const Box& domain = geom.Domain();
+        const auto lobc = LoBC();
+        const auto hibc = HiBC();
 
-    MFItInfo mfi_info;
-    if (Gpu::notInLaunchRegion()) mfi_info.SetDynamic(true);
+        MFItInfo mfi_info;
+        if (Gpu::notInLaunchRegion()) mfi_info.SetDynamic(true);
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-    for (MFIter mfi(sigma, mfi_info); mfi.isValid(); ++mfi)
-    {
-        Array4<Real> const& sfab = sigma.array(mfi);
-        mlndhelm_fillbc_cc<Real>(mfi.validbox(),sfab,domain,lobc,hibc);
-    }
+        for (MFIter mfi(sigma, mfi_info); mfi.isValid(); ++mfi)
+        {
+            Array4<Real> const& sfab = sigma.array(mfi);
+            mlndhelm_fillbc_cc<Real>(mfi.validbox(),sfab,domain,lobc,hibc);
+        }
 }
 
 void
@@ -661,10 +658,10 @@ MLNodeHelmDualCstVel::restriction (int amrlev, int cmglev, MultiFab& crse, Multi
         Array4<Real> cfab = pcrse->array(mfi);
         Array4<Real const> const& ffab = fine.const_array(mfi);
         Array4<int const> const& mfab = dmsk.const_array(mfi);
-        AMREX_HOST_DEVICE_PARALLEL_FOR_3D(bx, i, j, k,
-        {
-            mlndhelm_restriction(i,j,k,cfab,ffab,mfab);
-        });
+            AMREX_HOST_DEVICE_PARALLEL_FOR_3D(bx, i, j, k,
+            {
+                mlndhelm_restriction(i,j,k,cfab,ffab,mfab);
+            });
     }
 
     if (need_parallel_copy) {
@@ -772,10 +769,10 @@ MLNodeHelmDualCstVel::restrictInteriorNodes (int camrlev, MultiFab& crhs, MultiF
         Array4<Real> const& cfab = cfine.array(mfi);
         Array4<Real const> const& ffab = frhs->const_array(mfi);
         Array4<int const> const& mfab = fdmsk.const_array(mfi);
-        AMREX_HOST_DEVICE_PARALLEL_FOR_3D(bx, i, j, k,
-        {
-            mlndhelm_restriction(i,j,k,cfab,ffab,mfab);
-        });
+            AMREX_HOST_DEVICE_PARALLEL_FOR_3D(bx, i, j, k,
+            {
+                mlndhelm_restriction(i,j,k,cfab,ffab,mfab);
+            });
     }
 
     MultiFab tmp_crhs(crhs.boxArray(), crhs.DistributionMap(), 1, 0);
@@ -863,17 +860,16 @@ MLNodeHelmDualCstVel::Fsmooth (int amrlev, int mglev, MultiFab& sol, const Multi
     const auto& alpha = m_alpha[amrlev][mglev];
     const auto dxinvarr = m_geom[amrlev][mglev].InvCellSizeArray();
 
-    constexpr int nsweeps = 2;
-
     const iMultiFab& dmsk = *m_dirichlet_mask[amrlev][mglev];
 
-    if (m_use_gauss_seidel)
+#ifdef AMREX_USE_GPU
+    if (Gpu::inLaunchRegion())
     {
+        constexpr int nsweeps = 4;
+        MultiFab Ax(sol.boxArray(), sol.DistributionMap(), 1, 0);
+
         if (m_use_harmonic_average && mglev > 0)
         {
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
             for (MFIter mfi(sol); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.validbox();
@@ -883,93 +879,148 @@ MLNodeHelmDualCstVel::Fsmooth (int amrlev, int mglev, MultiFab& sol, const Multi
                 Array4<Real> const& solarr = sol.array(mfi);
                 Array4<Real const> const& rhsarr = rhs.const_array(mfi);
                 Array4<int const> const& dmskarr = dmsk.const_array(mfi);
+                Array4<Real> const& Axarr = Ax.array(mfi);
 
                 for (int ns = 0; ns < nsweeps; ++ns) {
-                    AMREX_LAUNCH_HOST_DEVICE_LAMBDA ( bx, tbx,
+                    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
-                        mlndhelm_gauss_seidel_ha(tbx, solarr, rhsarr,
+                        mlndhelm_adotx_ha(i,j,k,Axarr,solarr,AMREX_D_DECL(sxarr,syarr,szarr), dmskarr,
+                                         dxinvarr);
+                    });
+                    AMREX_LAUNCH_DEVICE_LAMBDA ( bx, tbx,
+                    {
+                        mlndhelm_jacobi_ha (tbx, solarr, Axarr, rhsarr, AMREX_D_DECL(sxarr,syarr,szarr),
+                                           dmskarr, dxinvarr);
+                    });
+                }
+            }
+        }
+        else
+        {
+            for (MFIter mfi(sol); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.validbox();
+                Array4<Real const> const& sarr = sigma[0]->const_array(mfi);
+                Array4<Real const> const& scarr = sigmacross[0]->const_array(mfi);
+                Array4<Real const> const& aarr = alpha.const_array(mfi);
+                Array4<Real> const& solarr = sol.array(mfi);
+                Array4<Real const> const& rhsarr = rhs.const_array(mfi);
+                Array4<int const> const& dmskarr = dmsk.const_array(mfi);
+                Array4<Real> const& Axarr = Ax.array(mfi);
+
+                for (int ns = 0; ns < nsweeps; ++ns) {
+                    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        mlndhelm_adotx_aa(i,j,k,Axarr,solarr,sarr,scarr, aarr,dmskarr,
+                                         dxinvarr);
+                    });
+                    AMREX_LAUNCH_DEVICE_LAMBDA ( bx, tbx,
+                    {
+                        mlndhelm_jacobi_aa (tbx, solarr, Axarr, rhsarr, sarr,
+                                           scarr, aarr, dmskarr, dxinvarr);
+                    });
+                }
+            }
+        }
+
+        if (nsweeps > 1) nodalSync(amrlev, mglev, sol);
+    }
+    else // cpu
+#endif
+    {
+        constexpr int nsweeps = 2;
+        if (m_use_gauss_seidel)
+        {
+            if (m_use_harmonic_average && mglev > 0)
+            {
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+                for (MFIter mfi(sol); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.validbox();
+                    AMREX_D_TERM(Array4<Real const> const& sxarr = sigma[0]->const_array(mfi);,
+                                 Array4<Real const> const& syarr = sigma[1]->const_array(mfi);,
+                                 Array4<Real const> const& szarr = sigma[2]->const_array(mfi););
+                    Array4<Real> const& solarr = sol.array(mfi);
+                    Array4<Real const> const& rhsarr = rhs.const_array(mfi);
+                    Array4<int const> const& dmskarr = dmsk.const_array(mfi);
+
+                    for (int ns = 0; ns < nsweeps; ++ns) {
+                        mlndhelm_gauss_seidel_ha(bx, solarr, rhsarr,
                                                 AMREX_D_DECL(sxarr,syarr,szarr),
                                                 dmskarr, dxinvarr);
-                    });
+                    }
                 }
             }
-        }
-        else
-        {
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-            for (MFIter mfi(sol); mfi.isValid(); ++mfi)
+            else
             {
-                const Box& bx = mfi.validbox();
-                Array4<Real const> const& sarr = sigma[0]->const_array(mfi);
-                Array4<Real const> const& scarr = sigmacross[0]->const_array(mfi);
-                Array4<Real const> const& aarr = alpha.const_array(mfi);
-                Array4<Real> const& solarr = sol.array(mfi);
-                Array4<Real const> const& rhsarr = rhs.const_array(mfi);
-                Array4<int const> const& dmskarr = dmsk.const_array(mfi);
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+                for (MFIter mfi(sol); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.validbox();
+                    Array4<Real const> const& sarr = sigma[0]->const_array(mfi);
+                    Array4<Real const> const& scarr = sigmacross[0]->const_array(mfi);
+                    Array4<Real const> const& aarr = alpha.const_array(mfi);
+                    Array4<Real> const& solarr = sol.array(mfi);
+                    Array4<Real const> const& rhsarr = rhs.const_array(mfi);
+                    Array4<int const> const& dmskarr = dmsk.const_array(mfi);
 
-                for (int ns = 0; ns < nsweeps; ++ns) {
-                    AMREX_LAUNCH_HOST_DEVICE_LAMBDA ( bx, tbx,
-                    {
-                        mlndhelm_gauss_seidel_aa(tbx, solarr, rhsarr,
+                    for (int ns = 0; ns < nsweeps; ++ns) {
+                        mlndhelm_gauss_seidel_aa(bx, solarr, rhsarr,
                                                 sarr, scarr, aarr, dmskarr, dxinvarr);
-                    });
+                    }
                 }
             }
-        }
 
-        nodalSync(amrlev, mglev, sol);
-    }
-    else
-    {
-        MultiFab Ax(sol.boxArray(), sol.DistributionMap(), 1, 0);
-        Fapply(amrlev, mglev, Ax, sol);
-
-        if (m_use_harmonic_average && mglev > 0)
-        {
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-            for (MFIter mfi(sol,TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                const Box& bx = mfi.tilebox();
-                AMREX_D_TERM(Array4<Real const> const& sxarr = sigma[0]->const_array(mfi);,
-                             Array4<Real const> const& syarr = sigma[1]->const_array(mfi);,
-                             Array4<Real const> const& szarr = sigma[2]->const_array(mfi););
-                Array4<Real> const& solarr = sol.array(mfi);
-                Array4<Real const> const& Axarr = Ax.const_array(mfi);
-                Array4<Real const> const& rhsarr = rhs.const_array(mfi);
-                Array4<int const> const& dmskarr = dmsk.const_array(mfi);
-
-                AMREX_LAUNCH_HOST_DEVICE_LAMBDA ( bx, tbx,
-                {
-                    mlndhelm_jacobi_ha (tbx, solarr, Axarr, rhsarr, AMREX_D_DECL(sxarr,syarr,szarr),
-                                       dmskarr, dxinvarr);
-                });
-            }
+            nodalSync(amrlev, mglev, sol);
         }
         else
         {
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-            for (MFIter mfi(sol,TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                const Box& bx = mfi.tilebox();
-                Array4<Real const> const& sarr = sigma[0]->const_array(mfi);
-                Array4<Real const> const& scarr = sigmacross[0]->const_array(mfi);
-                Array4<Real const> const& aarr = alpha.const_array(mfi);
-                Array4<Real> const& solarr = sol.array(mfi);
-                Array4<Real const> const& Axarr = Ax.const_array(mfi);
-                Array4<Real const> const& rhsarr = rhs.const_array(mfi);
-                Array4<int const> const& dmskarr = dmsk.const_array(mfi);
+            MultiFab Ax(sol.boxArray(), sol.DistributionMap(), 1, 0);
+            Fapply(amrlev, mglev, Ax, sol);
 
-                AMREX_LAUNCH_HOST_DEVICE_LAMBDA ( bx, tbx,
+            if (m_use_harmonic_average && mglev > 0)
+            {
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+                for (MFIter mfi(sol,true); mfi.isValid(); ++mfi)
                 {
-                    mlndhelm_jacobi_aa (tbx, solarr, Axarr, rhsarr, sarr, scarr, aarr,
+                    const Box& bx = mfi.tilebox();
+                    AMREX_D_TERM(Array4<Real const> const& sxarr = sigma[0]->const_array(mfi);,
+                                 Array4<Real const> const& syarr = sigma[1]->const_array(mfi);,
+                                 Array4<Real const> const& szarr = sigma[2]->const_array(mfi););
+                    Array4<Real> const& solarr = sol.array(mfi);
+                    Array4<Real const> const& Axarr = Ax.const_array(mfi);
+                    Array4<Real const> const& rhsarr = rhs.const_array(mfi);
+                    Array4<int const> const& dmskarr = dmsk.const_array(mfi);
+
+                    mlndhelm_jacobi_ha (bx, solarr, Axarr, rhsarr, AMREX_D_DECL(sxarr,syarr,szarr),
                                        dmskarr, dxinvarr);
-                });
+                }
+            }
+            else
+            {
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+                for (MFIter mfi(sol,true); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    Array4<Real const> const& sarr = sigma[0]->const_array(mfi);
+                    Array4<Real const> const& scarr = sigmacross[0]->const_array(mfi);
+                    Array4<Real const> const& aarr = alpha.const_array(mfi);
+                    Array4<Real> const& solarr = sol.array(mfi);
+                    Array4<Real const> const& Axarr = Ax.const_array(mfi);
+                    Array4<Real const> const& rhsarr = rhs.const_array(mfi);
+                    Array4<int const> const& dmskarr = dmsk.const_array(mfi);
+
+                    mlndhelm_jacobi_aa (bx, solarr, Axarr, rhsarr, sarr, scarr, aarr,
+                                       dmskarr, dxinvarr);
+                }
             }
         }
     }

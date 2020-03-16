@@ -55,6 +55,28 @@ void IdealGasMix<Dim>::Flux(ConservativeArray& flux, const CompleteArray& state,
   }
 }
 
+template <int Dim>
+void IdealGasMix<Dim>::Flux(ConservativeArray& flux, const CompleteArray& state, MaskArray mask,
+                            Direction dir) const noexcept {
+  const int d0 = static_cast<int>(dir);
+  const Array1d rho = mask.select(state.density, 1.0);
+  const Array1d rho_u = mask.select(state.momentum.row(d0), 0.0);
+  const Array1d velocity = rho_u / rho;
+  const Array1d pressure = mask.select(state.pressure, 0.0);
+  const Array1d energy = mask.select(state.energy, 0.0);
+  flux.density = rho_u;
+  for (int d = 0; d < Dim; ++d) {
+    const Array1d rho_u_i = mask.select(state.momentum.row(d), 0.0);
+    flux.momentum.row(d) = velocity * rho_u_i;
+  }
+  flux.momentum.row(d0) += pressure;
+  flux.energy = velocity * (energy + pressure);
+  for (int s = 0; s < flux.species.rows(); ++s) {
+    const Array1d Yi = mask.select(state.species.row(s), 0.0);
+    flux.species.row(s) = velocity * Yi;
+  }
+}
+
 namespace {
 double ComputeSpeedOfSound(const FlameMasterReactor& reactor) {
   const double gamma = reactor.GetCp() / reactor.GetCv();
@@ -76,7 +98,43 @@ auto ComputeSpeedOfSoundArray(const FlameMasterReactor& reactor) {
   const Array1d a = (gamma * p / rho).sqrt();
   return std::make_tuple(a, cp, gamma);
 }
+
+auto ComputeSpeedOfSoundArray(const FlameMasterReactor& reactor, MaskArray mask) {
+  const Array1d cp = mask.select(reactor.GetCpArray(), 0.0);
+  const Array1d gamma = cp / reactor.GetCvArray();
+  const Array1d p = mask.select(reactor.GetPressureArray(), 0.0);
+  const Array1d rho = mask.select(reactor.GetDensityArray(), 1.0);
+  const Array1d a = (gamma * p / rho).sqrt();
+  return std::make_tuple(a, cp, gamma);
+}
 } // namespace
+
+
+template <int Dim>
+Array<double, Dim, 1> IdealGasMix<Dim>::Velocity(const ConservativeBase& cons) noexcept {
+  Array<double, Dim, 1> velocity = cons.momentum / cons.density;
+  return velocity;
+}
+
+template <int Dim>
+Array<double, Dim> IdealGasMix<Dim>::Velocity(const ConservativeArrayBase& cons) noexcept {
+  Array<double, Dim> velocity;
+  for (int d = 0; d < Dim; ++d) {
+    velocity.row(d) = cons.momentum.row(d) / cons.density;
+  }
+  return velocity;
+}
+
+template <int Dim>
+Array<double, Dim> IdealGasMix<Dim>::Velocity(const ConservativeArrayBase& cons, MaskArray mask) noexcept {
+  Array<double, Dim> velocity;
+  Array1d density = mask.select(cons.density, 1.0);
+  for (int d = 0; d < Dim; ++d) {
+    Array1d momentum = mask.select(cons.momentum.row(d), 0.0);
+    velocity.row(d) = momentum / density;
+  }
+  return velocity;
+}
 
 template <int Dim>
 void IdealGasMix<Dim>::SetReactorStateFromComplete(const Complete& state) {
@@ -125,6 +183,26 @@ void IdealGasMix<Dim>::CompleteFromReactor(
 }
 
 template <int Dim>
+void IdealGasMix<Dim>::CompleteFromReactor(CompleteArray& state, const Array<double, Dim>& velocity, MaskArray mask) const {
+  state.density = mask.select(reactor_.GetDensityArray(), 0.0);
+  for (int i = 0; i < Dim; ++i) {
+    state.momentum.row(i) = state.density * velocity.row(i);
+  }
+  const Array1d rhoE_internal =
+  state.density * reactor_.GetInternalEnergyArray();
+  const Array1d rhoE_kin = KineticEnergy(state.density, state.momentum, mask);
+  state.energy = rhoE_internal + rhoE_kin;
+  state.pressure = reactor_.GetPressureArray();
+  const ArrayXd& Y = reactor_.GetMassFractionsArray();
+  for (int i = 0; i < Y.rows(); ++i) {
+    state.species.row(i) = state.density * Y.row(i);
+  }
+  state.temperature = reactor_.GetTemperatureArray();
+  std::tie(state.speed_of_sound, state.c_p, state.gamma) =
+  ComputeSpeedOfSoundArray(reactor_, mask);
+}
+
+template <int Dim>
 void IdealGasMix<Dim>::CompleteFromCons(Complete& complete,
                                         const ConservativeBase& cons) {
   reactor_.SetDensity(cons.density);
@@ -135,15 +213,8 @@ void IdealGasMix<Dim>::CompleteFromCons(Complete& complete,
   reactor_.SetInternalEnergy(e_internal);
   FUB_ASSERT(reactor_.GetTemperature() > 0.0);
   FUB_ASSERT(cons.density == reactor_.GetDensity());
-  complete.density = cons.density;
-  complete.momentum = cons.momentum;
-  complete.energy = cons.energy;
-  complete.species = cons.species;
-  complete.pressure = reactor_.GetPressure();
-  complete.speed_of_sound = ComputeSpeedOfSound(reactor_);
-  complete.temperature = reactor_.GetTemperature();
-  complete.c_p = reactor_.GetCp();
-  complete.gamma = reactor_.GetCp() / reactor_.GetCv();
+  const Array<double, Dim, 1> velocity = Velocity(cons);
+  CompleteFromReactor(complete, velocity);
 }
 
 template <int Dim>
@@ -155,44 +226,38 @@ void IdealGasMix<Dim>::CompleteFromCons(CompleteArray& complete,
   const Array1d rhoE_kin = KineticEnergy(cons.density, cons.momentum);
   const Array1d e_internal = (cons.energy - rhoE_kin) / cons.density;
   reactor_.SetInternalEnergyArray(e_internal);
-  complete.density = cons.density;
-  complete.momentum = cons.momentum;
-  complete.energy = cons.energy;
-  complete.species = cons.species;
-  complete.pressure = reactor_.GetPressureArray();
-  complete.temperature = reactor_.GetTemperatureArray();
-  std::tie(complete.speed_of_sound, complete.c_p, complete.gamma) =
-      ComputeSpeedOfSoundArray(reactor_);
+  const Array<double, Dim> velocity = Velocity(cons);
+  CompleteFromReactor(complete, velocity);
 }
 
 template <int Dim>
 void IdealGasMix<Dim>::CompleteFromCons(CompleteArray& complete,
                                         const ConservativeArrayBase& cons,
                                         MaskArray mask) {
-  reactor_.SetDensityArray(cons.density);
-  reactor_.SetMassFractionsArray(cons.species);
+  const Array1d zero = Array1d::Zero();
+  if (!mask.any()) {
+    complete.density = zero;
+    complete.momentum = Array<double, Dim>::Zero();
+    complete.energy = zero;
+    complete.species.fill(0.0);
+    complete.pressure = zero;
+    complete.temperature = zero;
+    complete.speed_of_sound = zero;
+    complete.c_p = zero;
+    complete.gamma = zero;
+    return;
+  }
+  Array1d rho_s = mask.select(cons.density, 1.0);
+  FUB_ASSERT((rho_s > 0.0).all());
+  reactor_.SetDensityArray(rho_s);
+  reactor_.SetMassFractionsArray(cons.species, mask);
   reactor_.SetTemperatureArray(Array1d::Constant(300));
-  const Array1d rhoE_kin = KineticEnergy(cons.density, cons.momentum);
-  const Array1d e_internal = (cons.energy - rhoE_kin) / cons.density;
+  Array1d rhoE = mask.select(cons.energy, 0.0);
+  const Array1d rhoE_kin = KineticEnergy(cons.density, cons.momentum, mask);
+  const Array1d e_internal = (rhoE - rhoE_kin) / rho_s;
   reactor_.SetInternalEnergyArray(e_internal, mask);
-  complete.density = mask.select(cons.density, Array1d::Zero());
-  for (int i = 0; i < Dim; ++i) {
-    complete.momentum.row(i) =
-        mask.select(cons.momentum.row(i), Array1d::Zero());
-  }
-  complete.energy = mask.select(cons.energy, Array1d::Zero());
-  for (int i = 0; i < cons.species.rows(); ++i) {
-    complete.species.row(i) = mask.select(cons.species.row(i), Array1d::Zero());
-  }
-  complete.pressure = mask.select(reactor_.GetPressureArray(), Array1d::Zero());
-  complete.temperature =
-      mask.select(reactor_.GetTemperatureArray(), Array1d::Zero());
-  std::tie(complete.speed_of_sound, complete.c_p, complete.gamma) =
-      ComputeSpeedOfSoundArray(reactor_);
-  complete.speed_of_sound =
-      mask.select(complete.speed_of_sound, Array1d::Zero());
-  complete.c_p = mask.select(complete.c_p, Array1d::Zero());
-  complete.gamma = mask.select(complete.gamma, Array1d::Zero());
+  const Array<double, Dim> velocity = Velocity(cons, mask);
+  CompleteFromReactor(complete, velocity, mask);
 }
 
 template class IdealGasMix<1>;
@@ -297,482 +362,4 @@ void Reflect(Complete<IdealGasMix<3>>& reflected,
       2 * (state.momentum.matrix().dot(normal) * normal).array();
 }
 
-template <int Dim>
-std::array<double, 2> EinfeldtSignalVelocities<IdealGasMix<Dim>>::
-operator()(const IdealGasMix<Dim>&, const Complete& left, const Complete& right,
-           Direction dir) const noexcept {
-  FUB_ASSERT(left.density > 0.0);
-  FUB_ASSERT(right.density > 0.0);
-  const double rhoL = left.density;
-  const double rhoR = right.density;
-  const double rhoUL = left.momentum[int(dir)];
-  const double rhoUR = right.momentum[int(dir)];
-  const double aL = left.speed_of_sound;
-  const double aR = right.speed_of_sound;
-  const double sqRhoL = std::sqrt(rhoL);
-  const double sqRhoR = std::sqrt(rhoR);
-  const double uL = rhoUL / rhoL;
-  const double uR = rhoUR / rhoR;
-  const double roeU = (sqRhoL * uL + sqRhoR * uR) / (sqRhoL + sqRhoR);
-  const double roeA = std::sqrt(
-      (sqRhoL * aL * aL + sqRhoR * aR * aR) / (sqRhoL + sqRhoR) +
-      0.5 * (sqRhoL * sqRhoR) / ((sqRhoL + sqRhoR) * (sqRhoL + sqRhoR)) *
-          (uR - uL) * (uR - uL));
-  const double sL1 = uL - aL;
-  const double sL2 = roeU - 0.5 * roeA;
-  const double sR1 = roeU + 0.5 * roeA;
-  const double sR2 = uR + aR;
-  return {std::min(sL1, sL2), std::max(sR1, sR2)};
 }
-
-template <int Dim>
-std::array<Array1d, 2> EinfeldtSignalVelocities<IdealGasMix<Dim>>::
-operator()(const IdealGasMix<Dim>&, const CompleteArray& left,
-           const CompleteArray& right, Direction dir) const noexcept {
-  const Array1d rhoL = left.density;
-  const Array1d rhoR = right.density;
-  const Array1d rhoUL = left.momentum.row(int(dir));
-  const Array1d rhoUR = right.momentum.row(int(dir));
-  const Array1d aL = left.speed_of_sound;
-  const Array1d aR = right.speed_of_sound;
-  const Array1d sqRhoL = rhoL.sqrt();
-  const Array1d sqRhoR = rhoR.sqrt();
-  const Array1d uL = rhoUL / rhoL;
-  const Array1d uR = rhoUR / rhoR;
-  const Array1d roeU = (sqRhoL * uL + sqRhoR * uR) / (sqRhoL + sqRhoR);
-  const Array1d roeA =
-      ((sqRhoL * aL * aL + sqRhoR * aR * aR) / (sqRhoL + sqRhoR) +
-       0.5 * (sqRhoL * sqRhoR) / ((sqRhoL + sqRhoR) * (sqRhoL + sqRhoR)) *
-           (uR - uL) * (uR - uL))
-          .sqrt();
-  const Array1d sL1 = uL - aL;
-  const Array1d sL2 = roeU - 0.5 * roeA;
-  const Array1d sR1 = roeU + 0.5 * roeA;
-  const Array1d sR2 = uR + aR;
-  return {sL1.min(sL2), sR1.max(sR2)};
-}
-
-template struct EinfeldtSignalVelocities<IdealGasMix<1>>;
-template struct EinfeldtSignalVelocities<IdealGasMix<2>>;
-template struct EinfeldtSignalVelocities<IdealGasMix<3>>;
-
-namespace ideal_gas {
-template <int Rank>
-MusclHancockPrimitive<Rank>::MusclHancockPrimitive(const IdealGasMix<Rank>& eq)
-    : hll_(eq, EinfeldtSignalVelocities<IdealGasMix<Rank>>{}) {
-  const int nspecies = eq.GetReactor().GetNSpecies();
-  dpdx.mass_fractions.resize(nspecies);
-  dpdt.mass_fractions.resize(nspecies);
-  pL.mass_fractions.resize(nspecies);
-  pM.mass_fractions.resize(nspecies);
-  pR.mass_fractions.resize(nspecies);
-  dpdx_array_.mass_fractions.resize(nspecies, kDefaultChunkSize);
-  dpdt_array_.mass_fractions.resize(nspecies, kDefaultChunkSize);
-  pL_array_.mass_fractions.resize(nspecies, kDefaultChunkSize);
-  pM_array_.mass_fractions.resize(nspecies, kDefaultChunkSize);
-  pR_array_.mass_fractions.resize(nspecies, kDefaultChunkSize);
-}
-
-namespace {
-template <int Rank>
-void CompleteFromPrim(IdealGasMix<Rank>& eq,
-                      Complete<IdealGasMix<Rank>>& complete,
-                      const Primitive<Rank>& prim) {
-  FlameMasterReactor& reactor = eq.GetReactor();
-  reactor.SetDensity(1.0);
-  reactor.SetMassFractions(prim.mass_fractions);
-  reactor.SetTemperature(prim.temperature);
-  reactor.SetPressure(prim.pressure);
-  eq.CompleteFromReactor(complete, prim.velocity);
-}
-
-template <int Rank>
-void CompleteFromPrim(IdealGasMix<Rank>& eq,
-                      CompleteArray<IdealGasMix<Rank>>& complete,
-                      const PrimitiveArray<Rank>& prim) {
-  FlameMasterReactor& reactor = eq.GetReactor();
-  reactor.SetDensityArray(Array1d::Constant(1.0));
-  reactor.SetMassFractionsArray(prim.mass_fractions);
-  reactor.SetTemperatureArray(prim.temperature);
-  reactor.SetPressureArray(prim.pressure);
-  eq.CompleteFromReactor(complete, prim.velocity);
-}
-
-template <int Rank>
-void ToPrim(Primitive<Rank>& p, const Complete<IdealGasMix<Rank>>& q) {
-  p.pressure = q.pressure;
-  p.velocity = q.momentum / q.density;
-  p.temperature = q.temperature;
-  std::transform(q.species.data(), q.species.data() + q.species.size(),
-                 p.mass_fractions.data(),
-                 [rho = q.density](double rhoY) { return rhoY / rho; });
-}
-
-template <int Rank>
-void ToPrim(PrimitiveArray<Rank>& p,
-            const CompleteArray<IdealGasMix<Rank>>& q) {
-  p.pressure = q.pressure;
-  for (int i = 0; i < Rank; ++i) {
-    p.velocity.row(i) = q.momentum.row(i) / q.density;
-  }
-  p.temperature = q.temperature;
-  for (int i = 0; i < p.mass_fractions.rows(); ++i) {
-    p.mass_fractions.row(i) = q.species.row(i) / q.density;
-  }
-}
-
-template <int Rank>
-void PrimDerivatives(IdealGasMix<Rank>& eq, Primitive<Rank>& dt,
-                     const Complete<IdealGasMix<Rank>>& q,
-                     const Primitive<Rank>& dx, Direction dir) {
-  FlameMasterReactor& reactor = eq.GetReactor();
-  const double dTdx = dx.temperature;
-  const double dpdx = dx.pressure;
-  const int d = static_cast<int>(dir);
-  const double dudx = dx.velocity[d];
-  const auto& dYdx = dx.mass_fractions;
-
-  const double p = q.pressure;
-  const double rho = q.density;
-  const double T = q.temperature;
-  const double u = q.momentum[d] / q.density;
-  const double Rhat = reactor.GetUniversalGasConstant();
-
-  double c_v = q.c_p / q.gamma;
-  double R = q.c_p - c_v;
-  span<const double> M = reactor.GetMolarMasses();
-  double sum_dXdx = dYdx[0] / M[0];
-  for (int i = 1; i < dYdx.rows(); ++i) {
-    sum_dXdx += dYdx[i] / M[i];
-  }
-  double dRdt = Rhat * u * sum_dXdx;
-  double dTdt = (-p * dudx - rho * u * c_v * dTdx) / (rho * c_v);
-  double drhodx =
-      dpdx / (R * T) - p / (R * T * T) * dTdx - rho * Rhat * sum_dXdx / R;
-  double dpdt =
-      -R * T * (u * drhodx + rho * dudx) + rho * R * dTdt + rho * T * dRdt;
-  dt.velocity = -u * dx.velocity;
-  dt.velocity[d] -= dpdx / rho;
-  dt.mass_fractions = -u * dYdx;
-  dt.pressure = dpdt;
-  dt.temperature = dTdt;
-}
-
-template <int Rank>
-void PrimDerivatives(IdealGasMix<Rank>& eq, PrimitiveArray<Rank>& dt,
-                     const CompleteArray<IdealGasMix<Rank>>& q,
-                     const PrimitiveArray<Rank>& dx, Direction dir) {
-  FlameMasterReactor& reactor = eq.GetReactor();
-  const Array1d dTdx = dx.temperature;
-  const Array1d dpdx = dx.pressure;
-  const int d = static_cast<int>(dir);
-  const Array1d dudx = dx.velocity.row(d);
-  const auto& dYdx = dx.mass_fractions;
-
-  const Array1d p = q.pressure;
-  const Array1d rho = q.density;
-  const Array1d T = q.temperature;
-  const Array1d u = q.momentum.row(d) / q.density;
-  const Array1d Rhat = Array1d::Constant(reactor.GetUniversalGasConstant());
-
-  const Array1d c_v = q.c_p / q.gamma;
-  const Array1d R = q.c_p - c_v;
-  span<const double> M = reactor.GetMolarMasses();
-  Array1d sum_dXdx = dYdx.row(0) / M[0];
-  for (int i = 1; i < dYdx.rows(); ++i) {
-    sum_dXdx += dYdx.row(i) / M[i];
-  }
-  const Array1d dRdt = Rhat * u * sum_dXdx;
-  const Array1d dTdt = (-p * dudx - rho * u * c_v * dTdx) / (rho * c_v);
-  const Array1d drhodx =
-      dpdx / (R * T) - p / (R * T * T) * dTdx - rho * Rhat * sum_dXdx / R;
-  const Array1d dpdt =
-      -R * T * (u * drhodx + rho * dudx) + rho * R * dTdt + rho * T * dRdt;
-  for (int i = 0; i < Rank; ++i) {
-    dt.velocity.row(i) = -u * dx.velocity.row(i);
-  }
-  dt.velocity.row(d) -= dpdx / rho;
-  for (int i = 0; i < dYdx.rows(); ++i) {
-    dt.mass_fractions.row(i) = -u * dYdx.row(i);
-  }
-  dt.pressure = dpdt;
-  dt.temperature = dTdt;
-}
-
-template <int Rank>
-void MinModLimiter(Primitive<Rank>& dpdx, const Primitive<Rank>& pL,
-                   const Primitive<Rank>& pM, const Primitive<Rank>& pR) {
-  auto MinMod = [](double& q, double qL, double qM, double qR) {
-    const double sL = qM - qL;
-    const double sR = qR - qM;
-    if (sR > 0) {
-      q = std::max(0.0, std::min(sL, sR));
-    } else {
-      q = std::min(0.0, std::max(sL, sR));
-    }
-  };
-  MinMod(dpdx.pressure, pL.pressure, pM.pressure, pR.pressure);
-  MinMod(dpdx.temperature, pL.temperature, pM.temperature, pR.temperature);
-  for (int i = 0; i < Rank; ++i) {
-    MinMod(dpdx.velocity[i], pL.velocity[i], pM.velocity[i], pR.velocity[i]);
-  }
-  for (int i = 0; i < dpdx.mass_fractions.rows(); ++i) {
-    MinMod(dpdx.mass_fractions[i], pL.mass_fractions[i], pM.mass_fractions[i],
-           pR.mass_fractions[i]);
-  }
-}
-
-template <int Rank>
-void MinModLimiter(PrimitiveArray<Rank>& dpdx, const PrimitiveArray<Rank>& pL,
-                   const PrimitiveArray<Rank>& pM,
-                   const PrimitiveArray<Rank>& pR) {
-  auto MinMod = [](auto&& cons, Array1d qL, Array1d qM, Array1d qR) {
-    const Array1d sL = qM - qL;
-    const Array1d sR = qR - qM;
-    const Array1d zero = Array1d::Zero();
-    cons = (sR > 0).select(zero.max(sL.min(sR)), zero.min(sL.max(sR)));
-  };
-  MinMod(dpdx.pressure, pL.pressure, pM.pressure, pR.pressure);
-  MinMod(dpdx.temperature, pL.temperature, pM.temperature, pR.temperature);
-  for (int i = 0; i < Rank; ++i) {
-    MinMod(dpdx.velocity.row(i), pL.velocity.row(i), pM.velocity.row(i),
-           pR.velocity.row(i));
-  }
-  for (int i = 0; i < dpdx.mass_fractions.rows(); ++i) {
-    MinMod(dpdx.mass_fractions.row(i), pL.mass_fractions.row(i),
-           pM.mass_fractions.row(i), pR.mass_fractions.row(i));
-  }
-}
-
-} // namespace
-
-template <int Rank>
-void MusclHancockPrimitive<Rank>::ComputeNumericFlux(
-    Conservative& flux, span<const Complete, 4> stencil, Duration dt, double dx,
-    Direction dir) {
-  const double dt_over_dx = dt.count() / dx;
-
-  ToPrim(pL, stencil[0]);
-  ToPrim(pM, stencil[1]);
-  ToPrim(pR, stencil[2]);
-  MinModLimiter(dpdx, pL, pM, pR);
-  PrimDerivatives(GetEquation(), dpdt, stencil[1], dpdx, dir);
-
-  pR.pressure =
-      pM.pressure + 0.5 * (dt_over_dx * dpdt.pressure + dpdx.pressure);
-  pR.velocity =
-      pM.velocity + 0.5 * (dt_over_dx * dpdt.velocity + dpdx.velocity);
-  pR.temperature =
-      pM.temperature + 0.5 * (dt_over_dx * dpdt.temperature + dpdx.temperature);
-  pR.mass_fractions =
-      pM.mass_fractions +
-      0.5 * (dt_over_dx * dpdt.mass_fractions + dpdx.mass_fractions);
-  CompleteFromPrim(GetEquation(), stencil_[0], pR);
-
-  ToPrim(pL, stencil[1]);
-  ToPrim(pM, stencil[2]);
-  ToPrim(pR, stencil[3]);
-  MinModLimiter(dpdx, pL, pM, pR);
-  PrimDerivatives(GetEquation(), dpdt, stencil[2], dpdx, dir);
-  pL.pressure =
-      pM.pressure + 0.5 * (dt_over_dx * dpdt.pressure - dpdx.pressure);
-  pL.velocity =
-      pM.velocity + 0.5 * (dt_over_dx * dpdt.velocity - dpdx.velocity);
-  pL.temperature =
-      pM.temperature + 0.5 * (dt_over_dx * dpdt.temperature - dpdx.temperature);
-  pL.mass_fractions =
-      pM.mass_fractions +
-      0.5 * (dt_over_dx * dpdt.mass_fractions - dpdx.mass_fractions);
-
-  CompleteFromPrim(GetEquation(), stencil_[1], pL);
-  hll_.ComputeNumericFlux(flux, stencil_, dt, dx, dir);
-}
-
-template <int Rank>
-void MusclHancockPrimitive<Rank>::ComputeNumericFlux(
-    ConservativeArray& flux, span<const CompleteArray, 4> stencil, Duration dt,
-    double dx, Direction dir) {
-  const int nspecies = GetEquation().GetReactor().GetNSpecies();
-  const Array1d dt_over_dx = Array1d::Constant(dt.count() / dx);
-
-  ToPrim(pL_array_, stencil[0]);
-  ToPrim(pM_array_, stencil[1]);
-  ToPrim(pR_array_, stencil[2]);
-  MinModLimiter(dpdx_array_, pL_array_, pM_array_, pR_array_);
-  PrimDerivatives(GetEquation(), dpdt_array_, stencil[1], dpdx_array_, dir);
-  pR_array_.pressure =
-      pM_array_.pressure +
-      0.5 * (dt_over_dx * dpdt_array_.pressure + dpdx_array_.pressure);
-  for (int i = 0; i < Rank; ++i) {
-    pR_array_.velocity.row(i) =
-        pM_array_.velocity.row(i) +
-        0.5 * (dt_over_dx * dpdt_array_.velocity.row(i) +
-               dpdx_array_.velocity.row(i));
-  }
-  pR_array_.temperature =
-      pM_array_.temperature +
-      0.5 * (dt_over_dx * dpdt_array_.temperature + dpdx_array_.temperature);
-  for (int i = 0; i < nspecies; ++i) {
-    pR_array_.mass_fractions.row(i) =
-        pM_array_.mass_fractions.row(i) +
-        0.5 * (dt_over_dx * dpdt_array_.mass_fractions.row(i) +
-               dpdx_array_.mass_fractions.row(i));
-  }
-  CompleteFromPrim(GetEquation(), stencil_array_[0], pR_array_);
-
-  ToPrim(pL_array_, stencil[1]);
-  ToPrim(pM_array_, stencil[2]);
-  ToPrim(pR_array_, stencil[3]);
-  MinModLimiter(dpdx_array_, pL_array_, pM_array_, pR_array_);
-  PrimDerivatives(GetEquation(), dpdt_array_, stencil[2], dpdx_array_, dir);
-  pL_array_.pressure =
-      pM_array_.pressure +
-      0.5 * (dt_over_dx * dpdt_array_.pressure - dpdx_array_.pressure);
-  for (int i = 0; i < Rank; ++i) {
-    pL_array_.velocity.row(i) =
-        pM_array_.velocity.row(i) +
-        0.5 * (dt_over_dx * dpdt_array_.velocity.row(i) -
-               dpdx_array_.velocity.row(i));
-  }
-  pL_array_.temperature =
-      pM_array_.temperature +
-      0.5 * (dt_over_dx * dpdt_array_.temperature - dpdx_array_.temperature);
-  for (int i = 0; i < nspecies; ++i) {
-    pL_array_.mass_fractions.row(i) =
-        pM_array_.mass_fractions.row(i) +
-        0.5 * (dt_over_dx * dpdt_array_.mass_fractions.row(i) -
-               dpdx_array_.mass_fractions.row(i));
-  }
-  CompleteFromPrim(GetEquation(), stencil_array_[1], pL_array_);
-  hll_.ComputeNumericFlux(flux, stencil_array_, dt, dx, dir);
-}
-
-template <int Rank>
-void MusclHancockPrimitive<Rank>::ComputeNumericFlux(
-    ConservativeArray& flux, Array1d face_fractions,
-    span<const CompleteArray, 4> stencil,
-    span<const Array1d, 4> volume_fractions, Duration dt, double dx,
-    Direction dir) {
-  const int nspecies = GetEquation().GetReactor().GetNSpecies();
-  const Array1d dt_over_dx = Array1d::Constant(dt.count() / dx);
-
-  ToPrim(pL_array_, stencil[0]);
-  ToPrim(pM_array_, stencil[1]);
-  ToPrim(pR_array_, stencil[2]);
-  MinModLimiter(dpdx_array_, pL_array_, pM_array_, pR_array_);
-  PrimDerivatives(GetEquation(), dpdt_array_, stencil[1], dpdx_array_, dir);
-  Array1d zero = Array1d::Zero();
-  MaskArray mask0 = (volume_fractions[0] > 0.0);
-  dpdx_array_.pressure = mask0.select(dpdx_array_.pressure, zero);
-  dpdt_array_.pressure = mask0.select(dpdt_array_.pressure, zero);
-  dpdx_array_.temperature = mask0.select(dpdx_array_.temperature, zero);
-  dpdt_array_.temperature = mask0.select(dpdt_array_.temperature, zero);
-  for (int i = 0; i < Rank; ++i) {
-    dpdx_array_.velocity.row(i) =
-        mask0.select(dpdx_array_.velocity.row(i), zero);
-    dpdt_array_.velocity.row(i) =
-        mask0.select(dpdt_array_.velocity.row(i), zero);
-  }
-  for (int i = 0; i < nspecies; ++i) {
-    dpdx_array_.mass_fractions.row(i) =
-        mask0.select(dpdx_array_.mass_fractions.row(i), zero);
-    dpdt_array_.mass_fractions.row(i) =
-        mask0.select(dpdt_array_.mass_fractions.row(i), zero);
-  }
-  pR_array_.pressure =
-      pM_array_.pressure +
-      0.5 * (dt_over_dx * dpdt_array_.pressure + dpdx_array_.pressure);
-  for (int i = 0; i < Rank; ++i) {
-    pR_array_.velocity.row(i) =
-        pM_array_.velocity.row(i) +
-        0.5 * (dt_over_dx * dpdt_array_.velocity.row(i) +
-               dpdx_array_.velocity.row(i));
-  }
-  pR_array_.temperature =
-      pM_array_.temperature +
-      0.5 * (dt_over_dx * dpdt_array_.temperature + dpdx_array_.temperature);
-  for (int i = 0; i < nspecies; ++i) {
-    pR_array_.mass_fractions.row(i) =
-        pM_array_.mass_fractions.row(i) +
-        0.5 * (dt_over_dx * dpdt_array_.mass_fractions.row(i) +
-               dpdx_array_.mass_fractions.row(i));
-  }
-  CompleteFromPrim(GetEquation(), stencil_array_[0], pR_array_);
-
-  ToPrim(pL_array_, stencil[1]);
-  ToPrim(pM_array_, stencil[2]);
-  ToPrim(pR_array_, stencil[3]);
-  MinModLimiter(dpdx_array_, pL_array_, pM_array_, pR_array_);
-  PrimDerivatives(GetEquation(), dpdt_array_, stencil[2], dpdx_array_, dir);
-  MaskArray mask3 = (volume_fractions[3] > 0.0);
-  dpdx_array_.pressure = mask3.select(dpdx_array_.pressure, zero);
-  dpdt_array_.pressure = mask3.select(dpdt_array_.pressure, zero);
-  dpdx_array_.temperature = mask3.select(dpdx_array_.temperature, zero);
-  dpdt_array_.temperature = mask3.select(dpdt_array_.temperature, zero);
-  for (int i = 0; i < Rank; ++i) {
-    dpdx_array_.velocity.row(i) =
-        mask3.select(dpdx_array_.velocity.row(i), zero);
-    dpdt_array_.velocity.row(i) =
-        mask3.select(dpdt_array_.velocity.row(i), zero);
-  }
-  for (int i = 0; i < nspecies; ++i) {
-    dpdx_array_.mass_fractions.row(i) =
-        mask3.select(dpdx_array_.mass_fractions.row(i), zero);
-    dpdt_array_.mass_fractions.row(i) =
-        mask3.select(dpdt_array_.mass_fractions.row(i), zero);
-  }
-  pL_array_.pressure =
-      pM_array_.pressure +
-      0.5 * (dt_over_dx * dpdt_array_.pressure - dpdx_array_.pressure);
-  for (int i = 0; i < Rank; ++i) {
-    pL_array_.velocity.row(i) =
-        pM_array_.velocity.row(i) +
-        0.5 * (dt_over_dx * dpdt_array_.velocity.row(i) -
-               dpdx_array_.velocity.row(i));
-  }
-  pL_array_.temperature =
-      pM_array_.temperature +
-      0.5 * (dt_over_dx * dpdt_array_.temperature - dpdx_array_.temperature);
-  for (int i = 0; i < nspecies; ++i) {
-    pL_array_.mass_fractions.row(i) =
-        pM_array_.mass_fractions.row(i) +
-        0.5 * (dt_over_dx * dpdt_array_.mass_fractions.row(i) -
-               dpdx_array_.mass_fractions.row(i));
-  }
-  CompleteFromPrim(GetEquation(), stencil_array_[1], pL_array_);
-  hll_.ComputeNumericFlux(flux, face_fractions, stencil_array_,
-                          volume_fractions.template subspan<1, 2>(), dt, dx,
-                          dir);
-}
-
-template <int Rank>
-double MusclHancockPrimitive<Rank>::ComputeStableDt(
-    span<const Complete, 4> states, double dx, Direction dir) noexcept {
-  return 0.5 * hll_.ComputeStableDt(states.template subspan<1, 2>(), dx, dir);
-}
-
-template <int Rank>
-Array1d MusclHancockPrimitive<Rank>::ComputeStableDt(
-    span<const CompleteArray, 4> states, double dx, Direction dir) noexcept {
-  return 0.5 * hll_.ComputeStableDt(states.template subspan<1, 2>(), dx, dir);
-}
-
-template <int Rank>
-Array1d MusclHancockPrimitive<Rank>::ComputeStableDt(
-    span<const CompleteArray, 4> states, Array1d face_fraction,
-    span<const Array1d, 4> volume_fraction, double dx, Direction dir) noexcept {
-  return 0.5 * hll_.ComputeStableDt(
-                   states.template subspan<1, 2>(), face_fraction,
-                   volume_fraction.template subspan<1, 2>(), dx, dir);
-}
-
-template class MusclHancockPrimitive<1>;
-template class MusclHancockPrimitive<2>;
-template class MusclHancockPrimitive<3>;
-} // namespace ideal_gas
-
-template class FluxMethod<ideal_gas::MusclHancockPrimitive<1>>;
-template class FluxMethod<ideal_gas::MusclHancockPrimitive<2>>;
-template class FluxMethod<ideal_gas::MusclHancockPrimitive<3>>;
-
-} // namespace fub

@@ -21,10 +21,10 @@
 #ifndef FUB_IDEAL_GAS_HLLE_METHOD_HPP
 #define FUB_IDEAL_GAS_HLLE_METHOD_HPP
 
-#include "fub/equations/IdealGasMix.hpp"
+#include "fub/equations/ideal_gas_mix/EinfeldtSignalVelocities.hpp"
 #include "fub/flux_method/HllMethod.hpp"
 
-namespace fub::ideal_gas {
+namespace fub {
 
 extern template class FluxMethod<
     Hll<IdealGasMix<1>, EinfeldtSignalVelocities<IdealGasMix<1>>>>;
@@ -33,6 +33,6 @@ extern template class FluxMethod<
 extern template class FluxMethod<
     Hll<IdealGasMix<3>, EinfeldtSignalVelocities<IdealGasMix<3>>>>;
 
-} // namespace fub::ideal_gas
+} // namespace fub
 
 #endif

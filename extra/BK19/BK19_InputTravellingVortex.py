@@ -27,15 +27,19 @@ PatchHierarchy = {
 
 RunOptions = {
     'cfl': 0.45,
-    'final_time': 0.002,
+    'final_time': 1.0,
 }
 
 Output = {
     'outputs': [
         {
+            'type': 'DebugOutput',
+            'directory': './Debug/'
+        },
+        {
             'type': 'Plotfile',
-            #'intervals': [5e-5]
-            'intervals': [2.5e-05]
+            'intervals': [0.5e-2]
+            #'intervals': [1e-2]
         },
     ]
 }

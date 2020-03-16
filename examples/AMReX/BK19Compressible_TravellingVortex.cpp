@@ -247,26 +247,29 @@ void MyMain(const fub::ProgramOptions& options) {
   integrator_options.Print(info);
   BK19LevelIntegrator level_integrator(equation, std::move(advection), linop,
                                        integrator_options);
+  fub::NoSubcycleSolver solver(std::move(level_integrator));
 
-  BK19AdvectiveFluxes& Pv = level_integrator.GetContext().GetAdvectiveFluxes(0);
+  BK19AdvectiveFluxes& Pv = solver.GetContext().GetAdvectiveFluxes(0);
   RecomputeAdvectiveFluxes(
       index, Pv.on_faces, Pv.on_cells,
-      level_integrator.GetContext().GetScratch(0),
-      level_integrator.GetContext().GetGeometry(0).periodicity());
-
-  fub::NoSubcycleSolver solver(std::move(level_integrator));
+      solver.GetContext().GetScratch(0),
+      solver.GetContext().GetGeometry(0).periodicity());
 
   using namespace std::literals::chrono_literals;
   std::string base_name = "BK19_CompTravellingVortex/";
 
   fub::OutputFactory<GriddingAlgorithm> factory;
   factory.RegisterOutput<fub::AnyOutput<GriddingAlgorithm>>("Plotfile", WriteBK19Plotfile{base_name});
+  factory.RegisterOutput<fub::amrex::DebugOutput>(
+      "DebugOutput",
+      solver.GetGriddingAlgorithm()->GetPatchHierarchy().GetDebugStorage());
   fub::MultipleOutputs<GriddingAlgorithm> output{std::move(factory), fub::GetOptions(options, "Output")};
 
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options = fub::GetOptions(options, "RunOptions");
   BOOST_LOG(info) << "RunOptions:";
   run_options.Print(info);
+
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }
 
@@ -277,7 +280,6 @@ int main(int argc, char** argv) {
   {
     std::optional<fub::ProgramOptions> vm = fub::ParseCommandLine(argc, argv);
     if (vm) {
-
       MyMain(*vm);
     }
   }
