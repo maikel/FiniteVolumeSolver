@@ -22,7 +22,7 @@
 #ifndef FUB_BK19_LEVEL_INTEGRATOR_HPP
 #define FUB_BK19_LEVEL_INTEGRATOR_HPP
 
-#include "fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp"
+#include "fub/AMReX/MLMG/MLNodeHelmholtz.hpp"
 #include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
 #include "fub/equations/CompressibleAdvection.hpp"
 #include "fub/ext/Eigen.hpp"
@@ -102,7 +102,7 @@ public:
 
   BK19LevelIntegrator(
       const CompressibleAdvection<Rank>& equation, AdvectionSolver advection,
-      std::shared_ptr<::amrex::MLNodeHelmDualCstVel> linop,
+      std::shared_ptr<::amrex::MLNodeHelmholtz> linop,
       const BK19LevelIntegratorOptions& options = BK19LevelIntegratorOptions());
 
   void ResetPatchHierarchy(std::shared_ptr<GriddingAlgorithm> grid);
@@ -115,7 +115,7 @@ private:
   BK19LevelIntegratorOptions options_;
   CompressibleAdvection<Rank> equation_;
   fub::IndexMapping<fub::CompressibleAdvection<2>> index_;
-  std::shared_ptr<::amrex::MLNodeHelmDualCstVel> lin_op_;
+  std::shared_ptr<::amrex::MLNodeHelmholtz> lin_op_;
 };
 
 void WriteRawField(const std::string& path, const std::string& name,

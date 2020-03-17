@@ -22,7 +22,7 @@
 #include "fub/AMReX/bk19/BK19LevelIntegrator.hpp"
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/ForEachIndex.hpp"
-#include "fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp"
+#include "fub/AMReX/MLMG/MLNodeHelmholtz.hpp"
 #include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
 #include "fub/AMReX/output/DebugOutput.hpp"
 #include <AMReX_MLMG.H>
@@ -241,7 +241,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
 
 ::amrex::MultiFab DoEulerBackward_(const Equation& equation,
                                    const IndexMapping<Equation>& index,
-                                   ::amrex::MLNodeHelmDualCstVel& lin_op,
+                                   ::amrex::MLNodeHelmholtz& lin_op,
                                    const BK19LevelIntegratorOptions& options,
                                    BK19IntegratorContext& context, int level,
                                    Duration dt, DebugSnapshotProxy& dbg_sn) {
@@ -369,7 +369,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
 
 void DoEulerForward_(const Equation& equation,
                      const IndexMapping<Equation>& index,
-                     ::amrex::MLNodeHelmDualCstVel& lin_op,
+                     ::amrex::MLNodeHelmholtz& lin_op,
                      BK19IntegratorContext& context, int level, Duration dt,
                      DebugSnapshotProxy& dbg_sn) {
   MultiFab& scratch = context.GetScratch(level);
@@ -469,7 +469,7 @@ BK19LevelIntegratorOptions::BK19LevelIntegratorOptions(
 
 BK19LevelIntegrator::BK19LevelIntegrator(
     const CompressibleAdvection<Rank>& equation, AdvectionSolver advection,
-    std::shared_ptr<::amrex::MLNodeHelmDualCstVel> linop,
+    std::shared_ptr<::amrex::MLNodeHelmholtz> linop,
     const BK19LevelIntegratorOptions& options)
     : AdvectionSolver(std::move(advection)), options_(options),
       equation_(equation), index_(equation_), lin_op_(std::move(linop)) {}

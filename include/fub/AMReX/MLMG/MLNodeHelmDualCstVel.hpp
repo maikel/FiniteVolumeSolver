@@ -40,12 +40,12 @@
 #define AMREX_ML_NODEHELM_DUAL_CSTVEL_HPP
 
 #include <AMReX.H>
-#include <AMReX_MLNodeLinOp.H>
+#include "fub/AMReX/MLMG/MLNodeHelmholtz.hpp"
 
 namespace amrex {
 
 class MLNodeHelmDualCstVel
-    : public MLNodeLinOp
+    : public MLNodeHelmholtz
 {
 public:
 

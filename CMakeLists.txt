@@ -376,6 +376,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     include/fub/AMReX/FluxMethod.hpp
     include/fub/AMReX/ScopeGuard.hpp
     include/fub/AMReX/ViewFArrayBox.hpp
+    include/fub/AMReX/MLMG/MLNodeHelmholtz.hpp
     include/fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp
     include/fub/AMReX/tagging/TagBuffer.hpp
     include/fub/AMReX/tagging/ConstantRegion.hpp
@@ -435,7 +436,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
       CONAN_PKG::HDF5)
   target_include_directories(FiniteVolumeSolver.AMReX PUBLIC ${HDF5_C_INCLUDE_DIR})
 
-  if (AMReX_2D_FOUND) 
+  if (AMReX_2D_FOUND)
     target_sources(FiniteVolumeSolver.AMReX PRIVATE
       include/fub/AMReX/bk19/BK19LevelIntegrator.hpp
       include/fub/AMReX/bk19/BK19IntegratorContext.hpp
