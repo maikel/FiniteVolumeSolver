@@ -72,8 +72,8 @@ GriddingAlgorithm::GriddingAlgorithm(const GriddingAlgorithm& other)
   }
 }
 
-GriddingAlgorithm& GriddingAlgorithm::
-operator=(const GriddingAlgorithm& other) {
+GriddingAlgorithm&
+GriddingAlgorithm::operator=(const GriddingAlgorithm& other) {
   GriddingAlgorithm tmp{other};
   return *this = std::move(tmp);
 }
@@ -119,8 +119,8 @@ GriddingAlgorithm::GriddingAlgorithm(GriddingAlgorithm&& other) noexcept
   }
 }
 
-GriddingAlgorithm& GriddingAlgorithm::
-operator=(GriddingAlgorithm&& other) noexcept {
+GriddingAlgorithm&
+GriddingAlgorithm::operator=(GriddingAlgorithm&& other) noexcept {
   AmrMesh::verbose = std::move(other.verbose);
   AmrMesh::max_level = std::move(other.max_level);
   AmrMesh::ref_ratio = std::move(other.ref_ratio);
@@ -250,7 +250,8 @@ void GriddingAlgorithm::FillMultiFabFromLevel(::amrex::MultiFab& multifab,
         multifab, level.time_point.count(),
         *hierarchy_.GetOptions().index_spaces[fine], cmf, ct, fmf, ft, 0, 0,
         n_comps, cgeom, fgeom, coarse_boundary, 0, fine_boundary, 0, ratio,
-        mapper, bcr, 0, ::amrex::NullInterpHook<FArrayBox>(), ::amrex::NullInterpHook<FArrayBox>());
+        mapper, bcr, 0, ::amrex::NullInterpHook<::amrex::FArrayBox>(),
+        ::amrex::NullInterpHook<::amrex::FArrayBox>());
   }
 }
 

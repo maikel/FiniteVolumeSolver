@@ -75,16 +75,16 @@ PatchLevel::PatchLevel(const PatchLevel& other)
     ForEachFab(execution::openmp, ba, dm, [&](const ::amrex::MFIter& mfi) {
       if (flags[mfi].getType() == ::amrex::FabType::singlevalued) {
         ::amrex::Box tilebox = mfi.growntilebox();
-        (*unshielded[d])[mfi].copy((*other.unshielded[d])[mfi], tilebox,
-                                   ::amrex::SrcComp(0), ::amrex::DestComp(0),
-                                   ::amrex::NumComps(2));
-        (*shielded_left[d])[mfi].copy((*other.shielded_left[d])[mfi], tilebox,
-                                      ::amrex::SrcComp(0), ::amrex::DestComp(0),
-                                      ::amrex::NumComps(2));
-        (*shielded_right[d])[mfi].copy(
+        (*unshielded[d])[mfi].copy<::amrex::RunOn::Host>(
+            (*other.unshielded[d])[mfi], tilebox, ::amrex::SrcComp(0),
+            ::amrex::DestComp(0), ::amrex::NumComps(2));
+        (*shielded_left[d])[mfi].copy<::amrex::RunOn::Host>(
+            (*other.shielded_left[d])[mfi], tilebox, ::amrex::SrcComp(0),
+            ::amrex::DestComp(0), ::amrex::NumComps(2));
+        (*shielded_right[d])[mfi].copy<::amrex::RunOn::Host>(
             (*other.shielded_right[d])[mfi], tilebox, ::amrex::SrcComp(0),
             ::amrex::DestComp(0), ::amrex::NumComps(2));
-        (*doubly_shielded[d])[mfi].copy(
+        (*doubly_shielded[d])[mfi].copy<::amrex::RunOn::Host>(
             (*other.doubly_shielded[d])[mfi], tilebox, ::amrex::SrcComp(0),
             ::amrex::DestComp(0), ::amrex::NumComps(2));
       }
