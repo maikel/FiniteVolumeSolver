@@ -259,16 +259,18 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   MultiFab diagfac_cells(on_cells, distribution_map, one_component,
                          scratch.nGrow());
   MultiFab diagfac_nodes(on_nodes, distribution_map, one_component, no_ghosts);
-  ForEachFab(diagfac_cells, [&](const MFIter& mfi) {
-    span<double> diagfac = MakePatchDataView(diagfac_cells[mfi], 0).Span();
-    span<double> PTdensity =
-        MakePatchDataView(scratch[mfi], index.PTdensity).Span();
-    FUB_ASSERT(diagfac.size() == PTdensity.size());
-    for (std::ptrdiff_t i = 0; i < diagfac.size(); ++i) {
-      diagfac[i] = -equation.alpha_p * equation.Msq / (equation.gamma - 1.0) *
-                   std::pow(PTdensity[i], 2.0 - equation.gamma) / dt.count();
-    }
+  ForEachFab(execution::openmp, diagfac_cells, [&](const MFIter& mfi) {
+    ::amrex::Box tilebox = mfi.growntilebox();
+    StridedDataView<double, AMREX_SPACEDIM> diagfac = MakePatchDataView(diagfac_cells[mfi], 0, tilebox);
+    StridedDataView<double, AMREX_SPACEDIM> PTdensity = MakePatchDataView(scratch[mfi], index.PTdensity, tilebox);
+    ForEachRow(std::tuple{diagfac, PTdensity}, [equation, dt](span<double> dfac,  span<double> PTdens) {
+      for (std::ptrdiff_t i = 0; i < dfac.size(); ++i) {
+        dfac[i] = -equation.alpha_p * equation.Msq / (equation.gamma - 1.0) *
+                   std::pow(PTdens[i], 2.0 - equation.gamma) / dt.count();
+      }
+    });
   });
+
   AverageCellToNode_(diagfac_nodes, 0, diagfac_cells, 0);
 
   // get pi from scratch
@@ -425,16 +427,19 @@ void DoEulerForward_(const Equation& equation,
   MultiFab dpidP_cells(on_cells, distribution_map, one_component,
                        scratch.nGrow());
   MultiFab dpidP_nodes(on_nodes, distribution_map, one_component, no_ghosts);
-  ForEachFab(dpidP_cells, [&](const MFIter& mfi) {
-    span<double> dpidP = MakePatchDataView(dpidP_cells[mfi], 0).Span();
-    span<double> PTdensity =
-        MakePatchDataView(scratch[mfi], index.PTdensity).Span();
-    FUB_ASSERT(dpidP.size() == PTdensity.size());
-    for (std::ptrdiff_t i = 0; i < dpidP.size(); ++i) {
-      dpidP[i] = -dt.count() * (equation.gamma - 1.0) / equation.Msq *
-                 std::pow(PTdensity[i], equation.gamma - 2.0);
-    }
+  ForEachFab(execution::openmp, dpidP_cells, [&](const MFIter& mfi) {
+    ::amrex::Box tilebox = mfi.growntilebox();
+    StridedDataView<double, AMREX_SPACEDIM> dpidP = MakePatchDataView(dpidP_cells[mfi], 0, tilebox);
+    StridedDataView<double, AMREX_SPACEDIM> PTdensity = MakePatchDataView(scratch[mfi], index.PTdensity, tilebox);
+    ForEachRow(std::tuple{dpidP, PTdensity}, [equation, dt](span<double> dpi,  span<double> PTdens) {
+      for (std::ptrdiff_t i = 0; i < dpi.size(); ++i) {
+        dpi[i] = -dt.count() * (equation.gamma - 1.0) / equation.Msq *
+                 std::pow(PTdens[i], equation.gamma - 2.0);
+      }
+    });
   });
+
+
   AverageCellToNode_(dpidP_nodes, 0, dpidP_cells, 0);
   MultiFab::Multiply(div, dpidP_nodes, 0, 0, one_component, no_ghosts);
   // Note: It would be nice to just multiply by alpha_p=0 in the pseudo
