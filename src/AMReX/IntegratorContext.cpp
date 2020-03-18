@@ -343,7 +343,7 @@ void IntegratorContext::FillGhostLayerTwoLevels(
   ::amrex::FillPatchTwoLevels(
       scratch, ft[0], *index_space[fine], cmf, ct, fmf, ft, 0, 0, nc, cgeom,
       fgeom, coarse_condition, 0, fine_condition, 0, ratio, mapper, bcr, 0,
-      ::amrex::NullInterpHook(), ::amrex::NullInterpHook());
+      ::amrex::NullInterpHook<FArrayBox>(), ::amrex::NullInterpHook<FArrayBox>());
 #else
   ::amrex::FillPatchTwoLevels(scratch, ft[0], cmf, ct, fmf, ft, 0, 0, nc, cgeom,
                               fgeom, coarse_condition, 0, fine_condition, 0,
