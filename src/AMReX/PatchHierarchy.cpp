@@ -216,6 +216,42 @@ const ::amrex::Geometry& PatchHierarchy::GetGeometry(int level) const {
   return patch_level_geometry_[static_cast<std::size_t>(level)];
 }
 
+const ::amrex::Vector<::amrex::Geometry> PatchHierarchy::GetGeometries() const {
+  const std::size_t nlevels = patch_level_geometry_.size();
+  ::amrex::Vector<::amrex::Geometry> geoms(nlevels);
+  for (std::size_t level = 0; level < nlevels; ++level) {
+    geoms[level] = patch_level_geometry_[level];
+  }
+  return geoms;
+}
+
+const ::amrex::Vector<::amrex::BoxArray> PatchHierarchy::GetBoxArrays() const {
+  const std::size_t nlevels = patch_level_geometry_.size();
+  ::amrex::Vector<::amrex::BoxArray> bas(nlevels);
+  for (std::size_t level = 0; level < nlevels; ++level) {
+    bas[level] = GetPatchLevel(level).box_array;
+  }
+  return bas;
+}
+
+const ::amrex::Vector<::amrex::DistributionMapping> PatchHierarchy::GetDistributionMappings() const {
+  const std::size_t nlevels = patch_level_geometry_.size();
+  ::amrex::Vector<::amrex::DistributionMapping> dms(nlevels);
+  for (std::size_t level = 0; level < nlevels; ++level) {
+    dms[level] = GetPatchLevel(level).distribution_mapping;
+  }
+  return dms;
+}
+
+const ::amrex::Vector<const ::amrex::MultiFab*> PatchHierarchy::GetData() const {
+  const std::size_t nlevels = GetNumberOfLevels();
+  ::amrex::Vector<const ::amrex::MultiFab*> data(nlevels);
+  for (std::size_t level = 0; level < nlevels; ++level) {
+    data[level] = &GetPatchLevel(level).data;
+  }
+  return data;
+}
+
 const PatchHierarchyOptions& PatchHierarchy::GetOptions() const noexcept {
   return options_;
 }
