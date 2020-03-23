@@ -19,8 +19,8 @@ At last, this library is also capable of handling embedded boundaries in a dimen
     - [Policy Pattern](#policy-pattern)
     - [Structure of a Simulation](#structure-of-a-simulation)
     - [Data Storage: PatchHierarchy, GriddingAlgorithm and IntegratorContext](#data-storage-patchhierarchy-griddingalgorithm-and-integratorcontext)
+    - [Algorithmic Choice: FluxMethod, TimeIntegrator, CompleteFromCons](#algorithmic-choice-fluxmethod-timeintegrator-completefromcons)
     - [Conservative and Complete States](#conservative-and-complete-states)
-    - [FluxMethod, TimeIntegrator, CompleteFromCons](#fluxmethod-timeintegrator-completefromcons)
     - [Implement a new FluxMethod (simple case)](#implement-a-new-fluxmethod-simple-case)
 
 ## Installation
@@ -341,7 +341,7 @@ Copying a `GriddingAlgorithm` by value will deeply copy all data on all MPI rank
 
 An `IntegratorContext` allocates, manages and provides access to additional data that is needed for every conservative AMR scheme, such as cell-centered and face-centered data arrays with ghost cell layers. It also manages face-centered data on the coarse-fine interface between two refinement levels.
 
-In to addition to managing the data, every integrator context defines the following member functions.
+In addition to managing the data, every integrator context defines the following member functions.
 
 ```cpp
 struct IntegratorContext {
@@ -425,6 +425,25 @@ struct IntegratorContext {
 This is the minimum amount of functions needed to build common conservative AMR schemes on top of such an integrator context.
 The functions `ComputeStableDt`, `ComputeNumericFluxes`, `UpdateConservatively` and `CompleteFromCons` are customization points of `IntegratorContext`. I. e. one needs to provide objects for the policy concepts `FluxMethod<IntegratorContext>`, `TimeIntegrator<IntegratorContext>` and `CompleteFromConsReconstruction<IntegratorContext>` to define the behaviour of those functions.
 
+The other functions as `AccumulateCoarseFineFluxes`, `ApplyFluxCorrection` will be called automatically by the respective AMR integration scheme and will do the right thing such that the solution remains conservative up to machine accuracy.
+
+### Algorithmic Choice: FluxMethod, TimeIntegrator, CompleteFromCons
+
+We now describe the customization points for an integrator context.
+
+A type `FM` which satisfies the `FluxMethod<IntegratorContext>` concept defines two actions `ComputeStableDt` and `ComputeNumericFluxes` on an integrator context.
+The `ComputeStableDt` returns a time step size such that the CFL condition is satisfied.
+The `ComputeNumericFluxes` shall fill the face-centered flux arrays which will be used by the `TimeIntegrator` to update the conservative state variables.
+
+```cpp
+template <typename FM, typename Equation, int StencilSize>
+concept FluxMethod = requires (FM& flux_method, IntegratorContext& context, int level, Duration dt, int dir) {
+  { flux_method.ComputeNumericFlux(context, level, dt, dir) };
+  { flux_method.ComputeStableDt(context, level, dir) } -> Duration;
+  { static_cast<const FM&>(flux_method).GetStencilSize() } -> int;
+};
+```
+
 ### Conservative and Complete States
 
 Each equation defines two kinds of states: `Conservative` and `Complete` states.
@@ -454,8 +473,6 @@ struct -implementation-defined-class-name- {
   double speed_of_sound;
 };
 ```
-
-### FluxMethod, TimeIntegrator, CompleteFromCons
 
 ### Implement a new FluxMethod (simple case)
 
