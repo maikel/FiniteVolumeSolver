@@ -262,7 +262,8 @@ void GriddingAlgorithm::FillMultiFabFromLevel(::amrex::MultiFab& multifab,
         multifab, level.time_point.count(),
         *hierarchy_.GetOptions().index_spaces[fine], cmf, ct, fmf, ft, 0, 0,
         n_comps, cgeom, fgeom, coarse_boundary, 0, fine_boundary, 0, ratio,
-        mapper, bcr, 0, ::amrex::NullInterpHook(), ::amrex::NullInterpHook());
+        mapper, bcr, 0, ::amrex::NullInterpHook<::amrex::FArrayBox>(),
+        ::amrex::NullInterpHook<::amrex::FArrayBox>());
   }
 }
 

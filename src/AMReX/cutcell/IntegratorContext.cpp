@@ -437,7 +437,8 @@ void IntegratorContext::FillGhostLayerTwoLevels(int fine,
   ::amrex::FillPatchTwoLevels(
       scratch, ft[0], *GetPatchHierarchy().GetOptions().index_spaces[sfine],
       cmf, ct, fmf, ft, 0, 0, nc, cgeom, fgeom, cbc, 0, fbc, 0, ratio, mapper,
-      bcr, 0, ::amrex::NullInterpHook(), ::amrex::NullInterpHook());
+      bcr, 0, ::amrex::NullInterpHook<::amrex::FArrayBox>(),
+      ::amrex::NullInterpHook<::amrex::FArrayBox>());
 }
 
 void IntegratorContext::FillGhostLayerTwoLevels(int fine, int coarse) {

@@ -39,6 +39,11 @@ public:
     parent_path_ = GetOptionOr(options, "directory", parent_path_);
   }
 
+  PlotfileOutput(const ProgramOptions& options, const Equation& equation)
+      : OutputAtFrequencyOrInterval(options), equation_(equation) {
+    parent_path_ = GetOptionOr(options, "directory", parent_path_);
+  }
+
   PlotfileOutput(std::vector<std::ptrdiff_t> freqs,
                  std::vector<Duration> intervals, const Equation& equation,
                  const std::string& path)

@@ -45,32 +45,25 @@ struct CircleData {
   }
 };
 
-int main() {
+void MyMain(const fub::ProgramOptions& opts) {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
   fub::amrex::ScopeGuard guard{};
 
-  fub::InitializeLogging(MPI_COMM_WORLD);
-
   constexpr int Dim = AMREX_SPACEDIM;
   static_assert(AMREX_SPACEDIM >= 2);
 
-  const std::array<int, Dim> n_cells{AMREX_D_DECL(128, 128, 1)};
-  const std::array<double, Dim> xlower{AMREX_D_DECL(-1.0, -1.0, -1.0)};
-  const std::array<double, Dim> xupper{AMREX_D_DECL(+1.0, +1.0, +1.0)};
-
   fub::Advection2d equation{{1.0, 1.0}};
+  fub::SeverityLogger log = fub::GetInfoLogger();
 
-  fub::amrex::CartesianGridGeometry geometry;
-  geometry.cell_dimensions = n_cells;
-  geometry.coordinates = amrex::RealBox(xlower, xupper);
-  geometry.periodicity = std::array<int, Dim>{AMREX_D_DECL(1, 1, 1)};
+  fub::amrex::CartesianGridGeometry geometry = fub::GetOptions(opts, "GridGeometry");
+  BOOST_LOG(log) << "GridGeometry:";
+  geometry.Print(log);
 
-  fub::amrex::PatchHierarchyOptions hier_opts{};
-  hier_opts.max_number_of_levels = 6;
-  hier_opts.refine_ratio = amrex::IntVect(AMREX_D_DECL(2, 2, 1));
-  hier_opts.blocking_factor = amrex::IntVect(AMREX_D_DECL(8, 8, 1));
+  fub::amrex::PatchHierarchyOptions hier_opts = fub::GetOptions(opts, "PatchHierarchy");
+  BOOST_LOG(log) << "PatchHierarchy:";
+  hier_opts.Print(log);
 
   using State = fub::Advection2d::Complete;
   fub::amrex::GradientDetector gradient{equation,
@@ -96,20 +89,36 @@ int main() {
   // fub::NoSubcycleSolver solver(std::move(level_integrator));
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
-  std::string base_name = "Advection_Godunov/";
-
   using namespace std::literals::chrono_literals;
-  fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> output{};
-  output.AddOutput(std::make_unique<fub::amrex::PlotfileOutput<fub::Advection2d>>(std::vector<std::ptrdiff_t>{},
-          std::vector<fub::Duration>{0.1s}, equation, base_name));
-  output.AddOutput(
-      std::make_unique<fub::CounterOutput<fub::amrex::GriddingAlgorithm>>(
-          wall_time_reference, std::vector<std::ptrdiff_t>{},
-          std::vector<fub::Duration>{0.5s}));
+  using Plotfile = fub::amrex::PlotfileOutput<fub::Advection2d>;
+  using CounterOutput =
+      fub::CounterOutput<fub::amrex::GriddingAlgorithm, std::chrono::milliseconds>;
+  fub::OutputFactory<fub::amrex::GriddingAlgorithm> factory{};
+  factory.RegisterOutput<Plotfile>("Plotfile", equation);
+  factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
+  factory.RegisterOutput<fub::amrex::WriteHdf5>("HDF5");
+  fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> output(
+      std::move(factory), fub::GetOptions(opts, "Output"));
 
   output(*grid);
-  fub::RunOptions run_options{};
-  run_options.final_time = 2.0s;
-  run_options.cfl = 0.9;
+  fub::RunOptions run_options = fub::GetOptions(opts, "RunOptions");
+  BOOST_LOG(log) << "RunOptions:";
+  run_options.Print(log);
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
+}
+
+
+int main(int argc, char** argv) {
+  MPI_Init(nullptr, nullptr);
+  fub::InitializeLogging(MPI_COMM_WORLD);
+  pybind11::scoped_interpreter interpreter{};
+  std::optional<fub::ProgramOptions> opts = fub::ParseCommandLine(argc, argv);
+  if (opts) {
+    MyMain(*opts);
+  }
+  int flag = -1;
+  MPI_Finalized(&flag);
+  if (!flag) {
+    MPI_Finalize();
+  }
 }
