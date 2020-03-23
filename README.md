@@ -267,7 +267,88 @@ Multiple solvers can share a common gridding algorithm and will hold a member va
 Given a shared `GriddingAlgorithm` a solver is being able to refine the patch hierarchy or to fill ghost cell boundaries at any given time of its algorithm.
 Copying a `GriddingAlgorithm` by value will deeply copy all data on all MPI ranks. This can be useful to create fall-back scenarios of a simulation.
 
-An `IntegratorContext` allocates and manages additional data that is needed for every hyperbolic AMR scheme, such as cell-centered and face-centered data arrays with ghost cell layers.
+An `IntegratorContext` allocates and manages additional data that is needed for every conservative AMR scheme, such as cell-centered and face-centered data arrays with ghost cell layers. It also manages face-centered data on the coarse-fine interface between two refinement levels.
+
+Every integrator context defines the following member functions
+
+```cpp
+struct IntegratorContext {
+   /// \brief Replaces the underlying gridding algorithm with the specified one.
+  void
+  ResetHierarchyConfiguration(std::shared_ptr<GriddingAlgorithm> gridding);
+
+  /// \brief Whenever the gridding algorithm changes the data hierarchy this
+  /// function will regrid all distributed helper variables managed by the
+  /// context.
+  ///
+  /// \param[in] level  The level number of the coarsest level which changed its
+  /// shape. Regrid all levels finer than level.
+  void ResetHierarchyConfiguration(int level = 0);
+
+  /// \brief Copy data on the specified level from the underlying PatchHierarchy
+  /// to the scratch.
+  ///
+  /// This function does not fill the ghost cell layer.
+  void CopyDataToScratch(int level_num);
+
+  /// \brief Copy data on the specified level from the scratch to the underlying
+  /// PatchHierarchy.
+  void CopyScratchToData(int level_num);
+
+  /// \brief Applies the boundary condition for the scratch space on level
+  /// `level` in direcition `dir`.
+  ///
+  /// \param level  The refinement level on which the boundary condition shall
+  /// be used.
+  void ApplyBoundaryCondition(int level, Direction dir);
+  void ApplyBoundaryCondition(int level, Direction dir, BoundaryCondition& bc);
+
+  /// @{
+  /// \brief Fills the ghost layer of the scratch data and interpolates in the
+  /// coarse fine layer.
+  void FillGhostLayerTwoLevels(int level, BoundaryCondition& fbc, int coarse,
+                               BoundaryCondition& cbc);
+  void FillGhostLayerTwoLevels(int level, int coarse);
+  /// @}
+
+  /// @{
+  /// \brief Fills the ghost layer of the scratch data and does nothing in the
+  /// coarse fine layer.
+  void FillGhostLayerSingleLevel(int level, BoundaryCondition& bc);
+  void FillGhostLayerSingleLevel(int level);
+  /// @}
+
+  /// \brief Returns a estimate for a stable time step size which can be taken
+  /// for specified level number in direction dir.
+  [[nodiscard]] Duration ComputeStableDt(int level, Direction dir);
+
+  /// \brief Fill the flux MultiFab with numeric fluxes based on current states
+  /// in scratch.
+  void ComputeNumericFluxes(int level, Duration dt, Direction dir);
+
+  /// \brief Apply a conservative time update for each conservative variable on
+  /// the specified level number and direction.
+  void UpdateConservatively(int level, Duration dt, Direction dir);
+
+  /// \brief Reconstruct complete state variables from conservative ones.
+  void CompleteFromCons(int level, Duration dt);
+
+  /// \brief Accumulate fluxes on the coarse fine interfaces for a specified
+  /// fine level number.
+  void AccumulateCoarseFineFluxes(int level, double time_scale, Direction dir);
+
+  /// \brief Replace the coarse fluxes by accumulated fine fluxes on the coarse
+  /// fine interfaces.
+  void ApplyFluxCorrection(int fine, int coarse, Duration dt);
+
+  /// \brief Resets all accumulates fluxes to zero.
+  void ResetCoarseFineFluxes(int fine, int coarse);
+
+  /// \brief Coarsen scratch data from a fine level number to a coarse level
+  /// number.
+  void CoarsenConservatively(int fine, int coarse);
+};
+```
 
 ## Conservative and Complete States
 
