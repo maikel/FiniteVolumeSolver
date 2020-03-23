@@ -26,8 +26,8 @@
 
 namespace amrex {
 
-class MLNodeHelmholtz : public MLNodeLinOp {
-public:
+struct MLNodeHelmholtz : public MLNodeLinOp {
+
   virtual ~MLNodeHelmholtz(){};
 
   virtual void setSigma(int amrlev, const MultiFab& a_sigma) = 0;
@@ -42,7 +42,6 @@ public:
                        const Vector<const MultiFab*>& rhnd,
                        const Vector<MultiFab*>& rhcc) = 0;
 
-private:
 };
 
 } // namespace amrex
