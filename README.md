@@ -423,6 +423,7 @@ struct IntegratorContext {
 ```
 
 This is the minimum amount of functions needed to build common conservative AMR schemes on top of such an integrator context.
+The functions `ComputeStableDt`, `ComputeNumericFluxes`, `UpdateConservatively` and `CompleteFromCons` are customization points of `IntegratorContext`. I. e. one needs to provide objects for the policy concepts `FluxMethod<IntegratorContext>`, `TimeIntegrator<IntegratorContext>` and `CompleteFromConsReconstruction<IntegratorContext>` to define the behaviour of those functions.
 
 ### Conservative and Complete States
 
