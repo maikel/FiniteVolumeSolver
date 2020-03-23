@@ -9,7 +9,21 @@ Furthermore, a lot of helper classes exist to generate distributed grids for dat
 
 At last, this library is also capable of handling embedded boundaries in a dimensionally split setting as defined in [Klein2009].
 
-# Installation
+- [Finite Volume Solver](#finite-volume-solver)
+  - [Installation](#installation)
+  - [Conan Configuration](#conan-configuration)
+  - [MPI Installation](#mpi-installation)
+  - [CMake Installation](#cmake-installation)
+  - [Building the Library](#building-the-library)
+  - [Overview](#overview)
+  - [Policy Pattern](#policy-pattern)
+  - [Structure of a Simulation](#structure-of-a-simulation)
+  - [Data Storage: PatchHierarchy, GriddingAlgorithm and IntegratorContext](#data-storage-patchhierarchy-griddingalgorithm-and-integratorcontext)
+  - [Conservative and Complete States](#conservative-and-complete-states)
+  - [FluxMethod, TimeIntegrator, CompleteFromCons](#fluxmethod-timeintegrator-completefromcons)
+  - [Implement a new FluxMethod (simple case)](#implement-a-new-fluxmethod-simple-case)
+
+## Installation
 
 ## Conan Configuration
 
@@ -28,7 +42,8 @@ or
 To test whether conan is installed type `> conan` in your command line window.
 
 Expected Output:
-```
+
+```text
 > conan
 Consumer commands
   install    Installs the requirements specified in a recipe (conanfile.py or conanfile.txt).
@@ -72,13 +87,13 @@ Conan commands. Type "conan <command> -h" for help
 As a first step, you have to create a [conan profile](https://docs.conan.io/en/latest/reference/commands/misc/profile.html), which describes which toolchain you want to use.
 To create an auto-detected tool-chain use the command
 
-```
-> conan profile new default --detect 
+```text
+> conan profile new default --detect
 ```
 
 In the case of GCC make sure to use the C++11 ABI. Unfortunately, conan does not choose this by default and we have to adjust the configuration by
 
-```
+```text
 > conan profile update settings.compiler.libcxx=libstdc++11 default
 > conan profile show default
 Configuration for profile default:
@@ -99,40 +114,40 @@ build_type=Release
 
 Note: We need a minimum GCC version of 8 or a minimum LLVM clang version of 5.
 
-We added some custom installation recipes which `conan` can use to install dependencies like `AMReX` or `HDF5`. These are stored in a `conan` repository and we need to point `conan` to this repository. This is done via the command line 
+We added some custom installation recipes which `conan` can use to install dependencies like `AMReX` or `HDF5`. These are stored in a `conan` repository and we need to point `conan` to this repository. This is done via the command line
 
-```
+```text
 > conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/finite-volume
 ```
 
 ## MPI Installation
 
-Make sure to have some MPI implementation on your system such that your current `conan` profile is able to link against it. This can be achieved by adapting the compiler option of your profile. 
+Make sure to have some MPI implementation on your system such that your current `conan` profile can link against it. This can be achieved by adapting the compiler option of your profile.
 
 ## CMake Installation
 
-CMake is a build generation tool and generates build configuration as Makefiles for example. 
+CMake is a build generation tool and generates build configuration as Makefiles for example.
 
-Before we start installing all dependencies with `conan` we need to install a rather new version of `CMake`. `AMReX` requires a minimal `CMake` version of 3.14. Fortunately `CMake` is quite simple to download and binary packages can be found at https://cmake.org/download/.
+Before we start installing all dependencies with `conan` we need to install a rather new version of `CMake`. `AMReX` requires a minimal `CMake` version of 3.14. Fortunately `CMake` is quite simple to download and binary packages can be found [here](https://cmake.org/download/).
 
 ## Building the Library
 
-First use git and clone the library to a local directory 
- 
-```
+First use git and clone the library to a local directory
+
+```bash
 > git clone git@git.imp.fu-berlin.de:ag-klein/FiniteVolumeSolver.git
 ```
 
 If you want to build the unit tests you need to pull `Catch2` as a git submodule. Enter the source direction and call
 
-```
+```bash
 > cd FiniteVolumeSolver/
 ./FiniteVolumeSolver> git submodule update --init
 ```
 
-This will checkout the `develop` branch by default and create a folder named with relative path `./FiniteVolumeSolver`. Next, we create an out-of-source build directory where we want to build the library archives and example binaries. 
+This will checkout the `develop` branch by default and create a folder named with relative path `./FiniteVolumeSolver`. Next, we create an out-of-source build directory where we want to build the library archives and example binaries.
 
-```
+```bash
 ./FiniteVolumeSolver> mkdir build
 ./FiniteVolumeSolver> cd build
 ./FiniteVolumeSolver/build> cd build
@@ -142,49 +157,49 @@ Inside the `build` directory we use conan to install the dependencies with the o
 
 ```bash
 AMReX:eb = True|False [True] # enable embedded boundaries / cut-cells
-AMReX:omp = True|False [True] # enable OpenMP parallelization 
+AMReX:omp = True|False [True] # enable OpenMP parallelization
 AMReX:dim = 1|2|3 [3] # spatial dimension used by AMReX
 ```
 
 To install AMReX with embedded boundaries and without OpenMP support (there is no OpenMP support on Apple for example) use within the build directory
 
-```
-./FiniteVolumeSolver/build> conan install <Path-to-FiniteVolumeSolver-Source-Dir> -o AMReX:dim=2 -o AMReX:omp=False 
+```bash
+./FiniteVolumeSolver/build> conan install <Path-to-FiniteVolumeSolver-Source-Dir> -o AMReX:dim=2 -o AMReX:omp=False
 ```
 
 In our case
 
-```
-./FiniteVolumeSolver/build> conan install ../ -o AMReX:dim=2 -o AMReX:omp=False 
+```bash
+./FiniteVolumeSolver/build> conan install ../ -o AMReX:dim=2 -o AMReX:omp=False
 ```
 
 This will look into the file `FiniteVolumeSolver/conanfile.txt` and tries to locally install all dependencies which are listed there. After installing these it creates a `conanfile.cmake` in the build directory which will be read by our `CMakeLists.txt` file. This, in turn, injects all necessary include and library paths which we need to build our application. Now we use `cmake` to configure our specific build, i.e.
 
-```
+```bash
 ./FiniteVolumeSolver/build> cmake ../
 ```
 
-to configure a Debug build, or  
+to configure a Debug build, or
 
-```
+```bash
 ./FiniteVolumeSolver/build> cmake ../ -DCMAKE_BUILD_TYPE=Release
 ```
 
 for a Release build. On Linux and macOS this will create Makefiles by default which you can invoke by typing
 
-```
+```bash
 ./FiniteVolumeSolver/build> make
 ```
 
 which should build all targets. For other systems, a more general call would be
 
-```
+```bash
 ./FiniteVolumeSolver/build> cmake --build .
 ```
 
 If some targets fail to build feel free to raise an issue in GitLab.
 
-# Overview
+## Overview
 
 ## Policy Pattern
 
@@ -193,11 +208,8 @@ To provide customization points for the many algorithmic choices in an AMR-enabl
 > **_From Wikipedia_**: In computer programming, the strategy pattern (also known as the policy pattern) is a behavioral software design pattern that enables selecting an algorithm at runtime. Instead of implementing a single algorithm directly, code receives run-time instructions as to which in a family of algorithms to use.
 
 For each algorithmic customization point, we define a concept, which is simply a set of syntactic requirements.
-Any type which satisfies a particular policy concept can be used as a drop-in replacement for existing algorithms in order to adjust the method to your special needs.
-The customization points are chosen to be orthogonal and thus enable them to freely concentrate on a single aspect of the method. 
-
-<details>
-<summary>Click to read an example for an InitialData concept</summary>
+Any type which satisfies a particular policy concept can be used as a drop-in replacement for existing algorithms to adjust the method for your special needs.
+The customization points are chosen to be orthogonal and thus enable them to freely concentrate on a single aspect of the method.
 
 Any type which has a member function called `void InitializeData(amrex::MultiFab& data, const amrex::Geometry& geom)` satisfies the `InitialData` concept for usage with the AMReX library.
 This means in practice that an object of type `T` can be used in code as in the example
@@ -206,10 +218,10 @@ This means in practice that an object of type `T` can be used in code as in the 
 MyInitialDataPolicy my_intial_data{};
 amrex::MultiFab data = /* obtain AMReX MultiFab from somewhere */
 amrex::Geometry geom = /* obtain AMReX Geometry from somewhere */
-my_intial_data.InitializeData(data, geom); 
+my_intial_data.InitializeData(data, geom);
 ```
 
-The notion of concepts will be part of the C++ language as of the C++20 standard. 
+The notion of concepts will be part of the C++ language as of the C++20 standard.
 In compilers which will support C++20 concepts already, this type requirement can be expressed in the code as
 
 ```cpp
@@ -223,32 +235,47 @@ static_assert(InitialData<MyInitialDataPolicy>);
 ```
 
 [Try it on godbolt!](https://godbolt.org/z/pu0Hh4)
-</details>
 
-## GriddingAlgorithm, DimensionalSplitSystemSolver, SplitSystemSourceLevelIntegrator
+## Structure of a Simulation
 
-When setting up a simulation we decompose the problem in roughly two parts.
+When setting up a simulation we decompose the setup into two parts:
 
 1. Manage a locally refined grid containing simulation data distributed over multiple MPI ranks.
 2. Set up a numerical method to solve the problem on a distributed grid.
 
-A `PatchHierarchy` holds simulation data for each refinement level on a `PatchLevel` and can be generated by a `GriddingAlgorithm`.
-A gridding algorithm generates hierarchies by using a `TaggingMethod` policy object which masks cells which need additional refinement.
-The present gridding algorithms use AMReX or SAMRAI to generate patches and hierarchies to cover such tagged cells.
-In addition to the `TaggingMethod` policy, the `GriddingAlgorithm` also need boundary and initial conditions, given by `BoundaryCondition` and `InitialData` policies.
-The boundary conditions are used in communication routines to fill the ghost cell layer touching the computational domain.
+The algorithmic choice in the second part leads in general to additional requirements for the data storage, such as needing a certain amount of ghost cells.
+
+## Data Storage: PatchHierarchy, GriddingAlgorithm and IntegratorContext
+
+A `PatchHierarchy` allocates simulation data for each refinement level on a `PatchLevel` and can be either generated by a `GriddingAlgorithm` or can be initialized from a checkpoint to restart a simulation. Data on a patch hierarchy shall represent a valid spatial state at some time point and does not contain a ghost cell layer.
+The allocated data can be either associated to be cell-, node- or face-centered. The required data allocation is described by an object of type `DataDescription`, which is defined as
+
+```cpp
+struct DataDescription {
+  int n_cell_components{0};
+  int n_node_components{0};
+  int n_face_components{0};
+  int dimension{AMREX_SPACEDIM};
+};
+```
+
+Note: a patch hierarchy does not know what the components represent. It does not have an equation object as context and doesn't need it. Its only responsibility is to manage a certain amount of data over multiple levels and distributed over MPI ranks.
+
+A gridding algorithm adds some algorithmic choices to the patch hierarchy which are needed for the usual distributed methods in the context of adaptive mesh refinement. The present gridding algorithms use the `AmrCore` class from the AMReX library to generate patches and hierarchies to cover such tagged cells. It owns a patch hierarchy and initializes or modifies it using a `TaggingMethod` policy object which masks cells that need additional refinement. In addition to the `TaggingMethod` policy, a `GriddingAlgorithm` also need boundary and initial conditions, given by `BoundaryCondition` and `InitialData` policy objects. The boundary conditions are used in communication routines to fill the ghost cell layer touching the computational domain, whereas the initial conditions are only used once at the beginning of a simulation.
 
 Multiple solvers can share a common gridding algorithm and will hold a member variable of type `std::shared_ptr<GriddingAlgorithm>`.
 Given a shared `GriddingAlgorithm` a solver is being able to refine the patch hierarchy or to fill ghost cell boundaries at any given time of its algorithm.
 Copying a `GriddingAlgorithm` by value will deeply copy all data on all MPI ranks. This can be useful to create fall-back scenarios of a simulation.
 
+An `IntegratorContext` allocates and manages additional data that is needed for every hyperbolic AMR scheme, such as cell-centered and face-centered data arrays with ghost cell layers.
+
 ## Conservative and Complete States
 
-Each equation defines two kinds of states: `Conservative` and `Complete` states. 
+Each equation defines two kinds of states: `Conservative` and `Complete` states.
 The conservative states contain variables which see a hyperbolic time update from `fub::amrex::TimeIntegrator`.
 The complete state variables are a superset of the conservative ones and may define more auxiliary member variables.
-This makes sense for variables which are auxiliary or needed very often but their computation cost is high. 
-The complete state is the location to cache those expensive computations. 
+This makes sense for variables which are auxiliary or needed very often but their computation cost is high.
+The complete state is the location to cache those expensive computations.
 
 For example, the template class `template <int Rank> class PerfectGas` defines the conservative variables
 
@@ -260,7 +287,7 @@ struct -implementation-defined-class-name- {
 };
 ```
 
-and the complete state variables are 
+and the complete state variables are
 
 ```cpp
 struct -implementation-defined-class-name- {
@@ -274,16 +301,15 @@ struct -implementation-defined-class-name- {
 
 ## FluxMethod, TimeIntegrator, CompleteFromCons
 
-
 ## Implement a new FluxMethod (simple case)
 
 A class `FM` satisfies the concept `FluxMethod<Equation, StencilSize>` if the following constraints are satisfied.
 
 ```cpp
 template <typename FM, typename Equation, int StencilSize>
-concept FluxMethod = requires (FM& flux_method, 
-                               Conservative<Equation> cons, 
-                               Complete<Equation> stencil[StencilSize], 
+concept FluxMethod = requires (FM& flux_method,
+                               Conservative<Equation> cons,
+                               Complete<Equation> stencil[StencilSize],
                                double dx, double dt, int dir) {
   { flux_method.ComputeNumericFlux(cons, stencil, dx, dt, dir) };
   { flux_method.ComputeStableDt(stencil, dx, dir) } -> double;
@@ -298,9 +324,9 @@ struct MusclHancockMethod {
     using Conservative = ::Conservative<PerfectGas<2>>;
     using Complete = ::Complete<PerfectGas<2>>;
 
-    void ComputeNumericFlux(Conservative& cons, const Complete* stencil, 
+    void ComputeNumericFlux(Conservative& cons, const Complete* stencil,
                               double dx, double dt, int dir);
-    
+
     double ComputeStableDt(const Complete* stencil, double dx, int dir);
 
     int GetStencilSize() const noexcept { return 4; }
