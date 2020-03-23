@@ -259,9 +259,81 @@ struct DataDescription {
 };
 ```
 
-**Note**: a patch hierarchy does not know what the components represent. It does not have an equation object as context and doesn't need it. Its only responsibility is to manage a certain amount of data over multiple levels and distributed over MPI ranks.
+**Note:** ***a patch hierarchy does not know what the components represent. It does not have an equation object as context and doesn't need it. Its only responsibility is to manage a certain amount of data over multiple levels and distributed over MPI ranks.***
 
 A gridding algorithm adds some algorithmic choices to the patch hierarchy which are needed for the usual distributed methods in the context of adaptive mesh refinement. The present gridding algorithms use the `AmrCore` class from the AMReX library to generate patches and hierarchies to cover such tagged cells. It owns a patch hierarchy and initializes or modifies it using a `TaggingMethod` policy object which masks cells that need additional refinement. In addition to the `TaggingMethod` policy, a `GriddingAlgorithm` also need boundary and initial conditions, given by `BoundaryCondition` and `InitialData` policy objects. The boundary conditions are used in communication routines to fill the ghost cell layer touching the computational domain, whereas the initial conditions are only used once at the beginning of a simulation.
+
+**Example**: The following code example will create an initialized and adaptively refined patch hierarchy.
+
+```cpp
+#include "fub/AMReX.hpp"
+#include "fub/Solver.hpp"
+
+// This class satisfies the InitialData policy concept
+struct CircleData {
+  void InitializeData(amrex::MultiFab& data,
+                      const amrex::Geometry& geom) const {
+    fub::amrex::ForEachFab(data, [&](const amrex::MFIter& mfi) {
+      const ::amrex::Box& box = mfi.tilebox();
+      amrex::FArrayBox& fab = data[mfi];
+      fub::amrex::ForEachIndex(box, [&](int i, int j) {
+        const double x = geom.CellCenter(i, 0);
+        const double y = geom.CellCenter(j, 1);
+        const double norm2 = x * x + y * y;
+        constexpr double r2 = 0.25 * 0.25;
+        amrex::IntVect iv(i, j);
+        if (norm2 < r2) {
+          fab(iv, 0) = 3.0;
+        } else {
+          fab(iv, 0) = 1.0;
+        }
+      });
+    });
+  }
+};
+
+int main() {
+  // This is needed to initialize the AMReX library
+  fub::amrex::ScopeGuard guard{};
+
+  constexpr int Dim = AMREX_SPACEDIM;
+  static_assert(AMREX_SPACEDIM == 2);
+
+  const std::array<int, Dim> n_cells{128, 128};
+  const std::array<double, Dim> xlower{-1.0, -1.0};
+  const std::array<double, Dim> xupper{+1.0, +1.0};
+
+  fub::Advection2d equation{{1.0, 1.0}};
+
+  fub::amrex::CartesianGridGeometry geometry;
+  geometry.cell_dimensions = n_cells;
+  geometry.coordinates = amrex::RealBox(xlower, xupper);
+  geometry.periodicity = std::array<int, Dim>{1, 1};
+
+  fub::amrex::PatchHierarchyOptions hier_opts{};
+  hier_opts.max_number_of_levels = 4;
+
+  // Construct an empty patch hierarchy which allocates only one component
+  // for mass.
+  fub::amrex::PatchHierarchy hierarchy(equation, geometry, hier_opts);
+
+  // Our tagging method will tag cells where the relative difference to the
+  // neighbor cells is below a certain tolerance
+  using State = fub::Advection2d::Complete;
+  fub::amrex::GradientDetector gradient{equation,
+                                        std::pair{&State::mass, 1e-2}};
+
+  auto gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
+      hierarchy, CircleData{}, gradient);
+
+  // This call will allocate and initialize data on the hierarchy
+  gridding->InitializeHierarchy(0.0);
+
+  // Write a plot file
+  fub::amrex::WritePlotFile("InitialHierarchy/plt00000",
+                            gridding->GetPatchHierarchy(), equation);
+}
+```
 
 Multiple solvers can share a common gridding algorithm and will hold a member variable of type `std::shared_ptr<GriddingAlgorithm>`.
 Given a shared `GriddingAlgorithm` a solver is being able to refine the patch hierarchy or to fill ghost cell boundaries at any given time of its algorithm.
