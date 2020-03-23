@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Maikel Nadolski
+// Copyright (c) 2020 Stefan Vater
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -25,6 +25,7 @@
 #include "fub/TimeStepError.hpp"
 #include "fub/equations/PerfectGas.hpp"
 #include "fub/ext/outcome.hpp"
+#include <AMReX_MLTensorOp.H>
 
 namespace fub::amrex {
 
@@ -58,6 +59,25 @@ public:
 
 private:
   PerfectGas<Rank> equation_;
+
+  std::unique_ptr<::amrex::MLTensorOp> m_reg_solve_op;
+  std::unique_ptr<::amrex::MLTensorOp> m_reg_apply_op;
+
+  // DiffusionOp verbosity
+  int m_verbose = 0;
+
+  // Options to control MLMG behavior
+  int m_mg_verbose = 0;
+  int m_mg_cg_verbose = 0;
+  int m_mg_max_iter = 100;
+  int m_mg_cg_maxiter = 100;
+  int m_mg_max_fmg_iter = 0;
+  int m_mg_max_coarsening_level = 100;
+  int m_mg_maxorder = 2;
+  ::amrex::Real m_mg_rtol = 1.0e-11;
+  ::amrex::Real m_mg_atol = 1.0e-14;
+  std::string m_bottom_solver_type = "bicgstab";
+
 };
 
 extern template class ViscositySourceTerm<1>;

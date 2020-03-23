@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Maikel Nadolski
+// Copyright (c) 2020 Stefan Vater
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -30,6 +30,14 @@ ViscositySourceTerm<Rank>::ViscositySourceTerm(const PerfectGas<Rank>& eq,
                                  const std::shared_ptr<GriddingAlgorithm>& grid)
     : equation_(eq) {
   ResetHierarchyConfiguration(grid);
+
+  int finest_level = grid->finestLevel();
+
+  ::amrex::LPInfo info_solve;
+  info_solve.setMaxCoarseningLevel(m_mg_max_coarsening_level);
+  ::amrex::LPInfo info_apply;
+  info_apply.setMaxCoarseningLevel(0);
+
 }
 
 // ViscositySourceTerm::ViscositySourceTerm(const ViscositySourceTerm& other)

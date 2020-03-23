@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Maikel Nadolski
+// Copyright (c) 2020 Stefan Vater
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -137,17 +137,6 @@ int main(int argc, char** argv) {
 
   const int scratch_gcw = 4 * muscl_method.GetStencilWidth();
   const int flux_gcw = 3 * muscl_method.GetStencilWidth();
-
-  auto diameter = [](double x) -> double {
-    if (x < 0.5) {
-      return 0.45;
-    }
-    if (x < 0.6) {
-      const double lambda = std::clamp((0.6 - x) / 0.1, 0.0, 1.0);
-      return lambda * 0.45 + (1.0 - lambda) * 0.3;
-    }
-    return 0.3;
-  };
 
   fub::DimensionalSplitLevelIntegrator system_solver(
       fub::int_c<2>,
