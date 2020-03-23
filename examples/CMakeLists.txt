@@ -61,9 +61,6 @@ if (AMReX_FOUND AND AMReX_2D_FOUND)
   add_executable(AMReX.NodalProjectionSingleLevel AMReX/NodalProjectionSingleLevel.cpp)
   target_link_libraries(AMReX.NodalProjectionSingleLevel FiniteVolumeSolver.AMReX)
 
-  add_executable(AMReX.CompressibleAdvection AMReX/CompressibleAdvection.cpp)
-  target_link_libraries(AMReX.CompressibleAdvection FiniteVolumeSolver.AMReX)
-
   if (AMReX_EB_FOUND)
     add_executable_with_warnings(AMReX.EB.ConvergentNozzle2D AMReX/EB/2D/ConvergentNozzle.cpp)
     target_link_libraries(AMReX.EB.ConvergentNozzle2D FiniteVolumeSolver.AMReX.EB)
