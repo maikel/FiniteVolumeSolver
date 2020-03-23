@@ -29,7 +29,6 @@
 #include "fub/AMReX/bk19/BK19LevelIntegrator.hpp"
 #include "fub/equations/CompressibleAdvection.hpp"
 
-
 struct AcousticWaveInitialData : fub::amrex::BK19PhysicalParameters {
   using Complete = fub::CompressibleAdvection<2>::Complete;
   AcousticWaveInitialData() {}
@@ -50,12 +49,12 @@ struct AcousticWaveInitialData : fub::amrex::BK19PhysicalParameters {
 
         const double rho = std::pow(p, 1.0 / gamma);
         const double c = std::sqrt(gamma * p / rho);
-        const double Ma  = std::sqrt(Msq);
+        const double Ma = std::sqrt(Msq);
 
-        states.density(i, j)     = rho;
+        states.density(i, j) = rho;
         states.velocity(i, j, 0) = U0[0] + (p - 1.0) / (rho * c) / Ma;
         states.velocity(i, j, 1) = U0[1];
-        states.PTdensity(i, j)   = rho;
+        states.PTdensity(i, j) = rho;
 
         states.momentum(i, j, 0) =
             states.density(i, j) * states.velocity(i, j, 0);
@@ -141,7 +140,7 @@ void MyMain(const fub::ProgramOptions& options) {
   HyperbolicMethod method{flux_method, EulerForwardTimeIntegrator(),
                           Reconstruction(fub::execution::seq, equation)};
 
-//   BK19IntegratorContext simulation_data(grid, method, 2, 0);
+  //   BK19IntegratorContext simulation_data(grid, method, 2, 0);
   BK19IntegratorContext simulation_data(grid, method, 4, 2);
   const int nlevel = simulation_data.GetPatchHierarchy().GetNumberOfLevels();
 
@@ -169,7 +168,8 @@ void MyMain(const fub::ProgramOptions& options) {
   }
 
   fub::DimensionalSplitLevelIntegrator advection(
-//       fub::int_c<2>, std::move(simulation_data), fub::GodunovSplitting());
+      //       fub::int_c<2>, std::move(simulation_data),
+      //       fub::GodunovSplitting());
       fub::int_c<2>, std::move(simulation_data), fub::StrangSplitting());
 
   BK19LevelIntegratorOptions integrator_options =
@@ -181,20 +181,21 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::NoSubcycleSolver solver(std::move(level_integrator));
 
   BK19AdvectiveFluxes& Pv = solver.GetContext().GetAdvectiveFluxes(0);
-  RecomputeAdvectiveFluxes(
-      index, Pv.on_faces, Pv.on_cells,
-      solver.GetContext().GetScratch(0),
-      solver.GetContext().GetGeometry(0).periodicity());
+  RecomputeAdvectiveFluxes(index, Pv.on_faces, Pv.on_cells,
+                           solver.GetContext().GetScratch(0),
+                           solver.GetContext().GetGeometry(0).periodicity());
 
   using namespace std::literals::chrono_literals;
   std::string base_name = "BK19_CompAcousticWave/";
 
   fub::OutputFactory<GriddingAlgorithm> factory;
-  factory.RegisterOutput<fub::AnyOutput<GriddingAlgorithm>>("Plotfile", WriteBK19Plotfile{base_name});
+  factory.RegisterOutput<fub::AnyOutput<GriddingAlgorithm>>(
+      "Plotfile", WriteBK19Plotfile{base_name});
   factory.RegisterOutput<fub::amrex::DebugOutput>(
       "DebugOutput",
       solver.GetGriddingAlgorithm()->GetPatchHierarchy().GetDebugStorage());
-  fub::MultipleOutputs<GriddingAlgorithm> output{std::move(factory), fub::GetOptions(options, "Output")};
+  fub::MultipleOutputs<GriddingAlgorithm> output{
+      std::move(factory), fub::GetOptions(options, "Output")};
 
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options = fub::GetOptions(options, "RunOptions");
@@ -219,4 +220,3 @@ int main(int argc, char** argv) {
     MPI_Finalize();
   }
 }
-

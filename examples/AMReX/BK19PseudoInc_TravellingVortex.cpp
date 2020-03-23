@@ -29,7 +29,6 @@
 #include "fub/AMReX/bk19/BK19LevelIntegrator.hpp"
 #include "fub/equations/CompressibleAdvection.hpp"
 
-
 double p_coeff(double r, const std::vector<double>& coefficients) {
   if (r >= 1.0) {
     return 0.0;
@@ -190,7 +189,7 @@ void MyMain(const fub::ProgramOptions& options) {
   HyperbolicMethod method{flux_method, EulerForwardTimeIntegrator(),
                           Reconstruction(fub::execution::seq, equation)};
 
-//   BK19IntegratorContext simulation_data(grid, method, 2, 0);
+  //   BK19IntegratorContext simulation_data(grid, method, 2, 0);
   BK19IntegratorContext simulation_data(grid, method, 4, 2);
   const int nlevel = simulation_data.GetPatchHierarchy().GetNumberOfLevels();
 
@@ -224,7 +223,8 @@ void MyMain(const fub::ProgramOptions& options) {
   }
 
   fub::DimensionalSplitLevelIntegrator advection(
-//       fub::int_c<2>, std::move(simulation_data), fub::GodunovSplitting());
+      //       fub::int_c<2>, std::move(simulation_data),
+      //       fub::GodunovSplitting());
       fub::int_c<2>, std::move(simulation_data), fub::StrangSplitting());
 
   BK19LevelIntegratorOptions integrator_options =
@@ -236,20 +236,21 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::NoSubcycleSolver solver(std::move(level_integrator));
 
   BK19AdvectiveFluxes& Pv = solver.GetContext().GetAdvectiveFluxes(0);
-  RecomputeAdvectiveFluxes(
-      index, Pv.on_faces, Pv.on_cells,
-      solver.GetContext().GetScratch(0),
-      solver.GetContext().GetGeometry(0).periodicity());
+  RecomputeAdvectiveFluxes(index, Pv.on_faces, Pv.on_cells,
+                           solver.GetContext().GetScratch(0),
+                           solver.GetContext().GetGeometry(0).periodicity());
 
   using namespace std::literals::chrono_literals;
   std::string base_name = "BK19_PsIncTravellingVortex/";
 
   fub::OutputFactory<GriddingAlgorithm> factory;
-  factory.RegisterOutput<fub::AnyOutput<GriddingAlgorithm>>("Plotfile", WriteBK19Plotfile{base_name});
+  factory.RegisterOutput<fub::AnyOutput<GriddingAlgorithm>>(
+      "Plotfile", WriteBK19Plotfile{base_name});
   factory.RegisterOutput<fub::amrex::DebugOutput>(
       "DebugOutput",
       solver.GetGriddingAlgorithm()->GetPatchHierarchy().GetDebugStorage());
-  fub::MultipleOutputs<GriddingAlgorithm> output{std::move(factory), fub::GetOptions(options, "Output")};
+  fub::MultipleOutputs<GriddingAlgorithm> output{
+      std::move(factory), fub::GetOptions(options, "Output")};
 
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options = fub::GetOptions(options, "RunOptions");
@@ -274,4 +275,3 @@ int main(int argc, char** argv) {
     MPI_Finalize();
   }
 }
-
