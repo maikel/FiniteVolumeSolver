@@ -221,7 +221,7 @@ void MyMain(const fub::ProgramOptions& options) {
   using CounterOutput =
       fub::CounterOutput<GriddingAlgorithm, std::chrono::milliseconds>;
   factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
-  factory.RegisterOutput<DebugOutput>("DebugOutput");
+  // factory.RegisterOutput<DebugOutput>("DebugOutput");
   factory.RegisterOutput<PerfectGasProbesOutput>("ProbesOutput");
   fub::MultipleOutputs<GriddingAlgorithm> outputs(
       std::move(factory), fub::GetOptions(options, "Output"));
