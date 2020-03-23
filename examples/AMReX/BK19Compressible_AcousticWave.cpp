@@ -30,11 +30,9 @@
 #include "fub/equations/CompressibleAdvection.hpp"
 
 
-struct AcousticWaveInitialData {
+struct AcousticWaveInitialData : fub::amrex::BK19PhysicalParameters {
   using Complete = fub::CompressibleAdvection<2>::Complete;
-  AcousticWaveInitialData(const fub::amrex::BK19PhysicalParameters&
-  physical_parameters) : phys_param(physical_parameters) {
-  }
+  AcousticWaveInitialData() {}
 
   void InitializeData(amrex::MultiFab& mf, const amrex::Geometry& geom) const {
     fub::amrex::ForEachFab(mf, [&](const amrex::MFIter& mfi) {
@@ -48,11 +46,11 @@ struct AcousticWaveInitialData {
         const double y = geom.CellCenter(j, 1);
 
         const double p = std::pow(1.0 + del0 * std::sin(wn * x),
-                                  2.0 * phys_param.gamma / (phys_param.gamma - 1.0));
+                                  2.0 * gamma / (gamma - 1.0));
 
-        const double rho = std::pow(p, 1.0 / phys_param.gamma);
-        const double c = std::sqrt(phys_param.gamma * p / rho);
-        const double Ma  = std::sqrt(phys_param.Msq);
+        const double rho = std::pow(p, 1.0 / gamma);
+        const double c = std::sqrt(gamma * p / rho);
+        const double Ma  = std::sqrt(Msq);
 
         states.density(i, j)     = rho;
         states.velocity(i, j, 0) = U0[0] + (p - 1.0) / (rho * c) / Ma;
@@ -68,7 +66,6 @@ struct AcousticWaveInitialData {
     });
   }
 
-  fub::amrex::BK19PhysicalParameters phys_param;
   const double del0 = 0.05;
   const double wn = 2.0 * M_PI;
   std::array<double, 2> U0{1.0, 0.0};
@@ -86,12 +83,12 @@ void MyMain(const fub::ProgramOptions& options) {
   const double u_ref{h_ref / t_ref};
 
   // Here, some things are dimensional and others non-dimensionalized. Adjust???
-  BK19PhysicalParameters phys_param;
-  phys_param.R_gas = 287.0;
-  phys_param.gamma = 2.0;
-  phys_param.Msq = u_ref * u_ref / (phys_param.R_gas * T_ref);
-  phys_param.c_p = phys_param.gamma / (phys_param.gamma - 1.0);
-  phys_param.alpha_p = 1.0;
+  AcousticWaveInitialData inidat;
+  inidat.R_gas = 287.0;
+  inidat.gamma = 2.0;
+  inidat.Msq = u_ref * u_ref / (inidat.R_gas * T_ref);
+  inidat.c_p = inidat.gamma / (inidat.gamma - 1.0);
+  inidat.alpha_p = 1.0;
 
   DataDescription desc{};
   desc.n_state_components = 7;
@@ -110,8 +107,6 @@ void MyMain(const fub::ProgramOptions& options) {
   hierarchy_options.Print(info);
 
   PatchHierarchy hierarchy(desc, grid_geometry, hierarchy_options);
-
-  const AcousticWaveInitialData inidat(phys_param);
 
   using Complete = fub::CompressibleAdvection<2>::Complete;
   fub::CompressibleAdvection<2> equation{};
@@ -151,7 +146,7 @@ void MyMain(const fub::ProgramOptions& options) {
   const int nlevel = simulation_data.GetPatchHierarchy().GetNumberOfLevels();
 
   // set initial values of pi
-  const double Gamma = (phys_param.gamma - 1.0) / phys_param.gamma;
+  const double Gamma = (inidat.gamma - 1.0) / inidat.gamma;
   for (int level = 0; level < nlevel; ++level) {
     ::amrex::MultiFab& pi = simulation_data.GetPi(level);
     const ::amrex::Geometry& geom =
@@ -167,8 +162,8 @@ void MyMain(const fub::ProgramOptions& options) {
         const double y = coor[1];
 
         const double p = std::pow(1.0 + inidat.del0 * std::sin(inidat.wn * x),
-                                  2.0 * phys_param.gamma / (phys_param.gamma - 1.0));
-        fab(i, 0) = (pow(p, Gamma) - 1.0) / phys_param.Msq;
+                                  2.0 * inidat.gamma / (inidat.gamma - 1.0));
+        fab(i, 0) = (pow(p, Gamma) - 1.0) / inidat.Msq;
       });
     });
   }
@@ -182,7 +177,7 @@ void MyMain(const fub::ProgramOptions& options) {
   BOOST_LOG(info) << "BK19LevelIntegrator:";
   integrator_options.Print(info);
   BK19LevelIntegrator level_integrator(equation, std::move(advection), linop,
-                                       phys_param, integrator_options);
+                                       inidat, integrator_options);
   fub::NoSubcycleSolver solver(std::move(level_integrator));
 
   BK19AdvectiveFluxes& Pv = solver.GetContext().GetAdvectiveFluxes(0);

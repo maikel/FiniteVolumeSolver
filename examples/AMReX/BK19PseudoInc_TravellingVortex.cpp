@@ -44,10 +44,9 @@ double p_coeff(double r, const std::vector<double>& coefficients) {
   return result;
 }
 
-struct TravellingVortexInitialData {
+struct TravellingVortexInitialData : fub::amrex::BK19PhysicalParameters {
   using Complete = fub::CompressibleAdvection<2>::Complete;
-  TravellingVortexInitialData(const fub::amrex::BK19PhysicalParameters&
-  physical_parameters) : phys_param(physical_parameters) {
+  TravellingVortexInitialData() {
     coefficients.resize(25);
     coefficients[0] = 1.0 / 12.0;
     coefficients[1] = -12.0 / 13.0;
@@ -116,7 +115,6 @@ struct TravellingVortexInitialData {
     });
   }
 
-  fub::amrex::BK19PhysicalParameters phys_param;
   std::vector<double> coefficients;
   const double a_rho{1.0};
   const double rho0{a_rho * 0.5};
@@ -134,12 +132,12 @@ void MyMain(const fub::ProgramOptions& options) {
   ScopeGuard amrex_scope_guard{};
 
   // Here, some things are dimensional and others non-dimensionalized. Adjust???
-  BK19PhysicalParameters phys_param;
-  phys_param.R_gas = 287.4;
-  phys_param.gamma = 1.4;
-  phys_param.Msq = 0.0;
-  phys_param.c_p = phys_param.gamma / (phys_param.gamma - 1.0);
-  phys_param.alpha_p = 0.0;
+  TravellingVortexInitialData inidat;
+  inidat.R_gas = 287.4;
+  inidat.gamma = 1.4;
+  inidat.Msq = 0.0;
+  inidat.c_p = inidat.gamma / (inidat.gamma - 1.0);
+  inidat.alpha_p = 0.0;
 
   DataDescription desc{};
   desc.n_state_components = 7;
@@ -158,8 +156,6 @@ void MyMain(const fub::ProgramOptions& options) {
   hierarchy_options.Print(info);
 
   PatchHierarchy hierarchy(desc, grid_geometry, hierarchy_options);
-
-  const TravellingVortexInitialData inidat(phys_param);
 
   using Complete = fub::CompressibleAdvection<2>::Complete;
   fub::CompressibleAdvection<2> equation{};
@@ -199,7 +195,7 @@ void MyMain(const fub::ProgramOptions& options) {
   const int nlevel = simulation_data.GetPatchHierarchy().GetNumberOfLevels();
 
   // set initial values of pi
-  const double Gamma = (phys_param.gamma - 1.0) / phys_param.gamma;
+  const double Gamma = (inidat.gamma - 1.0) / inidat.gamma;
   for (int level = 0; level < nlevel; ++level) {
     ::amrex::MultiFab& pi = simulation_data.GetPi(level);
     const ::amrex::Geometry& geom =
@@ -236,7 +232,7 @@ void MyMain(const fub::ProgramOptions& options) {
   BOOST_LOG(info) << "BK19LevelIntegrator:";
   integrator_options.Print(info);
   BK19LevelIntegrator level_integrator(equation, std::move(advection), linop,
-                                       phys_param, integrator_options);
+                                       inidat, integrator_options);
   fub::NoSubcycleSolver solver(std::move(level_integrator));
 
   BK19AdvectiveFluxes& Pv = solver.GetContext().GetAdvectiveFluxes(0);
