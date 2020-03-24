@@ -239,10 +239,10 @@ const ::amrex::Vector<::amrex::DistributionMapping> PatchHierarchy::GetDistribut
 }
 
 const ::amrex::Vector<const ::amrex::MultiFab*> PatchHierarchy::GetData() const {
-  const std::size_t nlevels = GetNumberOfLevels();
-  ::amrex::Vector<const ::amrex::MultiFab*> data(nlevels);
-  for (std::size_t level = 0; level < nlevels; ++level) {
-    data[level] = &GetPatchLevel(static_cast<int>(level)).data;
+  const int nlevels = GetNumberOfLevels();
+  ::amrex::Vector<const ::amrex::MultiFab*> data(static_cast<std::size_t>(nlevels));
+  for (int level = 0; level < nlevels; ++level) {
+    data[level] = &GetPatchLevel(level).data;
   }
   return data;
 }
