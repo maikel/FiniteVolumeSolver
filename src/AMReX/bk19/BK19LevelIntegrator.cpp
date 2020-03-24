@@ -278,14 +278,19 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   MultiFab diagfac_nodes(on_nodes, distribution_map, one_component, no_ghosts);
   ForEachFab(execution::openmp, diagfac_cells, [&](const MFIter& mfi) {
     ::amrex::Box tilebox = mfi.growntilebox();
-    StridedDataView<double, AMREX_SPACEDIM> diagfac = MakePatchDataView(diagfac_cells[mfi], 0, tilebox);
-    StridedDataView<double, AMREX_SPACEDIM> PTdensity = MakePatchDataView(scratch[mfi], index.PTdensity, tilebox);
-    ForEachRow(std::tuple{diagfac, PTdensity}, [phys_param, dt](span<double> dfac,  span<double> PTdens) {
-      for (std::ptrdiff_t i = 0; i < dfac.size(); ++i) {
-        dfac[i] = -phys_param.alpha_p * phys_param.Msq / (phys_param.gamma - 1.0) *
-                   std::pow(PTdens[i], 2.0 - phys_param.gamma) / dt.count() * dt.count();
-      }
-    });
+    StridedDataView<double, AMREX_SPACEDIM> diagfac =
+        MakePatchDataView(diagfac_cells[mfi], 0, tilebox);
+    StridedDataView<double, AMREX_SPACEDIM> PTdensity =
+        MakePatchDataView(scratch[mfi], index.PTdensity, tilebox);
+    ForEachRow(std::tuple{diagfac, PTdensity},
+               [phys_param, dt](span<double> dfac, span<double> PTdens) {
+                 for (std::ptrdiff_t i = 0; i < dfac.size(); ++i) {
+                   dfac[i] = -phys_param.alpha_p * phys_param.Msq /
+                             (phys_param.gamma - 1.0) *
+                             std::pow(PTdens[i], 2.0 - phys_param.gamma) /
+                             dt.count() * dt.count();
+                 }
+               });
   });
 
   AverageCellToNode_(diagfac_nodes, 0, diagfac_cells, 0);
@@ -437,24 +442,8 @@ void DoEulerForward_(const IndexMapping<Equation>& index,
   MultiFab momentum_correction(on_cells, distribution_map,
                                index.momentum.size(), no_ghosts);
   momentum_correction.setVal(0.0);
-
   // this computes: -sigma Grad(pi)
   lin_op.getFluxes({&momentum_correction}, {&pi});
-
-  MultiFab momentum_cross(on_cells, distribution_map,
-                               index.momentum.size(), no_ghosts);
-  MultiFab::Copy(momentum_cross, scratch, index.momentum[0], 0, index.momentum.size(), no_ghosts);
-
-  for (std::size_t i = 0; i < index.momentum.size(); ++i) {
-    size_t j = 1 - i;
-    double fac = i == 0 ? 1.0: -1.0;
-    const int current_component = static_cast<int>(i);
-    const int other_component = static_cast<int>(j);
-
-    double a = fac * dt.count() * phys_param.f_swtch[j] * phys_param.f;
-
-    MultiFab::Saxpy(momentum_correction, a, momentum_cross, other_component, current_component, one_component, no_ghosts);
-  }
 
   MultiFab::Add(scratch, momentum_correction, 0, index.momentum[0],
                 index.momentum.size(), no_ghosts);
@@ -476,16 +465,19 @@ void DoEulerForward_(const IndexMapping<Equation>& index,
   MultiFab dpidP_nodes(on_nodes, distribution_map, one_component, no_ghosts);
   ForEachFab(execution::openmp, dpidP_cells, [&](const MFIter& mfi) {
     ::amrex::Box tilebox = mfi.growntilebox();
-    StridedDataView<double, AMREX_SPACEDIM> dpidP = MakePatchDataView(dpidP_cells[mfi], 0, tilebox);
-    StridedDataView<double, AMREX_SPACEDIM> PTdensity = MakePatchDataView(scratch[mfi], index.PTdensity, tilebox);
-    ForEachRow(std::tuple{dpidP, PTdensity}, [phys_param, dt](span<double> dpi,  span<double> PTdens) {
-      for (std::ptrdiff_t i = 0; i < dpi.size(); ++i) {
-        dpi[i] = -dt.count() * (phys_param.gamma - 1.0) / phys_param.Msq *
-                 std::pow(PTdens[i], phys_param.gamma - 2.0);
-      }
-    });
+    StridedDataView<double, AMREX_SPACEDIM> dpidP =
+        MakePatchDataView(dpidP_cells[mfi], 0, tilebox);
+    StridedDataView<double, AMREX_SPACEDIM> PTdensity =
+        MakePatchDataView(scratch[mfi], index.PTdensity, tilebox);
+    ForEachRow(std::tuple{dpidP, PTdensity},
+               [phys_param, dt](span<double> dpi, span<double> PTdens) {
+                 for (std::ptrdiff_t i = 0; i < dpi.size(); ++i) {
+                   dpi[i] = -dt.count() * (phys_param.gamma - 1.0) /
+                            phys_param.Msq *
+                            std::pow(PTdens[i], phys_param.gamma - 2.0);
+                 }
+               });
   });
-
 
   AverageCellToNode_(dpidP_nodes, 0, dpidP_cells, 0);
   MultiFab::Multiply(div, dpidP_nodes, 0, 0, one_component, no_ghosts);
@@ -582,8 +574,8 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
 
   // 3) Do the first euler backward integration step for the source term
   context.FillGhostLayerSingleLevel(level);
-  DoEulerBackward_(index_, *lin_op_, phys_param_, options_,
-                                     context, level, half_dt, dbgAdvB);
+  DoEulerBackward_(index_, *lin_op_, phys_param_, options_, context, level,
+                   half_dt, dbgAdvB);
 
   // 4) Recompute Pv at half time
   RecomputeAdvectiveFluxes(index_, Pv.on_faces, Pv.on_cells, scratch,
