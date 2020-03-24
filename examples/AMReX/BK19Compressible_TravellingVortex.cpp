@@ -43,7 +43,7 @@ double p_coeff(double r, const std::vector<double>& coefficients) {
   return result;
 }
 
-struct TravellingVortexInitialData {
+struct TravellingVortexInitialData : fub::amrex::BK19PhysicalParameters {
   using Complete = fub::CompressibleAdvection<2>::Complete;
   TravellingVortexInitialData() {
     coefficients.resize(25);
@@ -99,7 +99,8 @@ struct TravellingVortexInitialData {
               rho0 + del_rho * std::pow(1.0 - r_over_R0 * r_over_R0, 6);
           states.velocity(i, j, 0) = U0[0] - uth * (dy / r);
           states.velocity(i, j, 1) = U0[1] + uth * (dx / r);
-          const double p = 1.0 + Msq * fac*fac * a_rho * p_coeff(r_over_R0, coefficients);
+          const double p =
+              1.0 + Msq * fac * fac * a_rho * p_coeff(r_over_R0, coefficients);
           states.PTdensity(i, j) = std::pow(p, 1.0 / gamma);
         } else {
           states.density(i, j) = rho0;
@@ -122,16 +123,7 @@ struct TravellingVortexInitialData {
   const double del_rho{a_rho * 0.5};
   const double R0{0.4};
   const double fac{1024.0};
-  const double R_gas{287.4};
-  const double gamma{1.4};
-  const double h_ref{10000.0};
-  const double t_ref{100.0};
-  const double T_ref{300.0};
-  const double u_ref{h_ref / t_ref};
-  const double Msq{u_ref * u_ref / (R_gas * T_ref)};
   const double ratio{1.0};
-  const double f{2.0*M_PI};
-  std::array<double, 2> f_swtch{1.0, 1.0};
   std::array<double, 2> center{0.5, 0.5};
   std::array<double, 2> U0{0.0, 0.0};
 };
@@ -140,9 +132,24 @@ void MyMain(const fub::ProgramOptions& options) {
   using namespace fub::amrex;
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
-  fub::amrex::ScopeGuard amrex_scope_guard{};
+  ScopeGuard amrex_scope_guard{};
 
-  fub::amrex::DataDescription desc{};
+  const double h_ref{10000.0};
+  const double t_ref{100.0};
+  const double T_ref{300.0};
+  const double u_ref{h_ref / t_ref};
+
+  // Here, some things are dimensional and others non-dimensionalized. Adjust???
+  TravellingVortexInitialData inidat;
+  inidat.R_gas = 287.4;
+  inidat.gamma = 1.4;
+  inidat.Msq = u_ref * u_ref / (inidat.R_gas * T_ref);
+  inidat.c_p = inidat.gamma / (inidat.gamma - 1.0);
+  inidat.alpha_p = 1.0;
+  inidat.f       = 2.0*M_PI;
+  inidat.f_swtch = {1.0, 1.0};
+
+  DataDescription desc{};
   desc.n_state_components = 7;
   desc.n_cons_components = 4;
   desc.n_node_components = 1;
@@ -160,20 +167,8 @@ void MyMain(const fub::ProgramOptions& options) {
 
   PatchHierarchy hierarchy(desc, grid_geometry, hierarchy_options);
 
-  const TravellingVortexInitialData inidat{};
-  const double Gamma    = (inidat.gamma - 1.0) / inidat.gamma;
-  const double Gammainv = 1.0 / Gamma;
-
   using Complete = fub::CompressibleAdvection<2>::Complete;
   fub::CompressibleAdvection<2> equation{};
-  // Here, c_p is non-dimensionalized. Adjust???
-  // Is CompressibleAdvection the right place to store all this?
-  equation.c_p     = Gammainv;
-  equation.alpha_p = 1.0;
-  equation.gamma   = inidat.gamma;
-  equation.Msq     = inidat.Msq;
-  equation.f       = inidat.f;
-  equation.f_swtch = inidat.f_swtch;
 
   fub::IndexMapping<fub::CompressibleAdvection<2>> index(equation);
 
@@ -205,11 +200,12 @@ void MyMain(const fub::ProgramOptions& options) {
   HyperbolicMethod method{flux_method, EulerForwardTimeIntegrator(),
                           Reconstruction(fub::execution::seq, equation)};
 
-//   BK19IntegratorContext simulation_data(grid, method, 2, 0);
+  //   BK19IntegratorContext simulation_data(grid, method, 2, 0);
   BK19IntegratorContext simulation_data(grid, method, 4, 2);
   const int nlevel = simulation_data.GetPatchHierarchy().GetNumberOfLevels();
 
   // set initial values of pi
+  const double Gamma = (inidat.gamma - 1.0) / inidat.gamma;
   for (int level = 0; level < nlevel; ++level) {
     ::amrex::MultiFab& pi = simulation_data.GetPi(level);
     const ::amrex::Geometry& geom =
@@ -238,7 +234,8 @@ void MyMain(const fub::ProgramOptions& options) {
   }
 
   fub::DimensionalSplitLevelIntegrator advection(
-//       fub::int_c<2>, std::move(simulation_data), fub::GodunovSplitting());
+      //       fub::int_c<2>, std::move(simulation_data),
+      //       fub::GodunovSplitting());
       fub::int_c<2>, std::move(simulation_data), fub::StrangSplitting());
 
   BK19LevelIntegratorOptions integrator_options =
@@ -246,30 +243,30 @@ void MyMain(const fub::ProgramOptions& options) {
   BOOST_LOG(info) << "BK19LevelIntegrator:";
   integrator_options.Print(info);
   BK19LevelIntegrator level_integrator(equation, std::move(advection), linop,
-                                       integrator_options);
+                                       inidat, integrator_options);
   fub::NoSubcycleSolver solver(std::move(level_integrator));
 
   BK19AdvectiveFluxes& Pv = solver.GetContext().GetAdvectiveFluxes(0);
-  RecomputeAdvectiveFluxes(
-      index, Pv.on_faces, Pv.on_cells,
-      solver.GetContext().GetScratch(0),
-      solver.GetContext().GetGeometry(0).periodicity());
+  RecomputeAdvectiveFluxes(index, Pv.on_faces, Pv.on_cells,
+                           solver.GetContext().GetScratch(0),
+                           solver.GetContext().GetGeometry(0).periodicity());
 
   using namespace std::literals::chrono_literals;
   std::string base_name = "BK19_CompTravellingVortex/";
 
   fub::OutputFactory<GriddingAlgorithm> factory;
-  factory.RegisterOutput<fub::AnyOutput<GriddingAlgorithm>>("Plotfile", WriteBK19Plotfile{base_name});
+  factory.RegisterOutput<fub::AnyOutput<GriddingAlgorithm>>(
+      "Plotfile", WriteBK19Plotfile{base_name});
   factory.RegisterOutput<fub::amrex::DebugOutput>(
       "DebugOutput",
       solver.GetGriddingAlgorithm()->GetPatchHierarchy().GetDebugStorage());
-  fub::MultipleOutputs<GriddingAlgorithm> output{std::move(factory), fub::GetOptions(options, "Output")};
+  fub::MultipleOutputs<GriddingAlgorithm> output{
+      std::move(factory), fub::GetOptions(options, "Output")};
 
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options = fub::GetOptions(options, "RunOptions");
   BOOST_LOG(info) << "RunOptions:";
   run_options.Print(info);
-
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }
 

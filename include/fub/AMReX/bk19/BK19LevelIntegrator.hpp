@@ -60,6 +60,28 @@ struct BK19LevelIntegratorOptions {
   bool output_between_steps = false;
 };
 
+struct BK19PhysicalParameters {
+
+  /// Specific gas constant
+  double R_gas{287.4};
+
+  /// Heat capacity ratio
+  double gamma{1.4};
+
+  /// Heat capacity at constant pressure
+  double c_p{1006.0};
+
+  /// Gravitational acceleration
+  double g{10.0}; //  [m / s^2]
+
+  /// Coriolis parameter in beta plane
+  double f{0.0};
+  std::array<double, 2> f_swtch{0.0, 0.0};
+
+  double alpha_p{1.0};
+  double Msq{0.0};
+};
+
 class BK19LevelIntegrator
     : private DimensionalSplitLevelIntegrator<
           AMREX_SPACEDIM, BK19IntegratorContext, AnySplitMethod> {
@@ -103,6 +125,7 @@ public:
   BK19LevelIntegrator(
       const CompressibleAdvection<Rank>& equation, AdvectionSolver advection,
       std::shared_ptr<::amrex::MLNodeHelmDualCstVel> linop,
+      const BK19PhysicalParameters& physical_parameters,
       const BK19LevelIntegratorOptions& options = BK19LevelIntegratorOptions());
 
   void ResetPatchHierarchy(std::shared_ptr<GriddingAlgorithm> grid);
@@ -112,6 +135,7 @@ public:
                              std::pair<int, int> subcycle);
 
 private:
+  BK19PhysicalParameters phys_param_;
   BK19LevelIntegratorOptions options_;
   CompressibleAdvection<Rank> equation_;
   fub::IndexMapping<fub::CompressibleAdvection<2>> index_;
