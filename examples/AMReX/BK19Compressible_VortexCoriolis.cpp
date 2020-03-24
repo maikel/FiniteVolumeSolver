@@ -86,7 +86,7 @@ struct TravellingVortexInitialData : fub::amrex::BK19PhysicalParameters {
         const double y = geom.CellCenter(j, 1);
         const double dx = x - center[0];
         const double dy = y - center[1];
-        const double r = std::sqrt(dx * dx + dy * dy);
+        const double r = std::sqrt(dx * dx + ratio*(dy * dy));
 
         states.PTdensity(i, j) = 1.0;
 
@@ -123,8 +123,9 @@ struct TravellingVortexInitialData : fub::amrex::BK19PhysicalParameters {
   const double del_rho{a_rho * 0.5};
   const double R0{0.4};
   const double fac{1024.0};
+  const double ratio{1.0};
   std::array<double, 2> center{0.5, 0.5};
-  std::array<double, 2> U0{1.0, 1.0};
+  std::array<double, 2> U0{0.0, 0.0};
 };
 
 void MyMain(const fub::ProgramOptions& options) {
@@ -133,7 +134,7 @@ void MyMain(const fub::ProgramOptions& options) {
       std::chrono::steady_clock::now();
   ScopeGuard amrex_scope_guard{};
 
-  const double h_ref{100.0};
+  const double h_ref{10000.0};
   const double t_ref{100.0};
   const double T_ref{300.0};
   const double u_ref{h_ref / t_ref};
@@ -145,6 +146,8 @@ void MyMain(const fub::ProgramOptions& options) {
   inidat.Msq = u_ref * u_ref / (inidat.R_gas * T_ref);
   inidat.c_p = inidat.gamma / (inidat.gamma - 1.0);
   inidat.alpha_p = 1.0;
+  inidat.f       = 2.0*M_PI;
+  inidat.f_swtch = {1.0, 1.0};
 
   DataDescription desc{};
   desc.n_state_components = 7;
@@ -216,7 +219,7 @@ void MyMain(const fub::ProgramOptions& options) {
         geom.LoNode(i, coor);
         const double dx = coor[0] - inidat.center[0];
         const double dy = coor[1] - inidat.center[1];
-        const double r = std::sqrt(dx * dx + dy * dy);
+        const double r = std::sqrt(dx * dx + inidat.ratio*(dy * dy));
 
         if (r < inidat.R0) {
           const double r_over_R0 = r / inidat.R0;
