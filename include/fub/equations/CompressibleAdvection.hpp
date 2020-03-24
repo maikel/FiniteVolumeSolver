@@ -110,22 +110,6 @@ template <int N, int VelocityDim = N> struct CompressibleAdvection {
     state.PTinverse = cons.density / cons.PTdensity;
   }
 
-  /// Universal gas constant
-  double R{8.314}; // [J / (mol K)]
-
-  /// Heat capacity ratio at constant pressure
-  double c_p{2.5 * R};
-
-  /// Gravitational acceleration
-  double g{10.0}; //  [m / s^2]
-
-  /// Coriolis parameter in beta plane
-  double f{0.0};
-
-  double alpha_p{0.0};
-  double gamma{1.4};
-  double Msq{0.0};
-
 };
 
 template <int SpaceDimension, int VelocityDimension = SpaceDimension>
