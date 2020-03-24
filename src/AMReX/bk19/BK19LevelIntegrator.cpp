@@ -239,9 +239,9 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   }
 }
 
-::amrex::MultiFab DoEulerBackward_(const Equation& equation,
-                                   const IndexMapping<Equation>& index,
+::amrex::MultiFab DoEulerBackward_(const IndexMapping<Equation>& index,
                                    ::amrex::MLNodeHelmholtz& lin_op,
+                                   const BK19PhysicalParameters& phys_param,
                                    const BK19LevelIntegratorOptions& options,
                                    BK19IntegratorContext& context, int level,
                                    Duration dt, DebugSnapshotProxy& dbg_sn) {
@@ -263,10 +263,10 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
     ::amrex::Box tilebox = mfi.growntilebox();
     StridedDataView<double, AMREX_SPACEDIM> diagfac = MakePatchDataView(diagfac_cells[mfi], 0, tilebox);
     StridedDataView<double, AMREX_SPACEDIM> PTdensity = MakePatchDataView(scratch[mfi], index.PTdensity, tilebox);
-    ForEachRow(std::tuple{diagfac, PTdensity}, [equation, dt](span<double> dfac,  span<double> PTdens) {
+    ForEachRow(std::tuple{diagfac, PTdensity}, [phys_param, dt](span<double> dfac,  span<double> PTdens) {
       for (std::ptrdiff_t i = 0; i < dfac.size(); ++i) {
-        dfac[i] = -equation.alpha_p * equation.Msq / (equation.gamma - 1.0) *
-                   std::pow(PTdens[i], 2.0 - equation.gamma) / dt.count();
+        dfac[i] = -phys_param.alpha_p * phys_param.Msq / (phys_param.gamma - 1.0) *
+                   std::pow(PTdens[i], 2.0 - phys_param.gamma) / dt.count();
       }
     });
   });
@@ -312,7 +312,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   // Construct sigma / weight of Laplacian (equation (27) in [BK19]
   // divided by -dt)
   MultiFab sigma(on_cells, distribution_map, one_component, no_ghosts);
-  sigma.setVal(equation.c_p * dt.count());
+  sigma.setVal(phys_param.c_p * dt.count());
   MultiFab::Multiply(sigma, scratch, index.PTdensity, 0, one_component,
                      sigma.nGrow());
   MultiFab::Divide(sigma, scratch, index.PTinverse, 0, one_component,
@@ -324,7 +324,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   // We only set the diagonal term for alpha_p > 0, since this also tells then
   // linear operator that it is non-singular and the RHS must not summ up to
   // zero.
-  if (equation.alpha_p > 0.0) {
+  if (phys_param.alpha_p > 0.0) {
     lin_op.setAlpha(level, diagfac_nodes);
   }
 
@@ -369,9 +369,9 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   return pi;
 }
 
-void DoEulerForward_(const Equation& equation,
-                     const IndexMapping<Equation>& index,
+void DoEulerForward_(const IndexMapping<Equation>& index,
                      ::amrex::MLNodeHelmholtz& lin_op,
+                     const BK19PhysicalParameters& phys_param,
                      BK19IntegratorContext& context, int level, Duration dt,
                      DebugSnapshotProxy& dbg_sn) {
   MultiFab& scratch = context.GetScratch(level);
@@ -389,7 +389,7 @@ void DoEulerForward_(const Equation& equation,
   // construct sigma as in DoEulerBackward_, but without potential temperature
   // factor, since we correct the momentum right away
   MultiFab sigma(on_cells, distribution_map, one_component, no_ghosts);
-  sigma.setVal(equation.c_p * dt.count());
+  sigma.setVal(phys_param.c_p * dt.count());
   MultiFab::Multiply(sigma, scratch, index.PTdensity, 0, one_component,
                      sigma.nGrow());
 
@@ -431,10 +431,10 @@ void DoEulerForward_(const Equation& equation,
     ::amrex::Box tilebox = mfi.growntilebox();
     StridedDataView<double, AMREX_SPACEDIM> dpidP = MakePatchDataView(dpidP_cells[mfi], 0, tilebox);
     StridedDataView<double, AMREX_SPACEDIM> PTdensity = MakePatchDataView(scratch[mfi], index.PTdensity, tilebox);
-    ForEachRow(std::tuple{dpidP, PTdensity}, [equation, dt](span<double> dpi,  span<double> PTdens) {
+    ForEachRow(std::tuple{dpidP, PTdensity}, [phys_param, dt](span<double> dpi,  span<double> PTdens) {
       for (std::ptrdiff_t i = 0; i < dpi.size(); ++i) {
-        dpi[i] = -dt.count() * (equation.gamma - 1.0) / equation.Msq *
-                 std::pow(PTdens[i], equation.gamma - 2.0);
+        dpi[i] = -dt.count() * (phys_param.gamma - 1.0) / phys_param.Msq *
+                 std::pow(PTdens[i], phys_param.gamma - 2.0);
       }
     });
   });
@@ -445,7 +445,7 @@ void DoEulerForward_(const Equation& equation,
   // Note: It would be nice to just multiply by alpha_p=0 in the pseudo
   // incompressible limit. But that does not work, since before we divide by
   // Msq=0.
-  if (equation.alpha_p > 0.0) {
+  if (phys_param.alpha_p > 0.0) {
     MultiFab::Add(pi, div, 0, 0, one_component, no_ghosts);
   }
 }
@@ -475,9 +475,11 @@ BK19LevelIntegratorOptions::BK19LevelIntegratorOptions(
 BK19LevelIntegrator::BK19LevelIntegrator(
     const CompressibleAdvection<Rank>& equation, AdvectionSolver advection,
     std::shared_ptr<::amrex::MLNodeHelmholtz> linop,
+    const BK19PhysicalParameters& physical_parameters,
     const BK19LevelIntegratorOptions& options)
-    : AdvectionSolver(std::move(advection)), options_(options),
-      equation_(equation), index_(equation_), lin_op_(std::move(linop)) {}
+    : AdvectionSolver(std::move(advection)), phys_param_(physical_parameters),
+      options_(options), equation_(equation), index_(equation_),
+      lin_op_(std::move(linop)) {}
 
 Result<void, TimeStepTooLarge>
 BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
@@ -533,8 +535,8 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
 
   // 3) Do the first euler backward integration step for the source term
   context.FillGhostLayerSingleLevel(level);
-  DoEulerBackward_(equation_, index_, *lin_op_, options_, context, level,
-                   half_dt, dbgAdvB);
+  MultiFab pi_tmp = DoEulerBackward_(index_, *lin_op_, phys_param_, options_,
+                                     context, level, half_dt, dbgAdvB);
 
   // 4) Recompute Pv at half time
   RecomputeAdvectiveFluxes(index_, Pv.on_faces, Pv.on_cells, scratch,
@@ -552,7 +554,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
 
   // 5) Explicit Euler with old scratch data
   //   - We need a current pi_n here. What is the initial one?
-  DoEulerForward_(equation_, index_, *lin_op_, context, level, half_dt,
+  DoEulerForward_(index_, *lin_op_, phys_param_, context, level, half_dt,
                   dbgAdvBF);
 
   dbgAdvBF.SaveData(scratch, GetCompleteVariableNames(), geom);
@@ -571,7 +573,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   dbgAdvBFA.SaveData(pi, "pi", geom);
 
   // 6) Do the second euler backward integration step for the source term
-  MultiFab pi_new = DoEulerBackward_(equation_, index_, *lin_op_, options_,
+  MultiFab pi_new = DoEulerBackward_(index_, *lin_op_, phys_param_, options_,
                                      context, level, half_dt, dbgAdvBFAB);
 
   // Copy pi_n+1 to pi_n
