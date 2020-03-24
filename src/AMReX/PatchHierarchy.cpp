@@ -216,6 +216,37 @@ const ::amrex::Geometry& PatchHierarchy::GetGeometry(int level) const {
   return patch_level_geometry_[static_cast<std::size_t>(level)];
 }
 
+const ::amrex::Vector<::amrex::Geometry> PatchHierarchy::GetGeometries() const {
+  return {patch_level_geometry_.begin(), patch_level_geometry_.end()};
+}
+
+const ::amrex::Vector<::amrex::BoxArray> PatchHierarchy::GetBoxArrays() const {
+  const std::size_t nlevels = patch_level_geometry_.size();
+  ::amrex::Vector<::amrex::BoxArray> bas(nlevels);
+  for (std::size_t level = 0; level < nlevels; ++level) {
+    bas[level] = GetPatchLevel(static_cast<int>(level)).box_array;
+  }
+  return bas;
+}
+
+const ::amrex::Vector<::amrex::DistributionMapping> PatchHierarchy::GetDistributionMappings() const {
+  const std::size_t nlevels = patch_level_geometry_.size();
+  ::amrex::Vector<::amrex::DistributionMapping> dms(nlevels);
+  for (std::size_t level = 0; level < nlevels; ++level) {
+    dms[level] = GetPatchLevel(static_cast<int>(level)).distribution_mapping;
+  }
+  return dms;
+}
+
+const ::amrex::Vector<const ::amrex::MultiFab*> PatchHierarchy::GetData() const {
+  const int nlevels = GetNumberOfLevels();
+  ::amrex::Vector<const ::amrex::MultiFab*> data(static_cast<std::size_t>(nlevels));
+  for (int level = 0; level < nlevels; ++level) {
+    data[level] = &GetPatchLevel(level).data;
+  }
+  return data;
+}
+
 const PatchHierarchyOptions& PatchHierarchy::GetOptions() const noexcept {
   return options_;
 }
@@ -748,7 +779,7 @@ void WriteTubeData(const std::string& name, const PatchHierarchy& hierarchy,
             ::amrex::IntVect fine_i{
                 AMREX_D_DECL(i, domain.smallEnd(1), domain.smallEnd(2))};
             ::amrex::IntVect coarse_i = fine_i;
-            coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(level));
+            coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(ilvl));
             if (fab(fine_i, 0) == 0.0) {
               fab(fine_i, comp) = fabs[level - 1](coarse_i, comp);
             }
@@ -758,7 +789,7 @@ void WriteTubeData(const std::string& name, const PatchHierarchy& hierarchy,
           ::amrex::IntVect fine_i{
               AMREX_D_DECL(i, domain.smallEnd(1), domain.smallEnd(2))};
           ::amrex::IntVect coarse_i = fine_i;
-          coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(level));
+          coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(ilvl));
           if (fab(fine_i, 0) == 0.0) {
             fab(fine_i, 0) = fabs[level - 1](coarse_i, 0);
           }
