@@ -32,6 +32,7 @@
 
 #include <AMReX_FluxRegister.H>
 #include <AMReX_MultiFab.H>
+#include <AMReX_MLMG.H>
 
 #include <array>
 #include <memory>
