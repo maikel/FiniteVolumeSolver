@@ -25,6 +25,7 @@
 #include <AMReX_MLMG.H>
 
 #include "fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp"
+#include "fub/AMReX/MLMG/MLNodeHelmDualLinVel.hpp"
 #include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
 #include "fub/AMReX/bk19/BK19LevelIntegrator.hpp"
 #include "fub/equations/CompressibleAdvection.hpp"
@@ -175,22 +176,8 @@ void MyMain(const fub::ProgramOptions& options) {
       std::move(hierarchy), inidat, TagAllOf{gradient, TagBuffer(2)});
   grid->InitializeHierarchy(0.0);
 
-  // set number of MG levels to 1 (effectively no MG)
-  amrex::LPInfo lp_info;
-  lp_info.setMaxCoarseningLevel(0);
-
   auto box_array = grid->GetPatchHierarchy().GetPatchLevel(0).box_array;
   auto dmap = grid->GetPatchHierarchy().GetPatchLevel(0).distribution_mapping;
-  auto linop = std::make_shared<amrex::MLNodeHelmDualCstVel>(
-      amrex::Vector<amrex::Geometry>{grid->GetPatchHierarchy().GetGeometry(0)},
-      amrex::Vector<amrex::BoxArray>{box_array},
-      amrex::Vector<amrex::DistributionMapping>{dmap}, lp_info);
-
-  linop->setDomainBC(
-      {AMREX_D_DECL(amrex::LinOpBCType::Periodic, amrex::LinOpBCType::Periodic,
-                    amrex::LinOpBCType::Periodic)},
-      {AMREX_D_DECL(amrex::LinOpBCType::Periodic, amrex::LinOpBCType::Periodic,
-                    amrex::LinOpBCType::Periodic)});
 
   fub::CompressibleAdvectionFluxMethod<2> flux_method{};
 
@@ -239,6 +226,24 @@ void MyMain(const fub::ProgramOptions& options) {
       fub::GetOptions(options, "BK19LevelIntegrator");
   BOOST_LOG(info) << "BK19LevelIntegrator:";
   integrator_options.Print(info);
+
+  // set number of MG levels (0: effectively no MG)
+  amrex::LPInfo lp_info;
+  if (integrator_options.mlmg_max_coarsening_level >= 0) {
+    lp_info.setMaxCoarseningLevel(integrator_options.mlmg_max_coarsening_level);
+  }
+
+  auto linop = std::make_shared<amrex::MLNodeHelmDualLinVel>(
+      amrex::Vector<amrex::Geometry>{grid->GetPatchHierarchy().GetGeometry(0)},
+      amrex::Vector<amrex::BoxArray>{box_array},
+      amrex::Vector<amrex::DistributionMapping>{dmap}, lp_info);
+
+  linop->setDomainBC(
+      {AMREX_D_DECL(amrex::LinOpBCType::Periodic, amrex::LinOpBCType::Periodic,
+                    amrex::LinOpBCType::Periodic)},
+      {AMREX_D_DECL(amrex::LinOpBCType::Periodic, amrex::LinOpBCType::Periodic,
+                    amrex::LinOpBCType::Periodic)});
+
   BK19LevelIntegrator level_integrator(equation, std::move(advection), linop,
                                        inidat, integrator_options);
   fub::NoSubcycleSolver solver(std::move(level_integrator));

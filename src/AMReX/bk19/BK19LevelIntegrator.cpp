@@ -462,6 +462,8 @@ void DoEulerForward_(const IndexMapping<Equation>& index,
 
 BK19LevelIntegratorOptions::BK19LevelIntegratorOptions(
     const ProgramOptions& options) {
+  mlmg_max_coarsening_level =
+      GetOptionOr(options, "mlmg_max_coarsening_level", mlmg_max_coarsening_level);
   mlmg_tolerance_rel =
       GetOptionOr(options, "mlmg_tolerance_rel", mlmg_tolerance_rel);
   mlmg_tolerance_abs =

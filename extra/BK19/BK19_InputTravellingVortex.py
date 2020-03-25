@@ -1,4 +1,5 @@
 BK19LevelIntegrator = {
+    'mlmg_max_coarsening_level': -1,
     'mlmg_tolerance_rel': 1e-10,
     'mlmg_tolerance_abs': 1e-10,
     'mlmg_verbose': 2,

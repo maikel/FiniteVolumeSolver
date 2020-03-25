@@ -462,6 +462,14 @@ MLNodeHelmDualLinVel::averageDownCoeffs ()
                         }
                 }
             }
+                if (m_alpha[amrlev][mglev].nComp() == 0) {
+                    if (mglev > 0) {
+                        const BoxArray& ba = amrex::convert(m_grids[amrlev][mglev],
+                                                            IntVect(AMREX_D_DECL(1,1,1)));
+                        m_alpha[amrlev][mglev].define(ba, m_dmap[amrlev][mglev], 1, 0);
+                        m_alpha[amrlev][mglev].setVal(0.0);
+                    }
+            }
         }
     }
 
@@ -561,6 +569,9 @@ MLNodeHelmDualLinVel::averageDownCoeffsSameAmrLevel (int amrlev)
                 crse.ParallelCopy(cfine);
             }
         }
+        const MultiFab& fine = m_alpha[amrlev][mglev-1];
+        MultiFab& crse = m_alpha[amrlev][mglev];
+        average_down_nodal(fine, crse, IntVect(AMREX_D_DECL(2,2,2)));
     }
 }
 
