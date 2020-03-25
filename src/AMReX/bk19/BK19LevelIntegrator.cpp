@@ -243,11 +243,12 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
                                    ::amrex::MLNodeHelmholtz& lin_op,
                                    const BK19PhysicalParameters& phys_param,
                                    const BK19LevelIntegratorOptions& options,
-                                   BK19IntegratorContext& context, int level,
-                                   Duration dt, DebugSnapshotProxy& dbg_sn) {
+                                   ::amrex::MultiFab& scratch,
+                                   const ::amrex::MultiFab& pi_old,
+                                   const ::amrex::Geometry& geom,
+                                   int level,
+                                   Duration dt, DebugSnapshotProxy dbg_sn = DebugSnapshotProxy()) {
 
-  MultiFab& scratch = context.GetScratch(level);
-  const ::amrex::Geometry& geom = context.GetGeometry(level);
   const ::amrex::Periodicity periodicity = geom.periodicity();
   ::amrex::DistributionMapping distribution_map = scratch.DistributionMap();
   ::amrex::BoxArray on_cells = scratch.boxArray();
@@ -278,8 +279,6 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
 
   AverageCellToNode_(diagfac_nodes, 0, diagfac_cells, 0);
 
-  // get pi from scratch
-  const MultiFab& pi_old = context.GetPi(level);
   MultiFab diagcomp(on_nodes, distribution_map, one_component, no_ghosts);
   MultiFab::Copy(diagcomp, pi_old, 0, 0, one_component, no_ghosts);
   MultiFab::Multiply(diagcomp, diagfac_nodes, 0, 0, one_component, no_ghosts);
@@ -377,10 +376,9 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
 void DoEulerForward_(const IndexMapping<Equation>& index,
                      ::amrex::MLNodeHelmholtz& lin_op,
                      const BK19PhysicalParameters& phys_param,
-                     BK19IntegratorContext& context, int level, Duration dt,
+                     ::amrex::MultiFab& scratch, ::amrex::MultiFab& pi,
+                     const ::amrex::Geometry& geom, int level, Duration dt,
                      DebugSnapshotProxy& dbg_sn) {
-  MultiFab& scratch = context.GetScratch(level);
-  const ::amrex::Geometry& geom = context.GetGeometry(level);
   const ::amrex::Periodicity periodicity = geom.periodicity();
 
   ::amrex::DistributionMapping distribution_map = scratch.DistributionMap();
@@ -403,11 +401,6 @@ void DoEulerForward_(const IndexMapping<Equation>& index,
   dbg_sn.SaveData(sigma, "sigma", geom);
   lin_op.setSigma(level, sigma);
 
-  // To compute the fluxes from the old pi we need one ghost cell width
-  // Thus, we use periodic boundaries for now and redistribute the pi_n onto the
-  // boundary
-  // TODO: What happens to pi otherwise?
-  MultiFab& pi = context.GetPi(level);
   MultiFab momentum_correction(on_cells, distribution_map,
                                index.momentum.size(), no_ghosts);
   momentum_correction.setVal(0.0);
@@ -543,7 +536,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
 
   // 3) Do the first euler backward integration step for the source term
   context.FillGhostLayerSingleLevel(level);
-  DoEulerBackward_(index_, *lin_op_, phys_param_, options_, context, level,
+  DoEulerBackward_(index_, *lin_op_, phys_param_, options_, scratch, pi, geom, level,
                    half_dt, dbgAdvB);
 
   // 4) Recompute Pv at half time
@@ -562,8 +555,8 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
 
   // 5) Explicit Euler with old scratch data
   //   - We need a current pi_n here. What is the initial one?
-  DoEulerForward_(index_, *lin_op_, phys_param_, context, level, half_dt,
-                  dbgAdvBF);
+  DoEulerForward_(index_, *lin_op_, phys_param_, scratch, pi, geom, level,
+                  half_dt, dbgAdvBF);
 
   dbgAdvBF.SaveData(scratch, GetCompleteVariableNames(), geom);
   dbgAdvBF.SaveData(pi, "pi", geom);
@@ -582,7 +575,8 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
 
   // 6) Do the second euler backward integration step for the source term
   MultiFab pi_new = DoEulerBackward_(index_, *lin_op_, phys_param_, options_,
-                                     context, level, half_dt, dbgAdvBFAB);
+                                     scratch, pi, geom, level, half_dt,
+                                     dbgAdvBFAB);
 
   // Copy pi_n+1 to pi_n
   context.GetPi(level).copy(pi_new);
