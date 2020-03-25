@@ -36,6 +36,7 @@ public:
     return *this;
   }
 
+  using LevelIntegrator::InitialProjection;
   using LevelIntegrator::AdvanceLevelNonRecursively;
   using LevelIntegrator::ApplyFluxCorrection;
   using LevelIntegrator::CoarsenConservatively;

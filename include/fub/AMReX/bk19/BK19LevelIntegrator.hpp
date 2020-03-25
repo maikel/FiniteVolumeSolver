@@ -111,6 +111,12 @@ public:
   AdvanceLevelNonRecursively(int level, Duration dt,
                              std::pair<int, int> subcycle);
 
+  Result<void, TimeStepTooLarge> InitialProjection(
+                        int level,
+                        Duration dt
+                        );
+
+
 private:
   BK19LevelIntegratorOptions options_;
   CompressibleAdvection<Rank> equation_;

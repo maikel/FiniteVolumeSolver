@@ -582,4 +582,46 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   return boost::outcome_v2::success();
 }
 
+Result<void, TimeStepTooLarge> BK19LevelIntegrator::InitialProjection(
+                      int level,
+                      Duration dt
+                      ) {
+
+  AdvectionSolver& advection = GetAdvection();
+  BK19IntegratorContext& context = advection.GetContext();
+  MultiFab& scratch = context.GetScratch(level);
+  MultiFab& pi = context.GetPi(level);
+  const ::amrex::Geometry& geom = context.GetGeometry(level);
+
+  ::amrex::DistributionMapping distribution_map = scratch.DistributionMap();
+  ::amrex::BoxArray on_cells = scratch.boxArray();
+  ::amrex::BoxArray on_nodes = on_cells;
+  on_nodes.surroundingNodes();
+
+  DebugStorage& debug = *context.GetPatchHierarchy().GetDebugStorage();
+  DebugSnapshotProxy dbgIniProj = debug.AddSnapshot("BK19_initial-projection");
+
+  equation_.alpha_p = 0.0;
+
+  for (std::size_t i = 0 ; i < index_.momentum.size(); ++i) {
+    MultiFab::Subtract(scratch, scratch, index_.density, index_.momentum[i], one_component, no_ghosts);
+  }
+
+  RecoverVelocityFromMomentum_(scratch, index_);
+
+  context.FillGhostLayerSingleLevel(level);
+  DoEulerBackward_(equation_, index_, *lin_op_, options_, scratch, pi, geom, level, dt, dbgIniProj);
+
+  for (std::size_t i = 0 ; i < index_.momentum.size(); ++i) {
+    MultiFab::Add(scratch, scratch, index_.density, index_.momentum[i], one_component, no_ghosts);
+  }
+
+  RecoverVelocityFromMomentum_(scratch, index_);
+  equation_.alpha_p = 1.0;
+
+  return boost::outcome_v2::success();
+
+}
+
+
 } // namespace fub::amrex
