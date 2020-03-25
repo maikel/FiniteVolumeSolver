@@ -161,39 +161,39 @@ int main(int argc, char** argv) {
   boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
       boost::log::keywords::severity = boost::log::trivial::info);
   fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> output{};
-  output.AddOutput(fub::MakeOutput<GriddingAlgorithm>(
-      {1}, {fub::Duration(1.0 / 30.0)}, [&](const GriddingAlgorithm& gridding) {
-        std::ptrdiff_t cycle = gridding.GetCycles();
-        fub::Duration tp = gridding.GetTimePoint();
-        BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", tp.count());
-        std::string name = fmt::format("{}plt{:05}", base_name, cycle);
-        BOOST_LOG(log) << "Start output to '" << name << "'.";
-        WritePlotFile(name, gridding.GetPatchHierarchy(), equation);
-        BOOST_LOG(log) << "Finished output to '" << name << "'.";
-        double rho_max = 0.0;
-        double rho_min = std::numeric_limits<double>::infinity();
-        for (int level = 0;
-             level < gridding.GetPatchHierarchy().GetNumberOfLevels();
-             ++level) {
-          const ::amrex::MultiFab& mf =
-              gridding.GetPatchHierarchy().GetPatchLevel(level).data;
-          rho_max = std::max(rho_max, mf.max(0));
-          rho_min = std::min(rho_min, mf.min(0));
-        }
-        const double rho_err =
-            std::max(std::abs(rho_max - 1.0), std::abs(rho_min - 1.0));
-        BOOST_LOG(log) << fmt::format("Density Max Error: {:.6E}", rho_err);
-      }));
-  output.AddOutput(
-      std::make_unique<fub::CounterOutput<fub::amrex::GriddingAlgorithm,
-                                          std::chrono::milliseconds>>(
-          wall_time_reference, std::vector<std::ptrdiff_t>{},
-          std::vector<fub::Duration>{0.01s}));
+//   output.AddOutput(fub::MakeOutput<GriddingAlgorithm>(
+//       {1}, {fub::Duration(1.0 / 30.0)}, [&](const GriddingAlgorithm& gridding) {
+//         std::ptrdiff_t cycle = gridding.GetCycles();
+//         fub::Duration tp = gridding.GetTimePoint();
+//         BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", tp.count());
+//         std::string name = fmt::format("{}plt{:05}", base_name, cycle);
+//         BOOST_LOG(log) << "Start output to '" << name << "'.";
+//         WritePlotFile(name, gridding.GetPatchHierarchy(), equation);
+//         BOOST_LOG(log) << "Finished output to '" << name << "'.";
+//         double rho_max = 0.0;
+//         double rho_min = std::numeric_limits<double>::infinity();
+//         for (int level = 0;
+//              level < gridding.GetPatchHierarchy().GetNumberOfLevels();
+//              ++level) {
+//           const ::amrex::MultiFab& mf =
+//               gridding.GetPatchHierarchy().GetPatchLevel(level).data;
+//           rho_max = std::max(rho_max, mf.max(0));
+//           rho_min = std::min(rho_min, mf.min(0));
+//         }
+//         const double rho_err =
+//             std::max(std::abs(rho_max - 1.0), std::abs(rho_min - 1.0));
+//         BOOST_LOG(log) << fmt::format("Density Max Error: {:.6E}", rho_err);
+//       }));
+//   output.AddOutput(
+//       std::make_unique<fub::CounterOutput<fub::amrex::GriddingAlgorithm,
+//                                           std::chrono::milliseconds>>(
+//           wall_time_reference, std::vector<std::ptrdiff_t>{},
+//           std::vector<fub::Duration>{0.01s}));
 
   using namespace std::literals::chrono_literals;
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
-  run_options.final_time = 3.0s;
+  run_options.final_time = 0.001s;
   run_options.cfl = 0.8;
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 

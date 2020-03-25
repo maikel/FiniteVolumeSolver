@@ -54,14 +54,23 @@ public:
   Result<void, TimeStepTooLarge>
   AdvanceLevel(IntegratorContext& simulation_data, int level, Duration dt);
 
+  /////////////////////////////////////////////////////////////////////////
+  // optional member functions needed for being a source term
+
+  void PreAdvanceHierarchy();
+
   //////////////////////////////////////////////////////////////////////////
   // additional member functions to get class data
 
 private:
   PerfectGas<Rank> equation_;
+  const std::shared_ptr<GriddingAlgorithm>& grid_;
 
   std::unique_ptr<::amrex::MLTensorOp> m_reg_solve_op;
   std::unique_ptr<::amrex::MLTensorOp> m_reg_apply_op;
+
+  ::amrex::LPInfo info_solve;
+  ::amrex::LPInfo info_apply;
 
   // DiffusionOp verbosity
   int m_verbose = 0;
