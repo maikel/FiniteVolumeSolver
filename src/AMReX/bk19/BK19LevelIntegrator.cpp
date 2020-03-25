@@ -582,9 +582,10 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   return boost::outcome_v2::success();
 }
 
-Result<void, TimeStepTooLarge> BK19LevelIntegrator::InitialProjection(
+void BK19LevelIntegrator::InitialProjection(
                       int level,
-                      Duration dt
+                      Duration dt,
+                      std::array<double,2> U0
                       ) {
 
   AdvectionSolver& advection = GetAdvection();
@@ -604,7 +605,7 @@ Result<void, TimeStepTooLarge> BK19LevelIntegrator::InitialProjection(
   equation_.alpha_p = 0.0;
 
   for (std::size_t i = 0 ; i < index_.momentum.size(); ++i) {
-    MultiFab::Subtract(scratch, scratch, index_.density, index_.momentum[i], one_component, no_ghosts);
+    MultiFab::Saxpy(scratch, -U0[i] ,scratch, index_.density, index_.momentum[i], one_component, no_ghosts);
   }
 
   RecoverVelocityFromMomentum_(scratch, index_);
@@ -613,14 +614,11 @@ Result<void, TimeStepTooLarge> BK19LevelIntegrator::InitialProjection(
   DoEulerBackward_(equation_, index_, *lin_op_, options_, scratch, pi, geom, level, dt, dbgIniProj);
 
   for (std::size_t i = 0 ; i < index_.momentum.size(); ++i) {
-    MultiFab::Add(scratch, scratch, index_.density, index_.momentum[i], one_component, no_ghosts);
+    MultiFab::Saxpy(scratch, +U0[i], scratch, index_.density, index_.momentum[i], one_component, no_ghosts);
   }
 
   RecoverVelocityFromMomentum_(scratch, index_);
   equation_.alpha_p = 1.0;
-
-  return boost::outcome_v2::success();
-
 }
 
 

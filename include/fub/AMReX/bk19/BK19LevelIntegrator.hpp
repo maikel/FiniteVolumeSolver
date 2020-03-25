@@ -111,9 +111,10 @@ public:
   AdvanceLevelNonRecursively(int level, Duration dt,
                              std::pair<int, int> subcycle);
 
-  Result<void, TimeStepTooLarge> InitialProjection(
+  void InitialProjection(
                         int level,
-                        Duration dt
+                        Duration dt,
+                        std::array<double,2> U0
                         );
 
 
