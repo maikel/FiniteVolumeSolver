@@ -243,11 +243,12 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
                                    const IndexMapping<Equation>& index,
                                    ::amrex::MLNodeHelmDualCstVel& lin_op,
                                    const BK19LevelIntegratorOptions& options,
-                                   BK19IntegratorContext& context, int level,
-                                   Duration dt, DebugSnapshotProxy& dbg_sn) {
+                                   ::amrex::MultiFab& scratch,
+                                   const ::amrex::MultiFab& pi_old,
+                                   const ::amrex::Geometry& geom,
+                                   int level,
+                                   Duration dt, DebugSnapshotProxy dbg_sn = DebugSnapshotProxy()) {
 
-  MultiFab& scratch = context.GetScratch(level);
-  const ::amrex::Geometry& geom = context.GetGeometry(level);
   const ::amrex::Periodicity periodicity = geom.periodicity();
   ::amrex::DistributionMapping distribution_map = scratch.DistributionMap();
   ::amrex::BoxArray on_cells = scratch.boxArray();
@@ -274,7 +275,8 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   AverageCellToNode_(diagfac_nodes, 0, diagfac_cells, 0);
 
   // get pi from scratch
-  const MultiFab& pi_old = context.GetPi(level);
+  // const MultiFab& pi_old = context.GetPi(level);
+  // const MultiFab& pi_old = pi_old;
   MultiFab diagcomp(on_nodes, distribution_map, one_component, no_ghosts);
   MultiFab::Copy(diagcomp, pi_old, 0, 0, one_component, no_ghosts);
   MultiFab::Multiply(diagcomp, diagfac_nodes, 0, 0, one_component, no_ghosts);
@@ -533,8 +535,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
 
   // 3) Do the first euler backward integration step for the source term
   context.FillGhostLayerSingleLevel(level);
-  DoEulerBackward_(equation_, index_, *lin_op_, options_, context, level,
-                   half_dt, dbgAdvB);
+  DoEulerBackward_(equation_, index_, *lin_op_, options_, scratch, pi, geom, level, half_dt, dbgAdvB);
 
   // 4) Recompute Pv at half time
   RecomputeAdvectiveFluxes(index_, Pv.on_faces, Pv.on_cells, scratch,
@@ -571,8 +572,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   dbgAdvBFA.SaveData(pi, "pi", geom);
 
   // 6) Do the second euler backward integration step for the source term
-  MultiFab pi_new = DoEulerBackward_(equation_, index_, *lin_op_, options_,
-                                     context, level, half_dt, dbgAdvBFAB);
+  MultiFab pi_new = DoEulerBackward_(equation_, index_, *lin_op_, options_, scratch, pi, geom, level, half_dt, dbgAdvBFAB);
 
   // Copy pi_n+1 to pi_n
   context.GetPi(level).copy(pi_new);
