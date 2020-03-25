@@ -124,7 +124,7 @@ struct TravellingVortexInitialData {
   const double fac{1024.0};
   const double R_gas{287.4};
   const double gamma{1.4};
-  const double h_ref{100.0};
+  const double h_ref{10000.0};
   const double t_ref{100.0};
   const double T_ref{300.0};
   const double u_ref{h_ref / t_ref};
@@ -264,6 +264,9 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::RunOptions run_options = fub::GetOptions(options, "RunOptions");
   BOOST_LOG(info) << "RunOptions:";
   run_options.Print(info);
+
+  fub::Duration dt = std::chrono::duration<double>(2.5e-3);
+  solver.InitialProjection(0, dt);
 
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }
