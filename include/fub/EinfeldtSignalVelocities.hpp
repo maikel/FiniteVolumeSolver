@@ -47,6 +47,12 @@ template <typename Equation> struct EinfeldtSignalVelocities {
                                     const CompleteArray& left,
                                     const CompleteArray& right,
                                     Direction dir) const noexcept;
+
+  std::array<Array1d, 2> operator()(const Equation& equation,
+                                    const CompleteArray& left,
+                                    const CompleteArray& right,
+                                    const MaskArray& mask,
+                                    Direction dir) const noexcept;
 };
 
 } // namespace fub

@@ -37,8 +37,8 @@ namespace fub::amrex::cutcell {
 ////////////////////////////////////////////////////////////////////////////////
 //                                                      Move Assignment Operator
 
-IntegratorContext::LevelData& IntegratorContext::LevelData::
-operator=(LevelData&& other) noexcept {
+IntegratorContext::LevelData&
+IntegratorContext::LevelData::operator=(LevelData&& other) noexcept {
   if (other.coarse_fine.fineLevel() > 0) {
     // If we do not invoke clear in beforehand it will throw an error in AMReX
     coarse_fine.clear();
@@ -111,8 +111,8 @@ IntegratorContext::IntegratorContext(const IntegratorContext& other)
   }
 }
 
-IntegratorContext& IntegratorContext::IntegratorContext::
-operator=(const IntegratorContext& other) {
+IntegratorContext& IntegratorContext::IntegratorContext::operator=(
+    const IntegratorContext& other) {
   // We use the copy and move idiom to provide the strong exception guarantee.
   // If an exception occurs we do not change the original object.
   IntegratorContext tmp{other};
@@ -428,7 +428,8 @@ void IntegratorContext::FillGhostLayerTwoLevels(int fine,
   ::amrex::FillPatchTwoLevels(
       scratch, ft[0], *GetPatchHierarchy().GetOptions().index_spaces[sfine],
       cmf, ct, fmf, ft, 0, 0, nc, cgeom, fgeom, cbc, 0, fbc, 0, ratio, mapper,
-      bcr, 0, ::amrex::NullInterpHook(), ::amrex::NullInterpHook());
+      bcr, 0, ::amrex::NullInterpHook<::amrex::FArrayBox>(),
+      ::amrex::NullInterpHook<::amrex::FArrayBox>());
 }
 
 void IntegratorContext::FillGhostLayerTwoLevels(int fine, int coarse) {

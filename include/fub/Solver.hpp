@@ -44,6 +44,16 @@
 #include "fub/equations/ShallowWater.hpp"
 
 #include "fub/equations/ideal_gas_mix/mechanism/Burke2012.hpp"
+#include "fub/equations/ideal_gas_mix/EinfeldtSignalVelocities.hpp"
+#include "fub/equations/ideal_gas_mix/HlleMethod.hpp"
+#include "fub/equations/ideal_gas_mix/MusclHancockPrimMethod.hpp"
+
+#include "fub/equations/perfect_gas/EinfeldtSignalVelocities.hpp"
+#include "fub/equations/perfect_gas/GodunovMethod.hpp"
+#include "fub/equations/perfect_gas/MusclHancockMethod.hpp"
+#include "fub/equations/perfect_gas/ExactRiemannSolver.hpp"
+#include "fub/equations/perfect_gas/HllemMethod.hpp"
+#include "fub/equations/perfect_gas/MusclHancockPrimMethod.hpp"
 
 #include "fub/flux_method/GodunovMethod.hpp"
 #include "fub/flux_method/HllMethod.hpp"
@@ -52,6 +62,7 @@
 #include "fub/ext/Log.hpp"
 #include "fub/ext/Mpi.hpp"
 #include "fub/ext/ProgramOptions.hpp"
+#include "fub/ext/Vc.hpp"
 
 #include "fub/cutcell_method/KbnStabilisation.hpp"
 
