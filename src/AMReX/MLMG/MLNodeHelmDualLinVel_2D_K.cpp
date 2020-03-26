@@ -36,8 +36,8 @@
 // (https://amrex-codes.github.io/).
 
 // clang-format off
-#ifndef AMREX_ML_NODEHELM_DUAL_CSTVEL_2D_K_H_
-#define AMREX_ML_NODEHELM_DUAL_CSTVEL_2D_K_H_
+#ifndef AMREX_ML_NODEHELM_DUAL_LINVEL_2D_K_H_
+#define AMREX_ML_NODEHELM_DUAL_LINVEL_2D_K_H_
 
 namespace amrex {
 
@@ -320,21 +320,21 @@ void mlndhelm_adotx_ha (int i, int j, int k, Array4<Real> const& y, Array4<Real 
     if (msk(i,j,k)) {
         y(i,j,k) = 0.0;
     } else {
-        Real facx = (1./4.)*dxinv[0]*dxinv[0];
-        Real facy = (1./4.)*dxinv[1]*dxinv[1];
+        Real facx = (1./8.)*dxinv[0]*dxinv[0];
+        Real facy = (1./8.)*dxinv[1]*dxinv[1];
         y(i,j,k) = x(i-1,j-1,k)*(facx*sx(i-1,j-1,k)+facy*sy(i-1,j-1,k))
                +   x(i+1,j-1,k)*(facx*sx(i  ,j-1,k)+facy*sy(i  ,j-1,k))
                +   x(i-1,j+1,k)*(facx*sx(i-1,j  ,k)+facy*sy(i-1,j  ,k))
                +   x(i+1,j+1,k)*(facx*sx(i  ,j  ,k)+facy*sy(i  ,j  ,k))
-               +   x(i-1,j,k)*(  facx*(sx(i-1,j-1,k)+sx(i-1,j,k))
-                               - facy*(sy(i-1,j-1,k)+sx(i-1,j,k)))
-               +   x(i+1,j,k)*(  facx*(sx(i  ,j-1,k)+sx(i  ,j,k))
-                               - facy*(sy(i  ,j-1,k)+sx(i  ,j,k)))
-               +   x(i,j-1,k)*(- facx*(sx(i-1,j-1,k)+sx(i,j-1,k))
-                               + facy*(sy(i-1,j-1,k)+sy(i,j-1,k)))
-               +   x(i,j+1,k)*(- facx*(sx(i-1,j  ,k)+sx(i,j  ,k))
-                               + facy*(sy(i-1,j  ,k)+sy(i,j  ,k)))
-               +   x(i,j,k)*(-1.0)*(facx*(sx(i-1,j-1,k)+sx(i,j-1,k)+sx(i-1,j,k)+sx(i,j,k))
+               +   x(i-1,j,k)*(3.0*facx*(sx(i-1,j-1,k)+sx(i-1,j,k))
+                             -     facy*(sy(i-1,j-1,k)+sx(i-1,j,k)))
+               +   x(i+1,j,k)*(3.0*facx*(sx(i  ,j-1,k)+sx(i  ,j,k))
+                             -     facy*(sy(i  ,j-1,k)+sx(i  ,j,k)))
+               +   x(i,j-1,k)*(   -facx*(sx(i-1,j-1,k)+sx(i,j-1,k))
+                              +3.0*facy*(sy(i-1,j-1,k)+sy(i,j-1,k)))
+               +   x(i,j+1,k)*(   -facx*(sx(i-1,j  ,k)+sx(i,j  ,k))
+                              +3.0*facy*(sy(i-1,j  ,k)+sy(i,j  ,k)))
+               +   x(i,j,k)*(-3.0)*(facx*(sx(i-1,j-1,k)+sx(i,j-1,k)+sx(i-1,j,k)+sx(i,j,k))
                                    +facy*(sy(i-1,j-1,k)+sy(i,j-1,k)+sy(i-1,j,k)+sy(i,j,k)));
     }
 }
@@ -348,20 +348,20 @@ void mlndhelm_adotx_aa (int i, int j, int k, Array4<Real> const& y, Array4<Real 
     if (msk(i,j,k)) {
         y(i,j,k) = 0.0;
     } else {
-        Real facx = (1.0/4.0)*dxinv[0]*dxinv[0];
-        Real facy = (1.0/4.0)*dxinv[1]*dxinv[1];
+        Real facx = (1.0/8.0)*dxinv[0]*dxinv[0];
+        Real facy = (1.0/8.0)*dxinv[1]*dxinv[1];
         Real fxy = facx + facy;
-        Real fxmy = facx - facy;
-        Real fmxy = facy - facx;
+        Real f3xmy = 3.0*facx - facy;
+        Real fmx3y = 3.0*facy - facx;
         y(i,j,k) = x(i-1,j-1,k)*fxy*sig(i-1,j-1,k)
                +   x(i+1,j-1,k)*fxy*sig(i  ,j-1,k)
                +   x(i-1,j+1,k)*fxy*sig(i-1,j  ,k)
                +   x(i+1,j+1,k)*fxy*sig(i  ,j  ,k)
-               +   x(i-1,j,k)*fxmy*(sig(i-1,j-1,k)+sig(i-1,j,k))
-               +   x(i+1,j,k)*fxmy*(sig(i  ,j-1,k)+sig(i  ,j,k))
-               +   x(i,j-1,k)*fmxy*(sig(i-1,j-1,k)+sig(i,j-1,k))
-               +   x(i,j+1,k)*fmxy*(sig(i-1,j  ,k)+sig(i,j  ,k))
-               +   x(i,j,k)*(-1.0)*fxy*
+               +   x(i-1,j,k)*f3xmy*(sig(i-1,j-1,k)+sig(i-1,j,k))
+               +   x(i+1,j,k)*f3xmy*(sig(i  ,j-1,k)+sig(i  ,j,k))
+               +   x(i,j-1,k)*fmx3y*(sig(i-1,j-1,k)+sig(i,j-1,k))
+               +   x(i,j+1,k)*fmx3y*(sig(i-1,j  ,k)+sig(i,j  ,k))
+               +   x(i,j,k)*(-3.0)*fxy*
                       (sig(i-1,j-1,k)+sig(i,j-1,k)+sig(i-1,j,k)+sig(i,j,k))
                +   x(i,j,k)*alp(i,j,k);
     }
@@ -372,13 +372,13 @@ void mlndhelm_normalize_ha (Box const& bx, Array4<Real> const& x, Array4<Real co
                            Array4<Real const> const& sy, Array4<int const> const& msk,
                            GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
 {
-    Real facx = (1.0/4.0)*dxinv[0]*dxinv[0];
-    Real facy = (1.0/4.0)*dxinv[1]*dxinv[1];
+    Real facx = (1.0/8.0)*dxinv[0]*dxinv[0];
+    Real facy = (1.0/8.0)*dxinv[1]*dxinv[1];
 
     amrex::LoopConcurrent(bx, [=] (int i, int j, int k) noexcept
     {
         if (!msk(i,j,k)) {
-            x(i,j,k) /= (-1.0)*(facx*(sx(i-1,j-1,k)+sx(i,j-1,k)+sx(i-1,j,k)+sx(i,j,k))
+            x(i,j,k) /= (-8.0)*(facx*(sx(i-1,j-1,k)+sx(i,j-1,k)+sx(i-1,j,k)+sx(i,j,k))
                                +facy*(sy(i-1,j-1,k)+sy(i,j-1,k)+sy(i-1,j,k)+sy(i,j,k)));
         }
     });
@@ -389,14 +389,14 @@ void mlndhelm_normalize_aa (Box const& bx, Array4<Real> const& x, Array4<Real co
                            Array4<Real const> const& alp, Array4<int const> const& msk,
                            GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
 {
-    Real facx = (1.0/4.0)*dxinv[0]*dxinv[0];
-    Real facy = (1.0/4.0)*dxinv[1]*dxinv[1];
+    Real facx = (1.0/8.0)*dxinv[0]*dxinv[0];
+    Real facy = (1.0/8.0)*dxinv[1]*dxinv[1];
     Real fxy = facx + facy;
 
     amrex::LoopConcurrent(bx, [=] (int i, int j, int k) noexcept
     {
         if (!msk(i,j,k)) {
-            x(i,j,k) /= (-1.0)*fxy*(sig(i-1,j-1,k)+sig(i,j-1,k)+sig(i-1,j,k)+sig(i,j,k))
+            x(i,j,k) /= (-3.0)*fxy*(sig(i-1,j-1,k)+sig(i,j-1,k)+sig(i-1,j,k)+sig(i,j,k))
                + alp(i,j,k);
         }
     });
@@ -408,8 +408,8 @@ void mlndhelm_jacobi_ha (Box const& bx, Array4<Real> const& sol, Array4<Real con
                         Array4<Real const> const& sy, Array4<int const> const& msk,
                         GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
 {
-    Real facx = -1.0 * (1.0/4.0)*dxinv[0]*dxinv[0];
-    Real facy = -1.0 * (1.0/4.0)*dxinv[1]*dxinv[1];
+    Real facx = -3.0 * (1.0/8.0)*dxinv[0]*dxinv[0];
+    Real facy = -3.0 * (1.0/8.0)*dxinv[1]*dxinv[1];
 
     amrex::LoopConcurrent(bx, [=] (int i, int j, int k) noexcept
     {
@@ -429,7 +429,7 @@ void mlndhelm_jacobi_aa (Box const& bx, Array4<Real> const& sol, Array4<Real con
                         Array4<Real const> const& alp, Array4<int const> const& msk,
                         GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
 {
-    Real fac = -1.0 * (1.0/4.0)*(dxinv[0]*dxinv[0] + dxinv[1]*dxinv[1]);
+    Real fac = -3.0 * (1.0/8.0)*(dxinv[0]*dxinv[0] + dxinv[1]*dxinv[1]);
 
     amrex::LoopConcurrent(bx, [=] (int i, int j, int k) noexcept
     {
@@ -448,29 +448,29 @@ void mlndhelm_gauss_seidel_ha (Box const& bx, Array4<Real> const& sol,
                               Array4<Real const> const& sy, Array4<int const> const& msk,
                               GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
 {
-    Real facx = (1.0/4.0)*dxinv[0]*dxinv[0];
-    Real facy = (1.0/4.0)*dxinv[1]*dxinv[1];
+    Real facx = (1.0/8.0)*dxinv[0]*dxinv[0];
+    Real facy = (1.0/8.0)*dxinv[1]*dxinv[1];
 
     amrex::Loop(bx, [=] (int i, int j, int k) noexcept
     {
         if (msk(i,j,k)) {
             sol(i,j,k) = 0.0;
         } else {
-            Real s0 = (-1.0)*(facx*(sx(i-1,j-1,k)+sx(i,j-1,k)+sx(i-1,j,k)+sx(i,j,k))
+            Real s0 = (-3.0)*(facx*(sx(i-1,j-1,k)+sx(i,j-1,k)+sx(i-1,j,k)+sx(i,j,k))
                              +facy*(sy(i-1,j-1,k)+sy(i,j-1,k)+sy(i-1,j,k)+sy(i,j,k)));
 
             Real Ax = sol(i-1,j-1,k)*(facx*sx(i-1,j-1,k)+facy*sy(i-1,j-1,k))
                     + sol(i+1,j-1,k)*(facx*sx(i  ,j-1,k)+facy*sy(i  ,j-1,k))
                     + sol(i-1,j+1,k)*(facx*sx(i-1,j  ,k)+facy*sy(i-1,j  ,k))
                     + sol(i+1,j+1,k)*(facx*sx(i  ,j  ,k)+facy*sy(i  ,j  ,k))
-                    + sol(i-1,j,k)*(  facx*(sx(i-1,j-1,k)+sx(i-1,j,k))
-                                    - facy*(sy(i-1,j-1,k)+sx(i-1,j,k)))
-                    + sol(i+1,j,k)*(  facx*(sx(i  ,j-1,k)+sx(i  ,j,k))
-                                    - facy*(sy(i  ,j-1,k)+sx(i  ,j,k)))
-                    + sol(i,j-1,k)*(- facx*(sx(i-1,j-1,k)+sx(i,j-1,k))
-                                    + facy*(sy(i-1,j-1,k)+sy(i,j-1,k)))
-                    + sol(i,j+1,k)*(- facx*(sx(i-1,j  ,k)+sx(i,j  ,k))
-                                    + facy*(sy(i-1,j  ,k)+sy(i,j  ,k)))
+                    + sol(i-1,j,k)*(3.0*facx*(sx(i-1,j-1,k)+sx(i-1,j,k))
+                                  -     facy*(sy(i-1,j-1,k)+sx(i-1,j,k)))
+                    + sol(i+1,j,k)*(3.0*facx*(sx(i  ,j-1,k)+sx(i  ,j,k))
+                                  -     facy*(sy(i  ,j-1,k)+sx(i  ,j,k)))
+                    + sol(i,j-1,k)*(   -facx*(sx(i-1,j-1,k)+sx(i,j-1,k))
+                                   +3.0*facy*(sy(i-1,j-1,k)+sy(i,j-1,k)))
+                    + sol(i,j+1,k)*(   -facx*(sx(i-1,j  ,k)+sx(i,j  ,k))
+                                   +3.0*facy*(sy(i-1,j  ,k)+sy(i,j  ,k)))
                     + sol(i,j,k)*s0;
 
             sol(i,j,k) += (rhs(i,j,k) - Ax) / s0;
@@ -484,26 +484,26 @@ void mlndhelm_gauss_seidel_aa (Box const& bx, Array4<Real> const& sol,
                               Array4<Real const> const& alp, Array4<int const> const& msk,
                               GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
 {
-    Real facx = (1.0/4.0)*dxinv[0]*dxinv[0];
-    Real facy = (1.0/4.0)*dxinv[1]*dxinv[1];
+    Real facx = (1.0/8.0)*dxinv[0]*dxinv[0];
+    Real facy = (1.0/8.0)*dxinv[1]*dxinv[1];
     Real fxy = facx + facy;
-    Real fxmy = facx - facy;
-    Real fmxy = facy - facx;
+    Real f3xmy = 3.0*facx - facy;
+    Real fmx3y = 3.0*facy - facx;
 
     amrex::Loop(bx, [=] (int i, int j, int k) noexcept
     {
         if (msk(i,j,k)) {
             sol(i,j,k) = 0.0;
         } else {
-            Real s0 = (-1.0)*fxy*(sig(i-1,j-1,k)+sig(i,j-1,k)+sig(i-1,j,k)+sig(i,j,k)) + alp(i,j,k);
+            Real s0 = (-3.0)*fxy*(sig(i-1,j-1,k)+sig(i,j-1,k)+sig(i-1,j,k)+sig(i,j,k)) + alp(i,j,k);
             Real Ax =   sol(i-1,j-1,k)*fxy*sig(i-1,j-1,k)
                       + sol(i+1,j-1,k)*fxy*sig(i  ,j-1,k)
                       + sol(i-1,j+1,k)*fxy*sig(i-1,j  ,k)
                       + sol(i+1,j+1,k)*fxy*sig(i  ,j  ,k)
-                      + sol(i-1,j,k)*fxmy*(sig(i-1,j-1,k)+sig(i-1,j,k))
-                      + sol(i+1,j,k)*fxmy*(sig(i  ,j-1,k)+sig(i  ,j,k))
-                      + sol(i,j-1,k)*fmxy*(sig(i-1,j-1,k)+sig(i,j-1,k))
-                      + sol(i,j+1,k)*fmxy*(sig(i-1,j  ,k)+sig(i,j  ,k))
+                      + sol(i-1,j,k)*f3xmy*(sig(i-1,j-1,k)+sig(i-1,j,k))
+                      + sol(i+1,j,k)*f3xmy*(sig(i  ,j-1,k)+sig(i  ,j,k))
+                      + sol(i,j-1,k)*fmx3y*(sig(i-1,j-1,k)+sig(i,j-1,k))
+                      + sol(i,j+1,k)*fmx3y*(sig(i-1,j  ,k)+sig(i,j  ,k))
                       + sol(i,j,k)*s0;
 
             sol(i,j,k) += (rhs(i,j,k) - Ax) / s0;
@@ -842,20 +842,20 @@ void mlndhelm_res_fine_Ax (int i, int j, int, Box const& fvbx, Array4<Real> cons
 {
     IntVect iv(i,j);
     if (fvbx.contains(iv) and !fvbx.strictly_contains(iv)) {
-        Real facx = (1._rt/4._rt)*dxinv[0]*dxinv[0];
-        Real facy = (1._rt/4._rt)*dxinv[1]*dxinv[1];
+        Real facx = (1._rt/8._rt)*dxinv[0]*dxinv[0];
+        Real facy = (1._rt/8._rt)*dxinv[1]*dxinv[1];
         Real fxy = facx + facy;
-        Real fxmy = facx - facy;
-        Real fmxy = facy - facx;
+        Real f3xmy = 3._rt*facx - facy;
+        Real fmx3y = 3._rt*facy - facx;
         Ax(i,j,0) = x(i-1,j-1,0)*fxy*sig(i-1,j-1,0)
             +       x(i+1,j-1,0)*fxy*sig(i  ,j-1,0)
             +       x(i-1,j+1,0)*fxy*sig(i-1,j  ,0)
             +       x(i+1,j+1,0)*fxy*sig(i  ,j  ,0)
-            +       x(i-1,j,0)*fxmy*(sig(i-1,j-1,0)+sig(i-1,j  ,0))
-            +       x(i+1,j,0)*fxmy*(sig(i  ,j-1,0)+sig(i  ,j  ,0))
-            +       x(i,j-1,0)*fmxy*(sig(i-1,j-1,0)+sig(i  ,j-1,0))
-            +       x(i,j+1,0)*fmxy*(sig(i-1,j  ,0)+sig(i  ,j  ,0))
-            +       x(i,j,0)*(-1._rt)*fxy*(sig(i-1,j-1,0)+sig(i,j-1,0)+sig(i-1,j,0)+sig(i,j,0));
+            +       x(i-1,j,0)*f3xmy*(sig(i-1,j-1,0)+sig(i-1,j  ,0))
+            +       x(i+1,j,0)*f3xmy*(sig(i  ,j-1,0)+sig(i  ,j  ,0))
+            +       x(i,j-1,0)*fmx3y*(sig(i-1,j-1,0)+sig(i  ,j-1,0))
+            +       x(i,j+1,0)*fmx3y*(sig(i-1,j  ,0)+sig(i  ,j  ,0))
+            +       x(i,j,0)*(-3._rt)*fxy*(sig(i-1,j-1,0)+sig(i,j-1,0)+sig(i-1,j,0)+sig(i,j,0));
     }
 }
 

@@ -25,8 +25,8 @@
 #include <AMReX_MLMG.H>
 
 #include "fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp"
-#include "fub/AMReX/BK19/BK19IntegratorContext.hpp"
-#include "fub/AMReX/BK19/BK19LevelIntegrator.hpp"
+#include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
+#include "fub/AMReX/bk19/BK19LevelIntegrator.hpp"
 #include "fub/equations/CompressibleAdvection.hpp"
 
 double p_coeff(double r, const std::vector<double>& coefficients) {
@@ -99,6 +99,9 @@ struct TravellingVortexInitialData : fub::amrex::BK19PhysicalParameters {
               rho0 + del_rho * std::pow(1.0 - r_over_R0 * r_over_R0, 6);
           states.velocity(i, j, 0) = U0[0] - uth * (dy / r);
           states.velocity(i, j, 1) = U0[1] + uth * (dx / r);
+          const double p =
+              1.0 + Msq * fac * fac * a_rho * p_coeff(r_over_R0, coefficients);
+          states.PTdensity(i, j) = std::pow(p, 1.0 / gamma);
         } else {
           states.density(i, j) = rho0;
           states.velocity(i, j, 0) = U0[0];
@@ -130,13 +133,18 @@ void MyMain(const fub::ProgramOptions& options) {
       std::chrono::steady_clock::now();
   ScopeGuard amrex_scope_guard{};
 
+  const double h_ref{100.0};
+  const double t_ref{100.0};
+  const double T_ref{300.0};
+  const double u_ref{h_ref / t_ref};
+
   // Here, some things are dimensional and others non-dimensionalized. Adjust???
   TravellingVortexInitialData inidat;
   inidat.R_gas = 287.4;
   inidat.gamma = 1.4;
-  inidat.Msq = 0.0;
+  inidat.Msq = u_ref * u_ref / (inidat.R_gas * T_ref);
   inidat.c_p = inidat.gamma / (inidat.gamma - 1.0);
-  inidat.alpha_p = 0.0;
+  inidat.alpha_p = 1.0;
 
   DataDescription desc{};
   desc.n_state_components = 7;
@@ -241,7 +249,7 @@ void MyMain(const fub::ProgramOptions& options) {
                            solver.GetContext().GetGeometry(0).periodicity());
 
   using namespace std::literals::chrono_literals;
-  std::string base_name = "BK19_PsIncTravellingVortex/";
+  std::string base_name = "BK19_CompTravellingVortex/";
 
   fub::OutputFactory<GriddingAlgorithm> factory;
   factory.RegisterOutput<fub::AnyOutput<GriddingAlgorithm>>(

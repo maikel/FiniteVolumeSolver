@@ -37,6 +37,13 @@ endif()
 if (AMReX_FOUND)
   add_executable(test.AMReX.n_proper test.AMReX.n_proper.cpp)
   target_link_libraries(test.AMReX.n_proper FiniteVolumeSolver.AMReX)
+
+endif()
+
+if (AMReX_FOUND AND AMREX_DIM EQUAL 2)
+  add_executable(test.AMReX.DebugOutput test.AMReX.DebugOutput.cpp)
+  target_link_libraries(test.AMReX.DebugOutput FiniteVolumeSolver.AMReX)
+
 endif()
 
 if (AMReX_FOUND AND AMREX_DIM EQUAL 2 AND AMREX_ENABLE_EB)
@@ -46,7 +53,7 @@ if (AMReX_FOUND AND AMREX_DIM EQUAL 2 AND AMREX_ENABLE_EB)
   add_executable(test.AMReX.EB.Wedge_nan test.AMReX.EB.plane_nan.cpp)
   target_link_libraries(test.AMReX.EB.Wedge_nan FiniteVolumeSolver.AMReX)
   target_compile_options(test.AMReX.EB.Wedge_nan
-      PRIVATE 
+      PRIVATE
       $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
       $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall>
       $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>
@@ -57,7 +64,7 @@ if (AMReX_FOUND AND AMREX_DIM EQUAL 3 AND AMREX_ENABLE_EB)
   add_executable(test.AMReX.EB.Cylinder test.AMReX.EB.Cylinder.cpp)
   target_link_libraries(test.AMReX.EB.Cylinder FiniteVolumeSolver.AMReX)
   target_compile_options(test.AMReX.EB.Cylinder
-      PRIVATE 
+      PRIVATE
       $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
       $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall>
       $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>)

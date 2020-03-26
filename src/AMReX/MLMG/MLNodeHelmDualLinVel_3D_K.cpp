@@ -36,8 +36,8 @@
 // (https://amrex-codes.github.io/).
 
 // clang-format off
-#ifndef AMREX_ML_NODEHELM_DUAL_CSTVEL_1D_K_H_
-#define AMREX_ML_NODEHELM_DUAL_CSTVEL_1D_K_H_
+#ifndef AMREX_ML_NODEHELM_DUAL_LINVEL_3D_K_H_
+#define AMREX_ML_NODEHELM_DUAL_LINVEL_3D_K_H_
 
 namespace amrex {
 
@@ -70,6 +70,16 @@ void mlndhelm_avgdown_coeff_x (int i, int j, int k, Array4<Real> const& crse,
                               Array4<Real const> const& fine) noexcept
 {}
 
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void mlndhelm_avgdown_coeff_y (int i, int j, int k, Array4<Real> const& crse,
+                              Array4<Real const> const& fine) noexcept
+{}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void mlndhelm_avgdown_coeff_z (int i, int j, int k, Array4<Real> const& crse,
+                              Array4<Real const> const& fine) noexcept
+{}
+
 template <typename T>
 inline void mlndhelm_bc_doit (Box const& vbx, Array4<T> const& a, Box const& domain,
                              GpuArray<bool,AMREX_SPACEDIM> const& bflo,
@@ -78,7 +88,8 @@ inline void mlndhelm_bc_doit (Box const& vbx, Array4<T> const& a, Box const& dom
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void mlndhelm_adotx_ha (int i, int j, int k, Array4<Real> const& y, Array4<Real const> const& x,
-                       Array4<Real const> const& sx, Array4<int const> const& msk,
+                       Array4<Real const> const& sx, Array4<Real const> const& sy,
+                       Array4<Real const> const& sz, Array4<int const> const& msk,
                        GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
 {}
 
@@ -91,6 +102,7 @@ void mlndhelm_adotx_aa (int i, int j, int k, Array4<Real> const& y, Array4<Real 
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void mlndhelm_normalize_ha (Box const& bx, Array4<Real> const& x, Array4<Real const> const& sx,
+                           Array4<Real const> const& sy, Array4<Real const> const& sz,
                            Array4<int const> const& msk, GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
 {}
 
@@ -103,6 +115,7 @@ void mlndhelm_normalize_aa (Box const& bx, Array4<Real> const& x, Array4<Real co
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void mlndhelm_jacobi_ha (Box const& bx, Array4<Real> const& sol, Array4<Real const> const& Ax,
                         Array4<Real const> const& rhs, Array4<Real const> const& sx,
+                        Array4<Real const> const& sy, Array4<Real const> const& sz,
                         Array4<int const> const& msk, GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
 {}
 
@@ -116,6 +129,7 @@ void mlndhelm_jacobi_aa (Box const& bx, Array4<Real> const& sol, Array4<Real con
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void mlndhelm_gauss_seidel_ha (Box const& bx, Array4<Real> const& sol,
                               Array4<Real const> const& rhs, Array4<Real const> const& sx,
+                              Array4<Real const> const& sy, Array4<Real const> const& sz,
                               Array4<int const> const& msk, GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
 {}
 
@@ -140,6 +154,7 @@ void mlndhelm_interpadd_aa (int i, int j, int k, Array4<Real> const& fine,
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void mlndhelm_interpadd_ha (int i, int j, int k, Array4<Real> const& fine,
                            Array4<Real const> const& crse, Array4<Real const> const& sigx,
+                           Array4<Real const> const& sigy, Array4<Real const> const& sigz,
                            Array4<int const> const& msk) noexcept
 {}
 
@@ -178,13 +193,13 @@ void mlndhelm_rhcc_fine_contrib (int i, int j, int k, Box const& fvbx,
 {}
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_divu_cf_contrib (int i, int j, int, Array4<Real> const& rhs,
+void mlndhelm_divu_cf_contrib (int i, int j, int k, Array4<Real> const& rhs,
                               Array4<Real const> const& vel, Array4<Real const> const& fc,
                               Array4<Real const> const& rhcc, Array4<int const> const& dmsk,
                               Array4<int const> const& ndmsk, Array4<int const> const& ccmsk,
                               GpuArray<Real,AMREX_SPACEDIM> const& dxinv,
-                              Box const& nddom, GpuArray<LinOpBCType,AMREX_SPACEDIM> const& lobc,
-                              GpuArray<LinOpBCType,AMREX_SPACEDIM> const& hibc) noexcept
+                              Box const& nddom, GpuArray<LinOpBCType,AMREX_SPACEDIM> const& bclo,
+                              GpuArray<LinOpBCType,AMREX_SPACEDIM> const& bchi) noexcept
 {}
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -212,8 +227,8 @@ void mlndhelm_res_cf_contrib (int i, int j, int k, Array4<Real> const& res,
                              Array4<int const> const& ndmsk, Array4<int const> const& ccmsk,
                              Array4<Real const> const& fc,
                              GpuArray<Real,AMREX_SPACEDIM> const& dxinv, Box const& nddom,
-                             GpuArray<LinOpBCType, AMREX_SPACEDIM> const& lobc,
-                             GpuArray<LinOpBCType, AMREX_SPACEDIM> const& hibc) noexcept
+                             GpuArray<LinOpBCType, AMREX_SPACEDIM> const& bclo,
+                             GpuArray<LinOpBCType, AMREX_SPACEDIM> const& bchi) noexcept
 {}
 
 }

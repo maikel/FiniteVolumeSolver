@@ -25,54 +25,13 @@
 #include <AMReX_MLMG.H>
 
 #include "fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp"
-#include "fub/AMReX/BK19/BK19IntegratorContext.hpp"
-#include "fub/AMReX/BK19/BK19LevelIntegrator.hpp"
+#include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
+#include "fub/AMReX/bk19/BK19LevelIntegrator.hpp"
 #include "fub/equations/CompressibleAdvection.hpp"
 
-double p_coeff(double r, const std::vector<double>& coefficients) {
-  if (r >= 1.0) {
-    return 0.0;
-  }
-
-  double result = 0.0;
-  int exponent = 12;
-  for (double c : coefficients) {
-    result += c * (std::pow(r, exponent) - 1.0);
-    exponent += 1;
-  }
-  return result;
-}
-
-struct TravellingVortexInitialData : fub::amrex::BK19PhysicalParameters {
+struct AcousticWaveInitialData : fub::amrex::BK19PhysicalParameters {
   using Complete = fub::CompressibleAdvection<2>::Complete;
-  TravellingVortexInitialData() {
-    coefficients.resize(25);
-    coefficients[0] = 1.0 / 12.0;
-    coefficients[1] = -12.0 / 13.0;
-    coefficients[2] = 9.0 / 2.0;
-    coefficients[3] = -184.0 / 15.0;
-    coefficients[4] = 609.0 / 32.0;
-    coefficients[5] = -222.0 / 17.0;
-    coefficients[6] = -38.0 / 9.0;
-    coefficients[7] = 54.0 / 19.0;
-    coefficients[8] = 783.0 / 20.0;
-    coefficients[9] = -558.0 / 7.0;
-    coefficients[10] = 1053.0 / 22.0;
-    coefficients[11] = 1014.0 / 23.0;
-    coefficients[12] = -1473.0 / 16.0;
-    coefficients[13] = 204.0 / 5.0;
-    coefficients[14] = 510.0 / 13.0;
-    coefficients[15] = -1564.0 / 27.0;
-    coefficients[16] = 153.0 / 8.0;
-    coefficients[17] = 450.0 / 29.0;
-    coefficients[18] = -269.0 / 15.0;
-    coefficients[19] = 174.0 / 31.0;
-    coefficients[20] = 57.0 / 32.0;
-    coefficients[21] = -74.0 / 33.0;
-    coefficients[22] = 15.0 / 17.0;
-    coefficients[23] = -6.0 / 35.0;
-    coefficients[24] = 1.0 / 72.0;
-  }
+  AcousticWaveInitialData() {}
 
   void InitializeData(amrex::MultiFab& mf, const amrex::Geometry& geom) const {
     fub::amrex::ForEachFab(mf, [&](const amrex::MFIter& mfi) {
@@ -84,26 +43,18 @@ struct TravellingVortexInitialData : fub::amrex::BK19PhysicalParameters {
       fub::ForEachIndex(fub::Box<0>(states), [&](int i, int j) {
         const double x = geom.CellCenter(i, 0);
         const double y = geom.CellCenter(j, 1);
-        const double dx = x - center[0];
-        const double dy = y - center[1];
-        const double r = std::sqrt(dx * dx + dy * dy);
 
-        states.PTdensity(i, j) = 1.0;
+        const double p = std::pow(1.0 + del0 * std::sin(wn * x),
+                                  2.0 * gamma / (gamma - 1.0));
 
-        if (r < R0) {
-          const double r_over_R0 = r / R0;
-          const double uth =
-              fac * std::pow(1.0 - r_over_R0, 6) * std::pow(r_over_R0, 6);
+        const double rho = std::pow(p, 1.0 / gamma);
+        const double c = std::sqrt(gamma * p / rho);
+        const double Ma = std::sqrt(Msq);
 
-          states.density(i, j) =
-              rho0 + del_rho * std::pow(1.0 - r_over_R0 * r_over_R0, 6);
-          states.velocity(i, j, 0) = U0[0] - uth * (dy / r);
-          states.velocity(i, j, 1) = U0[1] + uth * (dx / r);
-        } else {
-          states.density(i, j) = rho0;
-          states.velocity(i, j, 0) = U0[0];
-          states.velocity(i, j, 1) = U0[1];
-        }
+        states.density(i, j) = rho;
+        states.velocity(i, j, 0) = U0[0] + (p - 1.0) / (rho * c) / Ma;
+        states.velocity(i, j, 1) = U0[1];
+        states.PTdensity(i, j) = rho;
 
         states.momentum(i, j, 0) =
             states.density(i, j) * states.velocity(i, j, 0);
@@ -114,14 +65,9 @@ struct TravellingVortexInitialData : fub::amrex::BK19PhysicalParameters {
     });
   }
 
-  std::vector<double> coefficients;
-  const double a_rho{1.0};
-  const double rho0{a_rho * 0.5};
-  const double del_rho{a_rho * 0.5};
-  const double R0{0.4};
-  const double fac{1024.0};
-  std::array<double, 2> center{0.5, 0.5};
-  std::array<double, 2> U0{1.0, 1.0};
+  const double del0 = 0.05;
+  const double wn = 2.0 * M_PI;
+  std::array<double, 2> U0{1.0, 0.0};
 };
 
 void MyMain(const fub::ProgramOptions& options) {
@@ -130,13 +76,18 @@ void MyMain(const fub::ProgramOptions& options) {
       std::chrono::steady_clock::now();
   ScopeGuard amrex_scope_guard{};
 
+  const double h_ref{1.0};
+  const double t_ref{1.0};
+  const double T_ref{353.048780488};
+  const double u_ref{h_ref / t_ref};
+
   // Here, some things are dimensional and others non-dimensionalized. Adjust???
-  TravellingVortexInitialData inidat;
-  inidat.R_gas = 287.4;
-  inidat.gamma = 1.4;
-  inidat.Msq = 0.0;
+  AcousticWaveInitialData inidat;
+  inidat.R_gas = 287.0;
+  inidat.gamma = 2.0;
+  inidat.Msq = u_ref * u_ref / (inidat.R_gas * T_ref);
   inidat.c_p = inidat.gamma / (inidat.gamma - 1.0);
-  inidat.alpha_p = 0.0;
+  inidat.alpha_p = 1.0;
 
   DataDescription desc{};
   desc.n_state_components = 7;
@@ -206,18 +157,12 @@ void MyMain(const fub::ProgramOptions& options) {
 
         ::amrex::Vector<double> coor(2);
         geom.LoNode(i, coor);
-        const double dx = coor[0] - inidat.center[0];
-        const double dy = coor[1] - inidat.center[1];
-        const double r = std::sqrt(dx * dx + dy * dy);
+        const double x = coor[0];
+        const double y = coor[1];
 
-        if (r < inidat.R0) {
-          const double r_over_R0 = r / inidat.R0;
-          fab(i, 0) = Gamma * inidat.fac * inidat.fac *
-                      p_coeff(r_over_R0, inidat.coefficients);
-
-        } else {
-          fab(i, 0) = 0.0;
-        }
+        const double p = std::pow(1.0 + inidat.del0 * std::sin(inidat.wn * x),
+                                  2.0 * inidat.gamma / (inidat.gamma - 1.0));
+        fab(i, 0) = (pow(p, Gamma) - 1.0) / inidat.Msq;
       });
     });
   }
@@ -241,7 +186,7 @@ void MyMain(const fub::ProgramOptions& options) {
                            solver.GetContext().GetGeometry(0).periodicity());
 
   using namespace std::literals::chrono_literals;
-  std::string base_name = "BK19_PsIncTravellingVortex/";
+  std::string base_name = "BK19_CompAcousticWave/";
 
   fub::OutputFactory<GriddingAlgorithm> factory;
   factory.RegisterOutput<fub::AnyOutput<GriddingAlgorithm>>(

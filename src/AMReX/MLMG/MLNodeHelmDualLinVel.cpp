@@ -41,8 +41,8 @@
 #include <AMReX_MLMG.H>
 #include <AMReX_MultiFabUtil.H>
 
-#include <fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp>
-#include <src/AMReX/MLMG/MLNodeHelmDualCstVel_K.cpp>
+#include <fub/AMReX/MLMG/MLNodeHelmDualLinVel.hpp>
+#include <src/AMReX/MLMG/MLNodeHelmDualLinVel_K.cpp>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -50,7 +50,7 @@
 
 namespace amrex {
 
-MLNodeHelmDualCstVel::MLNodeHelmDualCstVel (const Vector<Geometry>& a_geom,
+MLNodeHelmDualLinVel::MLNodeHelmDualLinVel (const Vector<Geometry>& a_geom,
                                   const Vector<BoxArray>& a_grids,
                                   const Vector<DistributionMapping>& a_dmap,
                                   const LPInfo& a_info,
@@ -59,17 +59,17 @@ MLNodeHelmDualCstVel::MLNodeHelmDualCstVel (const Vector<Geometry>& a_geom,
     define(a_geom, a_grids, a_dmap, a_info, a_factory);
 }
 
-MLNodeHelmDualCstVel::~MLNodeHelmDualCstVel ()
+MLNodeHelmDualLinVel::~MLNodeHelmDualLinVel ()
 {}
 
 void
-MLNodeHelmDualCstVel::define (const Vector<Geometry>& a_geom,
+MLNodeHelmDualLinVel::define (const Vector<Geometry>& a_geom,
                          const Vector<BoxArray>& a_grids,
                          const Vector<DistributionMapping>& a_dmap,
                          const LPInfo& a_info,
                          const Vector<FabFactory<FArrayBox> const*>& a_factory)
 {
-    BL_PROFILE("MLNodeHelmDualCstVel::define()");
+    BL_PROFILE("MLNodeHelmDualLinVel::define()");
 
     // This makes sure grids are cell-centered;
     Vector<BoxArray> cc_grids = a_grids;
@@ -100,30 +100,30 @@ MLNodeHelmDualCstVel::define (const Vector<Geometry>& a_geom,
 }
 
 void
-MLNodeHelmDualCstVel::setSigma (int amrlev, const MultiFab& a_sigma)
+MLNodeHelmDualLinVel::setSigma (int amrlev, const MultiFab& a_sigma)
 {
     MultiFab::Copy(*m_sigma[amrlev][0][0], a_sigma, 0, 0, 1, 0);
 }
 
 void
-MLNodeHelmDualCstVel::setAlpha(int amrlev, const MultiFab& alpha)
+MLNodeHelmDualLinVel::setAlpha(int amrlev, const MultiFab& alpha)
 {
     MultiFab::Copy(m_alpha[amrlev][0], alpha, 0, 0, 1, 0);
     m_is_bottom_singular = false;
 }
 
 void
-MLNodeHelmDualCstVel::compDivergence (const Vector<MultiFab*>& rhs, const Vector<MultiFab*>& vel)
+MLNodeHelmDualLinVel::compDivergence (const Vector<MultiFab*>& rhs, const Vector<MultiFab*>& vel)
 {
     compRHS(rhs, vel, Vector<const MultiFab*>(), Vector<MultiFab*>());
 }
 
 void
-MLNodeHelmDualCstVel::compRHS (const Vector<MultiFab*>& rhs, const Vector<MultiFab*>& vel,
+MLNodeHelmDualLinVel::compRHS (const Vector<MultiFab*>& rhs, const Vector<MultiFab*>& vel,
                           const Vector<const MultiFab*>& rhnd,
                           const Vector<MultiFab*>& a_rhcc)
 {
-    BL_PROFILE("MLNodeHelmDualCstVel::compRHS()");
+    BL_PROFILE("MLNodeHelmDualLinVel::compRHS()");
 
     if (!m_masks_built) buildMasks();
 
@@ -375,7 +375,7 @@ MLNodeHelmDualCstVel::compRHS (const Vector<MultiFab*>& rhs, const Vector<MultiF
 }
 
 void
-MLNodeHelmDualCstVel::updateVelocity (const Vector<MultiFab*>& vel, const Vector<MultiFab const*>& sol) const
+MLNodeHelmDualLinVel::updateVelocity (const Vector<MultiFab*>& vel, const Vector<MultiFab const*>& sol) const
 {
 
 #ifdef _OPENMP
@@ -402,7 +402,7 @@ MLNodeHelmDualCstVel::updateVelocity (const Vector<MultiFab*>& vel, const Vector
 }
 
 void
-MLNodeHelmDualCstVel::getFluxes (const Vector<MultiFab*> & a_flux, const Vector<MultiFab*>& a_sol) const
+MLNodeHelmDualLinVel::getFluxes (const Vector<MultiFab*> & a_flux, const Vector<MultiFab*>& a_sol) const
 {
 
     AMREX_ASSERT(a_flux[0]->nComp() >= AMREX_SPACEDIM);
@@ -440,9 +440,9 @@ MLNodeHelmDualCstVel::getFluxes (const Vector<MultiFab*> & a_flux, const Vector<
 }
 
 void
-MLNodeHelmDualCstVel::averageDownCoeffs ()
+MLNodeHelmDualLinVel::averageDownCoeffs ()
 {
-    BL_PROFILE("MLNodeHelmDualCstVel::averageDownCoeffs()");
+    BL_PROFILE("MLNodeHelmDualLinVel::averageDownCoeffs()");
 
         for (int amrlev = 0; amrlev < m_num_amr_levels; ++amrlev)
         {
@@ -499,7 +499,7 @@ MLNodeHelmDualCstVel::averageDownCoeffs ()
 }
 
 void
-MLNodeHelmDualCstVel::averageDownCoeffsToCoarseAmrLevel (int flev)
+MLNodeHelmDualLinVel::averageDownCoeffsToCoarseAmrLevel (int flev)
 {
     const int mglev = 0;
     const int idim = 0;  // other dimensions are just aliases
@@ -508,7 +508,7 @@ MLNodeHelmDualCstVel::averageDownCoeffsToCoarseAmrLevel (int flev)
 }
 
 void
-MLNodeHelmDualCstVel::averageDownCoeffsSameAmrLevel (int amrlev)
+MLNodeHelmDualLinVel::averageDownCoeffsSameAmrLevel (int amrlev)
 {
     const int nsigma = (m_use_harmonic_average) ? AMREX_SPACEDIM : 1;
 
@@ -565,9 +565,9 @@ MLNodeHelmDualCstVel::averageDownCoeffsSameAmrLevel (int amrlev)
 }
 
 void
-MLNodeHelmDualCstVel::FillBoundaryCoeff (MultiFab& sigma, const Geometry& geom)
+MLNodeHelmDualLinVel::FillBoundaryCoeff (MultiFab& sigma, const Geometry& geom)
 {
-    BL_PROFILE("MLNodeHelmDualCstVel::FillBoundaryCoeff()");
+    BL_PROFILE("MLNodeHelmDualLinVel::FillBoundaryCoeff()");
 
     sigma.FillBoundary(geom.periodicity());
 
@@ -588,7 +588,7 @@ MLNodeHelmDualCstVel::FillBoundaryCoeff (MultiFab& sigma, const Geometry& geom)
 }
 
 void
-MLNodeHelmDualCstVel::fixUpResidualMask (int amrlev, iMultiFab& resmsk)
+MLNodeHelmDualLinVel::fixUpResidualMask (int amrlev, iMultiFab& resmsk)
 {
     if (!m_masks_built) buildMasks();
 
@@ -610,9 +610,9 @@ MLNodeHelmDualCstVel::fixUpResidualMask (int amrlev, iMultiFab& resmsk)
 }
 
 void
-MLNodeHelmDualCstVel::prepareForSolve ()
+MLNodeHelmDualLinVel::prepareForSolve ()
 {
-    BL_PROFILE("MLNodeHelmDualCstVel::prepareForSolve()");
+    BL_PROFILE("MLNodeHelmDualLinVel::prepareForSolve()");
 
     MLNodeLinOp::prepareForSolve();
 
@@ -622,9 +622,9 @@ MLNodeHelmDualCstVel::prepareForSolve ()
 }
 
 void
-MLNodeHelmDualCstVel::restriction (int amrlev, int cmglev, MultiFab& crse, MultiFab& fine) const
+MLNodeHelmDualLinVel::restriction (int amrlev, int cmglev, MultiFab& crse, MultiFab& fine) const
 {
-    BL_PROFILE("MLNodeHelmDualCstVel::restriction()");
+    BL_PROFILE("MLNodeHelmDualLinVel::restriction()");
 
     applyBC(amrlev, cmglev-1, fine, BCMode::Homogeneous, StateMode::Solution);
 
@@ -659,9 +659,9 @@ MLNodeHelmDualCstVel::restriction (int amrlev, int cmglev, MultiFab& crse, Multi
 }
 
 void
-MLNodeHelmDualCstVel::interpolation (int amrlev, int fmglev, MultiFab& fine, const MultiFab& crse) const
+MLNodeHelmDualLinVel::interpolation (int amrlev, int fmglev, MultiFab& fine, const MultiFab& crse) const
 {
-    BL_PROFILE("MLNodeHelmDualCstVel::interpolation()");
+    BL_PROFILE("MLNodeHelmDualLinVel::interpolation()");
 
     const auto& sigma = m_sigma[amrlev][fmglev];
 
@@ -708,7 +708,7 @@ MLNodeHelmDualCstVel::interpolation (int amrlev, int fmglev, MultiFab& fine, con
 }
 
 void
-MLNodeHelmDualCstVel::averageDownSolutionRHS (int camrlev, MultiFab& crse_sol, MultiFab& crse_rhs,
+MLNodeHelmDualLinVel::averageDownSolutionRHS (int camrlev, MultiFab& crse_sol, MultiFab& crse_rhs,
                                          const MultiFab& fine_sol, const MultiFab& fine_rhs)
 {
     const auto& amrrr = AMRRefRatio(camrlev);
@@ -723,7 +723,7 @@ MLNodeHelmDualCstVel::averageDownSolutionRHS (int camrlev, MultiFab& crse_sol, M
 }
 
 void
-MLNodeHelmDualCstVel::restrictInteriorNodes (int camrlev, MultiFab& crhs, MultiFab& a_frhs) const
+MLNodeHelmDualLinVel::restrictInteriorNodes (int camrlev, MultiFab& crhs, MultiFab& a_frhs) const
 {
     const BoxArray& fba = a_frhs.boxArray();
     const DistributionMapping& fdm = a_frhs.DistributionMap();
@@ -793,9 +793,9 @@ MLNodeHelmDualCstVel::restrictInteriorNodes (int camrlev, MultiFab& crhs, MultiF
 }
 
 void
-MLNodeHelmDualCstVel::Fapply (int amrlev, int mglev, MultiFab& out, const MultiFab& in) const
+MLNodeHelmDualLinVel::Fapply (int amrlev, int mglev, MultiFab& out, const MultiFab& in) const
 {
-    BL_PROFILE("MLNodeHelmDualCstVel::Fapply()");
+    BL_PROFILE("MLNodeHelmDualLinVel::Fapply()");
 
     const auto& sigma = m_sigma[amrlev][mglev];
     const auto& alpha = m_alpha[amrlev][mglev];
@@ -838,9 +838,9 @@ MLNodeHelmDualCstVel::Fapply (int amrlev, int mglev, MultiFab& out, const MultiF
 }
 
 void
-MLNodeHelmDualCstVel::Fsmooth (int amrlev, int mglev, MultiFab& sol, const MultiFab& rhs) const
+MLNodeHelmDualLinVel::Fsmooth (int amrlev, int mglev, MultiFab& sol, const MultiFab& rhs) const
 {
-    BL_PROFILE("MLNodeHelmDualCstVel::Fsmooth()");
+    BL_PROFILE("MLNodeHelmDualLinVel::Fsmooth()");
 
     const auto& sigma = m_sigma[amrlev][mglev];
     const auto& alpha = m_alpha[amrlev][mglev];
@@ -1009,9 +1009,9 @@ MLNodeHelmDualCstVel::Fsmooth (int amrlev, int mglev, MultiFab& sol, const Multi
 }
 
 void
-MLNodeHelmDualCstVel::normalize (int amrlev, int mglev, MultiFab& mf) const
+MLNodeHelmDualLinVel::normalize (int amrlev, int mglev, MultiFab& mf) const
 {
-    BL_PROFILE("MLNodeHelmDualCstVel::normalize()");
+    BL_PROFILE("MLNodeHelmDualLinVel::normalize()");
 
     const auto& sigma = m_sigma[amrlev][mglev];
     const auto& alpha = m_alpha[amrlev][mglev];
@@ -1051,11 +1051,11 @@ MLNodeHelmDualCstVel::normalize (int amrlev, int mglev, MultiFab& mf) const
 }
 
 // void
-// MLNodeHelmDualCstVel::compSyncResidualCoarse (MultiFab& sync_resid, const MultiFab& a_phi,
+// MLNodeHelmDualLinVel::compSyncResidualCoarse (MultiFab& sync_resid, const MultiFab& a_phi,
 //                                          const MultiFab& vold, const MultiFab* rhcc,
 //                                          const BoxArray& fine_grids, const IntVect& ref_ratio)
 // {
-//     BL_PROFILE("MLNodeHelmDualCstVel::SyncResCrse()");
+//     BL_PROFILE("MLNodeHelmDualLinVel::SyncResCrse()");
 //
 //     sync_resid.setVal(0.0);
 //
@@ -1245,10 +1245,10 @@ MLNodeHelmDualCstVel::normalize (int amrlev, int mglev, MultiFab& mf) const
 // }
 //
 // void
-// MLNodeHelmDualCstVel::compSyncResidualFine (MultiFab& sync_resid, const MultiFab& phi, const MultiFab& vold,
+// MLNodeHelmDualLinVel::compSyncResidualFine (MultiFab& sync_resid, const MultiFab& phi, const MultiFab& vold,
 //                                        const MultiFab* rhcc)
 // {
-//     BL_PROFILE("MLNodeHelmDualCstVel::SyncResFine()");
+//     BL_PROFILE("MLNodeHelmDualLinVel::SyncResFine()");
 //
 //     const MultiFab& sigma_orig = *m_sigma[0][0][0];
 //     const iMultiFab& dmsk = *m_dirichlet_mask[0][0];
@@ -1389,11 +1389,11 @@ MLNodeHelmDualCstVel::normalize (int amrlev, int mglev, MultiFab& mf) const
 // }
 
 void
-MLNodeHelmDualCstVel::reflux (int crse_amrlev,
+MLNodeHelmDualLinVel::reflux (int crse_amrlev,
                          MultiFab& res, const MultiFab& crse_sol, const MultiFab& crse_rhs,
                          MultiFab& fine_res, MultiFab& fine_sol, const MultiFab& fine_rhs) const
 {
-    BL_PROFILE("MLNodeHelmDualCstVel::reflux()");
+    BL_PROFILE("MLNodeHelmDualLinVel::reflux()");
 
     const Geometry& cgeom = m_geom[crse_amrlev  ][0];
     const Geometry& fgeom = m_geom[crse_amrlev+1][0];
@@ -1536,7 +1536,7 @@ MLNodeHelmDualCstVel::reflux (int crse_amrlev,
 }
 
 void
-MLNodeHelmDualCstVel::checkPoint (std::string const& file_name) const
+MLNodeHelmDualLinVel::checkPoint (std::string const& file_name) const
 {
     if (ParallelContext::IOProcessorSub())
     {
@@ -1585,7 +1585,7 @@ MLNodeHelmDualCstVel::checkPoint (std::string const& file_name) const
             // m_coarse_data_for_bc: not used
             HeaderFile << "maxorder = " << getMaxOrder() << "\n";
 
-            // MLNodeHelmDualCstVel stuff
+            // MLNodeHelmDualLinVel stuff
             HeaderFile << "use_gauss_seidel = " << m_use_gauss_seidel << "\n";
             HeaderFile << "use_harmonic_average = " << m_use_harmonic_average << "\n";
             HeaderFile << "coarsen_strategy = " << static_cast<int>(m_coarsening_strategy) << "\n";

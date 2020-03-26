@@ -379,7 +379,9 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     include/fub/AMReX/FluxMethod.hpp
     include/fub/AMReX/ScopeGuard.hpp
     include/fub/AMReX/ViewFArrayBox.hpp
+    include/fub/AMReX/MLMG/MLNodeHelmholtz.hpp
     include/fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp
+    include/fub/AMReX/MLMG/MLNodeHelmDualLinVel.hpp
     include/fub/AMReX/tagging/TagBuffer.hpp
     include/fub/AMReX/tagging/ConstantRegion.hpp
     include/fub/geometry/Geometry.hpp
@@ -402,6 +404,8 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     src/AMReX/ViewFArrayBox.cpp
     src/AMReX/MLMG/MLNodeHelmDualCstVel.cpp
     src/AMReX/MLMG/MLNodeHelmDualCstVel_K.cpp
+    src/AMReX/MLMG/MLNodeHelmDualLinVel.cpp
+    src/AMReX/MLMG/MLNodeHelmDualLinVel_K.cpp
     src/AMReX/PatchHierarchy.cpp
     src/AMReX/GriddingAlgorithm.cpp
     src/AMReX/BoundaryCondition.cpp
@@ -436,6 +440,14 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
       Eigen3::Eigen
       CONAN_PKG::HDF5)
   target_include_directories(FiniteVolumeSolver.AMReX PUBLIC ${HDF5_C_INCLUDE_DIR})
+
+  if (AMReX_2D_FOUND)
+    target_sources(FiniteVolumeSolver.AMReX PRIVATE
+      include/fub/AMReX/bk19/BK19LevelIntegrator.hpp
+      include/fub/AMReX/bk19/BK19IntegratorContext.hpp
+      src/AMReX/bk19/BK19LevelIntegrator.cpp
+      src/AMReX/bk19/BK19IntegratorContext.cpp)
+  endif()
 
   if (AMReX_EB_FOUND)
     target_sources(FiniteVolumeSolver.AMReX PRIVATE

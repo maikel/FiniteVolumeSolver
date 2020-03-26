@@ -36,8 +36,8 @@
 // (https://amrex-codes.github.io/).
 
 // clang-format off
-#ifndef AMREX_ML_NODEHELM_DUAL_CSTVEL_K_H_
-#define AMREX_ML_NODEHELM_DUAL_CSTVEL_K_H_
+#ifndef AMREX_ML_NODEHELM_DUAL_LINVEL_K_H_
+#define AMREX_ML_NODEHELM_DUAL_LINVEL_K_H_
 
 #include <AMReX_FArrayBox.H>
 #include <AMReX_LO_BCTYPES.H>
@@ -45,18 +45,17 @@
 namespace amrex {
 namespace {
 
-[[maybe_unused]] constexpr int crse_cell = 0;
-[[maybe_unused]] constexpr int fine_cell = 1;
-[[maybe_unused]] constexpr int crse_node = 0;
-[[maybe_unused]] constexpr int crse_fine_node = 1;
-[[maybe_unused]] constexpr int fine_node = 2;
-//#if (BL_USE_FLOAT)
-//constexpr double eps = 1.e-30;
-//#else
-//constexpr double eps = 1.e-100;
-//#endif
-//constexpr Real almostone =
-//    1._rt - 100._rt * std::numeric_limits<Real>::epsilon();
+    constexpr int crse_cell = 0;
+    constexpr int fine_cell = 1;
+    constexpr int crse_node = 0;
+    constexpr int crse_fine_node = 1;
+    constexpr int fine_node = 2;
+#if (BL_USE_FLOAT)
+    constexpr double eps = 1.e-30;
+#else
+    constexpr double eps = 1.e-100;
+#endif
+    constexpr Real almostone = 1._rt - 100._rt*std::numeric_limits<Real>::epsilon();
 
 }
 
@@ -108,11 +107,11 @@ mlndhelm_unimpose_neumann_bc (Box const& bx, Array4<Real> const& rhs, Box const&
 }
 
 #if (AMREX_SPACEDIM == 1)
-#include <src/AMReX/MLMG/MLNodeHelmDualCstVel_1D_K.cpp>
+#include <src/AMReX/MLMG/MLNodeHelmDualLinVel_1D_K.cpp>
 #elif (AMREX_SPACEDIM == 2)
-#include <src/AMReX/MLMG/MLNodeHelmDualCstVel_2D_K.cpp>
+#include <src/AMReX/MLMG/MLNodeHelmDualLinVel_2D_K.cpp>
 #else
-#include <src/AMReX/MLMG/MLNodeHelmDualCstVel_3D_K.cpp>
+#include <src/AMReX/MLMG/MLNodeHelmDualLinVel_3D_K.cpp>
 #endif
 
 namespace amrex {
