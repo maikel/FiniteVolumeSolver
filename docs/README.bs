@@ -624,10 +624,26 @@ In addition to computing the mathematical correct formula, an object that satisf
 We recognize that these are two orthogonal concerns which are both hard to get right. 
 To ease the burden for authors of a `FluxMethod` we introduced some helper classes which separate these concerns. 
 
-Conservative and Complete States {#cons-comp-states}
+DimensionalSplitLevelIntegrator
+---------------------------------
+
+We call any class that provides a member function `AdvanceLevelNonRecursively(int level, pair<int, int> subcycle)` a level integrator. The `DimensionalSplitLevelIntegrator` implements the dimensionally split hyperbolic advection scheme and depends on the `IntegratorContext` that we just introduced.
+
+
+
+Framework for defining FluxMethods {#flux-method-framework}
+===========================================================
+
+The `FluxMethod<IntegratorContext>` policy is very generic and allows all kinds of possible logic in user-defined flux methods. 
+We provide adapter classes to separate the technical aspects of computing those numerical fluxes from the mathematical ones.
+To achieve this separation we begin by introducing the notion of an equation.
+An equation gives context to the components of a multi-dimensional array and provides the mathematical dependencies needed.
+Using those tools we allow a formulation \( F(q(x, t), dx, dt) \) of flux methods, which depend on a stencil of equation states only.
+
+Equation: Conservative and Complete States {#cons-comp-states}
 ----------------------------------------------------
 
-The Finite Volume Solver defines so-called equation classes, for example `fub::Advection2d` or `fub::PerfectGas<Rank>`.
+The Finite Volume Solver defines so-called equation classes, for example, `Advection2d` or `PerfectGas<Rank>`.
 Each equation defines two kinds of states: `Conservative` and `Complete` states.
 The conservative states contain variables which see a hyperbolic time update of a time integrator.
 The complete state variables are a superset of the conservative ones and may define more auxiliary member variables.
@@ -670,7 +686,7 @@ void DoSomethingForEachFArrayBox(MultiFab& multifab) {
 A `FArrayBox` is a container type in [[AMReX]] that stores a multi-dimensional data array for a single patch.
 By using an equation object we can *view* this `FArrayBox` as a set of multi-dimensional arrays for each variable/
 
-Implement a new FluxMethod thsimple case) {#implement-flux-method-simple}
+Implement a new FluxMethod, the simple case {#implement-flux-method-simple}
 ------------------------------------------------------------------------
 
 A class `FM` satisfies the concept `FluxMethod<Equation, StencilSize>` if the following constraints are satisfied.
@@ -708,4 +724,4 @@ The implemented MUSCL-type flux methods for an equation `Equation` satisfy `Flux
 First, we reconstruct a state to the left and the right the face in question.
 This gives a reduction of the stencil array from `Complete state[4]` to `Complete reconstruced_states[2]`.
 Secondly, we call a (lower-order) base method `BaseFM` which satisfies `FluxMethod<Equation, 2>`.
-</example>
+</div>
