@@ -264,6 +264,15 @@ If some targets fail to build feel free to raise an issue in GitLab.
 Code Overview {#code-overview}
 ==============================
 
+We use a layered library design to achieve separation of concerns. 
+One of the main goals is to have reusable implementations for algorithms which are independent of the concrete storage backend. 
+We use namespaces to indicate the dependency on various structured grid libraries such as AMReX or SAMRAI. 
+All components inside of the namespace `fub` are independent of the concrete AMR backend. Classes and functions of the namespaces `fub::amrex` or `fub::samrai` depend on their respective libraries.
+
+The algorithmic choice in the second part leads in general to additional requirements for the data storage, such as needing a certain amount of ghost cells.
+
+This library provides tools to write driver files which form complete applications. Each driver makes its own choices on how to handle program options, input files or its output. 
+
 Policy Pattern {#policy-pattern}
 --------------------------------
 
@@ -304,15 +313,6 @@ concept TimeIntegrator = std::copy_assignable<TI> && requires (
 ```
 </div>
 
-Structure of a Simulation {#simulation-struct}
-----------------------------------------------
-
-When setting up a simulation we decompose the setup into two parts:
-
-1. Manage a locally refined grid containing simulation data distributed over multiple MPI ranks.
-2. Set up a numerical method to solve the problem on a distributed grid.
-
-The algorithmic choice in the second part leads in general to additional requirements for the data storage, such as needing a certain amount of ghost cells.
 
 Data Storage: PatchHierarchy {#patch-hierarchy}
 -----------------------------------------------
