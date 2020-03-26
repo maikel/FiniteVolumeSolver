@@ -28,6 +28,8 @@
 #include <boost/mp11/algorithm.hpp>
 #include <boost/mp11/tuple.hpp>
 
+#include <numeric>
+
 namespace fub {
 
 template <typename T> struct StateTraits;
@@ -354,6 +356,13 @@ template <typename T, typename Eq> auto Depths(const Eq& eq) {
 
 template <typename T> struct GetNumberOfComponentsImpl {
   int_constant<1> operator()(double) const noexcept { return {}; }
+  int_constant<1> operator()(int) const noexcept { return {}; }
+
+  template <std::size_t N>
+  int_constant<static_cast<int>(N)> operator()(const std::array<int, N>&) const
+      noexcept {
+    return {};
+  }
 
   template <int N, int M, int O, int MR, int MC>
   int_constant<N> operator()(const Eigen::Array<double, N, M, O, MR, MC>&) const
@@ -365,6 +374,10 @@ template <typename T> struct GetNumberOfComponentsImpl {
   int operator()(const Eigen::Array<double, Eigen::Dynamic, M, O, MR, MC>& x)
       const noexcept {
     return static_cast<int>(x.rows());
+  }
+
+  int operator()(const std::vector<int>& x) const noexcept {
+    return static_cast<int>(x.size());
   }
 };
 
@@ -679,6 +692,55 @@ void Advance(ViewPointer<State>& pointer, std::ptrdiff_t n) noexcept {
                              [n](auto& ptr) { ptr.first += n; }},
                   pointer);
 }
+
+template <typename T> struct DepthToIndexMappingTypeImpl;
+
+/// The value-type for a single-cell state for a scalar quantity.
+template <> struct DepthToIndexMappingTypeImpl<ScalarDepth> {
+  using type = int;
+};
+
+/// The value-type for a single-cell state for a scalar quantity.
+template <int Depth> struct DepthToIndexMappingTypeImpl<VectorDepth<Depth>> {
+  using type = std::array<int, static_cast<std::size_t>(Depth)>;
+};
+
+/// The value-type for a single-cell state for a scalar quantity.
+template <> struct DepthToIndexMappingTypeImpl<VectorDepth<dynamic_extent>> {
+  using type = std::vector<int>;
+};
+
+template <typename T>
+using DepthToIndexMappingType = typename DepthToIndexMappingTypeImpl<T>::type;
+
+template <typename Equation>
+using IndexMappingBase =
+    boost::mp11::mp_transform<DepthToIndexMappingType,
+                              typename Equation::CompleteDepths>;
+
+template <typename Equation> struct IndexMapping : IndexMappingBase<Equation> {
+  IndexMapping() = default;
+  IndexMapping(const Equation& equation) {
+    auto depths = Depths<Complete<Equation>>(equation);
+    int counter = 0;
+    ForEachVariable(
+        overloaded{
+            [&](int& id, ScalarDepth) { id = counter++; },
+            [&](auto&& ids, auto depth) {
+              if constexpr (std::is_same_v<std::decay_t<decltype(depth)>,
+                                           int>) {
+                ids.resize(depth);
+              }
+              std::iota(ids.begin(), ids.end(), counter);
+              counter += depth;
+            },
+        },
+        *this, depths);
+  }
+};
+
+template <typename Eq>
+struct StateTraits<IndexMapping<Eq>> : StateTraits<IndexMappingBase<Eq>> {};
 
 } // namespace fub
 
