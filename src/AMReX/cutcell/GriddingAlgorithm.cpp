@@ -200,20 +200,21 @@ const PatchHierarchy& GriddingAlgorithm::GetPatchHierarchy() const noexcept {
 int GriddingAlgorithm::RegridAllFinerlevels(int which_level) {
   if (which_level < max_level) {
     auto timer = hierarchy_.GetCounterRegistry()->get_timer(
-      "cutcell::GriddingAlgorithm::RegridAllFinerLevels");
-    const ::amrex::Vector<::amrex::BoxArray> before = ::amrex::AmrMesh::boxArray();
+        "cutcell::GriddingAlgorithm::RegridAllFinerLevels");
+    const ::amrex::Vector<::amrex::BoxArray> before =
+        ::amrex::AmrMesh::boxArray();
     AmrCore::regrid(which_level,
                     hierarchy_.GetPatchLevel(which_level).time_point.count());
-    const ::amrex::Vector<::amrex::BoxArray> after = ::amrex::AmrMesh::boxArray();
+    const ::amrex::Vector<::amrex::BoxArray> after =
+        ::amrex::AmrMesh::boxArray();
     FUB_ASSERT(before.size() == after.size());
     for (int i = which_level + 1; i < before.size(); ++i) {
       if (before[i] != after[i]) {
         return i;
       }
     }
-    return 0;
   }
-  return 0;
+  return max_level + 1;
 }
 
 void GriddingAlgorithm::InitializeHierarchy(double level_time) {

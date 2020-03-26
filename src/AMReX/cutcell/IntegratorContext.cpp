@@ -604,8 +604,8 @@ void IntegratorContext::UpdateConservatively(int level, Duration dt,
   method_.time_integrator.UpdateConservatively(*this, level, dt, dir);
 }
 
-void IntegratorContext::PreAdvanceLevel(int level_num, Duration,
-                                        std::pair<int, int> subcycle) {
+int IntegratorContext::PreAdvanceLevel(int level_num, Duration,
+                                       std::pair<int, int> subcycle) {
   Timer timer1 = GetCounterRegistry()->get_timer(
       "cutcell::IntegratorContext::PreAdvanceLevel");
   Timer timer_per_level{};
@@ -614,17 +614,20 @@ void IntegratorContext::PreAdvanceLevel(int level_num, Duration,
         "cutcell::IntegratorContext::PreAdvanceLevel({})", level_num));
   }
   const std::size_t l = static_cast<std::size_t>(level_num);
+  const int max_level = GetPatchHierarchy().GetMaxNumberOfLevels();
+  int level_which_changed = max_level;
   if (subcycle.first == 0) {
     if (data_[l].regrid_time_point != data_[l].time_point) {
-      int level_which_changed = gridding_->RegridAllFinerlevels(level_num);
+      level_which_changed = gridding_->RegridAllFinerlevels(level_num);
       for (std::size_t lvl = l; lvl < data_.size(); ++lvl) {
         data_[lvl].regrid_time_point = data_[lvl].time_point;
       }
-      if (level_which_changed > 0) {
+      if (level_which_changed < max_level) {
         ResetHierarchyConfiguration(level_which_changed);
       }
     }
   }
+  return level_which_changed;
 }
 
 Result<void, TimeStepTooLarge>
