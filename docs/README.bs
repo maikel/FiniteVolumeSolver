@@ -4,7 +4,7 @@ Shortname: user-doc
 Level: 1
 Status: LD
 Group: ag-klein
-URL: https://page.mi.fu-berlin.de/guttula/README.html
+URL: https://page.mi.fu-berlin.de/ghastermann/fvm-doc/index.html
 Editor: Maikel Nadolski, Freie Universität Berlin https://fu-berlin.de, maikel.nadolski@fu-berlin.de
 Abstract: This is a user documentation for the Finite Volume Solver library which is developed at AG Klein, Freie Universität Berlin. The library provides a framework to solve hyperbolic equations with finite volume methods. It assumes an external structured grid library like [[AMReX]], [[SAMRAI]] or [[p4est]] to adaptively refine regions of interest. One of the main design philosophies is to make the numerical methods re-usable and consistent across different grid implementations. We provide some standard flux methods which can be used out-of-the-box with a large set of hyperbolic equations. Furthermore, a lot of helper classes exist to generate distributed grids for data management which simplifies and modernizes the usage of libraries like [[AMReX]] or [[SAMRAI]]. At last, this library is also capable of handling embedded boundaries in a dimensionally split setting as defined in [[Klein2009]].
 Markup Shorthands: markdown yes
