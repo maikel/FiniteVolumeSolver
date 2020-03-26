@@ -1,266 +1,3 @@
-<pre class='metadata'>
-Title: User Documentation
-Shortname: user-doc
-Level: 1
-Status: LD
-Group: ag-klein
-URL: https://page.mi.fu-berlin.de/guttula/README.html
-Editor: Maikel Nadolski, Freie Universität Berlin https://fu-berlin.de, maikel.nadolski@fu-berlin.de
-Abstract: This is a user documentation for the Finite Volume Solver library which is developed at AG Klein, Freie Universität Berlin. The library provides a framework to solve hyperbolic equations with finite volume methods. It assumes an external structured grid library like [[AMReX]], [[SAMRAI]] or [[p4est]] to adaptively refine regions of interest. One of the main design philosophies is to make the numerical methods re-usable and consistent across different grid implementations. We provide some standard flux methods which can be used out-of-the-box with a large set of hyperbolic equations. Furthermore, a lot of helper classes exist to generate distributed grids for data management which simplifies and modernizes the usage of libraries like [[AMReX]] or [[SAMRAI]]. At last, this library is also capable of handling embedded boundaries in a dimensionally split setting as defined in [[Klein2009]].
-Markup Shorthands: markdown yes
-Line Numbers: on
-Indent: 2
-</pre>
-
-<pre class=biblio>
-{
-  "AMReX": {
-    "authors": [
-      "Weiqun Zhang",
-      "Ann Almgren"
-    ],
-    "href": "http://github.com/AMReX-Codes/amrex",
-    "title": "AMReX Github Project"
-  },
-  "HDF5": {
-    "authors": [
-      "Tab Atkins",
-      "Dirk Schultze"
-    ],
-    "href": "http://www.w3.org/TR/foo-bar/",
-    "title": "Foo Bar Level 1",
-    "status": "CR",
-    "publisher": "W3C",
-    "deliveredBy": [
-      "http://www.w3.org/html/wg/"
-    ]
-  },
-  "p4est": {
-    "authors": [
-      "Tab Atkins",
-      "Dirk Schultze"
-    ],
-    "href": "http://www.w3.org/TR/foo-bar/",
-    "title": "Foo Bar Level 1",
-    "status": "CR",
-    "publisher": "W3C",
-    "deliveredBy": [
-      "http://www.w3.org/html/wg/"
-    ]
-  },
-  "SAMRAI": {
-    "authors": [
-      "Tab Atkins",
-      "Dirk Schultze"
-    ],
-    "href": "http://www.w3.org/TR/foo-bar/",
-    "title": "Foo Bar Level 1",
-    "status": "CR",
-    "publisher": "W3C",
-    "deliveredBy": [
-      "http://www.w3.org/html/wg/"
-    ]
-  },
-  "Klein2009": {
-    "authors": [
-      "Rupert Klein",
-      "Nikiforakis"
-    ],
-    "href": "http://www.w3.org/TR/foo-bar/",
-    "title": "Foo Bar Level 1",
-    "status": "CR",
-    "publisher": "W3C",
-    "deliveredBy": [
-      "http://www.w3.org/html/wg/"
-    ]
-  }
-}
-</pre>
-
-<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
-<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-
-Installation {#installation}
-============================
-
-Conan Configuration {#conan-config}
------------------------------------
-
-We use the C++ package manager [conan](https://conan.io) to install dependencies for this library. `conan` is a python3 package and installable via the python package manager `pip3`. To install `conan` open a terminal and use the command
-
-```text
-> pip3 install --user conan
-```
-
-to make user-wide installation. You might need to add `${HOME}/.local/bin` to your `PATH` environment variable in case of a user-wide installation.
-If you have root access on your machine you can also consider doing a system-wide installation via the command
-
-```text
-> sudo pip3 install conan
-```
-
-To test whether conan is installed type `conan` in your command line window.
-
-Expected Output:
-
-```text
-> conan
-Consumer commands
-  install    Installs the requirements specified in a recipe (conanfile.py or conanfile.txt).
-  config     Manages Conan configuration.
-  get        Gets a file or list a directory of a given reference or package.
-  info       Gets information about the dependency graph of a recipe.
-  search     Searches package recipes and binaries in the local cache or in a remote.
-Creator commands
-  new        Creates a new package recipe template with a 'conanfile.py' and optionally,
-             'test_package' testing files.
-  create     Builds a binary package for a recipe (conanfile.py).
-  upload     Uploads a recipe and binary packages to a remote.
-  export     Copies the recipe (conanfile.py & associated files) to your local cache.
-  export-pkg Exports a recipe, then creates a package from local source and build folders.
-  test       Tests a package consuming it from a conanfile.py with a test() method.
-Package development commands
-  source     Calls your local conanfile.py 'source()' method.
-  build      Calls your local conanfile.py 'build()' method.
-  package    Calls your local conanfile.py 'package()' method.
-  editable   Manages editable packages (package that resides in the user workspace, but are
-             consumed as if they were in the cache).
-  workspace  Manages a workspace (a set of packages consumed from the user workspace that
-             belongs to the same project).
-Misc commands
-  profile    Lists profiles in the '.conan/profiles' folder, or shows profile details.
-  remote     Manages the remote list and the package recipes associated to a remote.
-  user       Authenticates against a remote with user/pass, caching the auth token.
-  imports    Calls your local conanfile.py or conanfile.txt 'imports' method.
-  copy       Copies conan recipes and packages to another user/channel.
-  remove     Removes packages or binaries matching pattern from local cache or remote.
-  alias      Creates and exports an 'alias package recipe'.
-  download   Downloads recipe and binaries to the local cache, without using settings.
-  inspect    Displays conanfile attributes, like name, version and options. Works locally, in
-             local cache and remote.
-  help       Shows help for a specific command.
-  graph      Generates and manipulates lock files.
-
-Conan commands. Type "conan <command> -h" for help
-```
-
-As a first step, you have to create a [conan profile](https://docs.conan.io/en/latest/reference/commands/misc/profile.html), which describes which toolchain you want to use. To create an auto-detected tool-chain use the command
-
-```text
-> conan profile new default --detect
-```
-
-In the case of GCC make sure to use the C++11 ABI. Unfortunately, `conan` does not choose this by default and we have to adjust the configuration by
-
-```text
-> conan profile update settings.compiler.libcxx=libstdc++11 default
-> conan profile show default
-Configuration for profile default:
-
-[settings]
-os=Linux
-os_build=Linux
-arch=x86_64
-arch_build=x86_64
-compiler=gcc
-compiler.version=9
-compiler.libcxx=libstdc++11
-build_type=Release
-[options]
-[build_requires]
-[env]
-```
-
-Note: The library needs a minimum GCC version of 7 or a minimum LLVM clang version of 5. We regularly test in our CI at GitLab GCC version 9 and clang version 8.
-
-We added some custom installation recipes which `conan` can use to install dependencies like [[AMReX]] or [[HDF5]]. These are stored in a `conan` repository and we need to point `conan` to this repository. This is done via the command line
-
-```text
-> conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/finite-volume
-```
-
-MPI Installation {#mpi-install}
--------------------------------
-
-Make sure to have some MPI implementation on your system such that your current `conan` profile can link against it. This can be achieved by adapting the compiler option of your profile.
-
-CMake Installation {#cmake-install}
------------------------------------
-
-CMake is a build generation tool and generates build configuration as Makefiles for example.
-
-Before we start installing all dependencies with `conan` we need to install a rather new version of `CMake`. `AMReX` requires a minimal `CMake` version of 3.14. Fortunately `CMake` is quite simple to download and binary packages can be found [here](https://cmake.org/download/).
-
-Building the Library {#build-library}
--------------------------------------
-
-First use git and clone the library to a local directory
-
-```text
-> git clone git@git.imp.fu-berlin.de:ag-klein/FiniteVolumeSolver.git
-```
-
-If you want to build the unit tests you need to pull `Catch2` as a git submodule. Enter the source direction and call
-
-```text
-> cd FiniteVolumeSolver/
-./FiniteVolumeSolver> git submodule update --init
-```
-
-This will checkout the `develop` branch by default and create a folder named with relative path `./FiniteVolumeSolver`. Next, we create an out-of-source build directory where we want to build the library archives and example binaries.
-
-```text
-./FiniteVolumeSolver> mkdir build
-./FiniteVolumeSolver> cd build
-./FiniteVolumeSolver/build> cd build
-```
-
-Inside the `build` directory we use conan to install the dependencies with the options which we want to use. `AMReX` for examples has the following configurable build options:
-
-```text
-AMReX:eb = True|False [True] # enable embedded boundaries / cut-cells
-AMReX:omp = True|False [True] # enable OpenMP parallelization
-AMReX:dim = 1|2|3 [3] # spatial dimension used by AMReX
-```
-
-To install [[AMReX]] with embedded boundaries and without OpenMP support (there is no OpenMP support on Apple for example) use within the build directory
-
-```text
-./FiniteVolumeSolver/build> conan install <Path-to-FiniteVolumeSolver-Source-Dir> -o AMReX:dim=2 -o AMReX:omp=False
-```
-
-In our case
-
-```text
-./FiniteVolumeSolver/build> conan install ../ -o AMReX:dim=2 -o AMReX:omp=False
-```
-
-This will look into the file `FiniteVolumeSolver/conanfile.txt` and tries to locally install all dependencies which are listed there. After installing these it creates a `conanfile.cmake` in the build directory which will be read by our `CMakeLists.txt` file. This, in turn, injects all necessary include and library paths which we need to build our application. Now we use `cmake` to configure our specific build, i.e.
-
-```text
-./FiniteVolumeSolver/build> cmake ../
-```
-
-to configure a Debug build, or
-
-```text
-./FiniteVolumeSolver/build> cmake ../ -DCMAKE_BUILD_TYPE=Release
-```
-
-for a Release build. On Linux and macOS this will create Makefiles by default which you can invoke by typing
-
-```text
-./FiniteVolumeSolver/build> make
-```
-
-which should build all targets. For other systems, a more general call would be
-
-```text
-./FiniteVolumeSolver/build> cmake --build .
-```
-
-If some targets fail to build feel free to raise an issue in GitLab.
-
 Code Overview {#code-overview}
 ==============================
 
@@ -269,9 +6,18 @@ One of the main goals is to have reusable implementations for algorithms which a
 We use namespaces to indicate the dependency on various structured grid libraries such as AMReX or SAMRAI. 
 All components inside of the namespace `fub` are independent of the concrete AMR backend. Classes and functions of the namespaces `fub::amrex` or `fub::samrai` depend on their respective libraries.
 
-The algorithmic choice in the second part leads in general to additional requirements for the data storage, such as needing a certain amount of ghost cells.
-
 This library provides tools to write driver files which form complete applications. Each driver makes its own choices on how to handle program options, input files or its output. 
+You can find many example applications in the `examples/` subfolder within the Git project.
+Every example composes layer for layer until a solver is built and run. 
+The needs application to build up their layers in the following order
+
+  1. [PatchHierarchy](#patch-hierarchy) (data storage)
+  2. [GriddingAlgorithm](#gridding-algorithm) (algorithmic choice)
+  3. [IntegratorContext](#data-integrator-context) (data storage / algorithmic choice)
+  4. one or more composed LevelIntegrators (algorithmic choice)
+  5. SubcycleSolver (algorithmic choice)
+
+Note: Each layer in this list is implemented in terms of its predecessor.
 
 Policy Pattern {#policy-pattern}
 --------------------------------
@@ -333,7 +79,7 @@ Note: A patch hierarchy does not know what the components represent. It does not
 
 Note: [[AMReX]] represents hierarchies very often as pairs of `(Vector<MultiFab*>, Vector<Geometry>)` where the vector is taken over the number if refinement levels. One can interpret a `PatchHierarchy` as an equivalent representation.
 
-Data Storage: GriddingAlgorithm {#gridding-algorithm}
+Algorithmic Choice: GriddingAlgorithm {#gridding-algorithm}
 -----------------------------------------------------
 
 A gridding algorithm adds some algorithmic choices to the patch hierarchy which are needed for the box generation algorithms in the context of adaptive mesh refinement. The present gridding algorithms use the `AmrCore` class from the [[AMReX]] library to generate patches and hierarchies to cover such tagged cells. It owns a patch hierarchy and initializes or modifies it using a `TaggingMethod` policy object which masks cells that need additional refinement. In addition to the `TaggingMethod` policy, a `GriddingAlgorithm` also need boundary and initial conditions, given by `BoundaryCondition` and `InitialData` policy objects. The boundary conditions are used in communication routines to fill the ghost cell layer touching the computational domain, whereas the initial conditions are only used once at the beginning of a simulation.
@@ -376,7 +122,7 @@ concept BoundaryCondition = std::copy_assignable<BC> &&
     }
 ```
 
-You find polymorphic value types `AnyInitialData<GriddingAlgorithm>`, `AnyTaggingMethod<GriddingAlgorithm>` and `AnyBoundaryCondition<GriddingAlgorithm>` in the Finite Volume Solver library to match each one of the concepts. These polymorphic types are used to store any object of a class which satisfies those concepts.
+You find polymorphic value types `AnyInitialData<GriddingAlgorithm>`, `AnyTaggingMethod<GriddingAlgorithm>` and `AnyBoundaryCondition<GriddingAlgorithm>` in the Finite Volume Solver library to match each one of the concepts. These polymorphic types are used to store any object of a class that satisfies those concepts.
 
 <div class="example">
 The class `fub::amrex::GriddingAlgorithm` is internally defined in something like
@@ -397,10 +143,10 @@ public:
 Data Storage: IntegratorContext {#data-integrator-context}
 ----------------------------------------------------------
 
-An `IntegratorContext` allocates, manages and provides access to additional data that is needed for every conservative AMR scheme, such as cell-centered and face-centered data arrays **with ghost cell layers**. It also manages face-centered data on the coarse-fine interface between two refinement levels.
+An `IntegratorContext` allocates, manages and provides access to additional data that is needed for every conservative AMR scheme, such as cell-centered and face-centered data arrays **with ghost layers**. It also manages face-centered data on the coarse-fine interface between two refinement levels.
 
 <div class="example">
-The following code snippet shows a simplified version of how to access cell and face-based data with ghost cells using the [[AMReX]] toolbox. This implements parallelization for GPU with a fallback to a MPI/OpenMP hybrid.
+The following code snippet shows a simplified version of how to access cell and face-based data with ghost cells using the [[AMReX]] toolbox. This implements parallelization for GPU with a fallback to an MPI/OpenMP hybrid.
 
 ```cpp
 /// \brief This function computes a conservative time update for cells in
@@ -439,91 +185,59 @@ void UpdateConservatively(IntegratorContext& context, int level, Duration dt,
 ```
 </div>
 
-In addition to managing the data, every integrator context defines at least the following member functions.
+In addition to managing the additional data, every integrator context defines a comprehensive list of functions to deal with the various data locations. The `IntegratorContext` concept is  therefore defined by
+
 
 ```cpp
-struct IntegratorContext {
-   /// \brief Replaces the underlying gridding algorithm with the specified one.
-  void
-  ResetHierarchyConfiguration(std::shared_ptr<GriddingAlgorithm> gridding);
+template <typename I>
+concept IntegratorContext = std::copy_assignable<I> && requires (
+      I& integrator_context, int level, Duration dt, Direction dir,
+      double scale) {
+  // Access PatchLevel Data
+  { integrator_context.GetData(level) };
+  { integrator_context.GetScratch(level) };
+  { integrator_context.GetFluxes(level, dir) };
 
-  /// \brief Whenever the gridding algorithm changes the data hierarchy this
-  /// function will regrid all distributed helper variables managed by the
-  /// context.
-  ///
-  /// \param[in] level  The level number of the coarsest level which changed its
-  /// shape. Regrid all levels finer than level.
-  void ResetHierarchyConfiguration(int level = 0);
+  // Coarse-fine interface interaction
+  { integrator_context.ApplyFluxCorrection(level, level - 1) };
+  { integrator_context.ResetCoarseFineFluxes(level, level - 1) };
+  { integrator_context.AccumulateCoarseFineFluxes(level, scale, dir) };
 
-  /// \brief Copy data on the specified level from the underlying PatchHierarchy
-  /// to the scratch.
-  ///
-  /// This function does not fill the ghost cell layer.
-  void CopyDataToScratch(int level_num);
+  // Action on scratch
+  { integrator_context.CoarsenConservatively(level, level - 1) };
+  { integrator_context.CompleteFromCons(level) };
 
-  /// \brief Copy data on the specified level from the scratch to the underlying
-  /// PatchHierarchy.
-  void CopyScratchToData(int level_num);
+  // Copy data
+  { integrator_context.CopyDataToScratch(level) };
+  { integrator_context.CopyScratchToData(level) };
 
-  /// \brief Applies the boundary condition for the scratch space on level
-  /// `level` in direcition `dir`.
-  ///
-  /// \param level  The refinement level on which the boundary condition shall
-  /// be used.
-  void ApplyBoundaryCondition(int level, Direction dir);
-  void ApplyBoundaryCondition(int level, Direction dir, BoundaryCondition& bc);
+  // Fill ghost layers within scratch
+  { integrator_context.FillGhostLayerTwoLevels(level, bc, level - 1, bc) };
+  { integrator_context.FillGhostLayerTwoLevels(level, level - 1) };
+  { integrator_context.FillGhostLayerSingleLevel(level, bc) };
+  { integrator_context.FillGhostLayerSingleLevel(level) };
 
-  /// @{
-  /// \brief Fills the ghost layer of the scratch data and interpolates in the
-  /// coarse fine layer.
-  void FillGhostLayerTwoLevels(int level, BoundaryCondition& fbc, int coarse,
-                               BoundaryCondition& cbc);
-  void FillGhostLayerTwoLevels(int level, int coarse);
-  /// @}
-
-  /// @{
-  /// \brief Fills the ghost layer of the scratch data and does nothing in the
-  /// coarse fine layer.
-  void FillGhostLayerSingleLevel(int level, BoundaryCondition& bc);
-  void FillGhostLayerSingleLevel(int level);
-  /// @}
-
-  /// \brief Returns a estimate for a stable time step size which can be taken
-  /// for specified level number in direction dir.
-  [[nodiscard]] Duration ComputeStableDt(int level, Direction dir);
-
-  /// \brief Fill the flux MultiFab with numeric fluxes based on current states
-  /// in scratch.
-  void ComputeNumericFluxes(int level, Duration dt, Direction dir);
-
-  /// \brief Apply a conservative time update for each conservative variable on
-  /// the specified level number and direction.
-  void UpdateConservatively(int level, Duration dt, Direction dir);
-
-  /// \brief Reconstruct complete state variables from conservative ones.
-  void CompleteFromCons(int level, Duration dt);
-
-  /// \brief Accumulate fluxes on the coarse fine interfaces for a specified
-  /// fine level number.
-  void AccumulateCoarseFineFluxes(int level, double time_scale, Direction dir);
-
-  /// \brief Replace the coarse fluxes by accumulated fine fluxes on the coarse
-  /// fine interfaces.
-  void ApplyFluxCorrection(int fine, int coarse, Duration dt);
-
-  /// \brief Resets all accumulates fluxes to zero.
-  void ResetCoarseFineFluxes(int fine, int coarse);
-
-  /// \brief Coarsen scratch data from a fine level number to a coarse level
-  /// number.
-  void CoarsenConservatively(int fine, int coarse);
+  // Reallocate internal data from level 
+  { integrator_context.ResetHierarchyConfiguration(level) };
 };
 ```
 
-This is the minimum amount of functions needed to build common conservative AMR schemes on top of such an integrator context.
-The functions `ComputeStableDt`, `ComputeNumericFluxes`, `UpdateConservatively` and `CompleteFromCons` are customization points of `IntegratorContext`. I. e. one needs to provide objects for the policy concepts `FluxMethod<IntegratorContext>`, `TimeIntegrator<IntegratorContext>` and `CompleteFromConsReconstruction<IntegratorContext>` to define the behaviour of those functions.
+This is the minimum amount of functions needed to build common conservative AMR schemes on top of an AMR library like [[AMReX]] or [[SAMRAI]]. The implementation of an `IntegratorContext` will, in general, be very library-specific. The layers after the `IntegratorContext` describe parts of the AMR time integration which are implemented on those concepts only.
 
-The other functions for example, `AccumulateCoarseFineFluxes`, `ApplyFluxCorrection` and more, will be called automatically by the respective AMR integration scheme and will do the right thing such that the solution remains conservative up to machine accuracy.
+Nevertheless, we still refine this concept to better fit the dimensionally split time integration.
+
+```cpp
+template <typename I>
+concept DimensionalSplitIntegratorContext = IntegratorContext<I> && requires (
+      I& integrator_context, int level, Duration dt, Direction dir,
+      double scale) {
+  { integrator_context.ComputeNumericFluxes(level, dt, dir) };
+  { integrator_context.ComputeStableDt(level, dir) };
+  { integrator_context.UpdateConservatively(level, dir) };
+};
+```
+
+The functions `ComputeStableDt`, `ComputeNumericFluxes`, `UpdateConservatively` and `CompleteFromCons` are customization points of a `DimensionalSplitIntegratorContext`. I. e. one needs to provide objects for the policy concepts `FluxMethod<IntegratorContext>`, `TimeIntegrator<IntegratorContext>` and `CompleteFromConsReconstruction<IntegratorContext>` to define the behaviour of those functions.
 
 Algorithmic Choice: IntegratorContext {#algorithm-choice-integrator-context}
 ----------------------------------------------------------------------------
@@ -622,13 +336,27 @@ void MyMain(const fub::ProgramOptions& opts) {
 
 In addition to computing the mathematical correct formula, an object that satisfies `FluxMethod<IntegratorContext>` needs to repeat the logic of how to parallelize and how to iterate over the multi-dimensional index space.
 We recognize that these are two orthogonal concerns which are both hard to get right. 
-To ease the burden for authors of a `FluxMethod` we introduced some helper classes which separate these concerns. 
+To ease the burden for authors of a `FluxMethod` we introduced some helper classes which separate these concerns. They will be discussed in more detail in <a href="#flux-method-framework">Chapter 3</a>.
 
-DimensionalSplitLevelIntegrator
----------------------------------
+DimensionalSplitLevelIntegrator {#dimensional-split-integrator}
+---------------------------------------------------------------
 
 We call any class that provides a member function `AdvanceLevelNonRecursively(int level, pair<int, int> subcycle)` a level integrator. The `DimensionalSplitLevelIntegrator` implements the dimensionally split hyperbolic advection scheme and depends on the `IntegratorContext` that we just introduced.
 
+
+```cpp
+template <typename L>
+concept LevelIntegrator = std::copy_assignable<L> && requires (const L& level_integrator, int level, Duration dt, std::pair<int, int> subcycle) {
+  { level_integrator.AdvanceLevelNonRecursively(level, dt, subcycle) };
+  { level_integrator.ComputeStableDt(level) } -> Duration;
+};
+
+template <typename HS>
+concept HyperbolicSystemLevelIntegrator = LevelIntegrator<S> && requires (const L& level_integrator) {
+  // Access underlying data storage implementation
+  { level_integrator.GetIntegratorContext() } -> IntegratorContext;
+};
+```
 
 
 Framework for defining FluxMethods {#flux-method-framework}
