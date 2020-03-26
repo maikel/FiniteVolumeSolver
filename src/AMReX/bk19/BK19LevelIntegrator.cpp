@@ -599,9 +599,6 @@ void BK19LevelIntegrator::InitialProjection(
   ::amrex::BoxArray on_nodes = on_cells;
   on_nodes.surroundingNodes();
 
-  DebugStorage& debug = *context.GetPatchHierarchy().GetDebugStorage();
-  DebugSnapshotProxy dbgIniProj = debug.AddSnapshot("BK19_initial-projection");
-
   equation_.alpha_p = 0.0;
 
   for (std::size_t i = 0 ; i < index_.momentum.size(); ++i) {
@@ -611,7 +608,7 @@ void BK19LevelIntegrator::InitialProjection(
   RecoverVelocityFromMomentum_(scratch, index_);
 
   context.FillGhostLayerSingleLevel(level);
-  DoEulerBackward_(equation_, index_, *lin_op_, options_, scratch, pi, geom, level, dt, dbgIniProj);
+  DoEulerBackward_(equation_, index_, *lin_op_, options_, scratch, pi, geom, level, dt);
 
   for (std::size_t i = 0 ; i < index_.momentum.size(); ++i) {
     MultiFab::Saxpy(scratch, +U0[i], scratch, index_.density, index_.momentum[i], one_component, no_ghosts);
