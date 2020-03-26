@@ -192,6 +192,18 @@ public:
   /// \param[in] The refinement level number for this geometry obejct.
   [[nodiscard]] const ::amrex::Geometry& GetGeometry(int level) const;
 
+  /// \brief Returns the hierarchy of Geometry objects.
+  [[nodiscard]] const ::amrex::Vector<::amrex::Geometry> GetGeometries() const;
+
+  /// \brief Returns the hierarchy of BoxArray objects.
+  [[nodiscard]] const ::amrex::Vector<::amrex::BoxArray> GetBoxArrays() const;
+
+  /// \brief Returns the hierarchy of DistributionMapping objects.
+  [[nodiscard]] const ::amrex::Vector<::amrex::DistributionMapping> GetDistributionMappings() const;
+
+  /// \brief Returns the hierarchy of MultiFabs representing the data.
+  [[nodiscard]] const ::amrex::Vector<const ::amrex::MultiFab*> GetData() const;
+
   // Modifiers
 
   void PushBack(const PatchLevel& level);
@@ -245,13 +257,11 @@ void WritePlotFile(const std::string plotfilename,
   const double time_point = hier.GetTimePoint().count();
   FUB_ASSERT(nlevels >= 0);
   std::size_t size = static_cast<std::size_t>(nlevels);
-  ::amrex::Vector<const ::amrex::MultiFab*> mf(size);
-  ::amrex::Vector<::amrex::Geometry> geoms(size);
+  ::amrex::Vector<const ::amrex::MultiFab*> mf = hier.GetData();
+  ::amrex::Vector<::amrex::Geometry> geoms = hier.GetGeometries();
   ::amrex::Vector<int> level_steps(size);
   ::amrex::Vector<::amrex::IntVect> ref_ratio(size - 1);
   for (std::size_t i = 0; i < size; ++i) {
-    mf[i] = &hier.GetPatchLevel(static_cast<int>(i)).data;
-    geoms[i] = hier.GetGeometry(static_cast<int>(i));
     level_steps[i] = static_cast<int>(hier.GetCycles(static_cast<int>(i)));
   }
   for (std::size_t i = 1; i < size; ++i) {
@@ -287,13 +297,11 @@ void WritePlotFile(const std::string plotfilename,
   const double time_point = hier.GetTimePoint().count();
   FUB_ASSERT(nlevels >= 0);
   std::size_t size = static_cast<std::size_t>(nlevels);
-  ::amrex::Vector<const ::amrex::MultiFab*> mf(size);
-  ::amrex::Vector<::amrex::Geometry> geoms(size);
+  ::amrex::Vector<const ::amrex::MultiFab*> mf = hier.GetData();
+  ::amrex::Vector<::amrex::Geometry> geoms = hier.GetGeometries();
   ::amrex::Vector<int> level_steps(size);
   ::amrex::Vector<::amrex::IntVect> ref_ratio(size - 1);
   for (std::size_t i = 0; i < size; ++i) {
-    mf[i] = &hier.GetPatchLevel(static_cast<int>(i)).data;
-    geoms[i] = hier.GetGeometry(static_cast<int>(i));
     level_steps[i] = static_cast<int>(hier.GetCycles(static_cast<int>(i)));
   }
   for (std::size_t i = 1; i < size; ++i) {
