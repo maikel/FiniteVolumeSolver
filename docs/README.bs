@@ -624,7 +624,16 @@ In addition to computing the mathematical correct formula, an object that satisf
 We recognize that these are two orthogonal concerns which are both hard to get right. 
 To ease the burden for authors of a `FluxMethod` we introduced some helper classes which separate these concerns. 
 
-Conservative and Complete States {#cons-comp-states}
+Framework for defining FluxMethods {#flux-method-framework}
+===========================================================
+
+The `FluxMethod<IntegratorContext>` policy is very generic and allows all kinds of possible logic in user-defined flux methods. 
+We provide adapter classes to separate the technical aspects of computing those numerical fluxes from the mathematical ones.
+In order to achieve this separation we begin with introducing the notion of an equation.
+An equation gives context to the components of a multi-dimensional array and provides the mathematical dependencies needed.
+Using those tools we allow a formulation \( F(q(x, t), dx, dt) \) of flux methods, which depend on a stencil of equation states only.
+
+Equation: Conservative and Complete States {#cons-comp-states}
 ----------------------------------------------------
 
 The Finite Volume Solver defines so-called equation classes, for example `fub::Advection2d` or `fub::PerfectGas<Rank>`.
