@@ -46,6 +46,8 @@
 namespace fub {
 namespace amrex {
 
+class DebugStorage;
+
 struct PatchHierarchyOptions {
   PatchHierarchyOptions() = default;
   PatchHierarchyOptions(const ProgramOptions& options);
@@ -218,6 +220,10 @@ public:
   [[nodiscard]] const std::shared_ptr<CounterRegistry>&
   GetCounterRegistry() const noexcept;
 
+  /// \brief Returns a shared pointer to the debug storage.
+  [[nodiscard]] const std::shared_ptr<DebugStorage>&
+  GetDebugStorage() const noexcept;
+
   void SetCounterRegistry(std::shared_ptr<CounterRegistry> registry);
 
 private:
@@ -228,6 +234,7 @@ private:
   std::vector<::amrex::Geometry> patch_level_geometry_;
   std::vector<const ::amrex::EB2::IndexSpace*> index_spaces_;
   std::shared_ptr<CounterRegistry> registry_;
+  std::shared_ptr<DebugStorage> debug_storage_;
 };
 
 template <typename Equation>

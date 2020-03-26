@@ -36,8 +36,8 @@
 // (https://amrex-codes.github.io/).
 
 // clang-format off
-#ifndef AMREX_ML_NODEHELM_DUAL_CSTVEL_1D_K_H_
-#define AMREX_ML_NODEHELM_DUAL_CSTVEL_1D_K_H_
+#ifndef AMREX_ML_NODEHELM_DUAL_LINVEL_1D_K_H_
+#define AMREX_ML_NODEHELM_DUAL_LINVEL_1D_K_H_
 
 namespace amrex {
 
