@@ -566,15 +566,75 @@ The numerical fluxes \( F^n_i \) in this update denote the fluxes on the faces o
 
 An AMR integration scheme may use the `CompleteFromConsReconstruction` policy object whenever it changes the conservative variables to establish a valid state across all fields in the patch hierarchy.
 
+We collect the three customization points for the `IntegratorContext` in a class which we call `HyperbolicMethod<IntegratorContext>`.
+It is defined as
+
+```cpp
+template <typename IntegratorContext>
+struct HyperbolicMethod {
+  AnyFluxMethod flux_method;
+  AnyTimeIntegrator time_integrator;
+  AnyCompleteFromConsReconstruction reconstruct;
+};
+```
+
+<div class="example">
+To construct an `IntegratorContext` object one needs to provide a `GriddingAlgorithm` and a `HyperbolicMethod`.
+The following code snippet shows how a concrete integrator context might be constructed in a driver file.
+
+```cpp
+void MyMain(const fub::ProgramOptions& opts) {
+  std::chrono::steady_clock::time_point wall_time_reference =
+      std::chrono::steady_clock::now();
+
+  fub::amrex::ScopeGuard guard{};
+
+  fub::Advection2d equation{{1.0, 1.0}};
+  fub::SeverityLogger log = fub::GetInfoLogger();
+
+  fub::amrex::CartesianGridGeometry geometry = fub::GetOptions(opts, "GridGeometry");
+  BOOST_LOG(log) << "GridGeometry:";
+  geometry.Print(log);
+
+  fub::amrex::PatchHierarchyOptions hier_opts = fub::GetOptions(opts, "PatchHierarchy");
+  BOOST_LOG(log) << "PatchHierarchy:";
+  hier_opts.Print(log);
+ 
+  using State = fub::Advection2d::Complete;
+  fub::amrex::GradientDetector gradient{equation,
+                                        std::pair{&State::mass, 1e-3}};
+
+  std::shared_ptr grid = std::make_shared<fub::amrex::GriddingAlgorithm>(
+      fub::amrex::PatchHierarchy(equation, geometry, hier_opts), CircleData{},
+      fub::amrex::TagAllOf(gradient, fub::amrex::TagBuffer(2)));
+  grid->InitializeHierarchy(0.0);
+
+  fub::amrex::HyperbolicMethod method{
+      fub::amrex::FluxMethod(fub::GodunovMethod{equation}),
+      fub::amrex::EulerForwardTimeIntegrator(), fub::amrex::NoReconstruction{}};
+
+  fub::amrex::IntegratorContext context(grid, method);
+  
+  // Now further use the context to do some things...
+}
+```
+</div>
+
+In addition to computing the mathematical correct formula, an object that satisfies `FluxMethod<IntegratorContext>` needs to repeat the logic of how to parallelize and how to iterate over the multi-dimensional index space.
+We recognize that these are two orthogonal concerns which are both hard to get right. 
+To ease the burden for authors of a `FluxMethod` we introduced some helper classes which separate these concerns. 
+
 Conservative and Complete States {#cons-comp-states}
 ----------------------------------------------------
 
+The Finite Volume Solver defines so-called equation classes, for example `fub::Advection2d` or `fub::PerfectGas<Rank>`.
 Each equation defines two kinds of states: `Conservative` and `Complete` states.
-The conservative states contain variables which see a hyperbolic time update from `fub::amrex::TimeIntegrator`.
+The conservative states contain variables which see a hyperbolic time update of a time integrator.
 The complete state variables are a superset of the conservative ones and may define more auxiliary member variables.
-This makes sense for variables which are auxiliary or needed very often but their computation cost is high.
+This is reasonable for variables which are needed very often but have a high computation cost.
 The complete state is the location to cache those expensive computations.
 
+<div class=example>
 For example, the template class `template <int Rank> class PerfectGas` defines the conservative variables
 
 ```cpp
@@ -593,8 +653,24 @@ template <int Rank> struct PerfectGasComplete : PerfectGasConservative<Rank> {
   double speed_of_sound;
 };
 ```
+</div>
 
-Implement a new FluxMethod (simple case) {#implement-flux-method-simple}
+Given a `MultiFab` object we can iterate over all local `FArrayBox` objects using the `MFIter` iterator as in this simplified example:
+
+```cpp
+template <typename Function>
+void DoSomethingForEachFArrayBox(MultiFab& multifab) {
+  for (MFIter mfi(multifab); mfi.isValid(); ++mfi) {
+    FArrayBox& fab = multifab[mfi];
+    // do something...
+  }
+}
+```
+
+A `FArrayBox` is a container type in [[AMReX]] that stores a multi-dimensional data array for a single patch.
+By using an equation object we can *view* this `FArrayBox` as a set of multi-dimensional arrays for each variable/
+
+Implement a new FluxMethod thsimple case) {#implement-flux-method-simple}
 ------------------------------------------------------------------------
 
 A class `FM` satisfies the concept `FluxMethod<Equation, StencilSize>` if the following constraints are satisfied.
@@ -603,14 +679,15 @@ A class `FM` satisfies the concept `FluxMethod<Equation, StencilSize>` if the fo
 template <typename FM, typename Equation, int StencilSize>
 concept FluxMethod = requires (FM& flux_method,
                                Conservative<Equation> cons,
-                               Complete<Equation> stencil[StencilSize],
-                               double dx, double dt, int dir) {
+                               span<Complete<Equation>, StencilSize> stencil,
+                               double dx, Duration dt, int dir) {
   { flux_method.ComputeNumericFlux(cons, stencil, dx, dt, dir) };
-  { flux_method.ComputeStableDt(stencil, dx, dir) } -> double;
-  { static_cast<const FM&>(flux_method).GetStencilSize() } -> int;
+  { flux_method.ComputeStableDt(stencil, dx, dir) } -> Duration;
+  { FM::GetStencilSize() } -> std::integral_constant<int, StencilSize>;
 };
 ```
 
+<div class="example">
 For example, the following class `MusclHancockMethod` satisfies this concept.
 
 ```cpp
@@ -618,12 +695,12 @@ struct MusclHancockMethod {
     using Conservative = ::Conservative<PerfectGas<2>>;
     using Complete = ::Complete<PerfectGas<2>>;
 
-    void ComputeNumericFlux(Conservative& cons, const Complete* stencil,
-                              double dx, double dt, int dir);
+    void ComputeNumericFlux(Conservative& cons, span<const Complete, 4> stencil,
+                              double dx, Duration dt, int dir);
 
-    double ComputeStableDt(const Complete* stencil, double dx, int dir);
+    Druation ComputeStableDt(span<const Complete, 4> stencil, double dx, int dir);
 
-    int GetStencilSize() const noexcept { return 4; }
+    std::integral_constant<int, 4> GetStencilSize() const noexcept { return {}; }
 };
 ```
 
@@ -631,3 +708,4 @@ The implemented MUSCL-type flux methods for an equation `Equation` satisfy `Flux
 First, we reconstruct a state to the left and the right the face in question.
 This gives a reduction of the stencil array from `Complete state[4]` to `Complete reconstruced_states[2]`.
 Secondly, we call a (lower-order) base method `BaseFM` which satisfies `FluxMethod<Equation, 2>`.
+</example>
