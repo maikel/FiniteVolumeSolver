@@ -355,7 +355,7 @@ highlight: c++
 show: 20-1000
 </pre>
 This example produces the following figure and can be visualized either in VisIt, Paraview or python-yt.
-<center><img width="60%" height="auto" src="initial_hierarchy.png"/></center>
+<center><img width="60%" height="auto" src="img/initial_hierarchy.png"/></center>
 </div>
 
 Multiple solvers can share a common gridding algorithm and will hold a member variable of type `std::shared_ptr<GriddingAlgorithm>`.
