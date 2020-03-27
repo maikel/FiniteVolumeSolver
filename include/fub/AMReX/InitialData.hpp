@@ -65,25 +65,25 @@ template <typename T> struct InitialDataWrapper : public InitialDataStrategy {
   T initial_data_;
 };
 
-struct InitialData {
-  InitialData() = default;
+struct AnyInitialData {
+  AnyInitialData() = default;
 
-  InitialData(const InitialData& other)
+  AnyInitialData(const AnyInitialData& other)
       : initial_data_(other.initial_data_->Clone()) {}
-  InitialData& operator=(const InitialData& other) {
-    InitialData tmp(other);
+  AnyInitialData& operator=(const AnyInitialData& other) {
+    AnyInitialData tmp(other);
     return *this = std::move(tmp);
   }
 
-  InitialData(InitialData&&) noexcept = default;
-  InitialData& operator=(InitialData&&) noexcept = default;
+  AnyInitialData(AnyInitialData&&) noexcept = default;
+  AnyInitialData& operator=(AnyInitialData&&) noexcept = default;
 
   template <typename T>
-  InitialData(const T& initial_data)
+  AnyInitialData(const T& initial_data)
       : initial_data_{std::make_unique<InitialDataWrapper<T>>(initial_data)} {}
 
   template <typename T>
-  InitialData(T&& initial_data)
+  AnyInitialData(T&& initial_data)
       : initial_data_{std::make_unique<InitialDataWrapper<remove_cvref_t<T>>>(
             std::move(initial_data))} {}
 

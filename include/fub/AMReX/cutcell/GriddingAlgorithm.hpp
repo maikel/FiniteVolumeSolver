@@ -48,7 +48,7 @@ public:
 
   ~GriddingAlgorithm() noexcept override = default;
 
-  GriddingAlgorithm(PatchHierarchy hier, InitialData data, Tagging tagging,
+  GriddingAlgorithm(PatchHierarchy hier, AnyInitialData data, Tagging tagging,
                     BoundaryCondition boundary);
 
   [[nodiscard]] const PatchHierarchy& GetPatchHierarchy() const noexcept;
@@ -72,7 +72,7 @@ public:
       noexcept;
   [[nodiscard]] BoundaryCondition& GetBoundaryCondition(int level) noexcept;
 
-  [[nodiscard]] const InitialData& GetInitialCondition() const noexcept;
+  [[nodiscard]] const AnyInitialData& GetInitialCondition() const noexcept;
 
   [[nodiscard]] const Tagging& GetTagging() const noexcept;
 
@@ -101,7 +101,7 @@ private:
   void ClearLevel(int level) override;
 
   PatchHierarchy hierarchy_;
-  InitialData initial_condition_;
+  AnyInitialData initial_condition_;
   Tagging tagging_;
   std::vector<BoundaryCondition> boundary_condition_;
 };

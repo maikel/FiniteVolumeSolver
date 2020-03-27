@@ -45,10 +45,10 @@ public:
   GriddingAlgorithm(GriddingAlgorithm&&) noexcept;
   GriddingAlgorithm& operator=(GriddingAlgorithm&&) noexcept;
 
-  GriddingAlgorithm(PatchHierarchy hier, InitialData initial_data,
+  GriddingAlgorithm(PatchHierarchy hier, AnyInitialData initial_data,
                     Tagging tagging);
 
-  GriddingAlgorithm(PatchHierarchy hier, InitialData initial_data,
+  GriddingAlgorithm(PatchHierarchy hier, AnyInitialData initial_data,
                     Tagging tagging, BoundaryCondition boundary);
 
   PatchHierarchy& GetPatchHierarchy() noexcept { return hierarchy_; }
@@ -75,7 +75,7 @@ public:
       noexcept;
   [[nodiscard]] BoundaryCondition& GetBoundaryCondition(int level) noexcept;
 
-  [[nodiscard]] const InitialData& GetInitialCondition() const noexcept;
+  [[nodiscard]] const AnyInitialData& GetInitialCondition() const noexcept;
 
   [[nodiscard]] const Tagging& GetTagging() const noexcept;
 
@@ -100,7 +100,7 @@ private:
   void ClearLevel([[maybe_unused]] int level) override;
 
   PatchHierarchy hierarchy_;
-  InitialData initial_data_;
+  AnyInitialData initial_data_;
   Tagging tagging_;
   std::vector<BoundaryCondition> boundary_condition_;
 };
