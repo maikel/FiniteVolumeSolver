@@ -78,9 +78,9 @@ struct AcousticWaveInitialData : fub::amrex::BK19PhysicalParameters {
         const double x = coor[0];
         const double y = coor[1];
 
-        const double p = std::pow(1.0 + inidat.del0 * std::sin(inidat.wn * x),
-                                  2.0 * inidat.gamma / (inidat.gamma - 1.0));
-        fab(i, 0) = (pow(p, Gamma) - 1.0) / inidat.Msq;
+        const double p = std::pow(1.0 + del0 * std::sin(wn * x),
+                                  2.0 * gamma / (gamma - 1.0));
+        fab(i, 0) = (pow(p, Gamma) - 1.0) / Msq;
       });
     });
   }
