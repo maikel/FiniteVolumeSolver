@@ -161,6 +161,20 @@ template <typename Eq> struct Conservative : ConservativeBase<Eq> {
     static_cast<ConservativeBase<Eq>&>(*this) = x;
   }
   Conservative(const Equation& eq) : ConservativeBase<Eq>{} {
+    auto depths = Depths<Complete<Equation>>(eq);
+    ForEachVariable(
+        overloaded{
+            [&](double& id, ScalarDepth) { id = 0.0; },
+            [&](auto&& ids, auto depth) {
+              if constexpr (std::is_same_v<std::decay_t<decltype(depth)>,
+                                           int>) {
+                ids = Array<double, 1, Eigen::Dynamic>::Zero(1, depth);
+              } else {
+                ids = Array<double, 1, decltype(depth)::value>::Zero();
+              }
+            },
+        },
+        *this, depths);
     InitializeState(eq, *this);
   }
 };
@@ -193,6 +207,20 @@ template <typename Eq> struct Complete : CompleteBase<Eq> {
     static_cast<CompleteBase<Eq>&>(*this) = x;
   }
   Complete(const Equation& eq) : CompleteBase<Eq>{} {
+    auto depths = Depths<Complete<Equation>>(eq);
+    ForEachVariable(
+        overloaded{
+            [&](double& id, ScalarDepth) { id = 0.0; },
+            [&](auto&& ids, auto depth) {
+              if constexpr (std::is_same_v<std::decay_t<decltype(depth)>,
+                                           int>) {
+                ids = Array<double, 1, Eigen::Dynamic>::Zero(1, depth);
+              } else {
+                ids = Array<double, 1, decltype(depth)::value>::Zero();
+              }
+            },
+        },
+        *this, depths);
     InitializeState(eq, *this);
   }
 };
