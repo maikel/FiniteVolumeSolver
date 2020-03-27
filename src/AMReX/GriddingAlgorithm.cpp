@@ -316,6 +316,11 @@ void GriddingAlgorithm::MakeNewLevelFromScratch(
   ::amrex::MultiFab& data = hierarchy_.GetPatchLevel(level).data;
   const ::amrex::Geometry& geom = hierarchy_.GetGeometry(level);
   initial_data_.InitializeData(data, geom);
+
+  if (hierarchy_.GetPatchLevel(level).nodes->nComp() > 0) {
+    ::amrex::MultiFab& data = *hierarchy_.GetPatchLevel(level).nodes;
+    initial_data_.InitializeNodes(data, geom);
+  }
 }
 
 void GriddingAlgorithm::MakeNewLevelFromCoarse(

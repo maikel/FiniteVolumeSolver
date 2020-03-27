@@ -37,6 +37,9 @@ struct InitialDataStrategy {
   virtual void InitializeData(::amrex::MultiFab& data,
                               const ::amrex::Geometry& geom) = 0;
 
+  virtual void InitializeNodes(::amrex::MultiFab& data,
+                               const ::amrex::Geometry& geom) = 0;
+
   virtual std::unique_ptr<InitialDataStrategy> Clone() const = 0;
 };
 
@@ -48,6 +51,11 @@ template <typename T> struct InitialDataWrapper : public InitialDataStrategy {
   void InitializeData(::amrex::MultiFab& data,
                       const ::amrex::Geometry& geom) override {
     initial_data_.InitializeData(data, geom);
+  }
+
+  void InitializeNodes(::amrex::MultiFab& data,
+                       const ::amrex::Geometry& geom) override {
+    initial_data_.InitializeNodes(data, geom);
   }
 
   std::unique_ptr<InitialDataStrategy> Clone() const override {
@@ -82,6 +90,12 @@ struct InitialData {
   void InitializeData(::amrex::MultiFab& data, const ::amrex::Geometry& geom) {
     if (initial_data_) {
       return initial_data_->InitializeData(data, geom);
+    }
+  }
+
+  void InitializeNodes(::amrex::MultiFab& data, const ::amrex::Geometry& geom) {
+    if (initial_data_) {
+      return initial_data_->InitializeNodes(data, geom);
     }
   }
 

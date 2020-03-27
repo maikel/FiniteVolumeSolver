@@ -114,6 +114,31 @@ struct TravellingVortexInitialData : fub::amrex::BK19PhysicalParameters {
     });
   }
 
+  void InitializeNodes(amrex::MultiFab& pi, const amrex::Geometry& geom) const {
+    // set initial values of pi
+    const double Gamma = (gamma - 1.0) / gamma;
+    fub::amrex::ForEachFab(pi, [&](const ::amrex::MFIter& mfi) {
+      ::amrex::FArrayBox& fab = pi[mfi];
+      fub::amrex::ForEachIndex(fab.box(), [&](auto... is) {
+        ::amrex::IntVect i{int(is)...};
+
+        ::amrex::Vector<double> coor(2);
+        geom.LoNode(i, coor);
+        const double dx = coor[0] - center[0];
+        const double dy = coor[1] - center[1];
+        const double r = std::sqrt(dx * dx + dy * dy);
+
+        if (r < R0) {
+          const double r_over_R0 = r / R0;
+          fab(i, 0) = Gamma * fac * fac *
+                      p_coeff(r_over_R0, coefficients);
+        } else {
+          fab(i, 0) = 0.0;
+        }
+      });
+    });
+  }
+
   std::vector<double> coefficients;
   const double a_rho{1.0};
   const double rho0{a_rho * 0.5};
@@ -191,36 +216,6 @@ void MyMain(const fub::ProgramOptions& options) {
 
   //   BK19IntegratorContext simulation_data(grid, method, 2, 0);
   BK19IntegratorContext simulation_data(grid, method, 4, 2);
-  const int nlevel = simulation_data.GetPatchHierarchy().GetNumberOfLevels();
-
-  // set initial values of pi
-  const double Gamma = (inidat.gamma - 1.0) / inidat.gamma;
-  for (int level = 0; level < nlevel; ++level) {
-    ::amrex::MultiFab& pi = simulation_data.GetPi(level);
-    const ::amrex::Geometry& geom =
-        grid->GetPatchHierarchy().GetGeometry(level);
-    ForEachFab(pi, [&](const ::amrex::MFIter& mfi) {
-      ::amrex::FArrayBox& fab = pi[mfi];
-      ForEachIndex(fab.box(), [&](auto... is) {
-        ::amrex::IntVect i{int(is)...};
-
-        ::amrex::Vector<double> coor(2);
-        geom.LoNode(i, coor);
-        const double dx = coor[0] - inidat.center[0];
-        const double dy = coor[1] - inidat.center[1];
-        const double r = std::sqrt(dx * dx + dy * dy);
-
-        if (r < inidat.R0) {
-          const double r_over_R0 = r / inidat.R0;
-          fab(i, 0) = Gamma * inidat.fac * inidat.fac *
-                      p_coeff(r_over_R0, inidat.coefficients);
-
-        } else {
-          fab(i, 0) = 0.0;
-        }
-      });
-    });
-  }
 
   fub::DimensionalSplitLevelIntegrator advection(
       //       fub::int_c<2>, std::move(simulation_data),

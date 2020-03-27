@@ -65,6 +65,26 @@ struct AcousticWaveInitialData : fub::amrex::BK19PhysicalParameters {
     });
   }
 
+  void InitializeNodes(amrex::MultiFab& pi, const amrex::Geometry& geom) const {
+    // set initial values of pi
+    const double Gamma = (gamma - 1.0) / gamma;
+    fub::amrex::ForEachFab(pi, [&](const ::amrex::MFIter& mfi) {
+      ::amrex::FArrayBox& fab = pi[mfi];
+      fub::amrex::ForEachIndex(fab.box(), [&](auto... is) {
+        ::amrex::IntVect i{int(is)...};
+
+        ::amrex::Vector<double> coor(2);
+        geom.LoNode(i, coor);
+        const double x = coor[0];
+        const double y = coor[1];
+
+        const double p = std::pow(1.0 + inidat.del0 * std::sin(inidat.wn * x),
+                                  2.0 * inidat.gamma / (inidat.gamma - 1.0));
+        fab(i, 0) = (pow(p, Gamma) - 1.0) / inidat.Msq;
+      });
+    });
+  }
+
   const double del0 = 0.05;
   const double wn = 2.0 * M_PI;
   std::array<double, 2> U0{1.0, 0.0};
@@ -142,30 +162,6 @@ void MyMain(const fub::ProgramOptions& options) {
 
   //   BK19IntegratorContext simulation_data(grid, method, 2, 0);
   BK19IntegratorContext simulation_data(grid, method, 4, 2);
-  const int nlevel = simulation_data.GetPatchHierarchy().GetNumberOfLevels();
-
-  // set initial values of pi
-  const double Gamma = (inidat.gamma - 1.0) / inidat.gamma;
-  for (int level = 0; level < nlevel; ++level) {
-    ::amrex::MultiFab& pi = simulation_data.GetPi(level);
-    const ::amrex::Geometry& geom =
-        grid->GetPatchHierarchy().GetGeometry(level);
-    ForEachFab(pi, [&](const ::amrex::MFIter& mfi) {
-      ::amrex::FArrayBox& fab = pi[mfi];
-      ForEachIndex(fab.box(), [&](auto... is) {
-        ::amrex::IntVect i{int(is)...};
-
-        ::amrex::Vector<double> coor(2);
-        geom.LoNode(i, coor);
-        const double x = coor[0];
-        const double y = coor[1];
-
-        const double p = std::pow(1.0 + inidat.del0 * std::sin(inidat.wn * x),
-                                  2.0 * inidat.gamma / (inidat.gamma - 1.0));
-        fab(i, 0) = (pow(p, Gamma) - 1.0) / inidat.Msq;
-      });
-    });
-  }
 
   fub::DimensionalSplitLevelIntegrator advection(
       //       fub::int_c<2>, std::move(simulation_data),
