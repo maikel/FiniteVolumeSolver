@@ -25,8 +25,8 @@
 #include <AMReX_MLMG.H>
 
 #include "fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp"
-#include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
-#include "fub/AMReX/bk19/BK19LevelIntegrator.hpp"
+#include "fub/AMReX/BK19/BK19IntegratorContext.hpp"
+#include "fub/AMReX/BK19/BK19LevelIntegrator.hpp"
 #include "fub/equations/CompressibleAdvection.hpp"
 
 struct AcousticWaveInitialData : fub::amrex::BK19PhysicalParameters {

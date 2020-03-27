@@ -23,7 +23,7 @@
 #define FUB_BK19_LEVEL_INTEGRATOR_HPP
 
 #include "fub/AMReX/MLMG/MLNodeHelmholtz.hpp"
-#include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
+#include "fub/AMReX/BK19/BK19IntegratorContext.hpp"
 #include "fub/equations/CompressibleAdvection.hpp"
 #include "fub/ext/Eigen.hpp"
 #include "fub/ext/ProgramOptions.hpp"
