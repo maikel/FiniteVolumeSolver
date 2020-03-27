@@ -50,6 +50,10 @@ inline SeverityLogger GetInfoLogger() {
                             boost::log::trivial::info);
 }
 
+inline SeverityLogger GetLogger(boost::log::trivial::severity_level level) {
+  return SeverityLogger(boost::log::keywords::severity = level);
+}
+
 void Log(std::string message, Duration timepoint,
          boost::log::trivial::severity_level level =
              boost::log::trivial::severity_level::info);
