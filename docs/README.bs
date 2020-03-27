@@ -4,7 +4,7 @@ Shortname: user-doc
 Level: 1
 Status: LD
 Group: ag-klein
-URL: https://page.mi.fu-berlin.de/guttula/README.html
+URL: https://page.mi.fu-berlin.de/ghastermann/fvm-doc/index.html
 Editor: Maikel Nadolski, Freie Universität Berlin https://fu-berlin.de, maikel.nadolski@fu-berlin.de
 Abstract: This is a user documentation for the Finite Volume Solver library which is developed at AG Klein, Freie Universität Berlin. The library provides a framework to solve hyperbolic equations with finite volume methods. It assumes an external structured grid library like [[AMReX]], [[SAMRAI]] or [[p4est]] to adaptively refine regions of interest. One of the main design philosophies is to make the numerical methods re-usable and consistent across different grid implementations. We provide some standard flux methods which can be used out-of-the-box with a large set of hyperbolic equations. Furthermore, a lot of helper classes exist to generate distributed grids for data management which simplifies and modernizes the usage of libraries like [[AMReX]] or [[SAMRAI]]. At last, this library is also capable of handling embedded boundaries in a dimensionally split setting as defined in [[Klein2009]].
 Markup Shorthands: markdown yes
@@ -264,6 +264,24 @@ If some targets fail to build feel free to raise an issue in GitLab.
 Code Overview {#code-overview}
 ==============================
 
+We use a layered library design to achieve separation of concerns. 
+One of the main goals is to have reusable implementations for algorithms which are independent of the concrete storage backend. 
+We use namespaces to indicate the dependency on various structured grid libraries such as AMReX or SAMRAI. 
+All components inside of the namespace `fub` are independent of the concrete AMR backend. Classes and functions of the namespaces `fub::amrex` or `fub::samrai` depend on their respective libraries.
+
+This library provides tools to write driver files which form complete applications. Each driver makes its own choices on how to handle program options, input files or its output. 
+You can find many example applications in the `examples/` subfolder within the Git project.
+Every example composes layer for layer until a solver is built and run. 
+The needs application to build up their layers in the following order
+
+  1. [PatchHierarchy](#patch-hierarchy) (data storage)
+  2. [GriddingAlgorithm](#gridding-algorithm) (algorithmic choice)
+  3. [IntegratorContext](#data-integrator-context) (data storage / algorithmic choice)
+  4. one or more composed LevelIntegrators (algorithmic choice)
+  5. SubcycleSolver (algorithmic choice)
+
+Note: Each layer in this list is implemented in terms of its predecessor.
+
 Policy Pattern {#policy-pattern}
 --------------------------------
 
@@ -304,15 +322,6 @@ concept TimeIntegrator = std::copy_assignable<TI> && requires (
 ```
 </div>
 
-Structure of a Simulation {#simulation-struct}
-----------------------------------------------
-
-When setting up a simulation we decompose the setup into two parts:
-
-1. Manage a locally refined grid containing simulation data distributed over multiple MPI ranks.
-2. Set up a numerical method to solve the problem on a distributed grid.
-
-The algorithmic choice in the second part leads in general to additional requirements for the data storage, such as needing a certain amount of ghost cells.
 
 Data Storage: PatchHierarchy {#patch-hierarchy}
 -----------------------------------------------
@@ -333,7 +342,7 @@ Note: A patch hierarchy does not know what the components represent. It does not
 
 Note: [[AMReX]] represents hierarchies very often as pairs of `(Vector<MultiFab*>, Vector<Geometry>)` where the vector is taken over the number if refinement levels. One can interpret a `PatchHierarchy` as an equivalent representation.
 
-Data Storage: GriddingAlgorithm {#gridding-algorithm}
+Algorithmic Choice: GriddingAlgorithm {#gridding-algorithm}
 -----------------------------------------------------
 
 A gridding algorithm adds some algorithmic choices to the patch hierarchy which are needed for the box generation algorithms in the context of adaptive mesh refinement. The present gridding algorithms use the `AmrCore` class from the [[AMReX]] library to generate patches and hierarchies to cover such tagged cells. It owns a patch hierarchy and initializes or modifies it using a `TaggingMethod` policy object which masks cells that need additional refinement. In addition to the `TaggingMethod` policy, a `GriddingAlgorithm` also need boundary and initial conditions, given by `BoundaryCondition` and `InitialData` policy objects. The boundary conditions are used in communication routines to fill the ghost cell layer touching the computational domain, whereas the initial conditions are only used once at the beginning of a simulation.
@@ -346,7 +355,7 @@ highlight: c++
 show: 20-1000
 </pre>
 This example produces the following figure and can be visualized either in VisIt, Paraview or python-yt.
-<center><img width="60%" height="auto" src="initial_hierarchy.png"/></center>
+<center><img width="60%" height="auto" src="img/initial_hierarchy.png"/></center>
 </div>
 
 Multiple solvers can share a common gridding algorithm and will hold a member variable of type `std::shared_ptr<GriddingAlgorithm>`.
@@ -376,7 +385,7 @@ concept BoundaryCondition = std::copy_assignable<BC> &&
     }
 ```
 
-You find polymorphic value types `AnyInitialData<GriddingAlgorithm>`, `AnyTaggingMethod<GriddingAlgorithm>` and `AnyBoundaryCondition<GriddingAlgorithm>` in the Finite Volume Solver library to match each one of the concepts. These polymorphic types are used to store any object of a class which satisfies those concepts.
+You find polymorphic value types `AnyInitialData<GriddingAlgorithm>`, `AnyTaggingMethod<GriddingAlgorithm>` and `AnyBoundaryCondition<GriddingAlgorithm>` in the Finite Volume Solver library to match each one of the concepts. These polymorphic types are used to store any object of a class that satisfies those concepts.
 
 <div class="example">
 The class `fub::amrex::GriddingAlgorithm` is internally defined in something like
@@ -397,10 +406,10 @@ public:
 Data Storage: IntegratorContext {#data-integrator-context}
 ----------------------------------------------------------
 
-An `IntegratorContext` allocates, manages and provides access to additional data that is needed for every conservative AMR scheme, such as cell-centered and face-centered data arrays **with ghost cell layers**. It also manages face-centered data on the coarse-fine interface between two refinement levels.
+An `IntegratorContext` allocates, manages and provides access to additional data that is needed for every conservative AMR scheme, such as cell-centered and face-centered data arrays **with ghost layers**. It also manages face-centered data on the coarse-fine interface between two refinement levels.
 
 <div class="example">
-The following code snippet shows a simplified version of how to access cell and face-based data with ghost cells using the [[AMReX]] toolbox. This implements parallelization for GPU with a fallback to a MPI/OpenMP hybrid.
+The following code snippet shows a simplified version of how to access cell and face-based data with ghost cells using the [[AMReX]] toolbox. This implements parallelization for GPU with a fallback to an MPI/OpenMP hybrid.
 
 ```cpp
 /// \brief This function computes a conservative time update for cells in
@@ -439,91 +448,59 @@ void UpdateConservatively(IntegratorContext& context, int level, Duration dt,
 ```
 </div>
 
-In addition to managing the data, every integrator context defines at least the following member functions.
+In addition to managing the additional data, every integrator context defines a comprehensive list of functions to deal with the various data locations. The `IntegratorContext` concept is  therefore defined by
+
 
 ```cpp
-struct IntegratorContext {
-   /// \brief Replaces the underlying gridding algorithm with the specified one.
-  void
-  ResetHierarchyConfiguration(std::shared_ptr<GriddingAlgorithm> gridding);
+template <typename I>
+concept IntegratorContext = std::copy_assignable<I> && requires (
+      I& integrator_context, int level, Duration dt, Direction dir,
+      double scale) {
+  // Access PatchLevel Data
+  { integrator_context.GetData(level) };
+  { integrator_context.GetScratch(level) };
+  { integrator_context.GetFluxes(level, dir) };
 
-  /// \brief Whenever the gridding algorithm changes the data hierarchy this
-  /// function will regrid all distributed helper variables managed by the
-  /// context.
-  ///
-  /// \param[in] level  The level number of the coarsest level which changed its
-  /// shape. Regrid all levels finer than level.
-  void ResetHierarchyConfiguration(int level = 0);
+  // Coarse-fine interface interaction
+  { integrator_context.ApplyFluxCorrection(level, level - 1) };
+  { integrator_context.ResetCoarseFineFluxes(level, level - 1) };
+  { integrator_context.AccumulateCoarseFineFluxes(level, scale, dir) };
 
-  /// \brief Copy data on the specified level from the underlying PatchHierarchy
-  /// to the scratch.
-  ///
-  /// This function does not fill the ghost cell layer.
-  void CopyDataToScratch(int level_num);
+  // Action on scratch
+  { integrator_context.CoarsenConservatively(level, level - 1) };
+  { integrator_context.CompleteFromCons(level) };
 
-  /// \brief Copy data on the specified level from the scratch to the underlying
-  /// PatchHierarchy.
-  void CopyScratchToData(int level_num);
+  // Copy data
+  { integrator_context.CopyDataToScratch(level) };
+  { integrator_context.CopyScratchToData(level) };
 
-  /// \brief Applies the boundary condition for the scratch space on level
-  /// `level` in direcition `dir`.
-  ///
-  /// \param level  The refinement level on which the boundary condition shall
-  /// be used.
-  void ApplyBoundaryCondition(int level, Direction dir);
-  void ApplyBoundaryCondition(int level, Direction dir, BoundaryCondition& bc);
+  // Fill ghost layers within scratch
+  { integrator_context.FillGhostLayerTwoLevels(level, bc, level - 1, bc) };
+  { integrator_context.FillGhostLayerTwoLevels(level, level - 1) };
+  { integrator_context.FillGhostLayerSingleLevel(level, bc) };
+  { integrator_context.FillGhostLayerSingleLevel(level) };
 
-  /// @{
-  /// \brief Fills the ghost layer of the scratch data and interpolates in the
-  /// coarse fine layer.
-  void FillGhostLayerTwoLevels(int level, BoundaryCondition& fbc, int coarse,
-                               BoundaryCondition& cbc);
-  void FillGhostLayerTwoLevels(int level, int coarse);
-  /// @}
-
-  /// @{
-  /// \brief Fills the ghost layer of the scratch data and does nothing in the
-  /// coarse fine layer.
-  void FillGhostLayerSingleLevel(int level, BoundaryCondition& bc);
-  void FillGhostLayerSingleLevel(int level);
-  /// @}
-
-  /// \brief Returns a estimate for a stable time step size which can be taken
-  /// for specified level number in direction dir.
-  [[nodiscard]] Duration ComputeStableDt(int level, Direction dir);
-
-  /// \brief Fill the flux MultiFab with numeric fluxes based on current states
-  /// in scratch.
-  void ComputeNumericFluxes(int level, Duration dt, Direction dir);
-
-  /// \brief Apply a conservative time update for each conservative variable on
-  /// the specified level number and direction.
-  void UpdateConservatively(int level, Duration dt, Direction dir);
-
-  /// \brief Reconstruct complete state variables from conservative ones.
-  void CompleteFromCons(int level, Duration dt);
-
-  /// \brief Accumulate fluxes on the coarse fine interfaces for a specified
-  /// fine level number.
-  void AccumulateCoarseFineFluxes(int level, double time_scale, Direction dir);
-
-  /// \brief Replace the coarse fluxes by accumulated fine fluxes on the coarse
-  /// fine interfaces.
-  void ApplyFluxCorrection(int fine, int coarse, Duration dt);
-
-  /// \brief Resets all accumulates fluxes to zero.
-  void ResetCoarseFineFluxes(int fine, int coarse);
-
-  /// \brief Coarsen scratch data from a fine level number to a coarse level
-  /// number.
-  void CoarsenConservatively(int fine, int coarse);
+  // Reallocate internal data from level 
+  { integrator_context.ResetHierarchyConfiguration(level) };
 };
 ```
 
-This is the minimum amount of functions needed to build common conservative AMR schemes on top of such an integrator context.
-The functions `ComputeStableDt`, `ComputeNumericFluxes`, `UpdateConservatively` and `CompleteFromCons` are customization points of `IntegratorContext`. I. e. one needs to provide objects for the policy concepts `FluxMethod<IntegratorContext>`, `TimeIntegrator<IntegratorContext>` and `CompleteFromConsReconstruction<IntegratorContext>` to define the behaviour of those functions.
+This is the minimum amount of functions needed to build common conservative AMR schemes on top of an AMR library like [[AMReX]] or [[SAMRAI]]. The implementation of an `IntegratorContext` will, in general, be very library-specific. The layers after the `IntegratorContext` describe parts of the AMR time integration which are implemented on those concepts only.
 
-The other functions for example, `AccumulateCoarseFineFluxes`, `ApplyFluxCorrection` and more, will be called automatically by the respective AMR integration scheme and will do the right thing such that the solution remains conservative up to machine accuracy.
+Nevertheless, we still refine this concept to better fit the dimensionally split time integration.
+
+```cpp
+template <typename I>
+concept DimensionalSplitIntegratorContext = IntegratorContext<I> && requires (
+      I& integrator_context, int level, Duration dt, Direction dir,
+      double scale) {
+  { integrator_context.ComputeNumericFluxes(level, dt, dir) };
+  { integrator_context.ComputeStableDt(level, dir) };
+  { integrator_context.UpdateConservatively(level, dir) };
+};
+```
+
+The functions `ComputeStableDt`, `ComputeNumericFluxes`, `UpdateConservatively` and `CompleteFromCons` are customization points of a `DimensionalSplitIntegratorContext`. I. e. one needs to provide objects for the policy concepts `FluxMethod<IntegratorContext>`, `TimeIntegrator<IntegratorContext>` and `CompleteFromConsReconstruction<IntegratorContext>` to define the behaviour of those functions.
 
 Algorithmic Choice: IntegratorContext {#algorithm-choice-integrator-context}
 ----------------------------------------------------------------------------
@@ -622,13 +599,27 @@ void MyMain(const fub::ProgramOptions& opts) {
 
 In addition to computing the mathematical correct formula, an object that satisfies `FluxMethod<IntegratorContext>` needs to repeat the logic of how to parallelize and how to iterate over the multi-dimensional index space.
 We recognize that these are two orthogonal concerns which are both hard to get right. 
-To ease the burden for authors of a `FluxMethod` we introduced some helper classes which separate these concerns. 
+To ease the burden for authors of a `FluxMethod` we introduced some helper classes which separate these concerns. They will be discussed in more detail in <a href="#flux-method-framework">Chapter 3</a>.
 
-DimensionalSplitLevelIntegrator
----------------------------------
+DimensionalSplitLevelIntegrator {#dimensional-split-integrator}
+---------------------------------------------------------------
 
 We call any class that provides a member function `AdvanceLevelNonRecursively(int level, pair<int, int> subcycle)` a level integrator. The `DimensionalSplitLevelIntegrator` implements the dimensionally split hyperbolic advection scheme and depends on the `IntegratorContext` that we just introduced.
 
+```cpp
+template <typename L>
+concept LevelIntegrator = std::copy_assignable<L> && requires (const L& level_integrator, int level, Duration dt, std::pair<int, int> subcycle) {
+  { level_integrator.AdvanceLevelNonRecursively(level, dt, subcycle) };
+  { level_integrator.ComputeStableDt(level) } -> Duration;
+};
+
+template <typename HS>
+concept HyperbolicSystemLevelIntegrator = LevelIntegrator<S> && requires (const L& level_integrator) {
+  // Access underlying data storage implementation
+  { level_integrator.GetIntegratorContext() } -> IntegratorContext;
+};
+```
+>>>>>>> develop
 
 
 Framework for defining FluxMethods {#flux-method-framework}
@@ -723,4 +714,5 @@ struct MusclHancockMethod {
 The implemented MUSCL-type flux methods for an equation `Equation` satisfy `FluxMethod<Equation, 4>` and are implemented in two steps.
 First, we reconstruct a state to the left and the right the face in question.
 This gives a reduction of the stencil array from `Complete state[4]` to `Complete reconstruced_states[2]`.
+
 Secondly, we call a (lower-order) base method `BaseFM` which satisfies `FluxMethod<Equation, 2>`.
