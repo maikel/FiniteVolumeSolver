@@ -619,8 +619,6 @@ concept HyperbolicSystemLevelIntegrator = LevelIntegrator<S> && requires (const 
   { level_integrator.GetIntegratorContext() } -> IntegratorContext;
 };
 ```
->>>>>>> develop
-
 
 Framework for defining FluxMethods {#flux-method-framework}
 ===========================================================
@@ -716,3 +714,4 @@ First, we reconstruct a state to the left and the right the face in question.
 This gives a reduction of the stencil array from `Complete state[4]` to `Complete reconstruced_states[2]`.
 
 Secondly, we call a (lower-order) base method `BaseFM` which satisfies `FluxMethod<Equation, 2>`.
+</div>
