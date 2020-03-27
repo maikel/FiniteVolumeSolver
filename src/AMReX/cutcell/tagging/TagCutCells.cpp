@@ -26,23 +26,15 @@
 #include "fub/Execution.hpp"
 #include "fub/tagging/TagCutCells.hpp"
 
+#include <AMReX_EBAmrUtil.H>
+
 namespace fub::amrex::cutcell {
 
 void TagCutCells::TagCellsForRefinement(::amrex::TagBoxArray& tags_array,
                                         Duration, int level,
                                         const GriddingAlgorithm& gridding) const
     noexcept {
-  const ::amrex::MultiFab& volumes =
-      gridding.GetPatchHierarchy().GetPatchLevel(level).factory->getVolFrac();
-  ForEachFab(execution::openmp, tags_array, [&](const ::amrex::MFIter& mfi) {
-    const IndexBox<AMREX_SPACEDIM> box =
-        AsIndexBox<AMREX_SPACEDIM>(mfi.tilebox());
-    PatchDataView<char, AMREX_SPACEDIM, layout_stride> tags =
-        MakePatchDataView(tags_array[mfi], 0).Subview(box);
-    PatchDataView<const double, AMREX_SPACEDIM, layout_stride> vols =
-        MakePatchDataView(volumes[mfi], 0).Subview(box);
-    ::fub::TagCutCells().TagCellsForRefinement(tags, vols);
-  });
+  ::amrex::TagCutCells(tags_array, gridding.GetPatchHierarchy().GetPatchLevel(level).data);
 }
 
 } // namespace fub::amrex::cutcell
