@@ -26,7 +26,8 @@
 
 struct InitialData {
   using Complete = fub::CompressibleAdvection<2>::Complete;
-  void InitializeData(amrex::MultiFab& mf, const amrex::Geometry& geom) {
+  void InitializeData(fub::amrex::PatchLevel& patch_level, const amrex::Geometry& geom) const {
+    amrex::MultiFab& mf = patch_level.data;
     fub::amrex::ForEachFab(mf, [&](const amrex::MFIter& mfi) {
       fub::CompressibleAdvection<2> equation{};
       amrex::FArrayBox& fab = mf[mfi];

@@ -37,7 +37,8 @@ struct TemperatureRamp {
   double air_position_{0.0};
   double equiv_raito_{1.0};
 
-  void InitializeData(::amrex::MultiFab& data, const ::amrex::Geometry& geom) {
+  void InitializeData(fub::amrex::PatchLevel& patch_level, const amrex::Geometry& geom) const {
+    amrex::MultiFab& data = patch_level.data;
     fub::FlameMasterReactor& reactor = equation_.GetReactor();
     const double high_temp = 1400.0;
     const double temp = 300.0;

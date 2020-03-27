@@ -31,7 +31,8 @@ struct ShockTubeData {
   using Complete = fub::Complete<Equation>;
   using Conservative = fub::Conservative<Equation>;
 
-  void InitializeData(amrex::MultiFab& data, const amrex::Geometry& geom) {
+  void InitializeData(fub::amrex::PatchLevel& patch_level, const amrex::Geometry& geom) const {
+    amrex::MultiFab& data = patch_level.data;
     fub::amrex::ForEachFab(data, [&](const amrex::MFIter& mfi) {
       fub::View<Complete> states =
           fub::amrex::MakeView<Complete>(data[mfi], equation_, mfi.tilebox());

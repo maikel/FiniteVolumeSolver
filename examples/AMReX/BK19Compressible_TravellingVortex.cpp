@@ -74,7 +74,8 @@ struct TravellingVortexInitialData : fub::amrex::BK19PhysicalParameters {
     coefficients[24] = 1.0 / 72.0;
   }
 
-  void InitializeData(amrex::MultiFab& mf, const amrex::Geometry& geom) const {
+  void InitializeData(fub::amrex::PatchLevel& patch_level, const amrex::Geometry& geom) const {
+    amrex::MultiFab& mf = patch_level.data;
     fub::amrex::ForEachFab(mf, [&](const amrex::MFIter& mfi) {
       fub::CompressibleAdvection<2> equation{};
       amrex::FArrayBox& fab = mf[mfi];
@@ -115,9 +116,8 @@ struct TravellingVortexInitialData : fub::amrex::BK19PhysicalParameters {
         states.PTinverse(i, j) = states.density(i, j) / states.PTdensity(i, j);
       });
     });
-  }
 
-  void InitializeNodes(amrex::MultiFab& pi, const amrex::Geometry& geom) const {
+    amrex::MultiFab& pi = *patch_level.nodes;
     // set initial values of pi
     const double Gamma = (gamma - 1.0) / gamma;
     fub::amrex::ForEachFab(pi, [&](const ::amrex::MFIter& mfi) {

@@ -35,7 +35,8 @@ struct RiemannProblem {
   Complete left_{equation_};
   Complete right_{equation_};
 
-  void InitializeData(amrex::MultiFab& data, const amrex::Geometry& geom) {
+  void InitializeData(fub::amrex::PatchLevel& patch_level, const amrex::Geometry& geom) const {
+    amrex::MultiFab& data = patch_level.data;
     fub::amrex::ForEachFab(
         fub::execution::openmp, data, [&](amrex::MFIter& mfi) {
           fub::View<Complete> state = fub::amrex::MakeView<Complete>(

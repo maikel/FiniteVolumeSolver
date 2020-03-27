@@ -325,10 +325,10 @@ void GriddingAlgorithm::MakeNewLevelFromScratch(
         level, Duration(time_point), box_array, balanced_distribution_map,
         n_comps, std::move(eb_factory), ngrow - 1);
   }
-  ::amrex::MultiFab& data = hierarchy_.GetPatchLevel(level).data;
+
+  PatchLevel& patch_level = hierarchy_.GetPatchLevel(level);
   const ::amrex::Geometry& geom = hierarchy_.GetGeometry(level);
-  data.setVal(0.0);
-  initial_condition_.InitializeData(data, geom);
+  initial_condition_.InitializeData(patch_level, geom);
   SetDistributionMap(level, balanced_distribution_map);
 }
 

@@ -45,7 +45,8 @@ struct TemperatureRamp {
 
   fub::IdealGasMix<Tube_Rank> equation_;
 
-  void InitializeData(::amrex::MultiFab& data, const ::amrex::Geometry& geom) {
+  void InitializeData(fub::amrex::PatchLevel& patch_level, const ::amrex::Geometry& geom) {
+    ::amrex::MultiFab& data = patch_level.data;
     fub::FlameMasterReactor& reactor = equation_.GetReactor();
     reactor.SetMoleFractions("N2:79,O2:21,H2:42");
     const double high_temp = 2000.0;
