@@ -199,14 +199,14 @@ void MyMain(const fub::ProgramOptions& options) {
 
   //   BK19IntegratorContext simulation_data(grid, method, 2, 0);
   BK19IntegratorContext simulation_data(grid, method, 4, 2);
-  const int nlevel = simulation_data.GetPatchHierarchy().GetNumberOfLevels();
+  const fub::amrex::PatchHierarchy& hier = simulation_data.GetPatchHierarchy();
+  const int nlevel = hier.GetNumberOfLevels();
 
   // set initial values of pi
   const double Gamma = (inidat.gamma - 1.0) / inidat.gamma;
   for (int level = 0; level < nlevel; ++level) {
-    ::amrex::MultiFab& pi = simulation_data.GetPi(level);
-    const ::amrex::Geometry& geom =
-        grid->GetPatchHierarchy().GetGeometry(level);
+    ::amrex::MultiFab& pi = *hier.GetPatchLevel(level).nodes;
+    const ::amrex::Geometry& geom = hier.GetGeometry(level);
     ForEachFab(pi, [&](const ::amrex::MFIter& mfi) {
       ::amrex::FArrayBox& fab = pi[mfi];
       ForEachIndex(fab.box(), [&](auto... is) {

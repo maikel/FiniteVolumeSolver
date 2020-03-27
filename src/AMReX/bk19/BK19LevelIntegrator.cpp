@@ -60,7 +60,6 @@ void WriteBK19Plotfile::operator()(const GriddingAlgorithm& grid) const {
   FUB_ASSERT(nlevels >= 0);
   std::size_t size = static_cast<std::size_t>(nlevels);
   ::amrex::Vector<const ::amrex::MultiFab*> mf(size);
-  ::amrex::Vector<const ::amrex::MultiFab*> mfnodes(size);
   ::amrex::Vector<::amrex::Geometry> geoms(size);
   ::amrex::Vector<int> level_steps(size);
   ::amrex::Vector<::amrex::IntVect> ref_ratio(size);
@@ -487,8 +486,9 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
                                                 std::pair<int, int> subcycle) {
   AdvectionSolver& advection = GetAdvection();
   BK19IntegratorContext& context = advection.GetContext();
+  const fub::amrex::PatchHierarchy& hier = context.GetPatchHierarchy();
   MultiFab& scratch = context.GetScratch(level);
-  MultiFab& pi = context.GetPi(level);
+  MultiFab& pi = *hier.GetPatchLevel(level).nodes;
   const ::amrex::Geometry& geom = context.GetGeometry(level);
   const ::amrex::Periodicity periodicity = geom.periodicity();
 
@@ -579,7 +579,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
                                      dbgAdvBFAB);
 
   // Copy pi_n+1 to pi_n
-  context.GetPi(level).copy(pi_new);
+  hier.GetPatchLevel(level).nodes->copy(pi_new);
 
   dbgAdvBFAB.SaveData(scratch, GetCompleteVariableNames(), geom);
 
