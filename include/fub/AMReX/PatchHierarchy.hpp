@@ -267,10 +267,12 @@ void WritePlotFile(const std::string plotfilename,
   ::amrex::Vector<const ::amrex::MultiFab*> mf = hier.GetData();
   ::amrex::Vector<::amrex::Geometry> geoms = hier.GetGeometries();
   ::amrex::Vector<int> level_steps(size);
-  ::amrex::Vector<::amrex::IntVect> ref_ratio(size);
+  ::amrex::Vector<::amrex::IntVect> ref_ratio(size - 1);
   for (std::size_t i = 0; i < size; ++i) {
     level_steps[i] = static_cast<int>(hier.GetCycles(static_cast<int>(i)));
-    ref_ratio[i] = hier.GetRatioToCoarserLevel(static_cast<int>(i));
+  }
+  for (std::size_t i = 1; i < size; ++i) {
+    ref_ratio[i - 1] = hier.GetRatioToCoarserLevel(static_cast<int>(i));
   }
   using Traits = StateTraits<Complete<Equation>>;
   constexpr auto names = Traits::names;
@@ -305,10 +307,12 @@ void WritePlotFile(const std::string plotfilename,
   ::amrex::Vector<const ::amrex::MultiFab*> mf = hier.GetData();
   ::amrex::Vector<::amrex::Geometry> geoms = hier.GetGeometries();
   ::amrex::Vector<int> level_steps(size);
-  ::amrex::Vector<::amrex::IntVect> ref_ratio(size);
+  ::amrex::Vector<::amrex::IntVect> ref_ratio(size - 1);
   for (std::size_t i = 0; i < size; ++i) {
     level_steps[i] = static_cast<int>(hier.GetCycles(static_cast<int>(i)));
-    ref_ratio[i] = hier.GetRatioToCoarserLevel(static_cast<int>(i));
+  }
+  for (std::size_t i = 1; i < size; ++i) {
+    ref_ratio[i - 1] = hier.GetRatioToCoarserLevel(static_cast<int>(i));
   }
   using Traits = StateTraits<Complete<Equation>>;
   constexpr auto names = Traits::names;
