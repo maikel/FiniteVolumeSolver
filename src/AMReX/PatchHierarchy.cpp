@@ -346,6 +346,8 @@ void WriteCheckpointFile(const std::string checkpointname,
       hout << '\n';
     }
   }
+  // Force processors to wait until directory has been built.
+  ::amrex::ParallelDescriptor::Barrier();
 
   // write the MultiFab data to, e.g., chk00010/Level_0/
   for (int level = 0; level < nlevels; ++level) {
@@ -598,7 +600,7 @@ void OpenHdf5Database(const std::string& name, const ::amrex::FArrayBox& fab,
                         nullptr);
     const std::int64_t cycle_count = static_cast<std::int64_t>(cycle);
     H5Space memspace(H5Screate_simple(1, &count, nullptr));
-    H5Dwrite(cycles, H5T_IEEE_F64LE, memspace, filespace, H5P_DEFAULT,
+    H5Dwrite(cycles, H5T_STD_I64LE_g, memspace, filespace, H5P_DEFAULT,
              &cycle_count);
   }
 }
