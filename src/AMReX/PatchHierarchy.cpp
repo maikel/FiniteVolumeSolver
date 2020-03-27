@@ -21,6 +21,7 @@
 #include "fub/AMReX/PatchHierarchy.hpp"
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/ForEachIndex.hpp"
+#include "fub/AMReX/output/DebugOutput.hpp"
 #include "fub/output/Hdf5Handle.hpp"
 
 #include <boost/filesystem.hpp>
@@ -149,7 +150,8 @@ PatchHierarchy::PatchHierarchy(DataDescription desc,
                                const PatchHierarchyOptions& options)
     : description_{std::move(desc)},
       grid_geometry_{geometry}, options_{options}, patch_level_{},
-      patch_level_geometry_{}, registry_{std::make_shared<CounterRegistry>()}, debug_storage_{std::make_shared<DebugStorage>()} {
+      patch_level_geometry_{}, registry_{std::make_shared<CounterRegistry>()},
+      debug_storage_{std::make_shared<DebugStorage>()} {
   patch_level_.reserve(static_cast<std::size_t>(options.max_number_of_levels));
   patch_level_geometry_.resize(
       static_cast<std::size_t>(options.max_number_of_levels));
@@ -192,8 +194,8 @@ PatchHierarchy::GetCounterRegistry() const noexcept {
   return registry_;
 }
 
-const std::shared_ptr<DebugStorage>&
-PatchHierarchy::GetDebugStorage() const noexcept {
+const std::shared_ptr<DebugStorage>& PatchHierarchy::GetDebugStorage() const
+    noexcept {
   return debug_storage_;
 }
 
@@ -219,7 +221,8 @@ const ::amrex::Vector<::amrex::BoxArray> PatchHierarchy::GetBoxArrays() const {
   return bas;
 }
 
-const ::amrex::Vector<::amrex::DistributionMapping> PatchHierarchy::GetDistributionMappings() const {
+const ::amrex::Vector<::amrex::DistributionMapping>
+PatchHierarchy::GetDistributionMappings() const {
   const std::size_t nlevels = patch_level_geometry_.size();
   ::amrex::Vector<::amrex::DistributionMapping> dms(nlevels);
   for (std::size_t level = 0; level < nlevels; ++level) {
@@ -228,9 +231,11 @@ const ::amrex::Vector<::amrex::DistributionMapping> PatchHierarchy::GetDistribut
   return dms;
 }
 
-const ::amrex::Vector<const ::amrex::MultiFab*> PatchHierarchy::GetData() const {
+const ::amrex::Vector<const ::amrex::MultiFab*>
+PatchHierarchy::GetData() const {
   const int nlevels = GetNumberOfLevels();
-  ::amrex::Vector<const ::amrex::MultiFab*> data(static_cast<std::size_t>(nlevels));
+  ::amrex::Vector<const ::amrex::MultiFab*> data(
+      static_cast<std::size_t>(nlevels));
   for (int level = 0; level < nlevels; ++level) {
     data[level] = &GetPatchLevel(level).data;
   }
