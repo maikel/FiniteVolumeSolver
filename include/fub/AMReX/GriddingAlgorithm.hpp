@@ -64,7 +64,11 @@ public:
     return hierarchy_.GetTimePoint();
   }
 
-  bool RegridAllFinerlevels(int which_level);
+  /// \brief Attempt to regrid all finer level than the specified `which_level`.
+  ///
+  /// \return Returns the coarsest level which was regrid. If no level changed
+  /// this function returns the maximum number of levels.
+  int RegridAllFinerlevels(int which_level);
 
   void InitializeHierarchy(double level_time);
 

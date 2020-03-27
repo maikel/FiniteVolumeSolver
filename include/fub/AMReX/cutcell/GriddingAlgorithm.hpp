@@ -54,7 +54,7 @@ public:
   [[nodiscard]] const PatchHierarchy& GetPatchHierarchy() const noexcept;
   PatchHierarchy& GetPatchHierarchy() noexcept;
 
-  bool RegridAllFinerlevels(int which_level);
+  int RegridAllFinerlevels(int which_level);
   void InitializeHierarchy(double level_time);
 
   void SetBoundaryCondition(int level, BoundaryCondition&& condition);
@@ -97,6 +97,8 @@ private:
   void RemakeLevel(
       int level, double time_point, const ::amrex::BoxArray& box_array,
       const ::amrex::DistributionMapping& distribution_mapping) override;
+
+  void PostProcessBaseGrids(::amrex::BoxArray& box_array) const override;
 
   void ClearLevel(int level) override;
 
