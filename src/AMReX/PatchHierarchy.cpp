@@ -237,7 +237,7 @@ PatchHierarchy::GetData() const {
   ::amrex::Vector<const ::amrex::MultiFab*> data(
       static_cast<std::size_t>(nlevels));
   for (int level = 0; level < nlevels; ++level) {
-    data[level] = &GetPatchLevel(level).data;
+    data[static_cast<std::size_t>(level)] = &GetPatchLevel(level).data;
   }
   return data;
 }
