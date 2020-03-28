@@ -343,12 +343,12 @@ struct DataDescription {
 
 Note: A patch hierarchy does not know what the components represent. It does not have an equation object as context and does not need it. Its only responsibility is to manage a certain amount of data over multiple levels and distributed over MPI ranks.
 
-Note: [[AMReX]] represents hierarchies very often as pairs of `(Vector<MultiFab*>, Vector<Geometry>)` where the vector is taken over the number if refinement levels. One can interpret a `PatchHierarchy` as an equivalent representation.
+Note: [[AMReX]] represents hierarchies very often as pairs of `(Vector<MultiFab*>, Vector<Geometry>)` where the vector is taken over the number of refinement levels. One can interpret a `PatchHierarchy` as an equivalent representation.
 
 Algorithmic Choice: GriddingAlgorithm {#gridding-algorithm}
 -----------------------------------------------------
 
-A gridding algorithm adds some algorithmic choices to the patch hierarchy which are needed for the box generation algorithms in the context of adaptive mesh refinement. The present gridding algorithms use the `AmrCore` class from the [[AMReX]] library to generate patches and hierarchies to cover such tagged cells. It owns a patch hierarchy and initializes or modifies it using a `TaggingMethod` policy object which masks cells that need additional refinement. In addition to the `TaggingMethod` policy, a `GriddingAlgorithm` also need boundary and initial conditions, given by `BoundaryCondition` and `InitialData` policy objects. The boundary conditions are used in communication routines to fill the ghost cell layer touching the computational domain, whereas the initial conditions are only used once at the beginning of a simulation.
+A gridding algorithm adds some algorithmic choices to the patch hierarchy which are needed for the box generation algorithms in the context of adaptive mesh refinement. The present gridding algorithms use the `AmrCore` class from the [[AMReX]] library to generate patches and hierarchies to cover such tagged cells [Klein: Wieso '"such" tagged cells'? Bisher ist von diesen noch nicht die Rede gewesen]. It owns a patch hierarchy and initializes or modifies it using a `TaggingMethod` policy object which masks cells that need additional refinement. In addition to the `TaggingMethod` policy, a `GriddingAlgorithm` also needs boundary and initial conditions, given by `BoundaryCondition` and `InitialData` policy objects. The boundary conditions are used in communication routines to fill the ghost cell layer touching the computational domain, whereas the initial conditions are only used once at the beginning of a simulation.
 
 <div class="example">
 The following code example will create an initialized and adaptively refined patch hierarchy.
@@ -362,8 +362,9 @@ This example produces the following figure and can be visualized either in VisIt
 </div>
 
 Multiple solvers can share a common gridding algorithm and will hold a member variable of type `std::shared_ptr<GriddingAlgorithm>`.
-Given a shared `GriddingAlgorithm` a solver is being able to refine the patch hierarchy or to fill ghost cell boundaries at any given time of its algorithm.
+Given a shared `GriddingAlgorithm` a solver is enabled to refine the patch hierarchy or to fill ghost cell boundaries at any given time of its algorithm.
 Copying a `GriddingAlgorithm` by value will deeply copy its data on each MPI rank. This can be useful to create fall-back scenarios of a simulation.
+[Klein: Was ist hier mit "solvers" gemeint? Ein kompletter Löser für ein Problem, oder Unterlöser, die separate Aufgaben in einem kompletten Löser erfüllen, wie z.B. ein Advektions, ein Chemieintegrations und ein Projektionsschritt? Zudem wird hier das "sharing" gegenüber dem "copy by value" abgegrenzt. Darf ich also davon ausgehen, dass "sharing" sowas ist wie die Übergabe eines gemeinsamen "(function-) pointers"? Was ist mit "fallback scenario" gemeint?]
 
 The `GriddingAlgorithm` provides three customization points. 
 Their concepts `InitialData<GriddingAlgorithm>`, `TaggingMethod<GriddingAlgorithm>` and `BoundaryCondition<GriddingAlgorithm>` are defined as 
@@ -372,7 +373,7 @@ Their concepts `InitialData<GriddingAlgorithm>`, `TaggingMethod<GriddingAlgorith
 template <typename I, typename GriddingAlgorithm>
 concept InitialData = std::copy_assignable<I> && 
     requires (const I& initial_data, const GriddingAlgorithm& grid, int level) {
-        { initial.InitializeData(grid, level) };
+        { initial_data.InitializeData(grid, level) };
     }
 
 template <typename T, typename GriddingAlgorithm>
@@ -387,6 +388,7 @@ concept BoundaryCondition = std::copy_assignable<BC> &&
         { boundary_condition.FillBoundary(data, grid, level) };
     }
 ```
+[Klein: Hier wird C++20-Sprech verwendet, richtig? Das heißt, diese Code-Zeilen finden wir nicht in der derzeitigen Implementierung, sondern dort ist das so verwirklicht, wie weiter oben für Compiler angegeben, die die "Concepts" noch nicht nativ beherrschen?]
 
 You find polymorphic value types `AnyInitialData<GriddingAlgorithm>`, `AnyTaggingMethod<GriddingAlgorithm>` and `AnyBoundaryCondition<GriddingAlgorithm>` in the Finite Volume Solver library to match each one of the concepts. These polymorphic types are used to store any object of a class that satisfies those concepts.
 
@@ -449,6 +451,7 @@ void UpdateConservatively(IntegratorContext& context, int level, Duration dt,
   }
 }
 ```
+Mannomann, die Lernkurve wird steil. Abgesehen davon: Fehlt hier nicht eine Definition des multi-indexes iv?
 </div>
 
 In addition to managing the additional data, every integrator context defines a comprehensive list of functions to deal with the various data locations. The `IntegratorContext` concept is  therefore defined by
@@ -487,6 +490,7 @@ concept IntegratorContext = std::copy_assignable<I> && requires (
   { integrator_context.ResetHierarchyConfiguration(level) };
 };
 ```
+[Klein: Was ist in den Geisterzellenroutinen "bc"? Muss das vorher nicht irgendwo zumindest mit einer Typzuweisung auftauchen?]
 
 This is the minimum amount of functions needed to build common conservative AMR schemes on top of an AMR library like [[AMReX]] or [[SAMRAI]]. The implementation of an `IntegratorContext` will, in general, be very library-specific. The layers after the `IntegratorContext` describe parts of the AMR time integration which are implemented on those concepts only.
 
@@ -500,10 +504,13 @@ concept DimensionalSplitIntegratorContext = IntegratorContext<I> && requires (
   { integrator_context.ComputeNumericFluxes(level, dt, dir) };
   { integrator_context.ComputeStableDt(level, dir) };
   { integrator_context.UpdateConservatively(level, dir) };
+  { integrator_context.CompleteFromCons(level, dir) };
 };
 ```
 
 The functions `ComputeStableDt`, `ComputeNumericFluxes`, `UpdateConservatively` and `CompleteFromCons` are customization points of a `DimensionalSplitIntegratorContext`. I. e. one needs to provide objects for the policy concepts `FluxMethod<IntegratorContext>`, `TimeIntegrator<IntegratorContext>` and `CompleteFromConsReconstruction<IntegratorContext>` to define the behaviour of those functions.
+
+[Klein:  Hmm, ein "i.e." bedeutet normalerweise, dass man sich auf bekannte Zusammenhänge bezieht und nochmal ausführt, was diese im konkreten vorliegenden Fall implizieren. Die Konzepte "FluxMethod" und "CompleteFromConsReconstruction" sind im Text bisher aber noch gar nicht aufgetaucht. Auch für "TimeIntegrator" ist nicht klar, inwiefern dieses Konzept etwas mit den in "DimensionalSplitIntegratorContext" aufgeführten Funktionalitäten zu tun hat.]
 
 Algorithmic Choice: IntegratorContext {#algorithm-choice-integrator-context}
 ----------------------------------------------------------------------------
