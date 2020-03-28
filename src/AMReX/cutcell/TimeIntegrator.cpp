@@ -70,7 +70,13 @@ void UpdateConservatively_Row(double* next, const double* prev,
     ////////////////////////////////////////////////////////////////////////////////////
     //                beta_L == beta_R  => regular update
 
-    const Vc::double_v alpha(&cc.cell.alpha[i], Vc::Unaligned);
+    Vc::double_v alpha(&cc.cell.alpha[i], Vc::Unaligned);
+    if (all_of(alpha == 0.0)) {
+      Vc::double_v u_next(0.0);
+      u_next.store(&next[i], Vc::Unaligned);
+      continue;
+    }
+    where(alpha == 0.0, alpha) = 1.0;
     const Vc::double_v betaL(&cc.faceL.beta[i], Vc::Unaligned);
     const Vc::double_v betaR(&cc.faceR.beta[i], Vc::Unaligned);
     const Vc::double_v cell_center(&cc.cell.center[i], Vc::Unaligned);
@@ -80,7 +86,11 @@ void UpdateConservatively_Row(double* next, const double* prev,
     const Vc::double_v fB(&fluxB[i], Vc::Unaligned);
 
     const Vc::double_v u_prev(&prev[i], Vc::Unaligned);
-
+    
+    FUB_ASSERT(none_of(isnan(fL)));
+    FUB_ASSERT(none_of(isnan(fR)));
+    FUB_ASSERT(none_of(isnan(fB)));
+    FUB_ASSERT(none_of(isnan(u_prev)));
     const Vc::double_v regular = u_prev + dt_over_dx * (fL - fR);
 
     ////////////////////////////////////////////////////////////////////////////////////
@@ -140,6 +150,10 @@ void UpdateConservatively_Row(double* next, const double* prev,
     u_next.store(&next[i], Vc::Unaligned);
   }
   for (; i < n; ++i) {
+    if (cc.cell.alpha[i] == 0.0) {
+      next[i] = 0.0;
+      continue;
+    }
     ////////////////////////////////////////////////////////////////////////////////////
     //                beta_L == beta_R  => regular update
 
@@ -192,14 +206,12 @@ void UpdateConservatively_Row(double* next, const double* prev,
       return next;
     }();
 
-    next[i] = alpha > 0.0 ? betaL == betaR
-                                ? regular
-                                : betaL > betaR ? left_greater : right_greater
-                          : 0.0;
+    next[i] = betaL == betaR ? regular
+                             : betaL > betaR ? left_greater : right_greater;
   }
 
   for (i = 0; i < n; ++i) {
-    assert(!std::isnan(next[i]));
+    FUB_ASSERT(cc.cell.alpha[i] == 0.0 || !std::isnan(next[i]));
   }
 }
 
@@ -319,7 +331,8 @@ void TimeIntegrator::UpdateConservatively(IntegratorContext& context, int level,
 
   ForEachFab(execution::openmp, scratch, [&](const ::amrex::MFIter& mfi) {
     ::amrex::FabType type = context.GetFabType(level, mfi);
-    const ::amrex::Box all_faces_tilebox = mfi.grownnodaltilebox(int(dir));
+    const ::amrex::Box tilebox = mfi.growntilebox();
+    const ::amrex::Box all_faces_tilebox = ::amrex::surroundingNodes(tilebox, d);
     const ::amrex::Box all_fluxes_box = unshielded[mfi].box();
     const ::amrex::Box flux_box = all_faces_tilebox & all_fluxes_box;
     const ::amrex::Box cell_box = enclosedCells(flux_box);
@@ -370,10 +383,12 @@ void TimeIntegrator::UpdateConservatively(IntegratorContext& context, int level,
       ::amrex::FArrayBox& next = scratch[mfi];
       const ::amrex::FArrayBox& prev = scratch[mfi];
       const ::amrex::FArrayBox& flux = unshielded[mfi];
-      const ::amrex::Box all_faces_tilebox = mfi.grownnodaltilebox(int(dir));
+      const ::amrex::Box tilebox = mfi.growntilebox();
+      const ::amrex::Box all_faces_tilebox = ::amrex::surroundingNodes(tilebox, d);
       const ::amrex::Box all_fluxes_box = flux.box();
       const ::amrex::Box flux_box = all_faces_tilebox & all_fluxes_box;
       const ::amrex::Box cell_box = enclosedCells(flux_box);
+
       const IndexBox<AMREX_SPACEDIM + 1> cells = Embed<AMREX_SPACEDIM + 1>(
           AsIndexBox<AMREX_SPACEDIM>(cell_box), {0, n_cons});
       auto nv = MakePatchDataView(next).Subview(cells);
