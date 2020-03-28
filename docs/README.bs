@@ -179,6 +179,9 @@ We added some custom installation recipes which `conan` can use to install depen
 > conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/finite-volume
 ```
 
+Klein: Warum machen wir uns von "bintray" abhängig? Was bringt das? 
+
+
 MPI Installation {#mpi-install}
 -------------------------------
 
@@ -272,7 +275,7 @@ All components inside of the namespace `fub` are independent of the concrete AMR
 This library provides tools to write driver files which form complete applications. Each driver makes its own choices on how to handle program options, input files or its output. 
 You can find many example applications in the `examples/` subfolder within the Git project.
 Every example composes layer for layer until a solver is built and run. 
-The needs application to build up their layers in the following order
+The needs application to build up their layers in the following order [<-  Klein: Irgendwie funktioniert dieser Satz nicht]
 
   1. [PatchHierarchy](#patch-hierarchy) (data storage)
   2. [GriddingAlgorithm](#gridding-algorithm) (algorithmic choice)
