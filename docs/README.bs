@@ -451,7 +451,7 @@ void UpdateConservatively(IntegratorContext& context, int level, Duration dt,
   }
 }
 ```
-Mannomann, die Lernkurve wird steil. Abgesehen davon: Fehlt hier nicht eine Definition des multi-indexes iv?
+[Klein: Mannomann, die Lernkurve wird steil. Abgesehen davon: Fehlt hier nicht eine Definition des multi-indexes iv?]
 </div>
 
 In addition to managing the additional data, every integrator context defines a comprehensive list of functions to deal with the various data locations. The `IntegratorContext` concept is  therefore defined by
@@ -510,8 +510,6 @@ concept DimensionalSplitIntegratorContext = IntegratorContext<I> && requires (
 
 The functions `ComputeStableDt`, `ComputeNumericFluxes`, `UpdateConservatively` and `CompleteFromCons` are customization points of a `DimensionalSplitIntegratorContext`. I. e. one needs to provide objects for the policy concepts `FluxMethod<IntegratorContext>`, `TimeIntegrator<IntegratorContext>` and `CompleteFromConsReconstruction<IntegratorContext>` to define the behaviour of those functions.
 
-[Klein:  Hmm, ein "i.e." bedeutet normalerweise, dass man sich auf bekannte Zusammenhänge bezieht und nochmal ausführt, was diese im konkreten vorliegenden Fall implizieren. Die Konzepte "FluxMethod" und "CompleteFromConsReconstruction" sind im Text bisher aber noch gar nicht aufgetaucht. Auch für "TimeIntegrator" ist nicht klar, inwiefern dieses Konzept etwas mit den in "DimensionalSplitIntegratorContext" aufgeführten Funktionalitäten zu tun hat.]
-
 Algorithmic Choice: IntegratorContext {#algorithm-choice-integrator-context}
 ----------------------------------------------------------------------------
 
@@ -552,6 +550,8 @@ The `TimeIntegrator` provides the usual conservative scheme for cell-based time 
 The numerical fluxes \( F^n_i \) in this update denote the fluxes on the faces of the specified direction and are computed by the `FluxMethod` which is configured for this integrator context.
 
 An AMR integration scheme may use the `CompleteFromConsReconstruction` policy object whenever it changes the conservative variables to establish a valid state across all fields in the patch hierarchy.
+
+[Sehe ich das richtig, dass "CompleteFromConsReconstruction" in jeder Zelle einfach nur einen Satz von redundanten Repräsentaten des momentanen Zustands in der Zelle berechnet, also in unserem Fall kompressibler Gasdynamik etwa Druck, Temperatur, Geschwindigkeiten, Konzentrationen? Oder hat das Erscheinen des Wortes "Reconstruction" etwas mit Berechnung von Zuständen an Gitterzellflächen zu tun? Wenn letzteres NICHT der Fall ist, dann ist aus meiner Sicht "Reconstruction" hier der falsche Begriff - zumindest im Zusammenhang mit MUSCL-Verfahren, bei denen "reconstruction" immer mit der Bestimmung von Zellflächendaten oder von Verteilungen von Variablen in einer Zelle (etwa stückweise polynomial) zu tun hat.]
 
 We collect the three customization points for the `IntegratorContext` in a class which we call `HyperbolicMethod<IntegratorContext>`.
 It is defined as
@@ -713,14 +713,14 @@ struct MusclHancockMethod {
     void ComputeNumericFlux(Conservative& cons, span<const Complete, 4> stencil,
                               double dx, Duration dt, int dir);
 
-    Druation ComputeStableDt(span<const Complete, 4> stencil, double dx, int dir);
+    Duration ComputeStableDt(span<const Complete, 4> stencil, double dx, int dir);
 
     std::integral_constant<int, 4> GetStencilSize() const noexcept { return {}; }
 };
 ```
 
 The implemented MUSCL-type flux methods for an equation `Equation` satisfy `FluxMethod<Equation, 4>` and are implemented in two steps.
-First, we reconstruct a state to the left and the right the face in question.
+First, we reconstruct a state to the left and the right of the face in question.
 This gives a reduction of the stencil array from `Complete state[4]` to `Complete reconstruced_states[2]`.
 Secondly, we call a (lower-order) base method `BaseFM` which satisfies `FluxMethod<Equation, 2>`.
 </div>
