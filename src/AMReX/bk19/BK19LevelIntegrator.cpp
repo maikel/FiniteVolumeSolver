@@ -599,6 +599,7 @@ void BK19LevelIntegrator::InitialProjection(
   ::amrex::BoxArray on_nodes = on_cells;
   on_nodes.surroundingNodes();
 
+  double tmp_alpha_p = equation_.alpha_p;
   equation_.alpha_p = 0.0;
 
   for (std::size_t i = 0 ; i < index_.momentum.size(); ++i) {
@@ -615,7 +616,7 @@ void BK19LevelIntegrator::InitialProjection(
   }
 
   RecoverVelocityFromMomentum_(scratch, index_);
-  equation_.alpha_p = 1.0;
+  equation_.alpha_p = tmp_alpha_p;
 }
 
 

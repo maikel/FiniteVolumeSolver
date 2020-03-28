@@ -256,6 +256,10 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::RunOptions run_options = fub::GetOptions(options, "RunOptions");
   BOOST_LOG(info) << "RunOptions:";
   run_options.Print(info);
+
+  fub::Duration dt = std::chrono::duration<double>(2.5e-3);
+  solver.GetLevelIntegrator().InitialProjection(0, dt, inidat.U0);
+  
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }
 
