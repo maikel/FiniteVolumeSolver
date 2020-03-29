@@ -31,7 +31,7 @@ public:
   ConstantData(Equation eq, Complete<Equation> state);
 
   void InitializeData(PatchLevel& patch_level,
-                      const ::amrex::Geometry& geom) const;
+                      const GriddingAlgorithm& grid, int level, Duration time) const;
 
 private:
   Equation equation_;
@@ -44,7 +44,7 @@ ConstantData<Equation>::ConstantData(Equation eq, Complete<Equation> state)
 
 template <typename Equation>
 void ConstantData<Equation>::InitializeData(
-    PatchLevel& patch_level, const ::amrex::Geometry& /* geom */) const {
+    PatchLevel& patch_level, const GriddingAlgorithm& /*grid*/, int /*level*/, Duration /*time*/) const {
   ::amrex::MultiFab& mf = patch_level.data;
   ForEachFab(execution::openmp, mf, [&](const ::amrex::MFIter& mfi) {
     ::amrex::FArrayBox& fab = mf[mfi];

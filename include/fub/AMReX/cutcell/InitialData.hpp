@@ -37,7 +37,7 @@ struct InitialDataStrategy {
   virtual ~InitialDataStrategy() = default;
 
   virtual void InitializeData(PatchLevel& patch_level,
-                              const ::amrex::Geometry& geom) = 0;
+                              const fub::amrex::cutcell::GriddingAlgorithm& grid, int level, Duration time) = 0;
 
   virtual std::unique_ptr<InitialDataStrategy> Clone() const = 0;
 };
@@ -48,8 +48,8 @@ template <typename T> struct InitialDataWrapper : public InitialDataStrategy {
       : initial_data_{std::move(initial_data)} {}
 
   void InitializeData(PatchLevel& patch_level,
-                      const ::amrex::Geometry& geom) override {
-    initial_data_.InitializeData(patch_level, geom);
+                      const fub::amrex::cutcell::GriddingAlgorithm& grid, int level, Duration time) override {
+    initial_data_.InitializeData(patch_level, grid, level, time);
   }
 
   std::unique_ptr<InitialDataStrategy> Clone() const override {
@@ -81,9 +81,9 @@ struct AnyInitialData {
       : initial_data_{std::make_unique<InitialDataWrapper<remove_cvref_t<T>>>(
             std::move(initial_data))} {}
 
-  void InitializeData(PatchLevel& patch_level, const ::amrex::Geometry& geom) {
+  void InitializeData(PatchLevel& patch_level, const fub::amrex::cutcell::GriddingAlgorithm& grid, int level, Duration time) {
     if (initial_data_) {
-      return initial_data_->InitializeData(patch_level, geom);
+      return initial_data_->InitializeData(patch_level, grid, level, time);
     }
   }
 

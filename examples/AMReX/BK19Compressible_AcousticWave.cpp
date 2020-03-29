@@ -33,7 +33,8 @@ struct AcousticWaveInitialData : fub::amrex::BK19PhysicalParameters {
   using Complete = fub::CompressibleAdvection<2>::Complete;
   AcousticWaveInitialData() {}
 
-  void InitializeData(fub::amrex::PatchLevel& patch_level, const amrex::Geometry& geom) const {
+  void InitializeData(fub::amrex::PatchLevel& patch_level, const fub::amrex::GriddingAlgorithm& grid, int level, fub::Duration /*time*/) const {
+    const amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
     amrex::MultiFab& mf = patch_level.data;
     fub::amrex::ForEachFab(mf, [&](const amrex::MFIter& mfi) {
       fub::CompressibleAdvection<2> equation{};

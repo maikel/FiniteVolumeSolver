@@ -315,8 +315,7 @@ void GriddingAlgorithm::MakeNewLevelFromScratch(
   }
 
   PatchLevel& patch_level = hierarchy_.GetPatchLevel(level);
-  const ::amrex::Geometry& geom = hierarchy_.GetGeometry(level);
-  initial_data_.InitializeData(patch_level, geom);
+  initial_data_.InitializeData(patch_level, *this, level, static_cast<Duration>(time_point));
 }
 
 void GriddingAlgorithm::MakeNewLevelFromCoarse(

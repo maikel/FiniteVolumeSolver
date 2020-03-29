@@ -43,7 +43,7 @@ template <typename Eq, typename Geometry> struct RiemannProblem {
   RiemannProblem(const Eq& eq, const Geometry& geom, const Complete& l,
                  const Complete& r);
 
-  void InitializeData(fub::amrex::PatchLevel& patch_level, const ::amrex::Geometry& geom);
+  void InitializeData(fub::amrex::PatchLevel& patch_level, const fub::amrex::cutcell::GriddingAlgorithm& grid, int level, fub::Duration time);
 
   OmpLocal<Equation> equation_;
   Geometry geometry_;
@@ -67,7 +67,8 @@ RiemannProblem<Eq, Geometry>::RiemannProblem(const Eq& eq, const Geometry& geom,
 
 template <typename Eq, typename Geometry>
 void RiemannProblem<Eq, Geometry>::InitializeData(
-    fub::amrex::PatchLevel& patch_level, const ::amrex::Geometry& geom) {
+    fub::amrex::PatchLevel& patch_level, const fub::amrex::cutcell::GriddingAlgorithm& grid, int level, fub::Duration /*time*/) {
+  const ::amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
   ::amrex::MultiFab& data = patch_level.data;
   const ::amrex::EBFArrayBoxFactory& factory =
       dynamic_cast<const ::amrex::EBFArrayBoxFactory&>(data.Factory());

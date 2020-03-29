@@ -327,8 +327,7 @@ void GriddingAlgorithm::MakeNewLevelFromScratch(
   }
 
   PatchLevel& patch_level = hierarchy_.GetPatchLevel(level);
-  const ::amrex::Geometry& geom = hierarchy_.GetGeometry(level);
-  initial_condition_.InitializeData(patch_level, geom);
+  initial_condition_.InitializeData(patch_level, *this, level, static_cast<Duration>(time_point));
   SetDistributionMap(level, balanced_distribution_map);
 }
 

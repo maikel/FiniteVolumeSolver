@@ -58,7 +58,7 @@ auto Center(double x, double phi) -> ::amrex::RealArray {
 }
 
 struct NoInit {
-  static   void InitializeData(fub::amrex::PatchLevel&, const amrex::Geometry&) noexcept {}
+  static   void InitializeData(fub::amrex::PatchLevel&, const fub::amrex::GriddingAlgorithm& grid, int level, fub::Duration /*time*/) noexcept {}
 };
 
 auto MakeTubeSolver(fub::Burke2012& mechanism,
