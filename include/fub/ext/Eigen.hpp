@@ -58,9 +58,6 @@ using ArrayXd = Array<double, Eigen::Dynamic>;
 
 using MaskArray = Array<bool, 1>;
 
-template <int N>
-using Index = std::array<std::ptrdiff_t, static_cast<std::size_t>(N)>;
-
 inline void LoadN(Array<char, 1>& array, const char* pointer, int n) {
   for (int i = 0; i < n; ++i) {
     array[i] = pointer[i];
