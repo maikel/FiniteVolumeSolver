@@ -46,8 +46,11 @@
 namespace fub {
 namespace amrex {
 
+/// \defgroup PatchHierarchy
+
 class DebugStorage;
 
+/// \ingroup PatchHierarchy
 struct PatchHierarchyOptions {
   PatchHierarchyOptions() = default;
   PatchHierarchyOptions(const ProgramOptions& options);
@@ -64,6 +67,7 @@ struct PatchHierarchyOptions {
   int n_proper{1};
 };
 
+/// \ingroup PatchHierarchy
 /// The DataDescription class contains all information which is neccessary to
 /// describe the complete and conservative state data of an equation.
 struct DataDescription {
@@ -75,6 +79,7 @@ struct DataDescription {
   int dimension{AMREX_SPACEDIM};
 };
 
+/// \ingroup PatchHierarchy
 /// \brief The PatchLevel represents a distributed grid containing plain
 /// simulation data without a ghost cell layer.
 ///
@@ -145,6 +150,7 @@ struct PatchLevel {
 template <typename Equation>
 DataDescription MakeDataDescription(const Equation& equation);
 
+/// \ingroup PatchHierarchy
 /// The PatchHierarchy holds simulation data on multiple refinement levels. It
 /// also holds a time stamp for each level.
 class PatchHierarchy {

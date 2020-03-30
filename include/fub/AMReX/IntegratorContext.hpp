@@ -199,17 +199,17 @@ public:
   /// \param level  The refinement level on which the boundary condition shall
   /// be used.
   void ApplyBoundaryCondition(int level, Direction dir);
-  void ApplyBoundaryCondition(int level, Direction dir, BoundaryCondition& bc);
+  void ApplyBoundaryCondition(int level, Direction dir, AnyBoundaryCondition& bc);
 
   /// \brief Fills the ghost layer of the scratch data and interpolates in the
   /// coarse fine layer.
-  void FillGhostLayerTwoLevels(int level, BoundaryCondition& fbc, int coarse,
-                               BoundaryCondition& cbc);
+  void FillGhostLayerTwoLevels(int level, AnyBoundaryCondition& fbc, int coarse,
+                               AnyBoundaryCondition& cbc);
   void FillGhostLayerTwoLevels(int level, int coarse);
 
   /// \brief Fills the ghost layer of the scratch data and does nothing in the
   /// coarse fine layer.
-  void FillGhostLayerSingleLevel(int level, BoundaryCondition& bc);
+  void FillGhostLayerSingleLevel(int level, AnyBoundaryCondition& bc);
   void FillGhostLayerSingleLevel(int level);
 
   /// \brief Returns a estimate for a stable time step size which can be taken

@@ -44,6 +44,7 @@
 /// \brief The cutcell namespace
 namespace fub::amrex::cutcell {
 
+/// \ingroup PatchHierarchy
 /// This class holds state data arrays for each refinement level of a patch
 /// hierarchy.
 ///
@@ -101,6 +102,7 @@ struct PatchLevel : ::fub::amrex::PatchLevel {
   MultiCutFabs doubly_shielded;
 };
 
+/// \ingroup PatchHierarchy
 /// This class extents the normal hierarchy options with a pointer to an
 /// embedded boundary index space for each possible refinement level.
 struct PatchHierarchyOptions : public ::fub::amrex::PatchHierarchyOptions {
@@ -128,6 +130,7 @@ struct PatchHierarchyOptions : public ::fub::amrex::PatchHierarchyOptions {
   bool remove_covered_grids{true};
 };
 
+/// \ingroup PatchHierarchy
 class PatchHierarchy {
 public:
   /// \brief Constructs a PatchHierarchy object which is capable of holding data

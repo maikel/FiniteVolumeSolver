@@ -35,6 +35,10 @@
 namespace fub {
 namespace amrex {
 
+/// \defgroup GriddingAlgorithm
+/// This modules summarizes all GriddingAlgorithms.
+
+/// \ingroup GriddingAlgorithm
 /// \brief This class modifies and initializes a PatchLevel in a PatchHierarchy.
 class GriddingAlgorithm : private ::amrex::AmrCore {
 public:

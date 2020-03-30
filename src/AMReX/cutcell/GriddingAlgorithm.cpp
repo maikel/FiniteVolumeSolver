@@ -28,36 +28,12 @@
 namespace fub::amrex::cutcell {
 
 GriddingAlgorithm::GriddingAlgorithm(const GriddingAlgorithm& other)
-    : AmrCore(
-          &other.hierarchy_.GetGridGeometry().coordinates,
-          other.hierarchy_.GetOptions().max_number_of_levels - 1,
-          ::amrex::Vector<int>(
-              other.hierarchy_.GetGridGeometry().cell_dimensions.begin(),
-              other.hierarchy_.GetGridGeometry().cell_dimensions.end()),
-          -1,
-          ::amrex::Vector<::amrex::IntVect>(
-              static_cast<std::size_t>(other.hierarchy_.GetMaxNumberOfLevels()),
-              other.hierarchy_.GetRatioToCoarserLevel(
-                  other.hierarchy_.GetOptions().max_number_of_levels - 1))),
+    : AmrCore(other.hierarchy_.GetGeometry(0),
+              static_cast<const ::amrex::AmrInfo&>(other)),
       hierarchy_{other.hierarchy_},
       initial_condition_{other.initial_condition_}, tagging_{other.tagging_},
       boundary_condition_(other.boundary_condition_) {
-  AmrMesh::verbose = other.verbose;
-  AmrMesh::max_level = other.max_level;
-  AmrMesh::ref_ratio = other.ref_ratio;
-  AmrMesh::finest_level = other.finest_level;
-  AmrMesh::n_error_buf = other.n_error_buf;
-  AmrMesh::blocking_factor = other.blocking_factor;
-  AmrMesh::max_grid_size = other.max_grid_size;
-  AmrMesh::grid_eff = other.grid_eff;
-  AmrMesh::n_proper = other.n_proper;
-  AmrMesh::use_fixed_coarse_grids = other.use_fixed_coarse_grids;
-  AmrMesh::use_fixed_upto_level = other.use_fixed_upto_level;
-  AmrMesh::refine_grid_layout = other.refine_grid_layout;
-  AmrMesh::check_input = other.check_input;
-  AmrMesh::iterate_on_new_grids = other.iterate_on_new_grids;
-  AmrMesh::use_new_chop = other.use_new_chop;
-  const std::size_t size = static_cast<std::size_t>(AmrMesh::max_level + 1);
+  const std::size_t size = static_cast<std::size_t>(AmrInfo::max_level + 1);
   AmrMesh::geom.resize(size);
   AmrMesh::dmap.resize(size);
   AmrMesh::grids.resize(size);
@@ -81,39 +57,11 @@ GriddingAlgorithm::operator=(const GriddingAlgorithm& other) {
 }
 
 GriddingAlgorithm::GriddingAlgorithm(GriddingAlgorithm&& other) noexcept
-    : AmrCore(
-          &other.hierarchy_.GetGridGeometry().coordinates,
-          other.hierarchy_.GetOptions().max_number_of_levels - 1,
-          ::amrex::Vector<int>(
-              other.hierarchy_.GetGridGeometry().cell_dimensions.begin(),
-              other.hierarchy_.GetGridGeometry().cell_dimensions.end()),
-          -1,
-          ::amrex::Vector<::amrex::IntVect>(
-              static_cast<std::size_t>(other.hierarchy_.GetMaxNumberOfLevels()),
-              other.hierarchy_.GetRatioToCoarserLevel(
-                  other.hierarchy_.GetOptions().max_number_of_levels - 1))),
+    : AmrCore(std::move(other)),
       hierarchy_{std::move(other.hierarchy_)}, initial_condition_{std::move(
                                                    other.initial_condition_)},
       tagging_{std::move(other.tagging_)},
       boundary_condition_(std::move(other.boundary_condition_)) {
-  AmrMesh::verbose = std::move(other.verbose);
-  AmrMesh::max_level = std::move(other.max_level);
-  AmrMesh::ref_ratio = std::move(other.ref_ratio);
-  AmrMesh::finest_level = std::move(other.finest_level);
-  AmrMesh::n_error_buf = std::move(other.n_error_buf);
-  AmrMesh::blocking_factor = std::move(other.blocking_factor);
-  AmrMesh::max_grid_size = std::move(other.max_grid_size);
-  AmrMesh::grid_eff = std::move(other.grid_eff);
-  AmrMesh::n_proper = std::move(other.n_proper);
-  AmrMesh::use_fixed_coarse_grids = std::move(other.use_fixed_coarse_grids);
-  AmrMesh::use_fixed_upto_level = std::move(other.use_fixed_upto_level);
-  AmrMesh::refine_grid_layout = std::move(other.refine_grid_layout);
-  AmrMesh::check_input = std::move(other.check_input);
-  AmrMesh::iterate_on_new_grids = std::move(other.iterate_on_new_grids);
-  AmrMesh::use_new_chop = std::move(other.use_new_chop);
-  AmrMesh::geom = std::move(other.geom);
-  AmrMesh::dmap = std::move(other.dmap);
-  AmrMesh::grids = std::move(other.grids);
   for (int level = 0; level < hierarchy_.GetMaxNumberOfLevels(); ++level) {
     boundary_condition_[static_cast<std::size_t>(level)].geometry =
         hierarchy_.GetGeometry(level);
@@ -123,28 +71,11 @@ GriddingAlgorithm::GriddingAlgorithm(GriddingAlgorithm&& other) noexcept
 
 GriddingAlgorithm&
 GriddingAlgorithm::operator=(GriddingAlgorithm&& other) noexcept {
-  AmrMesh::verbose = std::move(other.verbose);
-  AmrMesh::max_level = std::move(other.max_level);
-  AmrMesh::ref_ratio = std::move(other.ref_ratio);
-  AmrMesh::finest_level = std::move(other.finest_level);
-  AmrMesh::n_error_buf = std::move(other.n_error_buf);
-  AmrMesh::blocking_factor = std::move(other.blocking_factor);
-  AmrMesh::max_grid_size = std::move(other.max_grid_size);
-  AmrMesh::grid_eff = std::move(other.grid_eff);
-  AmrMesh::n_proper = std::move(other.n_proper);
-  AmrMesh::use_fixed_coarse_grids = std::move(other.use_fixed_coarse_grids);
-  AmrMesh::use_fixed_upto_level = std::move(other.use_fixed_upto_level);
-  AmrMesh::refine_grid_layout = std::move(other.refine_grid_layout);
-  AmrMesh::check_input = std::move(other.check_input);
-  AmrMesh::iterate_on_new_grids = std::move(other.iterate_on_new_grids);
-  AmrMesh::use_new_chop = std::move(other.use_new_chop);
-  AmrMesh::geom = std::move(other.geom);
-  AmrMesh::dmap = std::move(other.dmap);
-  AmrMesh::grids = std::move(other.grids);
   hierarchy_ = std::move(other.hierarchy_);
   initial_condition_ = std::move(other.initial_condition_);
   tagging_ = std::move(other.tagging_);
   boundary_condition_ = std::move(other.boundary_condition_);
+  *static_cast<::amrex::AmrCore*>(this) = static_cast<::amrex::AmrCore&&>(other);
   for (int level = 0; level < hierarchy_.GetMaxNumberOfLevels(); ++level) {
     boundary_condition_[static_cast<std::size_t>(level)].geometry =
         hierarchy_.GetGeometry(level);
@@ -155,7 +86,7 @@ GriddingAlgorithm::operator=(GriddingAlgorithm&& other) noexcept {
 
 GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier, InitialData data,
                                      Tagging tagging,
-                                     BoundaryCondition boundary)
+                                     AnyBoundaryCondition boundary)
     : AmrCore(
           &hier.GetGridGeometry().coordinates,
           hier.GetOptions().max_number_of_levels - 1,
@@ -242,7 +173,7 @@ void GriddingAlgorithm::FillMultiFabFromLevel(::amrex::MultiFab& multifab,
     const ::amrex::Geometry& geom = hierarchy_.GetGeometry(level_number);
     const ::amrex::Vector<::amrex::MultiFab*> smf{&level.data};
     const ::amrex::Vector<double> stime{level.time_point.count()};
-    BoundaryCondition& boundary = boundary_condition_[size_t(level_number)];
+    AnyBoundaryCondition& boundary = boundary_condition_[size_t(level_number)];
     ::amrex::FillPatchSingleLevel(multifab, level.time_point.count(), smf,
                                   stime, 0, 0, n_comps, geom, boundary, 0);
   } else {
@@ -257,8 +188,8 @@ void GriddingAlgorithm::FillMultiFabFromLevel(::amrex::MultiFab& multifab,
     ::amrex::Interpolater* mapper = &::amrex::pc_interp;
     const std::size_t fine = std::size_t(level_number);
     const std::size_t coarse = std::size_t(level_number - 1);
-    BoundaryCondition& fine_boundary = boundary_condition_[fine];
-    BoundaryCondition& coarse_boundary = boundary_condition_[coarse];
+    AnyBoundaryCondition& fine_boundary = boundary_condition_[fine];
+    AnyBoundaryCondition& coarse_boundary = boundary_condition_[coarse];
     ::amrex::FillPatchTwoLevels(
         multifab, level.time_point.count(),
         *hierarchy_.GetOptions().index_spaces[fine], cmf, ct, fmf, ft, 0, 0,
@@ -276,21 +207,22 @@ void GriddingAlgorithm::ErrorEst(int level, ::amrex::TagBoxArray& tags,
 }
 
 void GriddingAlgorithm::SetBoundaryCondition(int level,
-                                             BoundaryCondition&& condition) {
+                                             AnyBoundaryCondition&& condition) {
   boundary_condition_[std::size_t(level)] = std::move(condition);
 }
 
 void GriddingAlgorithm::SetBoundaryCondition(
-    int level, const BoundaryCondition& condition) {
+    int level, const AnyBoundaryCondition& condition) {
   boundary_condition_[std::size_t(level)] = condition;
 }
 
-const BoundaryCondition&
+const AnyBoundaryCondition&
 GriddingAlgorithm::GetBoundaryCondition(int level) const noexcept {
   return boundary_condition_[std::size_t(level)];
 }
 
-BoundaryCondition& GriddingAlgorithm::GetBoundaryCondition(int level) noexcept {
+AnyBoundaryCondition&
+GriddingAlgorithm::GetBoundaryCondition(int level) noexcept {
   return boundary_condition_[std::size_t(level)];
 }
 
@@ -371,8 +303,8 @@ void GriddingAlgorithm::MakeNewLevelFromCoarse(
   ::amrex::Vector<::amrex::BCRec> bcr(static_cast<std::size_t>(n_comps));
   const std::size_t fine = std::size_t(level);
   const std::size_t coarse = std::size_t(level - 1);
-  BoundaryCondition& fine_boundary = boundary_condition_[fine];
-  BoundaryCondition& coarse_boundary = boundary_condition_[coarse];
+  AnyBoundaryCondition& fine_boundary = boundary_condition_[fine];
+  AnyBoundaryCondition& coarse_boundary = boundary_condition_[coarse];
   ::amrex::InterpFromCoarseLevel(
       fine_level.data, time_point, coarse_level.data, cons_start, cons_start,
       n_cons_components, hierarchy_.GetGeometry(level - 1),
