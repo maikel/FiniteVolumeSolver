@@ -21,7 +21,7 @@
 #ifndef FUB_INITIAL_DATA_SHOCK_MACHNUMBER_HPP
 #define FUB_INITIAL_DATA_SHOCK_MACHNUMBER_HPP
 
-#include "fub/initial_data/RiemannProblem.hpp"
+#include "fub/AMReX/cutcell/initial_data/RiemannProblem.hpp"
 
 #include <array>
 #include <limits>
