@@ -23,9 +23,10 @@
 
 #include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/AMReX/cutcell/BoundaryCondition.hpp"
-#include "fub/AMReX/cutcell/InitialData.hpp"
 #include "fub/AMReX/cutcell/PatchHierarchy.hpp"
 #include "fub/AMReX/cutcell/Tagging.hpp"
+#include "fub/AMReX/InitialData.hpp"
+
 
 #include <AMReX_AmrCore.H>
 // #include <AMReX_MultiFabUtil.H>
@@ -48,7 +49,7 @@ public:
 
   ~GriddingAlgorithm() noexcept override = default;
 
-  GriddingAlgorithm(PatchHierarchy hier, AnyInitialData data, Tagging tagging,
+  GriddingAlgorithm(PatchHierarchy hier, AnyInitialData<GriddingAlgorithm> data, Tagging tagging,
                     BoundaryCondition boundary);
 
   [[nodiscard]] const PatchHierarchy& GetPatchHierarchy() const noexcept;
@@ -72,7 +73,7 @@ public:
       noexcept;
   [[nodiscard]] BoundaryCondition& GetBoundaryCondition(int level) noexcept;
 
-  [[nodiscard]] const AnyInitialData& GetInitialCondition() const noexcept;
+  [[nodiscard]] const AnyInitialData<GriddingAlgorithm>& GetInitialCondition() const noexcept;
 
   [[nodiscard]] const Tagging& GetTagging() const noexcept;
 
@@ -101,7 +102,7 @@ private:
   void ClearLevel(int level) override;
 
   PatchHierarchy hierarchy_;
-  AnyInitialData initial_condition_;
+  AnyInitialData<GriddingAlgorithm> initial_condition_;
   Tagging tagging_;
   std::vector<BoundaryCondition> boundary_condition_;
 };

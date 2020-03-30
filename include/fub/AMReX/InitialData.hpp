@@ -32,6 +32,7 @@
 namespace fub {
 namespace amrex {
 
+template <typename GriddingAlgorithm>
 struct InitialDataStrategy {
   virtual ~InitialDataStrategy() = default;
 
@@ -41,7 +42,8 @@ struct InitialDataStrategy {
   virtual std::unique_ptr<InitialDataStrategy> Clone() const = 0;
 };
 
-template <typename T> struct InitialDataWrapper : public InitialDataStrategy {
+template <typename T, typename GriddingAlgorithm>
+struct InitialDataWrapper : public InitialDataStrategy<GriddingAlgorithm> {
   InitialDataWrapper(const T& initial_data) : initial_data_{initial_data} {}
   InitialDataWrapper(T&& initial_data)
       : initial_data_{std::move(initial_data)} {}
@@ -51,13 +53,14 @@ template <typename T> struct InitialDataWrapper : public InitialDataStrategy {
     initial_data_.InitializeData(patch_level, grid, level, time);
   }
 
-  std::unique_ptr<InitialDataStrategy> Clone() const override {
-    return std::make_unique<InitialDataWrapper<T>>(initial_data_);
+  std::unique_ptr<InitialDataStrategy<GriddingAlgorithm>> Clone() const override {
+    return std::make_unique<InitialDataWrapper<T, GriddingAlgorithm>>(initial_data_);
   }
 
   T initial_data_;
 };
 
+template <typename GriddingAlgorithm>
 struct AnyInitialData {
   AnyInitialData() = default;
 
@@ -73,11 +76,11 @@ struct AnyInitialData {
 
   template <typename T>
   AnyInitialData(const T& initial_data)
-      : initial_data_{std::make_unique<InitialDataWrapper<T>>(initial_data)} {}
+      : initial_data_{std::make_unique<InitialDataWrapper<T, GriddingAlgorithm>>(initial_data)} {}
 
   template <typename T>
   AnyInitialData(T&& initial_data)
-      : initial_data_{std::make_unique<InitialDataWrapper<remove_cvref_t<T>>>(
+      : initial_data_{std::make_unique<InitialDataWrapper<remove_cvref_t<T>, GriddingAlgorithm>>(
             std::move(initial_data))} {}
 
   void InitializeData(PatchLevel& patch_level, const GriddingAlgorithm& grid,
@@ -87,7 +90,7 @@ struct AnyInitialData {
     }
   }
 
-  std::unique_ptr<InitialDataStrategy> initial_data_;
+  std::unique_ptr<InitialDataStrategy<GriddingAlgorithm>> initial_data_;
 };
 
 } // namespace amrex

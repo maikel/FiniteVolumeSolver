@@ -152,7 +152,7 @@ GriddingAlgorithm::operator=(GriddingAlgorithm&& other) noexcept {
 }
 
 GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier,
-                                     AnyInitialData initial_data, Tagging tagging)
+                                     AnyInitialData<GriddingAlgorithm> initial_data, Tagging tagging)
     : AmrCore(
           &hier.GetGridGeometry().coordinates, hier.GetMaxNumberOfLevels() - 1,
           ::amrex::Vector<int>(hier.GetGridGeometry().cell_dimensions.begin(),
@@ -185,7 +185,7 @@ GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier,
 }
 
 GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier,
-                                     AnyInitialData initial_data, Tagging tagging,
+                                     AnyInitialData<GriddingAlgorithm> initial_data, Tagging tagging,
                                      BoundaryCondition bc)
     : AmrCore(
           &hier.GetGridGeometry().coordinates, hier.GetMaxNumberOfLevels() - 1,
@@ -386,7 +386,7 @@ BoundaryCondition& GriddingAlgorithm::GetBoundaryCondition(int level) noexcept {
   return boundary_condition_[size_t(level)];
 }
 
-const AnyInitialData& GriddingAlgorithm::GetInitialCondition() const noexcept {
+const AnyInitialData<GriddingAlgorithm>& GriddingAlgorithm::GetInitialCondition() const noexcept {
   return initial_data_;
 }
 

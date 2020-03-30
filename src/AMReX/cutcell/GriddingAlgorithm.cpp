@@ -151,7 +151,7 @@ GriddingAlgorithm::operator=(GriddingAlgorithm&& other) noexcept {
   return *this;
 }
 
-GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier, AnyInitialData data,
+GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier, AnyInitialData<GriddingAlgorithm> data,
                                      Tagging tagging,
                                      BoundaryCondition boundary)
     : AmrCore(
