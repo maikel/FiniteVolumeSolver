@@ -20,6 +20,7 @@
 
 #include "fub/cutcell_method/KbnStabilisation.hpp"
 #include "fub/StateRow.hpp"
+#include "fub/ext/Vc.hpp"
 
 #include <algorithm>
 #include <array>
@@ -45,15 +46,42 @@ template <typename T> struct CutCellGeometry {
   T centerR;
 };
 
+Vc::double_v clamp(Vc::double_v x, Vc::double_v lo, Vc::double_v hi) noexcept {
+  where(x < lo, x) = lo;
+  where(hi < x, x) = hi;
+  return x;
+}
+
 void ComputeStableFluxes_Row(const Fluxes<double*, const double*>& fluxes,
                              const CutCellGeometry<const double*>& geom, int n,
                              Duration /* dt */, double /* dx */) {
-#if defined(__CLANG__)
-#pragma clang loop vectorize(enable)
-#elif defined(_OPENMP)
-#pragma omp simd
-#endif
-  for (int face = 0; face < n; ++face) {
+  int face = 0;
+  const int simd_width = Vc::double_v::size();
+  for (face = 0; face + simd_width <= n; face += simd_width) {
+    const Vc::double_v centerL(geom.centerL + face, Vc::Unaligned);
+    const Vc::double_v centerR(geom.centerR + face, Vc::Unaligned);
+    const Vc::double_v dL = clamp(Vc::double_v(0.5) - centerL, Vc::double_v(0.0), Vc::double_v(1.0));
+    const Vc::double_v dR = clamp(Vc::double_v(0.5) + centerR, Vc::double_v(0.0), Vc::double_v(1.0));
+    const Vc::double_v dLm1 = clamp(Vc::double_v(1.0) - dL, Vc::double_v(0.0), Vc::double_v(1.0));
+    const Vc::double_v dRm1 = clamp(Vc::double_v(1.0) - dR, Vc::double_v(0.0), Vc::double_v(1.0));
+
+    const Vc::double_v f(fluxes.regular + face, Vc::Unaligned);
+    const Vc::double_v fbL(fluxes.boundaryL + face, Vc::Unaligned);
+    const Vc::double_v fbR(fluxes.boundaryR + face, Vc::Unaligned);
+    const Vc::double_v fsL = dL * f + dLm1 * fbL;
+    const Vc::double_v fsR = dR * f + dRm1 * fbR;
+
+    const Vc::double_v betaL(geom.betaL + face, Vc::Unaligned);
+    const Vc::double_v betaR(geom.betaR + face, Vc::Unaligned);
+    const Vc::double_v betaUS(geom.betaUS + face, Vc::Unaligned);
+    const Vc::double_v f_stable = betaUS * f + betaL * fsL + betaR * fsR;
+
+    fsL.store(fluxes.shielded_left + face, Vc::Unaligned);
+    fsR.store(fluxes.shielded_right + face, Vc::Unaligned);
+    f_stable.store(fluxes.stable + face, Vc::Unaligned);
+  }
+
+  for (; face < n; ++face) {
     const double dL = 0.5 - geom.centerL[face];
     const double dR = 0.5 + geom.centerR[face];
     const double f = fluxes.regular[face];
@@ -62,10 +90,9 @@ void ComputeStableFluxes_Row(const Fluxes<double*, const double*>& fluxes,
     const double betaL = geom.betaL[face];
     const double betaR = geom.betaR[face];
     const double betaUS = geom.betaUS[face];
-    fluxes.shielded_left[face] = betaL ? fsL : 0.0;
-    fluxes.shielded_right[face] = betaR ? fsR : 0.0;
-    fluxes.stable[face] = betaUS * f + betaL * fluxes.shielded_left[face] +
-                          betaR * fluxes.shielded_right[face];
+    fluxes.shielded_left[face] = fsL;  // betaL ? fsL : 0.0;
+    fluxes.shielded_right[face] = fsR; // betaR ? fsR : 0.0;
+    fluxes.stable[face] = betaUS * f + betaL * fsL + betaR * fsR;
     FUB_ASSERT(!std::isnan(fluxes.shielded_left[face]));
     FUB_ASSERT(!std::isnan(fluxes.shielded_right[face]));
     FUB_ASSERT(!std::isnan(fluxes.stable[face]));

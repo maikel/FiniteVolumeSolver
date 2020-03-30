@@ -80,8 +80,8 @@ public:
   [[nodiscard]] int Rank() const noexcept;
 
   /// \brief Returns the current boundary condition for the specified level.
-  [[nodiscard]] const BoundaryCondition& GetBoundaryCondition(int level) const;
-  [[nodiscard]] BoundaryCondition& GetBoundaryCondition(int level);
+  [[nodiscard]] const AnyBoundaryCondition& GetBoundaryCondition(int level) const;
+  [[nodiscard]] AnyBoundaryCondition& GetBoundaryCondition(int level);
 
   /// \brief Returns a shared pointer to the underlying GriddingAlgorithm which
   /// owns the simulation.
@@ -180,8 +180,10 @@ public:
   void PostAdvanceHierarchy();
 
   /// \brief On each first subcycle this will regrid the data if neccessary.
-  void PreAdvanceLevel(int level_num, Duration dt,
-                       std::pair<int, int> subcycle);
+  ///
+  /// \return Returns the coarsest level that changed. This function returns
+  /// the maximum number of levels if no change happened.
+  int PreAdvanceLevel(int level_num, Duration dt, std::pair<int, int> subcycle);
 
   /// \brief Increases the internal time stamps and cycle counters for the
   /// specified level number and direction.
@@ -197,17 +199,17 @@ public:
   /// \param level  The refinement level on which the boundary condition shall
   /// be used.
   void ApplyBoundaryCondition(int level, Direction dir);
-  void ApplyBoundaryCondition(int level, Direction dir, BoundaryCondition& bc);
+  void ApplyBoundaryCondition(int level, Direction dir, AnyBoundaryCondition& bc);
 
   /// \brief Fills the ghost layer of the scratch data and interpolates in the
   /// coarse fine layer.
-  void FillGhostLayerTwoLevels(int level, BoundaryCondition& fbc, int coarse,
-                               BoundaryCondition& cbc);
+  void FillGhostLayerTwoLevels(int level, AnyBoundaryCondition& fbc, int coarse,
+                               AnyBoundaryCondition& cbc);
   void FillGhostLayerTwoLevels(int level, int coarse);
 
   /// \brief Fills the ghost layer of the scratch data and does nothing in the
   /// coarse fine layer.
-  void FillGhostLayerSingleLevel(int level, BoundaryCondition& bc);
+  void FillGhostLayerSingleLevel(int level, AnyBoundaryCondition& bc);
   void FillGhostLayerSingleLevel(int level);
 
   /// \brief Returns a estimate for a stable time step size which can be taken

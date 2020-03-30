@@ -23,6 +23,7 @@
 
 #include "fub/core/type_traits.hpp"
 
+/// \brief The meta namespace
 namespace fub::meta {
 
 /// @{

@@ -35,6 +35,7 @@
 
 namespace fub::amrex::cutcell {
 
+/// \ingroup GriddingAlgorithm
 class GriddingAlgorithm : private ::amrex::AmrCore {
 public:
   static constexpr int Rank = AMREX_SPACEDIM;
@@ -50,16 +51,16 @@ public:
   ~GriddingAlgorithm() noexcept override = default;
 
   GriddingAlgorithm(PatchHierarchy hier, AnyInitialData<GriddingAlgorithm> data, Tagging tagging,
-                    BoundaryCondition boundary);
+                    AnyBoundaryCondition boundary);
 
   [[nodiscard]] const PatchHierarchy& GetPatchHierarchy() const noexcept;
   PatchHierarchy& GetPatchHierarchy() noexcept;
 
-  bool RegridAllFinerlevels(int which_level);
+  int RegridAllFinerlevels(int which_level);
   void InitializeHierarchy(double level_time);
 
-  void SetBoundaryCondition(int level, BoundaryCondition&& condition);
-  void SetBoundaryCondition(int level, const BoundaryCondition& condition);
+  void SetBoundaryCondition(int level, AnyBoundaryCondition&& condition);
+  void SetBoundaryCondition(int level, const AnyBoundaryCondition& condition);
 
   [[nodiscard]] std::ptrdiff_t GetCycles() const noexcept {
     return hierarchy_.GetCycles();
@@ -69,9 +70,10 @@ public:
     return hierarchy_.GetTimePoint();
   }
 
-  [[nodiscard]] const BoundaryCondition& GetBoundaryCondition(int level) const
-      noexcept;
-  [[nodiscard]] BoundaryCondition& GetBoundaryCondition(int level) noexcept;
+  [[nodiscard]] const AnyBoundaryCondition&
+  GetBoundaryCondition(int level) const noexcept;
+
+  [[nodiscard]] AnyBoundaryCondition& GetBoundaryCondition(int level) noexcept;
 
   [[nodiscard]] const AnyInitialData<GriddingAlgorithm>& GetInitialCondition() const noexcept;
 
@@ -99,12 +101,14 @@ private:
       int level, double time_point, const ::amrex::BoxArray& box_array,
       const ::amrex::DistributionMapping& distribution_mapping) override;
 
+  void PostProcessBaseGrids(::amrex::BoxArray& box_array) const override;
+
   void ClearLevel(int level) override;
 
   PatchHierarchy hierarchy_;
   AnyInitialData<GriddingAlgorithm> initial_condition_;
   Tagging tagging_;
-  std::vector<BoundaryCondition> boundary_condition_;
+  std::vector<AnyBoundaryCondition> boundary_condition_;
 };
 
 } // namespace fub::amrex::cutcell

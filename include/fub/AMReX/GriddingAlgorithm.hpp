@@ -35,27 +35,58 @@
 namespace fub {
 namespace amrex {
 
+/// \defgroup GriddingAlgorithm
+/// This modules summarizes all GriddingAlgorithms.
+
+/// \ingroup GriddingAlgorithm
+/// \brief This class modifies and initializes a PatchLevel in a PatchHierarchy.
 class GriddingAlgorithm : private ::amrex::AmrCore {
 public:
-  static constexpr int Rank = AMREX_SPACEDIM;
+  //static constexpr int Rank = AMREX_SPACEDIM;
 
+  /// @{
+  /// \name Constructors
+
+  /// \brief The copy constructor makes a deep copy of the all data for each MPI rank.
   GriddingAlgorithm(const GriddingAlgorithm& other);
+
+  /// \brief The copy assignment makes a deep copy of the all data for each MPI rank.
   GriddingAlgorithm& operator=(const GriddingAlgorithm& other);
 
-  GriddingAlgorithm(GriddingAlgorithm&&) noexcept;
-  GriddingAlgorithm& operator=(GriddingAlgorithm&&) noexcept;
+  /// \brief The move constructor moves a gridding algorithm without allocating any memory.
+  GriddingAlgorithm(GriddingAlgorithm&& other) noexcept;
+
+  /// \brief The move assignment moves a gridding algorithm without allocating any memory.
+  GriddingAlgorithm& operator=(GriddingAlgorithm&& other) noexcept;
 
   GriddingAlgorithm(PatchHierarchy hier, AnyInitialData<GriddingAlgorithm> initial_data,
                     Tagging tagging);
 
   GriddingAlgorithm(PatchHierarchy hier, AnyInitialData<GriddingAlgorithm> initial_data,
-                    Tagging tagging, BoundaryCondition boundary);
+                    Tagging tagging, AnyBoundaryCondition boundary);
+
+  /// @}
+
+  /// @{
+  /// \name Accessors
 
   PatchHierarchy& GetPatchHierarchy() noexcept { return hierarchy_; }
   const PatchHierarchy& GetPatchHierarchy() const noexcept {
     return hierarchy_;
   }
 
+  [[nodiscard]] const AnyBoundaryCondition& GetBoundaryCondition(int level) const
+      noexcept;
+  [[nodiscard]] AnyBoundaryCondition& GetBoundaryCondition(int level) noexcept;
+
+  [[nodiscard]] const InitialData& GetInitialCondition() const noexcept;
+
+  [[nodiscard]] const Tagging& GetTagging() const noexcept;
+  /// @}
+
+
+  /// @{
+  /// \name Observers
   [[nodiscard]] std::ptrdiff_t GetCycles() const noexcept {
     return hierarchy_.GetCycles();
   }
@@ -63,23 +94,26 @@ public:
   [[nodiscard]] Duration GetTimePoint() const noexcept {
     return hierarchy_.GetTimePoint();
   }
+  /// @}
 
-  bool RegridAllFinerlevels(int which_level);
+  /// @{
+  /// \name Modifiers
+  /// \brief Attempt to regrid all finer level than the specified `which_level`.
+  ///
+  /// \return Returns the coarsest level which was regrid. If no level changed
+  /// this function returns the maximum number of levels.
+  int RegridAllFinerlevels(int which_level);
 
   void InitializeHierarchy(double level_time);
 
-  void SetBoundaryCondition(int level, const BoundaryCondition& condition);
-  void SetBoundaryCondition(int level, BoundaryCondition&& condition);
+  void SetBoundaryCondition(int level, const AnyBoundaryCondition& condition);
+  void SetBoundaryCondition(int level, AnyBoundaryCondition&& condition);
+  /// @}
 
-  [[nodiscard]] const BoundaryCondition& GetBoundaryCondition(int level) const
-      noexcept;
-  [[nodiscard]] BoundaryCondition& GetBoundaryCondition(int level) noexcept;
-
-  [[nodiscard]] const AnyInitialData<GriddingAlgorithm>& GetInitialCondition() const noexcept;
-
-  [[nodiscard]] const Tagging& GetTagging() const noexcept;
-
+  /// @{
+  /// \name Actions
   void FillMultiFabFromLevel(::amrex::MultiFab& mf, int level_number);
+  /// @}
 
 private:
   void ErrorEst(int level, ::amrex::TagBoxArray& tags, double time_point,
@@ -102,7 +136,7 @@ private:
   PatchHierarchy hierarchy_;
   AnyInitialData<GriddingAlgorithm> initial_data_;
   Tagging tagging_;
-  std::vector<BoundaryCondition> boundary_condition_;
+  std::vector<AnyBoundaryCondition> boundary_condition_;
 };
 
 } // namespace amrex

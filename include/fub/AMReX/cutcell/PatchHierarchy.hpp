@@ -41,8 +41,10 @@
 #include <iosfwd>
 #include <vector>
 
+/// \brief The cutcell namespace
 namespace fub::amrex::cutcell {
 
+/// \ingroup PatchHierarchy
 /// This class holds state data arrays for each refinement level of a patch
 /// hierarchy.
 ///
@@ -100,6 +102,7 @@ struct PatchLevel : ::fub::amrex::PatchLevel {
   MultiCutFabs doubly_shielded;
 };
 
+/// \ingroup PatchHierarchy
 /// This class extents the normal hierarchy options with a pointer to an
 /// embedded boundary index space for each possible refinement level.
 struct PatchHierarchyOptions : public ::fub::amrex::PatchHierarchyOptions {
@@ -108,12 +111,26 @@ struct PatchHierarchyOptions : public ::fub::amrex::PatchHierarchyOptions {
       : ::fub::amrex::PatchHierarchyOptions(options) {
     ngrow_eb_level_set =
         GetOptionOr(options, "ngrow_eb_level_set", ngrow_eb_level_set);
+    cutcell_load_balance_weight =
+        GetOptionOr(options, "cutcell_load_balance_weight", cutcell_load_balance_weight);
+    remove_covered_grids =
+        GetOptionOr(options, "remove_covered_grids", remove_covered_grids);
+  }
+
+  template <typename Log> void Print(Log& log) {
+    ::fub::amrex::PatchHierarchyOptions::Print(log);
+    BOOST_LOG(log) << " - ngrow_eb_level_set = " << ngrow_eb_level_set;
+    BOOST_LOG(log) << " - cutcell_load_balance_weight = " << cutcell_load_balance_weight;
+    BOOST_LOG(log) << " - remove_covered_grids = " << remove_covered_grids;
   }
 
   std::vector<const ::amrex::EB2::IndexSpace*> index_spaces{};
   int ngrow_eb_level_set{5};
+  double cutcell_load_balance_weight{6.0};
+  bool remove_covered_grids{true};
 };
 
+/// \ingroup PatchHierarchy
 class PatchHierarchy {
 public:
   /// \brief Constructs a PatchHierarchy object which is capable of holding data
