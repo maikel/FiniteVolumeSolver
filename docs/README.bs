@@ -601,8 +601,12 @@ In addition to computing the mathematical correct formula, an object that satisf
 We recognize that these are two orthogonal concerns which are both hard to get right. 
 To ease the burden for authors of a `FluxMethod` we introduced some helper classes which separate these concerns. They will be discussed in more detail in <a href="#flux-method-framework">Chapter 3</a>.
 
-DimensionalSplitLevelIntegrator {#dimensional-split-integrator}
----------------------------------------------------------------
+LevelIntegrator {#level-integrator}
+-----------------------------------
+
+Level integrators have the task to advance the solution in time for a single refinement level only.
+They will be used by larger subcycle schemes which may, in general, do smaller time steps on finer refinement levels.
+We define the concept `LevelIntegrator` such that it provides two functions `AdvanceLevelNonRecursively` and `ComputeStableDt`.
 
 
 ```cpp
@@ -611,13 +615,29 @@ concept LevelIntegrator = std::copy_assignable<L> && requires (const L& level_in
   { level_integrator.AdvanceLevelNonRecursively(level, dt, subcycle) };
   { level_integrator.ComputeStableDt(level) } -> Duration;
 };
+```
 
+The name `AdvanceLevelNonRecursively` emphasizes that this function will be called within a recursive subcycle algorithm.
+We call level integrators which provide an integrator context `HyperbolicSystemLevelIntegrator`.
+An integrator context extents an level integrators with functions such as `ApplyFluxCorrection`, `CoarsenConservatively` or `CompleteFromCons`.
+These functions will be used by a subcycle algorithm to maintain the conservation of the solution across refinement levels.
+
+```cpp
 template <typename HS>
 concept HyperbolicSystemLevelIntegrator = LevelIntegrator<S> && requires (const L& level_integrator) {
   // Access underlying data storage implementation
   { level_integrator.GetIntegratorContext() } -> IntegratorContext;
 };
 ```
+
+This library includes currently the following list of level integrators
+
+- `DimensionalSplitLevelIntegrator` (satisfies `HyperbolicSystemLevelIntegrator`)
+- `SystemSourceLevelIntegrator` (satisfies `HyperboilcSystemLevelIntegrator`)
+- `BK19LevelIntegrator` (satisfies `HyperbolicSystemLevelIntegrator`)
+- `KineticSourceTerm` (satisfies `LevelIntegrator`)
+- `AxialSourceTerm` (satisfies `LevelIntegrator`)
+
 
 
 Framework for defining FluxMethods {#flux-method-framework}
