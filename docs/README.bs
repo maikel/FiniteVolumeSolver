@@ -619,8 +619,8 @@ concept LevelIntegrator = std::copy_assignable<L> && requires (const L& level_in
 
 The name `AdvanceLevelNonRecursively` emphasizes that this function will be called within a recursive subcycle algorithm.
 We call level integrators which provide an integrator context `HyperbolicSystemLevelIntegrator`.
-An integrator context extents an level integrators with functions such as `ApplyFluxCorrection`, `CoarsenConservatively` or `CompleteFromCons`.
-These functions will be used by a subcycle algorithm to maintain the conservation of the solution across refinement levels.
+An integrator context extents level integrators with functions such as `ApplyFluxCorrection`, `CoarsenConservatively` or `CompleteFromCons`.
+These additional functions will be used in a subcycle algorithm to maintain the conservation of the solution across refinement levels.
 
 ```cpp
 template <typename HS>
