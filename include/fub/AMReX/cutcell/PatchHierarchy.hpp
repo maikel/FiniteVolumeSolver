@@ -41,6 +41,7 @@
 #include <iosfwd>
 #include <vector>
 
+/// \brief The cutcell namespace
 namespace fub::amrex::cutcell {
 
 /// This class holds state data arrays for each refinement level of a patch

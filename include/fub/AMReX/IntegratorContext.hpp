@@ -80,8 +80,8 @@ public:
   [[nodiscard]] int Rank() const noexcept;
 
   /// \brief Returns the current boundary condition for the specified level.
-  [[nodiscard]] const BoundaryCondition& GetBoundaryCondition(int level) const;
-  [[nodiscard]] BoundaryCondition& GetBoundaryCondition(int level);
+  [[nodiscard]] const AnyBoundaryCondition& GetBoundaryCondition(int level) const;
+  [[nodiscard]] AnyBoundaryCondition& GetBoundaryCondition(int level);
 
   /// \brief Returns a shared pointer to the underlying GriddingAlgorithm which
   /// owns the simulation.
