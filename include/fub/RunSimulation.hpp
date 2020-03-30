@@ -54,12 +54,14 @@ struct RunOptions {
     BOOST_LOG(log) << " - smallest_time_step_size = "
                    << smallest_time_step_size.count() << " [s]";
     BOOST_LOG(log) << " - cfl = " << cfl << " [-]";
+    BOOST_LOG(log) << " - do_backup = " << do_backup << " [-]";
   }
 
   Duration final_time{1.0};
   std::ptrdiff_t max_cycles{-1};
   Duration smallest_time_step_size{1e-12};
   double cfl{0.8};
+  int do_backup{1};
 };
 
 std::string
@@ -96,8 +98,10 @@ void RunSimulation(Solver& solver, RunOptions options,
       std::decay_t<decltype(*std::declval<Solver&>().GetGriddingAlgorithm())>;
   // Deeply copy the grid for a fallback scenario in case of time step errors
   std::shared_ptr<GriddingAlgorithm> backup{};
-  MakeBackup(backup, solver.GetGriddingAlgorithm(),
-             *solver.GetCounterRegistry());
+  if (options.do_backup) {
+    MakeBackup(backup, solver.GetGriddingAlgorithm(),
+               *solver.GetCounterRegistry());
+  }
   std::optional<Duration> failure_dt{};
   while (time_point + eps < options.final_time &&
          (options.max_cycles < 0 || solver.GetCycles() < options.max_cycles)) {
@@ -117,7 +121,7 @@ void RunSimulation(Solver& solver, RunOptions options,
       boost::outcome_v2::result<void, TimeStepTooLarge> result =
           solver.AdvanceHierarchy(limited_dt);
 
-      if (result.has_error()) {
+      if (result.has_error() && options.do_backup) {
         // If the solver returned with an error, reduce the time step size with
         // the new estimate.
         failure_dt = result.error().dt;
@@ -129,6 +133,13 @@ void RunSimulation(Solver& solver, RunOptions options,
             limited_dt.count(), options.cfl * failure_dt->count());
         solver.ResetHierarchyConfiguration(backup);
         MakeBackup(backup, backup, *solver.GetCounterRegistry());
+      } else if (result.has_error() && !options.do_backup) {
+        BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", time_point.count());
+        BOOST_LOG_SEV(log, error) << fmt::format(
+            "Pre-estimated coarse time step size (dt_old = {}s) was too large "
+            "but no backup present. Aborting.",
+            limited_dt.count());
+        return;
       } else {
         solver.PostAdvanceHierarchy(limited_dt);
         // If advancing the hierarchy was successfull print a successful time
@@ -144,8 +155,10 @@ void RunSimulation(Solver& solver, RunOptions options,
                                              options.final_time, wall_time,
                                              wall_time_difference);
         failure_dt.reset();
-        MakeBackup(backup, solver.GetGriddingAlgorithm(),
-                   *solver.GetCounterRegistry());
+        if (options.do_backup) {
+          MakeBackup(backup, solver.GetGriddingAlgorithm(),
+                     *solver.GetCounterRegistry());
+        }
       }
     } while (
         time_point + eps < options.final_time &&

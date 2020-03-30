@@ -21,6 +21,7 @@
 #ifndef FUB_AMREX_INITIAL_DATA_HPP
 #define FUB_AMREX_INITIAL_DATA_HPP
 
+#include "fub/AMReX/PatchHierarchy.hpp"
 #include "fub/core/type_traits.hpp"
 
 #include <AMReX.H>
@@ -31,61 +32,69 @@
 namespace fub {
 namespace amrex {
 
-struct InitialDataStrategy {
+template <typename GriddingAlgorithm> struct InitialDataStrategy {
   virtual ~InitialDataStrategy() = default;
 
-  virtual void InitializeData(::amrex::MultiFab& data,
-                              const ::amrex::Geometry& geom) = 0;
+  virtual void InitializeData(PatchLevel& patch_level,
+                              const GriddingAlgorithm& grid, int level,
+                              Duration time) = 0;
 
   virtual std::unique_ptr<InitialDataStrategy> Clone() const = 0;
 };
 
-template <typename T> struct InitialDataWrapper : public InitialDataStrategy {
+template <typename T, typename GriddingAlgorithm>
+struct InitialDataWrapper : public InitialDataStrategy<GriddingAlgorithm> {
   InitialDataWrapper(const T& initial_data) : initial_data_{initial_data} {}
   InitialDataWrapper(T&& initial_data)
       : initial_data_{std::move(initial_data)} {}
 
-  void InitializeData(::amrex::MultiFab& data,
-                      const ::amrex::Geometry& geom) override {
-    initial_data_.InitializeData(data, geom);
+  void InitializeData(PatchLevel& patch_level, const GriddingAlgorithm& grid,
+                      int level, Duration time) override {
+    initial_data_.InitializeData(patch_level, grid, level, time);
   }
 
-  std::unique_ptr<InitialDataStrategy> Clone() const override {
-    return std::make_unique<InitialDataWrapper<T>>(initial_data_);
+  std::unique_ptr<InitialDataStrategy<GriddingAlgorithm>>
+  Clone() const override {
+    return std::make_unique<InitialDataWrapper<T, GriddingAlgorithm>>(
+        initial_data_);
   }
 
   T initial_data_;
 };
 
-struct InitialData {
-  InitialData() = default;
+template <typename GriddingAlgorithm> struct AnyInitialData {
+  AnyInitialData() = default;
 
-  InitialData(const InitialData& other)
+  AnyInitialData(const AnyInitialData& other)
       : initial_data_(other.initial_data_->Clone()) {}
-  InitialData& operator=(const InitialData& other) {
-    InitialData tmp(other);
+  AnyInitialData& operator=(const AnyInitialData& other) {
+    AnyInitialData tmp(other);
     return *this = std::move(tmp);
   }
 
-  InitialData(InitialData&&) noexcept = default;
-  InitialData& operator=(InitialData&&) noexcept = default;
+  AnyInitialData(AnyInitialData&&) noexcept = default;
+  AnyInitialData& operator=(AnyInitialData&&) noexcept = default;
 
   template <typename T>
-  InitialData(const T& initial_data)
-      : initial_data_{std::make_unique<InitialDataWrapper<T>>(initial_data)} {}
+  AnyInitialData(const T& initial_data)
+      : initial_data_{
+            std::make_unique<InitialDataWrapper<T, GriddingAlgorithm>>(
+                initial_data)} {}
 
   template <typename T>
-  InitialData(T&& initial_data)
-      : initial_data_{std::make_unique<InitialDataWrapper<remove_cvref_t<T>>>(
+  AnyInitialData(T&& initial_data)
+      : initial_data_{std::make_unique<
+            InitialDataWrapper<remove_cvref_t<T>, GriddingAlgorithm>>(
             std::move(initial_data))} {}
 
-  void InitializeData(::amrex::MultiFab& data, const ::amrex::Geometry& geom) {
+  void InitializeData(PatchLevel& patch_level, const GriddingAlgorithm& grid,
+                      int level, Duration time) {
     if (initial_data_) {
-      return initial_data_->InitializeData(data, geom);
+      return initial_data_->InitializeData(patch_level, grid, level, time);
     }
   }
 
-  std::unique_ptr<InitialDataStrategy> initial_data_;
+  std::unique_ptr<InitialDataStrategy<GriddingAlgorithm>> initial_data_;
 };
 
 } // namespace amrex
