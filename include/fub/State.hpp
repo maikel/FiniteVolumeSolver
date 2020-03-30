@@ -151,7 +151,7 @@ void InitializeState(const Equation&, const Complete<Equation>&) {}
 /// dynamically sized member variable.
 template <typename Eq> struct Conservative : ConservativeBase<Eq> {
   using Equation = Eq;
-  using Depths = typename Equation::ConservativeDepths;
+  // using Depths = typename Equation::ConservativeDepths;
   using ValueType = double;
   using Traits = StateTraits<ConservativeBase<Equation>>;
 
@@ -197,7 +197,7 @@ using CompleteBase =
 /// dynamically sized member variable.
 template <typename Eq> struct Complete : CompleteBase<Eq> {
   using Equation = Eq;
-  using Depths = typename Equation::CompleteDepths;
+  // using Depths = typename Equation::CompleteDepths;
   using ValueType = double;
   using Traits = StateTraits<CompleteBase<Equation>>;
 
