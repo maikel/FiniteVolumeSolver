@@ -278,7 +278,7 @@ The needs application to build up their layers in the following order
   2. [GriddingAlgorithm](#gridding-algorithm) (algorithmic choice)
   3. [IntegratorContext](#data-integrator-context) (data storage / algorithmic choice)
   4. one or more composed [LevelIntegrator](#level-integrator)s (algorithmic choice)
-  5. SubcycleSolver (algorithmic choice)
+  5. [SubcycleSolver](#subcycle-solver) (algorithmic choice)
 
 Note: Each layer in this list is implemented in terms of its predecessor.
 
@@ -602,7 +602,7 @@ We recognize that these are two orthogonal concerns which are both hard to get r
 To ease the burden for authors of a `FluxMethod` we introduced some helper classes which separate these concerns. They will be discussed in more detail in <a href="#flux-method-framework">Chapter 3</a>.
 
 Algorithmic Choice: LevelIntegrator {#level-integrator}
------------------------------------
+-------------------------------------------------------
 
 Level integrators have the task to advance the solution in time for a single refinement level only.
 They will be used by larger subcycle schemes which may, in general, do smaller time steps on finer refinement levels.
@@ -612,7 +612,7 @@ We define the concept `LevelIntegrator` such that it provides two functions `Adv
 ```cpp
 template <typename L>
 concept LevelIntegrator = std::copy_assignable<L> && requires (const L& level_integrator, int level, Duration dt, std::pair<int, int> subcycle) {
-  { level_integrator.AdvanceLevelNonRecursively(level, dt, subcycle) };
+  { level_integrator.AdvanceLevelNonRecursively(level, dt, subcycle) } -> Result<void, TimeStepTooLarge>;
   { level_integrator.ComputeStableDt(level) } -> Duration;
 };
 ```
@@ -674,6 +674,94 @@ A single dimensionally split time step includes the following steps
   const double scale = split_dt.count();
   Context::AccumulateCoarseFineFluxes(this_level, scale, dir);
 ```
+
+Algorithmic Choice: SubcycleSovler {#subcycle-solver}
+-----------------------------------------------------
+
+Finally, subcycle solvers define in which order level integrators are applied on the refinement level of a hierarchy.
+They define the functions `ComputeStableDt` and `AdvanceLevel`.
+
+```cpp
+template <typename S>
+concept SubcycleSolver = std::copy_assignable<S> && requires (const S& solver, int level, Duration dt) {
+  { solver.ComputeStableDt() } -> Duration;
+  { solver.AdvanceLevel(level, dt) } -> Result<void, TimeStepTooLarge>;
+};
+```
+
+The `AdvanceLevel` function advances all levels finer or equal than the specified level.
+Most implementations define this function recursively.
+
+<div class=example>
+An examplary implementation of an recursive AdvanceLevel function is given here.
+```cpp
+template <typename LevelIntegrator>
+Result<void, TimeStepTooLarge>
+SubcycleFineFirstSolver<LevelIntegrator>::AdvanceLevel(
+    int this_level, Duration dt, std::pair<int, int> subcycle) {
+  // PreAdvanceLevel might regrid all finer levels.
+  // The context must make sure that scratch data is allocated
+  PreAdvanceLevel(this_level, dt, subcycle);
+
+  auto scale_dt_on_error = [this](Result<void, TimeStepTooLarge> result) {
+    TimeStepTooLarge error = result.error();
+    int ratio = GetTotalRefineRatio(error.level);
+    error.level = 0;
+    error.dt *= ratio;
+    return error;
+  };
+
+  // If a finer level exists in the hierarchy, we subcycle that finer level
+  // multiple times and use the fine fluxes on coarse-fine interfaces
+  const int next_level = this_level + 1;
+  if (LevelExists(next_level)) {
+    ResetCoarseFineFluxes(next_level, this_level);
+    const int refine_ratio = GetRatioToCoarserLevel(next_level).max();
+    for (int r = 0; r < refine_ratio; ++r) {
+      auto result =
+          AdvanceLevel(next_level, dt / refine_ratio, {r, refine_ratio});
+      if (!result) {
+        return scale_dt_on_error(result);
+      }
+    }
+  }
+
+  Result<void, TimeStepTooLarge> result =
+      AdvanceLevelNonRecursively(this_level, dt, subcycle);
+  if (!result) {
+    return scale_dt_on_error(result);
+  }
+  if (LevelExists(next_level)) {
+    ApplyFluxCorrection(next_level, this_level, dt);
+  }
+
+  // Coarsen inner regions from next finer level to this level.
+  if (LevelExists(next_level)) {
+    CoarsenConservatively(next_level, this_level);
+
+    // The conservative update and the coarsening happened on conservative
+    // variables. We have to reconstruct the missing variables in the complete
+    // state.
+    CompleteFromCons(this_level, dt);
+  }
+
+  CopyScratchToData(this_level);
+
+  // Apply any further context related work after advancing this level.
+  // This function can also indicate if some error occured.
+  // For example the context could detect unphysical states and return a
+  // TooLargeTimeStep error condition.
+  result = PostAdvanceLevel(this_level, dt, subcycle);
+  if (!result) {
+    return scale_dt_on_error(result);
+  }
+  return result;
+}
+```
+</div>
+
+The present subcycle solvers depend on a level integrator only.
+Future solvers may need additional options that may decsribe varying subcycle ratios between pairs of refinement levels.
 
 Framework for defining FluxMethods {#flux-method-framework}
 ===========================================================
