@@ -33,11 +33,14 @@ void ForwardIntegrator<Tag>::UpdateConservatively(
     Direction dir) {
   const int n_cons = fluxes.nComp();
   const double dx = geom.CellSize(int(dir));
+  const int d = static_cast<int>(dir);
   ForEachFab(Tag(), dest, [&](::amrex::MFIter& mfi) {
     ::amrex::FArrayBox& next = dest[mfi];
     const ::amrex::FArrayBox& prev = src[mfi];
     const ::amrex::FArrayBox& flux = fluxes[mfi];
-    const ::amrex::Box all_faces_tilebox = mfi.grownnodaltilebox(int(dir));
+    const ::amrex::Box tilebox = mfi.growntilebox();
+    const ::amrex::Box all_faces_tilebox =
+        ::amrex::surroundingNodes(tilebox, d);
     const ::amrex::Box all_fluxes_box = flux.box();
     const ::amrex::Box flux_box = all_faces_tilebox & all_fluxes_box;
     const ::amrex::Box cell_box = enclosedCells(flux_box);
