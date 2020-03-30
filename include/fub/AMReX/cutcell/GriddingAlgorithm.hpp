@@ -21,12 +21,11 @@
 #ifndef FUB_AMREX_CUT_CELL_GRIDDING_ALGORITHM_HPP
 #define FUB_AMREX_CUT_CELL_GRIDDING_ALGORITHM_HPP
 
+#include "fub/AMReX/InitialData.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/AMReX/cutcell/BoundaryCondition.hpp"
 #include "fub/AMReX/cutcell/PatchHierarchy.hpp"
 #include "fub/AMReX/cutcell/Tagging.hpp"
-#include "fub/AMReX/InitialData.hpp"
-
 
 #include <AMReX_AmrCore.H>
 // #include <AMReX_MultiFabUtil.H>
@@ -50,8 +49,8 @@ public:
 
   ~GriddingAlgorithm() noexcept override = default;
 
-  GriddingAlgorithm(PatchHierarchy hier, AnyInitialData<GriddingAlgorithm> data, Tagging tagging,
-                    AnyBoundaryCondition boundary);
+  GriddingAlgorithm(PatchHierarchy hier, AnyInitialData<GriddingAlgorithm> data,
+                    Tagging tagging, AnyBoundaryCondition boundary);
 
   [[nodiscard]] const PatchHierarchy& GetPatchHierarchy() const noexcept;
   PatchHierarchy& GetPatchHierarchy() noexcept;
@@ -75,7 +74,8 @@ public:
 
   [[nodiscard]] AnyBoundaryCondition& GetBoundaryCondition(int level) noexcept;
 
-  [[nodiscard]] const AnyInitialData<GriddingAlgorithm>& GetInitialCondition() const noexcept;
+  [[nodiscard]] const AnyInitialData<GriddingAlgorithm>&
+  GetInitialCondition() const noexcept;
 
   [[nodiscard]] const Tagging& GetTagging() const noexcept;
 

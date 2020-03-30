@@ -27,7 +27,9 @@
 struct CircleData {
   using Complete = fub::Complete<fub::Advection2d>;
 
-  void InitializeData(fub::amrex::PatchLevel& patch_level, const fub::amrex::GriddingAlgorithm& grid, int level, fub::Duration /*time*/) const {
+  void InitializeData(fub::amrex::PatchLevel& patch_level,
+                      const fub::amrex::GriddingAlgorithm& grid, int level,
+                      fub::Duration /*time*/) const {
     const amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
     amrex::MultiFab& data = patch_level.data;
     fub::amrex::ForEachFab(data, [&](const amrex::MFIter& mfi) {

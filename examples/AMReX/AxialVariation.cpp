@@ -37,7 +37,9 @@ struct TemperatureRamp {
   double air_position_{0.0};
   double equiv_raito_{1.0};
 
-  void InitializeData(fub::amrex::PatchLevel& patch_level, const fub::amrex::GriddingAlgorithm& grid, int level, fub::Duration /*time*/) {
+  void InitializeData(fub::amrex::PatchLevel& patch_level,
+                      const fub::amrex::GriddingAlgorithm& grid, int level,
+                      fub::Duration /*time*/) {
     const amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
     amrex::MultiFab& data = patch_level.data;
     fub::FlameMasterReactor& reactor = equation_.GetReactor();

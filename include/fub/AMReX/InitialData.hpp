@@ -21,8 +21,8 @@
 #ifndef FUB_AMREX_INITIAL_DATA_HPP
 #define FUB_AMREX_INITIAL_DATA_HPP
 
-#include "fub/core/type_traits.hpp"
 #include "fub/AMReX/PatchHierarchy.hpp"
+#include "fub/core/type_traits.hpp"
 
 #include <AMReX.H>
 #include <AMReX_MultiFab.H>
@@ -32,12 +32,12 @@
 namespace fub {
 namespace amrex {
 
-template <typename GriddingAlgorithm>
-struct InitialDataStrategy {
+template <typename GriddingAlgorithm> struct InitialDataStrategy {
   virtual ~InitialDataStrategy() = default;
 
   virtual void InitializeData(PatchLevel& patch_level,
-                              const GriddingAlgorithm& grid, int level, Duration time) = 0;
+                              const GriddingAlgorithm& grid, int level,
+                              Duration time) = 0;
 
   virtual std::unique_ptr<InitialDataStrategy> Clone() const = 0;
 };
@@ -48,20 +48,21 @@ struct InitialDataWrapper : public InitialDataStrategy<GriddingAlgorithm> {
   InitialDataWrapper(T&& initial_data)
       : initial_data_{std::move(initial_data)} {}
 
-  void InitializeData(PatchLevel& patch_level,
-                      const GriddingAlgorithm& grid, int level, Duration time) override {
+  void InitializeData(PatchLevel& patch_level, const GriddingAlgorithm& grid,
+                      int level, Duration time) override {
     initial_data_.InitializeData(patch_level, grid, level, time);
   }
 
-  std::unique_ptr<InitialDataStrategy<GriddingAlgorithm>> Clone() const override {
-    return std::make_unique<InitialDataWrapper<T, GriddingAlgorithm>>(initial_data_);
+  std::unique_ptr<InitialDataStrategy<GriddingAlgorithm>>
+  Clone() const override {
+    return std::make_unique<InitialDataWrapper<T, GriddingAlgorithm>>(
+        initial_data_);
   }
 
   T initial_data_;
 };
 
-template <typename GriddingAlgorithm>
-struct AnyInitialData {
+template <typename GriddingAlgorithm> struct AnyInitialData {
   AnyInitialData() = default;
 
   AnyInitialData(const AnyInitialData& other)
@@ -76,11 +77,14 @@ struct AnyInitialData {
 
   template <typename T>
   AnyInitialData(const T& initial_data)
-      : initial_data_{std::make_unique<InitialDataWrapper<T, GriddingAlgorithm>>(initial_data)} {}
+      : initial_data_{
+            std::make_unique<InitialDataWrapper<T, GriddingAlgorithm>>(
+                initial_data)} {}
 
   template <typename T>
   AnyInitialData(T&& initial_data)
-      : initial_data_{std::make_unique<InitialDataWrapper<remove_cvref_t<T>, GriddingAlgorithm>>(
+      : initial_data_{std::make_unique<
+            InitialDataWrapper<remove_cvref_t<T>, GriddingAlgorithm>>(
             std::move(initial_data))} {}
 
   void InitializeData(PatchLevel& patch_level, const GriddingAlgorithm& grid,

@@ -42,27 +42,33 @@ namespace amrex {
 /// \brief This class modifies and initializes a PatchLevel in a PatchHierarchy.
 class GriddingAlgorithm : private ::amrex::AmrCore {
 public:
-  //static constexpr int Rank = AMREX_SPACEDIM;
+  // static constexpr int Rank = AMREX_SPACEDIM;
 
   /// @{
   /// \name Constructors
 
-  /// \brief The copy constructor makes a deep copy of the all data for each MPI rank.
+  /// \brief The copy constructor makes a deep copy of the all data for each MPI
+  /// rank.
   GriddingAlgorithm(const GriddingAlgorithm& other);
 
-  /// \brief The copy assignment makes a deep copy of the all data for each MPI rank.
+  /// \brief The copy assignment makes a deep copy of the all data for each MPI
+  /// rank.
   GriddingAlgorithm& operator=(const GriddingAlgorithm& other);
 
-  /// \brief The move constructor moves a gridding algorithm without allocating any memory.
+  /// \brief The move constructor moves a gridding algorithm without allocating
+  /// any memory.
   GriddingAlgorithm(GriddingAlgorithm&& other) noexcept;
 
-  /// \brief The move assignment moves a gridding algorithm without allocating any memory.
+  /// \brief The move assignment moves a gridding algorithm without allocating
+  /// any memory.
   GriddingAlgorithm& operator=(GriddingAlgorithm&& other) noexcept;
 
-  GriddingAlgorithm(PatchHierarchy hier, AnyInitialData<GriddingAlgorithm> initial_data,
+  GriddingAlgorithm(PatchHierarchy hier,
+                    AnyInitialData<GriddingAlgorithm> initial_data,
                     Tagging tagging);
 
-  GriddingAlgorithm(PatchHierarchy hier, AnyInitialData<GriddingAlgorithm> initial_data,
+  GriddingAlgorithm(PatchHierarchy hier,
+                    AnyInitialData<GriddingAlgorithm> initial_data,
                     Tagging tagging, AnyBoundaryCondition boundary);
 
   /// @}
@@ -75,15 +81,15 @@ public:
     return hierarchy_;
   }
 
-  [[nodiscard]] const AnyBoundaryCondition& GetBoundaryCondition(int level) const
-      noexcept;
+  [[nodiscard]] const AnyBoundaryCondition&
+  GetBoundaryCondition(int level) const noexcept;
   [[nodiscard]] AnyBoundaryCondition& GetBoundaryCondition(int level) noexcept;
 
-  [[nodiscard]] const InitialData& GetInitialCondition() const noexcept;
+  [[nodiscard]] const AnyInitialData<GriddingAlgorithm>&
+  GetInitialCondition() const noexcept;
 
   [[nodiscard]] const Tagging& GetTagging() const noexcept;
   /// @}
-
 
   /// @{
   /// \name Observers

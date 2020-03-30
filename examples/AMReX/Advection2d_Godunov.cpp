@@ -24,7 +24,9 @@
 struct CircleData {
   using Complete = fub::Complete<fub::Advection2d>;
 
-  void InitializeData(fub::amrex::PatchLevel& patch_level, const fub::amrex::GriddingAlgorithm& grid, int level, fub::Duration /*time*/) const {
+  void InitializeData(fub::amrex::PatchLevel& patch_level,
+                      const fub::amrex::GriddingAlgorithm& grid, int level,
+                      fub::Duration /*time*/) const {
     const amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
     amrex::MultiFab& data = patch_level.data;
     fub::amrex::ForEachFab(data, [&](const amrex::MFIter& mfi) {
@@ -58,11 +60,13 @@ void MyMain(const fub::ProgramOptions& opts) {
   fub::Advection2d equation{{1.0, 1.0}};
   fub::SeverityLogger log = fub::GetInfoLogger();
 
-  fub::amrex::CartesianGridGeometry geometry = fub::GetOptions(opts, "GridGeometry");
+  fub::amrex::CartesianGridGeometry geometry =
+      fub::GetOptions(opts, "GridGeometry");
   BOOST_LOG(log) << "GridGeometry:";
   geometry.Print(log);
 
-  fub::amrex::PatchHierarchyOptions hier_opts = fub::GetOptions(opts, "PatchHierarchy");
+  fub::amrex::PatchHierarchyOptions hier_opts =
+      fub::GetOptions(opts, "PatchHierarchy");
   BOOST_LOG(log) << "PatchHierarchy:";
   hier_opts.Print(log);
 
@@ -92,8 +96,8 @@ void MyMain(const fub::ProgramOptions& opts) {
 
   using namespace std::literals::chrono_literals;
   using Plotfile = fub::amrex::PlotfileOutput<fub::Advection2d>;
-  using CounterOutput =
-      fub::CounterOutput<fub::amrex::GriddingAlgorithm, std::chrono::milliseconds>;
+  using CounterOutput = fub::CounterOutput<fub::amrex::GriddingAlgorithm,
+                                           std::chrono::milliseconds>;
   fub::OutputFactory<fub::amrex::GriddingAlgorithm> factory{};
   factory.RegisterOutput<Plotfile>("Plotfile", equation);
   factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
@@ -107,7 +111,6 @@ void MyMain(const fub::ProgramOptions& opts) {
   run_options.Print(log);
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }
-
 
 int main(int argc, char** argv) {
   MPI_Init(nullptr, nullptr);

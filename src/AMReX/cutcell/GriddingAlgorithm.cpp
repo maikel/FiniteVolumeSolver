@@ -57,9 +57,8 @@ GriddingAlgorithm::operator=(const GriddingAlgorithm& other) {
 }
 
 GriddingAlgorithm::GriddingAlgorithm(GriddingAlgorithm&& other) noexcept
-    : AmrCore(std::move(other)),
-      hierarchy_{std::move(other.hierarchy_)}, initial_condition_{std::move(
-                                                   other.initial_condition_)},
+    : AmrCore(std::move(other)), hierarchy_{std::move(other.hierarchy_)},
+      initial_condition_{std::move(other.initial_condition_)},
       tagging_{std::move(other.tagging_)},
       boundary_condition_(std::move(other.boundary_condition_)) {
   for (int level = 0; level < hierarchy_.GetMaxNumberOfLevels(); ++level) {
@@ -75,7 +74,8 @@ GriddingAlgorithm::operator=(GriddingAlgorithm&& other) noexcept {
   initial_condition_ = std::move(other.initial_condition_);
   tagging_ = std::move(other.tagging_);
   boundary_condition_ = std::move(other.boundary_condition_);
-  *static_cast<::amrex::AmrCore*>(this) = static_cast<::amrex::AmrCore&&>(other);
+  *static_cast<::amrex::AmrCore*>(this) =
+      static_cast<::amrex::AmrCore&&>(other);
   for (int level = 0; level < hierarchy_.GetMaxNumberOfLevels(); ++level) {
     boundary_condition_[static_cast<std::size_t>(level)].geometry =
         hierarchy_.GetGeometry(level);
@@ -84,7 +84,8 @@ GriddingAlgorithm::operator=(GriddingAlgorithm&& other) noexcept {
   return *this;
 }
 
-GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier, AnyInitialData<GriddingAlgorithm> data,
+GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier,
+                                     AnyInitialData<GriddingAlgorithm> data,
                                      Tagging tagging,
                                      AnyBoundaryCondition boundary)
     : AmrCore(
@@ -272,7 +273,8 @@ void GriddingAlgorithm::MakeNewLevelFromScratch(
   }
 
   PatchLevel& patch_level = hierarchy_.GetPatchLevel(level);
-  initial_condition_.InitializeData(patch_level, *this, level, static_cast<Duration>(time_point));
+  initial_condition_.InitializeData(patch_level, *this, level,
+                                    static_cast<Duration>(time_point));
   SetDistributionMap(level, balanced_distribution_map);
 }
 

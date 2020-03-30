@@ -74,7 +74,9 @@ struct TravellingVortexInitialData : fub::amrex::BK19PhysicalParameters {
     coefficients[24] = 1.0 / 72.0;
   }
 
-  void InitializeData(fub::amrex::PatchLevel& patch_level, const fub::amrex::GriddingAlgorithm& grid, int level, fub::Duration /*time*/) const {
+  void InitializeData(fub::amrex::PatchLevel& patch_level,
+                      const fub::amrex::GriddingAlgorithm& grid, int level,
+                      fub::Duration /*time*/) const {
     const amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
     amrex::MultiFab& mf = patch_level.data;
     fub::amrex::ForEachFab(mf, [&](const amrex::MFIter& mfi) {
@@ -131,8 +133,7 @@ struct TravellingVortexInitialData : fub::amrex::BK19PhysicalParameters {
 
         if (r < R0) {
           const double r_over_R0 = r / R0;
-          fab(i, 0) = Gamma * fac * fac *
-                      p_coeff(r_over_R0, coefficients);
+          fab(i, 0) = Gamma * fac * fac * p_coeff(r_over_R0, coefficients);
         } else {
           fab(i, 0) = 0.0;
         }
