@@ -223,15 +223,29 @@ GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier,
   }
 }
 
-bool GriddingAlgorithm::RegridAllFinerlevels(int which_level) {
+int GriddingAlgorithm::RegridAllFinerlevels(int which_level) {
   if (which_level < max_level) {
-    const int before = AmrMesh::finest_level;
+    auto timer = hierarchy_.GetCounterRegistry()->get_timer(
+        "GriddingAlgorithm::RegridAllFinerLevels");
+    const ::amrex::Vector<::amrex::BoxArray> before =
+        ::amrex::AmrMesh::boxArray();
     AmrCore::regrid(which_level,
                     hierarchy_.GetPatchLevel(which_level).time_point.count());
-    const int after = AmrMesh::finest_level;
-    return before != after;
+    const ::amrex::Vector<::amrex::BoxArray> after =
+        ::amrex::AmrMesh::boxArray();
+    const int bsize = static_cast<int>(before.size());
+    const int asize = static_cast<int>(after.size());
+    int i = which_level + 1;
+    for (; i < std::min(asize, bsize); ++i) {
+      if (before[i] != after[i]) {
+        return i;
+      }
+    }
+    if (i < bsize) {
+      return i;
+    }
   }
-  return false;
+  return max_level + 1;
 }
 
 void GriddingAlgorithm::InitializeHierarchy(double level_time) {

@@ -109,10 +109,23 @@ struct PatchHierarchyOptions : public ::fub::amrex::PatchHierarchyOptions {
       : ::fub::amrex::PatchHierarchyOptions(options) {
     ngrow_eb_level_set =
         GetOptionOr(options, "ngrow_eb_level_set", ngrow_eb_level_set);
+    cutcell_load_balance_weight =
+        GetOptionOr(options, "cutcell_load_balance_weight", cutcell_load_balance_weight);
+    remove_covered_grids =
+        GetOptionOr(options, "remove_covered_grids", remove_covered_grids);
+  }
+
+  template <typename Log> void Print(Log& log) {
+    ::fub::amrex::PatchHierarchyOptions::Print(log);
+    BOOST_LOG(log) << " - ngrow_eb_level_set = " << ngrow_eb_level_set;
+    BOOST_LOG(log) << " - cutcell_load_balance_weight = " << cutcell_load_balance_weight;
+    BOOST_LOG(log) << " - remove_covered_grids = " << remove_covered_grids;
   }
 
   std::vector<const ::amrex::EB2::IndexSpace*> index_spaces{};
   int ngrow_eb_level_set{5};
+  double cutcell_load_balance_weight{6.0};
+  bool remove_covered_grids{true};
 };
 
 class PatchHierarchy {
@@ -217,13 +230,14 @@ void WritePlotFile(const std::string& plotfilename, const PatchHierarchy& hier,
   ::amrex::Vector<const ::amrex::MultiFab*> mf(size);
   ::amrex::Vector<::amrex::Geometry> geoms(size);
   ::amrex::Vector<int> level_steps(size);
-  ::amrex::Vector<::amrex::IntVect> ref_ratio(size);
+  ::amrex::Vector<::amrex::IntVect> ref_ratio(size - 1);
   for (std::size_t i = 0; i < size; ++i) {
     mf[i] = &hier.GetPatchLevel(static_cast<int>(i)).data;
     geoms[i] = hier.GetGeometry(static_cast<int>(i));
     level_steps[i] = static_cast<int>(hier.GetCycles(static_cast<int>(i)));
-    ref_ratio[i] = hier.GetRatioToCoarserLevel(static_cast<int>(i)) *
-                   ::amrex::IntVect::TheUnitVector();
+  }
+  for (std::size_t i = 1; i < size; ++i) {
+    ref_ratio[i - 1] = hier.GetRatioToCoarserLevel(static_cast<int>(i));
   }
   using Traits = StateTraits<Complete<Equation>>;
   constexpr auto names = Traits::names;
@@ -258,13 +272,14 @@ void WritePlotFile(const std::string& plotfilename, const PatchHierarchy& hier,
   ::amrex::Vector<const ::amrex::MultiFab*> mf(size);
   ::amrex::Vector<::amrex::Geometry> geoms(size);
   ::amrex::Vector<int> level_steps(size);
-  ::amrex::Vector<::amrex::IntVect> ref_ratio(size);
+  ::amrex::Vector<::amrex::IntVect> ref_ratio(size - 1);
   for (std::size_t i = 0; i < size; ++i) {
     mf[i] = &hier.GetPatchLevel(static_cast<int>(i)).data;
     geoms[i] = hier.GetGeometry(static_cast<int>(i));
     level_steps[i] = static_cast<int>(hier.GetCycles(static_cast<int>(i)));
-    ref_ratio[i] = hier.GetRatioToCoarserLevel(static_cast<int>(i)) *
-                   ::amrex::IntVect::TheUnitVector();
+  }
+  for (std::size_t i = 1; i < size; ++i) {
+    ref_ratio[i - 1] = hier.GetRatioToCoarserLevel(static_cast<int>(i));
   }
   using Traits = StateTraits<Complete<Equation>>;
   constexpr auto names = Traits::names;

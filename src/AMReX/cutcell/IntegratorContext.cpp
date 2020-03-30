@@ -20,6 +20,8 @@
 
 #include "fub/AMReX/cutcell/IntegratorContext.hpp"
 
+#include "fub/AMReX/ForEachFab.hpp"
+#include "fub/AMReX/ForEachIndex.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/AMReX/cutcell/IndexSpace.hpp"
 
@@ -46,6 +48,7 @@ IntegratorContext::LevelData::operator=(LevelData&& other) noexcept {
                        other.coarse_fine.refRatio(),
                        other.coarse_fine.fineLevel(),
                        other.coarse_fine.nComp());
+    coarse_fine.setVal(0.0);
   }
   eb_factory = std::move(other.eb_factory);
   reference_states = std::move(other.reference_states);
@@ -346,14 +349,19 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
           ::amrex::IntVect::TheDimensionVector(int(d));
       data.fluxes[d].define(::amrex::convert(ba, unit), dm, n_cons_components,
                             fgrow);
+      data.fluxes[d].setVal(0.0);
       data.stabilized_fluxes[d].define(::amrex::convert(ba, unit), dm,
                                        n_cons_components, fgrow);
+      data.stabilized_fluxes[d].setVal(0.0);
       data.shielded_left_fluxes[d].define(::amrex::convert(ba, unit), dm,
                                           n_cons_components, fgrow);
+      data.shielded_left_fluxes[d].setVal(0.0);
       data.shielded_right_fluxes[d].define(::amrex::convert(ba, unit), dm,
                                            n_cons_components, fgrow);
+      data.shielded_right_fluxes[d].setVal(0.0);
       data.doubly_shielded_fluxes[d].define(::amrex::convert(ba, unit), dm,
                                             n_cons_components, fgrow);
+      data.doubly_shielded_fluxes[d].setVal(0.0);
     }
 
     data.eb_factory = ebf;
@@ -361,6 +369,7 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
       const ::amrex::IntVect ref_ratio = GetRatioToCoarserLevel(level);
       data.coarse_fine.clear();
       data.coarse_fine.define(ba, dm, ref_ratio, level, n_cons_components);
+      data.coarse_fine.setVal(0.0);
     }
   }
   for (std::size_t level_num = first_level; level_num < data_.size();
@@ -595,8 +604,8 @@ void IntegratorContext::UpdateConservatively(int level, Duration dt,
   method_.time_integrator.UpdateConservatively(*this, level, dt, dir);
 }
 
-void IntegratorContext::PreAdvanceLevel(int level_num, Duration,
-                                        std::pair<int, int> subcycle) {
+int IntegratorContext::PreAdvanceLevel(int level_num, Duration,
+                                       std::pair<int, int> subcycle) {
   Timer timer1 = GetCounterRegistry()->get_timer(
       "cutcell::IntegratorContext::PreAdvanceLevel");
   Timer timer_per_level{};
@@ -605,18 +614,20 @@ void IntegratorContext::PreAdvanceLevel(int level_num, Duration,
         "cutcell::IntegratorContext::PreAdvanceLevel({})", level_num));
   }
   const std::size_t l = static_cast<std::size_t>(level_num);
+  const int max_level = GetPatchHierarchy().GetMaxNumberOfLevels();
+  int level_which_changed = max_level;
   if (subcycle.first == 0) {
     if (data_[l].regrid_time_point != data_[l].time_point) {
-      gridding_->RegridAllFinerlevels(level_num);
+      level_which_changed = gridding_->RegridAllFinerlevels(level_num);
       for (std::size_t lvl = l; lvl < data_.size(); ++lvl) {
         data_[lvl].regrid_time_point = data_[lvl].time_point;
       }
-      if (LevelExists(level_num + 1)) {
-        ResetHierarchyConfiguration(level_num + 1);
-        ResetCoarseFineFluxes(level_num + 1, level_num);
+      if (level_which_changed < max_level) {
+        ResetHierarchyConfiguration(level_which_changed);
       }
     }
   }
+  return level_which_changed;
 }
 
 Result<void, TimeStepTooLarge>
@@ -656,8 +667,9 @@ void IntegratorContext::PreAdvanceHierarchy() {
 void IntegratorContext::PostAdvanceHierarchy() {
   PatchHierarchy& hierarchy = GetPatchHierarchy();
   int nlevels = hierarchy.GetNumberOfLevels();
+  const Duration time_point = GetTimePoint();
   for (int level = 0; level < nlevels; ++level) {
-    hierarchy.GetPatchLevel(level).time_point = GetTimePoint(level);
+    hierarchy.GetPatchLevel(level).time_point = time_point;
     hierarchy.GetPatchLevel(level).cycles = GetCycles(level);
   }
 }

@@ -40,8 +40,9 @@ constexpr const int kDefaultChunkSize = 8;
 #endif
 
 template <std::size_t N>
-Eigen::Matrix<double, N, 1> AsEigenVector(const std::array<double, N>& x) {
-  return Eigen::Matrix<double, N, 1>::Map(x.data());
+Eigen::Matrix<double, static_cast<int>(N), 1>
+AsEigenVector(const std::array<double, N>& x) {
+  return Eigen::Matrix<double, static_cast<int>(N), 1>::Map(x.data());
 }
 
 template <typename T, int N, int M = kDefaultChunkSize>
@@ -56,6 +57,9 @@ using Array3d = Array<double, 3>;
 using ArrayXd = Array<double, Eigen::Dynamic>;
 
 using MaskArray = Array<bool, 1>;
+
+template <int N>
+using Index = std::array<std::ptrdiff_t, static_cast<std::size_t>(N)>;
 
 inline void LoadN(Array<char, 1>& array, const char* pointer, int n) {
   for (int i = 0; i < n; ++i) {
