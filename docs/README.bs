@@ -277,7 +277,7 @@ The needs application to build up their layers in the following order
   1. [PatchHierarchy](#patch-hierarchy) (data storage)
   2. [GriddingAlgorithm](#gridding-algorithm) (algorithmic choice)
   3. [IntegratorContext](#data-integrator-context) (data storage / algorithmic choice)
-  4. one or more composed LevelIntegrators (algorithmic choice)
+  4. one or more composed [LevelIntegrator](#level-integrator)s (algorithmic choice)
   5. SubcycleSolver (algorithmic choice)
 
 Note: Each layer in this list is implemented in terms of its predecessor.
@@ -601,7 +601,7 @@ In addition to computing the mathematical correct formula, an object that satisf
 We recognize that these are two orthogonal concerns which are both hard to get right. 
 To ease the burden for authors of a `FluxMethod` we introduced some helper classes which separate these concerns. They will be discussed in more detail in <a href="#flux-method-framework">Chapter 3</a>.
 
-LevelIntegrator {#level-integrator}
+Algorithmic Choice: LevelIntegrator {#level-integrator}
 -----------------------------------
 
 Level integrators have the task to advance the solution in time for a single refinement level only.
@@ -637,8 +637,43 @@ This library includes currently the following list of level integrators
 - `BK19LevelIntegrator` (satisfies `HyperbolicSystemLevelIntegrator`)
 - `KineticSourceTerm` (satisfies `LevelIntegrator`)
 - `AxialSourceTerm` (satisfies `LevelIntegrator`)
+- `IgniteDetonation` (satisfies `LevelIntegrator`)
 
+`SystemSourceLevelIntegrator` and `BK19LevelIntegrator` are so-called composed level integrators.
+This means, in order to build one of those level integrators you need to provide at least one `HyperbolicSystemLevelIntegrator`.
+The only `HyperbolicSystemLevelIntegrator` currently defined in the library is the `DimensionalSplitLevelIntegrator` which applies dimensional operator splitting ontop of a `DimensionalSplitIntegratorContext`.
 
+A `DimensionalSplitLevelIntegrator` is constructible by providing a `DimensionalSplitIntegratorContext` and `SplittingMethod`, such as `GodunovSplitting` or `StrangSplitting`.
+A single dimensionally split time step includes the following steps
+
+```cpp
+  // Apply boundary condition for the physical boundary only.
+  Context::ApplyBoundaryCondition(this_level, dir);
+
+  // Check stable time step size and if the CFL condition is violated then
+  // restart the coarse time step
+  const Duration local_dt = Context::ComputeStableDt(this_level, dir);
+  MPI_Comm comm = GetMpiCommunicator();
+  const Duration level_dt = MinAll(comm, local_dt);
+  if (level_dt < split_dt) {
+    return TimeStepTooLarge{level_dt, this_level};
+  }
+
+  // Compute fluxes in the specified direction
+  Context::ComputeNumericFluxes(this_level, split_dt, dir);
+
+  // Use the updated fluxes to update cons variables at the "SCRATCH"
+  // context.
+  Context::UpdateConservatively(this_level, split_dt, dir);
+
+  // A time update happened on conservative variables.
+  // We have to re-establish a valid complete state.
+  Context::CompleteFromCons(this_level, split_dt);
+
+  // Accumulate the fluxes on the coarse fine interface
+  const double scale = split_dt.count();
+  Context::AccumulateCoarseFineFluxes(this_level, scale, dir);
+```
 
 Framework for defining FluxMethods {#flux-method-framework}
 ===========================================================
