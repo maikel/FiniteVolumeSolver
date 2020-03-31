@@ -816,7 +816,41 @@ void DoSomethingForEachFArrayBox(MultiFab& multifab) {
 ```
 
 A `FArrayBox` is a container type in [[AMReX]] that stores a multi-dimensional data array for a single patch.
-By using an equation object we can *view* this `FArrayBox` as a set of multi-dimensional arrays for each variable/
+By using an equation object we can *view* this `FArrayBox` as a set of multi-dimensional arrays for each variable.
+
+<div class=example>
+Lets assume for this example that we are in a context where we have given a `FArrayBox` and we want to access the variables of this patch.
+In order to so we need an equation object which interprets the raw data.
+
+```cpp
+struct MyClass {
+  using Complete = ::fub::Complete<PerfectGas<3>>;
+  using Conservative = ::fub::Conservative<PerfectGas<3>>;
+
+  void foo(::amrex::FArrayBox& raw_data) {
+    // Transform the raw data object to a View object.
+    auto mutable_states = MakeView<Complete>(raw_data, equation);
+    auto const_states = MakeView<const Complete>(raw_data, equation);
+    auto conservatives = MakeView<Conservative>(raw_data, equation);
+    // Iterate through all global grid indices
+    ForEachIndex(Box<0>(const_states), [=](int i, int j, int k) {
+      // Access the variables
+      mutable_states.density(i, j, k) = 1.0;
+      conservatives.momentum(i, j, k, 0) = 1.0 + const_states.density(i, j, k);
+      conservatives.momentum(i, j, k, 1) = 0.0;
+      conservatives.momentum(i, j, k, 2) = 0.0;
+
+      // The objects view the same memory.
+      assert(const_states.momentum(i, j, k, 0) == conservatives.momentum(i, j, k, 0));
+      assert(const_states.momentum(i, j, k, 1) == conservatives.momentum(i, j, k, 1));
+      assert(const_states.momentum(i, j, k, 2) == conservatives.momentum(i, j, k, 2));
+    });
+  }
+
+  PerfectGas<3> equation;
+};
+```
+</div>
 
 Implement a new FluxMethod, the simple case {#implement-flux-method-simple}
 ------------------------------------------------------------------------

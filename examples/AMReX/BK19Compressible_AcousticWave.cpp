@@ -33,7 +33,11 @@ struct AcousticWaveInitialData : fub::amrex::BK19PhysicalParameters {
   using Complete = fub::CompressibleAdvection<2>::Complete;
   AcousticWaveInitialData() {}
 
-  void InitializeData(amrex::MultiFab& mf, const amrex::Geometry& geom) const {
+  void InitializeData(fub::amrex::PatchLevel& patch_level,
+                      const fub::amrex::GriddingAlgorithm& grid, int level,
+                      fub::Duration /*time*/) const {
+    const amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
+    amrex::MultiFab& mf = patch_level.data;
     fub::amrex::ForEachFab(mf, [&](const amrex::MFIter& mfi) {
       fub::CompressibleAdvection<2> equation{};
       amrex::FArrayBox& fab = mf[mfi];
@@ -61,6 +65,25 @@ struct AcousticWaveInitialData : fub::amrex::BK19PhysicalParameters {
         states.momentum(i, j, 1) =
             states.density(i, j) * states.velocity(i, j, 1);
         states.PTinverse(i, j) = states.density(i, j) / states.PTdensity(i, j);
+      });
+    });
+
+    // set initial values of pi
+    amrex::MultiFab& pi = *patch_level.nodes;
+    const double Gamma = (gamma - 1.0) / gamma;
+    fub::amrex::ForEachFab(pi, [&](const ::amrex::MFIter& mfi) {
+      ::amrex::FArrayBox& fab = pi[mfi];
+      fub::amrex::ForEachIndex(fab.box(), [&](auto... is) {
+        ::amrex::IntVect i{int(is)...};
+
+        ::amrex::Vector<double> coor(2);
+        geom.LoNode(i, coor);
+        const double x = coor[0];
+        const double y = coor[1];
+
+        const double p = std::pow(1.0 + del0 * std::sin(wn * x),
+                                  2.0 * gamma / (gamma - 1.0));
+        fab(i, 0) = (pow(p, Gamma) - 1.0) / Msq;
       });
     });
   }
@@ -142,30 +165,6 @@ void MyMain(const fub::ProgramOptions& options) {
 
   //   BK19IntegratorContext simulation_data(grid, method, 2, 0);
   BK19IntegratorContext simulation_data(grid, method, 4, 2);
-  const int nlevel = simulation_data.GetPatchHierarchy().GetNumberOfLevels();
-
-  // set initial values of pi
-  const double Gamma = (inidat.gamma - 1.0) / inidat.gamma;
-  for (int level = 0; level < nlevel; ++level) {
-    ::amrex::MultiFab& pi = simulation_data.GetPi(level);
-    const ::amrex::Geometry& geom =
-        grid->GetPatchHierarchy().GetGeometry(level);
-    ForEachFab(pi, [&](const ::amrex::MFIter& mfi) {
-      ::amrex::FArrayBox& fab = pi[mfi];
-      ForEachIndex(fab.box(), [&](auto... is) {
-        ::amrex::IntVect i{int(is)...};
-
-        ::amrex::Vector<double> coor(2);
-        geom.LoNode(i, coor);
-        const double x = coor[0];
-        const double y = coor[1];
-
-        const double p = std::pow(1.0 + inidat.del0 * std::sin(inidat.wn * x),
-                                  2.0 * inidat.gamma / (inidat.gamma - 1.0));
-        fab(i, 0) = (pow(p, Gamma) - 1.0) / inidat.Msq;
-      });
-    });
-  }
 
   fub::DimensionalSplitLevelIntegrator advection(
       //       fub::int_c<2>, std::move(simulation_data),

@@ -30,8 +30,8 @@ template <typename Equation> class ConstantData {
 public:
   ConstantData(Equation eq, Complete<Equation> state);
 
-  void InitializeData(::amrex::MultiFab& mf,
-                      const ::amrex::Geometry& geom) const;
+  void InitializeData(PatchLevel& patch_level, const GriddingAlgorithm& grid,
+                      int level, Duration time) const;
 
 private:
   Equation equation_;
@@ -43,8 +43,11 @@ ConstantData<Equation>::ConstantData(Equation eq, Complete<Equation> state)
     : equation_{std::move(eq)}, state_{std::move(state)} {}
 
 template <typename Equation>
-void ConstantData<Equation>::InitializeData(
-    ::amrex::MultiFab& mf, const ::amrex::Geometry& /* geom */) const {
+void ConstantData<Equation>::InitializeData(PatchLevel& patch_level,
+                                            const GriddingAlgorithm& /*grid*/,
+                                            int /*level*/,
+                                            Duration /*time*/) const {
+  ::amrex::MultiFab& mf = patch_level.data;
   ForEachFab(execution::openmp, mf, [&](const ::amrex::MFIter& mfi) {
     ::amrex::FArrayBox& fab = mf[mfi];
     auto view = MakeView<Complete<Equation>>(fab, equation_, mfi.tilebox());

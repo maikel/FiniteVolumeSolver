@@ -128,11 +128,9 @@ inline void AnyBoundaryCondition::FillBoundary(::amrex::MultiFab& mf,
   }
 }
 
-inline void AnyBoundaryCondition::FillBoundary(::amrex::MultiFab& mf,
-                                            const ::amrex::Geometry& geom,
-                                            Duration timepoint,
-                                            const GriddingAlgorithm& gridding,
-                                            Direction dir) {
+inline void AnyBoundaryCondition::FillBoundary(
+    ::amrex::MultiFab& mf, const ::amrex::Geometry& geom, Duration timepoint,
+    const GriddingAlgorithm& gridding, Direction dir) {
   if (boundary_condition_) {
     boundary_condition_->FillBoundary(mf, geom, timepoint, gridding, dir);
   }
