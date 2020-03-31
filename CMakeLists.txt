@@ -226,6 +226,7 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/output/BasicOutput.hpp
   include/fub/output/OutputAtFrequencyOrInterval.hpp
   include/fub/output/AsOutput.hpp
+  include/fub/AnyInitialData.hpp
   include/fub/Solver.hpp
   include/fub/CompleteFromCons.hpp
   include/fub/CutCellData.hpp
@@ -372,7 +373,6 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     include/fub/AMReX/Tagging.hpp
     include/fub/AMReX/TimeIntegrator.hpp
     include/fub/AMReX/IntegratorContext.hpp
-    include/fub/AMReX/InitialData.hpp
     include/fub/AMReX/FluxMethod.hpp
     include/fub/AMReX/ScopeGuard.hpp
     include/fub/AMReX/ViewFArrayBox.hpp

@@ -21,7 +21,7 @@
 #ifndef FUB_AMREX_CUT_CELL_GRIDDING_ALGORITHM_HPP
 #define FUB_AMREX_CUT_CELL_GRIDDING_ALGORITHM_HPP
 
-#include "fub/AMReX/InitialData.hpp"
+#include "fub/AnyInitialData.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/AMReX/cutcell/BoundaryCondition.hpp"
 #include "fub/AMReX/cutcell/PatchHierarchy.hpp"
@@ -33,12 +33,22 @@
 #include <memory>
 
 namespace fub::amrex::cutcell {
+class GriddingAlgorithm;
+}
+
+namespace fub {
+template <> struct GridTraits<amrex::cutcell::GriddingAlgorithm> {
+  using PatchLevel = ::fub::amrex::PatchLevel;
+  using TagBoxHandle = ::amrex::TagBoxArray&;
+};
+}
+
+namespace fub::amrex::cutcell {
+using AnyInitialData = ::fub::AnyInitialData<GriddingAlgorithm>;
 
 /// \ingroup GriddingAlgorithm
 class GriddingAlgorithm : private ::amrex::AmrCore {
 public:
-  static constexpr int Rank = AMREX_SPACEDIM;
-
   GriddingAlgorithm() = delete;
 
   GriddingAlgorithm(const GriddingAlgorithm&);
@@ -49,7 +59,7 @@ public:
 
   ~GriddingAlgorithm() noexcept override = default;
 
-  GriddingAlgorithm(PatchHierarchy hier, AnyInitialData<GriddingAlgorithm> data,
+  GriddingAlgorithm(PatchHierarchy hier, AnyInitialData data,
                     Tagging tagging, AnyBoundaryCondition boundary);
 
   [[nodiscard]] const PatchHierarchy& GetPatchHierarchy() const noexcept;
@@ -74,7 +84,7 @@ public:
 
   [[nodiscard]] AnyBoundaryCondition& GetBoundaryCondition(int level) noexcept;
 
-  [[nodiscard]] const AnyInitialData<GriddingAlgorithm>&
+  [[nodiscard]] const AnyInitialData&
   GetInitialCondition() const noexcept;
 
   [[nodiscard]] const Tagging& GetTagging() const noexcept;
@@ -106,7 +116,7 @@ private:
   void ClearLevel(int level) override;
 
   PatchHierarchy hierarchy_;
-  AnyInitialData<GriddingAlgorithm> initial_condition_;
+  AnyInitialData initial_condition_;
   Tagging tagging_;
   std::vector<AnyBoundaryCondition> boundary_condition_;
 };
