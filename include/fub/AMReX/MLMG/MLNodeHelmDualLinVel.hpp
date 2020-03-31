@@ -36,31 +36,31 @@
 // (https://amrex-codes.github.io/).
 
 // clang-format off
-#ifndef AMREX_ML_NODEHELM_DUAL_CSTVEL_HPP
-#define AMREX_ML_NODEHELM_DUAL_CSTVEL_HPP
+#ifndef AMREX_ML_NODEHELM_DUAL_LINVEL_HPP
+#define AMREX_ML_NODEHELM_DUAL_LINVEL_HPP
 
 #include <AMReX.H>
 #include "fub/AMReX/MLMG/MLNodeHelmholtz.hpp"
 
 namespace amrex {
 
-class MLNodeHelmDualCstVel
+class MLNodeHelmDualLinVel
     : public MLNodeHelmholtz
 {
 public:
 
-    MLNodeHelmDualCstVel () noexcept {}
-    MLNodeHelmDualCstVel (const Vector<Geometry>& a_geom,
+    MLNodeHelmDualLinVel () noexcept {}
+    MLNodeHelmDualLinVel (const Vector<Geometry>& a_geom,
                      const Vector<BoxArray>& a_grids,
                      const Vector<DistributionMapping>& a_dmap,
                      const LPInfo& a_info = LPInfo(),
                      const Vector<FabFactory<FArrayBox> const*>& a_factory = {});
-    virtual ~MLNodeHelmDualCstVel ();
+    virtual ~MLNodeHelmDualLinVel ();
 
-    MLNodeHelmDualCstVel (const MLNodeHelmDualCstVel&) = delete;
-    MLNodeHelmDualCstVel (MLNodeHelmDualCstVel&&) = delete;
-    MLNodeHelmDualCstVel& operator= (const MLNodeHelmDualCstVel&) = delete;
-    MLNodeHelmDualCstVel& operator= (MLNodeHelmDualCstVel&&) = delete;
+    MLNodeHelmDualLinVel (const MLNodeHelmDualLinVel&) = delete;
+    MLNodeHelmDualLinVel (MLNodeHelmDualLinVel&&) = delete;
+    MLNodeHelmDualLinVel& operator= (const MLNodeHelmDualLinVel&) = delete;
+    MLNodeHelmDualLinVel& operator= (MLNodeHelmDualLinVel&&) = delete;
 
     void define (const Vector<Geometry>& a_geom,
                  const Vector<BoxArray>& a_grids,
@@ -68,7 +68,7 @@ public:
                  const LPInfo& a_info = LPInfo(),
                  const Vector<FabFactory<FArrayBox> const*>& a_factory = {});
 
-    virtual std::string name () const override { return std::string("MLNodeHelmDualCstVel"); }
+    virtual std::string name () const override { return std::string("MLNodeHelmDualLinVel"); }
 
     void setNormalizationThreshold (Real t) noexcept { m_normalization_threshold = t; }
 
@@ -119,7 +119,7 @@ public:
     virtual void getFluxes (const Vector<Array<MultiFab*,AMREX_SPACEDIM> >& ,
                             const Vector<MultiFab*>& ,
                             Location ) const final override {
-        amrex::Abort("MLNodeHelmDualCstVel::getFluxes: How did we get here?");
+        amrex::Abort("MLNodeHelmDualLinVel::getFluxes: How did we get here?");
     }
     virtual void getFluxes (const Vector<MultiFab*>& a_flux,
                             const Vector<MultiFab*>& a_sol) const final override;

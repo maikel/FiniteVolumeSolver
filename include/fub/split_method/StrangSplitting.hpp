@@ -45,6 +45,11 @@ public:
   boost::outcome_v2::result<void, TimeStepTooLarge>
   Advance(Duration time_step_size, AdvanceFunction operator1,
           AdvanceFunction operator2) const override;
+  
+  /// This is the base case of applying the splitting method with two operators.
+  boost::outcome_v2::result<void, TimeStepTooLarge>
+  Advance(Duration time_step_size, AdvanceFunction advance1,
+          AdvanceFunction advance2, AdvanceFunction advance3) const override;
 };
 
 } // namespace fub

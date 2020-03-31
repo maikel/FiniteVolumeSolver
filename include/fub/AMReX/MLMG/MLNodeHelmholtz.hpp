@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Maikel Nadolski
+// Copyright (c) 2019 Stefan Vater
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,27 +18,32 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/AMReX/cutcell/boundary_condition/BoundarySet.hpp"
+#ifndef AMREX_ML_NODEHELMHOLTZ_HPP
+#define AMREX_ML_NODEHELMHOLTZ_HPP
 
-namespace fub::amrex::cutcell {
+#include <AMReX.H>
+#include <AMReX_MLNodeLinOp.H>
 
-void BoundarySet::FillBoundary(::amrex::MultiFab& mf,
-                               const ::amrex::Geometry& geom,
-                               Duration timepoint,
-                               const GriddingAlgorithm& gridding) {
-  for (AnyBoundaryCondition& condition : conditions) {
-    condition.FillBoundary(mf, geom, timepoint, gridding);
-  }
-}
+namespace amrex {
 
-void BoundarySet::FillBoundary(::amrex::MultiFab& mf,
-                               const ::amrex::Geometry& geom,
-                               Duration timepoint,
-                               const GriddingAlgorithm& gridding,
-                               Direction dir) {
-  for (AnyBoundaryCondition& condition : conditions) {
-    condition.FillBoundary(mf, geom, timepoint, gridding, dir);
-  }
-}
+struct MLNodeHelmholtz : public MLNodeLinOp {
 
-} // namespace fub::amrex::cutcell
+  virtual ~MLNodeHelmholtz(){};
+
+  virtual void setSigma(int amrlev, const MultiFab& a_sigma) = 0;
+
+  virtual void setAlpha(int amrlev, const MultiFab& a_alpha) = 0;
+
+  virtual void compDivergence(const Vector<MultiFab*>& rhs,
+                              const Vector<MultiFab*>& vel) = 0;
+
+  virtual void compRHS(const Vector<MultiFab*>& rhs,
+                       const Vector<MultiFab*>& vel,
+                       const Vector<const MultiFab*>& rhnd,
+                       const Vector<MultiFab*>& rhcc) = 0;
+
+};
+
+} // namespace amrex
+
+#endif
