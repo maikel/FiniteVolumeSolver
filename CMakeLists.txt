@@ -442,9 +442,9 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
   if (AMReX_2D_FOUND)
     target_sources(FiniteVolumeSolver.AMReX PRIVATE
       include/fub/AMReX/bk19/BK19LevelIntegrator.hpp
-      include/fub/AMReX/bk19/BK19IntegratorContext.hpp
+      include/fub/AMReX/CompressibleAdvectionIntegratorContext.hpp
       src/AMReX/bk19/BK19LevelIntegrator.cpp
-      src/AMReX/bk19/BK19IntegratorContext.cpp)
+      src/AMReX/CompressibleAdvectionIntegratorContext.cpp)
   endif()
 
   if (AMReX_EB_FOUND)
