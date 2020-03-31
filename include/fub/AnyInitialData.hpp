@@ -23,6 +23,7 @@
 
 #include "fub/Meta.hpp"
 #include "fub/core/type_traits.hpp"
+#include "fub/Duration.hpp"
 
 #include <memory>
 
