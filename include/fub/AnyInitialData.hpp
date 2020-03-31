@@ -54,12 +54,13 @@ public:
 
   /// @{
   /// \name Constructors
+
   /// \brief Constructs an empty object that does no initialization.
   AnyInitialData() = default;
 
   /// \brief Stores and wraps the `initial_data` object
-  template <typename T,
-            typename = std::enable_if_t<!decay_to<T, AnyInitialData>()>>
+  template <typename T, typename = std::enable_if_t<
+                            !decays_to<T, AnyInitialData<GriddingAlgorithm>>()>>
   AnyInitialData(T&& initial_data);
 
   /// \brief Copies the `other` implementation and invokes a memory allocation.
@@ -79,7 +80,7 @@ public:
 
   /// @{
   /// \name Actions
-  ///
+
   /// \brief Initializes a patch level within a gridding algorithm
   ///
   /// \note In cases where a gridding algorithm needs to rebuild a level, the
@@ -89,7 +90,7 @@ public:
   /// @}
 
 private:
-  std::unique_ptr<InitialDataStrategy<GriddingAlgorithm>> initial_data_;
+  std::unique_ptr<detail::InitialDataStrategy<GriddingAlgorithm>> initial_data_;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -98,6 +99,7 @@ private:
 ///////////////////////////////////////////////////////////////////////////////
 //                                                                Constructors
 
+namespace detail {
 template <typename T, typename GriddingAlgorithm>
 struct InitialDataWrapper : public InitialDataStrategy<GriddingAlgorithm> {
   using PatchLevel = typename GridTraits<GriddingAlgorithm>::PatchLevel;
@@ -119,20 +121,21 @@ struct InitialDataWrapper : public InitialDataStrategy<GriddingAlgorithm> {
 
   T initial_data_;
 };
+} // namespace detail
 
 template <typename GriddingAlgorithm>
-template <typename T,
-          typename = std::enable_if_t<!decay_to<T, AnyInitialData>()>>
+template <typename T, typename>
 AnyInitialData<GriddingAlgorithm>::AnyInitialData(T&& initial_data)
-    : initial_data_{std::make_unique<InitialDataWrapper<T, GriddingAlgorithm>>(
-          std::forward<T>(initial_data))} {}
+    : initial_data_{
+          std::make_unique<detail::InitialDataWrapper<T, GriddingAlgorithm>>(
+              std::forward<T>(initial_data))} {}
 
 template <typename GriddingAlgorithm>
 AnyInitialData<GriddingAlgorithm>::AnyInitialData(const AnyInitialData& other)
     : initial_data_(other.initial_data_->Clone()) {}
 
 template <typename GriddingAlgorithm>
-AnyInitialData&
+AnyInitialData<GriddingAlgorithm>&
 AnyInitialData<GriddingAlgorithm>::operator=(const AnyInitialData& other) {
   AnyInitialData tmp(other);
   return *this = std::move(tmp);

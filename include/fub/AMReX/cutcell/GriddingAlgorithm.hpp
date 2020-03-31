@@ -33,17 +33,22 @@
 #include <memory>
 
 namespace fub::amrex::cutcell {
-
 class GriddingAlgorithm;
+}
 
+namespace fub {
+template <> struct GridTraits<amrex::cutcell::GriddingAlgorithm> {
+  using PatchLevel = ::fub::amrex::PatchLevel;
+  using TagBoxHandle = ::amrex::TagBoxArray&;
+};
+}
+
+namespace fub::amrex::cutcell {
 using AnyInitialData = ::fub::AnyInitialData<GriddingAlgorithm>;
 
 /// \ingroup GriddingAlgorithm
 class GriddingAlgorithm : private ::amrex::AmrCore {
 public:
-  using PatchLevel = ::fub::amrex::PatchLevel;
-  using TagBoxHandle = ::amrex::TagArrayBox&;
-
   GriddingAlgorithm() = delete;
 
   GriddingAlgorithm(const GriddingAlgorithm&);

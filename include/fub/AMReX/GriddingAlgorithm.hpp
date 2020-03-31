@@ -32,10 +32,17 @@
 
 #include <memory>
 
-namespace fub::amrex {
-
+namespace fub {
+namespace amrex {
 class GriddingAlgorithm;
+}
 
+template <> struct GridTraits<amrex::GriddingAlgorithm> {
+  using PatchLevel = ::fub::amrex::PatchLevel;
+  using TagBoxHandle = ::amrex::TagBoxArray&;
+};
+
+namespace amrex {
 using AnyInitialData = ::fub::AnyInitialData<GriddingAlgorithm>;
 
 /// \defgroup GriddingAlgorithm Gridding Algorithms
@@ -46,9 +53,6 @@ using AnyInitialData = ::fub::AnyInitialData<GriddingAlgorithm>;
 /// PatchHierarchy.
 class GriddingAlgorithm : private ::amrex::AmrCore {
 public:
-  using PatchLevel = ::fub::amrex::PatchLevel;
-  using TagBoxHandle = ::amrex::TagArrayBox&;
-
   /// @{
   /// \name Constructors
 
@@ -152,6 +156,7 @@ private:
   std::vector<AnyBoundaryCondition> boundary_condition_;
 };
 
-} // namespace fub::amrex
+} // namespace amrex
+} // namespace fub
 
 #endif
