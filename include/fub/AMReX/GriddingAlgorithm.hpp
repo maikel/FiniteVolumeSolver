@@ -21,11 +21,12 @@
 #ifndef FUB_AMREX_GRIDDING_ALGORITHM_HPP
 #define FUB_AMREX_GRIDDING_ALGORITHM_HPP
 
-#include "fub/AMReX/BoundaryCondition.hpp"
 #include "fub/AMReX/PatchHierarchy.hpp"
-#include "fub/AMReX/Tagging.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
+
 #include "fub/AnyInitialData.hpp"
+#include "fub/AnyTaggingMethod.hpp"
+#include "fub/AnyBoundaryCondition.hpp"
 
 #include <AMReX_AmrCore.H>
 #include <AMReX_MultiFabUtil.H>
@@ -39,11 +40,12 @@ class GriddingAlgorithm;
 
 template <> struct GridTraits<amrex::GriddingAlgorithm> {
   using PatchLevel = ::fub::amrex::PatchLevel;
-  using TagBoxHandle = ::amrex::TagBoxArray&;
+  using TagDataHandle = ::amrex::TagBoxArray&;
 };
 
 namespace amrex {
 using AnyInitialData = ::fub::AnyInitialData<GriddingAlgorithm>;
+using AnyTaggingMethod = ::fub::AnyTaggingMethod<GriddingAlgorithm>;
 
 /// \defgroup GriddingAlgorithm Gridding Algorithms
 /// This modules summarizes all GriddingAlgorithms.
@@ -95,11 +97,12 @@ public:
 
   [[nodiscard]] const AnyBoundaryCondition&
   GetBoundaryCondition(int level) const noexcept;
+
   [[nodiscard]] AnyBoundaryCondition& GetBoundaryCondition(int level) noexcept;
 
   [[nodiscard]] const AnyInitialData& GetInitialCondition() const noexcept;
 
-  [[nodiscard]] const Tagging& GetTagging() const noexcept;
+  [[nodiscard]] const AnyTaggingMethod& GetTagging() const noexcept;
   /// @}
 
   /// @{
@@ -115,20 +118,27 @@ public:
 
   /// @{
   /// \name Modifiers
+
   /// \brief Attempt to regrid all finer level than the specified `which_level`.
   ///
   /// \return Returns the coarsest level which was regrid. If no level changed
   /// this function returns the maximum number of levels.
   int RegridAllFinerlevels(int which_level);
 
-  void InitializeHierarchy(double level_time);
-
-  void SetBoundaryCondition(int level, const AnyBoundaryCondition& condition);
-  void SetBoundaryCondition(int level, AnyBoundaryCondition&& condition);
+  /// \brief Initializes the underlying patch hierarchy using the stored initial
+  /// data method.
+  ///
+  /// \note This function might recreate a refinement level if nesting
+  /// conditions are violated upon creating a new refinement level. This implies
+  /// that the initial condition might be called multiple times for one
+  /// refinement level.
+  void InitializeHierarchy(double level_time = 0.0);
   /// @}
 
   /// @{
   /// \name Actions
+
+  /// \brief Fill the ghost layer boundary specified of the specifed MultiFab `mf`.
   void FillMultiFabFromLevel(::amrex::MultiFab& mf, int level_number);
   /// @}
 
@@ -152,7 +162,7 @@ private:
 
   PatchHierarchy hierarchy_;
   AnyInitialData initial_data_;
-  Tagging tagging_;
+  AnyTaggingMethod tagging_;
   std::vector<AnyBoundaryCondition> boundary_condition_;
 };
 
