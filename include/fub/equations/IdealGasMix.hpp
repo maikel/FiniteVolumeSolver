@@ -122,7 +122,8 @@ public:
   void Flux(ConservativeArray& flux, const CompleteArray& state,
             Direction dir = Direction::X) const noexcept;
 
-  void Flux(ConservativeArray& flux, const CompleteArray& state, MaskArray mask, Direction dir) const noexcept;
+  void Flux(ConservativeArray& flux, const CompleteArray& state, MaskArray mask,
+            Direction dir) const noexcept;
 
   void CompleteFromCons(Complete& state, const ConservativeBase& cons);
 
@@ -139,7 +140,8 @@ public:
 
   static Array<double, N, 1> Velocity(const ConservativeBase& cons) noexcept;
   static Array<double, N> Velocity(const ConservativeArrayBase& cons) noexcept;
-  static Array<double, N> Velocity(const ConservativeArrayBase& cons, MaskArray mask) noexcept;
+  static Array<double, N> Velocity(const ConservativeArrayBase& cons,
+                                   MaskArray mask) noexcept;
 
   void CompleteFromReactor(Complete& state,
                            const Eigen::Array<double, N, 1>& velocity =
@@ -150,7 +152,8 @@ public:
       const Array<double, N>& velocity = Array<double, N>::Zero()) const;
 
   void CompleteFromReactor(CompleteArray& state,
-                           const Array<double, N>& velocit, MaskArray mask) const;
+                           const Array<double, N>& velocit,
+                           MaskArray mask) const;
 
 private:
   FlameMasterReactor reactor_;
@@ -168,7 +171,7 @@ template <typename Depths>
 using ToConcreteDepths = boost::mp11::mp_transform<ToConcreteDepth, Depths>;
 
 template <int Dim>
-struct DepthsImpl<Complete<IdealGasMix<Dim>>, IdealGasMix<Dim>> {
+struct DepthsImpl_<Complete<IdealGasMix<Dim>>, IdealGasMix<Dim>> {
   constexpr ToConcreteDepths<typename IdealGasMix<Dim>::CompleteDepths>
   operator()(const IdealGasMix<Dim>& equation) const noexcept {
     ToConcreteDepths<typename IdealGasMix<Dim>::CompleteDepths> depths{};
@@ -178,7 +181,7 @@ struct DepthsImpl<Complete<IdealGasMix<Dim>>, IdealGasMix<Dim>> {
 };
 
 template <int Dim>
-struct DepthsImpl<Conservative<IdealGasMix<Dim>>, IdealGasMix<Dim>> {
+struct DepthsImpl_<Conservative<IdealGasMix<Dim>>, IdealGasMix<Dim>> {
   constexpr ToConcreteDepths<typename IdealGasMix<Dim>::ConservativeDepths>
   operator()(const IdealGasMix<Dim>& equation) const noexcept {
     ToConcreteDepths<typename IdealGasMix<Dim>::ConservativeDepths> depths{};
@@ -237,7 +240,8 @@ Array1d KineticEnergy(Array1d density,
 template <int Dim>
 Array1d KineticEnergy(Array1d density,
                       const Eigen::Array<double, Dim, kDefaultChunkSize,
-                      Eigen::RowMajor>& momentum, MaskArray mask) noexcept {
+                                         Eigen::RowMajor>& momentum,
+                      MaskArray mask) noexcept {
   Array1d square = Array1d::Zero();
   for (int i = 0; i < Dim; ++i) {
     Array1d rhou = mask.select(momentum.row(i), 0.0);

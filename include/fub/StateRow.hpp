@@ -39,13 +39,13 @@ template <typename T, int Rank> struct DepthToRowType<T, VectorDepth<Rank>> {
 template <typename State> struct RowBaseImpl {
   template <typename Depth>
   using fn = typename DepthToRowType<double, Depth>::type;
-  using type = boost::mp11::mp_transform<fn, typename State::Depths>;
+  using type = boost::mp11::mp_transform<fn, meta::Depths<State>>;
 };
 
 template <typename State> struct RowBaseImpl<const State> {
   template <typename Depth>
   using fn = typename DepthToRowType<const double, Depth>::type;
-  using type = boost::mp11::mp_transform<fn, typename State::Depths>;
+  using type = boost::mp11::mp_transform<fn, meta::Depths<State>>;
 };
 
 template <typename State> using RowBase = typename RowBaseImpl<State>::type;
