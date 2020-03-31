@@ -181,8 +181,6 @@ void MyMain(const ProgramOptions& opts) {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
-  fub::InitializeLogging(MPI_COMM_WORLD);
-
   constexpr int Dim = AMREX_SPACEDIM;
 
   // Setup the domain parameters
@@ -312,7 +310,8 @@ void MyMain(const ProgramOptions& opts) {
 
 int main(int argc, char** argv) {
   MPI_Init(nullptr, nullptr);
-  {
+  fub::InitializeLogging(MPI_COMM_WORLD);
+  {  
     fub::amrex::ScopeGuard _{};
     std::optional<ProgramOptions> po = ParseCommandLine(argc, argv);
     if (po) {

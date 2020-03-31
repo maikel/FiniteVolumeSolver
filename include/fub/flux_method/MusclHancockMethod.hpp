@@ -178,6 +178,7 @@ private:
       equation_}; //< Storage for an intermediate right state
 };
 
+/// \ingroup flux-method
 template <typename Equation,
           typename BaseMethod =
               fub::GodunovMethod<Equation, ExactRiemannSolver<Equation>>,

@@ -21,12 +21,7 @@
 #ifndef FUB_TAGGING_TAG_BUFFER_HPP
 #define FUB_TAGGING_TAG_BUFFER_HPP
 
-#include "fub/CartesianCoordinates.hpp"
-#include "fub/ForEach.hpp"
-#include "fub/State.hpp"
-#include "fub/core/mdspan.hpp"
-
-#include <utility>
+#include "fub/PatchDataView.hpp"
 
 namespace fub {
 
@@ -35,9 +30,9 @@ struct TagBuffer {
 
   explicit TagBuffer(int width) : buffer_width_{width} {}
 
-  void TagCellsForRefinement(const PatchDataView<char, 1, layout_stride>& tags);
-  void TagCellsForRefinement(const PatchDataView<char, 2, layout_stride>& tags);
-  void TagCellsForRefinement(const PatchDataView<char, 3, layout_stride>& tags);
+  void TagCellsForRefinement(const StridedDataView<char, 1>& tags);
+  void TagCellsForRefinement(const StridedDataView<char, 2>& tags);
+  void TagCellsForRefinement(const StridedDataView<char, 3>& tags);
 };
 
 } // namespace fub

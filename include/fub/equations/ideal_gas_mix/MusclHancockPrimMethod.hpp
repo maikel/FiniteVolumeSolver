@@ -104,6 +104,7 @@ private:
   std::array<CompleteArray, 2> stencil_array_{GetEquation(), GetEquation()};
 };
 
+/// \ingroup flux-method
 template <int Rank>
 using MusclHancockPrimMethod = ::fub::FluxMethod<MusclHancockPrimitive<Rank>>;
 

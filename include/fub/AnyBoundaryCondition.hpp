@@ -30,11 +30,9 @@
 #include <AMReX_PhysBCFunct.H>
 
 namespace fub {
-namespace amrex {
 
-inline int GetSign(int side) { return (side == 0) - (side == 1); }
-
-class GriddingAlgorithm;
+/// \defgroup BoundaryCondition Boundary Conditions
+/// This modules collects all components that fill the ghost layer of a patch level.
 
 struct BoundaryConditionBase_ {
   virtual ~BoundaryConditionBase_() = default;
@@ -48,6 +46,34 @@ struct BoundaryConditionBase_ {
                             const GriddingAlgorithm& gridding,
                             Direction dir) = 0;
 };
+
+/// \ingroup BoundaryCondition PolymorphicValueType
+template <typename GriddingAlgorithm>
+class AnyBoundaryCondition {
+public:
+  AnyBoundaryCondition() = default;
+
+  AnyBoundaryCondition(const AnyBoundaryCondition&);
+  AnyBoundaryCondition& operator=(const AnyBoundaryCondition&);
+
+  AnyBoundaryCondition(AnyBoundaryCondition&&) = default;
+  AnyBoundaryCondition& operator=(AnyBoundaryCondition&&) = default;
+
+  template <typename BC,
+            typename = std::enable_if_t<!decays_to<BC, AnyBoundaryCondition>()>>
+  AnyBoundaryCondition(BC&& bc);
+
+  void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding);
+
+  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
+                    Duration timepoint, const GriddingAlgorithm& gridding,
+                    Direction dir);
+
+private:
+  std::unique_ptr<BoundaryConditionBase_> boundary_condition_{};
+};
+
+// Implementation
 
 template <typename BC>
 struct BoundaryConditionWrapper_ : public BoundaryConditionBase_ {
@@ -66,39 +92,6 @@ struct BoundaryConditionWrapper_ : public BoundaryConditionBase_ {
 
   BC boundary_condition_;
 };
-
-class AnyBoundaryCondition : public ::amrex::PhysBCFunctBase {
-public:
-  AnyBoundaryCondition() = default;
-
-  AnyBoundaryCondition(const AnyBoundaryCondition&);
-  AnyBoundaryCondition& operator=(const AnyBoundaryCondition&);
-
-  AnyBoundaryCondition(AnyBoundaryCondition&&) = default;
-  AnyBoundaryCondition& operator=(AnyBoundaryCondition&&) = default;
-
-  template <typename BC,
-            typename = std::enable_if_t<!decays_to<BC, AnyBoundaryCondition>()>>
-  AnyBoundaryCondition(BC&& bc);
-
-  void FillBoundary(::amrex::MultiFab& mf, int, int, const ::amrex::IntVect&,
-                    double time_point, int) override;
-
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration timepoint, const GriddingAlgorithm& gridding);
-
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration timepoint, const GriddingAlgorithm& gridding,
-                    Direction dir);
-
-  const GriddingAlgorithm* parent{};
-  ::amrex::Geometry geometry{};
-
-private:
-  std::unique_ptr<BoundaryConditionBase_> boundary_condition_{};
-};
-
-// Implementation
 
 template <typename BC>
 std::unique_ptr<BoundaryConditionBase_>
@@ -125,15 +118,6 @@ AnyBoundaryCondition::AnyBoundaryCondition(BC&& bc)
     : boundary_condition_{
           std::make_unique<BoundaryConditionWrapper_<std::decay_t<BC>>>(
               std::forward<BC>(bc))} {}
-
-inline void AnyBoundaryCondition::FillBoundary(::amrex::MultiFab& mf, int, int,
-                                            const ::amrex::IntVect&,
-                                            double time_point, int) {
-  if (boundary_condition_ && parent) {
-    boundary_condition_->FillBoundary(mf, geometry, Duration(time_point),
-                                      *parent);
-  }
-}
 
 inline void AnyBoundaryCondition::FillBoundary(::amrex::MultiFab& mf,
                                             const ::amrex::Geometry& geom,

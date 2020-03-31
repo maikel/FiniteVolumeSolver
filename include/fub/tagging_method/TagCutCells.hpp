@@ -18,20 +18,27 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#ifndef FUB_TAGGING_METHOD_TAG_CUTCELLS_HPP
+#define FUB_TAGGING_METHOD_TAG_CUTCELLS_HPP
+
 #include "fub/PatchDataView.hpp"
 
 namespace fub {
 
 struct TagCutCells {
   void TagCellsForRefinement(
-      const PatchDataView<char, 1, layout_stride>& tags,
-      const PatchDataView<const double, 1, layout_stride>& volume_fractions);
+      const StridedDataView<char, 1>& tags,
+      const StridedDataView<const double, 1>& volume_fractions);
+
   void TagCellsForRefinement(
-      const PatchDataView<char, 2, layout_stride>& tags,
-      const PatchDataView<const double, 2, layout_stride>& volume_fractions);
+      const StridedDataView<char, 2>& tags,
+      const StridedDataView<const double, 2>& volume_fractions);
+
   void TagCellsForRefinement(
-      const PatchDataView<char, 3, layout_stride>& tags,
-      const PatchDataView<const double, 3, layout_stride>& volume_fractions);
+      const StridedDataView<char, 3>& tags,
+      const StridedDataView<const double, 3>& volume_fractions);
 };
 
 } // namespace fub
+
+#endif

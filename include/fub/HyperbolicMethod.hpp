@@ -30,6 +30,9 @@
 
 namespace fub {
 
+/// \defgroup PolymorphicValueType Polymorphic Value Types
+/// \brief This group summarizes all types which have a polymorphic behaviour.
+
 ///////////////////////////////////////////////////////////////////////////////
 //                                                          Strategy Interfaces
 
@@ -63,6 +66,7 @@ template <typename IntegratorContext> struct FluxMethodBase {
 ///////////////////////////////////////////////////////////////////////////////
 //                                                          Polymorphic Classes
 
+/// \ingroup PolymorphicValueType
 /// This is a polymorphic wrapper class for reconstruction strategies used by
 /// \a IntegratorContext.
 template <typename IntegratorContext> class AnyReconstruction {
@@ -85,6 +89,7 @@ private:
   std::unique_ptr<detail::ReconstructionBase<IntegratorContext>> reconstruct_;
 };
 
+/// \ingroup PolymorphicValueType
 /// This is a polymorphic wrapper class for TimeIntegator strategies used by
 /// \a IntegratorContext.
 template <typename IntegratorContext> class AnyTimeIntegrator {
@@ -108,6 +113,7 @@ private:
   std::unique_ptr<detail::TimeIntegratorBase<IntegratorContext>> integrator_;
 };
 
+/// \ingroup PolymorphicValueType
 /// This is a polymorphic wrapper class for FluxMethod strategies used by
 /// \a IntegratorContext.
 template <typename IntegratorContext> class AnyFluxMethod {

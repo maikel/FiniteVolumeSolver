@@ -46,7 +46,7 @@
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/ForEachIndex.hpp"
 
-#include "fub/AMReX/FluxMethod.hpp"
+#include "fub/AMReX/FluxMethodAdapter.hpp"
 #include "fub/AMReX/Reconstruction.hpp"
 #include "fub/AMReX/TimeIntegrator.hpp"
 

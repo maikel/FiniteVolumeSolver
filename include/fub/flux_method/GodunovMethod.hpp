@@ -88,6 +88,7 @@ private:
   CompleteArray riemann_solution_arr_{equation_};
 };
 
+/// \ingroup flux-method
 template <typename Equation, typename RPSolver = ExactRiemannSolver<Equation>>
 struct GodunovMethod : public FluxMethod<Godunov<Equation, RPSolver>> {
   using FluxMethod<Godunov<Equation, RPSolver>>::FluxMethod;

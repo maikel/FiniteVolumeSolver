@@ -52,9 +52,9 @@ template <typename Proj, typename State>
 using IsProjection = is_detected<Projection_t, Proj, State>;
 
 template <typename Equation, typename... Projections>
-class GradientDetectorBase {
+class GradientDetectorBase_ {
 public:
-  GradientDetectorBase(const Equation& equation,
+  GradientDetectorBase_(const Equation& equation,
                        const std::pair<Projections, double>&... conds)
       : equation_{equation}, conditions_{conds...} {}
 
@@ -72,10 +72,10 @@ protected:
 };
 
 template <typename Equation, typename... Projections>
-class ScalarGradientDetector
-    : public GradientDetectorBase<Equation, Projections...> {
+class ScalarGradientDetector_
+    : public GradientDetectorBase_<Equation, Projections...> {
 public:
-  ScalarGradientDetector(const Equation& equation,
+  ScalarGradientDetector_(const Equation& equation,
                          const std::pair<Projections, double>&... conds);
 
   template <typename T, int TagRank>
@@ -90,19 +90,19 @@ public:
       const PatchDataView<const double, TagRank, layout_stride>& volumes);
 
 private:
-  using Base = GradientDetectorBase<Equation, Projections...>;
+  using Base = GradientDetectorBase_<Equation, Projections...>;
   Complete<Equation> sL{Base::equation_};
   Complete<Equation> sM{Base::equation_};
   Complete<Equation> sR{Base::equation_};
 };
 
 template <typename Equation, typename... Projections>
-class ArrayGradientDetector
-    : public GradientDetectorBase<Equation, Projections...> {
+class ArrayGradientDetector_
+    : public GradientDetectorBase_<Equation, Projections...> {
 public:
   static constexpr int Rank = Equation::Rank();
 
-  ArrayGradientDetector(const Equation& equation,
+  ArrayGradientDetector_(const Equation& equation,
                         const std::pair<Projections, double>&... conds);
 
   void
@@ -110,31 +110,33 @@ public:
                         const View<const Complete<Equation>>& states);
 
 private:
-  using Base = GradientDetectorBase<Equation, Projections...>;
+  using Base = GradientDetectorBase_<Equation, Projections...>;
   CompleteArray<Equation> sL_{Base::equation_};
   CompleteArray<Equation> sM_{Base::equation_};
   CompleteArray<Equation> sR_{Base::equation_};
 };
 
 template <bool IsArray, typename Eq, typename... Ps>
-struct GradientDetectorImpl {
-  using type = ArrayGradientDetector<Eq, Ps...>;
+struct GradientDetectorImpl_ {
+  using type = ArrayGradientDetector_<Eq, Ps...>;
 };
 
 template <typename Eq, typename... Ps>
-struct GradientDetectorImpl<false, Eq, Ps...> {
-  using type = ScalarGradientDetector<Eq, Ps...>;
+struct GradientDetectorImpl_<false, Eq, Ps...> {
+  using type = ScalarGradientDetector_<Eq, Ps...>;
 };
 
+/// \ingroup tagging
+/// \brief This class tags cells with a relative error to their neighbors.
 template <typename Eq, typename... Ps>
 struct GradientDetector
-    : public GradientDetectorImpl<
+    : public GradientDetectorImpl_<
           (IsProjection<Ps&, const CompleteArray<Eq>&>::value && ...), Eq,
           Ps...>::type {
 public:
   static constexpr bool is_array_based =
       (IsProjection<Ps&, const CompleteArray<Eq>&>::value && ...);
-  using Base = typename GradientDetectorImpl<is_array_based, Eq, Ps...>::type;
+  using Base = typename GradientDetectorImpl_<is_array_based, Eq, Ps...>::type;
 
   GradientDetector(const Eq& equation, const std::pair<Ps, double>&... projs)
       : Base(equation, projs...) {}
@@ -145,13 +147,13 @@ GradientDetector(const Eq&, const std::pair<Ps, double>&...)
     ->GradientDetector<Eq, Ps...>;
 
 template <typename Equation, typename... Projections>
-ScalarGradientDetector<Equation, Projections...>::ScalarGradientDetector(
+ScalarGradientDetector_<Equation, Projections...>::ScalarGradientDetector_(
     const Equation& equation, const std::pair<Projections, double>&... conds)
     : Base(equation, conds...) {}
 
 template <typename Equation, typename... Projections>
 template <typename T, int TagRank>
-void ScalarGradientDetector<Equation, Projections...>::TagCellsForRefinement(
+void ScalarGradientDetector_<Equation, Projections...>::TagCellsForRefinement(
     const PatchDataView<T, TagRank, layout_stride>& tags,
     const View<const Complete<Equation>>& states) {
   // GCC-7 complains that sTagRank is unused although we use this value at a
@@ -191,7 +193,7 @@ void ScalarGradientDetector<Equation, Projections...>::TagCellsForRefinement(
 
 template <typename Equation, typename... Projections>
 template <int TagRank>
-void ScalarGradientDetector<Equation, Projections...>::TagCellsForRefinement(
+void ScalarGradientDetector_<Equation, Projections...>::TagCellsForRefinement(
     const PatchDataView<char, TagRank, layout_stride>& tags,
     const View<const Complete<Equation>>& states,
     const PatchDataView<const double, TagRank, layout_stride>& volumes) {
@@ -230,12 +232,12 @@ void ScalarGradientDetector<Equation, Projections...>::TagCellsForRefinement(
 }
 
 template <typename Equation, typename... Projections>
-ArrayGradientDetector<Equation, Projections...>::ArrayGradientDetector(
+ArrayGradientDetector_<Equation, Projections...>::ArrayGradientDetector_(
     const Equation& equation, const std::pair<Projections, double>&... conds)
     : Base(equation, conds...) {}
 
 template <typename Equation, typename... Projections>
-void ArrayGradientDetector<Equation, Projections...>::TagCellsForRefinement(
+void ArrayGradientDetector_<Equation, Projections...>::TagCellsForRefinement(
     const PatchDataView<char, Rank, layout_stride>& tags,
     const View<const Complete<Equation>>& states) {
   Direction dir = Direction::X;

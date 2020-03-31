@@ -21,7 +21,8 @@
 #ifndef FUB_AMREX_BOUNDARY_CONDITION_BOUNDARY_SET_HPP
 #define FUB_AMREX_BOUNDARY_CONDITION_BOUNDARY_SET_HPP
 
-#include "fub/AMReX/BoundaryCondition.hpp"
+#include "fub/AMReX/boundary_condition/AnyBoundaryCondition.hpp"
+#include "fub/AMReX/GriddingAlgorithm.hpp"
 
 #include <AMReX_MultiFab.H>
 
@@ -37,7 +38,7 @@ struct BoundarySet {
                     Duration timepoint, const GriddingAlgorithm& gridding,
                     Direction dir);
 
-  std::vector<AnyBoundaryCondition> conditions;
+  std::vector<AnyBoundaryCondition<GriddingAlgorithm>> conditions;
 };
 
 } // namespace fub::amrex

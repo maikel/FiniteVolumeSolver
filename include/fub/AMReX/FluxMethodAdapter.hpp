@@ -32,12 +32,12 @@
 
 namespace fub::amrex {
 
-template <typename Tag, typename FM> struct FluxMethod {
+template <typename Tag, typename FM> struct FluxMethodAdapter {
   using Equation = std::decay_t<decltype(std::declval<FM&>().GetEquation())>;
   static const int Rank = Equation::Rank();
 
-  FluxMethod(const FM& fm) : FluxMethod(Tag(), fm) {}
-  FluxMethod(Tag, const FM& fm);
+  FluxMethodAdapter(const FM& fm) : FluxMethodAdapter(Tag(), fm) {}
+  FluxMethodAdapter(Tag, const FM& fm);
 
   Duration ComputeStableDt(IntegratorContext& context, int level,
                            Direction dir);
@@ -51,21 +51,23 @@ template <typename Tag, typename FM> struct FluxMethod {
 };
 
 template <typename FM>
-FluxMethod(const FM& fm)->FluxMethod<execution::OpenMpSimdTag, FM>;
+FluxMethodAdapter(const FM& fm)
+    ->FluxMethodAdapter<execution::OpenMpSimdTag, FM>;
 
 template <typename Tag, typename FM>
-FluxMethod(Tag, const FM& fm)->FluxMethod<Tag, FM>;
+FluxMethodAdapter(Tag, const FM& fm)->FluxMethodAdapter<Tag, FM>;
 
 template <typename Tag, typename FM>
-FluxMethod<Tag, FM>::FluxMethod(Tag, const FM& fm) : flux_method_{fm} {}
+FluxMethodAdapter<Tag, FM>::FluxMethodAdapter(Tag, const FM& fm)
+    : flux_method_{fm} {}
 
 template <typename T, typename... Args>
 using ComputeStableDt_t =
     decltype(std::declval<T>().ComputeStableDt(std::declval<Args>()...));
 
 template <typename Tag, typename FM>
-Duration FluxMethod<Tag, FM>::ComputeStableDt(IntegratorContext& context,
-                                              int level, Direction dir) {
+Duration FluxMethodAdapter<Tag, FM>::ComputeStableDt(IntegratorContext& context,
+                                                     int level, Direction dir) {
   if constexpr (is_detected<ComputeStableDt_t, FM&, IntegratorContext&, int,
                             Direction>::value) {
     return flux_method_->ComputeStableDt(context, level, dir);
@@ -115,9 +117,8 @@ using ComputeNumericFluxes_t =
     decltype(std::declval<T>().ComputeNumericFluxes(std::declval<Args>()...));
 
 template <typename Tag, typename FM>
-void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
-                                               int level, Duration dt,
-                                               Direction dir) {
+void FluxMethodAdapter<Tag, FM>::ComputeNumericFluxes(
+    IntegratorContext& context, int level, Duration dt, Direction dir) {
   if constexpr (is_detected<ComputeNumericFluxes_t, FM&, IntegratorContext&,
                             int, Duration, Direction>::value) {
     flux_method_->ComputeNumericFluxes(context, level, dt, dir);
@@ -148,7 +149,7 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
 }
 
 template <typename Tag, typename FM>
-int FluxMethod<Tag, FM>::GetStencilWidth() const {
+int FluxMethodAdapter<Tag, FM>::GetStencilWidth() const {
   return flux_method_->GetStencilWidth();
 }
 
