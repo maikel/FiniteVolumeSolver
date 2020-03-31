@@ -50,6 +50,26 @@ class DimensionalSplitLevelIntegrator : public IntegratorContext,
 public:
   static constexpr int Rank = R;
 
+  DimensionalSplitLevelIntegrator() = delete;
+
+  DimensionalSplitLevelIntegrator(
+      const DimensionalSplitLevelIntegrator& other) = default;
+
+  DimensionalSplitLevelIntegrator&
+  operator=(const DimensionalSplitLevelIntegrator& other) = default;
+
+  DimensionalSplitLevelIntegrator(DimensionalSplitLevelIntegrator&& other) =
+      default;
+
+  DimensionalSplitLevelIntegrator&
+  operator=(DimensionalSplitLevelIntegrator&& other) = default;
+
+  template <typename OtherSplitMethod>
+  DimensionalSplitLevelIntegrator(
+      const DimensionalSplitLevelIntegrator<Rank, IntegratorContext,
+                                            OtherSplitMethod>& other)
+      : IntegratorContext(other), SplitMethod(other.GetSplitMethod()) {}
+
   DimensionalSplitLevelIntegrator(IntegratorContext context,
                                   SplitMethod splitting = SplitMethod())
       : IntegratorContext(std::move(context)),
@@ -142,16 +162,23 @@ template <int R, typename IntegratorContext, typename SplitMethod>
 void DimensionalSplitLevelIntegrator<R, IntegratorContext, SplitMethod>::
     PreAdvanceLevel(int level, Duration time_step_size,
                     std::pair<int, int> subcycle) {
-  if constexpr (is_detected<meta::PreAdvanceLevel, IntegratorContext&, int,
-                            Duration, std::pair<int, int>>()) {
-    IntegratorContext::PreAdvanceLevel(level, time_step_size, subcycle);
+  int regrid_level =
+      IntegratorContext::PreAdvanceLevel(level, time_step_size, subcycle);
+  for (int ilvl = regrid_level; IntegratorContext::LevelExists(ilvl); ++ilvl) {
+    IntegratorContext::FillGhostLayerTwoLevels(ilvl, ilvl - 1);
   }
-  if (level > 0) {
-    IntegratorContext::FillGhostLayerTwoLevels(level, level - 1);
-  } else {
-    IntegratorContext::FillGhostLayerSingleLevel(level);
+
+  const Duration coarse_time_point = IntegratorContext::GetTimePoint(0);
+  const Duration this_time_point = IntegratorContext::GetTimePoint(level);
+  if (level < regrid_level && this_time_point != coarse_time_point) {
+    if (level > 0) {
+      IntegratorContext::FillGhostLayerTwoLevels(level, level - 1);
+    } else {
+      IntegratorContext::FillGhostLayerSingleLevel(level);
+    }
   }
 }
+
 template <int R, typename IntegratorContext, typename SplitMethod>
 Result<void, TimeStepTooLarge>
 DimensionalSplitLevelIntegrator<R, IntegratorContext, SplitMethod>::
@@ -230,7 +257,7 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::
       [&](auto... directions) {
         return GetSplitMethod().Advance(dt, AdvanceLevel_Split(directions)...);
       },
-      MakeSplitDirections<Rank>(subcycle));
+      MakeSplitDirections<Rank>(GetCycles(0), subcycle));
 
   return result;
 }

@@ -33,12 +33,17 @@ void ForwardIntegrator<Tag>::UpdateConservatively(
     Direction dir) {
   const int n_cons = fluxes.nComp();
   const double dx = geom.CellSize(int(dir));
-  ForEachFab(Tag(), fluxes, [&](::amrex::MFIter& mfi) {
+  const int d = static_cast<int>(dir);
+  ForEachFab(Tag(), dest, [&](::amrex::MFIter& mfi) {
     ::amrex::FArrayBox& next = dest[mfi];
     const ::amrex::FArrayBox& prev = src[mfi];
     const ::amrex::FArrayBox& flux = fluxes[mfi];
-    const ::amrex::Box& flux_box = mfi.growntilebox();
-    ::amrex::Box cell_box = ::amrex::enclosedCells(flux_box);
+    const ::amrex::Box tilebox = mfi.growntilebox();
+    const ::amrex::Box all_faces_tilebox =
+        ::amrex::surroundingNodes(tilebox, d);
+    const ::amrex::Box all_fluxes_box = flux.box();
+    const ::amrex::Box flux_box = all_faces_tilebox & all_fluxes_box;
+    const ::amrex::Box cell_box = enclosedCells(flux_box);
     const IndexBox<AMREX_SPACEDIM + 1> cells = Embed<AMREX_SPACEDIM + 1>(
         AsIndexBox<AMREX_SPACEDIM>(cell_box), {0, n_cons});
     auto nv = MakePatchDataView(next).Subview(cells);

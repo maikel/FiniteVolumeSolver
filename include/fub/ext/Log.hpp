@@ -42,13 +42,16 @@ struct LogOptions {
 
 void InitializeLogging(MPI_Comm comm, const LogOptions& log = {});
 
-
 using SeverityLogger =
     boost::log::sources::severity_logger<boost::log::trivial::severity_level>;
 
 inline SeverityLogger GetInfoLogger() {
   return SeverityLogger(boost::log::keywords::severity =
                             boost::log::trivial::info);
+}
+
+inline SeverityLogger GetLogger(boost::log::trivial::severity_level level) {
+  return SeverityLogger(boost::log::keywords::severity = level);
 }
 
 void Log(std::string message, Duration timepoint,

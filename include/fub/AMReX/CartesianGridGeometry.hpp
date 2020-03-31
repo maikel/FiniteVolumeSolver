@@ -20,6 +20,7 @@
 
 #include "fub/ext/Log.hpp"
 #include "fub/ext/ProgramOptions.hpp"
+#include "fub/AMReX/ViewFArrayBox.hpp"
 
 #include <AMReX_Geometry.H>
 

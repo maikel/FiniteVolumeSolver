@@ -37,7 +37,7 @@ void FillCutCellData__(const span<double>& us, const span<double>& ssL,
   for (; static_cast<int>(i + Vc::double_v::size()) <= n;
        i += Vc::double_v::size()) {
     const Vc::double_v betaL(&beta_left[i], Vc::Unaligned);
-    const Vc::double_v betaM(&beta_mid[i], Vc::Unaligned);
+    Vc::double_v betaM(&beta_mid[i], Vc::Unaligned);
     const Vc::double_v betaR(&beta_right[i], Vc::Unaligned);
     const Vc::double_v dBetaL = max(Vc::double_v(0.0), betaM - betaL);
     const Vc::double_v dBetaR = max(Vc::double_v(0.0), betaM - betaR);
@@ -50,11 +50,12 @@ void FillCutCellData__(const span<double>& us, const span<double>& ssL,
     Vc::double_v doubly_shielded_rel(0);
     Vc::double_v shielded_left_rel(0);
     Vc::double_v shielded_right_rel(0);
-    auto positive_beta = betaM > 0;
-    where(positive_beta, unshielded_rel) = unshielded / betaM;
-    where(positive_beta, doubly_shielded_rel) = doubly_shielded / betaM;
-    where(positive_beta, shielded_left_rel) = shielded_left / betaM;
-    where(positive_beta, shielded_right_rel) = shielded_right / betaM;
+    auto non_positive_beta = betaM <= 0;
+    where(non_positive_beta, betaM) = Vc::double_v(1.0);
+    unshielded_rel = unshielded / betaM;
+    doubly_shielded_rel = doubly_shielded / betaM;
+    shielded_left_rel = shielded_left / betaM;
+    shielded_right_rel = shielded_right / betaM;
     unshielded.store(&us[i], Vc::Unaligned);
     unshielded_rel.store(&us_rel[i], Vc::Unaligned);
     doubly_shielded.store(&ds[i], Vc::Unaligned);
@@ -66,7 +67,7 @@ void FillCutCellData__(const span<double>& us, const span<double>& ssL,
   }
   for (; i < n; ++i) {
     const double betaL = beta_left[i];
-    const double betaM = beta_mid[i];
+    double betaM = beta_mid[i];
     const double betaR = beta_right[i];
     FUB_ASSERT(betaM >= 0.0);
     const double dBetaL = std::max(0.0, betaM - betaL);
@@ -75,12 +76,12 @@ void FillCutCellData__(const span<double>& us, const span<double>& ssL,
     const double doubly_shielded = std::min(dBetaL, dBetaR);
     const double shielded_left = dBetaL - doubly_shielded;
     const double shielded_right = dBetaR - doubly_shielded;
-    const double unshielded_rel = betaM > 0.0 ? unshielded / betaM : 0.0;
-    const double doubly_shielded_rel =
-        betaM > 0.0 ? doubly_shielded / betaM : 0.0;
-    const double shielded_left_rel = betaM > 0.0 ? shielded_left / betaM : 0.0;
-    const double shielded_right_rel =
-        betaM > 0.0 ? shielded_right / betaM : 0.0;
+
+    betaM = betaM > 0 ? betaM : 1.0;
+    const double unshielded_rel = unshielded / betaM;
+    const double doubly_shielded_rel = doubly_shielded / betaM;
+    const double shielded_left_rel = shielded_left / betaM;
+    const double shielded_right_rel = shielded_right / betaM;
     us[i] = unshielded;
     us_rel[i] = unshielded_rel;
     ds[i] = doubly_shielded;

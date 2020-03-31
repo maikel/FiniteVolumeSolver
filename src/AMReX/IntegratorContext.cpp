@@ -134,12 +134,12 @@ IntegratorContext& IntegratorContext::IntegratorContext::operator=(
 ///////////////////////////////////////////////////////////////////////////////
 //                                                            Member Accessors
 
-const BoundaryCondition&
+const AnyBoundaryCondition&
 IntegratorContext::GetBoundaryCondition(int level) const {
   return gridding_->GetBoundaryCondition(level);
 }
 
-BoundaryCondition& IntegratorContext::GetBoundaryCondition(int level) {
+AnyBoundaryCondition& IntegratorContext::GetBoundaryCondition(int level) {
   return gridding_->GetBoundaryCondition(level);
 }
 
@@ -294,12 +294,12 @@ void IntegratorContext::SetCycles(std::ptrdiff_t cycles, int level) {
 }
 
 void IntegratorContext::ApplyBoundaryCondition(int level, Direction dir) {
-  BoundaryCondition& boundary_condition = GetBoundaryCondition(level);
+  AnyBoundaryCondition& boundary_condition = GetBoundaryCondition(level);
   ApplyBoundaryCondition(level, dir, boundary_condition);
 }
 
 void IntegratorContext::ApplyBoundaryCondition(int level, Direction dir,
-                                               BoundaryCondition& bc) {
+                                               AnyBoundaryCondition& bc) {
   Timer timer = GetCounterRegistry()->get_timer(
       "IntegratorContext::ApplyBoundaryCondition");
   Timer timer_per_level{};
@@ -315,8 +315,8 @@ void IntegratorContext::ApplyBoundaryCondition(int level, Direction dir,
 }
 
 void IntegratorContext::FillGhostLayerTwoLevels(
-    int fine, BoundaryCondition& fine_condition, int coarse,
-    BoundaryCondition& coarse_condition) {
+    int fine, AnyBoundaryCondition& fine_condition, int coarse,
+    AnyBoundaryCondition& coarse_condition) {
   Timer timer1 = GetCounterRegistry()->get_timer(
       "IntegratorContext::FillGhostLayerTwoLevels");
   Timer timer_per_level{};
@@ -358,7 +358,7 @@ void IntegratorContext::FillGhostLayerTwoLevels(int fine, int coarse) {
 }
 
 void IntegratorContext::FillGhostLayerSingleLevel(int level,
-                                                  BoundaryCondition& bc) {
+                                                  AnyBoundaryCondition& bc) {
   Timer timer1 = GetCounterRegistry()->get_timer(
       "IntegratorContext::FillGhostLayerSingleLevel");
   Timer timer_per_level{};
@@ -515,8 +515,8 @@ void IntegratorContext::UpdateConservatively(int level, Duration dt,
   method_.time_integrator.UpdateConservatively(*this, level, dt, dir);
 }
 
-void IntegratorContext::PreAdvanceLevel(int level_num, Duration,
-                                        std::pair<int, int> subcycle) {
+int IntegratorContext::PreAdvanceLevel(int level_num, Duration,
+                                       std::pair<int, int> subcycle) {
   Timer timer =
       GetCounterRegistry()->get_timer("IntegratorContext::PreAdvanceLevel");
   Timer timer_per_level{};
@@ -525,18 +525,20 @@ void IntegratorContext::PreAdvanceLevel(int level_num, Duration,
         fmt::format("IntegratorContext::PreAdvanceLevel({})", level_num));
   }
   const std::size_t l = static_cast<std::size_t>(level_num);
+  const int max_level = GetPatchHierarchy().GetMaxNumberOfLevels();
+  int regrid_level = max_level;
   if (subcycle.first == 0) {
     if (data_[l].regrid_time_point != data_[l].time_point) {
-      gridding_->RegridAllFinerlevels(level_num);
+      regrid_level = gridding_->RegridAllFinerlevels(level_num);
       for (std::size_t lvl = l; lvl < data_.size(); ++lvl) {
         data_[lvl].regrid_time_point = data_[lvl].time_point;
       }
-      if (LevelExists(level_num + 1)) {
-        ResetHierarchyConfiguration(level_num + 1);
-        ResetCoarseFineFluxes(level_num + 1, level_num);
+      if (regrid_level < max_level) {
+        ResetHierarchyConfiguration(regrid_level);
       }
     }
   }
+  return regrid_level;
 }
 
 void IntegratorContext::CopyDataToScratch(int level_num) {
@@ -594,8 +596,9 @@ IntegratorContext::PostAdvanceLevel(int level_num, Duration dt,
 void IntegratorContext::PostAdvanceHierarchy() {
   PatchHierarchy& hierarchy = GetPatchHierarchy();
   int nlevels = hierarchy.GetNumberOfLevels();
+  const Duration time_point = GetTimePoint();
   for (int level = 0; level < nlevels; ++level) {
-    hierarchy.GetPatchLevel(level).time_point = GetTimePoint(level);
+    hierarchy.GetPatchLevel(level).time_point = time_point;
     hierarchy.GetPatchLevel(level).cycles = GetCycles(level);
   }
 }

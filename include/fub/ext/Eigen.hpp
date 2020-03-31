@@ -40,8 +40,9 @@ constexpr const int kDefaultChunkSize = 8;
 #endif
 
 template <std::size_t N>
-Eigen::Matrix<double, N, 1> AsEigenVector(const std::array<double, N>& x) {
-  return Eigen::Matrix<double, N, 1>::Map(x.data());
+Eigen::Matrix<double, static_cast<int>(N), 1>
+AsEigenVector(const std::array<double, N>& x) {
+  return Eigen::Matrix<double, static_cast<int>(N), 1>::Map(x.data());
 }
 
 template <typename T, int N, int M = kDefaultChunkSize>
