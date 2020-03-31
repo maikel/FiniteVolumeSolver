@@ -44,7 +44,7 @@ template <> struct GridTraits<amrex::cutcell::GriddingAlgorithm> {
 }
 
 namespace fub::amrex::cutcell {
-using AnyInitialData = ::fub::AnyInitialData<GriddingAlgorithm>;
+using AnyInitialData = ::fub::AnyInitialData;
 
 /// \ingroup GriddingAlgorithm
 class GriddingAlgorithm : private ::amrex::AmrCore {
