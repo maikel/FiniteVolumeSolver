@@ -30,7 +30,7 @@
 namespace fub {
 
 ////////////////////////////////////////////////////////////////////////////////
-//                                                                  Decleration
+//                                                                  Declaration
 
 template <typename SystemSolver, typename SourceTerm,
           typename SplittingMethod = StrangSplitting>

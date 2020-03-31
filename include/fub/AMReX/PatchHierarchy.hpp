@@ -46,8 +46,11 @@
 namespace fub {
 namespace amrex {
 
+/// \defgroup PatchHierarchy
+
 class DebugStorage;
 
+/// \ingroup PatchHierarchy
 struct PatchHierarchyOptions {
   PatchHierarchyOptions() = default;
   PatchHierarchyOptions(const ProgramOptions& options);
@@ -61,9 +64,10 @@ struct PatchHierarchyOptions {
   ::amrex::IntVect n_error_buf{};
   double grid_efficiency{0.7};
   int verbose{0};
-  int n_proper{2};
+  int n_proper{1};
 };
 
+/// \ingroup PatchHierarchy
 /// The DataDescription class contains all information which is neccessary to
 /// describe the complete and conservative state data of an equation.
 struct DataDescription {
@@ -75,6 +79,7 @@ struct DataDescription {
   int dimension{AMREX_SPACEDIM};
 };
 
+/// \ingroup PatchHierarchy
 /// \brief The PatchLevel represents a distributed grid containing plain
 /// simulation data without a ghost cell layer.
 ///
@@ -145,6 +150,7 @@ struct PatchLevel {
 template <typename Equation>
 DataDescription MakeDataDescription(const Equation& equation);
 
+/// \ingroup PatchHierarchy
 /// The PatchHierarchy holds simulation data on multiple refinement levels. It
 /// also holds a time stamp for each level.
 class PatchHierarchy {
@@ -193,6 +199,18 @@ public:
   ///
   /// \param[in] The refinement level number for this geometry obejct.
   [[nodiscard]] const ::amrex::Geometry& GetGeometry(int level) const;
+
+  /// \brief Returns the hierarchy of Geometry objects.
+  [[nodiscard]] const ::amrex::Vector<::amrex::Geometry> GetGeometries() const;
+
+  /// \brief Returns the hierarchy of BoxArray objects.
+  [[nodiscard]] const ::amrex::Vector<::amrex::BoxArray> GetBoxArrays() const;
+
+  /// \brief Returns the hierarchy of DistributionMapping objects.
+  [[nodiscard]] const ::amrex::Vector<::amrex::DistributionMapping> GetDistributionMappings() const;
+
+  /// \brief Returns the hierarchy of MultiFabs representing the data.
+  [[nodiscard]] const ::amrex::Vector<const ::amrex::MultiFab*> GetData() const;
 
   // Modifiers
 
@@ -252,15 +270,15 @@ void WritePlotFile(const std::string plotfilename,
   const double time_point = hier.GetTimePoint().count();
   FUB_ASSERT(nlevels >= 0);
   std::size_t size = static_cast<std::size_t>(nlevels);
-  ::amrex::Vector<const ::amrex::MultiFab*> mf(size);
-  ::amrex::Vector<::amrex::Geometry> geoms(size);
+  ::amrex::Vector<const ::amrex::MultiFab*> mf = hier.GetData();
+  ::amrex::Vector<::amrex::Geometry> geoms = hier.GetGeometries();
   ::amrex::Vector<int> level_steps(size);
-  ::amrex::Vector<::amrex::IntVect> ref_ratio(size);
+  ::amrex::Vector<::amrex::IntVect> ref_ratio(size - 1);
   for (std::size_t i = 0; i < size; ++i) {
-    mf[i] = &hier.GetPatchLevel(static_cast<int>(i)).data;
-    geoms[i] = hier.GetGeometry(static_cast<int>(i));
     level_steps[i] = static_cast<int>(hier.GetCycles(static_cast<int>(i)));
-    ref_ratio[i] = hier.GetRatioToCoarserLevel(static_cast<int>(i));
+  }
+  for (std::size_t i = 1; i < size; ++i) {
+    ref_ratio[i - 1] = hier.GetRatioToCoarserLevel(static_cast<int>(i));
   }
   using Traits = StateTraits<Complete<Equation>>;
   constexpr auto names = Traits::names;
@@ -292,15 +310,15 @@ void WritePlotFile(const std::string plotfilename,
   const double time_point = hier.GetTimePoint().count();
   FUB_ASSERT(nlevels >= 0);
   std::size_t size = static_cast<std::size_t>(nlevels);
-  ::amrex::Vector<const ::amrex::MultiFab*> mf(size);
-  ::amrex::Vector<::amrex::Geometry> geoms(size);
+  ::amrex::Vector<const ::amrex::MultiFab*> mf = hier.GetData();
+  ::amrex::Vector<::amrex::Geometry> geoms = hier.GetGeometries();
   ::amrex::Vector<int> level_steps(size);
-  ::amrex::Vector<::amrex::IntVect> ref_ratio(size);
+  ::amrex::Vector<::amrex::IntVect> ref_ratio(size - 1);
   for (std::size_t i = 0; i < size; ++i) {
-    mf[i] = &hier.GetPatchLevel(static_cast<int>(i)).data;
-    geoms[i] = hier.GetGeometry(static_cast<int>(i));
     level_steps[i] = static_cast<int>(hier.GetCycles(static_cast<int>(i)));
-    ref_ratio[i] = hier.GetRatioToCoarserLevel(static_cast<int>(i));
+  }
+  for (std::size_t i = 1; i < size; ++i) {
+    ref_ratio[i - 1] = hier.GetRatioToCoarserLevel(static_cast<int>(i));
   }
   using Traits = StateTraits<Complete<Equation>>;
   constexpr auto names = Traits::names;
@@ -367,9 +385,11 @@ template <typename Log> void PatchHierarchyOptions::Print(Log& log) {
   std::array<int, AMREX_SPACEDIM> ref_ratio{};
   std::array<int, AMREX_SPACEDIM> blocking{};
   std::array<int, AMREX_SPACEDIM> max_grid{};
+  std::array<int, AMREX_SPACEDIM> error_buf{};
   std::copy_n(refine_ratio.begin(), AMREX_SPACEDIM, ref_ratio.begin());
   std::copy_n(blocking_factor.begin(), AMREX_SPACEDIM, blocking.begin());
   std::copy_n(max_grid_size.begin(), AMREX_SPACEDIM, max_grid.begin());
+  std::copy_n(n_error_buf.begin(), AMREX_SPACEDIM, error_buf.begin());
   BOOST_LOG(log) << fmt::format(" - max_number_of_levels = {}",
                                 max_number_of_levels);
   BOOST_LOG(log) << fmt::format(" - refine_ratio = {{{}}}",
@@ -378,6 +398,10 @@ template <typename Log> void PatchHierarchyOptions::Print(Log& log) {
                                 fmt::join(blocking, ", "));
   BOOST_LOG(log) << fmt::format(" - max_grid_size = {{{}}}",
                                 fmt::join(max_grid, ", "));
+  BOOST_LOG(log) << fmt::format(" - n_err_buf = {{{}}}",
+                                fmt::join(error_buf, ", "));
+  BOOST_LOG(log) << fmt::format(" - grid_efficiency = {}", grid_efficiency);
+  BOOST_LOG(log) << fmt::format(" - n_proper = {}", n_proper);
 }
 
 } // namespace amrex

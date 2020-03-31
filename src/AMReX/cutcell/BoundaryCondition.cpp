@@ -23,16 +23,16 @@
 
 namespace fub::amrex::cutcell {
 
-BoundaryCondition::BoundaryCondition(const BoundaryCondition& other)
+AnyBoundaryCondition::AnyBoundaryCondition(const AnyBoundaryCondition& other)
     : geometry{other.geometry}, boundary_condition_{} {
   if (other.boundary_condition_) {
     boundary_condition_ = other.boundary_condition_->Clone();
   }
 }
 
-BoundaryCondition& BoundaryCondition::
-operator=(const BoundaryCondition& other) {
-  BoundaryCondition tmp{other};
+AnyBoundaryCondition&
+AnyBoundaryCondition::operator=(const AnyBoundaryCondition& other) {
+  AnyBoundaryCondition tmp{other};
   return (*this = std::move(tmp));
 }
 
