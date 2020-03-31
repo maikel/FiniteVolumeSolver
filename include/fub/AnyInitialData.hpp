@@ -127,7 +127,7 @@ template <typename GriddingAlgorithm>
 template <typename T, typename>
 AnyInitialData<GriddingAlgorithm>::AnyInitialData(T&& initial_data)
     : initial_data_{
-          std::make_unique<detail::InitialDataWrapper<T, GriddingAlgorithm>>(
+          std::make_unique<detail::InitialDataWrapper<std::decay_t<T>, GriddingAlgorithm>>(
               std::forward<T>(initial_data))} {}
 
 template <typename GriddingAlgorithm>
