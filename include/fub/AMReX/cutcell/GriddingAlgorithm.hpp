@@ -38,7 +38,7 @@ class GriddingAlgorithm;
 
 namespace fub {
 template <> struct GridTraits<amrex::cutcell::GriddingAlgorithm> {
-  using PatchLevel = ::fub::amrex::PatchLevel;
+  using PatchLevel = ::fub::amrex::cutcell::PatchLevel;
   using TagBoxHandle = ::amrex::TagBoxArray&;
 };
 }

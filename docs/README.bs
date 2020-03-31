@@ -807,19 +807,19 @@ Given a `MultiFab` object we can iterate over all local `FArrayBox` objects usin
 
 ```cpp
 template <typename Function>
-void DoSomethingForEachFArrayBox(MultiFab& multifab) {
-  for (MFIter mfi(multifab); mfi.isValid(); ++mfi) {
-    FArrayBox& fab = multifab[mfi];
+void DoSomethingForEachFArrayBox(amrex::MultiFab& multifab) {
+  for (amrex::MFIter mfi(multifab); mfi.isValid(); ++mfi) {
+    amrex::FArrayBox& fab = multifab[mfi];
     // do something...
   }
 }
 ```
 
-A `FArrayBox` is a container type in [[AMReX]] that stores a multi-dimensional data array for a single patch.
-By using an equation object we can *view* this `FArrayBox` as a set of multi-dimensional arrays for each variable.
+`amrex::FArrayBox` is a container type in [[AMReX]] that stores a multi-dimensional data array for a single patch.
+By using an equation object we can *view* this `amrex::FArrayBox` as a set of multi-dimensional arrays for each variable.
 
 <div class=example>
-Lets assume for this example that we are in a context where we have given a `FArrayBox` and we want to access the variables of this patch.
+Lets assume for this example that we are in a context where we are given a `FArrayBox` and we want to access the variables of this patch.
 In order to so we need an equation object which interprets the raw data.
 
 ```cpp
@@ -852,6 +852,40 @@ struct MyClass {
 ```
 </div>
 
+Once we have a `View` object that gives variable-wise access of multi-dimensional data we can load and store state objects, such as `Complete<Equation>` and `Conservative<Equation>`, from and to memory locations inidicated by global space indices `(i, j, k)`.
+
+<div class=example>
+We can lift a function that is a defined for state equations, such as `Complete<Equation>`, to a function which is defined on a multi-dimensional array `View<Complete<Equation>>` by applying its logic for each index.
+
+```cpp
+struct MyClass {
+  using Complete = ::fub::Complete<PerfectGas<3>>;
+  using Conservative = ::fub::Conservative<PerfectGas<3>>;
+
+  void Foo(Complete& state) {
+    state.density = 1.0;
+    state.momentum[0] = 1.0 + state.pressure;
+    state.momentum[1] = 0.0;
+    state.momentum[2] = 0.0;
+  }
+
+  void LiftedFoo(const View<Complete>& view) {
+    ForEachIndex(Box<0>(view), [=](int i, int j, int k) {
+      Load(state, view, {i, j, k});
+      Foo(state);
+      Store(view, state, {i, j, k});
+    });
+  }
+
+  PerfectGas<3> equation;
+  Complete state(equation);
+};
+```
+
+The member function `LiftedFoo` in this example can have multiple equivalent implementations that differ in their efficiency.
+Its real implementation is often considered an implementation detail and might change.
+</div>
+
 Implement a new FluxMethod, the simple case {#implement-flux-method-simple}
 ------------------------------------------------------------------------
 
@@ -860,17 +894,17 @@ A class `FM` satisfies the concept `FluxMethod<Equation, StencilSize>` if the fo
 ```cpp
 template <typename FM, typename Equation, int StencilSize>
 concept FluxMethod = requires (FM& flux_method,
-                               Conservative<Equation> cons,
-                               span<Complete<Equation>, StencilSize> stencil,
-                               double dx, Duration dt, int dir) {
-  { flux_method.ComputeNumericFlux(cons, stencil, dx, dt, dir) };
+                               Conservative<Equation>& numeric_flux,
+                               span<const Complete<Equation>, StencilSize> stencil,
+                               double dx, Duration dt, Direction dir) {
+  { flux_method.ComputeNumericFlux(numeric_flux, stencil, dx, dt, dir) };
   { flux_method.ComputeStableDt(stencil, dx, dir) } -> Duration;
   { FM::GetStencilSize() } -> std::integral_constant<int, StencilSize>;
 };
 ```
 
 <div class="example">
-For example, the following class `MusclHancockMethod` satisfies this concept.
+For example, the following declaration of the class `MusclHancockMethod` satisfies this concept.
 
 ```cpp
 struct MusclHancockMethod {
@@ -878,11 +912,11 @@ struct MusclHancockMethod {
     using Complete = ::Complete<PerfectGas<2>>;
 
     void ComputeNumericFlux(Conservative& cons, span<const Complete, 4> stencil,
-                              double dx, Duration dt, int dir);
+                              double dx, Duration dt, Direction dir);
 
     Druation ComputeStableDt(span<const Complete, 4> stencil, double dx, int dir);
 
-    std::integral_constant<int, 4> GetStencilSize() const noexcept { return {}; }
+    std::integral_constant<int, 2> GetStencilSize() const noexcept { return {}; }
 };
 ```
 
