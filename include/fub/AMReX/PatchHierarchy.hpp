@@ -207,7 +207,8 @@ public:
   [[nodiscard]] const ::amrex::Vector<::amrex::BoxArray> GetBoxArrays() const;
 
   /// \brief Returns the hierarchy of DistributionMapping objects.
-  [[nodiscard]] const ::amrex::Vector<::amrex::DistributionMapping> GetDistributionMappings() const;
+  [[nodiscard]] const ::amrex::Vector<::amrex::DistributionMapping>
+  GetDistributionMappings() const;
 
   /// \brief Returns the hierarchy of MultiFabs representing the data.
   [[nodiscard]] const ::amrex::Vector<const ::amrex::MultiFab*> GetData() const;
@@ -227,8 +228,8 @@ public:
   GetCounterRegistry() const noexcept;
 
   /// \brief Returns a shared pointer to the debug storage.
-  [[nodiscard]] const std::shared_ptr<DebugStorage>&
-  GetDebugStorage() const noexcept;
+  [[nodiscard]] const std::shared_ptr<DebugStorage>& GetDebugStorage() const
+      noexcept;
 
   void SetCounterRegistry(std::shared_ptr<CounterRegistry> registry);
 

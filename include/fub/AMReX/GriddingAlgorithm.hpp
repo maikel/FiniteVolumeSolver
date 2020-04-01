@@ -22,10 +22,10 @@
 #define FUB_AMREX_GRIDDING_ALGORITHM_HPP
 
 #include "fub/AMReX/BoundaryCondition.hpp"
-#include "fub/AMReX/InitialData.hpp"
 #include "fub/AMReX/PatchHierarchy.hpp"
 #include "fub/AMReX/Tagging.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
+#include "fub/AnyInitialData.hpp"
 
 #include <AMReX_AmrCore.H>
 #include <AMReX_MultiFabUtil.H>
@@ -34,37 +34,55 @@
 
 namespace fub {
 namespace amrex {
+class GriddingAlgorithm;
+}
 
-/// \defgroup GriddingAlgorithm
+template <> struct GridTraits<amrex::GriddingAlgorithm> {
+  using PatchLevel = ::fub::amrex::PatchLevel;
+  using TagBoxHandle = ::amrex::TagBoxArray&;
+};
+
+namespace amrex {
+using AnyInitialData = ::fub::AnyInitialData<GriddingAlgorithm>;
+
+/// \defgroup GriddingAlgorithm Gridding Algorithms
 /// This modules summarizes all GriddingAlgorithms.
 
 /// \ingroup GriddingAlgorithm
-/// \brief This class modifies and initializes a PatchLevel in a PatchHierarchy.
+/// \brief This class modifies and initializes a PatchLevel in a
+/// PatchHierarchy.
 class GriddingAlgorithm : private ::amrex::AmrCore {
 public:
-  //static constexpr int Rank = AMREX_SPACEDIM;
-
   /// @{
   /// \name Constructors
 
-  /// \brief The copy constructor makes a deep copy of the all data for each MPI rank.
-  GriddingAlgorithm(const GriddingAlgorithm& other);
+  /// \brief Constructs an empty and invalid GriddingAlgorithm
+  GriddingAlgorithm();
 
-  /// \brief The copy assignment makes a deep copy of the all data for each MPI rank.
-  GriddingAlgorithm& operator=(const GriddingAlgorithm& other);
-
-  /// \brief The move constructor moves a gridding algorithm without allocating any memory.
-  GriddingAlgorithm(GriddingAlgorithm&& other) noexcept;
-
-  /// \brief The move assignment moves a gridding algorithm without allocating any memory.
-  GriddingAlgorithm& operator=(GriddingAlgorithm&& other) noexcept;
-
-  GriddingAlgorithm(PatchHierarchy hier, InitialData initial_data,
+  /// \brief Constructs a gridding algorithm without any boundary conditions.
+  GriddingAlgorithm(PatchHierarchy hier, AnyInitialData initial_data,
                     Tagging tagging);
 
-  GriddingAlgorithm(PatchHierarchy hier, InitialData initial_data,
+  /// \brief Constructs a gridding algorithm and defines all customization
+  /// points.
+  GriddingAlgorithm(PatchHierarchy hier, AnyInitialData initial_data,
                     Tagging tagging, AnyBoundaryCondition boundary);
 
+  /// \brief The copy constructor makes a deep copy of the all data for each MPI
+  /// rank.
+  GriddingAlgorithm(const GriddingAlgorithm& other);
+
+  /// \brief The copy assignment makes a deep copy of the all data for each MPI
+  /// rank.
+  GriddingAlgorithm& operator=(const GriddingAlgorithm& other);
+
+  /// \brief The move constructor moves a gridding algorithm without allocating
+  /// any memory.
+  GriddingAlgorithm(GriddingAlgorithm&& other) noexcept;
+
+  /// \brief The move assignment moves a gridding algorithm without allocating
+  /// any memory.
+  GriddingAlgorithm& operator=(GriddingAlgorithm&& other) noexcept;
   /// @}
 
   /// @{
@@ -75,15 +93,14 @@ public:
     return hierarchy_;
   }
 
-  [[nodiscard]] const AnyBoundaryCondition& GetBoundaryCondition(int level) const
-      noexcept;
+  [[nodiscard]] const AnyBoundaryCondition&
+  GetBoundaryCondition(int level) const noexcept;
   [[nodiscard]] AnyBoundaryCondition& GetBoundaryCondition(int level) noexcept;
 
-  [[nodiscard]] const InitialData& GetInitialCondition() const noexcept;
+  [[nodiscard]] const AnyInitialData& GetInitialCondition() const noexcept;
 
   [[nodiscard]] const Tagging& GetTagging() const noexcept;
   /// @}
-
 
   /// @{
   /// \name Observers
@@ -134,7 +151,7 @@ private:
   void ClearLevel([[maybe_unused]] int level) override;
 
   PatchHierarchy hierarchy_;
-  InitialData initial_data_;
+  AnyInitialData initial_data_;
   Tagging tagging_;
   std::vector<AnyBoundaryCondition> boundary_condition_;
 };
