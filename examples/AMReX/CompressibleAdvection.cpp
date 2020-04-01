@@ -21,12 +21,16 @@
 #include "fub/AMReX.hpp"
 #include "fub/Solver.hpp"
 
-#include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
+#include "fub/AMReX/CompressibleAdvectionIntegratorContext.hpp"
 #include "fub/equations/CompressibleAdvection.hpp"
 
 struct InitialData {
   using Complete = fub::CompressibleAdvection<2>::Complete;
-  void InitializeData(amrex::MultiFab& mf, const amrex::Geometry& geom) {
+  void InitializeData(fub::amrex::PatchLevel& patch_level,
+                      const fub::amrex::GriddingAlgorithm& grid, int level,
+                      fub::Duration /*time*/) const {
+    const amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
+    amrex::MultiFab& mf = patch_level.data;
     fub::amrex::ForEachFab(mf, [&](const amrex::MFIter& mfi) {
       fub::CompressibleAdvection<2> equation{};
       amrex::FArrayBox& fab = mf[mfi];
@@ -113,7 +117,7 @@ int main() {
       fub::amrex::Reconstruction(tag, equation)};
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<2>, fub::amrex::BK19IntegratorContext(grid, method, 2, 0),
+      fub::int_c<2>, fub::amrex::CompressibleAdvectionIntegratorContext(grid, method, 2, 0),
       fub::GodunovSplitting());
 
   fub::amrex::BK19AdvectiveFluxes& Pv =
