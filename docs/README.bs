@@ -411,7 +411,7 @@ Data Storage: IntegratorContext {#data-integrator-context}
 An `IntegratorContext` allocates, manages and provides access to additional data that is needed for every conservative AMR scheme, such as cell-centered and face-centered data arrays **with ghost layers**. It also manages face-centered data on the coarse-fine interface between two refinement levels.
 
 <div class="example">
-The following code snippet shows a how to access cell and face-based data with ghost cells using the [[AMReX]] toolbox. This implements parallelization for GPU with a fallback to an MPI/OpenMP hybrid. This class satisfies the `TimeIntegrator<fub::amrex::IntegratorContext>`.
+The following code snippet shows a how to access cell and face-based data with ghost cells using the [[AMReX]] toolbox. This implements parallelization for GPU with a fallback to an MPI/OpenMP hybrid. This class satisfies the `TimeIntegrator<fub::amrex::IntegratorContext>` concept.
 
 ```cpp
 class GpuTimeIntegrator {
@@ -449,7 +449,7 @@ class GpuTimeIntegrator {
 ```
 </div>
 
-In addition to managing the additional data, every integrator context defines a comprehensive list of functions to deal with the various data locations. The `IntegratorContext` concept is through
+In addition to managing the additional data, every integrator context defines a comprehensive list of functions to deal with the various data locations. The `IntegratorContext` concept is defined by
 
 
 ```cpp
