@@ -18,23 +18,28 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/AMReX/cutcell/tagging/TagCutCells.hpp"
+#include "fub/AMReX/tagging/TagBuffer.hpp"
 
 #include "fub/AMReX/ForEachFab.hpp"
-#include "fub/AMReX/ViewFArrayBox.hpp"
-#include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
 #include "fub/Execution.hpp"
-#include "fub/tagging/TagCutCells.hpp"
+#include "fub/tagging_method/TagBuffer.hpp"
 
-#include <AMReX_EBAmrUtil.H>
+namespace fub::amrex {
 
-namespace fub::amrex::cutcell {
-
-void TagCutCells::TagCellsForRefinement(::amrex::TagBoxArray& tags_array,
-                                        Duration, int level,
-                                        const GriddingAlgorithm& gridding) const
+void TagBuffer::TagCellsForRefinement(::amrex::TagBoxArray& tags_array,
+                                      Duration, int, GriddingAlgorithm&) const
     noexcept {
-  ::amrex::TagCutCells(tags_array, gridding.GetPatchHierarchy().GetPatchLevel(level).data);
+  TagCellsForRefinement(tags_array);
 }
 
-} // namespace fub::amrex::cutcell
+void TagBuffer::TagCellsForRefinement(::amrex::TagBoxArray& tags_array) const
+    noexcept {
+  ForEachFab(execution::openmp, tags_array, [&](const ::amrex::MFIter& mfi) {
+    PatchDataView<char, AMREX_SPACEDIM, layout_stride> tags =
+        MakePatchDataView(tags_array[mfi], 0)
+            .Subview(AsIndexBox<AMREX_SPACEDIM>(mfi.tilebox()));
+    ::fub::TagBuffer(buffer_width_).TagCellsForRefinement(tags);
+  });
+}
+
+} // namespace fub::amrex

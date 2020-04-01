@@ -22,7 +22,7 @@
 #ifndef FUB_SAMRAI_TAGGING_GRADIENT_DETECTOR_HPP
 #define FUB_SAMRAI_TAGGING_GRADIENT_DETECTOR_HPP
 
-#include "fub/tagging/GradientDetector.hpp"
+#include "fub/tagging_method/GradientDetector.hpp"
 
 #include "fub/SAMRAI/GriddingAlgorithm.hpp"
 #include <SAMRAI/hier/Box.h>

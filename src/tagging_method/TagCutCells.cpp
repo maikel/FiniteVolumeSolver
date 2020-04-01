@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/tagging/TagCutCells.hpp"
+#include "fub/tagging_method/TagCutCells.hpp"
 #include "fub/ForEach.hpp"
 
 namespace fub {

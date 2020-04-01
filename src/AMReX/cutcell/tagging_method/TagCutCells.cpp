@@ -18,24 +18,23 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_AMREX_CUTCELL_TAGGING_CONSTANT_REGION_HPP
-#define FUB_AMREX_CUTCELL_TAGGING_CONSTANT_REGION_HPP
+#include "fub/AMReX/cutcell/tagging/TagCutCells.hpp"
 
+#include "fub/AMReX/ForEachFab.hpp"
+#include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
+#include "fub/Execution.hpp"
+#include "fub/tagging_method/TagCutCells.hpp"
+
+#include <AMReX_EBAmrUtil.H>
 
 namespace fub::amrex::cutcell {
 
-class ConstantBox {
-public:
-  explicit ConstantBox(const ::amrex::Box& coarse_region);
-
-  void TagCellsForRefinement(::amrex::TagBoxArray& tags, Duration t, int level,
-                             GriddingAlgorithm& gridding) const noexcept;
-
-private:
-  ::amrex::Box coarse_region_;
-};
+void TagCutCells::TagCellsForRefinement(::amrex::TagBoxArray& tags_array,
+                                        Duration, int level,
+                                        const GriddingAlgorithm& gridding) const
+    noexcept {
+  ::amrex::TagCutCells(tags_array, gridding.GetPatchHierarchy().GetPatchLevel(level).data);
+}
 
 } // namespace fub::amrex::cutcell
-
-#endif

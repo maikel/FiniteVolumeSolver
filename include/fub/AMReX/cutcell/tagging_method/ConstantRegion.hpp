@@ -18,28 +18,25 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/AMReX/tagging/TagBuffer.hpp"
+#ifndef FUB_AMREX_CUTCELL_TAGGING_CONSTANT_REGION_HPP
+#define FUB_AMREX_CUTCELL_TAGGING_CONSTANT_REGION_HPP
 
-#include "fub/AMReX/ForEachFab.hpp"
-#include "fub/Execution.hpp"
-#include "fub/tagging/TagBuffer.hpp"
+#include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
 
-namespace fub::amrex {
+namespace fub::amrex::cutcell {
 
-void TagBuffer::TagCellsForRefinement(::amrex::TagBoxArray& tags_array,
-                                      Duration, int, GriddingAlgorithm&) const
-    noexcept {
-  TagCellsForRefinement(tags_array);
-}
+/// \ingroup TaggingMethod
+class ConstantBox {
+public:
+  explicit ConstantBox(const ::amrex::Box& coarse_region);
 
-void TagBuffer::TagCellsForRefinement(::amrex::TagBoxArray& tags_array) const
-    noexcept {
-  ForEachFab(execution::openmp, tags_array, [&](const ::amrex::MFIter& mfi) {
-    PatchDataView<char, AMREX_SPACEDIM, layout_stride> tags =
-        MakePatchDataView(tags_array[mfi], 0)
-            .Subview(AsIndexBox<AMREX_SPACEDIM>(mfi.tilebox()));
-    ::fub::TagBuffer(buffer_width_).TagCellsForRefinement(tags);
-  });
-}
+  void TagCellsForRefinement(::amrex::TagBoxArray& tags, Duration t, int level,
+                             GriddingAlgorithm& gridding) const noexcept;
 
-} // namespace fub::amrex
+private:
+  ::amrex::Box coarse_region_;
+};
+
+} // namespace fub::amrex::cutcell
+
+#endif

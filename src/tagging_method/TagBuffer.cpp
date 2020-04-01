@@ -18,7 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/tagging/TagBuffer.hpp"
+#include "fub/tagging_method/TagBuffer.hpp"
+
+#include "fub/ForEach.hpp"
 
 namespace fub {
 

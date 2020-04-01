@@ -70,7 +70,7 @@
 #include "fub/split_method/GodunovSplitting.hpp"
 #include "fub/split_method/StrangSplitting.hpp"
 
-#include "fub/tagging/GradientDetector.hpp"
+#include "fub/tagging_method/GradientDetector.hpp"
 
 #include "fub/geometry/Cone.hpp"
 #include "fub/geometry/ExpandTube.hpp"

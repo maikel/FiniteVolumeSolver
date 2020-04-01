@@ -25,7 +25,7 @@
 #include "fub/RunSimulation.hpp"
 #include "fub/equations/Burgers.hpp"
 #include "fub/flux_method/GodunovMethod.hpp"
-#include "fub/tagging/GradientDetector.hpp"
+#include "fub/tagging_method/GradientDetector.hpp"
 
 #include "fub/grid/SAMRAI/CartesianPatchHierarchy.hpp"
 #include "fub/grid/SAMRAI/GriddingAlgorithm.hpp"

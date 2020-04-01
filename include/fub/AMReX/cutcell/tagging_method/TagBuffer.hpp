@@ -25,6 +25,7 @@
 
 namespace fub::amrex::cutcell {
 
+/// \ingroup TaggingMethod
 class TagBuffer {
 public:
   explicit TagBuffer(int width) : buffer_width_{width} {}

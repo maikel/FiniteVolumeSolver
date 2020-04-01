@@ -25,6 +25,7 @@
 
 namespace fub::amrex {
 
+/// \ingroup TaggingMethod
 class ConstantBox {
 public:
   explicit ConstantBox(const ::amrex::Box& coarse_region);

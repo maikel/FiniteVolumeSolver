@@ -33,19 +33,20 @@ namespace fub {
 /// This modules collects all components that tag cells for refinement.
 
 template <typename GriddingAlgorithm> struct TaggingMethodStrategy_ {
-  using TagDataHandle = GridTraits<GriddingAlgorithm>::TagDataHandle;
+  using TagDataHandle = typename GridTraits<GriddingAlgorithm>::TagDataHandle;
   virtual ~TaggingMethodStrategy_() = default;
   virtual std::unique_ptr<TaggingMethodStrategy_> Clone() const = 0;
-  virtual void TagCellsForRefinement(TagDataHandle<GriddingAlgorithm> tags,
-                                     GriddingAlgorithm& gridding, int level,
-                                     Duration time_point) = 0;
+  virtual void TagCellsForRefinement(TagDataHandle tags,
+                                     const GriddingAlgorithm& gridding,
+                                     int level, Duration time_point) = 0;
 };
 
 /// \ingroup TaggingMethod PolymorphicValueType
 /// \brief This class is a polymorphic value type that stores objects which
 /// satisfies the TaggingMethod<GriddingAlgorithm> concept.
-template <typename GriddingAlgorithm> struct AnyTaggingMethod {
-  using TagDataHandle = GridTraits<GriddingAlgorithm>::TagDataHandle;
+template <typename GriddingAlgorithm> class AnyTaggingMethod {
+public:
+  using TagDataHandle = typename GridTraits<GriddingAlgorithm>::TagDataHandle;
 
   /// @{
   /// \name Constructors
@@ -82,7 +83,8 @@ template <typename GriddingAlgorithm> struct AnyTaggingMethod {
                              Duration t);
   /// @}
 
-  std::unique_ptr<TaggingMethodStrategy_> tag_;
+private:
+  std::unique_ptr<TaggingMethodStrategy_<GriddingAlgorithm>> tag_;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -91,13 +93,13 @@ template <typename GriddingAlgorithm> struct AnyTaggingMethod {
 template <typename GriddingAlgorithm, typename T>
 struct TaggingMethodWrapper_
     : public TaggingMethodStrategy_<GriddingAlgorithm> {
-  using TagDataHandle = GridTraits<GriddingAlgorithm>::TagDataHandle;
+  using TagDataHandle = typename GridTraits<GriddingAlgorithm>::TagDataHandle;
 
   TaggingMethodWrapper_(const T& tag) : tag_{tag} {}
   TaggingMethodWrapper_(T&& tag) : tag_{std::move(tag)} {}
 
   void TagCellsForRefinement(TagDataHandle tags, Duration time_point, int level,
-                             GriddingAlgorithm& gridding) override {
+                             const GriddingAlgorithm& gridding) override {
     tag_.TagCellsForRefinement(tags, time_point, level, gridding);
   }
 
@@ -112,7 +114,7 @@ struct TaggingMethodWrapper_
 template <typename GriddingAlgorithm>
 AnyTaggingMethod<GriddingAlgorithm>::AnyTaggingMethod(
     const AnyTaggingMethod& other)
-    : tag_(other.tag_->Clone()) {}
+    : tag_(other.tag_ ? other.tag_->Clone() : nullptr) {}
 
 template <typename GriddingAlgorithm>
 AnyTaggingMethod<GriddingAlgorithm>&
@@ -130,8 +132,8 @@ AnyTaggingMethod<GriddingAlgorithm>::AnyTaggingMethod(T&& tag)
 
 template <typename GriddingAlgorithm>
 void AnyTaggingMethod<GriddingAlgorithm>::TagCellsForRefinement(
-    TagDataHandle tags, Duration time_point, int level,
-    GriddingAlgorithm& gridding) {
+    TagDataHandle tags, const GriddingAlgorithm& gridding, int level,
+    Duration time_point) {
   if (tag_) {
     return tag_->TagCellsForRefinement(tags, time_point, level, gridding);
   }

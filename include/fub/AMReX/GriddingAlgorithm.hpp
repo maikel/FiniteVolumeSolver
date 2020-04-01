@@ -24,9 +24,9 @@
 #include "fub/AMReX/PatchHierarchy.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
 
+#include "fub/AnyBoundaryCondition.hpp"
 #include "fub/AnyInitialData.hpp"
 #include "fub/AnyTaggingMethod.hpp"
-#include "fub/AnyBoundaryCondition.hpp"
 
 #include <AMReX_AmrCore.H>
 #include <AMReX_MultiFabUtil.H>
@@ -35,20 +35,23 @@
 
 namespace fub {
 namespace amrex {
+
+/// \defgroup GriddingAlgorithm Gridding Algorithms
+/// This modules summarizes all gridding algorithms.
+
 class GriddingAlgorithm;
-}
+} // namespace amrex
 
 template <> struct GridTraits<amrex::GriddingAlgorithm> {
   using PatchLevel = ::fub::amrex::PatchLevel;
   using TagDataHandle = ::amrex::TagBoxArray&;
+  using DataReference = ::amrex::MultiFab&;
 };
 
 namespace amrex {
 using AnyInitialData = ::fub::AnyInitialData<GriddingAlgorithm>;
 using AnyTaggingMethod = ::fub::AnyTaggingMethod<GriddingAlgorithm>;
-
-/// \defgroup GriddingAlgorithm Gridding Algorithms
-/// This modules summarizes all GriddingAlgorithms.
+using AnyBoundaryCondition = ::fub::AnyBoundaryCondition<GriddingAlgorithm>;
 
 /// \ingroup GriddingAlgorithm
 /// \brief This class modifies and initializes a PatchLevel in a
@@ -63,12 +66,12 @@ public:
 
   /// \brief Constructs a gridding algorithm without any boundary conditions.
   GriddingAlgorithm(PatchHierarchy hier, AnyInitialData initial_data,
-                    Tagging tagging);
+                    AnyTaggingMethod tagging);
 
   /// \brief Constructs a gridding algorithm and defines all customization
   /// points.
   GriddingAlgorithm(PatchHierarchy hier, AnyInitialData initial_data,
-                    Tagging tagging, AnyBoundaryCondition boundary);
+                    AnyTaggingMethod tagging, AnyBoundaryCondition boundary);
 
   /// \brief The copy constructor makes a deep copy of the all data for each MPI
   /// rank.
@@ -96,9 +99,9 @@ public:
   }
 
   [[nodiscard]] const AnyBoundaryCondition&
-  GetBoundaryCondition(int level) const noexcept;
+  GetBoundaryCondition() const noexcept;
 
-  [[nodiscard]] AnyBoundaryCondition& GetBoundaryCondition(int level) noexcept;
+  [[nodiscard]] AnyBoundaryCondition& GetBoundaryCondition() noexcept;
 
   [[nodiscard]] const AnyInitialData& GetInitialCondition() const noexcept;
 
@@ -107,10 +110,14 @@ public:
 
   /// @{
   /// \name Observers
+
+  /// \brief Returns the number of time steps taken on the coarsest refinement
+  /// level.
   [[nodiscard]] std::ptrdiff_t GetCycles() const noexcept {
     return hierarchy_.GetCycles();
   }
 
+  /// \brief Returns the current time point on the coarsest refinement level.
   [[nodiscard]] Duration GetTimePoint() const noexcept {
     return hierarchy_.GetTimePoint();
   }
@@ -138,7 +145,8 @@ public:
   /// @{
   /// \name Actions
 
-  /// \brief Fill the ghost layer boundary specified of the specifed MultiFab `mf`.
+  /// \brief Fill the ghost layer boundary specified of the specifed MultiFab
+  /// `mf`.
   void FillMultiFabFromLevel(::amrex::MultiFab& mf, int level_number);
   /// @}
 
@@ -163,7 +171,7 @@ private:
   PatchHierarchy hierarchy_;
   AnyInitialData initial_data_;
   AnyTaggingMethod tagging_;
-  std::vector<AnyBoundaryCondition> boundary_condition_;
+  AnyBoundaryCondition boundary_condition_;
 };
 
 } // namespace amrex

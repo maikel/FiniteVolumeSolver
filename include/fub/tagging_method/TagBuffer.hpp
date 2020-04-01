@@ -25,6 +25,7 @@
 
 namespace fub {
 
+/// \ingroup TaggingMethod
 struct TagBuffer {
   int buffer_width_;
 

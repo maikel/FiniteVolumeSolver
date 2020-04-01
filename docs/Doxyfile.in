@@ -790,8 +790,10 @@ INPUT                  = "../include/fub/" \
                          "../include/fub/equations/" \
                          "../include/fub/geometry/" \
                          "../include/fub/AMReX/" \
-                         "../include/fub/AMReX/cutcell/" \
                          "../include/fub/AMReX/output/" \
+                         "../include/fub/AMReX/tagging_method/" \
+                         "../include/fub/AMReX/cutcell/" \
+                         "../include/fub/AMReX/cutcell/tagging_method/" \
                          "../"
 
 # This tag can be used to specify the character encoding of the source files

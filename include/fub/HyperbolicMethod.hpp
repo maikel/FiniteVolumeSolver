@@ -79,8 +79,7 @@ public:
   AnyReconstruction(AnyReconstruction&& other) noexcept = default;
   AnyReconstruction& operator=(AnyReconstruction&& other) noexcept = default;
 
-  template <typename R, typename = std::enable_if_t<!std::is_same_v<
-                            std::decay_t<R>, AnyReconstruction>>>
+  template <typename R, typename = std::enable_if_t<!decays_to<R, AnyReconstruction>>>
   AnyReconstruction(R&& r); // NOLINT
 
   void CompleteFromCons(IntegratorContext& context, int level, Duration dt);

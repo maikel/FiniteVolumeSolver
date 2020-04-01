@@ -25,6 +25,7 @@
 
 namespace fub::amrex::cutcell {
 
+/// \ingroup TaggingMethod
 struct TagCutCells {
   void TagCellsForRefinement(::amrex::TagBoxArray& tags, Duration t, int level,
                              const GriddingAlgorithm& gridding) const noexcept;

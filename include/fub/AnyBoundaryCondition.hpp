@@ -26,117 +26,121 @@
 
 #include "fub/core/type_traits.hpp"
 
-#include <AMReX_MultiFab.H>
-#include <AMReX_PhysBCFunct.H>
+#include <memory>
 
 namespace fub {
 
 /// \defgroup BoundaryCondition Boundary Conditions
-/// This modules collects all components that fill the ghost layer of a patch level.
+/// This modules collects all components that fill the ghost layer of a patch
+/// level.
 
-struct BoundaryConditionBase_ {
-  virtual ~BoundaryConditionBase_() = default;
-  virtual std::unique_ptr<BoundaryConditionBase_> Clone() const = 0;
-  virtual void FillBoundary(::amrex::MultiFab& mf,
-                            const ::amrex::Geometry& geom, Duration time_point,
-                            const GriddingAlgorithm& gridding) = 0;
+namespace detail {
+template <typename GriddingAlgorithm> struct BoundaryConditionBase {
+  using DataReference = typename GridTraits<GriddingAlgorithm>::DataReference;
 
-  virtual void FillBoundary(::amrex::MultiFab& mf,
-                            const ::amrex::Geometry& geom, Duration time_point,
-                            const GriddingAlgorithm& gridding,
-                            Direction dir) = 0;
+  virtual ~BoundaryConditionBase() = default;
+  virtual std::unique_ptr<BoundaryConditionBase> Clone() const = 0;
+  virtual void FillBoundary(DataReference mf, const GriddingAlgorithm& gridding,
+                            int level) = 0;
+  virtual void FillBoundary(DataReference mf, const GriddingAlgorithm& gridding,
+                            int level, Direction dir) = 0;
 };
+} // namespace detail
 
 /// \ingroup BoundaryCondition PolymorphicValueType
-template <typename GriddingAlgorithm>
-class AnyBoundaryCondition {
+///
+/// \brief This is a polymorphic value type that wraps any BoundaryCondition
+/// object.
+template <typename GriddingAlgorithm> class AnyBoundaryCondition {
 public:
+  using DataReference = typename GridTraits<GriddingAlgorithm>::DataReference;
+
+  /// @{
+  /// \name Constructors
+
   AnyBoundaryCondition() = default;
+
+  template <typename BC,
+            typename = std::enable_if_t<!decays_to<BC, AnyBoundaryCondition>()>>
+  AnyBoundaryCondition(BC&& bc);
 
   AnyBoundaryCondition(const AnyBoundaryCondition&);
   AnyBoundaryCondition& operator=(const AnyBoundaryCondition&);
 
   AnyBoundaryCondition(AnyBoundaryCondition&&) = default;
   AnyBoundaryCondition& operator=(AnyBoundaryCondition&&) = default;
+  /// @}
 
-  template <typename BC,
-            typename = std::enable_if_t<!decays_to<BC, AnyBoundaryCondition>()>>
-  AnyBoundaryCondition(BC&& bc);
+  /// @{
+  /// \name Actions
 
-  void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding);
+  void FillBoundary(DataReference data, const GriddingAlgorithm& gridding,
+                    int level);
 
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration timepoint, const GriddingAlgorithm& gridding,
-                    Direction dir);
+  void FillBoundary(DataReference data, const GriddingAlgorithm& gridding,
+                    int level, Direction dir);
+  /// @}
 
 private:
-  std::unique_ptr<BoundaryConditionBase_> boundary_condition_{};
+  std::unique_ptr<detail::BoundaryConditionBase<GriddingAlgorithm>>
+      boundary_condition_{};
 };
 
-// Implementation
+///////////////////////////////////////////////////////////////////////////////
+//                                                              Implementation
 
-template <typename BC>
-struct BoundaryConditionWrapper_ : public BoundaryConditionBase_ {
-  BoundaryConditionWrapper_(const BC& bc) : boundary_condition_{bc} {}
-  BoundaryConditionWrapper_(BC&& bc) : boundary_condition_{std::move(bc)} {}
+namespace detail {
+template <typename GriddingAlgorithm, typename BC>
+struct BoundaryConditionWrapper
+    : public BoundaryConditionBase<GriddingAlgorithm> {
+  using DataReference = typename GridTraits<GriddingAlgorithm>::DataReference;
 
-  std::unique_ptr<BoundaryConditionBase_> Clone() const override;
+  BoundaryConditionWrapper(const BC& bc) : boundary_condition_{bc} {}
+  BoundaryConditionWrapper(BC&& bc) : boundary_condition_{std::move(bc)} {}
 
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration time_point,
-                    const GriddingAlgorithm& gridding) override;
+  std::unique_ptr<BoundaryConditionBase<GriddingAlgorithm>>
+  Clone() const override {
+    return std::make_unique<BoundaryConditionWrapper<GriddingAlgorithm, BC>>(
+        boundary_condition_);
+  }
 
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration time_point, const GriddingAlgorithm& gridding,
-                    Direction dir) override;
+  void FillBoundary(DataReference data, const GriddingAlgorithm& gridding,
+                    int level) override {
+    boundary_condition_.FillBoundary(data, gridding, level);
+  }
+
+  void FillBoundary(DataReference data, const GriddingAlgorithm& gridding,
+                    int level, Direction dir) override {
+    boundary_condition_.FillBoundary(data, gridding, level, dir);
+  }
 
   BC boundary_condition_;
 };
+} // namespace detail
 
-template <typename BC>
-std::unique_ptr<BoundaryConditionBase_>
-BoundaryConditionWrapper_<BC>::Clone() const {
-  return std::make_unique<BoundaryConditionWrapper_<BC>>(boundary_condition_);
-}
-
-template <typename BC>
-void BoundaryConditionWrapper_<BC>::FillBoundary(
-    ::amrex::MultiFab& mf, const ::amrex::Geometry& geom, Duration time_point,
-    const GriddingAlgorithm& gridding) {
-  boundary_condition_.FillBoundary(mf, geom, time_point, gridding);
-}
-
-template <typename BC>
-void BoundaryConditionWrapper_<BC>::FillBoundary(
-    ::amrex::MultiFab& mf, const ::amrex::Geometry& geom, Duration time_point,
-    const GriddingAlgorithm& gridding, Direction dir) {
-  boundary_condition_.FillBoundary(mf, geom, time_point, gridding, dir);
-}
-
+template <typename GriddingAlgorithm>
 template <typename BC, typename>
-AnyBoundaryCondition::AnyBoundaryCondition(BC&& bc)
-    : boundary_condition_{
-          std::make_unique<BoundaryConditionWrapper_<std::decay_t<BC>>>(
-              std::forward<BC>(bc))} {}
+AnyBoundaryCondition<GriddingAlgorithm>::AnyBoundaryCondition(BC&& bc)
+    : boundary_condition_{std::make_unique<detail::BoundaryConditionWrapper<
+          GriddingAlgorithm, std::decay_t<BC>>>(std::forward<BC>(bc))} {}
 
-inline void AnyBoundaryCondition::FillBoundary(::amrex::MultiFab& mf,
-                                            const ::amrex::Geometry& geom,
-                                            Duration timepoint,
-                                            const GriddingAlgorithm& gridding) {
+template <typename GriddingAlgorithm>
+void AnyBoundaryCondition<GriddingAlgorithm>::FillBoundary(
+    DataReference data, const GriddingAlgorithm& gridding, int level) {
   if (boundary_condition_) {
-    boundary_condition_->FillBoundary(mf, geom, timepoint, gridding);
+    boundary_condition_->FillBoundary(data, gridding, level);
   }
 }
 
-inline void AnyBoundaryCondition::FillBoundary(
-    ::amrex::MultiFab& mf, const ::amrex::Geometry& geom, Duration timepoint,
-    const GriddingAlgorithm& gridding, Direction dir) {
+template <typename GriddingAlgorithm>
+void AnyBoundaryCondition<GriddingAlgorithm>::FillBoundary(
+    DataReference data, const GriddingAlgorithm& gridding, int level,
+    Direction dir) {
   if (boundary_condition_) {
-    boundary_condition_->FillBoundary(mf, geom, timepoint, gridding, dir);
+    boundary_condition_->FillBoundary(data, gridding, level, dir);
   }
 }
 
-} // namespace amrex
 } // namespace fub
 
 #endif

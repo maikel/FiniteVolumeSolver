@@ -26,6 +26,7 @@
 
 namespace fub::amrex::cutcell {
 
+/// \ingroup TaggingMethod
 template <typename Equation, typename... Projections> class GradientDetector {
 public:
   GradientDetector(const Equation& equation,

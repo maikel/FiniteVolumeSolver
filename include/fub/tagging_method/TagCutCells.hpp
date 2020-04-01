@@ -25,6 +25,7 @@
 
 namespace fub {
 
+/// \ingroup TaggingMethod
 struct TagCutCells {
   void TagCellsForRefinement(
       const StridedDataView<char, 1>& tags,

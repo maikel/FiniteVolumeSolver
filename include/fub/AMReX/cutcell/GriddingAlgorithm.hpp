@@ -40,6 +40,7 @@ namespace fub {
 template <> struct GridTraits<amrex::cutcell::GriddingAlgorithm> {
   using PatchLevel = ::fub::amrex::cutcell::PatchLevel;
   using TagBoxHandle = ::amrex::TagBoxArray&;
+  using DataReference = ::amrex::MultiFab&;
 };
 }
 

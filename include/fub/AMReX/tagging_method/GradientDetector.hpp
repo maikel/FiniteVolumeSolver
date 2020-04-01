@@ -23,10 +23,11 @@
 
 #include "fub/AMReX/Tagging.hpp"
 #include "fub/ext/omp.hpp"
-#include "fub/tagging/GradientDetector.hpp"
+#include "fub/tagging_method/GradientDetector.hpp"
 
 namespace fub::amrex {
 
+/// \ingroup TaggingMethod
 template <typename Equation, typename... Projections> class GradientDetector {
 public:
   GradientDetector(const Equation& equation,
