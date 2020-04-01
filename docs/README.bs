@@ -179,9 +179,6 @@ We added some custom installation recipes which `conan` can use to install depen
 > conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/finite-volume
 ```
 
-Klein: Warum machen wir uns von "bintray" abhängig? Was bringt das? 
-
-
 MPI Installation {#mpi-install}
 -------------------------------
 
@@ -275,7 +272,7 @@ All components inside of the namespace `fub` are independent of the concrete AMR
 This library provides tools to write driver files which form complete applications. Each driver makes its own choices on how to handle program options, input files or its output. 
 You can find many example applications in the `examples/` subfolder within the Git project.
 Every example composes layer for layer until a solver is built and run. 
-The needs application to build up their layers in the following order [<-  Klein: Irgendwie funktioniert dieser Satz nicht]
+An needs application to build up its layers in the following order
 
   1. [PatchHierarchy](#patch-hierarchy) (data storage)
   2. [GriddingAlgorithm](#gridding-algorithm) (algorithmic choice)
@@ -348,7 +345,12 @@ Note: [[AMReX]] represents hierarchies very often as pairs of `(Vector<MultiFab*
 Algorithmic Choice: GriddingAlgorithm {#gridding-algorithm}
 -----------------------------------------------------
 
-A gridding algorithm adds some algorithmic choices to the patch hierarchy which are needed for the box generation algorithms in the context of adaptive mesh refinement. The present gridding algorithms use the `AmrCore` class from the [[AMReX]] library to generate patches and hierarchies to cover such tagged cells [Klein: Wieso '"such" tagged cells'? Bisher ist von diesen noch nicht die Rede gewesen]. It owns a patch hierarchy and initializes or modifies it using a `TaggingMethod` policy object which masks cells that need additional refinement. In addition to the `TaggingMethod` policy, a `GriddingAlgorithm` also needs boundary and initial conditions, given by `BoundaryCondition` and `InitialData` policy objects. The boundary conditions are used in communication routines to fill the ghost cell layer touching the computational domain, whereas the initial conditions are only used once at the beginning of a simulation.
+A gridding algorithm adds some algorithmic choices to the patch hierarchy which are needed for the box generation algorithms in the context of adaptive mesh refinement. 
+The present gridding algorithms use the `AmrCore` class from the [[AMReX]] library to generate a distributed hierarchy of index boxes. 
+It owns a patch hierarchy and initializes or modifies it.
+It uses a `TaggingMethod` policy object to mask cells that need additional refinement. 
+In addition to the `TaggingMethod` policy, a `GriddingAlgorithm` also needs boundary and initial conditions, given by `BoundaryCondition` and `InitialData` policy objects. 
+The boundary conditions are used in communication routines to fill the ghost cell layer touching the computational domain, whereas the initial conditions are only used once at the beginning of a simulation.
 
 <div class="example">
 The following code example will create an initialized and adaptively refined patch hierarchy.
@@ -361,11 +363,7 @@ This example produces the following figure and can be visualized either in VisIt
 <center><img width="60%" height="auto" src="img/initial_hierarchy.png"/></center>
 </div>
 
-Multiple solvers can share a common gridding algorithm and will hold a member variable of type `std::shared_ptr<GriddingAlgorithm>`.
-Given a shared `GriddingAlgorithm` a solver is enabled to refine the patch hierarchy or to fill ghost cell boundaries at any given time of its algorithm.
-Copying a `GriddingAlgorithm` by value will deeply copy its data on each MPI rank. This can be useful to create fall-back scenarios of a simulation.
-[Klein: Was ist hier mit "solvers" gemeint? Ein kompletter Löser für ein Problem, oder Unterlöser, die separate Aufgaben in einem kompletten Löser erfüllen, wie z.B. ein Advektions, ein Chemieintegrations und ein Projektionsschritt? Zudem wird hier das "sharing" gegenüber dem "copy by value" abgegrenzt. Darf ich also davon ausgehen, dass "sharing" sowas ist wie die Übergabe eines gemeinsamen "(function-) pointers"? Was ist mit "fallback scenario" gemeint?]
-
+Copying a `GriddingAlgorithm` object will deeply copy its data and its policy objects on each MPI rank. This is useful if one wants to make a backup of the current grid state.
 The `GriddingAlgorithm` provides three customization points. 
 Their concepts `InitialData<GriddingAlgorithm>`, `TaggingMethod<GriddingAlgorithm>` and `BoundaryCondition<GriddingAlgorithm>` are defined as 
 
@@ -388,7 +386,6 @@ concept BoundaryCondition = std::copy_assignable<BC> &&
         { boundary_condition.FillBoundary(data, grid, level) };
     }
 ```
-[Klein: Hier wird C++20-Sprech verwendet, richtig? Das heißt, diese Code-Zeilen finden wir nicht in der derzeitigen Implementierung, sondern dort ist das so verwirklicht, wie weiter oben für Compiler angegeben, die die "Concepts" noch nicht nativ beherrschen?]
 
 You find polymorphic value types `AnyInitialData<GriddingAlgorithm>`, `AnyTaggingMethod<GriddingAlgorithm>` and `AnyBoundaryCondition<GriddingAlgorithm>` in the Finite Volume Solver library to match each one of the concepts. These polymorphic types are used to store any object of a class that satisfies those concepts.
 
@@ -400,7 +397,7 @@ private:
     PatchHierarchy hierarchy_;
     AnyInitialData initial_data_;
     AnyTaggingMethod tagging_method_;
-    AnyBoundaryCondition boundary_condition_per_level_;
+    AnyBoundaryCondition boundary_condition_;
 
 public:
     /* etc... */
@@ -414,55 +411,54 @@ Data Storage: IntegratorContext {#data-integrator-context}
 An `IntegratorContext` allocates, manages and provides access to additional data that is needed for every conservative AMR scheme, such as cell-centered and face-centered data arrays **with ghost layers**. It also manages face-centered data on the coarse-fine interface between two refinement levels.
 
 <div class="example">
-The following code snippet shows a simplified version of how to access cell and face-based data with ghost cells using the [[AMReX]] toolbox. This implements parallelization for GPU with a fallback to an MPI/OpenMP hybrid.
+The following code snippet shows a how to access cell and face-based data with ghost cells using the [[AMReX]] toolbox. This implements parallelization for GPU with a fallback to an MPI/OpenMP hybrid. This class satisfies the `TimeIntegrator<fub::amrex::IntegratorContext>`.
 
 ```cpp
-/// \brief This function computes a conservative time update for cells in
-/// direction dir
-///
-/// This specific implementation uses the AMReX tools to do the job
-void UpdateConservatively(IntegratorContext& context, int level, Duration dt,
-                          Direction dir) {
-  using namespace amrex;
-  MultiFab& states = context.GetScratch(level);
-  const MultiFab& fluxes = context.GetFluxes(level, dir);
-  const int n_conservative_variables = context.GetNConservativeVariables();
-  const double dx = context.GetCellSize(level, dir);
-  const double lambda = dt.count() / dx;
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-  for (MFIter mfi(cells, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-    FArrayBox& qs = cells[mfi];
-    const FArrayBox& fs = fluxes[mfi];
-    const Box tilebox = mfi.growntilebox();
-    const Box all_faces_tilebox = surroundingNodes(tilebox, d);
-    const Box all_fluxes_box = flux.box();
-    const Box flux_box = all_faces_tilebox & all_fluxes_box;
-    const Box cell_box = enclosedCells(flux_box);
-    Array4<double> q = qs.array();
-    Array4<const double> f = fs.array();
-    ParallelFor(cell_box, n_conservative_variables,
-                [=] AMREX_GPU_DEVICE(int i, int j, int k, int var) {
-                  std::array<int, 3> iL{i, j, k};
-                  std::array<int, 3> iR = Shift(iv, dir, 1);
-                  q(iv, var) = q(iv, var) + lambda * (f(iL, var) - f(iR, var));
-                });
+class GpuTimeIntegrator {
+  /// \brief This function computes a conservative time update for cells in
+  /// direction dir
+  ///
+  /// This specific implementation uses the AMReX tools to do the job
+  void UpdateConservatively(IntegratorContext& context, int level, Duration dt,
+                            Direction dir) {
+    using namespace amrex;
+    MultiFab& states = context.GetScratch(level);
+    const MultiFab& fluxes = context.GetFluxes(level, dir);
+    const int n_conservative_variables = context.GetNConservativeVariables();
+    const double dx = context.GetCellSize(level, dir);
+    const double lambda = dt.count() / dx;
+  #ifdef _OPENMP
+  #pragma omp parallel if (Gpu::notInLaunchRegion())
+  #endif
+    for (MFIter mfi(cells, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+      FArrayBox& qs = cells[mfi];
+      const FArrayBox& fs = fluxes[mfi];
+      const Box cell_box = mfi.growntilebox();
+      Array4<double> q = qs.array();
+      Array4<const double> f = fs.array();
+      ParallelFor(cell_box, n_conservative_variables,
+                  [=] AMREX_GPU_DEVICE(int i, int j, int k, int var) {
+                    std::array<int, 3> iv{i, j, k};
+                    std::array<int, 3> iL = iv;
+                    std::array<int, 3> iR = Shift(iv, dir, 1);
+                    q(iv, var) = q(iv, var) + lambda * (f(iL, var) - f(iR, var));
+                  });
+    }
   }
-}
+};
 ```
-[Klein: Mannomann, die Lernkurve wird steil. Abgesehen davon: Fehlt hier nicht eine Definition des multi-indexes iv?]
 </div>
 
-In addition to managing the additional data, every integrator context defines a comprehensive list of functions to deal with the various data locations. The `IntegratorContext` concept is  therefore defined by
+In addition to managing the additional data, every integrator context defines a comprehensive list of functions to deal with the various data locations. The `IntegratorContext` concept is through
 
 
 ```cpp
 template <typename I>
 concept IntegratorContext = std::copy_assignable<I> && requires (
       I& integrator_context, int level, Duration dt, Direction dir,
-      double scale) {
+      double scale, BoundaryCondition& bc) {
   // Access PatchLevel Data
+  { integrator_context.GetGriddingAlgorithm() };
   { integrator_context.GetData(level) };
   { integrator_context.GetScratch(level) };
   { integrator_context.GetFluxes(level, dir) };
@@ -490,7 +486,6 @@ concept IntegratorContext = std::copy_assignable<I> && requires (
   { integrator_context.ResetHierarchyConfiguration(level) };
 };
 ```
-[Klein: Was ist in den Geisterzellenroutinen "bc"? Muss das vorher nicht irgendwo zumindest mit einer Typzuweisung auftauchen?]
 
 This is the minimum amount of functions needed to build common conservative AMR schemes on top of an AMR library like [[AMReX]] or [[SAMRAI]]. The implementation of an `IntegratorContext` will, in general, be very library-specific. The layers after the `IntegratorContext` describe parts of the AMR time integration which are implemented on those concepts only.
 
@@ -504,17 +499,26 @@ concept DimensionalSplitIntegratorContext = IntegratorContext<I> && requires (
   { integrator_context.ComputeNumericFluxes(level, dt, dir) };
   { integrator_context.ComputeStableDt(level, dir) };
   { integrator_context.UpdateConservatively(level, dir) };
-  { integrator_context.CompleteFromCons(level, dir) };
 };
 ```
 
-The functions `ComputeStableDt`, `ComputeNumericFluxes`, `UpdateConservatively` and `CompleteFromCons` are customization points of a `DimensionalSplitIntegratorContext`. I. e. one needs to provide objects for the policy concepts `FluxMethod<IntegratorContext>`, `TimeIntegrator<IntegratorContext>` and `CompleteFromConsReconstruction<IntegratorContext>` to define the behaviour of those functions.
+Each integrator context which is currently implemented satisfies the `DimensionalSplitIntegratorCotnext`.
+The functions `ComputeStableDt`, `ComputeNumericFluxes`, `UpdateConservatively` and `CompleteFromCons` are customization points for those imlpementations. I. e. one needs to provide objects for the policy concepts `FluxMethod<IntegratorContext>`, `TimeIntegrator<IntegratorContext>` and `CompleteFromConsCalculation<IntegratorContext>` to define the behaviour of those functions.
+
+The list of the currently implemented integrator contexts is
+
+ - `fub::amrex::IntegratorContext`
+ - `fub::amrex::cutcell::IntegratorContext`
+ - `fub::amrex::MultiBlockIntegratorContext`
+ - `fub::samrai::IntegratorContext`
+
+The `MultiBlockIntegratorContext` class is special, because it is composed of two vectors `std::vector<fub::amrex::IntegratorContext>` and `std::vector<fub::amrex::cutcell::IntegratorContext>` where each integrator context describes a computational domain. Instead of defining policy objects for the composed context one provides them for each member context.
 
 Algorithmic Choice: IntegratorContext {#algorithm-choice-integrator-context}
 ----------------------------------------------------------------------------
 
 We now describe the customization points for an integrator context.
-Its concepts `FluxMethod<IntegratorContext>`, `TimeIntegrator<IntegratorContext>` and `CompleteFromConsReconstruction<IntegratorContext>` are defined as 
+Its concepts `FluxMethod<IntegratorContext>`, `TimeIntegrator<IntegratorContext>` and `CompleteFromConsCalculation<IntegratorContext>` are defined as 
 
 ```cpp
 template <typename FM, typename IntegratorContext>
@@ -534,7 +538,7 @@ concept TimeIntegrator = std::copy_assignable<TI> && requires (
 };
 
 template <typename R, typename IntegratorContext>
-concept CompleteFromConsReconstruction = std::copy_assignable<R> && requires(
+concept CompleteFromConsCalculation = std::copy_assignable<R> && requires(
     R& reconstruct, IntegratorContext& context, int level) {
   { reconstruct.CompleteFromCons(context, level) };
 };
@@ -549,9 +553,7 @@ The `TimeIntegrator` provides the usual conservative scheme for cell-based time 
 
 The numerical fluxes \( F^n_i \) in this update denote the fluxes on the faces of the specified direction and are computed by the `FluxMethod` which is configured for this integrator context.
 
-An AMR integration scheme may use the `CompleteFromConsReconstruction` policy object whenever it changes the conservative variables to establish a valid state across all fields in the patch hierarchy.
-
-[Sehe ich das richtig, dass "CompleteFromConsReconstruction" in jeder Zelle einfach nur einen Satz von redundanten Repräsentaten des momentanen Zustands in der Zelle berechnet, also in unserem Fall kompressibler Gasdynamik etwa Druck, Temperatur, Geschwindigkeiten, Konzentrationen? Oder hat das Erscheinen des Wortes "Reconstruction" etwas mit Berechnung von Zuständen an Gitterzellflächen zu tun? Wenn letzteres NICHT der Fall ist, dann ist aus meiner Sicht "Reconstruction" hier der falsche Begriff - zumindest im Zusammenhang mit MUSCL-Verfahren, bei denen "reconstruction" immer mit der Bestimmung von Zellflächendaten oder von Verteilungen von Variablen in einer Zelle (etwa stückweise polynomial) zu tun hat.]
+An AMR integration scheme may use the `CompleteFromConsCalculation` policy object whenever it changes the conservative variables to establish a valid state across all fields in the patch hierarchy.
 
 We collect the three customization points for the `IntegratorContext` in a class which we call `HyperbolicMethod<IntegratorContext>`.
 It is defined as
@@ -561,7 +563,7 @@ template <typename IntegratorContext>
 struct HyperbolicMethod {
   AnyFluxMethod flux_method;
   AnyTimeIntegrator time_integrator;
-  AnyCompleteFromConsReconstruction reconstruct;
+  AnyCompleteFromConsCalculation reconstruct;
 };
 ```
 
