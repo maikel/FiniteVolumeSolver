@@ -25,8 +25,8 @@
 #include <AMReX_MLMG.H>
 
 #include "fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp"
-#include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
-#include "fub/AMReX/bk19/BK19LevelIntegrator.hpp"
+#include "fub/AMReX/CompressibleAdvectionIntegratorContext.hpp"
+#include "fub/AMReX/solver/BK19LevelIntegrator.hpp"
 #include "fub/equations/CompressibleAdvection.hpp"
 
 double p_coeff(double r, const std::vector<double>& coefficients) {
@@ -225,8 +225,8 @@ void MyMain(const fub::ProgramOptions& options) {
   HyperbolicMethod method{flux_method, EulerForwardTimeIntegrator(),
                           Reconstruction(fub::execution::seq, equation)};
 
-  //   BK19IntegratorContext simulation_data(grid, method, 2, 0);
-  BK19IntegratorContext simulation_data(grid, method, 4, 2);
+  //   CompressibleAdvectionIntegratorContext simulation_data(grid, method, 2, 0);
+  CompressibleAdvectionIntegratorContext simulation_data(grid, method, 4, 2);
 
   fub::DimensionalSplitLevelIntegrator advection(
       //       fub::int_c<2>, std::move(simulation_data),

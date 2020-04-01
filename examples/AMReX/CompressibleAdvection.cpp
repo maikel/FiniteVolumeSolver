@@ -21,7 +21,7 @@
 #include "fub/AMReX.hpp"
 #include "fub/Solver.hpp"
 
-#include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
+#include "fub/AMReX/CompressibleAdvectionIntegratorContext.hpp"
 #include "fub/equations/CompressibleAdvection.hpp"
 
 struct InitialData {
@@ -117,7 +117,7 @@ int main() {
       fub::amrex::Reconstruction(tag, equation)};
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<2>, fub::amrex::BK19IntegratorContext(grid, method, 2, 0),
+      fub::int_c<2>, fub::amrex::CompressibleAdvectionIntegratorContext(grid, method, 2, 0),
       fub::GodunovSplitting());
 
   fub::amrex::BK19AdvectiveFluxes& Pv =
