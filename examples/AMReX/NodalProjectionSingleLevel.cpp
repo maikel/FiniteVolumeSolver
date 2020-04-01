@@ -59,26 +59,23 @@ int main(int argc, char** argv) {
   for (amrex::MFIter mfi(vel, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
     const amrex::Box& bx = mfi.tilebox();
     amrex::Array4<double> const v = vel.array(mfi);
-    amrex::ParallelFor(
-        bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-          constexpr double pi = 3.1415926535897932;
-          constexpr double tpi = 2. * pi;
-          constexpr double fpi = 4. * pi;
-          constexpr double fac = tpi * tpi * AMREX_SPACEDIM;
+    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+      constexpr double pi = 3.1415926535897932;
+      constexpr double tpi = 2. * pi;
+      constexpr double fpi = 4. * pi;
+      constexpr double fac = tpi * tpi * AMREX_SPACEDIM;
 
-          double x = i * dx[0];
-          double y = j * dx[1];
-          double z = k * dx[2];
+      double x = i * dx[0];
+      double y = j * dx[1];
+      double z = k * dx[2];
 
-          v(i, j, k, 0) =
-              (std::cos(tpi * x) * std::cos(tpi * y) * std::cos(tpi * z)) +
-              0.25 *
-                  (std::cos(fpi * x) * std::cos(fpi * y) * std::cos(fpi * z));
-          v(i, j, k, 1) =
-              (std::cos(tpi * x) * std::cos(tpi * y) * std::cos(tpi * z)) +
-              0.25 *
-                  (std::cos(fpi * x) * std::cos(fpi * y) * std::cos(fpi * z));
-        });
+      v(i, j, k, 0) =
+          (std::cos(tpi * x) * std::cos(tpi * y) * std::cos(tpi * z)) +
+          0.25 * (std::cos(fpi * x) * std::cos(fpi * y) * std::cos(fpi * z));
+      v(i, j, k, 1) =
+          (std::cos(tpi * x) * std::cos(tpi * y) * std::cos(tpi * z)) +
+          0.25 * (std::cos(fpi * x) * std::cos(fpi * y) * std::cos(fpi * z));
+    });
   }
 
   // copy velocity into plotfile

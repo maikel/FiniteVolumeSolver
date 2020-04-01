@@ -127,28 +127,25 @@ AnyBoundaryCondition::AnyBoundaryCondition(BC&& bc)
               std::forward<BC>(bc))} {}
 
 inline void AnyBoundaryCondition::FillBoundary(::amrex::MultiFab& mf, int, int,
-                                            const ::amrex::IntVect&,
-                                            double time_point, int) {
+                                               const ::amrex::IntVect&,
+                                               double time_point, int) {
   if (boundary_condition_ && parent) {
     boundary_condition_->FillBoundary(mf, geometry, Duration(time_point),
                                       *parent);
   }
 }
 
-inline void AnyBoundaryCondition::FillBoundary(::amrex::MultiFab& mf,
-                                            const ::amrex::Geometry& geom,
-                                            Duration timepoint,
-                                            const GriddingAlgorithm& gridding) {
+inline void AnyBoundaryCondition::FillBoundary(
+    ::amrex::MultiFab& mf, const ::amrex::Geometry& geom, Duration timepoint,
+    const GriddingAlgorithm& gridding) {
   if (boundary_condition_) {
     boundary_condition_->FillBoundary(mf, geom, timepoint, gridding);
   }
 }
 
-inline void AnyBoundaryCondition::FillBoundary(::amrex::MultiFab& mf,
-                                            const ::amrex::Geometry& geom,
-                                            Duration timepoint,
-                                            const GriddingAlgorithm& gridding,
-                                            Direction dir) {
+inline void AnyBoundaryCondition::FillBoundary(
+    ::amrex::MultiFab& mf, const ::amrex::Geometry& geom, Duration timepoint,
+    const GriddingAlgorithm& gridding, Direction dir) {
   if (boundary_condition_) {
     boundary_condition_->FillBoundary(mf, geom, timepoint, gridding, dir);
   }

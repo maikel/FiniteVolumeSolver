@@ -81,7 +81,8 @@ public:
   [[nodiscard]] int Rank() const noexcept;
 
   /// \brief Returns the current boundary condition for the specified level.
-  [[nodiscard]] const AnyBoundaryCondition& GetBoundaryCondition(int level) const;
+  [[nodiscard]] const AnyBoundaryCondition&
+  GetBoundaryCondition(int level) const;
   [[nodiscard]] AnyBoundaryCondition& GetBoundaryCondition(int level);
 
   /// \brief Returns a shared pointer to the underlying GriddingAlgorithm which
@@ -200,7 +201,8 @@ public:
   /// \param level  The refinement level on which the boundary condition shall
   /// be used.
   void ApplyBoundaryCondition(int level, Direction dir);
-  void ApplyBoundaryCondition(int level, Direction dir, AnyBoundaryCondition& bc);
+  void ApplyBoundaryCondition(int level, Direction dir,
+                              AnyBoundaryCondition& bc);
 
   /// \brief Fills the ghost layer of the scratch data and interpolates in the
   /// coarse fine layer.
