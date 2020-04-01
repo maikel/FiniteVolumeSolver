@@ -22,8 +22,8 @@
 #ifndef FUB_BK19_LEVEL_INTEGRATOR_HPP
 #define FUB_BK19_LEVEL_INTEGRATOR_HPP
 
-#include "fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp"
-#include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
+#include "fub/AMReX/MLMG/MLNodeHelmholtz.hpp"
+#include "fub/AMReX/CompressibleAdvectionIntegratorContext.hpp"
 #include "fub/equations/CompressibleAdvection.hpp"
 #include "fub/ext/Eigen.hpp"
 #include "fub/ext/ProgramOptions.hpp"
@@ -60,9 +60,31 @@ struct BK19LevelIntegratorOptions {
   bool output_between_steps = false;
 };
 
+struct BK19PhysicalParameters {
+
+  /// Specific gas constant
+  double R_gas{287.4};
+
+  /// Heat capacity ratio
+  double gamma{1.4};
+
+  /// Heat capacity at constant pressure
+  double c_p{1006.0};
+
+  /// Gravitational acceleration
+  double g{10.0}; //  [m / s^2]
+
+  /// Coriolis parameter in beta plane
+  double f{0.0};
+  std::array<double, 2> f_swtch{0.0, 0.0};
+
+  double alpha_p{1.0};
+  double Msq{0.0};
+};
+
 class BK19LevelIntegrator
     : private DimensionalSplitLevelIntegrator<
-          AMREX_SPACEDIM, BK19IntegratorContext, AnySplitMethod> {
+          AMREX_SPACEDIM, CompressibleAdvectionIntegratorContext, AnySplitMethod> {
 public:
   static constexpr int Rank = AMREX_SPACEDIM;
 
@@ -73,7 +95,7 @@ public:
   using SplittingMethod = ::fub::AnySplitMethod;
 
   using AdvectionSolver =
-      DimensionalSplitLevelIntegrator<Rank, BK19IntegratorContext,
+      DimensionalSplitLevelIntegrator<Rank, CompressibleAdvectionIntegratorContext,
                                       SplittingMethod>;
 
   using AdvectionSolver::ApplyFluxCorrection;
@@ -102,7 +124,8 @@ public:
 
   BK19LevelIntegrator(
       const CompressibleAdvection<Rank>& equation, AdvectionSolver advection,
-      std::shared_ptr<::amrex::MLNodeHelmDualCstVel> linop,
+      std::shared_ptr<::amrex::MLNodeHelmholtz> linop,
+      const BK19PhysicalParameters& physical_parameters,
       const BK19LevelIntegratorOptions& options = BK19LevelIntegratorOptions());
 
   void ResetPatchHierarchy(std::shared_ptr<GriddingAlgorithm> grid);
@@ -112,10 +135,11 @@ public:
                              std::pair<int, int> subcycle);
 
 private:
+  BK19PhysicalParameters phys_param_;
   BK19LevelIntegratorOptions options_;
   CompressibleAdvection<Rank> equation_;
   fub::IndexMapping<fub::CompressibleAdvection<2>> index_;
-  std::shared_ptr<::amrex::MLNodeHelmDualCstVel> lin_op_;
+  std::shared_ptr<::amrex::MLNodeHelmholtz> lin_op_;
 };
 
 void WriteRawField(const std::string& path, const std::string& name,
@@ -124,7 +148,7 @@ void WriteRawField(const std::string& path, const std::string& name,
 struct WriteBK19Plotfile {
   std::string plotfilename{};
 
-  void operator()(const BK19IntegratorContext& context) const;
+  void operator()(const CompressibleAdvectionIntegratorContext& context) const;
   void operator()(const GriddingAlgorithm& grid) const;
 };
 

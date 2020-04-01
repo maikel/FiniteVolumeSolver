@@ -226,6 +226,7 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/output/BasicOutput.hpp
   include/fub/output/OutputAtFrequencyOrInterval.hpp
   include/fub/output/AsOutput.hpp
+  include/fub/AnyInitialData.hpp
   include/fub/Solver.hpp
   include/fub/CompleteFromCons.hpp
   include/fub/CutCellData.hpp
@@ -372,11 +373,12 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     include/fub/AMReX/Tagging.hpp
     include/fub/AMReX/TimeIntegrator.hpp
     include/fub/AMReX/IntegratorContext.hpp
-    include/fub/AMReX/InitialData.hpp
     include/fub/AMReX/FluxMethod.hpp
     include/fub/AMReX/ScopeGuard.hpp
     include/fub/AMReX/ViewFArrayBox.hpp
+    include/fub/AMReX/MLMG/MLNodeHelmholtz.hpp
     include/fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp
+    include/fub/AMReX/MLMG/MLNodeHelmDualLinVel.hpp
     include/fub/AMReX/tagging/TagBuffer.hpp
     include/fub/AMReX/tagging/ConstantRegion.hpp
     include/fub/geometry/Geometry.hpp
@@ -402,6 +404,8 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     src/AMReX/ViewFArrayBox.cpp
     src/AMReX/MLMG/MLNodeHelmDualCstVel.cpp
     src/AMReX/MLMG/MLNodeHelmDualCstVel_K.cpp
+    src/AMReX/MLMG/MLNodeHelmDualLinVel.cpp
+    src/AMReX/MLMG/MLNodeHelmDualLinVel_K.cpp
     src/AMReX/PatchHierarchy.cpp
     src/AMReX/GriddingAlgorithm.cpp
     src/AMReX/BoundaryCondition.cpp
@@ -435,12 +439,12 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
       CONAN_PKG::HDF5)
   target_include_directories(FiniteVolumeSolver.AMReX PUBLIC ${HDF5_C_INCLUDE_DIR})
 
-  if (AMReX_2D_FOUND) 
+  if (AMReX_2D_FOUND)
     target_sources(FiniteVolumeSolver.AMReX PRIVATE
-      include/fub/AMReX/bk19/BK19LevelIntegrator.hpp
-      include/fub/AMReX/bk19/BK19IntegratorContext.hpp
-      src/AMReX/bk19/BK19LevelIntegrator.cpp
-      src/AMReX/bk19/BK19IntegratorContext.cpp)
+      include/fub/AMReX/solver/BK19LevelIntegrator.hpp
+      include/fub/AMReX/CompressibleAdvectionIntegratorContext.hpp
+      src/AMReX/solver/BK19LevelIntegrator.cpp
+      src/AMReX/CompressibleAdvectionIntegratorContext.cpp)
   endif()
 
   if (AMReX_EB_FOUND)
@@ -455,7 +459,6 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         include/fub/AMReX/cutcell/FluxMethod.hpp
         include/fub/AMReX/cutcell/GriddingAlgorithm.hpp
         include/fub/AMReX/cutcell/IndexSpace.hpp
-        include/fub/AMReX/cutcell/InitialData.hpp
         include/fub/AMReX/cutcell/PatchHierarchy.hpp
         include/fub/AMReX/cutcell/Reconstruction.hpp
         include/fub/AMReX/cutcell/IntegratorContext.hpp

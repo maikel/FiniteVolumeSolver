@@ -26,7 +26,7 @@ void BoundarySet::FillBoundary(::amrex::MultiFab& mf,
                                const ::amrex::Geometry& geom,
                                Duration timepoint,
                                const GriddingAlgorithm& gridding) {
-  for (BoundaryCondition& condition : conditions) {
+  for (AnyBoundaryCondition& condition : conditions) {
     condition.FillBoundary(mf, geom, timepoint, gridding);
   }
 }
@@ -36,7 +36,7 @@ void BoundarySet::FillBoundary(::amrex::MultiFab& mf,
                                Duration timepoint,
                                const GriddingAlgorithm& gridding,
                                Direction dir) {
-  for (BoundaryCondition& condition : conditions) {
+  for (AnyBoundaryCondition& condition : conditions) {
     condition.FillBoundary(mf, geom, timepoint, gridding, dir);
   }
 }

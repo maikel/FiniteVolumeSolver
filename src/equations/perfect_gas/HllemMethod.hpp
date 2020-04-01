@@ -46,6 +46,8 @@ void Hllem<Dim>::ComputeNumericFlux(
   const double rhoUR = right.momentum[d];
   const double aL = left.speed_of_sound;
   const double aR = right.speed_of_sound;
+  const double rhoEL = left.energy;
+  const double rhoER = right.energy;
   const double hL = (left.energy + left.pressure) / rhoL;
   const double hR = (right.energy + right.pressure) / rhoR;
   const double sqRhoL = std::sqrt(rhoL);
@@ -69,7 +71,7 @@ void Hllem<Dim>::ComputeNumericFlux(
   const double bR = std::max(sR, 0.0);
   const double bLbR = bL * bR;
   const double db = bR - bL;
-  const double db_positive = int(db == 0) + int(db != 0) * db;
+  const double db_positive = int(db <= 0) + int(db > 0) * db;
 
   Conservative flux_hlle;
   ForEachComponent(
@@ -78,48 +80,59 @@ void Hllem<Dim>::ComputeNumericFlux(
       },
       flux_hlle, fluxL, fluxR, AsCons(left), AsCons(right));
 
-//  const double roeRho = sqRhoL * sqRhoR;
-  std::array<double, Dim> vL;
-  std::array<double, Dim> vR;
-  std::array<double, Dim> roeU;
-  for (int i = 0; i < Dim; ++i) {
-    vL[i] = left.momentum[i] / rhoL;
-    vR[i] = right.momentum[i] / rhoR;
-    roeU[i] = (sqRhoL * vL[i] + sqRhoR * vR[i]) / sqRhoSum;
-  }
-  double squaredNormRoeU = 0.0;
-  for (int i = 0; i < Dim; ++i) {
-    squaredNormRoeU += roeU[i] * roeU[i];
-  }
-  const double u_bar = 0.5 * (sL + sR);
+  Array<double, 1, Dim> vL = left.momentum / rhoL;
+  Array<double, 1, Dim> vR = right.momentum / rhoR;
+  FUB_ASSERT(sqRhoSum > 0.0);
+  Array<double, 1, Dim> roeU = (sqRhoL * vL + sqRhoR * vR) / sqRhoSum;
+  const double squaredNormRoeU = roeU.matrix().squaredNorm();
+  const double u_bar = 0.5 * (sR + sL);
+  const double c_bar = 0.5 * (sR - sL);
   const double u_bar_abs = std::abs(u_bar);
-  const double delta = roeA / (roeA + u_bar_abs);
-  
+  const double delta = c_bar / (c_bar + u_bar_abs);
   const double b = bLbR / db_positive;
-  const double b_delta = b * delta * roeU0;
+
+  const double deltaRho = rhoR - rhoL;
+  const double deltaRhoU = rhoUR - rhoUL;
+  const double deltaRhoE = rhoER - rhoEL;
+  [[maybe_unused]] const Array<double, 1, Dim> deltaRhoV = right.momentum - left.momentum;
+
+  const double C1 = (deltaRhoU - deltaRho * roeU0) / roeA;
+
   const double squaredNormRoeU_half = 0.5 * squaredNormRoeU;
 
   if constexpr (Dim == 1) {
-    flux.density  = flux_hlle.density  - b_delta * 1.0;
-    flux.momentum = flux_hlle.momentum - b_delta * roeU[0];
-    flux.energy   = flux_hlle.energy   - b_delta * squaredNormRoeU_half;
+    const double C2 = (deltaRhoE - deltaRho * squaredNormRoeU_half - C1 * roeU[0] * roeA) / (roeH - squaredNormRoeU_half);
+    const double alpha_2 = deltaRho - C2;
+    const double b_delta_alpha = b * delta * alpha_2;
+    flux.density  = flux_hlle.density  - b_delta_alpha * 1.0;
+    flux.momentum = flux_hlle.momentum - b_delta_alpha * roeU;
+    flux.energy   = flux_hlle.energy   - b_delta_alpha * squaredNormRoeU_half;
   } else if constexpr (Dim == 2) {
     const int i = int(dir);
     const int j = int(i == 0);
-    flux.density         = flux_hlle.density     - b_delta;
-    flux.momentum[i] = flux_hlle.momentum[i] - b_delta *  roeU[i];
-    flux.momentum[j] = flux_hlle.momentum[j] - b_delta * (roeU[j]              + 1.0);
-    flux.energy          = flux_hlle.energy      - b_delta * (squaredNormRoeU_half + roeU[j]);
+    const double alpha_3 = deltaRhoV[j] - deltaRho * roeU[j];
+    const double C2 = (deltaRhoE - deltaRho * squaredNormRoeU_half - alpha_3 * roeU[j] - C1 * roeU0 * roeA) / (roeH - squaredNormRoeU_half);
+    const double alpha_2 = deltaRho - C2;
+    const double b_delta = b * delta;
+    flux.density     = flux_hlle.density     - b_delta * alpha_2 * 1.0;
+    flux.momentum[i] = flux_hlle.momentum[i] - b_delta * alpha_2 * roeU[i];
+    flux.momentum[j] = flux_hlle.momentum[j] - b_delta * (alpha_2 * roeU[j] + alpha_3 * 1.0);
+    flux.energy      = flux_hlle.energy      - b_delta * (alpha_2 * squaredNormRoeU_half + alpha_3 * roeU[j]);
   } else {
     static_assert(Dim == 3);
     const int i = int(dir);
     const int j = (i + 1) % 3;
     const int k = (j + 1) % 3;
-    flux.density     = flux_hlle.density     - b_delta;
-    flux.momentum[i] = flux_hlle.momentum[i] - b_delta *  roeU[i];
-    flux.momentum[j] = flux_hlle.momentum[j] - b_delta * (roeU[j]              + 1.0);
-    flux.momentum[k] = flux_hlle.momentum[k] - b_delta * (roeU[k]                        + 1.0);
-    flux.energy      = flux_hlle.energy      - b_delta * (squaredNormRoeU_half + roeU[j] + roeU[k]);
+    const double alpha_3 = deltaRhoV[j] - deltaRho * roeU[j];
+    const double alpha_4 = deltaRhoV[k] - deltaRho * roeU[k];
+    const double C2 = (deltaRhoE - deltaRho * squaredNormRoeU_half - alpha_3 * roeU[j] - alpha_4 * roeU[k] - C1 * roeU0 * roeA) / (roeH - squaredNormRoeU_half);
+    const double alpha_2 = deltaRho - C2;
+    const double b_delta = b * delta;
+    flux.density         = flux_hlle.density         - b_delta * alpha_2;
+    flux.momentum[i] = flux_hlle.momentum[i] - b_delta * alpha_2 * roeU[i];
+    flux.momentum[j] = flux_hlle.momentum[j] - b_delta * (alpha_2 * roeU[j] + alpha_3 * 1.0);
+    flux.momentum[k] = flux_hlle.momentum[k] - b_delta * (alpha_2 * roeU[k] + alpha_4 * 1.0);
+    flux.energy          = flux_hlle.energy          - b_delta * (alpha_2 * squaredNormRoeU_half + alpha_3 * roeU[j] + alpha_4 * roeU[k]);
   }
 }
 
