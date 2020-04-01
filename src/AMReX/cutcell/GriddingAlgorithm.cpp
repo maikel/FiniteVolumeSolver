@@ -57,9 +57,8 @@ GriddingAlgorithm::operator=(const GriddingAlgorithm& other) {
 }
 
 GriddingAlgorithm::GriddingAlgorithm(GriddingAlgorithm&& other) noexcept
-    : AmrCore(std::move(other)),
-      hierarchy_{std::move(other.hierarchy_)}, initial_condition_{std::move(
-                                                   other.initial_condition_)},
+    : AmrCore(std::move(other)), hierarchy_{std::move(other.hierarchy_)},
+      initial_condition_{std::move(other.initial_condition_)},
       tagging_{std::move(other.tagging_)},
       boundary_condition_(std::move(other.boundary_condition_)) {
   for (int level = 0; level < hierarchy_.GetMaxNumberOfLevels(); ++level) {
@@ -75,7 +74,8 @@ GriddingAlgorithm::operator=(GriddingAlgorithm&& other) noexcept {
   initial_condition_ = std::move(other.initial_condition_);
   tagging_ = std::move(other.tagging_);
   boundary_condition_ = std::move(other.boundary_condition_);
-  *static_cast<::amrex::AmrCore*>(this) = static_cast<::amrex::AmrCore&&>(other);
+  *static_cast<::amrex::AmrCore*>(this) =
+      static_cast<::amrex::AmrCore&&>(other);
   for (int level = 0; level < hierarchy_.GetMaxNumberOfLevels(); ++level) {
     boundary_condition_[static_cast<std::size_t>(level)].geometry =
         hierarchy_.GetGeometry(level);
@@ -84,7 +84,8 @@ GriddingAlgorithm::operator=(GriddingAlgorithm&& other) noexcept {
   return *this;
 }
 
-GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier, InitialData data,
+GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier,
+                                     AnyInitialData data,
                                      Tagging tagging,
                                      AnyBoundaryCondition boundary)
     : AmrCore(
@@ -270,10 +271,10 @@ void GriddingAlgorithm::MakeNewLevelFromScratch(
         level, Duration(time_point), box_array, balanced_distribution_map,
         n_comps, std::move(eb_factory), ngrow - 1);
   }
-  ::amrex::MultiFab& data = hierarchy_.GetPatchLevel(level).data;
-  const ::amrex::Geometry& geom = hierarchy_.GetGeometry(level);
-  data.setVal(0.0);
-  initial_condition_.InitializeData(data, geom);
+
+  PatchLevel& patch_level = hierarchy_.GetPatchLevel(level);
+  initial_condition_.InitializeData(patch_level, *this, level,
+                                    static_cast<Duration>(time_point));
   SetDistributionMap(level, balanced_distribution_map);
 }
 

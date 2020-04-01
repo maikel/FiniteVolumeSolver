@@ -21,7 +21,7 @@
 #include "fub/equations/CompressibleAdvection.hpp"
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/ForEachIndex.hpp"
-#include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
+#include "fub/AMReX/CompressibleAdvectionIntegratorContext.hpp"
 
 namespace fub {
 namespace {
@@ -45,12 +45,12 @@ template <int SpaceDimension, int VelocityDimension>
 Duration CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
     ComputeStableDt(amrex::IntegratorContext& base_context, int level,
                     Direction dir) {
-  // try to convert the IntegratorContext to BK19IntegratorContext
+  // try to convert the IntegratorContext to CompressibleAdvectionIntegratorContext
   // if this terminate the program.
-  amrex::BK19IntegratorContext* pointer_to_context =
-      dynamic_cast<amrex::BK19IntegratorContext*>(&base_context);
+  amrex::CompressibleAdvectionIntegratorContext* pointer_to_context =
+      dynamic_cast<amrex::CompressibleAdvectionIntegratorContext*>(&base_context);
   FUB_ASSERT(pointer_to_context);
-  amrex::BK19IntegratorContext& context = *pointer_to_context;
+  amrex::CompressibleAdvectionIntegratorContext& context = *pointer_to_context;
   CompressibleAdvection<SpaceDimension> equation{};
   const ::amrex::Geometry& geom = context.GetGeometry(level);
   const int dir_v = static_cast<int>(dir);
@@ -203,12 +203,12 @@ template <int SpaceDimension, int VelocityDimension>
 void CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
     ComputeNumericFluxes(amrex::IntegratorContext& base_context, int level,
                          Duration dt, Direction dir) {
-  // try to convert the IntegratorContext to BK19IntegratorContext
+  // try to convert the IntegratorContext to CompressibleAdvectionIntegratorContext
   // if this terminate the program.
-  amrex::BK19IntegratorContext* pointer_to_context =
-      dynamic_cast<amrex::BK19IntegratorContext*>(&base_context);
+  amrex::CompressibleAdvectionIntegratorContext* pointer_to_context =
+      dynamic_cast<amrex::CompressibleAdvectionIntegratorContext*>(&base_context);
   FUB_ASSERT(pointer_to_context);
-  amrex::BK19IntegratorContext& context = *pointer_to_context;
+  amrex::CompressibleAdvectionIntegratorContext& context = *pointer_to_context;
   CompressibleAdvection<SpaceDimension> equation{};
   const ::amrex::Geometry& geom = context.GetGeometry(level);
   const int dir_v = static_cast<int>(dir);

@@ -63,6 +63,9 @@ using Equation = std::decay_t<decltype(std::declval<T>().GetEquation())>;
 
 namespace fub {
 
+template <typename GriddingAlgorithm>
+struct GridTraits;
+
 /// \brief Invokes member function obj.ResetHierarchyConfiguration(grid)
 ///
 /// This is a helper function which invokes ResetHierarchyConfiguration if the
