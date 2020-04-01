@@ -280,8 +280,8 @@ The needs application to build up their layers in the following order [<-  Klein
   1. [PatchHierarchy](#patch-hierarchy) (data storage)
   2. [GriddingAlgorithm](#gridding-algorithm) (algorithmic choice)
   3. [IntegratorContext](#data-integrator-context) (data storage / algorithmic choice)
-  4. one or more composed LevelIntegrators (algorithmic choice)
-  5. SubcycleSolver (algorithmic choice)
+  4. one or more composed [LevelIntegrator](#level-integrator)s (algorithmic choice)
+  5. [SubcycleSolver](#subcycle-solver) (algorithmic choice)
 
 Note: Each layer in this list is implemented in terms of its predecessor.
 
@@ -611,17 +611,28 @@ In addition to computing the mathematical correct formula, an object that satisf
 We recognize that these are two orthogonal concerns which are both hard to get right. 
 To ease the burden for authors of a `FluxMethod` we introduced some helper classes which separate these concerns. They will be discussed in more detail in <a href="#flux-method-framework">Chapter 3</a>.
 
-DimensionalSplitLevelIntegrator {#dimensional-split-integrator}
----------------------------------------------------------------
+Algorithmic Choice: LevelIntegrator {#level-integrator}
+-------------------------------------------------------
+
+Level integrators have the task to advance the solution in time for a single refinement level only.
+They will be used by larger subcycle schemes which may, in general, do smaller time steps on finer refinement levels.
+We define the concept `LevelIntegrator` such that it provides two functions `AdvanceLevelNonRecursively` and `ComputeStableDt`.
 
 
 ```cpp
 template <typename L>
 concept LevelIntegrator = std::copy_assignable<L> && requires (const L& level_integrator, int level, Duration dt, std::pair<int, int> subcycle) {
-  { level_integrator.AdvanceLevelNonRecursively(level, dt, subcycle) };
+  { level_integrator.AdvanceLevelNonRecursively(level, dt, subcycle) } -> Result<void, TimeStepTooLarge>;
   { level_integrator.ComputeStableDt(level) } -> Duration;
 };
+```
 
+The name `AdvanceLevelNonRecursively` emphasizes that this function will be called within a recursive subcycle algorithm.
+We call level integrators which provide an integrator context `HyperbolicSystemLevelIntegrator`.
+An integrator context extents level integrators with functions such as `ApplyFluxCorrection`, `CoarsenConservatively` or `CompleteFromCons`.
+These additional functions will be used in a subcycle algorithm to maintain the conservation of the solution across refinement levels.
+
+```cpp
 template <typename HS>
 concept HyperbolicSystemLevelIntegrator = LevelIntegrator<S> && requires (const L& level_integrator) {
   // Access underlying data storage implementation
@@ -629,6 +640,138 @@ concept HyperbolicSystemLevelIntegrator = LevelIntegrator<S> && requires (const 
 };
 ```
 
+This library includes currently the following list of level integrators
+
+- `DimensionalSplitLevelIntegrator` (satisfies `HyperbolicSystemLevelIntegrator`)
+- `SystemSourceLevelIntegrator` (satisfies `HyperboilcSystemLevelIntegrator`)
+- `BK19LevelIntegrator` (satisfies `HyperbolicSystemLevelIntegrator`)
+- `KineticSourceTerm` (satisfies `LevelIntegrator`)
+- `AxialSourceTerm` (satisfies `LevelIntegrator`)
+- `IgniteDetonation` (satisfies `LevelIntegrator`)
+
+`SystemSourceLevelIntegrator` and `BK19LevelIntegrator` are so-called composed level integrators.
+This means, in order to build one of those level integrators you need to provide at least one `HyperbolicSystemLevelIntegrator`.
+The only `HyperbolicSystemLevelIntegrator` currently defined in the library is the `DimensionalSplitLevelIntegrator` which applies dimensional operator splitting ontop of a `DimensionalSplitIntegratorContext`.
+
+A `DimensionalSplitLevelIntegrator` is constructible by providing a `DimensionalSplitIntegratorContext` and `SplittingMethod`, such as `GodunovSplitting` or `StrangSplitting`.
+A single dimensionally split time step includes the following steps
+
+```cpp
+  // Apply boundary condition for the physical boundary only.
+  Context::ApplyBoundaryCondition(this_level, dir);
+
+  // Check stable time step size and if the CFL condition is violated then
+  // restart the coarse time step
+  const Duration local_dt = Context::ComputeStableDt(this_level, dir);
+  MPI_Comm comm = GetMpiCommunicator();
+  const Duration level_dt = MinAll(comm, local_dt);
+  if (level_dt < split_dt) {
+    return TimeStepTooLarge{level_dt, this_level};
+  }
+
+  // Compute fluxes in the specified direction
+  Context::ComputeNumericFluxes(this_level, split_dt, dir);
+
+  // Use the updated fluxes to update cons variables at the "SCRATCH"
+  // context.
+  Context::UpdateConservatively(this_level, split_dt, dir);
+
+  // A time update happened on conservative variables.
+  // We have to re-establish a valid complete state.
+  Context::CompleteFromCons(this_level, split_dt);
+
+  // Accumulate the fluxes on the coarse fine interface
+  const double scale = split_dt.count();
+  Context::AccumulateCoarseFineFluxes(this_level, scale, dir);
+```
+
+Algorithmic Choice: SubcycleSovler {#subcycle-solver}
+-----------------------------------------------------
+
+Finally, subcycle solvers define in which order level integrators are applied on the refinement level of a hierarchy.
+They define the functions `ComputeStableDt` and `AdvanceLevel`.
+
+```cpp
+template <typename S>
+concept SubcycleSolver = std::copy_assignable<S> && requires (const S& solver, int level, Duration dt) {
+  { solver.ComputeStableDt() } -> Duration;
+  { solver.AdvanceLevel(level, dt) } -> Result<void, TimeStepTooLarge>;
+};
+```
+
+The `AdvanceLevel` function advances all levels finer or equal than the specified level.
+Most implementations define this function recursively.
+
+<div class=example>
+An examplary implementation of an recursive AdvanceLevel function is given here.
+```cpp
+template <typename LevelIntegrator>
+Result<void, TimeStepTooLarge>
+SubcycleFineFirstSolver<LevelIntegrator>::AdvanceLevel(
+    int this_level, Duration dt, std::pair<int, int> subcycle) {
+  // PreAdvanceLevel might regrid all finer levels.
+  // The context must make sure that scratch data is allocated
+  PreAdvanceLevel(this_level, dt, subcycle);
+
+  auto scale_dt_on_error = [this](Result<void, TimeStepTooLarge> result) {
+    TimeStepTooLarge error = result.error();
+    int ratio = GetTotalRefineRatio(error.level);
+    error.level = 0;
+    error.dt *= ratio;
+    return error;
+  };
+
+  // If a finer level exists in the hierarchy, we subcycle that finer level
+  // multiple times and use the fine fluxes on coarse-fine interfaces
+  const int next_level = this_level + 1;
+  if (LevelExists(next_level)) {
+    ResetCoarseFineFluxes(next_level, this_level);
+    const int refine_ratio = GetRatioToCoarserLevel(next_level).max();
+    for (int r = 0; r < refine_ratio; ++r) {
+      auto result =
+          AdvanceLevel(next_level, dt / refine_ratio, {r, refine_ratio});
+      if (!result) {
+        return scale_dt_on_error(result);
+      }
+    }
+  }
+
+  Result<void, TimeStepTooLarge> result =
+      AdvanceLevelNonRecursively(this_level, dt, subcycle);
+  if (!result) {
+    return scale_dt_on_error(result);
+  }
+  if (LevelExists(next_level)) {
+    ApplyFluxCorrection(next_level, this_level, dt);
+  }
+
+  // Coarsen inner regions from next finer level to this level.
+  if (LevelExists(next_level)) {
+    CoarsenConservatively(next_level, this_level);
+
+    // The conservative update and the coarsening happened on conservative
+    // variables. We have to reconstruct the missing variables in the complete
+    // state.
+    CompleteFromCons(this_level, dt);
+  }
+
+  CopyScratchToData(this_level);
+
+  // Apply any further context related work after advancing this level.
+  // This function can also indicate if some error occured.
+  // For example the context could detect unphysical states and return a
+  // TooLargeTimeStep error condition.
+  result = PostAdvanceLevel(this_level, dt, subcycle);
+  if (!result) {
+    return scale_dt_on_error(result);
+  }
+  return result;
+}
+```
+</div>
+
+The present subcycle solvers depend on a level integrator only.
+Future solvers may need additional options that may decsribe varying subcycle ratios between pairs of refinement levels.
 
 Framework for defining FluxMethods {#flux-method-framework}
 ===========================================================
@@ -674,16 +817,84 @@ Given a `MultiFab` object we can iterate over all local `FArrayBox` objects usin
 
 ```cpp
 template <typename Function>
-void DoSomethingForEachFArrayBox(MultiFab& multifab) {
-  for (MFIter mfi(multifab); mfi.isValid(); ++mfi) {
-    FArrayBox& fab = multifab[mfi];
+void DoSomethingForEachFArrayBox(amrex::MultiFab& multifab) {
+  for (amrex::MFIter mfi(multifab); mfi.isValid(); ++mfi) {
+    amrex::FArrayBox& fab = multifab[mfi];
     // do something...
   }
 }
 ```
 
-A `FArrayBox` is a container type in [[AMReX]] that stores a multi-dimensional data array for a single patch.
-By using an equation object we can *view* this `FArrayBox` as a set of multi-dimensional arrays for each variable/
+`amrex::FArrayBox` is a container type in [[AMReX]] that stores a multi-dimensional data array for a single patch.
+By using an equation object we can *view* this `amrex::FArrayBox` as a set of multi-dimensional arrays for each variable.
+
+<div class=example>
+Lets assume for this example that we are in a context where we are given a `FArrayBox` and we want to access the variables of this patch.
+In order to so we need an equation object which interprets the raw data.
+
+```cpp
+struct MyClass {
+  using Complete = ::fub::Complete<PerfectGas<3>>;
+  using Conservative = ::fub::Conservative<PerfectGas<3>>;
+
+  void foo(::amrex::FArrayBox& raw_data) {
+    // Transform the raw data object to a View object.
+    auto mutable_states = MakeView<Complete>(raw_data, equation);
+    auto const_states = MakeView<const Complete>(raw_data, equation);
+    auto conservatives = MakeView<Conservative>(raw_data, equation);
+    // Iterate through all global grid indices
+    ForEachIndex(Box<0>(const_states), [=](int i, int j, int k) {
+      // Access the variables
+      mutable_states.density(i, j, k) = 1.0;
+      conservatives.momentum(i, j, k, 0) = 1.0 + const_states.density(i, j, k);
+      conservatives.momentum(i, j, k, 1) = 0.0;
+      conservatives.momentum(i, j, k, 2) = 0.0;
+
+      // The objects view the same memory.
+      assert(const_states.momentum(i, j, k, 0) == conservatives.momentum(i, j, k, 0));
+      assert(const_states.momentum(i, j, k, 1) == conservatives.momentum(i, j, k, 1));
+      assert(const_states.momentum(i, j, k, 2) == conservatives.momentum(i, j, k, 2));
+    });
+  }
+
+  PerfectGas<3> equation;
+};
+```
+</div>
+
+Once we have a `View` object that gives variable-wise access of multi-dimensional data we can load and store state objects, such as `Complete<Equation>` and `Conservative<Equation>`, from and to memory locations inidicated by global space indices `(i, j, k)`.
+
+<div class=example>
+We can lift a function that is a defined for state equations, such as `Complete<Equation>`, to a function which is defined on a multi-dimensional array `View<Complete<Equation>>` by applying its logic for each index.
+
+```cpp
+struct MyClass {
+  using Complete = ::fub::Complete<PerfectGas<3>>;
+  using Conservative = ::fub::Conservative<PerfectGas<3>>;
+
+  void Foo(Complete& state) {
+    state.density = 1.0;
+    state.momentum[0] = 1.0 + state.pressure;
+    state.momentum[1] = 0.0;
+    state.momentum[2] = 0.0;
+  }
+
+  void LiftedFoo(const View<Complete>& view) {
+    ForEachIndex(Box<0>(view), [=](int i, int j, int k) {
+      Load(state, view, {i, j, k});
+      Foo(state);
+      Store(view, state, {i, j, k});
+    });
+  }
+
+  PerfectGas<3> equation;
+  Complete state(equation);
+};
+```
+
+The member function `LiftedFoo` in this example can have multiple equivalent implementations that differ in their efficiency.
+Its real implementation is often considered an implementation detail and might change.
+</div>
 
 Implement a new FluxMethod, the simple case {#implement-flux-method-simple}
 ------------------------------------------------------------------------
@@ -693,17 +904,17 @@ A class `FM` satisfies the concept `FluxMethod<Equation, StencilSize>` if the fo
 ```cpp
 template <typename FM, typename Equation, int StencilSize>
 concept FluxMethod = requires (FM& flux_method,
-                               Conservative<Equation> cons,
-                               span<Complete<Equation>, StencilSize> stencil,
-                               double dx, Duration dt, int dir) {
-  { flux_method.ComputeNumericFlux(cons, stencil, dx, dt, dir) };
+                               Conservative<Equation>& numeric_flux,
+                               span<const Complete<Equation>, StencilSize> stencil,
+                               double dx, Duration dt, Direction dir) {
+  { flux_method.ComputeNumericFlux(numeric_flux, stencil, dx, dt, dir) };
   { flux_method.ComputeStableDt(stencil, dx, dir) } -> Duration;
   { FM::GetStencilSize() } -> std::integral_constant<int, StencilSize>;
 };
 ```
 
 <div class="example">
-For example, the following class `MusclHancockMethod` satisfies this concept.
+For example, the following declaration of the class `MusclHancockMethod` satisfies this concept.
 
 ```cpp
 struct MusclHancockMethod {
@@ -711,11 +922,11 @@ struct MusclHancockMethod {
     using Complete = ::Complete<PerfectGas<2>>;
 
     void ComputeNumericFlux(Conservative& cons, span<const Complete, 4> stencil,
-                              double dx, Duration dt, int dir);
+                              double dx, Duration dt, Direction dir);
 
     Duration ComputeStableDt(span<const Complete, 4> stencil, double dx, int dir);
 
-    std::integral_constant<int, 4> GetStencilSize() const noexcept { return {}; }
+    std::integral_constant<int, 2> GetStencilSize() const noexcept { return {}; }
 };
 ```
 

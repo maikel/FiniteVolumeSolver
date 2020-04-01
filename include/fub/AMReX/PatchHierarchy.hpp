@@ -46,8 +46,11 @@
 namespace fub {
 namespace amrex {
 
+/// \defgroup PatchHierarchy
+
 class DebugStorage;
 
+/// \ingroup PatchHierarchy
 struct PatchHierarchyOptions {
   PatchHierarchyOptions() = default;
   PatchHierarchyOptions(const ProgramOptions& options);
@@ -61,9 +64,10 @@ struct PatchHierarchyOptions {
   ::amrex::IntVect n_error_buf{};
   double grid_efficiency{0.7};
   int verbose{0};
-  int n_proper{2};
+  int n_proper{1};
 };
 
+/// \ingroup PatchHierarchy
 /// The DataDescription class contains all information which is neccessary to
 /// describe the complete and conservative state data of an equation.
 struct DataDescription {
@@ -75,6 +79,7 @@ struct DataDescription {
   int dimension{AMREX_SPACEDIM};
 };
 
+/// \ingroup PatchHierarchy
 /// \brief The PatchLevel represents a distributed grid containing plain
 /// simulation data without a ghost cell layer.
 ///
@@ -145,6 +150,7 @@ struct PatchLevel {
 template <typename Equation>
 DataDescription MakeDataDescription(const Equation& equation);
 
+/// \ingroup PatchHierarchy
 /// The PatchHierarchy holds simulation data on multiple refinement levels. It
 /// also holds a time stamp for each level.
 class PatchHierarchy {
@@ -201,7 +207,8 @@ public:
   [[nodiscard]] const ::amrex::Vector<::amrex::BoxArray> GetBoxArrays() const;
 
   /// \brief Returns the hierarchy of DistributionMapping objects.
-  [[nodiscard]] const ::amrex::Vector<::amrex::DistributionMapping> GetDistributionMappings() const;
+  [[nodiscard]] const ::amrex::Vector<::amrex::DistributionMapping>
+  GetDistributionMappings() const;
 
   /// \brief Returns the hierarchy of MultiFabs representing the data.
   [[nodiscard]] const ::amrex::Vector<const ::amrex::MultiFab*> GetData() const;
@@ -221,8 +228,8 @@ public:
   GetCounterRegistry() const noexcept;
 
   /// \brief Returns a shared pointer to the debug storage.
-  [[nodiscard]] const std::shared_ptr<DebugStorage>&
-  GetDebugStorage() const noexcept;
+  [[nodiscard]] const std::shared_ptr<DebugStorage>& GetDebugStorage() const
+      noexcept;
 
   void SetCounterRegistry(std::shared_ptr<CounterRegistry> registry);
 
@@ -379,9 +386,11 @@ template <typename Log> void PatchHierarchyOptions::Print(Log& log) {
   std::array<int, AMREX_SPACEDIM> ref_ratio{};
   std::array<int, AMREX_SPACEDIM> blocking{};
   std::array<int, AMREX_SPACEDIM> max_grid{};
+  std::array<int, AMREX_SPACEDIM> error_buf{};
   std::copy_n(refine_ratio.begin(), AMREX_SPACEDIM, ref_ratio.begin());
   std::copy_n(blocking_factor.begin(), AMREX_SPACEDIM, blocking.begin());
   std::copy_n(max_grid_size.begin(), AMREX_SPACEDIM, max_grid.begin());
+  std::copy_n(n_error_buf.begin(), AMREX_SPACEDIM, error_buf.begin());
   BOOST_LOG(log) << fmt::format(" - max_number_of_levels = {}",
                                 max_number_of_levels);
   BOOST_LOG(log) << fmt::format(" - refine_ratio = {{{}}}",
@@ -390,6 +399,10 @@ template <typename Log> void PatchHierarchyOptions::Print(Log& log) {
                                 fmt::join(blocking, ", "));
   BOOST_LOG(log) << fmt::format(" - max_grid_size = {{{}}}",
                                 fmt::join(max_grid, ", "));
+  BOOST_LOG(log) << fmt::format(" - n_err_buf = {{{}}}",
+                                fmt::join(error_buf, ", "));
+  BOOST_LOG(log) << fmt::format(" - grid_efficiency = {}", grid_efficiency);
+  BOOST_LOG(log) << fmt::format(" - n_proper = {}", n_proper);
 }
 
 } // namespace amrex

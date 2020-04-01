@@ -41,4 +41,31 @@ StrangSplitting::Advance(Duration time_step_size, AdvanceFunction advance1,
   return advance1(0.5 * time_step_size);
 }
 
+boost::outcome_v2::result<void, TimeStepTooLarge>
+StrangSplitting::Advance(Duration time_step_size, AdvanceFunction advance1,
+                         AdvanceFunction advance2, AdvanceFunction advance3) const {
+  boost::outcome_v2::result<void, TimeStepTooLarge> result =
+      advance1(0.5 * time_step_size);
+  if (!result) {
+    return result.as_failure();
+  }
+  result = advance2(0.5 * time_step_size);
+  if (!result) {
+    return result.as_failure();
+  }
+  result = advance3(0.5 * time_step_size);
+  if (!result) {
+    return result.as_failure();
+  }
+  result = advance3(0.5 * time_step_size);
+  if (!result) {
+    return result.as_failure();
+  }
+  result = advance2(0.5 * time_step_size);
+  if (!result) {
+    return result.as_failure();
+  }
+  return advance1(0.5 * time_step_size);
+}
+
 } // namespace fub

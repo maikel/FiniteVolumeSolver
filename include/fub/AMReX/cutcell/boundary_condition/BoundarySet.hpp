@@ -37,7 +37,7 @@ struct BoundarySet {
                     Duration timepoint, const GriddingAlgorithm& gridding,
                     Direction dir);
 
-  std::vector<BoundaryCondition> conditions;
+  std::vector<AnyBoundaryCondition> conditions;
 };
 
 } // namespace fub::amrex::cutcell

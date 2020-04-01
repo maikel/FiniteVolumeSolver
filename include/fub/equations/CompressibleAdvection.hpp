@@ -96,8 +96,8 @@ template <int N, int VelocityDim = N> struct CompressibleAdvection {
   using ConservativeDepths = CompressibleAdvectionConsShape<VelocityDim>;
   using CompleteDepths = CompressibleAdvectionCompleteShape<VelocityDim>;
 
-  using Conservative = ::fub::Conservative<CompressibleAdvection<N>>;
-  using Complete = ::fub::Complete<CompressibleAdvection<N>>;
+  using Conservative = ::fub::Conservative<CompressibleAdvection<VelocityDim>>;
+  using Complete = ::fub::Complete<CompressibleAdvection<VelocityDim>>;
 
   static constexpr int Rank() noexcept { return N; }
   static constexpr int VelocityRank() noexcept { return VelocityDim; }
@@ -151,7 +151,7 @@ struct CompressibleAdvectionFluxMethod {
 };
 
 // We define this class only for dimensions 1 to 3.
-// The definitions will be found in its source file PerfetGas.cpp
+// The definitions will be found in its source file CompressibleAdvection.cpp
 // extern template struct CompressibleAdvection<2>;
 extern template struct CompressibleAdvectionFluxMethod<2>;
 
