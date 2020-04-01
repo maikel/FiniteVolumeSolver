@@ -34,7 +34,11 @@ struct GreshoVortex {
   using Complete = fub::Complete<Equation>;
   using Conservative = fub::Conservative<Equation>;
 
-  void InitializeData(amrex::MultiFab& data, const amrex::Geometry& geom) {
+  void InitializeData(fub::amrex::PatchLevel& patch_level,
+                      const fub::amrex::GriddingAlgorithm& grid, int level,
+                      fub::Duration /*time*/) const {
+    const amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
+    amrex::MultiFab& data = patch_level.data;
     fub::amrex::ForEachFab(data, [&](const amrex::MFIter& mfi) {
       fub::View<Complete> states =
           fub::amrex::MakeView<Complete>(data[mfi], equation_, mfi.tilebox());
@@ -104,7 +108,7 @@ int main(int argc, char** argv) {
   fub::PerfectGas<2> equation{};
 
   fub::amrex::CartesianGridGeometry geometry{};
-  geometry.cell_dimensions = std::array<int, Dim>{AMREX_D_DECL(128, 128, 1)};
+  geometry.cell_dimensions = std::array<int, Dim>{AMREX_D_DECL(32, 32, 1)};
   geometry.coordinates = amrex::RealBox({AMREX_D_DECL(-1.0, -1.0, -1.0)},
                                         {AMREX_D_DECL(+1.0, +1.0, +1.0)});
   geometry.periodicity = std::array<int, Dim>{AMREX_D_DECL(1, 1, 1)};
@@ -143,7 +147,9 @@ int main(int argc, char** argv) {
       fub::amrex::IntegratorContext(gridding, method, scratch_gcw, flux_gcw),
       fub::StrangSplitting());
 
-  fub::amrex::ViscositySourceTerm<2> source_term(equation, system_solver.GetGriddingAlgorithm());
+  fub::IndexMapping<fub::PerfectGas<2>> index(equation);
+  std::shared_ptr gridding_copy = std::make_shared<fub::amrex::GriddingAlgorithm>(*system_solver.GetGriddingAlgorithm());
+  fub::amrex::ViscositySourceTerm<2> source_term(equation, gridding_copy, index);
 
   fub::SplitSystemSourceLevelIntegrator level_integrator(std::move(system_solver),
                                                      std::move(source_term),

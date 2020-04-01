@@ -23,12 +23,18 @@
 #include "fub/AMReX/ForEachIndex.hpp"
 #include "fub/equations/PerfectGas.hpp"
 
+// We give names to some magic zeros and ones.
+inline constexpr int no_ghosts = 0;
+inline constexpr int one_ghost_cell_width = 1;
+inline constexpr int one_component = 1;
+
 namespace fub::amrex {
 
 template <int Rank>
 ViscositySourceTerm<Rank>::ViscositySourceTerm(const PerfectGas<Rank>& eq,
-                                 const std::shared_ptr<GriddingAlgorithm>& grid)
-    : equation_(eq), grid_(grid) {
+                  const std::shared_ptr<GriddingAlgorithm>& grid,
+                  const IndexMapping<Equation>& index)
+    : equation_(eq), grid_(std::move(grid)), index_(index) {
   ResetHierarchyConfiguration(grid);
 
   info_solve.setMaxCoarseningLevel(m_mg_max_coarsening_level);
@@ -59,69 +65,76 @@ namespace {
 } // namespace
 
 template <int Rank>
-void ViscositySourceTerm<Rank>::PreAdvanceHierarchy() {
-  ::amrex::Print() << "\nHello!\n\n";
+void ViscositySourceTerm<Rank>::PreAdvanceLevel(int level, Duration dt,
+                                                std::pair<int, int> subcycle) {
 
-  const fub::amrex::PatchHierarchy& hier = grid_->GetPatchHierarchy();
-  const auto nlevels = hier.GetNumberOfLevels();
-  const ::amrex::Geometry geom = hier.GetGeometry(0);
-  ::amrex::Vector<::amrex::Array<::amrex::LinOpBCType,AMREX_SPACEDIM>> r(3);
-  for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-    if (geom.isPeriodic(dir)) {
-      r[0][dir] = ::amrex::LinOpBCType::Periodic;
-      r[1][dir] = ::amrex::LinOpBCType::Periodic;
-        r[2][dir] = ::amrex::LinOpBCType::Periodic;
+  if (level == 0) {
+    const fub::amrex::PatchHierarchy& hier = grid_->GetPatchHierarchy();
+    const int nlevels = hier.GetNumberOfLevels();
+    const ::amrex::Geometry geom = hier.GetGeometry(0);
+    ::amrex::Vector<::amrex::Array<::amrex::LinOpBCType,AMREX_SPACEDIM>> r(2);
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+      if (geom.isPeriodic(dir)) {
+        r[0][dir] = ::amrex::LinOpBCType::Periodic;
+        r[1][dir] = ::amrex::LinOpBCType::Periodic;
+//         r[2][dir] = ::amrex::LinOpBCType::Periodic;
+      }
     }
-  }
 
-  m_reg_solve_op.reset(new ::amrex::MLTensorOp(hier.GetGeometries(),
-                                      hier.GetBoxArrays(),
-                                      hier.GetDistributionMappings(),
-                                      info_solve));
-  m_reg_solve_op->setMaxOrder(m_mg_maxorder);
-  // TODO: set correct bc
-  m_reg_solve_op->setDomainBC(r, r);
-
-//   if (m_incflo->need_divtau()) {
-    m_reg_apply_op.reset(new ::amrex::MLTensorOp(hier.GetGeometries(),
-                                      hier.GetBoxArrays(),
-                                      hier.GetDistributionMappings(),
-                                      info_apply));
-    m_reg_apply_op->setMaxOrder(m_mg_maxorder);
+    m_reg_solve_op.reset(new ::amrex::MLTensorOp(hier.GetGeometries(),
+                                        hier.GetBoxArrays(),
+                                        hier.GetDistributionMappings(),
+                                        info_solve));
+    m_reg_solve_op->setMaxOrder(m_mg_maxorder);
     // TODO: set correct bc
-    m_reg_apply_op->setDomainBC(r, r);
-// }
+    m_reg_solve_op->setDomainBC(r, r);
 
-    // TODO: set correct dt!
-    const double dt = 1.0;
-    const ::amrex::Vector<const ::amrex::MultiFab*> data = hier.GetData();
+  //   if (m_incflo->need_divtau()) {
+      m_reg_apply_op.reset(new ::amrex::MLTensorOp(hier.GetGeometries(),
+                                        hier.GetBoxArrays(),
+                                        hier.GetDistributionMappings(),
+                                        info_apply));
+      m_reg_apply_op->setMaxOrder(m_mg_maxorder);
+      // TODO: set correct bc
+      m_reg_apply_op->setDomainBC(r, r);
+  // }
 
-    m_reg_solve_op->setScalars(1.0, dt);
-//     for (int lev = 0; lev < nlevels; ++lev) {
-//       m_reg_solve_op->setACoeffs(lev, *density[lev]);
-//       ::amrex::Array<MultiFab,AMREX_SPACEDIM> b = m_incflo->average_velocity_eta_to_faces(lev, *eta[lev]);
-//       m_reg_solve_op->setShearViscosity(lev, GetArrOfConstPtrs(b));
-//     }
+      // TODO: set correct dt!
+      const ::amrex::Vector<const ::amrex::MultiFab*> data = hier.GetData();
+      ::amrex::Vector<::amrex::MultiFab> rhs(nlevels);
 
-    ::amrex::Vector<::amrex::MultiFab> rhs(nlevels);
-//     for (int lev = 0; lev < nlevels; ++lev) {
-//         rhs[lev].define(velocity[lev]->boxArray(),
-//                         velocity[lev]->DistributionMap(), AMREX_SPACEDIM, 0);
-//
-//         for (MFIter mfi(rhs[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-//             Box const& bx = mfi.tilebox();
-//             Array4<Real> const& rhs_a = rhs[lev].array(mfi);
-//             Array4<Real const> const& vel_a = velocity[lev]->const_array(mfi);
-//             Array4<Real const> const& rho_a = density[lev]->const_array(mfi);
-//             amrex::ParallelFor(bx,AMREX_SPACEDIM,
-//             [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-//             {
-//                 rhs_a(i,j,k,n) = rho_a(i,j,k) * vel_a(i,j,k,n);
-//             });
-//         }
-//
-//         m_reg_solve_op->setLevelBC(lev, velocity[lev]);
-//     }
+      m_reg_solve_op->setScalars(1.0, dt.count());
+      for (int lev = 0; lev < nlevels; ++lev) {
+        const ::amrex::BoxArray& ba = data[lev]->boxArray();
+        const ::amrex::DistributionMapping& dm = data[lev]->DistributionMap();
+        ::amrex::MultiFab density(ba, dm, one_component, 0);
+        ::amrex::MultiFab::Copy(density, *data[lev], index_.density, 0,
+                       one_component, 0);
+
+        m_reg_solve_op->setACoeffs(lev, density);
+        // TODO: We might want to introduce a space dependent eta
+//         ::amrex::Array<MultiFab,AMREX_SPACEDIM> b = m_incflo->average_velocity_eta_to_faces(lev, *eta[lev]);
+//         m_reg_solve_op->setShearViscosity(lev, GetArrOfConstPtrs(b));
+        m_reg_solve_op->setShearViscosity(lev, eta_);
+
+        rhs[lev].define(ba, dm, AMREX_SPACEDIM, 0);
+        ::amrex::MultiFab::Copy(rhs[lev], *data[lev], index_.momentum[0], 0,
+                       index_.momentum.size(), 0);
+
+
+        ::amrex::MultiFab velocity(ba, dm, AMREX_SPACEDIM, 1);
+        ::amrex::MultiFab::Copy(velocity, *data[lev], index_.momentum[0], 0,
+                       index_.momentum.size(), 0);
+
+        for (std::size_t i = 0; i < index_.momentum.size(); ++i) {
+          ::amrex::MultiFab::Divide(velocity, *data[lev], i, index_.density,
+                       one_component, 0);
+        }
+
+
+        const ::amrex::MultiFab* vel = &velocity;
+        m_reg_solve_op->setLevelBC(lev, vel);
+    }
 
     ::amrex::MLMG mlmg(*m_reg_solve_op);
 
@@ -143,7 +156,15 @@ void ViscositySourceTerm<Rank>::PreAdvanceHierarchy() {
     mlmg.setVerbose(m_mg_verbose);
     mlmg.setCGVerbose(m_mg_cg_verbose);
 
-//     mlmg.solve(velocity, ::amrex::GetVecOfConstPtrs(rhs), m_mg_rtol, m_mg_atol);
+    ::amrex::Vector<::amrex::MultiFab*> vel_corr(nlevels);
+    for (int lev = 0; lev < nlevels; ++lev) {
+        const ::amrex::BoxArray& ba = data[lev]->boxArray();
+        const ::amrex::DistributionMapping& dm = data[lev]->DistributionMap();
+        vel_corr[lev] = (new ::amrex::MultiFab(ba, dm, AMREX_SPACEDIM, 0));
+    }
+
+    mlmg.solve(vel_corr, ::amrex::GetVecOfConstPtrs(rhs), m_mg_rtol, m_mg_atol);
+  }
 }
 
 template <int Rank>

@@ -33,9 +33,11 @@ template <int R> class ViscositySourceTerm {
 public:
   static constexpr int Rank = R;
   static constexpr std::size_t sRank = static_cast<std::size_t>(Rank);
+  using Equation = PerfectGas<Rank>;
 
   ViscositySourceTerm(const PerfectGas<Rank>& eq,
-                  const std::shared_ptr<GriddingAlgorithm>& grid);
+                  const std::shared_ptr<GriddingAlgorithm>& grid,
+                  const IndexMapping<Equation>& index);
 
 //   ViscositySourceTerm(const ViscositySourceTerm& other);
 //   ViscositySourceTerm& operator=(const ViscositySourceTerm& other);
@@ -57,7 +59,8 @@ public:
   /////////////////////////////////////////////////////////////////////////
   // optional member functions needed for being a source term
 
-  void PreAdvanceHierarchy();
+  void PreAdvanceLevel(int level, Duration dt, std::pair<int, int> subcycle);
+
 
   //////////////////////////////////////////////////////////////////////////
   // additional member functions to get class data
@@ -65,6 +68,9 @@ public:
 private:
   PerfectGas<Rank> equation_;
   const std::shared_ptr<GriddingAlgorithm>& grid_;
+  const IndexMapping<Equation>& index_;
+
+  double eta_{0.001};
 
   std::unique_ptr<::amrex::MLTensorOp> m_reg_solve_op;
   std::unique_ptr<::amrex::MLTensorOp> m_reg_apply_op;
@@ -73,11 +79,11 @@ private:
   ::amrex::LPInfo info_apply;
 
   // DiffusionOp verbosity
-  int m_verbose = 0;
+  int m_verbose = 4;
 
   // Options to control MLMG behavior
-  int m_mg_verbose = 0;
-  int m_mg_cg_verbose = 0;
+  int m_mg_verbose = 4;
+  int m_mg_cg_verbose = 4;
   int m_mg_max_iter = 100;
   int m_mg_cg_maxiter = 100;
   int m_mg_max_fmg_iter = 0;
