@@ -23,12 +23,10 @@
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/ForEachIndex.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
+#include "fub/AnyBoundaryCondition.hpp"
 #include "fub/ForEach.hpp"
 
 namespace fub::amrex {
-namespace {
-inline int GetSign(int side) { return (side == 0) - (side == 1); }
-} // namespace
 MassflowBoundary::MassflowBoundary(const IdealGasMix<AMREX_SPACEDIM>& eq,
                                    const ::amrex::Box& coarse_inner_box,
                                    double required_massflow,

@@ -64,9 +64,12 @@ GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier, AnyInitialData data,
   AmrMesh::n_error_buf = ::amrex::Vector<::amrex::IntVect>(
       AmrMesh::n_error_buf.size(), options.n_error_buf);
   if (hier.GetNumberOfLevels() > 0) {
-    AmrMesh::geom = other.geom;
-    AmrMesh::dmap = other.dmap;
-    AmrMesh::grids = other.grids;
+    for (int i = 0; i < hierarchy_.GetNumberOfLevels(); ++i) {
+      const std::size_t ii = static_cast<std::size_t>(i);
+      AmrMesh::geom[ii] = hierarchy_.GetGeometry(i);
+      AmrMesh::dmap[ii] = hierarchy_.GetPatchLevel(i).distribution_mapping;
+      AmrMesh::grids[ii] = hierarchy_.GetPatchLevel(i).box_array;
+    }
   }
 }
 
@@ -163,6 +166,10 @@ const AnyBoundaryCondition& GriddingAlgorithm::GetBoundaryCondition() const
 
 AnyBoundaryCondition& GriddingAlgorithm::GetBoundaryCondition() noexcept {
   return boundary_condition_;
+}
+
+const AnyTaggingMethod& GriddingAlgorithm::GetTagging() const noexcept {
+  return tagging_;
 }
 
 ::amrex::DistributionMapping GriddingAlgorithm::LoadBalance(

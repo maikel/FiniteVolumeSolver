@@ -33,13 +33,13 @@ struct TransmissiveBoundary {
   Direction dir;
   int side;
 
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration dt, const GriddingAlgorithm&);
+  void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding,
+                    int level);
 
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration dt, const GriddingAlgorithm& grid, Direction dir) {
-    if (dir == this->dir) {
-      FillBoundary(mf, geom, dt, grid);
+  void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding,
+                    int level, Direction dir) {
+    if (dir == options_.dir) {
+      FillBoundary(mf, gridding, level);
     }
   }
 

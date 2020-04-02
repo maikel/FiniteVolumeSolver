@@ -45,36 +45,6 @@ GriddingAlgorithm::operator=(const GriddingAlgorithm& other) {
 
 GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier,
                                      AnyInitialData initial_data,
-                                     AnyTaggingMethod tagging)
-    : AmrCore(
-          &hier.GetGridGeometry().coordinates, hier.GetMaxNumberOfLevels() - 1,
-          ::amrex::Vector<int>(hier.GetGridGeometry().cell_dimensions.begin(),
-                               hier.GetGridGeometry().cell_dimensions.end()),
-          -1,
-          ::amrex::Vector<::amrex::IntVect>(
-              static_cast<std::size_t>(hier.GetMaxNumberOfLevels()),
-              hier.GetRatioToCoarserLevel(
-                  hier.GetOptions().max_number_of_levels - 1))),
-      hierarchy_{std::move(hier)}, initial_data_{std::move(initial_data)},
-      tagging_{std::move(tagging)}, boundary_condition_{} {
-  const PatchHierarchyOptions& options = hierarchy_.GetOptions();
-  AmrMesh::SetMaxGridSize(options.max_grid_size);
-  AmrMesh::SetBlockingFactor(options.blocking_factor);
-  AmrMesh::SetNProper(options.n_proper);
-  AmrMesh::SetGridEff(options.grid_efficiency);
-  AmrMesh::verbose = options.verbose;
-  AmrCore::verbose = options.verbose;
-  AmrMesh::n_error_buf = ::amrex::Vector<::amrex::IntVect>(
-      AmrMesh::n_error_buf.size(), options.n_error_buf);
-  if (hier.GetNumberOfLevels() > 0) {
-    AmrMesh::geom = other.geom;
-    AmrMesh::dmap = other.dmap;
-    AmrMesh::grids = other.grids;
-  }
-}
-
-GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier,
-                                     AnyInitialData initial_data,
                                      AnyTaggingMethod tagging,
                                      AnyBoundaryCondition bc)
     : AmrCore(
@@ -98,9 +68,12 @@ GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier,
   AmrMesh::n_error_buf = ::amrex::Vector<::amrex::IntVect>(
       AmrMesh::n_error_buf.size(), options.n_error_buf);
   if (hier.GetNumberOfLevels() > 0) {
-    AmrMesh::geom = other.geom;
-    AmrMesh::dmap = other.dmap;
-    AmrMesh::grids = other.grids;
+    for (int i = 0; i < hierarchy_.GetNumberOfLevels(); ++i) {
+      const std::size_t ii = static_cast<std::size_t>(i);
+      AmrMesh::geom[ii] = hierarchy_.GetGeometry(i);
+      AmrMesh::dmap[ii] = hierarchy_.GetPatchLevel(i).distribution_mapping;
+      AmrMesh::grids[ii] = hierarchy_.GetPatchLevel(i).box_array;
+    }
   }
 }
 

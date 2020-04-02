@@ -22,6 +22,7 @@
 #define FUB_AMREX_CUTCELL_ISENTROPIC_PRESSURE_BOUNDARY_HPP
 
 #include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
+
 #include "fub/Direction.hpp"
 #include "fub/equations/IdealGasMix.hpp"
 
@@ -49,13 +50,50 @@ public:
   IsentropicPressureBoundary(const IdealGasMix<AMREX_SPACEDIM>& eq,
                              const IsentropicPressureBoundaryOptions& options);
 
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration dt, const GriddingAlgorithm& grid);
+  /// \brief Isentropically expand to an outer pressure each state on the
+  /// physical domain boundary.
+  ///
+  /// \param[in,out] mf The MultiFab that will be filled.
+  ///
+  /// \param[in] gridding The GriddingAlgorithm will serve as a context.
+  ///
+  /// \param[in] level The level number which is associated with the specified
+  /// MultiFab `mf`.
+  ///
+  /// \throw The OdeSolver within the FlameMasterReactor might not converge and
+  /// throw an exception.
+  ///
+  /// \throw If an unphysical state appears an exception is thrown.
+  ///
+  /// \pre `mf` is defined with the same (BoxArray, DistributionMapping) as
+  /// defined in the gridding algorithm at refinement level `level`.
+  void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding,
+                    int level);
 
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration dt, const GriddingAlgorithm& grid, Direction dir) {
-    if (dir == options_.direction) {
-      FillBoundary(mf, geom, dt, grid);
+  /// \brief Isentropically expand to an outer pressure each state on the
+  /// physical domain boundary.
+  ///
+  /// \param[in,out] mf The MultiFab that will be filled.
+  ///
+  /// \param[in] gridding The GriddingAlgorithm will serve as a context.
+  ///
+  /// \param[in] level The level number which is associated with the specified
+  /// MultiFab `mf`.
+  ///
+  /// \param[in] dir The direction in which the physical boundary shall be
+  /// filled.
+  ///
+  /// \throw The OdeSolver within the FlameMasterReactor might not converge and
+  /// throw an exception.
+  ///
+  /// \throw If an unphysical state appears an exception is thrown.
+  ///
+  /// \pre `mf` is defined with the same (BoxArray, DistributionMapping) as
+  /// defined in the gridding algorithm at refinement level `level`.
+  void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding,
+                    int level, Direction dir) {
+    if (dir == options_.dir) {
+      FillBoundary(mf, gridding, level);
     }
   }
 

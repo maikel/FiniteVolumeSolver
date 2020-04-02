@@ -552,7 +552,7 @@ void IntegratorContext::ApplyFluxCorrection(
   const int ncomp = GetPatchHierarchy().GetDataDescription().n_cons_components;
   const ::amrex::Geometry& cgeom = GetGeometry(coarse);
   ::amrex::MultiFab& scratch = GetScratch(coarse);
-  for (int dir = 0; dir < Rank; ++dir) {
+  for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
     ::amrex::FluxRegister& flux_register = data_[next_level].coarse_fine;
     flux_register.Reflux(scratch, dir, 1.0, 0, 0, ncomp, cgeom);
   }

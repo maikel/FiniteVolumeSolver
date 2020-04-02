@@ -84,7 +84,8 @@ public:
   ///
   /// \throw Throws `std::bad_alloc` if a memory allocation fails.
   GriddingAlgorithm(PatchHierarchy hier, AnyInitialData initial_data,
-                    AnyTaggingMethod tagging, AnyBoundaryCondition boundary);
+                    AnyTaggingMethod tagging,
+                    AnyBoundaryCondition boundary = AnyBoundaryCondition());
 
   /// \brief The copy constructor makes a deep copy of the all data for each MPI
   /// rank.
@@ -113,8 +114,8 @@ public:
     return hierarchy_;
   }
 
-  [[nodiscard]] const AnyBoundaryCondition&
-  GetBoundaryCondition() const noexcept;
+  [[nodiscard]] const AnyBoundaryCondition& GetBoundaryCondition() const
+      noexcept;
 
   [[nodiscard]] AnyBoundaryCondition& GetBoundaryCondition() noexcept;
 
@@ -163,7 +164,8 @@ public:
   /// \brief Fill the ghost layer boundary specified of the specifed MultiFab
   /// `mf`.
   void FillMultiFabFromLevel(::amrex::MultiFab& mf, int level_number);
-  void FillMultiFabFromLevel(::amrex::MultiFab& mf, int level_number, AnyBoundaryCondition& bc);
+  void FillMultiFabFromLevel(::amrex::MultiFab& mf, int level_number,
+                             AnyBoundaryCondition& bc);
   /// @}
 
 private:

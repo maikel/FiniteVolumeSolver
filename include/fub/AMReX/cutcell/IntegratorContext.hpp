@@ -302,11 +302,11 @@ private:
 
     /// @{
     /// various flux types needed by the numerical scheme
-    std::array<::amrex::MultiFab, Rank> fluxes{};
-    std::array<::amrex::MultiFab, Rank> stabilized_fluxes{};
-    std::array<::amrex::MultiFab, Rank> shielded_left_fluxes{};
-    std::array<::amrex::MultiFab, Rank> shielded_right_fluxes{};
-    std::array<::amrex::MultiFab, Rank> doubly_shielded_fluxes{};
+    std::array<::amrex::MultiFab, AMREX_SPACEDIM> fluxes{};
+    std::array<::amrex::MultiFab, AMREX_SPACEDIM> stabilized_fluxes{};
+    std::array<::amrex::MultiFab, AMREX_SPACEDIM> shielded_left_fluxes{};
+    std::array<::amrex::MultiFab, AMREX_SPACEDIM> shielded_right_fluxes{};
+    std::array<::amrex::MultiFab, AMREX_SPACEDIM> doubly_shielded_fluxes{};
     /// @}
 
     ///////////////////////////////////////////////////////////////////////////

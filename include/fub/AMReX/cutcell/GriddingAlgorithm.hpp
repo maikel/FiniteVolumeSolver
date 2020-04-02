@@ -22,10 +22,10 @@
 #define FUB_AMREX_CUT_CELL_GRIDDING_ALGORITHM_HPP
 
 #include "fub/AMReX/ViewFArrayBox.hpp"
-#include "fub/AMReX/cutcell/BoundaryCondition.hpp"
 #include "fub/AMReX/cutcell/PatchHierarchy.hpp"
-#include "fub/AMReX/cutcell/Tagging.hpp"
+#include "fub/AnyBoundaryCondition.hpp"
 #include "fub/AnyInitialData.hpp"
+#include "fub/AnyTaggingMethod.hpp"
 
 #include <AMReX_AmrCore.H>
 // #include <AMReX_MultiFabUtil.H>
@@ -39,7 +39,7 @@ class GriddingAlgorithm;
 namespace fub {
 template <> struct GridTraits<amrex::cutcell::GriddingAlgorithm> {
   using PatchLevel = ::fub::amrex::cutcell::PatchLevel;
-  using TagBoxHandle = ::amrex::TagBoxArray&;
+  using TagDataHandle = ::amrex::TagBoxArray&;
   using DataReference = ::amrex::MultiFab&;
 };
 } // namespace fub
@@ -110,7 +110,7 @@ public:
 
   [[nodiscard]] const AnyInitialData& GetInitialCondition() const noexcept;
 
-  [[nodiscard]] const Tagging& GetTagging() const noexcept;
+  [[nodiscard]] const AnyTaggingMethod& GetTagging() const noexcept;
   /// @}
 
   /// @{
