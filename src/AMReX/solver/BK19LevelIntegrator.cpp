@@ -20,10 +20,10 @@
 // SOFTWARE.
 
 #include "fub/AMReX/solver/BK19LevelIntegrator.hpp"
+#include "fub/AMReX/CompressibleAdvectionIntegratorContext.hpp"
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/ForEachIndex.hpp"
 #include "fub/AMReX/MLMG/MLNodeHelmholtz.hpp"
-#include "fub/AMReX/CompressibleAdvectionIntegratorContext.hpp"
 #include "fub/AMReX/output/DebugOutput.hpp"
 #include <AMReX_MLMG.H>
 
@@ -238,15 +238,12 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   }
 }
 
-::amrex::MultiFab DoEulerBackward_(const IndexMapping<Equation>& index,
-                                   ::amrex::MLNodeHelmholtz& lin_op,
-                                   const BK19PhysicalParameters& phys_param,
-                                   const BK19LevelIntegratorOptions& options,
-                                   ::amrex::MultiFab& scratch,
-                                   const ::amrex::MultiFab& pi_old,
-                                   const ::amrex::Geometry& geom,
-                                   int level,
-                                   Duration dt, DebugSnapshotProxy dbg_sn = DebugSnapshotProxy()) {
+::amrex::MultiFab DoEulerBackward_(
+    const IndexMapping<Equation>& index, ::amrex::MLNodeHelmholtz& lin_op,
+    const BK19PhysicalParameters& phys_param,
+    const BK19LevelIntegratorOptions& options, ::amrex::MultiFab& scratch,
+    const ::amrex::MultiFab& pi_old, const ::amrex::Geometry& geom, int level,
+    Duration dt, DebugSnapshotProxy dbg_sn = DebugSnapshotProxy()) {
 
   const ::amrex::Periodicity periodicity = geom.periodicity();
   ::amrex::DistributionMapping distribution_map = scratch.DistributionMap();
@@ -511,7 +508,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   MultiFab scratch_aux(scratch.boxArray(), scratch.DistributionMap(),
                        scratch.nComp(), no_ghosts);
   scratch_aux.copy(scratch);
-  BK19AdvectiveFluxes& Pv = context.GetAdvectiveFluxes(level);
+  CompressibleAdvectionAdvectiveFluxes& Pv = context.GetAdvectiveFluxes(level);
 
   const Duration half_dt = 0.5 * dt;
 
@@ -536,8 +533,8 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
 
   // 3) Do the first euler backward integration step for the source term
   context.FillGhostLayerSingleLevel(level);
-  DoEulerBackward_(index_, *lin_op_, phys_param_, options_, scratch, pi, geom, level,
-                   half_dt, dbgAdvB);
+  DoEulerBackward_(index_, *lin_op_, phys_param_, options_, scratch, pi, geom,
+                   level, half_dt, dbgAdvB);
 
   // 4) Recompute Pv at half time
   RecomputeAdvectiveFluxes(index_, Pv.on_faces, Pv.on_cells, scratch,
@@ -574,9 +571,9 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   dbgAdvBFA.SaveData(pi, "pi", geom);
 
   // 6) Do the second euler backward integration step for the source term
-  MultiFab pi_new = DoEulerBackward_(index_, *lin_op_, phys_param_, options_,
-                                     scratch, pi, geom, level, half_dt,
-                                     dbgAdvBFAB);
+  MultiFab pi_new =
+      DoEulerBackward_(index_, *lin_op_, phys_param_, options_, scratch, pi,
+                       geom, level, half_dt, dbgAdvBFAB);
 
   // Copy pi_n+1 to pi_n
   hier.GetPatchLevel(level).nodes->copy(pi_new);

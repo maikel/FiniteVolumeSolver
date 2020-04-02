@@ -38,7 +38,8 @@ CompressibleAdvectionIntegratorContext::CompressibleAdvectionIntegratorContext(
 
 /// \brief Deeply copies a context and all its distributed data for all MPI
 /// ranks.
-CompressibleAdvectionIntegratorContext::CompressibleAdvectionIntegratorContext(const CompressibleAdvectionIntegratorContext& other)
+CompressibleAdvectionIntegratorContext::CompressibleAdvectionIntegratorContext(
+    const CompressibleAdvectionIntegratorContext& other)
     : IntegratorContext(other) {
   ResetHierarchyConfiguration();
   const int nlevel = GetPatchHierarchy().GetNumberOfLevels();
@@ -54,11 +55,12 @@ CompressibleAdvectionIntegratorContext::CompressibleAdvectionIntegratorContext(c
   }
 }
 
-BK19AdvectiveFluxes& CompressibleAdvectionIntegratorContext::GetAdvectiveFluxes(int level) {
+CompressibleAdvectionAdvectiveFluxes&
+CompressibleAdvectionIntegratorContext::GetAdvectiveFluxes(int level) {
   return Pv_[level];
 }
 
-const BK19AdvectiveFluxes&
+const CompressibleAdvectionAdvectiveFluxes&
 CompressibleAdvectionIntegratorContext::GetAdvectiveFluxes(int level) const {
   return Pv_[level];
 }
@@ -90,7 +92,8 @@ void CompressibleAdvectionIntegratorContext::ResetHierarchyConfiguration(
   }
 }
 
-void CompressibleAdvectionIntegratorContext::ResetHierarchyConfiguration(int coarsest_level) {
+void CompressibleAdvectionIntegratorContext::ResetHierarchyConfiguration(
+    int coarsest_level) {
   if (Pv_.size() == 0) {
     Pv_.resize(GetPatchHierarchy().GetMaxNumberOfLevels());
   }

@@ -19,9 +19,9 @@
 // SOFTWARE.
 
 #include "fub/equations/CompressibleAdvection.hpp"
+#include "fub/AMReX/CompressibleAdvectionIntegratorContext.hpp"
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/ForEachIndex.hpp"
-#include "fub/AMReX/CompressibleAdvectionIntegratorContext.hpp"
 
 namespace fub {
 namespace {
@@ -30,14 +30,14 @@ double LimitSlopes(double qL, double qM, double qR) {
   const double sR = qR - qM;
   // double r = 0.0;
   return 0.5 * (sL + sR);
-//   if (sL * sR > 0.0) {
-//     r = sL / sR;
-//   }
-//   if (r < 0.0) {
-//     return 0.0;
-//   } else {
-//     return 0.5 * std::min(2 * r / (1 + r), 2 / (1 + r)) * (sL + sR);
-//   }
+  //   if (sL * sR > 0.0) {
+  //     r = sL / sR;
+  //   }
+  //   if (r < 0.0) {
+  //     return 0.0;
+  //   } else {
+  //     return 0.5 * std::min(2 * r / (1 + r), 2 / (1 + r)) * (sL + sR);
+  //   }
 }
 } // namespace
 
@@ -45,10 +45,11 @@ template <int SpaceDimension, int VelocityDimension>
 Duration CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
     ComputeStableDt(amrex::IntegratorContext& base_context, int level,
                     Direction dir) {
-  // try to convert the IntegratorContext to CompressibleAdvectionIntegratorContext
-  // if this terminate the program.
+  // try to convert the IntegratorContext to
+  // CompressibleAdvectionIntegratorContext, else terminate the program.
   amrex::CompressibleAdvectionIntegratorContext* pointer_to_context =
-      dynamic_cast<amrex::CompressibleAdvectionIntegratorContext*>(&base_context);
+      dynamic_cast<amrex::CompressibleAdvectionIntegratorContext*>(
+          &base_context);
   FUB_ASSERT(pointer_to_context);
   amrex::CompressibleAdvectionIntegratorContext& context = *pointer_to_context;
   CompressibleAdvection<SpaceDimension> equation{};
@@ -56,7 +57,8 @@ Duration CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
   const int dir_v = static_cast<int>(dir);
   const double dx = geom.CellSize(dir_v);
   const ::amrex::MultiFab& scratch = context.GetScratch(level);
-  const amrex::BK19AdvectiveFluxes& Pvs = context.GetAdvectiveFluxes(level);
+  const amrex::CompressibleAdvectionAdvectiveFluxes& Pvs =
+      context.GetAdvectiveFluxes(level);
   Duration min_dt(std::numeric_limits<double>::max());
   // const int stencil = GetStencilWidth();
   amrex::ForEachFab(
@@ -203,10 +205,11 @@ template <int SpaceDimension, int VelocityDimension>
 void CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
     ComputeNumericFluxes(amrex::IntegratorContext& base_context, int level,
                          Duration dt, Direction dir) {
-  // try to convert the IntegratorContext to CompressibleAdvectionIntegratorContext
-  // if this terminate the program.
+  // try to convert the IntegratorContext to
+  // CompressibleAdvectionIntegratorContext, else terminate the program.
   amrex::CompressibleAdvectionIntegratorContext* pointer_to_context =
-      dynamic_cast<amrex::CompressibleAdvectionIntegratorContext*>(&base_context);
+      dynamic_cast<amrex::CompressibleAdvectionIntegratorContext*>(
+          &base_context);
   FUB_ASSERT(pointer_to_context);
   amrex::CompressibleAdvectionIntegratorContext& context = *pointer_to_context;
   CompressibleAdvection<SpaceDimension> equation{};
@@ -215,34 +218,34 @@ void CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
   const double dx = geom.CellSize(dir_v);
   const ::amrex::MultiFab& scratch = context.GetScratch(level);
   ::amrex::MultiFab& fluxes = context.GetFluxes(level, dir);
-  const amrex::BK19AdvectiveFluxes& Pvs = context.GetAdvectiveFluxes(level);
+  const amrex::CompressibleAdvectionAdvectiveFluxes& Pvs =
+      context.GetAdvectiveFluxes(level);
   const int stencil = GetStencilWidth();
-  amrex::ForEachFab(
-      execution::openmp, fluxes, [&](const ::amrex::MFIter& mfi) {
-        // Get a view of all complete state variables
-        const ::amrex::Box face_tilebox = mfi.growntilebox();
-        const ::amrex::Box cell_validbox = scratch[mfi].box();
-        const auto [cell_box, face_box] = amrex::GetCellsAndFacesInStencilRange(
-            cell_validbox, face_tilebox, stencil, dir);
-        const ::amrex::FArrayBox& sfab = scratch[mfi];
-        ::amrex::FArrayBox& ffab = fluxes[mfi];
-        View<const Complete> cells =
-            amrex::MakeView<const Complete>(sfab, equation, cell_box);
-        View<Conservative> fluxes =
-            amrex::MakeView<Conservative>(ffab, equation, face_box);
-        StridedDataView<const double, SpaceDimension> Pv;
-        if constexpr (SpaceDimension == AMREX_SPACEDIM) {
-          Pv = amrex::MakePatchDataView(Pvs.on_faces[dir_v][mfi], 0)
-                   .Subview(amrex::AsIndexBox<SpaceDimension>(
-                       ::amrex::grow(face_box, dir_v, 1)));
-        } else if constexpr (SpaceDimension + 1 == AMREX_SPACEDIM) {
-          Pv = SliceLast(amrex::MakePatchDataView(Pvs.on_faces[dir_v][mfi], 0)
-                             .Subview(amrex::AsIndexBox<AMREX_SPACEDIM>(
-                                 ::amrex::grow(face_box, dir_v, 1))),
-                         0);
-        }
-        ComputeNumericFluxes(fluxes, cells, Pv, dt, dx, dir);
-      });
+  amrex::ForEachFab(execution::openmp, fluxes, [&](const ::amrex::MFIter& mfi) {
+    // Get a view of all complete state variables
+    const ::amrex::Box face_tilebox = mfi.growntilebox();
+    const ::amrex::Box cell_validbox = scratch[mfi].box();
+    const auto [cell_box, face_box] = amrex::GetCellsAndFacesInStencilRange(
+        cell_validbox, face_tilebox, stencil, dir);
+    const ::amrex::FArrayBox& sfab = scratch[mfi];
+    ::amrex::FArrayBox& ffab = fluxes[mfi];
+    View<const Complete> cells =
+        amrex::MakeView<const Complete>(sfab, equation, cell_box);
+    View<Conservative> fluxes =
+        amrex::MakeView<Conservative>(ffab, equation, face_box);
+    StridedDataView<const double, SpaceDimension> Pv;
+    if constexpr (SpaceDimension == AMREX_SPACEDIM) {
+      Pv = amrex::MakePatchDataView(Pvs.on_faces[dir_v][mfi], 0)
+               .Subview(amrex::AsIndexBox<SpaceDimension>(
+                   ::amrex::grow(face_box, dir_v, 1)));
+    } else if constexpr (SpaceDimension + 1 == AMREX_SPACEDIM) {
+      Pv = SliceLast(amrex::MakePatchDataView(Pvs.on_faces[dir_v][mfi], 0)
+                         .Subview(amrex::AsIndexBox<AMREX_SPACEDIM>(
+                             ::amrex::grow(face_box, dir_v, 1))),
+                     0);
+    }
+    ComputeNumericFluxes(fluxes, cells, Pv, dt, dx, dir);
+  });
 }
 
 template struct CompressibleAdvectionFluxMethod<2>;
