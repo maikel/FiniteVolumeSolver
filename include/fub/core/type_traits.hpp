@@ -27,6 +27,7 @@
 #include <type_traits>
 #include <utility>
 
+/// \brief The fub namespace
 namespace fub {
 #if defined(__cpp_lib_byte) && __cpp_lib_byte >= 201603
 using std::byte;

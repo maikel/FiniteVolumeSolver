@@ -25,15 +25,12 @@
 #include "fub/ext/Eigen.hpp"
 
 namespace fub {
-std::array<std::ptrdiff_t, 1> ReflectIndex(std::array<std::ptrdiff_t, 1> i,
-                                           const IndexBox<1>& domain,
-                                           Direction dir, int side);
-std::array<std::ptrdiff_t, 2> ReflectIndex(std::array<std::ptrdiff_t, 2> i,
-                                           const IndexBox<2>& domain,
-                                           Direction dir, int side);
-std::array<std::ptrdiff_t, 3> ReflectIndex(std::array<std::ptrdiff_t, 3> i,
-                                           const IndexBox<3>& domain,
-                                           Direction dir, int side);
+Index<1> ReflectIndex(Index<1> i, const IndexBox<1>& domain, Direction dir,
+                      int side);
+Index<2> ReflectIndex(Index<2> i, const IndexBox<2>& domain, Direction dir,
+                      int side);
+Index<3> ReflectIndex(Index<3> i, const IndexBox<3>& domain, Direction dir,
+                      int side);
 
 template <typename Equation> class ReflectiveBoundary {
 public:
@@ -63,9 +60,8 @@ void ReflectiveBoundary<Equation>::FillBoundary(
     Direction dir, int side) {
   const Eigen::Matrix<double, Rank, 1> unit = UnitVector<Rank>(dir);
   ForEachIndex(box_to_fill, [&](auto... is) {
-    std::array<std::ptrdiff_t, Rank> dest{is...};
-    std::array<std::ptrdiff_t, Rank> src =
-        ReflectIndex(dest, box_to_fill, dir, side);
+    Index<Rank> dest{is...};
+    Index<Rank> src = ReflectIndex(dest, box_to_fill, dir, side);
     Load(state_, states, src);
     Reflect(reflected_, state_, unit, equation_);
     Store(states, reflected_, dest);

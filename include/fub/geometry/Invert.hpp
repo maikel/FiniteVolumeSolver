@@ -21,7 +21,16 @@
 #ifndef FUB_GEOMETRY_INVERT_HPP
 #define FUB_GEOMETRY_INVERT_HPP
 
+#include "fub/core/type_traits.hpp"
+
+#include <array>
+
 namespace fub {
+namespace meta {
+template <typename T, typename... Args>
+using ComputeDistanceTo =
+    decltype(std::declval<T>().ComputeDistanceTo(std::declval<Args>()...));
+}
 
 template <typename Base> class Invert : private Base {
 public:
@@ -29,7 +38,30 @@ public:
 
   [[nodiscard]] double ComputeDistanceTo(std::array<double, 3> x) const
       noexcept {
-    return -Base::ComputeDistanceTo(x);
+    if constexpr (is_detected<meta::ComputeDistanceTo, const Base&,
+                              std::array<double, 3>>()) {
+      return -Base::ComputeDistanceTo(x);
+    } else if constexpr (is_detected<meta::ComputeDistanceTo, const Base&,
+                                     std::array<double, 2>>()) {
+      std::array<double, 2> proj{x[0], x[1]};
+      return -Base::ComputeDistanceTo(proj);
+    } else {
+      return -Base::ComputeDistanceTo(x[0]);
+    }
+  }
+
+  [[nodiscard]] double ComputeDistanceTo(std::array<double, 2> x) const
+      noexcept {
+    if constexpr (is_detected<meta::ComputeDistanceTo, const Base&,
+                              std::array<double, 2>>()) {
+      return -Base::ComputeDistanceTo(x);
+    } else if constexpr (is_detected<meta::ComputeDistanceTo, const Base&,
+                                     std::array<double, 3>>()) {
+      std::array<double, 3> proj{x[0], x[1]};
+      return -Base::ComputeDistanceTo(proj);
+    } else {
+      return -Base::ComputeDistanceTo(x[0]);
+    }
   }
 };
 

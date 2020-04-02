@@ -43,6 +43,7 @@ template <>
 ::amrex::RealBox GetOptionOr(const ProgramOptions& map, const std::string& name,
                              const ::amrex::RealBox& value);
 
+/// \brief The amrex namespace
 namespace amrex {
 
 std::array<std::ptrdiff_t, AMREX_SPACEDIM> AsArray(const ::amrex::IntVect& vec);
