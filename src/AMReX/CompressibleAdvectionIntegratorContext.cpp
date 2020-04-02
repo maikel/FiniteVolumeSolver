@@ -55,12 +55,12 @@ CompressibleAdvectionIntegratorContext::CompressibleAdvectionIntegratorContext(
   }
 }
 
-BK19AdvectiveFluxes&
+CompressibleAdvectionAdvectiveFluxes&
 CompressibleAdvectionIntegratorContext::GetAdvectiveFluxes(int level) {
   return Pv_[level];
 }
 
-const BK19AdvectiveFluxes&
+const CompressibleAdvectionAdvectiveFluxes&
 CompressibleAdvectionIntegratorContext::GetAdvectiveFluxes(int level) const {
   return Pv_[level];
 }

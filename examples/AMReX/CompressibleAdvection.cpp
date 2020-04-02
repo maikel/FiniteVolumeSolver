@@ -117,10 +117,11 @@ int main() {
       fub::amrex::Reconstruction(tag, equation)};
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<2>, fub::amrex::CompressibleAdvectionIntegratorContext(grid, method, 2, 0),
+      fub::int_c<2>,
+      fub::amrex::CompressibleAdvectionIntegratorContext(grid, method, 2, 0),
       fub::GodunovSplitting());
 
-  fub::amrex::BK19AdvectiveFluxes& Pv =
+  fub::amrex::CompressibleAdvectionAdvectiveFluxes& Pv =
       level_integrator.GetContext().GetAdvectiveFluxes(0);
   Pv.on_faces[0].setVal(1.0);
   Pv.on_faces[1].setVal(0.0);
