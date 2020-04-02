@@ -272,7 +272,7 @@ All components inside of the namespace `fub` are independent of the concrete AMR
 This library provides tools to write driver files which form complete applications. Each driver makes its own choices on how to handle program options, input files or its output. 
 You can find many example applications in the `examples/` subfolder within the Git project.
 Every example composes layer for layer until a solver is built and run. 
-An needs application to build up its layers in the following order
+An application needs to build up its layers in the following order
 
   1. [PatchHierarchy](#patch-hierarchy) (data storage)
   2. [GriddingAlgorithm](#gridding-algorithm) (algorithmic choice)
@@ -502,12 +502,13 @@ concept DimensionalSplitIntegratorContext = IntegratorContext<I> && requires (
 };
 ```
 
-Each integrator context which is currently implemented satisfies the `DimensionalSplitIntegratorCotnext`.
+Each integrator context which is currently implemented satisfies the `DimensionalSplitIntegratorContext`.
 The functions `ComputeStableDt`, `ComputeNumericFluxes`, `UpdateConservatively` and `CompleteFromCons` are customization points for those imlpementations. I. e. one needs to provide objects for the policy concepts `FluxMethod<IntegratorContext>`, `TimeIntegrator<IntegratorContext>` and `CompleteFromConsCalculation<IntegratorContext>` to define the behaviour of those functions.
 
 The list of the currently implemented integrator contexts is
 
  - `fub::amrex::IntegratorContext`
+ - `fub::amrex::CompressibleAdvectionIntegratorContext`
  - `fub::amrex::cutcell::IntegratorContext`
  - `fub::amrex::MultiBlockIntegratorContext`
  - `fub::samrai::IntegratorContext`
@@ -561,9 +562,9 @@ It is defined as
 ```cpp
 template <typename IntegratorContext>
 struct HyperbolicMethod {
-  AnyFluxMethod flux_method;
-  AnyTimeIntegrator time_integrator;
-  AnyCompleteFromConsCalculation reconstruct;
+  AnyFluxMethod<IntegratorContext> flux_method;
+  AnyTimeIntegrator<IntegratorContext> time_integrator;
+  AnyCompleteFromConsCalculation<IntegratorContext> reconstruct;
 };
 ```
 
