@@ -21,7 +21,8 @@
 #ifndef FUB_AMREX_TAGGING_GRADIENT_DETECTOR_HPP
 #define FUB_AMREX_TAGGING_GRADIENT_DETECTOR_HPP
 
-#include "fub/AMReX/Tagging.hpp"
+#include "fub/AMReX/GriddingAlgorithm.hpp"
+
 #include "fub/ext/omp.hpp"
 #include "fub/tagging_method/GradientDetector.hpp"
 
@@ -33,8 +34,8 @@ public:
   GradientDetector(const Equation& equation,
                    const std::pair<Projections, double>&... projs);
 
-  void TagCellsForRefinement(::amrex::TagBoxArray& tags, Duration, int level,
-                             GriddingAlgorithm& gridding);
+  void TagCellsForRefinement(::amrex::TagBoxArray& tags,
+                             GriddingAlgorithm& gridding, int level, Duration);
 
 private:
   OmpLocal<::fub::GradientDetector<Equation, Projections...>> detector_;
@@ -59,8 +60,8 @@ GradientDetector<Equation, Projections...>::GradientDetector(
 
 template <typename Equation, typename... Projections>
 void GradientDetector<Equation, Projections...>::TagCellsForRefinement(
-    ::amrex::TagBoxArray& tags, Duration, int level,
-    GriddingAlgorithm& gridding) {
+    ::amrex::TagBoxArray& tags, GriddingAlgorithm& gridding, int level,
+    Duration) {
   const PatchHierarchy& hierarchy = gridding.GetPatchHierarchy();
   ::amrex::BoxArray ba = hierarchy.GetPatchLevel(level).box_array;
   ::amrex::DistributionMapping dm =

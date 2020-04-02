@@ -21,25 +21,27 @@
 #ifndef FUB_AMREX_BOUNDARY_CONDITION_REFLECTIVE_BOUNDARY_HPP
 #define FUB_AMREX_BOUNDARY_CONDITION_REFLECTIVE_BOUNDARY_HPP
 
-#include "fub/AMReX/BoundaryCondition.hpp"
 #include "fub/AMReX/ForEachFab.hpp"
+#include "fub/AMReX/GriddingAlgorithm.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/Execution.hpp"
 #include "fub/boundary_condition/ReflectiveBoundary.hpp"
 
 namespace fub::amrex {
 
+/// \ingroup BoundaryCondition
+///
 template <typename Tag, typename Equation> class ReflectiveBoundary {
 public:
   ReflectiveBoundary(const Equation& equation, Direction dir, int side)
       : ReflectiveBoundary(Tag(), equation, dir, side) {}
   ReflectiveBoundary(Tag, const Equation& equation, Direction dir, int side);
 
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration dt, const GriddingAlgorithm&);
+  void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding,
+                    int level);
 
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration dt, const GriddingAlgorithm& grid, Direction dir);
+  void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding,
+                    int level, Direction dir);
 
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom);
 
@@ -91,17 +93,16 @@ void ReflectiveBoundary<Tag, Equation>::FillBoundary(
 
 template <typename Tag, typename Equation>
 void ReflectiveBoundary<Tag, Equation>::FillBoundary(
-    ::amrex::MultiFab& mf, const ::amrex::Geometry& geom, Duration,
-    const GriddingAlgorithm&) {
-  FillBoundary(mf, geom);
+    ::amrex::MultiFab& mf, const GriddingAlgorithm& gridding, int level) {
+  FillBoundary(mf, gridding.GetPatchHierarchy().GetGeometry(level));
 }
 
 template <typename Tag, typename Equation>
 void ReflectiveBoundary<Tag, Equation>::FillBoundary(
-    ::amrex::MultiFab& mf, const ::amrex::Geometry& geom, Duration,
-    const GriddingAlgorithm&, Direction dir) {
+    ::amrex::MultiFab& mf, const GriddingAlgorithm& gridding, int level,
+    Direction dir) {
   if (dir == dir_) {
-    FillBoundary(mf, geom);
+    FillBoundary(mf, gridding.GetPatchHierarchy().GetGeometry(level));
   }
 }
 

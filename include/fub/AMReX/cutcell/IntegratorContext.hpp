@@ -24,12 +24,13 @@
 #include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
 #include "fub/HyperbolicMethod.hpp"
 #include "fub/TimeStepError.hpp"
-#include "fub/counter/CounterRegistry.hpp"
 #include "fub/ext/outcome.hpp"
 
-#include <mpi.h>
+#include <AMReX_FluxRegister.H>
+#include <AMReX_MultiFab.H>
 
 #include <array>
+#include <memory>
 #include <vector>
 
 namespace fub::amrex::cutcell {
@@ -42,7 +43,8 @@ using HyperbolicMethod = ::fub::HyperbolicMethod<IntegratorContext>;
 /// simulations with the AMReX library.
 class IntegratorContext {
 public:
-  static constexpr int Rank = AMREX_SPACEDIM;
+  /// @{
+  /// \name Constructors, Assignment Operators and Desctructor
 
   IntegratorContext(std::shared_ptr<GriddingAlgorithm> gridding,
                     HyperbolicMethod method);
@@ -63,6 +65,7 @@ public:
   IntegratorContext& operator=(IntegratorContext&&) noexcept = default;
 
   ~IntegratorContext() = default;
+  /// @}
 
   /// @{
   /// \name Member Accessors

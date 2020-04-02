@@ -83,19 +83,16 @@ IsentropicPressureBoundary::IsentropicPressureBoundary(const IdealGasMix<1>& eq,
     : equation_{eq}, outer_pressure_{outer_pressure}, dir_{dir}, side_{side} {}
 
 void IsentropicPressureBoundary::FillBoundary(::amrex::MultiFab& mf,
-                                              const ::amrex::Geometry& geom,
-                                              Duration,
-                                              const GriddingAlgorithm&) {
-  FillBoundary(mf, geom);
+                                              const GriddingAlgorithm& gridding, int level) {
+  FillBoundary(mf, gridding.GetPatchHierarchy().GetGeometry(level));
 }
 
 void IsentropicPressureBoundary::FillBoundary(::amrex::MultiFab& mf,
-                                              const ::amrex::Geometry& geom,
-                                              Duration,
-                                              const GriddingAlgorithm&,
+                                              const GriddingAlgorithm& gridding,
+                                              int level,
                                               Direction dir) {
   if (dir == dir_) {
-    FillBoundary(mf, geom);
+    FillBoundary(mf, gridding, level);
   }
 }
 

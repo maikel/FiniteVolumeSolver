@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Maikel Nadolski
+// Copyright (c) 2020 Maikel Nadolski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,24 +18,33 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/AMReX/BoundaryCondition.hpp"
-#include "fub/AMReX/ViewFArrayBox.hpp"
+#ifndef FUB_AMREX_TAGGING_METHOD_TAG_ALL_OF_HPP
+#define FUB_AMREX_TAGGING_METHOD_TAG_ALL_OF_HPP
 
-namespace fub {
-namespace amrex {
+#include "fub/AMReX/GriddingAlgorithm.hpp"
+#include "fub/Duration.hpp"
 
-AnyBoundaryCondition::AnyBoundaryCondition(const AnyBoundaryCondition& other)
-    : geometry{other.geometry}, boundary_condition_{} {
-  if (other.boundary_condition_) {
-    boundary_condition_ = other.boundary_condition_->Clone();
+#include <tuple>
+
+namespace fub::amrex {
+
+template <typename... Tagging> struct TagAllOf {
+  TagAllOf(Tagging... tagging) : tagging_{std::move(tagging)...} {}
+
+  void TagCellsForRefinement(::amrex::TagBoxArray& tags,
+                             GriddingAlgorithm& gridding, int level,
+                             Duration time_point) {
+    std::apply(
+        [&tags, time_point, level, &gridding](Tagging&... tagging) {
+          (tagging.TagCellsForRefinement(tags, gridding, level, time_point),
+           ...);
+        },
+        tagging_);
   }
-}
 
-AnyBoundaryCondition& AnyBoundaryCondition::
-operator=(const AnyBoundaryCondition& other) {
-  AnyBoundaryCondition tmp{other};
-  return (*this = std::move(tmp));
-}
+  std::tuple<Tagging...> tagging_;
+};
 
-} // namespace amrex
-} // namespace fub
+} // namespace fub::amrex
+
+#endif

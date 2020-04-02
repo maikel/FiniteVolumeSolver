@@ -29,6 +29,8 @@
 
 namespace fub::amrex::cutcell {
 
+/// \ingroup BoundaryCondition
+///
 struct BoundarySet {
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
                     Duration timepoint, const GriddingAlgorithm& gridding);

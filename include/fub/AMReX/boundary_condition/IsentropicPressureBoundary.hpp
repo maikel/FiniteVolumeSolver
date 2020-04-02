@@ -21,21 +21,25 @@
 #ifndef FUB_AMREX_BOUNDARY_CONDITION_ISENTROPIC_HPP
 #define FUB_AMREX_BOUNDARY_CONDITION_ISENTROPIC_HPP
 
-#include "fub/AMReX/BoundaryCondition.hpp"
+#include "fub/AMReX/GriddingAlgorithm.hpp"
 #include "fub/equations/IdealGasMix.hpp"
 
 namespace fub::amrex {
 
+/// \ingroup BoundaryCondition
+///
+/// \brief This boundary models an isentropic pressure expansion for the
+/// one-dimensional ideal gas equations for mixtures.
 class IsentropicPressureBoundary {
 public:
   IsentropicPressureBoundary(const IdealGasMix<1>& eq, double outer_pressure,
                              Direction dir, int side);
 
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration dt, const GriddingAlgorithm&);
+  void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding,
+                    int level);
 
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration dt, const GriddingAlgorithm&, Direction dir);
+  void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding,
+                    int level, Direction dir);
 
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom);
 

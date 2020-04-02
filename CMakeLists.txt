@@ -407,7 +407,6 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     src/AMReX/MLMG/MLNodeHelmDualLinVel_K.cpp
     src/AMReX/PatchHierarchy.cpp
     src/AMReX/GriddingAlgorithm.cpp
-    src/AMReX/BoundaryCondition.cpp
     src/AMReX/TimeIntegrator.cpp
     src/AMReX/IntegratorContext.cpp
     src/AMReX/tagging_method/TagBuffer.cpp
@@ -454,14 +453,12 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     add_library(FiniteVolumeSolver.AMReX.EB
         src/geometry/ExpandTube.cpp
         include/fub/AMReX_CutCell.hpp
-        include/fub/AMReX/cutcell/BoundaryCondition.hpp
         include/fub/AMReX/cutcell/FluxMethod.hpp
         include/fub/AMReX/cutcell/GriddingAlgorithm.hpp
         include/fub/AMReX/cutcell/IndexSpace.hpp
         include/fub/AMReX/cutcell/PatchHierarchy.hpp
         include/fub/AMReX/cutcell/Reconstruction.hpp
         include/fub/AMReX/cutcell/IntegratorContext.hpp
-        include/fub/AMReX/cutcell/Tagging.hpp
         include/fub/AMReX/cutcell/TimeIntegrator.hpp
         include/fub/AMReX/cutcell/initial_data/RiemannProblem.hpp
         include/fub/AMReX/cutcell/tagging_method/ConstantRegion.hpp
@@ -486,7 +483,6 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         src/AMReX/cutcell/output/LogProbes.cpp
         src/AMReX/multi_block/MultiBlockPlotfileOutput.cpp
         src/AMReX/multi_block/MultiWriteHdf5.cpp
-        src/AMReX/cutcell/BoundaryCondition.cpp
         src/AMReX/cutcell/IntegratorContext.cpp
         src/AMReX/cutcell/PatchHierarchy.cpp
         src/AMReX/cutcell/FillCutCellData.cpp

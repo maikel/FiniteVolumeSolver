@@ -54,6 +54,7 @@ using AnyTaggingMethod = ::fub::AnyTaggingMethod<GriddingAlgorithm>;
 using AnyBoundaryCondition = ::fub::AnyBoundaryCondition<GriddingAlgorithm>;
 
 /// \ingroup GriddingAlgorithm
+///
 /// \brief This class modifies and initializes a PatchLevel in a
 /// PatchHierarchy.
 class GriddingAlgorithm : private ::amrex::AmrCore {
@@ -69,7 +70,19 @@ public:
                     AnyTaggingMethod tagging);
 
   /// \brief Constructs a gridding algorithm and defines all customization
-  /// points.
+  /// points
+  ///
+  /// \param hier The base PatchHierarchy that will be modified. It also
+  /// contains options that influence the box generation step.
+  ///
+  /// \param initial_data An InitialCondition policy object
+  ///
+  /// \param tagging A tagging routine masks cells that need further refinement.
+  ///
+  /// \param boundary The boundary condition fills the ghost layer for physical
+  /// domain boundary.
+  ///
+  /// \throw Throws `std::bad_alloc` if a memory allocation fails.
   GriddingAlgorithm(PatchHierarchy hier, AnyInitialData initial_data,
                     AnyTaggingMethod tagging, AnyBoundaryCondition boundary);
 
@@ -83,11 +96,13 @@ public:
 
   /// \brief The move constructor moves a gridding algorithm without allocating
   /// any memory.
-  GriddingAlgorithm(GriddingAlgorithm&& other) noexcept;
+  GriddingAlgorithm(GriddingAlgorithm&& other) noexcept = default;
 
   /// \brief The move assignment moves a gridding algorithm without allocating
   /// any memory.
-  GriddingAlgorithm& operator=(GriddingAlgorithm&& other) noexcept;
+  GriddingAlgorithm& operator=(GriddingAlgorithm&& other) noexcept = default;
+
+  ~GriddingAlgorithm() noexcept override = default;
   /// @}
 
   /// @{
@@ -148,6 +163,7 @@ public:
   /// \brief Fill the ghost layer boundary specified of the specifed MultiFab
   /// `mf`.
   void FillMultiFabFromLevel(::amrex::MultiFab& mf, int level_number);
+  void FillMultiFabFromLevel(::amrex::MultiFab& mf, int level_number, AnyBoundaryCondition& bc);
   /// @}
 
 private:

@@ -21,9 +21,14 @@
 #ifndef FUB_AMREX_BOUNDARY_CONDITION_REF_HPP
 #define FUB_AMREX_BOUNDARY_CONDITION_REF_HPP
 
+#include "fub/AMReX/GriddingAlgorithm.hpp"
+
+#include <AMReX_PhysBCFunct.H>
+
 namespace fub::amrex {
 
 /// \ingroup BoundaryCondition
+///
 /// \brief This class references a BoundaryCondition object and acts as an
 /// adapter such that it is enabled to be used as an AMReX boundary condition
 template <typename BC, typename GriddingAlgorithm>
@@ -37,21 +42,47 @@ public:
 
   /// \brief Constructs a reference to `condition` and stores a pointer to
   /// `grid` at refinement level `level`.
+  ///
+  /// \param[in] condition The condition that will be invoked
+  ///
+  /// \param[in] grid The reference gridding algorithm can be used if a Geometry
+  /// object or boundary conditions are needed
+  ///
+  /// \param[in] level The refinement level for which this boundary conditions
+  /// will be applied to.
+  ///
+  /// \throw Nothing.
   BoundaryConditionRef(BC& condition, const GriddingAlgorithm& grid, int level);
-
-  /// \brief This class is neither copy- nor move-assignable.
-  BoundaryConditionRef(const BoundaryConditionRef&) = delete;
-  BoundaryConditionRef& operator=(const BoundaryConditionRef&) = delete;
-
-  BoundaryConditionRef(BoundaryConditionRef&&) = delete;
-  BoundaryConditionRef& operator=(BoundaryConditionRef&&) = delete;
   /// @}
 
   /// \name Actions
+
   /// \brief This function fills the ghost layer of the specified MultiFab `mf`.
-  void FillBoundary(::amrex::MultiFab& mf, int, int, const ::amrex::IntVect&,
-                    double time_point, int) override;
+  ///
+  /// \throw Throws any exception that is thrown by the reference boundary
+  /// condition.
+  void FillBoundary(::amrex::MultiFab& mf, int dcomp, int ncomp,
+                    ::amrex::IntVect const& nghost, ::amrex::Real time,
+                    int bccomp) override;
+
+  BC* pointer;
+  const GriddingAlgorithm* gridding;
+  int level;
 };
+
+template <typename BC, typename GriddingAlgorithm>
+BoundaryConditionRef<BC, GriddingAlgorithm>::BoundaryConditionRef(
+    BC& condition, const GriddingAlgorithm& grid, int lvl)
+    : pointer{&condition}, gridding{&grid}, level{lvl} {}
+
+template <typename BC, typename GriddingAlgorithm>
+void BoundaryConditionRef<BC, GriddingAlgorithm>::FillBoundary(::amrex::MultiFab& mf, int, int,
+                    ::amrex::IntVect const&, ::amrex::Real,
+                    int) {
+ if (pointer && gridding) {
+   pointer->FillBoundary(mf, *gridding, level);
+ }
+}
 
 } // namespace fub::amrex
 

@@ -37,8 +37,8 @@ template <typename GriddingAlgorithm> struct TaggingMethodStrategy_ {
   virtual ~TaggingMethodStrategy_() = default;
   virtual std::unique_ptr<TaggingMethodStrategy_> Clone() const = 0;
   virtual void TagCellsForRefinement(TagDataHandle tags,
-                                     const GriddingAlgorithm& gridding,
-                                     int level, Duration time_point) = 0;
+                                     GriddingAlgorithm& gridding, int level,
+                                     Duration time_point) = 0;
 };
 
 /// \ingroup TaggingMethod PolymorphicValueType
@@ -54,6 +54,11 @@ public:
   /// \brief This constructs a method that does nothing on invocation.
   AnyTaggingMethod() = default;
 
+  /// \brief Stores any object which satisfies the tagging method concept.
+  template <typename T,
+            typename = std::enable_if_t<!decays_to<T, AnyTaggingMethod>()>>
+  AnyTaggingMethod(T&& tag);
+
   /// \brief Copies the implementation.
   AnyTaggingMethod(const AnyTaggingMethod& other);
 
@@ -67,20 +72,14 @@ public:
   /// \brief Moves the `other` object without allocating and leaves an empty
   /// method.
   AnyTaggingMethod& operator=(AnyTaggingMethod&& other) noexcept = default;
-
-  /// \brief Stores any object which satisfies the tagging method concept.
-  template <typename T,
-            typename = std::enable_if_t<!decays_to<T, AnyTaggingMethod>()>>
-  AnyTaggingMethod(T&& tag);
   /// @}
 
   /// @{
   /// \name Member functions
 
   /// \brief Mask cells that need further refinement in a regridding procedure.
-  void TagCellsForRefinement(TagDataHandle tags,
-                             const GriddingAlgorithm& gridding, int level,
-                             Duration t);
+  void TagCellsForRefinement(TagDataHandle tags, GriddingAlgorithm& gridding,
+                             int level, Duration t);
   /// @}
 
 private:
@@ -98,9 +97,9 @@ struct TaggingMethodWrapper_
   TaggingMethodWrapper_(const T& tag) : tag_{tag} {}
   TaggingMethodWrapper_(T&& tag) : tag_{std::move(tag)} {}
 
-  void TagCellsForRefinement(TagDataHandle tags, Duration time_point, int level,
-                             const GriddingAlgorithm& gridding) override {
-    tag_.TagCellsForRefinement(tags, time_point, level, gridding);
+  void TagCellsForRefinement(TagDataHandle tags, GriddingAlgorithm& gridding,
+                             int level, Duration time_point) override {
+    tag_.TagCellsForRefinement(tags, gridding, level, time_point);
   }
 
   std::unique_ptr<TaggingMethodStrategy_<GriddingAlgorithm>>
@@ -132,10 +131,10 @@ AnyTaggingMethod<GriddingAlgorithm>::AnyTaggingMethod(T&& tag)
 
 template <typename GriddingAlgorithm>
 void AnyTaggingMethod<GriddingAlgorithm>::TagCellsForRefinement(
-    TagDataHandle tags, const GriddingAlgorithm& gridding, int level,
+    TagDataHandle tags, GriddingAlgorithm& gridding, int level,
     Duration time_point) {
   if (tag_) {
-    return tag_->TagCellsForRefinement(tags, time_point, level, gridding);
+    return tag_->TagCellsForRefinement(tags, gridding, level, time_point);
   }
 }
 

@@ -79,7 +79,8 @@ public:
   AnyReconstruction(AnyReconstruction&& other) noexcept = default;
   AnyReconstruction& operator=(AnyReconstruction&& other) noexcept = default;
 
-  template <typename R, typename = std::enable_if_t<!decays_to<R, AnyReconstruction>>>
+  template <typename R,
+            typename = std::enable_if_t<!decays_to<R, AnyReconstruction>()>>
   AnyReconstruction(R&& r); // NOLINT
 
   void CompleteFromCons(IntegratorContext& context, int level, Duration dt);
@@ -101,8 +102,8 @@ public:
   AnyTimeIntegrator(AnyTimeIntegrator&& other) noexcept = default;
   AnyTimeIntegrator& operator=(AnyTimeIntegrator&& other) noexcept = default;
 
-  template <typename R, typename = std::enable_if_t<!std::is_same_v<
-                            std::decay_t<R>, AnyTimeIntegrator>>>
+  template <typename R,
+            typename = std::enable_if_t<!decays_to<R, AnyTimeIntegrator>()>>
   AnyTimeIntegrator(R&& r); // NOLINT
 
   void UpdateConservatively(IntegratorContext& context, int level, Duration dt,
@@ -125,8 +126,8 @@ public:
   AnyFluxMethod(AnyFluxMethod&& other) noexcept = default;
   AnyFluxMethod& operator=(AnyFluxMethod&& other) noexcept = default;
 
-  template <typename R, typename = std::enable_if_t<
-                            !std::is_same_v<std::decay_t<R>, AnyFluxMethod>>>
+  template <typename R,
+            typename = std::enable_if_t<!decays_to<R, AnyFluxMethod>()>>
   AnyFluxMethod(R&& r); // NOLINT
 
   Duration ComputeStableDt(IntegratorContext& context, int level,
@@ -165,8 +166,9 @@ AnyReconstruction<IntegratorContext>::AnyReconstruction(
 }
 
 template <typename IntegratorContext>
-AnyReconstruction<IntegratorContext>& AnyReconstruction<IntegratorContext>::
-operator=(const AnyReconstruction& other) {
+AnyReconstruction<IntegratorContext>&
+AnyReconstruction<IntegratorContext>::operator=(
+    const AnyReconstruction& other) {
   if (other.reconstruct_) {
     reconstruct_ = other.reconstruct_->Clone();
   } else {
@@ -215,8 +217,9 @@ AnyTimeIntegrator<IntegratorContext>::AnyTimeIntegrator(
     : integrator_{other.integrator_ ? other.integrator_->Clone() : nullptr} {}
 
 template <typename IntegratorContext>
-AnyTimeIntegrator<IntegratorContext>& AnyTimeIntegrator<IntegratorContext>::
-operator=(const AnyTimeIntegrator& other) {
+AnyTimeIntegrator<IntegratorContext>&
+AnyTimeIntegrator<IntegratorContext>::operator=(
+    const AnyTimeIntegrator& other) {
   if (other.integrator_) {
     integrator_ = other.integrator_->Clone();
   } else {
@@ -265,8 +268,8 @@ AnyFluxMethod<IntegratorContext>::AnyFluxMethod(const AnyFluxMethod& other)
 }
 
 template <typename IntegratorContext>
-AnyFluxMethod<IntegratorContext>& AnyFluxMethod<IntegratorContext>::
-operator=(const AnyFluxMethod& other) {
+AnyFluxMethod<IntegratorContext>&
+AnyFluxMethod<IntegratorContext>::operator=(const AnyFluxMethod& other) {
   if (other.flux_method_) {
     flux_method_ = other.flux_method_->Clone();
   } else {

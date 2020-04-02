@@ -91,43 +91,27 @@ void AverageState(Complete<IdealGasMix<Rank>>& state,
       state);
 }
 
-template <typename GriddingAlgorithm>
-int FindLevel(const ::amrex::Geometry& geom,
-              const GriddingAlgorithm& gridding) {
-  for (int level = 0; level < gridding.GetPatchHierarchy().GetNumberOfLevels();
-       ++level) {
-    if (geom.Domain() ==
-        gridding.GetPatchHierarchy().GetGeometry(level).Domain()) {
-      return level;
-    }
-  }
-  return -1;
-}
-
 } // namespace
 
 void MassflowBoundary::FillBoundary(::amrex::MultiFab& mf,
-                                    const ::amrex::Geometry& geom, Duration dt,
-                                    const GriddingAlgorithm& grid,
+                                    const GriddingAlgorithm& grid, int level,
                                     Direction dir) {
   if (dir == dir_) {
-    FillBoundary(mf, geom, dt, grid, dir);
+    FillBoundary(mf, grid, level);
   }
 }
 
 void MassflowBoundary::FillBoundary(::amrex::MultiFab& mf,
-                                    const ::amrex::Geometry& geom, Duration t,
-                                    const GriddingAlgorithm& grid) {
-  const int level = FindLevel(geom, grid);
+                                    const GriddingAlgorithm& grid, int level) {
+  const ::amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
   Complete<IdealGasMix<AMREX_SPACEDIM>> state(equation_);
   AverageState(state, grid.GetPatchHierarchy(), level, coarse_inner_box_);
   equation_.CompleteFromCons(state, state);
-  time_attr_.set(t.count());
   double rho = state.density;
   double u = state.momentum[int(dir_)] / rho;
   double p = state.pressure;
   BOOST_LOG(log_) << fmt::format(
-      "average inner state: rho = {} [kg/m3], u = {} [m/s], p = {} [Pa]", rho,
+      "Average inner state: rho = {} [kg/m3], u = {} [m/s], p = {} [Pa]", rho,
       u, p);
 
   equation_.GetReactor().SetDensity(state.density);

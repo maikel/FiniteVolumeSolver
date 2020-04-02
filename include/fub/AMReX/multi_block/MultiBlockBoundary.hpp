@@ -59,6 +59,8 @@ struct BlockConnection {
   int ghost_cell_width;
 };
 
+/// \ingroup BoundaryCondition
+///
 class MultiBlockBoundary {
 public:
   static constexpr int Plenum_Rank = AMREX_SPACEDIM;

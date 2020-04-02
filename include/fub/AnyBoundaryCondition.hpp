@@ -24,7 +24,7 @@
 #include "fub/Direction.hpp"
 #include "fub/Duration.hpp"
 
-#include "fub/core/type_traits.hpp"
+#include "fub/Meta.hpp"
 
 #include <memory>
 
@@ -58,25 +58,39 @@ public:
   /// @{
   /// \name Constructors
 
+  /// \brief This constructs a method that does nothing on invocation.
+  ///
+  /// \throw Nothing.
   AnyBoundaryCondition() = default;
 
+  /// \brief Stores any object which satisfies the BoundaryCondition concept.
   template <typename BC,
             typename = std::enable_if_t<!decays_to<BC, AnyBoundaryCondition>()>>
   AnyBoundaryCondition(BC&& bc);
 
-  AnyBoundaryCondition(const AnyBoundaryCondition&);
-  AnyBoundaryCondition& operator=(const AnyBoundaryCondition&);
+  /// \brief Copies the implementation.
+  AnyBoundaryCondition(const AnyBoundaryCondition& other);
 
+  /// \brief Copies the implementation.
+  AnyBoundaryCondition& operator=(const AnyBoundaryCondition& other);
+
+  /// \brief Moves the `other` object without allocating and leaves an empty
+  /// method.
   AnyBoundaryCondition(AnyBoundaryCondition&&) = default;
+
+  /// \brief Moves the `other` object without allocating and leaves an empty
+  /// method.
   AnyBoundaryCondition& operator=(AnyBoundaryCondition&&) = default;
   /// @}
 
   /// @{
   /// \name Actions
 
+  /// \brief Fill the boundary layer of data.
   void FillBoundary(DataReference data, const GriddingAlgorithm& gridding,
                     int level);
 
+  /// \brief Fill the boundary layer of data in direction `dir` only.
   void FillBoundary(DataReference data, const GriddingAlgorithm& gridding,
                     int level, Direction dir);
   /// @}
@@ -85,6 +99,8 @@ private:
   std::unique_ptr<detail::BoundaryConditionBase<GriddingAlgorithm>>
       boundary_condition_{};
 };
+
+inline int GetSign(int side) { return (side == 0) - (side == 1); }
 
 ///////////////////////////////////////////////////////////////////////////////
 //                                                              Implementation
@@ -117,6 +133,21 @@ struct BoundaryConditionWrapper
   BC boundary_condition_;
 };
 } // namespace detail
+
+template <typename GriddingAlgorithm>
+AnyBoundaryCondition<GriddingAlgorithm>::AnyBoundaryCondition(
+    const AnyBoundaryCondition& other)
+    : boundary_condition_(other.boundary_condition_
+                              ? other.boundary_condition_->Clone()
+                              : nullptr) {}
+
+template <typename GriddingAlgorithm>
+AnyBoundaryCondition<GriddingAlgorithm>&
+AnyBoundaryCondition<GriddingAlgorithm>::operator=(
+    const AnyBoundaryCondition& other) {
+  AnyBoundaryCondition tmp(other);
+  return *this = std::move(tmp);
+}
 
 template <typename GriddingAlgorithm>
 template <typename BC, typename>

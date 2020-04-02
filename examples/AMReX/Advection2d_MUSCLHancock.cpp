@@ -87,7 +87,7 @@ int main(int argc, char** argv) {
   gridding->InitializeHierarchy(0.0);
 
   fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethod(fub::MusclHancockMethod{equation}),
+      fub::amrex::FluxMethodAdapter(fub::MusclHancockMethod{equation}),
       fub::amrex::EulerForwardTimeIntegrator(), fub::amrex::NoReconstruction{}};
 
   const int scratch_gcw = 8;

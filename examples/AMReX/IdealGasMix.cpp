@@ -96,7 +96,7 @@ void MyMain(const ProgramOptions& opts) {
   // {{{
   fub::ideal_gas::MusclHancockPrimMethod<1> flux_method(equation);
 
-  fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(flux_method),
+  fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethodAdapter(flux_method),
                                       fub::amrex::EulerForwardTimeIntegrator(),
                                       fub::amrex::Reconstruction(equation)};
 

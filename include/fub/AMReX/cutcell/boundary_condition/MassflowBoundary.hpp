@@ -41,6 +41,8 @@ struct MassflowBoundaryOptions {
   int side = 0;
 };
 
+/// \ingroup BoundaryCondition
+///
 class MassflowBoundary {
 public:
   MassflowBoundary(const IdealGasMix<AMREX_SPACEDIM>& eq,

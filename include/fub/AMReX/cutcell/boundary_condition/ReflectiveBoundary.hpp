@@ -29,6 +29,8 @@
 
 namespace fub::amrex::cutcell {
 
+/// \ingroup BoundaryCondition
+///
 template <typename Tag, typename Equation> class ReflectiveBoundary {
 public:
   ReflectiveBoundary(Tag, const Equation& equation, Direction dir, int side);

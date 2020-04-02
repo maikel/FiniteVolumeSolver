@@ -123,7 +123,7 @@ int main(int argc, char** argv) {
   fub::EinfeldtSignalVelocities<fub::PerfectGas<1>> signals{};
   fub::HllMethod hll_method(equation, signals);
   fub::MusclHancockMethod flux_method{equation, hll_method};
-  fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(flux_method),
+  fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethodAdapter(flux_method),
                                       fub::amrex::EulerForwardTimeIntegrator(),
                                       fub::amrex::Reconstruction(equation)};
 

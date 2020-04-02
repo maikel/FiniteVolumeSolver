@@ -99,7 +99,7 @@ int main(int argc, char** argv) {
 
   fub::HllMethod hll_method{equation, fub::ShallowWaterSignalVelocities{}};
   fub::MusclHancockMethod muscl_method{equation, hll_method};
-  fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(muscl_method),
+  fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethodAdapter(muscl_method),
                                       fub::amrex::EulerForwardTimeIntegrator(),
                                       fub::amrex::NoReconstruction{}};
 

@@ -31,8 +31,9 @@ public:
 
   int GetTagWidth() const noexcept { return buffer_width_; }
 
-  void TagCellsForRefinement(::amrex::TagBoxArray& tags, Duration t, int level,
-                             GriddingAlgorithm& gridding) const noexcept;
+  void TagCellsForRefinement(::amrex::TagBoxArray& tags,
+                             const GriddingAlgorithm& gridding, int level,
+                             Duration t) const noexcept;
 
   void TagCellsForRefinement(::amrex::TagBoxArray& tags) const noexcept;
 

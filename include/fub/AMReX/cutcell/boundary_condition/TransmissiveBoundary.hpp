@@ -27,6 +27,8 @@
 
 namespace fub::amrex::cutcell {
 
+/// \ingroup BoundaryCondition
+///
 struct TransmissiveBoundary {
   Direction dir;
   int side;

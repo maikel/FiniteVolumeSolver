@@ -44,18 +44,16 @@ namespace {
 } // namespace
 
 void TransmissiveBoundary::FillBoundary(::amrex::MultiFab& mf,
-                                        const ::amrex::Geometry& geom, Duration,
-                                        const GriddingAlgorithm&) {
-
+                                        const GriddingAlgorithm& grid, int level) {
+  const ::amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
   FillBoundary(mf, geom);
 }
 
 void TransmissiveBoundary::FillBoundary(::amrex::MultiFab& mf,
-                                        const ::amrex::Geometry& geom, Duration,
-                                        const GriddingAlgorithm&,
+                                        const GriddingAlgorithm& grid, int level,
                                         Direction dir) {
   if (dir == this->dir) {
-    FillBoundary(mf, geom);
+    FillBoundary(mf, grid, level);
   }
 }
 

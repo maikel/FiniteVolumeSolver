@@ -42,6 +42,8 @@ struct IsentropicPressureBoundaryOptions {
   int side = 0;
 };
 
+/// \ingroup BoundaryCondition
+///
 class IsentropicPressureBoundary {
 public:
   IsentropicPressureBoundary(const IdealGasMix<AMREX_SPACEDIM>& eq,

@@ -18,7 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/AMReX/tagging/ConstantRegion.hpp"
+#include "fub/AMReX/tagging_method/ConstantRegion.hpp"
+
 #include "fub/AMReX/ForEachFab.hpp"
 
 namespace fub::amrex {
@@ -37,10 +38,9 @@ namespace {
 }
 } // namespace
 
-void ConstantBox::TagCellsForRefinement(::amrex::TagBoxArray& tags, Duration,
-                                        int level,
-                                        GriddingAlgorithm& gridding) const
-    noexcept {
+void ConstantBox::TagCellsForRefinement(::amrex::TagBoxArray& tags,
+                                        const GriddingAlgorithm& gridding, int level,
+                                        Duration) const noexcept {
   const ::amrex::Box region = RefineToLevel(coarse_region_, level, gridding);
   ForEachFab(tags, [&](const ::amrex::MFIter& mfi) {
     const ::amrex::Box where = region & mfi.tilebox();

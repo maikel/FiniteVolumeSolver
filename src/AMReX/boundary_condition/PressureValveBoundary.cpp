@@ -30,10 +30,33 @@
 
 namespace fub::amrex {
 
-PressureValveBoundary::PressureValveBoundary(const IdealGasMix<1>& equation,
-                                             PressureValveOptions options)
-    : options_{std::move(options)}, equation_{equation},
-      shared_valve_{std::make_shared<PressureValve>(PressureValve{})} {}
+void PressureValveOptions::Print(SeverityLogger& log) {
+  BOOST_LOG(log) << fmt::format("Pressure Valve '{}' Options:", prefix);
+  BOOST_LOG(log) << fmt::format(" - equivalence_ratio = {} [-]",
+                                equivalence_ratio);
+  BOOST_LOG(log) << fmt::format(" - outer_pressure = {} [Pa]", outer_pressure);
+  BOOST_LOG(log) << fmt::format(" - outer_temperature = {} [K]",
+                                outer_temperature);
+  BOOST_LOG(log) << fmt::format(
+      " - pressure_value_which_opens_boundary = {} [Pa]",
+      pressure_value_which_opens_boundary);
+  BOOST_LOG(log) << fmt::format(
+      " - pressure_value_which_closes_boundary = {} [Pa]",
+      pressure_value_which_closes_boundary);
+  BOOST_LOG(log) << fmt::format(" - oxygen_measurement_position = {} [m]",
+                                oxygen_measurement_position);
+  BOOST_LOG(log) << fmt::format(" - oxygen_measurement_criterium = {} [mole]",
+                                oxygen_measurement_criterium);
+  BOOST_LOG(log) << fmt::format(" - fuel_measurement_position = {} [m]",
+                                fuel_measurement_position);
+  BOOST_LOG(log) << fmt::format(" - fuel_measurement_criterium = {} [-]",
+                                fuel_measurement_criterium);
+  BOOST_LOG(log) << fmt::format(" - valve_efficiency = {} [-]",
+                                valve_efficiency);
+  BOOST_LOG(log) << fmt::format(" - open_at_interval = {} [s]",
+                                open_at_interval.count());
+  BOOST_LOG(log) << fmt::format(" - offset = {} [s]", offset.count());
+}
 
 PressureValveOptions::PressureValveOptions(const ProgramOptions& opts) {
   prefix = GetOptionOr(opts, "prefix", prefix);
@@ -59,6 +82,11 @@ PressureValveOptions::PressureValveOptions(const ProgramOptions& opts) {
   fuel_measurement_position =
       GetOptionOr(opts, "fuel_measurement_position", fuel_measurement_position);
 }
+
+PressureValveBoundary::PressureValveBoundary(const IdealGasMix<1>& equation,
+                                             PressureValveOptions options)
+    : options_{std::move(options)}, equation_{equation},
+      shared_valve_{std::make_shared<PressureValve>(PressureValve{})} {}
 
 PressureValveBoundary::PressureValveBoundary(
     const IdealGasMix<1>& eq,
@@ -136,21 +164,8 @@ std::vector<double> GatherMoles_(const GriddingAlgorithm& grid, double x,
   return moles;
 }
 
-template <typename GriddingAlgorithm>
-int FindLevel(const ::amrex::Geometry& geom,
-              const GriddingAlgorithm& gridding) {
-  for (int level = 0; level < gridding.GetPatchHierarchy().GetNumberOfLevels();
-       ++level) {
-    if (geom.Domain() ==
-        gridding.GetPatchHierarchy().GetGeometry(level).Domain()) {
-      return level;
-    }
-  }
-  return -1;
-}
-
 double ChangeState_(PressureValveState& state, const ::amrex::Geometry& geom,
-                    const GriddingAlgorithm& grid, Duration& last_closed,
+                    const GriddingAlgorithm& grid, int level, Duration& last_closed,
                     Duration& last_fuel_change,
                     const PressureValveOptions& options, IdealGasMix<1>& eq) {
   const double mean_pressure = GetMeanPressure_(grid, eq);
@@ -165,7 +180,6 @@ double ChangeState_(PressureValveState& state, const ::amrex::Geometry& geom,
       (last_fuel_change.count() < 0.0)
           ? options.offset
           : last_fuel_change + options.open_at_interval;
-  const int level = FindLevel(geom, grid);
   boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
       boost::log::keywords::severity = boost::log::trivial::info);
   BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", options.prefix);
@@ -257,19 +271,17 @@ std::string GetMolesString_(const PressureValveOptions& options,
 } // namespace
 
 void PressureValveBoundary::FillBoundary(::amrex::MultiFab& mf,
-                                         const ::amrex::Geometry& geom,
-                                         Duration dt,
                                          const GriddingAlgorithm& grid,
-                                         Direction dir) {
+                                         int level, Direction dir) {
   if (dir == Direction::X) {
-    FillBoundary(mf, geom, dt, grid, dir);
+    FillBoundary(mf, grid, level, dir);
   }
 }
 
 void PressureValveBoundary::FillBoundary(::amrex::MultiFab& mf,
-                                         const ::amrex::Geometry& geom,
-                                         Duration /* dt */,
-                                         const GriddingAlgorithm& grid) {
+                                         const GriddingAlgorithm& grid,
+                                         int level) {
+  const ::amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
   const int ngrow = mf.nGrow(0);
   ::amrex::Box grown_box = geom.growNonPeriodicDomain(ngrow);
   ::amrex::BoxList boundaries =
@@ -281,7 +293,7 @@ void PressureValveBoundary::FillBoundary(::amrex::MultiFab& mf,
 
   // Change State Machine if neccessary
   const double mean_pressure =
-      ChangeState_(shared_valve_->state, geom, grid, shared_valve_->last_closed,
+      ChangeState_(shared_valve_->state, geom, grid, level, shared_valve_->last_closed,
                    shared_valve_->last_fuel, options_, equation_);
 
   ReflectiveBoundary closed(execution::openmp, equation_, Direction::X, 0);

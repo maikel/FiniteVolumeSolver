@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/AMReX/tagging/TagBuffer.hpp"
+#include "fub/AMReX/tagging_method/TagBuffer.hpp"
 
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/Execution.hpp"
@@ -27,8 +27,8 @@
 namespace fub::amrex {
 
 void TagBuffer::TagCellsForRefinement(::amrex::TagBoxArray& tags_array,
-                                      Duration, int, GriddingAlgorithm&) const
-    noexcept {
+                                      const GriddingAlgorithm&, int,
+                                      Duration) const noexcept {
   TagCellsForRefinement(tags_array);
 }
 

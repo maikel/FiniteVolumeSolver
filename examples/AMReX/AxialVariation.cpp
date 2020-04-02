@@ -241,7 +241,7 @@ void MyMain(const ProgramOptions& opts) {
   fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>> signals{};
   fub::HllMethod hll_method(equation, signals);
 
-  fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(hll_method),
+  fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethodAdapter(hll_method),
                                       fub::amrex::EulerForwardTimeIntegrator(),
                                       fub::amrex::Reconstruction(equation)};
 

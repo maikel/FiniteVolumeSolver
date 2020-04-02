@@ -25,14 +25,13 @@
 #include "fub/Direction.hpp"
 #include "fub/equations/IdealGasMix.hpp"
 
-#include <boost/log/common.hpp>
-#include <boost/log/core.hpp>
-#include <boost/log/sources/channel_logger.hpp>
-
 #include <AMReX.H>
 
 namespace fub::amrex {
 
+/// \ingroup BoundaryCondition
+///
+/// \brief This boundary models an inflow boundary with constant mean mass flow.
 template <int Rank> class MassflowBoundary {
 public:
   MassflowBoundary(const IdealGasMix<Rank>& eq,
@@ -45,18 +44,17 @@ public:
                    double required_massflow, double surface_area, Direction dir,
                    int side);
 
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration dt, const GriddingAlgorithm& grid);
+  void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& grid,
+                    int level);
 
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration dt, const GriddingAlgorithm& grid, Direction dir);
+  void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& grid,
+                    int level, Direction dir);
 
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::MultiFab& alphas,
                     const ::amrex::Geometry& geom,
                     const Complete<IdealGasMix<AMREX_SPACEDIM>>& state);
 
 private:
-  boost::log::sources::channel_logger<> log_;
   IdealGasMix<Rank> equation_;
   ::amrex::Box coarse_inner_box_;
   double required_massflow_;
