@@ -23,7 +23,7 @@
 #define FUB_BK19_LEVEL_INTEGRATOR_HPP
 
 #include "fub/AMReX/MLMG/MLNodeHelmholtz.hpp"
-#include "fub/AMReX/BK19/BK19IntegratorContext.hpp"
+#include "fub/AMReX/CompressibleAdvectionIntegratorContext.hpp"
 #include "fub/equations/CompressibleAdvection.hpp"
 #include "fub/ext/Eigen.hpp"
 #include "fub/ext/ProgramOptions.hpp"
@@ -83,7 +83,7 @@ struct BK19PhysicalParameters {
 
 class BK19LevelIntegrator
     : private DimensionalSplitLevelIntegrator<
-          AMREX_SPACEDIM, BK19IntegratorContext, AnySplitMethod> {
+          AMREX_SPACEDIM, CompressibleAdvectionIntegratorContext, AnySplitMethod> {
 public:
   static constexpr int Rank = AMREX_SPACEDIM;
 
@@ -94,7 +94,7 @@ public:
   using SplittingMethod = ::fub::AnySplitMethod;
 
   using AdvectionSolver =
-      DimensionalSplitLevelIntegrator<Rank, BK19IntegratorContext,
+      DimensionalSplitLevelIntegrator<Rank, CompressibleAdvectionIntegratorContext,
                                       SplittingMethod>;
 
   using AdvectionSolver::ApplyFluxCorrection;
@@ -147,7 +147,7 @@ void WriteRawField(const std::string& path, const std::string& name,
 struct WriteBK19Plotfile {
   std::string plotfilename{};
 
-  void operator()(const BK19IntegratorContext& context) const;
+  void operator()(const CompressibleAdvectionIntegratorContext& context) const;
   void operator()(const GriddingAlgorithm& grid) const;
 };
 

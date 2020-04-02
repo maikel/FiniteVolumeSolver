@@ -272,13 +272,13 @@ All components inside of the namespace `fub` are independent of the concrete AMR
 This library provides tools to write driver files which form complete applications. Each driver makes its own choices on how to handle program options, input files or its output. 
 You can find many example applications in the `examples/` subfolder within the Git project.
 Every example composes layer for layer until a solver is built and run. 
-The needs application to build up their layers in the following order
+An application needs to build up its layers in the following order
 
   1. [PatchHierarchy](#patch-hierarchy) (data storage)
   2. [GriddingAlgorithm](#gridding-algorithm) (algorithmic choice)
   3. [IntegratorContext](#data-integrator-context) (data storage / algorithmic choice)
-  4. one or more composed LevelIntegrators (algorithmic choice)
-  5. SubcycleSolver (algorithmic choice)
+  4. one or more composed [LevelIntegrator](#level-integrator)s (algorithmic choice)
+  5. [SubcycleSolver](#subcycle-solver) (algorithmic choice)
 
 Note: Each layer in this list is implemented in terms of its predecessor.
 
@@ -340,12 +340,17 @@ struct DataDescription {
 
 Note: A patch hierarchy does not know what the components represent. It does not have an equation object as context and does not need it. Its only responsibility is to manage a certain amount of data over multiple levels and distributed over MPI ranks.
 
-Note: [[AMReX]] represents hierarchies very often as pairs of `(Vector<MultiFab*>, Vector<Geometry>)` where the vector is taken over the number if refinement levels. One can interpret a `PatchHierarchy` as an equivalent representation.
+Note: [[AMReX]] represents hierarchies very often as pairs of `(Vector<MultiFab*>, Vector<Geometry>)` where the vector is taken over the number of refinement levels. One can interpret a `PatchHierarchy` as an equivalent representation.
 
 Algorithmic Choice: GriddingAlgorithm {#gridding-algorithm}
 -----------------------------------------------------
 
-A gridding algorithm adds some algorithmic choices to the patch hierarchy which are needed for the box generation algorithms in the context of adaptive mesh refinement. The present gridding algorithms use the `AmrCore` class from the [[AMReX]] library to generate patches and hierarchies to cover such tagged cells. It owns a patch hierarchy and initializes or modifies it using a `TaggingMethod` policy object which masks cells that need additional refinement. In addition to the `TaggingMethod` policy, a `GriddingAlgorithm` also need boundary and initial conditions, given by `BoundaryCondition` and `InitialData` policy objects. The boundary conditions are used in communication routines to fill the ghost cell layer touching the computational domain, whereas the initial conditions are only used once at the beginning of a simulation.
+A gridding algorithm adds some algorithmic choices to the patch hierarchy which are needed for the box generation algorithms in the context of adaptive mesh refinement. 
+The present gridding algorithms use the `AmrCore` class from the [[AMReX]] library to generate a distributed hierarchy of index boxes. 
+It owns a patch hierarchy and initializes or modifies it.
+It uses a `TaggingMethod` policy object to mask cells that need additional refinement. 
+In addition to the `TaggingMethod` policy, a `GriddingAlgorithm` also needs boundary and initial conditions, given by `BoundaryCondition` and `InitialData` policy objects. 
+The boundary conditions are used in communication routines to fill the ghost cell layer touching the computational domain, whereas the initial conditions are only used once at the beginning of a simulation.
 
 <div class="example">
 The following code example will create an initialized and adaptively refined patch hierarchy.
@@ -358,10 +363,7 @@ This example produces the following figure and can be visualized either in VisIt
 <center><img width="60%" height="auto" src="img/initial_hierarchy.png"/></center>
 </div>
 
-Multiple solvers can share a common gridding algorithm and will hold a member variable of type `std::shared_ptr<GriddingAlgorithm>`.
-Given a shared `GriddingAlgorithm` a solver is being able to refine the patch hierarchy or to fill ghost cell boundaries at any given time of its algorithm.
-Copying a `GriddingAlgorithm` by value will deeply copy its data on each MPI rank. This can be useful to create fall-back scenarios of a simulation.
-
+Copying a `GriddingAlgorithm` object will deeply copy its data and its policy objects on each MPI rank. This is useful if one wants to make a backup of the current grid state.
 The `GriddingAlgorithm` provides three customization points. 
 Their concepts `InitialData<GriddingAlgorithm>`, `TaggingMethod<GriddingAlgorithm>` and `BoundaryCondition<GriddingAlgorithm>` are defined as 
 
@@ -369,7 +371,7 @@ Their concepts `InitialData<GriddingAlgorithm>`, `TaggingMethod<GriddingAlgorith
 template <typename I, typename GriddingAlgorithm>
 concept InitialData = std::copy_assignable<I> && 
     requires (const I& initial_data, const GriddingAlgorithm& grid, int level) {
-        { initial.InitializeData(grid, level) };
+        { initial_data.InitializeData(grid, level) };
     }
 
 template <typename T, typename GriddingAlgorithm>
@@ -395,7 +397,7 @@ private:
     PatchHierarchy hierarchy_;
     AnyInitialData initial_data_;
     AnyTaggingMethod tagging_method_;
-    AnyBoundaryCondition boundary_condition_per_level_;
+    AnyBoundaryCondition boundary_condition_;
 
 public:
     /* etc... */
@@ -409,54 +411,54 @@ Data Storage: IntegratorContext {#data-integrator-context}
 An `IntegratorContext` allocates, manages and provides access to additional data that is needed for every conservative AMR scheme, such as cell-centered and face-centered data arrays **with ghost layers**. It also manages face-centered data on the coarse-fine interface between two refinement levels.
 
 <div class="example">
-The following code snippet shows a simplified version of how to access cell and face-based data with ghost cells using the [[AMReX]] toolbox. This implements parallelization for GPU with a fallback to an MPI/OpenMP hybrid.
+The following code snippet shows a how to access cell and face-based data with ghost cells using the [[AMReX]] toolbox. This implements parallelization for GPU with a fallback to an MPI/OpenMP hybrid. This class satisfies the `TimeIntegrator<fub::amrex::IntegratorContext>` concept.
 
 ```cpp
-/// \brief This function computes a conservative time update for cells in
-/// direction dir
-///
-/// This specific implementation uses the AMReX tools to do the job
-void UpdateConservatively(IntegratorContext& context, int level, Duration dt,
-                          Direction dir) {
-  using namespace amrex;
-  MultiFab& states = context.GetScratch(level);
-  const MultiFab& fluxes = context.GetFluxes(level, dir);
-  const int n_conservative_variables = context.GetNConservativeVariables();
-  const double dx = context.GetCellSize(level, dir);
-  const double lambda = dt.count() / dx;
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-  for (MFIter mfi(cells, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-    FArrayBox& qs = cells[mfi];
-    const FArrayBox& fs = fluxes[mfi];
-    const Box tilebox = mfi.growntilebox();
-    const Box all_faces_tilebox = surroundingNodes(tilebox, d);
-    const Box all_fluxes_box = flux.box();
-    const Box flux_box = all_faces_tilebox & all_fluxes_box;
-    const Box cell_box = enclosedCells(flux_box);
-    Array4<double> q = qs.array();
-    Array4<const double> f = fs.array();
-    ParallelFor(cell_box, n_conservative_variables,
-                [=] AMREX_GPU_DEVICE(int i, int j, int k, int var) {
-                  std::array<int, 3> iL{i, j, k};
-                  std::array<int, 3> iR = Shift(iv, dir, 1);
-                  q(iv, var) = q(iv, var) + lambda * (f(iL, var) - f(iR, var));
-                });
+class GpuTimeIntegrator {
+  /// \brief This function computes a conservative time update for cells in
+  /// direction dir
+  ///
+  /// This specific implementation uses the AMReX tools to do the job
+  void UpdateConservatively(IntegratorContext& context, int level, Duration dt,
+                            Direction dir) {
+    using namespace amrex;
+    MultiFab& states = context.GetScratch(level);
+    const MultiFab& fluxes = context.GetFluxes(level, dir);
+    const int n_conservative_variables = context.GetNConservativeVariables();
+    const double dx = context.GetCellSize(level, dir);
+    const double lambda = dt.count() / dx;
+  #ifdef _OPENMP
+  #pragma omp parallel if (Gpu::notInLaunchRegion())
+  #endif
+    for (MFIter mfi(cells, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+      FArrayBox& qs = cells[mfi];
+      const FArrayBox& fs = fluxes[mfi];
+      const Box cell_box = mfi.growntilebox();
+      Array4<double> q = qs.array();
+      Array4<const double> f = fs.array();
+      ParallelFor(cell_box, n_conservative_variables,
+                  [=] AMREX_GPU_DEVICE(int i, int j, int k, int var) {
+                    std::array<int, 3> iv{i, j, k};
+                    std::array<int, 3> iL = iv;
+                    std::array<int, 3> iR = Shift(iv, dir, 1);
+                    q(iv, var) = q(iv, var) + lambda * (f(iL, var) - f(iR, var));
+                  });
+    }
   }
-}
+};
 ```
 </div>
 
-In addition to managing the additional data, every integrator context defines a comprehensive list of functions to deal with the various data locations. The `IntegratorContext` concept is  therefore defined by
+In addition to managing the additional data, every integrator context defines a comprehensive list of functions to deal with the various data locations. The `IntegratorContext` concept is defined by
 
 
 ```cpp
 template <typename I>
 concept IntegratorContext = std::copy_assignable<I> && requires (
       I& integrator_context, int level, Duration dt, Direction dir,
-      double scale) {
+      double scale, BoundaryCondition& bc) {
   // Access PatchLevel Data
+  { integrator_context.GetGriddingAlgorithm() };
   { integrator_context.GetData(level) };
   { integrator_context.GetScratch(level) };
   { integrator_context.GetFluxes(level, dir) };
@@ -500,13 +502,24 @@ concept DimensionalSplitIntegratorContext = IntegratorContext<I> && requires (
 };
 ```
 
-The functions `ComputeStableDt`, `ComputeNumericFluxes`, `UpdateConservatively` and `CompleteFromCons` are customization points of a `DimensionalSplitIntegratorContext`. I. e. one needs to provide objects for the policy concepts `FluxMethod<IntegratorContext>`, `TimeIntegrator<IntegratorContext>` and `CompleteFromConsReconstruction<IntegratorContext>` to define the behaviour of those functions.
+Each integrator context which is currently implemented satisfies the `DimensionalSplitIntegratorContext`.
+The functions `ComputeStableDt`, `ComputeNumericFluxes`, `UpdateConservatively` and `CompleteFromCons` are customization points for those imlpementations. I. e. one needs to provide objects for the policy concepts `FluxMethod<IntegratorContext>`, `TimeIntegrator<IntegratorContext>` and `CompleteFromConsCalculation<IntegratorContext>` to define the behaviour of those functions.
+
+The list of the currently implemented integrator contexts is
+
+ - `fub::amrex::IntegratorContext`
+ - `fub::amrex::CompressibleAdvectionIntegratorContext`
+ - `fub::amrex::cutcell::IntegratorContext`
+ - `fub::amrex::MultiBlockIntegratorContext`
+ - `fub::samrai::IntegratorContext`
+
+The `MultiBlockIntegratorContext` class is special, because it is composed of two vectors `std::vector<fub::amrex::IntegratorContext>` and `std::vector<fub::amrex::cutcell::IntegratorContext>` where each integrator context describes a computational domain. Instead of defining policy objects for the composed context one provides them for each member context.
 
 Algorithmic Choice: IntegratorContext {#algorithm-choice-integrator-context}
 ----------------------------------------------------------------------------
 
 We now describe the customization points for an integrator context.
-Its concepts `FluxMethod<IntegratorContext>`, `TimeIntegrator<IntegratorContext>` and `CompleteFromConsReconstruction<IntegratorContext>` are defined as 
+Its concepts `FluxMethod<IntegratorContext>`, `TimeIntegrator<IntegratorContext>` and `CompleteFromConsCalculation<IntegratorContext>` are defined as 
 
 ```cpp
 template <typename FM, typename IntegratorContext>
@@ -526,7 +539,7 @@ concept TimeIntegrator = std::copy_assignable<TI> && requires (
 };
 
 template <typename R, typename IntegratorContext>
-concept CompleteFromConsReconstruction = std::copy_assignable<R> && requires(
+concept CompleteFromConsCalculation = std::copy_assignable<R> && requires(
     R& reconstruct, IntegratorContext& context, int level) {
   { reconstruct.CompleteFromCons(context, level) };
 };
@@ -541,7 +554,7 @@ The `TimeIntegrator` provides the usual conservative scheme for cell-based time 
 
 The numerical fluxes \( F^n_i \) in this update denote the fluxes on the faces of the specified direction and are computed by the `FluxMethod` which is configured for this integrator context.
 
-An AMR integration scheme may use the `CompleteFromConsReconstruction` policy object whenever it changes the conservative variables to establish a valid state across all fields in the patch hierarchy.
+An AMR integration scheme may use the `CompleteFromConsCalculation` policy object whenever it changes the conservative variables to establish a valid state across all fields in the patch hierarchy.
 
 We collect the three customization points for the `IntegratorContext` in a class which we call `HyperbolicMethod<IntegratorContext>`.
 It is defined as
@@ -549,9 +562,9 @@ It is defined as
 ```cpp
 template <typename IntegratorContext>
 struct HyperbolicMethod {
-  AnyFluxMethod flux_method;
-  AnyTimeIntegrator time_integrator;
-  AnyCompleteFromConsReconstruction reconstruct;
+  AnyFluxMethod<IntegratorContext> flux_method;
+  AnyTimeIntegrator<IntegratorContext> time_integrator;
+  AnyCompleteFromConsCalculation<IntegratorContext> reconstruct;
 };
 ```
 
@@ -601,24 +614,168 @@ In addition to computing the mathematical correct formula, an object that satisf
 We recognize that these are two orthogonal concerns which are both hard to get right. 
 To ease the burden for authors of a `FluxMethod` we introduced some helper classes which separate these concerns. They will be discussed in more detail in <a href="#flux-method-framework">Chapter 3</a>.
 
-DimensionalSplitLevelIntegrator {#dimensional-split-integrator}
----------------------------------------------------------------
+Algorithmic Choice: LevelIntegrator {#level-integrator}
+-------------------------------------------------------
+
+Level integrators have the task to advance the solution in time for a single refinement level only.
+They will be used by larger subcycle schemes which may, in general, do smaller time steps on finer refinement levels.
+We define the concept `LevelIntegrator` such that it provides two functions `AdvanceLevelNonRecursively` and `ComputeStableDt`.
 
 We call any class that provides a member function `AdvanceLevelNonRecursively(int level, pair<int, int> subcycle)` a level integrator. The `DimensionalSplitLevelIntegrator` implements the dimensionally split hyperbolic advection scheme and depends on the `IntegratorContext` that we just introduced.
 
 ```cpp
 template <typename L>
 concept LevelIntegrator = std::copy_assignable<L> && requires (const L& level_integrator, int level, Duration dt, std::pair<int, int> subcycle) {
-  { level_integrator.AdvanceLevelNonRecursively(level, dt, subcycle) };
+  { level_integrator.AdvanceLevelNonRecursively(level, dt, subcycle) } -> Result<void, TimeStepTooLarge>;
   { level_integrator.ComputeStableDt(level) } -> Duration;
 };
+```
 
+The name `AdvanceLevelNonRecursively` emphasizes that this function will be called within a recursive subcycle algorithm.
+We call level integrators which provide an integrator context `HyperbolicSystemLevelIntegrator`.
+An integrator context extents level integrators with functions such as `ApplyFluxCorrection`, `CoarsenConservatively` or `CompleteFromCons`.
+These additional functions will be used in a subcycle algorithm to maintain the conservation of the solution across refinement levels.
+
+```cpp
 template <typename HS>
 concept HyperbolicSystemLevelIntegrator = LevelIntegrator<S> && requires (const L& level_integrator) {
   // Access underlying data storage implementation
   { level_integrator.GetIntegratorContext() } -> IntegratorContext;
 };
 ```
+
+This library includes currently the following list of level integrators
+
+- `DimensionalSplitLevelIntegrator` (satisfies `HyperbolicSystemLevelIntegrator`)
+- `SystemSourceLevelIntegrator` (satisfies `HyperboilcSystemLevelIntegrator`)
+- `BK19LevelIntegrator` (satisfies `HyperbolicSystemLevelIntegrator`)
+- `KineticSourceTerm` (satisfies `LevelIntegrator`)
+- `AxialSourceTerm` (satisfies `LevelIntegrator`)
+- `IgniteDetonation` (satisfies `LevelIntegrator`)
+
+`SystemSourceLevelIntegrator` and `BK19LevelIntegrator` are so-called composed level integrators.
+This means, in order to build one of those level integrators you need to provide at least one `HyperbolicSystemLevelIntegrator`.
+The only `HyperbolicSystemLevelIntegrator` currently defined in the library is the `DimensionalSplitLevelIntegrator` which applies dimensional operator splitting ontop of a `DimensionalSplitIntegratorContext`.
+
+A `DimensionalSplitLevelIntegrator` is constructible by providing a `DimensionalSplitIntegratorContext` and `SplittingMethod`, such as `GodunovSplitting` or `StrangSplitting`.
+A single dimensionally split time step includes the following steps
+
+```cpp
+  // Apply boundary condition for the physical boundary only.
+  Context::ApplyBoundaryCondition(this_level, dir);
+
+  // Check stable time step size and if the CFL condition is violated then
+  // restart the coarse time step
+  const Duration local_dt = Context::ComputeStableDt(this_level, dir);
+  MPI_Comm comm = GetMpiCommunicator();
+  const Duration level_dt = MinAll(comm, local_dt);
+  if (level_dt < split_dt) {
+    return TimeStepTooLarge{level_dt, this_level};
+  }
+
+  // Compute fluxes in the specified direction
+  Context::ComputeNumericFluxes(this_level, split_dt, dir);
+
+  // Use the updated fluxes to update cons variables at the "SCRATCH"
+  // context.
+  Context::UpdateConservatively(this_level, split_dt, dir);
+
+  // A time update happened on conservative variables.
+  // We have to re-establish a valid complete state.
+  Context::CompleteFromCons(this_level, split_dt);
+
+  // Accumulate the fluxes on the coarse fine interface
+  const double scale = split_dt.count();
+  Context::AccumulateCoarseFineFluxes(this_level, scale, dir);
+```
+
+Algorithmic Choice: SubcycleSovler {#subcycle-solver}
+-----------------------------------------------------
+
+Finally, subcycle solvers define in which order level integrators are applied on the refinement level of a hierarchy.
+They define the functions `ComputeStableDt` and `AdvanceLevel`.
+
+```cpp
+template <typename S>
+concept SubcycleSolver = std::copy_assignable<S> && requires (const S& solver, int level, Duration dt) {
+  { solver.ComputeStableDt() } -> Duration;
+  { solver.AdvanceLevel(level, dt) } -> Result<void, TimeStepTooLarge>;
+};
+```
+
+The `AdvanceLevel` function advances all levels finer or equal than the specified level.
+Most implementations define this function recursively.
+
+<div class=example>
+An examplary implementation of an recursive AdvanceLevel function is given here.
+```cpp
+template <typename LevelIntegrator>
+Result<void, TimeStepTooLarge>
+SubcycleFineFirstSolver<LevelIntegrator>::AdvanceLevel(
+    int this_level, Duration dt, std::pair<int, int> subcycle) {
+  // PreAdvanceLevel might regrid all finer levels.
+  // The context must make sure that scratch data is allocated
+  PreAdvanceLevel(this_level, dt, subcycle);
+
+  auto scale_dt_on_error = [this](Result<void, TimeStepTooLarge> result) {
+    TimeStepTooLarge error = result.error();
+    int ratio = GetTotalRefineRatio(error.level);
+    error.level = 0;
+    error.dt *= ratio;
+    return error;
+  };
+
+  // If a finer level exists in the hierarchy, we subcycle that finer level
+  // multiple times and use the fine fluxes on coarse-fine interfaces
+  const int next_level = this_level + 1;
+  if (LevelExists(next_level)) {
+    ResetCoarseFineFluxes(next_level, this_level);
+    const int refine_ratio = GetRatioToCoarserLevel(next_level).max();
+    for (int r = 0; r < refine_ratio; ++r) {
+      auto result =
+          AdvanceLevel(next_level, dt / refine_ratio, {r, refine_ratio});
+      if (!result) {
+        return scale_dt_on_error(result);
+      }
+    }
+  }
+
+  Result<void, TimeStepTooLarge> result =
+      AdvanceLevelNonRecursively(this_level, dt, subcycle);
+  if (!result) {
+    return scale_dt_on_error(result);
+  }
+  if (LevelExists(next_level)) {
+    ApplyFluxCorrection(next_level, this_level, dt);
+  }
+
+  // Coarsen inner regions from next finer level to this level.
+  if (LevelExists(next_level)) {
+    CoarsenConservatively(next_level, this_level);
+
+    // The conservative update and the coarsening happened on conservative
+    // variables. We have to reconstruct the missing variables in the complete
+    // state.
+    CompleteFromCons(this_level, dt);
+  }
+
+  CopyScratchToData(this_level);
+
+  // Apply any further context related work after advancing this level.
+  // This function can also indicate if some error occured.
+  // For example the context could detect unphysical states and return a
+  // TooLargeTimeStep error condition.
+  result = PostAdvanceLevel(this_level, dt, subcycle);
+  if (!result) {
+    return scale_dt_on_error(result);
+  }
+  return result;
+}
+```
+</div>
+
+The present subcycle solvers depend on a level integrator only.
+Future solvers may need additional options that may decsribe varying subcycle ratios between pairs of refinement levels.
 
 Framework for defining FluxMethods {#flux-method-framework}
 ===========================================================
@@ -664,16 +821,84 @@ Given a `MultiFab` object we can iterate over all local `FArrayBox` objects usin
 
 ```cpp
 template <typename Function>
-void DoSomethingForEachFArrayBox(MultiFab& multifab) {
-  for (MFIter mfi(multifab); mfi.isValid(); ++mfi) {
-    FArrayBox& fab = multifab[mfi];
+void DoSomethingForEachFArrayBox(amrex::MultiFab& multifab) {
+  for (amrex::MFIter mfi(multifab); mfi.isValid(); ++mfi) {
+    amrex::FArrayBox& fab = multifab[mfi];
     // do something...
   }
 }
 ```
 
-A `FArrayBox` is a container type in [[AMReX]] that stores a multi-dimensional data array for a single patch.
-By using an equation object we can *view* this `FArrayBox` as a set of multi-dimensional arrays for each variable/
+`amrex::FArrayBox` is a container type in [[AMReX]] that stores a multi-dimensional data array for a single patch.
+By using an equation object we can *view* this `amrex::FArrayBox` as a set of multi-dimensional arrays for each variable.
+
+<div class=example>
+Lets assume for this example that we are in a context where we are given a `FArrayBox` and we want to access the variables of this patch.
+In order to so we need an equation object which interprets the raw data.
+
+```cpp
+struct MyClass {
+  using Complete = ::fub::Complete<PerfectGas<3>>;
+  using Conservative = ::fub::Conservative<PerfectGas<3>>;
+
+  void foo(::amrex::FArrayBox& raw_data) {
+    // Transform the raw data object to a View object.
+    auto mutable_states = MakeView<Complete>(raw_data, equation);
+    auto const_states = MakeView<const Complete>(raw_data, equation);
+    auto conservatives = MakeView<Conservative>(raw_data, equation);
+    // Iterate through all global grid indices
+    ForEachIndex(Box<0>(const_states), [=](int i, int j, int k) {
+      // Access the variables
+      mutable_states.density(i, j, k) = 1.0;
+      conservatives.momentum(i, j, k, 0) = 1.0 + const_states.density(i, j, k);
+      conservatives.momentum(i, j, k, 1) = 0.0;
+      conservatives.momentum(i, j, k, 2) = 0.0;
+
+      // The objects view the same memory.
+      assert(const_states.momentum(i, j, k, 0) == conservatives.momentum(i, j, k, 0));
+      assert(const_states.momentum(i, j, k, 1) == conservatives.momentum(i, j, k, 1));
+      assert(const_states.momentum(i, j, k, 2) == conservatives.momentum(i, j, k, 2));
+    });
+  }
+
+  PerfectGas<3> equation;
+};
+```
+</div>
+
+Once we have a `View` object that gives variable-wise access of multi-dimensional data we can load and store state objects, such as `Complete<Equation>` and `Conservative<Equation>`, from and to memory locations inidicated by global space indices `(i, j, k)`.
+
+<div class=example>
+We can lift a function that is a defined for state equations, such as `Complete<Equation>`, to a function which is defined on a multi-dimensional array `View<Complete<Equation>>` by applying its logic for each index.
+
+```cpp
+struct MyClass {
+  using Complete = ::fub::Complete<PerfectGas<3>>;
+  using Conservative = ::fub::Conservative<PerfectGas<3>>;
+
+  void Foo(Complete& state) {
+    state.density = 1.0;
+    state.momentum[0] = 1.0 + state.pressure;
+    state.momentum[1] = 0.0;
+    state.momentum[2] = 0.0;
+  }
+
+  void LiftedFoo(const View<Complete>& view) {
+    ForEachIndex(Box<0>(view), [=](int i, int j, int k) {
+      Load(state, view, {i, j, k});
+      Foo(state);
+      Store(view, state, {i, j, k});
+    });
+  }
+
+  PerfectGas<3> equation;
+  Complete state(equation);
+};
+```
+
+The member function `LiftedFoo` in this example can have multiple equivalent implementations that differ in their efficiency.
+Its real implementation is often considered an implementation detail and might change.
+</div>
 
 Implement a new FluxMethod, the simple case {#implement-flux-method-simple}
 ------------------------------------------------------------------------
@@ -683,17 +908,17 @@ A class `FM` satisfies the concept `FluxMethod<Equation, StencilSize>` if the fo
 ```cpp
 template <typename FM, typename Equation, int StencilSize>
 concept FluxMethod = requires (FM& flux_method,
-                               Conservative<Equation> cons,
-                               span<Complete<Equation>, StencilSize> stencil,
-                               double dx, Duration dt, int dir) {
-  { flux_method.ComputeNumericFlux(cons, stencil, dx, dt, dir) };
+                               Conservative<Equation>& numeric_flux,
+                               span<const Complete<Equation>, StencilSize> stencil,
+                               double dx, Duration dt, Direction dir) {
+  { flux_method.ComputeNumericFlux(numeric_flux, stencil, dx, dt, dir) };
   { flux_method.ComputeStableDt(stencil, dx, dir) } -> Duration;
   { FM::GetStencilSize() } -> std::integral_constant<int, StencilSize>;
 };
 ```
 
 <div class="example">
-For example, the following class `MusclHancockMethod` satisfies this concept.
+For example, the following declaration of the class `MusclHancockMethod` satisfies this concept.
 
 ```cpp
 struct MusclHancockMethod {
@@ -701,16 +926,16 @@ struct MusclHancockMethod {
     using Complete = ::Complete<PerfectGas<2>>;
 
     void ComputeNumericFlux(Conservative& cons, span<const Complete, 4> stencil,
-                              double dx, Duration dt, int dir);
+                              double dx, Duration dt, Direction dir);
 
-    Druation ComputeStableDt(span<const Complete, 4> stencil, double dx, int dir);
+    Duration ComputeStableDt(span<const Complete, 4> stencil, double dx, int dir);
 
-    std::integral_constant<int, 4> GetStencilSize() const noexcept { return {}; }
+    std::integral_constant<int, 2> GetStencilSize() const noexcept { return {}; }
 };
 ```
 
 The implemented MUSCL-type flux methods for an equation `Equation` satisfy `FluxMethod<Equation, 4>` and are implemented in two steps.
-First, we reconstruct a state to the left and the right the face in question.
+First, we reconstruct a state to the left and the right of the face in question.
 This gives a reduction of the stencil array from `Complete state[4]` to `Complete reconstruced_states[2]`.
 
 Secondly, we call a (lower-order) base method `BaseFM` which satisfies `FluxMethod<Equation, 2>`.

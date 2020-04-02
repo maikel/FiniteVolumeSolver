@@ -125,12 +125,12 @@ IntegratorContext& IntegratorContext::IntegratorContext::operator=(
 ///////////////////////////////////////////////////////////////////////////////
 //                                                             Member Accessors
 
-const BoundaryCondition&
+const AnyBoundaryCondition&
 IntegratorContext::GetBoundaryCondition(int level) const {
   return gridding_->GetBoundaryCondition(level);
 }
 
-BoundaryCondition& IntegratorContext::GetBoundaryCondition(int level) {
+AnyBoundaryCondition& IntegratorContext::GetBoundaryCondition(int level) {
   return gridding_->GetBoundaryCondition(level);
 }
 
@@ -389,12 +389,12 @@ void IntegratorContext::SetCycles(std::ptrdiff_t cycles, int level) {
 }
 
 void IntegratorContext::ApplyBoundaryCondition(int level, Direction dir) {
-  BoundaryCondition& boundary_condition = GetBoundaryCondition(level);
+  AnyBoundaryCondition& boundary_condition = GetBoundaryCondition(level);
   ApplyBoundaryCondition(level, dir, boundary_condition);
 }
 
 void IntegratorContext::ApplyBoundaryCondition(int level, Direction dir,
-                                               BoundaryCondition& bc) {
+                                               AnyBoundaryCondition& bc) {
   Timer timer = GetCounterRegistry()->get_timer(
       "cutcell::IntegratorContext::ApplyBoundaryCondition");
   Timer timer_per_level{};
@@ -410,9 +410,9 @@ void IntegratorContext::ApplyBoundaryCondition(int level, Direction dir,
 }
 
 void IntegratorContext::FillGhostLayerTwoLevels(int fine,
-                                                BoundaryCondition& fbc,
+                                                AnyBoundaryCondition& fbc,
                                                 int coarse,
-                                                BoundaryCondition& cbc) {
+                                                AnyBoundaryCondition& cbc) {
   Timer timer1 = GetCounterRegistry()->get_timer(
       "cutcell::IntegratorContext::FillGhostLayerTwoLevels");
   Timer timer_per_level{};
@@ -447,7 +447,7 @@ void IntegratorContext::FillGhostLayerTwoLevels(int fine, int coarse) {
 }
 
 void IntegratorContext::FillGhostLayerSingleLevel(int level,
-                                                  BoundaryCondition& bc) {
+                                                  AnyBoundaryCondition& bc) {
   Timer timer1 = GetCounterRegistry()->get_timer(
       "cutcell::IntegratorContext::FillGhostLayerSingleLevel");
   Timer timer_per_level{};
@@ -467,7 +467,7 @@ void IntegratorContext::FillGhostLayerSingleLevel(int level,
 }
 
 void IntegratorContext::FillGhostLayerSingleLevel(int level) {
-  BoundaryCondition& condition = GetBoundaryCondition(level);
+  AnyBoundaryCondition& condition = GetBoundaryCondition(level);
   FillGhostLayerSingleLevel(level, condition);
 }
 

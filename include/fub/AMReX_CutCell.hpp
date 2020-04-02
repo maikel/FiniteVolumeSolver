@@ -25,7 +25,6 @@
 #include "fub/AMReX/cutcell/FluxMethod.hpp"
 #include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
 #include "fub/AMReX/cutcell/IndexSpace.hpp"
-#include "fub/AMReX/cutcell/InitialData.hpp"
 #include "fub/AMReX/cutcell/IntegratorContext.hpp"
 #include "fub/AMReX/cutcell/PatchHierarchy.hpp"
 #include "fub/AMReX/cutcell/Reconstruction.hpp"

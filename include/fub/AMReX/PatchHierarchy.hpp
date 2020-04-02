@@ -46,8 +46,11 @@
 namespace fub {
 namespace amrex {
 
+/// \defgroup PatchHierarchy
+
 class DebugStorage;
 
+/// \ingroup PatchHierarchy
 struct PatchHierarchyOptions {
   PatchHierarchyOptions() = default;
   PatchHierarchyOptions(const ProgramOptions& options);
@@ -64,6 +67,7 @@ struct PatchHierarchyOptions {
   int n_proper{1};
 };
 
+/// \ingroup PatchHierarchy
 /// The DataDescription class contains all information which is neccessary to
 /// describe the complete and conservative state data of an equation.
 struct DataDescription {
@@ -75,6 +79,7 @@ struct DataDescription {
   int dimension{AMREX_SPACEDIM};
 };
 
+/// \ingroup PatchHierarchy
 /// \brief The PatchLevel represents a distributed grid containing plain
 /// simulation data without a ghost cell layer.
 ///
@@ -145,6 +150,7 @@ struct PatchLevel {
 template <typename Equation>
 DataDescription MakeDataDescription(const Equation& equation);
 
+/// \ingroup PatchHierarchy
 /// The PatchHierarchy holds simulation data on multiple refinement levels. It
 /// also holds a time stamp for each level.
 class PatchHierarchy {
@@ -201,7 +207,8 @@ public:
   [[nodiscard]] const ::amrex::Vector<::amrex::BoxArray> GetBoxArrays() const;
 
   /// \brief Returns the hierarchy of DistributionMapping objects.
-  [[nodiscard]] const ::amrex::Vector<::amrex::DistributionMapping> GetDistributionMappings() const;
+  [[nodiscard]] const ::amrex::Vector<::amrex::DistributionMapping>
+  GetDistributionMappings() const;
 
   /// \brief Returns the hierarchy of MultiFabs representing the data.
   [[nodiscard]] const ::amrex::Vector<const ::amrex::MultiFab*> GetData() const;
@@ -221,8 +228,8 @@ public:
   GetCounterRegistry() const noexcept;
 
   /// \brief Returns a shared pointer to the debug storage.
-  [[nodiscard]] const std::shared_ptr<DebugStorage>&
-  GetDebugStorage() const noexcept;
+  [[nodiscard]] const std::shared_ptr<DebugStorage>& GetDebugStorage() const
+      noexcept;
 
   void SetCounterRegistry(std::shared_ptr<CounterRegistry> registry);
 

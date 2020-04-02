@@ -41,8 +41,10 @@
 #include <iosfwd>
 #include <vector>
 
+/// \brief The cutcell namespace
 namespace fub::amrex::cutcell {
 
+/// \ingroup PatchHierarchy
 /// This class holds state data arrays for each refinement level of a patch
 /// hierarchy.
 ///
@@ -100,6 +102,7 @@ struct PatchLevel : ::fub::amrex::PatchLevel {
   MultiCutFabs doubly_shielded;
 };
 
+/// \ingroup PatchHierarchy
 /// This class extents the normal hierarchy options with a pointer to an
 /// embedded boundary index space for each possible refinement level.
 struct PatchHierarchyOptions : public ::fub::amrex::PatchHierarchyOptions {
@@ -108,8 +111,8 @@ struct PatchHierarchyOptions : public ::fub::amrex::PatchHierarchyOptions {
       : ::fub::amrex::PatchHierarchyOptions(options) {
     ngrow_eb_level_set =
         GetOptionOr(options, "ngrow_eb_level_set", ngrow_eb_level_set);
-    cutcell_load_balance_weight =
-        GetOptionOr(options, "cutcell_load_balance_weight", cutcell_load_balance_weight);
+    cutcell_load_balance_weight = GetOptionOr(
+        options, "cutcell_load_balance_weight", cutcell_load_balance_weight);
     remove_covered_grids =
         GetOptionOr(options, "remove_covered_grids", remove_covered_grids);
   }
@@ -117,7 +120,8 @@ struct PatchHierarchyOptions : public ::fub::amrex::PatchHierarchyOptions {
   template <typename Log> void Print(Log& log) {
     ::fub::amrex::PatchHierarchyOptions::Print(log);
     BOOST_LOG(log) << " - ngrow_eb_level_set = " << ngrow_eb_level_set;
-    BOOST_LOG(log) << " - cutcell_load_balance_weight = " << cutcell_load_balance_weight;
+    BOOST_LOG(log) << " - cutcell_load_balance_weight = "
+                   << cutcell_load_balance_weight;
     BOOST_LOG(log) << " - remove_covered_grids = " << remove_covered_grids;
   }
 
@@ -127,6 +131,7 @@ struct PatchHierarchyOptions : public ::fub::amrex::PatchHierarchyOptions {
   bool remove_covered_grids{true};
 };
 
+/// \ingroup PatchHierarchy
 class PatchHierarchy {
 public:
   /// \brief Constructs a PatchHierarchy object which is capable of holding data
@@ -236,8 +241,7 @@ void WritePlotFile(const std::string& plotfilename, const PatchHierarchy& hier,
     level_steps[i] = static_cast<int>(hier.GetCycles(static_cast<int>(i)));
   }
   for (std::size_t i = 1; i < size; ++i) {
-    ref_ratio[i - 1] = hier.GetRatioToCoarserLevel(static_cast<int>(i)) *
-                    ::amrex::IntVect::TheUnitVector();
+    ref_ratio[i - 1] = hier.GetRatioToCoarserLevel(static_cast<int>(i));
   }
   using Traits = StateTraits<Complete<Equation>>;
   constexpr auto names = Traits::names;
@@ -279,8 +283,7 @@ void WritePlotFile(const std::string& plotfilename, const PatchHierarchy& hier,
     level_steps[i] = static_cast<int>(hier.GetCycles(static_cast<int>(i)));
   }
   for (std::size_t i = 1; i < size; ++i) {
-    ref_ratio[i - 1] = hier.GetRatioToCoarserLevel(static_cast<int>(i)) *
-                    ::amrex::IntVect::TheUnitVector();
+    ref_ratio[i - 1] = hier.GetRatioToCoarserLevel(static_cast<int>(i));
   }
   using Traits = StateTraits<Complete<Equation>>;
   constexpr auto names = Traits::names;
