@@ -25,8 +25,8 @@
 #include <AMReX_MLMG.H>
 
 #include "fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp"
-#include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
-#include "fub/AMReX/bk19/BK19LevelIntegrator.hpp"
+#include "fub/AMReX/CompressibleAdvectionIntegratorContext.hpp"
+#include "fub/AMReX/solver/BK19LevelIntegrator.hpp"
 #include "fub/equations/CompressibleAdvection.hpp"
 
 double p_coeff(double r, const std::vector<double>& coefficients) {
@@ -74,7 +74,11 @@ struct TravellingVortexInitialData : fub::amrex::BK19PhysicalParameters {
     coefficients[24] = 1.0 / 72.0;
   }
 
-  void InitializeData(amrex::MultiFab& mf, const amrex::Geometry& geom) const {
+  void InitializeData(fub::amrex::PatchLevel& patch_level,
+                      const fub::amrex::GriddingAlgorithm& grid, int level,
+                      fub::Duration /*time*/) const {
+    const amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
+    amrex::MultiFab& mf = patch_level.data;
     fub::amrex::ForEachFab(mf, [&](const amrex::MFIter& mfi) {
       fub::CompressibleAdvection<2> equation{};
       amrex::FArrayBox& fab = mf[mfi];
@@ -113,6 +117,30 @@ struct TravellingVortexInitialData : fub::amrex::BK19PhysicalParameters {
         states.momentum(i, j, 1) =
             states.density(i, j) * states.velocity(i, j, 1);
         states.PTinverse(i, j) = states.density(i, j) / states.PTdensity(i, j);
+      });
+    });
+
+    amrex::MultiFab& pi = *patch_level.nodes;
+    // set initial values of pi
+    const double Gamma = (gamma - 1.0) / gamma;
+    fub::amrex::ForEachFab(pi, [&](const ::amrex::MFIter& mfi) {
+      ::amrex::FArrayBox& fab = pi[mfi];
+      fub::amrex::ForEachIndex(fab.box(), [&](auto... is) {
+        ::amrex::IntVect i{int(is)...};
+
+        ::amrex::Vector<double> coor(2);
+        geom.LoNode(i, coor);
+        const double dx = coor[0] - center[0];
+        const double dy = coor[1] - center[1];
+        const double r = std::sqrt(dx * dx + ratio*(dy * dy));
+
+        if (r < R0) {
+          const double r_over_R0 = r / R0;
+          fab(i, 0) = Gamma * fac * fac * p_coeff(r_over_R0, coefficients);
+
+        } else {
+          fab(i, 0) = 0.0;
+        }
       });
     });
   }
@@ -200,38 +228,8 @@ void MyMain(const fub::ProgramOptions& options) {
   HyperbolicMethod method{flux_method, EulerForwardTimeIntegrator(),
                           Reconstruction(fub::execution::seq, equation)};
 
-  //   BK19IntegratorContext simulation_data(grid, method, 2, 0);
-  BK19IntegratorContext simulation_data(grid, method, 4, 2);
-  const int nlevel = simulation_data.GetPatchHierarchy().GetNumberOfLevels();
-
-  // set initial values of pi
-  const double Gamma = (inidat.gamma - 1.0) / inidat.gamma;
-  for (int level = 0; level < nlevel; ++level) {
-    ::amrex::MultiFab& pi = simulation_data.GetPi(level);
-    const ::amrex::Geometry& geom =
-        grid->GetPatchHierarchy().GetGeometry(level);
-    ForEachFab(pi, [&](const ::amrex::MFIter& mfi) {
-      ::amrex::FArrayBox& fab = pi[mfi];
-      ForEachIndex(fab.box(), [&](auto... is) {
-        ::amrex::IntVect i{int(is)...};
-
-        ::amrex::Vector<double> coor(2);
-        geom.LoNode(i, coor);
-        const double dx = coor[0] - inidat.center[0];
-        const double dy = coor[1] - inidat.center[1];
-        const double r = std::sqrt(dx * dx + inidat.ratio*(dy * dy));
-
-        if (r < inidat.R0) {
-          const double r_over_R0 = r / inidat.R0;
-          fab(i, 0) = Gamma * inidat.fac * inidat.fac *
-                      p_coeff(r_over_R0, inidat.coefficients);
-
-        } else {
-          fab(i, 0) = 0.0;
-        }
-      });
-    });
-  }
+  //   CompressibleAdvectionIntegratorContext simulation_data(grid, method, 2, 0);
+  CompressibleAdvectionIntegratorContext simulation_data(grid, method, 4, 2);
 
   fub::DimensionalSplitLevelIntegrator advection(
       //       fub::int_c<2>, std::move(simulation_data),
