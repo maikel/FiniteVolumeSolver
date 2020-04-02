@@ -31,10 +31,10 @@
 namespace fub::amrex::cutcell {
 
 void TagCutCells::TagCellsForRefinement(::amrex::TagBoxArray& tags_array,
-                                        Duration, int level,
-                                        const GriddingAlgorithm& gridding) const
-    noexcept {
-  ::amrex::TagCutCells(tags_array, gridding.GetPatchHierarchy().GetPatchLevel(level).data);
+                                        const GriddingAlgorithm& gridding,
+                                        int level, Duration) const noexcept {
+  ::amrex::TagCutCells(tags_array,
+                       gridding.GetPatchHierarchy().GetPatchLevel(level).data);
 }
 
 } // namespace fub::amrex::cutcell

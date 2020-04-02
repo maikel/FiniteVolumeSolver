@@ -25,8 +25,8 @@
 namespace fub::amrex::cutcell {
 
 void TagBuffer::TagCellsForRefinement(::amrex::TagBoxArray& tags_array,
-                                      Duration, int, GriddingAlgorithm&) const
-    noexcept {
+                                      const GriddingAlgorithm&, int,
+                                      Duration) const noexcept {
   ::fub::amrex::TagBuffer(buffer_width_).TagCellsForRefinement(tags_array);
 }
 

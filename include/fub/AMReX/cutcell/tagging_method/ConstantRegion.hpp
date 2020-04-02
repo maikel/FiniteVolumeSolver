@@ -30,8 +30,9 @@ class ConstantBox {
 public:
   explicit ConstantBox(const ::amrex::Box& coarse_region);
 
-  void TagCellsForRefinement(::amrex::TagBoxArray& tags, Duration t, int level,
-                             GriddingAlgorithm& gridding) const noexcept;
+  void TagCellsForRefinement(::amrex::TagBoxArray& tags,
+                             const GriddingAlgorithm& gridding, int level,
+                             Duration time_point) const noexcept;
 
 private:
   ::amrex::Box coarse_region_;

@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Maikel Nadolski
+// Copyright (c) 2020 Maikel Nadolski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,33 +18,33 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/AMReX/cutcell/tagging_method/ConstantRegion.hpp"
-#include "fub/AMReX/ForEachFab.hpp"
+#ifndef FUB_AMREX_CUTCELL_TAGGING_METHOD_TAG_ALL_OF_HPP
+#define FUB_AMREX_CUTCELL_TAGGING_METHOD_TAG_ALL_OF_HPP
+
+#include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
+#include "fub/Duration.hpp"
+
+#include <tuple>
 
 namespace fub::amrex::cutcell {
 
-ConstantBox::ConstantBox(const ::amrex::Box& coarse_box)
-    : coarse_region_{coarse_box} {}
+template <typename... Tagging> struct TagAllOf {
+  TagAllOf(Tagging... tagging) : tagging_{std::move(tagging)...} {}
 
-namespace {
-::amrex::Box RefineToLevel(const ::amrex::Box& box, int level,
-                           const GriddingAlgorithm& gridding) {
-  ::amrex::Box result = box;
-  for (int i = 1; i <= level; ++i) {
-    result.refine(gridding.GetPatchHierarchy().GetRatioToCoarserLevel(level));
+  void TagCellsForRefinement(::amrex::TagBoxArray& tags,
+                             GriddingAlgorithm& gridding, int level,
+                             Duration time_point) {
+    std::apply(
+        [&tags, time_point, level, &gridding](Tagging&... tagging) {
+          (tagging.TagCellsForRefinement(tags, gridding, level, time_point),
+           ...);
+        },
+        tagging_);
   }
-  return result;
-}
-} // namespace
 
-void ConstantBox::TagCellsForRefinement(::amrex::TagBoxArray& tags,
-                                        const GriddingAlgorithm& gridding,
-                                        int level, Duration) const noexcept {
-  const ::amrex::Box region = RefineToLevel(coarse_region_, level, gridding);
-  ForEachFab(tags, [&](const ::amrex::MFIter& mfi) {
-    const ::amrex::Box where = region & mfi.tilebox();
-    tags[mfi].setVal('\1', where);
-  });
-}
+  std::tuple<Tagging...> tagging_;
+};
 
 } // namespace fub::amrex::cutcell
+
+#endif
