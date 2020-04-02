@@ -271,55 +271,53 @@ struct WrapBoundaryCondition {
   AnyBoundaryCondition* base_condition{nullptr};
   cutcell::AnyBoundaryCondition* base_cc_condition{nullptr};
 
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration time_point,
-                    const GriddingAlgorithm& gridding) const {
+  void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding,
+                    int level) const {
     FUB_ASSERT(base_condition != nullptr);
-    base_condition->FillBoundary(mf, geom, time_point, gridding);
+    base_condition->FillBoundary(mf, gridding, level);
     MultiBlockBoundary* boundary = boundaries.begin();
     for (const BlockConnection& connection : connectivity) {
       if (id == connection.tube.id) {
-        boundary->FillBoundary(mf, geom, time_point, gridding);
+        boundary->FillBoundary(mf, gridding, level);
       }
       ++boundary;
     }
   }
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration time_point, const GriddingAlgorithm& gridding,
-                    Direction dir) const {
+  void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding,
+                    int level, Direction dir) const {
     FUB_ASSERT(base_condition != nullptr);
-    base_condition->FillBoundary(mf, geom, time_point, gridding, dir);
+    base_condition->FillBoundary(mf, gridding, level, dir);
     MultiBlockBoundary* boundary = boundaries.begin();
     for (const BlockConnection& connection : connectivity) {
       if (id == connection.tube.id) {
-        boundary->FillBoundary(mf, geom, time_point, gridding, dir);
+        boundary->FillBoundary(mf, gridding, level, dir);
       }
       ++boundary;
     }
   }
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration time_point,
-                    const cutcell::GriddingAlgorithm& gridding) const {
-    FUB_ASSERT(base_cc_condition != nullptr);
-    base_cc_condition->FillBoundary(mf, geom, time_point, gridding);
-    MultiBlockBoundary* boundary = boundaries.begin();
-    for (const BlockConnection& connection : connectivity) {
-      if (id == connection.plenum.id) {
-        boundary->FillBoundary(mf, geom, time_point, gridding);
-      }
-      ++boundary;
-    }
-  }
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration time_point,
+
+  void FillBoundary(::amrex::MultiFab& mf,
                     const cutcell::GriddingAlgorithm& gridding,
-                    Direction dir) const {
+                    int level) const {
     FUB_ASSERT(base_cc_condition != nullptr);
-    base_cc_condition->FillBoundary(mf, geom, time_point, gridding, dir);
+    base_cc_condition->FillBoundary(mf, gridding, level);
     MultiBlockBoundary* boundary = boundaries.begin();
     for (const BlockConnection& connection : connectivity) {
       if (id == connection.plenum.id) {
-        boundary->FillBoundary(mf, geom, time_point, gridding, dir);
+        boundary->FillBoundary(mf, gridding, level);
+      }
+      ++boundary;
+    }
+  }
+  void FillBoundary(::amrex::MultiFab& mf,
+                    const cutcell::GriddingAlgorithm& gridding, int level,
+                    Direction dir) const {
+    FUB_ASSERT(base_cc_condition != nullptr);
+    base_cc_condition->FillBoundary(mf, gridding, level, dir);
+    MultiBlockBoundary* boundary = boundaries.begin();
+    for (const BlockConnection& connection : connectivity) {
+      if (id == connection.plenum.id) {
+        boundary->FillBoundary(mf, gridding, level, dir);
       }
       ++boundary;
     }
@@ -333,12 +331,11 @@ void MultiBlockIntegratorContext::ApplyBoundaryCondition(int level,
   if (dir == Direction::X) {
     for (IntegratorContext& tube : tubes_) {
       if (tube.LevelExists(level)) {
-        AnyBoundaryCondition& bc = tube.GetBoundaryCondition(level);
+        AnyBoundaryCondition& bc =
+            tube.GetGriddingAlgorithm()->GetBoundaryCondition();
         AnyBoundaryCondition wrapped = WrapBoundaryCondition{
             id, gridding_->GetConnectivity(), gridding_->GetBoundaries(level),
             &bc, nullptr};
-        wrapped.parent = tube.GetGriddingAlgorithm().get();
-        wrapped.geometry = tube.GetGeometry(level);
         tube.ApplyBoundaryCondition(level, dir, wrapped);
       }
       id += 1;
@@ -347,12 +344,11 @@ void MultiBlockIntegratorContext::ApplyBoundaryCondition(int level,
   id = 0;
   for (cutcell::IntegratorContext& plenum : plena_) {
     if (plenum.LevelExists(level)) {
-      cutcell::AnyBoundaryCondition& bc = plenum.GetBoundaryCondition(level);
+      cutcell::AnyBoundaryCondition& bc =
+          plenum.GetGriddingAlgorithm()->GetBoundaryCondition();
       cutcell::AnyBoundaryCondition wrapped =
           WrapBoundaryCondition{id, gridding_->GetConnectivity(),
                                 gridding_->GetBoundaries(level), nullptr, &bc};
-      wrapped.parent = plenum.GetGriddingAlgorithm().get();
-      wrapped.geometry = plenum.GetGeometry(level);
       plenum.ApplyBoundaryCondition(level, dir, wrapped);
     }
     id += 1;
@@ -366,18 +362,16 @@ void MultiBlockIntegratorContext::FillGhostLayerTwoLevels(int fine,
   std::size_t id = 0;
   for (IntegratorContext& tube : tubes_) {
     if (tube.LevelExists(fine)) {
-      AnyBoundaryCondition& fbc = tube.GetBoundaryCondition(fine);
+      AnyBoundaryCondition& fbc =
+          tube.GetGriddingAlgorithm()->GetBoundaryCondition();
       AnyBoundaryCondition fwrapped =
           WrapBoundaryCondition{id, gridding_->GetConnectivity(),
                                 gridding_->GetBoundaries(fine), &fbc, nullptr};
-      fwrapped.parent = tube.GetGriddingAlgorithm().get();
-      fwrapped.geometry = tube.GetGeometry(fine);
-      AnyBoundaryCondition& cbc = tube.GetBoundaryCondition(coarse);
+      AnyBoundaryCondition& cbc =
+          tube.GetGriddingAlgorithm()->GetBoundaryCondition();
       AnyBoundaryCondition cwrapped = WrapBoundaryCondition{
           id, gridding_->GetConnectivity(), gridding_->GetBoundaries(coarse),
           &cbc, nullptr};
-      cwrapped.parent = tube.GetGriddingAlgorithm().get();
-      cwrapped.geometry = tube.GetGeometry(coarse);
       tube.FillGhostLayerTwoLevels(fine, fwrapped, coarse, cwrapped);
     }
     id += 1;
@@ -385,18 +379,16 @@ void MultiBlockIntegratorContext::FillGhostLayerTwoLevels(int fine,
   id = 0;
   for (cutcell::IntegratorContext& plenum : plena_) {
     if (plenum.LevelExists(fine)) {
-      cutcell::AnyBoundaryCondition& fbc = plenum.GetBoundaryCondition(fine);
+      cutcell::AnyBoundaryCondition& fbc =
+          plenum.GetGriddingAlgorithm()->GetBoundaryCondition();
       cutcell::AnyBoundaryCondition fwrapped =
           WrapBoundaryCondition{id, gridding_->GetConnectivity(),
                                 gridding_->GetBoundaries(fine), nullptr, &fbc};
-      fwrapped.parent = plenum.GetGriddingAlgorithm().get();
-      fwrapped.geometry = plenum.GetGeometry(fine);
-      cutcell::AnyBoundaryCondition& cbc = plenum.GetBoundaryCondition(coarse);
+      cutcell::AnyBoundaryCondition& cbc =
+          plenum.GetGriddingAlgorithm()->GetBoundaryCondition();
       cutcell::AnyBoundaryCondition cwrapped = WrapBoundaryCondition{
           id, gridding_->GetConnectivity(), gridding_->GetBoundaries(coarse),
           nullptr, &cbc};
-      cwrapped.parent = plenum.GetGriddingAlgorithm().get();
-      cwrapped.geometry = plenum.GetGeometry(fine);
       plenum.FillGhostLayerTwoLevels(fine, fwrapped, coarse, cwrapped);
     }
     id += 1;
@@ -409,12 +401,11 @@ void MultiBlockIntegratorContext::FillGhostLayerSingleLevel(int level) {
   std::size_t id = 0;
   for (IntegratorContext& tube : tubes_) {
     if (tube.LevelExists(level)) {
-      AnyBoundaryCondition& bc = tube.GetBoundaryCondition(level);
+      AnyBoundaryCondition& bc =
+          tube.GetGriddingAlgorithm()->GetBoundaryCondition();
       AnyBoundaryCondition wrapped =
           WrapBoundaryCondition{id, gridding_->GetConnectivity(),
                                 gridding_->GetBoundaries(level), &bc, nullptr};
-      wrapped.parent = tube.GetGriddingAlgorithm().get();
-      wrapped.geometry = tube.GetGeometry(level);
       tube.FillGhostLayerSingleLevel(level, wrapped);
     }
     id += 1;
@@ -422,12 +413,11 @@ void MultiBlockIntegratorContext::FillGhostLayerSingleLevel(int level) {
   id = 0;
   for (cutcell::IntegratorContext& plenum : plena_) {
     if (plenum.LevelExists(level)) {
-      cutcell::AnyBoundaryCondition& bc = plenum.GetBoundaryCondition(level);
+      cutcell::AnyBoundaryCondition& bc =
+          plenum.GetGriddingAlgorithm()->GetBoundaryCondition();
       cutcell::AnyBoundaryCondition wrapped =
           WrapBoundaryCondition{id, gridding_->GetConnectivity(),
                                 gridding_->GetBoundaries(level), nullptr, &bc};
-      wrapped.parent = plenum.GetGriddingAlgorithm().get();
-      wrapped.geometry = plenum.GetGeometry(level);
       plenum.FillGhostLayerSingleLevel(level, wrapped);
     }
     id += 1;

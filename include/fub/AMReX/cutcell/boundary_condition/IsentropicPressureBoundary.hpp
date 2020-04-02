@@ -92,7 +92,7 @@ public:
   /// defined in the gridding algorithm at refinement level `level`.
   void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding,
                     int level, Direction dir) {
-    if (dir == options_.dir) {
+    if (dir == options_.direction) {
       FillBoundary(mf, gridding, level);
     }
   }

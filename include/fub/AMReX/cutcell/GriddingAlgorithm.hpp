@@ -104,9 +104,9 @@ public:
   PatchHierarchy& GetPatchHierarchy() noexcept;
 
   [[nodiscard]] const AnyBoundaryCondition&
-  GetBoundaryCondition(int level) const noexcept;
+  GetBoundaryCondition() const noexcept;
 
-  [[nodiscard]] AnyBoundaryCondition& GetBoundaryCondition(int level) noexcept;
+  [[nodiscard]] AnyBoundaryCondition& GetBoundaryCondition() noexcept;
 
   [[nodiscard]] const AnyInitialData& GetInitialCondition() const noexcept;
 

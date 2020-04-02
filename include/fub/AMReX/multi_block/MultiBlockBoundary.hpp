@@ -112,29 +112,27 @@ public:
   /// Assuming that mf represents a MultiFab living in the higher dimensional
   /// plenum simulation its ghost layer will be filled with data from the tube
   /// simulation.
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration time_point,
-                    const cutcell::GriddingAlgorithm& gridding);
+  void FillBoundary(::amrex::MultiFab& mf,
+                    const cutcell::GriddingAlgorithm& gridding, int level);
 
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration time_point,
-                    const cutcell::GriddingAlgorithm& gridding, Direction dir) {
+  void FillBoundary(::amrex::MultiFab& mf,
+                    const cutcell::GriddingAlgorithm& gridding, int level,
+                    Direction dir) {
     if (dir == dir_) {
-      FillBoundary(mf, geom, time_point, gridding);
+      FillBoundary(mf, gridding, level);
     }
   }
 
   /// Assuming that mf represents a MultiFab living in the one dimensional tube
   /// simulation its ghost layer will be filled with data from the plenum
   /// simulation.
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration time_point, const GriddingAlgorithm& gridding);
+  void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding,
+                    int level);
 
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration time_point, const GriddingAlgorithm& gridding,
-                    Direction dir) {
+  void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding,
+                    int level, Direction dir) {
     if (dir == dir_) {
-      FillBoundary(mf, geom, time_point, gridding);
+      FillBoundary(mf, gridding, level);
     }
   }
 

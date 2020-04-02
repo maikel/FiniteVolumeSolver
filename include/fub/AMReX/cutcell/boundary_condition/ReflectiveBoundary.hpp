@@ -58,7 +58,7 @@ template <typename Tag, typename Equation>
 void ReflectiveBoundary<Tag, Equation>::FillBoundary(
     ::amrex::MultiFab& mf, const GriddingAlgorithm& gridding, int level,
     Direction dir) {
-  if (dir == options_.dir) {
+  if (dir == dir_) {
     FillBoundary(mf, gridding, level);
   }
 }

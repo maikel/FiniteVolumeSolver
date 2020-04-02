@@ -21,7 +21,7 @@
 #ifndef FUB_AMREX_BOUNDARY_CUTCELL_CONDITION_TRANSMISSIVE_BOUNDARY_HPP
 #define FUB_AMREX_BOUNDARY_CUTCELL_CONDITION_TRANSMISSIVE_BOUNDARY_HPP
 
-#include "fub/AMReX/cutcell/BoundaryCondition.hpp"
+#include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
 
 #include <AMReX_MultiFab.H>
 
@@ -38,7 +38,7 @@ struct TransmissiveBoundary {
 
   void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding,
                     int level, Direction dir) {
-    if (dir == options_.dir) {
+    if (dir == this->dir) {
       FillBoundary(mf, gridding, level);
     }
   }

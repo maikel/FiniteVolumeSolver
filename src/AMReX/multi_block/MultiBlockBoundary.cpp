@@ -337,8 +337,8 @@ MultiBlockBoundary::MultiBlockBoundary(const MultiBlockBoundary& other)
   plenum_ghost_data_->copy(*other.plenum_ghost_data_);
 }
 
-MultiBlockBoundary& MultiBlockBoundary::
-operator=(const MultiBlockBoundary& other) {
+MultiBlockBoundary&
+MultiBlockBoundary::operator=(const MultiBlockBoundary& other) {
   MultiBlockBoundary tmp(other);
   *this = std::move(tmp);
   return *this;
@@ -515,8 +515,7 @@ const std::shared_ptr<PressureValve>& MultiBlockBoundary::GetValve() const
 }
 
 void MultiBlockBoundary::FillBoundary(::amrex::MultiFab& mf,
-                                      const ::amrex::Geometry&, Duration,
-                                      const GriddingAlgorithm&) {
+                                      const GriddingAlgorithm&, int) {
   if (valve_ && valve_->state == PressureValveState::closed) {
     //    ReflectiveBoundary closed{execution::openmp, tube_equation_, dir_,
     //      Flip(side_)};
@@ -559,15 +558,14 @@ void MultiBlockBoundary::FillBoundary(::amrex::MultiFab& mf,
 }
 
 void MultiBlockBoundary::FillBoundary(::amrex::MultiFab& mf,
-                                      const ::amrex::Geometry& geom, Duration,
-                                      const cutcell::GriddingAlgorithm& grid) {
+                                      const cutcell::GriddingAlgorithm& grid,
+                                      int level) {
   ::amrex::Box ghost_box = MakeGhostBox(plenum_mirror_box_, gcw_, dir_, side_);
   if (valve_ && valve_->state == PressureValveState::closed) {
     const Eigen::Matrix<double, Plenum_Rank, 1> unit =
         UnitVector<Plenum_Rank>(dir_);
-    const int level_num = FindLevel_(geom, grid);
     const ::amrex::MultiFab& alphas =
-        grid.GetPatchHierarchy().GetEmbeddedBoundary(level_num)->getVolFrac();
+        grid.GetPatchHierarchy().GetEmbeddedBoundary(level)->getVolFrac();
     OmpLocal<IdealGasMix<Plenum_Rank>::Complete> state(plenum_equation_);
     OmpLocal<IdealGasMix<Plenum_Rank>::Complete> reflected(plenum_equation_);
     ForEachFab(execution::openmp, mf, [&](const ::amrex::MFIter& mfi) {

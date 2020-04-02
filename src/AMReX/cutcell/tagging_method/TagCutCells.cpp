@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/AMReX/cutcell/tagging/TagCutCells.hpp"
+#include "fub/AMReX/cutcell/tagging_method/TagCutCells.hpp"
 
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"

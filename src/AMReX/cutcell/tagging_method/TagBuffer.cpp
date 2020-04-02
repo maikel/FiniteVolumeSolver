@@ -18,9 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/AMReX/cutcell/tagging/TagBuffer.hpp"
+#include "fub/AMReX/cutcell/tagging_method/TagBuffer.hpp"
 
-#include "fub/AMReX/tagging/TagBuffer.hpp"
+#include "fub/AMReX/tagging_method/TagBuffer.hpp"
 
 namespace fub::amrex::cutcell {
 

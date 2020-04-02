@@ -96,8 +96,8 @@ public:
 
   /// \brief Returns the current boundary condition for the specified level.
   [[nodiscard]] const AnyBoundaryCondition&
-  GetBoundaryCondition(int level) const;
-  [[nodiscard]] AnyBoundaryCondition& GetBoundaryCondition(int level);
+  GetBoundaryCondition() const;
+  [[nodiscard]] AnyBoundaryCondition& GetBoundaryCondition();
 
   [[nodiscard]] ::amrex::EBFArrayBoxFactory& GetEmbeddedBoundary(int level);
   [[nodiscard]] const ::amrex::EBFArrayBoxFactory&

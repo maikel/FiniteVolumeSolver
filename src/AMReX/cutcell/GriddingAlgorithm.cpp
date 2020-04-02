@@ -21,6 +21,7 @@
 #include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
 
 #include "fub/AMReX/ForEachFab.hpp"
+#include "fub/AMReX/boundary_condition/BoundaryConditionRef.hpp"
 
 #include <AMReX_EBMultiFabUtil.H>
 #include <AMReX_FillPatchUtil.H>
@@ -44,15 +45,16 @@ GriddingAlgorithm::operator=(const GriddingAlgorithm& other) {
   return *this = std::move(tmp);
 }
 
-GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier, AnyInitialData data,
-                                     Tagging tagging,
+GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier,
+                                     AnyInitialData initial_data,
+                                     AnyTaggingMethod tagging,
                                      AnyBoundaryCondition boundary)
     : AmrCore(
           &hier.GetGridGeometry().coordinates,
           hier.GetOptions().max_number_of_levels - 1,
           ::amrex::Vector<int>(hier.GetGridGeometry().cell_dimensions.begin(),
                                hier.GetGridGeometry().cell_dimensions.end())),
-      hierarchy_(std::move(hier)), initial_data_(std::move(initial_data)),
+      hierarchy_(std::move(hier)), initial_condition_(std::move(initial_data)),
       tagging_(std::move(tagging)), boundary_condition_(std::move(boundary)) {
   const PatchHierarchyOptions& options = hierarchy_.GetOptions();
   AmrMesh::SetMaxGridSize(options.max_grid_size);
@@ -156,7 +158,7 @@ void GriddingAlgorithm::ErrorEst(int level, ::amrex::TagBoxArray& tags,
                                  double tp, int /* ngrow */) {
   auto timer = hierarchy_.GetCounterRegistry()->get_timer(
       "cutcell::GriddingAlgorithm::ErrorEst");
-  tagging_.TagCellsForRefinement(tags, Duration(tp), level, *this);
+  tagging_.TagCellsForRefinement(tags, *this, level, Duration(tp));
 }
 
 const AnyBoundaryCondition& GriddingAlgorithm::GetBoundaryCondition() const
@@ -247,10 +249,10 @@ void GriddingAlgorithm::MakeNewLevelFromCoarse(
   const int n_cons_components =
       hierarchy_.GetDataDescription().n_cons_components;
   ::amrex::Vector<::amrex::BCRec> bcr(static_cast<std::size_t>(n_comps));
-  const std::size_t fine = std::size_t(level);
-  const std::size_t coarse = std::size_t(level - 1);
-  AnyBoundaryCondition& fine_boundary = boundary_condition_[fine];
-  AnyBoundaryCondition& coarse_boundary = boundary_condition_[coarse];
+  const int fine = level;
+  const int coarse = level - 1;
+  BoundaryConditionRef fine_boundary(boundary_condition_, *this, fine);
+  BoundaryConditionRef coarse_boundary(boundary_condition_, *this, coarse);
   ::amrex::InterpFromCoarseLevel(
       fine_level.data, time_point, coarse_level.data, cons_start, cons_start,
       n_cons_components, hierarchy_.GetGeometry(level - 1),
