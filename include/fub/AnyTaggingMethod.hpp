@@ -30,6 +30,7 @@
 namespace fub {
 
 /// \defgroup TaggingMethod Tagging Methods
+/// \ingroup GriddingAlgorithm
 /// This modules collects all components that tag cells for refinement.
 
 template <typename GriddingAlgorithm> struct TaggingMethodStrategy_ {

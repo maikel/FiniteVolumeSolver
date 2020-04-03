@@ -36,6 +36,7 @@
 namespace fub {
 
 /// \defgroup flux-method Flux Methods
+/// \ingroup IntegratorContext
 /// \brief This module collects all types and functions relevant to compute
 /// numerical fluxes
 

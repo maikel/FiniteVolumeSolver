@@ -39,6 +39,8 @@ class IntegratorContext;
 
 using HyperbolicMethod = ::fub::HyperbolicMethod<IntegratorContext>;
 
+/// \ingroup IntegratorContext
+///
 /// \brief This class manages data and the numerical method to perform cut cell
 /// simulations with the AMReX library.
 class IntegratorContext {

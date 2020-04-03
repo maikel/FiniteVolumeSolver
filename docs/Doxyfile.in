@@ -797,6 +797,8 @@ INPUT                  = "../include/fub/" \
                          "../include/fub/AMReX/cutcell/tagging_method/" \
                          "../include/fub/AMReX/cutcell/boundary_condition/" \
                          "../include/fub/AMReX/multi_block/" \
+                         "../include/fub/SAMRAI/" \
+                         "../include/fub/SAMRAI/tagging_method/" \
                          "../"
 
 # This tag can be used to specify the character encoding of the source files
@@ -913,7 +915,9 @@ EXCLUDE_SYMBOLS        = "fub::detail" \
                          "fub::amrex::detail" \
                          "fub::amrex::cutcell::detail" \
                          "fub::samrai::detail" \
-                         "fub::p4est::detail"
+                         "fub::p4est::detail" \
+                         "SAMRAI" \
+                         "boost"
 
 # The EXAMPLE_PATH tag can be used to specify one or more files or directories
 # that contain example code fragments that are included (see the \include

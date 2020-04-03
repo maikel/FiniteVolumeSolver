@@ -30,6 +30,7 @@
 namespace fub {
 
 /// \defgroup InitialData Initial Data Methods
+/// \ingroup GriddingAlgorithm
 /// This group summarizes all components which initialize simulation data.
 
 namespace detail {

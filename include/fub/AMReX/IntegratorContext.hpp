@@ -35,10 +35,15 @@
 
 namespace fub::amrex {
 
+/// \defgroup IntegratorContext Integrator Contexts
+/// \brief This group summarizes all classes and functions that are realted to integrator contexts.
+
 class IntegratorContext;
 
 using HyperbolicMethod = ::fub::HyperbolicMethod<IntegratorContext>;
 
+/// \ingroup IntegratorContext
+///
 /// \brief This class is used by the HypebrolicSplitLevelIntegrator and
 /// delegates AMR related tasks to the AMReX library.
 class IntegratorContext {

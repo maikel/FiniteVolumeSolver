@@ -65,10 +65,6 @@ public:
   /// \brief Constructs an empty and invalid GriddingAlgorithm
   GriddingAlgorithm();
 
-  /// \brief Constructs a gridding algorithm without any boundary conditions.
-  GriddingAlgorithm(PatchHierarchy hier, AnyInitialData initial_data,
-                    AnyTaggingMethod tagging);
-
   /// \brief Constructs a gridding algorithm and defines all customization
   /// points
   ///

@@ -19,7 +19,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/SAMRAI/tagging/ConstantBox.hpp"
+#include "fub/SAMRAI/tagging_method/ConstantBox.hpp"
 
 namespace fub::samrai {
 

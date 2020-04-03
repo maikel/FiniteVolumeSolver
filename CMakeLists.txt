@@ -534,8 +534,9 @@ if (SAMRAI_FOUND)
     include/fub/SAMRAI/ViewPatch.hpp
     include/fub/SAMRAI/tagging_method/GradientDetector.hpp
     include/fub/SAMRAI/tagging_method/ConstantBox.hpp
+    src/SAMRAI/CartesianPatchHierarchy.cpp
     src/SAMRAI/PatchHierarchy.cpp
-    src/SAMRAI/IntegratorContext.cpp
+    # src/SAMRAI/IntegratorContext.cpp
     src/SAMRAI/ScopeGuard.cpp
     src/SAMRAI/RegisterVariables.cpp
     src/SAMRAI/GriddingAlgorithm.cpp
