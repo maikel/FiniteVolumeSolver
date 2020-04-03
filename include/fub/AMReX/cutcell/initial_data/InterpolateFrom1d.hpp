@@ -35,8 +35,8 @@ public:
 
   void InitializeData(PatchLevel& patch_level, const GriddingAlgorithm& grid,
                       int level, fub::Duration) {
-    amrex::MultiFab& data = patch_level.data;
-    const amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
+    ::amrex::MultiFab& data = patch_level.data;
+    const ::amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
     InitializeData(data, geom);
   }
 
