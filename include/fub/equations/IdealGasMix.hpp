@@ -170,8 +170,9 @@ using ToConcreteDepth = typename ToConcreteDepthImpl<Depth>::type;
 template <typename Depths>
 using ToConcreteDepths = boost::mp11::mp_transform<ToConcreteDepth, Depths>;
 
+namespace detail {
 template <int Dim>
-struct DepthsImpl_<Complete<IdealGasMix<Dim>>, IdealGasMix<Dim>> {
+struct DepthsImpl<Complete<IdealGasMix<Dim>>, IdealGasMix<Dim>> {
   constexpr ToConcreteDepths<typename IdealGasMix<Dim>::CompleteDepths>
   operator()(const IdealGasMix<Dim>& equation) const noexcept {
     ToConcreteDepths<typename IdealGasMix<Dim>::CompleteDepths> depths{};
@@ -181,7 +182,7 @@ struct DepthsImpl_<Complete<IdealGasMix<Dim>>, IdealGasMix<Dim>> {
 };
 
 template <int Dim>
-struct DepthsImpl_<Conservative<IdealGasMix<Dim>>, IdealGasMix<Dim>> {
+struct DepthsImpl<Conservative<IdealGasMix<Dim>>, IdealGasMix<Dim>> {
   constexpr ToConcreteDepths<typename IdealGasMix<Dim>::ConservativeDepths>
   operator()(const IdealGasMix<Dim>& equation) const noexcept {
     ToConcreteDepths<typename IdealGasMix<Dim>::ConservativeDepths> depths{};
@@ -189,36 +190,13 @@ struct DepthsImpl_<Conservative<IdealGasMix<Dim>>, IdealGasMix<Dim>> {
     return depths;
   }
 };
+}
 
 // We define this class only for dimensions 1 to 3.
 // The definitions will be found in its source file IdealGasMix.cpp
 extern template class IdealGasMix<1>;
 extern template class IdealGasMix<2>;
 extern template class IdealGasMix<3>;
-
-template <int Dim>
-void InitializeState(const IdealGasMix<Dim>& eq,
-                     Conservative<IdealGasMix<Dim>>& cons) {
-  cons.species.resize(eq.GetReactor().GetNSpecies(), 1);
-}
-
-template <int Dim>
-void InitializeState(const IdealGasMix<Dim>& eq,
-                     Complete<IdealGasMix<Dim>>& state) {
-  state.species.resize(eq.GetReactor().GetNSpecies(), 1);
-}
-
-template <int Dim>
-void InitializeState(const IdealGasMix<Dim>& eq,
-                     ConservativeArray<IdealGasMix<Dim>>& cons) {
-  cons.species.resize(eq.GetReactor().GetNSpecies(), kDefaultChunkSize);
-}
-
-template <int Dim>
-void InitializeState(const IdealGasMix<Dim>& eq,
-                     CompleteArray<IdealGasMix<Dim>>& state) {
-  state.species.resize(eq.GetReactor().GetNSpecies(), kDefaultChunkSize);
-}
 
 template <int Dim>
 double KineticEnergy(double density,
