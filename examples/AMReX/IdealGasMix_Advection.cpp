@@ -35,6 +35,14 @@ struct RiemannProblem {
   Complete left_{equation_};
   Complete right_{equation_};
 
+  void InitializeData(fub::amrex::PatchLevel& patch_level,
+                      const fub::amrex::GriddingAlgorithm& grid, int level,
+                      fub::Duration) {
+    amrex::MultiFab& data = patch_level.data;
+    const amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
+    InitializeData(data, geom);
+  }
+
   void InitializeData(amrex::MultiFab& data, const amrex::Geometry& geom) {
     fub::amrex::ForEachFab(
         fub::execution::openmp, data, [&](amrex::MFIter& mfi) {
@@ -110,9 +118,8 @@ int main() {
       gradient, boundary);
   gridding->InitializeHierarchy(0.0);
 
-
   fub::ideal_gas::MusclHancockPrimMethod<1> muscl_prim{equation};
-  fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(muscl_prim),
+  fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethodAdapter(muscl_prim),
                                       fub::amrex::EulerForwardTimeIntegrator(),
                                       fub::amrex::Reconstruction(equation)};
 
@@ -159,13 +166,13 @@ int main() {
   output.AddOutput(
       fub::MakeOutput<GriddingAlgorithm>({1}, {}, conservation_error));
 
-  output.AddOutput(std::make_unique<PlotfileOutput<fub::IdealGasMix<1>>>(std::vector<std::ptrdiff_t>{},
-          std::vector<fub::Duration>{0.00001s}, equation, base_name));
+  output.AddOutput(std::make_unique<PlotfileOutput<fub::IdealGasMix<1>>>(
+      std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{0.00001s},
+      equation, base_name));
 
-  output.AddOutput(
-      std::make_unique<fub::CounterOutput<GriddingAlgorithm>>(
-          wall_time_reference, std::vector<std::ptrdiff_t>{},
-          std::vector<fub::Duration>{0.5s}));
+  output.AddOutput(std::make_unique<fub::CounterOutput<GriddingAlgorithm>>(
+      wall_time_reference, std::vector<std::ptrdiff_t>{},
+      std::vector<fub::Duration>{0.5s}));
 
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};

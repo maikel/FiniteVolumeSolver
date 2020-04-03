@@ -117,9 +117,8 @@ int main(int argc, char** argv) {
   fub::MusclHancockMethod flux_method(equation, hll_method);
   fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
 
-  HyperbolicMethod method{FluxMethod{fub::execution::seq, cutcell_method},
-                          TimeIntegrator{},
-                          Reconstruction{fub::execution::seq, equation}};
+  HyperbolicMethod method{FluxMethod{cutcell_method}, TimeIntegrator{},
+                          Reconstruction{equation}};
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<3>, IntegratorContext(gridding, method));

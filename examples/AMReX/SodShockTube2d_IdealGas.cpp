@@ -31,6 +31,14 @@ struct ShockTubeData {
   using Complete = fub::Complete<Equation>;
   using Conservative = fub::Conservative<Equation>;
 
+  void InitializeData(fub::amrex::PatchLevel& patch_level,
+                      const fub::amrex::GriddingAlgorithm& grid, int level,
+                      fub::Duration) {
+    amrex::MultiFab& data = patch_level.data;
+    const amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
+    InitializeData(data, geom);
+  }
+
   void InitializeData(amrex::MultiFab& data, const amrex::Geometry& geom) {
     fub::amrex::ForEachFab(data, [&](const amrex::MFIter& mfi) {
       fub::View<Complete> states =
@@ -41,7 +49,9 @@ struct ShockTubeData {
       reactor.SetMoleFractions("N2:79,O2:21");
 
       auto SetPressure = [](fub::FlameMasterReactor& reactor, double pressure) {
-        reactor.SetTemperature(pressure / (reactor.GetDensity() * reactor.GetUniversalGasConstant() / reactor.GetMeanMolarMass()));
+        reactor.SetTemperature(pressure / (reactor.GetDensity() *
+                                           reactor.GetUniversalGasConstant() /
+                                           reactor.GetMeanMolarMass()));
       };
       Complete state(equation_);
       ForEachIndex(fub::Box<0>(states),
@@ -88,7 +98,7 @@ int main() {
   geometry.cell_dimensions = std::array<int, Dim>{AMREX_D_DECL(128, 128, 1)};
   geometry.coordinates = amrex::RealBox({AMREX_D_DECL(-1.0, -1.0, -1.0)},
                                         {AMREX_D_DECL(+1.0, +1.0, +1.0)});
-//  geometry.periodicity = std::array<int, Dim>{1, 1};
+  //  geometry.periodicity = std::array<int, Dim>{1, 1};
 
   fub::amrex::PatchHierarchyOptions hier_opts;
   hier_opts.max_number_of_levels = 1;
@@ -113,18 +123,19 @@ int main() {
       fub::amrex::TagAllOf(gradient, fub::amrex::TagBuffer(4)), boundaries);
   gridding->InitializeHierarchy(0.0);
 
-//  fub::EinfeldtSignalVelocities<fub::IdealGasMix<2>> signals{};
-//  fub::HllMethod hll_method(equation, signals);
+  //  fub::EinfeldtSignalVelocities<fub::IdealGasMix<2>> signals{};
+  //  fub::HllMethod hll_method(equation, signals);
   fub::ideal_gas::MusclHancockPrimMethod<2> muscl_method{equation};
   // fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(hll_method),
-  fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(muscl_method),
-                                      fub::amrex::EulerForwardTimeIntegrator(),
-                                      fub::amrex::Reconstruction(equation)};
+  fub::amrex::HyperbolicMethod method{
+      fub::amrex::FluxMethodAdapter(muscl_method),
+      fub::amrex::EulerForwardTimeIntegrator(),
+      fub::amrex::Reconstruction(equation)};
 
-//  const int base_gcw = hll_method.GetStencilWidth();
+  //  const int base_gcw = hll_method.GetStencilWidth();
   const int base_gcw = muscl_method.GetStencilWidth();
-//  const int scratch_ghost_cell_width = 1 * base_gcw;
-//  const int flux_ghost_cell_width = 0 * base_gcw;
+  //  const int scratch_ghost_cell_width = 1 * base_gcw;
+  //  const int flux_ghost_cell_width = 0 * base_gcw;
   const int scratch_ghost_cell_width = 2 * base_gcw;
   const int flux_ghost_cell_width = 1 * base_gcw;
 
@@ -132,8 +143,8 @@ int main() {
       fub::int_c<2>,
       fub::amrex::IntegratorContext(gridding, method, scratch_ghost_cell_width,
                                     flux_ghost_cell_width),
-    // fub::GodunovSplitting());
-       fub::StrangSplitting());
+      // fub::GodunovSplitting());
+      fub::StrangSplitting());
 
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
@@ -171,8 +182,10 @@ int main() {
   output.AddOutput(fub::MakeOutput<GriddingAlgorithm>({1}, {}, compute_mass));
 
   // Add output to write AMReX plotfiles in a set time interval
-  output.AddOutput(std::make_unique<fub::amrex::PlotfileOutput<fub::IdealGasMix<2>>>(std::vector<std::ptrdiff_t>{},
-          std::vector<fub::Duration>{0.0001s}, equation, base_name));
+  output.AddOutput(
+      std::make_unique<fub::amrex::PlotfileOutput<fub::IdealGasMix<2>>>(
+          std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{0.0001s},
+          equation, base_name));
 
   // Add output for the timer database after each 25 cycles
   output.AddOutput(

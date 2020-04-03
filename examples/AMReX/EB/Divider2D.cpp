@@ -278,9 +278,8 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   fub::HllMethod hll_method{equation, signals};
   fub::MusclHancockMethod flux_method(equation, hll_method);
   fub::KbnCutCellMethod cutcell_method(std::move(flux_method), hll_method);
-  HyperbolicMethod method{FluxMethod{fub::execution::seq, cutcell_method},
-                          TimeIntegrator{},
-                          Reconstruction{fub::execution::seq, equation}};
+  HyperbolicMethod method{FluxMethod{cutcell_method}, TimeIntegrator{},
+                          Reconstruction{equation}};
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<2>, IntegratorContext(gridding, method));

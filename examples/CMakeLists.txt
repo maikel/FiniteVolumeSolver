@@ -138,8 +138,8 @@ if (AMReX_FOUND AND AMReX_3D_FOUND)
 endif()
 
 if (SAMRAI_FOUND)
-  add_executable_with_warnings(SAMRAI.Advection2d_Godunov SAMRAI/Advection2d_Godunov.cpp)
-  target_link_libraries(SAMRAI.Advection2d_Godunov FiniteVolumeSolver.SAMRAI)
+#  add_executable_with_warnings(SAMRAI.Advection2d_Godunov SAMRAI/Advection2d_Godunov.cpp)
+#  target_link_libraries(SAMRAI.Advection2d_Godunov FiniteVolumeSolver.SAMRAI)
 
 #  add_executable_with_warnings(SAMRAI.Burgers1d SAMRAI/Burgers1d.cpp)
 #  target_link_libraries(SAMRAI.Burgers1d FiniteVolumeSolver.SAMRAI)

@@ -5,17 +5,17 @@ RunOptions = {
 }
 
 GridGeometry = {
- 'cell_dimensions': [200, 200],
+ 'cell_dimensions': [200, 200, 1],
  'coordinates': {
-   'lower': [-1.0, -1.0],
-   'upper': [+1.0, +1.0],
+   'lower': [-1.0, -1.0, -1.0],
+   'upper': [+1.0, +1.0, +1.0],
  },
- 'periodicity': [1, 1]
+ 'periodicity': [1, 1, 1]
 }
 
 PatchHierarchy = {
  'max_number_of_levels': 2, 
- 'n_error_buf': [4, 4]
+ 'n_error_buf': [4, 4, 0]
 }
 
 Output = { 

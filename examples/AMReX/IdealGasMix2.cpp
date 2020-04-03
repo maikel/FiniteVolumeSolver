@@ -96,7 +96,11 @@ struct TemperatureRamp {
   Complete right_{equation_};
   Complete state_{equation_};
 
-  void InitializeData(::amrex::MultiFab& data, const ::amrex::Geometry& geom) {
+  void InitializeData(fub::amrex::PatchLevel& patch_level,
+                      const fub::amrex::GriddingAlgorithm& grid, int level,
+                      fub::Duration /* t */) {
+    ::amrex::MultiFab& data = patch_level.data;
+    const ::amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
     fub::amrex::ForEachFab(data, [&](const ::amrex::MFIter& mfi) {
       fub::View<Complete> states =
           fub::amrex::MakeView<Complete>(data[mfi], equation_, mfi.tilebox());
@@ -206,7 +210,7 @@ void MyMain(const fub::ProgramOptions& opts) {
   // {{{
   fub::ideal_gas::MusclHancockPrimMethod<1> flux_method(equation);
 
-  fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(flux_method),
+  fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethodAdapter(flux_method),
                                       fub::amrex::EulerForwardTimeIntegrator(),
                                       fub::amrex::Reconstruction(equation)};
 
