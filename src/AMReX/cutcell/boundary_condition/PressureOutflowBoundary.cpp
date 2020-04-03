@@ -24,22 +24,6 @@
 #include "fub/AMReX/ForEachIndex.hpp"
 
 namespace fub::amrex::cutcell {
-namespace {
-inline int GetSign_(int side) { return (side == 0) - (side == 1); }
-
-template <typename GriddingAlgorithm>
-int FindLevel_(const ::amrex::Geometry& geom,
-               const GriddingAlgorithm& gridding) {
-  for (int level = 0; level < gridding.GetPatchHierarchy().GetNumberOfLevels();
-       ++level) {
-    if (geom.Domain() ==
-        gridding.GetPatchHierarchy().GetGeometry(level).Domain()) {
-      return level;
-    }
-  }
-  return -1;
-}
-} // namespace
 
 PressureOutflowOptions::PressureOutflowOptions(const ProgramOptions& options) {
   outer_pressure = GetOptionOr(options, "outer_pressure", outer_pressure);
@@ -58,10 +42,9 @@ PressureOutflowBoundary::PressureOutflowBoundary(
     : equation_(eq), options_(options) {}
 
 void PressureOutflowBoundary::FillBoundary(::amrex::MultiFab& mf,
-                                           const ::amrex::Geometry& geom,
-                                           Duration /* time_point */,
-                                           const GriddingAlgorithm& grid) {
-  int level = FindLevel_(geom, grid);
+                                           const GriddingAlgorithm& grid,
+                                           int level) {
+  const ::amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
   auto factory = grid.GetPatchHierarchy().GetEmbeddedBoundary(level);
   const ::amrex::MultiFab& alphas = factory->getVolFrac();
   const int ngrow = mf.nGrow(int(options_.direction));
@@ -81,7 +64,7 @@ void PressureOutflowBoundary::FillBoundary(::amrex::MultiFab& mf,
     const ::amrex::FArrayBox& alpha = alphas[mfi];
     for (const ::amrex::Box& boundary : boundaries) {
       ::amrex::Box shifted =
-          ::amrex::shift(boundary, dir_v, GetSign_(options_.side) * ngrow);
+          ::amrex::shift(boundary, dir_v, GetSign(options_.side) * ngrow);
       if (!geom.Domain().intersects(shifted)) {
         continue;
       }

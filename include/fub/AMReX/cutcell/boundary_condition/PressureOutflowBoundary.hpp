@@ -51,13 +51,13 @@ public:
   PressureOutflowBoundary(const PerfectGas<AMREX_SPACEDIM>& eq,
                           const PressureOutflowOptions& options);
 
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration dt, const GriddingAlgorithm& grid);
+  void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& grid,
+                    int level);
 
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration dt, const GriddingAlgorithm& grid, Direction dir) {
+  void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& grid,
+                    int level, Direction dir) {
     if (dir == options_.direction) {
-      FillBoundary(mf, geom, dt, grid);
+      FillBoundary(mf, grid, level);
     }
   }
 
