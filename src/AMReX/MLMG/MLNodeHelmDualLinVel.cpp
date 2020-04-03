@@ -513,6 +513,10 @@ MLNodeHelmDualLinVel::averageDownCoeffsToCoarseAmrLevel (int flev)
     const int idim = 0;  // other dimensions are just aliases
     amrex::average_down(*m_sigma[flev][mglev][idim], *m_sigma[flev-1][mglev][idim], 0, 1,
                         m_amr_ref_ratio[flev-1]);
+
+    // NOTE: The following line has not been tested yet!
+    amrex::average_down_nodal(m_alpha[flev][mglev], m_alpha[flev-1][mglev],
+                        amrex::IntVect(m_amr_ref_ratio[flev-1]));
 }
 
 void
@@ -571,7 +575,7 @@ MLNodeHelmDualLinVel::averageDownCoeffsSameAmrLevel (int amrlev)
         }
         const MultiFab& fine = m_alpha[amrlev][mglev-1];
         MultiFab& crse = m_alpha[amrlev][mglev];
-        average_down_nodal(fine, crse, IntVect(AMREX_D_DECL(2,2,2)));
+        average_down_nodal(fine, crse, IntVect(2));
     }
 }
 
