@@ -26,26 +26,24 @@
 
 namespace fub {
 
-template <typename T, typename Depth> struct DepthToRowType;
+template <typename T, typename Depth> struct DepthToRowType {
+  using type = mdspan<T, 2, layout_stride>;
+};
 
 template <typename T> struct DepthToRowType<T, ScalarDepth> {
   using type = span<T>;
 };
 
-template <typename T, int Rank> struct DepthToRowType<T, VectorDepth<Rank>> {
-  using type = mdspan<T, 2, layout_stride>;
-};
-
 template <typename State> struct RowBaseImpl {
   template <typename Depth>
   using fn = typename DepthToRowType<double, Depth>::type;
-  using type = boost::mp11::mp_transform<fn, typename State::Depths>;
+  using type = boost::mp11::mp_transform<fn, meta::Depths<State>>;
 };
 
 template <typename State> struct RowBaseImpl<const State> {
   template <typename Depth>
   using fn = typename DepthToRowType<const double, Depth>::type;
-  using type = boost::mp11::mp_transform<fn, typename State::Depths>;
+  using type = boost::mp11::mp_transform<fn, meta::Depths<State>>;
 };
 
 template <typename State> using RowBase = typename RowBaseImpl<State>::type;
