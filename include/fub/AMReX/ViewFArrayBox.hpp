@@ -43,6 +43,7 @@ template <>
 ::amrex::RealBox GetOptionOr(const ProgramOptions& map, const std::string& name,
                              const ::amrex::RealBox& value);
 
+/// \brief The amrex namespace
 namespace amrex {
 
 std::array<std::ptrdiff_t, AMREX_SPACEDIM> AsArray(const ::amrex::IntVect& vec);
@@ -180,7 +181,7 @@ MakePatchDataView(::amrex::BaseFab<T>& fab, int component,
 
 template <typename State> struct MakeViewImpl {
   using Equation = typename State::Equation;
-  using Depths = typename State::Depths;
+  using Depths = meta::Depths<State>;
   using ValueType = typename State::ValueType;
 
   static constexpr int Rank = Equation::Rank();

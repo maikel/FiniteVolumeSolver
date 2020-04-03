@@ -18,47 +18,42 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_AMREX_BK19_INTEGRATOR_CONTEXT_HPP
-#define FUB_AMREX_BK19_INTEGRATOR_CONTEXT_HPP
+#ifndef FUB_AMREX_COMPRESSIBLE_ADVECTION_INTEGRATOR_CONTEXT_HPP
+#define FUB_AMREX_COMPRESSIBLE_ADVECTION_INTEGRATOR_CONTEXT_HPP
 
 #include "fub/AMReX/IntegratorContext.hpp"
 
 namespace fub::amrex {
 
-struct BK19AdvectiveFluxes {
+struct CompressibleAdvectionAdvectiveFluxes {
   ::amrex::MultiFab on_cells;
   std::array<::amrex::MultiFab, AMREX_SPACEDIM> on_faces;
 };
 
-class BK19IntegratorContext : public IntegratorContext {
+class CompressibleAdvectionIntegratorContext : public IntegratorContext {
 public:
-  BK19IntegratorContext(std::shared_ptr<GriddingAlgorithm> gridding,
-                    HyperbolicMethod method);
+  CompressibleAdvectionIntegratorContext(
+      std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod method);
 
-  BK19IntegratorContext(std::shared_ptr<GriddingAlgorithm> gridding,
-                    HyperbolicMethod method, int cell_gcw, int face_gcw);
+  CompressibleAdvectionIntegratorContext(
+      std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod method,
+      int cell_gcw, int face_gcw);
 
   /// \brief Deeply copies a context and all its distributed data for all MPI
   /// ranks.
-  BK19IntegratorContext(const BK19IntegratorContext&);
-  BK19IntegratorContext operator=(const BK19IntegratorContext&);
+  CompressibleAdvectionIntegratorContext(
+      const CompressibleAdvectionIntegratorContext&);
+  CompressibleAdvectionIntegratorContext
+  operator=(const CompressibleAdvectionIntegratorContext&);
 
-  BK19IntegratorContext(BK19IntegratorContext&&) = default;
-  BK19IntegratorContext& operator=(BK19IntegratorContext&&) = default;
+  CompressibleAdvectionIntegratorContext(
+      CompressibleAdvectionIntegratorContext&&) = default;
+  CompressibleAdvectionIntegratorContext&
+  operator=(CompressibleAdvectionIntegratorContext&&) = default;
 
-  ::amrex::MultiFab& GetPi(int level) {
-    std::unique_ptr<::amrex::MultiFab>& mf = GetPatchHierarchy().GetPatchLevel(level).nodes;
-    FUB_ASSERT(mf);
-    return *mf;
-  }
-  const ::amrex::MultiFab& GetPi(int level) const {
-    const std::unique_ptr<::amrex::MultiFab>& mf = GetPatchHierarchy().GetPatchLevel(level).nodes;
-    FUB_ASSERT(mf);
-    return *mf;
-  }
-
-  BK19AdvectiveFluxes& GetAdvectiveFluxes(int level);
-  const BK19AdvectiveFluxes& GetAdvectiveFluxes(int level) const;
+  CompressibleAdvectionAdvectiveFluxes& GetAdvectiveFluxes(int level);
+  const CompressibleAdvectionAdvectiveFluxes&
+  GetAdvectiveFluxes(int level) const;
 
   /// \brief Replaces the underlying gridding algorithm with the specified one.
   void ResetHierarchyConfiguration(
@@ -73,7 +68,7 @@ public:
   void ResetHierarchyConfiguration(int level = 0) override;
 
 private:
-  std::vector<BK19AdvectiveFluxes> Pv_;
+  std::vector<CompressibleAdvectionAdvectiveFluxes> Pv_;
 };
 
 } // namespace fub::amrex

@@ -69,14 +69,15 @@ void LogTubeProbes(const std::string& p, ProbesView<const double> probes,
       const double o2 = states(i, 3 + sO2) / molar_mass[size_t(sO2)];
       const double h2o = states(i, 3 + sH2O) / molar_mass[size_t(sH2O)];
       const double T = states(i, 16);
+      const double gamma = states(i, 18);
       const double p = states(i, 14);
       const double a = states(i, 15);
       const double x = probes(0, i);
       const double t = hierarchy.GetTimePoint().count();
       stream << fmt::format(
           "{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}"
-          "{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}\n",
-          t, x, rho, u, T, p, a, h2, o2, h2o);
+          "{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}\n",
+          t, x, rho, u, T, p, a, gamma, h2, o2, h2o);
     }
   }
 }
@@ -125,6 +126,7 @@ void LogPlenumProbes(const std::string& p, ProbesView<const double> probes,
       const double a = states(i, 17);
       const double T = states(i, 18);
       const double p = states(i, 16);
+      const double gamma = states(i, 20);
       const double x = probes(0, i);
       const double y = probes(1, i);
       const double z = probes(2, i);
@@ -132,8 +134,8 @@ void LogPlenumProbes(const std::string& p, ProbesView<const double> probes,
       stream << fmt::format(
           "{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}"
           "{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}"
-          "{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}\n",
-          t, x, y, z, rho, u, v, w, T, p, a, h2, o2, h2o);
+          "{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}\n",
+          t, x, y, z, rho, u, v, w, T, p, a, gamma, h2, o2, h2o);
     }
   }
 }

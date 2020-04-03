@@ -18,17 +18,17 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
+#include "fub/AMReX/CompressibleAdvectionIntegratorContext.hpp"
 
 namespace fub::amrex {
 
-BK19IntegratorContext::BK19IntegratorContext(
+CompressibleAdvectionIntegratorContext::CompressibleAdvectionIntegratorContext(
     std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod method)
     : IntegratorContext(std::move(gridding), std::move(method)) {
   ResetHierarchyConfiguration();
 }
 
-BK19IntegratorContext::BK19IntegratorContext(
+CompressibleAdvectionIntegratorContext::CompressibleAdvectionIntegratorContext(
     std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod method,
     int cell_gcw, int face_gcw)
     : IntegratorContext(std::move(gridding), std::move(method), cell_gcw,
@@ -38,7 +38,8 @@ BK19IntegratorContext::BK19IntegratorContext(
 
 /// \brief Deeply copies a context and all its distributed data for all MPI
 /// ranks.
-BK19IntegratorContext::BK19IntegratorContext(const BK19IntegratorContext& other)
+CompressibleAdvectionIntegratorContext::CompressibleAdvectionIntegratorContext(
+    const CompressibleAdvectionIntegratorContext& other)
     : IntegratorContext(other) {
   ResetHierarchyConfiguration();
   const int nlevel = GetPatchHierarchy().GetNumberOfLevels();
@@ -54,16 +55,17 @@ BK19IntegratorContext::BK19IntegratorContext(const BK19IntegratorContext& other)
   }
 }
 
-BK19AdvectiveFluxes& BK19IntegratorContext::GetAdvectiveFluxes(int level) {
+CompressibleAdvectionAdvectiveFluxes&
+CompressibleAdvectionIntegratorContext::GetAdvectiveFluxes(int level) {
   return Pv_[level];
 }
 
-const BK19AdvectiveFluxes&
-BK19IntegratorContext::GetAdvectiveFluxes(int level) const {
+const CompressibleAdvectionAdvectiveFluxes&
+CompressibleAdvectionIntegratorContext::GetAdvectiveFluxes(int level) const {
   return Pv_[level];
 }
 
-void BK19IntegratorContext::ResetHierarchyConfiguration(
+void CompressibleAdvectionIntegratorContext::ResetHierarchyConfiguration(
     std::shared_ptr<GriddingAlgorithm> gridding) {
   Pv_.resize(gridding->GetPatchHierarchy().GetMaxNumberOfLevels());
   IntegratorContext::ResetHierarchyConfiguration(std::move(gridding));
@@ -90,7 +92,8 @@ void BK19IntegratorContext::ResetHierarchyConfiguration(
   }
 }
 
-void BK19IntegratorContext::ResetHierarchyConfiguration(int coarsest_level) {
+void CompressibleAdvectionIntegratorContext::ResetHierarchyConfiguration(
+    int coarsest_level) {
   if (Pv_.size() == 0) {
     Pv_.resize(GetPatchHierarchy().GetMaxNumberOfLevels());
   }

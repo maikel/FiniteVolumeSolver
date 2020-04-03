@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/ext/Log.hpp"
 #include "fub/ext/ProgramOptions.hpp"
 

@@ -26,14 +26,12 @@
 
 namespace fub {
 
-template <typename T, typename Depth> struct DepthToRowType;
+template <typename T, typename Depth> struct DepthToRowType {
+  using type = mdspan<T, 2, layout_stride>;
+};
 
 template <typename T> struct DepthToRowType<T, ScalarDepth> {
   using type = span<T>;
-};
-
-template <typename T, int Rank> struct DepthToRowType<T, VectorDepth<Rank>> {
-  using type = mdspan<T, 2, layout_stride>;
 };
 
 template <typename State> struct RowBaseImpl {

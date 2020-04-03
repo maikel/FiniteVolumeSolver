@@ -80,8 +80,8 @@ int main() {
   PatchHierarchyOptions options{};
   options.max_number_of_levels = n_level;
   options.index_spaces = fub::amrex::cutcell::MakeIndexSpaces(
-      shop, coarse_geom, n_level, scratch_gcw);
-  options.ngrow_eb_level_set = scratch_gcw;
+      shop, coarse_geom, n_level, scratch_gcw + 1);
+  options.ngrow_eb_level_set = scratch_gcw + 1;
 
   fub::Conservative<fub::PerfectGas<2>> cons;
   cons.density = 1.0;

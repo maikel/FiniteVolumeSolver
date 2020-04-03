@@ -131,42 +131,17 @@ template <typename T>
 using DepthToStateValueType = typename DepthToStateValueTypeImpl<T, 1>::type;
 /// @}
 
-template <typename Eq> struct Conservative;
-template <typename Eq> struct Complete;
-template <typename S, typename L, int R> struct BasicView;
-
-template <typename T, typename Eq> struct DepthsImpl_;
-
-template <typename Eq> struct DepthsImpl_<Complete<Eq>, Eq> {
-  constexpr typename Eq::CompleteDepths operator()(const Eq&) const noexcept {
-    return {};
-  }
-};
-
-template <typename Eq> struct DepthsImpl_<Conservative<Eq>, Eq> {
-  constexpr typename Eq::ConservativeDepths operator()(const Eq&) const
-      noexcept {
-    return {};
-  }
-};
-
-template <typename State, typename Layout, int Rank, typename Eq>
-struct DepthsImpl_<BasicView<State, Layout, Rank>, Eq> {
-  constexpr auto operator()(const Eq& eq) const noexcept {
-    DepthsImpl_<std::remove_const_t<State>, Eq> depths{};
-    return depths(eq);
-  }
-};
+template <typename T, typename Eq> struct DepthsImpl;
 
 template <typename T, typename Eq> auto Depths(const Eq& eq) {
-  DepthsImpl_<T, Eq> depths;
+  DepthsImpl<T, Eq> depths;
   return depths(eq);
 }
 
 namespace meta {
-template <typename State>
-using Depths = decltype(::fub::Depths<State, typename State::Equation>(
-    std::declval<const typename State::Equation&>()));
+template <typename T>
+using Depths =
+    decltype(::fub::Depths<T>(std::declval<typename T::Equation const&>()));
 }
 
 /// This type alias transforms state depths into a conservative state associated
@@ -275,7 +250,7 @@ struct DepthToViewValueType_<ScalarDepth, T, Rank, Layout> {
 
 template <typename State, typename Layout, int Rank> struct ViewBaseImpl_ {
   template <typename Depth>
-  using fn = typename DepthToViewValueType_<Depth, double, Rank, Layout>::type;
+  using fn = typename DepthToViewValueType<Depth, double, Rank, Layout>::type;
   using type = boost::mp11::mp_transform<fn, meta::Depths<State>>;
 };
 
@@ -283,7 +258,7 @@ template <typename State, typename Layout, int Rank>
 struct ViewBaseImpl_<const State, Layout, Rank> {
   template <typename Depth>
   using fn =
-      typename DepthToViewValueType_<Depth, const double, Rank, Layout>::type;
+      typename DepthToViewValueType<Depth, const double, Rank, Layout>::type;
   using type = boost::mp11::mp_transform<fn, meta::Depths<State>>;
 };
 
@@ -387,7 +362,28 @@ Mapping(const BasicView<State, Layout, Rank>& view) {
   return get<static_cast<std::size_t>(N)>(view).Mapping();
 }
 
-template <typename T> struct GetNumberOfComponentsImpl_ {
+template <typename Eq> struct DepthsImpl<Complete<Eq>, Eq> {
+  constexpr typename Eq::CompleteDepths operator()(const Eq&) const noexcept {
+    return {};
+  }
+};
+
+template <typename Eq> struct DepthsImpl<Conservative<Eq>, Eq> {
+  constexpr typename Eq::ConservativeDepths operator()(const Eq&) const
+      noexcept {
+    return {};
+  }
+};
+
+template <typename State, typename Layout, int Rank, typename Eq>
+struct DepthsImpl<BasicView<State, Layout, Rank>, Eq> {
+  constexpr auto operator()(const Eq& eq) const noexcept {
+    DepthsImpl<std::remove_const_t<State>, Eq> depths{};
+    return depths(eq);
+  }
+};
+
+template <typename T> struct GetNumberOfComponentsImpl {
   int_constant<1> operator()(double) const noexcept { return {}; }
   int_constant<1> operator()(int) const noexcept { return {}; }
 
@@ -639,13 +635,13 @@ struct DepthToPointerType_<T, VectorDepth<Rank>> {
 
 template <typename State> struct ViewPointerBaseImpl {
   template <typename Depth>
-  using fn = typename DepthToPointerType_<double, Depth>::type;
+  using fn = typename DepthToPointerType<double, Depth>::type;
   using type = boost::mp11::mp_transform<fn, meta::Depths<State>>;
 };
 
 template <typename State> struct ViewPointerBaseImpl<const State> {
   template <typename Depth>
-  using fn = typename DepthToPointerType_<const double, Depth>::type;
+  using fn = typename DepthToPointerType<const double, Depth>::type;
   using type = boost::mp11::mp_transform<fn, meta::Depths<State>>;
 };
 
