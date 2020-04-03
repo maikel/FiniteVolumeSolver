@@ -18,10 +18,10 @@ RUN conan install boost/1.71.0@conan/stable --build missing                     
     && conan install eigen/3.3.7@conan/stable  --build missing                             \
     && conan install fmt/5.3.0@bincrafters/stable --build missing                          \
     && conan install Vc/1.4.1@finite-volume/stable --build missing                         \
-    && conan install SAMRAI/3.11.1@finite-volume/stable --build missing                    \
+    && conan install SAMRAI/3.15.0@finite-volume/stable --build missing                    \
     && conan install pybind11/2.3.0@conan/stable --build missing
 ARG AMREX_SPACEDIM
 ARG CACHEBUST=1
-RUN conan install "AMReX/development@finite-volume/stable"                              \
+RUN conan install "AMReX/20.04@finite-volume/stable"                              \
                      -o AMReX:dim="${AMREX_SPACEDIM}"                                      \
                      --build AMReX
