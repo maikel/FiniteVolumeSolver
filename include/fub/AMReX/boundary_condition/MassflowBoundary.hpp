@@ -59,7 +59,8 @@ public:
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
                     const Complete<IdealGasMix<Rank>>& state);
 
-  void ComputeBoundaryState(Complete<IdealGasMix<Rank>>& boundary, const Complete<IdealGasMix<Rank>>& inner);
+  void ComputeBoundaryState(Complete<IdealGasMix<Rank>>& boundary,
+                            const Complete<IdealGasMix<Rank>>& inner);
 
 private:
   IdealGasMix<Rank> equation_;
