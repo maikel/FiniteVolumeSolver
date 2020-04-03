@@ -6,35 +6,19 @@ RunOptions = {
 }
 
 CartesianGridGeometry = {
- 'cell_dimensions': [800, 1],
- 'coordinates': {
-   'lower': [-1.50, -0.015],
-   'upper': [-0.00, +0.015],
- },
- 'periodicity': [0, 0]
+  'cell_dimensions': [800, 1, 1],
+  'coordinates': {
+    'lower': [-1.50, -0.015, -0.015],
+    'upper': [-0.00, +0.015, +0.015],
+  }
 }
-
-# CartesianGridGeometry = {
-#   'cell_dimensions': [800, 1, 1],
-#   'coordinates': {
-#     'lower': [-1.50, -0.015, -0.015],
-#     'upper': [-0.00, +0.015, +0.015],
-#   }
-# }
 
 PatchHierarchy = {
  'max_number_of_levels': 1, 
- 'refine_ratio': [2, 1],
- 'blocking_factor': [8, 1],
- 'max_grid_size': [120, 1],
+ 'refine_ratio': [2, 1, 1],
+ 'blocking_factor': [8, 1, 1],
+ 'max_grid_size': [120, 1, 1],
 }
-
-# PatchHierarchy = {
-#  'max_number_of_levels': 1, 
-#  'refine_ratio': [2, 1, 1],
-#  'blocking_factor': [8, 1, 1],
-#  'max_grid_size': [120, 1, 1],
-# }
 
 PressureValveBoundary = {
   'efficiency': 1.0,
@@ -49,8 +33,8 @@ PressureValveBoundary = {
   'equivalence_ratio': 1.0,
   'massflow_boundary': {
     'coarse_inner_box': { 
-      'lower': [0, 0], 
-      'upper': [1, 0] 
+      'lower': [0, 0, 0], 
+      'upper': [1, 0, 0] 
     },
     'side': 0,
     'direction': 0,

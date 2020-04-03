@@ -50,8 +50,8 @@ int main() {
   fub::amrex::ScopeGuard _{};
 
   const std::array<int, 2> n_cells{128, 128};
-  const std::array<double, 2> xlower{-0.5, -1.0};
-  const std::array<double, 2> xupper{+0.5, +1.0};
+  const std::array<double, 2> xlower{-0.5, 0.0};
+  const std::array<double, 2> xupper{+0.5, 1.0};
   amrex::RealBox xbox(xlower, xupper);
   const std::array<int, 2> periodicity{};
 
@@ -73,6 +73,8 @@ int main() {
   using namespace fub::amrex::cutcell;
 
   PatchHierarchyOptions options{};
+  options.ngrow_eb_level_set = 4 + 1;
+  options.n_error_buf = amrex::IntVect{4, 4};
   options.max_number_of_levels = n_level;
   options.index_spaces =
       fub::amrex::cutcell::MakeIndexSpaces(shop, coarse_geom, n_level);
@@ -89,7 +91,7 @@ int main() {
   fub::CompleteFromCons(equation, left, cons);
 
   fub::amrex::cutcell::RiemannProblem initial_data(
-      equation, fub::Halfspace({+1.0, 0.0, 0.0}, 0.4), left, right);
+      equation, fub::Halfspace({+0.0, -1.0, 0.0}, -0.8), left, right);
 
   BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
                                   TransmissiveBoundary{fub::Direction::X, 1},
@@ -105,15 +107,18 @@ int main() {
       TagAllOf(TagCutCells(), gradients, TagBuffer(4)), boundary_condition);
   gridding->InitializeHierarchy(0.0);
 
-  fub::MusclHancockMethod flux_method(equation);
-  fub::KbnCutCellMethod cutcell_method(std::move(flux_method));
+  fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
+  fub::HllMethod hll_method{equation, signals};
+  fub::FluxMethod<fub::perfect_gas::MusclHancockPrim<2>> muscl_method{equation};
+  fub::KbnCutCellMethod cutcell_method(muscl_method, hll_method);
 
-  HyperbolicMethod method{FluxMethod{fub::execution::seq, cutcell_method},
-                          TimeIntegrator{},
-                          Reconstruction{fub::execution::seq, equation}};
+  HyperbolicMethod method{FluxMethod{cutcell_method}, TimeIntegrator{},
+                          Reconstruction{equation}};
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<2>, fub::amrex::cutcell::IntegratorContext(gridding, method));
+      fub::int_c<2>,
+      fub::amrex::cutcell::IntegratorContext(gridding, method, 4, 2),
+      fub::StrangSplitting());
 
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 

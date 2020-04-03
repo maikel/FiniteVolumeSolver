@@ -33,6 +33,14 @@ public:
   InterpolateFrom1d(const PerfectGas<AMREX_SPACEDIM>& equation,
                     const std::string& source);
 
+  void InitializeData(fub::amrex::PatchLevel& patch_level,
+                      const fub::amrex::GriddingAlgorithm& grid, int level,
+                      fub::Duration) {
+    amrex::MultiFab& data = patch_level.data;
+    const amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
+    InitializeData(data, geom);
+  }
+
   void InitializeData(::amrex::MultiFab& data, const ::amrex::Geometry& geom);
 
 private:

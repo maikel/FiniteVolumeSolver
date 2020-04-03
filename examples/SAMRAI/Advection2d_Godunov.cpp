@@ -36,9 +36,10 @@ struct CircleData {
   samrai::DataDescription data_description_;
   Advection2d equation_;
 
-  void InitializeData(samrai::PatchHierarchy& hierarchy, int level_number,
+  void InitializeData(std::shared_ptr<SAMRAI::hier::PatchLevel> patch_level,
+                      const samrai::PatchHierarchy& hierarchy, int level_number,
                       Duration) const {
-    SAMRAI::hier::PatchLevel& level = *hierarchy.GetPatchLevel(level_number);
+    SAMRAI::hier::PatchLevel& level = *patch_level;
     const SAMRAI::geom::CartesianGridGeometry& geom =
         hierarchy.GetGeometry(level_number);
     span<const int> data_ids{data_description_.data_ids};

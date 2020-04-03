@@ -14,11 +14,6 @@ function(add_executable_with_warnings TARGET)
 endfunction()
 
 if (AMReX_FOUND)
-  if (AMReX_EB_FOUND)
-    add_executable(AMReX.EB.SingleTubeRingPlenum AMReX/EB/SingleTubeRingPlenum.cpp)
-    target_link_libraries(AMReX.EB.SingleTubeRingPlenum FiniteVolumeSolver.AMReX.EB)
-  endif()
-
   add_executable_with_warnings(AMReX.PerfectGas1d AMReX/PerfectGas1d.cpp)
   target_link_libraries(AMReX.PerfectGas1d FiniteVolumeSolver.AMReX)
 
@@ -77,62 +72,62 @@ if (AMReX_FOUND AND AMReX_2D_FOUND)
     add_executable_with_warnings(AMReX.EB.ConvergentNozzle2D AMReX/EB/2D/ConvergentNozzle.cpp)
     target_link_libraries(AMReX.EB.ConvergentNozzle2D FiniteVolumeSolver.AMReX.EB)
 
-    add_executable_with_warnings(AMReX.EB.Divider2D AMReX/EB/Divider2D.cpp)
+    add_executable_with_warnings(AMReX.EB.Divider2D AMReX/EB/2D/Divider2D.cpp)
     target_link_libraries(AMReX.EB.Divider2D FiniteVolumeSolver.AMReX.EB)
 
-    add_executable_with_warnings(AMReX.EB.ShockTube AMReX/EB/ShockTube.cpp)
+    add_executable_with_warnings(AMReX.EB.ShockTube AMReX/EB/2D/ShockTube.cpp)
     target_link_libraries(AMReX.EB.ShockTube FiniteVolumeSolver.AMReX.EB)
 
-    add_executable_with_warnings(AMReX.EB.LinearShock2d AMReX/EB/LinearShock2d.cpp)
+    add_executable_with_warnings(AMReX.EB.LinearShock2d AMReX/EB/2D/LinearShock2d.cpp)
     target_link_libraries(AMReX.EB.LinearShock2d FiniteVolumeSolver.AMReX.EB)
 
-    add_executable_with_warnings(AMReX.EB.Schardin AMReX/EB/Schardin.cpp)
+    add_executable_with_warnings(AMReX.EB.Schardin AMReX/EB/2D/Schardin.cpp)
     target_link_libraries(AMReX.EB.Schardin FiniteVolumeSolver.AMReX.EB)
 
-    add_executable_with_warnings(AMReX.EB.Wedge AMReX/EB/Wedge.cpp)
+    add_executable_with_warnings(AMReX.EB.Wedge AMReX/EB/2D/Wedge.cpp)
     target_link_libraries(AMReX.EB.Wedge FiniteVolumeSolver.AMReX.EB)
 
-    add_executable_with_warnings(AMReX.EB.Ramp AMReX/EB/Ramp.cpp)
+    add_executable_with_warnings(AMReX.EB.Ramp AMReX/EB/2D/Ramp.cpp)
     target_link_libraries(AMReX.EB.Ramp FiniteVolumeSolver.AMReX.EB)
 
-    add_executable_with_warnings(AMReX.EB.Ramp2 AMReX/EB/Ramp2.cpp)
+    add_executable_with_warnings(AMReX.EB.Ramp2 AMReX/EB/2D/Ramp2.cpp)
     target_link_libraries(AMReX.EB.Ramp2 FiniteVolumeSolver.AMReX.EB)
 
-    add_executable_with_warnings(AMReX.EB.Tube AMReX/EB/Tube.cpp)
+    add_executable_with_warnings(AMReX.EB.Tube AMReX/EB/2D/Tube.cpp)
     target_link_libraries(AMReX.EB.Tube FiniteVolumeSolver.AMReX.EB)
 
-    add_executable_with_warnings(AMReX.EB.CoupledLinearShock2d AMReX/EB/CoupledLinearShock2d.cpp)
+    add_executable_with_warnings(AMReX.EB.CoupledLinearShock2d AMReX/EB/2D/CoupledLinearShock2d.cpp)
     target_link_libraries(AMReX.EB.CoupledLinearShock2d FiniteVolumeSolver.AMReX.EB)
   endif()
 endif()
 
 if (AMReX_FOUND AND AMReX_3D_FOUND)
   if (AMReX_EB_FOUND)
-    add_executable_with_warnings(AMReX.EB.LinearShock3d AMReX/EB/LinearShock3d.cpp)
+    add_executable_with_warnings(AMReX.EB.LinearShock3d AMReX/EB/3D/LinearShock3d.cpp)
     target_link_libraries(AMReX.EB.LinearShock3d FiniteVolumeSolver.AMReX.EB)
 
-    add_executable_with_warnings(AMReX.EB.ConvergentNozzle AMReX/EB/ConvergentNozzle.cpp)
+    add_executable_with_warnings(AMReX.EB.ConvergentNozzle AMReX/EB/3D/ConvergentNozzle.cpp)
     target_link_libraries(AMReX.EB.ConvergentNozzle FiniteVolumeSolver.AMReX.EB)
 
-    add_executable_with_warnings(AMReX.EB.CoupledLinearShock3d AMReX/EB/CoupledLinearShock3d.cpp)
+    add_executable_with_warnings(AMReX.EB.CoupledLinearShock3d AMReX/EB/3D/CoupledLinearShock3d.cpp)
     target_link_libraries(AMReX.EB.CoupledLinearShock3d FiniteVolumeSolver.AMReX.EB)
 
-    add_executable_with_warnings(AMReX.EB.SingleTubePlenum AMReX/EB/SingleTubePlenum.cpp)
+    add_executable_with_warnings(AMReX.EB.SingleTubePlenum AMReX/EB/3D/SingleTubePlenum.cpp)
     target_link_libraries(AMReX.EB.SingleTubePlenum FiniteVolumeSolver.AMReX.EB)
 
-    add_executable_with_warnings(AMReX.EB.SingleTubeRing AMReX/EB/SingleTubeRing.cpp)
+    add_executable_with_warnings(AMReX.EB.SingleTubeRing AMReX/EB/3D/SingleTubeRing.cpp)
     target_link_libraries(AMReX.EB.SingleTubeRing FiniteVolumeSolver.AMReX.EB)
 
-    add_executable_with_warnings(AMReX.EB.MultiTube AMReX/EB/MultiTube.cpp)
+    add_executable_with_warnings(AMReX.EB.MultiTube AMReX/EB/3D/MultiTube.cpp)
     target_link_libraries(AMReX.EB.MultiTube FiniteVolumeSolver.AMReX.EB)
 
-    add_executable_with_warnings(AMReX.EB.MultiTube_PerfectGas AMReX/EB/MultiTube_PerfectGas.cpp)
+    add_executable_with_warnings(AMReX.EB.MultiTube_PerfectGas AMReX/EB/3D/MultiTube_PerfectGas.cpp)
     target_link_libraries(AMReX.EB.MultiTube_PerfectGas FiniteVolumeSolver.AMReX.EB)
 
-    add_executable_with_warnings(AMReX.EB.MultiTube_Compressor AMReX/EB/MultiTube_Compressor.cpp)
+    add_executable_with_warnings(AMReX.EB.MultiTube_Compressor AMReX/EB/3D/MultiTube_Compressor.cpp)
     target_link_libraries(AMReX.EB.MultiTube_Compressor FiniteVolumeSolver.AMReX.EB)
 
-    add_executable_with_warnings(AMReX.EB.Divider AMReX/EB/Divider.cpp)
+    add_executable_with_warnings(AMReX.EB.Divider AMReX/EB/3D/Divider.cpp)
     target_link_libraries(AMReX.EB.Divider FiniteVolumeSolver.AMReX.EB)
   endif()
 endif()
