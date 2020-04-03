@@ -230,13 +230,12 @@ int MultiBlockIntegratorContext::PreAdvanceLevel(int level_num, Duration dt,
                                   tube.GetPatchHierarchy());
     ++boundary;
   }
-<<<<<<< HEAD
-  if (level_which_changed == plena_[0].GetPatchHierarchy().GetMaxNumberOfLevels()) {
-=======
   if (level_which_changed ==
       plena_[0].GetPatchHierarchy().GetMaxNumberOfLevels()) {
-  return 1;
+    return 1;
+  }
 }
+
 /// \brief Increases the internal time stamps and cycle counters for the
 /// specified level number and direction.
 Result<void, TimeStepTooLarge>
@@ -333,13 +332,8 @@ void MultiBlockIntegratorContext::ApplyBoundaryCondition(int level,
   if (dir == Direction::X) {
     for (IntegratorContext& tube : tubes_) {
       if (tube.LevelExists(level)) {
-<<<<<<< HEAD
-        BoundaryCondition& bc = tube.GetBoundaryCondition(level);
-        BoundaryCondition wrapped = WrapBoundaryCondition{
-=======
         AnyBoundaryCondition& bc = tube.GetBoundaryCondition(level);
         AnyBoundaryCondition wrapped = WrapBoundaryCondition{
->>>>>>> origin/develop
             id, gridding_->GetConnectivity(), gridding_->GetBoundaries(level),
             &bc, nullptr};
         wrapped.parent = tube.GetGriddingAlgorithm().get();
