@@ -32,6 +32,7 @@
 
 namespace fub::amrex {
 
+/// \ingroup FluxMethod
 template <typename Tag, typename FM> struct FluxMethodAdapter {
   using Equation = std::decay_t<decltype(std::declval<FM&>().GetEquation())>;
   static const int Rank = Equation::Rank();

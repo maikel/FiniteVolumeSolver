@@ -35,13 +35,13 @@
 
 namespace fub {
 
-/// \defgroup flux-method Flux Methods
+/// \defgroup FluxMethod Flux Methods
 /// \ingroup IntegratorContext
 /// \brief This module collects all types and functions relevant to compute
 /// numerical fluxes
 
 
-/// \ingroup flux-method
+/// \ingroup FluxMethod
 /// \brief This class applies a base flux nethod on a view of states.
 ///
 /// The base class only needs to define its logic on single states or state

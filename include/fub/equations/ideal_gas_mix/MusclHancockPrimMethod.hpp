@@ -40,6 +40,8 @@ template <int Rank> struct PrimitiveArray {
   ArrayXd mass_fractions;
 };
 
+/// \ingroup FluxMethod
+///
 /// This is a variation of the Muscl Hancock Method where the reconstruction at
 /// the half time level is based on the primitive variables (p, u, T, Y) instead
 /// of on conservative variables.
@@ -104,7 +106,7 @@ private:
   std::array<CompleteArray, 2> stencil_array_{GetEquation(), GetEquation()};
 };
 
-/// \ingroup flux-method
+/// \ingroup FluxMethod
 template <int Rank>
 using MusclHancockPrimMethod = ::fub::FluxMethod<MusclHancockPrimitive<Rank>>;
 
