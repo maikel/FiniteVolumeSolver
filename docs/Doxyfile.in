@@ -785,9 +785,12 @@ INPUT                  = "../include/fub/" \
                          "../include/fub/flux_method/" \
                          "../include/fub/tagging_method/" \
                          "../include/fub/boundary_condition/" \
+                         "../include/fub/ext" \
                          "../include/fub/core" \
                          "../include/fub/cutcell_method/" \
                          "../include/fub/equations/" \
+                         "../include/fub/equations/ideal_gas_mix" \
+                         "../include/fub/equations/perfect_gas" \
                          "../include/fub/geometry/" \
                          "../include/fub/AMReX/" \
                          "../include/fub/AMReX/output/" \
