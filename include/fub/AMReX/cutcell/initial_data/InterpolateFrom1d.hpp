@@ -21,7 +21,7 @@
 #ifndef FUB_AMREX_CUTCELL_INTERPOLATE_FROM_ONE_D_HPP
 #define FUB_AMREX_CUTCELL_INTERPOLATE_FROM_ONE_D_HPP
 
-#include "fub/AMReX/cutcell/PatchHierarchy.hpp"
+#include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
 #include "fub/equations/PerfectGas.hpp"
 
 #include <vector>
@@ -33,9 +33,8 @@ public:
   InterpolateFrom1d(const PerfectGas<AMREX_SPACEDIM>& equation,
                     const std::string& source);
 
-  void InitializeData(fub::amrex::PatchLevel& patch_level,
-                      const fub::amrex::GriddingAlgorithm& grid, int level,
-                      fub::Duration) {
+  void InitializeData(PatchLevel& patch_level, const GriddingAlgorithm& grid,
+                      int level, fub::Duration) {
     amrex::MultiFab& data = patch_level.data;
     const amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
     InitializeData(data, geom);
