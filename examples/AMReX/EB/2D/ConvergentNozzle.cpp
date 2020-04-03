@@ -123,7 +123,8 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
       return gridding;
     } else {
       checkpoint = fmt::format("{}/Tube", checkpoint);
-      BOOST_LOG(log) << "Initialize grid from given checkpoint '" << checkpoint << "'.";
+      BOOST_LOG(log) << "Initialize grid from given checkpoint '" << checkpoint
+                     << "'.";
       PatchHierarchy h = ReadCheckpointFile(checkpoint, desc, grid_geometry,
                                             hierarchy_options);
       std::shared_ptr<GriddingAlgorithm> gridding =
@@ -135,7 +136,8 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
   }();
 
   fub::ideal_gas::MusclHancockPrimMethod<Tube_Rank> flux_method{equation};
-  HyperbolicMethod method{FluxMethodAdapter(flux_method), EulerForwardTimeIntegrator(),
+  HyperbolicMethod method{FluxMethodAdapter(flux_method),
+                          EulerForwardTimeIntegrator(),
                           Reconstruction(equation)};
 
   const int scratch_gcw = 4;
@@ -163,14 +165,17 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
     return fub::Polygon(std::move(xs), std::move(ys));
   };
 
-  auto ConvergentInlet = [&](double height, const std::array<double, Plenum_Rank>& center) {
+  auto ConvergentInlet = [&](double height,
+                             const std::array<double, Plenum_Rank>& center) {
     const double xlo = center[0] - height;
     const double xhi = center[0];
     constexpr double r = r_tube;
     constexpr double r2 = 0.5 * r_tube;
     const double xdiv = xhi - 4.0 * r;
-    auto polygon = MakePolygon(std::pair{xlo, r}, std::pair{xdiv, r}, std::pair{xhi, r2}, 
-                               std::pair{xhi, -r2}, std::pair{xdiv, -r}, std::pair{xlo, -r}, std::pair{xlo, r});
+    auto polygon =
+        MakePolygon(std::pair{xlo, r}, std::pair{xdiv, r}, std::pair{xhi, r2},
+                    std::pair{xhi, -r2}, std::pair{xdiv, -r},
+                    std::pair{xlo, -r}, std::pair{xlo, r});
     auto tube_in_zero = fub::amrex::Geometry(fub::Invert(polygon));
     amrex::RealArray real_center{center[0], center[1]};
     auto tube_in_center = amrex::EB2::TranslationIF(tube_in_zero, real_center);
@@ -193,11 +198,12 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
   hierarchy_options.Print(log);
 
   BOOST_LOG(log) << "Compute EB level set data...";
-  std::shared_ptr<fub::CounterRegistry> registry = std::make_shared<fub::CounterRegistry>();
+  std::shared_ptr<fub::CounterRegistry> registry =
+      std::make_shared<fub::CounterRegistry>();
   {
     fub::Timer timer = registry->get_timer("MakeIndexSpaces");
     hierarchy_options.index_spaces =
-      MakeIndexSpaces(shop, grid_geometry, hierarchy_options);
+        MakeIndexSpaces(shop, grid_geometry, hierarchy_options);
   }
 
   fub::IdealGasMix<Plenum_Rank> equation{mechanism};
@@ -261,21 +267,20 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
       BOOST_LOG(log) << "Initialize grid by initial condition...";
       std::shared_ptr grid = std::make_shared<GriddingAlgorithm>(
           PatchHierarchy(equation, grid_geometry, hierarchy_options),
-          initial_data,
-          TagAllOf(TagCutCells(), constant_refinebox),
+          initial_data, TagAllOf(TagCutCells(), constant_refinebox),
           boundary_condition);
       grid->InitializeHierarchy(0.0);
       return grid;
     } else {
       checkpoint += "/Plenum";
-      BOOST_LOG(log) << "Initialize grid from given checkpoint '" << checkpoint << "'.";
+      BOOST_LOG(log) << "Initialize grid from given checkpoint '" << checkpoint
+                     << "'.";
       PatchHierarchy h = ReadCheckpointFile(
           checkpoint, fub::amrex::MakeDataDescription(equation), grid_geometry,
           hierarchy_options);
       std::shared_ptr grid = std::make_shared<GriddingAlgorithm>(
           std::move(h), initial_data,
-          TagAllOf(TagCutCells(), constant_refinebox),
-          boundary_condition);
+          TagAllOf(TagCutCells(), constant_refinebox), boundary_condition);
       return grid;
     }
   }();
@@ -389,7 +394,8 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
                                        .GetPatchHierarchy()
                                        .GetMaxNumberOfLevels();
 
-  fub::amrex::IgniteDetonationOptions ignite_options(fub::GetOptions(vm, "IgniteDetonation"));
+  fub::amrex::IgniteDetonationOptions ignite_options(
+      fub::GetOptions(vm, "IgniteDetonation"));
   fub::SeverityLogger log = fub::GetInfoLogger();
   BOOST_LOG(log) << "IgniteDetonation:";
   ignite_options.Print(log);
@@ -419,9 +425,10 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   fub::amrex::MultiBlockKineticSouceTerm source_term(tube_equation);
 
   fub::SplitSystemSourceLevelIntegrator level_integrator(
-      std::move(ign_solver), std::move(source_term), fub::StrangSplittingLumped{});
+      std::move(ign_solver), std::move(source_term),
+      fub::StrangSplittingLumped{});
 
-  //fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
+  // fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
   fub::NoSubcycleSolver solver(std::move(level_integrator));
 
   using namespace fub::amrex;
@@ -441,8 +448,7 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
     void operator()(const MultiBlockGriddingAlgorithm& grid) override {
       int rank = -1;
       MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-      std::string name =
-          fmt::format("{}/{:09}", directory_, grid.GetCycles());
+      std::string name = fmt::format("{}/{:09}", directory_, grid.GetCycles());
       fub::SeverityLogger log = fub::GetInfoLogger();
       BOOST_LOG(log) << fmt::format("Write Checkpoint to '{}'!", name);
       WriteCheckpoint(name, grid, valve_state_, rank, *ignition_);
