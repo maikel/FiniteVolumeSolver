@@ -33,7 +33,7 @@
 #include "fub/SAMRAI/Reconstruction.hpp"
 #include "fub/SAMRAI/TimeIntegrator.hpp"
 
-#include "fub/SAMRAI/tagging/ConstantBox.hpp"
-#include "fub/SAMRAI/tagging/GradientDetector.hpp"
+#include "fub/SAMRAI/tagging_method/ConstantBox.hpp"
+#include "fub/SAMRAI/tagging_method/GradientDetector.hpp"
 
 #endif

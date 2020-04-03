@@ -132,7 +132,7 @@ GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier, InitialData init,
   const SAMRAI::hier::ComponentSelector which_to_allocate =
       SelectComponents(hierarchy_.GetDataDescription().data_ids);
   const SAMRAI::tbox::Dimension dim = hierarchy_.GetNative()->getDim();
-  for (int level = 0; level < hierarchy_.GetNative()->getMaxNumberOfLevels();
+  for (int level = 1; level < hierarchy_.GetNative()->getMaxNumberOfLevels();
        ++level) {
     hierarchy_.GetNative()->setRatioToCoarserLevel(
         SAMRAI::hier::IntVector(dim, 2), level);
@@ -164,7 +164,7 @@ GriddingAlgorithm::GriddingAlgorithm(const GriddingAlgorithm& ga)
   const SAMRAI::hier::ComponentSelector which_to_allocate =
       SelectComponents(hierarchy_.GetDataDescription().data_ids);
   const SAMRAI::tbox::Dimension dim = hierarchy_.GetNative()->getDim();
-  for (int level = 0; level < hierarchy_.GetNative()->getMaxNumberOfLevels();
+  for (int level = 1; level < hierarchy_.GetNative()->getMaxNumberOfLevels();
        ++level) {
     hierarchy_.GetNative()->setRatioToCoarserLevel(
         SAMRAI::hier::IntVector(dim, 2), level);

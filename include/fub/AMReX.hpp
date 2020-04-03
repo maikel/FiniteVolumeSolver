@@ -29,6 +29,8 @@
 
 #include "fub/AMReX/ScopeGuard.hpp"
 
+#include "fub/equations/CompressibleAdvection.hpp"
+
 #include "fub/AMReX/tagging_method/ConstantRegion.hpp"
 #include "fub/AMReX/tagging_method/GradientDetector.hpp"
 #include "fub/AMReX/tagging_method/TagAllOf.hpp"
