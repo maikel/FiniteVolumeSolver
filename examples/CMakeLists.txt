@@ -23,10 +23,16 @@ if (AMReX_FOUND)
   target_link_libraries(AMReX.PerfectGas1d FiniteVolumeSolver.AMReX)
 
   add_executable_with_warnings(AMReX.IdealGasMix AMReX/IdealGasMix.cpp)
-  target_link_libraries(AMReX.IdealGasMix FiniteVolumeSolver.AMReX Boost::program_options)
+  target_link_libraries(AMReX.IdealGasMix FiniteVolumeSolver.AMReX)
+
+  add_executable_with_warnings(AMReX.IdealGasMix_Advection AMReX/IdealGasMix_Advection.cpp)
+  target_link_libraries(AMReX.IdealGasMix_Advection FiniteVolumeSolver.AMReX)
+
+  add_executable_with_warnings(AMReX.IdealGasMix2 AMReX/IdealGasMix2.cpp)
+  target_link_libraries(AMReX.IdealGasMix2 FiniteVolumeSolver.AMReX)
 
   add_executable_with_warnings(AMReX.AxialSourceTerm AMReX/AxialVariation.cpp)
-  target_link_libraries(AMReX.AxialSourceTerm FiniteVolumeSolver.AMReX Boost::program_options)
+  target_link_libraries(AMReX.AxialSourceTerm FiniteVolumeSolver.AMReX)
 
   add_executable_with_warnings(AMReX.Advection2d_Godunov AMReX/Advection2d_Godunov.cpp)
   target_link_libraries(AMReX.Advection2d_Godunov FiniteVolumeSolver.AMReX)
@@ -42,6 +48,9 @@ if (AMReX_FOUND)
 
   add_executable_with_warnings(AMReX.SodShockTube2d AMReX/SodShockTube2d.cpp)
   target_link_libraries(AMReX.SodShockTube2d FiniteVolumeSolver.AMReX)
+
+  add_executable_with_warnings(AMReX.SodShockTube2d_IdealGas AMReX/SodShockTube2d_IdealGas.cpp)
+  target_link_libraries(AMReX.SodShockTube2d_IdealGas FiniteVolumeSolver.AMReX)
 endif()
 
 if (AMReX_FOUND AND AMReX_2D_FOUND)
@@ -65,6 +74,9 @@ if (AMReX_FOUND AND AMReX_2D_FOUND)
   target_link_libraries(AMReX.BK19Compressible_AcousticWave FiniteVolumeSolver.AMReX)
 
   if (AMReX_EB_FOUND)
+    add_executable_with_warnings(AMReX.EB.ConvergentNozzle2D AMReX/EB/2D/ConvergentNozzle.cpp)
+    target_link_libraries(AMReX.EB.ConvergentNozzle2D FiniteVolumeSolver.AMReX.EB)
+
     add_executable_with_warnings(AMReX.EB.Divider2D AMReX/EB/Divider2D.cpp)
     target_link_libraries(AMReX.EB.Divider2D FiniteVolumeSolver.AMReX.EB)
 
@@ -99,6 +111,9 @@ if (AMReX_FOUND AND AMReX_3D_FOUND)
     add_executable_with_warnings(AMReX.EB.LinearShock3d AMReX/EB/LinearShock3d.cpp)
     target_link_libraries(AMReX.EB.LinearShock3d FiniteVolumeSolver.AMReX.EB)
 
+    add_executable_with_warnings(AMReX.EB.ConvergentNozzle AMReX/EB/ConvergentNozzle.cpp)
+    target_link_libraries(AMReX.EB.ConvergentNozzle FiniteVolumeSolver.AMReX.EB)
+
     add_executable_with_warnings(AMReX.EB.CoupledLinearShock3d AMReX/EB/CoupledLinearShock3d.cpp)
     target_link_libraries(AMReX.EB.CoupledLinearShock3d FiniteVolumeSolver.AMReX.EB)
 
@@ -110,6 +125,9 @@ if (AMReX_FOUND AND AMReX_3D_FOUND)
 
     add_executable_with_warnings(AMReX.EB.MultiTube AMReX/EB/MultiTube.cpp)
     target_link_libraries(AMReX.EB.MultiTube FiniteVolumeSolver.AMReX.EB)
+
+    add_executable_with_warnings(AMReX.EB.MultiTube_PerfectGas AMReX/EB/MultiTube_PerfectGas.cpp)
+    target_link_libraries(AMReX.EB.MultiTube_PerfectGas FiniteVolumeSolver.AMReX.EB)
 
     add_executable_with_warnings(AMReX.EB.MultiTube_Compressor AMReX/EB/MultiTube_Compressor.cpp)
     target_link_libraries(AMReX.EB.MultiTube_Compressor FiniteVolumeSolver.AMReX.EB)

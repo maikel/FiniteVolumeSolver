@@ -345,7 +345,9 @@ target_compile_options(FiniteVolumeSolver.Solver
   PRIVATE
   $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
   $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall>
-  $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>)
+  $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>
+  $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wconversion>
+  $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wsign-conversion>)
 set_property(TARGET FiniteVolumeSolver.Solver PROPERTY CXX_VISIBILITY_PRESET "hidden")
 set_property(TARGET FiniteVolumeSolver.Solver PROPERTY VISIBILITY_INLINES_HIDDEN "hidden")
 install(
@@ -365,6 +367,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     include/fub/AMReX/boundary_condition/ReflectiveBoundary.hpp
     include/fub/AMReX/boundary_condition/IsentropicPressureBoundary.hpp
     include/fub/AMReX/boundary_condition/PressureValveBoundary.hpp
+    include/fub/AMReX/boundary_condition/MassflowBoundary.hpp
     include/fub/AMReX/initial_data/ConstantData.hpp
     include/fub/AMReX/AxialSourceTerm.hpp
     include/fub/AMReX/GriddingAlgorithm.hpp
@@ -396,6 +399,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     src/AMReX/boundary_condition/TransmissiveBoundary.cpp
     src/AMReX/boundary_condition/IsentropicPressureBoundary.cpp
     src/AMReX/boundary_condition/PressureValveBoundary.cpp
+    src/AMReX/boundary_condition/MassflowBoundary.cpp
     src/AMReX/AxialSourceTerm.cpp
     src/AMReX/IgniteDetonation.cpp
     src/AMReX/ScopeGuard.cpp
@@ -423,7 +427,9 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     PRIVATE
       $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
       $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall>
-      $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>)
+      $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>
+      $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wconversion>
+      $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wsign-conversion>)
   set_property(TARGET FiniteVolumeSolver.AMReX PROPERTY CXX_VISIBILITY_PRESET "hidden")
   set_property(TARGET FiniteVolumeSolver.AMReX PROPERTY VISIBILITY_INLINES_HIDDEN "hidden")
   target_link_libraries(FiniteVolumeSolver.AMReX
@@ -461,6 +467,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         include/fub/AMReX/cutcell/IntegratorContext.hpp
         include/fub/AMReX/cutcell/TimeIntegrator.hpp
         include/fub/AMReX/cutcell/initial_data/RiemannProblem.hpp
+        include/fub/AMReX/cutcell/initial_data/InterpolateFrom1d.hpp
         include/fub/AMReX/cutcell/tagging_method/ConstantRegion.hpp
         include/fub/AMReX/cutcell/tagging_method/GradientDetector.hpp
         include/fub/AMReX/cutcell/tagging_method/TagBuffer.hpp
@@ -470,8 +477,10 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         include/fub/AMReX/cutcell/boundary_condition/IsentropicPressureBoundary.hpp
         include/fub/AMReX/cutcell/boundary_condition/MassflowBoundary.hpp
         include/fub/AMReX/cutcell/boundary_condition/ReflectiveBoundary.hpp
+        include/fub/AMReX/cutcell/boundary_condition/PressureOutflowBoundary.hpp
         include/fub/AMReX/cutcell/output/WriteHdf5.hpp
         include/fub/AMReX/cutcell/output/WritePlotfiles.hpp
+        include/fub/AMReX/cutcell/output/PerfectGasProbesOutput.hpp
         include/fub/AMReX/multi_block/MultiBlockBoundary.hpp
         include/fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp
         include/fub/AMReX/multi_block/MultiBlockIntegratorContext.hpp
@@ -495,7 +504,10 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         src/AMReX/cutcell/tagging_method/ConstantRegion.cpp
         src/AMReX/cutcell/tagging_method/TagBuffer.cpp
         src/AMReX/cutcell/tagging_method/TagCutCells.cpp
+        src/AMReX/cutcell/boundary_condition/PressureOutflowBoundary.cpp
+        src/AMReX/cutcell/initial_data/InterpolateFrom1d.cpp
         src/AMReX/cutcell/output/WriteHdf5.cpp
+        src/AMReX/cutcell/output/PerfectGasProbesOutput.cpp
         src/AMReX/multi_block/MultiBlockBoundary.cpp
         src/AMReX/multi_block/MultiBlockGriddingAlgorithm.cpp
         src/AMReX/multi_block/MultiBlockIntegratorContext.cpp

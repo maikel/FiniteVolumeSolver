@@ -75,7 +75,7 @@ MakeGriddingAlgorithm(const fub::PerfectGas<2>& equation) {
 
   using namespace fub::amrex::cutcell;
   RiemannProblem initial_data(equation, fub::Halfspace({-1.0, -1.0, 0.0}, +0.4),
-                              left, right);
+                              right, right);
 
   using State = fub::Complete<fub::PerfectGas<2>>;
   GradientDetector gradients{equation, std::pair{&State::pressure, 0.05},

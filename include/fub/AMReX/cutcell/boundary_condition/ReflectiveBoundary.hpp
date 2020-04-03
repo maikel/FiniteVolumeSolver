@@ -81,6 +81,7 @@ void ReflectiveBoundary<Tag, Equation>::FillBoundary(
   ForEachFab(Tag(), mf, [&](const ::amrex::MFIter& mfi) {
     Complete<Equation> state(*equation_);
     Complete<Equation> reflected(*equation_);
+    Complete<Equation> zeros(*equation_);
     ::amrex::FArrayBox& fab = mf[mfi];
     const ::amrex::FArrayBox& alpha = alphas[mfi];
     for (const ::amrex::Box& boundary : boundaries) {
@@ -100,11 +101,15 @@ void ReflectiveBoundary<Tag, Equation>::FillBoundary(
               ReflectIndex(dest, box, dir_, side_);
           ::amrex::IntVect iv{
               AMREX_D_DECL(int(src[0]), int(src[1]), int(src[2]))};
-          if (alpha(iv) > 0.0) {
+          ::amrex::IntVect dest_iv{
+              AMREX_D_DECL(int(dest[0]), int(dest[1]), int(dest[2]))};
+          if (alpha(dest_iv) > 0.0 && alpha(iv) > 0.0) {
             Load(state, states, src);
             FUB_ASSERT(state.density > 0.0);
             Reflect(reflected, state, unit, *equation_);
             Store(states, reflected, dest);
+          } else {
+            Store(states, zeros, dest);
           }
         });
       }

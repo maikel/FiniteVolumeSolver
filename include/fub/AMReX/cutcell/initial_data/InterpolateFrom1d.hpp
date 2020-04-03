@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Maikel Nadolski
+// Copyright (c) 2020 Maikel Nadolski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,17 +18,28 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/equations/ideal_gas_mix/HlleMethod.hpp"
+#ifndef FUB_AMREX_CUTCELL_INTERPOLATE_FROM_ONE_D_HPP
+#define FUB_AMREX_CUTCELL_INTERPOLATE_FROM_ONE_D_HPP
 
-namespace fub::ideal_gas {
+#include "fub/AMReX/cutcell/PatchHierarchy.hpp"
+#include "fub/equations/PerfectGas.hpp"
 
-template class FluxMethod<
-    Hll<IdealGasMix<1>, EinfeldtSignalVelocities<IdealGasMix<1>>>>;
+#include <vector>
 
-template class FluxMethod<
-    Hll<IdealGasMix<2>, EinfeldtSignalVelocities<IdealGasMix<2>>>>;
+namespace fub::amrex::cutcell {
 
-template class FluxMethod<
-    Hll<IdealGasMix<3>, EinfeldtSignalVelocities<IdealGasMix<3>>>>;
+class InterpolateFrom1d {
+public:
+  InterpolateFrom1d(const PerfectGas<AMREX_SPACEDIM>& equation,
+                    const std::string& source);
 
-} // namespace fub::ideal_gas
+  void InitializeData(::amrex::MultiFab& data, const ::amrex::Geometry& geom);
+
+private:
+  PerfectGas<AMREX_SPACEDIM> equation_{};
+  std::vector<double> raw_prim_data_{};
+};
+
+} // namespace fub::amrex::cutcell
+
+#endif

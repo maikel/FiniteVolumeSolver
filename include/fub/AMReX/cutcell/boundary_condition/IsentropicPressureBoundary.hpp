@@ -25,16 +25,20 @@
 
 #include "fub/Direction.hpp"
 #include "fub/equations/IdealGasMix.hpp"
+#include "fub/equations/PerfectGas.hpp"
 
-#include <boost/log/sources/severity_channel_logger.hpp>
-#include <boost/log/trivial.hpp>
+#include "fub/ext/ProgramOptions.hpp"
 
 #include <AMReX.H>
 
 namespace fub::amrex::cutcell {
+/// \ingroup BoundaryCondition
+///
 struct IsentropicPressureBoundaryOptions {
   IsentropicPressureBoundaryOptions() = default;
   IsentropicPressureBoundaryOptions(const ProgramOptions& options);
+
+  void Print(SeverityLogger& log) const;
 
   std::string channel_name{"IsentropicPressureBoundary"};
   ::amrex::Box coarse_inner_box{};
@@ -42,6 +46,32 @@ struct IsentropicPressureBoundaryOptions {
   Direction direction = Direction::X;
   int side = 0;
 };
+
+namespace perfect_gas {
+
+/// \ingroup BoundaryCondition
+///
+class IsentropicPressureExpansionBoundary {
+public:
+  IsentropicPressureExpansionBoundary(const PerfectGas<AMREX_SPACEDIM>& eq,
+                             const IsentropicPressureBoundaryOptions& options);
+
+  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
+                    Duration dt, const GriddingAlgorithm& grid);
+
+  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
+                    Duration dt, const GriddingAlgorithm& grid, Direction dir) {
+    if (dir == options_.direction) {
+      FillBoundary(mf, geom, dt, grid);
+    }
+  }
+
+private:
+  PerfectGas<AMREX_SPACEDIM> equation_;
+  IsentropicPressureBoundaryOptions options_;
+};
+
+}
 
 /// \ingroup BoundaryCondition
 ///

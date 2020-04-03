@@ -232,9 +232,8 @@ int MultiBlockIntegratorContext::PreAdvanceLevel(int level_num, Duration dt,
   }
   if (level_which_changed ==
       plena_[0].GetPatchHierarchy().GetMaxNumberOfLevels()) {
-    return level_which_changed;
+    return 1;
   }
-  return 1;
 }
 
 /// \brief Increases the internal time stamps and cycle counters for the

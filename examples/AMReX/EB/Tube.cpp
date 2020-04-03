@@ -41,6 +41,7 @@ int main(int argc, char** argv) {
   fub::amrex::CartesianGridGeometry geometry;
   geometry.cell_dimensions = n_cells;
   geometry.coordinates = xbox;
+  geometry.periodicity = std::array<int, 2>{1, 1};
 
   auto embedded_boundary = ::amrex::EB2::rotate(
       ::amrex::EB2::BoxIF({-0.5, -0.5}, {+0.5, +0.5}, true), 0.25 * M_PI, 2);
@@ -51,7 +52,7 @@ int main(int argc, char** argv) {
   using namespace fub::amrex::cutcell;
 
   PatchHierarchyOptions options{};
-  options.max_number_of_levels = 2;
+  options.max_number_of_levels = 1;
   options.index_spaces = MakeIndexSpaces(shop, geometry, options);
 
   fub::Conservative<fub::PerfectGas<2>> cons;
@@ -82,15 +83,16 @@ int main(int argc, char** argv) {
       TagAllOf(TagCutCells(), gradients, TagBuffer(2)), boundary_condition);
   gridding->InitializeHierarchy(0.0);
 
-  fub::MusclHancockMethod flux_method(equation);
+  fub::FluxMethod<fub::perfect_gas::MusclHancockPrim<2>> flux_method{equation};
+//  fub::MusclHancockMethod flux_method(equation);
   fub::KbnCutCellMethod cutcell_method(std::move(flux_method));
 
-  HyperbolicMethod method{FluxMethod{fub::execution::seq, cutcell_method},
+  HyperbolicMethod method{FluxMethod{cutcell_method},
                           TimeIntegrator{}, Reconstruction{equation}};
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<2>, IntegratorContext(gridding, method, 4, 2),
-      fub::GodunovSplitting{});
+      fub::StrangSplitting{});
 
   fub::SubcycleFineFirstSolver solver(level_integrator);
 

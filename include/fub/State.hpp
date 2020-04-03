@@ -742,6 +742,28 @@ template <typename Equation> struct IndexMapping : IndexMappingBase<Equation> {
 template <typename Eq>
 struct StateTraits<IndexMapping<Eq>> : StateTraits<IndexMappingBase<Eq>> {};
 
+template <typename Equation>
+void CopyFromBuffer(Complete<Equation>& state, span<const double> buffer) {
+  int comp = 0;
+  ForEachComponent(
+      [&comp, &buffer](auto&& var) {
+        var = buffer[comp];
+        comp += 1;
+      },
+      state);
+}
+
+template <typename Equation>
+void CopyFromBuffer(Conservative<Equation>& state, span<const double> buffer) {
+  int comp = 0;
+  ForEachComponent(
+      [&comp, &buffer](auto&& var) {
+        var = buffer[comp];
+        comp += 1;
+      },
+      state);
+}
+
 } // namespace fub
 
 #endif

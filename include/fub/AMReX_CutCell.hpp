@@ -31,6 +31,7 @@
 #include "fub/AMReX/cutcell/TimeIntegrator.hpp"
 
 #include "fub/AMReX/cutcell/initial_data/RiemannProblem.hpp"
+#include "fub/AMReX/cutcell/initial_data/InterpolateFrom1d.hpp"
 
 #include "fub/AMReX/cutcell/tagging_method/ConstantRegion.hpp"
 #include "fub/AMReX/cutcell/tagging_method/GradientDetector.hpp"
@@ -42,6 +43,8 @@
 #include "fub/AMReX/cutcell/boundary_condition/IsentropicPressureBoundary.hpp"
 #include "fub/AMReX/cutcell/boundary_condition/MassflowBoundary.hpp"
 #include "fub/AMReX/cutcell/boundary_condition/TransmissiveBoundary.hpp"
+#include "fub/AMReX/cutcell/boundary_condition/ReflectiveBoundary.hpp"
+#include "fub/AMReX/cutcell/boundary_condition/PressureOutflowBoundary.hpp"
 #include "fub/AMReX/cutcell/output/LogProbes.hpp"
 #include "fub/AMReX/cutcell/output/WriteHdf5.hpp"
 #include "fub/AMReX/cutcell/output/WritePlotfiles.hpp"

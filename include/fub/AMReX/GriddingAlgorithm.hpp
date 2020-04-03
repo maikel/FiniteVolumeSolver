@@ -135,6 +135,7 @@ public:
   }
   /// @}
 
+
   /// @{
   /// \name Modifiers
 
