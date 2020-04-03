@@ -196,9 +196,8 @@ IsentropicPressureExpansionBoundary::IsentropicPressureExpansionBoundary(
     : equation_(eq), options_{options} {}
 
 void IsentropicPressureExpansionBoundary::FillBoundary(
-    ::amrex::MultiFab& mf, const ::amrex::Geometry& geom, Duration /* dt */,
-    const GriddingAlgorithm& grid) {
-  int level = FindLevel(geom, grid);
+    ::amrex::MultiFab& mf, const GriddingAlgorithm& grid, int level) {
+  const ::amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
   auto factory = grid.GetPatchHierarchy().GetEmbeddedBoundary(level);
   const ::amrex::MultiFab& alphas = factory->getVolFrac();
   const int ngrow = mf.nGrow(int(options_.direction));

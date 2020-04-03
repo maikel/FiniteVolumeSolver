@@ -28,6 +28,8 @@
 #include <AMReX.H>
 
 namespace fub::amrex {
+/// \ingroup BoundaryCondition
+///
 struct MassflowBoundaryOptions {
   MassflowBoundaryOptions() = default;
   MassflowBoundaryOptions(const ProgramOptions& options);

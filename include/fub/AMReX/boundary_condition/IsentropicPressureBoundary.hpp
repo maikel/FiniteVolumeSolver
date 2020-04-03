@@ -24,18 +24,20 @@
 #include "fub/AMReX/GriddingAlgorithm.hpp"
 #include "fub/equations/IdealGasMix.hpp"
 
-#include "fub/ext/ProgramOptions.hpp"
 #include "fub/ext/Log.hpp"
+#include "fub/ext/ProgramOptions.hpp"
 
 #include <fmt/format.h>
 
 namespace fub::amrex {
+
+/// \ingroup BoundaryCondition
+///
 struct IsentropicPressureBoundaryOptions {
   IsentropicPressureBoundaryOptions() = default;
   IsentropicPressureBoundaryOptions(const ProgramOptions& options);
 
-  template <typename Log>
-  void Print(Log& log) {
+  template <typename Log> void Print(Log& log) {
     BOOST_LOG(log) << fmt::format(" - channel_name = {}", channel_name);
     BOOST_LOG(log) << fmt::format(" - outer_pressure = {}", outer_pressure);
     BOOST_LOG(log) << fmt::format(" - direction = {}", int(direction));
@@ -54,7 +56,8 @@ struct IsentropicPressureBoundaryOptions {
 /// one-dimensional ideal gas equations for mixtures.
 class IsentropicPressureBoundary {
 public:
-  IsentropicPressureBoundary(const IdealGasMix<1>& eq, const IsentropicPressureBoundaryOptions& options);
+  IsentropicPressureBoundary(const IdealGasMix<1>& eq,
+                             const IsentropicPressureBoundaryOptions& options);
 
   IsentropicPressureBoundary(const IdealGasMix<1>& eq, double outer_pressure,
                              Direction dir, int side);

@@ -23,18 +23,19 @@
 
 #include "fub/AMReX/GriddingAlgorithm.hpp"
 #include "fub/AMReX/boundary_condition/IsentropicPressureBoundary.hpp"
-#include "fub/AMReX/boundary_condition/ReflectiveBoundary.hpp"
 #include "fub/AMReX/boundary_condition/MassflowBoundary.hpp"
+#include "fub/AMReX/boundary_condition/ReflectiveBoundary.hpp"
 
 #include "fub/Duration.hpp"
 
 #include <boost/serialization/access.hpp>
 
-#include "fub/ext/ProgramOptions.hpp"
 #include "fub/ext/Log.hpp"
+#include "fub/ext/ProgramOptions.hpp"
 
 namespace fub::amrex {
-
+/// \ingroup BoundaryCondition
+///
 struct PressureValveOptions {
   PressureValveOptions() = default;
   PressureValveOptions(const ProgramOptions& vm);
@@ -70,7 +71,8 @@ void serialize(Archive& ar, ::fub::amrex::PressureValveOptions& opts,
 namespace fub::amrex {
 
 enum class PressureValveState { open_air, open_fuel, closed };
-
+/// \ingroup BoundaryCondition
+///
 struct PressureValve {
   PressureValveState state{PressureValveState::open_air};
   Duration last_closed{std::numeric_limits<double>::lowest()};
@@ -89,9 +91,11 @@ public:
 
   [[nodiscard]] const PressureValveOptions& GetOptions() const noexcept;
 
-  void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding, int level);
+  void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding,
+                    int level);
 
-  void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding, int level, Direction dir);
+  void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding,
+                    int level, Direction dir);
 
   [[nodiscard]] const std::shared_ptr<PressureValve>& GetSharedState() const
       noexcept {

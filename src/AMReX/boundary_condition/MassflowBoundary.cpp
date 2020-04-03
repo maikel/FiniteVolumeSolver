@@ -44,33 +44,38 @@ MassflowBoundaryOptions::MassflowBoundaryOptions(
 }
 
 void MassflowBoundaryOptions::Print(SeverityLogger& log) const {
-  BOOST_LOG(log) << fmt::format(" - required_massflow = {} [kg/s]", required_massflow);
+  BOOST_LOG(log) << fmt::format(" - required_massflow = {} [kg/s]",
+                                required_massflow);
   BOOST_LOG(log) << fmt::format(" - surface_area = {} [m2]", surface_area);
   BOOST_LOG(log) << fmt::format(" - direction = {} [-]", static_cast<int>(dir));
   BOOST_LOG(log) << fmt::format(" - side = {} [-]", side);
   std::array<int, AMREX_SPACEDIM> lower, upper;
-  std::copy_n(coarse_inner_box.smallEnd().getVect(), AMREX_SPACEDIM, lower.data());
-  std::copy_n(coarse_inner_box.bigEnd().getVect(), AMREX_SPACEDIM, upper.data());
-  BOOST_LOG(log) << fmt::format(" - coarse_inner_box = {{{{{}}}, {{{}}}}} [-]", lower, upper);
+  std::copy_n(coarse_inner_box.smallEnd().getVect(), AMREX_SPACEDIM,
+              lower.data());
+  std::copy_n(coarse_inner_box.bigEnd().getVect(), AMREX_SPACEDIM,
+              upper.data());
+  BOOST_LOG(log) << fmt::format(" - coarse_inner_box = {{{{{}}}, {{{}}}}} [-]",
+                                lower, upper);
 }
-
 
 template <int Rank>
 MassflowBoundary<Rank>::MassflowBoundary(const IdealGasMix<Rank>& eq,
-                                   const MassflowBoundaryOptions& options)
+                                         const MassflowBoundaryOptions& options)
     : equation_{eq}, options_{options} {}
 
 template <int Rank>
 void MassflowBoundary<Rank>::FillBoundary(::amrex::MultiFab& mf,
-                                    const GriddingAlgorithm& grid, int level,
-                                    Direction dir) {
+                                          const GriddingAlgorithm& grid,
+                                          int level, Direction dir) {
   if (dir == options_.dir) {
     FillBoundary(mf, grid, level);
   }
 }
 
 template <int Rank>
-void MassflowBoundary<Rank>::ComputeBoundaryState(Complete<IdealGasMix<Rank>>& boundary, const Complete<IdealGasMix<Rank>>& state) {
+void MassflowBoundary<Rank>::ComputeBoundaryState(
+    Complete<IdealGasMix<Rank>>& boundary,
+    const Complete<IdealGasMix<Rank>>& state) {
   const double rho = state.density;
   const double u = state.momentum[int(options_.dir)] / rho;
   const double p = state.pressure;
@@ -102,7 +107,8 @@ void MassflowBoundary<Rank>::ComputeBoundaryState(Complete<IdealGasMix<Rank>>& b
 
 template <int Rank>
 void MassflowBoundary<Rank>::FillBoundary(::amrex::MultiFab& mf,
-                                    const GriddingAlgorithm& grid, int level) {
+                                          const GriddingAlgorithm& grid,
+                                          int level) {
   boost::log::sources::severity_channel_logger<
       boost::log::trivial::severity_level>
       log(boost::log::keywords::channel = options_.channel_name,
@@ -129,8 +135,8 @@ void MassflowBoundary<Rank>::FillBoundary(::amrex::MultiFab& mf,
   const double c = state.speed_of_sound;
   const double Ma = u / c;
   BOOST_LOG(log) << fmt::format("Outer state: rho = {} [kg/m3], u = {} [m/s], "
-                                 "p = {} [Pa], Ma = {} [-]",
-                                 rho, u, p, Ma);
+                                "p = {} [Pa], Ma = {} [-]",
+                                rho, u, p, Ma);
   FillBoundary(mf, geom, state);
 }
 
@@ -148,19 +154,20 @@ void MassflowBoundary<Rank>::FillBoundary(
   ForEachFab(execution::seq, mf, [&](const ::amrex::MFIter& mfi) {
     ::amrex::FArrayBox& fab = mf[mfi];
     for (const ::amrex::Box& boundary : boundaries) {
-      ::amrex::Box shifted =
-          ::amrex::shift(boundary, int(options_.dir), GetSign(options_.side) * ngrow);
+      ::amrex::Box shifted = ::amrex::shift(boundary, int(options_.dir),
+                                            GetSign(options_.side) * ngrow);
       if (!geom.Domain().intersects(shifted)) {
         continue;
       }
       ::amrex::Box box_to_fill = mfi.growntilebox() & boundary;
       if (!box_to_fill.isEmpty()) {
-        auto states = MakeView<Complete<IdealGasMix<Rank>>>(
-            fab, equation_, mfi.growntilebox());
-        ForEachIndex(AsIndexBox<Rank>(box_to_fill), [&state, &states](auto... is) {
-          std::array<std::ptrdiff_t, Rank> dest{int(is)...};
-          Store(states, state, dest);
-        });
+        auto states = MakeView<Complete<IdealGasMix<Rank>>>(fab, equation_,
+                                                            mfi.growntilebox());
+        ForEachIndex(AsIndexBox<Rank>(box_to_fill),
+                     [&state, &states](auto... is) {
+                       std::array<std::ptrdiff_t, Rank> dest{int(is)...};
+                       Store(states, state, dest);
+                     });
       }
     }
   });

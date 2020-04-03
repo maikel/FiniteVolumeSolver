@@ -29,7 +29,8 @@
 #include <AMReX.H>
 
 namespace fub::amrex::cutcell {
-
+/// \ingroup BoundaryCondition
+///
 struct MassflowBoundaryOptions {
   MassflowBoundaryOptions() = default;
   MassflowBoundaryOptions(const ProgramOptions& options);

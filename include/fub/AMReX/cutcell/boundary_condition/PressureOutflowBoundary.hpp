@@ -31,6 +31,8 @@
 #include <AMReX_MultiFab.H>
 
 namespace fub::amrex::cutcell {
+/// \ingroup BoundaryCondition
+///
 struct PressureOutflowOptions {
   PressureOutflowOptions() = default;
   PressureOutflowOptions(const ProgramOptions& options);
@@ -42,6 +44,8 @@ struct PressureOutflowOptions {
   int side = 0;
 };
 
+/// \ingroup BoundaryCondition
+///
 class PressureOutflowBoundary {
 public:
   PressureOutflowBoundary(const PerfectGas<AMREX_SPACEDIM>& eq,

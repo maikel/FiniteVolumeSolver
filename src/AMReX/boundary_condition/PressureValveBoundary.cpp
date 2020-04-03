@@ -127,8 +127,9 @@ std::vector<double> GatherMoles_(const GriddingAlgorithm& grid, double x,
                                  IdealGasMix<1>& eq) {
   const PatchHierarchy& hier = grid.GetPatchHierarchy();
   const int nlevel = hier.GetNumberOfLevels();
-  std::vector<double> moles(eq.GetReactor().GetNSpecies());
-  std::vector<double> local_moles(moles.size());
+  std::size_t size = static_cast<std::size_t>(eq.GetReactor().GetNSpecies());
+  std::vector<double> global_moles(size);
+  std::vector<double> local_moles(size);
   for (int level = nlevel - 1; level >= 0; --level) {
     const ::amrex::MultiFab& data = hier.GetPatchLevel(level).data;
     const ::amrex::Geometry& geom = hier.GetGeometry(level);
@@ -159,12 +160,13 @@ std::vector<double> GatherMoles_(const GriddingAlgorithm& grid, double x,
     MPI_Allreduce(&local_found, &found, 1, MPI_INT, MPI_SUM,
                   ::amrex::ParallelContext::CommunicatorAll());
     if (found) {
-      MPI_Allreduce(local_moles.data(), moles.data(), moles.size(), MPI_DOUBLE,
+      const int nspecies = static_cast<int>(size);
+      MPI_Allreduce(local_moles.data(), global_moles.data(), nspecies, MPI_DOUBLE,
                     MPI_SUM, ::amrex::ParallelContext::CommunicatorAll());
       break;
     }
   }
-  return moles;
+  return global_moles;
 }
 
 double ChangeState_(PressureValveState& state, const ::amrex::Geometry& geom,
@@ -241,6 +243,8 @@ double ChangeState_(PressureValveState& state, const ::amrex::Geometry& geom,
   return mean_pressure;
 }
 
+} // namespace
+
 void PressureValveBoundary::FillBoundary(::amrex::MultiFab& mf,
                                          const GriddingAlgorithm& grid,
                                          int level, Direction dir) {
@@ -262,8 +266,9 @@ void PressureValveBoundary::FillBoundary(::amrex::MultiFab& mf,
   }
 
   // Change State Machine if neccessary
-  ChangeState_(shared_valve_->state, geom, grid, shared_valve_->last_closed,
-               shared_valve_->last_fuel, options_, equation_);
+  ChangeState_(shared_valve_->state, geom, grid, level,
+               shared_valve_->last_closed, shared_valve_->last_fuel, options_,
+               equation_);
 
   ReflectiveBoundary closed(execution::openmp, equation_, Direction::X, 0);
   MassflowBoundary inflow_boundary(equation_, options_.massflow_boundary);
@@ -327,4 +332,4 @@ void PressureValveBoundary::FillBoundary(::amrex::MultiFab& mf,
     });
   }
 }
-} // namespace
+} // namespace fub::amrex

@@ -51,6 +51,8 @@ private:
   int side_;
 };
 
+/// \ingroup BoundaryCondition
+///
 template <typename Equation>
 ReflectiveBoundary(const Equation&, Direction, int)
     ->ReflectiveBoundary<execution::SequentialTag, Equation>;
