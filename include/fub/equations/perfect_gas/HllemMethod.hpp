@@ -26,6 +26,7 @@
 
 namespace fub::perfect_gas {
 
+/// \ingroup FluxMethod
 template <int Dim> struct Hllem {
   using Conservative = ::fub::Conservative<PerfectGas<Dim>>;
   using Complete = ::fub::Complete<PerfectGas<Dim>>;
@@ -67,6 +68,7 @@ extern template struct Hllem<1>;
 extern template struct Hllem<2>;
 extern template struct Hllem<3>;
 
+/// \ingroup FluxMethod
 template <int Dim> using HllemMethod = FluxMethod<Hllem<Dim>>;
 
 } // namespace fub::perfect_gas

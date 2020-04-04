@@ -8,6 +8,9 @@ target_link_libraries(test.geometry.Polygon FiniteVolumeSolver.Solver)
 add_executable(test.AMReX.average_down test.AMReX.average_down.cpp)
 target_link_libraries(test.AMReX.average_down AMReX::amrex)
 
+add_executable(test.AMReX.tilebox test.AMReX.tilebox.cpp)
+target_link_libraries(test.AMReX.tilebox AMReX::amrex)
+
 if (TARGET Catch2)
   add_executable(test.FlameMasterReactor test.FlameMasterReactor.cpp)
   target_link_libraries(test.FlameMasterReactor FiniteVolumeSolver.Solver Catch2)

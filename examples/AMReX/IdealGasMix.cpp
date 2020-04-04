@@ -27,38 +27,33 @@
 
 #include <iostream>
 
-struct ProgramOptions {
-  double final_time{0.20};
-  double cfl{0.8};
-  int n_cells{200};
-  int max_refinement_level{1};
-  double domain_length{1.5};
-  double output_interval{1.0E-5};
-};
-
-void MyMain(const ProgramOptions& opts) {
+void MyMain(const fub::ProgramOptions& opts) {
   // Store a reference timepoint to measure the wall time duration
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
-  constexpr int Dim = AMREX_SPACEDIM;
+  using namespace fub::amrex;
+  ScopeGuard scope_guard{};
 
-  // Setup the domain parameters
-  const std::array<int, Dim> n_cells{AMREX_D_DECL(opts.n_cells, 1, 1)};
-  const int nlevels = opts.max_refinement_level;
-  const std::array<double, Dim> xlower{AMREX_D_DECL(0.0, 0.0, 0.0)};
-  const std::array<double, Dim> xupper{
-      AMREX_D_DECL(opts.domain_length, +0.03, +0.03)};
+  constexpr int TubeDim = 1;
 
   // Define the equation which will be solved
   fub::Burke2012 mechanism{};
-  fub::IdealGasMix<1> equation{fub::FlameMasterReactor(mechanism)};
+  fub::IdealGasMix<TubeDim> equation{fub::FlameMasterReactor(mechanism)};
+
+  fub::SeverityLogger info = fub::GetInfoLogger();
 
   // Define the GriddingAlgorithm for this simulation and initialize data.
-  // {{{
-  fub::amrex::CartesianGridGeometry geometry;
-  geometry.cell_dimensions = n_cells;
-  geometry.coordinates = amrex::RealBox(xlower, xupper);
+
+  fub::amrex::CartesianGridGeometry grid_geometry =
+      fub::GetOptions(opts, "CartesianGridGeometry");
+  BOOST_LOG(info) << "CartesianGridGeometry: ";
+  grid_geometry.Print(info);
+
+  PatchHierarchyOptions hierarchy_options =
+      fub::GetOptions(opts, "PatchHierarchy");
+  BOOST_LOG(info) << "PatchHierarchy: ";
+  hierarchy_options.Print(info);
 
   using Complete = fub::IdealGasMix<1>::Complete;
   fub::amrex::GradientDetector gradient{
@@ -66,18 +61,21 @@ void MyMain(const ProgramOptions& opts) {
       std::make_pair(&Complete::density, 1e-3),
       std::make_pair(&Complete::temperature, 1e-1)};
 
-  fub::amrex::BoundarySet boundary;
-  using fub::amrex::IsentropicPressureBoundary;
-  using fub::amrex::PressureValveBoundary;
-  fub::amrex::PressureValveOptions valve_options{};
-  boundary.conditions.push_back(PressureValveBoundary{equation, valve_options});
-  boundary.conditions.push_back(
-      IsentropicPressureBoundary{equation, 101325.0, fub::Direction::X, 1});
+  BoundarySet boundary;
 
-  fub::amrex::PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = nlevels;
-  hier_opts.refine_ratio = amrex::IntVect{AMREX_D_DECL(2, 1, 1)};
-  hier_opts.blocking_factor = amrex::IntVect{AMREX_D_DECL(8, 1, 1)};
+  PressureValveOptions valve_options = fub::GetOptions(opts, "PressureValveBoundary");
+  BOOST_LOG(info) << "PressureValveBoundary:";
+  valve_options.Print(info);
+
+  IsentropicPressureBoundaryOptions right_boundary =
+      fub::GetOptions(opts, "IsentropicPressureBoundary");
+  BOOST_LOG(info) << "IsentropicPressureBoundary: ";
+  right_boundary.Print(info);
+
+  boundary.conditions.push_back(
+      PressureValveBoundary{equation, valve_options});
+  boundary.conditions.push_back(
+      IsentropicPressureBoundary{equation, right_boundary});
 
   fub::IdealGasMix<1>::Complete state(equation);
   equation.GetReactor().SetMoleFractions("N2:79,O2:21");
@@ -87,7 +85,7 @@ void MyMain(const ProgramOptions& opts) {
 
   using fub::amrex::ConstantData;
   std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
-      fub::amrex::PatchHierarchy(equation, geometry, hier_opts),
+      fub::amrex::PatchHierarchy(equation, grid_geometry, hierarchy_options),
       ConstantData{equation, state}, gradient, boundary);
   gridding->InitializeHierarchy(0.0);
   // }}}
@@ -96,7 +94,7 @@ void MyMain(const ProgramOptions& opts) {
   // {{{
   fub::ideal_gas::MusclHancockPrimMethod<1> flux_method(equation);
 
-  fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(flux_method),
+  fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethodAdapter(flux_method),
                                       fub::amrex::EulerForwardTimeIntegrator(),
                                       fub::amrex::Reconstruction(equation)};
 
@@ -106,11 +104,12 @@ void MyMain(const ProgramOptions& opts) {
   fub::DimensionalSplitLevelIntegrator system_solver(
       fub::int_c<1>,
       fub::amrex::IntegratorContext(gridding, method, scratch_gcw, flux_gcw),
-      fub::GodunovSplitting());
+      fub::GodunovSplitting{});
 
-  fub::amrex::IgniteDetonationOptions io{};
-  io.ignite_interval = fub::Duration(0.01);
-  fub::amrex::IgniteDetonation ignite(equation, hier_opts.max_number_of_levels,
+  fub::amrex::IgniteDetonationOptions io(fub::GetOptions(opts, "IgniteDetonation"));
+  BOOST_LOG(info) << "IgniteDetonation:";
+  io.Print(info);
+  fub::amrex::IgniteDetonation ignite(equation, hierarchy_options.max_number_of_levels,
                                       io);
 
   fub::SplitSystemSourceLevelIntegrator ign_solver(
@@ -119,39 +118,41 @@ void MyMain(const ProgramOptions& opts) {
   fub::ideal_gas::KineticSourceTerm<1> source_term(equation);
 
   fub::SplitSystemSourceLevelIntegrator level_integrator(
-      std::move(ign_solver), std::move(source_term), fub::StrangSplitting());
+      std::move(ign_solver), std::move(source_term), fub::StrangSplittingLumped());
 
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
   // }}}
 
   // Run the simulation with given feedback functions
 
-  std::string base_name = "IdealGasMix/";
-  int rank = -1;
-  MPI_Comm_rank(solver.GetMpiCommunicator(), &rank);
+  // Run the simulation with given feedback functions
 
   using namespace std::literals::chrono_literals;
-  fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> output{};
-  output.AddOutput(fub::MakeOutput<fub::amrex::GriddingAlgorithm>(
-      {}, {0.00025s}, fub::amrex::PlotfileOutput(equation, base_name)));
-  output.AddOutput(
-      std::make_unique<fub::CounterOutput<fub::amrex::GriddingAlgorithm>>(
-          wall_time_reference, std::vector<std::ptrdiff_t>{},
-          std::vector<fub::Duration>{0.001s}));
+  using Plotfile = PlotfileOutput<fub::IdealGasMix<1>>;
+  using CounterOutput =
+      fub::CounterOutput<GriddingAlgorithm, std::chrono::milliseconds>;
+  fub::OutputFactory<GriddingAlgorithm> factory{};
+  factory.RegisterOutput<Plotfile>("Plotfile", equation);
+  factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
+  factory.RegisterOutput<WriteHdf5>("HDF5");
+  fub::MultipleOutputs<GriddingAlgorithm> output(
+      std::move(factory), fub::GetOptions(opts, "Output"));
+
+  fub::RunOptions run_options = fub::GetOptions(opts, "RunOptions");
+  BOOST_LOG(info) << "RunOptions: ";
+  run_options.Print(info);
 
   output(*solver.GetGriddingAlgorithm());
-  fub::RunOptions run_options{};
-  run_options.cfl = opts.cfl;
-  run_options.final_time = fub::Duration(opts.final_time);
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }
 
-int main() {
+int main(int argc, char** argv) {
   MPI_Init(nullptr, nullptr);
   fub::InitializeLogging(MPI_COMM_WORLD);
-  {
-    fub::amrex::ScopeGuard _{};
-    MyMain({});
+  pybind11::scoped_interpreter interpreter{};
+  std::optional<fub::ProgramOptions> opts = fub::ParseCommandLine(argc, argv);
+  if (opts) {
+    MyMain(*opts);
   }
   int flag = -1;
   MPI_Finalized(&flag);

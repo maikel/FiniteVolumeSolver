@@ -135,6 +135,7 @@ PatchHierarchy::GetPatchLevel(int level) const {
 std::ptrdiff_t PatchHierarchy::GetCycles(int level) const {
   return cycles_[static_cast<std::size_t>(level)];
 }
+
 Duration PatchHierarchy::GetTimePoint(int level) const {
   return time_points_[static_cast<std::size_t>(level)];
 }

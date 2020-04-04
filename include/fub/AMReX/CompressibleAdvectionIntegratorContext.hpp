@@ -30,6 +30,7 @@ struct CompressibleAdvectionAdvectiveFluxes {
   std::array<::amrex::MultiFab, AMREX_SPACEDIM> on_faces;
 };
 
+/// \ingroup IntegratorContext
 class CompressibleAdvectionIntegratorContext : public IntegratorContext {
 public:
   CompressibleAdvectionIntegratorContext(

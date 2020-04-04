@@ -37,19 +37,16 @@ Index<Rank> ReflectIndex_(Index<Rank> i, const IndexBox<Rank>& fillbox,
 }
 } // namespace
 
-std::array<std::ptrdiff_t, 1> ReflectIndex(std::array<std::ptrdiff_t, 1> i,
-                                           const IndexBox<1>& domain,
-                                           Direction dir, int side) {
+Index<1> ReflectIndex(Index<1> i, const IndexBox<1>& domain, Direction dir,
+                      int side) {
   return ReflectIndex_(i, domain, dir, side);
 }
-std::array<std::ptrdiff_t, 2> ReflectIndex(std::array<std::ptrdiff_t, 2> i,
-                                           const IndexBox<2>& domain,
-                                           Direction dir, int side) {
+Index<2> ReflectIndex(Index<2> i, const IndexBox<2>& domain, Direction dir,
+                      int side) {
   return ReflectIndex_(i, domain, dir, side);
 }
-std::array<std::ptrdiff_t, 3> ReflectIndex(std::array<std::ptrdiff_t, 3> i,
-                                           const IndexBox<3>& domain,
-                                           Direction dir, int side) {
+Index<3> ReflectIndex(Index<3> i, const IndexBox<3>& domain, Direction dir,
+                      int side) {
   return ReflectIndex_(i, domain, dir, side);
 }
 

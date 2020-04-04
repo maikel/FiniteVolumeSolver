@@ -199,6 +199,7 @@ constexpr std::size_t count_dynamic_extents(IndexType... extent) noexcept {
   return counter;
 }
 
+/// \ingroup spans
 /// An extents object defines a multidimensional index space which is the
 /// Cartesian product of integers extents `[0..N0) * [0..N1) * ...`
 template <std::ptrdiff_t... StaticExtents>
@@ -287,6 +288,7 @@ constexpr std::ptrdiff_t Size_(const extents<StaticExtents...> e) noexcept {
   return size;
 }
 
+/// \ingroup spans
 /// This layout creates mappings which do row first indexing (as in Fortran).
 ///
 /// It holds for all valid `i` and `j` the equation
@@ -394,6 +396,8 @@ struct layout_left {
   };
 };
 
+
+/// \ingroup spans
 struct layout_right {
   template <typename Extents> class mapping : private Extents {
   public:
@@ -464,6 +468,7 @@ struct layout_right {
   };
 };
 
+/// \ingroup spans
 struct layout_stride {
   template <class Extents> class mapping : private Extents {
   public:
@@ -544,6 +549,7 @@ struct layout_stride {
   };
 };
 
+/// \ingroup spans
 template <class ElementType> struct accessor_basic {
   using offset_policy = accessor_basic;
   using element_type = ElementType;
@@ -561,6 +567,7 @@ template <class ElementType> struct accessor_basic {
   constexpr pointer decay(pointer p) const noexcept { return p; }
 };
 
+/// \ingroup spans
 template <class ElementType, class Extents, class LayoutPolicy = layout_right,
           class AccessorPolicy = accessor_basic<ElementType>>
 class basic_mdspan : AccessorPolicy, LayoutPolicy::template mapping<Extents> {
@@ -702,6 +709,7 @@ private:
   pointer ptr_{};
 };
 
+/// \ingroup spans
 template <typename T, ptrdiff_t... Extents>
 using static_mdspan = basic_mdspan<T, extents<Extents...>>;
 
@@ -719,9 +727,11 @@ using dynamic_extents =
 // template <typename T, std::size_t Rank, typename Layout = layout_right>
 // using DynamicMdSpan = basic_mdspan<T, dynamic_extents<Rank>, Layout>;
 
+/// \ingroup spans
 template <typename T, std::size_t Rank, typename Layout = layout_left>
 using mdspan = basic_mdspan<T, dynamic_extents<Rank>, Layout>;
 
+/// \ingroup spans
 template <typename T, typename E, typename A = accessor_basic<T>>
 using strided_mdspan = basic_mdspan<T, E, layout_stride, A>;
 

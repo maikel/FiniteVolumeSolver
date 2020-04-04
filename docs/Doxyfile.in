@@ -568,7 +568,7 @@ SORT_MEMBER_DOCS       = YES
 # this will also influence the order of the classes in the class list.
 # The default value is: NO.
 
-SORT_BRIEF_DOCS        = YES
+SORT_BRIEF_DOCS        = NO
 
 # If the SORT_MEMBERS_CTORS_1ST tag is set to YES then doxygen will sort the
 # (brief and detailed) documentation of class members so that constructors and
@@ -783,14 +783,25 @@ WARN_LOGFILE           =
 INPUT                  = "../include/fub/" \
                          "../include/fub/output/" \
                          "../include/fub/flux_method/" \
+                         "../include/fub/tagging_method/" \
                          "../include/fub/boundary_condition/" \
+                         "../include/fub/ext" \
                          "../include/fub/core" \
                          "../include/fub/cutcell_method/" \
                          "../include/fub/equations/" \
+                         "../include/fub/equations/ideal_gas_mix" \
+                         "../include/fub/equations/perfect_gas" \
                          "../include/fub/geometry/" \
                          "../include/fub/AMReX/" \
-                         "../include/fub/AMReX/cutcell/" \
                          "../include/fub/AMReX/output/" \
+                         "../include/fub/AMReX/tagging_method/" \
+                         "../include/fub/AMReX/boundary_condition/" \
+                         "../include/fub/AMReX/cutcell/" \
+                         "../include/fub/AMReX/cutcell/tagging_method/" \
+                         "../include/fub/AMReX/cutcell/boundary_condition/" \
+                         "../include/fub/AMReX/multi_block/" \
+                         "../include/fub/SAMRAI/" \
+                         "../include/fub/SAMRAI/tagging_method/" \
                          "../"
 
 # This tag can be used to specify the character encoding of the source files
@@ -903,7 +914,13 @@ EXCLUDE_PATTERNS       = CMake* \
 # Note that the wildcards are matched against the file with absolute path, so to
 # exclude all test directories use the pattern */test/*
 
-# EXCLUDE_SYMBOLS        = "fub::detail"
+EXCLUDE_SYMBOLS        = "fub::detail" \
+                         "fub::amrex::detail" \
+                         "fub::amrex::cutcell::detail" \
+                         "fub::samrai::detail" \
+                         "fub::p4est::detail" \
+                         "SAMRAI" \
+                         "boost"
 
 # The EXAMPLE_PATH tag can be used to specify one or more files or directories
 # that contain example code fragments that are included (see the \include
@@ -1481,7 +1498,7 @@ DISABLE_INDEX          = NO
 # The default value is: NO.
 # This tag requires that the tag GENERATE_HTML is set to YES.
 
-GENERATE_TREEVIEW      = YES
+GENERATE_TREEVIEW      = NO
 
 # The ENUM_VALUES_PER_LINE tag can be used to set the number of enum values that
 # doxygen will group on one line in the generated HTML documentation.

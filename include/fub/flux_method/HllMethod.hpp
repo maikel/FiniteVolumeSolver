@@ -145,6 +145,7 @@ class Hll : public HllArrayBase<Equation, SignalSpeeds,
 template <typename Equation, typename Signals>
 Hll(const Equation& eq, const Signals& signals)->Hll<Equation, Signals>;
 
+/// \ingroup FluxMethod
 template <typename Equation, typename Signals>
 struct HllMethod : public FluxMethod<Hll<Equation, Signals>> {
   using FluxMethod<Hll<Equation, Signals>>::FluxMethod;

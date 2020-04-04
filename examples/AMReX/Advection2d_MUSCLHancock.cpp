@@ -87,7 +87,7 @@ int main(int argc, char** argv) {
   gridding->InitializeHierarchy(0.0);
 
   fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethod(fub::MusclHancockMethod{equation}),
+      fub::amrex::FluxMethodAdapter(fub::MusclHancockMethod{equation}),
       fub::amrex::EulerForwardTimeIntegrator(), fub::amrex::NoReconstruction{}};
 
   const int scratch_gcw = 8;
@@ -105,9 +105,8 @@ int main(int argc, char** argv) {
   using namespace std::literals::chrono_literals;
   fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> output{};
 
-  output.AddOutput(fub::MakeOutput<fub::amrex::GriddingAlgorithm>(
-      {}, {0.1s}, fub::amrex::PlotfileOutput(equation, base_name)));
-
+  output.AddOutput(std::make_unique<fub::amrex::PlotfileOutput<fub::Advection2d>>(std::vector<std::ptrdiff_t>{},
+          std::vector<fub::Duration>{0.1s}, equation, base_name));
   output.AddOutput(
       std::make_unique<fub::CounterOutput<fub::amrex::GriddingAlgorithm>>(
           wall_time_reference, std::vector<std::ptrdiff_t>{},

@@ -27,9 +27,11 @@
 #include <SAMRAI/hier/Patch.h>
 #include <SAMRAI/pdat/SideDataFactory.h>
 
+#include "fub/ext/uuid.hpp"
+
 #include "fub/SAMRAI/GriddingAlgorithm.hpp"
-#include "fub/SAMRAI/tagging/ConstantBox.hpp"
-#include "fub/SAMRAI/tagging/GradientDetector.hpp"
+#include "fub/SAMRAI/tagging_method/ConstantBox.hpp"
+#include "fub/SAMRAI/tagging_method/GradientDetector.hpp"
 #include <boost/container/static_vector.hpp>
 
 namespace fub {
@@ -49,7 +51,8 @@ GetCartesianGridGeometry(const SAMRAI::hier::PatchLevel& level) {
       static_cast<const SAMRAI::geom::CartesianGridGeometry&>(
           *level.getGridGeometry());
   return std::static_pointer_cast<SAMRAI::geom::CartesianGridGeometry>(
-      base_geom.makeRefinedGridGeometry("", level.getRatioToLevelZero()));
+      base_geom.makeRefinedGridGeometry(MakeUniqueName(),
+                                        level.getRatioToLevelZero()));
 }
 
 } // namespace fub

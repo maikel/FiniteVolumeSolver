@@ -51,13 +51,13 @@ TEST_CASE("sequential is correct") {
   }
   SECTION ("1D: 8 cells") {
     std::vector<double> next_data(8, NaN);
-    const std::vector<double> prev_data{8, 1.0};
+    const std::vector<double> prev_data(8, 1.0);
     const std::vector<double> flux_data{0.3, 0.4, -0.2, 0.0, 0.1, 0.2, 0.0, 0.0, 0.0};
-    fub::IndexBox<2> cells{{0, 0}, {1, 1}};
-    fub::IndexBox<2> faces{{0, 0}, {2, 1}};
-    auto next = MakePdv(fub::span(next_data), 1, 1).Subview(cells);
-    auto prev = MakePdv(fub::span(prev_data), 1, 1).Subview(cells);
-    auto flux = MakePdv(fub::span(flux_data), 2, 1).Subview(faces);
+    fub::IndexBox<2> cells{{0, 0}, {8, 1}};
+    fub::IndexBox<2> faces{{0, 0}, {9, 1}};
+    auto next = MakePdv(fub::span(next_data), 8, 1).Subview(cells);
+    auto prev = MakePdv(fub::span(prev_data), 8, 1).Subview(cells);
+    auto flux = MakePdv(fub::span(flux_data), 9, 1).Subview(faces);
     auto integrator = fub::HyperbolicPatchIntegrator(fub::execution::seq);
     integrator.UpdateConservatively(next, prev, flux, fub::Duration(1.0), 1.0,
                                     fub::Direction::X);
@@ -85,13 +85,13 @@ TEST_CASE("simd is correct") {
 
       SECTION ("1D: 8 cells") {
     std::vector<double> next_data(8, NaN);
-    const std::vector<double> prev_data{8, 1.0};
+    const std::vector<double> prev_data(8, 1.0);
     const std::vector<double> flux_data{0.3, 0.4, -0.2, 0.0, 0.1, 0.2, 0.0, 0.0, 0.0};
-    fub::IndexBox<2> cells{{0, 0}, {1, 1}};
-    fub::IndexBox<2> faces{{0, 0}, {2, 1}};
-    auto next = MakePdv(fub::span(next_data), 1, 1).Subview(cells);
-    auto prev = MakePdv(fub::span(prev_data), 1, 1).Subview(cells);
-    auto flux = MakePdv(fub::span(flux_data), 2, 1).Subview(faces);
+    fub::IndexBox<2> cells{{0, 0}, {8, 1}};
+    fub::IndexBox<2> faces{{0, 0}, {9, 1}};
+    auto next = MakePdv(fub::span(next_data), 8, 1).Subview(cells);
+    auto prev = MakePdv(fub::span(prev_data), 8, 1).Subview(cells);
+    auto flux = MakePdv(fub::span(flux_data), 9, 1).Subview(faces);
     auto integrator = fub::HyperbolicPatchIntegrator(fub::execution::simd);
     integrator.UpdateConservatively(next, prev, flux, fub::Duration(1.0), 1.0,
                                     fub::Direction::X);
