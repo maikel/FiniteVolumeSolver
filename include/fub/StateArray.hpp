@@ -63,6 +63,10 @@ struct ConservativeArray : ConservativeArrayBase<Eq, Width> {
         },
         *this, depths);
   }
+};
+
+template <typename Eq, int Width>
+struct StateTraits<ConservativeArray<Eq, Width>>
     : StateTraits<ConservativeArrayBase<Eq, Width>> {};
 
 namespace detail {
