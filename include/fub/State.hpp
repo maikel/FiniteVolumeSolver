@@ -105,6 +105,7 @@ struct ScalarDepth : std::integral_constant<int, 1> {};
 /// This type is used to tag quantities with a depth known at compile time.
 template <int Depth> struct VectorDepth : std::integral_constant<int, Depth> {};
 
+namespace detail {
 /// @{
 /// This meta-function transforms a Depth into a value type used in a states or
 /// state arrays.
@@ -131,27 +132,31 @@ template <typename T>
 using DepthToStateValueType = typename DepthToStateValueTypeImpl<T, 1>::type;
 /// @}
 
+template <typename T, typename Eq> struct DepthsImpl;
+} // namespace detail
+
+template <typename T, typename Eq> auto Depths(const Eq& eq) {
+  detail::DepthsImpl<T, Eq> depths;
+  return depths(eq);
+}
+
+namespace meta {
+template <typename T>
+using Depths =
+    decltype(::fub::Depths<T>(std::declval<typename T::Equation const&>()));
+}
+
 /// This type alias transforms state depths into a conservative state associated
 /// with a specified equation.
 template <typename Equation>
 using ConservativeBase =
-    boost::mp11::mp_transform<DepthToStateValueType,
+    boost::mp11::mp_transform<detail::DepthToStateValueType,
                               typename Equation::ConservativeDepths>;
-
-template <typename Eq> struct Conservative;
-template <typename Eq> struct Complete;
-
-template <typename Equation>
-void InitializeState(const Equation&, const Conservative<Equation>&) {}
-
-template <typename Equation>
-void InitializeState(const Equation&, const Complete<Equation>&) {}
 
 /// This type has a constructor which takes an equation and might allocate any
 /// dynamically sized member variable.
 template <typename Eq> struct Conservative : ConservativeBase<Eq> {
   using Equation = Eq;
-  using Depths = typename Equation::ConservativeDepths;
   using ValueType = double;
   using Traits = StateTraits<ConservativeBase<Equation>>;
 
@@ -161,7 +166,20 @@ template <typename Eq> struct Conservative : ConservativeBase<Eq> {
     static_cast<ConservativeBase<Eq>&>(*this) = x;
   }
   Conservative(const Equation& eq) : ConservativeBase<Eq>{} {
-    InitializeState(eq, *this);
+    auto depths = Depths<Conservative<Equation>>(eq);
+    ForEachVariable(
+        overloaded{
+            [&](double& id, ScalarDepth) { id = 0.0; },
+            [&](auto&& ids, auto depth) {
+              if constexpr (std::is_same_v<std::decay_t<decltype(depth)>,
+                                           int>) {
+                ids = Array<double, 1, Eigen::Dynamic>::Zero(1, depth);
+              } else {
+                ids = Array<double, 1, decltype(depth)::value>::Zero();
+              }
+            },
+        },
+        *this, depths);
   }
 };
 
@@ -176,14 +194,13 @@ template <typename State> auto StateToTuple(const State& x) {
 
 template <typename Equation>
 using CompleteBase =
-    boost::mp11::mp_transform<DepthToStateValueType,
+    boost::mp11::mp_transform<detail::DepthToStateValueType,
                               typename Equation::CompleteDepths>;
 
 /// This type has a constructor which takes an equation and might allocate any
 /// dynamically sized member variable.
 template <typename Eq> struct Complete : CompleteBase<Eq> {
   using Equation = Eq;
-  using Depths = typename Equation::CompleteDepths;
   using ValueType = double;
   using Traits = StateTraits<CompleteBase<Equation>>;
 
@@ -193,7 +210,20 @@ template <typename Eq> struct Complete : CompleteBase<Eq> {
     static_cast<CompleteBase<Eq>&>(*this) = x;
   }
   Complete(const Equation& eq) : CompleteBase<Eq>{} {
-    InitializeState(eq, *this);
+    auto depths = Depths<Complete<Equation>>(eq);
+    ForEachVariable(
+        overloaded{
+            [&](double& id, ScalarDepth) { id = 0.0; },
+            [&](auto&& ids, auto depth) {
+              if constexpr (std::is_same_v<std::decay_t<decltype(depth)>,
+                                           int>) {
+                ids = Array<double, 1, Eigen::Dynamic>::Zero(1, depth);
+              } else {
+                ids = Array<double, 1, decltype(depth)::value>::Zero();
+              }
+            },
+        },
+        *this, depths);
   }
 };
 
@@ -201,7 +231,7 @@ template <typename Eq>
 struct StateTraits<Complete<Eq>> : StateTraits<CompleteBase<Eq>> {};
 
 ///// View type
-
+namespace detail {
 template <typename Depth, typename T, int Rank, typename Layout>
 struct DepthToViewValueType {
   using type = PatchDataView<T, Rank + 1, Layout>;
@@ -215,7 +245,7 @@ struct DepthToViewValueType<ScalarDepth, T, Rank, Layout> {
 template <typename State, typename Layout, int Rank> struct ViewBaseImpl {
   template <typename Depth>
   using fn = typename DepthToViewValueType<Depth, double, Rank, Layout>::type;
-  using type = boost::mp11::mp_transform<fn, typename State::Depths>;
+  using type = boost::mp11::mp_transform<fn, meta::Depths<State>>;
 };
 
 template <typename State, typename Layout, int Rank>
@@ -223,11 +253,12 @@ struct ViewBaseImpl<const State, Layout, Rank> {
   template <typename Depth>
   using fn =
       typename DepthToViewValueType<Depth, const double, Rank, Layout>::type;
-  using type = boost::mp11::mp_transform<fn, typename State::Depths>;
+  using type = boost::mp11::mp_transform<fn, meta::Depths<State>>;
 };
+} // namespace detail
 
 template <typename State, typename Layout, int Rank>
-using ViewBase = typename ViewBaseImpl<State, Layout, Rank>::type;
+using ViewBase = typename detail::ViewBaseImpl<State, Layout, Rank>::type;
 
 template <typename S, typename L = layout_left, int R = S::Equation::Rank()>
 struct BasicView : ViewBase<S, L, R> {
@@ -252,6 +283,9 @@ struct BasicView : ViewBase<S, L, R> {
 
 template <typename S, typename L, int R>
 BasicView(const BasicView<S, L, R>&)->BasicView<S, L, R>;
+
+template <typename S, typename L, int R>
+struct StateTraits<BasicView<S, L, R>> : StateTraits<ViewBase<S, L, R>> {};
 
 template <typename State, typename Layout, int Rank>
 BasicView<const State, Layout, Rank>
@@ -294,9 +328,6 @@ auto AsCons(const BasicView<State, L, R>& view) {
   }
 }
 
-template <typename S, typename L, int R>
-struct StateTraits<BasicView<S, L, R>> : StateTraits<ViewBase<S, L, R>> {};
-
 template <typename State, int Rank = State::Equation::Rank()>
 using View = BasicView<State, layout_stride, Rank>;
 
@@ -326,8 +357,7 @@ Mapping(const BasicView<State, Layout, Rank>& view) {
   return get<static_cast<std::size_t>(N)>(view).Mapping();
 }
 
-template <typename T, typename Eq> struct DepthsImpl;
-
+namespace detail {
 template <typename Eq> struct DepthsImpl<Complete<Eq>, Eq> {
   constexpr typename Eq::CompleteDepths operator()(const Eq&) const noexcept {
     return {};
@@ -348,11 +378,6 @@ struct DepthsImpl<BasicView<State, Layout, Rank>, Eq> {
     return depths(eq);
   }
 };
-
-template <typename T, typename Eq> auto Depths(const Eq& eq) {
-  DepthsImpl<T, Eq> depths;
-  return depths(eq);
-}
 
 template <typename T> struct GetNumberOfComponentsImpl {
   int_constant<1> operator()(double) const noexcept { return {}; }
@@ -466,6 +491,7 @@ struct AtComponentImpl<BasicView<S, Layout, Rank>> {
 };
 
 template <typename State> constexpr static AtComponentImpl<State> AtComponent{};
+} // namespace detail
 
 template <typename F, typename... Ts>
 void ForEachComponent(F function, Ts&&... states) {
@@ -474,9 +500,9 @@ void ForEachComponent(F function, Ts&&... states) {
         const auto vs = std::make_tuple(std::addressof(variables)...);
         using T =
             remove_cvref_t<boost::mp11::mp_first<boost::mp11::mp_list<Ts...>>>;
-        const int n_components = GetNumberOfComponents<T>(*std::get<0>(vs));
+        const int n_components = detail::GetNumberOfComponents<T>(*std::get<0>(vs));
         for (int i = 0; i < n_components; ++i) {
-          function(AtComponent<remove_cvref_t<Ts>>(variables, i)...);
+          function(detail::AtComponent<remove_cvref_t<Ts>>(variables, i)...);
         }
       },
       std::forward<Ts>(states)...);
@@ -528,22 +554,7 @@ void Store(const BasicView<Complete<Eq>, Layout, Eq::Rank()>& view,
       },
       view, state);
 }
-//
-// template <typename State, typename Layout, int Rank,
-//          typename... SliceSpecifiers>
-// View<State, SliceRank_<SliceSpecifiers...>>
-// Subspan(const BasicView<State, Layout, Rank>& view, SliceSpecifiers...
-// slices) {
-//  static constexpr int R = SliceRank_<SliceSpecifiers...>;
-//  View<State, R> subview{};
-//  ForEachVariable([&](auto& subcomp,
-//                      const auto& comp) { subcomp = subspan(comp, slices...);
-//                      },
-//                  subview, view);
-//  return subview;
-//}
 
-//
 template <Direction dir, typename T, typename L, int Rank,
           typename SliceSpecifier>
 auto Slice(const BasicView<T, L, Rank>& view, SliceSpecifier slice) {
@@ -552,16 +563,6 @@ auto Slice(const BasicView<T, L, Rank>& view, SliceSpecifier slice) {
                   sliced_view, view);
   return sliced_view;
 }
-
-// template <typename State, typename Layout, int Rank, typename... Indices>
-// View<State, 1> Row(const BasicView<State, Layout, Rank>& view, Indices... is)
-// {
-//  View<State, 1> row;
-//  ForEachVariable([&](auto&& r, auto&& v){
-//    r = Row(v, is...);
-//  }, row, view);
-//  return row;
-//}
 
 template <typename State, int Rank, typename Layout>
 View<State, Rank> Shrink(const BasicView<State, Layout, Rank>& view,
@@ -593,31 +594,30 @@ template <typename Equation> bool AnyNaN(const Complete<Equation>& state) {
   return any_nan;
 }
 
-template <typename T, typename Depth> struct DepthToPointerType;
+namespace detail {
+template <typename T, typename Depth> struct DepthToPointerType {
+  using type = std::pair<T*, std::ptrdiff_t>;
+};
 
 template <typename T> struct DepthToPointerType<T, ScalarDepth> {
   using type = T*;
 };
 
-template <typename T, int Rank>
-struct DepthToPointerType<T, VectorDepth<Rank>> {
-  using type = std::pair<T*, std::ptrdiff_t>;
-};
-
 template <typename State> struct ViewPointerBaseImpl {
   template <typename Depth>
   using fn = typename DepthToPointerType<double, Depth>::type;
-  using type = boost::mp11::mp_transform<fn, typename State::Depths>;
+  using type = boost::mp11::mp_transform<fn, meta::Depths<State>>;
 };
 
 template <typename State> struct ViewPointerBaseImpl<const State> {
   template <typename Depth>
   using fn = typename DepthToPointerType<const double, Depth>::type;
-  using type = boost::mp11::mp_transform<fn, typename State::Depths>;
+  using type = boost::mp11::mp_transform<fn, meta::Depths<State>>;
 };
+} // namespace detail
 
 template <typename State>
-using ViewPointerBase = typename ViewPointerBaseImpl<State>::type;
+using ViewPointerBase = typename detail::ViewPointerBaseImpl<State>::type;
 
 template <typename State> struct ViewPointer : ViewPointerBase<State> {
   using Traits = StateTraits<ViewPointer<State>>;
@@ -693,6 +693,7 @@ void Advance(ViewPointer<State>& pointer, std::ptrdiff_t n) noexcept {
                   pointer);
 }
 
+namespace detail {
 template <typename T> struct DepthToIndexMappingTypeImpl;
 
 /// The value-type for a single-cell state for a scalar quantity.
@@ -712,10 +713,11 @@ template <> struct DepthToIndexMappingTypeImpl<VectorDepth<dynamic_extent>> {
 
 template <typename T>
 using DepthToIndexMappingType = typename DepthToIndexMappingTypeImpl<T>::type;
+} // namespace detail
 
 template <typename Equation>
 using IndexMappingBase =
-    boost::mp11::mp_transform<DepthToIndexMappingType,
+    boost::mp11::mp_transform<detail::DepthToIndexMappingType,
                               typename Equation::CompleteDepths>;
 
 template <typename Equation> struct IndexMapping : IndexMappingBase<Equation> {

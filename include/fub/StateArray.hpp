@@ -26,16 +26,17 @@
 #include <boost/mp11/algorithm.hpp>
 
 namespace fub {
-
+namespace detail {
 template <typename Eq, int Width> struct ConservativeArrayBaseImpl {
   template <typename T>
   using fn = typename DepthToStateValueTypeImpl<T, Width>::type;
   using type = boost::mp11::mp_transform<fn, typename Eq::ConservativeDepths>;
 };
+} // namespace detail
 
 template <typename Eq, int Width = kDefaultChunkSize>
 using ConservativeArrayBase =
-    typename ConservativeArrayBaseImpl<Eq, Width>::type;
+    typename detail::ConservativeArrayBaseImpl<Eq, Width>::type;
 
 template <typename Eq, int Width = kDefaultChunkSize>
 struct ConservativeArray : ConservativeArrayBase<Eq, Width> {
@@ -46,8 +47,7 @@ struct ConservativeArray : ConservativeArrayBase<Eq, Width> {
   static constexpr int Size() { return Width; }
 
   ConservativeArray() = default;
-  ConservativeArray(const Equation& eq)
-  { 
+  ConservativeArray(const Equation& eq) {
     auto depths = Depths<Conservative<Equation>>(eq);
     ForEachVariable(
         overloaded{
@@ -62,22 +62,20 @@ struct ConservativeArray : ConservativeArrayBase<Eq, Width> {
             },
         },
         *this, depths);
-    InitializeState(eq, *this); 
   }
-};
-
-template <typename Eq, int Width>
-struct StateTraits<ConservativeArray<Eq, Width>>
     : StateTraits<ConservativeArrayBase<Eq, Width>> {};
 
+namespace detail {
 template <typename Eq, int Width> struct CompleteArrayBaseImpl {
   template <typename T>
   using fn = typename DepthToStateValueTypeImpl<T, Width>::type;
   using type = boost::mp11::mp_transform<fn, typename Eq::CompleteDepths>;
 };
+} // namespace detail
 
 template <typename Eq, int Width>
-using CompleteArrayBase = typename CompleteArrayBaseImpl<Eq, Width>::type;
+using CompleteArrayBase =
+    typename detail::CompleteArrayBaseImpl<Eq, Width>::type;
 
 template <typename Eq, int Width = kDefaultChunkSize>
 struct CompleteArray : CompleteArrayBase<Eq, Width> {
@@ -88,7 +86,7 @@ struct CompleteArray : CompleteArrayBase<Eq, Width> {
   static constexpr int Size() { return Width; }
 
   CompleteArray() = default;
-  CompleteArray(const Equation& eq) { 
+  CompleteArray(const Equation& eq) {
     auto depths = Depths<Complete<Equation>>(eq);
     ForEachVariable(
         overloaded{
@@ -103,15 +101,8 @@ struct CompleteArray : CompleteArrayBase<Eq, Width> {
             },
         },
         *this, depths);
-    InitializeState(eq, *this); 
   }
 };
-
-template <typename Equation>
-void InitializeState(const Equation&, CompleteArray<Equation>&) {}
-
-template <typename Equation>
-void InitializeState(const Equation&, ConservativeArray<Equation>&) {}
 
 template <typename Eq, int Width>
 struct StateTraits<CompleteArray<Eq, Width>>
