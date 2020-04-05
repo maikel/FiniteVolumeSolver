@@ -34,7 +34,7 @@ namespace amrex {
 namespace cutcell {
 namespace {
 using MultiCutFabs =
-    std::array<std::unique_ptr<::amrex::MultiCutFab>, AMREX_SPACEDIM>;
+    std::array<std::shared_ptr<::amrex::MultiCutFab>, AMREX_SPACEDIM>;
 
 MultiCutFabs MakeMultiCutFabs_(const ::amrex::BoxArray& ba,
                                const ::amrex::DistributionMapping& dm,
@@ -43,9 +43,9 @@ MultiCutFabs MakeMultiCutFabs_(const ::amrex::BoxArray& ba,
   MultiCutFabs mfabs;
   int dir = 0;
   const int ncomp = 2;
-  for (std::unique_ptr<::amrex::MultiCutFab>& mf : mfabs) {
+  for (std::shared_ptr<::amrex::MultiCutFab>& mf : mfabs) {
     ::amrex::IntVect unit = ::amrex::IntVect::TheDimensionVector(dir);
-    mf = std::make_unique<::amrex::MultiCutFab>(
+    mf = std::make_shared<::amrex::MultiCutFab>(
         ::amrex::convert(ba, unit), dm, ncomp, ngrow,
         factory.getMultiEBCellFlagFab());
     dir += 1;
@@ -54,48 +54,9 @@ MultiCutFabs MakeMultiCutFabs_(const ::amrex::BoxArray& ba,
 }
 } // namespace
 
-PatchLevel::PatchLevel(const PatchLevel& other)
-    : ::fub::amrex::PatchLevel(other), factory(other.factory),
-      unshielded(MakeMultiCutFabs_(box_array, distribution_mapping, *factory,
-                                   other.unshielded[0]->nGrow())),
-      shielded_left(MakeMultiCutFabs_(box_array, distribution_mapping, *factory,
-                                      other.shielded_left[0]->nGrow())),
-      shielded_right(MakeMultiCutFabs_(box_array, distribution_mapping,
-                                       *factory,
-                                       other.shielded_right[0]->nGrow())),
-      doubly_shielded(MakeMultiCutFabs_(box_array, distribution_mapping,
-                                        *factory,
-                                        other.doubly_shielded[0]->nGrow())) {
-  const ::amrex::FabArray<::amrex::EBCellFlagFab>& flags =
-      factory->getMultiEBCellFlagFab();
-  static constexpr int Rank = AMREX_SPACEDIM;
-  for (std::size_t d = 0; d < static_cast<std::size_t>(Rank); ++d) {
-    const ::amrex::BoxArray& ba = unshielded[d]->boxArray();
-    const ::amrex::DistributionMapping& dm = unshielded[d]->DistributionMap();
-    ForEachFab(execution::openmp, ba, dm, [&](const ::amrex::MFIter& mfi) {
-      if (flags[mfi].getType() == ::amrex::FabType::singlevalued) {
-        ::amrex::Box tilebox = mfi.growntilebox();
-        (*unshielded[d])[mfi].copy<::amrex::RunOn::Host>(
-            (*other.unshielded[d])[mfi], tilebox, ::amrex::SrcComp(0),
-            ::amrex::DestComp(0), ::amrex::NumComps(2));
-        (*shielded_left[d])[mfi].copy<::amrex::RunOn::Host>(
-            (*other.shielded_left[d])[mfi], tilebox, ::amrex::SrcComp(0),
-            ::amrex::DestComp(0), ::amrex::NumComps(2));
-        (*shielded_right[d])[mfi].copy<::amrex::RunOn::Host>(
-            (*other.shielded_right[d])[mfi], tilebox, ::amrex::SrcComp(0),
-            ::amrex::DestComp(0), ::amrex::NumComps(2));
-        (*doubly_shielded[d])[mfi].copy<::amrex::RunOn::Host>(
-            (*other.doubly_shielded[d])[mfi], tilebox, ::amrex::SrcComp(0),
-            ::amrex::DestComp(0), ::amrex::NumComps(2));
-      }
-    });
-  }
-}
+PatchLevel::PatchLevel(const PatchLevel& other) = default;
 
-PatchLevel& PatchLevel::operator=(const PatchLevel& other) {
-  PatchLevel tmp(other);
-  return *this = std::move(tmp);
-}
+PatchLevel& PatchLevel::operator=(const PatchLevel& other) = default;
 
 PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
                        const ::amrex::DistributionMapping& dm, int n_components,
