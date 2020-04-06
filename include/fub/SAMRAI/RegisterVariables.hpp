@@ -38,6 +38,7 @@ struct DataDescription {
   int n_cons_variables;
 };
 
+namespace detail {
 std::string MakeVariableName(const std::string& prefix,
                              const std::string& name);
 
@@ -60,11 +61,12 @@ std::shared_ptr<VariableType> GetVariable(SAMRAI::tbox::Dimension dim,
 }
 
 template <typename State, typename VariableType, typename Equation>
-void RegisterVariables(std::vector<int>& data_ids, const Equation& equation,
-                       const SAMRAI::tbox::Dimension& dim,
-                       const SAMRAI::hier::IntVector& ghost_layer_width,
-                       const std::string& prefix,
-                       const std::string& context_name) {
+void RegisterVariablesHelper(std::vector<int>& data_ids,
+                             const Equation& equation,
+                             const SAMRAI::tbox::Dimension& dim,
+                             const SAMRAI::hier::IntVector& ghost_layer_width,
+                             const std::string& prefix,
+                             const std::string& context_name) {
   constexpr auto names = StateTraits<State>::names;
   const auto sizes = StateToTuple(Depths<State>(equation));
   SAMRAI::hier::VariableDatabase* vardb =
@@ -82,6 +84,7 @@ void RegisterVariables(std::vector<int>& data_ids, const Equation& equation,
     data_ids.push_back(data_id);
   });
 }
+} // namespace detail
 
 /// This function registers all neccessary variables and contexts with SAMRAI.
 /// The returned DataDescription shall be passed to solver classes.
@@ -106,7 +109,7 @@ DataDescription RegisterVariables(const Equation& equation,
   SAMRAI::tbox::Dimension dim(desc.dim);
 
   const SAMRAI::hier::IntVector zero = SAMRAI::hier::IntVector::getZero(dim);
-  RegisterVariables<Complete, SAMRAI::pdat::CellVariable<double>>(
+  detail::RegisterVariablesHelper<Complete, SAMRAI::pdat::CellVariable<double>>(
       desc.data_ids, equation, dim, zero, prefix, "current");
 
   desc.n_cons_variables =

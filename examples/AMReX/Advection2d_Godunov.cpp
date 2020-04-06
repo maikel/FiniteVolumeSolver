@@ -80,7 +80,7 @@ void MyMain(const fub::ProgramOptions& opts) {
   grid->InitializeHierarchy(0.0);
 
   fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethod(fub::GodunovMethod{equation}),
+      fub::amrex::FluxMethodAdapter(fub::GodunovMethod{equation}),
       fub::amrex::EulerForwardTimeIntegrator(), fub::amrex::NoReconstruction{}};
 
   const int scratch_gcw = 2;

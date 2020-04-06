@@ -39,6 +39,12 @@ MultiWriteHdf5::MultiWriteHdf5(
   path_to_file_ = GetOptionOr(vm, "path", std::string("grid.h5"));
   int which_block = GetOptionOr(vm, "which_block", 0);
   type_ = static_cast<Type>(std::clamp(which_block, 0, 1));
+  grid_id_ = which_block - static_cast<int>(type_);
+  fub::SeverityLogger log = GetInfoLogger();
+  BOOST_LOG(log) << "MultiWriteHdf5 configured:";
+  BOOST_LOG(log) << fmt::format(" - path: {}", path_to_file_);
+  BOOST_LOG(log) << fmt::format(" - type: {}", static_cast<int>(type_));
+  BOOST_LOG(log) << fmt::format(" - grid_id: {}", grid_id_);
   auto it = vm.find("box");
   if (it != vm.end()) {
     auto box = ToMap(it->second);
@@ -47,17 +53,19 @@ MultiWriteHdf5::MultiWriteHdf5(
     std::array<int, AMREX_SPACEDIM> hi =
         GetOptionOr(box, "upper", std::array<int, AMREX_SPACEDIM>{});
     output_box_.emplace(::amrex::IntVect(lo), ::amrex::IntVect(hi));
+    BOOST_LOG(log) << fmt::format(" - box: [{{{}}}, {{{}}}]", fmt::join(lo, ", "), fmt::join(hi, ", "));
+  } else {
+    BOOST_LOG(log) << " - box: everything";
   }
+  OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm>::Print(log);
   int rank = -1;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   if (rank == 0) {
     if (boost::filesystem::is_regular_file(path_to_file_)) {
-      boost::log::sources::severity_logger<boost::log::trivial::severity_level>
-          log(boost::log::keywords::severity = boost::log::trivial::info);
-      BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "HDF5");
       for (int i = 1; i < std::numeric_limits<int>::max(); ++i) {
         std::string new_name = fmt::format("{}.{}", path_to_file_, i);
         if (!boost::filesystem::exists(new_name)) {
+          BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "HDF5");
           BOOST_LOG(log) << fmt::format(
               "Old output file '{}' detected. Rename old file to '{}'",
               path_to_file_, new_name);
@@ -93,8 +101,11 @@ void WriteHdf5UnRestricted(const std::string& name,
   ::MPI_Comm_rank(comm, &rank);
   if (rank == 0) {
     boost::filesystem::path path(name);
-    boost::filesystem::path dir = path.parent_path();
-    boost::filesystem::create_directories(dir);
+    boost::filesystem::path dir = boost::filesystem::absolute(
+        path.parent_path(), boost::filesystem::current_path());
+    if (!boost::filesystem::exists(dir)) {
+      boost::filesystem::create_directories(dir);
+    }
   }
   const std::size_t n_level =
       static_cast<std::size_t>(hierarchy.GetNumberOfLevels());
@@ -157,8 +168,11 @@ void WriteHdf5RestrictedToBox(const std::string& name,
   ::MPI_Comm_rank(comm, &rank);
   if (rank == 0) {
     boost::filesystem::path path(name);
-    boost::filesystem::path dir = path.parent_path();
-    boost::filesystem::create_directories(dir);
+    boost::filesystem::path dir = boost::filesystem::absolute(
+        path.parent_path(), boost::filesystem::current_path());
+    if (!boost::filesystem::exists(dir)) {
+      boost::filesystem::create_directories(dir);
+    }
   }
   const std::size_t n_level =
       static_cast<std::size_t>(hierarchy.GetNumberOfLevels());

@@ -122,7 +122,8 @@ public:
   void Flux(ConservativeArray& flux, const CompleteArray& state,
             Direction dir = Direction::X) const noexcept;
 
-  void Flux(ConservativeArray& flux, const CompleteArray& state, MaskArray mask, Direction dir) const noexcept;
+  void Flux(ConservativeArray& flux, const CompleteArray& state, MaskArray mask,
+            Direction dir) const noexcept;
 
   void CompleteFromCons(Complete& state, const ConservativeBase& cons);
 
@@ -139,7 +140,8 @@ public:
 
   static Array<double, N, 1> Velocity(const ConservativeBase& cons) noexcept;
   static Array<double, N> Velocity(const ConservativeArrayBase& cons) noexcept;
-  static Array<double, N> Velocity(const ConservativeArrayBase& cons, MaskArray mask) noexcept;
+  static Array<double, N> Velocity(const ConservativeArrayBase& cons,
+                                   MaskArray mask) noexcept;
 
   void CompleteFromReactor(Complete& state,
                            const Eigen::Array<double, N, 1>& velocity =
@@ -150,7 +152,8 @@ public:
       const Array<double, N>& velocity = Array<double, N>::Zero()) const;
 
   void CompleteFromReactor(CompleteArray& state,
-                           const Array<double, N>& velocit, MaskArray mask) const;
+                           const Array<double, N>& velocit,
+                           MaskArray mask) const;
 
 private:
   FlameMasterReactor reactor_;
@@ -167,6 +170,7 @@ using ToConcreteDepth = typename ToConcreteDepthImpl<Depth>::type;
 template <typename Depths>
 using ToConcreteDepths = boost::mp11::mp_transform<ToConcreteDepth, Depths>;
 
+namespace detail {
 template <int Dim>
 struct DepthsImpl<Complete<IdealGasMix<Dim>>, IdealGasMix<Dim>> {
   constexpr ToConcreteDepths<typename IdealGasMix<Dim>::CompleteDepths>
@@ -186,36 +190,13 @@ struct DepthsImpl<Conservative<IdealGasMix<Dim>>, IdealGasMix<Dim>> {
     return depths;
   }
 };
+}
 
 // We define this class only for dimensions 1 to 3.
 // The definitions will be found in its source file IdealGasMix.cpp
 extern template class IdealGasMix<1>;
 extern template class IdealGasMix<2>;
 extern template class IdealGasMix<3>;
-
-template <int Dim>
-void InitializeState(const IdealGasMix<Dim>& eq,
-                     Conservative<IdealGasMix<Dim>>& cons) {
-  cons.species.resize(eq.GetReactor().GetNSpecies(), 1);
-}
-
-template <int Dim>
-void InitializeState(const IdealGasMix<Dim>& eq,
-                     Complete<IdealGasMix<Dim>>& state) {
-  state.species.resize(eq.GetReactor().GetNSpecies(), 1);
-}
-
-template <int Dim>
-void InitializeState(const IdealGasMix<Dim>& eq,
-                     ConservativeArray<IdealGasMix<Dim>>& cons) {
-  cons.species.resize(eq.GetReactor().GetNSpecies(), kDefaultChunkSize);
-}
-
-template <int Dim>
-void InitializeState(const IdealGasMix<Dim>& eq,
-                     CompleteArray<IdealGasMix<Dim>>& state) {
-  state.species.resize(eq.GetReactor().GetNSpecies(), kDefaultChunkSize);
-}
 
 template <int Dim>
 double KineticEnergy(double density,
@@ -237,7 +218,8 @@ Array1d KineticEnergy(Array1d density,
 template <int Dim>
 Array1d KineticEnergy(Array1d density,
                       const Eigen::Array<double, Dim, kDefaultChunkSize,
-                      Eigen::RowMajor>& momentum, MaskArray mask) noexcept {
+                                         Eigen::RowMajor>& momentum,
+                      MaskArray mask) noexcept {
   Array1d square = Array1d::Zero();
   for (int i = 0; i < Dim; ++i) {
     Array1d rhou = mask.select(momentum.row(i), 0.0);

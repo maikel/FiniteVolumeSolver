@@ -21,21 +21,36 @@
 #ifndef FUB_AMREX_BOUNDARY_CONDITION_TRANSMISSIVE_BOUNDARY_HPP
 #define FUB_AMREX_BOUNDARY_CONDITION_TRANSMISSIVE_BOUNDARY_HPP
 
-#include "fub/AMReX/BoundaryCondition.hpp"
+#include "fub/Direction.hpp"
 
-#include <AMReX_MultiFab.H>
+#include "fub/AMReX/GriddingAlgorithm.hpp"
 
 namespace fub::amrex {
 
+/// \ingroup BoundaryCondition
+///
+/// \brief This class copies the inner grid values to the boundary.
+///
+/// In case of the Euler equations this is equivalent to model a supersonic
+/// boundary since all signals leave domain.
+///
+/// This condition also fills the physical boundary in one direction at only one
+/// side. You can construct an object as in the following example:
+///
+/// ```cpp
+/// // ...
+/// fub::amrex:TransmissiveBoundary boundary{fub::Direction::X, 0};
+/// // ...
+/// ```
 struct TransmissiveBoundary {
   Direction dir;
   int side;
 
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration dt, const GriddingAlgorithm&);
+  void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding,
+                    int level);
 
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration dt, const GriddingAlgorithm& grid, Direction dir);
+  void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& grid,
+                    int level, Direction dir);
 
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom);
 };

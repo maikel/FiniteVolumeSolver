@@ -22,13 +22,15 @@
 #define FUB_AMREX_CUTCELL_MASSFLOW_BOUNDARY_HPP
 
 #include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
+
 #include "fub/Direction.hpp"
 #include "fub/equations/IdealGasMix.hpp"
 
 #include <AMReX.H>
 
 namespace fub::amrex::cutcell {
-
+/// \ingroup BoundaryCondition
+///
 struct MassflowBoundaryOptions {
   MassflowBoundaryOptions() = default;
   MassflowBoundaryOptions(const ProgramOptions& options);
@@ -41,16 +43,22 @@ struct MassflowBoundaryOptions {
   int side = 0;
 };
 
+/// \ingroup BoundaryCondition
+///
 class MassflowBoundary {
 public:
   MassflowBoundary(const IdealGasMix<AMREX_SPACEDIM>& eq,
                    const MassflowBoundaryOptions& options);
 
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration dt, const GriddingAlgorithm& grid);
+  void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding,
+                    int level);
 
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration dt, const GriddingAlgorithm& grid, Direction dir);
+ void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding,
+                    int level, Direction dir) {
+    if (dir == options_.dir) {
+      FillBoundary(mf, gridding, level);
+    }
+  }
 
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::MultiFab& alphas,
                     const ::amrex::Geometry& geom,

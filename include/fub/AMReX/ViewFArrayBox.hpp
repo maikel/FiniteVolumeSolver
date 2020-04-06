@@ -181,7 +181,7 @@ MakePatchDataView(::amrex::BaseFab<T>& fab, int component,
 
 template <typename State> struct MakeViewImpl {
   using Equation = typename State::Equation;
-  using Depths = typename State::Depths;
+  using Depths = meta::Depths<State>;
   using ValueType = typename State::ValueType;
 
   static constexpr int Rank = Equation::Rank();

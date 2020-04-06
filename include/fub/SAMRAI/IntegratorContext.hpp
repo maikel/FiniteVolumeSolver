@@ -50,13 +50,12 @@ class IntegratorContext {
 public:
   struct AuxialiaryDataDescription {
     std::vector<int> scratch_ids;
-    std::vector<int> new_ids;
     std::vector<int> flux_ids;
     std::vector<int> coarse_fine_ids;
   };
 
   static AuxialiaryDataDescription
-  RegisterVariables(const DataDescription& desc, int ghost_cell_width,
+  RegisterVariables(const DataDescription& desc, int scratch_ghost_cell_width,
                     int flux_ghost_cell_width);
 
   template <typename Method>
@@ -123,7 +122,6 @@ public:
   [[nodiscard]] const SAMRAI::hier::PatchLevel& GetPatchLevel(int level) const;
 
   [[nodiscard]] span<const int> GetDataIds() const;
-  [[nodiscard]] span<const int> GetNewIds() const;
   [[nodiscard]] span<const int> GetScratchIds() const;
   [[nodiscard]] span<const int> GetFluxIds() const;
 

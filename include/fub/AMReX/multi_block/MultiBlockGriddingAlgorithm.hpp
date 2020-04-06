@@ -35,6 +35,7 @@
 namespace fub {
 namespace amrex {
 
+/// \ingroup GriddingAlgorithm
 class MultiBlockGriddingAlgorithm {
 public:
   MultiBlockGriddingAlgorithm(

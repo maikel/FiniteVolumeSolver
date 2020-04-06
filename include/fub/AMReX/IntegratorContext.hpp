@@ -21,14 +21,10 @@
 #ifndef FUB_AMREX_INTEGRATOR_CONTEXT_HPP
 #define FUB_AMREX_INTEGRATOR_CONTEXT_HPP
 
-#include "fub/Direction.hpp"
-#include "fub/Duration.hpp"
+#include "fub/AMReX/GriddingAlgorithm.hpp"
 #include "fub/HyperbolicMethod.hpp"
 #include "fub/TimeStepError.hpp"
 #include "fub/ext/outcome.hpp"
-
-#include "fub/AMReX/GriddingAlgorithm.hpp"
-#include "fub/AMReX/PatchHierarchy.hpp"
 
 #include <AMReX_FluxRegister.H>
 #include <AMReX_MultiFab.H>
@@ -37,19 +33,23 @@
 #include <memory>
 #include <vector>
 
-namespace fub {
-namespace amrex {
+namespace fub::amrex {
+
+/// \defgroup IntegratorContext Integrator Contexts
+/// \brief This group summarizes all classes and functions that are realted to integrator contexts.
 
 class IntegratorContext;
 
 using HyperbolicMethod = ::fub::HyperbolicMethod<IntegratorContext>;
 
+/// \ingroup IntegratorContext
+///
 /// \brief This class is used by the HypebrolicSplitLevelIntegrator and
 /// delegates AMR related tasks to the AMReX library.
 class IntegratorContext {
 public:
   /// @{
-  /// \name Constructors and Assignments
+  /// \name Constructors, Assignment Operators and Desctructor
 
   /// \brief Constructs a context object from given a gridding algorithm and a
   /// numerical method.
@@ -78,11 +78,6 @@ public:
   /// \name Member Accessors
 
   [[nodiscard]] int Rank() const noexcept;
-
-  /// \brief Returns the current boundary condition for the specified level.
-  [[nodiscard]] const AnyBoundaryCondition&
-  GetBoundaryCondition(int level) const;
-  [[nodiscard]] AnyBoundaryCondition& GetBoundaryCondition(int level);
 
   /// \brief Returns a shared pointer to the underlying GriddingAlgorithm which
   /// owns the simulation.
@@ -282,7 +277,6 @@ private:
   HyperbolicMethod method_;
 };
 
-} // namespace amrex
-} // namespace fub
+} // namespace fub::amrex
 
 #endif
