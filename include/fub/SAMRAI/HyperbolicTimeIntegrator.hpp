@@ -25,7 +25,7 @@
 
 namespace fub::samrai {
 
-struct TimeIntegrator {
+struct HyperbolicTimeIntegrator {
   static void UpdateConservatively(IntegratorContext& context, int level,
                                    Duration dt, Direction dir);
 };

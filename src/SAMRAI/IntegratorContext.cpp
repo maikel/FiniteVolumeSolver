@@ -102,6 +102,37 @@ IntegratorContext::RegisterVariables(const DataDescription& desc, int gcw,
   return aux_desc;
 }
 
+namespace {
+
+struct BoundaryConditionWrapper : SAMRAI::xfer::RefinePatchStrategy {
+  AnyBoundaryCondition* condition_{};
+  GriddingAlgorithm* grid_{};
+  int level_number_{};
+
+  void setPhysicalBoundaryConditions(
+      SAMRAI::hier::Patch& patch, double,
+      const SAMRAI::hier::IntVector&) override {
+    if (condition_) {
+      condition_->FillBoundary(patch, *grid_, level_number_);
+    }
+  }
+
+  void preprocessRefine(SAMRAI::hier::Patch&, const SAMRAI::hier::Patch&,
+                        const SAMRAI::hier::Box&,
+                        const SAMRAI::hier::IntVector&) override {}
+
+  void postprocessRefine(SAMRAI::hier::Patch&, const SAMRAI::hier::Patch&,
+                         const SAMRAI::hier::Box&,
+                         const SAMRAI::hier::IntVector&) override {}
+
+  SAMRAI::hier::IntVector
+  getRefineOpStencilWidth(const SAMRAI::tbox::Dimension& dim) const override {
+    return SAMRAI::hier::IntVector::getZero(dim);
+  }
+};
+
+}
+
 IntegratorContext::IntegratorContext(std::shared_ptr<GriddingAlgorithm> grid,
                                      HyperbolicMethod method,
                                      AuxialiaryDataDescription aux_desc)
@@ -113,6 +144,17 @@ IntegratorContext::IntegratorContext(std::shared_ptr<GriddingAlgorithm> grid,
   time_points_.resize(nlevel);
   regrid_time_points_.resize(nlevel);
   cycles_.resize(nlevel);
+  boundaries_.resize(nlevel);
+  int level = 0;
+  for (auto& boundary : boundaries_) {
+    auto wrapper = std::make_shared<BoundaryConditionWrapper>();
+    wrapper->condition_ = &gridding_->GetBoundaryCondition();
+    wrapper->grid_ = gridding_.get();
+    wrapper->level_number_ = level;
+    level += 1;
+    boundary = std::move(wrapper);
+  }
+
   SAMRAI::tbox::Dimension dim(
       gridding_->GetPatchHierarchy().GetDataDescription().dim);
   fill_scratch_ = std::make_shared<SAMRAI::xfer::RefineAlgorithm>();
@@ -156,13 +198,13 @@ void IntegratorContext::ResetHierarchyConfiguration(int level) {
     std::size_t lvl = std::size_t(ilvl);
     std::shared_ptr<SAMRAI::hier::PatchLevel> patch_level =
         hier.GetPatchLevel(ilvl);
-    std::shared_ptr<SAMRAI::hier::PatchLevel> prev_level =
-        hier.GetPatchLevel(ilvl - 1);
     fill_scratch_one_level_schedule_[lvl] =
-        fill_scratch_->createSchedule(patch_level, &GetBoundaryCondition(ilvl));
+        fill_scratch_->createSchedule(patch_level, boundaries_[lvl].get());
     if (ilvl > 0) {
+      std::shared_ptr<SAMRAI::hier::PatchLevel> prev_level =
+        hier.GetPatchLevel(ilvl - 1);
       fill_scratch_two_level_schedule_[lvl] = fill_scratch_->createSchedule(
-          patch_level, ilvl - 1, hier.GetNative(), &GetBoundaryCondition(ilvl));
+          patch_level, ilvl - 1, hier.GetNative(), boundaries_[lvl].get());
       coarsen_scratch_schedule_[lvl] =
           coarsen_scratch_->createSchedule(prev_level, patch_level);
       coarsen_fluxes_schedule_[lvl] =
@@ -241,8 +283,7 @@ void IntegratorContext::PreAdvanceLevel(int level_num,
                                         [[maybe_unused]] Duration dt,
                                         int subcycle) {
   if (subcycle == 0) {
-    gridding_->RegridAllFinerLevels(level_num - 1, gridding_->GetCycles(),
-                                    gridding_->GetTimePoint());
+    gridding_->RegridAllFinerLevels(level_num - 1);
     ResetHierarchyConfiguration(level_num);
   }
 }
@@ -289,9 +330,9 @@ void IntegratorContext::CoarsenConservatively(
   coarsen_scratch_schedule_[fine_level]->coarsenData();
 }
 
-const BoundaryCondition&
-IntegratorContext::GetBoundaryCondition(int level) const {
-  return gridding_->GetBoundaryCondition(level);
+const AnyBoundaryCondition&
+IntegratorContext::GetBoundaryCondition() const {
+  return gridding_->GetBoundaryCondition();
 }
 
 void IntegratorContext::ResetCoarseFineFluxes([[maybe_unused]] int fine,
@@ -355,8 +396,8 @@ void IntegratorContext::UpdateConservatively(int level, Duration dt,
   method_.time_integrator.UpdateConservatively(*this, level, dt, dir);
 }
 
-BoundaryCondition& IntegratorContext::GetBoundaryCondition(int level) {
-  return gridding_->GetBoundaryCondition(level);
+AnyBoundaryCondition& IntegratorContext::GetBoundaryCondition() {
+  return gridding_->GetBoundaryCondition();
 }
 
 const std::shared_ptr<GriddingAlgorithm>&

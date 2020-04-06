@@ -133,8 +133,8 @@ if (AMReX_FOUND AND AMReX_3D_FOUND)
 endif()
 
 if (SAMRAI_FOUND)
-#  add_executable_with_warnings(SAMRAI.Advection2d_Godunov SAMRAI/Advection2d_Godunov.cpp)
-#  target_link_libraries(SAMRAI.Advection2d_Godunov FiniteVolumeSolver.SAMRAI)
+  add_executable_with_warnings(SAMRAI.Advection2d_Godunov SAMRAI/Advection2d_Godunov.cpp)
+  target_link_libraries(SAMRAI.Advection2d_Godunov FiniteVolumeSolver.SAMRAI)
 
 #  add_executable_with_warnings(SAMRAI.Burgers1d SAMRAI/Burgers1d.cpp)
 #  target_link_libraries(SAMRAI.Burgers1d FiniteVolumeSolver.SAMRAI)
@@ -152,7 +152,7 @@ if (SAMRAI_FOUND)
   target_link_libraries(SAMRAI.VariableDatabase FiniteVolumeSolver.SAMRAI)
 
   add_executable_with_warnings(SAMRAI.PatchHierarchy SAMRAI/PatchHierarchyExample.cpp)
-  target_link_libraries(SAMRAI.PatchHierarchy FiniteVolumeSolver.SAMRAI FiniteVolumeSolver.AMReX)
+  target_link_libraries(SAMRAI.PatchHierarchy FiniteVolumeSolver.SAMRAI)
 endif()
 
 add_executable_with_warnings(small_eps small_eps.cpp)

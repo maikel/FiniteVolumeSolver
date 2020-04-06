@@ -18,13 +18,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/SAMRAI/TimeIntegrator.hpp"
+#include "fub/SAMRAI/HyperbolicTimeIntegrator.hpp"
 #include "fub/HyperbolicPatchIntegrator.hpp"
 #include <range/v3/view/zip.hpp>
 
 namespace fub::samrai {
 
-void TimeIntegrator::UpdateConservatively(IntegratorContext& context, int level,
+void HyperbolicTimeIntegrator::UpdateConservatively(IntegratorContext& context, int level,
                                           Duration dt, Direction dir) {
   SAMRAI::hier::PatchLevel& patch_level = context.GetPatchLevel(level);
   span<const int> flux_ids = context.GetFluxIds();

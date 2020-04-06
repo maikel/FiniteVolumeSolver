@@ -67,13 +67,13 @@ public:
   }
 
   bool ShallOutputNow(const GriddingAlgorithm& grid) override {
-    const std::ptrdiff_t cycle = grid.GetCycles();
+    const std::ptrdiff_t cycle = grid.GetPatchHierarchy().GetCycles();
     if (std::any_of(
             frequencies_.begin(), frequencies_.end(),
             [cycle](std::ptrdiff_t freq) { return cycle % freq == 0; })) {
       return true;
     }
-    const Duration time_point = grid.GetTimePoint();
+    const Duration time_point = grid.GetPatchHierarchy().GetTimePoint();
     if (time_point == Duration{} ||
         std::any_of(intervals_.begin(), intervals_.end(),
                     [this, time_point](Duration freq) {

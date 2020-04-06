@@ -25,8 +25,9 @@
 #include "fub/Direction.hpp"
 #include "fub/Duration.hpp"
 #include "fub/HyperbolicMethod.hpp"
-#include "fub/TimeStepError.hpp"
+#include "fub/TimeStepError.hpp" 
 #include "fub/ext/outcome.hpp"
+#include "fub/counter/CounterRegistry.hpp"
 
 #include "fub/SAMRAI/GriddingAlgorithm.hpp"
 
@@ -93,8 +94,8 @@ public:
   /// \name Member Accessors
 
   /// \brief Returns the current boundary condition for the specified level.
-  [[nodiscard]] const BoundaryCondition& GetBoundaryCondition(int level) const;
-  [[nodiscard]] BoundaryCondition& GetBoundaryCondition(int level);
+  [[nodiscard]] const AnyBoundaryCondition& GetBoundaryCondition() const;
+  [[nodiscard]] AnyBoundaryCondition& GetBoundaryCondition();
 
   /// \brief Returns a shared pointer to the underlying GriddingAlgorithm which
   /// owns the simulation.
@@ -224,6 +225,13 @@ public:
   void CoarsenConservatively(int fine, int coarse);
   ///@}
 
+  void CopyDataToScratch(int level);
+
+  void CopyScratchToData(int level);
+
+  [[nodiscard]] const std::shared_ptr<CounterRegistry>& GetCounterRegistry() const noexcept;
+
+
 private:
   int ghost_cell_width_;
   std::shared_ptr<GriddingAlgorithm> gridding_;
@@ -247,6 +255,8 @@ private:
   std::vector<std::shared_ptr<RefineSchedule>> fill_scratch_one_level_schedule_;
   std::vector<std::shared_ptr<CoarsenSchedule>> coarsen_scratch_schedule_;
   std::vector<std::shared_ptr<CoarsenSchedule>> coarsen_fluxes_schedule_;
+
+  std::vector<std::shared_ptr<SAMRAI::xfer::RefinePatchStrategy>> boundaries_;
 };
 
 } // namespace samrai
