@@ -285,7 +285,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
                    dfac[i] = -phys_param.alpha_p * phys_param.Msq /
                              (phys_param.gamma - 1.0) *
                              std::pow(PTdens[i], 2.0 - phys_param.gamma) /
-                             dt.count() * dt.count();
+                             dt.count();
                  }
                });
   });
@@ -327,7 +327,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   // Construct sigma / weight of Laplacian (equation (27) in [BK19]
   // divided by -dt)
   MultiFab sigma(on_cells, distribution_map, one_component, no_ghosts);
-  sigma.setVal(phys_param.c_p / (1.0 + std::pow(dt.count() * phys_param.f, 2)));
+  sigma.setVal(phys_param.c_p * dt.count() / (1.0 + std::pow(dt.count() * phys_param.f, 2)));
   MultiFab::Multiply(sigma, scratch, index.PTdensity, 0, one_component,
                      sigma.nGrow());
   MultiFab::Divide(sigma, scratch, index.PTinverse, 0, one_component,
@@ -385,7 +385,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
 
     MultiFab::Multiply(UV_correction, scratch, index.PTinverse, UV_component, one_component, no_ghosts);
 
-    UV_correction.mult(-dt.count(), UV_component, one_component, no_ghosts);
+//     UV_correction.mult(-dt.count(), UV_component, one_component, no_ghosts);
 
     // UV_correction is now a momentum correction. Thus add it.
     MultiFab::Add(scratch, UV_correction, UV_component, index.momentum[i],
