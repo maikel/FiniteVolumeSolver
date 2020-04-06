@@ -34,10 +34,6 @@ namespace fub::amrex {
 template <typename Equation>
 class PlotfileOutput : public OutputAtFrequencyOrInterval<GriddingAlgorithm> {
 public:
-  PlotfileOutput(const Equation& equation, const std::string& path)
-      : OutputAtFrequencyOrInterval(), equation_(equation), parent_path_(path) {
-  }
-
   PlotfileOutput(const ProgramOptions& options, const Equation& equation)
       : OutputAtFrequencyOrInterval(options), equation_(equation) {
     parent_path_ = GetOptionOr(options, "directory", parent_path_);

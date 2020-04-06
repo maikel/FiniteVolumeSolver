@@ -44,51 +44,52 @@ namespace {
 } // namespace
 
 void TransmissiveBoundary::FillBoundary(::amrex::MultiFab& mf,
-                                        const ::amrex::Geometry& geom, Duration,
-                                        const GriddingAlgorithm&) {
-
+                                        const GriddingAlgorithm& grid, int level) {
+  const ::amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
   FillBoundary(mf, geom);
 }
 
 void TransmissiveBoundary::FillBoundary(::amrex::MultiFab& mf,
-                                        const ::amrex::Geometry& geom, Duration,
-                                        const GriddingAlgorithm&,
+                                        const GriddingAlgorithm& grid, int level,
                                         Direction dir) {
   if (dir == this->dir) {
-    FillBoundary(mf, geom);
+    FillBoundary(mf, grid, level);
   }
 }
 
 void TransmissiveBoundary::FillBoundary(::amrex::MultiFab& mf,
                                         const ::amrex::Geometry& geom) {
-  const int ngrow = mf.nGrow(int(dir));
-  ::amrex::Box grown_box = geom.growNonPeriodicDomain(ngrow);
-  ::amrex::BoxList boundaries =
-      ::amrex::complementIn(grown_box, ::amrex::BoxList{geom.Domain()});
-  if (boundaries.isEmpty()) {
-    return;
-  }
-  ForEachFab(execution::openmp, mf, [&](const ::amrex::MFIter& mfi) {
-    ::amrex::FArrayBox& fab = mf[mfi];
-    for (const ::amrex::Box& boundary : boundaries) {
-      ::amrex::Box shifted =
-          ::amrex::shift(boundary, int(dir), GetSign(side) * ngrow);
-      if (!geom.Domain().intersects(shifted)) {
-        continue;
-      }
-      ::amrex::Box box_to_fill = mfi.growntilebox() & boundary;
-      if (!box_to_fill.isEmpty()) {
-        const int ncomp = fab.nComp();
-        for (int c = 0; c < ncomp; ++c) {
-          ForEachIndex(box_to_fill, [this, c, &fab, &geom](auto... is) {
-            ::amrex::IntVect dest{int(is)...};
-            ::amrex::IntVect src = MapToSrc(dest, geom, side, dir);
-            fab(dest, c) = fab(src, c);
-          });
+  int idir = static_cast<int>(dir);
+  if (!geom.isPeriodic(idir)) {
+    const int ngrow = mf.nGrow(idir);
+    ::amrex::Box fully_grown_box = geom.growNonPeriodicDomain(ngrow);
+    ::amrex::Box grown_dir_box = ::amrex::grow(fully_grown_box, idir, -ngrow);
+    ::amrex::BoxList boundaries =
+        ::amrex::complementIn(fully_grown_box, ::amrex::BoxList{grown_dir_box});
+    if (boundaries.isEmpty()) {
+      return;
+    }
+    ForEachFab(execution::openmp, mf, [&](const ::amrex::MFIter& mfi) {
+      ::amrex::FArrayBox& fab = mf[mfi];
+      for (const ::amrex::Box& boundary : boundaries) {
+        ::amrex::Box shifted = ::amrex::shift(boundary, idir, GetSign(side) * ngrow);
+        if (!geom.Domain().intersects(shifted)) {
+          continue;
+        }
+        ::amrex::Box box_to_fill = mfi.growntilebox() & boundary;
+        if (!box_to_fill.isEmpty()) {
+          const int ncomp = fab.nComp();
+          for (int c = 0; c < ncomp; ++c) {
+            ForEachIndex(box_to_fill, [this, c, &fab, &geom](auto... is) {
+              ::amrex::IntVect dest{int(is)...};
+              ::amrex::IntVect src = MapToSrc(dest, geom, side, dir);
+              fab(dest, c) = fab(src, c);
+            });
+          }
         }
       }
-    }
-  });
+    });
+  }
 }
 
 } // namespace fub::amrex

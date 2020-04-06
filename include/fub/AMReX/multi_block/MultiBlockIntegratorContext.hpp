@@ -31,6 +31,7 @@
 
 namespace fub::amrex {
 
+/// \ingroup IntegratorContext
 class MultiBlockIntegratorContext {
 public:
   MultiBlockIntegratorContext(FlameMasterReactor reactor,

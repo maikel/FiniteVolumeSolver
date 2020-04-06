@@ -30,8 +30,9 @@ void TransmissiveBoundary::FillBoundary(::amrex::MultiFab& mf,
 }
 
 void TransmissiveBoundary::FillBoundary(::amrex::MultiFab& mf,
-                                        const ::amrex::Geometry& geom, Duration,
-                                        const GriddingAlgorithm&) {
+                                        const GriddingAlgorithm& grid,
+                                        int level) {
+  const ::amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
   FillBoundary(mf, geom);
 }
 

@@ -21,6 +21,8 @@
 #ifndef FUB_SAMRAI_BOUNDARY_CONDITION_HPP
 #define FUB_SAMRAI_BOUNDARY_CONDITION_HPP
 
+#include "fub/Duration.hpp"
+
 #include <SAMRAI/xfer/RefinePatchStrategy.h>
 
 #include <functional>

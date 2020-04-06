@@ -24,9 +24,13 @@
 namespace fub::amrex {
 
 CartesianGridGeometry::CartesianGridGeometry(const ProgramOptions& options) {
-  cell_dimensions = GetOptionOr(options, "cell_dimensions", cell_dimensions);
+  std::array<int, 3> cells{32, 32, 32};
+  cells = GetOptionOr(options, "cell_dimensions", cells);
+  std::copy_n(cells.data(), AMREX_SPACEDIM, cell_dimensions.data());
   coordinates = GetOptionOr(options, "coordinates", coordinates);
-  periodicity = GetOptionOr(options, "periodicity", periodicity);
+  std::array<int, 3> p{0, 0, 0};
+  p = GetOptionOr(options, "periodicity", p);
+  std::copy_n(p.data(), AMREX_SPACEDIM, periodicity.data());
 }
 
 ::amrex::Box BoxWhichContains(const ::amrex::RealBox& xbox,

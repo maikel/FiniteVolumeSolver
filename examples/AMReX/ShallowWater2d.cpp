@@ -99,7 +99,7 @@ int main(int argc, char** argv) {
 
   fub::HllMethod hll_method{equation, fub::ShallowWaterSignalVelocities{}};
   fub::MusclHancockMethod muscl_method{equation, hll_method};
-  fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(muscl_method),
+  fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethodAdapter(muscl_method),
                                       fub::amrex::EulerForwardTimeIntegrator(),
                                       fub::amrex::NoReconstruction{}};
 
@@ -126,8 +126,8 @@ int main(int argc, char** argv) {
   fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> output{};
 
   // Add a standard AMReX Plotfile output readable in VisIt
-  output.AddOutput(fub::MakeOutput<fub::amrex::GriddingAlgorithm>(
-      {}, {0.05s}, fub::amrex::PlotfileOutput(equation, base_name)));
+  output.AddOutput(std::make_unique<fub::amrex::PlotfileOutput<fub::ShallowWater>>(std::vector<std::ptrdiff_t>{},
+          std::vector<fub::Duration>{0.1s}, equation, base_name));
 
   // Add an output to print the timer database
   using std::chrono::microseconds;

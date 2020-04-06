@@ -62,16 +62,13 @@ IntegratorContext::RegisterVariables(const DataDescription& desc, int gcw,
                                      int flux_gcw) {
   AuxialiaryDataDescription aux_desc;
   aux_desc.scratch_ids.reserve(desc.data_ids.size());
-  aux_desc.new_ids.reserve(desc.data_ids.size());
   aux_desc.flux_ids.reserve(desc.n_cons_variables);
   aux_desc.coarse_fine_ids.reserve(desc.n_cons_variables);
   SAMRAI::tbox::Dimension dim(desc.dim);
-  // TODO this assumes refinement ratio 2
-  const SAMRAI::hier::IntVector scratch_gcw(dim, gcw + flux_gcw);
+  const SAMRAI::hier::IntVector scratch_gcws(dim, gcw);
   const SAMRAI::hier::IntVector flux_gcws(dim, flux_gcw);
   using SAMRAI::hier::VariableContext;
   std::shared_ptr scratch = std::make_shared<VariableContext>("scratch");
-  std::shared_ptr next = std::make_shared<VariableContext>("new");
   std::shared_ptr flux = std::make_shared<VariableContext>("flux");
   std::shared_ptr coarse_fine =
       std::make_shared<VariableContext>("coarse_fine_flux");
@@ -81,9 +78,7 @@ IntegratorContext::RegisterVariables(const DataDescription& desc, int gcw,
     std::shared_ptr<SAMRAI::hier::Variable> variable{};
     if (vardb.mapIndexToVariable(id, variable)) {
       aux_desc.scratch_ids.push_back(
-          vardb.registerVariableAndContext(variable, scratch, scratch_gcw));
-      aux_desc.new_ids.push_back(vardb.registerVariableAndContext(
-          variable, next, SAMRAI::hier::IntVector::getZero(dim)));
+          vardb.registerVariableAndContext(variable, scratch, scratch_gcws)); 
     }
   }
   span<const int> cons_ids =
@@ -236,10 +231,6 @@ span<const int> IntegratorContext::GetDataIds() const {
 
 span<const int> IntegratorContext::GetScratchIds() const {
   return aux_desc_.scratch_ids;
-}
-
-span<const int> IntegratorContext::GetNewIds() const {
-  return aux_desc_.new_ids;
 }
 
 span<const int> IntegratorContext::GetFluxIds() const {

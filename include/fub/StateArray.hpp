@@ -26,59 +26,87 @@
 #include <boost/mp11/algorithm.hpp>
 
 namespace fub {
-
+namespace detail {
 template <typename Eq, int Width> struct ConservativeArrayBaseImpl {
   template <typename T>
   using fn = typename DepthToStateValueTypeImpl<T, Width>::type;
   using type = boost::mp11::mp_transform<fn, typename Eq::ConservativeDepths>;
 };
+} // namespace detail
 
 template <typename Eq, int Width = kDefaultChunkSize>
 using ConservativeArrayBase =
-    typename ConservativeArrayBaseImpl<Eq, Width>::type;
+    typename detail::ConservativeArrayBaseImpl<Eq, Width>::type;
 
 template <typename Eq, int Width = kDefaultChunkSize>
 struct ConservativeArray : ConservativeArrayBase<Eq, Width> {
   using Equation = Eq;
-  using Depths = typename Equation::ConservativeDepths;
+  // using Depths = typename Equation::ConservativeDepths;
   using Traits = StateTraits<ConservativeArrayBase<Eq, Width>>;
 
   static constexpr int Size() { return Width; }
 
   ConservativeArray() = default;
-  ConservativeArray(const Equation& eq) { InitializeState(eq, *this); }
+  ConservativeArray(const Equation& eq) {
+    auto depths = Depths<Conservative<Equation>>(eq);
+    ForEachVariable(
+        overloaded{
+            [&](Array1d& id, ScalarDepth) { id = Array1d::Zero(); },
+            [&](auto&& ids, auto depth) {
+              if constexpr (std::is_same_v<std::decay_t<decltype(depth)>,
+                                           int>) {
+                ids = ArrayXd::Zero(depth, kDefaultChunkSize);
+              } else {
+                ids = Array<double, decltype(depth)::value>::Zero();
+              }
+            },
+        },
+        *this, depths);
+  }
 };
 
 template <typename Eq, int Width>
 struct StateTraits<ConservativeArray<Eq, Width>>
     : StateTraits<ConservativeArrayBase<Eq, Width>> {};
 
+namespace detail {
 template <typename Eq, int Width> struct CompleteArrayBaseImpl {
   template <typename T>
   using fn = typename DepthToStateValueTypeImpl<T, Width>::type;
   using type = boost::mp11::mp_transform<fn, typename Eq::CompleteDepths>;
 };
+} // namespace detail
 
 template <typename Eq, int Width>
-using CompleteArrayBase = typename CompleteArrayBaseImpl<Eq, Width>::type;
+using CompleteArrayBase =
+    typename detail::CompleteArrayBaseImpl<Eq, Width>::type;
 
 template <typename Eq, int Width = kDefaultChunkSize>
 struct CompleteArray : CompleteArrayBase<Eq, Width> {
   using Equation = Eq;
-  using Depths = typename Equation::CompleteDepths;
+  // using Depths = typename Equation::CompleteDepths;
   using Traits = StateTraits<CompleteArrayBase<Eq, Width>>;
 
   static constexpr int Size() { return Width; }
 
   CompleteArray() = default;
-  CompleteArray(const Equation& eq) { InitializeState(eq, *this); }
+  CompleteArray(const Equation& eq) {
+    auto depths = Depths<Complete<Equation>>(eq);
+    ForEachVariable(
+        overloaded{
+            [&](Array1d& id, ScalarDepth) { id = Array1d::Zero(); },
+            [&](auto&& ids, auto depth) {
+              if constexpr (std::is_same_v<std::decay_t<decltype(depth)>,
+                                           int>) {
+                ids = ArrayXd::Zero(depth, kDefaultChunkSize);
+              } else {
+                ids = Array<double, decltype(depth)::value>::Zero();
+              }
+            },
+        },
+        *this, depths);
+  }
 };
-
-template <typename Equation>
-void InitializeState(const Equation&, CompleteArray<Equation>&) {}
-
-template <typename Equation>
-void InitializeState(const Equation&, ConservativeArray<Equation>&) {}
 
 template <typename Eq, int Width>
 struct StateTraits<CompleteArray<Eq, Width>>
