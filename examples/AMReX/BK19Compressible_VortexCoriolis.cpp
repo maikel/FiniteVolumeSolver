@@ -214,7 +214,7 @@ void MyMain(const fub::ProgramOptions& options) {
   inidat.Msq = u_ref * u_ref / (inidat.R_gas * T_ref);
   inidat.c_p = inidat.gamma / (inidat.gamma - 1.0);
   inidat.alpha_p = 1.0;
-  inidat.f       = 0.0;
+  inidat.f       = 1.0;
   inidat.f_swtch = {1.0, 1.0};
 
   DataDescription desc{};

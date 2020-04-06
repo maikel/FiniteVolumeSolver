@@ -251,12 +251,12 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   ::amrex::BoxArray on_nodes = on_cells;
   on_nodes.surroundingNodes();
 
-  MultiFab momenta(on_cells, distribution_map,
+  MultiFab momentum_aux(on_cells, distribution_map,
                                index.momentum.size(), no_ghosts);
-  MultiFab::Copy(momenta, scratch, index.momentum[0], 0, index.momentum.size(), no_ghosts);
+  MultiFab::Copy(momentum_aux, scratch, index.momentum[0], 0, index.momentum.size(), no_ghosts);
 
-  // Do an explicit update for the RHS terms with coriolis.
-  // Assume that zeroth and first indices are x- and y- axes.
+  // Do an explicit update for the RHS terms with Coriolis.
+  // Assume that zeroth and first indices are x- and y-axes.
   for (std::size_t i = 0; i < index.momentum.size(); ++i) {
     size_t j = 1 - i;
     const double fac = i == 0 ? 1.0: -1.0;
@@ -264,7 +264,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
 
     const double a = fac * dt.count() * phys_param.f_swtch[j] * phys_param.f;
 
-    MultiFab::Saxpy(scratch, a, momenta, other_component, index.momentum[i], one_component, no_ghosts);
+    MultiFab::Saxpy(scratch, a, momentum_aux, other_component, index.momentum[i], one_component, no_ghosts);
     scratch.mult(1.0 / (1.0 + std::pow(dt.count() * phys_param.f, 2)), index.momentum[i], one_component, no_ghosts);
   }
 
@@ -392,8 +392,6 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
     MultiFab::Saxpy(UV_correction, a, pi_cross, other_component, UV_component, one_component, no_ghosts);
 
     MultiFab::Multiply(UV_correction, scratch, index.PTinverse, UV_component, one_component, no_ghosts);
-
-//     UV_correction.mult(-dt.count(), UV_component, one_component, no_ghosts);
 
     // UV_correction is now a momentum correction. Thus add it.
     MultiFab::Add(scratch, UV_correction, UV_component, index.momentum[i],
