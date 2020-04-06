@@ -1,10 +1,10 @@
 import math
 
-plenum_x_n_cells = 64
+plenum_x_n_cells = 512
 tube_blocking_factor = 8
 plenum_blocking_factor = 8
 
-n_level = 2
+n_level = 1
 
 n_tubes = 6
 r_tube = 0.015
@@ -63,12 +63,12 @@ tube_n_cells -= tube_n_cells % tube_blocking_factor
 tube_n_cells = int(tube_n_cells)
 
 RunOptions = {
-  'cfl': 0.4,
-  'final_time': 0.04,
+  'cfl': 0.5,
+  'final_time': 0.017,
   'max_cycles': -1
 }
 
-# checkpoint = '/Users/maikel/Development/FiniteVolumeSolver/build_3d/MultiTube/Checkpoint/000000063'
+#checkpoint = '/home/maikel/Development/FiniteVolumeSolver/feature/SortPolymorphicValueTypes/build_release/ConvergentNozzle/Checkpoint/000002710'
 checkpoint = ''
 
 Plenum = {
@@ -138,7 +138,7 @@ Tube = {
     'efficiency': 1.0,
     'open_at_interval': 0.03333333,
     'offset': 0.01,
-    'fuel_measurement_position': -0.15,
+    'fuel_measurement_position': -tube_length + 0.5,
     'fuel_measurement_criterium': 0.9,
     'pressure_value_which_opens_boundary': 101325.0,
     'pressure_value_which_closes_boundary': 3.0e5,
@@ -162,25 +162,27 @@ def OuterProbe(x0, k, alpha):
   return [x0, r_outer - 0.002, r_tube_center * math.sin(k * alpha)]
 
 Output = { 
-  'outputs': [{
+  'outputs': [
+  {
     'type': 'Plotfiles',
     'directory': 'ConvergentNozzle/Plotfiles/',
-    # 'intervals': [1e-5],
-    'frequencies': [1]
-  }, {
+    'intervals': [1e-4]
+  },
+  {
     'type': 'Checkpoint',
     'directory': 'ConvergentNozzle/Checkpoint/',
-    'intervals': [1e-3],
-    'frequencies': []
-  }, {
+    'intervals': [1e-3]
+  },
+  {
     'type': 'CounterOutput',
-    'frequencies': [100]
-  }]
+    'frequencies': [300]
+  }
+  ]
 }
 
 IgniteDetonation = {
   'interval': 0.06,
-  'measurement_position': -0.3, # -0.45
+  'measurement_position': -tube_length + 0.5, # -0.45
   'equivalence_ratio_criterium': 0.9,
-  'position': -0.8
+  'position': -tube_length + 0.2
 }

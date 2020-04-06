@@ -428,8 +428,8 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
       std::move(ign_solver), std::move(source_term),
       fub::StrangSplittingLumped{});
 
-  // fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
-  fub::NoSubcycleSolver solver(std::move(level_integrator));
+  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
+  // fub::NoSubcycleSolver solver(std::move(level_integrator));
 
   using namespace fub::amrex;
   struct MakeCheckpoint
