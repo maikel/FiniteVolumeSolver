@@ -279,13 +279,15 @@ span<const int> IntegratorContext::GetFluxIds() const {
   return aux_desc_.flux_ids;
 }
 
-void IntegratorContext::PreAdvanceLevel(int level_num,
+int IntegratorContext::PreAdvanceLevel(int level_num,
                                         [[maybe_unused]] Duration dt,
-                                        int subcycle) {
-  if (subcycle == 0) {
+                                        std::pair<int, int> subcycle) {
+  if (subcycle.first == 0) {
     gridding_->RegridAllFinerLevels(level_num - 1);
     ResetHierarchyConfiguration(level_num);
+    return level_num;
   }
+  return 0;
 }
 
 Result<void, TimeStepTooLarge>

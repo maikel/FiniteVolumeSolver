@@ -179,12 +179,14 @@ public:
   /// \name Member functions relevant for the level integrator algorithm.
 
   /// \brief On each first subcycle this will regrid the data if neccessary.
-  void PreAdvanceLevel(int level_num, Duration dt, int subcycle);
+  int PreAdvanceLevel(int level_num, Duration dt, std::pair<int, int> subcycle);
 
   /// \brief Increases the internal time stamps and cycle counters for the
   /// specified level number and direction.
   [[nodiscard]] Result<void, TimeStepTooLarge>
   PostAdvanceLevel(int level_num, Duration dt, int subcycle);
+
+  void ApplyBoundaryCondition(int level, Direction dir);
 
   /// \brief Fills the ghost layer of the scratch data and interpolates in the
   /// coarse fine layer.

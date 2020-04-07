@@ -123,5 +123,5 @@ int main(int argc, char** argv) {
   run_options.final_time = Duration(2.0);
   run_options.cfl = 0.8;
   (*output)(*solver.GetGriddingAlgorithm());
-  // fub::RunSimulation(solver, run_options, wall_time_reference, output);
+  fub::RunSimulation(solver, run_options, wall_time_reference, *output);
 }
