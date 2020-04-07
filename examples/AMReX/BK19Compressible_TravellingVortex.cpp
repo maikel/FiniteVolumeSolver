@@ -29,20 +29,6 @@
 #include "fub/AMReX/solver/BK19LevelIntegrator.hpp"
 #include "fub/equations/CompressibleAdvection.hpp"
 
-double p_coeff(double r, const std::vector<double>& coefficients) {
-  if (r >= 1.0) {
-    return 0.0;
-  }
-
-  double result = 0.0;
-  int exponent = 12;
-  for (double c : coefficients) {
-    result += c * (std::pow(r, exponent) - 1.0);
-    exponent += 1;
-  }
-  return result;
-}
-
 struct TravellingVortexInitialData : fub::amrex::BK19PhysicalParameters {
   using Complete = fub::CompressibleAdvection<2>::Complete;
   TravellingVortexInitialData() {
@@ -74,6 +60,27 @@ struct TravellingVortexInitialData : fub::amrex::BK19PhysicalParameters {
     coefficients[24] = 1.0 / 72.0;
   }
 
+  double power_series(double r, const std::vector<double>& coefficients) const {
+    double result = 0.0;
+    int exponent = 0;
+    for (double c : coefficients) {
+      result += c * std::pow(r, exponent);
+      exponent += 1;
+    }
+
+    return result;
+  }
+
+  double p_tilde(double r) const {
+    if (r >= 1.0) {
+      return 0.0;
+    }
+
+    return fac * fac * a_rho *
+           (std::pow(r, 12) * power_series(r, coefficients) -
+            power_series(1.0, coefficients));
+  }
+
   void InitializeData(fub::amrex::PatchLevel& patch_level,
                       const fub::amrex::GriddingAlgorithm& grid, int level,
                       fub::Duration /*time*/) const {
@@ -103,8 +110,7 @@ struct TravellingVortexInitialData : fub::amrex::BK19PhysicalParameters {
               rho0 + del_rho * std::pow(1.0 - r_over_R0 * r_over_R0, 6);
           states.velocity(i, j, 0) = U0[0] - uth * (dy / r);
           states.velocity(i, j, 1) = U0[1] + uth * (dx / r);
-          const double p =
-              1.0 + Msq * fac * fac * a_rho * p_coeff(r_over_R0, coefficients);
+          const double p = 1.0 + Msq * p_tilde(r_over_R0);
           states.PTdensity(i, j) = std::pow(p, 1.0 / gamma);
         } else {
           states.density(i, j) = rho0;
@@ -120,8 +126,8 @@ struct TravellingVortexInitialData : fub::amrex::BK19PhysicalParameters {
       });
     });
 
-    amrex::MultiFab& pi = *patch_level.nodes;
     // set initial values of pi
+    amrex::MultiFab& pi = *patch_level.nodes;
     const double Gamma = (gamma - 1.0) / gamma;
     fub::amrex::ForEachFab(pi, [&](const ::amrex::MFIter& mfi) {
       ::amrex::FArrayBox& fab = pi[mfi];
@@ -136,7 +142,7 @@ struct TravellingVortexInitialData : fub::amrex::BK19PhysicalParameters {
 
         if (r < R0) {
           const double r_over_R0 = r / R0;
-          fab(i, 0) = Gamma * fac * fac * p_coeff(r_over_R0, coefficients);
+          fab(i, 0) = Gamma * p_tilde(r_over_R0);
 
         } else {
           fab(i, 0) = 0.0;

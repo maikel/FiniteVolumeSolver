@@ -22,8 +22,8 @@
 #ifndef FUB_BK19_LEVEL_INTEGRATOR_HPP
 #define FUB_BK19_LEVEL_INTEGRATOR_HPP
 
-#include "fub/AMReX/MLMG/MLNodeHelmholtz.hpp"
 #include "fub/AMReX/CompressibleAdvectionIntegratorContext.hpp"
+#include "fub/AMReX/MLMG/MLNodeHelmholtz.hpp"
 #include "fub/equations/CompressibleAdvection.hpp"
 #include "fub/ext/Eigen.hpp"
 #include "fub/ext/ProgramOptions.hpp"
@@ -76,7 +76,7 @@ struct BK19PhysicalParameters {
 
   /// Coriolis parameter in beta plane
   double f{0.0};
-  std::array<double, 2> f_swtch{0.0, 0.0};
+  std::array<double, 3> k_vect{0.0, 0.0, 1.0};
 
   double alpha_p{1.0};
   double Msq{0.0};
@@ -84,7 +84,8 @@ struct BK19PhysicalParameters {
 
 class BK19LevelIntegrator
     : private DimensionalSplitLevelIntegrator<
-          AMREX_SPACEDIM, CompressibleAdvectionIntegratorContext, AnySplitMethod> {
+          AMREX_SPACEDIM, CompressibleAdvectionIntegratorContext,
+          AnySplitMethod> {
 public:
   static constexpr int Rank = AMREX_SPACEDIM;
 
@@ -94,9 +95,8 @@ public:
   using Conservative = ::fub::Conservative<Equation>;
   using SplittingMethod = ::fub::AnySplitMethod;
 
-  using AdvectionSolver =
-      DimensionalSplitLevelIntegrator<Rank, CompressibleAdvectionIntegratorContext,
-                                      SplittingMethod>;
+  using AdvectionSolver = DimensionalSplitLevelIntegrator<
+      Rank, CompressibleAdvectionIntegratorContext, SplittingMethod>;
 
   using AdvectionSolver::ApplyFluxCorrection;
   using AdvectionSolver::CoarsenConservatively;
