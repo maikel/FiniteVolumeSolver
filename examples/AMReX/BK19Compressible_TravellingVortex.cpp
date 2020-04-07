@@ -60,23 +60,25 @@ struct TravellingVortexInitialData : fub::amrex::BK19PhysicalParameters {
     coefficients[24] = 1.0 / 72.0;
   }
 
-double power_series(double r, const std::vector<double>& coefficients) const {
-  double result = 0.0;
-  int exponent = 0;
-  for (double c : coefficients) {
-    result += c * std::pow(r, exponent);
-    exponent += 1;
-  }
+  double power_series(double r, const std::vector<double>& coefficients) const {
+    double result = 0.0;
+    int exponent = 0;
+    for (double c : coefficients) {
+      result += c * std::pow(r, exponent);
+      exponent += 1;
+    }
 
-  return result;
-}
+    return result;
+  }
 
   double p_tilde(double r) const {
     if (r >= 1.0) {
       return 0.0;
     }
 
-    return fac * fac * a_rho * (std::pow(r, 12) * power_series(r, coefficients) - power_series(1.0, coefficients));
+    return fac * fac * a_rho *
+           (std::pow(r, 12) * power_series(r, coefficients) -
+            power_series(1.0, coefficients));
   }
 
   void InitializeData(fub::amrex::PatchLevel& patch_level,
@@ -108,8 +110,7 @@ double power_series(double r, const std::vector<double>& coefficients) const {
               rho0 + del_rho * std::pow(1.0 - r_over_R0 * r_over_R0, 6);
           states.velocity(i, j, 0) = U0[0] - uth * (dy / r);
           states.velocity(i, j, 1) = U0[1] + uth * (dx / r);
-          const double p =
-              1.0 + Msq * p_tilde(r_over_R0);
+          const double p = 1.0 + Msq * p_tilde(r_over_R0);
           states.PTdensity(i, j) = std::pow(p, 1.0 / gamma);
         } else {
           states.density(i, j) = rho0;

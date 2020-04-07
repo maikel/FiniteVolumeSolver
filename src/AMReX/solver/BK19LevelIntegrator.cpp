@@ -206,30 +206,38 @@ void ComputePvFromScratch_(const IndexMapping<Equation>& index, MultiFab& dest,
   dest.FillBoundary(periodicity);
 }
 
-void ComputeKCrossM_(const std::array<int, VelocityRank>& momentum_index, MultiFab& result,
-                     const std::array<double, 3>& k, const MultiFab& scratch) {
+void ComputeKCrossM_(const std::array<int, VelocityRank>& momentum_index,
+                     MultiFab& result, const std::array<double, 3>& k,
+                     const MultiFab& scratch) {
   if constexpr (VelocityRank == 2) {
     FUB_ASSERT(k[0] == 0 && k[1] == 0);
 
-    MultiFab::Copy(result, scratch, momentum_index[1], 0, one_component, no_ghosts);
+    MultiFab::Copy(result, scratch, momentum_index[1], 0, one_component,
+                   no_ghosts);
     result.mult(-k[2], 0, one_component, no_ghosts);
 
-    MultiFab::Copy(result, scratch, momentum_index[0], 1, one_component, no_ghosts);
+    MultiFab::Copy(result, scratch, momentum_index[0], 1, one_component,
+                   no_ghosts);
     result.mult(k[2], 1, one_component, no_ghosts);
 
   } else if constexpr (VelocityRank == 3) {
-    MultiFab::Copy(result, scratch, momentum_index[2], 0, one_component, no_ghosts);
+    MultiFab::Copy(result, scratch, momentum_index[2], 0, one_component,
+                   no_ghosts);
     result.mult(k[1], 0, one_component, no_ghosts);
-    MultiFab::Saxpy(result, -k[2], scratch, momentum_index[1], 0, one_component, no_ghosts);
+    MultiFab::Saxpy(result, -k[2], scratch, momentum_index[1], 0, one_component,
+                    no_ghosts);
 
-    MultiFab::Copy(result, scratch, momentum_index[0], 1, one_component, no_ghosts);
+    MultiFab::Copy(result, scratch, momentum_index[0], 1, one_component,
+                   no_ghosts);
     result.mult(k[2], 1, one_component, no_ghosts);
-    MultiFab::Saxpy(result, -k[0], scratch, momentum_index[2], 1, one_component, no_ghosts);
+    MultiFab::Saxpy(result, -k[0], scratch, momentum_index[2], 1, one_component,
+                    no_ghosts);
 
-    MultiFab::Copy(result, scratch, momentum_index[1], 1, one_component, no_ghosts);
+    MultiFab::Copy(result, scratch, momentum_index[1], 1, one_component,
+                   no_ghosts);
     result.mult(k[0], 2, one_component, no_ghosts);
-    MultiFab::Saxpy(result, -k[1], scratch, momentum_index[0], 2, one_component, no_ghosts);
-
+    MultiFab::Saxpy(result, -k[1], scratch, momentum_index[0], 2, one_component,
+                    no_ghosts);
   }
 }
 
@@ -281,12 +289,14 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   ::amrex::BoxArray on_nodes = on_cells;
   on_nodes.surroundingNodes();
 
-  MultiFab k_cross_rhou(on_cells, distribution_map,
-                               index.momentum.size(), no_ghosts);
+  MultiFab k_cross_rhou(on_cells, distribution_map, index.momentum.size(),
+                        no_ghosts);
   ComputeKCrossM_(index.momentum, k_cross_rhou, phys_param.k_vect, scratch);
   const double fac1 = -dt.count() * phys_param.f;
-  MultiFab::Saxpy(scratch, fac1, k_cross_rhou, 0, index.momentum[0], index.momentum.size(), no_ghosts);
-  scratch.mult(1.0 / (1.0 + std::pow(dt.count() * phys_param.f, 2)), index.momentum[0], index.momentum.size(), no_ghosts);
+  MultiFab::Saxpy(scratch, fac1, k_cross_rhou, 0, index.momentum[0],
+                  index.momentum.size(), no_ghosts);
+  scratch.mult(1.0 / (1.0 + std::pow(dt.count() * phys_param.f, 2)),
+               index.momentum[0], index.momentum.size(), no_ghosts);
 
   // compute RHS for elliptic solve (equation (28) in [BK19] divided by -dt)
   // first compute diagonal part for compressibility
@@ -347,7 +357,8 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   // Construct sigma / weight of Laplacian (equation (27) in [BK19]
   // divided by -dt)
   MultiFab sigma(on_cells, distribution_map, one_component, no_ghosts);
-  sigma.setVal(phys_param.c_p * dt.count() / (1.0 + std::pow(dt.count() * phys_param.f, 2)));
+  sigma.setVal(phys_param.c_p * dt.count() /
+               (1.0 + std::pow(dt.count() * phys_param.f, 2)));
   MultiFab::Multiply(sigma, scratch, index.PTdensity, 0, one_component,
                      sigma.nGrow());
   MultiFab::Divide(sigma, scratch, index.PTinverse, 0, one_component,
@@ -386,7 +397,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   UV_correction.setVal(0.0);
 
   MultiFab pi_cross(on_cells, distribution_map, index.momentum.size(),
-                         no_ghosts);
+                    no_ghosts);
   pi_cross.setVal(0.0);
 
   // this computes: -sigma Grad(pi)
@@ -398,11 +409,13 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   const std::array<int, VelocityRank> UV_index{0, 1};
   ComputeKCrossM_(UV_index, k_cross_gradpi, phys_param.k_vect, UV_correction);
   const double fac2 = -dt.count() * phys_param.f;
-  MultiFab::Saxpy(UV_correction, fac2, k_cross_gradpi, 0, 0, index.momentum.size(), no_ghosts);
+  MultiFab::Saxpy(UV_correction, fac2, k_cross_gradpi, 0, 0,
+                  index.momentum.size(), no_ghosts);
 
   for (std::size_t i = 0; i < index.momentum.size(); ++i) {
     const int UV_component = static_cast<int>(i);
-    MultiFab::Multiply(UV_correction, scratch, index.PTinverse, UV_component, one_component, no_ghosts);
+    MultiFab::Multiply(UV_correction, scratch, index.PTinverse, UV_component,
+                       one_component, no_ghosts);
 
     // UV_correction is now a momentum correction. Thus add it.
     MultiFab::Add(scratch, UV_correction, UV_component, index.momentum[i],
