@@ -106,11 +106,13 @@ inline constexpr int one_ghost_cell_width = 1;
 inline constexpr int one_component = 1;
 
 inline constexpr int Rank = AMREX_SPACEDIM;
+inline constexpr int VelocityRank = Rank;
 
-using Equation = CompressibleAdvection<Rank>;
+using Equation = CompressibleAdvection<Rank, VelocityRank>;
 
-// For now the implementation assumes Rank == 2
+// For now the implementation assumes Rank == 2, VelocityRank == 2
 static_assert(Rank == 2);
+static_assert(VelocityRank == 2);
 
 namespace {
 IndexBox<2> BoxFromStencil_(const IndexBox<2>& box,
@@ -203,6 +205,34 @@ void ComputePvFromScratch_(const IndexMapping<Equation>& index, MultiFab& dest,
   }
   dest.FillBoundary(periodicity);
 }
+
+void ComputeKCrossM_(const std::array<int, VelocityRank>& momentum_index, MultiFab& result,
+                     const std::array<double, 3>& k, const MultiFab& scratch) {
+  if constexpr (VelocityRank == 2) {
+    FUB_ASSERT(k[0] == 0 && k[1] == 0);
+
+    MultiFab::Copy(result, scratch, momentum_index[1], 0, one_component, no_ghosts);
+    result.mult(-k[2], 0, one_component, no_ghosts);
+
+    MultiFab::Copy(result, scratch, momentum_index[0], 1, one_component, no_ghosts);
+    result.mult(k[2], 1, one_component, no_ghosts);
+
+  } else if constexpr (VelocityRank == 3) {
+    MultiFab::Copy(result, scratch, momentum_index[2], 0, one_component, no_ghosts);
+    result.mult(k[1], 0, one_component, no_ghosts);
+    MultiFab::Saxpy(result, -k[2], scratch, momentum_index[1], 0, one_component, no_ghosts);
+
+    MultiFab::Copy(result, scratch, momentum_index[0], 1, one_component, no_ghosts);
+    result.mult(k[2], 1, one_component, no_ghosts);
+    MultiFab::Saxpy(result, -k[0], scratch, momentum_index[2], 1, one_component, no_ghosts);
+
+    MultiFab::Copy(result, scratch, momentum_index[1], 1, one_component, no_ghosts);
+    result.mult(k[0], 2, one_component, no_ghosts);
+    MultiFab::Saxpy(result, -k[1], scratch, momentum_index[0], 2, one_component, no_ghosts);
+
+  }
+}
+
 } // namespace
 
 void RecomputeAdvectiveFluxes(const IndexMapping<Equation>& index,
@@ -251,22 +281,12 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   ::amrex::BoxArray on_nodes = on_cells;
   on_nodes.surroundingNodes();
 
-  MultiFab momentum_aux(on_cells, distribution_map,
+  MultiFab k_cross_rhou(on_cells, distribution_map,
                                index.momentum.size(), no_ghosts);
-  MultiFab::Copy(momentum_aux, scratch, index.momentum[0], 0, index.momentum.size(), no_ghosts);
-
-  // Do an explicit update for the RHS terms with Coriolis.
-  // Assume that zeroth and first indices are x- and y-axes.
-  for (std::size_t i = 0; i < index.momentum.size(); ++i) {
-    size_t j = 1 - i;
-    const double fac = i == 0 ? 1.0: -1.0;
-    const int other_component = static_cast<int>(j);
-
-    const double a = fac * dt.count() * phys_param.f_swtch[j] * phys_param.f;
-
-    MultiFab::Saxpy(scratch, a, momentum_aux, other_component, index.momentum[i], one_component, no_ghosts);
-    scratch.mult(1.0 / (1.0 + std::pow(dt.count() * phys_param.f, 2)), index.momentum[i], one_component, no_ghosts);
-  }
+  ComputeKCrossM_(index.momentum, k_cross_rhou, phys_param.k_vect, scratch);
+  const double fac1 = -dt.count() * phys_param.f;
+  MultiFab::Saxpy(scratch, fac1, k_cross_rhou, 0, index.momentum[0], index.momentum.size(), no_ghosts);
+  scratch.mult(1.0 / (1.0 + std::pow(dt.count() * phys_param.f, 2)), index.momentum[0], index.momentum.size(), no_ghosts);
 
   // compute RHS for elliptic solve (equation (28) in [BK19] divided by -dt)
   // first compute diagonal part for compressibility
@@ -371,18 +391,17 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
 
   // this computes: -sigma Grad(pi)
   lin_op.getFluxes({&UV_correction}, {&pi});
-  lin_op.getFluxes({&pi_cross}, {&pi});
+
+  MultiFab k_cross_gradpi(on_cells, distribution_map, index.momentum.size(),
+                          no_ghosts);
+
+  const std::array<int, VelocityRank> UV_index{0, 1};
+  ComputeKCrossM_(UV_index, k_cross_gradpi, phys_param.k_vect, UV_correction);
+  const double fac2 = -dt.count() * phys_param.f;
+  MultiFab::Saxpy(UV_correction, fac2, k_cross_gradpi, 0, 0, index.momentum.size(), no_ghosts);
 
   for (std::size_t i = 0; i < index.momentum.size(); ++i) {
-    size_t j = 1 - i;
-    const double fac = i == 0 ? -1.0: 1.0;
     const int UV_component = static_cast<int>(i);
-    const int other_component = static_cast<int>(j);
-
-    const double a = fac * dt.count() * phys_param.f_swtch[j] * phys_param.f;
-
-    MultiFab::Saxpy(UV_correction, a, pi_cross, other_component, UV_component, one_component, no_ghosts);
-
     MultiFab::Multiply(UV_correction, scratch, index.PTinverse, UV_component, one_component, no_ghosts);
 
     // UV_correction is now a momentum correction. Thus add it.

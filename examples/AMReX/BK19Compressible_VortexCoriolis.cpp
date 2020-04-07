@@ -215,7 +215,6 @@ void MyMain(const fub::ProgramOptions& options) {
   inidat.c_p = inidat.gamma / (inidat.gamma - 1.0);
   inidat.alpha_p = 1.0;
   inidat.f       = 1.0;
-  inidat.f_swtch = {1.0, 1.0};
 
   DataDescription desc{};
   desc.n_state_components = 7;

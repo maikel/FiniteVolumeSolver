@@ -76,7 +76,7 @@ struct BK19PhysicalParameters {
 
   /// Coriolis parameter in beta plane
   double f{0.0};
-  std::array<double, 2> f_swtch{0.0, 0.0};
+  std::array<double, 3> k_vect{0.0, 0.0, 1.0};
 
   double alpha_p{1.0};
   double Msq{0.0};
