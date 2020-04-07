@@ -69,6 +69,9 @@ public:
   void InitializeHierarchy(Duration initial_time = Duration(),
                            std::ptrdiff_t initial_cycle = 0);
 
+  Duration GetTimePoint() const noexcept;
+  std::ptrdiff_t GetCycles() const noexcept;
+
   const PatchHierarchy& GetPatchHierarchy() const noexcept;
   PatchHierarchy& GetPatchHierarchy() noexcept;
 
