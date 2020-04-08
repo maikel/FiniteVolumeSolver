@@ -787,6 +787,7 @@ INPUT                  = "@PROJECT_SOURCE_DIR@/include/fub/" \
                          "@PROJECT_SOURCE_DIR@/include/fub/boundary_condition/" \
                          "@PROJECT_SOURCE_DIR@/include/fub/ext" \
                          "@PROJECT_SOURCE_DIR@/include/fub/core" \
+                         "@PROJECT_SOURCE_DIR@/include/fub/solver" \
                          "@PROJECT_SOURCE_DIR@/include/fub/cutcell_method/" \
                          "@PROJECT_SOURCE_DIR@/include/fub/equations/" \
                          "@PROJECT_SOURCE_DIR@/include/fub/equations/ideal_gas_mix" \

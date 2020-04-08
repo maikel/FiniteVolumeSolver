@@ -29,11 +29,15 @@
 #include <cstring>
 #include <type_traits>
 
+/// \defgroup CompleteFromCons Complete From Cons Calculations
+/// \ingroup IntegratorContext
+
 namespace fub {
 template <typename Eq, typename... Args>
 using CompleteFromConsMemberFunction =
     decltype(std::declval<Eq>().CompleteFromCons(std::declval<Args>()...));
 
+/// \ingroup CompleteFromCons
 template <typename Equation>
 void CompleteFromCons(Equation&& equation,
                       Complete<std::decay_t<Equation>>& complete,
@@ -49,6 +53,7 @@ void CompleteFromCons(Equation&& equation,
   }
 }
 
+/// \ingroup CompleteFromCons
 template <typename Equation>
 void CompleteFromCons(Equation&& equation,
                       Complete<std::decay_t<Equation>>& complete,
@@ -65,6 +70,7 @@ void CompleteFromCons(Equation&& equation,
   }
 }
 
+/// \ingroup CompleteFromCons
 template <typename Equation>
 void CompleteFromCons(Equation&& equation,
                       CompleteArray<std::decay_t<Equation>>& complete,
@@ -81,6 +87,7 @@ void CompleteFromCons(Equation&& equation,
   }
 }
 
+/// \ingroup CompleteFromCons
 template <typename Equation>
 void CompleteFromCons(Equation&& equation,
                       CompleteArray<std::decay_t<Equation>>& complete,
@@ -99,6 +106,7 @@ void CompleteFromCons(Equation&& equation,
   }
 }
 
+/// \ingroup CompleteFromCons
 template <typename Equation>
 void CompleteFromCons(Equation&& equation,
                       CompleteArray<std::decay_t<Equation>>& complete,
@@ -115,6 +123,7 @@ void CompleteFromCons(Equation&& equation,
   }
 }
 
+/// \ingroup CompleteFromCons
 template <typename Equation>
 void CompleteFromCons(
     Equation&& eq, const View<Complete<std::decay_t<Equation>>>& complete_view,
@@ -128,6 +137,7 @@ void CompleteFromCons(
   });
 }
 
+/// \ingroup CompleteFromCons
 template <typename Equation> struct CompleteFromConsFn {
   Equation equation_;
   CompleteArray<Equation> complete_array_{equation_};
