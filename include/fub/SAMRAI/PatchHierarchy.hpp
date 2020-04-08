@@ -25,6 +25,7 @@
 #include "fub/SAMRAI/RegisterVariables.hpp"
 
 #include "fub/Duration.hpp"
+#include "fub/counter/CounterRegistry.hpp"
 #include "fub/ext/uuid.hpp"
 
 #include <SAMRAI/geom/CartesianGridGeometry.h>
@@ -64,6 +65,7 @@ MakeCartesianGridGeometry(const std::array<I, Rank>& n_cells,
       MakeUniqueName(), x_lo, x_up, domain);
 }
 
+/// \ingroup PatchHierarchy
 class PatchHierarchy {
 public:
   /// \brief Constructs a PatchHierarchy object which is capable of holding data
@@ -106,6 +108,9 @@ public:
   [[nodiscard]] std::shared_ptr<SAMRAI::hier::PatchLevel>
   GetPatchLevel(int level) const;
 
+  [[nodiscard]] const std::shared_ptr<CounterRegistry>&
+  GetCounterRegistry() const noexcept;
+
   [[nodiscard]] std::ptrdiff_t GetCycles(int level = 0) const;
   [[nodiscard]] Duration GetTimePoint(int level = 0) const;
 
@@ -118,6 +123,7 @@ private:
   PatchHierarchyOptions options_;
   std::vector<std::ptrdiff_t> cycles_;
   std::vector<Duration> time_points_;
+  std::shared_ptr<CounterRegistry> counter_registry_;
 };
 
 template <typename Equation>

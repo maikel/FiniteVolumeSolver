@@ -49,6 +49,7 @@ using AnyBoundaryCondition = ::fub::AnyBoundaryCondition<GriddingAlgorithm>;
 using AnyInitialData = ::fub::AnyInitialData<GriddingAlgorithm>;
 using AnyTaggingMethod = ::fub::AnyTaggingMethod<GriddingAlgorithm>;
 
+/// \ingroup GriddingAlgorithm
 class GriddingAlgorithm {
 public:
   GriddingAlgorithm(PatchHierarchy hier, AnyInitialData initial_data,

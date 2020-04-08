@@ -25,9 +25,9 @@
 #include "fub/Direction.hpp"
 #include "fub/Duration.hpp"
 #include "fub/HyperbolicMethod.hpp"
-#include "fub/TimeStepError.hpp" 
-#include "fub/ext/outcome.hpp"
+#include "fub/TimeStepError.hpp"
 #include "fub/counter/CounterRegistry.hpp"
+#include "fub/ext/outcome.hpp"
 
 #include "fub/SAMRAI/GriddingAlgorithm.hpp"
 
@@ -45,6 +45,8 @@ class IntegratorContext;
 
 using HyperbolicMethod = ::fub::HyperbolicMethod<IntegratorContext>;
 
+/// \ingroup IntegratorContext
+///
 /// \brief This class is used by the HypebrolicSplitLevelIntegrator and
 /// delegates AMR related tasks to the AMReX library.
 class IntegratorContext {
@@ -184,7 +186,7 @@ public:
   /// \brief Increases the internal time stamps and cycle counters for the
   /// specified level number and direction.
   [[nodiscard]] Result<void, TimeStepTooLarge>
-  PostAdvanceLevel(int level_num, Duration dt, int subcycle);
+  PostAdvanceLevel(int level_num, Duration dt, std::pair<int, int> subcycle);
 
   void ApplyBoundaryCondition(int level, Direction dir);
 
@@ -231,8 +233,8 @@ public:
 
   void CopyScratchToData(int level);
 
-  [[nodiscard]] const std::shared_ptr<CounterRegistry>& GetCounterRegistry() const noexcept;
-
+  [[nodiscard]] const std::shared_ptr<CounterRegistry>&
+  GetCounterRegistry() const noexcept;
 
 private:
   int ghost_cell_width_;

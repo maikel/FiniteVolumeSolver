@@ -78,7 +78,7 @@ IntegratorContext::RegisterVariables(const DataDescription& desc, int gcw,
     std::shared_ptr<SAMRAI::hier::Variable> variable{};
     if (vardb.mapIndexToVariable(id, variable)) {
       aux_desc.scratch_ids.push_back(
-          vardb.registerVariableAndContext(variable, scratch, scratch_gcws)); 
+          vardb.registerVariableAndContext(variable, scratch, scratch_gcws));
     }
   }
   span<const int> cons_ids =
@@ -109,9 +109,8 @@ struct BoundaryConditionWrapper : SAMRAI::xfer::RefinePatchStrategy {
   GriddingAlgorithm* grid_{};
   int level_number_{};
 
-  void setPhysicalBoundaryConditions(
-      SAMRAI::hier::Patch& patch, double,
-      const SAMRAI::hier::IntVector&) override {
+  void setPhysicalBoundaryConditions(SAMRAI::hier::Patch& patch, double,
+                                     const SAMRAI::hier::IntVector&) override {
     if (condition_) {
       condition_->FillBoundary(patch, *grid_, level_number_);
     }
@@ -131,7 +130,7 @@ struct BoundaryConditionWrapper : SAMRAI::xfer::RefinePatchStrategy {
   }
 };
 
-}
+} // namespace
 
 IntegratorContext::IntegratorContext(std::shared_ptr<GriddingAlgorithm> grid,
                                      HyperbolicMethod method,
@@ -198,11 +197,13 @@ void IntegratorContext::ResetHierarchyConfiguration(int level) {
     std::size_t lvl = std::size_t(ilvl);
     std::shared_ptr<SAMRAI::hier::PatchLevel> patch_level =
         hier.GetPatchLevel(ilvl);
+    patch_level->allocatePatchData(SelectComponents(GetScratchIds()));
+    patch_level->allocatePatchData(SelectComponents(GetFluxIds()));
     fill_scratch_one_level_schedule_[lvl] =
         fill_scratch_->createSchedule(patch_level, boundaries_[lvl].get());
     if (ilvl > 0) {
       std::shared_ptr<SAMRAI::hier::PatchLevel> prev_level =
-        hier.GetPatchLevel(ilvl - 1);
+          hier.GetPatchLevel(ilvl - 1);
       fill_scratch_two_level_schedule_[lvl] = fill_scratch_->createSchedule(
           patch_level, ilvl - 1, hier.GetNative(), boundaries_[lvl].get());
       coarsen_scratch_schedule_[lvl] =
@@ -228,6 +229,33 @@ void IntegratorContext::ResetHierarchyConfiguration(
 SAMRAI::hier::IntVector IntegratorContext::GetRatioToCoarserLevel(int) const
     noexcept {
   return gridding_->GetPatchHierarchy().GetOptions().refine_ratio;
+}
+
+void IntegratorContext::CopyDataToScratch(int level) {
+  span<const int> data = GetDataIds();
+  span<const int> scratch = GetDataIds();
+  SAMRAI::hier::PatchLevel& patches = GetPatchLevel(level);
+  for (std::shared_ptr<SAMRAI::hier::Patch> patch : patches) {
+    for (auto [dest, src] : ranges::views::zip(scratch, data)) {
+      patch->getPatchData(dest)->copy(*patch->getPatchData(src));
+    }
+  }
+}
+
+void IntegratorContext::CopyScratchToData(int level) {
+  span<const int> data = GetDataIds();
+  span<const int> scratch = GetDataIds();
+  SAMRAI::hier::PatchLevel& patches = GetPatchLevel(level);
+  for (std::shared_ptr<SAMRAI::hier::Patch> patch : patches) {
+    for (auto [dest, src] : ranges::views::zip(data, scratch)) {
+      patch->getPatchData(dest)->copy(*patch->getPatchData(src));
+    }
+  }
+}
+
+[[nodiscard]] const std::shared_ptr<CounterRegistry>&
+IntegratorContext::GetCounterRegistry() const noexcept {
+  return gridding_->GetPatchHierarchy().GetCounterRegistry();
 }
 
 const PatchHierarchy& IntegratorContext::GetPatchHierarchy() const noexcept {
@@ -280,8 +308,8 @@ span<const int> IntegratorContext::GetFluxIds() const {
 }
 
 int IntegratorContext::PreAdvanceLevel(int level_num,
-                                        [[maybe_unused]] Duration dt,
-                                        std::pair<int, int> subcycle) {
+                                       [[maybe_unused]] Duration dt,
+                                       std::pair<int, int> subcycle) {
   if (subcycle.first == 0) {
     gridding_->RegridAllFinerLevels(level_num - 1);
     ResetHierarchyConfiguration(level_num);
@@ -291,7 +319,8 @@ int IntegratorContext::PreAdvanceLevel(int level_num,
 }
 
 Result<void, TimeStepTooLarge>
-IntegratorContext::PostAdvanceLevel(int level_num, Duration dt, int subcycle) {
+IntegratorContext::PostAdvanceLevel(int level_num, Duration dt,
+                                    std::pair<int, int> subcycle) {
   SetCycles(GetCycles(level_num) + 1, level_num);
   double timepoint = (GetTimePoint(level_num) + dt).count();
   ::MPI_Bcast(&timepoint, 1, MPI_DOUBLE, 0, GetMpiCommunicator());
@@ -302,16 +331,6 @@ IntegratorContext::PostAdvanceLevel(int level_num, Duration dt, int subcycle) {
   PatchHierarchy& hier = gridding_->GetPatchHierarchy();
   hier.SetTimePoint(GetTimePoint(level_num), level_num);
   hier.SetCycles(GetCycles(level_num), level_num);
-  if (subcycle == 0) {
-    span<const int> data = GetDataIds();
-    span<const int> scratch = GetDataIds();
-    SAMRAI::hier::PatchLevel& patches = GetPatchLevel(level_num);
-    for (std::shared_ptr<SAMRAI::hier::Patch> patch : patches) {
-      for (auto [dest, src] : ranges::views::zip(data, scratch)) {
-        patch->getPatchData(dest)->copy(*patch->getPatchData(src));
-      }
-    }
-  }
   return boost::outcome_v2::success();
 }
 
@@ -327,13 +346,20 @@ void IntegratorContext::FillGhostLayerSingleLevel(int level) {
   fill_scratch_one_level_schedule_[level]->fillData(fill_time);
 }
 
+void IntegratorContext::ApplyBoundaryCondition(int level, Direction /* dir */) {
+  if (level == 0) {
+    FillGhostLayerSingleLevel(0);
+  } else {
+    FillGhostLayerTwoLevels(level, level - 1);
+  }
+}
+
 void IntegratorContext::CoarsenConservatively(
     int fine_level, [[maybe_unused]] int coarse_level) {
   coarsen_scratch_schedule_[fine_level]->coarsenData();
 }
 
-const AnyBoundaryCondition&
-IntegratorContext::GetBoundaryCondition() const {
+const AnyBoundaryCondition& IntegratorContext::GetBoundaryCondition() const {
   return gridding_->GetBoundaryCondition();
 }
 
