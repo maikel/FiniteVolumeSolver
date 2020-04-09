@@ -1,11 +1,11 @@
 BK19LevelIntegrator = {
     'mlmg_tolerance_rel': 1e-10,
     'mlmg_tolerance_abs': 1e-10,
-    'mlmg_verbose': 2,
+    'mlmg_verbose': 0,
     'mlmg_max_iter': 100,
     'bottom_tolerance_rel': 1e-4,
     'bottom_tolerance_abs': -1.0,
-    'bottom_verbose': 2,
+    'bottom_verbose': 0,
     'bottom_max_iter': 200
 }
 
@@ -32,14 +32,18 @@ RunOptions = {
 
 Output = {
     'outputs': [
-        {
-            'type': 'DebugOutput',
-            'directory': './Debug/'
-        },
+        # {
+        #     'type': 'DebugOutput',
+        #     'directory': './Debug/'
+        # },
         {
             'type': 'Plotfile',
             'intervals': [0.5e-2]
             #'intervals': [1e-2]
         },
+        {
+            'type': 'CounterOutput',
+            'intervals': [2e-1]
+        }
     ]
 }
