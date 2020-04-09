@@ -538,22 +538,20 @@ if (SAMRAI_FOUND)
     include/fub/SAMRAI/RegisterVariables.hpp
     include/fub/SAMRAI/ScopeGuard.hpp
     include/fub/SAMRAI/GriddingAlgorithm.hpp
-    include/fub/SAMRAI/TimeIntegrator.hpp
-    include/fub/SAMRAI/BoundaryCondition.hpp
-    include/fub/SAMRAI/FluxMethod.hpp
-    include/fub/SAMRAI/InitialData.hpp
-    include/fub/SAMRAI/Reconstruction.hpp
+    include/fub/SAMRAI/HyperbolicTimeIntegrator.hpp
+    include/fub/SAMRAI/FluxMethodAdapter.hpp
+    include/fub/SAMRAI/CompleteFromCons.hpp
     include/fub/SAMRAI/ViewPatch.hpp
     include/fub/SAMRAI/tagging_method/GradientDetector.hpp
     include/fub/SAMRAI/tagging_method/ConstantBox.hpp
+    src/SAMRAI/ScopeGuard.cpp
+    src/SAMRAI/ViewPatch.cpp
+    src/SAMRAI/RegisterVariables.cpp
     src/SAMRAI/CartesianPatchHierarchy.cpp
     src/SAMRAI/PatchHierarchy.cpp
-    src/SAMRAI/IntegratorContext.cpp
-    src/SAMRAI/ScopeGuard.cpp
-    src/SAMRAI/RegisterVariables.cpp
     src/SAMRAI/GriddingAlgorithm.cpp
-    src/SAMRAI/ViewPatch.cpp
-    src/SAMRAI/TimeIntegrator.cpp
+    src/SAMRAI/IntegratorContext.cpp
+    src/SAMRAI/HyperbolicTimeIntegrator.cpp
     src/SAMRAI/tagging_method/ConstantBox.cpp)
   target_include_directories(FiniteVolumeSolver.SAMRAI
     PUBLIC

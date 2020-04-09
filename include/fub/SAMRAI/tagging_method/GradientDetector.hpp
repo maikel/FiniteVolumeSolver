@@ -34,7 +34,7 @@ public:
   GradientDetector(const Equation& equation,
                    const std::pair<Projections, double>&... projs);
 
-  void TagCellsForRefinement(GriddingAlgorithm& gridding, int level, int tag_id,
+  void TagCellsForRefinement(int tag_id, GriddingAlgorithm& gridding, int level,
                              Duration time_point);
 
 private:
@@ -52,7 +52,7 @@ GradientDetector<Equation, Projections...>::GradientDetector(
 
 template <typename Equation, typename... Projections>
 void GradientDetector<Equation, Projections...>::TagCellsForRefinement(
-    GriddingAlgorithm& gridding, int level, int tag_id,
+    int tag_id, GriddingAlgorithm& gridding, int level,
     Duration /* time_point */) {
   const fub::samrai::PatchHierarchy& patch_hierarchy =
       gridding.GetPatchHierarchy();

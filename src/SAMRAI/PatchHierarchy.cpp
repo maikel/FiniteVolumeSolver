@@ -58,7 +58,8 @@ PatchHierarchy::PatchHierarchy(
     DataDescription dd,
     std::shared_ptr<SAMRAI::geom::CartesianGridGeometry> geom,
     PatchHierarchyOptions hier_opts)
-    : data_desc_{std::move(dd)}, options_{std::move(hier_opts)} {
+    : data_desc_{std::move(dd)}, options_{std::move(hier_opts)},
+      counter_registry_(std::make_shared<CounterRegistry>()) {
   hierarchy_ = std::make_shared<SAMRAI::hier::PatchHierarchy>(
       boost::uuids::to_string(boost::uuids::random_generator()()), geom);
   hierarchy_->setMaxNumberOfLevels(options_.max_number_of_levels);
@@ -73,7 +74,7 @@ PatchHierarchy::PatchHierarchy(
 
 PatchHierarchy::PatchHierarchy(const PatchHierarchy& ph)
     : data_desc_{ph.data_desc_}, options_{ph.options_}, cycles_{ph.cycles_},
-      time_points_{ph.time_points_} {
+      time_points_{ph.time_points_}, counter_registry_(ph.counter_registry_) {
 
   hierarchy_ = std::make_shared<SAMRAI::hier::PatchHierarchy>(
       MakeUniqueName(), ph.GetNative()->getGridGeometry());
@@ -104,6 +105,11 @@ PatchHierarchy::PatchHierarchy(const PatchHierarchy& ph)
       }
     }
   }
+}
+
+[[nodiscard]] const std::shared_ptr<CounterRegistry>&
+PatchHierarchy::GetCounterRegistry() const noexcept {
+  return counter_registry_;
 }
 
 int PatchHierarchy::GetNumberOfLevels() const noexcept {
