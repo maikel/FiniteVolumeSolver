@@ -18,6 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#ifndef FUB_P4EST_P4EST_HPP
+#define FUB_P4EST_P4EST_HPP
+
 #include <p4est.h>
 
 #include "fub/core/function_ref.hpp"
@@ -66,3 +69,5 @@ private:
 };
 
 } // namespace fub::p4est
+
+#endif
