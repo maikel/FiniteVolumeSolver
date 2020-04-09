@@ -36,7 +36,7 @@ public:
   using RefineFn = function_ref<int(const P4est&, int, const Quadrant&)>;
   using CoarsenFn = function_ref<int(const P4est&, int, span<Quadrant, 4>)>;
   using ReplaceFn = function_ref<void(const P4est&)>;
-  using WeightFn = function_ref<void(const P4est&, const Quadrant&)>;
+  using WeightFn = function_ref<int(const P4est&, const Quadrant&)>;
 
   P4est() = delete;
 
