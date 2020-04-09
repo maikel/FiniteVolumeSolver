@@ -11,6 +11,7 @@ if (DOXYGEN_FOUND)
     set(DOXYGEN_OUT ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile)
 
     # request to configure the file
+    set(FUB_SOURCE_DIR "${PROJECT_SOURCE_DIR}/../")
     configure_file(${DOXYGEN_IN} ${DOXYGEN_OUT} @ONLY)
     message("-- Doyxgen: Generated a Doxyfile at ${DOXYGEN_OUT}.")
 

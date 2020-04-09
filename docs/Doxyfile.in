@@ -780,32 +780,32 @@ WARN_LOGFILE           =
 # spaces. See also FILE_PATTERNS and EXTENSION_MAPPING
 # Note: If this tag is empty the current directory is searched.
 
-INPUT                  = "@PROJECT_SOURCE_DIR@/../include/fub/" \
-                         "@PROJECT_SOURCE_DIR@/../include/fub/output/" \
-                         "@PROJECT_SOURCE_DIR@/../include/fub/flux_method/" \
-                         "@PROJECT_SOURCE_DIR@/../include/fub/tagging_method/" \
-                         "@PROJECT_SOURCE_DIR@/../include/fub/boundary_condition/" \
-                         "@PROJECT_SOURCE_DIR@/../include/fub/ext" \
-                         "@PROJECT_SOURCE_DIR@/../include/fub/core" \
-                         "@PROJECT_SOURCE_DIR@/../include/fub/solver" \
-                         "@PROJECT_SOURCE_DIR@/../include/fub/cutcell_method/" \
-                         "@PROJECT_SOURCE_DIR@/../include/fub/equations/" \
-                         "@PROJECT_SOURCE_DIR@/../include/fub/equations/ideal_gas_mix" \
-                         "@PROJECT_SOURCE_DIR@/../include/fub/equations/perfect_gas" \
-                         "@PROJECT_SOURCE_DIR@/../include/fub/geometry/" \
-                         "@PROJECT_SOURCE_DIR@/../include/fub/AMReX/" \
-                         "@PROJECT_SOURCE_DIR@/../include/fub/AMReX/solver/" \
-                         "@PROJECT_SOURCE_DIR@/../include/fub/AMReX/output/" \
-                         "@PROJECT_SOURCE_DIR@/../include/fub/AMReX/tagging_method/" \
-                         "@PROJECT_SOURCE_DIR@/../include/fub/AMReX/boundary_condition/" \
-                         "@PROJECT_SOURCE_DIR@/../include/fub/AMReX/cutcell/" \
-                         "@PROJECT_SOURCE_DIR@/../include/fub/AMReX/cutcell/tagging_method/" \
-                         "@PROJECT_SOURCE_DIR@/../include/fub/AMReX/cutcell/boundary_condition/" \
-                         "@PROJECT_SOURCE_DIR@/../include/fub/AMReX/cutcell/output/" \
-                         "@PROJECT_SOURCE_DIR@/../include/fub/AMReX/multi_block/" \
-                         "@PROJECT_SOURCE_DIR@/../include/fub/SAMRAI/" \
-                         "@PROJECT_SOURCE_DIR@/../include/fub/SAMRAI/tagging_method/" \
-                         "@PROJECT_SOURCE_DIR@/../"
+INPUT                  = "@FUB_SOURCE_DIR@/include/fub/" \
+                         "@FUB_SOURCE_DIR@/include/fub/output/" \
+                         "@FUB_SOURCE_DIR@/include/fub/flux_method/" \
+                         "@FUB_SOURCE_DIR@/include/fub/tagging_method/" \
+                         "@FUB_SOURCE_DIR@/include/fub/boundary_condition/" \
+                         "@FUB_SOURCE_DIR@/include/fub/ext" \
+                         "@FUB_SOURCE_DIR@/include/fub/core" \
+                         "@FUB_SOURCE_DIR@/include/fub/solver" \
+                         "@FUB_SOURCE_DIR@/include/fub/cutcell_method/" \
+                         "@FUB_SOURCE_DIR@/include/fub/equations/" \
+                         "@FUB_SOURCE_DIR@/include/fub/equations/ideal_gas_mix" \
+                         "@FUB_SOURCE_DIR@/include/fub/equations/perfect_gas" \
+                         "@FUB_SOURCE_DIR@/include/fub/geometry/" \
+                         "@FUB_SOURCE_DIR@/include/fub/AMReX/" \
+                         "@FUB_SOURCE_DIR@/include/fub/AMReX/solver/" \
+                         "@FUB_SOURCE_DIR@/include/fub/AMReX/output/" \
+                         "@FUB_SOURCE_DIR@/include/fub/AMReX/tagging_method/" \
+                         "@FUB_SOURCE_DIR@/include/fub/AMReX/boundary_condition/" \
+                         "@FUB_SOURCE_DIR@/include/fub/AMReX/cutcell/" \
+                         "@FUB_SOURCE_DIR@/include/fub/AMReX/cutcell/tagging_method/" \
+                         "@FUB_SOURCE_DIR@/include/fub/AMReX/cutcell/boundary_condition/" \
+                         "@FUB_SOURCE_DIR@/include/fub/AMReX/cutcell/output/" \
+                         "@FUB_SOURCE_DIR@/include/fub/AMReX/multi_block/" \
+                         "@FUB_SOURCE_DIR@/include/fub/SAMRAI/" \
+                         "@FUB_SOURCE_DIR@/include/fub/SAMRAI/tagging_method/" \
+                         "@FUB_SOURCE_DIR@/"
 
 # This tag can be used to specify the character encoding of the source files
 # that doxygen parses. Internally doxygen uses the UTF-8 encoding. Doxygen uses
@@ -1005,7 +1005,7 @@ FILTER_SOURCE_PATTERNS =
 # (index.html). This can be useful if you have a project on for instance GitHub
 # and want to reuse the introduction page also for the doxygen output.
 
-USE_MDFILE_AS_MAINPAGE = "../README.md"
+USE_MDFILE_AS_MAINPAGE = "@FUB_SOURCE_DIR@/README.md"
 
 #---------------------------------------------------------------------------
 # Configuration options related to source browsing

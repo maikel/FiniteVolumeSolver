@@ -581,6 +581,29 @@ if (SAMRAI_FOUND)
 endif()
 
 ################################################################################
+# Doxygen target
+
+find_package(Doxygen)
+if (DOXYGEN_FOUND)
+    # set input and output files
+    set(DOXYGEN_IN ${PROJECT_SOURCE_DIR}/docs/Doxyfile.in)
+    set(DOXYGEN_OUT ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile)
+
+    # request to configure the file
+    set(FUB_SOURCE_DIR "${PROJECT_SOURCE_DIR}")
+    configure_file(${DOXYGEN_IN} ${DOXYGEN_OUT} @ONLY)
+    message("-- Doyxgen: Generated a Doxyfile at ${DOXYGEN_OUT}.")
+
+    add_custom_target( doc 
+        COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYGEN_OUT}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        COMMENT "Generating API documentation with Doxygen"
+        VERBATIM )
+else (DOXYGEN_FOUND)
+  message("-- Doyxgen: Doxygen needs to be installed to generate the doxygen documentation")
+endif (DOXYGEN_FOUND)
+
+################################################################################
 # Examples
 
 option(FUB_EXAMPLES "Build Examples." ON)
