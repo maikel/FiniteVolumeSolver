@@ -37,8 +37,14 @@
 
 namespace fub {
 
-/// This Level Integrator applies a very general AMR integration scheme in
-/// context of dimensional splitting.
+/// \defgroup LevelIntegrator Level Integrators
+/// \brief This group collects all classes that define a time integration on a
+/// single refinement level.
+
+/// \ingroup LevelIntegrator
+///
+/// \brief This Level Integrator applies a very general AMR integration scheme
+/// in context of dimensional splitting.
 ///
 /// The time integration is split into multiple intermediate steps where each is
 /// supposed to do a certain task. The detailed implementation of these tasks

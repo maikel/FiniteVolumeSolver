@@ -36,8 +36,14 @@
 
 namespace fub {
 
-/// This Level Integrator applies a very general AMR integration scheme in
-/// context of dimensional splitting.
+/// \defgroup SubcycleSolver Subcycle Solvers
+/// \brief This groups contains all classes that control the subcycle behaviour
+/// of a simulation.
+
+/// \ingroup SubcycleSolver
+///
+/// \brief This Level Integrator applies a very general AMR integration scheme
+/// in context of dimensional splitting.
 ///
 /// The time integration is split into multiple intermediate steps where each is
 /// supposed to do a certain task. The detailed implementation of these tasks
