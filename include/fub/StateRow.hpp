@@ -207,7 +207,7 @@ void ForEachRow(const Tuple& views, Function f) {
     for (std::ptrdiff_t j = 0; j < nz; ++j) {
       std::tuple pointers = firsts;
       for (std::ptrdiff_t i = 0; i < ny; ++i) {
-        std::tuple rows = Transform(pointers, ToRow{row_extent});
+        std::tuple rows = Transform(pointers, detail::ToRow{row_extent});
         std::apply(f, rows);
         pointers = std::apply(
             [](auto... ps) {
