@@ -229,11 +229,11 @@ void IntegratorContext::ResetHierarchyConfiguration(
 }
 
 void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
-  Timer timer1 = GetCounterRegistry()->get_timer(
+  Timer timer1 = GetCounterRegistry()->GetTimer(
       "IntegratorContext::ResetHierarchyConfiguration");
   Timer timer_per_level{};
   if (count_per_level) {
-    timer_per_level = GetCounterRegistry()->get_timer(fmt::format(
+    timer_per_level = GetCounterRegistry()->GetTimer(fmt::format(
         "IntegratorContext::ResetHierarchyConfiguration({})", first_level));
   }
   const int n_cons_components =
@@ -293,11 +293,11 @@ void IntegratorContext::ApplyBoundaryCondition(int level, Direction dir) {
 
 void IntegratorContext::ApplyBoundaryCondition(int level, Direction dir,
                                                AnyBoundaryCondition& bc) {
-  Timer timer = GetCounterRegistry()->get_timer(
+  Timer timer = GetCounterRegistry()->GetTimer(
       "IntegratorContext::ApplyBoundaryCondition");
   Timer timer_per_level{};
   if (count_per_level) {
-    timer_per_level = GetCounterRegistry()->get_timer(
+    timer_per_level = GetCounterRegistry()->GetTimer(
         fmt::format("IntegratorContext::ApplyBoundaryCondition({})", level));
   }
   ::amrex::MultiFab& scratch = GetScratch(level);
@@ -308,11 +308,11 @@ void IntegratorContext::ApplyBoundaryCondition(int level, Direction dir,
 void IntegratorContext::FillGhostLayerTwoLevels(
     int fine, AnyBoundaryCondition& fine_condition, int coarse,
     AnyBoundaryCondition& coarse_condition) {
-  Timer timer1 = GetCounterRegistry()->get_timer(
+  Timer timer1 = GetCounterRegistry()->GetTimer(
       "IntegratorContext::FillGhostLayerTwoLevels");
   Timer timer_per_level{};
   if (count_per_level) {
-    timer_per_level = GetCounterRegistry()->get_timer(
+    timer_per_level = GetCounterRegistry()->GetTimer(
         fmt::format("IntegratorContext::FillGhostLayerTwoLevels({})", fine));
   }
   FUB_ASSERT(coarse >= 0 && fine > coarse);
@@ -352,11 +352,11 @@ void IntegratorContext::FillGhostLayerTwoLevels(int fine, int coarse) {
 
 void IntegratorContext::FillGhostLayerSingleLevel(int level,
                                                   AnyBoundaryCondition& bc) {
-  Timer timer1 = GetCounterRegistry()->get_timer(
+  Timer timer1 = GetCounterRegistry()->GetTimer(
       "IntegratorContext::FillGhostLayerSingleLevel");
   Timer timer_per_level{};
   if (count_per_level) {
-    timer_per_level = GetCounterRegistry()->get_timer(
+    timer_per_level = GetCounterRegistry()->GetTimer(
         fmt::format("IntegratorContext::FillGhostLayerSingleLevel({})", level));
   }
   ::amrex::MultiFab& scratch = GetScratch(level);
@@ -378,11 +378,11 @@ void IntegratorContext::FillGhostLayerSingleLevel(int level) {
 
 void IntegratorContext::CoarsenConservatively(int fine_level,
                                               int coarse_level) {
-  Timer timer1 = GetCounterRegistry()->get_timer(
+  Timer timer1 = GetCounterRegistry()->GetTimer(
       "IntegratorContext::CoarsenConservatively");
   Timer timer_per_level{};
   if (count_per_level) {
-    timer_per_level = GetCounterRegistry()->get_timer(
+    timer_per_level = GetCounterRegistry()->GetTimer(
         fmt::format("IntegratorContext::CoarsenConservatively({}, {})",
                     fine_level, coarse_level));
   }
@@ -400,11 +400,11 @@ void IntegratorContext::CoarsenConservatively(int fine_level,
 
 void IntegratorContext::AccumulateCoarseFineFluxes(int level, double scale,
                                                    Direction dir) {
-  Timer timer1 = GetCounterRegistry()->get_timer(
+  Timer timer1 = GetCounterRegistry()->GetTimer(
       "IntegratorContext::AccumulateCoarseFineFluxes");
   Timer timer_per_level{};
   if (count_per_level) {
-    timer_per_level = GetCounterRegistry()->get_timer(fmt::format(
+    timer_per_level = GetCounterRegistry()->GetTimer(fmt::format(
         "IntegratorContext::AccumulateCoarseFineFluxes({})", level));
   }
   const ::amrex::MultiFab& fluxes = GetFluxes(level, dir);
@@ -428,11 +428,11 @@ void IntegratorContext::AccumulateCoarseFineFluxes(int level, double scale,
 }
 
 void IntegratorContext::ResetCoarseFineFluxes(int fine, int coarse) {
-  Timer timer1 = GetCounterRegistry()->get_timer(
+  Timer timer1 = GetCounterRegistry()->GetTimer(
       "IntegratorContext::ResetCoarseFineFluxes");
   Timer timer_per_level{};
   if (count_per_level) {
-    timer_per_level = GetCounterRegistry()->get_timer(fmt::format(
+    timer_per_level = GetCounterRegistry()->GetTimer(fmt::format(
         "IntegratorContext::ResetCoarseFineFluxes({}, {})", fine, coarse));
   }
   std::size_t fine_level = static_cast<std::size_t>(fine);
@@ -444,10 +444,10 @@ void IntegratorContext::ResetCoarseFineFluxes(int fine, int coarse) {
 void IntegratorContext::ApplyFluxCorrection(
     int fine, int coarse, [[maybe_unused]] Duration time_step_size) {
   Timer timer1 =
-      GetCounterRegistry()->get_timer("IntegratorContext::ApplyFluxCorrection");
+      GetCounterRegistry()->GetTimer("IntegratorContext::ApplyFluxCorrection");
   Timer timer_per_level{};
   if (count_per_level) {
-    timer_per_level = GetCounterRegistry()->get_timer(fmt::format(
+    timer_per_level = GetCounterRegistry()->GetTimer(fmt::format(
         "IntegratorContext::ApplyFluxCorrection({}, {})", fine, coarse));
   }
   const std::size_t next_level = static_cast<std::size_t>(fine);
@@ -462,10 +462,10 @@ void IntegratorContext::ApplyFluxCorrection(
 
 Duration IntegratorContext::ComputeStableDt(int level, Direction dir) {
   Timer timer1 =
-      GetCounterRegistry()->get_timer("IntegratorContext::ComputeStableDt");
+      GetCounterRegistry()->GetTimer("IntegratorContext::ComputeStableDt");
   Timer timer_per_level{};
   if (count_per_level) {
-    timer_per_level = GetCounterRegistry()->get_timer(
+    timer_per_level = GetCounterRegistry()->GetTimer(
         fmt::format("IntegratorContext::ComputeStableDt({})", level));
   }
   return method_.flux_method.ComputeStableDt(*this, level, dir);
@@ -477,11 +477,11 @@ int IntegratorContext::Rank() const noexcept {
 
 void IntegratorContext::ComputeNumericFluxes(int level, Duration dt,
                                              Direction dir) {
-  Timer timer1 = GetCounterRegistry()->get_timer(
+  Timer timer1 = GetCounterRegistry()->GetTimer(
       "IntegratorContext::ComputeNumericFluxes");
   Timer timer_per_level{};
   if (count_per_level) {
-    timer_per_level = GetCounterRegistry()->get_timer(
+    timer_per_level = GetCounterRegistry()->GetTimer(
         fmt::format("IntegratorContext::ComputeNumericFluxes({})", level));
   }
   method_.flux_method.ComputeNumericFluxes(*this, level, dt, dir);
@@ -489,10 +489,10 @@ void IntegratorContext::ComputeNumericFluxes(int level, Duration dt,
 
 void IntegratorContext::CompleteFromCons(int level, Duration dt) {
   Timer timer1 =
-      GetCounterRegistry()->get_timer("IntegratorContext::CompleteFromCons");
+      GetCounterRegistry()->GetTimer("IntegratorContext::CompleteFromCons");
   Timer timer_per_level{};
   if (count_per_level) {
-    timer_per_level = GetCounterRegistry()->get_timer(
+    timer_per_level = GetCounterRegistry()->GetTimer(
         fmt::format("IntegratorContext::CompleteFromCons({})", level));
   }
   method_.reconstruction.CompleteFromCons(*this, level, dt);
@@ -500,11 +500,11 @@ void IntegratorContext::CompleteFromCons(int level, Duration dt) {
 
 void IntegratorContext::UpdateConservatively(int level, Duration dt,
                                              Direction dir) {
-  Timer timer1 = GetCounterRegistry()->get_timer(
+  Timer timer1 = GetCounterRegistry()->GetTimer(
       "IntegratorContext::UpdateConservatively");
   Timer timer_per_level{};
   if (count_per_level) {
-    timer_per_level = GetCounterRegistry()->get_timer(
+    timer_per_level = GetCounterRegistry()->GetTimer(
         fmt::format("IntegratorContext::UpdateConservatively({})", level));
   }
   method_.time_integrator.UpdateConservatively(*this, level, dt, dir);
@@ -513,10 +513,10 @@ void IntegratorContext::UpdateConservatively(int level, Duration dt,
 int IntegratorContext::PreAdvanceLevel(int level_num, Duration,
                                        std::pair<int, int> subcycle) {
   Timer timer =
-      GetCounterRegistry()->get_timer("IntegratorContext::PreAdvanceLevel");
+      GetCounterRegistry()->GetTimer("IntegratorContext::PreAdvanceLevel");
   Timer timer_per_level{};
   if (count_per_level) {
-    timer_per_level = GetCounterRegistry()->get_timer(
+    timer_per_level = GetCounterRegistry()->GetTimer(
         fmt::format("IntegratorContext::PreAdvanceLevel({})", level_num));
   }
   const std::size_t l = static_cast<std::size_t>(level_num);
@@ -538,10 +538,10 @@ int IntegratorContext::PreAdvanceLevel(int level_num, Duration,
 
 void IntegratorContext::CopyDataToScratch(int level_num) {
   Timer timer1 =
-      GetCounterRegistry()->get_timer("IntegratorContext::CopyDataToScratch");
+      GetCounterRegistry()->GetTimer("IntegratorContext::CopyDataToScratch");
   Timer timer_per_level{};
   if (count_per_level) {
-    timer_per_level = GetCounterRegistry()->get_timer(
+    timer_per_level = GetCounterRegistry()->GetTimer(
         fmt::format("IntegratorContext::CopyDataToScratch({})", level_num));
   }
   gridding_->FillMultiFabFromLevel(GetScratch(level_num), level_num);
@@ -549,10 +549,10 @@ void IntegratorContext::CopyDataToScratch(int level_num) {
 
 void IntegratorContext::CopyScratchToData(int level_num) {
   Timer timer1 =
-      GetCounterRegistry()->get_timer("IntegratorContext::CopyScratchToData");
+      GetCounterRegistry()->GetTimer("IntegratorContext::CopyScratchToData");
   Timer timer_per_level{};
   if (count_per_level) {
-    timer_per_level = GetCounterRegistry()->get_timer(
+    timer_per_level = GetCounterRegistry()->GetTimer(
         fmt::format("IntegratorContext::CopyScratchToData({})", level_num));
   }
   GetData(level_num).ParallelCopy(
@@ -564,10 +564,10 @@ Result<void, TimeStepTooLarge>
 IntegratorContext::PostAdvanceLevel(int level_num, Duration dt,
                                     std::pair<int, int> subcycle) {
   Timer timer1 =
-      GetCounterRegistry()->get_timer("IntegratorContext::PostAdvanceLevel");
+      GetCounterRegistry()->GetTimer("IntegratorContext::PostAdvanceLevel");
   Timer timer_per_level{};
   if (count_per_level) {
-    timer_per_level = GetCounterRegistry()->get_timer(
+    timer_per_level = GetCounterRegistry()->GetTimer(
         fmt::format("IntegratorContext::PostAdvanceLevel({})", level_num));
   }
   SetCycles(GetCycles(level_num) + 1, level_num);

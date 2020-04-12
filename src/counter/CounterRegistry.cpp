@@ -28,7 +28,7 @@ Counter* CounterRegistry::get(std::string const& name) {
   return &iterator->second;
 }
 
-Timer CounterRegistry::get_timer(std::string const& name) {
+Timer CounterRegistry::GetTimer(std::string const& name) {
   Counter* counter = this->get(name);
   return Timer(*counter);
 }

@@ -81,7 +81,7 @@ GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier,
 
 int GriddingAlgorithm::RegridAllFinerlevels(int which_level) {
   if (which_level < max_level) {
-    auto timer = hierarchy_.GetCounterRegistry()->get_timer(
+    auto timer = hierarchy_.GetCounterRegistry()->GetTimer(
         "GriddingAlgorithm::RegridAllFinerLevels");
     const ::amrex::Vector<::amrex::BoxArray> before =
         ::amrex::AmrMesh::boxArray();
@@ -175,7 +175,7 @@ void GriddingAlgorithm::FillMultiFabFromLevel(::amrex::MultiFab& multifab,
 void GriddingAlgorithm::ErrorEst(int level, ::amrex::TagBoxArray& tags,
                                  double tp, int /* ngrow */) {
   auto timer =
-      hierarchy_.GetCounterRegistry()->get_timer("GriddingAlgorithm::ErrorEst");
+      hierarchy_.GetCounterRegistry()->GetTimer("GriddingAlgorithm::ErrorEst");
   const Duration time_point(tp);
   tagging_.TagCellsForRefinement(tags, *this, level, time_point);
 }
@@ -183,7 +183,7 @@ void GriddingAlgorithm::ErrorEst(int level, ::amrex::TagBoxArray& tags,
 void GriddingAlgorithm::MakeNewLevelFromScratch(
     int level, double time_point, const ::amrex::BoxArray& box_array,
     const ::amrex::DistributionMapping& distribution_mapping) {
-  auto timer = hierarchy_.GetCounterRegistry()->get_timer(
+  auto timer = hierarchy_.GetCounterRegistry()->GetTimer(
       "GriddingAlgorithm::MakeNewLevelFromScratch");
   // Allocate level data.
   const DataDescription& desc = hierarchy_.GetDataDescription();
@@ -203,7 +203,7 @@ void GriddingAlgorithm::MakeNewLevelFromScratch(
 void GriddingAlgorithm::MakeNewLevelFromCoarse(
     int level, double time_point, const ::amrex::BoxArray& box_array,
     const ::amrex::DistributionMapping& distribution_mapping) {
-  auto timer = hierarchy_.GetCounterRegistry()->get_timer(
+  auto timer = hierarchy_.GetCounterRegistry()->GetTimer(
       "GriddingAlgorithm::MakeNewLevelFromCoarse");
   FUB_ASSERT(0 < level && level <= hierarchy_.GetNumberOfLevels());
   const PatchLevel& coarse_level = hierarchy_.GetPatchLevel(level - 1);
@@ -234,7 +234,7 @@ void GriddingAlgorithm::MakeNewLevelFromCoarse(
 void GriddingAlgorithm::RemakeLevel(
     int level_number, double time_point, const ::amrex::BoxArray& box_array,
     const ::amrex::DistributionMapping& distribution_mapping) {
-  auto timer = hierarchy_.GetCounterRegistry()->get_timer(
+  auto timer = hierarchy_.GetCounterRegistry()->GetTimer(
       "GriddingAlgorithm::RemakeLevel");
   const DataDescription desc = hierarchy_.GetDataDescription();
   PatchLevel new_level(level_number, Duration(time_point), box_array,

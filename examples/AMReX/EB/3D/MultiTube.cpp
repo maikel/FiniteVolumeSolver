@@ -263,7 +263,7 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
   BOOST_LOG(log) << "Compute EB level set data...";
   std::shared_ptr<fub::CounterRegistry> registry = std::make_shared<fub::CounterRegistry>();
   {
-    fub::Timer timer = registry->get_timer("MakeIndexSpaces");
+    fub::Timer timer = registry->GetTimer("MakeIndexSpaces");
     hierarchy_options.index_spaces = MakeIndexSpaces(
       shop, coarse_geometry, hierarchy_options.max_number_of_levels);
   }

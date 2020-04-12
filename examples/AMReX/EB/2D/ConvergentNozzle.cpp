@@ -201,7 +201,7 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
   std::shared_ptr<fub::CounterRegistry> registry =
       std::make_shared<fub::CounterRegistry>();
   {
-    fub::Timer timer = registry->get_timer("MakeIndexSpaces");
+    fub::Timer timer = registry->GetTimer("MakeIndexSpaces");
     hierarchy_options.index_spaces =
         MakeIndexSpaces(shop, grid_geometry, hierarchy_options);
   }

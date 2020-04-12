@@ -87,7 +87,7 @@ const PatchHierarchy& GriddingAlgorithm::GetPatchHierarchy() const noexcept {
 
 int GriddingAlgorithm::RegridAllFinerlevels(int which_level) {
   if (which_level < max_level) {
-    auto timer = hierarchy_.GetCounterRegistry()->get_timer(
+    auto timer = hierarchy_.GetCounterRegistry()->GetTimer(
         "cutcell::GriddingAlgorithm::RegridAllFinerLevels");
     const ::amrex::Vector<::amrex::BoxArray> before =
         ::amrex::AmrMesh::boxArray();
@@ -106,7 +106,7 @@ int GriddingAlgorithm::RegridAllFinerlevels(int which_level) {
 }
 
 void GriddingAlgorithm::InitializeHierarchy(double level_time) {
-  auto timer = hierarchy_.GetCounterRegistry()->get_timer(
+  auto timer = hierarchy_.GetCounterRegistry()->GetTimer(
       "cutcell::GriddingAlgorithm::InitializeHierarchy");
   ::amrex::AmrCore::MakeNewGrids(level_time);
   const int n_levels = hierarchy_.GetNumberOfLevels();
@@ -158,7 +158,7 @@ void GriddingAlgorithm::FillMultiFabFromLevel(::amrex::MultiFab& multifab,
 
 void GriddingAlgorithm::ErrorEst(int level, ::amrex::TagBoxArray& tags,
                                  double tp, int /* ngrow */) {
-  auto timer = hierarchy_.GetCounterRegistry()->get_timer(
+  auto timer = hierarchy_.GetCounterRegistry()->GetTimer(
       "cutcell::GriddingAlgorithm::ErrorEst");
   tagging_.TagCellsForRefinement(tags, *this, level, Duration(tp));
 }
@@ -179,7 +179,7 @@ const AnyTaggingMethod& GriddingAlgorithm::GetTagging() const noexcept {
 ::amrex::DistributionMapping GriddingAlgorithm::LoadBalance(
     int level, const ::amrex::BoxArray& box_array,
     const ::amrex::DistributionMapping& distribution_mapping) const {
-  auto timer = hierarchy_.GetCounterRegistry()->get_timer(
+  auto timer = hierarchy_.GetCounterRegistry()->GetTimer(
       "cutcell::GriddingAlgorithm::LoadBalance");
   std::unique_ptr<::amrex::EBFArrayBoxFactory> eb_factory =
       ::amrex::makeEBFabFactory(
@@ -202,7 +202,7 @@ const AnyTaggingMethod& GriddingAlgorithm::GetTagging() const noexcept {
 void GriddingAlgorithm::MakeNewLevelFromScratch(
     int level, double time_point, const ::amrex::BoxArray& box_array,
     const ::amrex::DistributionMapping& distribution_map) {
-  auto timer = hierarchy_.GetCounterRegistry()->get_timer(
+  auto timer = hierarchy_.GetCounterRegistry()->GetTimer(
       "cutcell::GriddingAlgorithm::MakeNewLevelFromScratch");
   // Allocate level data.
   const ::amrex::DistributionMapping balanced_distribution_map =
@@ -230,7 +230,7 @@ void GriddingAlgorithm::MakeNewLevelFromScratch(
 void GriddingAlgorithm::MakeNewLevelFromCoarse(
     int level, double time_point, const ::amrex::BoxArray& box_array,
     const ::amrex::DistributionMapping& distribution_map) {
-  auto timer = hierarchy_.GetCounterRegistry()->get_timer(
+  auto timer = hierarchy_.GetCounterRegistry()->GetTimer(
       "cutcell::GriddingAlgorithm::MakeNewLevelFromCoarse");
   FUB_ASSERT(level > 0);
   const ::amrex::DistributionMapping balanced_distribution_map =
@@ -267,7 +267,7 @@ void GriddingAlgorithm::MakeNewLevelFromCoarse(
 void GriddingAlgorithm::RemakeLevel(
     int level_number, double time_point, const ::amrex::BoxArray& box_array,
     const ::amrex::DistributionMapping& distribution_map) {
-  auto timer = hierarchy_.GetCounterRegistry()->get_timer(
+  auto timer = hierarchy_.GetCounterRegistry()->GetTimer(
       "cutcell::GriddingAlgorithm::RemakeLevel");
   const ::amrex::DistributionMapping balanced_distribution_map =
       LoadBalance(level_number, box_array, distribution_map);
@@ -293,7 +293,7 @@ void GriddingAlgorithm::ClearLevel(int level) {
 }
 
 void GriddingAlgorithm::PostProcessBaseGrids(::amrex::BoxArray& ba) const {
-  auto timer = hierarchy_.GetCounterRegistry()->get_timer(
+  auto timer = hierarchy_.GetCounterRegistry()->GetTimer(
       "cutcell::GriddingAlgorithm::PostProcessBaseGrids");
   if (hierarchy_.GetOptions().remove_covered_grids) {
     ::amrex::DistributionMapping dm(ba);

@@ -37,7 +37,7 @@ Result<void, TimeStepTooLarge>
 KineticSourceTerm<Rank>::AdvanceLevel(amrex::IntegratorContext& simulation_data,
                                       int level, Duration dt,
                                       const ::amrex::IntVect& ngrow) {
-  Timer advance_timer = simulation_data.GetCounterRegistry()->get_timer(
+  Timer advance_timer = simulation_data.GetCounterRegistry()->GetTimer(
       "KineticSourceTerm::AdvanceLevel");
   ::amrex::MultiFab& data = simulation_data.GetScratch(level);
 #if defined(_OPENMP) && defined(AMREX_USE_OMP)

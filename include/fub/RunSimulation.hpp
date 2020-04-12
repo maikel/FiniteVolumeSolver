@@ -76,7 +76,7 @@ template <typename DestGrid, typename SrcGrid>
 void MakeBackup(std::shared_ptr<DestGrid>& dest,
                 const std::shared_ptr<SrcGrid>& src,
                 CounterRegistry& counter_database) {
-  Timer counter = counter_database.get_timer("RunSimulation::MakeBackup");
+  Timer counter = counter_database.GetTimer("RunSimulation::MakeBackup");
   dest = std::make_shared<DestGrid>(*src);
 }
 

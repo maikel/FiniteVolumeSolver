@@ -36,7 +36,7 @@ class CounterRegistry {
 public:
   CounterRegistry() = default;
   Counter* get(std::string const& name);
-  Timer get_timer(std::string const& name);
+  Timer GetTimer(std::string const& name);
   std::vector<CounterResult> gather_statistics();
   std::unordered_map<std::string, CounterResult> gather_statistics_map();
 
