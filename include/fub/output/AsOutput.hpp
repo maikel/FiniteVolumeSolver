@@ -27,6 +27,7 @@
 
 namespace fub {
 
+/// \ingroup Output
 template <typename Grid, typename Fn>
 class AsOutput : public OutputAtFrequencyOrInterval<Grid> {
 public:
@@ -53,6 +54,7 @@ MakeOutput(std::vector<std::ptrdiff_t> frequencies,
       std::move(frequencies), std::move(intervals), std::move(fn));
 }
 
+/// \ingroup Output PolymorphicValueType
 template <typename Grid>
 class AnyOutput : public OutputAtFrequencyOrInterval<Grid> {
 public:

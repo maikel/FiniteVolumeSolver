@@ -30,8 +30,8 @@
 namespace fub {
 
 /// \defgroup TaggingMethod Tagging Methods
+/// \brief This group contains all components that tag cells for refinement.
 /// \ingroup GriddingAlgorithm
-/// This modules collects all components that tag cells for refinement.
 
 template <typename GriddingAlgorithm> struct TaggingMethodStrategy_ {
   using TagDataHandle = typename GridTraits<GriddingAlgorithm>::TagDataHandle;

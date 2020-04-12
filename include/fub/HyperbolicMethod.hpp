@@ -31,7 +31,7 @@
 namespace fub {
 
 /// \defgroup PolymorphicValueType Polymorphic Value Types
-/// \brief This group summarizes all types which have a polymorphic behaviour.
+/// \brief This group contains all types which have a polymorphic behaviour.
 
 ///////////////////////////////////////////////////////////////////////////////
 //                                                          Strategy Interfaces

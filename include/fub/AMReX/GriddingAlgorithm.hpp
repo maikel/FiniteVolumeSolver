@@ -37,7 +37,7 @@ namespace fub {
 namespace amrex {
 
 /// \defgroup GriddingAlgorithm Gridding Algorithms
-/// This modules summarizes all gridding algorithms.
+/// This group contains all gridding algorithms.
 
 class GriddingAlgorithm;
 } // namespace amrex

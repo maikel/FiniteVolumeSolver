@@ -26,6 +26,10 @@
 #include "fub/PatchDataView.hpp"
 
 /// \defgroup TimeIntegrator Time Integrators
+///
+/// \brief This group contains all classes and function that do a hyperbolic
+/// time step update.
+///
 /// \ingroup IntegratorContext
 
 namespace fub {

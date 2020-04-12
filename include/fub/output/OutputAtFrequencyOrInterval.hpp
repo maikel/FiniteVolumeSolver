@@ -28,6 +28,7 @@
 
 namespace fub {
 
+/// \ingroup Output
 template <typename GriddingAlgorithm>
 class OutputAtFrequencyOrInterval : public BasicOutput<GriddingAlgorithm> {
 public:

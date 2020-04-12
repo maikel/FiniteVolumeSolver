@@ -30,6 +30,7 @@
 
 namespace fub {
 
+/// \ingroup Output
 template <typename Grid, typename PrintDuration = std::chrono::nanoseconds>
 class CounterOutput : public OutputAtFrequencyOrInterval<Grid> {
 public:

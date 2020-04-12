@@ -47,6 +47,8 @@ namespace fub {
 namespace amrex {
 
 /// \defgroup PatchHierarchy
+///
+/// \brief This group contains all classes that define a PatchHierarchy.
 
 class DebugStorage;
 

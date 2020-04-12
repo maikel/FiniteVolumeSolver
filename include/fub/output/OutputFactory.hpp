@@ -30,6 +30,7 @@
 
 namespace fub {
 
+/// \ingroup Output
 template <typename Grid> class OutputFactory {
 public:
   using ProgramOptions = std::map<std::string, pybind11::object>;

@@ -32,7 +32,7 @@ namespace fub {
 
 /// \ingroup GriddingAlgorithm
 /// \defgroup BoundaryCondition Boundary Conditions
-/// \brief This modules collects all components that fill the ghost layer of a patch
+/// \brief This group contains all components that fill the ghost layer of a patch
 /// level.
 
 namespace detail {

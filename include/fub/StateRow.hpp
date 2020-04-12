@@ -25,7 +25,7 @@
 #include "fub/core/tuple.hpp"
 
 namespace fub {
-
+namespace detail {
 template <typename T, typename Depth> struct DepthToRowType {
   using type = mdspan<T, 2, layout_stride>;
 };
@@ -45,8 +45,9 @@ template <typename State> struct RowBaseImpl<const State> {
   using fn = typename DepthToRowType<const double, Depth>::type;
   using type = boost::mp11::mp_transform<fn, meta::Depths<State>>;
 };
+}
 
-template <typename State> using RowBase = typename RowBaseImpl<State>::type;
+template <typename State> using RowBase = typename detail::RowBaseImpl<State>::type;
 
 template <typename State> struct Row : RowBase<State> {
   static constexpr int Rank = 1;
@@ -107,6 +108,7 @@ template <typename State> ViewPointer<State> End(const Row<State>& row) {
   return pointer;
 }
 
+namespace detail {
 template <Direction Dir> struct ToStride {
   template <typename T, int R, typename L>
   std::ptrdiff_t operator()(const PatchDataView<T, R, L>& pdv) const {
@@ -122,6 +124,7 @@ template <Direction Dir> struct ToStride {
     return get<0>(view).Stride(static_cast<int>(Dir));
   }
 };
+}
 
 template <Direction Dir, typename T, int R, typename L>
 std::ptrdiff_t Extent(const PatchDataView<T, R, L>& pdv) {
@@ -133,6 +136,7 @@ std::ptrdiff_t Extent(const BasicView<T, L, R>& view) {
   return Extent<Dir>(get<0>(view));
 }
 
+namespace detail {
 struct ToRow {
   std::ptrdiff_t extent;
 
@@ -144,6 +148,7 @@ struct ToRow {
     return {pointer, extent};
   }
 };
+}
 
 template <typename T> void Advance(T*& pointer, std::ptrdiff_t n) {
   pointer += n;
@@ -168,21 +173,22 @@ constexpr decltype(auto) GetOrForward(const ViewPointer<T>& pointer) noexcept {
   return get<N>(pointer);
 }
 
+/// \ingroup ForEach
 template <typename Tuple, typename Function>
 void ForEachRow(const Tuple& views, Function f) {
   std::tuple firsts = Transform(views, [](const auto& v) { return Begin(v); });
   const std::ptrdiff_t row_extent = Extent<Direction::X>(std::get<0>(views));
   if constexpr (std::tuple_element_t<0, Tuple>::rank() == 1) {
-    std::tuple rows = Transform(firsts, ToRow{row_extent});
+    std::tuple rows = Transform(firsts, detail::ToRow{row_extent});
     std::apply(f, rows);
   } else if constexpr (std::tuple_element_t<0, Tuple>::rank() == 2) {
     std::tuple lasts = Transform(views, [](const auto& v) { return End(v); });
-    std::tuple strides = Transform(views, ToStride<Direction::Y>());
+    std::tuple strides = Transform(views, detail::ToStride<Direction::Y>());
     const auto& first = std::get<0>(firsts);
     const auto& last = std::get<0>(lasts);
     std::ptrdiff_t n = GetOrForward<0>(last) - GetOrForward<0>(first);
     while (n >= std::get<0>(strides)) {
-      std::tuple rows = Transform(firsts, ToRow{row_extent});
+      std::tuple rows = Transform(firsts, detail::ToRow{row_extent});
       std::apply(f, rows);
       std::tuple firsts_and_strides = Zip(firsts, strides);
       std::apply(
@@ -196,8 +202,8 @@ void ForEachRow(const Tuple& views, Function f) {
   } else {
     const std::ptrdiff_t ny = Extent<Direction::Y>(std::get<0>(views));
     const std::ptrdiff_t nz = Extent<Direction::Z>(std::get<0>(views));
-    std::tuple strides_y = Transform(views, ToStride<Direction::Y>());
-    std::tuple strides_z = Transform(views, ToStride<Direction::Z>());
+    std::tuple strides_y = Transform(views, detail::ToStride<Direction::Y>());
+    std::tuple strides_z = Transform(views, detail::ToStride<Direction::Z>());
     for (std::ptrdiff_t j = 0; j < nz; ++j) {
       std::tuple pointers = firsts;
       for (std::ptrdiff_t i = 0; i < ny; ++i) {

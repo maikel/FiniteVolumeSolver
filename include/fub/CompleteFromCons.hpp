@@ -30,6 +30,10 @@
 #include <type_traits>
 
 /// \defgroup CompleteFromCons Complete From Cons Calculations
+///
+/// \brief This group contains all classes and functions that compute a complete
+/// state from a given conservative state. 
+///
 /// \ingroup IntegratorContext
 
 namespace fub {

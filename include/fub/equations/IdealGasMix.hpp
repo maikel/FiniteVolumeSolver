@@ -160,12 +160,14 @@ private:
   Array<double, Eigen::Dynamic, 1> species_buffer_{reactor_.GetNSpecies()};
 };
 
+namespace detail {
 template <typename Depth> struct ToConcreteDepthImpl { using type = Depth; };
 
 template <> struct ToConcreteDepthImpl<VectorDepth<-1>> { using type = int; };
+}
 
 template <typename Depth>
-using ToConcreteDepth = typename ToConcreteDepthImpl<Depth>::type;
+using ToConcreteDepth = typename detail::ToConcreteDepthImpl<Depth>::type;
 
 template <typename Depths>
 using ToConcreteDepths = boost::mp11::mp_transform<ToConcreteDepth, Depths>;

@@ -37,7 +37,8 @@
 namespace fub {
 
 /// \defgroup SubcycleSolver Subcycle Solvers
-/// \brief This groups contains all classes that control the subcycle behaviour
+///
+/// \brief This group contains all classes that control the subcycle behaviour
 /// of a simulation.
 
 /// \ingroup SubcycleSolver

@@ -27,7 +27,13 @@
 
 namespace fub {
 
-/// This is a abstract base class for an output strategy.
+/// \defgroup Output Output
+/// \brief This group contains all classes that do an output of the hierarchy.
+
+/// \ingroup Output
+///
+/// \brief This is a abstract base class for an output strategy.
+///
 /// Objects of this class are intended to be passt to the fub::RunSimulation
 /// function.
 template <typename GriddingAlgorithm> struct BasicOutput {

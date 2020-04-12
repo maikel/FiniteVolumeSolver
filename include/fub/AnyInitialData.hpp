@@ -30,8 +30,8 @@
 namespace fub {
 
 /// \defgroup InitialData Initial Data Methods
+/// \brief This group contains all components which initialize simulation data.
 /// \ingroup GriddingAlgorithm
-/// This group summarizes all components which initialize simulation data.
 
 namespace detail {
 template <typename GriddingAlgorithm> struct InitialDataStrategy {

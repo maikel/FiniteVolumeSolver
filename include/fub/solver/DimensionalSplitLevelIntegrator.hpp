@@ -38,7 +38,7 @@
 namespace fub {
 
 /// \defgroup LevelIntegrator Level Integrators
-/// \brief This group collects all classes that define a time integration on a
+/// \brief This group contanis all classes that define a time integration on a
 /// single refinement level.
 
 /// \ingroup LevelIntegrator

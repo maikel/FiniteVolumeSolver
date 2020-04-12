@@ -36,7 +36,7 @@
 namespace fub::amrex {
 
 /// \defgroup IntegratorContext Integrator Contexts
-/// \brief This group summarizes all classes and functions that are realted to integrator contexts.
+/// \brief This group contains all classes and functions that are realted to integrator contexts.
 
 class IntegratorContext;
 

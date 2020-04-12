@@ -33,6 +33,7 @@
 
 namespace fub {
 
+/// \ingroup Output
 template <typename Grid> class MultipleOutputs : public BasicOutput<Grid> {
 public:
   using ProgramOptions = std::map<std::string, pybind11::object>;
