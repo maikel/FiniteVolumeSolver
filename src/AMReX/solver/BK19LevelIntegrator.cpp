@@ -576,32 +576,25 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
                        geom, level, half_dt, dbgAdvBFAB);
 
   // Copy pi_n+1 to pi_n
-  context.GetPi(level).copy(pi_new);
+  hier.GetPatchLevel(level).nodes->copy(pi_new);
 
   dbgAdvBFAB.SaveData(scratch, GetCompleteVariableNames(), geom);
 
   return boost::outcome_v2::success();
 }
 
-void BK19LevelIntegrator::InitialProjection(
-                      int level,
-                      Duration dt,
-                      std::array<double,2> U0
-                      ) {
+void BK19LevelIntegrator::InitialProjection(int level, Duration dt,
+                      std::array<double,2> U0) {
 
   AdvectionSolver& advection = GetAdvection();
-  BK19IntegratorContext& context = advection.GetContext();
+  CompressibleAdvectionIntegratorContext& context = advection.GetContext();
+  const fub::amrex::PatchHierarchy& hier = context.GetPatchHierarchy();
   MultiFab& scratch = context.GetScratch(level);
-  MultiFab& pi = context.GetPi(level);
+  MultiFab& pi = *hier.GetPatchLevel(level).nodes;
   const ::amrex::Geometry& geom = context.GetGeometry(level);
 
-  ::amrex::DistributionMapping distribution_map = scratch.DistributionMap();
-  ::amrex::BoxArray on_cells = scratch.boxArray();
-  ::amrex::BoxArray on_nodes = on_cells;
-  on_nodes.surroundingNodes();
-
-  double tmp_alpha_p = equation_.alpha_p;
-  equation_.alpha_p = 0.0;
+  BK19PhysicalParameters phys_param_aux{phys_param_};
+  phys_param_aux.alpha_p = 0.0;
 
   for (std::size_t i = 0 ; i < index_.momentum.size(); ++i) {
     MultiFab::Saxpy(scratch, -U0[i] ,scratch, index_.density, index_.momentum[i], one_component, no_ghosts);
@@ -610,14 +603,14 @@ void BK19LevelIntegrator::InitialProjection(
   RecoverVelocityFromMomentum_(scratch, index_);
 
   context.FillGhostLayerSingleLevel(level);
-  DoEulerBackward_(equation_, index_, *lin_op_, options_, scratch, pi, geom, level, dt);
+  DoEulerBackward_(index_, *lin_op_, phys_param_aux, options_, scratch, pi,
+                   geom, level, dt);
 
   for (std::size_t i = 0 ; i < index_.momentum.size(); ++i) {
     MultiFab::Saxpy(scratch, +U0[i], scratch, index_.density, index_.momentum[i], one_component, no_ghosts);
   }
 
   RecoverVelocityFromMomentum_(scratch, index_);
-  equation_.alpha_p = tmp_alpha_p;
 }
 
 
