@@ -29,7 +29,11 @@ struct GreshoVortex {
   using Complete = fub::Complete<Equation>;
   using Conservative = fub::Conservative<Equation>;
 
-  void InitializeData(amrex::MultiFab& data, const amrex::Geometry& geom) {
+  void InitializeData(fub::amrex::PatchLevel& patch_level,
+                      const fub::amrex::GriddingAlgorithm& grid, int level,
+                      fub::Duration /*time*/) const {
+    const amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
+    amrex::MultiFab& data = patch_level.data;
     fub::amrex::ForEachFab(data, [&](const amrex::MFIter& mfi) {
       fub::View<Complete> states =
           fub::amrex::MakeView<Complete>(data[mfi], equation_, mfi.tilebox());
@@ -126,7 +130,7 @@ int main(int argc, char** argv) {
   fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
   fub::HllMethod hll_method(equation, signals);
   fub::MusclHancockMethod muscl_method(equation, hll_method);
-  fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(muscl_method),
+  fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethodAdapter(muscl_method),
                                       fub::amrex::EulerForwardTimeIntegrator(),
                                       fub::amrex::Reconstruction(equation)};
 

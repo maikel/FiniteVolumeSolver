@@ -22,10 +22,10 @@
 #define FUB_AMREX_CUT_CELL_GRIDDING_ALGORITHM_HPP
 
 #include "fub/AMReX/ViewFArrayBox.hpp"
-#include "fub/AMReX/cutcell/BoundaryCondition.hpp"
-#include "fub/AMReX/cutcell/InitialData.hpp"
 #include "fub/AMReX/cutcell/PatchHierarchy.hpp"
-#include "fub/AMReX/cutcell/Tagging.hpp"
+#include "fub/AnyBoundaryCondition.hpp"
+#include "fub/AnyInitialData.hpp"
+#include "fub/AnyTaggingMethod.hpp"
 
 #include <AMReX_AmrCore.H>
 // #include <AMReX_MultiFabUtil.H>
@@ -33,50 +33,127 @@
 #include <memory>
 
 namespace fub::amrex::cutcell {
+class GriddingAlgorithm;
+}
 
+namespace fub {
+template <> struct GridTraits<amrex::cutcell::GriddingAlgorithm> {
+  using PatchLevel = ::fub::amrex::cutcell::PatchLevel;
+  using TagDataHandle = ::amrex::TagBoxArray&;
+  using DataReference = ::amrex::MultiFab&;
+};
+} // namespace fub
+
+namespace fub::amrex::cutcell {
+using AnyInitialData = ::fub::AnyInitialData<GriddingAlgorithm>;
+using AnyTaggingMethod = ::fub::AnyTaggingMethod<GriddingAlgorithm>;
+using AnyBoundaryCondition = ::fub::AnyBoundaryCondition<GriddingAlgorithm>;
+
+/// \ingroup GriddingAlgorithm
+///
+/// \brief This class modifies and initializes a cutcell::PatchLevel in a
+/// cutcell::PatchHierarchy.
 class GriddingAlgorithm : private ::amrex::AmrCore {
 public:
-  static constexpr int Rank = AMREX_SPACEDIM;
+  /// @{
+  /// \name Constructors, Assignments and Destructors
 
-  GriddingAlgorithm() = delete;
+  /// \brief Constructs an empty and invalid GriddingAlgorithm
+  GriddingAlgorithm();
 
+  /// \brief Constructs a gridding algorithm and defines all customization
+  /// points
+  ///
+  /// \param hier The base PatchHierarchy that will be modified. It also
+  /// contains options that influence the box generation step.
+  ///
+  /// \param initial_data An InitialCondition policy object
+  ///
+  /// \param tagging A tagging routine masks cells that need further refinement.
+  ///
+  /// \param boundary The boundary condition fills the ghost layer for physical
+  /// domain boundary.
+  ///
+  /// \throw Throws `std::bad_alloc` if a memory allocation fails.
+  GriddingAlgorithm(PatchHierarchy hier, AnyInitialData initial_data,
+                    AnyTaggingMethod tagging, AnyBoundaryCondition boundary);
+
+  /// \brief The copy constructor makes a deep copy of the all data for each MPI
+  /// rank.
   GriddingAlgorithm(const GriddingAlgorithm&);
+
+  /// \brief The copy constructor makes a deep copy of the all data for each MPI
+  /// rank.
   GriddingAlgorithm& operator=(const GriddingAlgorithm&);
 
-  GriddingAlgorithm(GriddingAlgorithm&&) noexcept;
-  GriddingAlgorithm& operator=(GriddingAlgorithm&&) noexcept;
+  /// \brief The move constructor moves a gridding algorithm without allocating
+  /// any memory.
+  GriddingAlgorithm(GriddingAlgorithm&&) noexcept = default;
+
+  /// \brief The move constructor moves a gridding algorithm without allocating
+  /// any memory.
+  GriddingAlgorithm& operator=(GriddingAlgorithm&&) noexcept = default;
 
   ~GriddingAlgorithm() noexcept override = default;
+  /// @}
 
-  GriddingAlgorithm(PatchHierarchy hier, InitialData data, Tagging tagging,
-                    BoundaryCondition boundary);
+  /// @{
+  /// \name Accessors
 
   [[nodiscard]] const PatchHierarchy& GetPatchHierarchy() const noexcept;
   PatchHierarchy& GetPatchHierarchy() noexcept;
 
-  bool RegridAllFinerlevels(int which_level);
-  void InitializeHierarchy(double level_time);
+  [[nodiscard]] const AnyBoundaryCondition&
+  GetBoundaryCondition() const noexcept;
 
-  void SetBoundaryCondition(int level, BoundaryCondition&& condition);
-  void SetBoundaryCondition(int level, const BoundaryCondition& condition);
+  [[nodiscard]] AnyBoundaryCondition& GetBoundaryCondition() noexcept;
 
+  [[nodiscard]] const AnyInitialData& GetInitialCondition() const noexcept;
+
+  [[nodiscard]] const AnyTaggingMethod& GetTagging() const noexcept;
+  /// @}
+
+  /// @{
+  /// \name Observers
+
+  /// \brief Returns the number of time steps taken on the coarsest refinement
+  /// level.
   [[nodiscard]] std::ptrdiff_t GetCycles() const noexcept {
     return hierarchy_.GetCycles();
   }
 
+  /// \brief Returns the current time point on the coarsest refinement level.
   [[nodiscard]] Duration GetTimePoint() const noexcept {
     return hierarchy_.GetTimePoint();
   }
+  /// @}
 
-  [[nodiscard]] const BoundaryCondition& GetBoundaryCondition(int level) const
-      noexcept;
-  [[nodiscard]] BoundaryCondition& GetBoundaryCondition(int level) noexcept;
+  /// @{
+  /// \name Modifiers
 
-  [[nodiscard]] const InitialData& GetInitialCondition() const noexcept;
+  /// \brief Attempt to regrid all finer level than the specified `which_level`.
+  ///
+  /// \return Returns the coarsest level which was regrid. If no level changed
+  /// this function returns the maximum number of levels.
+  int RegridAllFinerlevels(int which_level);
 
-  [[nodiscard]] const Tagging& GetTagging() const noexcept;
+  /// \brief Initializes the underlying patch hierarchy using the stored initial
+  /// data method.
+  ///
+  /// \note This function might recreate a refinement level if nesting
+  /// conditions are violated upon creating a new refinement level. This implies
+  /// that the initial condition might be called multiple times for one
+  /// refinement level.
+  void InitializeHierarchy(double level_time);
+  /// @}
 
+  /// @{
+  /// \name Actions
+
+  /// \brief Fill the ghost layer boundary specified of the specifed MultiFab
+  /// `mf`.
   void FillMultiFabFromLevel(::amrex::MultiFab& mf, int level_number);
+  /// @}
 
 private:
   [[nodiscard]] ::amrex::DistributionMapping
@@ -98,12 +175,14 @@ private:
       int level, double time_point, const ::amrex::BoxArray& box_array,
       const ::amrex::DistributionMapping& distribution_mapping) override;
 
+  void PostProcessBaseGrids(::amrex::BoxArray& box_array) const override;
+
   void ClearLevel(int level) override;
 
   PatchHierarchy hierarchy_;
-  InitialData initial_condition_;
-  Tagging tagging_;
-  std::vector<BoundaryCondition> boundary_condition_;
+  AnyInitialData initial_condition_;
+  AnyTaggingMethod tagging_;
+  AnyBoundaryCondition boundary_condition_;
 };
 
 } // namespace fub::amrex::cutcell

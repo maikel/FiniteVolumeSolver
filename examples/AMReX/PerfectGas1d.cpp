@@ -35,7 +35,11 @@ struct RiemannProblem {
   Complete left_{equation_};
   Complete right_{equation_};
 
-  void InitializeData(amrex::MultiFab& data, const amrex::Geometry& geom) {
+  void InitializeData(fub::amrex::PatchLevel& patch_level,
+                      const fub::amrex::GriddingAlgorithm& grid, int level,
+                      fub::Duration /*time*/) const {
+    const amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
+    amrex::MultiFab& data = patch_level.data;
     fub::amrex::ForEachFab(
         fub::execution::openmp, data, [&](amrex::MFIter& mfi) {
           fub::View<Complete> state = fub::amrex::MakeView<Complete>(
@@ -53,11 +57,12 @@ struct RiemannProblem {
   }
 };
 
-int main(int argc, char** argv) {
+int main() {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
-  const fub::amrex::ScopeGuard guard(argc, argv);
+  // fub::EnableFloatingPointExceptions();
+  const fub::amrex::ScopeGuard guard{};
   fub::InitializeLogging(MPI_COMM_WORLD);
 
   constexpr int Dim = AMREX_SPACEDIM;
@@ -79,7 +84,7 @@ int main(int argc, char** argv) {
 
   auto from_prim = [](Complete& state, const fub::PerfectGas<1>& equation) {
     state.energy = state.pressure * equation.gamma_minus_1_inv +
-                   0.5 * state.momentum.matrix().norm() / state.density;
+                   0.5 * state.momentum.matrix().squaredNorm() / state.density;
     state.speed_of_sound =
         std::sqrt(equation.gamma * state.pressure / state.density);
   };
@@ -87,13 +92,13 @@ int main(int argc, char** argv) {
   Complete left;
   left.density = 1.0;
   left.momentum = 0.0;
-  left.pressure = 8.0;
+  left.pressure = 1.0;
   from_prim(left, equation);
 
   Complete right;
-  right.density = 1.0;
+  right.density = 0.125;
   right.momentum = 0.0;
-  right.pressure = 1.0;
+  right.pressure = 0.1;
   from_prim(right, equation);
 
   RiemannProblem initial_data{equation, left, right};
@@ -107,7 +112,7 @@ int main(int argc, char** argv) {
       ReflectiveBoundary{seq, equation, fub::Direction::X, 1});
 
   fub::amrex::PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = 4;
+  hier_opts.max_number_of_levels = 1;
   hier_opts.refine_ratio = ::amrex::IntVect{AMREX_D_DECL(2, 1, 1)};
   hier_opts.blocking_factor = ::amrex::IntVect{AMREX_D_DECL(8, 1, 1)};
 
@@ -116,15 +121,14 @@ int main(int argc, char** argv) {
       gradient, boundary);
   gridding->InitializeHierarchy(0.0);
 
-  fub::EinfeldtSignalVelocities<fub::PerfectGas<1>> signals{};
-  fub::HllMethod hll_method(equation, signals);
-  fub::MusclHancockMethod flux_method{equation, hll_method};
-  fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(flux_method),
-                                      fub::amrex::EulerForwardTimeIntegrator(),
-                                      fub::amrex::Reconstruction(equation)};
+  fub::perfect_gas::HllemMethod<1> hllem_method{equation};
+  fub::amrex::HyperbolicMethod method{
+      fub::amrex::FluxMethodAdapter(hllem_method),
+      fub::amrex::EulerForwardTimeIntegrator(),
+      fub::amrex::Reconstruction(equation)};
 
-  const int scratch_ghost_cell_width = 4;
-  const int flux_ghost_cell_width = 2;
+  const int scratch_ghost_cell_width = 2;
+  const int flux_ghost_cell_width = 0;
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<1>,
@@ -134,7 +138,7 @@ int main(int argc, char** argv) {
 
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
-  std::string base_name = "PerfectGas1d/";
+  std::string base_name = "PerfectGas1d_hll/";
 
   using namespace fub::amrex;
   using namespace std::literals::chrono_literals;
@@ -166,8 +170,10 @@ int main(int argc, char** argv) {
   output.AddOutput(
       fub::MakeOutput<GriddingAlgorithm>({1}, {}, conservation_error));
 
-  output.AddOutput(fub::MakeOutput<GriddingAlgorithm>(
-      {}, {0.01s}, fub::amrex::PlotfileOutput(equation, base_name)));
+  output.AddOutput(
+      std::make_unique<fub::amrex::PlotfileOutput<fub::PerfectGas<1>>>(
+          std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{0.125s},
+          equation, base_name));
 
   output.AddOutput(
       std::make_unique<fub::CounterOutput<fub::amrex::GriddingAlgorithm>>(
@@ -176,7 +182,7 @@ int main(int argc, char** argv) {
 
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
-  run_options.cfl = 0.9;
-  run_options.final_time = 0.2s;
+  run_options.cfl = 0.5;
+  run_options.final_time = 0.25s;
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

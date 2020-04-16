@@ -20,7 +20,10 @@
 
 #include "fub/AMReX/cutcell/IntegratorContext.hpp"
 
+#include "fub/AMReX/ForEachFab.hpp"
+#include "fub/AMReX/ForEachIndex.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
+#include "fub/AMReX/boundary_condition/BoundaryConditionRef.hpp"
 #include "fub/AMReX/cutcell/IndexSpace.hpp"
 
 #include <AMReX_EBMultiFabUtil.H>
@@ -46,6 +49,7 @@ IntegratorContext::LevelData::operator=(LevelData&& other) noexcept {
                        other.coarse_fine.refRatio(),
                        other.coarse_fine.fineLevel(),
                        other.coarse_fine.nComp());
+    coarse_fine.setVal(0.0);
   }
   eb_factory = std::move(other.eb_factory);
   reference_states = std::move(other.reference_states);
@@ -122,13 +126,13 @@ IntegratorContext& IntegratorContext::IntegratorContext::operator=(
 ///////////////////////////////////////////////////////////////////////////////
 //                                                             Member Accessors
 
-const BoundaryCondition&
-IntegratorContext::GetBoundaryCondition(int level) const {
-  return gridding_->GetBoundaryCondition(level);
+const AnyBoundaryCondition&
+IntegratorContext::GetBoundaryCondition() const {
+  return gridding_->GetBoundaryCondition();
 }
 
-BoundaryCondition& IntegratorContext::GetBoundaryCondition(int level) {
-  return gridding_->GetBoundaryCondition(level);
+AnyBoundaryCondition& IntegratorContext::GetBoundaryCondition() {
+  return gridding_->GetBoundaryCondition();
 }
 
 const std::shared_ptr<GriddingAlgorithm>&
@@ -346,14 +350,19 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
           ::amrex::IntVect::TheDimensionVector(int(d));
       data.fluxes[d].define(::amrex::convert(ba, unit), dm, n_cons_components,
                             fgrow);
+      data.fluxes[d].setVal(0.0);
       data.stabilized_fluxes[d].define(::amrex::convert(ba, unit), dm,
                                        n_cons_components, fgrow);
+      data.stabilized_fluxes[d].setVal(0.0);
       data.shielded_left_fluxes[d].define(::amrex::convert(ba, unit), dm,
                                           n_cons_components, fgrow);
+      data.shielded_left_fluxes[d].setVal(0.0);
       data.shielded_right_fluxes[d].define(::amrex::convert(ba, unit), dm,
                                            n_cons_components, fgrow);
+      data.shielded_right_fluxes[d].setVal(0.0);
       data.doubly_shielded_fluxes[d].define(::amrex::convert(ba, unit), dm,
                                             n_cons_components, fgrow);
+      data.doubly_shielded_fluxes[d].setVal(0.0);
     }
 
     data.eb_factory = ebf;
@@ -361,6 +370,7 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
       const ::amrex::IntVect ref_ratio = GetRatioToCoarserLevel(level);
       data.coarse_fine.clear();
       data.coarse_fine.define(ba, dm, ref_ratio, level, n_cons_components);
+      data.coarse_fine.setVal(0.0);
     }
   }
   for (std::size_t level_num = first_level; level_num < data_.size();
@@ -380,12 +390,12 @@ void IntegratorContext::SetCycles(std::ptrdiff_t cycles, int level) {
 }
 
 void IntegratorContext::ApplyBoundaryCondition(int level, Direction dir) {
-  BoundaryCondition& boundary_condition = GetBoundaryCondition(level);
+  AnyBoundaryCondition& boundary_condition = GetBoundaryCondition();
   ApplyBoundaryCondition(level, dir, boundary_condition);
 }
 
 void IntegratorContext::ApplyBoundaryCondition(int level, Direction dir,
-                                               BoundaryCondition& bc) {
+                                               AnyBoundaryCondition& bc) {
   Timer timer = GetCounterRegistry()->get_timer(
       "cutcell::IntegratorContext::ApplyBoundaryCondition");
   Timer timer_per_level{};
@@ -394,16 +404,14 @@ void IntegratorContext::ApplyBoundaryCondition(int level, Direction dir,
         "cutcell::IntegratorContext::ApplyBoundaryCondition({})", level));
   }
   ::amrex::MultiFab& scratch = GetScratch(level);
-  Duration time_point = GetTimePoint(level);
-  const ::amrex::Geometry& geometry = GetGeometry(level);
   GriddingAlgorithm& grid = *GetGriddingAlgorithm();
-  bc.FillBoundary(scratch, geometry, time_point, grid, dir);
+  bc.FillBoundary(scratch, grid, level, dir);
 }
 
 void IntegratorContext::FillGhostLayerTwoLevels(int fine,
-                                                BoundaryCondition& fbc,
+                                                AnyBoundaryCondition& fbc,
                                                 int coarse,
-                                                BoundaryCondition& cbc) {
+                                                AnyBoundaryCondition& cbc) {
   Timer timer1 = GetCounterRegistry()->get_timer(
       "cutcell::IntegratorContext::FillGhostLayerTwoLevels");
   Timer timer_per_level{};
@@ -425,20 +433,23 @@ void IntegratorContext::FillGhostLayerTwoLevels(int fine,
   const ::amrex::IntVect ratio = 2 * ::amrex::IntVect::TheUnitVector();
   ::amrex::Interpolater* mapper = &::amrex::pc_interp;
   std::size_t sfine = static_cast<std::size_t>(fine);
-  ::amrex::FillPatchTwoLevels(
-      scratch, ft[0], *GetPatchHierarchy().GetOptions().index_spaces[sfine],
-      cmf, ct, fmf, ft, 0, 0, nc, cgeom, fgeom, cbc, 0, fbc, 0, ratio, mapper,
-      bcr, 0, ::amrex::NullInterpHook<::amrex::FArrayBox>(),
-      ::amrex::NullInterpHook<::amrex::FArrayBox>());
+  auto&& index_space = *GetPatchHierarchy().GetOptions().index_spaces[sfine];
+  BoundaryConditionRef fine_boundary(fbc, *gridding_, fine);
+  BoundaryConditionRef coarse_boundary(cbc, *gridding_, coarse);
+  ::amrex::FillPatchTwoLevels(scratch, ft[0], index_space, cmf, ct, fmf, ft, 0,
+                              0, nc, cgeom, fgeom, coarse_boundary, 0,
+                              fine_boundary, 0, ratio, mapper, bcr, 0,
+                              ::amrex::NullInterpHook<::amrex::FArrayBox>(),
+                              ::amrex::NullInterpHook<::amrex::FArrayBox>());
 }
 
 void IntegratorContext::FillGhostLayerTwoLevels(int fine, int coarse) {
-  FillGhostLayerTwoLevels(fine, GetBoundaryCondition(fine), coarse,
-                          GetBoundaryCondition(coarse));
+  FillGhostLayerTwoLevels(fine, GetBoundaryCondition(), coarse,
+                          GetBoundaryCondition());
 }
 
 void IntegratorContext::FillGhostLayerSingleLevel(int level,
-                                                  BoundaryCondition& bc) {
+                                                  AnyBoundaryCondition& bc) {
   Timer timer1 = GetCounterRegistry()->get_timer(
       "cutcell::IntegratorContext::FillGhostLayerSingleLevel");
   Timer timer_per_level{};
@@ -453,12 +464,13 @@ void IntegratorContext::FillGhostLayerSingleLevel(int level,
   const ::amrex::Vector<::amrex::MultiFab*> smf{&scratch};
   const ::amrex::Vector<double> stime{GetTimePoint(level).count()};
   const ::amrex::Geometry& geom = GetGeometry(level);
+  BoundaryConditionRef boundary(bc, *gridding_, level);
   ::amrex::FillPatchSingleLevel(scratch, stime[0], smf, stime, 0, 0, nc, geom,
-                                bc, 0);
+                                boundary, 0);
 }
 
 void IntegratorContext::FillGhostLayerSingleLevel(int level) {
-  BoundaryCondition& condition = GetBoundaryCondition(level);
+  AnyBoundaryCondition& condition = GetBoundaryCondition();
   FillGhostLayerSingleLevel(level, condition);
 }
 
@@ -543,7 +555,7 @@ void IntegratorContext::ApplyFluxCorrection(
   const int ncomp = GetPatchHierarchy().GetDataDescription().n_cons_components;
   const ::amrex::Geometry& cgeom = GetGeometry(coarse);
   ::amrex::MultiFab& scratch = GetScratch(coarse);
-  for (int dir = 0; dir < Rank; ++dir) {
+  for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
     ::amrex::FluxRegister& flux_register = data_[next_level].coarse_fine;
     flux_register.Reflux(scratch, dir, 1.0, 0, 0, ncomp, cgeom);
   }
@@ -595,8 +607,8 @@ void IntegratorContext::UpdateConservatively(int level, Duration dt,
   method_.time_integrator.UpdateConservatively(*this, level, dt, dir);
 }
 
-void IntegratorContext::PreAdvanceLevel(int level_num, Duration,
-                                        std::pair<int, int> subcycle) {
+int IntegratorContext::PreAdvanceLevel(int level_num, Duration,
+                                       std::pair<int, int> subcycle) {
   Timer timer1 = GetCounterRegistry()->get_timer(
       "cutcell::IntegratorContext::PreAdvanceLevel");
   Timer timer_per_level{};
@@ -605,18 +617,20 @@ void IntegratorContext::PreAdvanceLevel(int level_num, Duration,
         "cutcell::IntegratorContext::PreAdvanceLevel({})", level_num));
   }
   const std::size_t l = static_cast<std::size_t>(level_num);
+  const int max_level = GetPatchHierarchy().GetMaxNumberOfLevels();
+  int level_which_changed = max_level;
   if (subcycle.first == 0) {
     if (data_[l].regrid_time_point != data_[l].time_point) {
-      gridding_->RegridAllFinerlevels(level_num);
+      level_which_changed = gridding_->RegridAllFinerlevels(level_num);
       for (std::size_t lvl = l; lvl < data_.size(); ++lvl) {
         data_[lvl].regrid_time_point = data_[lvl].time_point;
       }
-      if (LevelExists(level_num + 1)) {
-        ResetHierarchyConfiguration(level_num + 1);
-        ResetCoarseFineFluxes(level_num + 1, level_num);
+      if (level_which_changed < max_level) {
+        ResetHierarchyConfiguration(level_which_changed);
       }
     }
   }
+  return level_which_changed;
 }
 
 Result<void, TimeStepTooLarge>
@@ -656,8 +670,9 @@ void IntegratorContext::PreAdvanceHierarchy() {
 void IntegratorContext::PostAdvanceHierarchy() {
   PatchHierarchy& hierarchy = GetPatchHierarchy();
   int nlevels = hierarchy.GetNumberOfLevels();
+  const Duration time_point = GetTimePoint();
   for (int level = 0; level < nlevels; ++level) {
-    hierarchy.GetPatchLevel(level).time_point = GetTimePoint(level);
+    hierarchy.GetPatchLevel(level).time_point = time_point;
     hierarchy.GetPatchLevel(level).cycles = GetCycles(level);
   }
 }

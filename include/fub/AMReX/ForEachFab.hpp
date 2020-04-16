@@ -27,6 +27,9 @@
 
 namespace fub::amrex {
 
+/// @{
+/// \ingroup ForEach
+/// \brief Iterate through all local FArrayBox objects in a MultiFab.
 template <typename Tag, typename F>
 void ForEachFab(Tag, const ::amrex::FabArrayBase& fabarray, F function) {
   for (::amrex::MFIter mfi(fabarray); mfi.isValid(); ++mfi) {
@@ -86,6 +89,7 @@ void ForEachFab(const ::amrex::BoxArray& ba,
                 const ::amrex::DistributionMapping& dm, F function) {
   ForEachFab(execution::seq, ba, dm, std::move(function));
 }
+/// @}
 
 } // namespace fub::amrex
 

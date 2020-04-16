@@ -23,21 +23,17 @@
 namespace fub::amrex {
 
 void BoundarySet::FillBoundary(::amrex::MultiFab& mf,
-                               const ::amrex::Geometry& geom,
-                               Duration timepoint,
-                               const GriddingAlgorithm& gridding) {
-  for (BoundaryCondition& condition : conditions) {
-    condition.FillBoundary(mf, geom, timepoint, gridding);
+                               const GriddingAlgorithm& gridding, int level) {
+  for (AnyBoundaryCondition& condition : conditions) {
+    condition.FillBoundary(mf, gridding, level);
   }
 }
 
 void BoundarySet::FillBoundary(::amrex::MultiFab& mf,
-                               const ::amrex::Geometry& geom,
-                               Duration timepoint,
-                               const GriddingAlgorithm& gridding,
+                               const GriddingAlgorithm& gridding, int level,
                                Direction dir) {
-  for (BoundaryCondition& condition : conditions) {
-    condition.FillBoundary(mf, geom, timepoint, gridding, dir);
+  for (AnyBoundaryCondition& condition : conditions) {
+    condition.FillBoundary(mf, gridding, level, dir);
   }
 }
 

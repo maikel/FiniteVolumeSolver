@@ -96,8 +96,8 @@ template <int N, int VelocityDim = N> struct CompressibleAdvection {
   using ConservativeDepths = CompressibleAdvectionConsShape<VelocityDim>;
   using CompleteDepths = CompressibleAdvectionCompleteShape<VelocityDim>;
 
-  using Conservative = ::fub::Conservative<CompressibleAdvection<N>>;
-  using Complete = ::fub::Complete<CompressibleAdvection<N>>;
+  using Conservative = ::fub::Conservative<CompressibleAdvection<VelocityDim>>;
+  using Complete = ::fub::Complete<CompressibleAdvection<VelocityDim>>;
 
   static constexpr int Rank() noexcept { return N; }
   static constexpr int VelocityRank() noexcept { return VelocityDim; }
@@ -109,22 +109,6 @@ template <int N, int VelocityDim = N> struct CompressibleAdvection {
     state.velocity = cons.momentum / cons.density;
     state.PTinverse = cons.density / cons.PTdensity;
   }
-
-  /// Universal gas constant
-  double R{8.314}; // [J / (mol K)]
-
-  /// Heat capacity ratio at constant pressure
-  double c_p{2.5 * R};
-
-  /// Gravitational acceleration
-  double g{10.0}; //  [m / s^2]
-
-  /// Coriolis parameter in beta plane
-  double f{0.0};
-
-  double alpha_p{0.0};
-  double gamma{1.4};
-  double Msq{0.0};
 
 };
 
@@ -167,7 +151,7 @@ struct CompressibleAdvectionFluxMethod {
 };
 
 // We define this class only for dimensions 1 to 3.
-// The definitions will be found in its source file PerfetGas.cpp
+// The definitions will be found in its source file CompressibleAdvection.cpp
 // extern template struct CompressibleAdvection<2>;
 extern template struct CompressibleAdvectionFluxMethod<2>;
 

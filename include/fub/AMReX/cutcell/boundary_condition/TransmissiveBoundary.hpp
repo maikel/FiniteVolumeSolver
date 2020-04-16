@@ -21,23 +21,25 @@
 #ifndef FUB_AMREX_BOUNDARY_CUTCELL_CONDITION_TRANSMISSIVE_BOUNDARY_HPP
 #define FUB_AMREX_BOUNDARY_CUTCELL_CONDITION_TRANSMISSIVE_BOUNDARY_HPP
 
-#include "fub/AMReX/cutcell/BoundaryCondition.hpp"
+#include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
 
 #include <AMReX_MultiFab.H>
 
 namespace fub::amrex::cutcell {
 
+/// \ingroup BoundaryCondition
+///
 struct TransmissiveBoundary {
   Direction dir;
   int side;
 
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration dt, const GriddingAlgorithm&);
+  void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding,
+                    int level);
 
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom,
-                    Duration dt, const GriddingAlgorithm& grid, Direction dir) {
+  void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding,
+                    int level, Direction dir) {
     if (dir == this->dir) {
-      FillBoundary(mf, geom, dt, grid);
+      FillBoundary(mf, gridding, level);
     }
   }
 

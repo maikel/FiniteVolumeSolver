@@ -37,7 +37,11 @@ struct TemperatureRamp {
   double air_position_{0.0};
   double equiv_raito_{1.0};
 
-  void InitializeData(::amrex::MultiFab& data, const ::amrex::Geometry& geom) {
+  void InitializeData(fub::amrex::PatchLevel& patch_level,
+                      const fub::amrex::GriddingAlgorithm& grid, int level,
+                      fub::Duration /*time*/) {
+    const amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
+    amrex::MultiFab& data = patch_level.data;
     fub::FlameMasterReactor& reactor = equation_.GetReactor();
     const double high_temp = 1400.0;
     const double temp = 300.0;
@@ -181,8 +185,6 @@ void MyMain(const ProgramOptions& opts) {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
-  fub::InitializeLogging(MPI_COMM_WORLD);
-
   constexpr int Dim = AMREX_SPACEDIM;
 
   // Setup the domain parameters
@@ -239,7 +241,7 @@ void MyMain(const ProgramOptions& opts) {
   fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>> signals{};
   fub::HllMethod hll_method(equation, signals);
 
-  fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethod(hll_method),
+  fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethodAdapter(hll_method),
                                       fub::amrex::EulerForwardTimeIntegrator(),
                                       fub::amrex::Reconstruction(equation)};
 
@@ -312,7 +314,8 @@ void MyMain(const ProgramOptions& opts) {
 
 int main(int argc, char** argv) {
   MPI_Init(nullptr, nullptr);
-  {
+  fub::InitializeLogging(MPI_COMM_WORLD);
+  {  
     fub::amrex::ScopeGuard _{};
     std::optional<ProgramOptions> po = ParseCommandLine(argc, argv);
     if (po) {

@@ -260,14 +260,13 @@ struct PatchDataView : public PatchDataViewBase<T, R, Layout> {
     return this->operator()(index);
   }
 
-  template <typename... IndexType,
-            typename = std::enable_if_t<conjunction<
-                std::is_convertible<IndexType, std::ptrdiff_t>...>::value>>
-  auto& operator()(const std::array<std::ptrdiff_t, sRank>& indices) const {
-    std::array<std::ptrdiff_t, sRank> local_index;
+  template <typename IndexType,
+            typename = std::enable_if_t<std::is_convertible_v<IndexType, std::ptrdiff_t>>>
+  auto& operator()(const std::array<IndexType, sRank>& indices) const {
+    std::array<IndexType, sRank> local_index;
     std::transform(indices.begin(), indices.end(), Origin().begin(),
                    local_index.begin(),
-                   [](std::ptrdiff_t i, std::ptrdiff_t o) { return i - o; });
+                   [](IndexType i, IndexType o) { return i - o; });
     return this->mdspan_(local_index);
   }
 };

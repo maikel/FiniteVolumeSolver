@@ -24,9 +24,9 @@
 #include "fub/Solver.hpp"
 #include <AMReX_MLMG.H>
 
+#include "fub/AMReX/CompressibleAdvectionIntegratorContext.hpp"
 #include "fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp"
-#include "fub/AMReX/bk19/BK19IntegratorContext.hpp"
-#include "fub/AMReX/bk19/BK19LevelIntegrator.hpp"
+#include "fub/AMReX/solver/BK19LevelIntegrator.hpp"
 #include "fub/equations/CompressibleAdvection.hpp"
 
 double p_coeff(double r, const std::vector<double>& coefficients) {
@@ -43,7 +43,7 @@ double p_coeff(double r, const std::vector<double>& coefficients) {
   return result;
 }
 
-struct TravellingVortexInitialData {
+struct TravellingVortexInitialData : fub::amrex::BK19PhysicalParameters {
   using Complete = fub::CompressibleAdvection<2>::Complete;
   TravellingVortexInitialData() {
     coefficients.resize(25);
@@ -74,7 +74,11 @@ struct TravellingVortexInitialData {
     coefficients[24] = 1.0 / 72.0;
   }
 
-  void InitializeData(amrex::MultiFab& mf, const amrex::Geometry& geom) const {
+  void InitializeData(fub::amrex::PatchLevel& patch_level,
+                      const fub::amrex::GriddingAlgorithm& grid, int level,
+                      fub::Duration /*time*/) const {
+    const amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
+    amrex::MultiFab& mf = patch_level.data;
     fub::amrex::ForEachFab(mf, [&](const amrex::MFIter& mfi) {
       fub::CompressibleAdvection<2> equation{};
       amrex::FArrayBox& fab = mf[mfi];
@@ -112,6 +116,29 @@ struct TravellingVortexInitialData {
         states.PTinverse(i, j) = states.density(i, j) / states.PTdensity(i, j);
       });
     });
+
+    // set initial values of pi
+    amrex::MultiFab& pi = *patch_level.nodes;
+    const double Gamma = (gamma - 1.0) / gamma;
+    fub::amrex::ForEachFab(pi, [&](const ::amrex::MFIter& mfi) {
+      ::amrex::FArrayBox& fab = pi[mfi];
+      fub::amrex::ForEachIndex(fab.box(), [&](auto... is) {
+        ::amrex::IntVect i{int(is)...};
+
+        ::amrex::Vector<double> coor(2);
+        geom.LoNode(i, coor);
+        const double dx = coor[0] - center[0];
+        const double dy = coor[1] - center[1];
+        const double r = std::sqrt(dx * dx + dy * dy);
+
+        if (r < R0) {
+          const double r_over_R0 = r / R0;
+          fab(i, 0) = Gamma * fac * fac * p_coeff(r_over_R0, coefficients);
+        } else {
+          fab(i, 0) = 0.0;
+        }
+      });
+    });
   }
 
   std::vector<double> coefficients;
@@ -120,8 +147,6 @@ struct TravellingVortexInitialData {
   const double del_rho{a_rho * 0.5};
   const double R0{0.4};
   const double fac{1024.0};
-  const double R_gas{287.4};
-  const double gamma{1.4};
   std::array<double, 2> center{0.5, 0.5};
   std::array<double, 2> U0{1.0, 1.0};
 };
@@ -130,9 +155,17 @@ void MyMain(const fub::ProgramOptions& options) {
   using namespace fub::amrex;
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
-  fub::amrex::ScopeGuard amrex_scope_guard{};
+  ScopeGuard amrex_scope_guard{};
 
-  fub::amrex::DataDescription desc{};
+  // Here, some things are dimensional and others non-dimensionalized. Adjust???
+  TravellingVortexInitialData inidat;
+  inidat.R_gas = 287.4;
+  inidat.gamma = 1.4;
+  inidat.Msq = 0.0;
+  inidat.c_p = inidat.gamma / (inidat.gamma - 1.0);
+  inidat.alpha_p = 0.0;
+
+  DataDescription desc{};
   desc.n_state_components = 7;
   desc.n_cons_components = 4;
   desc.n_node_components = 1;
@@ -150,17 +183,8 @@ void MyMain(const fub::ProgramOptions& options) {
 
   PatchHierarchy hierarchy(desc, grid_geometry, hierarchy_options);
 
-  const TravellingVortexInitialData inidat{};
-  const double Gamma    = (inidat.gamma - 1.0) / inidat.gamma;
-  const double Gammainv = 1.0 / Gamma;
-
   using Complete = fub::CompressibleAdvection<2>::Complete;
   fub::CompressibleAdvection<2> equation{};
-  // Here, c_p is non-dimensionalized. Adjust???
-  // Is CompressibleAdvection the right place to store all this?
-  equation.c_p     = Gammainv;
-  equation.alpha_p = 0.0;
-  equation.gamma   = inidat.gamma;
 
   fub::IndexMapping<fub::CompressibleAdvection<2>> index(equation);
 
@@ -192,40 +216,13 @@ void MyMain(const fub::ProgramOptions& options) {
   HyperbolicMethod method{flux_method, EulerForwardTimeIntegrator(),
                           Reconstruction(fub::execution::seq, equation)};
 
-//   BK19IntegratorContext simulation_data(grid, method, 2, 0);
-  BK19IntegratorContext simulation_data(grid, method, 4, 2);
-  const int nlevel = simulation_data.GetPatchHierarchy().GetNumberOfLevels();
-
-  // set initial values of pi
-  for (int level = 0; level < nlevel; ++level) {
-    ::amrex::MultiFab& pi = simulation_data.GetPi(level);
-    const ::amrex::Geometry& geom =
-        grid->GetPatchHierarchy().GetGeometry(level);
-    ForEachFab(pi, [&](const ::amrex::MFIter& mfi) {
-      ::amrex::FArrayBox& fab = pi[mfi];
-      ForEachIndex(fab.box(), [&](auto... is) {
-        ::amrex::IntVect i{int(is)...};
-
-        ::amrex::Vector<double> coor(2);
-        geom.LoNode(i, coor);
-        const double dx = coor[0] - inidat.center[0];
-        const double dy = coor[1] - inidat.center[1];
-        const double r = std::sqrt(dx * dx + dy * dy);
-
-        if (r < inidat.R0) {
-          const double r_over_R0 = r / inidat.R0;
-          fab(i, 0) = Gamma * inidat.fac * inidat.fac *
-                      p_coeff(r_over_R0, inidat.coefficients);
-
-        } else {
-          fab(i, 0) = 0.0;
-        }
-      });
-    });
-  }
+  //   CompressibleAdvectionIntegratorContext simulation_data(grid, method, 2,
+  //   0);
+  CompressibleAdvectionIntegratorContext simulation_data(grid, method, 4, 2);
 
   fub::DimensionalSplitLevelIntegrator advection(
-//       fub::int_c<2>, std::move(simulation_data), fub::GodunovSplitting());
+      //       fub::int_c<2>, std::move(simulation_data),
+      //       fub::GodunovSplitting());
       fub::int_c<2>, std::move(simulation_data), fub::StrangSplitting());
 
   BK19LevelIntegratorOptions integrator_options =
@@ -233,24 +230,26 @@ void MyMain(const fub::ProgramOptions& options) {
   BOOST_LOG(info) << "BK19LevelIntegrator:";
   integrator_options.Print(info);
   BK19LevelIntegrator level_integrator(equation, std::move(advection), linop,
-                                       integrator_options);
+                                       inidat, integrator_options);
   fub::NoSubcycleSolver solver(std::move(level_integrator));
 
-  BK19AdvectiveFluxes& Pv = solver.GetContext().GetAdvectiveFluxes(0);
-  RecomputeAdvectiveFluxes(
-      index, Pv.on_faces, Pv.on_cells,
-      solver.GetContext().GetScratch(0),
-      solver.GetContext().GetGeometry(0).periodicity());
+  CompressibleAdvectionAdvectiveFluxes& Pv =
+      solver.GetContext().GetAdvectiveFluxes(0);
+  RecomputeAdvectiveFluxes(index, Pv.on_faces, Pv.on_cells,
+                           solver.GetContext().GetScratch(0),
+                           solver.GetContext().GetGeometry(0).periodicity());
 
   using namespace std::literals::chrono_literals;
   std::string base_name = "BK19_PsIncTravellingVortex/";
 
   fub::OutputFactory<GriddingAlgorithm> factory;
-  factory.RegisterOutput<fub::AnyOutput<GriddingAlgorithm>>("Plotfile", WriteBK19Plotfile{base_name});
+  factory.RegisterOutput<fub::AnyOutput<GriddingAlgorithm>>(
+      "Plotfile", WriteBK19Plotfile{base_name});
   factory.RegisterOutput<fub::amrex::DebugOutput>(
       "DebugOutput",
       solver.GetGriddingAlgorithm()->GetPatchHierarchy().GetDebugStorage());
-  fub::MultipleOutputs<GriddingAlgorithm> output{std::move(factory), fub::GetOptions(options, "Output")};
+  fub::MultipleOutputs<GriddingAlgorithm> output{
+      std::move(factory), fub::GetOptions(options, "Output")};
 
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options = fub::GetOptions(options, "RunOptions");

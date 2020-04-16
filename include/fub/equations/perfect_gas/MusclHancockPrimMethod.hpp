@@ -26,6 +26,7 @@
 
 namespace fub::perfect_gas {
 
+/// \ingroup FluxMethod
 template <int Dim> struct MusclHancockPrim {
   using Conservative = ::fub::Conservative<PerfectGas<Dim>>;
   using Complete = ::fub::Complete<PerfectGas<Dim>>;

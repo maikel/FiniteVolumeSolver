@@ -24,12 +24,13 @@
 #include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
 #include "fub/HyperbolicMethod.hpp"
 #include "fub/TimeStepError.hpp"
-#include "fub/counter/CounterRegistry.hpp"
 #include "fub/ext/outcome.hpp"
 
-#include <mpi.h>
+#include <AMReX_FluxRegister.H>
+#include <AMReX_MultiFab.H>
 
 #include <array>
+#include <memory>
 #include <vector>
 
 namespace fub::amrex::cutcell {
@@ -38,11 +39,14 @@ class IntegratorContext;
 
 using HyperbolicMethod = ::fub::HyperbolicMethod<IntegratorContext>;
 
+/// \ingroup IntegratorContext
+///
 /// \brief This class manages data and the numerical method to perform cut cell
 /// simulations with the AMReX library.
 class IntegratorContext {
 public:
-  static constexpr int Rank = AMREX_SPACEDIM;
+  /// @{
+  /// \name Constructors, Assignment Operators and Desctructor
 
   IntegratorContext(std::shared_ptr<GriddingAlgorithm> gridding,
                     HyperbolicMethod method);
@@ -63,6 +67,7 @@ public:
   IntegratorContext& operator=(IntegratorContext&&) noexcept = default;
 
   ~IntegratorContext() = default;
+  /// @}
 
   /// @{
   /// \name Member Accessors
@@ -92,8 +97,9 @@ public:
   /// \name Access Level-specific data
 
   /// \brief Returns the current boundary condition for the specified level.
-  [[nodiscard]] const BoundaryCondition& GetBoundaryCondition(int level) const;
-  [[nodiscard]] BoundaryCondition& GetBoundaryCondition(int level);
+  [[nodiscard]] const AnyBoundaryCondition&
+  GetBoundaryCondition() const;
+  [[nodiscard]] AnyBoundaryCondition& GetBoundaryCondition();
 
   [[nodiscard]] ::amrex::EBFArrayBoxFactory& GetEmbeddedBoundary(int level);
   [[nodiscard]] const ::amrex::EBFArrayBoxFactory&
@@ -205,8 +211,7 @@ public:
   void PostAdvanceHierarchy();
 
   /// \brief On each first subcycle this will regrid the data if neccessary.
-  void PreAdvanceLevel(int level_num, Duration dt,
-                       std::pair<int, int> subcycle);
+  int PreAdvanceLevel(int level_num, Duration dt, std::pair<int, int> subcycle);
 
   /// \brief Increases the internal time stamps and cycle counters for the
   /// specified level number and direction.
@@ -222,17 +227,18 @@ public:
   /// \param level  The refinement level on which the boundary condition shall
   /// be used.
   void ApplyBoundaryCondition(int level, Direction dir);
-  void ApplyBoundaryCondition(int level, Direction dir, BoundaryCondition& bc);
+  void ApplyBoundaryCondition(int level, Direction dir,
+                              AnyBoundaryCondition& bc);
 
   /// \brief Fills the ghost layer of the scratch data and interpolates in the
   /// coarse fine layer.
-  void FillGhostLayerTwoLevels(int level, BoundaryCondition& fbc, int coarse,
-                               BoundaryCondition& cbc);
+  void FillGhostLayerTwoLevels(int level, AnyBoundaryCondition& fbc, int coarse,
+                               AnyBoundaryCondition& cbc);
   void FillGhostLayerTwoLevels(int level, int coarse);
 
   /// \brief Fills the ghost layer of the scratch data and does nothing in the
   /// coarse fine layer.
-  void FillGhostLayerSingleLevel(int level, BoundaryCondition& bc);
+  void FillGhostLayerSingleLevel(int level, AnyBoundaryCondition& bc);
   void FillGhostLayerSingleLevel(int level);
 
   /// \brief Returns a estimate for a stable time step size which can be taken
@@ -298,11 +304,11 @@ private:
 
     /// @{
     /// various flux types needed by the numerical scheme
-    std::array<::amrex::MultiFab, Rank> fluxes{};
-    std::array<::amrex::MultiFab, Rank> stabilized_fluxes{};
-    std::array<::amrex::MultiFab, Rank> shielded_left_fluxes{};
-    std::array<::amrex::MultiFab, Rank> shielded_right_fluxes{};
-    std::array<::amrex::MultiFab, Rank> doubly_shielded_fluxes{};
+    std::array<::amrex::MultiFab, AMREX_SPACEDIM> fluxes{};
+    std::array<::amrex::MultiFab, AMREX_SPACEDIM> stabilized_fluxes{};
+    std::array<::amrex::MultiFab, AMREX_SPACEDIM> shielded_left_fluxes{};
+    std::array<::amrex::MultiFab, AMREX_SPACEDIM> shielded_right_fluxes{};
+    std::array<::amrex::MultiFab, AMREX_SPACEDIM> doubly_shielded_fluxes{};
     /// @}
 
     ///////////////////////////////////////////////////////////////////////////

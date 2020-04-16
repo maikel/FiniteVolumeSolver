@@ -21,29 +21,30 @@
 #ifndef FUB_AMREX_CUTCELL_HPP
 #define FUB_AMREX_CUTCELL_HPP
 
-#include "fub/AMReX/cutcell/BoundaryCondition.hpp"
 #include "fub/AMReX/cutcell/FluxMethod.hpp"
 #include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
 #include "fub/AMReX/cutcell/IndexSpace.hpp"
-#include "fub/AMReX/cutcell/InitialData.hpp"
 #include "fub/AMReX/cutcell/IntegratorContext.hpp"
 #include "fub/AMReX/cutcell/PatchHierarchy.hpp"
 #include "fub/AMReX/cutcell/Reconstruction.hpp"
-#include "fub/AMReX/cutcell/Tagging.hpp"
 
 #include "fub/AMReX/cutcell/TimeIntegrator.hpp"
 
 #include "fub/AMReX/cutcell/initial_data/RiemannProblem.hpp"
+#include "fub/AMReX/cutcell/initial_data/InterpolateFrom1d.hpp"
 
-#include "fub/AMReX/cutcell/tagging/ConstantRegion.hpp"
-#include "fub/AMReX/cutcell/tagging/GradientDetector.hpp"
-#include "fub/AMReX/cutcell/tagging/TagBuffer.hpp"
-#include "fub/AMReX/cutcell/tagging/TagCutCells.hpp"
+#include "fub/AMReX/cutcell/tagging_method/ConstantRegion.hpp"
+#include "fub/AMReX/cutcell/tagging_method/GradientDetector.hpp"
+#include "fub/AMReX/cutcell/tagging_method/TagBuffer.hpp"
+#include "fub/AMReX/cutcell/tagging_method/TagCutCells.hpp"
+#include "fub/AMReX/cutcell/tagging_method/TagAllOf.hpp"
 
 #include "fub/AMReX/cutcell/boundary_condition/BoundarySet.hpp"
 #include "fub/AMReX/cutcell/boundary_condition/IsentropicPressureBoundary.hpp"
 #include "fub/AMReX/cutcell/boundary_condition/MassflowBoundary.hpp"
 #include "fub/AMReX/cutcell/boundary_condition/TransmissiveBoundary.hpp"
+#include "fub/AMReX/cutcell/boundary_condition/ReflectiveBoundary.hpp"
+#include "fub/AMReX/cutcell/boundary_condition/PressureOutflowBoundary.hpp"
 #include "fub/AMReX/cutcell/output/LogProbes.hpp"
 #include "fub/AMReX/cutcell/output/WriteHdf5.hpp"
 #include "fub/AMReX/cutcell/output/WritePlotfiles.hpp"

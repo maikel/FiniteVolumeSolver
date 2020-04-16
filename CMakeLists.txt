@@ -215,9 +215,9 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/cutcell_method/KbnStabilisation.hpp
   include/fub/initial_data/Constant.hpp
   include/fub/initial_data/ShockMachnumber.hpp
-  include/fub/tagging/GradientDetector.hpp
-  include/fub/tagging/TagBuffer.hpp
-  include/fub/tagging/TagCutCells.hpp
+  include/fub/tagging_method/GradientDetector.hpp
+  include/fub/tagging_method/TagBuffer.hpp
+  include/fub/tagging_method/TagCutCells.hpp
   include/fub/geometry/Geometry.hpp
   include/fub/geometry/Halfspace.hpp
   include/fub/geometry/ExpandTube.hpp
@@ -226,6 +226,9 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/output/BasicOutput.hpp
   include/fub/output/OutputAtFrequencyOrInterval.hpp
   include/fub/output/AsOutput.hpp
+  include/fub/AnyInitialData.hpp
+  include/fub/AnyBoundaryCondition.hpp
+  include/fub/AnyTaggingMethod.hpp
   include/fub/Solver.hpp
   include/fub/CompleteFromCons.hpp
   include/fub/CutCellData.hpp
@@ -306,8 +309,8 @@ add_library(FiniteVolumeSolver.Solver
   src/geometry/Cone.cpp
   src/equations/ideal_gas_mix/mechanism/Burke2012.cpp
   src/cutcell_method/KbnStabilisation.cpp
-  src/tagging/TagBuffer.cpp
-  src/tagging/TagCutCells.cpp
+  src/tagging_method/TagBuffer.cpp
+  src/tagging_method/TagCutCells.cpp
   src/ext/Mpi.cpp
   src/split_method/GodunovSplitting.cpp
   src/split_method/StrangSplitting.cpp
@@ -342,7 +345,9 @@ target_compile_options(FiniteVolumeSolver.Solver
   PRIVATE
   $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
   $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall>
-  $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>)
+  $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>
+  $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wconversion>
+  $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wsign-conversion>)
 set_property(TARGET FiniteVolumeSolver.Solver PROPERTY CXX_VISIBILITY_PRESET "hidden")
 set_property(TARGET FiniteVolumeSolver.Solver PROPERTY VISIBILITY_INLINES_HIDDEN "hidden")
 install(
@@ -362,23 +367,23 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     include/fub/AMReX/boundary_condition/ReflectiveBoundary.hpp
     include/fub/AMReX/boundary_condition/IsentropicPressureBoundary.hpp
     include/fub/AMReX/boundary_condition/PressureValveBoundary.hpp
+    include/fub/AMReX/boundary_condition/MassflowBoundary.hpp
     include/fub/AMReX/initial_data/ConstantData.hpp
     include/fub/AMReX/AxialSourceTerm.hpp
     include/fub/AMReX/GriddingAlgorithm.hpp
     include/fub/AMReX/IgniteDetonation.hpp
     include/fub/AMReX/PatchHierarchy.hpp
     include/fub/AMReX/Reconstruction.hpp
-    include/fub/AMReX/BoundaryCondition.hpp
-    include/fub/AMReX/Tagging.hpp
     include/fub/AMReX/TimeIntegrator.hpp
     include/fub/AMReX/IntegratorContext.hpp
-    include/fub/AMReX/InitialData.hpp
-    include/fub/AMReX/FluxMethod.hpp
+    include/fub/AMReX/FluxMethodAdapter.hpp
     include/fub/AMReX/ScopeGuard.hpp
     include/fub/AMReX/ViewFArrayBox.hpp
+    include/fub/AMReX/MLMG/MLNodeHelmholtz.hpp
     include/fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp
-    include/fub/AMReX/tagging/TagBuffer.hpp
-    include/fub/AMReX/tagging/ConstantRegion.hpp
+    include/fub/AMReX/MLMG/MLNodeHelmDualLinVel.hpp
+    include/fub/AMReX/tagging_method/TagBuffer.hpp
+    include/fub/AMReX/tagging_method/ConstantRegion.hpp
     include/fub/geometry/Geometry.hpp
     include/fub/geometry/PolymorphicGeometry.hpp
     include/fub/geometry/Union.hpp
@@ -394,21 +399,22 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     src/AMReX/boundary_condition/TransmissiveBoundary.cpp
     src/AMReX/boundary_condition/IsentropicPressureBoundary.cpp
     src/AMReX/boundary_condition/PressureValveBoundary.cpp
+    src/AMReX/boundary_condition/MassflowBoundary.cpp
     src/AMReX/AxialSourceTerm.cpp
     src/AMReX/IgniteDetonation.cpp
-    src/AMReX/FluxMethod.cpp
     src/AMReX/ScopeGuard.cpp
     src/AMReX/CartesianGridGeometry.cpp
     src/AMReX/ViewFArrayBox.cpp
     src/AMReX/MLMG/MLNodeHelmDualCstVel.cpp
     src/AMReX/MLMG/MLNodeHelmDualCstVel_K.cpp
+    src/AMReX/MLMG/MLNodeHelmDualLinVel.cpp
+    src/AMReX/MLMG/MLNodeHelmDualLinVel_K.cpp
     src/AMReX/PatchHierarchy.cpp
     src/AMReX/GriddingAlgorithm.cpp
-    src/AMReX/BoundaryCondition.cpp
     src/AMReX/TimeIntegrator.cpp
     src/AMReX/IntegratorContext.cpp
-    src/AMReX/tagging/TagBuffer.cpp
-    src/AMReX/tagging/ConstantRegion.cpp
+    src/AMReX/tagging_method/TagBuffer.cpp
+    src/AMReX/tagging_method/ConstantRegion.cpp
     src/geometry/Union.cpp)
   target_include_directories(FiniteVolumeSolver.AMReX
     PUBLIC
@@ -421,7 +427,9 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     PRIVATE
       $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
       $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall>
-      $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>)
+      $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wextra>
+      $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wconversion>
+      $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wsign-conversion>)
   set_property(TARGET FiniteVolumeSolver.AMReX PROPERTY CXX_VISIBILITY_PRESET "hidden")
   set_property(TARGET FiniteVolumeSolver.AMReX PROPERTY VISIBILITY_INLINES_HIDDEN "hidden")
   target_link_libraries(FiniteVolumeSolver.AMReX
@@ -435,12 +443,12 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
       CONAN_PKG::HDF5)
   target_include_directories(FiniteVolumeSolver.AMReX PUBLIC ${HDF5_C_INCLUDE_DIR})
 
-  if (AMReX_2D_FOUND) 
+  if (AMReX_2D_FOUND)
     target_sources(FiniteVolumeSolver.AMReX PRIVATE
-      include/fub/AMReX/bk19/BK19LevelIntegrator.hpp
-      include/fub/AMReX/bk19/BK19IntegratorContext.hpp
-      src/AMReX/bk19/BK19LevelIntegrator.cpp
-      src/AMReX/bk19/BK19IntegratorContext.cpp)
+      include/fub/AMReX/solver/BK19LevelIntegrator.hpp
+      include/fub/AMReX/CompressibleAdvectionIntegratorContext.hpp
+      src/AMReX/solver/BK19LevelIntegrator.cpp
+      src/AMReX/CompressibleAdvectionIntegratorContext.cpp)
   endif()
 
   if (AMReX_EB_FOUND)
@@ -451,28 +459,28 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     add_library(FiniteVolumeSolver.AMReX.EB
         src/geometry/ExpandTube.cpp
         include/fub/AMReX_CutCell.hpp
-        include/fub/AMReX/cutcell/BoundaryCondition.hpp
         include/fub/AMReX/cutcell/FluxMethod.hpp
         include/fub/AMReX/cutcell/GriddingAlgorithm.hpp
         include/fub/AMReX/cutcell/IndexSpace.hpp
-        include/fub/AMReX/cutcell/InitialData.hpp
         include/fub/AMReX/cutcell/PatchHierarchy.hpp
         include/fub/AMReX/cutcell/Reconstruction.hpp
         include/fub/AMReX/cutcell/IntegratorContext.hpp
-        include/fub/AMReX/cutcell/Tagging.hpp
         include/fub/AMReX/cutcell/TimeIntegrator.hpp
         include/fub/AMReX/cutcell/initial_data/RiemannProblem.hpp
-        include/fub/AMReX/cutcell/tagging/ConstantRegion.hpp
-        include/fub/AMReX/cutcell/tagging/GradientDetector.hpp
-        include/fub/AMReX/cutcell/tagging/TagBuffer.hpp
-        include/fub/AMReX/cutcell/tagging/TagCutCells.hpp
+        include/fub/AMReX/cutcell/initial_data/InterpolateFrom1d.hpp
+        include/fub/AMReX/cutcell/tagging_method/ConstantRegion.hpp
+        include/fub/AMReX/cutcell/tagging_method/GradientDetector.hpp
+        include/fub/AMReX/cutcell/tagging_method/TagBuffer.hpp
+        include/fub/AMReX/cutcell/tagging_method/TagCutCells.hpp
         include/fub/AMReX/cutcell/boundary_condition/BoundarySet.hpp
         include/fub/AMReX/cutcell/boundary_condition/TransmissiveBoundary.hpp
         include/fub/AMReX/cutcell/boundary_condition/IsentropicPressureBoundary.hpp
         include/fub/AMReX/cutcell/boundary_condition/MassflowBoundary.hpp
         include/fub/AMReX/cutcell/boundary_condition/ReflectiveBoundary.hpp
+        include/fub/AMReX/cutcell/boundary_condition/PressureOutflowBoundary.hpp
         include/fub/AMReX/cutcell/output/WriteHdf5.hpp
         include/fub/AMReX/cutcell/output/WritePlotfiles.hpp
+        include/fub/AMReX/cutcell/output/PerfectGasProbesOutput.hpp
         include/fub/AMReX/multi_block/MultiBlockBoundary.hpp
         include/fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp
         include/fub/AMReX/multi_block/MultiBlockIntegratorContext.hpp
@@ -484,7 +492,6 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         src/AMReX/cutcell/output/LogProbes.cpp
         src/AMReX/multi_block/MultiBlockPlotfileOutput.cpp
         src/AMReX/multi_block/MultiWriteHdf5.cpp
-        src/AMReX/cutcell/BoundaryCondition.cpp
         src/AMReX/cutcell/IntegratorContext.cpp
         src/AMReX/cutcell/PatchHierarchy.cpp
         src/AMReX/cutcell/FillCutCellData.cpp
@@ -494,10 +501,13 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         src/AMReX/cutcell/boundary_condition/TransmissiveBoundary.cpp
         src/AMReX/cutcell/boundary_condition/IsentropicPressureBoundary.cpp
         src/AMReX/cutcell/boundary_condition/MassflowBoundary.cpp
-        src/AMReX/cutcell/tagging/ConstantRegion.cpp
-        src/AMReX/cutcell/tagging/TagBuffer.cpp
-        src/AMReX/cutcell/tagging/TagCutCells.cpp
+        src/AMReX/cutcell/tagging_method/ConstantRegion.cpp
+        src/AMReX/cutcell/tagging_method/TagBuffer.cpp
+        src/AMReX/cutcell/tagging_method/TagCutCells.cpp
+        src/AMReX/cutcell/boundary_condition/PressureOutflowBoundary.cpp
+        src/AMReX/cutcell/initial_data/InterpolateFrom1d.cpp
         src/AMReX/cutcell/output/WriteHdf5.cpp
+        src/AMReX/cutcell/output/PerfectGasProbesOutput.cpp
         src/AMReX/multi_block/MultiBlockBoundary.cpp
         src/AMReX/multi_block/MultiBlockGriddingAlgorithm.cpp
         src/AMReX/multi_block/MultiBlockIntegratorContext.cpp
@@ -534,8 +544,9 @@ if (SAMRAI_FOUND)
     include/fub/SAMRAI/InitialData.hpp
     include/fub/SAMRAI/Reconstruction.hpp
     include/fub/SAMRAI/ViewPatch.hpp
-    include/fub/SAMRAI/tagging/GradientDetector.hpp
-    include/fub/SAMRAI/tagging/ConstantBox.hpp
+    include/fub/SAMRAI/tagging_method/GradientDetector.hpp
+    include/fub/SAMRAI/tagging_method/ConstantBox.hpp
+    src/SAMRAI/CartesianPatchHierarchy.cpp
     src/SAMRAI/PatchHierarchy.cpp
     src/SAMRAI/IntegratorContext.cpp
     src/SAMRAI/ScopeGuard.cpp
@@ -543,7 +554,7 @@ if (SAMRAI_FOUND)
     src/SAMRAI/GriddingAlgorithm.cpp
     src/SAMRAI/ViewPatch.cpp
     src/SAMRAI/TimeIntegrator.cpp
-    src/SAMRAI/tagging/ConstantBox.cpp)
+    src/SAMRAI/tagging_method/ConstantBox.cpp)
   target_include_directories(FiniteVolumeSolver.SAMRAI
     PUBLIC
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

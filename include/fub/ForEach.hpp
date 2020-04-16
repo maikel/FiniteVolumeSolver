@@ -21,7 +21,9 @@
 /// \file This file defines several ForEachXXX functions to iterate through some
 /// kind of range.
 
-/// \defgroup ForEach
+/// \defgroup ForEach For Each Loops
+/// \brief This group contains all functions that help to iterate over some
+/// range.
 
 #ifndef FUB_FOR_EACH_HPP
 #define FUB_FOR_EACH_HPP
@@ -44,6 +46,8 @@ namespace fub {
 /// function.
 ///
 /// \return Returns the callback function obect.
+///
+/// The following example shows how to use this function.
 ///
 /// ~~~~~~~~~~~~~{.cpp}
 /// // Invoke a function in two one-dimensional index space

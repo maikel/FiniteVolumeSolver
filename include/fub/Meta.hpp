@@ -23,6 +23,7 @@
 
 #include "fub/core/type_traits.hpp"
 
+/// \brief The meta namespace
 namespace fub::meta {
 
 /// @{
@@ -61,6 +62,9 @@ using Equation = std::decay_t<decltype(std::declval<T>().GetEquation())>;
 } // namespace fub::meta
 
 namespace fub {
+
+template <typename GriddingAlgorithm>
+struct GridTraits;
 
 /// \brief Invokes member function obj.ResetHierarchyConfiguration(grid)
 ///

@@ -31,6 +31,7 @@
 
 namespace fub::amrex {
 
+/// \ingroup IntegratorContext
 class MultiBlockIntegratorContext {
 public:
   MultiBlockIntegratorContext(FlameMasterReactor reactor,
@@ -119,8 +120,7 @@ public:
   void PostAdvanceHierarchy();
 
   /// \brief On each first subcycle this will regrid the data if neccessary.
-  void PreAdvanceLevel(int level_num, Duration dt,
-                       std::pair<int, int> subcycle);
+  int PreAdvanceLevel(int level_num, Duration dt, std::pair<int, int> subcycle);
 
   /// \brief Increases the internal time stamps and cycle counters for the
   /// specified level number and direction.
