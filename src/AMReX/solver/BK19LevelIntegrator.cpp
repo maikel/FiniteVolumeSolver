@@ -583,8 +583,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   return boost::outcome_v2::success();
 }
 
-void BK19LevelIntegrator::InitialProjection(int level, Duration dt,
-                      std::array<double,2> U0) {
+void BK19LevelIntegrator::InitialProjection(int level) {
 
   AdvectionSolver& advection = GetAdvection();
   CompressibleAdvectionIntegratorContext& context = advection.GetContext();
@@ -596,21 +595,9 @@ void BK19LevelIntegrator::InitialProjection(int level, Duration dt,
   BK19PhysicalParameters phys_param_aux{phys_param_};
   phys_param_aux.alpha_p = 0.0;
 
-  for (std::size_t i = 0 ; i < index_.momentum.size(); ++i) {
-    MultiFab::Saxpy(scratch, -U0[i] ,scratch, index_.density, index_.momentum[i], one_component, no_ghosts);
-  }
-
-  RecoverVelocityFromMomentum_(scratch, index_);
-
   context.FillGhostLayerSingleLevel(level);
   DoEulerBackward_(index_, *lin_op_, phys_param_aux, options_, scratch, pi,
-                   geom, level, dt);
-
-  for (std::size_t i = 0 ; i < index_.momentum.size(); ++i) {
-    MultiFab::Saxpy(scratch, +U0[i], scratch, index_.density, index_.momentum[i], one_component, no_ghosts);
-  }
-
-  RecoverVelocityFromMomentum_(scratch, index_);
+                   geom, level, Duration(1.0));
 }
 
 

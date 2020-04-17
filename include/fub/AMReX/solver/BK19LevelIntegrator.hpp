@@ -133,11 +133,7 @@ public:
   AdvanceLevelNonRecursively(int level, Duration dt,
                              std::pair<int, int> subcycle);
 
-  void InitialProjection(
-                        int level,
-                        Duration dt,
-                        std::array<double,2> U0
-                        );
+  void InitialProjection(int level);
 
 
 private:
