@@ -533,8 +533,15 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
 
   // 3) Do the first euler backward integration step for the source term
   context.FillGhostLayerSingleLevel(level);
-  DoEulerBackward_(index_, *lin_op_, phys_param_, options_, scratch, pi, geom,
+  MultiFab pi_aux =
+      DoEulerBackward_(index_, *lin_op_, phys_param_, options_, scratch, pi, geom,
                    level, half_dt, dbgAdvB);
+
+  // NOTE: the following update of pi in the pseudo-incompressible case is not
+  // present in BK19, but a further development in the work of Ray Chow
+  if (phys_param_.alpha_p == 0) {
+    hier.GetPatchLevel(level).nodes->copy(pi_aux);
+  }
 
   // 4) Recompute Pv at half time
   RecomputeAdvectiveFluxes(index_, Pv.on_faces, Pv.on_cells, scratch,
