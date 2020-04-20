@@ -265,7 +265,9 @@ void MyMain(const fub::ProgramOptions& options) {
   BOOST_LOG(info) << "RunOptions:";
   run_options.Print(info);
 
-  solver.GetLevelIntegrator().InitialProjection(0);
+  if (integrator_options.do_initial_projection) {
+    solver.GetLevelIntegrator().InitialProjection(0);
+  }
 
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

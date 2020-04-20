@@ -451,6 +451,8 @@ void DoEulerForward_(const IndexMapping<Equation>& index,
 
 BK19LevelIntegratorOptions::BK19LevelIntegratorOptions(
     const ProgramOptions& options) {
+  do_initial_projection =
+      GetOptionOr(options, "do_initial_projection", do_initial_projection);
   mlmg_tolerance_rel =
       GetOptionOr(options, "mlmg_tolerance_rel", mlmg_tolerance_rel);
   mlmg_tolerance_abs =
