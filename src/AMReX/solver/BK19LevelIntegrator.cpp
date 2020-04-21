@@ -520,6 +520,8 @@ void DoEulerForward_(const IndexMapping<Equation>& index,
 
 BK19LevelIntegratorOptions::BK19LevelIntegratorOptions(
     const ProgramOptions& options) {
+  do_initial_projection =
+      GetOptionOr(options, "do_initial_projection", do_initial_projection);
   mlmg_tolerance_rel =
       GetOptionOr(options, "mlmg_tolerance_rel", mlmg_tolerance_rel);
   mlmg_tolerance_abs =
@@ -602,8 +604,15 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
 
   // 3) Do the first euler backward integration step for the source term
   context.FillGhostLayerSingleLevel(level);
-  DoEulerBackward_(index_, *lin_op_, phys_param_, options_, scratch, pi, geom,
+  MultiFab pi_aux =
+      DoEulerBackward_(index_, *lin_op_, phys_param_, options_, scratch, pi, geom,
                    level, half_dt, dbgAdvB);
+
+  // NOTE: the following update of pi in the pseudo-incompressible case is not
+  // present in BK19, but a further development in the work of Ray Chow
+  if (phys_param_.alpha_p == 0) {
+    hier.GetPatchLevel(level).nodes->copy(pi_aux);
+  }
 
   // 4) Recompute Pv at half time
   RecomputeAdvectiveFluxes(index_, Pv.on_faces, Pv.on_cells, scratch,
@@ -651,5 +660,23 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
 
   return boost::outcome_v2::success();
 }
+
+void BK19LevelIntegrator::InitialProjection(int level) {
+
+  AdvectionSolver& advection = GetAdvection();
+  CompressibleAdvectionIntegratorContext& context = advection.GetContext();
+  const fub::amrex::PatchHierarchy& hier = context.GetPatchHierarchy();
+  MultiFab& scratch = context.GetScratch(level);
+  MultiFab& pi = *hier.GetPatchLevel(level).nodes;
+  const ::amrex::Geometry& geom = context.GetGeometry(level);
+
+  BK19PhysicalParameters phys_param_aux{phys_param_};
+  phys_param_aux.alpha_p = 0.0;
+
+  context.FillGhostLayerSingleLevel(level);
+  DoEulerBackward_(index_, *lin_op_, phys_param_aux, options_, scratch, pi,
+                   geom, level, Duration(1.0));
+}
+
 
 } // namespace fub::amrex

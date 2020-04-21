@@ -41,7 +41,7 @@ def LoadRKLM(base_dir, filename, ts_label):
 def PlotVarComp(dsFVS, dsRKLM, vars_FVS, vars_RKLM, label, fignum = -1):
 
   p = yt.plot_2d(dsFVS, vars_FVS, origin='native')
-  p.set_buff_size(32) # to remove some interpolation errors
+  p.set_buff_size(64) # to remove some interpolation errors
 
   if (fignum == -1):
     fig = plt.figure()
@@ -104,9 +104,9 @@ def PlotVarComp(dsFVS, dsRKLM, vars_FVS, vars_RKLM, label, fignum = -1):
   fig.suptitle(label)
   plt.show()
 
-timestep = 0
+timestep = 1
 
-basedir_FVS  = '../../build2d/Debug'
+basedir_FVS  = '../../build/Debug'
 #basedir_FVS  = '../../build2d'
 substeps_FVS = ['BK19_pre-step',
                 'BK19_advect',
@@ -119,8 +119,8 @@ vars_FVS     = ['Density', 'Velocity_0', 'Velocity_1', 'PTdensity', 'PTinverse']
 partname = 'partition_0_'
 #partname = ''
 
-basedir_RKLM  = '/home/svater/rechnen/RKLM_Reference-Ray/RKLM_Python/output_travelling_vortex'
-filename_RKLM = "output_travelling_vortex_low_mach_gravity_psinc.h5"
+basedir_RKLM  = '/home/ray/git-projects/RKLM_Reference/output_travelling_vortex/'
+filename_RKLM = "output_travelling_vortex_ensemble=1_64_64_1.0_comp_noip.h5"
 substeps_RKLM = ['before_advect',
                  'after_advect',
                  'after_ebnaimp',
