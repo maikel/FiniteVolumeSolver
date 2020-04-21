@@ -664,6 +664,7 @@ void BK19LevelIntegrator::InitialProjection(int level) {
 
   BK19PhysicalParameters phys_param_aux{phys_param_};
   phys_param_aux.alpha_p = 0.0;
+  phys_param_aux.f = 0.0;
 
   context.FillGhostLayerSingleLevel(level);
   DoEulerBackward_(index_, *lin_op_, phys_param_aux, options_, scratch, pi,
