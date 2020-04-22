@@ -29,7 +29,6 @@
 #include <AMReX_EB2_IF_Intersection.H>
 #include <AMReX_EB2_IF_Plane.H>
 #include <AMReX_EB2_IF_Union.H>
-#include <AMReX_EB_LSCore.H>
 
 #include <boost/filesystem.hpp>
 
@@ -167,7 +166,7 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
     constexpr double r = r_tube;
     constexpr double r2 = 0.5 * r_tube;
     const double xdiv = xhi - 4.0 * r;
-    auto polygon = MakePolygon(std::pair{xlo, r}, std::pair{xdiv, r}, std::pair{xhi, r2}, 
+    auto polygon = MakePolygon(std::pair{xlo, r}, std::pair{xdiv, r}, std::pair{xhi, r2},
                                std::pair{xhi, -r2}, std::pair{xdiv, -r}, std::pair{xlo, -r}, std::pair{xlo, r});
     auto tube_in_zero = fub::amrex::Geometry(fub::Invert(fub::RotateAxis(polygon)));
     amrex::RealArray real_center{center[0], center[1], center[2]};
