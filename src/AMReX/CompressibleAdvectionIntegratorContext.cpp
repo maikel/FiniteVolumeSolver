@@ -43,13 +43,14 @@ CompressibleAdvectionIntegratorContext::CompressibleAdvectionIntegratorContext(
     : IntegratorContext(other) {
   ResetHierarchyConfiguration();
   const int nlevel = GetPatchHierarchy().GetNumberOfLevels();
-  const int rank = Rank();
+  const std::size_t rank = static_cast<std::size_t>(Rank());
   for (int level = 0; level < nlevel; ++level) {
+    const std::size_t levelli = static_cast<std::size_t>(level);
     const ::amrex::Geometry& geom = GetGeometry(level);
-    Pv_[level].on_cells.ParallelCopy(other.Pv_[level].on_cells,
+    Pv_[levelli].on_cells.ParallelCopy(other.Pv_[levelli].on_cells,
                                      geom.periodicity());
-    for (int d = 0; d < rank; ++d) {
-      Pv_[level].on_faces[d].ParallelCopy(other.Pv_[level].on_faces[d],
+    for (std::size_t d = 0; d < rank; ++d) {
+      Pv_[levelli].on_faces[d].ParallelCopy(other.Pv_[levelli].on_faces[d],
                                           geom.periodicity());
     }
   }
@@ -72,21 +73,23 @@ void CompressibleAdvectionIntegratorContext::ResetHierarchyConfiguration(
   PatchHierarchy& hier = GetPatchHierarchy();
   const int nlevel = GetPatchHierarchy().GetNumberOfLevels();
   for (int level = 0; level < nlevel; ++level) {
+    const std::size_t levelli = static_cast<std::size_t>(level);
     const int ngrow_Pv_on_cells = GetScratch(level).nGrow() + 1;
     {
       const ::amrex::BoxArray& ba = hier.GetPatchLevel(level).box_array;
       const ::amrex::DistributionMapping& dm =
           hier.GetPatchLevel(level).distribution_mapping;
-      Pv_[level].on_cells = ::amrex::MultiFab(ba, dm, 2, ngrow_Pv_on_cells);
+      Pv_[levelli].on_cells = ::amrex::MultiFab(ba, dm, 2, ngrow_Pv_on_cells);
     }
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+      const std::size_t dirli = static_cast<std::size_t>(dir);
       ::amrex::IntVect ngrow_Pv_on_faces =
           GetFluxes(level, Direction(dir)).nGrowVect();
       ngrow_Pv_on_faces[dir] += 1;
       const ::amrex::BoxArray& ba = GetFluxes(level, Direction(dir)).boxArray();
       const ::amrex::DistributionMapping& dm =
           GetFluxes(level, Direction(dir)).DistributionMap();
-      Pv_[level].on_faces[dir] =
+      Pv_[levelli].on_faces[dirli] =
           ::amrex::MultiFab(ba, dm, 1, ngrow_Pv_on_faces);
     }
   }
@@ -101,12 +104,13 @@ void CompressibleAdvectionIntegratorContext::ResetHierarchyConfiguration(
   PatchHierarchy& hier = GetPatchHierarchy();
   const int nlevel = GetPatchHierarchy().GetNumberOfLevels();
   for (int level = coarsest_level; level < nlevel; ++level) {
+    const std::size_t levelli = static_cast<std::size_t>(level);
     const int ngrow_Pv_on_cells = GetScratch(level).nGrow() + 1;
     {
       const ::amrex::BoxArray& ba = hier.GetPatchLevel(level).box_array;
       const ::amrex::DistributionMapping& dm =
           hier.GetPatchLevel(level).distribution_mapping;
-      Pv_[level].on_cells = ::amrex::MultiFab(ba, dm, 2, ngrow_Pv_on_cells);
+      Pv_[levelli].on_cells = ::amrex::MultiFab(ba, dm, 2, ngrow_Pv_on_cells);
     }
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
       ::amrex::IntVect ngrow_Pv_on_faces =
@@ -115,7 +119,7 @@ void CompressibleAdvectionIntegratorContext::ResetHierarchyConfiguration(
       const ::amrex::BoxArray& ba = GetFluxes(level, Direction(dir)).boxArray();
       const ::amrex::DistributionMapping& dm =
           GetFluxes(level, Direction(dir)).DistributionMap();
-      Pv_[level].on_faces[dir] =
+      Pv_[levelli].on_faces[static_cast<std::size_t>(dir)] =
           ::amrex::MultiFab(ba, dm, 1, ngrow_Pv_on_faces);
     }
   }
