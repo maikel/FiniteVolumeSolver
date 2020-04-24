@@ -32,6 +32,7 @@ GriddingAlgorithm::GriddingAlgorithm(const GriddingAlgorithm& other)
       hierarchy_{other.hierarchy_},
       initial_data_{other.initial_data_}, tagging_{other.tagging_},
       boundary_condition_(other.boundary_condition_) {
+  AmrMesh::finest_level = other.finest_level;
   AmrMesh::geom = other.geom;
   AmrMesh::dmap = other.dmap;
   AmrMesh::grids = other.grids;
@@ -66,14 +67,15 @@ GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier,
   AmrMesh::verbose = options.verbose;
   AmrCore::verbose = options.verbose;
   AmrMesh::n_error_buf = ::amrex::Vector<::amrex::IntVect>(
-      AmrMesh::n_error_buf.size(), options.n_error_buf);
-  if (hier.GetNumberOfLevels() > 0) {
+      static_cast<std::size_t>(AmrMesh::n_error_buf.size()), options.n_error_buf);
+  if (hierarchy_.GetNumberOfLevels() > 0) {
     for (int i = 0; i < hierarchy_.GetNumberOfLevels(); ++i) {
       const std::size_t ii = static_cast<std::size_t>(i);
       AmrMesh::geom[ii] = hierarchy_.GetGeometry(i);
       AmrMesh::dmap[ii] = hierarchy_.GetPatchLevel(i).distribution_mapping;
       AmrMesh::grids[ii] = hierarchy_.GetPatchLevel(i).box_array;
     }
+    AmrMesh::finest_level = hierarchy_.GetNumberOfLevels() - 1;
   }
 }
 
@@ -91,7 +93,8 @@ int GriddingAlgorithm::RegridAllFinerlevels(int which_level) {
     const int asize = static_cast<int>(after.size());
     int i = which_level + 1;
     for (; i < std::min(asize, bsize); ++i) {
-      if (before[i] != after[i]) {
+      const std::size_t ii = static_cast<std::size_t>(i);
+      if (before[ii] != after[ii]) {
         return i;
       }
     }

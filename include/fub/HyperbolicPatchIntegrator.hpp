@@ -25,8 +25,12 @@
 #include "fub/Execution.hpp"
 #include "fub/PatchDataView.hpp"
 
+/// \defgroup TimeIntegrator Time Integrators
+/// \ingroup IntegratorContext
+
 namespace fub {
 
+/// \ingroup TimeIntegrator
 template <typename Tag> struct HyperbolicPatchIntegrator {
   HyperbolicPatchIntegrator(Tag);
 

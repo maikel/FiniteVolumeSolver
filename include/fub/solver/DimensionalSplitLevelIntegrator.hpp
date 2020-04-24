@@ -37,8 +37,14 @@
 
 namespace fub {
 
-/// This Level Integrator applies a very general AMR integration scheme in
-/// context of dimensional splitting.
+/// \defgroup LevelIntegrator Level Integrators
+/// \brief This group collects all classes that define a time integration on a
+/// single refinement level.
+
+/// \ingroup LevelIntegrator
+///
+/// \brief This Level Integrator applies a very general AMR integration scheme
+/// in context of dimensional splitting.
 ///
 /// The time integration is split into multiple intermediate steps where each is
 /// supposed to do a certain task. The detailed implementation of these tasks
@@ -164,7 +170,11 @@ void DimensionalSplitLevelIntegrator<R, IntegratorContext, SplitMethod>::
                     std::pair<int, int> subcycle) {
   int regrid_level =
       IntegratorContext::PreAdvanceLevel(level, time_step_size, subcycle);
-  for (int ilvl = regrid_level; IntegratorContext::LevelExists(ilvl); ++ilvl) {
+  if (regrid_level == 0) {
+    IntegratorContext::FillGhostLayerSingleLevel(0);
+  }
+  for (int ilvl = std::max(1, regrid_level);
+       IntegratorContext::LevelExists(ilvl); ++ilvl) {
     IntegratorContext::FillGhostLayerTwoLevels(ilvl, ilvl - 1);
   }
 

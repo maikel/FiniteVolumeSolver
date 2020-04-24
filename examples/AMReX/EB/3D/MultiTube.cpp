@@ -30,7 +30,6 @@
 #include <AMReX_EB2_IF_Plane.H>
 #include <AMReX_EB2_IF_Union.H>
 #include <AMReX_EB2_IF_Translation.H>
-#include <AMReX_EB_LSCore.H>
 
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/archive/text_oarchive.hpp>
@@ -201,7 +200,7 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
     const double xdiv = xhi - 0.075;
     const double r = r_tube;
     const double r2 = 0.0225;
-    auto polygon = MakePolygon(std::pair{xlo, r}, std::pair{xdiv, r}, std::pair{xhi, r2}, 
+    auto polygon = MakePolygon(std::pair{xlo, r}, std::pair{xdiv, r}, std::pair{xhi, r2},
                                std::pair{xhi, -r2}, std::pair{xdiv, -r}, std::pair{xlo, -r}, std::pair{xlo, r});
     auto tube_in_zero = fub::Invert(fub::RotateAxis(polygon));
     amrex::RealArray real_center{center[0], center[1], center[2]};
@@ -338,7 +337,7 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
   const int flux_gcw = 2;
 
   IntegratorContext context(gridding, method, scratch_gcw, flux_gcw);
-  
+
   BOOST_LOG(log) << "==================== End Plenum =========================";
   return context;
 }

@@ -27,14 +27,14 @@
 
 namespace fub::samrai {
 
-template <typename Tag, typename Equation_> class Reconstruction {
+template <typename Tag, typename Equation_> class CompleteFromConsCalculation {
 public:
   using Equation = Equation_;
   using ExecutionTag = Tag;
 
   static constexpr int Rank = Equation::Rank();
 
-  Reconstruction(Tag, const Equation& eq) : rec_{eq} {}
+  CompleteFromConsCalculation(Tag, const Equation& eq) : rec_{eq} {}
 
   void CompleteFromCons(SAMRAI::hier::Patch& dest_patch,
                         span<const int> dest_ids,
@@ -49,7 +49,7 @@ private:
 };
 
 template <typename Tag, typename Equation>
-void Reconstruction<Tag, Equation>::CompleteFromCons(
+void CompleteFromConsCalculation<Tag, Equation>::CompleteFromCons(
     SAMRAI::hier::Patch& dest_patch, span<const int> dest_ids,
     const SAMRAI::hier::Patch& src_patch, span<const int> src_ids) {
   Equation& equation = rec_.equation_;
@@ -66,7 +66,7 @@ void Reconstruction<Tag, Equation>::CompleteFromCons(
 }
 
 template <typename Tag, typename Equation>
-void Reconstruction<Tag, Equation>::CompleteFromCons(
+void CompleteFromConsCalculation<Tag, Equation>::CompleteFromCons(
     IntegratorContext& context, int level,
     [[maybe_unused]] Duration time_step_size) {
   SAMRAI::hier::PatchLevel& patch_level = context.GetPatchLevel(level);

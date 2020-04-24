@@ -37,9 +37,10 @@ struct CircleData {
   Advection2d equation_;
 
   void InitializeData(std::shared_ptr<SAMRAI::hier::PatchLevel> patch_level,
-                      const samrai::PatchHierarchy& hierarchy, int level_number,
+                      const samrai::GriddingAlgorithm& grid, int level_number,
                       Duration) const {
     SAMRAI::hier::PatchLevel& level = *patch_level;
+    const samrai::PatchHierarchy& hierarchy = grid.GetPatchHierarchy();
     const SAMRAI::geom::CartesianGridGeometry& geom =
         hierarchy.GetGeometry(level_number);
     span<const int> data_ids{data_description_.data_ids};
@@ -97,9 +98,9 @@ int main(int argc, char** argv) {
   gridding->InitializeHierarchy();
 
   samrai::HyperbolicMethod method{
-      samrai::FluxMethod(execution::seq, godunov_method),
-      samrai::TimeIntegrator(),
-      samrai::Reconstruction(execution::seq, equation)};
+      samrai::FluxMethodAdapter(execution::seq, godunov_method),
+      samrai::HyperbolicTimeIntegrator(),
+      samrai::CompleteFromConsCalculation(execution::seq, equation)};
 
   DimensionalSplitLevelIntegrator level_integrator(
       int_c<Dim>, IntegratorContext(gridding, method, aux_desc));
@@ -113,7 +114,8 @@ int main(int argc, char** argv) {
       {}, {Duration(0.1)}, [&](const GriddingAlgorithm& grid) {
         SAMRAI::tbox::pout << "Start output to 'SAMRAI/Advection'.\n";
         writer.writePlotData(grid.GetPatchHierarchy().GetNative(),
-                             grid.GetCycles(), grid.GetTimePoint().count());
+                             grid.GetPatchHierarchy().GetCycles(), 
+                             grid.GetPatchHierarchy().GetTimePoint().count());
         SAMRAI::tbox::pout << "Finished output to 'SAMRAI/Advection'.\n";
       });
 
@@ -121,5 +123,5 @@ int main(int argc, char** argv) {
   run_options.final_time = Duration(2.0);
   run_options.cfl = 0.8;
   (*output)(*solver.GetGriddingAlgorithm());
-  // fub::RunSimulation(solver, run_options, wall_time_reference, output);
+  fub::RunSimulation(solver, run_options, wall_time_reference, *output);
 }

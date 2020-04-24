@@ -21,12 +21,13 @@
 #ifndef FUB_SAMRAI_GRIDDING_ALGORITHM_HPP
 #define FUB_SAMRAI_GRIDDING_ALGORITHM_HPP
 
-#include "fub/SAMRAI/BoundaryCondition.hpp"
-#include "fub/SAMRAI/InitialData.hpp"
 #include "fub/SAMRAI/PatchHierarchy.hpp"
 #include "fub/SAMRAI/RegisterVariables.hpp"
-#include "fub/SAMRAI/Tagging.hpp"
 #include "fub/SAMRAI/ViewPatch.hpp"
+
+#include "fub/AnyBoundaryCondition.hpp"
+#include "fub/AnyInitialData.hpp"
+#include "fub/AnyTaggingMethod.hpp"
 
 #include "fub/Duration.hpp"
 
@@ -34,10 +35,25 @@
 
 namespace fub {
 namespace samrai {
+class GriddingAlgorithm;
+}
 
-struct GriddingAlgorithm {
-  GriddingAlgorithm(PatchHierarchy hier, InitialData initial_data,
-                    Tagging tagging, std::vector<int> tag_buffer);
+template <> struct GridTraits<samrai::GriddingAlgorithm> {
+  using PatchLevel = std::shared_ptr<SAMRAI::hier::PatchLevel>;
+  using TagDataHandle = int;
+  using DataReference = SAMRAI::hier::Patch&;
+};
+
+namespace samrai {
+using AnyBoundaryCondition = ::fub::AnyBoundaryCondition<GriddingAlgorithm>;
+using AnyInitialData = ::fub::AnyInitialData<GriddingAlgorithm>;
+using AnyTaggingMethod = ::fub::AnyTaggingMethod<GriddingAlgorithm>;
+
+/// \ingroup GriddingAlgorithm
+class GriddingAlgorithm {
+public:
+  GriddingAlgorithm(PatchHierarchy hier, AnyInitialData initial_data,
+                    AnyTaggingMethod tagging, std::vector<int> tag_buffer);
 
   GriddingAlgorithm(const GriddingAlgorithm& ga);
   GriddingAlgorithm& operator=(const GriddingAlgorithm& ga) {
@@ -49,40 +65,35 @@ struct GriddingAlgorithm {
   GriddingAlgorithm(GriddingAlgorithm&& ph) = default;
   GriddingAlgorithm& operator=(GriddingAlgorithm&& ph) = default;
 
-  void RegridAllFinerLevels(int level_num, int cycle, Duration time_point);
+  void RegridAllFinerLevels(int level_num);
 
   void InitializeHierarchy(Duration initial_time = Duration(),
                            std::ptrdiff_t initial_cycle = 0);
 
-  [[nodiscard]] std::ptrdiff_t GetCycles() const noexcept;
-  [[nodiscard]] Duration GetTimePoint() const noexcept;
+  Duration GetTimePoint() const noexcept;
+  std::ptrdiff_t GetCycles() const noexcept;
 
   const PatchHierarchy& GetPatchHierarchy() const noexcept;
   PatchHierarchy& GetPatchHierarchy() noexcept;
 
-  const InitialData& GetInitialData() const noexcept;
-  InitialData& GetInitialData() noexcept;
-
-  const Tagging& GetTagging() const noexcept;
-  Tagging& GetTagging() noexcept;
-
-  const DataDescription& GetDataDescription() const noexcept;
-  DataDescription& GetDataDescription() noexcept;
-
   const std::vector<int>& GetTagBuffer() const noexcept;
-  std::vector<int>& GetTagBuffer() noexcept;
 
-  const BoundaryCondition& GetBoundaryCondition(int level) const;
-  BoundaryCondition& GetBoundaryCondition(int level);
+  const AnyInitialData& GetInitialData() const noexcept;
 
+  const AnyTaggingMethod& GetTaggingMethod() const noexcept;
+  
+  const AnyBoundaryCondition& GetBoundaryCondition() const noexcept;
+  AnyBoundaryCondition& GetBoundaryCondition() noexcept;
+
+private:
   PatchHierarchy hierarchy_;
-  InitialData initial_data_;
-  Tagging tagging_;
-  std::vector<BoundaryCondition> level_to_boundary_;
-  DataDescription id_set_;
+  AnyInitialData initial_data_{};
+  AnyTaggingMethod tagging_method_{};
+  AnyBoundaryCondition boundary_condition_{};
+
   std::vector<int> tag_buffer_;
   std::shared_ptr<SAMRAI::xfer::RefineAlgorithm> refine_data_algorithm_{};
-  std::shared_ptr<SAMRAI::mesh::GriddingAlgorithm> algorithm_;
+  std::shared_ptr<SAMRAI::mesh::GriddingAlgorithm> algorithm_{};
 };
 
 } // namespace samrai

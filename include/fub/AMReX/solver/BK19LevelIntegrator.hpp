@@ -41,6 +41,7 @@ void RecomputeAdvectiveFluxes(
     std::array<::amrex::MultiFab, 2>& Pv_faces, ::amrex::MultiFab& Pv_cells,
     const ::amrex::MultiFab& scratch, const ::amrex::Periodicity& periodicity);
 
+/// \ingroup LevelIntegrator
 struct BK19LevelIntegratorOptions {
   BK19LevelIntegratorOptions() = default;
   BK19LevelIntegratorOptions(const ProgramOptions& map);
@@ -61,6 +62,7 @@ struct BK19LevelIntegratorOptions {
   bool output_between_steps = false;
 };
 
+/// \ingroup LevelIntegrator
 struct BK19PhysicalParameters {
 
   /// Specific gas constant
@@ -83,6 +85,7 @@ struct BK19PhysicalParameters {
   double Msq{0.0};
 };
 
+/// \ingroup LevelIntegrator
 class BK19LevelIntegrator
     : private DimensionalSplitLevelIntegrator<
           AMREX_SPACEDIM, CompressibleAdvectionIntegratorContext,
