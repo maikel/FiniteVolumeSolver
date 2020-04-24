@@ -32,6 +32,7 @@ namespace fub {
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                  Declaration
 
+/// \ingroup LevelIntegrator
 template <typename SystemSolver, typename SourceTerm,
           typename SplittingMethod = StrangSplitting>
 class SplitSystemSourceLevelIntegrator : private SystemSolver {

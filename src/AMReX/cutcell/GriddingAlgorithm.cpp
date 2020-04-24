@@ -34,6 +34,7 @@ GriddingAlgorithm::GriddingAlgorithm(const GriddingAlgorithm& other)
       hierarchy_{other.hierarchy_},
       initial_condition_{other.initial_condition_}, tagging_{other.tagging_},
       boundary_condition_(other.boundary_condition_) {
+  AmrMesh::finest_level = other.finest_level;
   AmrMesh::geom = other.geom;
   AmrMesh::dmap = other.dmap;
   AmrMesh::grids = other.grids;
@@ -65,13 +66,14 @@ GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier,
   AmrCore::verbose = options.verbose;
   AmrMesh::n_error_buf = ::amrex::Vector<::amrex::IntVect>(
       AmrMesh::n_error_buf.size(), options.n_error_buf);
-  if (hier.GetNumberOfLevels() > 0) {
+  if (hierarchy_.GetNumberOfLevels() > 0) {
     for (int i = 0; i < hierarchy_.GetNumberOfLevels(); ++i) {
       const std::size_t ii = static_cast<std::size_t>(i);
       AmrMesh::geom[ii] = hierarchy_.GetGeometry(i);
       AmrMesh::dmap[ii] = hierarchy_.GetPatchLevel(i).distribution_mapping;
       AmrMesh::grids[ii] = hierarchy_.GetPatchLevel(i).box_array;
     }
+    AmrMesh::finest_level = hierarchy_.GetNumberOfLevels() - 1;
   }
 }
 
