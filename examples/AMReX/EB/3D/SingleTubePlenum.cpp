@@ -31,7 +31,6 @@
 #include <AMReX_EB2_IF_Rotation.H>
 #include <AMReX_EB2_IF_Translation.H>
 #include <AMReX_EB2_IF_Union.H>
-#include <AMReX_EB_LSCore.H>
 
 #include <boost/filesystem.hpp>
 #include <boost/program_options.hpp>
