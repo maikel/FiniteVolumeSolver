@@ -33,6 +33,7 @@
 
 namespace fub::amrex {
 
+/// \ingroup LevelIntegrator
 struct IgniteDetonationOptions {
   IgniteDetonationOptions() = default;
 
@@ -75,6 +76,7 @@ void serialize(Archive& ar, ::fub::amrex::IgniteDetonationOptions& opts,
 
 namespace fub::amrex {
 
+/// \ingroup LevelIntegrator
 class IgniteDetonation {
 public:
   static constexpr int Rank = 1;

@@ -33,15 +33,15 @@ namespace fub::samrai {
 ///
 /// The base method is expected to act on View objects of equation states.
 template <typename Tag, typename BaseMethod>
-class FluxMethod : private BaseMethod {
+class FluxMethodAdapter : private BaseMethod {
 public:
   using Equation =
       std::decay_t<decltype(std::declval<const BaseMethod&>().GetEquation())>;
   using Conservative = ::fub::Conservative<Equation>;
   using Complete = ::fub::Complete<Equation>;
 
-  FluxMethod(Tag, const BaseMethod& base) : BaseMethod(base) {}
-  FluxMethod(Tag, BaseMethod&& base) : BaseMethod(std::move(base)) {}
+  FluxMethodAdapter(Tag, const BaseMethod& base) : BaseMethod(base) {}
+  FluxMethodAdapter(Tag, BaseMethod&& base) : BaseMethod(std::move(base)) {}
 
   using BaseMethod::GetEquation;
 
@@ -69,7 +69,7 @@ public:
 
 template <typename Tag, typename BaseMethod>
 Duration
-FluxMethod<Tag, BaseMethod>::ComputeStableDt(IntegratorContext& context,
+FluxMethodAdapter<Tag, BaseMethod>::ComputeStableDt(IntegratorContext& context,
                                              int level, Direction dir) {
   const SAMRAI::hier::PatchLevel& patch_level = context.GetPatchLevel(level);
   span<const int> data_ids = context.GetScratchIds();
@@ -88,7 +88,7 @@ FluxMethod<Tag, BaseMethod>::ComputeStableDt(IntegratorContext& context,
 }
 
 template <typename Tag, typename BaseMethod>
-Duration FluxMethod<Tag, BaseMethod>::ComputeStableDt(
+Duration FluxMethodAdapter<Tag, BaseMethod>::ComputeStableDt(
     span<SAMRAI::pdat::CellData<double> const*> data, double dx,
     Direction dir) {
   constexpr int Rank = Equation::Rank();
@@ -99,7 +99,7 @@ Duration FluxMethod<Tag, BaseMethod>::ComputeStableDt(
 }
 
 template <typename Tag, typename BaseMethod>
-void FluxMethod<Tag, BaseMethod>::ComputeNumericFluxes(
+void FluxMethodAdapter<Tag, BaseMethod>::ComputeNumericFluxes(
     fub::samrai::IntegratorContext& context, int level, fub::Duration dt,
     fub::Direction dir) {
   const SAMRAI::geom::CartesianGridGeometry& geom = context.GetGeometry(level);
@@ -119,7 +119,7 @@ void FluxMethod<Tag, BaseMethod>::ComputeNumericFluxes(
 }
 
 template <typename Tag, typename BaseMethod>
-void FluxMethod<Tag, BaseMethod>::ComputeNumericFluxes(
+void FluxMethodAdapter<Tag, BaseMethod>::ComputeNumericFluxes(
     span<SAMRAI::pdat::SideData<double>*> fluxes,
     span<SAMRAI::pdat::CellData<double> const*> cells, double dx, Duration dt,
     Direction dir) {

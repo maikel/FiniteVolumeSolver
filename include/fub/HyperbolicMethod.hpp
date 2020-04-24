@@ -113,7 +113,7 @@ private:
   std::unique_ptr<detail::TimeIntegratorBase<IntegratorContext>> integrator_;
 };
 
-/// \ingroup PolymorphicValueType
+/// \ingroup PolymorphicValueType FluxMethod
 /// This is a polymorphic wrapper class for FluxMethod strategies used by
 /// \a IntegratorContext.
 template <typename IntegratorContext> class AnyFluxMethod {

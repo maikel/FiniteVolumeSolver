@@ -30,7 +30,6 @@
 
 #include <AMReX_EB2.H>
 #include <AMReX_EB2_IF_Union.H>
-#include <AMReX_EB_LSCore.H>
 
 #include <boost/container/pmr/vector.hpp>
 #include <boost/filesystem.hpp>

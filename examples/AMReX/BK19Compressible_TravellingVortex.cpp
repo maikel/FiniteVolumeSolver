@@ -258,6 +258,9 @@ void MyMain(const fub::ProgramOptions& options) {
   std::string base_name = "BK19_CompTravellingVortex/";
 
   fub::OutputFactory<GriddingAlgorithm> factory;
+  using CounterOutput = fub::CounterOutput<GriddingAlgorithm,
+                                           std::chrono::milliseconds>;
+  factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
   factory.RegisterOutput<fub::AnyOutput<GriddingAlgorithm>>(
       "Plotfile", WriteBK19Plotfile{base_name});
   factory.RegisterOutput<fub::amrex::DebugOutput>(

@@ -538,22 +538,20 @@ if (SAMRAI_FOUND)
     include/fub/SAMRAI/RegisterVariables.hpp
     include/fub/SAMRAI/ScopeGuard.hpp
     include/fub/SAMRAI/GriddingAlgorithm.hpp
-    include/fub/SAMRAI/TimeIntegrator.hpp
-    include/fub/SAMRAI/BoundaryCondition.hpp
-    include/fub/SAMRAI/FluxMethod.hpp
-    include/fub/SAMRAI/InitialData.hpp
-    include/fub/SAMRAI/Reconstruction.hpp
+    include/fub/SAMRAI/HyperbolicTimeIntegrator.hpp
+    include/fub/SAMRAI/FluxMethodAdapter.hpp
+    include/fub/SAMRAI/CompleteFromCons.hpp
     include/fub/SAMRAI/ViewPatch.hpp
     include/fub/SAMRAI/tagging_method/GradientDetector.hpp
     include/fub/SAMRAI/tagging_method/ConstantBox.hpp
+    src/SAMRAI/ScopeGuard.cpp
+    src/SAMRAI/ViewPatch.cpp
+    src/SAMRAI/RegisterVariables.cpp
     src/SAMRAI/CartesianPatchHierarchy.cpp
     src/SAMRAI/PatchHierarchy.cpp
-    src/SAMRAI/IntegratorContext.cpp
-    src/SAMRAI/ScopeGuard.cpp
-    src/SAMRAI/RegisterVariables.cpp
     src/SAMRAI/GriddingAlgorithm.cpp
-    src/SAMRAI/ViewPatch.cpp
-    src/SAMRAI/TimeIntegrator.cpp
+    src/SAMRAI/IntegratorContext.cpp
+    src/SAMRAI/HyperbolicTimeIntegrator.cpp
     src/SAMRAI/tagging_method/ConstantBox.cpp)
   target_include_directories(FiniteVolumeSolver.SAMRAI
     PUBLIC
@@ -581,6 +579,29 @@ if (SAMRAI_FOUND)
     DESTINATION ${CMAKE_INSTALL_PREFIX}/include/fub/
     FILES_MATCHING PATTERN *.hpp)
 endif()
+
+################################################################################
+# Doxygen target
+
+find_package(Doxygen)
+if (DOXYGEN_FOUND)
+    # set input and output files
+    set(DOXYGEN_IN ${PROJECT_SOURCE_DIR}/docs/Doxyfile.in)
+    set(DOXYGEN_OUT ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile)
+
+    # request to configure the file
+    set(FUB_SOURCE_DIR "${PROJECT_SOURCE_DIR}")
+    configure_file(${DOXYGEN_IN} ${DOXYGEN_OUT} @ONLY)
+    message("-- Doyxgen: Generated a Doxyfile at ${DOXYGEN_OUT}.")
+
+    add_custom_target( doc 
+        COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYGEN_OUT}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        COMMENT "Generating API documentation with Doxygen"
+        VERBATIM )
+else (DOXYGEN_FOUND)
+  message("-- Doyxgen: Doxygen needs to be installed to generate the doxygen documentation")
+endif (DOXYGEN_FOUND)
 
 ################################################################################
 # Examples

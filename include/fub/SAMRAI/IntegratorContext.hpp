@@ -26,6 +26,7 @@
 #include "fub/Duration.hpp"
 #include "fub/HyperbolicMethod.hpp"
 #include "fub/TimeStepError.hpp"
+#include "fub/counter/CounterRegistry.hpp"
 #include "fub/ext/outcome.hpp"
 
 #include "fub/SAMRAI/GriddingAlgorithm.hpp"
@@ -44,6 +45,8 @@ class IntegratorContext;
 
 using HyperbolicMethod = ::fub::HyperbolicMethod<IntegratorContext>;
 
+/// \ingroup IntegratorContext
+///
 /// \brief This class is used by the HypebrolicSplitLevelIntegrator and
 /// delegates AMR related tasks to the AMReX library.
 class IntegratorContext {
@@ -93,8 +96,8 @@ public:
   /// \name Member Accessors
 
   /// \brief Returns the current boundary condition for the specified level.
-  [[nodiscard]] const BoundaryCondition& GetBoundaryCondition(int level) const;
-  [[nodiscard]] BoundaryCondition& GetBoundaryCondition(int level);
+  [[nodiscard]] const AnyBoundaryCondition& GetBoundaryCondition() const;
+  [[nodiscard]] AnyBoundaryCondition& GetBoundaryCondition();
 
   /// \brief Returns a shared pointer to the underlying GriddingAlgorithm which
   /// owns the simulation.
@@ -178,12 +181,14 @@ public:
   /// \name Member functions relevant for the level integrator algorithm.
 
   /// \brief On each first subcycle this will regrid the data if neccessary.
-  void PreAdvanceLevel(int level_num, Duration dt, int subcycle);
+  int PreAdvanceLevel(int level_num, Duration dt, std::pair<int, int> subcycle);
 
   /// \brief Increases the internal time stamps and cycle counters for the
   /// specified level number and direction.
   [[nodiscard]] Result<void, TimeStepTooLarge>
-  PostAdvanceLevel(int level_num, Duration dt, int subcycle);
+  PostAdvanceLevel(int level_num, Duration dt, std::pair<int, int> subcycle);
+
+  void ApplyBoundaryCondition(int level, Direction dir);
 
   /// \brief Fills the ghost layer of the scratch data and interpolates in the
   /// coarse fine layer.
@@ -224,6 +229,13 @@ public:
   void CoarsenConservatively(int fine, int coarse);
   ///@}
 
+  void CopyDataToScratch(int level);
+
+  void CopyScratchToData(int level);
+
+  [[nodiscard]] const std::shared_ptr<CounterRegistry>&
+  GetCounterRegistry() const noexcept;
+
 private:
   int ghost_cell_width_;
   std::shared_ptr<GriddingAlgorithm> gridding_;
@@ -247,6 +259,8 @@ private:
   std::vector<std::shared_ptr<RefineSchedule>> fill_scratch_one_level_schedule_;
   std::vector<std::shared_ptr<CoarsenSchedule>> coarsen_scratch_schedule_;
   std::vector<std::shared_ptr<CoarsenSchedule>> coarsen_fluxes_schedule_;
+
+  std::vector<std::shared_ptr<SAMRAI::xfer::RefinePatchStrategy>> boundaries_;
 };
 
 } // namespace samrai
