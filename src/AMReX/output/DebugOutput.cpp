@@ -25,6 +25,7 @@
 #include "fub/ext/Log.hpp"
 
 #include <algorithm>
+#include <limits>
 #include <numeric>
 
 namespace fub::amrex {
@@ -34,7 +35,7 @@ namespace {
 template <class T>
 ::amrex::Vector<const T*> GetVecOfConstPtrs(const ::amrex::Vector<T>& a) {
   ::amrex::Vector<const T*> r;
-  r.reserve(a.size());
+  r.reserve(static_cast<std::size_t>(a.size()));
   for (const auto& x : a) {
     r.push_back(&x);
   }
@@ -44,7 +45,10 @@ template <class T>
 struct equal_to {
   int i;
   const std::vector<std::vector<::amrex::BoxArray>>* bas_;
-  bool operator()(int j) { return (*bas_)[i] == (*bas_)[j]; }
+  bool operator()(int j) {
+    return (*bas_)[static_cast<std::size_t>(i)] ==
+           (*bas_)[static_cast<std::size_t>(j)];
+  }
 };
 
 std::vector<std::vector<int>>
@@ -74,7 +78,7 @@ auto GatherBy(const std::vector<DebugSnapshot::Hierarchy>& hierarchies,
   std::vector<std::vector<T>> projected{};
   auto do_projection =
       [p = std::move(projection)](const DebugSnapshot::Hierarchy& hierarchy) {
-        std::vector<T> projected(hierarchy.size());
+        std::vector<T> projected(static_cast<std::size_t>(hierarchy.size()));
         std::transform(hierarchy.begin(), hierarchy.end(), projected.begin(),
                        [proj = std::move(p)](const ::amrex::MultiFab& mf) {
                          return proj(mf);
@@ -152,7 +156,8 @@ Select_(const std::vector<DebugSnapshot::ComponentNames>& names,
   using namespace std::literals;
   DebugSnapshot::ComponentNames selected;
   for (int i : partition) {
-    selected.insert(selected.end(), names[i].begin(), names[i].end());
+    const auto s = static_cast<std::size_t>(i);
+    selected.insert(selected.end(), names[s].begin(), names[s].end());
   }
   return selected;
 }
@@ -276,7 +281,7 @@ void DebugSnapshot::SaveData(
     const ComponentNames& names,
     const ::amrex::Vector<const ::amrex::Geometry*>& geomhier,
     ::amrex::SrcComp first_component) {
-  std::size_t nlevels = hierarchy.size();
+  const auto nlevels = static_cast<std::size_t>(hierarchy.size());
   Hierarchy& multi_level_hierarchy = saved_hierarchies_.emplace_back();
   multi_level_hierarchy.reserve(nlevels);
   for (const ::amrex::MultiFab* mf_pointer : hierarchy) {
@@ -286,7 +291,8 @@ void DebugSnapshot::SaveData(
     ::amrex::DistributionMapping dm = mf.DistributionMap();
     ::amrex::MultiFab& dest =
         multi_level_hierarchy.emplace_back(ba, dm, names.size(), 0);
-    ::amrex::MultiFab::Copy(dest, mf, first_component.i, 0, names.size(), 0);
+    const auto n_names = static_cast<int>(names.size());
+    ::amrex::MultiFab::Copy(dest, mf, first_component.i, 0, n_names, 0);
   }
   names_per_hierarchy_.push_back(names);
   GeomHierarchy& multi_level_geometry = saved_geometries_.emplace_back();
@@ -311,11 +317,12 @@ void DebugSnapshot::MakeUniqueComponentNames() {
   std::size_t h = 0;
   for (DebugSnapshot::ComponentNames& names : names_per_hierarchy_) {
     auto last = names.end();
-    for (int k = 0; k < names.size(); ++k) {
+    const auto n_names = static_cast<std::size_t>(names.size());
+    for (std::size_t k = 0; k < n_names; ++k) {
       const std::string candidate = names[k];
       int counter = 0;
       // search for candidate in current hierarchy
-      auto first = names.begin() + k + 1;
+      auto first = names.begin() + static_cast<std::ptrdiff_t>(k + 1);
       auto pos = std::find(first, last, candidate);
       if (last != pos) {
         names[k] += "_0"s;
@@ -327,7 +334,8 @@ void DebugSnapshot::MakeUniqueComponentNames() {
         } while (last != pos);
       }
       // search for candidate in other hierarchies
-      auto nexthier = names_per_hierarchy_.begin() + h + 1;
+      auto nexthier =
+          names_per_hierarchy_.begin() + static_cast<std::ptrdiff_t>(h + 1);
       auto lasthier = names_per_hierarchy_.end();
       for (auto p = nexthier; p != lasthier; ++p) {
         DebugSnapshot::ComponentNames& hnames = *p;
@@ -372,18 +380,19 @@ DebugSnapshot::GatherFields(::amrex::IndexType location) const {
     std::vector<ComponentNames> all_components =
         GatherNames_(names_per_hierarchy_, saved_hierarchies_, location);
     ComponentNames components = Select_(all_components, partition);
-    GeomHierarchy geoms = *filtered_geoms[partition[0]];
+    const auto p = static_cast<std::size_t>(partition[0]);
+    GeomHierarchy geoms = *filtered_geoms[p];
     int n_components = static_cast<int>(components.size());
     DebugSnapshot::Hierarchy hierarchy{};
-    std::vector<BoxArray> box_array = box_arrays[partition[0]];
-    std::vector<DistributionMapping> distribution =
-        distribution_maps[partition[0]];
+    const std::vector<BoxArray>& box_array = box_arrays[p];
+    const std::vector<DistributionMapping>& distribution = distribution_maps[p];
     for (std::size_t level = 0; level < box_array.size(); ++level) {
       MultiFab& dest = hierarchy.emplace_back(
           box_array[level], distribution[level], n_components, 0);
       int comp = 0;
       for (int i : partition) {
-        const MultiFab& src = (*filtered_hierarchies[i])[level];
+        const auto j = static_cast<std::size_t>(i);
+        const MultiFab& src = (*filtered_hierarchies[j])[level];
         const int n = src.nComp();
         MultiFab::Copy(dest, src, 0, comp, n, 0);
         comp += n;
@@ -499,14 +508,14 @@ void DebugStorage::FlushData(const std::string& directory, int cycle,
     auto hier_geoms = all_geometries.begin();
     for (const DebugSnapshot::Hierarchy& hierarchy : all_hierarchies) {
       if (hierarchy[0].ixType() != ::amrex::IndexType::TheCellType()) {
-        const int nlevels = hierarchy.size();
+        const auto nlevels = static_cast<std::size_t>(hierarchy.size());
         const int nComp = hierarchy[0].nComp();
         DebugSnapshot::Hierarchy cell_average_hierarchy(nlevels);
         DebugSnapshot::ComponentNames names_avg(*hier_fields);
         DebugSnapshot::GeomHierarchy geoms(*hier_geoms);
 
         if (hierarchy[0].ixType() == ::amrex::IndexType::TheNodeType()) {
-          for (int level = 0; level < nlevels; ++level) {
+          for (std::size_t level = 0; level < nlevels; ++level) {
             ::amrex::BoxArray ba = hierarchy[level].boxArray();
             ba.enclosedCells();
             ::amrex::DistributionMapping dm =
@@ -521,7 +530,7 @@ void DebugStorage::FlushData(const std::string& directory, int cycle,
             vname += "_nd2cellavg"s;
           }
         } else {
-          for (int level = 0; level < nlevels; ++level) {
+          for (std::size_t level = 0; level < nlevels; ++level) {
             ::amrex::BoxArray ba = hierarchy[level].boxArray();
             ba.enclosedCells();
             ::amrex::DistributionMapping dm =
@@ -571,7 +580,7 @@ void DebugStorage::FlushData(const std::string& directory, int cycle,
       const std::string plotfilename =
           fmt::format("{}/{}/partition_{}_plt{:09}", directory,
                       snapshot_directory, partition_counter, cycle_);
-      const std::size_t size = hierarchy.size();
+      const auto size = static_cast<std::size_t>(hierarchy.size());
       ::amrex::Vector<const ::amrex::MultiFab*> mf(size);
       ::amrex::Vector<int> level_steps(size);
       ::amrex::Vector<::amrex::IntVect> ref_ratio(size - 1);
@@ -591,10 +600,10 @@ void DebugStorage::FlushData(const std::string& directory, int cycle,
       }
 
       ::amrex::Vector<std::string> vnames(names.begin(), names.end());
-      ::amrex::WriteMultiLevelPlotfile(plotfilename, size, mf, vnames, geoms,
-                                       time_point.count(), level_steps,
-                                       ref_ratio, "HyperCLaw-V1.1", "Level_",
-                                       "Cell", {"raw_fields"});
+      ::amrex::WriteMultiLevelPlotfile(plotfilename, static_cast<int>(size), mf,
+                                       vnames, geoms, time_point.count(),
+                                       level_steps, ref_ratio, "HyperCLaw-V1.1",
+                                       "Level_", "Cell", {"raw_fields"});
 
       ::amrex::VisMF::SetHeaderVersion(::amrex::VisMF::Header::Version_v1);
 
@@ -603,10 +612,8 @@ void DebugStorage::FlushData(const std::string& directory, int cycle,
 
       for (const DebugSnapshot::Hierarchy& hierarchy : all_hierarchies) {
         if (hierarchy[0].ixType() != ::amrex::IndexType::TheCellType()) {
-          const std::size_t size = hierarchy.size();
-          const int nComp = hierarchy[0].nComp();
+          const std::size_t size = static_cast<std::size_t>(hierarchy.size());
           std::vector<std::string> names(*hier_fields);
-
           std::vector<::amrex::BoxArray> noncell_box_array(size);
           for (std::size_t i = 0; i < size; ++i) {
             noncell_box_array[i] = hierarchy[i].boxArray();
@@ -623,11 +630,13 @@ void DebugStorage::FlushData(const std::string& directory, int cycle,
               const std::string raw_pltname =
                   fmt::format("{}/raw_fields", plotfilename);
               const std::string level_prefix = "Level_";
-              for (int Comp = 0; Comp < nComp; ++Comp) {
+              const auto nComp = static_cast<std::size_t>(hierarchy[0].nComp());
+              for (std::size_t c = 0; c < nComp; ++c) {
                 const std::string full_prefix = ::amrex::MultiFabFileFullPrefix(
-                    ii, raw_pltname, level_prefix, names[Comp]);
+                    ii, raw_pltname, level_prefix, names[c]);
                 ::amrex::MultiFab data(ba, dm, 1, 0);
-                ::amrex::MultiFab::Copy(data, hierarchy[i], Comp, 0, 1, 0);
+                ::amrex::MultiFab::Copy(data, hierarchy[i], static_cast<int>(c),
+                                        0, 1, 0);
                 ::amrex::VisMF::Write(data, full_prefix);
               }
             }
@@ -655,8 +664,11 @@ DebugOutput::DebugOutput(const ProgramOptions& opts,
 
 void DebugOutput::operator()(const GriddingAlgorithm& grid) {
   DebugStorage& storage = *grid.GetPatchHierarchy().GetDebugStorage();
-  storage.FlushData(directory_, grid.GetPatchHierarchy().GetCycles(),
-                    grid.GetTimePoint());
+  const std::ptrdiff_t cycles = grid.GetPatchHierarchy().GetCycles();
+  const auto int_max =
+      static_cast<std::ptrdiff_t>(std::numeric_limits<int>::max());
+  FUB_ASSERT(cycles < int_max);
+  storage.FlushData(directory_, static_cast<int>(cycles), grid.GetTimePoint());
 }
 
 } // namespace fub::amrex
