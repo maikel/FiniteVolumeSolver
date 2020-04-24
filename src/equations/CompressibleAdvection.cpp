@@ -219,7 +219,8 @@ void CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
   amrex::CompressibleAdvectionIntegratorContext& context = *pointer_to_context;
   CompressibleAdvection<SpaceDimension> equation{};
   const ::amrex::Geometry& geom = context.GetGeometry(level);
-  const int dir_v = static_cast<int>(dir);
+  const auto dir_v = static_cast<int>(dir);
+  const auto dir_s = static_cast<std::size_t>(dir);
   const double dx = geom.CellSize(dir_v);
   const ::amrex::MultiFab& scratch = context.GetScratch(level);
   ::amrex::MultiFab& fluxes = context.GetFluxes(level, dir);
@@ -240,11 +241,11 @@ void CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
         amrex::MakeView<Conservative>(ffab, equation, face_box);
     StridedDataView<const double, SpaceDimension> Pv;
     if constexpr (SpaceDimension == AMREX_SPACEDIM) {
-      Pv = amrex::MakePatchDataView(Pvs.on_faces[static_cast<std::size_t>(dir)][mfi], 0)
+      Pv = amrex::MakePatchDataView(Pvs.on_faces[dir_s][mfi], 0)
                .Subview(amrex::AsIndexBox<SpaceDimension>(
                    ::amrex::grow(face_box, dir_v, 1)));
     } else if constexpr (SpaceDimension + 1 == AMREX_SPACEDIM) {
-      Pv = SliceLast(amrex::MakePatchDataView(Pvs.on_faces[dir_v][mfi], 0)
+      Pv = SliceLast(amrex::MakePatchDataView(Pvs.on_faces[dir_s][mfi], 0)
                          .Subview(amrex::AsIndexBox<AMREX_SPACEDIM>(
                              ::amrex::grow(face_box, dir_v, 1))),
                      0);
