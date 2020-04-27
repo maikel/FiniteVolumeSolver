@@ -42,6 +42,11 @@
 #include <AMReX_FArrayBox.H>
 #include <AMReX_LO_BCTYPES.H>
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wsign-conversion"
+#pragma GCC diagnostic ignored "-Wconversion"
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+
 namespace amrex {
 namespace {
 
@@ -164,6 +169,8 @@ bool mlndhelm_any_fine_sync_cells (Box const& bx, Array4<int const> const& msk, 
 }
 
 }
+
+#pragma GCC diagnostic pop
 
 #endif
 // clang-format on

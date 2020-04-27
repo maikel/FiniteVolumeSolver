@@ -48,6 +48,10 @@
 #include <omp.h>
 #endif
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wsign-conversion"
+#pragma GCC diagnostic ignored "-Wconversion"
+
 namespace amrex {
 
 MLNodeHelmDualCstVel::MLNodeHelmDualCstVel (const Vector<Geometry>& a_geom,
@@ -1621,3 +1625,5 @@ MLNodeHelmDualCstVel::checkPoint (std::string const& file_name) const
 
 }
 // clang-format on
+
+#pragma GCC diagnostic pop
