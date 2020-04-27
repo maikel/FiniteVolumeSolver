@@ -627,13 +627,15 @@ void BK19LevelIntegrator::InitialProjection(int level) {
   MultiFab& scratch = context.GetScratch(level);
   MultiFab& pi = *hier.GetPatchLevel(level).nodes;
   const ::amrex::Geometry& geom = context.GetGeometry(level);
+  std::shared_ptr<CounterRegistry> counters{};
+  Timer _ = counters->get_timer("dummy");
 
   BK19PhysicalParameters phys_param_aux{phys_param_};
   phys_param_aux.alpha_p = 0.0;
 
   context.FillGhostLayerSingleLevel(level);
   DoEulerBackward_(index_, *lin_op_, phys_param_aux, options_, scratch, pi,
-                   geom, level, Duration(1.0));
+                   geom, level, Duration(1.0), *counters);
 }
 
 
