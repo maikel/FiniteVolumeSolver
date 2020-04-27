@@ -650,7 +650,8 @@ std::vector<double> GatherStates(
   const int nlevel = hierarchy.GetNumberOfLevels();
   const int finest_level = nlevel - 1;
   const int ncomp = hierarchy.GetDataDescription().n_state_components;
-  std::vector<double> buffer(xs.extent(1) * ncomp * nlevel);
+  std::vector<double> buffer(
+      static_cast<std::size_t>(xs.extent(1) * ncomp * nlevel));
   mdspan<double, 3> states(buffer.data(), xs.extent(1), ncomp, nlevel);
   for (int level = 0; level < nlevel; ++level) {
     const ::amrex::MultiFab& level_data = hierarchy.GetPatchLevel(level).data;
@@ -677,8 +678,9 @@ std::vector<double> GatherStates(
     });
   }
   std::vector<double> global_buffer(buffer.size());
-  ::MPI_Allreduce(buffer.data(), global_buffer.data(), global_buffer.size(),
-                  MPI_DOUBLE, MPI_SUM, comm);
+  ::MPI_Allreduce(buffer.data(), global_buffer.data(),
+                  static_cast<int>(global_buffer.size()), MPI_DOUBLE, MPI_SUM,
+                  comm);
   states = mdspan<double, 3>(global_buffer.data(), xs.extent(1), ncomp, nlevel);
   for (int level = 1; level < nlevel; ++level) {
     for (int comp = 0; comp < ncomp; ++comp) {
@@ -723,8 +725,9 @@ void WriteTubeData(const std::string& name, const PatchHierarchy& hierarchy,
     if (rank == 0) {
       ::amrex::FArrayBox& fab = fabs.emplace_back(domain, level_data.nComp());
       fab.setVal(0.0);
-      ::MPI_Reduce(local_fab.dataPtr(), fab.dataPtr(), local_fab.size(),
-                   MPI_DOUBLE, MPI_SUM, 0, comm);
+      ::MPI_Reduce(local_fab.dataPtr(), fab.dataPtr(),
+                   static_cast<int>(local_fab.size()), MPI_DOUBLE, MPI_SUM, 0,
+                   comm);
       if (level > 0) {
         for (int comp = 1; comp < level_data.nComp(); ++comp) {
           for (int i = domain.smallEnd(0); i <= domain.bigEnd(0); ++i) {
@@ -751,8 +754,9 @@ void WriteTubeData(const std::string& name, const PatchHierarchy& hierarchy,
         WriteToHDF5(name, fab, level_geom, time_point, cycle_number);
       }
     } else {
-      ::MPI_Reduce(local_fab.dataPtr(), nullptr, local_fab.size(), MPI_DOUBLE,
-                   MPI_SUM, 0, comm);
+      ::MPI_Reduce(local_fab.dataPtr(), nullptr,
+                   static_cast<int>(local_fab.size()), MPI_DOUBLE, MPI_SUM, 0,
+                   comm);
     }
   }
 }
