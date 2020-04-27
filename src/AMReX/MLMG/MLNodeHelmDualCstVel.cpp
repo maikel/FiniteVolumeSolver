@@ -495,6 +495,10 @@ MLNodeHelmDualCstVel::averageDownCoeffs ()
                     if (m_sigma[amrlev][mglev][idim]) {
                         FillBoundaryCoeff(*m_sigma[amrlev][mglev][idim], m_geom[amrlev][mglev]);
                     }
+
+                    if (m_sigmacross[amrlev][mglev][idim]) {
+                        FillBoundaryCoeff(*m_sigmacross[amrlev][mglev][idim], m_geom[amrlev][mglev]);
+                    }
                 }
             }
         } else {
@@ -503,6 +507,10 @@ MLNodeHelmDualCstVel::averageDownCoeffs ()
             {
                 if (m_sigma[amrlev][mglev][idim]) {
                     FillBoundaryCoeff(*m_sigma[amrlev][mglev][idim], m_geom[amrlev][mglev]);
+                }
+
+                if (m_sigmacross[amrlev][mglev][idim]) {
+                    FillBoundaryCoeff(*m_sigmacross[amrlev][mglev][idim], m_geom[amrlev][mglev]);
                 }
             }
         }
