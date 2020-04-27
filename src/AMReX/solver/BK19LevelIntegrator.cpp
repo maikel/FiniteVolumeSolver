@@ -243,7 +243,8 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
     const BK19PhysicalParameters& phys_param,
     const BK19LevelIntegratorOptions& options, ::amrex::MultiFab& scratch,
     const ::amrex::MultiFab& pi_old, const ::amrex::Geometry& geom, int level,
-    Duration dt, CounterRegistry& counters, DebugSnapshotProxy dbg_sn = DebugSnapshotProxy()) {
+    Duration dt, CounterRegistry& counters,
+    DebugSnapshotProxy dbg_sn = DebugSnapshotProxy()) {
   const ::amrex::Periodicity periodicity = geom.periodicity();
   ::amrex::DistributionMapping distribution_map = scratch.DistributionMap();
   ::amrex::BoxArray on_cells = scratch.boxArray();
@@ -342,7 +343,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   {
     Timer _ = counters.get_timer("BK19LevelIntegrator::EulerBackward::solve");
     nodal_solver.solve({&pi}, {&rhs}, options.mlmg_tolerance_rel,
-                      options.mlmg_tolerance_abs);
+                       options.mlmg_tolerance_abs);
   }
   dbg_sn.SaveData(pi, "pi", geom);
 
@@ -549,8 +550,8 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   {
     Timer _ = counters->get_timer("BK19LevelIntegrator::EulerBackward_1");
     MultiFab pi_aux =
-      DoEulerBackward_(index_, *lin_op_, phys_param_, options_, scratch, pi, geom,
-                     level, half_dt, *counters, dbgAdvB);
+        DoEulerBackward_(index_, *lin_op_, phys_param_, options_, scratch, pi,
+                         geom, level, half_dt, *counters, dbgAdvB);
 
     // NOTE: the following update of pi in the pseudo-incompressible case is not
     // present in BK19, but a further development in the work of Ray Chow
@@ -605,15 +606,16 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   dbgAdvBFA.SaveData(pi, "pi", geom);
 
   // 6) Do the second euler backward integration step for the source term
-  MultiFab pi_new;
   {
     Timer _ = counters->get_timer("BK19LevelIntegrator::EulerBackward_2");
-    pi_new = DoEulerBackward_(index_, *lin_op_, phys_param_, options_, scratch,
-                              pi, geom, level, half_dt, *counters, dbgAdvBFAB);
+    MultiFab pi_new =
+        DoEulerBackward_(index_, *lin_op_, phys_param_, options_, scratch, pi,
+                         geom, level, half_dt, *counters, dbgAdvBFAB);
+
+    // Copy pi_n+1 to pi_n
+    hier.GetPatchLevel(level).nodes->copy(pi_new);
   }
 
-  // Copy pi_n+1 to pi_n
-  hier.GetPatchLevel(level).nodes->copy(pi_new);
   dbgAdvBFAB.SaveData(scratch, GetCompleteVariableNames(), geom);
 
   return boost::outcome_v2::success();
@@ -637,6 +639,5 @@ void BK19LevelIntegrator::InitialProjection(int level) {
   DoEulerBackward_(index_, *lin_op_, phys_param_aux, options_, scratch, pi,
                    geom, level, Duration(1.0), *counters);
 }
-
 
 } // namespace fub::amrex
