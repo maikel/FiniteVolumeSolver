@@ -25,7 +25,6 @@
 #include <AMReX_EB2.H>
 #include <AMReX_EB2_IF_Intersection.H>
 #include <AMReX_EB2_IF_Plane.H>
-#include <AMReX_EB_LSCore.H>
 
 static_assert(AMREX_SPACEDIM == 2);
 
