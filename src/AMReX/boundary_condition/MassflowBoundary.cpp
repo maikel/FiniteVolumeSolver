@@ -165,7 +165,7 @@ void MassflowBoundary<Rank>::FillBoundary(
                                                             mfi.growntilebox());
         ForEachIndex(AsIndexBox<Rank>(box_to_fill),
                      [&state, &states](auto... is) {
-                       std::array<std::ptrdiff_t, Rank> dest{int(is)...};
+                       Index<Rank> dest{is...};
                        Store(states, state, dest);
                      });
       }
