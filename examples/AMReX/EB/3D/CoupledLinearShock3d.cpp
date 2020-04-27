@@ -29,7 +29,6 @@
 #include <AMReX_EB2_IF_Intersection.H>
 #include <AMReX_EB2_IF_Plane.H>
 #include <AMReX_EB2_IF_Union.H>
-#include <AMReX_EB_LSCore.H>
 
 #include <boost/filesystem.hpp>
 #include <boost/program_options.hpp>
