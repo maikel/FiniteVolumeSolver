@@ -690,8 +690,8 @@ void BK19LevelIntegrator::InitialProjection(int level) {
   MultiFab& scratch = context.GetScratch(level);
   MultiFab& pi = *hier.GetPatchLevel(level).nodes;
   const ::amrex::Geometry& geom = context.GetGeometry(level);
-  std::shared_ptr<CounterRegistry> counters{};
-  Timer _ = counters->get_timer("dummy");
+  std::shared_ptr<CounterRegistry> counters = advection.GetCounterRegistry();
+  Timer _ = counters->get_timer("BK19LevelIntegrator::InitialProjection");
 
   BK19PhysicalParameters phys_param_aux{phys_param_};
   phys_param_aux.alpha_p = 0.0;
