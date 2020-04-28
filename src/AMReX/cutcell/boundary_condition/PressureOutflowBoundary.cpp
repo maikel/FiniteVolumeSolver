@@ -78,7 +78,8 @@ void PressureOutflowBoundary::FillBoundary(::amrex::MultiFab& mf,
           std::array<std::ptrdiff_t, AMREX_SPACEDIM> dest{int(is)...};
           ::amrex::IntVect iv{int(is)...};
           std::array<std::ptrdiff_t, AMREX_SPACEDIM> src = dest;
-          src[dir_v] = x0;
+          const auto d = static_cast<std::size_t>(dir_v);
+          src[d] = x0;
           ::amrex::IntVect src_iv{
               AMREX_D_DECL(int(src[0]), int(src[1]), int(src[2]))};
           if (alpha(iv) > 0.0 && alpha(src_iv) > 0.0) {

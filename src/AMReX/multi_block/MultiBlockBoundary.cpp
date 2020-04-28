@@ -543,7 +543,8 @@ void MultiBlockBoundary::FillBoundary(::amrex::MultiFab& mf,
         IdealGasMix<Tube_Rank>::Complete state(tube_equation_);
         auto view = MakeView<IdealGasMix<Tube_Rank>::Complete>(
             mf[mfi], tube_equation_, mfi.tilebox());
-        std::vector<double> moles(tube_equation_.GetReactor().GetNSpecies());
+        std::vector<double> moles(static_cast<std::size_t>(
+            tube_equation_.GetReactor().GetNSpecies()));
         ForEachIndex(Box<0>(view), [&](std::ptrdiff_t i) {
           if (2 < i && i < 5) {
             Load(state, view, {i});

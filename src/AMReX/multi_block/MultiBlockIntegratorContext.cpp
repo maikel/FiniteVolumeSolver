@@ -234,6 +234,7 @@ int MultiBlockIntegratorContext::PreAdvanceLevel(int level_num, Duration dt,
       plena_[0].GetPatchHierarchy().GetMaxNumberOfLevels()) {
     return 1;
   }
+  return level_which_changed;
 }
 
 /// \brief Increases the internal time stamps and cycle counters for the
@@ -477,7 +478,7 @@ void AverageFlux_(span<double> average, const ::amrex::MultiFab& fluxes,
                   const ::amrex::Box& box, Direction dir, int side,
                   MPI_Comm comm) {
   std::fill(average.begin(), average.end(), 0.0);
-  const int d = static_cast<int>(dir);
+  const auto d = static_cast<std::size_t>(dir);
   double local_total_area = 0.0;
   const ::amrex::MultiCutFab& betas = *factory.getAreaFrac()[d];
   const ::amrex::Box boundary = GetBoundary(box, dir, side);
@@ -519,8 +520,8 @@ void AverageFlux_(span<double> average, const ::amrex::MultiFab& fluxes,
         }
       }
     });
-    std::vector<double> buffer(average.size());
-    ::MPI_Allreduce(average.data(), buffer.data(), average.size(), MPI_DOUBLE,
+    std::vector<double> buffer(static_cast<std::size_t>(average.size()));
+    ::MPI_Allreduce(average.data(), buffer.data(), static_cast<int>(average.size()), MPI_DOUBLE,
                     MPI_SUM, comm);
     std::transform(buffer.begin(), buffer.end(), average.begin(),
                    [=](double flux_sum) { return flux_sum / total_area; });
@@ -555,8 +556,8 @@ void MultiBlockIntegratorContext::ComputeNumericFluxes(int level, Duration dt,
       plenum.ComputeNumericFluxes(level, dt, dir);
     }
   }
-  std::vector<double> average_flux(
-      plena_[0].GetFluxes(0, Direction::X).nComp());
+  std::vector<double> average_flux(static_cast<std::size_t>(
+      plena_[0].GetFluxes(0, Direction::X).nComp()));
   span<const MultiBlockBoundary> boundaries = gridding_->GetBoundaries(level);
   const MultiBlockBoundary* boundary = boundaries.begin();
   for (const BlockConnection& conn : gridding_->GetConnectivity()) {
@@ -583,7 +584,7 @@ void MultiBlockIntegratorContext::ComputeNumericFluxes(int level, Duration dt,
           fab(iv, 0) = average_flux[0];
           fab(iv, 1) = average_flux[1];
           int tube_component = 2;
-          int plenum_component = 1 + AMREX_SPACEDIM;
+          auto plenum_component = static_cast<std::size_t>(AMREX_SPACEDIM + 1);
           while (tube_component < tube_fluxes.nComp()) {
             fab(iv, tube_component) = average_flux[plenum_component];
             ++tube_component;

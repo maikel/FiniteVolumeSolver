@@ -53,7 +53,8 @@ MultiWriteHdf5::MultiWriteHdf5(
     std::array<int, AMREX_SPACEDIM> hi =
         GetOptionOr(box, "upper", std::array<int, AMREX_SPACEDIM>{});
     output_box_.emplace(::amrex::IntVect(lo), ::amrex::IntVect(hi));
-    BOOST_LOG(log) << fmt::format(" - box: [{{{}}}, {{{}}}]", fmt::join(lo, ", "), fmt::join(hi, ", "));
+    BOOST_LOG(log) << fmt::format(" - box: [{{{}}}, {{{}}}]",
+                                  fmt::join(lo, ", "), fmt::join(hi, ", "));
   } else {
     BOOST_LOG(log) << " - box: everything";
   }
@@ -125,14 +126,15 @@ void WriteHdf5UnRestricted(const std::string& name,
     if (rank == 0) {
       ::amrex::FArrayBox& fab = fabs.emplace_back(domain, level_data.nComp());
       fab.setVal(0.0);
-      ::MPI_Reduce(local_fab.dataPtr(), fab.dataPtr(), local_fab.size(),
-                   MPI_DOUBLE, MPI_SUM, 0, comm);
+      ::MPI_Reduce(local_fab.dataPtr(), fab.dataPtr(),
+                   static_cast<int>(local_fab.size()), MPI_DOUBLE, MPI_SUM, 0,
+                   comm);
       if (level > 0) {
         for (int comp = 1; comp < level_data.nComp(); ++comp) {
           ForEachIndex(domain, [&](auto... is) {
             ::amrex::IntVect fine_i{int(is)...};
             ::amrex::IntVect coarse_i = fine_i;
-            coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(level));
+            coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(ilvl));
             if (fab(fine_i, 0) == 0.0) {
               fab(fine_i, comp) = fabs[level - 1](coarse_i, comp);
             }
@@ -141,7 +143,7 @@ void WriteHdf5UnRestricted(const std::string& name,
         ForEachIndex(domain, [&](auto... is) {
           ::amrex::IntVect fine_i{int(is)...};
           ::amrex::IntVect coarse_i = fine_i;
-          coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(level));
+          coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(ilvl));
           if (fab(fine_i, 0) == 0.0) {
             fab(fine_i, 0) = fabs[level - 1](coarse_i, 0);
           }
@@ -153,8 +155,9 @@ void WriteHdf5UnRestricted(const std::string& name,
         WriteToHDF5(name, fab, level_geom, time_point, cycle_number);
       }
     } else {
-      ::MPI_Reduce(local_fab.dataPtr(), nullptr, local_fab.size(), MPI_DOUBLE,
-                   MPI_SUM, 0, comm);
+      ::MPI_Reduce(local_fab.dataPtr(), nullptr,
+                   static_cast<int>(local_fab.size()), MPI_DOUBLE, MPI_SUM, 0,
+                   comm);
     }
   }
 }
@@ -183,7 +186,7 @@ void WriteHdf5RestrictedToBox(const std::string& name,
   boxes.reserve(n_level);
   boxes.push_back(finest_box);
   ::amrex::Box box = finest_box;
-  for (std::size_t level = n_level - 1; level > 0; --level) {
+  for (int level = static_cast<int>(n_level) - 1; level > 0; --level) {
     ::amrex::IntVect refine_ratio = hierarchy.GetRatioToCoarserLevel(level);
     box.coarsen(refine_ratio);
     boxes.push_back(box);
@@ -206,14 +209,15 @@ void WriteHdf5RestrictedToBox(const std::string& name,
     if (rank == 0) {
       ::amrex::FArrayBox& fab = fabs.emplace_back(domain, level_data.nComp());
       fab.setVal(0.0);
-      ::MPI_Reduce(local_fab.dataPtr(), fab.dataPtr(), local_fab.size(),
-                   MPI_DOUBLE, MPI_SUM, 0, comm);
+      ::MPI_Reduce(local_fab.dataPtr(), fab.dataPtr(),
+                   static_cast<int>(local_fab.size()), MPI_DOUBLE, MPI_SUM, 0,
+                   comm);
       if (level > 0) {
         for (int comp = 1; comp < level_data.nComp(); ++comp) {
           ForEachIndex(domain, [&](auto... is) {
             ::amrex::IntVect fine_i{int(is)...};
             ::amrex::IntVect coarse_i = fine_i;
-            coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(level));
+            coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(ilvl));
             if (fab(fine_i, 0) == 0.0) {
               fab(fine_i, comp) = fabs[level - 1](coarse_i, comp);
             }
@@ -222,7 +226,7 @@ void WriteHdf5RestrictedToBox(const std::string& name,
         ForEachIndex(domain, [&](auto... is) {
           ::amrex::IntVect fine_i{int(is)...};
           ::amrex::IntVect coarse_i = fine_i;
-          coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(level));
+          coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(ilvl));
           if (fab(fine_i, 0) == 0.0) {
             fab(fine_i, 0) = fabs[level - 1](coarse_i, 0);
           }
@@ -235,8 +239,9 @@ void WriteHdf5RestrictedToBox(const std::string& name,
         WriteToHDF5(name, fab, level_geom, time_point, cycle_number);
       }
     } else {
-      ::MPI_Reduce(local_fab.dataPtr(), nullptr, local_fab.size(), MPI_DOUBLE,
-                   MPI_SUM, 0, comm);
+      ::MPI_Reduce(local_fab.dataPtr(), nullptr,
+                   static_cast<int>(local_fab.size()), MPI_DOUBLE, MPI_SUM, 0,
+                   comm);
     }
   }
 }
