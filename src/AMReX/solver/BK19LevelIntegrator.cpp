@@ -297,6 +297,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
                   index.momentum.size(), no_ghosts);
   scratch.mult(1.0 / (1.0 + std::pow(dt.count() * phys_param.f, 2)),
                index.momentum[0], index.momentum.size(), no_ghosts);
+  RecoverVelocityFromMomentum_(scratch, index);
 
   // compute RHS for elliptic solve (equation (28) in [BK19] divided by -dt)
   // first compute diagonal part for compressibility
@@ -371,15 +372,17 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   // linear operator that it is non-singular and the RHS must not summ up to
   // zero.
   if (phys_param.alpha_p > 0.0) {
+    dbg_sn.SaveData(diagfac_nodes, "alpha", geom);
     lin_op.setAlpha(level, diagfac_nodes);
   }
 
   MultiFab sigmacross(on_cells, distribution_map, AMREX_SPACEDIM*(AMREX_SPACEDIM-1), no_ghosts);
   for (std::size_t i = 0; i < AMREX_SPACEDIM*(AMREX_SPACEDIM-1); ++i) {
     MultiFab::Copy(sigmacross, sigma, 0, i, one_component, no_ghosts);
-    const int facsign = static_cast<double>(std::pow(-1,i));
+    const int facsign = static_cast<double>(std::pow(-1,i+1));
     sigmacross.mult(facsign * dt.count() * phys_param.f, i, 1);
   }
+  dbg_sn.SaveData(sigmacross, DebugSnapshot::ComponentNames{"sigmac0", "sigmac1"}, geom);
   lin_op.setSigmaCross(level, sigmacross);
 
   // solve elliptic equation for pi
@@ -418,7 +421,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
 
   const std::array<int, VelocityRank> UV_index{0, 1};
   ComputeKCrossM_(UV_index, k_cross_gradpi, phys_param.k_vect, UV_correction);
-  const double fac2 = -dt.count() * phys_param.f;
+  const double fac2 = dt.count() * phys_param.f;
   MultiFab::Saxpy(UV_correction, fac2, k_cross_gradpi, 0, 0,
                   index.momentum.size(), no_ghosts);
 
