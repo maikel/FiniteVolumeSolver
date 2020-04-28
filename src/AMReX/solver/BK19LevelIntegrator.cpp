@@ -477,6 +477,13 @@ void DoEulerForward_(const IndexMapping<Equation>& index,
   // this computes: -sigma Grad(pi)
   lin_op.getFluxes({&momentum_correction}, {&pi});
 
+  MultiFab k_cross_rhou(on_cells, distribution_map, index.momentum.size(),
+                        no_ghosts);
+  ComputeKCrossM_(index.momentum, k_cross_rhou, phys_param.k_vect, scratch);
+  const double fac = -dt.count() * phys_param.f;
+  MultiFab::Saxpy(momentum_correction, fac, k_cross_rhou, 0, 0,
+                  index.momentum.size(), no_ghosts);
+
   MultiFab::Add(scratch, momentum_correction, 0, index.momentum[0],
                 index.momentum.size(), no_ghosts);
   dbg_sn.SaveData(
