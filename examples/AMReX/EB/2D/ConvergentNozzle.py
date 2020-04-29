@@ -63,7 +63,7 @@ tube_n_cells -= tube_n_cells % tube_blocking_factor
 tube_n_cells = int(tube_n_cells)
 
 RunOptions = {
-  'cfl': 0.4,
+  'cfl': 0.8,
   'final_time': 0.04,
   'max_cycles': -1
 }
@@ -138,11 +138,11 @@ Tube = {
     'efficiency': 1.0,
     'open_at_interval': 0.03333333,
     'offset': 0.01,
-    'fuel_measurement_position': -0.15,
+    'fuel_measurement_position': -0.3,
     'fuel_measurement_criterium': 0.9,
     'pressure_value_which_opens_boundary': 101325.0,
     'pressure_value_which_closes_boundary': 3.0e5,
-    'oxygen_measurement_position': -0.5,
+    'oxygen_measurement_position': -0.3,
     'oxygen_measurement_criterium': 0.1,
     'equivalence_ratio': 1.0,
     'massflow_boundary': {
@@ -162,12 +162,14 @@ def OuterProbe(x0, k, alpha):
   return [x0, r_outer - 0.002, r_tube_center * math.sin(k * alpha)]
 
 Output = { 
-  'outputs': [{
-    'type': 'Plotfiles',
-    'directory': 'ConvergentNozzle/Plotfiles/',
-    # 'intervals': [1e-5],
-    'frequencies': [1]
-  }, {
+  'outputs': [
+  {
+    'type': 'HDF5',
+    'path': 'Tube.h5',
+    'which_block': 1,
+    'intervals': [1e-4]
+  },  
+  {
     'type': 'Checkpoint',
     'directory': 'ConvergentNozzle/Checkpoint/',
     'intervals': [1e-3],
