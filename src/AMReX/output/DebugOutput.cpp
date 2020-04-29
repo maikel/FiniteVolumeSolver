@@ -665,7 +665,7 @@ DebugOutput::DebugOutput(const ProgramOptions& opts,
 void DebugOutput::operator()(const GriddingAlgorithm& grid) {
   DebugStorage& storage = *grid.GetPatchHierarchy().GetDebugStorage();
   const std::ptrdiff_t cycles = grid.GetPatchHierarchy().GetCycles();
-  const auto int_max =
+  [[maybe_unused]] const auto int_max =
       static_cast<std::ptrdiff_t>(std::numeric_limits<int>::max());
   FUB_ASSERT(cycles < int_max);
   storage.FlushData(directory_, static_cast<int>(cycles), grid.GetTimePoint());

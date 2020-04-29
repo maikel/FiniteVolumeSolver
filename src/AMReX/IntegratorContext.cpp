@@ -80,7 +80,7 @@ IntegratorContext::IntegratorContext(
   std::size_t n_levels =
       static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels());
   for (std::size_t i = 0; i < n_levels; ++i) {
-    const auto level = static_cast<int>(n_levels);
+    const auto level = static_cast<int>(i);
     data_[i].cycles =
         gridding_->GetPatchHierarchy().GetPatchLevel(level).cycles;
     data_[i].time_point =
@@ -101,7 +101,7 @@ IntegratorContext::IntegratorContext(
   std::size_t n_levels =
       static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels());
   for (std::size_t i = 0; i < n_levels; ++i) {
-    const auto level = static_cast<int>(n_levels);
+    const auto level = static_cast<int>(i);
     data_[i].cycles =
         gridding_->GetPatchHierarchy().GetPatchLevel(level).cycles;
     data_[i].time_point =
