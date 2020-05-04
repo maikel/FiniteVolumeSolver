@@ -379,7 +379,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   MultiFab sigmacross(on_cells, distribution_map, AMREX_SPACEDIM*(AMREX_SPACEDIM-1), no_ghosts);
   for (std::size_t i = 0; i < AMREX_SPACEDIM*(AMREX_SPACEDIM-1); ++i) {
     MultiFab::Copy(sigmacross, sigma, 0, i, one_component, no_ghosts);
-    const int facsign = static_cast<double>(std::pow(-1,i+1));
+    const int facsign = static_cast<double>(std::pow(-1,i));
     sigmacross.mult(facsign * dt.count() * phys_param.f, i, 1);
   }
   dbg_sn.SaveData(sigmacross, DebugSnapshot::ComponentNames{"sigmac0", "sigmac1"}, geom);
@@ -409,10 +409,6 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
                          no_ghosts);
   UV_correction.setVal(0.0);
 
-  MultiFab pi_cross(on_cells, distribution_map, index.momentum.size(),
-                    no_ghosts);
-  pi_cross.setVal(0.0);
-
   // this computes: -sigma Grad(pi)
   lin_op.getFluxes({&UV_correction}, {&pi});
 
@@ -421,7 +417,7 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
 
   const std::array<int, VelocityRank> UV_index{0, 1};
   ComputeKCrossM_(UV_index, k_cross_gradpi, phys_param.k_vect, UV_correction);
-  const double fac2 = dt.count() * phys_param.f;
+  const double fac2 = -dt.count() * phys_param.f;
   MultiFab::Saxpy(UV_correction, fac2, k_cross_gradpi, 0, 0,
                   index.momentum.size(), no_ghosts);
 
@@ -707,6 +703,7 @@ void BK19LevelIntegrator::InitialProjection(int level) {
   const fub::amrex::PatchHierarchy& hier = context.GetPatchHierarchy();
   MultiFab& scratch = context.GetScratch(level);
   MultiFab& pi = *hier.GetPatchLevel(level).nodes;
+
   const ::amrex::Geometry& geom = context.GetGeometry(level);
   std::shared_ptr<CounterRegistry> counters = advection.GetCounterRegistry();
   Timer _ = counters->get_timer("BK19LevelIntegrator::InitialProjection");
