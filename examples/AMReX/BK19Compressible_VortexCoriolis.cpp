@@ -100,7 +100,7 @@ struct TravellingVortexInitialData : fub::amrex::BK19PhysicalParameters {
     return fac * (fac * a_rho *
                       (std::pow(r, 12) * power_series(r, coefficients) -
                        power_series(1.0, coefficients)) +
-                  f * (std::pow(r, 7) * power_series(r, coeffs_coriolis) -
+                  f * R0 * (std::pow(r, 7) * power_series(r, coeffs_coriolis) -
                        power_series(1.0, coeffs_coriolis)));
   }
 
