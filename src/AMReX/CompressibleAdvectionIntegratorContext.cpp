@@ -58,17 +58,17 @@ CompressibleAdvectionIntegratorContext::CompressibleAdvectionIntegratorContext(
 
 CompressibleAdvectionAdvectiveFluxes&
 CompressibleAdvectionIntegratorContext::GetAdvectiveFluxes(int level) {
-  return Pv_[level];
+  return Pv_[static_cast<std::size_t>(level)];
 }
 
 const CompressibleAdvectionAdvectiveFluxes&
 CompressibleAdvectionIntegratorContext::GetAdvectiveFluxes(int level) const {
-  return Pv_[level];
+  return Pv_[static_cast<std::size_t>(level)];
 }
 
 void CompressibleAdvectionIntegratorContext::ResetHierarchyConfiguration(
     std::shared_ptr<GriddingAlgorithm> gridding) {
-  Pv_.resize(gridding->GetPatchHierarchy().GetMaxNumberOfLevels());
+  Pv_.resize(static_cast<std::size_t>(gridding->GetPatchHierarchy().GetMaxNumberOfLevels()));
   IntegratorContext::ResetHierarchyConfiguration(std::move(gridding));
   PatchHierarchy& hier = GetPatchHierarchy();
   const int nlevel = GetPatchHierarchy().GetNumberOfLevels();
@@ -98,7 +98,7 @@ void CompressibleAdvectionIntegratorContext::ResetHierarchyConfiguration(
 void CompressibleAdvectionIntegratorContext::ResetHierarchyConfiguration(
     int coarsest_level) {
   if (Pv_.size() == 0) {
-    Pv_.resize(GetPatchHierarchy().GetMaxNumberOfLevels());
+    Pv_.resize(static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
   }
   IntegratorContext::ResetHierarchyConfiguration(coarsest_level);
   PatchHierarchy& hier = GetPatchHierarchy();
