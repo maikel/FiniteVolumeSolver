@@ -24,8 +24,8 @@
 #include "fub/Solver.hpp"
 #include <AMReX_MLMG.H>
 
-#include "fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp"
 #include "fub/AMReX/CompressibleAdvectionIntegratorContext.hpp"
+#include "fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp"
 #include "fub/AMReX/solver/BK19LevelIntegrator.hpp"
 #include "fub/equations/CompressibleAdvection.hpp"
 
@@ -225,7 +225,8 @@ void MyMain(const fub::ProgramOptions& options) {
   HyperbolicMethod method{flux_method, EulerForwardTimeIntegrator(),
                           Reconstruction(fub::execution::seq, equation)};
 
-  //   CompressibleAdvectionIntegratorContext simulation_data(grid, method, 2, 0);
+  //   CompressibleAdvectionIntegratorContext simulation_data(grid, method, 2,
+  //   0);
   CompressibleAdvectionIntegratorContext simulation_data(grid, method, 4, 2);
 
   fub::DimensionalSplitLevelIntegrator advection(
@@ -241,7 +242,8 @@ void MyMain(const fub::ProgramOptions& options) {
                                        inidat, integrator_options);
   fub::NoSubcycleSolver solver(std::move(level_integrator));
 
-  BK19AdvectiveFluxes& Pv = solver.GetContext().GetAdvectiveFluxes(0);
+  CompressibleAdvectionAdvectiveFluxes& Pv =
+      solver.GetContext().GetAdvectiveFluxes(0);
   RecomputeAdvectiveFluxes(index, Pv.on_faces, Pv.on_cells,
                            solver.GetContext().GetScratch(0),
                            solver.GetContext().GetGeometry(0).periodicity());
@@ -250,6 +252,9 @@ void MyMain(const fub::ProgramOptions& options) {
   std::string base_name = "BK19_CompTravellingVortex/";
 
   fub::OutputFactory<GriddingAlgorithm> factory;
+  using CounterOutput = fub::CounterOutput<GriddingAlgorithm,
+                                           std::chrono::milliseconds>;
+  factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
   factory.RegisterOutput<fub::AnyOutput<GriddingAlgorithm>>(
       "Plotfile", WriteBK19Plotfile{base_name});
   factory.RegisterOutput<fub::amrex::DebugOutput>(
@@ -262,6 +267,11 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::RunOptions run_options = fub::GetOptions(options, "RunOptions");
   BOOST_LOG(info) << "RunOptions:";
   run_options.Print(info);
+
+  if (integrator_options.do_initial_projection) {
+    solver.GetLevelIntegrator().InitialProjection(0);
+  }
+
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }
 

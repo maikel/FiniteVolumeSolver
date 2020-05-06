@@ -25,29 +25,36 @@
 
 namespace fub::amrex {
 
-struct BK19AdvectiveFluxes {
+struct CompressibleAdvectionAdvectiveFluxes {
   ::amrex::MultiFab on_cells;
   std::array<::amrex::MultiFab, AMREX_SPACEDIM> on_faces;
 };
 
+/// \ingroup IntegratorContext
 class CompressibleAdvectionIntegratorContext : public IntegratorContext {
 public:
-  CompressibleAdvectionIntegratorContext(std::shared_ptr<GriddingAlgorithm> gridding,
-                    HyperbolicMethod method);
+  CompressibleAdvectionIntegratorContext(
+      std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod method);
 
-  CompressibleAdvectionIntegratorContext(std::shared_ptr<GriddingAlgorithm> gridding,
-                    HyperbolicMethod method, int cell_gcw, int face_gcw);
+  CompressibleAdvectionIntegratorContext(
+      std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod method,
+      int cell_gcw, int face_gcw);
 
   /// \brief Deeply copies a context and all its distributed data for all MPI
   /// ranks.
-  CompressibleAdvectionIntegratorContext(const CompressibleAdvectionIntegratorContext&);
-  CompressibleAdvectionIntegratorContext operator=(const CompressibleAdvectionIntegratorContext&);
+  CompressibleAdvectionIntegratorContext(
+      const CompressibleAdvectionIntegratorContext&);
+  CompressibleAdvectionIntegratorContext
+  operator=(const CompressibleAdvectionIntegratorContext&);
 
-  CompressibleAdvectionIntegratorContext(CompressibleAdvectionIntegratorContext&&) = default;
-  CompressibleAdvectionIntegratorContext& operator=(CompressibleAdvectionIntegratorContext&&) = default;
+  CompressibleAdvectionIntegratorContext(
+      CompressibleAdvectionIntegratorContext&&) = default;
+  CompressibleAdvectionIntegratorContext&
+  operator=(CompressibleAdvectionIntegratorContext&&) = default;
 
-  BK19AdvectiveFluxes& GetAdvectiveFluxes(int level);
-  const BK19AdvectiveFluxes& GetAdvectiveFluxes(int level) const;
+  CompressibleAdvectionAdvectiveFluxes& GetAdvectiveFluxes(int level);
+  const CompressibleAdvectionAdvectiveFluxes&
+  GetAdvectiveFluxes(int level) const;
 
   /// \brief Replaces the underlying gridding algorithm with the specified one.
   void ResetHierarchyConfiguration(
@@ -62,7 +69,7 @@ public:
   void ResetHierarchyConfiguration(int level = 0) override;
 
 private:
-  std::vector<BK19AdvectiveFluxes> Pv_;
+  std::vector<CompressibleAdvectionAdvectiveFluxes> Pv_;
 };
 
 } // namespace fub::amrex

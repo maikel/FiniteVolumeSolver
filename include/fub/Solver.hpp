@@ -42,7 +42,6 @@
 #include "fub/equations/IdealGasMix.hpp"
 #include "fub/equations/PerfectGas.hpp"
 #include "fub/equations/ShallowWater.hpp"
-#include "fub/equations/CompressibleAdvection.hpp"
 
 #include "fub/equations/ideal_gas_mix/mechanism/Burke2012.hpp"
 #include "fub/equations/ideal_gas_mix/EinfeldtSignalVelocities.hpp"
@@ -69,8 +68,9 @@
 
 #include "fub/split_method/GodunovSplitting.hpp"
 #include "fub/split_method/StrangSplitting.hpp"
+#include "fub/split_method/StrangSplittingLumped.hpp"
 
-#include "fub/tagging/GradientDetector.hpp"
+#include "fub/tagging_method/GradientDetector.hpp"
 
 #include "fub/geometry/Cone.hpp"
 #include "fub/geometry/ExpandTube.hpp"

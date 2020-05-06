@@ -41,12 +41,14 @@ void RecomputeAdvectiveFluxes(
     std::array<::amrex::MultiFab, 2>& Pv_faces, ::amrex::MultiFab& Pv_cells,
     const ::amrex::MultiFab& scratch, const ::amrex::Periodicity& periodicity);
 
+/// \ingroup LevelIntegrator
 struct BK19LevelIntegratorOptions {
   BK19LevelIntegratorOptions() = default;
   BK19LevelIntegratorOptions(const ProgramOptions& map);
 
   template <typename Log> void Print(Log& log);
 
+  bool do_initial_projection = true;
   double mlmg_tolerance_rel = 1.0e-4;
   double mlmg_tolerance_abs = -1.0;
   int mlmg_max_iter = 100;
@@ -60,6 +62,7 @@ struct BK19LevelIntegratorOptions {
   bool output_between_steps = false;
 };
 
+/// \ingroup LevelIntegrator
 struct BK19PhysicalParameters {
 
   /// Specific gas constant
@@ -81,6 +84,7 @@ struct BK19PhysicalParameters {
   double Msq{0.0};
 };
 
+/// \ingroup LevelIntegrator
 class BK19LevelIntegrator
     : private DimensionalSplitLevelIntegrator<
           AMREX_SPACEDIM, CompressibleAdvectionIntegratorContext, AnySplitMethod> {
@@ -133,6 +137,9 @@ public:
   AdvanceLevelNonRecursively(int level, Duration dt,
                              std::pair<int, int> subcycle);
 
+  void InitialProjection(int level);
+
+
 private:
   BK19PhysicalParameters phys_param_;
   BK19LevelIntegratorOptions options_;
@@ -152,6 +159,7 @@ struct WriteBK19Plotfile {
 };
 
 template <typename Log> void BK19LevelIntegratorOptions::Print(Log& log) {
+  BOOST_LOG(log) << fmt::format(" - do_initial_projection = {}", do_initial_projection);
   BOOST_LOG(log) << fmt::format(" - mlmg_tolerance_rel = {}",
                                 mlmg_tolerance_rel);
   BOOST_LOG(log) << fmt::format(" - mlmg_tolerance_abs = {}",

@@ -23,13 +23,10 @@
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/ForEachIndex.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
+#include "fub/AnyBoundaryCondition.hpp"
 #include "fub/ForEach.hpp"
 
 namespace fub::amrex::cutcell {
-namespace {
-inline int GetSign(int side) { return (side == 0) - (side == 1); }
-} // namespace
-
 MassflowBoundaryOptions::MassflowBoundaryOptions(
     const ProgramOptions& options) {
   channel_name = GetOptionOr(options, "channel_name", channel_name);
@@ -100,37 +97,15 @@ void AverageState(Complete<IdealGasMix<AMREX_SPACEDIM>>& state,
       state);
 }
 
-template <typename GriddingAlgorithm>
-int FindLevel(const ::amrex::Geometry& geom,
-              const GriddingAlgorithm& gridding) {
-  for (int level = 0; level < gridding.GetPatchHierarchy().GetNumberOfLevels();
-       ++level) {
-    if (geom.Domain() ==
-        gridding.GetPatchHierarchy().GetGeometry(level).Domain()) {
-      return level;
-    }
-  }
-  return -1;
-}
-
 } // namespace
 
-void MassflowBoundary::FillBoundary(::amrex::MultiFab& mf,
-                                    const ::amrex::Geometry& geom, Duration dt,
-                                    const GriddingAlgorithm& grid,
-                                    Direction dir) {
-  if (dir == options_.dir) {
-    FillBoundary(mf, geom, dt, grid);
-  }
-}
-
-void MassflowBoundary::FillBoundary(::amrex::MultiFab& mf,
-                                    const ::amrex::Geometry& geom, Duration t,
-                                    const GriddingAlgorithm& grid) {
+void MassflowBoundary::FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& grid, int level) {
   boost::log::sources::severity_channel_logger<
       boost::log::trivial::severity_level>
       log(boost::log::keywords::channel = options_.channel_name,
           boost::log::keywords::severity = boost::log::trivial::debug);
+  const Duration t = grid.GetTimePoint();
+  const ::amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
   BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", t.count());
 
   Complete<IdealGasMix<AMREX_SPACEDIM>> state(equation_);
@@ -177,7 +152,6 @@ void MassflowBoundary::FillBoundary(::amrex::MultiFab& mf,
   p = state.pressure;
   BOOST_LOG(log) << fmt::format("Outer State: {} kg/m3, {} m/s, {} Pa, Ma = {}",
                                 rho, u, p, Ma);
-  int level = FindLevel(geom, grid);
   auto factory = grid.GetPatchHierarchy().GetEmbeddedBoundary(level);
   const ::amrex::MultiFab& alphas = factory->getVolFrac();
   FillBoundary(mf, alphas, geom, state);

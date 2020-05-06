@@ -9,4 +9,4 @@ Furthermore, a lot of helper classes exist to generate distributed grids for dat
 
 At last, this library is also capable of handling embedded boundaries in a dimensionally split setting as defined in [Klein2009].
 
-We provide a [user documentation](https://page.mi.fu-berlin.de/ghastermann/fvm-doc/index.html) and a Doxygen documentation.
+We provide a [user documentation](http://page.mi.fu-berlin.de/ghastermann/fvs-agklein-doc/) and a [Doxygen documentation](http://page.mi.fu-berlin.de/ghastermann/fvs-agklein-dox/).

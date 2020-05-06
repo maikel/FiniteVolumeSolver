@@ -27,9 +27,11 @@
 #include <SAMRAI/hier/Patch.h>
 #include <SAMRAI/pdat/SideDataFactory.h>
 
+#include "fub/ext/uuid.hpp"
+
 #include "fub/SAMRAI/GriddingAlgorithm.hpp"
-#include "fub/SAMRAI/tagging/ConstantBox.hpp"
-#include "fub/SAMRAI/tagging/GradientDetector.hpp"
+#include "fub/SAMRAI/tagging_method/ConstantBox.hpp"
+#include "fub/SAMRAI/tagging_method/GradientDetector.hpp"
 #include <boost/container/static_vector.hpp>
 
 namespace fub {
@@ -49,7 +51,8 @@ GetCartesianGridGeometry(const SAMRAI::hier::PatchLevel& level) {
       static_cast<const SAMRAI::geom::CartesianGridGeometry&>(
           *level.getGridGeometry());
   return std::static_pointer_cast<SAMRAI::geom::CartesianGridGeometry>(
-      base_geom.makeRefinedGridGeometry("", level.getRatioToLevelZero()));
+      base_geom.makeRefinedGridGeometry(MakeUniqueName(),
+                                        level.getRatioToLevelZero()));
 }
 
 } // namespace fub
@@ -63,16 +66,14 @@ struct CircleData {
   //  fub::samrai::DataDescription& desc) {
   //    fub::View<Complete> view;
   //    view.mass =
-  //    fub::samrai::MakePatchDataView(patch.getPatchData(desc.data_ids[0]));
+  //    fub::samrai::MakePatchDataView(patch.getPatchData(desc.data_ids[0]));m
   //  }
 
-  void InitializeData(fub::samrai::PatchHierarchy& hierarchy, int level_number,
+  void InitializeData(std::shared_ptr<SAMRAI::hier::PatchLevel> level, const fub::samrai::GriddingAlgorithm&, int,
                       fub::Duration) const {
-    SAMRAI::hier::PatchLevel& level =
-        *hierarchy.GetNative()->getPatchLevel(level_number);
     std::shared_ptr<const SAMRAI::geom::CartesianGridGeometry> geom =
-        fub::GetCartesianGridGeometry(level);
-    for (const std::shared_ptr<SAMRAI::hier::Patch>& patch : level) {
+        fub::GetCartesianGridGeometry(*level);
+    for (const std::shared_ptr<SAMRAI::hier::Patch>& patch : *level) {
       SAMRAI::pdat::CellData<double>& data =
           static_cast<SAMRAI::pdat::CellData<double>&>(*patch->getPatchData(0));
       int lower_x = data.getArrayData().getBox().lower(0);
@@ -128,7 +129,7 @@ int main(int argc, char** argv) {
   std::vector<int> tb(hier_opts.max_number_of_levels - 1, 4);
   fub::samrai::GriddingAlgorithm ga(std::move(ph),
                                     CircleData{data_desc, equation},
-                                    fub::samrai::Tagging{gradient}, tb);
+                                    gradient, tb);
 
   ga.InitializeHierarchy();
 

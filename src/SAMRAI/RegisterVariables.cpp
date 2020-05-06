@@ -20,8 +20,7 @@
 
 #include "fub/SAMRAI/RegisterVariables.hpp"
 
-namespace fub {
-namespace samrai {
+namespace fub::samrai::detail {
 
 std::string MakeVariableName(const std::string& prefix,
                              const std::string& name) {
@@ -31,5 +30,4 @@ std::string MakeVariableName(const std::string& prefix,
   return prefix + "_" + name;
 }
 
-} // namespace samrai
-} // namespace fub
+} // namespace fub::samrai::detail

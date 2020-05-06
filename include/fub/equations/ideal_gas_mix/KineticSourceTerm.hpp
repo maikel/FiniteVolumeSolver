@@ -32,6 +32,7 @@
 
 namespace fub::ideal_gas {
 
+/// \ingroup LevelIntegrator
 template <int R> class KineticSourceTerm {
 public:
   static constexpr int Rank = R;

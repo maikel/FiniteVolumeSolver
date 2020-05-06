@@ -117,10 +117,11 @@ int main() {
       fub::amrex::Reconstruction(tag, equation)};
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<2>, fub::amrex::CompressibleAdvectionIntegratorContext(grid, method, 2, 0),
+      fub::int_c<2>,
+      fub::amrex::CompressibleAdvectionIntegratorContext(grid, method, 2, 0),
       fub::GodunovSplitting());
 
-  fub::amrex::BK19AdvectiveFluxes& Pv =
+  fub::amrex::CompressibleAdvectionAdvectiveFluxes& Pv =
       level_integrator.GetContext().GetAdvectiveFluxes(0);
   Pv.on_faces[0].setVal(1.0);
   Pv.on_faces[1].setVal(0.0);
@@ -131,8 +132,9 @@ int main() {
   std::string base_name = "CompressibleAdvection";
 
   fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> output{};
-  output.AddOutput(fub::MakeOutput<fub::amrex::GriddingAlgorithm>(
-      {1}, {}, fub::amrex::PlotfileOutput(equation, base_name)));
+  output.AddOutput(
+    std::make_unique<fub::amrex::PlotfileOutput<fub::CompressibleAdvection<2>>>
+      (std::vector<std::ptrdiff_t>{1}, std::vector<fub::Duration>{}, equation, base_name));
 
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};

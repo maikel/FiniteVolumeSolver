@@ -24,12 +24,13 @@
 #include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
 #include "fub/HyperbolicMethod.hpp"
 #include "fub/TimeStepError.hpp"
-#include "fub/counter/CounterRegistry.hpp"
 #include "fub/ext/outcome.hpp"
 
-#include <mpi.h>
+#include <AMReX_FluxRegister.H>
+#include <AMReX_MultiFab.H>
 
 #include <array>
+#include <memory>
 #include <vector>
 
 namespace fub::amrex::cutcell {
@@ -38,11 +39,14 @@ class IntegratorContext;
 
 using HyperbolicMethod = ::fub::HyperbolicMethod<IntegratorContext>;
 
+/// \ingroup IntegratorContext
+///
 /// \brief This class manages data and the numerical method to perform cut cell
 /// simulations with the AMReX library.
 class IntegratorContext {
 public:
-  static constexpr int Rank = AMREX_SPACEDIM;
+  /// @{
+  /// \name Constructors, Assignment Operators and Desctructor
 
   IntegratorContext(std::shared_ptr<GriddingAlgorithm> gridding,
                     HyperbolicMethod method);
@@ -63,6 +67,7 @@ public:
   IntegratorContext& operator=(IntegratorContext&&) noexcept = default;
 
   ~IntegratorContext() = default;
+  /// @}
 
   /// @{
   /// \name Member Accessors
@@ -93,8 +98,8 @@ public:
 
   /// \brief Returns the current boundary condition for the specified level.
   [[nodiscard]] const AnyBoundaryCondition&
-  GetBoundaryCondition(int level) const;
-  [[nodiscard]] AnyBoundaryCondition& GetBoundaryCondition(int level);
+  GetBoundaryCondition() const;
+  [[nodiscard]] AnyBoundaryCondition& GetBoundaryCondition();
 
   [[nodiscard]] ::amrex::EBFArrayBoxFactory& GetEmbeddedBoundary(int level);
   [[nodiscard]] const ::amrex::EBFArrayBoxFactory&
@@ -299,11 +304,11 @@ private:
 
     /// @{
     /// various flux types needed by the numerical scheme
-    std::array<::amrex::MultiFab, Rank> fluxes{};
-    std::array<::amrex::MultiFab, Rank> stabilized_fluxes{};
-    std::array<::amrex::MultiFab, Rank> shielded_left_fluxes{};
-    std::array<::amrex::MultiFab, Rank> shielded_right_fluxes{};
-    std::array<::amrex::MultiFab, Rank> doubly_shielded_fluxes{};
+    std::array<::amrex::MultiFab, AMREX_SPACEDIM> fluxes{};
+    std::array<::amrex::MultiFab, AMREX_SPACEDIM> stabilized_fluxes{};
+    std::array<::amrex::MultiFab, AMREX_SPACEDIM> shielded_left_fluxes{};
+    std::array<::amrex::MultiFab, AMREX_SPACEDIM> shielded_right_fluxes{};
+    std::array<::amrex::MultiFab, AMREX_SPACEDIM> doubly_shielded_fluxes{};
     /// @}
 
     ///////////////////////////////////////////////////////////////////////////

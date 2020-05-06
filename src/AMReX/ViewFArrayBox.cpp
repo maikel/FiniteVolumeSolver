@@ -24,10 +24,10 @@ namespace fub {
 template <>
 ::amrex::IntVect GetOptionOr(const ProgramOptions& map, const std::string& name,
                              const ::amrex::IntVect& value) {
-  std::array<int, AMREX_SPACEDIM> iv{};
+  std::array<int, 3> iv{};
   std::copy_n(value.begin(), AMREX_SPACEDIM, iv.begin());
   iv = GetOptionOr(map, name, iv);
-  return ::amrex::IntVect(iv);
+  return ::amrex::IntVect(AMREX_D_DECL(iv[0], iv[1], iv[2]));
 }
 
 template <>
@@ -43,13 +43,13 @@ template <>
 ::amrex::RealBox GetOptionOr(const ProgramOptions& map, const std::string& name,
                              const ::amrex::RealBox& value) {
   ProgramOptions box = GetOptions(map, name);
-  std::array<double, AMREX_SPACEDIM> lo{};
-  std::array<double, AMREX_SPACEDIM> hi{};
+  std::array<double, 3> lo{};
+  std::array<double, 3> hi{};
   std::copy_n(value.lo(), AMREX_SPACEDIM, lo.begin());
   std::copy_n(value.hi(), AMREX_SPACEDIM, hi.begin());
   lo = GetOptionOr(box, "lower", lo);
   hi = GetOptionOr(box, "upper", hi);
-  return ::amrex::RealBox(lo, hi);
+  return ::amrex::RealBox(lo.data(), hi.data());
 }
 
 namespace amrex {

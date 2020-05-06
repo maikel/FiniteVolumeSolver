@@ -29,9 +29,12 @@
 
 #include "fub/AMReX/ScopeGuard.hpp"
 
-#include "fub/AMReX/tagging/ConstantRegion.hpp"
-#include "fub/AMReX/tagging/GradientDetector.hpp"
-#include "fub/AMReX/tagging/TagBuffer.hpp"
+#include "fub/equations/CompressibleAdvection.hpp"
+
+#include "fub/AMReX/tagging_method/ConstantRegion.hpp"
+#include "fub/AMReX/tagging_method/GradientDetector.hpp"
+#include "fub/AMReX/tagging_method/TagAllOf.hpp"
+#include "fub/AMReX/tagging_method/TagBuffer.hpp"
 
 #include "fub/AMReX/boundary_condition/BoundarySet.hpp"
 #include "fub/AMReX/boundary_condition/IsentropicPressureBoundary.hpp"
@@ -46,7 +49,7 @@
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/ForEachIndex.hpp"
 
-#include "fub/AMReX/FluxMethod.hpp"
+#include "fub/AMReX/FluxMethodAdapter.hpp"
 #include "fub/AMReX/Reconstruction.hpp"
 #include "fub/AMReX/TimeIntegrator.hpp"
 
@@ -58,8 +61,8 @@
 
 #include "fub/AMReX/ViscositySourceTerm.hpp"
 
+#include "fub/AMReX/output/DebugOutput.hpp"
 #include "fub/AMReX/output/WriteHdf5.hpp"
 #include "fub/AMReX/output/WritePlotfiles.hpp"
-#include "fub/AMReX/output/DebugOutput.hpp"
 
 #endif

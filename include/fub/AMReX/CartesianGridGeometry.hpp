@@ -21,6 +21,7 @@
 #include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/ext/Log.hpp"
 #include "fub/ext/ProgramOptions.hpp"
+#include "fub/AMReX/ViewFArrayBox.hpp"
 
 #include <AMReX_Geometry.H>
 
@@ -53,8 +54,8 @@ template <typename Log> void CartesianGridGeometry::Print(Log& log) {
   std::copy_n(coordinates.hi(), AMREX_SPACEDIM, xup.data());
   BOOST_LOG(log) << fmt::format(" - cell_dimensions = {{{}}}",
                                 fmt::join(cell_dimensions, ", "));
-  BOOST_LOG(log) << fmt::format(" - x_lower = {{{}}}", fmt::join(xlo, ", "));
-  BOOST_LOG(log) << fmt::format(" - x_upper = {{{}}}", fmt::join(xup, ", "));
+  BOOST_LOG(log) << fmt::format(" - coordinates:lower = {{{}}}", fmt::join(xlo, ", "));
+  BOOST_LOG(log) << fmt::format(" - coordinates:upper = {{{}}}", fmt::join(xup, ", "));
   BOOST_LOG(log) << fmt::format(" - periodicity = {{{}}}",
                                 fmt::join(periodicity, ", "));
 }

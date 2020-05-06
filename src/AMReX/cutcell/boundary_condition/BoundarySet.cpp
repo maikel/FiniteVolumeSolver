@@ -22,22 +22,18 @@
 
 namespace fub::amrex::cutcell {
 
-void BoundarySet::FillBoundary(::amrex::MultiFab& mf,
-                               const ::amrex::Geometry& geom,
-                               Duration timepoint,
-                               const GriddingAlgorithm& gridding) {
+void BoundarySet::FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding, int level) {
   for (AnyBoundaryCondition& condition : conditions) {
-    condition.FillBoundary(mf, geom, timepoint, gridding);
+    condition.FillBoundary(mf, gridding, level);
   }
 }
 
 void BoundarySet::FillBoundary(::amrex::MultiFab& mf,
-                               const ::amrex::Geometry& geom,
-                               Duration timepoint,
                                const GriddingAlgorithm& gridding,
+                               int level,
                                Direction dir) {
   for (AnyBoundaryCondition& condition : conditions) {
-    condition.FillBoundary(mf, geom, timepoint, gridding, dir);
+    condition.FillBoundary(mf, gridding, level, dir);
   }
 }
 
