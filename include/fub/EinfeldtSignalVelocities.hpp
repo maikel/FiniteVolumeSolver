@@ -29,7 +29,6 @@
 
 namespace fub {
 
-/// \defgroup EinfeldtSignalVelocities
 /// This is a customization point for equations which can define two signal
 /// velocities for usage with the \a HllMethod.
 ///

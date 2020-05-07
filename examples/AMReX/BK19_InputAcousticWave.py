@@ -1,4 +1,5 @@
 BK19LevelIntegrator = {
+    'do_initial_projection': True,
     'mlmg_tolerance_rel': 1e-10,
     'mlmg_tolerance_abs': 1e-10,
     'mlmg_verbose': 2,
@@ -10,19 +11,19 @@ BK19LevelIntegrator = {
 }
 
 GridGeometry = {
-    'cell_dimensions': [64, 64],
-    #'cell_dimensions': [32, 32],
-    'x_lower': [0.0, 0.0],
-    'x_upper': [1.0, 1.0],
-    'periodicity': [1, 1]
+    'cell_dimensions': [64, 64, 64],
+    #'cell_dimensions': [32, 32, 32],
+    'x_lower': [0.0, 0.0, 0.0],
+    'x_upper': [1.0, 1.0, 1.0],
+    'periodicity': [1, 1, 1]
 }
 
 PatchHierarchy = {
     'max_number_of_levels': 1,
-    'refine_ratio': [2, 2],
-    #'blocking_factor': [64, 64],
-    'blocking_factor': [32, 32],
-    'max_grid_size': [256, 256]
+    'refine_ratio': [2, 2, 2],
+    #'blocking_factor': [64, 64, 64],
+    'blocking_factor': [32, 32, 32],
+    'max_grid_size': [256, 256, 256]
 }
 
 RunOptions = {

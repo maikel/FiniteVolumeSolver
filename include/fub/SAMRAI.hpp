@@ -21,7 +21,6 @@
 #ifndef FUB_SAMRAI_HPP
 #define FUB_SAMRAI_HPP
 
-#include "fub/SAMRAI/BoundaryCondition.hpp"
 #include "fub/SAMRAI/GriddingAlgorithm.hpp"
 #include "fub/SAMRAI/IntegratorContext.hpp"
 #include "fub/SAMRAI/PatchHierarchy.hpp"
@@ -29,11 +28,11 @@
 #include "fub/SAMRAI/ScopeGuard.hpp"
 #include "fub/SAMRAI/ViewPatch.hpp"
 
-#include "fub/SAMRAI/FluxMethod.hpp"
-#include "fub/SAMRAI/Reconstruction.hpp"
-#include "fub/SAMRAI/TimeIntegrator.hpp"
+#include "fub/SAMRAI/FluxMethodAdapter.hpp"
+#include "fub/SAMRAI/CompleteFromCons.hpp"
+#include "fub/SAMRAI/HyperbolicTimeIntegrator.hpp"
 
-#include "fub/SAMRAI/tagging/ConstantBox.hpp"
-#include "fub/SAMRAI/tagging/GradientDetector.hpp"
+#include "fub/SAMRAI/tagging_method/ConstantBox.hpp"
+#include "fub/SAMRAI/tagging_method/GradientDetector.hpp"
 
 #endif

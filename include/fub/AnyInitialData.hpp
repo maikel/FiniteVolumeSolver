@@ -30,6 +30,7 @@
 namespace fub {
 
 /// \defgroup InitialData Initial Data Methods
+/// \ingroup GriddingAlgorithm
 /// This group summarizes all components which initialize simulation data.
 
 namespace detail {
@@ -46,7 +47,7 @@ template <typename GriddingAlgorithm> struct InitialDataStrategy {
 };
 } // namespace detail
 
-/// \ingroup InitialData PolymoprhicValueType
+/// \ingroup InitialData PolymorphicValueType
 /// \brief This class is a polymoprhic value type which stores components to
 /// initialize a gridding algorithm during its initialization procedure.
 template <typename GriddingAlgorithm> class AnyInitialData {

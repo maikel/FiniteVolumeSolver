@@ -80,7 +80,7 @@ struct PatchLevel : ::fub::amrex::PatchLevel {
              std::shared_ptr<::amrex::EBFArrayBoxFactory> factory, int ngrow);
 
   using MultiCutFabs =
-      std::array<std::unique_ptr<::amrex::MultiCutFab>, AMREX_SPACEDIM>;
+      std::array<std::shared_ptr<::amrex::MultiCutFab>, AMREX_SPACEDIM>;
 
   /// \brief This stores the EB factory for this refinement level.
   std::shared_ptr<::amrex::EBFArrayBoxFactory> factory;

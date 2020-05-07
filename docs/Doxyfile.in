@@ -568,7 +568,7 @@ SORT_MEMBER_DOCS       = YES
 # this will also influence the order of the classes in the class list.
 # The default value is: NO.
 
-SORT_BRIEF_DOCS        = YES
+SORT_BRIEF_DOCS        = NO
 
 # If the SORT_MEMBERS_CTORS_1ST tag is set to YES then doxygen will sort the
 # (brief and detailed) documentation of class members so that constructors and
@@ -780,18 +780,32 @@ WARN_LOGFILE           =
 # spaces. See also FILE_PATTERNS and EXTENSION_MAPPING
 # Note: If this tag is empty the current directory is searched.
 
-INPUT                  = "../include/fub/" \
-                         "../include/fub/output/" \
-                         "../include/fub/flux_method/" \
-                         "../include/fub/boundary_condition/" \
-                         "../include/fub/core" \
-                         "../include/fub/cutcell_method/" \
-                         "../include/fub/equations/" \
-                         "../include/fub/geometry/" \
-                         "../include/fub/AMReX/" \
-                         "../include/fub/AMReX/cutcell/" \
-                         "../include/fub/AMReX/output/" \
-                         "../"
+INPUT                  = "@FUB_SOURCE_DIR@/include/fub/" \
+                         "@FUB_SOURCE_DIR@/include/fub/output/" \
+                         "@FUB_SOURCE_DIR@/include/fub/flux_method/" \
+                         "@FUB_SOURCE_DIR@/include/fub/tagging_method/" \
+                         "@FUB_SOURCE_DIR@/include/fub/boundary_condition/" \
+                         "@FUB_SOURCE_DIR@/include/fub/ext" \
+                         "@FUB_SOURCE_DIR@/include/fub/core" \
+                         "@FUB_SOURCE_DIR@/include/fub/solver" \
+                         "@FUB_SOURCE_DIR@/include/fub/cutcell_method/" \
+                         "@FUB_SOURCE_DIR@/include/fub/equations/" \
+                         "@FUB_SOURCE_DIR@/include/fub/equations/ideal_gas_mix" \
+                         "@FUB_SOURCE_DIR@/include/fub/equations/perfect_gas" \
+                         "@FUB_SOURCE_DIR@/include/fub/geometry/" \
+                         "@FUB_SOURCE_DIR@/include/fub/AMReX/" \
+                         "@FUB_SOURCE_DIR@/include/fub/AMReX/solver/" \
+                         "@FUB_SOURCE_DIR@/include/fub/AMReX/output/" \
+                         "@FUB_SOURCE_DIR@/include/fub/AMReX/tagging_method/" \
+                         "@FUB_SOURCE_DIR@/include/fub/AMReX/boundary_condition/" \
+                         "@FUB_SOURCE_DIR@/include/fub/AMReX/cutcell/" \
+                         "@FUB_SOURCE_DIR@/include/fub/AMReX/cutcell/tagging_method/" \
+                         "@FUB_SOURCE_DIR@/include/fub/AMReX/cutcell/boundary_condition/" \
+                         "@FUB_SOURCE_DIR@/include/fub/AMReX/cutcell/output/" \
+                         "@FUB_SOURCE_DIR@/include/fub/AMReX/multi_block/" \
+                         "@FUB_SOURCE_DIR@/include/fub/SAMRAI/" \
+                         "@FUB_SOURCE_DIR@/include/fub/SAMRAI/tagging_method/" \
+                         "@FUB_SOURCE_DIR@/"
 
 # This tag can be used to specify the character encoding of the source files
 # that doxygen parses. Internally doxygen uses the UTF-8 encoding. Doxygen uses
@@ -903,7 +917,13 @@ EXCLUDE_PATTERNS       = CMake* \
 # Note that the wildcards are matched against the file with absolute path, so to
 # exclude all test directories use the pattern */test/*
 
-# EXCLUDE_SYMBOLS        = "fub::detail"
+EXCLUDE_SYMBOLS        = "fub::detail" \
+                         "fub::amrex::detail" \
+                         "fub::amrex::cutcell::detail" \
+                         "fub::samrai::detail" \
+                         "fub::p4est::detail" \
+                         "SAMRAI" \
+                         "boost"
 
 # The EXAMPLE_PATH tag can be used to specify one or more files or directories
 # that contain example code fragments that are included (see the \include
@@ -985,7 +1005,7 @@ FILTER_SOURCE_PATTERNS =
 # (index.html). This can be useful if you have a project on for instance GitHub
 # and want to reuse the introduction page also for the doxygen output.
 
-USE_MDFILE_AS_MAINPAGE = "../README.md"
+USE_MDFILE_AS_MAINPAGE = "@FUB_SOURCE_DIR@/README.md"
 
 #---------------------------------------------------------------------------
 # Configuration options related to source browsing
@@ -1481,7 +1501,7 @@ DISABLE_INDEX          = NO
 # The default value is: NO.
 # This tag requires that the tag GENERATE_HTML is set to YES.
 
-GENERATE_TREEVIEW      = YES
+GENERATE_TREEVIEW      = NO
 
 # The ENUM_VALUES_PER_LINE tag can be used to set the number of enum values that
 # doxygen will group on one line in the generated HTML documentation.

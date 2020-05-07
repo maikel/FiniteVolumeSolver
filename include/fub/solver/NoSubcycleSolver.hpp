@@ -28,7 +28,9 @@
 
 namespace fub {
 
-/// This is a solver class which does a AMR integration scheme without
+/// \ingroup SubcycleSolver
+///
+/// \brief This is a solver class which does a AMR integration scheme without
 /// subcycling on finer levels. Which means, that this uses one time step size
 /// for each refinement level on the patch hierarchy.
 template <typename LevelIntegrator>

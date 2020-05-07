@@ -20,6 +20,7 @@
 
 #include "fub/AMReX/IntegratorContext.hpp"
 
+#include "fub/AMReX/boundary_condition/BoundaryConditionRef.hpp"
 #include "fub/AMReX/ForEachIndex.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/core/algorithm.hpp"
@@ -133,15 +134,6 @@ IntegratorContext& IntegratorContext::IntegratorContext::operator=(
 
 ///////////////////////////////////////////////////////////////////////////////
 //                                                            Member Accessors
-
-const AnyBoundaryCondition&
-IntegratorContext::GetBoundaryCondition(int level) const {
-  return gridding_->GetBoundaryCondition(level);
-}
-
-AnyBoundaryCondition& IntegratorContext::GetBoundaryCondition(int level) {
-  return gridding_->GetBoundaryCondition(level);
-}
 
 const std::shared_ptr<GriddingAlgorithm>&
 IntegratorContext::GetGriddingAlgorithm() const noexcept {
@@ -294,7 +286,8 @@ void IntegratorContext::SetCycles(std::ptrdiff_t cycles, int level) {
 }
 
 void IntegratorContext::ApplyBoundaryCondition(int level, Direction dir) {
-  AnyBoundaryCondition& boundary_condition = GetBoundaryCondition(level);
+  AnyBoundaryCondition& boundary_condition =
+      gridding_->GetBoundaryCondition();
   ApplyBoundaryCondition(level, dir, boundary_condition);
 }
 
@@ -308,10 +301,8 @@ void IntegratorContext::ApplyBoundaryCondition(int level, Direction dir,
         fmt::format("IntegratorContext::ApplyBoundaryCondition({})", level));
   }
   ::amrex::MultiFab& scratch = GetScratch(level);
-  Duration time_point = GetTimePoint(level);
-  const ::amrex::Geometry& geometry = GetGeometry(level);
-  GriddingAlgorithm& grid = *GetGriddingAlgorithm();
-  bc.FillBoundary(scratch, geometry, time_point, grid, dir);
+  GriddingAlgorithm& grid = *gridding_;
+  bc.FillBoundary(scratch, grid, level, dir);
 }
 
 void IntegratorContext::FillGhostLayerTwoLevels(
@@ -325,6 +316,9 @@ void IntegratorContext::FillGhostLayerTwoLevels(
         fmt::format("IntegratorContext::FillGhostLayerTwoLevels({})", fine));
   }
   FUB_ASSERT(coarse >= 0 && fine > coarse);
+  GriddingAlgorithm& grid = *gridding_;
+  BoundaryConditionRef fbc(fine_condition, grid, fine);
+  BoundaryConditionRef cbc(coarse_condition, grid, coarse);
   ::amrex::MultiFab& scratch = GetScratch(fine);
   ::amrex::Vector<::amrex::BCRec> bcr(
       static_cast<std::size_t>(scratch.nComp()));
@@ -341,20 +335,19 @@ void IntegratorContext::FillGhostLayerTwoLevels(
 #ifdef AMREX_USE_EB
   auto index_space = GetPatchHierarchy().GetIndexSpaces();
   ::amrex::FillPatchTwoLevels(scratch, ft[0], *index_space[fine], cmf, ct, fmf,
-                              ft, 0, 0, nc, cgeom, fgeom, coarse_condition, 0,
-                              fine_condition, 0, ratio, mapper, bcr, 0,
+                              ft, 0, 0, nc, cgeom, fgeom, cbc, 0, fbc, 0, ratio,
+                              mapper, bcr, 0,
                               ::amrex::NullInterpHook<::amrex::FArrayBox>(),
                               ::amrex::NullInterpHook<::amrex::FArrayBox>());
 #else
   ::amrex::FillPatchTwoLevels(scratch, ft[0], cmf, ct, fmf, ft, 0, 0, nc, cgeom,
-                              fgeom, coarse_condition, 0, fine_condition, 0,
-                              ratio, mapper, bcr, 0);
+                              fgeom, cbc, 0, fbc, 0, ratio, mapper, bcr, 0);
 #endif
 }
 
 void IntegratorContext::FillGhostLayerTwoLevels(int fine, int coarse) {
-  return FillGhostLayerTwoLevels(fine, GetBoundaryCondition(fine), coarse,
-                                 GetBoundaryCondition(coarse));
+  AnyBoundaryCondition& bc = gridding_->GetBoundaryCondition();
+  FillGhostLayerTwoLevels(fine, bc, coarse, bc);
 }
 
 void IntegratorContext::FillGhostLayerSingleLevel(int level,
@@ -373,12 +366,14 @@ void IntegratorContext::FillGhostLayerSingleLevel(int level,
   const ::amrex::Vector<::amrex::MultiFab*> smf{&scratch};
   const ::amrex::Vector<double> stime{GetTimePoint(level).count()};
   const ::amrex::Geometry& geom = GetGeometry(level);
+  BoundaryConditionRef bc_ref(bc, *gridding_, level);
   ::amrex::FillPatchSingleLevel(scratch, stime[0], smf, stime, 0, 0, nc, geom,
-                                bc, 0);
+                                bc_ref, 0);
 }
 
 void IntegratorContext::FillGhostLayerSingleLevel(int level) {
-  FillGhostLayerSingleLevel(level, GetBoundaryCondition(level));
+  AnyBoundaryCondition& bc = gridding_->GetBoundaryCondition();
+  FillGhostLayerSingleLevel(level, bc);
 }
 
 void IntegratorContext::CoarsenConservatively(int fine_level,

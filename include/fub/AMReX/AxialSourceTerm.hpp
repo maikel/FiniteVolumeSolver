@@ -28,6 +28,7 @@
 
 namespace fub::amrex {
 
+/// \ingroup LevelIntegrator
 class AxialSourceTerm {
 public:
   static constexpr int Rank = 1;
