@@ -192,13 +192,15 @@ void AverageCellToNode_(MultiFab& mf_nodes, int node_component,
 void ComputePvFromScratch_(const IndexMapping<Equation>& index, MultiFab& dest,
                            const MultiFab& scratch,
                            const ::amrex::Periodicity& periodicity) {
-  // Shall be: Pv[i] = PTdensity * v[i]
+  // Shall be: Pv[i] = PTdensity * (rho v)[i] / rho
   // Compute Pv_i for each velocity direction
   for (std::size_t i = 0; i < index.momentum.size(); ++i) {
     const int dest_component = static_cast<int>(i);
     MultiFab::Copy(dest, scratch, index.PTdensity, dest_component,
                    one_component, no_ghosts);
-    MultiFab::Multiply(dest, scratch, index.velocity[i], dest_component,
+    MultiFab::Multiply(dest, scratch, index.momentum[i], dest_component,
+                       one_component, no_ghosts);
+    MultiFab::Divide(dest, scratch, index.density, dest_component,
                        one_component, no_ghosts);
   }
   dest.FillBoundary(periodicity);
@@ -212,7 +214,7 @@ void RecomputeAdvectiveFluxes(const IndexMapping<Equation>& index,
   ComputePvFromScratch_(index, Pv_cells, scratch, periodicity);
   // Average Pv_i for each velocity direction
   constexpr int face_component = 0;
-  for (std::size_t dir = 0; dir < index.velocity.size(); ++dir) {
+  for (std::size_t dir = 0; dir < index.momentum.size(); ++dir) {
     const int cell_component = static_cast<int>(dir);
     AverageCellToFace_(Pv_faces[dir], face_component, Pv_cells, cell_component,
                        Direction(dir));
@@ -520,7 +522,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   const Duration half_dt = 0.5 * dt;
 
   // 1) Compute current Pv and interpolate to face centered quantity
-  //    Current Pv is given by: Pv = PTdensity * velocity
+  //    Current Pv is given by: Pv = PTdensity * momentum / density
   {
     Timer _ =
         counters->get_timer("BK19LevelIntegrator::RecomputeAdvectiveFluxes");
