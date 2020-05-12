@@ -341,8 +341,8 @@ void mlndhelm_adotx_ha (int i, int j, int k, Array4<Real> const& y, Array4<Real 
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void mlndhelm_adotx_aa (int i, int j, int k, Array4<Real> const& y, Array4<Real const> const& x,
-                       Array4<Real const> const& sig, Array4<Real const> const& alp,
-                       Array4<int const> const& msk,
+                       Array4<Real const> const& sig, Array4<Real const> const& sigc,
+                       Array4<Real const> const& alp, Array4<int const> const& msk,
                        GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
 {
     if (msk(i,j,k)) {
@@ -350,6 +350,7 @@ void mlndhelm_adotx_aa (int i, int j, int k, Array4<Real> const& y, Array4<Real 
     } else {
         Real facx = (1.0/4.0)*dxinv[0]*dxinv[0];
         Real facy = (1.0/4.0)*dxinv[1]*dxinv[1];
+        Real facxy = (1.0/4.0)*dxinv[0]*dxinv[1];
         Real fxy = facx + facy;
         Real fxmy = facx - facy;
         Real fmxy = facy - facx;
@@ -363,6 +364,17 @@ void mlndhelm_adotx_aa (int i, int j, int k, Array4<Real> const& y, Array4<Real 
                +   x(i,j+1,k)*fmxy*(sig(i-1,j  ,k)+sig(i,j  ,k))
                +   x(i,j,k)*(-1.0)*fxy*
                       (sig(i-1,j-1,k)+sig(i,j-1,k)+sig(i-1,j,k)+sig(i,j,k))
+               +   x(i-1,j-1,k)*facxy*(sigc(i-1,j-1,k,0)+sigc(i-1,j-1,k,1))
+               -   x(i+1,j-1,k)*facxy*(sigc(i  ,j-1,k,0)+sigc(i  ,j-1,k,1))
+               -   x(i-1,j+1,k)*facxy*(sigc(i-1,j  ,k,0)+sigc(i-1,j  ,k,1))
+               +   x(i+1,j+1,k)*facxy*(sigc(i  ,j  ,k,0)+sigc(i  ,j  ,k,1))
+               +   x(i-1,j,k)*facxy*(-sigc(i-1,j-1,k,0)+sigc(i-1,j,k,0)+sigc(i-1,j-1,k,1)-sigc(i-1,j,k,1))
+               +   x(i+1,j,k)*facxy*( sigc(i  ,j-1,k,0)-sigc(i  ,j,k,0)-sigc(i  ,j-1,k,1)+sigc(i  ,j,k,1))
+               +   x(i,j-1,k)*facxy*( sigc(i-1,j-1,k,0)-sigc(i,j-1,k,0)-sigc(i-1,j-1,k,1)+sigc(i,j-1,k,1))
+               +   x(i,j+1,k)*facxy*(-sigc(i-1,j  ,k,0)+sigc(i,j  ,k,0)+sigc(i-1,j  ,k,1)-sigc(i,j  ,k,1))
+               +   x(i,j,k)*facxy*
+                      (-sigc(i-1,j-1,k,0)+sigc(i,j-1,k,0)+sigc(i-1,j,k,0)-sigc(i,j,k,0)
+                       -sigc(i-1,j-1,k,1)+sigc(i,j-1,k,1)+sigc(i-1,j,k,1)-sigc(i,j,k,1))
                +   x(i,j,k)*alp(i,j,k);
     }
 }
@@ -386,18 +398,22 @@ void mlndhelm_normalize_ha (Box const& bx, Array4<Real> const& x, Array4<Real co
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void mlndhelm_normalize_aa (Box const& bx, Array4<Real> const& x, Array4<Real const> const& sig,
-                           Array4<Real const> const& alp, Array4<int const> const& msk,
+                           Array4<Real const> const& sigc, Array4<Real const> const& alp,
+                           Array4<int const> const& msk,
                            GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
 {
     Real facx = (1.0/4.0)*dxinv[0]*dxinv[0];
     Real facy = (1.0/4.0)*dxinv[1]*dxinv[1];
+    Real facxy = (1.0/4.0)*dxinv[0]*dxinv[1];
     Real fxy = facx + facy;
 
     amrex::LoopConcurrent(bx, [=] (int i, int j, int k) noexcept
     {
         if (!msk(i,j,k)) {
-            x(i,j,k) /= (-1.0)*fxy*(sig(i-1,j-1,k)+sig(i,j-1,k)+sig(i-1,j,k)+sig(i,j,k))
-               + alp(i,j,k);
+            x(i,j,k) /= (-1.0)*fxy*(sig(i-1,j-1,k)+sig(i,j-1,k)+sig(i-1,j,k)+sig(i,j,k)) +
+                        facxy*(-sigc(i-1,j-1,k,0)+sigc(i,j-1,k,0)+sigc(i-1,j,k,0)-sigc(i,j,k,0)
+                               -sigc(i-1,j-1,k,1)+sigc(i,j-1,k,1)+sigc(i-1,j,k,1)-sigc(i,j,k,1)) +
+                        alp(i,j,k);
         }
     });
 }
@@ -426,10 +442,12 @@ void mlndhelm_jacobi_ha (Box const& bx, Array4<Real> const& sol, Array4<Real con
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void mlndhelm_jacobi_aa (Box const& bx, Array4<Real> const& sol, Array4<Real const> const& Ax,
                         Array4<Real const> const& rhs, Array4<Real const> const& sig,
-                        Array4<Real const> const& alp, Array4<int const> const& msk,
+                        Array4<Real const> const& sigc, Array4<Real const> const& alp,
+                        Array4<int const> const& msk,
                         GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
 {
     Real fac = -1.0 * (1.0/4.0)*(dxinv[0]*dxinv[0] + dxinv[1]*dxinv[1]);
+    Real facc = (1.0/4.0)*dxinv[0]*dxinv[1];
 
     amrex::LoopConcurrent(bx, [=] (int i, int j, int k) noexcept
     {
@@ -437,7 +455,10 @@ void mlndhelm_jacobi_aa (Box const& bx, Array4<Real> const& sol, Array4<Real con
             sol(i,j,k) = 0.0;
         } else {
             sol(i,j,k) += (2.0/3.0) * (rhs(i,j,k) - Ax(i,j,k))
-                / (fac*(sig(i-1,j-1,k)+sig(i,j-1,k)+sig(i-1,j,k)+sig(i,j,k)) + alp(i,j,k));
+                / (fac*(sig(i-1,j-1,k)+sig(i,j-1,k)+sig(i-1,j,k)+sig(i,j,k)) +
+                   facc*(-sigc(i-1,j-1,k,0)+sigc(i,j-1,k,0)+sigc(i-1,j,k,0)-sigc(i,j,k,0)
+                         -sigc(i-1,j-1,k,1)+sigc(i,j-1,k,1)+sigc(i-1,j,k,1)-sigc(i,j,k,1)) +
+                   alp(i,j,k));
         }
     });
 }
@@ -481,11 +502,13 @@ void mlndhelm_gauss_seidel_ha (Box const& bx, Array4<Real> const& sol,
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void mlndhelm_gauss_seidel_aa (Box const& bx, Array4<Real> const& sol,
                               Array4<Real const> const& rhs, Array4<Real const> const& sig,
-                              Array4<Real const> const& alp, Array4<int const> const& msk,
+                              Array4<Real const> const& sigc, Array4<Real const> const& alp,
+                              Array4<int const> const& msk,
                               GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
 {
     Real facx = (1.0/4.0)*dxinv[0]*dxinv[0];
     Real facy = (1.0/4.0)*dxinv[1]*dxinv[1];
+    Real facxy = (1.0/4.0)*dxinv[0]*dxinv[1];
     Real fxy = facx + facy;
     Real fxmy = facx - facy;
     Real fmxy = facy - facx;
@@ -495,7 +518,10 @@ void mlndhelm_gauss_seidel_aa (Box const& bx, Array4<Real> const& sol,
         if (msk(i,j,k)) {
             sol(i,j,k) = 0.0;
         } else {
-            Real s0 = (-1.0)*fxy*(sig(i-1,j-1,k)+sig(i,j-1,k)+sig(i-1,j,k)+sig(i,j,k)) + alp(i,j,k);
+            Real s0 = (-1.0)*fxy*(sig(i-1,j-1,k)+sig(i,j-1,k)+sig(i-1,j,k)+sig(i,j,k)) +
+                      facxy*(-sigc(i-1,j-1,k,0)+sigc(i,j-1,k,0)+sigc(i-1,j,k,0)-sigc(i,j,k,0)
+                             -sigc(i-1,j-1,k,1)+sigc(i,j-1,k,1)+sigc(i-1,j,k,1)-sigc(i,j,k,1)) +
+                      alp(i,j,k);
             Real Ax =   sol(i-1,j-1,k)*fxy*sig(i-1,j-1,k)
                       + sol(i+1,j-1,k)*fxy*sig(i  ,j-1,k)
                       + sol(i-1,j+1,k)*fxy*sig(i-1,j  ,k)
@@ -504,6 +530,14 @@ void mlndhelm_gauss_seidel_aa (Box const& bx, Array4<Real> const& sol,
                       + sol(i+1,j,k)*fxmy*(sig(i  ,j-1,k)+sig(i  ,j,k))
                       + sol(i,j-1,k)*fmxy*(sig(i-1,j-1,k)+sig(i,j-1,k))
                       + sol(i,j+1,k)*fmxy*(sig(i-1,j  ,k)+sig(i,j  ,k))
+                      + sol(i-1,j-1,k)*facxy*(sigc(i-1,j-1,k,0)+sigc(i-1,j-1,k,1))
+                      - sol(i+1,j-1,k)*facxy*(sigc(i  ,j-1,k,0)+sigc(i  ,j-1,k,1))
+                      - sol(i-1,j+1,k)*facxy*(sigc(i-1,j  ,k,0)+sigc(i-1,j  ,k,1))
+                      + sol(i+1,j+1,k)*facxy*(sigc(i  ,j  ,k,0)+sigc(i  ,j  ,k,1))
+                      + sol(i-1,j,k)*facxy*(-sigc(i-1,j-1,k,0)+sigc(i-1,j,k,0)+sigc(i-1,j-1,k,1)-sigc(i-1,j,k,1))
+                      + sol(i+1,j,k)*facxy*( sigc(i  ,j-1,k,0)-sigc(i  ,j,k,0)-sigc(i  ,j-1,k,1)+sigc(i  ,j,k,1))
+                      + sol(i,j-1,k)*facxy*( sigc(i-1,j-1,k,0)-sigc(i,j-1,k,0)-sigc(i-1,j-1,k,1)+sigc(i,j-1,k,1))
+                      + sol(i,j+1,k)*facxy*(-sigc(i-1,j  ,k,0)+sigc(i,j  ,k,0)+sigc(i-1,j  ,k,1)-sigc(i,j  ,k,1))
                       + sol(i,j,k)*s0;
 
             sol(i,j,k) += (rhs(i,j,k) - Ax) / s0;

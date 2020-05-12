@@ -13,8 +13,10 @@ BK19LevelIntegrator = {
 GridGeometry = {
     'cell_dimensions': [64, 64, 64],
     #'cell_dimensions': [32, 32, 32],
-    'x_lower': [0.0, 0.0, 0.0],
-    'x_upper': [1.0, 1.0, 1.0],
+    'coordinates': {
+      'lower': [0.0, 0.0, 0.0],
+      'upper': [1.0, 1.0, 1.0]
+    },
     'periodicity': [1, 1, 1]
 }
 
