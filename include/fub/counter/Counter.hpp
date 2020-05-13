@@ -65,7 +65,7 @@ template <typename T>
 double Counter::calculate_mean(const std::vector<T>& v) const noexcept {
   if (v.size()) {
     auto sum = std::accumulate(v.begin(), v.end(), static_cast<T>(0));
-    return static_cast<double>(sum) / v.size();
+    return static_cast<double>(sum) / static_cast<double>(v.size());
   }
   return 0;
 }
@@ -77,7 +77,7 @@ double Counter::calculate_variance(const std::vector<T>& v) const noexcept {
     const double sq_sum = std::inner_product(
         v.begin(), v.end(), v.begin(), 0.0, std::plus<>(),
         [mean](double x, double y) { return (x - mean) * (y - mean); });
-    return (sq_sum / v.size());
+    return sq_sum / static_cast<double>(v.size());
   }
   return 0;
 }

@@ -58,6 +58,27 @@ struct TravellingVortexInitialData : fub::amrex::BK19PhysicalParameters {
     coefficients[22] = 15.0 / 17.0;
     coefficients[23] = -6.0 / 35.0;
     coefficients[24] = 1.0 / 72.0;
+
+    coeffs_coriolis.resize(19);
+    coeffs_coriolis[0] = 1.0 / 7.0;
+    coeffs_coriolis[1] = -3.0 / 4.0;
+    coeffs_coriolis[2] = 4.0 / 3.0;
+    coeffs_coriolis[3] = -1.0 / 5.0;
+    coeffs_coriolis[4] = -45.0 / 22.0;
+    coeffs_coriolis[5] = 3.0 / 4.0;
+    coeffs_coriolis[6] = 9.0 / 2.0;
+    coeffs_coriolis[7] = -36.0 / 7.0;
+    coeffs_coriolis[8] = -11.0 / 5.0;
+    coeffs_coriolis[9] = 55.0 / 8.0;
+    coeffs_coriolis[10] = -33.0 / 17.0;
+    coeffs_coriolis[11] = -4.0;
+    coeffs_coriolis[12] = 58.0 / 19.0;
+    coeffs_coriolis[13] = 3.0 / 5.0;
+    coeffs_coriolis[14] = -10.0 / 7.0;
+    coeffs_coriolis[15] = 4.0 / 11.0;
+    coeffs_coriolis[16] = 9.0 / 46.0;
+    coeffs_coriolis[17] = -1.0 / 8.0;
+    coeffs_coriolis[18] = 1.0 / 50.0;
   }
 
   double power_series(double r, const std::vector<double>& coefficients) const {
@@ -76,9 +97,11 @@ struct TravellingVortexInitialData : fub::amrex::BK19PhysicalParameters {
       return 0.0;
     }
 
-    return fac * fac * a_rho *
-           (std::pow(r, 12) * power_series(r, coefficients) -
-            power_series(1.0, coefficients));
+    return fac * (fac * a_rho *
+                      (std::pow(r, 12) * power_series(r, coefficients) -
+                       power_series(1.0, coefficients)) +
+                  f * R0 * (std::pow(r, 7) * power_series(r, coeffs_coriolis) -
+                       power_series(1.0, coeffs_coriolis)));
   }
 
   void InitializeData(fub::amrex::PatchLevel& patch_level,
@@ -108,12 +131,12 @@ struct TravellingVortexInitialData : fub::amrex::BK19PhysicalParameters {
 
           states.density(i, j) =
               rho0 + del_rho * std::pow(1.0 - r_over_R0 * r_over_R0, 6);
-          states.velocity(i, j, 0) = U0[0] - uth * (dy / r);
-          states.velocity(i, j, 1) = U0[1] + uth * (dx / r);
+          states.velocity(i, j, 0) = -uth * (dy / r);
+          states.velocity(i, j, 1) = uth * (dx / r);
         } else {
           states.density(i, j) = rho0;
-          states.velocity(i, j, 0) = U0[0];
-          states.velocity(i, j, 1) = U0[1];
+          states.velocity(i, j, 0) = 0.0;
+          states.velocity(i, j, 1) = 0.0;
         }
 
         states.momentum(i, j, 0) =
@@ -150,13 +173,13 @@ struct TravellingVortexInitialData : fub::amrex::BK19PhysicalParameters {
   }
 
   std::vector<double> coefficients;
+  std::vector<double> coeffs_coriolis;
   const double a_rho{1.0};
   const double rho0{a_rho * 0.5};
   const double del_rho{a_rho * 0.5};
   const double R0{0.4};
   const double fac{1024.0};
   std::array<double, 2> center{0.5, 0.5};
-  std::array<double, 2> U0{1.0, 1.0};
 };
 
 void MyMain(const fub::ProgramOptions& options) {
@@ -172,6 +195,7 @@ void MyMain(const fub::ProgramOptions& options) {
   inidat.Msq = 0.0;
   inidat.c_p = inidat.gamma / (inidat.gamma - 1.0);
   inidat.alpha_p = 0.0;
+  inidat.f = 1.0;
 
   DataDescription desc{};
   desc.n_state_components = 7;
@@ -248,7 +272,7 @@ void MyMain(const fub::ProgramOptions& options) {
                            solver.GetContext().GetGeometry(0).periodicity());
 
   using namespace std::literals::chrono_literals;
-  std::string base_name = "BK19_PsIncTravellingVortex/";
+  std::string base_name = "BK19_PsIncVortexCoriolis/";
 
   fub::OutputFactory<GriddingAlgorithm> factory;
   factory.RegisterOutput<fub::AnyOutput<GriddingAlgorithm>>(

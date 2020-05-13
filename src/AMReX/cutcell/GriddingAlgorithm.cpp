@@ -65,7 +65,8 @@ GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier,
   AmrMesh::verbose = options.verbose;
   AmrCore::verbose = options.verbose;
   AmrMesh::n_error_buf = ::amrex::Vector<::amrex::IntVect>(
-      AmrMesh::n_error_buf.size(), options.n_error_buf);
+      static_cast<std::size_t>(AmrMesh::n_error_buf.size()),
+      options.n_error_buf);
   if (hierarchy_.GetNumberOfLevels() > 0) {
     for (int i = 0; i < hierarchy_.GetNumberOfLevels(); ++i) {
       const std::size_t ii = static_cast<std::size_t>(i);
@@ -97,7 +98,8 @@ int GriddingAlgorithm::RegridAllFinerlevels(int which_level) {
         ::amrex::AmrMesh::boxArray();
     FUB_ASSERT(before.size() == after.size());
     for (int i = which_level + 1; i < before.size(); ++i) {
-      if (before[i] != after[i]) {
+      const auto lvl = static_cast<std::size_t>(i);
+      if (before[lvl] != after[lvl]) {
         return i;
       }
     }
@@ -146,10 +148,11 @@ void GriddingAlgorithm::FillMultiFabFromLevel(::amrex::MultiFab& multifab,
     const int fine = level_number;
     const int coarse = level_number - 1;
     BoundaryConditionRef fine_boundary(boundary_condition_, *this, fine);
+    const auto i = static_cast<std::size_t>(fine);
     BoundaryConditionRef coarse_boundary(boundary_condition_, *this, coarse);
     ::amrex::FillPatchTwoLevels(
         multifab, level.time_point.count(),
-        *hierarchy_.GetOptions().index_spaces[fine], cmf, ct, fmf, ft, 0, 0,
+        *hierarchy_.GetOptions().index_spaces[i], cmf, ct, fmf, ft, 0, 0,
         n_comps, cgeom, fgeom, coarse_boundary, 0, fine_boundary, 0, ratio,
         mapper, bcr, 0, ::amrex::NullInterpHook<::amrex::FArrayBox>(),
         ::amrex::NullInterpHook<::amrex::FArrayBox>());

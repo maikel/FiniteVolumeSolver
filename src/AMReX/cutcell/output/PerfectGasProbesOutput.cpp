@@ -44,7 +44,8 @@ PerfectGasProbesOutput::PerfectGasProbesOutput(const ProgramOptions& options)
         old_num += 1;
         backup_name = fmt::format("{}.old.{}", filename_, old_num);
       }
-      BOOST_LOG(log) << fmt::format("File '{}' exists already. Rename to '{}'.", filename_, backup_name);
+      BOOST_LOG(log) << fmt::format("File '{}' exists already. Rename to '{}'.",
+                                    filename_, backup_name);
       boost::filesystem::rename(filename_, backup_name);
     }
   }
@@ -55,7 +56,8 @@ PerfectGasProbesOutput::PerfectGasProbesOutput(const ProgramOptions& options)
   int i = 0;
   for (const std::array<double, AMREX_SPACEDIM>& xs : probes) {
     for (int d = 0; d < AMREX_SPACEDIM; ++d) {
-      view(d, i) = xs[d];
+      const auto r = static_cast<std::size_t>(d);
+      view(d, i) = xs[r];
     }
     i += 1;
   }
@@ -71,8 +73,8 @@ void CreateHdf5Database(const std::string& name, const GriddingAlgorithm& grid,
   BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "PerfectGasProbesOutput");
   BOOST_LOG(log) << "Create HDF5 file  '" << name << "'.";
   H5File file(H5Fcreate(name.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT));
-  const hsize_t n_probes = probes.extent(1);
-  const hsize_t n_fields = states.extent(1);
+  const hsize_t n_probes = static_cast<hsize_t>(probes.extent(1));
+  const hsize_t n_fields = static_cast<hsize_t>(states.extent(1));
   BOOST_LOG(log) << "Write initial probe data.";
   // create a main data set with probe data for each time step
   {
@@ -90,9 +92,9 @@ void CreateHdf5Database(const std::string& name, const GriddingAlgorithm& grid,
 
     // Write attribute data which describes how many probes are in it
     hsize_t scalar_value = 1;
-    H5Space spacedim(H5Screate_simple(1, &scalar_value, nullptr)); 
-    H5Attribute nprobes_attr(H5Acreate2(dataset, "n_probes", H5T_STD_I32LE, spacedim,
-                                  H5P_DEFAULT, H5P_DEFAULT));
+    H5Space spacedim(H5Screate_simple(1, &scalar_value, nullptr));
+    H5Attribute nprobes_attr(H5Acreate2(dataset, "n_probes", H5T_STD_I32LE,
+                                        spacedim, H5P_DEFAULT, H5P_DEFAULT));
     int nprobes = static_cast<int>(n_probes);
     H5Awrite(nprobes_attr, H5T_STD_I32LE, &nprobes);
   }
@@ -135,8 +137,7 @@ void OpenHdf5Database(const std::string& name, const GriddingAlgorithm& grid,
   if (H5Dataset dataset(H5Dopen(file, "/data", H5P_DEFAULT)); dataset < 0) {
     return;
   } else {
-    auto map_last = [](const std::array<hsize_t, 3>& x,
-                        auto f) {
+    auto map_last = [](const std::array<hsize_t, 3>& x, auto f) {
       return std::array<hsize_t, 3>{x[0], x[1], hsize_t(f(x[2]))};
     };
     std::array<hsize_t, 3> dims = {};
@@ -148,8 +149,7 @@ void OpenHdf5Database(const std::string& name, const GriddingAlgorithm& grid,
         map_last(dims, [](hsize_t dim) { return dim + 1; });
     H5Dset_extent(dataset, new_dims.data());
     H5Space filespace(H5Dget_space(dataset));
-    std::array<hsize_t, 3> count =
-        map_last(dims, [](hsize_t) { return 1; });
+    std::array<hsize_t, 3> count = map_last(dims, [](hsize_t) { return 1; });
     std::array<hsize_t, 3> offset{0, 0, dims[2]};
     H5Sselect_hyperslab(filespace, H5S_SELECT_SET, offset.data(), nullptr,
                         count.data(), nullptr);
@@ -201,7 +201,8 @@ void OpenHdf5Database(const std::string& name, const GriddingAlgorithm& grid,
 } // namespace
 
 void PerfectGasProbesOutput::operator()(const GriddingAlgorithm& grid) {
-  const std::ptrdiff_t n_probes = probes_.size() / AMREX_SPACEDIM;
+  const std::ptrdiff_t n_probes =
+      static_cast<std::ptrdiff_t>(probes_.size() / AMREX_SPACEDIM);
   ProbesView<const double> probes(probes_.data(), n_probes);
   const PatchHierarchy& hierarchy = grid.GetPatchHierarchy();
   MPI_Comm comm = ::amrex::ParallelContext::CommunicatorAll();
@@ -211,8 +212,9 @@ void PerfectGasProbesOutput::operator()(const GriddingAlgorithm& grid) {
   MPI_Comm_rank(comm, &rank);
 
   if (rank == 0) {
-    fub::mdspan<const double, 2> states(buffer.data(), probes.extent(1),
-                                        buffer.size() / probes.extent(1));
+    fub::mdspan<const double, 2> states(
+        buffer.data(), probes.extent(1),
+        static_cast<std::ptrdiff_t>(buffer.size()) / probes.extent(1));
     if (!boost::filesystem::exists(filename_)) {
       CreateHdf5Database(filename_, grid, probes, states);
     } else if (boost::filesystem::is_regular_file(filename_)) {

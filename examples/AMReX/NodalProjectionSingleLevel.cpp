@@ -16,12 +16,13 @@ int main(int argc, char** argv) {
   int bottom_verbose = 4;
   int max_iter = 100;
   int n_cell = 64;
-  int max_grid_size = 32;
+  int max_grid_size = 64;
   amrex::Real reltol = 1.e-10;
   amrex::Real abstol = 1.e-15;
 
   amrex::RealBox rb({AMREX_D_DECL(0., 0., 0.)}, {AMREX_D_DECL(1., 1., 1.)});
   amrex::Array<int, AMREX_SPACEDIM> is_periodic{AMREX_D_DECL(1, 1, 1)};
+//   amrex::Array<int, AMREX_SPACEDIM> is_periodic{AMREX_D_DECL(1, 0, 1)};
 
   amrex::Box domain(
       amrex::IntVect{AMREX_D_DECL(0, 0, 0)},
@@ -38,7 +39,7 @@ int main(int argc, char** argv) {
   amrex::DistributionMapping dmap(box_array);
 
   // Store plotfile variables
-  amrex::MultiFab plotfile_mf(box_array, dmap, 2 * AMREX_SPACEDIM + 2, 0);
+  amrex::MultiFab plotfile_mf(box_array, dmap, 2 * AMREX_SPACEDIM + 3, 0);
 
   const int no_ghosts = 0;
 
@@ -50,6 +51,7 @@ int main(int argc, char** argv) {
   amrex::MultiFab div(node_boxes, dmap, 1, no_ghosts);
   amrex::MultiFab sigma(box_array, dmap, 1, no_ghosts);
 
+  vel.setVal(0.0);
   phi.setVal(0.0);
   div.setVal(0.0);
   sigma.setVal(1.0);
@@ -63,7 +65,7 @@ int main(int argc, char** argv) {
       constexpr double pi = 3.1415926535897932;
       constexpr double tpi = 2. * pi;
       constexpr double fpi = 4. * pi;
-      constexpr double fac = tpi * tpi * AMREX_SPACEDIM;
+//       constexpr double fac = tpi * tpi * AMREX_SPACEDIM;
 
       double x = i * dx[0];
       double y = j * dx[1];
@@ -93,6 +95,11 @@ int main(int argc, char** argv) {
                     amrex::LinOpBCType::Periodic)},
       {AMREX_D_DECL(amrex::LinOpBCType::Periodic, amrex::LinOpBCType::Periodic,
                     amrex::LinOpBCType::Periodic)});
+//   linop.setDomainBC(
+//       {AMREX_D_DECL(amrex::LinOpBCType::Periodic, amrex::LinOpBCType::Neumann,
+//                     amrex::LinOpBCType::Periodic)},
+//       {AMREX_D_DECL(amrex::LinOpBCType::Periodic, amrex::LinOpBCType::Neumann,
+//                     amrex::LinOpBCType::Periodic)});
 
   linop.setSigma(0, sigma);
 
@@ -138,14 +145,26 @@ int main(int argc, char** argv) {
   linop.compDivergence({&div}, {&vel});
   amrex::average_node_to_cellcenter(plotfile_mf, 2 * AMREX_SPACEDIM + 1, div, 0,
                                     1);
+  amrex::average_node_to_cellcenter(plotfile_mf, 2 * AMREX_SPACEDIM + 2, phi, 0,
+                                    1);
 
   std::string base_name = "NodalProjectionSingleLevel/";
   std::string name = base_name + "plot";
 
   amrex::Print() << "Start output to '" << name << "'.\n";
+  amrex::VisMF::SetHeaderVersion(::amrex::VisMF::Header::Version_v1);
+
+  amrex::Vector<std::string> rfs{"raw_fields"};
   WriteSingleLevelPlotfile(
       name, plotfile_mf,
-      {"velxold", "velyold", "rhsold", "velxnew", "velynew", "rhsnew"}, geom,
-      0.0, 0);
+      {"velxold", "velyold", "rhsold_avg", "velxnew", "velynew", "div_avg", "phi_avg"}, geom,
+      0.0, 0, "HyperCLaw-V1.1",  "Level_", "Cell", rfs);
+
+  const std::string raw_pltname = fmt::format("{}/raw_fields", name);
+  const std::string level_prefix = "Level_";
+  amrex::VisMF::Write(phi, amrex::MultiFabFileFullPrefix(0, raw_pltname, level_prefix, "phi"));
+  amrex::VisMF::Write(rhs, amrex::MultiFabFileFullPrefix(0, raw_pltname, level_prefix, "rhs"));
+  amrex::VisMF::Write(div, amrex::MultiFabFileFullPrefix(0, raw_pltname, level_prefix, "div"));
+
   amrex::Print() << "Finished output to '" << name << "'.\n";
 }

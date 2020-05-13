@@ -267,7 +267,7 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::
       [&](auto... directions) {
         return GetSplitMethod().Advance(dt, AdvanceLevel_Split(directions)...);
       },
-      MakeSplitDirections<Rank>(GetCycles(0), subcycle));
+      MakeSplitDirections<Rank>(static_cast<int>(GetCycles(0)), subcycle));
 
   return result;
 }

@@ -32,10 +32,10 @@ void FillCutCellData__(const span<double>& us, const span<double>& ssL,
                        const span<const double>& beta_left,
                        const span<const double>& beta_mid,
                        const span<const double>& beta_right) {
-  int n = us.size();
+  const auto n = static_cast<int>(us.size());
   int i = 0;
-  for (; static_cast<int>(i + Vc::double_v::size()) <= n;
-       i += Vc::double_v::size()) {
+  const auto pack_size = static_cast<int>(Vc::double_v::size());
+  for (; i + pack_size <= n; i += pack_size) {
     const Vc::double_v betaL(&beta_left[i], Vc::Unaligned);
     Vc::double_v betaM(&beta_mid[i], Vc::Unaligned);
     const Vc::double_v betaR(&beta_right[i], Vc::Unaligned);

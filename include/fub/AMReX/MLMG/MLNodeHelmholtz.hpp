@@ -32,6 +32,8 @@ struct MLNodeHelmholtz : public MLNodeLinOp {
 
   virtual void setSigma(int amrlev, const MultiFab& a_sigma) = 0;
 
+  virtual void setSigmaCross(int amrlev, const MultiFab& a_sigmacross) = 0;
+
   virtual void setAlpha(int amrlev, const MultiFab& a_alpha) = 0;
 
   virtual void compDivergence(const Vector<MultiFab*>& rhs,
