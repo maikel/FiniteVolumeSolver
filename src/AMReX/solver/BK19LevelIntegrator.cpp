@@ -266,18 +266,6 @@ Advect_(BK19LevelIntegrator::AdvectionSolver& advection, int level, Duration dt,
   return advection.AdvanceLevelNonRecursively(level, dt, subcycle);
 }
 
-void RecoverVelocityFromMomentum_(MultiFab& scratch,
-                                  const IndexMapping<Equation>& index) {
-  // MultiFab::Copy(dest, src, src_comp, dest_comp, n_comp, n_grow);
-  // MultiFab::Divide(dest, src, src_comp, dest_comp, n_comp, n_grow);
-  for (std::size_t i = 0; i < index.momentum.size(); ++i) {
-    MultiFab::Copy(scratch, scratch, index.momentum[i], index.velocity[i],
-                   one_component, no_ghosts);
-    MultiFab::Divide(scratch, scratch, index.density, index.velocity[i],
-                     one_component, no_ghosts);
-  }
-}
-
 ::amrex::MultiFab DoEulerBackward_(
     const IndexMapping<Equation>& index, ::amrex::MLNodeHelmholtz& lin_op,
     const BK19PhysicalParameters& phys_param,
@@ -299,7 +287,6 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
                   index.momentum.size(), no_ghosts);
   scratch.mult(1.0 / (1.0 + std::pow(dt.count() * phys_param.f, 2)),
                index.momentum[0], index.momentum.size(), no_ghosts);
-  RecoverVelocityFromMomentum_(scratch, index);
 
   // compute RHS for elliptic solve (equation (28) in [BK19] divided by -dt)
   // first compute diagonal part for compressibility
@@ -436,8 +423,6 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
       UV_correction,
       DebugSnapshot::ComponentNames{"Momentum_corr0", "Momentum_corr1"}, geom);
 
-  RecoverVelocityFromMomentum_(scratch, index);
-
   return pi;
 }
 
@@ -487,8 +472,6 @@ void DoEulerForward_(const IndexMapping<Equation>& index,
   dbg_sn.SaveData(
       momentum_correction,
       DebugSnapshot::ComponentNames{"Momentum_corr0", "Momentum_corr1"}, geom);
-
-  RecoverVelocityFromMomentum_(scratch, index);
 
   // compute update for pi (compressible case), (equation (16) in [BK19])
   ::amrex::BoxArray on_nodes = on_cells;
