@@ -54,8 +54,9 @@ void LogTubeProbes(const std::string& p, ProbesView<const double> probes,
       }
       return std::ofstream(p);
     }();
-    fub::mdspan<const double, 2> states(buffer.data(), probes.extent(1),
-                                        buffer.size() / probes.extent(1));
+    const auto buffer_size = static_cast<std::ptrdiff_t>(buffer.size());
+    const std::ptrdiff_t rank = buffer_size / probes.extent(1);
+    fub::mdspan<const double, 2> states(buffer.data(), probes.extent(1), rank);
     fub::Burke2012 burke2012{};
     std::array<double, 11> molar_mass{};
     burke2012.getMolarMass(molar_mass);
@@ -76,7 +77,8 @@ void LogTubeProbes(const std::string& p, ProbesView<const double> probes,
       const double t = hierarchy.GetTimePoint().count();
       stream << fmt::format(
           "{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}"
-          "{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}\n",
+          "{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< 24.15g}{:< "
+          "24.15g}\n",
           t, x, rho, u, T, p, a, gamma, h2, o2, h2o);
     }
   }
@@ -107,8 +109,9 @@ void LogPlenumProbes(const std::string& p, ProbesView<const double> probes,
       }
       return std::ofstream(p);
     }();
-    fub::mdspan<const double, 2> states(buffer.data(), probes.extent(1),
-                                        buffer.size() / probes.extent(1));
+    const auto buffer_size = static_cast<std::ptrdiff_t>(buffer.size());
+    const std::ptrdiff_t rank = buffer_size / probes.extent(1);
+    fub::mdspan<const double, 2> states(buffer.data(), probes.extent(1), rank);
     fub::Burke2012 burke2012{};
     std::array<double, 11> molar_mass{};
     burke2012.getMolarMass(molar_mass);
@@ -173,8 +176,9 @@ LogProbesOutput::LogProbesOutput(const ProgramOptions& vm)
 
 void LogProbesOutput::operator()(const MultiBlockGriddingAlgorithm& grid) {
   const std::ptrdiff_t n_tubes = grid.GetTubes().size();
-  const std::ptrdiff_t n_tube_probes = static_cast<std::ptrdiff_t>(
-      tube_probes_.size() / n_tubes / AMREX_SPACEDIM);
+  const std::ptrdiff_t n_tube_probes =
+      static_cast<std::ptrdiff_t>(tube_probes_.size()) / n_tubes /
+      AMREX_SPACEDIM;
   mdspan<const double, 3> tube_coords(tube_probes_.data(), AMREX_SPACEDIM,
                                       n_tube_probes, n_tubes);
   MPI_Comm comm = ::amrex::ParallelDescriptor::Communicator();
@@ -187,7 +191,7 @@ void LogProbesOutput::operator()(const MultiBlockGriddingAlgorithm& grid) {
   i_block = 0;
   const std::ptrdiff_t n_plena = grid.GetPlena().size();
   const std::ptrdiff_t n_plenum_probes = static_cast<std::ptrdiff_t>(
-      plenum_probes_.size() / n_plena / AMREX_SPACEDIM);
+      plenum_probes_.size()) / n_plena / AMREX_SPACEDIM;
   mdspan<const double, 3> plenum_coords(plenum_probes_.data(), AMREX_SPACEDIM,
                                         n_plenum_probes, n_plena);
   for (const auto& plenum : grid.GetPlena()) {

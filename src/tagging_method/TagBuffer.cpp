@@ -30,10 +30,10 @@ void TagBuffer::TagCellsForRefinement(
   for (std::ptrdiff_t i = buffer_width_; i < data.size() - buffer_width_; ++i) {
     if (data[i] == '\1') {
       for (std::ptrdiff_t j = 0; j < buffer_width_; ++j) {
-        data[i + j] = '\2' - data[i + j];
+        data[i + j] = static_cast<char>('\2' - data[i + j]);
       }
       for (std::ptrdiff_t j = buffer_width_; j > 0; --j) {
-        data[i - j - 1] = '\2' - data[i - j - 1];
+        data[i - j - 1] = static_cast<char>('\2' - data[i - j - 1]);
       }
     }
   }
@@ -55,7 +55,8 @@ void TagBuffer::TagCellsForRefinement(
         const std::ptrdiff_t l1 = std::min(j + buffer_width_, ny);
         for (std::ptrdiff_t l = l0; l < l1; ++l) {
           for (std::ptrdiff_t k = k0; k < k1; ++k) {
-            data(k, l) = std::max(data(k, l), char('\2' - data(k, l)));
+            data(k, l) =
+                std::max(data(k, l), static_cast<char>('\2' - data(k, l)));
           }
         }
       }
@@ -78,7 +79,8 @@ void TagBuffer::TagCellsForRefinement(
     IndexBox<3> neighborhood{lower, upper};
     ForEachIndex(neighborhood, [&](std::ptrdiff_t i, std::ptrdiff_t j,
                                    std::ptrdiff_t k) {
-      tags(i, j, k) = std::max(tags(i, j, k), char('\2' - tags(i, j, k)));
+      tags(i, j, k) =
+          std::max(tags(i, j, k), static_cast<char>('\2' - tags(i, j, k)));
     });
   });
 }

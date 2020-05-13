@@ -54,8 +54,8 @@ Duration CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
   amrex::CompressibleAdvectionIntegratorContext& context = *pointer_to_context;
   CompressibleAdvection<SpaceDimension> equation{};
   const ::amrex::Geometry& geom = context.GetGeometry(level);
-  const int dir_v = static_cast<int>(dir);
-  const double dx = geom.CellSize(dir_v);
+  const std::size_t dir_v = static_cast<std::size_t>(dir);
+  const double dx = geom.CellSize(static_cast<int>(dir));
   const ::amrex::MultiFab& scratch = context.GetScratch(level);
   const amrex::CompressibleAdvectionAdvectiveFluxes& Pvs =
       context.GetAdvectiveFluxes(level);
@@ -90,7 +90,7 @@ Duration CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
                     double dx, Direction dir) {
   double max_signal = std::numeric_limits<double>::lowest();
   ForEachIndex(Shrink(Pv.Box(), dir, {0, 1}), [&](auto... is) {
-    using Index = std::array<std::ptrdiff_t, SpaceDimension>;
+    using Index = std::array<std::ptrdiff_t, static_cast<std::size_t>(SpaceDimension)>;
     Index faceL{is...};
     Index faceR = Shift(faceL, dir, 1);
     Index cell = faceL;
@@ -109,6 +109,8 @@ CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
     ComputeNumericFluxes(const std::array<Complete, 4>& stencil,
                          const std::array<double, 5> Pvs, Duration dt,
                          double dx, Direction) {
+  const std::size_t SpaceDimensionli = static_cast<std::size_t>(SpaceDimension);
+
   // Reconstruction
   double slope_chi_L = LimitSlopes(stencil[0].PTinverse, stencil[1].PTinverse,
                                    stencil[2].PTinverse) /
@@ -117,25 +119,26 @@ CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
                                    stencil[3].PTinverse) /
                        dx;
 
-  std::array<double, SpaceDimension> slope_velocity_L{};
-  std::array<double, SpaceDimension> slope_velocity_R{};
+  std::array<double, SpaceDimensionli> slope_velocity_L{};
+  std::array<double, SpaceDimensionli> slope_velocity_R{};
 
   for (int dim = 0; dim < SpaceDimension; ++dim) {
+    const std::size_t dimli = static_cast<std::size_t>(dim);
     std::array<double, 4> velocity;
     velocity[0] = stencil[0].momentum[dim] / stencil[0].density;
     velocity[1] = stencil[1].momentum[dim] / stencil[1].density;
     velocity[2] = stencil[2].momentum[dim] / stencil[2].density;
     velocity[3] = stencil[3].momentum[dim] / stencil[3].density;
-    slope_velocity_L[dim] =
+    slope_velocity_L[dimli] =
         LimitSlopes(velocity[0], velocity[1], velocity[2]) / dx;
-    slope_velocity_R[dim] =
+    slope_velocity_R[dimli] =
         LimitSlopes(velocity[1], velocity[2], velocity[3]) / dx;
   }
 
   std::array<double, 4> v_advect{};
   // for (int i = 0; i < 4; ++i) {
   // We only use the inner two v_advects
-  for (int i = 1; i < 3; ++i) {
+  for (std::size_t i = 1; i < 3; ++i) {
     v_advect[i] = 0.5 * (Pvs[i] + Pvs[i + 1]) / stencil[i].PTdensity;
   }
 
@@ -146,16 +149,17 @@ CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
   double rec_chi_R = stencil[2].PTinverse -
                      0.5 * dx * slope_chi_R * (1.0 + v_advect[2] * lambda);
 
-  std::array<double, SpaceDimension> rec_velocity_L{};
-  std::array<double, SpaceDimension> rec_velocity_R{};
+  std::array<double, SpaceDimensionli> rec_velocity_L{};
+  std::array<double, SpaceDimensionli> rec_velocity_R{};
 
   for (int dim = 0; dim < SpaceDimension; ++dim) {
-    rec_velocity_L[dim] =
+    const std::size_t dimli = static_cast<std::size_t>(dim);
+    rec_velocity_L[dimli] =
         stencil[1].momentum[dim] / stencil[1].density +
-        0.5 * dx * slope_velocity_L[dim] * (1.0 - v_advect[1] * lambda);
-    rec_velocity_R[dim] =
+        0.5 * dx * slope_velocity_L[dimli] * (1.0 - v_advect[1] * lambda);
+    rec_velocity_R[dimli] =
         stencil[2].momentum[dim] / stencil[2].density -
-        0.5 * dx * slope_velocity_R[dim] * (1.0 + v_advect[2] * lambda);
+        0.5 * dx * slope_velocity_R[dimli] * (1.0 + v_advect[2] * lambda);
   }
 
   int upwind = (Pvs[2] > 0.0) - (Pvs[2] < 0.0);
@@ -164,9 +168,10 @@ CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
   flux.density =
       Pvs[2] * 0.5 * ((1 + upwind) * rec_chi_L + (1 - upwind) * rec_chi_R);
   for (int dim = 0; dim < SpaceDimension; ++dim) {
+    const std::size_t dimli = static_cast<std::size_t>(dim);
     flux.momentum[dim] = Pvs[2] * 0.5 *
-                         ((1.0 + upwind) * rec_chi_L * rec_velocity_L[dim] +
-                          (1.0 - upwind) * rec_chi_R * rec_velocity_R[dim]);
+                         ((1.0 + upwind) * rec_chi_L * rec_velocity_L[dimli] +
+                          (1.0 - upwind) * rec_chi_R * rec_velocity_R[dimli]);
   }
   flux.PTdensity = Pvs[2];
   return flux;
@@ -182,7 +187,7 @@ void CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
   std::array<double, 5> Pvs{};
 
   ForEachIndex(Box<0>(fluxes), [&](auto... is) {
-    using Index = std::array<std::ptrdiff_t, SpaceDimension>;
+    using Index = std::array<std::ptrdiff_t, static_cast<std::size_t>(SpaceDimension)>;
     Index face{is...};
     Index cell_LL = Shift(face, dir, -2);
     Index cell_L = Shift(face, dir, -1);
@@ -215,7 +220,8 @@ void CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
   amrex::CompressibleAdvectionIntegratorContext& context = *pointer_to_context;
   CompressibleAdvection<SpaceDimension> equation{};
   const ::amrex::Geometry& geom = context.GetGeometry(level);
-  const int dir_v = static_cast<int>(dir);
+  const auto dir_v = static_cast<int>(dir);
+  const auto dir_s = static_cast<std::size_t>(dir);
   const double dx = geom.CellSize(dir_v);
   const ::amrex::MultiFab& scratch = context.GetScratch(level);
   ::amrex::MultiFab& fluxes = context.GetFluxes(level, dir);
@@ -236,11 +242,11 @@ void CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
         amrex::MakeView<Conservative>(ffab, equation, face_box);
     StridedDataView<const double, SpaceDimension> Pv;
     if constexpr (SpaceDimension == AMREX_SPACEDIM) {
-      Pv = amrex::MakePatchDataView(Pvs.on_faces[dir_v][mfi], 0)
+      Pv = amrex::MakePatchDataView(Pvs.on_faces[dir_s][mfi], 0)
                .Subview(amrex::AsIndexBox<SpaceDimension>(
                    ::amrex::grow(face_box, dir_v, 1)));
     } else if constexpr (SpaceDimension + 1 == AMREX_SPACEDIM) {
-      Pv = SliceLast(amrex::MakePatchDataView(Pvs.on_faces[dir_v][mfi], 0)
+      Pv = SliceLast(amrex::MakePatchDataView(Pvs.on_faces[dir_s][mfi], 0)
                          .Subview(amrex::AsIndexBox<AMREX_SPACEDIM>(
                              ::amrex::grow(face_box, dir_v, 1))),
                      0);

@@ -73,7 +73,7 @@ MultiBlockIgniteDetonation::GetLastIgnitionTimePoints() const {
 
 void MultiBlockIgniteDetonation::SetLastIgnitionTimePoints(
     span<const Duration> timepoints) {
-  int k = 0;
+  std::size_t k = 0;
   for (Duration t_ign : timepoints) {
     const int nlevel = max_number_levels_;
     for (int ilvl = 0; ilvl < nlevel; ++ilvl) {

@@ -33,51 +33,51 @@
 namespace fub::amrex {
 
 template <typename Equation>
-void AverageState(Complete<Equation>& state,
-                  const ::amrex::MultiFab& mf, const ::amrex::Geometry&,
-                  const ::amrex::Box& box) {
-  const int ncomp = static_cast<std::size_t>(mf.nComp());
+void AverageState(Complete<Equation>& state, const ::amrex::MultiFab& mf,
+                  const ::amrex::Geometry&, const ::amrex::Box& box) {
+  const auto ncomp = static_cast<std::size_t>(mf.nComp());
   std::vector<double> state_buffer(ncomp);
   const std::ptrdiff_t num_cells = box.numPts();
   ForEachFab(execution::seq, mf, [&](const ::amrex::MFIter& mfi) {
     IndexBox<AMREX_SPACEDIM> section =
         AsIndexBox<AMREX_SPACEDIM>(box & mfi.tilebox());
     const ::amrex::FArrayBox& data = mf[mfi];
-    for (int comp = 0; comp < ncomp; ++comp) {
+    for (std::size_t comp = 0; comp < ncomp; ++comp) {
       ForEachIndex(section, [&](auto... is) {
         ::amrex::IntVect index{static_cast<int>(is)...};
-        state_buffer[comp] += data(index, comp) / num_cells;
+        state_buffer[comp] += data(index, static_cast<int>(comp)) /
+                              static_cast<double>(num_cells);
       });
     }
   });
-  std::vector<double> global_state_buffer(static_cast<std::size_t>(ncomp));
-  MPI_Allreduce(state_buffer.data(), global_state_buffer.data(), ncomp,
-                MPI_DOUBLE, MPI_SUM,
+  std::vector<double> global_state_buffer(ncomp);
+  MPI_Allreduce(state_buffer.data(), global_state_buffer.data(),
+                static_cast<int>(ncomp), MPI_DOUBLE, MPI_SUM,
                 ::amrex::ParallelDescriptor::Communicator());
   CopyFromBuffer(state, global_state_buffer);
 }
 
 template <typename Equation>
-void AverageState(Conservative<Equation>& state,
-                  const ::amrex::MultiFab& mf, const ::amrex::Geometry&,
-                  const ::amrex::Box& box) {
-  const int ncomp = static_cast<std::size_t>(mf.nComp());
+void AverageState(Conservative<Equation>& state, const ::amrex::MultiFab& mf,
+                  const ::amrex::Geometry&, const ::amrex::Box& box) {
+  const auto ncomp = static_cast<std::size_t>(mf.nComp());
   std::vector<double> state_buffer(ncomp);
   const std::ptrdiff_t num_cells = box.numPts();
   ForEachFab(mf, [&](const ::amrex::MFIter& mfi) {
     IndexBox<AMREX_SPACEDIM> section =
         AsIndexBox<AMREX_SPACEDIM>(box & mfi.tilebox());
     const ::amrex::FArrayBox& data = mf[mfi];
-    for (int comp = 0; comp < ncomp; ++comp) {
+    for (std::size_t comp = 0; comp < ncomp; ++comp) {
       ForEachIndex(section, [&](auto... is) {
         ::amrex::IntVect index{static_cast<int>(is)...};
-        state_buffer[comp] += data(index, comp) / num_cells;
+        state_buffer[comp] += data(index, static_cast<int>(comp)) /
+                              static_cast<double>(num_cells);
       });
     }
   });
-  std::vector<double> global_state_buffer(static_cast<std::size_t>(ncomp));
-  MPI_Allreduce(state_buffer.data(), global_state_buffer.data(), ncomp,
-                MPI_DOUBLE, MPI_SUM,
+  std::vector<double> global_state_buffer(ncomp);
+  MPI_Allreduce(state_buffer.data(), global_state_buffer.data(),
+                static_cast<int>(ncomp), MPI_DOUBLE, MPI_SUM,
                 ::amrex::ParallelDescriptor::Communicator());
   CopyFromBuffer(state, global_state_buffer);
 }

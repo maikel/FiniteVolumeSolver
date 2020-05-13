@@ -42,7 +42,7 @@ Eigen::Vector3d GetBoundaryNormal(const CutCellData<3>& ccdata,
 namespace {
 template <int Rank>
 bool IsCutCell_(const CutCellData<Rank>& geom,
-                const std::array<std::ptrdiff_t, Rank>& index) {
+                const std::array<std::ptrdiff_t, static_cast<std::size_t>(Rank)>& index) {
   if (geom.volume_fractions(index) <= 0.0) {
     return false;
   }
@@ -51,7 +51,7 @@ bool IsCutCell_(const CutCellData<Rank>& geom,
   }
   FUB_ASSERT(geom.volume_fractions(index) == 1.0);
   auto left = index;
-  for (int i = 0; i < Rank; ++i) {
+  for (std::size_t i = 0; i < static_cast<std::size_t>(Rank); ++i) {
     auto right = Shift(left, Direction(i), 1);
     if (geom.face_fractions[i](left) < 1.0 ||
         geom.face_fractions[i](right) < 1.0) {

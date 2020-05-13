@@ -43,10 +43,10 @@ MapToSrc(const std::array<std::ptrdiff_t, 1>& dest,
          const ::amrex::Geometry& geom, int side, Direction dir) {
   const int boundary = (side == 0) * geom.Domain().smallEnd(int(dir)) +
                        (side == 1) * geom.Domain().bigEnd(int(dir));
-  const int distance = dest[int(dir)] - boundary;
+  const auto distance = dest[std::size_t(dir)] - boundary;
   const int sign = int((distance > 0) - (distance < 0));
   std::array<std::ptrdiff_t, 1> src{dest};
-  src[int(dir)] -= 2 * distance - sign;
+  src[std::size_t(dir)] -= static_cast<int>(2 * distance - sign);
   //  src[std::size_t(dir)] = boundary;
   return src;
 }
@@ -97,14 +97,14 @@ IsentropicPressureBoundary::IsentropicPressureBoundary(const IdealGasMix<1>& eq,
     : equation_{eq}, outer_pressure_{outer_pressure}, dir_{dir}, side_{side} {}
 
 void IsentropicPressureBoundary::FillBoundary(::amrex::MultiFab& mf,
-                                              const GriddingAlgorithm& gridding, int level) {
+                                              const GriddingAlgorithm& gridding,
+                                              int level) {
   FillBoundary(mf, gridding.GetPatchHierarchy().GetGeometry(level));
 }
 
 void IsentropicPressureBoundary::FillBoundary(::amrex::MultiFab& mf,
                                               const GriddingAlgorithm& gridding,
-                                              int level,
-                                              Direction dir) {
+                                              int level, Direction dir) {
   if (dir == dir_) {
     FillBoundary(mf, gridding, level);
   }

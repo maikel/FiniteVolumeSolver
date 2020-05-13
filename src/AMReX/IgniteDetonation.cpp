@@ -35,8 +35,8 @@ IgniteDetonationOptions::IgniteDetonationOptions(
     : prefix{p} {
   measurement_position =
       GetOptionOr(opts, "measurement_position", measurement_position);
-  equivalence_ratio_criterium = GetOptionOr(
-      opts, "equivalence_ratio_criterium", equivalence_ratio_criterium);
+  equivalence_ratio_criterium = GetOptionOr(opts, "equivalence_ratio_criterium",
+                                            equivalence_ratio_criterium);
   ignite_position = GetOptionOr(opts, "position", ignite_position);
   ignite_interval =
       Duration(GetOptionOr(opts, "interval", ignite_interval.count()));
@@ -46,7 +46,7 @@ IgniteDetonation::IgniteDetonation(
     const fub::IdealGasMix<1>& eq, int max_number_levels,
     const fub::amrex::IgniteDetonationOptions& opts)
     : equation_(eq), options_{opts},
-      last_ignition_backup_(max_number_levels,
+      last_ignition_backup_(static_cast<std::size_t>(max_number_levels),
                             Duration(std::numeric_limits<double>::lowest())),
       last_ignition_(last_ignition_backup_) {}
 
@@ -60,7 +60,8 @@ std::vector<double> GatherMoles_(const IntegratorContext& grid, double x,
                                  IdealGasMix<1>& eq) {
   const PatchHierarchy& hier = grid.GetPatchHierarchy();
   const int nlevel = hier.GetNumberOfLevels();
-  std::vector<double> moles(eq.GetReactor().GetNSpecies());
+  std::vector<double> moles(
+      static_cast<std::size_t>(eq.GetReactor().GetNSpecies()));
   std::vector<double> local_moles(moles.size());
   for (int level = nlevel - 1; level >= 0; --level) {
     const ::amrex::MultiFab& data = grid.GetScratch(level);
@@ -94,8 +95,9 @@ std::vector<double> GatherMoles_(const IntegratorContext& grid, double x,
     MPI_Allreduce(&local_found, &found, 1, MPI_INT, MPI_SUM,
                   ::amrex::ParallelContext::CommunicatorAll());
     if (found) {
-      MPI_Allreduce(local_moles.data(), moles.data(), moles.size(), MPI_DOUBLE,
-                    MPI_SUM, ::amrex::ParallelContext::CommunicatorAll());
+      MPI_Allreduce(local_moles.data(), moles.data(),
+                    static_cast<int>(moles.size()), MPI_DOUBLE, MPI_SUM,
+                    ::amrex::ParallelContext::CommunicatorAll());
       break;
     }
   }
@@ -151,7 +153,7 @@ IgniteDetonation::AdvanceLevel(IntegratorContext& grid, int level,
         auto view =
             MakeView<Complete<IdealGasMix<1>>>(fab, equation_, mfi.tilebox());
         ForEachIndex(Box<0>(view), [&](std::ptrdiff_t i) {
-          const double x = geom.CellCenter(i, 0);
+          const double x = geom.CellCenter(static_cast<int>(i), 0);
           if (x_ignite - width <= x && x < x_ignite) {
             const double d = (x_ignite - x) / width;
             const double T = d * T_lo + (1.0 - d) * T_hi;

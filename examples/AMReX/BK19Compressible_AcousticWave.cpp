@@ -46,11 +46,9 @@ struct AcousticWaveInitialData : fub::amrex::BK19PhysicalParameters {
           fub::amrex::MakeView<Complete>(fab, equation, box);
       fub::ForEachIndex(fub::Box<0>(states), [&](int i, int j) {
         const double x = geom.CellCenter(i, 0);
-        const double y = geom.CellCenter(j, 1);
 
         const double p = std::pow(1.0 + del0 * std::sin(wn * x),
                                   2.0 * gamma / (gamma - 1.0));
-
         const double rho = std::pow(p, 1.0 / gamma);
         const double c = std::sqrt(gamma * p / rho);
         const double Ma = std::sqrt(Msq);
@@ -79,7 +77,6 @@ struct AcousticWaveInitialData : fub::amrex::BK19PhysicalParameters {
         ::amrex::Vector<double> coor(2);
         geom.LoNode(i, coor);
         const double x = coor[0];
-        const double y = coor[1];
 
         const double p = std::pow(1.0 + del0 * std::sin(wn * x),
                                   2.0 * gamma / (gamma - 1.0));
