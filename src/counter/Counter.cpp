@@ -79,9 +79,10 @@ std::optional<CounterResult> Counter::gather_statistics(MPI_Comm comm,
   const int recv_count_per_process = 1;
 
   if (mpi_rank == root) {
-    auto received_mins = std::vector<long long>(mpi_size);
-    auto received_maxs = std::vector<long long>(mpi_size);
-    auto received_means = std::vector<double>(mpi_size);
+    const auto n = static_cast<std::size_t>(mpi_size);
+    auto received_mins = std::vector<long long>(n);
+    auto received_maxs = std::vector<long long>(n);
+    auto received_means = std::vector<double>(n);
 
     MPI_Gather(&local_min, send_size, MPI_LONG_LONG, received_mins.data(),
                recv_count_per_process, MPI_LONG_LONG, root, comm);

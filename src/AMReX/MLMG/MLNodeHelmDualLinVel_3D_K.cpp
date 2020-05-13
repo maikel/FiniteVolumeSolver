@@ -39,6 +39,11 @@
 #ifndef AMREX_ML_NODEHELM_DUAL_LINVEL_3D_K_H_
 #define AMREX_ML_NODEHELM_DUAL_LINVEL_3D_K_H_
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wsign-conversion"
+#pragma GCC diagnostic ignored "-Wconversion"
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+
 namespace amrex {
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -232,6 +237,8 @@ void mlndhelm_res_cf_contrib (int i, int j, int k, Array4<Real> const& res,
 {}
 
 }
+
+#pragma GCC diagnostic pop
 
 #endif
 // clang-format on

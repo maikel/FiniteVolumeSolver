@@ -63,7 +63,7 @@ int main(int argc, char** argv) {
       constexpr double pi = 3.1415926535897932;
       constexpr double tpi = 2. * pi;
       constexpr double fpi = 4. * pi;
-      constexpr double fac = tpi * tpi * AMREX_SPACEDIM;
+//       constexpr double fac = tpi * tpi * AMREX_SPACEDIM;
 
       double x = i * dx[0];
       double y = j * dx[1];

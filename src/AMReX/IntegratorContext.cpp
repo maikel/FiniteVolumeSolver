@@ -20,9 +20,9 @@
 
 #include "fub/AMReX/IntegratorContext.hpp"
 
-#include "fub/AMReX/boundary_condition/BoundaryConditionRef.hpp"
 #include "fub/AMReX/ForEachIndex.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
+#include "fub/AMReX/boundary_condition/BoundaryConditionRef.hpp"
 #include "fub/core/algorithm.hpp"
 
 #include <AMReX_FillPatchUtil.H>
@@ -80,9 +80,11 @@ IntegratorContext::IntegratorContext(
   std::size_t n_levels =
       static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels());
   for (std::size_t i = 0; i < n_levels; ++i) {
-    data_[i].cycles = gridding_->GetPatchHierarchy().GetPatchLevel(i).cycles;
+    const auto level = static_cast<int>(i);
+    data_[i].cycles =
+        gridding_->GetPatchHierarchy().GetPatchLevel(level).cycles;
     data_[i].time_point =
-        gridding_->GetPatchHierarchy().GetPatchLevel(i).time_point;
+        gridding_->GetPatchHierarchy().GetPatchLevel(level).time_point;
     data_[i].regrid_time_point = data_[i].time_point;
   }
 }
@@ -99,9 +101,11 @@ IntegratorContext::IntegratorContext(
   std::size_t n_levels =
       static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels());
   for (std::size_t i = 0; i < n_levels; ++i) {
-    data_[i].cycles = gridding_->GetPatchHierarchy().GetPatchLevel(i).cycles;
+    const auto level = static_cast<int>(i);
+    data_[i].cycles =
+        gridding_->GetPatchHierarchy().GetPatchLevel(level).cycles;
     data_[i].time_point =
-        gridding_->GetPatchHierarchy().GetPatchLevel(i).time_point;
+        gridding_->GetPatchHierarchy().GetPatchLevel(level).time_point;
     data_[i].regrid_time_point = data_[i].time_point;
   }
 }
@@ -269,7 +273,7 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
       data.coarse_fine.define(ba, dm, ref_ratio, level, n_cons_components);
     }
   }
-  for (std::size_t level_num = first_level; level_num < data_.size();
+  for (int level_num = first_level; level_num < static_cast<int>(data_.size());
        ++level_num) {
     CopyDataToScratch(level_num);
   }
@@ -286,8 +290,7 @@ void IntegratorContext::SetCycles(std::ptrdiff_t cycles, int level) {
 }
 
 void IntegratorContext::ApplyBoundaryCondition(int level, Direction dir) {
-  AnyBoundaryCondition& boundary_condition =
-      gridding_->GetBoundaryCondition();
+  AnyBoundaryCondition& boundary_condition = gridding_->GetBoundaryCondition();
   ApplyBoundaryCondition(level, dir, boundary_condition);
 }
 

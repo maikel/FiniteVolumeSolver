@@ -53,17 +53,22 @@ Vc::double_v clamp(Vc::double_v x, Vc::double_v lo, Vc::double_v hi) noexcept {
 }
 
 void ComputeStableFluxes_Row(const Fluxes<double*, const double*>& fluxes,
-                             const CutCellGeometry<const double*>& geom, int n,
+                             const CutCellGeometry<const double*>& geom,
+                             fub::span<const double>::index_type n,
                              Duration /* dt */, double /* dx */) {
   int face = 0;
   const int simd_width = Vc::double_v::size();
   for (face = 0; face + simd_width <= n; face += simd_width) {
     const Vc::double_v centerL(geom.centerL + face, Vc::Unaligned);
     const Vc::double_v centerR(geom.centerR + face, Vc::Unaligned);
-    const Vc::double_v dL = clamp(Vc::double_v(0.5) - centerL, Vc::double_v(0.0), Vc::double_v(1.0));
-    const Vc::double_v dR = clamp(Vc::double_v(0.5) + centerR, Vc::double_v(0.0), Vc::double_v(1.0));
-    const Vc::double_v dLm1 = clamp(Vc::double_v(1.0) - dL, Vc::double_v(0.0), Vc::double_v(1.0));
-    const Vc::double_v dRm1 = clamp(Vc::double_v(1.0) - dR, Vc::double_v(0.0), Vc::double_v(1.0));
+    const Vc::double_v dL = clamp(Vc::double_v(0.5) - centerL,
+                                  Vc::double_v(0.0), Vc::double_v(1.0));
+    const Vc::double_v dR = clamp(Vc::double_v(0.5) + centerR,
+                                  Vc::double_v(0.0), Vc::double_v(1.0));
+    const Vc::double_v dLm1 =
+        clamp(Vc::double_v(1.0) - dL, Vc::double_v(0.0), Vc::double_v(1.0));
+    const Vc::double_v dRm1 =
+        clamp(Vc::double_v(1.0) - dR, Vc::double_v(0.0), Vc::double_v(1.0));
 
     const Vc::double_v f(fluxes.regular + face, Vc::Unaligned);
     const Vc::double_v fbL(fluxes.boundaryL + face, Vc::Unaligned);
@@ -111,16 +116,17 @@ void ComputeStableFluxComponents_View(
   IndexBox<Rank> cells_to_right = faces;
   IndexBox<Rank> cells_to_left = Grow(cells_to_right, dir, {1, -1});
   const int d = static_cast<int>(dir);
+  const std::size_t r = static_cast<std::size_t>(dir);
   PatchDataView<const double, Rank, layout_stride> boundaryL =
       boundary_fluxes.Subview(cells_to_left);
   PatchDataView<const double, Rank, layout_stride> boundaryR =
       boundary_fluxes.Subview(cells_to_right);
   PatchDataView<const double, Rank, layout_stride> betaUs =
-      geom.unshielded_fractions_rel[d].Subview(faces);
+      geom.unshielded_fractions_rel[r].Subview(faces);
   PatchDataView<const double, Rank, layout_stride> betaL =
-      geom.shielded_left_fractions_rel[d].Subview(faces);
+      geom.shielded_left_fractions_rel[r].Subview(faces);
   PatchDataView<const double, Rank, layout_stride> betaR =
-      geom.shielded_right_fractions_rel[d].Subview(faces);
+      geom.shielded_right_fractions_rel[r].Subview(faces);
   PatchDataView<const double, Rank, layout_stride> centerL =
       SliceLast(geom.boundary_centeroids.Subview(
           Embed<Rank + 1>(cells_to_left, {d, d + 1})));
