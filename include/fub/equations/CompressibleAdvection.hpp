@@ -59,10 +59,9 @@ struct StateTraits<CompressibleAdvectionConservative<Xs...>> {
 };
 
 template <typename Density, typename Momentum, typename PTDensity,
-          typename Velocity, typename PTInverse>
+          typename PTInverse>
 struct CompressibleAdvectionComplete
     : CompressibleAdvectionConservative<Density, Momentum, PTDensity> {
-  Velocity velocity;
   PTInverse PTinverse;
 };
 
@@ -72,12 +71,11 @@ struct CompressibleAdvectionComplete
 template <typename... Xs>
 struct StateTraits<CompressibleAdvectionComplete<Xs...>> {
   static constexpr auto names = std::make_tuple(
-      "Density", "Momentum", "PTdensity", "Velocity", "PTinverse");
+      "Density", "Momentum", "PTdensity", "PTinverse");
   static constexpr auto pointers_to_member =
       std::make_tuple(&CompressibleAdvectionComplete<Xs...>::density,
                       &CompressibleAdvectionComplete<Xs...>::momentum,
                       &CompressibleAdvectionComplete<Xs...>::PTdensity,
-                      &CompressibleAdvectionComplete<Xs...>::velocity,
                       &CompressibleAdvectionComplete<Xs...>::PTinverse);
 };
 
@@ -89,8 +87,7 @@ using CompressibleAdvectionConsShape =
 template <int VelocityRank>
 using CompressibleAdvectionCompleteShape =
     CompressibleAdvectionComplete<ScalarDepth, VectorDepth<VelocityRank>,
-                                  ScalarDepth, VectorDepth<VelocityRank>,
-                                  ScalarDepth>;
+                                  ScalarDepth, ScalarDepth>;
 
 template <int N, int VelocityDim = N> struct CompressibleAdvection {
   using ConservativeDepths = CompressibleAdvectionConsShape<VelocityDim>;
@@ -106,7 +103,6 @@ template <int N, int VelocityDim = N> struct CompressibleAdvection {
     state.density = cons.density;
     state.momentum = cons.momentum;
     state.PTdensity = cons.PTdensity;
-    state.velocity = cons.momentum / cons.density;
     state.PTinverse = cons.density / cons.PTdensity;
   }
 
