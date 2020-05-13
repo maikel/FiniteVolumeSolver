@@ -66,25 +66,25 @@ public:
                  const Vector<BoxArray>& a_grids,
                  const Vector<DistributionMapping>& a_dmap,
                  const LPInfo& a_info = LPInfo(),
-                 const Vector<FabFactory<FArrayBox> const*>& a_factory = {});
+                 const Vector<FabFactory<FArrayBox> const*>& a_factory = {}) final override;
 
     virtual std::string name () const override { return std::string("MLNodeHelmDualCstVel"); }
 
     void setNormalizationThreshold (Real t) noexcept { m_normalization_threshold = t; }
 
-    void setSigma (int amrlev, const MultiFab& a_sigma);
+    void setSigma (int amrlev, const MultiFab& a_sigma) final override;
 
-    void setSigmaCross (int amrlev, const MultiFab& a_sigmacross);
+    void setSigmaCross (int amrlev, const MultiFab& a_sigmacross) final override;
 
-    void setAlpha (int amrlev, const MultiFab& a_alpha);
+    void setAlpha (int amrlev, const MultiFab& a_alpha) final override;
 
-    void compDivergence (const Vector<MultiFab*>& rhs, const Vector<MultiFab*>& vel);
+    void compDivergence (const Vector<MultiFab*>& rhs, const Vector<MultiFab*>& vel) final override;
 
     void compRHS (const Vector<MultiFab*>& rhs, const Vector<MultiFab*>& vel,
                   const Vector<const MultiFab*>& rhnd,
-                  const Vector<MultiFab*>& rhcc);
+                  const Vector<MultiFab*>& rhcc) final override;
 
-    void updateVelocity (const Vector<MultiFab*>& vel, const Vector<MultiFab const*>& sol) const;
+    void updateVelocity (const Vector<MultiFab*>& vel, const Vector<MultiFab const*>& sol) const final override;
 
 //     void compSyncResidualCoarse (MultiFab& sync_resid, const MultiFab& phi,
 //                                  const MultiFab& vold, const MultiFab* rhcc,

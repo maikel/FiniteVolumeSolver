@@ -85,10 +85,12 @@ MLNodeHelmDualLinVel::define (const Vector<Geometry>& a_geom,
     MLNodeLinOp::define(a_geom, cc_grids, a_dmap, a_info, a_factory);
 
     m_sigma.resize(m_num_amr_levels);
+    m_sigmacross.resize(m_num_amr_levels);
     m_alpha.resize(m_num_amr_levels);
     for (int amrlev = 0; amrlev < m_num_amr_levels; ++amrlev)
     {
         m_sigma[amrlev].resize(m_num_mg_levels[amrlev]);
+        m_sigmacross[amrlev].resize(m_num_mg_levels[amrlev]);
         m_alpha[amrlev].resize(m_num_mg_levels[amrlev]);
         const int mglev = 0;
         const int idim = 0;
@@ -96,6 +98,9 @@ MLNodeHelmDualLinVel::define (const Vector<Geometry>& a_geom,
             (new MultiFab(m_grids[amrlev][mglev], m_dmap[amrlev][mglev], 1, 1,
                           MFInfo(), *m_factory[amrlev][0]));
         m_sigma[amrlev][mglev][idim]->setVal(0.0);
+        m_sigmacross[amrlev][mglev][idim].reset
+            (new MultiFab(m_grids[amrlev][mglev], m_dmap[amrlev][mglev], AMREX_SPACEDIM*(AMREX_SPACEDIM-1), 1));
+        m_sigmacross[amrlev][mglev][idim]->setVal(0.0);
         const BoxArray& ba = amrex::convert(m_grids[amrlev][mglev],
                                             IntVect(AMREX_D_DECL(1,1,1)));
         m_alpha[amrlev][mglev].define(ba, m_dmap[amrlev][mglev], 1, 0);
@@ -108,6 +113,12 @@ void
 MLNodeHelmDualLinVel::setSigma (int amrlev, const MultiFab& a_sigma)
 {
     MultiFab::Copy(*m_sigma[amrlev][0][0], a_sigma, 0, 0, 1, 0);
+}
+
+void
+MLNodeHelmDualCstVel::setSigmaCross (int amrlev, const MultiFab& a_sigmacross)
+{
+    MultiFab::Copy(*m_sigmacross[amrlev][0][0], a_sigmacross, 0, 0, AMREX_SPACEDIM*(AMREX_SPACEDIM-1), 0);
 }
 
 void
@@ -489,6 +500,10 @@ MLNodeHelmDualLinVel::averageDownCoeffs ()
                     if (m_sigma[amrlev][mglev][idim]) {
                         FillBoundaryCoeff(*m_sigma[amrlev][mglev][idim], m_geom[amrlev][mglev]);
                     }
+
+                    if (m_sigmacross[amrlev][mglev][idim]) {
+                        FillBoundaryCoeff(*m_sigmacross[amrlev][mglev][idim], m_geom[amrlev][mglev]);
+                    }
                 }
             }
         } else {
@@ -497,6 +512,10 @@ MLNodeHelmDualLinVel::averageDownCoeffs ()
             {
                 if (m_sigma[amrlev][mglev][idim]) {
                     FillBoundaryCoeff(*m_sigma[amrlev][mglev][idim], m_geom[amrlev][mglev]);
+                }
+
+                if (m_sigmacross[amrlev][mglev][idim]) {
+                    FillBoundaryCoeff(*m_sigmacross[amrlev][mglev][idim], m_geom[amrlev][mglev]);
                 }
             }
         }
@@ -803,6 +822,7 @@ MLNodeHelmDualLinVel::Fapply (int amrlev, int mglev, MultiFab& out, const MultiF
     BL_PROFILE("MLNodeHelmDualLinVel::Fapply()");
 
     const auto& sigma = m_sigma[amrlev][mglev];
+    const auto& sigmacross = m_sigmacross[amrlev][mglev];
     const auto& alpha = m_alpha[amrlev][mglev];
     const auto dxinvarr = m_geom[amrlev][mglev].InvCellSizeArray();
 
@@ -832,10 +852,11 @@ MLNodeHelmDualLinVel::Fapply (int amrlev, int mglev, MultiFab& out, const MultiF
         else
         {
             Array4<Real const> const& sarr = sigma[0]->const_array(mfi);
+            Array4<Real const> const& scarr = sigmacross[0]->const_array(mfi);
             Array4<Real const> const& aarr = alpha.const_array(mfi);
             AMREX_HOST_DEVICE_PARALLEL_FOR_3D ( bx, i, j, k,
             {
-                mlndhelm_adotx_aa(i,j,k,yarr,xarr,sarr,aarr,dmskarr,
+                mlndhelm_adotx_aa(i,j,k,yarr,xarr,sarr,scarr,aarr,dmskarr,
                                  dxinvarr);
             });
         }
@@ -848,6 +869,7 @@ MLNodeHelmDualLinVel::Fsmooth (int amrlev, int mglev, MultiFab& sol, const Multi
     BL_PROFILE("MLNodeHelmDualLinVel::Fsmooth()");
 
     const auto& sigma = m_sigma[amrlev][mglev];
+    const auto& sigmacross = m_sigmacross[amrlev][mglev];
     const auto& alpha = m_alpha[amrlev][mglev];
     const auto dxinvarr = m_geom[amrlev][mglev].InvCellSizeArray();
 
@@ -892,6 +914,7 @@ MLNodeHelmDualLinVel::Fsmooth (int amrlev, int mglev, MultiFab& sol, const Multi
             {
                 const Box& bx = mfi.validbox();
                 Array4<Real const> const& sarr = sigma[0]->const_array(mfi);
+                Array4<Real const> const& scarr = sigmacross[0]->const_array(mfi);
                 Array4<Real const> const& aarr = alpha.const_array(mfi);
                 Array4<Real> const& solarr = sol.array(mfi);
                 Array4<Real const> const& rhsarr = rhs.const_array(mfi);
@@ -901,13 +924,13 @@ MLNodeHelmDualLinVel::Fsmooth (int amrlev, int mglev, MultiFab& sol, const Multi
                 for (int ns = 0; ns < nsweeps; ++ns) {
                     amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
-                        mlndhelm_adotx_aa(i,j,k,Axarr,solarr,sarr,aarr,dmskarr,
+                        mlndhelm_adotx_aa(i,j,k,Axarr,solarr,sarr,scarr, aarr,dmskarr,
                                          dxinvarr);
                     });
                     AMREX_LAUNCH_DEVICE_LAMBDA ( bx, tbx,
                     {
                         mlndhelm_jacobi_aa (tbx, solarr, Axarr, rhsarr, sarr,
-                                           aarr, dmskarr, dxinvarr);
+                                           scarr, aarr, dmskarr, dxinvarr);
                     });
                 }
             }
@@ -952,6 +975,7 @@ MLNodeHelmDualLinVel::Fsmooth (int amrlev, int mglev, MultiFab& sol, const Multi
                 {
                     const Box& bx = mfi.validbox();
                     Array4<Real const> const& sarr = sigma[0]->const_array(mfi);
+                    Array4<Real const> const& scarr = sigmacross[0]->const_array(mfi);
                     Array4<Real const> const& aarr = alpha.const_array(mfi);
                     Array4<Real> const& solarr = sol.array(mfi);
                     Array4<Real const> const& rhsarr = rhs.const_array(mfi);
@@ -959,7 +983,7 @@ MLNodeHelmDualLinVel::Fsmooth (int amrlev, int mglev, MultiFab& sol, const Multi
 
                     for (int ns = 0; ns < nsweeps; ++ns) {
                         mlndhelm_gauss_seidel_aa(bx, solarr, rhsarr,
-                                                sarr, aarr, dmskarr, dxinvarr);
+                                                sarr, scarr, aarr, dmskarr, dxinvarr);
                     }
                 }
             }
@@ -1000,13 +1024,14 @@ MLNodeHelmDualLinVel::Fsmooth (int amrlev, int mglev, MultiFab& sol, const Multi
                 {
                     const Box& bx = mfi.tilebox();
                     Array4<Real const> const& sarr = sigma[0]->const_array(mfi);
+                    Array4<Real const> const& scarr = sigmacross[0]->const_array(mfi);
                     Array4<Real const> const& aarr = alpha.const_array(mfi);
                     Array4<Real> const& solarr = sol.array(mfi);
                     Array4<Real const> const& Axarr = Ax.const_array(mfi);
                     Array4<Real const> const& rhsarr = rhs.const_array(mfi);
                     Array4<int const> const& dmskarr = dmsk.const_array(mfi);
 
-                    mlndhelm_jacobi_aa (bx, solarr, Axarr, rhsarr, sarr, aarr,
+                    mlndhelm_jacobi_aa (bx, solarr, Axarr, rhsarr, sarr, scarr, aarr,
                                        dmskarr, dxinvarr);
                 }
             }
@@ -1020,6 +1045,7 @@ MLNodeHelmDualLinVel::normalize (int amrlev, int mglev, MultiFab& mf) const
     BL_PROFILE("MLNodeHelmDualLinVel::normalize()");
 
     const auto& sigma = m_sigma[amrlev][mglev];
+    const auto& sigmacross = m_sigmacross[amrlev][mglev];
     const auto& alpha = m_alpha[amrlev][mglev];
     const auto dxinv = m_geom[amrlev][mglev].InvCellSizeArray();
     const iMultiFab& dmsk = *m_dirichlet_mask[amrlev][mglev];
@@ -1046,11 +1072,12 @@ MLNodeHelmDualLinVel::normalize (int amrlev, int mglev, MultiFab& mf) const
         else
         {
             Array4<Real const> const& sarr = sigma[0]->const_array(mfi);
+            Array4<Real const> const& scarr = sigmacross[0]->const_array(mfi);
             Array4<Real const> const& aarr = alpha.const_array(mfi);
 
             AMREX_LAUNCH_HOST_DEVICE_LAMBDA ( bx, tbx,
             {
-                mlndhelm_normalize_aa(tbx,arr,sarr,aarr,dmskarr,dxinv);
+                mlndhelm_normalize_aa(tbx,arr,sarr,scarr,aarr,dmskarr,dxinv);
             });
         }
     }
