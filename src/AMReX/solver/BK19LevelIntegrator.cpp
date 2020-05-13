@@ -106,11 +106,13 @@ inline constexpr int one_ghost_cell_width = 1;
 inline constexpr int one_component = 1;
 
 inline constexpr int Rank = AMREX_SPACEDIM;
+inline constexpr int VelocityRank = Rank;
 
-using Equation = CompressibleAdvection<Rank>;
+using Equation = CompressibleAdvection<Rank, VelocityRank>;
 
-// For now the implementation assumes Rank == 2
+// For now the implementation assumes Rank == 2, VelocityRank == 2
 static_assert(Rank == 2);
+static_assert(VelocityRank == 2);
 
 namespace {
 IndexBox<2> BoxFromStencil_(const IndexBox<2>& box,
@@ -203,6 +205,42 @@ void ComputePvFromScratch_(const IndexMapping<Equation>& index, MultiFab& dest,
   }
   dest.FillBoundary(periodicity);
 }
+
+void ComputeKCrossM_(const std::array<int, VelocityRank>& momentum_index,
+                     MultiFab& result, const std::array<double, 3>& k,
+                     const MultiFab& scratch) {
+  if constexpr (VelocityRank == 2) {
+    FUB_ASSERT(k[0] == 0 && k[1] == 0);
+
+    MultiFab::Copy(result, scratch, momentum_index[1], 0, one_component,
+                   no_ghosts);
+    result.mult(-k[2], 0, one_component, no_ghosts);
+
+    MultiFab::Copy(result, scratch, momentum_index[0], 1, one_component,
+                   no_ghosts);
+    result.mult(k[2], 1, one_component, no_ghosts);
+
+  } else if constexpr (VelocityRank == 3) {
+    MultiFab::Copy(result, scratch, momentum_index[2], 0, one_component,
+                   no_ghosts);
+    result.mult(k[1], 0, one_component, no_ghosts);
+    MultiFab::Saxpy(result, -k[2], scratch, momentum_index[1], 0, one_component,
+                    no_ghosts);
+
+    MultiFab::Copy(result, scratch, momentum_index[0], 1, one_component,
+                   no_ghosts);
+    result.mult(k[2], 1, one_component, no_ghosts);
+    MultiFab::Saxpy(result, -k[0], scratch, momentum_index[2], 1, one_component,
+                    no_ghosts);
+
+    MultiFab::Copy(result, scratch, momentum_index[1], 1, one_component,
+                   no_ghosts);
+    result.mult(k[0], 2, one_component, no_ghosts);
+    MultiFab::Saxpy(result, -k[1], scratch, momentum_index[0], 2, one_component,
+                    no_ghosts);
+  }
+}
+
 } // namespace
 
 void RecomputeAdvectiveFluxes(const IndexMapping<Equation>& index,
@@ -251,6 +289,16 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   ::amrex::BoxArray on_nodes = on_cells;
   on_nodes.surroundingNodes();
 
+  MultiFab k_cross_rhou(on_cells, distribution_map, index.momentum.size(),
+                        no_ghosts);
+  ComputeKCrossM_(index.momentum, k_cross_rhou, phys_param.k_vect, scratch);
+  const double fac1 = -dt.count() * phys_param.f;
+  MultiFab::Saxpy(scratch, fac1, k_cross_rhou, 0, index.momentum[0],
+                  index.momentum.size(), no_ghosts);
+  scratch.mult(1.0 / (1.0 + std::pow(dt.count() * phys_param.f, 2)),
+               index.momentum[0], index.momentum.size(), no_ghosts);
+  RecoverVelocityFromMomentum_(scratch, index);
+
   // compute RHS for elliptic solve (equation (28) in [BK19] divided by -dt)
   // first compute diagonal part for compressibility
   MultiFab diagfac_cells(on_cells, distribution_map, one_component,
@@ -280,8 +328,6 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   MultiFab::Multiply(diagcomp, diagfac_nodes, 0, 0, one_component, no_ghosts);
 
   // then compute divergence term
-  // This assumes f = 0 and N = 0
-  //
   // vector field needs one ghost cell width to compute divergence!
   MultiFab UV(on_cells, distribution_map, index.momentum.size(),
               one_ghost_cell_width);
@@ -312,7 +358,8 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   // Construct sigma / weight of Laplacian (equation (27) in [BK19]
   // divided by -dt)
   MultiFab sigma(on_cells, distribution_map, one_component, no_ghosts);
-  sigma.setVal(phys_param.c_p * dt.count());
+  sigma.setVal(phys_param.c_p * dt.count() /
+               (1.0 + std::pow(dt.count() * phys_param.f, 2)));
   MultiFab::Multiply(sigma, scratch, index.PTdensity, 0, one_component,
                      sigma.nGrow());
   MultiFab::Divide(sigma, scratch, index.PTinverse, 0, one_component,
@@ -325,8 +372,18 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   // linear operator that it is non-singular and the RHS must not summ up to
   // zero.
   if (phys_param.alpha_p > 0.0) {
+    dbg_sn.SaveData(diagfac_nodes, "alpha", geom);
     lin_op.setAlpha(level, diagfac_nodes);
   }
+
+  MultiFab sigmacross(on_cells, distribution_map, AMREX_SPACEDIM*(AMREX_SPACEDIM-1), no_ghosts);
+  for (std::size_t i = 0; i < AMREX_SPACEDIM*(AMREX_SPACEDIM-1); ++i) {
+    MultiFab::Copy(sigmacross, sigma, 0, i, one_component, no_ghosts);
+    const int facsign = static_cast<double>(std::pow(-1,i));
+    sigmacross.mult(facsign * dt.count() * phys_param.f, i, 1);
+  }
+  dbg_sn.SaveData(sigmacross, DebugSnapshot::ComponentNames{"sigmac0", "sigmac1"}, geom);
+  lin_op.setSigmaCross(level, sigmacross);
 
   // solve elliptic equation for pi
   MultiFab pi(on_nodes, distribution_map, one_component, no_ghosts);
@@ -351,13 +408,24 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   MultiFab UV_correction(on_cells, distribution_map, index.momentum.size(),
                          no_ghosts);
   UV_correction.setVal(0.0);
+
   // this computes: -sigma Grad(pi)
   lin_op.getFluxes({&UV_correction}, {&pi});
+
+  MultiFab k_cross_gradpi(on_cells, distribution_map, index.momentum.size(),
+                          no_ghosts);
+
+  const std::array<int, VelocityRank> UV_index{0, 1};
+  ComputeKCrossM_(UV_index, k_cross_gradpi, phys_param.k_vect, UV_correction);
+  const double fac2 = -dt.count() * phys_param.f;
+  MultiFab::Saxpy(UV_correction, fac2, k_cross_gradpi, 0, 0,
+                  index.momentum.size(), no_ghosts);
 
   for (std::size_t i = 0; i < index.momentum.size(); ++i) {
     const int UV_component = static_cast<int>(i);
     MultiFab::Multiply(UV_correction, scratch, index.PTinverse, UV_component,
                        one_component, no_ghosts);
+
     // UV_correction is now a momentum correction. Thus add it.
     MultiFab::Add(scratch, UV_correction, UV_component, index.momentum[i],
                   one_component, no_ghosts);
@@ -404,6 +472,13 @@ void DoEulerForward_(const IndexMapping<Equation>& index,
   momentum_correction.setVal(0.0);
   // this computes: -sigma Grad(pi)
   lin_op.getFluxes({&momentum_correction}, {&pi});
+
+  MultiFab k_cross_rhou(on_cells, distribution_map, index.momentum.size(),
+                        no_ghosts);
+  ComputeKCrossM_(index.momentum, k_cross_rhou, phys_param.k_vect, scratch);
+  const double fac = -dt.count() * phys_param.f;
+  MultiFab::Saxpy(momentum_correction, fac, k_cross_rhou, 0, 0,
+                  index.momentum.size(), no_ghosts);
 
   MultiFab::Add(scratch, momentum_correction, 0, index.momentum[0],
                 index.momentum.size(), no_ghosts);
@@ -628,12 +703,14 @@ void BK19LevelIntegrator::InitialProjection(int level) {
   const fub::amrex::PatchHierarchy& hier = context.GetPatchHierarchy();
   MultiFab& scratch = context.GetScratch(level);
   MultiFab& pi = *hier.GetPatchLevel(level).nodes;
+
   const ::amrex::Geometry& geom = context.GetGeometry(level);
   std::shared_ptr<CounterRegistry> counters = advection.GetCounterRegistry();
   Timer _ = counters->get_timer("BK19LevelIntegrator::InitialProjection");
 
   BK19PhysicalParameters phys_param_aux{phys_param_};
   phys_param_aux.alpha_p = 0.0;
+  phys_param_aux.f = 0.0;
 
   context.FillGhostLayerSingleLevel(level);
   DoEulerBackward_(index_, *lin_op_, phys_param_aux, options_, scratch, pi,

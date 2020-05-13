@@ -887,6 +887,7 @@ MLNodeHelmDualLinVel::Fsmooth (int amrlev, int mglev, MultiFab& sol, const Multi
             {
                 const Box& bx = mfi.validbox();
                 Array4<Real const> const& sarr = sigma[0]->const_array(mfi);
+                Array4<Real const> const& aarr = alpha.const_array(mfi);
                 Array4<Real> const& solarr = sol.array(mfi);
                 Array4<Real const> const& rhsarr = rhs.const_array(mfi);
                 Array4<int const> const& dmskarr = dmsk.const_array(mfi);
@@ -895,13 +896,13 @@ MLNodeHelmDualLinVel::Fsmooth (int amrlev, int mglev, MultiFab& sol, const Multi
                 for (int ns = 0; ns < nsweeps; ++ns) {
                     amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
-                        mlndhelm_adotx_aa(i,j,k,Axarr,solarr,sarr,dmskarr,
+                        mlndhelm_adotx_aa(i,j,k,Axarr,solarr,sarr,aarr,dmskarr,
                                          dxinvarr);
                     });
                     AMREX_LAUNCH_DEVICE_LAMBDA ( bx, tbx,
                     {
                         mlndhelm_jacobi_aa (tbx, solarr, Axarr, rhsarr, sarr,
-                                           dmskarr, dxinvarr);
+                                           aarr, dmskarr, dxinvarr);
                     });
                 }
             }
