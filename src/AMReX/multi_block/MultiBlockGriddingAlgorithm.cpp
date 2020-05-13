@@ -31,7 +31,7 @@ MultiBlockGriddingAlgorithm::MultiBlockGriddingAlgorithm(
                                                                   plena)},
       connectivity_(std::move(connectivity)) {
   const int nlevel = plena_[0]->GetPatchHierarchy().GetMaxNumberOfLevels();
-  boundaries_.resize(nlevel);
+  boundaries_.resize(static_cast<std::size_t>(nlevel));
   int level = 0;
   for (auto& boundaries : boundaries_) {
     int k = 0;
@@ -53,10 +53,10 @@ MultiBlockGriddingAlgorithm::MultiBlockGriddingAlgorithm(
                                                                   plena)},
       connectivity_(std::move(connectivity)) {
   const int nlevel = plena_[0]->GetPatchHierarchy().GetMaxNumberOfLevels();
-  boundaries_.resize(nlevel);
+  boundaries_.resize(static_cast<std::size_t>(nlevel));
   int level = 0;
   for (auto& boundaries : boundaries_) {
-    int k = 0;
+    std::size_t k = 0;
     FUB_ASSERT(valves.size() == connectivity_.size());
     for (const BlockConnection& conn : connectivity_) {
       boundaries.emplace_back(fmt::format("MultiBlockBoundary-{}", k), *this,

@@ -320,7 +320,7 @@ int IntegratorContext::PreAdvanceLevel(int level_num,
 
 Result<void, TimeStepTooLarge>
 IntegratorContext::PostAdvanceLevel(int level_num, Duration dt,
-                                    std::pair<int, int> subcycle) {
+                                    std::pair<int, int>) {
   SetCycles(GetCycles(level_num) + 1, level_num);
   double timepoint = (GetTimePoint(level_num) + dt).count();
   ::MPI_Bcast(&timepoint, 1, MPI_DOUBLE, 0, GetMpiCommunicator());

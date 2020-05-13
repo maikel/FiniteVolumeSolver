@@ -48,6 +48,11 @@
 #include <omp.h>
 #endif
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wsign-conversion"
+#pragma GCC diagnostic ignored "-Wconversion"
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+
 namespace amrex {
 
 MLNodeHelmDualLinVel::MLNodeHelmDualLinVel (const Vector<Geometry>& a_geom,
@@ -1622,3 +1627,5 @@ MLNodeHelmDualLinVel::checkPoint (std::string const& file_name) const
 
 }
 // clang-format on
+
+#pragma GCC diagnostic pop

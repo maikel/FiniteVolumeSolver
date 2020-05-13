@@ -139,7 +139,7 @@ void AverageCellToFace_(MultiFab& mf_faces, int face_component,
         auto face_box_for_stencil = Shrink(cell_box_for_stencil, dir, {0, 1});
         auto face_box = Intersect(all_faces.Box(), face_box_for_stencil);
         auto faces = all_faces.Subview(face_box);
-        ForEachIndex(faces.Box(), [&](int i, int j) {
+        ForEachIndex(faces.Box(), [&](std::ptrdiff_t i, std::ptrdiff_t j) {
           // clang-format off
           faces(i, j) = 1.0 * cells(i - 1, j - 1) + 1.0 * cells(i, j - 1) +
                         2.0 * cells(i - 1,     j) + 2.0 * cells(i,     j) +
@@ -159,7 +159,7 @@ void AverageCellToFace_(MultiFab& mf_faces, int face_component,
         auto face_box_for_stencil = Shrink(cell_box_for_stencil, dir, {0, 1});
         auto face_box = Intersect(all_faces.Box(), face_box_for_stencil);
         auto faces = all_faces.Subview(face_box);
-        ForEachIndex(faces.Box(), [&](int i, int j) {
+        ForEachIndex(faces.Box(), [&](std::ptrdiff_t i, std::ptrdiff_t j) {
           // clang-format off
           faces(i, j) = 1.0 * cells(i - 1,     j) + 2.0 * cells(i,     j) + 1.0 * cells(i + 1,     j) +
                         1.0 * cells(i - 1, j - 1) + 2.0 * cells(i, j - 1) + 1.0 * cells(i + 1, j - 1);
@@ -181,7 +181,7 @@ void AverageCellToNode_(MultiFab& mf_nodes, int node_component,
       auto nodes = MakePatchDataView(mf_nodes[mfi], node_component);
       // We are cautious and only compute the average for nodes which exist
       // and are in range for the cells which exist on our grid
-      ForEachIndex(nodes.Box(), [&](int i, int j) {
+      ForEachIndex(nodes.Box(), [&](std::ptrdiff_t i, std::ptrdiff_t j) {
         // clang-format off
         nodes(i, j) = 0.25 * cells(i - 1, j - 1) + 0.25 * cells(i, j - 1) +
                       0.25 * cells(i - 1,     j) + 0.25 * cells(i,     j);

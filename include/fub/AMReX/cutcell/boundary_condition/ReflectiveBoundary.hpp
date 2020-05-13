@@ -75,6 +75,7 @@ void ReflectiveBoundary<Tag, Equation>::FillBoundary(
     return;
   }
   static constexpr int Rank = Equation::Rank();
+  static constexpr std::size_t sRank = static_cast<std::size_t>(Rank);
   const Eigen::Matrix<double, Rank, 1> unit = UnitVector<Rank>(dir_);
   const ::amrex::MultiFab& alphas =
       grid.GetPatchHierarchy().GetEmbeddedBoundary(level)->getVolFrac();
@@ -94,10 +95,10 @@ void ReflectiveBoundary<Tag, Equation>::FillBoundary(
       if (!box_to_fill.isEmpty()) {
         auto states =
             MakeView<Complete<Equation>>(fab, *equation_, mfi.growntilebox());
-        auto box = AsIndexBox<Equation::Rank()>(box_to_fill);
+        auto box = AsIndexBox<Rank>(box_to_fill);
         ForEachIndex(box, [&](auto... is) {
-          std::array<std::ptrdiff_t, Rank> dest{is...};
-          std::array<std::ptrdiff_t, Rank> src =
+          std::array<std::ptrdiff_t, sRank> dest{is...};
+          std::array<std::ptrdiff_t, sRank> src =
               ReflectIndex(dest, box, dir_, side_);
           ::amrex::IntVect iv{
               AMREX_D_DECL(int(src[0]), int(src[1]), int(src[2]))};

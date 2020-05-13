@@ -98,7 +98,7 @@ AxialSourceTerm::AdvanceLevel(IntegratorContext& simulation_data, int level,
   ForEachFab(data, [&](const ::amrex::MFIter& mfi) {
     ::amrex::Box box = mfi.tilebox();
     ::amrex::FArrayBox& fab = data[mfi];
-    const ::amrex::FArrayBox& Ax = Ax_[level][mfi];
+    const ::amrex::FArrayBox& Ax = Ax_[static_cast<std::size_t>(level)][mfi];
     auto states = MakeView<Complete<IdealGasMix<1>>>(fab, equation_, box);
     FlameMasterReactor& reactor = equation_.GetReactor();
     ForEachIndex(Box<0>(states), [&](std::ptrdiff_t i) {

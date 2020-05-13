@@ -56,8 +56,9 @@ void UpdateMolesFromMassFractions(FlameMasterState& state) noexcept {
 void UpdateMolesFromMassFractions(FlameMasterArrayState& state,
                                   const FlameMasterState& x) noexcept {
   for (int i = 0; i < state.moles.rows(); i++) {
+    const auto j = static_cast<std::size_t>(i);
     state.moles.row(i) =
-        state.massFractions.row(i) * state.density / x.molarMasses[i];
+        state.massFractions.row(i) * state.density / x.molarMasses[j];
     state.molesStorage.row(i + 1) = state.moles.row(i);
   }
 }
@@ -523,7 +524,8 @@ double FlameMasterReactor::GetMeanMolarMass() const {
 Array1d FlameMasterReactor::GetMeanMolarMassArray() const {
   Array1d minv = Array1d::Zero();
   for (int i = 0; i < array_state_.massFractions.rows(); ++i) {
-    minv += array_state_.massFractions.row(i) / state_.molarMasses[i];
+    const auto j = static_cast<std::size_t>(i);
+    minv += array_state_.massFractions.row(i) / state_.molarMasses[j];
   }
   minv = (minv > 0.0).select(minv, 1.0);
   Array1d mean_molar_mass = (minv > 0.0).select(Array1d::Constant(1.0) / minv, 0.0);
@@ -585,7 +587,8 @@ Array1d FlameMasterReactor::GetInternalEnergyArray() const {
   Array1d intEnergy = GetEnthalpyArray();
   Array1d minv = Array1d::Zero();
   for (int i = 0; i < array_state_.massFractions.rows(); ++i) {
-    minv += array_state_.massFractions.row(i) / state_.molarMasses[i];
+    const auto j = static_cast<std::size_t>(i);
+    minv += array_state_.massFractions.row(i) / state_.molarMasses[j];
   }
   intEnergy -= GetUniversalGasConstant() * minv * GetTemperatureArray();
   return intEnergy;

@@ -19,6 +19,8 @@
 // SOFTWARE.
 
 #include "fub/ext/Mpi.hpp"
+#include "fub/core/assert.hpp"
+
 #include <fmt/format.h>
 #include <fstream>
 
@@ -39,7 +41,9 @@ std::string ReadAndBroadcastFile(std::string filepath, MPI_Comm comm) {
     size = static_cast<int>(file.tellg());
   }
   MPI_Bcast(&size, 1, MPI_INT, 0, comm);
-  buffer.resize(size);
+  FUB_ASSERT(size >= 0);
+  const auto ssize = static_cast<std::size_t>(size);
+  buffer.resize(ssize);
   if (rank == 0) {
     std::ifstream file(filepath);
     file.read(buffer.data(), size);

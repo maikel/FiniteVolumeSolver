@@ -66,7 +66,8 @@ void UpdateConservatively_Row(double* next, const double* prev,
                               double dt_over_dx) {
 
   std::ptrdiff_t i = 0;
-  for (i = 0; i + int(Vc::double_v::size()) <= n; i += Vc::double_v::size()) {
+  const auto pack_size = static_cast<std::ptrdiff_t>(Vc::double_v::size());
+  for (i = 0; i + pack_size <= n; i += pack_size) {
     ////////////////////////////////////////////////////////////////////////////////////
     //                beta_L == beta_R  => regular update
 
@@ -324,7 +325,8 @@ void TimeIntegrator::UpdateConservatively(IntegratorContext& context, int level,
 
   const double dx = context.GetDx(level, dir);
   const double dt_over_dx = dt.count() / dx;
-  const int d = static_cast<int>(dir);
+  const auto d = static_cast<std::size_t>(dir);
+  const auto dir_v = static_cast<int>(dir);
 
   //  const int gcw =
   //  context.GetHyperbolicMethod().flux_method.GetStencilWidth();
@@ -332,7 +334,7 @@ void TimeIntegrator::UpdateConservatively(IntegratorContext& context, int level,
   ForEachFab(execution::openmp, scratch, [&](const ::amrex::MFIter& mfi) {
     ::amrex::FabType type = context.GetFabType(level, mfi);
     const ::amrex::Box tilebox = mfi.growntilebox();
-    const ::amrex::Box all_faces_tilebox = ::amrex::surroundingNodes(tilebox, d);
+    const ::amrex::Box all_faces_tilebox = ::amrex::surroundingNodes(tilebox, dir_v);
     const ::amrex::Box all_fluxes_box = unshielded[mfi].box();
     const ::amrex::Box flux_box = all_faces_tilebox & all_fluxes_box;
     const ::amrex::Box cell_box = enclosedCells(flux_box);
@@ -384,7 +386,7 @@ void TimeIntegrator::UpdateConservatively(IntegratorContext& context, int level,
       const ::amrex::FArrayBox& prev = scratch[mfi];
       const ::amrex::FArrayBox& flux = unshielded[mfi];
       const ::amrex::Box tilebox = mfi.growntilebox();
-      const ::amrex::Box all_faces_tilebox = ::amrex::surroundingNodes(tilebox, d);
+      const ::amrex::Box all_faces_tilebox = ::amrex::surroundingNodes(tilebox, dir_v);
       const ::amrex::Box all_fluxes_box = flux.box();
       const ::amrex::Box flux_box = all_faces_tilebox & all_fluxes_box;
       const ::amrex::Box cell_box = enclosedCells(flux_box);

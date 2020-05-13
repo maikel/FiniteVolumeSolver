@@ -27,24 +27,26 @@
 namespace fub {
 
 template <int Rank> struct CutCellData {
+  static constexpr auto sRank = static_cast<std::size_t>(Rank);
+
   // The next member variables are given by AMReX
   PatchDataView<const double, Rank> volume_fractions;
-  std::array<PatchDataView<const double, Rank>, Rank> face_fractions;
+  std::array<PatchDataView<const double, Rank>, sRank> face_fractions;
   PatchDataView<const double, Rank + 1> boundary_normals;
   PatchDataView<const double, Rank + 1> boundary_centeroids;
   // The following members need to be computed from the AMReX EB database
   PatchDataView<const double, Rank + 1> distance_to_boundary_left;
   PatchDataView<const double, Rank + 1> distance_to_boundary_right;
-  std::array<PatchDataView<const double, Rank>, Rank> unshielded_fractions;
-  std::array<PatchDataView<const double, Rank>, Rank> shielded_left_fractions;
-  std::array<PatchDataView<const double, Rank>, Rank> shielded_right_fractions;
-  std::array<PatchDataView<const double, Rank>, Rank> doubly_shielded_fractions;
-  std::array<PatchDataView<const double, Rank>, Rank> unshielded_fractions_rel;
-  std::array<PatchDataView<const double, Rank>, Rank>
+  std::array<PatchDataView<const double, Rank>, sRank> unshielded_fractions;
+  std::array<PatchDataView<const double, Rank>, sRank> shielded_left_fractions;
+  std::array<PatchDataView<const double, Rank>, sRank> shielded_right_fractions;
+  std::array<PatchDataView<const double, Rank>, sRank> doubly_shielded_fractions;
+  std::array<PatchDataView<const double, Rank>, sRank> unshielded_fractions_rel;
+  std::array<PatchDataView<const double, Rank>, sRank>
       shielded_left_fractions_rel;
-  std::array<PatchDataView<const double, Rank>, Rank>
+  std::array<PatchDataView<const double, Rank>, sRank>
       shielded_right_fractions_rel;
-  std::array<PatchDataView<const double, Rank>, Rank>
+  std::array<PatchDataView<const double, Rank>, sRank>
       doubly_shielded_fractions_rel;
 };
 

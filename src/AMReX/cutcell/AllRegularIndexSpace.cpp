@@ -41,7 +41,7 @@ AllRegularIndexSpace::AllRegularIndexSpace(const ::amrex::Geometry& geom,
   geometries_.push_back(geom);
   domains_.push_back(geom.Domain());
   n_grows_.push_back(ngrow_finest);
-  levels_.reserve(max_coarsening_level + 1);
+  levels_.reserve(static_cast<std::size_t>(max_coarsening_level + 1));
   levels_.emplace_back(this, gshop, geom, ::amrex::EB2::max_grid_size,
                        ngrow_finest);
 
@@ -63,7 +63,7 @@ AllRegularIndexSpace::AllRegularIndexSpace(const ::amrex::Geometry& geom,
     ::amrex::Geometry cgeom =
         ::amrex::coarsen(geometries_.back(), refine_ratio);
     levels_.emplace_back(this, ilev, ::amrex::EB2::max_grid_size, ng, cgeom,
-                         levels_[ilev - 1]);
+                         levels_[static_cast<std::size_t>(ilev - 1)]);
     if (!levels_.back().isOK()) {
       levels_.pop_back();
       if (ilev <= required_coarsening_level) {
@@ -82,14 +82,14 @@ AllRegularIndexSpace::AllRegularIndexSpace(const ::amrex::Geometry& geom,
 const ::amrex::EB2::Level&
 AllRegularIndexSpace::getLevel(const ::amrex::Geometry& geom) const {
   auto it = std::find(domains_.begin(), domains_.end(), geom.Domain());
-  int i = std::distance(domains_.begin(), it);
+  const auto i = static_cast<std::size_t>(std::distance(domains_.begin(), it));
   return levels_[i];
 }
 
 const ::amrex::Geometry&
 AllRegularIndexSpace::getGeometry(const ::amrex::Box& dom) const {
   auto it = std::find(std::begin(domains_), std::end(domains_), dom);
-  int i = std::distance(domains_.begin(), it);
+  const auto i = static_cast<std::size_t>(std::distance(domains_.begin(), it));
   return geometries_[i];
 }
 

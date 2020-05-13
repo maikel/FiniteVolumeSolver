@@ -131,7 +131,7 @@ void IsentropicPressureBoundary::FillBoundary(
                                    dir_v](auto... is) {
           std::array<std::ptrdiff_t, AMREX_SPACEDIM> dest{int(is)...};
           std::array<std::ptrdiff_t, AMREX_SPACEDIM> src = dest;
-          src[dir_v] = x0;
+          src[static_cast<std::size_t>(dir_v)] = x0;
           ::amrex::IntVect dest_iv{int(is)...};
           ::amrex::IntVect src_iv{
               AMREX_D_DECL(int(src[0]), int(src[1]), int(src[2]))};
@@ -228,7 +228,7 @@ void IsentropicPressureExpansionBoundary::FillBoundary(
                                    &states](auto... is) {
           std::array<std::ptrdiff_t, AMREX_SPACEDIM> dest{int(is)...};
           std::array<std::ptrdiff_t, AMREX_SPACEDIM> src = dest;
-          src[dir_v] = x0;
+          src[static_cast<std::size_t>(dir_v)] = x0;
           Load(state, states, src);
           Complete<PerfectGas<AMREX_SPACEDIM>> state =
               IsentropicExpansionWithoutDissipation_(

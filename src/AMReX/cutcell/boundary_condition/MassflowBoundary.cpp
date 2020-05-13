@@ -80,7 +80,8 @@ void AverageState(Complete<IdealGasMix<AMREX_SPACEDIM>>& state,
       ForEachIndex(section, [&](auto... is) {
         ::amrex::IntVect index{static_cast<int>(is)...};
         const double frac = alpha(index);
-        state_buffer[comp] += frac / total_volume * data(index, comp);
+        const auto c = static_cast<std::size_t>(comp);
+        state_buffer[c] += frac / total_volume * data(index, comp);
       });
     }
   });
@@ -88,13 +89,7 @@ void AverageState(Complete<IdealGasMix<AMREX_SPACEDIM>>& state,
   MPI_Allreduce(state_buffer.data(), global_state_buffer.data(), ncomp,
                 MPI_DOUBLE, MPI_SUM,
                 ::amrex::ParallelDescriptor::Communicator());
-  int comp = 0;
-  ForEachComponent(
-      [&comp, &global_state_buffer](auto&& var) {
-        var = global_state_buffer[comp];
-        comp += 1;
-      },
-      state);
+  CopyFromBuffer(state, global_state_buffer);
 }
 
 } // namespace
