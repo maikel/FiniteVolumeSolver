@@ -66,7 +66,7 @@ public:
                  const Vector<BoxArray>& a_grids,
                  const Vector<DistributionMapping>& a_dmap,
                  const LPInfo& a_info = LPInfo(),
-                 const Vector<FabFactory<FArrayBox> const*>& a_factory = {}) final override;
+                 const Vector<FabFactory<FArrayBox> const*>& a_factory = {});
 
     virtual std::string name () const override { return std::string("MLNodeHelmDualLinVel"); }
 
@@ -84,7 +84,7 @@ public:
                   const Vector<const MultiFab*>& rhnd,
                   const Vector<MultiFab*>& rhcc) final override;
 
-    void updateVelocity (const Vector<MultiFab*>& vel, const Vector<MultiFab const*>& sol) const final override;
+    void updateVelocity (const Vector<MultiFab*>& vel, const Vector<MultiFab const*>& sol) const;
 
 //     void compSyncResidualCoarse (MultiFab& sync_resid, const MultiFab& phi,
 //                                  const MultiFab& vold, const MultiFab* rhcc,
