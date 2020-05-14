@@ -210,8 +210,6 @@ void ComputeKCrossM_(const std::array<int, VelocityRank>& momentum_index,
                      MultiFab& result, const std::array<double, 3>& k,
                      const MultiFab& scratch) {
   if constexpr (VelocityRank == 2) {
-    FUB_ASSERT(k[0] == 0 && k[1] == 0);
-
     MultiFab::Copy(result, scratch, momentum_index[1], 0, one_component,
                    no_ghosts);
     result.mult(-k[2], 0, one_component, no_ghosts);
