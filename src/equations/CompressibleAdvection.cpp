@@ -124,14 +124,15 @@ CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
 
   for (int dim = 0; dim < SpaceDimension; ++dim) {
     const std::size_t dimli = static_cast<std::size_t>(dim);
+    std::array<double, 4> velocity;
+    velocity[0] = stencil[0].momentum[dim] / stencil[0].density;
+    velocity[1] = stencil[1].momentum[dim] / stencil[1].density;
+    velocity[2] = stencil[2].momentum[dim] / stencil[2].density;
+    velocity[3] = stencil[3].momentum[dim] / stencil[3].density;
     slope_velocity_L[dimli] =
-        LimitSlopes(stencil[0].velocity[dim], stencil[1].velocity[dim],
-                    stencil[2].velocity[dim]) /
-        dx;
+        LimitSlopes(velocity[0], velocity[1], velocity[2]) / dx;
     slope_velocity_R[dimli] =
-        LimitSlopes(stencil[1].velocity[dim], stencil[2].velocity[dim],
-                    stencil[3].velocity[dim]) /
-        dx;
+        LimitSlopes(velocity[1], velocity[2], velocity[3]) / dx;
   }
 
   std::array<double, 4> v_advect{};
@@ -154,10 +155,10 @@ CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
   for (int dim = 0; dim < SpaceDimension; ++dim) {
     const std::size_t dimli = static_cast<std::size_t>(dim);
     rec_velocity_L[dimli] =
-        stencil[1].velocity[dim] +
+        stencil[1].momentum[dim] / stencil[1].density +
         0.5 * dx * slope_velocity_L[dimli] * (1.0 - v_advect[1] * lambda);
     rec_velocity_R[dimli] =
-        stencil[2].velocity[dim] -
+        stencil[2].momentum[dim] / stencil[2].density -
         0.5 * dx * slope_velocity_R[dimli] * (1.0 + v_advect[2] * lambda);
   }
 

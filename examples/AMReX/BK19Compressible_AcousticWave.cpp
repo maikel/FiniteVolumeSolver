@@ -54,14 +54,14 @@ struct AcousticWaveInitialData : fub::amrex::BK19PhysicalParameters {
         const double Ma = std::sqrt(Msq);
 
         states.density(i, j) = rho;
-        states.velocity(i, j, 0) = U0[0] + (p - 1.0) / (rho * c) / Ma;
-        states.velocity(i, j, 1) = U0[1];
+        const double velocity0 = U0[0] + (p - 1.0) / (rho * c) / Ma;
+        const double velocity1 = U0[1];
         states.PTdensity(i, j) = rho;
 
         states.momentum(i, j, 0) =
-            states.density(i, j) * states.velocity(i, j, 0);
+            states.density(i, j) * velocity0;
         states.momentum(i, j, 1) =
-            states.density(i, j) * states.velocity(i, j, 1);
+            states.density(i, j) * velocity1;
         states.PTinverse(i, j) = states.density(i, j) / states.PTdensity(i, j);
       });
     });
@@ -110,7 +110,7 @@ void MyMain(const fub::ProgramOptions& options) {
   inidat.alpha_p = 1.0;
 
   DataDescription desc{};
-  desc.n_state_components = 7;
+  desc.n_state_components = 5;
   desc.n_cons_components = 4;
   desc.n_node_components = 1;
 
