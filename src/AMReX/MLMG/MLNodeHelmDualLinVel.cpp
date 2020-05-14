@@ -116,7 +116,7 @@ MLNodeHelmDualLinVel::setSigma (int amrlev, const MultiFab& a_sigma)
 }
 
 void
-MLNodeHelmDualCstVel::setSigmaCross (int amrlev, const MultiFab& a_sigmacross)
+MLNodeHelmDualLinVel::setSigmaCross (int amrlev, const MultiFab& a_sigmacross)
 {
     MultiFab::Copy(*m_sigmacross[amrlev][0][0], a_sigmacross, 0, 0, AMREX_SPACEDIM*(AMREX_SPACEDIM-1), 0);
 }
