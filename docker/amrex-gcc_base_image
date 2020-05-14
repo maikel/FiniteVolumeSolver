@@ -26,6 +26,7 @@ ARG CACHEBUST=1
 # RUN conan install "AMReX/20.04@finite-volume/stable"                              \
 #                      -o AMReX:dim="${AMREX_SPACEDIM}"                                      \
 #                      --build AMReX
+RUN conan user ci_user -r gitlab -p ${CI_JOB_TOKEN}
 RUN conan install "AMReX/20.04@ag-klein+FiniteVolumeSolver/stable"             \
                      -o AMReX:dim="${AMREX_SPACEDIM}"                          \
-                     --build AMReX
+                     --build AMReX -r gitlab
