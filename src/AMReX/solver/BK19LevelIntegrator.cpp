@@ -377,9 +377,9 @@ void RecoverVelocityFromMomentum_(MultiFab& scratch,
   }
 
   MultiFab sigmacross(on_cells, distribution_map, AMREX_SPACEDIM*(AMREX_SPACEDIM-1), no_ghosts);
-  for (std::size_t i = 0; i < AMREX_SPACEDIM*(AMREX_SPACEDIM-1); ++i) {
+  for (int i = 0; i < AMREX_SPACEDIM*(AMREX_SPACEDIM-1); ++i) {
     MultiFab::Copy(sigmacross, sigma, 0, i, one_component, no_ghosts);
-    const int facsign = static_cast<double>(std::pow(-1,i));
+    const double facsign = std::pow(-1.0,i);
     sigmacross.mult(facsign * dt.count() * phys_param.f, i, 1);
   }
   dbg_sn.SaveData(sigmacross, DebugSnapshot::ComponentNames{"sigmac0", "sigmac1"}, geom);
