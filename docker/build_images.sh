@@ -94,7 +94,7 @@ main() {
   elif [[ "${COMPILER}" == "clang" ]]; then
     for AMREX_SPACEDIM in ${AMREX_SPACEDIMS[@]}; do
       printf "[Build] Docker Image for ${COMPILER_ID} with Dimension ${AMREX_SPACEDIM}\n" && \
-      build_clang_image "${COMPILER_ID}" "${AMREX_SPACEDIM}" "${CI_JOB_TOKEN}             && \
+      build_clang_image "${COMPILER_ID}" "${AMREX_SPACEDIM}" "${CI_JOB_TOKEN}"            && \
       printf "[Push] Docker Image for ${COMPILER_ID} with Dimension ${AMREX_SPACEDIM}\n"  && \
       push_docker_image "${COMPILER_ID}" "${AMREX_SPACEDIM}"
       ec=$?
