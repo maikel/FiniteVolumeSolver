@@ -45,16 +45,12 @@ struct InitialData {
           states.momentum(i, j, 0) = 0.0;
           states.momentum(i, j, 1) = 0.0;
           states.PTdensity(i, j) = 1.0;
-          states.velocity(i, j, 0) = 0.0;
-          states.velocity(i, j, 1) = 0.0;
           states.PTinverse(i, j) = 42.0;
         } else {
           states.density(i, j) = 24.0;
           states.momentum(i, j, 0) = 0.0;
           states.momentum(i, j, 1) = 0.0;
           states.PTdensity(i, j) = 1.0;
-          states.velocity(i, j, 0) = 0.0;
-          states.velocity(i, j, 1) = 0.0;
           states.PTinverse(i, j) = 24.0;
         }
       });
@@ -70,7 +66,7 @@ int main() {
   fub::InitializeLogging(MPI_COMM_WORLD);
 
   fub::amrex::DataDescription desc{};
-  desc.n_state_components = 7;
+  desc.n_state_components = 5;
   desc.n_cons_components = 4;
 
   fub::amrex::CartesianGridGeometry geometry{};
