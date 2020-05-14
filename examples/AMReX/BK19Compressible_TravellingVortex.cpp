@@ -99,6 +99,8 @@ struct TravellingVortexInitialData : fub::amrex::BK19PhysicalParameters {
         const double dx = x - center[0];
         const double dy = y - center[1];
         const double r = std::sqrt(dx * dx + dy * dy);
+        double velocity0;
+        double velocity1;
 
         states.PTdensity(i, j) = 1.0;
 
@@ -109,20 +111,20 @@ struct TravellingVortexInitialData : fub::amrex::BK19PhysicalParameters {
 
           states.density(i, j) =
               rho0 + del_rho * std::pow(1.0 - r_over_R0 * r_over_R0, 6);
-          states.velocity(i, j, 0) = U0[0] - uth * (dy / r);
-          states.velocity(i, j, 1) = U0[1] + uth * (dx / r);
+          velocity0 = U0[0] - uth * (dy / r);
+          velocity1 = U0[1] + uth * (dx / r);
           const double p = 1.0 + Msq * p_tilde(r_over_R0);
           states.PTdensity(i, j) = std::pow(p, 1.0 / gamma);
         } else {
           states.density(i, j) = rho0;
-          states.velocity(i, j, 0) = U0[0];
-          states.velocity(i, j, 1) = U0[1];
+          velocity0 = U0[0];
+          velocity1 = U0[1];
         }
 
         states.momentum(i, j, 0) =
-            states.density(i, j) * states.velocity(i, j, 0);
+            states.density(i, j) * velocity0;
         states.momentum(i, j, 1) =
-            states.density(i, j) * states.velocity(i, j, 1);
+            states.density(i, j) * velocity1;
         states.PTinverse(i, j) = states.density(i, j) / states.PTdensity(i, j);
       });
     });
@@ -182,7 +184,7 @@ void MyMain(const fub::ProgramOptions& options) {
   inidat.alpha_p = 1.0;
 
   DataDescription desc{};
-  desc.n_state_components = 7;
+  desc.n_state_components = 5;
   desc.n_cons_components = 4;
   desc.n_node_components = 1;
 
