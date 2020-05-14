@@ -78,6 +78,7 @@ AMREX_SPACEDIMS=("2" "3")
 main() {
   COMPILER_ID=$1
   CI_JOB_TOKEN=$2
+  printf "CI_JOB_TOKEN: ${CI_JOB_TOKEN}\n\n"
   COMPILER="$(echo "${COMPILER_ID}" | sed s/[0-9]//)"
   if [[ "${COMPILER}" == "gcc" ]]; then
     for AMREX_SPACEDIM in ${AMREX_SPACEDIMS[@]}; do
