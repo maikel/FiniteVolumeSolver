@@ -20,8 +20,9 @@ RUN mkdir llvm_download \
   && cd ../ \
   && rm -r llvm_download
 
-RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/finite-volume \
- && conan profile new /root/.conan/profiles/default --detect
+RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/finite-volume 
+RUN conan remote add gitlab https://git.imp.fu-berlin.de/api/v4/packages/conan
+RUN conan profile new /root/.conan/profiles/default --detect
 
 ARG CLANG_VERSION
 RUN sed s/libstdc++/libc++/ -i /root/.conan/profiles/default                                \
@@ -36,6 +37,9 @@ RUN conan install boost/1.71.0@conan/stable --build missing --env CXX=clang++ --
 
 ARG AMREX_SPACEDIM
 ARG CACHEBUST=1
-RUN conan install "AMReX/20.04@finite-volume/stable"                              \
+# RUN conan install "AMReX/20.04@finite-volume/stable"                              \
+#                      -o AMReX:dim="${AMREX_SPACEDIM}"                                      \
+#                      --build AMReX --env CXX=clang++ --env CC=clang
+RUN conan install "AMReX/20.04@ag-klein+FiniteVolumeSolver/stable"                              \
                      -o AMReX:dim="${AMREX_SPACEDIM}"                                      \
                      --build AMReX --env CXX=clang++ --env CC=clang
