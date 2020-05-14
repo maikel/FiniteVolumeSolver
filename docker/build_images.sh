@@ -77,11 +77,12 @@ AMREX_SPACEDIMS=("2" "3")
 
 main() {
   COMPILER_ID=$1
+  CI_JOB_TOKEN=$2
   COMPILER="$(echo "${COMPILER_ID}" | sed s/[0-9]//)"
   if [[ "${COMPILER}" == "gcc" ]]; then
     for AMREX_SPACEDIM in ${AMREX_SPACEDIMS[@]}; do
       printf "[Build] Docker Image for ${COMPILER_ID} with Dimension ${AMREX_SPACEDIM}\n" && \
-      build_gcc_image "${COMPILER_ID}" "${AMREX_SPACEDIM}"                                && \
+      build_gcc_image "${COMPILER_ID}" "${AMREX_SPACEDIM}" "${CI_JOB_TOKEN}"              && \
       printf "[Push] Docker Image for ${COMPILER_ID} with Dimension ${AMREX_SPACEDIM}\n"  && \
       push_docker_image "${COMPILER_ID}" "${AMREX_SPACEDIM}"
       ec=$?
@@ -93,7 +94,7 @@ main() {
   elif [[ "${COMPILER}" == "clang" ]]; then
     for AMREX_SPACEDIM in ${AMREX_SPACEDIMS[@]}; do
       printf "[Build] Docker Image for ${COMPILER_ID} with Dimension ${AMREX_SPACEDIM}\n" && \
-      build_clang_image "${COMPILER_ID}" "${AMREX_SPACEDIM}"                              && \
+      build_clang_image "${COMPILER_ID}" "${AMREX_SPACEDIM}" "${CI_JOB_TOKEN}             && \
       printf "[Push] Docker Image for ${COMPILER_ID} with Dimension ${AMREX_SPACEDIM}\n"  && \
       push_docker_image "${COMPILER_ID}" "${AMREX_SPACEDIM}"
       ec=$?
