@@ -15,20 +15,20 @@ build_clang_image() {
   COMPILER_ID="$1"
   AMREX_SPACEDIM="$2"
   case "${COMPILER_ID}" in
-  clang5)
-    CLANG_URL="https://releases.llvm.org/5.0.2/clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-16.04.tar.xz"
-    CLANG_VERSION=5.0
-    ;;
-  clang6)
-    CLANG_URL="https://releases.llvm.org/6.0.1/clang+llvm-6.0.1-x86_64-linux-gnu-ubuntu-16.04.tar.xz"
-    CLANG_VERSION=6.0
-    ;;
+#   clang5)
+#     CLANG_URL="https://releases.llvm.org/5.0.2/clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-16.04.tar.xz"
+#     CLANG_VERSION=5.0
+#     ;;
+#   clang6)
+#     CLANG_URL="https://releases.llvm.org/6.0.1/clang+llvm-6.0.1-x86_64-linux-gnu-ubuntu-16.04.tar.xz"
+#     CLANG_VERSION=6.0
+#     ;;
   clang7)
-    CLANG_URL="https://releases.llvm.org/7.0.1/clang+llvm-7.0.1-x86_64-linux-gnu-ubuntu-16.04.tar.xz"
+    CLANG_URL="https://releases.llvm.org/7.0.1/clang+llvm-7.0.1-x86_64-linux-gnu-ubuntu-18.04.tar.xz"
     CLANG_VERSION=7.0
     ;;
   clang8)
-    CLANG_URL="https://releases.llvm.org/8.0.0/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz"
+    CLANG_URL="https://releases.llvm.org/8.0.0/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz"
     CLANG_VERSION="8"
     ;;
   esac
@@ -102,7 +102,7 @@ main() {
         exit "${ec}"
       fi
     done
-  else 
+  else
     printf "Unknown COMPILER_ID '${COMPILER_ID}'.\n"
     exit 1;
   fi
