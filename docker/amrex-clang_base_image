@@ -1,8 +1,10 @@
-FROM ubuntu:16.04
+ARG UBUNTU_VERSION
+FROM ubuntu:$UBUNTU_VERSION
 
-RUN apt-get update                                                                           \
- && apt-get install --yes python3-pip wget libopenmpi-dev libpthread-stubs0-dev git gfortran m4 \
- && pip3 install conan
+RUN apt-get update \
+  && apt-get --yes dist-upgrade \
+  && apt-get install --yes gfortran python3-pip wget libpthread-stubs0-dev git libopenmpi-dev m4 \
+  && pip3 install conan
 
 # Install latest CMake files from the internet
 RUN wget https://github.com/Kitware/CMake/releases/download/v3.14.2/cmake-3.14.2-Linux-x86_64.tar.gz \
@@ -20,7 +22,7 @@ RUN mkdir llvm_download \
   && cd ../ \
   && rm -r llvm_download
 
-RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/finite-volume 
+RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/finite-volume
 RUN conan remote add gitlab https://git.imp.fu-berlin.de/api/v4/packages/conan
 RUN conan profile new /root/.conan/profiles/default --detect
 
@@ -28,18 +30,15 @@ ARG CLANG_VERSION
 RUN sed s/libstdc++/libc++/ -i /root/.conan/profiles/default                                \
  && sed s/gcc/clang/ -i /root/.conan/profiles/default                                       \
  && sed "s/version=5/version=${CLANG_VERSION}/" -i /root/.conan/profiles/default             
-RUN conan install boost/1.71.0@conan/stable --build missing --env CXX=clang++ --env CC=clang                            \
- && conan install eigen/3.3.7@conan/stable  --build missing --env CXX=clang++ --env CC=clang                                 \
- && conan install fmt/5.3.0@bincrafters/stable --build missing --env CXX=clang++ --env CC=clang \
+RUN conan install boost/1.71.0@conan/stable --build missing --env CXX=clang++ --env CC=clang     \
+ && conan install eigen/3.3.7@conan/stable  --build missing --env CXX=clang++ --env CC=clang     \
+ && conan install fmt/5.3.0@bincrafters/stable --build missing --env CXX=clang++ --env CC=clang  \
  && conan install Vc/1.4.1@finite-volume/stable --build missing --env CXX=clang++ --env CC=clang \
  && conan install SAMRAI/3.15.0@finite-volume/stable --build missing --env CXX=clang++ --env CC=clang \
  && conan install pybind11/2.3.0@conan/stable --build missing --env CXX=clang++ --env CC=clang
 
 ARG AMREX_SPACEDIM
 ARG CACHEBUST=1
-# RUN conan install "AMReX/20.04@finite-volume/stable"                              \
-#                      -o AMReX:dim="${AMREX_SPACEDIM}"                                      \
-#                      --build AMReX --env CXX=clang++ --env CC=clang
-RUN conan install "AMReX/20.04@ag-klein+FiniteVolumeSolver/stable"                              \
-                     -o AMReX:dim="${AMREX_SPACEDIM}"                                      \
-                     --build AMReX --env CXX=clang++ --env CC=clang
+RUN conan install "AMReX/20.04@finite-volume/stable"              \
+                  -o AMReX:dim="${AMREX_SPACEDIM}"                \
+                  --build AMReX --env CXX=clang++ --env CC=clang

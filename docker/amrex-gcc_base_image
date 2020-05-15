@@ -13,7 +13,8 @@ RUN wget https://github.com/Kitware/CMake/releases/download/v3.14.2/cmake-3.14.2
 
 RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/finite-volume
 RUN conan remote add gitlab https://git.imp.fu-berlin.de/api/v4/packages/conan
-RUN conan profile new default --detect 
+RUN conan profile new default --detect
+
 RUN sed s/libstdc++/libstdc++11/ -i /root/.conan/profiles/default
 RUN conan install boost/1.71.0@conan/stable --build missing                                \
     && conan install eigen/3.3.7@conan/stable  --build missing                             \
@@ -23,11 +24,6 @@ RUN conan install boost/1.71.0@conan/stable --build missing                     
     && conan install pybind11/2.3.0@conan/stable --build missing
 ARG AMREX_SPACEDIM
 ARG CACHEBUST=1
-# RUN conan install "AMReX/20.04@finite-volume/stable"                              \
-#                      -o AMReX:dim="${AMREX_SPACEDIM}"                                      \
-#                      --build AMReX
-ARG CI_JOB_TOKEN
-RUN conan user ci_user -r gitlab -p ${CI_JOB_TOKEN}
-RUN conan install "AMReX/20.04@ag-klein+FiniteVolumeSolver/stable"             \
-                     -o AMReX:dim="${AMREX_SPACEDIM}"                          \
-                     --build AMReX -r gitlab
+RUN conan install "AMReX/20.04@finite-volume/stable"              \
+                  -o AMReX:dim="${AMREX_SPACEDIM}"                \
+                  --build AMReX

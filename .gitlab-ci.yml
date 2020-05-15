@@ -13,8 +13,7 @@ stages:
   script:
     - apk add bash
     - cd docker/
-    - echo ${CI_JOB_TOKEN}
-    - bash build_images.sh ${COMPILER_ID} ${CI_JOB_TOKEN}
+    - bash build_images.sh ${COMPILER_ID}
 
 build_clang8:
   variables:
