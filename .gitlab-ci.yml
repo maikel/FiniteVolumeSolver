@@ -10,10 +10,13 @@ stages:
   image: docker:git
   before_script:
     - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
+    - conan remote add gitlab https://git.imp.fu-berlin.de/api/v4/packages/conan
+    - conan user ci_user -r gitlab -p ${CI_JOB_TOKEN} 
   script:
     - apk add bash
     - cd docker/
-    - bash build_images.sh ${COMPILER_ID} $CI_JOB_TOKEN
+    - echo ${CI_JOB_TOKEN}
+    - bash build_images.sh ${COMPILER_ID} ${CI_JOB_TOKEN}
 
 build_clang8:
   variables:
