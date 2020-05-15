@@ -28,7 +28,7 @@ RUN conan profile new /root/.conan/profiles/default --detect
 ARG CLANG_VERSION
 RUN sed s/libstdc++/libc++/ -i /root/.conan/profiles/default                                \
  && sed s/gcc/clang/ -i /root/.conan/profiles/default                                       \
- && sed "s/version=5/version=${CLANG_VERSION}/" -i /root/.conan/profiles/default             
+ && sed "s/version=7/version=${CLANG_VERSION}/" -i /root/.conan/profiles/default
 RUN conan install boost/1.71.0@conan/stable --build missing --env CXX=clang++ --env CC=clang     \
  && conan install eigen/3.3.7@conan/stable  --build missing --env CXX=clang++ --env CC=clang     \
  && conan install fmt/5.3.0@bincrafters/stable --build missing --env CXX=clang++ --env CC=clang  \
