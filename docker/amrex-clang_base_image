@@ -1,5 +1,4 @@
-ARG UBUNTU_VERSION
-FROM ubuntu:$UBUNTU_VERSION
+FROM ubuntu:18.04
 
 RUN apt-get update \
   && apt-get --yes dist-upgrade \
