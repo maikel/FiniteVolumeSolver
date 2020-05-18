@@ -27,47 +27,30 @@ build_gcc9:
   <<: *build_base
 
 
-conan:amrex-2d_clang8:
-  image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:2d_clang8
-  services:
-    - docker:git
-  stage: install_conan_packages
-  script:
-    - conan user ci_user -r gitlab -p ${CI_JOB_TOKEN}
-    - conan install "AMReX/20.04@ag-klein+FiniteVolumeSolver/stable" -o AMReX:dim="2" --build AMReX --env CXX=clang++ --env CC=clang
-    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
-    - docker push "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:2d_clang8"
+#conan:amrex-2d_clang8:
+  #image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:2d_clang8
+  #stage: install_conan_packages
+  #script:
+    #- conan user ci_user -r gitlab -p ${CI_JOB_TOKEN}
+    #- conan install "AMReX/20.04@ag-klein+FiniteVolumeSolver/stable" -o AMReX:dim="2" --build AMReX --env CXX=clang++ --env CC=clang
 
-conan:amrex-3d_clang8:
-  image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:3d_clang8
-  services:
-    - docker:git
-  stage: install_conan_packages
-  script:
-    - conan user ci_user -r gitlab -p ${CI_JOB_TOKEN}
-    - conan install "AMReX/20.04@ag-klein+FiniteVolumeSolver/stable" -o AMReX:dim="3" --build AMReX --env CXX=clang++ --env CC=clang
-    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
-    - docker push "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:3d_clang8"
+#conan:amrex-3d_clang8:
+  #image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:3d_clang8
+  #stage: install_conan_packages
+  #script:
+    #- conan user ci_user -r gitlab -p ${CI_JOB_TOKEN}
+    #- conan install "AMReX/20.04@ag-klein+FiniteVolumeSolver/stable" -o AMReX:dim="3" --build AMReX --env CXX=clang++ --env CC=clang
 
-conan:amrex-2d_gcc9:
-  image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:2d_gcc9
-  services:
-    - docker:git
-  stage: install_conan_packages
-  script:
-    - conan user ci_user -r gitlab -p ${CI_JOB_TOKEN}
-    - conan install "AMReX/20.04@ag-klein+FiniteVolumeSolver/stable" -o AMReX:dim="2" --build AMReX
-    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
-    - docker push "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:2d_gcc9"
+#conan:amrex-2d_gcc9:
+  #image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:2d_gcc9
+  #stage: install_conan_packages
+  #script:
+    #- conan user ci_user -r gitlab -p ${CI_JOB_TOKEN}
+    #- conan install "AMReX/20.04@ag-klein+FiniteVolumeSolver/stable" -o AMReX:dim="2" --build AMReX
 
-conan:amrex-3d_gcc9:
-  image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:3d_gcc9
-  services:
-    - docker:git
-  stage: install_conan_packages
-  script:
-    - conan user ci_user -r gitlab -p ${CI_JOB_TOKEN}
-    - conan install "AMReX/20.04@ag-klein+FiniteVolumeSolver/stable" -o AMReX:dim="3" --build AMReX
-    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
-    - docker push "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:3d_gcc9"
-
+#conan:amrex-3d_gcc9:
+  #image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:3d_gcc9
+  #stage: install_conan_packages
+  #script:
+    #- conan user ci_user -r gitlab -p ${CI_JOB_TOKEN}
+    #- conan install "AMReX/20.04@ag-klein+FiniteVolumeSolver/stable" -o AMReX:dim="3" --build AMReX
