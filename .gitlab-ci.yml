@@ -15,7 +15,7 @@ stages:
     - apk add bash
     - cd docker/
     - bash build_images.sh ${COMPILER_ID}
-    - docker run conan user ci_user -r gitlab -p ${CI_JOB_TOKEN}
+    - docker run "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:2d_${COMPILER_ID}" conan user ci_user -r gitlab -p ${CI_JOB_TOKEN}
 
 build_clang8:
   variables:
