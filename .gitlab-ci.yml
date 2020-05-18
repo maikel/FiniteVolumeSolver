@@ -15,6 +15,7 @@ stages:
     - apk add bash
     - cd docker/
     - bash build_images.sh ${COMPILER_ID}
+    - docker run conan user ci_user -r gitlab -p ${CI_JOB_TOKEN}
 
 build_clang8:
   variables:
