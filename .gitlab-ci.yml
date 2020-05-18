@@ -29,6 +29,8 @@ build_gcc9:
 
 conan:amrex-2d_clang8:
   image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:2d_clang8
+  services:
+    - docker:git
   stage: install_conan_packages
   script:
     - conan user ci_user -r gitlab -p ${CI_JOB_TOKEN}
@@ -38,6 +40,8 @@ conan:amrex-2d_clang8:
 
 conan:amrex-3d_clang8:
   image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:3d_clang8
+  services:
+    - docker:git
   stage: install_conan_packages
   script:
     - conan user ci_user -r gitlab -p ${CI_JOB_TOKEN}
@@ -47,6 +51,8 @@ conan:amrex-3d_clang8:
 
 conan:amrex-2d_gcc9:
   image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:2d_gcc9
+  services:
+    - docker:git
   stage: install_conan_packages
   script:
     - conan user ci_user -r gitlab -p ${CI_JOB_TOKEN}
@@ -56,6 +62,8 @@ conan:amrex-2d_gcc9:
 
 conan:amrex-3d_gcc9:
   image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:3d_gcc9
+  services:
+    - docker:git
   stage: install_conan_packages
   script:
     - conan user ci_user -r gitlab -p ${CI_JOB_TOKEN}
