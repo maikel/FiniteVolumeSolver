@@ -14,7 +14,14 @@ stages:
   script:
     - apk add bash
     - cd docker/
-    - bash build_images.sh ${COMPILER_ID}
+    - for AMREX_SPACEDIM in 2 3
+      do
+        printf "[Build] Docker Image for ${COMPILER_ID} with Dimension ${AMREX_SPACEDIM}\n"
+        #build_gcc_image "${COMPILER_ID}" "${AMREX_SPACEDIM}"
+        printf "[Push] Docker Image for ${COMPILER_ID} with Dimension ${AMREX_SPACEDIM}\n"
+        #push_docker_image "${COMPILER_ID}" "${AMREX_SPACEDIM}"
+      done
+    #- bash build_images.sh ${COMPILER_ID}
 
 build_clang8:
   variables:
