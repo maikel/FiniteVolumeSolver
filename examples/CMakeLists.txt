@@ -71,6 +71,9 @@ if (AMReX_FOUND AND AMReX_2D_FOUND)
   add_executable_with_warnings(AMReX.BK19Compressible_AcousticWave AMReX/BK19Compressible_AcousticWave.cpp)
   target_link_libraries(AMReX.BK19Compressible_AcousticWave FiniteVolumeSolver.AMReX)
 
+  add_executable_with_warnings(AMReX.BK19Compressible_AcousticWaveWall AMReX/BK19Compressible_AcousticWaveWall.cpp)
+  target_link_libraries(AMReX.BK19Compressible_AcousticWaveWall FiniteVolumeSolver.AMReX)
+
   add_executable_with_warnings(AMReX.BK19Compressible_VortexCoriolis AMReX/BK19Compressible_VortexCoriolis.cpp)
   target_link_libraries(AMReX.BK19Compressible_VortexCoriolis FiniteVolumeSolver.AMReX)
 

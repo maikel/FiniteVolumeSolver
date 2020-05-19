@@ -151,6 +151,11 @@ struct CompressibleAdvectionFluxMethod {
 // extern template struct CompressibleAdvection<2>;
 extern template struct CompressibleAdvectionFluxMethod<2>;
 
+void Reflect(Complete<CompressibleAdvection<2>>& reflected,
+             const Complete<CompressibleAdvection<2>>& state,
+             const Eigen::Vector2d& normal, const CompressibleAdvection<2>& gas);
+
+
 } // namespace fub
 
 #endif

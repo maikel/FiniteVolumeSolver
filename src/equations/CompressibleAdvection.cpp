@@ -257,4 +257,16 @@ void CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
 
 template struct CompressibleAdvectionFluxMethod<2>;
 
+void Reflect(Complete<CompressibleAdvection<2>>& reflected,
+             const Complete<CompressibleAdvection<2>>& state,
+             const Eigen::Vector2d& normal, const CompressibleAdvection<2>&) {
+  reflected.density = state.density;
+  reflected.PTdensity = state.PTdensity;
+  reflected.PTinverse = state.PTinverse;
+  reflected.momentum =
+      state.momentum -
+      2 * (state.momentum.matrix().dot(normal) * normal).array();
+}
+
+
 } // namespace fub
