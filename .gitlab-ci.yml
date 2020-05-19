@@ -35,7 +35,7 @@ stages:
           --build-arg GCC_VERSION="${GCC_VERSION}" \
           --build-arg AMREX_SPACEDIM="${AMREX_SPACEDIM}" \
           --build-arg CACHEBUST="$(date +%s)" \
-          -f docker/amrex-gcc_base_image .
+          -f amrex-gcc_base_image .
 
         printf "[Push] Docker Image for ${COMPILER_ID} with Dimension ${AMREX_SPACEDIM}\n"
         docker push "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:${AMREX_SPACEDIM}d_${COMPILER_ID}"
