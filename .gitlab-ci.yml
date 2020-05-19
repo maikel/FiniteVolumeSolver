@@ -35,6 +35,7 @@ stages:
           --build-arg GCC_VERSION="${GCC_VERSION}" \
           --build-arg AMREX_SPACEDIM="${AMREX_SPACEDIM}" \
           --build-arg CACHEBUST="$(date +%s)" \
+          --build-arg CI_JOB_TOKEN="${CI_JOB_TOKEN}" \
           -f amrex-gcc_base_image .
 
         printf "[Push] Docker Image for ${COMPILER_ID} with Dimension ${AMREX_SPACEDIM}\n"

@@ -1,6 +1,8 @@
 ARG UBUNTU_VERSION
 FROM ubuntu:$UBUNTU_VERSION
 
+ARG CI_JOB_TOKEN
+RUN printf "CI_JOB_TOKEN: ${CI_JOB_TOKEN}\n"
 RUN apt-get update \
   && apt-get --yes dist-upgrade \
   && apt-get install --yes gfortran python3-pip wget libpthread-stubs0-dev git libopenmpi-dev m4 \
