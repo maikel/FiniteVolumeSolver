@@ -6,6 +6,41 @@ stages:
   - build
   - install_conan_packages
 
+.build_gcc_image: &build_gcc_image
+  stage: build
+  image: docker:git
+  before_script:
+    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
+  script:
+    - apk add bash
+    - cd docker/
+    - >
+      for AMREX_SPACEDIM in 2 3; do
+        printf "[Build] Docker Image for ${COMPILER_ID} with Dimension ${AMREX_SPACEDIM}\n"
+        GCC_VERSION=$(echo "${COMPILER_ID}" | sed 's/[^[0-9]*//g')
+        case "${GCC_VERSION}" in
+          7)
+            UBUNTU_VERSION="18.04"
+            ;;
+          8)
+            UBUNTU_VERSION="18.10"
+            ;;
+          9)
+            UBUNTU_VERSION="19.10"
+            ;;
+        esac
+        docker build \
+          -t "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:${AMREX_SPACEDIM}d_${COMPILER_ID}" \
+          --build-arg UBUNTU_VERSION="${UBUNTU_VERSION}" \
+          --build-arg GCC_VERSION="${GCC_VERSION}" \
+          --build-arg AMREX_SPACEDIM="${AMREX_SPACEDIM}" \
+          --build-arg CACHEBUST="$(date +%s)" \
+          -f docker/amrex-gcc_base_image .
+
+        printf "[Push] Docker Image for ${COMPILER_ID} with Dimension ${AMREX_SPACEDIM}\n"
+        docker push "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:${AMREX_SPACEDIM}d_${COMPILER_ID}"
+      done
+
 .build_base: &build_base
   stage: build
   image: docker:git
@@ -17,6 +52,7 @@ stages:
     - >
       for AMREX_SPACEDIM in 2 3; do
         printf "[Build] Docker Image for ${COMPILER_ID} with Dimension ${AMREX_SPACEDIM}\n"
+
         printf "[Push] Docker Image for ${COMPILER_ID} with Dimension ${AMREX_SPACEDIM}\n"
       done
 
@@ -28,7 +64,7 @@ build_clang8:
 build_gcc9:
   variables:
     COMPILER_ID: "gcc9"
-  <<: *build_base
+  <<: *build_gcc_image
 
 
 #conan:amrex-2d_clang8:
