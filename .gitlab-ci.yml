@@ -37,7 +37,7 @@ stages:
           --build-arg CACHEBUST="$(date +%s)" \
           -f amrex-gcc_base_image .
 
-          docker run git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:${AMREX_SPACEDIM}d_${COMPILER_ID} CONAN_LOGIN_USERNAME=svater CONAN_PASSWORD=hAuAmm7KwBDsKuG3tN_5 conan install -r gitlab AMReX/20.04@ag-klein+FiniteVolumeSolver/stable -o AMReX:dim="${AMREX_SPACEDIM}" --build AMReX
+          docker run git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:${AMREX_SPACEDIM}d_${COMPILER_ID} CONAN_LOGIN_USERNAME=ci_user CONAN_PASSWORD=${CI_JOB_TOKEN} conan install -r gitlab AMReX/20.04@ag-klein+FiniteVolumeSolver/stable -o AMReX:dim="${AMREX_SPACEDIM}" --build AMReX
         printf "[Push] Docker Image for ${COMPILER_ID} with Dimension ${AMREX_SPACEDIM}\n"
         docker push "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:${AMREX_SPACEDIM}d_${COMPILER_ID}"
       done
