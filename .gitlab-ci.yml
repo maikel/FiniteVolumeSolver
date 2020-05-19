@@ -42,7 +42,7 @@ stages:
         docker push "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:${AMREX_SPACEDIM}d_${COMPILER_ID}"
       done
 
-.build_base: &build_base
+.build_clang_image: &build_clang_image
   stage: build
   image: docker:git
   before_script:
@@ -53,45 +53,36 @@ stages:
     - >
       for AMREX_SPACEDIM in 2 3; do
         printf "[Build] Docker Image for ${COMPILER_ID} with Dimension ${AMREX_SPACEDIM}\n"
+        case "${COMPILER_ID}" in
+        clang7)
+          CLANG_URL="https://releases.llvm.org/7.0.1/clang+llvm-7.0.1-x86_64-linux-gnu-ubuntu-18.04.tar.xz"
+          CLANG_VERSION=7.0
+          ;;
+        clang8)
+          CLANG_URL="https://releases.llvm.org/8.0.0/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz"
+          CLANG_VERSION="8"
+          ;;
+        esac
+        docker build \
+          -t "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:${AMREX_SPACEDIM}d_${COMPILER_ID}" \
+          --build-arg CLANG_URL="${CLANG_URL}" \
+          --build-arg CLANG_VERSION="${CLANG_VERSION}" \
+          --build-arg AMREX_SPACEDIM="${AMREX_SPACEDIM}" \
+          --build-arg CACHEBUST="$(date +%s)" \
+          --build-arg CI_JOB_TOKEN="${CI_JOB_TOKEN}" \
+          -f amrex-clang_base_image .
 
         printf "[Push] Docker Image for ${COMPILER_ID} with Dimension ${AMREX_SPACEDIM}\n"
+        docker push "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:${AMREX_SPACEDIM}d_${COMPILER_ID}"
       done
+
 
 build_clang8:
   variables:
     COMPILER_ID: "clang8"
-  <<: *build_base
+  <<: *build_clang_image
 
 build_gcc9:
   variables:
     COMPILER_ID: "gcc9"
   <<: *build_gcc_image
-
-
-#conan:amrex-2d_clang8:
-  #image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:2d_clang8
-  #stage: install_conan_packages
-  #script:
-    #- conan user ci_user -r gitlab -p ${CI_JOB_TOKEN}
-    #- conan install "AMReX/20.04@ag-klein+FiniteVolumeSolver/stable" -o AMReX:dim="2" --build AMReX --env CXX=clang++ --env CC=clang
-
-#conan:amrex-3d_clang8:
-  #image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:3d_clang8
-  #stage: install_conan_packages
-  #script:
-    #- conan user ci_user -r gitlab -p ${CI_JOB_TOKEN}
-    #- conan install "AMReX/20.04@ag-klein+FiniteVolumeSolver/stable" -o AMReX:dim="3" --build AMReX --env CXX=clang++ --env CC=clang
-
-#conan:amrex-2d_gcc9:
-  #image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:2d_gcc9
-  #stage: install_conan_packages
-  #script:
-    #- conan user ci_user -r gitlab -p ${CI_JOB_TOKEN}
-    #- conan install "AMReX/20.04@ag-klein+FiniteVolumeSolver/stable" -o AMReX:dim="2" --build AMReX
-
-#conan:amrex-3d_gcc9:
-  #image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:3d_gcc9
-  #stage: install_conan_packages
-  #script:
-    #- conan user ci_user -r gitlab -p ${CI_JOB_TOKEN}
-    #- conan install "AMReX/20.04@ag-klein+FiniteVolumeSolver/stable" -o AMReX:dim="3" --build AMReX
