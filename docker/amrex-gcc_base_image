@@ -1,6 +1,9 @@
 ARG UBUNTU_VERSION
 FROM ubuntu:$UBUNTU_VERSION
 
+ARG CI_JOB_TOKEN
+ENV CI_JOB_TOKEN ${CI_JOB_TOKEN}
+
 RUN apt-get update \
   && apt-get --yes dist-upgrade \
   && apt-get install --yes gfortran python3-pip wget libpthread-stubs0-dev git libopenmpi-dev m4 \
@@ -14,6 +17,7 @@ RUN wget https://github.com/Kitware/CMake/releases/download/v3.14.2/cmake-3.14.2
 RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/finite-volume
 RUN conan remote add gitlab https://git.imp.fu-berlin.de/api/v4/packages/conan
 RUN conan profile new default --detect
+RUN conan user ci_user -r gitlab -p ${CI_JOB_TOKEN}
 
 RUN sed s/libstdc++/libstdc++11/ -i /root/.conan/profiles/default
 RUN conan install boost/1.71.0@conan/stable --build missing                                \
