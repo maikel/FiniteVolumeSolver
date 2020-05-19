@@ -14,8 +14,8 @@ stages:
   script:
     - apk add bash
     - cd docker/
-    - for AMREX_SPACEDIM in 2 3
-      do
+    - >
+      for AMREX_SPACEDIM in 2 3; do
         printf "[Build] Docker Image for ${COMPILER_ID} with Dimension ${AMREX_SPACEDIM}\n"
         printf "[Push] Docker Image for ${COMPILER_ID} with Dimension ${AMREX_SPACEDIM}\n"
       done
