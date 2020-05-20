@@ -29,5 +29,6 @@ RUN conan install pybind11/2.3.0@conan/stable --build missing
 
 ARG AMREX_SPACEDIM
 ARG CACHEBUST=1
-RUN conan install "AMReX/20.04@ag-klein+FiniteVolumeSolver/stable" \
+RUN CONAN_LOGIN_USERNAME=ci_user CONAN_PASSWORD=${CI_JOB_TOKEN} conan install \
+                  "AMReX/20.04@ag-klein+FiniteVolumeSolver/stable" \
                   -o AMReX:dim="${AMREX_SPACEDIM}" --build AMReX
