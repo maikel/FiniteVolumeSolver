@@ -136,8 +136,8 @@ void MyMain(const fub::ProgramOptions& options) {
 
   using fub::amrex::ReflectiveBoundary;
   fub::amrex::BoundarySet boundaries{
-      {ReflectiveBoundary(equation, fub::Direction::X, 0),
-       ReflectiveBoundary(equation, fub::Direction::X, 1)}};
+      {ReflectiveBoundary(equation, fub::Direction::Y, 0),
+       ReflectiveBoundary(equation, fub::Direction::Y, 1)}};
 
   std::shared_ptr grid = std::make_shared<GriddingAlgorithm>(
       std::move(hierarchy), inidat, TagAllOf{gradient, TagBuffer(2)}, boundaries);
