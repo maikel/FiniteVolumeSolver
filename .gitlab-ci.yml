@@ -39,6 +39,7 @@ stages:
           -f amrex-gcc_base_image .
 
         printf "[Push] Docker Image for ${COMPILER_ID} with Dimension ${AMREX_SPACEDIM}\n"
+        export DOCKER_API_VERSION=1.39
         docker push "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:${AMREX_SPACEDIM}d_${COMPILER_ID}"
       done
 
@@ -73,6 +74,7 @@ stages:
           -f amrex-clang_base_image .
 
         printf "[Push] Docker Image for ${COMPILER_ID} with Dimension ${AMREX_SPACEDIM}\n"
+        export DOCKER_API_VERSION=1.39
         docker push "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:${AMREX_SPACEDIM}d_${COMPILER_ID}"
       done
 
