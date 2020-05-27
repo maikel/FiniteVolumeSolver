@@ -13,7 +13,7 @@ class SamraiConan(ConanFile):
     generators = "cmake"
 
     def requirements(self):
-        self.requires.add("HDF5/1.10@finite-volume/stable")
+        self.requires.add("HDF5/1.10@ag-klein+FiniteVolumeSolver/stable")
         # Use system mpi
         # self.requires.add("OpenMPI/3.1.3@finite-volume/stable")
 
