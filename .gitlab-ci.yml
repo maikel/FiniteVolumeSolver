@@ -73,17 +73,17 @@ stages:
     - docker push "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:${COMPILER_ID}"
 
 
-build_clang8:
-  stage: build
-  variables:
-    COMPILER_ID: "clang8"
-  <<: *build_clang_image
+#build_clang8:
+  #stage: build
+  #variables:
+    #COMPILER_ID: "clang8"
+  #<<: *build_clang_image
 
-build_gcc9:
-  stage: build
-  variables:
-    COMPILER_ID: "gcc9"
-  <<: *build_gcc_image
+#build_gcc9:
+  #stage: build
+  #variables:
+    #COMPILER_ID: "gcc9"
+  #<<: *build_gcc_image
 
 build_image:
   stage: build
