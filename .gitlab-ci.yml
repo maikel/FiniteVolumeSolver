@@ -14,8 +14,8 @@ stages:
   script:
     - apk add bash
     - cd docker/
+    - printf "[Build] Docker Image for ${COMPILER_ID}\n"
     - >
-      printf "[Build] Docker Image for ${COMPILER_ID}\n"
       GCC_VERSION=$(echo "${COMPILER_ID}" | sed 's/[^[0-9]*//g')
       case "${GCC_VERSION}" in
         7)
@@ -28,6 +28,7 @@ stages:
           UBUNTU_VERSION="19.10"
           ;;
       esac
+    - >
       docker build \
         -t "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:${COMPILER_ID}" \
         --build-arg UBUNTU_VERSION="${UBUNTU_VERSION}" \
@@ -35,10 +36,9 @@ stages:
         --build-arg CACHEBUST="$(date +%s)" \
         --build-arg CI_JOB_TOKEN="${CI_JOB_TOKEN}" \
         -f amrex-gcc_base_image .
-
-      printf "[Push] Docker Image for ${COMPILER_ID}\n"
-      export DOCKER_API_VERSION=1.39
-      docker push "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:${COMPILER_ID}"
+    - printf "[Push] Docker Image for ${COMPILER_ID}\n"
+    - export DOCKER_API_VERSION=1.39
+    - docker push "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:${COMPILER_ID}"
 
 .build_clang_image: &build_clang_image
   stage: build
@@ -48,8 +48,8 @@ stages:
   script:
     - apk add bash
     - cd docker/
+    - printf "[Build] Docker Image for ${COMPILER_ID}\n"
     - >
-      printf "[Build] Docker Image for ${COMPILER_ID}\n"
       case "${COMPILER_ID}" in
       clang7)
         CLANG_URL="https://releases.llvm.org/7.0.1/clang+llvm-7.0.1-x86_64-linux-gnu-ubuntu-18.04.tar.xz"
@@ -60,6 +60,7 @@ stages:
         CLANG_VERSION="8"
         ;;
       esac
+    - >
       docker build \
         -t "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:${COMPILER_ID}" \
         --build-arg CLANG_URL="${CLANG_URL}" \
@@ -67,10 +68,9 @@ stages:
         --build-arg CACHEBUST="$(date +%s)" \
         --build-arg CI_JOB_TOKEN="${CI_JOB_TOKEN}" \
         -f amrex-clang_base_image .
-
-      printf "[Push] Docker Image for ${COMPILER_ID}\n"
-      export DOCKER_API_VERSION=1.39
-      docker push "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:${COMPILER_ID}"
+    - printf "[Push] Docker Image for ${COMPILER_ID}\n"
+    - export DOCKER_API_VERSION=1.39
+    _ docker push "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:${COMPILER_ID}"
 
 
 build_clang8:
