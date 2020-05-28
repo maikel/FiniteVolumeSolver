@@ -39,7 +39,6 @@ stages:
       printf "[Push] Docker Image for ${COMPILER_ID}\n"
       export DOCKER_API_VERSION=1.39
       docker push "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:${COMPILER_ID}"
-      done
 
 .build_clang_image: &build_clang_image
   stage: build
@@ -72,7 +71,6 @@ stages:
       printf "[Push] Docker Image for ${COMPILER_ID}\n"
       export DOCKER_API_VERSION=1.39
       docker push "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:${COMPILER_ID}"
-      done
 
 
 build_clang8:
