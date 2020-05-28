@@ -7,8 +7,8 @@ stages:
   - build
   - test
 
-build:amrex-2d_clang8:
-  image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:2d_clang8
+build:amrex_2d-clang8:
+  image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:clang8
   stage: build
   script:
     - mkdir build
@@ -18,7 +18,7 @@ build:amrex-2d_clang8:
     - make
 
 build:amrex-2d_clang8_NO_EB:
-  image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:2d_clang8
+  image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:clang8
   stage: build
   script:
     - mkdir build
@@ -28,7 +28,7 @@ build:amrex-2d_clang8_NO_EB:
     - make
 
 build:amrex-3d_clang8:
-  image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:3d_clang8
+  image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:clang8
   stage: build
   script:
     - mkdir build
@@ -38,7 +38,7 @@ build:amrex-3d_clang8:
     - make
 
 build:amrex-3d_clang8_NO_EB:
-  image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:3d_clang8
+  image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:clang8
   stage: build
   script:
     - mkdir build
@@ -48,7 +48,7 @@ build:amrex-3d_clang8_NO_EB:
     - make
 
 build:amrex-2d_gcc9:
-  image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:2d_gcc9
+  image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:gcc9
   stage: build
   script:
     - mkdir build
@@ -58,7 +58,7 @@ build:amrex-2d_gcc9:
     - make
 
 build:amrex-2d_gcc9_NO_EB:
-  image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:2d_gcc9
+  image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:gcc9
   stage: build
   script:
     - mkdir build
@@ -68,7 +68,7 @@ build:amrex-2d_gcc9_NO_EB:
     - make
 
 build:amrex-3d_gcc9:
-  image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:3d_gcc9
+  image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:gcc9
   stage: build
   script:
     - mkdir build
@@ -78,7 +78,7 @@ build:amrex-3d_gcc9:
     - make
 
 build:amrex-3d_gcc9_NO_EB:
-  image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:3d_gcc9
+  image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:gcc9
   stage: build
   script:
     - mkdir build
