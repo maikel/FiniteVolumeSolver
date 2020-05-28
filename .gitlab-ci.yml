@@ -96,7 +96,9 @@ conan:amrex-clang8:
     - conan create ./conan/conanfile-SAMRAI-stable.py ag-klein+FiniteVolumeSolver/stable --env CXX=clang++ --env CC=clang
     - CONAN_LOGIN_USERNAME=ci_user CONAN_PASSWORD=${CI_JOB_TOKEN} conan upload SAMRAI/3.15.0@ag-klein+FiniteVolumeSolver/stable --all --remote=gitlab
     - conan create ./conan/conanfile-AMReX-stable.py ag-klein+FiniteVolumeSolver/stable -o AMReX:dim="2" --build AMReX --env CXX=clang++ --env CC=clang
+    - conan create ./conan/conanfile-AMReX-stable.py ag-klein+FiniteVolumeSolver/stable -o AMReX:dim="2" -o AMReX:eb=False  --build AMReX --env CXX=clang++ --env CC=clang
     - conan create ./conan/conanfile-AMReX-stable.py ag-klein+FiniteVolumeSolver/stable -o AMReX:dim="3" --build AMReX --env CXX=clang++ --env CC=clang
+    - conan create ./conan/conanfile-AMReX-stable.py ag-klein+FiniteVolumeSolver/stable -o AMReX:dim="3" -o AMReX:eb=False  --build AMReX --env CXX=clang++ --env CC=clang
     - CONAN_LOGIN_USERNAME=ci_user CONAN_PASSWORD=${CI_JOB_TOKEN} conan upload AMReX/20.04@ag-klein+FiniteVolumeSolver/stable --all --remote=gitlab
     - conan search AMReX/20.04@ag-klein+FiniteVolumeSolver/stable
 
@@ -111,6 +113,8 @@ conan:amrex-gcc9:
     - conan create ./conan/conanfile-SAMRAI-stable.py ag-klein+FiniteVolumeSolver/stable
     - CONAN_LOGIN_USERNAME=ci_user CONAN_PASSWORD=${CI_JOB_TOKEN} conan upload SAMRAI/3.15.0@ag-klein+FiniteVolumeSolver/stable --all --remote=gitlab
     - conan create ./conan/conanfile-AMReX-stable.py ag-klein+FiniteVolumeSolver/stable -o AMReX:dim="2" --build AMReX
+    - conan create ./conan/conanfile-AMReX-stable.py ag-klein+FiniteVolumeSolver/stable -o AMReX:dim="2" -o AMReX:eb=False --build AMReX
     - conan create ./conan/conanfile-AMReX-stable.py ag-klein+FiniteVolumeSolver/stable -o AMReX:dim="3" --build AMReX
+    - conan create ./conan/conanfile-AMReX-stable.py ag-klein+FiniteVolumeSolver/stable -o AMReX:dim="3" -o AMReX:eb=False --build AMReX
     - CONAN_LOGIN_USERNAME=ci_user CONAN_PASSWORD=${CI_JOB_TOKEN} conan upload AMReX/20.04@ag-klein+FiniteVolumeSolver/stable --all --remote=gitlab
     - conan search AMReX/20.04@ag-klein+FiniteVolumeSolver/stable
