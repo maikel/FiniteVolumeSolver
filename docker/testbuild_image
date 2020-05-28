@@ -3,9 +3,8 @@ FROM ubuntu:20.04
 ARG CI_JOB_TOKEN
 ENV CI_JOB_TOKEN ${CI_JOB_TOKEN}
 
-RUN apt-get --non-interactive update \
-  && apt-get install --yes gfortran python3-pip wget libpthread-stubs0-dev git libopenmpi-dev \
-                           m4 gcc-8 gcc-9 clang-7 clang-8 cmake \
+RUN apt-get install --yes gfortran python3-pip wget libpthread-stubs0-dev git libopenmpi-dev \
+                          m4 gcc-8 gcc-9 clang-7 clang-8 cmake \
   && pip3 install conan
 
 RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/finite-volume \

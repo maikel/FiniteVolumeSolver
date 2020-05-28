@@ -141,6 +141,7 @@ create_packages:
   image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/testbuild
   stage: install_conan_packages
   script:
+    - cmake --version
     - conan create ./conan/conanfile-VC.py ag-klein+FiniteVolumeSolver/stable --profile linux-gcc9
     - conan create ./conan/conanfile-VC.py ag-klein+FiniteVolumeSolver/stable --profile linux-clang8
     - CONAN_LOGIN_USERNAME=ci_user CONAN_PASSWORD=${CI_JOB_TOKEN} conan upload Vc/1.4.1@ag-klein+FiniteVolumeSolver/stable --all --remote=gitlab
