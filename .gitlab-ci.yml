@@ -6,6 +6,38 @@ stages:
   - build
   - install_conan_packages
 
+.build_clang_image: &build_clang_image
+  stage: build
+  image: docker:git
+  before_script:
+    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
+  script:
+    - apk add bash
+    - cd docker/
+    - printf "[Build] Docker Image for ${COMPILER_ID}\n"
+    - >
+      case "${COMPILER_ID}" in
+      clang7)
+        CLANG_URL="https://releases.llvm.org/7.0.1/clang+llvm-7.0.1-x86_64-linux-gnu-ubuntu-18.04.tar.xz"
+        CLANG_VERSION=7.0
+        ;;
+      clang8)
+        CLANG_URL="https://releases.llvm.org/8.0.0/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz"
+        CLANG_VERSION="8"
+        ;;
+      esac
+    - >
+      docker build \
+        -t "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:${COMPILER_ID}" \
+        --build-arg CLANG_URL="${CLANG_URL}" \
+        --build-arg CLANG_VERSION="${CLANG_VERSION}" \
+        --build-arg CACHEBUST="$(date +%s)" \
+        --build-arg CI_JOB_TOKEN="${CI_JOB_TOKEN}" \
+        -f amrex-clang_base_image .
+    - printf "[Push] Docker Image for ${COMPILER_ID}\n"
+    - export DOCKER_API_VERSION=1.39
+    - docker push "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:${COMPILER_ID}"
+
 .build_gcc_image: &build_gcc_image
   stage: build
   image: docker:git
@@ -39,38 +71,6 @@ stages:
     - printf "[Push] Docker Image for ${COMPILER_ID}\n"
     - export DOCKER_API_VERSION=1.39
     - docker push "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:${COMPILER_ID}"
-
-.build_clang_image: &build_clang_image
-  stage: build
-  image: docker:git
-  before_script:
-    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
-  script:
-    - apk add bash
-    - cd docker/
-    - printf "[Build] Docker Image for ${COMPILER_ID}\n"
-    - >
-      case "${COMPILER_ID}" in
-      clang7)
-        CLANG_URL="https://releases.llvm.org/7.0.1/clang+llvm-7.0.1-x86_64-linux-gnu-ubuntu-18.04.tar.xz"
-        CLANG_VERSION=7.0
-        ;;
-      clang8)
-        CLANG_URL="https://releases.llvm.org/8.0.0/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz"
-        CLANG_VERSION="8"
-        ;;
-      esac
-    - >
-      docker build \
-        -t "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:${COMPILER_ID}" \
-        --build-arg CLANG_URL="${CLANG_URL}" \
-        --build-arg CLANG_VERSION="${CLANG_VERSION}" \
-        --build-arg CACHEBUST="$(date +%s)" \
-        --build-arg CI_JOB_TOKEN="${CI_JOB_TOKEN}" \
-        -f amrex-clang_base_image .
-    - printf "[Push] Docker Image for ${COMPILER_ID}\n"
-    - export DOCKER_API_VERSION=1.39
-    _ docker push "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:${COMPILER_ID}"
 
 
 build_clang8:
