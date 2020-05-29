@@ -9,14 +9,14 @@ RUN apt-get update \
                            m4 gcc-8 gcc-9 clang-7 clang-8 cmake \
   && pip3 install conan
 
-RUN sudo update-alternatives --remove-all gcc \
- && sudo update-alternatives --remove-all g++ \
- && sudo update-alternatives --remove-all clang \
- && sudo update-alternatives --remove-all clang++ \
- && sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 10 \
- && sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-9 10 \
- && sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-8 10 \
- && sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-8 10
+RUN update-alternatives --remove-all gcc \
+ && update-alternatives --remove-all g++ \
+ && update-alternatives --remove-all clang \
+ && update-alternatives --remove-all clang++ \
+ && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 10 \
+ && update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-9 10 \
+ && update-alternatives --install /usr/bin/clang clang /usr/bin/clang-8 10 \
+ && update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-8 10
 
 RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/finite-volume \
  && conan remote add gitlab https://git.imp.fu-berlin.de/api/v4/packages/conan \
@@ -33,15 +33,15 @@ RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/fin
  && conan profile update env.CXX=clang++ linux-clang8 \
  && conan user ci_user -r gitlab -p ${CI_JOB_TOKEN}
 
-RUN sudo update-alternatives --set cc /usr/bin/gcc \
- && sudo update-alternatives --set c++ /usr/bin/g++ \
+RUN update-alternatives --set cc /usr/bin/gcc \
+ && update-alternatives --set c++ /usr/bin/g++ \
  && conan install boost/1.71.0@conan/stable --profile linux-gcc9 --build missing \
  && conan install eigen/3.3.7@conan/stable --profile linux-gcc9 --build missing \
  && conan install pybind11/2.3.0@conan/stable --profile linux-gcc9 --build missing \
  && conan install fmt/5.3.0@bincrafters/stable --profile linux-gcc9 --build missing
 
-RUN sudo update-alternatives --set cc /usr/bin/clang \
- && sudo update-alternatives --set c++ /usr/bin/clang++ \
+RUN update-alternatives --set cc /usr/bin/clang \
+ && update-alternatives --set c++ /usr/bin/clang++ \
  && conan install boost/1.71.0@conan/stable --profile linux-clang8 --build missing \
  && conan install eigen/3.3.7@conan/stable --profile linux-clang8 --build missing \
  && conan install pybind11/2.3.0@conan/stable --profile linux-clang8 --build missing \
