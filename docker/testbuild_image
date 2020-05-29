@@ -6,7 +6,7 @@ ENV CI_JOB_TOKEN ${CI_JOB_TOKEN}
 ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
   && apt-get install --yes gfortran python3-pip wget libpthread-stubs0-dev git libopenmpi-dev \
-                           m4 gcc-8 gcc-9 clang-7 clang-8 libc++-dev cmake \
+                           m4 gcc-8 gcc-9 clang-7 clang-8 libc++1 libc++-dev libc++abi-dev cmake \
   && pip3 install conan
 
 RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 10 \
