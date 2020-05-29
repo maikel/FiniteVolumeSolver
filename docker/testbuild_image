@@ -9,11 +9,7 @@ RUN apt-get update \
                            m4 gcc-8 gcc-9 clang-7 clang-8 cmake \
   && pip3 install conan
 
-RUN update-alternatives --remove-all gcc \
- && update-alternatives --remove-all g++ \
- && update-alternatives --remove-all clang \
- && update-alternatives --remove-all clang++ \
- && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 10 \
+RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 10 \
  && update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-9 10 \
  && update-alternatives --install /usr/bin/clang clang /usr/bin/clang-8 10 \
  && update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-8 10
