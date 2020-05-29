@@ -9,14 +9,12 @@ RUN apt-get update \
                            m4 gcc-8 gcc-9 clang-7 clang-8 cmake \
   && pip3 install conan
 
-RUN update-alternatives --install /usr/bin/cc cc /usr/bin/gcc-9 20 \
-      --slave /usr/bin/gcc gcc /usr/bin/gcc-9 \
-      --slave /usr/bin/c++ c++ /usr/bin/g++-9 \
+RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 10 \
       --slave /usr/bin/g++ g++ /usr/bin/g++-9 \
- && update-alternatives --install /usr/bin/cc cc /usr/bin/clang-8 10 \
-      --slave /usr/bin/clang clang /usr/bin/clang-8 \
-      --slave /usr/bin/c++ c++ /usr/bin/clang++-8 \
-      --slave /usr/bin/clang++ clang++ /usr/bin/clang++-8
+ && update-alternatives --install /usr/bin/clang clang /usr/bin/clang-8 10 \
+      --slave /usr/bin/clang++ clang++ /usr/bin/clang++-8 \
+ && update-alternatives --install /usr/bin/cc cc /usr/bin/gcc 30
+ && update-alternatives --install /usr/bin/cc cc /usr/bin/clang 20
 
 RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/finite-volume \
  && conan remote add gitlab https://git.imp.fu-berlin.de/api/v4/packages/conan \
