@@ -35,7 +35,6 @@ stages:
         --build-arg CI_JOB_TOKEN="${CI_JOB_TOKEN}" \
         -f amrex-clang_base_image .
     - printf "[Push] Docker Image for ${COMPILER_ID}\n"
-    - export DOCKER_API_VERSION=1.39
     - docker push "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:${COMPILER_ID}"
 
 .build_gcc_image: &build_gcc_image
@@ -69,7 +68,6 @@ stages:
         --build-arg CI_JOB_TOKEN="${CI_JOB_TOKEN}" \
         -f amrex-gcc_base_image .
     - printf "[Push] Docker Image for ${COMPILER_ID}\n"
-    - export DOCKER_API_VERSION=1.39
     - docker push "git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:${COMPILER_ID}"
 
 
@@ -117,7 +115,6 @@ conan:amrex-clang8:
     - conan create ./conan/conanfile-AMReX-stable.py ag-klein+FiniteVolumeSolver/stable -o AMReX:dim="3" --build AMReX --env CXX=clang++ --env CC=clang
     - conan create ./conan/conanfile-AMReX-stable.py ag-klein+FiniteVolumeSolver/stable -o AMReX:dim="3" -o AMReX:eb=False  --build AMReX --env CXX=clang++ --env CC=clang
     - CONAN_LOGIN_USERNAME=ci_user CONAN_PASSWORD=${CI_JOB_TOKEN} conan upload AMReX/20.04@ag-klein+FiniteVolumeSolver/stable --all --remote=gitlab
-    - conan search AMReX/20.04@ag-klein+FiniteVolumeSolver/stable
 
 conan:amrex-gcc9:
   image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:gcc9
@@ -134,7 +131,6 @@ conan:amrex-gcc9:
     - conan create ./conan/conanfile-AMReX-stable.py ag-klein+FiniteVolumeSolver/stable -o AMReX:dim="3" --build AMReX
     - conan create ./conan/conanfile-AMReX-stable.py ag-klein+FiniteVolumeSolver/stable -o AMReX:dim="3" -o AMReX:eb=False --build AMReX
     - CONAN_LOGIN_USERNAME=ci_user CONAN_PASSWORD=${CI_JOB_TOKEN} conan upload AMReX/20.04@ag-klein+FiniteVolumeSolver/stable --all --remote=gitlab
-    - conan search AMReX/20.04@ag-klein+FiniteVolumeSolver/stable
 
 #create_packages:
   #image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/testbuild
