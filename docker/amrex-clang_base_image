@@ -3,6 +3,7 @@ FROM ubuntu:18.04
 ARG CI_JOB_TOKEN
 ENV CI_JOB_TOKEN ${CI_JOB_TOKEN}
 
+ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
   && apt-get --yes dist-upgrade \
   && apt-get install --yes gfortran python3-pip wget libpthread-stubs0-dev git libopenmpi-dev m4 \
@@ -13,7 +14,7 @@ RUN wget https://github.com/Kitware/CMake/releases/download/v3.14.2/cmake-3.14.2
     && tar xzf cmake-3.14.2-Linux-x86_64.tar.gz && rm cmake-3.14.2-Linux-x86_64.tar.gz \
     && cp -r cmake-3.14.2-Linux-x86_64/* /usr/ && rm -r cmake-3.14.2-Linux-x86_64/
 
-# Fetch clang-5 and install it into /usr
+# Fetch clang-compiler and install it into /usr
 ARG CLANG_URL
 RUN mkdir llvm_download \
   && cd llvm_download \
@@ -24,24 +25,18 @@ RUN mkdir llvm_download \
   && cd ../ \
   && rm -r llvm_download
 
-RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/finite-volume
-RUN conan remote add gitlab https://git.imp.fu-berlin.de/api/v4/packages/conan
-RUN conan profile new default --detect
-RUN conan user ci_user -r gitlab -p ${CI_JOB_TOKEN}
-
 ARG CLANG_VERSION
-RUN sed s/libstdc++/libc++/ -i /root/.conan/profiles/default                                \
- && sed s/gcc/clang/ -i /root/.conan/profiles/default                                       \
- && sed "s/version=7/version=${CLANG_VERSION}/" -i /root/.conan/profiles/default
-RUN conan install boost/1.71.0@conan/stable --build missing --env CXX=clang++ --env CC=clang
-RUN conan install eigen/3.3.7@conan/stable  --build missing --env CXX=clang++ --env CC=clang
-RUN conan install pybind11/2.3.0@conan/stable --build missing --env CXX=clang++ --env CC=clang
-RUN conan install fmt/5.3.0@bincrafters/stable --build missing --env CXX=clang++ --env CC=clang
-# RUN conan install Vc/1.4.1@finite-volume/stable --build missing --env CXX=clang++ --env CC=clang
-# RUN conan install SAMRAI/3.15.0@finite-volume/stable --build missing --env CXX=clang++ --env CC=clang
+RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/finite-volume \
+ && conan remote add gitlab https://git.imp.fu-berlin.de/api/v4/packages/conan \
+ && conan profile new linux-clang --detect \
+ && conan profile update settings.compiler=clang linux-clang \
+ && conan profile update settings.compiler.version=${CLANG_VERSION} linux-clang \
+ && conan profile update settings.compiler.libcxx=libc++ linux-clang \
+ && conan profile update env.CC=clang linux-clang \
+ && conan profile update env.CXX=clang++ linux-clang \
+ && conan user ci_user -r gitlab -p ${CI_JOB_TOKEN}
 
-# ARG AMREX_SPACEDIM
-# ARG CACHEBUST=1
-# RUN CONAN_LOGIN_USERNAME=ci_user CONAN_PASSWORD=${CI_JOB_TOKEN} conan install \
-#                   "AMReX/20.04@ag-klein+FiniteVolumeSolver/stable" \
-#                   -o AMReX:dim="${AMREX_SPACEDIM}" --build AMReX --env CXX=clang++ --env CC=clang
+RUN conan install boost/1.71.0@conan/stable --profile linux-clang --build missing \
+ && conan install eigen/3.3.7@conan/stable --profile linux-clang --build missing \
+ && conan install pybind11/2.3.0@conan/stable --profile linux-clang --build missing \
+ && conan install fmt/5.3.0@bincrafters/stable --profile linux-clang --build missing
