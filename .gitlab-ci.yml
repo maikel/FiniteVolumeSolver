@@ -1,7 +1,6 @@
 before_script:
   - git submodule sync --recursive
   - git submodule update --init --recursive
-  - conan user ci_user -r gitlab -p ${CI_JOB_TOKEN}
 
 stages:
   - build
@@ -13,8 +12,8 @@ build:amrex_2d-clang8:
   script:
     - mkdir build
     - cd build
-    - conan install ../  -s compiler=clang -s compiler.version=8 -s compiler.libcxx=libc++ -o AMReX:dim=2 --env CXX=clang++ --env CC=clang --build missing
-    - cmake ../ -DCMAKE_CXX_COMPILER="clang++" -DCMAKE_CXX_FLAGS="-stdlib=libc++" -DCMAKE_BUILD_TYPE=Release  -DFUB_WITH_OPENMP=False
+    - CONAN_LOGIN_USERNAME=ci_user CONAN_PASSWORD=${CI_JOB_TOKEN} conan install ../ --profile linux-clang -o AMReX:dim=2 --build missing
+    - cmake ../ -DCMAKE_CXX_COMPILER="clang++" -DCMAKE_CXX_FLAGS="-stdlib=libc++" -DCMAKE_BUILD_TYPE=Release -DFUB_WITH_OPENMP=False
     - make
 
 build:amrex-2d_clang8_NO_EB:
@@ -23,8 +22,8 @@ build:amrex-2d_clang8_NO_EB:
   script:
     - mkdir build
     - cd build
-    - conan install ../  -s compiler=clang -s compiler.version=8 -s compiler.libcxx=libc++ -o AMReX:dim=2 -o AMReX:eb=False --env CXX=clang++ --env CC=clang --build missing
-    - cmake ../ -DCMAKE_CXX_COMPILER="clang++" -DCMAKE_CXX_FLAGS="-stdlib=libc++" -DCMAKE_BUILD_TYPE=Release  -DFUB_WITH_OPENMP=False
+    - CONAN_LOGIN_USERNAME=ci_user CONAN_PASSWORD=${CI_JOB_TOKEN} conan install ../ --profile linux-clang -o AMReX:dim=2 -o AMReX:eb=False --build missing
+    - cmake ../ -DCMAKE_CXX_COMPILER="clang++" -DCMAKE_CXX_FLAGS="-stdlib=libc++" -DCMAKE_BUILD_TYPE=Release -DFUB_WITH_OPENMP=False
     - make
 
 build:amrex-3d_clang8:
@@ -33,8 +32,8 @@ build:amrex-3d_clang8:
   script:
     - mkdir build
     - cd build
-    - conan install ../  -s compiler=clang -s compiler.version=8 -s compiler.libcxx=libc++ -o AMReX:dim=3 --env CXX=clang++ --env CC=clang  --build missing
-    - cmake ../ -DCMAKE_CXX_COMPILER="clang++" -DCMAKE_CXX_FLAGS="-stdlib=libc++" -DCMAKE_BUILD_TYPE=Release  -DFUB_WITH_OPENMP=False
+    - CONAN_LOGIN_USERNAME=ci_user CONAN_PASSWORD=${CI_JOB_TOKEN} conan install ../ --profile linux-clang -o AMReX:dim=3  --build missing
+    - cmake ../ -DCMAKE_CXX_COMPILER="clang++" -DCMAKE_CXX_FLAGS="-stdlib=libc++" -DCMAKE_BUILD_TYPE=Release -DFUB_WITH_OPENMP=False
     - make
 
 build:amrex-3d_clang8_NO_EB:
@@ -43,8 +42,8 @@ build:amrex-3d_clang8_NO_EB:
   script:
     - mkdir build
     - cd build
-    - conan install ../  -s compiler=clang -s compiler.version=8 -s compiler.libcxx=libc++ -o AMReX:dim=3 -o AMReX:eb=False --env CXX=clang++ --env CC=clang  --build missing
-    - cmake ../ -DCMAKE_CXX_COMPILER="clang++" -DCMAKE_CXX_FLAGS="-stdlib=libc++" -DCMAKE_BUILD_TYPE=Release  -DFUB_WITH_OPENMP=False
+    - CONAN_LOGIN_USERNAME=ci_user CONAN_PASSWORD=${CI_JOB_TOKEN} conan install ../ --profile linux-clang -o AMReX:dim=3 -o AMReX:eb=False --build missing
+    - cmake ../ -DCMAKE_CXX_COMPILER="clang++" -DCMAKE_CXX_FLAGS="-stdlib=libc++" -DCMAKE_BUILD_TYPE=Release -DFUB_WITH_OPENMP=False
     - make
 
 build:amrex-2d_gcc9:
@@ -53,7 +52,7 @@ build:amrex-2d_gcc9:
   script:
     - mkdir build
     - cd build
-    - CONAN_LOGIN_USERNAME=ci_user CONAN_PASSWORD=${CI_JOB_TOKEN} conan install ../ -o AMReX:dim=2 -s compiler.libcxx=libstdc++11  --build missing
+    - CONAN_LOGIN_USERNAME=ci_user CONAN_PASSWORD=${CI_JOB_TOKEN} conan install ../ --profile linux-gcc -o AMReX:dim=2 --build missing
     - cmake ../ -DCMAKE_BUILD_TYPE=Debug -DFUB_WITH_OPENMP=False
     - make
 
@@ -63,7 +62,7 @@ build:amrex-2d_gcc9_NO_EB:
   script:
     - mkdir build
     - cd build
-    - CONAN_LOGIN_USERNAME=ci_user CONAN_PASSWORD=${CI_JOB_TOKEN} conan install ../ -o AMReX:dim=2 -o AMReX:eb=False -s compiler.libcxx=libstdc++11  --build missing
+    - CONAN_LOGIN_USERNAME=ci_user CONAN_PASSWORD=${CI_JOB_TOKEN} conan install ../ --profile linux-gcc -o AMReX:dim=2 -o AMReX:eb=False --build missing
     - cmake ../ -DCMAKE_BUILD_TYPE=Debug -DFUB_WITH_OPENMP=False
     - make
 
@@ -73,7 +72,7 @@ build:amrex-3d_gcc9:
   script:
     - mkdir build
     - cd build
-    - CONAN_LOGIN_USERNAME=ci_user CONAN_PASSWORD=${CI_JOB_TOKEN} conan install ../ -o AMReX:dim=3 -s compiler.libcxx=libstdc++11  --build missing
+    - CONAN_LOGIN_USERNAME=ci_user CONAN_PASSWORD=${CI_JOB_TOKEN} conan install ../ --profile linux-gcc -o AMReX:dim=3 --build missing
     - cmake ../ -DCMAKE_BUILD_TYPE=Debug -DFUB_WITH_OPENMP=False
     - make
 
@@ -83,6 +82,6 @@ build:amrex-3d_gcc9_NO_EB:
   script:
     - mkdir build
     - cd build
-    - CONAN_LOGIN_USERNAME=ci_user CONAN_PASSWORD=${CI_JOB_TOKEN} conan install ../ -o AMReX:dim=3 -o AMReX:eb=False -s compiler.libcxx=libstdc++11  --build missing
+    - CONAN_LOGIN_USERNAME=ci_user CONAN_PASSWORD=${CI_JOB_TOKEN} conan install ../ --profile linux-gcc -o AMReX:dim=3 -o AMReX:eb=False --build missing
     - cmake ../ -DCMAKE_BUILD_TYPE=Debug -DFUB_WITH_OPENMP=False
     - make
