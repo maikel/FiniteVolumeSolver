@@ -32,6 +32,7 @@ RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/fin
  && conan profile update settings.compiler=clang linux-clang \
  && conan profile update settings.compiler.version=${CLANG_VERSION} linux-clang \
  && conan profile update settings.compiler.libcxx=libc++ linux-clang \
+ && conan profile update settings.compiler.cppstd=11 linux-clang \
  && conan profile update env.CC=clang linux-clang \
  && conan profile update env.CXX=clang++ linux-clang \
  && conan user ci_user -r gitlab -p ${CI_JOB_TOKEN}

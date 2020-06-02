@@ -22,6 +22,7 @@ RUN conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/fin
  && conan profile update settings.compiler=gcc linux-gcc \
  && conan profile update settings.compiler.version=${GCC_VERSION} linux-gcc \
  && conan profile update settings.compiler.libcxx=libstdc++11 linux-gcc \
+ && conan profile update settings.compiler.cppstd=11 linux-gcc \
  && conan user ci_user -r gitlab -p ${CI_JOB_TOKEN}
 
 RUN conan install boost/1.71.0@conan/stable --profile linux-gcc --build missing \
