@@ -103,9 +103,9 @@ public:
     }
 
     virtual void restriction (int amrlev, int cmglev, MultiFab& crse, MultiFab& fine) const final override;
-    virtual void interpolation (int amrlev, int fmglev, MultiFab& fine, const MultiFab& crse) const final override;
-    virtual void averageDownSolutionRHS (int camrlev, MultiFab& crse_sol, MultiFab& crse_rhs,
-                                         const MultiFab& fine_sol, const MultiFab& fine_rhs) final override;
+    virtual void interpolation (int /*amrlev*/, int /*fmglev*/, MultiFab& /*fine*/, const MultiFab& /*crse*/) const final override {};
+    virtual void averageDownSolutionRHS (int /*camrlev*/, MultiFab& /*crse_sol*/, MultiFab& /*crse_rhs*/,
+                                         const MultiFab& /*fine_sol*/, const MultiFab& /*fine_rhs*/) final override {};
 
     virtual void reflux (int crse_amrlev,
                          MultiFab& res, const MultiFab& crse_sol, const MultiFab& crse_rhs,
@@ -129,8 +129,8 @@ public:
     virtual void unimposeNeumannBC (int , MultiFab& ) const final override {};
 
     void averageDownCoeffs ();
-    void averageDownCoeffsToCoarseAmrLevel (int flev);
-    void averageDownCoeffsSameAmrLevel (int amrlev);
+    void averageDownCoeffsToCoarseAmrLevel (int /*flev*/) {};
+    void averageDownCoeffsSameAmrLevel (int /*amrlev*/) {};
 
     void restrictInteriorNodes (int camrlev, MultiFab& crhs, MultiFab& frhs) const;
 
