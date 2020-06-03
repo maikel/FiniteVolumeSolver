@@ -75,6 +75,14 @@ MLNodeHelmDualCstVel::define (const Vector<Geometry>& a_geom,
 {
     BL_PROFILE("MLNodeHelmDualCstVel::define()");
 
+    if (a_info.max_coarsening_level > 0) {
+      amrex::Abort("max_coarsening_level must be 0 for this discretization!");
+    }
+
+    if (a_geom.size() > 1) {
+      amrex::Abort("number of levels must be 1 for this discretization!");
+    }
+
     // This makes sure grids are cell-centered;
     Vector<BoxArray> cc_grids = a_grids;
     for (auto& ba : cc_grids) {
@@ -86,7 +94,7 @@ MLNodeHelmDualCstVel::define (const Vector<Geometry>& a_geom,
     m_sigma.resize(m_num_amr_levels);
     m_sigmacross.resize(m_num_amr_levels);
     m_alpha.resize(m_num_amr_levels);
-    for (int amrlev = 0; amrlev < m_num_amr_levels; ++amrlev)
+    const int amrlev = 0;
     {
         m_sigma[amrlev].resize(m_num_mg_levels[amrlev]);
         m_sigmacross[amrlev].resize(m_num_mg_levels[amrlev]);
@@ -111,18 +119,21 @@ MLNodeHelmDualCstVel::define (const Vector<Geometry>& a_geom,
 void
 MLNodeHelmDualCstVel::setSigma (int amrlev, const MultiFab& a_sigma)
 {
+    AMREX_ASSERT(amrlev == 0);
     MultiFab::Copy(*m_sigma[amrlev][0][0], a_sigma, 0, 0, 1, 0);
 }
 
 void
 MLNodeHelmDualCstVel::setSigmaCross (int amrlev, const MultiFab& a_sigmacross)
 {
+    AMREX_ASSERT(amrlev == 0);
     MultiFab::Copy(*m_sigmacross[amrlev][0][0], a_sigmacross, 0, 0, AMREX_SPACEDIM*(AMREX_SPACEDIM-1), 0);
 }
 
 void
 MLNodeHelmDualCstVel::setAlpha(int amrlev, const MultiFab& alpha)
 {
+    AMREX_ASSERT(amrlev == 0);
     MultiFab::Copy(m_alpha[amrlev][0], alpha, 0, 0, 1, 0);
     m_is_bottom_singular = false;
 }
@@ -396,8 +407,8 @@ MLNodeHelmDualCstVel::updateVelocity (const Vector<MultiFab*>& vel, const Vector
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-    for (int amrlev = 0; amrlev < m_num_amr_levels; ++amrlev)
     {
+        const int amrlev = 0;
         const auto& sigma = *m_sigma[amrlev][0][0];
         const auto dxinv = m_geom[amrlev][0].InvCellSizeArray();
         for (MFIter mfi(*vel[amrlev], TilingIfNotGPU()); mfi.isValid(); ++mfi)
@@ -425,8 +436,8 @@ MLNodeHelmDualCstVel::getFluxes (const Vector<MultiFab*> & a_flux, const Vector<
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-    for (int amrlev = 0; amrlev < m_num_amr_levels; ++amrlev)
     {
+        const int amrlev = 0;
         const auto& sigma = *m_sigma[amrlev][0][0];
         const auto dxinv = m_geom[amrlev][0].InvCellSizeArray();
 
@@ -459,7 +470,7 @@ MLNodeHelmDualCstVel::averageDownCoeffs ()
 {
     BL_PROFILE("MLNodeHelmDualCstVel::averageDownCoeffs()");
 
-        for (int amrlev = 0; amrlev < m_num_amr_levels; ++amrlev)
+        const int amrlev = 0;
         {
             for (int mglev = 0; mglev < m_num_mg_levels[amrlev]; ++mglev)
             {
@@ -516,72 +527,6 @@ MLNodeHelmDualCstVel::averageDownCoeffs ()
                 if (m_sigmacross[amrlev][mglev][idim]) {
                     FillBoundaryCoeff(*m_sigmacross[amrlev][mglev][idim], m_geom[amrlev][mglev]);
                 }
-            }
-        }
-    }
-}
-
-void
-MLNodeHelmDualCstVel::averageDownCoeffsToCoarseAmrLevel (int flev)
-{
-    const int mglev = 0;
-    const int idim = 0;  // other dimensions are just aliases
-    amrex::average_down(*m_sigma[flev][mglev][idim], *m_sigma[flev-1][mglev][idim], 0, 1,
-                        m_amr_ref_ratio[flev-1]);
-}
-
-void
-MLNodeHelmDualCstVel::averageDownCoeffsSameAmrLevel (int amrlev)
-{
-    const int nsigma = (m_use_harmonic_average) ? AMREX_SPACEDIM : 1;
-
-    for (int mglev = 1; mglev < m_num_mg_levels[amrlev]; ++mglev)
-    {
-        for (int idim = 0; idim < nsigma; ++idim)
-        {
-            const MultiFab& fine = *m_sigma[amrlev][mglev-1][idim];
-            MultiFab& crse = *m_sigma[amrlev][mglev][idim];
-            bool need_parallel_copy = !amrex::isMFIterSafe(crse, fine);
-            MultiFab cfine;
-            if (need_parallel_copy) {
-                const BoxArray& ba = amrex::coarsen(fine.boxArray(), 2);
-                cfine.define(ba, fine.DistributionMap(), 1, 0);
-            }
-
-            MultiFab* pcrse = (need_parallel_copy) ? &cfine : &crse;
-
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-            for (MFIter mfi(*pcrse, TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                const Box& bx = mfi.tilebox();
-                Array4<Real> const& cfab = pcrse->array(mfi);
-                Array4<Real const> const& ffab = fine.const_array(mfi);
-                if (idim == 0) {
-                    AMREX_HOST_DEVICE_PARALLEL_FOR_3D ( bx, i, j, k,
-                    {
-                        mlndhelm_avgdown_coeff_x(i,j,k,cfab,ffab);
-                    });
-                } else if (idim == 1) {
-#if (AMREX_SPACEDIM >= 2)
-                    AMREX_HOST_DEVICE_PARALLEL_FOR_3D ( bx, i, j, k,
-                    {
-                        mlndhelm_avgdown_coeff_y(i,j,k,cfab,ffab);
-                    });
-#endif
-                } else {
-#if (AMREX_SPACEDIM == 3)
-                    AMREX_HOST_DEVICE_PARALLEL_FOR_3D ( bx, i, j, k,
-                    {
-                        mlndhelm_avgdown_coeff_z(i,j,k,cfab,ffab);
-                    });
-#endif
-                }
-            }
-
-            if (need_parallel_copy) {
-                crse.ParallelCopy(cfine);
             }
         }
     }
@@ -678,70 +623,6 @@ MLNodeHelmDualCstVel::restriction (int amrlev, int cmglev, MultiFab& crse, Multi
 
     if (need_parallel_copy) {
         crse.ParallelCopy(cfine);
-    }
-}
-
-void
-MLNodeHelmDualCstVel::interpolation (int amrlev, int fmglev, MultiFab& fine, const MultiFab& crse) const
-{
-    BL_PROFILE("MLNodeHelmDualCstVel::interpolation()");
-
-    const auto& sigma = m_sigma[amrlev][fmglev];
-
-    bool need_parallel_copy = !amrex::isMFIterSafe(crse, fine);
-    MultiFab cfine;
-    const MultiFab* cmf = &crse;
-    if (need_parallel_copy) {
-        const BoxArray& ba = amrex::coarsen(fine.boxArray(), 2);
-        cfine.define(ba, fine.DistributionMap(), 1, 0);
-        cfine.ParallelCopy(crse);
-        cmf = &cfine;
-    }
-
-    const iMultiFab& dmsk = *m_dirichlet_mask[amrlev][fmglev];
-
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-    for (MFIter mfi(fine, TilingIfNotGPU()); mfi.isValid(); ++mfi)
-    {
-        Box const& bx = mfi.tilebox();
-        Array4<Real> const& ffab = fine.array(mfi);
-        Array4<Real const> const& cfab = cmf->const_array(mfi);
-        Array4<int const> const& mfab = dmsk.const_array(mfi);
-        if (m_use_harmonic_average && fmglev > 0)
-        {
-            AMREX_D_TERM(Array4<Real const> const& sxfab = sigma[0]->const_array(mfi);,
-                         Array4<Real const> const& syfab = sigma[1]->const_array(mfi);,
-                         Array4<Real const> const& szfab = sigma[2]->const_array(mfi););
-            AMREX_HOST_DEVICE_PARALLEL_FOR_3D(bx, i, j, k,
-            {
-                mlndhelm_interpadd_ha(i,j,k,ffab,cfab,AMREX_D_DECL(sxfab,syfab,szfab),mfab);
-            });
-        }
-        else
-        {
-            Array4<Real const> const& sfab = sigma[0]->const_array(mfi);
-            AMREX_HOST_DEVICE_PARALLEL_FOR_3D(bx, i, j, k,
-            {
-                mlndhelm_interpadd_aa(i,j,k,ffab,cfab,sfab,mfab);
-            });
-        }
-    }
-}
-
-void
-MLNodeHelmDualCstVel::averageDownSolutionRHS (int camrlev, MultiFab& crse_sol, MultiFab& crse_rhs,
-                                         const MultiFab& fine_sol, const MultiFab& fine_rhs)
-{
-    const auto& amrrr = AMRRefRatio(camrlev);
-    amrex::average_down(fine_sol, crse_sol, 0, 1, amrrr);
-
-    if (isSingular(0))
-    {
-        MultiFab frhs(fine_rhs.boxArray(), fine_rhs.DistributionMap(), 1, 1);
-        MultiFab::Copy(frhs, fine_rhs, 0, 0, 1, 0);
-        restrictInteriorNodes(camrlev, crse_rhs, frhs);
     }
 }
 
