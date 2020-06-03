@@ -513,6 +513,8 @@ BK19LevelIntegratorOptions::BK19LevelIntegratorOptions(
     const ProgramOptions& options) {
   do_initial_projection =
       GetOptionOr(options, "do_initial_projection", do_initial_projection);
+  mlmg_max_coarsening_level =
+      GetOptionOr(options, "mlmg_max_coarsening_level", mlmg_max_coarsening_level);
   mlmg_tolerance_rel =
       GetOptionOr(options, "mlmg_tolerance_rel", mlmg_tolerance_rel);
   mlmg_tolerance_abs =

@@ -49,6 +49,7 @@ struct BK19LevelIntegratorOptions {
   template <typename Log> void Print(Log& log);
 
   bool do_initial_projection = true;
+  int mlmg_max_coarsening_level = 0;
   double mlmg_tolerance_rel = 1.0e-4;
   double mlmg_tolerance_abs = -1.0;
   int mlmg_max_iter = 100;
@@ -161,6 +162,8 @@ struct WriteBK19Plotfile {
 
 template <typename Log> void BK19LevelIntegratorOptions::Print(Log& log) {
   BOOST_LOG(log) << fmt::format(" - do_initial_projection = {}", do_initial_projection);
+  BOOST_LOG(log) << fmt::format(" - mlmg_max_coarsening_level = {}",
+                                mlmg_max_coarsening_level);
   BOOST_LOG(log) << fmt::format(" - mlmg_tolerance_rel = {}",
                                 mlmg_tolerance_rel);
   BOOST_LOG(log) << fmt::format(" - mlmg_tolerance_abs = {}",
