@@ -476,8 +476,18 @@ MLNodeHelmDualLinVel::averageDownCoeffs ()
                                 (new MultiFab(m_grids[amrlev][mglev], m_dmap[amrlev][mglev], 1, 1));
                             m_sigma[amrlev][mglev][idim]->setVal(0.0);
                         }
+                    }
+                    if (m_sigmacross[amrlev][mglev][idim] == nullptr) {
+                        if (mglev == 0) {
+                            m_sigmacross[amrlev][mglev][idim].reset
+                                (new MultiFab(*m_sigmacross[amrlev][mglev][0], amrex::make_alias, 0, 1));
+                        } else {
+                            m_sigmacross[amrlev][mglev][idim].reset
+                                (new MultiFab(m_grids[amrlev][mglev], m_dmap[amrlev][mglev], 1, 1));
+                            m_sigmacross[amrlev][mglev][idim]->setVal(0.0);
+                        }
+                    }
                 }
-            }
                 if (m_alpha[amrlev][mglev].nComp() == 0) {
                     if (mglev > 0) {
                         const BoxArray& ba = amrex::convert(m_grids[amrlev][mglev],
@@ -502,6 +512,7 @@ MLNodeHelmDualLinVel::averageDownCoeffs ()
         if (m_use_harmonic_average) {
             int mglev = 0;
             FillBoundaryCoeff(*m_sigma[amrlev][mglev][0], m_geom[amrlev][mglev]);
+            FillBoundaryCoeff(*m_sigmacross[amrlev][mglev][0], m_geom[amrlev][mglev]);
             for (mglev = 1; mglev < m_num_mg_levels[amrlev]; ++mglev)
             {
                 for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
@@ -537,6 +548,8 @@ MLNodeHelmDualLinVel::averageDownCoeffsToCoarseAmrLevel (int flev)
     const int idim = 0;  // other dimensions are just aliases
     amrex::average_down(*m_sigma[flev][mglev][idim], *m_sigma[flev-1][mglev][idim], 0, 1,
                         m_amr_ref_ratio[flev-1]);
+    amrex::average_down(*m_sigmacross[flev][mglev][idim], *m_sigmacross[flev-1][mglev][idim], 0, 1,
+                        m_amr_ref_ratio[flev-1]);
 
     // NOTE: The following line has not been tested yet!
     amrex::average_down_nodal(m_alpha[flev][mglev], m_alpha[flev-1][mglev],
@@ -554,6 +567,53 @@ MLNodeHelmDualLinVel::averageDownCoeffsSameAmrLevel (int amrlev)
         {
             const MultiFab& fine = *m_sigma[amrlev][mglev-1][idim];
             MultiFab& crse = *m_sigma[amrlev][mglev][idim];
+            bool need_parallel_copy = !amrex::isMFIterSafe(crse, fine);
+            MultiFab cfine;
+            if (need_parallel_copy) {
+                const BoxArray& ba = amrex::coarsen(fine.boxArray(), 2);
+                cfine.define(ba, fine.DistributionMap(), 1, 0);
+            }
+
+            MultiFab* pcrse = (need_parallel_copy) ? &cfine : &crse;
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+            for (MFIter mfi(*pcrse, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.tilebox();
+                Array4<Real> const& cfab = pcrse->array(mfi);
+                Array4<Real const> const& ffab = fine.const_array(mfi);
+                if (idim == 0) {
+                    AMREX_HOST_DEVICE_PARALLEL_FOR_3D ( bx, i, j, k,
+                    {
+                        mlndhelm_avgdown_coeff_x(i,j,k,cfab,ffab);
+                    });
+                } else if (idim == 1) {
+#if (AMREX_SPACEDIM >= 2)
+                    AMREX_HOST_DEVICE_PARALLEL_FOR_3D ( bx, i, j, k,
+                    {
+                        mlndhelm_avgdown_coeff_y(i,j,k,cfab,ffab);
+                    });
+#endif
+                } else {
+#if (AMREX_SPACEDIM == 3)
+                    AMREX_HOST_DEVICE_PARALLEL_FOR_3D ( bx, i, j, k,
+                    {
+                        mlndhelm_avgdown_coeff_z(i,j,k,cfab,ffab);
+                    });
+#endif
+                }
+            }
+
+            if (need_parallel_copy) {
+                crse.ParallelCopy(cfine);
+            }
+        }
+        for (int idim = 0; idim < nsigma; ++idim)
+        {
+            const MultiFab& fine = *m_sigmacross[amrlev][mglev-1][idim];
+            MultiFab& crse = *m_sigmacross[amrlev][mglev][idim];
             bool need_parallel_copy = !amrex::isMFIterSafe(crse, fine);
             MultiFab cfine;
             if (need_parallel_copy) {
