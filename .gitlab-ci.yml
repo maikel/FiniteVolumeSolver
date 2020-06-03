@@ -104,6 +104,9 @@ conan:amrex-clang8:
   image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:clang8
   stage: install_conan_packages
   script:
+    - conan get boost/1.71.0@conan/stable --remote=conan-center > conanfile_boost.py
+    - conan create conanfile_boost.py boost/1.71.0@ag-klein+FiniteVolumeSolver/stable --profile linux-clang
+    - CONAN_LOGIN_USERNAME=ci_user CONAN_PASSWORD=${CI_JOB_TOKEN} conan upload boost/1.71.0@ag-klein+FiniteVolumeSolver/stable --all --remote=gitlab
     - conan create ./conan/conanfile-VC.py ag-klein+FiniteVolumeSolver/stable --profile linux-clang
     - CONAN_LOGIN_USERNAME=ci_user CONAN_PASSWORD=${CI_JOB_TOKEN} conan upload Vc/1.4.1@ag-klein+FiniteVolumeSolver/stable --all --remote=gitlab
     - conan create ./conan/conanfile-HDF5.py ag-klein+FiniteVolumeSolver/stable --profile linux-clang
@@ -121,6 +124,9 @@ conan:amrex-gcc9:
   image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:gcc9
   stage: install_conan_packages
   script:
+    - conan get boost/1.71.0@conan/stable --remote=conan-center > conanfile_boost.py
+    - conan create conanfile_boost.py boost/1.71.0@ag-klein+FiniteVolumeSolver/stable --profile linux-gcc
+    - CONAN_LOGIN_USERNAME=ci_user CONAN_PASSWORD=${CI_JOB_TOKEN} conan upload boost/1.71.0@ag-klein+FiniteVolumeSolver/stable --all --remote=gitlab
     - conan create ./conan/conanfile-VC.py ag-klein+FiniteVolumeSolver/stable --profile linux-gcc
     - CONAN_LOGIN_USERNAME=ci_user CONAN_PASSWORD=${CI_JOB_TOKEN} conan upload Vc/1.4.1@ag-klein+FiniteVolumeSolver/stable --all --remote=gitlab
     - conan create ./conan/conanfile-HDF5.py ag-klein+FiniteVolumeSolver/stable --profile linux-gcc
