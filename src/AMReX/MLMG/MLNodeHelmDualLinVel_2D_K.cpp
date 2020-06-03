@@ -518,7 +518,7 @@ void mlndhelm_gauss_seidel_aa (Box const& bx, Array4<Real> const& sol,
         if (msk(i,j,k)) {
             sol(i,j,k) = 0.0;
         } else {
-            Real s0 = (-3.0)*fxy*(sig(i-1,j-1,k)+sig(i,j-1,k)+sig(i-1,j,k)+sig(i,j,k))
+            Real s0 = (-3.0)*fxy*(sig(i-1,j-1,k)+sig(i,j-1,k)+sig(i-1,j,k)+sig(i,j,k)) +
                       facxy*(-sigc(i-1,j-1,k,0)+sigc(i,j-1,k,0)+sigc(i-1,j,k,0)-sigc(i,j,k,0)
                              -sigc(i-1,j-1,k,1)+sigc(i,j-1,k,1)+sigc(i-1,j,k,1)-sigc(i,j,k,1)) +
                       alp(i,j,k);
