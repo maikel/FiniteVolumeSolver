@@ -64,6 +64,17 @@ ReflectiveBoundary<Tag, Equation>::ReflectiveBoundary(Tag,
     : implementation_{::fub::ReflectiveBoundary<Equation>(equation)}, dir_{dir},
       side_{side} {}
 
+inline ::amrex::Box GrowInPeriodicDirection(const ::amrex::Box& box, const ::amrex::Geometry& geom, int ngrow)
+{
+  ::amrex::Box grown_box = box;
+  for (int idir = 0; idir < AMREX_SPACEDIM; ++idir) {
+    if (geom.isPeriodic(idir)) {
+      grown_box.grow(idir, ngrow);
+    }
+  }
+  return grown_box;
+}
+
 template <typename Tag, typename Equation>
 void ReflectiveBoundary<Tag, Equation>::FillBoundary(
     ::amrex::MultiFab& mf, const ::amrex::Geometry& geom) {
@@ -82,7 +93,8 @@ void ReflectiveBoundary<Tag, Equation>::FillBoundary(
       if (!geom.Domain().intersects(shifted)) {
         continue;
       }
-      ::amrex::Box box_to_fill = mfi.growntilebox() & boundary;
+      ::amrex::Box b = GrowInPeriodicDirection(boundary, geom, ngrow);
+      ::amrex::Box box_to_fill = mfi.growntilebox() & b;
       if (!box_to_fill.isEmpty()) {
         auto states = MakeView<Complete<Equation>>(
             fab, implementation_->GetEquation(), mfi.growntilebox());
