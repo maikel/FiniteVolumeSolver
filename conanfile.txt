@@ -2,7 +2,7 @@
 boost/1.71.0@conan/stable
 eigen/3.3.7@conan/stable
 fmt/5.3.0@bincrafters/stable
-AMReX/20.04@ag-klein+FiniteVolumeSolver/stable
+AMReX/20.07@ag-klein+FiniteVolumeSolver/stable
 SAMRAI/3.15.0@finite-volume/stable
 Vc/1.4.1@finite-volume/stable
 HDF5/1.10@finite-volume/stable
