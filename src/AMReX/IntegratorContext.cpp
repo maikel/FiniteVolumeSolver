@@ -261,7 +261,8 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
     for (std::size_t d = 0; d < static_cast<std::size_t>(AMREX_SPACEDIM); ++d) {
       const ::amrex::BoxArray fba =
           ::amrex::convert(ba, ::amrex::IntVect::TheDimensionVector(int(d)));
-      ::amrex::IntVect fgrow = grow;
+      const int stencil = method_.flux_method.GetStencilWidth();
+      ::amrex::IntVect fgrow(face_ghost_cell_width_ + stencil);
       fgrow[int(d)] = face_ghost_cell_width_;
       data.fluxes[d].define(fba, dm, n_cons_components, fgrow);
       data.fluxes[d].setVal(0.0);
