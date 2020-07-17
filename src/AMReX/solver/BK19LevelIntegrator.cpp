@@ -196,16 +196,17 @@ void ComputePvFromScratch_(const IndexMapping<Equation>& index, MultiFab& dest,
                            const ::amrex::Periodicity& periodicity) {
   // Shall be: Pv[i] = PTdensity * (rho v)[i] / rho
   // Compute Pv_i for each velocity direction
+  int nghosts = scratch.nGrow();
   for (std::size_t i = 0; i < index.momentum.size(); ++i) {
     const int dest_component = static_cast<int>(i);
     MultiFab::Copy(dest, scratch, index.PTdensity, dest_component,
-                   one_component, no_ghosts);
+                   one_component, nghosts);
     MultiFab::Multiply(dest, scratch, index.momentum[i], dest_component,
-                       one_component, no_ghosts);
+                       one_component, nghosts);
     MultiFab::Divide(dest, scratch, index.density, dest_component,
-                       one_component, no_ghosts);
+                       one_component, nghosts);
   }
-  dest.FillBoundary(periodicity);
+//   dest.FillBoundary(periodicity);
 }
 
 void ComputeKCrossM_(const std::array<int, VelocityRank>& momentum_index,
@@ -317,7 +318,7 @@ Advect_(BK19LevelIntegrator::AdvectionSolver& advection, int level, Duration dt,
   // then compute divergence term
   // vector field needs one ghost cell width to compute divergence!
   MultiFab UV(on_cells, distribution_map, index.momentum.size(),
-              one_ghost_cell_width);
+              scratch.nGrow());
   ComputePvFromScratch_(index, UV, scratch, periodicity);
 
   MultiFab rhs(on_nodes, distribution_map, one_component, no_ghosts);
@@ -568,7 +569,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
 
   dbgPreStep.SaveData(scratch, GetCompleteVariableNames(), geom);
   dbgPreStep.SaveData(pi, "pi", geom);
-
+debug.FlushData("DebugTest");
   // Save data on current time level for later use
   MultiFab scratch_aux(scratch.boxArray(), scratch.DistributionMap(),
                        scratch.nComp(), no_ghosts);

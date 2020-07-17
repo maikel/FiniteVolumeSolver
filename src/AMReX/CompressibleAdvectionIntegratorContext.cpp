@@ -74,7 +74,7 @@ void CompressibleAdvectionIntegratorContext::ResetHierarchyConfiguration(
   const int nlevel = GetPatchHierarchy().GetNumberOfLevels();
   for (int level = 0; level < nlevel; ++level) {
     const std::size_t levelli = static_cast<std::size_t>(level);
-    const int ngrow_Pv_on_cells = GetScratch(level).nGrow() + 1;
+    const int ngrow_Pv_on_cells = GetScratch(level).nGrow();
     {
       const ::amrex::BoxArray& ba = hier.GetPatchLevel(level).box_array;
       const ::amrex::DistributionMapping& dm =
@@ -105,7 +105,7 @@ void CompressibleAdvectionIntegratorContext::ResetHierarchyConfiguration(
   const int nlevel = GetPatchHierarchy().GetNumberOfLevels();
   for (int level = coarsest_level; level < nlevel; ++level) {
     const std::size_t levelli = static_cast<std::size_t>(level);
-    const int ngrow_Pv_on_cells = GetScratch(level).nGrow() + 1;
+    const int ngrow_Pv_on_cells = GetScratch(level).nGrow();
     {
       const ::amrex::BoxArray& ba = hier.GetPatchLevel(level).box_array;
       const ::amrex::DistributionMapping& dm =

@@ -1,5 +1,5 @@
 BK19LevelIntegrator = {
-    'do_initial_projection': True,
+    'do_initial_projection': False,
     'mlmg_tolerance_rel': 1e-10,
     'mlmg_tolerance_abs': 1e-10,
     'mlmg_verbose': 2,
@@ -11,8 +11,9 @@ BK19LevelIntegrator = {
 }
 
 GridGeometry = {
-    'cell_dimensions': [64, 64, 64],
+    #'cell_dimensions': [64, 64, 64],
     #'cell_dimensions': [32, 32, 32],
+    'cell_dimensions': [16, 16, 16],
     'coordinates': {
       'lower': [0.0, 0.0, 0.0],
       'upper': [1.0, 1.0, 1.0]
