@@ -115,6 +115,19 @@ static_assert(Rank == 2);
 static_assert(VelocityRank == 2);
 
 namespace {
+
+::amrex::Box GrowInPeriodicDirection(const ::amrex::Box& box, const ::amrex::Geometry& geom, int ngrow)
+{
+  ::amrex::Box grown_box = box;
+  for (int idir = 0; idir < AMREX_SPACEDIM; ++idir) {
+    if (geom.isPeriodic(idir)) {
+      grown_box.grow(idir, ngrow);
+    }
+  }
+  return grown_box;
+}
+
+
 IndexBox<2> BoxFromStencil_(const IndexBox<2>& box,
                             std::array<std::ptrdiff_t, 2> x_stencil,
                             std::array<std::ptrdiff_t, 2> y_stencil) {
@@ -321,6 +334,16 @@ Advect_(BK19LevelIntegrator::AdvectionSolver& advection, int level, Duration dt,
               scratch.nGrow());
   ComputePvFromScratch_(index, UV, scratch, periodicity);
 
+  {
+    ::amrex::Box grown_box = geom.growNonPeriodicDomain(scratch.nGrow());
+    ::amrex::BoxList boundaries =
+      ::amrex::complementIn(grown_box, ::amrex::BoxList{geom.Domain()});
+    for (::amrex::Box & box : boundaries) {
+      ::amrex::Box ghostbox_with_corners = GrowInPeriodicDirection(box, geom, scratch.nGrow());
+      UV.setVal(0.0, ghostbox_with_corners, 0, index.momentum.size(), scratch.nGrow());
+    }
+  }
+
   MultiFab rhs(on_nodes, distribution_map, one_component, no_ghosts);
   rhs.setVal(0.0);
   lin_op.compDivergence({&rhs}, {&UV});
@@ -438,8 +461,18 @@ void DoEulerForward_(const IndexMapping<Equation>& index,
 
   // vector field needs one ghost cell width to compute divergence
   MultiFab UV(on_cells, distribution_map, index.momentum.size(),
-              one_ghost_cell_width);
+              scratch.nGrow());
   ComputePvFromScratch_(index, UV, scratch, periodicity);
+
+  {
+    ::amrex::Box grown_box = geom.growNonPeriodicDomain(scratch.nGrow());
+    ::amrex::BoxList boundaries =
+      ::amrex::complementIn(grown_box, ::amrex::BoxList{geom.Domain()});
+    for (::amrex::Box & box : boundaries) {
+      ::amrex::Box ghostbox_with_corners = GrowInPeriodicDirection(box, geom, scratch.nGrow());
+      UV.setVal(0.0, ghostbox_with_corners, 0, index.momentum.size(), scratch.nGrow());
+    }
+  }
 
   // construct sigma as in DoEulerBackward_, but without potential temperature
   // factor, since we correct the momentum right away
@@ -569,7 +602,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
 
   dbgPreStep.SaveData(scratch, GetCompleteVariableNames(), geom);
   dbgPreStep.SaveData(pi, "pi", geom);
-debug.FlushData("DebugTest");
+
   // Save data on current time level for later use
   MultiFab scratch_aux(scratch.boxArray(), scratch.DistributionMap(),
                        scratch.nComp(), no_ghosts);
@@ -623,6 +656,7 @@ debug.FlushData("DebugTest");
   {
     Timer _ =
         counters->get_timer("BK19LevelIntegrator::RecomputeAdvectiveFluxes");
+    context.FillGhostLayerSingleLevel(0);
     RecomputeAdvectiveFluxes(index_, Pv.on_faces, Pv.on_cells, scratch,
                              periodicity);
   }
