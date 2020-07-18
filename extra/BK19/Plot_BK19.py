@@ -12,11 +12,22 @@ from mpl_toolkits.axes_grid1 import AxesGrid
 #if (not funcs.get_interactivity()):
   #yt.toggle_interactivity()
 
+def _vel0(field, data):
+    return data['Momentum_0'] / data['Density']
+
+def _vel1(field, data):
+    return data['Momentum_1'] / data['Density']
+
 def Load(base_dir, step_dir, timestep):
   path = os.path.join(base_dir, step_dir, 'partition_0_plt{:09d}'.format(timestep))
   shutil.copy2('../yt/WarpXHeader', path)
   shutil.copy2('../yt/warpx_job_info', path)
-  return yt.load(path)
+
+  ds = yt.load(path)
+  ds.add_field(('boxlib', 'Velocity_0'), function=_vel0, units='', sampling_type='cell')
+  ds.add_field(('boxlib', 'Velocity_1'), function=_vel1, units='', sampling_type='cell')
+
+  return ds
 
 def PlotVariables(ds, variables, label, fignum = -1):
 
@@ -119,6 +130,10 @@ vars = ['Density', 'Velocity_0', 'Velocity_1', 'PTdensity', 'PTinverse']
 
 for i in range(len(substeps)):
   ds = Load(base_dir, substeps[i], timestep)
+  ds.field_info[('boxlib', 'Momentum_0')].take_log = False
+  ds.field_info[('boxlib', 'Momentum_1')].take_log = False
+  ds.field_info[('boxlib', 'Velocity_0')].take_log = False
+  ds.field_info[('boxlib', 'Velocity_1')].take_log = False
   PlotVariables(ds, vars, substeps[i][5:], i+1)
   #PlotVariables(ds, vars, 'step = {0:3}'.format(timestep), i+1)
 
