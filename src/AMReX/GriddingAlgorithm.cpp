@@ -49,7 +49,7 @@ GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier,
                                      AnyTaggingMethod tagging,
                                      AnyBoundaryCondition bc)
     : AmrCore(
-          &hier.GetGridGeometry().coordinates, hier.GetMaxNumberOfLevels() - 1,
+          &hier.GetGridGeometry().coordinates, hier.GetMaxNumberOfLevels(),
           ::amrex::Vector<int>(hier.GetGridGeometry().cell_dimensions.begin(),
                                hier.GetGridGeometry().cell_dimensions.end()),
           -1,
