@@ -29,16 +29,16 @@ tube_over_plenum_length_ratio = tube_domain_length / plenum_domain_length
 
 # plenum_yz_length = plenum_yz_upper - plenum_yz_lower
 
-plenum_x_upper = plenum_length
+plenum_x_upper = plenum_length + 0.1
 plenum_x_lower = -inlet_length
 plenum_x_length = plenum_x_upper - plenum_x_lower
 
-plenum_y_lower = - (r_outer + 0.005)
-plenum_y_upper = + (r_outer + 0.005)
+plenum_y_lower = - (r_outer + 0.02)
+plenum_y_upper = + (r_outer + 0.02)
 plenum_y_length = plenum_y_upper - plenum_y_lower
 
-plenum_z_lower = - (r_outer + 0.005)
-plenum_z_upper = + (r_outer + 0.005)
+plenum_z_lower = - (r_outer + 0.02)
+plenum_z_upper = + (r_outer + 0.02)
 plenum_z_length = plenum_z_upper - plenum_z_lower
 
 plenum_y_over_x_ratio = plenum_y_length / plenum_x_length
@@ -128,7 +128,7 @@ Tubes = [{
     'prefix': 'PressureValve-{}'.format(i),
     'efficiency': 1.0,
     'open_at_interval': 0.03333333,
-    'offset': 0.005 + i,
+    'offset': 0.005 + i * 10.0,
     'fuel_measurement_position': -0.15,
     'fuel_measurement_criterium': 0.9,
     'pressure_value_which_opens_boundary': 101325.0,
@@ -153,11 +153,15 @@ def OuterProbe(x0, k, alpha):
   return [x0, r_outer - 0.002, r_tube_center * math.sin(k * alpha)]
 
 Output = { 
-  'outputs': [{
+  'outputs': [{ 
+    'type': 'Plotfile',
+    'directory': 'MultiTube/Plenum/',
+    'intervals': [5e-4]
+  }, {
     'type': 'HDF5',
     'which_block': 0,
     'path': 'Plenum.h5',
-    'intervals': [1e-5],
+    'intervals': [1e-3],
     'box': {
       'lower': [plenum_x_n_cells - 5, 0, 0],
       'upper': [plenum_x_n_cells - 5, plenum_y_n_cells - 1, plenum_z_n_cells - 1]
@@ -166,7 +170,7 @@ Output = {
     'type': 'HDF5',
     'which_block': 1,
     'path': 'Tube_0.h5',
-    'intervals': [1e-5],
+    'intervals': [1e-3],
   }, {
     'type': 'LogProbes',
     'directory': 'MultiTube/Probes/',

@@ -199,7 +199,7 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
     const double xhi = center[0];
     const double xdiv = xhi - 0.075;
     const double r = r_tube;
-    const double r2 = 0.0225;
+    const double r2 = r; // 0.0225;
     auto polygon = MakePolygon(std::pair{xlo, r}, std::pair{xdiv, r}, std::pair{xhi, r2},
                                std::pair{xhi, -r2}, std::pair{xdiv, -r}, std::pair{xlo, -r}, std::pair{xlo, r});
     auto tube_in_zero = fub::Invert(fub::RotateAxis(polygon));
