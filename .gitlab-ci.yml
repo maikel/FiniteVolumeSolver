@@ -97,8 +97,8 @@ conan:amrex-clang8:
     - conan create ./conan/conanfile-AMReX-stable.py ag-klein+FiniteVolumeSolver/stable --profile linux-clang -o AMReX:dim="2" -o AMReX:eb=False --build AMReX
     - conan create ./conan/conanfile-AMReX-stable.py ag-klein+FiniteVolumeSolver/stable --profile linux-clang -o AMReX:dim="3" --build AMReX
     - conan create ./conan/conanfile-AMReX-stable.py ag-klein+FiniteVolumeSolver/stable --profile linux-clang -o AMReX:dim="3" -o AMReX:eb=False --build AMReX
-    - CONAN_LOGIN_USERNAME=ci_user CONAN_PASSWORD=${CI_JOB_TOKEN} conan upload AMReX/20.04@ag-klein+FiniteVolumeSolver/stable --all --remote=gitlab
-    - conan search AMReX/20.04@ag-klein+FiniteVolumeSolver/stable
+    - CONAN_LOGIN_USERNAME=ci_user CONAN_PASSWORD=${CI_JOB_TOKEN} conan upload AMReX/20.07@ag-klein+FiniteVolumeSolver/stable --all --remote=gitlab
+    - conan search AMReX/20.07@ag-klein+FiniteVolumeSolver/stable
 
 conan:amrex-gcc9:
   image: git.imp.fu-berlin.de:5000/ag-klein/finitevolumesolver/amrex:gcc9
@@ -114,5 +114,5 @@ conan:amrex-gcc9:
     - conan create ./conan/conanfile-AMReX-stable.py ag-klein+FiniteVolumeSolver/stable --profile linux-gcc -o AMReX:dim="2" -o AMReX:eb=False --build AMReX
     - conan create ./conan/conanfile-AMReX-stable.py ag-klein+FiniteVolumeSolver/stable --profile linux-gcc -o AMReX:dim="3" --build AMReX
     - conan create ./conan/conanfile-AMReX-stable.py ag-klein+FiniteVolumeSolver/stable --profile linux-gcc -o AMReX:dim="3" -o AMReX:eb=False --build AMReX
-    - CONAN_LOGIN_USERNAME=ci_user CONAN_PASSWORD=${CI_JOB_TOKEN} conan upload AMReX/20.04@ag-klein+FiniteVolumeSolver/stable --all --remote=gitlab
-    - conan search AMReX/20.04@ag-klein+FiniteVolumeSolver/stable
+    - CONAN_LOGIN_USERNAME=ci_user CONAN_PASSWORD=${CI_JOB_TOKEN} conan upload AMReX/20.07@ag-klein+FiniteVolumeSolver/stable --all --remote=gitlab
+    - conan search AMReX/20.07@ag-klein+FiniteVolumeSolver/stable

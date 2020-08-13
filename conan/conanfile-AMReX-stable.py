@@ -4,7 +4,7 @@ from datetime import datetime
 
 class AmrexConan(ConanFile):
     name = "AMReX"
-    version = "20.04"
+    version = "20.07"
     license = "https://raw.githubusercontent.com/AMReX-Codes/amrex/master/license.txt"
     url = "https://github.com/AMReX-Codes/amrex"
     description = "A software framework for massively parallel, block-structured adaptive mesh refinement (AMR) applications"
@@ -29,7 +29,7 @@ class AmrexConan(ConanFile):
     def source(self):
         # self.run("git clone https://github.com/AMReX-Codes/amrex.git --branch development --single-branch --depth=1")
         git = tools.Git(folder="amrex")
-        git.clone("https://github.com/AMReX-Codes/amrex.git", "20.04")
+        git.clone("https://github.com/AMReX-Codes/amrex.git", "20.07")
         # Garantee proper linkage
         tools.replace_in_file("amrex/CMakeLists.txt", "set( AMREX_CMAKE_MODULES_PATH \"${CMAKE_CURRENT_LIST_DIR}/Tools/CMake\" CACHE INTERNAL \"\" )",
                               '''include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
@@ -40,7 +40,7 @@ set( AMREX_CMAKE_MODULES_PATH "${CMAKE_CURRENT_LIST_DIR}/Tools/CMake" CACHE INTE
     def _configure_cmake(self):
         cmake = CMake(self)
         cmake.configure(source_folder="amrex", defs={
-            "AMREX_PKG_VERSION": "20.04",
+            "AMREX_PKG_VERSION": "20.07",
             # "CMAKE_PROJECT_INCLUDE": "${CMAKE_BINARY_DIR}/conanbuildinfo.cmake"
             "BUILD_SHARED_LIBS": "ON" if self.options.shared else "OFF",
             "ENABLE_MPI": "ON" if self.options.mpi else "OFF",
