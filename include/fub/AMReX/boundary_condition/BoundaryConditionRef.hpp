@@ -32,7 +32,7 @@ namespace fub::amrex {
 /// \brief This class references a BoundaryCondition object and acts as an
 /// adapter such that it is enabled to be used as an AMReX boundary condition
 template <typename BC, typename GriddingAlgorithm>
-class BoundaryConditionRef : public ::amrex::PhysBCFunctBase {
+class BoundaryConditionRef {
 public:
   /// @{
   /// \name Constructors
@@ -61,9 +61,9 @@ public:
   ///
   /// \throw Throws any exception that is thrown by the reference boundary
   /// condition.
-  void FillBoundary(::amrex::MultiFab& mf, int dcomp, int ncomp,
-                    ::amrex::IntVect const& nghost, ::amrex::Real time,
-                    int bccomp) override;
+  void operator() (::amrex::MultiFab& mf, int dcomp, int ncomp,
+                   ::amrex::IntVect const& nghost, ::amrex::Real time,
+                   int bccomp);
 
   BC* pointer;
   const GriddingAlgorithm* gridding;
@@ -76,7 +76,7 @@ BoundaryConditionRef<BC, GriddingAlgorithm>::BoundaryConditionRef(
     : pointer{&condition}, gridding{&grid}, level{lvl} {}
 
 template <typename BC, typename GriddingAlgorithm>
-void BoundaryConditionRef<BC, GriddingAlgorithm>::FillBoundary(::amrex::MultiFab& mf, int, int,
+void BoundaryConditionRef<BC, GriddingAlgorithm>::operator() (::amrex::MultiFab& mf, int, int,
                     ::amrex::IntVect const&, ::amrex::Real,
                     int) {
  if (pointer && gridding) {

@@ -22,6 +22,7 @@
 #define FUB_ODE_SOLVER_RADAU_SOLVER_HPP
 
 #include "fub/ode_solver/OdeSolverFactory.hpp"
+#include <stdexcept>
 #include <vector>
 
 namespace fub {
