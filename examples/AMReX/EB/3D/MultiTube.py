@@ -68,6 +68,10 @@ checkpoint = ''
 
 Plenum = {
   'checkpoint': checkpoint,
+  'InletGeometry': {
+    'r_start': r_tube,
+    'r_end': 0.0225
+  },
   'GridGeometry': {
     'cell_dimensions': [plenum_x_n_cells, plenum_y_n_cells, plenum_z_n_cells],
     'coordinates': {
