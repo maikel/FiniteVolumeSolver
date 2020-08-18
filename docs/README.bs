@@ -268,13 +268,13 @@ which should build all targets. For other systems, a more general call would be
 ### Useful build flags
 
 - If you want to link to another python version then the default one you can pass
-```text
--DPYBIND11_PYTHON_VERSION=3.8
-```
-or directly specify the python executable by
-```text
--DPYTHON_EXECUTABLE=/path/to/python
-```
+  ```text
+    -DPYBIND11_PYTHON_VERSION=3.8
+  ```
+  or directly specify the python executable by
+  ```text
+    -DPYTHON_EXECUTABLE=/path/to/python
+  ```
 
 
 If some targets fail to build feel free to raise an issue in GitLab.
