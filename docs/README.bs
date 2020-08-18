@@ -176,8 +176,14 @@ Note: The library needs a minimum GCC version of 7 or a minimum LLVM clang versi
 We added some custom installation recipes which `conan` can use to install dependencies like [[AMReX]] or [[HDF5]]. These are stored in a `conan` repository and we need to point `conan` to this repository. This is done via the command line
 
 ```text
-> conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/finite-volume
+> conan remote add gitlab https://git.imp.fu-berlin.de/api/v4/packages/conan
+> conan user <username> -r gitlab -p <api-key>
 ```
+Hereby <username> is the login name for gitlab and <api-key> is a personal 
+*access token* provided by gitlab at git.imp.fu-berlin.de.
+
+The access token can be created via the user symbol on the top right of the 
+gitlab interface, Settings->Access Tokens (check api). 
 
 MPI Installation {#mpi-install}
 -------------------------------
