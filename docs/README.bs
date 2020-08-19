@@ -176,8 +176,14 @@ Note: The library needs a minimum GCC version of 7 or a minimum LLVM clang versi
 We added some custom installation recipes which `conan` can use to install dependencies like [[AMReX]] or [[HDF5]]. These are stored in a `conan` repository and we need to point `conan` to this repository. This is done via the command line
 
 ```text
-> conan remote add finite-volume https://api.bintray.com/conan/fub-agklein/finite-volume
+> conan remote add gitlab https://git.imp.fu-berlin.de/api/v4/packages/conan
+> conan user <username> -r gitlab -p <api-key>
 ```
+Hereby <username> is the login name for gitlab and <api-key> is a personal 
+*access token* provided by gitlab at git.imp.fu-berlin.de.
+
+The access token can be created via the user symbol on the top right of the 
+gitlab interface, Settings->Access Tokens (check api). 
 
 MPI Installation {#mpi-install}
 -------------------------------
@@ -258,6 +264,18 @@ which should build all targets. For other systems, a more general call would be
 ```text
 ./FiniteVolumeSolver/build> cmake --build .
 ```
+
+### Useful build flags
+
+- If you want to link to another python version then the default one you can pass
+  ```text
+    -DPYBIND11_PYTHON_VERSION=3.8
+  ```
+  or directly specify the python executable by
+  ```text
+    -DPYTHON_EXECUTABLE=/path/to/python
+  ```
+
 
 If some targets fail to build feel free to raise an issue in GitLab.
 

@@ -54,7 +54,11 @@ GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier,
           &hier.GetGridGeometry().coordinates,
           hier.GetOptions().max_number_of_levels - 1,
           ::amrex::Vector<int>(hier.GetGridGeometry().cell_dimensions.begin(),
-                               hier.GetGridGeometry().cell_dimensions.end())),
+                               hier.GetGridGeometry().cell_dimensions.end()), -1,
+          ::amrex::Vector<::amrex::IntVect>(
+              static_cast<std::size_t>(hier.GetMaxNumberOfLevels()),
+              hier.GetRatioToCoarserLevel(
+                  hier.GetOptions().max_number_of_levels - 1))),
       hierarchy_(std::move(hier)), initial_condition_(std::move(initial_data)),
       tagging_(std::move(tagging)), boundary_condition_(std::move(boundary)) {
   const PatchHierarchyOptions& options = hierarchy_.GetOptions();
@@ -62,6 +66,9 @@ GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier,
   AmrMesh::SetBlockingFactor(options.blocking_factor);
   AmrMesh::SetNProper(options.n_proper);
   AmrMesh::SetGridEff(options.grid_efficiency);
+  if (hier.GetMaxNumberOfLevels() == 1) {
+    AmrMesh::ref_ratio.resize(1, ::amrex::IntVect(1));
+  }
   AmrMesh::verbose = options.verbose;
   AmrCore::verbose = options.verbose;
   AmrMesh::n_error_buf = ::amrex::Vector<::amrex::IntVect>(
@@ -166,8 +173,8 @@ void GriddingAlgorithm::ErrorEst(int level, ::amrex::TagBoxArray& tags,
   tagging_.TagCellsForRefinement(tags, *this, level, Duration(tp));
 }
 
-const AnyBoundaryCondition& GriddingAlgorithm::GetBoundaryCondition() const
-    noexcept {
+const AnyBoundaryCondition&
+GriddingAlgorithm::GetBoundaryCondition() const noexcept {
   return boundary_condition_;
 }
 

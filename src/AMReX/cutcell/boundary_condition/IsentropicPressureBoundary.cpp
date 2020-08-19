@@ -77,8 +77,12 @@ void IsentropicExpansionWithoutDissipation_(
       std::sqrt(efficiency * std::abs(enthalpyDifference) * 2 +
                 old_velocity[0] * old_velocity[0]);
   dest.momentum[0] = dest.density * u_border;
-  dest.momentum[1] = dest.density * old_velocity[1];
-  dest.momentum[2] = dest.density * old_velocity[2];
+  if constexpr (AMREX_SPACEDIM > 1) {
+    dest.momentum[1] = dest.density * old_velocity[1];
+  }
+  if constexpr (AMREX_SPACEDIM > 2) {
+    dest.momentum[2] = dest.density * old_velocity[2];
+  }
   dest.energy += 0.5 * dest.momentum.matrix().squaredNorm() / dest.density;
 }
 
