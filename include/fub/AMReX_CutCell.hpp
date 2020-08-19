@@ -28,7 +28,7 @@
 #include "fub/AMReX/cutcell/PatchHierarchy.hpp"
 #include "fub/AMReX/cutcell/Reconstruction.hpp"
 
-#include "fub/AMReX/AxiSymmetricSourceTerm.hpp"
+#include "fub/AMReX/cutcell/AxiSymmetricSourceTerm.hpp"
 
 #include "fub/AMReX/cutcell/TimeIntegrator.hpp"
 
