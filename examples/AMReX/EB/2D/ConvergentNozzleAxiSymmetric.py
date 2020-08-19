@@ -1,10 +1,10 @@
 import math
 
-plenum_x_n_cells = 128
+plenum_x_n_cells = 512
 tube_blocking_factor = 8
 plenum_blocking_factor = 8
 
-n_level = 3
+n_level = 1
 
 n_tubes = 6
 r_tube = 0.015
@@ -89,6 +89,10 @@ Plenum = {
     'remove_covered_grids': False,
     'n_proper': 1,
     'n_error_buf': [0, 0, 0]
+  },
+  'InletGeometry': {
+    'r_start': r_tube,
+    'r_end': r_tube
   },
   'IsentropicPressureBoundary': {
     'outer_pressure': 101325.0,

@@ -164,12 +164,22 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
     return fub::Polygon(std::move(xs), std::move(ys));
   };
 
+  double r_inlet_start = r_tube;
+  double r_inlet_end = 0.5 * r_tube;
+  {
+    const fub::ProgramOptions inlet_options =
+        fub::GetOptions(options, "InletGeometry");
+    r_inlet_start =
+        fub::GetOptionOr(inlet_options, "r_start", r_inlet_start);
+    r_inlet_end = fub::GetOptionOr(inlet_options, "r_end", r_inlet_end);
+  }
+
   auto ConvergentInlet = [&](double height,
                              const std::array<double, Plenum_Rank>& center) {
     const double xlo = center[0] - height;
     const double xhi = center[0];
-    constexpr double r = r_tube;
-    constexpr double r2 = 0.5 * r_tube;
+    const double r = r_inlet_start;
+    const double r2 = r_inlet_end;
     const double xdiv = xhi - 4.0 * r;
     auto polygon =
         MakePolygon(std::pair{xlo, r}, std::pair{xdiv, r}, std::pair{xhi, r2},
