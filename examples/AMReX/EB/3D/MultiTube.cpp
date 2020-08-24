@@ -28,8 +28,8 @@
 #include <AMReX_EB2_IF_Cylinder.H>
 #include <AMReX_EB2_IF_Intersection.H>
 #include <AMReX_EB2_IF_Plane.H>
-#include <AMReX_EB2_IF_Union.H>
 #include <AMReX_EB2_IF_Translation.H>
+#include <AMReX_EB2_IF_Union.H>
 
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/archive/text_oarchive.hpp>
@@ -59,7 +59,8 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
                     const fub::ProgramOptions& options, int k,
                     const std::shared_ptr<fub::CounterRegistry>& counters) {
   fub::SeverityLogger log = fub::GetInfoLogger();
-  BOOST_LOG(log) << fmt::format("==================== Tube #{} =========================", k);
+  BOOST_LOG(log) << fmt::format(
+      "==================== Tube #{} =========================", k);
 
   using namespace fub::amrex;
   std::vector<pybind11::dict> dicts{};
@@ -100,8 +101,7 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
         fub::GetOptionOr(initial_options, "temperature", 300.0);
     const double pressure =
         fub::GetOptionOr(initial_options, "pressure", 101325.0);
-    const double velocity =
-        fub::GetOptionOr(initial_options, "velocity", 0.0);
+    const double velocity = fub::GetOptionOr(initial_options, "velocity", 0.0);
     equation.GetReactor().SetMoleFractions(moles);
     equation.GetReactor().SetTemperature(temperature);
     equation.GetReactor().SetPressure(pressure);
@@ -116,7 +116,8 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
   valve_options.Print(log);
 
   PressureValveBoundary valve{equation, valve_options};
-  IsentropicPressureBoundary right_boundary(equation, 101325.0, fub::Direction::X, 1);
+  IsentropicPressureBoundary right_boundary(equation, 101325.0,
+                                            fub::Direction::X, 1);
   BoundarySet boundaries{{valve, right_boundary}};
 
   // If a checkpoint path is specified we will fill the patch hierarchy with
@@ -145,7 +146,8 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
       return gridding;
     } else {
       checkpoint = fmt::format("{}/Tube_{}", checkpoint, k);
-      BOOST_LOG(log) << "Initialize grid from given checkpoint '" << checkpoint << "'.";
+      BOOST_LOG(log) << "Initialize grid from given checkpoint '" << checkpoint
+                     << "'.";
       fub::amrex::DataDescription desc =
           fub::amrex::MakeDataDescription(equation);
       PatchHierarchy h = ReadCheckpointFile(checkpoint, desc, grid_geometry,
@@ -160,7 +162,8 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
   }();
 
   fub::ideal_gas::MusclHancockPrimMethod<Tube_Rank> flux_method{equation};
-  HyperbolicMethod method{FluxMethodAdapter(flux_method), EulerForwardTimeIntegrator(),
+  HyperbolicMethod method{FluxMethodAdapter(flux_method),
+                          EulerForwardTimeIntegrator(),
                           Reconstruction(equation)};
 
   const int scratch_gcw = 4;
@@ -168,7 +171,8 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
 
   IntegratorContext context(gridding, method, scratch_gcw, flux_gcw);
 
-  BOOST_LOG(log) << fmt::format("==================== End Tube #{} =========================", k);
+  BOOST_LOG(log) << fmt::format(
+      "==================== End Tube #{} =========================", k);
 
   return std::pair{std::move(context), valve};
 }
@@ -194,17 +198,31 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
     return fub::Polygon(std::move(xs), std::move(ys));
   };
 
-  auto DivergentInlet = [&](double height, const std::array<double, 3>& center) {
+  double r_inlet_start = r_tube;
+  double r_inlet_end = 0.0225;
+  {
+    const fub::ProgramOptions inlet_options =
+        fub::GetOptions(plenum_options, "InletGeometry");
+    r_inlet_start =
+        fub::GetOptionOr(inlet_options, "r_start", r_inlet_start);
+    r_inlet_end = fub::GetOptionOr(inlet_options, "r_end", r_inlet_end);
+  }
+
+  auto DivergentInlet = [&](double height,
+                            const std::array<double, 3>& center) {
     const double xlo = center[0] - height;
     const double xhi = center[0];
     const double xdiv = xhi - 0.075;
-    const double r = r_tube;
-    const double r2 = 0.0225;
-    auto polygon = MakePolygon(std::pair{xlo, r}, std::pair{xdiv, r}, std::pair{xhi, r2},
-                               std::pair{xhi, -r2}, std::pair{xdiv, -r}, std::pair{xlo, -r}, std::pair{xlo, r});
+    const double r = r_inlet_start;
+    const double r2 = r_inlet_end;
+    auto polygon =
+        MakePolygon(std::pair{xlo, r}, std::pair{xdiv, r}, std::pair{xhi, r2},
+                    std::pair{xhi, -r2}, std::pair{xdiv, -r},
+                    std::pair{xlo, -r}, std::pair{xlo, r});
     auto tube_in_zero = fub::Invert(fub::RotateAxis(polygon));
     amrex::RealArray real_center{center[0], center[1], center[2]};
-    auto tube_in_center = amrex::EB2::TranslationIF(fub::amrex::Geometry(tube_in_zero), real_center);
+    auto tube_in_center = amrex::EB2::TranslationIF(
+        fub::amrex::Geometry(tube_in_zero), real_center);
     return tube_in_center;
   };
 
@@ -214,17 +232,17 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
   };
 
   auto embedded_boundary = amrex::EB2::makeIntersection(
-    amrex::EB2::makeUnion(
-      amrex::EB2::makeIntersection(
-          Cylinder(r_outer, 0.5, {0.25, 0.0, 0.0}),
-          DivergentInlet(0.2, Center(0.0, 0.0 * alpha)),
-          DivergentInlet(0.2, Center(0.0, 1.0 * alpha)),
-          DivergentInlet(0.2, Center(0.0, 2.0 * alpha)),
-          DivergentInlet(0.2, Center(0.0, 3.0 * alpha)),
-          DivergentInlet(0.2, Center(0.0, 4.0 * alpha)),
-          DivergentInlet(0.2, Center(0.0, 5.0 * alpha))),
-      amrex::EB2::CylinderIF(r_inner, 1.0, 0, {0.25, 0.0, 0.0}, false)),
-    amrex::EB2::PlaneIF({0.5, 0.0, 0.0}, {1.0, 0.0, 0.0}, false));
+      amrex::EB2::makeUnion(
+          amrex::EB2::makeIntersection(
+              Cylinder(r_outer, 0.5, {0.25, 0.0, 0.0}),
+              DivergentInlet(0.2, Center(0.0, 0.0 * alpha)),
+              DivergentInlet(0.2, Center(0.0, 1.0 * alpha)),
+              DivergentInlet(0.2, Center(0.0, 2.0 * alpha)),
+              DivergentInlet(0.2, Center(0.0, 3.0 * alpha)),
+              DivergentInlet(0.2, Center(0.0, 4.0 * alpha)),
+              DivergentInlet(0.2, Center(0.0, 5.0 * alpha))),
+          amrex::EB2::CylinderIF(r_inner, 1.0, 0, {0.25, 0.0, 0.0}, false)),
+      amrex::EB2::PlaneIF({0.5, 0.0, 0.0}, {1.0, 0.0, 0.0}, false));
   auto shop = amrex::EB2::makeShop(embedded_boundary);
 
   fub::IdealGasMix<Plenum_Rank> equation{mechanism};
@@ -240,12 +258,12 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
     const double pressure =
         fub::GetOptionOr(initial_options, "pressure", 101325.0);
     std::array<double, 3> velocity{};
-    velocity =
-        fub::GetOptionOr(initial_options, "velocity", velocity);
+    velocity = fub::GetOptionOr(initial_options, "velocity", velocity);
     equation.GetReactor().SetMoleFractions(moles);
     equation.GetReactor().SetTemperature(temperature);
     equation.GetReactor().SetPressure(pressure);
-    equation.CompleteFromReactor(state, {velocity[0], velocity[1], velocity[2]});
+    equation.CompleteFromReactor(state,
+                                 {velocity[0], velocity[1], velocity[2]});
     equation.CompleteFromCons(state, state);
   }
   using namespace fub::amrex::cutcell;
@@ -257,14 +275,16 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
   BOOST_LOG(log) << "PatchHierarchy:";
   hierarchy_options.Print(log);
 
-  ::amrex::Geometry coarse_geometry = fub::amrex::GetCoarseGeometry(grid_geometry);
+  ::amrex::Geometry coarse_geometry =
+      fub::amrex::GetCoarseGeometry(grid_geometry);
 
   BOOST_LOG(log) << "Compute EB level set data...";
-  std::shared_ptr<fub::CounterRegistry> registry = std::make_shared<fub::CounterRegistry>();
+  std::shared_ptr<fub::CounterRegistry> registry =
+      std::make_shared<fub::CounterRegistry>();
   {
     fub::Timer timer = registry->get_timer("MakeIndexSpaces");
     hierarchy_options.index_spaces = MakeIndexSpaces(
-      shop, coarse_geometry, hierarchy_options.max_number_of_levels);
+        shop, coarse_geometry, hierarchy_options.max_number_of_levels);
   }
 
   using State = fub::Complete<fub::IdealGasMix<Plenum_Rank>>;
@@ -288,8 +308,10 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
   BoundarySet boundary_condition{
       {TransmissiveBoundary{fub::Direction::X, 0},
        IsentropicPressureBoundary{equation, boundary_options},
-       TransmissiveBoundary{fub::Direction::Y, 0},TransmissiveBoundary{fub::Direction::Y, 1},
-       TransmissiveBoundary{fub::Direction::Z, 0}, TransmissiveBoundary{fub::Direction::Z, 1}}};
+       TransmissiveBoundary{fub::Direction::Y, 0},
+       TransmissiveBoundary{fub::Direction::Y, 1},
+       TransmissiveBoundary{fub::Direction::Z, 0},
+       TransmissiveBoundary{fub::Direction::Z, 1}}};
 
   // If a checkpoint path is specified we will fill the patch hierarchy with
   // data from the checkpoint file, otherwise we will initialize the data by
@@ -311,7 +333,8 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
       return gridding;
     } else {
       checkpoint += "/Plenum";
-      BOOST_LOG(log) << "Initialize grid from given checkpoint '" << checkpoint << "'.";
+      BOOST_LOG(log) << "Initialize grid from given checkpoint '" << checkpoint
+                     << "'.";
       PatchHierarchy h = ReadCheckpointFile(
           checkpoint, fub::amrex::MakeDataDescription(equation), grid_geometry,
           hierarchy_options);
@@ -393,8 +416,8 @@ struct CheckpointOutput : fub::OutputAtFrequencyOrInterval<
   operator()(const fub::amrex::MultiBlockGriddingAlgorithm& grid) override {
     int rank = -1;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
-      boost::log::keywords::severity = boost::log::trivial::info);
+    boost::log::sources::severity_logger<boost::log::trivial::severity_level>
+        log(boost::log::keywords::severity = boost::log::trivial::info);
     BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", grid.GetTimePoint().count());
     BOOST_LOG(log) << fmt::format("Write checkpoint to '{}'.", directory_);
     WriteCheckpoint(directory_, grid, valves_, rank, *ignition_);
@@ -470,7 +493,8 @@ void MyMain(const fub::ProgramOptions& options) {
                                        .GetPatchHierarchy()
                                        .GetMaxNumberOfLevels();
 
-  fub::amrex::IgniteDetonationOptions ignite_options(fub::GetOptions(options, "IgniteDetonation"));
+  fub::amrex::IgniteDetonationOptions ignite_options(
+      fub::GetOptions(options, "IgniteDetonation"));
   BOOST_LOG(log) << "IgniteDetonation:";
   ignite_options.Print(log);
   fub::amrex::MultiBlockIgniteDetonation ignition{

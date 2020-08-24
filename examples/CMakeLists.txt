@@ -81,6 +81,9 @@ if (AMReX_FOUND AND AMReX_2D_FOUND)
     add_executable_with_warnings(AMReX.EB.ConvergentNozzle2D AMReX/EB/2D/ConvergentNozzle.cpp)
     target_link_libraries(AMReX.EB.ConvergentNozzle2D FiniteVolumeSolver.AMReX.EB)
 
+    add_executable_with_warnings(AMReX.EB.ConvergentNozzleAxiSymmetric AMReX/EB/2D/ConvergentNozzleAxiSymmetric.cpp)
+    target_link_libraries(AMReX.EB.ConvergentNozzleAxiSymmetric FiniteVolumeSolver.AMReX.EB)
+
     add_executable_with_warnings(AMReX.EB.Divider2D AMReX/EB/2D/Divider2D.cpp)
     target_link_libraries(AMReX.EB.Divider2D FiniteVolumeSolver.AMReX.EB)
 
@@ -141,7 +144,7 @@ if (AMReX_FOUND AND AMReX_3D_FOUND)
   endif()
 endif()
 
-if (SAMRAI_FOUND)
+if (FUB_WITH_SAMRAI AND SAMRAI_FOUND)
   add_executable_with_warnings(SAMRAI.Advection2d_Godunov SAMRAI/Advection2d_Godunov.cpp)
   target_link_libraries(SAMRAI.Advection2d_Godunov FiniteVolumeSolver.SAMRAI)
 

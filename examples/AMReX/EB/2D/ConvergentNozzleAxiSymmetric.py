@@ -1,6 +1,6 @@
 import math
 
-plenum_x_n_cells = 128
+plenum_x_n_cells = 512
 tube_blocking_factor = 8
 plenum_blocking_factor = 8
 
@@ -8,14 +8,22 @@ n_level = 1
 
 n_tubes = 6
 r_tube = 0.015
+
+D = 2.0 * r_tube
+
 r_inner = 0.5 * 0.130
-r_outer = 0.5 * 0.389
+r_outer = 0.5 * 0.2
 r_tube_center = 2.0 * r_inner
 alpha = 2.0 * math.pi / n_tubes
 
-tube_length = 2.083 - 0.50 # [m]
-inlet_length = 0.1 # [m]
-plenum_length = 0.50 # [m]
+inlet_length = 3.0 * D # [m]
+
+plenum_x_upper = 20.0 * D
+plenum_x_lower = -inlet_length
+plenum_x_length = plenum_x_upper - plenum_x_lower
+
+plenum_length = plenum_x_length # [m]
+tube_length = 2.083 - 0.5 # [m]
 
 plenum_max_grid_size = max(plenum_blocking_factor, 64)
 
@@ -29,16 +37,13 @@ tube_over_plenum_length_ratio = tube_domain_length / plenum_domain_length
 
 # plenum_yz_length = plenum_yz_upper - plenum_yz_lower
 
-plenum_x_upper = plenum_length + 0.1
-plenum_x_lower = -inlet_length
-plenum_x_length = plenum_x_upper - plenum_x_lower
 
-plenum_y_lower = - (r_outer + 0.02)
-plenum_y_upper = + (r_outer + 0.02)
+plenum_y_lower = 0.0
+plenum_y_upper = + 10.0 * D
 plenum_y_length = plenum_y_upper - plenum_y_lower
 
-plenum_z_lower = - (r_outer + 0.02)
-plenum_z_upper = + (r_outer + 0.02)
+plenum_z_lower = - 10.0 * D
+plenum_z_upper = + 10.0 * D
 plenum_z_length = plenum_z_upper - plenum_z_lower
 
 plenum_y_over_x_ratio = plenum_y_length / plenum_x_length
@@ -58,7 +63,7 @@ tube_n_cells -= tube_n_cells % tube_blocking_factor
 tube_n_cells = int(tube_n_cells)
 
 RunOptions = {
-  'cfl': 0.8,
+  'cfl': 0.4,
   'final_time': 0.04,
   'max_cycles': -1
 }
@@ -68,10 +73,6 @@ checkpoint = ''
 
 Plenum = {
   'checkpoint': checkpoint,
-  'InletGeometry': {
-    'r_start': r_tube,
-    'r_end': 0.0225
-  },
   'GridGeometry': {
     'cell_dimensions': [plenum_x_n_cells, plenum_y_n_cells, plenum_z_n_cells],
     'coordinates': {
@@ -85,7 +86,13 @@ Plenum = {
     'blocking_factor': [plenum_blocking_factor, plenum_blocking_factor, plenum_blocking_factor],
     'max_grid_size': [plenum_max_grid_size, plenum_max_grid_size, plenum_max_grid_size],
     'ngrow_eb_level_set': 5,
-    'remove_covered_grids': False
+    'remove_covered_grids': False,
+    'n_proper': 1,
+    'n_error_buf': [0, 0, 0]
+  },
+  'InletGeometry': {
+    'r_start': r_tube,
+    'r_end': r_tube
   },
   'IsentropicPressureBoundary': {
     'outer_pressure': 101325.0,
@@ -99,7 +106,7 @@ Plenum = {
 }
 
 def TubeCenterPoint(x0, k, alpha):
-  return [x0, r_tube_center * math.cos(k * alpha), r_tube_center * math.sin(k * alpha)]
+  return [x0, 0.0, 0.0]
 
 def LowerX(x0, k, alpha):
   center = TubeCenterPoint(x0, k, alpha)
@@ -113,26 +120,28 @@ def UpperX(x0, k, alpha):
   center[2] += r_tube
   return center
 
-Tubes = [{
+Tube = {
   'checkpoint': checkpoint,
   'GridGeometry': {
     'cell_dimensions': [tube_n_cells, 1, 1],
     'coordinates': {
-      'lower': LowerX(-tube_length, i, alpha),
-      'upper': UpperX(-inlet_length, i, alpha),
+      'lower': LowerX(-tube_length, 0, alpha),
+      'upper': UpperX(-inlet_length, 0, alpha),
     },
     'periodicity': [0, 0, 0]
   },
   'PatchHierarchy': {
     'max_number_of_levels': n_level, 
     'blocking_factor': [tube_blocking_factor, 1, 1],
-    'refine_ratio': [2, 1, 1]
+    'refine_ratio': [2, 1, 1],
+    'n_proper': 1,
+    'n_error_buf': [4, 0, 0]
   },
   'PressureValveBoundary': {
-    'prefix': 'PressureValve-{}'.format(i),
+    'prefix': 'PressureValve',
     'efficiency': 1.0,
     'open_at_interval': 0.03333333,
-    'offset': 0.005 + i * 10.0,
+    'offset': 0.01,
     'fuel_measurement_position': -0.15,
     'fuel_measurement_criterium': 0.9,
     'pressure_value_which_opens_boundary': 101325.0,
@@ -147,49 +156,24 @@ Tubes = [{
       },
       'side': 0,
       'direction': 0,
-      'required_massflow': 120.0 / 3600.0,
+      'required_massflow': 100.0 / 3600.0,
       'surface_area': math.pi * r_tube * r_tube
     }
   }
-} for i in range(0, n_tubes)]
+}
 
 def OuterProbe(x0, k, alpha):
   return [x0, r_outer - 0.002, r_tube_center * math.sin(k * alpha)]
 
 Output = { 
-  'outputs': [{ 
-    'type': 'Plotfile',
-    'directory': 'MultiTube/Plenum/',
-    'intervals': [5e-4]
-  }, {
-    'type': 'HDF5',
-    'which_block': 0,
-    'path': 'Plenum.h5',
-    'intervals': [1e-3],
-    'box': {
-      'lower': [plenum_x_n_cells - 5, 0, 0],
-      'upper': [plenum_x_n_cells - 5, plenum_y_n_cells - 1, plenum_z_n_cells - 1]
-    }
-  }, {
-    'type': 'HDF5',
-    'which_block': 1,
-    'path': 'Tube_0.h5',
-    'intervals': [1e-3],
-  }, {
-    'type': 'LogProbes',
-    'directory': 'MultiTube/Probes/',
-    'frequencies': [1],
-    'Plenum': {
-      'filename': 'MultiTube/Probes/Plenum.dat',
-      'coordinates': [OuterProbe(0.07, 0, alpha), OuterProbe(0.16, 0, alpha), OuterProbe(0.25, 0, alpha), OuterProbe(0.34, 0, alpha), OuterProbe(0.43, 0, alpha)],
-    },
-    'Tube': {
-      'filename': 'MultiTube/Probes/Tubes.dat',
-      'coordinates': []#[TubeCenterPoint(-0.9, 0, alpha), TubeCenterPoint(-0.45, 0, alpha), TubeCenterPoint(-0.3, 0, alpha), TubeCenterPoint(-0.15, 0, alpha), TubeCenterPoint(-0.07, 0, alpha)],
-    }
+  'outputs': [{
+    'type': 'Plotfiles',
+    'directory': 'ConvergentNozzleAxi/Plotfiles/',
+    'intervals': [1e-4],
+    #'frequencies': [1]
   }, {
     'type': 'Checkpoint',
-    'directory': 'MultiTube/Checkpoint/',
+    'directory': 'ConvergentNozzleAxi/Checkpoint/',
     'intervals': [1e-3],
     'frequencies': []
   }, {
@@ -200,7 +184,7 @@ Output = {
 
 IgniteDetonation = {
   'interval': 0.06,
-  'measurement_position': -0.15, # -0.3 -0.45
+  'measurement_position': -0.3, # -0.45
   'equivalence_ratio_criterium': 0.9,
   'position': -0.8
 }

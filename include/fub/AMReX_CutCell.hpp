@@ -28,6 +28,8 @@
 #include "fub/AMReX/cutcell/PatchHierarchy.hpp"
 #include "fub/AMReX/cutcell/Reconstruction.hpp"
 
+#include "fub/AMReX/cutcell/AxiSymmetricSourceTerm.hpp"
+
 #include "fub/AMReX/cutcell/TimeIntegrator.hpp"
 
 #include "fub/AMReX/cutcell/initial_data/RiemannProblem.hpp"
@@ -53,6 +55,7 @@
 #include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp"
 #include "fub/AMReX/multi_block/MultiBlockIgniteDetonation.hpp"
 #include "fub/AMReX/multi_block/MultiBlockIntegratorContext.hpp"
+#include "fub/AMReX/multi_block/MultiBlockLevelIntegrator.hpp"
 #include "fub/AMReX/multi_block/MultiBlockKineticSourceTerm.hpp"
 #include "fub/AMReX/multi_block/MultiBlockPlotfileOutput.hpp"
 #include "fub/AMReX/multi_block/MultiWriteHdf5.hpp"
