@@ -70,8 +70,8 @@ struct CompressibleAdvectionComplete
 // compete state.
 template <typename... Xs>
 struct StateTraits<CompressibleAdvectionComplete<Xs...>> {
-  static constexpr auto names = std::make_tuple(
-      "Density", "Momentum", "PTdensity", "PTinverse");
+  static constexpr auto names =
+      std::make_tuple("Density", "Momentum", "PTdensity", "PTinverse");
   static constexpr auto pointers_to_member =
       std::make_tuple(&CompressibleAdvectionComplete<Xs...>::density,
                       &CompressibleAdvectionComplete<Xs...>::momentum,
@@ -96,6 +96,18 @@ template <int N, int VelocityDim = N> struct CompressibleAdvection {
   using Conservative = ::fub::Conservative<CompressibleAdvection<VelocityDim>>;
   using Complete = ::fub::Complete<CompressibleAdvection<VelocityDim>>;
 
+  using IndexMapping =
+      ::fub::IndexMapping<CompressibleAdvection<N, VelocityDim>>;
+
+  /// Constructs a default index mapping counting up from 0.
+  CompressibleAdvection() : index_mapping() {
+    index_mapping = IndexMapping(*this);
+  }
+
+  /// Construct an equation with a customized index mapping.
+  explicit CompressibleAdvection(const IndexMapping& index)
+      : index_mapping(index) {}
+
   static constexpr int Rank() noexcept { return N; }
   static constexpr int VelocityRank() noexcept { return VelocityDim; }
 
@@ -106,6 +118,9 @@ template <int N, int VelocityDim = N> struct CompressibleAdvection {
     state.PTinverse = cons.density / cons.PTdensity;
   }
 
+  const IndexMapping& GetIndexMapping() const noexcept { return index_mapping; }
+
+  IndexMapping index_mapping;
 };
 
 template <int SpaceDimension, int VelocityDimension = SpaceDimension>
@@ -118,8 +133,8 @@ struct CompressibleAdvectionFluxMethod {
 
   constexpr static int GetStencilWidth() { return 2; }
 
-  CompressibleAdvection<SpaceDimension, VelocityDimension> GetEquation() const
-      noexcept {
+  CompressibleAdvection<SpaceDimension, VelocityDimension>
+  GetEquation() const noexcept {
     return {};
   }
 
@@ -153,8 +168,8 @@ extern template struct CompressibleAdvectionFluxMethod<2>;
 
 void Reflect(Complete<CompressibleAdvection<2>>& reflected,
              const Complete<CompressibleAdvection<2>>& state,
-             const Eigen::Vector2d& normal, const CompressibleAdvection<2>& gas);
-
+             const Eigen::Vector2d& normal,
+             const CompressibleAdvection<2>& gas);
 
 } // namespace fub
 
