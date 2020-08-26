@@ -20,6 +20,7 @@
 // SOFTWARE.
 
 #include "fub/AMReX/solver/BK19Solver.hpp"
+#include "fub/ext/Vc.hpp"
 
 namespace fub::amrex::bk19 {
 

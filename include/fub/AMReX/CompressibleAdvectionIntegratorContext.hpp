@@ -56,6 +56,9 @@ public:
   const CompressibleAdvectionAdvectiveFluxes&
   GetAdvectiveFluxes(int level) const;
 
+  ::amrex::MultiFab& GetPi(int level);
+  const ::amrex::MultiFab& GetPi(int level) const;
+
   /// \brief Replaces the underlying gridding algorithm with the specified one.
   void ResetHierarchyConfiguration(
       std::shared_ptr<GriddingAlgorithm> gridding) override;

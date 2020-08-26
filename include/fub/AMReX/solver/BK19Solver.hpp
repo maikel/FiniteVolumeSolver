@@ -31,6 +31,8 @@
 #include "fub/solver/NoSubcycleSolver.hpp"
 #include "fub/split_method/SplittingMethod.hpp"
 
+#include "AMReX_MLMG.H"
+
 namespace fub::amrex {
 
 struct BK19SolverOptions {
@@ -133,6 +135,19 @@ public:
   void FillAllGhostLayers();
 
 private:
+  /////////////////////////////////////////////////////////////////////////////////
+  // Allocate helper arrays
+
+  std::vector<::amrex::MultiFab> AllocateOnNodes(int n_comps, int n_grow) const;
+  std::vector<::amrex::MultiFab> ZerosOnNodes(int n_comps, int n_grow) const;
+  std::vector<::amrex::MultiFab> AllocateOnCells(int n_comps, int n_grow) const;
+  std::vector<::amrex::MultiFab> ZerosOnCells(int n_comps, int n_grow) const;
+
+  ::amrex::MultiFab AllocateOnCells(int level, int n_comps, int n_grow) const;
+  ::amrex::MultiFab AllocateOnNodes(int level, int n_comps, int n_grow) const;
+
+  std::vector<::amrex::MultiFab> ComputePvFromScratch(int n_grow) const;
+
   ////////////////////////////////////////////////////////////////////////////////
   // Euler Backward Helpers
 
@@ -171,6 +186,11 @@ private:
   Equation equation_;
   AdvectionSolver advection_;
   std::shared_ptr<LinearOperator> lin_op_;
+
+  /// \brief This function will be invoked to act as a boundary condition for UV
+  /// within EulerBackward
+  std::function<void(::amrex::MultiFab&)> UV_boundary_condition_{
+      [](::amrex::MultiFab&) {}};
 };
 
 namespace bk19 {
@@ -191,14 +211,12 @@ namespace bk19 {
 ///
 /// \param dir  The face direction in which we are averaging to.
 ///
-template <int Rank>
 void AverageCellToFace(::amrex::MultiFab& mf_faces, int face_component,
                        const ::amrex::MultiFab& mf_cells, int cell_component,
                        Direction dir);
 
 /// \brief Apply the cell to node average to a specified cell_component on
 /// mf_cells and write its result into node_component of mf_nodes.
-template <int Rank>
 void AverageCellToNode(::amrex::MultiFab& mf_nodes, int node_component,
                        const ::amrex::MultiFab& mf_cells, int cell_component);
 
@@ -231,6 +249,9 @@ void CopyScratchToContext(IntegratorContext& context,
                           span<const ::amrex::MultiFab> scratch);
 
 ::amrex::Vector<::amrex::MultiFab*> ToPointers(span<::amrex::MultiFab> array);
+
+::amrex::Vector<const ::amrex::MultiFab*>
+ToConstPointers(span<const ::amrex::MultiFab> array);
 
 } // namespace bk19
 
@@ -269,8 +290,8 @@ void BK19Solver<Rank, VelocityRank>::RecomputeAdvectiveFluxes() {
     constexpr int face_component = 0;
     for (std::size_t dir = 0; dir < std::size_t(Rank); ++dir) {
       const int cell_component = static_cast<int>(dir);
-      bk19::AverageCellToFace<Rank>(Pv_faces[dir], face_component, Pv_cells,
-                                    cell_component, Direction(dir));
+      bk19::AverageCellToFace(Pv_faces[dir], face_component, Pv_cells,
+                              cell_component, Direction(dir));
     }
   }
 }
@@ -292,12 +313,6 @@ void BK19Solver<Rank, VelocityRank>::FillAllGhostLayers() {
   for (int level = 1; level < nlevel; ++level) {
     context.FillGhostLayerTwoLevels(level, level - 1);
   }
-}
-
-template <int Rank, int VelocityRank>
-std::vector<::amrex::MultiFab>
-BK19Solver<Rank, VelocityRank>::DoEulerBackward(Duration dt) {
-  return DoEulerBackward(dt, physical_parameters_);
 }
 
 template <int Rank, int VelocityRank>
@@ -347,41 +362,48 @@ std::vector<::amrex::MultiFab> BK19Solver<Rank, VelocityRank>::
     ComputeEulerBackwardRHSAndSetAlphaForLinearOperator(
         Duration dt, const BK19PhysicalParameters& physical_parameters) {
   IntegratorContext& context = advection_.GetContext();
+  const IndexMapping index = equation_.GetIndexMapping();
   const int nlevel = context.GetPatchHierarchy().GetNumberOfLevels();
   // first compute the divergence term
   // vector field needs one ghost cell width to compute divergence!
   std::vector<::amrex::MultiFab> rhs_hierarchy =
       ZerosOnNodes(one_component, no_ghosts);
-  std::vector<::amrex::MultiFab> UV = ComputePvFromScratch(one_ghost_cells);
-  lin_op_->compDivergence(ToPointers(rhs_hierarchy), ToPointers(UV));
+  std::vector<::amrex::MultiFab> UV =
+      ComputePvFromScratch(one_ghost_cell_width);
+  lin_op_->compDivergence(bk19::ToPointers(rhs_hierarchy),
+                          bk19::ToPointers(UV));
   // Now add the diagonal term to rhs if alpha_p > 0.0
   // We also set the alpha coefficients for the linear operator in this case
-  if (pyhsical_parameters.alpha_p > 0.0) {
-    const double factor1 = -pyhsical_parameters.alpha_p *
-                           pyhsical_parameters.Msq / (phys_param.gamma - 1.0) /
-                           dt.count();
+  if (physical_parameters.alpha_p > 0.0) {
+    const double factor1 = -physical_parameters.alpha_p *
+                           physical_parameters.Msq /
+                           (physical_parameters.gamma - 1.0) / dt.count();
     FUB_ASSERT(factor1 < 0.0);
     for (int ilvl = 0; ilvl < nlevel; ++ilvl) {
       const std::size_t level = static_cast<std::size_t>(ilvl);
+      const ::amrex::MultiFab& scratch = context.GetScratch(ilvl);
       ::amrex::MultiFab diagonal_term_on_cells =
-          AllocateCells(ilvl, one_component, scratch.nGrow());
+          AllocateOnCells(ilvl, one_component, scratch.nGrow());
       ForEachFab(
-          execution::openmp, diagonal_term_on_cells, [&](const MFIter& mfi) {
+          execution::openmp, diagonal_term_on_cells,
+          [&](const ::amrex::MFIter& mfi) {
             ::amrex::Box tilebox = mfi.growntilebox();
-            auto diagfac = MakePatchDataView(diagfac_cells[mfi], 0, tilebox);
+            auto diagfac =
+                MakePatchDataView(diagonal_term_on_cells[mfi], 0, tilebox);
             auto PTdensity =
                 MakePatchDataView(scratch[mfi], index.PTdensity, tilebox);
-            ForEachRow(
-                std::tuple{diagfac, PTdensity},
-                [phys_param, dt](span<double> dfac, span<double> PTdens) {
-                  for (std::ptrdiff_t i = 0; i < dfac.size(); ++i) {
-                    dfac[i] =
-                        factor1 * std::pow(PTdens[i], 2.0 - phys_param.gamma);
-                  }
-                });
+            ForEachRow(std::tuple{diagfac, PTdensity},
+                       [physical_parameters, factor1, dt](span<double> dfac,
+                                                          span<double> PTdens) {
+                         for (std::ptrdiff_t i = 0; i < dfac.size(); ++i) {
+                           dfac[i] = factor1 *
+                                     std::pow(PTdens[i],
+                                              2.0 - physical_parameters.gamma);
+                         }
+                       });
           });
       ::amrex::MultiFab diagonal_term_on_nodes =
-          AllocateNodes(ilvl, one_component, no_ghosts);
+          AllocateOnNodes(ilvl, one_component, no_ghosts);
       bk19::AverageCellToNode(diagonal_term_on_nodes, 0, diagonal_term_on_cells,
                               0);
       // This copies the termns into a local array within the linear operator
@@ -396,7 +418,13 @@ std::vector<::amrex::MultiFab> BK19Solver<Rank, VelocityRank>::
                              one_component, no_ghosts);
     }
   }
-  return rhs;
+  return rhs_hierarchy;
+}
+
+template <int Rank, int VelocityRank>
+std::vector<::amrex::MultiFab>
+BK19Solver<Rank, VelocityRank>::DoEulerBackward(Duration dt) {
+  return DoEulerBackward(dt, physical_parameters_);
 }
 
 template <int Rank, int VelocityRank>
@@ -407,7 +435,7 @@ std::vector<::amrex::MultiFab> BK19Solver<Rank, VelocityRank>::DoEulerBackward(
   // term integration step here
   if (physical_parameters.f > 0) {
     ApplyExplicitCoriolisSourceTerm(dt, physical_parameters.f,
-                                    physical_parameters.k);
+                                    physical_parameters.k_vect);
     FillAllGhostLayers();
   }
 
@@ -418,11 +446,12 @@ std::vector<::amrex::MultiFab> BK19Solver<Rank, VelocityRank>::DoEulerBackward(
   SetSigmaForLinearOperator(dt, physical_parameters);
 
   // solve elliptic equation for pi
-  std::vector<::amrex::MultiFab> pi = ZerosOnNodes(context, one_component);
+  std::vector<::amrex::MultiFab> pi = ZerosOnNodes(one_component, no_ghosts);
 
   {
-    Timer _ = counters.get_timer("BK19LevelIntegrator::EulerBackward::solve");
-    ::amrex::MLMG nodal_solver(lin_op);
+    Timer _ = advection_.GetCounterRegistry()->get_timer(
+        "BK19LevelIntegrator::EulerBackward::solve");
+    ::amrex::MLMG nodal_solver(*lin_op_);
     nodal_solver.setMaxIter(options_.mlmg_max_iter);
     nodal_solver.setVerbose(options_.mlmg_verbose);
     nodal_solver.setBottomVerbose(options_.bottom_verbose);
@@ -430,17 +459,17 @@ std::vector<::amrex::MultiFab> BK19Solver<Rank, VelocityRank>::DoEulerBackward(
     nodal_solver.setBottomToleranceAbs(options_.bottom_tolerance_abs);
     nodal_solver.setBottomTolerance(options_.bottom_tolerance_rel);
     nodal_solver.setAlwaysUseBNorm(options_.always_use_bnorm);
-    nodal_solver.solve(AsPointers(pi), AsPointers(rhs),
+    nodal_solver.solve(bk19::ToPointers(pi), bk19::ToConstPointers(rhs),
                        options_.mlmg_tolerance_rel,
                        options_.mlmg_tolerance_abs);
   }
 
   // compute momentum correction
   std::vector<::amrex::MultiFab> UV_correction =
-      ZerosOnCells(context, index.momentum.size());
+      ZerosOnCells(index.momentum.size(), no_ghosts);
 
   // this computes: -sigma Grad(pi)
-  lin_op.getFluxes(AsPointers(UV_correction), AsPointers(pi));
+  lin_op_->getFluxes(bk19::ToPointers(UV_correction), bk19::ToPointers(pi));
 
   // Given this solution we apply the correction for the momentum on the
   // current scratch.
@@ -454,96 +483,28 @@ template <int Rank, int VelocityRank>
 void BK19Solver<Rank, VelocityRank>::DoEulerForward(Duration dt) {
   IndexMapping index = equation_.GetIndexMapping();
   IntegratorContext& context = advection_.GetContext();
-  ::amrex::MLNodeHelmholtz& lin_op = *lin_op_.get();
+  const int nlevel = context.GetPatchHierarchy().GetNumberOfLevels();
+  ::amrex::MLNodeHelmholtz& lin_op = lin_op_->get();
 
-  // vector field needs one ghost cell width to compute divergence
-  //
-  std::vector<::amrex::MultiFab> UV;
-  for (int level = 0; level < nlevel; ++level) {
-    const ::amrex::MultiFab& scratch = context.GetScratch(level);
-    const ::amrex::BoxArray& on_cells = scratch.boxArray();
+  // construct sigma as in DoEulerBackward
+  SetSigmaForLinearOperator(dt, physical_parameters_);
 
-    UV.emplace_back(on_cells, distribution_map, index.momentum.size(),
-                    scratch.nGrow());
-    ComputePvFromScratch(UV, scratch, index);
+  std::vector<::amrex::MultiFab> UV_correction =
+      ZerosOnCells(index.momentum.size(), no_ghosts);
 
-    const ::amrex::Geometry& geom = context.GetGeometry(level);
-    ::amrex::Box grown_box = geom.growNonPeriodicDomain(scratch.nGrow());
-    ::amrex::BoxList boundaries =
-        ::amrex::complementIn(grown_box, ::amrex::BoxList{geom.Domain()});
-    for (::amrex::Box& box : boundaries) {
-      ::amrex::Box ghostbox_with_corners =
-          GrowInPeriodicDirection_(box, geom, scratch.nGrow());
-      UV.setVal(0.0, ghostbox_with_corners, 0, index.momentum.size(),
-                scratch.nGrow());
-    }
-  }
-
-  // construct sigma as in DoEulerBackward_, but without potential temperature
-  // factor, since we correct the momentum right away
-  MultiFab sigma(on_cells, distribution_map, one_component, no_ghosts);
-  sigma.setVal(phys_param.c_p * dt.count());
-  MultiFab::Multiply(sigma, scratch, index.PTdensity, 0, one_component,
-                     sigma.nGrow());
-
-  // we only need to set sigma in the linear operator, since we only need it
-  // for the flux correction
-  dbg_sn.SaveData(sigma, "sigma", geom);
-  lin_op_->setSigma(level, sigma);
-
-  MultiFab momentum_correction(on_cells, distribution_map,
-                               index.momentum.size(), no_ghosts);
-  momentum_correction.setVal(0.0);
   // this computes: -sigma Grad(pi)
-  lin_op_->getFluxes({&momentum_correction}, {&pi});
-
-  MultiFab k_cross_rhou(on_cells, distribution_map, index.momentum.size(),
-                        no_ghosts);
-  ComputeKCrossM_(index.momentum, k_cross_rhou, phys_param.k_vect, scratch);
-  const double fac = -dt.count() * phys_param.f;
-  MultiFab::Saxpy(momentum_correction, fac, k_cross_rhou, 0, 0,
-                  index.momentum.size(), no_ghosts);
-
-  MultiFab::Add(scratch, momentum_correction, 0, index.momentum[0],
-                index.momentum.size(), no_ghosts);
-  dbg_sn.SaveData(
-      momentum_correction,
-      DebugSnapshot::ComponentNames{"Momentum_corr0", "Momentum_corr1"}, geom);
+  lin_op_->getFluxes(bk19::ToPointers(UV_correction), GetPis());
+  ApplyDivergenceCorrectionToScratch(dt, UV_correction, physical_parameters_);
 
   // compute update for pi (compressible case), (equation (16) in [BK19])
-  ::amrex::BoxArray on_nodes = on_cells;
-  on_nodes.surroundingNodes();
-  MultiFab div(on_nodes, distribution_map, one_component, no_ghosts);
-  div.setVal(0.0);
-  lin_op.compDivergence({&div}, {&UV});
+  
+  // vector field needs one ghost cell width to compute divergence
+  //
+  std::vector<::amrex::MultiFab> UV = ComputePvFromScratch(one_ghost_cell_width);
+  std::vector<::amrex::MultiFab> div = ZerosOnNodes(one_component, no_ghosts);
+  lin_op_->compDivergence({&div}, {&UV});
 
-  MultiFab dpidP_cells(on_cells, distribution_map, one_component,
-                       scratch.nGrow());
-  MultiFab dpidP_nodes(on_nodes, distribution_map, one_component, no_ghosts);
-  ForEachFab(execution::openmp, dpidP_cells, [&](const MFIter& mfi) {
-    ::amrex::Box tilebox = mfi.growntilebox();
-    StridedDataView<double, AMREX_SPACEDIM> dpidP =
-        MakePatchDataView(dpidP_cells[mfi], 0, tilebox);
-    StridedDataView<double, AMREX_SPACEDIM> PTdensity =
-        MakePatchDataView(scratch[mfi], index.PTdensity, tilebox);
-    ForEachRow(std::tuple{dpidP, PTdensity},
-               [phys_param, dt](span<double> dpi, span<double> PTdens) {
-                 for (std::ptrdiff_t i = 0; i < dpi.size(); ++i) {
-                   dpi[i] = -dt.count() * (phys_param.gamma - 1.0) /
-                            phys_param.Msq *
-                            std::pow(PTdens[i], phys_param.gamma - 2.0);
-                 }
-               });
-  });
-
-  AverageCellToNode_(dpidP_nodes, 0, dpidP_cells, 0);
-  MultiFab::Multiply(div, dpidP_nodes, 0, 0, one_component, no_ghosts);
-  // Note: It would be nice to just multiply by alpha_p=0 in the pseudo
-  // incompressible limit. But that does not work, since before we divide by
-  // Msq=0.
-  if (phys_param.alpha_p > 0.0) {
-    MultiFab::Add(pi, div, 0, 0, one_component, no_ghosts);
-  }
+  ApplyPiCorrection(dt, div);
 }
 
 Result<void, TimeStepTooLarge>
