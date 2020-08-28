@@ -27,6 +27,7 @@
 #include "fub/AMReX/CompressibleAdvectionIntegratorContext.hpp"
 #include "fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp"
 #include "fub/equations/CompressibleAdvection.hpp"
+#include "fub/AMReX/output/WriteBK19Plotfiles.hpp"
 
 #include "fub/AMReX/solver/BK19Solver.hpp"
 
@@ -168,28 +169,23 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::DimensionalSplitLevelIntegrator advection(
       //       fub::int_c<2>, std::move(simulation_data),
       //       fub::GodunovSplitting());
-      fub::int_c<2>, std::move(simulation_data), fub::StrangSplitting());
+      fub::int_c<2>, std::move(simulation_data), fub::AnySplitMethod(fub::StrangSplitting()));
 
-  BK19LevelIntegratorOptions integrator_options =
+  BK19SolverOptions solver_options =
       fub::GetOptions(options, "BK19LevelIntegrator");
   BOOST_LOG(info) << "BK19LevelIntegrator:";
-  integrator_options.Print(info);
-  BK19LevelIntegrator level_integrator(equation, std::move(advection), linop,
-                                       inidat, integrator_options);
-  fub::NoSubcycleSolver solver(std::move(level_integrator));
+  solver_options.Print(info);
 
-  CompressibleAdvectionAdvectiveFluxes& Pv =
-      solver.GetContext().GetAdvectiveFluxes(0);
-  RecomputeAdvectiveFluxes(index, Pv.on_faces, Pv.on_cells,
-                           solver.GetContext().GetScratch(0),
-                           solver.GetContext().GetGeometry(0).periodicity());
+  BK19Solver<2> solver(equation, fub::NoSubcycleSolver(std::move(advection)), linop,
+                                       inidat, solver_options);
+
+  solver.RecomputeAdvectiveFluxes();
 
   using namespace std::literals::chrono_literals;
   std::string base_name = "BK19_CompAcousticWave/";
 
   fub::OutputFactory<GriddingAlgorithm> factory;
-  factory.RegisterOutput<fub::AnyOutput<GriddingAlgorithm>>(
-      "Plotfile", WriteBK19Plotfile{base_name});
+  factory.RegisterOutput<fub::amrex::WriteBK19Plotfile<2, 2>>("Plotfile", equation);
   factory.RegisterOutput<fub::amrex::DebugOutput>(
       "DebugOutput",
       solver.GetGriddingAlgorithm()->GetPatchHierarchy().GetDebugStorage());
@@ -201,8 +197,8 @@ void MyMain(const fub::ProgramOptions& options) {
   BOOST_LOG(info) << "RunOptions:";
   run_options.Print(info);
 
-  if (integrator_options.do_initial_projection) {
-    solver.GetLevelIntegrator().InitialProjection(0);
+  if (solver_options.do_initial_projection) {
+    solver.DoInitialProjection();
   }
 
   fub::RunSimulation(solver, run_options, wall_time_reference, output);

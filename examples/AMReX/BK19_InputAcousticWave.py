@@ -11,7 +11,7 @@ BK19LevelIntegrator = {
 }
 
 GridGeometry = {
-    'cell_dimensions': [64, 64, 64],
+    'cell_dimensions': [8, 8, 8],
     #'cell_dimensions': [32, 32, 32],
     'coordinates': {
       'lower': [0.0, 0.0, 0.0],
@@ -41,6 +41,7 @@ Output = {
         },
         {
             'type': 'Plotfile',
+            'directory': './AcousticWave/',
             #'intervals': [5e-5]
             'intervals': [2.5e-05]
         },

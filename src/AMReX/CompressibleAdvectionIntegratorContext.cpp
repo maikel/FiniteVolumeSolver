@@ -36,6 +36,18 @@ CompressibleAdvectionIntegratorContext::CompressibleAdvectionIntegratorContext(
   ResetHierarchyConfiguration();
 }
 
+::amrex::MultiFab& CompressibleAdvectionIntegratorContext::GetPi(int level) {
+  auto&& nodes = GetPatchHierarchy().GetPatchLevel(level).nodes;
+  FUB_ASSERT(nodes);
+  return *nodes;
+}
+
+const ::amrex::MultiFab& CompressibleAdvectionIntegratorContext::GetPi(int level) const {
+  auto&& nodes = GetPatchHierarchy().GetPatchLevel(level).nodes;
+  FUB_ASSERT(nodes);
+  return *nodes;
+}
+
 /// \brief Deeply copies a context and all its distributed data for all MPI
 /// ranks.
 CompressibleAdvectionIntegratorContext::CompressibleAdvectionIntegratorContext(
