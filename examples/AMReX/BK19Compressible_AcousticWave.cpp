@@ -164,7 +164,7 @@ void MyMain(const fub::ProgramOptions& options) {
 
   //   CompressibleAdvectionIntegratorContext simulation_data(grid, method, 2,
   //   0);
-  CompressibleAdvectionIntegratorContext simulation_data(grid, method, 4, 2);
+  CompressibleAdvectionIntegratorContext simulation_data(grid, method, 5, 2);
 
   fub::DimensionalSplitLevelIntegrator advection(
       //       fub::int_c<2>, std::move(simulation_data),
