@@ -182,7 +182,6 @@ void MyMain(const fub::ProgramOptions& options) {
   solver.RecomputeAdvectiveFluxes();
 
   using namespace std::literals::chrono_literals;
-  std::string base_name = "BK19_CompAcousticWave/";
 
   fub::OutputFactory<GriddingAlgorithm> factory;
   factory.RegisterOutput<fub::amrex::WriteBK19Plotfile<2, 2>>("Plotfile", equation);

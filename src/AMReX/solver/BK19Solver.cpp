@@ -21,8 +21,8 @@
 
 #include "fub/AMReX/solver/BK19Solver.hpp"
 
-#include "fub/AMReX/output/DebugOutput.hpp"
 #include "fub/AMReX/ForEachFab.hpp"
+#include "fub/AMReX/output/DebugOutput.hpp"
 #include "fub/ForEach.hpp"
 #include "fub/ext/Vc.hpp"
 
@@ -82,7 +82,6 @@ void AdvanceBy(std::ptrdiff_t n, Pointers&... ps) {
   ((ps += n), ...);
 }
 
-
 DebugSnapshot::ComponentNames GetCompleteVariableNames() {
   using Equation = CompressibleAdvection<2>;
   fub::CompressibleAdvection<2> equation{};
@@ -105,7 +104,6 @@ DebugSnapshot::ComponentNames GetCompleteVariableNames() {
   });
   return varnames;
 }
-
 
 std::vector<::amrex::MultiFab>
 CopyScratchFromContext(const IntegratorContext& context) {
@@ -338,7 +336,8 @@ ToConstPointers(span<const ::amrex::MultiFab> array) {
 GetGeometries(const CompressibleAdvectionIntegratorContext& context) {
   const PatchHierarchy& hierarchy = context.GetPatchHierarchy();
   const int nlevel = hierarchy.GetNumberOfLevels();
-  ::amrex::Vector<const ::amrex::Geometry*> pis(static_cast<std::size_t>(nlevel));
+  ::amrex::Vector<const ::amrex::Geometry*> pis(
+      static_cast<std::size_t>(nlevel));
   for (int i = 0; i < nlevel; ++i) {
     pis[i] = std::addressof(hierarchy.GetGeometry(i));
   }
@@ -349,7 +348,8 @@ GetGeometries(const CompressibleAdvectionIntegratorContext& context) {
 GetScratches(const CompressibleAdvectionIntegratorContext& context) {
   const PatchHierarchy& hierarchy = context.GetPatchHierarchy();
   const int nlevel = hierarchy.GetNumberOfLevels();
-  ::amrex::Vector<const ::amrex::MultiFab*> scratches(static_cast<std::size_t>(nlevel));
+  ::amrex::Vector<const ::amrex::MultiFab*> scratches(
+      static_cast<std::size_t>(nlevel));
   for (int i = 0; i < nlevel; ++i) {
     scratches[i] = std::addressof(context.GetScratch(i));
   }
@@ -360,7 +360,8 @@ GetScratches(const CompressibleAdvectionIntegratorContext& context) {
 GetPvs(const CompressibleAdvectionIntegratorContext& context) {
   const PatchHierarchy& hierarchy = context.GetPatchHierarchy();
   const int nlevel = hierarchy.GetNumberOfLevels();
-  ::amrex::Vector<const ::amrex::MultiFab*> pvs(static_cast<std::size_t>(nlevel));
+  ::amrex::Vector<const ::amrex::MultiFab*> pvs(
+      static_cast<std::size_t>(nlevel));
   for (int i = 0; i < nlevel; ++i) {
     pvs[i] = std::addressof(context.GetAdvectiveFluxes(i).on_cells);
   }
@@ -371,7 +372,8 @@ GetPvs(const CompressibleAdvectionIntegratorContext& context) {
 GetPis(const CompressibleAdvectionIntegratorContext& context) {
   const PatchHierarchy& hierarchy = context.GetPatchHierarchy();
   const int nlevel = hierarchy.GetNumberOfLevels();
-  ::amrex::Vector<const ::amrex::MultiFab*> pis(static_cast<std::size_t>(nlevel));
+  ::amrex::Vector<const ::amrex::MultiFab*> pis(
+      static_cast<std::size_t>(nlevel));
   for (int i = 0; i < nlevel; ++i) {
     pis[i] = hierarchy.GetPatchLevel(i).nodes.get();
   }
@@ -506,7 +508,7 @@ template <int Rank, int VelocityRank>
 std::vector<::amrex::MultiFab>
 ComputeEulerBackwardRHSAndSetAlphaForLinearOperator(
     BK19Solver<Rank, VelocityRank>& solver, Duration dt,
-    const BK19PhysicalParameters& physical_parameters, 
+    const BK19PhysicalParameters& physical_parameters,
     DebugSnapshotProxy dbg_sn = DebugSnapshotProxy()) {
   CompressibleAdvectionIntegratorContext& context =
       solver.GetAdvectionSolver().GetContext();
@@ -520,7 +522,8 @@ ComputeEulerBackwardRHSAndSetAlphaForLinearOperator(
       ComputePvFromScratch(solver, one_ghost_cell_width);
   solver.GetLinearOperator()->compDivergence(ToPointers(rhs_hierarchy),
                                              ToPointers(UV));
-  dbg_sn.SaveData(ToConstPointers(rhs_hierarchy), "rhs", GetGeometries(context));
+  dbg_sn.SaveData(ToConstPointers(rhs_hierarchy), "rhs",
+                  GetGeometries(context));
   // Now add the diagonal term to rhs if alpha_p > 0.0
   // We also set the alpha coefficients for the linear operator in this case
   if (physical_parameters.alpha_p > 0.0) {
@@ -570,22 +573,25 @@ ComputeEulerBackwardRHSAndSetAlphaForLinearOperator(
 }
 
 template <int Rank, int VelocityRank>
-std::vector<::amrex::MultiFab> SetSigmaForLinearOperator(
-    BK19Solver<Rank, VelocityRank>& solver, Duration dt,
-    const BK19PhysicalParameters& physical_parameters, DebugSnapshotProxy dbg_sn = DebugSnapshotProxy()) {
+std::vector<::amrex::MultiFab>
+SetSigmaForLinearOperator(BK19Solver<Rank, VelocityRank>& solver, Duration dt,
+                          const BK19PhysicalParameters& physical_parameters,
+                          DebugSnapshotProxy dbg_sn = DebugSnapshotProxy()) {
   CompressibleAdvectionIntegratorContext& context =
       solver.GetAdvectionSolver().GetContext();
   const int nlevel = context.GetPatchHierarchy().GetNumberOfLevels();
   auto index = solver.GetEquation().GetIndexMapping();
-  std::vector<::amrex::MultiFab> sigma = AllocateOnCells(context, one_component, no_ghosts);
+  std::vector<::amrex::MultiFab> sigma =
+      AllocateOnCells(context, one_component, no_ghosts);
   for (int level = 0; level < nlevel; ++level) {
     const ::amrex::MultiFab& scratch = context.GetScratch(level);
-    sigma[level].setVal(physical_parameters.c_p * dt.count() /
-                 (1.0 + std::pow(dt.count() * physical_parameters.f, 2)));
+    sigma[level].setVal(
+        physical_parameters.c_p * dt.count() /
+        (1.0 + std::pow(dt.count() * physical_parameters.f, 2)));
     ::amrex::MultiFab::Multiply(sigma[level], scratch, index.PTdensity, 0,
                                 one_component, sigma[level].nGrow());
-    ::amrex::MultiFab::Divide(sigma[level], scratch, index.PTinverse, 0, one_component,
-                              sigma[level].nGrow());
+    ::amrex::MultiFab::Divide(sigma[level], scratch, index.PTinverse, 0,
+                              one_component, sigma[level].nGrow());
     // set weights in linear operator
     solver.GetLinearOperator()->setSigma(level, sigma[level]);
   }
@@ -594,27 +600,36 @@ std::vector<::amrex::MultiFab> SetSigmaForLinearOperator(
 }
 
 template <int Rank, int VelocityRank>
-void SetSigmaCrossForLinearOperator(BK19Solver<Rank, VelocityRank>& solver, span<const ::amrex::MultiFab> sigma, Duration dt, const BK19PhysicalParameters& physical_parameters, DebugSnapshotProxy dbg_sn = DebugSnapshotProxy()) {
+void SetSigmaCrossForLinearOperator(
+    BK19Solver<Rank, VelocityRank>& solver, span<const ::amrex::MultiFab> sigma,
+    Duration dt, const BK19PhysicalParameters& physical_parameters,
+    DebugSnapshotProxy dbg_sn = DebugSnapshotProxy()) {
   CompressibleAdvectionIntegratorContext& context =
       solver.GetAdvectionSolver().GetContext();
   const int nlevel = context.GetPatchHierarchy().GetNumberOfLevels();
-  std::vector<::amrex::MultiFab> sigmacross = AllocateOnCells(context, AMREX_SPACEDIM*(AMREX_SPACEDIM-1), no_ghosts);
+  std::vector<::amrex::MultiFab> sigmacross = AllocateOnCells(
+      context, AMREX_SPACEDIM * (AMREX_SPACEDIM - 1), no_ghosts);
   for (int level = 0; level < nlevel; ++level) {
-    for (int i = 0; i < AMREX_SPACEDIM*(AMREX_SPACEDIM-1); ++i) {
-      ::amrex::MultiFab::Copy(sigmacross[level], sigma[level], 0, i, one_component, no_ghosts);
-      const double facsign = std::pow(-1.0,i);
-      sigmacross[level].mult(facsign * dt.count() * physical_parameters.f, i, 1);
+    for (int i = 0; i < AMREX_SPACEDIM * (AMREX_SPACEDIM - 1); ++i) {
+      ::amrex::MultiFab::Copy(sigmacross[level], sigma[level], 0, i,
+                              one_component, no_ghosts);
+      const double facsign = std::pow(-1.0, i);
+      sigmacross[level].mult(facsign * dt.count() * physical_parameters.f, i,
+                             1);
     }
     solver.GetLinearOperator()->setSigmaCross(level, sigmacross[level]);
   }
-  dbg_sn.SaveData(ToConstPointers(sigmacross), DebugSnapshot::ComponentNames{"sigmac0", "sigmac1"}, GetGeometries(context));
+  dbg_sn.SaveData(ToConstPointers(sigmacross),
+                  DebugSnapshot::ComponentNames{"sigmac0", "sigmac1"},
+                  GetGeometries(context));
 }
 
 template <int Rank, int VelocityRank>
 void ApplyDivergenceCorrectionOnScratch(
     BK19Solver<Rank, VelocityRank>& solver, Duration dt,
     span<::amrex::MultiFab> UV_correction,
-    const BK19PhysicalParameters& physical_parameters, DebugSnapshotProxy dbg_sn = DebugSnapshotProxy()) {
+    const BK19PhysicalParameters& physical_parameters,
+    DebugSnapshotProxy dbg_sn = DebugSnapshotProxy()) {
   CompressibleAdvectionIntegratorContext& context =
       solver.GetAdvectionSolver().GetContext();
   const int nlevel = context.GetPatchHierarchy().GetNumberOfLevels();
@@ -640,12 +655,15 @@ void ApplyDivergenceCorrectionOnScratch(
     }
   }
   dbg_sn.SaveData(
-      ToConstPointers(UV_correction), DebugSnapshot::ComponentNames{"Momentum_corr0", "Momentum_corr1"}, GetGeometries(context));
+      ToConstPointers(UV_correction),
+      DebugSnapshot::ComponentNames{"Momentum_corr0", "Momentum_corr1"},
+      GetGeometries(context));
 }
 
 template <int Rank, int VelocityRank>
-void ApplyPiCorrectionOnScratch(BK19Solver<Rank, VelocityRank>& solver,
-                                Duration dt, DebugSnapshotProxy dbg_sn = DebugSnapshotProxy()) {
+void ApplyPiCorrectionOnScratch(
+    BK19Solver<Rank, VelocityRank>& solver, Duration dt,
+    DebugSnapshotProxy dbg_sn = DebugSnapshotProxy()) {
   CompressibleAdvectionIntegratorContext& context =
       solver.GetAdvectionSolver().GetContext();
   std::vector<::amrex::MultiFab> UV =
@@ -682,11 +700,13 @@ void ApplyPiCorrectionOnScratch(BK19Solver<Rank, VelocityRank>& solver,
     ::amrex::MultiFab& pi = context.GetPi(level);
     ::amrex::MultiFab::Add(pi, div[level], 0, 0, one_component, no_ghosts);
   }
-  dbg_sn.SaveData(ToConstPointers(div), "Pi_correction", GetGeometries(context));
+  dbg_sn.SaveData(ToConstPointers(div), "Pi_correction",
+                  GetGeometries(context));
 }
 
 template <int Rank, int VelocityRank>
-void DoEulerForward(BK19Solver<Rank, VelocityRank>& solver, Duration dt, DebugSnapshotProxy dbg_sn = DebugSnapshotProxy()) {
+void DoEulerForward(BK19Solver<Rank, VelocityRank>& solver, Duration dt,
+                    DebugSnapshotProxy dbg_sn = DebugSnapshotProxy()) {
   CompressibleAdvectionIntegratorContext& context =
       solver.GetAdvectionSolver().GetContext();
   const std::shared_ptr<::amrex::MLNodeHelmholtz>& linear_operator =
@@ -718,7 +738,8 @@ void DoEulerForward(BK19Solver<Rank, VelocityRank>& solver, Duration dt, DebugSn
 template <int Rank, int VelocityRank>
 std::vector<::amrex::MultiFab>
 DoEulerBackward(BK19Solver<Rank, VelocityRank>& solver, Duration dt,
-                const BK19PhysicalParameters& physical_parameters, DebugSnapshotProxy dbg_sn = DebugSnapshotProxy()) {
+                const BK19PhysicalParameters& physical_parameters,
+                DebugSnapshotProxy dbg_sn = DebugSnapshotProxy()) {
   // If we play with a non-trivial coriolis term we need an explicit source
   // term integration step here
   if (physical_parameters.f > 0) {
@@ -728,12 +749,14 @@ DoEulerBackward(BK19Solver<Rank, VelocityRank>& solver, Duration dt,
   }
 
   const std::vector<::amrex::MultiFab> rhs =
-      ComputeEulerBackwardRHSAndSetAlphaForLinearOperator(solver, dt,
-                                                          physical_parameters, dbg_sn);
+      ComputeEulerBackwardRHSAndSetAlphaForLinearOperator(
+          solver, dt, physical_parameters, dbg_sn);
 
-  const std::vector<::amrex::MultiFab> sigma = SetSigmaForLinearOperator(solver, dt, physical_parameters, dbg_sn);
+  const std::vector<::amrex::MultiFab> sigma =
+      SetSigmaForLinearOperator(solver, dt, physical_parameters, dbg_sn);
 
-  SetSigmaCrossForLinearOperator(solver, sigma, dt, physical_parameters, dbg_sn);
+  SetSigmaCrossForLinearOperator(solver, sigma, dt, physical_parameters,
+                                 dbg_sn);
 
   const CompressibleAdvectionIntegratorContext& context =
       solver.GetAdvectionSolver().GetContext();
@@ -863,8 +886,10 @@ BK19Solver<Rank, VelocityRank>::AdvanceHierarchy(Duration dt) {
   DebugStorage& debug = *context.GetPatchHierarchy().GetDebugStorage();
 
   DebugSnapshotProxy dbgPreStep = debug.AddSnapshot("BK19_pre-step");
-  dbgPreStep.SaveData(GetScratches(context), GetCompleteVariableNames(), GetGeometries(context)); 
-  dbgPreStep.SaveData(GetPis(std::as_const(context)), "pi", GetGeometries(context)); 
+  dbgPreStep.SaveData(GetScratches(context), GetCompleteVariableNames(),
+                      GetGeometries(context));
+  dbgPreStep.SaveData(GetPis(std::as_const(context)), "pi",
+                      GetGeometries(context));
 
   // 1) Compute current Pv and interpolate to face centered quantity
   //    Current Pv is given by: Pv = PTdensity * momentum / density
@@ -875,10 +900,12 @@ BK19Solver<Rank, VelocityRank>::AdvanceHierarchy(Duration dt) {
   {
     Timer _ = counters->get_timer("BK19Solver::Advection_1");
     result = advection.AdvanceHierarchy(half_dt);
-  
+
     DebugSnapshotProxy dbgAdvect = debug.AddSnapshot("BK19_advect");
-    dbgAdvect.SaveData(GetScratches(context), GetCompleteVariableNames(), GetGeometries(context)); 
-    dbgAdvect.SaveData(GetPis(std::as_const(context)), "pi", GetGeometries(context)); 
+    dbgAdvect.SaveData(GetScratches(context), GetCompleteVariableNames(),
+                       GetGeometries(context));
+    dbgAdvect.SaveData(GetPis(std::as_const(context)), "pi",
+                       GetGeometries(context));
   }
   if (!result) {
     return result;
@@ -894,27 +921,31 @@ BK19Solver<Rank, VelocityRank>::AdvanceHierarchy(Duration dt) {
     std::vector<::amrex::MultiFab> pi_aux =
         DoEulerBackward(*this, half_dt, physical_parameters_, dbgBackward1);
 
-
     // NOTE: the following update of pi in the pseudo-incompressible case is
     // not present in BK19, but a further development in the work of Ray Chow
     if (physical_parameters_.alpha_p == 0) {
       CopyPiToHierarchy(context, pi_aux);
     }
 
-    dbgBackward1.SaveData(GetScratches(context), GetCompleteVariableNames(), GetGeometries(context)); 
-    dbgBackward1.SaveData(GetPis(std::as_const(context)), "pi", GetGeometries(context)); 
+    dbgBackward1.SaveData(GetScratches(context), GetCompleteVariableNames(),
+                          GetGeometries(context));
+    dbgBackward1.SaveData(GetPis(std::as_const(context)), "pi",
+                          GetGeometries(context));
 
-  // 4) Recompute Pv at half time 
+    // 4) Recompute Pv at half time
     FillAllGhostLayers();
     RecomputeAdvectiveFluxes();
 
-    dbgBackward1.SaveData(GetPvs(context), DebugSnapshot::ComponentNames{"Pu", "Pv"}, GetGeometries(context)); 
+    dbgBackward1.SaveData(GetPvs(context),
+                          DebugSnapshot::ComponentNames{"Pu", "Pv"},
+                          GetGeometries(context));
   }
 
   // 5) Explicit Euler with old scratch data
   //   - We need a current pi_n here. What is the initial one?
 
   {
+    // Copy data from old time level back to scratch
     Timer _ = counters->get_timer("BK19Solver::RestoreInitialScratchData");
     CopyScratchToContext(context, scratch_hierarchy);
     FillAllGhostLayers();
@@ -922,13 +953,15 @@ BK19Solver<Rank, VelocityRank>::AdvanceHierarchy(Duration dt) {
 
   {
     Timer _ = counters->get_timer("BK19Solver::EulerForward");
-    // Copy data from old time level back to scratch
-    DebugSnapshotProxy dbgAdvBF = debug.AddSnapshot("BK19_advect-backward-forward");
+    DebugSnapshotProxy dbgAdvBF =
+        debug.AddSnapshot("BK19_advect-backward-forward");
 
     DoEulerForward(*this, half_dt, dbgAdvBF);
 
-    dbgAdvBF.SaveData(GetScratches(context), GetCompleteVariableNames(), GetGeometries(context)); 
-    dbgAdvBF.SaveData(GetPis(std::as_const(context)), "pi", GetGeometries(context)); 
+    dbgAdvBF.SaveData(GetScratches(context), GetCompleteVariableNames(),
+                      GetGeometries(context));
+    dbgAdvBF.SaveData(GetPis(std::as_const(context)), "pi",
+                      GetGeometries(context));
   }
 
   // 6) Do the second advection step with half-time Pv and full time step
@@ -940,9 +973,12 @@ BK19Solver<Rank, VelocityRank>::AdvanceHierarchy(Duration dt) {
     FillAllGhostLayers();
     result = advection.AdvanceHierarchy(dt);
 
-    DebugSnapshotProxy dbgAdvBFA = debug.AddSnapshot("BK19_advect-backward-forward-advect");
-    dbgAdvBFA.SaveData(GetScratches(context), GetCompleteVariableNames(), GetGeometries(context)); 
-    dbgAdvBFA.SaveData(GetPis(std::as_const(context)), "pi", GetGeometries(context)); 
+    DebugSnapshotProxy dbgAdvBFA =
+        debug.AddSnapshot("BK19_advect-backward-forward-advect");
+    dbgAdvBFA.SaveData(GetScratches(context), GetCompleteVariableNames(),
+                       GetGeometries(context));
+    dbgAdvBFA.SaveData(GetPis(std::as_const(context)), "pi",
+                       GetGeometries(context));
   }
   if (!result) {
     return result;
@@ -953,21 +989,25 @@ BK19Solver<Rank, VelocityRank>::AdvanceHierarchy(Duration dt) {
     Timer _ = counters->get_timer("BK19Solver::EulerBackward_2");
 
     DebugSnapshotProxy dbgAdvBFAB =
-      debug.AddSnapshot("BK19_advect-backward-forward-advect-backward");
+        debug.AddSnapshot("BK19_advect-backward-forward-advect-backward");
+    FillAllGhostLayers();
     std::vector<::amrex::MultiFab> pi_new =
         DoEulerBackward(*this, half_dt, physical_parameters_, dbgAdvBFAB);
 
     // Copy pi_n+1 to pi_n
     CopyPiToHierarchy(context, pi_new);
 
-    for (int level = 0; level < context.GetPatchHierarchy().GetNumberOfLevels(); ++level) {
+    for (int level = 0; level < context.GetPatchHierarchy().GetNumberOfLevels();
+         ++level) {
       context.CopyScratchToData(level);
       context.SetCycles(current_cycle + 1, level);
       context.SetTimePoint(current_timepoint + dt, level);
     }
 
-    dbgAdvBFAB.SaveData(GetScratches(context), GetCompleteVariableNames(), GetGeometries(context)); 
-    dbgAdvBFAB.SaveData(GetPis(std::as_const(context)), "pi", GetGeometries(context)); 
+    dbgAdvBFAB.SaveData(GetScratches(context), GetCompleteVariableNames(),
+                        GetGeometries(context));
+    dbgAdvBFAB.SaveData(GetPis(std::as_const(context)), "pi",
+                        GetGeometries(context));
   }
 
   return boost::outcome_v2::success();
