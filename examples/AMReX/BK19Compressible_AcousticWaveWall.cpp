@@ -61,10 +61,8 @@ struct AcousticWaveInitialData : fub::amrex::BK19PhysicalParameters {
         const double velocity1 = U0[1];
         states.PTdensity(i, j) = rho;
 
-        states.momentum(i, j, 0) =
-            states.density(i, j) * velocity0;
-        states.momentum(i, j, 1) =
-            states.density(i, j) * velocity1;
+        states.momentum(i, j, 0) = states.density(i, j) * velocity0;
+        states.momentum(i, j, 1) = states.density(i, j) * velocity1;
         states.PTinverse(i, j) = states.density(i, j) / states.PTdensity(i, j);
       });
     });
@@ -143,7 +141,8 @@ void MyMain(const fub::ProgramOptions& options) {
        ReflectiveBoundary(equation, fub::Direction::Y, 1)}};
 
   std::shared_ptr grid = std::make_shared<GriddingAlgorithm>(
-      std::move(hierarchy), inidat, TagAllOf{gradient, TagBuffer(2)}, boundaries);
+      std::move(hierarchy), inidat, TagAllOf{gradient, TagBuffer(2)},
+      boundaries);
   grid->InitializeHierarchy(0.0);
 
   // set number of MG levels to 1 (effectively no MG)
@@ -163,49 +162,56 @@ void MyMain(const fub::ProgramOptions& options) {
       {AMREX_D_DECL(amrex::LinOpBCType::Periodic, amrex::LinOpBCType::Neumann,
                     amrex::LinOpBCType::Periodic)});
 
+  // linop->setDomainBC(
+  //    {AMREX_D_DECL(amrex::LinOpBCType::Periodic,
+  //    amrex::LinOpBCType::Periodic,
+  //                  amrex::LinOpBCType::Periodic)},
+  //    {AMREX_D_DECL(amrex::LinOpBCType::Periodic,
+  //    amrex::LinOpBCType::Periodic,
+  //                  amrex::LinOpBCType::Periodic)});
+
   fub::CompressibleAdvectionFluxMethod<2> flux_method{};
 
   HyperbolicMethod method{flux_method, EulerForwardTimeIntegrator(),
                           Reconstruction(fub::execution::seq, equation)};
 
-  //   CompressibleAdvectionIntegratorContext simulation_data(grid, method, 2,
-  //   0);
   CompressibleAdvectionIntegratorContext simulation_data(grid, method, 5, 2);
 
   fub::DimensionalSplitLevelIntegrator advection(
       //       fub::int_c<2>, std::move(simulation_data),
       //       fub::GodunovSplitting());
-      fub::int_c<2>, std::move(simulation_data), fub::AnySplitMethod(fub::StrangSplitting()));
+      fub::int_c<2>, std::move(simulation_data),
+      fub::AnySplitMethod(fub::StrangSplitting()));
 
   BK19SolverOptions solver_options =
-      fub::GetOptions(options, "BK19LevelIntegrator");
-  BOOST_LOG(info) << "BK19LevelIntegrator:";
+      fub::GetOptions(options, "BK19Solver");
+  BOOST_LOG(info) << "BK19Solver:";
   solver_options.Print(info);
 
-  BK19Solver<2> solver(equation, fub::NoSubcycleSolver(std::move(advection)), linop,
-                                       inidat, solver_options);
+  BK19Solver<2> solver(equation, fub::NoSubcycleSolver(std::move(advection)),
+                       linop, inidat, solver_options);
 
   solver.RecomputeAdvectiveFluxes();
 
   using namespace std::literals::chrono_literals;
 
   fub::OutputFactory<GriddingAlgorithm> factory;
-  factory.RegisterOutput<fub::amrex::WriteBK19Plotfile<2, 2>>("Plotfile", equation);
+  factory.RegisterOutput<fub::amrex::WriteBK19Plotfile<2, 2>>("Plotfile",
+                                                              equation);
   factory.RegisterOutput<fub::amrex::DebugOutput>(
       "DebugOutput",
       solver.GetGriddingAlgorithm()->GetPatchHierarchy().GetDebugStorage());
   fub::MultipleOutputs<GriddingAlgorithm> output{
       std::move(factory), fub::GetOptions(options, "Output")};
 
+  if (solver_options.do_initial_projection) {
+    solver.DoInitialProjection();
+  }
 
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options = fub::GetOptions(options, "RunOptions");
   BOOST_LOG(info) << "RunOptions:";
   run_options.Print(info);
-
-  if (solver_options.do_initial_projection) {
-    solver.DoInitialProjection();
-  }
 
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

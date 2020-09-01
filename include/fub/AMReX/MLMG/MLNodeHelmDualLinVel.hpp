@@ -73,6 +73,7 @@ public:
     void setNormalizationThreshold (Real t) noexcept { m_normalization_threshold = t; }
 
     void setSigma (int amrlev, const MultiFab& a_sigma);
+    void setSigmaCross (int, const MultiFab&) {}
 
     void setAlpha (int amrlev, const MultiFab& a_alpha);
 

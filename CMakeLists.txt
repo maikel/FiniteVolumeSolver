@@ -382,6 +382,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     include/fub/AMReX/ScopeGuard.hpp
     include/fub/AMReX/ViewFArrayBox.hpp
     include/fub/AMReX/MLMG/MLNodeHelmholtz.hpp
+    include/fub/AMReX/MLMG/MLNodeNoHelmholtz.hpp
     include/fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp
     include/fub/AMReX/MLMG/MLNodeHelmDualLinVel.hpp
     include/fub/AMReX/tagging_method/TagBuffer.hpp
@@ -408,6 +409,8 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     src/AMReX/CartesianGridGeometry.cpp
     src/AMReX/ViewFArrayBox.cpp
     src/AMReX/MLMG/MLNodeHelmDualCstVel.cpp
+    src/AMReX/MLMG/AMReX_MLNodeNoHelmholtz.cpp
+    src/AMReX/MLMG/AMReX_MLNodeNoHelmholtz_K.H
     src/AMReX/MLMG/MLNodeHelmDualCstVel_K.cpp
     src/AMReX/MLMG/MLNodeHelmDualLinVel.cpp
     src/AMReX/MLMG/MLNodeHelmDualLinVel_K.cpp
@@ -420,6 +423,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     src/geometry/Union.cpp)
   target_include_directories(FiniteVolumeSolver.AMReX
     PUBLIC
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
       $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>
     PRIVATE

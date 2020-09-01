@@ -1,44 +1,5 @@
-// Copyright (c) 2017, The Regents of the University of California,
-// through Lawrence Berkeley National Laboratory and the Alliance for
-// Sustainable Energy, LLC., through National Renewable Energy Laboratory
-// (subject to receipt of any required approvals from the U.S. Dept. of
-// Energy).  All rights reserved.
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are
-// met:
-//
-// (1) Redistributions of source code must retain the above copyright
-// notice, this list of conditions and the following disclaimer.
-//
-// (2) Redistributions in binary form must reproduce the above copyright
-// notice, this list of conditions and the following disclaimer in the
-// documentation and/or other materials provided with the distribution.
-//
-// (3) Neither the name of the University of California, Lawrence
-// Berkeley National Laboratory, Alliance for Sustainable Energy, LLC.,
-// National Renewable Energy Laboratory, U.S. Dept. of Energy nor the
-// names of its contributors may be used to endorse or promote products
-// derived from this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE
-// FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-// DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-// SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-// CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-// OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
-// Notice: This file is copied and modified from AMReX-Codes
-// (https://amrex-codes.github.io/).
-
-// clang-format off
-#ifndef AMREX_ML_NODEHELM_DUAL_CSTVEL_K_H_
-#define AMREX_ML_NODEHELM_DUAL_CSTVEL_K_H_
-
+#ifndef AMREX_MLNODELAP_K_H_
+#define AMREX_MLNODELAP_K_H_
 
 #include <AMReX_FArrayBox.H>
 #include <AMReX_LO_BCTYPES.H>
@@ -46,31 +7,26 @@
 #include <AMReX_EBCellFlag.H>
 #endif
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wsign-conversion"
-#pragma GCC diagnostic ignored "-Wconversion"
-
 namespace amrex {
 namespace {
 
-[[maybe_unused]] constexpr int crse_cell = 0;
-[[maybe_unused]] constexpr int fine_cell = 1;
-[[maybe_unused]] constexpr int crse_node = 0;
-[[maybe_unused]] constexpr int crse_fine_node = 1;
-[[maybe_unused]] constexpr int fine_node = 2;
+    constexpr int crse_cell = 0;
+    constexpr int fine_cell = 1;
+    constexpr int crse_node = 0;
+    constexpr int crse_fine_node = 1;
+    constexpr int fine_node = 2;
 #if (BL_USE_FLOAT)
-[[maybe_unused]] constexpr float eps = 1.e-30;
+    constexpr float eps = 1.e-30;
 #else
-[[maybe_unused]] constexpr double eps = 1.e-100;
+    constexpr double eps = 1.e-100;
 #endif
-[[maybe_unused]] constexpr Real almostone = Real(1.) - Real(100.)*std::numeric_limits<Real>::epsilon();
-
+    constexpr Real almostone = Real(1.) - Real(100.)*std::numeric_limits<Real>::epsilon();
 
 }
 
 namespace {
 inline void
-mlndhelm_scale_neumann_bc (Real s, Box const& bx, Array4<Real> const& rhs, Box const& nddom,
+mlndlap_scale_neumann_bc (Real s, Box const& bx, Array4<Real> const& rhs, Box const& nddom,
                           GpuArray<LinOpBCType,AMREX_SPACEDIM> const& lobc,
                           GpuArray<LinOpBCType,AMREX_SPACEDIM> const& hibc) noexcept
 {
@@ -98,35 +54,35 @@ mlndhelm_scale_neumann_bc (Real s, Box const& bx, Array4<Real> const& rhs, Box c
 }
 
 inline void
-mlndhelm_impose_neumann_bc (Box const& bx, Array4<Real> const& rhs, Box const& nddom,
+mlndlap_impose_neumann_bc (Box const& bx, Array4<Real> const& rhs, Box const& nddom,
                            GpuArray<LinOpBCType,AMREX_SPACEDIM> const& lobc,
                            GpuArray<LinOpBCType,AMREX_SPACEDIM> const& hibc) noexcept
 {
-    mlndhelm_scale_neumann_bc(2.0, bx, rhs, nddom, lobc, hibc);
+    mlndlap_scale_neumann_bc(2.0, bx, rhs, nddom, lobc, hibc);
 }
 
 inline void
-mlndhelm_unimpose_neumann_bc (Box const& bx, Array4<Real> const& rhs, Box const& nddom,
+mlndlap_unimpose_neumann_bc (Box const& bx, Array4<Real> const& rhs, Box const& nddom,
                            GpuArray<LinOpBCType,AMREX_SPACEDIM> const& lobc,
                            GpuArray<LinOpBCType,AMREX_SPACEDIM> const& hibc) noexcept
 {
-    mlndhelm_scale_neumann_bc(0.5, bx, rhs, nddom, lobc, hibc);
+    mlndlap_scale_neumann_bc(0.5, bx, rhs, nddom, lobc, hibc);
 }
 
 }
 
 #if (AMREX_SPACEDIM == 1)
-#include <src/AMReX/MLMG/MLNodeHelmDualCstVel_1D_K.cpp>
+#include <AMReX/MLMG/AMReX_MLNodeNoHelmholtz_1D_K.H>
 #elif (AMREX_SPACEDIM == 2)
-#include <src/AMReX/MLMG/MLNodeHelmDualCstVel_2D_K.cpp>
+#include <AMReX/MLMG/AMReX_MLNodeNoHelmholtz_2D_K.H>
 #else
-#include <src/AMReX/MLMG/MLNodeHelmDualCstVel_3D_K.cpp>
+#include <AMReX/MLMG/AMReX_MLNodeNoHelmholtz_3D_K.H>
 #endif
 
 namespace amrex {
 
 template <typename T>
-void mlndhelm_fillbc_cc (Box const& vbx, Array4<T> const& sigma, Box const& domain,
+void mlndlap_fillbc_cc (Box const& vbx, Array4<T> const& sigma, Box const& domain,
                         GpuArray<LinOpBCType, AMREX_SPACEDIM> bclo,
                         GpuArray<LinOpBCType, AMREX_SPACEDIM> bchi) noexcept
 {
@@ -136,11 +92,11 @@ void mlndhelm_fillbc_cc (Box const& vbx, Array4<T> const& sigma, Box const& doma
     GpuArray<bool,AMREX_SPACEDIM> bfhi{{AMREX_D_DECL(bchi[0] != LinOpBCType::Periodic,
                                                      bchi[1] != LinOpBCType::Periodic,
                                                      bchi[2] != LinOpBCType::Periodic)}};
-    mlndhelm_bc_doit(vbx, sigma, domain, bflo, bfhi);
+    mlndlap_bc_doit(vbx, sigma, domain, bflo, bfhi);
 }
 
 template <typename T>
-void mlndhelm_applybc (Box const& vbx, Array4<T> const& phi, Box const& domain,
+void mlndlap_applybc (Box const& vbx, Array4<T> const& phi, Box const& domain,
                       GpuArray<LinOpBCType, AMREX_SPACEDIM> bclo,
                       GpuArray<LinOpBCType, AMREX_SPACEDIM> bchi) noexcept
 {
@@ -156,12 +112,41 @@ void mlndhelm_applybc (Box const& vbx, Array4<T> const& phi, Box const& domain,
                                                      bchi[1] == LinOpBCType::inflow,
                                                      bchi[2] == LinOpBCType::Neumann or
                                                      bchi[2] == LinOpBCType::inflow)}};
-    mlndhelm_bc_doit(vbx, phi, domain, bflo, bfhi);
+    mlndlap_bc_doit(vbx, phi, domain, bflo, bfhi);
 }
 
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void mlndlap_normalize_sten (Box const& bx, Array4<Real> const& x,
+                             Array4<Real const> const& sten,
+                             Array4<int const> const& msk, Real s0_norm0) noexcept
+{
+    amrex::LoopConcurrent(bx, [=] (int i, int j, int k) noexcept
+    {
+        if (!msk(i,j,k) and amrex::Math::abs(sten(i,j,k,0)) > s0_norm0) {
+            x(i,j,k) /= sten(i,j,k,0);
+        }
+    });
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void mlndlap_jacobi_sten (Box const& bx, Array4<Real> const& sol,
+                          Array4<Real const> const& Ax,
+                          Array4<Real const> const& rhs,
+                          Array4<Real const> const& sten,
+                          Array4<int const> const& msk) noexcept
+{
+    amrex::LoopConcurrent(bx, [=] (int i, int j, int k) noexcept
+    {
+        if (msk(i,j,k)) {
+            sol(i,j,k) = 0.0;
+        } else if (sten(i,j,k,0) != 0.0) {
+            sol(i,j,k) += (2./3.) * (rhs(i,j,k) - Ax(i,j,k)) / sten(i,j,k,0);
+        }
+    });
+}
 
 AMREX_FORCE_INLINE
-bool mlndhelm_any_fine_sync_cells (Box const& bx, Array4<int const> const& msk, int fine_flag) noexcept
+bool mlndlap_any_fine_sync_cells (Box const& bx, Array4<int const> const& msk, int fine_flag) noexcept
 {
     const auto lo = amrex::lbound(bx);
     const auto hi = amrex::ubound(bx);
@@ -176,6 +161,3 @@ bool mlndhelm_any_fine_sync_cells (Box const& bx, Array4<int const> const& msk, 
 }
 
 #endif
-// clang-format on
-
-#pragma GCC diagnostic pop

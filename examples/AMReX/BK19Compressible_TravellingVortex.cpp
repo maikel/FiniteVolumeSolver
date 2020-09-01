@@ -25,9 +25,11 @@
 #include <AMReX_MLMG.H>
 
 #include "fub/AMReX/CompressibleAdvectionIntegratorContext.hpp"
+#include "fub/AMReX/MLMG/MLNodeHelmDualLinVel.hpp"
 #include "fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp"
-#include "fub/AMReX/solver/BK19LevelIntegrator.hpp"
-#include "fub/equations/CompressibleAdvection.hpp"
+
+#include "fub/AMReX/solver/BK19Solver.hpp"
+#include "fub/AMReX/output/WriteBK19Plotfiles.hpp"
 
 struct TravellingVortexInitialData : fub::amrex::BK19PhysicalParameters {
   using Complete = fub::CompressibleAdvection<2>::Complete;
@@ -217,7 +219,7 @@ void MyMain(const fub::ProgramOptions& options) {
 
   auto box_array = grid->GetPatchHierarchy().GetPatchLevel(0).box_array;
   auto dmap = grid->GetPatchHierarchy().GetPatchLevel(0).distribution_mapping;
-  auto linop = std::make_shared<amrex::MLNodeHelmDualCstVel>(
+  auto linop = std::make_shared<amrex::MLNodeHelmDualLinVel>(
       amrex::Vector<amrex::Geometry>{grid->GetPatchHierarchy().GetGeometry(0)},
       amrex::Vector<amrex::BoxArray>{box_array},
       amrex::Vector<amrex::DistributionMapping>{dmap}, lp_info);
@@ -233,52 +235,45 @@ void MyMain(const fub::ProgramOptions& options) {
   HyperbolicMethod method{flux_method, EulerForwardTimeIntegrator(),
                           Reconstruction(fub::execution::seq, equation)};
 
-  //   CompressibleAdvectionIntegratorContext simulation_data(grid, method, 2,
-  //   0);
-  CompressibleAdvectionIntegratorContext simulation_data(grid, method, 4, 2);
+  CompressibleAdvectionIntegratorContext simulation_data(grid, method, 5, 2);
 
-  fub::DimensionalSplitLevelIntegrator advection(
+ fub::DimensionalSplitLevelIntegrator advection(
       //       fub::int_c<2>, std::move(simulation_data),
       //       fub::GodunovSplitting());
-      fub::int_c<2>, std::move(simulation_data), fub::StrangSplitting());
+      fub::int_c<2>, std::move(simulation_data),
+      fub::AnySplitMethod(fub::StrangSplitting()));
 
-  BK19LevelIntegratorOptions integrator_options =
-      fub::GetOptions(options, "BK19LevelIntegrator");
-  BOOST_LOG(info) << "BK19LevelIntegrator:";
-  integrator_options.Print(info);
-  BK19LevelIntegrator level_integrator(equation, std::move(advection), linop,
-                                       inidat, integrator_options);
-  fub::NoSubcycleSolver solver(std::move(level_integrator));
+  BK19SolverOptions solver_options =
+      fub::GetOptions(options, "BK19Solver");
+  BOOST_LOG(info) << "BK19Solver:";
+  solver_options.Print(info);
 
-  CompressibleAdvectionAdvectiveFluxes& Pv =
-      solver.GetContext().GetAdvectiveFluxes(0);
-  RecomputeAdvectiveFluxes(index, Pv.on_faces, Pv.on_cells,
-                           solver.GetContext().GetScratch(0),
-                           solver.GetContext().GetGeometry(0).periodicity());
+  BK19Solver<2> solver(equation, fub::NoSubcycleSolver(std::move(advection)),
+                       linop, inidat, solver_options);
+
+  solver.RecomputeAdvectiveFluxes();
 
   using namespace std::literals::chrono_literals;
-  std::string base_name = "BK19_CompTravellingVortex/";
 
   fub::OutputFactory<GriddingAlgorithm> factory;
   using CounterOutput = fub::CounterOutput<GriddingAlgorithm,
                                            std::chrono::milliseconds>;
   factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
-  factory.RegisterOutput<fub::AnyOutput<GriddingAlgorithm>>(
-      "Plotfile", WriteBK19Plotfile{base_name});
+  factory.RegisterOutput<fub::amrex::WriteBK19Plotfile<2, 2>>("Plotfile",
+                                                              equation);
   factory.RegisterOutput<fub::amrex::DebugOutput>(
       "DebugOutput",
       solver.GetGriddingAlgorithm()->GetPatchHierarchy().GetDebugStorage());
   fub::MultipleOutputs<GriddingAlgorithm> output{
       std::move(factory), fub::GetOptions(options, "Output")};
 
+  if (solver_options.do_initial_projection) {
+    solver.DoInitialProjection();
+  }
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options = fub::GetOptions(options, "RunOptions");
   BOOST_LOG(info) << "RunOptions:";
   run_options.Print(info);
-
-  if (integrator_options.do_initial_projection) {
-    solver.GetLevelIntegrator().InitialProjection(0);
-  }
 
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

@@ -1,43 +1,5 @@
-// Copyright (c) 2017, The Regents of the University of California,
-// through Lawrence Berkeley National Laboratory and the Alliance for
-// Sustainable Energy, LLC., through National Renewable Energy Laboratory
-// (subject to receipt of any required approvals from the U.S. Dept. of
-// Energy).  All rights reserved.
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are
-// met:
-//
-// (1) Redistributions of source code must retain the above copyright
-// notice, this list of conditions and the following disclaimer.
-//
-// (2) Redistributions in binary form must reproduce the above copyright
-// notice, this list of conditions and the following disclaimer in the
-// documentation and/or other materials provided with the distribution.
-//
-// (3) Neither the name of the University of California, Lawrence
-// Berkeley National Laboratory, Alliance for Sustainable Energy, LLC.,
-// National Renewable Energy Laboratory, U.S. Dept. of Energy nor the
-// names of its contributors may be used to endorse or promote products
-// derived from this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE
-// FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-// DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-// SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-// CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-// OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
-// Notice: This file is copied and modified from AMReX-Codes
-// (https://amrex-codes.github.io/).
-
-// clang-format off
-#ifndef AMREX_ML_NODEHELM_DUAL_CSTVEL_2D_K_H_
-#define AMREX_ML_NODEHELM_DUAL_CSTVEL_2D_K_H_
+#ifndef AMREX_MLNODELAP_2D_K_H_
+#define AMREX_MLNODELAP_2D_K_H_
 
 namespace amrex {
 
@@ -46,7 +8,7 @@ namespace amrex {
 //
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_set_nodal_mask (int i, int j, int k, Array4<int> const& nmsk,
+void mlndlap_set_nodal_mask (int i, int j, int k, Array4<int> const& nmsk,
                              Array4<int const> const& cmsk) noexcept
 {
     int s = cmsk(i-1,j-1,k) + cmsk(i  ,j-1,k)
@@ -62,7 +24,7 @@ void mlndhelm_set_nodal_mask (int i, int j, int k, Array4<int> const& nmsk,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_set_dirichlet_mask (Box const& bx, Array4<int> const& dmsk,
+void mlndlap_set_dirichlet_mask (Box const& bx, Array4<int> const& dmsk,
                                  Array4<int const> const& omsk, Box const& dom,
                                  GpuArray<LinOpBCType, AMREX_SPACEDIM> const& bclo,
                                  GpuArray<LinOpBCType, AMREX_SPACEDIM> const& bchi) noexcept
@@ -109,7 +71,7 @@ void mlndhelm_set_dirichlet_mask (Box const& bx, Array4<int> const& dmsk,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_set_dot_mask (Box const& bx, Array4<Real> const& dmsk,
+void mlndlap_set_dot_mask (Box const& bx, Array4<Real> const& dmsk,
                            Array4<int const> const& omsk, Box const& dom,
                            GpuArray<LinOpBCType, AMREX_SPACEDIM> const& bclo,
                            GpuArray<LinOpBCType, AMREX_SPACEDIM> const& bchi) noexcept
@@ -161,7 +123,7 @@ void mlndhelm_set_dot_mask (Box const& bx, Array4<Real> const& dmsk,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_zero_fine (int i, int j, int, Array4<Real> const& phi,
+void mlndlap_zero_fine (int i, int j, int, Array4<Real> const& phi,
                         Array4<int const> const& msk, int fine_flag) noexcept
 {
     // Testing if the node is covered by a fine level in computing
@@ -171,7 +133,7 @@ void mlndhelm_zero_fine (int i, int j, int, Array4<Real> const& phi,
         msk(i-1,j  ,0) == fine_flag and
         msk(i  ,j  ,0) == fine_flag)
     {
-        phi(i,j,0) = 0.0;
+        phi(i,j,0) = Real(0.0);
     }
 }
 
@@ -180,7 +142,7 @@ void mlndhelm_zero_fine (int i, int j, int, Array4<Real> const& phi,
 //
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_avgdown_coeff_x (int i, int j, int k, Array4<Real> const& crse,
+void mlndlap_avgdown_coeff_x (int i, int j, int k, Array4<Real> const& crse,
                               Array4<Real const> const& fine) noexcept
 {
     Real a = fine(2*i  ,2*j,k) + fine(2*i  ,2*j+1,k);
@@ -189,7 +151,7 @@ void mlndhelm_avgdown_coeff_x (int i, int j, int k, Array4<Real> const& crse,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_avgdown_coeff_y (int i, int j, int k, Array4<Real> const& crse,
+void mlndlap_avgdown_coeff_y (int i, int j, int k, Array4<Real> const& crse,
                               Array4<Real const> const& fine) noexcept
 {
     Real a = fine(2*i,2*j  ,k) + fine(2*i+1,2*j  ,k);
@@ -198,7 +160,7 @@ void mlndhelm_avgdown_coeff_y (int i, int j, int k, Array4<Real> const& crse,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_semi_avgdown_coeff (int i, int j, int k, Array4<Real> const& crse,
+void mlndlap_semi_avgdown_coeff (int i, int j, int k, Array4<Real> const& crse,
                               Array4<Real const> const& fine, int idir) noexcept
 {   
     if (idir == 1) {
@@ -217,7 +179,7 @@ void mlndhelm_semi_avgdown_coeff (int i, int j, int k, Array4<Real> const& crse,
 //
 
 template <typename T>
-void mlndhelm_bc_doit (Box const& vbx, Array4<T> const& a, Box const& domain,
+void mlndlap_bc_doit (Box const& vbx, Array4<T> const& a, Box const& domain,
                       GpuArray<bool,AMREX_SPACEDIM> const& bflo,
                       GpuArray<bool,AMREX_SPACEDIM> const& bfhi) noexcept
 {
@@ -327,127 +289,119 @@ void mlndhelm_bc_doit (Box const& vbx, Array4<T> const& a, Box const& domain,
 //
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_adotx_ha (int i, int j, int k, Array4<Real> const& y, Array4<Real const> const& x,
+void mlndlap_adotx_ha (int i, int j, int k, Array4<Real> const& y, Array4<Real const> const& x,
                        Array4<Real const> const& sx, Array4<Real const> const& sy,
-                       Array4<int const> const& msk,
+                       Array4<int const> const& msk, bool is_rz,
                        GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
 {
     if (msk(i,j,k)) {
-        y(i,j,k) = 0.0;
+        y(i,j,k) = Real(0.0);
     } else {
-        Real facx = (1./4.)*dxinv[0]*dxinv[0];
-        Real facy = (1./4.)*dxinv[1]*dxinv[1];
+        Real facx = (1./6.)*dxinv[0]*dxinv[0];
+        Real facy = (1./6.)*dxinv[1]*dxinv[1];
         y(i,j,k) = x(i-1,j-1,k)*(facx*sx(i-1,j-1,k)+facy*sy(i-1,j-1,k))
                +   x(i+1,j-1,k)*(facx*sx(i  ,j-1,k)+facy*sy(i  ,j-1,k))
                +   x(i-1,j+1,k)*(facx*sx(i-1,j  ,k)+facy*sy(i-1,j  ,k))
                +   x(i+1,j+1,k)*(facx*sx(i  ,j  ,k)+facy*sy(i  ,j  ,k))
-               +   x(i-1,j,k)*(  facx*(sx(i-1,j-1,k)+sx(i-1,j,k))
-                               - facy*(sy(i-1,j-1,k)+sx(i-1,j,k)))
-               +   x(i+1,j,k)*(  facx*(sx(i  ,j-1,k)+sx(i  ,j,k))
-                               - facy*(sy(i  ,j-1,k)+sx(i  ,j,k)))
-               +   x(i,j-1,k)*(- facx*(sx(i-1,j-1,k)+sx(i,j-1,k))
-                               + facy*(sy(i-1,j-1,k)+sy(i,j-1,k)))
-               +   x(i,j+1,k)*(- facx*(sx(i-1,j  ,k)+sx(i,j  ,k))
-                               + facy*(sy(i-1,j  ,k)+sy(i,j  ,k)))
-               +   x(i,j,k)*(-1.0)*(facx*(sx(i-1,j-1,k)+sx(i,j-1,k)+sx(i-1,j,k)+sx(i,j,k))
+               +   x(i-1,j,k)*(2.0*facx*(sx(i-1,j-1,k)+sx(i-1,j,k))
+                             -     facy*(sy(i-1,j-1,k)+sx(i-1,j,k)))
+               +   x(i+1,j,k)*(2.0*facx*(sx(i  ,j-1,k)+sx(i  ,j,k))
+                             -     facy*(sy(i  ,j-1,k)+sx(i  ,j,k)))
+               +   x(i,j-1,k)*(   -facx*(sx(i-1,j-1,k)+sx(i,j-1,k))
+                              +2.0*facy*(sy(i-1,j-1,k)+sy(i,j-1,k)))
+               +   x(i,j+1,k)*(   -facx*(sx(i-1,j  ,k)+sx(i,j  ,k))
+                              +2.0*facy*(sy(i-1,j  ,k)+sy(i,j  ,k)))
+               +   x(i,j,k)*(-2.0)*(facx*(sx(i-1,j-1,k)+sx(i,j-1,k)+sx(i-1,j,k)+sx(i,j,k))
                                    +facy*(sy(i-1,j-1,k)+sy(i,j-1,k)+sy(i-1,j,k)+sy(i,j,k)));
+        if (is_rz) {
+            Real fp = facy / static_cast<Real>(2*i+1);
+            Real fm = facy / static_cast<Real>(2*i-1);
+            y(i,j,k) += (fm*sy(i-1,j  ,k)-fp*sy(i,j  ,k))*(x(i,j+1,k)-x(i,j,k))
+                      + (fm*sy(i-1,j-1,k)-fp*sy(i,j-1,k))*(x(i,j-1,k)-x(i,j,k));
+        }
     }
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_adotx_aa (int i, int j, int k, Array4<Real> const& y, Array4<Real const> const& x,
-                       Array4<Real const> const& sig, Array4<Real const> const& sigc,
-                       Array4<Real const> const& alp, Array4<int const> const& msk,
-                       GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
+void mlndlap_adotx_aa (int i, int j, int k, Array4<Real> const& y, Array4<Real const> const& x,
+                       Array4<Real const> const& sig, Array4<int const> const& msk,
+                       bool is_rz, GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
 {
     if (msk(i,j,k)) {
-        y(i,j,k) = 0.0;
+        y(i,j,k) = Real(0.0);
     } else {
-        Real facx = (1.0/4.0)*dxinv[0]*dxinv[0];
-        Real facy = (1.0/4.0)*dxinv[1]*dxinv[1];
-        Real facxy = (1.0/4.0)*dxinv[0]*dxinv[1];
+        Real facx = (1.0/6.0)*dxinv[0]*dxinv[0];
+        Real facy = (1.0/6.0)*dxinv[1]*dxinv[1];
         Real fxy = facx + facy;
-        Real fxmy = facx - facy;
-        Real fmxy = facy - facx;
+        Real f2xmy = 2.0*facx - facy;
+        Real fmx2y = 2.0*facy - facx;
         y(i,j,k) = x(i-1,j-1,k)*fxy*sig(i-1,j-1,k)
                +   x(i+1,j-1,k)*fxy*sig(i  ,j-1,k)
                +   x(i-1,j+1,k)*fxy*sig(i-1,j  ,k)
                +   x(i+1,j+1,k)*fxy*sig(i  ,j  ,k)
-               +   x(i-1,j,k)*fxmy*(sig(i-1,j-1,k)+sig(i-1,j,k))
-               +   x(i+1,j,k)*fxmy*(sig(i  ,j-1,k)+sig(i  ,j,k))
-               +   x(i,j-1,k)*fmxy*(sig(i-1,j-1,k)+sig(i,j-1,k))
-               +   x(i,j+1,k)*fmxy*(sig(i-1,j  ,k)+sig(i,j  ,k))
-               +   x(i,j,k)*(-1.0)*fxy*
-                      (sig(i-1,j-1,k)+sig(i,j-1,k)+sig(i-1,j,k)+sig(i,j,k))
-               +   x(i-1,j-1,k)*facxy*(sigc(i-1,j-1,k,0)+sigc(i-1,j-1,k,1))
-               -   x(i+1,j-1,k)*facxy*(sigc(i  ,j-1,k,0)+sigc(i  ,j-1,k,1))
-               -   x(i-1,j+1,k)*facxy*(sigc(i-1,j  ,k,0)+sigc(i-1,j  ,k,1))
-               +   x(i+1,j+1,k)*facxy*(sigc(i  ,j  ,k,0)+sigc(i  ,j  ,k,1))
-               +   x(i-1,j,k)*facxy*(-sigc(i-1,j-1,k,0)+sigc(i-1,j,k,0)+sigc(i-1,j-1,k,1)-sigc(i-1,j,k,1))
-               +   x(i+1,j,k)*facxy*( sigc(i  ,j-1,k,0)-sigc(i  ,j,k,0)-sigc(i  ,j-1,k,1)+sigc(i  ,j,k,1))
-               +   x(i,j-1,k)*facxy*( sigc(i-1,j-1,k,0)-sigc(i,j-1,k,0)-sigc(i-1,j-1,k,1)+sigc(i,j-1,k,1))
-               +   x(i,j+1,k)*facxy*(-sigc(i-1,j  ,k,0)+sigc(i,j  ,k,0)+sigc(i-1,j  ,k,1)-sigc(i,j  ,k,1))
-               +   x(i,j,k)*facxy*
-                      (-sigc(i-1,j-1,k,0)+sigc(i,j-1,k,0)+sigc(i-1,j,k,0)-sigc(i,j,k,0)
-                       -sigc(i-1,j-1,k,1)+sigc(i,j-1,k,1)+sigc(i-1,j,k,1)-sigc(i,j,k,1))
-               +   x(i,j,k)*alp(i,j,k);
+               +   x(i-1,j,k)*f2xmy*(sig(i-1,j-1,k)+sig(i-1,j,k))
+               +   x(i+1,j,k)*f2xmy*(sig(i  ,j-1,k)+sig(i  ,j,k))
+               +   x(i,j-1,k)*fmx2y*(sig(i-1,j-1,k)+sig(i,j-1,k))
+               +   x(i,j+1,k)*fmx2y*(sig(i-1,j  ,k)+sig(i,j  ,k))
+               +   x(i,j,k)*(-2.0)*fxy*(sig(i-1,j-1,k)+sig(i,j-1,k)
+                                        +sig(i-1,j,k)+sig(i,j,k));
+        if (is_rz) {
+            Real fp = facy / static_cast<Real>(2*i+1);
+            Real fm = facy / static_cast<Real>(2*i-1);
+            y(i,j,k) += (fm*sig(i-1,j  ,k)-fp*sig(i,j  ,k))*(x(i,j+1,k)-x(i,j,k))
+                      + (fm*sig(i-1,j-1,k)-fp*sig(i,j-1,k))*(x(i,j-1,k)-x(i,j,k));
+        }
     }
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_normalize_ha (Box const& bx, Array4<Real> const& x, Array4<Real const> const& sx,
+void mlndlap_normalize_ha (Box const& bx, Array4<Real> const& x, Array4<Real const> const& sx,
                            Array4<Real const> const& sy, Array4<int const> const& msk,
                            GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
 {
-    Real facx = (1.0/4.0)*dxinv[0]*dxinv[0];
-    Real facy = (1.0/4.0)*dxinv[1]*dxinv[1];
+    Real facx = (1.0/6.0)*dxinv[0]*dxinv[0];
+    Real facy = (1.0/6.0)*dxinv[1]*dxinv[1];
 
     amrex::LoopConcurrent(bx, [=] (int i, int j, int k) noexcept
     {
         if (!msk(i,j,k)) {
-            x(i,j,k) /= (-1.0)*(facx*(sx(i-1,j-1,k)+sx(i,j-1,k)+sx(i-1,j,k)+sx(i,j,k))
+            x(i,j,k) /= (-2.0)*(facx*(sx(i-1,j-1,k)+sx(i,j-1,k)+sx(i-1,j,k)+sx(i,j,k))
                                +facy*(sy(i-1,j-1,k)+sy(i,j-1,k)+sy(i-1,j,k)+sy(i,j,k)));
         }
     });
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_normalize_aa (Box const& bx, Array4<Real> const& x, Array4<Real const> const& sig,
-                           Array4<Real const> const& sigc, Array4<Real const> const& alp,
-                           Array4<int const> const& msk,
-                           GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
+void mlndlap_normalize_aa (Box const& bx, Array4<Real> const& x, Array4<Real const> const& sig,
+                           Array4<int const> const& msk, GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
 {
-    Real facx = (1.0/4.0)*dxinv[0]*dxinv[0];
-    Real facy = (1.0/4.0)*dxinv[1]*dxinv[1];
-    Real facxy = (1.0/4.0)*dxinv[0]*dxinv[1];
+    Real facx = (1.0/6.0)*dxinv[0]*dxinv[0];
+    Real facy = (1.0/6.0)*dxinv[1]*dxinv[1];
     Real fxy = facx + facy;
 
     amrex::LoopConcurrent(bx, [=] (int i, int j, int k) noexcept
     {
         if (!msk(i,j,k)) {
-            x(i,j,k) /= (-1.0)*fxy*(sig(i-1,j-1,k)+sig(i,j-1,k)+sig(i-1,j,k)+sig(i,j,k)) +
-                        facxy*(-sigc(i-1,j-1,k,0)+sigc(i,j-1,k,0)+sigc(i-1,j,k,0)-sigc(i,j,k,0)
-                               -sigc(i-1,j-1,k,1)+sigc(i,j-1,k,1)+sigc(i-1,j,k,1)-sigc(i,j,k,1)) +
-                        alp(i,j,k);
+            x(i,j,k) /= (-2.0)*fxy*(sig(i-1,j-1,k)+sig(i,j-1,k)+sig(i-1,j,k)+sig(i,j,k));
         }
     });
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_jacobi_ha (Box const& bx, Array4<Real> const& sol, Array4<Real const> const& Ax,
+void mlndlap_jacobi_ha (Box const& bx, Array4<Real> const& sol, Array4<Real const> const& Ax,
                         Array4<Real const> const& rhs, Array4<Real const> const& sx,
                         Array4<Real const> const& sy, Array4<int const> const& msk,
                         GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
 {
-    Real facx = -1.0 * (1.0/4.0)*dxinv[0]*dxinv[0];
-    Real facy = -1.0 * (1.0/4.0)*dxinv[1]*dxinv[1];
+    Real facx = -Real(2.0 * (1.0/6.0))*dxinv[0]*dxinv[0];
+    Real facy = -Real(2.0 * (1.0/6.0))*dxinv[1]*dxinv[1];
 
     amrex::LoopConcurrent(bx, [=] (int i, int j, int k) noexcept
     {
         if (msk(i,j,k)) {
-            sol(i,j,k) = 0.0;
+            sol(i,j,k) = Real(0.0);
         } else {
-            sol(i,j,k) += (2.0/3.0) * (rhs(i,j,k) - Ax(i,j,k))
+            sol(i,j,k) += Real(2.0/3.0) * (rhs(i,j,k) - Ax(i,j,k))
                 / (facx*(sx(i-1,j-1,k)+sx(i,j-1,k)+sx(i-1,j,k)+sx(i,j,k))
                 +  facy*(sy(i-1,j-1,k)+sy(i,j-1,k)+sy(i-1,j,k)+sy(i,j,k)));
         }
@@ -455,59 +409,64 @@ void mlndhelm_jacobi_ha (Box const& bx, Array4<Real> const& sol, Array4<Real con
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_jacobi_aa (Box const& bx, Array4<Real> const& sol, Array4<Real const> const& Ax,
+void mlndlap_jacobi_aa (Box const& bx, Array4<Real> const& sol, Array4<Real const> const& Ax,
                         Array4<Real const> const& rhs, Array4<Real const> const& sig,
-                        Array4<Real const> const& sigc, Array4<Real const> const& alp,
-                        Array4<int const> const& msk,
-                        GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
+                        Array4<int const> const& msk, GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
 {
-    Real fac = -1.0 * (1.0/4.0)*(dxinv[0]*dxinv[0] + dxinv[1]*dxinv[1]);
-    Real facc = (1.0/4.0)*dxinv[0]*dxinv[1];
+    Real fac = -Real(2.0 * (1.0/6.0))*(dxinv[0]*dxinv[0] + dxinv[1]*dxinv[1]);
 
     amrex::LoopConcurrent(bx, [=] (int i, int j, int k) noexcept
     {
         if (msk(i,j,k)) {
-            sol(i,j,k) = 0.0;
+            sol(i,j,k) = Real(0.0);
         } else {
-            sol(i,j,k) += (2.0/3.0) * (rhs(i,j,k) - Ax(i,j,k))
-                / (fac*(sig(i-1,j-1,k)+sig(i,j-1,k)+sig(i-1,j,k)+sig(i,j,k)) +
-                   facc*(-sigc(i-1,j-1,k,0)+sigc(i,j-1,k,0)+sigc(i-1,j,k,0)-sigc(i,j,k,0)
-                         -sigc(i-1,j-1,k,1)+sigc(i,j-1,k,1)+sigc(i-1,j,k,1)-sigc(i,j,k,1)) +
-                   alp(i,j,k));
+            sol(i,j,k) += Real(2.0/3.0) * (rhs(i,j,k) - Ax(i,j,k))
+                / (fac*(sig(i-1,j-1,k)+sig(i,j-1,k)+sig(i-1,j,k)+sig(i,j,k)));
         }
     });
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_gauss_seidel_ha (Box const& bx, Array4<Real> const& sol,
+void mlndlap_gauss_seidel_ha (Box const& bx, Array4<Real> const& sol,
                               Array4<Real const> const& rhs, Array4<Real const> const& sx,
                               Array4<Real const> const& sy, Array4<int const> const& msk,
-                              GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
+                              GpuArray<Real,AMREX_SPACEDIM> const& dxinv,
+                              bool is_rz) noexcept
 {
-    Real facx = (1.0/4.0)*dxinv[0]*dxinv[0];
-    Real facy = (1.0/4.0)*dxinv[1]*dxinv[1];
+    Real facx = Real(1.0/6.0)*dxinv[0]*dxinv[0];
+    Real facy = Real(1.0/6.0)*dxinv[1]*dxinv[1];
 
     amrex::Loop(bx, [=] (int i, int j, int k) noexcept
     {
         if (msk(i,j,k)) {
-            sol(i,j,k) = 0.0;
+            sol(i,j,k) = Real(0.0);
         } else {
-            Real s0 = (-1.0)*(facx*(sx(i-1,j-1,k)+sx(i,j-1,k)+sx(i-1,j,k)+sx(i,j,k))
-                             +facy*(sy(i-1,j-1,k)+sy(i,j-1,k)+sy(i-1,j,k)+sy(i,j,k)));
+            Real s0 = Real(-2.0)*(facx*(sx(i-1,j-1,k)+sx(i,j-1,k)+sx(i-1,j,k)+sx(i,j,k))
+                                 +facy*(sy(i-1,j-1,k)+sy(i,j-1,k)+sy(i-1,j,k)+sy(i,j,k)));
 
             Real Ax = sol(i-1,j-1,k)*(facx*sx(i-1,j-1,k)+facy*sy(i-1,j-1,k))
                     + sol(i+1,j-1,k)*(facx*sx(i  ,j-1,k)+facy*sy(i  ,j-1,k))
                     + sol(i-1,j+1,k)*(facx*sx(i-1,j  ,k)+facy*sy(i-1,j  ,k))
                     + sol(i+1,j+1,k)*(facx*sx(i  ,j  ,k)+facy*sy(i  ,j  ,k))
-                    + sol(i-1,j,k)*(  facx*(sx(i-1,j-1,k)+sx(i-1,j,k))
-                                    - facy*(sy(i-1,j-1,k)+sx(i-1,j,k)))
-                    + sol(i+1,j,k)*(  facx*(sx(i  ,j-1,k)+sx(i  ,j,k))
-                                    - facy*(sy(i  ,j-1,k)+sx(i  ,j,k)))
-                    + sol(i,j-1,k)*(- facx*(sx(i-1,j-1,k)+sx(i,j-1,k))
-                                    + facy*(sy(i-1,j-1,k)+sy(i,j-1,k)))
-                    + sol(i,j+1,k)*(- facx*(sx(i-1,j  ,k)+sx(i,j  ,k))
-                                    + facy*(sy(i-1,j  ,k)+sy(i,j  ,k)))
+                    + sol(i-1,j,k)*(Real(2.0)*facx*(sx(i-1,j-1,k)+sx(i-1,j,k))
+                                        -     facy*(sy(i-1,j-1,k)+sx(i-1,j,k)))
+                    + sol(i+1,j,k)*(Real(2.0)*facx*(sx(i  ,j-1,k)+sx(i  ,j,k))
+                                        -     facy*(sy(i  ,j-1,k)+sx(i  ,j,k)))
+                    + sol(i,j-1,k)*(   -facx*(sx(i-1,j-1,k)+sx(i,j-1,k))
+                             +Real(2.0)*facy*(sy(i-1,j-1,k)+sy(i,j-1,k)))
+                    + sol(i,j+1,k)*(   -facx*(sx(i-1,j  ,k)+sx(i,j  ,k))
+                             +Real(2.0)*facy*(sy(i-1,j  ,k)+sy(i,j  ,k)))
                     + sol(i,j,k)*s0;
+
+            if (is_rz) {
+                Real fp = facy / static_cast<Real>(2*i+1);
+                Real fm = facy / static_cast<Real>(2*i-1);
+                Real frzlo = fm*sy(i-1,j-1,k)-fp*sy(i,j-1,k);
+                Real frzhi = fm*sy(i-1,j  ,k)-fp*sy(i,j  ,k);
+                s0 += - frzhi - frzlo;
+                Ax += frzhi*(sol(i,j+1,k)-sol(i,j,k))
+                    + frzlo*(sol(i,j-1,k)-sol(i,j,k));
+            }
 
             sol(i,j,k) += (rhs(i,j,k) - Ax) / s0;
         }
@@ -515,49 +474,183 @@ void mlndhelm_gauss_seidel_ha (Box const& bx, Array4<Real> const& sol,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_gauss_seidel_aa (Box const& bx, Array4<Real> const& sol,
+void mlndlap_gauss_seidel_aa (Box const& bx, Array4<Real> const& sol,
                               Array4<Real const> const& rhs, Array4<Real const> const& sig,
-                              Array4<Real const> const& sigc, Array4<Real const> const& alp,
                               Array4<int const> const& msk,
-                              GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
+                              GpuArray<Real,AMREX_SPACEDIM> const& dxinv,
+                              bool is_rz) noexcept
 {
-    Real facx = (1.0/4.0)*dxinv[0]*dxinv[0];
-    Real facy = (1.0/4.0)*dxinv[1]*dxinv[1];
-    Real facxy = (1.0/4.0)*dxinv[0]*dxinv[1];
+    Real facx = (1.0/6.0)*dxinv[0]*dxinv[0];
+    Real facy = (1.0/6.0)*dxinv[1]*dxinv[1];
     Real fxy = facx + facy;
-    Real fxmy = facx - facy;
-    Real fmxy = facy - facx;
+    Real f2xmy = 2.0*facx - facy;
+    Real fmx2y = 2.0*facy - facx;
 
     amrex::Loop(bx, [=] (int i, int j, int k) noexcept
     {
         if (msk(i,j,k)) {
             sol(i,j,k) = 0.0;
         } else {
-            Real s0 = (-1.0)*fxy*(sig(i-1,j-1,k)+sig(i,j-1,k)+sig(i-1,j,k)+sig(i,j,k)) +
-                      facxy*(-sigc(i-1,j-1,k,0)+sigc(i,j-1,k,0)+sigc(i-1,j,k,0)-sigc(i,j,k,0)
-                             -sigc(i-1,j-1,k,1)+sigc(i,j-1,k,1)+sigc(i-1,j,k,1)-sigc(i,j,k,1)) +
-                      alp(i,j,k);
+            Real s0 = (-2.0)*fxy*(sig(i-1,j-1,k)+sig(i,j-1,k)+sig(i-1,j,k)+sig(i,j,k));
             Real Ax =   sol(i-1,j-1,k)*fxy*sig(i-1,j-1,k)
                       + sol(i+1,j-1,k)*fxy*sig(i  ,j-1,k)
                       + sol(i-1,j+1,k)*fxy*sig(i-1,j  ,k)
                       + sol(i+1,j+1,k)*fxy*sig(i  ,j  ,k)
-                      + sol(i-1,j,k)*fxmy*(sig(i-1,j-1,k)+sig(i-1,j,k))
-                      + sol(i+1,j,k)*fxmy*(sig(i  ,j-1,k)+sig(i  ,j,k))
-                      + sol(i,j-1,k)*fmxy*(sig(i-1,j-1,k)+sig(i,j-1,k))
-                      + sol(i,j+1,k)*fmxy*(sig(i-1,j  ,k)+sig(i,j  ,k))
-                      + sol(i-1,j-1,k)*facxy*(sigc(i-1,j-1,k,0)+sigc(i-1,j-1,k,1))
-                      - sol(i+1,j-1,k)*facxy*(sigc(i  ,j-1,k,0)+sigc(i  ,j-1,k,1))
-                      - sol(i-1,j+1,k)*facxy*(sigc(i-1,j  ,k,0)+sigc(i-1,j  ,k,1))
-                      + sol(i+1,j+1,k)*facxy*(sigc(i  ,j  ,k,0)+sigc(i  ,j  ,k,1))
-                      + sol(i-1,j,k)*facxy*(-sigc(i-1,j-1,k,0)+sigc(i-1,j,k,0)+sigc(i-1,j-1,k,1)-sigc(i-1,j,k,1))
-                      + sol(i+1,j,k)*facxy*( sigc(i  ,j-1,k,0)-sigc(i  ,j,k,0)-sigc(i  ,j-1,k,1)+sigc(i  ,j,k,1))
-                      + sol(i,j-1,k)*facxy*( sigc(i-1,j-1,k,0)-sigc(i,j-1,k,0)-sigc(i-1,j-1,k,1)+sigc(i,j-1,k,1))
-                      + sol(i,j+1,k)*facxy*(-sigc(i-1,j  ,k,0)+sigc(i,j  ,k,0)+sigc(i-1,j  ,k,1)-sigc(i,j  ,k,1))
+                      + sol(i-1,j,k)*f2xmy*(sig(i-1,j-1,k)+sig(i-1,j,k))
+                      + sol(i+1,j,k)*f2xmy*(sig(i  ,j-1,k)+sig(i  ,j,k))
+                      + sol(i,j-1,k)*fmx2y*(sig(i-1,j-1,k)+sig(i,j-1,k))
+                      + sol(i,j+1,k)*fmx2y*(sig(i-1,j  ,k)+sig(i,j  ,k))
                       + sol(i,j,k)*s0;
+
+            if (is_rz) {
+                Real fp = facy / static_cast<Real>(2*i+1);
+                Real fm = facy / static_cast<Real>(2*i-1);
+                Real frzlo = fm*sig(i-1,j-1,k)-fp*sig(i,j-1,k);
+                Real frzhi = fm*sig(i-1,j  ,k)-fp*sig(i,j  ,k);
+                s0 += - frzhi - frzlo;
+                Ax += frzhi*(sol(i,j+1,k)-sol(i,j,k))
+                    + frzlo*(sol(i,j-1,k)-sol(i,j,k));
+            }
 
             sol(i,j,k) += (rhs(i,j,k) - Ax) / s0;
         }
     });
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void tridiagonal_solve (Array1D<Real,0,31>& a_ls, Array1D<Real,0,31>& b_ls, Array1D<Real,0,31>& c_ls,
+                        Array1D<Real,0,31>& r_ls, Array1D<Real,0,31>& u_ls, Array1D<Real,0,31>& gam,
+                        int ilen ) noexcept
+{
+    Real bet = b_ls(0);
+    u_ls(0) = r_ls(0) / bet;
+
+    for (int i = 1; i <= ilen - 1; i++) {
+        gam(i) = c_ls(i-1) / bet;
+        bet = b_ls(i) - a_ls(i)*gam(i);
+        if (bet == 0) amrex::Abort(">>>TRIDIAG FAILED");
+        u_ls(i) = (r_ls(i)-a_ls(i)*u_ls(i-1)) / bet;
+    }
+    for (int i = ilen-2; i >= 0; i--) {
+        u_ls(i) = u_ls(i) - gam(i+1)*u_ls(i+1);
+    }
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void mlndlap_gauss_seidel_with_line_solve_aa (Box const& bx, Array4<Real> const& sol,
+                              Array4<Real const> const& rhs, Array4<Real const> const& sig,
+                              Array4<int const> const& msk,
+                              GpuArray<Real,AMREX_SPACEDIM> const& dxinv,
+                              bool is_rz) noexcept
+{
+    Real facx = (1.0/6.0)*dxinv[0]*dxinv[0];
+    Real facy = (1.0/6.0)*dxinv[1]*dxinv[1];
+    Real fxy = facx + facy;
+    Real f2xmy = 2.0*facx - facy;
+    Real fmx2y = 2.0*facy - facx;
+
+    if (is_rz) {
+	amrex::Abort("mlndlap_gauss_seidel_with_line_solve_aa is not implemented in r-z 2D ");
+    } 
+
+    const auto lo = amrex::lbound(bx);
+    const auto hi = amrex::ubound(bx);
+
+    int idir = -1;
+    int ilen = 33;
+    int k = 0;
+    if (dxinv[0] <= dxinv[1])  {
+        idir = 1;
+        ilen = hi.y - lo.y + 1;
+    }
+    if (dxinv[1] <= dxinv[0]) {
+        idir = 0;
+        ilen = hi.x - lo.x + 1;
+    }
+
+    if (ilen > 32) amrex::Abort("mlndlap_gauss_seidel_with_line_solve_aa is hard-wired to be no longer than 32");
+
+    Array1D<Real,0,31> a_ls,b_ls,c_ls,u_ls,r_ls,gam;
+
+    if (idir == 1) {
+        for (int i = lo.x; i <= hi.x; ++i)
+        {
+            for (int j = lo.y; j <= hi.y; ++j)
+            {
+                if (msk(i,j,k)) {
+                    a_ls(j-lo.y) = 0.;
+                    b_ls(j-lo.y) = 1.;
+                    c_ls(j-lo.y) = 0.;
+                    u_ls(j-lo.y) = 0.;
+                    r_ls(j-lo.y) = 0.;
+                }
+                else
+                {
+                    Real s0 = (-2.0)*fxy*(sig(i-1,j-1,k)+sig(i,j-1,k)+sig(i-1,j,k)+sig(i,j,k));
+
+                    Real Ax = sol(i-1,j-1,k)*fxy*sig(i-1,j-1,k)
+                            + sol(i+1,j-1,k)*fxy*sig(i  ,j-1,k)
+                            + sol(i-1,j+1,k)*fxy*sig(i-1,j  ,k)
+                            + sol(i+1,j+1,k)*fxy*sig(i  ,j  ,k)
+                            + sol(i-1,j,k)*f2xmy*(sig(i-1,j-1,k)+sig(i-1,j,k))
+                            + sol(i+1,j,k)*f2xmy*(sig(i  ,j-1,k)+sig(i  ,j,k));
+
+                    a_ls(j-lo.y) = fmx2y*(sig(i-1,j-1,k)+sig(i,j-1,k));
+                    b_ls(j-lo.y) = s0;
+                    c_ls(j-lo.y) = fmx2y*(sig(i-1,j  ,k)+sig(i,j  ,k));          
+                    u_ls(j-lo.y) = 0.;
+                    r_ls(j-lo.y) = rhs(i,j,k) - Ax;
+                }
+            }
+            tridiagonal_solve(a_ls, b_ls, c_ls, r_ls, u_ls, gam, ilen);
+
+            for (int j = lo.y; j <= hi.y; ++j)
+            {
+                sol(i,j,k) = u_ls(j-lo.y);
+            }
+        }
+    } else if (idir == 0) {
+        for (int j = lo.y ;j <= hi.y; ++j)
+        {
+            for (int i = lo.x; i <= hi.x; ++i)
+            {
+                if (msk(i,j,k)) {
+                    a_ls(i-lo.x) = 0.;
+                    b_ls(i-lo.x) = 1.;
+                    c_ls(i-lo.x) = 0.;
+                    u_ls(i-lo.x) = 0.;
+                    r_ls(i-lo.x) = 0.;
+                }
+                else
+                {
+                    Real s0 = (-2.0)*fxy*(sig(i-1,j-1,k)+sig(i,j-1,k)+sig(i-1,j,k)+sig(i,j,k));
+
+                    Real Ax = sol(i-1,j-1,k)*fxy*sig(i-1,j-1,k)
+                            + sol(i+1,j-1,k)*fxy*sig(i  ,j-1,k)
+                            + sol(i-1,j+1,k)*fxy*sig(i-1,j  ,k)
+                            + sol(i+1,j+1,k)*fxy*sig(i  ,j  ,k)
+                            + sol(i,j-1,k)*fmx2y*(sig(i-1,j-1,k)+sig(i,j-1,k))
+                            + sol(i,j+1,k)*fmx2y*(sig(i-1,j  ,k)+sig(i,j  ,k));
+
+                    a_ls(i-lo.x) = f2xmy*(sig(i-1,j-1,k)+sig(i-1,j,k));
+                    b_ls(i-lo.x) = s0;
+                    c_ls(i-lo.x) = f2xmy*(sig(i  ,j-1,k)+sig(i  ,j,k));
+                    u_ls(i-lo.x) = 0.;
+                    r_ls(i-lo.x) = rhs(i,j,k) - Ax;
+
+                }
+            }
+            tridiagonal_solve(a_ls, b_ls, c_ls, r_ls, u_ls, gam, ilen);
+
+            for (int i = lo.x; i <= hi.x; ++i)
+            {
+                sol(i,j,k) = u_ls(i-lo.x);
+            }
+        }
+    } else {
+        amrex::Abort("mlndlap_gauss_seidel_with_line_solve_aa is wrong direction.");
+    }
+
 }
 
 //
@@ -565,7 +658,7 @@ void mlndhelm_gauss_seidel_aa (Box const& bx, Array4<Real> const& sol,
 //
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_restriction (int i, int j, int k, Array4<Real> const& crse,
+void mlndlap_restriction (int i, int j, int k, Array4<Real> const& crse,
                           Array4<Real const> const& fine, Array4<int const> const& msk) noexcept
 {
     int ii = i*2;
@@ -581,7 +674,7 @@ void mlndhelm_restriction (int i, int j, int k, Array4<Real> const& crse,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_semi_restriction (int i, int j, int k, Array4<Real> const& crse,
+void mlndlap_semi_restriction (int i, int j, int k, Array4<Real> const& crse,
                           Array4<Real const> const& fine, Array4<int const> const& msk, int idir) noexcept
 {
     int kk = 0;
@@ -644,7 +737,7 @@ namespace {
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_interpadd_aa (int i, int j, int, Array4<Real> const& fine,
+void mlndlap_interpadd_aa (int i, int j, int, Array4<Real> const& fine,
                            Array4<Real const> const& crse, Array4<Real const> const& sig,
                            Array4<int const> const& msk) noexcept
 {
@@ -670,7 +763,7 @@ void mlndhelm_interpadd_aa (int i, int j, int, Array4<Real> const& fine,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_semi_interpadd_aa (int i, int j, int, Array4<Real> const& fine,
+void mlndlap_semi_interpadd_aa (int i, int j, int, Array4<Real> const& fine,
                            Array4<Real const> const& crse, Array4<Real const> const& sig,
                            Array4<int const> const& msk, int idir) noexcept
 {
@@ -721,7 +814,7 @@ namespace {
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_interpadd_ha (int i, int j, int,
+void mlndlap_interpadd_ha (int i, int j, int,
                            Array4<Real> const& fine, Array4<Real const> const& crse,
                            Array4<Real const> const& sigx, Array4<Real const> const& sigy,
                            Array4<int const> const& msk) noexcept
@@ -752,7 +845,7 @@ void mlndhelm_interpadd_ha (int i, int j, int,
 //
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_divu (int i, int j, int k, Array4<Real> const& rhs, Array4<Real const> const& vel,
+void mlndlap_divu (int i, int j, int k, Array4<Real> const& rhs, Array4<Real const> const& vel,
                    Array4<int const> const& msk, GpuArray<Real,AMREX_SPACEDIM> const& dxinv,
                    Box const& nodal_domain,
                    GpuArray<LinOpBCType, AMREX_SPACEDIM> const& bclo,
@@ -800,7 +893,7 @@ void mlndhelm_divu (int i, int j, int k, Array4<Real> const& rhs, Array4<Real co
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-Real mlndhelm_rhcc (int i, int j, int k, Array4<Real const> const& rhcc,
+Real mlndlap_rhcc (int i, int j, int k, Array4<Real const> const& rhcc,
                    Array4<int const> const& msk) noexcept
 {
     Real r;
@@ -813,7 +906,7 @@ Real mlndhelm_rhcc (int i, int j, int k, Array4<Real const> const& rhcc,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_mknewu (int i, int j, int k, Array4<Real> const& u, Array4<Real const> const& p,
+void mlndlap_mknewu (int i, int j, int k, Array4<Real> const& u, Array4<Real const> const& p,
                      Array4<Real const> const& sig,  GpuArray<Real,AMREX_SPACEDIM> const& dxinv,
                      bool is_rz) noexcept
 {
@@ -828,28 +921,60 @@ void mlndhelm_mknewu (int i, int j, int k, Array4<Real> const& u, Array4<Real co
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_divu_compute_fine_contrib (int i, int j, int, Box const& fvbx,
+void mlndlap_divu_compute_fine_contrib (int i, int j, int, Box const& fvbx,
                                         Array4<Real> const& frh, Array4<Real const> const& vel,
-                                        GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
+                                        GpuArray<Real,AMREX_SPACEDIM> const& dxinv,
+                                        Box const& nodal_domain,
+                                        GpuArray<LinOpBCType, AMREX_SPACEDIM> const& bclo,
+                                        GpuArray<LinOpBCType, AMREX_SPACEDIM> const& bchi,
+                                        bool is_rz) noexcept
 {
+    const auto domlo = amrex::lbound(nodal_domain);
+    const auto domhi = amrex::ubound(nodal_domain);
+
     IntVect iv(i,j);
     if (fvbx.contains(iv) and !fvbx.strictly_contains(iv))
     {
-        Real facx = 0.5_rt*dxinv[0];
-        Real facy = 0.5_rt*dxinv[1];
-        frh(i,j,0) = facx*(-vel(i-1,j-1,0,0)+vel(i,j-1,0,0)-vel(i-1,j,0,0)+vel(i,j,0,0))
-            +        facy*(-vel(i-1,j-1,0,1)-vel(i,j-1,0,1)+vel(i-1,j,0,1)+vel(i,j,0,1));
+        Real zero_ilo = 1.0;
+        Real zero_ihi = 1.0;
+        Real zero_jlo = 1.0;
+        Real zero_jhi = 1.0;
+
+        // The nodal divergence operator should not see the tangential velocity
+        //     at an inflow face
+        if ((bclo[0] == LinOpBCType::Neumann or bclo[0] == LinOpBCType::inflow)
+            and i == domlo.x) zero_ilo = 0.0;
+        if ((bchi[0] == LinOpBCType::Neumann or bchi[0] == LinOpBCType::inflow)
+            and i == domhi.x) zero_ihi = 0.0;
+        if ((bclo[1] == LinOpBCType::Neumann or bclo[1] == LinOpBCType::inflow)
+            and j == domlo.y) zero_jlo = 0.0;
+        if ((bchi[1] == LinOpBCType::Neumann or bchi[1] == LinOpBCType::inflow)
+            and j == domhi.y) zero_jhi = 0.0; 
+
+        Real facx = Real(0.5)*dxinv[0];
+        Real facy = Real(0.5)*dxinv[1];
+
+        frh(i,j,0) = facx*(-vel(i-1,j-1,0,0)*zero_jlo+vel(i,j-1,0,0)*zero_jlo-vel(i-1,j,0,0)*zero_jhi+vel(i,j,0,0)*zero_jhi)
+            +        facy*(-vel(i-1,j-1,0,1)*zero_ilo-vel(i,j-1,0,1)*zero_ihi+vel(i-1,j,0,1)*zero_ilo+vel(i,j,0,1)*zero_ihi);
+
+        if (is_rz) {
+            // Here we assume we can't have inflow in the radial direction
+            Real fm = facy / static_cast<Real>(6*i-3);
+            Real fp = facy / static_cast<Real>(6*i+3);
+            frh(i,j,0) += fm*(vel(i-1,j,0,1)-vel(i-1,j-1,0,1))
+                        - fp*(vel(i  ,j,0,1)-vel(i  ,j-1,0,1));
+        }
     }
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_divu_add_fine_contrib (int i, int j, int /*k*/, Box const& fvbx,
+void mlndlap_divu_add_fine_contrib (int i, int j, int /*k*/, Box const& fvbx,
                                     Array4<Real> const& rhs, Array4<Real const> const& frh,
                                     Array4<int const> const& msk) noexcept
 {
-    constexpr Real rfd = 0.25_rt;
-    constexpr Real chip = 0.5_rt;
-    constexpr Real chip2 = 0.25_rt;
+    constexpr Real rfd = Real(0.25);
+    constexpr Real chip = Real(0.5);
+    constexpr Real chip2 = Real(0.25);
 
     int ii = 2*i;
     int jj = 2*j;
@@ -864,13 +989,13 @@ void mlndhelm_divu_add_fine_contrib (int i, int j, int /*k*/, Box const& fvbx,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_rhcc_fine_contrib (int i, int j, int, Box const& fvbx,
+void mlndlap_rhcc_fine_contrib (int i, int j, int, Box const& fvbx,
                                 Array4<Real> const& rhs, Array4<Real const> const& cc,
                                 Array4<int const> const& msk) noexcept
 {
-    constexpr Real w1 = 9._rt/64._rt;
-    constexpr Real w2 = 3._rt/64._rt;
-    constexpr Real w3 = 1._rt/64._rt;
+    constexpr Real w1 = Real(9./64.);
+    constexpr Real w2 = Real(3./64.);
+    constexpr Real w3 = Real(1./64.);
 
     int ii = 2*i;
     int jj = 2*j;
@@ -885,7 +1010,7 @@ void mlndhelm_rhcc_fine_contrib (int i, int j, int, Box const& fvbx,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_divu_cf_contrib (int i, int j, int, Array4<Real> const& rhs,
+void mlndlap_divu_cf_contrib (int i, int j, int, Array4<Real> const& rhs,
                               Array4<Real const> const& vel, Array4<Real const> const& fc,
                               Array4<Real const> const& rhcc, Array4<int const> const& dmsk,
                               Array4<int const> const& ndmsk, Array4<int const> const& ccmsk,
@@ -946,10 +1071,11 @@ void mlndhelm_divu_cf_contrib (int i, int j, int, Array4<Real> const& rhs,
 //
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_crse_resid (int i, int j, int k, Array4<Real> const& resid,
+void mlndlap_crse_resid (int i, int j, int k, Array4<Real> const& resid,
                          Array4<Real const> const& rhs, Array4<int const> const& msk,
                          Box const& nddom, GpuArray<LinOpBCType,AMREX_SPACEDIM> const& bclo,
-                         GpuArray<LinOpBCType,AMREX_SPACEDIM> const& bchi) noexcept
+                         GpuArray<LinOpBCType,AMREX_SPACEDIM> const& bchi,
+                         bool neumann_doubling) noexcept
 {
     if ((msk(i-1,j-1,k  ) == 0 or
          msk(i  ,j-1,k  ) == 0 or
@@ -960,28 +1086,29 @@ void mlndhelm_crse_resid (int i, int j, int k, Array4<Real> const& resid,
          msk(i-1,j  ,k  ) == 0 or
          msk(i  ,j  ,k  ) == 0))
     {
-        const auto ndlo = amrex::lbound(nddom);
-        const auto ndhi = amrex::ubound(nddom);
-        Real fac = 1.0_rt;
-        if (i == ndlo.x and ( bclo[0] == LinOpBCType::Neumann or
-                              bclo[0] == LinOpBCType::inflow)) {
-            fac *= 2._rt;
-        } else if (i== ndhi.x and ( bchi[0] == LinOpBCType::Neumann or
-                                    bchi[0] == LinOpBCType::inflow)) {
-            fac *= 2._rt;
-        }
-
-        if (j == ndlo.y and ( bclo[1] == LinOpBCType::Neumann or
-                              bclo[1] == LinOpBCType::inflow)) {
-            fac *= 2._rt;
-        } else if (j == ndhi.y and ( bchi[1] == LinOpBCType::Neumann or
-                                     bchi[1] == LinOpBCType::inflow)) {
-            fac *= 2._rt;
+        Real fac = Real(1.0);
+        if (neumann_doubling) {
+            const auto ndlo = amrex::lbound(nddom);
+            const auto ndhi = amrex::ubound(nddom);
+            if (i == ndlo.x and ( bclo[0] == LinOpBCType::Neumann or
+                                  bclo[0] == LinOpBCType::inflow)) {
+                fac *= Real(2.);
+            } else if (i== ndhi.x and ( bchi[0] == LinOpBCType::Neumann or
+                                        bchi[0] == LinOpBCType::inflow)) {
+                fac *= Real(2.);
+            }
+            if (j == ndlo.y and ( bclo[1] == LinOpBCType::Neumann or
+                                  bclo[1] == LinOpBCType::inflow)) {
+                fac *= Real(2.);
+            } else if (j == ndhi.y and ( bchi[1] == LinOpBCType::Neumann or
+                                         bchi[1] == LinOpBCType::inflow)) {
+                fac *= Real(2.);
+            }
         }
 
         resid(i,j,k) = (rhs(i,j,k) - resid(i,j,k)) * fac;
     } else {
-        resid(i,j,k) = 0._rt;
+        resid(i,j,k) = Real(0.);
     }
 }
 
@@ -990,27 +1117,28 @@ void mlndhelm_crse_resid (int i, int j, int k, Array4<Real> const& resid,
 //
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_res_fine_Ax (int i, int j, int, Box const& fvbx, Array4<Real> const& Ax,
+void mlndlap_res_fine_Ax (int i, int j, int, Box const& fvbx, Array4<Real> const& Ax,
                           Array4<Real const> const& x, Array4<Real const> const& sig,
                           bool is_rz,
                           GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
 {
     IntVect iv(i,j);
     if (fvbx.contains(iv) and !fvbx.strictly_contains(iv)) {
-        Real facx = (1._rt/4._rt)*dxinv[0]*dxinv[0];
-        Real facy = (1._rt/4._rt)*dxinv[1]*dxinv[1];
+        Real facx = Real(1./6.)*dxinv[0]*dxinv[0];
+        Real facy = Real(1./6.)*dxinv[1]*dxinv[1];
         Real fxy = facx + facy;
-        Real fxmy = facx - facy;
-        Real fmxy = facy - facx;
+        Real f2xmy = Real(2.)*facx - facy;
+        Real fmx2y = Real(2.)*facy - facx;
         Ax(i,j,0) = x(i-1,j-1,0)*fxy*sig(i-1,j-1,0)
             +       x(i+1,j-1,0)*fxy*sig(i  ,j-1,0)
             +       x(i-1,j+1,0)*fxy*sig(i-1,j  ,0)
             +       x(i+1,j+1,0)*fxy*sig(i  ,j  ,0)
-            +       x(i-1,j,0)*fxmy*(sig(i-1,j-1,0)+sig(i-1,j  ,0))
-            +       x(i+1,j,0)*fxmy*(sig(i  ,j-1,0)+sig(i  ,j  ,0))
-            +       x(i,j-1,0)*fmxy*(sig(i-1,j-1,0)+sig(i  ,j-1,0))
-            +       x(i,j+1,0)*fmxy*(sig(i-1,j  ,0)+sig(i  ,j  ,0))
-            +       x(i,j,0)*(-1._rt)*fxy*(sig(i-1,j-1,0)+sig(i,j-1,0)+sig(i-1,j,0)+sig(i,j,0));
+            +       x(i-1,j,0)*f2xmy*(sig(i-1,j-1,0)+sig(i-1,j  ,0))
+            +       x(i+1,j,0)*f2xmy*(sig(i  ,j-1,0)+sig(i  ,j  ,0))
+            +       x(i,j-1,0)*fmx2y*(sig(i-1,j-1,0)+sig(i  ,j-1,0))
+            +       x(i,j+1,0)*fmx2y*(sig(i-1,j  ,0)+sig(i  ,j  ,0))
+            +       x(i,j,0)*Real(-2.)*fxy*(sig(i-1,j-1,0)+sig(i,j-1,0)
+                                           +sig(i-1,j,0)+sig(i,j,0));
         if (is_rz) {
             Real fp = facy / static_cast<Real>(2*i+1);
             Real fm = facy / static_cast<Real>(2*i-1);
@@ -1021,13 +1149,13 @@ void mlndhelm_res_fine_Ax (int i, int j, int, Box const& fvbx, Array4<Real> cons
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_res_fine_contrib (int i, int j, int k, Array4<Real> const& f,
+void mlndlap_res_fine_contrib (int i, int j, int k, Array4<Real> const& f,
                                Array4<Real const> const& Ax,
                                Array4<int const> const& msk) noexcept
 {
-    constexpr Real rfd = 0.25_rt;
-    constexpr Real chip = 0.5_rt;
-    constexpr Real chip2 = 0.25_rt;
+    constexpr Real rfd = Real(0.25);
+    constexpr Real chip = Real(0.5);
+    constexpr Real chip2 = Real(0.25);
 
     int ii = 2*i;
     int jj = 2*j;
@@ -1040,7 +1168,7 @@ void mlndhelm_res_fine_contrib (int i, int j, int k, Array4<Real> const& f,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_res_cf_contrib (int i, int j, int, Array4<Real> const& res,
+void mlndlap_res_cf_contrib (int i, int j, int, Array4<Real> const& res,
                              Array4<Real const> const& phi, Array4<Real const> const& rhs,
                              Array4<Real const> const& sig, Array4<int const> const& dmsk,
                              Array4<int const> const& ndmsk, Array4<int const> const& ccmsk,
@@ -1124,12 +1252,13 @@ void mlndhelm_res_cf_contrib (int i, int j, int, Array4<Real> const& res,
         res(i,j,0) = rhs(i,j,0) - (Ax + Axf);
     }
 }
+
 //
 // RAP
 //
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_set_stencil (Box const& bx, Array4<Real> const& sten,
+void mlndlap_set_stencil (Box const& bx, Array4<Real> const& sten,
                           Array4<Real const> const& sigma,
                           GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
 {
@@ -1148,7 +1277,7 @@ void mlndhelm_set_stencil (Box const& bx, Array4<Real> const& sten,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_set_stencil_s0 (int i, int j, int k, Array4<Real> const& sten) noexcept
+void mlndlap_set_stencil_s0 (int i, int j, int k, Array4<Real> const& sten) noexcept
 {
     sten(i,j,k,0) = -(sten(i-1,j  ,k,1) + sten(i  ,j  ,k,1)
                     + sten(i  ,j-1,k,2) + sten(i  ,j  ,k,2)
@@ -1161,7 +1290,7 @@ void mlndhelm_set_stencil_s0 (int i, int j, int k, Array4<Real> const& sten) noe
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_stencil_rap (int i, int j, int, Array4<Real> const& csten,
+void mlndlap_stencil_rap (int i, int j, int, Array4<Real> const& csten,
                           Array4<Real const> const& fsten) noexcept
 {
     constexpr int k = 0;
@@ -1388,7 +1517,7 @@ void mlndhelm_stencil_rap (int i, int j, int, Array4<Real> const& csten,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_adotx_sten (int i, int j, int k, Array4<Real> const& y, Array4<Real const> const& x,
+void mlndlap_adotx_sten (int i, int j, int k, Array4<Real> const& y, Array4<Real const> const& x,
                          Array4<Real const> const& sten, Array4<int const> const& msk) noexcept
 {
     if (msk(i,j,k)) {
@@ -1407,7 +1536,7 @@ void mlndhelm_adotx_sten (int i, int j, int k, Array4<Real> const& y, Array4<Rea
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_gauss_seidel_sten (Box const& bx, Array4<Real> const& sol,
+void mlndlap_gauss_seidel_sten (Box const& bx, Array4<Real> const& sol,
                                 Array4<Real const> const& rhs,
                                 Array4<Real const> const& sten,
                                 Array4<int const> const& msk) noexcept
@@ -1432,7 +1561,7 @@ void mlndhelm_gauss_seidel_sten (Box const& bx, Array4<Real> const& sol,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_interpadd_rap (int i, int j, int, Array4<Real> const& fine,
+void mlndlap_interpadd_rap (int i, int j, int, Array4<Real> const& fine,
                             Array4<Real const> const& crse, Array4<Real const> const& sten,
                             Array4<int const> const& msk) noexcept
 {
@@ -1475,7 +1604,7 @@ void mlndhelm_interpadd_rap (int i, int j, int, Array4<Real> const& fine,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_restriction_rap (int i, int j, int /*k*/, Array4<Real> const& crse,
+void mlndlap_restriction_rap (int i, int j, int /*k*/, Array4<Real> const& crse,
                               Array4<Real const> const& fine, Array4<Real const> const& sten,
                               Array4<int const> const& msk) noexcept
 {
@@ -1551,7 +1680,7 @@ namespace {
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_set_connection (int i, int j, int, Array4<Real> const& conn,
+void mlndlap_set_connection (int i, int j, int, Array4<Real> const& conn,
                              Array4<Real const> const& intg, Array4<Real const> const& vol,
                              Array4<EBCellFlag const> const& flag) noexcept
 {
@@ -1573,7 +1702,7 @@ void mlndhelm_set_connection (int i, int j, int, Array4<Real> const& conn,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_set_stencil_eb (int i, int j, int, Array4<Real> const& sten,
+void mlndlap_set_stencil_eb (int i, int j, int, Array4<Real> const& sten,
                              Array4<Real const> const& sig, Array4<Real const> const& conn,
                              GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
 {
@@ -1589,7 +1718,7 @@ void mlndhelm_set_stencil_eb (int i, int j, int, Array4<Real> const& sten,
 
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_divu_eb (int i, int j, int, Array4<Real> const& rhs, Array4<Real const> const& vel,
+void mlndlap_divu_eb (int i, int j, int, Array4<Real> const& rhs, Array4<Real const> const& vel,
                       Array4<Real const> const& vfrac, Array4<Real const> const& intg,
                       Array4<int const> const& msk, GpuArray<Real,AMREX_SPACEDIM> const& dxinv,
                       Box const& nodal_domain,
@@ -1634,7 +1763,7 @@ void mlndhelm_divu_eb (int i, int j, int, Array4<Real> const& rhs, Array4<Real c
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_mknewu_eb (int i, int j, int, Array4<Real> const& u, Array4<Real const> const& p,
+void mlndlap_mknewu_eb (int i, int j, int, Array4<Real> const& u, Array4<Real const> const& p,
                         Array4<Real const> const& sig, Array4<Real const> const& vfrac,
                         Array4<Real const> const& intg, GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
 {
@@ -1652,7 +1781,7 @@ void mlndhelm_mknewu_eb (int i, int j, int, Array4<Real> const& u, Array4<Real c
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-Real mlndhelm_rhcc_eb (int i, int j, int, Array4<Real const> const& rhcc,
+Real mlndlap_rhcc_eb (int i, int j, int, Array4<Real const> const& rhcc,
                       Array4<Real const> const& vfrac, Array4<Real const> const& intg,
                       Array4<int const> const& msk) noexcept
 {
@@ -1668,7 +1797,7 @@ Real mlndhelm_rhcc_eb (int i, int j, int, Array4<Real const> const& rhcc,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_set_integral (int i, int j, int, Array4<Real> const& intg) noexcept
+void mlndlap_set_integral (int i, int j, int, Array4<Real> const& intg) noexcept
 {
     intg(i,j,0,i_S_x ) = Real(0.);
     intg(i,j,0,i_S_y ) = Real(0.);
@@ -1678,7 +1807,7 @@ void mlndhelm_set_integral (int i, int j, int, Array4<Real> const& intg) noexcep
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void mlndhelm_set_integral_eb (int i, int j, int, Array4<Real> const& intg,
+void mlndlap_set_integral_eb (int i, int j, int, Array4<Real> const& intg,
                               Array4<EBCellFlag const> const& flag, Array4<Real const> const& vol,
                               Array4<Real const> const& ax, Array4<Real const> const& ay,
                               Array4<Real const> const& bcen) noexcept
@@ -1703,7 +1832,7 @@ void mlndhelm_set_integral_eb (int i, int j, int, Array4<Real> const& intg,
 
         Real apnorm = std::sqrt((axm-axp)*(axm-axp) + (aym-ayp)*(aym-ayp));
         if (apnorm == Real(0.)) {
-            amrex::Abort("amrex_mlndhelm_set_integral: we are in trouble");
+            amrex::Abort("amrex_mlndlap_set_integral: we are in trouble");
         }
 
         Real apnorminv = Real(1.)/apnorm;
@@ -1777,6 +1906,6 @@ void mlndhelm_set_integral_eb (int i, int j, int, Array4<Real> const& intg,
 }
 
 #endif
-#endif
+
 }
-// clang-format on
+#endif

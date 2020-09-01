@@ -1,6 +1,6 @@
 import math
 
-plenum_x_n_cells = 512
+plenum_x_n_cells = 256
 tube_blocking_factor = 8
 plenum_blocking_factor = 8
 
@@ -64,12 +64,11 @@ tube_n_cells = int(tube_n_cells)
 
 RunOptions = {
   'cfl': 0.4,
-  'final_time': 0.04,
+  'final_time': 0.025,
   'max_cycles': -1
 }
 
-# checkpoint = '/Users/maikel/Development/FiniteVolumeSolver/build_3d/MultiTube/Checkpoint/000000063'
-checkpoint = ''
+checkpoint = '/srv/public/Bhav/FiniteVolumeSolver/build-2D/ConvergentNozzleAxi/Checkpoint/000008792'
 
 Plenum = {
   'checkpoint': checkpoint,
@@ -156,7 +155,7 @@ Tube = {
       },
       'side': 0,
       'direction': 0,
-      'required_massflow': 100.0 / 3600.0,
+      'required_massflow': 100.0 / 3600.0, # kg / s
       'surface_area': math.pi * r_tube * r_tube
     }
   }
@@ -168,12 +167,12 @@ def OuterProbe(x0, k, alpha):
 Output = { 
   'outputs': [{
     'type': 'Plotfiles',
-    'directory': 'ConvergentNozzleAxi/Plotfiles/',
-    'intervals': [1e-4],
+    'directory': 'ConvergentNozzleAxi2/Plotfiles/',
+    'intervals': [1e-5],
     #'frequencies': [1]
   }, {
     'type': 'Checkpoint',
-    'directory': 'ConvergentNozzleAxi/Checkpoint/',
+    'directory': 'ConvergentNozzleAxi2/Checkpoint/',
     'intervals': [1e-3],
     'frequencies': []
   }, {

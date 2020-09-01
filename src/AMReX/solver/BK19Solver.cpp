@@ -762,8 +762,9 @@ DoEulerBackward(BK19Solver<Rank, VelocityRank>& solver, Duration dt,
       solver.GetAdvectionSolver().GetContext();
 
   // solve elliptic equation for pi
+  // weiqun recommends to use one ghost cell width to prevent internal copies
   std::vector<::amrex::MultiFab> pi =
-      ZerosOnNodes(context, one_component, no_ghosts);
+      ZerosOnNodes(context, one_component, one_ghost_cell_width);
 
   std::shared_ptr linear_operator = solver.GetLinearOperator();
   const BK19SolverOptions& options = solver.GetSolverOptions();

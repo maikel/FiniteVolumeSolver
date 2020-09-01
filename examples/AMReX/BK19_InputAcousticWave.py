@@ -1,5 +1,5 @@
 BK19LevelIntegrator = {
-    'do_initial_projection': True,
+    'do_initial_projection': False,
     'mlmg_tolerance_rel': 1e-10,
     'mlmg_tolerance_abs': 1e-10,
     'mlmg_verbose': 2,
@@ -37,11 +37,11 @@ Output = {
     'outputs': [
         {
             'type': 'DebugOutput',
-            'directory': './Debug/'
+            'directory': './AcousticWave/Debug/'
         },
         {
             'type': 'Plotfile',
-            'directory': './AcousticWave/',
+            'directory': './AcousticWave/Plotfiles/',
             #'intervals': [5e-5]
             'intervals': [2.5e-05]
         },
