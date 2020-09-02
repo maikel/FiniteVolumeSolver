@@ -504,6 +504,18 @@ void ComputeKCrossMomentum(
     const std::array<double, 3>& k,
     const IndexMapping<CompressibleAdvection<Rank, VelocityRank>>& index);
 
+namespace {
+void ScaleBoundaryNodes(::amrex::MultiFab& nodes, const ::amrex::Geometry& geom, double scale, int comp = 0, int ncomp = 1) {
+  ::amrex::Box nodal_domain = ::amrex::surroundingNodes(geom.Domain());
+  ::amrex::Box shrunken_domain = ::amrex::surroundingNodes(geom.growNonPeriodicDomain(-1));
+  ::amrex::BoxList boundaries =
+    ::amrex::complementIn(nodal_domain, ::amrex::BoxList{shrunken_domain});
+  for (::amrex::Box& box : boundaries) {
+    nodes.mult(scale, box, comp, ncomp, 0);
+  }
+}
+}
+
 template <int Rank, int VelocityRank>
 std::vector<::amrex::MultiFab>
 ComputeEulerBackwardRHSAndSetAlphaForLinearOperator(
@@ -537,7 +549,7 @@ ComputeEulerBackwardRHSAndSetAlphaForLinearOperator(
       const std::size_t level = static_cast<std::size_t>(ilvl);
       const ::amrex::MultiFab& scratch = context.GetScratch(ilvl);
       ::amrex::MultiFab diagonal_term_on_cells =
-          AllocateOnCells(context, ilvl, one_component, scratch.nGrow());
+          AllocateOnCells(context, ilvl, one_component, one_ghost_cell_width);
       ForEachFab(
           execution::openmp, diagonal_term_on_cells,
           [&](const ::amrex::MFIter& mfi) {
@@ -557,6 +569,7 @@ ComputeEulerBackwardRHSAndSetAlphaForLinearOperator(
                        });
           });
       AverageCellToNode(diagonal_term_on_nodes[level], 0, diagonal_term_on_cells, 0);
+      ScaleBoundaryNodes(diagonal_term_on_nodes[level], context.GetGeometry(ilvl), 0.5);
       // This copies the termns into a local array within the linear operator
       solver.GetLinearOperator()->setAlpha(ilvl, diagonal_term_on_nodes[level]);
     }
@@ -566,12 +579,15 @@ ComputeEulerBackwardRHSAndSetAlphaForLinearOperator(
       // the RHS.
       const std::size_t level = static_cast<std::size_t>(ilvl);
       const ::amrex::MultiFab& pi = context.GetPi(ilvl);
+      ScaleBoundaryNodes(diagonal_term_on_nodes[level], context.GetGeometry(ilvl), 2.0);
       ::amrex::MultiFab::Multiply(diagonal_term_on_nodes[level], pi, 0, 0,
                                   one_component, no_ghosts);
       ::amrex::MultiFab::Add(rhs_hierarchy[level], diagonal_term_on_nodes[level], 0, 0,
                              one_component, no_ghosts);
     }
   }
+  dbg_sn.SaveData(ToConstPointers(rhs_hierarchy), "rhs_plus_alpha",
+                  GetGeometries(context));
   return rhs_hierarchy;
 }
 
