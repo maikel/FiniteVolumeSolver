@@ -25,7 +25,11 @@
 #include <AMReX_MLMG.H>
 
 #include "fub/AMReX/CompressibleAdvectionIntegratorContext.hpp"
+
+#include "fub/AMReX/MLMG/MLNodeHelmDualLinVel.hpp"
 #include "fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp"
+#include "fub/AMReX/MLMG/MLNodeNoHelmholtz.hpp"
+
 #include "fub/equations/CompressibleAdvection.hpp"
 
 #include "fub/AMReX/output/WriteBK19Plotfiles.hpp"
@@ -91,6 +95,21 @@ struct AcousticWaveInitialData : fub::amrex::BK19PhysicalParameters {
   std::array<double, 2> U0{1.0, 0.0};
 };
 
+template <typename Operator>
+struct MakeOperator {
+  std::shared_ptr<amrex::MLNodeHelmholtz> operator()(const fub::amrex::GriddingAlgorithm& grid) const {
+    amrex::LPInfo lp_info;
+    lp_info.setMaxCoarseningLevel(0);
+    auto geom = grid.GetPatchHierarchy().GetGeometry(0);
+    auto box_array = grid.GetPatchHierarchy().GetPatchLevel(0).box_array;
+    auto dmap = grid.GetPatchHierarchy().GetPatchLevel(0).distribution_mapping;  
+    return std::make_shared<Operator>(
+      amrex::Vector<amrex::Geometry>{geom},
+      amrex::Vector<amrex::BoxArray>{box_array},
+      amrex::Vector<amrex::DistributionMapping>{dmap}, lp_info);
+  }
+};
+
 void MyMain(const fub::ProgramOptions& options) {
   using namespace fub::amrex;
   std::chrono::steady_clock::time_point wall_time_reference =
@@ -149,12 +168,15 @@ void MyMain(const fub::ProgramOptions& options) {
   amrex::LPInfo lp_info;
   lp_info.setMaxCoarseningLevel(0);
 
-  auto box_array = grid->GetPatchHierarchy().GetPatchLevel(0).box_array;
-  auto dmap = grid->GetPatchHierarchy().GetPatchLevel(0).distribution_mapping;
-  auto linop = std::make_shared<amrex::MLNodeHelmDualCstVel>(
-      amrex::Vector<amrex::Geometry>{grid->GetPatchHierarchy().GetGeometry(0)},
-      amrex::Vector<amrex::BoxArray>{box_array},
-      amrex::Vector<amrex::DistributionMapping>{dmap}, lp_info);
+  using namespace std::string_literals;
+  std::map<std::string, std::function<std::shared_ptr<amrex::MLNodeHelmholtz>(const GriddingAlgorithm&)>> linear_operators;
+  linear_operators["MLNodeHelmDualCstVel"] = MakeOperator<amrex::MLNodeHelmDualCstVel>();
+  linear_operators["MLNodeHelmDualLinVel"] = MakeOperator<amrex::MLNodeHelmDualLinVel>();
+  linear_operators["MLNodeNoHelmholtz"] = MakeOperator<amrex::MLNodeNoHelmholtz>();
+
+  const std::string operator_string = fub::GetOptionOr(options, "LinearOperator"s, "MLNodeHelmDualCstVel"s);
+  auto linop = linear_operators.at(operator_string)(*grid);
+  BOOST_LOG(info) << fmt::format("Configured Linear Operator: {}", operator_string);
 
   linop->setDomainBC(
       {AMREX_D_DECL(amrex::LinOpBCType::Periodic, amrex::LinOpBCType::Neumann,
