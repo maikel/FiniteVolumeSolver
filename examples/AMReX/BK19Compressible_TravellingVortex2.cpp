@@ -24,16 +24,10 @@
 #include "fub/Solver.hpp"
 #include <AMReX_MLMG.H>
 
-#include <map>
-#include <string>
-
 #include "fub/AMReX/CompressibleAdvectionIntegratorContext.hpp"
-#include "fub/AMReX/MLMG/MLNodeHelmDualLinVel.hpp"
 #include "fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp"
-#include "fub/AMReX/MLMG/MLNodeNoHelmholtz.hpp"
-
-#include "fub/AMReX/solver/BK19Solver.hpp"
-#include "fub/AMReX/output/WriteBK19Plotfiles.hpp"
+#include "fub/AMReX/solver/BK19LevelIntegrator.hpp"
+#include "fub/equations/CompressibleAdvection.hpp"
 
 struct TravellingVortexInitialData : fub::amrex::BK19PhysicalParameters {
   using Complete = fub::CompressibleAdvection<2>::Complete;
@@ -169,21 +163,6 @@ struct TravellingVortexInitialData : fub::amrex::BK19PhysicalParameters {
   std::array<double, 2> U0{1.0, 1.0};
 };
 
-template <typename Operator>
-struct MakeOperator {
-  std::shared_ptr<amrex::MLNodeHelmholtz> operator()(const fub::amrex::GriddingAlgorithm& grid) const {
-    amrex::LPInfo lp_info;
-    lp_info.setMaxCoarseningLevel(0);
-    auto geom = grid.GetPatchHierarchy().GetGeometry(0);
-    auto box_array = grid.GetPatchHierarchy().GetPatchLevel(0).box_array;
-    auto dmap = grid.GetPatchHierarchy().GetPatchLevel(0).distribution_mapping;  
-    return std::make_shared<Operator>(
-      amrex::Vector<amrex::Geometry>{geom},
-      amrex::Vector<amrex::BoxArray>{box_array},
-      amrex::Vector<amrex::DistributionMapping>{dmap}, lp_info);
-  }
-};
-
 void MyMain(const fub::ProgramOptions& options) {
   using namespace fub::amrex;
   std::chrono::steady_clock::time_point wall_time_reference =
@@ -232,16 +211,16 @@ void MyMain(const fub::ProgramOptions& options) {
       std::move(hierarchy), inidat, TagAllOf{gradient, TagBuffer(2)});
   grid->InitializeHierarchy(0.0);
 
-  using namespace std::string_literals;
-  std::map<std::string, std::function<std::shared_ptr<amrex::MLNodeHelmholtz>(const GriddingAlgorithm&)>> linear_operators;
-  linear_operators["MLNodeHelmDualCstVel"] = MakeOperator<amrex::MLNodeHelmDualCstVel>();
-  linear_operators["MLNodeHelmDualLinVel"] = MakeOperator<amrex::MLNodeHelmDualLinVel>();
-  linear_operators["MLNodeNoHelmholtz"] = MakeOperator<amrex::MLNodeNoHelmholtz>();
+  // set number of MG levels to 1 (effectively no MG)
+  amrex::LPInfo lp_info;
+  lp_info.setMaxCoarseningLevel(0);
 
-  const std::string operator_string = fub::GetOptionOr(options, "LinearOperator"s, "MLNodeHelmDualCstVel"s);
-  auto linop = linear_operators.at(operator_string)(*grid);
-  BOOST_LOG(info) << fmt::format("Configured Linear Operator: {}", operator_string);
-
+  auto box_array = grid->GetPatchHierarchy().GetPatchLevel(0).box_array;
+  auto dmap = grid->GetPatchHierarchy().GetPatchLevel(0).distribution_mapping;
+  auto linop = std::make_shared<amrex::MLNodeHelmDualCstVel>(
+      amrex::Vector<amrex::Geometry>{grid->GetPatchHierarchy().GetGeometry(0)},
+      amrex::Vector<amrex::BoxArray>{box_array},
+      amrex::Vector<amrex::DistributionMapping>{dmap}, lp_info);
 
   linop->setDomainBC(
       {AMREX_D_DECL(amrex::LinOpBCType::Periodic, amrex::LinOpBCType::Periodic,
@@ -254,45 +233,52 @@ void MyMain(const fub::ProgramOptions& options) {
   HyperbolicMethod method{flux_method, EulerForwardTimeIntegrator(),
                           Reconstruction(fub::execution::seq, equation)};
 
+  //   CompressibleAdvectionIntegratorContext simulation_data(grid, method, 2,
+  //   0);
   CompressibleAdvectionIntegratorContext simulation_data(grid, method, 5, 2);
 
   fub::DimensionalSplitLevelIntegrator advection(
       //       fub::int_c<2>, std::move(simulation_data),
       //       fub::GodunovSplitting());
-      fub::int_c<2>, std::move(simulation_data),
-      fub::AnySplitMethod(fub::StrangSplitting()));
+      fub::int_c<2>, std::move(simulation_data), fub::StrangSplitting());
 
-  BK19SolverOptions solver_options =
-      fub::GetOptions(options, "BK19Solver");
-  BOOST_LOG(info) << "BK19Solver:";
-  solver_options.Print(info);
+  BK19LevelIntegratorOptions integrator_options =
+      fub::GetOptions(options, "BK19LevelIntegrator");
+  BOOST_LOG(info) << "BK19LevelIntegrator:";
+  integrator_options.Print(info);
+  BK19LevelIntegrator level_integrator(equation, std::move(advection), linop,
+                                       inidat, integrator_options);
+  fub::NoSubcycleSolver solver(std::move(level_integrator));
 
-  BK19Solver<2> solver(equation, fub::NoSubcycleSolver(std::move(advection)),
-                       linop, inidat, solver_options);
-
-  solver.RecomputeAdvectiveFluxes();
+  CompressibleAdvectionAdvectiveFluxes& Pv =
+      solver.GetContext().GetAdvectiveFluxes(0);
+  RecomputeAdvectiveFluxes(index, Pv.on_faces, Pv.on_cells,
+                           solver.GetContext().GetScratch(0),
+                           solver.GetContext().GetGeometry(0).periodicity());
 
   using namespace std::literals::chrono_literals;
+  std::string base_name = "TravellingVortex_old/Plotfiles";
 
   fub::OutputFactory<GriddingAlgorithm> factory;
   using CounterOutput = fub::CounterOutput<GriddingAlgorithm,
                                            std::chrono::milliseconds>;
   factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
-  factory.RegisterOutput<fub::amrex::WriteBK19Plotfile<2, 2>>("Plotfile",
-                                                              equation);
+  factory.RegisterOutput<fub::AnyOutput<GriddingAlgorithm>>(
+      "Plotfile", WriteBK19Plotfile{base_name});
   factory.RegisterOutput<fub::amrex::DebugOutput>(
       "DebugOutput",
       solver.GetGriddingAlgorithm()->GetPatchHierarchy().GetDebugStorage());
   fub::MultipleOutputs<GriddingAlgorithm> output{
       std::move(factory), fub::GetOptions(options, "Output")};
 
-  if (solver_options.do_initial_projection) {
-    solver.DoInitialProjection();
-  }
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options = fub::GetOptions(options, "RunOptions");
   BOOST_LOG(info) << "RunOptions:";
   run_options.Print(info);
+
+  if (integrator_options.do_initial_projection) {
+    solver.GetLevelIntegrator().InitialProjection(0);
+  }
 
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }

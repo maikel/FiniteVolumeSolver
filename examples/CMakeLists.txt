@@ -68,6 +68,9 @@ if (AMReX_FOUND AND AMReX_2D_FOUND)
   add_executable_with_warnings(AMReX.BK19Compressible_TravellingVortex AMReX/BK19Compressible_TravellingVortex.cpp)
   target_link_libraries(AMReX.BK19Compressible_TravellingVortex FiniteVolumeSolver.AMReX)
 
+  add_executable_with_warnings(AMReX.BK19Compressible_TravellingVortex2 AMReX/BK19Compressible_TravellingVortex2.cpp)
+  target_link_libraries(AMReX.BK19Compressible_TravellingVortex2 FiniteVolumeSolver.AMReX)
+
   add_executable_with_warnings(AMReX.BK19Compressible_AcousticWave AMReX/BK19Compressible_AcousticWave.cpp)
   target_link_libraries(AMReX.BK19Compressible_AcousticWave FiniteVolumeSolver.AMReX)
 

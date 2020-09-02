@@ -531,6 +531,8 @@ ComputeEulerBackwardRHSAndSetAlphaForLinearOperator(
                            physical_parameters.Msq /
                            (physical_parameters.gamma - 1.0) / dt.count();
     FUB_ASSERT(factor1 < 0.0);
+    std::vector<::amrex::MultiFab> diagonal_term_on_nodes =
+          AllocateOnNodes(context, one_component, no_ghosts);
     for (int ilvl = 0; ilvl < nlevel; ++ilvl) {
       const std::size_t level = static_cast<std::size_t>(ilvl);
       const ::amrex::MultiFab& scratch = context.GetScratch(ilvl);
@@ -554,18 +556,19 @@ ComputeEulerBackwardRHSAndSetAlphaForLinearOperator(
                          }
                        });
           });
-      ::amrex::MultiFab diagonal_term_on_nodes =
-          AllocateOnNodes(context, ilvl, one_component, no_ghosts);
-      AverageCellToNode(diagonal_term_on_nodes, 0, diagonal_term_on_cells, 0);
+      AverageCellToNode(diagonal_term_on_nodes[level], 0, diagonal_term_on_cells, 0);
       // This copies the termns into a local array within the linear operator
-      solver.GetLinearOperator()->setAlpha(ilvl, diagonal_term_on_nodes);
-
+      solver.GetLinearOperator()->setAlpha(ilvl, diagonal_term_on_nodes[level]);
+    }
+    dbg_sn.SaveData(ToConstPointers(diagonal_term_on_nodes), "alpha", GetGeometries(context));
+    for (int ilvl = 0; ilvl < nlevel; ++ilvl) {
       // Now we weigth the diagonal term with our old solution and add this to
       // the RHS.
+      const std::size_t level = static_cast<std::size_t>(ilvl);
       const ::amrex::MultiFab& pi = context.GetPi(ilvl);
-      ::amrex::MultiFab::Multiply(diagonal_term_on_nodes, pi, 0, 0,
+      ::amrex::MultiFab::Multiply(diagonal_term_on_nodes[level], pi, 0, 0,
                                   one_component, no_ghosts);
-      ::amrex::MultiFab::Add(rhs_hierarchy[level], diagonal_term_on_nodes, 0, 0,
+      ::amrex::MultiFab::Add(rhs_hierarchy[level], diagonal_term_on_nodes[level], 0, 0,
                              one_component, no_ghosts);
     }
   }
@@ -662,15 +665,11 @@ void ApplyDivergenceCorrectionOnScratch(
 
 template <int Rank, int VelocityRank>
 void ApplyPiCorrectionOnScratch(
-    BK19Solver<Rank, VelocityRank>& solver, Duration dt,
+    BK19Solver<Rank, VelocityRank>& solver, span<::amrex::MultiFab> div, Duration dt,
     DebugSnapshotProxy dbg_sn = DebugSnapshotProxy()) {
   CompressibleAdvectionIntegratorContext& context =
       solver.GetAdvectionSolver().GetContext();
-  std::vector<::amrex::MultiFab> UV =
-      ComputePvFromScratch(solver, one_ghost_cell_width);
-  std::vector<::amrex::MultiFab> div =
-      ZerosOnNodes(context, one_component, no_ghosts);
-  solver.GetLinearOperator()->compDivergence(ToPointers(div), ToPointers(UV));
+  dbg_sn.SaveData(ToConstPointers(div), "div_Pv", GetGeometries(context));
   const int nlevel = context.GetPatchHierarchy().GetNumberOfLevels();
   const BK19PhysicalParameters& phys_param = solver.GetPhysicalParameters();
   auto index = solver.GetEquation().GetIndexMapping();
@@ -709,6 +708,14 @@ void DoEulerForward(BK19Solver<Rank, VelocityRank>& solver, Duration dt,
                     DebugSnapshotProxy dbg_sn = DebugSnapshotProxy()) {
   CompressibleAdvectionIntegratorContext& context =
       solver.GetAdvectionSolver().GetContext();
+  
+  std::vector<::amrex::MultiFab> UV =
+      ComputePvFromScratch(solver, one_ghost_cell_width);
+  
+  std::vector<::amrex::MultiFab> div =
+      ZerosOnNodes(context, one_component, no_ghosts);
+  solver.GetLinearOperator()->compDivergence(ToPointers(div), ToPointers(UV));
+
   const std::shared_ptr<::amrex::MLNodeHelmholtz>& linear_operator =
       solver.GetLinearOperator();
 
@@ -731,7 +738,7 @@ void DoEulerForward(BK19Solver<Rank, VelocityRank>& solver, Duration dt,
   // compute update for pi (compressible case), (equation (16) in [BK19])
 
   if (physical_parameters.alpha_p > 0.0) {
-    ApplyPiCorrectionOnScratch(solver, dt, dbg_sn);
+    ApplyPiCorrectionOnScratch(solver, div, dt, dbg_sn);
   }
 }
 
@@ -782,6 +789,7 @@ DoEulerBackward(BK19Solver<Rank, VelocityRank>& solver, Duration dt,
     nodal_solver.solve(ToPointers(pi), ToConstPointers(rhs),
                        options.mlmg_tolerance_rel, options.mlmg_tolerance_abs);
   }
+  dbg_sn.SaveData(ToConstPointers(pi), "solution", GetGeometries(context));
 
   // compute momentum correction
   std::vector<::amrex::MultiFab> UV_correction =
@@ -961,6 +969,9 @@ BK19Solver<Rank, VelocityRank>::AdvanceHierarchy(Duration dt) {
 
     dbgAdvBF.SaveData(GetScratches(context), GetCompleteVariableNames(),
                       GetGeometries(context));
+    dbgAdvBF.SaveData(GetPvs(context),
+      DebugSnapshot::ComponentNames{"Pu", "Pv"},
+      GetGeometries(context));
     dbgAdvBF.SaveData(GetPis(std::as_const(context)), "pi",
                       GetGeometries(context));
   }
@@ -970,12 +981,16 @@ BK19Solver<Rank, VelocityRank>::AdvanceHierarchy(Duration dt) {
   //     which started at the old time level.
   {
     Timer _ = counters->get_timer("BK19Solver::Advection_2");
+    context.SetCycles(current_cycle, 0);
     context.SetTimePoint(current_timepoint, 0);
     FillAllGhostLayers();
     result = advection.AdvanceHierarchy(dt);
 
     DebugSnapshotProxy dbgAdvBFA =
         debug.AddSnapshot("BK19_advect-backward-forward-advect");
+    dbgAdvBFA.SaveData(GetPvs(context),
+                       DebugSnapshot::ComponentNames{"Pu", "Pv"},
+                        GetGeometries(context));
     dbgAdvBFA.SaveData(GetScratches(context), GetCompleteVariableNames(),
                        GetGeometries(context));
     dbgAdvBFA.SaveData(GetPis(std::as_const(context)), "pi",

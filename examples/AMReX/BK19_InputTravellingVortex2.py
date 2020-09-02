@@ -1,4 +1,4 @@
-BK19Solver = {
+BK19LevelIntegrator = {
     'do_initial_projection': True,
     'mlmg_tolerance_rel': 1e-10,
     'mlmg_tolerance_abs': 1e-10,
@@ -38,11 +38,11 @@ Output = {
     'outputs': [
         {
             'type': 'DebugOutput',
-            'directory': './TravellingVortex/Debug/'
+            'directory': './TravellingVortex_old/Debug/'
         },
         {
             'type': 'Plotfile',
-            'directory': './TravellingVortex/Plotfiles/',
+            'directory': './TravellingVortex_old/Plotfiles/',
             'intervals': [0.5e-2]
             #'intervals': [1e-2]
         },
