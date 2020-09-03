@@ -110,10 +110,40 @@ MLNodeHelmDualLinVel::setSigma (int amrlev, const MultiFab& a_sigma)
     MultiFab::Copy(*m_sigma[amrlev][0][0], a_sigma, 0, 0, 1, 0);
 }
 
+namespace {
+enum class BoundarySide {
+    lower, upper
+};
+
+void ScaleBoundaryNodes(::amrex::MultiFab& nodes, const ::amrex::Geometry& geom,
+                        double scale, int dir, BoundarySide side, int comp = 0, int ncomp = 1) {
+  const ::amrex::Box nodal_domain = ::amrex::surroundingNodes(geom.Domain());
+  const ::amrex::Box shrunken_domain = 
+        side == BoundarySide::lower ? growLo(nodal_domain, dir, -1) 
+                                    : growHi(nodal_domain, dir, -1);
+  const ::amrex::BoxList boundaries =
+      ::amrex::complementIn(nodal_domain, ::amrex::BoxList{shrunken_domain});
+  for (const ::amrex::Box& box : boundaries) {
+    nodes.mult(scale, box, comp, ncomp, 0);
+  }
+}
+}
+
 void
 MLNodeHelmDualLinVel::setAlpha(int amrlev, const MultiFab& alpha)
 {
     MultiFab::Copy(m_alpha[amrlev][0], alpha, 0, 0, 1, 0);
+    const Array<BCType, AMREX_SPACEDIM> lobc = m_lobc[amrlev];
+    const Array<BCType, AMREX_SPACEDIM> hibc = m_hibc[amrlev];
+    const Geometry& geom = m_geom[amrlev][0];
+    for (int dim = 0; dim < AMREX_SPACEDIM; ++dim) {
+      if (lobc[dim] == BCType::Neumann) {
+        ScaleBoundaryNodes(m_alpha[amrlev][0], geom, 0.5, dim, BoundarySide::lower);
+      }
+      if (hibc[dim] == BCType::Neumann) {
+        ScaleBoundaryNodes(m_alpha[amrlev][0], geom, 0.5, dim, BoundarySide::upper);
+      }
+    }
     m_is_bottom_singular = false;
 }
 

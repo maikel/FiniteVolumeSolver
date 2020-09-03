@@ -70,6 +70,28 @@ void BK19SolverOptions::Print(SeverityLogger& log) {
                                 output_between_steps);
 }
 
+BK19PhysicalParameters::BK19PhysicalParameters(const ProgramOptions& map) {
+  R_gas = GetOptionOr(map, "R_gas", R_gas);
+  gamma = GetOptionOr(map, "gamma", gamma);
+  c_p = GetOptionOr(map, "c_p", c_p);
+  g = GetOptionOr(map, "g", g);
+  f = GetOptionOr(map, "f", f);
+  k_vect = GetOptionOr(map, "k_vect", k_vect);
+  alpha_p = GetOptionOr(map, "alpha_p", alpha_p);
+  Msq = GetOptionOr(map, "Msq", Msq);
+}
+
+void BK19PhysicalParameters::Print(SeverityLogger& log) {
+  BOOST_LOG(log) << fmt::format(" - R_gas = {}", R_gas);
+  BOOST_LOG(log) << fmt::format(" - gamma = {}", gamma);
+  BOOST_LOG(log) << fmt::format(" - c_p = {}", c_p);
+  BOOST_LOG(log) << fmt::format(" - g = {}", g);
+  BOOST_LOG(log) << fmt::format(" - f = {}", f);
+  BOOST_LOG(log) << fmt::format(" - k_vect = {}", k_vect);
+  BOOST_LOG(log) << fmt::format(" - alpha_p = {}", alpha_p);
+  BOOST_LOG(log) << fmt::format(" - Msq = {}", Msq);
+}
+
 namespace {
 
 inline constexpr int no_ghosts = 0;
@@ -504,18 +526,6 @@ void ComputeKCrossMomentum(
     const std::array<double, 3>& k,
     const IndexMapping<CompressibleAdvection<Rank, VelocityRank>>& index);
 
-namespace {
-void ScaleBoundaryNodes(::amrex::MultiFab& nodes, const ::amrex::Geometry& geom, double scale, int comp = 0, int ncomp = 1) {
-  ::amrex::Box nodal_domain = ::amrex::surroundingNodes(geom.Domain());
-  ::amrex::Box shrunken_domain = ::amrex::surroundingNodes(geom.growNonPeriodicDomain(-1));
-  ::amrex::BoxList boundaries =
-    ::amrex::complementIn(nodal_domain, ::amrex::BoxList{shrunken_domain});
-  for (::amrex::Box& box : boundaries) {
-    nodes.mult(scale, box, comp, ncomp, 0);
-  }
-}
-}
-
 template <int Rank, int VelocityRank>
 std::vector<::amrex::MultiFab>
 ComputeEulerBackwardRHSAndSetAlphaForLinearOperator(
@@ -544,7 +554,7 @@ ComputeEulerBackwardRHSAndSetAlphaForLinearOperator(
                            (physical_parameters.gamma - 1.0) / dt.count();
     FUB_ASSERT(factor1 < 0.0);
     std::vector<::amrex::MultiFab> diagonal_term_on_nodes =
-          AllocateOnNodes(context, one_component, no_ghosts);
+        AllocateOnNodes(context, one_component, no_ghosts);
     for (int ilvl = 0; ilvl < nlevel; ++ilvl) {
       const std::size_t level = static_cast<std::size_t>(ilvl);
       const ::amrex::MultiFab& scratch = context.GetScratch(ilvl);
@@ -568,22 +578,23 @@ ComputeEulerBackwardRHSAndSetAlphaForLinearOperator(
                          }
                        });
           });
-      AverageCellToNode(diagonal_term_on_nodes[level], 0, diagonal_term_on_cells, 0);
-      ScaleBoundaryNodes(diagonal_term_on_nodes[level], context.GetGeometry(ilvl), 0.5);
+      AverageCellToNode(diagonal_term_on_nodes[level], 0,
+                        diagonal_term_on_cells, 0);
       // This copies the termns into a local array within the linear operator
       solver.GetLinearOperator()->setAlpha(ilvl, diagonal_term_on_nodes[level]);
     }
-    dbg_sn.SaveData(ToConstPointers(diagonal_term_on_nodes), "alpha", GetGeometries(context));
+    dbg_sn.SaveData(ToConstPointers(diagonal_term_on_nodes), "alpha",
+                    GetGeometries(context));
     for (int ilvl = 0; ilvl < nlevel; ++ilvl) {
       // Now we weigth the diagonal term with our old solution and add this to
       // the RHS.
       const std::size_t level = static_cast<std::size_t>(ilvl);
       const ::amrex::MultiFab& pi = context.GetPi(ilvl);
-      ScaleBoundaryNodes(diagonal_term_on_nodes[level], context.GetGeometry(ilvl), 2.0);
       ::amrex::MultiFab::Multiply(diagonal_term_on_nodes[level], pi, 0, 0,
                                   one_component, no_ghosts);
-      ::amrex::MultiFab::Add(rhs_hierarchy[level], diagonal_term_on_nodes[level], 0, 0,
-                             one_component, no_ghosts);
+      ::amrex::MultiFab::Add(rhs_hierarchy[level],
+                             diagonal_term_on_nodes[level], 0, 0, one_component,
+                             no_ghosts);
     }
   }
   dbg_sn.SaveData(ToConstPointers(rhs_hierarchy), "rhs_plus_alpha",
@@ -681,8 +692,8 @@ void ApplyDivergenceCorrectionOnScratch(
 
 template <int Rank, int VelocityRank>
 void ApplyPiCorrectionOnScratch(
-    BK19Solver<Rank, VelocityRank>& solver, span<::amrex::MultiFab> div, Duration dt,
-    DebugSnapshotProxy dbg_sn = DebugSnapshotProxy()) {
+    BK19Solver<Rank, VelocityRank>& solver, span<::amrex::MultiFab> div,
+    Duration dt, DebugSnapshotProxy dbg_sn = DebugSnapshotProxy()) {
   CompressibleAdvectionIntegratorContext& context =
       solver.GetAdvectionSolver().GetContext();
   dbg_sn.SaveData(ToConstPointers(div), "div_Pv", GetGeometries(context));
@@ -724,10 +735,10 @@ void DoEulerForward(BK19Solver<Rank, VelocityRank>& solver, Duration dt,
                     DebugSnapshotProxy dbg_sn = DebugSnapshotProxy()) {
   CompressibleAdvectionIntegratorContext& context =
       solver.GetAdvectionSolver().GetContext();
-  
+
   std::vector<::amrex::MultiFab> UV =
       ComputePvFromScratch(solver, one_ghost_cell_width);
-  
+
   std::vector<::amrex::MultiFab> div =
       ZerosOnNodes(context, one_component, no_ghosts);
   solver.GetLinearOperator()->compDivergence(ToPointers(div), ToPointers(UV));
@@ -986,8 +997,8 @@ BK19Solver<Rank, VelocityRank>::AdvanceHierarchy(Duration dt) {
     dbgAdvBF.SaveData(GetScratches(context), GetCompleteVariableNames(),
                       GetGeometries(context));
     dbgAdvBF.SaveData(GetPvs(context),
-      DebugSnapshot::ComponentNames{"Pu", "Pv"},
-      GetGeometries(context));
+                      DebugSnapshot::ComponentNames{"Pu", "Pv"},
+                      GetGeometries(context));
     dbgAdvBF.SaveData(GetPis(std::as_const(context)), "pi",
                       GetGeometries(context));
   }
@@ -1006,7 +1017,7 @@ BK19Solver<Rank, VelocityRank>::AdvanceHierarchy(Duration dt) {
         debug.AddSnapshot("BK19_advect-backward-forward-advect");
     dbgAdvBFA.SaveData(GetPvs(context),
                        DebugSnapshot::ComponentNames{"Pu", "Pv"},
-                        GetGeometries(context));
+                       GetGeometries(context));
     dbgAdvBFA.SaveData(GetScratches(context), GetCompleteVariableNames(),
                        GetGeometries(context));
     dbgAdvBFA.SaveData(GetPis(std::as_const(context)), "pi",

@@ -116,9 +116,9 @@ public :
 
     void buildStencil ();
 
-    virtual void setSigmaCross(int amrlev, const MultiFab& a_sigmacross) {}
+    virtual void setSigmaCross(int, const MultiFab&) {}
 
-    virtual void setAlpha(int amrlev, const MultiFab& a_alpha) {}
+    virtual void setAlpha(int, const MultiFab&) {}
 
 #ifdef AMREX_USE_EB
     void buildIntegral ();

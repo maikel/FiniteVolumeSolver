@@ -10,9 +10,26 @@ BK19Solver = {
     'bottom_max_iter': 200
 }
 
+R_gas = 287.0
+h_ref = 1.0
+t_ref = 1.0
+T_ref = 353.048780488
+u_ref = h_ref / t_ref
+
+gamma = 2.0
+
+BK19PhysicalParameters = {
+    'R_gas': R_gas,
+    'gamma': gamma,
+    'Msq': u_ref * u_ref / R_gas * T_ref,
+    'c_p': gamma / (gamma - 1.0),
+    'alpha_p': 1.0
+}
+
 LinearOperator = 'MLNodeHelmDualCstVel'
 
 GridGeometry = {
+    #'cell_dimensions': [8, 8, 8],
     'cell_dimensions': [64, 64, 64],
     #'cell_dimensions': [32, 32, 32],
     'coordinates': {
@@ -32,7 +49,7 @@ PatchHierarchy = {
 
 RunOptions = {
     'cfl': 0.45,
-    'final_time': 0.002,
+    'final_time': 0.002
 }
 
 Output = {

@@ -26,8 +26,8 @@
 
 #include "fub/AMReX/CompressibleAdvectionIntegratorContext.hpp"
 
-#include "fub/AMReX/MLMG/MLNodeHelmDualLinVel.hpp"
 #include "fub/AMReX/MLMG/MLNodeHelmDualCstVel.hpp"
+#include "fub/AMReX/MLMG/MLNodeHelmDualLinVel.hpp"
 #include "fub/AMReX/MLMG/MLNodeNoHelmholtz.hpp"
 
 #include "fub/equations/CompressibleAdvection.hpp"
@@ -38,7 +38,7 @@
 
 struct AcousticWaveInitialData : fub::amrex::BK19PhysicalParameters {
   using Complete = fub::CompressibleAdvection<2>::Complete;
-  AcousticWaveInitialData() {}
+  using BK19PhysicalParameters::BK19PhysicalParameters;
 
   void InitializeData(fub::amrex::PatchLevel& patch_level,
                       const fub::amrex::GriddingAlgorithm& grid, int level,
@@ -95,18 +95,18 @@ struct AcousticWaveInitialData : fub::amrex::BK19PhysicalParameters {
   std::array<double, 2> U0{1.0, 0.0};
 };
 
-template <typename Operator>
-struct MakeOperator {
-  std::shared_ptr<amrex::MLNodeHelmholtz> operator()(const fub::amrex::GriddingAlgorithm& grid) const {
+template <typename Operator> struct MakeOperator {
+  std::shared_ptr<amrex::MLNodeHelmholtz>
+  operator()(const fub::amrex::GriddingAlgorithm& grid) const {
     amrex::LPInfo lp_info;
     lp_info.setMaxCoarseningLevel(0);
     auto geom = grid.GetPatchHierarchy().GetGeometry(0);
     auto box_array = grid.GetPatchHierarchy().GetPatchLevel(0).box_array;
-    auto dmap = grid.GetPatchHierarchy().GetPatchLevel(0).distribution_mapping;  
+    auto dmap = grid.GetPatchHierarchy().GetPatchLevel(0).distribution_mapping;
     return std::make_shared<Operator>(
-      amrex::Vector<amrex::Geometry>{geom},
-      amrex::Vector<amrex::BoxArray>{box_array},
-      amrex::Vector<amrex::DistributionMapping>{dmap}, lp_info);
+        amrex::Vector<amrex::Geometry>{geom},
+        amrex::Vector<amrex::BoxArray>{box_array},
+        amrex::Vector<amrex::DistributionMapping>{dmap}, lp_info);
   }
 };
 
@@ -116,18 +116,13 @@ void MyMain(const fub::ProgramOptions& options) {
       std::chrono::steady_clock::now();
   ScopeGuard amrex_scope_guard{};
 
-  const double h_ref{1.0};
-  const double t_ref{1.0};
-  const double T_ref{353.048780488};
-  const double u_ref{h_ref / t_ref};
-
   // Here, some things are dimensional and others non-dimensionalized. Adjust???
-  AcousticWaveInitialData inidat;
-  inidat.R_gas = 287.0;
-  inidat.gamma = 2.0;
-  inidat.Msq = u_ref * u_ref / (inidat.R_gas * T_ref);
-  inidat.c_p = inidat.gamma / (inidat.gamma - 1.0);
-  inidat.alpha_p = 1.0;
+  AcousticWaveInitialData inidat(
+      fub::GetOptions(options, "BK19PhysicalParameters"));
+
+  fub::SeverityLogger info = fub::GetInfoLogger();
+  BOOST_LOG(info) << "BK19PhysicalParameters:";
+  inidat.Print(info);
 
   DataDescription desc{};
   desc.n_state_components = 5;
@@ -139,7 +134,6 @@ void MyMain(const fub::ProgramOptions& options) {
   PatchHierarchyOptions hierarchy_options =
       fub::GetOptions(options, "PatchHierarchy");
 
-  fub::SeverityLogger info = fub::GetInfoLogger();
   BOOST_LOG(info) << "GridGeometry:";
   grid_geometry.Print(info);
   BOOST_LOG(info) << "PatchHierarchy:";
@@ -164,33 +158,28 @@ void MyMain(const fub::ProgramOptions& options) {
       boundaries);
   grid->InitializeHierarchy(0.0);
 
-  // set number of MG levels to 1 (effectively no MG)
-  amrex::LPInfo lp_info;
-  lp_info.setMaxCoarseningLevel(0);
-
   using namespace std::string_literals;
-  std::map<std::string, std::function<std::shared_ptr<amrex::MLNodeHelmholtz>(const GriddingAlgorithm&)>> linear_operators;
-  linear_operators["MLNodeHelmDualCstVel"] = MakeOperator<amrex::MLNodeHelmDualCstVel>();
-  linear_operators["MLNodeHelmDualLinVel"] = MakeOperator<amrex::MLNodeHelmDualLinVel>();
-  linear_operators["MLNodeNoHelmholtz"] = MakeOperator<amrex::MLNodeNoHelmholtz>();
+  std::map<std::string, std::function<std::shared_ptr<amrex::MLNodeHelmholtz>(
+                            const GriddingAlgorithm&)>>
+      linear_operators;
+  linear_operators["MLNodeHelmDualCstVel"] =
+      MakeOperator<amrex::MLNodeHelmDualCstVel>();
+  linear_operators["MLNodeHelmDualLinVel"] =
+      MakeOperator<amrex::MLNodeHelmDualLinVel>();
+  linear_operators["MLNodeNoHelmholtz"] =
+      MakeOperator<amrex::MLNodeNoHelmholtz>();
 
-  const std::string operator_string = fub::GetOptionOr(options, "LinearOperator"s, "MLNodeHelmDualCstVel"s);
+  const std::string operator_string =
+      fub::GetOptionOr(options, "LinearOperator"s, "MLNodeHelmDualCstVel"s);
   auto linop = linear_operators.at(operator_string)(*grid);
-  BOOST_LOG(info) << fmt::format("Configured Linear Operator: {}", operator_string);
+  BOOST_LOG(info) << fmt::format("Configured Linear Operator: {}",
+                                 operator_string);
 
   linop->setDomainBC(
       {AMREX_D_DECL(amrex::LinOpBCType::Periodic, amrex::LinOpBCType::Neumann,
                     amrex::LinOpBCType::Periodic)},
       {AMREX_D_DECL(amrex::LinOpBCType::Periodic, amrex::LinOpBCType::Neumann,
                     amrex::LinOpBCType::Periodic)});
-
-  // linop->setDomainBC(
-  //    {AMREX_D_DECL(amrex::LinOpBCType::Periodic,
-  //    amrex::LinOpBCType::Periodic,
-  //                  amrex::LinOpBCType::Periodic)},
-  //    {AMREX_D_DECL(amrex::LinOpBCType::Periodic,
-  //    amrex::LinOpBCType::Periodic,
-  //                  amrex::LinOpBCType::Periodic)});
 
   fub::CompressibleAdvectionFluxMethod<2> flux_method{};
 
@@ -200,13 +189,10 @@ void MyMain(const fub::ProgramOptions& options) {
   CompressibleAdvectionIntegratorContext simulation_data(grid, method, 5, 2);
 
   fub::DimensionalSplitLevelIntegrator advection(
-      //       fub::int_c<2>, std::move(simulation_data),
-      //       fub::GodunovSplitting());
       fub::int_c<2>, std::move(simulation_data),
       fub::AnySplitMethod(fub::StrangSplitting()));
 
-  BK19SolverOptions solver_options =
-      fub::GetOptions(options, "BK19Solver");
+  BK19SolverOptions solver_options = fub::GetOptions(options, "BK19Solver");
   BOOST_LOG(info) << "BK19Solver:";
   solver_options.Print(info);
 
