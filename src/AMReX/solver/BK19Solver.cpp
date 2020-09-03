@@ -74,7 +74,7 @@ BK19PhysicalParameters::BK19PhysicalParameters(const ProgramOptions& map) {
   R_gas = GetOptionOr(map, "R_gas", R_gas);
   gamma = GetOptionOr(map, "gamma", gamma);
   c_p = GetOptionOr(map, "c_p", c_p);
-  gravity = GetOptionOr(map, "gravity", g);
+  gravity = GetOptionOr(map, "gravity", gravity);
   f = GetOptionOr(map, "f", f);
   k_vect = GetOptionOr(map, "k_vect", k_vect);
   alpha_p = GetOptionOr(map, "alpha_p", alpha_p);
@@ -85,7 +85,7 @@ void BK19PhysicalParameters::Print(SeverityLogger& log) {
   BOOST_LOG(log) << fmt::format(" - R_gas = {}", R_gas);
   BOOST_LOG(log) << fmt::format(" - gamma = {}", gamma);
   BOOST_LOG(log) << fmt::format(" - c_p = {}", c_p);
-  BOOST_LOG(log) << fmt::format(" - g = {}", g);
+  BOOST_LOG(log) << fmt::format(" - gravity = {}", gravity);
   BOOST_LOG(log) << fmt::format(" - f = {}", f);
   BOOST_LOG(log) << fmt::format(" - k_vect = {}", k_vect);
   BOOST_LOG(log) << fmt::format(" - alpha_p = {}", alpha_p);
@@ -159,7 +159,7 @@ void CopyPiToHierarchy(CompressibleAdvectionIntegratorContext& context,
 }
 
 // Compute inplace dest = factor1 * (dest + factor2 * k x src)
-void AddCrossProduct(std::array<span<double>, 2> dest, 
+void AddCrossProduct(std::array<span<double>, 2> dest,
                      std::array<span<const double>, 2> src, double factor1,
                      double factor2, span<const double, 3> k) {
   Vc::Vector<double> fac1(factor1);
@@ -167,8 +167,8 @@ void AddCrossProduct(std::array<span<double>, 2> dest,
   Vc::Vector<double> k2(k[2]);
   double* out_x = dest[0].begin();
   double* out_y = dest[1].begin();
-  double* in_x = src[0].begin();
-  double* in_y = src[1].begin();
+  const double* in_x = src[0].begin();
+  const double* in_y = src[1].begin();
   const double* end = dest[0].end();
   std::ptrdiff_t n = end - out_x;
   const auto size = static_cast<std::ptrdiff_t>(Vc::Vector<double>::size());
@@ -196,7 +196,8 @@ void AddCrossProduct(std::array<span<double>, 2> dest,
 }
 
 // Compute inplace momentum = factor1 * (momentum + factor2 * k x momentum)
-void AddCrossProduct(std::array<span<double>, 3> momentum, double factor1,
+void AddCrossProduct(std::array<span<double>, 3> dest,
+                     std::array<span<const double>, 3> src, double factor1,
                      double factor2, span<const double, 3> k) {
   Vc::Vector<double> fac1(factor1);
   Vc::Vector<double> fac2(factor2);
@@ -206,10 +207,10 @@ void AddCrossProduct(std::array<span<double>, 3> momentum, double factor1,
   double* out_x = dest[0].begin();
   double* out_y = dest[1].begin();
   double* out_z = dest[2].begin();
-  double* in_x = src[0].begin();
-  double* in_y = src[1].begin();
-  double* in_z = src[2].begin();
-  const double* end = momentum[0].end();
+  const double* in_x = src[0].begin();
+  const double* in_y = src[1].begin();
+  const double* in_z = src[2].begin();
+  const double* end = dest[0].end();
   std::ptrdiff_t n = end - out_x;
   const auto size = static_cast<std::ptrdiff_t>(Vc::Vector<double>::size());
   while (n >= size) {
@@ -246,10 +247,10 @@ void AddCrossProduct(std::array<span<double>, 3> momentum, double factor1,
 // Compute inplace dest = factor1 * (dest + factor2 * k x src)
 template <typename I, std::size_t VelocityRank>
 void AddCrossProduct(::amrex::MultiFab& dest,
-                     const std::array<I, VelocityRank>& dest_index, 
-                     const ::amrex::MutliFab& src,
-                     const std::array<I, VelocityRank>& src_index, double factor1,
-                     double factor2, span<const double, 3> k) {
+                     const std::array<I, VelocityRank>& dest_index,
+                     const ::amrex::MultiFab& src,
+                     const std::array<I, VelocityRank>& src_index,
+                     double factor1, double factor2, span<const double, 3> k) {
   ForEachFab(execution::openmp, dest, [&](const ::amrex::MFIter& mfi) {
     const ::amrex::Box box = mfi.growntilebox();
     if constexpr (VelocityRank == 2) {
@@ -257,9 +258,12 @@ void AddCrossProduct(::amrex::MultiFab& dest,
       auto dv = MakePatchDataView(dest[mfi], dest_index[1], box);
       auto su = MakePatchDataView(src[mfi], src_index[0], box);
       auto sv = MakePatchDataView(src[mfi], src_index[1], box);
-      ForEachRow(std::tuple{u, v},
-                 [factor1, factor2, k](span<double> du, span<double> dv, span<const double> su, span<const double> sv) {
-                   AddCrossProduct(std::array<span<double>, 2>{du, dv}, std::array<span<const double>, 2>{su, sv},
+      ForEachRow(std::tuple{du, dv, su, sv},
+                 [factor1, factor2, k](span<double> du, span<double> dv,
+                                       span<const double> su,
+                                       span<const double> sv) {
+                   AddCrossProduct(std::array<span<double>, 2>{du, dv},
+                                   std::array<span<const double>, 2>{su, sv},
                                    factor1, factor2, k);
                  });
     } else if constexpr (VelocityRank == 3) {
@@ -269,44 +273,46 @@ void AddCrossProduct(::amrex::MultiFab& dest,
       auto su = MakePatchDataView(src[mfi], src_index[0], box);
       auto sv = MakePatchDataView(src[mfi], src_index[1], box);
       auto sw = MakePatchDataView(src[mfi], src_index[2], box);
-      ForEachRow(std::tuple{u, v, w}, [factor1, factor2, k](span<double> du,
-                                                            span<double> dv,
-                                                            span<double> dw, 
-                                                            span<const double> su,
-                                                            span<const double> sv,
-                                                            span<const double> sw) {
-        AddCrossProduct(std::array<span<double>, 3>{du, dv, dw}, std::array<span<const double>, 3>{su, sv, sw}, factor1,
-                        factor2, k);
-      });
+      ForEachRow(
+          std::tuple{du, dv, dw, su, sv, sw},
+          [factor1, factor2, k](span<double> du, span<double> dv,
+                                span<double> dw, span<const double> su,
+                                span<const double> sv, span<const double> sw) {
+            AddCrossProduct(std::array<span<double>, 3>{du, dv, dw},
+                            std::array<span<const double>, 3>{su, sv, sw},
+                            factor1, factor2, k);
+          });
     }
   });
 }
 template <int Rank, int VelocityRank, std::size_t N>
-void AddGravity(::amrex::MultiFab& dst, const std::array<int, N>& dest_index, ::amrex::MultiFab& src,
+void AddGravity(::amrex::MultiFab& dst, const std::array<int, N>& dest_index,
+                const ::amrex::MultiFab& src,
                 IndexMapping<CompressibleAdvection<Rank, VelocityRank>> index,
                 const BK19PhysicalParameters& physical_parameters,
                 Duration dt) {
   for (int i = 0; i < VelocityRank; ++i) {
     ::amrex::MultiFab::Saxpy(dst, dt.count() * physical_parameters.gravity[i],
-                             src, index.density, dest_index[i], 1,
-                             dst.nGrow());
+                             src, index.density, dest_index[i], 1, dst.nGrow());
   }
 }
 
 template <int Rank, int VelocityRank>
-void ApplyExplicitSourceTerms(BK19Solver<Rank, VelocityRank>& solver,
-                                     Duration dt,
-                                     const BK19PhysicalParameters& physical_parameters) {
+void ApplyExplicitSourceTerms(
+    BK19Solver<Rank, VelocityRank>& solver, Duration dt,
+    const BK19PhysicalParameters& physical_parameters) {
   CompressibleAdvectionIntegratorContext& context =
       solver.GetAdvectionSolver().GetContext();
   const int nlevel = context.GetPatchHierarchy().GetNumberOfLevels();
   IndexMapping index = solver.GetEquation().GetIndexMapping();
-  const double factor1 = -dt.count() * physical_paramters.f;
+  const double factor1 = -dt.count() * physical_parameters.f;
   const double factor2 = 1.0 / (1.0 + factor1 * factor1);
   for (int level = 0; level < nlevel; ++level) {
     ::amrex::MultiFab& scratch = context.GetScratch(level);
-    AddCrossProduct(scratch, index.momentum, scratch, index.momentum, factor1, factor2, physical_parameters.k_vect);
-    AddGravity(scratch, index.momentum, scratch, index, physical_parameters, dt)
+    AddCrossProduct(scratch, index.momentum, scratch, index.momentum, factor1,
+                    factor2, physical_parameters.k_vect);
+    AddGravity(scratch, index.momentum, scratch, index, physical_parameters,
+               dt);
   }
 }
 
@@ -711,8 +717,8 @@ void ApplyDivergenceCorrectionOnScratch(
 
     const double factor1 = -dt.count() * physical_parameters.f;
     const double factor2 = 1.0;
-    AddCrossProduct(UV_correction[level], UV_index, UV_correction[level], UV_index, factor1, factor2,
-                    physical_parameters.k_vect);
+    AddCrossProduct(UV_correction[level], UV_index, UV_correction[level],
+                    UV_index, factor1, factor2, physical_parameters.k_vect);
 
     ::amrex::MultiFab& scratch = context.GetScratch(level);
     for (std::size_t i = 0; i < index.momentum.size(); ++i) {
@@ -776,7 +782,7 @@ void DoEulerForward(BK19Solver<Rank, VelocityRank>& solver, Duration dt,
                     DebugSnapshotProxy dbg_sn = DebugSnapshotProxy()) {
   CompressibleAdvectionIntegratorContext& context =
       solver.GetAdvectionSolver().GetContext();
-  
+
   auto index = solver.GetEquation().GetIndexMapping();
 
   std::vector<::amrex::MultiFab> UV =
@@ -803,13 +809,22 @@ void DoEulerForward(BK19Solver<Rank, VelocityRank>& solver, Duration dt,
   // this computes: -sigma Grad(pi)
   linear_operator->getFluxes(ToPointers(source_terms), GetPis(context));
 
-  const double factor1 = -dt.count() * physical_paramters.f;;
+  const int nlevel = context.GetPatchHierarchy().GetNumberOfLevels();
+  const double factor1 = -dt.count() * physical_parameters.f;
   const double factor2 = 1.0;
   for (int ilvl = 0; ilvl < nlevel; ++ilvl) {
+    const std::size_t level = static_cast<std::size_t>(ilvl);
     const ::amrex::MultiFab& scratch = context.GetScratch(ilvl);
-    AddCrossProduct(source_terms, source_terms_index, scratch, index.momentum, factor1, factor2, physical_parameters.k_vect);
-    AddGravity(source_terms, source_terms_index, scratch, index, physical_parameters, dt);
-    ::amrex::MultiFab::Add(context.GetScratch(ilvl), source_terms, 0, index.momentum[0], index.momentum.size(), no_ghosts)
+    // Add coriolis terms to source_terms multifab
+    AddCrossProduct(source_terms[level], source_terms_index, scratch,
+                    index.momentum, factor1, factor2,
+                    physical_parameters.k_vect);
+    // Add gravity to source_terms
+    AddGravity(source_terms[level], source_terms_index, scratch, index,
+               physical_parameters, dt);
+    // Add all source_terms to current momentum on scratch
+    ::amrex::MultiFab::Add(context.GetScratch(ilvl), source_terms[level], 0,
+                           index.momentum[0], index.momentum.size(), no_ghosts);
   }
 
   // compute update for pi (compressible case), (equation (16) in [BK19])
