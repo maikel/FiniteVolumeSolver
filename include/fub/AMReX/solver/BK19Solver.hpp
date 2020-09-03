@@ -71,7 +71,7 @@ struct BK19PhysicalParameters {
   double c_p{1006.0};
 
   /// Gravitational acceleration
-  double g{10.0}; //  [m / s^2]
+  std::array<double, 3> gravity{0.0, 10.0, 0.0}; //  [m / s^2]
 
   /// Coriolis parameter in beta plane
   double f{0.0};

@@ -254,6 +254,13 @@ void ComputeKCrossM_(const std::array<int, VelocityRank>& momentum_index,
                     no_ghosts);
   }
 }
+void ComputeGravityVector_(MultiFab& result){
+  const auto dim = result.nComp();
+  for (int i=0;i<dim-1;++i){
+    result.setVal(0.0, i, 1);
+  }
+  result.setVal(1.0, dim-1, 1);
+}
 
 } // namespace
 
@@ -413,7 +420,7 @@ Advect_(BK19LevelIntegrator::AdvectionSolver& advection, int level, Duration dt,
     nodal_solver.solve({&pi}, {&rhs}, options.mlmg_tolerance_rel,
                        options.mlmg_tolerance_abs);
   }
-  dbg_sn.SaveData(pi, "solution", geom);
+  dbg_sn.SaveData(pi, "pi", geom);
 
   // compute momentum correction
   MultiFab UV_correction(on_cells, distribution_map, index.momentum.size(),
@@ -498,7 +505,13 @@ void DoEulerForward_(const IndexMapping<Equation>& index,
   const double fac = -dt.count() * phys_param.f;
   MultiFab::Saxpy(momentum_correction, fac, k_cross_rhou, 0, 0,
                   index.momentum.size(), no_ghosts);
-
+  // add gravity term
+  MultiFab force_gravity(on_cells, distribution_map, index.momentum.size(),
+                        no_ghosts);
+  ComputeGravityVector_(force_gravity);
+  const double fac_g = -0.0*dt.count() * phys_param.g;
+  MultiFab::Saxpy(momentum_correction, fac_g, force_gravity, 0, 0,
+                  index.momentum.size(), no_ghosts); 
   MultiFab::Add(scratch, momentum_correction, 0, index.momentum[0],
                 index.momentum.size(), no_ghosts);
   dbg_sn.SaveData(
@@ -511,7 +524,6 @@ void DoEulerForward_(const IndexMapping<Equation>& index,
   MultiFab div(on_nodes, distribution_map, one_component, no_ghosts);
   div.setVal(0.0);
   lin_op.compDivergence({&div}, {&UV});
-  dbg_sn.SaveData(div, "div_Pv", geom);
 
   MultiFab dpidP_cells(on_cells, distribution_map, one_component,
                        scratch.nGrow());
@@ -539,7 +551,6 @@ void DoEulerForward_(const IndexMapping<Equation>& index,
   // Msq=0.
   if (phys_param.alpha_p > 0.0) {
     MultiFab::Add(pi, div, 0, 0, one_component, no_ghosts);
-    dbg_sn.SaveData(div, "Pi_correction", geom);
   }
 }
 
@@ -648,7 +659,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
                          geom, level, half_dt, *counters, dbgAdvB);
 
     // NOTE: the following update of pi in the pseudo-incompressible case is not
-    // present in BK19, but a further development in the work of Ray Chow
+    // present in BK19, but a further development in the work of Ray Chew
     if (phys_param_.alpha_p == 0) {
       hier.GetPatchLevel(level).nodes->copy(pi_aux);
     }
@@ -668,7 +679,6 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   dbgAdvB.SaveData(Pv.on_faces[0], "Pu_faces", geom, ::amrex::SrcComp(0));
   dbgAdvB.SaveData(Pv.on_faces[1], "Pv_faces", geom, ::amrex::SrcComp(0));
   dbgAdvB.SaveData(scratch, GetCompleteVariableNames(), geom);
-  dbgAdvB.SaveData(pi, "pi", geom);
 
   // Copy data from old time level back to scratch
   scratch.copy(scratch_aux);
@@ -684,10 +694,6 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   }
 
   dbgAdvBF.SaveData(scratch, GetCompleteVariableNames(), geom);
-  dbgAdvBF.SaveData(Pv.on_cells, DebugSnapshot::ComponentNames{"Pu", "Pv"},
-                   geom);
-  dbgAdvBF.SaveData(Pv.on_faces[0], "Pu_faces", geom, ::amrex::SrcComp(0));
-  dbgAdvBF.SaveData(Pv.on_faces[1], "Pv_faces", geom, ::amrex::SrcComp(0));
   dbgAdvBF.SaveData(pi, "pi", geom);
 
   // 6) Do the second advection step with half-time Pv and full time step
@@ -702,10 +708,6 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
     return result;
   }
 
-  dbgAdvBFA.SaveData(Pv.on_cells, DebugSnapshot::ComponentNames{"Pu", "Pv"},
-                   geom);
-  dbgAdvBFA.SaveData(Pv.on_faces[0], "Pu_faces", geom, ::amrex::SrcComp(0));
-  dbgAdvBFA.SaveData(Pv.on_faces[1], "Pv_faces", geom, ::amrex::SrcComp(0));
   dbgAdvBFA.SaveData(scratch, GetCompleteVariableNames(), geom);
   dbgAdvBFA.SaveData(pi, "pi", geom);
 
@@ -721,7 +723,6 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   }
 
   dbgAdvBFAB.SaveData(scratch, GetCompleteVariableNames(), geom);
-  dbgAdvBFAB.SaveData(pi, "pi", geom);
 
   return boost::outcome_v2::success();
 }

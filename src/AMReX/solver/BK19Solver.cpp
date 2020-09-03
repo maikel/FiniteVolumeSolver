@@ -74,7 +74,7 @@ BK19PhysicalParameters::BK19PhysicalParameters(const ProgramOptions& map) {
   R_gas = GetOptionOr(map, "R_gas", R_gas);
   gamma = GetOptionOr(map, "gamma", gamma);
   c_p = GetOptionOr(map, "c_p", c_p);
-  g = GetOptionOr(map, "g", g);
+  gravity = GetOptionOr(map, "gravity", g);
   f = GetOptionOr(map, "f", f);
   k_vect = GetOptionOr(map, "k_vect", k_vect);
   alpha_p = GetOptionOr(map, "alpha_p", alpha_p);
@@ -158,35 +158,44 @@ void CopyPiToHierarchy(CompressibleAdvectionIntegratorContext& context,
   }
 }
 
-void AddCrossProduct(std::array<span<double>, 2> momentum, double factor1,
+// Compute inplace dest = factor1 * (dest + factor2 * k x src)
+void AddCrossProduct(std::array<span<double>, 2> dest, 
+                     std::array<span<const double>, 2> src, double factor1,
                      double factor2, span<const double, 3> k) {
   Vc::Vector<double> fac1(factor1);
   Vc::Vector<double> fac2(factor2);
   Vc::Vector<double> k2(k[2]);
-  double* out_x = momentum[0].begin();
-  double* out_y = momentum[1].begin();
-  const double* end = momentum[0].end();
+  double* out_x = dest[0].begin();
+  double* out_y = dest[1].begin();
+  double* in_x = src[0].begin();
+  double* in_y = src[1].begin();
+  const double* end = dest[0].end();
   std::ptrdiff_t n = end - out_x;
   const auto size = static_cast<std::ptrdiff_t>(Vc::Vector<double>::size());
   while (n >= size) {
-    Vc::Vector<double> rhou(out_x, Vc::Unaligned);
-    Vc::Vector<double> rhov(out_y, Vc::Unaligned);
-    Vc::Vector rhou_next = fac2 * (rhou - fac1 * k2 * rhov);
-    Vc::Vector rhov_next = fac2 * (rhov + fac1 * k2 * rhou);
-    rhou_next.store(out_x, Vc::Unaligned);
-    rhov_next.store(out_y, Vc::Unaligned);
-    AdvanceBy(size, out_x, out_y);
+    Vc::Vector<double> du(out_x, Vc::Unaligned);
+    Vc::Vector<double> dv(out_y, Vc::Unaligned);
+    Vc::Vector<double> su(in_x, Vc::Unaligned);
+    Vc::Vector<double> sv(in_y, Vc::Unaligned);
+    Vc::Vector u_next = fac2 * (du - fac1 * k2 * sv);
+    Vc::Vector v_next = fac2 * (dv + fac1 * k2 * su);
+    u_next.store(out_x, Vc::Unaligned);
+    v_next.store(out_y, Vc::Unaligned);
+    AdvanceBy(size, out_x, out_y, in_x, in_y);
     n = end - out_x;
   }
   const auto mask = Vc::Vector<double>([](int i) { return i; }) < int(n);
-  const Vc::Vector<double> rhou = mask_load(out_x, mask);
-  const Vc::Vector<double> rhov = mask_load(out_y, mask);
-  Vc::Vector<double> rhou_next = fac2 * (rhou - fac1 * k2 * rhov);
-  Vc::Vector<double> rhov_next = fac2 * (rhov + fac1 * k2 * rhou);
-  rhou_next.store(out_x, mask, Vc::Unaligned);
-  rhov_next.store(out_y, mask, Vc::Unaligned);
+  const Vc::Vector<double> du = mask_load(out_x, mask);
+  const Vc::Vector<double> dv = mask_load(out_y, mask);
+  const Vc::Vector<double> su = mask_load(in_x, mask);
+  const Vc::Vector<double> sv = mask_load(in_y, mask);
+  Vc::Vector<double> u_next = fac2 * (du - fac1 * k2 * sv);
+  Vc::Vector<double> v_next = fac2 * (dv + fac1 * k2 * su);
+  u_next.store(out_x, mask, Vc::Unaligned);
+  v_next.store(out_y, mask, Vc::Unaligned);
 }
 
+// Compute inplace momentum = factor1 * (momentum + factor2 * k x momentum)
 void AddCrossProduct(std::array<span<double>, 3> momentum, double factor1,
                      double factor2, span<const double, 3> k) {
   Vc::Vector<double> fac1(factor1);
@@ -194,78 +203,110 @@ void AddCrossProduct(std::array<span<double>, 3> momentum, double factor1,
   Vc::Vector<double> k0(k[0]);
   Vc::Vector<double> k1(k[1]);
   Vc::Vector<double> k2(k[2]);
-  double* out_x = momentum[0].begin();
-  double* out_y = momentum[1].begin();
-  double* out_z = momentum[2].begin();
+  double* out_x = dest[0].begin();
+  double* out_y = dest[1].begin();
+  double* out_z = dest[2].begin();
+  double* in_x = src[0].begin();
+  double* in_y = src[1].begin();
+  double* in_z = src[2].begin();
   const double* end = momentum[0].end();
   std::ptrdiff_t n = end - out_x;
   const auto size = static_cast<std::ptrdiff_t>(Vc::Vector<double>::size());
   while (n >= size) {
-    Vc::Vector<double> rhou(out_x, Vc::Unaligned);
-    Vc::Vector<double> rhov(out_y, Vc::Unaligned);
-    Vc::Vector<double> rhow(out_y, Vc::Unaligned);
-    Vc::Vector rhou_next = fac2 * (rhou + fac1 * (k1 * rhow - k2 * rhov));
-    Vc::Vector rhov_next = fac2 * (rhov + fac1 * (k2 * rhou - k0 * rhow));
-    Vc::Vector rhow_next = fac2 * (rhow + fac1 * (k0 * rhov - k1 * rhou));
-    rhou_next.store(out_x, Vc::Unaligned);
-    rhov_next.store(out_y, Vc::Unaligned);
-    rhow_next.store(out_z, Vc::Unaligned);
-    AdvanceBy(size, out_x, out_y, out_z);
+    Vc::Vector<double> du(out_x, Vc::Unaligned);
+    Vc::Vector<double> dv(out_y, Vc::Unaligned);
+    Vc::Vector<double> dw(out_y, Vc::Unaligned);
+    Vc::Vector<double> su(out_x, Vc::Unaligned);
+    Vc::Vector<double> sv(out_y, Vc::Unaligned);
+    Vc::Vector<double> sw(out_y, Vc::Unaligned);
+    Vc::Vector u_next = fac2 * (du + fac1 * (k1 * sw - k2 * sv));
+    Vc::Vector v_next = fac2 * (dv + fac1 * (k2 * su - k0 * sw));
+    Vc::Vector w_next = fac2 * (dw + fac1 * (k0 * sv - k1 * su));
+    u_next.store(out_x, Vc::Unaligned);
+    v_next.store(out_y, Vc::Unaligned);
+    w_next.store(out_z, Vc::Unaligned);
+    AdvanceBy(size, out_x, out_y, out_z, in_x, in_y, in_z);
     n = end - out_x;
   }
   const auto mask = Vc::Vector<double>([](int i) { return i; }) < int(n);
-  const Vc::Vector<double> rhou = mask_load(out_x, mask);
-  const Vc::Vector<double> rhov = mask_load(out_y, mask);
-  const Vc::Vector<double> rhow = mask_load(out_z, mask);
-  Vc::Vector<double> rhou_next = fac2 * (rhou + fac1 * (k1 * rhow - k2 * rhov));
-  Vc::Vector<double> rhov_next = fac2 * (rhov + fac1 * (k2 * rhou - k0 * rhow));
-  Vc::Vector<double> rhow_next = fac2 * (rhow + fac1 * (k0 * rhov - k1 * rhou));
-  rhou_next.store(out_x, mask, Vc::Unaligned);
-  rhov_next.store(out_y, mask, Vc::Unaligned);
-  rhow_next.store(out_z, mask, Vc::Unaligned);
+  const Vc::Vector<double> du = mask_load(out_x, mask);
+  const Vc::Vector<double> dv = mask_load(out_y, mask);
+  const Vc::Vector<double> dw = mask_load(out_z, mask);
+  const Vc::Vector<double> su = mask_load(in_x, mask);
+  const Vc::Vector<double> sv = mask_load(in_y, mask);
+  const Vc::Vector<double> sw = mask_load(in_z, mask);
+  Vc::Vector u_next = fac2 * (du + fac1 * (k1 * sw - k2 * sv));
+  Vc::Vector v_next = fac2 * (dv + fac1 * (k2 * su - k0 * sw));
+  Vc::Vector w_next = fac2 * (dw + fac1 * (k0 * sv - k1 * su));
+  u_next.store(out_x, Vc::Unaligned);
+  v_next.store(out_y, Vc::Unaligned);
+  w_next.store(out_z, Vc::Unaligned);
 }
 
+// Compute inplace dest = factor1 * (dest + factor2 * k x src)
 template <typename I, std::size_t VelocityRank>
-void AddCrossProduct(::amrex::MultiFab& UV,
-                     const std::array<I, VelocityRank>& index, double factor1,
+void AddCrossProduct(::amrex::MultiFab& dest,
+                     const std::array<I, VelocityRank>& dest_index, 
+                     const ::amrex::MutliFab& src,
+                     const std::array<I, VelocityRank>& src_index, double factor1,
                      double factor2, span<const double, 3> k) {
-  ForEachFab(execution::openmp, UV, [&](const ::amrex::MFIter& mfi) {
+  ForEachFab(execution::openmp, dest, [&](const ::amrex::MFIter& mfi) {
     const ::amrex::Box box = mfi.growntilebox();
     if constexpr (VelocityRank == 2) {
-      auto u = MakePatchDataView(UV[mfi], index[0], box);
-      auto v = MakePatchDataView(UV[mfi], index[1], box);
+      auto du = MakePatchDataView(dest[mfi], dest_index[0], box);
+      auto dv = MakePatchDataView(dest[mfi], dest_index[1], box);
+      auto su = MakePatchDataView(src[mfi], src_index[0], box);
+      auto sv = MakePatchDataView(src[mfi], src_index[1], box);
       ForEachRow(std::tuple{u, v},
-                 [factor1, factor2, k](span<double> rhou, span<double> rhov) {
-                   AddCrossProduct(std::array<span<double>, 2>{rhou, rhov},
+                 [factor1, factor2, k](span<double> du, span<double> dv, span<const double> su, span<const double> sv) {
+                   AddCrossProduct(std::array<span<double>, 2>{du, dv}, std::array<span<const double>, 2>{su, sv},
                                    factor1, factor2, k);
                  });
     } else if constexpr (VelocityRank == 3) {
-      auto u = MakePatchDataView(UV[mfi], index[0], box);
-      auto v = MakePatchDataView(UV[mfi], index[1], box);
-      auto w = MakePatchDataView(UV[mfi], index[2], box);
-      ForEachRow(std::tuple{u, v, w}, [factor1, factor2, k](span<double> rhou,
-                                                            span<double> rhov,
-                                                            span<double> rhow) {
-        AddCrossProduct(std::array<span<double>, 3>{rhou, rhov, rhow}, factor1,
+      auto du = MakePatchDataView(dest[mfi], dest_index[0], box);
+      auto dv = MakePatchDataView(dest[mfi], dest_index[1], box);
+      auto dw = MakePatchDataView(dest[mfi], dest_index[2], box);
+      auto su = MakePatchDataView(src[mfi], src_index[0], box);
+      auto sv = MakePatchDataView(src[mfi], src_index[1], box);
+      auto sw = MakePatchDataView(src[mfi], src_index[2], box);
+      ForEachRow(std::tuple{u, v, w}, [factor1, factor2, k](span<double> du,
+                                                            span<double> dv,
+                                                            span<double> dw, 
+                                                            span<const double> su,
+                                                            span<const double> sv,
+                                                            span<const double> sw) {
+        AddCrossProduct(std::array<span<double>, 3>{du, dv, dw}, std::array<span<const double>, 3>{su, sv, sw}, factor1,
                         factor2, k);
       });
     }
   });
 }
+template <int Rank, int VelocityRank, std::size_t N>
+void AddGravity(::amrex::MultiFab& dst, const std::array<int, N>& dest_index, ::amrex::MultiFab& src,
+                IndexMapping<CompressibleAdvection<Rank, VelocityRank>> index,
+                const BK19PhysicalParameters& physical_parameters,
+                Duration dt) {
+  for (int i = 0; i < VelocityRank; ++i) {
+    ::amrex::MultiFab::Saxpy(dst, dt.count() * physical_parameters.gravity[i],
+                             src, index.density, dest_index[i], 1,
+                             dst.nGrow());
+  }
+}
 
 template <int Rank, int VelocityRank>
-void ApplyExplicitCoriolisSourceTerm(BK19Solver<Rank, VelocityRank>& solver,
-                                     Duration dt, double f,
-                                     span<const double, 3> k) {
+void ApplyExplicitSourceTerms(BK19Solver<Rank, VelocityRank>& solver,
+                                     Duration dt,
+                                     const BK19PhysicalParameters& physical_parameters) {
   CompressibleAdvectionIntegratorContext& context =
       solver.GetAdvectionSolver().GetContext();
   const int nlevel = context.GetPatchHierarchy().GetNumberOfLevels();
   IndexMapping index = solver.GetEquation().GetIndexMapping();
-  const double factor1 = -dt.count() * f;
+  const double factor1 = -dt.count() * physical_paramters.f;
   const double factor2 = 1.0 / (1.0 + factor1 * factor1);
   for (int level = 0; level < nlevel; ++level) {
     ::amrex::MultiFab& scratch = context.GetScratch(level);
-    AddCrossProduct(scratch, index.momentum, factor1, factor2, k);
+    AddCrossProduct(scratch, index.momentum, scratch, index.momentum, factor1, factor2, physical_parameters.k_vect);
+    AddGravity(scratch, index.momentum, scratch, index, physical_parameters, dt)
   }
 }
 
@@ -670,7 +711,7 @@ void ApplyDivergenceCorrectionOnScratch(
 
     const double factor1 = -dt.count() * physical_parameters.f;
     const double factor2 = 1.0;
-    AddCrossProduct(UV_correction[level], UV_index, factor1, factor2,
+    AddCrossProduct(UV_correction[level], UV_index, UV_correction[level], UV_index, factor1, factor2,
                     physical_parameters.k_vect);
 
     ::amrex::MultiFab& scratch = context.GetScratch(level);
@@ -735,6 +776,8 @@ void DoEulerForward(BK19Solver<Rank, VelocityRank>& solver, Duration dt,
                     DebugSnapshotProxy dbg_sn = DebugSnapshotProxy()) {
   CompressibleAdvectionIntegratorContext& context =
       solver.GetAdvectionSolver().GetContext();
+  
+  auto index = solver.GetEquation().GetIndexMapping();
 
   std::vector<::amrex::MultiFab> UV =
       ComputePvFromScratch(solver, one_ghost_cell_width);
@@ -752,15 +795,22 @@ void DoEulerForward(BK19Solver<Rank, VelocityRank>& solver, Duration dt,
   // construct sigma as in DoEulerBackward
   SetSigmaForLinearOperator(solver, dt, physical_parameters, dbg_sn);
 
-  std::vector<::amrex::MultiFab> UV_correction =
+  // Add explicit source terms to momentum on scratch
+  std::vector<::amrex::MultiFab> source_terms =
       ZerosOnCells(context, AMREX_SPACEDIM, no_ghosts);
+  std::array<int, AMREX_SPACEDIM> source_terms_index{AMREX_D_DECL(0, 1, 2)};
 
   // this computes: -sigma Grad(pi)
-  linear_operator->getFluxes(ToPointers(UV_correction), GetPis(context));
+  linear_operator->getFluxes(ToPointers(source_terms), GetPis(context));
 
-  // Change momentum on scratch by this projections
-  ApplyDivergenceCorrectionOnScratch(solver, dt, UV_correction,
-                                     physical_parameters, dbg_sn);
+  const double factor1 = -dt.count() * physical_paramters.f;;
+  const double factor2 = 1.0;
+  for (int ilvl = 0; ilvl < nlevel; ++ilvl) {
+    const ::amrex::MultiFab& scratch = context.GetScratch(ilvl);
+    AddCrossProduct(source_terms, source_terms_index, scratch, index.momentum, factor1, factor2, physical_parameters.k_vect);
+    AddGravity(source_terms, source_terms_index, scratch, index, physical_parameters, dt);
+    ::amrex::MultiFab::Add(context.GetScratch(ilvl), source_terms, 0, index.momentum[0], index.momentum.size(), no_ghosts)
+  }
 
   // compute update for pi (compressible case), (equation (16) in [BK19])
 
@@ -776,11 +826,8 @@ DoEulerBackward(BK19Solver<Rank, VelocityRank>& solver, Duration dt,
                 DebugSnapshotProxy dbg_sn = DebugSnapshotProxy()) {
   // If we play with a non-trivial coriolis term we need an explicit source
   // term integration step here
-  if (physical_parameters.f > 0) {
-    ApplyExplicitCoriolisSourceTerm(solver, dt, physical_parameters.f,
-                                    physical_parameters.k_vect);
-    solver.FillAllGhostLayers();
-  }
+  ApplyExplicitSourceTerms(solver, dt, physical_parameters);
+  solver.FillAllGhostLayers();
 
   const std::vector<::amrex::MultiFab> rhs =
       ComputeEulerBackwardRHSAndSetAlphaForLinearOperator(
