@@ -1,6 +1,6 @@
 import math
 
-plenum_x_n_cells = 64
+plenum_x_n_cells = 256
 tube_blocking_factor = 32
 plenum_blocking_factor = 32
 
@@ -58,7 +58,7 @@ tube_n_cells -= tube_n_cells % tube_blocking_factor
 tube_n_cells = int(tube_n_cells)
 
 RunOptions = {
-  'cfl': 0.45,
+  'cfl': 0.9 * 0.5,
   'final_time': 0.04,
   'max_cycles': -1
 }
@@ -147,7 +147,7 @@ Tubes = [{
       },
       'side': 0,
       'direction': 0,
-      'required_massflow': 120.0 / 3600.0,
+      'required_massflow': 900.0 / 3600.0,
       'surface_area': math.pi * r_tube * r_tube
     }
   }
@@ -165,7 +165,7 @@ Output = {
     'type': 'HDF5',
     'which_block': 0,
     'path': 'Plenum.h5',
-    'intervals': [1e-3],
+    'intervals': [1e-5],
     'box': {
       'lower': [plenum_x_n_cells - 5, 0, 0],
       'upper': [plenum_x_n_cells - 5, plenum_y_n_cells - 1, plenum_z_n_cells - 1]
@@ -174,18 +174,25 @@ Output = {
     'type': 'HDF5',
     'which_block': 1,
     'path': 'Tube_0.h5',
-    'intervals': [1e-3],
+    'intervals': [1e-5],
   }, {
     'type': 'LogProbes',
     'directory': 'MultiTube/Probes/',
     'frequencies': [1],
     'Plenum': {
       'filename': 'MultiTube/Probes/Plenum.dat',
-      'coordinates': [OuterProbe(0.07, 0, alpha), OuterProbe(0.16, 0, alpha), OuterProbe(0.25, 0, alpha), OuterProbe(0.34, 0, alpha), OuterProbe(0.43, 0, alpha)],
+      'coordinates': [
+        OuterProbe(0.07, 0, alpha), OuterProbe(0.16, 0, alpha), OuterProbe(0.25, 0, alpha), OuterProbe(0.34, 0, alpha), OuterProbe(0.43, 0, alpha),
+        OuterProbe(0.07, 1, alpha), OuterProbe(0.16, 1, alpha), OuterProbe(0.25, 1, alpha), OuterProbe(0.34, 1, alpha), OuterProbe(0.43, 1, alpha),
+        OuterProbe(0.07, 2, alpha), OuterProbe(0.16, 2, alpha), OuterProbe(0.25, 2, alpha), OuterProbe(0.34, 2, alpha), OuterProbe(0.43, 2, alpha),
+        OuterProbe(0.07, 3, alpha), OuterProbe(0.16, 3, alpha), OuterProbe(0.25, 3, alpha), OuterProbe(0.34, 3, alpha), OuterProbe(0.43, 3, alpha),
+        OuterProbe(0.07, 4, alpha), OuterProbe(0.16, 4, alpha), OuterProbe(0.25, 4, alpha), OuterProbe(0.34, 4, alpha), OuterProbe(0.43, 4, alpha),
+        OuterProbe(0.07, 5, alpha), OuterProbe(0.16, 5, alpha), OuterProbe(0.25, 5, alpha), OuterProbe(0.34, 5, alpha), OuterProbe(0.43, 5, alpha)
+      ],
     },
     'Tube': {
       'filename': 'MultiTube/Probes/Tubes.dat',
-      'coordinates': []#[TubeCenterPoint(-0.9, 0, alpha), TubeCenterPoint(-0.45, 0, alpha), TubeCenterPoint(-0.3, 0, alpha), TubeCenterPoint(-0.15, 0, alpha), TubeCenterPoint(-0.07, 0, alpha)],
+      'coordinates': [TubeCenterPoint(-0.9, 0, alpha), TubeCenterPoint(-0.45, 0, alpha), TubeCenterPoint(-0.3, 0, alpha), TubeCenterPoint(-0.15, 0, alpha), TubeCenterPoint(-0.07, 0, alpha)],
     }
   }, {
     'type': 'Checkpoint',
@@ -194,7 +201,7 @@ Output = {
     'frequencies': []
   }, {
     'type': 'CounterOutput',
-    'frequencies': [100]
+    'frequencies': [1000]
   }]
 }
 
