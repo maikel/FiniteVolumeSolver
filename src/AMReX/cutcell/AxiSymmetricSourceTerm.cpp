@@ -52,7 +52,7 @@ AxiSymmetricSourceTerm::AdvanceLevel(cutcell::IntegratorContext& simulation_data
       static constexpr int i_axial = 0;
       Index<2> ij{i, j};
       Load(state, states, ij);
-      if (alpha({int(i), int(j)}) == 1.0) {
+      if (alpha({AMREX_D_DECL(int(i), int(j), 0)}) == 1.0) {
         equation_.SetReactorStateFromComplete(state);
         const double H = reactor.GetEnthalpy();
         const double r = geom.CellCenter(ij[i_radial], i_radial);
