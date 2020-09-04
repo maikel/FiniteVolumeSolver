@@ -1,8 +1,8 @@
 import math
 
-plenum_x_n_cells = 128
-tube_blocking_factor = 8
-plenum_blocking_factor = 8
+plenum_x_n_cells = 64
+tube_blocking_factor = 32
+plenum_blocking_factor = 32
 
 n_level = 1
 
@@ -58,7 +58,7 @@ tube_n_cells -= tube_n_cells % tube_blocking_factor
 tube_n_cells = int(tube_n_cells)
 
 RunOptions = {
-  'cfl': 0.8,
+  'cfl': 0.45,
   'final_time': 0.04,
   'max_cycles': -1
 }
@@ -84,7 +84,7 @@ Plenum = {
     'max_number_of_levels': n_level, 
     'blocking_factor': [plenum_blocking_factor, plenum_blocking_factor, plenum_blocking_factor],
     'max_grid_size': [plenum_max_grid_size, plenum_max_grid_size, plenum_max_grid_size],
-    'ngrow_eb_level_set': 5,
+    'ngrow_eb_level_set': 9,
     'remove_covered_grids': False
   },
   'IsentropicPressureBoundary': {
