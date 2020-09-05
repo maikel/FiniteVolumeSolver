@@ -44,6 +44,7 @@ private:
 
   std::string tube_output_path_;
   std::vector<double> tube_probes_;
+  int n_tubes_;
 };
 
 } // namespace fub::amrex
