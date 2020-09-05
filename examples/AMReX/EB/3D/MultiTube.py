@@ -1,6 +1,6 @@
 import math
 
-plenum_x_n_cells = 256
+plenum_x_n_cells = 128
 tube_blocking_factor = 32
 plenum_blocking_factor = 32
 
@@ -147,7 +147,7 @@ Tubes = [{
       },
       'side': 0,
       'direction': 0,
-      'required_massflow': 900.0 / 3600.0,
+      'required_massflow': 900.0 / 6.0 / 3600.0,
       'surface_area': math.pi * r_tube * r_tube
     }
   }
@@ -167,8 +167,8 @@ Output = {
     'path': 'MultiTube/Slices/Plenum.h5',
     'intervals': [1e-5],
     'box': {
-      'lower': [plenum_x_n_cells - 5, 0, 0],
-      'upper': [plenum_x_n_cells - 5, plenum_y_n_cells - 1, plenum_z_n_cells - 1]
+      'lower': [0, 0, int(plenum_z_n_cells / 2)],
+      'upper': [plenum_x_n_cells - 1, plenum_y_n_cells - 1, int(plenum_z_n_cells / 2)]
     }
   }, {
     'type': 'HDF5',
