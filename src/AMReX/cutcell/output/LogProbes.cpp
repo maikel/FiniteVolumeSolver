@@ -36,9 +36,9 @@ template <typename GriddingAlgorithm>
 void CreateHdf5Database(const std::string& name, const GriddingAlgorithm& grid,
                         ProbesView<const double> probes,
                         mdspan<const double, 2> states) {
-  SeverityLogger log = GetLogger(boost::log::trivial::info);
-  BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "ProbesOutput");
-  BOOST_LOG(log) << "Create HDF5 file  '" << name << "'.";
+  //SeverityLogger log = GetLogger(boost::log::trivial::info);
+  // BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "ProbesOutput");
+  // BOOST_LOG(log) << "Create HDF5 file  '" << name << "'.";
   boost::filesystem::path path(name);
   boost::filesystem::path dir = boost::filesystem::absolute(
       path.parent_path(), boost::filesystem::current_path());
@@ -48,7 +48,7 @@ void CreateHdf5Database(const std::string& name, const GriddingAlgorithm& grid,
   H5File file(H5Fcreate(name.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT));
   const hsize_t n_probes = static_cast<hsize_t>(probes.extent(1));
   const hsize_t n_fields = static_cast<hsize_t>(states.extent(1));
-  BOOST_LOG(log) << "Write initial probe data.";
+  // BOOST_LOG(log) << "Write initial probe data.";
   // create a main data set with probe data for each time step
   {
     constexpr std::size_t size = 3;
@@ -101,9 +101,9 @@ void CreateHdf5Database(const std::string& name, const GriddingAlgorithm& grid,
 template <typename GriddingAlgorithm>
 void OpenHdf5Database(const std::string& name, const GriddingAlgorithm& grid,
                       mdspan<const double, 2> states) {
-  SeverityLogger log = GetLogger(boost::log::trivial::info);
-  BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "ProbesOutput");
-  BOOST_LOG(log) << "Append probes to HDF5 file  '" << name << "'.";
+  //SeverityLogger log = GetLogger(boost::log::trivial::info);
+  //BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "ProbesOutput");
+  //BOOST_LOG(log) << "Append probes to HDF5 file  '" << name << "'.";
   H5File file(H5Fopen(name.c_str(), H5F_ACC_RDWR, H5P_DEFAULT));
   if (file < 0) {
     return;
