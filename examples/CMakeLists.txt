@@ -130,6 +130,9 @@ if (AMReX_FOUND AND AMReX_3D_FOUND)
     add_executable_with_warnings(AMReX.EB.MultiTube AMReX/EB/3D/MultiTube.cpp)
     target_link_libraries(AMReX.EB.MultiTube FiniteVolumeSolver.AMReX.EB)
 
+    add_executable_with_warnings(AMReX.EB.MultiTube_blocking AMReX/EB/3D/MultiTube_blocking.cpp)
+    target_link_libraries(AMReX.EB.MultiTube_blocking FiniteVolumeSolver.AMReX.EB)
+
     add_executable_with_warnings(AMReX.EB.MultiTube_PerfectGas AMReX/EB/3D/MultiTube_PerfectGas.cpp)
     target_link_libraries(AMReX.EB.MultiTube_PerfectGas FiniteVolumeSolver.AMReX.EB)
 
