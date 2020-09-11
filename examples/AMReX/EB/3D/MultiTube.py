@@ -72,6 +72,10 @@ Plenum = {
     'r_start': r_tube,
     'r_end': 0.0225
   },
+  'BlockGeometry': {
+    'factor': 0.9,
+    'width': 10e-3
+  },
   'GridGeometry': {
     'cell_dimensions': [plenum_x_n_cells, plenum_y_n_cells, plenum_z_n_cells],
     'coordinates': {
@@ -113,6 +117,56 @@ def UpperX(x0, k, alpha):
   center[2] += r_tube
   return center
 
+fill_fraction = 0.7
+measurement_position = - (1.0 - fill_fraction) * tube_length
+
+IgniteDetonation = [
+{
+  'interval': 0.030,
+  'measurement_position': measurement_position,
+  'equivalence_ratio_criterium': 0.9,
+  'position': -0.8,
+  'offset': 0.020,
+},
+{
+  'interval': 0.030,
+  'measurement_position': measurement_position,
+  'equivalence_ratio_criterium': 0.9,
+  'position': -0.8,
+  'offset': 0.035,
+},
+{
+  'interval': 0.030,
+  'measurement_position': measurement_position,
+  'equivalence_ratio_criterium': 0.9,
+  'position': -0.8,
+  'offset': 0.020,
+},
+{
+  'interval': 0.030,
+  'measurement_position': measurement_position,
+  'equivalence_ratio_criterium': 0.9,
+  'position': -0.8,
+  'offset': 0.035,
+},
+{
+  'interval': 0.030,
+  'measurement_position': measurement_position,
+  'equivalence_ratio_criterium': 0.9,
+  'position': -0.8,
+  'offset': 0.020,
+},
+{
+  'interval': 0.030,
+  'measurement_position': measurement_position,
+  'equivalence_ratio_criterium': 0.9,
+  'position': -0.8,
+  'offset': 0.035,
+}
+]
+
+offsets = [0.005, 0.015, 0.005, 0.015, 0.005, 0.015]
+
 Tubes = [{
   'checkpoint': checkpoint,
   'GridGeometry': {
@@ -132,8 +186,8 @@ Tubes = [{
     'prefix': 'PressureValve-{}'.format(i),
     'efficiency': 1.0,
     'open_at_interval': 0.03333333,
-    'offset': 0.005 + i * 10.0,
-    'fuel_measurement_position': -0.15,
+    'offset': offsets[i],
+    'fuel_measurement_position': measurement_position,
     'fuel_measurement_criterium': 0.9,
     'pressure_value_which_opens_boundary': 101325.0,
     'pressure_value_which_closes_boundary': 3.0e5,
@@ -212,11 +266,4 @@ Output = {
     'type': 'CounterOutput',
     'frequencies': [1000]
   }]
-}
-
-IgniteDetonation = {
-  'interval': 0.06,
-  'measurement_position': -0.15, # -0.3 -0.45
-  'equivalence_ratio_criterium': 0.9,
-  'position': -0.8
 }

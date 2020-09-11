@@ -58,6 +58,7 @@
 #include "fub/AMReX/multi_block/MultiBlockLevelIntegrator.hpp"
 #include "fub/AMReX/multi_block/MultiBlockKineticSourceTerm.hpp"
 #include "fub/AMReX/multi_block/MultiBlockPlotfileOutput.hpp"
+#include "fub/AMReX/multi_block/MultiBlockSourceTerm.hpp"
 #include "fub/AMReX/multi_block/MultiWriteHdf5.hpp"
 
 #endif

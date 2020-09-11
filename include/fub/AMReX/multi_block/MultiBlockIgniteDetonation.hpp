@@ -39,6 +39,10 @@ public:
                              std::size_t n_tubes, int max_refinement_level,
                              const IgniteDetonationOptions& opts = {});
 
+  MultiBlockIgniteDetonation(const IdealGasMix<1>& equation,
+                             std::size_t n_tubes, int max_refinement_level,
+                             const std::vector<IgniteDetonationOptions>& opts);
+
   void ResetHierarchyConfiguration(
       const std::shared_ptr<MultiBlockGriddingAlgorithm>& grid);
 
@@ -48,8 +52,8 @@ public:
   AdvanceLevel(MultiBlockIntegratorContext& context, int level, Duration dt,
                const ::amrex::IntVect& ngrow = ::amrex::IntVect(0));
 
-  [[nodiscard]] std::vector<Duration> GetLastIgnitionTimePoints() const;
-  void SetLastIgnitionTimePoints(span<const Duration> timepoints);
+  [[nodiscard]] std::vector<Duration> GetNextIgnitionTimePoints() const;
+  void SetNextIgnitionTimePoints(span<const Duration> timepoints);
 
 private:
   std::vector<IgniteDetonation> source_terms_;

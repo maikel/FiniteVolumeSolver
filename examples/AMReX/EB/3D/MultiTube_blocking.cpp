@@ -203,8 +203,7 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
   {
     const fub::ProgramOptions inlet_options =
         fub::GetOptions(plenum_options, "InletGeometry");
-    r_inlet_start =
-        fub::GetOptionOr(inlet_options, "r_start", r_inlet_start);
+    r_inlet_start = fub::GetOptionOr(inlet_options, "r_start", r_inlet_start);
     r_inlet_end = fub::GetOptionOr(inlet_options, "r_end", r_inlet_end);
   }
 
@@ -231,34 +230,48 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
     return amrex::EB2::CylinderIF(radius, height, 0, center, true);
   };
 
+  double blocking_factor = 0.9;
+  double blocking_width = 0.02;
+  {
+    const fub::ProgramOptions inlet_options =
+        fub::GetOptions(plenum_options, "BlockGeometry");
+    blocking_factor =
+        fub::GetOptionOr(inlet_options, "factor", blocking_factor);
+    blocking_width = fub::GetOptionOr(inlet_options, "width", blocking_width);
+  }
 
-  const double blocking_factor = 0.9;
   const double non_blocking_factor = 1.0 - blocking_factor;
-  const double blocking_width = 0.02;
-  const double r_outlet = r_inner + (r_outer - r_inner) * non_blocking_factor;
+
+  // 0.1 A = (r_outer*r_outer - r_inner*r_inner) 0.1
+  //       = (r_outlet*r_outlet - r_inner*r_inner)
+  // sqrt((r_outer*r_outer - r_inner*r_inner) * 0.1 + r_inner*r_inner) =
+  // r_outlet
+
+  const double r_outlet =
+      std::sqrt((r_outer * r_outer - r_inner * r_inner) * non_blocking_factor +
+                r_inner * r_inner);
 
   auto embedded_boundary = amrex::EB2::makeUnion(
-    amrex::EB2::makeIntersection(
-       amrex::EB2::makeUnion(
-           amrex::EB2::makeIntersection(
-              Cylinder(r_outer, 0.5, {0.25, 0.0, 0.0}),
-              DivergentInlet(0.2, Center(0.0, 0.0 * alpha)),
-              DivergentInlet(0.2, Center(0.0, 1.0 * alpha)),
-              DivergentInlet(0.2, Center(0.0, 2.0 * alpha)),
-              DivergentInlet(0.2, Center(0.0, 3.0 * alpha)),
-              DivergentInlet(0.2, Center(0.0, 4.0 * alpha)),
-              DivergentInlet(0.2, Center(0.0, 5.0 * alpha))),
-          amrex::EB2::CylinderIF(r_inner, 1.0, 0, {0.25, 0.0, 0.0}, false)),
-      amrex::EB2::PlaneIF({0.5, 0.0, 0.0}, {1.0, 0.0, 0.0}, false)),
-    // amrex::EB2::PlaneIF({0.5, 0.0, 0.0}, {1.0, 0.0, 0.0}, false),
-    
-    amrex::EB2::makeIntersection(
-              amrex::EB2::PlaneIF({0.5, 0.0, 0.0}, {1.0, 0.0, 0.0}, true),
-              amrex::EB2::PlaneIF({0.5 + blocking_width, 0.0, 0.0}, {1.0, 0.0, 0.0}, false),
-              amrex::EB2::makeUnion(
-                amrex::EB2::CylinderIF(r_inner, 0, {0.5, 0.0, 0.0}, false),
+      amrex::EB2::makeIntersection(
+          amrex::EB2::makeUnion(
+              amrex::EB2::makeIntersection(
+                  Cylinder(r_outer, 0.5, {0.25, 0.0, 0.0}),
+                  DivergentInlet(0.2, Center(0.0, 0.0 * alpha)),
+                  DivergentInlet(0.2, Center(0.0, 1.0 * alpha)),
+                  DivergentInlet(0.2, Center(0.0, 2.0 * alpha)),
+                  DivergentInlet(0.2, Center(0.0, 3.0 * alpha)),
+                  DivergentInlet(0.2, Center(0.0, 4.0 * alpha)),
+                  DivergentInlet(0.2, Center(0.0, 5.0 * alpha))),
+              amrex::EB2::CylinderIF(r_inner, 1.0, 0, {0.25, 0.0, 0.0}, false)),
+          amrex::EB2::PlaneIF({0.5, 0.0, 0.0}, {1.0, 0.0, 0.0}, false)),
+      amrex::EB2::makeIntersection(
+          amrex::EB2::PlaneIF({0.5, 0.0, 0.0}, {1.0, 0.0, 0.0}, true),
+          amrex::EB2::PlaneIF({0.5 + blocking_width, 0.0, 0.0}, {1.0, 0.0, 0.0},
+                              false),
+          amrex::EB2::makeUnion(
+              amrex::EB2::CylinderIF(r_inner, 0, {0.5, 0.0, 0.0}, false),
               amrex::EB2::CylinderIF(r_outlet, 0, {0.5, 0.0, 0.0}, true))));
-   
+
   auto shop = amrex::EB2::makeShop(embedded_boundary);
 
   fub::IdealGasMix<Plenum_Rank> equation{mechanism};
@@ -406,7 +419,7 @@ void WriteCheckpoint(
     name = fmt::format("{}/{:09}/Ignition", path, cycles);
     std::ofstream ignition_checkpoint(name);
     boost::archive::text_oarchive oa(ignition_checkpoint);
-    oa << ignition.GetLastIgnitionTimePoints();
+    oa << ignition.GetNextIgnitionTimePoints();
   }
 }
 
@@ -498,18 +511,69 @@ void MyMain(const fub::ProgramOptions& options) {
 
   fub::DimensionalSplitLevelIntegrator system_solver(
       fub::int_c<Plenum_Rank>, std::move(context), fub::StrangSplitting{});
-      // fub::int_c<Plenum_Rank>, std::move(context), fub::GodunovSplitting{});
+  // fub::int_c<Plenum_Rank>, std::move(context), fub::GodunovSplitting{});
 
-  const std::size_t n_tubes = system_solver.GetContext().Tubes().size();
-  const int max_number_of_levels = system_solver.GetContext()
+  std::vector<fub::amrex::AxialSourceTerm> axial_sources;
+
+  static constexpr double d_tube = 0.03;
+  static constexpr double d_blende = 0.0226;
+
+  auto diameter_h = [](double x, double y, double x0, double d) -> double {
+    if (x < x0 - d || x0 + d < x) {
+      return y;
+    }
+    const double lambda = std::clamp((x0 - x) / d, 0.0, 1.0);
+    return lambda * d_blende + (1.0 - lambda) * y;
+  };
+
+  std::array<double, 6> positions{0.085,
+                                  0.085 + 0.087,
+                                  0.085 + 2 * 0.087,
+                                  0.085 + 3 * 0.087,
+                                  0.085 + 4 * 0.087,
+                                  0.085 + 5 * 0.087};
+
+  auto diameter = [&](double x) -> double {
+    double y = d_tube;
+    for (const double position : positions) {
+      y = diameter_h(x, y, position, 0.004);
+    }
+    return y;
+  };
+
+  for (auto&& tube : tubes) {
+    axial_sources.emplace_back(tube_equation, diameter,
+                               tube.GetGriddingAlgorithm());
+  }
+
+  fub::amrex::MultiBlockSourceTerm<fub::amrex::AxialSourceTerm> axial_term(
+      axial_sources);
+
+  fub::SplitSystemSourceLevelIntegrator axial_solver(
+      std::move(system_solver), std::move(axial_term),
+      fub::StrangSplittingLumped{});
+
+  const std::size_t n_tubes = axial_solver.GetContext().Tubes().size();
+  const int max_number_of_levels = axial_solver.GetContext()
                                        .Tubes()[0]
                                        .GetPatchHierarchy()
                                        .GetMaxNumberOfLevels();
 
-  fub::amrex::IgniteDetonationOptions ignite_options(
-      fub::GetOptions(options, "IgniteDetonation"));
-  BOOST_LOG(log) << "IgniteDetonation:";
-  ignite_options.Print(log);
+  auto list = fub::GetOptionOr<std::vector<pybind11::object>>(
+      options, "IgniteDetonation", {});
+  const std::size_t nopts =
+      std::max(list.size(), static_cast<std::size_t>(n_tubes));
+  std::vector<fub::amrex::IgniteDetonationOptions> ignite_options(
+      nopts, fub::amrex::IgniteDetonationOptions{});
+  std::transform(list.begin(), list.end(), ignite_options.begin(),
+                 [](const pybind11::object& obj) {
+                   auto options = obj.cast<fub::ProgramOptions>();
+                   return fub::amrex::IgniteDetonationOptions(options);
+                 });
+  for (std::size_t i = 0; i < ignite_options.size(); ++i) {
+    BOOST_LOG(log) << fmt::format("IgniteDetonation-{}:", i);
+    ignite_options[i].Print(log);
+  }
   fub::amrex::MultiBlockIgniteDetonation ignition{
       tube_equation, n_tubes, max_number_of_levels, ignite_options};
 
@@ -525,11 +589,11 @@ void MyMain(const fub::ProgramOptions& options) {
     boost::archive::text_iarchive ia(ifs);
     std::vector<fub::Duration> last_ignitions;
     ia >> last_ignitions;
-    ignition.SetLastIgnitionTimePoints(last_ignitions);
+    ignition.SetNextIgnitionTimePoints(last_ignitions);
   }
 
   fub::SplitSystemSourceLevelIntegrator ign_solver(
-      std::move(system_solver), std::move(ignition), fub::GodunovSplitting{});
+      std::move(axial_solver), std::move(ignition), fub::GodunovSplitting{});
 
   fub::amrex::MultiBlockKineticSouceTerm source_term(tube_equation);
 
