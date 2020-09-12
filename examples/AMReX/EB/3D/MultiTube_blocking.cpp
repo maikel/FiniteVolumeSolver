@@ -514,26 +514,33 @@ void MyMain(const fub::ProgramOptions& options) {
   // fub::int_c<Plenum_Rank>, std::move(context), fub::GodunovSplitting{});
 
   std::vector<fub::amrex::AxialSourceTerm> axial_sources;
+  std::vector<pybind11::dict> dicts{};
+  dicts = fub::GetOptionOr(options, "Tubes", dicts);
+  int k = 0;
+  for (auto&& tube : system_solver.GetContext().Tubes()) {
 
-  static constexpr double d_tube = 0.03;
-  static constexpr double d_blende = 0.0226;
+  fub::ProgramOptions tube_options = fub::ToMap(dicts[k]);
+  fub::ProgramOptions geometry_options = fub::GetOptions(tube_options, "TubeGeometry");
 
-  auto diameter_h = [](double x, double y, double x0, double d) -> double {
+  const double d_tube = fub::GetOptionOr(geometry_options, "d_tube", 0.03);
+  const double d_blende = fub::GetOptionOr(geometry_options, "d_blende", 0.0226);
+
+  auto diameter_h = [=](double x, double y, double x0, double d) -> double {
     if (x < x0 - d || x0 + d < x) {
       return y;
     }
-    const double lambda = std::clamp((x0 - x) / d, 0.0, 1.0);
+    const double lambda = std::clamp(0.5 * (d + x0 - x) / d, 0.0, 1.0);
     return lambda * d_blende + (1.0 - lambda) * y;
   };
 
-  std::array<double, 6> positions{0.085,
+  std::vector<double> positions{0.085,
                                   0.085 + 0.087,
                                   0.085 + 2 * 0.087,
                                   0.085 + 3 * 0.087,
-                                  0.085 + 4 * 0.087,
-                                  0.085 + 5 * 0.087};
+                                  0.085 + 4 * 0.087};
+  positions = fub::GetOptionOr(geometry_options, "positions", positions);
 
-  auto diameter = [&](double x) -> double {
+  auto diameter = [=](double x) -> double {
     double y = d_tube;
     for (const double position : positions) {
       y = diameter_h(x, y, position, 0.004);
@@ -541,7 +548,6 @@ void MyMain(const fub::ProgramOptions& options) {
     return y;
   };
 
-  for (auto&& tube : system_solver.GetContext().Tubes()) {
     axial_sources.emplace_back(tube_equation, diameter,
                                tube.GetGriddingAlgorithm());
   }
