@@ -120,52 +120,17 @@ def UpperX(x0, k, alpha):
 fill_fraction = 0.7
 measurement_position = - (1.0 - fill_fraction) * tube_length
 
-IgniteDetonation = [
-{
-  'interval': 0.030,
-  'measurement_position': measurement_position,
-  'equivalence_ratio_criterium': 0.9,
-  'position': -0.8,
-  'offset': 0.020,
-},
-{
-  'interval': 0.030,
-  'measurement_position': measurement_position,
-  'equivalence_ratio_criterium': 0.9,
-  'position': -0.8,
-  'offset': 0.035,
-},
-{
-  'interval': 0.030,
-  'measurement_position': measurement_position,
-  'equivalence_ratio_criterium': 0.9,
-  'position': -0.8,
-  'offset': 0.020,
-},
-{
-  'interval': 0.030,
-  'measurement_position': measurement_position,
-  'equivalence_ratio_criterium': 0.9,
-  'position': -0.8,
-  'offset': 0.035,
-},
-{
-  'interval': 0.030,
-  'measurement_position': measurement_position,
-  'equivalence_ratio_criterium': 0.9,
-  'position': -0.8,
-  'offset': 0.020,
-},
-{
-  'interval': 0.030,
-  'measurement_position': measurement_position,
-  'equivalence_ratio_criterium': 0.9,
-  'position': -0.8,
-  'offset': 0.035,
-}
-]
+ignition_position = -tube_length + 0.4
+fuel_offsets = [0.005, 0.015, 0.005, 0.015, 0.005, 0.015]
+ignition_offsets = [fuel_offset + 0.012 for fuel_offset in fuel_offsets]
 
-offsets = [0.005, 0.015, 0.005, 0.015, 0.005, 0.015]
+IgniteDetonation = [{
+  'interval': 0.030,
+  'measurement_position': measurement_position,
+  'equivalence_ratio_criterium': 0.9,
+  'position': ignition_position,
+  'offset': offset,
+} for offset in ignition_offsets]
 
 Tubes = [{
   'checkpoint': checkpoint,
@@ -186,7 +151,7 @@ Tubes = [{
     'prefix': 'PressureValve-{}'.format(i),
     'efficiency': 1.0,
     'open_at_interval': 0.03333333,
-    'offset': offsets[i],
+    'offset': fuel_offsets[i],
     'fuel_measurement_position': measurement_position,
     'fuel_measurement_criterium': 0.9,
     'pressure_value_which_opens_boundary': 101325.0,
