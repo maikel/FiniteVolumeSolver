@@ -541,7 +541,7 @@ void MyMain(const fub::ProgramOptions& options) {
     return y;
   };
 
-  for (auto&& tube : tubes) {
+  for (auto&& tube : system_solver.GetContext().Tubes()) {
     axial_sources.emplace_back(tube_equation, diameter,
                                tube.GetGriddingAlgorithm());
   }
