@@ -519,34 +519,33 @@ void MyMain(const fub::ProgramOptions& options) {
   int k = 0;
   for (auto&& tube : system_solver.GetContext().Tubes()) {
 
-  fub::ProgramOptions tube_options = fub::ToMap(dicts[k]);
-  fub::ProgramOptions geometry_options = fub::GetOptions(tube_options, "TubeGeometry");
+    fub::ProgramOptions tube_options = fub::ToMap(dicts[k]);
+    fub::ProgramOptions geometry_options =
+        fub::GetOptions(tube_options, "TubeGeometry");
 
-  const double d_tube = fub::GetOptionOr(geometry_options, "d_tube", 0.03);
-  const double d_blende = fub::GetOptionOr(geometry_options, "d_blende", 0.0226);
+    const double d_tube = fub::GetOptionOr(geometry_options, "d_tube", 0.03);
+    const double d_blende =
+        fub::GetOptionOr(geometry_options, "d_blende", 0.0226);
 
-  auto diameter_h = [=](double x, double y, double x0, double d) -> double {
-    if (x < x0 - d || x0 + d < x) {
+    auto diameter_h = [=](double x, double y, double x0, double d) -> double {
+      if (x < x0 - d || x0 + d < x) {
+        return y;
+      }
+      const double lambda = std::clamp(0.5 * (d + x0 - x) / d, 0.0, 1.0);
+      return lambda * d_blende + (1.0 - lambda) * y;
+    };
+
+    std::vector<double> positions{0.085, 0.085 + 0.087, 0.085 + 2 * 0.087,
+                                  0.085 + 3 * 0.087, 0.085 + 4 * 0.087};
+    positions = fub::GetOptionOr(geometry_options, "positions", positions);
+
+    auto diameter = [=](double x) -> double {
+      double y = d_tube;
+      for (const double position : positions) {
+        y = diameter_h(x, y, position, 0.004);
+      }
       return y;
-    }
-    const double lambda = std::clamp(0.5 * (d + x0 - x) / d, 0.0, 1.0);
-    return lambda * d_blende + (1.0 - lambda) * y;
-  };
-
-  std::vector<double> positions{0.085,
-                                  0.085 + 0.087,
-                                  0.085 + 2 * 0.087,
-                                  0.085 + 3 * 0.087,
-                                  0.085 + 4 * 0.087};
-  positions = fub::GetOptionOr(geometry_options, "positions", positions);
-
-  auto diameter = [=](double x) -> double {
-    double y = d_tube;
-    for (const double position : positions) {
-      y = diameter_h(x, y, position, 0.004);
-    }
-    return y;
-  };
+    };
 
     axial_sources.emplace_back(tube_equation, diameter,
                                tube.GetGriddingAlgorithm());
