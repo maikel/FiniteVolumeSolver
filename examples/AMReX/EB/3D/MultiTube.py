@@ -121,7 +121,7 @@ fill_fraction = 0.7
 measurement_position = - (1.0 - fill_fraction) * tube_length
 
 ignition_position = -tube_length + 0.4
-fuel_offsets = [0.005, 0.015, 0.005, 0.015, 0.005, 0.015]
+fuel_offsets = [0.005, 0.020, 0.005, 0.020, 0.005, 0.020]
 ignition_offsets = [fuel_offset + 0.012 for fuel_offset in fuel_offsets]
 
 IgniteDetonation = [{
@@ -175,6 +175,13 @@ Tubes = [{
 def OuterProbe(x0, k, alpha):
   return [x0, (r_outer - 0.002) * math.cos(k *alpha), r_tube_center * math.sin(k * alpha)]
 
+slices = [{
+    'type': 'HDF5',
+    'which_block': i + 1,
+    'path': 'MultiTube/Slices/Tube_{}.h5'.format(i),
+    'intervals': [1e-5],
+  } for i in range(0, 6)]
+
 Output = { 
   'outputs': [{ 
     'type': 'Plotfile',
@@ -189,11 +196,6 @@ Output = {
       'lower': [0, 0, int(plenum_z_n_cells / 2)],
       'upper': [plenum_x_n_cells - 1, plenum_y_n_cells - 1, int(plenum_z_n_cells / 2)]
     }
-  }, {
-    'type': 'HDF5',
-    'which_block': 1,
-    'path': 'MultiTube/Slices/Tube_0.h5',
-    'intervals': [1e-5],
   }, {
     'type': 'LogProbes',
     'directory': 'MultiTube/Probes/',
@@ -232,3 +234,5 @@ Output = {
     'frequencies': [1000]
   }]
 }
+
+Output['outputs'].extend(slices)
