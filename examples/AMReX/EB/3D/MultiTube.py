@@ -58,8 +58,8 @@ tube_n_cells -= tube_n_cells % tube_blocking_factor
 tube_n_cells = int(tube_n_cells)
 
 RunOptions = {
-  'cfl': 0.9 * 0.5,
-  'final_time': 0.04,
+  'cfl': 0.3,
+  'final_time': 0.080,
   'max_cycles': -1
 }
 
@@ -117,12 +117,12 @@ def UpperX(x0, k, alpha):
   center[2] += r_tube
   return center
 
-fill_fraction = 0.7
+fill_fraction = 1.0
 measurement_position = - (1.0 - fill_fraction) * tube_length
 
 ignition_position = -tube_length + 0.4
 fuel_offsets = [0.005, 0.020, 0.005, 0.020, 0.005, 0.020]
-ignition_offsets = [fuel_offset + 0.012 for fuel_offset in fuel_offsets]
+ignition_offsets = [fuel_offset + 0.015 for fuel_offset in fuel_offsets]
 
 IgniteDetonation = [{
   'interval': 0.030,
@@ -150,7 +150,7 @@ Tubes = [{
   'PressureValveBoundary': {
     'prefix': 'PressureValve-{}'.format(i),
     'efficiency': 1.0,
-    'open_at_interval': 0.03333333,
+    'open_at_interval': 0.030,
     'offset': fuel_offsets[i],
     'fuel_measurement_position': measurement_position,
     'fuel_measurement_criterium': 0.9,
