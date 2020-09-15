@@ -204,6 +204,7 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/equations/perfect_gas/HllemMethod.hpp
   include/fub/equations/perfect_gas/MusclHancockPrimMethod.hpp
   include/fub/equations/perfect_gas/MusclHancockMethod.hpp
+  include/fub/equations/perfect_gas/ThirdOrderRungeKuttaMethod.hpp
   include/fub/equations/perfect_gas/GodunovMethod.hpp
   include/fub/equations/ShallowWater.hpp
   include/fub/ext/Eigen.hpp
@@ -291,6 +292,7 @@ add_library(FiniteVolumeSolver.Solver
   src/equations/perfect_gas/HllemMethod_1d.cpp
   src/equations/perfect_gas/HllemMethod_2d.cpp
   src/equations/perfect_gas/HllemMethod_3d.cpp
+  src/equations/perfect_gas/ThirdOrderRungeKuttaMethod_1d.cpp
   src/equations/perfect_gas/MusclHancockMethod_1d.cpp
   src/equations/perfect_gas/MusclHancockMethod_2d.cpp
   src/equations/perfect_gas/MusclHancockMethod_3d.cpp

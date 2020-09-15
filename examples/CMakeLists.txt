@@ -17,6 +17,9 @@ if (AMReX_FOUND)
   add_executable_with_warnings(AMReX.PerfectGas1d AMReX/PerfectGas1d.cpp)
   target_link_libraries(AMReX.PerfectGas1d FiniteVolumeSolver.AMReX)
 
+  add_executable_with_warnings(AMReX.PerfectGas1d_ThirdOrder AMReX/PerfectGas1d_ThirdOrder.cpp)
+  target_link_libraries(AMReX.PerfectGas1d_ThirdOrder FiniteVolumeSolver.AMReX)
+
   add_executable_with_warnings(AMReX.IdealGasMix AMReX/IdealGasMix.cpp)
   target_link_libraries(AMReX.IdealGasMix FiniteVolumeSolver.AMReX)
 
