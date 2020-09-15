@@ -32,6 +32,9 @@ namespace fub::amrex {
 
 class WriteHdf5 : public OutputAtFrequencyOrInterval<GriddingAlgorithm> {
 public:
+  WriteHdf5(std::string path, std::vector<std::ptrdiff_t> freqs, std::vector<Duration> intervals = std::vector<Duration>())
+    : OutputAtFrequencyOrInterval(std::move(freqs), std::move(intervals)), path_to_file_(std::move(path)) {}
+
   WriteHdf5(const std::map<std::string, pybind11::object>& vm);
 
   void operator()(const GriddingAlgorithm& grid) override;
