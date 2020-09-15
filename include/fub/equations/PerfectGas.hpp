@@ -123,7 +123,12 @@ template <int N> struct PerfectGas {
                             Array1d pressure) const noexcept;
 
   Array<double, N, 1> Velocity(const Complete& q) const noexcept;
+  Array<double, N> Velocity(const CompleteArray& q) const noexcept;
+
   double Machnumber(const Complete& q) const noexcept;
+
+  double Temperature(const Complete& q) const noexcept;
+  Array1d Temperature(const CompleteArray& q) const noexcept;
 
   double Rspec{287.058};
 

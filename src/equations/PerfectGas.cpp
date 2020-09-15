@@ -165,9 +165,29 @@ Array<double, Dim, 1> PerfectGas<Dim>::Velocity(const Complete& complete) const
 }
 
 template <int Dim>
+Array<double, Dim> PerfectGas<Dim>::Velocity(const CompleteArray& complete) const
+    noexcept {
+  Array<double, Dim> u = complete.momentum;
+  for (int i = 0; i < Dim; ++i) {
+    u.row(i) /= complete.density;
+  }
+  return u;
+}
+
+template <int Dim>
 double PerfectGas<Dim>::Machnumber(const Complete& complete) const noexcept {
   double u = Velocity(complete).matrix().norm();
   return u / complete.speed_of_sound;
+}
+
+template <int Dim>
+double PerfectGas<Dim>::Temperature(const Complete& complete) const noexcept {
+  return complete.pressure / (complete.density * Rspec);
+}
+
+template <int Dim>
+Array1d PerfectGas<Dim>::Temperature(const CompleteArray& complete) const noexcept {
+  return complete.pressure / (complete.density * Rspec);
 }
 
 template struct PerfectGas<1>;
