@@ -48,7 +48,7 @@ struct SinusProblem {
           fub::ForEachIndex(fub::Box<0>(state), [this, &state,
                                                  &geom](std::ptrdiff_t i) {
             const double x = geom.CellCenter(int(i), 0);
-            const double temperature = 300 + 10 * std::sin(M_PI * x);
+            double temperature = (0.95 < x && x < 1.05) ? 310.0 : 300.0;
             const double pressure = 101325.0;
             const double density = pressure / (equation_.Rspec * temperature);
             fub::Array<double, 1, 1> velocity{1.0};
@@ -60,37 +60,40 @@ struct SinusProblem {
   }
 };
 
-int main() {
-  // ::feenableexcept(FE_INVALID   | 
-  //                  FE_DIVBYZERO | 
-  //                  FE_OVERFLOW  | 
-  //                  FE_UNDERFLOW);
-
+void MyMain(const fub::ProgramOptions& options) {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
-  // fub::EnableFloatingPointExceptions();
-  const fub::amrex::ScopeGuard guard{};
-  fub::InitializeLogging(MPI_COMM_WORLD);
+  fub::amrex::ScopeGuard scope_guard{};
 
-  constexpr int Dim = AMREX_SPACEDIM;
+  fub::SeverityLogger log = fub::GetInfoLogger();
 
-  const std::array<int, Dim> n_cells{AMREX_D_DECL(200, 1, 1)};
-  const std::array<double, Dim> xlower{AMREX_D_DECL(0.0, 0.0, 0.0)};
-  const std::array<double, Dim> xupper{AMREX_D_DECL(2.0, 0.2, 0.2)};
-
-  double kB = 1.38064852e-23; // Boltzmann constant
-  double m = 6.6335209e-26;   // gas(He) particles' mass
-  double R = kB / m;          // gas constant
+  fub::ProgramOptions equation_options = fub::GetOptions(options, "Equation");
+  
   fub::PerfectGas<1> equation{};
-  equation.Rspec = R;
-  equation.gamma = 1.6696;
+  equation.Rspec = fub::GetOptionOr(equation_options, "R_specific", equation.Rspec);
+  equation.gamma = fub::GetOptionOr(equation_options, "gamma", equation.gamma);
   equation.gamma_minus_1_inv = 1.0 / (equation.gamma - 1.0);
+  equation.gamma_array_ = fub::Array1d::Constant(equation.gamma);
+  equation.gamma_minus_1_inv_array_ = fub::Array1d::Constant(equation.gamma_minus_1_inv);
 
-  fub::amrex::CartesianGridGeometry geometry;
-  geometry.cell_dimensions = n_cells;
-  geometry.coordinates = amrex::RealBox(xlower, xupper);
-  geometry.periodicity = std::array<int, AMREX_SPACEDIM>{AMREX_D_DECL(1, 1, 1)};
+  fub::perfect_gas::ThirdOrderRungeKuttaMethod<1> runge_kutta{equation};
+  runge_kutta.k_0 = 0.0; // 0.017746 / std::sqrt(300.0) * 5000.0;
+  runge_kutta.eta_0 = 0.0; // 2.23e-5 / std::sqrt(293.0) * 5000.0;
+
+  runge_kutta.k_0 = fub::GetOptionOr(equation_options, "k_0", runge_kutta.k_0);
+  runge_kutta.eta_0 = fub::GetOptionOr(equation_options, "eta_0", runge_kutta.eta_0);
+
+  BOOST_LOG(log) << "Equation:";
+  BOOST_LOG(log) << fmt::format(" - R_specific = {}", equation.Rspec);
+  BOOST_LOG(log) << fmt::format(" - gamma = {}", equation.gamma);
+  BOOST_LOG(log) << fmt::format(" - k_0 = {}", runge_kutta.k_0);
+  BOOST_LOG(log) << fmt::format(" - eta_0 = {}", runge_kutta.eta_0);
+
+  fub::amrex::CartesianGridGeometry grid_geometry(
+      fub::GetOptions(options, "GridGeometry"));
+  BOOST_LOG(log) << "GridGeometry:";
+  grid_geometry.Print(log);
 
   using Complete = fub::PerfectGas<1>::Complete;
   fub::amrex::GradientDetector gradient{
@@ -99,21 +102,18 @@ int main() {
 
   SinusProblem initial_data{equation};
 
-  fub::amrex::PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = 1;
-  hier_opts.refine_ratio = ::amrex::IntVect{AMREX_D_DECL(2, 1, 1)};
-  hier_opts.blocking_factor = ::amrex::IntVect{AMREX_D_DECL(8, 1, 1)};
+  fub::amrex::PatchHierarchyOptions hierarchy_options(
+      fub::GetOptions(options, "PatchHierarchy"));
+  BOOST_LOG(log) << "PatchHierarchy:";
+  hierarchy_options.Print(log);
 
   std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
-      fub::amrex::PatchHierarchy(equation, geometry, hier_opts), initial_data,
+      fub::amrex::PatchHierarchy(equation, grid_geometry, hierarchy_options), initial_data,
       gradient);
   gridding->InitializeHierarchy(0.0);
 
-  fub::perfect_gas::ThirdOrderRungeKuttaMethod<1> runge_kutta{equation};
-  runge_kutta.k_0 = 0.0; //0.017746 / std::sqrt(300.0) * 5000.0;
-  runge_kutta.eta_0 = 0.0; // 2.23e-5 / std::sqrt(293.0) * 5000.0;
   fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethodAdapter(runge_kutta),
+      fub::amrex::FluxMethodAdapter(fub::execution::seq, runge_kutta),
       fub::amrex::EulerForwardTimeIntegrator(),
       fub::amrex::Reconstruction(equation)};
 
@@ -128,50 +128,37 @@ int main() {
 
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
-  std::string base_name = "PerfectGas1d_runge_kutta/";
-
   using namespace fub::amrex;
   using namespace std::literals::chrono_literals;
-  namespace log = boost::log;
 
-  log::sources::severity_logger<log::trivial::severity_level> lg(
-      log::keywords::severity = log::trivial::info);
+  fub::OutputFactory<fub::amrex::GriddingAlgorithm> factory{};
+  factory.RegisterOutput<fub::amrex::WriteHdf5>("HDF5");
+  using CounterOutput =
+      fub::CounterOutput<fub::amrex::GriddingAlgorithm,
+                         std::chrono::milliseconds>;
+  factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
+  fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> outputs(
+      std::move(factory), fub::GetOptions(options, "Output"));
 
-  double mass0 = 0.0;
-  auto conservation_error = [&lg, &mass0](const GriddingAlgorithm& grid) {
-    const ::amrex::MultiFab& data =
-        grid.GetPatchHierarchy().GetPatchLevel(0).data;
-    const ::amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(0);
-    const double volume_per_cell = geom.CellSize(0) * geom.CellSize(1);
-    const double density_sum = data.sum(0);
-    const double mass = density_sum * volume_per_cell;
-    if (mass0 == 0.0) {
-      mass0 = mass;
-    }
-    const double mass_error = mass - mass0;
-    const double time_point = grid.GetTimePoint().count();
-    BOOST_LOG(lg) << log::add_value("Time", time_point)
-                  << fmt::format("Conservation Error in Mass: {:.6e}",
-                                 mass_error);
-  };
+  fub::RunOptions run_options = fub::GetOptions(options, "RunOptions");
+  BOOST_LOG(log) << "RunOptions:";
+  run_options.Print(log);
 
-  fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> output{};
+  outputs(*solver.GetGriddingAlgorithm());
+  fub::RunSimulation(solver, run_options, wall_time_reference, outputs);
+}
 
-  output.AddOutput(std::make_unique<fub::amrex::WriteHdf5>(
-      fmt::format("{}/Output.h5", base_name), std::vector<std::ptrdiff_t>{1},
-      std::vector<fub::Duration>{1e-5s}));
-
-  output.AddOutput(
-      fub::MakeOutput<GriddingAlgorithm>({1}, {}, conservation_error));
-
-  output.AddOutput(
-      std::make_unique<fub::CounterOutput<fub::amrex::GriddingAlgorithm>>(
-          wall_time_reference, std::vector<std::ptrdiff_t>{1000},
-          std::vector<fub::Duration>{}));
-
-  output(*solver.GetGriddingAlgorithm());
-  fub::RunOptions run_options{};
-  run_options.cfl = 0.5;
-  run_options.final_time = 1s;
-  fub::RunSimulation(solver, run_options, wall_time_reference, output);
+int main(int argc, char** argv) {
+  MPI_Init(nullptr, nullptr);
+  fub::InitializeLogging(MPI_COMM_WORLD);
+  pybind11::scoped_interpreter interpreter{};
+  std::optional<fub::ProgramOptions> opts = fub::ParseCommandLine(argc, argv);
+  if (opts) {
+    MyMain(*opts);
+  }
+  int flag = -1;
+  MPI_Finalized(&flag);
+  if (!flag) {
+    MPI_Finalize();
+  }
 }
