@@ -27,8 +27,11 @@
 namespace fub::amrex {
 
 void TagBuffer::TagCellsForRefinement(::amrex::TagBoxArray& tags_array,
-                                      const GriddingAlgorithm&, int,
+                                      const GriddingAlgorithm& grid, int level,
                                       Duration) const noexcept {
+  const ::amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
+  const ::amrex::Periodicity periodicity = geom.periodicity();
+  tags_array.FillBoundary(periodicity);
   TagCellsForRefinement(tags_array);
 }
 
@@ -37,7 +40,7 @@ void TagBuffer::TagCellsForRefinement(::amrex::TagBoxArray& tags_array) const
   ForEachFab(execution::openmp, tags_array, [&](const ::amrex::MFIter& mfi) {
     PatchDataView<char, AMREX_SPACEDIM, layout_stride> tags =
         MakePatchDataView(tags_array[mfi], 0)
-            .Subview(AsIndexBox<AMREX_SPACEDIM>(mfi.tilebox()));
+            .Subview(AsIndexBox<AMREX_SPACEDIM>(mfi.growntilebox()));
     ::fub::TagBuffer(buffer_width_).TagCellsForRefinement(tags);
   });
 }
