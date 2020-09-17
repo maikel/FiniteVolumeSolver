@@ -31,6 +31,8 @@ namespace fub::amrex {
 /// independend one-dimensional domains
 template <typename SourceTerm> class MultiBlockSourceTerm {
 public:
+  static constexpr int Rank = SourceTerm::Rank;
+
   explicit MultiBlockSourceTerm(const std::vector<SourceTerm>& src_terms)
       : source_terms_(src_terms) {}
 
