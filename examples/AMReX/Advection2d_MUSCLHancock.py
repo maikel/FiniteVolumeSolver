@@ -1,5 +1,5 @@
 RunOptions = {
-  'cfl': 0.9, # should be between in (0, 1]
+  'cfl': 0.5,# should be between in (0, 1]
   'final_time': 2.0,
   'max_cycles': -1, # -1 means infinite and 0 means only initial condition
 }
@@ -21,7 +21,7 @@ PatchHierarchy = {
 Output = { 
   'outputs': [{
     'type': 'Plotfile',
-    'directory': 'ReferenceData/Advection2d_Godunov/',
+    'directory': 'ReferenceData/Advection2d_MUSCLHancock/',
     'intervals': [0.1],
   }, {
     'type': 'CounterOutput',
