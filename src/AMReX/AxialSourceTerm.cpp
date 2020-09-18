@@ -92,6 +92,7 @@ Duration AxialSourceTerm::ComputeStableDt(int /* level */) {
 Result<void, TimeStepTooLarge>
 AxialSourceTerm::AdvanceLevel(IntegratorContext& simulation_data, int level,
                               Duration time_step_size) {
+  ResetHierarchyConfiguration(simulation_data.GetGriddingAlgorithm());
   ::amrex::MultiFab& data = simulation_data.GetScratch(level);
   const double dt = time_step_size.count();
   Complete<IdealGasMix<1>> state(equation_);
