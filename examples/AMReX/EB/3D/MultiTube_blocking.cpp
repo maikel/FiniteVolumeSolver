@@ -43,7 +43,7 @@
 static constexpr int Tube_Rank = 1;
 static constexpr int Plenum_Rank = 3;
 
-static constexpr int scratch_gcw = 4;
+static constexpr int scratch_gcw = 8;
 static constexpr int flux_gcw = scratch_gcw - 2;
 
 static constexpr double r_tube = 0.015;
@@ -472,8 +472,8 @@ FormatTimeStepLine(std::ptrdiff_t cycle, std::ptrdiff_t subcycle,
       duration_cast<duration<double>>(wall_time_difference).count();
   return fmt::format("[{:3}%] {:05}-{}: dt = {:6e}s wall-time: {:02}h:"
                      "{:02}m:{:6f}s (+{:6e}s)",
-                     total_progress, cycle, subcycle, time_step_size.count(), wt_hours,
-                     wt_minutes, wt_seconds, wt_diff_seconds);
+                     total_progress, cycle, subcycle, time_step_size.count(),
+                     wt_hours, wt_minutes, wt_seconds, wt_diff_seconds);
 }
 
 void MyMain(const fub::ProgramOptions& options) {
@@ -494,30 +494,36 @@ void MyMain(const fub::ProgramOptions& options) {
   BOOST_LOG(log) << "Make Plenum Solver...";
   plenum.push_back(MakePlenumSolver(mechanism, options));
   auto counter_database = plenum[0].GetCounterRegistry();
-  
+
   fub::RunOptions run_options = fub::GetOptions(options, "RunOptions");
-  auto feedback = [final_time = run_options.final_time, 
-                  wall_time_reference, 
-                  ref = wall_time_reference](fub::amrex::cutcell::IntegratorContext& plenum, int level, fub::Duration dt, std::pair<int, int> subcycle) mutable {
-    if (subcycle.second > 1) {
+  if (plenum[0]
+          .GetGriddingAlgorithm()
+          ->GetPatchHierarchy()
+          .GetMaxNumberOfLevels() > 1) {
+    auto feedback = [final_time = run_options.final_time, wall_time_reference,
+                     ref = wall_time_reference](
+                        fub::amrex::cutcell::IntegratorContext& plenum,
+                        int level, fub::Duration dt,
+                        std::pair<int, int> subcycle) mutable {
       fub::SeverityLogger log = fub::GetInfoLogger();
-            const fub::Duration time_point = plenum.GetTimePoint(level);
+      const fub::Duration time_point = plenum.GetTimePoint(level);
       BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", time_point.count());
       BOOST_LOG_SCOPED_LOGGER_TAG(log, "Level", level);
       const std::chrono::steady_clock::time_point now =
-        std::chrono::steady_clock::now();
-      const std::chrono::steady_clock::duration wall_time = now - wall_time_reference;
-      const std::chrono::steady_clock::duration wall_time_difference = now - ref;
+          std::chrono::steady_clock::now();
+      const std::chrono::steady_clock::duration wall_time =
+          now - wall_time_reference;
+      const std::chrono::steady_clock::duration wall_time_difference =
+          now - ref;
       ref = now;
       const std::ptrdiff_t cycles = plenum.GetCycles();
 
-              BOOST_LOG(log) <<
-      FormatTimeStepLine(cycles, subcycle.first, time_point, dt, final_time, wall_time,
-                                              wall_time_difference);
-    }
-  };
-
-  plenum[0].SetFeedbackFunction(std::move(feedback));
+      BOOST_LOG(log) << FormatTimeStepLine(cycles, subcycle.first, time_point,
+                                           dt, final_time, wall_time,
+                                           wall_time_difference);
+    };
+    plenum[0].SetFeedbackFunction(std::move(feedback));
+  }
 
   auto MakeConnection = [&](int k) {
     BOOST_LOG(log) << "Make Tube Solver " << k << "...";
@@ -556,8 +562,8 @@ void MyMain(const fub::ProgramOptions& options) {
       std::move(connectivity));
 
   fub::DimensionalSplitLevelIntegrator system_solver(
-  //    fub::int_c<Plenum_Rank>, std::move(context), fub::StrangSplitting{});
-   fub::int_c<Plenum_Rank>, std::move(context), fub::GodunovSplitting{});
+      fub::int_c<Plenum_Rank>, std::move(context), fub::StrangSplitting{});
+  // fub::int_c<Plenum_Rank>, std::move(context), fub::GodunovSplitting{});
 
   std::vector<fub::amrex::AxialSourceTerm> axial_sources;
   std::vector<pybind11::dict> dicts{};
@@ -652,8 +658,8 @@ void MyMain(const fub::ProgramOptions& options) {
       std::move(ign_solver), std::move(source_term),
       fub::StrangSplittingLumped{});
 
-  fub::NoSubcycleSolver solver(std::move(level_integrator));
-  //fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
+  // fub::NoSubcycleSolver solver(std::move(level_integrator));
+  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
   fub::OutputFactory<fub::amrex::MultiBlockGriddingAlgorithm> factory{};
   factory.RegisterOutput<fub::amrex::MultiWriteHdf5>("HDF5");
