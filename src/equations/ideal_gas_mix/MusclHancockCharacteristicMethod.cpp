@@ -28,22 +28,25 @@ struct Characteristics {
   double plus;
 };
 
-using Complete = fub::Complete<fub::IdealGasMix<1>>
-using Conservative = fub::Complete<fub::IdealGasMix<1>>
+using Complete = fub::Complete<fub::IdealGasMix<1>> using Conservative =
+    fub::Complete<fub::IdealGasMix<1>>
 
-Characteristics ComputeSlopes(const Equation& eq, const Complete& left, const Complete& right, double rhoc, double ooc2) {
+        Characteristics ComputeSlopes(const Equation& eq, const Complete& left,
+                                      const Complete& right, double rhoc,
+                                      double ooc2) {
   const double dp = right.pressure - left.pressure;
   const double du = eq.Velocity(right, dir) - eq.Velocity(left, dir);
   const double drho = right.density - left.density;
   Characteristics slope;
   slope.minus = dp - rhoc * du;
-  slope.zero  = drho - ooc2 * dp;
+  slope.zero = drho - ooc2 * dp;
   slope.plus = dp + rhoc * du;
   return slope;
 }
 
-Characteristics ComputeSlopes(const Equation& eq, const Complete& left, const Complete& mid, const Complete& right, Direction dir)
-{
+Characteristics ComputeSlopes(const Equation& eq, const Complete& left,
+                              const Complete& mid, const Complete& right,
+                              Direction dir) {
   const double rho = mid.density;
   const double c = mid.speed_of_sound;
   const double ooc2 = 1.0 / (c * c);
@@ -56,4 +59,4 @@ Characteristics ComputeSlopes(const Equation& eq, const Complete& left, const Co
   return limited;
 }
 
-}
+} // namespace fub::ideal_gas
