@@ -306,6 +306,9 @@ add_library(FiniteVolumeSolver.Solver
   src/equations/ideal_gas_mix/HlleMethod_1d.cpp
   src/equations/ideal_gas_mix/HlleMethod_2d.cpp
   src/equations/ideal_gas_mix/HlleMethod_3d.cpp
+  src/equations/ideal_gas_mix/MusclHancockCharacteristicMethod_1d.cpp
+  src/equations/ideal_gas_mix/MusclHancockCharacteristicMethod_2d.cpp
+  src/equations/ideal_gas_mix/MusclHancockCharacteristicMethod_3d.cpp
   src/equations/ideal_gas_mix/MusclHancockPrimMethod_1d.cpp
   src/equations/ideal_gas_mix/MusclHancockPrimMethod_2d.cpp
   src/equations/ideal_gas_mix/MusclHancockPrimMethod_3d.cpp
