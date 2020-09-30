@@ -27,12 +27,70 @@
 namespace fub {
 namespace ideal_gas {
 
+struct BasicCharacteristics {
+  double minus{};
+  double zero{};
+  double plus{};
+};
+
+struct Characteristics : BasicCharacteristics {
+  double v{};
+  double w{};
+  Array<double, -1, 1> species;
+
+  template <int Rank>
+  Characteristics(const IdealGasMix<Rank>& eq)
+      : species(eq.GetReactor().GetNSpecies()) {}
+};
+
+struct BasicPrimitives {
+  double density{};
+  Array<double, 3, 1> velocity{};
+  double pressure{};
+
+  BasicPrimitives(const Complete<IdealGasMix<3>>& q)
+      : density{q.density},
+        velocity(q.momentum / q.density), pressure{q.pressure} {}
+
+  BasicPrimitives(const Complete<IdealGasMix<2>>& q)
+      : density{q.density}, velocity{q.momentum[0] / q.density,
+                                     q.momentum[1] / q.density, 0},
+        pressure{q.pressure} {}
+
+  BasicPrimitives(const Complete<IdealGasMix<1>>& q)
+      : density{q.density}, velocity{q.momentum[0] / q.density, 0, 0},
+        pressure{q.pressure} {}
+};
+
+struct Primitives : BasicPrimitives {
+  template <int Rank>
+  Primitives(const Complete<IdealGasMix<Rank>>& q)
+      : BasicPrimitives(q), species(q.species.size()) {}
+
+  Array<double, -1, 1> species;
+};
+
+struct VanLeerLimiter {
+  double operator()(double sL, double sR) {
+    double r = 0.0;
+    if (sL * sR > 0.0) {
+      r = sL / sR;
+    }
+    if (r < 0.0) {
+      return 0.0;
+    } else {
+      return 0.5 * std::min(2 * r / (1 + r), 2 / (1 + r)) * (sL + sR);
+    }
+  }
+};
+
 /// \ingroup FluxMethod
 ///
 /// This is a variation of the Muscl Hancock Method where the reconstruction at
 /// the half time level is based on the primitive variables (p, u, T, Y) instead
 /// of on conservative variables.
-template <int Rank> class MusclHancockCharacteristic {
+template <int Rank>
+class MusclHancockCharacteristic {
 public:
   using Equation = IdealGasMix<Rank>;
   using Complete = ::fub::Complete<Equation>;
@@ -40,7 +98,8 @@ public:
   using CompleteArray = ::fub::CompleteArray<Equation>;
   using ConservativeArray = ::fub::ConservativeArray<Equation>;
 
-  explicit MusclHancockCharacteristic(const IdealGasMix<Rank>& equation);
+  explicit MusclHancockCharacteristic(const IdealGasMix<Rank>& equation)
+      : equation_(equation), limiter_(VanLeerLimiter()) {}
 
   [[nodiscard]] static constexpr int GetStencilWidth() noexcept { return 2; }
 
@@ -77,6 +136,14 @@ public:
 
 private:
   IdealGasMix<Rank> equation_;
+  std::array<Complete, 2> reconstruction_{Complete(equation_),
+                                          Complete(equation_)};
+  Primitives diffs_{reconstruction_[0]};
+  Characteristics amplitudes_{equation_};
+  Characteristics slopes_{equation_};
+  std::function<double(double, double)> limiter_;
+  Hll<IdealGasMix<Rank>, EinfeldtSignalVelocities<IdealGasMix<Rank>>>
+      hlle_{equation_, EinfeldtSignalVelocities<IdealGasMix<Rank>>()};
 };
 
 /// \ingroup FluxMethod
