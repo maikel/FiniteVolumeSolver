@@ -73,22 +73,51 @@ struct MinMod {
 };
 
 struct VanLeer {
+  double operator()(double sL, double sR) const noexcept {
+    const double r = std::min(sL * sR > 0.0 ? sL / sR : 0.0, 1.0);
+    const double result = r * (sL + sR) / (1.0 + r);
+    return result;
+  }
+
+  Array1d operator()(Array1d sL, Array1d sR) const noexcept {
+    MaskArray positive = sL * sR > 0.0;
+    Array1d r = positive.select(sL / sR, 0.0).min(Array1d::Constant(1.0));
+    Array1d result = r * (sL + sR) / (1 + r);
+    return result;
+  }
+
   template <typename Equation>
   void ComputeLimitedSlope(Conservative<Equation>& cons,
                            span<const Complete<Equation>, 3> stencil) {
     ForEachComponent(
-        [](double& cons, double qL, double qM, double qR) {
+        [this](double& cons, double qL, double qM, double qR) {
           const double sL = qM - qL;
           const double sR = qR - qM;
-          double r = 0.0;
-          if (sL * sR > 0.0) {
-            r = sL / sR;
-          }
-          if (r < 0.0) {
-            cons = 0.0;
-          } else {
-            cons = 0.5 * std::min(2 * r / (1 + r), 2 / (1 + r)) * (sL + sR);
-          }
+          cons = this->operator()(sL, sR);
+        },
+        cons, AsCons(stencil[0]), AsCons(stencil[1]), AsCons(stencil[2]));
+  }
+
+  template <typename Equation>
+  void ComputeLimitedSlope(ConservativeArray<Equation>& cons,
+                           span<const CompleteArray<Equation>, 3> stencil, MaskArray mask) {
+    ForEachComponent(
+        [this, mask](auto&& cons, auto qL, auto qM, auto qR) {
+          const Array1d sL = mask.select(qM - qL, 0.0);
+          const Array1d sR = mask.select(qR - qM, 0.0);
+          cons = this->operator()(sL, sR);
+        },
+        cons, AsCons(stencil[0]), AsCons(stencil[1]), AsCons(stencil[2]));
+  }
+
+  template <typename Equation>
+  void ComputeLimitedSlope(ConservativeArray<Equation>& cons,
+                           span<const CompleteArray<Equation>, 3> stencil) {
+    ForEachComponent(
+        [this](auto&& cons, auto qL, auto qM, auto qR) {
+          const Array1d sL = qM - qL;
+          const Array1d sR = qR - qM;
+          cons = this->operator()(sL, sR);
         },
         cons, AsCons(stencil[0]), AsCons(stencil[1]), AsCons(stencil[2]));
   }

@@ -38,7 +38,7 @@ public:
   using Complete = typename Equation::Complete;
   using Conservative = typename Equation::Conservative;
 
-  HllBase(const Equation& eq, const SignalSpeeds& signals)
+  HllBase(const Equation& eq, const SignalSpeeds& signals = SignalSpeeds())
       : equation_{eq}, signal_speeds_{signals} {}
 
   /// \brief Returns the stencil width of this method
