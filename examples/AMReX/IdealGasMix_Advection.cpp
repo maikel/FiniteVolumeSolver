@@ -75,10 +75,20 @@ template <typename FluxMethod> struct MakeFlux {
   fub::AnyFluxMethod<fub::amrex::IntegratorContext>
   operator()(const fub::IdealGasMix<1>& eq) const {
     FluxMethod flux_method{eq};
-    fub::amrex::FluxMethodAdapter adapter(std::move(flux_method));
+    fub::amrex::FluxMethodAdapter adapter(fub::execution::seq, std::move(flux_method));
     return adapter;
   }
 };
+
+// template <>
+// struct MakeFlux<fub::ideal_gas::MusclHancockCharMethod<1>> {
+//   fub::AnyFluxMethod<fub::amrex::IntegratorContext>
+//   operator()(const fub::IdealGasMix<1>& eq) const {
+//     fub::ideal_gas::MusclHancockCharMethod<1> flux_method{eq, [](double sL, double sR) { return 0.5 * (sR + sL); }};
+//     fub::amrex::FluxMethodAdapter adapter(fub::execution::seq, std::move(flux_method));
+//     return adapter;
+//   }
+// };
 
 void MyMain(const fub::ProgramOptions& opts) {
   std::chrono::steady_clock::time_point wall_time_reference =
@@ -134,14 +144,14 @@ void MyMain(const fub::ProgramOptions& opts) {
   using namespace std::literals;
   using ConservativeReconstruction = fub::MusclHancockMethod<
       fub::IdealGasMix<1>,
-      fub::HllMethod<fub::IdealGasMix<1>, fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>>>, fub::VanLeer>;
+      fub::HllMethod<fub::IdealGasMix<1>, fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>>>, fub::MinMod>;
   using PrimitiveReconstruction = fub::ideal_gas::MusclHancockPrimMethod<1>;
-  // using CharacteristicReconstruction = fub::ideal_gas::MusclHancockCharMethod<1>;
+  using CharacteristicReconstruction = fub::ideal_gas::MusclHancockCharMethod<1>;
 
   auto flux_method_factory = GetFluxMethodFactory(
       std::pair{"Conservative"s, MakeFlux<ConservativeReconstruction>()},
-      std::pair{"Primitive"s, MakeFlux<PrimitiveReconstruction>()}); // ,
-      // std::pair{"Characteristics"s, MakeFlux<CharacteristicReconstruction>()});
+      std::pair{"Primitive"s, MakeFlux<PrimitiveReconstruction>()},
+      std::pair{"Characteristics"s, MakeFlux<CharacteristicReconstruction>()});
 
   std::string reconstruction =
       fub::GetOptionOr(opts, "reconstruction", "Primitive"s);

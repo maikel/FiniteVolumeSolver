@@ -18,15 +18,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_EQUATIONS_IDEAL_GAS_MIX_MUSCL_HANCOCK_CHAR_HPP
-#define FUB_EQUATIONS_IDEAL_GAS_MIX_MUSCL_HANCOCK_CHAR_HPP
+#ifndef FUB_EQUATIONS_PERFECT_GAS_MIX_MUSCL_HANCOCK_CHAR_HPP
+#define FUB_EQUATIONS_PERFECT_GAS_MIX_MUSCL_HANCOCK_CHAR_HPP
 
-#include "fub/equations/IdealGasMix.hpp"
-#include "fub/equations/ideal_gas_mix/HlleMethod.hpp"
+#include "fub/equations/PerfectGas.hpp"
+#include "fub/equations/perfect_gas/HllemMethod.hpp"
 #include "fub/flux_method/MusclHancockMethod.hpp"
 
 namespace fub {
-namespace ideal_gas {
+namespace perfect_gas {
 
 struct BasicCharacteristics {
   double minus{};
@@ -37,38 +37,25 @@ struct BasicCharacteristics {
 struct Characteristics : BasicCharacteristics {
   double v{};
   double w{};
-  Array<double, -1, 1> species;
-
-  template <int Rank>
-  Characteristics(const IdealGasMix<Rank>& eq)
-      : species(eq.GetReactor().GetNSpecies()) {}
 };
 
-struct BasicPrimitives {
+struct Primitives {
   double density{};
   Array<double, 3, 1> velocity{};
   double pressure{};
 
-  BasicPrimitives(const Complete<IdealGasMix<3>>& q)
+  Primitives(const Complete<PerfectGas<3>>& q)
       : density{q.density},
         velocity(q.momentum / q.density), pressure{q.pressure} {}
 
-  BasicPrimitives(const Complete<IdealGasMix<2>>& q)
+  Primitives(const Complete<PerfectGas<2>>& q)
       : density{q.density}, velocity{q.momentum[0] / q.density,
                                      q.momentum[1] / q.density, 0},
         pressure{q.pressure} {}
 
-  BasicPrimitives(const Complete<IdealGasMix<1>>& q)
+  Primitives(const Complete<PerfectGas<1>>& q)
       : density{q.density}, velocity{q.momentum[0] / q.density, 0, 0},
         pressure{q.pressure} {}
-};
-
-struct Primitives : BasicPrimitives {
-  template <int Rank>
-  Primitives(const Complete<IdealGasMix<Rank>>& q)
-      : BasicPrimitives(q), species(q.species.size()) {}
-
-  Array<double, -1, 1> species;
 };
 
 /// \ingroup FluxMethod
@@ -79,17 +66,17 @@ struct Primitives : BasicPrimitives {
 template <int Rank>
 class MusclHancockCharacteristic {
 public:
-  using Equation = IdealGasMix<Rank>;
+  using Equation = PerfectGas<Rank>;
   using Complete = ::fub::Complete<Equation>;
   using Conservative = ::fub::Conservative<Equation>;
   using CompleteArray = ::fub::CompleteArray<Equation>;
   using ConservativeArray = ::fub::ConservativeArray<Equation>;
 
-  explicit MusclHancockCharacteristic(const IdealGasMix<Rank>& equation)
+  explicit MusclHancockCharacteristic(const PerfectGas<Rank>& equation)
       : equation_(equation), limiter_(VanLeer()) {}
 
  template <typename Limiter>
- MusclHancockCharacteristic(const IdealGasMix<Rank>& equation, Limiter&& limiter)
+ MusclHancockCharacteristic(const PerfectGas<Rank>& equation, Limiter&& limiter)
       : equation_(equation), limiter_(std::forward<Limiter>(limiter)) {}
 
   [[nodiscard]] static constexpr int GetStencilWidth() noexcept { return 2; }
@@ -126,15 +113,14 @@ public:
   [[nodiscard]] Equation& GetEquation() noexcept { return equation_; }
 
 private:
-  IdealGasMix<Rank> equation_;
+  PerfectGas<Rank> equation_;
   std::array<Complete, 2> reconstruction_{Complete(equation_),
                                           Complete(equation_)};
   Primitives diffs_{reconstruction_[0]};
-  Characteristics amplitudes_{equation_};
-  Characteristics slopes_{equation_};
+  Characteristics amplitudes_{};
+  Characteristics slopes_{};
   std::function<double(double, double)> limiter_;
-  Hll<IdealGasMix<Rank>, EinfeldtSignalVelocities<IdealGasMix<Rank>>>
-      hlle_{equation_, EinfeldtSignalVelocities<IdealGasMix<Rank>>()};
+  Hllem<Rank> hllem_{equation_};
 };
 
 /// \ingroup FluxMethod
@@ -145,11 +131,11 @@ using MusclHancockCharMethod =
 extern template class MusclHancockCharacteristic<1>;
 extern template class MusclHancockCharacteristic<2>;
 extern template class MusclHancockCharacteristic<3>;
-} // namespace ideal_gas
+} // namespace perfect_gas
 
-extern template class FluxMethod<ideal_gas::MusclHancockCharacteristic<1>>;
-extern template class FluxMethod<ideal_gas::MusclHancockCharacteristic<2>>;
-extern template class FluxMethod<ideal_gas::MusclHancockCharacteristic<3>>;
+extern template class FluxMethod<perfect_gas::MusclHancockCharacteristic<1>>;
+extern template class FluxMethod<perfect_gas::MusclHancockCharacteristic<2>>;
+extern template class FluxMethod<perfect_gas::MusclHancockCharacteristic<3>>;
 
 } // namespace fub
 

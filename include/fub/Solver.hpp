@@ -47,6 +47,7 @@
 #include "fub/equations/ideal_gas_mix/EinfeldtSignalVelocities.hpp"
 #include "fub/equations/ideal_gas_mix/HlleMethod.hpp"
 #include "fub/equations/ideal_gas_mix/MusclHancockPrimMethod.hpp"
+#include "fub/equations/ideal_gas_mix/MusclHancockCharactersticMethod.hpp"
 
 #include "fub/equations/perfect_gas/EinfeldtSignalVelocities.hpp"
 #include "fub/equations/perfect_gas/GodunovMethod.hpp"

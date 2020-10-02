@@ -299,6 +299,9 @@ add_library(FiniteVolumeSolver.Solver
   src/equations/perfect_gas/MusclHancockPrimMethod_1d.cpp
   src/equations/perfect_gas/MusclHancockPrimMethod_2d.cpp
   src/equations/perfect_gas/MusclHancockPrimMethod_3d.cpp
+  src/equations/perfect_gas/MusclHancockCharacteristicMethod_1d.cpp
+  src/equations/perfect_gas/MusclHancockCharacteristicMethod_2d.cpp
+  src/equations/perfect_gas/MusclHancockCharacteristicMethod_3d.cpp
   src/equations/IdealGasMix.cpp
   src/equations/ideal_gas_mix/EinfeldtSignalVelocities_1d.cpp
   src/equations/ideal_gas_mix/EinfeldtSignalVelocities_2d.cpp

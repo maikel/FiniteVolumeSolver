@@ -1,17 +1,17 @@
 import math
 
 RunOptions = {
-  'cfl': 0.5,
+  'cfl': 0.8,
   'final_time': 0.001,
 }
 
 GridGeometry = {
-  'cell_dimensions': [200, 1, 1],
+  'cell_dimensions': [800, 1, 1],
   'coordinates': {
-    'lower': [-1.50, -0.015, -0.015],
-    'upper': [-0.00, +0.015, +0.015],
+    'lower': [-1.00, -0.015, -0.015],
+    'upper': [+1.00, +0.015, +0.015],
   },
-  'periodicity': [1, 1, 1]
+  'periodicity': [0, 0, 0]
 }
 
 PatchHierarchy = {
@@ -21,15 +21,16 @@ PatchHierarchy = {
  'max_grid_size': [100, 1, 1],
 }
 
-reconstruction = "Primitive"
+reconstruction = "Characteristics"
+# reconstruction = "Primitive"
+# reconstruction = "Conservative"
 
 Output = {
   'outputs': [{
     'type': 'HDF5',
-    'path': './IdealGasMix_Prim.h5',
+    'path': './IdealGasMix_Char.h5',
+    # 'path': './IdealGasMix_Prim.h5',
+    # 'path': './IdealGasMix_Cons.h5',
     'intervals': [5e-5],
-  }, {
-    'type': 'CounterOutput',
-    'frequencies': [100]
   }]
 }

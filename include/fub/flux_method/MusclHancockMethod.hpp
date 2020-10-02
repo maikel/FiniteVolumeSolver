@@ -74,15 +74,13 @@ struct MinMod {
 
 struct VanLeer {
   double operator()(double sL, double sR) const noexcept {
-    const double r = std::min(sL * sR > 0.0 ? sL / sR : 0.0, 1.0);
-    const double result = r * (sL + sR) / (1.0 + r);
-    return result;
+    double c = 2.0 * sL * sR;
+    return (c > 0.0) ? c / (sL + sR) : 0.0;
   }
 
   Array1d operator()(Array1d sL, Array1d sR) const noexcept {
-    MaskArray positive = sL * sR > 0.0;
-    Array1d r = positive.select(sL / sR, 0.0).min(Array1d::Constant(1.0));
-    Array1d result = r * (sL + sR) / (1 + r);
+    Array1d r = 2.0 * sL * sR;
+    Array1d result = (r > 0.0).select(r / (sL + sR), 0.0);
     return result;
   }
 
