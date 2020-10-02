@@ -101,7 +101,7 @@ void DoTimeStep(Characteristics& ampls, const Characteristics& slope,
                 int is_right_side, double lambda, double u, double c) {
   // clang-format off
   int sign = 1;
-  if (is_right_side == 0) {
+  if (is_right_side == 1) {
     sign = -1;
   }
   ampls.minus = sign * 0.5 * slope.minus * (1.0 - sign * lambda * (u - c));
