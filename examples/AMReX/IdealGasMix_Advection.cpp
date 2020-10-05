@@ -80,11 +80,15 @@ template <typename FluxMethod> struct MakeFlux {
   }
 };
 
+// double MinMod(const double a, const double b) {
+// 	return (a * b > 0.0) ? ((fabs(a) < fabs(b)) ? a : b) : 0.0;
+// }
+
 // template <>
 // struct MakeFlux<fub::ideal_gas::MusclHancockCharMethod<1>> {
 //   fub::AnyFluxMethod<fub::amrex::IntegratorContext>
 //   operator()(const fub::IdealGasMix<1>& eq) const {
-//     fub::ideal_gas::MusclHancockCharMethod<1> flux_method{eq, [](double sL, double sR) { return 0.5 * (sR + sL); }};
+//     fub::ideal_gas::MusclHancockCharMethod<1> flux_method{eq, &MinMod};
 //     fub::amrex::FluxMethodAdapter adapter(fub::execution::seq, std::move(flux_method));
 //     return adapter;
 //   }
@@ -116,13 +120,23 @@ void MyMain(const fub::ProgramOptions& opts) {
       std::make_pair(&Complete::pressure, 5e-2)};
 
   fub::FlameMasterReactor& reactor = equation.GetReactor();
-  reactor.SetTemperature(300.);
-  reactor.SetPressure(101325.0);
+  const double M = reactor.GetMeanMolarMass();
+  const double R = reactor.GetUniversalGasConstant();
+  const double Rspec = R / M;
+  const double atm = 101325.0;
+  const double p_left = 1.0 * atm;
+  const double rho_left = 1.0;
+  const double T_left = p_left / (rho_left * Rspec);
+  reactor.SetDensity(rho_left);
+  reactor.SetTemperature(T_left);
   Complete left(equation);
   equation.CompleteFromReactor(left);
 
-  reactor.SetTemperature(600.);
-  reactor.SetPressure(0.1 * 101325.0);
+  const double p_right = 0.1 * atm;
+  const double rho_right = 0.125;
+  const double T_right = p_right / (rho_right * Rspec);
+  reactor.SetDensity(rho_right);
+  reactor.SetTemperature(T_right);
   Complete right(equation);
   equation.CompleteFromReactor(right);
 
@@ -144,7 +158,7 @@ void MyMain(const fub::ProgramOptions& opts) {
   using namespace std::literals;
   using ConservativeReconstruction = fub::MusclHancockMethod<
       fub::IdealGasMix<1>,
-      fub::HllMethod<fub::IdealGasMix<1>, fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>>>, fub::MinMod>;
+      fub::HllMethod<fub::IdealGasMix<1>, fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>>>, fub::VanLeer>;
   using PrimitiveReconstruction = fub::ideal_gas::MusclHancockPrimMethod<1>;
   using CharacteristicReconstruction = fub::ideal_gas::MusclHancockCharMethod<1>;
 

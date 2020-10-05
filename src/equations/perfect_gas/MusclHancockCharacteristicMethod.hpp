@@ -81,14 +81,12 @@ Characteristics ComputeSlopes(Characteristics& limited,
 void DoTimeStep(Characteristics& ampls, const Characteristics& slope,
                 int is_right_side, double lambda, double u, double c) {
   // clang-format off
-  if (is_right_side) {
-    lambda = - lambda;
-  }
-  ampls.minus = 0.5 * slope.minus * (1.0 - lambda * (u - c));
-  ampls.zero  = 0.5 * slope.zero  * (1.0 - lambda *    u   );
-  ampls.plus  = 0.5 * slope.plus  * (1.0 - lambda * (u + c));
-  ampls.v     = 0.5 * slope.v     * (1.0 - lambda *    u   );
-  ampls.w     = 0.5 * slope.w     * (1.0 - lambda *    u   );
+  int sign = 1 - 2 * is_right_side;
+  ampls.minus = sign * 0.5 * slope.minus * (1.0 - sign * lambda * (u - c));
+  ampls.zero  = sign * 0.5 * slope.zero  * (1.0 - sign * lambda *    u   );
+  ampls.plus  = sign * 0.5 * slope.plus  * (1.0 - sign * lambda * (u + c));
+  ampls.v     = sign * 0.5 * slope.v     * (1.0 - sign * lambda *    u   );
+  ampls.w     = sign * 0.5 * slope.w     * (1.0 - sign * lambda *    u   );
   // clang-format on
 }
 
@@ -130,11 +128,11 @@ void MusclHancockCharacteristic<Rank>::ComputeNumericFlux(
     Conservative& flux, span<const Complete, 4> stencil, Duration dt, double dx,
     Direction dir) {
   const double dt_over_dx_half = 0.5 * dt.count() / dx;
-  // int left_side = 0;
-  // int right_side = 1;
-  Reconstruct(reconstruction_[0], diffs_, amplitudes_, slopes_, 0, equation_,
+  const int left_side = 0;
+  const int right_side = 1;
+  Reconstruct(reconstruction_[0], diffs_, amplitudes_, slopes_, left_side, equation_,
               stencil.template first<3>(), dt_over_dx_half, limiter_, dir);
-  Reconstruct(reconstruction_[1], diffs_, amplitudes_, slopes_, 1, equation_,
+  Reconstruct(reconstruction_[1], diffs_, amplitudes_, slopes_, right_side, equation_,
               stencil.template last<3>(), dt_over_dx_half, limiter_, dir);
   hllem_.ComputeNumericFlux(flux, reconstruction_, dt, dx, dir);
 }

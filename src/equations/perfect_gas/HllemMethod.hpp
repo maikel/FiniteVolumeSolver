@@ -421,8 +421,8 @@ double Hllem<Dim>::ComputeStableDt(
   const double roeA2 = gm1 * (roeH  - 0.5 * roeU0 * roeU0);
   const double roeA = std::sqrt(roeA2);
   const double sL1 = uL - aL;
-  const double sL2 = roeU0 - 0.5 * roeA;
-  const double sR1 = roeU0 + 0.5 * roeA;
+  const double sL2 = roeU0 - roeA;
+  const double sR1 = roeU0 + roeA;
   const double sR2 = uR + aR;
   
   const double sL = std::min(sL1, sL2);
@@ -467,8 +467,8 @@ Array1d Hllem<Dim>::ComputeStableDt(
   const Array1d roeA2 = gm1 * (roeH  - 0.5 * roeU0 * roeU0);
   const Array1d roeA = roeA2.sqrt();
   const Array1d sL1 = uL - aL;
-  const Array1d sL2 = roeU0 - 0.5 * roeA;
-  const Array1d sR1 = roeU0 + 0.5 * roeA;
+  const Array1d sL2 = roeU0 - roeA;
+  const Array1d sR1 = roeU0 + roeA;
   const Array1d sR2 = uR + aR;
   
   const Array1d sL = sL1.min(sL2);
@@ -522,8 +522,8 @@ Array1d Hllem<Dim>::ComputeStableDt(
   const Array1d roeA2 = (gm1 * (roeH  - 0.5 * roeU0 * roeU0), zeros);
   const Array1d roeA = roeA2.sqrt();
   const Array1d sL1 = uL - aL;
-  const Array1d sL2 = roeU0 - 0.5 * roeA;
-  const Array1d sR1 = roeU0 + 0.5 * roeA;
+  const Array1d sL2 = roeU0 - roeA;
+  const Array1d sR1 = roeU0 + roeA;
   const Array1d sR2 = uR + aR;
   
   const Array1d sL = sL1.min(sL2);

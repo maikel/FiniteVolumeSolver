@@ -1,15 +1,16 @@
 import math
 
 RunOptions = {
-  'cfl': 0.8,
-  'final_time': 0.001,
+  'cfl': 0.5,
+  'final_time': 0.2 / math.sqrt(101325.),
+  # 'final_time': 0.2,
 }
 
 GridGeometry = {
   'cell_dimensions': [800, 1, 1],
   'coordinates': {
-    'lower': [-1.00, -0.015, -0.015],
-    'upper': [+1.00, +0.015, +0.015],
+    'lower': [-0.50, -0.015, -0.015],
+    'upper': [+0.50, +0.015, +0.015],
   },
   'periodicity': [0, 0, 0]
 }
@@ -21,16 +22,23 @@ PatchHierarchy = {
  'max_grid_size': [100, 1, 1],
 }
 
-reconstruction = "Characteristics"
+# reconstruction = "Characteristics"
 # reconstruction = "Primitive"
-# reconstruction = "Conservative"
+reconstruction = "Conservative"
+# reconstruction = "PerfectGas"
+
+paths = {
+  'Conservative': './IdealGasMix_Cons.h5',
+  'Primitive': './IdealGasMix_Prim.h5',
+  'Characteristics': './IdealGasMix_Char.h5',
+  'PerfectGas': './PerfectGas1d_cfl05.h5'
+}
 
 Output = {
   'outputs': [{
     'type': 'HDF5',
-    'path': './IdealGasMix_Char.h5',
-    # 'path': './IdealGasMix_Prim.h5',
-    # 'path': './IdealGasMix_Cons.h5',
-    'intervals': [5e-5],
+    'path': paths[reconstruction],
+    'intervals': [RunOptions['final_time'] / 10.0],
+    # 'frequencies': [1],
   }]
 }

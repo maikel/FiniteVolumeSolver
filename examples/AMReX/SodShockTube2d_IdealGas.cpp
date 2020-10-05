@@ -68,8 +68,8 @@ struct ShockTubeData {
                      }
                      // "Right" states.
                      else {
-                       reactor.SetDensity(1.0e-1);
-                       SetPressure(reactor, 1.25e-1 * 1.01325e5);
+                       reactor.SetDensity(1.25e-1);
+                       SetPressure(reactor, 1.e-1 * 1.01325e5);
                      }
                      equation_.CompleteFromReactor(state);
                      equation_.CompleteFromCons(state, state);
@@ -198,6 +198,6 @@ int main() {
   output(*solver.GetGriddingAlgorithm());
   fub::RunOptions run_options{};
   run_options.final_time = 0.01s;
-  run_options.cfl = 0.4;
+  run_options.cfl = 0.5 * 0.5;
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }
