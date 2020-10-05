@@ -74,6 +74,7 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::Complete<fub::IdealGasMix<2>> right{equation};
   equation.CompleteFromReactor(right);
 
+  reactor.SetTemperature(2000.0);
   reactor.SetPressure(4 * 101325.0);
   fub::Complete<fub::IdealGasMix<2>> left{equation};
   equation.CompleteFromReactor(left);
@@ -83,7 +84,7 @@ void MyMain(const fub::ProgramOptions& options) {
 
   using State = fub::Complete<fub::IdealGasMix<2>>;
   GradientDetector gradients{equation, std::pair{&State::pressure, 0.05},
-                             std::pair{&State::density, 0.05}};
+                             std::pair{&State::density, 0.005}};
 
   auto seq = fub::execution::seq;
   BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
@@ -105,10 +106,16 @@ void MyMain(const fub::ProgramOptions& options) {
                           Reconstruction{equation}};
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<2>, IntegratorContext(gridding, method, 4, 2),
+      fub::int_c<2>, IntegratorContext(gridding, method, 8, 6),
+      fub::StrangSplitting());
+
+  fub::amrex::AxiSymmetricSourceTerm symmetry_source_term(equation);
+
+  fub::SplitSystemSourceLevelIntegrator symmetry_level_integrator(
+      std::move(level_integrator), std::move(symmetry_source_term),
       fub::GodunovSplitting());
 
-  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
+  fub::SubcycleFineFirstSolver solver(std::move(symmetry_level_integrator));
 
   using namespace std::literals::chrono_literals;
   using Plotfile = PlotfileOutput<fub::IdealGasMix<2>>;

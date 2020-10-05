@@ -42,7 +42,7 @@ public:
                Duration dt, const ::amrex::IntVect& = ::amrex::IntVect(0));
 
 private:
-  IdealGasMix<2> equation_;
+  OmpLocal<IdealGasMix<2>> equation_;
 };
 
 } // namespace fub::amrex

@@ -40,23 +40,24 @@ AxiSymmetricSourceTerm::AdvanceLevel(cutcell::IntegratorContext& simulation_data
   auto&& cutcell_data = simulation_data.GetEmbeddedBoundary(level);
   const ::amrex::MultiFab& alphas = cutcell_data.getVolFrac();
   const double dt = time_step_size.count();
-  Complete<IdealGasMix<2>> state(equation_);
+  Complete<IdealGasMix<2>> state(equation_.Get());
   ForEachFab(execution::seq, data, [&](const ::amrex::MFIter& mfi) {
     ::amrex::Box box = mfi.growntilebox();
     ::amrex::FArrayBox& fab = data[mfi];
     const ::amrex::FArrayBox& alpha = alphas[mfi];
-    auto states = MakeView<Complete<IdealGasMix<2>>>(fab, equation_, box);
-    FlameMasterReactor& reactor = equation_.GetReactor();
+    IdealGasMix<2>& equation = equation_.Get();
+    auto states = MakeView<Complete<IdealGasMix<2>>>(fab, equation, box);
+    FlameMasterReactor& reactor = equation.GetReactor();
     ForEachIndex(Box<0>(states), [&](auto i, auto j) {
       static constexpr int i_radial = 1;
       static constexpr int i_axial = 0;
       Index<2> ij{i, j};
-      Load(state, states, ij);
-      if (alpha({AMREX_D_DECL(int(i), int(j), 0)}) == 1.0) {
-        equation_.SetReactorStateFromComplete(state);
-        const double H = reactor.GetEnthalpy();
+      if (alpha({AMREX_D_DECL(int(i), int(j), 0)}) > 0.0) {
         const double r = geom.CellCenter(ij[i_radial], i_radial);
         if (r > 0.0) {
+          Load(state, states, ij);
+          equation.SetReactorStateFromComplete(state);
+          const double H = reactor.GetEnthalpy();
           const double rho = state.density;
           const double u = state.momentum[i_radial] / rho;
           const double v = state.momentum[i_axial] / rho;
@@ -67,7 +68,8 @@ AxiSymmetricSourceTerm::AdvanceLevel(cutcell::IntegratorContext& simulation_data
           state.momentum[i_axial] -= lambda * rho * u * v;
           state.energy -= lambda * H * u;
           state.species -= lambda * rho * state.species * u;
-          equation_.CompleteFromCons(state, state);
+          equation.CompleteFromCons(state, state);
+          Store(states, state, ij);
         }
       }
     });

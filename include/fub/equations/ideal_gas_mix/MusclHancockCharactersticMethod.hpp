@@ -32,16 +32,32 @@ struct BasicCharacteristics {
   double minus{};
   double zero{};
   double plus{};
+  double v{};
+  double w{};
 };
 
 struct Characteristics : BasicCharacteristics {
-  double v{};
-  double w{};
   Array<double, -1, 1> species;
 
   template <int Rank>
   Characteristics(const IdealGasMix<Rank>& eq)
       : species(eq.GetReactor().GetNSpecies()) {}
+};
+
+struct BasicCharacteristicsArray {
+  Array1d minus;
+  Array1d zero;
+  Array1d plus;
+  Array1d v;
+  Array1d w;
+};
+
+struct CharacteristicsArray : BasicCharacteristicsArray {
+  ArrayXd species;
+
+  template <int Rank>
+  CharacteristicsArray(const IdealGasMix<Rank>& eq)
+      : species(eq.GetReactor().GetNSpecies(), kDefaultChunkSize) {}
 };
 
 struct BasicPrimitives {
@@ -71,13 +87,47 @@ struct Primitives : BasicPrimitives {
   Array<double, -1, 1> species;
 };
 
+struct BasicPrimitivesArray {
+  Array1d density{Array1d::Zero()};
+  Array3d velocity{Array3d::Zero()};
+  Array1d pressure{Array1d::Zero()};
+
+  BasicPrimitivesArray(const CompleteArray<IdealGasMix<3>>& q)
+      : density{q.density}, pressure{q.pressure} {
+    for (int d = 0; d < 3; ++d) {
+      velocity.row(d) = q.momentum.row(d) / q.density;
+    }
+  }
+
+  BasicPrimitivesArray(const CompleteArray<IdealGasMix<2>>& q)
+      : density{q.density}, pressure{q.pressure} {
+    for (int d = 0; d < 2; ++d) {
+      velocity.row(d) = q.momentum.row(d) / q.density;
+    }
+  }
+
+  BasicPrimitivesArray(const CompleteArray<IdealGasMix<1>>& q)
+      : density{q.density}, pressure{q.pressure} {
+    for (int d = 0; d < 1; ++d) {
+      velocity.row(d) = q.momentum.row(d) / q.density;
+    }
+  }
+};
+
+struct PrimitivesArray : BasicPrimitivesArray {
+  template <int Rank>
+  PrimitivesArray(const CompleteArray<IdealGasMix<Rank>>& q)
+      : BasicPrimitivesArray(q), species(q.species.rows(), kDefaultChunkSize) {}
+
+  ArrayXd species;
+};
+
 /// \ingroup FluxMethod
 ///
 /// This is a variation of the Muscl Hancock Method where the reconstruction at
 /// the half time level is based on the primitive variables (p, u, T, Y) instead
 /// of on conservative variables.
-template <int Rank>
-class MusclHancockCharacteristic {
+template <int Rank> class MusclHancockCharacteristic {
 public:
   using Equation = IdealGasMix<Rank>;
   using Complete = ::fub::Complete<Equation>;
@@ -86,11 +136,13 @@ public:
   using ConservativeArray = ::fub::ConservativeArray<Equation>;
 
   explicit MusclHancockCharacteristic(const IdealGasMix<Rank>& equation)
-      : equation_(equation), limiter_(VanLeer()) {}
+      : equation_(equation), limiter_(VanLeer()), array_limiter_(VanLeer()) {}
 
- template <typename Limiter>
- MusclHancockCharacteristic(const IdealGasMix<Rank>& equation, Limiter&& limiter)
-      : equation_(equation), limiter_(std::forward<Limiter>(limiter)) {}
+  template <typename Limiter>
+  MusclHancockCharacteristic(const IdealGasMix<Rank>& equation,
+                             Limiter&& limiter)
+      : equation_(equation), limiter_(std::forward<Limiter>(limiter)),
+        array_limiter_(std::forward<Limiter>(limiter)) {}
 
   [[nodiscard]] static constexpr int GetStencilWidth() noexcept { return 2; }
 
@@ -133,8 +185,17 @@ private:
   Characteristics amplitudes_{equation_};
   Characteristics slopes_{equation_};
   std::function<double(double, double)> limiter_;
-  Hll<IdealGasMix<Rank>, EinfeldtSignalVelocities<IdealGasMix<Rank>>>
-      hlle_{equation_, EinfeldtSignalVelocities<IdealGasMix<Rank>>()};
+
+  std::array<CompleteArray, 2> reconstruction_array_{CompleteArray(equation_),
+                                                     CompleteArray(equation_)};
+  PrimitivesArray diffs_array_{reconstruction_array_[0]};
+  CharacteristicsArray amplitudes_array_{equation_};
+  CharacteristicsArray slopes_array_{equation_};
+  std::function<Array1d(Array1d, Array1d)> array_limiter_;
+
+  using HlleMethod =
+      Hll<IdealGasMix<Rank>, EinfeldtSignalVelocities<IdealGasMix<Rank>>>;
+  HlleMethod hlle_{equation_};
 };
 
 /// \ingroup FluxMethod
