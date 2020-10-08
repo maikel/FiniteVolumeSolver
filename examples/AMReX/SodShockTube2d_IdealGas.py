@@ -7,7 +7,7 @@ RunOptions = {
 }
 
 GridGeometry = {
-  'cell_dimensions': [128, 128, 1],
+  'cell_dimensions': [1024, 1024, 1],
   'coordinates': {
     'lower': [-0.50, -0.50, -0.50],
     'upper': [+0.50, +0.50, +0.50],
@@ -16,27 +16,31 @@ GridGeometry = {
 }
 
 PatchHierarchy = {
- 'max_number_of_levels': 4,
+ 'max_number_of_levels': 1,
  'refine_ratio': [2, 2, 1],
  'blocking_factor': [32, 32, 1],
  'max_grid_size': [32, 32, 1],
 }
 
-reconstruction = "Characteristics"
+# reconstruction = "HLLE"
 # reconstruction = "Primitive"
 # reconstruction = "Conservative"
+# reconstruction = "ConservativeM"
+reconstruction = "Characteristics"
 # reconstruction = "PerfectGas"
 
 paths = {
   'Conservative': './SodShockTube/Conservative',
+  'ConservativeM': './SodShockTube/ConservativeM',
   'Primitive': './SodShockTube/Primitive',
   'Characteristics': './SodShockTube/Characteristics',
-  'HLLE': './SodShockTube/HLLE'
+  'HLLE': './SodShockTube/HLLE',
+  'HLLEM': './SodShockTube/HLLEM'
 }
 
 Output = {
   'outputs': [{
-    'type': 'Plotfile',
+    'type': 'HDF5',
     'path': '{}.h5'.format(paths[reconstruction]),
     'directory': '{}_Plotfiles2'.format(paths[reconstruction]),
     'intervals': [RunOptions['final_time'] / 10.0],

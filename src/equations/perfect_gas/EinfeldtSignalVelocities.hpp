@@ -46,8 +46,8 @@ std::array<double, 2> EinfeldtSignalVelocities<PerfectGas<Dim>>::operator()(
       0.5 * (sqRhoL * sqRhoR) / ((sqRhoL + sqRhoR) * (sqRhoL + sqRhoR)) *
           (uR - uL) * (uR - uL));
   const double sL1 = uL - aL;
-  const double sL2 = roeU - 0.5 * roeA;
-  const double sR1 = roeU + 0.5 * roeA;
+  const double sL2 = roeU - roeA;
+  const double sR1 = roeU + roeA;
   const double sR2 = uR + aR;
   return {std::min(sL1, sL2), std::max(sR1, sR2)};
 }
@@ -73,8 +73,8 @@ std::array<Array1d, 2> EinfeldtSignalVelocities<PerfectGas<Dim>>::operator()(
            (uR - uL) * (uR - uL))
           .sqrt();
   const Array1d sL1 = uL - aL;
-  const Array1d sL2 = roeU - 0.5 * roeA;
-  const Array1d sR1 = roeU + 0.5 * roeA;
+  const Array1d sL2 = roeU - roeA;
+  const Array1d sR1 = roeU + roeA;
   const Array1d sR2 = uR + aR;
   return {sL1.min(sL2), sR1.max(sR2)};
 }
@@ -111,8 +111,8 @@ std::array<Array1d, 2> EinfeldtSignalVelocities<PerfectGas<Dim>>::operator()(
            (uR - uL) * (uR - uL))
           .sqrt();
   const Array1d sL1 = uL - aL;
-  const Array1d sL2 = roeU - Array1d::Constant(0.5) * roeA;
-  const Array1d sR1 = roeU + Array1d::Constant(0.5) * roeA;
+  const Array1d sL2 = roeU - roeA;
+  const Array1d sR1 = roeU + roeA;
   const Array1d sR2 = uR + aR;
   return {sL1.min(sL2), sR1.max(sR2)};
 }

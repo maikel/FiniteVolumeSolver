@@ -62,6 +62,25 @@ struct SinusProblem {
   }
 };
 
+using FactoryFunction =
+    std::function<fub::AnyFluxMethod<fub::amrex::IntegratorContext>(
+        const fub::PerfectGas<1>&)>;
+
+template <typename... Pairs> auto GetFluxMethodFactory(Pairs... ps) {
+  std::map<std::string, FactoryFunction> factory;
+  ((factory[ps.first] = ps.second), ...);
+  return factory;
+}
+
+template <typename FluxMethod> struct MakeFlux {
+  fub::AnyFluxMethod<fub::amrex::IntegratorContext>
+  operator()(const fub::PerfectGas<1>& eq) const {
+    FluxMethod flux_method{eq};
+    fub::amrex::FluxMethodAdapter adapter(std::move(flux_method));
+    return adapter;
+  }
+};
+
 void MyMain(const fub::ProgramOptions& options) {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
@@ -79,7 +98,6 @@ void MyMain(const fub::ProgramOptions& options) {
   equation.gamma_array_ = fub::Array1d::Constant(equation.gamma);
   equation.gamma_minus_1_inv_array_ = fub::Array1d::Constant(equation.gamma_minus_1_inv);
 
-  fub::perfect_gas::MusclHancockCharMethod<1> runge_kutta{equation};
 
   BOOST_LOG(log) << "Equation:";
   BOOST_LOG(log) << fmt::format(" - R_specific = {}", equation.Rspec);
@@ -116,8 +134,27 @@ void MyMain(const fub::ProgramOptions& options) {
       gradient, boundary);
   gridding->InitializeHierarchy(0.0);
 
+  using namespace std::literals;
+  using HLLE = fub::HllMethod<fub::PerfectGas<1>, fub::EinfeldtSignalVelocities<fub::PerfectGas<1>>>;
+  using HLLEM = fub::perfect_gas::HllemMethod<1>;
+  using ConservativeReconstruction = fub::MusclHancockMethod<fub::PerfectGas<1>, HLLE, fub::VanLeer>;
+  using ConservativeReconstructionM = fub::MusclHancockMethod<fub::PerfectGas<1>, HLLEM, fub::VanLeer>;
+  using CharacteristicReconstruction = fub::perfect_gas::MusclHancockCharMethod<1>;
+
+  auto flux_method_factory = GetFluxMethodFactory(
+      std::pair{"HLLE"s, MakeFlux<HLLE>()},
+      std::pair{"HLLEM"s, MakeFlux<HLLEM>()},
+      std::pair{"Conservative"s, MakeFlux<ConservativeReconstruction>()},
+      std::pair{"ConservativeM"s, MakeFlux<ConservativeReconstructionM>()},
+      std::pair{"Characteristics"s, MakeFlux<CharacteristicReconstruction>()});
+
+  std::string reconstruction =
+      fub::GetOptionOr(options, "reconstruction", "Characteristics"s);
+  BOOST_LOG(log) << "Reconstruction: " << reconstruction;
+  auto flux_method = flux_method_factory.at(reconstruction)(equation);
+
   fub::amrex::HyperbolicMethod method{
-      fub::amrex::FluxMethodAdapter(fub::execution::seq, runge_kutta),
+      flux_method,
       fub::amrex::EulerForwardTimeIntegrator(),
       fub::amrex::Reconstruction(equation)};
 

@@ -158,6 +158,22 @@ PerfectGas<Dim>::CompleteFromPrim(double rho, const Array<double, Dim, 1>& v,
 }
 
 template <int Dim>
+CompleteArray<PerfectGas<Dim>>
+PerfectGas<Dim>::CompleteFromPrim(Array1d rho, const Array<double, Dim>& v,
+                                  Array1d p) const noexcept {
+  CompleteArray q{};
+  q.density = rho;
+  for (int d = 0; d < Dim; ++d) {
+    q.momentum.row(d) = rho * v.row(d);
+  }
+  q.pressure = p;
+  const Array1d e_kin = KineticEnergy(q.density, q.momentum);
+  q.energy = e_kin + p * gamma_minus_1_inv_array_;
+  q.speed_of_sound = (gamma_array_ * q.pressure / q.density).sqrt();
+  return q;
+}
+
+template <int Dim>
 Array<double, Dim, 1> PerfectGas<Dim>::Velocity(const Complete& complete) const
     noexcept {
   Array<double, Dim, 1> u = complete.momentum / complete.density;

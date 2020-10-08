@@ -35,6 +35,7 @@ void Hllem<Dim>::ComputeNumericFlux(
   equation_.Flux(fluxR, right, dir);
 
   const double gm1 = equation_.gamma - 1.0;
+  const double beta = gm1 / (2 * equation_.gamma);
 
   // Compute Einfeldt signals velocities
   
@@ -59,10 +60,10 @@ void Hllem<Dim>::ComputeNumericFlux(
   const double roeH = (sqRhoL * hL + sqRhoR * hR) / sqRhoSum;
   const double roeA2 = gm1 * (roeH  - 0.5 * roeU0 * roeU0);
   const double roeA = std::sqrt(roeA2);
-  const double sL1 = uL - aL;
-  const double sL2 = roeU0 - 0.5 * roeA;
-  const double sR1 = roeU0 + 0.5 * roeA;
-  const double sR2 = uR + aR;
+  const double sL1 = uL - beta * aL;
+  const double sL2 = roeU0 - roeA;
+  const double sR1 = roeU0 + roeA;
+  const double sR2 = uR + beta * aR;
   
   const double sL = std::min(sL1, sL2);
   const double sR = std::max(sR1, sR2);
@@ -149,6 +150,7 @@ void Hllem<Dim>::ComputeNumericFlux(
   equation_.Flux(fluxR, right, dir);
 
   const Array1d gm1 = (equation_.gamma_array_ - Array1d::Constant(1.0));
+  const Array1d beta = gm1 / (2 * equation_.gamma_array_);
 
   // Compute Einfeldt signals velocities
     
@@ -173,10 +175,10 @@ void Hllem<Dim>::ComputeNumericFlux(
   const Array1d roeH = (sqRhoL * hL + sqRhoR * hR) / sqRhoSum;
   const Array1d roeA2 = gm1 * (roeH  - 0.5 * roeU0 * roeU0);
   const Array1d roeA = roeA2.sqrt();
-  const Array1d sL1 = uL - aL;
-  const Array1d sL2 = roeU0 - 0.5 * roeA;
-  const Array1d sR1 = roeU0 + 0.5 * roeA;
-  const Array1d sR2 = uR + aR;
+  const Array1d sL1 = uL - beta * aL;
+  const Array1d sL2 = roeU0 - roeA;
+  const Array1d sR1 = roeU0 + roeA;
+  const Array1d sR2 = uR + beta * aR;
   
   const Array1d sL = sL1.min(sL2);
   const Array1d sR = sR1.max(sR2);
@@ -275,6 +277,7 @@ void Hllem<Dim>::ComputeNumericFlux(
   equation_.Flux(fluxR, right, face_mask, dir);
 
   const Array1d gm1 = (equation_.gamma_array_ - Array1d::Constant(1.0));
+  const Array1d beta = gm1 / (2 * equation_.gamma_array_);
 
   // Compute Einfeldt signals velocities
     
@@ -302,10 +305,10 @@ void Hllem<Dim>::ComputeNumericFlux(
   const Array1d roeH = (sqRhoL * hL + sqRhoR * hR) / sqRhoSum;
   const Array1d roeA2 = gm1 * (roeH  - 0.5 * roeU0 * roeU0);
   const Array1d roeA = roeA2.sqrt();
-  const Array1d sL1 = uL - aL;
-  const Array1d sL2 = roeU0 - 0.5 * roeA;
-  const Array1d sR1 = roeU0 + 0.5 * roeA;
-  const Array1d sR2 = uR + aR;
+  const Array1d sL1 = uL - beta * aL;
+  const Array1d sL2 = roeU0 - roeA;
+  const Array1d sR1 = roeU0 + roeA;
+  const Array1d sR2 = uR + beta * aR;
   
   const Array1d sL = sL1.min(sL2);
   const Array1d sR = sR1.max(sR2);
@@ -398,6 +401,7 @@ double Hllem<Dim>::ComputeStableDt(
   const Complete& right = states[1];
 
   const double gm1 = equation_.gamma - 1.0;
+  const double beta = gm1 / (2 * equation_.gamma);
 
   // Compute Einfeldt signals velocities
   
@@ -420,10 +424,10 @@ double Hllem<Dim>::ComputeStableDt(
   const double roeH = (sqRhoL * hL + sqRhoR * hR) / sqRhoSum;
   const double roeA2 = gm1 * (roeH  - 0.5 * roeU0 * roeU0);
   const double roeA = std::sqrt(roeA2);
-  const double sL1 = uL - aL;
+  const double sL1 = uL - beta * aL;
   const double sL2 = roeU0 - roeA;
   const double sR1 = roeU0 + roeA;
-  const double sR2 = uR + aR;
+  const double sR2 = uR + beta * aR;
   
   const double sL = std::min(sL1, sL2);
   const double sR = std::max(sR1, sR2);
@@ -446,6 +450,7 @@ Array1d Hllem<Dim>::ComputeStableDt(
   const CompleteArray& right = states[1];
 
   const Array1d gm1 = (equation_.gamma_array_ - Array1d::Constant(1.0));
+  const Array1d beta = gm1 / (2 * equation_.gamma_array_);
 
   // Compute Einfeldt signals velocities
     
@@ -466,10 +471,10 @@ Array1d Hllem<Dim>::ComputeStableDt(
   const Array1d roeH = (sqRhoL * hL + sqRhoR * hR) / sqRhoSum;
   const Array1d roeA2 = gm1 * (roeH  - 0.5 * roeU0 * roeU0);
   const Array1d roeA = roeA2.sqrt();
-  const Array1d sL1 = uL - aL;
+  const Array1d sL1 = uL - beta * aL;
   const Array1d sL2 = roeU0 - roeA;
   const Array1d sR1 = roeU0 + roeA;
-  const Array1d sR2 = uR + aR;
+  const Array1d sR2 = uR + beta * aR;
   
   const Array1d sL = sL1.min(sL2);
   const Array1d sR = sR1.max(sR2);
@@ -494,6 +499,7 @@ Array1d Hllem<Dim>::ComputeStableDt(
   MaskArray mask = face_fraction > 0.0;
 
   const Array1d gm1 = (equation_.gamma_array_ - Array1d::Constant(1.0));
+  const Array1d beta = gm1 / (2 * equation_.gamma_array_);
 
   // Compute Einfeldt signals velocities
     
@@ -521,10 +527,10 @@ Array1d Hllem<Dim>::ComputeStableDt(
   const Array1d roeH = (sqRhoL * hL + sqRhoR * hR) / sqRhoSum;
   const Array1d roeA2 = (gm1 * (roeH  - 0.5 * roeU0 * roeU0), zeros);
   const Array1d roeA = roeA2.sqrt();
-  const Array1d sL1 = uL - aL;
+  const Array1d sL1 = uL - beta * aL;
   const Array1d sL2 = roeU0 - roeA;
   const Array1d sR1 = roeU0 + roeA;
-  const Array1d sR2 = uR + aR;
+  const Array1d sR2 = uR + beta * aR;
   
   const Array1d sL = sL1.min(sL2);
   const Array1d sR = sR1.max(sR2);

@@ -119,7 +119,7 @@ template <int N> struct PerfectGas {
   Complete CompleteFromPrim(double density, const Array<double, N, 1>& u,
                             double pressure) const noexcept;
 
-  CompleteArray CompleteFromPrim(Array1d density, const Array<Array1d, N, 1>& u,
+  CompleteArray CompleteFromPrim(Array1d density, const Array<double, N>& u,
                             Array1d pressure) const noexcept;
 
   Array<double, N, 1> Velocity(const Complete& q) const noexcept;
