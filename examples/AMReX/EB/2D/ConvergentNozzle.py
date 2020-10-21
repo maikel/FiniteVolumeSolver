@@ -1,10 +1,10 @@
 import math
 
-plenum_x_n_cells = 64
+plenum_x_n_cells = 128
 tube_blocking_factor = 8
 plenum_blocking_factor = 8
 
-n_level = 2
+n_level = 3
 
 n_tubes = 6
 r_tube = 0.015
@@ -85,7 +85,7 @@ Plenum = {
     'max_number_of_levels': n_level, 
     'blocking_factor': [plenum_blocking_factor, plenum_blocking_factor, plenum_blocking_factor],
     'max_grid_size': [plenum_max_grid_size, plenum_max_grid_size, plenum_max_grid_size],
-    'ngrow_eb_level_set': 5,
+    'ngrow_eb_level_set': 9,
     'remove_covered_grids': False,
     'n_proper': 1,
     'n_error_buf': [0, 0, 0]
@@ -163,18 +163,18 @@ def OuterProbe(x0, k, alpha):
 
 Output = { 
   'outputs': [{
-    'type': 'Plotfiles',
-    'directory': 'ConvergentNozzle/Plotfiles/',
-    # 'intervals': [1e-5],
-    'frequencies': [1]
-  }, {
+    #type': 'Plotfiles',
+    #'directory': 'ConvergentNozzle/Plotfiles/',
+    #'intervals': [1e-5],
+    #'frequencies': [1]
+  #}, {
     'type': 'Checkpoint',
     'directory': 'ConvergentNozzle/Checkpoint/',
     'intervals': [1e-3],
     'frequencies': []
-  }, {
-    'type': 'CounterOutput',
-    'frequencies': [100]
+  #}, {
+    #'type': 'CounterOutput',
+   # 'frequencies': [100]
   }]
 }
 
@@ -182,5 +182,6 @@ IgniteDetonation = {
   'interval': 0.06,
   'measurement_position': -0.3, # -0.45
   'equivalence_ratio_criterium': 0.9,
-  'position': -0.8
+  'position': -0.8,
+  'offset': 0.017
 }

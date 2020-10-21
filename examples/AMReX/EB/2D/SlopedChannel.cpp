@@ -22,25 +22,70 @@
 #include "fub/AMReX_CutCell.hpp"
 #include "fub/Solver.hpp"
 
-#include <AMReX_EB2.H>
+#include "fub/AMReX/cutcell/boundary_condition/ConstantBoundary.hpp"
+
+#include <AMReX_EB2_IF_Complement.H>
 #include <AMReX_EB2_IF_Intersection.H>
+#include <AMReX_EB2_IF_Union.H>
 #include <AMReX_EB2_IF_Plane.H>
+
 
 static_assert(AMREX_SPACEDIM == 2);
 
 using Coord = Eigen::Vector2d;
 
+struct WaveFunction {
+  void InitializeData(fub::amrex::PatchLevel& patch_level,
+                      const fub::amrex::cutcell::GriddingAlgorithm& grid, int level,
+                      fub::Duration /*time*/) const {
+    ::amrex::MultiFab& data = patch_level.data;
+    const ::amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
+    const std::shared_ptr<::amrex::EBFArrayBoxFactory>& factory =
+        grid.GetPatchHierarchy().GetEmbeddedBoundary(level);
+    const ::amrex::MultiFab& volfrac = factory->getVolFrac();
+    fub::amrex::ForEachFab(fub::execution::openmp, data, [&](const ::amrex::MFIter& mfi) {
+      ::amrex::FArrayBox& fab = data[mfi];
+      const ::amrex::FArrayBox& alpha = volfrac[mfi];
+      ::amrex::Box box = mfi.tilebox();
+      auto states = fub::amrex::MakeView<fub::Complete<fub::PerfectGas<2>>>(fab, equation_, box);
+      fub::amrex::ForEachIndex(box, [&](std::ptrdiff_t i, std::ptrdiff_t j) {
+        Coord x(geom.CellCenter(i, 0), geom.CellCenter(j, 1));
+        const ::amrex::IntVect iv{int(i), int(j)};
+        if (alpha(iv) > 0.0) {
+          const double relative_x = (x - origin_).dot(direction_);
+          const double exponent = 2.0 * std::abs(relative_x) / width_;
+          const double exponent2 = exponent * exponent;
+          double rho = rho_0_ + std::exp(-exponent2);
+          fub::Array<double, 2, 1> u = u_0_ * direction_;
+          double p = p_0_;
+          fub::Complete<fub::PerfectGas<2>> state = equation_.CompleteFromPrim(rho, u, p);
+          fub::Store(states, state, {i, j});
+        } else {
+          for (int comp = 0; comp < fab.nComp(); ++comp) {
+            fab(iv, comp) = 0.0;
+          }
+        }
+      });
+    });
+  }
+
+  fub::PerfectGas<2> equation_;
+  Coord origin_;
+  Coord direction_;
+  double rho_0_{1.2};
+  double u_0_{30.0};
+  double p_0_{101325.0};
+  double width_{0.0141};
+};
+
 Coord OrthogonalTo(const Coord& x) { return Coord{x[1], -x[0]}; }
 
-auto Triangle(const Coord& p1, const Coord& p2, const Coord& p3) {
-  Coord norm1 = OrthogonalTo(p2 - p1).normalized();
-  Coord norm2 = OrthogonalTo(p3 - p2).normalized();
-  Coord norm3 = OrthogonalTo(p1 - p3).normalized();
-  amrex::EB2::PlaneIF plane1({p1[0], p1[1]}, {norm1[0], norm1[1]});
-  amrex::EB2::PlaneIF plane2({p2[0], p2[1]}, {norm2[0], norm2[1]});
-  amrex::EB2::PlaneIF plane3({p3[0], p3[1]}, {norm3[0], norm3[1]});
-  return amrex::EB2::makeIntersection(plane1, plane2, plane3);
+auto Plane(const Eigen::Vector2d& p0, const Eigen::Vector2d& p1) {
+  Eigen::Vector2d norm1 = OrthogonalTo(p1 - p0).normalized();
+  amrex::EB2::PlaneIF plane1({p0[0], p0[1]}, {norm1[0], norm1[1]}, false);
+  return amrex::EB2::makeComplement(plane1);
 }
+
 
 using FactoryFunction =
     std::function<fub::AnyFluxMethod<fub::amrex::cutcell::IntegratorContext>(
@@ -84,8 +129,17 @@ void MyMain(const fub::ProgramOptions& opts) {
   hier_opts.Print(log);
 
   BOOST_LOG(log) << "Compute EB level set data...";
-  auto embedded_boundary =
-      Triangle({0.02, 0.05}, {0.05, 0.0655}, {0.05, 0.0345});
+  const double theta = M_PI * 30.0 / 180.0;
+  const double W = 0.0141;
+
+  using std::sin;
+  using std::cos;
+  Eigen::Vector2d p0{0.0, 0.0};
+  Eigen::Vector2d p1{cos(theta), sin(theta)};
+  Eigen::Vector2d q0{p0[0] - W * sin(theta), p0[1] + W * cos(theta)};
+  Eigen::Vector2d q1{p1[0] - W * sin(theta), p1[1] + W * cos(theta)};
+
+  auto embedded_boundary = ::amrex::EB2::makeUnion(Plane(p0, p1), Plane(q1, q0));
   auto shop = amrex::EB2::makeShop(embedded_boundary);
   hier_opts.index_spaces =
       MakeIndexSpaces(shop, geometry, hier_opts);
@@ -115,37 +169,33 @@ void MyMain(const fub::ProgramOptions& opts) {
   BOOST_LOG(log) << "Reconstruction: " << reconstruction;
   auto flux_method = flux_method_factory.at(reconstruction)(equation);
 
-  fub::Conservative<fub::PerfectGas<2>> cons;
-  cons.density = 1.0;
-  cons.momentum << 0.0, 0.0;
-  cons.energy = 101325.0 * equation.gamma_minus_1_inv;
-  fub::Complete<fub::PerfectGas<2>> right;
-  fub::CompleteFromCons(equation, right, cons);
+  const double relative_origin = 0.035;
+  const Coord origin{relative_origin * cos(theta), relative_origin * sin(theta)};
+  const Coord direction{cos(theta), sin(theta)};
+  WaveFunction initial_data{equation, origin, direction};
 
-  cons.energy *= 5;
-  fub::Complete<fub::PerfectGas<2>> left;
-  fub::CompleteFromCons(equation, left, cons);
-
-  fub::amrex::cutcell::RiemannProblem initial_data(equation, fub::Halfspace({+1.0, 0.0, 0.0}, 0.015),
-                              left, right);
+  fub::Array<double, 2, 1> u = initial_data.u_0_ * initial_data.direction_;
+  fub::Complete<fub::PerfectGas<2>> state = equation.CompleteFromPrim(initial_data.rho_0_, u, initial_data.p_0_);
 
   using State = fub::Complete<fub::PerfectGas<2>>;
   fub::amrex::cutcell::GradientDetector gradients{equation, std::pair{&State::pressure, 0.05},
                              std::pair{&State::density, 0.005}};
 
-  using fub::amrex::cutcell::TransmissiveBoundary;
-  fub::amrex::cutcell::BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
-                                  TransmissiveBoundary{fub::Direction::X, 1},
-                                  TransmissiveBoundary{fub::Direction::Y, 0},
-                                  TransmissiveBoundary{fub::Direction::Y, 1}}};
+  using fub::amrex::cutcell::ConstantBoundary;
+  fub::amrex::cutcell::BoundarySet boundary_condition{
+                                 {  ConstantBoundary<fub::PerfectGas<2>>{fub::Direction::X, 0, equation, state},
+                                    ConstantBoundary<fub::PerfectGas<2>>{fub::Direction::X, 1, equation, state},
+                                    ConstantBoundary<fub::PerfectGas<2>>{fub::Direction::Y, 0, equation, state},
+                                    ConstantBoundary<fub::PerfectGas<2>>{fub::Direction::Y, 1, equation, state}}};
 
   using fub::amrex::cutcell::GriddingAlgorithm;
   using fub::amrex::cutcell::PatchHierarchy;
   using fub::amrex::cutcell::TagCutCells;
   using fub::amrex::cutcell::TagAllOf;
+  using fub::amrex::cutcell::TagBuffer;
   std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
       PatchHierarchy(equation, geometry, hier_opts), initial_data,
-      TagAllOf(TagCutCells(), gradients), boundary_condition);
+      TagAllOf(TagCutCells()), boundary_condition);
   gridding->InitializeHierarchy(0.0);
 
   using fub::amrex::cutcell::TimeIntegrator;
@@ -155,8 +205,8 @@ void MyMain(const fub::ProgramOptions& opts) {
                           Reconstruction{equation}};
 
   const int base_gcw = flux_method.GetStencilWidth();
-  const int scratch_gcw = base_gcw * 4;
-  const int flux_gcw = base_gcw * 3;
+  const int scratch_gcw = base_gcw * 2;
+  const int flux_gcw = base_gcw * 1;
   using fub::amrex::cutcell::IntegratorContext;
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<2>, IntegratorContext(gridding, method, scratch_gcw, flux_gcw),
@@ -165,7 +215,6 @@ void MyMain(const fub::ProgramOptions& opts) {
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 //   fub::NoSubcycleSolver solver(std::move(level_integrator));
 
-  std::string base_name = "Schardin/";
   using namespace std::literals::chrono_literals;
   using Plotfile = fub::amrex::cutcell::PlotfileOutput<fub::PerfectGas<2>>;
   using CounterOutput = fub::CounterOutput<GriddingAlgorithm,

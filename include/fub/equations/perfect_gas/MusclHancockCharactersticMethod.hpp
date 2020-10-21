@@ -23,6 +23,8 @@
 
 #include "fub/equations/PerfectGas.hpp"
 #include "fub/equations/perfect_gas/HllemMethod.hpp"
+#include "fub/equations/perfect_gas/EinfeldtSignalVelocities.hpp"
+#include "fub/flux_method/HllMethod.hpp"
 #include "fub/flux_method/MusclHancockMethod.hpp"
 
 namespace fub {
@@ -62,8 +64,12 @@ struct Primitives {
         pressure{q.pressure} {}
 
   Primitives(const Complete<PerfectGas<1>>& q)
-      : density{q.density}, velocity{q.momentum[0] / q.density, 0, 0},
-        pressure{q.pressure} {}
+      : density{q.density},
+        pressure{q.pressure} {
+    velocity[0] = q.momentum[0] / q.density;
+    velocity[1] = 0.0;
+    velocity[2] = 0.0;
+  }
 };
 
 struct PrimitivesArray {
@@ -163,7 +169,7 @@ private:
   CharacteristicsArray slopes_array_{};
   std::function<Array1d(Array1d, Array1d)> array_limiter_;
 
-  Hllem<Rank> hllem_{equation_};
+  HllMethod<PerfectGas<Rank>, EinfeldtSignalVelocities<PerfectGas<Rank>>> hllem_{equation_};
 };
 
 /// \ingroup FluxMethod

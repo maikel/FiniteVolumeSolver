@@ -80,6 +80,7 @@ void ComputeStableFluxes_Row(const Fluxes<double*, const double*>& fluxes,
     const Vc::double_v betaR(geom.betaR + face, Vc::Unaligned);
     const Vc::double_v betaUS(geom.betaUS + face, Vc::Unaligned);
     const Vc::double_v f_stable = betaUS * f + betaL * fsL + betaR * fsR;
+    FUB_ASSERT(none_of(isnan(f_stable)));
 
     fsL.store(fluxes.shielded_left + face, Vc::Unaligned);
     fsR.store(fluxes.shielded_right + face, Vc::Unaligned);

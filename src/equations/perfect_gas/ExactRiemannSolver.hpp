@@ -20,6 +20,7 @@
 
 #include "fub/equations/perfect_gas/ExactRiemannSolver.hpp"
 #include "fub/NewtonIteration.hpp"
+#include "fub/Duration.hpp"
 
 namespace fub {
 namespace {
@@ -299,6 +300,155 @@ void ExactRiemannSolver<PerfectGas<Dim>>::SolveRiemannProblem(
         set_momentum(state, state.density * u, right);
         state.pressure =
             pR * std::pow(2.0 / gp1 - g_ratio * uR / aR, 2.0 * g / gm1);
+        from_prim(state);
+      }
+    }
+  }
+
+  }
+}
+
+template <int Dim>
+void ExactRiemannSolver<PerfectGas<Dim>>::SolveRiemannProblem(
+    Complete& state, const Complete& left, const Complete& right, double pM, double uM, Duration dt, double dx,
+    Direction dir) {
+  const double lambda = dx / dt.count();
+  auto velocity = [dir](const Complete& state) {
+    return state.momentum[static_cast<int>(dir)] / state.density;
+  };
+  auto set_momentum = [dir](Complete& state, double momentum,
+                            const Complete& side) {
+    if constexpr (Dim == 1) {
+      (void)dir;
+      state.momentum = momentum;
+    } else {
+      state.momentum = state.density * (side.momentum / side.density);
+      state.momentum[static_cast<int>(dir)] = momentum;
+    }
+  };
+  auto from_prim = [eq = equation_](Complete& state) {
+    const double rhoE_kin = KineticEnergy_(state.density, state.momentum);
+    const double rhoE_internal = state.pressure * eq.gamma_minus_1_inv;
+    state.energy = rhoE_internal + rhoE_kin;
+    state.speed_of_sound = std::sqrt(eq.gamma * state.pressure / state.density);
+  };
+  if (0.0 < left.density && 0.0 < right.density) {
+  FUB_ASSERT(0.0 < left.density);
+  FUB_ASSERT(0.0 < left.pressure);
+  FUB_ASSERT(0.0 < right.density);
+  FUB_ASSERT(0.0 < right.pressure);
+  FUB_ASSERT(0.0 < pM);
+  const double g = equation_.gamma;
+  const double gp1 = g + 1.0;
+  const double gm1 = g - 1.0;
+
+  // (II) Determine Structure of Solution
+
+  // Left side is interesting
+  if (lambda <= uM) {
+    const double uL = velocity(left);
+    const double aL = left.speed_of_sound;
+    const double pL = left.pressure;
+    const double p_ratio = pM / pL;
+    const double g_ratio = gm1 / gp1;
+
+    // SHOCK CASE
+    if (pM > pL) {
+      const double shock_speed =
+          uL - aL * std::sqrt((gp1 * p_ratio + gm1) / (2.0 * g));
+      if (shock_speed < lambda) {
+        state.density =
+            left.density * (p_ratio + g_ratio) / (g_ratio * p_ratio + 1.0);
+        set_momentum(state, state.density * uM, left);
+        state.pressure = pM;
+        from_prim(state);
+      } else {
+        state.density = left.density;
+        state.momentum = left.momentum;
+        state.energy = left.energy;
+        state.pressure = left.pressure;
+        state.speed_of_sound = left.speed_of_sound;
+      }
+    }
+
+    // RAREFACTION CASE
+    else {
+      const double aM = aL * std::pow(p_ratio, gm1 / (2.0 * g));
+      const double shock_speed_TL = uM - aM;
+      const double shock_speed_HL = uL - aL;
+      if (lambda < shock_speed_HL) {
+        state.density = left.density;
+        state.momentum = left.momentum;
+        state.energy = left.energy;
+        state.pressure = left.pressure;
+        state.speed_of_sound = left.speed_of_sound;
+      } else if (shock_speed_TL < lambda) {
+        state.density = left.density * std::pow(p_ratio, 1 / g);
+        set_momentum(state, state.density * uM, left);
+        state.pressure = pM;
+        from_prim(state);
+      } else {
+        state.density =
+            left.density * std::pow(2.0 / gp1 + g_ratio * (uL - lambda) / aL, 2.0 / gm1);
+        const double u = 2.0 / gp1 * (aL + 0.5 * gm1 * uL + lambda);
+        set_momentum(state, state.density * u, left);
+        state.pressure =
+            pL * std::pow(2.0 / gp1 + g_ratio * (uL - lambda) / aL, 2.0 * g / gm1);
+        from_prim(state);
+      }
+    }
+  }
+
+  // Right Hand Side is interesting
+  else {
+    const double uR = velocity(right);
+    const double aR = right.speed_of_sound;
+    const double pR = right.pressure;
+    const double p_ratio = pM / pR;
+    const double g_ratio = gm1 / gp1;
+
+    // SHOCK CASE
+    if (pM > pR) {
+      const double shock_speed =
+          uR + aR * std::sqrt((gp1 * p_ratio + gm1) / (2.0 * g));
+      if (lambda < shock_speed) {
+        state.density =
+            right.density * (p_ratio + g_ratio) / (g_ratio * p_ratio + 1.0);
+        set_momentum(state, state.density * uM, right);
+        state.pressure = pM;
+        from_prim(state);
+      } else {
+        state.density = right.density;
+        state.momentum = right.momentum;
+        state.energy = right.energy;
+        state.pressure = right.pressure;
+        state.speed_of_sound = right.speed_of_sound;
+      }
+    }
+
+    // RAREFACTION CASE
+    else {
+      const double aM = aR * std::pow(p_ratio, gm1 / (2.0 * g));
+      const double shock_speed_TR = uM + aM;
+      const double shock_speed_HR = uR + aR;
+      if (shock_speed_HR <= lambda) {
+        state.density = right.density;
+        state.momentum = right.momentum;
+        state.energy = right.energy;
+        state.pressure = right.pressure;
+        state.speed_of_sound = right.speed_of_sound;
+      } else if (shock_speed_TR >= lambda) {
+        state.density = right.density * std::pow(p_ratio, 1 / g);
+        set_momentum(state, state.density * uM, right);
+        state.pressure = pM;
+        from_prim(state);
+      } else {
+        state.density =
+            right.density * std::pow(2.0 / gp1 - g_ratio * (uR - lambda) / aR, 2.0 / gm1);
+        const double u = 2.0 / gp1 * (-aR + 0.5 * gm1 * uR + lambda);
+        set_momentum(state, state.density * u, right);
+        state.pressure =
+            pR * std::pow(2.0 / gp1 - g_ratio * (uR - lambda) / aR, 2.0 * g / gm1);
         from_prim(state);
       }
     }

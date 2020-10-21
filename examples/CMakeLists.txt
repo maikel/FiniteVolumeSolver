@@ -13,6 +13,9 @@ function(add_executable_with_warnings TARGET)
   set_property(TARGET "${TARGET}" PROPERTY VISIBILITY_INLINES_HIDDEN "hidden")
 endfunction()
 
+add_executable_with_warnings(ExactRiemannProblem ExactRiemannProblem.cpp)
+target_link_libraries(ExactRiemannProblem FiniteVolumeSolver.Solver MPI::MPI_CXX MPI::MPI_C)
+
 if (AMReX_FOUND)
   add_executable_with_warnings(AMReX.PerfectGas1d AMReX/PerfectGas1d.cpp)
   target_link_libraries(AMReX.PerfectGas1d FiniteVolumeSolver.AMReX)
@@ -107,6 +110,9 @@ if (AMReX_FOUND AND AMReX_2D_FOUND)
 
     add_executable_with_warnings(AMReX.EB.Ramp2 AMReX/EB/2D/Ramp2.cpp)
     target_link_libraries(AMReX.EB.Ramp2 FiniteVolumeSolver.AMReX.EB)
+
+    add_executable_with_warnings(AMReX.EB.SlopedChannel AMReX/EB/2D/SlopedChannel.cpp)
+    target_link_libraries(AMReX.EB.SlopedChannel FiniteVolumeSolver.AMReX.EB)
 
     add_executable_with_warnings(AMReX.EB.Tube AMReX/EB/2D/Tube.cpp)
     target_link_libraries(AMReX.EB.Tube FiniteVolumeSolver.AMReX.EB)

@@ -2,12 +2,12 @@ import math
 
 RunOptions = {
   'cfl': 0.5,
-  'final_time': 0.1 / math.sqrt(101325.),
+  'final_time': 0.2 / math.sqrt(101325.),
   # 'final_time': 0.2,
 }
 
 GridGeometry = {
-  'cell_dimensions': [1024, 1024, 1],
+  'cell_dimensions': [200, 200, 1],
   'coordinates': {
     'lower': [-0.50, -0.50, -0.50],
     'upper': [+0.50, +0.50, +0.50],
@@ -22,11 +22,12 @@ PatchHierarchy = {
  'max_grid_size': [32, 32, 1],
 }
 
-# reconstruction = "HLLE"
+reconstruction = "HLLE"
+# reconstruction = "HLLEM"
 # reconstruction = "Primitive"
 # reconstruction = "Conservative"
 # reconstruction = "ConservativeM"
-reconstruction = "Characteristics"
+# reconstruction = "Characteristics"
 # reconstruction = "PerfectGas"
 
 paths = {
@@ -45,8 +46,5 @@ Output = {
     'directory': '{}_Plotfiles2'.format(paths[reconstruction]),
     'intervals': [RunOptions['final_time'] / 10.0],
     # 'frequencies': [1],
-  }, {
-    'type': 'CounterOutput',
-    'frequencies': [5]
   }]
 }

@@ -57,7 +57,7 @@ def PressureField(input):
 def H2Field(input):
     return input[:, 9, :, 0, 0]
 
-def MakeImages(dest, sources, field_function = PressureField, steps=[], chunkSize=100, title=None):
+def MakeImages(dest, sources, field_function = PressureField, steps=[], chunkSize=100, title=None, vmin=None, vmax=None):
     if steps:
         iStart = [steps[0] for source in sources]
         iEnd = [steps[1] for source in sources]
@@ -82,7 +82,7 @@ def MakeImages(dest, sources, field_function = PressureField, steps=[], chunkSiz
     tube_id = 0
     for (ax, t, field) in zip(np.reshape(axs, 6), all_times, all_fields):
         xs = np.linspace(0.0, 1.5, field.shape[1])
-        im = ax.imshow(field, origin='lower', interpolation='none', extent=(np.amin(xs), np.amax(xs), np.amin(t), np.amax(t)), aspect='auto', vmin=1e4, vmax=3e5)
+        im = ax.imshow(field, origin='lower', interpolation='none', extent=(np.amin(xs), np.amax(xs), np.amin(t), np.amax(t)), aspect='auto', vmin=vmin, vmax=vmax)
         ax.set_title('Tube {}'.format(tube_id + 1))
         ax.set_xlabel('X-Position [m]')
         ax.set_ylabel('Time [s]')
@@ -94,10 +94,10 @@ def MakeImages(dest, sources, field_function = PressureField, steps=[], chunkSiz
         fig.suptitle(title, fontsize=16)
     fig.savefig(dest)
     fig.clf()
-        
 
-slurm_id = 5343973
-paths = ['/scratch/guttula/MultiTube_blocking/{}/MultiTube/Slices/Tube_{}.h5'.format(slurm_id, i) for i in range(0, 6)]
-# dest = '/home/guttula/FiniteVolumeSolver/extra/MultiTube/{}/H2.png'.format(slurm_id)
-dest = '/home/guttula/FiniteVolumeSolver/extra/MultiTube/{}/Pressure.png'.format(slurm_id)
-MakeImages(dest, paths, field_function=PressureField, chunkSize=1000, title='Pressure within the Tubes')
+slurm_id = 'local'
+paths = ['/srv/public/Maikel/FiniteVolumeSolver/build_3D-Release/MultiTube/Slices/Tube_{}.h5'.format(i) for i in range(0, 6)]
+dest = '/srv/public/Maikel/FiniteVolumeSolver/extra/MultiTube/{}/H2.png'.format(slurm_id)
+#dest = '/srv/public/Maikel/FiniteVolumeSolver/extra/MultiTube/{}/Pressure.png'.format(slurm_id)
+#MakeImages(dest, paths, field_function=PressureField, chunkSize=1000, title='Pressure within the Tubes', vmin=1e4, vmax=3e5)
+MakeImages(dest, paths, field_function=H2Field, chunkSize=1000, title='H2 within the Tubes')

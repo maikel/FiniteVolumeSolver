@@ -1,7 +1,7 @@
 import math
 
 RunOptions = {
-  'cfl': 0.5,
+  'cfl': 0.8,
   # 'final_time': 0.2 / math.sqrt(101325.),
   'final_time': 0.2,
 }
@@ -19,12 +19,12 @@ PatchHierarchy = {
  'max_number_of_levels': 1,
  'refine_ratio': [2, 1, 1],
  'blocking_factor': [8, 1, 1],
- 'max_grid_size': [100, 1, 1],
+ 'max_grid_size': [200, 1, 1],
 }
 
-reconstruction = "Characteristics"
+# reconstruction = "Characteristics"
 # reconstruction = "Primitive"
-# reconstruction = "ConservativeM"
+reconstruction = "ConservativeM"
 # reconstruction = "Conservative"
 # reconstruction = "HLLEM"
 # reconstruction = "HLLE"
@@ -36,7 +36,7 @@ paths = {
   'Conservative': './Conservative.h5',
   'ConservativeM': './ConservativeM.h5',
   'Primitive': './IdealGasMix_Prim.h5',
-  'Characteristics': './Characteristics2.h5',
+  'Characteristics': './Characteristics3.h5',
   'PerfectGas': './PerfectGas1d_cfl05.h5'
 }
 

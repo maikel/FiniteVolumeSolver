@@ -18,13 +18,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/equations/perfect_gas/EinfeldtSignalVelocities.hpp"
 
+#include "fub/equations/perfect_gas/EinfeldtSignalVelocities.hpp"
 namespace fub {
 
 template <int Dim>
 std::array<double, 2> EinfeldtSignalVelocities<PerfectGas<Dim>>::operator()(
-    const PerfectGas<Dim>&, const Complete& left, const Complete& right,
+    const PerfectGas<Dim>& equation, const Complete& left, const Complete& right,
     Direction dir) const noexcept {
   FUB_ASSERT(left.density > 0.0);
   FUB_ASSERT(right.density > 0.0);
@@ -38,13 +38,22 @@ std::array<double, 2> EinfeldtSignalVelocities<PerfectGas<Dim>>::operator()(
   const double aR = right.speed_of_sound;
   const double sqRhoL = std::sqrt(rhoL);
   const double sqRhoR = std::sqrt(rhoR);
+  const double oosqRhoSum = 1.0 / (sqRhoL + sqRhoR);
   const double uL = rhoUL / rhoL;
   const double uR = rhoUR / rhoR;
-  const double roeU = (sqRhoL * uL + sqRhoR * uR) / (sqRhoL + sqRhoR);
-  const double roeA = std::sqrt(
-      (sqRhoL * aL * aL + sqRhoR * aR * aR) / (sqRhoL + sqRhoR) +
-      0.5 * (sqRhoL * sqRhoR) / ((sqRhoL + sqRhoR) * (sqRhoL + sqRhoR)) *
-          (uR - uL) * (uR - uL));
+  auto roeAvg = [=](double xL, double xR) {
+    return (xL * sqRhoL + xR * sqRhoR) * oosqRhoSum;
+  };
+  const double roeU = roeAvg(uL, uR);
+  const double rhoEL = left.energy;
+  const double rhoER = right.energy;
+  const double pL = left.pressure;
+  const double pR = right.pressure;
+  const double hL = (rhoEL + pL) / rhoL;
+  const double hR = (rhoER + pR) / rhoR;
+  const double roeH = roeAvg(hL, hR);
+  const double roeA2 =(equation.gamma - 1.0) * (roeH  - 0.5 * roeU * roeU);
+  const double roeA = std::sqrt(roeA2);
   const double sL1 = uL - aL;
   const double sL2 = roeU - roeA;
   const double sR1 = roeU + roeA;
@@ -54,7 +63,7 @@ std::array<double, 2> EinfeldtSignalVelocities<PerfectGas<Dim>>::operator()(
 
 template <int Dim>
 std::array<Array1d, 2> EinfeldtSignalVelocities<PerfectGas<Dim>>::operator()(
-    const PerfectGas<Dim>&, const CompleteArray& left,
+    const PerfectGas<Dim>& equation, const CompleteArray& left,
     const CompleteArray& right, Direction dir) const noexcept {
   const Array1d rhoL = left.density;
   const Array1d rhoR = right.density;
@@ -66,12 +75,20 @@ std::array<Array1d, 2> EinfeldtSignalVelocities<PerfectGas<Dim>>::operator()(
   const Array1d sqRhoR = rhoR.sqrt();
   const Array1d uL = rhoUL / rhoL;
   const Array1d uR = rhoUR / rhoR;
-  const Array1d roeU = (sqRhoL * uL + sqRhoR * uR) / (sqRhoL + sqRhoR);
-  const Array1d roeA =
-      ((sqRhoL * aL * aL + sqRhoR * aR * aR) / (sqRhoL + sqRhoR) +
-       0.5 * (sqRhoL * sqRhoR) / ((sqRhoL + sqRhoR) * (sqRhoL + sqRhoR)) *
-           (uR - uL) * (uR - uL))
-          .sqrt();
+  const Array1d oosqRhoSum = Array1d::Constant(1.0) / (sqRhoL + sqRhoR);
+  auto roeAvg = [=](Array1d xL, Array1d xR) {
+    return (xL * sqRhoL + xR * sqRhoR) * oosqRhoSum;
+  };
+  const Array1d roeU = roeAvg(uL, uR);
+  const Array1d rhoEL = left.energy;
+  const Array1d rhoER = right.energy;
+  const Array1d pL = left.pressure;
+  const Array1d pR = right.pressure;
+  const Array1d hL = (rhoEL + pL) / rhoL;
+  const Array1d hR = (rhoER + pR) / rhoR;
+  const Array1d roeH = roeAvg(hL, hR);
+  const Array1d roeA2 = (equation.gamma_array_ - Array1d::Constant(1.0)) * (roeH  - Array1d::Constant(0.5) * roeU * roeU);
+  const Array1d roeA = roeA2.sqrt();
   const Array1d sL1 = uL - aL;
   const Array1d sL2 = roeU - roeA;
   const Array1d sR1 = roeU + roeA;
@@ -81,7 +98,7 @@ std::array<Array1d, 2> EinfeldtSignalVelocities<PerfectGas<Dim>>::operator()(
 
 template <int Dim>
 std::array<Array1d, 2> EinfeldtSignalVelocities<PerfectGas<Dim>>::operator()(
-    const PerfectGas<Dim>&, const CompleteArray& left,
+    const PerfectGas<Dim>& equation, const CompleteArray& left,
     const CompleteArray& right, const MaskArray& mask, Direction dir) const
     noexcept {
   const Array1d rhoL = left.density;
@@ -104,12 +121,19 @@ std::array<Array1d, 2> EinfeldtSignalVelocities<PerfectGas<Dim>>::operator()(
   const Array1d uR = rhoUR / rhoRs;
   const Array1d sqRhoL_over_sqRho = sqRhoL / sqRho;
   const Array1d sqRhoR_over_sqRho = sqRhoR / sqRho;
-  const Array1d roeU = sqRhoL_over_sqRho * uL + sqRhoR_over_sqRho * uR;
-  const Array1d roeA =
-      (sqRhoL_over_sqRho * aL * aL + sqRhoR_over_sqRho * aR * aR +
-       Array1d::Constant(0.5) * sqRhoL_over_sqRho * sqRhoR_over_sqRho *
-           (uR - uL) * (uR - uL))
-          .sqrt();
+  auto roeAvg = [=](Array1d xL, Array1d xR) {
+    return (xL * sqRhoL_over_sqRho + xR * sqRhoR_over_sqRho);
+  };
+  const Array1d roeU = roeAvg(uL, uR);
+  const Array1d rhoEL = mask.select(left.energy, zero);
+  const Array1d rhoER = mask.select(right.energy, zero);
+  const Array1d pL = mask.select(left.pressure, zero);
+  const Array1d pR = mask.select(right.pressure, zero);
+  const Array1d hL = (rhoEL + pL) / rhoL;
+  const Array1d hR = (rhoER + pR) / rhoR;
+  const Array1d roeH = roeAvg(hL, hR);
+  const Array1d roeA2 = (equation.gamma_array_ - Array1d::Constant(1.0)) * (roeH  - Array1d::Constant(0.5) * roeU * roeU);
+  const Array1d roeA = roeA2.sqrt();
   const Array1d sL1 = uL - aL;
   const Array1d sL2 = roeU - roeA;
   const Array1d sR1 = roeU + roeA;

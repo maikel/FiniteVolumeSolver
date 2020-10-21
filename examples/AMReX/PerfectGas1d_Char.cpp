@@ -76,7 +76,7 @@ template <typename FluxMethod> struct MakeFlux {
   fub::AnyFluxMethod<fub::amrex::IntegratorContext>
   operator()(const fub::PerfectGas<1>& eq) const {
     FluxMethod flux_method{eq};
-    fub::amrex::FluxMethodAdapter adapter(std::move(flux_method));
+    fub::amrex::FluxMethodAdapter adapter(fub::execution::seq, std::move(flux_method));
     return adapter;
   }
 };
