@@ -303,9 +303,9 @@ int AnyFluxMethod<IntegratorContext>::GetStencilWidth() const {
 }
 
 namespace detail {
-template <typename I, typename C>
+template <typename I, typename... Args>
 using PreAdvanceHierarchyT =
-    decltype(std::declval<I>().PreAdvanceHierarchy(std::declval<C>()));
+    decltype(std::declval<I>().PreAdvanceHierarchy(std::declval<Args>()...));
 
 template <typename IntegratorContext, typename I>
 struct FluxMethodWrapper : FluxMethodBase<IntegratorContext> {

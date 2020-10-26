@@ -119,11 +119,6 @@ public:
                              const CutCellData<Rank>& cutcell_data, Duration dt,
                              double dx, Direction dir);
 
-  void
-  ReflectCoveredStates(const std::array<int, StencilSize>& is_covered,
-                       const std::array<std::ptrdiff_t, sRank> leftmost_cell,
-                       const CutCellData<Rank>& cutcell_data, Direction dir);
-
   using FM::ComputeStableDt;
 
   /// \todo compute stable dt inside of cutcells, i.e. in the reflection with
@@ -141,9 +136,8 @@ public:
                             const View<Conservative>& shielded_left_fluxes,
                             const View<Conservative>& shielded_right_fluxes,
                             const View<Conservative>& doubly_shielded_fluxes,
+                            const View<Conservative>& boundary_fluxes,
                             const View<const Conservative>& regular_fluxes,
-
-                            const View<const Conservative>& boundary_fluxes,
                             const View<const Complete>& states,
                             const CutCellData<Rank>& cutcell_data, Duration dt,
                             double dx, Direction dir);
@@ -258,86 +252,6 @@ void KbnCutCellMethod<FM, RiemannSolver>::ComputeBoundaryFluxes(
       Store(boundary_fluxes, boundary_flux_left_, cell);
     }
   });
-}
-
-template <typename FM, typename RiemannSolver>
-void KbnCutCellMethod<FM, RiemannSolver>::ReflectCoveredStates(
-    const std::array<int, StencilSize>& is_covered,
-    const std::array<std::ptrdiff_t, sRank> /* leftmost_cell */,
-    const CutCellData<Rank>& /* cutcell_data */, Direction dir) {
-  const Equation& equation = FM::GetEquation();
-  if constexpr (StencilWidth == 1) {
-    if (is_covered[0] == 2) {
-      const Eigen::Matrix<double, Rank, 1> normal = UnitVector<Rank>(dir);
-      Reflect(stencil_[0], stencil_[1], normal, equation);
-    } else if (is_covered[1] == 2) {
-      const Eigen::Matrix<double, Rank, 1> normal = -UnitVector<Rank>(dir);
-      Reflect(stencil_[0], stencil_[1], normal, equation);
-    }
-  } else if constexpr (StencilWidth == 2) {
-    // Do cases for | X | R | X | X |
-    if (is_covered[1] == 0) {
-      // Check for
-      // | B | R | X | X | or
-      // | R | R | X | X |
-      if (is_covered[0] == 2) {
-        const Eigen::Matrix<double, Rank, 1> normal = UnitVector<Rank>(dir);
-        Reflect(stencil_[0], stencil_[1], normal, equation);
-      }
-      // Check for
-      // | X | R | B | (R|SV) | or
-      // | X | R | B | B |      or
-      // | X | R | SV | B |
-      // | X | R| R | B |
-      if (is_covered[2] == 2) {
-        const Eigen::Matrix<double, Rank, 1> normal = -UnitVector<Rank>(dir);
-        Reflect(stencil_[2], stencil_[1], normal, equation);
-        if (is_covered[3] == 2) {
-          Reflect(stencil_[3], stencil_[0], normal, equation);
-        }
-      } else if (is_covered[2] == 1 && is_covered[3] == 2) {
-        //          const Eigen::Matrix<double, Rank, 1> normal =
-        //          GetBoundaryNormal(cutcell_data, Shift(leftmost_cell, dir,
-        //          2)); Reflect(stencil_[3], stencil_[2], normal, equation);
-        stencil_[3] = stencil_[2];
-      } else if (is_covered[2] == 0 && is_covered[3] == 2) {
-        const Eigen::Matrix<double, Rank, 1> normal = -UnitVector<Rank>(dir);
-        Reflect(stencil_[3], stencil_[2], normal, equation);
-      }
-    } else {
-      // Do cases for | X | X | R | X |
-      FUB_ASSERT(is_covered[2] == 0);
-      // Check for
-      // | X | X | R | B | or
-      // | X | X | R | (R|SV) |
-      if (is_covered[3] == 2) {
-        const Eigen::Matrix<double, Rank, 1> normal = -UnitVector<Rank>(dir);
-        Reflect(stencil_[3], stencil_[2], normal, equation);
-      }
-
-      if (is_covered[1] == 2) {
-        const Eigen::Matrix<double, Rank, 1> normal = UnitVector<Rank>(dir);
-        Reflect(stencil_[1], stencil_[2], normal, equation);
-        if (is_covered[0] == 2) {
-          Reflect(stencil_[0], stencil_[3], normal, equation);
-        }
-      } else if (is_covered[0] == 2 && is_covered[1] == 1) {
-        //          const Eigen::Matrix<double, Rank, 1> normal =
-        //          GetBoundaryNormal(cutcell_data, Shift(leftmost_cell, dir,
-        //          1)); Reflect(stencil_[0], stencil_[1], normal, equation);
-        stencil_[0] = stencil_[1];
-      }
-      //        else if (is_covered[1] == 0 && is_covered[0] == 1) {
-      //          const Eigen::Matrix<double, Rank, 1> normal =
-      //          UnitVector<Rank>(dir); Reflect(stencil_[0], stencil_[1],
-      //          normal, equation);
-      //        }
-    }
-  } else {
-    FUB_ASSERT(false);
-    //      static_assert(false, "ReflectCoveredStates is not implemented for
-    //      this stencil width");
-  }
 }
 
 /// \todo compute stable dt inside of cutcells, i.e. in the reflection with
@@ -502,8 +416,8 @@ void KbnCutCellMethod<FM, RiemannSolver>::ComputeCutCellFluxes(
     const View<Conservative>& shielded_left_fluxes,
     const View<Conservative>& shielded_right_fluxes,
     const View<Conservative>& /* doubly_shielded_fluxes */,
+    const View<Conservative>& boundary_fluxes,
     const View<const Conservative>& regular_fluxes,
-    const View<const Conservative>& boundary_fluxes,
     const View<const Complete>& /* states */, const CutCellData<Rank>& geom,
     Duration dt, double dx, Direction dir) {
   ForEachComponent(
@@ -514,7 +428,7 @@ void KbnCutCellMethod<FM, RiemannSolver>::ComputeCutCellFluxes(
                                     regular, boundary, geom, dt, dx, dir);
       },
       stabilised_fluxes, shielded_left_fluxes, shielded_right_fluxes,
-      regular_fluxes, boundary_fluxes);
+      regular_fluxes, AsConst(boundary_fluxes));
 }
 
 } // namespace fub

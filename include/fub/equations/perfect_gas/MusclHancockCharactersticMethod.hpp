@@ -169,7 +169,8 @@ private:
   CharacteristicsArray slopes_array_{};
   std::function<Array1d(Array1d, Array1d)> array_limiter_;
 
-  HllMethod<PerfectGas<Rank>, EinfeldtSignalVelocities<PerfectGas<Rank>>> hllem_{equation_};
+  // HllMethod<PerfectGas<Rank>, EinfeldtSignalVelocities<PerfectGas<Rank>>> hllem_{equation_};
+  HllemMethod<Rank> hllem_{equation_};
 };
 
 /// \ingroup FluxMethod

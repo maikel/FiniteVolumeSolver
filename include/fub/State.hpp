@@ -164,6 +164,7 @@ template <typename Eq> struct Conservative : ConservativeBase<Eq> {
   Conservative(const ConservativeBase<Eq>& x) : ConservativeBase<Eq>{x} {}
   Conservative& operator=(const ConservativeBase<Eq>& x) {
     static_cast<ConservativeBase<Eq>&>(*this) = x;
+    return *this;
   }
   Conservative(const Equation& eq) : ConservativeBase<Eq>{} {
     auto depths = Depths<Conservative<Equation>>(eq);
@@ -180,6 +181,12 @@ template <typename Eq> struct Conservative : ConservativeBase<Eq> {
             },
         },
         *this, depths);
+  }
+
+  Conservative& operator+=(const Conservative& other) {
+    ForEachVariable([](auto&& that, auto&& other) { that += other; }, *this,
+                    other);
+    return *this;
   }
 };
 
@@ -224,6 +231,12 @@ template <typename Eq> struct Complete : CompleteBase<Eq> {
             },
         },
         *this, depths);
+  }
+
+  Complete& operator+=(const Complete& other) {
+    ForEachVariable([](auto&& that, auto&& other) { that += other; }, *this,
+                    other);
+    return *this;
   }
 };
 
@@ -282,7 +295,7 @@ struct BasicView : ViewBase<S, L, R> {
 };
 
 template <typename S, typename L, int R>
-BasicView(const BasicView<S, L, R>&)->BasicView<S, L, R>;
+BasicView(const BasicView<S, L, R>&) -> BasicView<S, L, R>;
 
 template <typename S, typename L, int R>
 struct StateTraits<BasicView<S, L, R>> : StateTraits<ViewBase<S, L, R>> {};
@@ -365,8 +378,8 @@ template <typename Eq> struct DepthsImpl<Complete<Eq>, Eq> {
 };
 
 template <typename Eq> struct DepthsImpl<Conservative<Eq>, Eq> {
-  constexpr typename Eq::ConservativeDepths operator()(const Eq&) const
-      noexcept {
+  constexpr typename Eq::ConservativeDepths
+  operator()(const Eq&) const noexcept {
     return {};
   }
 };
@@ -384,14 +397,14 @@ template <typename T> struct GetNumberOfComponentsImpl {
   int_constant<1> operator()(int) const noexcept { return {}; }
 
   template <std::size_t N>
-  int_constant<static_cast<int>(N)> operator()(const std::array<int, N>&) const
-      noexcept {
+  int_constant<static_cast<int>(N)>
+  operator()(const std::array<int, N>&) const noexcept {
     return {};
   }
 
   template <int N, int M, int O, int MR, int MC>
-  int_constant<N> operator()(const Eigen::Array<double, N, M, O, MR, MC>&) const
-      noexcept {
+  int_constant<N>
+  operator()(const Eigen::Array<double, N, M, O, MR, MC>&) const noexcept {
     return {};
   }
 
@@ -408,12 +421,12 @@ template <typename T> struct GetNumberOfComponentsImpl {
 
 template <typename S, typename Layout, int Rank>
 struct GetNumberOfComponentsImpl<BasicView<S, Layout, Rank>> {
-  int_constant<1> operator()(const PatchDataView<double, Rank, Layout>&) const
-      noexcept {
+  int_constant<1>
+  operator()(const PatchDataView<double, Rank, Layout>&) const noexcept {
     return {};
   }
-  int operator()(const PatchDataView<double, Rank + 1, Layout>& pdv) const
-      noexcept {
+  int operator()(
+      const PatchDataView<double, Rank + 1, Layout>& pdv) const noexcept {
     return static_cast<int>(pdv.Extent(Rank));
   }
 };
@@ -434,20 +447,20 @@ template <typename T> struct AtComponentImpl {
   }
 
   template <int N>
-  const double& operator()(const Eigen::Array<double, N, 1>& x, int n) const
-      noexcept {
+  const double& operator()(const Eigen::Array<double, N, 1>& x,
+                           int n) const noexcept {
     return x[n];
   }
 
   template <int N, int M, int O, int MR, int MC>
-  auto operator()(Eigen::Array<double, N, M, O, MR, MC>& x, int n) const
-      noexcept {
+  auto operator()(Eigen::Array<double, N, M, O, MR, MC>& x,
+                  int n) const noexcept {
     return x.row(n);
   }
 
   template <int N, int M, int O, int MR, int MC>
-  auto operator()(const Eigen::Array<double, N, M, O, MR, MC>& x, int n) const
-      noexcept {
+  auto operator()(const Eigen::Array<double, N, M, O, MR, MC>& x,
+                  int n) const noexcept {
     return x.row(n);
   }
 };
@@ -457,14 +470,14 @@ struct AtComponentImpl<BasicView<S, Layout, Rank>> {
   using ValueType = typename BasicView<S, Layout, Rank>::ValueType;
 
   const PatchDataView<ValueType, Rank, Layout>&
-  operator()(const PatchDataView<ValueType, Rank, Layout>& x, int) const
-      noexcept {
+  operator()(const PatchDataView<ValueType, Rank, Layout>& x,
+             int) const noexcept {
     return x;
   }
 
   PatchDataView<ValueType, Rank, Layout>
-  operator()(const PatchDataView<ValueType, Rank + 1, Layout>& x, int n) const
-      noexcept {
+  operator()(const PatchDataView<ValueType, Rank + 1, Layout>& x,
+             int n) const noexcept {
     constexpr std::size_t sRank = Rank;
     std::array<std::ptrdiff_t, sRank + 1> index{};
     index[sRank] = n;
@@ -500,7 +513,8 @@ void ForEachComponent(F function, Ts&&... states) {
         const auto vs = std::make_tuple(std::addressof(variables)...);
         using T =
             remove_cvref_t<boost::mp11::mp_first<boost::mp11::mp_list<Ts...>>>;
-        const int n_components = detail::GetNumberOfComponents<T>(*std::get<0>(vs));
+        const int n_components =
+            detail::GetNumberOfComponents<T>(*std::get<0>(vs));
         for (int i = 0; i < n_components; ++i) {
           function(detail::AtComponent<remove_cvref_t<Ts>>(variables, i)...);
         }
@@ -627,7 +641,7 @@ template <typename State>
 struct StateTraits<ViewPointer<State>> : StateTraits<ViewPointerBase<State>> {};
 
 template <typename State>
-ViewPointer(const ViewPointer<State>&)->ViewPointer<State>;
+ViewPointer(const ViewPointer<State>&) -> ViewPointer<State>;
 
 template <typename State, typename Layout, int Rank>
 ViewPointer<State> Begin(const BasicView<State, Layout, Rank>& view) {

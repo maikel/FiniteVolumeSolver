@@ -140,6 +140,7 @@ PatchHierarchy::GetCutCellData(int level_number,
   const PatchLevel& level = GetPatchLevel(level_number);
   cutcell_data.volume_fractions =
       MakePatchDataView(level.factory->getVolFrac()[mfi], 0);
+  cutcell_data.volume_centeroid = MakePatchDataView(level.factory->getCentroid()[mfi]);
   cutcell_data.boundary_normals =
       MakePatchDataView(level.factory->getBndryNormal()[mfi]);
   cutcell_data.boundary_centeroids =

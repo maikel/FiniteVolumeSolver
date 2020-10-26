@@ -20,6 +20,7 @@
 
 #include "fub/AMReX/cutcell/TimeIntegrator.hpp"
 #include "fub/AMReX/ForEachFab.hpp"
+#include "fub/ForEach.hpp"
 #include "fub/HyperbolicPatchIntegrator.hpp"
 #include "fub/StateRow.hpp"
 #include "fub/ext/Vc.hpp"
@@ -380,6 +381,91 @@ void TimeIntegrator::UpdateConservatively(IntegratorContext& context, int level,
 
         UpdateConservatively_View(scratch_view, fluxesL, fluxesR, fluxesB,
                                   fractions, dt_over_dx);
+      }
+    } else if (type == ::amrex::FabType::regular) {
+      ::amrex::FArrayBox& next = scratch[mfi];
+      const ::amrex::FArrayBox& prev = scratch[mfi];
+      const ::amrex::FArrayBox& flux = unshielded[mfi];
+      const ::amrex::Box tilebox = mfi.growntilebox();
+      const ::amrex::Box all_faces_tilebox = ::amrex::surroundingNodes(tilebox, dir_v);
+      const ::amrex::Box all_fluxes_box = flux.box();
+      const ::amrex::Box flux_box = all_faces_tilebox & all_fluxes_box;
+      const ::amrex::Box cell_box = enclosedCells(flux_box);
+
+      const IndexBox<AMREX_SPACEDIM + 1> cells = Embed<AMREX_SPACEDIM + 1>(
+          AsIndexBox<AMREX_SPACEDIM>(cell_box), {0, n_cons});
+      auto nv = MakePatchDataView(next).Subview(cells);
+      auto pv = MakePatchDataView(prev).Subview(cells);
+      const auto faces = Embed<AMREX_SPACEDIM + 1>(
+          AsIndexBox<AMREX_SPACEDIM>(flux_box), {0, n_cons});
+      auto fv = MakePatchDataView(flux).Subview(faces);
+      HyperbolicPatchIntegrator<execution::OpenMpSimdTag>::UpdateConservatively(
+          nv, pv, fv, dt, dx, dir);
+    }
+  });
+}
+
+void TimeIntegrator2::UpdateConservatively(IntegratorContext& context, int level,
+                                          Duration dt, Direction dir) {
+  ::amrex::MultiFab& scratch = context.GetScratch(level);
+  const ::amrex::MultiFab& unshielded = context.GetFluxes(level, dir);
+  const ::amrex::MultiFab& stabilized = context.GetStabilizedFluxes(level, dir);
+  const ::amrex::MultiCutFab& boundary = context.GetBoundaryFluxes(level);
+  const PatchHierarchy& hierarchy = context.GetPatchHierarchy();
+  const int n_cons = hierarchy.GetDataDescription().n_cons_components;
+
+  const double dx = context.GetDx(level, dir);
+  const double dt_over_dx = dt.count() / dx;
+  // const auto d = static_cast<std::size_t>(dir);
+  const auto dir_v = static_cast<int>(dir);
+
+  ForEachFab(execution::openmp, scratch, [&](const ::amrex::MFIter& mfi) {
+    ::amrex::FabType type = context.GetFabType(level, mfi);
+    const ::amrex::Box tilebox = mfi.growntilebox();
+    const ::amrex::Box all_faces_tilebox = ::amrex::surroundingNodes(tilebox, dir_v);
+    const ::amrex::Box all_fluxes_box = unshielded[mfi].box();
+    const ::amrex::Box flux_box = all_faces_tilebox & all_fluxes_box;
+    const ::amrex::Box cell_box = enclosedCells(flux_box);
+    const IndexBox<AMREX_SPACEDIM> cells = AsIndexBox<AMREX_SPACEDIM>(cell_box);
+    const IndexBox<AMREX_SPACEDIM> faces = AsIndexBox<AMREX_SPACEDIM>(flux_box);
+    if (type == ::amrex::FabType::singlevalued) {
+      CutCellData<AMREX_SPACEDIM> geom = hierarchy.GetCutCellData(level, mfi);
+      const IndexBox<AMREX_SPACEDIM> facesL = Grow(faces, dir, {0, -1});
+      const IndexBox<AMREX_SPACEDIM> facesR = Grow(faces, dir, {-1, 0});
+      for (int comp = 0; comp < n_cons; ++comp) {
+        View<double> scratch_view = MakeView(scratch[mfi], cells, comp);
+        View<const double> alpha = geom.volume_fractions.Subview(cells);
+        View<const double> betaL = geom.face_fractions[dir_v].Subview(facesL);
+        View<const double> betaR = geom.face_fractions[dir_v].Subview(facesR);
+        View<const double> fluxL = MakeView(stabilized[mfi], facesL, comp);
+        View<const double> fluxR = MakeView(stabilized[mfi], facesR, comp);
+        View<const double> fluxB = MakeView(boundary[mfi], cells, comp);
+        ForEachIndex(cells, [&](auto... is) {
+          const Index<AMREX_SPACEDIM> cell{is...};
+          const double volfrac = alpha(cell);
+          if (volfrac > 0.0) {
+            const Index<AMREX_SPACEDIM> faceL = cell;
+            const Index<AMREX_SPACEDIM> faceR = Shift(cell, dir, 1);
+            const double bL = betaL(faceL);
+            const double bR = betaR(faceR);
+            if (bL == bR) {
+              FUB_ASSERT(volfrac == bL);
+              const double fL = fluxL(faceL);
+              const double fR = fluxR(faceR);
+              const double prev = scratch_view(cell);
+              const double next = prev + dt_over_dx * (fL - fR);
+              scratch_view(cell) = next;
+            } else {
+              const double dB = bL - bR;
+              const double fL = fluxL(faceL);
+              const double fR = fluxR(faceR);
+              const double fB = fluxB(cell);
+              const double prev = scratch_view(cell);
+              const double next = prev + dt_over_dx / volfrac * (bL * fL - bR * fR - dB * fB);
+              scratch_view(cell) = next;
+            }
+          }
+        });
       }
     } else if (type == ::amrex::FabType::regular) {
       ::amrex::FArrayBox& next = scratch[mfi];

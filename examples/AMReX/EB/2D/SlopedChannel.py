@@ -1,18 +1,18 @@
 RunOptions = {
   'cfl': 0.4,
   'final_time': 0.0015,
-  'max_cycles': -1, # -1 means infinite and 0 means only initial condition
+  'max_cycles': -1, # means infinite and 0 means only initial condition
 }
 
 def AlignForBlockingFactor(n, blocking_factor):
   return n - n % blocking_factor
 
-blocking_factor = 2
+blocking_factor = 1
 
-factor=2
-n_cells_x = 100*factor
-n_cells_y = AlignForBlockingFactor(70*factor, blocking_factor)
-n_levels = 2
+factor=4
+n_cells_x = 50*factor
+n_cells_y = AlignForBlockingFactor(35*factor, blocking_factor)
+n_levels = 1
 
 GridGeometry = {
   'cell_dimensions': [n_cells_x, n_cells_y, 1],
@@ -41,11 +41,13 @@ Output = {
   'outputs': [{
     'type': 'Plotfile',
     'directory': 'ReferenceData/SlopedChannel_{}_{}x{}-{}/'.format(reconstruction, n_cells_x, n_cells_y, n_levels),
-    'intervals': [1e-4]
+    'intervals': [5e-5],
+    # 'frequencies': [1] 
   },
   {
     'type': 'HDF5',
     'path': 'ReferenceData/SlopedChannel_{}_{}x{}-{}.h5'.format(reconstruction, n_cells_x, n_cells_y, n_levels),
-    'intervals': [1e-4],
+    'intervals': [5e-5],
+    # 'frequencies': [1] 
   }]
 }

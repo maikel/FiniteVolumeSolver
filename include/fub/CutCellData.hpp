@@ -31,6 +31,7 @@ template <int Rank> struct CutCellData {
 
   // The next member variables are given by AMReX
   PatchDataView<const double, Rank> volume_fractions;
+  PatchDataView<const double, Rank + 1> volume_centeroid;
   std::array<PatchDataView<const double, Rank>, sRank> face_fractions;
   PatchDataView<const double, Rank + 1> boundary_normals;
   PatchDataView<const double, Rank + 1> boundary_centeroids;
