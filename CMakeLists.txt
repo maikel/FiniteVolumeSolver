@@ -216,6 +216,7 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/flux_method/HllMethod.hpp
   include/fub/flux_method/MusclHancockMethod.hpp
   include/fub/cutcell_method/KbnStabilisation.hpp
+  include/fub/cutcell_method/MyStabilisation.hpp
   include/fub/initial_data/Constant.hpp
   include/fub/initial_data/ShockMachnumber.hpp
   include/fub/tagging_method/GradientDetector.hpp
@@ -319,6 +320,7 @@ add_library(FiniteVolumeSolver.Solver
   src/geometry/Cone.cpp
   src/equations/ideal_gas_mix/mechanism/Burke2012.cpp
   src/cutcell_method/KbnStabilisation.cpp
+  src/cutcell_method/MyStabilisation.cpp
   src/tagging_method/TagBuffer.cpp
   src/tagging_method/TagCutCells.cpp
   src/ext/Mpi.cpp
@@ -347,7 +349,8 @@ target_link_libraries(FiniteVolumeSolver.Solver
     Boost::serialization
     Eigen3::Eigen
     Vc::Vc
-    pybind11::embed)
+    pybind11::embed
+    CONAN_PKG::gsl)
 target_include_directories(FiniteVolumeSolver.Solver
   PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)

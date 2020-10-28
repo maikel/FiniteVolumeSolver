@@ -3,7 +3,7 @@ import math
 RunOptions = {
   'cfl': 0.4,
   'final_time': 0.0015,
-  'max_cycles': -1, # means infinite and 0 means only initial condition
+  'max_cycles': 0, # means infinite and 0 means only initial condition
 }
 
 def AlignForBlockingFactor(n, blocking_factor):
@@ -39,19 +39,19 @@ PatchHierarchy = {
 reconstruction = "Characteristics"
 # reconstruction = "Conservative"
 
-origin = 0.035
+origin = 0.035 + 0.045
 theta = math.pi * 45.0 / 180.0
 
 Output = { 
   'outputs': [{
     'type': 'Plotfile',
-    'directory': 'ReferenceData/SlopedChannel_old_{}_{}x{}-{}/'.format(reconstruction, n_cells_x, n_cells_y, n_levels),
+    'directory': 'ReferenceData/SlopedChannel_ref_{}_{}x{}-{}/'.format(reconstruction, n_cells_x, n_cells_y, n_levels),
     'intervals': [1e-4],
     # 'frequencies': [1] 
   },
   {
     'type': 'HDF5',
-    'path': 'ReferenceData/SlopedChannel_old_{}_{}x{}-{}.h5'.format(reconstruction, n_cells_x, n_cells_y, n_levels),
+    'path': 'ReferenceData/SlopedChannel_ref_{}_{}x{}-{}.h5'.format(reconstruction, n_cells_x, n_cells_y, n_levels),
     'intervals': [1e-4],
     # 'frequencies': [1] 
   }]

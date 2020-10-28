@@ -61,6 +61,9 @@ template <int Dim> struct Hllem {
                           Array1d face_fraction, span<const Array1d, 2>,
                           double dx, Direction dir);
 
+  void SolveRiemannProblem(Complete& solution, const Complete& left,
+                           const Complete& right, Direction dir);
+
   PerfectGas<Dim> equation_;
 };
 

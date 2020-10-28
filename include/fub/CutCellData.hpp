@@ -65,6 +65,22 @@ GetBoundaryNormal(const CutCellData<2>& ccdata,
 GetBoundaryNormal(const CutCellData<3>& ccdata,
                   const std::array<std::ptrdiff_t, 3>& index);
 
+[[nodiscard]] Eigen::Vector2d
+GetBoundaryCentroid(const CutCellData<2>& ccdata,
+                  const std::array<std::ptrdiff_t, 2>& index);
+
+[[nodiscard]] Eigen::Vector3d
+GetBoundaryCentroid(const CutCellData<3>& ccdata,
+                  const std::array<std::ptrdiff_t, 3>& index);
+
+[[nodiscard]] Eigen::Vector2d
+GetVolumeCentroid(const CutCellData<2>& ccdata,
+                  const std::array<std::ptrdiff_t, 2>& index);
+
+[[nodiscard]] Eigen::Vector3d
+GetVolumeCentroid(const CutCellData<3>& ccdata,
+                  const std::array<std::ptrdiff_t, 3>& index);
+
 } // namespace fub
 
 #endif

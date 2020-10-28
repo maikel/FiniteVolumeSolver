@@ -39,6 +39,40 @@ Eigen::Vector3d GetBoundaryNormal(const CutCellData<3>& ccdata,
   return normal;
 }
 
+Eigen::Vector2d GetBoundaryCentroid(const CutCellData<2>& ccdata,
+                                    const std::array<std::ptrdiff_t, 2>& index) {
+  Eigen::Vector2d centroid;
+  centroid[0] = ccdata.boundary_centeroids(index[0], index[1], 0);
+  centroid[1] = ccdata.boundary_centeroids(index[0], index[1], 1);
+  return centroid;
+}
+
+Eigen::Vector3d GetBoundaryCentroid(const CutCellData<3>& ccdata,
+                                    const std::array<std::ptrdiff_t, 3>& index) {
+  Eigen::Vector3d centroid;
+  centroid[0] = ccdata.boundary_centeroids(index[0], index[1], index[2], 0);
+  centroid[1] = ccdata.boundary_centeroids(index[0], index[1], index[2], 1);
+  centroid[2] = ccdata.boundary_centeroids(index[0], index[1], index[2], 2);
+  return centroid;
+}
+
+Eigen::Vector2d GetVolumeCentroid(const CutCellData<2>& ccdata,
+                                    const std::array<std::ptrdiff_t, 2>& index) {
+  Eigen::Vector2d centroid;
+  centroid[0] = ccdata.volume_centeroid(index[0], index[1], 0);
+  centroid[1] = ccdata.volume_centeroid(index[0], index[1], 1);
+  return centroid;
+}
+
+Eigen::Vector3d GetVolumeCentroid(const CutCellData<3>& ccdata,
+                                    const std::array<std::ptrdiff_t, 3>& index) {
+  Eigen::Vector3d centroid;
+  centroid[0] = ccdata.volume_centeroid(index[0], index[1], index[2], 0);
+  centroid[1] = ccdata.volume_centeroid(index[0], index[1], index[2], 1);
+  centroid[2] = ccdata.volume_centeroid(index[0], index[1], index[2], 2);
+  return centroid;
+}
+
 namespace {
 template <int Rank>
 bool IsCutCell_(const CutCellData<Rank>& geom,

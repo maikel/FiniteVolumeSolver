@@ -112,7 +112,15 @@ namespace detail {
 template <typename T, typename... Args>
 using ComputeBoundaryFluxesT =
     decltype(std::declval<T>().ComputeBoundaryFluxes(std::declval<Args>()...));
-}
+
+template <typename T, typename... Args>
+using ComputeCutCellFluxes =
+    decltype(std::declval<T>().ComputeCutCellFluxes(std::declval<Args>()...));
+
+template <typename T, typename... Args>
+using ComputeGradients =
+    decltype(std::declval<T>().ComputeGradients(std::declval<Args>()...));
+} // namespace detail
 
 template <typename Tag, typename FM>
 void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
@@ -129,7 +137,14 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
   ::amrex::MultiFab& fluxes_sR = context.GetShieldedFromRightFluxes(level, dir);
   ::amrex::MultiFab& fluxes_ds = context.GetDoublyShieldedFluxes(level, dir);
 
+  [[maybe_unused]] ::amrex::MultiFab gradient_x;
+  [[maybe_unused]] ::amrex::MultiFab gradient_y;
+  [[maybe_unused]] ::amrex::MultiFab gradient_z;
+
   const double dx = context.GetDx(level, dir);
+  const Eigen::Matrix<double, AMREX_SPACEDIM, 1> dx_vec{AMREX_D_DECL(
+      context.GetDx(level, Direction::X), context.GetDx(level, Direction::Y),
+      context.GetDx(level, Direction::Z))};
 
   boundary_fluxes.setVal(0.0);
   if constexpr (is_detected<detail::ComputeBoundaryFluxesT, FM&,
@@ -152,6 +167,39 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
             MakeView<const Complete<Equation>>(references[mfi], equation, box);
         flux_method_->ComputeBoundaryFluxes(boundary_flux, states, refs, geom,
                                             dt, dx, dir);
+      }
+    });
+  }
+
+  if constexpr (is_detected<
+                    detail::ComputeGradients, FM&, View<Conservative<Equation>>,
+                    View<Conservative<Equation>>, View<Conservative<Equation>>,
+                    View<const Conservative<Equation>>,
+                    CutCellData<AMREX_SPACEDIM>,
+                    Eigen::Matrix<double, AMREX_SPACEDIM, 1>>::value) {
+    const ::amrex::BoxArray ba = scratch.boxArray();
+    const ::amrex::DistributionMapping dm = scratch.DistributionMap();
+    const int ncons = fluxes.nComp();
+    const ::amrex::IntVect ngrow = scratch.nGrowVect();
+    gradient_x.define(ba, dm, ncons, ngrow);
+    gradient_y.define(ba, dm, ncons, ngrow);
+    gradient_z.define(ba, dm, ncons, ngrow);
+    ForEachFab(Tag(), scratch, [&](const ::amrex::MFIter& mfi) {
+      const ::amrex::Box box = mfi.growntilebox();
+      const ::amrex::FabType type = context.GetFabType(level, mfi);
+      if (type == ::amrex::FabType::singlevalued) {
+        CutCellData<AMREX_SPACEDIM> geom = hierarchy.GetCutCellData(level, mfi);
+        const Equation& equation = flux_method_->GetEquation();
+        auto states =
+            MakeView<const Conservative<Equation>>(scratch[mfi], equation, box);
+        auto grad_x =
+            MakeView<Conservative<Equation>>(gradient_x[mfi], equation, box);
+        auto grad_y =
+            MakeView<Conservative<Equation>>(gradient_y[mfi], equation, box);
+        auto grad_z =
+            MakeView<Conservative<Equation>>(gradient_z[mfi], equation, box);
+        flux_method_->ComputeGradients(grad_x, grad_y, grad_z, states, geom,
+                                      dx_vec);
       }
     });
   }
@@ -188,9 +236,34 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
                                                      equation, cell_box);
       auto states =
           MakeView<const Complete<Equation>>(scratch[mfi], equation, cell_box);
-      flux_method_->ComputeCutCellFluxes(flux_s, flux_sL, flux_sR, flux_ds,
-                                         flux_B, flux, states, geom, dt, dx,
-                                         dir);
+      if constexpr (is_detected<detail::ComputeCutCellFluxes, FM&,
+                                View<Conservative<Equation>>,
+                                View<Conservative<Equation>>,
+                                View<Conservative<Equation>>,
+                                View<Conservative<Equation>>,
+                                View<Conservative<Equation>>,
+                                View<const Conservative<Equation>>,
+                                View<const Conservative<Equation>>,
+                                View<const Conservative<Equation>>,
+                                View<const Conservative<Equation>>,
+                                View<const Complete<Equation>>,
+                                CutCellData<AMREX_SPACEDIM>, Duration,
+                                Eigen::Matrix<double, AMREX_SPACEDIM, 1>,
+                                Direction>::value) {
+        auto grad_x = MakeView<const Conservative<Equation>>(
+            gradient_x[mfi], equation, cell_box);
+        auto grad_y = MakeView<const Conservative<Equation>>(
+            gradient_y[mfi], equation, cell_box);
+        auto grad_z = MakeView<const Conservative<Equation>>(
+            gradient_z[mfi], equation, cell_box);
+        flux_method_->ComputeCutCellFluxes(flux_s, flux_sL, flux_sR, flux_ds,
+                                           flux_B, grad_x, grad_y, grad_z, flux,
+                                           states, geom, dt, dx_vec, dir);
+      } else {
+        flux_method_->ComputeCutCellFluxes(flux_s, flux_sL, flux_sR, flux_ds,
+                                           flux_B, flux, states, geom, dt, dx,
+                                           dir);
+      }
     } else if (type == ::amrex::FabType::regular) {
       auto flux =
           MakeView<Conservative<Equation>>(fluxes[mfi], equation, face_box);

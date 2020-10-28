@@ -23,6 +23,148 @@
 namespace fub::perfect_gas {
 
 template <int Dim>
+void Hllem<Dim>::SolveRiemannProblem(Complete& solution,
+                                      const Complete& left,
+                                      const Complete& right,
+                                      Direction dir) {
+
+  Conservative fluxL;
+  Conservative fluxR;
+  equation_.Flux(fluxL, left, dir);
+  equation_.Flux(fluxR, right, dir);
+
+  const double gm1 = equation_.gamma - 1.0;
+  const double beta = gm1 / (2 * equation_.gamma);
+
+  // Compute Einfeldt signals velocities
+  
+  int d = static_cast<int>(dir);
+
+  const double rhoL = left.density;
+  const double rhoR = right.density;
+  const double rhoUL = left.momentum[d];
+  const double rhoUR = right.momentum[d];
+  const double uL = rhoUL / rhoL;
+  const double uR = rhoUR / rhoR;
+  const double aL = left.speed_of_sound;
+  const double aR = right.speed_of_sound;
+  const double rhoEL = left.energy;
+  const double rhoER = right.energy;
+  const double hL = (left.energy + left.pressure) / rhoL;
+  const double hR = (right.energy + right.pressure) / rhoR;
+  const double sqRhoL = std::sqrt(rhoL);
+  const double sqRhoR = std::sqrt(rhoR);
+  const double sqRhoSum = sqRhoL + sqRhoR;
+  Array<double, 1, Dim> vL = left.momentum / rhoL;
+  Array<double, 1, Dim> vR = right.momentum / rhoR;
+  FUB_ASSERT(sqRhoSum > 0.0);
+  Array<double, 1, Dim> roeU = (sqRhoL * vL + sqRhoR * vR) / sqRhoSum;
+  const double roeU0 = roeU[d];
+  const double roeH = (sqRhoL * hL + sqRhoR * hR) / sqRhoSum;
+  const double roeA2 = gm1 * (roeH  - 0.5 * roeU.matrix().squaredNorm());
+  const double roeA = std::sqrt(roeA2);
+  const double sL1 = uL - beta * aL;
+  const double sL2 = roeU0 - roeA;
+  const double sR1 = roeU0 + roeA;
+  const double sR2 = uR + beta * aR;
+  
+  const double sL = std::min(sL1, sL2);
+  const double sR = std::max(sR1, sR2);
+
+  const double bL = std::min(sL, 0.0);
+  const double bR = std::max(sR, 0.0);
+  const double db = bR - bL;
+  const double db_positive = int(db <= 0) + int(db > 0) * db;
+
+  Conservative w_hlle;
+  ForEachComponent(
+      [&](double& w, double fL, double fR, double qL, double qR) {
+        w = (bR * qR - bL * qL + fL - fR) / db_positive;
+      },
+      w_hlle, fluxL, fluxR, AsCons(left), AsCons(right));
+
+  const double squaredNormRoeU = roeU.matrix().squaredNorm();
+  const double squaredNormRoeU_half = 0.5 * squaredNormRoeU;
+  const double u_bar = 0.5 * (sR + sL);
+  const double u_bar_abs = std::abs(u_bar);
+  const double delta = roeA / (roeA + u_bar_abs);
+
+  const double deltaRho = rhoR - rhoL;
+  const Array<double, 1, Dim> deltaRhoU = right.momentum - left.momentum;
+  const double deltaRhoE = rhoER - rhoEL;
+  
+  Conservative w_hllem;
+  if constexpr (Dim == 1) {
+    const double l21 = gm1 / roeA2 * (roeH - roeU.matrix().squaredNorm());
+    const double l22 = gm1 / roeA2 * roeU[0];
+    const double l23 = gm1 / roeA2 * (-1.0);
+    const double alpha_2 = l21 * deltaRho + l22 * deltaRhoU[0] + l23 * deltaRhoE;
+    const double u_bar_delta_alpha_2 = u_bar * delta * alpha_2;
+    w_hllem.density  = w_hlle.density  - u_bar_delta_alpha_2 * 1.0;
+    w_hllem.momentum = w_hlle.momentum - u_bar_delta_alpha_2 * roeU[0];
+    w_hllem.energy   = w_hlle.energy   - u_bar_delta_alpha_2 * squaredNormRoeU_half;
+  } else if constexpr (Dim == 2) {
+    const int ix = int(dir);
+    const int iy = (ix + 1) % 2;
+    const double l21 = gm1 / roeA2 * (roeH - roeU.matrix().squaredNorm());
+    const double l22 = gm1 / roeA2 * roeU[0];
+    const double l23 = gm1 / roeA2 * roeU[1];
+    const double l24 = gm1 / roeA2 * (-1.0);
+    const double alpha_2 = l21 * deltaRho + l22 * deltaRhoU[0] + l23 * deltaRhoU[1] + l24 * deltaRhoE;
+    const double l31 = -roeU[iy];
+    // const double l32 = 0;
+    const double l33 = 1;
+    // const double l34 = 0;
+    const double alpha_3 = l31 * deltaRho + l33 * deltaRhoU[iy];
+    const double u_bar_delta_alpha_2 = u_bar * delta * alpha_2;
+    const double u_bar_delta_alpha_3 = u_bar * delta * alpha_3;
+    w_hllem.density     = w_hlle.density       - u_bar_delta_alpha_2 * 1.0;
+    w_hllem.momentum[ix] = w_hlle.momentum[ix] - u_bar_delta_alpha_2 * roeU[ix];
+    w_hllem.momentum[iy] = w_hlle.momentum[iy] - u_bar_delta_alpha_2 * roeU[iy]             - u_bar_delta_alpha_3 * 1.0;
+    w_hllem.energy      = w_hlle.energy        - u_bar_delta_alpha_2 * squaredNormRoeU_half - u_bar_delta_alpha_3 * roeU[iy];
+  } else {
+    static_assert(Dim == 3);
+    const int ix = int(dir);
+    const int iy = (ix + 1) % 3;
+    const int iz = (iy + 1) % 3;
+    const double l21 = gm1 / roeA2 * (roeH - roeU.matrix().squaredNorm());
+    const double l22 = gm1 / roeA2 * roeU[0];
+    const double l23 = gm1 / roeA2 * roeU[1];
+    const double l24 = gm1 / roeA2 * roeU[2];
+    const double l25 = gm1 / roeA2 * (-1.0);
+    const double l31 = -roeU[iy];
+    // const double l32 = 0;
+    const double l33 = 1;
+    // const double l34 = 0;
+    // const double l34 = 0;
+    const double l41 = -roeU[iz];
+    // const double l32 = 0;
+    // const double l33 = 0;
+    const double l44 = 1;
+    // const double l34 = 0;
+    const double alpha_2 = l21 * deltaRho + l22 * deltaRhoU[0] + l23 * deltaRhoU[1] + l24 * deltaRhoU[2] + l25 * deltaRhoE;
+    const double alpha_3 = l31 * deltaRho + l33 * deltaRhoU[iy];
+    const double alpha_4 = l41 * deltaRho + l44 * deltaRhoU[iz];
+    const double u_bar_delta = u_bar * delta;
+    w_hllem.density      = w_hlle.density      - u_bar_delta *  alpha_2;
+    w_hllem.momentum[ix] = w_hlle.momentum[ix] - u_bar_delta *  alpha_2 * roeU[ix];
+    w_hllem.momentum[iy] = w_hlle.momentum[iy] - u_bar_delta * (alpha_2 * roeU[iy]             + alpha_3 * 1.0);
+    w_hllem.momentum[iz] = w_hlle.momentum[iz] - u_bar_delta * (alpha_2 * roeU[iz]                                  + alpha_4 * 1.0);
+    w_hllem.energy       = w_hlle.energy       - u_bar_delta * (alpha_2 * squaredNormRoeU_half + alpha_3 * roeU[iy] + alpha_4 * roeU[iz]);
+  }
+
+  if (0.0 < sL) {
+    solution = left;
+  } else if (sR < 0.0) {
+    solution = right;
+  } else {
+    AsCons(solution) = w_hllem;
+    CompleteFromCons(GetEquation(), solution, solution);
+  }
+}
+
+
+template <int Dim>
 void Hllem<Dim>::ComputeNumericFlux(
     Conservative& flux, span<const Complete, 2> states,
     Duration /* dt */, double /* dx */, Direction dir) {

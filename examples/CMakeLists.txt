@@ -114,6 +114,9 @@ if (AMReX_FOUND AND AMReX_2D_FOUND)
     add_executable_with_warnings(AMReX.EB.SlopedChannel AMReX/EB/2D/SlopedChannel.cpp)
     target_link_libraries(AMReX.EB.SlopedChannel FiniteVolumeSolver.AMReX.EB)
 
+    add_executable_with_warnings(AMReX.EB.SlopedChannel_new AMReX/EB/2D/SlopedChannel_new.cpp)
+    target_link_libraries(AMReX.EB.SlopedChannel_new FiniteVolumeSolver.AMReX.EB)
+
     add_executable_with_warnings(AMReX.EB.Tube AMReX/EB/2D/Tube.cpp)
     target_link_libraries(AMReX.EB.Tube FiniteVolumeSolver.AMReX.EB)
 

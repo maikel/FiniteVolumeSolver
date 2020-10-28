@@ -48,6 +48,7 @@ struct WaveFunction {
         fub::execution::openmp, data, [&](const ::amrex::MFIter& mfi) {
           ::amrex::FArrayBox& fab = data[mfi];
           const ::amrex::FArrayBox& alpha = volfrac[mfi];
+          fub::CutCellData<2> ccgeom = grid.GetPatchHierarchy().GetCutCellData(level, mfi);
           ::amrex::Box box = mfi.tilebox();
           auto states = fub::amrex::MakeView<fub::Complete<fub::PerfectGas<2>>>(
               fab, equation_, box);
@@ -56,7 +57,8 @@ struct WaveFunction {
                 Coord x(geom.CellCenter(i, 0), geom.CellCenter(j, 1));
                 const ::amrex::IntVect iv{int(i), int(j)};
                 if (alpha(iv) > 0.0) {
-                  const double relative_x = (x - origin_).dot(direction_);
+                  Coord xM = x + fub::GetVolumeCentroid(ccgeom, {i, j});
+                  const double relative_x = (xM - origin_).dot(direction_);
                   const double exponent = 2.0 * std::abs(relative_x) / width_;
                   const double exponent2 = exponent * exponent;
                   double rho = rho_0_ + std::exp(-exponent2);
@@ -104,11 +106,7 @@ template <typename... Pairs> auto GetFluxMethodFactory(Pairs... ps) {
 template <typename FluxMethod> struct MakeFlux {
   fub::AnyFluxMethod<fub::amrex::cutcell::IntegratorContext>
   operator()(const fub::PerfectGas<2>& eq) const {
-    // fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
-    // fub::HllMethod hll_method{eq, signals};
-    fub::perfect_gas::HllemMethod<2> hllem_method{eq};
-    FluxMethod flux_method{eq};
-    fub::KbnCutCellMethod cutcell_method(flux_method, hllem_method);
+    fub::MyCutCellMethod<fub::PerfectGas<2>, FluxMethod> cutcell_method(eq);
     fub::amrex::cutcell::FluxMethod adapter(std::move(cutcell_method));
     return adapter;
   }
@@ -149,6 +147,10 @@ void MyMain(const fub::ProgramOptions& opts) {
   auto shop = amrex::EB2::makeShop(embedded_boundary);
   hier_opts.index_spaces = MakeIndexSpaces(shop, geometry, hier_opts);
 
+  using Complete = fub::PerfectGas<2>::Complete;
+  fub::amrex::cutcell::GradientDetector gradient(
+      equation, std::pair{&Complete::density, 1.0e-2});
+
   using namespace std::literals;
   using HLLE =
       fub::HllMethod<fub::PerfectGas<2>,
@@ -186,6 +188,11 @@ void MyMain(const fub::ProgramOptions& opts) {
   fub::Complete<fub::PerfectGas<2>> state =
       equation.CompleteFromPrim(initial_data.rho_0_, u, initial_data.p_0_);
 
+  using State = fub::Complete<fub::PerfectGas<2>>;
+  fub::amrex::cutcell::GradientDetector gradients{
+      equation, std::pair{&State::pressure, 0.05},
+      std::pair{&State::density, 0.005}};
+
   using fub::amrex::cutcell::ConstantBoundary;
   fub::amrex::cutcell::BoundarySet boundary_condition{
       {ConstantBoundary<fub::PerfectGas<2>>{fub::Direction::X, 0, equation,
@@ -213,12 +220,12 @@ void MyMain(const fub::ProgramOptions& opts) {
                                                Reconstruction{equation}};
 
   const int base_gcw = flux_method.GetStencilWidth();
-  const int scratch_gcw = base_gcw;
-  const int flux_gcw = 0;
+  const int scratch_gcw = 2*base_gcw;
+  const int flux_gcw = base_gcw;
   using fub::amrex::cutcell::IntegratorContext;
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<2>, IntegratorContext(gridding, method, scratch_gcw, flux_gcw),
-      fub::GodunovSplitting());
+      fub::StrangSplitting());
 
   // fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
   fub::NoSubcycleSolver solver(std::move(level_integrator));

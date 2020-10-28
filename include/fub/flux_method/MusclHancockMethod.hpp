@@ -76,12 +76,14 @@ struct VanLeer {
   double operator()(double sL, double sR) const noexcept {
     double c = 2.0 * sL * sR;
     return (c > 0.0) ? c / (sL + sR) : 0.0;
+    // return 0.0;
   }
 
   Array1d operator()(Array1d sL, Array1d sR) const noexcept {
     Array1d r = 2.0 * sL * sR;
     Array1d result = (r > 0.0).select(r / (sL + sR), 0.0);
     return result;
+    // return Array1d::Zero();
   }
 
   template <typename Equation>
