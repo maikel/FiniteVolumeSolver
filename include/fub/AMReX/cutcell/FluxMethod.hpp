@@ -28,6 +28,10 @@
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/cutcell/IntegratorContext.hpp"
 
+#include "fub/AMReX/cutcell/tagging_method/TagBuffer.hpp"
+
+#include <AMReX_EBAmrUtil.H>
+
 #include <memory>
 
 namespace fub::amrex::cutcell {
@@ -175,6 +179,7 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
                     detail::ComputeGradients, FM&, View<Conservative<Equation>>,
                     View<Conservative<Equation>>, View<Conservative<Equation>>,
                     View<const Conservative<Equation>>,
+                    StridedDataView<const char, AMREX_SPACEDIM>,
                     CutCellData<AMREX_SPACEDIM>,
                     Eigen::Matrix<double, AMREX_SPACEDIM, 1>>::value) {
     const ::amrex::BoxArray ba = scratch.boxArray();
@@ -184,11 +189,16 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
     gradient_x.define(ba, dm, ncons, ngrow);
     gradient_y.define(ba, dm, ncons, ngrow);
     gradient_z.define(ba, dm, ncons, ngrow);
+    ::amrex::TagBoxArray limiter_flags(ba, dm, ngrow);
+    ::amrex::TagCutCells(limiter_flags, context.GetData(level));
+    TagBuffer(2).TagCellsForRefinement(limiter_flags);
+
     ForEachFab(Tag(), scratch, [&](const ::amrex::MFIter& mfi) {
       const ::amrex::Box box = mfi.growntilebox();
       const ::amrex::FabType type = context.GetFabType(level, mfi);
       if (type == ::amrex::FabType::singlevalued) {
         CutCellData<AMREX_SPACEDIM> geom = hierarchy.GetCutCellData(level, mfi);
+        auto flags = MakePatchDataView(limiter_flags[mfi], 0, box);
         const Equation& equation = flux_method_->GetEquation();
         auto states =
             MakeView<const Conservative<Equation>>(scratch[mfi], equation, box);
@@ -198,8 +208,8 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
             MakeView<Conservative<Equation>>(gradient_y[mfi], equation, box);
         auto grad_z =
             MakeView<Conservative<Equation>>(gradient_z[mfi], equation, box);
-        flux_method_->ComputeGradients(grad_x, grad_y, grad_z, states, geom,
-                                      dx_vec);
+        flux_method_->ComputeGradients(grad_x, grad_y, grad_z, states, flags,
+                                       geom, dx_vec);
       }
     });
   }

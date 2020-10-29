@@ -57,9 +57,10 @@ struct WaveFunction {
                 const ::amrex::IntVect iv{int(i), int(j)};
                 if (alpha(iv) > 0.0) {
                   const double relative_x = (x - origin_).dot(direction_);
-                  const double exponent = 2.0 * std::abs(relative_x) / width_;
-                  const double exponent2 = exponent * exponent;
-                  double rho = rho_0_ + std::exp(-exponent2);
+                  double rho = std::max(std::min(rho_0_ + relative_x, rho_0_), rho_0_ + width_);
+                  // const double exponent = 2.0 * std::abs(relative_x) / width_;
+                  // const double exponent2 = exponent * exponent;
+                  // double rho = rho_0_ + std::exp(-exponent2);
                   fub::Array<double, 2, 1> u = u_0_ * direction_;
                   double p = p_0_;
                   fub::Complete<fub::PerfectGas<2>> state =

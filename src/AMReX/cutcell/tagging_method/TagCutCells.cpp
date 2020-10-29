@@ -32,7 +32,7 @@ namespace fub::amrex::cutcell {
 
 void TagCutCells::TagCellsForRefinement(::amrex::TagBoxArray& tags_array,
                                         const GriddingAlgorithm& gridding,
-                                        int level, Duration) const noexcept {
+                                        int level, Duration) noexcept {
   ::amrex::TagCutCells(tags_array,
                        gridding.GetPatchHierarchy().GetPatchLevel(level).data);
 }

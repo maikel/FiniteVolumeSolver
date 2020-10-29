@@ -48,7 +48,8 @@ struct WaveFunction {
         fub::execution::openmp, data, [&](const ::amrex::MFIter& mfi) {
           ::amrex::FArrayBox& fab = data[mfi];
           const ::amrex::FArrayBox& alpha = volfrac[mfi];
-          fub::CutCellData<2> ccgeom = grid.GetPatchHierarchy().GetCutCellData(level, mfi);
+          fub::CutCellData<2> ccgeom =
+              grid.GetPatchHierarchy().GetCutCellData(level, mfi);
           ::amrex::Box box = mfi.tilebox();
           auto states = fub::amrex::MakeView<fub::Complete<fub::PerfectGas<2>>>(
               fab, equation_, box);
@@ -59,9 +60,11 @@ struct WaveFunction {
                 if (alpha(iv) > 0.0) {
                   Coord xM = x + fub::GetVolumeCentroid(ccgeom, {i, j});
                   const double relative_x = (xM - origin_).dot(direction_);
-                  const double exponent = 2.0 * std::abs(relative_x) / width_;
-                  const double exponent2 = exponent * exponent;
-                  double rho = rho_0_ + std::exp(-exponent2);
+                  // const double exponent = 2.0 * std::abs(relative_x) /
+                  // width_; const double exponent2 = exponent * exponent;
+                  // double rho = rho_0_ + std::exp(-exponent2);
+                  double rho = std::min(std::max(rho_0_ + relative_x, rho_0_),
+                                        rho_0_ + width_);
                   fub::Array<double, 2, 1> u = u_0_ * direction_;
                   double p = p_0_;
                   fub::Complete<fub::PerfectGas<2>> state =
@@ -147,10 +150,6 @@ void MyMain(const fub::ProgramOptions& opts) {
   auto shop = amrex::EB2::makeShop(embedded_boundary);
   hier_opts.index_spaces = MakeIndexSpaces(shop, geometry, hier_opts);
 
-  using Complete = fub::PerfectGas<2>::Complete;
-  fub::amrex::cutcell::GradientDetector gradient(
-      equation, std::pair{&Complete::density, 1.0e-2});
-
   using namespace std::literals;
   using HLLE =
       fub::HllMethod<fub::PerfectGas<2>,
@@ -185,24 +184,22 @@ void MyMain(const fub::ProgramOptions& opts) {
   WaveFunction initial_data{equation, origin, direction};
 
   fub::Array<double, 2, 1> u = initial_data.u_0_ * initial_data.direction_;
-  fub::Complete<fub::PerfectGas<2>> state =
+  fub::Complete<fub::PerfectGas<2>> stateL =
       equation.CompleteFromPrim(initial_data.rho_0_, u, initial_data.p_0_);
 
-  using State = fub::Complete<fub::PerfectGas<2>>;
-  fub::amrex::cutcell::GradientDetector gradients{
-      equation, std::pair{&State::pressure, 0.05},
-      std::pair{&State::density, 0.005}};
+  fub::Complete<fub::PerfectGas<2>> stateR = equation.CompleteFromPrim(
+      initial_data.rho_0_ + initial_data.width_, u, initial_data.p_0_);
 
   using fub::amrex::cutcell::ConstantBoundary;
   fub::amrex::cutcell::BoundarySet boundary_condition{
       {ConstantBoundary<fub::PerfectGas<2>>{fub::Direction::X, 0, equation,
-                                            state},
+                                            stateL},
        ConstantBoundary<fub::PerfectGas<2>>{fub::Direction::X, 1, equation,
-                                            state},
+                                            stateR},
        ConstantBoundary<fub::PerfectGas<2>>{fub::Direction::Y, 0, equation,
-                                            state},
+                                            stateL},
        ConstantBoundary<fub::PerfectGas<2>>{fub::Direction::Y, 1, equation,
-                                            state}}};
+                                            stateR}}};
 
   using fub::amrex::cutcell::GriddingAlgorithm;
   using fub::amrex::cutcell::PatchHierarchy;
@@ -220,12 +217,12 @@ void MyMain(const fub::ProgramOptions& opts) {
                                                Reconstruction{equation}};
 
   const int base_gcw = flux_method.GetStencilWidth();
-  const int scratch_gcw = 2*base_gcw;
-  const int flux_gcw = base_gcw;
+  const int scratch_gcw = base_gcw + 1;
+  const int flux_gcw = 0;
   using fub::amrex::cutcell::IntegratorContext;
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<2>, IntegratorContext(gridding, method, scratch_gcw, flux_gcw),
-      fub::StrangSplitting());
+      fub::GodunovSplitting());
 
   // fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
   fub::NoSubcycleSolver solver(std::move(level_integrator));

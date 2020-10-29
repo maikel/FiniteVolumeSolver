@@ -345,7 +345,7 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
     ::amrex::IntVect grow(scratch_ghost_cell_width_);
 
     for (std::size_t d = 0; d < static_cast<std::size_t>(AMREX_SPACEDIM); ++d) {
-      ::amrex::IntVect fgrow = grow;
+      ::amrex::IntVect fgrow(flux_ghost_cell_width_ + method_.flux_method.GetStencilWidth());
       fgrow[int(d)] = flux_ghost_cell_width_;
       const ::amrex::IntVect unit =
           ::amrex::IntVect::TheDimensionVector(int(d));

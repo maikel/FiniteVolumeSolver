@@ -35,6 +35,21 @@
 
 namespace fub {
 
+template <int Rank>
+Eigen::Matrix<double, Rank, 1>
+GetAbsoluteVolumeCentroid(const CutCellData<Rank>& geom,
+                          const Index<Rank>& index,
+                          const Eigen::Matrix<double, Rank, 1>& dx) {
+  Eigen::Matrix<double, Rank, 1> relative_xM = GetVolumeCentroid(geom, index);
+  Eigen::Matrix<double, Rank, 1> offset;
+  for (int i = 0; i < Rank; ++i) {
+    offset[i] = static_cast<double>(index[i]);
+  }
+  Eigen::Matrix<double, Rank, 1> xM =
+      (offset + relative_xM).array() * dx.array();
+  return xM;
+}
+
 void MyStab_ComputeStableFluxComponents(
     const PatchDataView<double, 2, layout_stride>& stabilised_fluxes,
     const PatchDataView<double, 2, layout_stride>& shielded_left_fluxes,
@@ -104,6 +119,22 @@ void ApplyGradient(
 template <int Rank> struct BasicHGridReconstruction {
   void ComputeGradients(span<double, 2> gradient, span<const double, 4> states,
                         span<const Coordinates<Rank>, 4> x);
+
+  void ComputeGradients(span<double, 2> gradient, span<const double, 5> states,
+                        span<const Coordinates<Rank>, 5> x);
+
+  void
+  LimitGradients(const std::array<StridedDataView<double, Rank>, Rank>& grad_u,
+                 StridedDataView<const double, Rank> u,
+                 StridedDataView<const char, Rank> needs_limiter,
+                 const CutCellData<Rank>& geom,
+                 const Coordinates<Rank>& dx) const;
+
+private:
+  void LimitGradientsAtIndex(
+      const std::array<StridedDataView<double, Rank>, Rank>& grad_u,
+      StridedDataView<const double, Rank> u, const CutCellData<Rank>& geom,
+      const Index<Rank>& index, const Coordinates<Rank>& dx) const;
 };
 
 extern template struct BasicHGridReconstruction<2>;
@@ -137,27 +168,50 @@ struct ConservativeHGridReconstruction
   void ComputeGradients(span<Conservative, 2> gradient,
                         span<const Conservative, 4> states,
                         span<const Coordinates<Rank>, 4> x) {
-    ForEachComponent([&](double& grad_x, double& grad_y, double uM, double u1, double u2, double u3) {
-      std::array<double, 2> grad{};
-      const std::array<double, 4> quantities{uM, u1, u2, u3};
-      Base::ComputeGradients(grad, quantities, x);
-      grad_x = grad[0];
-      grad_y = grad[1];
-    }, gradient[0], gradient[1], states[0], states[1], states[2], states[3]);
+    ForEachComponent(
+        [&](double& grad_x, double& grad_y, double uM, double u1, double u2,
+            double u3) {
+          std::array<double, 2> grad{0.0, 0.0};
+          const std::array<double, 4> quantities{uM, u1, u2, u3};
+          Base::ComputeGradients(grad, quantities, x);
+          grad_x = grad[0];
+          grad_y = grad[1];
+        },
+        gradient[0], gradient[1], states[0], states[1], states[2], states[3]);
+  }
+
+  void ComputeGradients(span<Conservative, 2> gradient,
+                        span<const Conservative, 5> states,
+                        span<const Coordinates<Rank>, 5> x) {
+    ForEachComponent(
+        [&](double& grad_x, double& grad_y, double uM, double u1, double u2,
+            double u3, double u4) {
+          std::array<double, 2> grad{0.0, 0.0};
+          const std::array<double, 5> quantities{uM, u1, u2, u3, u4};
+          Base::ComputeGradients(grad, quantities, x);
+          grad_x = grad[0];
+          grad_y = grad[1];
+        },
+        gradient[0], gradient[1], states[0], states[1], states[2], states[3],
+        states[4]);
   }
 
   void ComputeGradients(const View<Conservative>& gradient_x,
                         const View<Conservative>& gradient_y,
                         const View<Conservative>& gradient_z,
                         const View<const Conservative>& states,
+                        const StridedDataView<const char, Rank>& flags,
                         const CutCellData<Rank>& geom,
                         const Coordinates<Rank>& dx) {
     Conservative zero{equation_};
     if constexpr (Rank == 2) {
       std::array<Conservative, 2> gradient{equation_};
-      std::array<Conservative, 4> u;
+      std::array<Conservative, 5> u;
       u.fill(Conservative{equation_});
-      ForEachIndex(Box<0>(gradient_x), [&](int i, int j) {
+      const IndexBox<Rank> box =
+          Shrink(Shrink(Box<0>(gradient_x), Direction::X, {1, 1}), Direction::Y,
+                 {1, 1});
+      ForEachIndex(box, [&](int i, int j) {
         //////////////////////////////////////////////////
         // All regular case
         if (geom.volume_fractions(i, j) == 1.0 &&
@@ -166,7 +220,7 @@ struct ConservativeHGridReconstruction
             geom.volume_fractions(i, j + 1) == 1.0 &&
             geom.volume_fractions(i, j - 1) == 1.0) {
           Load(u[0], AsCons(states), {i - 1, j});
-          Load(u[1], AsCons(states), {i + i, j});
+          Load(u[1], AsCons(states), {i + 1, j});
           ForEachComponent(
               [&](double& gradient, double qL, double qR) {
                 return gradient = 0.5 * (qR - qL) / dx[0];
@@ -181,7 +235,7 @@ struct ConservativeHGridReconstruction
               gradient[1], u[2], u[3]);
           //////////////////////////////////////////////////
           // Cut-Cell case
-        } else {
+        } else if (geom.volume_fractions(i, j) > 0.0) {
           std::array<Index<Rank + 1>, 4> edges{
               Index<Rank + 1>{i, j, 0}, Index<Rank + 1>{i + 1, j, 0},
               Index<Rank + 1>{i, j, 1}, Index<Rank + 1>{i, j + 1, 1}};
@@ -208,6 +262,21 @@ struct ConservativeHGridReconstruction
             FUB_ASSERT(edges[is[0]][2] != edges[is[1]][2]);
             neighbors[is[2]] = Index<Rank>{neighbors[is[0]][edges[is[0]][2]],
                                            neighbors[is[1]][edges[is[1]][2]]};
+          } else if (betas[is[3]] > 0.0) {
+            FUB_ASSERT(betas[is[0]] > 0.0 && betas[is[2]] > 0.0 &&
+                       betas[is[1]] > 0.0);
+            Load(u[0], AsCons(states), {i, j});
+            Load(u[1], AsCons(states), neighbors[is[0]]);
+            Load(u[2], AsCons(states), neighbors[is[1]]);
+            Load(u[3], AsCons(states), neighbors[is[2]]);
+            Load(u[4], AsCons(states), neighbors[is[3]]);
+            std::array<Coordinates<Rank>, 5> xM;
+            xM[0] = GetAbsoluteVolumeCentroid(geom, {i, j}, dx);
+            xM[1] = GetAbsoluteVolumeCentroid(geom, neighbors[is[0]], dx);
+            xM[2] = GetAbsoluteVolumeCentroid(geom, neighbors[is[1]], dx);
+            xM[3] = GetAbsoluteVolumeCentroid(geom, neighbors[is[2]], dx);
+            xM[4] = GetAbsoluteVolumeCentroid(geom, neighbors[is[3]], dx);
+            ComputeGradients(gradient, u, xM);
           } else if (betas[is[2]] > 0.0) {
             FUB_ASSERT(betas[is[0]] > 0.0 && betas[is[1]] > 0.0);
             Load(u[0], AsCons(states), {i, j});
@@ -219,13 +288,22 @@ struct ConservativeHGridReconstruction
             xM[1] = GetAbsoluteVolumeCentroid(geom, neighbors[is[0]], dx);
             xM[2] = GetAbsoluteVolumeCentroid(geom, neighbors[is[1]], dx);
             xM[3] = GetAbsoluteVolumeCentroid(geom, neighbors[is[2]], dx);
-            ComputeGradients(gradient, u, xM);
+            ComputeGradients(gradient, span(u).template subspan<0, 4>(), xM);
           }
         }
         Store(gradient_x, gradient[0], {i, j});
         Store(gradient_y, gradient[1], {i, j});
         Store(gradient_z, zero, {i, j});
       });
+      ForEachComponent(
+          [&](const StridedDataView<double, 2>& u_x,
+              const StridedDataView<double, 2>& u_y,
+              const StridedDataView<const double, 2>& u) {
+            std::array<StridedDataView<double, 2>, 2> grad_u{u_x.Subview(box),
+                                                             u_y.Subview(box)};
+            Base::LimitGradients(grad_u, u.Subview(box), flags, geom, dx);
+          },
+          gradient_x, gradient_y, states);
     }
   }
 
@@ -373,18 +451,6 @@ struct ConservativeHGridReconstruction
     FUB_ASSERT(count > 0 && count <= AuxiliaryReconstructionData::kMaxSources);
     AuxiliaryReconstructionData sorted_aux = Sort(aux_data, count);
     return sorted_aux;
-  }
-
-  Coordinates<Rank> GetAbsoluteVolumeCentroid(const CutCellData<Rank>& geom,
-                                              const Index<Rank>& index,
-                                              const Coordinates<Rank>& dx) {
-    Coordinates<Rank> relative_xM = GetVolumeCentroid(geom, index);
-    Coordinates<Rank> offset;
-    for (int i = 0; i < Rank; ++i) {
-      offset[i] = static_cast<double>(index[i]);
-    }
-    Coordinates<Rank> xM = (offset + relative_xM).array() * dx.array();
-    return xM;
   }
 
   double TotalLength(const AuxiliaryReconstructionData& aux) noexcept {
@@ -815,10 +881,11 @@ public:
                         const View<Conservative>& gradient_y,
                         const View<Conservative>& gradient_z,
                         const View<const Conservative>& states,
+                        const StridedDataView<const char, Rank>& flags,
                         const CutCellData<Rank>& geom,
                         const Coordinates<Rank>& dx) {
     h_grid_reconstruction_.ComputeGradients(gradient_x, gradient_y, gradient_z,
-                                            states, geom, dx);
+                                            states, flags, geom, dx);
   }
 
 private:
