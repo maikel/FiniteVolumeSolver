@@ -23,8 +23,8 @@
 #include "fub/ext/Vc.hpp"
 
 #include <fmt/format.h>
-#include <gsl/gsl_blas.h>
-#include <gsl/gsl_multifit_nlinear.h>
+// #include <gsl/gsl_blas.h>
+// #include <gsl/gsl_multifit_nlinear.h>
 
 #include <algorithm>
 #include <array>
@@ -158,173 +158,30 @@ template <int Rank>
 void BasicHGridReconstruction<Rank>::ComputeGradients(
     span<double, 2> gradient, span<const double, 4> states,
     span<const Coordinates<Rank>, 4> x) {
-  struct user_data {
-    span<const double, 3> delta_u;
-    span<const Coordinates<Rank>, 3> delta_x;
-  };
-  const std::array<Coordinates<Rank>, 3> delta_x{x[1] - x[0], x[2] - x[0],
-                                                 x[3] - x[0]};
-  const std::array<double, 3> delta_u{
-      states[1] - states[0], states[2] - states[0], states[3] - states[0]};
-  auto f = [](const gsl_vector* x, void* params, gsl_vector* f) -> int {
-    const user_data& ud = *static_cast<user_data*>(params);
-    const double u_x = gsl_vector_get(x, 0);
-    const double u_y = gsl_vector_get(x, 1);
-    const double f0 =
-        ud.delta_x[0][0] * u_x + ud.delta_x[0][1] * u_y - ud.delta_u[0];
-    const double f1 =
-        ud.delta_x[1][0] * u_x + ud.delta_x[1][1] * u_y - ud.delta_u[1];
-    const double f2 =
-        ud.delta_x[2][0] * u_x + ud.delta_x[2][1] * u_y - ud.delta_u[2];
-    gsl_vector_set(f, 0, f0);
-    gsl_vector_set(f, 1, f1);
-    gsl_vector_set(f, 2, f2);
-    return GSL_SUCCESS;
-  };
-  auto df = [](const gsl_vector* /* x */, void* params, gsl_matrix* J) -> int {
-    const user_data& ud = *static_cast<user_data*>(params);
-    gsl_matrix_set(J, 0, 0, ud.delta_x[0][0]);
-    gsl_matrix_set(J, 1, 0, ud.delta_x[1][0]);
-    gsl_matrix_set(J, 2, 0, ud.delta_x[2][0]);
-    gsl_matrix_set(J, 0, 1, ud.delta_x[0][1]);
-    gsl_matrix_set(J, 1, 1, ud.delta_x[1][1]);
-    gsl_matrix_set(J, 2, 1, ud.delta_x[2][1]);
-    return GSL_SUCCESS;
-  };
-  const gsl_multifit_nlinear_type* T = gsl_multifit_nlinear_trust;
-  gsl_multifit_nlinear_parameters params =
-      gsl_multifit_nlinear_default_parameters();
-  gsl_multifit_nlinear_workspace* w =
-      gsl_multifit_nlinear_alloc(T, &params, 3, 2);
-
-  user_data ud{span<const double, 3>(delta_u),
-               span<const Coordinates<Rank>, 3>(delta_x)};
-
-  gsl_multifit_nlinear_fdf fdf;
-  fdf.f = f;
-  fdf.df = df;
-  fdf.fvv = nullptr;
-  fdf.n = 3;
-  fdf.p = 2;
-  fdf.params = static_cast<void*>(&ud);
-
-  gsl_vector_view grad_view = gsl_vector_view_array(gradient.data(), 2);
-  gsl_multifit_nlinear_init(&grad_view.vector, &fdf, w);
-
-  /* solve the system with a maximum of 10 iterations */
-  const int niter = 10;
-  int info = 0;
-  const double xtol = 1e-12;
-  const double gtol = 1e-12;
-  const double ftol = 0.0;
-
-  gsl_vector* residual = gsl_multifit_nlinear_residual(w);
-  double error_norm2{0.0};
-  gsl_blas_ddot(residual, residual, &error_norm2);
-  if (error_norm2 > 0.0) {
-    int status = gsl_multifit_nlinear_driver(niter, xtol, gtol, ftol, nullptr,
-                                             nullptr, &info, w);
-    if (status != GSL_SUCCESS) {
-      gsl_multifit_nlinear_free(w);
-      throw std::runtime_error(fmt::format(
-          "Convergence Error: The least squares problem that computes the "
-          "gradients did not converge.\nThe reason is: '{}'.",
-          gsl_strerror(status)));
-    }
-    gradient[0] = gsl_vector_get(w->x, 0);
-    gradient[1] = gsl_vector_get(w->x, 1);
+  Eigen::Matrix<double, 3, 2> A;
+  Eigen::Matrix<double, 3, 1> b;
+  for (int i = 0; i < 3; ++i) {
+    A.row(i) = (x[i + 1] - x[0]).transpose();
+    b[i] = states[i + 1] - states[0];
   }
-  gsl_multifit_nlinear_free(w);
+  Eigen::Vector2d grads = A.colPivHouseholderQr().solve(b);
+  gradient[0] = grads[0];
+  gradient[1] = grads[1];
 }
 
 template <int Rank>
 void BasicHGridReconstruction<Rank>::ComputeGradients(
     span<double, 2> gradient, span<const double, 5> states,
     span<const Coordinates<Rank>, 5> x) {
-  struct user_data {
-    span<const double, 4> delta_u;
-    span<const Coordinates<Rank>, 4> delta_x;
-  };
-  const std::array<Coordinates<Rank>, 4> delta_x{x[1] - x[0], x[2] - x[0],
-                                                 x[3] - x[0], x[4] - x[0]};
-  const std::array<double, 4> delta_u{
-      states[1] - states[0], states[2] - states[0], states[3] - states[0],
-      states[4] - states[0]};
-  auto f = [](const gsl_vector* x, void* params, gsl_vector* f) -> int {
-    const user_data& ud = *static_cast<user_data*>(params);
-    const double u_x = gsl_vector_get(x, 0);
-    const double u_y = gsl_vector_get(x, 1);
-    const double f0 =
-        ud.delta_x[0][0] * u_x + ud.delta_x[0][1] * u_y - ud.delta_u[0];
-    const double f1 =
-        ud.delta_x[1][0] * u_x + ud.delta_x[1][1] * u_y - ud.delta_u[1];
-    const double f2 =
-        ud.delta_x[2][0] * u_x + ud.delta_x[2][1] * u_y - ud.delta_u[2];
-    const double f3 =
-        ud.delta_x[3][0] * u_x + ud.delta_x[3][1] * u_y - ud.delta_u[3];
-    gsl_vector_set(f, 0, f0);
-    gsl_vector_set(f, 1, f1);
-    gsl_vector_set(f, 2, f2);
-    gsl_vector_set(f, 3, f3);
-    return GSL_SUCCESS;
-  };
-  auto df = [](const gsl_vector* /* x */, void* params, gsl_matrix* J) -> int {
-    const user_data& ud = *static_cast<user_data*>(params);
-    gsl_matrix_set(J, 0, 0, ud.delta_x[0][0]);
-    gsl_matrix_set(J, 1, 0, ud.delta_x[1][0]);
-    gsl_matrix_set(J, 2, 0, ud.delta_x[2][0]);
-    gsl_matrix_set(J, 3, 0, ud.delta_x[3][0]);
-    gsl_matrix_set(J, 0, 1, ud.delta_x[0][1]);
-    gsl_matrix_set(J, 1, 1, ud.delta_x[1][1]);
-    gsl_matrix_set(J, 2, 1, ud.delta_x[2][1]);
-    gsl_matrix_set(J, 3, 1, ud.delta_x[3][1]);
-    return GSL_SUCCESS;
-  };
-  const gsl_multifit_nlinear_type* T = gsl_multifit_nlinear_trust;
-  gsl_multifit_nlinear_parameters params =
-      gsl_multifit_nlinear_default_parameters();
-  gsl_multifit_nlinear_workspace* w =
-      gsl_multifit_nlinear_alloc(T, &params, delta_x.size(), 2);
-
-  user_data ud{span<const double, 4>(delta_u),
-               span<const Coordinates<Rank>, 4>(delta_x)};
-
-  gsl_multifit_nlinear_fdf fdf;
-  fdf.f = f;
-  fdf.df = df;
-  fdf.fvv = nullptr;
-  fdf.n = 4;
-  fdf.p = 2;
-  fdf.params = static_cast<void*>(&ud);
-
-  gsl_vector_view grad_view =
-      gsl_vector_view_array(gradient.data(), gradient.size());
-  gsl_multifit_nlinear_init(&grad_view.vector, &fdf, w);
-
-  /* solve the system with a maximum of 10 iterations */
-  const int niter = 10;
-  int info = 0;
-  const double xtol = 1e-12;
-  const double gtol = 1e-12;
-  const double ftol = 0.0;
-
-  gsl_vector* residual = gsl_multifit_nlinear_residual(w);
-  double error_norm2{0.0};
-  gsl_blas_ddot(residual, residual, &error_norm2);
-  if (error_norm2 > 0.0) {
-    int status = gsl_multifit_nlinear_driver(niter, xtol, gtol, ftol, nullptr,
-                                             nullptr, &info, w);
-    if (status != GSL_SUCCESS) {
-      gsl_multifit_nlinear_free(w);
-      throw std::runtime_error(fmt::format(
-          "Convergence Error: The least squares problem that computes the "
-          "gradients did not converge.\nThe reason is: '{}'.",
-          gsl_strerror(status)));
-    }
-    gradient[0] = gsl_vector_get(w->x, 0);
-    gradient[1] = gsl_vector_get(w->x, 1);
+  Eigen::Matrix<double, 4, 2> A;
+  Eigen::Matrix<double, 4, 1> b;
+  for (int i = 0; i < 4; ++i) {
+    A.row(i) = (x[i + 1] - x[0]).transpose();
+    b[i] = states[i + 1] - states[0];
   }
-  gsl_multifit_nlinear_free(w);
+  Eigen::Vector2d grads = A.colPivHouseholderQr().solve(b);
+  gradient[0] = grads[0];
+  gradient[1] = grads[1];
 }
 
 template struct BasicHGridReconstruction<2>;
