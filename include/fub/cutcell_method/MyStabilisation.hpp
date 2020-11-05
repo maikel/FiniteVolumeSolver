@@ -35,21 +35,6 @@
 
 namespace fub {
 
-template <int Rank>
-Eigen::Matrix<double, Rank, 1>
-GetAbsoluteVolumeCentroid(const CutCellData<Rank>& geom,
-                          const Index<Rank>& index,
-                          const Eigen::Matrix<double, Rank, 1>& dx) {
-  Eigen::Matrix<double, Rank, 1> relative_xM = GetVolumeCentroid(geom, index);
-  Eigen::Matrix<double, Rank, 1> offset;
-  for (int i = 0; i < Rank; ++i) {
-    offset[i] = static_cast<double>(index[i]);
-  }
-  Eigen::Matrix<double, Rank, 1> xM =
-      (offset + relative_xM).array() * dx.array();
-  return xM;
-}
-
 void MyStab_ComputeStableFluxComponents(
     const PatchDataView<double, 2, layout_stride>& stabilised_fluxes,
     const PatchDataView<double, 2, layout_stride>& shielded_left_fluxes,
@@ -68,11 +53,12 @@ void MyStab_ComputeStableFluxComponents(
 
 template <int Rank> using Coordinates = Eigen::Matrix<double, Rank, 1>;
 
-template <int Rank>
-Coordinates<Rank>
-ComputeReflectedCoordinates(const Coordinates<Rank>& offset,
-                            const Coordinates<Rank>& boundary_normal) {
-  return offset - offset.dot(boundary_normal) * boundary_normal;
+inline Coordinates<2>
+ComputeReflectedCoordinates(const Coordinates<2>& offset,
+                            const Coordinates<2>& boundary_normal) {
+  Coordinates<2> reflected =
+      offset - 2.0 * offset.dot(boundary_normal) * boundary_normal;
+  return reflected;
 }
 
 template <int Rank>
@@ -90,7 +76,7 @@ template <int Rank>
 Index<Rank + 1> EmbedIndex(const Index<Rank>& index, Direction dir) {
   return std::apply(
       [dir](auto... is) {
-        return Index<Rank>{is..., static_cast<int>(dir)};
+        return Index<Rank + 1>{is..., static_cast<int>(dir)};
       },
       index);
 }
@@ -212,7 +198,7 @@ struct ConservativeHGridReconstruction
           Shrink(Shrink(Box<0>(gradient_x), Direction::X, {1, 1}), Direction::Y,
                  {1, 1});
       ForEachIndex(box, [&](int i, int j) {
-        //////////////////////////////////////////////////
+        ////////////////////////////////////////////////
         // All regular case
         if (geom.volume_fractions(i, j) == 1.0 &&
             geom.volume_fractions(i + 1, j) == 1.0 &&
@@ -235,7 +221,10 @@ struct ConservativeHGridReconstruction
               gradient[1], u[2], u[3]);
           //////////////////////////////////////////////////
           // Cut-Cell case
-        } else if (geom.volume_fractions(i, j) > 0.0) {
+        } else if (geom.volume_fractions(i, j) == 0.0) {
+          SetZero(gradient[0]);
+          SetZero(gradient[1]);
+        } else {
           std::array<Index<Rank + 1>, 4> edges{
               Index<Rank + 1>{i, j, 0}, Index<Rank + 1>{i + 1, j, 0},
               Index<Rank + 1>{i, j, 1}, Index<Rank + 1>{i, j + 1, 1}};
@@ -259,9 +248,37 @@ struct ConservativeHGridReconstruction
           if (betas[is[2]] <= 0.0) {
             // Set neighbors[is[2]] to corner between neighbors[is[0]] and
             // neighbors[is[1]]
+            FUB_ASSERT(betas[is[0]] > 0.0 && betas[is[1]] > 0.0);
             FUB_ASSERT(edges[is[0]][2] != edges[is[1]][2]);
-            neighbors[is[2]] = Index<Rank>{neighbors[is[0]][edges[is[0]][2]],
-                                           neighbors[is[1]][edges[is[1]][2]]};
+            Index<Rank> corner{};
+            corner[edges[is[0]][2]] = neighbors[is[0]][edges[is[0]][2]];
+            corner[edges[is[1]][2]] = neighbors[is[1]][edges[is[1]][2]];
+            neighbors[is[2]] = corner;
+            Load(u[0], AsCons(states), {i, j});
+            Load(u[1], AsCons(states), neighbors[is[0]]);
+            Load(u[2], AsCons(states), neighbors[is[1]]);
+            Load(u[3], AsCons(states), neighbors[is[2]]);
+            std::array<Coordinates<Rank>, 4> xM;
+            xM[0] = GetAbsoluteVolumeCentroid(geom, {i, j}, dx);
+            xM[1] = GetAbsoluteVolumeCentroid(geom, neighbors[is[0]], dx);
+            xM[2] = GetAbsoluteVolumeCentroid(geom, neighbors[is[1]], dx);
+            xM[3] = GetAbsoluteVolumeCentroid(geom, neighbors[is[2]], dx);
+            ComputeGradients(gradient, span(u).template subspan<0, 4>(), xM);
+            // Load(u[0], AsCons(states), {i, j});
+            // Load(u[1], AsCons(states), neighbors[is[0]]);
+            // Load(u[2], AsCons(states), neighbors[is[1]]);
+            // u[3] = u[1];
+            // u[4] = u[2];
+            // const Coordinates<Rank> xB =
+            //     GetAbsoluteBoundaryCentroid(geom, {i, j}, dx);
+            // const Coordinates<Rank> n = GetBoundaryNormal(geom, {i, j});
+            // std::array<Coordinates<Rank>, 5> xM;
+            // xM[0] = GetAbsoluteVolumeCentroid(geom, {i, j}, dx);
+            // xM[1] = GetAbsoluteVolumeCentroid(geom, neighbors[is[0]], dx);
+            // xM[2] = GetAbsoluteVolumeCentroid(geom, neighbors[is[1]], dx);
+            // xM[3] = xB + ComputeReflectedCoordinates(xM[1] - xB, n);
+            // xM[4] = xB + ComputeReflectedCoordinates(xM[2] - xB, n);
+            // ComputeGradients(gradient, span(u), xM);
           } else if (betas[is[3]] > 0.0) {
             FUB_ASSERT(betas[is[0]] > 0.0 && betas[is[2]] > 0.0 &&
                        betas[is[1]] > 0.0);
@@ -326,17 +343,12 @@ struct ConservativeHGridReconstruction
           upper = std::min(upper, lambda_lower);
           lower = std::max(lower, lambda_upper);
         }
-      } else {
+      } else if (std::abs(xM[d] - xB[d]) > 0.5 * dx[d]) {
         lower = std::numeric_limits<double>::max();
         upper = std::numeric_limits<double>::lowest();
       }
     }
     return {lower, upper};
-  }
-
-  std::array<double, 2> Intersect(const std::array<double, 2>& i1,
-                                  const std::array<double, 2>& i2) {
-    return {std::max(i1[0], i2[0]), std::min(i1[1], i2[1])};
   }
 
   double Length(const std::array<double, 2>& interval) {
@@ -409,17 +421,15 @@ struct ConservativeHGridReconstruction
     return datas;
   }
 
+  void SetZero(Conservative& cons) {
+    ForEachComponent([](auto&& u) { u = 0.0; }, cons);
+  }
+
   AuxiliaryReconstructionData GetAuxiliaryData(const Index<Rank>& index,
                                                const CutCellData<Rank>& geom,
                                                const Coordinates<Rank>& dx,
-                                               Direction dir) {
-    const Coordinates<Rank> normal = GetBoundaryNormal(geom, index);
-    const int dir_v = static_cast<int>(dir);
-    const Coordinates<Rank> unit_vector =
-        ((normal[dir_v] < 0) - (normal[dir_v] >= 0)) *
-        Eigen::Matrix<double, Rank, 1>::Unit(dir_v);
-    const Coordinates<Rank> slope =
-        unit_vector - 2.0 * unit_vector.dot(normal) * normal;
+                                               const Coordinates<Rank>& slope,
+                                               double required_length) {
     Index<Rank> signs{};
     for (int d = 0; d < Rank; ++d) {
       signs[d] = (slope[d] > 0.0) - (slope[d] < 0.0);
@@ -429,13 +439,13 @@ struct ConservativeHGridReconstruction
         GetBoundaryCentroid(geom, index).array() * dx.array();
     AuxiliaryReconstructionData aux_data{};
     aux_data.slope = slope;
-    aux_data.xB = xB;
+    aux_data.xB = GetAbsoluteBoundaryCentroid(geom, index, dx);
     int count = 0;
     ForEachIndex(MakeIndexBox(signs), [&](auto... is) {
       Coordinates<Rank> x_i{double(is)...};
       const Coordinates<Rank> xM = x_i.array() * dx.array();
       const auto interval = FindAdmissibleInterval(xM, xB, slope, dx);
-      const auto [a, b] = Intersect(interval, {0.0, 2.0 * dx[int(dir)]});
+      const auto [a, b] = Intersect(interval, {0.0, required_length});
       if (b - a > 0.0) {
         FUB_ASSERT(count < AuxiliaryReconstructionData::kMaxSources);
         Index<Rank> i{is...};
@@ -453,6 +463,20 @@ struct ConservativeHGridReconstruction
     return sorted_aux;
   }
 
+  AuxiliaryReconstructionData GetAuxiliaryData(const Index<Rank>& index,
+                                               const CutCellData<Rank>& geom,
+                                               const Coordinates<Rank>& dx,
+                                               Direction dir) {
+    const Coordinates<Rank> normal = GetBoundaryNormal(geom, index);
+    const int dir_v = static_cast<int>(dir);
+    const Coordinates<Rank> unit_vector =
+        ((normal[dir_v] < 0) - (normal[dir_v] >= 0)) *
+        Eigen::Matrix<double, Rank, 1>::Unit(dir_v);
+    const Coordinates<Rank> slope =
+        unit_vector - 2.0 * unit_vector.dot(normal) * normal;
+    return GetAuxiliaryData(index, geom, dx, slope, dx[int(dir)]);
+  }
+
   double TotalLength(const AuxiliaryReconstructionData& aux) noexcept {
     double total = 0.0;
     for (int i = 0; i < AuxiliaryReconstructionData::kMaxSources; ++i) {
@@ -461,17 +485,15 @@ struct ConservativeHGridReconstruction
     return total;
   }
 
-  // int_0^l (u0 + gradient * x) = l ( u_0 + l/2 * gradient )
   bool IntegrateCellState(Conservative& integral,
+                          Conservative& integral_gradient,
                           const View<const Conservative>& states,
                           const View<const Conservative>& gradient_x,
                           const View<const Conservative>& gradient_y,
                           const View<const Conservative>& gradient_z,
                           const CutCellData<Rank>& geom,
                           const AuxiliaryReconstructionData& aux_data,
-                          const Coordinates<Rank>& dx) {
-    ForEachComponent([](double& u) { u = 0.0; }, integral);
-    const double total_length = TotalLength(aux_data);
+                          const Coordinates<Rank>& dx, double total_length) {
     for (int i = 0; i < AuxiliaryReconstructionData::kMaxSources; ++i) {
       const Index<Rank> index = aux_data.sources[i];
       if (Contains(Box<0>(states), index) &&
@@ -482,17 +504,21 @@ struct ConservativeHGridReconstruction
         span<const Conservative, Rank> grads{gradient_.data(), Rank};
         const Coordinates<Rank> xM = GetAbsoluteVolumeCentroid(geom, index, dx);
         const Coordinates<Rank> x0 =
-            aux_data.xB + aux_data.start[i] * aux_data.slope;
-        ApplyGradient(gradient_dir_, grads, x0 - xM);
+            aux_data.xB +
+            0.5 * (aux_data.start[i] + aux_data.end[i]) * aux_data.slope;
+        const Coordinates<Rank> dx = x0 - xM;
+        ApplyGradient(gradient_dir_, grads, dx);
         Load(state_, states, index);
         state_ += gradient_dir_;
         ApplyGradient(gradient_dir_, grads, aux_data.slope);
         const double length = aux_data.end[i] - aux_data.start[i];
         ForEachVariable(
-            [length, total_length](auto&& integral, auto&& u_0, auto&& grad_u) {
-              integral += length * (u_0 + 0.5 * length * grad_u) / total_length;
+            [length, total_length](auto&& u, auto&& grad_u, auto&& u_0,
+                                   auto&& grad_u_0) {
+              u += length / total_length * u_0;
+              grad_u += length / total_length * grad_u_0;
             },
-            integral, state_, gradient_dir_);
+            integral, integral_gradient, state_, gradient_dir_);
       } else {
         return false;
       }
@@ -500,309 +526,233 @@ struct ConservativeHGridReconstruction
     return true;
   }
 
+  // int_0^l (u0 + gradient * x) = l ( u_0 + l/2 * gradient )
+  bool IntegrateCellState(Conservative& integral,
+                          Conservative& integral_gradient,
+                          const View<const Conservative>& states,
+                          const View<const Conservative>& gradient_x,
+                          const View<const Conservative>& gradient_y,
+                          const View<const Conservative>& gradient_z,
+                          const CutCellData<Rank>& geom,
+                          const AuxiliaryReconstructionData& aux_data,
+                          const Coordinates<Rank>& dx) {
+    const double total_length = TotalLength(aux_data);
+    return IntegrateCellState(integral, integral_gradient, states, gradient_x,
+                              gradient_y, gradient_z, geom, aux_data, dx,
+                              total_length);
+  }
+
   void ReconstructSinglyShieldedStencil(
-      span<Complete, 4> h_grid_singly_shielded,
-      span<const Complete, 4> /*h_grid_embedded_boundary*/,
-      span<const Conservative, 2> /*limited_slopes*/,
+      span<Complete, 2> h_grid_singly_shielded,
+      span<Conservative, 2> h_grid_singly_shielded_gradients,
       const View<const Complete>& states,
       const View<const Conservative>& gradient_x,
       const View<const Conservative>& gradient_y,
       const View<const Conservative>& gradient_z,
       const CutCellData<Rank>& cutcell_data, const Index<Rank>& cell,
       Duration /*dt*/, const Coordinates<Rank>& dx, Direction dir) {
+    AuxiliaryReconstructionData boundary_aux_data =
+        GetAuxiliaryData(cell, cutcell_data, dx, dir);
+    const Coordinates<Rank> normal = GetBoundaryNormal(cutcell_data, cell);
+    const int dir_v = static_cast<int>(dir);
+    const Coordinates<Rank> unit_vector =
+        ((normal[dir_v] >= 0) - (normal[dir_v] < 0)) *
+        Eigen::Matrix<double, Rank, 1>::Unit(dir_v);
+    AuxiliaryReconstructionData interior_aux_data =
+        GetAuxiliaryData(cell, cutcell_data, dx, unit_vector, 2.0 * dx[dir_v]);
+    SetZero(boundary_state_);
+    SetZero(boundary_gradient_);
+    SetZero(interior_state_);
+    SetZero(interior_gradient_);
     const int d = static_cast<std::size_t>(dir);
-    const Index<Rank + 1> cell_d = std::apply(
-        [=](auto... is) {
-          return Index<Rank + 1>{is..., d};
-        },
-        cell);
     const Index<Rank> face_L = cell;
     const Index<Rank> face_R = Shift(face_L, dir, 1);
-    const Index<Rank> face_RR = Shift(face_L, dir, 2);
-    const Index<Rank> face_LL = Shift(face_L, dir, -1);
     const double betaL = cutcell_data.face_fractions[d](face_L);
     const double betaR = cutcell_data.face_fractions[d](face_R);
-    const double betaRR = cutcell_data.face_fractions[d](face_RR);
-    const double betaLL = cutcell_data.face_fractions[d](face_LL);
-    View<const Conservative> cons = AsCons(states);
-    ////////////////////////////////////////////////////////////////////////
-    // Case 1: get data   FROM LEFT
-    //                    ^^^^^^^^^^
+
+    const Index<Rank + 1> cell_d = EmbedIndex<Rank>(cell, dir);
+
     if (betaL < betaR) {
-      Load(h_grid_singly_shielded[2], states, Shift(cell, dir, 1));
-      if (betaL < betaRR && cell[d] + 2 < Box<0>(states).upper[d]) {
-        Load(h_grid_singly_shielded[3], states, Shift(cell, dir, 2));
-      } else {
-        h_grid_singly_shielded[3] = h_grid_singly_shielded[2];
-      }
-      Load(stencil[2], cons, Shift(cell, dir, 0));
       const double d = 0.5 - cutcell_data.boundary_centeroids(cell_d);
 
-      AuxiliaryReconstructionData aux_data =
-          GetAuxiliaryData(cell, cutcell_data, dx, dir);
-      auto [aux_near, aux2] = SplitAt(aux_data, (1.0 - d) * dx[d]);
-      auto [aux_far, aux_rest] = SplitAt(aux2, dx[d]);
-      if (!IntegrateCellState(near_, states, gradient_x, gradient_y, gradient_z,
-                              cutcell_data, aux_near, dx)) {
-        Load(near_, AsCons(states), cell);
-      }
-      if (!IntegrateCellState(far_, states, gradient_x, gradient_y, gradient_z,
-                              cutcell_data, aux_far, dx)) {
-        far_ = near_;
-      }
+      auto [laux1, raux1] = SplitAt(boundary_aux_data, (1.0 - d) * dx[d]);
+      auto [laux2, raux2] = SplitAt(interior_aux_data, d * dx[d]);
+      auto [interior_aux, raux3] = SplitAt(raux2, (1.0 + d) * dx[d]);
 
-      // Compute slopes, centroid is in local cell coordinates [-0.5, 0.5]
-
-      // Do the h-grid average for left states
-      const double alpha = d;
-      const double omalpha = 1.0 - alpha;
-      ForEachComponent([=](double& hL, double uCC,
-                           double uL) { hL = alpha * uCC + omalpha * uL; },
-                       AsCons(h_grid_singly_shielded[1]), stencil[2], near_);
-      CompleteFromCons(equation_, h_grid_singly_shielded[0], far_);
-      CompleteFromCons(equation_, h_grid_singly_shielded[1],
-                       h_grid_singly_shielded[1]);
-      ////////////////////////////////////////////////////////////////////////
-      // Case 2: get data   FROM RIGHT
-      //                    ^^^^^^^^^^
-    } else if (betaR < betaL) {
-      Load(h_grid_singly_shielded[1], states, Shift(cell, dir, -1));
-      if (betaR < betaLL && Box<0>(states).lower[d] <= cell[d] - 2) {
-        Load(h_grid_singly_shielded[0], states, Shift(cell, dir, -2));
+      if (!IntegrateCellState(boundary_state_, boundary_gradient_, states,
+                              gradient_x, gradient_y, gradient_z, cutcell_data,
+                              laux1, dx, dx[d])) {
+        Load(boundary_state_, AsCons(states), cell);
+        SetZero(boundary_gradient_);
       } else {
-        h_grid_singly_shielded[0] = h_grid_singly_shielded[1];
+        ForEachComponent([](auto&& u) { u *= -1.0; }, boundary_gradient_);
+        if (!IntegrateCellState(boundary_state_, boundary_gradient_, states,
+                                gradient_x, gradient_y, gradient_z,
+                                cutcell_data, laux2, dx, dx[d])) {
+          Load(boundary_state_, AsCons(states), cell);
+          SetZero(boundary_gradient_);
+        }
       }
-      Load(stencil[0], cons, Shift(cell, dir, 0));
+      Reflect(boundary_state_, boundary_state_, normal, equation_);
+      Reflect(boundary_gradient_, boundary_gradient_, normal, equation_);
 
+      CompleteFromCons(equation_, h_grid_singly_shielded[0], boundary_state_);
+      h_grid_singly_shielded_gradients[0] = boundary_gradient_;
+
+      if (!IntegrateCellState(interior_state_, interior_gradient_, states,
+                              gradient_x, gradient_y, gradient_z, cutcell_data,
+                              interior_aux, dx)) {
+        Load(interior_state_, AsCons(states), cell);
+        SetZero(interior_gradient_);
+      }
+
+      CompleteFromCons(equation_, h_grid_singly_shielded[1], interior_state_);
+      h_grid_singly_shielded_gradients[1] = interior_gradient_;
+
+    } else if (betaR < betaL) {
       const double d = 0.5 + cutcell_data.boundary_centeroids(cell_d);
 
-      AuxiliaryReconstructionData aux_data =
-          GetAuxiliaryData(cell, cutcell_data, dx, dir);
-      auto [aux_near, aux2] = SplitAt(aux_data, (1.0 - d) * dx[d]);
-      auto [aux_far, aux_rest] = SplitAt(aux2, dx[d]);
-      if (!IntegrateCellState(near_, states, gradient_x, gradient_y, gradient_z,
-                              cutcell_data, aux_near, dx)) {
-        Load(near_, AsCons(states), cell);
-      }
-      if (!IntegrateCellState(far_, states, gradient_x, gradient_y, gradient_z,
-                              cutcell_data, aux_far, dx)) {
-        far_ = near_;
+      auto [laux1, raux1] = SplitAt(boundary_aux_data, (1.0 - d) * dx[d]);
+      auto [laux2, raux2] = SplitAt(interior_aux_data, d * dx[d]);
+      auto [interior_aux, raux3] = SplitAt(raux2, (1.0 + d) * dx[d]);
+
+      if (!IntegrateCellState(interior_state_, interior_gradient_, states,
+                              gradient_x, gradient_y, gradient_z, cutcell_data,
+                              interior_aux, dx)) {
+        Load(interior_state_, AsCons(states), cell);
+        SetZero(interior_gradient_);
+      } else {
+        ForEachComponent([](auto&& u) { u *= -1.0; }, interior_gradient_);
       }
 
-      // Do the h-grid average for right states
-      const double alpha = d;
-      const double omalpha = 1.0 - alpha;
-      ForEachComponent([=](double& hR, double uCC,
-                           double uR) { hR = alpha * uCC + omalpha * uR; },
-                       AsCons(h_grid_singly_shielded[2]), stencil[0], near_);
-      CompleteFromCons(equation_, h_grid_singly_shielded[2],
-                       h_grid_singly_shielded[2]);
-      CompleteFromCons(equation_, h_grid_singly_shielded[3], far_);
+      CompleteFromCons(equation_, h_grid_singly_shielded[0], interior_state_);
+      h_grid_singly_shielded_gradients[0] = interior_gradient_;
+
+      if (!IntegrateCellState(boundary_state_, boundary_gradient_, states,
+                              gradient_x, gradient_y, gradient_z, cutcell_data,
+                              laux2, dx, dx[d])) {
+        Load(boundary_state_, AsCons(states), cell);
+        SetZero(boundary_gradient_);
+      } else {
+        ForEachComponent([](auto&& u) { u *= -1.0; }, boundary_gradient_);
+        if (!IntegrateCellState(boundary_state_, boundary_gradient_, states,
+                                gradient_x, gradient_y, gradient_z,
+                                cutcell_data, laux1, dx, dx[d])) {
+          Load(boundary_state_, AsCons(states), cell);
+          SetZero(boundary_gradient_);
+        }
+      }
+      Reflect(boundary_state_, boundary_state_, normal, equation_);
+      Reflect(boundary_gradient_, boundary_gradient_, normal, equation_);
+
+      CompleteFromCons(equation_, h_grid_singly_shielded[1], boundary_state_);
+      h_grid_singly_shielded_gradients[1] = boundary_gradient_;
     }
   }
 
   void ReconstructEmbeddedBoundaryStencil(
-      span<Complete, 4> h_grid_embedded_boundary,
-      span<Conservative, 2> limited_slopes, const View<const Complete>& states,
+      span<Complete, 2> h_grid_embedded_boundary,
+      span<Conservative, 2> h_grid_embedded_boundary_slopes,
+      const View<const Complete>& states,
       const View<const Conservative>& gradient_x,
       const View<const Conservative>& gradient_y,
       const View<const Conservative>& gradient_z,
       const CutCellData<Rank>& cutcell_data, const Index<Rank>& cell,
       Duration /*dt*/, Eigen::Matrix<double, Rank, 1> dx, Direction dir) {
-    AuxiliaryReconstructionData aux_data =
+    AuxiliaryReconstructionData boundary_aux_data =
         GetAuxiliaryData(cell, cutcell_data, dx, dir);
+    const Coordinates<Rank> normal = GetBoundaryNormal(cutcell_data, cell);
     const int dir_v = static_cast<int>(dir);
-    auto [aux_near, aux_far] = SplitAt(aux_data, dx[dir_v]);
-    if (!IntegrateCellState(near_, states, gradient_x, gradient_y, gradient_z,
-                            cutcell_data, aux_near, dx)) {
-      Load(near_, AsCons(states), cell);
+    const Coordinates<Rank> unit_vector =
+        ((normal[dir_v] >= 0) - (normal[dir_v] < 0)) *
+        Eigen::Matrix<double, Rank, 1>::Unit(dir_v);
+    AuxiliaryReconstructionData interior_aux_data =
+        GetAuxiliaryData(cell, cutcell_data, dx, unit_vector, dx[dir_v]);
+    SetZero(boundary_state_);
+    SetZero(boundary_gradient_);
+    if (!IntegrateCellState(boundary_state_, boundary_gradient_, states,
+                            gradient_x, gradient_y, gradient_z, cutcell_data,
+                            boundary_aux_data, dx)) {
+      Load(boundary_state_, AsCons(states), cell);
+      SetZero(boundary_gradient_);
     }
-    if (!IntegrateCellState(far_, states, gradient_x, gradient_y, gradient_z,
-                            cutcell_data, aux_far, dx)) {
-      far_ = near_;
+    SetZero(interior_state_);
+    SetZero(interior_gradient_);
+    if (!IntegrateCellState(interior_state_, interior_gradient_, states,
+                            gradient_x, gradient_y, gradient_z, cutcell_data,
+                            interior_aux_data, dx)) {
+      interior_state_ = boundary_state_;
+      interior_gradient_ = boundary_gradient_;
     }
     const int d = static_cast<std::size_t>(dir);
-    const Index<Rank + 1> cell_d = std::apply(
-        [=](auto... is) {
-          return Index<Rank + 1>{is..., dir_v};
-        },
-        cell);
     const Index<Rank> face_L = cell;
     const Index<Rank> face_R = Shift(face_L, dir, 1);
-    const Index<Rank> face_RR = Shift(face_L, dir, 2);
-    const Index<Rank> face_RRR = Shift(face_L, dir, 3);
-    const Index<Rank> face_LL = Shift(face_L, dir, -1);
-    const Index<Rank> face_LLL = Shift(face_L, dir, -2);
     const double betaL = cutcell_data.face_fractions[d](face_L);
     const double betaR = cutcell_data.face_fractions[d](face_R);
-    const double betaRR = cutcell_data.face_fractions[d](face_RR);
-    const double betaRRR = cutcell_data.face_fractions[d](face_RRR);
-    const double betaLL = cutcell_data.face_fractions[d](face_LL);
-    const double betaLLL = cutcell_data.face_fractions[d](face_LLL);
-    View<const Conservative> cons = AsCons(states);
-    ////////////////////////////////////////////////////////////////////////
-    // Case 1: get data   FROM RIGHT
-    //                    ^^^^^^^^^^
+
+    Reflect(boundary_state_, boundary_state_, normal, equation_);
+    Reflect(boundary_gradient_, boundary_gradient_, normal, equation_);
+
     if (betaL < betaR) {
-      Load(stencil[0], cons, Shift(cell, dir, 0));
-      Load(stencil[1], cons, Shift(cell, dir, 1));
-      if (betaL < betaRR && cell[d] + 2 < Box<0>(states).upper[d]) {
-        Load(stencil[2], cons, Shift(cell, dir, 2));
-      } else {
-        stencil[2] = stencil[1];
-      }
-      if (betaL < betaRR && betaL < betaRRR &&
-          cell[d] + 3 < Box<0>(states).upper[d]) {
-        Load(stencil[3], cons, Shift(cell, dir, 3));
-      } else {
-        stencil[3] = stencil[2];
-      }
+      ForEachComponent([](auto&& u) { u *= -1.0; }, boundary_gradient_);
 
-      // Compute slopes
-      // const double dL = 0.5 - geom.centerL[face];
-      // const double dR = 0.5 + geom.centerR[face];
-      const double alphaL = 0.5 - cutcell_data.boundary_centeroids(cell_d);
-      const double alphaR =
-          betaRRR < betaL || betaRRR == 1.0
-              ? 1.0
-              : 0.5 +
-                    std::apply(
-                        [&](auto... is) {
-                          return cutcell_data.boundary_centeroids(is..., dir_v);
-                        },
-                        Shift(cell, dir, +3));
-      std::array<double, 4> xs{0.0, 0.5 * (1.0 + alphaL), 0.5 * (3.0 + alphaL),
-                               0.5 * (4.0 + alphaL + alphaR)};
-      ComputeLimitedSlope(limited_slopes[0], span(stencil).template first<3>(),
-                          span(xs).template first<3>());
-      ComputeLimitedSlope(limited_slopes[1], span(stencil).template last<3>(),
-                          span(xs).template last<3>());
+      CompleteFromCons(equation_, h_grid_embedded_boundary[0], boundary_state_);
+      h_grid_embedded_boundary_slopes[0] = boundary_gradient_;
+      CompleteFromCons(equation_, h_grid_embedded_boundary[1], interior_state_);
+      h_grid_embedded_boundary_slopes[1] = interior_gradient_;
 
-      // Do the h-grid average for right states
-      const double alpha = alphaL;
-      const double alpha_half = 0.5 * alpha;
-      const double omalpha = 1.0 - alpha;
-      ForEachComponent(
-          [=](double& hR, double& hRR, double uCC, double uR, double uRR,
-              double grad_uR, double grad_uRR) {
-            hR = alpha * uCC + omalpha * (uR - alpha_half * grad_uR);
-            hRR = alpha * uR + omalpha * (uRR - alpha_half * grad_uRR);
-          },
-          AsCons(h_grid_embedded_boundary[2]),
-          AsCons(h_grid_embedded_boundary[3]), stencil[0], stencil[1],
-          stencil[2], limited_slopes[0], limited_slopes[1]);
-      CompleteFromCons(equation_, h_grid_embedded_boundary[2],
-                       h_grid_embedded_boundary[2]);
-      CompleteFromCons(equation_, h_grid_embedded_boundary[3],
-                       h_grid_embedded_boundary[3]);
-
-      // Impose embedded boundary conditions for left states
-      Eigen::Array<double, Rank, 1> normal =
-          GetBoundaryNormal(cutcell_data, cell);
-      AsCons(h_grid_embedded_boundary[1]) = near_;
-      AsCons(h_grid_embedded_boundary[0]) = far_;
-      CompleteFromCons(equation_, h_grid_embedded_boundary[0],
-                       h_grid_embedded_boundary[0]);
-      CompleteFromCons(equation_, h_grid_embedded_boundary[1],
-                       h_grid_embedded_boundary[1]);
-      Reflect(h_grid_embedded_boundary[1], h_grid_embedded_boundary[1], normal,
-              equation_);
-      Reflect(h_grid_embedded_boundary[0], h_grid_embedded_boundary[0], normal,
-              equation_);
-
-      ////////////////////////////////////////////////////////////////////////
-      // Case 2: get data   FROM LEFT
-      //                    ^^^^^^^^^
     } else if (betaR < betaL) {
-      Load(stencil[3], cons, Shift(cell, dir, 0));
-      Load(stencil[2], cons, Shift(cell, dir, -1));
-      if (betaR < betaLL && Box<0>(states).lower[d] <= cell[d] - 2) {
-        Load(stencil[1], cons, Shift(cell, dir, -2));
-      } else {
-        stencil[1] = stencil[2];
-      }
-      if (betaR < betaLL && betaR < betaLLL &&
-          Box<0>(states).lower[d] <= cell[d] - 3) {
-        Load(stencil[0], cons, Shift(cell, dir, -3));
-      } else {
-        stencil[0] = stencil[1];
-      }
+      ForEachComponent([](auto&& u) { u *= -1.0; }, interior_gradient_);
 
-      // Compute slopes
-      // const double dL = 0.5 - geom.centerL[face];
-      // const double dR = 0.5 + geom.centerR[face];
-      const double alphaR = 0.5 + cutcell_data.boundary_centeroids(cell_d);
-      const double alphaL =
-          betaLLL < betaR || betaLLL == 1.0
-              ? 1.0
-              : 0.5 -
-                    std::apply(
-                        [&](auto... is) {
-                          return cutcell_data.boundary_centeroids(is..., dir_v);
-                        },
-                        Shift(cell, dir, -3));
-      std::array<double, 4> xs{0.0, 0.5 * (1.0 + alphaL), 0.5 * (3.0 + alphaL),
-                               0.5 * (4.0 + alphaL + alphaR)};
-      ComputeLimitedSlope(limited_slopes[0], span(stencil).template first<3>(),
-                          span(xs).template first<3>());
-      ComputeLimitedSlope(limited_slopes[1], span(stencil).template last<3>(),
-                          span(xs).template last<3>());
-
-      // Do the h-grid average for left states
-      const double alpha = alphaR;
-      const double alpha_half = 0.5 * alpha;
-      const double omalpha = 1.0 - alpha;
-      ForEachComponent(
-          [=](double& hL, double& hLL, double uCC, double uL, double uLL,
-              double grad_uL, double grad_uLL) {
-            hL = alpha * uCC + omalpha * (uL + alpha_half * grad_uL);
-            hLL = alpha * uL + omalpha * (uLL + alpha_half * grad_uLL);
-          },
-          AsCons(h_grid_embedded_boundary[1]),
-          AsCons(h_grid_embedded_boundary[0]), stencil[3], stencil[2],
-          stencil[1], limited_slopes[1], limited_slopes[0]);
-      CompleteFromCons(equation_, h_grid_embedded_boundary[0],
-                       h_grid_embedded_boundary[0]);
-      CompleteFromCons(equation_, h_grid_embedded_boundary[1],
-                       h_grid_embedded_boundary[1]);
-
-      // Impose embedded boundary conditions for left states
-      Eigen::Array<double, Rank, 1> normal =
-          GetBoundaryNormal(cutcell_data, cell);
-      AsCons(h_grid_embedded_boundary[2]) = near_;
-      AsCons(h_grid_embedded_boundary[3]) = far_;
-      CompleteFromCons(equation_, h_grid_embedded_boundary[2],
-                       h_grid_embedded_boundary[2]);
-      CompleteFromCons(equation_, h_grid_embedded_boundary[3],
-                       h_grid_embedded_boundary[3]);
-      Reflect(h_grid_embedded_boundary[2], h_grid_embedded_boundary[2], normal,
-              equation_);
-      Reflect(h_grid_embedded_boundary[3], h_grid_embedded_boundary[3], normal,
-              equation_);
-
-      ////////////////////////////////////////////////////////////////////////
-      // Case 3:     NO RECONSTRUCTION    needed
-      //             ^^^^^^^^^^^^^^^^^
-    } else {
+      CompleteFromCons(equation_, h_grid_embedded_boundary[1], boundary_state_);
+      h_grid_embedded_boundary_slopes[1] = boundary_gradient_;
+      CompleteFromCons(equation_, h_grid_embedded_boundary[0], interior_state_);
+      h_grid_embedded_boundary_slopes[0] = interior_gradient_;
     }
   }
 
-  void ComputeLimitedSlope(Conservative& slope, span<const Conservative, 3> u,
-                           span<double, 3> x) const noexcept {
-    const double hminus = x[1] - x[0];
-    const double hplus = x[2] - x[1];
-    ForEachComponent(
-        [=](double& slope, double uL, double uM, double uR) {
-          const double sL = (uM - uL) / hminus;
-          const double sR = (uR - uM) / hplus;
-          if (sL * sR <= 0.0) {
-            slope = 0.0;
-          } else {
-            slope = 0.0;
-            // slope = std::min(sL, sR);
-          }
-        },
-        slope, u[0], u[1], u[2]);
+  void ReconstructRegularStencil(span<Complete, 2> h_grid_regular,
+                                 span<Conservative, 2> h_grid_regular_gradients,
+                                 const View<const Complete>& states,
+                                 const View<const Conservative>& gradient_x,
+                                 const View<const Conservative>& gradient_y,
+                                 const View<const Conservative>& gradient_z,
+                                 const CutCellData<Rank>& geom,
+                                 const Index<Rank>& face, Duration /*dt*/,
+                                 Eigen::Matrix<double, Rank, 1> dx,
+                                 Direction dir) {
+    Index<Rank> iL = LeftTo(face, dir);
+    Index<Rank> iR = RightTo(face, dir);
+
+    const Coordinates<Rank> face_xM =
+        GetUnshieldedCentroid(geom, face, dx, dir);
+    const Coordinates<Rank> xL_us = Shift(face_xM, dir, -0.5 * dx[int(dir)]);
+    const Coordinates<Rank> xR_us = Shift(face_xM, dir, +0.5 * dx[int(dir)]);
+    const Coordinates<Rank> xL = GetAbsoluteVolumeCentroid(geom, iL, dx);
+    const Coordinates<Rank> xR = GetAbsoluteVolumeCentroid(geom, iR, dx);
+    Load(state_, AsCons(states), iL);
+    Load(gradient_[0], gradient_x, iL);
+    Load(gradient_[1], gradient_y, iL);
+    Load(gradient_[2], gradient_z, iL);
+
+    span<const Conservative, Rank> grads{gradient_.data(), Rank};
+
+    const Coordinates<Rank> delta_xL = xL_us - xL;
+    ApplyGradient(gradient_dir_, grads, delta_xL);
+    state_ += gradient_dir_;
+    CompleteFromCons(equation_, h_grid_regular[0], state_);
+    h_grid_regular_gradients[0] = gradient_[int(dir)];
+
+    Load(state_, AsCons(states), iR);
+    Load(gradient_[0], gradient_x, iR);
+    Load(gradient_[1], gradient_y, iR);
+    Load(gradient_[2], gradient_z, iR);
+
+    const Coordinates<Rank> delta_xR = xR_us - xR;
+    ApplyGradient(gradient_dir_, grads, delta_xR);
+    state_ += gradient_dir_;
+    CompleteFromCons(equation_, h_grid_regular[1], state_);
+    h_grid_regular_gradients[1] = gradient_[int(dir)];
   }
 
   Equation equation_;
@@ -815,8 +765,10 @@ struct ConservativeHGridReconstruction
   Conservative limited_slope_{equation_};
   Conservative state_{equation_};
   Conservative gradient_dir_{equation_};
-  Conservative near_{equation_};
-  Conservative far_{equation_};
+  Conservative boundary_state_{equation_};
+  Conservative boundary_gradient_{equation_};
+  Conservative interior_state_{equation_};
+  Conservative interior_gradient_{equation_};
 };
 
 template <typename EquationT, typename FluxMethod,
@@ -849,6 +801,7 @@ public:
   ///
   /// This constructor uses a default constructed riemann problem solver.
   explicit MyCutCellMethod(const Equation& equation);
+  MyCutCellMethod(const Equation& equation, const FluxMethod& flux_method);
 
   using FluxMethod::ComputeStableDt;
 
@@ -867,11 +820,11 @@ public:
                             const View<Conservative>& shielded_left_fluxes,
                             const View<Conservative>& shielded_right_fluxes,
                             const View<Conservative>& doubly_shielded_fluxes,
+                            const View<Conservative>& regular_fluxes,
                             const View<Conservative>& boundary_fluxes,
                             const View<const Conservative>& gradient_x,
                             const View<const Conservative>& gradient_y,
                             const View<const Conservative>& gradient_z,
-                            const View<const Conservative>& regular_fluxes,
                             const View<const Complete>& states,
                             const CutCellData<Rank>& geom, Duration dt,
                             const Eigen::Matrix<double, Rank, 1>& dx,
@@ -892,26 +845,41 @@ private:
   Equation equation_;
   HGridReconstruction h_grid_reconstruction_;
 
-  std::array<Complete, 4> h_grid_eb_{};
-  std::array<Complete, 4> h_grid_singly_shielded_{};
-  std::array<Conservative, 2> limited_slopes_{};
+  std::array<Complete, 2> h_grid_eb_{};
+  std::array<Conservative, 2> h_grid_eb_gradients_{};
+  std::array<Complete, 2> h_grid_singly_shielded_{};
+  std::array<Conservative, 2> h_grid_singly_shielded_gradients_{};
+  std::array<Complete, 2> h_grid_regular_{};
+  std::array<Conservative, 2> h_grid_regular_gradients_{};
+
   Conservative boundary_flux_{equation_};
-  Conservative shielded_right_flux_{equation_};
-  Conservative shielded_left_flux_{equation_};
+  Conservative singly_shielded_flux_{equation_};
+  Conservative regular_flux_{equation_};
 
   std::array<CompleteArray, StencilSize> stencil_array_{};
   ConservativeArray numeric_flux_array_{equation_};
 };
+
+template <typename Equation, typename FluxMethod>
+MyCutCellMethod(const Equation&, const FluxMethod&) -> MyCutCellMethod<Equation, FluxMethod>;
 
 // IMPLEMENTATION
 
 template <typename Equation, typename FluxMethod, typename HGridReconstruction>
 MyCutCellMethod<Equation, FluxMethod, HGridReconstruction>::MyCutCellMethod(
     const Equation& eq)
-    : FluxMethod(eq), equation_(eq), h_grid_reconstruction_(eq) {
+    : MyCutCellMethod(eq, FluxMethod(eq)) {}
+
+template <typename Equation, typename FluxMethod, typename HGridReconstruction>
+MyCutCellMethod<Equation, FluxMethod, HGridReconstruction>::MyCutCellMethod(
+    const Equation& eq, const FluxMethod& flux_method)
+    : FluxMethod(flux_method), equation_(eq), h_grid_reconstruction_(eq) {
   h_grid_eb_.fill(Complete(equation_));
+  h_grid_eb_gradients_.fill(Conservative(equation_));
   h_grid_singly_shielded_.fill(Complete(equation_));
-  limited_slopes_.fill(Complete(equation_));
+  h_grid_singly_shielded_gradients_.fill(Conservative(equation_));
+  h_grid_regular_.fill(Complete(equation_));
+  h_grid_regular_gradients_.fill(Conservative(equation_));
   stencil_array_.fill(CompleteArray(equation_));
 }
 
@@ -1081,11 +1049,11 @@ void MyCutCellMethod<Equation, FluxMethod, HGridReconstruction>::
                          const View<Conservative>& shielded_left_fluxes,
                          const View<Conservative>& shielded_right_fluxes,
                          const View<Conservative>& /* doubly_shielded_fluxes */,
+                         const View<Conservative>& regular_fluxes,
                          const View<Conservative>& boundary_fluxes,
                          const View<const Conservative>& gradient_x,
                          const View<const Conservative>& gradient_y,
                          const View<const Conservative>& gradient_z,
-                         const View<const Conservative>& regular_fluxes,
                          const View<const Complete>& states,
                          const CutCellData<Rank>& geom, Duration dt,
                          const Eigen::Matrix<double, Rank, 1>& dx,
@@ -1102,41 +1070,67 @@ void MyCutCellMethod<Equation, FluxMethod, HGridReconstruction>::
   //  its h grid
   const auto d = static_cast<std::size_t>(dir);
   const PatchDataView<const double, Rank>& betas = geom.face_fractions[d];
+  const PatchDataView<const double, Rank>& betaUs =
+      geom.unshielded_fractions[d];
   ForEachIndex(Shrink(Box<0>(states), dir, {1, 1}), [&](auto... is) {
     Index<Rank> cell{is...};
     Index<Rank> faceL = cell;
     Index<Rank> faceR = Shift(faceL, dir, 1);
     const double betaL = betas(faceL);
     const double betaR = betas(faceR);
+    const double betaUsL = betaUs(faceL);
+    const double betaUsR = betaUs(faceR);
     if (betaL < betaR) {
       h_grid_reconstruction_.ReconstructEmbeddedBoundaryStencil(
-          h_grid_eb_, limited_slopes_, states, gradient_x, gradient_y,
+          h_grid_eb_, h_grid_eb_gradients_, states, gradient_x, gradient_y,
           gradient_z, geom, cell, dt, dx, dir);
-      FluxMethod::ComputeNumericFlux(boundary_flux_, h_grid_eb_, dt, dx[d],
-                                     dir);
-      h_grid_reconstruction_.ReconstructSinglyShieldedStencil(
-          h_grid_singly_shielded_, h_grid_eb_, limited_slopes_, states,
-          gradient_x, gradient_y, gradient_z, geom, cell, dt, dx, dir);
-      FluxMethod::ComputeNumericFlux(shielded_left_flux_,
-                                     h_grid_singly_shielded_, dt, dx[d], dir);
+      FluxMethod::ComputeNumericFlux(boundary_flux_, h_grid_eb_,
+                                     h_grid_eb_gradients_, dt, dx[d], dir);
       Store(boundary_fluxes, boundary_flux_, cell);
+
+      h_grid_reconstruction_.ReconstructSinglyShieldedStencil(
+          h_grid_singly_shielded_, h_grid_singly_shielded_gradients_, states,
+          gradient_x, gradient_y, gradient_z, geom, cell, dt, dx, dir);
+      FluxMethod::ComputeNumericFlux(
+          singly_shielded_flux_, h_grid_singly_shielded_,
+          h_grid_singly_shielded_gradients_, dt, dx[d], dir);
       if (Contains(Box<0>(shielded_left_fluxes), faceR)) {
-        Store(shielded_left_fluxes, shielded_left_flux_, faceR);
+        Store(shielded_left_fluxes, singly_shielded_flux_, faceR);
+        if (betaUsR > 0.0) {
+          h_grid_reconstruction_.ReconstructRegularStencil(
+              h_grid_regular_, h_grid_regular_gradients_, states, gradient_x,
+              gradient_y, gradient_z, geom, faceR, dt, dx, dir);
+          FluxMethod::ComputeNumericFlux(regular_flux_, h_grid_regular_,
+                                         h_grid_regular_gradients_, dt, dx[d],
+                                         dir);
+          Store(regular_fluxes, regular_flux_, faceR);
+        }
       }
     } else if (betaR < betaL) {
       h_grid_reconstruction_.ReconstructEmbeddedBoundaryStencil(
-          h_grid_eb_, limited_slopes_, states, gradient_x, gradient_y,
+          h_grid_eb_, h_grid_eb_gradients_, states, gradient_x, gradient_y,
           gradient_z, geom, cell, dt, dx, dir);
-      FluxMethod::ComputeNumericFlux(boundary_flux_, h_grid_eb_, dt, dx[d],
-                                     dir);
-      h_grid_reconstruction_.ReconstructSinglyShieldedStencil(
-          h_grid_singly_shielded_, h_grid_eb_, limited_slopes_, states,
-          gradient_x, gradient_y, gradient_z, geom, cell, dt, dx, dir);
-      FluxMethod::ComputeNumericFlux(shielded_right_flux_,
-                                     h_grid_singly_shielded_, dt, dx[d], dir);
+      FluxMethod::ComputeNumericFlux(boundary_flux_, h_grid_eb_,
+                                     h_grid_eb_gradients_, dt, dx[d], dir);
       Store(boundary_fluxes, boundary_flux_, cell);
+
+      h_grid_reconstruction_.ReconstructSinglyShieldedStencil(
+          h_grid_singly_shielded_, h_grid_singly_shielded_gradients_, states,
+          gradient_x, gradient_y, gradient_z, geom, cell, dt, dx, dir);
+      FluxMethod::ComputeNumericFlux(
+          singly_shielded_flux_, h_grid_singly_shielded_,
+          h_grid_singly_shielded_gradients_, dt, dx[d], dir);
       if (Contains(Box<0>(shielded_right_fluxes), faceL)) {
-        Store(shielded_right_fluxes, shielded_right_flux_, faceL);
+        Store(shielded_right_fluxes, singly_shielded_flux_, faceL);
+        if (betaUsL > 0.0) {
+          h_grid_reconstruction_.ReconstructRegularStencil(
+              h_grid_regular_, h_grid_regular_gradients_, states, gradient_x,
+              gradient_y, gradient_z, geom, faceL, dt, dx, dir);
+          FluxMethod::ComputeNumericFlux(regular_flux_, h_grid_regular_,
+                                         h_grid_regular_gradients_, dt, dx[d],
+                                         dir);
+          Store(regular_fluxes, regular_flux_, faceL);
+        }
       }
     }
   });
