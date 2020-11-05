@@ -170,6 +170,19 @@ void Rotate(Complete<PerfectGas<3>>& rotated,
             const Eigen::Matrix<double, 3, 3>& rotation, const PerfectGas<3>&);
 /// @}
 
+void Reflect(Conservative<PerfectGas<1>>& reflected,
+             const Conservative<PerfectGas<1>>& state,
+             const Eigen::Matrix<double, 1, 1>& normal,
+             const PerfectGas<1>& gas);
+
+void Reflect(Conservative<PerfectGas<2>>& reflected,
+             const Conservative<PerfectGas<2>>& state,
+             const Eigen::Vector2d& normal, const PerfectGas<2>& gas);
+
+void Reflect(Conservative<PerfectGas<3>>& reflected,
+             const Conservative<PerfectGas<3>>& state,
+             const Eigen::Vector3d& normal, const PerfectGas<3>& gas);
+
 void Reflect(Complete<PerfectGas<1>>& reflected,
              const Complete<PerfectGas<1>>& state,
              const Eigen::Matrix<double, 1, 1>& normal,
