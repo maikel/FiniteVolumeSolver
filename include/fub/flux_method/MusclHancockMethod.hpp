@@ -28,6 +28,67 @@
 #include "fub/flux_method/GodunovMethod.hpp"
 
 namespace fub {
+struct NoLimiter {
+  template <typename Equation>
+  void ComputeLimitedSlope(Conservative<Equation>& cons,
+                           span<const Complete<Equation>, 3> stencil) {
+    ForEachComponent(
+        [](double& cons, double qL, double qM, double qR) {
+          const double sL = qM - qL;
+          const double sR = qR - qM;
+          cons = 0.5 * (sL + sR);
+        },
+        cons, AsCons(stencil[0]), AsCons(stencil[1]), AsCons(stencil[2]));
+  }
+
+  template <typename Equation, int N>
+  void ComputeLimitedSlope(ConservativeArray<Equation, N>& cons,
+                           span<const CompleteArray<Equation, N>, 3> stencil) {
+    ForEachComponent(
+        [](auto&& cons, auto qL, auto qM, auto qR) {
+          const Array<double, 1, N> sL = qM - qL;
+          const Array<double, 1, N> sR = qR - qM;
+          cons = 0.5 * (sL + sR);
+        },
+        cons, AsCons(stencil[0]), AsCons(stencil[1]), AsCons(stencil[2]));
+  }
+
+  template <typename Equation, int N>
+  void ComputeLimitedSlope(ConservativeArray<Equation, N>& cons,
+                           span<const CompleteArray<Equation, N>, 3> stencil,
+                           MaskArray mask) {
+    ForEachComponent(
+        [=](auto&& cons, auto qL, auto qM, auto qR) {
+          const Array<double, 1, N> zero = Array<double, 1, N>::Constant(0.0);
+          const Array<double, 1, N> sL = mask.select(qM - qL, zero);
+          const Array<double, 1, N> sR = mask.select(qR - qM, zero);
+          cons = 0.5 * (sL + sR);
+        },
+        cons, AsCons(stencil[0]), AsCons(stencil[1]), AsCons(stencil[2]));
+  }
+};
+
+struct NoGradient {
+  template <typename Equation>
+  void ComputeLimitedSlope(Conservative<Equation>& cons,
+                           span<const Complete<Equation>, 3>) {
+    ForEachComponent([](double& cons) { cons = 0.0; }, cons);
+  }
+
+  template <typename Equation, int N>
+  void ComputeLimitedSlope(ConservativeArray<Equation, N>& cons,
+                           span<const CompleteArray<Equation, N>, 3>) {
+    ForEachComponent([](auto&& cons) { cons = Array1d::Zero(); }, cons);
+  }
+
+  template <typename Equation, int N>
+  void ComputeLimitedSlope(ConservativeArray<Equation, N>& cons,
+                           span<const CompleteArray<Equation, N>, 3>,
+                           MaskArray) {
+    ForEachComponent([](auto&& cons) { cons = Array1d::Zero(); }, cons);
+  }
+};
+
 struct MinMod {
   template <typename Equation>
   void ComputeLimitedSlope(Conservative<Equation>& cons,
@@ -60,15 +121,16 @@ struct MinMod {
 
   template <typename Equation, int N>
   void ComputeLimitedSlope(ConservativeArray<Equation, N>& cons,
-                           span<const CompleteArray<Equation, N>, 3> stencil, MaskArray mask) {
+                           span<const CompleteArray<Equation, N>, 3> stencil,
+                           MaskArray mask) {
     ForEachComponent(
-                     [=](auto&& cons, auto qL, auto qM, auto qR) {
-                       const Array<double, 1, N> zero = Array<double, 1, N>::Constant(0.0);
-                       const Array<double, 1, N> sL = mask.select(qM - qL, zero);
-                       const Array<double, 1, N> sR = mask.select(qR - qM, zero);
-                       cons = (sR > 0).select(zero.max(sL.min(sR)), zero.min(sL.max(sR)));
-                     },
-                     cons, AsCons(stencil[0]), AsCons(stencil[1]), AsCons(stencil[2]));
+        [=](auto&& cons, auto qL, auto qM, auto qR) {
+          const Array<double, 1, N> zero = Array<double, 1, N>::Constant(0.0);
+          const Array<double, 1, N> sL = mask.select(qM - qL, zero);
+          const Array<double, 1, N> sR = mask.select(qR - qM, zero);
+          cons = (sR > 0).select(zero.max(sL.min(sR)), zero.min(sL.max(sR)));
+        },
+        cons, AsCons(stencil[0]), AsCons(stencil[1]), AsCons(stencil[2]));
   }
 };
 
@@ -100,7 +162,8 @@ struct VanLeer {
 
   template <typename Equation>
   void ComputeLimitedSlope(ConservativeArray<Equation>& cons,
-                           span<const CompleteArray<Equation>, 3> stencil, MaskArray mask) {
+                           span<const CompleteArray<Equation>, 3> stencil,
+                           MaskArray mask) {
     ForEachComponent(
         [this, mask](auto&& cons, auto qL, auto qM, auto qR) {
           const Array1d sL = mask.select(qM - qL, 0.0);
@@ -166,6 +229,10 @@ struct MusclHancock {
   void ComputeNumericFlux(Conservative& flux, span<const Complete, 4> stencil,
                           Duration dt, double dx, Direction dir);
 
+  void ComputeNumericFlux(Conservative& flux, span<const Complete, 2> stencil,
+                          span<const Conservative, 2> gradients, Duration dt,
+                          double dx, Direction dir);
+
   void ComputeNumericFlux(ConservativeArray& flux,
                           span<const CompleteArray, 4> stencil, Duration dt,
                           double dx, Direction dir);
@@ -218,11 +285,11 @@ struct MusclHancockMethod
 };
 
 template <typename Equation>
-MusclHancockMethod(const Equation&)->MusclHancockMethod<Equation>;
+MusclHancockMethod(const Equation&) -> MusclHancockMethod<Equation>;
 
 template <typename Equation, typename Method>
 MusclHancockMethod(const Equation&, const Method&)
-    ->MusclHancockMethod<Equation, Method>;
+    -> MusclHancockMethod<Equation, Method>;
 
 template <typename Equation, typename Method, typename SlopeLimiter>
 void MusclHancock<Equation, Method, SlopeLimiter>::ComputeNumericFlux(
@@ -267,6 +334,67 @@ void MusclHancock<Equation, Method, SlopeLimiter>::ComputeNumericFlux(
         qR = state + 0.5 * slope;
       },
       AsCons(q_left_), AsCons(q_right_), AsCons(stencil[2]), slope_);
+
+  CompleteFromCons(equation_, q_left_, q_left_);
+  CompleteFromCons(equation_, q_right_, q_right_);
+
+  Flux(equation_, flux_left_, q_left_, dir);
+  Flux(equation_, flux_right_, q_right_, dir);
+
+  ForEachComponent(
+      [&lambda_half](double& rec, double qL, double fL, double fR) {
+        rec = qL + lambda_half * (fL - fR);
+      },
+      AsCons(rec_[1]), AsCons(q_left_), flux_left_, flux_right_);
+
+  CompleteFromCons(equation_, rec_[1], rec_[1]);
+
+  ///////////////////////////////////////////////////////////////////////////
+  // Invoke Lower Order Flux Method
+
+  flux_method_.ComputeNumericFlux(flux, span{rec_}, dt, dx, dir);
+}
+
+template <typename Equation, typename Method, typename SlopeLimiter>
+void MusclHancock<Equation, Method, SlopeLimiter>::ComputeNumericFlux(
+    Conservative& flux, span<const Complete, 2> stencil,
+    span<const Conservative, 2> gradients, Duration dt, double dx,
+    Direction dir) {
+  const double lambda_half = 0.5 * dt.count() / dx;
+
+  ////////////////////////////////////////////////////////////////////////////
+  // Compute Left Reconstructed Complete State
+
+  ForEachComponent(
+      [dx](double& qL, double& qR, double state, double slope) {
+        qL = state - 0.5 * slope * dx;
+        qR = state + 0.5 * slope * dx;
+      },
+      AsCons(q_left_), AsCons(q_right_), AsCons(stencil[0]), gradients[0]);
+
+  CompleteFromCons(equation_, q_left_, q_left_);
+  CompleteFromCons(equation_, q_right_, q_right_);
+
+  Flux(equation_, flux_left_, q_left_, dir);
+  Flux(equation_, flux_right_, q_right_, dir);
+
+  ForEachComponent(
+      [&lambda_half](double& rec, double qR, double fL, double fR) {
+        rec = qR + lambda_half * (fL - fR);
+      },
+      AsCons(rec_[0]), AsCons(q_right_), flux_left_, flux_right_);
+
+  CompleteFromCons(equation_, rec_[0], rec_[0]);
+
+  ///////////////////////////////////////////////////////////////////////////
+  // Compute Right Reconstructed Complete State
+
+  ForEachComponent(
+      [dx](double& qL, double& qR, double state, double slope) {
+        qL = state - 0.5 * slope * dx;
+        qR = state + 0.5 * slope * dx;
+      },
+      AsCons(q_left_), AsCons(q_right_), AsCons(stencil[1]), gradients[1]);
 
   CompleteFromCons(equation_, q_left_, q_left_);
   CompleteFromCons(equation_, q_right_, q_right_);
@@ -368,8 +496,11 @@ void MusclHancock<Equation, Method, SlopeLimiter>::ComputeNumericFlux(
     ////////////////////////////////////////////////////////////////////////////
     // Compute Left Reconstructed Complete State
 
-    MaskArray left_slope_mask = volume_fractions[0] > 0.0 && volume_fractions[1] > 0.0 && volume_fractions[2] > 0.0;
-    slope_limiter_.ComputeLimitedSlope(slope_arr_, stencil.template first<3>(), left_slope_mask);
+    MaskArray left_slope_mask = volume_fractions[0] > 0.0 &&
+                                volume_fractions[1] > 0.0 &&
+                                volume_fractions[2] > 0.0;
+    slope_limiter_.ComputeLimitedSlope(slope_arr_, stencil.template first<3>(),
+                                       left_slope_mask);
 
     ForEachComponent(
         [=](auto&& qL, auto&& qR, const auto& state, const auto& slope) {
@@ -398,8 +529,11 @@ void MusclHancock<Equation, Method, SlopeLimiter>::ComputeNumericFlux(
     ///////////////////////////////////////////////////////////////////////////
     // Compute Right Reconstructed Complete State
 
-    MaskArray right_slope_mask = volume_fractions[1] > 0.0 && volume_fractions[2] > 0.0 && volume_fractions[3] > 0.0;
-    slope_limiter_.ComputeLimitedSlope(slope_arr_, stencil.template last<3>(), right_slope_mask);
+    MaskArray right_slope_mask = volume_fractions[1] > 0.0 &&
+                                 volume_fractions[2] > 0.0 &&
+                                 volume_fractions[3] > 0.0;
+    slope_limiter_.ComputeLimitedSlope(slope_arr_, stencil.template last<3>(),
+                                       right_slope_mask);
 
     ForEachComponent(
         [=](auto&& qL, auto&& qR, const auto& state, const auto& slope) {
@@ -431,6 +565,8 @@ void MusclHancock<Equation, Method, SlopeLimiter>::ComputeNumericFlux(
     flux_method_.ComputeNumericFlux(flux, face_fractions, span{rec_arr_},
                                     volume_fractions.template subspan<1, 2>(),
                                     dt, dx, dir);
+  } else {
+    ForEachComponent([](auto&& cons) { cons = Array1d::Zero(); }, flux);
   }
 }
 
