@@ -78,9 +78,9 @@ template <typename Equation> struct ConstantBoundary {
             continue;
           }
           ::amrex::Box box_to_fill = mfi.growntilebox() & boundary;
-          auto states =
-              MakeView<Complete<Equation>>(fab, equation, box_to_fill);
           if (!box_to_fill.isEmpty()) {
+            auto states =
+              MakeView<Complete<Equation>>(fab, equation, box_to_fill);
             ForEachIndex(box_to_fill, [&](auto... is) {
               ::amrex::IntVect iv{static_cast<int>(is)...};
               if (alpha(iv) > 0.0) {
