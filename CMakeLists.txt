@@ -349,8 +349,7 @@ target_link_libraries(FiniteVolumeSolver.Solver
     Boost::serialization
     Eigen3::Eigen
     Vc::Vc
-    pybind11::embed
-    CONAN_PKG::gsl)
+    pybind11::embed)
 target_include_directories(FiniteVolumeSolver.Solver
   PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
