@@ -259,6 +259,7 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   geometry.periodicity = periodicity;
 
   PatchHierarchyOptions hier_opts{};
+  hier_opts.ngrow_eb_level_set = 9;
   hier_opts.max_number_of_levels = n_level;
   hier_opts.index_spaces =
       fub::amrex::cutcell::MakeIndexSpaces(shop, coarse_geom, n_level);
@@ -273,17 +274,17 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
       TagAllOf(TagCutCells(), gradients, TagBuffer(4)), boundary_condition);
   gridding->InitializeHierarchy(0.0);
 
-  fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
-  fub::HllMethod hll_method{equation, signals};
-  fub::MusclHancockMethod flux_method(equation, hll_method);
-  fub::KbnCutCellMethod cutcell_method(std::move(flux_method), hll_method);
+  fub::perfect_gas::HllemMethod<2> hllem_method{equation};
+  fub::FluxMethod<fub::perfect_gas::MusclHancockPrim<2>> flux_method{equation};
+  fub::KbnCutCellMethod cutcell_method(flux_method, hllem_method);
   HyperbolicMethod method{FluxMethod{cutcell_method}, TimeIntegrator{},
                           Reconstruction{equation}};
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<2>, IntegratorContext(gridding, method));
+      fub::int_c<2>, IntegratorContext(gridding, method, 2, 0));
 
-  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
+  // fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
+  fub::NoSubcycleSolver solver(std::move(level_integrator));
 
   std::string base_name = options.output_directory;
 
