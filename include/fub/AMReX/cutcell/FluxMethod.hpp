@@ -36,6 +36,39 @@
 
 namespace fub::amrex::cutcell {
 
+template <typename Type, typename Equation>
+::amrex::Vector<std::string> VarNames(const Equation& equation) {
+  using Traits = StateTraits<Type>;
+  constexpr auto names = Traits::names;
+  const auto depths = Depths<Type>(equation);
+  const std::size_t n_names =
+      std::tuple_size<remove_cvref_t<decltype(names)>>::value;
+  ::amrex::Vector<std::string> varnames;
+  varnames.reserve(n_names);
+  boost::mp11::tuple_for_each(Zip(names, StateToTuple(depths)), [&](auto xs) {
+    const int ncomp = std::get<1>(xs);
+    if (ncomp == 1) {
+      varnames.push_back(std::get<0>(xs));
+    } else {
+      for (int i = 0; i < ncomp; ++i) {
+        varnames.push_back(fmt::format("{}_{}", std::get<0>(xs), i));
+      }
+    }
+  });
+  return varnames;
+}
+
+inline ::amrex::Vector<std::string>
+AddPrefix(const ::amrex::Vector<std::string>& names,
+          const std::string& prefix) {
+  ::amrex::Vector<std::string> new_names{};
+  new_names.reserve(names.size());
+  for (const std::string& name : names) {
+    new_names.push_back(fmt::format("{}_{}", prefix, name));
+  }
+  return new_names;
+}
+
 template <typename Tag, typename Base> class FluxMethod {
 public:
   using Equation = typename Base::Equation;
@@ -212,6 +245,16 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
                                        geom, dx_vec);
       }
     });
+
+    DebugStorage& debug = *hierarchy.GetDebugStorage();
+    const ::amrex::Geometry& geom = hierarchy.GetGeometry(level);
+    const Equation& equation = flux_method_->GetEquation();
+    const auto names = VarNames<Conservative<Equation>>(equation);
+        DebugSnapshotProxy snapshot  =
+        debug.AddSnapshot(fmt::format("Gradients_{}", int(dir)));
+    snapshot.SaveData(gradient_x, AddPrefix(names, "GradX_"), geom);
+    snapshot.SaveData(gradient_y, AddPrefix(names, "GradY_"), geom);
+    snapshot.SaveData(gradient_z, AddPrefix(names, "GradZ_"), geom);
   }
 
   static constexpr int gcw = GetStencilWidth();
@@ -240,8 +283,6 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
           MakeView<Conservative<Equation>>(fluxes_sR[mfi], equation, face_box);
       auto flux_ds =
           MakeView<Conservative<Equation>>(fluxes_ds[mfi], equation, face_box);
-      auto flux = MakeView<const Conservative<Equation>>(fluxes[mfi], equation,
-                                                         face_box);
       auto flux_B = MakeView<Conservative<Equation>>(boundary_fluxes[mfi],
                                                      equation, cell_box);
       auto states =
@@ -252,7 +293,7 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
                                 View<Conservative<Equation>>,
                                 View<Conservative<Equation>>,
                                 View<Conservative<Equation>>,
-                                View<const Conservative<Equation>>,
+                                View<Conservative<Equation>>,
                                 View<const Conservative<Equation>>,
                                 View<const Conservative<Equation>>,
                                 View<const Conservative<Equation>>,
@@ -260,6 +301,8 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
                                 CutCellData<AMREX_SPACEDIM>, Duration,
                                 Eigen::Matrix<double, AMREX_SPACEDIM, 1>,
                                 Direction>::value) {
+        auto flux =
+            MakeView<Conservative<Equation>>(fluxes[mfi], equation, face_box);
         auto grad_x = MakeView<const Conservative<Equation>>(
             gradient_x[mfi], equation, cell_box);
         auto grad_y = MakeView<const Conservative<Equation>>(
@@ -267,9 +310,11 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
         auto grad_z = MakeView<const Conservative<Equation>>(
             gradient_z[mfi], equation, cell_box);
         flux_method_->ComputeCutCellFluxes(flux_s, flux_sL, flux_sR, flux_ds,
-                                           flux_B, grad_x, grad_y, grad_z, flux,
+                                           flux, flux_B, grad_x, grad_y, grad_z,
                                            states, geom, dt, dx_vec, dir);
       } else {
+        auto flux = MakeView<const Conservative<Equation>>(fluxes[mfi],
+                                                           equation, face_box);
         flux_method_->ComputeCutCellFluxes(flux_s, flux_sL, flux_sR, flux_ds,
                                            flux_B, flux, states, geom, dt, dx,
                                            dir);
@@ -282,6 +327,19 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
       flux_method_->ComputeNumericFluxes(Tag(), flux, states, dt, dx, dir);
     }
   });
+
+  DebugStorage& debug = *hierarchy.GetDebugStorage();
+  const ::amrex::Geometry& geom = hierarchy.GetGeometry(level);
+  const Equation& equation = flux_method_->GetEquation();
+  const auto names = VarNames<Conservative<Equation>>(equation);
+  DebugSnapshotProxy snapshot =
+      debug.AddSnapshot(fmt::format("Fluxes_{}", int(dir)));
+  snapshot.SaveData(fluxes, AddPrefix(names, "RegularFlux_"), geom);
+  snapshot.SaveData(fluxes_s, AddPrefix(names, "StableFlux_"), geom);
+  snapshot.SaveData(fluxes_sL, AddPrefix(names, "ShieldedFromLeftFlux_"), geom);
+  snapshot.SaveData(fluxes_sR, AddPrefix(names, "ShieldedFromRightFlux_"),
+                    geom);
+  snapshot.SaveData(boundary_fluxes.ToMultiFab(0.0, 0.0), AddPrefix(names, "BoundaryFlux_"), geom);
 }
 
 template <typename Tag, typename FM>
