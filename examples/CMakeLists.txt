@@ -99,6 +99,9 @@ if (AMReX_FOUND AND AMReX_2D_FOUND)
     add_executable_with_warnings(AMReX.EB.LinearShock2d AMReX/EB/2D/LinearShock2d.cpp)
     target_link_libraries(AMReX.EB.LinearShock2d FiniteVolumeSolver.AMReX.EB)
 
+    add_executable_with_warnings(AMReX.EB.LinearShockAxiSymmetric AMReX/EB/2D/LinearShockAxiSymmetric.cpp)
+    target_link_libraries(AMReX.EB.LinearShockAxiSymmetric FiniteVolumeSolver.AMReX.EB)
+
     add_executable_with_warnings(AMReX.EB.Schardin AMReX/EB/2D/Schardin.cpp)
     target_link_libraries(AMReX.EB.Schardin FiniteVolumeSolver.AMReX.EB)
 
