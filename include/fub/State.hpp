@@ -34,6 +34,12 @@ namespace fub {
 
 template <typename T> struct StateTraits;
 
+namespace meta {
+
+template <typename Depths> struct Rank;
+
+}
+
 namespace detail {
 template <std::size_t I, typename... Ts> constexpr auto ZipNested(Ts&&... ts) {
   return std::make_tuple(std::get<I>(ts)...);
@@ -132,7 +138,12 @@ template <typename T>
 using DepthToStateValueType = typename DepthToStateValueTypeImpl<T, 1>::type;
 /// @}
 
-template <typename T, typename Eq> struct DepthsImpl;
+template <typename T, typename Eq> struct DepthsImpl {
+  constexpr typename StateTraits<T>::template Depths<Eq::Rank()>
+  operator()(const Eq&) const noexcept {
+    return {};
+  }
+};
 } // namespace detail
 
 template <typename T, typename Eq> auto Depths(const Eq& eq) {
@@ -146,8 +157,59 @@ using Depths =
     decltype(::fub::Depths<T>(std::declval<typename T::Equation const&>()));
 }
 
-/// This type alias transforms state depths into a conservative state associated
-/// with a specified equation.
+template <typename Depths>
+using ScalarStateBase =
+    boost::mp11::mp_transform<detail::DepthToStateValueType, Depths>;
+
+template <typename Depths> struct ScalarState : ScalarStateBase<Depths> {
+  using Traits = StateTraits<ScalarStateBase<Depths>>;
+  static constexpr int Rank = meta::Rank<Depths>::value;
+  using Equation = typename Traits::template Equation<Rank>;
+  using Base = ScalarStateBase<Depths>;
+
+  using Base::Base;
+
+  ScalarState(const Equation& eq) : Base{} {
+    auto depths = ::fub::Depths<ScalarState, Equation>(eq);
+    ForEachVariable(
+        overloaded{
+            [&](double& id, ScalarDepth) { id = 0.0; },
+            [&](auto&& ids, auto depth) {
+              if constexpr (std::is_same_v<std::decay_t<decltype(depth)>,
+                                           int>) {
+                ids = Array<double, 1, Eigen::Dynamic>::Zero(1, depth);
+              } else {
+                ids = Array<double, 1, decltype(depth)::value>::Zero();
+              }
+            },
+        },
+        *this, depths);
+  }
+
+  ScalarState& operator+=(const Base& other) {
+    ForEachVariable([](auto&& that, auto&& other) { that += other; }, *this,
+                    other);
+    return *this;
+  }
+
+  ScalarState& operator-=(const Base& other) {
+    ForEachVariable([](auto&& that, auto&& other) { that -= other; }, *this,
+                    other);
+    return *this;
+  }
+
+  ScalarState& operator*=(double lambda) {
+    ForEachVariable([lambda](auto&& that, auto&& other) { that *= lambda; },
+                    *this);
+    return *this;
+  }
+};
+
+template <typename Depths>
+struct StateTraits<ScalarState<Depths>> : StateTraits<ScalarStateBase<Depths>> {};
+
+/// This type alias transforms state depths into a conservative state
+/// associated with a specified equation.
 template <typename Equation>
 using ConservativeBase =
     boost::mp11::mp_transform<detail::DepthToStateValueType,
@@ -192,6 +254,28 @@ template <typename Eq> struct Conservative : ConservativeBase<Eq> {
 
 template <typename Eq>
 struct StateTraits<Conservative<Eq>> : StateTraits<ConservativeBase<Eq>> {};
+
+template <typename Eq>
+struct Primitive : ScalarState<typename Eq::PrimitiveDepths> {
+  using Base = ScalarState<typename Eq::PrimitiveDepths>;
+
+  using Base::Base;
+};
+
+template <typename Eq>
+struct StateTraits<Primitive<Eq>>
+    : StateTraits<ScalarStateBase<typename Eq::PrimitiveDepths>> {};
+
+template <typename Eq>
+struct Characteristics : ScalarState<typename Eq::CharacteristicsDepths> {
+  using Base = ScalarState<typename Eq::CharacteristicsDepths>;
+
+  using Base::Base;
+};
+
+template <typename Eq>
+struct StateTraits<Characteristics<Eq>>
+    : StateTraits<ScalarStateBase<typename Eq::CharacteristicsDepths>> {};
 
 template <typename State> auto StateToTuple(const State& x) {
   return boost::mp11::tuple_apply(
@@ -779,6 +863,18 @@ void CopyFromBuffer(Conservative<Equation>& state, span<const double> buffer) {
       },
       state);
 }
+
+template <typename Equation>
+void CopyToBuffer(span<double> buffer, const Conservative<Equation>& state) {
+  int comp = 0;
+  ForEachComponent(
+      [&comp, buffer](auto&& var) {
+        buffer[comp] = var;
+        comp += 1;
+      },
+      state);
+}
+
 
 } // namespace fub
 
