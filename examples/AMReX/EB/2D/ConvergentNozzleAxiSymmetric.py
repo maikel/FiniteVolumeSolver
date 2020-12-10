@@ -64,12 +64,12 @@ tube_n_cells = int(tube_n_cells)
 
 RunOptions = {
   'cfl': 0.4,
-  'final_time': 0.04,
+  'final_time': 0.021,
   'max_cycles': -1
 }
 
-# checkpoint = '/Users/maikel/Development/FiniteVolumeSolver/build_3d/MultiTube/Checkpoint/000000063'
-checkpoint = ''
+checkpoint = '/srv/public/Maikel/FiniteVolumeSolver/build_2D-Release/ConvergentNozzleAxi/Checkpoint/000012985'
+# checkpoint = ''
 
 Plenum = {
   'checkpoint': checkpoint,
@@ -146,8 +146,6 @@ Tube = {
     'fuel_measurement_criterium': 0.9,
     'pressure_value_which_opens_boundary': 101325.0,
     'pressure_value_which_closes_boundary': 3.0e5,
-    'oxygen_measurement_position': -0.5,
-    'oxygen_measurement_criterium': 0.1,
     'equivalence_ratio': 1.0,
     'massflow_boundary': {
       'coarse_inner_box': { 
@@ -170,7 +168,7 @@ Output = {
     'type': 'Plotfiles',
     'directory': 'ConvergentNozzleAxi/Plotfiles/',
     'intervals': [1e-4],
-    #'frequencies': [1]
+    # 'frequencies': [1]
   }, {
     'type': 'Checkpoint',
     'directory': 'ConvergentNozzleAxi/Checkpoint/',
@@ -178,12 +176,13 @@ Output = {
     'frequencies': []
   }, {
     'type': 'CounterOutput',
-    'frequencies': [100]
+    'frequencies': [1000]
   }]
 }
 
 IgniteDetonation = {
   'interval': 0.06,
+  'offset': 0.018,
   'measurement_position': -0.3, # -0.45
   'equivalence_ratio_criterium': 0.9,
   'position': -0.8

@@ -8,6 +8,7 @@ Vc/1.4.1@ag-klein+FiniteVolumeSolver/stable
 HDF5/1.10@ag-klein+FiniteVolumeSolver/stable
 SAMRAI/3.15.0@ag-klein+FiniteVolumeSolver/stable
 AMReX/20.07@ag-klein+FiniteVolumeSolver/stable
+gsl/2.6@temp/libs
 
 [generators]
 cmake

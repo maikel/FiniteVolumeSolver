@@ -99,6 +99,9 @@ if (AMReX_FOUND AND AMReX_2D_FOUND)
     add_executable_with_warnings(AMReX.EB.LinearShock2d AMReX/EB/2D/LinearShock2d.cpp)
     target_link_libraries(AMReX.EB.LinearShock2d FiniteVolumeSolver.AMReX.EB)
 
+    add_executable_with_warnings(AMReX.EB.LinearShockAxiSymmetric AMReX/EB/2D/LinearShockAxiSymmetric.cpp)
+    target_link_libraries(AMReX.EB.LinearShockAxiSymmetric FiniteVolumeSolver.AMReX.EB)
+
     add_executable_with_warnings(AMReX.EB.Schardin AMReX/EB/2D/Schardin.cpp)
     target_link_libraries(AMReX.EB.Schardin FiniteVolumeSolver.AMReX.EB)
 
@@ -113,6 +116,9 @@ if (AMReX_FOUND AND AMReX_2D_FOUND)
 
     add_executable_with_warnings(AMReX.EB.SlopedChannel AMReX/EB/2D/SlopedChannel.cpp)
     target_link_libraries(AMReX.EB.SlopedChannel FiniteVolumeSolver.AMReX.EB)
+
+    add_executable_with_warnings(AMReX.EB.SlopedChannel_new AMReX/EB/2D/SlopedChannel_new.cpp)
+    target_link_libraries(AMReX.EB.SlopedChannel_new FiniteVolumeSolver.AMReX.EB)
 
     add_executable_with_warnings(AMReX.EB.Tube AMReX/EB/2D/Tube.cpp)
     target_link_libraries(AMReX.EB.Tube FiniteVolumeSolver.AMReX.EB)

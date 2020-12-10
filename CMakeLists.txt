@@ -216,6 +216,7 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/flux_method/HllMethod.hpp
   include/fub/flux_method/MusclHancockMethod.hpp
   include/fub/cutcell_method/KbnStabilisation.hpp
+  include/fub/cutcell_method/MyStabilisation.hpp
   include/fub/initial_data/Constant.hpp
   include/fub/initial_data/ShockMachnumber.hpp
   include/fub/tagging_method/GradientDetector.hpp
@@ -319,6 +320,7 @@ add_library(FiniteVolumeSolver.Solver
   src/geometry/Cone.cpp
   src/equations/ideal_gas_mix/mechanism/Burke2012.cpp
   src/cutcell_method/KbnStabilisation.cpp
+  src/cutcell_method/MyStabilisation.cpp
   src/tagging_method/TagBuffer.cpp
   src/tagging_method/TagCutCells.cpp
   src/ext/Mpi.cpp
@@ -492,6 +494,8 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         include/fub/AMReX/cutcell/output/WriteHdf5.hpp
         include/fub/AMReX/cutcell/output/WritePlotfiles.hpp
         include/fub/AMReX/cutcell/output/PerfectGasProbesOutput.hpp
+        include/fub/AMReX/cutcell/output/DebugOutput.hpp
+        src/AMReX/cutcell/output/DebugOutput.cpp
         include/fub/AMReX/multi_block/MultiBlockBoundary.hpp
         include/fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp
         include/fub/AMReX/multi_block/MultiBlockIntegratorContext.hpp

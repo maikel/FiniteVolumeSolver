@@ -46,7 +46,7 @@ void TagBuffer::TagCellsForRefinement(
   const std::ptrdiff_t ny = data.extent(1);
   for (std::ptrdiff_t j = 0; j < ny; ++j) {
     for (std::ptrdiff_t i = 0; i < nx; ++i) {
-      if (data(i, j) == '\1') {
+      if (data(i, j) == '\1' || data(i, j) == '\2') {
         const std::ptrdiff_t k0 =
             std::max(i - buffer_width_, std::ptrdiff_t{0});
         const std::ptrdiff_t k1 = std::min(i + buffer_width_, nx);
@@ -56,7 +56,7 @@ void TagBuffer::TagCellsForRefinement(
         for (std::ptrdiff_t l = l0; l < l1; ++l) {
           for (std::ptrdiff_t k = k0; k < k1; ++k) {
             data(k, l) =
-                std::max(data(k, l), static_cast<char>('\2' - data(k, l)));
+                std::max(data(k, l), static_cast<char>('\3' - data(k, l)));
           }
         }
       }

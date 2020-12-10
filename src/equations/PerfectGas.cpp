@@ -299,4 +299,34 @@ void Reflect(Complete<PerfectGas<3>>& reflected,
       2 * (state.momentum.matrix().dot(normal) * normal).array();
 }
 
+void Reflect(Conservative<PerfectGas<1>>& reflected,
+             const Conservative<PerfectGas<1>>& state,
+             const Eigen::Matrix<double, 1, 1>& normal, const PerfectGas<1>&) {
+  reflected.density = state.density;
+  reflected.energy = state.energy;
+  reflected.momentum =
+      state.momentum -
+      2 * (state.momentum.matrix().dot(normal) * normal).array();
+}
+
+void Reflect(Conservative<PerfectGas<2>>& reflected,
+             const Conservative<PerfectGas<2>>& state,
+             const Eigen::Vector2d& normal, const PerfectGas<2>&) {
+  reflected.density = state.density;
+  reflected.energy = state.energy;
+  reflected.momentum =
+      state.momentum -
+      2 * (state.momentum.matrix().dot(normal) * normal).array();
+}
+
+void Reflect(Conservative<PerfectGas<3>>& reflected,
+             const Conservative<PerfectGas<3>>& state,
+             const Eigen::Vector3d& normal, const PerfectGas<3>&) {
+  reflected.density = state.density;
+  reflected.energy = state.energy;
+  reflected.momentum =
+      state.momentum -
+      2 * (state.momentum.matrix().dot(normal) * normal).array();
+}
+
 } // namespace fub

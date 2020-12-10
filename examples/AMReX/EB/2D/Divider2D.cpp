@@ -46,7 +46,6 @@ struct DividerOptions {
   std::array<double, 2> y_range{-0.016, +0.026};
   std::array<int, 2> n_cells{200, 200};
   int n_level{1};
-  std::string output_directory{"Divider"};
 
   DividerOptions() = default;
 
@@ -70,8 +69,7 @@ struct DividerOptions {
                    << "} [-]"
                    << "\n  - n_level = " << n_level << " [-]"
                    << fmt::format("\n  - wall_filenames = {{{}}}",
-                                  fmt::join(wall_filenames, ", "))
-                   << "\n  - output_directory = '" << output_directory << "'";
+                                  fmt::join(wall_filenames, ", "));
   }
 };
 
@@ -179,12 +177,36 @@ struct ShockMachnumber
             post_shock) {}
 };
 
-template <typename Logger>
-void WriteCheckpoint(Logger& log, const std::string& path,
-                     const fub::amrex::cutcell::PatchHierarchy& hierarchy) {
-  BOOST_LOG(log) << "Write Checkpoint File to '" << path << "'.\n";
-  fub::amrex::cutcell::WriteCheckpointFile(path, hierarchy);
-}
+// template <typename Logger>
+// void WriteCheckpoint(Logger& log, const std::string& path,
+//                      const fub::amrex::cutcell::PatchHierarchy& hierarchy) {
+//   BOOST_LOG(log) << "Write Checkpoint File to '" << path << "'.\n";
+//   fub::amrex::cutcell::WriteCheckpointFile(path, hierarchy);
+// }
+
+struct CheckpointOutput : fub::OutputAtFrequencyOrInterval<
+                              fub::amrex::cutcell::GriddingAlgorithm> {
+  CheckpointOutput(
+      const fub::ProgramOptions& options)
+      : OutputAtFrequencyOrInterval(options) {
+    directory_ = fub::GetOptionOr(options, "directory", directory_);
+    fub::SeverityLogger log = fub::GetInfoLogger();
+    BOOST_LOG(log) << "CheckpointOutput:";
+    OutputAtFrequencyOrInterval::Print(log);
+    BOOST_LOG(log) << fmt::format(" - directory = '{}'", directory_);
+  }
+
+  void
+  operator()(const fub::amrex::cutcell::GriddingAlgorithm& grid) override {
+    boost::log::sources::severity_logger<boost::log::trivial::severity_level>
+        log(boost::log::keywords::severity = boost::log::trivial::info);
+    BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", grid.GetTimePoint().count());
+    BOOST_LOG(log) << fmt::format("Write checkpoint to '{}'.", directory_);
+    fub::amrex::cutcell::WriteCheckpointFile(directory_, grid.GetPatchHierarchy());
+  }
+
+  std::string directory_{"./Divider/"};
+};
 
 void MyMain(const std::map<std::string, pybind11::object>& vm) {
   std::chrono::steady_clock::time_point wall_time_reference =
@@ -259,6 +281,7 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   geometry.periodicity = periodicity;
 
   PatchHierarchyOptions hier_opts{};
+  hier_opts.ngrow_eb_level_set = 9;
   hier_opts.max_number_of_levels = n_level;
   hier_opts.index_spaces =
       fub::amrex::cutcell::MakeIndexSpaces(shop, coarse_geom, n_level);
@@ -273,30 +296,23 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
       TagAllOf(TagCutCells(), gradients, TagBuffer(4)), boundary_condition);
   gridding->InitializeHierarchy(0.0);
 
-  fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
-  fub::HllMethod hll_method{equation, signals};
-  fub::MusclHancockMethod flux_method(equation, hll_method);
-  fub::KbnCutCellMethod cutcell_method(std::move(flux_method), hll_method);
+  fub::perfect_gas::HllemMethod<2> hllem_method{equation};
+  fub::FluxMethod<fub::perfect_gas::MusclHancockPrim<2>> flux_method{equation};
+  fub::KbnCutCellMethod cutcell_method(flux_method, hllem_method);
   HyperbolicMethod method{FluxMethod{cutcell_method}, TimeIntegrator{},
                           Reconstruction{equation}};
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<2>, IntegratorContext(gridding, method));
+      fub::int_c<2>, IntegratorContext(gridding, method, 2, 0));
 
-  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
+  // fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
+  fub::NoSubcycleSolver solver(std::move(level_integrator));
 
-  std::string base_name = options.output_directory;
-
+  using Plotfile = PlotfileOutput<fub::PerfectGas<2>>;
   fub::OutputFactory<GriddingAlgorithm> factory{};
   factory.RegisterOutput<WriteHdf5>("HDF5");
-  factory.RegisterOutput<fub::AnyOutput<GriddingAlgorithm>>(
-      "Plotfiles", PlotfileOutput{equation, base_name + "/Plotfiles"});
-  factory.RegisterOutput<fub::AnyOutput<GriddingAlgorithm>>(
-      "Checkpoint", [&](const GriddingAlgorithm& grid) {
-        std::string name =
-            fmt::format("{}/Checkpoint/{:09}", base_name, grid.GetCycles());
-        WriteCheckpoint(log, name, grid.GetPatchHierarchy());
-      });
+  factory.RegisterOutput<Plotfile>("Plotfiles", equation);
+  factory.RegisterOutput<CheckpointOutput>("Checkpoint");
   fub::MultipleOutputs<GriddingAlgorithm> outputs(
       std::move(factory),
       fub::ToMap(fub::GetOptionOr(vm, "output", pybind11::dict{})));

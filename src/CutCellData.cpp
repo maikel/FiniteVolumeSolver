@@ -39,6 +39,85 @@ Eigen::Vector3d GetBoundaryNormal(const CutCellData<3>& ccdata,
   return normal;
 }
 
+Eigen::Vector2d GetBoundaryCentroid(const CutCellData<2>& ccdata,
+                                    const std::array<std::ptrdiff_t, 2>& index) {
+  Eigen::Vector2d centroid;
+  centroid[0] = ccdata.boundary_centeroids(index[0], index[1], 0);
+  centroid[1] = ccdata.boundary_centeroids(index[0], index[1], 1);
+  return centroid;
+}
+
+Eigen::Vector3d GetBoundaryCentroid(const CutCellData<3>& ccdata,
+                                    const std::array<std::ptrdiff_t, 3>& index) {
+  Eigen::Vector3d centroid;
+  centroid[0] = ccdata.boundary_centeroids(index[0], index[1], index[2], 0);
+  centroid[1] = ccdata.boundary_centeroids(index[0], index[1], index[2], 1);
+  centroid[2] = ccdata.boundary_centeroids(index[0], index[1], index[2], 2);
+  return centroid;
+}
+
+Eigen::Vector2d GetVolumeCentroid(const CutCellData<2>& ccdata,
+                                    const std::array<std::ptrdiff_t, 2>& index) {
+  Eigen::Vector2d centroid;
+  centroid[0] = ccdata.volume_centeroid(index[0], index[1], 0);
+  centroid[1] = ccdata.volume_centeroid(index[0], index[1], 1);
+  return centroid;
+}
+
+Eigen::Vector3d GetVolumeCentroid(const CutCellData<3>& ccdata,
+                                    const std::array<std::ptrdiff_t, 3>& index) {
+  Eigen::Vector3d centroid;
+  centroid[0] = ccdata.volume_centeroid(index[0], index[1], index[2], 0);
+  centroid[1] = ccdata.volume_centeroid(index[0], index[1], index[2], 1);
+  centroid[2] = ccdata.volume_centeroid(index[0], index[1], index[2], 2);
+  return centroid;
+}
+
+Eigen::Vector2d GetUnshieldedCentroid(const CutCellData<2>& geom,
+                                      const Index<2>& face,
+                                      const Eigen::Vector2d& dx,
+                                      Direction dir)
+{
+  const int dir_x = static_cast<int>(dir);
+  const int dir_y = dir_x == 0 ? 1 : 0;
+  const Eigen::Vector2d node_offset = GetOffset(face).array() * dx.array();
+  Eigen::Vector2d face_offset = 0.5 * dx;
+  face_offset[dir_x] = 0.0;
+  const Eigen::Vector2d regular_centroid = node_offset + face_offset;
+  const double betaSL = geom.shielded_left_fractions[dir_x](face[0], face[1]);
+  const double betaSR = geom.shielded_right_fractions[dir_x](face[0], face[1]);
+  
+  // find unshielded from left interval
+  const Index<2> iL = LeftTo(face, dir);
+  std::array<double, 2> betaUL_interval{0.0, 1.0};
+  if (betaSL > 0.0) {
+    const double ny = geom.boundary_normals(iL[0], iL[1], dir_y);
+    if (ny < 0.0) {
+      betaUL_interval[0] = betaSL;
+    } else {
+      betaUL_interval[1] = 1.0 - betaSL;
+    }
+  }
+  // find unshielded from right interval
+  const Index<2> iR = RightTo(face, dir);
+  std::array<double, 2> betaUR_interval{0.0, 1.0};
+  if (betaSR > 0.0) {
+    const double ny = geom.boundary_normals(iR[0], iR[1], dir_y);
+    if (ny < 0.0) {
+      betaUR_interval[0] = betaSR;
+    } else {
+      betaUR_interval[1] = 1.0 - betaSR;
+    }
+  }
+
+  std::array<double, 2> betaU_interval = Intersect(betaUL_interval, betaUR_interval);
+  const double centroid_y = 0.5 * (betaU_interval[0] + betaU_interval[1]) - 0.5;
+  Eigen::Vector2d centroid = regular_centroid;
+  centroid[dir_y] = regular_centroid[dir_y] + centroid_y * dx[dir_y];
+  return centroid;
+}
+
+
 namespace {
 template <int Rank>
 bool IsCutCell_(const CutCellData<Rank>& geom,

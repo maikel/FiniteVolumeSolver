@@ -26,6 +26,7 @@
 #include "fub/equations/perfect_gas/EinfeldtSignalVelocities.hpp"
 #include "fub/flux_method/HllMethod.hpp"
 #include "fub/flux_method/MusclHancockMethod.hpp"
+#include "fub/equations/perfect_gas/GodunovMethod.hpp"
 
 namespace fub {
 namespace perfect_gas {
@@ -169,7 +170,9 @@ private:
   CharacteristicsArray slopes_array_{};
   std::function<Array1d(Array1d, Array1d)> array_limiter_;
 
-  HllMethod<PerfectGas<Rank>, EinfeldtSignalVelocities<PerfectGas<Rank>>> hllem_{equation_};
+  // HllMethod<PerfectGas<Rank>, EinfeldtSignalVelocities<PerfectGas<Rank>>> hllem_{equation_};
+  HllemMethod<Rank> hllem_{equation_};
+  // GodunovMethod<PerfectGas<Rank>> hllem_{equation_};
 };
 
 /// \ingroup FluxMethod

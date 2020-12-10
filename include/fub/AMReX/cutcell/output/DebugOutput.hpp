@@ -1,4 +1,5 @@
-// Copyright (c) 2019 Maikel Nadolski
+// Copyright (c) 2020 Maikel Nadolski
+// Copyright (c) 2020 Stefan Vater
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,23 +19,26 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_AMREX_CUTCELL_TIME_INTEGRATOR_HPP
-#define FUB_AMREX_CUTCELL_TIME_INTEGRATOR_HPP
+#ifndef FUB_AMREX_CUTCELL_DEBUG_OUTPUT_HPP
+#define FUB_AMREX_CUTCELL_DEBUG_OUTPUT_HPP
 
-#include "fub/AMReX/cutcell/IntegratorContext.hpp"
-#include "fub/Direction.hpp"
-#include "fub/Duration.hpp"
+#include "fub/AMReX/output/DebugOutput.hpp"
+#include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
+#include "fub/output/OutputAtFrequencyOrInterval.hpp"
 
 namespace fub::amrex::cutcell {
+class DebugOutput : public OutputAtFrequencyOrInterval<GriddingAlgorithm> {
+public:
+  /// \brief Read program options from opts and enable the storage.
+  explicit DebugOutput(const ProgramOptions& opts,
+                       const std::shared_ptr<DebugStorage>& storage);
 
-struct TimeIntegrator {
-  static void UpdateConservatively(IntegratorContext& context, int level,
-                                   Duration dt, Direction dir);
-};
+  /// \brief Write out the debug storage on the grid.
+  void operator()(const GriddingAlgorithm& grid) override;
 
-struct TimeIntegrator2 {
-  static void UpdateConservatively(IntegratorContext& context, int level,
-                                   Duration dt, Direction dir);
+private:
+  /// \brief This is the base directory where the snapshots will be output to.
+  std::string directory_;
 };
 
 } // namespace fub::amrex::cutcell
