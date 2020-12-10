@@ -1,5 +1,4 @@
 // Copyright (c) 2019 Maikel Nadolski
-// Copyright (c) 2019 Maikel Nadolski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,7 +21,7 @@
 #include "fub/AMReX.hpp"
 #include "fub/Solver.hpp"
 
-#include "fub/equations/perfect_gas/MusclHancockCharactersticMethod.hpp"
+#include "fub/equations/PerfectGasMix.hpp"
 
 #include <cmath>
 #include <fmt/format.h>
@@ -32,8 +31,8 @@
 
 #include <boost/log/utility/manipulators/add_value.hpp>
 
-struct SinusProblem {
-  using Equation = fub::PerfectGas<1>;
+struct RiemannProblem {
+  using Equation = fub::PerfectGasMix<1>;
   using Complete = fub::Complete<Equation>;
   using Conservative = fub::Conservative<Equation>;
 
@@ -46,18 +45,21 @@ struct SinusProblem {
     amrex::MultiFab& data = patch_level.data;
     fub::amrex::ForEachFab(
         fub::execution::openmp, data, [&](amrex::MFIter& mfi) {
-          fub::View<Complete> state = fub::amrex::MakeView<Complete>(
+          fub::View<Complete> states = fub::amrex::MakeView<Complete>(
               data[mfi], equation_, mfi.tilebox());
-          fub::ForEachIndex(fub::Box<0>(state), [this, &state,
+          fub::ForEachIndex(fub::Box<0>(states), [this, &states,
                                                  &geom](std::ptrdiff_t i) {
             const double x = geom.CellCenter(int(i), 0);
-            // const double temperature = (0.0 < x) ? 600.0 : 300.0;
             const double pressure = (0.0 < x) ? 0.1: 1.0;
             const double density = (0.0 < x) ? 0.125 : 1.0;
             fub::Array<double, 1, 1> velocity{0.0};
+            fub::Array<double, -1, 1> species(equation_.n_species);
+            for (int i = 0; i < species.size(); ++i) {
+              species[i] = (x < -0.1) ? 1.0 : 0.0;
+            }
             const Complete complete =
-                equation_.CompleteFromPrim(density, velocity, pressure);
-            fub::Store(state, complete, {i});
+                equation_.CompleteFromPrim(density, velocity, pressure, species);
+            fub::Store(states, complete, {i});
           });
         });
   }
@@ -92,7 +94,8 @@ void MyMain(const fub::ProgramOptions& options) {
 
   fub::ProgramOptions equation_options = fub::GetOptions(options, "Equation");
   
-  fub::PerfectGas<1> equation{};
+  fub::PerfectGasMix<1> equation{};
+  equation.n_species = fub::GetOptionOr(equation_options, "n_species", equation.n_species);
   equation.Rspec = fub::GetOptionOr(equation_options, "R_specific", equation.Rspec);
   equation.gamma = fub::GetOptionOr(equation_options, "gamma", equation.gamma);
   equation.gamma_minus_1_inv = 1.0 / (equation.gamma - 1.0);
@@ -101,6 +104,7 @@ void MyMain(const fub::ProgramOptions& options) {
 
 
   BOOST_LOG(log) << "Equation:";
+  BOOST_LOG(log) << fmt::format(" - n_species = {}", equation.n_species);
   BOOST_LOG(log) << fmt::format(" - R_specific = {}", equation.Rspec);
   BOOST_LOG(log) << fmt::format(" - gamma = {}", equation.gamma);
 
@@ -109,12 +113,12 @@ void MyMain(const fub::ProgramOptions& options) {
   BOOST_LOG(log) << "GridGeometry:";
   grid_geometry.Print(log);
 
-  using Complete = fub::PerfectGas<1>::Complete;
+  using Complete = fub::PerfectGasMix<1>::Complete;
   fub::amrex::GradientDetector gradient{
       equation, std::make_pair(&Complete::density, 5e-3),
       std::make_pair(&Complete::pressure, 5e-2)};
 
-  SinusProblem initial_data{equation};
+  RiemannProblem initial_data{equation};
 
   fub::amrex::PatchHierarchyOptions hierarchy_options(
       fub::GetOptions(options, "PatchHierarchy"));
@@ -159,8 +163,8 @@ void MyMain(const fub::ProgramOptions& options) {
       fub::amrex::EulerForwardTimeIntegrator(),
       fub::amrex::Reconstruction(equation)};
 
-  const int scratch_ghost_cell_width = 2;
-  const int flux_ghost_cell_width = 0;
+  const int scratch_ghost_cell_width = fub::GetOptionOr(hierarchy_options, "scratch_gcw", 2);
+  const int flux_ghost_cell_width = fub::GetOptionOr(hierarchy_options, "numeric_flux_gcw", 0);;
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<1>,
