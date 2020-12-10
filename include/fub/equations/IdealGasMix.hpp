@@ -160,16 +160,6 @@ private:
   Array<double, Eigen::Dynamic, 1> species_buffer_{reactor_.GetNSpecies()};
 };
 
-template <typename Depth> struct ToConcreteDepthImpl { using type = Depth; };
-
-template <> struct ToConcreteDepthImpl<VectorDepth<-1>> { using type = int; };
-
-template <typename Depth>
-using ToConcreteDepth = typename ToConcreteDepthImpl<Depth>::type;
-
-template <typename Depths>
-using ToConcreteDepths = boost::mp11::mp_transform<ToConcreteDepth, Depths>;
-
 namespace detail {
 template <int Dim>
 struct DepthsImpl<Complete<IdealGasMix<Dim>>, IdealGasMix<Dim>> {
@@ -190,6 +180,7 @@ struct DepthsImpl<Conservative<IdealGasMix<Dim>>, IdealGasMix<Dim>> {
     return depths;
   }
 };
+
 }
 
 // We define this class only for dimensions 1 to 3.

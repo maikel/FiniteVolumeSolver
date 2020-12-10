@@ -120,8 +120,8 @@ void MyMain(const fub::ProgramOptions& options) {
 
   RiemannProblem initial_data{equation};
 
-  fub::amrex::PatchHierarchyOptions hierarchy_options(
-      fub::GetOptions(options, "PatchHierarchy"));
+  fub::ProgramOptions hier_opts = fub::GetOptions(options, "PatchHierarchy");
+  fub::amrex::PatchHierarchyOptions hierarchy_options(hier_opts);
   BOOST_LOG(log) << "PatchHierarchy:";
   hierarchy_options.Print(log);
 
@@ -163,8 +163,8 @@ void MyMain(const fub::ProgramOptions& options) {
       fub::amrex::EulerForwardTimeIntegrator(),
       fub::amrex::Reconstruction(equation)};
 
-  const int scratch_ghost_cell_width = fub::GetOptionOr(hierarchy_options, "scratch_gcw", 2);
-  const int flux_ghost_cell_width = fub::GetOptionOr(hierarchy_options, "numeric_flux_gcw", 0);;
+  const int scratch_ghost_cell_width = fub::GetOptionOr(hier_opts, "scratch_gcw", 2);
+  const int flux_ghost_cell_width = fub::GetOptionOr(hier_opts, "numeric_flux_gcw", 0);;
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<1>,

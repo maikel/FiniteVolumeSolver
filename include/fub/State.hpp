@@ -111,6 +111,16 @@ struct ScalarDepth : std::integral_constant<int, 1> {};
 /// This type is used to tag quantities with a depth known at compile time.
 template <int Depth> struct VectorDepth : std::integral_constant<int, Depth> {};
 
+template <typename Depth> struct ToConcreteDepthImpl { using type = Depth; };
+
+template <> struct ToConcreteDepthImpl<VectorDepth<-1>> { using type = int; };
+
+template <typename Depth>
+using ToConcreteDepth = typename ToConcreteDepthImpl<Depth>::type;
+
+template <typename Depths>
+using ToConcreteDepths = boost::mp11::mp_transform<ToConcreteDepth, Depths>;
+
 namespace detail {
 /// @{
 /// This meta-function transforms a Depth into a value type used in a states or
@@ -137,6 +147,8 @@ struct DepthToStateValueTypeImpl<VectorDepth<Depth>, Width> {
 template <typename T>
 using DepthToStateValueType = typename DepthToStateValueTypeImpl<T, 1>::type;
 /// @}
+
+
 
 template <typename T, typename Eq> struct DepthsImpl {
   constexpr typename StateTraits<T>::template Depths<Eq::Rank()>
@@ -455,18 +467,6 @@ Mapping(const BasicView<State, Layout, Rank>& view) {
 }
 
 namespace detail {
-template <typename Eq> struct DepthsImpl<Complete<Eq>, Eq> {
-  constexpr typename Eq::CompleteDepths operator()(const Eq&) const noexcept {
-    return {};
-  }
-};
-
-template <typename Eq> struct DepthsImpl<Conservative<Eq>, Eq> {
-  constexpr typename Eq::ConservativeDepths
-  operator()(const Eq&) const noexcept {
-    return {};
-  }
-};
 
 template <typename State, typename Layout, int Rank, typename Eq>
 struct DepthsImpl<BasicView<State, Layout, Rank>, Eq> {
