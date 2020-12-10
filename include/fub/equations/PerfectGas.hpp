@@ -31,6 +31,7 @@
 #include <array>
 
 namespace fub {
+template <int Rank> struct PerfectGas;
 
 /// This is a template class for constructing conservative states for the
 /// perfect gas equations.
@@ -40,6 +41,15 @@ struct PerfectGasConservative {
   Momentum momentum;
   Energy energy;
 };
+
+template <int Rank>
+using PerfectGasConsShape =
+    PerfectGasConservative<ScalarDepth, VectorDepth<Rank>, ScalarDepth>;
+
+namespace meta {
+template <int Rank>
+struct Rank<PerfectGasConsShape<Rank>> : int_constant<Rank> {};
+} // namespace meta
 
 // We "register" the conservative state with our framework.
 // This enables us to name and iterate over all member variables in a given
@@ -52,6 +62,69 @@ template <typename... Xs> struct StateTraits<PerfectGasConservative<Xs...>> {
       std::make_tuple(&PerfectGasConservative<Xs...>::density,
                       &PerfectGasConservative<Xs...>::momentum,
                       &PerfectGasConservative<Xs...>::energy);
+
+  template <int Rank> using Depths = PerfectGasConsShape<Rank>;
+
+  template <int Rank> using Equation = PerfectGas<Rank>;
+};
+
+template <typename Density, typename Velocity, typename Pressure>
+struct PerfectGasPrimitive {
+  Density density;
+  Velocity velocity;
+  Pressure pressure;
+};
+
+template <int Rank>
+using PerfectGasPrimShape =
+    PerfectGasPrimitive<ScalarDepth, VectorDepth<Rank>, ScalarDepth>;
+
+namespace meta {
+template <int Rank>
+struct Rank<PerfectGasPrimShape<Rank>> : int_constant<Rank> {};
+} // namespace meta
+
+template <typename... Xs> struct StateTraits<PerfectGasPrimitive<Xs...>> {
+  static constexpr auto names =
+      std::make_tuple("Density", "Velocity", "Pressure");
+
+  static constexpr auto pointers_to_member =
+      std::make_tuple(&PerfectGasPrimitive<Xs...>::density,
+                      &PerfectGasPrimitive<Xs...>::velocity,
+                      &PerfectGasPrimitive<Xs...>::pressure);
+
+  template <int Rank> using Depths = PerfectGasPrimShape<Rank>;
+
+  template <int Rank> using Equation = PerfectGas<Rank>;
+};
+
+template <typename Minus, typename Zero, typename Plus>
+struct PerfectGasCharacteristics {
+  Minus minus;
+  Zero zero;
+  Plus plus;
+};
+
+template <int Rank>
+using PerfectGasCharShape =
+    PerfectGasCharacteristics<ScalarDepth, VectorDepth<Rank>, ScalarDepth>;
+
+namespace meta {
+template <int Rank>
+struct Rank<PerfectGasCharShape<Rank>> : int_constant<Rank> {};
+} // namespace meta
+
+template <typename... Xs> struct StateTraits<PerfectGasCharacteristics<Xs...>> {
+  static constexpr auto names = std::make_tuple("Minus", "Zero", "Plus");
+
+  static constexpr auto pointers_to_member =
+      std::make_tuple(&PerfectGasCharacteristics<Xs...>::minus,
+                      &PerfectGasCharacteristics<Xs...>::zero,
+                      &PerfectGasCharacteristics<Xs...>::plus);
+
+  template <int Rank> using Depths = PerfectGasCharShape<Rank>;
+
+  template <int Rank> using Equation = PerfectGas<Rank>;
 };
 
 template <typename Density, typename Momentum, typename Energy,
@@ -60,6 +133,16 @@ struct PerfectGasComplete : PerfectGasConservative<Density, Momentum, Energy> {
   Pressure pressure;
   SpeedOfSound speed_of_sound;
 };
+
+template <int Rank>
+using PerfectGasCompleteShape =
+    PerfectGasComplete<ScalarDepth, VectorDepth<Rank>, ScalarDepth, ScalarDepth,
+                       ScalarDepth>;
+
+namespace meta {
+template <int Rank>
+struct Rank<PerfectGasCompleteShape<Rank>> : int_constant<Rank> {};
+} // namespace meta
 
 // We "register" the complete state with our framework.
 // This enables us to name and iterate over all member variables in a given
@@ -71,22 +154,16 @@ template <typename... Xs> struct StateTraits<PerfectGasComplete<Xs...>> {
       &PerfectGasComplete<Xs...>::density, &PerfectGasComplete<Xs...>::momentum,
       &PerfectGasComplete<Xs...>::energy, &PerfectGasComplete<Xs...>::pressure,
       &PerfectGasComplete<Xs...>::speed_of_sound);
+
+  template <int Rank> using Depths = PerfectGasCompleteShape<Rank>;
 };
-
-template <int Rank>
-using PerfectGasConsShape =
-    PerfectGasConservative<ScalarDepth, VectorDepth<Rank>, ScalarDepth>;
-
-template <int Rank>
-using PerfectGasCompleteShape =
-    PerfectGasComplete<ScalarDepth, VectorDepth<Rank>, ScalarDepth, ScalarDepth,
-                       ScalarDepth>;
-
 template <int Rank> struct PerfectGas;
 
 template <int N> struct PerfectGas {
   using ConservativeDepths = PerfectGasConsShape<N>;
   using CompleteDepths = PerfectGasCompleteShape<N>;
+  using PrimitiveDepths = PerfectGasPrimShape<N>;
+  using CharacteristicsDepths = PerfectGasCharShape<N>;
 
   using Conservative = ::fub::Conservative<PerfectGas<N>>;
   using Complete = ::fub::Complete<PerfectGas<N>>;
@@ -104,13 +181,13 @@ template <int N> struct PerfectGas {
   void Flux(ConservativeArray& flux, const CompleteArray& state, MaskArray mask,
             [[maybe_unused]] Direction dir) const noexcept;
 
-  void CompleteFromCons(Complete& complete,
-                        const ConservativeBase<PerfectGas>& cons) const
-      noexcept;
+  void
+  CompleteFromCons(Complete& complete,
+                   const ConservativeBase<PerfectGas>& cons) const noexcept;
 
-  void CompleteFromCons(CompleteArray& complete,
-                        const ConservativeArrayBase<PerfectGas>& cons) const
-      noexcept;
+  void CompleteFromCons(
+      CompleteArray& complete,
+      const ConservativeArrayBase<PerfectGas>& cons) const noexcept;
 
   void CompleteFromCons(CompleteArray& complete,
                         const ConservativeArrayBase<PerfectGas>& cons,
@@ -120,10 +197,11 @@ template <int N> struct PerfectGas {
                             double pressure) const noexcept;
 
   CompleteArray CompleteFromPrim(Array1d density, const Array<double, N>& u,
-                            Array1d pressure) const noexcept;
+                                 Array1d pressure) const noexcept;
 
   CompleteArray CompleteFromPrim(Array1d density, const Array<double, N>& u,
-                            Array1d pressure, const MaskArray& mask) const noexcept;
+                                 Array1d pressure,
+                                 const MaskArray& mask) const noexcept;
 
   Array<double, N, 1> Velocity(const Complete& q) const noexcept;
   Array<double, N> Velocity(const CompleteArray& q) const noexcept;
@@ -147,6 +225,23 @@ template <int N> struct PerfectGas {
 extern template struct PerfectGas<1>;
 extern template struct PerfectGas<2>;
 extern template struct PerfectGas<3>;
+
+template <int Rank>
+void CompleteFromPrim(const PerfectGas<Rank>& equation,
+                      Complete<PerfectGas<Rank>>& complete,
+                      const Primitive<PerfectGas<Rank>>& prim) {
+  complete =
+      equation.CompleteFromPrim(prim.density, prim.velocity, prim.pressure);
+}
+
+template <int Rank>
+void PrimFromComplete(const PerfectGas<Rank>& equation,
+                      Primitive<PerfectGas<Rank>>& prim,
+                      const Complete<PerfectGas<Rank>>& complete) {
+  prim.density = complete.density;
+  prim.pressure = complete.pressure;
+  prim.velocity = complete.momentum / complete.density;
+}
 
 /// @{
 /// \brief Defines how to rotate a given state of the euler equations.

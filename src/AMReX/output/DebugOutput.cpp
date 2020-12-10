@@ -671,27 +671,4 @@ void DebugOutput::operator()(const GriddingAlgorithm& grid) {
   storage.FlushData(directory_, static_cast<int>(cycles), grid.GetTimePoint());
 }
 
-namespace cutcell {
-DebugOutput::DebugOutput(const ProgramOptions& opts,
-                         const std::shared_ptr<DebugStorage>& storage)
-    : OutputAtFrequencyOrInterval(opts) {
-  OutputAtFrequencyOrInterval::frequencies_ = std::vector<std::ptrdiff_t>{1LL};
-  directory_ = GetOptionOr(opts, "directory", directory_);
-  storage->Enable();
-  SeverityLogger log = GetInfoLogger();
-  BOOST_LOG(log) << "DebugOutput configured:";
-  BOOST_LOG(log) << fmt::format(" - directory = '{}'", directory_);
-  OutputAtFrequencyOrInterval::Print(log);
-}
-
-void DebugOutput::operator()(const GriddingAlgorithm& grid) {
-  DebugStorage& storage = *grid.GetPatchHierarchy().GetDebugStorage();
-  const std::ptrdiff_t cycles = grid.GetPatchHierarchy().GetCycles();
-  [[maybe_unused]] const auto int_max =
-      static_cast<std::ptrdiff_t>(std::numeric_limits<int>::max());
-  FUB_ASSERT(cycles < int_max);
-  storage.FlushData(directory_, static_cast<int>(cycles), grid.GetTimePoint());
-}
-} // namespace cutcell
-
 } // namespace fub::amrex

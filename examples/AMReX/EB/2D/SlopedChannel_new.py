@@ -1,7 +1,7 @@
 import math
 
 isRef = 0
-factor = 2
+factor = 4
 
 final_time = 15e-4
 

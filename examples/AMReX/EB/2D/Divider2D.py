@@ -6,7 +6,7 @@ def nCellsY(nCellsX, ratio):
     return ncells
 
 cfl = 0.4
-final_time = 1e-3
+final_time = 1.01e-3
 
 Mach_number = 1.1
 
@@ -37,7 +37,7 @@ wall_filenames = ['{}/wall_1.txt'.format(base_path),
 output = {
 	'outputs': [
   # {'type': 'Checkpoint', 'directory': 'Divider_DE5/Checkpoint', 'intervals': [1e-4]},
-  {'type': 'Plotfiles', 'directory': 'Divider_DE5/Plotfiles', 'intervals': [1e-4]},
-  # {'type': 'HDF5', 'path': 'output/Divider_c24.h5', 'intervals': [1e-5]}
+  # {'type': 'Plotfiles', 'directory': 'Divider_DE5/Plotfiles', 'intervals': [1e-4]},
+  {'type': 'HDF5', 'path': 'Divider_c24.h5', 'intervals': [1e-5]}
 ]
 }

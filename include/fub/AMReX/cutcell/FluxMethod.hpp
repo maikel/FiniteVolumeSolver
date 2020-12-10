@@ -36,28 +36,6 @@
 
 namespace fub::amrex::cutcell {
 
-template <typename Type, typename Equation>
-::amrex::Vector<std::string> VarNames(const Equation& equation) {
-  using Traits = StateTraits<Type>;
-  constexpr auto names = Traits::names;
-  const auto depths = Depths<Type>(equation);
-  const std::size_t n_names =
-      std::tuple_size<remove_cvref_t<decltype(names)>>::value;
-  ::amrex::Vector<std::string> varnames;
-  varnames.reserve(n_names);
-  boost::mp11::tuple_for_each(Zip(names, StateToTuple(depths)), [&](auto xs) {
-    const int ncomp = std::get<1>(xs);
-    if (ncomp == 1) {
-      varnames.push_back(std::get<0>(xs));
-    } else {
-      for (int i = 0; i < ncomp; ++i) {
-        varnames.push_back(fmt::format("{}_{}", std::get<0>(xs), i));
-      }
-    }
-  });
-  return varnames;
-}
-
 inline ::amrex::Vector<std::string>
 AddPrefix(const ::amrex::Vector<std::string>& names,
           const std::string& prefix) {
@@ -249,8 +227,10 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
     DebugStorage& debug = *hierarchy.GetDebugStorage();
     const ::amrex::Geometry& geom = hierarchy.GetGeometry(level);
     const Equation& equation = flux_method_->GetEquation();
-    const auto names = VarNames<Conservative<Equation>>(equation);
-        DebugSnapshotProxy snapshot  =
+    const auto names =
+        VarNames<Conservative<Equation>, ::amrex::Vector<std::string>>(
+            equation);
+    DebugSnapshotProxy snapshot =
         debug.AddSnapshot(fmt::format("Gradients_{}", int(dir)));
     snapshot.SaveData(gradient_x, AddPrefix(names, "GradX_"), geom);
     snapshot.SaveData(gradient_y, AddPrefix(names, "GradY_"), geom);
@@ -331,7 +311,9 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
   DebugStorage& debug = *hierarchy.GetDebugStorage();
   const ::amrex::Geometry& geom = hierarchy.GetGeometry(level);
   const Equation& equation = flux_method_->GetEquation();
-  const auto names = VarNames<Conservative<Equation>>(equation);
+  const auto names =
+        VarNames<Conservative<Equation>, ::amrex::Vector<std::string>>(
+            equation);
   DebugSnapshotProxy snapshot =
       debug.AddSnapshot(fmt::format("Fluxes_{}", int(dir)));
   snapshot.SaveData(fluxes, AddPrefix(names, "RegularFlux_"), geom);
@@ -339,7 +321,8 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
   snapshot.SaveData(fluxes_sL, AddPrefix(names, "ShieldedFromLeftFlux_"), geom);
   snapshot.SaveData(fluxes_sR, AddPrefix(names, "ShieldedFromRightFlux_"),
                     geom);
-  snapshot.SaveData(boundary_fluxes.ToMultiFab(0.0, 0.0), AddPrefix(names, "BoundaryFlux_"), geom);
+  snapshot.SaveData(boundary_fluxes.ToMultiFab(0.0, 0.0),
+                    AddPrefix(names, "BoundaryFlux_"), geom);
 }
 
 template <typename Tag, typename FM>

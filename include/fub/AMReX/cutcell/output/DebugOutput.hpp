@@ -1,4 +1,5 @@
-// Copyright (c) 2018 Maikel Nadolski
+// Copyright (c) 2020 Maikel Nadolski
+// Copyright (c) 2020 Stefan Vater
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,24 +19,28 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_DIRECTION_HPP
-#define FUB_DIRECTION_HPP
+#ifndef FUB_AMREX_CUTCELL_DEBUG_OUTPUT_HPP
+#define FUB_AMREX_CUTCELL_DEBUG_OUTPUT_HPP
 
-#include <cstddef>
+#include "fub/AMReX/output/DebugOutput.hpp"
+#include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
+#include "fub/output/OutputAtFrequencyOrInterval.hpp"
 
-namespace fub {
+namespace fub::amrex::cutcell {
+class DebugOutput : public OutputAtFrequencyOrInterval<GriddingAlgorithm> {
+public:
+  /// \brief Read program options from opts and enable the storage.
+  explicit DebugOutput(const ProgramOptions& opts,
+                       const std::shared_ptr<DebugStorage>& storage);
 
-/// \ingroup Solver
-/// \brief This is a type safe type to denote a dimensional split direction.
-enum class Direction : std::size_t { X, Y, Z };
+  /// \brief Write out the debug storage on the grid.
+  void operator()(const GriddingAlgorithm& grid) override;
 
-enum class Side : int { Lower, Upper };
-
-struct Location {
-  std::size_t direction;
-  int side;
+private:
+  /// \brief This is the base directory where the snapshots will be output to.
+  std::string directory_;
 };
 
-} // namespace fub
+} // namespace fub::amrex::cutcell
 
 #endif

@@ -24,6 +24,9 @@
 #include "fub/HyperbolicPatchIntegrator.hpp"
 #include "fub/StateRow.hpp"
 #include "fub/ext/Vc.hpp"
+#include "fub/AMReX/output/DebugOutput.hpp"
+
+#include "fub/equations/PerfectGas.hpp"
 
 #include <algorithm>
 
@@ -88,7 +91,7 @@ void UpdateConservatively_Row(double* next, const double* prev,
     const Vc::double_v fB(&fluxB[i], Vc::Unaligned);
 
     const Vc::double_v u_prev(&prev[i], Vc::Unaligned);
-    
+
     FUB_ASSERT(none_of(isnan(fL)));
     FUB_ASSERT(none_of(isnan(fR)));
     FUB_ASSERT(none_of(isnan(fB)));
@@ -208,8 +211,8 @@ void UpdateConservatively_Row(double* next, const double* prev,
       return next;
     }();
 
-    next[i] = betaL == betaR ? regular
-                             : betaL > betaR ? left_greater : right_greater;
+    next[i] =
+        betaL == betaR ? regular : betaL > betaR ? left_greater : right_greater;
   }
 
   for (i = 0; i < n; ++i) {
@@ -335,7 +338,8 @@ void TimeIntegrator::UpdateConservatively(IntegratorContext& context, int level,
   ForEachFab(execution::openmp, scratch, [&](const ::amrex::MFIter& mfi) {
     ::amrex::FabType type = context.GetFabType(level, mfi);
     const ::amrex::Box tilebox = mfi.growntilebox();
-    const ::amrex::Box all_faces_tilebox = ::amrex::surroundingNodes(tilebox, dir_v);
+    const ::amrex::Box all_faces_tilebox =
+        ::amrex::surroundingNodes(tilebox, dir_v);
     const ::amrex::Box all_fluxes_box = unshielded[mfi].box();
     const ::amrex::Box flux_box = all_faces_tilebox & all_fluxes_box;
     const ::amrex::Box cell_box = enclosedCells(flux_box);
@@ -387,7 +391,8 @@ void TimeIntegrator::UpdateConservatively(IntegratorContext& context, int level,
       const ::amrex::FArrayBox& prev = scratch[mfi];
       const ::amrex::FArrayBox& flux = unshielded[mfi];
       const ::amrex::Box tilebox = mfi.growntilebox();
-      const ::amrex::Box all_faces_tilebox = ::amrex::surroundingNodes(tilebox, dir_v);
+      const ::amrex::Box all_faces_tilebox =
+          ::amrex::surroundingNodes(tilebox, dir_v);
       const ::amrex::Box all_fluxes_box = flux.box();
       const ::amrex::Box flux_box = all_faces_tilebox & all_fluxes_box;
       const ::amrex::Box cell_box = enclosedCells(flux_box);
@@ -405,8 +410,9 @@ void TimeIntegrator::UpdateConservatively(IntegratorContext& context, int level,
   });
 }
 
-void TimeIntegrator2::UpdateConservatively(IntegratorContext& context, int level,
-                                          Duration dt, Direction dir) {
+void TimeIntegrator2::UpdateConservatively(IntegratorContext& context,
+                                           int level, Duration dt,
+                                           Direction dir) {
   ::amrex::MultiFab& scratch = context.GetScratch(level);
   const ::amrex::MultiFab& unshielded = context.GetFluxes(level, dir);
   const ::amrex::MultiFab& stabilized = context.GetStabilizedFluxes(level, dir);
@@ -422,7 +428,8 @@ void TimeIntegrator2::UpdateConservatively(IntegratorContext& context, int level
   ForEachFab(execution::openmp, scratch, [&](const ::amrex::MFIter& mfi) {
     ::amrex::FabType type = context.GetFabType(level, mfi);
     const ::amrex::Box tilebox = mfi.growntilebox();
-    const ::amrex::Box all_faces_tilebox = ::amrex::surroundingNodes(tilebox, dir_v);
+    const ::amrex::Box all_faces_tilebox =
+        ::amrex::surroundingNodes(tilebox, dir_v);
     const ::amrex::Box all_fluxes_box = unshielded[mfi].box();
     const ::amrex::Box flux_box = all_faces_tilebox & all_fluxes_box;
     const ::amrex::Box cell_box = enclosedCells(flux_box);
@@ -461,7 +468,8 @@ void TimeIntegrator2::UpdateConservatively(IntegratorContext& context, int level
               const double fR = fluxR(faceR);
               const double fB = fluxB(cell);
               const double prev = scratch_view(cell);
-              const double next = prev + dt_over_dx / volfrac * (bL * fL - bR * fR - dB * fB);
+              const double next =
+                  prev + dt_over_dx / volfrac * (bL * fL - bR * fR - dB * fB);
               scratch_view(cell) = next;
             }
           }
@@ -472,7 +480,8 @@ void TimeIntegrator2::UpdateConservatively(IntegratorContext& context, int level
       const ::amrex::FArrayBox& prev = scratch[mfi];
       const ::amrex::FArrayBox& flux = unshielded[mfi];
       const ::amrex::Box tilebox = mfi.growntilebox();
-      const ::amrex::Box all_faces_tilebox = ::amrex::surroundingNodes(tilebox, dir_v);
+      const ::amrex::Box all_faces_tilebox =
+          ::amrex::surroundingNodes(tilebox, dir_v);
       const ::amrex::Box all_fluxes_box = flux.box();
       const ::amrex::Box flux_box = all_faces_tilebox & all_fluxes_box;
       const ::amrex::Box cell_box = enclosedCells(flux_box);

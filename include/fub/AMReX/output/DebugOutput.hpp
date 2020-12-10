@@ -23,7 +23,6 @@
 #define FUB_AMREX_DEBUG_OUTPUT_HPP
 
 #include "fub/AMReX/GriddingAlgorithm.hpp"
-#include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
 #include "fub/output/OutputAtFrequencyOrInterval.hpp"
 
 namespace fub::amrex {
@@ -245,22 +244,6 @@ private:
   /// \brief This is the base directory where the snapshots will be output to.
   std::string directory_;
 };
-
-namespace cutcell {
-class DebugOutput : public OutputAtFrequencyOrInterval<GriddingAlgorithm> {
-public:
-  /// \brief Read program options from opts and enable the storage.
-  explicit DebugOutput(const ProgramOptions& opts,
-                       const std::shared_ptr<DebugStorage>& storage);
-
-  /// \brief Write out the debug storage on the grid.
-  void operator()(const GriddingAlgorithm& grid) override;
-
-private:
-  /// \brief This is the base directory where the snapshots will be output to.
-  std::string directory_;
-};
-}
 
 } // namespace fub::amrex
 

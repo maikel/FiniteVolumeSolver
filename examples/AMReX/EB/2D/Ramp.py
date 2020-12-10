@@ -1,17 +1,17 @@
 import math
 
 isRef = 0
-factor = 1
+factor = 4
 
 final_time = 0.5
 
-max_cycles = [1, 0]
+max_cycles = [10, 0]
 mode = ['new', 'ref']
 
 RunOptions = {
   'cfl': 0.4,
   'final_time': final_time,
-  'max_cycles': 1 # -1 means infinite and 0 means only initial condition
+  'max_cycles': -1 # -1 means infinite and 0 means only initial condition
 }
 
 def AlignForBlockingFactor(n, blocking_factor):
@@ -46,20 +46,21 @@ Output = {
   'outputs': [
     {
     'type': 'Plotfile',
-    'directory': 'Debug_Ramp_{}x{}-{}/Plot/'.format(n_cells_x, n_cells_y, n_levels),
+    'directory': 'Ramp_{}x{}-{}/Plot/'.format(n_cells_x, n_cells_y, n_levels),
     'intervals': [final_time],
     # 'frequencies': [1] 
   },
-  {
-    'type': 'DebugOutput',
-    'directory': 'Debug_Ramp_{}x{}-{}/'.format(n_cells_x, n_cells_y, n_levels),
-    'intervals': [1e-4],
-    'frequencies': [1] 
-  },
-  {
-    'type': 'HDF5',
-    'path': 'ReferenceData/Ramp_{}x{}-{}.h5'.format(n_cells_x, n_cells_y, n_levels),
-    'intervals': [final_time],
+  # {
+  #   'type': 'DebugOutput',
+  #   'directory': 'Debug_Ramp_{}x{}-{}/'.format(n_cells_x, n_cells_y, n_levels),
+  #   # 'intervals': [1e-4],
+  #   'frequencies': [1] 
+  # },
+  # {
+    # 'type': 'HDF5',
+    # 'path': 'ReferenceData/Ramp_{}x{}-{}.h5'.format(n_cells_x, n_cells_y, n_levels),
+    # 'intervals': [final_time],
     # 'frequencies': [1] 
-  }]
+  # }
+  ]
 }

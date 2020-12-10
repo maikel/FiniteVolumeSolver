@@ -30,6 +30,9 @@ if (TARGET Catch2)
   add_executable(test.State test.State.cpp)
   target_link_libraries(test.State FiniteVolumeSolver.Solver Catch2)
 
+  add_executable(test.NewState test.NewStates.cpp)
+  target_link_libraries(test.NewState FiniteVolumeSolver.Solver Catch2)
+
   add_executable(test.simd_FluxMethod test.simd_FluxMethod.cpp)
   target_link_libraries(test.simd_FluxMethod Catch2 FiniteVolumeSolver.AMReX)
 endif()

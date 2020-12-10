@@ -144,6 +144,8 @@ struct ConservativeHGridReconstruction
     std::array<double, kMaxSources> start{};
     std::array<double, kMaxSources> end{};
 
+    int n_sources;
+
     Coordinates<Rank> slope{};
     Coordinates<Rank> xB{};
   };
@@ -368,9 +370,9 @@ struct ConservativeHGridReconstruction
     return box;
   }
 
-  AuxiliaryReconstructionData Sort(const AuxiliaryReconstructionData& aux_data,
-                                   int count) {
+  AuxiliaryReconstructionData Sort(const AuxiliaryReconstructionData& aux_data) {
     std::array<int, AuxiliaryReconstructionData::kMaxSources> indices;
+    const int count = aux_data.n_sources;
     std::iota(indices.begin(), indices.begin() + count, 0);
     std::sort(indices.begin(), indices.begin() + count, [&](int i, int j) {
       return aux_data.start[i] < aux_data.start[j];
@@ -388,6 +390,7 @@ struct ConservativeHGridReconstruction
       sorted_aux.start[i] = sorted_aux.end[count - 1];
       sorted_aux.end[i] = sorted_aux.end[count - 1];
     }
+    sorted_aux.n_sources = count;
     return sorted_aux;
   }
 
@@ -402,6 +405,7 @@ struct ConservativeHGridReconstruction
     while (i < AuxiliaryReconstructionData::kMaxSources) {
       datas[0].sources[i] = aux.sources[i];
       datas[0].start[i] = aux.start[i];
+      datas[0].n_sources = i + 1;
       if (dx < aux.end[i]) {
         datas[0].end[i] = dx;
         break;
@@ -417,6 +421,7 @@ struct ConservativeHGridReconstruction
       datas[1].sources[j - i] = aux.sources[j];
       datas[1].start[j - i] = aux.start[j];
       datas[1].end[j - i] = aux.end[j];
+      datas[1].n_sources = aux.n_sources - datas[0].n_sources;
     }
     return datas;
   }
@@ -459,7 +464,8 @@ struct ConservativeHGridReconstruction
       }
     });
     FUB_ASSERT(count > 0 && count <= AuxiliaryReconstructionData::kMaxSources);
-    AuxiliaryReconstructionData sorted_aux = Sort(aux_data, count);
+    aux_data.n_sources = count;
+    AuxiliaryReconstructionData sorted_aux = Sort(aux_data);
     return sorted_aux;
   }
 
@@ -494,7 +500,7 @@ struct ConservativeHGridReconstruction
                           const CutCellData<Rank>& geom,
                           const AuxiliaryReconstructionData& aux_data,
                           const Coordinates<Rank>& dx, double total_length) {
-    for (int i = 0; i < AuxiliaryReconstructionData::kMaxSources; ++i) {
+    for (int i = 0; i < aux_data.n_sources; ++i) {
       const Index<Rank> index = aux_data.sources[i];
       if (Contains(Box<0>(states), index) &&
           geom.volume_fractions(index) > 0.0) {

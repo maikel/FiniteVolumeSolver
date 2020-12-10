@@ -297,21 +297,21 @@ void MyMain(const fub::ProgramOptions& opts) {
 
   using fub::amrex::cutcell::ConstantBoundary;
   using fub::amrex::cutcell::ReflectiveBoundary;
-  // fub::amrex::cutcell::BoundarySet boundary_condition{
-  //     {ConstantBoundary<fub::PerfectGas<2>>{fub::Direction::X, 0, equation,
-  //                                           stateL},
-  //      ConstantBoundary<fub::PerfectGas<2>>{fub::Direction::X, 1, equation,
-  //                                           stateR},
-  //      ConstantBoundary<fub::PerfectGas<2>>{fub::Direction::Y, 0, equation,
-  //                                           stateL},
-  //      ConstantBoundary<fub::PerfectGas<2>>{fub::Direction::Y, 1, equation,
-  //                                           stateR}}};
-  auto seq = fub::execution::seq;
   fub::amrex::cutcell::BoundarySet boundary_condition{
-      {ReflectiveBoundary{seq, equation, fub::Direction::X, 0},
-       ReflectiveBoundary{seq, equation, fub::Direction::X, 1},
-       ReflectiveBoundary{seq, equation, fub::Direction::Y, 0},
-       ReflectiveBoundary{seq, equation, fub::Direction::Y, 1}}};
+      {ConstantBoundary<fub::PerfectGas<2>>{fub::Direction::X, 0, equation,
+                                            stateL},
+       ConstantBoundary<fub::PerfectGas<2>>{fub::Direction::X, 1, equation,
+                                            stateR},
+       ConstantBoundary<fub::PerfectGas<2>>{fub::Direction::Y, 0, equation,
+                                            stateL},
+       ConstantBoundary<fub::PerfectGas<2>>{fub::Direction::Y, 1, equation,
+                                            stateR}}};
+  // auto seq = fub::execution::seq;
+  // fub::amrex::cutcell::BoundarySet boundary_condition{
+  //     {ReflectiveBoundary{seq, equation, fub::Direction::X, 0},
+  //      ReflectiveBoundary{seq, equation, fub::Direction::X, 1},
+  //      ReflectiveBoundary{seq, equation, fub::Direction::Y, 0},
+  //      ReflectiveBoundary{seq, equation, fub::Direction::Y, 1}}};
 
   using fub::amrex::cutcell::GriddingAlgorithm;
   using fub::amrex::cutcell::PatchHierarchy;

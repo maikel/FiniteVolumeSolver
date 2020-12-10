@@ -27,6 +27,89 @@
 
 namespace fub {
 namespace detail {
+template <typename Depths, int Width> struct ArrayStateBaseImpl {
+  template <typename T>
+  using fn = typename DepthToStateValueTypeImpl<T, Width>::type;
+  using type = boost::mp11::mp_transform<fn, Depths>;
+};
+} // namespace detail
+
+template <typename Depths, int Width>
+using ArrayStateBase = typename detail::ArrayStateBaseImpl<Depths, Width>::type;
+
+template <typename Depths, int Width>
+struct ArrayState : ArrayStateBase<Depths, Width> {
+  using Traits = StateTraits<ArrayStateBase<Depths, Width>>;
+  static constexpr int Rank = meta::Rank<Depths>::value;
+  using Equation = typename Traits::template Equation<Rank>;
+  using Base = ArrayStateBase<Depths, Width>;
+
+  using Base::Base;
+
+  ArrayState(const Equation& eq) : Base{} {
+    auto depths = ::fub::Depths<ArrayState, Equation>(eq);
+    ForEachVariable(
+        overloaded{
+            [&](Array1d& id, ScalarDepth) { id = Array1d::Zero(); },
+            [&](auto&& ids, auto depth) {
+              if constexpr (std::is_same_v<std::decay_t<decltype(depth)>,
+                                           int>) {
+                ids = ArrayXd::Zero(depth, kDefaultChunkSize);
+              } else {
+                ids = Array<double, decltype(depth)::value>::Zero();
+              }
+            },
+        },
+        *this, depths);
+  }
+
+  ArrayState& operator+=(const Base& other) {
+    ForEachVariable([](auto&& that, auto&& other) { that += other; }, *this,
+                    other);
+    return *this;
+  }
+
+  ArrayState& operator-=(const Base& other) {
+    ForEachVariable([](auto&& that, auto&& other) { that -= other; }, *this,
+                    other);
+    return *this;
+  }
+
+  ArrayState& operator*=(double lambda) {
+    ForEachVariable([lambda](auto&& that, auto&& other) { that *= lambda; },
+                    *this);
+    return *this;
+  }
+};
+
+template <typename Depths, int Width>
+struct StateTraits<ArrayState<Depths, Width>>
+    : StateTraits<ArrayStateBase<Depths, Width>> {};
+
+template <typename Eq, int Width = kDefaultChunkSize>
+struct PrimitiveArray : ArrayState<typename Eq::PrimitiveDepths, Width> {
+  using Base = ArrayState<typename Eq::PrimitiveDepths, Width>;
+
+  using Base::Base;
+};
+
+template <typename Eq, int Width>
+struct StateTraits<PrimitiveArray<Eq, Width>>
+    : StateTraits<ArrayState<typename Eq::PrimitiveDepths, Width>> {};
+
+template <typename Eq, int Width = kDefaultChunkSize>
+struct CharacteristicsArray
+    : ArrayState<typename Eq::CharacteristicsDepths, Width> {
+  using Base = ArrayState<typename Eq::CharacteristicsDepths, Width>;
+
+  using Base::Base;
+};
+
+template <typename Eq, int Width>
+struct StateTraits<CharacteristicsArray<Eq, Width>>
+    : StateTraits<ArrayState<typename Eq::CharacteristicsDepths, Width>> {};
+
+namespace detail {
 template <typename Eq, int Width> struct ConservativeArrayBaseImpl {
   template <typename T>
   using fn = typename DepthToStateValueTypeImpl<T, Width>::type;
