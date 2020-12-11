@@ -43,6 +43,11 @@ struct IdealGasMixConservative {
   Species species;
 };
 
+template <int Rank>
+using IdealGasConservativeShape =
+    IdealGasMixConservative<ScalarDepth, VectorDepth<Rank>, ScalarDepth,
+                            VectorDepth<-1>>;
+
 // We "register" the conservative state with our framework.
 // This enables us to name and iterate over all member variables in a given
 // conservative state.
@@ -55,6 +60,8 @@ template <typename... Xs> struct StateTraits<IdealGasMixConservative<Xs...>> {
                       &IdealGasMixConservative<Xs...>::momentum,
                       &IdealGasMixConservative<Xs...>::energy,
                       &IdealGasMixConservative<Xs...>::species);
+
+  template <int Rank> using Depths = IdealGasConservativeShape<Rank>;
 };
 
 template <typename Density, typename Momentum, typename Energy,
@@ -69,6 +76,12 @@ struct IdealGasMixComplete
   HeatCapacityAtConstantPressure c_p;
   HeatCapacityRatio gamma;
 };
+
+template <int Rank>
+using IdealGasMixCompleteShape =
+    IdealGasMixComplete<ScalarDepth, VectorDepth<Rank>, ScalarDepth,
+                        VectorDepth<-1>, ScalarDepth, ScalarDepth, ScalarDepth,
+                        ScalarDepth, ScalarDepth>;
 
 // We "register" the complete state with our framework.
 // This enables us to name and iterate over all member variables in a given
@@ -85,18 +98,9 @@ template <typename... Xs> struct StateTraits<IdealGasMixComplete<Xs...>> {
       &IdealGasMixComplete<Xs...>::speed_of_sound,
       &IdealGasMixComplete<Xs...>::temperature,
       &IdealGasMixComplete<Xs...>::c_p, &IdealGasMixComplete<Xs...>::gamma);
+
+  template <int Rank> using Depths = IdealGasMixCompleteShape<Rank>;
 };
-
-template <int Rank>
-using IdealGasConservativeShape =
-    IdealGasMixConservative<ScalarDepth, VectorDepth<Rank>, ScalarDepth,
-                            VectorDepth<-1>>;
-
-template <int Rank>
-using IdealGasMixCompleteShape =
-    IdealGasMixComplete<ScalarDepth, VectorDepth<Rank>, ScalarDepth,
-                        VectorDepth<-1>, ScalarDepth, ScalarDepth, ScalarDepth,
-                        ScalarDepth, ScalarDepth>;
 
 template <int N> class IdealGasMix {
 public:
@@ -158,30 +162,15 @@ public:
 private:
   FlameMasterReactor reactor_;
   Array<double, Eigen::Dynamic, 1> species_buffer_{reactor_.GetNSpecies()};
-};
 
-namespace detail {
-template <int Dim>
-struct DepthsImpl<Complete<IdealGasMix<Dim>>, IdealGasMix<Dim>> {
-  constexpr ToConcreteDepths<typename IdealGasMix<Dim>::CompleteDepths>
-  operator()(const IdealGasMix<Dim>& equation) const noexcept {
-    ToConcreteDepths<typename IdealGasMix<Dim>::CompleteDepths> depths{};
-    depths.species = equation.GetReactor().GetNSpecies();
+  template <typename State>
+  friend constexpr auto tag_invoke(tag_t<Depths>, const IdealGasMix& equation,
+                                   Type<State>) noexcept {
+    ToConcreteDepths<typename State::Traits::template Depths<N>> depths{};
+    depths.species = equation.reactor_.GetNSpecies();
     return depths;
   }
 };
-
-template <int Dim>
-struct DepthsImpl<Conservative<IdealGasMix<Dim>>, IdealGasMix<Dim>> {
-  constexpr ToConcreteDepths<typename IdealGasMix<Dim>::ConservativeDepths>
-  operator()(const IdealGasMix<Dim>& equation) const noexcept {
-    ToConcreteDepths<typename IdealGasMix<Dim>::ConservativeDepths> depths{};
-    depths.species = equation.GetReactor().GetNSpecies();
-    return depths;
-  }
-};
-
-}
 
 // We define this class only for dimensions 1 to 3.
 // The definitions will be found in its source file IdealGasMix.cpp

@@ -254,7 +254,7 @@ void WritePlotFile(const std::string& plotfilename, const PatchHierarchy& hier,
   }
   using Traits = StateTraits<Complete<Equation>>;
   constexpr auto names = Traits::names;
-  const auto depths = Depths<Complete<Equation>>(equation);
+  const auto depths = Depths(equation, Type<Complete<Equation>>{});
   const std::size_t n_names =
       std::tuple_size<remove_cvref_t<decltype(names)>>::value;
   ::amrex::Vector<std::string> varnames;
@@ -296,7 +296,7 @@ void WritePlotFile(const std::string& plotfilename, const PatchHierarchy& hier,
   }
   using Traits = StateTraits<Complete<Equation>>;
   constexpr auto names = Traits::names;
-  const auto depths = Depths<Complete<Equation>>(equation);
+  const auto depths = Depths(equation, Type<Complete<Equation>>{});
   const std::size_t n_names =
       std::tuple_size<remove_cvref_t<decltype(names)>>::value;
   ::amrex::Vector<std::string> varnames;

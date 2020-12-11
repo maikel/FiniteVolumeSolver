@@ -175,11 +175,11 @@ void Flux(Eq&& equation, ConservativeArray<Equation>& flux,
   }
 }
 
-template <typename Type, typename ReturnType, typename Equation>
+template <typename State, typename ReturnType, typename Equation>
 ReturnType VarNames(const Equation& equation) {
-  using Traits = StateTraits<Type>;
+  using Traits = StateTraits<State>;
   constexpr auto names = Traits::names;
-  const auto depths = Depths<Type>(equation);
+  const auto depths = fub::Depths(equation, Type<State>{});
   const std::size_t n_names =
       std::tuple_size<remove_cvref_t<decltype(names)>>::value;
   ReturnType varnames;

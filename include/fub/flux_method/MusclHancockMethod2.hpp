@@ -32,15 +32,6 @@
 #include "fub/flux_method/Reconstruct.hpp"
 
 namespace fub {
-// inline constexpr struct ComputeNumericFlux_T final {
-//   template <typename... Args>
-//   constexpr auto operator()(Args&&... args) noexcept(
-//       is_nothrow_tag_invocable_v<ComputeNumericFlux_T, Args...>)
-//       -> tag_invoke_result_t<ComputeNumericFlux_T, Args...> {
-//     return ::fub::tag_invoke(*this, std::forward<Args>(args)...);
-//   }
-// } ComputeNumericFlux{};
-
 template <
     typename Equation, typename GradientMethod = ConservativeGradient<Equation>,
     typename ReconstructionMethod = ConservativeReconstruction<Equation>,

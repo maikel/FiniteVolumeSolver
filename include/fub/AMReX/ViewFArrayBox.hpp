@@ -189,7 +189,7 @@ template <typename State> struct MakeViewImpl {
 
   State operator()(const PatchDataView<ValueType, AMREX_SPACEDIM + 1>& fab,
                    const Equation& equation) {
-    const auto depths = ::fub::Depths<State, Equation>(equation);
+    const auto depths = ::fub::Depths(equation, Type<State>{});
     int counter = 0;
     const Index<AMREX_SPACEDIM + 1>& origin = fab.Origin();
     auto transform = overloaded{

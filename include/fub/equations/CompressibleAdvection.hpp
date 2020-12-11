@@ -44,6 +44,11 @@ struct CompressibleAdvectionConservative {
   PTDensity PTdensity;
 };
 
+template <int VelocityRank>
+using CompressibleAdvectionConsShape =
+    CompressibleAdvectionConservative<ScalarDepth, VectorDepth<VelocityRank>,
+                                      ScalarDepth>;
+
 // We "register" the conservative state with our framework.
 // This enables us to name and iterate over all member variables in a given
 // conservative state.
@@ -56,6 +61,8 @@ struct StateTraits<CompressibleAdvectionConservative<Xs...>> {
       std::make_tuple(&CompressibleAdvectionConservative<Xs...>::density,
                       &CompressibleAdvectionConservative<Xs...>::momentum,
                       &CompressibleAdvectionConservative<Xs...>::PTdensity);
+
+  template <int Rank> using Depths = CompressibleAdvectionConsShape<Rank>;
 };
 
 template <typename Density, typename Momentum, typename PTDensity,
@@ -65,29 +72,27 @@ struct CompressibleAdvectionComplete
   PTInverse PTinverse;
 };
 
+template <int VelocityRank>
+using CompressibleAdvectionCompleteShape =
+    CompressibleAdvectionComplete<ScalarDepth, VectorDepth<VelocityRank>,
+                                  ScalarDepth, ScalarDepth>;
+
 // We "register" the complete state with our framework.
 // This enables us to name and iterate over all member variables in a given
 // compete state.
 template <typename... Xs>
 struct StateTraits<CompressibleAdvectionComplete<Xs...>> {
-  static constexpr auto names = std::make_tuple(
-      "Density", "Momentum", "PTdensity", "PTinverse");
+  static constexpr auto names =
+      std::make_tuple("Density", "Momentum", "PTdensity", "PTinverse");
   static constexpr auto pointers_to_member =
       std::make_tuple(&CompressibleAdvectionComplete<Xs...>::density,
                       &CompressibleAdvectionComplete<Xs...>::momentum,
                       &CompressibleAdvectionComplete<Xs...>::PTdensity,
                       &CompressibleAdvectionComplete<Xs...>::PTinverse);
+
+  template <int VelocityDim>
+  using Depths = CompressibleAdvectionCompleteShape<VelocityDim>;
 };
-
-template <int VelocityRank>
-using CompressibleAdvectionConsShape =
-    CompressibleAdvectionConservative<ScalarDepth, VectorDepth<VelocityRank>,
-                                      ScalarDepth>;
-
-template <int VelocityRank>
-using CompressibleAdvectionCompleteShape =
-    CompressibleAdvectionComplete<ScalarDepth, VectorDepth<VelocityRank>,
-                                  ScalarDepth, ScalarDepth>;
 
 template <int N, int VelocityDim = N> struct CompressibleAdvection {
   using ConservativeDepths = CompressibleAdvectionConsShape<VelocityDim>;
@@ -106,6 +111,13 @@ template <int N, int VelocityDim = N> struct CompressibleAdvection {
     state.PTinverse = cons.density / cons.PTdensity;
   }
 
+private:
+  template <typename State>
+  friend constexpr auto tag_invoke(fub::DepthsFn,
+                                   const CompressibleAdvection&,
+                                   Type<State>) noexcept {
+    return typename State::Traits::template Depths<VelocityDim>{};
+  }
 };
 
 template <int SpaceDimension, int VelocityDimension = SpaceDimension>
@@ -118,8 +130,8 @@ struct CompressibleAdvectionFluxMethod {
 
   constexpr static int GetStencilWidth() { return 2; }
 
-  CompressibleAdvection<SpaceDimension, VelocityDimension> GetEquation() const
-      noexcept {
+  CompressibleAdvection<SpaceDimension, VelocityDimension>
+  GetEquation() const noexcept {
     return {};
   }
 

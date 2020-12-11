@@ -47,7 +47,7 @@ struct ArrayState : ArrayStateBase<Depths, Width> {
   using Base::Base;
 
   ArrayState(const Equation& eq) : Base{} {
-    auto depths = ::fub::Depths<ArrayState, Equation>(eq);
+    auto depths = ::fub::Depths(eq, Type<ArrayState>{});
     ForEachVariable(
         overloaded{
             [&](Array1d& id, ScalarDepth) { id = Array1d::Zero(); },
@@ -131,7 +131,7 @@ struct ConservativeArray : ConservativeArrayBase<Eq, Width> {
 
   ConservativeArray() = default;
   ConservativeArray(const Equation& eq) {
-    auto depths = Depths<Conservative<Equation>>(eq);
+    auto depths = fub::Depths(eq, Type<Conservative<Equation>>{});
     ForEachVariable(
         overloaded{
             [&](Array1d& id, ScalarDepth) { id = Array1d::Zero(); },
@@ -174,7 +174,7 @@ struct CompleteArray : CompleteArrayBase<Eq, Width> {
 
   CompleteArray() = default;
   CompleteArray(const Equation& eq) {
-    auto depths = Depths<Complete<Equation>>(eq);
+    auto depths = fub::Depths(eq, Type<Complete<Equation>>{});
     ForEachVariable(
         overloaded{
             [&](Array1d& id, ScalarDepth) { id = Array1d::Zero(); },

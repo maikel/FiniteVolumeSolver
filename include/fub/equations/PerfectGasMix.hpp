@@ -37,17 +37,20 @@ template <int Rank> struct PerfectGasMix;
 /// perfect gas equations.
 template <typename Density, typename Momentum, typename Energy,
           typename Species>
-struct PerfectGasMixConservative { // Zenker: renamed PerfectGasConservativeMix --> PerfectGasMixConservative
+struct PerfectGasMixConservative { // Zenker: renamed PerfectGasConservativeMix
+                                   // --> PerfectGasMixConservative
   Density density;
   Momentum momentum;
   Energy energy;
   Species species;
 };
 
-template <int Rank> // Zenker: renamed PerfectGasConsMixShape --> PerfectGasMixConsShape
-using PerfectGasMixConsShape =
-    PerfectGasMixConservative<ScalarDepth, VectorDepth<Rank>, ScalarDepth,
-                              VectorDepth<-1>>;
+template <int Rank> // Zenker: renamed PerfectGasConsMixShape -->
+                    // PerfectGasMixConsShape
+                    using PerfectGasMixConsShape =
+                        PerfectGasMixConservative<ScalarDepth,
+                                                  VectorDepth<Rank>,
+                                                  ScalarDepth, VectorDepth<-1>>;
 
 namespace meta {
 template <int R> struct Rank<PerfectGasMixConsShape<R>> : int_constant<R> {};
@@ -163,11 +166,13 @@ template <typename... Xs> struct StateTraits<PerfectGasMixComplete<Xs...>> {
                                                 "Species"
                                                 "Pressure",
                                                 "SpeedOfSound");
-  static constexpr auto pointers_to_member = std::make_tuple(
-      &PerfectGasMixComplete<Xs...>::density, &PerfectGasMixComplete<Xs...>::momentum,
-      &PerfectGasMixComplete<Xs...>::energy, &PerfectGasMixComplete<Xs...>::species,
-      &PerfectGasMixComplete<Xs...>::pressure,
-      &PerfectGasMixComplete<Xs...>::speed_of_sound);
+  static constexpr auto pointers_to_member =
+      std::make_tuple(&PerfectGasMixComplete<Xs...>::density,
+                      &PerfectGasMixComplete<Xs...>::momentum,
+                      &PerfectGasMixComplete<Xs...>::energy,
+                      &PerfectGasMixComplete<Xs...>::species,
+                      &PerfectGasMixComplete<Xs...>::pressure,
+                      &PerfectGasMixComplete<Xs...>::speed_of_sound);
 
   template <int Rank> using Depths = PerfectGasMixCompleteShape<Rank>;
 
@@ -209,7 +214,8 @@ template <int N> struct PerfectGasMix {
                         MaskArray mask) const noexcept;
 
   Complete CompleteFromPrim(double density, const Array<double, N, 1>& u,
-                            double pressure, const Array<double, -1, 1>& species) const noexcept;
+                            double pressure,
+                            const Array<double, -1, 1>& species) const noexcept;
 
   // CompleteArray CompleteFromPrim(Array1d density, const Array<double, N>& u,
   //                                Array1d pressure) const noexcept;
@@ -235,6 +241,15 @@ template <int N> struct PerfectGasMix {
 
   Array1d gamma_array_{Array1d::Constant(gamma)};
   Array1d gamma_minus_1_inv_array_{Array1d::Constant(gamma_minus_1_inv)};
+
+private:
+  template <typename State>
+  friend constexpr auto tag_invoke(tag_t<Depths>, const PerfectGasMix& eq,
+                                   Type<State>) noexcept {
+    ToConcreteDepths<typename State::Traits::template Depths<N>> depths{};
+    depths.species = eq.n_species;
+    return depths;
+  }
 };
 
 // We define this class only for dimensions 1 to 3.
@@ -243,25 +258,12 @@ extern template struct PerfectGasMix<1>;
 extern template struct PerfectGasMix<2>;
 extern template struct PerfectGasMix<3>;
 
-namespace detail {
-template <typename State, int Dim>
-struct DepthsImpl<State, PerfectGasMix<Dim>> {
-  constexpr ToConcreteDepths<typename StateTraits<State>::template Depths<Dim>>
-  operator()(const PerfectGasMix<Dim>& equation) const noexcept {
-    ToConcreteDepths<typename StateTraits<State>::template Depths<Dim>> depths{};
-    depths.species = equation.n_species;
-    return depths;
-  }
-};
-
-}
-
 template <int Rank>
 void CompleteFromPrim(const PerfectGasMix<Rank>& equation,
                       Complete<PerfectGasMix<Rank>>& complete,
                       const Primitive<PerfectGasMix<Rank>>& prim) {
-  complete =
-      equation.CompleteFromPrim(prim.density, prim.velocity, prim.pressure, prim.species);
+  complete = equation.CompleteFromPrim(prim.density, prim.velocity,
+                                       prim.pressure, prim.species);
 }
 
 template <int Rank>

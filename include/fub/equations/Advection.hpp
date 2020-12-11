@@ -41,6 +41,8 @@ template <typename... Xs> struct StateTraits<AdvectionVariables<Xs...>> {
   static constexpr auto names = std::make_tuple("Mass");
   static constexpr auto pointers_to_member =
       std::make_tuple(&AdvectionVariables<Xs...>::mass);
+  
+  template <int Rank> using Depths = AdvectionVariables<ScalarDepth>;
 };
 
 /// \ingroup Equations

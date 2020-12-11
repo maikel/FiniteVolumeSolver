@@ -148,7 +148,8 @@ template <typename T>
 using DepthToStateValueType = typename DepthToStateValueTypeImpl<T, 1>::type;
 /// @}
 
-
+template <typename T, typename Eq>
+using DepthsT = typename StateTraits<T>::template Depths<Eq::Rank()>;
 
 template <typename T, typename Eq> struct DepthsImpl {
   constexpr typename StateTraits<T>::template Depths<Eq::Rank()>
@@ -158,15 +159,31 @@ template <typename T, typename Eq> struct DepthsImpl {
 };
 } // namespace detail
 
-template <typename T, typename Eq> auto Depths(const Eq& eq) {
-  detail::DepthsImpl<T, Eq> depths;
-  return depths(eq);
-}
+template <typename T> struct Type {};
+inline constexpr struct DepthsFn {
+  template <typename Eq, typename State>
+  constexpr auto operator()(const Eq& eq,
+                            [[maybe_unused]] Type<State> state) const
+      noexcept(
+          is_nothrow_tag_invocable<DepthsFn, const Eq&, Type<State>>::value ||
+          !is_tag_invocable<DepthsFn, const Eq&, Type<State>>::value) {
+    if constexpr (is_tag_invocable<DepthsFn, const Eq&, Type<State>>::value) {
+      return fub::tag_invoke(*this, eq, std::move(state));
+    } else if constexpr (is_detected<detail::DepthsT, State, Eq>::value) {
+      detail::DepthsImpl<State, Eq> default_depths;
+      return default_depths(eq);
+    } else {
+      static_assert(
+          is_tag_invocable<DepthsFn, const Eq&, Type<State>>::value ||
+          is_detected<detail::DepthsT, State, Eq>::value);
+    }
+  }
+} Depths;
 
 namespace meta {
 template <typename T>
-using Depths =
-    decltype(::fub::Depths<T>(std::declval<typename T::Equation const&>()));
+using Depths = decltype(
+    ::fub::Depths(std::declval<typename T::Equation const&>(), Type<T>{}));
 }
 
 template <typename Depths>
@@ -182,7 +199,7 @@ template <typename Depths> struct ScalarState : ScalarStateBase<Depths> {
   using Base::Base;
 
   ScalarState(const Equation& eq) : Base{} {
-    auto depths = ::fub::Depths<ScalarState, Equation>(eq);
+    auto depths = ::fub::Depths(eq, Type<ScalarState>{});
     ForEachVariable(
         overloaded{
             [&](double& id, ScalarDepth) { id = 0.0; },
@@ -218,7 +235,8 @@ template <typename Depths> struct ScalarState : ScalarStateBase<Depths> {
 };
 
 template <typename Depths>
-struct StateTraits<ScalarState<Depths>> : StateTraits<ScalarStateBase<Depths>> {};
+struct StateTraits<ScalarState<Depths>> : StateTraits<ScalarStateBase<Depths>> {
+};
 
 /// This type alias transforms state depths into a conservative state
 /// associated with a specified equation.
@@ -241,7 +259,7 @@ template <typename Eq> struct Conservative : ConservativeBase<Eq> {
     return *this;
   }
   Conservative(const Equation& eq) : ConservativeBase<Eq>{} {
-    auto depths = Depths<Conservative<Equation>>(eq);
+    auto depths = ::fub::Depths(eq, Type<Conservative<Equation>>{});
     ForEachVariable(
         overloaded{
             [&](double& id, ScalarDepth) { id = 0.0; },
@@ -313,7 +331,7 @@ template <typename Eq> struct Complete : CompleteBase<Eq> {
     static_cast<CompleteBase<Eq>&>(*this) = x;
   }
   Complete(const Equation& eq) : CompleteBase<Eq>{} {
-    auto depths = Depths<Complete<Equation>>(eq);
+    auto depths = ::fub::Depths(eq, Type<Complete<Equation>>{});
     ForEachVariable(
         overloaded{
             [&](double& id, ScalarDepth) { id = 0.0; },
@@ -821,7 +839,7 @@ using IndexMappingBase =
 template <typename Equation> struct IndexMapping : IndexMappingBase<Equation> {
   IndexMapping() = default;
   IndexMapping(const Equation& equation) {
-    auto depths = Depths<Complete<Equation>>(equation);
+    auto depths = Depths(equation, Type<Complete<Equation>>{});
     int counter = 0;
     ForEachVariable(
         overloaded{
@@ -874,7 +892,6 @@ void CopyToBuffer(span<double> buffer, const Conservative<Equation>& state) {
       },
       state);
 }
-
 
 } // namespace fub
 
