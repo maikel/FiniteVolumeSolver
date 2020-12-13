@@ -4,10 +4,11 @@ RunOptions = {
   'cfl': 0.8,
   # 'final_time': 0.2 / math.sqrt(101325.),
   'final_time': 0.2,
+  # 'max_cycles': 10,
 }
 
 GridGeometry = {
-  'cell_dimensions': [100, 1, 1],
+  'cell_dimensions': [200, 1, 1],
   'coordinates': {
     'lower': [-0.50, -0.015, -0.015],
     'upper': [+0.50, +0.015, +0.015],
@@ -48,7 +49,7 @@ Output = {
   'outputs': [{
     'type': 'HDF5',
     'path': paths[reconstruction],
-    'intervals': [RunOptions['final_time'] / 10.0],
-    # 'frequencies': [1],
+    'intervals': [RunOptions['final_time'] / 1.0],
+    #'frequencies': [1],
   }]
 }

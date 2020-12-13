@@ -120,7 +120,8 @@ void Hllem<EulerEquation>::SolveRiemannProblem(Complete& solution,
         const double li1 = -roeY;
         const double li4 = 1.0;
         const double alpha_i = li1 * deltaRho + li4 * deltaRhoY;
-        w_hllem_.species[i] = w_hlle_.species[i] - u_bar * delta * alpha_i;
+        w_hllem_.species[i] = w_hlle_.species[i] - u_bar_delta_alpha_2 * roeY -
+                              u_bar * delta * alpha_i;
       }
     }
   } else if constexpr (Dim == 2) {
@@ -161,7 +162,9 @@ void Hllem<EulerEquation>::SolveRiemannProblem(Complete& solution,
         const double li1 = -roeY;
         const double li4 = 1.0;
         const double alpha_i = li1 * deltaRho + li4 * deltaRhoY;
-        w_hllem_.species[i] = w_hlle_.species[i] - u_bar * delta * alpha_i;
+        w_hllem_.species[i] = w_hlle_.species[i] -
+                              u_bar_delta_alpha_2 * roeY -
+                              u_bar * delta * alpha_i;
       }
     }
   } else {
@@ -213,7 +216,9 @@ void Hllem<EulerEquation>::SolveRiemannProblem(Complete& solution,
         const double li1 = -roeY;
         const double li4 = 1.0;
         const double alpha_i = li1 * deltaRho + li4 * deltaRhoY;
-        w_hllem_.species[i] = w_hlle_.species[i] - u_bar * delta * alpha_i;
+        w_hllem_.species[i] = w_hlle_.species[i] -
+                              u_bar_delta * alpha_2 * roeY -
+                              u_bar * delta * alpha_i;
       }
     }
   }
@@ -331,7 +336,8 @@ void Hllem<EulerEquation>::ComputeNumericFlux(Conservative& flux,
         const double li4 = 1.0;
         const double alpha_i = li1 * deltaRho + li4 * deltaRhoY;
         const double b_delta_alpha_i = b * delta * alpha_i;
-        flux.species[i] = flux_hlle_.species[i] - b_delta_alpha_i;
+        flux.species[i] =
+            flux_hlle_.species[i] - b_delta_alpha_2 * roeY - b_delta_alpha_i;
       }
     }
   } else if constexpr (Dim == 2) {
@@ -371,7 +377,8 @@ void Hllem<EulerEquation>::ComputeNumericFlux(Conservative& flux,
         const double li4 = 1.0;
         const double alpha_i = li1 * deltaRho + li4 * deltaRhoY;
         const double b_delta_alpha_i = b * delta * alpha_i;
-        flux.species[i] = flux_hlle_.species[i] - b_delta_alpha_i;
+        flux.species[i] =
+            flux_hlle_.species[i] - b_delta_alpha_2 * roeY - b_delta_alpha_i;
       }
     }
   } else {
@@ -423,7 +430,8 @@ void Hllem<EulerEquation>::ComputeNumericFlux(Conservative& flux,
         const double li4 = 1.0;
         const double alpha_i = li1 * deltaRho + li4 * deltaRhoY;
         const double b_delta_alpha_i = b * delta * alpha_i;
-        flux.species[i] = flux_hlle_.species[i] - b_delta_alpha_i;
+        flux.species[i] =
+            flux_hlle_.species[i] - b_delta * alpha_2 * roeY - b_delta_alpha_i;
       }
     }
   }
@@ -541,7 +549,8 @@ void Hllem<EulerEquation>::ComputeNumericFlux(
         const Array1d li1 = -roeY;
         const Array1d alpha_i = li1 * deltaRho + deltaRhoY;
         const Array1d b_delta_alpha_i = b * delta * alpha_i;
-        flux.species.row(i) = flux_hlle_array_.species.row(i) - b_delta_alpha_i;
+        flux.species.row(i) = flux_hlle_array_.species.row(i) -
+                              b_delta_alpha_2 * roeY - b_delta_alpha_i;
       }
     }
   } else if constexpr (Dim == 2) {
@@ -581,7 +590,8 @@ void Hllem<EulerEquation>::ComputeNumericFlux(
         const Array1d li1 = -roeY;
         const Array1d alpha_i = li1 * deltaRho + deltaRhoY;
         const Array1d b_delta_alpha_i = b_delta * alpha_i;
-        flux.species.row(i) = flux_hlle_array_.species.row(i) - b_delta_alpha_i;
+        flux.species.row(i) = flux_hlle_array_.species.row(i) -
+                              b_delta_alpha_2 * roeY - b_delta_alpha_i;
       }
     }
   } else {
@@ -630,7 +640,8 @@ void Hllem<EulerEquation>::ComputeNumericFlux(
         const Array1d li1 = -roeY;
         const Array1d alpha_i = li1 * deltaRho + deltaRhoY;
         const Array1d b_delta_alpha_i = b_delta * alpha_i;
-        flux.species.row(i) = flux_hlle_array_.species.row(i) - b_delta_alpha_i;
+        flux.species.row(i) = flux_hlle_array_.species.row(i) -
+                              b_delta * alpha_2 * roeY - b_delta_alpha_i;
       }
     }
   }

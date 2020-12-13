@@ -55,7 +55,7 @@ struct RiemannProblem {
                 fub::Array<double, 1, 1> velocity{0.0};
                 fub::Array<double, -1, 1> species(equation_.n_species);
                 for (int i = 0; i < species.size(); ++i) {
-                  species[i] = (x < -0.1) ? 1.0 : 0.0;
+                  species[i] = (x < 0.0) ? 1.0 : 0.0;
                 }
                 const Complete complete = equation_.CompleteFromPrim(
                     density, velocity, pressure, species);
