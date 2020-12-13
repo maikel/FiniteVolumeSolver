@@ -199,6 +199,7 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/equations/Burgers.hpp
   include/fub/equations/IdealGasMix.hpp
   include/fub/equations/PerfectGas.hpp
+  include/fub/equations/PerfectGasMix.hpp
   include/fub/equations/perfect_gas/ExactRiemannSolver.hpp
   include/fub/equations/perfect_gas/EinfeldtSignalVelocities.hpp
   include/fub/equations/perfect_gas/HllemMethod.hpp
@@ -303,6 +304,8 @@ add_library(FiniteVolumeSolver.Solver
   src/equations/perfect_gas/MusclHancockCharacteristicMethod_1d.cpp
   src/equations/perfect_gas/MusclHancockCharacteristicMethod_2d.cpp
   src/equations/perfect_gas/MusclHancockCharacteristicMethod_3d.cpp
+  src/equations/PerfectGasMix.cpp
+  src/equations/perfect_gas_mix/HllemMethod_1d.cpp
   src/equations/IdealGasMix.cpp
   src/equations/ideal_gas_mix/EinfeldtSignalVelocities_1d.cpp
   src/equations/ideal_gas_mix/EinfeldtSignalVelocities_2d.cpp

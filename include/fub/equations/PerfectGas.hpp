@@ -28,6 +28,8 @@
 #include "fub/Equation.hpp"
 #include "fub/ext/Eigen.hpp"
 
+#include "fub/equations/EulerEquation.hpp"
+
 #include <array>
 
 namespace fub {
@@ -47,8 +49,8 @@ using PerfectGasConsShape =
     PerfectGasConservative<ScalarDepth, VectorDepth<Rank>, ScalarDepth>;
 
 namespace meta {
-template <int Rank>
-struct Rank<PerfectGasConsShape<Rank>> : int_constant<Rank> {};
+template <int R>
+struct Rank<PerfectGasConsShape<R>> : int_constant<R> {};
 } // namespace meta
 
 // We "register" the conservative state with our framework.
@@ -80,8 +82,8 @@ using PerfectGasPrimShape =
     PerfectGasPrimitive<ScalarDepth, VectorDepth<Rank>, ScalarDepth>;
 
 namespace meta {
-template <int Rank>
-struct Rank<PerfectGasPrimShape<Rank>> : int_constant<Rank> {};
+template <int R>
+struct Rank<PerfectGasPrimShape<R>> : int_constant<R> {};
 } // namespace meta
 
 template <typename... Xs> struct StateTraits<PerfectGasPrimitive<Xs...>> {
@@ -110,8 +112,8 @@ using PerfectGasCharShape =
     PerfectGasCharacteristics<ScalarDepth, VectorDepth<Rank>, ScalarDepth>;
 
 namespace meta {
-template <int Rank>
-struct Rank<PerfectGasCharShape<Rank>> : int_constant<Rank> {};
+template <int R>
+struct Rank<PerfectGasCharShape<R>> : int_constant<R> {};
 } // namespace meta
 
 template <typename... Xs> struct StateTraits<PerfectGasCharacteristics<Xs...>> {
@@ -140,8 +142,8 @@ using PerfectGasCompleteShape =
                        ScalarDepth>;
 
 namespace meta {
-template <int Rank>
-struct Rank<PerfectGasCompleteShape<Rank>> : int_constant<Rank> {};
+template <int R>
+struct Rank<PerfectGasCompleteShape<R>> : int_constant<R> {};
 } // namespace meta
 
 // We "register" the complete state with our framework.
@@ -218,6 +220,88 @@ template <int N> struct PerfectGas {
 
   Array1d gamma_array_{Array1d::Constant(gamma)};
   Array1d gamma_minus_1_inv_array_{Array1d::Constant(gamma_minus_1_inv)};
+
+private:
+  template <typename Density, typename Momentum, typename Energy>
+  friend auto tag_invoke(
+      tag_t<euler::Gamma>, const PerfectGas& eq,
+      const PerfectGasConservative<Density, Momentum, Energy>&) noexcept {
+    if constexpr (std::is_same_v<double, Density>) {
+      return eq.gamma;
+    } else {
+      return Array1d::Constant(eq.gamma);
+    }
+  }
+
+  template <typename Density, typename Momentum, typename Energy>
+  friend const Density& tag_invoke(
+      tag_t<euler::Density>, const PerfectGas&,
+      const PerfectGasConservative<Density, Momentum, Energy>& q) noexcept {
+    return q.density;
+  }
+
+  template <typename Density, typename Momentum, typename Energy>
+  friend const Momentum& tag_invoke(
+      tag_t<euler::Momentum>, const PerfectGas&,
+      const PerfectGasConservative<Density, Momentum, Energy>& q) noexcept {
+    return q.momentum;
+  }
+
+  template <typename Density, typename Momentum, typename Energy>
+  friend decltype(auto)
+  tag_invoke(tag_t<euler::Momentum>, const PerfectGas&,
+             const PerfectGasConservative<Density, Momentum, Energy>& q,
+             int d) noexcept {
+    if constexpr (std::is_same_v<double, Density>) {
+      return q.momentum[d];
+    } else {
+      return q.row(d);
+    }
+  }
+
+  template <typename Density, typename Momentum, typename Energy>
+  friend Momentum tag_invoke(
+      tag_t<euler::Velocity>, const PerfectGas&,
+      const PerfectGasConservative<Density, Momentum, Energy>& q) noexcept {
+    return q.momentum / q.density;
+  }
+
+  template <typename Density, typename Momentum, typename Energy>
+  friend auto
+  tag_invoke(tag_t<euler::Velocity>, const PerfectGas&,
+             const PerfectGasConservative<Density, Momentum, Energy>& q,
+             int d) noexcept {
+    if constexpr (std::is_same_v<double, Density>) {
+      return q.momentum[d] / q.density;
+    } else {
+      return q.row(d) / q.density;
+    }
+  }
+
+  template <typename Density, typename Momentum, typename Energy>
+  friend const Energy& tag_invoke(
+      tag_t<euler::Energy>, const PerfectGas&,
+      const PerfectGasConservative<Density, Momentum, Energy>& q) noexcept {
+    return q.energy;
+  }
+
+  template <typename Density, typename Momentum, typename Energy,
+            typename Pressure, typename SpeedOfSound>
+  friend const Pressure&
+  tag_invoke(tag_t<euler::Pressure>, const PerfectGas&,
+             const PerfectGasComplete<Density, Momentum, Energy, Pressure,
+                                      SpeedOfSound>& q) noexcept {
+    return q.pressure;
+  }
+
+  template <typename Density, typename Momentum, typename Energy,
+            typename Pressure, typename SpeedOfSound>
+  friend const SpeedOfSound&
+  tag_invoke(tag_t<euler::SpeedOfSound>, const PerfectGas&,
+             const PerfectGasComplete<Density, Momentum, Energy, Pressure,
+                                      SpeedOfSound>& q) noexcept {
+    return q.speed_of_sound;
+  }
 };
 
 // We define this class only for dimensions 1 to 3.

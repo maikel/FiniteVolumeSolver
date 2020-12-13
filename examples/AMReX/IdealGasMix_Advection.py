@@ -15,6 +15,10 @@ GridGeometry = {
   'periodicity': [0, 0, 0]
 }
 
+Equation = {
+  'n_species': 1,
+}
+
 PatchHierarchy = {
  'max_number_of_levels': 1,
  'refine_ratio': [2, 1, 1],
@@ -24,7 +28,7 @@ PatchHierarchy = {
 
 # reconstruction = "Characteristics"
 # reconstruction = "Primitive"
-reconstruction = "ConservativeM"
+reconstruction = "HLLEM"
 # reconstruction = "Conservative"
 # reconstruction = "HLLEM"
 # reconstruction = "HLLE"

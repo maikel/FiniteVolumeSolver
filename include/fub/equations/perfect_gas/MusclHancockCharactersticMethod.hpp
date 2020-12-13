@@ -171,7 +171,7 @@ private:
   std::function<Array1d(Array1d, Array1d)> array_limiter_;
 
   // HllMethod<PerfectGas<Rank>, EinfeldtSignalVelocities<PerfectGas<Rank>>> hllem_{equation_};
-  HllemMethod<Rank> hllem_{equation_};
+  HllemMethod<PerfectGas<Rank>> hllem_{equation_};
   // GodunovMethod<PerfectGas<Rank>> hllem_{equation_};
 };
 

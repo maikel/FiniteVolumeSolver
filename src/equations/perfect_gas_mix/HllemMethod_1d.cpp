@@ -18,16 +18,18 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include "fub/equations/perfect_gas_mix/HllemMethod.hpp"
+
 #include "src/equations/perfect_gas/HllemMethod.hpp"
 
 namespace fub::perfect_gas {
 
-template struct Hllem<PerfectGas<1>>;
+template struct Hllem<PerfectGasMix<1>>;
 
 }
 
 namespace fub {
 
-template class FluxMethod<perfect_gas::Hllem<PerfectGas<1>>>;
+template class FluxMethod<perfect_gas::Hllem<PerfectGasMix<1>>>;
 
 }

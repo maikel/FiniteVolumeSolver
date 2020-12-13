@@ -28,6 +28,8 @@
 #include "fub/Equation.hpp"
 #include "fub/ext/Eigen.hpp"
 
+#include "fub/equations/EulerEquation.hpp"
+
 #include <array>
 
 namespace fub {
@@ -47,10 +49,9 @@ struct PerfectGasMixConservative { // Zenker: renamed PerfectGasConservativeMix
 
 template <int Rank> // Zenker: renamed PerfectGasConsMixShape -->
                     // PerfectGasMixConsShape
-                    using PerfectGasMixConsShape =
-                        PerfectGasMixConservative<ScalarDepth,
-                                                  VectorDepth<Rank>,
-                                                  ScalarDepth, VectorDepth<-1>>;
+using PerfectGasMixConsShape =
+    PerfectGasMixConservative<ScalarDepth, VectorDepth<Rank>, ScalarDepth,
+                              VectorDepth<-1>>;
 
 namespace meta {
 template <int R> struct Rank<PerfectGasMixConsShape<R>> : int_constant<R> {};
@@ -249,6 +250,121 @@ private:
     ToConcreteDepths<typename State::Traits::template Depths<N>> depths{};
     depths.species = eq.n_species;
     return depths;
+  }
+
+  template <typename Density, typename Momentum, typename Energy,
+            typename Species>
+  friend auto
+  tag_invoke(tag_t<euler::Gamma>, const PerfectGasMix& eq,
+             const PerfectGasMixConservative<Density, Momentum, Energy,
+                                             Species>&) noexcept {
+    if constexpr (std::is_same_v<double, Density>) {
+      return eq.gamma;
+    } else {
+      return Array1d::Constant(eq.gamma);
+    }
+  }
+
+  template <typename Density, typename Momentum, typename Energy,
+            typename Species>
+  friend const Density&
+  tag_invoke(tag_t<euler::Density>, const PerfectGasMix&,
+             const PerfectGasMixConservative<Density, Momentum, Energy,
+                                             Species>& q) noexcept {
+    return q.density;
+  }
+
+  template <typename Density, typename Momentum, typename Energy,
+            typename Species>
+  friend const Momentum&
+  tag_invoke(tag_t<euler::Momentum>, const PerfectGasMix&,
+             const PerfectGasMixConservative<Density, Momentum, Energy,
+                                             Species>& q) noexcept {
+    return q.momentum;
+  }
+
+  template <typename Density, typename Momentum, typename Energy,
+            typename Species>
+  friend decltype(auto) tag_invoke(
+      tag_t<euler::Momentum>, const PerfectGasMix&,
+      const PerfectGasMixConservative<Density, Momentum, Energy, Species>& q,
+      int d) noexcept {
+    if constexpr (std::is_same_v<double, Density>) {
+      return q.momentum[d];
+    } else {
+      return q.row(d);
+    }
+  }
+
+  template <typename Density, typename Momentum, typename Energy,
+            typename Species>
+  friend Momentum
+  tag_invoke(tag_t<euler::Velocity>, const PerfectGasMix&,
+             const PerfectGasMixConservative<Density, Momentum, Energy,
+                                             Species>& q) noexcept {
+    return q.momentum / q.density;
+  }
+
+  template <typename Density, typename Momentum, typename Energy,
+            typename Species>
+  friend auto tag_invoke(
+      tag_t<euler::Velocity>, const PerfectGasMix&,
+      const PerfectGasMixConservative<Density, Momentum, Energy, Species>& q,
+      int d) noexcept {
+    if constexpr (std::is_same_v<double, Density>) {
+      return q.momentum[d] / q.density;
+    } else {
+      return q.row(d) / q.density;
+    }
+  }
+
+  template <typename Density, typename Momentum, typename Energy,
+            typename Species>
+  friend const Energy&
+  tag_invoke(tag_t<euler::Energy>, const PerfectGasMix&,
+             const PerfectGasMixConservative<Density, Momentum, Energy,
+                                             Species>& q) noexcept {
+    return q.energy;
+  }
+
+  template <typename Density, typename Momentum, typename Energy,
+            typename Species>
+  friend const Species&
+  tag_invoke(tag_t<euler::Species>, const PerfectGasMix&,
+             const PerfectGasMixConservative<Density, Momentum, Energy,
+                                             Species>& q) noexcept {
+    return q.species;
+  }
+
+  template <typename Density, typename Momentum, typename Energy,
+            typename Species>
+  friend decltype(auto) tag_invoke(
+      tag_t<euler::Species>, const PerfectGasMix&,
+      const PerfectGasMixConservative<Density, Momentum, Energy, Species>& q,
+      int d) noexcept {
+    if constexpr (std::is_same_v<double, Density>) {
+      return q.species[d];
+    } else {
+      return q.species.row(d);
+    }
+  }
+
+  template <typename Density, typename Momentum, typename Energy,
+            typename Species, typename Pressure, typename SpeedOfSound>
+  friend const Pressure&
+  tag_invoke(tag_t<euler::Pressure>, const PerfectGasMix&,
+             const PerfectGasMixComplete<Density, Momentum, Energy, Species,
+                                         Pressure, SpeedOfSound>& q) noexcept {
+    return q.pressure;
+  }
+
+  template <typename Density, typename Momentum, typename Energy,
+            typename Species, typename Pressure, typename SpeedOfSound>
+  friend const SpeedOfSound&
+  tag_invoke(tag_t<euler::SpeedOfSound>, const PerfectGasMix&,
+             const PerfectGasMixComplete<Density, Momentum, Energy, Species,
+                                         Pressure, SpeedOfSound>& q) noexcept {
+    return q.speed_of_sound;
   }
 };
 
