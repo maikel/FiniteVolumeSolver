@@ -29,6 +29,8 @@ namespace fub {
 /// \brief This is a type safe type to denote a dimensional split direction.
 enum class Direction : std::size_t { X, Y, Z };
 
+/// \ingroup Solver
+/// \brief This is a type safe type to denote a side
 enum class Side : int { Lower, Upper };
 
 struct Location {

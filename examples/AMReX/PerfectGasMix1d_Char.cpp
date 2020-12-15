@@ -22,6 +22,9 @@
 #include "fub/Solver.hpp"
 
 #include "fub/equations/PerfectGasMix.hpp"
+#include "fub/flux_method/MusclHancockMethod2.hpp"
+
+#include "fub/equations/perfect_gas_mix/IgnitionDelayKinetics.hpp"
 
 #include <cmath>
 #include <fmt/format.h>
@@ -144,8 +147,13 @@ void MyMain(const fub::ProgramOptions& options) {
   using namespace std::literals;
   using HLLEM = fub::perfect_gas::HllemMethod<fub::PerfectGasMix<1>>;
 
-  auto flux_method_factory =
-      GetFluxMethodFactory(std::pair{"HLLEM"s, MakeFlux<HLLEM>()});
+  using ConservativeReconstruction = fub::FluxMethod<fub::MusclHancock2<
+      fub::PerfectGasMix<1>, fub::ConservativeGradient<fub::PerfectGasMix<1>>,
+      fub::ConservativeReconstruction<fub::PerfectGasMix<1>>, HLLEM>>;
+
+  auto flux_method_factory = GetFluxMethodFactory(
+      std::pair{"HLLEM"s, MakeFlux<HLLEM>()},
+      std::pair{"Conservative"s, MakeFlux<ConservativeReconstruction>()});
 
   std::string reconstruction =
       fub::GetOptionOr(options, "reconstruction", "HLLEM"s);
@@ -160,7 +168,6 @@ void MyMain(const fub::ProgramOptions& options) {
       fub::GetOptionOr(hier_opts, "scratch_gcw", 2);
   const int flux_ghost_cell_width =
       fub::GetOptionOr(hier_opts, "numeric_flux_gcw", 0);
-  ;
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<1>,
@@ -168,7 +175,13 @@ void MyMain(const fub::ProgramOptions& options) {
                                     flux_ghost_cell_width),
       fub::GodunovSplitting());
 
-  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
+  fub::perfect_gas_mix::IgnitionDelayKinetics<1> source_term{equation};
+
+  fub::SplitSystemSourceLevelIntegrator reactive_integrator(
+      std::move(level_integrator), std::move(source_term),
+      fub::StrangSplittingLumped());
+
+  fub::SubcycleFineFirstSolver solver(std::move(reactive_integrator));
 
   using namespace fub::amrex;
   using namespace std::literals::chrono_literals;

@@ -297,6 +297,17 @@ struct StateTraits<Primitive<Eq>>
     : StateTraits<ScalarStateBase<typename Eq::PrimitiveDepths>> {};
 
 template <typename Eq>
+struct KineticState : ScalarState<typename Eq::KineticStateDepths> {
+  using Base = ScalarState<typename Eq::KineticStateDepths>;
+
+  using Base::Base;
+};
+
+template <typename Eq>
+struct StateTraits<KineticState<Eq>>
+    : StateTraits<ScalarStateBase<typename Eq::KineticStateDepths>> {};
+
+template <typename Eq>
 struct Characteristics : ScalarState<typename Eq::CharacteristicsDepths> {
   using Base = ScalarState<typename Eq::CharacteristicsDepths>;
 

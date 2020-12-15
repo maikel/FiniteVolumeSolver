@@ -21,33 +21,6 @@
 #include "fub/equations/PerfectGasMix.hpp"
 
 namespace fub {
-namespace {
-template <int Dim>
-double KineticEnergy(double density,
-                     const Eigen::Array<double, Dim, 1>& momentum) noexcept {
-  return 0.5 * momentum.matrix().squaredNorm() / density;
-}
-
-template <int Dim, int N, int O, int MR, int MC>
-Array1d KineticEnergy(
-    const Array1d& density,
-    const Eigen::Array<double, Dim, N, O, MR, MC>& momentum) noexcept {
-  Array1d squaredMomentum = momentum.matrix().colwise().squaredNorm();
-  return 0.5 * squaredMomentum / density;
-}
-
-template <int Dim, int N, int O, int MR, int MC>
-Array1d KineticEnergy(const Array1d& density,
-                      const Eigen::Array<double, Dim, N, O, MR, MC>& momentum,
-                      MaskArray mask) noexcept {
-  mask = mask && (density > 0.0);
-  Array1d squaredMomentum = momentum.matrix().colwise().squaredNorm();
-  Array1d safe_density = density;
-  safe_density = mask.select(density, 1.0);
-  FUB_ASSERT((safe_density > 0.0).all());
-  return 0.5 * squaredMomentum / safe_density;
-}
-} // namespace
 
 template <int Dim>
 void PerfectGasMix<Dim>::Flux(Conservative& flux, const Complete& state,
@@ -113,7 +86,7 @@ void PerfectGasMix<Dim>::CompleteFromCons(
   for (int s = 0; s < complete.species.size(); ++s) {
     complete.species[s] = cons.species[s];
   }
-  const double e_kin = KineticEnergy(cons.density, cons.momentum);
+  const double e_kin = euler::KineticEnergy(cons.density, cons.momentum);
   FUB_ASSERT(e_kin < cons.energy);
   const double e_int = cons.energy - e_kin;
   complete.pressure = e_int / gamma_minus_1_inv;
@@ -132,7 +105,7 @@ void PerfectGasMix<Dim>::CompleteFromCons(
   for (int s = 0; s < complete.species.rows(); ++s) {
     complete.species.row(s) = cons.species.row(s);
   }
-  const Array1d e_kin = KineticEnergy(cons.density, cons.momentum);
+  const Array1d e_kin = euler::KineticEnergy(cons.density, cons.momentum);
   const Array1d e_int = cons.energy - e_kin;
   complete.pressure = e_int / gamma_minus_1_inv;
   complete.speed_of_sound =
@@ -153,7 +126,7 @@ void PerfectGasMix<Dim>::CompleteFromCons(
   for (int s = 0; s < complete.species.rows(); ++s) {
     complete.species.row(s) = mask.select(cons.species.row(s), zero);
   }
-  const Array1d e_kin = KineticEnergy(cons.density, cons.momentum, mask);
+  const Array1d e_kin = euler::KineticEnergy(cons.density, cons.momentum, mask);
   const Array1d e_int = cons.energy - e_kin;
   complete.pressure = mask.select(e_int / gamma_minus_1_inv, zero);
   Array1d safe_density = mask.select(complete.density, 1.0);
@@ -173,7 +146,7 @@ Complete<PerfectGasMix<Dim>> PerfectGasMix<Dim>::CompleteFromPrim(
   for (int s = 0; s < n_species; ++s) {
     q.species[s] = q.density * species[s];
   }
-  const double e_kin = KineticEnergy(q.density, q.momentum);
+  const double e_kin = euler::KineticEnergy(q.density, q.momentum);
   q.energy = e_kin + p * gamma_minus_1_inv;
   q.speed_of_sound = std::sqrt(gamma * q.pressure / q.density);
   return q;

@@ -21,15 +21,16 @@
 #ifndef FUB_FLUX_METHOD_GRADIENT
 #define FUB_FLUX_METHOD_GRADIENT
 
+#include "fub/Direction.hpp"
 #include "fub/State.hpp"
 
 namespace fub {
-struct NoLimiter {
-  double operator()(double R) const noexcept { return 1.0; }
+struct NoLimiter2 {
+  double operator()(double) const noexcept { return 1.0; }
 };
 
 struct UpwindLimiter {
-  double operator()(double R) const noexcept { return 0.0; }
+  double operator()(double) const noexcept { return 0.0; }
 };
 
 struct MinModLimiter {
@@ -70,7 +71,7 @@ public:
 
   ConservativeGradient() = default;
 
-  explicit ConservativeGradient(const Equation&) {}
+  explicit ConservativeGradient(const Equation& eq) : equation_{eq} {}
 
   explicit ConservativeGradient(const GradientMethod& method)
       : gradient_{method} {}

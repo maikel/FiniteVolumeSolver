@@ -8,7 +8,7 @@ RunOptions = {
 }
 
 GridGeometry = {
-  'cell_dimensions': [200, 1, 1],
+  'cell_dimensions': [100, 1, 1],
   'coordinates': {
     'lower': [-0.50, -0.015, -0.015],
     'upper': [+0.50, +0.015, +0.015],

@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_FLUX_METHOD_MUSCL_HANCOCK_METHOD
-#define FUB_FLUX_METHOD_MUSCL_HANCOCK_METHOD
+#ifndef FUB_FLUX_METHOD_MUSCL_HANCOCK_METHOD2
+#define FUB_FLUX_METHOD_MUSCL_HANCOCK_METHOD2
 
 #include "fub/CompleteFromCons.hpp"
 #include "fub/Equation.hpp"
@@ -36,7 +36,7 @@ template <
     typename Equation, typename GradientMethod = ConservativeGradient<Equation>,
     typename ReconstructionMethod = ConservativeReconstruction<Equation>,
     typename BaseMethod = GodunovMethod<Equation, ExactRiemannSolver<Equation>>>
-struct MusclHancock {
+struct MusclHancock2 {
   using Complete = typename Equation::Complete;
   using Conservative = typename Equation::Conservative;
   using Gradient = typename GradientMethod::Gradient;
@@ -45,9 +45,9 @@ struct MusclHancock {
   using ConservativeArray = ::fub::ConservativeArray<Equation>;
   using GradientArray = typename GradientMethod::GradientArray;
 
-  explicit MusclHancock(const Equation& eq) : equation_{eq}, flux_method_{eq} {}
+  explicit MusclHancock2(const Equation& eq) : equation_{eq} {}
 
-  MusclHancock(const Equation& eq, const BaseMethod& method)
+  MusclHancock2(const Equation& eq, const BaseMethod& method)
       : equation_{eq}, flux_method_{method} {}
 
   static constexpr int GetStencilWidth() noexcept { return 2; }
@@ -122,7 +122,7 @@ private:
 
 template <typename Equation, typename GradientMethod,
           typename ReconstructionMethod, typename BaseMethod>
-void MusclHancock<Equation, GradientMethod, ReconstructionMethod, BaseMethod>::
+void MusclHancock2<Equation, GradientMethod, ReconstructionMethod, BaseMethod>::
     ComputeNumericFlux(Conservative& flux, span<const Complete, 4> stencil,
                        Duration dt, double dx, Direction dir) {
   gradient_method_.ComputeGradient(gradient_[0],
@@ -135,20 +135,20 @@ void MusclHancock<Equation, GradientMethod, ReconstructionMethod, BaseMethod>::
 
 template <typename Equation, typename GradientMethod,
           typename ReconstructionMethod, typename BaseMethod>
-void MusclHancock<Equation, GradientMethod, ReconstructionMethod, BaseMethod>::
+void MusclHancock2<Equation, GradientMethod, ReconstructionMethod, BaseMethod>::
     ComputeNumericFlux(Conservative& flux, span<const Complete, 2> stencil,
                        span<const Gradient, 2> gradients, Duration dt,
                        double dx, Direction dir) {
   reconstruction_method_.Reconstruct(reconstruction_[0], stencil[0],
-                                     gradients[0], dt, dx, dir);
+                                     gradients[0], dt, dx, dir, Side::Upper);
   reconstruction_method_.Reconstruct(reconstruction_[1], stencil[1],
-                                     gradients[1], dt, dx, dir);
+                                     gradients[1], dt, dx, dir, Side::Lower);
   flux_method_.ComputeNumericFlux(flux, reconstruction_, dt, dx, dir);
 }
 
 template <typename Equation, typename GradientMethod,
           typename ReconstructionMethod, typename BaseMethod>
-void MusclHancock<Equation, GradientMethod, ReconstructionMethod, BaseMethod>::
+void MusclHancock2<Equation, GradientMethod, ReconstructionMethod, BaseMethod>::
     ComputeNumericFlux(ConservativeArray& flux,
                        span<const CompleteArray, 4> stencil, Duration dt,
                        double dx, Direction dir) {
@@ -162,21 +162,21 @@ void MusclHancock<Equation, GradientMethod, ReconstructionMethod, BaseMethod>::
 
 template <typename Equation, typename GradientMethod,
           typename ReconstructionMethod, typename BaseMethod>
-void MusclHancock<Equation, GradientMethod, ReconstructionMethod, BaseMethod>::
+void MusclHancock2<Equation, GradientMethod, ReconstructionMethod, BaseMethod>::
     ComputeNumericFlux(ConservativeArray& flux,
                        span<const CompleteArray, 2> stencil,
                        span<const GradientArray, 2> gradients, Duration dt,
                        double dx, Direction dir) {
   reconstruction_method_.Reconstruct(reconstruction_array_[0], stencil[0],
-                                     gradients[0], dt, dx, dir);
+                                     gradients[0], dt, dx, dir, Side::Upper);
   reconstruction_method_.Reconstruct(reconstruction_array_[1], stencil[1],
-                                     gradients[1], dt, dx, dir);
+                                     gradients[1], dt, dx, dir, Side::Lower);
   flux_method_.ComputeNumericFlux(flux, reconstruction_array_, dt, dx, dir);
 }
 
 template <typename Equation, typename GradientMethod,
           typename ReconstructionMethod, typename BaseMethod>
-void MusclHancock<Equation, GradientMethod, ReconstructionMethod, BaseMethod>::
+void MusclHancock2<Equation, GradientMethod, ReconstructionMethod, BaseMethod>::
     ComputeNumericFlux(ConservativeArray& flux, Array1d face_fractions,
                        span<const CompleteArray, 4> stencil,
                        span<Array1d, 4> volume_fractions, Duration dt,
@@ -193,16 +193,16 @@ void MusclHancock<Equation, GradientMethod, ReconstructionMethod, BaseMethod>::
 
 template <typename Equation, typename GradientMethod,
           typename ReconstructionMethod, typename BaseMethod>
-void MusclHancock<Equation, GradientMethod, ReconstructionMethod, BaseMethod>::
+void MusclHancock2<Equation, GradientMethod, ReconstructionMethod, BaseMethod>::
     ComputeNumericFlux(ConservativeArray& flux, Array1d face_fractions,
                        span<const CompleteArray, 2> stencil,
                        span<const GradientArray, 2> gradients,
                        span<Array1d, 4> volume_fractions, Duration dt,
                        double dx, Direction dir) {
   reconstruction_method_.Reconstruct(reconstruction_array_[0], stencil[0],
-                                     gradients[0], dt, dx, dir);
+                                     gradients[0], dt, dx, dir, Side::Upper);
   reconstruction_method_.Reconstruct(reconstruction_array_[1], stencil[1],
-                                     gradients[1], dt, dx, dir);
+                                     gradients[1], dt, dx, dir, Side::Lower);
   flux_method_.ComputeNumericFlux(flux, face_fractions, reconstruction_array_,
                                   volume_fractions, dt, dx, dir);
 }

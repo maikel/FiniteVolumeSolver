@@ -21,6 +21,7 @@
 #ifndef FUB_FLUX_METHOD_RECONSTRUCT
 #define FUB_FLUX_METHOD_RECONSTRUCT
 
+#include "fub/Direction.hpp"
 #include "fub/State.hpp"
 #include "fub/flux_method/Gradient.hpp"
 
@@ -37,7 +38,7 @@ public:
 
   void Reconstruct(Complete& reconstruction, const Complete& q0,
                    const Gradient& du_dx, Duration dt, double dx,
-                   Direction dir) noexcept;
+                   Direction dir, Side side) noexcept;
 
 private:
   Equation equation_;
@@ -59,7 +60,7 @@ public:
 
   void Reconstruct(Complete& reconstruction, const Complete& q0,
                    const Gradient& dw_dx, Duration dt, double dx,
-                   Direction dir) noexcept;
+                   Direction dir, Side side) noexcept;
 
 private:
   EulerEquation equation_;
@@ -80,7 +81,7 @@ public:
 
   void Reconstruct(Complete& reconstruction, const Complete& q0,
                    const Gradient& dw_dx, Duration dt, double dx,
-                   Direction dir) noexcept;
+                   Direction dir, Side side) noexcept;
 
 private:
   EulerEquation equation_;
@@ -95,7 +96,7 @@ void ConservativeReconstruction<Equation>::Reconstruct(Complete& reconstruction,
                                                        const Complete& q0,
                                                        const Gradient& dq_dx,
                                                        Duration dt, double dx,
-                                                       Direction dir) noexcept {
+                                                       Direction dir, Side side) noexcept {
   ForEachComponent(
       [dx](double& uL, double& uR, double u, double du_dx) {
         const double du = 0.5 * dx * du_dx;
@@ -108,20 +109,21 @@ void ConservativeReconstruction<Equation>::Reconstruct(Complete& reconstruction,
   Flux(equation_, flux_left_, q_left_, dir);
   Flux(equation_, flux_right_, q_right_, dir);
   const double lambda_half = 0.5 * dt.count() / dx;
+  const Complete& q = side == Side::Lower ? q_left_ : q_right_;
   ForEachComponent(
       [&lambda_half](double& rec, double u, double fL, double fR) {
         const double dF = fL - fR;
         const double dU = lambda_half * dF;
         rec = u + dU;
       },
-      AsCons(reconstruction), AsCons(q_left_), flux_left_, flux_right_);
+      AsCons(reconstruction), AsCons(q), flux_left_, flux_right_);
   CompleteFromCons(equation_, reconstruction, reconstruction);
 }
 
 template <typename EulerEquation>
 void PrimitiveReconstruction<EulerEquation>::Reconstruct(
     Complete& reconstruction, const Complete& q0, const Primitive& dw_dx,
-    Duration dt, double dx, Direction dir) noexcept {
+    Duration dt, double dx, Direction dir, Side) noexcept {
   PrimFromComplete(equation_, w_, q0);
   const int ix = static_cast<int>(dir);
   const double lambda = dt.count() * dx;
@@ -155,7 +157,7 @@ void PrimitiveReconstruction<EulerEquation>::Reconstruct(
 template <typename EulerEquation>
 void CharacteristicsReconstruction<EulerEquation>::Reconstruct(
     Complete& reconstruction, const Complete& q0, const Characteristics& dKdx,
-    Duration dt, double dx, Direction dir) noexcept {
+    Duration dt, double dx, Direction dir, Side) noexcept {
   PrimFromComplete(equation_, w_rec_, q0);
   const int ix = static_cast<int>(dir);
   const double u = w_rec_.velocity[ix];
