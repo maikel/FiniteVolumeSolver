@@ -37,6 +37,7 @@
 struct RiemannProblem {
   using Equation = fub::PerfectGasMix<1>;
   using Complete = fub::Complete<Equation>;
+  using KineticState = fub::KineticState<Equation>;
   using Conservative = fub::Conservative<Equation>;
 
   Equation equation_;
@@ -48,22 +49,23 @@ struct RiemannProblem {
     amrex::MultiFab& data = patch_level.data;
     fub::amrex::ForEachFab(
         fub::execution::openmp, data, [&](amrex::MFIter& mfi) {
+          KineticState state(equation_);
+          Complete complete(equation_);
+          fub::Array<double, 1, 1> velocity{0.0};
           fub::View<Complete> states = fub::amrex::MakeView<Complete>(
               data[mfi], equation_, mfi.tilebox());
-          fub::ForEachIndex(
-              fub::Box<0>(states), [this, &states, &geom](std::ptrdiff_t i) {
-                const double x = geom.CellCenter(int(i), 0);
-                const double pressure = (0.0 < x) ? 0.1 : 1.0;
-                const double density = (0.0 < x) ? 0.125 : 1.0;
-                fub::Array<double, 1, 1> velocity{0.0};
-                fub::Array<double, -1, 1> species(equation_.n_species);
-                for (int i = 0; i < species.size(); ++i) {
-                  species[i] = (x < 0.0) ? 1.0 : 0.0;
-                }
-                const Complete complete = equation_.CompleteFromPrim(
-                    density, velocity, pressure, species);
-                fub::Store(states, complete, {i});
-              });
+          fub::ForEachIndex(fub::Box<0>(states), [&](std::ptrdiff_t i) {
+            const double x = geom.CellCenter(int(i), 0);
+            const double pressure = 1.0;
+            state.temperature = (x < 0.5) ? 1.0 : 2.5;
+            state.density = pressure / (equation_.Rspec * state.temperature);
+            state.mole_fractions[0] = 0.0;
+            state.mole_fractions[1] = (x < 0.4) ? 1.0 : 0.0;
+            state.mole_fractions[2] = !(x < 0.4) ? 1.0 : 0.0;
+            fub::euler::CompleteFromKineticState(equation_, complete, state,
+                                                 velocity);
+            fub::Store(states, complete, {i});
+          });
         });
   }
 };
@@ -99,8 +101,7 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::ProgramOptions equation_options = fub::GetOptions(options, "Equation");
 
   fub::PerfectGasMix<1> equation{};
-  equation.n_species =
-      fub::GetOptionOr(equation_options, "n_species", equation.n_species);
+  equation.n_species = 2;
   equation.Rspec =
       fub::GetOptionOr(equation_options, "R_specific", equation.Rspec);
   equation.gamma = fub::GetOptionOr(equation_options, "gamma", equation.gamma);
@@ -179,7 +180,7 @@ void MyMain(const fub::ProgramOptions& options) {
 
   fub::SplitSystemSourceLevelIntegrator reactive_integrator(
       std::move(level_integrator), std::move(source_term),
-      fub::StrangSplittingLumped());
+      fub::GodunovSplitting());
 
   fub::SubcycleFineFirstSolver solver(std::move(reactive_integrator));
 

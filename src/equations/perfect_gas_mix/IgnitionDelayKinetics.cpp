@@ -28,7 +28,7 @@ namespace fub::perfect_gas_mix {
 template <int Rank>
 IgnitionDelayKinetics<Rank>::IgnitionDelayKinetics(
     const PerfectGasMix<Rank>& eq)
-    : equation_{eq}, state_{Complete<PerfectGasMix<Rank>>(eq)} {}
+    : equation_{eq}, state_{Complete<PerfectGasMix<Rank>>(eq)}, kinetic_state_{KineticState<PerfectGasMix<Rank>>(eq)} {}
 
 template <int Rank> Duration IgnitionDelayKinetics<Rank>::ComputeStableDt(int) {
   return Duration(std::numeric_limits<double>::max());

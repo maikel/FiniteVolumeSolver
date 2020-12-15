@@ -192,12 +192,11 @@ using ScalarStateBase =
 
 template <typename Depths> struct ScalarState : ScalarStateBase<Depths> {
   using Traits = StateTraits<ScalarStateBase<Depths>>;
-  static constexpr int Rank = meta::Rank<Depths>::value;
-  using Equation = typename Traits::template Equation<Rank>;
   using Base = ScalarStateBase<Depths>;
 
   using Base::Base;
 
+  template <typename Equation>
   ScalarState(const Equation& eq) : Base{} {
     auto depths = ::fub::Depths(eq, Type<ScalarState>{});
     ForEachVariable(

@@ -184,6 +184,16 @@ inline constexpr struct CompleteFromKineticStateFn {
   }
 } CompleteFromKineticState;
 
+inline constexpr struct SetIsentropicPressureFn {
+  template <typename... Args>
+            typename = std::enable_if_t<
+                is_tag_invocable<SetIsentropicPressureFn, Args...>::value>>
+  constexpr auto operator()(Args&&... args) const
+      noexcept(is_nothrow_tag_invocable<SetIsentropicPressureFn, Args...>::value)
+          -> tag_invoke_result_t<SetIsentropicPressureFn, Args...> {
+    return fub::tag_invoke(*this, std::forward<Args>(args)...);
+  }
+} SetIsentropicPressure;
 
 inline constexpr struct SpecificGasConstantFn {
   template <typename Equation, typename State,
