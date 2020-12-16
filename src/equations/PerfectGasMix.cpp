@@ -83,9 +83,15 @@ void PerfectGasMix<Dim>::CompleteFromCons(
   complete.density = cons.density;
   complete.momentum = cons.momentum;
   complete.energy = cons.energy;
+  // double sum = 0.0;
   for (int s = 0; s < complete.species.size(); ++s) {
     complete.species[s] = cons.species[s];
+    //sum += complete.species[s];
   }
+  //const double scale = complete.density / sum;
+  //for (int s = 0; s < complete.species.size(); ++s) {
+    //complete.species[s] *= scale;
+  //}
   const double e_kin = euler::KineticEnergy(cons.density, cons.momentum);
   FUB_ASSERT(e_kin < cons.energy);
   const double e_int = cons.energy - e_kin;
@@ -102,8 +108,13 @@ void PerfectGasMix<Dim>::CompleteFromCons(
   complete.density = cons.density;
   complete.momentum = cons.momentum;
   complete.energy = cons.energy;
+  Array1d sum = Array1d::Zero();
   for (int s = 0; s < complete.species.rows(); ++s) {
     complete.species.row(s) = cons.species.row(s);
+    sum += complete.species.row(s);
+  }
+  for (int s = 0; s < complete.species.rows(); ++s) {
+    complete.species.row(s) *= complete.density / sum;
   }
   const Array1d e_kin = euler::KineticEnergy(cons.density, cons.momentum);
   const Array1d e_int = cons.energy - e_kin;

@@ -59,7 +59,7 @@ Array1d KineticEnergy(const Array1d& density,
   FUB_ASSERT((safe_density > 0.0).all());
   return 0.5 * squaredMomentum / safe_density;
 }
-}
+} // namespace euler
 
 template <int Rank> struct PerfectGasMix;
 
@@ -134,7 +134,6 @@ template <typename... Xs> struct StateTraits<PerfectGasMixPrimitive<Xs...>> {
   template <int Rank> using Equation = PerfectGasMix<Rank>;
 };
 
-
 template <typename Density, typename Temperature, typename MoleFractions>
 struct PerfectGasMixKineticState {
   Density density;
@@ -162,7 +161,6 @@ template <typename... Xs> struct StateTraits<PerfectGasMixKineticState<Xs...>> {
 
   template <int Rank> using Equation = PerfectGasMix<Rank>;
 };
-
 
 template <typename Minus, typename Zero, typename Plus, typename Species>
 struct PerfectGasMixCharacteristics {
@@ -362,21 +360,22 @@ private:
   template <typename Density, typename Temperature, typename MoleFractions>
   friend auto
   tag_invoke(tag_t<euler::InternalEnergy>, const PerfectGasMix& eq,
-             const PerfectGasMixKineticState<Density, Temperature, MoleFractions>& q) noexcept {
-  // Rspec = cp - cv
-  // gamma = cp / cv
-  // cp = cv gamma
-  // Rspec = gamma cv - cv
-  // Rspec = (gamma - 1) cv
-  // Rpsec /(gamma - 1) = cv
+             const PerfectGasMixKineticState<Density, Temperature,
+                                             MoleFractions>& q) noexcept {
+    // Rspec = cp - cv
+    // gamma = cp / cv
+    // cp = cv gamma
+    // Rspec = gamma cv - cv
+    // Rspec = (gamma - 1) cv
+    // Rpsec /(gamma - 1) = cv
     const double cv = eq.Rspec * eq.gamma_minus_1_inv;
     return cv * q.temperature;
   }
 
   template <typename Complete, typename Kinetic, typename Velocity>
-  friend void
-  tag_invoke(tag_t<euler::CompleteFromKineticState>, const PerfectGasMix& eq,
-             Complete& q, const Kinetic& kin, const Velocity& u) noexcept {
+  friend void tag_invoke(tag_t<euler::CompleteFromKineticState>,
+                         const PerfectGasMix& eq, Complete& q,
+                         const Kinetic& kin, const Velocity& u) noexcept {
     q.density = kin.density;
     q.momentum = q.density * u;
     const double e = euler::InternalEnergy(eq, kin);
@@ -390,9 +389,9 @@ private:
   }
 
   template <typename Kinetic, typename Complete>
-  friend void
-  tag_invoke(tag_t<euler::KineticStateFromComplete>, const PerfectGasMix& eq,
-             Kinetic& kin, const Complete& q) noexcept {
+  friend void tag_invoke(tag_t<euler::KineticStateFromComplete>,
+                         const PerfectGasMix& eq, Kinetic& kin,
+                         const Complete& q) noexcept {
     kin.density = q.density;
     kin.temperature = euler::Temperature(eq, q);
     double sum = 0.0;
@@ -465,6 +464,15 @@ private:
     return q.species;
   }
 
+  template <typename Density, typename Velocity, typename Pressure,
+            typename Species>
+  friend const Species&
+  tag_invoke(tag_t<euler::Species>, const PerfectGasMix&,
+             const PerfectGasMixPrimitive<Density, Velocity, Pressure, Species>&
+                 q) noexcept {
+    return q.species;
+  }
+
   template <typename Density, typename Momentum, typename Energy,
             typename Species>
   friend decltype(auto) tag_invoke(
@@ -500,18 +508,25 @@ private:
             typename Species, typename Pressure, typename SpeedOfSound>
   friend auto
   tag_invoke(tag_t<euler::SetIsentropicPressure>, const PerfectGasMix& eq,
-            PerfectGasMixComplete<Density, Momentum, Energy, Species,
-                                         Pressure, SpeedOfSound>& q_expanded
+             PerfectGasMixComplete<Density, Momentum, Energy, Species, Pressure,
+                                   SpeedOfSound>& q,
              const PerfectGasMixComplete<Density, Momentum, Energy, Species,
-                                         Pressure, SpeedOfSound>& q0, Pressure p_new) noexcept {
+                                         Pressure, SpeedOfSound>& q0,
+             Pressure p_new) noexcept {
     q.density = std::pow(p_new / q0.p, 1 / eq.gamma) * q0.density;
     q.pressure = p_new;
-    const Array<double, Rank, 1> u0 = euler::Velocity(q0);
-    q.momentum = q.density * (u0 + 2.0 * std::sqrt(eq.gamma * q0.pressure / q0.density) * eq.gamma_minus_1_inv - 2.0 * std::sqrt(eq.gamma * q.pressure / q.density) * eq.gamma_minus_1_inv);
-    q.energy = p_new * eq.gamma_minus_1_inv + euler::KineticEnergy(q.density, q.momentum);
+    const auto u0 = euler::Velocity(eq, q0);
+    q.momentum =
+        q.density * (u0 +
+                     2.0 * std::sqrt(eq.gamma * q0.pressure / q0.density) *
+                         eq.gamma_minus_1_inv -
+                     2.0 * std::sqrt(eq.gamma * q.pressure / q.density) *
+                         eq.gamma_minus_1_inv);
+    q.energy = p_new * eq.gamma_minus_1_inv +
+               euler::KineticEnergy(q.density, q.momentum);
     q.species = q0.species;
     q.speed_of_sound = std::sqrt(eq.gamma * q.pressure / q.density);
-  } 
+  }
 };
 
 // We define this class only for dimensions 1 to 3.
@@ -535,7 +550,9 @@ void PrimFromComplete(const PerfectGasMix<Rank>& equation,
   prim.density = complete.density;
   prim.pressure = complete.pressure;
   prim.velocity = complete.momentum / complete.density;
-  prim.species = complete.species / complete.density;
+  for (int i = 0; i < equation.n_species; ++i) {
+    prim.species[i] = complete.species[i] / complete.density;
+  }
 }
 
 /// @{

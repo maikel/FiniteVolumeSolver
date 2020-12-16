@@ -277,7 +277,7 @@ void Hllem<EulerEquation>::ComputeNumericFlux(Conservative& flux,
   const double gammaR = fub::euler::Gamma(equation_, right);
   const double roeGamma = (sqRhoL * gammaL + sqRhoR * gammaR) / sqRhoSum;
   const double gm1 = roeGamma - 1.0;
-  const double beta = gm1 / (2 * roeGamma);
+  const double beta = std::sqrt(gm1 / (2 * roeGamma));
 
   const double roeA2 = gm1 * (roeH - 0.5 * roeU.matrix().squaredNorm());
   const double roeA = std::sqrt(roeA2);
@@ -330,14 +330,16 @@ void Hllem<EulerEquation>::ComputeNumericFlux(Conservative& flux,
         const double rhoYR = fub::euler::Species(equation_, right, i);
         const double YL = rhoYL / rhoL;
         const double YR = rhoYR / rhoR;
-        const double roeY = (sqRhoL * YL + sqRhoR * YR) / sqRhoSum;
-        const double deltaRhoY = rhoYR - rhoYL;
-        const double li1 = -roeY;
-        const double li4 = 1.0;
-        const double alpha_i = li1 * deltaRho + li4 * deltaRhoY;
-        const double b_delta_alpha_i = b * delta * alpha_i;
-        flux.species[i] =
-            flux_hlle_.species[i] - b_delta_alpha_2 * roeY - b_delta_alpha_i;
+        // const double roeY = (sqRhoL * YL + sqRhoR * YR) / sqRhoSum;
+        // const double deltaRhoY = rhoYR - rhoYL;
+        // const double li1 = -roeY;
+        // const double li4 = 1.0;
+        // const double alpha_i = li1 * deltaRho + li4 * deltaRhoY;
+        // const double b_delta_alpha_i = b * delta * alpha_i;
+        const double f_rho = flux.density;
+        const int upwind = (f_rho > 0.0);
+        const double f_hllem = f_rho * (upwind * YL - (1 - upwind) * YR);
+        flux.species[i] = f_hllem;
       }
     }
   } else if constexpr (Dim == 2) {
@@ -488,7 +490,7 @@ void Hllem<EulerEquation>::ComputeNumericFlux(
   const Array1d gammaR = fub::euler::Gamma(equation_, right);
   const Array1d roeGamma = (sqRhoL * gammaL + sqRhoR * gammaR) / sqRhoSum;
   const Array1d gm1 = roeGamma - 1.0;
-  const Array1d beta = gm1 / (2 * roeGamma);
+  const Array1d beta = (gm1 / (2 * roeGamma)).sqrt();
 
   const Array1d roeA2 = gm1 * (roeH - squaredNormRoeU_half);
   const Array1d roeA = roeA2.sqrt();
@@ -665,7 +667,7 @@ void Hllem<EulerEquation>::ComputeNumericFlux(
   equation_.Flux(fluxR, right, face_mask, dir);
 
   const Array1d gm1 = (equation_.gamma_array_ - Array1d::Constant(1.0));
-  const Array1d beta = gm1 / (2 * equation_.gamma_array_);
+  const Array1d beta = (gm1 / (2 * equation_.gamma_array_)).sqrt();
 
   // Compute Einfeldt signals velocities
 

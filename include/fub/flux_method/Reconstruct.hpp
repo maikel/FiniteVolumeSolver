@@ -37,8 +37,8 @@ public:
       : equation_{equation} {}
 
   void Reconstruct(Complete& reconstruction, const Complete& q0,
-                   const Gradient& du_dx, Duration dt, double dx,
-                   Direction dir, Side side) noexcept;
+                   const Gradient& du_dx, Duration dt, double dx, Direction dir,
+                   Side side) noexcept;
 
 private:
   Equation equation_;
@@ -59,8 +59,8 @@ public:
       : equation_{equation} {}
 
   void Reconstruct(Complete& reconstruction, const Complete& q0,
-                   const Gradient& dw_dx, Duration dt, double dx,
-                   Direction dir, Side side) noexcept;
+                   const Gradient& dw_dx, Duration dt, double dx, Direction dir,
+                   Side side) noexcept;
 
 private:
   EulerEquation equation_;
@@ -80,8 +80,8 @@ public:
       : equation_{equation} {}
 
   void Reconstruct(Complete& reconstruction, const Complete& q0,
-                   const Gradient& dw_dx, Duration dt, double dx,
-                   Direction dir, Side side) noexcept;
+                   const Gradient& dw_dx, Duration dt, double dx, Direction dir,
+                   Side side) noexcept;
 
 private:
   EulerEquation equation_;
@@ -92,11 +92,9 @@ private:
 };
 
 template <typename Equation>
-void ConservativeReconstruction<Equation>::Reconstruct(Complete& reconstruction,
-                                                       const Complete& q0,
-                                                       const Gradient& dq_dx,
-                                                       Duration dt, double dx,
-                                                       Direction dir, Side side) noexcept {
+void ConservativeReconstruction<Equation>::Reconstruct(
+    Complete& reconstruction, const Complete& q0, const Gradient& dq_dx,
+    Duration dt, double dx, Direction dir, Side side) noexcept {
   ForEachComponent(
       [dx](double& uL, double& uR, double u, double du_dx) {
         const double du = 0.5 * dx * du_dx;
@@ -123,33 +121,42 @@ void ConservativeReconstruction<Equation>::Reconstruct(Complete& reconstruction,
 template <typename EulerEquation>
 void PrimitiveReconstruction<EulerEquation>::Reconstruct(
     Complete& reconstruction, const Complete& q0, const Primitive& dw_dx,
-    Duration dt, double dx, Direction dir, Side) noexcept {
+    Duration dt, double dx, Direction dir, Side side) noexcept {
   PrimFromComplete(equation_, w_, q0);
   const int ix = static_cast<int>(dir);
-  const double lambda = dt.count() * dx;
+  const int sign = (side == Side::Upper) - (side == Side::Lower);
+  const double lambda = sign * dt.count() / dx;
+  const double dx_half = sign * 0.5 * dx;
   const double u = w_.velocity[ix];
   const double rho = q0.density;
   const double a = q0.speed_of_sound;
   const double a2 = a * a;
   const double rho_a2 = rho * a2;
   w_rec_.density =
-      w_.density + 0.5 * dx *
-                       (dw_dx.density + lambda * (u * dw_dx.density +
-                                                  rho * dw_dx.velocity[ix]));
+      w_.density +
+      dx_half * (dw_dx.density -
+                 lambda * (u * dw_dx.density + rho * dw_dx.velocity[ix]));
   w_rec_.pressure =
       w_.pressure +
-      0.5 * dx *
-          (dw_dx.pressure +
-           lambda * (rho_a2 * dw_dx.velocity[ix] + u * dw_dx.pressure));
+      dx_half * (dw_dx.pressure -
+                 lambda * (rho_a2 * dw_dx.velocity[ix] + u * dw_dx.pressure));
   w_rec_.velocity[ix] =
       w_.velocity[ix] +
-      0.5 * dx *
-          (dw_dx.velocity[ix] +
-           lambda * (u * dw_dx.velocity[ix] + dw_dx.pressure / rho));
+      dx_half * (dw_dx.velocity[ix] +
+                 lambda * (u * dw_dx.velocity[ix] + dw_dx.pressure / rho));
   constexpr int Rank = EulerEquation::Rank();
   for (int i = 1; i < Rank; ++i) {
     const int iy = (ix + i) % Rank;
-    w_rec_.velocity[iy] = w_.velocity[iy] + 0.5 * dx * u * dw_dx.velocity[iy];
+    w_rec_.velocity[iy] =
+        w_.velocity[iy] +
+        dx_half * (dw_dx.velocity[iy] - lambda * u * dw_dx.velocity[iy]);
+  }
+  if constexpr (fub::euler::state_with_species<EulerEquation, Primitive>()) {
+    for (int i = 0; i < w_rec_.species.size(); ++i) {
+      w_rec_.species[i] =
+          w_.species[i] +
+          dx_half * (dw_dx.species[i] - lambda * u * dw_dx.species[i]);
+    }
   }
   CompleteFromPrim(equation_, reconstruction, w_rec_);
 }
@@ -157,27 +164,39 @@ void PrimitiveReconstruction<EulerEquation>::Reconstruct(
 template <typename EulerEquation>
 void CharacteristicsReconstruction<EulerEquation>::Reconstruct(
     Complete& reconstruction, const Complete& q0, const Characteristics& dKdx,
-    Duration dt, double dx, Direction dir, Side) noexcept {
+    Duration dt, double dx, Direction dir, Side side) noexcept {
   PrimFromComplete(equation_, w_rec_, q0);
   const int ix = static_cast<int>(dir);
   const double u = w_rec_.velocity[ix];
   const double c = q0.speed_of_sound;
-  const double lambda = dt.count() / dx;
-  dKdt_.minus = 0.5 * dx * dKdx.minus * (1.0 + lambda * (u - c));
-  dKdt_.plus = 0.5 * dx * dKdx.plus * (1.0 + lambda * (u + c));
+  const int sign = (side == Side::Upper) - (side == Side::Lower);
+  const double lambda = sign * dt.count() / dx;
+  const double dx_half = sign * 0.5 * dx;
+  dKdt_.minus = dx_half * dKdx.minus * (1.0 - lambda * (u - c));
+  dKdt_.plus = dx_half * dKdx.plus * (1.0 - lambda * (u + c));
   for (int i = 0; i < dKdt_.zero.size(); ++i) {
-    dKdt_.zero[i] = 0.5 * dx * dKdx.zero[i] * (1.0 + lambda * u);
+    dKdt_.zero[i] = dx_half * dKdx.zero[i] * (1.0 - lambda * u);
+  }
+  if constexpr (fub::euler::state_with_species<EulerEquation, Primitive>()) {
+    for (int i = 0; i < dKdt_.species.size(); ++i) {
+      dKdt_.species[i] = dx_half * dKdx.species[i] * (1.0 - lambda * u);
+    }
   }
   const double rho = w_rec_.density;
   const double rhoc = rho * c;
   const double c2 = c * c;
   dwdt_.pressure = 0.5 * (dKdt_.minus + dKdt_.plus);
-  dwdt_.density = dwdt_.pressure / c2 + dKdt_.zero;
+  dwdt_.density = dwdt_.pressure / c2 + dKdt_.zero[0];
   dwdt_.velocity.row(ix) = 0.5 * (dKdt_.plus - dKdt_.minus) / rhoc;
   constexpr int Rank = EulerEquation::Rank();
   for (int i = 1; i < Rank; ++i) {
     const int iy = (ix + i) % Rank;
     dwdt_.velocity.row(iy) = dKdt_.zero[i];
+  }
+  if constexpr (fub::euler::state_with_species<EulerEquation, Primitive>()) {
+    for (int i = 0; i < dKdt_.species.size(); ++i) {
+      dwdt_.species[i] = dKdt_.species[i];
+    }
   }
   w_rec_ += dwdt_;
   CompleteFromPrim(equation_, reconstruction, w_rec_);

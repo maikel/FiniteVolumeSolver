@@ -200,18 +200,22 @@ template <typename Equation>
 void ComputeAmplitudes(Characteristics<Equation>& amplitudes,
                        const Primitive<Equation>& left,
                        const Primitive<Equation>& right, double rhoc,
-                       double ooc2, int ix) {
-  const double dp = right.pressure - left.pressure;
-  const double du = right.velocity[ix] - left.velocity[ix];
-  const double drho = right.density - left.density;
+                       double ooc2, double dx, int ix) {
+  const double dp = (right.pressure - left.pressure) / dx;
+  const double du = (right.velocity[ix] - left.velocity[ix]) / dx;
+  const double drho = (right.density - left.density) / dx;
   amplitudes.minus = dp - rhoc * du;
   amplitudes.plus = dp + rhoc * du;
   amplitudes.zero[0] = drho - ooc2 * dp;
   constexpr int Rank = Equation::Rank();
-  const int n = amplitudes.zero.size();
   for (int i = 1; i < Rank; ++i) {
     const int iy = (ix + i) % Rank;
-    amplitudes.zero[i] = right.velocity[iy] - left.velocity[iy];
+    amplitudes.zero[i] = (right.velocity[iy] - left.velocity[iy]) / dx;
+  }
+  if constexpr (fub::euler::state_with_species<Equation, Primitive<Equation>>()) {
+    for (int i = 0; i < amplitudes.species.size(); ++i) {
+      amplitudes.species[i] = (right.species[i] - left.species[i]) / dx;
+    }
   }
 }
 
@@ -226,8 +230,8 @@ void CharacteristicsGradient<Equation, GradientMethod>::ComputeGradient(
   const double c = q[1].speed_of_sound;
   const double ooc2 = 1.0 / (c * c);
   const double rhoc = rho * c;
-  ComputeAmplitudes(dKdx_L_, wL_, wM_, rhoc, ooc2, ix);
-  ComputeAmplitudes(dKdx_R_, wM_, wR_, rhoc, ooc2, ix);
+  ComputeAmplitudes(dKdx_L_, wL_, wM_, rhoc, ooc2, dx, ix);
+  ComputeAmplitudes(dKdx_R_, wM_, wR_, rhoc, ooc2, dx, ix);
   gradient_.ComputeGradient(dKdx, dKdx_L_, dKdx_R_);
 }
 

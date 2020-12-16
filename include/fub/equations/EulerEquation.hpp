@@ -139,9 +139,9 @@ inline constexpr struct InternalEnergyFn {
   template <typename Equation, typename State,
             typename = std::enable_if_t<
                 is_tag_invocable<InternalEnergyFn, Equation, State>::value>>
-  constexpr auto operator()(Equation&& eq, State&& state) const
-      noexcept(is_nothrow_tag_invocable<InternalEnergyFn, Equation, State>::value)
-          -> tag_invoke_result_t<InternalEnergyFn, Equation, State> {
+  constexpr auto operator()(Equation&& eq, State&& state) const noexcept(
+      is_nothrow_tag_invocable<InternalEnergyFn, Equation, State>::value)
+      -> tag_invoke_result_t<InternalEnergyFn, Equation, State> {
     return fub::tag_invoke(*this, std::forward<Equation>(eq),
                            std::forward<State>(state));
   }
@@ -149,48 +149,56 @@ inline constexpr struct InternalEnergyFn {
 
 inline constexpr struct MoleFractionsFn {
   template <typename Equation, typename Dest, typename State,
-            typename = std::enable_if_t<
-                is_tag_invocable<MoleFractionsFn, Equation, Dest, State>::value>>
+            typename = std::enable_if_t<is_tag_invocable<
+                MoleFractionsFn, Equation, Dest, State>::value>>
   constexpr auto operator()(Equation&& eq, Dest&& dest, State&& state) const
-      noexcept(is_nothrow_tag_invocable<MoleFractionsFn, Equation, State>::value)
+      noexcept(
+          is_nothrow_tag_invocable<MoleFractionsFn, Equation, State>::value)
           -> tag_invoke_result_t<MoleFractionsFn, Equation, State> {
-    return fub::tag_invoke(*this, std::forward<Equation>(eq), std::forward<Dest>(dest),
+    return fub::tag_invoke(*this, std::forward<Equation>(eq),
+                           std::forward<Dest>(dest),
                            std::forward<State>(state));
   }
 } MoleFractions;
 
-
 inline constexpr struct KineticStateFromCompleteFn {
   template <typename Equation, typename Dest, typename State,
-            typename = std::enable_if_t<
-                is_tag_invocable<KineticStateFromCompleteFn, Equation, Dest, State>::value>>
+            typename = std::enable_if_t<is_tag_invocable<
+                KineticStateFromCompleteFn, Equation, Dest, State>::value>>
   constexpr auto operator()(Equation&& eq, Dest&& dest, State&& state) const
-      noexcept(is_nothrow_tag_invocable<KineticStateFromCompleteFn, Equation, Dest, State>::value)
-          -> tag_invoke_result_t<KineticStateFromCompleteFn, Equation, Dest, State> {
-    return fub::tag_invoke(*this, std::forward<Equation>(eq), std::forward<Dest>(dest),
+      noexcept(is_nothrow_tag_invocable<KineticStateFromCompleteFn, Equation,
+                                        Dest, State>::value)
+          -> tag_invoke_result_t<KineticStateFromCompleteFn, Equation, Dest,
+                                 State> {
+    return fub::tag_invoke(*this, std::forward<Equation>(eq),
+                           std::forward<Dest>(dest),
                            std::forward<State>(state));
   }
 } KineticStateFromComplete;
 
 inline constexpr struct CompleteFromKineticStateFn {
-  template <typename Equation, typename Dest, typename State, typename Velocity,
-            typename = std::enable_if_t<
-                is_tag_invocable<CompleteFromKineticStateFn, Equation, Dest, State, Velocity>::value>>
-  constexpr auto operator()(Equation&& eq, Dest&& dest, State&& state, Velocity&& velocity) const
-      noexcept(is_nothrow_tag_invocable<CompleteFromKineticStateFn, Equation, Dest, State, Velocity>::value)
-          -> tag_invoke_result_t<CompleteFromKineticStateFn, Equation, Dest, State, Velocity> {
-    return fub::tag_invoke(*this, std::forward<Equation>(eq), std::forward<Dest>(dest),
-                           std::forward<State>(state), std::forward<Velocity>(velocity));
+  template <
+      typename Equation, typename Dest, typename State, typename Velocity,
+      typename = std::enable_if_t<is_tag_invocable<
+          CompleteFromKineticStateFn, Equation, Dest, State, Velocity>::value>>
+  constexpr auto operator()(Equation&& eq, Dest&& dest, State&& state,
+                            Velocity&& velocity) const
+      noexcept(is_nothrow_tag_invocable<CompleteFromKineticStateFn, Equation,
+                                        Dest, State, Velocity>::value)
+          -> tag_invoke_result_t<CompleteFromKineticStateFn, Equation, Dest,
+                                 State, Velocity> {
+    return fub::tag_invoke(*this, std::forward<Equation>(eq),
+                           std::forward<Dest>(dest), std::forward<State>(state),
+                           std::forward<Velocity>(velocity));
   }
 } CompleteFromKineticState;
 
 inline constexpr struct SetIsentropicPressureFn {
-  template <typename... Args>
-            typename = std::enable_if_t<
-                is_tag_invocable<SetIsentropicPressureFn, Args...>::value>>
-  constexpr auto operator()(Args&&... args) const
-      noexcept(is_nothrow_tag_invocable<SetIsentropicPressureFn, Args...>::value)
-          -> tag_invoke_result_t<SetIsentropicPressureFn, Args...> {
+  template <typename... Args, typename = std::enable_if_t<is_tag_invocable<
+                                  SetIsentropicPressureFn, Args...>::value>>
+  constexpr auto operator()(Args&&... args) const noexcept(
+      is_nothrow_tag_invocable<SetIsentropicPressureFn, Args...>::value)
+      -> tag_invoke_result_t<SetIsentropicPressureFn, Args...> {
     return fub::tag_invoke(*this, std::forward<Args>(args)...);
   }
 } SetIsentropicPressure;

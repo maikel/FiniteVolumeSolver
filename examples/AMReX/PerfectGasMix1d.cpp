@@ -56,12 +56,13 @@ struct RiemannProblem {
               data[mfi], equation_, mfi.tilebox());
           fub::ForEachIndex(fub::Box<0>(states), [&](std::ptrdiff_t i) {
             const double x = geom.CellCenter(int(i), 0);
-            const double pressure = 1.0;
-            state.temperature = (x < 0.5) ? 1.0 : 2.5;
-            state.density = pressure / (equation_.Rspec * state.temperature);
+            const double pressure = (x < 0.5) ? 1.0 : 0.1;
+            const double density = (x < 0.5) ? 1.0 : 0.125;
+            state.density = density;
+            state.temperature = pressure / density / equation_.Rspec;
             state.mole_fractions[0] = 0.0;
-            state.mole_fractions[1] = (x < 0.4) ? 1.0 : 0.0;
-            state.mole_fractions[2] = !(x < 0.4) ? 1.0 : 0.0;
+            state.mole_fractions[1] = (x < 0.5) ? 1.0 : 0.0;
+            state.mole_fractions[2] = !(x < 0.5) ? 1.0 : 0.0;
             fub::euler::CompleteFromKineticState(equation_, complete, state,
                                                  velocity);
             fub::Store(states, complete, {i});
@@ -149,21 +150,40 @@ void MyMain(const fub::ProgramOptions& options) {
   using HLLEM = fub::perfect_gas::HllemMethod<fub::PerfectGasMix<1>>;
 
   using ConservativeReconstruction = fub::FluxMethod<fub::MusclHancock2<
-      fub::PerfectGasMix<1>, fub::ConservativeGradient<fub::PerfectGasMix<1>>,
+      fub::PerfectGasMix<1>,
+      fub::ConservativeGradient<
+          fub::PerfectGasMix<1>,
+          fub::CentralDifferenceGradient<fub::VanLeerLimiter>>,
       fub::ConservativeReconstruction<fub::PerfectGasMix<1>>, HLLEM>>;
 
+  using PrimitiveReconstruction = fub::FluxMethod<fub::MusclHancock2<
+      fub::PerfectGasMix<1>,
+      fub::PrimitiveGradient<
+          fub::PerfectGasMix<1>,
+          fub::CentralDifferenceGradient<fub::VanLeerLimiter>>,
+      fub::PrimitiveReconstruction<fub::PerfectGasMix<1>>, HLLEM>>;
+
+  using CharacteristicsReconstruction = fub::FluxMethod<fub::MusclHancock2<
+      fub::PerfectGasMix<1>,
+      fub::CharacteristicsGradient<
+          fub::PerfectGasMix<1>,
+          fub::CentralDifferenceGradient<fub::VanLeerLimiter>>,
+      fub::CharacteristicsReconstruction<fub::PerfectGasMix<1>>, HLLEM>>;
+
   auto flux_method_factory = GetFluxMethodFactory(
-      std::pair{"HLLEM"s, MakeFlux<HLLEM>()},
-      std::pair{"Conservative"s, MakeFlux<ConservativeReconstruction>()});
+      std::pair{"NoReconstruct"s, MakeFlux<HLLEM>()},
+      std::pair{"Conservative"s, MakeFlux<ConservativeReconstruction>()},
+      std::pair{"Primitive"s, MakeFlux<PrimitiveReconstruction>()},
+      std::pair{"Characteristics"s, MakeFlux<CharacteristicsReconstruction>()});
 
   std::string reconstruction =
       fub::GetOptionOr(options, "reconstruction", "HLLEM"s);
   BOOST_LOG(log) << "Reconstruction: " << reconstruction;
   auto flux_method = flux_method_factory.at(reconstruction)(equation);
 
-  fub::amrex::HyperbolicMethod method{flux_method,
-                                      fub::amrex::EulerForwardTimeIntegrator(),
-                                      fub::amrex::Reconstruction(equation)};
+  fub::amrex::HyperbolicMethod method{
+      flux_method, fub::amrex::EulerForwardTimeIntegrator(),
+      fub::amrex::Reconstruction(fub::execution::seq, equation)};
 
   const int scratch_ghost_cell_width =
       fub::GetOptionOr(hier_opts, "scratch_gcw", 2);
@@ -176,13 +196,14 @@ void MyMain(const fub::ProgramOptions& options) {
                                     flux_ghost_cell_width),
       fub::GodunovSplitting());
 
-  fub::perfect_gas_mix::IgnitionDelayKinetics<1> source_term{equation};
+  //fub::perfect_gas_mix::IgnitionDelayKinetics<1> source_term{equation};
 
-  fub::SplitSystemSourceLevelIntegrator reactive_integrator(
-      std::move(level_integrator), std::move(source_term),
-      fub::GodunovSplitting());
+  //fub::SplitSystemSourceLevelIntegrator reactive_integrator(
+  //     std::move(level_integrator), std::move(source_term),
+  //     fub::GodunovSplitting());
 
-  fub::SubcycleFineFirstSolver solver(std::move(reactive_integrator));
+  // fub::SubcycleFineFirstSolver solver(std::move(reactive_integrator));
+  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
   using namespace fub::amrex;
   using namespace std::literals::chrono_literals;
