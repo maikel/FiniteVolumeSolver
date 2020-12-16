@@ -501,16 +501,16 @@ private:
   friend auto
   tag_invoke(tag_t<euler::SetIsentropicPressure>, const PerfectGasMix& eq,
             PerfectGasMixComplete<Density, Momentum, Energy, Species,
-                                         Pressure, SpeedOfSound>& q_expanded
+                                         Pressure, SpeedOfSound>& q_expanded,
              const PerfectGasMixComplete<Density, Momentum, Energy, Species,
                                          Pressure, SpeedOfSound>& q0, Pressure p_new) noexcept {
-    q.density = std::pow(p_new / q0.p, 1 / eq.gamma) * q0.density;
-    q.pressure = p_new;
-    const Array<double, Rank, 1> u0 = euler::Velocity(q0);
-    q.momentum = q.density * (u0 + 2.0 * std::sqrt(eq.gamma * q0.pressure / q0.density) * eq.gamma_minus_1_inv - 2.0 * std::sqrt(eq.gamma * q.pressure / q.density) * eq.gamma_minus_1_inv);
-    q.energy = p_new * eq.gamma_minus_1_inv + euler::KineticEnergy(q.density, q.momentum);
-    q.species = q0.species;
-    q.speed_of_sound = std::sqrt(eq.gamma * q.pressure / q.density);
+    q_expanded.density = std::pow(p_new / q0.p, 1 / eq.gamma) * q0.density;
+    q_expanded.pressure = p_new;
+    const Array<double, Rank(), 1> u0 = euler::Velocity(q0);
+    q_expanded.momentum = q_expanded.density * (u0 + 2.0 * std::sqrt(eq.gamma * q0.pressure / q0.density) * eq.gamma_minus_1_inv - 2.0 * std::sqrt(eq.gamma * q_expanded.pressure / q_expanded.density) * eq.gamma_minus_1_inv);
+    q_expanded.energy = p_new * eq.gamma_minus_1_inv + euler::KineticEnergy(q_expanded.density, q_expanded.momentum);
+    q_expanded.species = q0.species;
+    q_expanded.speed_of_sound = std::sqrt(eq.gamma * q_expanded.pressure / q_expanded.density);
   } 
 };
 

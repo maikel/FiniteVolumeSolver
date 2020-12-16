@@ -185,7 +185,7 @@ inline constexpr struct CompleteFromKineticStateFn {
 } CompleteFromKineticState;
 
 inline constexpr struct SetIsentropicPressureFn {
-  template <typename... Args>
+  template <typename... Args,
             typename = std::enable_if_t<
                 is_tag_invocable<SetIsentropicPressureFn, Args...>::value>>
   constexpr auto operator()(Args&&... args) const
