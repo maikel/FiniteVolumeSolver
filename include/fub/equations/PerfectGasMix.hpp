@@ -513,19 +513,23 @@ private:
              const PerfectGasMixComplete<Density, Momentum, Energy, Species,
                                          Pressure, SpeedOfSound>& q0,
              Pressure p_new) noexcept {
-    q.density = std::pow(p_new / q0.p, 1 / eq.gamma) * q0.density;
-    q.pressure = p_new;
-    const auto u0 = euler::Velocity(eq, q0);
-    q.momentum =
-        q.density * (u0 +
+    const double rho_new = std::pow(p_new / q0.p, 1 / eq.gamma) * q0.density;
+    const Array<double, N, 1> u0 = euler::Velocity(eq, q0);
+    const Array<double, N, 1> u_new = u0 +
                      2.0 * std::sqrt(eq.gamma * q0.pressure / q0.density) *
                          eq.gamma_minus_1_inv -
-                     2.0 * std::sqrt(eq.gamma * q.pressure / q.density) *
+                     2.0 * std::sqrt(eq.gamma * p_new / rho_new) *
                          eq.gamma_minus_1_inv);
-    q.energy = p_new * eq.gamma_minus_1_inv +
-               euler::KineticEnergy(q.density, q.momentum);
+    const Array<double, N, 1> rhou_new = rho_new * u_new;
+    const double rhoE_new =
+        p_new * eq.gamma_minus_1_inv + euler::KineticEnergy(rho_new, rhou_new);
+
+    q.density = rho_new;
+    q.momentum = rhou_new;
+    q.energy = rhoE_new;
     q.species = q0.species;
-    q.speed_of_sound = std::sqrt(eq.gamma * q.pressure / q.density);
+    q.pressure = p_new;
+    q.speed_of_sound = std::sqrt(eq.gamma * p_new / rho_new);
   }
 };
 

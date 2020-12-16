@@ -25,6 +25,7 @@
 #include "fub/flux_method/MusclHancockMethod2.hpp"
 
 #include "fub/equations/perfect_gas_mix/IgnitionDelayKinetics.hpp"
+#include "fub/AMReX/boundary_condition/IsentropicPressureExpansion.hpp"
 
 #include <cmath>
 #include <fmt/format.h>
@@ -135,11 +136,12 @@ void MyMain(const fub::ProgramOptions& options) {
 
   fub::amrex::BoundarySet boundary;
   using fub::amrex::ReflectiveBoundary;
+  using fub::amrex::IsentropicPressureExpansion;
   auto seq = fub::execution::seq;
   boundary.conditions.push_back(
       ReflectiveBoundary{seq, equation, fub::Direction::X, 0});
   boundary.conditions.push_back(
-      ReflectiveBoundary{seq, equation, fub::Direction::X, 1});
+      IsentropicPressureExpansion<fub::PerfectGasMix<1>>{equation, 1.0, fub::Direction::X, 1});
 
   std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       fub::amrex::PatchHierarchy(equation, grid_geometry, hierarchy_options),
