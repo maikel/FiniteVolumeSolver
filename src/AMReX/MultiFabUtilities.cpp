@@ -19,10 +19,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/amrex/MultiFabUtilities.hpp"
+#include "fub/AMReX/MultiFabUtilities.hpp"
 
 #include "fub/Execution.hpp"
-#include "fub/amrex/ForEachFab.hpp"
+#include "fub/AMReX/ForEachFab.hpp"
 #include "fub/ext/omp.hpp"
 
 namespace fub::amrex {
@@ -30,8 +30,8 @@ namespace fub::amrex {
 ::amrex::Box GetInnerBox(const ::amrex::Box& box, int side, Direction dir,
                          int width) {
   const int dir_v = static_cast<int>(dir);
-  const ::amrex::IntVect lower = domain_box.smallEnd();
-  const ::amrex::IntVect upper = domain_box.bigEnd();
+  const ::amrex::IntVect lower = box.smallEnd();
+  const ::amrex::IntVect upper = box.bigEnd();
   if (side == 0) {
     const ::amrex::IntVect lower_new = lower;
     ::amrex::IntVect upper_new = upper;

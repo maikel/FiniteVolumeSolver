@@ -22,6 +22,7 @@
 #define FUB_AMREX_BOUNDARY_CONDITION_GENERIC_PRESSURE_VALVE_HPP
 
 #include "fub/AMReX/MultiFabUtilities.hpp"
+#include "fub/AMReX/GriddingAlgorithm.hpp"
 
 namespace fub::amrex {
 
@@ -78,6 +79,26 @@ void GenericPressureValveBoundary<EulerEquation>::FillBoundary(
   const double inner_pressure =
       GetMeanValueInBox(cell_data, inner_box, comps_.pressure);
   if (inner_pressure <= options_.open_below_pressure) {
+    if t_opend_<=0.0: {// comparison with double..  
+      t_opened_ = gridding.GetTimePoint();
+    }
+    // border should be the ghost cells? 
+    // call inflow_function_
+
+    // call ExpandState() from IsentropicPressureExpansion.hpp
+    // ExpandState( equation_, Complete<EulerEquation>& dest,
+    //             const Complete<EulerEquation>& src, inner_pressure, options_.forward_efficiency)
+
+    // check which side we are and write border-data in cells
+  }
+  else {
+    if (t_opened_>0.0 && inner_pressure > 1.1*options_.open_below_pressure){
+        //     ^^^^ t_opend_!=0
+      t_opened_ = 0.0;
+    }
+
+
+    // check which side we are
 
   }
   
