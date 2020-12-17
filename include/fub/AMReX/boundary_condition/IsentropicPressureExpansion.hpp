@@ -19,6 +19,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#ifndef FUB_AMREX_BOUNDARY_CONDITION_ISENTROPIC_PRESSURE_EXPANSION_HPP
+#define FUB_AMREX_BOUNDARY_CONDITION_ISENTROPIC_PRESSURE_EXPANSION_HPP
+
 #include "fub/AMReX/boundary_condition/IsentropicPressureBoundary.hpp"
 
 namespace fub::amrex {
@@ -36,18 +39,17 @@ MapToSrc(const std::array<std::ptrdiff_t, 1>& dest,
   return src;
 }
 
-
 /// \ingroup BoundaryCondition
 ///
 /// \brief This boundary models an isentropic pressure expansion for the
 /// one-dimensional ideal gas equations for mixtures.
 template <typename EulerEquation> class IsentropicPressureExpansion {
 public:
-  IsentropicPressureExpansion(const EulerExpansion& eq,
+  IsentropicPressureExpansion(const EulerEquation& eq,
                               const IsentropicPressureBoundaryOptions& options);
 
-  IsentropicPressureExpansion(const EulerExpansion& eq, double outer_pressure,
-                              Direction dir, Side side);
+  IsentropicPressureExpansion(const EulerEquation& eq, double outer_pressure,
+                              Direction dir, int side);
 
   void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding,
                     int level);
@@ -58,7 +60,7 @@ public:
   void FillBoundary(::amrex::MultiFab& mf, const ::amrex::Geometry& geom);
 
 private:
-  EulerExpansion equation_;
+  EulerEquation equation_;
   double outer_pressure_;
   Direction dir_;
   int side_;
@@ -88,24 +90,24 @@ void ExpandState(EulerEquation& eq, Complete<EulerEquation>& dest,
 }
 
 template <typename EulerEquation>
-IsentropicPressureExpansion::IsentropicPressureExpansion(
+IsentropicPressureExpansion<EulerEquation>::IsentropicPressureExpansion(
     const EulerEquation& eq, const IsentropicPressureBoundaryOptions& options)
     : equation_{eq}, outer_pressure_{options.outer_pressure},
       dir_{options.direction}, side_{options.side} {}
 
 template <typename EulerEquation>
-IsentropicPressureExpansion::IsentropicPressureExpansion(
+IsentropicPressureExpansion<EulerEquation>::IsentropicPressureExpansion(
     const EulerEquation& eq, double outer_pressure, Direction dir, int side)
     : equation_{eq}, outer_pressure_{outer_pressure}, dir_{dir}, side_{side} {}
 
 template <typename EulerEquation>
-void IsentropicPressureExpansion::FillBoundary(
+void IsentropicPressureExpansion<EulerEquation>::FillBoundary(
     ::amrex::MultiFab& mf, const GriddingAlgorithm& gridding, int level) {
   FillBoundary(mf, gridding.GetPatchHierarchy().GetGeometry(level));
 }
 
 template <typename EulerEquation>
-void IsentropicPressureExpansion::FillBoundary(
+void IsentropicPressureExpansion<EulerEquation>::FillBoundary(
     ::amrex::MultiFab& mf, const GriddingAlgorithm& gridding, int level,
     Direction dir) {
   if (dir == dir_) {
@@ -121,6 +123,7 @@ void IsentropicPressureExpansion<EulerEquation>::FillBoundary(
   ::amrex::BoxList boundaries =
       ::amrex::complementIn(grown_box, ::amrex::BoxList{geom.Domain()});
   Complete<EulerEquation> state{equation_};
+  Complete<EulerEquation> expanded{equation_};
   if (boundaries.isEmpty()) {
     return;
   }
@@ -136,17 +139,20 @@ void IsentropicPressureExpansion<EulerEquation>::FillBoundary(
       if (!box_to_fill.isEmpty()) {
         auto states = MakeView<Complete<EulerEquation>>(fab, equation_,
                                                         mfi.growntilebox());
-        ForEachIndex(box_to_fill, [this, &geom, &state,
-                                   &states](std::ptrdiff_t i, auto...) {
-          std::array<std::ptrdiff_t, 1> dest{i};
-          std::array<std::ptrdiff_t, 1> src = MapToSrc(dest, geom, side_, dir_);
-          Load(state, states, src);
-          ExpandState(equation_, state, state, outer_pressure_, 1.0);
-          Store(states, state, dest);
-        });
+        ForEachIndex(
+            AsIndexBox<EulerEquation::Rank()>(box_to_fill), [&](auto... is) {
+              Index<EulerEquation::Rank()> dest{is...};
+              Index<EulerEquation::Rank()> src =
+                  MapToSrc(dest, geom, side_, dir_);
+              Load(state, states, src);
+              ExpandState(equation_, expanded, state, outer_pressure_, 1.0);
+              Store(states, expanded, dest);
+            });
       }
     }
   });
 }
 
 } // namespace fub::amrex
+
+#endif

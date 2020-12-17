@@ -69,7 +69,7 @@ Result<void, TimeStepTooLarge> IgnitionDelayKinetics<Rank>::AdvanceLevel(
           options_.R2_A * std::exp(options_.R2_C * (1.0 - options_.R2_E / T));
       const double Fdiff = (1.0 - std::exp(-rate * dt.count())) * X[0];
       X[0] = X[0] - Fdiff;
-      X[1] = std::min(1.0, X[1] + Fdiff);
+      X[1] = std::clamp(X[1] + Fdiff, 0.0, 1.0);
 
       const double rate2 = std::exp(options_.C * (1.0 - options_.E / T));
       const int activator = X[0] <= options_.Yign * (1.0 - X[2]);
@@ -80,12 +80,12 @@ Result<void, TimeStepTooLarge> IgnitionDelayKinetics<Rank>::AdvanceLevel(
       FUB_ASSERT(FRdiff1 <= X[1]);
       X[1] = X[1] - FRdiff1;
       FUB_ASSERT(X[1] >= 0.0);
-      X[2] = std::min(1.0, X[2] + FRdiff1);
+      X[2] = std::clamp(X[2] + FRdiff1, 0.0, 1.0);
       
       const double FRdiff0 = coeff * X[0];
       X[0] = X[0] - FRdiff0;
       FUB_ASSERT(X[0] >= 0.0);
-      X[2] = std::min(1.0, X[2] + FRdiff0);
+      X[2] = std::clamp(X[2] + FRdiff0, 0.0, 1.0);
 
       const double T_new = T + options_.Tdiff * (FRdiff0 + FRdiff1);
       kinetic_state.temperature = T_new;
@@ -95,6 +95,12 @@ Result<void, TimeStepTooLarge> IgnitionDelayKinetics<Rank>::AdvanceLevel(
       euler::CompleteFromKineticState(eq, state, kinetic_state, velocity);
       Store(states, state, index);
     });
+  }
+
+  if (level == 0) {
+    simulation_data.FillGhostLayerSingleLevel(level);
+  } else {
+    simulation_data.FillGhostLayerTwoLevels(level, level -1);
   }
   return boost::outcome_v2::success();
 }

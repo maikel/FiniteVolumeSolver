@@ -513,13 +513,13 @@ private:
              const PerfectGasMixComplete<Density, Momentum, Energy, Species,
                                          Pressure, SpeedOfSound>& q0,
              Pressure p_new) noexcept {
-    const double rho_new = std::pow(p_new / q0.p, 1 / eq.gamma) * q0.density;
+    const double rho_new = std::pow(p_new / q0.pressure, 1 / eq.gamma) * q0.density;
     const Array<double, N, 1> u0 = euler::Velocity(eq, q0);
     const Array<double, N, 1> u_new = u0 +
                      2.0 * std::sqrt(eq.gamma * q0.pressure / q0.density) *
                          eq.gamma_minus_1_inv -
                      2.0 * std::sqrt(eq.gamma * p_new / rho_new) *
-                         eq.gamma_minus_1_inv);
+                         eq.gamma_minus_1_inv;
     const Array<double, N, 1> rhou_new = rho_new * u_new;
     const double rhoE_new =
         p_new * eq.gamma_minus_1_inv + euler::KineticEnergy(rho_new, rhou_new);

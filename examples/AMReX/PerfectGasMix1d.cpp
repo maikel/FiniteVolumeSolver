@@ -57,13 +57,12 @@ struct RiemannProblem {
               data[mfi], equation_, mfi.tilebox());
           fub::ForEachIndex(fub::Box<0>(states), [&](std::ptrdiff_t i) {
             const double x = geom.CellCenter(int(i), 0);
-            const double pressure = (x < 0.5) ? 1.0 : 0.1;
-            const double density = (x < 0.5) ? 1.0 : 0.125;
-            state.density = density;
-            state.temperature = pressure / density / equation_.Rspec;
+            const double pressure = 1.0;
+            state.temperature = (x < 0.5) ? 1.0 : 2.5;
+            state.density = pressure / state.temperature / equation_.Rspec;
             state.mole_fractions[0] = 0.0;
-            state.mole_fractions[1] = (x < 0.5) ? 1.0 : 0.0;
-            state.mole_fractions[2] = !(x < 0.5) ? 1.0 : 0.0;
+            state.mole_fractions[1] = (x < 0.4) ? 1.0 : 0.0;
+            state.mole_fractions[2] = !(x < 0.4) ? 1.0 : 0.0;
             fub::euler::CompleteFromKineticState(equation_, complete, state,
                                                  velocity);
             fub::Store(states, complete, {i});
@@ -198,14 +197,14 @@ void MyMain(const fub::ProgramOptions& options) {
                                     flux_ghost_cell_width),
       fub::GodunovSplitting());
 
-  //fub::perfect_gas_mix::IgnitionDelayKinetics<1> source_term{equation};
+  fub::perfect_gas_mix::IgnitionDelayKinetics<1> source_term{equation};
 
-  //fub::SplitSystemSourceLevelIntegrator reactive_integrator(
-  //     std::move(level_integrator), std::move(source_term),
-  //     fub::GodunovSplitting());
+  fub::SplitSystemSourceLevelIntegrator reactive_integrator(
+       std::move(level_integrator), std::move(source_term),
+       fub::StrangSplittingLumped());
 
-  // fub::SubcycleFineFirstSolver solver(std::move(reactive_integrator));
-  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
+  fub::SubcycleFineFirstSolver solver(std::move(reactive_integrator));
+  // fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
   using namespace fub::amrex;
   using namespace std::literals::chrono_literals;
