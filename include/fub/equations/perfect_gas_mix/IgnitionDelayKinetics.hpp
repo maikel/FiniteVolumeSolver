@@ -61,9 +61,10 @@ public:
   AdvanceLevel(amrex::IntegratorContext& simulation_data, int level,
                Duration dt,
                const ::amrex::IntVect& ngrow = ::amrex::IntVect(0));
+  
+  IgnitionDelayKineticsOptions options;
 
 private:
-  IgnitionDelayKineticsOptions options_;
   OmpLocal<PerfectGasMix<Rank>> equation_;
   OmpLocal<Complete<PerfectGasMix<Rank>>> state_;
   OmpLocal<KineticState<PerfectGasMix<Rank>>> kinetic_state_;

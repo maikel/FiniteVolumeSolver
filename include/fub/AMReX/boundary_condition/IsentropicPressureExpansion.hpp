@@ -23,6 +23,7 @@
 #define FUB_AMREX_BOUNDARY_CONDITION_ISENTROPIC_PRESSURE_EXPANSION_HPP
 
 #include "fub/AMReX/boundary_condition/IsentropicPressureBoundary.hpp"
+#include "fub/equations/EulerEquation.hpp"
 
 namespace fub::amrex {
 
@@ -139,15 +140,15 @@ void IsentropicPressureExpansion<EulerEquation>::FillBoundary(
       if (!box_to_fill.isEmpty()) {
         auto states = MakeView<Complete<EulerEquation>>(fab, equation_,
                                                         mfi.growntilebox());
-        ForEachIndex(
-            AsIndexBox<EulerEquation::Rank()>(box_to_fill), [&](auto... is) {
-              Index<EulerEquation::Rank()> dest{is...};
-              Index<EulerEquation::Rank()> src =
-                  MapToSrc(dest, geom, side_, dir_);
-              Load(state, states, src);
-              ExpandState(equation_, expanded, state, outer_pressure_, 1.0);
-              Store(states, expanded, dest);
-            });
+        ForEachIndex(AsIndexBox<EulerEquation::Rank()>(box_to_fill),
+                     [&](auto... is) {
+                       Index<EulerEquation::Rank()> dest{is...};
+                       Index<EulerEquation::Rank()> src =
+                           MapToSrc(dest, geom, side_, dir_);
+                       Load(state, states, src);
+                       ExpandState(equation_, expanded, state, outer_pressure_, 1.0);
+                       Store(states, expanded, dest);
+                     });
       }
     }
   });

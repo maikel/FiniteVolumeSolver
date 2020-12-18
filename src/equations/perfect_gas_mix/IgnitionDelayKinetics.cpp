@@ -61,18 +61,18 @@ Result<void, TimeStepTooLarge> IgnitionDelayKinetics<Rank>::AdvanceLevel(
       const double T = kinetic_state.temperature;
       FUB_ASSERT(dt > Duration(0.0));
       const double lambda =
-          -std::log(options_.Yign / options_.Yinit / options_.tau);
+          -std::log(options.Yign / options.Yinit / options.tau);
       const double rate =
           lambda +
-          std::pow(T, options_.R_B) *
-              std::exp(options_.R_C * (1.0 - options_.R_E / T)) +
-          options_.R2_A * std::exp(options_.R2_C * (1.0 - options_.R2_E / T));
+          std::pow(T, options.R_B) *
+              std::exp(options.R_C * (1.0 - options.R_E / T)) +
+          options.R2_A * std::exp(options.R2_C * (1.0 - options.R2_E / T));
       const double Fdiff = (1.0 - std::exp(-rate * dt.count())) * X[0];
       X[0] = X[0] - Fdiff;
       X[1] = std::clamp(X[1] + Fdiff, 0.0, 1.0);
 
-      const double rate2 = std::exp(options_.C * (1.0 - options_.E / T));
-      const int activator = X[0] <= options_.Yign * (1.0 - X[2]);
+      const double rate2 = std::exp(options.C * (1.0 - options.E / T));
+      const int activator = X[0] <= options.Yign * (1.0 - X[2]);
       
       const double coeff = activator * (1.0 - std::exp(-rate2 * dt.count()));
       FUB_ASSERT(0.0 <= coeff && coeff <= 1.0);
@@ -87,7 +87,7 @@ Result<void, TimeStepTooLarge> IgnitionDelayKinetics<Rank>::AdvanceLevel(
       FUB_ASSERT(X[0] >= 0.0);
       X[2] = std::clamp(X[2] + FRdiff0, 0.0, 1.0);
 
-      const double T_new = T + options_.Tdiff * (FRdiff0 + FRdiff1);
+      const double T_new = T + options.Tdiff * (FRdiff0 + FRdiff1);
       kinetic_state.temperature = T_new;
 
       const Array<double, Rank, 1> velocity = euler::Velocity(eq, state);

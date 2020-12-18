@@ -421,6 +421,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     src/AMReX/ScopeGuard.cpp
     src/AMReX/CartesianGridGeometry.cpp
     src/AMReX/ViewFArrayBox.cpp
+    src/AMReX/MultiFabUtilities.cpp
     src/AMReX/MLMG/MLNodeHelmDualCstVel.cpp
     src/AMReX/MLMG/MLNodeHelmDualCstVel_K.cpp
     src/AMReX/MLMG/MLNodeHelmDualLinVel.cpp

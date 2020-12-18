@@ -24,8 +24,9 @@
 #include "fub/equations/PerfectGasMix.hpp"
 #include "fub/flux_method/MusclHancockMethod2.hpp"
 
-#include "fub/equations/perfect_gas_mix/IgnitionDelayKinetics.hpp"
+#include "fub/AMReX/boundary_condition/GenericPressureValveBoundary.hpp"
 #include "fub/AMReX/boundary_condition/IsentropicPressureExpansion.hpp"
+#include "fub/equations/perfect_gas_mix/IgnitionDelayKinetics.hpp"
 
 #include <cmath>
 #include <fmt/format.h>
@@ -133,14 +134,53 @@ void MyMain(const fub::ProgramOptions& options) {
   BOOST_LOG(log) << "PatchHierarchy:";
   hierarchy_options.Print(log);
 
+  fub::perfect_gas_mix::IgnitionDelayKinetics<1> source_term{equation};
+
+  static constexpr double buffer = 0.5;
+  static constexpr double pbufwidth = 1e-10;
+  const double lambda =
+      -std::log(source_term.options.Yign / source_term.options.Yinit /
+                source_term.options.tau);
+  auto fill_f = [lambda, Yign = source_term.options.Yign,
+                 tau = source_term.options.tau](double t) {
+    return Yign * std::exp(lambda * (tau - t));
+  };
+  auto fill_f_val = [fill_f](double t) {
+    const double ff = fill_f(t);
+    if (ff == 1.0) {
+      return std::numeric_limits<double>::max();
+    }
+    return ff / (1.0 - ff);
+  };
+  static constexpr double t_ignite = 1.1753;
+  static constexpr double t_ignite_diff = t_ignite - 1.0;
+  auto inflow_function = [fill_f_val](
+                             const fub::PerfectGasMix<1>&,
+                             fub::KineticState<fub::PerfectGasMix<1>>& kin,
+                             fub::Duration tp, const amrex::MultiFab&,
+                             const fub::amrex::GriddingAlgorithm&, int) {
+    const double dt = tp.count();
+    kin.temperature = 1.0;
+    kin.density = 1.0;
+    if (dt > buffer) {
+        kin.mole_fractions[0] = fill_f_val(dt - t_ignite_diff);
+        kin.mole_fractions[1] = 1.0;    
+    } else {
+    // FR
+        kin.mole_fractions[0] = 0.0;
+        kin.mole_fractions[1] = 0.0;
+    }
+    kin.mole_fractions[2] = std::max(
+        0.0, 10.0 * std::min(1.0, 1.0 - (dt - buffer) / pbufwidth / buffer));
+  };
+
   fub::amrex::BoundarySet boundary;
-  using fub::amrex::ReflectiveBoundary;
   using fub::amrex::IsentropicPressureExpansion;
-  auto seq = fub::execution::seq;
+  fub::amrex::GenericPressureValveBoundary left(equation, inflow_function, {});
+  boundary.conditions.push_back(left);
   boundary.conditions.push_back(
-      ReflectiveBoundary{seq, equation, fub::Direction::X, 0});
-  boundary.conditions.push_back(
-      IsentropicPressureExpansion<fub::PerfectGasMix<1>>{equation, 1.0, fub::Direction::X, 1});
+      IsentropicPressureExpansion<fub::PerfectGasMix<1>>{equation, 1.0,
+                                                         fub::Direction::X, 1});
 
   std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       fub::amrex::PatchHierarchy(equation, grid_geometry, hierarchy_options),
@@ -197,11 +237,9 @@ void MyMain(const fub::ProgramOptions& options) {
                                     flux_ghost_cell_width),
       fub::GodunovSplitting());
 
-  fub::perfect_gas_mix::IgnitionDelayKinetics<1> source_term{equation};
-
   fub::SplitSystemSourceLevelIntegrator reactive_integrator(
-       std::move(level_integrator), std::move(source_term),
-       fub::StrangSplittingLumped());
+      std::move(level_integrator), std::move(source_term),
+      fub::StrangSplittingLumped());
 
   fub::SubcycleFineFirstSolver solver(std::move(reactive_integrator));
   // fub::SubcycleFineFirstSolver solver(std::move(level_integrator));

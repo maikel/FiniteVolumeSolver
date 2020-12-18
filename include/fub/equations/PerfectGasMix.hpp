@@ -33,33 +33,6 @@
 #include <array>
 
 namespace fub {
-namespace euler {
-template <int Dim>
-double KineticEnergy(double density,
-                     const Eigen::Array<double, Dim, 1>& momentum) noexcept {
-  return 0.5 * momentum.matrix().squaredNorm() / density;
-}
-
-template <int Dim, int N, int O, int MR, int MC>
-Array1d KineticEnergy(
-    const Array1d& density,
-    const Eigen::Array<double, Dim, N, O, MR, MC>& momentum) noexcept {
-  Array1d squaredMomentum = momentum.matrix().colwise().squaredNorm();
-  return 0.5 * squaredMomentum / density;
-}
-
-template <int Dim, int N, int O, int MR, int MC>
-Array1d KineticEnergy(const Array1d& density,
-                      const Eigen::Array<double, Dim, N, O, MR, MC>& momentum,
-                      MaskArray mask) noexcept {
-  mask = mask && (density > 0.0);
-  Array1d squaredMomentum = momentum.matrix().colwise().squaredNorm();
-  Array1d safe_density = density;
-  safe_density = mask.select(density, 1.0);
-  FUB_ASSERT((safe_density > 0.0).all());
-  return 0.5 * squaredMomentum / safe_density;
-}
-} // namespace euler
 
 template <int Rank> struct PerfectGasMix;
 
@@ -383,8 +356,9 @@ private:
     const double RT = eq.Rspec * kin.temperature;
     q.pressure = RT * q.density;
     q.speed_of_sound = std::sqrt(eq.gamma * RT);
+    const double sum = kin.mole_fractions.sum();
     for (int i = 0; i < eq.n_species; i++) {
-      q.species[i] = q.density * kin.mole_fractions[i];
+      q.species[i] = q.density * kin.mole_fractions[i] / sum;
     }
   }
 

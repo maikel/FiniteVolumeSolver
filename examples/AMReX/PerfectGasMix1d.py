@@ -27,9 +27,9 @@ PatchHierarchy = {
  'max_grid_size': [n_cells, 1, 1],
 }
 
-# reconstruction = "Characteristics"
+reconstruction = "Characteristics"
 # reconstruction = "Primitive"
-reconstruction = "NoReconstruct"
+# reconstruction = "NoReconstruct"
 
 paths = {
   'HLLE': './HLLE.h5',

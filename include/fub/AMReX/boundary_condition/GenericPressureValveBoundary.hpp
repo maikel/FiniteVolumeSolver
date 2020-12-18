@@ -21,8 +21,10 @@
 #ifndef FUB_AMREX_BOUNDARY_CONDITION_GENERIC_PRESSURE_VALVE_HPP
 #define FUB_AMREX_BOUNDARY_CONDITION_GENERIC_PRESSURE_VALVE_HPP
 
-#include "fub/AMReX/MultiFabUtilities.hpp"
 #include "fub/AMReX/GriddingAlgorithm.hpp"
+#include "fub/AMReX/MultiFabUtilities.hpp"
+#include "fub/AMReX/boundary_condition/ConstantBoundary.hpp"
+#include "fub/AMReX/boundary_condition/ReflectiveBoundary.hpp"
 
 namespace fub::amrex {
 
@@ -34,13 +36,9 @@ struct GenericPressureValveBoundaryOptions {
   int side{0};
 };
 
-template <typename EulerEquation> class GenericPressureValveBoundary {
+template <typename EulerEquation, typename InflowFunction>
+class GenericPressureValveBoundary {
 public:
-  using InflowFunction =
-      std::function<KineticState<EulerEquation>(IntegratorContext&, Duration)>;
-
-  enum class State { open, closed };
-
   GenericPressureValveBoundary(
       const EulerEquation& equation, InflowFunction fn,
       const GenericPressureValveBoundaryOptions& options);
@@ -51,57 +49,75 @@ public:
   void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding,
                     int level, Direction dir);
 
-  State GetState() const noexcept { return state_; }
   std::optional<Duration> GetTimePointWhenOpened() const noexcept {
     return t_opened_;
   }
 
 private:
   EulerEquation equation_;
-  InflowFunction inflow_funtion_;
+  InflowFunction inflow_function_;
   GenericPressureValveBoundaryOptions options_;
+  ConstantBoundary<EulerEquation> constant_boundary_;
+  ReflectiveBoundary<execution::SequentialTag, EulerEquation>
+      reflective_boundary_;
 
   IndexMapping<EulerEquation> comps_{equation_};
-  State state_{State::closed};
-  Duration t_opened_{};
+  std::optional<Duration> t_opened_{};
 };
 
-template <typename EulerEquation>
-void GenericPressureValveBoundary<EulerEquation>::FillBoundary(
+template <typename EulerEquation, typename InflowFunction>
+GenericPressureValveBoundary<EulerEquation, InflowFunction>::
+    GenericPressureValveBoundary(
+        const EulerEquation& equation, InflowFunction fn,
+        const GenericPressureValveBoundaryOptions& options)
+    : equation_(equation), inflow_function_(std::move(fn)),
+      options_(options), constant_boundary_{options_.dir, options_.side,
+                                            equation_,
+                                            Complete<EulerEquation>(equation_)},
+      reflective_boundary_(equation_, options_.dir, options_.side) {}
+
+template <typename EulerEquation, typename InflowFunction>
+void GenericPressureValveBoundary<EulerEquation, InflowFunction>::FillBoundary(
+    ::amrex::MultiFab& mf, const GriddingAlgorithm& gridding, int level,
+    Direction dir) {
+  if (dir == options_.dir) {
+    FillBoundary(mf, gridding, level);
+  }
+}
+
+template <typename EulerEquation, typename InflowFunction>
+void GenericPressureValveBoundary<EulerEquation, InflowFunction>::FillBoundary(
     ::amrex::MultiFab& mf, const GriddingAlgorithm& gridding, int level) {
-  ::amrex::MultiFab& cell_data =
-      gridding.GetPatchHierarchy().GetPatchLevel(level).data;
   const ::amrex::Geometry& geom =
       gridding.GetPatchHierarchy().GetGeometry(level);
   const ::amrex::Box domain_box = geom.Domain();
   const ::amrex::Box inner_box =
       GetInnerBox(domain_box, options_.side, options_.dir, 1);
   const double inner_pressure =
-      GetMeanValueInBox(cell_data, inner_box, comps_.pressure);
+      GetMeanValueInBox(mf, inner_box, comps_.pressure);
   if (inner_pressure <= options_.open_below_pressure) {
-    if t_opend_<=0.0: {// comparison with double..  
-      t_opened_ = gridding.GetTimePoint();
+    const Duration t = gridding.GetTimePoint();
+    if (!t_opened_) {
+      t_opened_ = t;
     }
-    // border should be the ghost cells? 
-    // call inflow_function_
-
-    // call ExpandState() from IsentropicPressureExpansion.hpp
-    // ExpandState( equation_, Complete<EulerEquation>& dest,
-    //             const Complete<EulerEquation>& src, inner_pressure, options_.forward_efficiency)
-
-    // check which side we are and write border-data in cells
-  }
-  else {
-    if (t_opened_>0.0 && inner_pressure > 1.1*options_.open_below_pressure){
-        //     ^^^^ t_opend_!=0
-      t_opened_ = 0.0;
+    const Duration t_diff = t - *t_opened_;
+    KineticState<EulerEquation> kinetic_state(equation_);
+    std::invoke(inflow_function_, equation_, kinetic_state, t_diff, mf,
+                gridding, level);
+    constexpr int N = EulerEquation::Rank();
+    Array<double, N, 1> zero = Array<double, N, 1>::Zero();
+    euler::CompleteFromKineticState(equation_, constant_boundary_.state,
+                                    kinetic_state, zero);
+    euler::IsentropicExpansionWithoutDissipation(
+        equation_, constant_boundary_.state, constant_boundary_.state,
+        inner_pressure, options_.forward_efficiency);
+    constant_boundary_.FillBoundary(mf, gridding, level);
+  } else {
+    if (t_opened_ && inner_pressure > 1.1 * options_.open_below_pressure) {
+      t_opened_.reset();
     }
-
-
-    // check which side we are
-
+    reflective_boundary_.FillBoundary(mf, gridding, level);
   }
-  
 }
 
 } // namespace fub::amrex

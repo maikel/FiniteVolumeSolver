@@ -24,6 +24,31 @@
 #include "fub/core/type_traits.hpp"
 
 namespace fub::euler {
+template <int Dim>
+double KineticEnergy(double density,
+                     const Eigen::Array<double, Dim, 1>& momentum) noexcept {
+  return 0.5 * momentum.matrix().squaredNorm() / density;
+}
+
+template <int Dim, int N, int O, int MR, int MC>
+Array1d KineticEnergy(
+    const Array1d& density,
+    const Eigen::Array<double, Dim, N, O, MR, MC>& momentum) noexcept {
+  Array1d squaredMomentum = momentum.matrix().colwise().squaredNorm();
+  return 0.5 * squaredMomentum / density;
+}
+
+template <int Dim, int N, int O, int MR, int MC>
+Array1d KineticEnergy(const Array1d& density,
+                      const Eigen::Array<double, Dim, N, O, MR, MC>& momentum,
+                      MaskArray mask) noexcept {
+  mask = mask && (density > 0.0);
+  Array1d squaredMomentum = momentum.matrix().colwise().squaredNorm();
+  Array1d safe_density = density;
+  safe_density = mask.select(density, 1.0);
+  FUB_ASSERT((safe_density > 0.0).all());
+  return 0.5 * squaredMomentum / safe_density;
+}
 
 inline constexpr struct GammaFn {
   template <typename Equation, typename State,
@@ -202,6 +227,53 @@ inline constexpr struct SetIsentropicPressureFn {
     return fub::tag_invoke(*this, std::forward<Args>(args)...);
   }
 } SetIsentropicPressure;
+
+inline constexpr struct IsentropicExpansionWithoutDissipationFn {
+  template <typename Equation,
+            typename = std::enable_if_t<
+                is_tag_invocable<IsentropicExpansionWithoutDissipationFn,
+                                 Equation, Complete<std::decay_t<Equation>>&,
+                                 const Complete<std::decay_t<Equation>>&,
+                                 double, double>::value ||
+                is_tag_invocable<SetIsentropicPressureFn, Equation,
+                                 Complete<std::decay_t<Equation>>&,
+                                 const Complete<std::decay_t<Equation>>&,
+                                 double>::value>>
+  constexpr void operator()(Equation&& eq,
+                            Complete<std::decay_t<Equation>>& dest,
+                            const Complete<std::decay_t<Equation>>& src,
+                            double pressure_dest, double efficiency) const
+      noexcept(
+          is_nothrow_tag_invocable<IsentropicExpansionWithoutDissipationFn,
+                                   Equation, Complete<std::decay_t<Equation>>&,
+                                   const Complete<std::decay_t<Equation>>&,
+                                   double, double>::value) {
+    if constexpr (is_tag_invocable<IsentropicExpansionWithoutDissipationFn,
+                                   Equation, Complete<std::decay_t<Equation>>&,
+                                   const Complete<std::decay_t<Equation>>&,
+                                   double, double>::value) {
+      fub::tag_invoke(*this, std::forward<Equation>(eq), dest, src,
+                      pressure_dest, efficiency);
+    } else {
+      const auto old_velocity = Velocity(eq, src);
+      const double rhoE_kin = KineticEnergy(src.density, src.momentum);
+      constexpr int N = std::decay_t<Equation>::Rank();
+      dest = src;
+      dest.momentum = Array<double, N, 1>::Zero();
+      dest.energy = src.energy - rhoE_kin;
+      const double h_before = (dest.energy + dest.pressure) / dest.density;
+      SetIsentropicPressure(eq, dest, dest, pressure_dest);
+      const double h_after = (dest.energy + dest.pressure) / dest.density;
+      const double h_diff = h_before - h_after;
+      const double e_kin_new =
+          2.0 * efficiency * std::abs(h_diff) + old_velocity.matrix().squaredNorm();
+      FUB_ASSERT(e_kin_new >= 0);
+      const int sign = (h_diff >= 0) - (h_diff < 0);
+      dest.momentum[0] = dest.density * (sign * std::sqrt(e_kin_new));
+      dest.energy = dest.energy + KineticEnergy(dest.density, dest.momentum);
+    }
+  }
+} IsentropicExpansionWithoutDissipation;
 
 inline constexpr struct SpecificGasConstantFn {
   template <typename Equation, typename State,

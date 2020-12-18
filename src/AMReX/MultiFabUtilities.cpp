@@ -21,8 +21,8 @@
 
 #include "fub/AMReX/MultiFabUtilities.hpp"
 
-#include "fub/Execution.hpp"
 #include "fub/AMReX/ForEachFab.hpp"
+#include "fub/Execution.hpp"
 #include "fub/ext/omp.hpp"
 
 namespace fub::amrex {
@@ -37,19 +37,17 @@ namespace fub::amrex {
     ::amrex::IntVect upper_new = upper;
     upper_new[dir_v] = lower_new[dir_v] + width;
     return ::amrex::Box(lower_new, upper_new);
-  } else
-    (side == 1) {
-      const ::amrex::IntVect upper_new = upper;
-      ::amrex::IntVect lower_new = lower;
-      lower_new[dir_v] = upper_new[dir_v] - width;
-      return ::amrex::Box(lower_new, upper_new);
-    }
+  }
+  const ::amrex::IntVect upper_new = upper;
+  ::amrex::IntVect lower_new = lower;
+  lower_new[dir_v] = upper_new[dir_v] - width;
+  return ::amrex::Box(lower_new, upper_new);
 }
 
 double GetMeanValueInBox(const ::amrex::MultiFab& data, const ::amrex::Box& box,
                          int component) {
   const auto volume = box.volume();
-  OmpLocal<double> omp_local_value = 0.0;
+  OmpLocal<double> omp_local_value{double{0.0}};
   ForEachFab(execution::openmp, data, [&](const ::amrex::MFIter& mfi) {
     const ::amrex::FArrayBox& fab = data[mfi];
     *omp_local_value += fab.sum(box, component) / volume;
