@@ -5,7 +5,7 @@ RunOptions = {
 }
 
 n_cells = 256
-n_levels = 2
+n_levels = 1
 
 GridGeometry = {
   'cell_dimensions': [n_cells, int(n_cells / 2), 1],
