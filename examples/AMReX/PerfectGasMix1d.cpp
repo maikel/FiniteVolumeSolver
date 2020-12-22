@@ -86,8 +86,7 @@ template <typename FluxMethod> struct MakeFlux {
   fub::AnyFluxMethod<fub::amrex::IntegratorContext>
   operator()(const fub::PerfectGasMix<1>& eq) const {
     FluxMethod flux_method{eq};
-    fub::amrex::FluxMethodAdapter adapter(fub::execution::seq,
-                                          std::move(flux_method));
+    fub::amrex::FluxMethodAdapter adapter(std::move(flux_method));
     return adapter;
   }
 };
@@ -163,12 +162,12 @@ void MyMain(const fub::ProgramOptions& options) {
     kin.temperature = 1.0;
     kin.density = 1.0;
     if (dt > buffer) {
-        kin.mole_fractions[0] = fill_f_val(dt - t_ignite_diff);
-        kin.mole_fractions[1] = 1.0;    
+      kin.mole_fractions[0] = fill_f_val(dt - t_ignite_diff);
+      kin.mole_fractions[1] = 1.0;
     } else {
-    // FR
-        kin.mole_fractions[0] = 0.0;
-        kin.mole_fractions[1] = 0.0;
+      // FR
+      kin.mole_fractions[0] = 0.0;
+      kin.mole_fractions[1] = 0.0;
     }
     kin.mole_fractions[2] = std::max(
         0.0, 10.0 * std::min(1.0, 1.0 - (dt - buffer) / pbufwidth / buffer));
@@ -222,9 +221,9 @@ void MyMain(const fub::ProgramOptions& options) {
   BOOST_LOG(log) << "Reconstruction: " << reconstruction;
   auto flux_method = flux_method_factory.at(reconstruction)(equation);
 
-  fub::amrex::HyperbolicMethod method{
-      flux_method, fub::amrex::EulerForwardTimeIntegrator(),
-      fub::amrex::Reconstruction(fub::execution::seq, equation)};
+  fub::amrex::HyperbolicMethod method{flux_method,
+                                      fub::amrex::EulerForwardTimeIntegrator(),
+                                      fub::amrex::Reconstruction(equation)};
 
   const int scratch_ghost_cell_width =
       fub::GetOptionOr(hier_opts, "scratch_gcw", 2);
@@ -239,7 +238,8 @@ void MyMain(const fub::ProgramOptions& options) {
 
   fub::SplitSystemSourceLevelIntegrator reactive_integrator(
       std::move(level_integrator), std::move(source_term),
-      fub::StrangSplittingLumped());
+      fub::GodunovSplitting());
+      //fub::StrangSplittingLumped());
 
   fub::SubcycleFineFirstSolver solver(std::move(reactive_integrator));
   // fub::SubcycleFineFirstSolver solver(std::move(level_integrator));

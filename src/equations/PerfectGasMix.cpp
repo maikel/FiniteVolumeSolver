@@ -108,13 +108,8 @@ void PerfectGasMix<Dim>::CompleteFromCons(
   complete.density = cons.density;
   complete.momentum = cons.momentum;
   complete.energy = cons.energy;
-  Array1d sum = Array1d::Zero();
   for (int s = 0; s < complete.species.rows(); ++s) {
     complete.species.row(s) = cons.species.row(s);
-    sum += complete.species.row(s);
-  }
-  for (int s = 0; s < complete.species.rows(); ++s) {
-    complete.species.row(s) *= complete.density / sum;
   }
   const Array1d e_kin = euler::KineticEnergy(cons.density, cons.momentum);
   const Array1d e_int = cons.energy - e_kin;

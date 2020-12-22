@@ -3,11 +3,11 @@ import math
 RunOptions = {
   'cfl': 0.8,
   # 'final_time': 0.2 / math.sqrt(101325.),
-  'final_time': 5.0,
+  'final_time': 10.0,
   # 'max_cycles': 1,
 }
 
-dx = 5e-3
+dx = 5e-4
 x_len = 1.0
 n_cells = int(x_len / dx)
 
@@ -28,8 +28,9 @@ PatchHierarchy = {
 }
 
 reconstruction = "Characteristics"
-# reconstruction = "Primitive"
-# reconstruction = "NoReconstruct"
+#reconstruction = "Conservative"
+#reconstruction = "Primitive"
+#reconstruction = "NoReconstruct"
 
 paths = {
   'HLLE': './HLLE.h5',
@@ -46,6 +47,10 @@ Output = {
     'type': 'HDF5',
     'path': paths[reconstruction],
     'intervals': [0.01],
+    #'frequencies': [1],
+  },{
+    'type': 'CounterOutput',
+    'intervals': [1.0],
     #'frequencies': [1],
   },
   ]

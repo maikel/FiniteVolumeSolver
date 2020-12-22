@@ -247,9 +247,6 @@ template <int N> struct PerfectGasMix {
                             const Array<double, -1, 1>& species) const noexcept;
 
   // CompleteArray CompleteFromPrim(Array1d density, const Array<double, N>& u,
-  //                                Array1d pressure) const noexcept;
-
-  // CompleteArray CompleteFromPrim(Array1d density, const Array<double, N>& u,
   //                                Array1d pressure,
   //                                const MaskArray& mask) const noexcept;
 
@@ -487,13 +484,14 @@ private:
              const PerfectGasMixComplete<Density, Momentum, Energy, Species,
                                          Pressure, SpeedOfSound>& q0,
              Pressure p_new) noexcept {
-    const double rho_new = std::pow(p_new / q0.pressure, 1 / eq.gamma) * q0.density;
+    const double rho_new =
+        std::pow(p_new / q0.pressure, 1 / eq.gamma) * q0.density;
     const Array<double, N, 1> u0 = euler::Velocity(eq, q0);
-    const Array<double, N, 1> u_new = u0 +
-                     2.0 * std::sqrt(eq.gamma * q0.pressure / q0.density) *
-                         eq.gamma_minus_1_inv -
-                     2.0 * std::sqrt(eq.gamma * p_new / rho_new) *
-                         eq.gamma_minus_1_inv;
+    const Array<double, N, 1> u_new =
+        u0 +
+        2.0 * std::sqrt(eq.gamma * q0.pressure / q0.density) *
+            eq.gamma_minus_1_inv -
+        2.0 * std::sqrt(eq.gamma * p_new / rho_new) * eq.gamma_minus_1_inv;
     const Array<double, N, 1> rhou_new = rho_new * u_new;
     const double rhoE_new =
         p_new * eq.gamma_minus_1_inv + euler::KineticEnergy(rho_new, rhou_new);
@@ -522,6 +520,23 @@ void CompleteFromPrim(const PerfectGasMix<Rank>& equation,
 }
 
 template <int Rank>
+void CompleteFromPrim(const PerfectGasMix<Rank>& equation,
+                      CompleteArray<PerfectGasMix<Rank>>& complete,
+                      const PrimitiveArray<PerfectGasMix<Rank>>& prim) {
+  complete.density = prim.density;
+  for (int i = 0; i < Rank; ++i) {
+    complete.momentum.row(i) = complete.density * prim.velocity.row(i);
+  }
+  complete.pressure = prim.pressure;
+  for (int s = 0; s < equation.n_species; ++s) {
+    complete.species.row(s) = prim.density * prim.species.row(s);
+  }
+  const Array1d e_kin = euler::KineticEnergy(complete.density, complete.momentum);
+  complete.energy = e_kin + complete.pressure * equation.gamma_minus_1_inv;
+  complete.speed_of_sound = (equation.gamma * complete.pressure / complete.density).sqrt();
+}
+
+template <int Rank>
 void PrimFromComplete(const PerfectGasMix<Rank>& equation,
                       Primitive<PerfectGasMix<Rank>>& prim,
                       const Complete<PerfectGasMix<Rank>>& complete) {
@@ -530,6 +545,20 @@ void PrimFromComplete(const PerfectGasMix<Rank>& equation,
   prim.velocity = complete.momentum / complete.density;
   for (int i = 0; i < equation.n_species; ++i) {
     prim.species[i] = complete.species[i] / complete.density;
+  }
+}
+
+template <int Rank>
+void PrimFromComplete(const PerfectGasMix<Rank>& equation,
+                      PrimitiveArray<PerfectGasMix<Rank>>& prim,
+                      const CompleteArray<PerfectGasMix<Rank>>& complete) {
+  prim.density = complete.density;
+  prim.pressure = complete.pressure;
+  for (int i = 0; i < Rank; ++i) {
+    prim.velocity.row(i) = complete.momentum.row(i) / complete.density;
+  }
+  for (int i = 0; i < equation.n_species; ++i) {
+    prim.species.row(i) = complete.species.row(i) / complete.density;
   }
 }
 

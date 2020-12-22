@@ -26,9 +26,12 @@
 #include "fub/AMReX/boundary_condition/ConstantBoundary.hpp"
 #include "fub/AMReX/boundary_condition/ReflectiveBoundary.hpp"
 
+#include "fub/ext/Log.hpp"
+
 namespace fub::amrex {
 
 struct GenericPressureValveBoundaryOptions {
+  std::string prefix{"GenericPressureValve"};
   double forward_efficiency{1.0};
   double backward_efficiency{0.0};
   double open_below_pressure{1.0};
@@ -95,10 +98,15 @@ void GenericPressureValveBoundary<EulerEquation, InflowFunction>::FillBoundary(
       GetInnerBox(domain_box, options_.side, options_.dir, 1);
   const double inner_pressure =
       GetMeanValueInBox(mf, inner_box, comps_.pressure);
+  const Duration t = gridding.GetTimePoint();
   if (inner_pressure <= options_.open_below_pressure) {
-    const Duration t = gridding.GetTimePoint();
     if (!t_opened_) {
       t_opened_ = t;
+      SeverityLogger log = GetInfoLogger();
+      BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", options_.prefix);
+      BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", t);
+      BOOST_LOG_SCOPED_LOGGER_TAG(log, "Level", level);
+      BOOST_LOG(log) << fmt::format("Pressure valve has opened because inner pressure is {}.", inner_pressure);
     }
     const Duration t_diff = t - *t_opened_;
     KineticState<EulerEquation> kinetic_state(equation_);
@@ -115,6 +123,11 @@ void GenericPressureValveBoundary<EulerEquation, InflowFunction>::FillBoundary(
   } else {
     if (t_opened_ && inner_pressure > 1.1 * options_.open_below_pressure) {
       t_opened_.reset();
+      SeverityLogger log = GetInfoLogger();
+      BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", options_.prefix);
+      BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", t);
+      BOOST_LOG_SCOPED_LOGGER_TAG(log, "Level", level);
+      BOOST_LOG(log) << fmt::format("Pressure valve has closed because inner pressure is {}.", inner_pressure);
     }
     reflective_boundary_.FillBoundary(mf, gridding, level);
   }

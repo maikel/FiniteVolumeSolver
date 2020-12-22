@@ -153,9 +153,9 @@ void MusclHancock2<Equation, GradientMethod, ReconstructionMethod, BaseMethod>::
                        span<const CompleteArray, 4> stencil, Duration dt,
                        double dx, Direction dir) {
   gradient_method_.ComputeGradient(gradient_array_[0],
-                                   stencil.template subspan<0, 3>(), dx);
+                                   stencil.template subspan<0, 3>(), dx, dir);
   gradient_method_.ComputeGradient(gradient_array_[1],
-                                   stencil.template subspan<1, 3>(), dx);
+                                   stencil.template subspan<1, 3>(), dx, dir);
   ComputeNumericFlux(flux, stencil.template subspan<1, 2>(), gradient_array_,
                      dt, dx, dir);
 }
@@ -183,10 +183,10 @@ void MusclHancock2<Equation, GradientMethod, ReconstructionMethod, BaseMethod>::
                        double dx, Direction dir) {
   gradient_method_.ComputeGradient(
       gradient_array_[0], stencil.template subspan<0, 3>(),
-      volume_fractions.template subspan<0, 3>(), dx);
+      volume_fractions.template subspan<0, 3>(), dx, dir);
   gradient_method_.ComputeGradient(
       gradient_array_[1], stencil.template subspan<1, 3>(),
-      volume_fractions.template subspan<0, 3>(), dx);
+      volume_fractions.template subspan<0, 3>(), dx, dir);
   ComputeNumericFlux(flux, stencil.template subspan<1, 2>(), gradient_array_,
                      dt, dx, dir);
 }

@@ -546,13 +546,17 @@ void Hllem<EulerEquation>::ComputeNumericFlux(
         const Array1d rhoYR = fub::euler::Species(equation_, right, i);
         const Array1d YL = rhoYL / rhoL;
         const Array1d YR = rhoYR / rhoR;
-        const Array1d roeY = (sqRhoL * YL + sqRhoR * YR) / sqRhoSum;
-        const Array1d deltaRhoY = rhoYR - rhoYL;
-        const Array1d li1 = -roeY;
-        const Array1d alpha_i = li1 * deltaRho + deltaRhoY;
-        const Array1d b_delta_alpha_i = b * delta * alpha_i;
-        flux.species.row(i) = flux_hlle_array_.species.row(i) -
-                              b_delta_alpha_2 * roeY - b_delta_alpha_i;
+        // const Array1d roeY = (sqRhoL * YL + sqRhoR * YR) / sqRhoSum;
+        // const Array1d deltaRhoY = rhoYR - rhoYL;
+        // const Array1d li1 = -roeY;
+        // const Array1d alpha_i = li1 * deltaRho + deltaRhoY;
+        // const Array1d b_delta_alpha_i = b * delta * alpha_i;
+        // flux.species.row(i) = flux_hlle_array_.species.row(i) -
+        //                       b_delta_alpha_2 * roeY - b_delta_alpha_i;
+        const Array1d f_rho = flux.density;
+        const MaskArray upwind = (f_rho > 0.0);
+        const Array1d f_hllem = f_rho * upwind.select(YL, YR);
+        flux.species.row(i) = f_hllem;
       }
     }
   } else if constexpr (Dim == 2) {
@@ -587,13 +591,17 @@ void Hllem<EulerEquation>::ComputeNumericFlux(
         const Array1d rhoYR = fub::euler::Species(equation_, right, i);
         const Array1d YL = rhoYL / rhoL;
         const Array1d YR = rhoYR / rhoR;
-        const Array1d roeY = (sqRhoL * YL + sqRhoR * YR) / sqRhoSum;
-        const Array1d deltaRhoY = rhoYR - rhoYL;
-        const Array1d li1 = -roeY;
-        const Array1d alpha_i = li1 * deltaRho + deltaRhoY;
-        const Array1d b_delta_alpha_i = b_delta * alpha_i;
-        flux.species.row(i) = flux_hlle_array_.species.row(i) -
-                              b_delta_alpha_2 * roeY - b_delta_alpha_i;
+        // const Array1d roeY = (sqRhoL * YL + sqRhoR * YR) / sqRhoSum;
+        // const Array1d deltaRhoY = rhoYR - rhoYL;
+        // const Array1d li1 = -roeY;
+        // const Array1d alpha_i = li1 * deltaRho + deltaRhoY;
+        // const Array1d b_delta_alpha_i = b * delta * alpha_i;
+        // flux.species.row(i) = flux_hlle_array_.species.row(i) -
+        //                       b_delta_alpha_2 * roeY - b_delta_alpha_i;
+        const Array1d f_rho = flux.density;
+        const MaskArray upwind = (f_rho > 0.0);
+        const Array1d f_hllem = f_rho * upwind.select(YL, YR);
+        flux.species.row(i) = f_hllem;
       }
     }
   } else {
@@ -637,13 +645,17 @@ void Hllem<EulerEquation>::ComputeNumericFlux(
         const Array1d rhoYR = fub::euler::Species(equation_, right, i);
         const Array1d YL = rhoYL / rhoL;
         const Array1d YR = rhoYR / rhoR;
-        const Array1d roeY = (sqRhoL * YL + sqRhoR * YR) / sqRhoSum;
-        const Array1d deltaRhoY = rhoYR - rhoYL;
-        const Array1d li1 = -roeY;
-        const Array1d alpha_i = li1 * deltaRho + deltaRhoY;
-        const Array1d b_delta_alpha_i = b_delta * alpha_i;
-        flux.species.row(i) = flux_hlle_array_.species.row(i) -
-                              b_delta * alpha_2 * roeY - b_delta_alpha_i;
+        // const Array1d roeY = (sqRhoL * YL + sqRhoR * YR) / sqRhoSum;
+        // const Array1d deltaRhoY = rhoYR - rhoYL;
+        // const Array1d li1 = -roeY;
+        // const Array1d alpha_i = li1 * deltaRho + deltaRhoY;
+        // const Array1d b_delta_alpha_i = b * delta * alpha_i;
+        // flux.species.row(i) = flux_hlle_array_.species.row(i) -
+        //                       b_delta_alpha_2 * roeY - b_delta_alpha_i;
+        const Array1d f_rho = flux.density;
+        const MaskArray upwind = (f_rho > 0.0);
+        const Array1d f_hllem = f_rho * upwind.select(YL, YR);
+        flux.species.row(i) = f_hllem;
       }
     }
   }
