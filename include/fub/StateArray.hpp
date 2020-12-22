@@ -40,12 +40,11 @@ using ArrayStateBase = typename detail::ArrayStateBaseImpl<Depths, Width>::type;
 template <typename Depths, int Width>
 struct ArrayState : ArrayStateBase<Depths, Width> {
   using Traits = StateTraits<ArrayStateBase<Depths, Width>>;
-  static constexpr int Rank = meta::Rank<Depths>::value;
-  using Equation = typename Traits::template Equation<Rank>;
   using Base = ArrayStateBase<Depths, Width>;
 
   using Base::Base;
 
+  template <typename Equation>
   ArrayState(const Equation& eq) : Base{} {
     auto depths = ::fub::Depths(eq, Type<ArrayState>{});
     ForEachVariable(
@@ -104,6 +103,17 @@ struct CharacteristicsArray
 
   using Base::Base;
 };
+
+template <typename Eq, int Width = kDefaultChunkSize>
+struct KineticStateArray : ArrayState<typename Eq::KineticStateDepths, Width> {
+  using Base = ArrayState<typename Eq::KineticStateDepths, Width>;
+
+  using Base::Base;
+};
+
+template <typename Eq, int Width>
+struct StateTraits<KineticStateArray<Eq, Width>>
+    : StateTraits<ArrayState<typename Eq::KineticStateDepths, Width>> {};
 
 template <typename Eq, int Width>
 struct StateTraits<CharacteristicsArray<Eq, Width>>

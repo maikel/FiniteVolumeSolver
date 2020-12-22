@@ -97,7 +97,7 @@ struct MusclHancock2 {
   void ComputeNumericFlux(ConservativeArray& flux, Array1d face_fractions,
                           span<const CompleteArray, 2> stencil,
                           span<const GradientArray, 2> gradient,
-                          span<Array1d, 4> volume_fractions, Duration dt,
+                          span<Array1d, 2> volume_fractions, Duration dt,
                           double dx, Direction dir);
 
   const Equation& GetEquation() const noexcept { return equation_; }
@@ -186,9 +186,21 @@ void MusclHancock2<Equation, GradientMethod, ReconstructionMethod, BaseMethod>::
       volume_fractions.template subspan<0, 3>(), dx, dir);
   gradient_method_.ComputeGradient(
       gradient_array_[1], stencil.template subspan<1, 3>(),
-      volume_fractions.template subspan<0, 3>(), dx, dir);
+      volume_fractions.template subspan<1, 3>(), dx, dir);
+  MaskArray left_mask =
+      (volume_fractions[0] > 0.0 && volume_fractions[1] > 0.0 &&
+       volume_fractions[2] > 0.0);
+  MaskArray right_mask =
+      (volume_fractions[1] > 0.0 && volume_fractions[2] > 0.0 &&
+       volume_fractions[3] > 0.0);
+  ForEachComponent(
+      [&](auto&& x, auto&& y) {
+        x = left_mask.select(x, 0.0);
+        y = right_mask.select(y, 0.0);
+      },
+      gradient_array_[0], gradient_array_[1]);
   ComputeNumericFlux(flux, stencil.template subspan<1, 2>(), gradient_array_,
-                     dt, dx, dir);
+                     volume_fractions.template subspan<1, 2>(), dt, dx, dir);
 }
 
 template <typename Equation, typename GradientMethod,
@@ -197,7 +209,7 @@ void MusclHancock2<Equation, GradientMethod, ReconstructionMethod, BaseMethod>::
     ComputeNumericFlux(ConservativeArray& flux, Array1d face_fractions,
                        span<const CompleteArray, 2> stencil,
                        span<const GradientArray, 2> gradients,
-                       span<Array1d, 4> volume_fractions, Duration dt,
+                       span<Array1d, 2> volume_fractions, Duration dt,
                        double dx, Direction dir) {
   reconstruction_method_.Reconstruct(reconstruction_array_[0], stencil[0],
                                      gradients[0], dt, dx, dir, Side::Upper);

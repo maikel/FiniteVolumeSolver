@@ -755,6 +755,14 @@ struct StateTraits<ViewPointer<State>> : StateTraits<ViewPointerBase<State>> {};
 template <typename State>
 ViewPointer(const ViewPointer<State>&) -> ViewPointer<State>;
 
+template <typename State>
+ViewPointer<std::add_const_t<State>> AsConst(const ViewPointer<State>& p) noexcept
+{
+  ViewPointer<std::add_const_t<State>> cp;
+  ForEachVariable([](auto& cptr, auto ptr) { cptr = ptr; }, cp, p);
+  return cp;
+}
+
 template <typename State, typename Layout, int Rank>
 ViewPointer<State> Begin(const BasicView<State, Layout, Rank>& view) {
   ViewPointer<State> pointer;

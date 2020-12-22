@@ -218,6 +218,7 @@ template <int N> struct PerfectGasMix {
   using Complete = ::fub::Complete<PerfectGasMix<N>>;
   using ConservativeArray = ::fub::ConservativeArray<PerfectGasMix<N>>;
   using CompleteArray = ::fub::CompleteArray<PerfectGasMix<N>>;
+  using KineticState = ::fub::KineticState<PerfectGasMix<N>>;
 
   static constexpr int Rank() noexcept { return N; }
 
@@ -310,15 +311,6 @@ private:
   }
 
   template <typename Density, typename Momentum, typename Energy,
-            typename Species, typename Pressure, typename SpeedOfSound>
-  friend auto
-  tag_invoke(tag_t<euler::Temperature>, const PerfectGasMix& eq,
-             const PerfectGasMixComplete<Density, Momentum, Energy, Species,
-                                         Pressure, SpeedOfSound>& q) noexcept {
-    return eq.Temperature(q);
-  }
-
-  template <typename Density, typename Momentum, typename Energy,
             typename Species>
   friend auto
   tag_invoke(tag_t<euler::InternalEnergy>, const PerfectGasMix& eq,
@@ -342,10 +334,10 @@ private:
     return cv * q.temperature;
   }
 
-  template <typename Complete, typename Kinetic, typename Velocity>
   friend void tag_invoke(tag_t<euler::CompleteFromKineticState>,
                          const PerfectGasMix& eq, Complete& q,
-                         const Kinetic& kin, const Velocity& u) noexcept {
+                         const KineticState& kin,
+                         const Array<double, N, 1>& u) noexcept {
     q.density = kin.density;
     q.momentum = q.density * u;
     const double e = euler::InternalEnergy(eq, kin);
@@ -359,9 +351,8 @@ private:
     }
   }
 
-  template <typename Kinetic, typename Complete>
   friend void tag_invoke(tag_t<euler::KineticStateFromComplete>,
-                         const PerfectGasMix& eq, Kinetic& kin,
+                         const PerfectGasMix& eq, KineticState& kin,
                          const Complete& q) noexcept {
     kin.density = q.density;
     kin.temperature = euler::Temperature(eq, q);
@@ -401,7 +392,15 @@ private:
   tag_invoke(tag_t<euler::Velocity>, const PerfectGasMix&,
              const PerfectGasMixConservative<Density, Momentum, Energy,
                                              Species>& q) noexcept {
-    return q.momentum / q.density;
+    if constexpr (std::is_same_v<double, Density>) {
+      return q.momentum / q.density;
+    } else {
+      Array<double, N> v;
+      for (int i = 0; i < N; ++i) {
+        v.row(i) = q.momentum.row(i) / q.density;
+      }
+      return v;
+    }
   }
 
   template <typename Density, typename Momentum, typename Energy,
@@ -531,9 +530,11 @@ void CompleteFromPrim(const PerfectGasMix<Rank>& equation,
   for (int s = 0; s < equation.n_species; ++s) {
     complete.species.row(s) = prim.density * prim.species.row(s);
   }
-  const Array1d e_kin = euler::KineticEnergy(complete.density, complete.momentum);
+  const Array1d e_kin =
+      euler::KineticEnergy(complete.density, complete.momentum);
   complete.energy = e_kin + complete.pressure * equation.gamma_minus_1_inv;
-  complete.speed_of_sound = (equation.gamma * complete.pressure / complete.density).sqrt();
+  complete.speed_of_sound =
+      (equation.gamma * complete.pressure / complete.density).sqrt();
 }
 
 template <int Rank>
@@ -560,6 +561,55 @@ void PrimFromComplete(const PerfectGasMix<Rank>& equation,
   for (int i = 0; i < equation.n_species; ++i) {
     prim.species.row(i) = complete.species.row(i) / complete.density;
   }
+}
+
+template <int Rank>
+void tag_invoke(tag_t<euler::CompleteFromKineticState>,
+                const PerfectGasMix<Rank>& eq,
+                CompleteArray<PerfectGasMix<Rank>>& q,
+                const KineticStateArray<PerfectGasMix<Rank>>& kin,
+                const Array<double, Rank>& u) noexcept {
+  q.density = kin.density;
+  for (int i = 0; i < Rank; ++i) {
+    q.momentum.row(i) = q.density * u.row(i);
+  }
+  const Array1d e = euler::InternalEnergy(eq, kin);
+  const Array1d rhoE_kin = euler::KineticEnergy(q.density, q.momentum);
+  q.energy = q.density * e + rhoE_kin;
+  const Array1d RT = eq.Rspec * kin.temperature;
+  q.pressure = RT * q.density;
+  q.speed_of_sound = Eigen::sqrt(eq.gamma * RT);
+  const Array1d sum = kin.mole_fractions.colwise().sum();
+  for (int i = 0; i < eq.n_species; i++) {
+    q.species.row(i) = q.density * kin.mole_fractions.row(i) / sum;
+  }
+}
+
+template <int Rank>
+void tag_invoke(tag_t<euler::KineticStateFromComplete>,
+                const PerfectGasMix<Rank>& eq,
+                KineticStateArray<PerfectGasMix<Rank>>& kin,
+                const CompleteArray<PerfectGasMix<Rank>>& q) noexcept {
+  kin.density = q.density;
+  kin.temperature = euler::Temperature(eq, q);
+  kin.mole_fractions.setZero();
+  for (int i = 0; i < eq.n_species; ++i) {
+    kin.mole_fractions.row(i) = q.species.row(i) / q.density;
+  }
+  Array1d sum = kin.mole_fractions.colwise().sum();
+  kin.mole_fractions.row(eq.n_species) = (1.0 - sum).max(0.0);
+}
+
+template <int Rank>
+double tag_invoke(tag_t<euler::Temperature>, const PerfectGasMix<Rank>& eq,
+                  const Complete<PerfectGasMix<Rank>>& q) noexcept {
+  return eq.Temperature(q);
+}
+
+template <int Rank>
+Array1d tag_invoke(tag_t<euler::Temperature>, const PerfectGasMix<Rank>& eq,
+                   const CompleteArray<PerfectGasMix<Rank>>& q) noexcept {
+  return eq.Temperature(q);
 }
 
 /// @{

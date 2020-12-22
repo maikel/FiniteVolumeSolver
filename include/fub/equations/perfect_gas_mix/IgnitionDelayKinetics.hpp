@@ -66,8 +66,8 @@ public:
 
 private:
   OmpLocal<PerfectGasMix<Rank>> equation_;
-  OmpLocal<Complete<PerfectGasMix<Rank>>> state_;
-  OmpLocal<KineticState<PerfectGasMix<Rank>>> kinetic_state_;
+  OmpLocal<CompleteArray<PerfectGasMix<Rank>>> state_;
+  OmpLocal<KineticStateArray<PerfectGasMix<Rank>>> kinetic_state_;
 };
 
 extern template class IgnitionDelayKinetics<1>;
