@@ -1,10 +1,10 @@
 RunOptions = {
-  'cfl': 0.4,# should be between in (0, 1]
-  'final_time': 0.002,
+  'cfl': 0.8,# should be between in (0, 1]
+  'final_time': 0.1,
   'max_cycles': -1, # -1 means infinite and 0 means only initial condition
 }
 
-n_cells = 256
+n_cells = 256*2
 n_levels = 1
 
 GridGeometry = {
@@ -28,13 +28,13 @@ Output = {
   'outputs': [{
     'type': 'Plotfile',
     'directory': 'ReferenceData/LinearShockAxi_{}x{}/'.format(n_cells, n_levels),
-    'intervals': [0.0001],
-  }, {
-    'type': 'HDF5',
-    'path': 'ReferenceData/LinearShockAxi_{}x{}.h5'.format(n_cells, n_levels),
-    'intervals': [0.00001],
+    'intervals': [0.01],
+  #}, {
+    #'type': 'HDF5',
+    #'path': 'ReferenceData/LinearShockAxi_{}x{}.h5'.format(n_cells, n_levels),
+    #'intervals': [0.01],
   }, {
     'type': 'CounterOutput',
-    'intervals': [0.0001]
+    'intervals': [0.01]
   }]
 }

@@ -190,10 +190,8 @@ struct Rank<PerfectGasMixCompleteShape<R>> : int_constant<R> {};
 // This enables us to name and iterate over all member variables in a given
 // compete state.
 template <typename... Xs> struct StateTraits<PerfectGasMixComplete<Xs...>> {
-  static constexpr auto names = std::make_tuple("Density", "Momentum", "Energy",
-                                                "Species"
-                                                "Pressure",
-                                                "SpeedOfSound");
+  static constexpr auto names = std::make_tuple(
+      "Density", "Momentum", "Energy", "Species", "Pressure", "SpeedOfSound");
   static constexpr auto pointers_to_member =
       std::make_tuple(&PerfectGasMixComplete<Xs...>::density,
                       &PerfectGasMixComplete<Xs...>::momentum,
@@ -583,6 +581,14 @@ void tag_invoke(tag_t<euler::CompleteFromKineticState>,
   for (int i = 0; i < eq.n_species; i++) {
     q.species.row(i) = q.density * kin.mole_fractions.row(i) / sum;
   }
+}
+
+template <int Rank>
+void tag_invoke(tag_t<euler::CompleteFromKineticState>,
+                const PerfectGasMix<Rank>& eq, Complete<PerfectGasMix<Rank>>& q,
+                const KineticState<PerfectGasMix<Rank>>& kin) noexcept {
+  Array<double, Rank, 1> u = Array<double, Rank, 1>::Zero();
+  euler::CompleteFromKineticState(eq, q, kin, u);
 }
 
 template <int Rank>

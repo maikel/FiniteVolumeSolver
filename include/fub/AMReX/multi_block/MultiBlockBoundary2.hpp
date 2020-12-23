@@ -1,0 +1,207 @@
+// Copyright (c) 2020 Maikel Nadolski
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+#ifndef FUB_AMREX_MULTI_BLOCK_BOUNDARY2_HPP
+#define FUB_AMREX_MULTI_BLOCK_BOUNDARY2_HPP
+
+#include "fub/AMReX/multi_block/MultiBlockBoundary.hpp"
+
+#include "fub/Direction.hpp"
+#include "fub/Duration.hpp"
+#include "fub/PatchDataView.hpp"
+
+#include <AMReX.H>
+#include <AMReX_MultiFab.H>
+
+#include <vector>
+
+namespace fub::amrex {
+
+/// \ingroup BoundaryCondition
+///
+class MultiBlockBoundaryBase {
+public:
+  /// Constructs coupled boundary states by pre computing mirror and ghost
+  /// states for each of the specified domains.
+  ///
+  /// This function might grow the specified mirror boxes to an extent which is
+  /// required to fulfill the specified ghost cell width requirements.
+  MultiBlockBoundaryBase(const MultiBlockGriddingAlgorithm& gridding,
+                         const BlockConnection& connection, int gcw, int level);
+
+  MultiBlockBoundaryBase(const MultiBlockBoundaryBase& other);
+
+  /// Precompute Boundary states for each domain.
+  ///
+  /// Subsequent calls to FillBoundary will use these computed boundary states.
+  ///
+  /// \param[in] plenum  The higher dimensional patch hierarchy with geometry
+  /// information. States here will be conservatively averaged and projected
+  /// onto a one-dimesnional space.
+  ///
+  /// \param[in] tube The low dimensional tube data.
+  void ComputeBoundaryData(const cutcell::PatchHierarchy& plenum,
+                           const PatchHierarchy& tube);
+
+  /// Assuming that mf represents a MultiFab living in the higher dimensional
+  /// plenum simulation its ghost layer will be filled with data from the tube
+  /// simulation.
+  void FillBoundary(::amrex::MultiFab& mf,
+                    const cutcell::GriddingAlgorithm& gridding, int level);
+
+  void FillBoundary(::amrex::MultiFab& mf,
+                    const cutcell::GriddingAlgorithm& gridding, int level,
+                    Direction dir) {
+    if (dir == dir_) {
+      FillBoundary(mf, gridding, level);
+    }
+  }
+
+  /// Assuming that mf represents a MultiFab living in the one dimensional tube
+  /// simulation its ghost layer will be filled with data from the plenum
+  /// simulation.
+  void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding,
+                    int level);
+
+  void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding,
+                    int level, Direction dir) {
+    if (dir == dir_) {
+      FillBoundary(mf, gridding, level);
+    }
+  }
+
+private:
+  ::amrex::Box plenum_mirror_box_{};
+  ::amrex::Box tube_mirror_box_{};
+
+  std::unique_ptr<::amrex::FArrayBox> plenum_mirror_data_{};
+  std::unique_ptr<::amrex::FArrayBox> tube_ghost_data_{};
+
+  std::unique_ptr<::amrex::FArrayBox> tube_mirror_data_{};
+  std::unique_ptr<::amrex::FArrayBox> plenum_ghost_data_{};
+
+  Direction dir_{};
+  int side_{};
+  int level_{};
+  int gcw_{};
+
+  virtual void
+  FillTubeGhostLayer(::amrex::FArrayBox& tube_ghost_data,
+                     const ::amrex::FArrayBox& plenum_mirror_data) = 0;
+  virtual void
+  FillPlenumGhostLayer(::amrex::FArrayBox& plenum_ghost_data,
+                       const ::amrex::FArrayBox& tube_mirror_data) = 0;
+};
+
+template <typename TubeEquation, typename PlenumEquation>
+void ReduceStateDimension(TubeEquation& tube_equation,
+                          Complete<TubeEquation>& dest,
+                          PlenumEquation& /* plenum_equation */,
+                          const Conservative<PlenumEquation>& src) {
+  dest.density = src.density;
+  for (int i = 0; i < dest.momentum.size(); ++i) {
+    dest.momentum[i] = src.momentum[i];
+  }
+  dest.species = src.species;
+  dest.energy = src.energy;
+  CompleteFromCons(tube_equation, dest, AsCons(dest));
+}
+
+template <typename PlenumEquation, typename TubeEquation>
+void EmbedState(PlenumEquation& plenum_equation, Complete<PlenumEquation>& dest,
+                TubeEquation& /* tube_equation */,
+                const Conservative<TubeEquation>& src) {
+  dest.density = src.density;
+  dest.momentum.setZero();
+  for (int i = 0; i < src.momentum.size(); ++i) {
+    dest.momentum[i] = src.momentum[i];
+  }
+  dest.species = src.species;
+  dest.energy = src.energy;
+  CompleteFromCons(plenum_equation, dest, AsCons(dest));
+}
+
+template <typename TubeEquation, typename PlenumEquation>
+class MultiBlockBoundary2 : public MultiBlockBoundaryBase {
+  static_assert(TubeEquation::Rank() <= PlenumEquation::Rank());
+
+  MultiBlockBoundary2(const TubeEquation& tube_equation,
+                      const PlenumEquation& plenum_equation,
+                      const MultiBlockGriddingAlgorithm& gridding,
+                      const BlockConnection& connection, int gcw, int level)
+      : MultiBlockBoundaryBase(gridding, connection, gcw, level),
+        tube_equation_(tube_equation), plenum_equation_(plenum_equation) {}
+
+  MultiBlockBoundary2(const MultiBlockBoundary2& other)
+      : MultiBlockBoundaryBase(other), tube_equation_(other.tube_equation_),
+        plenum_equation_(other.plenum_equation_) {}
+
+private:
+  TubeEquation tube_equation_;
+  PlenumEquation plenum_equation_;
+
+  void FillTubeGhostLayer(
+      ::amrex::FArrayBox& tube_ghost_data,
+      const ::amrex::FArrayBox& plenum_mirror_data) override final {
+    BasicView cons_states = MakeView<const Conservative<PlenumEquation>>(
+        plenum_mirror_data, plenum_equation_);
+    BasicView complete_states =
+        MakeView<Complete<TubeEquation>>(tube_ghost_data, tube_equation_);
+    Conservative<PlenumEquation> cons(plenum_equation_);
+    Complete<TubeEquation> complete(tube_equation_);
+    const std::ptrdiff_t i0 = plenum_mirror_data.box().smallEnd(0);
+    const std::ptrdiff_t j0 = tube_ghost_data.box().smallEnd(0);
+    ForEachIndex(Box<0>(complete_states), [&](std::ptrdiff_t j) {
+      const std::ptrdiff_t k = j - j0;
+      const std::ptrdiff_t i = i0 + k;
+      Load(cons, cons_states, {i});
+      if (cons.density > 0.0) {
+        ReduceStateDimension(tube_equation_, complete, plenum_equation_, cons);
+        Store(complete_states, complete, {j});
+      }
+    });
+  }
+
+  void FillPlenumGhostLayer(
+      ::amrex::FArrayBox& plenum_ghost_data,
+      const ::amrex::FArrayBox& tube_mirror_data) override final {
+    BasicView cons_states =
+        MakeView<Conservative<TubeEquation>>(tube_mirror_data, tube_equation_);
+    BasicView complete_states =
+        MakeView<Complete<PlenumEquation>>(plenum_ghost_data, plenum_equation_);
+    Conservative<TubeEquation> cons(tube_equation_);
+    Complete<PlenumEquation> complete(plenum_equation_);
+    const std::ptrdiff_t i0 = Box<0>(cons_states).lower[0];
+    const std::ptrdiff_t j0 = Box<0>(complete_states).lower[0];
+    ForEachIndex(Box<0>(cons_states), [&](std::ptrdiff_t i) {
+      const std::ptrdiff_t k = i - i0;
+      const std::ptrdiff_t j = j0 + k;
+      Load(cons, cons_states, {i});
+      if (cons.density > 0.0) {
+        EmbedState(plenum_equation_, complete, tube_equation_, cons);
+        Store(complete_states, complete, {j});
+      }
+    });
+  }
+};
+
+} // namespace fub::amrex
+
+#endif

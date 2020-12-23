@@ -181,12 +181,10 @@ void MusclHancock2<Equation, GradientMethod, ReconstructionMethod, BaseMethod>::
                        span<const CompleteArray, 4> stencil,
                        span<Array1d, 4> volume_fractions, Duration dt,
                        double dx, Direction dir) {
-  gradient_method_.ComputeGradient(
-      gradient_array_[0], stencil.template subspan<0, 3>(),
-      volume_fractions.template subspan<0, 3>(), dx, dir);
-  gradient_method_.ComputeGradient(
-      gradient_array_[1], stencil.template subspan<1, 3>(),
-      volume_fractions.template subspan<1, 3>(), dx, dir);
+  gradient_method_.ComputeGradient(gradient_array_[0],
+                                   stencil.template subspan<0, 3>(), dx, dir);
+  gradient_method_.ComputeGradient(gradient_array_[1],
+                                   stencil.template subspan<1, 3>(), dx, dir);
   MaskArray left_mask =
       (volume_fractions[0] > 0.0 && volume_fractions[1] > 0.0 &&
        volume_fractions[2] > 0.0);
@@ -199,8 +197,9 @@ void MusclHancock2<Equation, GradientMethod, ReconstructionMethod, BaseMethod>::
         y = right_mask.select(y, 0.0);
       },
       gradient_array_[0], gradient_array_[1]);
-  ComputeNumericFlux(flux, stencil.template subspan<1, 2>(), gradient_array_,
-                     volume_fractions.template subspan<1, 2>(), dt, dx, dir);
+  ComputeNumericFlux(flux, face_fractions, stencil.template subspan<1, 2>(),
+                     gradient_array_, volume_fractions.template subspan<1, 2>(),
+                     dt, dx, dir);
 }
 
 template <typename Equation, typename GradientMethod,
@@ -217,6 +216,7 @@ void MusclHancock2<Equation, GradientMethod, ReconstructionMethod, BaseMethod>::
                                      gradients[1], dt, dx, dir, Side::Lower);
   flux_method_.ComputeNumericFlux(flux, face_fractions, reconstruction_array_,
                                   volume_fractions, dt, dx, dir);
+  ForEachVariable([](auto&& f) { FUB_ASSERT(!f.isNaN().any()); }, flux);
 }
 
 } // namespace fub

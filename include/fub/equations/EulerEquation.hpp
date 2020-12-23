@@ -216,6 +216,19 @@ inline constexpr struct CompleteFromKineticStateFn {
                            std::forward<Dest>(dest), std::forward<State>(state),
                            std::forward<Velocity>(velocity));
   }
+
+  template <
+      typename Equation, typename Dest, typename State,
+      typename = std::enable_if_t<is_tag_invocable<
+          CompleteFromKineticStateFn, Equation, Dest, State>::value>>
+  constexpr auto operator()(Equation&& eq, Dest&& dest, State&& state) const
+      noexcept(is_nothrow_tag_invocable<CompleteFromKineticStateFn, Equation,
+                                        Dest, State>::value)
+          -> tag_invoke_result_t<CompleteFromKineticStateFn, Equation, Dest,
+                                 State> {
+    return fub::tag_invoke(*this, std::forward<Equation>(eq),
+                           std::forward<Dest>(dest), std::forward<State>(state));
+  }
 } CompleteFromKineticState;
 
 inline constexpr struct SetIsentropicPressureFn {

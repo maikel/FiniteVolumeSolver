@@ -49,7 +49,8 @@ void MyMain(const fub::ProgramOptions& options) {
                             Rectangle({-1.0, -1.0}, {0.0, -0.015}));
   auto shop = amrex::EB2::makeShop(embedded_boundary);
 
-  fub::PerfectGasMix<2> equation(mech);
+  fub::PerfectGasMix<2> equation{};
+  equation.n_species = 2;
 
   fub::amrex::CartesianGridGeometry grid_geometry(
       fub::GetOptions(options, "GridGeometry"));
@@ -67,18 +68,20 @@ void MyMain(const fub::ProgramOptions& options) {
         MakeIndexSpaces(shop, grid_geometry, hierarchy_options);
   }
 
-  fub::KineticState<fub::PerfectGasMix<2>> kin;
+  fub::KineticState<fub::PerfectGasMix<2>> kin(equation);
   kin.temperature = 1.0;
   kin.density = 1.0;
   kin.mole_fractions[0] = 1.0;
   kin.mole_fractions[1] = 0.0;
   kin.mole_fractions[2] = 0.0;
+  fub::Array<double, 2, 1> velocity;
+  velocity.setZero();
 
   fub::Complete<fub::PerfectGasMix<2>> right{equation};
   fub::euler::CompleteFromKineticState(equation, right, kin);
 
-  kin.density = 1.0 / 4.0;
-  fub::Complete<fub::PerfectGasMix<2>> left{equation};  
+  kin.temperature = 4.0;
+  fub::Complete<fub::PerfectGasMix<2>> left{equation};
   fub::euler::CompleteFromKineticState(equation, left, kin);
 
   RiemannProblem initial_data(equation, fub::Halfspace({+1.0, 0.0, 0.0}, -0.04),
@@ -106,7 +109,7 @@ void MyMain(const fub::ProgramOptions& options) {
       fub::CharacteristicsGradient<
           fub::PerfectGasMix<2>,
           fub::CentralDifferenceGradient<fub::VanLeerLimiter>>,
-      fub::CharacteristicsReconstruction<fub::PerfectGasMix<1>>, HLLEM>>;
+      fub::CharacteristicsReconstruction<fub::PerfectGasMix<2>>, HLLEM>>;
 
   HLLEM hllem_method{equation};
   CharacteristicsReconstruction flux_method(equation);

@@ -162,8 +162,7 @@ void Hllem<EulerEquation>::SolveRiemannProblem(Complete& solution,
         const double li1 = -roeY;
         const double li4 = 1.0;
         const double alpha_i = li1 * deltaRho + li4 * deltaRhoY;
-        w_hllem_.species[i] = w_hlle_.species[i] -
-                              u_bar_delta_alpha_2 * roeY -
+        w_hllem_.species[i] = w_hlle_.species[i] - u_bar_delta_alpha_2 * roeY -
                               u_bar * delta * alpha_i;
       }
     }
@@ -447,8 +446,6 @@ void Hllem<EulerEquation>::ComputeNumericFlux(
   const CompleteArray& left = states[0];
   const CompleteArray& right = states[1];
 
-  ConservativeArray fluxL;
-  ConservativeArray fluxR;
   fub::Flux(equation_, fluxL_array_, left, dir);
   fub::Flux(equation_, fluxR_array_, right, dir);
 
@@ -665,167 +662,11 @@ template <typename EulerEquation>
 void Hllem<EulerEquation>::ComputeNumericFlux(
     ConservativeArray& flux, Array1d face_fractions,
     span<const CompleteArray, 2> states,
-    span<const Array1d, 2> /* volume_fractions */, Duration /* dt */,
-    double /* dx */, Direction dir) {
-  static constexpr int Dim = EulerEquation::Rank();
-  const CompleteArray& left = states[0];
-  const CompleteArray& right = states[1];
-
+    span<const Array1d, 2> /* volume_fractions */, Duration dt,
+    double dx, Direction dir) {
+  ComputeNumericFlux(flux, states, dt, dx, dir);
   MaskArray face_mask = face_fractions > 0.0;
-
-  ConservativeArray fluxL;
-  ConservativeArray fluxR;
-  equation_.Flux(fluxL, left, face_mask, dir);
-  equation_.Flux(fluxR, right, face_mask, dir);
-
-  const Array1d gm1 = (equation_.gamma_array_ - Array1d::Constant(1.0));
-  const Array1d beta = (gm1 / (2 * equation_.gamma_array_)).sqrt();
-
-  // Compute Einfeldt signals velocities
-
-  const Array1d ones = Array1d::Constant(1.0);
-  const Array1d zeros = Array1d::Constant(0.0);
-
-  const Array1d rhoL = face_mask.select(left.density, ones);
-  const Array1d rhoR = face_mask.select(right.density, ones);
-  FUB_ASSERT((rhoL > 0.0).all());
-  FUB_ASSERT((rhoR > 0.0).all());
-  const Array1d aL = face_mask.select(left.speed_of_sound, zeros);
-  const Array1d aR = face_mask.select(right.speed_of_sound, zeros);
-  const Array1d rhoEL = face_mask.select(left.energy, zeros);
-  const Array1d rhoER = face_mask.select(right.energy, zeros);
-  const Array1d pL = face_mask.select(left.pressure, zeros);
-  const Array1d pR = face_mask.select(right.pressure, zeros);
-  const Array1d hL = (rhoEL + pL) / rhoL;
-  const Array1d hR = (rhoER + pR) / rhoR;
-  const Array1d sqRhoL = rhoL.sqrt();
-  const Array1d sqRhoR = rhoR.sqrt();
-  const Array1d sqRhoSum = sqRhoL + sqRhoR;
-  const Array1d sqRhoL_over_Sum = sqRhoL / sqRhoSum;
-  const Array1d sqRhoR_over_Sum = sqRhoR / sqRhoSum;
-
-  Array<double, Dim> uL;
-  Array<double, Dim> uR;
-  Array<double, Dim> roeU;
-  for (int i = 0; i < Dim; ++i) {
-    uL.row(i) = face_mask.select(left.momentum.row(i) / rhoL, zeros);
-    uR.row(i) = face_mask.select(right.momentum.row(i) / rhoR, zeros);
-    roeU.row(i) = sqRhoL_over_Sum * uL.row(i) + sqRhoR_over_Sum * uR.row(i);
-  }
-  const Array1d roeH = sqRhoL_over_Sum * hL + sqRhoR_over_Sum * hR;
-
-  Array1d squaredNormRoeU = Array1d::Zero();
-  for (int i = 0; i < Dim; ++i) {
-    squaredNormRoeU += roeU.row(i) * roeU.row(i);
-  }
-  const Array1d squaredNormRoeU_half = 0.5 * squaredNormRoeU;
-
-  const Array1d roeA2 = gm1 * (roeH - squaredNormRoeU_half);
-  const Array1d roeA = roeA2.sqrt();
-
-  const Array1d sL1 = uL.row(int(dir)) - beta * aL;
-  const Array1d sL2 = roeU.row(int(dir)) - roeA;
-  const Array1d sR1 = roeU.row(int(dir)) + roeA;
-  const Array1d sR2 = uR.row(int(dir)) + beta * aR;
-
-  const Array1d sL = sL1.min(sL2);
-  const Array1d sR = sR1.max(sR2);
-
-  const Array1d bL = sL.min(zeros);
-  const Array1d bR = sR.max(zeros);
-  const Array1d bLbR = bL * bR;
-  const Array1d db = bR - bL;
-  const Array1d db_positive = (db > 0.0).select(db, ones);
-
-  ConservativeArray flux_hlle{};
-  ForEachComponent(
-      [&](auto&& nf, Array1d fL, Array1d fR, Array1d qL, Array1d qR) {
-        nf = (bR * fL - bL * fR + bLbR * (qR - qL)) / db_positive;
-      },
-      flux_hlle, fluxL, fluxR, AsCons(left), AsCons(right));
-
-  const Array1d u_bar = 0.5 * (sR + sL);
-  const Array1d u_bar_abs = u_bar.abs();
-
-  const Array1d u_signal = face_mask.select(roeA + u_bar_abs, ones);
-  const Array1d delta = roeA / u_signal;
-  const Array1d b = bLbR / db_positive;
-
-  const Array1d deltaRho = rhoR - rhoL;
-  const Array<double, Dim> deltaRhoU = right.momentum - left.momentum;
-  const Array1d deltaRhoE = rhoER - rhoEL;
-
-  const Array1d gm1_over_roeA2 = face_mask.select(gm1 / roeA2, zeros);
-
-  if constexpr (Dim == 1) {
-    const Array1d l21 = gm1_over_roeA2 * (roeH - squaredNormRoeU);
-    const Array1d l22 = gm1_over_roeA2 * roeU;
-    const Array1d l23 = gm1_over_roeA2 * (-1.0);
-    const Array1d alpha_2 = l21 * deltaRho + l22 * deltaRhoU + l23 * deltaRhoE;
-    const Array1d b_delta_alpha_2 = b * delta * alpha_2;
-
-    flux.density = flux_hlle.density - b_delta_alpha_2;
-    flux.momentum = flux_hlle.momentum - b_delta_alpha_2 * roeU;
-    flux.energy = flux_hlle.energy - b_delta_alpha_2 * squaredNormRoeU_half;
-  } else if constexpr (Dim == 2) {
-    const int ix = int(dir);
-    const int iy = (ix == 0);
-    const Array1d l21 = gm1_over_roeA2 * (roeH - squaredNormRoeU);
-    const Array1d l22 = gm1_over_roeA2 * roeU.row(0);
-    const Array1d l23 = gm1_over_roeA2 * roeU.row(1);
-    const Array1d l24 = -gm1_over_roeA2;
-    const Array1d alpha_2 = l21 * deltaRho + l22 * deltaRhoU.row(0) +
-                            l23 * deltaRhoU.row(1) + l24 * deltaRhoE;
-    const Array1d l31 = -roeU.row(iy);
-    // const Array1d l32 = 0;
-    // const Array1d l33 = 1;
-    // const Array1d l34 = 0;
-    const Array1d alpha_3 = l31 * deltaRho + deltaRhoU.row(iy);
-    const Array1d b_delta = b * delta;
-    const Array1d b_delta_alpha_2 = b_delta * alpha_2;
-    const Array1d b_delta_alpha_3 = b_delta * alpha_3;
-    flux.density = flux_hlle.density - b_delta_alpha_2;
-    flux.momentum.row(ix) =
-        flux_hlle.momentum.row(ix) - b_delta_alpha_2 * roeU.row(ix);
-    flux.momentum.row(iy) = flux_hlle.momentum.row(iy) -
-                            b_delta_alpha_2 * roeU.row(iy) - b_delta_alpha_3;
-    flux.energy = flux_hlle.energy - b_delta_alpha_2 * squaredNormRoeU_half -
-                  b_delta_alpha_3 * roeU.row(iy);
-  } else {
-    static_assert(Dim == 3);
-    const int ix = int(dir);
-    const int iy = (ix + 1) % 3;
-    const int iz = (iy + 1) % 3;
-    const Array1d l21 = gm1_over_roeA2 * (roeH - squaredNormRoeU);
-    const Array1d l22 = gm1_over_roeA2 * roeU.row(0);
-    const Array1d l23 = gm1_over_roeA2 * roeU.row(1);
-    const Array1d l24 = gm1_over_roeA2 * roeU.row(2);
-    const Array1d l25 = -gm1_over_roeA2;
-    const Array1d l31 = -roeU.row(iy);
-    // const Array1d l32 = 0;
-    // const Array1d l33 = 1.0;
-    // const Array1d l34 = 0;
-    const Array1d l41 = -roeU.row(iz);
-    // const Array1d l32 = 0;
-    // const Array1d l33 = 0;
-    // const Array1d l44 = 1.0;
-    const Array1d alpha_2 = l21 * deltaRho + l22 * deltaRhoU.row(0) +
-                            l23 * deltaRhoU.row(1) + l24 * deltaRhoU.row(2) +
-                            l25 * deltaRhoE;
-    const Array1d alpha_3 = l31 * deltaRho + deltaRhoU.row(iy);
-    const Array1d alpha_4 = l41 * deltaRho + deltaRhoU.row(iz);
-    const Array1d b_delta = b * delta;
-    flux.density = flux_hlle.density - b_delta * alpha_2;
-    flux.momentum.row(ix) =
-        flux_hlle.momentum.row(ix) - b_delta * alpha_2 * roeU.row(iy);
-    flux.momentum.row(iy) = flux_hlle.momentum.row(iy) -
-                            b_delta * (alpha_2 * roeU.row(iy) + alpha_3);
-    flux.momentum.row(iz) = flux_hlle.momentum.row(iz) -
-                            b_delta * (alpha_2 * roeU.row(iz) + alpha_4);
-    flux.energy = flux_hlle.energy -
-                  b_delta * (alpha_2 * squaredNormRoeU_half +
-                             alpha_3 * roeU.row(iy) + alpha_4 * roeU.row(iz));
-  }
+  ForEachComponent([&face_mask](auto&& f) { f = face_mask.select(f, 0.0); }, flux);
   FUB_ASSERT(!flux.density.isNaN().any());
   FUB_ASSERT(!flux.momentum.isNaN().any());
   FUB_ASSERT(!flux.energy.isNaN().any());
