@@ -484,8 +484,8 @@ private:
     const double rho_new =
         std::pow(p_new / q0.pressure, 1 / eq.gamma) * q0.density;
     const Array<double, N, 1> u0 = euler::Velocity(eq, q0);
-    const Array<double, N, 1> u_new =
-        u0 +
+    Array<double, N, 1> u_new = u0;
+    u_new[0] = u0[0] +
         2.0 * std::sqrt(eq.gamma * q0.pressure / q0.density) *
             eq.gamma_minus_1_inv -
         2.0 * std::sqrt(eq.gamma * p_new / rho_new) * eq.gamma_minus_1_inv;
@@ -600,10 +600,15 @@ void tag_invoke(tag_t<euler::KineticStateFromComplete>,
   kin.temperature = euler::Temperature(eq, q);
   kin.mole_fractions.setZero();
   for (int i = 0; i < eq.n_species; ++i) {
-    kin.mole_fractions.row(i) = q.species.row(i) / q.density;
+    kin.mole_fractions.row(i) = (q.species.row(i) / q.density).max(0.0);
   }
   Array1d sum = kin.mole_fractions.colwise().sum();
   kin.mole_fractions.row(eq.n_species) = (1.0 - sum).max(0.0);
+  sum = kin.mole_fractions.colwise().sum();
+  for (int i = 0; i < eq.n_species + 1; ++i) {
+    kin.mole_fractions.row(i) /= sum;
+  }
+  FUB_ASSERT(kin.mole_fractions.colwise().sum().isApproxToConstant(1.0));
 }
 
 template <int Rank>

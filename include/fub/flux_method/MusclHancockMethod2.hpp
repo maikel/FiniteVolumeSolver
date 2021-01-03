@@ -216,7 +216,7 @@ void MusclHancock2<Equation, GradientMethod, ReconstructionMethod, BaseMethod>::
                                      gradients[1], dt, dx, dir, Side::Lower);
   flux_method_.ComputeNumericFlux(flux, face_fractions, reconstruction_array_,
                                   volume_fractions, dt, dx, dir);
-  ForEachVariable([](auto&& f) { FUB_ASSERT(!f.isNaN().any()); }, flux);
+  ForEachVariable([]([[maybe_unused]] auto&& f) { FUB_ASSERT(!f.isNaN().any()); }, flux);
 }
 
 } // namespace fub

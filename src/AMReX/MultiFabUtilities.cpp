@@ -50,7 +50,8 @@ double GetMeanValueInBox(const ::amrex::MultiFab& data, const ::amrex::Box& box,
   OmpLocal<double> omp_local_value{double{0.0}};
   ForEachFab(execution::openmp, data, [&](const ::amrex::MFIter& mfi) {
     const ::amrex::FArrayBox& fab = data[mfi];
-    *omp_local_value += fab.sum(box, component) / volume;
+    const ::amrex::Box subbox = box & fab.box();
+    *omp_local_value += fab.sum(subbox, component) / volume;
   });
   const double local_value = omp_local_value.Accumulate();
   double average_value = 0.0;

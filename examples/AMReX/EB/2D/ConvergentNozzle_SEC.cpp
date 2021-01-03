@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Maikel Nadolski
+// Copyright (c) 2020 Maikel Nadolski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,6 +22,18 @@
 #include "fub/AMReX_CutCell.hpp"
 #include "fub/Solver.hpp"
 
+#include "fub/AMReX/boundary_condition/GenericPressureValveBoundary.hpp"
+#include "fub/equations/PerfectGasMix.hpp"
+#include "fub/equations/perfect_gas_mix/IgnitionDelayKinetics.hpp"
+#include "fub/flux_method/MusclHancockMethod2.hpp"
+
+#include "fub/AMReX/multi_block/MultiBlockBoundary2.hpp"
+#include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm2.hpp"
+#include "fub/AMReX/multi_block/MultiBlockIntegratorContext2.hpp"
+
+#include "fub/AMReX/cutcell/boundary_condition/IsentropicPressureExpansion.hpp"
+#include "fub/AMReX/cutcell/boundary_condition/MachnumberBoundary.hpp"
+
 #include <AMReX_EB2.H>
 #include <AMReX_EB2_IF_Box.H>
 #include <AMReX_EB2_IF_Complement.H>
@@ -35,6 +47,7 @@
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/archive/text_oarchive.hpp>
 
+#include <AMReX_EB2_IF_Box.H>
 #include <AMReX_EB2_IF_Cylinder.H>
 #include <AMReX_EB2_IF_Intersection.H>
 #include <AMReX_EB2_IF_Plane.H>
@@ -50,6 +63,44 @@ static constexpr int Plenum_Rank = 2;
 static_assert(AMREX_SPACEDIM == 2);
 
 static constexpr double r_tube = 0.015;
+
+struct InitialDataInTube {
+  using Equation = fub::PerfectGasMix<1>;
+  using Complete = fub::Complete<Equation>;
+  using KineticState = fub::KineticState<Equation>;
+  using Conservative = fub::Conservative<Equation>;
+
+  Equation equation_;
+  double x_0_;
+
+  void InitializeData(fub::amrex::PatchLevel& patch_level,
+                      const fub::amrex::GriddingAlgorithm& grid, int level,
+                      fub::Duration /*time*/) const {
+    const amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
+    amrex::MultiFab& data = patch_level.data;
+    fub::amrex::ForEachFab(
+        fub::execution::openmp, data, [&](amrex::MFIter& mfi) {
+          KineticState state(equation_);
+          Complete complete(equation_);
+          fub::Array<double, 1, 1> velocity{0.0};
+          fub::View<Complete> states = fub::amrex::MakeView<Complete>(
+              data[mfi], equation_, mfi.tilebox());
+          fub::ForEachIndex(fub::Box<0>(states), [&](std::ptrdiff_t i) {
+            const double x = geom.CellCenter(int(i), 0);
+            const double rel_x = x - x_0_;
+            const double pressure = 1.0;
+            state.temperature = (rel_x < 0.5) ? 1.0 : 2.5;
+            state.density = pressure / state.temperature / equation_.Rspec;
+            state.mole_fractions[0] = 0.0;
+            state.mole_fractions[1] = (rel_x < 0.4) ? 1.0 : 0.0;
+            state.mole_fractions[2] = !(rel_x < 0.4) ? 1.0 : 0.0;
+            fub::euler::CompleteFromKineticState(equation_, complete, state,
+                                                 velocity);
+            fub::Store(states, complete, {i});
+          });
+        });
+  }
+};
 
 auto MakeTubeSolver(const fub::ProgramOptions& options,
                     const std::shared_ptr<fub::CounterRegistry>& counters) {
@@ -71,9 +122,8 @@ auto MakeTubeSolver(const fub::ProgramOptions& options,
   using Complete = Eq::Complete;
   fub::PerfectGasMix<Tube_Rank> equation{};
   equation.n_species = 2;
-  GradientDetector gradient{equation, std::make_pair(&Complete::density, 1e-3),
-                            std::make_pair(&Complete::pressure, 1e-2),
-                            std::make_pair(&Complete::temperature, 1e-1)};
+  GradientDetector gradient{equation, std::make_pair(&Complete::density, 1e-2),
+                            std::make_pair(&Complete::pressure, 1e-2)};
 
   DataDescription desc = MakeDataDescription(equation);
 
@@ -81,20 +131,7 @@ auto MakeTubeSolver(const fub::ProgramOptions& options,
                           {grid_geometry.cell_dimensions[0] - 1, 0}};
   ConstantBox constant_box{refine_box};
 
-  Complete state(equation);
-  {
-    using namespace std::literals;
-    const fub::ProgramOptions initial_options =
-        fub::GetOptions(options, "InitialCondition");
-    KineticState<Eq> kin(equation);
-    kin.temperature = fub::GetOptionOr(initial_options, "temperature", 1.0);
-    kin.density = fub::GetOptionOr(initial_options, "density", 1.0);
-    kin.mole_fractions[0] = 0.0;
-    kin.mole_fractions[1] = 0.0;
-    kin.mole_fractions[2] = 1.0;
-    euler::CompleteFromKineticState(equation, complete, kin);
-  }
-  ConstantData initial_data{equation, state};
+  InitialDataInTube initial_data{equation, grid_geometry.coordinates.lo()[0]};
 
   fub::perfect_gas_mix::IgnitionDelayKinetics<1> source_term{equation};
 
@@ -134,6 +171,8 @@ auto MakeTubeSolver(const fub::ProgramOptions& options,
     }
     kin.mole_fractions[2] = std::max(
         0.0, 10.0 * std::min(1.0, 1.0 - (dt - buffer) / pbufwidth / buffer));
+    const double sum = kin.mole_fractions.sum();
+    kin.mole_fractions /= sum;
   };
 
   fub::amrex::GenericPressureValveBoundary valve(equation, inflow_function, {});
@@ -172,7 +211,7 @@ auto MakeTubeSolver(const fub::ProgramOptions& options,
   using CharacteristicsReconstruction = fub::FluxMethod<fub::MusclHancock2<
       Eq,
       fub::CharacteristicsGradient<
-          Eq, fub::CentralDifferenceGradient<fub::VanLeerLimiter>>,
+          Eq, fub::CentralDifferenceGradient<fub::MinModLimiter>>,
       fub::CharacteristicsReconstruction<Eq>, HLLEM>>;
 
   CharacteristicsReconstruction flux_method{equation};
@@ -190,8 +229,7 @@ auto MakeTubeSolver(const fub::ProgramOptions& options,
   return context;
 }
 
-auto MakePlenumSolver(fub::Burke2012& mechanism,
-                      const std::map<std::string, pybind11::object>& options) {
+auto MakePlenumSolver(const std::map<std::string, pybind11::object>& options) {
   fub::SeverityLogger log = fub::GetInfoLogger();
   BOOST_LOG(log) << "==================== Plenum =========================";
   using namespace fub::amrex::cutcell;
@@ -205,12 +243,21 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
     return fub::Polygon(std::move(xs), std::move(ys));
   };
 
+  double r_inlet_start = r_tube;
+  double r_inlet_end = 0.5 * r_tube;
+  {
+    const fub::ProgramOptions inlet_options =
+        fub::GetOptions(options, "InletGeometry");
+    r_inlet_start = fub::GetOptionOr(inlet_options, "r_start", r_inlet_start);
+    r_inlet_end = fub::GetOptionOr(inlet_options, "r_end", r_inlet_end);
+  }
+
   auto ConvergentInlet = [&](double height,
                              const std::array<double, Plenum_Rank>& center) {
     const double xlo = center[0] - height;
     const double xhi = center[0];
-    constexpr double r = r_tube;
-    constexpr double r2 = 0.5 * r_tube;
+    const double r = r_inlet_start;
+    const double r2 = r_inlet_end;
     const double xdiv = xhi - 4.0 * r;
     auto polygon =
         MakePolygon(std::pair{xlo, r}, std::pair{xdiv, r}, std::pair{xhi, r2},
@@ -222,9 +269,28 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
     return tube_in_center;
   };
 
-  auto embedded_boundary = amrex::EB2::makeIntersection(
-      amrex::EB2::PlaneIF({0.0, 0.0}, {1.0, 0.0}, false),
-      ConvergentInlet(2.0, {0.0, 0.0}));
+  const fub::ProgramOptions blade_options =
+      fub::GetOptions(options, "BladeGeometry");
+  const double x0 = fub::GetOptionOr(blade_options, "x0", 4.0 * r_tube);
+  const double dx = fub::GetOptionOr(blade_options, "dx", 4.0 * r_tube);
+  const double y0 = fub::GetOptionOr(blade_options, "y0", 0.0);
+  const double dy = fub::GetOptionOr(blade_options, "dy", r_tube);
+  const double dBox = fub::GetOptionOr(blade_options, "dBox", r_tube);
+  auto Box = [&](double y) {
+    amrex::RealArray lo{x0, y0 + y};
+    amrex::RealArray hi{x0 + dx, y0 + y + dy};
+    return amrex::EB2::BoxIF(lo, hi, false);
+  };
+
+  auto embedded_boundary = amrex::EB2::makeUnion(
+      amrex::EB2::makeIntersection(
+          amrex::EB2::PlaneIF({0.0, 0.0}, {1.0, 0.0}, false),
+          ConvergentInlet(2.0, {0.0, 0.0})),
+      Box(0.0), Box(dy + dBox), Box(2 * (dy + dBox)), Box(3 * (dy + dBox)),
+      Box(4 * (dy + dBox)), Box(5 * (dy + dBox)), Box(6 * (dy + dBox)),
+      Box(-1.0 * (dy + dBox)), Box(-2.0 * (dy + dBox)), Box(-3.0 * (dy + dBox)),
+      Box(-4.0 * (dy + dBox)), Box(-5.0 * (dy + dBox)),
+      Box(-6.0 * (dy + dBox)));
   auto shop = amrex::EB2::makeShop(embedded_boundary);
 
   fub::amrex::CartesianGridGeometry grid_geometry =
@@ -257,29 +323,32 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
         fub::GetOptions(options, "InitialCondition");
     const fub::ProgramOptions left_options =
         fub::GetOptions(initial_options, "left");
-    std::string moles = fub::GetOptionOr(left_options, "moles", "N2:79,O2:21"s);
-    double temperature = fub::GetOptionOr(left_options, "temperature", 300.0);
-    double pressure = fub::GetOptionOr(left_options, "pressure", 101325.0);
+    std::array<double, 3> moles{0.0, 0.0, 1.0};
+    moles = fub::GetOptionOr(left_options, "moles", moles);
+    double temperature = fub::GetOptionOr(left_options, "temperature", 1.0);
+    double density = fub::GetOptionOr(left_options, "density", 1.0);
     std::array<double, Plenum_Rank> velocity{};
     velocity = fub::GetOptionOr(left_options, "velocity", velocity);
-    equation.GetReactor().SetMoleFractions(moles);
-    equation.GetReactor().SetTemperature(temperature);
-    equation.GetReactor().SetPressure(pressure);
-    equation.CompleteFromReactor(left);
-    fub::CompleteFromCons(equation, left, left);
+    fub::KineticState<fub::PerfectGasMix<Plenum_Rank>> kin(equation);
+    kin.temperature = temperature;
+    kin.density = density;
+    kin.mole_fractions = fub::AsEigenVector(moles);
+    fub::euler::CompleteFromKineticState(equation, left, kin,
+                                         fub::AsEigenVector(velocity));
 
     const fub::ProgramOptions right_options =
         fub::GetOptions(initial_options, "right");
-    moles = fub::GetOptionOr(right_options, "moles", "N2:79,O2:21"s);
-    temperature = fub::GetOptionOr(right_options, "temperature", 300.0);
-    pressure = fub::GetOptionOr(right_options, "pressure", 101325.0);
+    moles = std::array<double, 3>{0.0, 0.0, 1.0};
+    moles = fub::GetOptionOr(right_options, "moles", moles);
+    temperature = fub::GetOptionOr(right_options, "temperature", 1.0);
+    density = fub::GetOptionOr(right_options, "pressure", 1.0);
     velocity = std::array<double, Plenum_Rank>{};
     velocity = fub::GetOptionOr(right_options, "velocity", velocity);
-    equation.GetReactor().SetMoleFractions(moles);
-    equation.GetReactor().SetTemperature(temperature);
-    equation.GetReactor().SetPressure(pressure);
-    equation.CompleteFromReactor(right);
-    fub::CompleteFromCons(equation, right, right);
+    kin.temperature = temperature;
+    kin.density = density;
+    kin.mole_fractions = fub::AsEigenVector(moles);
+    fub::euler::CompleteFromKineticState(equation, right, kin,
+                                         fub::AsEigenVector(velocity));
   }
   RiemannProblem initial_data(equation, fub::Halfspace({+1.0, 0.0, 0.0}, 0.0),
                               left, right);
@@ -289,10 +358,24 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
   GradientDetector gradients{equation, std::pair{&Complete::pressure, 0.05},
                              std::pair{&Complete::density, 0.05}};
 
+  const int scratch_gcw = 8;
+  const int flux_gcw = 6;
+
+  fub::amrex::cutcell::MachnumberBoundaryOptions pb{};
+  pb.dir = fub::Direction::X;
+  pb.side = 1;
+  const double y_len = grid_geometry.coordinates.length(1);
+  const double rel_y_width = 0.5 * r_inlet_start / y_len;
+  ::amrex::IntVect pblo{grid_geometry.cell_dimensions[0], 0};
+  ::amrex::IntVect pbhi{grid_geometry.cell_dimensions[0] + 7, int(rel_y_width * grid_geometry.cell_dimensions[1])};
+  pb.boundary_section = ::amrex::Box(pblo, pbhi);
+
+  fub::amrex::cutcell::MachnumberBoundary<fub::PerfectGasMix<2>> pbdry(equation, pb);
   BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
-                                  TransmissiveBoundary{fub::Direction::X, 1},
-                                  TransmissiveBoundary{fub::Direction::Y, 0},
-                                  TransmissiveBoundary{fub::Direction::Y, 1}}};
+                                  ReflectiveBoundary{fub::execution::seq, equation, fub::Direction::X, 1},
+                                  ReflectiveBoundary{fub::execution::seq, equation, fub::Direction::Y, 0},
+                                  ReflectiveBoundary{fub::execution::seq, equation, fub::Direction::Y, 1},
+                                  pbdry}};
 
   ::amrex::RealBox xbox = grid_geometry.coordinates;
   ::amrex::Geometry coarse_geom = fub::amrex::GetCoarseGeometry(grid_geometry);
@@ -332,7 +415,7 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
       fub::PerfectGasMix<Plenum_Rank>,
       fub::CharacteristicsGradient<
           fub::PerfectGasMix<Plenum_Rank>,
-          fub::CentralDifferenceGradient<fub::VanLeerLimiter>>,
+          fub::CentralDifferenceGradient<fub::MinModLimiter>>,
       fub::CharacteristicsReconstruction<fub::PerfectGasMix<Plenum_Rank>>,
       HLLEM>>;
 
@@ -342,9 +425,6 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
 
   HyperbolicMethod method{FluxMethod{cutcell_method}, TimeIntegrator{},
                           Reconstruction{equation}};
-
-  const int scratch_gcw = 8;
-  const int flux_gcw = 6;
 
   IntegratorContext context(gridding, method, scratch_gcw, flux_gcw);
 
@@ -371,9 +451,7 @@ int main(int argc, char** argv) {
 }
 
 void WriteCheckpoint(const std::string& path,
-                     const fub::amrex::MultiBlockGriddingAlgorithm& grid,
-                     int rank,
-                     const fub::amrex::MultiBlockIgniteDetonation& ignition) {
+                     const fub::amrex::MultiBlockGriddingAlgorithm2& grid) {
   auto tubes = grid.GetTubes();
   std::string name = fmt::format("{}/Tube", path);
   fub::amrex::WriteCheckpointFile(name, tubes[0]->GetPatchHierarchy());
@@ -387,17 +465,14 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
       std::chrono::steady_clock::now();
   fub::amrex::ScopeGuard scope_guard{};
 
-  fub::Burke2012 mechanism{};
-
   std::vector<fub::amrex::cutcell::IntegratorContext> plenum{};
   std::vector<fub::amrex::IntegratorContext> tubes{};
   std::vector<fub::amrex::BlockConnection> connectivity{};
 
-  plenum.push_back(MakePlenumSolver(mechanism, fub::GetOptions(vm, "Plenum")));
+  plenum.push_back(MakePlenumSolver(fub::GetOptions(vm, "Plenum")));
   auto counter_database = plenum[0].GetCounterRegistry();
 
-  auto&& tube =
-      MakeTubeSolver(fub::GetOptions(vm, "Tube"), counter_database);
+  auto&& tube = MakeTubeSolver(fub::GetOptions(vm, "Tube"), counter_database);
   fub::amrex::BlockConnection connection;
   connection.direction = fub::Direction::X;
   connection.side = 0;
@@ -419,57 +494,54 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   fub::PerfectGasMix<Tube_Rank> tube_equation{};
   tube_equation.n_species = 2;
 
-  fub::amrex::MultiBlockIntegratorContext2 context(std::move(tubes), std::move(plenum),
+  fub::amrex::MultiBlockIntegratorContext2 context(
+      tube_equation, plenum_equation, std::move(tubes), std::move(plenum),
       std::move(connectivity));
 
   fub::DimensionalSplitLevelIntegrator system_solver(
-      fub::int_c<Plenum_Rank>, std::move(context), fub::StrangSplitting{});
+      fub::int_c<Plenum_Rank>, std::move(context), fub::GodunovSplitting{});
 
-  const std::size_t n_tubes = system_solver.GetContext().Tubes().size();
-  const int max_number_of_levels = system_solver.GetContext()
-                                       .Tubes()[0]
-                                       .GetPatchHierarchy()
-                                       .GetMaxNumberOfLevels();
-
-  fub::amrex::MultiBlockSourceTerm<fub::perfect_gas_mix::IgnitionDelayKinetics<1>> source_term({fub::perfect_gas_mix::IgnitionDelayKinetics<1>(tube_equation)});
+  fub::amrex::MultiBlockSourceTerm<
+      fub::perfect_gas_mix::IgnitionDelayKinetics<1>>
+      source_term(
+          {fub::perfect_gas_mix::IgnitionDelayKinetics<1>(tube_equation)});
 
   fub::SplitSystemSourceLevelIntegrator level_integrator(
-      std::move(ign_solver), std::move(source_term),
+      std::move(system_solver), std::move(source_term),
       fub::GodunovSplitting{});
 
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
   using namespace fub::amrex;
   struct MakeCheckpoint
-      : public fub::OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm> {
+      : public fub::OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm2> {
     std::string directory_ = "ConvergentNozzle";
-    MakeCheckpoint(
-        const fub::ProgramOptions& options)
+    MakeCheckpoint(const fub::ProgramOptions& options)
         : OutputAtFrequencyOrInterval(options) {
       directory_ = fub::GetOptionOr(options, "directory", directory_);
     }
-    void operator()(const MultiBlockGriddingAlgorithm& grid) override {
-      int rank = -1;
-      MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    void operator()(const MultiBlockGriddingAlgorithm2& grid) override {
       std::string name = fmt::format("{}/{:09}", directory_, grid.GetCycles());
       fub::SeverityLogger log = fub::GetInfoLogger();
       BOOST_LOG(log) << fmt::format("Write Checkpoint to '{}'!", name);
-      WriteCheckpoint(name, grid, valve_state_, rank, *ignition_);
+      WriteCheckpoint(name, grid);
     }
   };
 
-  fub::OutputFactory<MultiBlockGriddingAlgorithm> factory{};
-  factory.RegisterOutput<MakeCheckpoint>(
-      "Checkpoint", valve.GetSharedState(),
-      &solver.GetLevelIntegrator().GetSystem().GetSource());
+  fub::OutputFactory<MultiBlockGriddingAlgorithm2> factory{};
+  factory.RegisterOutput<MakeCheckpoint>("Checkpoint");
   using CounterOutput =
-      fub::CounterOutput<fub::amrex::MultiBlockGriddingAlgorithm,
+      fub::CounterOutput<fub::amrex::MultiBlockGriddingAlgorithm2,
                          std::chrono::milliseconds>;
   factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
-  fub::MultipleOutputs<MultiBlockGriddingAlgorithm> outputs(
+  factory.RegisterOutput<
+      MultiBlockPlotfileOutput2<fub::PerfectGasMix<1>, fub::PerfectGasMix<2>>>(
+      "Plotfiles", tube_equation, plenum_equation);
+  fub::MultipleOutputs<MultiBlockGriddingAlgorithm2> outputs(
       std::move(factory), fub::GetOptions(vm, "Output"));
 
   outputs(*solver.GetGriddingAlgorithm());
+  fub::SeverityLogger log = fub::GetInfoLogger();
   fub::RunOptions run_options = fub::GetOptions(vm, "RunOptions");
   BOOST_LOG(log) << "RunOptions:";
   run_options.Print(log);

@@ -58,14 +58,15 @@ public:
   }
 
   /// \brief Integrates the source term for each tube in the specified context
+  template <typename IntegratorContext>
   [[nodiscard]] Result<void, TimeStepTooLarge>
-  AdvanceLevel(MultiBlockIntegratorContext& context, int level, Duration dt,
+  AdvanceLevel(IntegratorContext& context, int level, Duration dt,
                [[maybe_unused]] const ::amrex::IntVect& ngrow = ::amrex::IntVect(0)) {
     auto&& tubes = context.Tubes();
     Result<void, TimeStepTooLarge> result = boost::outcome_v2::success();
     int i = 0;
     for (auto&& tube : tubes) {
-      result = source_terms_[i].AdvanceLevel(tube, level, dt);
+      result = source_terms_[i].AdvanceLevel(tube, level, dt, ngrow);
       if (!result) {
         return result;
       }

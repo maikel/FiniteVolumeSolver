@@ -22,7 +22,7 @@
 
 #include "fub/AMReX/GriddingAlgorithm.hpp"
 #include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
-#include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp"
+#include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm2.hpp"
 
 #include "fub/AMReX/cutcell/boundary_condition/ReflectiveBoundary.hpp"
 
@@ -293,9 +293,10 @@ int Flip(int side) { return (side == 0) * 1 + (side != 0) * 0; }
 //}
 } // namespace
 
-MultiBlockBoundaryBase::MultiBlockBoundaryBase(
-    const MultiBlockBoundaryBase& other)
-    : plenum_mirror_box_(other.plenum_mirror_box_),
+AnyMultiBlockBoundary::AnyMultiBlockBoundary(
+    const AnyMultiBlockBoundary& other)
+    : impl_(other.impl_->Clone()),
+      plenum_mirror_box_(other.plenum_mirror_box_),
       tube_mirror_box_(other.tube_mirror_box_),
       plenum_mirror_data_(std::make_unique<::amrex::FArrayBox>(
           other.plenum_mirror_data_->box(),
@@ -314,11 +315,9 @@ MultiBlockBoundaryBase::MultiBlockBoundaryBase(
   plenum_ghost_data_->copy(*other.plenum_ghost_data_);
 }
 
-MultiBlockBoundaryBase::MultiBlockBoundaryBase(
-    const MultiBlockGriddingAlgorithm& gridding,
-    const BlockConnection& connection, int gcw, int level)
-    : dir_{connection.direction}, side_{connection.side}, level_{level},
-      gcw_{gcw} {
+void AnyMultiBlockBoundary::Initialize(
+    const MultiBlockGriddingAlgorithm2& gridding,
+    const BlockConnection& connection, int gcw, int level) {
   const std::ptrdiff_t pid = static_cast<std::ptrdiff_t>(connection.plenum.id);
   const cutcell::PatchHierarchy& plenum =
       gridding.GetPlena()[pid]->GetPatchHierarchy();
@@ -371,7 +370,7 @@ MultiBlockBoundaryBase::MultiBlockBoundaryBase(
 template <int R> using Conservative = ::fub::Conservative<IdealGasMix<R>>;
 template <int R> using Complete = ::fub::Complete<IdealGasMix<R>>;
 
-void MultiBlockBoundaryBase::ComputeBoundaryData(
+void AnyMultiBlockBoundary::ComputeBoundaryData(
     const cutcell::PatchHierarchy& plenum, const PatchHierarchy& tube) {
   const int d = static_cast<int>(dir_);
   const double plenum_dx = plenum.GetGeometry(level_).CellSize(d);
@@ -391,7 +390,7 @@ void MultiBlockBoundaryBase::ComputeBoundaryData(
 
     // Transform high dimensional states into low dimensional ones.
     // Store low dimensional states as the reference in the ghost cell region.
-    FillTubeGhostLayer(*tube_ghost_data_, *plenum_mirror_data_);
+    impl_->FillTubeGhostLayer(*tube_ghost_data_, *plenum_mirror_data_);
   }
 
   {
@@ -403,11 +402,11 @@ void MultiBlockBoundaryBase::ComputeBoundaryData(
                       Flip(side_));
 
     // Transform low dimensional states into high dimensional ones.
-    FillPlenumGhostLayer(*plenum_ghost_data_, *tube_mirror_data_);
+    impl_->FillPlenumGhostLayer(*plenum_ghost_data_, *tube_mirror_data_);
   }
 }
 
-void MultiBlockBoundaryBase::FillBoundary(::amrex::MultiFab& mf,
+void AnyMultiBlockBoundary::FillBoundary(::amrex::MultiFab& mf,
                                           const GriddingAlgorithm&, int) {
   ::amrex::Box box = tube_ghost_data_->box();
   ForEachFab(execution::seq, mf, [&](const ::amrex::MFIter& mfi) {
@@ -425,7 +424,7 @@ void MultiBlockBoundaryBase::FillBoundary(::amrex::MultiFab& mf,
   });
 }
 
-void MultiBlockBoundaryBase::FillBoundary(
+void AnyMultiBlockBoundary::FillBoundary(
     ::amrex::MultiFab& mf, const cutcell::GriddingAlgorithm&, int) {
   ::amrex::Box ghost_box = MakeGhostBox(plenum_mirror_box_, gcw_, dir_, side_);
   ForEachFab(execution::openmp, mf, [&](const ::amrex::MFIter& mfi) {

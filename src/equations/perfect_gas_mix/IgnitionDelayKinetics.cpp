@@ -63,7 +63,8 @@ void Advance_(Equation& eq, CompleteArray<Equation>& state,
   X.row(1) = Xrow1a;
   const Array1d rate2 = Eigen::exp(options.C * (1.0 - options.E / T));
   const MaskArray activator = X.row(0) <= (options.Yign * (1.0 - X.row(2)));
-  const Array1d coeff = activator.select((1.0 - Eigen::exp(-rate2 * dt.count())), 0.0);
+  const Array1d coeff =
+      activator.select((1.0 - Eigen::exp(-rate2 * dt.count())), 0.0);
   FUB_ASSERT((0.0 <= coeff && coeff <= 1).all());
   const Array1d FRdiff1 = coeff * X.row(1);
   const Array1d Xrow1b = X.row(1) - FRdiff1;
@@ -79,7 +80,7 @@ void Advance_(Equation& eq, CompleteArray<Equation>& state,
   const Array1d T_new = T + options.Tdiff * (FRdiff0 + FRdiff1);
   kinetic_state.temperature = T_new;
   const Array<double, Equation::Rank()> velocity = euler::Velocity(eq, state);
-  euler::CompleteFromKineticState(eq, state, kinetic_state, velocity); 
+  euler::CompleteFromKineticState(eq, state, kinetic_state, velocity);
 }
 } // namespace
 
@@ -133,50 +134,48 @@ Result<void, TimeStepTooLarge> IgnitionDelayKinetics<Rank>::AdvanceLevel(
                IgnitionDelayKinetics_Rows<PerfectGasMix<Rank>>{
                    &eq, &state, &kinetic_state, &options, dt});
 
-  //   ForEachIndex(Box<0>(states), [&](auto... is) {
-  //     std::array<std::ptrdiff_t, sRank> index{is...};
-  //     Load(state, states, index);
+    //   ForEachIndex(Box<0>(states), [&](auto... is) {
+    //     std::array<std::ptrdiff_t, sRank> index{is...};
+    //     Load(state, states, index);
 
-  //     FUB_ASSERT(eq.n_species >= 2);
-  //     euler::KineticStateFromComplete(eq, kinetic_state, state);
-  //     Array<double, -1, 1>& X = kinetic_state.mole_fractions;
-  //     const double T = kinetic_state.temperature;
-  //     FUB_ASSERT(dt > Duration(0.0));
-  //     const double lambda =
-  //         -std::log(options.Yign / options.Yinit / options.tau);
-  //     const double rate =
-  //         lambda +
-  //         std::pow(T, options.R_B) *
-  //             std::exp(options.R_C * (1.0 - options.R_E / T)) +
-  //         options.R2_A * std::exp(options.R2_C * (1.0 - options.R2_E / T));
-  //     const double Fdiff = (1.0 - std::exp(-rate * dt.count())) * X[0];
-  //     X[0] = X[0] - Fdiff;
-  //     X[1] = std::clamp(X[1] + Fdiff, 0.0, 1.0);
+    //     FUB_ASSERT(eq.n_species >= 2);
+    //     euler::KineticStateFromComplete(eq, kinetic_state, state);
+    //     Array<double, -1, 1>& X = kinetic_state.mole_fractions;
+    //     const double T = kinetic_state.temperature;
+    //     FUB_ASSERT(dt > Duration(0.0));
+    //     const double lambda =
+    //         -std::log(options.Yign / options.Yinit / options.tau);
+    //     const double rate =
+    //         lambda +
+    //         std::pow(T, options.R_B) *
+    //             std::exp(options.R_C * (1.0 - options.R_E / T)) +
+    //         options.R2_A * std::exp(options.R2_C * (1.0 - options.R2_E / T));
+    //     const double Fdiff = (1.0 - std::exp(-rate * dt.count())) * X[0];
+    //     X[0] = X[0] - Fdiff;
+    //     X[1] = std::clamp(X[1] + Fdiff, 0.0, 1.0);
 
-  //     const double rate2 = std::exp(options.C * (1.0 - options.E / T));
-  //     const int activator = X[0] <= options.Yign * (1.0 - X[2]);
-      
-  //     const double coeff = activator * (1.0 - std::exp(-rate2 * dt.count()));
-  //     FUB_ASSERT(0.0 <= coeff && coeff <= 1.0);
-  //     const double FRdiff1 = coeff * X[1];
-  //     FUB_ASSERT(FRdiff1 <= X[1]);
-  //     X[1] = X[1] - FRdiff1;
-  //     FUB_ASSERT(X[1] >= 0.0);
-  //     X[2] = std::clamp(X[2] + FRdiff1, 0.0, 1.0);
-      
-  //     const double FRdiff0 = coeff * X[0];
-  //     X[0] = X[0] - FRdiff0;
-  //     FUB_ASSERT(X[0] >= 0.0);
-  //     X[2] = std::clamp(X[2] + FRdiff0, 0.0, 1.0);
+    //     const double rate2 = std::exp(options.C * (1.0 - options.E / T));
+    //     const int activator = X[0] <= options.Yign * (1.0 - X[2]);
 
-  //     const double T_new = T + options.Tdiff * (FRdiff0 + FRdiff1);
-  //     kinetic_state.temperature = T_new;
+    //     const double coeff = activator * (1.0 - std::exp(-rate2 *
+    //     dt.count())); FUB_ASSERT(0.0 <= coeff && coeff <= 1.0); const double
+    //     FRdiff1 = coeff * X[1]; FUB_ASSERT(FRdiff1 <= X[1]); X[1] = X[1] -
+    //     FRdiff1; FUB_ASSERT(X[1] >= 0.0); X[2] = std::clamp(X[2] + FRdiff1,
+    //     0.0, 1.0);
 
-  //     const Array<double, Rank, 1> velocity = euler::Velocity(eq, state);
-      
-  //     euler::CompleteFromKineticState(eq, state, kinetic_state, velocity);
-  //     Store(states, state, index);
-  //   });
+    //     const double FRdiff0 = coeff * X[0];
+    //     X[0] = X[0] - FRdiff0;
+    //     FUB_ASSERT(X[0] >= 0.0);
+    //     X[2] = std::clamp(X[2] + FRdiff0, 0.0, 1.0);
+
+    //     const double T_new = T + options.Tdiff * (FRdiff0 + FRdiff1);
+    //     kinetic_state.temperature = T_new;
+
+    //     const Array<double, Rank, 1> velocity = euler::Velocity(eq, state);
+
+    //     euler::CompleteFromKineticState(eq, state, kinetic_state, velocity);
+    //     Store(states, state, index);
+    //   });
   }
 
   if (level == 0) {

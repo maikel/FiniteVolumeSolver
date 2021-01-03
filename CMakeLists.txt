@@ -505,6 +505,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         include/fub/AMReX/multi_block/MultiBlockBoundary.hpp
         include/fub/AMReX/multi_block/MultiBlockBoundary2.hpp
         include/fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp
+        include/fub/AMReX/multi_block/MultiBlockGriddingAlgorithm2.hpp
         include/fub/AMReX/multi_block/MultiBlockIntegratorContext.hpp
         include/fub/AMReX/multi_block/MultiBlockKineticSourceTerm.hpp
         include/fub/AMReX/multi_block/MultiBlockIgniteDetonation.hpp
@@ -524,17 +525,20 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         src/AMReX/cutcell/boundary_condition/TransmissiveBoundary.cpp
         src/AMReX/cutcell/boundary_condition/IsentropicPressureBoundary.cpp
         src/AMReX/cutcell/boundary_condition/MassflowBoundary.cpp
+        src/AMReX/cutcell/boundary_condition/PressureOutflowBoundary.cpp
+        src/AMReX/cutcell/boundary_condition/PressureOutflowBoundary2.cpp
         src/AMReX/cutcell/tagging_method/ConstantRegion.cpp
         src/AMReX/cutcell/tagging_method/TagBuffer.cpp
         src/AMReX/cutcell/tagging_method/TagCutCells.cpp
-        src/AMReX/cutcell/boundary_condition/PressureOutflowBoundary.cpp
         src/AMReX/cutcell/initial_data/InterpolateFrom1d.cpp
         src/AMReX/cutcell/output/WriteHdf5.cpp
         src/AMReX/cutcell/output/PerfectGasProbesOutput.cpp
         src/AMReX/multi_block/MultiBlockBoundary.cpp
         src/AMReX/multi_block/MultiBlockBoundary2.cpp
         src/AMReX/multi_block/MultiBlockGriddingAlgorithm.cpp
+        src/AMReX/multi_block/MultiBlockGriddingAlgorithm2.cpp
         src/AMReX/multi_block/MultiBlockIntegratorContext.cpp
+        src/AMReX/multi_block/MultiBlockIntegratorContext2.cpp
         src/AMReX/multi_block/MultiBlockKineticSourceTerm.cpp
         src/AMReX/multi_block/MultiBlockIgniteDetonation.cpp)
     target_compile_options(FiniteVolumeSolver.AMReX.EB

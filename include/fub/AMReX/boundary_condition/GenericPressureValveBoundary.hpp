@@ -104,7 +104,7 @@ void GenericPressureValveBoundary<EulerEquation, InflowFunction>::FillBoundary(
       t_opened_ = t;
       SeverityLogger log = GetInfoLogger();
       BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", options_.prefix);
-      BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", t);
+      BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", t.count());
       BOOST_LOG_SCOPED_LOGGER_TAG(log, "Level", level);
       BOOST_LOG(log) << fmt::format("Pressure valve has opened because inner pressure is {}.", inner_pressure);
     }
@@ -114,6 +114,7 @@ void GenericPressureValveBoundary<EulerEquation, InflowFunction>::FillBoundary(
                 gridding, level);
     constexpr int N = EulerEquation::Rank();
     Array<double, N, 1> zero = Array<double, N, 1>::Zero();
+    FUB_ASSERT(kinetic_state.mole_fractions.colwise().sum().isApproxToConstant(1.0));
     euler::CompleteFromKineticState(equation_, constant_boundary_.state,
                                     kinetic_state, zero);
     euler::IsentropicExpansionWithoutDissipation(
@@ -125,7 +126,7 @@ void GenericPressureValveBoundary<EulerEquation, InflowFunction>::FillBoundary(
       t_opened_.reset();
       SeverityLogger log = GetInfoLogger();
       BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", options_.prefix);
-      BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", t);
+      BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", t.count());
       BOOST_LOG_SCOPED_LOGGER_TAG(log, "Level", level);
       BOOST_LOG(log) << fmt::format("Pressure valve has closed because inner pressure is {}.", inner_pressure);
     }
