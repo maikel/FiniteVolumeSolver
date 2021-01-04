@@ -33,6 +33,7 @@
 
 #include "fub/AMReX/cutcell/boundary_condition/IsentropicPressureExpansion.hpp"
 #include "fub/AMReX/cutcell/boundary_condition/MachnumberBoundary.hpp"
+#include "fub/AMReX/cutcell/boundary_condition/ReflectiveBoundary2.hpp"
 
 #include <AMReX_EB2.H>
 #include <AMReX_EB2_IF_Box.H>
@@ -243,54 +244,35 @@ auto MakePlenumSolver(const std::map<std::string, pybind11::object>& options) {
     return fub::Polygon(std::move(xs), std::move(ys));
   };
 
-  double r_inlet_start = r_tube;
-  double r_inlet_end = 0.5 * r_tube;
-  {
-    const fub::ProgramOptions inlet_options =
-        fub::GetOptions(options, "InletGeometry");
+  std::vector<fub::PolymorphicGeometry<Plenum_Rank>> inlets{};
+  std::vector<pybind11::dict> eb_dicts{};
+  eb_dicts = fub::GetOptionOr(options, "InletGeometries", eb_dicts);
+  for (pybind11::dict& dict : eb_dicts) {
+    fub::ProgramOptions inlet_options = fub::ToMap(dict);
+    double r_inlet_start = r_tube;
+    double r_inlet_end = 2.0 * r_tube;
+    double y_0 = 0.0;
     r_inlet_start = fub::GetOptionOr(inlet_options, "r_start", r_inlet_start);
     r_inlet_end = fub::GetOptionOr(inlet_options, "r_end", r_inlet_end);
-  }
-
-  auto ConvergentInlet = [&](double height,
-                             const std::array<double, Plenum_Rank>& center) {
-    const double xlo = center[0] - height;
-    const double xhi = center[0];
+    y_0 = fub::GetOptionOr(inlet_options, "y_0", y_0);
+    static constexpr double height = 2.0;
+    const double xlo = -height;
+    const double xhi = 0.0;
     const double r = r_inlet_start;
     const double r2 = r_inlet_end;
     const double xdiv = xhi - 4.0 * r;
     auto polygon =
-        MakePolygon(std::pair{xlo, r}, std::pair{xdiv, r}, std::pair{xhi, r2},
-                    std::pair{xhi, -r2}, std::pair{xdiv, -r},
-                    std::pair{xlo, -r}, std::pair{xlo, r});
-    auto tube_in_zero = fub::amrex::Geometry(fub::Invert(polygon));
-    amrex::RealArray real_center{center[0], center[1]};
-    auto tube_in_center = amrex::EB2::TranslationIF(tube_in_zero, real_center);
-    return tube_in_center;
-  };
+        MakePolygon(std::pair{xlo, y_0 + r}, std::pair{xdiv, y_0 + r},
+                    std::pair{xhi, y_0 + r2}, std::pair{xhi, y_0 - r2},
+                    std::pair{xdiv, y_0 - r}, std::pair{xlo, y_0 - r},
+                    std::pair{xlo, y_0 + r});
+    inlets.push_back(polygon);
+  }
+  fub::PolymorphicUnion<Plenum_Rank> union_of_inlets(std::move(inlets));
 
-  const fub::ProgramOptions blade_options =
-      fub::GetOptions(options, "BladeGeometry");
-  const double x0 = fub::GetOptionOr(blade_options, "x0", 4.0 * r_tube);
-  const double dx = fub::GetOptionOr(blade_options, "dx", 4.0 * r_tube);
-  const double y0 = fub::GetOptionOr(blade_options, "y0", 0.0);
-  const double dy = fub::GetOptionOr(blade_options, "dy", r_tube);
-  const double dBox = fub::GetOptionOr(blade_options, "dBox", r_tube);
-  auto Box = [&](double y) {
-    amrex::RealArray lo{x0, y0 + y};
-    amrex::RealArray hi{x0 + dx, y0 + y + dy};
-    return amrex::EB2::BoxIF(lo, hi, false);
-  };
-
-  auto embedded_boundary = amrex::EB2::makeUnion(
-      amrex::EB2::makeIntersection(
-          amrex::EB2::PlaneIF({0.0, 0.0}, {1.0, 0.0}, false),
-          ConvergentInlet(2.0, {0.0, 0.0})),
-      Box(0.0), Box(dy + dBox), Box(2 * (dy + dBox)), Box(3 * (dy + dBox)),
-      Box(4 * (dy + dBox)), Box(5 * (dy + dBox)), Box(6 * (dy + dBox)),
-      Box(-1.0 * (dy + dBox)), Box(-2.0 * (dy + dBox)), Box(-3.0 * (dy + dBox)),
-      Box(-4.0 * (dy + dBox)), Box(-5.0 * (dy + dBox)),
-      Box(-6.0 * (dy + dBox)));
+  auto embedded_boundary = amrex::EB2::makeIntersection(
+      amrex::EB2::PlaneIF({0.0, 0.0}, {1.0, 0.0}, false),
+      fub::amrex::Geometry(fub::Invert(union_of_inlets)));
   auto shop = amrex::EB2::makeShop(embedded_boundary);
 
   fub::amrex::CartesianGridGeometry grid_geometry =
@@ -361,11 +343,32 @@ auto MakePlenumSolver(const std::map<std::string, pybind11::object>& options) {
   const int scratch_gcw = 8;
   const int flux_gcw = 6;
 
+  const int lower_right_corner_x0 = grid_geometry.cell_dimensions[0];
+  const int lower_right_corner_y0 = -scratch_gcw;
+  ::amrex::IntVect lower_right_corner_lo{lower_right_corner_x0,
+                                         lower_right_corner_y0};
+  ::amrex::IntVect lower_right_corner_hi{
+      lower_right_corner_x0 + scratch_gcw - 1,
+      lower_right_corner_y0 + scratch_gcw - 1};
+  ::amrex::Box lower_right_corner{lower_right_corner_lo, lower_right_corner_hi};
+
+  const int upper_right_corner_x0 = grid_geometry.cell_dimensions[0];
+  const int upper_right_corner_y0 = grid_geometry.cell_dimensions[1];
+  ::amrex::IntVect upper_right_corner_lo{upper_right_corner_x0,
+                                         upper_right_corner_y0};
+  ::amrex::IntVect upper_right_corner_hi{
+      upper_right_corner_x0 + scratch_gcw - 1,
+      upper_right_corner_y0 + scratch_gcw - 1};
+  ::amrex::Box upper_right_corner{upper_right_corner_lo, upper_right_corner_hi};
+
   BoundarySet boundary_condition{
       {TransmissiveBoundary{fub::Direction::X, 0},
+       ReflectiveBoundary2{equation, fub::Direction::X, 1, lower_right_corner},
+       ReflectiveBoundary2{equation, fub::Direction::X, 1, upper_right_corner},
        ReflectiveBoundary{fub::execution::seq, equation, fub::Direction::X, 1},
        ReflectiveBoundary{fub::execution::seq, equation, fub::Direction::Y, 0},
-       ReflectiveBoundary{fub::execution::seq, equation, fub::Direction::Y, 1}}};
+       ReflectiveBoundary{fub::execution::seq, equation, fub::Direction::Y,
+                          1}}};
 
   std::vector<pybind11::dict> dicts{};
   dicts = fub::GetOptionOr(options, "MachnumberBoundaries", dicts);
@@ -486,16 +489,18 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
     connection.side = 0;
     connection.ghost_cell_width = 8;
     connection.plenum.id = 0;
-    connection.tube.id = 0;
+    connection.tube.id = tubes.size();
     connection.tube.mirror_box = tube.GetGriddingAlgorithm()
                                      ->GetPatchHierarchy()
                                      .GetGeometry(0)
                                      .Domain();
     amrex::Box plenum_mirror_box{};
     FUB_ASSERT(!plenum_mirror_box.ok());
-    plenum_mirror_box = fub::GetOptionOr(tube_options, "plenum_mirror_box", plenum_mirror_box);
+    plenum_mirror_box =
+        fub::GetOptionOr(tube_options, "plenum_mirror_box", plenum_mirror_box);
     if (!plenum_mirror_box.ok()) {
-      throw std::runtime_error("You need to specify plenum_mirror_box for each tube.");
+      throw std::runtime_error(
+          "You need to specify plenum_mirror_box for each tube.");
     }
     connection.plenum.mirror_box = plenum_mirror_box;
     tubes.push_back(std::move(tube));
@@ -514,10 +519,13 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   fub::DimensionalSplitLevelIntegrator system_solver(
       fub::int_c<Plenum_Rank>, std::move(context), fub::GodunovSplitting{});
 
+  std::vector source_terms_vector(
+      system_solver.GetContext().Tubes().size(),
+      fub::perfect_gas_mix::IgnitionDelayKinetics<1>(tube_equation));
+
   fub::amrex::MultiBlockSourceTerm<
       fub::perfect_gas_mix::IgnitionDelayKinetics<1>>
-      source_term(
-          {fub::perfect_gas_mix::IgnitionDelayKinetics<1>(tube_equation)});
+      source_term(source_terms_vector);
 
   fub::SplitSystemSourceLevelIntegrator level_integrator(
       std::move(system_solver), std::move(source_term),

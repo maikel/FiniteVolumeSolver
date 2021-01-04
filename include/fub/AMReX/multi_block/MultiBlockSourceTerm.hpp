@@ -65,6 +65,7 @@ public:
     auto&& tubes = context.Tubes();
     Result<void, TimeStepTooLarge> result = boost::outcome_v2::success();
     int i = 0;
+    FUB_ASSERT(static_cast<std::size_t>(tubes.size()) == source_terms_.size());
     for (auto&& tube : tubes) {
       result = source_terms_[i].AdvanceLevel(tube, level, dt, ngrow);
       if (!result) {

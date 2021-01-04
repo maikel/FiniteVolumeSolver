@@ -38,8 +38,8 @@ tube_over_plenum_length_ratio = tube_domain_length / plenum_domain_length
 # plenum_yz_length = plenum_yz_upper - plenum_yz_lower
 
 
-plenum_y_lower = - 0.0 * D
-plenum_y_upper = + 15.0 * D
+plenum_y_lower = - 0.5
+plenum_y_upper = + 0.5
 plenum_y_length = plenum_y_upper - plenum_y_lower
 
 plenum_z_lower = plenum_y_lower
@@ -64,14 +64,21 @@ tube_n_cells = int(tube_n_cells)
 
 RunOptions = {
   'cfl': 0.8,
-  'final_time': 10.0,
+  'final_time': 3.0,
   'max_cycles': -1
 }
 
 # checkpoint = '/Users/maikel/Development/FiniteVolumeSolver/build_3d/MultiTube/Checkpoint/000000063'
 checkpoint = ''
 
-mach_1_boundaries = [0]
+def ToCellIndex(x, xlo, xhi, ncells):
+  xlen = xhi - xlo
+  x_rel = (x - xlo) / xlen
+  i = int(x_rel * ncells)
+  return i
+
+y0s = [-1.0/3.0, 0.0, +1.0/3.0]
+mach_1_boundaries = [ToCellIndex(y0, plenum_y_lower, plenum_y_upper, plenum_y_n_cells) for y0 in y0s]
 
 Plenum = {
   'checkpoint': checkpoint,
@@ -81,7 +88,7 @@ Plenum = {
       'lower': [plenum_x_lower, plenum_y_lower, plenum_z_lower],
       'upper': [plenum_x_upper, plenum_y_upper, plenum_z_upper],
     },
-    'periodicity': [0, 0, 0]
+    'periodicity': [0, 1, 0]
   },
   'PatchHierarchy': {
     'max_number_of_levels': n_level, 
@@ -92,16 +99,11 @@ Plenum = {
     'n_proper': 1,
     'n_error_buf': [0, 0, 0]
   },
-  'InletGeometry': {
+  'InletGeometries': [{
     'r_start': r_tube,
-    'r_end': 2.0*r_tube
-  },
-  'BladeGeometry': {
-    'dBox': 2.0 * r_tube,
-    'dy': 2.0 * r_tube,
-    'y0': 1000.0 * r_tube,
-    'x0': 1000.0 * r_tube
-  },
+    'r_end': 2.0*r_tube,
+    'y_0': y_0,
+  } for y_0 in y0s],
   'InitialCondition': {
     'left': {
       'density': 1.0,
@@ -113,36 +115,52 @@ Plenum = {
     },
   },
   'MachnumberBoundaries': [{
-    'boundary_section': { 'lower': [plenum_x_n_cells, y0, 0], 'upper': [plenum_x_n_cells + 1, y0 + int(r_tube / plenum_y_length * plenum_y_n_cells), 0] }
+    'boundary_section': { 
+      'lower': [plenum_x_n_cells, y0 - int(r_tube / plenum_y_length * plenum_y_n_cells), 0], 
+      'upper': [plenum_x_n_cells + 1, y0 + int(r_tube / plenum_y_length * plenum_y_n_cells), 0] 
+     }
   } for y0 in mach_1_boundaries]
 }
 
-def TubeCenterPoint(x0, k, alpha):
-  return [x0, 0.0, 0.0]
+def TubeCenterPoint(x0, y0):
+  return [x0, y0, 0.0]
 
-def LowerX(x0, k, alpha):
-  center = TubeCenterPoint(x0, k, alpha)
+def LowerX(x0, y0):
+  center = TubeCenterPoint(x0, y0)
   center[1] -= r_tube
   center[2] -= r_tube
   return center
 
-def UpperX(x0, k, alpha):
-  center = TubeCenterPoint(x0, k, alpha)
+def UpperX(x0, y0):
+  center = TubeCenterPoint(x0, y0)
   center[1] += r_tube
   center[2] += r_tube
   return center
 
+def DomainAroundPoint(x0, lo, upper):
+  xlo = [x0[0] + lo[0], x0[1] + lo[1]]
+  xhi = [x0[0] + upper[0], x0[1] + upper[1]]
+  return [xlo, xhi]
+
+def BoxWhichContains(real_box):
+  print(real_box)
+  i0 = ToCellIndex(real_box[0][0], plenum_x_lower, plenum_x_upper, plenum_x_n_cells)
+  iEnd = ToCellIndex(real_box[1][0], plenum_x_lower, plenum_x_upper, plenum_x_n_cells)
+  j0 = ToCellIndex(real_box[0][1], plenum_y_lower, plenum_y_upper, plenum_y_n_cells)
+  jEnd = ToCellIndex(real_box[1][1], plenum_y_lower, plenum_y_upper, plenum_y_n_cells)
+  return { 'lower': [i0, j0, 0], 'upper': [iEnd, jEnd, 0] }
+
+def PlenumMirrorBox(y0):
+  return BoxWhichContains(DomainAroundPoint(TubeCenterPoint(-inlet_length, y0), [0.0, -D], [inlet_length, D]))
+
 Tubes = [{
   'checkpoint': checkpoint,
-  'plenum_mirror_box': {
-    'lower': [0, 0, 0],
-    'upper': [plenum_x_n_cells - 1, plenum_y_n_cells - 1, plenum_z_n_cells -1]
-  }
+  'plenum_mirror_box': PlenumMirrorBox(y_0),
   'GridGeometry': {
     'cell_dimensions': [tube_n_cells, 1, 1],
     'coordinates': {
-      'lower': LowerX(-tube_length, 0, alpha),
-      'upper': UpperX(-inlet_length, 0, alpha),
+      'lower': LowerX(-tube_length, y_0),
+      'upper': UpperX(-inlet_length, y_0),
     },
     'periodicity': [0, 0, 0]
   },
@@ -153,7 +171,7 @@ Tubes = [{
     'n_proper': 1,
     'n_error_buf': [4, 0, 0]
   }
-}]
+} for y_0 in y0s]
 
 def OuterProbe(x0, k, alpha):
   return [x0, r_outer - 0.002, r_tube_center * math.sin(k * alpha)]
@@ -161,14 +179,14 @@ def OuterProbe(x0, k, alpha):
 Output = { 
   'outputs': [{
     'type': 'Plotfiles',
-    'directory': 'ConvergentNozzle/Plotfiles/',
+    'directory': 'SEC_Plenum/Plotfiles/',
     'intervals': [0.01],
     #'frequencies': [1]
   }, {
     'type': 'Checkpoint',
-    'directory': 'ConvergentNozzle/Checkpoint/',
-    #'intervals': [1e-3],
-    'frequencies': [100]
+    'directory': 'SEC_Plenum/Checkpoint/',
+    'intervals': [1.0],
+    #'frequencies': [100]
   }, {
    'type': 'CounterOutput',
    'intervals': [RunOptions['final_time'] / 3.0]
