@@ -525,6 +525,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         src/AMReX/cutcell/boundary_condition/TransmissiveBoundary.cpp
         src/AMReX/cutcell/boundary_condition/IsentropicPressureBoundary.cpp
         src/AMReX/cutcell/boundary_condition/MassflowBoundary.cpp
+        src/AMReX/cutcell/boundary_condition/MachnumberBoundary.cpp
         src/AMReX/cutcell/boundary_condition/PressureOutflowBoundary.cpp
         src/AMReX/cutcell/boundary_condition/PressureOutflowBoundary2.cpp
         src/AMReX/cutcell/tagging_method/ConstantRegion.cpp

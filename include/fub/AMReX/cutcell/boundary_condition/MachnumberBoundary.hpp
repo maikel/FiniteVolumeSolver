@@ -24,6 +24,7 @@
 #include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
 #include "fub/equations/EulerEquation.hpp"
 
+#include "fub/ext/Log.hpp"
 #include "fub/Direction.hpp"
 
 #include <AMReX.H>
@@ -34,6 +35,8 @@ namespace fub::amrex::cutcell {
 struct MachnumberBoundaryOptions {
   MachnumberBoundaryOptions() = default;
   MachnumberBoundaryOptions(const ProgramOptions& options);
+
+  void Print(SeverityLogger& log) const;
 
   std::string channel_name{"MachnumberBoundary"};
   ::amrex::Box boundary_section{};

@@ -341,7 +341,7 @@ auto MakePlenumSolver(const std::map<std::string, pybind11::object>& options) {
     moles = std::array<double, 3>{0.0, 0.0, 1.0};
     moles = fub::GetOptionOr(right_options, "moles", moles);
     temperature = fub::GetOptionOr(right_options, "temperature", 1.0);
-    density = fub::GetOptionOr(right_options, "pressure", 1.0);
+    density = fub::GetOptionOr(right_options, "density", 1.0);
     velocity = std::array<double, Plenum_Rank>{};
     velocity = fub::GetOptionOr(right_options, "velocity", velocity);
     kin.temperature = temperature;
@@ -361,21 +361,25 @@ auto MakePlenumSolver(const std::map<std::string, pybind11::object>& options) {
   const int scratch_gcw = 8;
   const int flux_gcw = 6;
 
-  fub::amrex::cutcell::MachnumberBoundaryOptions pb{};
-  pb.dir = fub::Direction::X;
-  pb.side = 1;
-  const double y_len = grid_geometry.coordinates.length(1);
-  const double rel_y_width = 0.5 * r_inlet_start / y_len;
-  ::amrex::IntVect pblo{grid_geometry.cell_dimensions[0], 0};
-  ::amrex::IntVect pbhi{grid_geometry.cell_dimensions[0] + 7, int(rel_y_width * grid_geometry.cell_dimensions[1])};
-  pb.boundary_section = ::amrex::Box(pblo, pbhi);
+  BoundarySet boundary_condition{
+      {TransmissiveBoundary{fub::Direction::X, 0},
+       ReflectiveBoundary{fub::execution::seq, equation, fub::Direction::X, 1},
+       ReflectiveBoundary{fub::execution::seq, equation, fub::Direction::Y, 0},
+       ReflectiveBoundary{fub::execution::seq, equation, fub::Direction::Y, 1}}};
 
-  fub::amrex::cutcell::MachnumberBoundary<fub::PerfectGasMix<2>> pbdry(equation, pb);
-  BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
-                                  ReflectiveBoundary{fub::execution::seq, equation, fub::Direction::X, 1},
-                                  ReflectiveBoundary{fub::execution::seq, equation, fub::Direction::Y, 0},
-                                  ReflectiveBoundary{fub::execution::seq, equation, fub::Direction::Y, 1},
-                                  pbdry}};
+  std::vector<pybind11::dict> dicts{};
+  dicts = fub::GetOptionOr(options, "MachnumberBoundaries", dicts);
+  for (pybind11::dict& dict : dicts) {
+    fub::ProgramOptions boundary_options = fub::ToMap(dict);
+    fub::amrex::cutcell::MachnumberBoundaryOptions mb_opts(boundary_options);
+    mb_opts.dir = fub::Direction::X;
+    mb_opts.side = 1;
+    BOOST_LOG(log) << "MachnumberBoundary:";
+    mb_opts.Print(log);
+    fub::amrex::cutcell::MachnumberBoundary<fub::PerfectGasMix<2>>
+        mach_boundary(equation, mb_opts);
+    boundary_condition.conditions.push_back(std::move(mach_boundary));
+  }
 
   ::amrex::RealBox xbox = grid_geometry.coordinates;
   ::amrex::Geometry coarse_geom = fub::amrex::GetCoarseGeometry(grid_geometry);
@@ -472,22 +476,31 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   plenum.push_back(MakePlenumSolver(fub::GetOptions(vm, "Plenum")));
   auto counter_database = plenum[0].GetCounterRegistry();
 
-  auto&& tube = MakeTubeSolver(fub::GetOptions(vm, "Tube"), counter_database);
-  fub::amrex::BlockConnection connection;
-  connection.direction = fub::Direction::X;
-  connection.side = 0;
-  connection.ghost_cell_width = 8;
-  connection.plenum.id = 0;
-  connection.tube.id = 0;
-  connection.tube.mirror_box =
-      tube.GetGriddingAlgorithm()->GetPatchHierarchy().GetGeometry(0).Domain();
-  connection.plenum.mirror_box = plenum[0]
-                                     .GetGriddingAlgorithm()
+  std::vector<pybind11::dict> tube_dicts = {};
+  tube_dicts = fub::GetOptionOr(vm, "Tubes", tube_dicts);
+  for (pybind11::dict& dict : tube_dicts) {
+    fub::ProgramOptions tube_options = fub::ToMap(dict);
+    auto&& tube = MakeTubeSolver(tube_options, counter_database);
+    fub::amrex::BlockConnection connection;
+    connection.direction = fub::Direction::X;
+    connection.side = 0;
+    connection.ghost_cell_width = 8;
+    connection.plenum.id = 0;
+    connection.tube.id = 0;
+    connection.tube.mirror_box = tube.GetGriddingAlgorithm()
                                      ->GetPatchHierarchy()
                                      .GetGeometry(0)
                                      .Domain();
-  tubes.push_back(std::move(tube));
-  connectivity.push_back(connection);
+    amrex::Box plenum_mirror_box{};
+    FUB_ASSERT(!plenum_mirror_box.ok());
+    plenum_mirror_box = fub::GetOptionOr(tube_options, "plenum_mirror_box", plenum_mirror_box);
+    if (!plenum_mirror_box.ok()) {
+      throw std::runtime_error("You need to specify plenum_mirror_box for each tube.");
+    }
+    connection.plenum.mirror_box = plenum_mirror_box;
+    tubes.push_back(std::move(tube));
+    connectivity.push_back(connection);
+  }
 
   fub::PerfectGasMix<Plenum_Rank> plenum_equation{};
   plenum_equation.n_species = 2;
