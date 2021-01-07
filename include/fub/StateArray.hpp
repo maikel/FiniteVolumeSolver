@@ -76,7 +76,7 @@ struct ArrayState : ArrayStateBase<Depths, Width> {
   }
 
   ArrayState& operator*=(double lambda) {
-    ForEachVariable([lambda](auto&& that, auto&& other) { that *= lambda; },
+    ForEachVariable([lambda](auto&& that) { that *= lambda; },
                     *this);
     return *this;
   }
