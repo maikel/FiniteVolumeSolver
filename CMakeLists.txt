@@ -412,6 +412,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     src/AMReX/output/WriteHdf5.cpp
     src/equations/ideal_gas_mix/KineticSourceTerm.cpp
     src/equations/perfect_gas_mix/IgnitionDelayKinetics.cpp
+    src/equations/perfect_gas_mix/ArrheniusKinetics.cpp
     src/AMReX/boundary_condition/BoundarySet.cpp
     src/AMReX/boundary_condition/TransmissiveBoundary.cpp
     src/AMReX/boundary_condition/IsentropicPressureBoundary.cpp
