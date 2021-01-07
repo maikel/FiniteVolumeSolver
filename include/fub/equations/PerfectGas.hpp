@@ -140,7 +140,7 @@ using PerfectGasCompleteShape =
                        ScalarDepth>;
 
 namespace meta {
-template <int Rank>
+template <int R>
 struct Rank<PerfectGasCompleteShape<R>> : int_constant<R> {};
 } // namespace meta
 
