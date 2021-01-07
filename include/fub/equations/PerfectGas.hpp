@@ -47,8 +47,8 @@ using PerfectGasConsShape =
     PerfectGasConservative<ScalarDepth, VectorDepth<Rank>, ScalarDepth>;
 
 namespace meta {
-template <int Rank>
-struct Rank<PerfectGasConsShape<Rank>> : int_constant<Rank> {};
+template <int R>
+struct Rank<PerfectGasConsShape<R>> : int_constant<R> {};
 } // namespace meta
 
 // We "register" the conservative state with our framework.
@@ -80,8 +80,8 @@ using PerfectGasPrimShape =
     PerfectGasPrimitive<ScalarDepth, VectorDepth<Rank>, ScalarDepth>;
 
 namespace meta {
-template <int Rank>
-struct Rank<PerfectGasPrimShape<Rank>> : int_constant<Rank> {};
+template <int R>
+struct Rank<PerfectGasPrimShape<R>> : int_constant<R> {};
 } // namespace meta
 
 template <typename... Xs> struct StateTraits<PerfectGasPrimitive<Xs...>> {
@@ -110,8 +110,8 @@ using PerfectGasCharShape =
     PerfectGasCharacteristics<ScalarDepth, VectorDepth<Rank>, ScalarDepth>;
 
 namespace meta {
-template <int Rank>
-struct Rank<PerfectGasCharShape<Rank>> : int_constant<Rank> {};
+template <int R>
+struct Rank<PerfectGasCharShape<R>> : int_constant<R> {};
 } // namespace meta
 
 template <typename... Xs> struct StateTraits<PerfectGasCharacteristics<Xs...>> {
@@ -141,7 +141,7 @@ using PerfectGasCompleteShape =
 
 namespace meta {
 template <int Rank>
-struct Rank<PerfectGasCompleteShape<Rank>> : int_constant<Rank> {};
+struct Rank<PerfectGasCompleteShape<R>> : int_constant<R> {};
 } // namespace meta
 
 // We "register" the complete state with our framework.
