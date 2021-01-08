@@ -199,14 +199,14 @@ template <typename Depths> struct ScalarState : ScalarStateBase<Depths> {
   }
 
   ScalarState& operator*=(double lambda) {
-    ForEachVariable([lambda](auto&& that, auto&& other) { that *= lambda; },
-                    *this);
+    ForEachVariable([lambda](auto&& that) { that *= lambda; }, *this);
     return *this;
   }
 };
 
 template <typename Depths>
-struct StateTraits<ScalarState<Depths>> : StateTraits<ScalarStateBase<Depths>> {};
+struct StateTraits<ScalarState<Depths>> : StateTraits<ScalarStateBase<Depths>> {
+};
 
 /// This type alias transforms state depths into a conservative state
 /// associated with a specified equation.
@@ -874,7 +874,6 @@ void CopyToBuffer(span<double> buffer, const Conservative<Equation>& state) {
       },
       state);
 }
-
 
 } // namespace fub
 
