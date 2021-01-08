@@ -41,6 +41,28 @@
 #include <iostream>
 #include <string>
 
+using HLLEM = fub::perfect_gas::HllemMethod<fub::PerfectGas<2>>;
+
+using ConservativeReconstruction = fub::FluxMethod<fub::MusclHancock2<
+    fub::PerfectGas<2>,
+    fub::ConservativeGradient<
+        fub::PerfectGas<2>,
+        fub::CentralDifferenceGradient<fub::VanLeerLimiter>>,
+    fub::ConservativeReconstruction<fub::PerfectGas<2>>, HLLEM>>;
+
+using PrimitiveReconstruction = fub::FluxMethod<fub::MusclHancock2<
+    fub::PerfectGas<2>,
+    fub::PrimitiveGradient<fub::PerfectGas<2>, fub::CentralDifferenceGradient<
+                                                    fub::VanLeerLimiter>>,
+    fub::PrimitiveReconstruction<fub::PerfectGas<2>>, HLLEM>>;
+
+using CharacteristicsReconstruction = fub::FluxMethod<fub::MusclHancock2<
+    fub::PerfectGas<2>,
+    fub::CharacteristicsGradient<
+        fub::PerfectGas<2>,
+        fub::CentralDifferenceGradient<fub::VanLeerLimiter>>,
+    fub::CharacteristicsReconstruction<fub::PerfectGas<2>>, HLLEM>>;
+
 fub::Polygon ReadPolygonData(std::istream& input) {
   std::string line{};
   namespace pmr = boost::container::pmr;
@@ -121,8 +143,9 @@ template <typename... Pairs> auto GetFluxMethodFactory(Pairs... ps) {
 template <typename FluxMethod> struct MakeFlux {
   fub::AnyFluxMethod<fub::amrex::cutcell::IntegratorContext>
   operator()(const fub::PerfectGas<2>& eq) const {
+    HLLEM hllem{eq};
     FluxMethod flux_method{eq};
-    fub::KbnCutCellMethod cutcell_method(flux_method);
+    fub::KbnCutCellMethod cutcell_method(flux_method, hllem);
     fub::amrex::cutcell::FluxMethod adapter(std::move(cutcell_method));
     return adapter;
   }
@@ -223,28 +246,6 @@ void MyMain(const fub::ProgramOptions& options) {
       PatchHierarchy(equation, geometry, hier_opts), initial_data,
       TagAllOf(TagCutCells(), gradients, TagBuffer(4)), boundary_condition);
   gridding->InitializeHierarchy(0.0);
-
-  using HLLEM = fub::perfect_gas::HllemMethod<fub::PerfectGas<2>>;
-
-  using ConservativeReconstruction = fub::FluxMethod<fub::MusclHancock2<
-      fub::PerfectGas<2>,
-      fub::ConservativeGradient<
-          fub::PerfectGas<2>,
-          fub::CentralDifferenceGradient<fub::MinModLimiter>>,
-      fub::ConservativeReconstruction<fub::PerfectGas<2>>, HLLEM>>;
-
-  using PrimitiveReconstruction = fub::FluxMethod<fub::MusclHancock2<
-      fub::PerfectGas<2>,
-      fub::PrimitiveGradient<fub::PerfectGas<2>, fub::CentralDifferenceGradient<
-                                                     fub::MinModLimiter>>,
-      fub::PrimitiveReconstruction<fub::PerfectGas<2>>, HLLEM>>;
-
-  using CharacteristicsReconstruction = fub::FluxMethod<fub::MusclHancock2<
-      fub::PerfectGas<2>,
-      fub::CharacteristicsGradient<
-          fub::PerfectGas<2>,
-          fub::CentralDifferenceGradient<fub::MinModLimiter>>,
-      fub::CharacteristicsReconstruction<fub::PerfectGas<2>>, HLLEM>>;
 
   using namespace std::literals;
   auto flux_method_factory = GetFluxMethodFactory(
