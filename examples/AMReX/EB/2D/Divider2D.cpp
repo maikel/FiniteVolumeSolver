@@ -165,6 +165,8 @@ void MyMain(const fub::ProgramOptions& options) {
   auto embedded_boundary =
       fub::amrex::Geometry(fub::PolymorphicUnion(geometries));
   auto shop = amrex::EB2::makeShop(embedded_boundary);
+  hier_opts.index_spaces =
+      fub::amrex::cutcell::MakeIndexSpaces(shop, geometry, hier_opts);
 
   using namespace fub::amrex::cutcell;
   using State = fub::Complete<fub::PerfectGas<2>>;
@@ -178,7 +180,7 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::Complete<fub::PerfectGas<2>> post_shock_state;
   fub::CompleteFromCons(equation, post_shock_state, cons);
 
-  double shock_mach_number = 1.0;
+  double shock_mach_number = fub::GetOptionOr(options, "Mach_number", 1.1);
   shock_mach_number =
       fub::GetOptionOr(options, "shock_mach_number", shock_mach_number);
   const fub::Array<double, 2, 1> normal{1.0, 0.0};
@@ -248,6 +250,8 @@ void MyMain(const fub::ProgramOptions& options) {
   HyperbolicMethod method{flux_method, TimeIntegrator{},
                           Reconstruction{equation}};
 
+  BOOST_LOG(log) << fmt::format("scratch_gcw = {}", scratch_gcw);
+  BOOST_LOG(log) << fmt::format("flux_gcw = {}", flux_gcw);
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<2>,
       IntegratorContext(gridding, method, scratch_gcw, flux_gcw));
