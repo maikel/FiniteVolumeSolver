@@ -124,7 +124,7 @@ Plenum = {
       'upper': [plenum_x_n_cells + 3, plenum_y_n_cells + 3, 0] 
      },
     'relative_surface_area': 1,
-    'massflow_correlation': 0.0008,
+    'massflow_correlation': 0.02,
   }],
   #'MachnumberBoundaries': [{
   #  'boundary_section': { 

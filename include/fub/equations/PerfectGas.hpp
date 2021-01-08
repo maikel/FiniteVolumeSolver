@@ -319,12 +319,31 @@ void CompleteFromPrim(const PerfectGas<Rank>& equation,
 }
 
 template <int Rank>
-void PrimFromComplete(const PerfectGas<Rank>& equation,
+void PrimFromComplete(const PerfectGas<Rank>&,
                       Primitive<PerfectGas<Rank>>& prim,
                       const Complete<PerfectGas<Rank>>& complete) {
   prim.density = complete.density;
   prim.pressure = complete.pressure;
   prim.velocity = complete.momentum / complete.density;
+}
+
+template <int Rank>
+void CompleteFromPrim(const PerfectGas<Rank>& equation,
+                      CompleteArray<PerfectGas<Rank>>& complete,
+                      const PrimitiveArray<PerfectGas<Rank>>& prim) {
+  complete =
+      equation.CompleteFromPrim(prim.density, prim.velocity, prim.pressure);
+}
+
+template <int Rank>
+void PrimFromComplete(const PerfectGas<Rank>&,
+                      PrimitiveArray<PerfectGas<Rank>>& prim,
+                      const CompleteArray<PerfectGas<Rank>>& complete) {
+  prim.density = complete.density;
+  prim.pressure = complete.pressure;
+  for (int i = 0; i < Rank; ++i) {
+    prim.velocity.row(i) = complete.momentum.row(i) / complete.density;
+  }
 }
 
 /// @{

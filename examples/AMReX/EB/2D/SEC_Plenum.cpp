@@ -162,7 +162,7 @@ auto MakeTubeSolver(const fub::ProgramOptions& options,
                              const fub::amrex::GriddingAlgorithm&, int) {
     const double dt = tp.count();
     kin.temperature = 1.0;
-    kin.density = 1.0;
+    kin.density = 1.05 / kin.temperature;
     if (dt > buffer) {
       kin.mole_fractions[0] = fill_f_val(dt - t_ignite_diff);
       kin.mole_fractions[1] = 1.0;
