@@ -230,20 +230,20 @@ void MyMain(const fub::ProgramOptions& options) {
       fub::PerfectGas<2>,
       fub::ConservativeGradient<
           fub::PerfectGas<2>,
-          fub::CentralDifferenceGradient<fub::VanLeerLimiter>>,
+          fub::CentralDifferenceGradient<fub::MinModLimiter>>,
       fub::ConservativeReconstruction<fub::PerfectGas<2>>, HLLEM>>;
 
   using PrimitiveReconstruction = fub::FluxMethod<fub::MusclHancock2<
       fub::PerfectGas<2>,
       fub::PrimitiveGradient<fub::PerfectGas<2>, fub::CentralDifferenceGradient<
-                                                     fub::VanLeerLimiter>>,
+                                                     fub::MinModLimiter>>,
       fub::PrimitiveReconstruction<fub::PerfectGas<2>>, HLLEM>>;
 
   using CharacteristicsReconstruction = fub::FluxMethod<fub::MusclHancock2<
       fub::PerfectGas<2>,
       fub::CharacteristicsGradient<
           fub::PerfectGas<2>,
-          fub::CentralDifferenceGradient<fub::VanLeerLimiter>>,
+          fub::CentralDifferenceGradient<fub::MinModLimiter>>,
       fub::CharacteristicsReconstruction<fub::PerfectGas<2>>, HLLEM>>;
 
   using namespace std::literals;
