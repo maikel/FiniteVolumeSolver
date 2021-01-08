@@ -136,6 +136,17 @@ void MyMain(const fub::ProgramOptions& options) {
 
   fub::PerfectGas<2> equation;
 
+  fub::ProgramOptions equation_options = fub::GetOptions(options, "Equation");
+  equation.gamma = fub::GetOptionOr(equation_options, "gamma", equation.gamma);
+  equation.Rspec = fub::GetOptionOr(equation_options, "Rpsec", equation.Rspec);
+  equation.gamma_minus_1_inv = 1.0 / (equation.gamma - 1.0);
+  equation.gamma_array_ = fub::Array1d::Constant(equation.gamma);
+  equation.gamma_minus_1_inv_array_ = fub::Array1d::Constant(equation.gamma_minus_1_inv);
+
+  BOOST_LOG(log) << "Equation:";
+  BOOST_LOG(log) << fmt::format(" - gamma = {}", equation.gamma);
+  BOOST_LOG(log) << fmt::format(" - Rspec = {}", equation.Rspec);
+
   fub::amrex::CartesianGridGeometry geometry =
       fub::GetOptions(options, "GridGeometry");
   BOOST_LOG(log) << "GridGeometry:";
@@ -146,7 +157,7 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::amrex::cutcell::PatchHierarchyOptions hier_opts =
       fub::GetOptions(options, "PatchHierarchy");
   hier_opts.ngrow_eb_level_set =
-      std::min(scratch_gcw + 1, hier_opts.ngrow_eb_level_set);
+      std::max(scratch_gcw + 1, hier_opts.ngrow_eb_level_set);
   BOOST_LOG(log) << "PatchHierarchy:";
   hier_opts.Print(log);
 
@@ -259,8 +270,11 @@ void MyMain(const fub::ProgramOptions& options) {
   // fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
   fub::NoSubcycleSolver solver(std::move(level_integrator));
 
+  using CounterOutput = fub::CounterOutput<GriddingAlgorithm,
+                                           std::chrono::milliseconds>;
   using Plotfile = PlotfileOutput<fub::PerfectGas<2>>;
   fub::OutputFactory<GriddingAlgorithm> factory{};
+  factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
   factory.RegisterOutput<WriteHdf5>("HDF5");
   factory.RegisterOutput<Plotfile>("Plotfiles", equation);
   fub::MultipleOutputs<GriddingAlgorithm> outputs(
