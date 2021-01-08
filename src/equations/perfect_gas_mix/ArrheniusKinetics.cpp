@@ -138,7 +138,7 @@ Result<void, TimeStepTooLarge> ArrheniusKinetics<Rank>::AdvanceLevel(
         std::array<std::ptrdiff_t, sRank> index{is...};
         Load(state, states, index);
 
-        FUB_ASSERT(eq.n_species >= 1); // Zenker how many species?
+        FUB_ASSERT(eq.n_species >= 1);
         euler::KineticStateFromComplete(eq, kinetic_state, state);
         Array<double, -1, 1>& X = kinetic_state.mole_fractions;
         FUB_ASSERT(X.colwise().sum().isApproxToConstant(1.0));

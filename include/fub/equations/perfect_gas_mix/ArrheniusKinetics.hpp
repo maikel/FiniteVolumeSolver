@@ -36,17 +36,7 @@ namespace fub::perfect_gas_mix {
 struct ArrheniusKineticsOptions {
   /* dimensionless thermochemical parameters */
   /* think of T1 as compressor exit temperature */
-  // default values taken from SEC_C/SEC_C/Input/userdata_Combustion_Turbine.c
-
-  double gamma{1.4}; // Zenker: How can I obtain gamma here?
-  double T1ovT0{1.889};
-  double EAovRT1{10.0};
-  // double Q{10.0 / (gamma - 1.0)}; // heat of reaction
-  // double EA{EAovRT1 * T1ovT0};    // activation energy
-  // double B{(0.11 / 1.25) *
-  //          std::exp(EAovRT1 * (1.0 - T1ovT0))}; // coefficient of reaction
-  // /* Reference: 0.11/1.25; 0.05/1.25 */
-  // double T_switch{1.6}; // switch temperature
+  // default values taken from SEC_C/SEC_C/Input/userdata_Combustion.c
 
   // Test
   double Q{3.0/0.4}; // heat of reaction
