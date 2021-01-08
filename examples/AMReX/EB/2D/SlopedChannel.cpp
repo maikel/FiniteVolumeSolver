@@ -107,7 +107,7 @@ template <typename FluxMethod> struct MakeFlux {
   operator()(const fub::PerfectGas<2>& eq) const {
     // fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
     // fub::HllMethod hll_method{eq, signals};
-    fub::perfect_gas::HllemMethod<2> hllem_method{eq};
+    fub::perfect_gas::HllemMethod<fub::PerfectGas<2>> hllem_method{eq};
     FluxMethod flux_method{eq};
     fub::KbnCutCellMethod cutcell_method(flux_method, hllem_method);
     fub::amrex::cutcell::FluxMethod adapter(std::move(cutcell_method));
@@ -154,7 +154,7 @@ void MyMain(const fub::ProgramOptions& opts) {
   using HLLE =
       fub::HllMethod<fub::PerfectGas<2>,
                      fub::EinfeldtSignalVelocities<fub::PerfectGas<2>>>;
-  using HLLEM = fub::perfect_gas::HllemMethod<2>;
+  using HLLEM = fub::perfect_gas::HllemMethod<fub::PerfectGas<2>>;
   using ConservativeReconstruction =
       fub::MusclHancockMethod<fub::PerfectGas<2>, HLLE, fub::VanLeer>;
   using ConservativeReconstructionM =

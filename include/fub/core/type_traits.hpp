@@ -295,6 +295,7 @@ template <class... Ts> overloaded(Ts...) -> overloaded<Ts...>;
 template <typename X, typename Y>
 using decays_to = std::is_same<std::decay_t<X>, Y>;
 
+namespace meta {
 namespace tag_invoke_fn {
 template <typename Tag, typename... Args>
 using tag_invoke_t =
@@ -315,10 +316,11 @@ struct tag_invoke_fn {
 inline namespace tag_invoke_ns {
 inline constexpr tag_invoke_fn::tag_invoke_fn tag_invoke{};
 }
+}
 
 template <typename _Tag, typename... _Args>
 struct is_tag_invocable
-    : is_invocable<decltype(fub::tag_invoke), _Tag, _Args...> {};
+    : is_invocable<decltype(fub::meta::tag_invoke), _Tag, _Args...> {};
 
 namespace detail {
 template <bool IsComparable, typename T, typename... Args>
@@ -327,7 +329,7 @@ struct is_nothrow_tag_invocable_impl : bool_constant<false> {};
 template <typename T, typename... Args>
 struct is_nothrow_tag_invocable_impl<true, T, Args...> {
   static constexpr bool value =
-      noexcept(fub::tag_invoke(std::declval<T>(), std::declval<Args>()...));
+      noexcept(fub::meta::tag_invoke(std::declval<T>(), std::declval<Args>()...));
 };
 } // namespace detail
 
@@ -338,11 +340,11 @@ struct is_nothrow_tag_invocable
 
 template <typename _Tag, typename... _Args>
 using tag_invoke_result =
-    invoke_result<decltype(fub::tag_invoke), _Tag, _Args...>;
+    invoke_result<decltype(fub::meta::tag_invoke), _Tag, _Args...>;
 
 template <typename _Tag, typename... _Args>
 using tag_invoke_result_t =
-    invoke_result_t<decltype(fub::tag_invoke), _Tag, _Args...>;
+    invoke_result_t<decltype(fub::meta::tag_invoke), _Tag, _Args...>;
 
 template <auto& T>
 using tag_t = std::decay_t<decltype(T)>;

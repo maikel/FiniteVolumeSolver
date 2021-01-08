@@ -46,11 +46,11 @@ template <typename T> struct CutCellGeometry {
   T centerR;
 };
 
-Vc::double_v clamp(Vc::double_v x, Vc::double_v lo, Vc::double_v hi) noexcept {
-  where(x < lo, x) = lo;
-  where(hi < x, x) = hi;
-  return x;
-}
+//Vc::double_v clamp(Vc::double_v x, Vc::double_v lo, Vc::double_v hi) noexcept {
+//  where(x < lo, x) = lo;
+//  where(hi < x, x) = hi;
+//  return x;
+//}
 
 void ComputeStableFluxes_Row(const Fluxes<double*, const double*>& fluxes,
                              const CutCellGeometry<const double*>& geom,

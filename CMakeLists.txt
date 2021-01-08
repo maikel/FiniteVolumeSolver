@@ -496,6 +496,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         include/fub/AMReX/cutcell/boundary_condition/IsentropicPressureBoundary.hpp
         include/fub/AMReX/cutcell/boundary_condition/MassflowBoundary.hpp
         include/fub/AMReX/cutcell/boundary_condition/ReflectiveBoundary.hpp
+        include/fub/AMReX/cutcell/boundary_condition/TurbineMassflowBoundary.hpp
         include/fub/AMReX/cutcell/boundary_condition/PressureOutflowBoundary.hpp
         include/fub/AMReX/cutcell/output/WriteHdf5.hpp
         include/fub/AMReX/cutcell/output/WritePlotfiles.hpp
@@ -526,6 +527,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         src/AMReX/cutcell/boundary_condition/IsentropicPressureBoundary.cpp
         src/AMReX/cutcell/boundary_condition/MassflowBoundary.cpp
         src/AMReX/cutcell/boundary_condition/MachnumberBoundary.cpp
+        src/AMReX/cutcell/boundary_condition/TurbineMassflowBoundary.cpp
         src/AMReX/cutcell/boundary_condition/PressureOutflowBoundary.cpp
         src/AMReX/cutcell/boundary_condition/PressureOutflowBoundary2.cpp
         src/AMReX/cutcell/tagging_method/ConstantRegion.cpp

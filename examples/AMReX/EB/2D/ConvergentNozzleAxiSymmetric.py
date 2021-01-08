@@ -1,10 +1,10 @@
 import math
 
-plenum_x_n_cells = 512
+plenum_x_n_cells = 256
 tube_blocking_factor = 8
 plenum_blocking_factor = 8
 
-n_level = 1
+n_level = 2
 
 n_tubes = 6
 r_tube = 0.015
@@ -68,8 +68,8 @@ RunOptions = {
   'max_cycles': -1
 }
 
-checkpoint = '/srv/public/Maikel/FiniteVolumeSolver/build_2D-Release/ConvergentNozzleAxi/Checkpoint/000012985'
-# checkpoint = ''
+#checkpoint = '/srv/public/Maikel/FiniteVolumeSolver/build_2D-Release/ConvergentNozzleAxi/Checkpoint/000012985'
+checkpoint = ''
 
 Plenum = {
   'checkpoint': checkpoint,

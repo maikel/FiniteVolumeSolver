@@ -137,7 +137,7 @@ void MyMain(const fub::ProgramOptions& options) {
 
   using namespace std::literals;
   using HLLE = fub::HllMethod<fub::PerfectGas<1>, fub::EinfeldtSignalVelocities<fub::PerfectGas<1>>>;
-  using HLLEM = fub::perfect_gas::HllemMethod<1>;
+  using HLLEM = fub::perfect_gas::HllemMethod<fub::PerfectGas<1>>;
   using ConservativeReconstruction = fub::MusclHancockMethod<fub::PerfectGas<1>, HLLE, fub::VanLeer>;
   using ConservativeReconstructionM = fub::MusclHancockMethod<fub::PerfectGas<1>, HLLEM, fub::VanLeer>;
   using CharacteristicReconstruction = fub::perfect_gas::MusclHancockCharMethod<1>;

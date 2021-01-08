@@ -10,9 +10,9 @@ using namespace fub;
 
 template <typename Eq, typename Limiter>
 using MusclHancockPrim =
-    MusclHancock<Eq,
+    MusclHancock2<Eq,
                  PrimitiveGradient<Eq, fub::CentralDifferenceGradient<Limiter>>,
-                 PrimitiveReconstruction<Eq>, perfect_gas::Hllem<Eq::Rank()>>;
+                 PrimitiveReconstruction<Eq>, perfect_gas::Hllem<Eq>>;
 
 TEST_CASE("Construct Primitive State") {
   PerfectGas<1> equation{};

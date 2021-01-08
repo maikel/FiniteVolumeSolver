@@ -34,6 +34,7 @@
 #include "fub/AMReX/cutcell/boundary_condition/IsentropicPressureExpansion.hpp"
 #include "fub/AMReX/cutcell/boundary_condition/MachnumberBoundary.hpp"
 #include "fub/AMReX/cutcell/boundary_condition/ReflectiveBoundary2.hpp"
+#include "fub/AMReX/cutcell/boundary_condition/TurbineMassflowBoundary.hpp"
 
 #include <AMReX_EB2.H>
 #include <AMReX_EB2_IF_Box.H>
@@ -220,8 +221,8 @@ auto MakeTubeSolver(const fub::ProgramOptions& options,
                           EulerForwardTimeIntegrator(),
                           Reconstruction(equation)};
 
-  const int scratch_gcw = 8;
-  const int flux_gcw = 6;
+  const int scratch_gcw = 4;
+  const int flux_gcw = 2;
 
   IntegratorContext context(gridding, method, scratch_gcw, flux_gcw);
 
@@ -340,8 +341,8 @@ auto MakePlenumSolver(const std::map<std::string, pybind11::object>& options) {
   GradientDetector gradients{equation, std::pair{&Complete::pressure, 0.05},
                              std::pair{&Complete::density, 0.05}};
 
-  const int scratch_gcw = 8;
-  const int flux_gcw = 6;
+  const int scratch_gcw = 4;
+  const int flux_gcw = 2;
 
   const int lower_right_corner_x0 = grid_geometry.cell_dimensions[0];
   const int lower_right_corner_y0 = -scratch_gcw;
@@ -371,6 +372,34 @@ auto MakePlenumSolver(const std::map<std::string, pybind11::object>& options) {
                           1}}};
 
   std::vector<pybind11::dict> dicts{};
+  dicts = fub::GetOptionOr(options, "PressureOutflowBoundaries", dicts);
+  for (pybind11::dict& dict : dicts) {
+    fub::ProgramOptions boundary_options = fub::ToMap(dict);
+    fub::amrex::IsentropicPressureBoundaryOptions pb_opts(boundary_options);
+    pb_opts.direction = fub::Direction::X;
+    pb_opts.side = 1;
+    BOOST_LOG(log) << "PressureOutflowBoundary:";
+    pb_opts.Print(log);
+    fub::amrex::cutcell::IsentropicPressureExpansion<fub::PerfectGasMix<2>>
+        pressure_outflow(equation, pb_opts);
+    boundary_condition.conditions.push_back(std::move(pressure_outflow));
+  }
+
+  dicts.clear();
+  dicts = fub::GetOptionOr(options, "TurbineMassflowBoundaries", dicts);
+  for (pybind11::dict& dict : dicts) {
+    fub::ProgramOptions boundary_options = fub::ToMap(dict);
+    fub::amrex::cutcell::TurbineMassflowBoundaryOptions tb_opts(boundary_options);
+    tb_opts.dir = fub::Direction::X;
+    tb_opts.side = 1;
+    BOOST_LOG(log) << "TurbineMassflowBoundaries:";
+    tb_opts.Print(log);
+    fub::amrex::cutcell::TurbineMassflowBoundary<fub::PerfectGasMix<2>>
+        pressure_outflow(equation, tb_opts);
+    boundary_condition.conditions.push_back(std::move(pressure_outflow));
+  }
+
+  dicts.clear();
   dicts = fub::GetOptionOr(options, "MachnumberBoundaries", dicts);
   for (pybind11::dict& dict : dicts) {
     fub::ProgramOptions boundary_options = fub::ToMap(dict);
@@ -383,6 +412,7 @@ auto MakePlenumSolver(const std::map<std::string, pybind11::object>& options) {
         mach_boundary(equation, mb_opts);
     boundary_condition.conditions.push_back(std::move(mach_boundary));
   }
+
 
   ::amrex::RealBox xbox = grid_geometry.coordinates;
   ::amrex::Geometry coarse_geom = fub::amrex::GetCoarseGeometry(grid_geometry);
@@ -487,7 +517,7 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
     fub::amrex::BlockConnection connection;
     connection.direction = fub::Direction::X;
     connection.side = 0;
-    connection.ghost_cell_width = 8;
+    connection.ghost_cell_width = 4;
     connection.plenum.id = 0;
     connection.tube.id = tubes.size();
     connection.tube.mirror_box = tube.GetGriddingAlgorithm()

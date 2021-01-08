@@ -18,7 +18,7 @@ alpha = 2.0 * math.pi / n_tubes
 
 inlet_length = 3.0 * D # [m]
 
-plenum_x_upper = 10.0 * D
+plenum_x_upper = 0.1
 plenum_x_lower = -inlet_length
 plenum_x_length = plenum_x_upper - plenum_x_lower
 
@@ -64,7 +64,7 @@ tube_n_cells = int(tube_n_cells)
 
 RunOptions = {
   'cfl': 0.8,
-  'final_time': 3.0,
+  'final_time': 20,
   'max_cycles': -1
 }
 
@@ -114,12 +114,24 @@ Plenum = {
       'temperature': 1.0
     },
   },
-  'MachnumberBoundaries': [{
+  #'PressureOutflowBoundaries': [{
+  #  'outer_pressure': 1.0,
+  #  'efficiency': 0.1
+  #}],
+  'TurbineMassflowBoundaries': [{
     'boundary_section': { 
-      'lower': [plenum_x_n_cells, y0 - int(r_tube / plenum_y_length * plenum_y_n_cells), 0], 
-      'upper': [plenum_x_n_cells + 1, y0 + int(r_tube / plenum_y_length * plenum_y_n_cells), 0] 
-     }
-  } for y0 in mach_1_boundaries]
+      'lower': [plenum_x_n_cells, -4, 0], 
+      'upper': [plenum_x_n_cells + 3, plenum_y_n_cells + 3, 0] 
+     },
+    'relative_surface_area': 1,
+    'massflow_correlation': 0.0008,
+  }],
+  #'MachnumberBoundaries': [{
+  #  'boundary_section': { 
+  #    'lower': [plenum_x_n_cells, y0 - int(r_tube / plenum_y_length * plenum_y_n_cells), 0], 
+  #    'upper': [plenum_x_n_cells + 1, y0 + int(r_tube / plenum_y_length * plenum_y_n_cells), 0] 
+  #   }
+  #} for y0 in mach_1_boundaries]
 }
 
 def TubeCenterPoint(x0, y0):
@@ -166,6 +178,7 @@ Tubes = [{
   },
   'PatchHierarchy': {
     'max_number_of_levels': n_level, 
+    'max_grid_size': [tube_n_cells, tube_n_cells, tube_n_cells],
     'blocking_factor': [tube_blocking_factor, 1, 1],
     'refine_ratio': [2, 1, 1],
     'n_proper': 1,
@@ -173,23 +186,20 @@ Tubes = [{
   }
 } for y_0 in y0s]
 
-def OuterProbe(x0, k, alpha):
-  return [x0, r_outer - 0.002, r_tube_center * math.sin(k * alpha)]
-
 Output = { 
   'outputs': [{
     'type': 'Plotfiles',
-    'directory': 'SEC_Plenum/Plotfiles/',
+    'directory': 'SEC_Plenum_TurbineBoundary/Plotfiles/',
     'intervals': [0.01],
     #'frequencies': [1]
   }, {
     'type': 'Checkpoint',
-    'directory': 'SEC_Plenum/Checkpoint/',
+    'directory': 'SEC_Plenum_TurbineBoundary/Checkpoint/',
     'intervals': [1.0],
     #'frequencies': [100]
   }, {
    'type': 'CounterOutput',
-   'intervals': [RunOptions['final_time'] / 3.0]
+   'intervals': [1.0]
   }
   ]
 }

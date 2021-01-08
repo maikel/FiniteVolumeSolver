@@ -47,11 +47,9 @@ MapToSrc(const std::array<std::ptrdiff_t, 2>& dest,
 /// one-dimensional ideal gas equations for mixtures.
 template <typename EulerEquation> class IsentropicPressureExpansion {
 public:
-  IsentropicPressureExpansion(const EulerEquation& eq,
-                              const IsentropicPressureBoundaryOptions& options);
-
-  IsentropicPressureExpansion(const EulerEquation& eq, double outer_pressure,
-                              Direction dir, int side);
+  IsentropicPressureExpansion(
+      const EulerEquation& eq,
+      const fub::amrex::IsentropicPressureBoundaryOptions& options);
 
   void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding,
                     int level);
@@ -59,51 +57,39 @@ public:
   void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding,
                     int level, Direction dir);
 
-  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::MultiFab& alphas, const ::amrex::Geometry& geom);
+  void FillBoundary(::amrex::MultiFab& mf, const ::amrex::MultiFab& alphas,
+                    const ::amrex::Geometry& geom);
 
 private:
   EulerEquation equation_;
-  double outer_pressure_;
-  Direction dir_;
-  int side_;
+  fub::amrex::IsentropicPressureBoundaryOptions options_;
 };
 
 template <typename EulerEquation>
 void ExpandState(EulerEquation& eq, Complete<EulerEquation>& dest,
                  const Complete<EulerEquation>& src, double pressure_dest,
                  double efficiency) {
-                   
-  const auto old_velocity = euler::Velocity(eq, src);
-  const double rhoE_kin = euler::KineticEnergy(src.density, src.momentum);
   static constexpr int N = EulerEquation::Rank();
+  const Array<double, N, 1> old_velocity = euler::Velocity(eq, src);
   dest = src;
-  dest.momentum = Array<double, N, 1>::Zero();
-  dest.energy = src.energy - rhoE_kin;
-  const double h_before = (dest.energy + dest.pressure) / dest.density;
+  euler::SetVelocity(eq, dest, Array<double, N, 1>::Zero());
+  const double h_before = euler::TotalEnthalpy(eq, dest);
   euler::SetIsentropicPressure(eq, dest, dest, pressure_dest);
-  const double h_after = (dest.energy + dest.pressure) / dest.density;
+  const double h_after = euler::TotalEnthalpy(eq, dest);
   const double h_diff = h_before - h_after;
-  auto Sign = [](double x) { return (x > 0) - (x < 0); };
-  const double u_border0 =
-      Sign(h_diff) *
-      std::sqrt((1.0 - efficiency) * std::abs(h_diff) * 2 +
-                old_velocity[0] * old_velocity[0]);
+  auto Sign = [](double x) { return (x >= 0) - (x < 0); };
+  const double e_kin = efficiency * h_diff * 2.0 + old_velocity[0] * old_velocity[0];
+  const double u_border0 = Sign(e_kin) * std::sqrt(std::abs(e_kin));
   Array<double, N, 1> u_border = old_velocity;
   u_border[0] = u_border0;
-  dest.momentum = dest.density * u_border;
-  dest.energy = dest.energy + euler::KineticEnergy(dest.density, dest.momentum);
+  euler::SetVelocity(eq, dest, u_border);
 }
 
 template <typename EulerEquation>
 IsentropicPressureExpansion<EulerEquation>::IsentropicPressureExpansion(
-    const EulerEquation& eq, const IsentropicPressureBoundaryOptions& options)
-    : equation_{eq}, outer_pressure_{options.outer_pressure},
-      dir_{options.direction}, side_{options.side} {}
-
-template <typename EulerEquation>
-IsentropicPressureExpansion<EulerEquation>::IsentropicPressureExpansion(
-    const EulerEquation& eq, double outer_pressure, Direction dir, int side)
-    : equation_{eq}, outer_pressure_{outer_pressure}, dir_{dir}, side_{side} {}
+    const EulerEquation& eq,
+    const fub::amrex::IsentropicPressureBoundaryOptions& options)
+    : equation_{eq}, options_{options} {}
 
 template <typename EulerEquation>
 void IsentropicPressureExpansion<EulerEquation>::FillBoundary(
@@ -117,15 +103,16 @@ template <typename EulerEquation>
 void IsentropicPressureExpansion<EulerEquation>::FillBoundary(
     ::amrex::MultiFab& mf, const GriddingAlgorithm& gridding, int level,
     Direction dir) {
-  if (dir == dir_) {
+  if (dir == options_.direction) {
     FillBoundary(mf, gridding, level);
   }
 }
 
 template <typename EulerEquation>
 void IsentropicPressureExpansion<EulerEquation>::FillBoundary(
-    ::amrex::MultiFab& mf, const ::amrex::MultiFab& alphas, const ::amrex::Geometry& geom) {
-  const int ngrow = mf.nGrow(int(dir_));
+    ::amrex::MultiFab& mf, const ::amrex::MultiFab& alphas,
+    const ::amrex::Geometry& geom) {
+  const int ngrow = mf.nGrow(int(options_.direction));
   ::amrex::Box grown_box = geom.growNonPeriodicDomain(ngrow);
   ::amrex::BoxList boundaries =
       ::amrex::complementIn(grown_box, ::amrex::BoxList{geom.Domain()});
@@ -138,8 +125,8 @@ void IsentropicPressureExpansion<EulerEquation>::FillBoundary(
     ::amrex::FArrayBox& fab = mf[mfi];
     const ::amrex::FArrayBox& alpha = alphas[mfi];
     for (const ::amrex::Box& boundary : boundaries) {
-      ::amrex::Box shifted =
-          ::amrex::shift(boundary, int(dir_), GetSign(side_) * ngrow);
+      ::amrex::Box shifted = ::amrex::shift(boundary, int(options_.direction),
+                                            GetSign(options_.side) * ngrow);
       if (!geom.Domain().intersects(shifted)) {
         continue;
       }
@@ -151,14 +138,15 @@ void IsentropicPressureExpansion<EulerEquation>::FillBoundary(
             AsIndexBox<EulerEquation::Rank()>(box_to_fill), [&](auto... is) {
               Index<EulerEquation::Rank()> dest{is...};
               Index<EulerEquation::Rank()> src =
-                  MapToSrc(dest, geom, side_, dir_);
+                  MapToSrc(dest, geom, options_.side, options_.direction);
               ::amrex::IntVect src_iv{
                   AMREX_D_DECL(int(src[0]), int(src[1]), int(src[2]))};
               ::amrex::IntVect iv{
                   AMREX_D_DECL(int(dest[0]), int(dest[1]), int(dest[2]))};
               if (alpha(iv) > 0.0 && alpha(src_iv) > 0.0) {
                 Load(state, states, src);
-                ExpandState(equation_, expanded, state, outer_pressure_, 1.0);
+                ExpandState(equation_, expanded, state, options_.outer_pressure,
+                            options_.efficiency);
                 Store(states, expanded, dest);
               }
             });

@@ -296,7 +296,7 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
       TagAllOf(TagCutCells(), gradients, TagBuffer(4)), boundary_condition);
   gridding->InitializeHierarchy(0.0);
 
-  fub::perfect_gas::HllemMethod<2> hllem_method{equation};
+  fub::perfect_gas::HllemMethod<fub::PerfectGas<2>> hllem_method{equation};
   fub::FluxMethod<fub::perfect_gas::MusclHancockPrim<2>> flux_method{equation};
   fub::KbnCutCellMethod cutcell_method(flux_method, hllem_method);
   HyperbolicMethod method{FluxMethod{cutcell_method}, TimeIntegrator{},
