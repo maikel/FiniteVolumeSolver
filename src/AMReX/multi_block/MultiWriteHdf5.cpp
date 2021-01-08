@@ -167,7 +167,8 @@ void WriteHdf5UnRestricted(const std::string& name,
     ::amrex::FArrayBox local_fab(domain, ncomp + 1);
     local_fab.setVal(0.0);
     // Initialize volume fraction data by using coarser level
-    if (level > 0) {
+    if (level > 0 && rank == 0) {
+      FUB_ASSERT(fabs.size() == level);
       ConstantInterpolation(local_fab, fabs[level - 1],
                             hierarchy.GetRatioToCoarserLevel(ilvl),
                             ::amrex::SrcComp(ncomp), ::amrex::DestComp(ncomp),
