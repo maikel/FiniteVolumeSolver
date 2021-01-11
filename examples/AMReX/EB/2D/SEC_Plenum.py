@@ -99,6 +99,9 @@ Plenum = {
     'n_proper': 1,
     'n_error_buf': [0, 0, 0]
   },
+  'FluxMethod': {
+    'limiter': 'Upwind',
+  },
   'InletGeometries': [{
     'r_start': r_tube,
     'r_end': 2.0*r_tube,

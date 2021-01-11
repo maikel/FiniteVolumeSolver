@@ -159,7 +159,10 @@ template <typename T, typename Eq> struct DepthsImpl {
 };
 } // namespace detail
 
-template <typename T> struct Type {};
+template <typename T> struct Type {
+  using type = T;
+};
+
 inline constexpr struct DepthsFn {
   template <typename Eq, typename State>
   constexpr auto operator()(const Eq& eq,
