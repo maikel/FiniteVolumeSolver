@@ -31,60 +31,49 @@ namespace fub::perfect_gas_mix {
 template <int Rank>
 ArrheniusKinetics<Rank>::ArrheniusKinetics(
     const PerfectGasMix<Rank>& eq)
-    : equation_{eq}, state_{Complete<PerfectGasMix<Rank>>(eq)},
-      kinetic_state_{KineticState<PerfectGasMix<Rank>>(eq)} {}
+    : equation_{eq}, state_{CompleteArray<PerfectGasMix<Rank>>(eq)},
+      kinetic_state_{KineticStateArray<PerfectGasMix<Rank>>(eq)} {}
 
 template <int Rank> Duration ArrheniusKinetics<Rank>::ComputeStableDt(int) {
   return Duration(std::numeric_limits<double>::max());
 }
 
-/* namespace {
+namespace {
 template <typename Equation>
 void Advance_(Equation& eq, CompleteArray<Equation>& state,
               KineticStateArray<Equation>& kinetic_state, Duration dt,
               const ArrheniusKineticsOptions& options) {
-  FUB_ASSERT(eq.n_species >= 2);
+  FUB_ASSERT(eq.n_species >= 1);
   euler::KineticStateFromComplete(eq, kinetic_state, state);
   ArrayXd& X = kinetic_state.mole_fractions;
   FUB_ASSERT(X.colwise().sum().isApproxToConstant(1.0));
   const Array1d T = kinetic_state.temperature;
   FUB_ASSERT(dt > Duration(0.0));
-  const Array1d lambda =
-      Array1d::Constant(-std::log(options.Yign / options.Yinit / options.tau));
-  const Array1d rate =
-      lambda +
-      Eigen::pow(T, options.R_B) *
-          Eigen::exp(options.R_C * (1.0 - options.R_E / T)) +
-      options.R2_A * Eigen::exp(options.R2_C * (1.0 - options.R2_E / T));
-  const Array1d Fdiff = (1.0 - Eigen::exp(-rate * dt.count())) * X.row(0);
-  const Array1d Xrow0a = X.row(0) - Fdiff;
-  const Array1d Xrow1a = (X.row(1) + Fdiff).max(0.0).min(1.0);
-  X.row(0) = Xrow0a;
-  X.row(1) = Xrow1a;
-  const Array1d rate2 = Eigen::exp(options.C * (1.0 - options.E / T));
-  const MaskArray activator = X.row(0) <= (options.Yign * (1.0 - X.row(2)));
-  const Array1d coeff =
-      activator.select((1.0 - Eigen::exp(-rate2 * dt.count())), 0.0);
-  FUB_ASSERT((0.0 <= coeff && coeff <= 1).all());
-  const Array1d FRdiff1 = coeff * X.row(1);
-  const Array1d Xrow1b = X.row(1) - FRdiff1;
-  const Array1d Xrow2b = (X.row(2) + FRdiff1).max(0.0).min(1.0);
-  X.row(1) = Xrow1b;
-  X.row(2) = Xrow2b;
-  const Array1d FRdiff0 = coeff * X.row(0);
-  const Array1d Xrow0c = X.row(0) - FRdiff0;
-  const Array1d Xrow2c = (X.row(2) + FRdiff0).max(0.0).min(1.0);
-  X.row(0) = Xrow0c;
-  X.row(2) = Xrow2c;
+
+  const MaskArray activator = (T >= options.T_switch);
+  // const Array1d coeff = activator.select(1.0, 0.0);
+  const Array1d rate = Eigen::exp(options.EA * ( 1.0 -1.0 / T) );
+  const Array1d Xnew = X.row(0) * Eigen::exp( - options.B * dt.count() * rate );
+
+  const Array1d dX = activator.select((Xnew - X.row(0)), 0.0);
+  // const Array1d Xrow0a = X.row(0) + dX;
+  // const Array1d Xrow1a = X.row(1) - dX;
+  // X.row(0) = Xrow0a; // neccessary??
+  // X.row(1) = Xrow1a; 
+  X.row(0) = X.row(0) + dX;
+  X.row(1) = X.row(1) - dX;
   FUB_ASSERT(X.colwise().sum().isApproxToConstant(1.0));
-  const Array1d T_new = T + options.Tdiff * (FRdiff0 + FRdiff1);
-  kinetic_state.temperature = T_new;
+
   const Array<double, Equation::Rank()> velocity = euler::Velocity(eq, state);
   euler::CompleteFromKineticState(eq, state, kinetic_state, velocity);
-}
-} // namespace */
 
-/* template <typename Equation> struct ArrheniusKinetics_Rows {
+  state.energy += - options.Q * state.density * dX;
+
+  fub::CompleteFromCons(eq, state, state);
+}
+} // namespace
+
+template <typename Equation> struct ArrheniusKinetics_Rows {
   Equation* equation_;
   CompleteArray<Equation>* state_;
   KineticStateArray<Equation>* kinetic_state_;
@@ -111,7 +100,7 @@ void Advance_(Equation& eq, CompleteArray<Equation>& state,
     Advance_(eq, complete, kin, dt_, *options_);
     StoreN(out, complete, n);
   }
-}; */
+};
 
 template <int Rank>
 Result<void, TimeStepTooLarge> ArrheniusKinetics<Rank>::AdvanceLevel(
@@ -130,39 +119,39 @@ Result<void, TimeStepTooLarge> ArrheniusKinetics<Rank>::AdvanceLevel(
     PerfectGasMix<Rank>& eq = *equation_;
     auto& state = *state_;
     auto& kinetic_state = *kinetic_state_;
-    /* ForEachRow(std::tuple{states},
+    ForEachRow(std::tuple{states},
                ArrheniusKinetics_Rows<PerfectGasMix<Rank>>{
-                   &eq, &state, &kinetic_state, &options, dt}); */
+                   &eq, &state, &kinetic_state, &options, dt});
 
-      ForEachIndex(Box<0>(states), [&](auto... is) {
-        std::array<std::ptrdiff_t, sRank> index{is...};
-        Load(state, states, index);
+      // ForEachIndex(Box<0>(states), [&](auto... is) {
+      //   std::array<std::ptrdiff_t, sRank> index{is...};
+      //   Load(state, states, index);
 
-        FUB_ASSERT(eq.n_species >= 1);
-        euler::KineticStateFromComplete(eq, kinetic_state, state);
-        Array<double, -1, 1>& X = kinetic_state.mole_fractions;
-        FUB_ASSERT(X.colwise().sum().isApproxToConstant(1.0));
-        const double T = kinetic_state.temperature;
-        FUB_ASSERT(dt > Duration(0.0));
+      //   FUB_ASSERT(eq.n_species >= 1);
+      //   euler::KineticStateFromComplete(eq, kinetic_state, state);
+      //   Array<double, -1, 1>& X = kinetic_state.mole_fractions;
+      //   FUB_ASSERT(X.colwise().sum().isApproxToConstant(1.0));
+      //   const double T = kinetic_state.temperature;
+      //   FUB_ASSERT(dt > Duration(0.0));
         
-        const int activator = (T >= options.T_switch);
-        const double rate = std::exp( options.EA * ( 1.0 -1.0 / T) );
-        const double Xnew = X[0] * std::exp( - options.B * dt.count() * rate );
+      //   const int activator = (T >= options.T_switch);
+      //   const double rate = std::exp( options.EA * ( 1.0 -1.0 / T) );
+      //   const double Xnew = X[0] * std::exp( - options.B * dt.count() * rate );
         
-        const double dX = activator * (Xnew - X[0]);
-        X[0] = X[0] + dX;
-        X[1] = X[1] - dX;
-        FUB_ASSERT(X.colwise().sum().isApproxToConstant(1.0));
+      //   const double dX = activator * (Xnew - X[0]);
+      //   X[0] = X[0] + dX;
+      //   X[1] = X[1] - dX;
+      //   FUB_ASSERT(X.colwise().sum().isApproxToConstant(1.0));
 
-        const Array<double, Rank, 1> velocity = euler::Velocity(eq, state);
-        euler::CompleteFromKineticState(eq, state, kinetic_state, velocity);
+      //   const Array<double, Rank, 1> velocity = euler::Velocity(eq, state);
+      //   euler::CompleteFromKineticState(eq, state, kinetic_state, velocity);
 
-        state.energy += - options.Q * state.density * dX;
+      //   state.energy += - options.Q * state.density * dX;
 
-        fub::CompleteFromCons(eq, state, state);
+      //   fub::CompleteFromCons(eq, state, state);
 
-        Store(states, state, index);
-      });
+      //   Store(states, state, index);
+      // });
   }
 
   if (level == 0) {

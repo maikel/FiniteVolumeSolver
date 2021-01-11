@@ -7,7 +7,7 @@ RunOptions = {
   # 'max_cycles': 1,
 }
 
-dx = 1e-3
+dx = 1e-4
 x_len = 1.0
 n_cells = int(x_len / dx)
 
