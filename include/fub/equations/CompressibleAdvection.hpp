@@ -123,6 +123,7 @@ template <int N, int VelocityDim = N> struct CompressibleAdvection {
     state.PTinverse = cons.density / cons.PTdensity;
   }
 
+  const IndexMapping& GetIndexMapping() const noexcept { return index_mapping; }
 
   IndexMapping index_mapping;
 
