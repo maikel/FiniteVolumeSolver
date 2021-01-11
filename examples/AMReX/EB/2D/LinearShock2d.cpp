@@ -35,16 +35,11 @@ auto Rectangle(const std::array<double, 2>& lower,
   return amrex::EB2::makeIntersection(lower_x, lower_y, upper_x, upper_y);
 }
 
-int main() {
+void MyMain(const fub::ProgramOptions& options) {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
-  fub::amrex::ScopeGuard _{};
-
-  const std::array<int, 2> n_cells{128, 128};
-  const std::array<double, 2> xlower{-0.10, -0.6};
-  const std::array<double, 2> xupper{+1.10, +0.6};
-
-  const int n_level = 3;
+  fub::amrex::ScopeGuard scope_guard{};
+  fub::SeverityLogger log = fub::GetInfoLogger();
 
   auto embedded_boundary =
       amrex::EB2::makeUnion(Rectangle({-1.0, +0.015}, {0.0, 1.0}),
@@ -54,22 +49,22 @@ int main() {
   fub::Burke2012 mech{};
   fub::IdealGasMix<2> equation(mech);
 
-  fub::amrex::CartesianGridGeometry geometry;
-  geometry.cell_dimensions = n_cells;
-  geometry.coordinates = amrex::RealBox(xlower, xupper);
-
-  amrex::Geometry coarse_geom(amrex::Box{{}, {n_cells[0] - 1, n_cells[1] - 1}},
-                              &geometry.coordinates, -1,
-                              geometry.periodicity.data());
+  fub::amrex::CartesianGridGeometry grid_geometry(
+      fub::GetOptions(options, "GridGeometry"));
 
   using namespace fub::amrex::cutcell;
+  PatchHierarchyOptions hierarchy_options(
+      fub::GetOptions(options, "PatchHierarchy"));
 
-  PatchHierarchyOptions options{};
-  options.max_number_of_levels = n_level;
-  options.index_spaces = MakeIndexSpaces(shop, coarse_geom, n_level);
+  BOOST_LOG(log) << "Compute EB level set data...";
+  std::shared_ptr<fub::CounterRegistry> registry =
+      std::make_shared<fub::CounterRegistry>();
+  {
+    fub::Timer timer = registry->get_timer("MakeIndexSpaces");
+    hierarchy_options.index_spaces =
+        MakeIndexSpaces(shop, grid_geometry, hierarchy_options);
+  }
 
-  //  auto hierarchy = fub::amrex::cutcell::ReadCheckpointFile(
-  //      "LinearShock2d/Checkpoint", desc, geometry, options);
 
   fub::Conservative<fub::IdealGasMix<2>> cons;
   fub::FlameMasterReactor& reactor = equation.GetReactor();
@@ -90,13 +85,14 @@ int main() {
   GradientDetector gradients{equation, std::pair{&State::pressure, 0.05},
                              std::pair{&State::density, 0.05}};
 
+  auto seq = fub::execution::seq;
   BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
                                   TransmissiveBoundary{fub::Direction::X, 1},
-                                  TransmissiveBoundary{fub::Direction::Y, 0},
+                                  ReflectiveBoundary{seq, equation, fub::Direction::Y, 0},
                                   TransmissiveBoundary{fub::Direction::Y, 1}}};
 
   std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
-      PatchHierarchy(equation, geometry, options), initial_data,
+      PatchHierarchy(equation, grid_geometry, hierarchy_options), initial_data,
       TagAllOf(TagCutCells(), gradients, TagBuffer(4)), boundary_condition);
   gridding->InitializeHierarchy(0.0);
 
@@ -109,18 +105,37 @@ int main() {
                           Reconstruction{equation}};
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<2>, IntegratorContext(gridding, method),
+      fub::int_c<2>, IntegratorContext(gridding, method, 4, 2),
       fub::GodunovSplitting());
 
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
-  std::string base_name = "LinearShock2d";
   using namespace std::literals::chrono_literals;
-  fub::AnyOutput<GriddingAlgorithm> output({}, {0.0000125s},
-                                           PlotfileOutput{equation, base_name});
-  output(*solver.GetGriddingAlgorithm());
-  fub::RunOptions run_options{};
-  run_options.final_time = 0.002s;
-  run_options.cfl = 0.8;
+  using Plotfile = PlotfileOutput<fub::IdealGasMix<2>>;
+  using CounterOutput =
+      fub::CounterOutput<GriddingAlgorithm, std::chrono::milliseconds>;
+  fub::OutputFactory<GriddingAlgorithm> factory{};
+  factory.RegisterOutput<Plotfile>("Plotfile", equation);
+  factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
+  factory.RegisterOutput<WriteHdf5>("HDF5");
+  fub::MultipleOutputs<GriddingAlgorithm> output(
+      std::move(factory), fub::GetOptions(options, "Output"));
+  output(*gridding);
+  fub::RunOptions run_options(fub::GetOptions(options, "RunOptions"));
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
+}
+
+int main(int argc, char** argv) {
+  MPI_Init(nullptr, nullptr);
+  fub::InitializeLogging(MPI_COMM_WORLD);
+  pybind11::scoped_interpreter interpreter{};
+  std::optional<fub::ProgramOptions> opts = fub::ParseCommandLine(argc, argv);
+  if (opts) {
+    MyMain(*opts);
+  }
+  int flag = -1;
+  MPI_Finalized(&flag);
+  if (!flag) {
+    MPI_Finalize();
+  }
 }

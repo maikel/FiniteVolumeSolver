@@ -1,10 +1,10 @@
 import math
 
-plenum_x_n_cells = 64
+plenum_x_n_cells = 512
 tube_blocking_factor = 8
 plenum_blocking_factor = 8
 
-n_level = 2
+n_level = 1
 
 n_tubes = 6
 r_tube = 0.015
@@ -18,14 +18,14 @@ alpha = 2.0 * math.pi / n_tubes
 
 inlet_length = 3.0 * D # [m]
 
-plenum_x_upper = 20.0 * D
+plenum_x_upper = 10.0 * D
 plenum_x_lower = -inlet_length
 plenum_x_length = plenum_x_upper - plenum_x_lower
 
 plenum_length = plenum_x_length # [m]
-tube_length = 2.083 - 0.5 # [m]
+tube_length = 1.0 # [m]
 
-plenum_max_grid_size = max(plenum_blocking_factor, 64)
+plenum_max_grid_size = max(plenum_blocking_factor, 1024)
 
 plenum_domain_length = plenum_length + inlet_length
 tube_domain_length = tube_length - inlet_length
@@ -38,12 +38,12 @@ tube_over_plenum_length_ratio = tube_domain_length / plenum_domain_length
 # plenum_yz_length = plenum_yz_upper - plenum_yz_lower
 
 
-plenum_y_lower = - 10.0 * D
-plenum_y_upper = + 10.0 * D
+plenum_y_lower = - 0.0 * D
+plenum_y_upper = + 15.0 * D
 plenum_y_length = plenum_y_upper - plenum_y_lower
 
-plenum_z_lower = - 10.0 * D
-plenum_z_upper = + 10.0 * D
+plenum_z_lower = plenum_y_lower
+plenum_z_upper = plenum_y_upper
 plenum_z_length = plenum_z_upper - plenum_z_lower
 
 plenum_y_over_x_ratio = plenum_y_length / plenum_x_length
@@ -63,8 +63,8 @@ tube_n_cells -= tube_n_cells % tube_blocking_factor
 tube_n_cells = int(tube_n_cells)
 
 RunOptions = {
-  'cfl': 0.4,
-  'final_time': 0.04,
+  'cfl': 0.8,
+  'final_time': 10.0,
   'max_cycles': -1
 }
 
@@ -85,19 +85,33 @@ Plenum = {
     'max_number_of_levels': n_level, 
     'blocking_factor': [plenum_blocking_factor, plenum_blocking_factor, plenum_blocking_factor],
     'max_grid_size': [plenum_max_grid_size, plenum_max_grid_size, plenum_max_grid_size],
-    'ngrow_eb_level_set': 5,
+    'ngrow_eb_level_set': 9,
     'remove_covered_grids': False,
     'n_proper': 1,
     'n_error_buf': [0, 0, 0]
   },
-  'IsentropicPressureBoundary': {
-    'outer_pressure': 101325.0,
-    'coarse_inner_box': { 
-      'lower': [plenum_x_n_cells - 1, 0, 0],
-      'upper': [plenum_x_n_cells - 1, plenum_y_n_cells - 1, plenum_z_n_cells - 1] 
+  'InletGeometry': {
+    'r_start': r_tube,
+    'r_end': 2.0*r_tube
+  },
+  'BladeGeometry': {
+    'dBox': 2.0 * r_tube,
+    'dy': 2.0 * r_tube,
+    'y0': 1000.0 * r_tube,
+    'x0': 1000.0 * r_tube
+  },
+  'InitialCondition': {
+    'left': {
+      'density': 1.0 / 2.5,
+      'temperature': 2.5
     },
-    'side': 1,
-    'direction': 0
+    'right': {
+      'pressure': 1.0 / 2.5,
+      'temperature': 2.5
+    },
+  },
+  'PressureBoundary': {
+    'outer_pressure': 1.0
   }
 }
 
@@ -132,29 +146,6 @@ Tube = {
     'refine_ratio': [2, 1, 1],
     'n_proper': 1,
     'n_error_buf': [4, 0, 0]
-  },
-  'PressureValveBoundary': {
-    'prefix': 'PressureValve',
-    'efficiency': 1.0,
-    'open_at_interval': 0.03333333,
-    'offset': 0.01,
-    'fuel_measurement_position': -0.15,
-    'fuel_measurement_criterium': 0.9,
-    'pressure_value_which_opens_boundary': 101325.0,
-    'pressure_value_which_closes_boundary': 3.0e5,
-    'oxygen_measurement_position': -0.5,
-    'oxygen_measurement_criterium': 0.1,
-    'equivalence_ratio': 1.0,
-    'massflow_boundary': {
-      'coarse_inner_box': { 
-        'lower': [0, 0, 0], 
-        'upper': [1, 0, 0] 
-      },
-      'side': 0,
-      'direction': 0,
-      'required_massflow': 100.0 / 3600.0,
-      'surface_area': math.pi * r_tube * r_tube
-    }
   }
 }
 
@@ -165,22 +156,16 @@ Output = {
   'outputs': [{
     'type': 'Plotfiles',
     'directory': 'ConvergentNozzle/Plotfiles/',
-    # 'intervals': [1e-5],
-    'frequencies': [1]
+    'intervals': [0.01],
+    #'frequencies': [1]
   }, {
     'type': 'Checkpoint',
     'directory': 'ConvergentNozzle/Checkpoint/',
-    'intervals': [1e-3],
-    'frequencies': []
-  }, {
-    'type': 'CounterOutput',
+    #'intervals': [1e-3],
     'frequencies': [100]
-  }]
-}
-
-IgniteDetonation = {
-  'interval': 0.06,
-  'measurement_position': -0.3, # -0.45
-  'equivalence_ratio_criterium': 0.9,
-  'position': -0.8
+  }, {
+   'type': 'CounterOutput',
+   'intervals': [RunOptions['final_time'] / 3.0]
+  }
+  ]
 }

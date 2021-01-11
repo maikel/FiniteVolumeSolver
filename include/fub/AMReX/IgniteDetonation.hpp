@@ -51,6 +51,7 @@ struct IgniteDetonationOptions {
     BOOST_LOG(log) << fmt::format("  - ramp_width = {} [m]", ramp_width);
     BOOST_LOG(log) << fmt::format("  - ignite_position = {} [m]", ignite_position);
     BOOST_LOG(log) << fmt::format("  - ignite_interval = {} [s]", ignite_interval.count());
+    BOOST_LOG(log) << fmt::format("  - offset = {} [s]", offset.count());
     // clang-format on
   }
 
@@ -61,6 +62,7 @@ struct IgniteDetonationOptions {
   double temperature_high{2000.0};
   double ramp_width{0.05};
   double ignite_position{0.0};
+  Duration offset{0.0};
   Duration ignite_interval{0.0};
 };
 
@@ -119,16 +121,16 @@ public:
 
   /// \brief Returns the time points for the last ignition on refinement level
   /// `level`.
-  [[nodiscard]] Duration GetLastIgnitionTimePoint(int level) const noexcept;
+  [[nodiscard]] Duration GetNextIgnitionTimePoint(int level) const noexcept;
 
   /// \brief Set a time point for an ignition on refinement level `level`.
-  void SetLastIgnitionTimePoint(int level, Duration t) noexcept;
+  void SetNextIgnitionTimePoint(int level, Duration t) noexcept;
 
 private:
   IdealGasMix<1> equation_;
   IgniteDetonationOptions options_;
-  std::vector<Duration> last_ignition_backup_{};
-  std::vector<Duration> last_ignition_{};
+  std::vector<Duration> next_ignition_time_backup_{};
+  std::vector<Duration> next_ignition_time_{};
 
   friend class boost::serialization::access;
   template <typename Archive> void serialize(Archive& ar, unsigned int version);
@@ -138,7 +140,8 @@ template <typename Archive>
 void IgniteDetonation::serialize(Archive& ar, unsigned int /* version */) {
   // clang-format off
   ar & options_;
-  ar & last_ignition_;
+  ar & next_ignition_time_;
+  ar & next_ignition_time_backup_;
   // clang-format on
 }
 
@@ -157,6 +160,7 @@ void serialize(Archive& ar, ::fub::amrex::IgniteDetonationOptions& opts,
   ar & opts.temperature_low;
   ar & opts.ignite_interval;
   ar & opts.ignite_position;
+  ar & opts.offset;
   // clang-format on
 }
 

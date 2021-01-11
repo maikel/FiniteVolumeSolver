@@ -209,36 +209,37 @@ double ChangeState_(PressureValveState& state, const ::amrex::Geometry& geom,
     break;
   }
   if (next_fuel_time < current_time && state == PressureValveState::open_air) {
-    const double x_air =
-        std::clamp(options.oxygen_measurement_position, xlo, xhi);
-    std::vector<double> moles = GatherMoles_(grid, x_air, eq);
-    const double sum = std::accumulate(moles.begin(), moles.end(), 0.0);
-    FUB_ASSERT(sum >= 0.0);
-    if (sum > 0.0) {
-      std::transform(moles.begin(), moles.end(), moles.begin(),
-                     [sum](double m) { return m / sum; });
-    }
-    if (options.oxygen_measurement_criterium < moles[Burke2012::sO2]) {
+    // const double x_air =
+    //     std::clamp(options.oxygen_measurement_position, xlo, xhi);
+    // std::vector<double> moles = GatherMoles_(grid, x_air, eq);
+    // const double sum = std::accumulate(moles.begin(), moles.end(), 0.0);
+    // FUB_ASSERT(sum >= 0.0);
+    // if (sum > 0.0) {
+    //   std::transform(moles.begin(), moles.end(), moles.begin(),
+    //                  [sum](double m) { return m / sum; });
+    // }
+    // if (options.oxygen_measurement_criterium < moles[Burke2012::sO2]) {
       state = PressureValveState::open_fuel;
       last_fuel_change = next_fuel_time;
       BOOST_LOG(log) << "pressure valve changed to fuel!";
-    }
-  } else if (state == PressureValveState::open_fuel) {
-    const double x_fuel =
-        std::clamp(options.fuel_measurement_position, xlo, xhi);
-    std::vector<double> moles = GatherMoles_(grid, x_fuel, eq);
-    const double equivalence_ratio =
-        moles[Burke2012::sO2]
-            ? 0.5 * moles[Burke2012::sH2] / moles[Burke2012::sO2]
-            : 0.0;
-    if (equivalence_ratio > options.fuel_measurement_criterium) {
-      last_closed = current_time;
-      state = PressureValveState::closed;
-      BOOST_LOG(log)
-          << "pressure valve closed due to measured fuel: equivalence ratio at "
-          << x_fuel << " [m] is " << equivalence_ratio << " [-]!";
-    }
-  }
+    // }
+  } 
+  // else if (state == PressureValveState::open_fuel) {
+  //   const double x_fuel =
+  //       std::clamp(options.fuel_measurement_position, xlo, xhi);
+  //   std::vector<double> moles = GatherMoles_(grid, x_fuel, eq);
+  //   const double equivalence_ratio =
+  //       moles[Burke2012::sO2]
+  //           ? 0.5 * moles[Burke2012::sH2] / moles[Burke2012::sO2]
+  //           : 0.0;
+  //   if (equivalence_ratio > options.fuel_measurement_criterium) {
+  //     last_closed = current_time;
+  //     state = PressureValveState::closed;
+  //     BOOST_LOG(log)
+  //         << "pressure valve closed due to measured fuel: equivalence ratio at "
+  //         << x_fuel << " [m] is " << equivalence_ratio << " [-]!";
+  //   }
+  // }
 
   return mean_pressure;
 }
@@ -249,7 +250,7 @@ void PressureValveBoundary::FillBoundary(::amrex::MultiFab& mf,
                                          const GriddingAlgorithm& grid,
                                          int level, Direction dir) {
   if (dir == Direction::X) {
-    FillBoundary(mf, grid, level, dir);
+    FillBoundary(mf, grid, level);
   }
 }
 

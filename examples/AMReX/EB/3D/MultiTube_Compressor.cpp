@@ -58,8 +58,8 @@ auto Center(double x, double phi) -> ::amrex::RealArray {
 
 struct NoInit {
   static void InitializeData(fub::amrex::PatchLevel&,
-                             const fub::amrex::GriddingAlgorithm& grid,
-                             int level, fub::Duration /*time*/) noexcept {}
+                             const fub::amrex::GriddingAlgorithm& /*grid*/,
+                             int /*level*/, fub::Duration /*time*/) noexcept {}
 };
 
 auto MakeTubeSolver(fub::Burke2012& mechanism,
@@ -216,8 +216,8 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
 
   ::amrex::RealBox inlet{{-0.1, -0.5, -0.5}, {0.05, +0.5, +0.5}};
   ::amrex::RealBox outlet{{0.5, -0.5, -0.5}, {0.54, +0.5, +0.5}};
-  const ::amrex::Box inlet_box =
-      fub::amrex::BoxWhichContains(inlet, coarse_geom);
+  //const ::amrex::Box inlet_box =
+  //    fub::amrex::BoxWhichContains(inlet, coarse_geom);
   const ::amrex::Box outlet_box =
       fub::amrex::BoxWhichContains(outlet, coarse_geom);
   ConstantBox constant_box{outlet_box};
@@ -317,7 +317,7 @@ void WriteCheckpoint(
     name = fmt::format("{}/Ignition", path);
     std::ofstream ignition_checkpoint(name);
     boost::archive::text_oarchive oa(ignition_checkpoint);
-    oa << ignition.GetLastIgnitionTimePoints();
+    oa << ignition.GetNextIgnitionTimePoints();
   }
 }
 
@@ -395,7 +395,7 @@ void MyMain(const fub::ProgramOptions& options) {
     boost::archive::text_iarchive ia(ifs);
     std::vector<fub::Duration> last_ignitions;
     ia >> last_ignitions;
-    ignition.SetLastIgnitionTimePoints(last_ignitions);
+    ignition.SetNextIgnitionTimePoints(last_ignitions);
   }
 
   fub::SplitSystemSourceLevelIntegrator ign_solver(

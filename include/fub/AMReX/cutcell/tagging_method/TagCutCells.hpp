@@ -27,9 +27,10 @@ namespace fub::amrex::cutcell {
 
 /// \ingroup TaggingMethod
 struct TagCutCells {
-  void TagCellsForRefinement(::amrex::TagBoxArray& tags,
-                             const GriddingAlgorithm& gridding, int level,
-                             Duration time_point) const noexcept;
+  static void TagCellsForRefinement(::amrex::TagBoxArray& tags,
+                                    const GriddingAlgorithm& gridding,
+                                    int level,
+                                    Duration time_point) noexcept;
 };
 
 } // namespace fub::amrex::cutcell

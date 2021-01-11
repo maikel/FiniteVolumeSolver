@@ -33,6 +33,26 @@ namespace fub {
 template <int Rank>
 using Index = std::array<std::ptrdiff_t, static_cast<std::size_t>(Rank)>;
 
+template <std::size_t N>
+std::array<std::ptrdiff_t, N> Shift(const std::array<std::ptrdiff_t, N>& idx,
+                                    Direction dir, std::ptrdiff_t shift) {
+  auto shifted(idx);
+  shifted[static_cast<std::size_t>(dir)] += shift;
+  return shifted;
+}
+
+template <std::size_t N>
+std::array<std::ptrdiff_t, N> LeftTo(const std::array<std::ptrdiff_t, N>& idx,
+                                     Direction dir, std::ptrdiff_t shift = 1) {
+  return Shift(idx, dir, -shift);
+}
+
+template <std::size_t N>
+std::array<std::ptrdiff_t, N> RightTo(const std::array<std::ptrdiff_t, N>& idx,
+                                      Direction dir, std::ptrdiff_t shift = 1) {
+  return Shift(idx, dir, shift - 1);
+}
+
 template <int Rank> struct IndexBox {
   static_assert(Rank >= 0);
   Index<Rank> lower;
@@ -195,8 +215,8 @@ struct PatchDataView : public PatchDataViewBase<T, R, Layout> {
     return this->mdspan_.extents();
   }
 
-  typename Layout::template mapping<dynamic_extents<sRank>> Mapping() const
-      noexcept {
+  typename Layout::template mapping<dynamic_extents<sRank>>
+  Mapping() const noexcept {
     return this->mdspan_.mapping();
   }
 
@@ -261,7 +281,8 @@ struct PatchDataView : public PatchDataViewBase<T, R, Layout> {
   }
 
   template <typename IndexType,
-            typename = std::enable_if_t<std::is_convertible_v<IndexType, std::ptrdiff_t>>>
+            typename = std::enable_if_t<
+                std::is_convertible_v<IndexType, std::ptrdiff_t>>>
   auto& operator()(const std::array<IndexType, sRank>& indices) const {
     std::array<IndexType, sRank> local_index;
     std::transform(indices.begin(), indices.end(), Origin().begin(),

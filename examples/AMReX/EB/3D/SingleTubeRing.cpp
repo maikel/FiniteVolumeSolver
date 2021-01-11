@@ -353,7 +353,7 @@ void WriteCheckpoint(const std::string& path,
     name = fmt::format("{}/Ignition", path);
     std::ofstream ignition_checkpoint(name);
     boost::archive::text_oarchive oa(ignition_checkpoint);
-    oa << ignition.GetLastIgnitionTimePoints();
+    oa << ignition.GetNextIgnitionTimePoints();
   }
 }
 
@@ -421,7 +421,7 @@ void MyMain(const fub::ProgramOptions& vm) {
       boost::archive::text_iarchive ia(ifs);
       std::vector<fub::Duration> last_ignitions;
       ia >> last_ignitions;
-      ignition.SetLastIgnitionTimePoints(last_ignitions);
+      ignition.SetNextIgnitionTimePoints(last_ignitions);
     }
     input = fub::ReadAndBroadcastFile(checkpoint + "/Valve", comm);
     ifs = std::istringstream(input);

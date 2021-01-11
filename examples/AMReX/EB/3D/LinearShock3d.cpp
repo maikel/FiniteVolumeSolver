@@ -25,6 +25,7 @@
 #include "fub/initial_data/ShockMachnumber.hpp"
 
 #include <AMReX_EB2_IF_Cylinder.H>
+#include <AMReX_EB2_IF_Union.H>
 #include <AMReX_EB2_IF_Intersection.H>
 #include <AMReX_EB2_IF_Plane.H>
 #include <AMReX_EB2_IF_Sphere.H>
@@ -64,7 +65,7 @@ void MyMain(const fub::ProgramOptions& options) {
 
   auto embedded_boundary = amrex::EB2::makeIntersection(
       DivergentInlet(1.5, {0.0, 0.0, 0.0}),
-      amrex::EB2::SphereIF(0.150, {0.0, -0.15 + 0.01501, 0.0}, true));
+      amrex::EB2::PlaneIF({-1e-12, 0.0, 0.0}, {-1.0, 0.0, 0.0}));
   auto shop = amrex::EB2::makeShop(embedded_boundary);
 
   fub::SeverityLogger log = fub::GetInfoLogger();
@@ -133,7 +134,7 @@ void MyMain(const fub::ProgramOptions& options) {
     equation.CompleteFromReactor(right);
     fub::CompleteFromCons(equation, right, right);
   }
-  RiemannProblem initial_data(equation, fub::Halfspace({+1.0, 0.0, 0.0}, -0.6),
+  RiemannProblem initial_data(equation, fub::Halfspace({+1.0, 0.0, 0.0}, -0.04),
                               left, right);
 
   // double Mach_number = fub::GetOptionOr(options, "Mach_number", 0.4);
@@ -152,9 +153,12 @@ void MyMain(const fub::ProgramOptions& options) {
                              std::pair{&Complete::density, 0.05}};
 
   auto seq = fub::execution::seq;
-  BoundarySet boundary_condition{{ReflectiveBoundary{seq, equation, fub::Direction::X, 0},
+  BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
+                                  TransmissiveBoundary{fub::Direction::X, 1},
+                                  ReflectiveBoundary{seq, equation, fub::Direction::Y, 0},
+                                  TransmissiveBoundary{fub::Direction::Y, 1},
                                   ReflectiveBoundary{seq, equation, fub::Direction::Z, 0},
-                                  ReflectiveBoundary{seq, equation, fub::Direction::Z, 1}}};
+                                  TransmissiveBoundary{fub::Direction::Z, 1}}};
 
   std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
       PatchHierarchy(equation, grid_geometry, hierarchy_options), initial_data,

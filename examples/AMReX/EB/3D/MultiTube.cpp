@@ -43,6 +43,9 @@
 static constexpr int Tube_Rank = 1;
 static constexpr int Plenum_Rank = 3;
 
+static constexpr int scratch_gcw = 8;
+static constexpr int flux_gcw = scratch_gcw - 2;
+
 static constexpr double r_tube = 0.015;
 static constexpr double r_inner = 0.5 * 0.130;
 static constexpr double r_outer = 0.5 * 0.389;
@@ -165,9 +168,6 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
   HyperbolicMethod method{FluxMethodAdapter(flux_method),
                           EulerForwardTimeIntegrator(),
                           Reconstruction(equation)};
-
-  const int scratch_gcw = 4;
-  const int flux_gcw = 2;
 
   IntegratorContext context(gridding, method, scratch_gcw, flux_gcw);
 
@@ -356,9 +356,6 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
   HyperbolicMethod method{FluxMethod{cutcell_method}, TimeIntegrator{},
                           Reconstruction{equation}};
 
-  const int scratch_gcw = 4;
-  const int flux_gcw = 2;
-
   IntegratorContext context(gridding, method, scratch_gcw, flux_gcw);
 
   BOOST_LOG(log) << "==================== End Plenum =========================";
@@ -393,7 +390,7 @@ void WriteCheckpoint(
     name = fmt::format("{}/{:09}/Ignition", path, cycles);
     std::ofstream ignition_checkpoint(name);
     boost::archive::text_oarchive oa(ignition_checkpoint);
-    oa << ignition.GetLastIgnitionTimePoints();
+    oa << ignition.GetNextIgnitionTimePoints();
   }
 }
 
@@ -456,7 +453,7 @@ void MyMain(const fub::ProgramOptions& options) {
     fub::amrex::BlockConnection connection;
     connection.direction = fub::Direction::X;
     connection.side = 0;
-    connection.ghost_cell_width = 4;
+    connection.ghost_cell_width = scratch_gcw;
     connection.plenum.id = 0;
     connection.tube.id = k;
     connection.tube.mirror_box = tubes[k].GetGeometry(0).Domain();
@@ -484,8 +481,8 @@ void MyMain(const fub::ProgramOptions& options) {
       std::move(connectivity));
 
   fub::DimensionalSplitLevelIntegrator system_solver(
-      // fub::int_c<Plenum_Rank>, std::move(context), fub::StrangSplitting{});
-      fub::int_c<Plenum_Rank>, std::move(context), fub::GodunovSplitting{});
+      fub::int_c<Plenum_Rank>, std::move(context), fub::StrangSplitting{});
+      // fub::int_c<Plenum_Rank>, std::move(context), fub::GodunovSplitting{});
 
   const std::size_t n_tubes = system_solver.GetContext().Tubes().size();
   const int max_number_of_levels = system_solver.GetContext()
@@ -512,7 +509,7 @@ void MyMain(const fub::ProgramOptions& options) {
     boost::archive::text_iarchive ia(ifs);
     std::vector<fub::Duration> last_ignitions;
     ia >> last_ignitions;
-    ignition.SetLastIgnitionTimePoints(last_ignitions);
+    ignition.SetNextIgnitionTimePoints(last_ignitions);
   }
 
   fub::SplitSystemSourceLevelIntegrator ign_solver(

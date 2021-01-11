@@ -33,6 +33,8 @@ extern "C" {
 #endif
 
 #include <algorithm>
+#include <numeric>
+#include <functional>
 #include <vector>
 
 namespace fub {
@@ -52,6 +54,9 @@ public:
   const T& operator*() const noexcept;
 
   const T& Min() const noexcept;
+  
+  template <typename BinaryOperation = std::plus<>>
+  auto Accumulate(BinaryOperation op = BinaryOperation()) const noexcept;
 
 private:
   std::vector<T, Allocator> instances_{};
@@ -117,6 +122,13 @@ const T& OmpLocal<T, Allocator>::operator*() const noexcept {
 template <typename T, typename Allocator>
 const T& OmpLocal<T, Allocator>::Min() const noexcept {
   return *std::min_element(instances_.begin(), instances_.end());
+}
+
+template <typename T, typename Allocator>
+template <typename BinaryOperator>
+auto OmpLocal<T, Allocator>::Accumulate(BinaryOperator op) const noexcept {
+  FUB_ASSERT(!instances_.empty());
+  return std::accumulate(instances_.begin() + 1, instances_.end(), instances_[0], op);
 }
 
 } // namespace fub

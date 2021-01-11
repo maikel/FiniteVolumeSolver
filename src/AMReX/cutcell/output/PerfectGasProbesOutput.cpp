@@ -72,6 +72,12 @@ void CreateHdf5Database(const std::string& name, const GriddingAlgorithm& grid,
   SeverityLogger log = GetLogger(boost::log::trivial::info);
   BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "PerfectGasProbesOutput");
   BOOST_LOG(log) << "Create HDF5 file  '" << name << "'.";
+  boost::filesystem::path path(name);
+  boost::filesystem::path dir = boost::filesystem::absolute(
+      path.parent_path(), boost::filesystem::current_path());
+  if (!boost::filesystem::exists(dir)) {
+    boost::filesystem::create_directories(dir);
+  }
   H5File file(H5Fcreate(name.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT));
   const hsize_t n_probes = static_cast<hsize_t>(probes.extent(1));
   const hsize_t n_fields = static_cast<hsize_t>(states.extent(1));

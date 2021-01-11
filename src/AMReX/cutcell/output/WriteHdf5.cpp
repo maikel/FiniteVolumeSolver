@@ -45,39 +45,87 @@ WriteHdf5::WriteHdf5(const std::map<std::string, pybind11::object>& vm)
         GetOptionOr(box, "upper", std::array<int, AMREX_SPACEDIM>{});
     output_box_.emplace(::amrex::IntVect(lo), ::amrex::IntVect(hi));
   }
-  if (boost::filesystem::is_regular_file(path_to_file_)) {
-    boost::log::sources::severity_logger<boost::log::trivial::severity_level>
-        log(boost::log::keywords::severity = boost::log::trivial::info);
-    BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "HDF5");
-    for (int i = 1; i < std::numeric_limits<int>::max(); ++i) {
-      std::string new_name = fmt::format("{}.{}", path_to_file_, i);
-      if (!boost::filesystem::exists(new_name)) {
-        BOOST_LOG(log) << fmt::format(
-            "Old output file '{}' detected. Rename old file to '{}'",
-            path_to_file_, new_name);
-        boost::filesystem::rename(path_to_file_, new_name);
-        break;
+  int rank = -1;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  if (rank == 0) {
+    if (boost::filesystem::is_regular_file(path_to_file_)) {
+      boost::log::sources::severity_logger<boost::log::trivial::severity_level>
+          log(boost::log::keywords::severity = boost::log::trivial::info);
+      BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "HDF5");
+      for (int i = 1; i < std::numeric_limits<int>::max(); ++i) {
+        std::string new_name = fmt::format("{}.{}", path_to_file_, i);
+        if (!boost::filesystem::exists(new_name)) {
+          BOOST_LOG(log) << fmt::format(
+              "Old output file '{}' detected. Rename old file to '{}'",
+              path_to_file_, new_name);
+          boost::filesystem::rename(path_to_file_, new_name);
+          break;
+        }
       }
-    }
-  } else if (boost::filesystem::exists(path_to_file_)) {
-    boost::log::sources::severity_logger<boost::log::trivial::severity_level>
-        log(boost::log::keywords::severity = boost::log::trivial::warning);
-    BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "HDF5");
-    for (int i = 1; i < std::numeric_limits<int>::max(); ++i) {
-      std::string new_name = fmt::format("{}.{}", path_to_file_, i);
-      if (!boost::filesystem::exists(new_name)) {
-        BOOST_LOG(log) << fmt::format(
-            "Path'{}' points to some non-file. Output will be directory to "
-            "'{}' instead.",
-            path_to_file_, new_name);
-        path_to_file_ = new_name;
-        break;
+    } else if (boost::filesystem::exists(path_to_file_)) {
+      boost::log::sources::severity_logger<boost::log::trivial::severity_level>
+          log(boost::log::keywords::severity = boost::log::trivial::warning);
+      BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "HDF5");
+      for (int i = 1; i < std::numeric_limits<int>::max(); ++i) {
+        std::string new_name = fmt::format("{}.{}", path_to_file_, i);
+        if (!boost::filesystem::exists(new_name)) {
+          BOOST_LOG(log) << fmt::format(
+              "Path'{}' points to some non-file. Output will be directory to "
+              "'{}' instead.",
+              path_to_file_, new_name);
+          path_to_file_ = new_name;
+          break;
+        }
       }
     }
   }
 }
 
 namespace {
+template <typename F>
+void ForEachInterpolation(::amrex::FArrayBox& dest, const ::amrex::Box& dbox,
+                          const ::amrex::FArrayBox& src,
+                          const ::amrex::Box& /* sbox */,
+                          const ::amrex::IntVect& ratio, ::amrex::SrcComp si,
+                          ::amrex::DestComp di, ::amrex::NumComps nc,
+                          F&& function) {
+  for (int comp = 0; comp < nc.n; ++comp) {
+    ForEachIndex(dbox, [&](auto... is) {
+      ::amrex::IntVect fine_i{int(is)...};
+      ::amrex::IntVect coarse_i = fine_i;
+      coarse_i.coarsen(ratio);
+      function(dest, fine_i, src, coarse_i, ::amrex::SrcComp(si.i + comp),
+               ::amrex::DestComp(di.i + comp));
+    });
+  }
+}
+
+void ConstantInterpolation(::amrex::FArrayBox& dest, const ::amrex::Box& dbox,
+                           const ::amrex::FArrayBox& src,
+                           const ::amrex::Box& sbox,
+                           const ::amrex::IntVect& ratio, ::amrex::SrcComp si,
+                           ::amrex::DestComp di, ::amrex::NumComps nc) {
+  ForEachInterpolation(
+      dest, dbox, src, sbox, ratio, si, di, nc,
+      [](::amrex::FArrayBox& fine, const ::amrex::IntVect& fine_i,
+         const ::amrex::FArrayBox& coarse, const ::amrex::IntVect& coarse_i,
+         ::amrex::SrcComp si, ::amrex::DestComp di) {
+        fine(fine_i, di.i) = coarse(coarse_i, si.i);
+      });
+}
+
+void ConstantInterpolation(::amrex::FArrayBox& dest,
+                           const ::amrex::FArrayBox& src,
+                           const ::amrex::IntVect& ratio, ::amrex::SrcComp si,
+                           ::amrex::DestComp di, ::amrex::NumComps n) {
+  const ::amrex::Box dbox = dest.box();
+  const ::amrex::Box coarsened = ::amrex::coarsen(dbox, ratio);
+  const ::amrex::Box sbox = src.box();
+  const ::amrex::Box cbox = coarsened & sbox;
+  const ::amrex::Box fbox = ::amrex::refine(cbox, ratio);
+  ConstantInterpolation(dest, fbox, src, cbox, ratio, si, di, n);
+}
+
 void WriteHdf5UnRestricted(const std::string& name,
                            const PatchHierarchy& hierarchy) {
   MPI_Comm comm = ::amrex::ParallelContext::CommunicatorAll();
@@ -100,25 +148,37 @@ void WriteHdf5UnRestricted(const std::string& name,
     const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(ilvl);
     ::amrex::Box domain = level_geom.Domain();
     const ::amrex::MultiFab& level_data = hierarchy.GetPatchLevel(ilvl).data;
-    ::amrex::FArrayBox local_fab(domain, level_data.nComp());
+    const ::amrex::MultiFab& volume_fractions =
+        hierarchy.GetEmbeddedBoundary(ilvl)->getVolFrac();
+    const int ncomp = level_data.nComp();
+    ::amrex::FArrayBox local_fab(domain, ncomp + 1);
     local_fab.setVal(0.0);
+    // Initialize volume fraction data by using coarser level
+    if (level > 0) {
+      ConstantInterpolation(local_fab, fabs[level - 1],
+                            hierarchy.GetRatioToCoarserLevel(ilvl),
+                            ::amrex::SrcComp(ncomp), ::amrex::DestComp(ncomp),
+                            ::amrex::NumComps(1));
+    }
     ForEachFab(level_data, [&](const ::amrex::MFIter& mfi) {
       const ::amrex::FArrayBox& patch_data = level_data[mfi];
-      local_fab.copy(patch_data);
+      const ::amrex::FArrayBox& alpha = volume_fractions[mfi];
+      local_fab.copy(patch_data, 0, 0, ncomp);
+      local_fab.copy(alpha, 0, ncomp, 1);
     });
     if (rank == 0) {
-      ::amrex::FArrayBox& fab = fabs.emplace_back(domain, level_data.nComp());
+      ::amrex::FArrayBox& fab = fabs.emplace_back(domain, ncomp + 1);
       fab.setVal(0.0);
       ::MPI_Reduce(local_fab.dataPtr(), fab.dataPtr(),
                    static_cast<int>(local_fab.size()), MPI_DOUBLE, MPI_SUM, 0,
                    comm);
       if (level > 0) {
-        for (int comp = 1; comp < level_data.nComp(); ++comp) {
+        for (int comp = 1; comp < ncomp; ++comp) {
           ForEachIndex(domain, [&](auto... is) {
             ::amrex::IntVect fine_i{int(is)...};
             ::amrex::IntVect coarse_i = fine_i;
             coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(ilvl));
-            if (fab(fine_i, 0) == 0.0) {
+            if (fab(fine_i, 0) == 0.0 && fab(fine_i, ncomp) > 0.0) {
               fab(fine_i, comp) = fabs[level - 1](coarse_i, comp);
             }
           });
@@ -127,7 +187,7 @@ void WriteHdf5UnRestricted(const std::string& name,
           ::amrex::IntVect fine_i{int(is)...};
           ::amrex::IntVect coarse_i = fine_i;
           coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(ilvl));
-          if (fab(fine_i, 0) == 0.0) {
+          if (fab(fine_i, 0) == 0.0 && fab(fine_i, ncomp) > 0.0) {
             fab(fine_i, 0) = fabs[level - 1](coarse_i, 0);
           }
         });
@@ -181,15 +241,22 @@ void WriteHdf5RestrictedToBox(const std::string& name,
     const int ilvl = static_cast<int>(level);
     ::amrex::Box domain = boxes[level];
     const ::amrex::MultiFab& level_data = hierarchy.GetPatchLevel(ilvl).data;
-    ::amrex::FArrayBox local_fab(domain, level_data.nComp());
+    const ::amrex::MultiFab& volume_fractions =
+        hierarchy.GetEmbeddedBoundary(ilvl)->getVolFrac();
+    const int ncomp = level_data.nComp();
+    ::amrex::FArrayBox local_fab(domain, ncomp + 1);
     local_fab.setVal(0.0);
     ForEachFab(level_data, [&](const ::amrex::MFIter& mfi) {
       const ::amrex::FArrayBox& patch_data = level_data[mfi];
+      const ::amrex::FArrayBox& alpha = volume_fractions[mfi];
       const ::amrex::Box box = mfi.tilebox() & domain;
-      local_fab.copy(patch_data, box);
+      local_fab.copy(patch_data, box, ::amrex::SrcComp(0), ::amrex::DestComp(0),
+                     ::amrex::NumComps(ncomp));
+      local_fab.copy(alpha, box, ::amrex::SrcComp(0), ::amrex::DestComp(ncomp),
+                     ::amrex::NumComps(1));
     });
     if (rank == 0) {
-      ::amrex::FArrayBox& fab = fabs.emplace_back(domain, level_data.nComp());
+      ::amrex::FArrayBox& fab = fabs.emplace_back(domain, ncomp + 1);
       fab.setVal(0.0);
       ::MPI_Reduce(local_fab.dataPtr(), fab.dataPtr(),
                    static_cast<int>(local_fab.size()), MPI_DOUBLE, MPI_SUM, 0,
@@ -200,7 +267,7 @@ void WriteHdf5RestrictedToBox(const std::string& name,
             ::amrex::IntVect fine_i{int(is)...};
             ::amrex::IntVect coarse_i = fine_i;
             coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(ilvl));
-            if (fab(fine_i, 0) == 0.0) {
+            if (fab(fine_i, 0) == 0.0 && fab(fine_i, ncomp) > 0.0) {
               fab(fine_i, comp) = fabs[level - 1](coarse_i, comp);
             }
           });
@@ -209,7 +276,7 @@ void WriteHdf5RestrictedToBox(const std::string& name,
           ::amrex::IntVect fine_i{int(is)...};
           ::amrex::IntVect coarse_i = fine_i;
           coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(ilvl));
-          if (fab(fine_i, 0) == 0.0) {
+          if (fab(fine_i, 0) == 0.0 && fab(fine_i, ncomp) > 0.0) {
             fab(fine_i, 0) = fabs[level - 1](coarse_i, 0);
           }
         });

@@ -345,7 +345,7 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
     ::amrex::IntVect grow(scratch_ghost_cell_width_);
 
     for (std::size_t d = 0; d < static_cast<std::size_t>(AMREX_SPACEDIM); ++d) {
-      ::amrex::IntVect fgrow = grow;
+      ::amrex::IntVect fgrow(flux_ghost_cell_width_ + method_.flux_method.GetStencilWidth());
       fgrow[int(d)] = flux_ghost_cell_width_;
       const ::amrex::IntVect unit =
           ::amrex::IntVect::TheDimensionVector(int(d));
@@ -649,14 +649,14 @@ IntegratorContext::PostAdvanceLevel(int level_num, Duration dt,
   ::MPI_Bcast(&timepoint, 1, MPI_DOUBLE, 0, GetMpiCommunicator());
   SetTimePoint(Duration(timepoint), level_num);
 
-  // If this is the last AMR subcycle we copy the scratch back to data
-  // This essentially means, that the hyperbolic part on this level is done
-  // and if any additional operator wants to act on this level it can do so on
-  // the original data.
   if (subcycle.first == subcycle.second - 1) {
     PatchLevel& level = GetPatchHierarchy().GetPatchLevel(level_num);
     level.time_point = GetTimePoint(level_num);
     level.cycles = GetCycles(level_num);
+  }
+
+  if (feedback_) {
+    feedback_(*this, level_num, dt, subcycle);
   }
 
   return boost::outcome_v2::success();

@@ -13,9 +13,21 @@ function(add_executable_with_warnings TARGET)
   set_property(TARGET "${TARGET}" PROPERTY VISIBILITY_INLINES_HIDDEN "hidden")
 endfunction()
 
+add_executable_with_warnings(ExactRiemannProblem ExactRiemannProblem.cpp)
+target_link_libraries(ExactRiemannProblem FiniteVolumeSolver.Solver MPI::MPI_CXX MPI::MPI_C)
+
 if (AMReX_FOUND)
   add_executable_with_warnings(AMReX.PerfectGas1d AMReX/PerfectGas1d.cpp)
   target_link_libraries(AMReX.PerfectGas1d FiniteVolumeSolver.AMReX)
+
+  add_executable_with_warnings(AMReX.PerfectGas1d_Char AMReX/PerfectGas1d_Char.cpp)
+  target_link_libraries(AMReX.PerfectGas1d_Char FiniteVolumeSolver.AMReX)
+
+  add_executable_with_warnings(AMReX.SEC_ResonantDemo_1D AMReX/SEC_ResonantDemo_1D.cpp)
+  target_link_libraries(AMReX.SEC_ResonantDemo_1D FiniteVolumeSolver.AMReX)
+
+  add_executable_with_warnings(AMReX.PerfectGas1d_ThirdOrder AMReX/PerfectGas1d_ThirdOrder.cpp)
+  target_link_libraries(AMReX.PerfectGas1d_ThirdOrder FiniteVolumeSolver.AMReX)
 
   add_executable_with_warnings(AMReX.IdealGasMix AMReX/IdealGasMix.cpp)
   target_link_libraries(AMReX.IdealGasMix FiniteVolumeSolver.AMReX)
@@ -84,6 +96,9 @@ if (AMReX_FOUND AND AMReX_2D_FOUND)
     add_executable_with_warnings(AMReX.EB.ConvergentNozzle2D AMReX/EB/2D/ConvergentNozzle.cpp)
     target_link_libraries(AMReX.EB.ConvergentNozzle2D FiniteVolumeSolver.AMReX.EB)
 
+    add_executable_with_warnings(AMReX.EB.SEC_Plenum AMReX/EB/2D/SEC_Plenum.cpp)
+    target_link_libraries(AMReX.EB.SEC_Plenum FiniteVolumeSolver.AMReX.EB)
+
     add_executable_with_warnings(AMReX.EB.ConvergentNozzleAxiSymmetric AMReX/EB/2D/ConvergentNozzleAxiSymmetric.cpp)
     target_link_libraries(AMReX.EB.ConvergentNozzleAxiSymmetric FiniteVolumeSolver.AMReX.EB)
 
@@ -96,6 +111,12 @@ if (AMReX_FOUND AND AMReX_2D_FOUND)
     add_executable_with_warnings(AMReX.EB.LinearShock2d AMReX/EB/2D/LinearShock2d.cpp)
     target_link_libraries(AMReX.EB.LinearShock2d FiniteVolumeSolver.AMReX.EB)
 
+    add_executable_with_warnings(AMReX.EB.LinearShock2d_PerfectGasMix AMReX/EB/2D/LinearShock2d_PerfectGasMix.cpp)
+    target_link_libraries(AMReX.EB.LinearShock2d_PerfectGasMix FiniteVolumeSolver.AMReX.EB)
+
+    add_executable_with_warnings(AMReX.EB.LinearShockAxiSymmetric AMReX/EB/2D/LinearShockAxiSymmetric.cpp)
+    target_link_libraries(AMReX.EB.LinearShockAxiSymmetric FiniteVolumeSolver.AMReX.EB)
+
     add_executable_with_warnings(AMReX.EB.Schardin AMReX/EB/2D/Schardin.cpp)
     target_link_libraries(AMReX.EB.Schardin FiniteVolumeSolver.AMReX.EB)
 
@@ -107,6 +128,12 @@ if (AMReX_FOUND AND AMReX_2D_FOUND)
 
     add_executable_with_warnings(AMReX.EB.Ramp2 AMReX/EB/2D/Ramp2.cpp)
     target_link_libraries(AMReX.EB.Ramp2 FiniteVolumeSolver.AMReX.EB)
+
+    add_executable_with_warnings(AMReX.EB.SlopedChannel AMReX/EB/2D/SlopedChannel.cpp)
+    target_link_libraries(AMReX.EB.SlopedChannel FiniteVolumeSolver.AMReX.EB)
+
+    add_executable_with_warnings(AMReX.EB.SlopedChannel_new AMReX/EB/2D/SlopedChannel_new.cpp)
+    target_link_libraries(AMReX.EB.SlopedChannel_new FiniteVolumeSolver.AMReX.EB)
 
     add_executable_with_warnings(AMReX.EB.Tube AMReX/EB/2D/Tube.cpp)
     target_link_libraries(AMReX.EB.Tube FiniteVolumeSolver.AMReX.EB)
@@ -135,6 +162,9 @@ if (AMReX_FOUND AND AMReX_3D_FOUND)
 
     add_executable_with_warnings(AMReX.EB.MultiTube AMReX/EB/3D/MultiTube.cpp)
     target_link_libraries(AMReX.EB.MultiTube FiniteVolumeSolver.AMReX.EB)
+
+    add_executable_with_warnings(AMReX.EB.MultiTube_blocking AMReX/EB/3D/MultiTube_blocking.cpp)
+    target_link_libraries(AMReX.EB.MultiTube_blocking FiniteVolumeSolver.AMReX.EB)
 
     add_executable_with_warnings(AMReX.EB.MultiTube_PerfectGas AMReX/EB/3D/MultiTube_PerfectGas.cpp)
     target_link_libraries(AMReX.EB.MultiTube_PerfectGas FiniteVolumeSolver.AMReX.EB)

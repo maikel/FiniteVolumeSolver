@@ -44,6 +44,11 @@ struct CompressibleAdvectionConservative {
   PTDensity PTdensity;
 };
 
+template <int VelocityRank>
+using CompressibleAdvectionConsShape =
+    CompressibleAdvectionConservative<ScalarDepth, VectorDepth<VelocityRank>,
+                                      ScalarDepth>;
+
 // We "register" the conservative state with our framework.
 // This enables us to name and iterate over all member variables in a given
 // conservative state.
@@ -56,6 +61,8 @@ struct StateTraits<CompressibleAdvectionConservative<Xs...>> {
       std::make_tuple(&CompressibleAdvectionConservative<Xs...>::density,
                       &CompressibleAdvectionConservative<Xs...>::momentum,
                       &CompressibleAdvectionConservative<Xs...>::PTdensity);
+
+  template <int Rank> using Depths = CompressibleAdvectionConsShape<Rank>;
 };
 
 template <typename Density, typename Momentum, typename PTDensity,
@@ -64,6 +71,11 @@ struct CompressibleAdvectionComplete
     : CompressibleAdvectionConservative<Density, Momentum, PTDensity> {
   PTInverse PTinverse;
 };
+
+template <int VelocityRank>
+using CompressibleAdvectionCompleteShape =
+    CompressibleAdvectionComplete<ScalarDepth, VectorDepth<VelocityRank>,
+                                  ScalarDepth, ScalarDepth>;
 
 // We "register" the complete state with our framework.
 // This enables us to name and iterate over all member variables in a given
@@ -77,17 +89,10 @@ struct StateTraits<CompressibleAdvectionComplete<Xs...>> {
                       &CompressibleAdvectionComplete<Xs...>::momentum,
                       &CompressibleAdvectionComplete<Xs...>::PTdensity,
                       &CompressibleAdvectionComplete<Xs...>::PTinverse);
+
+  template <int VelocityDim>
+  using Depths = CompressibleAdvectionCompleteShape<VelocityDim>;
 };
-
-template <int VelocityRank>
-using CompressibleAdvectionConsShape =
-    CompressibleAdvectionConservative<ScalarDepth, VectorDepth<VelocityRank>,
-                                      ScalarDepth>;
-
-template <int VelocityRank>
-using CompressibleAdvectionCompleteShape =
-    CompressibleAdvectionComplete<ScalarDepth, VectorDepth<VelocityRank>,
-                                  ScalarDepth, ScalarDepth>;
 
 template <int N, int VelocityDim = N> struct CompressibleAdvection {
   using ConservativeDepths = CompressibleAdvectionConsShape<VelocityDim>;
@@ -118,11 +123,22 @@ template <int N, int VelocityDim = N> struct CompressibleAdvection {
     state.PTinverse = cons.density / cons.PTdensity;
   }
 
-  const IndexMapping& GetIndexMapping() const noexcept { return index_mapping; }
 
   IndexMapping index_mapping;
+
+private:
+  /// This specializes the customization point object "fub::Depth" for this
+  /// equation. It is needed to determine the number of components for each
+  /// registered variable and helps to create views on multi dimensional arrays.
+  template <typename State>
+  friend constexpr auto tag_invoke(fub::DepthsFn, const CompressibleAdvection&,
+                                   Type<State>) noexcept {
+    return typename State::Traits::template Depths<VelocityDim>{};
+  }
 };
 
+/// This is a special FluxMethod class that uses the stored Pv field within the
+/// CompressibleAdvectionIntegratorContext sa advection velocities.
 template <int SpaceDimension, int VelocityDimension = SpaceDimension>
 struct CompressibleAdvectionFluxMethod {
   using Conservative =

@@ -61,26 +61,58 @@ struct RiemannProblem {
   }
 };
 
-int main() {
+using FactoryFunction =
+    std::function<fub::AnyFluxMethod<fub::amrex::IntegratorContext>(
+        const fub::IdealGasMix<1>&)>;
+
+template <typename... Pairs> auto GetFluxMethodFactory(Pairs... ps) {
+  std::map<std::string, FactoryFunction> factory;
+  ((factory[ps.first] = ps.second), ...);
+  return factory;
+}
+
+template <typename FluxMethod> struct MakeFlux {
+  fub::AnyFluxMethod<fub::amrex::IntegratorContext>
+  operator()(const fub::IdealGasMix<1>& eq) const {
+    FluxMethod flux_method{eq};
+    fub::amrex::FluxMethodAdapter adapter(std::move(flux_method));
+    return adapter;
+  }
+};
+
+// double MinMod(const double a, const double b) {
+// 	return (a * b > 0.0) ? ((fabs(a) < fabs(b)) ? a : b) : 0.0;
+// }
+
+// template <>
+// struct MakeFlux<fub::ideal_gas::MusclHancockCharMethod<1>> {
+//   fub::AnyFluxMethod<fub::amrex::IntegratorContext>
+//   operator()(const fub::IdealGasMix<1>& eq) const {
+//     fub::ideal_gas::MusclHancockCharMethod<1> flux_method{eq, &MinMod};
+//     fub::amrex::FluxMethodAdapter adapter(fub::execution::seq, std::move(flux_method));
+//     return adapter;
+//   }
+// };
+
+void MyMain(const fub::ProgramOptions& opts) {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
 
-  // fub::EnableFloatingPointExceptions();
-  const fub::amrex::ScopeGuard guard{};
-  fub::InitializeLogging(MPI_COMM_WORLD);
-
-  constexpr int Dim = AMREX_SPACEDIM;
-
-  const std::array<int, Dim> n_cells{AMREX_D_DECL(200, 1, 1)};
-  const std::array<double, Dim> xlower{AMREX_D_DECL(-1.0, -1.0, -1.0)};
-  const std::array<double, Dim> xupper{AMREX_D_DECL(+1.0, +1.0, +1.0)};
+  fub::amrex::ScopeGuard guard{};
+  fub::SeverityLogger log = fub::GetInfoLogger();
 
   fub::Burke2012 burke{};
   fub::IdealGasMix<1> equation{burke};
 
-  fub::amrex::CartesianGridGeometry geometry;
-  geometry.cell_dimensions = n_cells;
-  geometry.coordinates = amrex::RealBox(xlower, xupper);
+  fub::amrex::CartesianGridGeometry geometry =
+      fub::GetOptions(opts, "GridGeometry");
+  BOOST_LOG(log) << "GridGeometry:";
+  geometry.Print(log);
+
+  fub::amrex::PatchHierarchyOptions hier_opts =
+      fub::GetOptions(opts, "PatchHierarchy");
+  BOOST_LOG(log) << "PatchHierarchy:";
+  hier_opts.Print(log);
 
   using Complete = fub::IdealGasMix<1>::Complete;
   fub::amrex::GradientDetector gradient{
@@ -88,13 +120,23 @@ int main() {
       std::make_pair(&Complete::pressure, 5e-2)};
 
   fub::FlameMasterReactor& reactor = equation.GetReactor();
-  reactor.SetTemperature(300.);
-  reactor.SetPressure(101325.0);
+  const double M = reactor.GetMeanMolarMass();
+  const double R = reactor.GetUniversalGasConstant();
+  const double Rspec = R / M;
+  const double atm = 101325.0;
+  const double p_left = 1.0 * atm;
+  const double rho_left = 1.0;
+  const double T_left = p_left / (rho_left * Rspec);
+  reactor.SetDensity(rho_left);
+  reactor.SetTemperature(T_left);
   Complete left(equation);
   equation.CompleteFromReactor(left);
 
-  reactor.SetTemperature(600.);
-  reactor.SetPressure(0.1 * 101325.0);
+  const double p_right = 0.1 * atm;
+  const double rho_right = 0.125;
+  const double T_right = p_right / (rho_right * Rspec);
+  reactor.SetDensity(rho_right);
+  reactor.SetTemperature(T_right);
   Complete right(equation);
   equation.CompleteFromReactor(right);
 
@@ -108,18 +150,28 @@ int main() {
   boundary.conditions.push_back(
       ReflectiveBoundary{seq, equation, fub::Direction::X, 1});
 
-  fub::amrex::PatchHierarchyOptions hier_opts;
-  hier_opts.max_number_of_levels = 1;
-  hier_opts.refine_ratio = ::amrex::IntVect{AMREX_D_DECL(2, 1, 1)};
-  hier_opts.blocking_factor = ::amrex::IntVect{AMREX_D_DECL(8, 1, 1)};
-
   std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
       fub::amrex::PatchHierarchy(equation, geometry, hier_opts), initial_data,
       gradient, boundary);
   gridding->InitializeHierarchy(0.0);
 
-  fub::ideal_gas::MusclHancockPrimMethod<1> muscl_prim{equation};
-  fub::amrex::HyperbolicMethod method{fub::amrex::FluxMethodAdapter(muscl_prim),
+  using namespace std::literals;
+  using ConservativeReconstruction = fub::MusclHancockMethod<
+      fub::IdealGasMix<1>,
+      fub::HllMethod<fub::IdealGasMix<1>, fub::EinfeldtSignalVelocities<fub::IdealGasMix<1>>>, fub::VanLeer>;
+  using PrimitiveReconstruction = fub::ideal_gas::MusclHancockPrimMethod<1>;
+  using CharacteristicReconstruction = fub::ideal_gas::MusclHancockCharMethod<1>;
+
+  auto flux_method_factory = GetFluxMethodFactory(
+      std::pair{"Conservative"s, MakeFlux<ConservativeReconstruction>()},
+      std::pair{"Primitive"s, MakeFlux<PrimitiveReconstruction>()},
+      std::pair{"Characteristics"s, MakeFlux<CharacteristicReconstruction>()});
+
+  std::string reconstruction =
+      fub::GetOptionOr(opts, "reconstruction", "Primitive"s);
+  auto flux_method = flux_method_factory.at(reconstruction)(equation);
+
+  fub::amrex::HyperbolicMethod method{std::move(flux_method),
                                       fub::amrex::EulerForwardTimeIntegrator(),
                                       fub::amrex::Reconstruction(equation)};
 
@@ -134,49 +186,35 @@ int main() {
 
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
-  std::string base_name = "IdealGasMix1d_muscl_new/";
-
-  using namespace fub::amrex;
   using namespace std::literals::chrono_literals;
-  namespace log = boost::log;
-
-  log::sources::severity_logger<log::trivial::severity_level> lg(
-      log::keywords::severity = log::trivial::info);
-
-  double mass0 = 0.0;
-  auto conservation_error = [&lg, &mass0](const GriddingAlgorithm& grid) {
-    const ::amrex::MultiFab& data =
-        grid.GetPatchHierarchy().GetPatchLevel(0).data;
-    const ::amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(0);
-    const double volume_per_cell = geom.CellSize(0) * geom.CellSize(1);
-    const double density_sum = data.sum(0);
-    const double mass = density_sum * volume_per_cell;
-    if (mass0 == 0.0) {
-      mass0 = mass;
-    }
-    const double mass_error = mass - mass0;
-    const double time_point = grid.GetTimePoint().count();
-    BOOST_LOG(lg) << log::add_value("Time", time_point)
-                  << fmt::format("Conservation Error in Mass: {:.6e}",
-                                 mass_error);
-  };
-
-  fub::MultipleOutputs<GriddingAlgorithm> output{};
-
-  output.AddOutput(
-      fub::MakeOutput<GriddingAlgorithm>({1}, {}, conservation_error));
-
-  output.AddOutput(std::make_unique<PlotfileOutput<fub::IdealGasMix<1>>>(
-      std::vector<std::ptrdiff_t>{}, std::vector<fub::Duration>{0.00001s},
-      equation, base_name));
-
-  output.AddOutput(std::make_unique<fub::CounterOutput<GriddingAlgorithm>>(
-      wall_time_reference, std::vector<std::ptrdiff_t>{},
-      std::vector<fub::Duration>{0.5s}));
+  using Plotfile = fub::amrex::PlotfileOutput<fub::IdealGasMix<1>>;
+  using CounterOutput = fub::CounterOutput<fub::amrex::GriddingAlgorithm,
+                                           std::chrono::milliseconds>;
+  fub::OutputFactory<fub::amrex::GriddingAlgorithm> factory{};
+  factory.RegisterOutput<Plotfile>("Plotfile", equation);
+  factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
+  factory.RegisterOutput<fub::amrex::WriteHdf5>("HDF5");
+  fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> output(
+      std::move(factory), fub::GetOptions(opts, "Output"));
 
   output(*solver.GetGriddingAlgorithm());
-  fub::RunOptions run_options{};
-  run_options.cfl = 0.5;
-  run_options.final_time = 0.001s;
+  fub::RunOptions run_options = fub::GetOptions(opts, "RunOptions");
+  BOOST_LOG(log) << "RunOptions:";
+  run_options.Print(log);
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
+}
+
+int main(int argc, char** argv) {
+  MPI_Init(nullptr, nullptr);
+  fub::InitializeLogging(MPI_COMM_WORLD);
+  pybind11::scoped_interpreter interpreter{};
+  std::optional<fub::ProgramOptions> opts = fub::ParseCommandLine(argc, argv);
+  if (opts) {
+    MyMain(*opts);
+  }
+  int flag = -1;
+  MPI_Finalized(&flag);
+  if (!flag) {
+    MPI_Finalize();
+  }
 }

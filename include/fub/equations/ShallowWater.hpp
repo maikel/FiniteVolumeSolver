@@ -45,6 +45,8 @@ template <typename... Xs> struct StateTraits<ShallowWaterVariables<Xs...>> {
   static constexpr auto pointers_to_member =
       std::make_tuple(&ShallowWaterVariables<Xs...>::height,
                       &ShallowWaterVariables<Xs...>::momentum);
+
+  template <int Rank> using Depths = ShallowWaterVariables<ScalarDepth, VectorDepth<Rank>>;
 };
 
 struct ShallowWater {

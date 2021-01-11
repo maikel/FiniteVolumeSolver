@@ -32,6 +32,11 @@ struct TimeIntegrator {
                                    Duration dt, Direction dir);
 };
 
+struct TimeIntegrator2 {
+  static void UpdateConservatively(IntegratorContext& context, int level,
+                                   Duration dt, Direction dir);
+};
+
 } // namespace fub::amrex::cutcell
 
 #endif

@@ -45,6 +45,8 @@ using HyperbolicMethod = ::fub::HyperbolicMethod<IntegratorContext>;
 /// simulations with the AMReX library.
 class IntegratorContext {
 public:
+  using FeedbackFn = std::function<void(IntegratorContext&, int, Duration, std::pair<int, int>)>;
+
   /// @{
   /// \name Constructors, Assignment Operators and Desctructor
 
@@ -91,6 +93,10 @@ public:
 
   /// \brief Returns the MPI communicator which is associated with this context.
   [[nodiscard]] MPI_Comm GetMpiCommunicator() const noexcept;
+
+  void SetFeedbackFunction(FeedbackFn feedback) {
+    feedback_ = std::move(feedback);
+  }
   /// @}
 
   /// @{
@@ -329,6 +335,7 @@ private:
   std::shared_ptr<GriddingAlgorithm> gridding_;
   std::vector<LevelData> data_;
   HyperbolicMethod method_;
+  FeedbackFn feedback_{};
 };
 
 } // namespace fub::amrex::cutcell

@@ -139,8 +139,8 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
                           EulerForwardTimeIntegrator(),
                           Reconstruction(equation)};
 
-  const int scratch_gcw = 4;
-  const int flux_gcw = 2;
+  const int scratch_gcw = 8;
+  const int flux_gcw = 6;
 
   IntegratorContext context(gridding, method, scratch_gcw, flux_gcw);
 
@@ -292,8 +292,8 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
   HyperbolicMethod method{FluxMethod{cutcell_method}, TimeIntegrator{},
                           Reconstruction{equation}};
 
-  const int scratch_gcw = 4;
-  const int flux_gcw = 2;
+  const int scratch_gcw = 8;
+  const int flux_gcw = 6;
 
   IntegratorContext context(gridding, method, scratch_gcw, flux_gcw);
 
@@ -339,7 +339,7 @@ void WriteCheckpoint(const std::string& path,
     name = fmt::format("{}/Ignition", path);
     std::ofstream ignition_checkpoint(name);
     boost::archive::text_oarchive oa(ignition_checkpoint);
-    oa << ignition.GetLastIgnitionTimePoints();
+    oa << ignition.GetNextIgnitionTimePoints();
   }
 }
 
@@ -363,7 +363,7 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   fub::amrex::BlockConnection connection;
   connection.direction = fub::Direction::X;
   connection.side = 0;
-  connection.ghost_cell_width = 4;
+  connection.ghost_cell_width = 8;
   connection.plenum.id = 0;
   connection.tube.id = 0;
   connection.tube.mirror_box =
@@ -385,7 +385,7 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
       std::move(connectivity));
 
   fub::DimensionalSplitLevelIntegrator system_solver(
-      fub::int_c<Plenum_Rank>, std::move(context), fub::GodunovSplitting{});
+      fub::int_c<Plenum_Rank>, std::move(context), fub::StrangSplitting{});
 
   const std::size_t n_tubes = system_solver.GetContext().Tubes().size();
   const int max_number_of_levels = system_solver.GetContext()
@@ -411,7 +411,7 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
       boost::archive::text_iarchive ia(ifs);
       std::vector<fub::Duration> last_ignitions;
       ia >> last_ignitions;
-      ignition.SetLastIgnitionTimePoints(last_ignitions);
+      ignition.SetNextIgnitionTimePoints(last_ignitions);
     }
     input = fub::ReadAndBroadcastFile(checkpoint + "/Valve", comm);
     ifs = std::istringstream(input);
@@ -427,8 +427,8 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
       std::move(ign_solver), std::move(source_term),
       fub::StrangSplittingLumped{});
 
-  // fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
-  fub::NoSubcycleSolver solver(std::move(level_integrator));
+  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
+  //fub::NoSubcycleSolver solver(std::move(level_integrator));
 
   using namespace fub::amrex;
   struct MakeCheckpoint

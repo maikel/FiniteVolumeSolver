@@ -246,11 +246,11 @@ private:
 
 template <typename Equation>
 DataDescription MakeDataDescription(const Equation& equation) {
-  const auto complete_depths = Depths<Complete<Equation>>(equation);
+  const auto complete_depths = Depths(equation, Type<Complete<Equation>>{});
   int n_comp = 0;
   ForEachVariable([&n_comp](int depth) { n_comp += depth; }, complete_depths);
 
-  const auto cons_depths = Depths<Conservative<Equation>>(equation);
+  const auto cons_depths = Depths(equation, Type<Conservative<Equation>>{});
   int n_cons_comp = 0;
   ForEachVariable([&n_cons_comp](int depth) { n_cons_comp += depth; },
                   cons_depths);
@@ -283,7 +283,7 @@ void WritePlotFile(const std::string plotfilename,
   }
   using Traits = StateTraits<Complete<Equation>>;
   constexpr auto names = Traits::names;
-  const auto depths = Depths<Complete<Equation>>(equation);
+  const auto depths = Depths(equation, Type<Complete<Equation>>{});
   const std::size_t n_names =
       std::tuple_size<remove_cvref_t<decltype(names)>>::value;
   ::amrex::Vector<std::string> varnames;
@@ -323,7 +323,7 @@ void WritePlotFile(const std::string plotfilename,
   }
   using Traits = StateTraits<Complete<Equation>>;
   constexpr auto names = Traits::names;
-  const auto depths = Depths<Complete<Equation>>(equation);
+  const auto depths = Depths(equation, Type<Complete<Equation>>{});
   const std::size_t n_names =
       std::tuple_size<remove_cvref_t<decltype(names)>>::value;
   ::amrex::Vector<std::string> varnames;

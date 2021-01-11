@@ -29,6 +29,8 @@
 
 #include <fmt/format.h>
 
+#include <optional>
+
 namespace fub::amrex {
 
 /// \ingroup BoundaryCondition
@@ -39,13 +41,28 @@ struct IsentropicPressureBoundaryOptions {
 
   template <typename Log> void Print(Log& log) {
     BOOST_LOG(log) << fmt::format(" - channel_name = {}", channel_name);
-    BOOST_LOG(log) << fmt::format(" - outer_pressure = {}", outer_pressure);
-    BOOST_LOG(log) << fmt::format(" - direction = {}", int(direction));
-    BOOST_LOG(log) << fmt::format(" - side = {}", side);
+    BOOST_LOG(log) << fmt::format(" - outer_pressure = {} [Pa]",
+                                  outer_pressure);
+    BOOST_LOG(log) << fmt::format(" - efficiency = {} [-]", efficiency);
+    if (boundary_section) {
+      std::array<int, AMREX_SPACEDIM> lower, upper;
+      std::copy_n(boundary_section->smallEnd().getVect(), AMREX_SPACEDIM,
+                  lower.data());
+      std::copy_n(boundary_section->bigEnd().getVect(), AMREX_SPACEDIM,
+                  upper.data());
+      BOOST_LOG(log) << fmt::format(
+          " - boundary_section = {{{{{}}}, {{{}}}}} [-]", lower, upper);
+    } else {
+      BOOST_LOG(log) << " - boundary_section = {} [-]";
+    }
+    BOOST_LOG(log) << fmt::format(" - direction = {} [-]", int(direction));
+    BOOST_LOG(log) << fmt::format(" - side = {} [-]", side);
   }
 
   std::string channel_name{"IsentropicPressureBoundary"};
   double outer_pressure = 101325.0;
+  double efficiency = 1.0;
+  std::optional<::amrex::Box> boundary_section{};
   Direction direction = Direction::X;
   int side = 0;
 };

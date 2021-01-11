@@ -29,6 +29,16 @@ MultiBlockIgniteDetonation::MultiBlockIgniteDetonation(
                     IgniteDetonation(equation, max_number_levels, opts)),
       max_number_levels_{max_number_levels} {}
 
+MultiBlockIgniteDetonation::MultiBlockIgniteDetonation(
+    const fub::IdealGasMix<1>& equation, std::size_t n_tubes,
+    int max_number_levels, const std::vector<IgniteDetonationOptions>& opts)
+    : max_number_levels_{max_number_levels} {
+  source_terms_.reserve(n_tubes);
+  for (std::size_t i = 0; i < n_tubes; ++i) {
+    source_terms_.emplace_back(equation, max_number_levels, opts[i]);
+  }
+}
+
 Duration MultiBlockIgniteDetonation::ComputeStableDt([
     [maybe_unused]] int level) noexcept {
   return Duration(std::numeric_limits<double>::max());
@@ -61,23 +71,23 @@ MultiBlockIgniteDetonation::AdvanceLevel(MultiBlockIntegratorContext& context,
 }
 
 std::vector<Duration>
-MultiBlockIgniteDetonation::GetLastIgnitionTimePoints() const {
+MultiBlockIgniteDetonation::GetNextIgnitionTimePoints() const {
   std::vector<Duration> times{};
   times.reserve(source_terms_.size());
   std::transform(source_terms_.begin(), source_terms_.end(),
                  std::back_inserter(times), [](const IgniteDetonation& ign) {
-                   return ign.GetLastIgnitionTimePoint(0);
+                   return ign.GetNextIgnitionTimePoint(0);
                  });
   return times;
 }
 
-void MultiBlockIgniteDetonation::SetLastIgnitionTimePoints(
+void MultiBlockIgniteDetonation::SetNextIgnitionTimePoints(
     span<const Duration> timepoints) {
   std::size_t k = 0;
   for (Duration t_ign : timepoints) {
     const int nlevel = max_number_levels_;
     for (int ilvl = 0; ilvl < nlevel; ++ilvl) {
-      source_terms_[k].SetLastIgnitionTimePoint(ilvl, t_ign);
+      source_terms_[k].SetNextIgnitionTimePoint(ilvl, t_ign);
     }
     k += 1;
   }
