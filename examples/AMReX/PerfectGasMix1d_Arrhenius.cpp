@@ -187,7 +187,7 @@ void MyMain(const fub::ProgramOptions& options) {
   boundary.conditions.push_back(
       ReflectiveBoundary{seq, equation, fub::Direction::X, 0});
   using fub::amrex::IsentropicPressureExpansion;
-  //boundary.conditions.push_back(
+  // boundary.conditions.push_back(
   //    ReflectiveBoundary{seq, equation, fub::Direction::X, 1});
   boundary.conditions.push_back(
       IsentropicPressureExpansion<fub::PerfectGasMix<1>>{equation, 1.0,
@@ -251,7 +251,7 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::SplitSystemSourceLevelIntegrator reactive_integrator(
       std::move(level_integrator), std::move(source_term),
       fub::GodunovSplitting());
-      //fub::StrangSplittingLumped());
+  // fub::StrangSplittingLumped());
 
   fub::SubcycleFineFirstSolver solver(std::move(reactive_integrator));
   // fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
