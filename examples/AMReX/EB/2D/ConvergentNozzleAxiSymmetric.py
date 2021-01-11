@@ -164,7 +164,14 @@ def OuterProbe(x0, k, alpha):
   return [x0, r_outer - 0.002, r_tube_center * math.sin(k * alpha)]
 
 Output = { 
-  'outputs': [{
+  'outputs': [
+  {
+    'type': 'HDF5',
+    'which_block': 0,
+    'path': 'ConvergentNozzleAxi/Plenum.h5',
+    'intervals': [1e-4]
+  },
+  {
     'type': 'Plotfiles',
     'directory': 'ConvergentNozzleAxi/Plotfiles/',
     'intervals': [1e-4],
