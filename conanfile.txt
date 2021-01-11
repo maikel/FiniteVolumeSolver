@@ -7,7 +7,7 @@ range-v3/0.9.1@ericniebler/stable
 Vc/1.4.1@ag-klein+FiniteVolumeSolver/stable
 HDF5/1.10@ag-klein+FiniteVolumeSolver/stable
 SAMRAI/3.15.0@ag-klein+FiniteVolumeSolver/stable
-AMReX/development@ag-klein+FiniteVolumeSolver/stable
+AMReX/21.01@ag-klein+FiniteVolumeSolver/stable
 
 [generators]
 cmake
