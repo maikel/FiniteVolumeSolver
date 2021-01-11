@@ -265,7 +265,7 @@ struct ConservativeHGridReconstruction
             xM[1] = GetAbsoluteVolumeCentroid(geom, neighbors[is[0]], dx);
             xM[2] = GetAbsoluteVolumeCentroid(geom, neighbors[is[1]], dx);
             xM[3] = GetAbsoluteVolumeCentroid(geom, neighbors[is[2]], dx);
-            ComputeGradients(gradient, span(u).template subspan<0, 4>(), xM);
+            ComputeGradients(gradient, fub::span<const Conservative>(u).template subspan<0, 4>(), xM);
             // Load(u[0], AsCons(states), {i, j});
             // Load(u[1], AsCons(states), neighbors[is[0]]);
             // Load(u[2], AsCons(states), neighbors[is[1]]);
@@ -307,7 +307,7 @@ struct ConservativeHGridReconstruction
             xM[1] = GetAbsoluteVolumeCentroid(geom, neighbors[is[0]], dx);
             xM[2] = GetAbsoluteVolumeCentroid(geom, neighbors[is[1]], dx);
             xM[3] = GetAbsoluteVolumeCentroid(geom, neighbors[is[2]], dx);
-            ComputeGradients(gradient, span(u).template subspan<0, 4>(), xM);
+            ComputeGradients(gradient, fub::span<const Conservative>(u).template subspan<0, 4>(), xM);
           }
         }
         Store(gradient_x, gradient[0], {i, j});

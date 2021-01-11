@@ -227,8 +227,7 @@ template <typename Depths> struct ScalarState : ScalarStateBase<Depths> {
   }
 
   ScalarState& operator*=(double lambda) {
-    ForEachVariable([lambda](auto&& that, auto&& other) { that *= lambda; },
-                    *this);
+    ForEachVariable([lambda](auto&& that) { that *= lambda; }, *this);
     return *this;
   }
 };
