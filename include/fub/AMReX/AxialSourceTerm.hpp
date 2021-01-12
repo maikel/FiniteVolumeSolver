@@ -52,7 +52,8 @@ public:
   Duration ComputeStableDt(int level);
 
   Result<void, TimeStepTooLarge>
-  AdvanceLevel(IntegratorContext& simulation_data, int level, Duration dt);
+  AdvanceLevel(IntegratorContext& simulation_data, int level, Duration dt,
+               const ::amrex::IntVect& ngrow = ::amrex::IntVect());
 
   //////////////////////////////////////////////////////////////////////////
   // additional member functions to get class data
