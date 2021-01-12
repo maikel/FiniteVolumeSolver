@@ -148,22 +148,25 @@ void TurbineMassflowBoundary<EulerEquation>::TransformState(
   const double Ma2 = u2 / c2;
 
   const double gammaMinus = gamma - 1.0;
+  const double gammaMinusHalf = 0.5 * gammaMinus;
   const double gammaMinusInv = 1.0 / gammaMinus;
+  const double gammaOverGammaMinus = gamma * gammaMinusInv;
+  const double gammaPlus = gamma + 1.0;
   // const double gammaPlus = gamma + 1.0;
 
   // compute total quantities
-  const double alpha_0 = 1.0 + 0.5 * Ma2 * gammaMinus;
-  const double p_0 = p * std::pow(alpha_0, gamma / gammaMinus);
+  const double alpha_0 = 1.0 + Ma2 * gammaMinusHalf;
+  const double p_0 = p * std::pow(alpha_0, gammaOverGammaMinus);
   const double rho_0 = rho * std::pow(alpha_0, gammaMinusInv);
   const double T_0 = T * alpha_0;
-  const double c_02 = c2 + 0.5 * gammaMinus * u2;
+  const double c_02 = c2 + gammaMinusHalf * u2;
   // const double c_0 = std::sqrt(c_02);
 
   // const int enable_massflow = (p_0 > options_.pressure_threshold);
   const double required_massflow =
       options_.massflow_correlation * p_0 / std::sqrt(T_0);
 
-  const double alpha = 0.5 * gammaMinus * c_02;
+  const double alpha = gammaMinusHalf / c_02;
   const double beta =
       required_massflow / (options_.relative_surface_area * rho_0);
   auto f = [alpha, beta, gammaMinusInv](double u_n) {
@@ -175,16 +178,15 @@ void TurbineMassflowBoundary<EulerEquation>::TransformState(
                                             gammaMinusInv *
                                             std::pow(x, gammaMinusInv - 1.0);
   };
-  const double u_solution = NewtonIteration(f, Df, u);
+  const double required_u = NewtonIteration(f, Df, u);
   // limit outflow velocity to a physically possible one
   const double critical_speed_of_sound = std::sqrt(2.0 * c_02 / (gamma + 1.0));
-  const double required_u = std::min(u_solution, critical_speed_of_sound);
-  const double required_Ma = required_u / c;
-  const double required_Ma2 = required_Ma * required_Ma;
-
-  const double alpha_n = 1.0 + 0.5 * required_Ma2 * gammaMinus;
-  prim.density = rho_0 / std::pow(alpha_n, gammaMinusInv);
-  prim.pressure = p_0 / std::pow(alpha_n, gamma / gammaMinus);
+  const double required_laval = std::min(required_u / critical_speed_of_sound, 1.0);
+  const double required_laval2 = required_laval * required_laval;
+  
+  const double alpha_n = 1.0 - gammaMinus / gammaPlus * required_laval2;
+  prim.density = rho_0 * std::pow(alpha_n, gammaMinusInv);
+  prim.pressure = p_0 * std::pow(alpha_n, gammaOverGammaMinus);
   prim.velocity[dir_v] = required_u;
   CompleteFromPrim(equation_, dest, prim);
 }
