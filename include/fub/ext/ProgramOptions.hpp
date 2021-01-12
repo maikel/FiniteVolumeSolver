@@ -18,7 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-/// \file This file declares a function to parse program options from a python
+/// \file
+/// This file declares a function to parse program options from a python
 /// script file.
 
 #ifndef FUB_EXT_PROGRAM_OPTIONS_HPP

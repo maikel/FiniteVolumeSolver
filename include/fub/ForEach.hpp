@@ -18,7 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-/// \file This file defines several ForEachXXX functions to iterate through some
+/// \file
+/// This file defines several ForEachXXX functions to iterate through some
 /// kind of range.
 
 /// \defgroup ForEach For Each Loops

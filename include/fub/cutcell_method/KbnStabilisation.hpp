@@ -94,6 +94,8 @@ public:
   ///
   /// \param[in] states the source view of states which will used as a
   ///            reference state.
+  ///
+  /// \param[in] cutcell_data the cut cell data.
   void PreAdvanceHierarchy(const View<Complete>& references,
                            const View<const Complete>& states,
                            const CutCellData<Rank>& cutcell_data);
@@ -102,6 +104,7 @@ public:
   ///
   /// \param[out] flux the storage for the result.
   /// \param[in,out] state the state in the cut cell.
+  /// \param[in] reference_state the reference state for the cut cell.
   /// \param[in] boundary_normal the boundary normal of the cutcell
   /// \param[in] dir the split direction for the flux
   /// \param[in] dt the current time step size
