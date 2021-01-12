@@ -1,6 +1,6 @@
 import math
 
-plenum_x_n_cells = 128
+plenum_x_n_cells = 256
 tube_blocking_factor = 8
 plenum_blocking_factor = 8
 
@@ -64,8 +64,18 @@ tube_n_cells = int(tube_n_cells)
 
 RunOptions = {
   'cfl': 0.8,
-  'final_time': 20,
-  'max_cycles': -1
+  'final_time': 30.0,
+  'max_cycles': -1,
+  'do_backup': 0
+}
+
+FluxMethod = {
+  # HLLEM, HLLEM_Larrouturou
+  'base_method': 'HLLEM_Larrouturou',
+  # Upwind, MinMod, VanLeer
+  'limiter': 'MinMod',
+  # Conservative, Primitive, Characteristics
+  'reconstruction': 'Characteristics'
 }
 
 # checkpoint = '/Users/maikel/Development/FiniteVolumeSolver/build_3d/MultiTube/Checkpoint/000000063'
@@ -78,6 +88,7 @@ def ToCellIndex(x, xlo, xhi, ncells):
   return i
 
 y0s = [-1.0/3.0, 0.0, +1.0/3.0]
+#y0s = [0.0]
 mach_1_boundaries = [ToCellIndex(y0, plenum_y_lower, plenum_y_upper, plenum_y_n_cells) for y0 in y0s]
 
 Plenum = {
@@ -99,9 +110,7 @@ Plenum = {
     'n_proper': 1,
     'n_error_buf': [0, 0, 0]
   },
-  'FluxMethod': {
-    'limiter': 'Upwind',
-  },
+  'FluxMethod': FluxMethod,
   'InletGeometries': [{
     'r_start': r_tube,
     'r_end': 2.0*r_tube,
@@ -126,8 +135,8 @@ Plenum = {
       'lower': [plenum_x_n_cells, -4, 0], 
       'upper': [plenum_x_n_cells + 3, plenum_y_n_cells + 3, 0] 
      },
-    'relative_surface_area': 1,
-    'massflow_correlation': 0.02,
+    'relative_surface_area': plenum_y_length / (3.0 * D) / 10.0,
+    'massflow_correlation': 0.06,
   }],
   #'MachnumberBoundaries': [{
   #  'boundary_section': { 
@@ -158,7 +167,6 @@ def DomainAroundPoint(x0, lo, upper):
   return [xlo, xhi]
 
 def BoxWhichContains(real_box):
-  print(real_box)
   i0 = ToCellIndex(real_box[0][0], plenum_x_lower, plenum_x_upper, plenum_x_n_cells)
   iEnd = ToCellIndex(real_box[1][0], plenum_x_lower, plenum_x_upper, plenum_x_n_cells)
   j0 = ToCellIndex(real_box[0][1], plenum_y_lower, plenum_y_upper, plenum_y_n_cells)
@@ -170,6 +178,8 @@ def PlenumMirrorBox(y0):
 
 Tubes = [{
   'checkpoint': checkpoint,
+  'buffer': 0.25,
+  'FluxMethod': FluxMethod,
   'plenum_mirror_box': PlenumMirrorBox(y_0),
   'GridGeometry': {
     'cell_dimensions': [tube_n_cells, 1, 1],
@@ -192,15 +202,15 @@ Tubes = [{
 Output = { 
   'outputs': [{
     'type': 'Plotfiles',
-    'directory': 'SEC_Plenum_TurbineBoundary/Plotfiles/',
-    'intervals': [0.01],
+    'directory': '/group/ag_klima/SFB1029_C01/SEC_Plenum/SEC_Plenum_{}_{}/highres/Plotfiles/'.format(FluxMethod['base_method'], FluxMethod['limiter']),
+    'intervals': [0.005],
     #'frequencies': [1]
   }, {
-    'type': 'Checkpoint',
-    'directory': 'SEC_Plenum_TurbineBoundary/Checkpoint/',
-    'intervals': [1.0],
+    #'#type': 'Checkpoint',
+    #'directory': 'SEC_Plenum_{}_{}/highres/Checkpoint/'.format(FluxMethod['base_method'], FluxMethod['limiter']),
+    # 'intervals': [1.0],
     #'frequencies': [100]
-  }, {
+  #}, {
    'type': 'CounterOutput',
    'intervals': [1.0]
   }
