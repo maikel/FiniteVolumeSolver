@@ -254,12 +254,12 @@ public:
    * Adjust the pressure of the mixture isentropically
    *
    * Flamemaster does not offer entropy data. However, we still
-   * have the relation dH = V dp + T dS, which reduces to
-   * dH = V dp in the isentropic case. This function integrates
-   * H to the desired p and ensures fixed entropy this way.
+   * have the relation \f$ dH = V dp + T dS \f$, which reduces to
+   * \f$ dH = V dp \f$ in the isentropic case. This function integrates
+   * \f$ H \f$ to the desired \f$p\f$ and ensures fixed entropy this way.
    *
    * The function simultaneously integrates velocity using the relation
-   * du = - 1/(c \rho) dp = - sqrt(1/(\gamma p \rho)) dp.
+   * \f$du = - 1/(c \rho) dp = - sqrt(1/(\gamma p \rho)) dp\f$ .
    * This relation is fulfiled across rarefaction waves, and the call
    * allows to use the function to calculate the state behind such a
    * wave.
@@ -458,7 +458,6 @@ public:
   void SetInternalEnergyArray(Array1d energy, double dTtol = 1E-6);
   void SetInternalEnergyArray(Array1d energy, MaskArray mask,
                               double dTtol = 1E-6);
-  ///@}
 
   /// \brief get the current reaction rates d/dt m, where m denotes the actual
   /// mole counts: Y = m * molarMasses / density

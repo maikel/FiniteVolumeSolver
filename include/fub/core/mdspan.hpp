@@ -331,7 +331,7 @@ struct layout_left {
     /// \return Returns the codomain index for specified multi dimensional index
     /// coordinates.
     ///
-    /// \effect Equivalent to offset in
+    /// Equivalent to offset in
     /// \code
     ///    index_type offset = 0;
     ///    for(size_t k = 0; k < Extents::rank(); ++k) {

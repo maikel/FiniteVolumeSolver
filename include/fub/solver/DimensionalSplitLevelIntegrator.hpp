@@ -135,8 +135,8 @@ public:
   ///
   /// This method subcycles finer levels.
   ///
-  /// \param[in] level_num  An integer denoting the patch level where 0 is the
-  /// coarsest level.
+  /// \param[in] level_number  An integer denoting the patch level where 0 is
+  /// the coarsest level.
   ///
   /// \param[in] dt  A stable time step size for the level_num-th patch level.
   ///

@@ -75,7 +75,7 @@ public:
   ///
   /// This method subcycles finer levels.
   ///
-  /// \param[in] level_num  An integer denoting the patch level where 0 is the
+  /// \param[in] level_number  An integer denoting the patch level where 0 is the
   /// coarsest level.
   ///
   /// \param[in] direction The dimensional split direction which will be used to
