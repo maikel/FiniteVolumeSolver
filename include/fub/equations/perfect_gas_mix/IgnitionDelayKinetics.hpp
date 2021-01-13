@@ -32,22 +32,32 @@
 
 namespace fub::perfect_gas_mix {
 
+/// The options for the IgnitionDelay model.
 struct IgnitionDelayKineticsOptions {
- double Yign{0.2};
- double Yinit{1.0};
- double tau{1.0};
- double R_B{0.};
- double R_C{70.};
- double R_E{1.2};
- double R2_A{0.};
- double R2_C{5.};
- double R2_E{1.5};
- double E{0.5};
- double C{7.};
- double Tdiff{2.7};
+  double Yign{0.2}; /// test
+  double Yinit{1.0};
+  double tau{1.0};
+  double R_B{0.};
+  double R_C{70.};
+  double R_E{1.2};
+  double R2_A{0.};
+  double R2_C{5.};
+  double R2_E{1.5};
+  double E{0.5};
+  double C{7.};
+  double Tdiff{2.7};
 };
 
 /// \ingroup LevelIntegrator
+///
+/// \brief A kinetics implementation with two species and NTC/fixed tau.
+///
+/// This is a non-dimensionalized model with two reactions:
+///  - Fuel -> Fuel radicals    -- temperature independent
+///  - Fuel radicals -> Product -- Arrhenius, Heaviside-dependent on Fuel
+///  existence
+///
+/// Further Details can be found in \cite Berndt2017 or in \cite Berndt2016PHD.
 template <int R> class IgnitionDelayKinetics {
 public:
   static constexpr int Rank = R;
@@ -61,7 +71,7 @@ public:
   AdvanceLevel(amrex::IntegratorContext& simulation_data, int level,
                Duration dt,
                const ::amrex::IntVect& ngrow = ::amrex::IntVect(0));
-  
+
   IgnitionDelayKineticsOptions options;
 
 private:
