@@ -969,12 +969,14 @@ We describe in the following how to use docker to run the Divider2D application.
 1. Install docker via https://www.docker.com/
 
 2. Download the docker image that contains the Divider2D example via
-```
+
+```console
 $ docker pull maikelnadolski/divider2d
 ```
 
 3. Run the `fish` command as the `amrex` user and mount your `$HOME` directory on the host `/home/amrex/volume` within the container
-```
+
+```console
 $ docker run -it -v $HOME:/home/amrex/volume --user amrex -w /home/amrex maikelnadolski/divider2d fish
 Welcome to fish, the friendly interactive shell
 Type `help` for instructions on how to use fish
