@@ -31,6 +31,18 @@ TurbineMassflowBoundaryOptions::TurbineMassflowBoundaryOptions(
       GetOptionOr(options, "massflow_correlation", massflow_correlation);
   dir = GetOptionOr(options, "dir", dir);
   side = GetOptionOr(options, "side", side);
+  int mode_v = static_cast<int>(mode);
+  mode_v = GetOptionOr(options, "mode", mode_v);
+  if (mode_v != static_cast<int>(TurbineMassflowMode::cellwise) &&
+      mode_v != static_cast<int>(TurbineMassflowMode::average_inner_state) &&
+      mode_v != static_cast<int>(TurbineMassflowMode::average_outer_state)) {
+    throw std::runtime_error(fmt::format(
+        "TurbineMassflowBoundary: Invalid mode (= {}) from options.", mode_v));
+  } else {
+    mode = static_cast<TurbineMassflowMode>(mode_v);
+  }
+  coarse_average_mirror_box = GetOptionOr(options, "coarse_average_mirror_box",
+                                          coarse_average_mirror_box);
 }
 
 void TurbineMassflowBoundaryOptions::Print(SeverityLogger& log) const {
@@ -46,6 +58,18 @@ void TurbineMassflowBoundaryOptions::Print(SeverityLogger& log) const {
                                 relative_surface_area);
   BOOST_LOG(log) << fmt::format(" - massflow_correlation = {} [-]",
                                 massflow_correlation);
+  static constexpr std::string_view mode_names[] = {
+      "cellwise", "average_inner_state", "average_outer_state"};
+  const int mode_v = static_cast<int>(mode);
+  FUB_ASSERT(0 <= mode_v && mode_v < 3);
+  BOOST_LOG(log) << fmt::format(" - mode = {} ({}) [0, 1, 2]", mode_v,
+                                mode_names[mode_v]);
+  std::copy_n(coarse_average_mirror_box.smallEnd().getVect(), AMREX_SPACEDIM,
+              lower.data());
+  std::copy_n(coarse_average_mirror_box.bigEnd().getVect(), AMREX_SPACEDIM,
+              upper.data());
+  BOOST_LOG(log) << fmt::format(" - coarse_average_mirror_box = {{{{{}}}, {{{}}}}} [-]",
+                                lower, upper);
   BOOST_LOG(log) << fmt::format(" - dir = {} [-]", static_cast<int>(dir));
   BOOST_LOG(log) << fmt::format(" - side = {} [-]", side);
 }

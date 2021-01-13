@@ -32,6 +32,27 @@
 
 namespace fub::amrex {
 
+template <typename InitialValue, typename BinaryOp>
+void AccumulateState(const ::amrex::MultiFab& mf, const ::amrex::Box& box,
+                     InitialValue&& init, BinaryOp&& binary_op) {
+  const auto ncomp = static_cast<std::size_t>(mf.nComp());
+  std::vector<double> state_buffer(ncomp);
+  span<const double> buffer(state_buffer);
+  ForEachFab(mf, [&](const ::amrex::MFIter& mfi) {
+    IndexBox<AMREX_SPACEDIM> section =
+        AsIndexBox<AMREX_SPACEDIM>(box & mfi.tilebox());
+    const ::amrex::FArrayBox& data = mf[mfi];
+    ForEachIndex(section, [&](auto... is) {
+      ::amrex::IntVect index{static_cast<int>(is)...};
+      for (std::size_t comp = 0; comp < ncomp; ++comp) {
+        state_buffer[comp] = data(index, static_cast<int>(comp));
+      }
+      std::invoke(std::forward<BinaryOp>(binary_op),
+                  std::forward<InitialValue>(init), buffer);
+    });
+  });
+}
+
 template <typename Equation>
 void AverageState(Complete<Equation>& state, const ::amrex::MultiFab& mf,
                   const ::amrex::Geometry&, const ::amrex::Box& box) {
