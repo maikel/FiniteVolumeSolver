@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 /// \file
-/// This file defines a small wrapper class which stores thread local
+/// \brief This file defines a small wrapper class which stores thread local
 /// instances of a given object.
 
 #ifndef FUB_EXT_OMP_HPP

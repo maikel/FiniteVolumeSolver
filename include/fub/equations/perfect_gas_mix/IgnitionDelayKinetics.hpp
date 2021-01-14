@@ -19,6 +19,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+/// \file
+/// \brief Ths file contains all declarations for a kinetic source term
+/// for the reactive euler equations.
+
 #ifndef FUB_PERFECT_GAS_MIX_IGNITION_DELAY_KINETICS_HPP
 #define FUB_PERFECT_GAS_MIX_IGNITION_DELAY_KINETICS_HPP
 

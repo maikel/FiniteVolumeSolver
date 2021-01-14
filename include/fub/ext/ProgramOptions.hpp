@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 /// \file
-/// This file declares a function to parse program options from a python
+/// \brief This file declares a function to parse program options from a python
 /// script file.
 
 #ifndef FUB_EXT_PROGRAM_OPTIONS_HPP

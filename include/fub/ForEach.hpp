@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 /// \file
-/// This file defines several ForEachXXX functions to iterate through some
+/// \brief This file defines several ForEachXXX functions to iterate through some
 /// kind of range.
 
 /// \defgroup ForEach For Each Loops

@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 /// \file
-/// This file introduces `extents<E0, ..., En>`, a compact
+/// \brief This file introduces `extents<E0, ..., En>`, a compact
 /// multi-dimensional size type. Each integral extent `Ei` stands an upper bound
 /// in dimension `i` and can either be a compile-time constant signed integral
 /// value or `dynamic_extent`. Each compile-time sized extent does not take any
