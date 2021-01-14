@@ -77,12 +77,9 @@ namespace fub::perfect_gas_mix {
 ///@}
 struct IgnitionDelayKineticsOptions {
   // Factors determining lambda for the radical reaction:
-  /// Y_fuel below which low temperature mech. kicks in
-  double Yign{0.2};
-  /// Initial Y_fuel
-  double Yinit{1.0};
-  /// Ignition delay time
-  double tau{1.0};
+  double Yign{0.2};  ///< Y_fuel below which low temperature mech. kicks in
+  double Yinit{1.0}; ///< Initial Y_fuel
+  double tau{1.0};   ///< Ignition delay time
 
   // Factors determining the temperature dependence in the radical buildup
   // reaction:
@@ -143,6 +140,8 @@ private:
   OmpLocal<KineticStateArray<PerfectGasMix<Rank>>> kinetic_state_;
 };
 
+// We define this class only for dimensions 1 to 3.
+// The definitions will be found in its source file IgnitionDelayKinetics.cpp
 extern template class IgnitionDelayKinetics<1>;
 extern template class IgnitionDelayKinetics<2>;
 extern template class IgnitionDelayKinetics<3>;
