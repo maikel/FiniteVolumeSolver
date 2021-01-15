@@ -1112,6 +1112,7 @@ Save figure to /home/amrex/Figures/Plotfiles/Figure0001.png.
 ```
 
 6. Copy the figures to a location of your host computer. You need a directory that is writable for others.
+
 On Unix-like machines you can do on your host side
 
 ```
