@@ -1035,7 +1035,7 @@ AMReX (20.07-dirty) initialized
 2021-Jan-11 07:11:50.172533 -- [info] scratch_gcw = 2
 2021-Jan-11 07:11:50.172568 -- [info] flux_gcw = 0
 2021-Jan-11 07:11:50.184254 -- [Plotfile] [info] [T =            0s] Write Plotfile output to 'Divider_DE5_800/Plotfiles/plt000000000'.
-2021-Jan-11 07:11:50.247063 -- [HDF5] [info] [T =            0s] Write Hdf5 output to 'Divider_c24_800.h5'.
+2021-Jan-11 07:11:50.247063 -- \[HDF5] [info] [T =            0s] Write Hdf5 output to 'Divider_c24_800.h5'.
 Table of Counters -----------------------------------------------------------------------------------------------------------------------------------------
                                            Counter Name          #Calls        Min [ms]        Max [ms]        Avg [ms]     StdDev [ms]     Percent [%]
         cutcell::GriddingAlgorithm::InitializeHierarchy               1              31             587             329             211             3.5
