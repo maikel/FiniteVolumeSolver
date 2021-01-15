@@ -1056,6 +1056,7 @@ cutcell::IntegratorContext::ResetHierarchyConfiguration               1         
 ```
 
 5. Visualize the HDF5 output by executing VisualizeHdf5.py and the AMReX Plotfiles by VisualizePlotfiles.py
+
 ```
 ⋊> ~ python3  VisualizeHdf5.py                                                                                                                                                                             07:14:09
 Save figure to /home/amrex/Figures/Hdf5/Figure0000.png.
