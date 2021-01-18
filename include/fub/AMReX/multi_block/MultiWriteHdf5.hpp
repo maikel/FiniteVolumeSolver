@@ -23,6 +23,7 @@
 #define FUB_AMREX_OUTPUT_MULTI_WRITE_HDF5_HPP
 
 #include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp"
+#include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm2.hpp"
 #include "fub/ext/ProgramOptions.hpp"
 #include "fub/output/OutputAtFrequencyOrInterval.hpp"
 
@@ -37,6 +38,21 @@ public:
   MultiWriteHdf5(const std::map<std::string, pybind11::object>& vm);
 
   void operator()(const MultiBlockGriddingAlgorithm& grid) override;
+
+private:
+  enum class Type { plenum, tube };
+  Type type_{Type::tube};
+  int grid_id_{0};
+  std::string path_to_file_{};
+  std::optional<::amrex::Box> output_box_{};
+};
+
+class MultiWriteHdf52
+    : public OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm2> {
+public:
+  MultiWriteHdf52(const fub::ProgramOptions& vm);
+
+  void operator()(const MultiBlockGriddingAlgorithm2& grid) override;
 
 private:
   enum class Type { plenum, tube };
