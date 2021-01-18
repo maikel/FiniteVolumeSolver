@@ -21,6 +21,7 @@ gamma = 2.0
 BK19PhysicalParameters = {
     'R_gas': R_gas,
     'gamma': gamma,
+    'gravity': [0, 0, 0],
     'Msq': u_ref * u_ref / R_gas * T_ref,
     'c_p': gamma / (gamma - 1.0),
     'alpha_p': 1.0
