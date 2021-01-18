@@ -1,8 +1,11 @@
 import math
 
-plenum_x_n_cells = 256
+plenum_x_n_cells = 64
 tube_blocking_factor = 8
 plenum_blocking_factor = 8
+
+
+mode = %MODE%
 
 n_level = 1
 
@@ -31,12 +34,6 @@ plenum_domain_length = plenum_length + inlet_length
 tube_domain_length = tube_length - inlet_length
 
 tube_over_plenum_length_ratio = tube_domain_length / plenum_domain_length
-
-# plenum_yz_upper = +(r_outer + 0.01)
-# plenum_yz_lower = -plenum_yz_upper
-
-# plenum_yz_length = plenum_yz_upper - plenum_yz_lower
-
 
 plenum_y_lower = - 0.5
 plenum_y_upper = + 0.5
@@ -88,7 +85,6 @@ def ToCellIndex(x, xlo, xhi, ncells):
   return i
 
 y0s = [-1.0/3.0, 0.0, +1.0/3.0]
-#y0s = [0.0]
 mach_1_boundaries = [ToCellIndex(y0, plenum_y_lower, plenum_y_upper, plenum_y_n_cells) for y0 in y0s]
 
 Plenum = {
@@ -135,7 +131,12 @@ Plenum = {
       'lower': [plenum_x_n_cells, -4, 0], 
       'upper': [plenum_x_n_cells + 3, plenum_y_n_cells + 3, 0] 
      },
-    'relative_surface_area': plenum_y_length / (3.0 * D) / 10.0,
+    'mode': mode,
+    'coarse_average_mirror_box': {
+      'lower': [plenum_x_n_cells - 1, 0, 0],
+      'upper': [plenum_x_n_cells - 1, plenum_y_n_cells - 1, 0]
+    },
+    'relative_surface_area': plenum_y_length / (3.0 * D),
     'massflow_correlation': 0.06,
   }],
   #'MachnumberBoundaries': [{
@@ -178,7 +179,8 @@ def PlenumMirrorBox(y0):
 
 Tubes = [{
   'checkpoint': checkpoint,
-  'buffer': 0.25,
+  'buffer': 0.5,
+  'initially_filled_x': 0.2,
   'FluxMethod': FluxMethod,
   'plenum_mirror_box': PlenumMirrorBox(y_0),
   'GridGeometry': {
@@ -199,11 +201,21 @@ Tubes = [{
   }
 } for y_0 in y0s]
 
+mode_names = ['cellwise', 'average_mirror_state', 'average_ghost_state']
+
 Output = { 
-  'outputs': [{
-    'type': 'Plotfiles',
-    'directory': '/group/ag_klima/SFB1029_C01/SEC_Plenum/SEC_Plenum_{}_{}/highres/Plotfiles/'.format(FluxMethod['base_method'], FluxMethod['limiter']),
-    'intervals': [0.005],
+  'outputs': [
+  {
+    'type': 'HDF5',
+    'path': '{}/Tube0.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
+    'which_block': 1,
+    'intervals': [0.005]
+  },
+  {
+    #'type': 'Plotfiles',
+    #'directory': '/group/ag_klima/SFB1029_C01/SEC_Plenum/{}/Plotfiles/'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
+    #'directory': 'SEC_Plenum/{}/Plotfiles/'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
+    #'intervals': [0.005],
     #'frequencies': [1]
   }, {
     #'#type': 'Checkpoint',

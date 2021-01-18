@@ -74,6 +74,7 @@ struct InitialDataInTube {
 
   Equation equation_;
   double x_0_;
+  double initially_filled_x_{0.4};
 
   void InitializeData(fub::amrex::PatchLevel& patch_level,
                       const fub::amrex::GriddingAlgorithm& grid, int level,
@@ -94,8 +95,9 @@ struct InitialDataInTube {
             state.temperature = (rel_x < 0.5) ? 1.0 : 2.5;
             state.density = pressure / state.temperature / equation_.Rspec;
             state.mole_fractions[0] = 0.0;
-            state.mole_fractions[1] = (rel_x < 0.4) ? 1.0 : 0.0;
-            state.mole_fractions[2] = !(rel_x < 0.4) ? 1.0 : 0.0;
+            state.mole_fractions[1] = (rel_x < initially_filled_x_) ? 1.0 : 0.0;
+            state.mole_fractions[2] =
+                !(rel_x < initially_filled_x_) ? 1.0 : 0.0;
             fub::euler::CompleteFromKineticState(equation_, complete, state,
                                                  velocity);
             fub::Store(states, complete, {i});
@@ -173,7 +175,8 @@ struct RebindBaseMethod_<BaseMethod,
       fub::MusclHancock2<Equation, GradientMethod, Reconstruction, BaseMethod>;
 };
 
-template <typename Limiter, typename FluxMethod, typename BaseMethod, typename Equation>
+template <typename Limiter, typename FluxMethod, typename BaseMethod,
+          typename Equation>
 auto RebindLimiter(fub::Type<FluxMethod>, fub::Type<BaseMethod>,
                    const Equation& equation) {
   return RebindBaseMethod<BaseMethod, RebindLimiterTo<Limiter, FluxMethod>>(
@@ -377,13 +380,18 @@ auto MakeTubeSolver(const fub::ProgramOptions& options,
                           {grid_geometry.cell_dimensions[0] - 1, 0}};
   ConstantBox constant_box{refine_box};
 
-  InitialDataInTube initial_data{equation, grid_geometry.coordinates.lo()[0]};
+  const double initially_filled_x =
+      fub::GetOptionOr(options, "initially_filled_x", 0.4);
+  BOOST_LOG(log) << "InitialData:";
+  BOOST_LOG(log) << "  - initially_filled_x = " << initially_filled_x << " [m]";
+  InitialDataInTube initial_data{equation, grid_geometry.coordinates.lo()[0],
+                                 initially_filled_x};
 
   fub::perfect_gas_mix::IgnitionDelayKinetics<1> source_term{equation};
 
   const double buffer = fub::GetOptionOr(options, "buffer", 0.5);
   BOOST_LOG(log) << "InflowFunction:";
-  BOOST_LOG(log) << "  - buffer = " << buffer;
+  BOOST_LOG(log) << "  - buffer = " << buffer << " [s]";
   static constexpr double pbufwidth = 1e-10;
   const double lambda =
       -std::log(source_term.options.Yign / source_term.options.Yinit /
@@ -457,8 +465,7 @@ auto MakeTubeSolver(const fub::ProgramOptions& options,
 
   auto flux_method =
       GetFluxMethod(fub::GetOptions(options, "FluxMethod"), equation);
-  HyperbolicMethod method{flux_method,
-                          EulerForwardTimeIntegrator(),
+  HyperbolicMethod method{flux_method, EulerForwardTimeIntegrator(),
                           Reconstruction(equation)};
 
   const int scratch_gcw = 4;
@@ -662,6 +669,7 @@ auto MakePlenumSolver(const std::map<std::string, pybind11::object>& options) {
   ConstantBox constant_refinebox{refine_box};
 
   std::shared_ptr gridding = [&] {
+    fub::SeverityLogger log = fub::GetInfoLogger();
     std::string checkpoint =
         fub::GetOptionOr(options, "checkpoint", std::string{});
     if (checkpoint.empty()) {
@@ -813,7 +821,11 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   using CounterOutput =
       fub::CounterOutput<fub::amrex::MultiBlockGriddingAlgorithm2,
                          std::chrono::milliseconds>;
+  factory.RegisterOutput<fub::amrex::MultiWriteHdf52>("HDF5");
   factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
+  factory.RegisterOutput<
+      MultiBlockPlotfileOutput2<fub::PerfectGasMix<1>, fub::PerfectGasMix<2>>>(
+      "Plotfiles", tube_equation, plenum_equation);
   factory.RegisterOutput<
       MultiBlockPlotfileOutput2<fub::PerfectGasMix<1>, fub::PerfectGasMix<2>>>(
       "Plotfiles", tube_equation, plenum_equation);
