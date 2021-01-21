@@ -6,7 +6,9 @@ import shutil
 # export OMP_NUM_THREADS=1
 os.environ['OMP_NUM_THREADS'] = '1'
 
-src_dir = "/srv/public/Maikel/FiniteVolumeSolver"
+# src_dir = "/srv/public/Maikel/FiniteVolumeSolver"
+
+src_dir = "/home/zenkechr/FVS_develop/FiniteVolumeSolver/"
 build_dir = "{}/build_2D-Release".format(src_dir)
 work_dir = "{}/SEC_Plenum".format(build_dir)
 
@@ -27,7 +29,7 @@ boundaries = ['TurbineMassflowBoundaries', 'TurbineMassflowBoundaries_Jirasek']
 
 for boundary in boundaries:
   for mode in modes:
-      input_file_workdir = '{}/SEC_Plenum_{}-.py'.format(work_dir, mode_names[mode], boundary)
+      input_file_workdir = '{}/SEC_Plenum_{}-{}.py'.format(work_dir, mode_names[mode], boundary)
       with open(input_file) as f:
         newText = f.read().replace('%MODE%', str(mode)).replace('%BOUNDARY_CONDITION%', boundary)
       with open(input_file_workdir, "w") as f:
