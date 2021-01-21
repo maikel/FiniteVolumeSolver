@@ -401,8 +401,10 @@ operator()(EulerEquation& eq, Complete<EulerEquation>& expanded,
   const double T = euler::Temperature(eq, source);
   const double c2 = c * c;
   const int dir_v = static_cast<int>(dir);
-  const double u = prim.velocity[dir_v];
-  const double v = prim.velocity[dir_v+1];
+  int ix = dir_v;
+  int iy = (dir_v + 1) % EulerEquation::Rank();
+  const double u = prim.velocity[ix];
+  const double v = prim.velocity[iy];
   const double u2 = u * u;
   const double v2 = v * v;
   const double Ma2 = ( u2 + v2 ) / c2;
@@ -428,27 +430,25 @@ operator()(EulerEquation& eq, Complete<EulerEquation>& expanded,
 
   const double alpha = gammaMinusHalf / c_02;
   const double beta = required_massflow / (relative_surface_area * rho_0);
-  auto f = [alpha, beta, gammaMinusInv](double u_n) {
-    return u_n * std::pow(1.0 - alpha * u_n * u_n, gammaMinusInv) - beta;
+  auto f = [alpha, beta, gammaMinusInv, v2](double u_n) {
+    return u_n * std::pow(1.0 - alpha * (u_n * u_n + v2), gammaMinusInv) - beta;
   };
-  auto Df = [alpha, gammaMinusInv](double u_n) {
-    const double x = 1.0 - alpha * u_n * u_n;
+  auto Df = [alpha, gammaMinusInv, v2](double u_n) {
+    const double x = 1.0 - alpha * (u_n * u_n + v2);
     return std::pow(x, gammaMinusInv) - 2.0 * alpha * u_n * u_n *
                                             gammaMinusInv *
                                             std::pow(x, gammaMinusInv - 1.0);
   };
   const double required_u = NewtonIteration(f, Df, u);
   // limit outflow velocity to a physically possible one
-  const double critical_speed_of_sound = std::sqrt(2.0 * c_02 / (gamma + 1.0));
-  const double required_laval =
-      std::min(required_u / critical_speed_of_sound, 1.0);
-  const double required_laval2 = required_laval * required_laval;
+  const double critical_speed_of_sound2 = 2.0 * c_02 / (gamma + 1.0);
+  const double required_laval2 =
+      std::min((required_u*required_u + v2) / critical_speed_of_sound2, 1.0);
 
   const double alpha_n = 1.0 - gammaMinus / gammaPlus * required_laval2;
   prim.density = rho_0 * std::pow(alpha_n, gammaMinusInv);
   prim.pressure = p_0 * std::pow(alpha_n, gammaOverGammaMinus);
   prim.velocity[dir_v] = required_u;
-  prim.velocity[dir_v+1] = v;
   CompleteFromPrim(eq, expanded, prim);
 }
 
