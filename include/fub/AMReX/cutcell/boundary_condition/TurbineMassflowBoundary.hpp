@@ -402,8 +402,10 @@ operator()(EulerEquation& eq, Complete<EulerEquation>& expanded,
   const double c2 = c * c;
   const int dir_v = static_cast<int>(dir);
   const double u = prim.velocity[dir_v];
+  const double v = prim.velocity[dir_v+1];
   const double u2 = u * u;
-  const double Ma2 = u2 / c2;
+  const double v2 = v * v;
+  const double Ma2 = ( u2 + v2 ) / c2;
 
   const double gammaMinus = gamma - 1.0;
   const double gammaMinusHalf = 0.5 * gammaMinus;
@@ -417,7 +419,7 @@ operator()(EulerEquation& eq, Complete<EulerEquation>& expanded,
   const double p_0 = p * std::pow(alpha_0, gammaOverGammaMinus);
   const double rho_0 = rho * std::pow(alpha_0, gammaMinusInv);
   const double T_0 = T * alpha_0;
-  const double c_02 = c2 + gammaMinusHalf * u2;
+  const double c_02 = c2 + gammaMinusHalf * ( u2 + v2 );
   // const double c_0 = std::sqrt(c_02);
 
   // const int enable_massflow = (p_0 > options_.pressure_threshold);
@@ -446,6 +448,7 @@ operator()(EulerEquation& eq, Complete<EulerEquation>& expanded,
   prim.density = rho_0 * std::pow(alpha_n, gammaMinusInv);
   prim.pressure = p_0 * std::pow(alpha_n, gammaOverGammaMinus);
   prim.velocity[dir_v] = required_u;
+  prim.velocity[dir_v+1] = v;
   CompleteFromPrim(eq, expanded, prim);
 }
 
