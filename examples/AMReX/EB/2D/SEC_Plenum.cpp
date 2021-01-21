@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #include "fub/AMReX.hpp"
+#include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX_CutCell.hpp"
 #include "fub/Solver.hpp"
 
@@ -648,6 +649,22 @@ auto MakePlenumSolver(const std::map<std::string, pybind11::object>& options) {
   }
 
   dicts.clear();
+  dicts = fub::GetOptionOr(options, "TurbineMassflowBoundaries_Jirasek", dicts);
+  for (pybind11::dict& dict : dicts) {
+    fub::ProgramOptions boundary_options = fub::ToMap(dict);
+    fub::amrex::cutcell::TurbineMassflowBoundaryOptions tb_opts(
+        boundary_options);
+    tb_opts.dir = fub::Direction::X;
+    tb_opts.side = 1;
+    BOOST_LOG(log) << "TurbineMassflowBoundaries_Jirasek:";
+    tb_opts.Print(log);
+    fub::amrex::cutcell::TurbineMassflowBoundary<fub::PerfectGasMix<2>,
+                                                 fub::RequireMassflow_Jirasek>
+        pressure_outflow(equation, tb_opts);
+    boundary_condition.conditions.push_back(std::move(pressure_outflow));
+  }
+
+  dicts.clear();
   dicts = fub::GetOptionOr(options, "MachnumberBoundaries", dicts);
   for (pybind11::dict& dict : dicts) {
     fub::ProgramOptions boundary_options = fub::ToMap(dict);
@@ -701,6 +718,41 @@ auto MakePlenumSolver(const std::map<std::string, pybind11::object>& options) {
                           Reconstruction{equation}};
 
   IntegratorContext context(gridding, method, scratch_gcw, flux_gcw);
+
+  auto log_massflow = [](IntegratorContext& plenum, int level, fub::Duration,
+                         std::pair<int, int>) {
+    fub::SeverityLogger log =
+        fub::GetLogger(boost::log::trivial::severity_level::debug);
+    const fub::Duration time_point = plenum.GetTimePoint(level);
+    BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "LogMassflow");
+    BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", time_point.count());
+    BOOST_LOG_SCOPED_LOGGER_TAG(log, "Level", level);
+    const amrex::MultiFab& fluxes_x =
+        plenum.GetFluxes(level, fub::Direction::X);
+    const amrex::Geometry& geom = plenum.GetGeometry(level);
+    const amrex::Box cells = geom.Domain();
+    const amrex::Box faces_x = amrex::convert(cells, {1, 0});
+    const int boundary_n = faces_x.bigEnd(0);
+    const amrex::IntVect smallEnd{boundary_n, faces_x.smallEnd(1)};
+    const amrex::IntVect bigEnd = faces_x.bigEnd();
+    const amrex::Box right_boundary{smallEnd, bigEnd};
+    // const double dy = geom.CellSize(1);
+    double local_f_rho = 0.0;
+    fub::amrex::ForEachFab(fluxes_x, [&](const amrex::MFIter& mfi) {
+      amrex::Box local_boundary = mfi.tilebox() & right_boundary;
+      if (local_boundary.ok()) {
+        const amrex::FArrayBox& local_fluxes = fluxes_x[mfi];
+        local_f_rho += local_fluxes.sum(local_boundary, 0);
+      }
+    });
+    double global_f_rho = 0.0;
+    ::MPI_Allreduce(&local_f_rho, &global_f_rho, 1, MPI_DOUBLE, MPI_SUM,
+                    ::amrex::ParallelDescriptor::Communicator());
+    global_f_rho /= right_boundary.numPts();
+    BOOST_LOG(log) << fmt::format("Average F_rho = {:.12g}", global_f_rho)
+                   << boost::log::add_value("average_massflow", global_f_rho);
+  };
+  context.SetFeedbackFunction(log_massflow);
 
   BOOST_LOG(log) << "==================== End Plenum =========================";
 
