@@ -46,7 +46,15 @@ template <typename Tag, typename FM> struct AxialFluxMethodAdapter {
   void ComputeNumericFluxes(IntegratorContext& context, int level, Duration dt,
                             Direction dir);
 
+  void ComputeNumericFluxes(FM& flux_method, const View<Conservative>& fluxes,
+                            const PatchDataView<double, Rank>& pressures,
+                            const View<const Complete>& states, Duration dt,
+                            double dx, Direction dir);
+
   int GetStencilWidth() const;
+
+  const std::shared_ptr<std::vector<::amrex::MultiFab>>&
+  SharedInterfacePressure() const noexcept;
 
   Local<Tag, FM> flux_method_{};
   std::shared_ptr<std::vector<::amrex::MultiFab>> pressure_;
@@ -68,8 +76,9 @@ using ComputeStableDt_t =
     decltype(std::declval<T>().ComputeStableDt(std::declval<Args>()...));
 
 template <typename Tag, typename FM>
-Duration AxialFluxMethodAdapter<Tag, FM>::ComputeStableDt(IntegratorContext& context,
-                                                     int level, Direction dir) {
+Duration
+AxialFluxMethodAdapter<Tag, FM>::ComputeStableDt(IntegratorContext& context,
+                                                 int level, Direction dir) {
   if constexpr (is_detected<ComputeStableDt_t, FM&, IntegratorContext&, int,
                             Direction>::value) {
     return flux_method_->ComputeStableDt(context, level, dir);
@@ -114,44 +123,96 @@ Duration AxialFluxMethodAdapter<Tag, FM>::ComputeStableDt(IntegratorContext& con
   }
 }
 
-template <typename T, typename... Args>
-using ComputeNumericFluxes_t =
-    decltype(std::declval<T>().ComputeNumericFluxes(std::declval<Args>()...));
-
 template <typename Tag, typename FM>
 void AxialFluxMethodAdapter<Tag, FM>::ComputeNumericFluxes(
     IntegratorContext& context, int level, Duration dt, Direction dir) {
-  if constexpr (is_detected<ComputeNumericFluxes_t, FM&, IntegratorContext&,
-                            int, Duration, Direction>::value) {
-    flux_method_->ComputeNumericFluxes(context, level, dt, dir);
-  } else {
-    const ::amrex::Geometry& geom = context.GetGeometry(level);
-    ::amrex::MultiFab& fluxes = context.GetFluxes(level, dir);
-    const ::amrex::MultiFab& scratch = context.GetScratch(level);
-    const int dir_v = int(dir);
-    const double dx = geom.CellSize(dir_v);
-    FUB_ASSERT(!scratch.contains_nan());
-    const int stencil = GetStencilWidth();
-    ForEachFab(Tag(), fluxes, [&](::amrex::MFIter& mfi) {
-      // Get a view of all complete state variables
-      const ::amrex::Box face_tilebox = mfi.growntilebox();
-      const ::amrex::Box cell_validbox = scratch[mfi].box();
-      const auto [cell_box, face_box] = GetCellsAndFacesInStencilRange(
-          cell_validbox, face_tilebox, stencil, dir);
-      auto&& equation = flux_method_->GetEquation();
-      View<const Complete<Equation>> states =
-          MakeView<const Complete<Equation>>(scratch[mfi], equation, cell_box);
-      View<Conservative<Equation>> flux =
-          MakeView<Conservative<Equation>>(fluxes[mfi], equation, face_box);
-      // Pass views to implementation
-      flux_method_->ComputeNumericFluxes(Tag(), flux, states, pressures, dt, dx, dir);
-    });
-    FUB_ASSERT(!fluxes.contains_nan());
-  }
+  const ::amrex::Geometry& geom = context.GetGeometry(level);
+  ::amrex::MultiFab& fluxes = context.GetFluxes(level, dir);
+  const ::amrex::MultiFab& scratch = context.GetScratch(level);
+  const int dir_v = int(dir);
+  const double dx = geom.CellSize(dir_v);
+  FUB_ASSERT(!scratch.contains_nan());
+  const int stencil = GetStencilWidth();
+  ForEachFab(Tag(), fluxes, [&](::amrex::MFIter& mfi) {
+    // Get a view of all complete state variables
+    const ::amrex::Box face_tilebox = mfi.growntilebox();
+    const ::amrex::Box cell_validbox = scratch[mfi].box();
+    const auto [cell_box, face_box] = GetCellsAndFacesInStencilRange(
+        cell_validbox, face_tilebox, stencil, dir);
+    auto&& equation = flux_method_->GetEquation();
+    View<const Complete<Equation>> states =
+        MakeView<const Complete<Equation>>(scratch[mfi], equation, cell_box);
+    View<Conservative<Equation>> flux =
+        MakeView<Conservative<Equation>>(fluxes[mfi], equation, face_box);
+    // Pass views to implementation
+    ComputeNumericFluxes(*flux_method_, flux, pressures, states, , dt, dx, dir);
+  });
+  FUB_ASSERT(!fluxes.contains_nan());
+}
 
 template <typename Tag, typename FM>
 int AxialFluxMethodAdapter<Tag, FM>::GetStencilWidth() const {
   return flux_method_->GetStencilWidth();
+}
+
+template <typename Tag, typename FM>
+void AxialFluxMethodAdapter<Tag, FM>::ComputeNumericFluxes(
+    FM& flux_method, const View<Conservative>& fluxes,
+    const PatchDataView<double, Rank>& pressures,
+    const View<const Complete>& states, Duration dt, double dx, Direction dir) {
+  static_assert(HasComputeNumericFlux<BaseMethod&, ConservativeArray&,
+                                      std::array<CompleteArray, StencilSize>,
+                                      Duration, double, Direction>());
+  IndexBox<Rank> fluxbox = Box<0>(fluxes);
+  static constexpr int kWidth = GetStencilWidth();
+  IndexBox<Rank> cellbox = Grow(fluxbox, dir, {kWidth, kWidth - 1});
+  BasicView base = Subview(states, cellbox);
+  std::array<View<const Complete>, StencilSize> stencil_views;
+  for (std::size_t i = 0; i < StencilSize; ++i) {
+    stencil_views[i] =
+        Shrink(base, dir,
+               {static_cast<std::ptrdiff_t>(i),
+                static_cast<std::ptrdiff_t>(StencilSize - i) - 1});
+  }
+  std::tuple views = std::apply(
+      [&fluxes](const auto&... vs) {
+        return std::tuple{fluxes, pressures, vs...};
+      },
+      stencil_views);
+  ForEachRow(views, [this, dt, dx, dir](const Row<Conservative>& fluxes,
+                                        span<double> pressure, auto... rows) {
+    ViewPointer fit = Begin(fluxes);
+    ViewPointer fend = End(fluxes);
+    double* p = pressure.begin();
+    std::array<ViewPointer<const Complete>, StencilSize> states{Begin(rows)...};
+    int n = static_cast<int>(get<0>(fend) - get<0>(fit));
+    while (n >= kDefaultChunkSize) {
+      for (std::size_t i = 0; i < StencilSize; ++i) {
+        Load(stencil_array_[i], states[i]);
+      }
+      const Array1d pr = flux_method.ComputeNumericFlux(
+          numeric_flux_array_, stencil_array_, dt, dx, dir);
+      Store(fit, numeric_flux_array_);
+      Eigen::Array1d::Map(p) = pr;
+      p += dDefaultChunkSize;
+      Advance(fit, kDefaultChunkSize);
+      for (std::size_t i = 0; i < StencilSize; ++i) {
+        Advance(states[i], kDefaultChunkSize);
+      }
+      n = static_cast<int>(get<0>(fend) - get<0>(fit));
+    }
+    for (std::size_t i = 0; i < StencilSize; ++i) {
+      LoadN(stencil_array_[i], states[i], n);
+    }
+    ComputeNumericFlux(numeric_flux_array_, stencil_array_, dt, dx, dir);
+    StoreN(fit, numeric_flux_array_, n);
+  });
+}
+
+template <typename Tag, typename FM>
+const std::shared_ptr<std::vector<::amrex::MultiFab>>&
+AxialFluxMethodAdapter<Tag, FM>::SharedInterfacePressure() const noexcept {
+  return pressure_;
 }
 
 } // namespace fub::amrex
