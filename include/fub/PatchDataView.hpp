@@ -215,8 +215,8 @@ struct PatchDataView : public PatchDataViewBase<T, R, Layout> {
     return this->mdspan_.extents();
   }
 
-  typename Layout::template mapping<dynamic_extents<sRank>>
-  Mapping() const noexcept {
+  typename Layout::template mapping<dynamic_extents<sRank>> Mapping() const
+      noexcept {
     return this->mdspan_.mapping();
   }
 
@@ -289,6 +289,17 @@ struct PatchDataView : public PatchDataViewBase<T, R, Layout> {
                    local_index.begin(),
                    [](IndexType i, IndexType o) { return i - o; });
     return this->mdspan_(local_index);
+  }
+
+  template <typename IndexType,
+            typename = std::enable_if_t<
+                std::is_convertible_v<IndexType, std::ptrdiff_t>>>
+  auto& operator()(const std::array<IndexType, sRank - 1>& indices,
+                   int ncomp) const {
+    std::array<IndexType, sRank>& indices2;
+    std::copy_n(indices.begin(), sRank - 1, indices2.begin());
+    indices2[sRank - 1] = ncomp;
+    return this->operator()(indices2);
   }
 };
 
