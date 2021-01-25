@@ -1,8 +1,12 @@
 import math
 
-plenum_x_n_cells = 128
+plenum_x_n_cells = 64
 tube_blocking_factor = 8
 plenum_blocking_factor = 8
+
+
+mode = %MODE%
+boundary_condition = '%BOUNDARY_CONDITION%'
 
 n_level = 1
 
@@ -32,12 +36,6 @@ tube_domain_length = tube_length - inlet_length
 
 tube_over_plenum_length_ratio = tube_domain_length / plenum_domain_length
 
-# plenum_yz_upper = +(r_outer + 0.01)
-# plenum_yz_lower = -plenum_yz_upper
-
-# plenum_yz_length = plenum_yz_upper - plenum_yz_lower
-
-
 plenum_y_lower = - 0.5
 plenum_y_upper = + 0.5
 plenum_y_length = plenum_y_upper - plenum_y_lower
@@ -64,8 +62,18 @@ tube_n_cells = int(tube_n_cells)
 
 RunOptions = {
   'cfl': 0.8,
-  'final_time': 20,
-  'max_cycles': -1
+  'final_time': 5.0,
+  'max_cycles': -1,
+  'do_backup': 0
+}
+
+FluxMethod = {
+  # HLLEM, HLLEM_Larrouturou
+  'base_method': 'HLLEM_Larrouturou',
+  # Upwind, MinMod, VanLeer
+  'limiter': 'MinMod',
+  # Conservative, Primitive, Characteristics
+  'reconstruction': 'Characteristics'
 }
 
 # checkpoint = '/Users/maikel/Development/FiniteVolumeSolver/build_3d/MultiTube/Checkpoint/000000063'
@@ -99,9 +107,7 @@ Plenum = {
     'n_proper': 1,
     'n_error_buf': [0, 0, 0]
   },
-  'FluxMethod': {
-    'limiter': 'Upwind',
-  },
+  'FluxMethod': FluxMethod,
   'InletGeometries': [{
     'r_start': r_tube,
     'r_end': 2.0*r_tube,
@@ -121,14 +127,7 @@ Plenum = {
   #  'outer_pressure': 1.0,
   #  'efficiency': 0.1
   #}],
-  'TurbineMassflowBoundaries': [{
-    'boundary_section': { 
-      'lower': [plenum_x_n_cells, -4, 0], 
-      'upper': [plenum_x_n_cells + 3, plenum_y_n_cells + 3, 0] 
-     },
-    'relative_surface_area': 1,
-    'massflow_correlation': 0.02,
-  }],
+  
   #'MachnumberBoundaries': [{
   #  'boundary_section': { 
   #    'lower': [plenum_x_n_cells, y0 - int(r_tube / plenum_y_length * plenum_y_n_cells), 0], 
@@ -136,6 +135,20 @@ Plenum = {
   #   }
   #} for y0 in mach_1_boundaries]
 }
+
+Plenum[boundary_condition] = [{
+  'boundary_section': { 
+    'lower': [plenum_x_n_cells, -4, 0], 
+    'upper': [plenum_x_n_cells + 3, plenum_y_n_cells + 3, 0] 
+    },
+  'mode': mode,
+  'coarse_average_mirror_box': {
+    'lower': [plenum_x_n_cells - 1, 0, 0],
+    'upper': [plenum_x_n_cells - 1, plenum_y_n_cells - 1, 0]
+  },
+  'relative_surface_area': plenum_y_length / (3.0 * D),
+  'massflow_correlation': 0.06,
+}]
 
 def TubeCenterPoint(x0, y0):
   return [x0, y0, 0.0]
@@ -158,7 +171,6 @@ def DomainAroundPoint(x0, lo, upper):
   return [xlo, xhi]
 
 def BoxWhichContains(real_box):
-  print(real_box)
   i0 = ToCellIndex(real_box[0][0], plenum_x_lower, plenum_x_upper, plenum_x_n_cells)
   iEnd = ToCellIndex(real_box[1][0], plenum_x_lower, plenum_x_upper, plenum_x_n_cells)
   j0 = ToCellIndex(real_box[0][1], plenum_y_lower, plenum_y_upper, plenum_y_n_cells)
@@ -170,6 +182,9 @@ def PlenumMirrorBox(y0):
 
 Tubes = [{
   'checkpoint': checkpoint,
+  'buffer': 0.5,
+  'initially_filled_x': 0.2,
+  'FluxMethod': FluxMethod,
   'plenum_mirror_box': PlenumMirrorBox(y_0),
   'GridGeometry': {
     'cell_dimensions': [tube_n_cells, 1, 1],
@@ -189,18 +204,28 @@ Tubes = [{
   }
 } for y_0 in y0s]
 
+mode_names = ['cellwise', 'average_mirror_state', 'average_ghost_state', 'average_massflow']
+
 Output = { 
-  'outputs': [{
-    'type': 'Plotfiles',
-    'directory': 'SEC_Plenum_TurbineBoundary/Plotfiles/',
-    'intervals': [0.01],
-    #'frequencies': [1]
-  }, {
-    'type': 'Checkpoint',
-    'directory': 'SEC_Plenum_TurbineBoundary/Checkpoint/',
-    'intervals': [1.0],
+  'outputs': [
+  # {
+  #   'type': 'HDF5',
+  #   'path': '{}/Tube0.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
+  #   'which_block': 1,
+  #   'intervals': [0.005]
+  # },
+  {
+    #'type': 'Plotfiles',
+    # 'directory': '/group/ag_klima/SFB1029_C01/SEC_Plenum/{}/Plotfiles/'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
+    #'directory': 'SEC_Plenum/{}/Plotfiles/'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
+    #'intervals': [0.005],
+    # 'frequencies': [1]
+ # }, {
+    #'#type': 'Checkpoint',
+    #'directory': 'SEC_Plenum_{}_{}/highres/Checkpoint/'.format(FluxMethod['base_method'], FluxMethod['limiter']),
+    # 'intervals': [1.0],
     #'frequencies': [100]
-  }, {
+  #}, {
    'type': 'CounterOutput',
    'intervals': [1.0]
   }

@@ -27,7 +27,7 @@
 namespace fub::perfect_gas {
 
 /// \ingroup FluxMethod
-template <typename EulerEquation> struct Hllem {
+template <typename EulerEquation, bool Larrouturou = true> struct Hllem {
   using Conservative = ::fub::Conservative<EulerEquation>;
   using Complete = ::fub::Complete<EulerEquation>;
   using ConservativeArray = ::fub::ConservativeArray<EulerEquation>;
@@ -65,31 +65,44 @@ template <typename EulerEquation> struct Hllem {
                            const Complete& right, Direction dir);
 
   EulerEquation equation_;
+  Complete left_{equation_};
+  Complete right_{equation_};
   Conservative fluxL_{equation_};
   Conservative fluxR_{equation_};
   Conservative flux_hlle_{equation_};
   Conservative w_hlle_{equation_};
   Conservative w_hllem_{equation_};
 
+  CompleteArray left_array_{equation_};
+  CompleteArray right_array_{equation_};
   ConservativeArray fluxL_array_{equation_};
   ConservativeArray fluxR_array_{equation_};
   ConservativeArray flux_hlle_array_{equation_};
 };
 
-extern template struct Hllem<PerfectGas<1>>;
-extern template struct Hllem<PerfectGas<2>>;
-extern template struct Hllem<PerfectGas<3>>;
+extern template struct Hllem<PerfectGas<1>, false>;
+extern template struct Hllem<PerfectGas<2>, false>;
+extern template struct Hllem<PerfectGas<3>, false>;
+
+extern template struct Hllem<PerfectGas<1>, true>;
+extern template struct Hllem<PerfectGas<2>, true>;
+extern template struct Hllem<PerfectGas<3>, true>;
 
 /// \ingroup FluxMethod
-template <typename EulerEquation> using HllemMethod = FluxMethod<Hllem<EulerEquation>>;
+template <typename EulerEquation, bool Larrouturou = true>
+using HllemMethod = FluxMethod<Hllem<EulerEquation, Larrouturou>>;
 
 } // namespace fub::perfect_gas
 
 namespace fub {
 
-extern template class FluxMethod<perfect_gas::Hllem<PerfectGas<1>>>;
-extern template class FluxMethod<perfect_gas::Hllem<PerfectGas<2>>>;
-extern template class FluxMethod<perfect_gas::Hllem<PerfectGas<3>>>;
+extern template class FluxMethod<perfect_gas::Hllem<PerfectGas<1>, false>>;
+extern template class FluxMethod<perfect_gas::Hllem<PerfectGas<2>, false>>;
+extern template class FluxMethod<perfect_gas::Hllem<PerfectGas<3>, false>>;
+
+extern template class FluxMethod<perfect_gas::Hllem<PerfectGas<1>, true>>;
+extern template class FluxMethod<perfect_gas::Hllem<PerfectGas<2>, true>>;
+extern template class FluxMethod<perfect_gas::Hllem<PerfectGas<3>, true>>;
 
 } // namespace fub
 

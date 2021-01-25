@@ -969,12 +969,14 @@ We describe in the following how to use docker to run the Divider2D application.
 1. Install docker via https://www.docker.com/
 
 2. Download the docker image that contains the Divider2D example via
-```
+
+```console
 $ docker pull maikelnadolski/divider2d
 ```
 
 3. Run the `fish` command as the `amrex` user and mount your `$HOME` directory on the host `/home/amrex/volume` within the container
-```
+
+```console
 $ docker run -it -v $HOME:/home/amrex/volume --user amrex -w /home/amrex maikelnadolski/divider2d fish
 Welcome to fish, the friendly interactive shell
 Type `help` for instructions on how to use fish
@@ -1033,7 +1035,7 @@ AMReX (20.07-dirty) initialized
 2021-Jan-11 07:11:50.172533 -- [info] scratch_gcw = 2
 2021-Jan-11 07:11:50.172568 -- [info] flux_gcw = 0
 2021-Jan-11 07:11:50.184254 -- [Plotfile] [info] [T =            0s] Write Plotfile output to 'Divider_DE5_800/Plotfiles/plt000000000'.
-2021-Jan-11 07:11:50.247063 -- [HDF5] [info] [T =            0s] Write Hdf5 output to 'Divider_c24_800.h5'.
+2021-Jan-11 07:11:50.247063 -- \[HDF5] [info] [T =            0s] Write Hdf5 output to 'Divider_c24_800.h5'.
 Table of Counters -----------------------------------------------------------------------------------------------------------------------------------------
                                            Counter Name          #Calls        Min [ms]        Max [ms]        Avg [ms]     StdDev [ms]     Percent [%]
         cutcell::GriddingAlgorithm::InitializeHierarchy               1              31             587             329             211             3.5
@@ -1054,6 +1056,7 @@ cutcell::IntegratorContext::ResetHierarchyConfiguration               1         
 ```
 
 5. Visualize the HDF5 output by executing VisualizeHdf5.py and the AMReX Plotfiles by VisualizePlotfiles.py
+
 ```
 ⋊> ~ python3  VisualizeHdf5.py                                                                                                                                                                             07:14:09
 Save figure to /home/amrex/Figures/Hdf5/Figure0000.png.
@@ -1109,6 +1112,7 @@ Save figure to /home/amrex/Figures/Plotfiles/Figure0001.png.
 ```
 
 6. Copy the figures to a location of your host computer. You need a directory that is writable for others.
+
 On Unix-like machines you can do on your host side
 
 ```

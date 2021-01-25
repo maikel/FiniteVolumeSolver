@@ -94,6 +94,7 @@ public:
   /// \brief Returns the MPI communicator which is associated with this context.
   [[nodiscard]] MPI_Comm GetMpiCommunicator() const noexcept;
 
+  /// \brief Call this function upon every time integration
   void SetFeedbackFunction(FeedbackFn feedback) {
     feedback_ = std::move(feedback);
   }
