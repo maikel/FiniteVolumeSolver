@@ -848,7 +848,7 @@ void DoEulerForward(BK19Solver<Rank, VelocityRank>& solver, Duration dt,
   // this computes: -sigma Grad(pi)
   linear_operator->getFluxes(ToPointers(source_terms), GetPis(context));
 
-  SnychronizeRhoChiFastWithStates(context);
+  SnychronizeRhoChiFastWithStates(context, index, dt, S0s);
   const int nlevel = context.GetPatchHierarchy().GetNumberOfLevels();
   const double factor1 = -dt.count() * physical_parameters.f;
   const double factor2 = 1.0;
