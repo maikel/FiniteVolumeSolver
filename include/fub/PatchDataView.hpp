@@ -296,7 +296,7 @@ struct PatchDataView : public PatchDataViewBase<T, R, Layout> {
                 std::is_convertible_v<IndexType, std::ptrdiff_t>>>
   auto& operator()(const std::array<IndexType, sRank - 1>& indices,
                    int ncomp) const {
-    std::array<IndexType, sRank>& indices2;
+    std::array<IndexType, sRank> indices2;
     std::copy_n(indices.begin(), sRank - 1, indices2.begin());
     indices2[sRank - 1] = ncomp;
     return this->operator()(indices2);

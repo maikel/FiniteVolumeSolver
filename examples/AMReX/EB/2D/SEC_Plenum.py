@@ -62,7 +62,7 @@ tube_n_cells = int(tube_n_cells)
 
 RunOptions = {
   'cfl': 0.8,
-  'final_time': 5.0,
+  'final_time': 30.0,
   'max_cycles': -1,
   'do_backup': 0
 }
@@ -180,6 +180,15 @@ def BoxWhichContains(real_box):
 def PlenumMirrorBox(y0):
   return BoxWhichContains(DomainAroundPoint(TubeCenterPoint(-inlet_length, y0), [0.0, -D], [inlet_length, D]))
 
+def Area(x):
+  A0  = 1.0
+  A1  = 4.0 # Reference: 3.0; best: 4.0 
+  
+  xi0 = 0.0625
+  xi1 = 0.75    # Reference: 0.5; best: 0.75
+  
+  return 1.0 if xi < xi0 else A0 + (A1-A0)*(xi-xi0)/(xi1-xi0) if xi < xi1 else A1
+
 Tubes = [{
   'checkpoint': checkpoint,
   'buffer': 0.5,
@@ -208,12 +217,30 @@ mode_names = ['cellwise', 'average_mirror_state', 'average_ghost_state', 'averag
 
 Output = { 
   'outputs': [
-  # {
-  #   'type': 'HDF5',
-  #   'path': '{}/Tube0.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
-  #   'which_block': 1,
-  #   'intervals': [0.005]
-  # },
+  {
+    'type': 'HDF5',
+    'path': '{}/Tube0.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
+    'which_block': 1,
+    'intervals': [0.005]
+  },
+  {
+    'type': 'HDF5',
+    'path': '{}/Tube1.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
+    'which_block': 2,
+    'intervals': [0.005]
+  },
+  {
+    'type': 'HDF5',
+    'path': '{}/Tube2.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
+    'which_block': 3,
+    'intervals': [0.005]
+  },
+  {
+    'type': 'HDF5',
+    'path': '{}/Plenum.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
+    'which_block': 0,
+    'intervals': [0.005]
+  },
   {
     #'type': 'Plotfiles',
     # 'directory': '/group/ag_klima/SFB1029_C01/SEC_Plenum/{}/Plotfiles/'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),

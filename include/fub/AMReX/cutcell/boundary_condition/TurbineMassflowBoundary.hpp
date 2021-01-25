@@ -59,7 +59,7 @@ struct RequireMassflow_SolveExactRiemannProblem {
   void operator()(EulerEquation& eq, Complete<EulerEquation>& expanded,
                   const Complete<EulerEquation>& source,
                   double required_massflow, double relative_surface_area,
-                  Direction dir) const noexcept;
+                  Direction dir) const;
 };
 } // namespace fub
 
@@ -181,7 +181,7 @@ TurbineMassflowBoundary<EulerEquation, Transform>::TurbineMassflowBoundary(
 template <typename EulerEquation, typename Transform>
 double
 TurbineMassflowBoundary<EulerEquation, Transform>::AverageRequiredMassflow(
-    ::amrex::MultiFab& mf, const GriddingAlgorithm& grid, int level) {
+    ::amrex::MultiFab& mf, const GriddingAlgorithm& /* grid */, int /* level */) {
   Complete local_state{equation_};
   double local_average_massflow = 0.0;
   const double n =
@@ -398,7 +398,7 @@ operator()(EulerEquation& eq, Complete<EulerEquation>& expanded,
   const double p = euler::Pressure(eq, source);
   const double gamma = euler::Gamma(eq, source);
   const double c = euler::SpeedOfSound(eq, source);
-  const double T = euler::Temperature(eq, source);
+  // const double T = euler::Temperature(eq, source);
   const double c2 = c * c;
   const int dir_v = static_cast<int>(dir);
   int ix = dir_v;
@@ -420,7 +420,7 @@ operator()(EulerEquation& eq, Complete<EulerEquation>& expanded,
   const double alpha_0 = 1.0 + Ma2 * gammaMinusHalf;
   const double p_0 = p * std::pow(alpha_0, gammaOverGammaMinus);
   const double rho_0 = rho * std::pow(alpha_0, gammaMinusInv);
-  const double T_0 = T * alpha_0;
+  // const double T_0 = T * alpha_0;
   const double c_02 = c2 + gammaMinusHalf * ( u2 + v2 );
   // const double c_0 = std::sqrt(c_02);
 
@@ -456,7 +456,7 @@ template <typename EulerEquation>
 void RequireMassflow_SolveExactRiemannProblem::
 operator()(EulerEquation& eq, Complete<EulerEquation>& expanded,
            const Complete<EulerEquation>& source, double required_massflow,
-           double relative_surface_area, Direction dir) const noexcept {
+           double relative_surface_area, Direction dir) const {
   Primitive<EulerEquation> prim(eq);
   PrimFromComplete(eq, prim, source);
   const double rho = euler::Density(eq, source);

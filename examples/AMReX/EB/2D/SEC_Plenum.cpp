@@ -28,6 +28,9 @@
 #include "fub/equations/perfect_gas_mix/IgnitionDelayKinetics.hpp"
 #include "fub/flux_method/MusclHancockMethod2.hpp"
 
+#include "fub/AMReX/AxialFluxMethodAdapter.hpp"
+#include "fub/AMReX/AxialTimeIntegrator.hpp"
+
 #include "fub/AMReX/multi_block/MultiBlockBoundary2.hpp"
 #include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm2.hpp"
 #include "fub/AMReX/multi_block/MultiBlockIntegratorContext2.hpp"
@@ -269,7 +272,8 @@ GetCutCellMethod(const fub::ProgramOptions& options,
       limiter, reconstruction, base_method);
 }
 
-fub::AnyFluxMethod<fub::amrex::IntegratorContext>
+std::pair<fub::AnyFluxMethod<fub::amrex::IntegratorContext>,
+          fub::AnyTimeIntegrator<fub::amrex::IntegratorContext>>
 GetFluxMethod(const fub::ProgramOptions& options,
               const fub::PerfectGasMix<1>& equation) {
   using Limiter = std::variant<fub::NoLimiter2, fub::UpwindLimiter,
@@ -345,9 +349,15 @@ GetFluxMethod(const fub::ProgramOptions& options,
         using ThisLimiter = fub::remove_cvref_t<decltype(limiter)>;
         auto flux_method = RebindLimiter<ThisLimiter>(
             reconstruction, base_method_type, equation);
-        fub::amrex::FluxMethodAdapter adapted(flux_method);
-        fub::AnyFluxMethod<fub::amrex::IntegratorContext> any(adapted);
-        return any;
+        fub::amrex::AxialFluxMethodAdapter adapted(flux_method);
+        auto pressure = adapted.SharedInterfacePressure();
+        fub::amrex::AxialTimeIntegrator time_integrator(
+            equation, pressure, [](double) { return 1.0; });
+        fub::AnyFluxMethod<fub::amrex::IntegratorContext> any_flux(
+            std::move(adapted));
+        fub::AnyTimeIntegrator<fub::amrex::IntegratorContext> any_time(
+            std::move(time_integrator));
+        return std::pair{any_flux, any_time};
       },
       limiter, reconstruction, base_method);
 }
@@ -464,9 +474,9 @@ auto MakeTubeSolver(const fub::ProgramOptions& options,
     }
   }();
 
-  auto flux_method =
+  auto [flux_method, time_integrator] =
       GetFluxMethod(fub::GetOptions(options, "FluxMethod"), equation);
-  HyperbolicMethod method{flux_method, EulerForwardTimeIntegrator(),
+  HyperbolicMethod method{flux_method, time_integrator,
                           Reconstruction(equation)};
 
   const int scratch_gcw = 4;

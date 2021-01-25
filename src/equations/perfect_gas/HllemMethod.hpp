@@ -297,7 +297,7 @@ void Hllem<EulerEquation, Larrouturou>::SolveRiemannProblem(
 }
 
 template <typename EulerEquation, bool Larrouturou>
-void Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
+double Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
     Conservative& flux, span<const Complete, 2> states, Duration /* dt */,
     double /* dx */, Direction dir) {
   static constexpr int Dim = EulerEquation::Rank();
@@ -558,10 +558,12 @@ void Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
       }
     }
   }
+  const double p_star = (bR * pL - bL * pR) / db_positive;
+  return p_star;
 }
 
 template <typename EulerEquation, bool Larrouturou>
-void Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
+Array1d Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
     ConservativeArray& flux, span<const CompleteArray, 2> states,
     Duration /* dt */, double /* dx */, Direction dir) {
   static constexpr int Dim = EulerEquation::Rank();
@@ -841,6 +843,9 @@ void Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
       }
     }
   }
+
+  const Array1d p_star = (bR * pL - bL * pR) / db_positive;
+  return p_star;
 }
 
 template <typename EulerEquation, bool Larrouturou>

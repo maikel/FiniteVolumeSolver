@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_AMREX_FLUX_METHOD_HPP
-#define FUB_AMREX_FLUX_METHOD_HPP
+#ifndef FUB_AMREX_AXIAL_FLUX_METHOD_HPP
+#define FUB_AMREX_AXIAL_FLUX_METHOD_HPP
 
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/IntegratorContext.hpp"
@@ -36,6 +36,7 @@ namespace fub::amrex {
 template <typename Tag, typename FM> struct AxialFluxMethodAdapter {
   using Equation = std::decay_t<decltype(std::declval<FM&>().GetEquation())>;
   static const int Rank = Equation::Rank();
+  static const int StencilSize = FM::StencilSize;
 
   AxialFluxMethodAdapter(const FM& fm) : AxialFluxMethodAdapter(Tag(), fm) {}
   AxialFluxMethodAdapter(Tag, const FM& fm);
@@ -46,10 +47,11 @@ template <typename Tag, typename FM> struct AxialFluxMethodAdapter {
   void ComputeNumericFluxes(IntegratorContext& context, int level, Duration dt,
                             Direction dir);
 
-  void ComputeNumericFluxes(FM& flux_method, const View<Conservative>& fluxes,
-                            const PatchDataView<double, Rank>& pressures,
-                            const View<const Complete>& states, Duration dt,
-                            double dx, Direction dir);
+  void ComputeNumericFluxes(FM& flux_method,
+                            const View<Conservative<Equation>>& fluxes,
+                            const StridedDataView<double, AMREX_SPACEDIM>& pressures,
+                            const View<const Complete<Equation>>& states,
+                            Duration dt, double dx, Direction dir);
 
   int GetStencilWidth() const;
 
@@ -144,8 +146,9 @@ void AxialFluxMethodAdapter<Tag, FM>::ComputeNumericFluxes(
         MakeView<const Complete<Equation>>(scratch[mfi], equation, cell_box);
     View<Conservative<Equation>> flux =
         MakeView<Conservative<Equation>>(fluxes[mfi], equation, face_box);
+    StridedDataView<double, AMREX_SPACEDIM> pressures = MakePatchDataView((*pressure_)[level][mfi], 0, face_box);
     // Pass views to implementation
-    ComputeNumericFluxes(*flux_method_, flux, pressures, states, , dt, dx, dir);
+    ComputeNumericFluxes(*flux_method_, flux, pressures, states, dt, dx, dir);
   });
   FUB_ASSERT(!fluxes.contains_nan());
 }
@@ -157,14 +160,14 @@ int AxialFluxMethodAdapter<Tag, FM>::GetStencilWidth() const {
 
 template <typename Tag, typename FM>
 void AxialFluxMethodAdapter<Tag, FM>::ComputeNumericFluxes(
-    FM& flux_method, const View<Conservative>& fluxes,
-    const PatchDataView<double, Rank>& pressures,
-    const View<const Complete>& states, Duration dt, double dx, Direction dir) {
-  static_assert(HasComputeNumericFlux<BaseMethod&, ConservativeArray&,
-                                      std::array<CompleteArray, StencilSize>,
-                                      Duration, double, Direction>());
+    FM& flux_method, const View<Conservative<Equation>>& fluxes,
+    const StridedDataView<double, AMREX_SPACEDIM>& pressures,
+    const View<const Complete<Equation>>& states, Duration dt, double dx,
+    Direction dir) {
+  using Complete = Complete<Equation>;
+  using Conservative = Conservative<Equation>;
   IndexBox<Rank> fluxbox = Box<0>(fluxes);
-  static constexpr int kWidth = GetStencilWidth();
+  static constexpr int kWidth = flux_method.GetStencilWidth();
   IndexBox<Rank> cellbox = Grow(fluxbox, dir, {kWidth, kWidth - 1});
   BasicView base = Subview(states, cellbox);
   std::array<View<const Complete>, StencilSize> stencil_views;
@@ -175,11 +178,11 @@ void AxialFluxMethodAdapter<Tag, FM>::ComputeNumericFluxes(
                 static_cast<std::ptrdiff_t>(StencilSize - i) - 1});
   }
   std::tuple views = std::apply(
-      [&fluxes](const auto&... vs) {
+      [&fluxes, &pressures](const auto&... vs) {
         return std::tuple{fluxes, pressures, vs...};
       },
       stencil_views);
-  ForEachRow(views, [this, dt, dx, dir](const Row<Conservative>& fluxes,
+  ForEachRow(views, [this, dt, dx, dir, &flux_method](const Row<Conservative>& fluxes,
                                         span<double> pressure, auto... rows) {
     ViewPointer fit = Begin(fluxes);
     ViewPointer fend = End(fluxes);
@@ -188,13 +191,13 @@ void AxialFluxMethodAdapter<Tag, FM>::ComputeNumericFluxes(
     int n = static_cast<int>(get<0>(fend) - get<0>(fit));
     while (n >= kDefaultChunkSize) {
       for (std::size_t i = 0; i < StencilSize; ++i) {
-        Load(stencil_array_[i], states[i]);
+        Load(flux_method.stencil_array_[i], states[i]);
       }
       const Array1d pr = flux_method.ComputeNumericFlux(
-          numeric_flux_array_, stencil_array_, dt, dx, dir);
-      Store(fit, numeric_flux_array_);
-      Eigen::Array1d::Map(p) = pr;
-      p += dDefaultChunkSize;
+          flux_method.numeric_flux_array_, flux_method.stencil_array_, dt, dx, dir);
+      Store(fit, flux_method.numeric_flux_array_);
+      Array1d::Map(p) = pr;
+      p += kDefaultChunkSize;
       Advance(fit, kDefaultChunkSize);
       for (std::size_t i = 0; i < StencilSize; ++i) {
         Advance(states[i], kDefaultChunkSize);
@@ -202,10 +205,13 @@ void AxialFluxMethodAdapter<Tag, FM>::ComputeNumericFluxes(
       n = static_cast<int>(get<0>(fend) - get<0>(fit));
     }
     for (std::size_t i = 0; i < StencilSize; ++i) {
-      LoadN(stencil_array_[i], states[i], n);
+      LoadN(flux_method.stencil_array_[i], states[i], n);
     }
-    ComputeNumericFlux(numeric_flux_array_, stencil_array_, dt, dx, dir);
-    StoreN(fit, numeric_flux_array_, n);
+    const Array1d pr = flux_method.ComputeNumericFlux(flux_method.numeric_flux_array_, flux_method.stencil_array_, dt, dx, dir);
+    StoreN(fit, flux_method.numeric_flux_array_, n);
+    for (int i = 0; i < n; ++i) {
+      p[i] = pr[i];
+    }
   });
 }
 

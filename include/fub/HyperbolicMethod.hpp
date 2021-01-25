@@ -110,6 +110,8 @@ public:
                             Direction dir);
 
 private:
+  template <typename T, typename I> friend T& AnyCast(AnyTimeIntegrator<I>& t);
+
   std::unique_ptr<detail::TimeIntegratorBase<IntegratorContext>> integrator_;
 };
 
@@ -166,9 +168,8 @@ AnyReconstruction<IntegratorContext>::AnyReconstruction(
 }
 
 template <typename IntegratorContext>
-AnyReconstruction<IntegratorContext>&
-AnyReconstruction<IntegratorContext>::operator=(
-    const AnyReconstruction& other) {
+AnyReconstruction<IntegratorContext>& AnyReconstruction<IntegratorContext>::
+operator=(const AnyReconstruction& other) {
   if (other.reconstruct_) {
     reconstruct_ = other.reconstruct_->Clone();
   } else {
@@ -217,9 +218,8 @@ AnyTimeIntegrator<IntegratorContext>::AnyTimeIntegrator(
     : integrator_{other.integrator_ ? other.integrator_->Clone() : nullptr} {}
 
 template <typename IntegratorContext>
-AnyTimeIntegrator<IntegratorContext>&
-AnyTimeIntegrator<IntegratorContext>::operator=(
-    const AnyTimeIntegrator& other) {
+AnyTimeIntegrator<IntegratorContext>& AnyTimeIntegrator<IntegratorContext>::
+operator=(const AnyTimeIntegrator& other) {
   if (other.integrator_) {
     integrator_ = other.integrator_->Clone();
   } else {
@@ -251,6 +251,15 @@ struct TimeIntegratorWrapper : TimeIntegratorBase<IntegratorContext> {
 };
 } // namespace detail
 
+template <typename T, typename I> T& AnyCast(AnyTimeIntegrator<I>& t) {
+  auto pointer =
+      dynamic_cast<detail::TimeIntegratorWrapper<I, T>*>(t.integrator_.get());
+  if (pointer) {
+    return pointer->integrator_;
+  }
+  throw std::runtime_error("TimeIntegrator not convertible.");
+}
+
 template <typename IntegratorContext>
 template <typename I, typename>
 AnyTimeIntegrator<IntegratorContext>::AnyTimeIntegrator(I&& integrator)
@@ -268,8 +277,8 @@ AnyFluxMethod<IntegratorContext>::AnyFluxMethod(const AnyFluxMethod& other)
 }
 
 template <typename IntegratorContext>
-AnyFluxMethod<IntegratorContext>&
-AnyFluxMethod<IntegratorContext>::operator=(const AnyFluxMethod& other) {
+AnyFluxMethod<IntegratorContext>& AnyFluxMethod<IntegratorContext>::
+operator=(const AnyFluxMethod& other) {
   if (other.flux_method_) {
     flux_method_ = other.flux_method_->Clone();
   } else {
@@ -334,6 +343,15 @@ struct FluxMethodWrapper : FluxMethodBase<IntegratorContext> {
   I flux_method_;
 };
 } // namespace detail
+
+template <typename F, typename I> F& AnyCast(AnyFluxMethod<I>& f) {
+  auto pointer =
+      dynamic_cast<detail::FluxMethodWrapper<I, F>*>(f.flux_method_.get());
+  if (pointer) {
+    return pointer->flux_method_;
+  }
+  throw std::runtime_error("Not convertible flux method.");
+}
 
 template <typename IntegratorContext>
 template <typename I, typename>
