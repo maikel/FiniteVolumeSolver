@@ -22,6 +22,7 @@
 #include "fub/AMReX/solver/BK19Solver.hpp"
 
 #include "fub/AMReX/ForEachFab.hpp"
+#include "fub/AMReX/ForEachIndex.hpp"
 #include "fub/AMReX/output/DebugOutput.hpp"
 #include "fub/ForEach.hpp"
 #include "fub/ext/Vc.hpp"
@@ -777,6 +778,44 @@ void ApplyPiCorrectionOnScratch(
                   GetGeometries(context));
 }
 
+namespace {
+/// \brief Recompute the state variable rho_chi_fast from the other variables on
+/// the scratch of the specified context
+///
+/// The formula to recompute rho chi fast is
+///
+///           rho_chi_fast = rho / (PT - S0) * dS0_dy
+template <int Rank, int VelocityRank>
+void SnychronizeRhoChiFastWithIntegratorContext(
+    CompressibleAdvectionIntegratorContext& context, 
+    IndexMapping<CompressibleAdvection<Rank, VelocityRank>> index, Duration dt,
+    span<const ::amrex::MultiFab> S0s) {
+  const int n_levels = context.GetPatchHierarchy().GetNumberOfLevels();
+  for (int level = 0; level < n_levels; ++level) {
+    const ::amrex::Geometry& geom = context.GetGeometry(level);
+    const double dy = geom.CellSize(1);
+    ::amrex::MultiFab& scratch = context.GetScratch(level);
+    const ::amrex::MultiFab& S0c = S0s[level];
+    ForEachFab(S0c, [&](const ::amrex::MFIter& mfi) {
+      const ::amrex::FArrayBox& S0 = S0c[mfi];
+      ::amrex::FArrayBox& cells = scratch[mfi];
+      ForEachIndex(cells.box(), [&](auto... is) {
+        const ::amrex::IntVect iv(int(is)...);                      // iv + {0, 0}
+        const ::amrex::IntVect upper = Shift(iv, Direction::Y, 1);  // iv + {0,  1}
+        const ::amrex::IntVect lower = Shift(iv, Direction::Y, -1); // iv + {0, -1}
+        const double dSdy = 0.5 * (S0c(upper) - S0c(lower)) / dy;
+        // Sol.rhoX[i1] = (Sol.rho[i1] * (Sol.rho[i1] / Sol.rhoY[i1] - S0c)) + dt * (-v * dSdy) * Sol.rho[i1]
+        const double rho = cells(iv, index.density);
+        const double v = cells(iv, index.momentum[1]) / rho;
+        const double PTdensity = cells(iv, index.PTdensity);
+        const double rho_chi_fast = rho * (rho / PTdensity) + dt.count() * (-v * dSdy) * rho;
+        cells(iv, index.rho_chi_fast) = rho_chi_fast;
+      });
+    });
+  }
+}
+} // namespace
+
 template <int Rank, int VelocityRank>
 void DoEulerForward(BK19Solver<Rank, VelocityRank>& solver, Duration dt,
                     DebugSnapshotProxy dbg_sn = DebugSnapshotProxy()) {
@@ -809,6 +848,7 @@ void DoEulerForward(BK19Solver<Rank, VelocityRank>& solver, Duration dt,
   // this computes: -sigma Grad(pi)
   linear_operator->getFluxes(ToPointers(source_terms), GetPis(context));
 
+  SnychronizeRhoChiFastWithStates(context);
   const int nlevel = context.GetPatchHierarchy().GetNumberOfLevels();
   const double factor1 = -dt.count() * physical_parameters.f;
   const double factor2 = 1.0;
