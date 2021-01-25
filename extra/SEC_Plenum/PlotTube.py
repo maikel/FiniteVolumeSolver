@@ -84,12 +84,12 @@ tex_fonts = {
 plt.rcParams.update(tex_fonts)
 plt.rcParams.update({'axes.grid' : False})
 
-tube_id = 0
+tube_id = 1
 #modes = ['cellwise', 'average_mirror_state', 'average_ghost_state']
 #modes = ['cellwise']
-modes = ['average_mirror_state']
+modes = ['average_massflow']
 #mode_titles = ['Cellwise', 'Average Mirror State', 'Average Ghost State']
-mode_titles = ['Average Mirror State']
+mode_titles = ['Average Massflow']
 
 for mode, suptitle in zip(modes, mode_titles):
   output_base_path = '/srv/public/Maikel/FiniteVolumeSolver/build_2D-Release/SEC_Plenum/{}/Tube{}.h5'.format(mode, tube_id)
@@ -115,7 +115,7 @@ for mode, suptitle in zip(modes, mode_titles):
 
   titles = ['Temperature', 'Pressure', 'Fuel Massfraction']
   datas = [T_data, p_data, F_data]
-  f, ax = plt.subplots(nrows=1, ncols=3, figsize=(15, 10)) #set_size('thesis'))
+  f, ax = plt.subplots(nrows=1, ncols=3, figsize=set_size('thesis'))# figsize=(15, 10)) #set_size('thesis'))
   
   def props(title):
     props = {
@@ -129,15 +129,17 @@ for mode, suptitle in zip(modes, mode_titles):
     if title == 'Pressure':
       props = {
       'origin': 'lower',
+      'interpolation': 'none',
+      'aspect': 'auto',
       'extent': (x0, xEnd, t0, tEnd),
       'vmin': 0.7,
       'vmax': 1.4,
-      'cmap': 'seismic'
+      'cmap': 'jet'
       }
     return props
 
   ims = [ax[0].imshow(datas[0], **props(titles[0])),
-         ax[1].contourf(datas[1], np.array([0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4]), **props(titles[1])),
+         ax[1].imshow(datas[1], **props(titles[1])),
          ax[2].imshow(datas[2], **props(titles[2]))]
   ax[0].set(ylabel='time')
   for a, title in zip(ax, titles):
