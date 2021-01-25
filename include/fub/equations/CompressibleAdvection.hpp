@@ -37,18 +37,19 @@ namespace fub {
 
 /// This is a template class for constructing conservative states for the
 /// perfect gas equations.
-template <typename Density, typename Momentum, typename PTDensity, typename ChiFast>
+template <typename Density, typename Momentum, typename PTDensity,
+          typename RhoChiFast>
 struct CompressibleAdvectionConservative {
   Density density;
   Momentum momentum;
   PTDensity PTdensity;
-  ChiFast chi_fast;
+  RhoChiFast rho_chi_fast;
 };
 
 template <int VelocityRank>
 using CompressibleAdvectionConsShape =
-    CompressibleAdvectionConservative<ScalarDepth, VectorDepth<VelocityRank>, ScalarDepth,
-                                      ScalarDepth>;
+    CompressibleAdvectionConservative<ScalarDepth, VectorDepth<VelocityRank>,
+                                      ScalarDepth, ScalarDepth>;
 
 // We "register" the conservative state with our framework.
 // This enables us to name and iterate over all member variables in a given
@@ -56,21 +57,21 @@ using CompressibleAdvectionConsShape =
 template <typename... Xs>
 struct StateTraits<CompressibleAdvectionConservative<Xs...>> {
   static constexpr auto names =
-      std::make_tuple("Density", "Momentum", "PTdensity", "ChiFast");
+      std::make_tuple("Density", "Momentum", "PTdensity", "RhoChiFast");
 
   static constexpr auto pointers_to_member =
       std::make_tuple(&CompressibleAdvectionConservative<Xs...>::density,
                       &CompressibleAdvectionConservative<Xs...>::momentum,
                       &CompressibleAdvectionConservative<Xs...>::PTdensity,
-                      &CompressibleAdvectionConservative<Xs...>::chi_fast);
+                      &CompressibleAdvectionConservative<Xs...>::rho_chi_fast);
 
   template <int Rank> using Depths = CompressibleAdvectionConsShape<Rank>;
 };
 
-template <typename Density, typename Momentum, typename PTDensity, typename ChiFast,
-          typename PTInverse>
+template <typename Density, typename Momentum, typename PTDensity,
+          typename RhoChiFast, typename PTInverse>
 struct CompressibleAdvectionComplete
-    : CompressibleAdvectionConservative<Density, Momentum, PTDensity, ChiFast> {
+    : CompressibleAdvectionConservative<Density, Momentum, PTDensity, RhoChiFast> {
   PTInverse PTinverse;
 };
 
@@ -84,13 +85,13 @@ using CompressibleAdvectionCompleteShape =
 // compete state.
 template <typename... Xs>
 struct StateTraits<CompressibleAdvectionComplete<Xs...>> {
-  static constexpr auto names =
-      std::make_tuple("Density", "Momentum", "PTdensity", "ChiFast", "PTinverse");
+  static constexpr auto names = std::make_tuple(
+      "Density", "Momentum", "PTdensity", "ChiFast", "PTinverse");
   static constexpr auto pointers_to_member =
       std::make_tuple(&CompressibleAdvectionComplete<Xs...>::density,
                       &CompressibleAdvectionComplete<Xs...>::momentum,
                       &CompressibleAdvectionComplete<Xs...>::PTdensity,
-                      &CompressibleAdvectionComplete<Xs...>::chi_fast,
+                      &CompressibleAdvectionComplete<Xs...>::rho_chi_fast,
                       &CompressibleAdvectionComplete<Xs...>::PTinverse);
 
   template <int VelocityDim>
@@ -123,7 +124,7 @@ template <int N, int VelocityDim = N> struct CompressibleAdvection {
     state.density = cons.density;
     state.momentum = cons.momentum;
     state.PTdensity = cons.PTdensity;
-    state.chi_fast = cons.chi_fast;
+    state.rho_chi_fast = cons.rho_chi_fast;
     state.PTinverse = cons.density / cons.PTdensity;
   }
 
@@ -154,8 +155,8 @@ struct CompressibleAdvectionFluxMethod {
 
   constexpr static int GetStencilWidth() { return 2; }
 
-  CompressibleAdvection<SpaceDimension, VelocityDimension>
-  GetEquation() const noexcept {
+  CompressibleAdvection<SpaceDimension, VelocityDimension> GetEquation() const
+      noexcept {
     return {};
   }
 

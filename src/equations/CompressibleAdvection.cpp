@@ -137,14 +137,14 @@ CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
         LimitSlopes(velocity[1], velocity[2], velocity[3]) / dx;
   }
 
-  double slope_chi_fast_L =
-      LimitSlopes(stencil[0].chi_fast / stencil[0].density,
-                  stencil[1].chi_fast / stencil[1].density,
-                  stencil[2].chi_fast / stencil[2].density);
-  double slope_chi_fast_R =
-      LimitSlopes(stencil[1].chi_fast / stencil[1].density,
-                  stencil[2].chi_fast / stencil[2].density,
-                  stencil[3].chi_fast / stencil[3].density);
+  double slope_rho_chi_fast_L =
+      LimitSlopes(stencil[0].rho_chi_fast / stencil[0].density,
+                  stencil[1].rho_chi_fast / stencil[1].density,
+                  stencil[2].rho_chi_fast / stencil[2].density);
+  double slope_rho_chi_fast_R =
+      LimitSlopes(stencil[1].rho_chi_fast / stencil[1].density,
+                  stencil[2].rho_chi_fast / stencil[2].density,
+                  stencil[3].rho_chi_fast / stencil[3].density);
 
   std::array<double, 4> v_advect{};
   // for (int i = 0; i < 4; ++i) {
@@ -173,12 +173,12 @@ CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
         0.5 * dx * slope_velocity_R[dimli] * (1.0 + v_advect[2] * lambda);
   }
 
-  double rec_chi_fast_L =
-      stencil[1].chi_fast / stencil[1].density +
-      0.5 * dx * slope_chi_fast_L[dimli] * (1.0 - v_advect[1] * lambda);
-  double rec_chi_fast_R =
-      stencil[2].chi_fast / stencil[2].density -
-      0.5 * dx * slope_velocity_R[dimli] * (1.0 + v_advect[2] * lambda);
+  double rec_rho_chi_fast_L =
+      stencil[1].rho_chi_fast / stencil[1].density +
+      0.5 * dx * slope_rho_chi_fast_L * (1.0 - v_advect[1] * lambda);
+  double rec_rho_chi_fast_R =
+      stencil[2].rho_chi_fast / stencil[2].density -
+      0.5 * dx * slope_rho_chi_fast_R * (1.0 + v_advect[2] * lambda);
 
   int upwind = (Pvs[2] > 0.0) - (Pvs[2] < 0.0);
 
@@ -192,9 +192,9 @@ CompressibleAdvectionFluxMethod<SpaceDimension, VelocityDimension>::
                           (1.0 - upwind) * rec_chi_R * rec_velocity_R[dimli]);
   }
   flux.PTdensity = Pvs[2];
-  flux.chi_fast = Pvs[2] * 0.5 *
-                  ((1.0 + upwind) * rec_chi_L * rec_chi_fast_L +
-                   (1.0 - upwind) * rec_chi_R * rec_chi_fast_R);
+  flux.rho_chi_fast = Pvs[2] * 0.5 *
+                  ((1.0 + upwind) * rec_chi_L * rec_rho_chi_fast_L +
+                   (1.0 - upwind) * rec_chi_R * rec_rho_chi_fast_R);
   return flux;
 }
 
