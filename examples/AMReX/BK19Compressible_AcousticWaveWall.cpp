@@ -68,6 +68,7 @@ struct AcousticWaveInitialData : fub::amrex::BK19PhysicalParameters {
         states.momentum(i, j, 0) = states.density(i, j) * velocity0;
         states.momentum(i, j, 1) = states.density(i, j) * velocity1;
         states.PTinverse(i, j) = states.density(i, j) / states.PTdensity(i, j);
+        states.rho_chi_fast(i, j) = 0.0;
       });
     });
 
