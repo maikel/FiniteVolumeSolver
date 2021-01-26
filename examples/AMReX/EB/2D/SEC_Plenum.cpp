@@ -96,7 +96,7 @@ struct InitialDataInTube {
             const double x = geom.CellCenter(int(i), 0);
             const double rel_x = x - x_0_;
             const double pressure = 1.0;
-            state.temperature = (rel_x < 0.5) ? 1.0 : 2.5;
+            state.temperature = 1.0; // (rel_x < 0.5) ? 1.0 : 2.5;
             state.density = pressure / state.temperature / equation_.Rspec;
             state.mole_fractions[0] = 0.0;
             state.mole_fractions[1] = (rel_x < initially_filled_x_) ? 1.0 : 0.0;
@@ -275,6 +275,7 @@ GetCutCellMethod(const fub::ProgramOptions& options,
 std::pair<fub::AnyFluxMethod<fub::amrex::IntegratorContext>,
           fub::AnyTimeIntegrator<fub::amrex::IntegratorContext>>
 GetFluxMethod(const fub::ProgramOptions& options,
+              const fub::amrex::PatchHierarchy& hier,
               const fub::PerfectGasMix<1>& equation) {
   using Limiter = std::variant<fub::NoLimiter2, fub::UpwindLimiter,
                                fub::MinModLimiter, fub::VanLeerLimiter>;
@@ -340,19 +341,40 @@ GetFluxMethod(const fub::ProgramOptions& options,
   BOOST_LOG(log) << " - reconstruction = " << reconstruction_option;
   BOOST_LOG(log) << " - base_method = " << base_method_option;
 
+  auto area = [&]() -> std::optional<pybind11::function> {
+    if (auto iter = options.find("area_variation"); iter != options.end()) {
+      pybind11::object obj = iter->second;
+      pybind11::function fun(obj);
+      return fun;
+    }
+    return {};
+  }();
+
+  auto area_lambda = [area](double x) -> double {
+    if (area) {
+      pybind11::function py_area = *area;
+      pybind11::object py_y = py_area(x);
+      double y = py_y.cast<double>();
+      return y;
+    }
+    return 1.0;
+  };
+
   Limiter limiter = limiters.at(limiter_option);
   Reconstruction reconstruction = reconstructions.at(reconstruction_option);
   BaseMethod base_method = base_methods.at(base_method_option);
 
   return std::visit(
-      [&equation](auto limiter, auto reconstruction, auto base_method_type) {
+      [&equation, &hier, &area_lambda](auto limiter, auto reconstruction, auto base_method_type) {
         using ThisLimiter = fub::remove_cvref_t<decltype(limiter)>;
         auto flux_method = RebindLimiter<ThisLimiter>(
             reconstruction, base_method_type, equation);
         fub::amrex::AxialFluxMethodAdapter adapted(flux_method);
         auto pressure = adapted.SharedInterfacePressure();
+        const ::amrex::Vector<::amrex::Geometry> geoms = hier.GetGeometries();
+        std::vector<::amrex::Geometry> std_geoms(geoms.begin(), geoms.end());
         fub::amrex::AxialTimeIntegrator time_integrator(
-            equation, pressure, [](double) { return 1.0; });
+            equation, std_geoms, pressure, area_lambda);
         fub::AnyFluxMethod<fub::amrex::IntegratorContext> any_flux(
             std::move(adapted));
         fub::AnyTimeIntegrator<fub::amrex::IntegratorContext> any_time(
@@ -475,7 +497,7 @@ auto MakeTubeSolver(const fub::ProgramOptions& options,
   }();
 
   auto [flux_method, time_integrator] =
-      GetFluxMethod(fub::GetOptions(options, "FluxMethod"), equation);
+      GetFluxMethod(fub::GetOptions(options, "FluxMethod"), gridding->GetPatchHierarchy(), equation);
   HyperbolicMethod method{flux_method, time_integrator,
                           Reconstruction(equation)};
 

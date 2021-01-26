@@ -42,6 +42,12 @@ struct AxialTimeIntegrator {
   AxialTimeIntegrator(EulerEquation eq, std::vector<::amrex::Geometry> geoms,
                       std::shared_ptr<const std::vector<::amrex::MultiFab>> p,
                       F&& A);
+
+  AxialTimeIntegrator(const AxialTimeIntegrator&);
+  AxialTimeIntegrator(AxialTimeIntegrator&&) noexcept = default;
+
+  AxialTimeIntegrator& operator=(const AxialTimeIntegrator&);
+  AxialTimeIntegrator& operator=(AxialTimeIntegrator&&) noexcept = default;
   // explicit AxialTimeIntegrator(Tag) {}
 
   void UpdateConservatively(::amrex::MultiFab& dest,
@@ -56,7 +62,7 @@ struct AxialTimeIntegrator {
                             Direction dir);
 
 private:
-  void RecomputeAx();
+  void RecomputeAxIfNeeded(int level);
 
   EulerEquation equation_;
   std::vector<::amrex::Geometry> geoms_;
@@ -81,32 +87,46 @@ AxialTimeIntegrator<EulerEquation, Tag>::AxialTimeIntegrator(
   if (!pressure_) {
     throw std::runtime_error("AxialTimeIntegrator: shared_ptr 'p' is invalid.");
   }
-  RecomputeAx();
 }
 
 template <typename EulerEquation, typename Tag>
-void AxialTimeIntegrator<EulerEquation, Tag>::RecomputeAx() {
+AxialTimeIntegrator<EulerEquation, Tag>::AxialTimeIntegrator(
+    const AxialTimeIntegrator& other)
+    : equation_{other.equation_}, geoms_{other.geoms_},
+      pressure_{other.pressure_}, A_{other.A_}, indices_{other.indices_} {}
+
+template <typename EulerEquation, typename Tag>
+AxialTimeIntegrator<EulerEquation, Tag>&
+AxialTimeIntegrator<EulerEquation, Tag>::
+operator=(const AxialTimeIntegrator& other) {
+  return ((*this) = AxialTimeIntegrator{other});
+}
+
+template <typename EulerEquation, typename Tag>
+void AxialTimeIntegrator<EulerEquation, Tag>::RecomputeAxIfNeeded(int level) {
   FUB_ASSERT(pressure_);
   const std::vector<::amrex::MultiFab>& pressure = *pressure_;
-  std::vector<::amrex::MultiFab> Ax;
-  Ax.reserve(pressure.size());
-  for (std::size_t i = 0; i < pressure.size(); ++i) {
-    const ::amrex::MultiFab& p = pressure[i];
-    const ::amrex::Geometry& geom = geoms_[i];
-    // allocate faces for this refinement level with 1 component
-    ::amrex::MultiFab& Ai =
-        Ax.emplace_back(p.boxArray(), p.DistributionMap(), 1, p.nGrowVect());
+  if (pressure.size() != Ax_.size()) {
+    Ax_.resize(pressure.size());
+  }
+  FUB_ASSERT(static_cast<std::size_t>(level) < Ax_.size());
+  const std::size_t i = static_cast<std::size_t>(level);
+  const ::amrex::MultiFab& p = pressure[i];
+  ::amrex::MultiFab& Ai = Ax_[i];
+  if (p.boxArray() != Ai.boxArray() ||
+      p.DistributionMap() != Ai.DistributionMap() ||
+      p.nGrowVect() != Ai.nGrowVect()) {
+    Ai.define(p.boxArray(), p.DistributionMap(), 1, p.nGrowVect());
     ForEachFab(Tag(), Ai, [&](const ::amrex::MFIter& mfi) {
       ::amrex::FArrayBox& fab = Ai[mfi];
       ForEachIndex(mfi.growntilebox(), [&](auto... is) {
-        ::amrex::IntVect i{int(is)...};
+        ::amrex::IntVect iv{int(is)...};
         double xM[AMREX_SPACEDIM];
-        geom.LoFace(i, 0, xM);
-        fab(i, 0) = A_(xM[0]);
+        geoms_[i].LoFace(iv, 0, xM);
+        fab(iv, 0) = A_(xM[0]);
       });
     });
   }
-  Ax_ = std::move(Ax);
 }
 
 template <typename EulerEquation, typename Tag>
@@ -160,6 +180,17 @@ void AxialTimeIntegrator<EulerEquation, Tag>::UpdateConservatively(
           dt_over_dx * (A_right - A_left) * p_center * ooA;
     });
   });
+}
+
+template <typename EulerEquation, typename Tag>
+void AxialTimeIntegrator<EulerEquation, Tag>::UpdateConservatively(
+    IntegratorContext& context, int level, Duration dt, Direction dir) {
+  RecomputeAxIfNeeded(level);
+  ::amrex::MultiFab& data = context.GetScratch(level);
+  const ::amrex::MultiFab& fluxes = context.GetFluxes(level, dir);
+  const ::amrex::Geometry& geom = context.GetGeometry(level);
+  this->UpdateConservatively(data, data, fluxes, Ax_[level],
+                             (*pressure_)[level], geom, dt, dir);
 }
 
 } // namespace fub::amrex
