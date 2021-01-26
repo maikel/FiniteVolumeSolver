@@ -25,11 +25,13 @@
 namespace fub::perfect_gas {
 
 template struct Hllem<PerfectGasMix<2>>;
+template struct Hllem<PerfectGasMix<2>, false>;
 
 }
 
 namespace fub {
 
 template class FluxMethod<perfect_gas::Hllem<PerfectGasMix<2>>>;
+template class FluxMethod<perfect_gas::Hllem<PerfectGasMix<2>, false>>;
 
 }

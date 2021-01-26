@@ -403,6 +403,20 @@ private:
 
   template <typename Density, typename Momentum, typename Energy,
             typename Species>
+  friend void
+  tag_invoke(tag_t<euler::SetVelocity>, const PerfectGasMix&,
+             PerfectGasMixConservative<Density, Momentum, Energy, Species>& q,
+             nodeduce_t<const Momentum&> v) noexcept {
+    if constexpr (std::is_same_v<double, Density>) {
+      const double rhoE_kin_old = euler::KineticEnergy(q.density, q.momentum);
+      q.momentum = q.density * v;
+      const double rhoE_kin_new = euler::KineticEnergy(q.density, q.momentum);
+      q.energy += rhoE_kin_new - rhoE_kin_old;
+    }
+  }
+
+  template <typename Density, typename Momentum, typename Energy,
+            typename Species>
   friend auto tag_invoke(
       tag_t<euler::Velocity>, const PerfectGasMix&,
       const PerfectGasMixConservative<Density, Momentum, Energy, Species>& q,
@@ -456,6 +470,15 @@ private:
 
   template <typename Density, typename Momentum, typename Energy,
             typename Species, typename Pressure, typename SpeedOfSound>
+  friend Density
+  tag_invoke(tag_t<euler::TotalEnthalpy>, const PerfectGasMix&,
+             const PerfectGasMixComplete<Density, Momentum, Energy, Species,
+                                         Pressure, SpeedOfSound>& q) noexcept {
+    return (q.energy + q.pressure) / q.density;
+  }
+
+  template <typename Density, typename Momentum, typename Energy,
+            typename Species, typename Pressure, typename SpeedOfSound>
   friend const Pressure&
   tag_invoke(tag_t<euler::Pressure>, const PerfectGasMix&,
              const PerfectGasMixComplete<Density, Momentum, Energy, Species,
@@ -485,7 +508,8 @@ private:
         std::pow(p_new / q0.pressure, 1 / eq.gamma) * q0.density;
     const Array<double, N, 1> u0 = euler::Velocity(eq, q0);
     Array<double, N, 1> u_new = u0;
-    u_new[0] = u0[0] +
+    u_new[0] =
+        u0[0] +
         2.0 * std::sqrt(eq.gamma * q0.pressure / q0.density) *
             eq.gamma_minus_1_inv -
         2.0 * std::sqrt(eq.gamma * p_new / rho_new) * eq.gamma_minus_1_inv;

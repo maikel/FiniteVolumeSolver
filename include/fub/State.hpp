@@ -159,7 +159,10 @@ template <typename T, typename Eq> struct DepthsImpl {
 };
 } // namespace detail
 
-template <typename T> struct Type {};
+template <typename T> struct Type {
+  using type = T;
+};
+
 inline constexpr struct DepthsFn {
   template <typename Eq, typename State>
   constexpr auto operator()(const Eq& eq,
@@ -168,7 +171,7 @@ inline constexpr struct DepthsFn {
           is_nothrow_tag_invocable<DepthsFn, const Eq&, Type<State>>::value ||
           !is_tag_invocable<DepthsFn, const Eq&, Type<State>>::value) {
     if constexpr (is_tag_invocable<DepthsFn, const Eq&, Type<State>>::value) {
-      return fub::tag_invoke(*this, eq, std::move(state));
+      return fub::meta::tag_invoke(*this, eq, std::move(state));
     } else if constexpr (is_detected<detail::DepthsT, State, Eq>::value) {
       detail::DepthsImpl<State, Eq> default_depths;
       return default_depths(eq);
@@ -227,8 +230,7 @@ template <typename Depths> struct ScalarState : ScalarStateBase<Depths> {
   }
 
   ScalarState& operator*=(double lambda) {
-    ForEachVariable([lambda](auto&& that, auto&& other) { that *= lambda; },
-                    *this);
+    ForEachVariable([lambda](auto&& that) { that *= lambda; }, *this);
     return *this;
   }
 };

@@ -112,14 +112,18 @@ template <int N, int VelocityDim = N> struct CompressibleAdvection {
   }
 
 private:
+  /// This specializes the customization point object "fub::Depth" for this
+  /// equation. It is needed to determine the number of components for each
+  /// registered variable and helps to create views on multi dimensional arrays.
   template <typename State>
-  friend constexpr auto tag_invoke(fub::DepthsFn,
-                                   const CompressibleAdvection&,
+  friend constexpr auto tag_invoke(fub::DepthsFn, const CompressibleAdvection&,
                                    Type<State>) noexcept {
     return typename State::Traits::template Depths<VelocityDim>{};
   }
 };
 
+/// This is a special FluxMethod class that uses the stored Pv field within the
+/// CompressibleAdvectionIntegratorContext sa advection velocities.
 template <int SpaceDimension, int VelocityDimension = SpaceDimension>
 struct CompressibleAdvectionFluxMethod {
   using Conservative =

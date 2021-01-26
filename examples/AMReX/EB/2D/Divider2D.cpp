@@ -22,6 +22,8 @@
 #include "fub/AMReX_CutCell.hpp"
 #include "fub/Solver.hpp"
 
+#include "fub/flux_method/MusclHancockMethod2.hpp"
+
 #include <AMReX_EB2_IF_Cylinder.H>
 #include <AMReX_EB2_IF_Intersection.H>
 #include <AMReX_EB2_IF_Plane.H>
@@ -39,76 +41,27 @@
 #include <iostream>
 #include <string>
 
-struct DividerOptions {
-  std::vector<std::string> wall_filenames{};
-  double mach_number{1.77};
-  std::array<double, 2> x_range{0.0, 0.042};
-  std::array<double, 2> y_range{-0.016, +0.026};
-  std::array<int, 2> n_cells{200, 200};
-  int n_level{1};
+using HLLEM = fub::perfect_gas::HllemMethod<fub::PerfectGas<2>>;
 
-  DividerOptions() = default;
+using ConservativeReconstruction = fub::FluxMethod<fub::MusclHancock2<
+    fub::PerfectGas<2>,
+    fub::ConservativeGradient<
+        fub::PerfectGas<2>,
+        fub::CentralDifferenceGradient<fub::VanLeerLimiter>>,
+    fub::ConservativeReconstruction<fub::PerfectGas<2>>, HLLEM>>;
 
-  DividerOptions(const std::map<std::string, pybind11::object>& map) {
-    wall_filenames = fub::GetOptionOr(map, "wall_filenames", wall_filenames);
-    x_range = fub::GetOptionOr(map, "x_range", x_range);
-    y_range = fub::GetOptionOr(map, "y_range", y_range);
-    n_cells = fub::GetOptionOr(map, "n_cells", n_cells);
-    mach_number = fub::GetOptionOr(map, "Mach_number", mach_number);
-    n_level = fub::GetOptionOr(map, "n_level", n_level);
-  }
+using PrimitiveReconstruction = fub::FluxMethod<fub::MusclHancock2<
+    fub::PerfectGas<2>,
+    fub::PrimitiveGradient<fub::PerfectGas<2>, fub::CentralDifferenceGradient<
+                                                    fub::VanLeerLimiter>>,
+    fub::PrimitiveReconstruction<fub::PerfectGas<2>>, HLLEM>>;
 
-  template <typename Logger> void Print(Logger& log) {
-    BOOST_LOG(log) << "Divider Options:"
-                   << "\n  - mach_number = " << mach_number << " [-]"
-                   << "\n  - x_range = {" << x_range[0] << ", " << x_range[1]
-                   << "} [m]"
-                   << "\n  - y_range = {" << y_range[0] << ", " << y_range[1]
-                   << "} [m]"
-                   << "\n  - n_cells = {" << n_cells[0] << ", " << n_cells[1]
-                   << "} [-]"
-                   << "\n  - n_level = " << n_level << " [-]"
-                   << fmt::format("\n  - wall_filenames = {{{}}}",
-                                  fmt::join(wall_filenames, ", "));
-  }
-};
-
-std::optional<std::map<std::string, pybind11::object>>
-ParseCommandLine(int argc, char** argv) {
-  boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
-      boost::log::keywords::severity = boost::log::trivial::info);
-
-  namespace po = boost::program_options;
-  po::options_description desc;
-  std::string config_path{};
-  desc.add_options()("config", po::value<std::string>(&config_path),
-                     "Path to the config file which can be parsed.");
-  po::variables_map vm;
-  std::map<std::string, pybind11::object> options{};
-  try {
-    po::store(po::parse_command_line(argc, argv, desc), vm);
-    if (vm.count("config")) {
-      config_path = vm["config"].as<std::string>();
-      options = fub::ParsePythonScript(config_path, MPI_COMM_WORLD);
-    }
-    po::notify(vm);
-  } catch (std::exception& e) {
-    amrex::Print()
-        << "[Error] An Error occured while reading program options:\n";
-    amrex::Print() << e.what();
-    return {};
-  }
-
-  if (vm.count("help")) {
-    amrex::Print() << desc << "\n";
-    return {};
-  }
-
-  fub::RunOptions(options).Print(log);
-  DividerOptions(options).Print(log);
-
-  return options;
-}
+using CharacteristicsReconstruction = fub::FluxMethod<fub::MusclHancock2<
+    fub::PerfectGas<2>,
+    fub::CharacteristicsGradient<
+        fub::PerfectGas<2>,
+        fub::CentralDifferenceGradient<fub::VanLeerLimiter>>,
+    fub::CharacteristicsReconstruction<fub::PerfectGas<2>>, HLLEM>>;
 
 fub::Polygon ReadPolygonData(std::istream& input) {
   std::string line{};
@@ -177,52 +130,77 @@ struct ShockMachnumber
             post_shock) {}
 };
 
-// template <typename Logger>
-// void WriteCheckpoint(Logger& log, const std::string& path,
-//                      const fub::amrex::cutcell::PatchHierarchy& hierarchy) {
-//   BOOST_LOG(log) << "Write Checkpoint File to '" << path << "'.\n";
-//   fub::amrex::cutcell::WriteCheckpointFile(path, hierarchy);
-// }
+using FactoryFunction =
+    std::function<fub::AnyFluxMethod<fub::amrex::cutcell::IntegratorContext>(
+        const fub::PerfectGas<2>&)>;
 
-struct CheckpointOutput : fub::OutputAtFrequencyOrInterval<
-                              fub::amrex::cutcell::GriddingAlgorithm> {
-  CheckpointOutput(
-      const fub::ProgramOptions& options)
-      : OutputAtFrequencyOrInterval(options) {
-    directory_ = fub::GetOptionOr(options, "directory", directory_);
-    fub::SeverityLogger log = fub::GetInfoLogger();
-    BOOST_LOG(log) << "CheckpointOutput:";
-    OutputAtFrequencyOrInterval::Print(log);
-    BOOST_LOG(log) << fmt::format(" - directory = '{}'", directory_);
+template <typename... Pairs> auto GetFluxMethodFactory(Pairs... ps) {
+  std::map<std::string, FactoryFunction> factory;
+  ((factory[ps.first] = ps.second), ...);
+  return factory;
+}
+
+template <typename FluxMethod> struct MakeFlux {
+  fub::AnyFluxMethod<fub::amrex::cutcell::IntegratorContext>
+  operator()(const fub::PerfectGas<2>& eq) const {
+    HLLEM hllem{eq};
+    FluxMethod flux_method{eq};
+    fub::KbnCutCellMethod cutcell_method(flux_method, hllem);
+    fub::amrex::cutcell::FluxMethod adapter(std::move(cutcell_method));
+    return adapter;
   }
-
-  void
-  operator()(const fub::amrex::cutcell::GriddingAlgorithm& grid) override {
-    boost::log::sources::severity_logger<boost::log::trivial::severity_level>
-        log(boost::log::keywords::severity = boost::log::trivial::info);
-    BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", grid.GetTimePoint().count());
-    BOOST_LOG(log) << fmt::format("Write checkpoint to '{}'.", directory_);
-    fub::amrex::cutcell::WriteCheckpointFile(directory_, grid.GetPatchHierarchy());
-  }
-
-  std::string directory_{"./Divider/"};
 };
 
-void MyMain(const std::map<std::string, pybind11::object>& vm) {
+void MyMain(const fub::ProgramOptions& options) {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
-
-  boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
-      boost::log::keywords::severity = boost::log::trivial::info);
-
-  DividerOptions options(vm);
-
-  const std::array<int, 2> n_cells = options.n_cells;
-  const std::array<double, 2> xlower{options.x_range[0], options.y_range[0]};
-  const std::array<double, 2> xupper{options.x_range[1], options.y_range[1]};
-  const std::array<int, 2> periodicity{0, 0};
+  fub::amrex::ScopeGuard scope_guard{};
+  fub::SeverityLogger log = fub::GetInfoLogger();
 
   fub::PerfectGas<2> equation;
+
+  fub::ProgramOptions equation_options = fub::GetOptions(options, "Equation");
+  equation.gamma = fub::GetOptionOr(equation_options, "gamma", equation.gamma);
+  equation.Rspec = fub::GetOptionOr(equation_options, "Rpsec", equation.Rspec);
+  equation.gamma_minus_1_inv = 1.0 / (equation.gamma - 1.0);
+  equation.gamma_array_ = fub::Array1d::Constant(equation.gamma);
+  equation.gamma_minus_1_inv_array_ = fub::Array1d::Constant(equation.gamma_minus_1_inv);
+
+  BOOST_LOG(log) << "Equation:";
+  BOOST_LOG(log) << fmt::format(" - gamma = {}", equation.gamma);
+  BOOST_LOG(log) << fmt::format(" - Rspec = {}", equation.Rspec);
+
+  fub::amrex::CartesianGridGeometry geometry =
+      fub::GetOptions(options, "GridGeometry");
+  BOOST_LOG(log) << "GridGeometry:";
+  geometry.Print(log);
+
+  const int scratch_gcw = fub::GetOptionOr(options, "scratch_gcw", 4);
+  const int flux_gcw = fub::GetOptionOr(options, "flux_gcw", 2);
+  fub::amrex::cutcell::PatchHierarchyOptions hier_opts =
+      fub::GetOptions(options, "PatchHierarchy");
+  hier_opts.ngrow_eb_level_set =
+      std::max(scratch_gcw + 1, hier_opts.ngrow_eb_level_set);
+  BOOST_LOG(log) << "PatchHierarchy:";
+  hier_opts.Print(log);
+
+  BOOST_LOG(log) << "Read Wall Data...";
+  std::vector<std::string> wall_filenames{};
+  wall_filenames = fub::GetOptionOr(options, "wall_filenames", wall_filenames);
+
+  std::vector<fub::PolymorphicGeometry<2>> geometries;
+  std::transform(wall_filenames.begin(), wall_filenames.end(),
+                 std::back_inserter(geometries),
+                 [](const std::string& filename) {
+                   std::ifstream ifs(filename);
+                   return fub::PolymorphicGeometry<2>(ReadPolygonData(ifs));
+                 });
+  BOOST_LOG(log) << "Compute EB level set data...";
+  auto embedded_boundary =
+      fub::amrex::Geometry(fub::PolymorphicUnion(geometries));
+  auto shop = amrex::EB2::makeShop(embedded_boundary);
+  hier_opts.index_spaces =
+      fub::amrex::cutcell::MakeIndexSpaces(shop, geometry, hier_opts);
 
   using namespace fub::amrex::cutcell;
   using State = fub::Complete<fub::PerfectGas<2>>;
@@ -236,7 +214,9 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   fub::Complete<fub::PerfectGas<2>> post_shock_state;
   fub::CompleteFromCons(equation, post_shock_state, cons);
 
-  const double shock_mach_number = options.mach_number;
+  double shock_mach_number = fub::GetOptionOr(options, "Mach_number", 1.1);
+  shock_mach_number =
+      fub::GetOptionOr(options, "shock_mach_number", shock_mach_number);
   const fub::Array<double, 2, 1> normal{1.0, 0.0};
 
   ShockMachnumber<fub::Halfspace> initial_data(
@@ -257,35 +237,6 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
                  << equation.Velocity(pre_shock_state).transpose() << " [m/s]\n"
                  << "\tpressure: " << pre_shock_state.pressure << " [Pa]";
 
-  amrex::RealBox xbox(xlower, xupper);
-  amrex::Geometry coarse_geom(amrex::Box{{}, {n_cells[0] - 1, n_cells[1] - 1}},
-                              &xbox, -1, periodicity.data());
-
-  const int n_level = options.n_level;
-
-  std::vector<fub::PolymorphicGeometry<2>> geometries;
-  std::transform(options.wall_filenames.begin(), options.wall_filenames.end(),
-                 std::back_inserter(geometries),
-                 [](const std::string& filename) {
-                   std::ifstream ifs(filename);
-                   return fub::PolymorphicGeometry<2>(ReadPolygonData(ifs));
-                 });
-
-  auto embedded_boundary =
-      fub::amrex::Geometry(fub::PolymorphicUnion(geometries));
-  auto shop = amrex::EB2::makeShop(embedded_boundary);
-
-  fub::amrex::CartesianGridGeometry geometry;
-  geometry.cell_dimensions = n_cells;
-  geometry.coordinates = amrex::RealBox(xlower, xupper);
-  geometry.periodicity = periodicity;
-
-  PatchHierarchyOptions hier_opts{};
-  hier_opts.ngrow_eb_level_set = 9;
-  hier_opts.max_number_of_levels = n_level;
-  hier_opts.index_spaces =
-      fub::amrex::cutcell::MakeIndexSpaces(shop, coarse_geom, n_level);
-
   BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
                                   TransmissiveBoundary{fub::Direction::X, 1},
                                   TransmissiveBoundary{fub::Direction::Y, 0},
@@ -296,41 +247,54 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
       TagAllOf(TagCutCells(), gradients, TagBuffer(4)), boundary_condition);
   gridding->InitializeHierarchy(0.0);
 
-  fub::perfect_gas::HllemMethod<2> hllem_method{equation};
-  fub::FluxMethod<fub::perfect_gas::MusclHancockPrim<2>> flux_method{equation};
-  fub::KbnCutCellMethod cutcell_method(flux_method, hllem_method);
-  HyperbolicMethod method{FluxMethod{cutcell_method}, TimeIntegrator{},
+  using namespace std::literals;
+  auto flux_method_factory = GetFluxMethodFactory(
+      std::pair{"NoReconstruct"s, MakeFlux<HLLEM>()},
+      std::pair{"Conservative"s, MakeFlux<ConservativeReconstruction>()},
+      std::pair{"Primitive"s, MakeFlux<PrimitiveReconstruction>()},
+      std::pair{"Characteristics"s, MakeFlux<CharacteristicsReconstruction>()});
+
+  std::string reconstruction =
+      fub::GetOptionOr(options, "reconstruction", "Characteristics"s);
+  BOOST_LOG(log) << "Reconstruction: " << reconstruction;
+  auto flux_method = flux_method_factory.at(reconstruction)(equation);
+
+  HyperbolicMethod method{flux_method, TimeIntegrator{},
                           Reconstruction{equation}};
 
+  BOOST_LOG(log) << fmt::format("scratch_gcw = {}", scratch_gcw);
+  BOOST_LOG(log) << fmt::format("flux_gcw = {}", flux_gcw);
   fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<2>, IntegratorContext(gridding, method, 2, 0));
+      fub::int_c<2>,
+      IntegratorContext(gridding, method, scratch_gcw, flux_gcw));
 
   // fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
   fub::NoSubcycleSolver solver(std::move(level_integrator));
 
+  using CounterOutput = fub::CounterOutput<GriddingAlgorithm,
+                                           std::chrono::milliseconds>;
   using Plotfile = PlotfileOutput<fub::PerfectGas<2>>;
   fub::OutputFactory<GriddingAlgorithm> factory{};
+  factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
   factory.RegisterOutput<WriteHdf5>("HDF5");
   factory.RegisterOutput<Plotfile>("Plotfiles", equation);
-  factory.RegisterOutput<CheckpointOutput>("Checkpoint");
   fub::MultipleOutputs<GriddingAlgorithm> outputs(
-      std::move(factory),
-      fub::ToMap(fub::GetOptionOr(vm, "output", pybind11::dict{})));
+      std::move(factory), fub::GetOptions(options, "Output"));
 
   outputs(*solver.GetGriddingAlgorithm());
-  fub::RunSimulation(solver, fub::RunOptions(vm), wall_time_reference, outputs);
+  fub::RunOptions run_options = fub::GetOptions(options, "RunOptions");
+  BOOST_LOG(log) << "RunOptions:";
+  run_options.Print(log);
+  fub::RunSimulation(solver, run_options, wall_time_reference, outputs);
 }
 
 int main(int argc, char** argv) {
   MPI_Init(nullptr, nullptr);
   fub::InitializeLogging(MPI_COMM_WORLD);
   pybind11::scoped_interpreter interpreter{};
-  {
-    fub::amrex::ScopeGuard _{};
-    auto vm = ParseCommandLine(argc, argv);
-    if (vm) {
-      MyMain(*vm);
-    }
+  std::optional<fub::ProgramOptions> opts = fub::ParseCommandLine(argc, argv);
+  if (opts) {
+    MyMain(*opts);
   }
   int flag = -1;
   MPI_Finalized(&flag);

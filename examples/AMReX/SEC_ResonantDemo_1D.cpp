@@ -171,6 +171,8 @@ void MyMain(const fub::ProgramOptions& options) {
     }
     kin.mole_fractions[2] = std::max(
         0.0, 10.0 * std::min(1.0, 1.0 - (dt - buffer) / pbufwidth / buffer));
+    const double sum = kin.mole_fractions.sum();
+    kin.mole_fractions /= sum;
   };
 
   fub::amrex::BoundarySet boundary;

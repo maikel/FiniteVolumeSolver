@@ -103,6 +103,8 @@ struct MusclHancock2 {
   const Equation& GetEquation() const noexcept { return equation_; }
   Equation& GetEquation() noexcept { return equation_; }
 
+  const BaseMethod& GetBaseMethod() const noexcept { return flux_method_; }
+
 private:
   // These member variables control the behaviour of this method
   Equation equation_;

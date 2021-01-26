@@ -23,6 +23,7 @@
 namespace fub::perfect_gas {
 
 template struct Hllem<PerfectGas<2>>;
+template struct Hllem<PerfectGas<2>, false>;
 
 }
 

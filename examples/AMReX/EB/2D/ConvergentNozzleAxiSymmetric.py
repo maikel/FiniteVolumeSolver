@@ -1,10 +1,10 @@
 import math
 
-plenum_x_n_cells = 512
+plenum_x_n_cells = 256
 tube_blocking_factor = 8
 plenum_blocking_factor = 8
 
-n_level = 1
+n_level = 2
 
 n_tubes = 6
 r_tube = 0.015
@@ -68,8 +68,8 @@ RunOptions = {
   'max_cycles': -1
 }
 
-checkpoint = '/srv/public/Maikel/FiniteVolumeSolver/build_2D-Release/ConvergentNozzleAxi/Checkpoint/000012985'
-# checkpoint = ''
+#checkpoint = '/srv/public/Maikel/FiniteVolumeSolver/build_2D-Release/ConvergentNozzleAxi/Checkpoint/000012985'
+checkpoint = ''
 
 Plenum = {
   'checkpoint': checkpoint,
@@ -164,7 +164,14 @@ def OuterProbe(x0, k, alpha):
   return [x0, r_outer - 0.002, r_tube_center * math.sin(k * alpha)]
 
 Output = { 
-  'outputs': [{
+  'outputs': [
+  {
+    'type': 'HDF5',
+    'which_block': 0,
+    'path': 'ConvergentNozzleAxi/Plenum.h5',
+    'intervals': [1e-4]
+  },
+  {
     'type': 'Plotfiles',
     'directory': 'ConvergentNozzleAxi/Plotfiles/',
     'intervals': [1e-4],

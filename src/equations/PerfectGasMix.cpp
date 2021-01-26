@@ -52,7 +52,7 @@ void PerfectGasMix<Dim>::Flux(ConservativeArray& flux,
   flux.momentum.row(d0) += state.pressure;
   flux.energy = velocity * (state.energy + state.pressure);
   for (int s = 0; s < flux.species.rows(); ++s) {
-    flux.species.row(s) = velocity * flux.species.row(s);
+    flux.species.row(s) = velocity * state.species.row(s);
   }
 }
 
@@ -72,7 +72,7 @@ void PerfectGasMix<Dim>::Flux(ConservativeArray& flux,
   flux.momentum.row(d0) += state.pressure;
   flux.energy = velocity * (state.energy + state.pressure);
   for (int s = 0; s < flux.species.rows(); ++s) {
-    flux.species.row(s) = velocity * flux.species.row(s);
+    flux.species.row(s) = velocity * state.species.row(s);
   }
 }
 

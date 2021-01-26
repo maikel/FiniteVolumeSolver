@@ -956,3 +956,295 @@ First, we reconstruct a state to the left and the right of the face in question.
 This gives a reduction of the stencil array from `Complete state[4]` to `Complete reconstruced_states[2]`.
 Secondly, we call a (lower-order) base method `BaseFM` which satisfies `FluxMethod<Equation, 2>`.
 </div>
+
+
+Using Docker to share and persist a simulation
+==============================================
+
+How to run an existing simulation
+---------------------------------
+
+We describe in the following how to use docker to run the Divider2D application.
+
+1. Install docker via https://www.docker.com/
+
+2. Download the docker image that contains the Divider2D example via
+
+```console
+$ docker pull maikelnadolski/divider2d
+```
+
+3. Run the `fish` command as the `amrex` user and mount your `$HOME` directory on the host `/home/amrex/volume` within the container
+
+```console
+$ docker run -it -v $HOME:/home/amrex/volume --user amrex -w /home/amrex maikelnadolski/divider2d fish
+Welcome to fish, the friendly interactive shell
+Type `help` for instructions on how to use fish
+⋊> ~ ls -l                                                                                                                                                                                                 07:09:35
+total 9132
+-rwxr-xr-x  1 amrex  amrex  9120504 Jan  8 21:22 AMReX.EB.Divider2D*
+-rw-r--r--  1 amrex  amrex     3408 Jan  8 21:29 Divider2D.py
+-rw-r--r--  1 amrex  amrex     2969 Jan  8 21:51 VisualizeHdf5.py
+-rw-r--r--  1 amrex  amrex     1433 Jan  8 21:33 VisualizePlotfiles.py
+drwxr-xr-x  1 amrex  amrex     4096 Jan  8 20:18 amrex/
+drwxr-xr-x 64 maikel maikel   45056 Jan 11 06:26 volume/
+-rw-r--r--  1 amrex  amrex    27081 Jan  8 18:33 wall_1.txt
+-rw-r--r--  1 amrex  amrex    54000 Jan  8 18:33 wall_2.txt
+-rw-r--r--  1 amrex  amrex    81078 Jan  8 18:33 wall_3.txt
+⋊> ~                                                          
+```
+
+4. Test the simulation by running the examples with the provided input file
+
+```
+⋊> ~ OMP_NUM_THREADS=1 mpiexec AMReX.EB.Divider2D --config Divider2D.py                                                                                                                                    07:09:39
+MPI initialized with 4 MPI processes
+MPI initialized with thread support level 0
+OMP initialized with 1 OMP threads
+AMReX (20.07-dirty) initialized
+2021-Jan-11 07:11:41.057392 -- [info] Equation:
+2021-Jan-11 07:11:41.057507 -- [info]  - gamma = 1.4
+2021-Jan-11 07:11:41.058302 -- [info]  - Rspec = 287.058
+2021-Jan-11 07:11:41.058344 -- [info] GridGeometry:
+2021-Jan-11 07:11:41.058368 -- [info]  - cell_dimensions = {800, 344}
+2021-Jan-11 07:11:41.058395 -- [info]  - coordinates:lower = {0, -0.045}
+2021-Jan-11 07:11:41.058420 -- [info]  - coordinates:upper = {0.23, 0.055}
+2021-Jan-11 07:11:41.058443 -- [info]  - periodicity = {0, 0}
+2021-Jan-11 07:11:41.058475 -- [info] PatchHierarchy:
+2021-Jan-11 07:11:41.058498 -- [info]  - max_number_of_levels = 1
+2021-Jan-11 07:11:41.058521 -- [info]  - refine_ratio = {2, 2}
+2021-Jan-11 07:11:41.058544 -- [info]  - blocking_factor = {8, 8}
+2021-Jan-11 07:11:41.058566 -- [info]  - max_grid_size = {800, 344}
+2021-Jan-11 07:11:41.058588 -- [info]  - n_err_buf = {0, 0}
+2021-Jan-11 07:11:41.058610 -- [info]  - grid_efficiency = 0.7
+2021-Jan-11 07:11:41.058633 -- [info]  - n_proper = 1
+2021-Jan-11 07:11:41.058653 -- [info]  - ngrow_eb_level_set = 9
+2021-Jan-11 07:11:41.058674 -- [info]  - cutcell_load_balance_weight = 6
+2021-Jan-11 07:11:41.058704 -- [info]  - remove_covered_grids = false
+2021-Jan-11 07:11:41.058726 -- [info] Read Wall Data...
+2021-Jan-11 07:11:41.065565 -- [info] Compute EB level set data...
+2021-Jan-11 07:11:50.140497 -- [info] Post-Shock-State:
+2021-Jan-11 07:11:50.140497 -- [info] 	density: 1.22 [kg/m^3]
+2021-Jan-11 07:11:50.140497 -- [info] 	velocity: 0 0 [m/s]
+2021-Jan-11 07:11:50.140497 -- [info] 	pressure: 101325 [Pa]
+2021-Jan-11 07:11:50.140804 -- [info] Calculated Pre-Shock-State:
+2021-Jan-11 07:11:50.140804 -- [info] 	density: 1.42628 [kg/m^3]
+2021-Jan-11 07:11:50.140804 -- [info] 	velocity: 54.2485       0 [m/s]
+2021-Jan-11 07:11:50.140804 -- [info] 	pressure: 126150 [Pa]
+2021-Jan-11 07:11:50.172436 -- [info] Reconstruction: Characteristics
+2021-Jan-11 07:11:50.172533 -- [info] scratch_gcw = 2
+2021-Jan-11 07:11:50.172568 -- [info] flux_gcw = 0
+2021-Jan-11 07:11:50.184254 -- [Plotfile] [info] [T =            0s] Write Plotfile output to 'Divider_DE5_800/Plotfiles/plt000000000'.
+2021-Jan-11 07:11:50.247063 -- \[HDF5] [info] [T =            0s] Write Hdf5 output to 'Divider_c24_800.h5'.
+Table of Counters -----------------------------------------------------------------------------------------------------------------------------------------
+                                           Counter Name          #Calls        Min [ms]        Max [ms]        Avg [ms]     StdDev [ms]     Percent [%]
+        cutcell::GriddingAlgorithm::InitializeHierarchy               1              31             587             329             211             3.5
+    cutcell::GriddingAlgorithm::MakeNewLevelFromScratch               1              31              33              32               1            0.34
+cutcell::IntegratorContext::ResetHierarchyConfiguration               1               9              12              11               1            0.12
+                cutcell::GriddingAlgorithm::LoadBalance               1               4               5               5               0           0.056
+          cutcell::IntegratorContext::CopyDataToScratch               1               1               4               3               1           0.033
+       cutcell::GriddingAlgorithm::PostProcessBaseGrids               1               0               0               0               0           2e-06
+===========================================================================================================================================================
+2021-Jan-11 07:11:50.375671 -- [info] RunOptions:
+2021-Jan-11 07:11:50.375965 -- [info]  - final_time = 0.001 [s]
+2021-Jan-11 07:11:50.376228 -- [info]  - max_cycles = -1 [-]
+2021-Jan-11 07:11:50.376509 -- [info]  - smallest_time_step_size = 1e-12 [s]
+2021-Jan-11 07:11:50.376932 -- [info]  - cfl = 0.8 [-]
+2021-Jan-11 07:11:50.377185 -- [info]  - do_backup = 0 [-]
+
+...
+```
+
+5. Visualize the HDF5 output by executing VisualizeHdf5.py and the AMReX Plotfiles by VisualizePlotfiles.py
+
+```
+⋊> ~ python3  VisualizeHdf5.py                                                                                                                                                                             07:14:09
+Save figure to /home/amrex/Figures/Hdf5/Figure0000.png.
+Save figure to /home/amrex/Figures/Hdf5/Figure0001.png.
+Save figure to /home/amrex/Figures/Hdf5/Figure0002.png.
+Save figure to /home/amrex/Figures/Hdf5/Figure0003.png.
+
+...
+
+⋊> ~ python3  VisualizePlotfiles.py                                                                                                                                                                        07:14:18
+/usr/lib/python3.9/_collections_abc.py:684: MatplotlibDeprecationWarning: The global colormaps dictionary is no longer considered public API.
+  self[key]
+yt : [INFO     ] 2021-01-11 07:14:29,846 Parameters: current_time              = 0.0
+yt : [INFO     ] 2021-01-11 07:14:29,846 Parameters: domain_dimensions         = [800 344   1]
+yt : [INFO     ] 2021-01-11 07:14:29,846 Parameters: domain_left_edge          = [ 0.    -0.045  0.   ]
+yt : [INFO     ] 2021-01-11 07:14:29,847 Parameters: domain_right_edge         = [0.23  0.055 1.   ]
+yt : [INFO     ] 2021-01-11 07:14:29,994 xlim = 0.000000 0.230000
+yt : [INFO     ] 2021-01-11 07:14:29,994 ylim = -0.045000 0.055000
+yt : [INFO     ] 2021-01-11 07:14:29,995 xlim = 0.000000 0.230000
+yt : [INFO     ] 2021-01-11 07:14:29,995 ylim = -0.045000 0.055000
+yt : [INFO     ] 2021-01-11 07:14:29,995 Making a fixed resolution buffer of (('boxlib', 'Density')) 800 by 800
+yt : [INFO     ] 2021-01-11 07:14:30,083 Making a fixed resolution buffer of (('boxlib', 'Pressure')) 800 by 800
+yt : [INFO     ] 2021-01-11 07:14:30,102 Making a fixed resolution buffer of (('boxlib', 'vfrac')) 800 by 800
+yt : [INFO     ] 2021-01-11 07:14:30,676 Making a fixed resolution buffer of (('boxlib', 'Density')) 800 by 344
+yt : [INFO     ] 2021-01-11 07:14:30,691 Making a fixed resolution buffer of (('boxlib', 'Pressure')) 800 by 344
+yt : [INFO     ] 2021-01-11 07:14:30,706 Making a fixed resolution buffer of (('boxlib', 'vfrac')) 800 by 344
+yt : [INFO     ] 2021-01-11 07:14:30,720 Making a fixed resolution buffer of (Pressure) 800 by 344
+yt : [INFO     ] 2021-01-11 07:14:30,736 Making a fixed resolution buffer of (Density) 800 by 344
+yt : [INFO     ] 2021-01-11 07:14:30,752 Making a fixed resolution buffer of (vfrac) 800 by 344
+/home/amrex/Divider_DE5_800//Plotfiles/plt000000000: 0.0, [ 0.     0.23  -0.045  0.055]
+Save figure to /home/amrex/Figures/Plotfiles/Figure0000.png.
+yt : [INFO     ] 2021-01-11 07:14:31,640 Parameters: current_time              = 0.000100000001
+yt : [INFO     ] 2021-01-11 07:14:31,640 Parameters: domain_dimensions         = [800 344   1]
+yt : [INFO     ] 2021-01-11 07:14:31,640 Parameters: domain_left_edge          = [ 0.    -0.045  0.   ]
+yt : [INFO     ] 2021-01-11 07:14:31,641 Parameters: domain_right_edge         = [0.23  0.055 1.   ]
+yt : [INFO     ] 2021-01-11 07:14:31,774 xlim = 0.000000 0.230000
+yt : [INFO     ] 2021-01-11 07:14:31,775 ylim = -0.045000 0.055000
+yt : [INFO     ] 2021-01-11 07:14:31,775 xlim = 0.000000 0.230000
+yt : [INFO     ] 2021-01-11 07:14:31,775 ylim = -0.045000 0.055000
+yt : [INFO     ] 2021-01-11 07:14:31,776 Making a fixed resolution buffer of (('boxlib', 'Density')) 800 by 800
+yt : [INFO     ] 2021-01-11 07:14:31,864 Making a fixed resolution buffer of (('boxlib', 'Pressure')) 800 by 800
+yt : [INFO     ] 2021-01-11 07:14:31,884 Making a fixed resolution buffer of (('boxlib', 'vfrac')) 800 by 800
+yt : [INFO     ] 2021-01-11 07:14:32,325 Making a fixed resolution buffer of (('boxlib', 'Density')) 800 by 344
+yt : [INFO     ] 2021-01-11 07:14:32,340 Making a fixed resolution buffer of (('boxlib', 'Pressure')) 800 by 344
+yt : [INFO     ] 2021-01-11 07:14:32,355 Making a fixed resolution buffer of (('boxlib', 'vfrac')) 800 by 344
+yt : [INFO     ] 2021-01-11 07:14:32,369 Making a fixed resolution buffer of (Pressure) 800 by 344
+yt : [INFO     ] 2021-01-11 07:14:32,384 Making a fixed resolution buffer of (Density) 800 by 344
+yt : [INFO     ] 2021-01-11 07:14:32,402 Making a fixed resolution buffer of (vfrac) 800 by 344
+/home/amrex/Divider_DE5_800//Plotfiles/plt000000182: 0.000100000001, [ 0.     0.23  -0.045  0.055]
+Save figure to /home/amrex/Figures/Plotfiles/Figure0001.png.
+
+...
+```
+
+6. Copy the figures to a location of your host computer. You need a directory that is writable for others.
+
+On Unix-like machines you can do on your host side
+
+```
+$ mkdir $HOME/docker-output
+$ chown a+w $HOME/docker-output
+```
+
+Then copy from within your docker container
+
+```
+⋊> ~ cp -r Figures/ volume/docker-output
+```
+
+7. Adjust the provided input file `Divider2D.py` by your needs
+
+```
+⋊> ~ cp Divider2D.py volume/docker-output
+
+# Edit the config file
+
+⋊> ~ OMP_NUM_THREADS=1 mpiexec AMReX.EB.Divider2D --config volume/docker-output/Divider2D.py
+```
+
+For reference, the provided config file is
+
+```python
+import math
+
+
+############################################################################
+# These variables are only auxiliary and are not directly used by the app 
+#
+
+def nCellsY(nCellsX, ratio, blocking_factor=8):
+    base = int(nCellsX * ratio)
+    ncells = base - base % blocking_factor
+    return ncells
+
+xlower = 0.0
+xupper = 0.23
+xlen = xupper - xlower
+
+ylower = -0.05 + 0.005
+yupper = +0.05 + 0.005
+ylen = yupper - ylower
+blocking_factor = 8
+nx = 800
+ny = nCellsY(nx, ylen / xlen, blocking_factor=blocking_factor)
+n_level = 1
+n_error_buf = 0 if n_level == 1 else 1
+
+# The output files are written in this directory from the perspective of this 
+# docker container
+base_path = '/home/amrex'
+
+############################################################################
+# These variables and dictionaries will be read by the application
+
+#Equation = {
+  # 'gamma': 1.4,
+  # 'Rspec': 287
+#}
+
+RunOptions = {
+  'cfl': 0.8,
+  'final_time': 1e-3,
+  'do_backup': False,
+  'max_cycles': -1, # -1 means infinite and 0 means only initial condition
+}
+
+# This option defines the Mach number of the shock
+# Default is 1.1
+Mach_number = 1.1
+
+reconstruction = "Characteristics"
+
+GridGeometry = {
+  # This option tells the solver how many cells to use
+  'cell_dimensions': [nx, ny, 1],
+  # This option defines the coordinates of the computational domain
+  'coordinates': {
+    'lower': [xlower, ylower, +0.00],
+    'upper': [xupper, yupper, +0.10],
+  },
+  # We have no periodicity in Divider
+  'periodicity': [0, 0, 0]
+}
+
+# defines the number of ghost cells
+scratch_gcw = 2 if n_level == 1 else 4
+
+# defines the number of ghost faces
+flux_gcw = scratch_gcw - 2
+
+PatchHierarchy = {
+  # Defines the number of refinement levels
+  # 1 means no adaptive refinement
+  'max_number_of_levels': n_level,
+  # Set this to 1 if max_number_of_levles > 1
+  'n_error_buf': [n_error_buf, n_error_buf, n_error_buf],
+  # Defines the maximal size of a single patch
+  # patches can by smaller thou
+  'max_grid_size': [nx, ny, 1],
+  # Do not change this, it defines how many ghost cells are needed for the
+  # cut-cell geometry
+  'ngrow_eb_level_set': max(scratch_gcw + 1, 9),
+  # If a patch is completely covered by behind cut-cells remove them from the grid
+  'remove_covered_grids': False,
+  # Every patch size is a multiple of blocking_factor (in each direction)
+  # i.e. blocking_factor = 8 means patches have the size of 8 or 16 or 24 or ...
+  'blocking_factor': [blocking_factor, blocking_factor, blocking_factor],
+  # How many cells are needed inbetween AMR levels
+  'n_proper': 1,
+}
+
+# Adjust those paths to read the files that describe the wall boundaries for the Divider.
+# The first and the last point need within each wall file need to be equal
+wall_filenames = ['{}/wall_1.txt'.format(base_path),
+                  '{}/wall_2.txt'.format(base_path),
+                  '{}/wall_3.txt'.format(base_path)]
+
+# Defines the 
+Output = {
+	'outputs': [
+  # Write AMReX-output directories. This output preserves the AMR hierarchy 
+  # It is readable from Paraview, VisIt and Python
+  {'type': 'Plotfiles', 'directory': 'Divider_DE5_{}/Plotfiles'.format(nx), 'intervals': [1e-4]},
+  # Write simple HDF5 files
+  # It is faster and writes a single grid without patches
+  {'type': 'HDF5', 'path': 'Divider_c24_{}.h5'.format(nx), 'intervals': [1e-5]},
+  # Print out timer statistics
+  {'type': 'CounterOutput', 'intervals': [1e-4] },
+]
+}
+```

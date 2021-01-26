@@ -106,7 +106,9 @@ void GenericPressureValveBoundary<EulerEquation, InflowFunction>::FillBoundary(
       BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", options_.prefix);
       BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", t.count());
       BOOST_LOG_SCOPED_LOGGER_TAG(log, "Level", level);
-      BOOST_LOG(log) << fmt::format("Pressure valve has opened because inner pressure is {}.", inner_pressure);
+      BOOST_LOG(log) << fmt::format(
+          "Pressure valve has opened because inner pressure is {}.",
+          inner_pressure);
     }
     const Duration t_diff = t - *t_opened_;
     KineticState<EulerEquation> kinetic_state(equation_);
@@ -114,12 +116,12 @@ void GenericPressureValveBoundary<EulerEquation, InflowFunction>::FillBoundary(
                 gridding, level);
     constexpr int N = EulerEquation::Rank();
     Array<double, N, 1> zero = Array<double, N, 1>::Zero();
-    FUB_ASSERT(kinetic_state.mole_fractions.colwise().sum().isApproxToConstant(1.0));
+    FUB_ASSERT(
+        kinetic_state.mole_fractions.colwise().sum().isApproxToConstant(1.0));
     euler::CompleteFromKineticState(equation_, constant_boundary_.state,
                                     kinetic_state, zero);
-    euler::IsentropicExpansionWithoutDissipation(
-        equation_, constant_boundary_.state, constant_boundary_.state,
-        inner_pressure, options_.forward_efficiency);
+    euler::SetIsentropicPressure(equation_, constant_boundary_.state,
+                                 constant_boundary_.state, inner_pressure);
     constant_boundary_.FillBoundary(mf, gridding, level);
   } else {
     if (t_opened_ && inner_pressure > 1.1 * options_.open_below_pressure) {
@@ -128,7 +130,9 @@ void GenericPressureValveBoundary<EulerEquation, InflowFunction>::FillBoundary(
       BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", options_.prefix);
       BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", t.count());
       BOOST_LOG_SCOPED_LOGGER_TAG(log, "Level", level);
-      BOOST_LOG(log) << fmt::format("Pressure valve has closed because inner pressure is {}.", inner_pressure);
+      BOOST_LOG(log) << fmt::format(
+          "Pressure valve has closed because inner pressure is {}.",
+          inner_pressure);
     }
     reflective_boundary_.FillBoundary(mf, gridding, level);
   }

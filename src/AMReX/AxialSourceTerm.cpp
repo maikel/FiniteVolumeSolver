@@ -91,13 +91,14 @@ Duration AxialSourceTerm::ComputeStableDt(int /* level */) {
 
 Result<void, TimeStepTooLarge>
 AxialSourceTerm::AdvanceLevel(IntegratorContext& simulation_data, int level,
-                              Duration time_step_size) {
+                              Duration time_step_size,
+                              const ::amrex::IntVect& ngrow) {
   ResetHierarchyConfiguration(simulation_data.GetGriddingAlgorithm());
   ::amrex::MultiFab& data = simulation_data.GetScratch(level);
   const double dt = time_step_size.count();
   Complete<IdealGasMix<1>> state(equation_);
   ForEachFab(data, [&](const ::amrex::MFIter& mfi) {
-    ::amrex::Box box = mfi.tilebox();
+    ::amrex::Box box = mfi.growntilebox(ngrow);
     ::amrex::FArrayBox& fab = data[mfi];
     const ::amrex::FArrayBox& Ax = Ax_[static_cast<std::size_t>(level)][mfi];
     auto states = MakeView<Complete<IdealGasMix<1>>>(fab, equation_, box);
