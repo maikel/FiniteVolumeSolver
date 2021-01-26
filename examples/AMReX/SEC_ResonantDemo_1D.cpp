@@ -153,31 +153,48 @@ void MyMain(const fub::ProgramOptions& options) {
   };
   static constexpr double t_ignite = 1.1753;
   static constexpr double t_ignite_diff = t_ignite - 1.0;
-  auto inflow_function = [fill_f_val](
-                             const fub::PerfectGasMix<1>&,
-                             fub::KineticState<fub::PerfectGasMix<1>>& kin,
-                             fub::Duration tp, const amrex::MultiFab&,
-                             const fub::amrex::GriddingAlgorithm&, int) {
-    const double dt = tp.count();
-    kin.temperature = 1.0;
-    kin.density = 1.0;
-    if (dt > buffer) {
-      kin.mole_fractions[0] = fill_f_val(dt - t_ignite_diff);
-      kin.mole_fractions[1] = 1.0;
-    } else {
-      // FR
-      kin.mole_fractions[0] = 0.0;
-      kin.mole_fractions[1] = 0.0;
-    }
-    kin.mole_fractions[2] = std::max(
-        0.0, 10.0 * std::min(1.0, 1.0 - (dt - buffer) / pbufwidth / buffer));
-    const double sum = kin.mole_fractions.sum();
-    kin.mole_fractions /= sum;
-  };
+
+  // std::invoke(inflow_function_, equation_, constant_boundary_.state,
+  //                *compressor_state_, inner_pressure, t_diff, mf, gridding,
+  //             level);
+  auto inflow_function =
+      [fill_f_val, kin = fub::KineticState<fub::PerfectGasMix<1>>(equation)](
+          const fub::PerfectGasMix<1>& eq,
+          fub::Complete<fub::PerfectGasMix<1>>& boundary_state,
+          const fub::KineticState<fub::PerfectGasMix<1>>& /* compressor_state */,
+          double inner_pressure, fub::Duration tp, const amrex::MultiFab&,
+          const fub::amrex::GriddingAlgorithm&, int) mutable {
+        const double dt = tp.count();
+        kin.temperature = 1.0;
+        kin.density = 1.0;
+        if (dt > buffer) {
+          kin.mole_fractions[0] = fill_f_val(dt - t_ignite_diff);
+          kin.mole_fractions[1] = 1.0;
+        } else {
+          // FR
+          kin.mole_fractions[0] = 0.0;
+          kin.mole_fractions[1] = 0.0;
+        }
+        kin.mole_fractions[2] =
+            std::max(0.0, 10.0 * std::min(1.0, 1.0 - (dt - buffer) / pbufwidth /
+                                                         buffer));
+        const double sum = kin.mole_fractions.sum();
+        kin.mole_fractions /= sum;
+        fub::euler::CompleteFromKineticState(eq, boundary_state, kin,
+                                             fub::Array<double, 1, 1>::Zero());
+        fub::euler::SetIsentropicPressure(eq, boundary_state, boundary_state,
+                                          inner_pressure);
+      };
+
+  fub::KineticState<fub::PerfectGasMix<1>> compressor_state(equation);
+  compressor_state.density = 1.0;
+  compressor_state.temperature = 1.0;
+  compressor_state.mole_fractions[2] = 1.0;
 
   fub::amrex::BoundarySet boundary;
   using fub::amrex::IsentropicPressureExpansion;
-  fub::amrex::GenericPressureValveBoundary left(equation, inflow_function, {});
+  fub::amrex::PressureValveBoundary_ReducedModelDemo left(
+      equation, compressor_state, inflow_function);
   boundary.conditions.push_back(left);
   boundary.conditions.push_back(
       IsentropicPressureExpansion<fub::PerfectGasMix<1>>{equation, 1.0,
@@ -241,7 +258,7 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::SplitSystemSourceLevelIntegrator reactive_integrator(
       std::move(level_integrator), std::move(source_term),
       fub::GodunovSplitting());
-      //fub::StrangSplittingLumped());
+  // fub::StrangSplittingLumped());
 
   fub::SubcycleFineFirstSolver solver(std::move(reactive_integrator));
   // fub::SubcycleFineFirstSolver solver(std::move(level_integrator));

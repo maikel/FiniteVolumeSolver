@@ -229,13 +229,13 @@ template <int N> struct PerfectGasMix {
   void Flux(ConservativeArray& flux, const CompleteArray& state, MaskArray mask,
             [[maybe_unused]] Direction dir) const noexcept;
 
-  void
-  CompleteFromCons(Complete& complete,
-                   const ConservativeBase<PerfectGasMix>& cons) const noexcept;
+  void CompleteFromCons(Complete& complete,
+                        const ConservativeBase<PerfectGasMix>& cons) const
+      noexcept;
 
-  void CompleteFromCons(
-      CompleteArray& complete,
-      const ConservativeArrayBase<PerfectGasMix>& cons) const noexcept;
+  void CompleteFromCons(CompleteArray& complete,
+                        const ConservativeArrayBase<PerfectGasMix>& cons) const
+      noexcept;
 
   void CompleteFromCons(CompleteArray& complete,
                         const ConservativeArrayBase<PerfectGasMix>& cons,
@@ -486,6 +486,11 @@ private:
     return q.pressure;
   }
 
+  friend double tag_invoke(tag_t<euler::Pressure>, const PerfectGasMix& eq,
+                           const KineticState& q) noexcept {
+    return eq.Rspec * q.temperature * q.density;
+  }
+
   template <typename Density, typename Momentum, typename Energy,
             typename Species, typename Pressure, typename SpeedOfSound>
   friend const SpeedOfSound&
@@ -495,24 +500,41 @@ private:
     return q.speed_of_sound;
   }
 
-  template <typename Density, typename Momentum, typename Energy,
-            typename Species, typename Pressure, typename SpeedOfSound>
-  friend auto
-  tag_invoke(tag_t<euler::SetIsentropicPressure>, const PerfectGasMix& eq,
-             PerfectGasMixComplete<Density, Momentum, Energy, Species, Pressure,
-                                   SpeedOfSound>& q,
-             const PerfectGasMixComplete<Density, Momentum, Energy, Species,
-                                         Pressure, SpeedOfSound>& q0,
-             Pressure p_new) noexcept {
-    const double rho_new =
-        std::pow(p_new / q0.pressure, 1 / eq.gamma) * q0.density;
-    const Array<double, N, 1> u0 = euler::Velocity(eq, q0);
-    Array<double, N, 1> u_new = u0;
-    u_new[0] =
-        u0[0] +
-        2.0 * std::sqrt(eq.gamma * q0.pressure / q0.density) *
-            eq.gamma_minus_1_inv -
-        2.0 * std::sqrt(eq.gamma * p_new / rho_new) * eq.gamma_minus_1_inv;
+  friend auto tag_invoke(tag_t<euler::SetIsentropicPressure>,
+                         const PerfectGasMix& eq, Complete& q,
+                         const Complete& q0, double p_new) noexcept {
+    const double rho_old = euler::Density(eq, q0);
+    const double p_old = euler::Pressure(eq, q0);
+    const double T_old = euler::Temperature(eq, q0);
+    const Array<double, N, 1> u_old = euler::Velocity(eq, q0);
+    const double c = euler::SpeedOfSound(eq, q0);
+    const double c2 = c*c;
+    const double Ma2 = u_old.matrix().squaredNorm() / c2;
+
+    const double alpha = 1.0 + 0.5 * Ma2 / eq.gamma_minus_1_inv;
+    const double rho_0 = rho_old * std::pow(alpha, eq.gamma_minus_1_inv);
+    const double p_0 = p_old * std::pow(alpha, eq.gamma * eq.gamma_minus_1_inv);
+    const double T_0 = T_old * alpha;
+    
+    const double rho_new = rho_0 * std::pow(p_new / p_0, 1 / eq.gamma);
+    const double T_new = p_new / rho_new / eq.Rspec;
+    
+    // a = (gamma - 1) / 2
+    // T0 = T_new (1 + a Ma2_n)
+    // (gamma R) (T_0 - T_new) / a = (gamma R) (T_new (1 + a Ma2_n) - T_new) / a = (gamma R) T_new Ma2_n = c2_n Ma2_n = u2_n
+    const double u2_new = 2.0 * eq.gamma_minus_1_inv * eq.gamma * eq.Rspec * (T_0 - T_new);
+    // const Array<double, N, 1> u0 = euler::Velocity(eq, q0);
+    Array<double, N, 1> u_new = Array<double, N, 1>::Zero();
+    u_new[0] = ((u2_new > 0.0) - (u2_new < 0.0)) * std::sqrt(std::abs(u2_new));
+    
+    // Array<double, N, 1> u_new = u_old;
+    // u_new[0] =
+    //     u_old[0] +
+    //     2.0 * std::sqrt(eq.gamma * q0.pressure / q0.density) *
+    //         eq.gamma_minus_1_inv -
+    //     2.0 * std::sqrt(eq.gamma * p_new / rho_new) * eq.gamma_minus_1_inv;
+    // const double rho_new =
+    //     std::pow(p_new / q0.pressure, 1 / eq.gamma) * q0.density;
     const Array<double, N, 1> rhou_new = rho_new * u_new;
     const double rhoE_new =
         p_new * eq.gamma_minus_1_inv + euler::KineticEnergy(rho_new, rhou_new);
