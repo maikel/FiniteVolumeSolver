@@ -20,7 +20,18 @@ valueString = 'Pressure' # which value we want to plot
 # dataPath = "/srv/public/Maikel/FiniteVolumeSolver/build_2D-Debug/SEC_Plenum_HLLEM_Upwind"
 # dataPath = "/srv/public/Maikel/FiniteVolumeSolver/build_2D-Release/SEC_Plenum_HLLEM_Upwind"
 # dataPath = "/srv/public/Maikel/FiniteVolumeSolver/build_2D-Release/SEC_Plenum/average_outer_state/"
-dataPath = "/srv/public/Maikel/FiniteVolumeSolver/build_2D-Release/SEC_Plenum/average_massflow"
+dataPath = "/srv/public/Maikel/FiniteVolumeSolver/build_2D-Release/average_massflow"
+inputFilePath = "/srv/public/Maikel/FiniteVolumeSolver/examples/AMReX/EB/2D/"
+
+# import importlib
+# inputFile = importlib.import_module('SEC_Plenum')
+# print(inputFile.y0s)
+# print(inputFile.Area)
+sys.path.append(inputFilePath)
+from SEC_Plenum import y0s, Area, tube_n_cells
+print(y0s)
+print(Area)
+
 plenum = "{}/Plenum.h5".format(dataPath)
 outPath = dataPath
 output_path = '{}/Visualization'.format(outPath)
@@ -62,7 +73,7 @@ file.close()
 
 def PrintProgress(i):
   progress = int(100.0 * float(i) / (nsteps - 1))
-  print('[{:3d}%] Reading slice #{}'.format(progress, i))
+  print('[{:3d}%] Reading slice [{}/{}]'.format(progress, i, nsteps))
 
 os.makedirs(output_path, exist_ok=True)
 
@@ -77,7 +88,7 @@ for i in range(nsteps):
    extent_tubes = []
    
    for tube in tube_paths:
-      (p_tube), current_time, extent = h5_load_t(tube, i, ["Pressure"])
+      (p_tube), current_time, extent = h5_load_t(tube, 4*i, ["Pressure"])
       Tube_p.append(p_tube)
       extent_tubes.append(extent)
    
@@ -107,11 +118,16 @@ for i in range(nsteps):
    for extent_tube, tube_p in zip(extent_tubes, Tube_p):
       midpoint = 0.5 * (extent_tube[2] + extent_tube[3])
       D = 0.03
-      lower = midpoint - D
-      upper = midpoint + D
+      x = np.linspace(extent_tube[0], extent_tube[1], tube_n_cells)
+      y_upper = midpoint + 0.5 * np.array([Area(xi) for xi in x]) * D
+      y_lower = midpoint - 0.5 * np.array([Area(xi) for xi in x]) * D
+      lower = midpoint - 4.0 * D
+      upper = midpoint + 4.0 * D
       extent_tube[2] = lower
       extent_tube[3] = upper
       im_p = axs[0].contourf(tube_p, extent=extent_tube, **pressure_options)
+      axs[0].fill_between(x, y_upper, np.max(y_upper), color='white')
+      axs[0].fill_between(x, y_lower, np.min(y_lower), color='white')
    axs[0].set_title('Pressure')
    axs[0].set(aspect='equal')
    plt.colorbar(im_p, ax=axs[0])

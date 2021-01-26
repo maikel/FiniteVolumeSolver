@@ -92,7 +92,7 @@ modes = ['average_massflow']
 mode_titles = ['Average Massflow']
 
 for mode, suptitle in zip(modes, mode_titles):
-  output_base_path = '/srv/public/Maikel/FiniteVolumeSolver/build_2D-Release/SEC_Plenum/{}/Tube{}.h5'.format(mode, tube_id)
+  output_base_path = '/srv/public/Maikel/FiniteVolumeSolver/build_2D-Release/{}/Tube{}.h5'.format(mode, tube_id)
   file = h5py.File(output_base_path, mode='r')
   rho_data = np.squeeze(np.array(file['data'][:, 0, :, :]))
   rhou_data = np.squeeze(np.array(file['data'][:, 1, :, :]))
@@ -115,7 +115,7 @@ for mode, suptitle in zip(modes, mode_titles):
 
   titles = ['Temperature', 'Pressure', 'Fuel Massfraction']
   datas = [T_data, p_data, F_data]
-  f, ax = plt.subplots(nrows=1, ncols=3, figsize=set_size('thesis'))# figsize=(15, 10)) #set_size('thesis'))
+  f, ax = plt.subplots(nrows=1, ncols=3, figsize=set_size('thesis'), sharey=True)# figsize=(15, 10)) #set_size('thesis'))
   
   def props(title):
     props = {
@@ -149,7 +149,7 @@ for mode, suptitle in zip(modes, mode_titles):
   for a, im in zip(ax, ims):
     a.xaxis.set_major_formatter(FormatStrFormatter('%.2f'))
     plt.colorbar(im, ax=a)
-  f.suptitle(suptitle)
+  # f.suptitle(suptitle)
   f.savefig('Tube{}_{}.png'.format(tube_id, mode))
   f.clear()
   plt.close(f)
