@@ -26,7 +26,7 @@
 
 #include "fub/AMReX/boundary_condition/GenericPressureValveBoundary.hpp"
 #include "fub/AMReX/boundary_condition/IsentropicPressureExpansion.hpp"
-#include "fub/equations/perfect_gas_mix/IgnitionDelayKinetics.hpp"
+#include "fub/equations/perfect_gas_mix/ArrheniusKinetics.hpp"
 
 #include <cmath>
 #include <fmt/format.h>
@@ -59,11 +59,11 @@ struct RiemannProblem {
           fub::ForEachIndex(fub::Box<0>(states), [&](std::ptrdiff_t i) {
             const double x = geom.CellCenter(int(i), 0);
             const double pressure = 1.0;
-            state.temperature = (x < 0.5) ? 1.0 : 2.5;
+            state.temperature = (x < 0.5) ? 2.0 : 1.0;
             state.density = pressure / state.temperature / equation_.Rspec;
-            state.mole_fractions[0] = 0.0;
-            state.mole_fractions[1] = (x < 0.4) ? 1.0 : 0.0;
-            state.mole_fractions[2] = !(x < 0.4) ? 1.0 : 0.0;
+            state.mole_fractions[0] = 1.0;
+            state.mole_fractions[1] = 0.0;
+            // state.mole_fractions[2] = !(x < 0.4) ? 1.0 : 0.0;
             fub::euler::CompleteFromKineticState(equation_, complete, state,
                                                  velocity);
             fub::Store(states, complete, {i});
@@ -102,7 +102,7 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::ProgramOptions equation_options = fub::GetOptions(options, "Equation");
 
   fub::PerfectGasMix<1> equation{};
-  equation.n_species = 2;
+  equation.n_species = 1;
   equation.Rspec =
       fub::GetOptionOr(equation_options, "R_specific", equation.Rspec);
   equation.gamma = fub::GetOptionOr(equation_options, "gamma", equation.gamma);
@@ -133,9 +133,9 @@ void MyMain(const fub::ProgramOptions& options) {
   BOOST_LOG(log) << "PatchHierarchy:";
   hierarchy_options.Print(log);
 
-  fub::perfect_gas_mix::IgnitionDelayKinetics<1> source_term{equation};
+  fub::perfect_gas_mix::ArrheniusKinetics<1> source_term{equation};
 
-  static constexpr double buffer = 0.5;
+  /* static constexpr double buffer = 0.5;
   static constexpr double pbufwidth = 1e-10;
   const double lambda =
       -std::log(source_term.options.Yign / source_term.options.Yinit /
@@ -153,49 +153,42 @@ void MyMain(const fub::ProgramOptions& options) {
   };
   static constexpr double t_ignite = 1.1753;
   static constexpr double t_ignite_diff = t_ignite - 1.0;
+  auto inflow_function = [fill_f_val](
+                             const fub::PerfectGasMix<1>&,
+                             fub::KineticState<fub::PerfectGasMix<1>>& kin,
+                             fub::Duration tp, const amrex::MultiFab&,
+                             const fub::amrex::GriddingAlgorithm&, int) {
+    const double dt = tp.count();
+    kin.temperature = 1.0;
+    kin.density = 1.0;
+    if (dt > buffer) {
+      kin.mole_fractions[0] = fill_f_val(dt - t_ignite_diff);
+      kin.mole_fractions[1] = 1.0;
+    } else {
+      // FR
+      kin.mole_fractions[0] = 0.0;
+      kin.mole_fractions[1] = 0.0;
+    }
+    kin.mole_fractions[2] = std::max(
+        0.0, 10.0 * std::min(1.0, 1.0 - (dt - buffer) / pbufwidth / buffer));
+  }; */
 
-  // std::invoke(inflow_function_, equation_, constant_boundary_.state,
-  //                *compressor_state_, inner_pressure, t_diff, mf, gridding,
-  //             level);
-  auto inflow_function =
-      [fill_f_val, kin = fub::KineticState<fub::PerfectGasMix<1>>(equation)](
-          const fub::PerfectGasMix<1>& eq,
-          fub::Complete<fub::PerfectGasMix<1>>& boundary_state,
-          const fub::KineticState<fub::PerfectGasMix<1>>& /* compressor_state */,
-          double inner_pressure, fub::Duration tp, const amrex::MultiFab&,
-          const fub::amrex::GriddingAlgorithm&, int) mutable {
-        const double dt = tp.count();
-        kin.temperature = 1.0;
-        kin.density = 1.0;
-        if (dt > buffer) {
-          kin.mole_fractions[0] = fill_f_val(dt - t_ignite_diff);
-          kin.mole_fractions[1] = 1.0;
-        } else {
-          // FR
-          kin.mole_fractions[0] = 0.0;
-          kin.mole_fractions[1] = 0.0;
-        }
-        kin.mole_fractions[2] =
-            std::max(0.0, 10.0 * std::min(1.0, 1.0 - (dt - buffer) / pbufwidth /
-                                                         buffer));
-        const double sum = kin.mole_fractions.sum();
-        kin.mole_fractions /= sum;
-        fub::euler::CompleteFromKineticState(eq, boundary_state, kin,
-                                             fub::Array<double, 1, 1>::Zero());
-        fub::euler::SetIsentropicPressure(eq, boundary_state, boundary_state,
-                                          inner_pressure);
-      };
-
-  fub::KineticState<fub::PerfectGasMix<1>> compressor_state(equation);
-  compressor_state.density = 1.0;
-  compressor_state.temperature = 1.0;
-  compressor_state.mole_fractions[2] = 1.0;
-
-  fub::amrex::BoundarySet boundary;
+  /* fub::amrex::BoundarySet boundary;
   using fub::amrex::IsentropicPressureExpansion;
-  fub::amrex::PressureValveBoundary_ReducedModelDemo left(
-      equation, compressor_state, inflow_function);
+  fub::amrex::GenericPressureValveBoundary left(equation, inflow_function, {});
   boundary.conditions.push_back(left);
+  boundary.conditions.push_back(
+      IsentropicPressureExpansion<fub::PerfectGasMix<1>>{equation, 1.0,
+                                                         fub::Direction::X, 1});
+ */
+  fub::amrex::BoundarySet boundary;
+  using fub::amrex::ReflectiveBoundary;
+  auto seq = fub::execution::seq;
+  boundary.conditions.push_back(
+      ReflectiveBoundary{seq, equation, fub::Direction::X, 0});
+  using fub::amrex::IsentropicPressureExpansion;
+  // boundary.conditions.push_back(
+  //    ReflectiveBoundary{seq, equation, fub::Direction::X, 1});
   boundary.conditions.push_back(
       IsentropicPressureExpansion<fub::PerfectGasMix<1>>{equation, 1.0,
                                                          fub::Direction::X, 1});

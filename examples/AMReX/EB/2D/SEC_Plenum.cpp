@@ -442,29 +442,43 @@ auto MakeTubeSolver(const fub::ProgramOptions& options,
   };
   static constexpr double t_ignite = 1.1753;
   static constexpr double t_ignite_diff = t_ignite - 1.0;
-  auto inflow_function = [buffer, fill_f_val](
-                             const fub::PerfectGasMix<1>&,
-                             fub::KineticState<fub::PerfectGasMix<1>>& kin,
-                             fub::Duration tp, const amrex::MultiFab&,
-                             const fub::amrex::GriddingAlgorithm&, int) {
-    const double dt = tp.count();
-    kin.temperature = 1.0;
-    kin.density = 1.05 / kin.temperature;
-    if (dt > buffer) {
-      kin.mole_fractions[0] = fill_f_val(dt - t_ignite_diff);
-      kin.mole_fractions[1] = 1.0;
-    } else {
-      // FR
-      kin.mole_fractions[0] = 0.0;
-      kin.mole_fractions[1] = 0.0;
-    }
-    kin.mole_fractions[2] = std::max(
-        0.0, 10.0 * std::min(1.0, 1.0 - (dt - buffer) / pbufwidth / buffer));
-    const double sum = kin.mole_fractions.sum();
-    kin.mole_fractions /= sum;
-  };
+  auto inflow_function =
+      [buffer, fill_f_val, kin = fub::KineticState<fub::PerfectGasMix<1>>(equation)](
+          const fub::PerfectGasMix<1>& eq,
+          fub::Complete<fub::PerfectGasMix<1>>& boundary_state,
+          const fub::KineticState<
+              fub::PerfectGasMix<1>>& /* compressor_state */,
+          double inner_pressure, fub::Duration tp, const amrex::MultiFab&,
+          const fub::amrex::GriddingAlgorithm&, int) mutable {
+        const double dt = tp.count();
+        kin.temperature = 1.0;
+        kin.density = 1.0;
+        if (dt > buffer) {
+          kin.mole_fractions[0] = fill_f_val(dt - t_ignite_diff);
+          kin.mole_fractions[1] = 1.0;
+        } else {
+          // FR
+          kin.mole_fractions[0] = 0.0;
+          kin.mole_fractions[1] = 0.0;
+        }
+        kin.mole_fractions[2] =
+            std::max(0.0, 10.0 * std::min(1.0, 1.0 - (dt - buffer) / pbufwidth /
+                                                         buffer));
+        const double sum = kin.mole_fractions.sum();
+        kin.mole_fractions /= sum;
+        fub::euler::CompleteFromKineticState(eq, boundary_state, kin,
+                                             fub::Array<double, 1, 1>::Zero());
+        fub::euler::SetIsentropicPressure(eq, boundary_state, boundary_state,
+                                          inner_pressure);
+      };
 
-  fub::amrex::GenericPressureValveBoundary valve(equation, inflow_function, {});
+  fub::KineticState<fub::PerfectGasMix<1>> compressor_state(equation);
+  compressor_state.density = 1.0;
+  compressor_state.temperature = 1.0;
+  compressor_state.mole_fractions[2] = 1.0;
+
+  fub::amrex::PressureValveBoundary_ReducedModelDemo valve(
+      equation, compressor_state, inflow_function);
 
   BoundarySet boundaries{{valve}};
 

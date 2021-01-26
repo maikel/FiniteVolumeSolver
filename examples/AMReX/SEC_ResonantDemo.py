@@ -7,7 +7,7 @@ RunOptions = {
   # 'max_cycles': 1,
 }
 
-dx = 5e-4
+dx = 1e-3
 x_len = 1.0
 n_cells = int(x_len / dx)
 
@@ -46,7 +46,7 @@ Output = {
   'outputs': [{
     'type': 'HDF5',
     'path': paths[reconstruction],
-    'intervals': [0.01],
+    'intervals': [0.1],
     #'frequencies': [1],
   },{
     'type': 'CounterOutput',

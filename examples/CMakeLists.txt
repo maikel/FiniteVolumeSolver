@@ -26,6 +26,9 @@ if (AMReX_FOUND)
   add_executable_with_warnings(AMReX.SEC_ResonantDemo_1D AMReX/SEC_ResonantDemo_1D.cpp)
   target_link_libraries(AMReX.SEC_ResonantDemo_1D FiniteVolumeSolver.AMReX)
 
+  add_executable_with_warnings(AMReX.SEC_Arrhenius AMReX/SEC_Arrhenius.cpp)
+  target_link_libraries(AMReX.SEC_Arrhenius FiniteVolumeSolver.AMReX)
+
   add_executable_with_warnings(AMReX.PerfectGas1d_ThirdOrder AMReX/PerfectGas1d_ThirdOrder.cpp)
   target_link_libraries(AMReX.PerfectGas1d_ThirdOrder FiniteVolumeSolver.AMReX)
 
