@@ -63,7 +63,7 @@ struct ChangeTOpened_Klein {
     if (!t_opened &&
         inner_pressure <= euler::Pressure(equation, compressor_state)) {
       t_opened = gridding.GetTimePoint();
-    } else {
+    } else if (inner_pressure > euler::Pressure(equation, compressor_state)) {
       t_opened.reset();
     }
     return t_opened;

@@ -59,10 +59,10 @@ struct RiemannProblem {
           fub::ForEachIndex(fub::Box<0>(states), [&](std::ptrdiff_t i) {
             const double x = geom.CellCenter(int(i), 0);
             const double pressure = 1.0;
-            state.temperature = (x < 0.5) ? 2.0 : 1.0;
+            state.temperature = 1.0;
             state.density = pressure / state.temperature / equation_.Rspec;
-            state.mole_fractions[0] = 1.0;
-            state.mole_fractions[1] = 0.0;
+            state.mole_fractions[0] = 0.0;
+            state.mole_fractions[1] = 1.0;
             // state.mole_fractions[2] = !(x < 0.4) ? 1.0 : 0.0;
             fub::euler::CompleteFromKineticState(equation_, complete, state,
                                                  velocity);
@@ -134,44 +134,103 @@ void MyMain(const fub::ProgramOptions& options) {
   hierarchy_options.Print(log);
 
   fub::perfect_gas_mix::ArrheniusKinetics<1> source_term{equation};
+  const double eps = std::sqrt(std::numeric_limits<double>::epsilon());
+  
+  auto ignition_delay = [&](double Y, double T) {
+    const double gm1 = equation.gamma - 1.0;
+    double TT = T / (gm1 * source_term.options.Q * std::max(Y, eps));
+    double Ea0 = source_term.options.EA * (1.0 / T);
+    double B0 =
+        source_term.options.B * exp(source_term.options.EA * (1.0 - (1.0 / T)));
+    return ((TT / (B0 * Ea0)) * (1.0 + (2.0 + TT) / Ea0));
+  };
 
-  /* static constexpr double buffer = 0.5;
-  static constexpr double pbufwidth = 1e-10;
-  const double lambda =
-      -std::log(source_term.options.Yign / source_term.options.Yinit /
-                source_term.options.tau);
-  auto fill_f = [lambda, Yign = source_term.options.Yign,
-                 tau = source_term.options.tau](double t) {
-    return Yign * std::exp(lambda * (tau - t));
+  // /*
+  // ==================================================================================
+  // */
+
+  auto d_ignition_delay_dT = [&](double Y, double T) {
+    const double gm1 = equation.gamma - 1.0;
+    double TQ = T / (gm1 * source_term.options.Q * std::max(Y, eps));
+    double TE = T / source_term.options.EA;
+    double A = 1.0 / (source_term.options.B * source_term.options.EA * gm1 *
+                      source_term.options.Q * Y);
+    double dtidT = A * source_term.options.EA *
+                   ((-1.0 + 2.0 * TE) * (1.0 + TE * (2.0 + TQ)) +
+                    2.0 * TE * TE * (1.0 + TQ)) *
+                   exp(-source_term.options.EA * (1.0 - 1.0 / T));
+    return dtidT;
   };
-  auto fill_f_val = [fill_f](double t) {
-    const double ff = fill_f(t);
-    if (ff == 1.0) {
-      return std::numeric_limits<double>::max();
+
+  // /*
+  // ==================================================================================
+  // */
+
+  auto temperature_for_ignition_delay = [&](double tign, double Y, double T0) {
+    double T = T0;
+    double ti = ignition_delay(Y, T);
+    double dti = ti - tign;
+    while (std::abs(dti) > eps) {
+      T -= dti / d_ignition_delay_dT(Y, T);
+      ti = ignition_delay(Y, T);
+      dti = ti - tign;
     }
-    return ff / (1.0 - ff);
+    return T;
   };
-  static constexpr double t_ignite = 1.1753;
-  static constexpr double t_ignite_diff = t_ignite - 1.0;
-  auto inflow_function = [fill_f_val](
-                             const fub::PerfectGasMix<1>&,
-                             fub::KineticState<fub::PerfectGasMix<1>>& kin,
-                             fub::Duration tp, const amrex::MultiFab&,
-                             const fub::amrex::GriddingAlgorithm&, int) {
-    const double dt = tp.count();
-    kin.temperature = 1.0;
-    kin.density = 1.0;
-    if (dt > buffer) {
-      kin.mole_fractions[0] = fill_f_val(dt - t_ignite_diff);
-      kin.mole_fractions[1] = 1.0;
-    } else {
-      // FR
-      kin.mole_fractions[0] = 0.0;
-      kin.mole_fractions[1] = 0.0;
-    }
-    kin.mole_fractions[2] = std::max(
-        0.0, 10.0 * std::min(1.0, 1.0 - (dt - buffer) / pbufwidth / buffer));
-  }; */
+
+  auto inflow_function =
+      [temperature_for_ignition_delay,
+       prim = fub::Primitive<fub::PerfectGasMix<1>>(equation)](
+          const fub::PerfectGasMix<1>& eq,
+          fub::Complete<fub::PerfectGasMix<1>>& boundary_state,
+          const fub::KineticState<fub::PerfectGasMix<1>>& compressor_state,
+          double inner_pressure, fub::Duration t_diff, const amrex::MultiFab&,
+          const fub::amrex::GriddingAlgorithm&, int) mutable {
+        const double fuel_retardatation =
+            0.06;               /* Reference: 0.06;   for icx = 256:  0.1*/
+        const double tti = 1.2; /* Reference: 0.75; */
+        const double timin = 0.1;
+        const double X_inflow_left = 1.0;
+
+        const double p_inflow_left = fub::euler::Pressure(eq, compressor_state);
+        const double rho_inflow_left = compressor_state.density;
+        const double T_inflow_left = compressor_state.temperature;
+
+        const double p = inner_pressure;
+        const double ppv = p_inflow_left;
+        const double rhopv = rho_inflow_left;
+        const double Tpv = T_inflow_left;
+        const double pin = p;
+        const double g = eq.gamma;
+        const double Gamma = (g - 1.0) / g;
+        const double Gammainv = g / (g - 1.0);
+        const double Tin = Tpv * pow(pin / ppv, Gamma);
+        const double uin = std::sqrt(2.0 * Gammainv * std::max(0.0, Tpv - Tin));
+        double rhoin = rhopv * pow(pin / ppv, 1.0 / g);
+
+        const double tign = std::max(timin, tti - t_diff.count());
+        const double Xin = X_inflow_left;
+        const double Tin1 = temperature_for_ignition_delay(tign, Xin, Tin);
+
+        /* adjust density to match desired temperature */
+        rhoin *= Tin / Tin1;
+
+        prim.density = rhoin;
+        prim.velocity[0] = uin;
+        prim.pressure = pin;
+        auto heaviside = [](double x) { return (x > 0); };
+        prim.species[0] = Xin * heaviside(t_diff.count()-fuel_retardatation);
+
+        fub::CompleteFromPrim(eq, boundary_state, prim);
+      };
+
+  fub::KineticState<fub::PerfectGasMix<1>> compressor_state(equation);
+  compressor_state.temperature = 1.0;
+  compressor_state.density = 1.05 / compressor_state.temperature;
+  compressor_state.mole_fractions[0] = 1.0;
+
+  fub::amrex::PressureValveBoundary_Klein valve(equation, compressor_state,
+                                                inflow_function);
 
   /* fub::amrex::BoundarySet boundary;
   using fub::amrex::IsentropicPressureExpansion;
@@ -182,10 +241,7 @@ void MyMain(const fub::ProgramOptions& options) {
                                                          fub::Direction::X, 1});
  */
   fub::amrex::BoundarySet boundary;
-  using fub::amrex::ReflectiveBoundary;
-  auto seq = fub::execution::seq;
-  boundary.conditions.push_back(
-      ReflectiveBoundary{seq, equation, fub::Direction::X, 0});
+  boundary.conditions.push_back(valve);
   using fub::amrex::IsentropicPressureExpansion;
   // boundary.conditions.push_back(
   //    ReflectiveBoundary{seq, equation, fub::Direction::X, 1});

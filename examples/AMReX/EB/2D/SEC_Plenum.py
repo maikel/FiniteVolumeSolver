@@ -62,7 +62,7 @@ tube_n_cells = int(tube_n_cells)
 
 RunOptions = {
   'cfl': 0.8,
-  'final_time': 100.0,
+  'final_time': 10.0,
   'max_cycles': -1,
   'do_backup': 0
 }
@@ -193,7 +193,7 @@ Tube_FluxMethod['area_variation'] = Area
 
 Tubes = [{
   'checkpoint': checkpoint,
-  'buffer': 0.5,
+  'buffer': 0.06,
   'initially_filled_x': 0.2,
   'FluxMethod': Tube_FluxMethod,
   'plenum_mirror_box': PlenumMirrorBox(y_0),
