@@ -81,9 +81,10 @@ struct InitialDataInTube {
   double initially_filled_x_{0.4};
 
   void InitializeData(fub::amrex::PatchLevel& patch_level,
-                      const fub::amrex::GriddingAlgorithm& /* grid */, int /* level */,
-                      fub::Duration /*time*/) const {
-    // const amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
+                      const fub::amrex::GriddingAlgorithm& /* grid */,
+                      int /* level */, fub::Duration /*time*/) const {
+    // const amrex::Geometry& geom =
+    // grid.GetPatchHierarchy().GetGeometry(level);
     amrex::MultiFab& data = patch_level.data;
     fub::amrex::ForEachFab(
         fub::execution::openmp, data, [&](amrex::MFIter& mfi) {
@@ -363,7 +364,8 @@ GetFluxMethod(const fub::ProgramOptions& options,
   BaseMethod base_method = base_methods.at(base_method_option);
 
   return std::visit(
-      [&equation, &hier, &area_lambda](auto limiter, auto reconstruction, auto base_method_type) {
+      [&equation, &hier, &area_lambda](auto limiter, auto reconstruction,
+                                       auto base_method_type) {
         using ThisLimiter = fub::remove_cvref_t<decltype(limiter)>;
         auto flux_method = RebindLimiter<ThisLimiter>(
             reconstruction, base_method_type, equation);
@@ -371,8 +373,8 @@ GetFluxMethod(const fub::ProgramOptions& options,
         auto pressure = adapted.SharedInterfacePressure();
         const ::amrex::Vector<::amrex::Geometry> geoms = hier.GetGeometries();
         std::vector<::amrex::Geometry> std_geoms(geoms.begin(), geoms.end());
-        fub::amrex::AxialTimeIntegrator time_integrator(
-            equation, std_geoms, pressure, area_lambda);
+        fub::amrex::AxialTimeIntegrator time_integrator(equation, std_geoms,
+                                                        pressure, area_lambda);
         fub::AnyFluxMethod<fub::amrex::IntegratorContext> any_flux(
             std::move(adapted));
         fub::AnyTimeIntegrator<fub::amrex::IntegratorContext> any_time(
@@ -418,9 +420,13 @@ auto MakeTubeSolver(const fub::ProgramOptions& options,
   InitialDataInTube initial_data{equation, grid_geometry.coordinates.lo()[0],
                                  initially_filled_x};
 
-  fub::perfect_gas_mix::ArrheniusKinetics<1> source_term{equation};
+  fub::perfect_gas_mix::ArrheniusKinetics<1> source_term{
+      equation, fub::GetOptions(options, "ArrheniusKinetics")};
+  BOOST_LOG(log) << "ArrheniusKinetics:";
+  source_term.options.Print(log);
+
   const double eps = std::sqrt(std::numeric_limits<double>::epsilon());
-  
+
   auto ignition_delay = [=](double Y, double T) {
     const double gm1 = equation.gamma - 1.0;
     double TT = T / (gm1 * source_term.options.Q * std::max(Y, eps));
@@ -472,7 +478,7 @@ auto MakeTubeSolver(const fub::ProgramOptions& options,
           double inner_pressure, fub::Duration t_diff, const amrex::MultiFab&,
           const fub::amrex::GriddingAlgorithm&, int) mutable {
         const double fuel_retardatation =
-            0.06;               /* Reference: 0.06;   for icx = 256:  0.1*/
+            0.06;                /* Reference: 0.06;   for icx = 256:  0.1*/
         const double tti = 0.75; /* Reference: 0.75; */
         const double timin = 0.1;
         const double X_inflow_left = 1.0;
@@ -504,7 +510,8 @@ auto MakeTubeSolver(const fub::ProgramOptions& options,
         prim.velocity[0] = uin;
         prim.pressure = pin;
         auto heaviside = [](double x) { return (x > 0); };
-        prim.species[0] = std::clamp(Xin * heaviside(t_diff.count()-fuel_retardatation), 0.0, 1.0);
+        prim.species[0] = std::clamp(
+            Xin * heaviside(t_diff.count() - fuel_retardatation), 0.0, 1.0);
 
         fub::CompleteFromPrim(eq, boundary_state, prim);
       };
@@ -548,7 +555,8 @@ auto MakeTubeSolver(const fub::ProgramOptions& options,
   }();
 
   auto [flux_method, time_integrator] =
-      GetFluxMethod(fub::GetOptions(options, "FluxMethod"), gridding->GetPatchHierarchy(), equation);
+      GetFluxMethod(fub::GetOptions(options, "FluxMethod"),
+                    gridding->GetPatchHierarchy(), equation);
   HyperbolicMethod method{flux_method, time_integrator,
                           Reconstruction(equation)};
 
@@ -559,7 +567,7 @@ auto MakeTubeSolver(const fub::ProgramOptions& options,
 
   BOOST_LOG(log) << "==================== End Tube =========================";
 
-  return context;
+  return std::pair{context, source_term};
 }
 
 auto MakePlenumSolver(const std::map<std::string, pybind11::object>& options) {
@@ -877,6 +885,8 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
 
   std::vector<fub::amrex::cutcell::IntegratorContext> plenum{};
   std::vector<fub::amrex::IntegratorContext> tubes{};
+  using Kinetics = fub::perfect_gas_mix::ArrheniusKinetics<Tube_Rank>;
+  std::vector<Kinetics> kinetics{};
   std::vector<fub::amrex::BlockConnection> connectivity{};
 
   plenum.push_back(MakePlenumSolver(fub::GetOptions(vm, "Plenum")));
@@ -886,7 +896,7 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   tube_dicts = fub::GetOptionOr(vm, "Tubes", tube_dicts);
   for (pybind11::dict& dict : tube_dicts) {
     fub::ProgramOptions tube_options = fub::ToMap(dict);
-    auto&& tube = MakeTubeSolver(tube_options, counter_database);
+    auto&& [tube, source] = MakeTubeSolver(tube_options, counter_database);
     fub::amrex::BlockConnection connection;
     connection.direction = fub::Direction::X;
     connection.side = 0;
@@ -907,6 +917,7 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
     }
     connection.plenum.mirror_box = plenum_mirror_box;
     tubes.push_back(std::move(tube));
+    kinetics.push_back(source);
     connectivity.push_back(connection);
   }
 
@@ -922,13 +933,7 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   fub::DimensionalSplitLevelIntegrator system_solver(
       fub::int_c<Plenum_Rank>, std::move(context), fub::GodunovSplitting{});
 
-  std::vector source_terms_vector(
-      system_solver.GetContext().Tubes().size(),
-      fub::perfect_gas_mix::ArrheniusKinetics<1>(tube_equation));
-
-  fub::amrex::MultiBlockSourceTerm<
-      fub::perfect_gas_mix::ArrheniusKinetics<1>>
-      source_term(source_terms_vector);
+  fub::amrex::MultiBlockSourceTerm<Kinetics> source_term(kinetics);
 
   fub::SplitSystemSourceLevelIntegrator level_integrator(
       std::move(system_solver), std::move(source_term),
