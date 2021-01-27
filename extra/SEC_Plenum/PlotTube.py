@@ -96,10 +96,10 @@ for mode, suptitle in zip(modes, mode_titles):
   file = h5py.File(output_base_path, mode='r')
   rho_data = np.squeeze(np.array(file['data'][:, 0, :, :]))
   rhou_data = np.squeeze(np.array(file['data'][:, 1, :, :]))
-  rhov_data = np.squeeze(np.array(file['data'][:, 2, :, :]))
-  rhoE_data = np.squeeze(np.array(file['data'][:, 3, :, :]))
-  rhoF_data = np.squeeze(np.array(file['data'][:, 4, :, :]))
-  rhoFR_data = np.squeeze(np.array(file['data'][:, 5, :, :]))
+  # rhov_data = np.squeeze(np.array(file['data'][:, 2, :, :]))
+  rhoE_data = np.squeeze(np.array(file['data'][:, 2, :, :]))
+  rhoF_data = np.squeeze(np.array(file['data'][:, 3, :, :]))
+  rhoFR_data = np.squeeze(np.array(file['data'][:, 4, :, :]))
   p_data = np.squeeze(np.array(file['data'][:, -2, :, :]))
   c_data = np.squeeze(np.array(file['data'][:, -1, :, :]))
   rhoP_data = rho_data - rhoF_data - rhoFR_data
@@ -113,6 +113,8 @@ for mode, suptitle in zip(modes, mode_titles):
   t0 = 0.0
   tEnd = times[-1]
 
+  print(np.max(F_data))
+
   titles = ['Temperature', 'Pressure', 'Fuel Massfraction']
   datas = [T_data, p_data, F_data]
   f, ax = plt.subplots(nrows=1, ncols=3, figsize=set_size('thesis'), sharey=True)# figsize=(15, 10)) #set_size('thesis'))
@@ -124,6 +126,9 @@ for mode, suptitle in zip(modes, mode_titles):
       'extent': (x0, xEnd, t0, tEnd),
       'aspect': 'auto'
     }
+    if title == 'Fuel Massfraction':
+      props['vmax'] = None
+      props['vmin'] = None
     if  title == 'Temperature':
       props['vmax'] = 3.0
     if title == 'Pressure':

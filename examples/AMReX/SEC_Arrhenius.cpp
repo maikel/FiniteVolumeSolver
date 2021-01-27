@@ -188,7 +188,7 @@ void MyMain(const fub::ProgramOptions& options) {
           const fub::amrex::GriddingAlgorithm&, int) mutable {
         const double fuel_retardatation =
             0.06;               /* Reference: 0.06;   for icx = 256:  0.1*/
-        const double tti = 1.2; /* Reference: 0.75; */
+        const double tti = 0.75; /* Reference: 0.75; */
         const double timin = 0.1;
         const double X_inflow_left = 1.0;
 

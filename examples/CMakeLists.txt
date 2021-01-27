@@ -96,6 +96,9 @@ if (AMReX_FOUND AND AMReX_2D_FOUND)
     add_executable_with_warnings(AMReX.EB.SEC_Plenum AMReX/EB/2D/SEC_Plenum.cpp)
     target_link_libraries(AMReX.EB.SEC_Plenum FiniteVolumeSolver.AMReX.EB)
 
+    add_executable_with_warnings(AMReX.EB.SEC_Plenum_Arrhenius AMReX/EB/2D/SEC_Plenum_Arrhenius.cpp)
+    target_link_libraries(AMReX.EB.SEC_Plenum_Arrhenius FiniteVolumeSolver.AMReX.EB)
+
     add_executable_with_warnings(AMReX.EB.ConvergentNozzleAxiSymmetric AMReX/EB/2D/ConvergentNozzleAxiSymmetric.cpp)
     target_link_libraries(AMReX.EB.ConvergentNozzleAxiSymmetric FiniteVolumeSolver.AMReX.EB)
 
