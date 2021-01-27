@@ -37,8 +37,10 @@ ArrheniusKineticsOptions::ArrheniusKineticsOptions(
 }
 
 template <int Rank>
-ArrheniusKinetics<Rank>::ArrheniusKinetics(const PerfectGasMix<Rank>& eq)
-    : equation_{eq}, state_{CompleteArray<PerfectGasMix<Rank>>(eq)},
+ArrheniusKinetics<Rank>::ArrheniusKinetics(const PerfectGasMix<Rank>& eq,
+                                           const ArrheniusKineticsOptions& opts)
+    : options{opts}, equation_{eq}, state_{CompleteArray<PerfectGasMix<Rank>>(
+                                        eq)},
       kinetic_state_{KineticStateArray<PerfectGasMix<Rank>>(eq)} {}
 
 template <int Rank> Duration ArrheniusKinetics<Rank>::ComputeStableDt(int) {

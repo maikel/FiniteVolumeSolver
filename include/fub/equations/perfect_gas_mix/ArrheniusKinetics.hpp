@@ -63,7 +63,9 @@ public:
   static constexpr int Rank = R;
   static constexpr std::size_t sRank = static_cast<std::size_t>(Rank);
 
-  ArrheniusKinetics(const PerfectGasMix<Rank>& eq);
+  explicit ArrheniusKinetics(
+      const PerfectGasMix<Rank>& eq,
+      const ArrheniusKineticsOptions& options = ArrheniusKineticsOptions());
 
   Duration ComputeStableDt(int level);
 
