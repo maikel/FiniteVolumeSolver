@@ -25,6 +25,8 @@
 #include "fub/AMReX/IntegratorContext.hpp"
 #include "fub/TimeStepError.hpp"
 #include "fub/equations/PerfectGasMix.hpp"
+#include "fub/ext/Log.hpp"
+#include "fub/ext/ProgramOptions.hpp"
 #include "fub/ext/omp.hpp"
 #include "fub/ext/outcome.hpp"
 
@@ -34,16 +36,25 @@
 namespace fub::perfect_gas_mix {
 
 struct ArrheniusKineticsOptions {
+  ArrheniusKineticsOptions() = default; ///< default constructor
+  ArrheniusKineticsOptions(
+      const ProgramOptions& options); ///< constructor with options
+
+  /// \brief simple Print function for the options
+  ///
+  /// \param log the logger for the output
+  template <typename Log> void Print(Log& log);
+
   /* dimensionless thermochemical parameters */
   /* think of T1 as compressor exit temperature */
   // default values taken from SEC_C/SEC_C/Input/userdata_Combustion.c
 
   // Test
-  double Q{3.0 / 0.4};   // heat of reaction
-  double EA{10.0};       // activation energy
-  double B{0.05 / 1.25}; // coefficient of reaction
+  double Q{3.0 / 0.4};   ///< heat of reaction
+  double EA{11.0};       ///< activation energy
+  double B{0.05 / 1.25}; ///< coefficient of reaction
   /* Reference: 0.11/1.25; 0.05/1.25 */
-  double T_switch{1.05}; // switch temperature
+  double T_switch{1.05}; ///< switch temperature
 };
 
 /// \ingroup LevelIntegrator
@@ -68,6 +79,13 @@ private:
   OmpLocal<CompleteArray<PerfectGasMix<Rank>>> state_;
   OmpLocal<KineticStateArray<PerfectGasMix<Rank>>> kinetic_state_;
 };
+
+template <typename Log> void ArrheniusKineticsOptions::Print(Log& log) {
+  BOOST_LOG(log) << fmt::format(" - Q = {}", Q);
+  BOOST_LOG(log) << fmt::format(" - EA = {}", EA);
+  BOOST_LOG(log) << fmt::format(" - B = {}", B);
+  BOOST_LOG(log) << fmt::format(" - T_switch = {}", T_switch);
+}
 
 extern template class ArrheniusKinetics<1>;
 extern template class ArrheniusKinetics<2>;

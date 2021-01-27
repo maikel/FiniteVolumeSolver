@@ -28,6 +28,14 @@
 
 namespace fub::perfect_gas_mix {
 
+ArrheniusKineticsOptions::ArrheniusKineticsOptions(
+    const ProgramOptions& options) {
+  Q = GetOptionOr(options, "Q", Q);
+  EA = GetOptionOr(options, "EA", EA);
+  B = GetOptionOr(options, "B", B);
+  T_switch = GetOptionOr(options, "T_switch", T_switch);
+}
+
 template <int Rank>
 ArrheniusKinetics<Rank>::ArrheniusKinetics(const PerfectGasMix<Rank>& eq)
     : equation_{eq}, state_{CompleteArray<PerfectGasMix<Rank>>(eq)},

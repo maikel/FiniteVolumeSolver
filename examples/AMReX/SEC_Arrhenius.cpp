@@ -45,9 +45,10 @@ struct RiemannProblem {
   Equation equation_;
 
   void InitializeData(fub::amrex::PatchLevel& patch_level,
-                      const fub::amrex::GriddingAlgorithm& grid, int level,
-                      fub::Duration /*time*/) const {
-    const amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
+                      const fub::amrex::GriddingAlgorithm& /* grid */,
+                      int /* level */, fub::Duration /*time*/) const {
+    // const amrex::Geometry& geom =
+    // grid.GetPatchHierarchy().GetGeometry(level);
     amrex::MultiFab& data = patch_level.data;
     fub::amrex::ForEachFab(
         fub::execution::openmp, data, [&](amrex::MFIter& mfi) {
@@ -57,7 +58,7 @@ struct RiemannProblem {
           fub::View<Complete> states = fub::amrex::MakeView<Complete>(
               data[mfi], equation_, mfi.tilebox());
           fub::ForEachIndex(fub::Box<0>(states), [&](std::ptrdiff_t i) {
-            const double x = geom.CellCenter(int(i), 0);
+            // const double x = geom.CellCenter(int(i), 0);
             const double pressure = 1.0;
             state.temperature = 1.0;
             state.density = pressure / state.temperature / equation_.Rspec;
@@ -133,9 +134,13 @@ void MyMain(const fub::ProgramOptions& options) {
   BOOST_LOG(log) << "PatchHierarchy:";
   hierarchy_options.Print(log);
 
+  fub::ProgramOptions arr_opts = fub::GetOptions(options, "ArrheniusKinetics");
+  fub::perfect_gas_mix::ArrheniusKineticsOptions arrhenius_options(arr_opts);
+  BOOST_LOG(log) << "ArrheniusKinetics:";
+  arrhenius_options.Print(log);
   fub::perfect_gas_mix::ArrheniusKinetics<1> source_term{equation};
   const double eps = std::sqrt(std::numeric_limits<double>::epsilon());
-  
+
   auto ignition_delay = [&](double Y, double T) {
     const double gm1 = equation.gamma - 1.0;
     double TT = T / (gm1 * source_term.options.Q * std::max(Y, eps));
@@ -187,7 +192,7 @@ void MyMain(const fub::ProgramOptions& options) {
           double inner_pressure, fub::Duration t_diff, const amrex::MultiFab&,
           const fub::amrex::GriddingAlgorithm&, int) mutable {
         const double fuel_retardatation =
-            0.06;               /* Reference: 0.06;   for icx = 256:  0.1*/
+            0.06;                /* Reference: 0.06;   for icx = 256:  0.1*/
         const double tti = 0.75; /* Reference: 0.75; */
         const double timin = 0.1;
         const double X_inflow_left = 1.0;
@@ -219,7 +224,7 @@ void MyMain(const fub::ProgramOptions& options) {
         prim.velocity[0] = uin;
         prim.pressure = pin;
         auto heaviside = [](double x) { return (x > 0); };
-        prim.species[0] = Xin * heaviside(t_diff.count()-fuel_retardatation);
+        prim.species[0] = Xin * heaviside(t_diff.count() - fuel_retardatation);
 
         fub::CompleteFromPrim(eq, boundary_state, prim);
       };
