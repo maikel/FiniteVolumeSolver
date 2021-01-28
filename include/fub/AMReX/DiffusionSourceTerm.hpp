@@ -175,7 +175,7 @@ void DiffusionSourceTerm<EulerEquation>::ComputeDiffusionFlux(
   flux.momentum.row(0) = -constants_.mu_effective * du_dx;
   flux.energy = -(constants_.mu_effective * u * du_dx +
                   constants_.mu_Pr_effective * dh_dx);
-  for (int s = 0; s < states[0].species.size(); ++s) {
+  for (int s = 0; s < states[0].species.rows(); ++s) {
     const Array1d YL = states[0].species.row(s) * rhoinvL;
     const Array1d YR = states[1].species.row(s) * rhoinvR;
     const Array1d dY_dx = (YR - YL) * dxinv;
