@@ -51,7 +51,7 @@ struct ArrheniusKineticsOptions {
 
   // Test
   double Q{3.0 / 0.4};   ///< heat of reaction
-  double EA{11.0};       ///< activation energy
+  double EA{10.0};       ///< activation energy
   double B{0.05 / 1.25}; ///< coefficient of reaction
   /* Reference: 0.11/1.25; 0.05/1.25 */
   double T_switch{1.05}; ///< switch temperature

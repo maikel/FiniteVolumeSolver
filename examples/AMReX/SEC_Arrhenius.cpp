@@ -135,11 +135,9 @@ void MyMain(const fub::ProgramOptions& options) {
   BOOST_LOG(log) << "PatchHierarchy:";
   hierarchy_options.Print(log);
 
-  fub::ProgramOptions arr_opts = fub::GetOptions(options, "ArrheniusKinetics");
-  fub::perfect_gas_mix::ArrheniusKineticsOptions arrhenius_options(arr_opts);
+  fub::perfect_gas_mix::ArrheniusKinetics<1> source_term{equation, fub::GetOptions(options, "ArrheniusKinetics")};
   BOOST_LOG(log) << "ArrheniusKinetics:";
-  arrhenius_options.Print(log);
-  fub::perfect_gas_mix::ArrheniusKinetics<1> source_term{equation};
+  source_term.options.Print(log);
   const double eps = std::sqrt(std::numeric_limits<double>::epsilon());
 
   auto ignition_delay = [&](double Y, double T) {
