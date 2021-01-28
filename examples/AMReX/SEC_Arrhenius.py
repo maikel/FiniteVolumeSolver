@@ -53,7 +53,7 @@ Output = {
   'outputs': [{
     'type': 'HDF5',
     'path': paths[reconstruction],
-    'intervals': [0.01],
+    'intervals': [0.005],
     #'frequencies': [1],
   },{
     'type': 'CounterOutput',
