@@ -51,8 +51,11 @@ public:
   AdvanceLevel(IntegratorContext& simulation_data, int level, Duration dt,
                const ::amrex::IntVect& ngrow = ::amrex::IntVect()) const;
 
+  // ComputeDiffusionFluxes(::amrex::MultiFab& fluxes, const ::amrex::MultiFab&
+  // scratch, double dxinv);
+
   void ComputeDiffusionFlux(ConservativeArray& fluxes,
-                            span<const CompleteArray, 2> states, Duration dt,
+                            span<const ConservativeArray, 2> states,
                             double dx) const;
 
 private:
@@ -67,7 +70,7 @@ private:
       prandtl_invers = 1.0 / o.prandtl;
       mul_schmidt_inv = schmidt_invers * mul;
       mul_prandtl_inv = prandtl_invers * mul;
-      mu_effective = 4.0 / 3.0 * mul * reynolds_invers;
+      pippo_four_three_mu_effective = 4.0 / 3.0 * mul * reynolds_invers;
       mu_Pr_effective = mul * reynolds_invers * prandtl_invers;
       mu_Sc_effective = mul * reynolds_invers * schmidt_invers;
     }
@@ -78,10 +81,13 @@ private:
     double prandtl_invers;
     double mul_schmidt_inv;
     double mul_prandtl_inv;
-    double mu_effective;
+    double pippo_four_three_mu_effective;
     double mu_Pr_effective;
     double mu_Sc_effective;
   } constants_{options_};
+
+  Array1d Enthalpy(const ConservativeArray& q, const Array1d& rhoinvers) const
+      noexcept;
 };
 
 template <typename EulerEquation>
@@ -100,8 +106,8 @@ Result<void, TimeStepTooLarge> DiffusionSourceTerm<EulerEquation>::AdvanceLevel(
   ::amrex::MultiFab fluxes_diffusion(fluxes.boxArray(),
                                      fluxes.DistributionMap(), fluxes.nComp(),
                                      fluxes.nGrowVect());
-  std::array<CompleteArray, 2> stencil{CompleteArray(equation_),
-                                       CompleteArray(equation_)};
+  std::array<ConservativeArray, 2> stencil{ConservativeArray(equation_),
+                                           ConservativeArray(equation_)};
   ConservativeArray flux(equation_);
   const ::amrex::Geometry& geom = simulation_data.GetGeometry(level);
   const double dx = geom.CellSize(0);
@@ -111,16 +117,16 @@ Result<void, TimeStepTooLarge> DiffusionSourceTerm<EulerEquation>::AdvanceLevel(
     const ::amrex::Box cell_validbox = scratch[mfi].box();
     const auto [cell_box, face_box] = GetCellsAndFacesInStencilRange(
         cell_validbox, face_tilebox, 1, Direction::X);
-    View<const Complete> patch_data =
-        MakeView<const Complete>(scratch[mfi], equation_, cell_box);
-    View<const Complete> lefts = Shrink(patch_data, Direction::X, {0, 1});
-    View<const Complete> rights = Shrink(patch_data, Direction::X, {1, 0});
+    View<const Conservative> patch_data =
+        MakeView<const Conservative>(scratch[mfi], equation_, cell_box);
+    View<const Conservative> lefts = Shrink(patch_data, Direction::X, {0, 1});
+    View<const Conservative> rights = Shrink(patch_data, Direction::X, {1, 0});
     View<Conservative> fluxes_diff =
         MakeView<Conservative>(fluxes_diffusion[mfi], equation_, face_box);
     ForEachRow(std::tuple{fluxes_diff, lefts, rights},
                [&](const Row<Conservative>& row_flux,
-                   const Row<const Complete>& row_left,
-                   const Row<const Complete>& row_right) {
+                   const Row<const Conservative>& row_left,
+                   const Row<const Conservative>& row_right) {
                  ViewPointer inL = Begin(row_left);
                  ViewPointer inR = Begin(row_right);
                  ViewPointer out = Begin(row_flux);
@@ -129,7 +135,7 @@ Result<void, TimeStepTooLarge> DiffusionSourceTerm<EulerEquation>::AdvanceLevel(
                  while (n >= kDefaultChunkSize) {
                    Load(stencil[0], inL);
                    Load(stencil[1], inR);
-                   ComputeDiffusionFlux(flux, stencil, dt, dxinv);
+                   ComputeDiffusionFlux(flux, stencil, dxinv);
                    Store(out, flux);
                    Advance(inL, kDefaultChunkSize);
                    Advance(inR, kDefaultChunkSize);
@@ -138,13 +144,14 @@ Result<void, TimeStepTooLarge> DiffusionSourceTerm<EulerEquation>::AdvanceLevel(
                  }
                  LoadN(stencil[0], inL, n);
                  LoadN(stencil[1], inR, n);
-                 ComputeDiffusionFlux(flux, stencil, dt, dxinv);
+                 ComputeDiffusionFlux(flux, stencil, dxinv);
                  StoreN(out, flux, n);
                });
   });
   ForwardIntegrator(execution::simd)
       .UpdateConservatively(scratch, scratch, fluxes_diffusion, geom, dt,
                             Direction::X);
+  Reconstruction(execution::simd, equation_).CompleteFromCons(scratch, scratch);
   simulation_data.ApplyBoundaryCondition(level, Direction::X);
   return boost::outcome_v2::success();
 }
@@ -156,8 +163,17 @@ Duration DiffusionSourceTerm<EulerEquation>::ComputeStableDt([
 }
 
 template <typename EulerEquation>
+Array1d DiffusionSourceTerm<EulerEquation>::Enthalpy(
+    const ConservativeArray& q, const Array1d& rhoinvers) const noexcept {
+  const Array1d rhou = q.momentum.row(0);
+  const Array1d rhoe = q.energy;
+  const double gamm = equation_.gamma;
+  return ((gamm * rhoe - gamm * 0.5 * rhou * rhou * rhoinvers) * rhoinvers);
+}
+
+template <typename EulerEquation>
 void DiffusionSourceTerm<EulerEquation>::ComputeDiffusionFlux(
-    ConservativeArray& flux, span<const CompleteArray, 2> states, Duration,
+    ConservativeArray& flux, span<const ConservativeArray, 2> states,
     double dxinv) const {
   FUB_ASSERT(!states[0].density.isNaN().any());
   FUB_ASSERT(!states[1].density.isNaN().any());
@@ -167,13 +183,12 @@ void DiffusionSourceTerm<EulerEquation>::ComputeDiffusionFlux(
   const Array1d uR = states[1].momentum.row(0) * rhoinvR;
   const Array1d u = 0.5 * (uL + uR);
   const Array1d du_dx = (uR - uL) * dxinv;
-  const Array1d hL = (states[0].energy + states[0].pressure) * rhoinvL;
-  const Array1d hR = (states[1].energy + states[1].pressure) * rhoinvR;
+  const Array1d hL = Enthalpy(states[0], rhoinvL);
+  const Array1d hR = Enthalpy(states[1], rhoinvR);
   const Array1d dh_dx = (hR - hL) * dxinv;
 
-  flux.density = Array1d::Zero();
-  flux.momentum.row(0) = -constants_.mu_effective * du_dx;
-  flux.energy = -(constants_.mu_effective * u * du_dx +
+  flux.momentum.row(0) = -constants_.pippo_four_three_mu_effective * du_dx;
+  flux.energy = -(constants_.pippo_four_three_mu_effective * u * du_dx +
                   constants_.mu_Pr_effective * dh_dx);
   for (int s = 0; s < states[0].species.rows(); ++s) {
     const Array1d YL = states[0].species.row(s) * rhoinvL;
