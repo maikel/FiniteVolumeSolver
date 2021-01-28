@@ -36,6 +36,8 @@ struct DiffusionSourceTermOptions {
 
 template <typename EulerEquation> class DiffusionSourceTerm {
 public:
+  static_assert(EulerEquation::Rank() == 1);
+
   using Conservative = ::fub::Conservative<EulerEquation>;
   using Complete = ::fub::Complete<EulerEquation>;
   using ConservativeArray = ::fub::ConservativeArray<EulerEquation>;
@@ -51,8 +53,9 @@ public:
   AdvanceLevel(IntegratorContext& simulation_data, int level, Duration dt,
                const ::amrex::IntVect& ngrow = ::amrex::IntVect()) const;
 
-  // ComputeDiffusionFluxes(::amrex::MultiFab& fluxes, const ::amrex::MultiFab&
-  // scratch, double dxinv);
+  void ComputeDiffusionFluxes(::amrex::MultiFab& fluxes,
+                              const ::amrex::MultiFab& scratch,
+                              double dxinv) const;
 
   void ComputeDiffusionFlux(ConservativeArray& fluxes,
                             span<const ConservativeArray, 2> states,
@@ -99,19 +102,68 @@ template <typename EulerEquation>
 Result<void, TimeStepTooLarge> DiffusionSourceTerm<EulerEquation>::AdvanceLevel(
     IntegratorContext& simulation_data, int level, Duration dt,
     const ::amrex::IntVect&) const {
-  simulation_data.ApplyBoundaryCondition(level, Direction::X);
+  if (level > 0) {
+    AnyBoundaryCondition bc =
+        simulation_data.GetGriddingAlgorithm()->GetBoundaryCondition();
+    simulation_data.FillGhostLayerTwoLevels(level, bc, level - 1, bc);
+  } else {
+    AnyBoundaryCondition bc =
+        simulation_data.GetGriddingAlgorithm()->GetBoundaryCondition();
+    simulation_data.FillGhostLayerSingleLevel(level, bc);
+  }
+
   ::amrex::MultiFab& scratch = simulation_data.GetScratch(level);
   const ::amrex::MultiFab& fluxes =
       simulation_data.GetFluxes(level, Direction::X);
   ::amrex::MultiFab fluxes_diffusion(fluxes.boxArray(),
                                      fluxes.DistributionMap(), fluxes.nComp(),
-                                     fluxes.nGrowVect());
-  std::array<ConservativeArray, 2> stencil{ConservativeArray(equation_),
-                                           ConservativeArray(equation_)};
-  ConservativeArray flux(equation_);
+                                     ::amrex::IntVect::TheDimensionVector(0));
   const ::amrex::Geometry& geom = simulation_data.GetGeometry(level);
   const double dx = geom.CellSize(0);
   const double dxinv = 1.0 / dx;
+  // 1.) Compute diffusion fluxes from the current scratch grid.
+  ComputeDiffusionFluxes(fluxes_diffusion, scratch, dxinv);
+  ::amrex::MultiFab scratch_aux(scratch.boxArray(), scratch.DistributionMap(),
+                                fluxes.nComp(), scratch.nGrowVect());
+  // 2.) Compute the half-timestep state including one ghost cell and store then
+  // in scratch_aux
+  ForwardIntegrator(execution::simd)
+      .UpdateConservatively(scratch_aux, scratch, fluxes_diffusion, geom,
+                            0.5 * dt, Direction::X);
+  // 3.) Recompute diffusion fluxes based from the half-timestep states.
+  ComputeDiffusionFluxes(fluxes_diffusion, scratch_aux, dxinv);
+  // 4.) Update now the scratch grid using the half-timestep fluxes from time t0
+  // to t0+dt
+  //     The inner cells are ok now, because step 2.) updated one ghost cell
+  ForwardIntegrator(execution::simd)
+      .UpdateConservatively(scratch, scratch, fluxes_diffusion, geom, dt,
+                            Direction::X);
+  // 5.) Recompute all auxiliary variables from the conservative ones to get
+  // valid cell states on scratch
+  Reconstruction(execution::simd, equation_).CompleteFromCons(scratch, scratch);
+
+  // 6.) Synchronize all ghost cells across MPI processes to get valid ghost
+  // cells.
+  if (level > 0) {
+    AnyBoundaryCondition bc =
+        simulation_data.GetGriddingAlgorithm()->GetBoundaryCondition();
+    simulation_data.FillGhostLayerTwoLevels(level, bc, level - 1, bc);
+  } else {
+    AnyBoundaryCondition bc =
+        simulation_data.GetGriddingAlgorithm()->GetBoundaryCondition();
+    simulation_data.FillGhostLayerSingleLevel(level, bc);
+  }
+
+  return boost::outcome_v2::success();
+}
+
+template <typename EulerEquation>
+void DiffusionSourceTerm<EulerEquation>::ComputeDiffusionFluxes(
+    ::amrex::MultiFab& fluxes_diffusion, const ::amrex::MultiFab& scratch,
+    double dxinv) const {
+  std::array<ConservativeArray, 2> stencil{ConservativeArray(equation_),
+                                           ConservativeArray(equation_)};
+  ConservativeArray flux(equation_);
   ForEachFab(fluxes_diffusion, [&](const ::amrex::MFIter& mfi) {
     const ::amrex::Box face_tilebox = mfi.growntilebox();
     const ::amrex::Box cell_validbox = scratch[mfi].box();
@@ -148,12 +200,6 @@ Result<void, TimeStepTooLarge> DiffusionSourceTerm<EulerEquation>::AdvanceLevel(
                  StoreN(out, flux, n);
                });
   });
-  ForwardIntegrator(execution::simd)
-      .UpdateConservatively(scratch, scratch, fluxes_diffusion, geom, dt,
-                            Direction::X);
-  Reconstruction(execution::simd, equation_).CompleteFromCons(scratch, scratch);
-  simulation_data.ApplyBoundaryCondition(level, Direction::X);
-  return boost::outcome_v2::success();
 }
 
 template <typename EulerEquation>
@@ -175,8 +221,6 @@ template <typename EulerEquation>
 void DiffusionSourceTerm<EulerEquation>::ComputeDiffusionFlux(
     ConservativeArray& flux, span<const ConservativeArray, 2> states,
     double dxinv) const {
-  FUB_ASSERT(!states[0].density.isNaN().any());
-  FUB_ASSERT(!states[1].density.isNaN().any());
   const Array1d rhoinvL = 1.0 / states[0].density;
   const Array1d rhoinvR = 1.0 / states[1].density;
   const Array1d uL = states[0].momentum.row(0) * rhoinvL;
