@@ -7,7 +7,7 @@ n_cells = int(x_len / dx)
 RunOptions = {
   'cfl': 0.5 * 0.9 / float(n_cells / 64),
   # 'final_time': 0.2 / math.sqrt(101325.),
-  'final_time': 10.0,
+  'final_time': 5.0,
   # 'max_cycles': 1,
 }
 
@@ -27,12 +27,12 @@ PatchHierarchy = {
  'max_grid_size': [n_cells, 1, 1],
 }
 
-ArrheniusKinetics = {
-  'Q': 8.0,
-  'EA': 11.0,
-  'B': 0.05,
-  'T_switch':1.10,
-}
+# ArrheniusKinetics = {
+#   'Q': 8.0,
+#   'EA': 11.0,
+#   'B': 0.05,
+#   'T_switch':1.10,
+# }
 
 reconstruction = "Characteristics"
 #reconstruction = "Conservative"

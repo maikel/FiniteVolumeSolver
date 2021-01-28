@@ -67,6 +67,7 @@ private:
   int side_;
 };
 
+// this function seems to be incorrect... better not use it!
 template <typename EulerEquation>
 void ExpandState(EulerEquation& eq, Complete<EulerEquation>& dest,
                  const Complete<EulerEquation>& src, double pressure_dest,
@@ -146,7 +147,8 @@ void IsentropicPressureExpansion<EulerEquation>::FillBoundary(
                        Index<EulerEquation::Rank()> src =
                            MapToSrc(dest, geom, side_, dir_);
                        Load(state, states, src);
-                       ExpandState(equation_, expanded, state, outer_pressure_, 1.0);
+                       euler::SetIsentropicPressure(equation_, expanded, state, outer_pressure_);
+                      //  ExpandState(equation_, expanded, state, outer_pressure_, 1.0);
                        Store(states, expanded, dest);
                      });
       }

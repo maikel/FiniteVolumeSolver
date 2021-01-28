@@ -24,6 +24,9 @@
 #include "fub/AMReX/IntegratorContext.hpp"
 #include "fub/AMReX/TimeIntegrator.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
+#include "fub/AMReX/boundary_condition/BoundaryConditionRef.hpp"
+
+#include <AMReX_FillPatchUtil.H>
 
 namespace fub::amrex {
 
@@ -89,8 +92,8 @@ private:
     double mu_Sc_effective;
   } constants_{options_};
 
-  Array1d Enthalpy(const ConservativeArray& q, const Array1d& rhoinvers) const
-      noexcept;
+  Array1d Enthalpy(const ConservativeArray& q,
+                   const Array1d& rhoinvers) const noexcept;
 };
 
 template <typename EulerEquation>
@@ -102,6 +105,9 @@ template <typename EulerEquation>
 Result<void, TimeStepTooLarge> DiffusionSourceTerm<EulerEquation>::AdvanceLevel(
     IntegratorContext& simulation_data, int level, Duration dt,
     const ::amrex::IntVect&) const {
+  Timer advance_timer = simulation_data.GetCounterRegistry()->get_timer(
+      "DiffusionSourceTerm::AdvanceLevel");
+
   if (level > 0) {
     AnyBoundaryCondition bc =
         simulation_data.GetGriddingAlgorithm()->GetBoundaryCondition();
@@ -124,25 +130,37 @@ Result<void, TimeStepTooLarge> DiffusionSourceTerm<EulerEquation>::AdvanceLevel(
   // 1.) Compute diffusion fluxes from the current scratch grid.
   ComputeDiffusionFluxes(fluxes_diffusion, scratch, dxinv);
   ::amrex::MultiFab scratch_aux(scratch.boxArray(), scratch.DistributionMap(),
-                                fluxes.nComp(), scratch.nGrowVect());
+                                scratch.nComp(), scratch.nGrowVect());
   // 2.) Compute the half-timestep state including one ghost cell and store then
   // in scratch_aux
   ForwardIntegrator(execution::simd)
       .UpdateConservatively(scratch_aux, scratch, fluxes_diffusion, geom,
                             0.5 * dt, Direction::X);
-  // 3.) Recompute diffusion fluxes based from the half-timestep states.
+  Reconstruction(execution::simd, equation_)
+      .CompleteFromCons(scratch_aux, scratch_aux);
+
+  // 3.) Apply the physical boundary conditions on the computes half-timestep
+  // state.
+  {
+    AnyBoundaryCondition bc =
+        simulation_data.GetGriddingAlgorithm()->GetBoundaryCondition();
+    std::shared_ptr grid = simulation_data.GetGriddingAlgorithm();
+    bc.FillBoundary(scratch_aux, *grid, level, Direction::X);
+  }
+
+  // 4.) Recompute diffusion fluxes based from the half-timestep states.
   ComputeDiffusionFluxes(fluxes_diffusion, scratch_aux, dxinv);
-  // 4.) Update now the scratch grid using the half-timestep fluxes from time t0
+  // 5.) Update now the scratch grid using the half-timestep fluxes from time t0
   // to t0+dt
   //     The inner cells are ok now, because step 2.) updated one ghost cell
   ForwardIntegrator(execution::simd)
       .UpdateConservatively(scratch, scratch, fluxes_diffusion, geom, dt,
                             Direction::X);
-  // 5.) Recompute all auxiliary variables from the conservative ones to get
+  // 6.) Recompute all auxiliary variables from the conservative ones to get
   // valid cell states on scratch
   Reconstruction(execution::simd, equation_).CompleteFromCons(scratch, scratch);
 
-  // 6.) Synchronize all ghost cells across MPI processes to get valid ghost
+  // 7.) Synchronize all ghost cells across MPI processes to get valid ghost
   // cells.
   if (level > 0) {
     AnyBoundaryCondition bc =

@@ -96,21 +96,21 @@ template <typename FluxMethod> struct MakeFlux {
 struct ChangeTOpened {
   template <typename EulerEquation>
   [[nodiscard]] std::optional<fub::Duration>
-  operator()(EulerEquation&, std::optional<fub::Duration>,
-             double,
+  operator()(EulerEquation&, std::optional<fub::Duration>, double,
              const fub::KineticState<EulerEquation>&,
-             const fub::amrex::GriddingAlgorithm& gridding, int) const noexcept {
+             const fub::amrex::GriddingAlgorithm& gridding,
+             int) const noexcept {
     return gridding.GetTimePoint();
   }
 };
 
 struct IsNeverBlocked {
   template <typename EulerEquation>
-  [[nodiscard]] bool operator()(EulerEquation&,
-                                std::optional<fub::Duration> /* t_opened */, double,
-                                const fub::KineticState<EulerEquation>&,
-                                const fub::amrex::GriddingAlgorithm& /* gridding */,
-                                int /* level */) const noexcept {
+  [[nodiscard]] bool
+  operator()(EulerEquation&, std::optional<fub::Duration> /* t_opened */,
+             double, const fub::KineticState<EulerEquation>&,
+             const fub::amrex::GriddingAlgorithm& /* gridding */,
+             int /* level */) const noexcept {
     return false;
   }
 };
@@ -198,8 +198,8 @@ void MyMain(const fub::ProgramOptions& options) {
       };
 
   fub::KineticState<fub::PerfectGasMix<1>> compressor_state(equation);
-  compressor_state.temperature = 1.0;
-  compressor_state.density = 1.05 / compressor_state.temperature;
+  compressor_state.density = std::pow(2.0, 1.0 / equation.gamma);
+  compressor_state.temperature = 2.0 / compressor_state.density;
   compressor_state.mole_fractions[0] = 1.0;
 
   using DeflagrationValve = fub::amrex::GenericPressureValveBoundary<
