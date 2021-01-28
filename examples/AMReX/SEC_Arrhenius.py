@@ -1,15 +1,15 @@
 import math
 
-RunOptions = {
-  'cfl': 0.8,
-  # 'final_time': 0.2 / math.sqrt(101325.),
-  'final_time': 50.0,
-  # 'max_cycles': 1,
-}
-
 dx = 1e-3
 x_len = 1.0
 n_cells = int(x_len / dx)
+
+RunOptions = {
+  'cfl': 0.5 * 0.9 / float(n_cells / 64),
+  # 'final_time': 0.2 / math.sqrt(101325.),
+  'final_time': 10.0,
+  # 'max_cycles': 1,
+}
 
 GridGeometry = {
   'cell_dimensions': [n_cells, 1, 1],
