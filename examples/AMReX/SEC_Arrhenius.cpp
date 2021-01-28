@@ -26,6 +26,7 @@
 
 #include "fub/AMReX/boundary_condition/GenericPressureValveBoundary.hpp"
 #include "fub/AMReX/boundary_condition/IsentropicPressureExpansion.hpp"
+#include "fub/AMReX/DiffusionSourceTerm.hpp"
 #include "fub/equations/perfect_gas_mix/ArrheniusKinetics.hpp"
 
 #include <cmath>
@@ -309,8 +310,13 @@ void MyMain(const fub::ProgramOptions& options) {
                                     flux_ghost_cell_width),
       fub::GodunovSplitting());
 
+  fub::amrex::DiffusionSourceTerm diffusion(equation);
+  fub::SplitSystemSourceLevelIntegrator diffusive_integrator(
+      std::move(level_integrator), std::move(diffusion),
+      fub::StrangSplittingLumped());
+
   fub::SplitSystemSourceLevelIntegrator reactive_integrator(
-      std::move(level_integrator), std::move(source_term),
+      std::move(diffusive_integrator), std::move(source_term),
       fub::GodunovSplitting());
   // fub::StrangSplittingLumped());
 

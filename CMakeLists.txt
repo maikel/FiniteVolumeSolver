@@ -386,6 +386,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     include/fub/AMReX/boundary_condition/MassflowBoundary.hpp
     include/fub/AMReX/initial_data/ConstantData.hpp
     include/fub/AMReX/AxialSourceTerm.hpp
+    include/fub/AMReX/DiffusionSourceTerm.hpp
     include/fub/AMReX/GriddingAlgorithm.hpp
     include/fub/AMReX/IgniteDetonation.hpp
     include/fub/AMReX/PatchHierarchy.hpp
