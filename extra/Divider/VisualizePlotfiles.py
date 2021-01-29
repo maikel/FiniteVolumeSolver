@@ -9,7 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import amrex.plotfiles
 
-base_data_path = '/group/ag_klima/SFB1029_C01/Divider/Divider_DE5_2400'
+base_data_path = '/srv/public/Maikel/FiniteVolumeSolver/build_2D-Release/Divider_DE5_1200'
 plotfiles_path = '{}/Plotfiles'.format(base_data_path)
 dirs = os.listdir(plotfiles_path)
 plotfiles = ['{}/{}'.format(plotfiles_path, plt) for plt in dirs]
