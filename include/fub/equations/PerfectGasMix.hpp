@@ -262,12 +262,18 @@ template <int N> struct PerfectGasMix {
   // Rspec = cp - cv
   // gamma = cp / cv
   // cp = cv gamma
+  // cp = gamma cv = gamma Rpsec /(gamma - 1) 
   // Rspec = gamma cv - cv
   // Rspec = (gamma - 1) cv
   // Rpsec /(gamma - 1) = cv
-  double Rspec{1.};
-  double gamma{1.28};
-  double gamma_minus_1_inv{1.0 / (gamma - 1.0)};
+  double Rspec{1.}; ///< the specific gas constant
+  double gamma{1.28}; ///< the adiabtic exponent
+  double gamma_inv{1.0 / gamma}; // 1 / gamma
+  double gamma_minus_one{gamma - 1.0}; // gamma - 1
+  double gamma_minus_one_over_gamma{gamma_minus_one * gamma_inv}; // (gamma-1)/gamma
+  double gamma_minus_one_inv{1.0 / (gamma - 1.0)}; // 1/(gamma-1)
+  double gamma_over_gamma_minus_one{gamma * gamma_minus_one_inv}; // gamma/(gamma-1)
+  double heat_capacity_at_constant_pressure{Rspec * gamma_over_gamma_minus_one}; // gamma Rspec / (gamma-1)
 
   Array1d gamma_array_{Array1d::Constant(gamma)};
   Array1d gamma_minus_1_inv_array_{Array1d::Constant(gamma_minus_1_inv)};

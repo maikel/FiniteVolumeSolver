@@ -31,6 +31,9 @@
 
 #include "fub/equations/perfect_gas_mix/ArrheniusKinetics.hpp"
 
+#define _USE_MATH_DEFINES
+#include <math.h>
+
 namespace fub::perfect_gas_mix {
 
 /// \brief Compute the ignition delay time for given mass fractions and
@@ -108,15 +111,21 @@ template <int PlenumRank> class Control {
 public:
   // Constructors
 
+  void UpdatePlena(double mdot_turbine, const PlenumState& turbine_boundary_state, double flux_rho, Duration dt) {
+    UpdateTurbinePlenum(mdot_turbine, turbine_boundary_state, dt);
+    UpdateCompressorPlenum(flux_rho, dt);
+    ChangeRPM(dt);
+  }
+
+private:
   /// Notify the control with a new turbine plenum value and update its current
-  /// performance.
+  /// power.
   ///
   /// The formula is given in GT_Notes equation (35).
   ///
-  /// \return Returns the new performance value
-  double
-  UpdateTurbinePlenum(double mdot,
-                      const PlenumState& turbine_plenum_current) noexcept {
+  /// \return Returns the new power value for the turbine
+  void UpdateTurbinePlenum(double mdot,
+                           const PlenumState& turbine_plenum_current) noexcept {
     PlenumState T_half;
     T_half.pressure =
         0.5 * (turbine_plenum_old_.pressure + turbine_plenum_current.pressure);
@@ -124,11 +133,9 @@ public:
                                 turbine_plenum_current.temperature);
     const double gmoog = equation_.gamma_minus_one_over_gamma;
     const double cp = equation_.heat_capacity_at_constant_pressure;
-    performance_turbine_ = mdot * cp * efficiency_turbine_ *
-                           T_half.temperature *
-                           (1 - std::pow(T_half.pressure, gm1og));
+    power_turbine_ = mdot * cp * efficiency_turbine_ * T_half.temperature *
+                     (1.0 - std::pow(T_half.pressure, gmoog));
     turbine_plenum_old_ = turbine_plenum_current;
-    return performance_turbine_;
   }
 
   /// The formula is given in GT_Notes equation (20).
@@ -141,41 +148,195 @@ public:
     return pratio;
   }
 
-  double UpdateCompressorPlenum(double flux_rho, Duration dt) {
-    double rho_old = compressor_plenum_.pressure / compressor_plenum_.temperature / equation_.Rspec;
+  /// Notify the control with a new compressor plenum value and update its
+  /// current power.
+  ///
+  /// The formula is given in GT_Notes equation (24).
+  ///
+  /// \return Returns the new power value
+  void UpdateCompressorPlenum(double flux_rho, Duration dt) {
+    double temperature_old = compressor_plenum_.temperature;
+    double rho_old = compressor_plenum_.pressure /
+                     compressor_plenum_.temperature / equation_.Rspec;
+
+    // update the compressor_plenum state with the new speed of the compressor
+    // so we get new pressure and temperature
     UpdateCompressorFromRPM(current_rpm_);
-    double rho_new = compressor_plenum_.pressure / compressor_plenum_.temperature / equation_.Rspec;
-    double mdot_compressor = flux_rho * surface_area_tube_inlet_ + volume_compressor_plenum_ / dt.count() * (rho_new - rho_old);
+
+    double rho_new = compressor_plenum_.pressure /
+                     compressor_plenum_.temperature / equation_.Rspec;
+    double mdot_compressor = flux_rho * surface_area_tube_inlet_ +
+                             volume_compressor_plenum_ / dt.count() *
+                                 (rho_new - rho_old); // equation (23) GT_Notes
+
+    double T_v_half = 0.5 * (temperature_old + compressor_plenum_.temperature);
+    double T_ref = 1.0;
+    const double cp = equation_.heat_capacity_at_constant_pressure;
+
+    double power_compressor_increase =
+        mdot_compressor * (T_v_half - T_ref) / efficiency_compressor_ * cp;
+
+    const double tau = 1.0;
+    double dt_over_tau = dt.count() / tau;
+
+    power_compressor_ = (1.0 - dt_over_tau) * power_compressor_ +
+                        dt_over_tau * power_compressor_increase;
+  }
+
+  /// \brief Compute the compressor state by given speed of the compressor.
+  void UpdateCompressorFromRPM(double rpm) {
+    double new_pressure = CompressorPressureRatio(rpm);
+    compressor_plenum_.pressure = new_pressure;
+    const double gmoog = equation_.gamma_minus_one_over_gamma;
+    compressor_plenum_.temperature =
+        1.0 + std::pow(new_pressure, gmoog) / efficiency_compressor_;
+  }
+
+  /// \brief Compute the new rotation speed of the compressor.
+  ///
+  /// see GT_notes equation (42 - 44)
+  void ChangeRPM(Duration dt) {
+    double pressure = compressor_plenum_.pressure;
+    const double pressure_ratio =
+        (target_pressure_compressor_ - pressure) / target_pressure_compressor_;
+    const double exp_term = std::exp(-mu_ * pressure_ratio);
+    const double comp_rate = 0.015 * (1.0 - exp_term);
+    const double pi2 = M_PI * M_PI;
+    const double Ieff = 2.0 * pi2 * inertial_moment_;
+
+    double power_netto = power_turbine_ - power_compressor_;
+    double d_Erot_dt = (pressure < target_pressure_compressor_)
+                           ? 0.0
+                           : comp_rate * power_netto;
+    double Erot = Ieff * current_rpm_ * current_rpm_ + d_Erot_dt * dt.count();
+    double rpm_new = std::sqrt(Erot / Ieff);
+
+    FUB_ASSERT(rpmmin_ < rpm_new && rpmmax_ > rpm_new);
+    current_rpm_ = rpm_new;
+
+    // values to track:
+    // double power_out = power_netto - d_Erot_dt; // Power output
+
+    // efficiency of the machine
+    // GT->Efficiency[0] = MAX_own(0.0, GT->PowerOut[0]) / (ud.Q *
+    // GT->FuelConsumptionRate[0] + ud.eps_Machine);
+
+    // Set SEC_Operation
   }
 
 private:
-  PerfectGasMix<PlenumRank> equation_;
-  PlenumState turbine_plenum_old_;
-  PlenumState compressor_plenum_; /// the 
-  double efficiency_turbine_{0.9}; ///< efficiency from the turbine
-  
-  double surface_area_tube_inlet_{1.0};
-  double surface_area_compressor_to_compressor_plenum_{8.0 * surface_area_tube_inlet_};
-  double volume_compressor_plenum_{20.0 * surface_area_tube_inlet_ * length_tube_};
-  double surface_area_turbine_plenum_to_turbine_{4.0 * surface_area_tube_inlet_};
+template <int PlenumRank>
+  friend class ControlFeedback;
 
-  double performance_turbine_;
-  double rpmmax_ = 60000.0 / 60.0;
-  double rpmmin_ = 10000.0 / 60.0;
-  double rpmmean_ = 0.5 * (rpmmax_ + rpmmin_);
-  double pratiomax_ = 50.0;
-  double pratiomin_ = 1.0;
+  PerfectGasMix<PlenumRank> equation_;
+  PlenumState turbine_plenum_old_; ///< the state of the turbine plenum
+  PlenumState compressor_plenum_;  ///< the state of the compressor plenum
+  double efficiency_turbine_{0.9}; ///< efficiency from the turbine
+
+  double length_tube_;                  ///< the length of the tubes
+  double surface_area_tube_inlet_{1.0}; ///< initial surface area of the tube
+
+  /// surface area from the compressor to the compressor plenum
+  double surface_area_compressor_to_compressor_plenum_{
+      8.0 * surface_area_tube_inlet_};
+  /// volume of the compressor plenum
+  double volume_compressor_plenum_{20.0 * surface_area_tube_inlet_ *
+                                   length_tube_};
+  /// surface area from the turbine plenum to the turbine
+  double surface_area_turbine_plenum_to_turbine_{4.0 *
+                                                 surface_area_tube_inlet_};
+  /// volume of the turbine plenum
+  double volume_turbine_plenum_{20.0 * surface_area_tube_inlet_ * length_tube_};
+
+  double power_turbine_;              ///< power from the turbine
+  double power_compressor_;           ///< power from the compressor
+  double efficiency_compressor_{0.9}; ///< efficiency from the compressor
+  double rpmmin_ = 10000.0 / 60.0;    ///< minimum speed of the compressor
+  double rpmmax_ = 60000.0 / 60.0;    ///< maximum speed of the compressor
+  double rpmmean_ = 0.5 * (rpmmax_ + rpmmin_); ///< mean speed of the compressor
+  double pratiomin_ = 1.0;  ///< minimum pressure from the compressor
+  double pratiomax_ = 50.0; ///< maximum pressure from the compressor
+  /// mean pressure from the compressor
   double pratiomean_ = 0.5 * (pratiomax_ + pratiomin_);
+  /// maximum pressure difference from the compressor
   double pratiovar_ = pratiomax_ - pratiomin_;
+
+  /// constant to compute the pressure from the speed of the compressor (see
+  /// function: CompressorPressureRatio)
   double c_0_ = 22.0 / 17.0;
 
-  double current_rpm_{rpmmin_};
+  double current_rpm_{rpmmin_}; ///< current speed of the compressor
+
+  double inertial_moment_{0.1}; ///< the initial moment of inertia of the rotor
+  double target_pressure_compressor_{
+      6.5};         ///< the target pressure from the compressor
+  double mu_{10.0}; ///< some constant for GT_control
+};
+
+template <int PlenumRank>
+class ControlFeedback {
+  explicit ControlFeedback(const Control<PerfectGasMix<PlenumRank>>& c);
+
+  // Update the control object using the mass flows in the multi block integrator context.
+  void operator()(MultiBlockIntegratorContext2& context, Duration dt) {
+    /* grab all fluxes into the burning chambers */
+
+    /* grab the mean global mass flux into the turbine */
+    cutcell::IntegratorContext& plenum = context.Plena()[0];
+    int coarsest_level = 0;
+    const fub::Duration time_point = plenum.GetTimePoint(coarsest_level);
+    const amrex::MultiFab& fluxes_x =
+        plenum.GetFluxes(coarsest_level, fub::Direction::X);
+    const amrex::Geometry& geom = plenum.GetGeometry(coarsest_level);
+    const amrex::Box cells = geom.Domain();
+    const amrex::Box faces_x = amrex::convert(cells, {1, 0});
+    const int boundary_n = faces_x.bigEnd(0);
+    const amrex::IntVect smallEnd{boundary_n, faces_x.smallEnd(1)};
+    const amrex::IntVect bigEnd = faces_x.bigEnd();
+    const amrex::Box right_boundary{smallEnd, bigEnd};
+    Conservative<PerfectGasMix<2>> fluxes_turbine(plenum_equation_);
+    Conservative<PerfectGasMix<2>> cons_turbine(plenum_equation_);
+    AverageState(fluxes_turbine, fluxes_x, geom, right_face_boundary);
+    AverageState(cons_turbine, scratch, geom, right_cell_boundary);
+
+    const double Rspec = plenum_equation_.Rspec;
+
+    PlenumState turbine_boundary_state;
+    turbine_boundary_state.pressure = euler::Pressure(plenum_equation_, cons_turbine);
+    turbine_boundary_state.temperature = turbine_boundary_state.pressure / cons.density / Rspec;
+
+    const double mdot_turbine = fluxes_turbine.density * control_.surface_area_turbine_plenum_to_turbine_;
+    
+    // For each tube we get the mass flux for the first cell
+    span<IntegratorContext> tubes = context.Tubes();
+    // (rhou)_{I + 1/2}
+    std::vector<double> flux_rho_tube(tubes.size());
+
+    for (auto&& [tube_context, flux_tube] : ranges::view::zip(tubes, flux_rho_tube)) {
+      const ::amrex::MultiFab& fluxes_x = tube_context.GetFluxes(coarsest_level, Diretion::X);
+      double local_f_rho = 0.0;
+      ForEachFab(fluxes_x, [&](const ::amrex::MFIter& mfi) {
+        ::amrex::IntVect iv{0, 0};
+        if (mfi.vaildbox().contains(iv)) {
+          local_f_rho = fluxes_x[mfi](iv, 0);
+        }
+      });
+      ::MPI_Allreduce(&local_f_rho, &flux_tube, 1, MPI_DOUBLE, MPI_SUM, ::amrex::ParallelDescriptor::Communicator());
+    }
+
+    double rhou_tubes = std::accumulate(flux_rho_tube.begin(), flux_rho_tube.end(), 0.0);
+
+    control_.UpdatePlena(mdot_turbine, turbine_boundary_state, rhou_tubes, dt);
+  }
+
+
+private:
+  PerfectGasMix<PlenumRank> plenum_equation_;
+  PerfectGasMix<TubeRank> tube_equation_;
+  Control<PerfectGasMix<Rank>> control_;
 };
 
 } // namespace gt
-
-/// \brief Compute the performance for the turbine, P_T.
-double PerformanceTurbine(const PerfectGasMix<Rank>& equation, double mdot)
 
 } // namespace fub::perfect_gas_mix
 

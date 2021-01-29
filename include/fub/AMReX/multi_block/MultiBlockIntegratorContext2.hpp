@@ -34,6 +34,8 @@ namespace fub::amrex {
 /// \ingroup IntegratorContext
 class MultiBlockIntegratorContext2 {
 public:
+  using FeedbackFn = std::function<void(MultiBlockIntegratorContext2&, Duration)>;
+
   template <typename TubeEquation, typename PlenumEquation>
   MultiBlockIntegratorContext2(const TubeEquation& tube_equation,
                                const PlenumEquation& plenum_equation,
@@ -112,7 +114,7 @@ public:
 
   void PreAdvanceHierarchy();
 
-  void PostAdvanceHierarchy();
+  void PostAdvanceHierarchy(Duration dt);
 
   /// \brief On each first subcycle this will regrid the data if neccessary.
   int PreAdvanceLevel(int level_num, Duration dt, std::pair<int, int> subcycle);
@@ -172,6 +174,7 @@ private:
   std::vector<IntegratorContext> tubes_;
   std::vector<cutcell::IntegratorContext> plena_;
   std::shared_ptr<MultiBlockGriddingAlgorithm2> gridding_;
+  FeedbackFn post_advance_hierarchy_feedback_;
 };
 
 template <typename TubeEquation, typename PlenumEquation>

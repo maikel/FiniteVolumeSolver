@@ -413,9 +413,12 @@ void MultiBlockIntegratorContext2::PreAdvanceHierarchy() {
   }
 }
 
-void MultiBlockIntegratorContext2::PostAdvanceHierarchy() {
+void MultiBlockIntegratorContext2::PostAdvanceHierarchy(Duration dt) {
   for (cutcell::IntegratorContext& ctx : plena_) {
     ctx.PostAdvanceHierarchy();
+  }
+  if (post_advance_hierarchy_feedback_) {
+    post_advance_hierarchy_feedback_(*this, dt);
   }
 }
 
