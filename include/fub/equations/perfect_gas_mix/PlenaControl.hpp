@@ -118,7 +118,13 @@ public:
   static constexpr int TubeRank = 1;
   // Constructors
 
-  Control(const PerfectGasMix<PlenumRank>& eq) : equation_(eq) {}
+  Control(const PerfectGasMix<PlenumRank>& eq) : equation_(eq) {
+    compressor_plenum_ = std::make_shared<PlenumState>();
+    compressor_plenum_->pressure = 2.0;
+    compressor_plenum_->temperature = 1.0;
+    turbine_plenum_old_.pressure = 1.0;
+    turbine_plenum_old_.temperature = 1.0;
+  }
 
   void UpdatePlena(double mdot_turbine,
                    const PlenumState& turbine_boundary_state, double flux_rho,
@@ -221,8 +227,8 @@ private:
 
     double power_netto = power_turbine_ - power_compressor_;
     double d_Erot_dt = (pressure < target_pressure_compressor_)
-                           ? 0.0
-                           : comp_rate * power_netto;
+                           ? comp_rate * power_netto
+                           : 0.0;
     double Erot = Ieff * current_rpm_ * current_rpm_ + d_Erot_dt * dt.count();
     double rpm_new = std::sqrt(Erot / Ieff);
 
@@ -313,7 +319,7 @@ public:
     const ::amrex::Box faces_x = ::amrex::convert(right_cell_boundary, {1, 0});
     const ::amrex::IntVect fsmallEnd = faces_x.smallEnd();
     const ::amrex::IntVect fbigEnd = {faces_x.smallEnd(0), faces_x.bigEnd(1)};
-    const ::amrex::Box right_face_boundary{fsmallEnd, fbigEnd};
+    const ::amrex::Box right_face_boundary{fsmallEnd, fbigEnd, faces_x.ixType()};
     Conservative<PerfectGasMix<2>> fluxes_turbine(plenum_equation_);
     Conservative<PerfectGasMix<2>> cons_turbine(plenum_equation_);
     amrex::AverageState(fluxes_turbine, fluxes_x, geom, right_face_boundary);

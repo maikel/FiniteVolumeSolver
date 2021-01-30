@@ -785,7 +785,7 @@ auto MakePlenumSolver(const std::map<std::string, pybind11::object>& options) {
     const int boundary_n = faces_x.bigEnd(0);
     const amrex::IntVect smallEnd{boundary_n, faces_x.smallEnd(1)};
     const amrex::IntVect bigEnd = faces_x.bigEnd();
-    const amrex::Box right_boundary{smallEnd, bigEnd};
+    const amrex::Box right_boundary{smallEnd, bigEnd, faces_x.ixType()};
     // const double dy = geom.CellSize(1);
     double local_f_rho = 0.0;
     fub::amrex::ForEachFab(fluxes_x, [&](const amrex::MFIter& mfi) {
