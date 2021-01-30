@@ -5,7 +5,7 @@ x_len = 1.0
 n_cells = 256# int(x_len / dx)
 
 RunOptions = {
-  'cfl': 0.5 * 0.9 / float(n_cells / 64),
+  'cfl': 0.5 * 0.9, # / float(n_cells / 64),
   # 'final_time': 0.2 / math.sqrt(101325.),
   'final_time': 50.0,
   # 'max_cycles': 1,
@@ -35,7 +35,7 @@ ArrheniusKinetics = {
 }
 
 DiffusionSourceTerm = {
-  'mul': 3.0
+  'mul': 0.0
 }
 
 CompressorState = {
@@ -50,6 +50,7 @@ def Area(xi):
   xi1 = 0.75# - 1.0   # Reference: 0.5; best: 0.75
   Ax = 1.0 if xi < xi0 else A0 + (A1-A0)*(xi-xi0)/(xi1-xi0) if xi < xi1 else A1
   return Ax
+  #return 1.0
 
 FluxMethod = {
   'reconstruction': 'Characteristics',
@@ -60,7 +61,7 @@ FluxMethod = {
 Output = {
   'outputs': [{
     'type': 'HDF5',
-    'path': 'Deflagration.h5',
+    'path': 'Deflagration_NoDiff.h5',
     'intervals': [0.005],
     #'frequencies': [1],
   },{

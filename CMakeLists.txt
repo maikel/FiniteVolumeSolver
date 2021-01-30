@@ -353,7 +353,8 @@ target_link_libraries(FiniteVolumeSolver.Solver
     Boost::serialization
     Eigen3::Eigen
     Vc::Vc
-    pybind11::embed)
+    pybind11::embed
+    range-v3)
 target_include_directories(FiniteVolumeSolver.Solver
   PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
@@ -387,6 +388,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     include/fub/AMReX/initial_data/ConstantData.hpp
     include/fub/AMReX/AxialSourceTerm.hpp
     include/fub/AMReX/DiffusionSourceTerm.hpp
+    src/AMReX/DiffusionSourceTerm.cpp
     include/fub/AMReX/GriddingAlgorithm.hpp
     include/fub/AMReX/IgniteDetonation.hpp
     include/fub/AMReX/PatchHierarchy.hpp
