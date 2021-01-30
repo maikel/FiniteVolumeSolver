@@ -123,7 +123,7 @@ double GetMeanPressure_(const GriddingAlgorithm& grid, IdealGasMix<1>& eq) {
   return pressure;
 }
 
-std::vector<double> GatherMoles_(const GriddingAlgorithm& grid, double x,
+[[maybe_unused]] std::vector<double> GatherMoles_(const GriddingAlgorithm& grid, double x,
                                  IdealGasMix<1>& eq) {
   const PatchHierarchy& hier = grid.GetPatchHierarchy();
   const int nlevel = hier.GetNumberOfLevels();
@@ -174,9 +174,9 @@ double ChangeState_(PressureValveState& state, const ::amrex::Geometry& geom,
                     Duration& last_closed, Duration& last_fuel_change,
                     const PressureValveOptions& options, IdealGasMix<1>& eq) {
   const double mean_pressure = GetMeanPressure_(grid, eq);
-  const double dx_2 = geom.CellSize(0);
-  const double xlo = geom.ProbDomain().lo(0) + dx_2;
-  const double xhi = geom.ProbDomain().hi(0) - dx_2;
+  // const double dx_2 = geom.CellSize(0);
+  // const double xlo = geom.ProbDomain().lo(0) + dx_2;
+  // const double xhi = geom.ProbDomain().hi(0) - dx_2;
   const Duration current_time = grid.GetPatchHierarchy().GetTimePoint(0);
   const Duration next_open_time = (last_closed.count() < 0.0)
                                       ? Duration(0.0)

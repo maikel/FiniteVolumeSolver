@@ -107,6 +107,11 @@ public:
 
   /// \brief Sets the time point for a specific level number and direction.
   void SetTimePoint(Duration t, int level);
+  
+  /// \brief Sets a feedback function that will be called in PostAdvanceHierarchy.
+  ///
+  /// This is used to inject user defined behaviour after each time step
+  void SetPostAdvanceHierarchyFeedback(FeedbackFn feedback);
   /// @}
 
   /// @{

@@ -29,10 +29,16 @@
 /// turbine plena. They are relevant in studies regarding the efficieny of the
 /// total gas turbine machine.
 
+#include "fub/equations/PerfectGasMix.hpp"
 #include "fub/equations/perfect_gas_mix/ArrheniusKinetics.hpp"
 
-#define _USE_MATH_DEFINES
-#include <math.h>
+#include "fub/AMReX/ForEachFab.hpp"
+#include "fub/AMReX/AverageState.hpp"
+#include "fub/AMReX/multi_block/MultiBlockIntegratorContext2.hpp"
+
+#include <range/v3/view/zip.hpp>
+
+#include <cmath>
 
 namespace fub::perfect_gas_mix {
 
@@ -41,13 +47,13 @@ namespace fub::perfect_gas_mix {
 template <int Rank>
 double IgnitionDelay(const PerfectGasMix<Rank>& equation,
                      const ArrheniusKineticsOptions& kinetics, double Y,
-                     double T) {
+                     double T, double eps) {
   const double gm1 = equation.gamma - 1.0;
   double TT = T / (gm1 * kinetics.Q * std::max(Y, eps));
   double Ea0 = kinetics.EA * (1.0 / T);
   double B0 = kinetics.B * exp(kinetics.EA * (1.0 - (1.0 / T)));
   return ((TT / (B0 * Ea0)) * (1.0 + (2.0 + TT) / Ea0));
-};
+}
 
 // /*
 // ==================================================================================
@@ -61,7 +67,7 @@ double IgnitionDelay(const PerfectGasMix<Rank>& equation,
 template <int Rank>
 double dIgnitionDelay_dT(const PerfectGasMix<Rank>& equation,
                          const ArrheniusKineticsOptions& kinetics, double Y,
-                         double T) {
+                         double T, double eps) {
   const double gm1 = equation.gamma - 1.0;
   double TQ = T / (gm1 * kinetics.Q * std::max(Y, eps));
   double TE = T / kinetics.EA;
@@ -71,7 +77,7 @@ double dIgnitionDelay_dT(const PerfectGasMix<Rank>& equation,
                   2.0 * TE * TE * (1.0 + TQ)) *
                  exp(-kinetics.EA * (1.0 - 1.0 / T));
   return dtidT;
-};
+}
 
 // /*
 // ==================================================================================
@@ -83,17 +89,17 @@ double dIgnitionDelay_dT(const PerfectGasMix<Rank>& equation,
 template <int Rank>
 double TemperatureForIgnitionDelay(const PerfectGasMix<Rank>& equation,
                                    const ArrheniusKineticsOptions& kinetics,
-                                   double tign, double Y, double T0) {
+                                   double tign, double Y, double T0, double eps) {
   double T = T0;
-  double ti = IgnitionDelay(equation, kinetics, Y, T);
+  double ti = IgnitionDelay(equation, kinetics, Y, T, eps);
   double dti = ti - tign;
   while (std::abs(dti) > eps) {
-    T -= dti / dIgnitionDelay_dT(equation, kinetics, Y, T);
-    ti = IgnitionDelay(Y, T);
+    T -= dti / dIgnitionDelay_dT(equation, kinetics, Y, T, eps);
+    ti = IgnitionDelay(equation, kinetics, Y, T, eps);
     dti = ti - tign;
   }
   return T;
-};
+}
 
 namespace gt {
 /// \namespace
@@ -109,12 +115,21 @@ struct PlenumState {
 
 template <int PlenumRank> class Control {
 public:
+  static constexpr int TubeRank = 1;
   // Constructors
 
-  void UpdatePlena(double mdot_turbine, const PlenumState& turbine_boundary_state, double flux_rho, Duration dt) {
-    UpdateTurbinePlenum(mdot_turbine, turbine_boundary_state, dt);
+  Control(const PerfectGasMix<PlenumRank>& eq) : equation_(eq) {}
+
+  void UpdatePlena(double mdot_turbine,
+                   const PlenumState& turbine_boundary_state, double flux_rho,
+                   Duration dt) {
+    UpdateTurbinePlenum(mdot_turbine, turbine_boundary_state);
     UpdateCompressorPlenum(flux_rho, dt);
     ChangeRPM(dt);
+  }
+
+  std::shared_ptr<const PlenumState> GetSharedCompressorState() const noexcept {
+    return compressor_plenum_;
   }
 
 private:
@@ -155,29 +170,29 @@ private:
   ///
   /// \return Returns the new power value
   void UpdateCompressorPlenum(double flux_rho, Duration dt) {
-    double temperature_old = compressor_plenum_.temperature;
-    double rho_old = compressor_plenum_.pressure /
-                     compressor_plenum_.temperature / equation_.Rspec;
+    double temperature_old = compressor_plenum_->temperature;
+    double rho_old = compressor_plenum_->pressure /
+                     compressor_plenum_->temperature * equation_.ooRspec;
 
     // update the compressor_plenum state with the new speed of the compressor
     // so we get new pressure and temperature
     UpdateCompressorFromRPM(current_rpm_);
 
-    double rho_new = compressor_plenum_.pressure /
-                     compressor_plenum_.temperature / equation_.Rspec;
+    double rho_new = compressor_plenum_->pressure /
+                     compressor_plenum_->temperature / equation_.Rspec;
     double mdot_compressor = flux_rho * surface_area_tube_inlet_ +
                              volume_compressor_plenum_ / dt.count() *
                                  (rho_new - rho_old); // equation (23) GT_Notes
 
-    double T_v_half = 0.5 * (temperature_old + compressor_plenum_.temperature);
+    double T_v_half = 0.5 * (temperature_old + compressor_plenum_->temperature);
     double T_ref = 1.0;
     const double cp = equation_.heat_capacity_at_constant_pressure;
 
     double power_compressor_increase =
         mdot_compressor * (T_v_half - T_ref) / efficiency_compressor_ * cp;
 
-    const double tau = 1.0;
-    double dt_over_tau = dt.count() / tau;
+    const double ootau = 1.0;
+    double dt_over_tau = dt.count() * ootau;
 
     power_compressor_ = (1.0 - dt_over_tau) * power_compressor_ +
                         dt_over_tau * power_compressor_increase;
@@ -186,9 +201,9 @@ private:
   /// \brief Compute the compressor state by given speed of the compressor.
   void UpdateCompressorFromRPM(double rpm) {
     double new_pressure = CompressorPressureRatio(rpm);
-    compressor_plenum_.pressure = new_pressure;
+    compressor_plenum_->pressure = new_pressure;
     const double gmoog = equation_.gamma_minus_one_over_gamma;
-    compressor_plenum_.temperature =
+    compressor_plenum_->temperature =
         1.0 + std::pow(new_pressure, gmoog) / efficiency_compressor_;
   }
 
@@ -196,12 +211,12 @@ private:
   ///
   /// see GT_notes equation (42 - 44)
   void ChangeRPM(Duration dt) {
-    double pressure = compressor_plenum_.pressure;
+    double pressure = compressor_plenum_->pressure;
     const double pressure_ratio =
         (target_pressure_compressor_ - pressure) / target_pressure_compressor_;
     const double exp_term = std::exp(-mu_ * pressure_ratio);
     const double comp_rate = 0.015 * (1.0 - exp_term);
-    const double pi2 = M_PI * M_PI;
+    constexpr double pi2 = M_PI * M_PI;
     const double Ieff = 2.0 * pi2 * inertial_moment_;
 
     double power_netto = power_turbine_ - power_compressor_;
@@ -220,20 +235,17 @@ private:
     // efficiency of the machine
     // GT->Efficiency[0] = MAX_own(0.0, GT->PowerOut[0]) / (ud.Q *
     // GT->FuelConsumptionRate[0] + ud.eps_Machine);
-
-    // Set SEC_Operation
   }
 
 private:
-template <int PlenumRank>
-  friend class ControlFeedback;
+  template <int Rank> friend class ControlFeedback;
 
   PerfectGasMix<PlenumRank> equation_;
-  PlenumState turbine_plenum_old_; ///< the state of the turbine plenum
-  PlenumState compressor_plenum_;  ///< the state of the compressor plenum
+  PlenumState turbine_plenum_old_{}; ///< the state of the turbine plenum
+  std::shared_ptr<PlenumState> compressor_plenum_{};  ///< the state of the compressor plenum
   double efficiency_turbine_{0.9}; ///< efficiency from the turbine
 
-  double length_tube_;                  ///< the length of the tubes
+  double length_tube_{1.0};                  ///< the length of the tubes
   double surface_area_tube_inlet_{1.0}; ///< initial surface area of the tube
 
   /// surface area from the compressor to the compressor plenum
@@ -248,8 +260,8 @@ template <int PlenumRank>
   /// volume of the turbine plenum
   double volume_turbine_plenum_{20.0 * surface_area_tube_inlet_ * length_tube_};
 
-  double power_turbine_;              ///< power from the turbine
-  double power_compressor_;           ///< power from the compressor
+  double power_turbine_{};              ///< power from the turbine
+  double power_compressor_{};           ///< power from the compressor
   double efficiency_compressor_{0.9}; ///< efficiency from the compressor
   double rpmmin_ = 10000.0 / 60.0;    ///< minimum speed of the compressor
   double rpmmax_ = 60000.0 / 60.0;    ///< maximum speed of the compressor
@@ -273,67 +285,80 @@ template <int PlenumRank>
   double mu_{10.0}; ///< some constant for GT_control
 };
 
-template <int PlenumRank>
-class ControlFeedback {
-  explicit ControlFeedback(const Control<PerfectGasMix<PlenumRank>>& c);
+template <int PlenumRank> class ControlFeedback {
+public:
+  ControlFeedback(
+      const PerfectGasMix<PlenumRank>& plenum_equation,
+      const PerfectGasMix<1>& tube_equation,
+      const Control<PlenumRank>& c)
+      : plenum_equation_(plenum_equation), tube_equation_(tube_equation),
+        control_(c) {}
 
-  // Update the control object using the mass flows in the multi block integrator context.
-  void operator()(MultiBlockIntegratorContext2& context, Duration dt) {
-    /* grab all fluxes into the burning chambers */
-
+  // Update the control object using the mass flows in the multi block
+  // integrator context.
+  void operator()(amrex::MultiBlockIntegratorContext2& context, Duration dt) {
     /* grab the mean global mass flux into the turbine */
-    cutcell::IntegratorContext& plenum = context.Plena()[0];
+    amrex::cutcell::IntegratorContext& plenum = context.Plena()[0];
     int coarsest_level = 0;
-    const fub::Duration time_point = plenum.GetTimePoint(coarsest_level);
-    const amrex::MultiFab& fluxes_x =
-        plenum.GetFluxes(coarsest_level, fub::Direction::X);
-    const amrex::Geometry& geom = plenum.GetGeometry(coarsest_level);
-    const amrex::Box cells = geom.Domain();
-    const amrex::Box faces_x = amrex::convert(cells, {1, 0});
-    const int boundary_n = faces_x.bigEnd(0);
-    const amrex::IntVect smallEnd{boundary_n, faces_x.smallEnd(1)};
-    const amrex::IntVect bigEnd = faces_x.bigEnd();
-    const amrex::Box right_boundary{smallEnd, bigEnd};
+    const Duration time_point = plenum.GetTimePoint(coarsest_level);
+    const ::amrex::MultiFab& scratch = plenum.GetScratch(coarsest_level);
+    const ::amrex::MultiFab& fluxes_x =
+        plenum.GetFluxes(coarsest_level, Direction::X);
+    const ::amrex::Geometry& geom = plenum.GetGeometry(coarsest_level);
+    const ::amrex::Box cells = geom.Domain();
+    const int boundary_n = cells.bigEnd(0);
+    const ::amrex::IntVect smallEnd{boundary_n, cells.smallEnd(1)};
+    const ::amrex::IntVect bigEnd = cells.bigEnd();
+    const ::amrex::Box right_cell_boundary{smallEnd, bigEnd};
+    const ::amrex::Box faces_x = ::amrex::convert(right_cell_boundary, {1, 0});
+    const ::amrex::IntVect fsmallEnd = faces_x.smallEnd();
+    const ::amrex::IntVect fbigEnd = {faces_x.smallEnd(0), faces_x.bigEnd(1)};
+    const ::amrex::Box right_face_boundary{fsmallEnd, fbigEnd};
     Conservative<PerfectGasMix<2>> fluxes_turbine(plenum_equation_);
     Conservative<PerfectGasMix<2>> cons_turbine(plenum_equation_);
-    AverageState(fluxes_turbine, fluxes_x, geom, right_face_boundary);
-    AverageState(cons_turbine, scratch, geom, right_cell_boundary);
-
-    const double Rspec = plenum_equation_.Rspec;
+    amrex::AverageState(fluxes_turbine, fluxes_x, geom, right_face_boundary);
+    amrex::AverageState(cons_turbine, scratch, geom, right_cell_boundary);
 
     PlenumState turbine_boundary_state;
-    turbine_boundary_state.pressure = euler::Pressure(plenum_equation_, cons_turbine);
-    turbine_boundary_state.temperature = turbine_boundary_state.pressure / cons.density / Rspec;
+    turbine_boundary_state.pressure =
+        euler::Pressure(plenum_equation_, cons_turbine);
+    turbine_boundary_state.temperature =
+        turbine_boundary_state.pressure / cons_turbine.density * plenum_equation_.ooRspec;
 
-    const double mdot_turbine = fluxes_turbine.density * control_.surface_area_turbine_plenum_to_turbine_;
-    
-    // For each tube we get the mass flux for the first cell
-    span<IntegratorContext> tubes = context.Tubes();
+    const double mdot_turbine =
+        fluxes_turbine.density *
+        control_.surface_area_turbine_plenum_to_turbine_;
+
+    // For each tube we get the mass flux into the first cell
+    span<amrex::IntegratorContext> tubes = context.Tubes();
     // (rhou)_{I + 1/2}
     std::vector<double> flux_rho_tube(tubes.size());
 
-    for (auto&& [tube_context, flux_tube] : ranges::view::zip(tubes, flux_rho_tube)) {
-      const ::amrex::MultiFab& fluxes_x = tube_context.GetFluxes(coarsest_level, Diretion::X);
+    for (auto&& [tube_context, flux_tube] :
+         ranges::view::zip(tubes, flux_rho_tube)) {
+      const ::amrex::MultiFab& fluxes_x =
+          tube_context.GetFluxes(coarsest_level, Direction::X);
       double local_f_rho = 0.0;
-      ForEachFab(fluxes_x, [&](const ::amrex::MFIter& mfi) {
+      amrex::ForEachFab(fluxes_x, [&](const ::amrex::MFIter& mfi) {
         ::amrex::IntVect iv{0, 0};
-        if (mfi.vaildbox().contains(iv)) {
+        if (mfi.tilebox().contains(iv)) {
           local_f_rho = fluxes_x[mfi](iv, 0);
         }
       });
-      ::MPI_Allreduce(&local_f_rho, &flux_tube, 1, MPI_DOUBLE, MPI_SUM, ::amrex::ParallelDescriptor::Communicator());
+      ::MPI_Allreduce(&local_f_rho, &flux_tube, 1, MPI_DOUBLE, MPI_SUM,
+                      ::amrex::ParallelDescriptor::Communicator());
     }
-
-    double rhou_tubes = std::accumulate(flux_rho_tube.begin(), flux_rho_tube.end(), 0.0);
+    const double oosize = 1.0 / static_cast<double>(tubes.size());
+    double rhou_tubes = oosize *
+        std::accumulate(flux_rho_tube.begin(), flux_rho_tube.end(), 0.0);
 
     control_.UpdatePlena(mdot_turbine, turbine_boundary_state, rhou_tubes, dt);
   }
 
-
 private:
   PerfectGasMix<PlenumRank> plenum_equation_;
-  PerfectGasMix<TubeRank> tube_equation_;
-  Control<PerfectGasMix<Rank>> control_;
+  PerfectGasMix<1> tube_equation_;
+  Control<PlenumRank> control_;
 };
 
 } // namespace gt

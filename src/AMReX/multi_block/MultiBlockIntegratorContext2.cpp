@@ -45,8 +45,8 @@ void MultiBlockIntegratorContext2::CopyScratchToData(int level) {
 span<IntegratorContext> MultiBlockIntegratorContext2::Tubes() noexcept {
   return tubes_;
 }
-span<const IntegratorContext>
-MultiBlockIntegratorContext2::Tubes() const noexcept {
+span<const IntegratorContext> MultiBlockIntegratorContext2::Tubes() const
+    noexcept {
   return tubes_;
 }
 
@@ -92,8 +92,9 @@ bool MultiBlockIntegratorContext2::LevelExists(int level) const noexcept {
                      });
 }
 
-int MultiBlockIntegratorContext2::GetRatioToCoarserLevel(
-    int level, Direction dir) const noexcept {
+int MultiBlockIntegratorContext2::GetRatioToCoarserLevel(int level,
+                                                         Direction dir) const
+    noexcept {
   return plena_[0].GetRatioToCoarserLevel(level, dir);
 }
 
@@ -165,6 +166,11 @@ void MultiBlockIntegratorContext2::SetTimePoint(Duration t, int level) {
   });
 }
 /// @}
+
+void MultiBlockIntegratorContext2::SetPostAdvanceHierarchyFeedback(
+    FeedbackFn feedback) {
+  post_advance_hierarchy_feedback_ = std::move(feedback);
+}
 
 /// @{
 /// \name Member functions relevant for the level integrator algorithm.

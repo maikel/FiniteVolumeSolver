@@ -89,7 +89,7 @@ void PerfectGasMix<Dim>::CompleteFromCons(
   const double e_kin = euler::KineticEnergy(cons.density, cons.momentum);
   FUB_ASSERT(e_kin < cons.energy);
   const double e_int = cons.energy - e_kin;
-  complete.pressure = e_int / gamma_minus_1_inv;
+  complete.pressure = e_int / gamma_minus_one_inv;
   FUB_ASSERT(complete.pressure > 0.0 && complete.density > 0.0);
   complete.speed_of_sound =
       std::sqrt(gamma * complete.pressure / complete.density);
@@ -107,7 +107,7 @@ void PerfectGasMix<Dim>::CompleteFromCons(
   }
   const Array1d e_kin = euler::KineticEnergy(cons.density, cons.momentum);
   const Array1d e_int = cons.energy - e_kin;
-  complete.pressure = e_int / gamma_minus_1_inv;
+  complete.pressure = e_int * gamma_minus_one;
   complete.speed_of_sound =
       (gamma_array_ * complete.pressure / complete.density).sqrt();
 }
@@ -128,7 +128,7 @@ void PerfectGasMix<Dim>::CompleteFromCons(
   }
   const Array1d e_kin = euler::KineticEnergy(cons.density, cons.momentum, mask);
   const Array1d e_int = cons.energy - e_kin;
-  complete.pressure = mask.select(e_int / gamma_minus_1_inv, zero);
+  complete.pressure = mask.select(e_int / gamma_minus_one_inv, zero);
   Array1d safe_density = mask.select(complete.density, 1.0);
   FUB_ASSERT((safe_density > 0.0).all());
   complete.speed_of_sound = mask.select(
@@ -147,7 +147,7 @@ Complete<PerfectGasMix<Dim>> PerfectGasMix<Dim>::CompleteFromPrim(
     q.species[s] = q.density * species[s];
   }
   const double e_kin = euler::KineticEnergy(q.density, q.momentum);
-  q.energy = e_kin + p * gamma_minus_1_inv;
+  q.energy = e_kin + p * gamma_minus_one_inv;
   q.speed_of_sound = std::sqrt(gamma * q.pressure / q.density);
   return q;
 }

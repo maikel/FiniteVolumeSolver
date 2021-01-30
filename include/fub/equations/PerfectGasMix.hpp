@@ -267,16 +267,18 @@ template <int N> struct PerfectGasMix {
   // Rspec = (gamma - 1) cv
   // Rpsec /(gamma - 1) = cv
   double Rspec{1.}; ///< the specific gas constant
+  double ooRspec{1. / Rspec}; ///< the inverse specific gas constant
   double gamma{1.28}; ///< the adiabtic exponent
-  double gamma_inv{1.0 / gamma}; // 1 / gamma
-  double gamma_minus_one{gamma - 1.0}; // gamma - 1
-  double gamma_minus_one_over_gamma{gamma_minus_one * gamma_inv}; // (gamma-1)/gamma
-  double gamma_minus_one_inv{1.0 / (gamma - 1.0)}; // 1/(gamma-1)
+  double gamma_inv{1.0 / gamma}; ///< 1 / gamma
+  double gamma_minus_one{gamma - 1.0}; ///< gamma - 1
+  double gamma_minus_one_over_gamma{gamma_minus_one * gamma_inv}; ///< (gamma-1)/gamma
+  double gamma_minus_one_inv{1.0 / gamma_minus_one}; ///< 1/(gamma-1)
   double gamma_over_gamma_minus_one{gamma * gamma_minus_one_inv}; // gamma/(gamma-1)
   double heat_capacity_at_constant_pressure{Rspec * gamma_over_gamma_minus_one}; // gamma Rspec / (gamma-1)
+  double heat_capacity_at_constant_volume{Rspec * gamma_minus_one_inv};
 
   Array1d gamma_array_{Array1d::Constant(gamma)};
-  Array1d gamma_minus_1_inv_array_{Array1d::Constant(gamma_minus_1_inv)};
+  Array1d gamma_minus_one_inv_array_{Array1d::Constant(gamma_minus_one_inv)};
 
 private:
   template <typename State>
@@ -334,7 +336,7 @@ private:
     // Rspec = gamma cv - cv
     // Rspec = (gamma - 1) cv
     // Rpsec /(gamma - 1) = cv
-    const double cv = eq.Rspec * eq.gamma_minus_1_inv;
+    const double cv = eq.Rspec * eq.gamma_minus_one_inv;
     return cv * q.temperature;
   }
 
@@ -493,6 +495,12 @@ private:
   }
 
   friend double tag_invoke(tag_t<euler::Pressure>, const PerfectGasMix& eq,
+                           const Conservative& q) noexcept {
+    const double ekin = euler::KineticEnergy(q.density, q.momentum);
+    return (q.energy - ekin) * eq.gamma_minus_one;
+  }
+
+  friend double tag_invoke(tag_t<euler::Pressure>, const PerfectGasMix& eq,
                            const KineticState& q) noexcept {
     return eq.Rspec * q.temperature * q.density;
   }
@@ -517,18 +525,18 @@ private:
     const double c2 = c*c;
     const double Ma2 = u_old.matrix().squaredNorm() / c2;
 
-    const double alpha = 1.0 + 0.5 * Ma2 / eq.gamma_minus_1_inv;
-    const double rho_0 = rho_old * std::pow(alpha, eq.gamma_minus_1_inv);
-    const double p_0 = p_old * std::pow(alpha, eq.gamma * eq.gamma_minus_1_inv);
+    const double alpha = 1.0 + 0.5 * Ma2 * eq.gamma_minus_one;
+    const double rho_0 = rho_old * std::pow(alpha, eq.gamma_minus_one_inv);
+    const double p_0 = p_old * std::pow(alpha, eq.gamma * eq.gamma_minus_one_inv);
     const double T_0 = T_old * alpha;
     
-    const double rho_new = rho_0 * std::pow(p_new / p_0, 1 / eq.gamma);
-    const double T_new = p_new / rho_new / eq.Rspec;
+    const double rho_new = rho_0 * std::pow(p_new / p_0, eq.gamma_inv);
+    const double T_new = p_new / rho_new * eq.ooRspec;
     
     // a = (gamma - 1) / 2
     // T0 = T_new (1 + a Ma2_n)
     // (gamma R) (T_0 - T_new) / a = (gamma R) (T_new (1 + a Ma2_n) - T_new) / a = (gamma R) T_new Ma2_n = c2_n Ma2_n = u2_n
-    const double u2_new = 2.0 * eq.gamma_minus_1_inv * eq.gamma * eq.Rspec * (T_0 - T_new);
+    const double u2_new = 2.0 * eq.gamma_over_gamma_minus_one * eq.Rspec * (T_0 - T_new);
     // const Array<double, N, 1> u0 = euler::Velocity(eq, q0);
     Array<double, N, 1> u_new = Array<double, N, 1>::Zero();
     u_new[0] = ((u2_new > 0.0) - (u2_new < 0.0)) * std::sqrt(std::abs(u2_new));
@@ -537,13 +545,13 @@ private:
     // u_new[0] =
     //     u_old[0] +
     //     2.0 * std::sqrt(eq.gamma * q0.pressure / q0.density) *
-    //         eq.gamma_minus_1_inv -
-    //     2.0 * std::sqrt(eq.gamma * p_new / rho_new) * eq.gamma_minus_1_inv;
+    //         eq.gamma_minus_one_inv -
+    //     2.0 * std::sqrt(eq.gamma * p_new / rho_new) * eq.gamma_minus_one_inv;
     // const double rho_new =
     //     std::pow(p_new / q0.pressure, 1 / eq.gamma) * q0.density;
     const Array<double, N, 1> rhou_new = rho_new * u_new;
     const double rhoE_new =
-        p_new * eq.gamma_minus_1_inv + euler::KineticEnergy(rho_new, rhou_new);
+        p_new * eq.gamma_minus_one_inv + euler::KineticEnergy(rho_new, rhou_new);
 
     q.density = rho_new;
     q.momentum = rhou_new;
@@ -582,7 +590,7 @@ void CompleteFromPrim(const PerfectGasMix<Rank>& equation,
   }
   const Array1d e_kin =
       euler::KineticEnergy(complete.density, complete.momentum);
-  complete.energy = e_kin + complete.pressure * equation.gamma_minus_1_inv;
+  complete.energy = e_kin + complete.pressure * equation.gamma_minus_one_inv;
   complete.speed_of_sound =
       (equation.gamma * complete.pressure / complete.density).sqrt();
 }
