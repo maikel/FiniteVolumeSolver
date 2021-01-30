@@ -21,6 +21,9 @@
 #include "fub/AMReX.hpp"
 #include "fub/Solver.hpp"
 
+#include "fub/AMReX/cutcell/FluxMethodFactory.hpp"
+#include "fub/equations/perfect_gas_mix/PlenaControl.hpp"
+
 #include "fub/equations/PerfectGasMix.hpp"
 #include "fub/flux_method/MusclHancockMethod2.hpp"
 
@@ -74,32 +77,13 @@ struct RiemannProblem {
   }
 };
 
-using FactoryFunction =
-    std::function<fub::AnyFluxMethod<fub::amrex::IntegratorContext>(
-        const fub::PerfectGasMix<1>&)>;
-
-template <typename... Pairs> auto GetFluxMethodFactory(Pairs... ps) {
-  std::map<std::string, FactoryFunction> factory;
-  ((factory[ps.first] = ps.second), ...);
-  return factory;
-}
-
-template <typename FluxMethod> struct MakeFlux {
-  fub::AnyFluxMethod<fub::amrex::IntegratorContext>
-  operator()(const fub::PerfectGasMix<1>& eq) const {
-    FluxMethod flux_method{eq};
-    fub::amrex::FluxMethodAdapter adapter(std::move(flux_method));
-    return adapter;
-  }
-};
-
 struct ChangeTOpened {
   template <typename EulerEquation>
   [[nodiscard]] std::optional<fub::Duration>
   operator()(EulerEquation&, std::optional<fub::Duration>, double,
-             const fub::KineticState<EulerEquation>&,
-             const fub::amrex::GriddingAlgorithm& gridding,
-             int) const noexcept {
+             const fub::perfect_gas_mix::gt::PlenumState&,
+             const fub::amrex::GriddingAlgorithm& gridding, int) const
+      noexcept {
     return gridding.GetTimePoint();
   }
 };
@@ -108,7 +92,7 @@ struct IsNeverBlocked {
   template <typename EulerEquation>
   [[nodiscard]] bool
   operator()(EulerEquation&, std::optional<fub::Duration> /* t_opened */,
-             double, const fub::KineticState<EulerEquation>&,
+             double, const fub::perfect_gas_mix::gt::PlenumState&,
              const fub::amrex::GriddingAlgorithm& /* gridding */,
              int /* level */) const noexcept {
     return false;
@@ -123,22 +107,8 @@ void MyMain(const fub::ProgramOptions& options) {
 
   fub::SeverityLogger log = fub::GetInfoLogger();
 
-  fub::ProgramOptions equation_options = fub::GetOptions(options, "Equation");
-
   fub::PerfectGasMix<1> equation{};
   equation.n_species = 1;
-  equation.Rspec =
-      fub::GetOptionOr(equation_options, "R_specific", equation.Rspec);
-  equation.gamma = fub::GetOptionOr(equation_options, "gamma", equation.gamma);
-  equation.gamma_minus_1_inv = 1.0 / (equation.gamma - 1.0);
-  equation.gamma_array_ = fub::Array1d::Constant(equation.gamma);
-  equation.gamma_minus_1_inv_array_ =
-      fub::Array1d::Constant(equation.gamma_minus_1_inv);
-
-  BOOST_LOG(log) << "Equation:";
-  BOOST_LOG(log) << fmt::format(" - n_species = {}", equation.n_species);
-  BOOST_LOG(log) << fmt::format(" - R_specific = {}", equation.Rspec);
-  BOOST_LOG(log) << fmt::format(" - gamma = {}", equation.gamma);
 
   fub::amrex::CartesianGridGeometry grid_geometry(
       fub::GetOptions(options, "GridGeometry"));
@@ -167,28 +137,28 @@ void MyMain(const fub::ProgramOptions& options) {
       [prim = fub::Primitive<fub::PerfectGasMix<1>>(equation)](
           const fub::PerfectGasMix<1>& eq,
           fub::Complete<fub::PerfectGasMix<1>>& boundary_state,
-          const fub::KineticState<fub::PerfectGasMix<1>>& compressor_state,
+          const fub::perfect_gas_mix::gt::PlenumState& compressor_state,
           double inner_pressure, fub::Duration, const amrex::MultiFab&,
           const fub::amrex::GriddingAlgorithm&, int) mutable {
-        const double X_inflow_left =
-            1.0; /* fixed fuel concentration in deflagration mode */
+        // fixed fuel concentration in deflagration mode
+        const double X_inflow_left = 1.0;
 
-        const double p_inflow_left = fub::euler::Pressure(eq, compressor_state);
-        const double rho_inflow_left = compressor_state.density;
+        const double p_inflow_left = compressor_state.pressure;
         const double T_inflow_left = compressor_state.temperature;
+        const double rho_inflow_left = p_inflow_left / T_inflow_left * eq.ooRspec;
 
         const double p = inner_pressure;
         const double ppv = p_inflow_left;
         const double rhopv = rho_inflow_left;
         const double Tpv = T_inflow_left;
         const double pin = p;
-        const double g = eq.gamma;
-        const double Gamma = (g - 1.0) / g;
-        const double Gammainv = g / (g - 1.0);
-        const double Tin = Tpv * pow(pin / ppv, Gamma);
-        const double uin = std::sqrt(2.0 * Gammainv * std::max(0.0, Tpv - Tin));
-        double rhoin = rhopv * pow(pin / ppv, 1.0 / g);
+        const double Tin = Tpv * pow(pin / ppv, eq.gamma_minus_one_over_gamma);
+        const double uin = std::sqrt(2.0 * eq.gamma_over_gamma_minus_one *
+                                     std::max(0.0, Tpv - Tin));
+        double rhoin = rhopv * pow(pin / ppv, eq.gamma_inv);
 
+        FUB_ASSERT(rhoin > 0.0);
+        FUB_ASSERT(pin > 0.0);
         prim.density = rhoin;
         prim.velocity[0] = uin;
         prim.pressure = pin;
@@ -197,29 +167,22 @@ void MyMain(const fub::ProgramOptions& options) {
         fub::CompleteFromPrim(eq, boundary_state, prim);
       };
 
-  fub::KineticState<fub::PerfectGasMix<1>> compressor_state(equation);
-  compressor_state.density = std::pow(2.0, 1.0 / equation.gamma);
-  compressor_state.temperature = 2.0 / compressor_state.density;
-  compressor_state.mole_fractions[0] = 1.0;
+  fub::ProgramOptions compressor_options = fub::GetOptions(options, "CompressorState");
+  std::shared_ptr compressor_state = std::make_shared<fub::perfect_gas_mix::gt::PlenumState>();
+  compressor_state->pressure = fub::GetOptionOr(compressor_options, "pressure", 1.0);
+  compressor_state->temperature = fub::GetOptionOr(compressor_options, "temperature", 1.0);
+  BOOST_LOG(log) << "CompressorState:";
+  BOOST_LOG(log) << fmt::format("  - pressure = {}", compressor_state->pressure);
+  BOOST_LOG(log) << fmt::format("  - temperature = {}", compressor_state->temperature);;
 
   using DeflagrationValve = fub::amrex::GenericPressureValveBoundary<
       fub::PerfectGasMix<1>, std::decay_t<decltype(inflow_function)>,
       ChangeTOpened, IsNeverBlocked>;
   DeflagrationValve valve(equation, compressor_state, inflow_function);
 
-  /* fub::amrex::BoundarySet boundary;
-  using fub::amrex::IsentropicPressureExpansion;
-  fub::amrex::GenericPressureValveBoundary left(equation, inflow_function, {});
-  boundary.conditions.push_back(left);
-  boundary.conditions.push_back(
-      IsentropicPressureExpansion<fub::PerfectGasMix<1>>{equation, 1.0,
-                                                         fub::Direction::X, 1});
- */
   fub::amrex::BoundarySet boundary;
   boundary.conditions.push_back(valve);
   using fub::amrex::IsentropicPressureExpansion;
-  // boundary.conditions.push_back(
-  //    ReflectiveBoundary{seq, equation, fub::Direction::X, 1});
   boundary.conditions.push_back(
       IsentropicPressureExpansion<fub::PerfectGasMix<1>>{equation, 1.0,
                                                          fub::Direction::X, 1});
@@ -230,42 +193,11 @@ void MyMain(const fub::ProgramOptions& options) {
   gridding->InitializeHierarchy(0.0);
 
   using namespace std::literals;
-  using HLLEM = fub::perfect_gas::HllemMethod<fub::PerfectGasMix<1>>;
 
-  using ConservativeReconstruction = fub::FluxMethod<fub::MusclHancock2<
-      fub::PerfectGasMix<1>,
-      fub::ConservativeGradient<
-          fub::PerfectGasMix<1>,
-          fub::CentralDifferenceGradient<fub::VanLeerLimiter>>,
-      fub::ConservativeReconstruction<fub::PerfectGasMix<1>>, HLLEM>>;
-
-  using PrimitiveReconstruction = fub::FluxMethod<fub::MusclHancock2<
-      fub::PerfectGasMix<1>,
-      fub::PrimitiveGradient<
-          fub::PerfectGasMix<1>,
-          fub::CentralDifferenceGradient<fub::VanLeerLimiter>>,
-      fub::PrimitiveReconstruction<fub::PerfectGasMix<1>>, HLLEM>>;
-
-  using CharacteristicsReconstruction = fub::FluxMethod<fub::MusclHancock2<
-      fub::PerfectGasMix<1>,
-      fub::CharacteristicsGradient<
-          fub::PerfectGasMix<1>,
-          fub::CentralDifferenceGradient<fub::VanLeerLimiter>>,
-      fub::CharacteristicsReconstruction<fub::PerfectGasMix<1>>, HLLEM>>;
-
-  auto flux_method_factory = GetFluxMethodFactory(
-      std::pair{"NoReconstruct"s, MakeFlux<HLLEM>()},
-      std::pair{"Conservative"s, MakeFlux<ConservativeReconstruction>()},
-      std::pair{"Primitive"s, MakeFlux<PrimitiveReconstruction>()},
-      std::pair{"Characteristics"s, MakeFlux<CharacteristicsReconstruction>()});
-
-  std::string reconstruction =
-      fub::GetOptionOr(options, "reconstruction", "HLLEM"s);
-  BOOST_LOG(log) << "Reconstruction: " << reconstruction;
-  auto flux_method = flux_method_factory.at(reconstruction)(equation);
-
-  fub::amrex::HyperbolicMethod method{flux_method,
-                                      fub::amrex::EulerForwardTimeIntegrator(),
+  auto [flux_method, time_integrator] =
+      fub::amrex::GetFluxMethod(fub::GetOptions(options, "FluxMethod"),
+                                gridding->GetPatchHierarchy(), equation);
+  fub::amrex::HyperbolicMethod method{flux_method, time_integrator,
                                       fub::amrex::Reconstruction(equation)};
 
   const int scratch_ghost_cell_width =
@@ -279,7 +211,8 @@ void MyMain(const fub::ProgramOptions& options) {
                                     flux_ghost_cell_width),
       fub::GodunovSplitting());
 
-  fub::amrex::DiffusionSourceTerm diffusion(equation);
+  fub::amrex::DiffusionSourceTerm diffusion(equation, fub::GetOptions(options, "DiffusionSourceTerm"));
+  diffusion.options_.Print(log);
   fub::SplitSystemSourceLevelIntegrator diffusive_integrator(
       std::move(level_integrator), std::move(diffusion),
       fub::StrangSplittingLumped());
@@ -290,7 +223,6 @@ void MyMain(const fub::ProgramOptions& options) {
   // fub::StrangSplittingLumped());
 
   fub::SubcycleFineFirstSolver solver(std::move(reactive_integrator));
-  // fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
   using namespace fub::amrex;
   using namespace std::literals::chrono_literals;

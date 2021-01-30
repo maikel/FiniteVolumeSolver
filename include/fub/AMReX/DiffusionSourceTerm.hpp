@@ -26,11 +26,18 @@
 #include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/AMReX/boundary_condition/BoundaryConditionRef.hpp"
 
+#include "fub/ext/ProgramOptions.hpp"
+#include "fub/ext/Log.hpp"
+
 #include <AMReX_FillPatchUtil.H>
 
 namespace fub::amrex {
 
 struct DiffusionSourceTermOptions {
+  DiffusionSourceTermOptions() = default;
+  DiffusionSourceTermOptions(const ProgramOptions& opts);
+  void Print(SeverityLogger& log) const;
+
   double mul{3.0};
   double reynolds{1.0 / 0.003};
   double schmidt{1.0};
@@ -64,9 +71,10 @@ public:
                             span<const ConservativeArray, 2> states,
                             double dx) const;
 
+  DiffusionSourceTermOptions options_;
+
 private:
   EulerEquation equation_;
-  DiffusionSourceTermOptions options_;
 
   struct Constants {
     Constants(const DiffusionSourceTermOptions& o) {
@@ -99,7 +107,7 @@ private:
 template <typename EulerEquation>
 DiffusionSourceTerm<EulerEquation>::DiffusionSourceTerm(
     const EulerEquation& equation, const DiffusionSourceTermOptions& options)
-    : equation_(equation), options_(options) {}
+    : options_(options), equation_(equation) {}
 
 template <typename EulerEquation>
 Result<void, TimeStepTooLarge> DiffusionSourceTerm<EulerEquation>::AdvanceLevel(

@@ -1,8 +1,8 @@
 import math
 
-dx = 1e-3
+#dx = 256
 x_len = 1.0
-n_cells = int(x_len / dx)
+n_cells = 256# int(x_len / dx)
 
 RunOptions = {
   'cfl': 0.5 * 0.9 / float(n_cells / 64),
@@ -34,25 +34,29 @@ PatchHierarchy = {
 #   'T_switch':1.10,
 # }
 
-reconstruction = "Characteristics"
-#reconstruction = "Conservative"
-#reconstruction = "Primitive"
-#reconstruction = "NoReconstruct"
-
-paths = {
-  'HLLE': './HLLE.h5',
-  'NoReconstruct': './HLLEM.h5',
-  'Conservative': './Conservative.h5',
-  'ConservativeM': './ConservativeM.h5',
-  'Primitive': './Primitive.h5',
-  'Characteristics': './Characteristics.h5',
-  'PerfectGas': './PerfectGas1d_cfl05.h5'
+CompressorState = {
+  'pressure': 2.0,
+  'temperature': 1.0
 }
+
+def Area(xi):
+  A0  = 1.0
+  A1  = 4.0 # Reference: 3.0; best: 4.0 
+  xi0 = 0.0625 - 1.0
+  xi1 = 0.75 - 1.0   # Reference: 0.5; best: 0.75
+  Ax = 1.0 if xi < xi0 else A0 + (A1-A0)*(xi-xi0)/(xi1-xi0) if xi < xi1 else A1
+  return Ax
+
+FluxMethod = {
+  'reconstruction': 'Characteristics',
+  'axial_variation': Area
+}
+
 
 Output = {
   'outputs': [{
     'type': 'HDF5',
-    'path': paths[reconstruction],
+    'path': 'Deflagration.h5',
     'intervals': [0.005],
     #'frequencies': [1],
   },{
