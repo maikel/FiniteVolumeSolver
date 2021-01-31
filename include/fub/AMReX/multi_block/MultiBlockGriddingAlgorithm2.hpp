@@ -22,6 +22,8 @@
 #define FUB_AMREX_COUPLED_GRIDDING_ALGORITHM2_HPP
 
 #include "fub/AMReX/multi_block/MultiBlockBoundary2.hpp"
+#include "fub/AMReX/boundary_condition/BoundarySet.hpp"
+#include "fub/AMReX/cutcell/boundary_condition/BoundarySet.hpp"
 
 #include "fub/AMReX/GriddingAlgorithm.hpp"
 #include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
@@ -90,9 +92,21 @@ MultiBlockGriddingAlgorithm2::MultiBlockGriddingAlgorithm2(
   int level = 0;
   for (auto& boundaries : boundaries_) {
     for (const BlockConnection& conn : connectivity_) {
-      boundaries.emplace_back(
+      AnyMultiBlockBoundary multi_block_bc = boundaries.emplace_back(
           MultiBlockBoundary2(tube_equation, plenum_equation), *this, conn,
           conn.ghost_cell_width, level);
+      {
+        AnyBoundaryCondition& tube_bc = tubes_[conn.tube.id]->GetBoundaryCondition();
+        fub::amrex::BoundarySet composed{{tube_bc}};
+        composed.conditions.emplace_back(multi_block_bc);
+        tube_bc = composed;
+      }
+      {
+        cutcell::AnyBoundaryCondition& plenum_bc = plena_[conn.plenum.id]->GetBoundaryCondition();
+        fub::amrex::cutcell::BoundarySet composed{{plenum_bc}};
+        composed.conditions.emplace_back(multi_block_bc);
+        plenum_bc = composed;
+      }
     }
     level += 1;
   }

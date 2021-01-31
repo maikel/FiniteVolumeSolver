@@ -205,7 +205,28 @@ template <typename... Xs> struct StateTraits<PerfectGasMixComplete<Xs...>> {
   template <int Rank> using Equation = PerfectGasMix<Rank>;
 };
 
-template <int N> struct PerfectGasMix {
+struct PerfectGasConstants {
+  double Rspec{1.}; ///< the specific gas constant
+  double gamma{1.28}; ///< the adiabtic exponent
+  double ooRspec{1. / Rspec}; ///< the inverse specific gas constant
+  double gamma_inv{1.0 / gamma}; ///< 1 / gamma
+  double gamma_minus_one{gamma - 1.0}; ///< gamma - 1
+  double gamma_minus_one_over_gamma{gamma_minus_one * gamma_inv}; ///< (gamma-1)/gamma
+  double gamma_minus_one_inv{1.0 / gamma_minus_one}; ///< 1/(gamma-1)
+  double gamma_over_gamma_minus_one{gamma * gamma_minus_one_inv}; // gamma/(gamma-1)
+  double heat_capacity_at_constant_pressure{Rspec * gamma_over_gamma_minus_one}; // gamma Rspec / (gamma-1)
+  double heat_capacity_at_constant_volume{Rspec * gamma_minus_one_inv};
+  Array1d gamma_array_{Array1d::Constant(gamma)};
+  Array1d gamma_minus_one_inv_array_{Array1d::Constant(gamma_minus_one_inv)};
+};
+
+inline PerfectGasConstants ComputeConstants(double Rspec, double gamma) 
+{
+  PerfectGasConstants constants{Rspec, gamma};
+  return constants;
+}
+
+template <int N> struct PerfectGasMix : PerfectGasConstants {
   using ConservativeDepths = PerfectGasMixConsShape<N>;
   using CompleteDepths = PerfectGasMixCompleteShape<N>;
   using PrimitiveDepths = PerfectGasMixPrimShape<N>;
@@ -217,6 +238,11 @@ template <int N> struct PerfectGasMix {
   using ConservativeArray = ::fub::ConservativeArray<PerfectGasMix<N>>;
   using CompleteArray = ::fub::CompleteArray<PerfectGasMix<N>>;
   using KineticState = ::fub::KineticState<PerfectGasMix<N>>;
+
+  PerfectGasMix() = default;
+
+  PerfectGasMix(const PerfectGasConstants& constants, int nspecies)
+    : PerfectGasConstants{constants}, n_species{nspecies} {}
 
   static constexpr int Rank() noexcept { return N; }
 
@@ -257,28 +283,11 @@ template <int N> struct PerfectGasMix {
   double Temperature(const Complete& q) const noexcept;
   Array1d Temperature(const CompleteArray& q) const noexcept;
 
+  void SetConstants(double Rspec, double gamma) noexcept {
+    (PerfectGasConstants&)(*this) = ComputeConstants(Rspec, gamma);
+  }
+
   int n_species{0};
-
-  // Rspec = cp - cv
-  // gamma = cp / cv
-  // cp = cv gamma
-  // cp = gamma cv = gamma Rpsec /(gamma - 1) 
-  // Rspec = gamma cv - cv
-  // Rspec = (gamma - 1) cv
-  // Rpsec /(gamma - 1) = cv
-  double Rspec{1.}; ///< the specific gas constant
-  double ooRspec{1. / Rspec}; ///< the inverse specific gas constant
-  double gamma{1.28}; ///< the adiabtic exponent
-  double gamma_inv{1.0 / gamma}; ///< 1 / gamma
-  double gamma_minus_one{gamma - 1.0}; ///< gamma - 1
-  double gamma_minus_one_over_gamma{gamma_minus_one * gamma_inv}; ///< (gamma-1)/gamma
-  double gamma_minus_one_inv{1.0 / gamma_minus_one}; ///< 1/(gamma-1)
-  double gamma_over_gamma_minus_one{gamma * gamma_minus_one_inv}; // gamma/(gamma-1)
-  double heat_capacity_at_constant_pressure{Rspec * gamma_over_gamma_minus_one}; // gamma Rspec / (gamma-1)
-  double heat_capacity_at_constant_volume{Rspec * gamma_minus_one_inv};
-
-  Array1d gamma_array_{Array1d::Constant(gamma)};
-  Array1d gamma_minus_one_inv_array_{Array1d::Constant(gamma_minus_one_inv)};
 
 private:
   template <typename State>

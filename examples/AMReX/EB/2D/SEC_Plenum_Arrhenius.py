@@ -63,9 +63,10 @@ tube_n_cells -= tube_n_cells % tube_blocking_factor
 tube_n_cells = int(tube_n_cells)
 
 RunOptions = {
-  'cfl': 0.5 * 0.9,
+  # 'cfl': 0.5 * 0.9 / float(tube_n_cells / 64),
+  'cfl': 0.01,
   'final_time': 5.0,
-  'max_cycles': 10,
+  'max_cycles': -1,
   'do_backup': 0
 }
 
@@ -97,7 +98,7 @@ ArrheniusKinetics = {
 }
 
 DiffusionSourceTerm = {
-  'mul': 0.0
+  'mul': 3.0
 }
 
 p0 = 2.0
@@ -258,29 +259,29 @@ Output = {
     'type': 'HDF5',
     'path': '{}/Tube0.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
     'which_block': 1,
-    'intervals': [0.01],
-    'frequencies': [1]
+    'intervals': [0.005],
+    # 'frequencies': [1]
   },
   {
     'type': 'HDF5',
     'path': '{}/Tube1.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
     'which_block': 2,
-    'intervals': [0.01],
-    'frequencies': [1]
+    'intervals': [0.005],
+    # 'frequencies': [1]
   },
   {
     'type': 'HDF5',
     'path': '{}/Tube2.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
     'which_block': 3,
-    'intervals': [0.01],
-    'frequencies': [1]
+    'intervals': [0.005],
+    # 'frequencies': [1]
   },
   {
     'type': 'HDF5',
     'path': '{}/Plenum.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
     'which_block': 0,
-    'intervals': [0.04],
-    'frequencies': [1]
+    'intervals': [0.02],
+    # 'frequencies': [1]
   },
   {
   #   'type': 'Plotfiles',
