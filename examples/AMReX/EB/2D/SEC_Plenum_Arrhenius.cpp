@@ -32,6 +32,7 @@
 
 #include "fub/AMReX/AxialFluxMethodAdapter.hpp"
 #include "fub/AMReX/AxialTimeIntegrator.hpp"
+#include "fub/AMReX/DiffusionSourceTerm.hpp"
 
 #include "fub/AMReX/multi_block/MultiBlockBoundary2.hpp"
 #include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm2.hpp"
@@ -475,7 +476,8 @@ auto MakeTubeSolver(
 
         const double p_inflow_left = compressor_state.pressure;
         const double T_inflow_left = compressor_state.temperature;
-        const double rho_inflow_left = p_inflow_left / T_inflow_left * eq.ooRspec;
+        const double rho_inflow_left =
+            p_inflow_left / T_inflow_left * eq.ooRspec;
 
         const double p = inner_pressure;
         const double ppv = p_inflow_left;
@@ -499,7 +501,8 @@ auto MakeTubeSolver(
   using DeflagrationValve = fub::amrex::GenericPressureValveBoundary<
       fub::PerfectGasMix<1>, std::decay_t<decltype(combustor_inflow_function)>,
       ChangeTOpened, IsNeverBlocked>;
-  DeflagrationValve valve(equation, compressor_state, combustor_inflow_function);
+  DeflagrationValve valve(equation, compressor_state,
+                          combustor_inflow_function);
   // const double eps = std::sqrt(std::numeric_limits<double>::epsilon());
   // auto inflow_function =
   //     [eps, source_term,
@@ -525,14 +528,16 @@ auto MakeTubeSolver(
   //       const double rhopv = rho_inflow_left;
   //       const double Tpv = T_inflow_left;
   //       const double pin = p;
-  //       const double Tin = Tpv * pow(pin / ppv, eq.gamma_minus_one_over_gamma);
-  //       const double uin = std::sqrt(2.0 * eq.gamma_over_gamma_minus_one *
+  //       const double Tin = Tpv * pow(pin / ppv,
+  //       eq.gamma_minus_one_over_gamma); const double uin = std::sqrt(2.0 *
+  //       eq.gamma_over_gamma_minus_one *
   //                                    std::max(0.0, Tpv - Tin));
   //       double rhoin = rhopv * pow(pin / ppv, eq.gamma_inv);
 
   //       const double tign = std::max(timin, tti - t_diff.count());
   //       const double Xin = X_inflow_left;
-  //       const double Tin1 = fub::perfect_gas_mix::TemperatureForIgnitionDelay(
+  //       const double Tin1 =
+  //       fub::perfect_gas_mix::TemperatureForIgnitionDelay(
   //           eq, source_term.options, tign, Xin, Tin, eps);
 
   //       /* adjust density to match desired temperature */
@@ -880,7 +885,13 @@ auto MakePlenumSolver(const std::map<std::string, pybind11::object>& options,
 void MyMain(const std::map<std::string, pybind11::object>& vm);
 
 int main(int argc, char** argv) {
-  MPI_Init(nullptr, nullptr);
+  int provided{-1};
+  MPI_Init_thread(nullptr, nullptr, MPI_THREAD_FUNNELED, &provided);
+  if (provided < MPI_THREAD_FUNNELED) {
+    fmt::print(
+        "Aborting execution. MPI could not provide a thread-safe instance.\n");
+    MPI_Abort(MPI_COMM_WORLD, 1);
+  }
   fub::InitializeLogging(MPI_COMM_WORLD);
   pybind11::scoped_interpreter interpreter{};
   std::optional<fub::ProgramOptions> opts = fub::ParseCommandLine(argc, argv);
@@ -979,7 +990,19 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
       std::move(system_solver), std::move(source_term),
       fub::GodunovSplitting{});
 
-  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
+  fub::amrex::DiffusionSourceTermOptions diff_opts =
+      fub::GetOptions(vm, "DiffusionSourceTerm");
+  std::vector<fub::amrex::DiffusionSourceTerm<fub::PerfectGasMix<1>>> diffs(
+      kinetics.size(), fub::amrex::DiffusionSourceTerm<fub::PerfectGasMix<1>>{
+                           tube_equation, diff_opts});
+  fub::amrex::MultiBlockSourceTerm<
+      fub::amrex::DiffusionSourceTerm<fub::PerfectGasMix<1>>>
+      diff_term(diffs);
+  fub::SplitSystemSourceLevelIntegrator diff_integrator(
+      std::move(level_integrator), std::move(diff_term),
+      fub::GodunovSplitting{});
+
+  fub::SubcycleFineFirstSolver solver(std::move(diff_integrator));
 
   using namespace fub::amrex;
   struct MakeCheckpoint

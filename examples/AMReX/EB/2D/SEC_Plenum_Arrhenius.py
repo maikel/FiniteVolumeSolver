@@ -1,6 +1,6 @@
 import math
 
-plenum_x_n_cells = 64
+plenum_x_n_cells = 256
 tube_blocking_factor = 8
 plenum_blocking_factor = 8
 
@@ -22,11 +22,16 @@ alpha = 2.0 * math.pi / n_tubes
 
 inlet_length = 3.0 * D # [m]
 
-plenum_x_upper = 0.1
+plenum_y_lower = - 0.5
+plenum_y_upper = + 0.5
+plenum_y_length = plenum_y_upper - plenum_y_lower
+
+TVolRPlen = 20.0 * D
+plenum_x_upper = TVolRPlen / plenum_y_length
 plenum_x_lower = -inlet_length
 plenum_x_length = plenum_x_upper - plenum_x_lower
 
-plenum_length = plenum_x_length # [m]
+plenum_length = plenum_x_upper # [m]
 tube_length = 1.0 # [m]
 
 plenum_max_grid_size = max(plenum_blocking_factor, 1024)
@@ -36,9 +41,6 @@ tube_domain_length = tube_length - inlet_length
 
 tube_over_plenum_length_ratio = tube_domain_length / plenum_domain_length
 
-plenum_y_lower = - 0.5
-plenum_y_upper = + 0.5
-plenum_y_length = plenum_y_upper - plenum_y_lower
 
 plenum_z_lower = plenum_y_lower
 plenum_z_upper = plenum_y_upper
@@ -61,9 +63,9 @@ tube_n_cells -= tube_n_cells % tube_blocking_factor
 tube_n_cells = int(tube_n_cells)
 
 RunOptions = {
-  'cfl': 0.8,
+  'cfl': 0.5 * 0.9,
   'final_time': 5.0,
-  'max_cycles': -1,
+  'max_cycles': 10,
   'do_backup': 0
 }
 
@@ -92,6 +94,10 @@ ArrheniusKinetics = {
   'EA': EaovRT1 * T1ovT0,
   'B': (0.11/1.25)*math.exp(EaovRT1*(1.0-T1ovT0)),
   'T_switch': 1.6,
+}
+
+DiffusionSourceTerm = {
+  'mul': 0.0
 }
 
 p0 = 2.0
@@ -252,25 +258,29 @@ Output = {
     'type': 'HDF5',
     'path': '{}/Tube0.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
     'which_block': 1,
-    'intervals': [0.01]
+    'intervals': [0.01],
+    'frequencies': [1]
   },
   {
     'type': 'HDF5',
     'path': '{}/Tube1.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
     'which_block': 2,
-    'intervals': [0.01]
+    'intervals': [0.01],
+    'frequencies': [1]
   },
   {
     'type': 'HDF5',
     'path': '{}/Tube2.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
     'which_block': 3,
-    'intervals': [0.01]
+    'intervals': [0.01],
+    'frequencies': [1]
   },
   {
     'type': 'HDF5',
     'path': '{}/Plenum.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
     'which_block': 0,
-    'intervals': [0.04]
+    'intervals': [0.04],
+    'frequencies': [1]
   },
   {
   #   'type': 'Plotfiles',
