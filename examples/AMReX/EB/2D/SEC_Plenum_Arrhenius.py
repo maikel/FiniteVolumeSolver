@@ -76,6 +76,31 @@ FluxMethod = {
   'reconstruction': 'Characteristics'
 }
 
+R = 1.0
+gamma = 1.4
+
+Equation = {
+  'Rspec': R,
+  'gamma': gamma
+}
+
+T1ovT0 = 1.889
+EaovRT1  = 10.0
+
+ArrheniusKinetics = {
+  'Q': 10.0/(gamma-1.0),
+  'EA': EaovRT1 * T1ovT0,
+  'B': (0.11/1.25)*math.exp(EaovRT1*(1.0-T1ovT0)),
+  'T_switch': 1.6,
+}
+
+p0 = 2.0
+rho0 = math.pow(p0, 1.0 / gamma)
+T0 = p0 / rho0
+p = 0.95 * p0
+T = T0 + ArrheniusKinetics['Q'] * (gamma - 1.0)
+rho = p / T 
+
 # checkpoint = '/Users/maikel/Development/FiniteVolumeSolver/build_3d/MultiTube/Checkpoint/000000063'
 checkpoint = ''
 
@@ -115,12 +140,14 @@ Plenum = {
   } for y_0 in y0s],
   'InitialCondition': {
     'left': {
-      'density': 1.0,
-      'temperature': 1.0
+      'density': rho,
+      'temperature': T,
+      'pressure': p
     },
     'right': {
-      'density': 1.0,
-      'temperature': 1.0
+      'density': rho,
+      'temperature': T,
+      'pressure': p
     },
   },
   #'PressureOutflowBoundaries': [{
@@ -195,7 +222,7 @@ Tube_FluxMethod['area_variation'] = Area
 Tubes = [{
   'checkpoint': checkpoint,
   'buffer': 0.06,
-  'initially_filled_x': 0.2,
+  'initially_filled_x': 0.1,
   'FluxMethod': Tube_FluxMethod,
   'plenum_mirror_box': PlenumMirrorBox(y_0),
   'GridGeometry': {
@@ -206,6 +233,7 @@ Tubes = [{
     },
     'periodicity': [0, 0, 0]
   },
+  'ArrheniusKinetics': ArrheniusKinetics,
   'PatchHierarchy': {
     'max_number_of_levels': n_level, 
     'max_grid_size': [tube_n_cells, tube_n_cells, tube_n_cells],

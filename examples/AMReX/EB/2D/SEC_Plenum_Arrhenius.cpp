@@ -74,6 +74,28 @@ static_assert(AMREX_SPACEDIM == 2);
 
 static constexpr double r_tube = 0.015;
 
+struct ChangeTOpened {
+  template <typename EulerEquation>
+  [[nodiscard]] std::optional<fub::Duration>
+  operator()(EulerEquation&, std::optional<fub::Duration>, double,
+             const fub::perfect_gas_mix::gt::PlenumState&,
+             const fub::amrex::GriddingAlgorithm& gridding, int) const
+      noexcept {
+    return gridding.GetTimePoint();
+  }
+};
+
+struct IsNeverBlocked {
+  template <typename EulerEquation>
+  [[nodiscard]] bool
+  operator()(EulerEquation&, std::optional<fub::Duration> /* t_opened */,
+             double, const fub::perfect_gas_mix::gt::PlenumState&,
+             const fub::amrex::GriddingAlgorithm& /* gridding */,
+             int /* level */) const noexcept {
+    return false;
+  }
+};
+
 struct InitialDataInTube {
   using Equation = fub::PerfectGasMix<1>;
   using Complete = fub::Complete<Equation>;
@@ -81,14 +103,14 @@ struct InitialDataInTube {
   using Conservative = fub::Conservative<Equation>;
 
   Equation equation_;
+  fub::perfect_gas_mix::ArrheniusKineticsOptions kinetics_;
   double x_0_;
   double initially_filled_x_{0.4};
 
   void InitializeData(fub::amrex::PatchLevel& patch_level,
-                      const fub::amrex::GriddingAlgorithm& /* grid */,
-                      int /* level */, fub::Duration /*time*/) const {
-    // const amrex::Geometry& geom =
-    // grid.GetPatchHierarchy().GetGeometry(level);
+                      const fub::amrex::GriddingAlgorithm& grid, int level,
+                      fub::Duration /*time*/) const {
+    const amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
     amrex::MultiFab& data = patch_level.data;
     fub::amrex::ForEachFab(
         fub::execution::openmp, data, [&](amrex::MFIter& mfi) {
@@ -98,13 +120,20 @@ struct InitialDataInTube {
           fub::View<Complete> states = fub::amrex::MakeView<Complete>(
               data[mfi], equation_, mfi.tilebox());
           fub::ForEachIndex(fub::Box<0>(states), [&](std::ptrdiff_t i) {
-            // const double x = geom.CellCenter(int(i), 0);
-            // const double rel_x = x - x_0_;
-            const double pressure = 1.0;
-            state.temperature = 1.0; // (rel_x < 0.5) ? 1.0 : 2.5;
-            state.density = pressure / state.temperature / equation_.Rspec;
-            state.mole_fractions[0] = 0.0;
-            state.mole_fractions[1] = 1.0;
+            const double x = geom.CellCenter(int(i), 0);
+            const double rel_x = x - x_0_;
+            // const double pressure = 1.0;
+            const double p0 = 2.0;
+            const double rho0 = std::pow(p0, equation_.gamma_inv);
+            const double T0 = p0 / rho0;
+            const double p = 0.95 * p0;
+            const double T = T0 + kinetics_.Q * equation_.gamma_minus_one;
+            const double rho = p / T * equation_.ooRspec;
+
+            state.temperature = T;
+            state.density = rho;
+            state.mole_fractions[0] = (rel_x < initially_filled_x_) ? 1.0 : 0.0;
+            state.mole_fractions[1] = (rel_x < initially_filled_x_) ? 0.0 : 1.0;
             fub::euler::CompleteFromKineticState(equation_, complete, state,
                                                  velocity);
             fub::Store(states, complete, {i});
@@ -390,6 +419,7 @@ GetFluxMethod(const fub::ProgramOptions& options,
 
 auto MakeTubeSolver(
     const fub::ProgramOptions& options,
+    const fub::PerfectGasConstants& constants,
     const std::shared_ptr<fub::CounterRegistry>& counters,
     const std::shared_ptr<const GT::PlenumState>& compressor_state) {
   using namespace fub::amrex;
@@ -408,8 +438,8 @@ auto MakeTubeSolver(
 
   using Eq = fub::PerfectGasMix<Tube_Rank>;
   using Complete = Eq::Complete;
-  fub::PerfectGasMix<Tube_Rank> equation{};
-  equation.n_species = 1;
+  fub::PerfectGasMix<Tube_Rank> equation{constants, 1};
+
   GradientDetector gradient{equation, std::make_pair(&Complete::density, 1e-2),
                             std::make_pair(&Complete::pressure, 1e-2)};
 
@@ -419,38 +449,33 @@ auto MakeTubeSolver(
                           {grid_geometry.cell_dimensions[0] - 1, 0}};
   ConstantBox constant_box{refine_box};
 
-  const double initially_filled_x =
-      fub::GetOptionOr(options, "initially_filled_x", 0.4);
-  BOOST_LOG(log) << "InitialData:";
-  BOOST_LOG(log) << "  - initially_filled_x = " << initially_filled_x << " [m]";
-  InitialDataInTube initial_data{equation, grid_geometry.coordinates.lo()[0],
-                                 initially_filled_x};
-
   fub::perfect_gas_mix::ArrheniusKinetics<1> source_term{
       equation, fub::GetOptions(options, "ArrheniusKinetics")};
   BOOST_LOG(log) << "ArrheniusKinetics:";
   source_term.options.Print(log);
 
+  const double initially_filled_x =
+      fub::GetOptionOr(options, "initially_filled_x", 0.4);
+  BOOST_LOG(log) << "InitialData:";
+  BOOST_LOG(log) << "  - initially_filled_x = " << initially_filled_x << " [m]";
+  InitialDataInTube initial_data{equation, source_term.options,
+                                 grid_geometry.coordinates.lo()[0],
+                                 initially_filled_x};
+
   FUB_ASSERT(compressor_state);
-  const double eps = std::sqrt(std::numeric_limits<double>::epsilon());
-  auto inflow_function =
-      [eps, source_term,
-       prim = fub::Primitive<fub::PerfectGasMix<1>>(equation)](
+  auto combustor_inflow_function =
+      [prim = fub::Primitive<fub::PerfectGasMix<1>>(equation)](
           const fub::PerfectGasMix<1>& eq,
           fub::Complete<fub::PerfectGasMix<1>>& boundary_state,
-          const GT::PlenumState& compressor_state, double inner_pressure,
-          fub::Duration t_diff, const amrex::MultiFab&,
+          const fub::perfect_gas_mix::gt::PlenumState& compressor_state,
+          double inner_pressure, fub::Duration, const amrex::MultiFab&,
           const fub::amrex::GriddingAlgorithm&, int) mutable {
-        const double fuel_retardatation =
-            0.06;                /* Reference: 0.06;   for icx = 256:  0.1*/
-        const double tti = 0.75; /* Reference: 0.75; */
-        const double timin = 0.1;
+        // fixed fuel concentration in deflagration mode
         const double X_inflow_left = 1.0;
 
         const double p_inflow_left = compressor_state.pressure;
         const double T_inflow_left = compressor_state.temperature;
-        const double rho_inflow_left =
-            p_inflow_left / T_inflow_left * eq.ooRspec;
+        const double rho_inflow_left = p_inflow_left / T_inflow_left * eq.ooRspec;
 
         const double p = inner_pressure;
         const double ppv = p_inflow_left;
@@ -462,26 +487,69 @@ auto MakeTubeSolver(
                                      std::max(0.0, Tpv - Tin));
         double rhoin = rhopv * pow(pin / ppv, eq.gamma_inv);
 
-        const double tign = std::max(timin, tti - t_diff.count());
-        const double Xin = X_inflow_left;
-        const double Tin1 = fub::perfect_gas_mix::TemperatureForIgnitionDelay(
-            eq, source_term.options, tign, Xin, Tin, eps);
-
-        /* adjust density to match desired temperature */
-        rhoin *= Tin / Tin1;
-
+        FUB_ASSERT(rhoin > 0.0);
+        FUB_ASSERT(pin > 0.0);
         prim.density = rhoin;
         prim.velocity[0] = uin;
         prim.pressure = pin;
-        auto heaviside = [](double x) { return (x > 0); };
-        prim.species[0] = std::clamp(
-            Xin * heaviside(t_diff.count() - fuel_retardatation), 0.0, 1.0);
+        prim.species[0] = X_inflow_left;
 
         fub::CompleteFromPrim(eq, boundary_state, prim);
       };
+  using DeflagrationValve = fub::amrex::GenericPressureValveBoundary<
+      fub::PerfectGasMix<1>, std::decay_t<decltype(combustor_inflow_function)>,
+      ChangeTOpened, IsNeverBlocked>;
+  DeflagrationValve valve(equation, compressor_state, combustor_inflow_function);
+  // const double eps = std::sqrt(std::numeric_limits<double>::epsilon());
+  // auto inflow_function =
+  //     [eps, source_term,
+  //      prim = fub::Primitive<fub::PerfectGasMix<1>>(equation)](
+  //         const fub::PerfectGasMix<1>& eq,
+  //         fub::Complete<fub::PerfectGasMix<1>>& boundary_state,
+  //         const GT::PlenumState& compressor_state, double inner_pressure,
+  //         fub::Duration t_diff, const amrex::MultiFab&,
+  //         const fub::amrex::GriddingAlgorithm&, int) mutable {
+  //       const double fuel_retardatation =
+  //           0.06;                /* Reference: 0.06;   for icx = 256:  0.1*/
+  //       const double tti = 0.75; /* Reference: 0.75; */
+  //       const double timin = 0.1;
+  //       const double X_inflow_left = 1.0;
 
-  fub::amrex::PressureValveBoundary_Klein valve(equation, compressor_state,
-                                                inflow_function);
+  //       const double p_inflow_left = compressor_state.pressure;
+  //       const double T_inflow_left = compressor_state.temperature;
+  //       const double rho_inflow_left =
+  //           p_inflow_left / T_inflow_left * eq.ooRspec;
+
+  //       const double p = inner_pressure;
+  //       const double ppv = p_inflow_left;
+  //       const double rhopv = rho_inflow_left;
+  //       const double Tpv = T_inflow_left;
+  //       const double pin = p;
+  //       const double Tin = Tpv * pow(pin / ppv, eq.gamma_minus_one_over_gamma);
+  //       const double uin = std::sqrt(2.0 * eq.gamma_over_gamma_minus_one *
+  //                                    std::max(0.0, Tpv - Tin));
+  //       double rhoin = rhopv * pow(pin / ppv, eq.gamma_inv);
+
+  //       const double tign = std::max(timin, tti - t_diff.count());
+  //       const double Xin = X_inflow_left;
+  //       const double Tin1 = fub::perfect_gas_mix::TemperatureForIgnitionDelay(
+  //           eq, source_term.options, tign, Xin, Tin, eps);
+
+  //       /* adjust density to match desired temperature */
+  //       rhoin *= Tin / Tin1;
+
+  //       prim.density = rhoin;
+  //       prim.velocity[0] = uin;
+  //       prim.pressure = pin;
+  //       auto heaviside = [](double x) { return (x > 0); };
+  //       prim.species[0] = std::clamp(
+  //           Xin * heaviside(t_diff.count() - fuel_retardatation), 0.0, 1.0);
+
+  //       fub::CompleteFromPrim(eq, boundary_state, prim);
+  //     };
+
+  // fub::amrex::PressureValveBoundary_Klein valve(equation, compressor_state,
+  //                                               inflow_function);
   BoundarySet boundaries{{valve}};
 
   // If a checkpoint path is specified we will fill the patch hierarchy with
@@ -528,7 +596,8 @@ auto MakeTubeSolver(
   return std::pair{context, source_term};
 }
 
-auto MakePlenumSolver(const std::map<std::string, pybind11::object>& options) {
+auto MakePlenumSolver(const std::map<std::string, pybind11::object>& options,
+                      const fub::PerfectGasConstants& constants) {
   fub::SeverityLogger log = fub::GetInfoLogger();
   BOOST_LOG(log) << "==================== Plenum =========================";
   using namespace fub::amrex::cutcell;
@@ -593,8 +662,7 @@ auto MakePlenumSolver(const std::map<std::string, pybind11::object>& options) {
   }
 
   constexpr static int n_species = 2;
-  fub::PerfectGasMix<Plenum_Rank> equation{};
-  equation.n_species = n_species - 1;
+  fub::PerfectGasMix<Plenum_Rank> equation{constants, 1};
 
   fub::Complete<fub::PerfectGasMix<Plenum_Rank>> left(equation);
   fub::Complete<fub::PerfectGasMix<Plenum_Rank>> right(equation);
@@ -847,21 +915,30 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   std::vector<Kinetics> kinetics{};
   std::vector<fub::amrex::BlockConnection> connectivity{};
 
-  fub::PerfectGasMix<Plenum_Rank> plenum_equation{};
-  plenum_equation.n_species = 1;
-  fub::PerfectGasMix<Tube_Rank> tube_equation{};
-  tube_equation.n_species = 1;
-  GT::Control<Plenum_Rank> control(plenum_equation);
-  std::shared_ptr<const GT::PlenumState> compressor_state = control.GetSharedCompressorState(); 
+  fub::ProgramOptions eq_options = fub::GetOptions(vm, "Equation");
+  double Rspec = fub::GetOptionOr(eq_options, "Rspec", 1.0);
+  double gamma = fub::GetOptionOr(eq_options, "gamma", 1.28);
+  fub::PerfectGasConstants constants{Rspec, gamma};
+  fub::SeverityLogger log = fub::GetInfoLogger();
+  BOOST_LOG(log) << "Equation:";
+  BOOST_LOG(log) << fmt::format("  - Rspec = {}", constants.Rspec);
+  BOOST_LOG(log) << fmt::format("  - gamma = {}", constants.gamma);
 
-  plenum.push_back(MakePlenumSolver(fub::GetOptions(vm, "Plenum")));
+  fub::PerfectGasMix<Plenum_Rank> plenum_equation{constants, 1};
+  fub::PerfectGasMix<Tube_Rank> tube_equation{constants, 1};
+  GT::Control<Plenum_Rank> control(plenum_equation);
+  std::shared_ptr<const GT::PlenumState> compressor_state =
+      control.GetSharedCompressorState();
+
+  plenum.push_back(MakePlenumSolver(fub::GetOptions(vm, "Plenum"), constants));
   auto counter_database = plenum[0].GetCounterRegistry();
 
   std::vector<pybind11::dict> tube_dicts = {};
   tube_dicts = fub::GetOptionOr(vm, "Tubes", tube_dicts);
   for (pybind11::dict& dict : tube_dicts) {
     fub::ProgramOptions tube_options = fub::ToMap(dict);
-    auto&& [tube, source] = MakeTubeSolver(tube_options, counter_database, compressor_state);
+    auto&& [tube, source] = MakeTubeSolver(tube_options, constants,
+                                           counter_database, compressor_state);
     fub::amrex::BlockConnection connection;
     connection.direction = fub::Direction::X;
     connection.side = 0;
@@ -937,7 +1014,7 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
       std::move(factory), fub::GetOptions(vm, "Output"));
 
   outputs(*solver.GetGriddingAlgorithm());
-  fub::SeverityLogger log = fub::GetInfoLogger();
+  // fub::SeverityLogger log = fub::GetInfoLogger();
   fub::RunOptions run_options = fub::GetOptions(vm, "RunOptions");
   BOOST_LOG(log) << "RunOptions:";
   run_options.Print(log);
