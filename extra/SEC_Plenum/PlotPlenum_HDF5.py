@@ -28,9 +28,9 @@ inputFilePath = "/srv/public/Maikel/FiniteVolumeSolver/examples/AMReX/EB/2D/"
 # print(inputFile.y0s)
 # print(inputFile.Area)
 sys.path.append(inputFilePath)
-from SEC_Plenum_Arrhenius import y0s, Area, tube_n_cells, p_ref, T_ref, rho_ref
-print(y0s)
-print(Area)
+from SEC_Plenum_Arrhenius import y0s, Area, tube_n_cells, p_ref, T_ref, rho_ref, tube_intervals, plenum_intervals
+# print(y0s)
+# print(Area)
 
 plenum = "{}/Plenum.h5".format(dataPath)
 outPath = dataPath
@@ -67,13 +67,19 @@ def h5_load(path, num, variables):
    return tuple(datas), time, extent
 
 
+# Get nsteps from plenum
 file = h5py.File(plenum, mode='r')
 nsteps = file['data'].shape[0]
 file.close()
 
+# get the interval ratio from plenum and tubes
+# normally we write the tube data 4 times more often than the plenum data
+tube_output_factor = int(plenum_intervals / tube_intervals)
+# print(tube_output_factor)
+
 def PrintProgress(i):
   progress = int(100.0 * float(i) / (nsteps - 1))
-  print('[{:3d}%] Reading slice [{}/{}]'.format(progress, i, nsteps))
+  print('[{:3d}%] Reading slice [{}/{}]'.format(progress, i + 1, nsteps))
 
 os.makedirs(output_path, exist_ok=True)
 
@@ -88,7 +94,7 @@ for i in range(nsteps):
    extent_tubes = []
    
    for tube in tube_paths:
-      (p_tube), current_time, extent = h5_load_t(tube, i, ["Pressure"])
+      (p_tube), current_time, extent = h5_load_t(tube, tube_output_factor*i, ["Pressure"])
       Tube_p.append(p_tube)
       extent_tubes.append(extent)
    
@@ -101,7 +107,7 @@ for i in range(nsteps):
    Tube_p = stackTubeDataTo2D(Tube_p)
 
    (p, rho, rhou, rhov, c, vols), current_time, extent = h5_load(plenum, i, ["Pressure", "Density", "Momentum_0", "Momentum_1", "SpeedOfSound", 'vfrac'])
-   f, axs = plt.subplots(nrows=1, ncols=3, figsize=(22, 10), gridspec_kw={'width_ratios': [3, 1, 1]})
+   f, axs = plt.subplots(nrows=1, ncols=3, figsize=(40. / 2, 10. / 2), gridspec_kw={'width_ratios': [3, 1, 1]})
    f.suptitle('Time = {:.2f}'.format(current_time))
    # pressure image
    p = np.where(vols > 1e-14, p, np.nan)
@@ -137,9 +143,10 @@ for i in range(nsteps):
    axs[1].set_title('Temperature')
    axs[1].set(aspect='equal')
    plt.colorbar(im_T, ax=axs[1])
-   # velocity field
-   u = np.where(vols > 1e-14, rhou / rho, np.nan)
-   v = np.where(vols > 1e-14, rhov / rho, np.nan)
+   # velocity field   rho = np.ma.masked_array(rho, vols > 1e-14)
+   rho = np.ma.masked_array(rho, vols < 1e-14)
+   u = rhou / rho
+   v = rhov / rho
    skip = 5
    #scale = 40.0
    x = np.linspace(*extent[0:2], num=u[::skip, ::skip].shape[1], endpoint=True)
@@ -149,8 +156,8 @@ for i in range(nsteps):
    axs[2].quiverkey(Q, 0.9, 0.9, 1, r'$1 \frac{m}{s}$', labelpos='E', coordinates='figure')
    axs[2].set_title('Velocity Field')
    axs[2].set(aspect='equal')
-   f.savefig('{}/Figure{:04d}.png'.format(output_path, i))
-   f.tight_layout()
+   f.savefig('{}/Figure{:04d}.png'.format(output_path, i), bbox_inches='tight')
+   # f.tight_layout()
    f.subplots_adjust(left=0.3)
    f.clear()
    plt.close(f)

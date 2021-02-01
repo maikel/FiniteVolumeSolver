@@ -60,6 +60,42 @@ private:
   int grid_id_{0};
   std::string path_to_file_{};
   std::optional<::amrex::Box> output_box_{};
+
+  virtual span<const std::string> PlenumFieldNames() const noexcept {
+    return {};
+  }
+  virtual span<const std::string> TubeFieldNames() const noexcept { return {}; }
+};
+
+class MultiWriteHdf5WithNames : public MultiWriteHdf52 {
+public:
+  template <typename PEquation, typename TEquation>
+  MultiWriteHdf5WithNames(const fub::ProgramOptions& vm, const PEquation& peq,
+                          const TEquation& teq)
+      : MultiWriteHdf52(vm),
+        plenum_field_names_{
+            VarNames<Complete<PEquation>, std::vector<std::string>>(peq)},
+        tube_field_names_{
+            VarNames<Complete<TEquation>, std::vector<std::string>>(teq)} {
+    plenum_field_names_.emplace_back("vfrac");
+  }
+
+private:
+  enum class Type { plenum, tube };
+  Type type_{Type::tube};
+  int grid_id_{0};
+  std::string path_to_file_{};
+  std::optional<::amrex::Box> output_box_{};
+  std::vector<std::string> plenum_field_names_;
+  std::vector<std::string> tube_field_names_;
+
+  span<const std::string> PlenumFieldNames() const noexcept override final {
+    return plenum_field_names_;
+  }
+
+  span<const std::string> TubeFieldNames() const noexcept override final {
+    return tube_field_names_;
+  }
 };
 
 } // namespace fub::amrex

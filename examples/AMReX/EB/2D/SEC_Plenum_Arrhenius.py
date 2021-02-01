@@ -1,6 +1,6 @@
 import math
 
-plenum_x_n_cells = 256
+plenum_x_n_cells = 128
 tube_blocking_factor = 8
 plenum_blocking_factor = 8
 
@@ -64,9 +64,8 @@ tube_n_cells = int(tube_n_cells)
 
 RunOptions = {
   'cfl': 1.0,# / float(tube_n_cells / 64),
-  # 'cfl': 0.01,
-  'final_time': 5.0,
-  'max_cycles': -1,
+  'final_time': 300.0,
+  'max_cycles': 2,
   'do_backup': 0
 }
 
@@ -152,14 +151,14 @@ Plenum = {
   } for y_0 in y0s],
   'InitialCondition': {
     'left': {
-      'density': 1.0, #rho
-      'temperature': 1.0, #T
-      'pressure': 1.0 #p
+      'density': rho,
+      'temperature': T,
+      'pressure': p
     },
     'right': {
-      'density': 1.0, # rho,
-      'temperature': 1.0, #T,
-      'pressure': 1.0 # p
+      'density': rho,
+      'temperature': T,
+      'pressure': p
     },
   }
 }
@@ -247,35 +246,38 @@ Tubes = [{
 
 mode_names = ['cellwise', 'average_mirror_state', 'average_ghost_state', 'average_massflow']
 
+tube_intervals = 0.005
+plenum_intervals = tube_intervals #0.02
+
 Output = { 
   'outputs': [
   {
     'type': 'HDF5',
     'path': '{}/Tube0.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
     'which_block': 1,
-    'intervals': [0.005],
-    # 'frequencies': [1]
+    'intervals': [tube_intervals],
+    'frequencies': [1]
   },
   {
     'type': 'HDF5',
     'path': '{}/Tube1.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
     'which_block': 2,
-    'intervals': [0.005],
-    # 'frequencies': [1]
+    'intervals': [tube_intervals],
+    'frequencies': [1]
   },
   {
     'type': 'HDF5',
     'path': '{}/Tube2.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
     'which_block': 3,
-    'intervals': [0.005],
-    # 'frequencies': [1]
+    'intervals': [tube_intervals],
+    'frequencies': [1]
   },
   {
     'type': 'HDF5',
     'path': '{}/Plenum.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
     'which_block': 0,
-    'intervals': [0.02],
-    # 'frequencies': [1]
+    'intervals': [plenum_intervals],
+    'frequencies': [1]
   },
   {
   #   'type': 'Plotfiles',

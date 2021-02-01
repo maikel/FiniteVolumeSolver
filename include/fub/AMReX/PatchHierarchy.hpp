@@ -379,8 +379,8 @@ void WriteTubeData(const std::string& filename, const PatchHierarchy& hierarchy,
                    std::ptrdiff_t cycle_number, MPI_Comm comm);
 
 void WriteToHDF5(const std::string& name, const ::amrex::FArrayBox& fab,
-                 const ::amrex::Geometry& geom, Duration time_point,
-                 std::ptrdiff_t cycle) noexcept;
+                const ::amrex::Geometry& geom, Duration time_point,
+                 std::ptrdiff_t cycle, span<const std::string> fields = span<const std::string>{}) noexcept;
 
 template <typename Log> void PatchHierarchyOptions::Print(Log& log) {
   std::array<int, AMREX_SPACEDIM> ref_ratio{};

@@ -61,8 +61,9 @@ tex_fonts = {
 }
 plt.rcParams.update(tex_fonts)
 
-modes = ['cellwise', 'average_mirror_cells', 'average_ghost_cells', 'average_massflow']
-boundaries = ['TurbineMassflowBoundaries', 'TurbineMassflowBoundaries_Jirasek']
+# modes = ['cellwise', 'average_mirror_cells', 'average_ghost_cells', 'average_massflow']
+modes = ['average_massflow']
+boundaries = ['TurbineMassflowBoundaries']#, 'TurbineMassflowBoundaries_Jirasek']
 for boundary in boundaries:
   f_rhos = []
   f_rho_requireds = []
@@ -70,7 +71,7 @@ for boundary in boundaries:
   times_f_rho_requireds = []
   for mode in modes:
     #path_to_log = '/home/zenkechr/FVS_develop/FiniteVolumeSolver/build_2D-Release/SEC_Plenum/0000-{}-{}.log'.format(mode, boundary)
-    path_to_log = '/srv/public/Maikel/FiniteVolumeSolver/build_2D-Release/SEC_Plenum/0000-{}-{}.log'.format(mode, boundary)
+    path_to_log = '/srv/public/Maikel/FiniteVolumeSolver/build_2D-Release/0000.log'
     output_path = '.'
     path_to_f_rho = '{}/F_rho.log'.format(output_path)
     path_to_hom = '{}/Homogenous.log'.format(output_path)
@@ -83,17 +84,17 @@ for boundary in boundaries:
       times_f_rho = np.array([float(line.split()[-8][:-2]) for line in f])
 
     with open(path_to_hom) as f:
-      f_rho_required = np.array([float(line.split()[-1]) for line in f][1:])
+      f_rho_required = np.array([float(line.split()[-1]) for line in f][1:][::3])
     with open(path_to_hom) as f:
-      times_f_rho_required = np.array([float(line.split()[-4][:-2]) for line in f][1:][::2])
+      times_f_rho_required = np.array([float(line.split()[-4][:-2]) for line in f][1:][::3])
 
     r_tube = 0.015
     D = 2.0 * r_tube
     scale = 1.0 / (3.0 * D)
 
     f_rho = scale * f_rho
-    f_rho_required = np.reshape(f_rho_required, (f_rho.shape[0], 2))
-    f_rho_required = f_rho_required[:,0]
+    #f_rho_required = np.reshape(f_rho_required, (f_rho.shape[0], 2))
+    #f_rho_required = f_rho_required[:,0]
     
     f_rhos.append(f_rho)
     f_rho_requireds.append(f_rho_required)
@@ -108,7 +109,7 @@ for boundary in boundaries:
     # print(dist(f_rho, f_rho_required))
     # print(np.min(f_rho))
 
-  mode_names = ["cell-wise", "average mirror", "average ghost", "average mass flux"]
+  mode_names = ["average mass flux"]
   f, axs = plt.subplots(nrows=2, ncols=2, figsize=set_size('thesis', fraction=0.95, subplots=(2,2)), sharex=True, sharey=True)
   for ax, f_rho, f_rho_required, times_f_rho, times_f_rho_required, mode in zip(axs.flat, f_rhos, f_rho_requireds, times_f_rhos, times_f_rho_requireds, mode_names):
     l1 = ax.plot(times_f_rho, f_rho, label='real massflow')

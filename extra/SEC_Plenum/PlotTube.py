@@ -114,10 +114,11 @@ for mode, suptitle in zip(modes, mode_titles):
   tEnd = times[-1]
 
   # print(np.max(F_data))
+  Ma = rhou_data / rho_data / c_data
 
-  titles = ['Temperature', 'Pressure', 'Fuel Massfraction']
-  datas = [T_data, p_data, F_data]
-  f, ax = plt.subplots(nrows=1, ncols=3, figsize=set_size('thesis'), sharey=True)# figsize=(15, 10)) #set_size('thesis'))
+  titles = ['Temperature', 'Pressure', 'Local Machnumber', 'Fuel Massfraction']
+  datas = [T_data, p_data, Ma, F_data]
+  f, ax = plt.subplots(nrows=1, ncols=4, figsize=(40. / 2, 10 / 2.), sharey=True)# figsize=(15, 10)) #set_size('thesis'))
   
   def props(title):
     props = {
@@ -143,9 +144,7 @@ for mode, suptitle in zip(modes, mode_titles):
       }
     return props
 
-  ims = [ax[0].imshow(datas[0], **props(titles[0])),
-         ax[1].imshow(datas[1], **props(titles[1])),
-         ax[2].imshow(datas[2], **props(titles[2]))]
+  ims = [a.imshow(data, **props(title)) for a, data, title in zip(ax, datas, titles)]
   ax[0].set(ylabel='time')
   for a, title in zip(ax, titles):
     a.set(xlabel='x', title=title)
@@ -155,7 +154,7 @@ for mode, suptitle in zip(modes, mode_titles):
     a.xaxis.set_major_formatter(FormatStrFormatter('%.2f'))
     plt.colorbar(im, ax=a)
   # f.suptitle(suptitle)
-  f.savefig('Tube{}_{}.png'.format(tube_id, mode))
+  f.savefig('Tube{}_{}.png'.format(tube_id, mode), bbox_inches='tight')
   f.clear()
   plt.close(f)
   

@@ -67,6 +67,12 @@ struct H5Adeleter {
 };
 using H5Attribute = H5Handle<H5Adeleter>;
 
+struct H5Tdeleter {
+  using pointer = hid_t;
+  void operator()(hid_t attributes) const noexcept { H5Tclose(attributes); }
+};
+using H5Type = H5Handle<H5Tdeleter>;
+
 struct H5Pdeleter {
   using pointer = hid_t;
   void operator()(hid_t properties) const noexcept { H5Pclose(properties); }

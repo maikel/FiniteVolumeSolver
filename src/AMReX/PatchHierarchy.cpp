@@ -27,6 +27,8 @@
 #include <boost/filesystem.hpp>
 #include <hdf5.h>
 
+#include <range/v3/view/enumerate.hpp>
+
 #ifdef AMREX_USE_EB
 #include "fub/AMReX/cutcell/AllRegularIndexSpace.hpp"
 #include <AMReX_EB2.H>
@@ -425,7 +427,8 @@ GetExtents(const ::amrex::FArrayBox& fab) {
 
 void CreateHdf5Database(const std::string& name, const ::amrex::FArrayBox& fab,
                         const ::amrex::Geometry& geom, Duration tp,
-                        std::ptrdiff_t cycle) {
+                        std::ptrdiff_t cycle,
+                        span<const std::string> field_names) {
   H5File file(H5Fcreate(name.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT));
   // Create Data Set
   {
@@ -455,6 +458,26 @@ void CreateHdf5Database(const std::string& name, const ::amrex::FArrayBox& fab,
     H5Attribute cell_size(H5Acreate2(dataset, "cell_size", H5T_IEEE_F64LE,
                                      spacedim, H5P_DEFAULT, H5P_DEFAULT));
     H5Awrite(cell_size, H5T_IEEE_F64LE, geom.CellSize());
+  }
+  // Create Field names
+  if (!field_names.empty()) {
+    std::array<hsize_t, 1> dims = {static_cast<hsize_t>(field_names.size())};
+    H5Space dataspace(H5Screate_simple(dims.size(), dims.data(), nullptr));
+    H5Type datatype(H5Tcopy(H5T_C_S1));
+    H5Tset_size(datatype, H5T_VARIABLE);
+    H5Dataset dataset(H5Dcreate2(file, "/fields", datatype, dataspace,
+                                 H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT));
+    hsize_t count[] = {1};
+    H5Space memspace(H5Screate_simple(dims.size(), count, nullptr));
+    // Now we write each field name into the dataset
+    for (auto&& [i, field_name] : ranges::view::enumerate(field_names)) {
+      // H5Space filespace(H5Dget_space(dataset));
+      hsize_t offset[] = {i};
+      H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, offset, nullptr, count,
+                          nullptr);
+      const char* c_str = field_name.c_str();
+      H5Dwrite(dataset, datatype, memspace, dataspace, H5P_DEFAULT, &c_str);
+    }
   }
   hsize_t dims[1] = {1};
   hsize_t maxdims[1] = {H5S_UNLIMITED};
@@ -552,9 +575,9 @@ void OpenHdf5Database(const std::string& name, const ::amrex::FArrayBox& fab,
 
 void WriteToHDF5(const std::string& name, const ::amrex::FArrayBox& fab,
                  const ::amrex::Geometry& geom, Duration time_point,
-                 std::ptrdiff_t cycle) noexcept {
+                 std::ptrdiff_t cycle, span<const std::string> fields) noexcept {
   if (!boost::filesystem::exists(name)) {
-    CreateHdf5Database(name, fab, geom, time_point, cycle);
+    CreateHdf5Database(name, fab, geom, time_point, cycle, fields);
   } else if (boost::filesystem::is_regular_file(name)) {
     OpenHdf5Database(name, fab, time_point, cycle);
   }

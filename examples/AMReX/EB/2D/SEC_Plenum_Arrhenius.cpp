@@ -1025,7 +1025,8 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   using CounterOutput =
       fub::CounterOutput<fub::amrex::MultiBlockGriddingAlgorithm2,
                          std::chrono::milliseconds>;
-  factory.RegisterOutput<fub::amrex::MultiWriteHdf52>("HDF5");
+  factory.RegisterOutput<fub::amrex::MultiWriteHdf5WithNames>(
+      "HDF5", plenum_equation, tube_equation);
   factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
   factory.RegisterOutput<
       MultiBlockPlotfileOutput2<fub::PerfectGasMix<1>, fub::PerfectGasMix<2>>>(

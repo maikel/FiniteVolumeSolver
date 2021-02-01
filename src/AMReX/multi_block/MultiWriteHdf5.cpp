@@ -198,8 +198,9 @@ void ConstantInterpolation(::amrex::FArrayBox& dest,
   ConstantInterpolation(dest, fbox, src, cbox, ratio, si, di, n);
 }
 
-void WriteHdf5UnRestricted(const std::string& name,
-                           const PatchHierarchy& hierarchy) {
+void WriteHdf5UnRestricted(
+    const std::string& name, const PatchHierarchy& hierarchy,
+    span<const std::string> fields = span<const std::string>{}) {
   MPI_Comm comm = ::amrex::ParallelContext::CommunicatorAll();
   int rank = -1;
   ::MPI_Comm_rank(comm, &rank);
@@ -268,7 +269,7 @@ void WriteHdf5UnRestricted(const std::string& name,
       if (level == n_level - 1) {
         const fub::Duration time_point = hierarchy.GetTimePoint();
         const std::ptrdiff_t cycle_number = hierarchy.GetCycles();
-        WriteToHDF5(name, fab, level_geom, time_point, cycle_number);
+        WriteToHDF5(name, fab, level_geom, time_point, cycle_number, fields);
       }
     } else {
       ::MPI_Reduce(local_fab.dataPtr(), nullptr,
@@ -278,9 +279,10 @@ void WriteHdf5UnRestricted(const std::string& name,
   }
 }
 
-void WriteHdf5RestrictedToBox(const std::string& name,
-                              const PatchHierarchy& hierarchy,
-                              const ::amrex::Box& finest_box) {
+void WriteHdf5RestrictedToBox(
+    const std::string& name, const PatchHierarchy& hierarchy,
+    const ::amrex::Box& finest_box,
+    span<const std::string> fields = span<const std::string>{}) {
   MPI_Comm comm = ::amrex::ParallelContext::CommunicatorAll();
   int rank = -1;
   ::MPI_Comm_rank(comm, &rank);
@@ -358,7 +360,7 @@ void WriteHdf5RestrictedToBox(const std::string& name,
         const fub::Duration time_point = hierarchy.GetTimePoint();
         const std::ptrdiff_t cycle_number = hierarchy.GetCycles();
         const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(ilvl);
-        WriteToHDF5(name, fab, level_geom, time_point, cycle_number);
+        WriteToHDF5(name, fab, level_geom, time_point, cycle_number, fields);
       }
     } else {
       ::MPI_Reduce(local_fab.dataPtr(), nullptr,
@@ -372,8 +374,9 @@ void WriteHdf5RestrictedToBox(const std::string& name,
 } // namespace cutcell
 
 namespace {
-void WriteHdf5UnRestricted(const std::string& name,
-                           const PatchHierarchy& hierarchy) {
+void WriteHdf5UnRestricted(
+    const std::string& name, const PatchHierarchy& hierarchy,
+    span<const std::string> fields = span<const std::string>{}) {
   MPI_Comm comm = ::amrex::ParallelContext::CommunicatorAll();
   int rank = -1;
   ::MPI_Comm_rank(comm, &rank);
@@ -429,7 +432,7 @@ void WriteHdf5UnRestricted(const std::string& name,
       if (level == n_level - 1) {
         const fub::Duration time_point = hierarchy.GetTimePoint();
         const std::ptrdiff_t cycle_number = hierarchy.GetCycles();
-        WriteToHDF5(name, fab, level_geom, time_point, cycle_number);
+        WriteToHDF5(name, fab, level_geom, time_point, cycle_number, fields);
       }
     } else {
       ::MPI_Reduce(local_fab.dataPtr(), nullptr,
@@ -439,9 +442,10 @@ void WriteHdf5UnRestricted(const std::string& name,
   }
 }
 
-void WriteHdf5RestrictedToBox(const std::string& name,
-                              const PatchHierarchy& hierarchy,
-                              const ::amrex::Box& finest_box) {
+void WriteHdf5RestrictedToBox(
+    const std::string& name, const PatchHierarchy& hierarchy,
+    const ::amrex::Box& finest_box,
+    span<const std::string> fields = span<const std::string>{}) {
   MPI_Comm comm = ::amrex::ParallelContext::CommunicatorAll();
   int rank = -1;
   ::MPI_Comm_rank(comm, &rank);
@@ -512,7 +516,7 @@ void WriteHdf5RestrictedToBox(const std::string& name,
         const fub::Duration time_point = hierarchy.GetTimePoint();
         const std::ptrdiff_t cycle_number = hierarchy.GetCycles();
         const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(ilvl);
-        WriteToHDF5(name, fab, level_geom, time_point, cycle_number);
+        WriteToHDF5(name, fab, level_geom, time_point, cycle_number, fields);
       }
     } else {
       ::MPI_Reduce(local_fab.dataPtr(), nullptr,
@@ -555,16 +559,18 @@ void MultiWriteHdf52::operator()(const MultiBlockGriddingAlgorithm2& grid) {
   if (type_ == Type::plenum && grid_id_ < grid.GetPlena().size()) {
     const auto& hierarchy = grid.GetPlena()[grid_id_]->GetPatchHierarchy();
     if (output_box_) {
-      cutcell::WriteHdf5RestrictedToBox(path_to_file_, hierarchy, *output_box_);
+      cutcell::WriteHdf5RestrictedToBox(path_to_file_, hierarchy, *output_box_,
+                                        PlenumFieldNames());
     } else {
-      cutcell::WriteHdf5UnRestricted(path_to_file_, hierarchy);
+      cutcell::WriteHdf5UnRestricted(path_to_file_, hierarchy, PlenumFieldNames());
     }
   } else if (grid_id_ < grid.GetTubes().size()) {
     const auto& hierarchy = grid.GetTubes()[grid_id_]->GetPatchHierarchy();
     if (output_box_) {
-      WriteHdf5RestrictedToBox(path_to_file_, hierarchy, *output_box_);
+      WriteHdf5RestrictedToBox(path_to_file_, hierarchy, *output_box_,
+                               TubeFieldNames());
     } else {
-      WriteHdf5UnRestricted(path_to_file_, hierarchy);
+      WriteHdf5UnRestricted(path_to_file_, hierarchy, TubeFieldNames());
     }
   }
 }
