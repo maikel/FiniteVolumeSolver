@@ -205,11 +205,11 @@ template <int Rank, typename Context, typename SplitMethod>
 Duration
 DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::ComputeStableDt(
     int level) {
-  if (level > 0) {
-    Context::FillGhostLayerTwoLevels(level, level - 1);
-  } else {
-    Context::FillGhostLayerSingleLevel(level);
-  }
+  // if (level > 0) {
+  //   Context::FillGhostLayerTwoLevels(level, level - 1);
+  // } else {
+  //   Context::FillGhostLayerSingleLevel(level);
+  // }
   Duration min_dt(std::numeric_limits<double>::max());
   for (int d = 0; d < Rank; ++d) {
     const Direction dir = static_cast<Direction>(d);
@@ -268,6 +268,15 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::
         return GetSplitMethod().Advance(dt, AdvanceLevel_Split(directions)...);
       },
       MakeSplitDirections<Rank>(static_cast<int>(GetCycles(0)), subcycle));
+
+
+  if (result) {
+    if (this_level > 0) {
+      Context::FillGhostLayerTwoLevels(this_level, this_level - 1);
+    } else {
+      Context::FillGhostLayerSingleLevel(this_level);
+    }
+  }
 
   return result;
 }

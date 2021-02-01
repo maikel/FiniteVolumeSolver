@@ -63,8 +63,8 @@ struct RiemannProblem {
               data[mfi], equation_, mfi.tilebox());
           fub::ForEachIndex(fub::Box<0>(states), [&](std::ptrdiff_t i) {
             // const double x = geom.CellCenter(int(i), 0);
-            const double pressure = 1.0;
-            state.temperature = 1.0;
+            const double pressure = 1.0 ;
+            state.temperature = 1.0; // (rel_x < 0.5) ? 1.0 : 2.5;
             state.density = pressure / state.temperature / equation_.Rspec;
             state.mole_fractions[0] = 0.0;
             state.mole_fractions[1] = 1.0;
@@ -107,8 +107,13 @@ void MyMain(const fub::ProgramOptions& options) {
 
   fub::SeverityLogger log = fub::GetInfoLogger();
 
-  fub::PerfectGasMix<1> equation{};
-  equation.n_species = 1;
+  fub::ProgramOptions eq_options = fub::GetOptions(options, "Equation");
+  double Rspec = fub::GetOptionOr(eq_options, "Rspec", 1.0);
+  double gamma = fub::GetOptionOr(eq_options, "gamma", 1.28);
+  fub::PerfectGasMix<1> equation{fub::PerfectGasConstants{Rspec, gamma}, 1};
+  BOOST_LOG(log) << "Equation:";
+  BOOST_LOG(log) << fmt::format("  - Rspec = {}", equation.Rspec);
+  BOOST_LOG(log) << fmt::format("  - gamma = {}", equation.gamma);
 
   fub::amrex::CartesianGridGeometry grid_geometry(
       fub::GetOptions(options, "GridGeometry"));

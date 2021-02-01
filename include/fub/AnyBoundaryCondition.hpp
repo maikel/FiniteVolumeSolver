@@ -32,8 +32,8 @@ namespace fub {
 
 /// \ingroup GriddingAlgorithm
 /// \defgroup BoundaryCondition Boundary Conditions
-/// \brief This modules collects all components that fill the ghost layer of a patch
-/// level.
+/// \brief This modules collects all components that fill the ghost layer of a
+/// patch level.
 
 namespace detail {
 template <typename GriddingAlgorithm> struct BoundaryConditionBase {
@@ -41,6 +41,7 @@ template <typename GriddingAlgorithm> struct BoundaryConditionBase {
 
   virtual ~BoundaryConditionBase() = default;
   virtual std::unique_ptr<BoundaryConditionBase> Clone() const = 0;
+  virtual void PreAdvanceHierarchy(const GriddingAlgorithm& grid) = 0;
   virtual void FillBoundary(DataReference mf, const GriddingAlgorithm& gridding,
                             int level) = 0;
   virtual void FillBoundary(DataReference mf, const GriddingAlgorithm& gridding,
@@ -87,6 +88,12 @@ public:
   /// @{
   /// \name Actions
 
+  /// \brief Perform some action on each time step if neccessary.
+  ///
+  /// This will do nothing if the boundary condition does not require to do
+  /// anything.
+  void PreAdvanceHierarchy(const GriddingAlgorithm& grid);
+
   /// \brief Fill the boundary layer of data.
   void FillBoundary(DataReference data, const GriddingAlgorithm& gridding,
                     int level);
@@ -121,6 +128,13 @@ struct BoundaryConditionWrapper
         boundary_condition_);
   }
 
+  void PreAdvanceHierarchy(const GriddingAlgorithm& grid) {
+    if constexpr (is_detected<meta::PreAdvanceHierarchy, BC&,
+                              const GriddingAlgorithm&>::value) {
+      boundary_condition_.PreAdvanceHierarchy(grid);
+    }
+  }
+
   void FillBoundary(DataReference data, const GriddingAlgorithm& gridding,
                     int level) override {
     boundary_condition_.FillBoundary(data, gridding, level);
@@ -144,8 +158,8 @@ AnyBoundaryCondition<GriddingAlgorithm>::AnyBoundaryCondition(
 
 template <typename GriddingAlgorithm>
 AnyBoundaryCondition<GriddingAlgorithm>&
-AnyBoundaryCondition<GriddingAlgorithm>::operator=(
-    const AnyBoundaryCondition& other) {
+AnyBoundaryCondition<GriddingAlgorithm>::
+operator=(const AnyBoundaryCondition& other) {
   AnyBoundaryCondition tmp(other);
   return *this = std::move(tmp);
 }
@@ -155,6 +169,14 @@ template <typename BC, typename>
 AnyBoundaryCondition<GriddingAlgorithm>::AnyBoundaryCondition(BC&& bc)
     : boundary_condition_{std::make_unique<detail::BoundaryConditionWrapper<
           GriddingAlgorithm, std::decay_t<BC>>>(std::forward<BC>(bc))} {}
+
+template <typename GriddingAlgorithm>
+void AnyBoundaryCondition<GriddingAlgorithm>::PreAdvanceHierarchy(
+    const GriddingAlgorithm& grid) {
+  if (boundary_condition_) {
+    boundary_condition_->PreAdvanceHierarchy(grid);
+  }
+}
 
 template <typename GriddingAlgorithm>
 void AnyBoundaryCondition<GriddingAlgorithm>::FillBoundary(

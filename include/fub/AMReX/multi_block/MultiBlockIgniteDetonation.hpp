@@ -46,7 +46,7 @@ public:
   void ResetHierarchyConfiguration(
       const std::shared_ptr<MultiBlockGriddingAlgorithm>& grid);
 
-  [[nodiscard]] static Duration ComputeStableDt(int level) noexcept;
+  [[nodiscard]] static Duration ComputeStableDt(const MultiBlockIntegratorContext&, int level) noexcept;
 
   [[nodiscard]] Result<void, TimeStepTooLarge>
   AdvanceLevel(MultiBlockIntegratorContext& context, int level, Duration dt,

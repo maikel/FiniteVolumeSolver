@@ -19,14 +19,17 @@
 // SOFTWARE.
 
 #include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm2.hpp"
+#include <range/v3/view/enumerate.hpp>
+#include <range/v3/view/filter.hpp>
+#include <range/v3/view/zip.hpp>
 
 namespace fub::amrex {
 
 MultiBlockGriddingAlgorithm2::MultiBlockGriddingAlgorithm2(
     const MultiBlockGriddingAlgorithm2& other)
-    : tubes_(other.tubes_.size()),
-      plena_(other.plena_.size()), connectivity_(other.connectivity_),
-      boundaries_(other.boundaries_) {
+    : tubes_(other.tubes_.size()), plena_(other.plena_.size()),
+      connectivity_(other.connectivity_), boundaries_(other.boundaries_),
+      tube_bcs_(other.tube_bcs_), plenum_bcs_(other.plenum_bcs_) {
   for (std::size_t i = 0; i < tubes_.size(); ++i) {
     tubes_[i] = std::make_shared<GriddingAlgorithm>(*other.tubes_[i]);
   }
@@ -42,6 +45,46 @@ operator=(const MultiBlockGriddingAlgorithm2& other) {
   return *this;
 }
 
+void MultiBlockGriddingAlgorithm2::PreAdvanceHierarchy() {
+  // Pre-compute ghost cells for each multi block boundary
+  for (std::vector<AnyMultiBlockBoundary>& boundaries : boundaries_) {
+    for (AnyMultiBlockBoundary& boundary : boundaries) {
+      boundary.PreAdvanceHierarchy(*this);
+    }
+  }
+  // Add multi block boundary to the local boundaries of tubes
+  for (auto&& [tube_id, original_tube_bc] :
+       ranges::view::enumerate(tube_bcs_)) {
+    std::vector<AnyBoundaryCondition> all_tube_conditions{original_tube_bc};
+    for (auto& boundaries : boundaries_) {
+      for (auto&& [conn, bc] : ranges::view::zip(connectivity_, boundaries)) {
+        if (conn.tube.id == tube_id) {
+          all_tube_conditions.emplace_back(bc);
+        }
+      }
+    }
+    amrex::BoundarySet new_tube_bc{};
+    new_tube_bc.conditions = all_tube_conditions;
+    tubes_[tube_id]->GetBoundaryCondition() = new_tube_bc;
+  }
+  // Add multi block boundary to the local boundaries of plena
+  for (auto&& [plenum_id, original_plenum_bc] :
+       ranges::view::enumerate(plenum_bcs_)) {
+    std::vector<cutcell::AnyBoundaryCondition> all_plenum_conditions{
+        original_plenum_bc};
+    for (auto& boundaries : boundaries_) {
+      for (auto&& [conn, bc] : ranges::view::zip(connectivity_, boundaries)) {
+        if (conn.plenum.id == plenum_id) {
+          all_plenum_conditions.emplace_back(bc);
+        }
+      }
+    }
+    amrex::cutcell::BoundarySet new_plenum_bc{};
+    new_plenum_bc.conditions = all_plenum_conditions;
+    plena_[plenum_id]->GetBoundaryCondition() = new_plenum_bc;
+  }
+}
+
 span<const std::shared_ptr<GriddingAlgorithm>>
 MultiBlockGriddingAlgorithm2::GetTubes() const noexcept {
   return tubes_;
@@ -52,8 +95,8 @@ MultiBlockGriddingAlgorithm2::GetPlena() const noexcept {
   return plena_;
 }
 
-span<const BlockConnection> MultiBlockGriddingAlgorithm2::GetConnectivity() const
-    noexcept {
+span<const BlockConnection>
+MultiBlockGriddingAlgorithm2::GetConnectivity() const noexcept {
   return connectivity_;
 }
 

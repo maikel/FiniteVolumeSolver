@@ -88,11 +88,13 @@ public:
       : impl_(std::make_unique<MultiBlockBoundaryWrapper<Boundary>>(
             std::move(boundary))),
         dir_{connection.direction}, side_{connection.side}, level_{level},
-        gcw_{gcw} {
+        gcw_{gcw}, connection_{connection} {
     Initialize(gridding, connection, gcw, level);
   }
 
   AnyMultiBlockBoundary(const AnyMultiBlockBoundary& other);
+
+  void PreAdvanceHierarchy(const MultiBlockGriddingAlgorithm2& grid);
 
   /// Precompute Boundary states for each domain.
   ///
@@ -152,6 +154,7 @@ private:
   int side_{};
   int level_{};
   int gcw_{};
+  BlockConnection connection_{};
 };
 
 template <typename TubeEquation, typename PlenumEquation>

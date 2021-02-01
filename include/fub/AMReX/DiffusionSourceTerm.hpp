@@ -57,7 +57,7 @@ public:
       const EulerEquation& equation,
       const DiffusionSourceTermOptions& options = DiffusionSourceTermOptions());
 
-  Duration ComputeStableDt(int level) const;
+  Duration ComputeStableDt(const amrex::IntegratorContext& simulation_data, int level) const;
 
   Result<void, TimeStepTooLarge>
   AdvanceLevel(IntegratorContext& simulation_data, int level, Duration dt,
@@ -116,16 +116,6 @@ Result<void, TimeStepTooLarge> DiffusionSourceTerm<EulerEquation>::AdvanceLevel(
   Timer advance_timer = simulation_data.GetCounterRegistry()->get_timer(
       "DiffusionSourceTerm::AdvanceLevel");
 
-  if (level > 0) {
-    AnyBoundaryCondition bc =
-        simulation_data.GetGriddingAlgorithm()->GetBoundaryCondition();
-    simulation_data.FillGhostLayerTwoLevels(level, bc, level - 1, bc);
-  } else {
-    AnyBoundaryCondition bc =
-        simulation_data.GetGriddingAlgorithm()->GetBoundaryCondition();
-    simulation_data.FillGhostLayerSingleLevel(level, bc);
-  }
-
   ::amrex::MultiFab& scratch = simulation_data.GetScratch(level);
   const ::amrex::MultiFab& fluxes =
       simulation_data.GetFluxes(level, Direction::X);
@@ -171,13 +161,9 @@ Result<void, TimeStepTooLarge> DiffusionSourceTerm<EulerEquation>::AdvanceLevel(
   // 7.) Synchronize all ghost cells across MPI processes to get valid ghost
   // cells.
   if (level > 0) {
-    AnyBoundaryCondition bc =
-        simulation_data.GetGriddingAlgorithm()->GetBoundaryCondition();
-    simulation_data.FillGhostLayerTwoLevels(level, bc, level - 1, bc);
+    simulation_data.FillGhostLayerTwoLevels(level, level - 1);
   } else {
-    AnyBoundaryCondition bc =
-        simulation_data.GetGriddingAlgorithm()->GetBoundaryCondition();
-    simulation_data.FillGhostLayerSingleLevel(level, bc);
+    simulation_data.FillGhostLayerSingleLevel(level);
   }
 
   return boost::outcome_v2::success();
@@ -229,9 +215,10 @@ void DiffusionSourceTerm<EulerEquation>::ComputeDiffusionFluxes(
 }
 
 template <typename EulerEquation>
-Duration DiffusionSourceTerm<EulerEquation>::ComputeStableDt([
-    [maybe_unused]] int level) const {
-  return Duration(std::numeric_limits<double>::max());
+Duration DiffusionSourceTerm<EulerEquation>::ComputeStableDt(const amrex::IntegratorContext& simulation_data, int level) const {
+  const ::amrex::Geometry& level_geometry = simulation_data.GetGeometry(level);
+  const double dx = level_geometry.CellSize(0);
+  return Duration(0.5 * dx * dx / constants_.mul);
 }
 
 template <typename EulerEquation>

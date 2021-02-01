@@ -28,7 +28,7 @@ inputFilePath = "/srv/public/Maikel/FiniteVolumeSolver/examples/AMReX/EB/2D/"
 # print(inputFile.y0s)
 # print(inputFile.Area)
 sys.path.append(inputFilePath)
-from SEC_Plenum import y0s, Area, tube_n_cells
+from SEC_Plenum_Arrhenius import y0s, Area, tube_n_cells, p_ref, T_ref, rho_ref
 print(y0s)
 print(Area)
 
@@ -37,7 +37,7 @@ outPath = dataPath
 output_path = '{}/Visualization'.format(outPath)
 
 def h5_load_t(path, num, variables):
-   variables_to_int_map = ['Density', 'Momentum', 'Energy', 'Species_0', 'Species_1', 'Pressure', 'SpeedOfSound', 'vfrac']
+   variables_to_int_map = ['Density', 'Momentum', 'Energy', 'Species_0', 'Pressure', 'SpeedOfSound', 'vfrac']
    indices = [variables_to_int_map.index(var) for var in variables]
    file = h5py.File(path, mode='r')
    shape = file['data'].shape
@@ -52,7 +52,7 @@ def h5_load_t(path, num, variables):
    return tuple(datas), time, extent
 
 def h5_load(path, num, variables):
-   variables_to_int_map = ['Density', 'Momentum_0', 'Momentum_1', 'Energy', 'Species_0', 'Species_1', 'Pressure', 'SpeedOfSound', 'vfrac']
+   variables_to_int_map = ['Density', 'Momentum_0', 'Momentum_1', 'Energy', 'Species_0', 'Pressure', 'SpeedOfSound', 'vfrac']
    indices = [variables_to_int_map.index(var) for var in variables]
    file = h5py.File(path, mode='r')
    shape = file['data'].shape
@@ -88,7 +88,7 @@ for i in range(nsteps):
    extent_tubes = []
    
    for tube in tube_paths:
-      (p_tube), current_time, extent = h5_load_t(tube, 4*i, ["Pressure"])
+      (p_tube), current_time, extent = h5_load_t(tube, i, ["Pressure"])
       Tube_p.append(p_tube)
       extent_tubes.append(extent)
    
@@ -105,7 +105,7 @@ for i in range(nsteps):
    f.suptitle('Time = {:.2f}'.format(current_time))
    # pressure image
    p = np.where(vols > 1e-14, p, np.nan)
-   levels = np.linspace(0.4, 2.4, 30)
+   levels = np.linspace(1.9 * p_ref, 2.4 * p_ref, 30)
    pressure_options = {
      'origin': 'lower',
      'cmap': 'jet',
@@ -114,7 +114,7 @@ for i in range(nsteps):
      'vmax': levels[-1],
      'extend': 'both'
    }
-   im_p = axs[0].contourf(p, extent=extent, **pressure_options)
+   im_p = axs[0].contourf(p * p_ref, extent=extent, **pressure_options)
    for extent_tube, tube_p in zip(extent_tubes, Tube_p):
       midpoint = 0.5 * (extent_tube[2] + extent_tube[3])
       D = 0.03
@@ -125,7 +125,7 @@ for i in range(nsteps):
       upper = midpoint + 4.0 * D
       extent_tube[2] = lower
       extent_tube[3] = upper
-      im_p = axs[0].contourf(tube_p, extent=extent_tube, **pressure_options)
+      im_p = axs[0].contourf(tube_p * p_ref, extent=extent_tube, **pressure_options)
       axs[0].fill_between(x, y_upper, np.max(y_upper), color='white')
       axs[0].fill_between(x, y_lower, np.min(y_lower), color='white')
    axs[0].set_title('Pressure')
@@ -133,7 +133,7 @@ for i in range(nsteps):
    plt.colorbar(im_p, ax=axs[0])
    # temperature image
    T = p / rho
-   im_T = axs[1].imshow(T, origin='lower', vmin=1.0, vmax=2.5, interpolation='none', extent=extent)
+   im_T = axs[1].imshow(T * T_ref, origin='lower', vmin=1.0 * T_ref, vmax=15 * T_ref, interpolation='none', extent=extent)
    axs[1].set_title('Temperature')
    axs[1].set(aspect='equal')
    plt.colorbar(im_T, ax=axs[1])
@@ -145,7 +145,7 @@ for i in range(nsteps):
    x = np.linspace(*extent[0:2], num=u[::skip, ::skip].shape[1], endpoint=True)
    y = np.linspace(*extent[2:], num=u[::skip, ::skip].shape[0], endpoint=True)
    X,Y = np.meshgrid(x,y)
-   Q = axs[2].quiver(X, Y, u[::skip,::skip], v[::skip,::skip], scale=6, units='inches', width=0.01)
+   Q = axs[2].quiver(X, Y, u[::skip,::skip], v[::skip,::skip], scale=4, units='inches', width=0.01)
    axs[2].quiverkey(Q, 0.9, 0.9, 1, r'$1 \frac{m}{s}$', labelpos='E', coordinates='figure')
    axs[2].set_title('Velocity Field')
    axs[2].set(aspect='equal')

@@ -40,8 +40,8 @@ public:
       : map_(std::move(adapter)),
         level_integrator_(std::move(level_integrator)) {}
 
-  Duration ComputeStableDt(int level) {
-    return level_integrator_.ComputeStableDt(level);
+  Duration ComputeStableDt(const MultiBlockIntegratorContext& ctx, int level) {
+    return level_integrator_.ComputeStableDt(ctx, level);
   }
 
   /// \brief Integrates the source term for each tube in the specified context

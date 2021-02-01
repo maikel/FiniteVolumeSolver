@@ -28,7 +28,7 @@ template <int Rank>
 KineticSourceTerm<Rank>::KineticSourceTerm(const IdealGasMix<Rank>& eq)
     : equation_{eq}, state_{Complete<IdealGasMix<Rank>>(eq)} {}
 
-template <int Rank> Duration KineticSourceTerm<Rank>::ComputeStableDt(int) {
+template <int Rank> Duration KineticSourceTerm<Rank>::ComputeStableDt(const amrex::IntegratorContext&, int) {
   return Duration(std::numeric_limits<double>::max());
 }
 

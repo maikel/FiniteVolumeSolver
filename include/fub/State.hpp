@@ -78,7 +78,16 @@ constexpr auto Unzip(const std::tuple<Ts...>& zipped) {
       std::make_index_sequence<std::tuple_size<First>::value>(), zipped);
 }
 
-template <std::size_t I, typename State>
+namespace meta {
+template <typename S>
+using has_traits_and_pointers_to_member =
+    decltype(S::Traits::pointers_to_member);
+}
+
+template <
+    std::size_t I, typename State,
+    typename = std::enable_if_t<is_detected<
+        meta::has_traits_and_pointers_to_member, remove_cvref_t<State>>::value>>
 constexpr decltype(auto) get(State&& x) {
   using S = remove_cvref_t<State>;
   constexpr auto& pointers_to_member = S::Traits::pointers_to_member;
@@ -159,9 +168,7 @@ template <typename T, typename Eq> struct DepthsImpl {
 };
 } // namespace detail
 
-template <typename T> struct Type {
-  using type = T;
-};
+template <typename T> struct Type { using type = T; };
 
 inline constexpr struct DepthsFn {
   template <typename Eq, typename State>
@@ -176,9 +183,8 @@ inline constexpr struct DepthsFn {
       detail::DepthsImpl<State, Eq> default_depths;
       return default_depths(eq);
     } else {
-      static_assert(
-          is_tag_invocable<DepthsFn, const Eq&, Type<State>>::value ||
-          is_detected<detail::DepthsT, State, Eq>::value);
+      static_assert(is_tag_invocable<DepthsFn, const Eq&, Type<State>>::value ||
+                    is_detected<detail::DepthsT, State, Eq>::value);
     }
   }
 } Depths;
@@ -199,8 +205,7 @@ template <typename Depths> struct ScalarState : ScalarStateBase<Depths> {
 
   using Base::Base;
 
-  template <typename Equation>
-  ScalarState(const Equation& eq) : Base{} {
+  template <typename Equation> ScalarState(const Equation& eq) : Base{} {
     auto depths = ::fub::Depths(eq, Type<ScalarState>{});
     ForEachVariable(
         overloaded{
@@ -421,7 +426,7 @@ struct BasicView : ViewBase<S, L, R> {
 };
 
 template <typename S, typename L, int R>
-BasicView(const BasicView<S, L, R>&) -> BasicView<S, L, R>;
+BasicView(const BasicView<S, L, R>&)->BasicView<S, L, R>;
 
 template <typename S, typename L, int R>
 struct StateTraits<BasicView<S, L, R>> : StateTraits<ViewBase<S, L, R>> {};
@@ -511,14 +516,14 @@ template <typename T> struct GetNumberOfComponentsImpl {
   int_constant<1> operator()(int) const noexcept { return {}; }
 
   template <std::size_t N>
-  int_constant<static_cast<int>(N)>
-  operator()(const std::array<int, N>&) const noexcept {
+  int_constant<static_cast<int>(N)> operator()(const std::array<int, N>&) const
+      noexcept {
     return {};
   }
 
   template <int N, int M, int O, int MR, int MC>
-  int_constant<N>
-  operator()(const Eigen::Array<double, N, M, O, MR, MC>&) const noexcept {
+  int_constant<N> operator()(const Eigen::Array<double, N, M, O, MR, MC>&) const
+      noexcept {
     return {};
   }
 
@@ -535,12 +540,12 @@ template <typename T> struct GetNumberOfComponentsImpl {
 
 template <typename S, typename Layout, int Rank>
 struct GetNumberOfComponentsImpl<BasicView<S, Layout, Rank>> {
-  int_constant<1>
-  operator()(const PatchDataView<double, Rank, Layout>&) const noexcept {
+  int_constant<1> operator()(const PatchDataView<double, Rank, Layout>&) const
+      noexcept {
     return {};
   }
-  int operator()(
-      const PatchDataView<double, Rank + 1, Layout>& pdv) const noexcept {
+  int operator()(const PatchDataView<double, Rank + 1, Layout>& pdv) const
+      noexcept {
     return static_cast<int>(pdv.Extent(Rank));
   }
 };
@@ -561,20 +566,20 @@ template <typename T> struct AtComponentImpl {
   }
 
   template <int N>
-  const double& operator()(const Eigen::Array<double, N, 1>& x,
-                           int n) const noexcept {
+  const double& operator()(const Eigen::Array<double, N, 1>& x, int n) const
+      noexcept {
     return x[n];
   }
 
   template <int N, int M, int O, int MR, int MC>
-  auto operator()(Eigen::Array<double, N, M, O, MR, MC>& x,
-                  int n) const noexcept {
+  auto operator()(Eigen::Array<double, N, M, O, MR, MC>& x, int n) const
+      noexcept {
     return x.row(n);
   }
 
   template <int N, int M, int O, int MR, int MC>
-  auto operator()(const Eigen::Array<double, N, M, O, MR, MC>& x,
-                  int n) const noexcept {
+  auto operator()(const Eigen::Array<double, N, M, O, MR, MC>& x, int n) const
+      noexcept {
     return x.row(n);
   }
 };
@@ -584,14 +589,14 @@ struct AtComponentImpl<BasicView<S, Layout, Rank>> {
   using ValueType = typename BasicView<S, Layout, Rank>::ValueType;
 
   const PatchDataView<ValueType, Rank, Layout>&
-  operator()(const PatchDataView<ValueType, Rank, Layout>& x,
-             int) const noexcept {
+  operator()(const PatchDataView<ValueType, Rank, Layout>& x, int) const
+      noexcept {
     return x;
   }
 
   PatchDataView<ValueType, Rank, Layout>
-  operator()(const PatchDataView<ValueType, Rank + 1, Layout>& x,
-             int n) const noexcept {
+  operator()(const PatchDataView<ValueType, Rank + 1, Layout>& x, int n) const
+      noexcept {
     constexpr std::size_t sRank = Rank;
     std::array<std::ptrdiff_t, sRank + 1> index{};
     index[sRank] = n;
@@ -755,11 +760,11 @@ template <typename State>
 struct StateTraits<ViewPointer<State>> : StateTraits<ViewPointerBase<State>> {};
 
 template <typename State>
-ViewPointer(const ViewPointer<State>&) -> ViewPointer<State>;
+ViewPointer(const ViewPointer<State>&)->ViewPointer<State>;
 
 template <typename State>
-ViewPointer<std::add_const_t<State>> AsConst(const ViewPointer<State>& p) noexcept
-{
+ViewPointer<std::add_const_t<State>>
+AsConst(const ViewPointer<State>& p) noexcept {
   ViewPointer<std::add_const_t<State>> cp;
   ForEachVariable([](auto& cptr, auto ptr) { cptr = ptr; }, cp, p);
   return cp;

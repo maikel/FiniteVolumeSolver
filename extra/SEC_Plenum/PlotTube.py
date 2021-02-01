@@ -113,7 +113,7 @@ for mode, suptitle in zip(modes, mode_titles):
   t0 = 0.0
   tEnd = times[-1]
 
-  print(np.max(F_data))
+  # print(np.max(F_data))
 
   titles = ['Temperature', 'Pressure', 'Fuel Massfraction']
   datas = [T_data, p_data, F_data]
@@ -129,16 +129,16 @@ for mode, suptitle in zip(modes, mode_titles):
     if title == 'Fuel Massfraction':
       props['vmax'] = None
       props['vmin'] = None
-    if  title == 'Temperature':
-      props['vmax'] = 3.0
+    # if  title == 'Temperature':
+      # props['vmax'] = 3.0
     if title == 'Pressure':
       props = {
       'origin': 'lower',
       'interpolation': 'none',
       'aspect': 'auto',
       'extent': (x0, xEnd, t0, tEnd),
-      'vmin': 0.7,
-      'vmax': 1.4,
+      # 'vmin': 0.7,
+      # 'vmax': 1.4,
       'cmap': 'jet'
       }
     return props

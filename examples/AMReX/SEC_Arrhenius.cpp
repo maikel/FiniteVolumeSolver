@@ -315,8 +315,7 @@ void MyMain(const fub::ProgramOptions& options) {
 
   fub::SplitSystemSourceLevelIntegrator reactive_integrator(
       std::move(diffusive_integrator), std::move(source_term),
-      fub::GodunovSplitting());
-  // fub::StrangSplittingLumped());
+      fub::StrangSplittingLumped());
 
   fub::SubcycleFineFirstSolver solver(std::move(reactive_integrator));
   // fub::SubcycleFineFirstSolver solver(std::move(level_integrator));

@@ -21,9 +21,9 @@
 #ifndef FUB_AMREX_COUPLED_GRIDDING_ALGORITHM2_HPP
 #define FUB_AMREX_COUPLED_GRIDDING_ALGORITHM2_HPP
 
-#include "fub/AMReX/multi_block/MultiBlockBoundary2.hpp"
 #include "fub/AMReX/boundary_condition/BoundarySet.hpp"
 #include "fub/AMReX/cutcell/boundary_condition/BoundarySet.hpp"
+#include "fub/AMReX/multi_block/MultiBlockBoundary2.hpp"
 
 #include "fub/AMReX/GriddingAlgorithm.hpp"
 #include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
@@ -55,12 +55,14 @@ public:
   MultiBlockGriddingAlgorithm2&
   operator=(MultiBlockGriddingAlgorithm2&& other) noexcept = default;
 
+  void PreAdvanceHierarchy();
+
   std::ptrdiff_t GetCycles() const noexcept { return plena_[0]->GetCycles(); }
 
   Duration GetTimePoint() const noexcept { return plena_[0]->GetTimePoint(); }
 
-  [[nodiscard]] span<const std::shared_ptr<GriddingAlgorithm>>
-  GetTubes() const noexcept;
+  [[nodiscard]] span<const std::shared_ptr<GriddingAlgorithm>> GetTubes() const
+      noexcept;
   [[nodiscard]] span<const std::shared_ptr<cutcell::GriddingAlgorithm>>
   GetPlena() const noexcept;
 
@@ -77,6 +79,8 @@ private:
   std::vector<std::shared_ptr<cutcell::GriddingAlgorithm>> plena_;
   std::vector<BlockConnection> connectivity_;
   std::vector<std::vector<AnyMultiBlockBoundary>> boundaries_;
+  std::vector<AnyBoundaryCondition> tube_bcs_{};
+  std::vector<cutcell::AnyBoundaryCondition> plenum_bcs_{};
 };
 
 template <typename TubeEquation, typename PlenumEquation>
@@ -89,24 +93,18 @@ MultiBlockGriddingAlgorithm2::MultiBlockGriddingAlgorithm2(
       connectivity_(std::move(connectivity)) {
   const int nlevel = plena_[0]->GetPatchHierarchy().GetMaxNumberOfLevels();
   boundaries_.resize(static_cast<std::size_t>(nlevel));
+  for (auto& tube : tubes_) {
+    tube_bcs_.push_back(tube->GetBoundaryCondition());
+  }
+  for (auto& plenum : plena_) {
+    plenum_bcs_.push_back(plenum->GetBoundaryCondition());
+  }
   int level = 0;
   for (auto& boundaries : boundaries_) {
     for (const BlockConnection& conn : connectivity_) {
-      AnyMultiBlockBoundary multi_block_bc = boundaries.emplace_back(
+      boundaries.emplace_back(
           MultiBlockBoundary2(tube_equation, plenum_equation), *this, conn,
           conn.ghost_cell_width, level);
-      {
-        AnyBoundaryCondition& tube_bc = tubes_[conn.tube.id]->GetBoundaryCondition();
-        fub::amrex::BoundarySet composed{{tube_bc}};
-        composed.conditions.emplace_back(multi_block_bc);
-        tube_bc = composed;
-      }
-      {
-        cutcell::AnyBoundaryCondition& plenum_bc = plena_[conn.plenum.id]->GetBoundaryCondition();
-        fub::amrex::cutcell::BoundarySet composed{{plenum_bc}};
-        composed.conditions.emplace_back(multi_block_bc);
-        plenum_bc = composed;
-      }
     }
     level += 1;
   }

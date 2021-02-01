@@ -52,7 +52,7 @@ IgniteDetonation::IgniteDetonation(
       next_ignition_time_(static_cast<std::size_t>(max_number_levels),
                           opts.offset) {}
 
-Duration IgniteDetonation::ComputeStableDt(int) const noexcept {
+Duration IgniteDetonation::ComputeStableDt(const IntegratorContext&, int) const noexcept {
   return Duration(std::numeric_limits<double>::max());
 }
 

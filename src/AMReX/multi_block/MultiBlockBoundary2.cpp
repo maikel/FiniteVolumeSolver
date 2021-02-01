@@ -293,10 +293,8 @@ int Flip(int side) { return (side == 0) * 1 + (side != 0) * 0; }
 //}
 } // namespace
 
-AnyMultiBlockBoundary::AnyMultiBlockBoundary(
-    const AnyMultiBlockBoundary& other)
-    : impl_(other.impl_->Clone()),
-      plenum_mirror_box_(other.plenum_mirror_box_),
+AnyMultiBlockBoundary::AnyMultiBlockBoundary(const AnyMultiBlockBoundary& other)
+    : impl_(other.impl_->Clone()), plenum_mirror_box_(other.plenum_mirror_box_),
       tube_mirror_box_(other.tube_mirror_box_),
       plenum_mirror_data_(std::make_unique<::amrex::FArrayBox>(
           other.plenum_mirror_data_->box(),
@@ -367,6 +365,16 @@ void AnyMultiBlockBoundary::Initialize(
   ComputeBoundaryData(plenum, tube);
 }
 
+void AnyMultiBlockBoundary::PreAdvanceHierarchy(
+    const MultiBlockGriddingAlgorithm2& grid) {
+  const int plenum_id = connection_.plenum.id;
+  const int tube_id = connection_.tube.id;
+  const cutcell::PatchHierarchy& plenum =
+      grid.GetPlena()[plenum_id]->GetPatchHierarchy();
+  const PatchHierarchy& tube = grid.GetTubes()[tube_id]->GetPatchHierarchy();
+  ComputeBoundaryData(plenum, tube);
+}
+
 template <int R> using Conservative = ::fub::Conservative<IdealGasMix<R>>;
 template <int R> using Complete = ::fub::Complete<IdealGasMix<R>>;
 
@@ -407,7 +415,7 @@ void AnyMultiBlockBoundary::ComputeBoundaryData(
 }
 
 void AnyMultiBlockBoundary::FillBoundary(::amrex::MultiFab& mf,
-                                          const GriddingAlgorithm&, int) {
+                                         const GriddingAlgorithm&, int) {
   ::amrex::Box box = tube_ghost_data_->box();
   ForEachFab(execution::seq, mf, [&](const ::amrex::MFIter& mfi) {
     const ::amrex::Box b = mfi.growntilebox() & box;
@@ -424,8 +432,9 @@ void AnyMultiBlockBoundary::FillBoundary(::amrex::MultiFab& mf,
   });
 }
 
-void AnyMultiBlockBoundary::FillBoundary(
-    ::amrex::MultiFab& mf, const cutcell::GriddingAlgorithm&, int) {
+void AnyMultiBlockBoundary::FillBoundary(::amrex::MultiFab& mf,
+                                         const cutcell::GriddingAlgorithm&,
+                                         int) {
   ::amrex::Box ghost_box = MakeGhostBox(plenum_mirror_box_, gcw_, dir_, side_);
   ForEachFab(execution::openmp, mf, [&](const ::amrex::MFIter& mfi) {
     const ::amrex::Box box = mfi.growntilebox() & ghost_box;

@@ -67,7 +67,7 @@ public:
       const PerfectGasMix<Rank>& eq,
       const ArrheniusKineticsOptions& options = ArrheniusKineticsOptions());
 
-  Duration ComputeStableDt(int level);
+  Duration ComputeStableDt(const amrex::IntegratorContext&, int level);
 
   Result<void, TimeStepTooLarge>
   AdvanceLevel(amrex::IntegratorContext& simulation_data, int level,

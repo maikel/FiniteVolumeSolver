@@ -43,7 +43,7 @@ ArrheniusKinetics<Rank>::ArrheniusKinetics(const PerfectGasMix<Rank>& eq,
                                         eq)},
       kinetic_state_{KineticStateArray<PerfectGasMix<Rank>>(eq)} {}
 
-template <int Rank> Duration ArrheniusKinetics<Rank>::ComputeStableDt(int) {
+template <int Rank> Duration ArrheniusKinetics<Rank>::ComputeStableDt(const amrex::IntegratorContext&, int) {
   return Duration(std::numeric_limits<double>::max());
 }
 

@@ -39,7 +39,7 @@ MultiBlockIgniteDetonation::MultiBlockIgniteDetonation(
   }
 }
 
-Duration MultiBlockIgniteDetonation::ComputeStableDt([
+Duration MultiBlockIgniteDetonation::ComputeStableDt(const MultiBlockIntegratorContext&, [
     [maybe_unused]] int level) noexcept {
   return Duration(std::numeric_limits<double>::max());
 }

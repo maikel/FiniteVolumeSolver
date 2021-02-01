@@ -63,8 +63,8 @@ tube_n_cells -= tube_n_cells % tube_blocking_factor
 tube_n_cells = int(tube_n_cells)
 
 RunOptions = {
-  # 'cfl': 0.5 * 0.9 / float(tube_n_cells / 64),
-  'cfl': 0.01,
+  'cfl': 1.0,# / float(tube_n_cells / 64),
+  # 'cfl': 0.01,
   'final_time': 5.0,
   'max_cycles': -1,
   'do_backup': 0
@@ -100,6 +100,11 @@ ArrheniusKinetics = {
 DiffusionSourceTerm = {
   'mul': 3.0
 }
+
+R_ref = 287.
+p_ref = 101325.
+T_ref = 300.
+rho_ref = p_ref / T_ref / R_ref
 
 p0 = 2.0
 rho0 = math.pow(p0, 1.0 / gamma)
@@ -147,27 +152,16 @@ Plenum = {
   } for y_0 in y0s],
   'InitialCondition': {
     'left': {
-      'density': rho,
-      'temperature': T,
-      'pressure': p
+      'density': 1.0, #rho
+      'temperature': 1.0, #T
+      'pressure': 1.0 #p
     },
     'right': {
-      'density': rho,
-      'temperature': T,
-      'pressure': p
+      'density': 1.0, # rho,
+      'temperature': 1.0, #T,
+      'pressure': 1.0 # p
     },
-  },
-  #'PressureOutflowBoundaries': [{
-  #  'outer_pressure': 1.0,
-  #  'efficiency': 0.1
-  #}],
-  
-  #'MachnumberBoundaries': [{
-  #  'boundary_section': { 
-  #    'lower': [plenum_x_n_cells, y0 - int(r_tube / plenum_y_length * plenum_y_n_cells), 0], 
-  #    'upper': [plenum_x_n_cells + 1, y0 + int(r_tube / plenum_y_length * plenum_y_n_cells), 0] 
-  #   }
-  #} for y0 in mach_1_boundaries]
+  }
 }
 
 Plenum[boundary_condition] = [{
@@ -220,8 +214,8 @@ def Area(xi):
   xi0 = 0.0625 - 1.0
   xi1 = 0.75 - 1.0   # Reference: 0.5; best: 0.75
   Ax = 1.0 if xi < xi0 else A0 + (A1-A0)*(xi-xi0)/(xi1-xi0) if xi < xi1 else A1
-  # return Ax
-  return 1.0
+  return Ax
+  #return 1.0
 
 Tube_FluxMethod = FluxMethod
 Tube_FluxMethod['area_variation'] = Area
@@ -296,7 +290,8 @@ Output = {
     #'frequencies': [100]
   #}, {
    'type': 'CounterOutput',
-   'intervals': [1.0]
+  #  'intervals': [1/.0]
+    'frequencies': [1000]
   }
   ]
 }

@@ -169,7 +169,7 @@ double GetMeanPressure_(const GriddingAlgorithm& grid, IdealGasMix<1>& eq) {
   return global_moles;
 }
 
-double ChangeState_(PressureValveState& state, const ::amrex::Geometry& geom,
+double ChangeState_(PressureValveState& state, const ::amrex::Geometry&,
                     const GriddingAlgorithm& grid, int level,
                     Duration& last_closed, Duration& last_fuel_change,
                     const PressureValveOptions& options, IdealGasMix<1>& eq) {

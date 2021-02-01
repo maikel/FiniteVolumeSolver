@@ -106,7 +106,7 @@ public:
   ///
   /// This operator artificially ignites a detonation and has no restriction on
   /// the time step size.
-  [[nodiscard]] Duration ComputeStableDt(int) const noexcept;
+  [[nodiscard]] Duration ComputeStableDt(const IntegratorContext&, int) const noexcept;
 
   /// Uses the scratch space of simulation_data to evaluate the criterion on the
   /// current equivalence ratio.

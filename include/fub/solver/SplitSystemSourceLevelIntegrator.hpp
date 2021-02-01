@@ -163,7 +163,7 @@ Duration
 SplitSystemSourceLevelIntegrator<SystemSolver, SourceTerm,
                                  SplittingMethod>::ComputeStableDt(int level) {
   return std::min(SystemSolver::ComputeStableDt(level),
-                  source_term_.ComputeStableDt(level));
+                  source_term_.ComputeStableDt(GetContext(), level));
 }
 
 template <typename SystemSolver, typename SourceTerm, typename SplittingMethod>
