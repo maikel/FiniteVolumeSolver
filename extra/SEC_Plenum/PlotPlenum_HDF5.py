@@ -1,8 +1,13 @@
-import sys
-sys.path.append('/srv/public/Maikel/FiniteVolumeSolver/extra/')
+import sys, os
+
+# get the absolute path to the FUB FVS-Solver
+pathname = os.path.dirname(sys.argv[0])
+pathname = os.path.abspath(pathname)
+FVS_path = pathname.split('FiniteVolumeSolver')[0]+'FiniteVolumeSolver'
+# print(FVS_path) 
+sys.path.append(FVS_path+'/extra/')
 
 import yt
-import os
 import numpy as np
 import matplotlib
 matplotlib.use('Agg') 
@@ -10,25 +15,20 @@ import matplotlib.pyplot as plt
 import h5py
 import itertools
 
-valueString = 'Pressure' # which value we want to plot
-# possible values are: ['Density', 'Energy', 'Momentum_0', 'Momentum_1', 'Pressure', 'Species_0', 'Species_1', 'SpeedOfSound', 'vfrac']
 
-# dataPath = "/srv/public/Maikel/FiniteVolumeSolver/build_2D-Release/SEC_Plenum_TurbineBoundary/"
-# dataPath = "/srv/public/Maikel/FiniteVolumeSolver/build_2D-Release/SEC_Plenum_HLLEM_MinMod/"
-# dataPath = "/srv/public/Maikel/FiniteVolumeSolver/build_2D-Release/SEC_Plenum_HLLEM_Larrouturou_Upwind"
-# dataPath = "/srv/public/Maikel/FiniteVolumeSolver/build_2D-Debug/SEC_Plenum_HLLEM_Larrouturou_Upwind"
-# dataPath = "/srv/public/Maikel/FiniteVolumeSolver/build_2D-Debug/SEC_Plenum_HLLEM_Upwind"
-# dataPath = "/srv/public/Maikel/FiniteVolumeSolver/build_2D-Release/SEC_Plenum_HLLEM_Upwind"
-# dataPath = "/srv/public/Maikel/FiniteVolumeSolver/build_2D-Release/SEC_Plenum/average_outer_state/"
-dataPath = "/srv/public/Maikel/FiniteVolumeSolver/build_2D-Release/average_massflow"
-inputFilePath = "/srv/public/Maikel/FiniteVolumeSolver/examples/AMReX/EB/2D/"
+# dataPath = "/srv/public/Maikel/FiniteVolumeSolver/build_2D-Release/average_massflow"
+# inputFilePath = "/srv/public/Maikel/FiniteVolumeSolver/examples/AMReX/EB/2D/"
+
+dataPath = FVS_path+"/build_2D-Release/average_massflow"
+inputFilePath = FVS_path+"/examples/AMReX/EB/2D/"
+
 
 # import importlib
 # inputFile = importlib.import_module('SEC_Plenum')
 # print(inputFile.y0s)
 # print(inputFile.Area)
 sys.path.append(inputFilePath)
-from SEC_Plenum_Arrhenius import y0s, Area, tube_n_cells, p_ref, T_ref, rho_ref, tube_intervals, plenum_intervals
+from SEC_Plenum_Arrhenius import y0s, Area, tube_n_cells, p_ref, T_ref, rho_ref, Output
 # print(y0s)
 # print(Area)
 
@@ -36,25 +36,10 @@ plenum = "{}/Plenum.h5".format(dataPath)
 outPath = dataPath
 output_path = '{}/Visualization'.format(outPath)
 
-def h5_load_t(path, num, variables):
-   variables_to_int_map = ['Density', 'Momentum', 'Energy', 'Species_0', 'Pressure', 'SpeedOfSound', 'vfrac']
-   indices = [variables_to_int_map.index(var) for var in variables]
-   file = h5py.File(path, mode='r')
-   shape = file['data'].shape
-   nx = np.array([shape[2], shape[3]])
-   datas = [np.reshape(np.array(file['data'][num, var, :, :]), [nx[1], nx[0]])  for var in indices]
-   time = float(file['times'][num])
-   dx = np.array(file['data'].attrs['cell_size'])
-   xlower = np.array(file['data'].attrs['xlower'])
-   xupper = xlower + dx * nx
-   extent = [xlower[0], xupper[0], xlower[1], xupper[1]]
-   file.close()
-   return tuple(datas), time, extent
-
 def h5_load(path, num, variables):
-   variables_to_int_map = ['Density', 'Momentum_0', 'Momentum_1', 'Energy', 'Species_0', 'Pressure', 'SpeedOfSound', 'vfrac']
-   indices = [variables_to_int_map.index(var) for var in variables]
    file = h5py.File(path, mode='r')
+   strings = list(file['fields'].asstr())
+   indices = [strings.index(var) for var in variables]
    shape = file['data'].shape
    nx = np.array([shape[2], shape[3]])
    datas = [np.reshape(np.array(file['data'][num, var, :, :]), [nx[1], nx[0]])  for var in indices]
@@ -72,10 +57,30 @@ file = h5py.File(plenum, mode='r')
 nsteps = file['data'].shape[0]
 file.close()
 
+# get data from output dictionary
+output_dict = Output['outputs']
+output_dict = [ out_dict for out_dict in output_dict if 'which_block' in out_dict] # strip 'CounterOutput'
+for out_dict in output_dict:
+   if 'Plenum' in out_dict['path']:
+      if 'frequencies' in out_dict:
+         plenum_out = int(out_dict['frequencies'][0])
+      elif 'intervals' in out_dict:
+         plenum_out = float(out_dict['intervals'][0])
+      else:
+         raise Exception("could not find output frequency or interval from plenum")
+   elif 'Tube' in out_dict['path']: # assume all tubes have same frequency or intervals
+      if 'frequencies' in out_dict:
+         tube_out = int(out_dict['frequencies'][0])
+      elif 'intervals' in out_dict:
+         tube_out = float(out_dict['intervals'][0])
+      else:
+         raise Exception("could not find output frequency or interval from tube")
+
 # get the interval ratio from plenum and tubes
 # normally we write the tube data 4 times more often than the plenum data
-tube_output_factor = int(plenum_intervals / tube_intervals)
-# print(tube_output_factor)
+tube_output_factor = int(plenum_out / tube_out)
+# print(tube_output_factor, plenum_out, tube_out)
+
 
 def PrintProgress(i):
   progress = int(100.0 * float(i) / (nsteps - 1))
@@ -94,7 +99,7 @@ for i in range(nsteps):
    extent_tubes = []
    
    for tube in tube_paths:
-      (p_tube), current_time, extent = h5_load_t(tube, tube_output_factor*i, ["Pressure"])
+      (p_tube), current_time, extent = h5_load(tube, tube_output_factor*i, ["Pressure"])
       Tube_p.append(p_tube)
       extent_tubes.append(extent)
    
