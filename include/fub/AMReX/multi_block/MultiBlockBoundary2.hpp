@@ -39,6 +39,8 @@ class MultiBlockGriddingAlgorithm2;
 /// \ingroup BoundaryCondition
 ///
 struct MultiBlockBoundaryBase {
+  virtual ~MultiBlockBoundaryBase() = default;
+
   virtual void
   FillTubeGhostLayer(::amrex::FArrayBox& tube_ghost_data,
                      const ::amrex::FArrayBox& plenum_mirror_data) = 0;
@@ -51,25 +53,25 @@ struct MultiBlockBoundaryBase {
 
 template <typename Boundary>
 struct MultiBlockBoundaryWrapper : public MultiBlockBoundaryBase {
-  MultiBlockBoundaryWrapper(const Boundary& impl) : impl_(std::make_unique<Boundary>(impl)) {}
-  MultiBlockBoundaryWrapper(Boundary&& impl) : impl_(std::make_unique<Boundary>(std::move(impl))) {}
+  MultiBlockBoundaryWrapper(const Boundary& impl) : impl_(impl) {}
+  MultiBlockBoundaryWrapper(Boundary&& impl) : impl_(std::move(impl)) {}
 
   std::unique_ptr<MultiBlockBoundaryBase> Clone() const override final {
-    return std::make_unique<MultiBlockBoundaryWrapper>(*impl_);
+    return std::make_unique<MultiBlockBoundaryWrapper>(impl_);
   }
 
   void FillTubeGhostLayer(
       ::amrex::FArrayBox& tube_ghost_data,
       const ::amrex::FArrayBox& plenum_mirror_data) override final {
-    impl_->FillTubeGhostLayer(tube_ghost_data, plenum_mirror_data);
+    impl_.FillTubeGhostLayer(tube_ghost_data, plenum_mirror_data);
   }
   void FillPlenumGhostLayer(
       ::amrex::FArrayBox& plenum_ghost_data,
       const ::amrex::FArrayBox& tube_mirror_data) override final {
-    impl_->FillPlenumGhostLayer(plenum_ghost_data, tube_mirror_data);
+    impl_.FillPlenumGhostLayer(plenum_ghost_data, tube_mirror_data);
   }
 
-  std::unique_ptr<Boundary> impl_;
+  Boundary impl_;
 };
 
 /// \ingroup BoundaryCondition
@@ -200,9 +202,8 @@ struct MultiBlockBoundary2 {
   TubeEquation tube_equation_;
   PlenumEquation plenum_equation_;
 
-  void FillTubeGhostLayer(
-      ::amrex::FArrayBox& tube_ghost_data,
-      const ::amrex::FArrayBox& plenum_mirror_data) {
+  void FillTubeGhostLayer(::amrex::FArrayBox& tube_ghost_data,
+                          const ::amrex::FArrayBox& plenum_mirror_data) {
     BasicView cons_states = MakeView<const Conservative<PlenumEquation>>(
         plenum_mirror_data, plenum_equation_);
     BasicView complete_states =
@@ -222,11 +223,10 @@ struct MultiBlockBoundary2 {
     });
   }
 
-  void FillPlenumGhostLayer(
-      ::amrex::FArrayBox& plenum_ghost_data,
-      const ::amrex::FArrayBox& tube_mirror_data) {
-    BasicView cons_states =
-        MakeView<const Conservative<TubeEquation>>(tube_mirror_data, tube_equation_);
+  void FillPlenumGhostLayer(::amrex::FArrayBox& plenum_ghost_data,
+                            const ::amrex::FArrayBox& tube_mirror_data) {
+    BasicView cons_states = MakeView<const Conservative<TubeEquation>>(
+        tube_mirror_data, tube_equation_);
     BasicView complete_states =
         MakeView<Complete<PlenumEquation>>(plenum_ghost_data, plenum_equation_);
     Conservative<TubeEquation> cons(tube_equation_);
