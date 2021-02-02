@@ -422,7 +422,7 @@ auto MakeTubeSolver(
     const fub::ProgramOptions& options,
     const fub::PerfectGasConstants& constants,
     const std::shared_ptr<fub::CounterRegistry>& counters,
-    const std::shared_ptr<const GT::PlenumState>& compressor_state) {
+    const std::shared_ptr<const GT::ControlState>& control_state) {
   using namespace fub::amrex;
 
   fub::SeverityLogger log = fub::GetInfoLogger();
@@ -463,7 +463,7 @@ auto MakeTubeSolver(
                                  grid_geometry.coordinates.lo()[0],
                                  initially_filled_x};
 
-  FUB_ASSERT(compressor_state);
+  FUB_ASSERT(control_state);
   auto combustor_inflow_function =
       [prim = fub::Primitive<fub::PerfectGasMix<1>>(equation)](
           const fub::PerfectGasMix<1>& eq,
@@ -501,8 +501,7 @@ auto MakeTubeSolver(
   using DeflagrationValve = fub::amrex::GenericPressureValveBoundary<
       fub::PerfectGasMix<1>, std::decay_t<decltype(combustor_inflow_function)>,
       ChangeTOpened, IsNeverBlocked>;
-  DeflagrationValve valve(equation, compressor_state,
-                          combustor_inflow_function);
+  DeflagrationValve valve(equation, control_state, combustor_inflow_function);
   // const double eps = std::sqrt(std::numeric_limits<double>::epsilon());
   // auto inflow_function =
   //     [eps, source_term,
@@ -905,14 +904,25 @@ int main(int argc, char** argv) {
   }
 }
 
-void WriteCheckpoint(const std::string& path,
-                     const fub::amrex::MultiBlockGriddingAlgorithm2& grid) {
+void WriteCheckpoint(
+    const std::string& path,
+    const fub::amrex::MultiBlockGriddingAlgorithm2& grid,
+    const std::shared_ptr<const fub::perfect_gas_mix::gt::ControlState>&
+        control_state) {
   auto tubes = grid.GetTubes();
   std::string name = fmt::format("{}/Tube", path);
   fub::amrex::WriteCheckpointFile(name, tubes[0]->GetPatchHierarchy());
   name = fmt::format("{}/Plenum", path);
   fub::amrex::cutcell::WriteCheckpointFile(
       name, grid.GetPlena()[0]->GetPatchHierarchy());
+  int rank = -1;
+  ::MPI_Comm_rank(amrex::ParallelDescriptor::Communicator(), &rank);
+  if (rank == 0) {
+    name = fmt::format("{}/ControlState", path);
+    std::ofstream valve_checkpoint(name);
+    boost::archive::text_oarchive oa(valve_checkpoint);
+    oa << *control_state;
+  }
 }
 
 void MyMain(const std::map<std::string, pybind11::object>& vm) {
@@ -937,9 +947,12 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
 
   fub::PerfectGasMix<Plenum_Rank> plenum_equation{constants, 1};
   fub::PerfectGasMix<Tube_Rank> tube_equation{constants, 1};
-  GT::Control<Plenum_Rank> control(plenum_equation);
-  std::shared_ptr<const GT::PlenumState> compressor_state =
-      control.GetSharedCompressorState();
+  GT::ControlOptions control_options = fub::GetOptions(vm, "ControlOptions");
+  BOOST_LOG(log) << "ControlOptions:";
+  control_options.Print(log);
+  GT::Control control(plenum_equation, control_options);
+  std::shared_ptr<const GT::ControlState> control_state =
+      control.GetSharedState();
 
   plenum.push_back(MakePlenumSolver(fub::GetOptions(vm, "Plenum"), constants));
   auto counter_database = plenum[0].GetCounterRegistry();
@@ -949,7 +962,7 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   for (pybind11::dict& dict : tube_dicts) {
     fub::ProgramOptions tube_options = fub::ToMap(dict);
     auto&& [tube, source] = MakeTubeSolver(tube_options, constants,
-                                           counter_database, compressor_state);
+                                           counter_database, control_state);
     fub::amrex::BlockConnection connection;
     connection.direction = fub::Direction::X;
     connection.side = 0;
@@ -977,10 +990,8 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   fub::amrex::MultiBlockIntegratorContext2 context(
       tube_equation, plenum_equation, std::move(tubes), std::move(plenum),
       std::move(connectivity));
-  GT::ControlFeedback<Plenum_Rank> feedback(plenum_equation, tube_equation,
-                                            control);
+  GT::ControlFeedback<Plenum_Rank> feedback(plenum_equation, control);
   context.SetPostAdvanceHierarchyFeedback(feedback);
-
   fub::DimensionalSplitLevelIntegrator system_solver(
       fub::int_c<Plenum_Rank>, std::move(context), fub::GodunovSplitting{});
 
@@ -1008,20 +1019,24 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   struct MakeCheckpoint
       : public fub::OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm2> {
     std::string directory_ = "SEC_Plenum_Arrhenius";
-    MakeCheckpoint(const fub::ProgramOptions& options)
-        : OutputAtFrequencyOrInterval(options) {
+    std::shared_ptr<const fub::perfect_gas_mix::gt::ControlState>
+        control_state_;
+    MakeCheckpoint(
+        const fub::ProgramOptions& options,
+        std::shared_ptr<const fub::perfect_gas_mix::gt::ControlState> cs)
+        : OutputAtFrequencyOrInterval(options), control_state_{cs} {
       directory_ = fub::GetOptionOr(options, "directory", directory_);
     }
     void operator()(const MultiBlockGriddingAlgorithm2& grid) override {
       std::string name = fmt::format("{}/{:09}", directory_, grid.GetCycles());
       fub::SeverityLogger log = fub::GetInfoLogger();
       BOOST_LOG(log) << fmt::format("Write Checkpoint to '{}'!", name);
-      WriteCheckpoint(name, grid);
+      WriteCheckpoint(name, grid, control_state_);
     }
   };
 
   fub::OutputFactory<MultiBlockGriddingAlgorithm2> factory{};
-  factory.RegisterOutput<MakeCheckpoint>("Checkpoint");
+  factory.RegisterOutput<MakeCheckpoint>("Checkpoint", control_state);
   using CounterOutput =
       fub::CounterOutput<fub::amrex::MultiBlockGriddingAlgorithm2,
                          std::chrono::milliseconds>;

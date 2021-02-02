@@ -61,8 +61,7 @@ struct ChangeTOpened_Klein {
              double inner_pressure,
              const perfect_gas_mix::gt::PlenumState& compressor_state,
              const GriddingAlgorithm& gridding, int) const noexcept {
-    if (!t_opened &&
-        inner_pressure <= compressor_state.pressure) {
+    if (!t_opened && inner_pressure <= compressor_state.pressure) {
       t_opened = gridding.GetTimePoint();
     } else if (inner_pressure > compressor_state.pressure) {
       t_opened.reset();
@@ -90,7 +89,7 @@ class GenericPressureValveBoundary {
 public:
   GenericPressureValveBoundary(
       const EulerEquation& equation,
-      std::shared_ptr<const perfect_gas_mix::gt::PlenumState> compressor_state,
+      std::shared_ptr<const perfect_gas_mix::gt::ControlState> control_state,
       InflowFunction fn,
       const GenericPressureValveBoundaryOptions& options = {});
 
@@ -104,9 +103,9 @@ public:
     return t_opened_;
   }
 
-  const std::shared_ptr<const perfect_gas_mix::gt::PlenumState>&
-  GetSharedCompressorState() const noexcept {
-    return compressor_state_;
+  const std::shared_ptr<const perfect_gas_mix::gt::ControlState>&
+  GetSharedControlState() const noexcept {
+    return control_state_;
   }
 
 private:
@@ -119,7 +118,7 @@ private:
   ReflectiveBoundary<execution::SequentialTag, EulerEquation>
       reflective_boundary_;
 
-  std::shared_ptr<const perfect_gas_mix::gt::PlenumState> compressor_state_;
+  std::shared_ptr<const perfect_gas_mix::gt::ControlState> control_state_;
   IndexMapping<EulerEquation> comps_{equation_};
   std::optional<Duration> t_opened_{};
 
@@ -145,13 +144,14 @@ struct PressureValveBoundary_ReducedModelDemo
 
 template <typename Equation, typename InflowFunction>
 PressureValveBoundary_ReducedModelDemo(
-    const Equation&, perfect_gas_mix::gt::PlenumState, InflowFunction,
-    const GenericPressureValveBoundaryOptions&)
+    const Equation&, std::shared_ptr<const perfect_gas_mix::gt::ControlState>,
+    InflowFunction, const GenericPressureValveBoundaryOptions&)
     ->PressureValveBoundary_ReducedModelDemo<Equation, InflowFunction>;
 
 template <typename Equation, typename InflowFunction>
-PressureValveBoundary_ReducedModelDemo(const Equation&, perfect_gas_mix::gt::PlenumState,
-                                       InflowFunction)
+PressureValveBoundary_ReducedModelDemo(
+    const Equation&, std::shared_ptr<const perfect_gas_mix::gt::ControlState>,
+    InflowFunction)
     ->PressureValveBoundary_ReducedModelDemo<Equation, InflowFunction>;
 
 template <typename Equation, typename InflowFunction>
@@ -164,14 +164,15 @@ struct PressureValveBoundary_Klein
 };
 
 template <typename Equation, typename InflowFunction>
-PressureValveBoundary_Klein(const Equation&, std::shared_ptr<const perfect_gas_mix::gt::PlenumState>,
-                            InflowFunction,
-                            const GenericPressureValveBoundaryOptions&)
+PressureValveBoundary_Klein(
+    const Equation&, std::shared_ptr<const perfect_gas_mix::gt::ControlState>,
+    InflowFunction, const GenericPressureValveBoundaryOptions&)
     ->PressureValveBoundary_Klein<Equation, InflowFunction>;
 
 template <typename Equation, typename InflowFunction>
-PressureValveBoundary_Klein(const Equation&, std::shared_ptr<const perfect_gas_mix::gt::PlenumState>,
-                            InflowFunction)
+PressureValveBoundary_Klein(
+    const Equation&, std::shared_ptr<const perfect_gas_mix::gt::ControlState>,
+    InflowFunction)
     ->PressureValveBoundary_Klein<Equation, InflowFunction>;
 
 template <typename EulerEquation, typename InflowFunction,
@@ -180,14 +181,14 @@ GenericPressureValveBoundary<EulerEquation, InflowFunction, ChangeTOpened,
                              IsBlocked>::
     GenericPressureValveBoundary(
         const EulerEquation& equation,
-        std::shared_ptr<const perfect_gas_mix::gt::PlenumState> compressor_state,
+        std::shared_ptr<const perfect_gas_mix::gt::ControlState> control_state,
         InflowFunction fn, const GenericPressureValveBoundaryOptions& options)
     : equation_(equation),
       options_(options), constant_boundary_{options_.dir, options_.side,
                                             equation_,
                                             Complete<EulerEquation>(equation_)},
       reflective_boundary_(equation_, options_.dir, options_.side),
-      compressor_state_(std::move(compressor_state)),
+      control_state_(std::move(control_state)),
       inflow_function_(std::move(fn)) {}
 
 template <typename EulerEquation, typename InflowFunction,
@@ -209,7 +210,7 @@ void GenericPressureValveBoundary<
                               const GriddingAlgorithm& gridding, int level) {
   std::optional<Duration> t_opened_new =
       std::invoke(change_t_opened_, equation_, t_opened_, inner_pressure,
-                  *compressor_state_, gridding, level);
+                  control_state_->compressor, gridding, level);
   // if (inner_pressure <= options_.open_below_pressure) {
   const Duration t = gridding.GetTimePoint();
   if (!t_opened_ && t_opened_new) {
@@ -250,7 +251,7 @@ void GenericPressureValveBoundary<
 
   bool is_blocked =
       std::invoke(is_blocked_, equation_, t_opened_, inner_pressure,
-                  *compressor_state_, gridding, level);
+                  control_state_->compressor, gridding, level);
   if (is_blocked) {
     reflective_boundary_.FillBoundary(mf, gridding, level);
   } else {
@@ -258,8 +259,8 @@ void GenericPressureValveBoundary<
     const Duration t = gridding.GetTimePoint();
     const Duration t_diff = t - *t_opened_;
     std::invoke(inflow_function_, equation_, constant_boundary_.state,
-                *compressor_state_, inner_pressure, t_diff, mf, gridding,
-                level);
+                control_state_->compressor, inner_pressure, t_diff, mf,
+                gridding, level);
     constant_boundary_.FillBoundary(mf, gridding, level);
   }
 }

@@ -64,8 +64,8 @@ tube_n_cells = int(tube_n_cells)
 
 RunOptions = {
   'cfl': 1.0,# / float(tube_n_cells / 64),
-  'final_time': 300.0,
-  'max_cycles': 2,
+  'final_time': 0.01,
+  'max_cycles': 10,
   'do_backup': 0
 }
 
@@ -73,7 +73,7 @@ FluxMethod = {
   # HLLEM, HLLEM_Larrouturou
   'base_method': 'HLLEM_Larrouturou',
   # Upwind, MinMod, VanLeer
-  'limiter': 'Upwind',
+  'limiter': 'MinMod',
   # Conservative, Primitive, Characteristics
   'reconstruction': 'Characteristics'
 }
@@ -100,6 +100,7 @@ DiffusionSourceTerm = {
   'mul': 3.0
 }
 
+
 R_ref = 287.
 p_ref = 101325.
 T_ref = 300.
@@ -110,7 +111,14 @@ rho0 = math.pow(p0, 1.0 / gamma)
 T0 = p0 / rho0
 p = 0.95 * p0
 T = T0 + ArrheniusKinetics['Q'] * (gamma - 1.0)
-rho = p / T 
+rho = p / T
+
+ControlOptions = {
+  'Q': ArrheniusKinetics['Q'],
+  'initial_turbine_pressure': p,
+  'initial_turbine_temperature': T
+}
+ 
 
 # checkpoint = '/Users/maikel/Development/FiniteVolumeSolver/build_3d/MultiTube/Checkpoint/000000063'
 checkpoint = ''
@@ -247,7 +255,7 @@ Tubes = [{
 mode_names = ['cellwise', 'average_mirror_state', 'average_ghost_state', 'average_massflow']
 
 tube_intervals = 0.005
-plenum_intervals = tube_intervals #0.02
+plenum_intervals = 0.02
 
 Output = { 
   'outputs': [
@@ -256,28 +264,28 @@ Output = {
     'path': '{}/Tube0.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
     'which_block': 1,
     'intervals': [tube_intervals],
-    'frequencies': [1]
+    # 'frequencies': [1]
   },
   {
     'type': 'HDF5',
     'path': '{}/Tube1.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
     'which_block': 2,
     'intervals': [tube_intervals],
-    'frequencies': [1]
+    # 'frequencies': [1]
   },
   {
     'type': 'HDF5',
     'path': '{}/Tube2.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
     'which_block': 3,
     'intervals': [tube_intervals],
-    'frequencies': [1]
+    # 'frequencies': [1]
   },
   {
     'type': 'HDF5',
     'path': '{}/Plenum.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
     'which_block': 0,
     'intervals': [plenum_intervals],
-    'frequencies': [1]
+    # 'frequencies': [1]
   },
   {
   #   'type': 'Plotfiles',
@@ -294,6 +302,11 @@ Output = {
    'type': 'CounterOutput',
   #  'intervals': [1/.0]
     'frequencies': [1000]
+  },
+  {
+    'type': 'Checkpoint',
+    'frequencies': [1],
+    'directory': 'Checkpoint/'
   }
   ]
 }

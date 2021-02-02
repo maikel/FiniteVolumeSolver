@@ -547,7 +547,8 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         src/AMReX/multi_block/MultiBlockIntegratorContext.cpp
         src/AMReX/multi_block/MultiBlockIntegratorContext2.cpp
         src/AMReX/multi_block/MultiBlockKineticSourceTerm.cpp
-        src/AMReX/multi_block/MultiBlockIgniteDetonation.cpp)
+        src/AMReX/multi_block/MultiBlockIgniteDetonation.cpp
+        src/equations/perfect_gas_mix/PlenaContol.cpp)
     target_compile_options(FiniteVolumeSolver.AMReX.EB
       PRIVATE
         $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
