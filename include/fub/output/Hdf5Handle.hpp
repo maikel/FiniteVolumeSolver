@@ -30,7 +30,10 @@ template <typename Deleter> struct H5Handle {
   H5Handle& operator=(const H5Handle&) = delete;
 
   H5Handle(H5Handle&& other) noexcept : id_{std::exchange(other.id_, -1)} {}
-  H5Handle& operator=(H5Handle&& other) { id_ = std::exchange(other.id_, -1); }
+  H5Handle& operator=(H5Handle&& other) {
+    id_ = std::exchange(other.id_, -1);
+    return *this;
+  }
 
   ~H5Handle() {
     if (id_ > 0) {

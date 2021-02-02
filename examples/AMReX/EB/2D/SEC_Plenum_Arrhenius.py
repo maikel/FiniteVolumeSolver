@@ -65,7 +65,7 @@ tube_n_cells = int(tube_n_cells)
 RunOptions = {
   'cfl': 1.0,# / float(tube_n_cells / 64),
   'final_time': 0.01,
-  'max_cycles': 10,
+  'max_cycles': 1,
   'do_backup': 0
 }
 
@@ -100,7 +100,6 @@ DiffusionSourceTerm = {
   'mul': 3.0
 }
 
-
 R_ref = 287.
 p_ref = 101325.
 T_ref = 300.
@@ -113,15 +112,15 @@ p = 0.95 * p0
 T = T0 + ArrheniusKinetics['Q'] * (gamma - 1.0)
 rho = p / T
 
+# checkpoint = '/srv/public/Maikel/FiniteVolumeSolver/build_2D-Debug/Checkpoint/000000005'
+checkpoint = ''
+
 ControlOptions = {
   'Q': ArrheniusKinetics['Q'],
   'initial_turbine_pressure': p,
-  'initial_turbine_temperature': T
+  'initial_turbine_temperature': T,
+  'checkpoint': checkpoint
 }
- 
-
-# checkpoint = '/Users/maikel/Development/FiniteVolumeSolver/build_3d/MultiTube/Checkpoint/000000063'
-checkpoint = ''
 
 def ToCellIndex(x, xlo, xhi, ncells):
   xlen = xhi - xlo
@@ -228,7 +227,7 @@ Tube_FluxMethod = FluxMethod
 Tube_FluxMethod['area_variation'] = Area
 
 Tubes = [{
-  'checkpoint': checkpoint,
+  'checkpoint': checkpoint if checkpoint == '' else '{}/Tube_{}'.format(checkpoint, i),
   'buffer': 0.06,
   'initially_filled_x': 0.1,
   'FluxMethod': Tube_FluxMethod,
@@ -250,7 +249,7 @@ Tubes = [{
     'n_proper': 1,
     'n_error_buf': [4, 0, 0]
   }
-} for y_0 in y0s]
+} for (i, y_0) in enumerate(y0s)]
 
 mode_names = ['cellwise', 'average_mirror_state', 'average_ghost_state', 'average_massflow']
 
@@ -259,6 +258,11 @@ plenum_intervals = 0.02
 
 Output = { 
   'outputs': [
+    {
+      'type': 'ControlOutput',
+      'path': '{}/ControlState.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
+      'frequencies': [1]
+    },
   {
     'type': 'HDF5',
     'path': '{}/Tube0.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),

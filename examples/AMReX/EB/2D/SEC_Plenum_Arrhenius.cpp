@@ -66,6 +66,8 @@
 #include <cmath>
 #include <iostream>
 
+#include <range/v3/view/enumerate.hpp>
+
 namespace GT = fub::perfect_gas_mix::gt;
 
 static constexpr int Tube_Rank = 1;
@@ -571,7 +573,6 @@ auto MakeTubeSolver(
       gridding->InitializeHierarchy(0.0);
       return gridding;
     } else {
-      checkpoint = fmt::format("{}/Tube", checkpoint);
       BOOST_LOG(log) << "Initialize grid from given checkpoint '" << checkpoint
                      << "'.";
       PatchHierarchy h = ReadCheckpointFile(checkpoint, desc, grid_geometry,
@@ -910,9 +911,11 @@ void WriteCheckpoint(
     const std::shared_ptr<const fub::perfect_gas_mix::gt::ControlState>&
         control_state) {
   auto tubes = grid.GetTubes();
-  std::string name = fmt::format("{}/Tube", path);
-  fub::amrex::WriteCheckpointFile(name, tubes[0]->GetPatchHierarchy());
-  name = fmt::format("{}/Plenum", path);
+  for (auto&& [i, tube] : ranges::view::enumerate(tubes)) {
+    std::string name = fmt::format("{}/Tube_{}", path, i);
+    fub::amrex::WriteCheckpointFile(name, tube->GetPatchHierarchy());
+  }
+  std::string name = fmt::format("{}/Plenum", path);
   fub::amrex::cutcell::WriteCheckpointFile(
       name, grid.GetPlena()[0]->GetPatchHierarchy());
   int rank = -1;
@@ -947,12 +950,23 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
 
   fub::PerfectGasMix<Plenum_Rank> plenum_equation{constants, 1};
   fub::PerfectGasMix<Tube_Rank> tube_equation{constants, 1};
-  GT::ControlOptions control_options = fub::GetOptions(vm, "ControlOptions");
+  fub::ProgramOptions control_options_map =
+      fub::GetOptions(vm, "ControlOptions");
+  GT::ControlOptions control_options(control_options_map);
   BOOST_LOG(log) << "ControlOptions:";
   control_options.Print(log);
   GT::Control control(plenum_equation, control_options);
-  std::shared_ptr<const GT::ControlState> control_state =
-      control.GetSharedState();
+  std::shared_ptr<GT::ControlState> control_state = control.GetSharedState();
+  std::string checkpoint =
+      fub::GetOptionOr(control_options_map, "checkpoint", std::string{});
+  if (!checkpoint.empty()) {
+    std::string input =
+        fub::ReadAndBroadcastFile(checkpoint + "/ControlState",
+                                  ::amrex::ParallelDescriptor::Communicator());
+    std::istringstream ifs(input);
+    boost::archive::text_iarchive ia(ifs);
+    ia >> *control_state;
+  }
 
   plenum.push_back(MakePlenumSolver(fub::GetOptions(vm, "Plenum"), constants));
   auto counter_database = plenum[0].GetCounterRegistry();
@@ -990,7 +1004,7 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   fub::amrex::MultiBlockIntegratorContext2 context(
       tube_equation, plenum_equation, std::move(tubes), std::move(plenum),
       std::move(connectivity));
-  GT::ControlFeedback<Plenum_Rank> feedback(plenum_equation, control);
+  GT::ControlFeedback<Plenum_Rank> feedback(plenum_equation, tube_equation, control);
   context.SetPostAdvanceHierarchyFeedback(feedback);
   fub::DimensionalSplitLevelIntegrator system_solver(
       fub::int_c<Plenum_Rank>, std::move(context), fub::GodunovSplitting{});
@@ -1037,15 +1051,13 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
 
   fub::OutputFactory<MultiBlockGriddingAlgorithm2> factory{};
   factory.RegisterOutput<MakeCheckpoint>("Checkpoint", control_state);
+  factory.RegisterOutput<GT::ControlOutput>("ControlOutput", control_state);
   using CounterOutput =
       fub::CounterOutput<fub::amrex::MultiBlockGriddingAlgorithm2,
                          std::chrono::milliseconds>;
   factory.RegisterOutput<fub::amrex::MultiWriteHdf5WithNames>(
       "HDF5", plenum_equation, tube_equation);
   factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
-  factory.RegisterOutput<
-      MultiBlockPlotfileOutput2<fub::PerfectGasMix<1>, fub::PerfectGasMix<2>>>(
-      "Plotfiles", tube_equation, plenum_equation);
   factory.RegisterOutput<
       MultiBlockPlotfileOutput2<fub::PerfectGasMix<1>, fub::PerfectGasMix<2>>>(
       "Plotfiles", tube_equation, plenum_equation);
@@ -1058,4 +1070,4 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   BOOST_LOG(log) << "RunOptions:";
   run_options.Print(log);
   fub::RunSimulation(solver, run_options, wall_time_reference, outputs);
-}
+} 

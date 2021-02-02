@@ -39,6 +39,8 @@
 #include "fub/ext/Log.hpp"
 #include "fub/ext/ProgramOptions.hpp"
 
+#include "fub/output/Hdf5Handle.hpp"
+
 #include <range/v3/view/zip.hpp>
 
 #include <cmath>
@@ -183,22 +185,17 @@ public:
 
   void UpdatePlena(double mdot_turbine,
                    const PlenumState& turbine_boundary_state, double flux_rho,
-                   Duration dt);
+                   double flux_spec, Duration dt);
 
   // Accessors
 
-  std::shared_ptr<const ControlState> GetSharedState() const
-      noexcept {
+  std::shared_ptr<const ControlState> GetSharedState() const noexcept {
     return state_;
   }
 
-  std::shared_ptr<ControlState> GetSharedState() noexcept {
-    return state_;
-  }
+  std::shared_ptr<ControlState> GetSharedState() noexcept { return state_; }
 
-  const ControlOptions& GetOptions() const noexcept {
-    return options_;
-  }
+  const ControlOptions& GetOptions() const noexcept { return options_; }
 
 private:
   PerfectGasConstants equation_;
@@ -209,9 +206,9 @@ private:
 template <int PlenumRank> class ControlFeedback {
 public:
   ControlFeedback(const PerfectGasMix<PlenumRank>& plenum_equation,
-                  const Control& c)
+                  const PerfectGasMix<1>& tube_equation, const Control& c)
       : plenum_equation_(plenum_equation),
-        control_(c) {}
+        tube_index_(tube_equation), control_(c) {}
 
   // Update the control object using the mass flows in the multi block
   // integrator context.
@@ -254,33 +251,67 @@ public:
     span<amrex::IntegratorContext> tubes = context.Tubes();
     // (rhou)_{I + 1/2}
     std::vector<double> flux_rho_tube(tubes.size());
+    std::vector<double> flux_species_tube(tubes.size());
 
-    for (auto&& [tube_context, flux_tube] :
-         ranges::view::zip(tubes, flux_rho_tube)) {
+    for (auto&& [tube_context, flux_rho, flux_spec] :
+         ranges::view::zip(tubes, flux_rho_tube, flux_species_tube)) {
       const ::amrex::MultiFab& fluxes_x =
           tube_context.GetFluxes(coarsest_level, Direction::X);
       double local_f_rho = 0.0;
+      double local_f_spec = 0.0;
       amrex::ForEachFab(fluxes_x, [&](const ::amrex::MFIter& mfi) {
         ::amrex::IntVect iv{0, 0};
         if (mfi.tilebox().contains(iv)) {
-          local_f_rho = fluxes_x[mfi](iv, 0);
+          local_f_rho = fluxes_x[mfi](iv, tube_index_.density);
+          local_f_spec = fluxes_x[mfi](iv, tube_index_.species[0]);
         }
       });
-      ::MPI_Allreduce(&local_f_rho, &flux_tube, 1, MPI_DOUBLE, MPI_SUM,
+      ::MPI_Allreduce(&local_f_rho, &flux_rho, 1, MPI_DOUBLE, MPI_SUM,
+                      ::amrex::ParallelDescriptor::Communicator());
+      ::MPI_Allreduce(&local_f_spec, &flux_spec, 1, MPI_DOUBLE, MPI_SUM,
                       ::amrex::ParallelDescriptor::Communicator());
     }
     const double oosize = 1.0 / static_cast<double>(tubes.size());
     double rhou_tubes = oosize * std::accumulate(flux_rho_tube.begin(),
                                                  flux_rho_tube.end(), 0.0);
+    double specu_tubes = oosize * std::accumulate(flux_species_tube.begin(),
+                                                  flux_species_tube.end(), 0.0);
 
-    control_.UpdatePlena(mdot_turbine, turbine_boundary_state, rhou_tubes, dt);
+    control_.UpdatePlena(mdot_turbine, turbine_boundary_state, rhou_tubes,
+                         specu_tubes, dt);
   }
 
 private:
   PerfectGasMix<PlenumRank> plenum_equation_;
+  IndexMapping<PerfectGasMix<1>> tube_index_;
   Control control_;
 };
 
+class ControlOutput
+    : public OutputAtFrequencyOrInterval<amrex::MultiBlockGriddingAlgorithm2> {
+public:
+  ControlOutput(const ProgramOptions& options,
+                std::shared_ptr<const ControlState> control_state);
+
+  void operator()(const amrex::MultiBlockGriddingAlgorithm2& grid) override;
+
+private:
+  std::string file_path_;
+  std::shared_ptr<const ControlState> control_state_;
+  H5File file_;
+  H5Space data_dataspace_;
+  H5Space times_dataspace_;
+  H5Space cycles_dataspace_;
+  H5Dataset data_dataset_;
+  H5Dataset times_dataset_;
+  H5Dataset cycles_dataset_;
+  std::map<std::string, function_ref<double(const ControlState&)>> fields_;
+  std::vector<double> data_buffer_;
+
+  void CreateHdf5Database();
+  void WriteHdf5Database(span<const double> data, Duration time,
+                         std::ptrdiff_t cycle);
+};
 } // namespace gt
 
 } // namespace fub::perfect_gas_mix
