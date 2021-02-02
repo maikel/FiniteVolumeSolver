@@ -284,12 +284,14 @@ void ControlOutput::CreateHdf5Database() {
   // Create Data Set
   {
     const hsize_t field_size = static_cast<hsize_t>(fields_.size());
-    std::array<hsize_t, 2> dims{0, field_size};
+    std::array<hsize_t, 2> dims{1, field_size};
     std::array<hsize_t, 2> maxdims{H5S_UNLIMITED, field_size};
-
+    // write each time step immediately
     H5Properties properties(H5Pcreate(H5P_DATASET_CREATE));
     H5Pset_chunk(properties, dims.size(), dims.data());
     H5Pset_alloc_time(properties, H5D_ALLOC_TIME_EARLY);
+    // create an empty dataset
+    dims[0] = 0;
     data_dataspace_ =
         H5Screate_simple(dims.size(), dims.data(), maxdims.data());
     data_dataset_ = H5Dcreate(file_, "/data", H5T_IEEE_F64LE, data_dataspace_,
@@ -320,15 +322,17 @@ void ControlOutput::CreateHdf5Database() {
     }
   }
   // Create times and cycles datasets
-  std::array<hsize_t, 1> dims = {0};
+  std::array<hsize_t, 1> dims = {1};
   std::array<hsize_t, 1> maxdims = {H5S_UNLIMITED};
-  times_dataspace_ = H5Screate_simple(dims.size(), dims.data(), maxdims.data());
-  cycles_dataspace_ =
-      H5Screate_simple(dims.size(), dims.data(), maxdims.data());
   H5Properties properties(H5Pcreate(H5P_DATASET_CREATE));
+  H5Pset_chunk(properties, dims.size(), dims.data());
   H5Pset_alloc_time(properties, H5D_ALLOC_TIME_EARLY);
+  dims[0] = 0;
+  times_dataspace_ = H5Screate_simple(dims.size(), dims.data(), maxdims.data());
   times_dataset_ = H5Dcreate(file_, "/times", H5T_IEEE_F64LE, times_dataspace_,
                              H5P_DEFAULT, properties, H5P_DEFAULT);
+  cycles_dataspace_ =
+      H5Screate_simple(dims.size(), dims.data(), maxdims.data());
   cycles_dataset_ =
       H5Dcreate(file_, "/cycles", H5T_STD_I64LE_g, cycles_dataspace_,
                 H5P_DEFAULT, properties, H5P_DEFAULT);
@@ -344,6 +348,7 @@ void ControlOutput::WriteHdf5Database(span<const double> data, Duration time,
     FUB_ASSERT(maxdims[0] == H5S_UNLIMITED);
     std::array<hsize_t, 2> new_dims{dims[0] + 1, dims[1]};
     H5Dset_extent(data_dataset_, new_dims.data());
+    data_dataspace_ = H5Dget_space(data_dataset_);
     H5Space filespace(H5Dget_space(data_dataset_));
     std::array<hsize_t, 2> count{1, dims[1]};
     std::array<hsize_t, 2> offset{dims[0], 0};
@@ -360,15 +365,16 @@ void ControlOutput::WriteHdf5Database(span<const double> data, Duration time,
     H5Sget_simple_extent_dims(times_dataspace_, &dims, &maxdims);
     FUB_ASSERT(maxdims == H5S_UNLIMITED);
     const hsize_t new_dims = dims + 1;
-    H5Dset_extent(times_dataspace_, &new_dims);
-    H5Space filespace(H5Dget_space(times_dataspace_));
+    H5Dset_extent(times_dataset_, &new_dims);
+    times_dataspace_ = H5Dget_space(times_dataset_);
+    H5Space filespace(H5Dget_space(times_dataset_));
     const hsize_t count = 1;
     const hsize_t offset = dims;
     H5Sselect_hyperslab(filespace, H5S_SELECT_SET, &offset, &count, &count,
                         &count);
     const double tp_count = time.count();
     H5Space memspace(H5Screate_simple(1, &count, nullptr));
-    H5Dwrite(times_dataspace_, H5T_IEEE_F64LE, memspace, filespace, H5P_DEFAULT,
+    H5Dwrite(times_dataset_, H5T_IEEE_F64LE, memspace, filespace, H5P_DEFAULT,
              &tp_count);
   }
   // Write to /cycles dataset
@@ -379,6 +385,7 @@ void ControlOutput::WriteHdf5Database(span<const double> data, Duration time,
     FUB_ASSERT(maxdims == H5S_UNLIMITED);
     const hsize_t new_dims = dims + 1;
     H5Dset_extent(cycles_dataset_, &new_dims);
+    cycles_dataspace_ = H5Dget_space(cycles_dataset_);
     H5Space filespace(H5Dget_space(cycles_dataset_));
     const hsize_t count = 1;
     const hsize_t offset = dims;
@@ -444,16 +451,20 @@ ControlOutput::ControlOutput(const ProgramOptions& options,
 
 void ControlOutput::
 operator()(const amrex::MultiBlockGriddingAlgorithm2& grid) {
+  int rank = -1;
+  MPI_Comm_rank(::amrex::ParallelDescriptor::Communicator(), &rank);
   boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
       boost::log::keywords::severity = boost::log::trivial::info);
   BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "ControlOutput");
   BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", grid.GetTimePoint().count());
   BOOST_LOG(log) << fmt::format("Write Hdf5 output to '{}'.", file_path_);
-  auto values = ranges::view::values(fields_) |
-                ranges::view::transform(
-                    [&](auto&& a) -> double { return a(*control_state_); });
-  ranges::copy(values, data_buffer_.begin());
-  WriteHdf5Database(data_buffer_, grid.GetTimePoint(), grid.GetCycles());
+  if (rank == 0) {
+    auto values = ranges::view::values(fields_) |
+                  ranges::view::transform(
+                      [&](auto&& a) -> double { return a(*control_state_); });
+    ranges::copy(values, data_buffer_.begin());
+    WriteHdf5Database(data_buffer_, grid.GetTimePoint(), grid.GetCycles());
+  }
 }
 
 } // namespace fub::perfect_gas_mix::gt

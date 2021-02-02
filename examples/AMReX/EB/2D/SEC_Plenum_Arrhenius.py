@@ -65,7 +65,7 @@ tube_n_cells = int(tube_n_cells)
 RunOptions = {
   'cfl': 1.0,# / float(tube_n_cells / 64),
   'final_time': 0.01,
-  'max_cycles': 1,
+  'max_cycles': -1,
   'do_backup': 0
 }
 
@@ -305,11 +305,11 @@ Output = {
   #}, {
    'type': 'CounterOutput',
   #  'intervals': [1/.0]
-    'frequencies': [1000]
+    'frequencies': [100]
   },
   {
     'type': 'Checkpoint',
-    'frequencies': [1],
+    'intervals': [100],
     'directory': 'Checkpoint/'
   }
   ]

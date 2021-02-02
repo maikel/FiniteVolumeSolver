@@ -165,6 +165,7 @@ void RunSimulation(Solver& solver, RunOptions options,
         time_point + eps < options.final_time &&
         (options.max_cycles < 0 || solver.GetCycles() < options.max_cycles) &&
         !output.ShallOutputNow(*solver.GetGriddingAlgorithm()));
+    auto output_timer = solver.GetCounterRegistry()->get_timer("Output");
     output(*solver.GetGriddingAlgorithm());
   }
   // return solver;

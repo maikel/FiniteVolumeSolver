@@ -38,6 +38,7 @@
 #include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm2.hpp"
 #include "fub/AMReX/multi_block/MultiBlockIntegratorContext2.hpp"
 
+#include "fub/AMReX/cutcell/FluxMethodFactory.hpp"
 #include "fub/AMReX/cutcell/boundary_condition/IsentropicPressureExpansion.hpp"
 #include "fub/AMReX/cutcell/boundary_condition/MachnumberBoundary.hpp"
 #include "fub/AMReX/cutcell/boundary_condition/ReflectiveBoundary2.hpp"
@@ -145,287 +146,13 @@ struct InitialDataInTube {
   }
 };
 
-template <typename Limiter, typename GradientMethod> struct RebindLimiterTo_;
-
-template <typename Limiter, typename GradientMethod>
-using RebindLimiterTo =
-    typename RebindLimiterTo_<Limiter, GradientMethod>::type;
-
-template <typename Limiter, typename OtherLimiter>
-struct RebindLimiterTo_<Limiter, fub::CentralDifferenceGradient<OtherLimiter>> {
-  using type = fub::CentralDifferenceGradient<Limiter>;
-};
-
-template <typename Limiter, typename Equation, typename GradientMethod>
-struct RebindLimiterTo_<Limiter,
-                        fub::ConservativeGradient<Equation, GradientMethod>> {
-  using type =
-      fub::ConservativeGradient<Equation,
-                                RebindLimiterTo<Limiter, GradientMethod>>;
-};
-
-template <typename Limiter, typename Equation, typename GradientMethod>
-struct RebindLimiterTo_<Limiter,
-                        fub::PrimitiveGradient<Equation, GradientMethod>> {
-  using type = fub::PrimitiveGradient<Equation,
-                                      RebindLimiterTo<Limiter, GradientMethod>>;
-};
-
-template <typename Limiter, typename Equation, typename GradientMethod>
-struct RebindLimiterTo_<
-    Limiter, fub::CharacteristicsGradient<Equation, GradientMethod>> {
-  using type =
-      fub::CharacteristicsGradient<Equation,
-                                   RebindLimiterTo<Limiter, GradientMethod>>;
-};
-
-template <typename Limiter, typename Equation, typename GradientMethod,
-          typename Reconstruction, typename BaseMethod>
-struct RebindLimiterTo_<
-    Limiter,
-    fub::MusclHancock2<Equation, GradientMethod, Reconstruction, BaseMethod>> {
-  using type =
-      fub::MusclHancock2<Equation, RebindLimiterTo<Limiter, GradientMethod>,
-                         Reconstruction, BaseMethod>;
-};
-
-template <typename Limiter, typename BaseMethod>
-struct RebindLimiterTo_<Limiter, fub::FluxMethod<BaseMethod>> {
-  using type = fub::FluxMethod<RebindLimiterTo<Limiter, BaseMethod>>;
-};
-
-template <typename BaseMethod, typename FluxMethod> struct RebindBaseMethod_;
-
-template <typename BaseMethod, typename FluxMethod>
-using RebindBaseMethod =
-    typename RebindBaseMethod_<BaseMethod, FluxMethod>::type;
-
-template <typename BaseMethod, typename FM>
-struct RebindBaseMethod_<BaseMethod, fub::FluxMethod<FM>> {
-  using type = fub::FluxMethod<RebindBaseMethod<BaseMethod, FM>>;
-};
-
-template <typename BaseMethod, typename Equation, typename GradientMethod,
-          typename Reconstruction, typename OtherBaseMethod>
-struct RebindBaseMethod_<BaseMethod,
-                         fub::MusclHancock2<Equation, GradientMethod,
-                                            Reconstruction, OtherBaseMethod>> {
-  using type =
-      fub::MusclHancock2<Equation, GradientMethod, Reconstruction, BaseMethod>;
-};
-
-template <typename Limiter, typename FluxMethod, typename BaseMethod,
-          typename Equation>
-auto RebindLimiter(fub::Type<FluxMethod>, fub::Type<BaseMethod>,
-                   const Equation& equation) {
-  return RebindBaseMethod<BaseMethod, RebindLimiterTo<Limiter, FluxMethod>>(
-      equation);
-}
-
-fub::AnyFluxMethod<fub::amrex::cutcell::IntegratorContext>
-GetCutCellMethod(const fub::ProgramOptions& options,
-                 const fub::PerfectGasMix<2>& equation) {
-  using Limiter = std::variant<fub::NoLimiter2, fub::UpwindLimiter,
-                               fub::MinModLimiter, fub::VanLeerLimiter>;
-  using namespace std::literals;
-
-  const std::map<std::string, Limiter> limiters{
-      std::pair{"NoLimiter"s, Limiter{fub::NoLimiter2{}}},
-      std::pair{"Upwind"s, Limiter{fub::UpwindLimiter{}}},
-      std::pair{"MinMod"s, Limiter{fub::MinModLimiter{}}},
-      std::pair{"VanLeer"s, Limiter{fub::VanLeerLimiter{}}}};
-
-  using HLLEM = fub::perfect_gas::HllemMethod<fub::PerfectGasMix<2>, false>;
-  using HLLEM_Lar = fub::perfect_gas::HllemMethod<fub::PerfectGasMix<2>>;
-
-  using BaseMethod = std::variant<fub::Type<HLLEM>, fub::Type<HLLEM_Lar>>;
-
-  const std::map<std::string, BaseMethod> base_methods{
-      std::pair{"HLLEM"s, BaseMethod{fub::Type<HLLEM>{}}},
-      std::pair{"HLLEM_Larrouturou"s, BaseMethod{fub::Type<HLLEM_Lar>{}}}};
-
-  using ConservativeReconstruction = fub::FluxMethod<fub::MusclHancock2<
-      fub::PerfectGasMix<2>,
-      fub::ConservativeGradient<
-          fub::PerfectGasMix<2>,
-          fub::CentralDifferenceGradient<fub::VanLeerLimiter>>,
-      fub::ConservativeReconstruction<fub::PerfectGasMix<2>>, HLLEM>>;
-
-  using PrimitiveReconstruction = fub::FluxMethod<fub::MusclHancock2<
-      fub::PerfectGasMix<2>,
-      fub::PrimitiveGradient<
-          fub::PerfectGasMix<2>,
-          fub::CentralDifferenceGradient<fub::VanLeerLimiter>>,
-      fub::PrimitiveReconstruction<fub::PerfectGasMix<2>>, HLLEM>>;
-
-  using CharacteristicsReconstruction = fub::FluxMethod<fub::MusclHancock2<
-      fub::PerfectGasMix<2>,
-      fub::CharacteristicsGradient<
-          fub::PerfectGasMix<2>,
-          fub::CentralDifferenceGradient<fub::VanLeerLimiter>>,
-      fub::CharacteristicsReconstruction<fub::PerfectGasMix<2>>, HLLEM>>;
-
-  using Reconstruction = std::variant<fub::Type<ConservativeReconstruction>,
-                                      fub::Type<PrimitiveReconstruction>,
-                                      fub::Type<CharacteristicsReconstruction>>;
-
-  const std::map<std::string, Reconstruction> reconstructions{
-      std::pair{"Conservative"s,
-                Reconstruction{fub::Type<ConservativeReconstruction>{}}},
-      std::pair{"Primitive"s,
-                Reconstruction{fub::Type<PrimitiveReconstruction>{}}},
-      std::pair{"Characteristics"s,
-                Reconstruction{fub::Type<CharacteristicsReconstruction>{}}}};
-
-  std::string limiter_option = fub::GetOptionOr(options, "limiter", "MinMod"s);
-  std::string reconstruction_option =
-      fub::GetOptionOr(options, "reconstruction", "Characteristics"s);
-  std::string base_method_option =
-      fub::GetOptionOr(options, "base_method", "HLLEM_Larrouturou"s);
-
-  fub::SeverityLogger log = fub::GetInfoLogger();
-  BOOST_LOG(log) << "FluxMethod:";
-  BOOST_LOG(log) << " - limiter = " << limiter_option;
-  BOOST_LOG(log) << " - reconstruction = " << reconstruction_option;
-  BOOST_LOG(log) << " - base_method = " << base_method_option;
-
-  Limiter limiter = limiters.at(limiter_option);
-  Reconstruction reconstruction = reconstructions.at(reconstruction_option);
-  BaseMethod base_method = base_methods.at(base_method_option);
-
-  return std::visit(
-      [&equation](auto limiter, auto reconstruction, auto base_method_type) {
-        using ThisLimiter = fub::remove_cvref_t<decltype(limiter)>;
-        auto flux_method = RebindLimiter<ThisLimiter>(
-            reconstruction, base_method_type, equation);
-        const auto base_method = flux_method.GetBaseMethod();
-        fub::KbnCutCellMethod cutcell_method(flux_method, base_method);
-        fub::amrex::cutcell::FluxMethod adapter(std::move(cutcell_method));
-        fub::AnyFluxMethod<fub::amrex::cutcell::IntegratorContext> any(adapter);
-        return any;
-      },
-      limiter, reconstruction, base_method);
-}
-
-std::pair<fub::AnyFluxMethod<fub::amrex::IntegratorContext>,
-          fub::AnyTimeIntegrator<fub::amrex::IntegratorContext>>
-GetFluxMethod(const fub::ProgramOptions& options,
-              const fub::amrex::PatchHierarchy& hier,
-              const fub::PerfectGasMix<1>& equation) {
-  using Limiter = std::variant<fub::NoLimiter2, fub::UpwindLimiter,
-                               fub::MinModLimiter, fub::VanLeerLimiter>;
-  using namespace std::literals;
-
-  const std::map<std::string, Limiter> limiters{
-      std::pair{"NoLimiter"s, Limiter{fub::NoLimiter2{}}},
-      std::pair{"Upwind"s, Limiter{fub::UpwindLimiter{}}},
-      std::pair{"MinMod"s, Limiter{fub::MinModLimiter{}}},
-      std::pair{"VanLeer"s, Limiter{fub::VanLeerLimiter{}}}};
-
-  using HLLEM = fub::perfect_gas::HllemMethod<fub::PerfectGasMix<1>, false>;
-  using HLLEM_Lar = fub::perfect_gas::HllemMethod<fub::PerfectGasMix<1>>;
-
-  using BaseMethod = std::variant<fub::Type<HLLEM>, fub::Type<HLLEM_Lar>>;
-
-  const std::map<std::string, BaseMethod> base_methods{
-      std::pair{"HLLEM"s, BaseMethod{fub::Type<HLLEM>{}}},
-      std::pair{"HLLEM_Larrouturou"s, BaseMethod{fub::Type<HLLEM_Lar>{}}}};
-
-  using ConservativeReconstruction = fub::FluxMethod<fub::MusclHancock2<
-      fub::PerfectGasMix<1>,
-      fub::ConservativeGradient<
-          fub::PerfectGasMix<1>,
-          fub::CentralDifferenceGradient<fub::VanLeerLimiter>>,
-      fub::ConservativeReconstruction<fub::PerfectGasMix<1>>, HLLEM>>;
-
-  using PrimitiveReconstruction = fub::FluxMethod<fub::MusclHancock2<
-      fub::PerfectGasMix<1>,
-      fub::PrimitiveGradient<
-          fub::PerfectGasMix<1>,
-          fub::CentralDifferenceGradient<fub::VanLeerLimiter>>,
-      fub::PrimitiveReconstruction<fub::PerfectGasMix<1>>, HLLEM>>;
-
-  using CharacteristicsReconstruction = fub::FluxMethod<fub::MusclHancock2<
-      fub::PerfectGasMix<1>,
-      fub::CharacteristicsGradient<
-          fub::PerfectGasMix<1>,
-          fub::CentralDifferenceGradient<fub::VanLeerLimiter>>,
-      fub::CharacteristicsReconstruction<fub::PerfectGasMix<1>>, HLLEM>>;
-
-  using Reconstruction = std::variant<fub::Type<ConservativeReconstruction>,
-                                      fub::Type<PrimitiveReconstruction>,
-                                      fub::Type<CharacteristicsReconstruction>>;
-
-  const std::map<std::string, Reconstruction> reconstructions{
-      std::pair{"Conservative"s,
-                Reconstruction{fub::Type<ConservativeReconstruction>{}}},
-      std::pair{"Primitive"s,
-                Reconstruction{fub::Type<PrimitiveReconstruction>{}}},
-      std::pair{"Characteristics"s,
-                Reconstruction{fub::Type<CharacteristicsReconstruction>{}}}};
-
-  std::string limiter_option = fub::GetOptionOr(options, "limiter", "MinMod"s);
-  std::string reconstruction_option =
-      fub::GetOptionOr(options, "reconstruction", "Characteristics"s);
-  std::string base_method_option =
-      fub::GetOptionOr(options, "base_method", "HLLEM_Larrouturou"s);
-
-  fub::SeverityLogger log = fub::GetInfoLogger();
-  BOOST_LOG(log) << "FluxMethod:";
-  BOOST_LOG(log) << " - limiter = " << limiter_option;
-  BOOST_LOG(log) << " - reconstruction = " << reconstruction_option;
-  BOOST_LOG(log) << " - base_method = " << base_method_option;
-
-  auto area = [&]() -> std::optional<pybind11::function> {
-    if (auto iter = options.find("area_variation"); iter != options.end()) {
-      pybind11::object obj = iter->second;
-      pybind11::function fun(obj);
-      return fun;
-    }
-    return {};
-  }();
-
-  auto area_lambda = [area](double x) -> double {
-    if (area) {
-      pybind11::function py_area = *area;
-      pybind11::object py_y = py_area(x);
-      double y = py_y.cast<double>();
-      return y;
-    }
-    return 1.0;
-  };
-
-  Limiter limiter = limiters.at(limiter_option);
-  Reconstruction reconstruction = reconstructions.at(reconstruction_option);
-  BaseMethod base_method = base_methods.at(base_method_option);
-
-  return std::visit(
-      [&equation, &hier, &area_lambda](auto limiter, auto reconstruction,
-                                       auto base_method_type) {
-        using ThisLimiter = fub::remove_cvref_t<decltype(limiter)>;
-        auto flux_method = RebindLimiter<ThisLimiter>(
-            reconstruction, base_method_type, equation);
-        fub::amrex::AxialFluxMethodAdapter adapted(flux_method);
-        auto pressure = adapted.SharedInterfacePressure();
-        const ::amrex::Vector<::amrex::Geometry> geoms = hier.GetGeometries();
-        std::vector<::amrex::Geometry> std_geoms(geoms.begin(), geoms.end());
-        fub::amrex::AxialTimeIntegrator time_integrator(equation, std_geoms,
-                                                        pressure, area_lambda);
-        fub::AnyFluxMethod<fub::amrex::IntegratorContext> any_flux(
-            std::move(adapted));
-        fub::AnyTimeIntegrator<fub::amrex::IntegratorContext> any_time(
-            std::move(time_integrator));
-        return std::pair{any_flux, any_time};
-      },
-      limiter, reconstruction, base_method);
-}
-
 auto MakeTubeSolver(
     const fub::ProgramOptions& options,
     const fub::PerfectGasConstants& constants,
     const std::shared_ptr<fub::CounterRegistry>& counters,
     const std::shared_ptr<const GT::ControlState>& control_state) {
   using namespace fub::amrex;
+  auto make_tube_solver = counters->get_timer("MakeTubeSolver");
 
   fub::SeverityLogger log = fub::GetInfoLogger();
   BOOST_LOG(log) << "==================== Tube =========================";
@@ -586,8 +313,8 @@ auto MakeTubeSolver(
   }();
 
   auto [flux_method, time_integrator] =
-      GetFluxMethod(fub::GetOptions(options, "FluxMethod"),
-                    gridding->GetPatchHierarchy(), equation);
+      fub::amrex::GetFluxMethod(fub::GetOptions(options, "FluxMethod"),
+                                gridding->GetPatchHierarchy(), equation);
   HyperbolicMethod method{flux_method, time_integrator,
                           Reconstruction(equation)};
 
@@ -603,6 +330,9 @@ auto MakeTubeSolver(
 
 auto MakePlenumSolver(const std::map<std::string, pybind11::object>& options,
                       const fub::PerfectGasConstants& constants) {
+  std::shared_ptr<fub::CounterRegistry> registry =
+      std::make_shared<fub::CounterRegistry>();
+  auto make_plenum_solver = registry->get_timer("MakePlenumSolver");
   fub::SeverityLogger log = fub::GetInfoLogger();
   BOOST_LOG(log) << "==================== Plenum =========================";
   using namespace fub::amrex::cutcell;
@@ -658,8 +388,6 @@ auto MakePlenumSolver(const std::map<std::string, pybind11::object>& options,
   hierarchy_options.Print(log);
 
   BOOST_LOG(log) << "Compute EB level set data...";
-  std::shared_ptr<fub::CounterRegistry> registry =
-      std::make_shared<fub::CounterRegistry>();
   {
     fub::Timer timer = registry->get_timer("MakeIndexSpaces");
     hierarchy_options.index_spaces =
@@ -818,6 +546,7 @@ auto MakePlenumSolver(const std::map<std::string, pybind11::object>& options,
           PatchHierarchy(equation, grid_geometry, hierarchy_options),
           initial_data, TagAllOf(TagCutCells(), constant_refinebox),
           boundary_condition);
+      grid->GetPatchHierarchy().SetCounterRegistry(registry);
       grid->InitializeHierarchy(0.0);
       return grid;
     } else {
@@ -827,6 +556,7 @@ auto MakePlenumSolver(const std::map<std::string, pybind11::object>& options,
       PatchHierarchy h = ReadCheckpointFile(
           checkpoint, fub::amrex::MakeDataDescription(equation), grid_geometry,
           hierarchy_options);
+      h.SetCounterRegistry(registry);
       std::shared_ptr grid = std::make_shared<GriddingAlgorithm>(
           std::move(h), initial_data,
           TagAllOf(TagCutCells(), constant_refinebox), boundary_condition);
@@ -834,8 +564,8 @@ auto MakePlenumSolver(const std::map<std::string, pybind11::object>& options,
     }
   }();
 
-  auto flux_method =
-      GetCutCellMethod(fub::GetOptions(options, "FluxMethod"), equation);
+  auto flux_method = fub::amrex::cutcell::GetCutCellMethod(
+      fub::GetOptions(options, "FluxMethod"), equation);
 
   HyperbolicMethod method{flux_method, TimeIntegrator{},
                           Reconstruction{equation}};
@@ -1004,7 +734,8 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   fub::amrex::MultiBlockIntegratorContext2 context(
       tube_equation, plenum_equation, std::move(tubes), std::move(plenum),
       std::move(connectivity));
-  GT::ControlFeedback<Plenum_Rank> feedback(plenum_equation, tube_equation, control);
+  GT::ControlFeedback<Plenum_Rank> feedback(plenum_equation, tube_equation,
+                                            control);
   context.SetPostAdvanceHierarchyFeedback(feedback);
   fub::DimensionalSplitLevelIntegrator system_solver(
       fub::int_c<Plenum_Rank>, std::move(context), fub::GodunovSplitting{});
@@ -1070,4 +801,4 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   BOOST_LOG(log) << "RunOptions:";
   run_options.Print(log);
   fub::RunSimulation(solver, run_options, wall_time_reference, outputs);
-} 
+}
