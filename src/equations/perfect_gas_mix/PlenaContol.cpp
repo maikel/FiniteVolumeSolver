@@ -43,6 +43,7 @@ void UpdateTurbinePlenum(ControlState& state, const PerfectGasConstants& eq,
       0.5 * (state.turbine.temperature + turbine_plenum_current.temperature);
   const double gmoog = eq.gamma_minus_one_over_gamma;
   const double cp = eq.heat_capacity_at_constant_pressure;
+  state.turbine.mass_flow = mdot;
   state.turbine.power = mdot * cp * options.efficiency_turbine * T_half *
                         (1.0 - std::pow(pressure_half, -gmoog));
   state.turbine.pressure = turbine_plenum_current.pressure;
@@ -110,6 +111,7 @@ void UpdateCompressorPlenum(ControlState& state, const PerfectGasConstants& eq,
   state.compressor.power = (1.0 - dt_over_tau) * state.compressor.power +
                            dt_over_tau * power_compressor_increase;
 
+  state.fuel_consumption = (1.0 - dt_over_tau) * state.fuel_consumption + dt_over_tau * flux_spec * options.surface_area_tube_inlet;
   // TODO calculate FuelConsumptionRate with flux_spec....
 }
 

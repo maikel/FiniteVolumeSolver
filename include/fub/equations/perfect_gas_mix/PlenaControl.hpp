@@ -1,6 +1,6 @@
 // Copyright (c) 2021 Maikel Nadolski
 // Copyright (c) 2021 Christian Zenker
-// Copyright (c) 2020 Rupert Klein
+// Copyright (c) 2021 Rupert Klein
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -207,8 +207,8 @@ template <int PlenumRank> class ControlFeedback {
 public:
   ControlFeedback(const PerfectGasMix<PlenumRank>& plenum_equation,
                   const PerfectGasMix<1>& tube_equation, const Control& c)
-      : plenum_equation_(plenum_equation),
-        tube_index_(tube_equation), control_(c) {}
+      : plenum_equation_(plenum_equation), tube_index_(tube_equation),
+        control_(c) {}
 
   // Update the control object using the mass flows in the multi block
   // integrator context.
@@ -271,11 +271,11 @@ public:
       ::MPI_Allreduce(&local_f_spec, &flux_spec, 1, MPI_DOUBLE, MPI_SUM,
                       ::amrex::ParallelDescriptor::Communicator());
     }
-    const double oosize = 1.0 / static_cast<double>(tubes.size());
-    double rhou_tubes = oosize * std::accumulate(flux_rho_tube.begin(),
-                                                 flux_rho_tube.end(), 0.0);
-    double specu_tubes = oosize * std::accumulate(flux_species_tube.begin(),
-                                                  flux_species_tube.end(), 0.0);
+    // const double oosize = 1.0 / static_cast<double>(tubes.size());
+    double rhou_tubes =
+        std::accumulate(flux_rho_tube.begin(), flux_rho_tube.end(), 0.0);
+    double specu_tubes = std::accumulate(flux_species_tube.begin(),
+                                         flux_species_tube.end(), 0.0);
 
     control_.UpdatePlena(mdot_turbine, turbine_boundary_state, rhou_tubes,
                          specu_tubes, dt);

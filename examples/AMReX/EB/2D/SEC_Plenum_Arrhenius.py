@@ -64,7 +64,7 @@ tube_n_cells = int(tube_n_cells)
 
 RunOptions = {
   'cfl': 1.0,# / float(tube_n_cells / 64),
-  'final_time': 0.01,
+  'final_time': 20.0,
   'max_cycles': -1,
   'do_backup': 0
 }
@@ -119,7 +119,9 @@ ControlOptions = {
   'Q': ArrheniusKinetics['Q'],
   'initial_turbine_pressure': p,
   'initial_turbine_temperature': T,
-  'checkpoint': checkpoint
+  'checkpoint': checkpoint,
+  'volume_turbine_plenum': TVolRPlen,
+  'surface_area_turbine_plenum_to_turbine': plenum_y_length / (3*D),
 }
 
 def ToCellIndex(x, xlo, xhi, ncells):
@@ -261,7 +263,7 @@ Output = {
     {
       'type': 'ControlOutput',
       'path': '{}/ControlState.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
-      'frequencies': [1]
+      'intervals': [0.001]
     },
   {
     'type': 'HDF5',
@@ -309,7 +311,7 @@ Output = {
   },
   {
     'type': 'Checkpoint',
-    'intervals': [100],
+    'intervals': [1.0],
     'directory': 'Checkpoint/'
   }
   ]
