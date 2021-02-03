@@ -36,14 +36,21 @@ namespace {
 /// \return Returns the new power value for the turbine
 void UpdateTurbinePlenum(ControlState& state, const PerfectGasConstants& eq,
                          const ControlOptions& options, double mdot,
-                         const PlenumState& turbine_plenum_current) noexcept {
+                         const PlenumState& turbine_plenum_current,
+                         double flux_rho_last, Duration dt) noexcept {
   const double pressure_half =
       0.5 * (state.turbine.pressure + turbine_plenum_current.pressure);
   const double T_half =
       0.5 * (state.turbine.temperature + turbine_plenum_current.temperature);
   const double gmoog = eq.gamma_minus_one_over_gamma;
   const double cp = eq.heat_capacity_at_constant_pressure;
-  state.turbine.mass_flow = mdot;
+  const double ootau = 1.0;
+  double dt_over_tau = dt.count() * ootau;
+  state.turbine.mass_flow_in =
+      (1.0 - dt_over_tau) * state.turbine.mass_flow_in +
+      dt_over_tau * flux_rho_last * options.surface_area_tube_outlet;
+  state.turbine.mass_flow_out =
+      (1.0 - dt_over_tau) * state.turbine.mass_flow_out + dt_over_tau * mdot;
   state.turbine.power = mdot * cp * options.efficiency_turbine * T_half *
                         (1.0 - std::pow(pressure_half, -gmoog));
   state.turbine.pressure = turbine_plenum_current.pressure;
@@ -92,27 +99,35 @@ void UpdateCompressorPlenum(ControlState& state, const PerfectGasConstants& eq,
 
   double rho_new =
       state.compressor.pressure / state.compressor.temperature * eq.ooRspec;
-  state.compressor.mass_flow =
-      flux_rho * options.surface_area_tube_inlet +
-      options.volume_compressor_plenum / dt.count() *
-          (rho_new - rho_old); // equation (23) GT_Notes
+
+  const double mdot = flux_rho * options.surface_area_tube_inlet +
+                      options.volume_compressor_plenum / dt.count() *
+                          (rho_new - rho_old); // equation (23) GT_Notes
 
   double T_v_half = 0.5 * (temperature_old + state.compressor.temperature);
   double T_ref = 1.0;
   const double cp = eq.heat_capacity_at_constant_pressure;
 
-  double power_compressor_increase = state.compressor.mass_flow *
-                                     (T_v_half - T_ref) /
-                                     options.efficiency_compressor * cp;
+  double power_compressor_increase =
+      mdot * (T_v_half - T_ref) * cp / options.efficiency_compressor;
 
   const double ootau = 1.0;
   double dt_over_tau = dt.count() * ootau;
 
+  state.compressor.mass_flow_in =
+      (1.0 - dt_over_tau) * state.compressor.mass_flow_in + dt_over_tau * mdot;
+
+  state.compressor.mass_flow_out =
+      (1.0 - dt_over_tau) * state.compressor.mass_flow_out +
+      dt_over_tau * flux_rho * options.surface_area_tube_inlet;
+
   state.compressor.power = (1.0 - dt_over_tau) * state.compressor.power +
                            dt_over_tau * power_compressor_increase;
+  state.fuel_consumption +=
+      flux_spec * options.surface_area_tube_inlet * dt.count();
 
-  state.fuel_consumption =
-      (1.0 - dt_over_tau) * state.fuel_consumption +
+  state.fuel_consumption_rate =
+      (1.0 - dt_over_tau) * state.fuel_consumption_rate +
       dt_over_tau * flux_spec * options.surface_area_tube_inlet;
   // TODO calculate FuelConsumptionRate with flux_spec....
 }
@@ -159,6 +174,7 @@ ControlOptions::ControlOptions(const ProgramOptions& options) {
   FUB_GT_CONTROL_GET_OPTION(efficiency_turbine);
   FUB_GT_CONTROL_GET_OPTION(length_tube);
   FUB_GT_CONTROL_GET_OPTION(surface_area_tube_inlet);
+  FUB_GT_CONTROL_GET_OPTION(surface_area_tube_outlet);
   FUB_GT_CONTROL_GET_OPTION(surface_area_compressor_to_compressor_plenum);
   FUB_GT_CONTROL_GET_OPTION(volume_compressor_plenum);
   FUB_GT_CONTROL_GET_OPTION(surface_area_turbine_plenum_to_turbine);
@@ -195,6 +211,7 @@ void ControlOptions::Print(SeverityLogger& log) {
   FUB_GT_CONTROL_PRINT(efficiency_turbine);
   FUB_GT_CONTROL_PRINT(length_tube);
   FUB_GT_CONTROL_PRINT(surface_area_tube_inlet);
+  FUB_GT_CONTROL_PRINT(surface_area_tube_outlet);
   FUB_GT_CONTROL_PRINT(surface_area_compressor_to_compressor_plenum);
   FUB_GT_CONTROL_PRINT(volume_compressor_plenum);
   FUB_GT_CONTROL_PRINT(surface_area_turbine_plenum_to_turbine);
@@ -228,9 +245,10 @@ Control::Control(const PerfectGasConstants& eq, const ControlOptions& options)
 
 void Control::UpdatePlena(double mdot_turbine,
                           const PlenumState& turbine_boundary_state,
-                          double flux_rho, double flux_spec, Duration dt) {
+                          double flux_rho, double flux_spec,
+                          double flux_rho_last, Duration dt) {
   UpdateTurbinePlenum(*state_, equation_, options_, mdot_turbine,
-                      turbine_boundary_state);
+                      turbine_boundary_state, flux_rho_last, dt);
   UpdateCompressorPlenum(*state_, equation_, options_, flux_rho, flux_spec, dt);
   ChangeRPM(*state_, options_, dt);
 }
@@ -248,13 +266,16 @@ auto GetFieldMap() {
   using namespace std::literals;
   using projection = function_ref<double(const ControlState&)>;
   return std::map<std::string, projection>{
-      std::pair{"current_rpm"s,
-                [](const ControlState& s) { return s.current_rpm; }},
+      std::pair<std::string, projection>{
+          "current_rpm"s, [](const ControlState& s) { return s.current_rpm; }},
       std::pair<std::string, projection>{
           "power_out"s, [](const ControlState& s) { return s.power_out; }},
       std::pair<std::string, projection>{
           "fuel_consumption"s,
           [](const ControlState& s) { return s.fuel_consumption; }},
+      std::pair<std::string, projection>{
+          "fuel_consumption_rate"s,
+          [](const ControlState& s) { return s.fuel_consumption_rate; }},
       std::pair<std::string, projection>{
           "compressor_pressure"s,
           [](const ControlState& s) { return s.compressor.pressure; }},
@@ -265,8 +286,11 @@ auto GetFieldMap() {
           "compressor_power"s,
           [](const ControlState& s) { return s.compressor.power; }},
       std::pair<std::string, projection>{
-          "compressor_mass_flow"s,
-          [](const ControlState& s) { return s.compressor.mass_flow; }},
+          "compressor_mass_flow_in"s,
+          [](const ControlState& s) { return s.compressor.mass_flow_in; }},
+      std::pair<std::string, projection>{
+          "compressor_mass_flow_out"s,
+          [](const ControlState& s) { return s.compressor.mass_flow_out; }},
       std::pair<std::string, projection>{
           "turbine_pressure"s,
           [](const ControlState& s) { return s.turbine.pressure; }},
@@ -277,8 +301,11 @@ auto GetFieldMap() {
           "turbine_power"s,
           [](const ControlState& s) { return s.turbine.power; }},
       std::pair<std::string, projection>{
-          "turbine_mass_flow"s,
-          [](const ControlState& s) { return s.turbine.mass_flow; }}};
+          "turbine_mass_flow_in"s,
+          [](const ControlState& s) { return s.turbine.mass_flow_in; }},
+      std::pair<std::string, projection>{
+          "turbine_mass_flow_out"s,
+          [](const ControlState& s) { return s.turbine.mass_flow_out; }}};
 }
 } // namespace
 

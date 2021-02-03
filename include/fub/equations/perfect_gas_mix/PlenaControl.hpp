@@ -118,7 +118,8 @@ struct PlenumState {
   double pressure{};
   double temperature{};
   double power{};
-  double mass_flow{};
+  double mass_flow_in{};
+  double mass_flow_out{};
 };
 
 struct ControlOptions {
@@ -131,7 +132,7 @@ struct ControlOptions {
 
   double length_tube{1.0};             ///< the length of the tubes
   double surface_area_tube_inlet{1.0}; ///< initial surface area of the tube
-
+  double surface_area_tube_outlet{4.0}; ///< final surface area of the tube
   /// surface area from the compressor to the compressor plenum
   double surface_area_compressor_to_compressor_plenum{8.0 *
                                                       surface_area_tube_inlet};
@@ -173,6 +174,7 @@ struct ControlState {
   PlenumState turbine{};
   double power_out{};
   double fuel_consumption{};
+  double fuel_consumption_rate{};
 };
 
 class Control {
@@ -185,7 +187,7 @@ public:
 
   void UpdatePlena(double mdot_turbine,
                    const PlenumState& turbine_boundary_state, double flux_rho,
-                   double flux_spec, Duration dt);
+                   double flux_spec, double flux_rho_last, Duration dt);
 
   // Accessors
 
@@ -252,33 +254,48 @@ public:
     // (rhou)_{I + 1/2}
     std::vector<double> flux_rho_tube(tubes.size());
     std::vector<double> flux_species_tube(tubes.size());
+    std::vector<double> flux_rho_last_tube(tubes.size());
 
-    for (auto&& [tube_context, flux_rho, flux_spec] :
-         ranges::view::zip(tubes, flux_rho_tube, flux_species_tube)) {
+    for (auto&& [tube_context, flux_rho, flux_spec, flux_rho_last] :
+         ranges::view::zip(tubes, flux_rho_tube, flux_species_tube,
+                           flux_rho_last_tube)) {
+      const ::amrex::Geometry& tube_geom =
+          tube_context.GetGeometry(coarsest_level);
+      const ::amrex::Box face_domain = ::amrex::convert(
+          tube_geom.Domain(), ::amrex::IntVect::TheDimensionVector(0));
+      const ::amrex::IntVect first_face = face_domain.smallEnd();
+      const ::amrex::IntVect last_face = face_domain.bigEnd();
       const ::amrex::MultiFab& fluxes_x =
           tube_context.GetFluxes(coarsest_level, Direction::X);
       double local_f_rho = 0.0;
+      double local_f_rho_last = 0.0;
       double local_f_spec = 0.0;
       amrex::ForEachFab(fluxes_x, [&](const ::amrex::MFIter& mfi) {
-        ::amrex::IntVect iv{0, 0};
-        if (mfi.tilebox().contains(iv)) {
-          local_f_rho = fluxes_x[mfi](iv, tube_index_.density);
-          local_f_spec = fluxes_x[mfi](iv, tube_index_.species[0]);
+        if (mfi.tilebox().contains(first_face)) {
+          local_f_rho = fluxes_x[mfi](first_face, tube_index_.density);
+          local_f_spec = fluxes_x[mfi](first_face, tube_index_.species[0]);
+        }
+        if (mfi.tilebox().contains(last_face)) {
+          local_f_rho_last = fluxes_x[mfi](last_face, tube_index_.density);
         }
       });
       ::MPI_Allreduce(&local_f_rho, &flux_rho, 1, MPI_DOUBLE, MPI_SUM,
                       ::amrex::ParallelDescriptor::Communicator());
+      ::MPI_Allreduce(&local_f_rho_last, &flux_rho_last, 1, MPI_DOUBLE, MPI_SUM,
+                      ::amrex::ParallelDescriptor::Communicator());
       ::MPI_Allreduce(&local_f_spec, &flux_spec, 1, MPI_DOUBLE, MPI_SUM,
                       ::amrex::ParallelDescriptor::Communicator());
     }
-    // const double oosize = 1.0 / static_cast<double>(tubes.size());
-    double rhou_tubes =
-        std::accumulate(flux_rho_tube.begin(), flux_rho_tube.end(), 0.0);
-    double specu_tubes = std::accumulate(flux_species_tube.begin(),
-                                         flux_species_tube.end(), 0.0);
+    const double oosize = 1.0 / static_cast<double>(tubes.size());
+    const double rhou_tubes =
+        oosize * std::accumulate(flux_rho_tube.begin(), flux_rho_tube.end(), 0.0);
+    const double specu_tubes = oosize * std::accumulate(flux_species_tube.begin(),
+                                               flux_species_tube.end(), 0.0);
+    const double rhou_last_tubes = oosize * std::accumulate(
+        flux_rho_last_tube.begin(), flux_rho_last_tube.end(), 0.0);
 
     control_.UpdatePlena(mdot_turbine, turbine_boundary_state, rhou_tubes,
-                         specu_tubes, dt);
+                         specu_tubes, rhou_last_tubes, dt);
   }
 
 private:
@@ -318,7 +335,8 @@ void serialize(Archive& ar, ::fub::perfect_gas_mix::gt::PlenumState& state,
   ar & state.pressure;
   ar & state.temperature;
   ar & state.power;
-  ar & state.mass_flow;
+  ar & state.mass_flow_in;
+  ar & state.mass_flow_out;
   // clang-format on
 }
 
@@ -331,6 +349,7 @@ void serialize(Archive& ar, ::fub::perfect_gas_mix::gt::ControlState& state,
   ar & state.turbine;
   ar & state.power_out;
   ar & state.fuel_consumption;
+  ar & state.fuel_consumption_rate;
   // clang-format on
 }
 
