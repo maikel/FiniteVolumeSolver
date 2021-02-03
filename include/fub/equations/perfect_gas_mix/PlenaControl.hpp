@@ -298,13 +298,6 @@ public:
 private:
   std::string file_path_;
   std::shared_ptr<const ControlState> control_state_;
-  H5File file_;
-  H5Space data_dataspace_;
-  H5Space times_dataspace_;
-  H5Space cycles_dataspace_;
-  H5Dataset data_dataset_;
-  H5Dataset times_dataset_;
-  H5Dataset cycles_dataset_;
   std::map<std::string, function_ref<double(const ControlState&)>> fields_;
   std::vector<double> data_buffer_;
 

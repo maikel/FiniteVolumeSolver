@@ -111,7 +111,9 @@ void UpdateCompressorPlenum(ControlState& state, const PerfectGasConstants& eq,
   state.compressor.power = (1.0 - dt_over_tau) * state.compressor.power +
                            dt_over_tau * power_compressor_increase;
 
-  state.fuel_consumption = (1.0 - dt_over_tau) * state.fuel_consumption + dt_over_tau * flux_spec * options.surface_area_tube_inlet;
+  state.fuel_consumption =
+      (1.0 - dt_over_tau) * state.fuel_consumption +
+      dt_over_tau * flux_spec * options.surface_area_tube_inlet;
   // TODO calculate FuelConsumptionRate with flux_spec....
 }
 
@@ -281,7 +283,7 @@ auto GetFieldMap() {
 } // namespace
 
 void ControlOutput::CreateHdf5Database() {
-  file_ =
+  H5File file_ =
       H5Fcreate(file_path_.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
   // Create Data Set
   {
@@ -294,10 +296,11 @@ void ControlOutput::CreateHdf5Database() {
     H5Pset_alloc_time(properties, H5D_ALLOC_TIME_EARLY);
     // create an empty dataset
     dims[0] = 0;
-    data_dataspace_ =
+    H5Space data_dataspace_ =
         H5Screate_simple(dims.size(), dims.data(), maxdims.data());
-    data_dataset_ = H5Dcreate(file_, "/data", H5T_IEEE_F64LE, data_dataspace_,
-                              H5P_DEFAULT, properties, H5P_DEFAULT);
+    H5Dataset data_dataset_ =
+        H5Dcreate(file_, "/data", H5T_IEEE_F64LE, data_dataspace_, H5P_DEFAULT,
+                  properties, H5P_DEFAULT);
   }
   // Create Field names
   if (!fields_.empty()) {
@@ -330,12 +333,14 @@ void ControlOutput::CreateHdf5Database() {
   H5Pset_chunk(properties, dims.size(), dims.data());
   H5Pset_alloc_time(properties, H5D_ALLOC_TIME_EARLY);
   dims[0] = 0;
-  times_dataspace_ = H5Screate_simple(dims.size(), dims.data(), maxdims.data());
-  times_dataset_ = H5Dcreate(file_, "/times", H5T_IEEE_F64LE, times_dataspace_,
-                             H5P_DEFAULT, properties, H5P_DEFAULT);
-  cycles_dataspace_ =
+  H5Space times_dataspace_ =
       H5Screate_simple(dims.size(), dims.data(), maxdims.data());
-  cycles_dataset_ =
+  H5Dataset times_dataset_ =
+      H5Dcreate(file_, "/times", H5T_IEEE_F64LE, times_dataspace_, H5P_DEFAULT,
+                properties, H5P_DEFAULT);
+  H5Space cycles_dataspace_ =
+      H5Screate_simple(dims.size(), dims.data(), maxdims.data());
+  H5Dataset cycles_dataset_ =
       H5Dcreate(file_, "/cycles", H5T_STD_I64LE_g, cycles_dataspace_,
                 H5P_DEFAULT, properties, H5P_DEFAULT);
 }
@@ -343,60 +348,71 @@ void ControlOutput::CreateHdf5Database() {
 void ControlOutput::WriteHdf5Database(span<const double> data, Duration time,
                                       std::ptrdiff_t cycle) {
   // Write to /data dataset
-  {
+  H5File file_ = H5Fopen(file_path_.c_str(), H5F_ACC_RDWR, H5P_DEFAULT);
+  if (file_ > 0) {
     std::array<hsize_t, 2> dims{};
     std::array<hsize_t, 2> maxdims{};
-    H5Sget_simple_extent_dims(data_dataspace_, dims.data(), maxdims.data());
-    FUB_ASSERT(maxdims[0] == H5S_UNLIMITED);
-    std::array<hsize_t, 2> new_dims{dims[0] + 1, dims[1]};
-    H5Dset_extent(data_dataset_, new_dims.data());
-    data_dataspace_ = H5Dget_space(data_dataset_);
-    H5Space filespace(H5Dget_space(data_dataset_));
-    std::array<hsize_t, 2> count{1, dims[1]};
-    std::array<hsize_t, 2> offset{dims[0], 0};
-    H5Sselect_hyperslab(filespace, H5S_SELECT_SET, offset.data(), nullptr,
-                        count.data(), nullptr);
-    H5Space memspace(H5Screate_simple(2, count.data(), nullptr));
-    H5Dwrite(data_dataset_, H5T_IEEE_F64LE, memspace, filespace, H5P_DEFAULT,
-             data.data());
+    H5Dataset data_dataset_ = H5Dopen(file_, "/data", H5P_DEFAULT);
+    if (data_dataset_ > 0) {
+      H5Space data_dataspace_ = H5Dget_space(data_dataset_);
+      H5Sget_simple_extent_dims(data_dataspace_, dims.data(), maxdims.data());
+      FUB_ASSERT(maxdims[0] == H5S_UNLIMITED);
+      std::array<hsize_t, 2> new_dims{dims[0] + 1, dims[1]};
+      H5Dset_extent(data_dataset_, new_dims.data());
+      H5Space filespace(H5Dget_space(data_dataset_));
+      std::array<hsize_t, 2> count{1, dims[1]};
+      std::array<hsize_t, 2> offset{dims[0], 0};
+      H5Sselect_hyperslab(filespace, H5S_SELECT_SET, offset.data(), nullptr,
+                          count.data(), nullptr);
+      H5Space memspace(H5Screate_simple(2, count.data(), nullptr));
+      H5Dwrite(data_dataset_, H5T_IEEE_F64LE, memspace, filespace, H5P_DEFAULT,
+               data.data());
+    }
   }
   // Write to /times dataset
-  {
+  if (file_ > 0) {
     hsize_t dims{};
     hsize_t maxdims{};
-    H5Sget_simple_extent_dims(times_dataspace_, &dims, &maxdims);
-    FUB_ASSERT(maxdims == H5S_UNLIMITED);
-    const hsize_t new_dims = dims + 1;
-    H5Dset_extent(times_dataset_, &new_dims);
-    times_dataspace_ = H5Dget_space(times_dataset_);
-    H5Space filespace(H5Dget_space(times_dataset_));
-    const hsize_t count = 1;
-    const hsize_t offset = dims;
-    H5Sselect_hyperslab(filespace, H5S_SELECT_SET, &offset, &count, &count,
-                        &count);
-    const double tp_count = time.count();
-    H5Space memspace(H5Screate_simple(1, &count, nullptr));
-    H5Dwrite(times_dataset_, H5T_IEEE_F64LE, memspace, filespace, H5P_DEFAULT,
-             &tp_count);
+    H5Dataset times_dataset_ = H5Dopen(file_, "/times", H5P_DEFAULT);
+    if (times_dataset_ > 0) {
+      H5Space times_dataspace_ = H5Dget_space(times_dataset_);
+      H5Sget_simple_extent_dims(times_dataspace_, &dims, &maxdims);
+      FUB_ASSERT(maxdims == H5S_UNLIMITED);
+      const hsize_t new_dims = dims + 1;
+      H5Dset_extent(times_dataset_, &new_dims);
+      H5Space filespace(H5Dget_space(times_dataset_));
+      const hsize_t count = 1;
+      const hsize_t offset = dims;
+      H5Sselect_hyperslab(filespace, H5S_SELECT_SET, &offset, &count, &count,
+                          &count);
+      const double tp_count = time.count();
+      H5Space memspace(H5Screate_simple(1, &count, nullptr));
+      H5Dwrite(times_dataset_, H5T_IEEE_F64LE, memspace, filespace, H5P_DEFAULT,
+               &tp_count);
+    }
   }
   // Write to /cycles dataset
-  {
+  if (file_ > 0) {
     hsize_t dims{};
     hsize_t maxdims{};
-    H5Sget_simple_extent_dims(cycles_dataspace_, &dims, &maxdims);
-    FUB_ASSERT(maxdims == H5S_UNLIMITED);
-    const hsize_t new_dims = dims + 1;
-    H5Dset_extent(cycles_dataset_, &new_dims);
-    cycles_dataspace_ = H5Dget_space(cycles_dataset_);
-    H5Space filespace(H5Dget_space(cycles_dataset_));
-    const hsize_t count = 1;
-    const hsize_t offset = dims;
-    H5Sselect_hyperslab(filespace, H5S_SELECT_SET, &offset, nullptr, &count,
-                        nullptr);
-    const std::int64_t cycle_count = static_cast<std::int64_t>(cycle);
-    H5Space memspace(H5Screate_simple(1, &count, nullptr));
-    H5Dwrite(cycles_dataset_, H5T_STD_I64LE_g, memspace, filespace, H5P_DEFAULT,
-             &cycle_count);
+    H5Dataset cycles_dataset_ = H5Dopen(file_, "/cycles", H5P_DEFAULT);
+    if (cycles_dataset_ > 0) {
+      H5Space cycles_dataspace_ = H5Dget_space(cycles_dataset_);
+      H5Sget_simple_extent_dims(cycles_dataspace_, &dims, &maxdims);
+      FUB_ASSERT(maxdims == H5S_UNLIMITED);
+      const hsize_t new_dims = dims + 1;
+      H5Dset_extent(cycles_dataset_, &new_dims);
+      cycles_dataspace_ = H5Dget_space(cycles_dataset_);
+      H5Space filespace(H5Dget_space(cycles_dataset_));
+      const hsize_t count = 1;
+      const hsize_t offset = dims;
+      H5Sselect_hyperslab(filespace, H5S_SELECT_SET, &offset, nullptr, &count,
+                          nullptr);
+      const std::int64_t cycle_count = static_cast<std::int64_t>(cycle);
+      H5Space memspace(H5Screate_simple(1, &count, nullptr));
+      H5Dwrite(cycles_dataset_, H5T_STD_I64LE_g, memspace, filespace,
+               H5P_DEFAULT, &cycle_count);
+    }
   }
 }
 
