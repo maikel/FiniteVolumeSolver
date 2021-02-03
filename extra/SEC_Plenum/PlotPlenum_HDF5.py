@@ -6,6 +6,7 @@ pathname = os.path.abspath(pathname)
 FVS_path = pathname.split('FiniteVolumeSolver')[0]+'FiniteVolumeSolver'
 # print(FVS_path) 
 sys.path.append(FVS_path+'/extra/')
+import amrex.plotfiles as da
 
 import yt
 import numpy as np
@@ -14,10 +15,6 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import h5py
 import itertools
-
-
-# dataPath = "/srv/public/Maikel/FiniteVolumeSolver/build_2D-Release/average_massflow"
-# inputFilePath = "/srv/public/Maikel/FiniteVolumeSolver/examples/AMReX/EB/2D/"
 
 dataPath = FVS_path+"/build_2D-Release/average_massflow"
 inputFilePath = FVS_path+"/examples/AMReX/EB/2D/"
@@ -29,6 +26,7 @@ inputFilePath = FVS_path+"/examples/AMReX/EB/2D/"
 # print(inputFile.Area)
 sys.path.append(inputFilePath)
 from SEC_Plenum_Arrhenius import y0s, Area, tube_n_cells, p_ref, T_ref, rho_ref, Output
+from SEC_Plenum_Arrhenius import D as diameter_tube
 # print(y0s)
 # print(Area)
 
@@ -36,20 +34,6 @@ plenum = "{}/Plenum.h5".format(dataPath)
 outPath = dataPath
 output_path = '{}/Visualization'.format(outPath)
 
-def h5_load(path, num, variables):
-   file = h5py.File(path, mode='r')
-   strings = list(file['fields'].asstr())
-   indices = [strings.index(var) for var in variables]
-   shape = file['data'].shape
-   nx = np.array([shape[2], shape[3]])
-   datas = [np.reshape(np.array(file['data'][num, var, :, :]), [nx[1], nx[0]])  for var in indices]
-   time = float(file['times'][num])
-   dx = np.array(file['data'].attrs['cell_size'])
-   xlower = np.array(file['data'].attrs['xlower'])
-   xupper = xlower + dx * nx
-   extent = [xlower[0], xupper[0], xlower[1], xupper[1]]
-   file.close()
-   return tuple(datas), time, extent
 
 
 # Get nsteps from plenum
@@ -92,26 +76,37 @@ tube_paths = ['{}/Tube{}.h5'.format(dataPath, tube) for tube in [0, 1 ,2]]
 
 #for i, plotfile in itertools.dropwhile(lambda x: x[0] < 329, enumerate(plotfiles)):
 #for i, plotfile in itertools.takewhile(lambda x: x[0] < 4, enumerate(plotfiles)):
+def stackTubeDataTo2D(Tube_datalist):
+   # all Tubedata is 1D but for contourf we need at least 2D data. so simply stack twice the 1d array
+   for i, el in enumerate(Tube_datalist):
+      el = np.squeeze(el)
+      Tube_datalist[i] = np.stack((el,el))
+   return Tube_datalist
+
 for i in range(nsteps):
    PrintProgress(i)
    
    Tube_p = []
    extent_tubes = []
-   
+   tube_variables = ["Pressure"]
+
    for tube in tube_paths:
-      (p_tube), current_time, extent = h5_load(tube, tube_output_factor*i, ["Pressure"])
-      Tube_p.append(p_tube)
+      tube_data, current_time, extent, tube_dict = da.h5_load_spec_timepoint_variable(tube, tube_output_factor*i, tube_variables)
+      Tube_p.append(tube_data[tube_dict['Pressure']])
       extent_tubes.append(extent)
    
-   def stackTubeDataTo2D(Tube_datalist):
-     # all Tubedata is 1D but for contourf we need at least 2D data. so simply stack twice the 1d array
-     for i, el in enumerate(Tube_datalist):
-        el = np.squeeze(el)
-        Tube_datalist[i] = np.stack((el,el))
-     return Tube_datalist
    Tube_p = stackTubeDataTo2D(Tube_p)
 
-   (p, rho, rhou, rhov, c, vols), current_time, extent = h5_load(plenum, i, ["Pressure", "Density", "Momentum_0", "Momentum_1", "SpeedOfSound", 'vfrac'])
+   plenum_variables = ["Pressure", "Density", "Momentum_0", "Momentum_1", 'vfrac']
+   (p, rho, rhou, rhov, c, vols), current_time, extent, plenum_dict = da.h5_load_spec_timepoint_variable(plenum, i, plenum_variables)
+   # # alternative:
+   # plenum_data, current_time, extent, plenum_dict = da.h5_load_spec_timepoint_variable(plenum, i, plenum_variables)
+   # p = plenum_data[plenum_dict['Pressure']]
+   # rho = plenum_data[plenum_dict['Density']]
+   # rhou = plenum_data[plenum_dict['Momentum_0']]
+   # rhov = plenum_data[plenum_dict['Momentum_1']]
+   # vols = plenum_data[plenum_dict['vfrac']]
+   
    f, axs = plt.subplots(nrows=1, ncols=3, figsize=(40. / 2, 10. / 2), gridspec_kw={'width_ratios': [3, 1, 1]})
    f.suptitle('Time = {:.2f}'.format(current_time))
    # pressure image
@@ -128,7 +123,7 @@ for i in range(nsteps):
    im_p = axs[0].contourf(p * p_ref, extent=extent, **pressure_options)
    for extent_tube, tube_p in zip(extent_tubes, Tube_p):
       midpoint = 0.5 * (extent_tube[2] + extent_tube[3])
-      D = 0.03
+      D = diameter_tube
       x = np.linspace(extent_tube[0], extent_tube[1], tube_n_cells)
       y_upper = midpoint + 0.5 * np.array([Area(xi) for xi in x]) * D
       y_lower = midpoint - 0.5 * np.array([Area(xi) for xi in x]) * D

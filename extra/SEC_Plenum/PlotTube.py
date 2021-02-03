@@ -1,69 +1,21 @@
+import sys, os
+# get the absolute path to the FUB FVS-Solver
+pathname = os.path.dirname(sys.argv[0])
+pathname = os.path.abspath(pathname)
+FVS_path = pathname.split('FiniteVolumeSolver')[0]+'FiniteVolumeSolver'
+sys.path.append(FVS_path+'/extra/')
+import amrex.plotfiles as da
+#from amrex.plotfiles import h5_load_timeseries
+
 import numpy as np
-import matplotlib 
+import matplotlib
 matplotlib.use('Agg') 
 
 import matplotlib.pyplot as plt
 import h5py
-import os
 
 os.environ['HDF5_USE_FILE_LOCKING'] = 'False'
 
-def Load(path, chunk=[]):
-    # @brief Reads grid data and time data from a specified hdf5 file.
-    # @param path The path of the HDF5 file
-    # @param dataset A string name of the main dataset containing the states data
-    # @param times A string name of the time dataset containing all time points
-    # @param chunk An optional [start, end] list that specifies how many time steps to load
-    file = h5py.File(path, "r")
-    if chunk:
-        data_array = np.array(file['data'][chunk[0]:chunk[1],0,:,:])
-        time_array = np.array(file['times'][chunk[0]:chunk[1]])
-    else:
-        data_array = np.array(file['data'][:, 0, :, :])
-        time_array = np.array(file['times'])
-    file.close()
-    return data_array, time_array
-
-  
-
-def set_size(width, fraction=1, subplots=(1, 1)):
-    """Set figure dimensions to avoid scaling in LaTeX.
-
-    Parameters
-    ----------
-    width: float or string
-            Document width in points, or string of predined document type
-    fraction: float, optional
-            Fraction of the width which you wish the figure to occupy
-    subplots: array-like, optional
-            The number of rows and columns of subplots.
-    Returns
-    -------
-    fig_dim: tuple
-            Dimensions of figure in inches
-    """
-    if width == 'thesis':
-        width_pt = 426.79135
-    elif width == 'beamer':
-        width_pt = 307.28987
-    else:
-        width_pt = width
-
-    # Width of figure (in pts)
-    fig_width_pt = width_pt * fraction
-    # Convert from pt to inches
-    inches_per_pt = 1 / 72.27
-
-    # Golden ratio to set aesthetic figure height
-    # https://disq.us/p/2940ij3
-    golden_ratio = (5**.5 - 1) / 2
-
-    # Figure width in inches
-    fig_width_in = fig_width_pt * inches_per_pt
-    # Figure height in inches
-    fig_height_in = fig_width_in * golden_ratio * (subplots[0] / subplots[1])
-
-    return (fig_width_in, fig_height_in)
 
 #plt.style.use('seaborn')
 tex_fonts = {
@@ -92,24 +44,25 @@ modes = ['average_massflow']
 mode_titles = ['Average Massflow']
 
 for mode, suptitle in zip(modes, mode_titles):
-  output_base_path = '/srv/public/Maikel/FiniteVolumeSolver/build_2D-Release/{}/Tube{}.h5'.format(mode, tube_id)
-  file = h5py.File(output_base_path, mode='r')
-  rho_data = np.squeeze(np.array(file['data'][:, 0, :, :]))
-  rhou_data = np.squeeze(np.array(file['data'][:, 1, :, :]))
-  # rhov_data = np.squeeze(np.array(file['data'][:, 2, :, :]))
-  rhoE_data = np.squeeze(np.array(file['data'][:, 2, :, :]))
-  rhoF_data = np.squeeze(np.array(file['data'][:, 3, :, :]))
-  rhoFR_data = np.squeeze(np.array(file['data'][:, 4, :, :]))
-  p_data = np.squeeze(np.array(file['data'][:, -2, :, :]))
-  c_data = np.squeeze(np.array(file['data'][:, -1, :, :]))
-  rhoP_data = rho_data - rhoF_data - rhoFR_data
+  output_base_path = FVS_path+'/build_2D-Release/{}/Tube{}.h5'.format(mode, tube_id)
+  datas, times, datas_dict = da.h5_load_timeseries(output_base_path)
+  extent_1d = da.h5_load_get_extent_1D(output_base_path)
+  
+  datas = np.squeeze(datas) # remove last axis
+  # print(datas.shape)
+  # print(datas_dict)
+
+  rho_data = datas[:, datas_dict['Density'], :]
+  rhou_data = datas[:, datas_dict['Momentum'], :]
+  rhoE_data = datas[:, datas_dict['Energy'], :]
+  rhoF_data = datas[:, datas_dict['Species'], :]
+  p_data = datas[:, datas_dict['Pressure'], :]
+  c_data = datas[:, datas_dict['SpeedOfSound'], :]
   T_data = p_data / rho_data
   F_data = rhoF_data / rho_data
-  times = np.squeeze(np.array(file['times']))
-  file.close()
 
-  x0 = -1.0
-  xEnd = -0.09
+  x0 = extent_1d[0]
+  xEnd = extent_1d[1]
   t0 = 0.0
   tEnd = times[-1]
 

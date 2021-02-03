@@ -6,6 +6,8 @@ pathname = os.path.abspath(pathname)
 FVS_path = pathname.split('FiniteVolumeSolver')[0]+'FiniteVolumeSolver'
 # print(FVS_path) 
 sys.path.append(FVS_path+'/extra/')
+# import amrex.plotfiles as da
+from amrex.plotfiles import h5_load_timeseries
 
 import yt
 import numpy as np
@@ -30,18 +32,6 @@ controlState = "{}/ControlState.h5".format(dataPath)
 outPath = dataPath
 output_path = '{}/Visualization'.format(outPath)
 
-def h5_load_timeseries(path):
-   file = h5py.File(path, mode='r')
-   strings = list(file['fields'].asstr())
-   indices = [strings.index(var) for var in strings]
-   dictionary = dict( zip(strings, indices) )
-   shape = file['data'].shape
-   datas = np.zeros((shape))
-   for i ,var in enumerate(indices):
-      datas[:,i] = file['data'][:, var]
-   time = np.array(file['times'])
-   file.close()
-   return datas, time, dictionary
 
 
 os.makedirs(output_path, exist_ok=True)
