@@ -64,7 +64,7 @@ tube_n_cells = int(tube_n_cells)
 
 RunOptions = {
   'cfl': 1.0,# / float(tube_n_cells / 64),
-  'final_time': 20.0,
+  'final_time': 4.0,
   'max_cycles': -1,
   'do_backup': 0
 }
@@ -97,7 +97,7 @@ ArrheniusKinetics = {
 }
 
 DiffusionSourceTerm = {
-  'mul': 3.0
+  'mul': 1.0
 }
 
 R_ref = 287.
@@ -120,7 +120,10 @@ ControlOptions = {
   'initial_turbine_pressure': p,
   'initial_turbine_temperature': T,
   'checkpoint': checkpoint,
-  'volume_turbine_plenum': TVolRPlen,
+  'volume_turbine_plenum': TVolRPlen / D,
+  'volume_compressor_plenum': TVolRPlen / D,
+  'surface_area_tube_inlet': 3.0,
+  'surface_area_tube_outlet': 4.0 * 3.0,
   'surface_area_turbine_plenum_to_turbine': plenum_y_length / (3*D),
 }
 
@@ -182,8 +185,8 @@ Plenum[boundary_condition] = [{
     'lower': [plenum_x_n_cells - 1, 0, 0],
     'upper': [plenum_x_n_cells - 1, plenum_y_n_cells - 1, 0]
   },
-  'relative_surface_area': plenum_y_length / (3.0 * D),
-  'massflow_correlation': 0.06,
+  'relative_surface_area': ControlOptions['surface_area_turbine_plenum_to_turbine'], 
+  'massflow_correlation': 0.06 * 4.0,
 }]
 
 def TubeCenterPoint(x0, y0):
@@ -263,7 +266,8 @@ Output = {
     {
       'type': 'ControlOutput',
       'path': '{}/ControlState.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
-      'intervals': [0.001]
+      'intervals': [0.001],
+      # 'frequencies': [1]
     },
   {
     'type': 'HDF5',

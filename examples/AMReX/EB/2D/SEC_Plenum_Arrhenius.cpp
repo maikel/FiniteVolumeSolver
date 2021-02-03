@@ -78,6 +78,9 @@ static_assert(AMREX_SPACEDIM == 2);
 
 static constexpr double r_tube = 0.015;
 
+static constexpr int n_species = 2;
+static constexpr int n_passive_scalars = 1;
+
 struct ChangeTOpened {
   template <typename EulerEquation>
   [[nodiscard]] std::optional<fub::Duration>
@@ -138,6 +141,7 @@ struct InitialDataInTube {
             state.density = rho;
             state.mole_fractions[0] = (rel_x < initially_filled_x_) ? 1.0 : 0.0;
             state.mole_fractions[1] = (rel_x < initially_filled_x_) ? 0.0 : 1.0;
+            state.passive_scalars[0] = -x;
             fub::euler::CompleteFromKineticState(equation_, complete, state,
                                                  velocity);
             fub::Store(states, complete, {i});
@@ -168,7 +172,7 @@ auto MakeTubeSolver(
 
   using Eq = fub::PerfectGasMix<Tube_Rank>;
   using Complete = Eq::Complete;
-  fub::PerfectGasMix<Tube_Rank> equation{constants, 1};
+  fub::PerfectGasMix<Tube_Rank> equation{constants, n_species - 1, n_passive_scalars};
 
   GradientDetector gradient{equation, std::make_pair(&Complete::density, 1e-2),
                             std::make_pair(&Complete::pressure, 1e-2)};
@@ -394,8 +398,7 @@ auto MakePlenumSolver(const std::map<std::string, pybind11::object>& options,
         MakeIndexSpaces(shop, grid_geometry, hierarchy_options);
   }
 
-  constexpr static int n_species = 2;
-  fub::PerfectGasMix<Plenum_Rank> equation{constants, 1};
+  fub::PerfectGasMix<Plenum_Rank> equation{constants, n_species - 1, n_passive_scalars};
 
   fub::Complete<fub::PerfectGasMix<Plenum_Rank>> left(equation);
   fub::Complete<fub::PerfectGasMix<Plenum_Rank>> right(equation);
@@ -678,8 +681,8 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   BOOST_LOG(log) << fmt::format("  - Rspec = {}", constants.Rspec);
   BOOST_LOG(log) << fmt::format("  - gamma = {}", constants.gamma);
 
-  fub::PerfectGasMix<Plenum_Rank> plenum_equation{constants, 1};
-  fub::PerfectGasMix<Tube_Rank> tube_equation{constants, 1};
+  fub::PerfectGasMix<Plenum_Rank> plenum_equation{constants, n_species - 1, n_passive_scalars};
+  fub::PerfectGasMix<Tube_Rank> tube_equation{constants, n_species - 1, n_passive_scalars};
   fub::ProgramOptions control_options_map =
       fub::GetOptions(vm, "ControlOptions");
   GT::ControlOptions control_options(control_options_map);

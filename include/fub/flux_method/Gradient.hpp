@@ -303,6 +303,11 @@ void ComputeAmplitudes(Characteristics<Equation>& amplitudes,
       amplitudes.species[i] = (right.species[i] - left.species[i]) / dx;
     }
   }
+  if constexpr (fub::euler::state_with_passive_scalars<Primitive<Equation>>()) {
+    for (int i = 0; i < amplitudes.passive_scalars.size(); ++i) {
+      amplitudes.passive_scalars[i] = (right.passive_scalars[i] - left.passive_scalars[i]) / dx;
+    }
+  }
 }
 
 template <typename Equation>
@@ -327,6 +332,12 @@ void ComputeAmplitudes(CharacteristicsArray<Equation>& amplitudes,
     for (int i = 0; i < amplitudes.species.rows(); ++i) {
       amplitudes.species.row(i) =
           (right.species.row(i) - left.species.row(i)) / dx;
+    }
+  }
+  if constexpr (fub::euler::state_with_passive_scalars<Primitive<Equation>>()) {
+    for (int i = 0; i < amplitudes.passive_scalars.rows(); ++i) {
+      amplitudes.passive_scalars.row(i) =
+          (right.passive_scalars.row(i) - left.passive_scalars.row(i)) / dx;
     }
   }
 }

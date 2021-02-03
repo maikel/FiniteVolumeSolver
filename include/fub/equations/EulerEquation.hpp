@@ -342,6 +342,16 @@ template <typename Equation, typename State>
 struct state_with_species : is_invocable<decltype(fub::euler::Species),
                                          const Equation&, const State&> {};
 
+namespace meta {
+
+template <typename State>
+using passive_scalars_t = decltype(std::declval<State>().passive_scalars);
+
+}
+
+template <typename State>
+struct state_with_passive_scalars : is_detected<meta::passive_scalars_t, State> {};
+
 } // namespace fub::euler
 
 #endif

@@ -37,6 +37,9 @@ void PerfectGasMix<Dim>::Flux(Conservative& flux, const Complete& state,
   for (int s = 0; s < n_species; ++s) {
     flux.species[s] = velocity * state.species[s];
   }
+  for (int s = 0; s < n_passive_scalars; ++s) {
+    flux.passive_scalars[s] = velocity * state.passive_scalars[s];
+  }
 }
 
 template <int Dim>
@@ -53,6 +56,9 @@ void PerfectGasMix<Dim>::Flux(ConservativeArray& flux,
   flux.energy = velocity * (state.energy + state.pressure);
   for (int s = 0; s < flux.species.rows(); ++s) {
     flux.species.row(s) = velocity * state.species.row(s);
+  }
+  for (int s = 0; s < flux.passive_scalars.rows(); ++s) {
+    flux.passive_scalars.row(s) = velocity * state.passive_scalars.row(s);
   }
 }
 
@@ -74,6 +80,9 @@ void PerfectGasMix<Dim>::Flux(ConservativeArray& flux,
   for (int s = 0; s < flux.species.rows(); ++s) {
     flux.species.row(s) = velocity * state.species.row(s);
   }
+  for (int s = 0; s < flux.passive_scalars.rows(); ++s) {
+    flux.passive_scalars.row(s) = velocity * state.passive_scalars.row(s);
+  }
 }
 
 template <int Dim>
@@ -85,6 +94,9 @@ void PerfectGasMix<Dim>::CompleteFromCons(
   complete.energy = cons.energy;
   for (int s = 0; s < complete.species.size(); ++s) {
     complete.species[s] = cons.species[s];
+  }
+  for (int s = 0; s < complete.passive_scalars.size(); ++s) {
+    complete.passive_scalars[s] = cons.passive_scalars[s];
   }
   const double e_kin = euler::KineticEnergy(cons.density, cons.momentum);
   FUB_ASSERT(e_kin < cons.energy);
@@ -104,6 +116,9 @@ void PerfectGasMix<Dim>::CompleteFromCons(
   complete.energy = cons.energy;
   for (int s = 0; s < complete.species.rows(); ++s) {
     complete.species.row(s) = cons.species.row(s);
+  }
+  for (int s = 0; s < complete.passive_scalars.rows(); ++s) {
+    complete.passive_scalars.row(s) = cons.passive_scalars.row(s);
   }
   const Array1d e_kin = euler::KineticEnergy(cons.density, cons.momentum);
   const Array1d e_int = cons.energy - e_kin;
@@ -126,6 +141,9 @@ void PerfectGasMix<Dim>::CompleteFromCons(
   for (int s = 0; s < complete.species.rows(); ++s) {
     complete.species.row(s) = mask.select(cons.species.row(s), zero);
   }
+  for (int s = 0; s < complete.passive_scalars.rows(); ++s) {
+    complete.passive_scalars.row(s) = mask.select(cons.passive_scalars.row(s), zero);
+  }
   const Array1d e_kin = euler::KineticEnergy(cons.density, cons.momentum, mask);
   const Array1d e_int = cons.energy - e_kin;
   complete.pressure = mask.select(e_int / gamma_minus_one_inv, zero);
@@ -138,13 +156,16 @@ void PerfectGasMix<Dim>::CompleteFromCons(
 template <int Dim>
 Complete<PerfectGasMix<Dim>> PerfectGasMix<Dim>::CompleteFromPrim(
     double rho, const Array<double, Dim, 1>& v, double p,
-    const Array<double, -1, 1>& species) const noexcept {
+    const Array<double, -1, 1>& species, const Array<double, -1, 1>& passive_scalars) const noexcept {
   Complete q{*this};
   q.density = rho;
   q.momentum = rho * v;
   q.pressure = p;
   for (int s = 0; s < n_species; ++s) {
     q.species[s] = q.density * species[s];
+  }
+  for (int s = 0; s < n_passive_scalars; ++s) {
+    q.passive_scalars[s] = q.density * passive_scalars[s];
   }
   const double e_kin = euler::KineticEnergy(q.density, q.momentum);
   q.energy = e_kin + p * gamma_minus_one_inv;
@@ -201,6 +222,9 @@ void Rotate(Conservative<PerfectGasMix<2>>& rotated,
   for (int s = 0; s < rotated.species.size(); ++s) {
     rotated.species[s] = state.species[s];
   }
+  for (int s = 0; s < rotated.passive_scalars.size(); ++s) {
+    rotated.passive_scalars[s] = state.passive_scalars[s];
+  }
 }
 
 void Rotate(Complete<PerfectGasMix<2>>& rotated,
@@ -215,6 +239,9 @@ void Rotate(Complete<PerfectGasMix<2>>& rotated,
   for (int s = 0; s < rotated.species.size(); ++s) {
     rotated.species[s] = state.species[s];
   }
+  for (int s = 0; s < rotated.passive_scalars.size(); ++s) {
+    rotated.passive_scalars[s] = state.passive_scalars[s];
+  }
 }
 
 void Rotate(Conservative<PerfectGasMix<3>>& rotated,
@@ -226,6 +253,9 @@ void Rotate(Conservative<PerfectGasMix<3>>& rotated,
   rotated.momentum = (rotation * state.momentum.matrix()).array();
   for (int s = 0; s < rotated.species.size(); ++s) {
     rotated.species[s] = state.species[s];
+  }
+  for (int s = 0; s < rotated.passive_scalars.size(); ++s) {
+    rotated.passive_scalars[s] = state.passive_scalars[s];
   }
 }
 
@@ -240,6 +270,9 @@ void Rotate(Complete<PerfectGasMix<3>>& rotated,
   rotated.momentum = (rotation * state.momentum.matrix()).array();
   for (int s = 0; s < rotated.species.size(); ++s) {
     rotated.species[s] = state.species[s];
+  }
+  for (int s = 0; s < rotated.passive_scalars.size(); ++s) {
+    rotated.passive_scalars[s] = state.passive_scalars[s];
   }
 }
 
@@ -257,6 +290,9 @@ void Reflect(Complete<PerfectGasMix<1>>& reflected,
   for (int s = 0; s < reflected.species.size(); ++s) {
     reflected.species[s] = state.species[s];
   }
+  for (int s = 0; s < reflected.passive_scalars.size(); ++s) {
+    reflected.passive_scalars[s] = state.passive_scalars[s];
+  }
 }
 
 void Reflect(Complete<PerfectGasMix<2>>& reflected,
@@ -271,6 +307,9 @@ void Reflect(Complete<PerfectGasMix<2>>& reflected,
       2 * (state.momentum.matrix().dot(normal) * normal).array();
   for (int s = 0; s < reflected.species.size(); ++s) {
     reflected.species[s] = state.species[s];
+  }
+  for (int s = 0; s < reflected.passive_scalars.size(); ++s) {
+    reflected.passive_scalars[s] = state.passive_scalars[s];
   }
 }
 
@@ -287,6 +326,9 @@ void Reflect(Complete<PerfectGasMix<3>>& reflected,
   for (int s = 0; s < reflected.species.size(); ++s) {
     reflected.species[s] = state.species[s];
   }
+  for (int s = 0; s < reflected.passive_scalars.size(); ++s) {
+    reflected.passive_scalars[s] = state.passive_scalars[s];
+  }
 }
 
 void Reflect(Conservative<PerfectGasMix<1>>& reflected,
@@ -301,6 +343,9 @@ void Reflect(Conservative<PerfectGasMix<1>>& reflected,
   for (int s = 0; s < reflected.species.size(); ++s) {
     reflected.species[s] = state.species[s];
   }
+  for (int s = 0; s < reflected.passive_scalars.size(); ++s) {
+    reflected.passive_scalars[s] = state.passive_scalars[s];
+  }
 }
 
 void Reflect(Conservative<PerfectGasMix<2>>& reflected,
@@ -314,6 +359,9 @@ void Reflect(Conservative<PerfectGasMix<2>>& reflected,
   for (int s = 0; s < reflected.species.size(); ++s) {
     reflected.species[s] = state.species[s];
   }
+  for (int s = 0; s < reflected.passive_scalars.size(); ++s) {
+    reflected.passive_scalars[s] = state.passive_scalars[s];
+  }
 }
 
 void Reflect(Conservative<PerfectGasMix<3>>& reflected,
@@ -326,6 +374,9 @@ void Reflect(Conservative<PerfectGasMix<3>>& reflected,
       2 * (state.momentum.matrix().dot(normal) * normal).array();
   for (int s = 0; s < reflected.species.size(); ++s) {
     reflected.species[s] = state.species[s];
+  }
+  for (int s = 0; s < reflected.passive_scalars.size(); ++s) {
+    reflected.passive_scalars[s] = state.passive_scalars[s];
   }
 }
 

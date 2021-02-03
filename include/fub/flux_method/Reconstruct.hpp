@@ -223,6 +223,14 @@ void PrimitiveReconstruction<EulerEquation>::Reconstruct(
           dx_half * (dw_dx.species[i] - lambda * u * dw_dx.species[i]);
     }
   }
+  if constexpr (fub::euler::state_with_passive_scalars<Primitive>()) {
+    for (int i = 0; i < w_rec_.passive_scalars.size(); ++i) {
+      w_rec_.passive_scalars[i] =
+          w_.passive_scalars[i] +
+          dx_half * (dw_dx.passive_scalars[i] -
+                     lambda * u * dw_dx.passive_scalars[i]);
+    }
+  }
   CompleteFromPrim(equation_, reconstruction, w_rec_);
 }
 
@@ -257,14 +265,23 @@ void PrimitiveReconstruction<EulerEquation>::Reconstruct(
   for (int i = 1; i < Rank; ++i) {
     const int iy = (ix + i) % Rank;
     w_rec_array_.velocity.row(iy) =
-        w_array_.velocity.row(iy) + dx_half * (dw_dx.velocity.row(iy) -
-                                         lambda * u * dw_dx.velocity.row(iy));
+        w_array_.velocity.row(iy) +
+        dx_half *
+            (dw_dx.velocity.row(iy) - lambda * u * dw_dx.velocity.row(iy));
   }
   if constexpr (fub::euler::state_with_species<EulerEquation, Primitive>()) {
     for (int i = 0; i < w_rec_array_.species.rows(); ++i) {
       w_rec_array_.species.row(i) =
           w_array_.species.row(i) +
           dx_half * (dw_dx.species.row(i) - lambda * u * dw_dx.species.row(i));
+    }
+  }
+  if constexpr (fub::euler::state_with_passive_scalars<Primitive>()) {
+    for (int i = 0; i < w_rec_array_.passive_scalars.rows(); ++i) {
+      w_rec_array_.passive_scalars.row(i) =
+          w_array_.passive_scalars.row(i) +
+          dx_half * (dw_dx.passive_scalars.row(i) -
+                     lambda * u * dw_dx.passive_scalars.row(i));
     }
   }
   CompleteFromPrim(equation_, reconstruction, w_rec_array_);
@@ -291,6 +308,12 @@ void CharacteristicsReconstruction<EulerEquation>::Reconstruct(
       dKdt_.species[i] = dx_half * dKdx.species[i] * (1.0 - lambda * u);
     }
   }
+  if constexpr (fub::euler::state_with_passive_scalars<Primitive>()) {
+    for (int i = 0; i < dKdt_.passive_scalars.size(); ++i) {
+      dKdt_.passive_scalars[i] =
+          dx_half * dKdx.passive_scalars[i] * (1.0 - lambda * u);
+    }
+  }
   const double rho = w_rec_.density;
   const double rhoc = rho * c;
   const double c2 = c * c;
@@ -305,6 +328,11 @@ void CharacteristicsReconstruction<EulerEquation>::Reconstruct(
   if constexpr (fub::euler::state_with_species<EulerEquation, Primitive>()) {
     for (int i = 0; i < dKdt_.species.size(); ++i) {
       dwdt_.species[i] = dKdt_.species[i];
+    }
+  }
+  if constexpr (fub::euler::state_with_passive_scalars<Primitive>()) {
+    for (int i = 0; i < dKdt_.passive_scalars.size(); ++i) {
+      dwdt_.passive_scalars[i] = dKdt_.passive_scalars[i];
     }
   }
   w_rec_ += dwdt_;
@@ -337,12 +365,20 @@ void CharacteristicsReconstruction<EulerEquation>::Reconstruct(
           dx_half * dKdx.species.row(i) * (Array1d::Constant(1.0) - lambda * u);
     }
   }
+  if constexpr (fub::euler::state_with_passive_scalars<Primitive>()) {
+    for (int i = 0; i < dKdt_array_.passive_scalars.rows(); ++i) {
+      dKdt_array_.passive_scalars.row(i) =
+          dx_half * dKdx.passive_scalars.row(i) *
+          (Array1d::Constant(1.0) - lambda * u);
+    }
+  }
   const Array1d rho = w_rec_array_.density;
   const Array1d rhoc = rho * c;
   const Array1d c2 = c * c;
   dwdt_array_.pressure = 0.5 * (dKdt_array_.minus + dKdt_array_.plus);
   dwdt_array_.density = dwdt_array_.pressure / c2 + dKdt_array_.zero.row(0);
-  dwdt_array_.velocity.row(ix) = 0.5 * (dKdt_array_.plus - dKdt_array_.minus) / rhoc;
+  dwdt_array_.velocity.row(ix) =
+      0.5 * (dKdt_array_.plus - dKdt_array_.minus) / rhoc;
   constexpr int Rank = EulerEquation::Rank();
   for (int i = 1; i < Rank; ++i) {
     const int iy = (ix + i) % Rank;
@@ -351,6 +387,11 @@ void CharacteristicsReconstruction<EulerEquation>::Reconstruct(
   if constexpr (fub::euler::state_with_species<EulerEquation, Primitive>()) {
     for (int i = 0; i < dKdt_array_.species.rows(); ++i) {
       dwdt_array_.species.row(i) = dKdt_array_.species.row(i);
+    }
+  }
+  if constexpr (fub::euler::state_with_passive_scalars<Primitive>()) {
+    for (int i = 0; i < dKdt_array_.passive_scalars.rows(); ++i) {
+      dwdt_array_.passive_scalars.row(i) = dKdt_array_.passive_scalars.row(i);
     }
   }
   w_rec_array_ += dwdt_array_;
