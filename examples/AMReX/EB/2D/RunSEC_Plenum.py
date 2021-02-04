@@ -12,10 +12,10 @@ build_dir = "{}/build_2D-Release".format(src_dir)
 work_dir = "{}/SEC_Plenum".format(build_dir)
 
 application_dir = "{}/examples".format(build_dir)
-application_src = "{}/AMReX.EB.SEC_Plenum".format(application_dir)
-application_dest = "{}/AMReX.EB.SEC_Plenum".format(work_dir)
+application_src = "{}/AMReX.EB.SEC_Plenum_Arrhenius".format(application_dir)
+application_dest = "{}/AMReX.EB.SEC_Plenum_Arrhenius".format(work_dir)
 
-input_file = "{}/examples/AMReX/EB/2D/SEC_Plenum.py".format(src_dir)
+input_file = "{}/examples/AMReX/EB/2D/SEC_Plenum_Arrhenius.py".format(src_dir)
 
 os.makedirs(work_dir, exist_ok=True)
 os.chdir(work_dir)
