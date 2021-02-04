@@ -22,6 +22,7 @@
 #include "fub/AMReX_CutCell.hpp"
 #include "fub/Solver.hpp"
 
+#include "fub/AMReX/cutcell/FluxMethodFactory.hpp"
 #include "fub/flux_method/MusclHancockMethod2.hpp"
 
 #include <AMReX_EB2_IF_Cylinder.H>
@@ -40,28 +41,6 @@
 #include <fstream>
 #include <iostream>
 #include <string>
-
-using HLLEM = fub::perfect_gas::HllemMethod<fub::PerfectGas<2>>;
-
-using ConservativeReconstruction = fub::FluxMethod<fub::MusclHancock2<
-    fub::PerfectGas<2>,
-    fub::ConservativeGradient<
-        fub::PerfectGas<2>,
-        fub::CentralDifferenceGradient<fub::VanLeerLimiter>>,
-    fub::ConservativeReconstruction<fub::PerfectGas<2>>, HLLEM>>;
-
-using PrimitiveReconstruction = fub::FluxMethod<fub::MusclHancock2<
-    fub::PerfectGas<2>,
-    fub::PrimitiveGradient<fub::PerfectGas<2>, fub::CentralDifferenceGradient<
-                                                    fub::VanLeerLimiter>>,
-    fub::PrimitiveReconstruction<fub::PerfectGas<2>>, HLLEM>>;
-
-using CharacteristicsReconstruction = fub::FluxMethod<fub::MusclHancock2<
-    fub::PerfectGas<2>,
-    fub::CharacteristicsGradient<
-        fub::PerfectGas<2>,
-        fub::CentralDifferenceGradient<fub::VanLeerLimiter>>,
-    fub::CharacteristicsReconstruction<fub::PerfectGas<2>>, HLLEM>>;
 
 fub::Polygon ReadPolygonData(std::istream& input) {
   std::string line{};
@@ -130,27 +109,6 @@ struct ShockMachnumber
             post_shock) {}
 };
 
-using FactoryFunction =
-    std::function<fub::AnyFluxMethod<fub::amrex::cutcell::IntegratorContext>(
-        const fub::PerfectGas<2>&)>;
-
-template <typename... Pairs> auto GetFluxMethodFactory(Pairs... ps) {
-  std::map<std::string, FactoryFunction> factory;
-  ((factory[ps.first] = ps.second), ...);
-  return factory;
-}
-
-template <typename FluxMethod> struct MakeFlux {
-  fub::AnyFluxMethod<fub::amrex::cutcell::IntegratorContext>
-  operator()(const fub::PerfectGas<2>& eq) const {
-    HLLEM hllem{eq};
-    FluxMethod flux_method{eq};
-    fub::KbnCutCellMethod cutcell_method(flux_method, hllem);
-    fub::amrex::cutcell::FluxMethod adapter(std::move(cutcell_method));
-    return adapter;
-  }
-};
-
 void MyMain(const fub::ProgramOptions& options) {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
@@ -164,7 +122,8 @@ void MyMain(const fub::ProgramOptions& options) {
   equation.Rspec = fub::GetOptionOr(equation_options, "Rpsec", equation.Rspec);
   equation.gamma_minus_1_inv = 1.0 / (equation.gamma - 1.0);
   equation.gamma_array_ = fub::Array1d::Constant(equation.gamma);
-  equation.gamma_minus_1_inv_array_ = fub::Array1d::Constant(equation.gamma_minus_1_inv);
+  equation.gamma_minus_1_inv_array_ =
+      fub::Array1d::Constant(equation.gamma_minus_1_inv);
 
   BOOST_LOG(log) << "Equation:";
   BOOST_LOG(log) << fmt::format(" - gamma = {}", equation.gamma);
@@ -248,16 +207,9 @@ void MyMain(const fub::ProgramOptions& options) {
   gridding->InitializeHierarchy(0.0);
 
   using namespace std::literals;
-  auto flux_method_factory = GetFluxMethodFactory(
-      std::pair{"NoReconstruct"s, MakeFlux<HLLEM>()},
-      std::pair{"Conservative"s, MakeFlux<ConservativeReconstruction>()},
-      std::pair{"Primitive"s, MakeFlux<PrimitiveReconstruction>()},
-      std::pair{"Characteristics"s, MakeFlux<CharacteristicsReconstruction>()});
 
-  std::string reconstruction =
-      fub::GetOptionOr(options, "reconstruction", "Characteristics"s);
-  BOOST_LOG(log) << "Reconstruction: " << reconstruction;
-  auto flux_method = flux_method_factory.at(reconstruction)(equation);
+  auto flux_method = fub::amrex::cutcell::GetCutCellMethod(
+      fub::GetOptions(options, "FluxMethod"), equation);
 
   HyperbolicMethod method{flux_method, TimeIntegrator{},
                           Reconstruction{equation}};
@@ -271,8 +223,8 @@ void MyMain(const fub::ProgramOptions& options) {
   // fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
   fub::NoSubcycleSolver solver(std::move(level_integrator));
 
-  using CounterOutput = fub::CounterOutput<GriddingAlgorithm,
-                                           std::chrono::milliseconds>;
+  using CounterOutput =
+      fub::CounterOutput<GriddingAlgorithm, std::chrono::milliseconds>;
   using Plotfile = PlotfileOutput<fub::PerfectGas<2>>;
   fub::OutputFactory<GriddingAlgorithm> factory{};
   factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
