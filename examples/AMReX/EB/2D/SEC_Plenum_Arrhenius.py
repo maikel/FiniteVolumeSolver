@@ -99,11 +99,13 @@ ArrheniusKinetics = {
 DiffusionSourceTerm = {
   'mul': 1.0
 }
-
 R_ref = 287.
 p_ref = 101325.
 T_ref = 300.
+L_ref = 1.0
 rho_ref = p_ref / T_ref / R_ref
+u_ref = math.sqrt(p_ref / rho_ref)
+t_ref = L_ref / u_ref
 
 p0 = 2.0
 rho0 = math.pow(p0, 1.0 / gamma)
@@ -115,16 +117,34 @@ rho = p / T
 # checkpoint = '/srv/public/Maikel/FiniteVolumeSolver/build_2D-Debug/Checkpoint/000000005'
 checkpoint = ''
 
+
+def Area(xi):
+  A0  = 1.0
+  A1  = 4.0 # Reference: 3.0; best: 4.0 
+  xi0 = 0.0625 - 1.0
+  xi1 = 0.75 - 1.0   # Reference: 0.5; best: 0.75
+  Ax = 1.0 if xi < xi0 else A0 + (A1-A0)*(xi-xi0)/(xi1-xi0) if xi < xi1 else A1
+  return Ax
+  #return 1.0
+
 ControlOptions = {
   'Q': ArrheniusKinetics['Q'],
+  'rpmmin': (10000.0 / 60.) * t_ref,
+  'rpmmax': (60000.0 / 60.) * t_ref,
   'initial_turbine_pressure': p,
   'initial_turbine_temperature': T,
   'checkpoint': checkpoint,
+  # Tube surface
+  'surface_area_tube_inlet': Area(-1.0) * D / D,
+  'surface_area_tube_outlet': Area(0.0) * D / D,
+  # Turbine volumes and surfaces
   'volume_turbine_plenum': TVolRPlen / D,
+  'surface_area_tube_inlet': (3.0 * Area(-1.0) * D) / D,
+  'surface_area_tube_outlet': (3.0 * Area(0.0) * D) / D,
+  'surface_area_turbine_plenum_to_turbine': plenum_y_length / D,
+  # Compressor volumes and surfaces
   'volume_compressor_plenum': TVolRPlen / D,
-  'surface_area_tube_inlet': 3.0,
-  'surface_area_tube_outlet': 4.0 * 3.0,
-  'surface_area_turbine_plenum_to_turbine': plenum_y_length / (3*D),
+  'surface_area_compressor_to_compressor_plenum': (8.0 * D) / D,
 }
 
 def ToCellIndex(x, xlo, xhi, ncells):
@@ -219,14 +239,6 @@ def BoxWhichContains(real_box):
 def PlenumMirrorBox(y0):
   return BoxWhichContains(DomainAroundPoint(TubeCenterPoint(-inlet_length, y0), [0.0, -2.0 * D], [inlet_length, +2.0 * D]))
 
-def Area(xi):
-  A0  = 1.0
-  A1  = 4.0 # Reference: 3.0; best: 4.0 
-  xi0 = 0.0625 - 1.0
-  xi1 = 0.75 - 1.0   # Reference: 0.5; best: 0.75
-  Ax = 1.0 if xi < xi0 else A0 + (A1-A0)*(xi-xi0)/(xi1-xi0) if xi < xi1 else A1
-  return Ax
-  #return 1.0
 
 Tube_FluxMethod = FluxMethod
 Tube_FluxMethod['area_variation'] = Area

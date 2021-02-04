@@ -23,10 +23,8 @@ dataPath = FVS_path+"/build_2D-Release/average_massflow"
 inputFilePath = FVS_path+"/examples/AMReX/EB/2D/"
 
 
-# sys.path.append(inputFilePath)
-# from SEC_Plenum_Arrhenius import y0s, Area, tube_n_cells, p_ref, T_ref, rho_ref, Output
-
-
+sys.path.append(inputFilePath)
+from SEC_Plenum_Arrhenius import t_ref, ControlOptions
 
 controlState = "{}/ControlState.h5".format(dataPath)
 outPath = dataPath
@@ -46,6 +44,8 @@ f, axs = plt.subplots(nrows=3, ncols=2, figsize=(17/2,20/2) )
 f.suptitle('control_state')
 
 plotKeyList = ['mass_flow', 'power', 'pressure', 'temperature', 'rpm', 'fuel']
+
+datas[:, datas_dict['current_rpm']] = datas[:, datas_dict['current_rpm']] / ControlOptions['rpmmax']
 
 for ax, subKey in zip(axs.flatten(), plotKeyList):
    subKeyList = getSubKeyList(subKey)
