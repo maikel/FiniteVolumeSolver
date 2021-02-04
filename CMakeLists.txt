@@ -437,7 +437,9 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     src/AMReX/IntegratorContext.cpp
     src/AMReX/tagging_method/TagBuffer.cpp
     src/AMReX/tagging_method/ConstantRegion.cpp
-    src/geometry/Union.cpp)
+    src/geometry/Union.cpp
+    src/AMReX/output/WriteHdf5Impl.hpp
+    src/AMReX/output/WriteHdf5Impl.cpp)
   target_include_directories(FiniteVolumeSolver.AMReX
     PUBLIC
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -548,7 +550,9 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         src/AMReX/multi_block/MultiBlockIntegratorContext2.cpp
         src/AMReX/multi_block/MultiBlockKineticSourceTerm.cpp
         src/AMReX/multi_block/MultiBlockIgniteDetonation.cpp
-        src/equations/perfect_gas_mix/PlenaContol.cpp)
+        src/equations/perfect_gas_mix/PlenaContol.cpp
+        src/AMReX/cutcell/output/WriteHdf5Impl.hpp
+        src/AMReX/cutcell/output/WriteHdf5Impl.cpp)
     target_compile_options(FiniteVolumeSolver.AMReX.EB
       PRIVATE
         $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
@@ -559,6 +563,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     set_property(TARGET FiniteVolumeSolver.AMReX.EB PROPERTY CXX_VISIBILITY_PRESET "hidden")
     set_property(TARGET FiniteVolumeSolver.AMReX.EB PROPERTY VISIBILITY_INLINES_HIDDEN "hidden")
     target_link_libraries(FiniteVolumeSolver.AMReX.EB PUBLIC FiniteVolumeSolver.AMReX)
+    target_include_directories(FiniteVolumeSolver.AMReX.EB PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
   endif()
 
   if (FUB_WITH_OPENMP AND AMREX_ENABLE_OMP)
