@@ -36,8 +36,6 @@ plenum = "{}/Plenum.h5".format(dataPath)
 outPath = dataPath
 output_path = '{}/Visualization/Plenum/'.format(outPath)
 
-
-
 # Get nsteps from plenum
 file = h5py.File(plenum, mode='r')
 nsteps = file['data'].shape[0]
@@ -85,8 +83,8 @@ def stackTubeDataTo2D(Tube_datalist):
       Tube_datalist[i] = np.stack((el,el))
    return Tube_datalist
 
-for i in itertools.dropwhile(lambda x: x < 53, range(nsteps)):
-# for i in range(nsteps):
+# for i in itertools.dropwhile(lambda x: x < 53, range(nsteps)):
+for i in itertools.dropwhile(lambda i: i < 624, range(nsteps)):
    PrintProgress(i)
    
    Tube_p = []
@@ -199,3 +197,8 @@ for i in itertools.dropwhile(lambda x: x < 53, range(nsteps)):
    f.savefig('{}/Figure{:04d}.png'.format(output_path, i), bbox_inches='tight')
    f.clear()
    plt.close(f)
+
+
+# Call ffmpeg to make a movie
+
+os.system('ffmpeg -framerate 20 -i {}/Figure%04d.png -crf 20 {}/../Movie.mkv'.format(output_path, output_path))
