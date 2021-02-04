@@ -115,7 +115,8 @@ void RunSimulation(Solver& solver, RunOptions options,
           failure_dt ? *failure_dt : solver.ComputeStableDt();
       FUB_ASSERT(stable_dt > eps);
       const fub::Duration limited_dt =
-          std::min(next_output_time - time_point, options.cfl * stable_dt);
+          std::min({options.final_time - time_point,
+                    next_output_time - time_point, options.cfl * stable_dt});
 
       // Advance the hierarchy in time!
       boost::outcome_v2::result<void, TimeStepTooLarge> result =

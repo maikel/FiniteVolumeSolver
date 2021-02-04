@@ -23,6 +23,7 @@
 
 #include "fub/equations/PerfectGas.hpp"
 #include "fub/ExactRiemannSolver.hpp"
+#include "fub/Duration.hpp"
 
 namespace fub {
 
@@ -35,6 +36,10 @@ public:
       : equation_{equation} {}
 
   /// Returns either left or right, depending on the upwind velocity.
+  void SolveRiemannProblem(
+    Complete& state, const Complete& left, const Complete& right, double, double, Duration dt, double dx,
+    Direction dir);
+
   void SolveRiemannProblem(Complete& state, const Complete& left,
                            const Complete& right, Direction dir);
 

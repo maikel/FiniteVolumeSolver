@@ -199,6 +199,7 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/equations/Burgers.hpp
   include/fub/equations/IdealGasMix.hpp
   include/fub/equations/PerfectGas.hpp
+  include/fub/equations/PerfectGasMix.hpp
   include/fub/equations/perfect_gas/ExactRiemannSolver.hpp
   include/fub/equations/perfect_gas/EinfeldtSignalVelocities.hpp
   include/fub/equations/perfect_gas/HllemMethod.hpp
@@ -216,6 +217,7 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/flux_method/HllMethod.hpp
   include/fub/flux_method/MusclHancockMethod.hpp
   include/fub/cutcell_method/KbnStabilisation.hpp
+  include/fub/cutcell_method/MyStabilisation.hpp
   include/fub/initial_data/Constant.hpp
   include/fub/initial_data/ShockMachnumber.hpp
   include/fub/tagging_method/GradientDetector.hpp
@@ -302,6 +304,9 @@ add_library(FiniteVolumeSolver.Solver
   src/equations/perfect_gas/MusclHancockCharacteristicMethod_1d.cpp
   src/equations/perfect_gas/MusclHancockCharacteristicMethod_2d.cpp
   src/equations/perfect_gas/MusclHancockCharacteristicMethod_3d.cpp
+  src/equations/PerfectGasMix.cpp
+  src/equations/perfect_gas_mix/HllemMethod_1d.cpp
+  src/equations/perfect_gas_mix/HllemMethod_2d.cpp
   src/equations/IdealGasMix.cpp
   src/equations/ideal_gas_mix/EinfeldtSignalVelocities_1d.cpp
   src/equations/ideal_gas_mix/EinfeldtSignalVelocities_2d.cpp
@@ -319,6 +324,7 @@ add_library(FiniteVolumeSolver.Solver
   src/geometry/Cone.cpp
   src/equations/ideal_gas_mix/mechanism/Burke2012.cpp
   src/cutcell_method/KbnStabilisation.cpp
+  src/cutcell_method/MyStabilisation.cpp
   src/tagging_method/TagBuffer.cpp
   src/tagging_method/TagCutCells.cpp
   src/ext/Mpi.cpp
@@ -405,6 +411,8 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     src/equations/CompressibleAdvection.cpp
     src/AMReX/output/WriteHdf5.cpp
     src/equations/ideal_gas_mix/KineticSourceTerm.cpp
+    src/equations/perfect_gas_mix/IgnitionDelayKinetics.cpp
+    src/equations/perfect_gas_mix/ArrheniusKinetics.cpp
     src/AMReX/boundary_condition/BoundarySet.cpp
     src/AMReX/boundary_condition/TransmissiveBoundary.cpp
     src/AMReX/boundary_condition/IsentropicPressureBoundary.cpp
@@ -415,6 +423,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     src/AMReX/ScopeGuard.cpp
     src/AMReX/CartesianGridGeometry.cpp
     src/AMReX/ViewFArrayBox.cpp
+    src/AMReX/MultiFabUtilities.cpp
     src/AMReX/MLMG/MLNodeHelmDualCstVel.cpp
     src/AMReX/MLMG/MLNodeHelmDualCstVel_K.cpp
     src/AMReX/MLMG/MLNodeHelmDualLinVel.cpp
@@ -488,12 +497,17 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         include/fub/AMReX/cutcell/boundary_condition/IsentropicPressureBoundary.hpp
         include/fub/AMReX/cutcell/boundary_condition/MassflowBoundary.hpp
         include/fub/AMReX/cutcell/boundary_condition/ReflectiveBoundary.hpp
+        include/fub/AMReX/cutcell/boundary_condition/TurbineMassflowBoundary.hpp
         include/fub/AMReX/cutcell/boundary_condition/PressureOutflowBoundary.hpp
         include/fub/AMReX/cutcell/output/WriteHdf5.hpp
         include/fub/AMReX/cutcell/output/WritePlotfiles.hpp
         include/fub/AMReX/cutcell/output/PerfectGasProbesOutput.hpp
+        include/fub/AMReX/cutcell/output/DebugOutput.hpp
+        src/AMReX/cutcell/output/DebugOutput.cpp
         include/fub/AMReX/multi_block/MultiBlockBoundary.hpp
+        include/fub/AMReX/multi_block/MultiBlockBoundary2.hpp
         include/fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp
+        include/fub/AMReX/multi_block/MultiBlockGriddingAlgorithm2.hpp
         include/fub/AMReX/multi_block/MultiBlockIntegratorContext.hpp
         include/fub/AMReX/multi_block/MultiBlockKineticSourceTerm.hpp
         include/fub/AMReX/multi_block/MultiBlockIgniteDetonation.hpp
@@ -513,16 +527,22 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         src/AMReX/cutcell/boundary_condition/TransmissiveBoundary.cpp
         src/AMReX/cutcell/boundary_condition/IsentropicPressureBoundary.cpp
         src/AMReX/cutcell/boundary_condition/MassflowBoundary.cpp
+        src/AMReX/cutcell/boundary_condition/MachnumberBoundary.cpp
+        src/AMReX/cutcell/boundary_condition/TurbineMassflowBoundary.cpp
+        src/AMReX/cutcell/boundary_condition/PressureOutflowBoundary.cpp
+        src/AMReX/cutcell/boundary_condition/PressureOutflowBoundary2.cpp
         src/AMReX/cutcell/tagging_method/ConstantRegion.cpp
         src/AMReX/cutcell/tagging_method/TagBuffer.cpp
         src/AMReX/cutcell/tagging_method/TagCutCells.cpp
-        src/AMReX/cutcell/boundary_condition/PressureOutflowBoundary.cpp
         src/AMReX/cutcell/initial_data/InterpolateFrom1d.cpp
         src/AMReX/cutcell/output/WriteHdf5.cpp
         src/AMReX/cutcell/output/PerfectGasProbesOutput.cpp
         src/AMReX/multi_block/MultiBlockBoundary.cpp
+        src/AMReX/multi_block/MultiBlockBoundary2.cpp
         src/AMReX/multi_block/MultiBlockGriddingAlgorithm.cpp
+        src/AMReX/multi_block/MultiBlockGriddingAlgorithm2.cpp
         src/AMReX/multi_block/MultiBlockIntegratorContext.cpp
+        src/AMReX/multi_block/MultiBlockIntegratorContext2.cpp
         src/AMReX/multi_block/MultiBlockKineticSourceTerm.cpp
         src/AMReX/multi_block/MultiBlockIgniteDetonation.cpp)
     target_compile_options(FiniteVolumeSolver.AMReX.EB

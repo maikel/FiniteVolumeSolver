@@ -23,7 +23,10 @@
 
 #include "fub/equations/PerfectGas.hpp"
 #include "fub/equations/perfect_gas/HllemMethod.hpp"
+#include "fub/equations/perfect_gas/EinfeldtSignalVelocities.hpp"
+#include "fub/flux_method/HllMethod.hpp"
 #include "fub/flux_method/MusclHancockMethod.hpp"
+#include "fub/equations/perfect_gas/GodunovMethod.hpp"
 
 namespace fub {
 namespace perfect_gas {
@@ -37,6 +40,14 @@ struct BasicCharacteristics {
 struct Characteristics : BasicCharacteristics {
   double v{};
   double w{};
+};
+
+struct CharacteristicsArray {
+  Array1d minus;
+  Array1d zero;
+  Array1d plus;
+  Array1d v;
+  Array1d w;
 };
 
 struct Primitives {
@@ -54,8 +65,39 @@ struct Primitives {
         pressure{q.pressure} {}
 
   Primitives(const Complete<PerfectGas<1>>& q)
-      : density{q.density}, velocity{q.momentum[0] / q.density, 0, 0},
-        pressure{q.pressure} {}
+      : density{q.density},
+        pressure{q.pressure} {
+    velocity[0] = q.momentum[0] / q.density;
+    velocity[1] = 0.0;
+    velocity[2] = 0.0;
+  }
+};
+
+struct PrimitivesArray {
+  Array1d density{Array1d::Zero()};
+  Array3d velocity{Array3d::Zero()};
+  Array1d pressure{Array1d::Zero()};
+
+  PrimitivesArray(const CompleteArray<PerfectGas<3>>& q)
+      : density{q.density}, pressure{q.pressure} {
+    for (int d = 0; d < 3; ++d) {
+      velocity.row(d) = q.momentum.row(d) / q.density;
+    }
+  }
+
+  PrimitivesArray(const CompleteArray<PerfectGas<2>>& q)
+      : density{q.density}, pressure{q.pressure} {
+    for (int d = 0; d < 2; ++d) {
+      velocity.row(d) = q.momentum.row(d) / q.density;
+    }
+  }
+
+  PrimitivesArray(const CompleteArray<PerfectGas<1>>& q)
+      : density{q.density}, pressure{q.pressure} {
+    for (int d = 0; d < 1; ++d) {
+      velocity.row(d) = q.momentum.row(d) / q.density;
+    }
+  }
 };
 
 /// \ingroup FluxMethod
@@ -73,11 +115,11 @@ public:
   using ConservativeArray = ::fub::ConservativeArray<Equation>;
 
   explicit MusclHancockCharacteristic(const PerfectGas<Rank>& equation)
-      : equation_(equation), limiter_(VanLeer()) {}
+      : equation_(equation), limiter_(VanLeer()), array_limiter_(VanLeer()) {}
 
  template <typename Limiter>
  MusclHancockCharacteristic(const PerfectGas<Rank>& equation, Limiter&& limiter)
-      : equation_(equation), limiter_(std::forward<Limiter>(limiter)) {}
+      : equation_(equation), limiter_(std::forward<Limiter>(limiter)), array_limiter_(std::forward<Limiter>(limiter)) {}
 
   [[nodiscard]] static constexpr int GetStencilWidth() noexcept { return 2; }
 
@@ -120,7 +162,17 @@ private:
   Characteristics amplitudes_{};
   Characteristics slopes_{};
   std::function<double(double, double)> limiter_;
-  Hllem<Rank> hllem_{equation_};
+
+  std::array<CompleteArray, 2> reconstruction_array_{CompleteArray(equation_),
+                                                     CompleteArray(equation_)};
+  PrimitivesArray diffs_array_{reconstruction_array_[0]};
+  CharacteristicsArray amplitudes_array_{};
+  CharacteristicsArray slopes_array_{};
+  std::function<Array1d(Array1d, Array1d)> array_limiter_;
+
+  // HllMethod<PerfectGas<Rank>, EinfeldtSignalVelocities<PerfectGas<Rank>>> hllem_{equation_};
+  HllemMethod<PerfectGas<Rank>> hllem_{equation_};
+  // GodunovMethod<PerfectGas<Rank>> hllem_{equation_};
 };
 
 /// \ingroup FluxMethod

@@ -32,7 +32,14 @@ IsentropicPressureBoundaryOptions::IsentropicPressureBoundaryOptions(
     const ProgramOptions& options) {
   channel_name = GetOptionOr(options, "channel_name",
                              std::string("IsentropicPressureBoundary"));
-  outer_pressure = GetOptionOr(options, "outer_pressure", 101325.0);
+  outer_pressure = GetOptionOr(options, "outer_pressure", outer_pressure);
+  efficiency = GetOptionOr(options, "efficiency", efficiency);
+  ::amrex::Box box{};
+  FUB_ASSERT(!box.ok());
+  box = GetOptionOr(options, "boundary_section", box);
+  if (box.ok()) {
+    boundary_section = box;
+  }
   direction = GetOptionOr(options, "direction", Direction::X);
   side = GetOptionOr(options, "side", 0);
 }

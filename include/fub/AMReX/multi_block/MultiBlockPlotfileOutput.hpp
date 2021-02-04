@@ -22,6 +22,7 @@
 #define FUB_AMREX_MULTI_BLOCK_PLOT_FILE_OUTPUT_HPP
 
 #include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp"
+#include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm2.hpp"
 #include "fub/ext/ProgramOptions.hpp"
 #include "fub/output/OutputAtFrequencyOrInterval.hpp"
 
@@ -39,6 +40,50 @@ public:
 private:
   std::string parent_path_;
 };
+
+template <typename TubeEquation, typename PlenumEquation>
+class MultiBlockPlotfileOutput2
+    : public OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm2> {
+public:
+  MultiBlockPlotfileOutput2(const std::map<std::string, pybind11::object>& vm, const TubeEquation& tube_equation, const PlenumEquation& plenum_equation);
+
+  void operator()(const MultiBlockGriddingAlgorithm2& grid) override;
+
+private:
+  TubeEquation tube_equation_;
+  PlenumEquation plenum_equation_;
+  std::string parent_path_;
+};
+
+template <typename TubeEquation, typename PlenumEquation>
+MultiBlockPlotfileOutput2<TubeEquation, PlenumEquation>::MultiBlockPlotfileOutput2(
+    const std::map<std::string, pybind11::object>& vm, const TubeEquation& tube_equation, const PlenumEquation& plenum_equation)
+    : OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm2>(vm), tube_equation_(tube_equation), plenum_equation_(plenum_equation) {
+  parent_path_ = GetOptionOr(vm, "directory", std::string("."));
+}
+
+template <typename TubeEquation, typename PlenumEquation>
+void MultiBlockPlotfileOutput2<TubeEquation, PlenumEquation>::
+operator()(const MultiBlockGriddingAlgorithm2& grid) {
+  boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
+      boost::log::keywords::severity = boost::log::trivial::info);
+  BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "Plotfile");
+  BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", grid.GetTimePoint().count());
+  for (int i = 0; i < grid.GetPlena().size(); ++i) {
+    std::string name =
+        fmt::format("{}/Plenum{}/plt{:09}", parent_path_, i, grid.GetCycles());
+    BOOST_LOG(log) << fmt::format("Write Plotfile output to '{}'.", name);
+    cutcell::WritePlotFile(name, grid.GetPlena()[i]->GetPatchHierarchy(),
+                           plenum_equation_);
+  }
+  for (int i = 0; i < grid.GetTubes().size(); ++i) {
+    std::string name =
+        fmt::format("{}/Tube{}/plt{:09}", parent_path_, i, grid.GetCycles());
+    BOOST_LOG(log) << fmt::format("Write Plotfile output to '{}'.", name);
+    WritePlotFile(name, grid.GetTubes()[i]->GetPatchHierarchy(), tube_equation_);
+  }
+}
+
 
 } // namespace fub::amrex
 

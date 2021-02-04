@@ -34,6 +34,12 @@ namespace fub {
 
 template <typename T> struct StateTraits;
 
+namespace meta {
+
+template <typename Depths> struct Rank;
+
+}
+
 namespace detail {
 template <std::size_t I, typename... Ts> constexpr auto ZipNested(Ts&&... ts) {
   return std::make_tuple(std::get<I>(ts)...);
@@ -105,6 +111,16 @@ struct ScalarDepth : std::integral_constant<int, 1> {};
 /// This type is used to tag quantities with a depth known at compile time.
 template <int Depth> struct VectorDepth : std::integral_constant<int, Depth> {};
 
+template <typename Depth> struct ToConcreteDepthImpl { using type = Depth; };
+
+template <> struct ToConcreteDepthImpl<VectorDepth<-1>> { using type = int; };
+
+template <typename Depth>
+using ToConcreteDepth = typename ToConcreteDepthImpl<Depth>::type;
+
+template <typename Depths>
+using ToConcreteDepths = boost::mp11::mp_transform<ToConcreteDepth, Depths>;
+
 namespace detail {
 /// @{
 /// This meta-function transforms a Depth into a value type used in a states or
@@ -132,22 +148,99 @@ template <typename T>
 using DepthToStateValueType = typename DepthToStateValueTypeImpl<T, 1>::type;
 /// @}
 
-template <typename T, typename Eq> struct DepthsImpl;
+template <typename T, typename Eq>
+using DepthsT = typename StateTraits<T>::template Depths<Eq::Rank()>;
+
+template <typename T, typename Eq> struct DepthsImpl {
+  constexpr typename StateTraits<T>::template Depths<Eq::Rank()>
+  operator()(const Eq&) const noexcept {
+    return {};
+  }
+};
 } // namespace detail
 
-template <typename T, typename Eq> auto Depths(const Eq& eq) {
-  detail::DepthsImpl<T, Eq> depths;
-  return depths(eq);
-}
+template <typename T> struct Type {
+  using type = T;
+};
+
+inline constexpr struct DepthsFn {
+  template <typename Eq, typename State>
+  constexpr auto operator()(const Eq& eq,
+                            [[maybe_unused]] Type<State> state) const
+      noexcept(
+          is_nothrow_tag_invocable<DepthsFn, const Eq&, Type<State>>::value ||
+          !is_tag_invocable<DepthsFn, const Eq&, Type<State>>::value) {
+    if constexpr (is_tag_invocable<DepthsFn, const Eq&, Type<State>>::value) {
+      return fub::meta::tag_invoke(*this, eq, std::move(state));
+    } else if constexpr (is_detected<detail::DepthsT, State, Eq>::value) {
+      detail::DepthsImpl<State, Eq> default_depths;
+      return default_depths(eq);
+    } else {
+      static_assert(
+          is_tag_invocable<DepthsFn, const Eq&, Type<State>>::value ||
+          is_detected<detail::DepthsT, State, Eq>::value);
+    }
+  }
+} Depths;
 
 namespace meta {
 template <typename T>
-using Depths =
-    decltype(::fub::Depths<T>(std::declval<typename T::Equation const&>()));
+using Depths = decltype(
+    ::fub::Depths(std::declval<typename T::Equation const&>(), Type<T>{}));
 }
 
-/// This type alias transforms state depths into a conservative state associated
-/// with a specified equation.
+template <typename Depths>
+using ScalarStateBase =
+    boost::mp11::mp_transform<detail::DepthToStateValueType, Depths>;
+
+template <typename Depths> struct ScalarState : ScalarStateBase<Depths> {
+  using Traits = StateTraits<ScalarStateBase<Depths>>;
+  using Base = ScalarStateBase<Depths>;
+
+  using Base::Base;
+
+  template <typename Equation>
+  ScalarState(const Equation& eq) : Base{} {
+    auto depths = ::fub::Depths(eq, Type<ScalarState>{});
+    ForEachVariable(
+        overloaded{
+            [&](double& id, ScalarDepth) { id = 0.0; },
+            [&](auto&& ids, auto depth) {
+              if constexpr (std::is_same_v<std::decay_t<decltype(depth)>,
+                                           int>) {
+                ids = Array<double, 1, Eigen::Dynamic>::Zero(1, depth);
+              } else {
+                ids = Array<double, 1, decltype(depth)::value>::Zero();
+              }
+            },
+        },
+        *this, depths);
+  }
+
+  ScalarState& operator+=(const Base& other) {
+    ForEachVariable([](auto&& that, auto&& other) { that += other; }, *this,
+                    other);
+    return *this;
+  }
+
+  ScalarState& operator-=(const Base& other) {
+    ForEachVariable([](auto&& that, auto&& other) { that -= other; }, *this,
+                    other);
+    return *this;
+  }
+
+  ScalarState& operator*=(double lambda) {
+    ForEachVariable([lambda](auto&& that) { that *= lambda; }, *this);
+    return *this;
+  }
+};
+
+template <typename Depths>
+struct StateTraits<ScalarState<Depths>> : StateTraits<ScalarStateBase<Depths>> {
+};
+
+/// This type alias transforms state depths into a conservative state
+/// associated with a specified equation.
 template <typename Equation>
 using ConservativeBase =
     boost::mp11::mp_transform<detail::DepthToStateValueType,
@@ -164,9 +257,10 @@ template <typename Eq> struct Conservative : ConservativeBase<Eq> {
   Conservative(const ConservativeBase<Eq>& x) : ConservativeBase<Eq>{x} {}
   Conservative& operator=(const ConservativeBase<Eq>& x) {
     static_cast<ConservativeBase<Eq>&>(*this) = x;
+    return *this;
   }
   Conservative(const Equation& eq) : ConservativeBase<Eq>{} {
-    auto depths = Depths<Conservative<Equation>>(eq);
+    auto depths = ::fub::Depths(eq, Type<Conservative<Equation>>{});
     ForEachVariable(
         overloaded{
             [&](double& id, ScalarDepth) { id = 0.0; },
@@ -181,10 +275,49 @@ template <typename Eq> struct Conservative : ConservativeBase<Eq> {
         },
         *this, depths);
   }
+
+  Conservative& operator+=(const Conservative& other) {
+    ForEachVariable([](auto&& that, auto&& other) { that += other; }, *this,
+                    other);
+    return *this;
+  }
 };
 
 template <typename Eq>
 struct StateTraits<Conservative<Eq>> : StateTraits<ConservativeBase<Eq>> {};
+
+template <typename Eq>
+struct Primitive : ScalarState<typename Eq::PrimitiveDepths> {
+  using Base = ScalarState<typename Eq::PrimitiveDepths>;
+
+  using Base::Base;
+};
+
+template <typename Eq>
+struct StateTraits<Primitive<Eq>>
+    : StateTraits<ScalarStateBase<typename Eq::PrimitiveDepths>> {};
+
+template <typename Eq>
+struct KineticState : ScalarState<typename Eq::KineticStateDepths> {
+  using Base = ScalarState<typename Eq::KineticStateDepths>;
+
+  using Base::Base;
+};
+
+template <typename Eq>
+struct StateTraits<KineticState<Eq>>
+    : StateTraits<ScalarStateBase<typename Eq::KineticStateDepths>> {};
+
+template <typename Eq>
+struct Characteristics : ScalarState<typename Eq::CharacteristicsDepths> {
+  using Base = ScalarState<typename Eq::CharacteristicsDepths>;
+
+  using Base::Base;
+};
+
+template <typename Eq>
+struct StateTraits<Characteristics<Eq>>
+    : StateTraits<ScalarStateBase<typename Eq::CharacteristicsDepths>> {};
 
 template <typename State> auto StateToTuple(const State& x) {
   return boost::mp11::tuple_apply(
@@ -210,7 +343,7 @@ template <typename Eq> struct Complete : CompleteBase<Eq> {
     static_cast<CompleteBase<Eq>&>(*this) = x;
   }
   Complete(const Equation& eq) : CompleteBase<Eq>{} {
-    auto depths = Depths<Complete<Equation>>(eq);
+    auto depths = ::fub::Depths(eq, Type<Complete<Equation>>{});
     ForEachVariable(
         overloaded{
             [&](double& id, ScalarDepth) { id = 0.0; },
@@ -224,6 +357,12 @@ template <typename Eq> struct Complete : CompleteBase<Eq> {
             },
         },
         *this, depths);
+  }
+
+  Complete& operator+=(const Complete& other) {
+    ForEachVariable([](auto&& that, auto&& other) { that += other; }, *this,
+                    other);
+    return *this;
   }
 };
 
@@ -282,7 +421,7 @@ struct BasicView : ViewBase<S, L, R> {
 };
 
 template <typename S, typename L, int R>
-BasicView(const BasicView<S, L, R>&)->BasicView<S, L, R>;
+BasicView(const BasicView<S, L, R>&) -> BasicView<S, L, R>;
 
 template <typename S, typename L, int R>
 struct StateTraits<BasicView<S, L, R>> : StateTraits<ViewBase<S, L, R>> {};
@@ -358,18 +497,6 @@ Mapping(const BasicView<State, Layout, Rank>& view) {
 }
 
 namespace detail {
-template <typename Eq> struct DepthsImpl<Complete<Eq>, Eq> {
-  constexpr typename Eq::CompleteDepths operator()(const Eq&) const noexcept {
-    return {};
-  }
-};
-
-template <typename Eq> struct DepthsImpl<Conservative<Eq>, Eq> {
-  constexpr typename Eq::ConservativeDepths operator()(const Eq&) const
-      noexcept {
-    return {};
-  }
-};
 
 template <typename State, typename Layout, int Rank, typename Eq>
 struct DepthsImpl<BasicView<State, Layout, Rank>, Eq> {
@@ -384,14 +511,14 @@ template <typename T> struct GetNumberOfComponentsImpl {
   int_constant<1> operator()(int) const noexcept { return {}; }
 
   template <std::size_t N>
-  int_constant<static_cast<int>(N)> operator()(const std::array<int, N>&) const
-      noexcept {
+  int_constant<static_cast<int>(N)>
+  operator()(const std::array<int, N>&) const noexcept {
     return {};
   }
 
   template <int N, int M, int O, int MR, int MC>
-  int_constant<N> operator()(const Eigen::Array<double, N, M, O, MR, MC>&) const
-      noexcept {
+  int_constant<N>
+  operator()(const Eigen::Array<double, N, M, O, MR, MC>&) const noexcept {
     return {};
   }
 
@@ -408,12 +535,12 @@ template <typename T> struct GetNumberOfComponentsImpl {
 
 template <typename S, typename Layout, int Rank>
 struct GetNumberOfComponentsImpl<BasicView<S, Layout, Rank>> {
-  int_constant<1> operator()(const PatchDataView<double, Rank, Layout>&) const
-      noexcept {
+  int_constant<1>
+  operator()(const PatchDataView<double, Rank, Layout>&) const noexcept {
     return {};
   }
-  int operator()(const PatchDataView<double, Rank + 1, Layout>& pdv) const
-      noexcept {
+  int operator()(
+      const PatchDataView<double, Rank + 1, Layout>& pdv) const noexcept {
     return static_cast<int>(pdv.Extent(Rank));
   }
 };
@@ -434,20 +561,20 @@ template <typename T> struct AtComponentImpl {
   }
 
   template <int N>
-  const double& operator()(const Eigen::Array<double, N, 1>& x, int n) const
-      noexcept {
+  const double& operator()(const Eigen::Array<double, N, 1>& x,
+                           int n) const noexcept {
     return x[n];
   }
 
   template <int N, int M, int O, int MR, int MC>
-  auto operator()(Eigen::Array<double, N, M, O, MR, MC>& x, int n) const
-      noexcept {
+  auto operator()(Eigen::Array<double, N, M, O, MR, MC>& x,
+                  int n) const noexcept {
     return x.row(n);
   }
 
   template <int N, int M, int O, int MR, int MC>
-  auto operator()(const Eigen::Array<double, N, M, O, MR, MC>& x, int n) const
-      noexcept {
+  auto operator()(const Eigen::Array<double, N, M, O, MR, MC>& x,
+                  int n) const noexcept {
     return x.row(n);
   }
 };
@@ -457,14 +584,14 @@ struct AtComponentImpl<BasicView<S, Layout, Rank>> {
   using ValueType = typename BasicView<S, Layout, Rank>::ValueType;
 
   const PatchDataView<ValueType, Rank, Layout>&
-  operator()(const PatchDataView<ValueType, Rank, Layout>& x, int) const
-      noexcept {
+  operator()(const PatchDataView<ValueType, Rank, Layout>& x,
+             int) const noexcept {
     return x;
   }
 
   PatchDataView<ValueType, Rank, Layout>
-  operator()(const PatchDataView<ValueType, Rank + 1, Layout>& x, int n) const
-      noexcept {
+  operator()(const PatchDataView<ValueType, Rank + 1, Layout>& x,
+             int n) const noexcept {
     constexpr std::size_t sRank = Rank;
     std::array<std::ptrdiff_t, sRank + 1> index{};
     index[sRank] = n;
@@ -500,7 +627,8 @@ void ForEachComponent(F function, Ts&&... states) {
         const auto vs = std::make_tuple(std::addressof(variables)...);
         using T =
             remove_cvref_t<boost::mp11::mp_first<boost::mp11::mp_list<Ts...>>>;
-        const int n_components = detail::GetNumberOfComponents<T>(*std::get<0>(vs));
+        const int n_components =
+            detail::GetNumberOfComponents<T>(*std::get<0>(vs));
         for (int i = 0; i < n_components; ++i) {
           function(detail::AtComponent<remove_cvref_t<Ts>>(variables, i)...);
         }
@@ -627,7 +755,15 @@ template <typename State>
 struct StateTraits<ViewPointer<State>> : StateTraits<ViewPointerBase<State>> {};
 
 template <typename State>
-ViewPointer(const ViewPointer<State>&)->ViewPointer<State>;
+ViewPointer(const ViewPointer<State>&) -> ViewPointer<State>;
+
+template <typename State>
+ViewPointer<std::add_const_t<State>> AsConst(const ViewPointer<State>& p) noexcept
+{
+  ViewPointer<std::add_const_t<State>> cp;
+  ForEachVariable([](auto& cptr, auto ptr) { cptr = ptr; }, cp, p);
+  return cp;
+}
 
 template <typename State, typename Layout, int Rank>
 ViewPointer<State> Begin(const BasicView<State, Layout, Rank>& view) {
@@ -723,7 +859,7 @@ using IndexMappingBase =
 template <typename Equation> struct IndexMapping : IndexMappingBase<Equation> {
   IndexMapping() = default;
   IndexMapping(const Equation& equation) {
-    auto depths = Depths<Complete<Equation>>(equation);
+    auto depths = Depths(equation, Type<Complete<Equation>>{});
     int counter = 0;
     ForEachVariable(
         overloaded{
@@ -761,6 +897,17 @@ void CopyFromBuffer(Conservative<Equation>& state, span<const double> buffer) {
   ForEachComponent(
       [&comp, &buffer](auto&& var) {
         var = buffer[comp];
+        comp += 1;
+      },
+      state);
+}
+
+template <typename Equation>
+void CopyToBuffer(span<double> buffer, const Conservative<Equation>& state) {
+  int comp = 0;
+  ForEachComponent(
+      [&comp, buffer](auto&& var) {
+        buffer[comp] = var;
         comp += 1;
       },
       state);

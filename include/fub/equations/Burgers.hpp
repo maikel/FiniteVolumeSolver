@@ -39,6 +39,8 @@ template <typename... Xs> struct StateTraits<BurgersVariables<Xs...>> {
   static constexpr auto names = std::make_tuple("U");
   static constexpr auto pointers_to_member =
       std::make_tuple(&BurgersVariables<Xs...>::u);
+
+  template <int Rank> using Depths = BurgersVariables<ScalarDepth>;
 };
 
 struct Burgers1d {

@@ -83,11 +83,11 @@ LoadN(int_constant<N>, const PatchDataView<T, Rank, Layout>& pdv, int size,
   return array;
 }
 
-template <std::size_t N>
-std::array<std::ptrdiff_t, N> Shift(const std::array<std::ptrdiff_t, N>& idx,
-                                    Direction dir, std::ptrdiff_t shift) {
-  auto shifted(idx);
-  shifted[static_cast<std::size_t>(dir)] += shift;
+template <int Rank>
+Eigen::Matrix<double, Rank, 1> Shift(const Eigen::Matrix<double, Rank, 1>& v,
+                                     Direction dir, double shift) {
+  Eigen::Matrix<double, Rank, 1> shifted(v);
+  shifted[static_cast<int>(dir)] += shift;
   return shifted;
 }
 

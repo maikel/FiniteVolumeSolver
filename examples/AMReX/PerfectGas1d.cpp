@@ -121,7 +121,7 @@ int main() {
       gradient, boundary);
   gridding->InitializeHierarchy(0.0);
 
-  fub::perfect_gas::HllemMethod<1> hllem_method{equation};
+  fub::perfect_gas::HllemMethod<fub::PerfectGas<1>> hllem_method{equation};
   fub::amrex::HyperbolicMethod method{
       fub::amrex::FluxMethodAdapter(hllem_method),
       fub::amrex::EulerForwardTimeIntegrator(),

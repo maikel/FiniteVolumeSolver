@@ -55,6 +55,7 @@
 #include "fub/equations/perfect_gas/ExactRiemannSolver.hpp"
 #include "fub/equations/perfect_gas/HllemMethod.hpp"
 #include "fub/equations/perfect_gas/MusclHancockPrimMethod.hpp"
+#include "fub/equations/perfect_gas/MusclHancockCharactersticMethod.hpp"
 #include "fub/equations/perfect_gas/ThirdOrderRungeKuttaMethod.hpp"
 
 #include "fub/flux_method/GodunovMethod.hpp"

@@ -289,11 +289,65 @@ struct is_regular
 // helper type for the visitor #4
 //#ifdef __cpp_deduction_guides
 template <class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
-template <class... Ts> overloaded(Ts...)->overloaded<Ts...>;
+template <class... Ts> overloaded(Ts...) -> overloaded<Ts...>;
 //#endif
 
 template <typename X, typename Y>
 using decays_to = std::is_same<std::decay_t<X>, Y>;
+
+namespace meta {
+namespace tag_invoke_fn {
+template <typename Tag, typename... Args>
+using tag_invoke_t =
+    decltype(tag_invoke(std::declval<Tag>(), std::declval<Args>()...));
+
+struct tag_invoke_fn {
+  template <typename Tag, typename... Args,
+            typename = std::enable_if_t<
+                is_detected<tag_invoke_t, Tag, Args...>::value>>
+  constexpr auto operator()(Tag&& tag, Args&&... args) const
+      noexcept(noexcept(tag_invoke(std::forward<Tag>(tag),
+                                   std::forward<Args>(args)...))) {
+    return tag_invoke(std::forward<Tag>(tag), std::forward<Args>(args)...);
+  }
+};
+} // namespace tag_invoke_fn
+
+inline namespace tag_invoke_ns {
+inline constexpr tag_invoke_fn::tag_invoke_fn tag_invoke{};
+}
+}
+
+template <typename _Tag, typename... _Args>
+struct is_tag_invocable
+    : is_invocable<decltype(fub::meta::tag_invoke), _Tag, _Args...> {};
+
+namespace detail {
+template <bool IsComparable, typename T, typename... Args>
+struct is_nothrow_tag_invocable_impl : bool_constant<false> {};
+
+template <typename T, typename... Args>
+struct is_nothrow_tag_invocable_impl<true, T, Args...> {
+  static constexpr bool value =
+      noexcept(fub::meta::tag_invoke(std::declval<T>(), std::declval<Args>()...));
+};
+} // namespace detail
+
+template <typename Tag, typename... Args>
+struct is_nothrow_tag_invocable
+    : bool_constant<detail::is_nothrow_tag_invocable_impl<
+          is_tag_invocable<Tag, Args...>::value, Tag, Args...>::value> {};
+
+template <typename _Tag, typename... _Args>
+using tag_invoke_result =
+    invoke_result<decltype(fub::meta::tag_invoke), _Tag, _Args...>;
+
+template <typename _Tag, typename... _Args>
+using tag_invoke_result_t =
+    invoke_result_t<decltype(fub::meta::tag_invoke), _Tag, _Args...>;
+
+template <auto& T>
+using tag_t = std::decay_t<decltype(T)>;
 
 } // namespace fub
 

@@ -27,15 +27,15 @@
 namespace fub::perfect_gas {
 
 /// \ingroup FluxMethod
-template <int Dim> struct Hllem {
-  using Conservative = ::fub::Conservative<PerfectGas<Dim>>;
-  using Complete = ::fub::Complete<PerfectGas<Dim>>;
-  using ConservativeArray = ::fub::ConservativeArray<PerfectGas<Dim>>;
-  using CompleteArray = ::fub::CompleteArray<PerfectGas<Dim>>;
+template <typename EulerEquation, bool Larrouturou = true> struct Hllem {
+  using Conservative = ::fub::Conservative<EulerEquation>;
+  using Complete = ::fub::Complete<EulerEquation>;
+  using ConservativeArray = ::fub::ConservativeArray<EulerEquation>;
+  using CompleteArray = ::fub::CompleteArray<EulerEquation>;
 
-  Hllem(const PerfectGas<Dim>& equation) : equation_{equation} {}
+  Hllem(const EulerEquation& equation) : equation_{equation} {}
 
-  const PerfectGas<Dim>& GetEquation() const noexcept { return equation_; }
+  const EulerEquation& GetEquation() const noexcept { return equation_; }
 
   static constexpr int GetStencilWidth() noexcept { return 1; }
 
@@ -61,23 +61,48 @@ template <int Dim> struct Hllem {
                           Array1d face_fraction, span<const Array1d, 2>,
                           double dx, Direction dir);
 
-  PerfectGas<Dim> equation_;
+  void SolveRiemannProblem(Complete& solution, const Complete& left,
+                           const Complete& right, Direction dir);
+
+  EulerEquation equation_;
+  Complete left_{equation_};
+  Complete right_{equation_};
+  Conservative fluxL_{equation_};
+  Conservative fluxR_{equation_};
+  Conservative flux_hlle_{equation_};
+  Conservative w_hlle_{equation_};
+  Conservative w_hllem_{equation_};
+
+  CompleteArray left_array_{equation_};
+  CompleteArray right_array_{equation_};
+  ConservativeArray fluxL_array_{equation_};
+  ConservativeArray fluxR_array_{equation_};
+  ConservativeArray flux_hlle_array_{equation_};
 };
 
-extern template struct Hllem<1>;
-extern template struct Hllem<2>;
-extern template struct Hllem<3>;
+extern template struct Hllem<PerfectGas<1>, false>;
+extern template struct Hllem<PerfectGas<2>, false>;
+extern template struct Hllem<PerfectGas<3>, false>;
+
+extern template struct Hllem<PerfectGas<1>, true>;
+extern template struct Hllem<PerfectGas<2>, true>;
+extern template struct Hllem<PerfectGas<3>, true>;
 
 /// \ingroup FluxMethod
-template <int Dim> using HllemMethod = FluxMethod<Hllem<Dim>>;
+template <typename EulerEquation, bool Larrouturou = true>
+using HllemMethod = FluxMethod<Hllem<EulerEquation, Larrouturou>>;
 
 } // namespace fub::perfect_gas
 
 namespace fub {
 
-extern template class FluxMethod<perfect_gas::Hllem<1>>;
-extern template class FluxMethod<perfect_gas::Hllem<2>>;
-extern template class FluxMethod<perfect_gas::Hllem<3>>;
+extern template class FluxMethod<perfect_gas::Hllem<PerfectGas<1>, false>>;
+extern template class FluxMethod<perfect_gas::Hllem<PerfectGas<2>, false>>;
+extern template class FluxMethod<perfect_gas::Hllem<PerfectGas<3>, false>>;
+
+extern template class FluxMethod<perfect_gas::Hllem<PerfectGas<1>, true>>;
+extern template class FluxMethod<perfect_gas::Hllem<PerfectGas<2>, true>>;
+extern template class FluxMethod<perfect_gas::Hllem<PerfectGas<3>, true>>;
 
 } // namespace fub
 

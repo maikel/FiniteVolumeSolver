@@ -22,12 +22,14 @@
 
 namespace fub::perfect_gas {
 
-template struct Hllem<3>;
+template struct Hllem<PerfectGas<3>>;
+template struct Hllem<PerfectGas<3>, false>;
 
 }
 
 namespace fub {
 
-template class FluxMethod<perfect_gas::Hllem<3>>;
+template class FluxMethod<perfect_gas::Hllem<PerfectGas<3>>>;
+template class FluxMethod<perfect_gas::Hllem<PerfectGas<3>, false>>;
 
 }

@@ -46,11 +46,11 @@ template <typename T> struct CutCellGeometry {
   T centerR;
 };
 
-Vc::double_v clamp(Vc::double_v x, Vc::double_v lo, Vc::double_v hi) noexcept {
-  where(x < lo, x) = lo;
-  where(hi < x, x) = hi;
-  return x;
-}
+//Vc::double_v clamp(Vc::double_v x, Vc::double_v lo, Vc::double_v hi) noexcept {
+//  where(x < lo, x) = lo;
+//  where(hi < x, x) = hi;
+//  return x;
+//}
 
 void ComputeStableFluxes_Row(const Fluxes<double*, const double*>& fluxes,
                              const CutCellGeometry<const double*>& geom,
@@ -61,15 +61,14 @@ void ComputeStableFluxes_Row(const Fluxes<double*, const double*>& fluxes,
   for (face = 0; face + simd_width <= n; face += simd_width) {
     const Vc::double_v centerL(geom.centerL + face, Vc::Unaligned);
     const Vc::double_v centerR(geom.centerR + face, Vc::Unaligned);
-    const Vc::double_v dL = clamp(Vc::double_v(0.5) - centerL,
-                                  Vc::double_v(0.0), Vc::double_v(1.0));
-    const Vc::double_v dR = clamp(Vc::double_v(0.5) + centerR,
-                                  Vc::double_v(0.0), Vc::double_v(1.0));
-    const Vc::double_v dLm1 =
-        clamp(Vc::double_v(1.0) - dL, Vc::double_v(0.0), Vc::double_v(1.0));
-    const Vc::double_v dRm1 =
-        clamp(Vc::double_v(1.0) - dR, Vc::double_v(0.0), Vc::double_v(1.0));
-
+    // const Vc::double_v dL = clamp(Vc::double_v(0.5) - centerL,
+    //                               Vc::double_v(0.0), Vc::double_v(1.0));
+    // const Vc::double_v dR = clamp(Vc::double_v(0.5) + centerR,
+    //                               Vc::double_v(0.0), Vc::double_v(1.0));
+    const Vc::double_v dL = Vc::double_v(0.5) - centerL;
+    const Vc::double_v dR = Vc::double_v(0.5) + centerR;
+    const Vc::double_v dLm1 = Vc::double_v(1.0) - dL;
+    const Vc::double_v dRm1 = Vc::double_v(1.0) - dR;
     const Vc::double_v f(fluxes.regular + face, Vc::Unaligned);
     const Vc::double_v fbL(fluxes.boundaryL + face, Vc::Unaligned);
     const Vc::double_v fbR(fluxes.boundaryR + face, Vc::Unaligned);
@@ -80,6 +79,7 @@ void ComputeStableFluxes_Row(const Fluxes<double*, const double*>& fluxes,
     const Vc::double_v betaR(geom.betaR + face, Vc::Unaligned);
     const Vc::double_v betaUS(geom.betaUS + face, Vc::Unaligned);
     const Vc::double_v f_stable = betaUS * f + betaL * fsL + betaR * fsR;
+    FUB_ASSERT(none_of(isnan(f_stable)));
 
     fsL.store(fluxes.shielded_left + face, Vc::Unaligned);
     fsR.store(fluxes.shielded_right + face, Vc::Unaligned);

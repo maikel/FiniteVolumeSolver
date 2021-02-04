@@ -22,6 +22,10 @@
 #include "fub/AMReX_CutCell.hpp"
 #include "fub/Solver.hpp"
 
+#include "fub/cutcell_method/MyStabilisation.hpp"
+
+#include "fub/AMReX/cutcell/boundary_condition/ConstantBoundary.hpp"
+
 #include <AMReX_EB2_IF_Plane.H>
 
 Eigen::Vector2d OrthogonalTo(const Eigen::Vector2d& x) {
@@ -35,42 +39,33 @@ auto Plane(const Eigen::Vector2d& p1) {
   return plane1;
 }
 
-std::shared_ptr<fub::amrex::cutcell::GriddingAlgorithm>
-MakeGriddingAlgorithm(const fub::PerfectGas<2>& equation) {
-  const std::array<int, 2> n_cells{200, 200};
-  const std::array<double, 2> xlower{-1.0, -1.0};
-  const std::array<double, 2> xupper{+1.0, +1.0};
+void MyMain(const fub::ProgramOptions& opts) {
+  std::chrono::steady_clock::time_point wall_time_reference =
+      std::chrono::steady_clock::now();
 
+  fub::amrex::ScopeGuard guard{};
+  fub::SeverityLogger log = fub::GetInfoLogger();
+
+  fub::amrex::CartesianGridGeometry geometry =
+      fub::GetOptions(opts, "GridGeometry");
+  BOOST_LOG(log) << "GridGeometry:";
+  geometry.Print(log);
+
+  fub::amrex::cutcell::PatchHierarchyOptions hier_opts =
+      fub::GetOptions(opts, "PatchHierarchy");
+  BOOST_LOG(log) << "PatchHierarchy:";
+  hier_opts.Print(log);
+
+  BOOST_LOG(log) << "Compute EB level set data...";
   auto embedded_boundary = Plane({-1.0, +1.0});
   auto shop = amrex::EB2::makeShop(embedded_boundary);
+  hier_opts.index_spaces = MakeIndexSpaces(shop, geometry, hier_opts);
 
-  amrex::RealBox xbox(xlower, xupper);
+  fub::PerfectGas<2> equation{};
 
-  fub::amrex::CartesianGridGeometry geometry;
-  geometry.cell_dimensions = n_cells;
-  geometry.coordinates = xbox;
-
-  const amrex::Box domain{{}, {n_cells[0] - 1, n_cells[1] - 1}};
-  amrex::Geometry coarse_geom(domain, &xbox, -1, geometry.periodicity.data());
-
-  const int n_level = 2;
-
-  using namespace fub::amrex::cutcell;
-
-  PatchHierarchyOptions options{};
-  options.max_number_of_levels = n_level;
-  options.index_spaces = MakeIndexSpaces(shop, coarse_geom, n_level);
-
-  fub::Conservative<fub::PerfectGas<2>> cons;
-  cons.density = 1.0;
-  cons.momentum << +1.0, -1.0;
-  cons.energy = equation.gamma_minus_1_inv;
-  fub::Complete<fub::PerfectGas<2>> right;
-  fub::CompleteFromCons(equation, right, cons);
-
-  cons.energy *= 5;
-  fub::Complete<fub::PerfectGas<2>> left;
-  fub::CompleteFromCons(equation, left, cons);
+  Eigen::Vector2d v{0.1, -0.1};
+  fub::Complete<fub::PerfectGas<2>> right = equation.CompleteFromPrim(1.0, v, 1.0);
+  fub::Complete<fub::PerfectGas<2>> left = equation.CompleteFromPrim(1.0, v, 5.0);
 
   using namespace fub::amrex::cutcell;
   RiemannProblem initial_data(equation, fub::Halfspace({+1.0, -1.0, 0.0}, 0.4),
@@ -85,57 +80,66 @@ MakeGriddingAlgorithm(const fub::PerfectGas<2>& equation) {
                                   TransmissiveBoundary{fub::Direction::Y, 0},
                                   TransmissiveBoundary{fub::Direction::Y, 1}}};
 
+  BOOST_LOG(log) << "Initialize Data...";
+
   std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
-      PatchHierarchy(equation, geometry, options), initial_data,
+      PatchHierarchy(equation, geometry, hier_opts), initial_data,
       TagAllOf(TagCutCells(), gradients, TagBuffer(4)), boundary_condition);
   gridding->InitializeHierarchy(0.0);
 
-  return gridding;
-}
-
-auto MakeSolver(const fub::PerfectGas<2>& equation) {
-  using namespace fub::amrex::cutcell;
-  std::shared_ptr<GriddingAlgorithm> gridding = MakeGriddingAlgorithm(equation);
-
-   fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
-  fub::HllMethod hll_method{equation, signals};
-  fub::perfect_gas::HllemMethod<2> hllem_method{equation};
-//  fub::MusclHancockMethod flux_method(equation, hllem_method);
-  fub::FluxMethod<fub::perfect_gas::MusclHancockPrim<2>> flux_method{equation};
-  fub::KbnCutCellMethod cutcell_method(flux_method, hll_method);
-  HyperbolicMethod method{FluxMethod{cutcell_method}, TimeIntegrator{},
+  // fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
+  // fub::HllMethod hll_method{equation, signals};
+  fub::perfect_gas::HllemMethod<fub::PerfectGas<2>> hllem_method{equation};
+  fub::MusclHancockMethod flux_method(equation, hllem_method);
+  // fub::FluxMethod<fub::perfect_gas::MusclHancockPrim<2>> flux_method{equation};
+  // fub::KbnCutCellMethod cutcell_method(flux_method, hllem_method);
+  fub::MyCutCellMethod cutcell_method(equation, flux_method);
+  HyperbolicMethod method{FluxMethod{cutcell_method}, TimeIntegrator2{},
                           Reconstruction{equation}};
 
-  fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<2>, IntegratorContext(gridding, method, 4, 2),
-      fub::StrangSplitting());
+  BOOST_LOG(log) << "Create Integrator Context...";
 
-  return fub::NoSubcycleSolver(std::move(level_integrator));
+  fub::DimensionalSplitLevelIntegrator level_integrator(
+      fub::int_c<2>, IntegratorContext(gridding, method, 3, 0),
+      fub::GodunovSplitting());
+
+  fub::NoSubcycleSolver solver(std::move(level_integrator));
+
+  using namespace std::literals::chrono_literals;
+  using Plotfile = fub::amrex::cutcell::PlotfileOutput<fub::PerfectGas<2>>;
+  using CounterOutput =
+      fub::CounterOutput<GriddingAlgorithm, std::chrono::milliseconds>;
+  fub::OutputFactory<GriddingAlgorithm> factory{};
+  factory.RegisterOutput<Plotfile>("Plotfile", equation);
+  factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
+  factory.RegisterOutput<fub::amrex::cutcell::WriteHdf5>("HDF5");
+  factory.RegisterOutput<fub::amrex::cutcell::DebugOutput>(
+      "DebugOutput",
+      solver.GetGriddingAlgorithm()->GetPatchHierarchy().GetDebugStorage());
+  fub::MultipleOutputs<GriddingAlgorithm> output(
+      std::move(factory), fub::GetOptions(opts, "Output"));
+
+  output(*solver.GetGriddingAlgorithm());
+
+  fub::RunOptions run_options = fub::GetOptions(opts, "RunOptions");
+  BOOST_LOG(log) << "RunOptions:";
+  run_options.Print(log);
+
+  BOOST_LOG(log) << "Run Simulation...";
+  fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }
 
-int main() {
-  // fub::EnableFloatingPointExceptions();
-  std::chrono::steady_clock::time_point wall_time_reference =
-      std::chrono::steady_clock::now();
-
-  fub::amrex::ScopeGuard amrex_scope_guard{};
+int main(int argc, char** argv) {
+  MPI_Init(nullptr, nullptr);
   fub::InitializeLogging(MPI_COMM_WORLD);
-  fub::PerfectGas<2> equation{};
-  fub::NoSubcycleSolver solver = MakeSolver(equation);
-
-  std::string base_name = "Ramp/";
-
-  using namespace fub::amrex::cutcell;
-  using namespace std::literals::chrono_literals;
-  fub::MultipleOutputs<GriddingAlgorithm> output{};
-  output.AddOutput(fub::MakeOutput<GriddingAlgorithm>(
-      {1}, {1.0s / 180.}, PlotfileOutput(equation, base_name)));
-  output.AddOutput(std::make_unique<fub::CounterOutput<GriddingAlgorithm>>(
-      wall_time_reference, std::vector<std::ptrdiff_t>{2},
-      std::vector<fub::Duration>{}));
-  fub::RunOptions run_options{};
-  run_options.final_time = 1s;
-  run_options.cfl = 0.4;
-  output(*solver.GetGriddingAlgorithm());
-  fub::RunSimulation(solver, run_options, wall_time_reference, output);
+  pybind11::scoped_interpreter interpreter{};
+  std::optional<fub::ProgramOptions> opts = fub::ParseCommandLine(argc, argv);
+  if (opts) {
+    MyMain(*opts);
+  }
+  int flag = -1;
+  MPI_Finalized(&flag);
+  if (!flag) {
+    MPI_Finalize();
+  }
 }

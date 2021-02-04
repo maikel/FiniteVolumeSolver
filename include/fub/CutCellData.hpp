@@ -26,11 +26,17 @@
 
 namespace fub {
 
+inline std::array<double, 2> Intersect(const std::array<double, 2>& i1,
+                                const std::array<double, 2>& i2) {
+  return {std::max(i1[0], i2[0]), std::min(i1[1], i2[1])};
+}
+
 template <int Rank> struct CutCellData {
   static constexpr auto sRank = static_cast<std::size_t>(Rank);
 
   // The next member variables are given by AMReX
   PatchDataView<const double, Rank> volume_fractions;
+  PatchDataView<const double, Rank + 1> volume_centeroid;
   std::array<PatchDataView<const double, Rank>, sRank> face_fractions;
   PatchDataView<const double, Rank + 1> boundary_normals;
   PatchDataView<const double, Rank + 1> boundary_centeroids;
@@ -40,7 +46,8 @@ template <int Rank> struct CutCellData {
   std::array<PatchDataView<const double, Rank>, sRank> unshielded_fractions;
   std::array<PatchDataView<const double, Rank>, sRank> shielded_left_fractions;
   std::array<PatchDataView<const double, Rank>, sRank> shielded_right_fractions;
-  std::array<PatchDataView<const double, Rank>, sRank> doubly_shielded_fractions;
+  std::array<PatchDataView<const double, Rank>, sRank>
+      doubly_shielded_fractions;
   std::array<PatchDataView<const double, Rank>, sRank> unshielded_fractions_rel;
   std::array<PatchDataView<const double, Rank>, sRank>
       shielded_left_fractions_rel;
@@ -63,6 +70,63 @@ GetBoundaryNormal(const CutCellData<2>& ccdata,
 [[nodiscard]] Eigen::Vector3d
 GetBoundaryNormal(const CutCellData<3>& ccdata,
                   const std::array<std::ptrdiff_t, 3>& index);
+
+[[nodiscard]] Eigen::Vector2d
+GetBoundaryCentroid(const CutCellData<2>& ccdata,
+                    const std::array<std::ptrdiff_t, 2>& index);
+
+[[nodiscard]] Eigen::Vector3d
+GetBoundaryCentroid(const CutCellData<3>& ccdata,
+                    const std::array<std::ptrdiff_t, 3>& index);
+
+[[nodiscard]] Eigen::Vector2d
+GetVolumeCentroid(const CutCellData<2>& ccdata,
+                  const std::array<std::ptrdiff_t, 2>& index);
+
+[[nodiscard]] Eigen::Vector3d
+GetVolumeCentroid(const CutCellData<3>& ccdata,
+                  const std::array<std::ptrdiff_t, 3>& index);
+
+[[nodiscard]] Eigen::Vector2d GetUnshieldedCentroid(const CutCellData<2>& geom,
+                                                    const Index<2>& face,
+                                                    const Eigen::Vector2d& dx,
+                                                    Direction dir);
+
+template <std::size_t Rank>
+Eigen::Matrix<double, Rank, 1> GetOffset(const std::array<std::ptrdiff_t, Rank>& index) {
+  static constexpr int iRank = static_cast<int>(Rank);
+  Eigen::Matrix<double, iRank, 1> offset;
+  for (int i = 0; i < iRank; ++i) {
+    offset[i] = static_cast<double>(index[i]);
+  }
+  return offset;
+}
+
+template <int Rank>
+Eigen::Matrix<double, Rank, 1>
+GetAbsoluteVolumeCentroid(const CutCellData<Rank>& geom,
+                          const Index<Rank>& index,
+                          const Eigen::Matrix<double, Rank, 1>& dx) {
+  const Eigen::Matrix<double, Rank, 1> relative_xM =
+      GetVolumeCentroid(geom, index);
+  const Eigen::Matrix<double, Rank, 1> offset = GetOffset<Rank>(index);
+  const Eigen::Matrix<double, Rank, 1> xM =
+      (offset + relative_xM).array() * dx.array() + 0.5 * dx.array();
+  return xM;
+}
+
+template <int Rank>
+Eigen::Matrix<double, Rank, 1>
+GetAbsoluteBoundaryCentroid(const CutCellData<Rank>& geom,
+                          const Index<Rank>& index,
+                          const Eigen::Matrix<double, Rank, 1>& dx) {
+  const Eigen::Matrix<double, Rank, 1> relative_xB =
+      GetBoundaryCentroid(geom, index);
+  const Eigen::Matrix<double, Rank, 1> offset = GetOffset<Rank>(index);
+  const Eigen::Matrix<double, Rank, 1> xB =
+      (offset + relative_xB).array() * dx.array() + 0.5 * dx.array();
+  return xB;
+}
 
 } // namespace fub
 

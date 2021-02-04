@@ -18,14 +18,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/equations/perfect_gas/ExactRiemannSolver.hpp"
+#include "fub/Duration.hpp"
 #include "fub/NewtonIteration.hpp"
+#include "fub/equations/perfect_gas/ExactRiemannSolver.hpp"
 
 namespace fub {
 namespace {
 template <int Dim>
 double KineticEnergy_(double density,
-                     const Eigen::Array<double, Dim, 1>& momentum) noexcept {
+                      const Eigen::Array<double, Dim, 1>& momentum) noexcept {
   return 0.5 * momentum.matrix().squaredNorm() / density;
 }
 } // namespace
@@ -96,8 +97,9 @@ std::array<double, 2> ExactRiemannSolver<PerfectGas<Dim>>::ComputeMiddleState(
 }
 
 template <int Dim>
-std::array<Array1d, 2> ExactRiemannSolver<PerfectGas<Dim>>::ComputeSignals(const CompleteArray&, const CompleteArray&, Direction) {
-  throw std::runtime_error("Array-wise ComputeSignals is not implemented."); 
+std::array<Array1d, 2> ExactRiemannSolver<PerfectGas<Dim>>::ComputeSignals(
+    const CompleteArray&, const CompleteArray&, Direction) {
+  throw std::runtime_error("Array-wise ComputeSignals is not implemented.");
 }
 
 template <int Dim>
@@ -146,13 +148,57 @@ std::array<double, 2> ExactRiemannSolver<PerfectGas<Dim>>::ComputeSignals(
 }
 
 template <int Dim>
-void ExactRiemannSolver<PerfectGas<Dim>>::SolveRiemannProblem(CompleteArray&, const CompleteArray&, const CompleteArray&, MaskArray, Direction) {
-  throw std::runtime_error("Array-wise SolveRiemannProblem is not implemented."); 
+Complete<PerfectGas<Dim>> Get(const CompleteArray<PerfectGas<Dim>>& arr,
+                              int i) {
+  Complete<PerfectGas<Dim>> state;
+  state.density = arr.density[i];
+  state.momentum = arr.momentum.col(i);
+  state.energy = arr.energy[i];
+  state.pressure = arr.pressure[i];
+  state.speed_of_sound = arr.speed_of_sound[i];
+  return state;
 }
 
 template <int Dim>
-void ExactRiemannSolver<PerfectGas<Dim>>::SolveRiemannProblem(CompleteArray&, const CompleteArray&, const CompleteArray&, Direction) { 
-  throw std::runtime_error("Array-wise SolveRiemannProblem is not implemented."); 
+void Set(CompleteArray<PerfectGas<Dim>>& arr,
+         const Complete<PerfectGas<Dim>>& state, int i) {
+  arr.density[i] = state.density;
+  arr.momentum.col(i) = state.momentum;
+  arr.energy[i] = state.energy;
+  arr.pressure[i] = state.pressure;
+  arr.speed_of_sound[i] = state.speed_of_sound;
+}
+
+template <int Dim>
+void ExactRiemannSolver<PerfectGas<Dim>>::SolveRiemannProblem(
+    CompleteArray& solution_arr, const CompleteArray& left_arr,
+    const CompleteArray& right_arr, MaskArray mask, Direction dir) {
+  Complete zero{equation_};
+  for (int i = 0; i < solution_arr.density.size(); ++i) {
+    if (mask[i]) {
+      Complete left = Get(left_arr, i);
+      Complete right = Get(right_arr, i);
+      Complete solution{equation_};
+      SolveRiemannProblem(solution, left, right, dir);
+      Set(solution_arr, solution, i);
+    } else {
+      Set(solution_arr, zero, i);
+    }
+  }
+}
+
+template <int Dim>
+void ExactRiemannSolver<PerfectGas<Dim>>::SolveRiemannProblem(
+    CompleteArray& solution_arr, const CompleteArray& left_arr,
+    const CompleteArray& right_arr, Direction dir) {
+  Complete zero{equation_};
+  for (int i = 0; i < solution_arr.density.size(); ++i) {
+    Complete left = Get(left_arr, i);
+    Complete right = Get(right_arr, i);
+    Complete solution{equation_};
+    SolveRiemannProblem(solution, left, right, dir);
+    Set(solution_arr, solution, i);
+  }
 }
 
 template <int Dim>
@@ -180,137 +226,288 @@ void ExactRiemannSolver<PerfectGas<Dim>>::SolveRiemannProblem(
   };
   if (0.0 < left.density && 0.0 < right.density) {
 
-  FUB_ASSERT(0.0 < left.density);
-  FUB_ASSERT(0.0 < left.pressure);
-  FUB_ASSERT(0.0 < right.density);
-  FUB_ASSERT(0.0 < right.pressure);
-  std::array<double, 2> states = ComputeMiddleState(left, right, dir);
-  const double pM = states[0];
-  FUB_ASSERT(0.0 < pM);
-  const double uM = states[1];
-  const double g = equation_.gamma;
-  const double gp1 = g + 1.0;
-  const double gm1 = g - 1.0;
+    FUB_ASSERT(0.0 < left.density);
+    FUB_ASSERT(0.0 < left.pressure);
+    FUB_ASSERT(0.0 < right.density);
+    FUB_ASSERT(0.0 < right.pressure);
+    std::array<double, 2> states = ComputeMiddleState(left, right, dir);
+    const double pM = states[0];
+    FUB_ASSERT(0.0 < pM);
+    const double uM = states[1];
+    const double g = equation_.gamma;
+    const double gp1 = g + 1.0;
+    const double gm1 = g - 1.0;
 
-  // (II) Determine Structure of Solution
+    // (II) Determine Structure of Solution
 
-  // Left side is interesting
-  if (0.0 <= uM) {
-    const double uL = velocity(left);
-    const double aL = left.speed_of_sound;
-    const double pL = left.pressure;
-    const double p_ratio = pM / pL;
-    const double g_ratio = gm1 / gp1;
+    // Left side is interesting
+    if (0.0 <= uM) {
+      const double uL = velocity(left);
+      const double aL = left.speed_of_sound;
+      const double pL = left.pressure;
+      const double p_ratio = pM / pL;
+      const double g_ratio = gm1 / gp1;
 
-    // SHOCK CASE
-    if (pM > pL) {
-      const double shock_speed =
-          uL - aL * std::sqrt((gp1 * p_ratio + gm1) / (2.0 * g));
-      if (shock_speed < 0.0) {
-        state.density =
-            left.density * (p_ratio + g_ratio) / (g_ratio * p_ratio + 1.0);
-        set_momentum(state, state.density * uM, left);
-        state.pressure = pM;
-        from_prim(state);
-      } else {
-        state.density = left.density;
-        state.momentum = left.momentum;
-        state.energy = left.energy;
-        state.pressure = left.pressure;
-        state.speed_of_sound = left.speed_of_sound;
+      // SHOCK CASE
+      if (pM > pL) {
+        const double shock_speed =
+            uL - aL * std::sqrt((gp1 * p_ratio + gm1) / (2.0 * g));
+        if (shock_speed < 0.0) {
+          state.density =
+              left.density * (p_ratio + g_ratio) / (g_ratio * p_ratio + 1.0);
+          set_momentum(state, state.density * uM, left);
+          state.pressure = pM;
+          from_prim(state);
+        } else {
+          state.density = left.density;
+          state.momentum = left.momentum;
+          state.energy = left.energy;
+          state.pressure = left.pressure;
+          state.speed_of_sound = left.speed_of_sound;
+        }
+      }
+
+      // RAREFACTION CASE
+      else {
+        const double aM = aL * std::pow(p_ratio, gm1 / (2.0 * g));
+        const double shock_speed_TL = uM - aM;
+        const double shock_speed_HL = uL - aL;
+        if (0.0 < shock_speed_HL) {
+          state.density = left.density;
+          state.momentum = left.momentum;
+          state.energy = left.energy;
+          state.pressure = left.pressure;
+          state.speed_of_sound = left.speed_of_sound;
+        } else if (shock_speed_TL < 0.0) {
+          state.density = left.density * std::pow(p_ratio, 1 / g);
+          set_momentum(state, state.density * uM, left);
+          state.pressure = pM;
+          from_prim(state);
+        } else {
+          state.density =
+              left.density * std::pow(2.0 / gp1 + g_ratio * uL / aL, 2.0 / gm1);
+          const double u = 2.0 / gp1 * (aL + 0.5 * gm1 * uL);
+          set_momentum(state, state.density * u, left);
+          state.pressure =
+              pL * std::pow(2.0 / gp1 + g_ratio * uL / aL, 2.0 * g / gm1);
+          from_prim(state);
+        }
       }
     }
 
-    // RAREFACTION CASE
+    // Right Hand Side is interesting
     else {
-      const double aM = aL * std::pow(p_ratio, gm1 / (2.0 * g));
-      const double shock_speed_TL = uM - aM;
-      const double shock_speed_HL = uL - aL;
-      if (0.0 < shock_speed_HL) {
-        state.density = left.density;
-        state.momentum = left.momentum;
-        state.energy = left.energy;
-        state.pressure = left.pressure;
-        state.speed_of_sound = left.speed_of_sound;
-      } else if (shock_speed_TL < 0.0) {
-        state.density = left.density * std::pow(p_ratio, 1 / g);
-        set_momentum(state, state.density * uM, left);
-        state.pressure = pM;
-        from_prim(state);
-      } else {
-        state.density =
-            left.density * std::pow(2.0 / gp1 + g_ratio * uL / aL, 2.0 / gm1);
-        const double u = 2.0 / gp1 * (aL + 0.5 * gm1 * uL);
-        set_momentum(state, state.density * u, left);
-        state.pressure =
-            pL * std::pow(2.0 / gp1 + g_ratio * uL / aL, 2.0 * g / gm1);
-        from_prim(state);
+      const double uR = velocity(right);
+      const double aR = right.speed_of_sound;
+      const double pR = right.pressure;
+      const double p_ratio = pM / pR;
+      const double g_ratio = gm1 / gp1;
+
+      // SHOCK CASE
+      if (pM > pR) {
+        const double shock_speed =
+            uR + aR * std::sqrt((gp1 * p_ratio + gm1) / (2.0 * g));
+        if (0.0 < shock_speed) {
+          state.density =
+              right.density * (p_ratio + g_ratio) / (g_ratio * p_ratio + 1.0);
+          set_momentum(state, state.density * uM, right);
+          state.pressure = pM;
+          from_prim(state);
+        } else {
+          state.density = right.density;
+          state.momentum = right.momentum;
+          state.energy = right.energy;
+          state.pressure = right.pressure;
+          state.speed_of_sound = right.speed_of_sound;
+        }
+      }
+
+      // RAREFACTION CASE
+      else {
+        const double aM = aR * std::pow(p_ratio, gm1 / (2.0 * g));
+        const double shock_speed_TR = uM + aM;
+        const double shock_speed_HR = uR + aR;
+        if (shock_speed_HR <= 0.0) {
+          state.density = right.density;
+          state.momentum = right.momentum;
+          state.energy = right.energy;
+          state.pressure = right.pressure;
+          state.speed_of_sound = right.speed_of_sound;
+        } else if (shock_speed_TR >= 0.0) {
+          state.density = right.density * std::pow(p_ratio, 1 / g);
+          set_momentum(state, state.density * uM, right);
+          state.pressure = pM;
+          from_prim(state);
+        } else {
+          state.density = right.density *
+                          std::pow(2.0 / gp1 - g_ratio * uR / aR, 2.0 / gm1);
+          const double u = 2.0 / gp1 * (-aR + 0.5 * gm1 * uR);
+          set_momentum(state, state.density * u, right);
+          state.pressure =
+              pR * std::pow(2.0 / gp1 - g_ratio * uR / aR, 2.0 * g / gm1);
+          from_prim(state);
+        }
       }
     }
   }
+}
 
-  // Right Hand Side is interesting
-  else {
-    const double uR = velocity(right);
-    const double aR = right.speed_of_sound;
-    const double pR = right.pressure;
-    const double p_ratio = pM / pR;
-    const double g_ratio = gm1 / gp1;
+template <int Dim>
+void ExactRiemannSolver<PerfectGas<Dim>>::SolveRiemannProblem(
+    Complete& state, const Complete& left, const Complete& right, double pM,
+    double uM, Duration dt, double dx, Direction dir) {
+  const double lambda = dx / dt.count();
+  auto velocity = [dir](const Complete& state) {
+    return state.momentum[static_cast<int>(dir)] / state.density;
+  };
+  auto set_momentum = [dir](Complete& state, double momentum,
+                            const Complete& side) {
+    if constexpr (Dim == 1) {
+      (void)dir;
+      state.momentum = momentum;
+    } else {
+      state.momentum = state.density * (side.momentum / side.density);
+      state.momentum[static_cast<int>(dir)] = momentum;
+    }
+  };
+  auto from_prim = [eq = equation_](Complete& state) {
+    const double rhoE_kin = KineticEnergy_(state.density, state.momentum);
+    const double rhoE_internal = state.pressure * eq.gamma_minus_1_inv;
+    state.energy = rhoE_internal + rhoE_kin;
+    state.speed_of_sound = std::sqrt(eq.gamma * state.pressure / state.density);
+  };
+  if (0.0 < left.density && 0.0 < right.density) {
+    FUB_ASSERT(0.0 < left.density);
+    FUB_ASSERT(0.0 < left.pressure);
+    FUB_ASSERT(0.0 < right.density);
+    FUB_ASSERT(0.0 < right.pressure);
+    FUB_ASSERT(0.0 < pM);
+    const double g = equation_.gamma;
+    const double gp1 = g + 1.0;
+    const double gm1 = g - 1.0;
 
-    // SHOCK CASE
-    if (pM > pR) {
-      const double shock_speed =
-          uR + aR * std::sqrt((gp1 * p_ratio + gm1) / (2.0 * g));
-      if (0.0 < shock_speed) {
-        state.density =
-            right.density * (p_ratio + g_ratio) / (g_ratio * p_ratio + 1.0);
-        set_momentum(state, state.density * uM, right);
-        state.pressure = pM;
-        from_prim(state);
-      } else {
-        state.density = right.density;
-        state.momentum = right.momentum;
-        state.energy = right.energy;
-        state.pressure = right.pressure;
-        state.speed_of_sound = right.speed_of_sound;
+    // (II) Determine Structure of Solution
+
+    // Left side is interesting
+    if (lambda <= uM) {
+      const double uL = velocity(left);
+      const double aL = left.speed_of_sound;
+      const double pL = left.pressure;
+      const double p_ratio = pM / pL;
+      const double g_ratio = gm1 / gp1;
+
+      // SHOCK CASE
+      if (pM > pL) {
+        const double shock_speed =
+            uL - aL * std::sqrt((gp1 * p_ratio + gm1) / (2.0 * g));
+        if (shock_speed < lambda) {
+          state.density =
+              left.density * (p_ratio + g_ratio) / (g_ratio * p_ratio + 1.0);
+          set_momentum(state, state.density * uM, left);
+          state.pressure = pM;
+          from_prim(state);
+        } else {
+          state.density = left.density;
+          state.momentum = left.momentum;
+          state.energy = left.energy;
+          state.pressure = left.pressure;
+          state.speed_of_sound = left.speed_of_sound;
+        }
+      }
+
+      // RAREFACTION CASE
+      else {
+        const double aM = aL * std::pow(p_ratio, gm1 / (2.0 * g));
+        const double shock_speed_TL = uM - aM;
+        const double shock_speed_HL = uL - aL;
+        if (lambda < shock_speed_HL) {
+          state.density = left.density;
+          state.momentum = left.momentum;
+          state.energy = left.energy;
+          state.pressure = left.pressure;
+          state.speed_of_sound = left.speed_of_sound;
+        } else if (shock_speed_TL < lambda) {
+          state.density = left.density * std::pow(p_ratio, 1 / g);
+          set_momentum(state, state.density * uM, left);
+          state.pressure = pM;
+          from_prim(state);
+        } else {
+          state.density =
+              left.density *
+              std::pow(2.0 / gp1 + g_ratio * (uL - lambda) / aL, 2.0 / gm1);
+          const double u = 2.0 / gp1 * (aL + 0.5 * gm1 * uL + lambda);
+          set_momentum(state, state.density * u, left);
+          state.pressure =
+              pL *
+              std::pow(2.0 / gp1 + g_ratio * (uL - lambda) / aL, 2.0 * g / gm1);
+          from_prim(state);
+        }
       }
     }
 
-    // RAREFACTION CASE
+    // Right Hand Side is interesting
     else {
-      const double aM = aR * std::pow(p_ratio, gm1 / (2.0 * g));
-      const double shock_speed_TR = uM + aM;
-      const double shock_speed_HR = uR + aR;
-      if (shock_speed_HR <= 0.0) {
-        state.density = right.density;
-        state.momentum = right.momentum;
-        state.energy = right.energy;
-        state.pressure = right.pressure;
-        state.speed_of_sound = right.speed_of_sound;
-      } else if (shock_speed_TR >= 0.0) {
-        state.density = right.density * std::pow(p_ratio, 1 / g);
-        set_momentum(state, state.density * uM, right);
-        state.pressure = pM;
-        from_prim(state);
-      } else {
-        state.density =
-            right.density * std::pow(2.0 / gp1 - g_ratio * uR / aR, 2.0 / gm1);
-        const double u = 2.0 / gp1 * (-aR + 0.5 * gm1 * uR);
-        set_momentum(state, state.density * u, right);
-        state.pressure =
-            pR * std::pow(2.0 / gp1 - g_ratio * uR / aR, 2.0 * g / gm1);
-        from_prim(state);
+      const double uR = velocity(right);
+      const double aR = right.speed_of_sound;
+      const double pR = right.pressure;
+      const double p_ratio = pM / pR;
+      const double g_ratio = gm1 / gp1;
+
+      // SHOCK CASE
+      if (pM > pR) {
+        const double shock_speed =
+            uR + aR * std::sqrt((gp1 * p_ratio + gm1) / (2.0 * g));
+        if (lambda < shock_speed) {
+          state.density =
+              right.density * (p_ratio + g_ratio) / (g_ratio * p_ratio + 1.0);
+          set_momentum(state, state.density * uM, right);
+          state.pressure = pM;
+          from_prim(state);
+        } else {
+          state.density = right.density;
+          state.momentum = right.momentum;
+          state.energy = right.energy;
+          state.pressure = right.pressure;
+          state.speed_of_sound = right.speed_of_sound;
+        }
+      }
+
+      // RAREFACTION CASE
+      else {
+        const double aM = aR * std::pow(p_ratio, gm1 / (2.0 * g));
+        const double shock_speed_TR = uM + aM;
+        const double shock_speed_HR = uR + aR;
+        if (shock_speed_HR <= lambda) {
+          state.density = right.density;
+          state.momentum = right.momentum;
+          state.energy = right.energy;
+          state.pressure = right.pressure;
+          state.speed_of_sound = right.speed_of_sound;
+        } else if (shock_speed_TR >= lambda) {
+          state.density = right.density * std::pow(p_ratio, 1 / g);
+          set_momentum(state, state.density * uM, right);
+          state.pressure = pM;
+          from_prim(state);
+        } else {
+          state.density =
+              right.density *
+              std::pow(2.0 / gp1 - g_ratio * (uR - lambda) / aR, 2.0 / gm1);
+          const double u = 2.0 / gp1 * (-aR + 0.5 * gm1 * uR + lambda);
+          set_momentum(state, state.density * u, right);
+          state.pressure =
+              pR *
+              std::pow(2.0 / gp1 - g_ratio * (uR - lambda) / aR, 2.0 * g / gm1);
+          from_prim(state);
+        }
       }
     }
-  }
-
   }
 }
 
 // template <int Dim>
 // void ExactRiemannSolver<PerfectGas<Dim>>::SolveRiemannProblem(
-//     CompleteArray& state, const CompleteArray& left, const CompleteArray& right,
-//     MaskArray mask, Direction dir) {
+//     CompleteArray& state, const CompleteArray& left, const CompleteArray&
+//     right, MaskArray mask, Direction dir) {
 //   for (int i = 0; i < mask.size(); ++i) {
 //     if (mask(i)) {
 //       typename PerfectGas<Dim>::Complete qL;
@@ -344,4 +541,4 @@ void ExactRiemannSolver<PerfectGas<Dim>>::SolveRiemannProblem(
 //   }
 // }
 
-}
+} // namespace fub

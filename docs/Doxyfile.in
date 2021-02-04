@@ -792,6 +792,7 @@ INPUT                  = "@FUB_SOURCE_DIR@/include/fub/" \
                          "@FUB_SOURCE_DIR@/include/fub/equations/" \
                          "@FUB_SOURCE_DIR@/include/fub/equations/ideal_gas_mix" \
                          "@FUB_SOURCE_DIR@/include/fub/equations/perfect_gas" \
+                         "@FUB_SOURCE_DIR@/include/fub/equations/perfect_gas_mix" \
                          "@FUB_SOURCE_DIR@/include/fub/geometry/" \
                          "@FUB_SOURCE_DIR@/include/fub/AMReX/" \
                          "@FUB_SOURCE_DIR@/include/fub/AMReX/solver/" \

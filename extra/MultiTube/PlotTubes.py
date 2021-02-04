@@ -94,7 +94,6 @@ def MakeImages(dest, sources, field_function = PressureField, steps=[], chunkSiz
         fig.suptitle(title, fontsize=16)
     fig.savefig(dest)
     fig.clf()
-        
 
 slurm_id = '5672798'
 paths = ['/scratch/guttula/MultiTube_blocking/{}/MultiTube/Slices/Tube_{}.h5'.format(slurm_id, i) for i in range(0, 6)]
