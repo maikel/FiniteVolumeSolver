@@ -32,13 +32,14 @@ namespace fub::amrex::cutcell {
 
 class WriteHdf5 : public OutputAtFrequencyOrInterval<GriddingAlgorithm> {
 public:
-  WriteHdf5(const std::map<std::string, pybind11::object>& vm);
+  WriteHdf5(const ProgramOptions& options, std::vector<std::string> field_names = {});
 
   void operator()(const GriddingAlgorithm& grid) override;
 
 private:
   std::string path_to_file_{};
   std::optional<::amrex::Box> output_box_{};
+  std::vector<std::string> field_names_{};
 };
 
 } // namespace fub::amrex::cutcell

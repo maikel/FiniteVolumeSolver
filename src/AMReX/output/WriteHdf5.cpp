@@ -33,17 +33,26 @@
 
 namespace fub::amrex {
 
-WriteHdf5::WriteHdf5(const std::map<std::string, pybind11::object>& vm)
-    : OutputAtFrequencyOrInterval<GriddingAlgorithm>(vm) {
-  path_to_file_ = GetOptionOr(vm, "path", std::string("grid.h5"));
-  auto it = vm.find("box");
-  if (it != vm.end()) {
+WriteHdf5::WriteHdf5(const ProgramOptions& options,
+                     std::vector<std::string> field_names)
+    : OutputAtFrequencyOrInterval<GriddingAlgorithm>(options),
+      field_names_{std::move(field_names)} {
+  path_to_file_ = GetOptionOr(options, "path", std::string("grid.h5"));
+  fub::SeverityLogger log = GetInfoLogger();
+  BOOST_LOG(log) << "WriteHdf5 configured:";
+  BOOST_LOG(log) << fmt::format(" - path: {}", path_to_file_);
+  auto it = options.find("box");
+  if (it != options.end()) {
     auto box = ToMap(it->second);
     std::array<int, AMREX_SPACEDIM> lo =
         GetOptionOr(box, "lower", std::array<int, AMREX_SPACEDIM>{});
     std::array<int, AMREX_SPACEDIM> hi =
         GetOptionOr(box, "upper", std::array<int, AMREX_SPACEDIM>{});
     output_box_.emplace(::amrex::IntVect(lo), ::amrex::IntVect(hi));
+    BOOST_LOG(log) << fmt::format(" - box: [{{{}}}, {{{}}}]",
+                                  fmt::join(lo, ", "), fmt::join(hi, ", "));
+  } else {
+    BOOST_LOG(log) << " - box: everything";
   }
   int rank = -1;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -83,7 +92,8 @@ WriteHdf5::WriteHdf5(const std::map<std::string, pybind11::object>& vm)
 
 namespace {
 void WriteHdf5UnRestricted(const std::string& name,
-                           const PatchHierarchy& hierarchy) {
+                           const PatchHierarchy& hierarchy,
+                           const std::vector<std::string>& field_names) {
   MPI_Comm comm = ::amrex::ParallelContext::CommunicatorAll();
   int rank = -1;
   ::MPI_Comm_rank(comm, &rank);
@@ -139,7 +149,8 @@ void WriteHdf5UnRestricted(const std::string& name,
       if (level == n_level - 1) {
         const fub::Duration time_point = hierarchy.GetTimePoint();
         const std::ptrdiff_t cycle_number = hierarchy.GetCycles();
-        WriteToHDF5(name, fab, level_geom, time_point, cycle_number);
+        WriteToHDF5(name, fab, level_geom, time_point, cycle_number,
+                    field_names);
       }
     } else {
       const auto size = static_cast<int>(local_fab.size());
@@ -151,7 +162,8 @@ void WriteHdf5UnRestricted(const std::string& name,
 
 void WriteHdf5RestrictedToBox(const std::string& name,
                               const PatchHierarchy& hierarchy,
-                              const ::amrex::Box& finest_box) {
+                              const ::amrex::Box& finest_box,
+                              const std::vector<std::string>& field_names) {
   MPI_Comm comm = ::amrex::ParallelContext::CommunicatorAll();
   int rank = -1;
   ::MPI_Comm_rank(comm, &rank);
@@ -222,7 +234,8 @@ void WriteHdf5RestrictedToBox(const std::string& name,
         const fub::Duration time_point = hierarchy.GetTimePoint();
         const std::ptrdiff_t cycle_number = hierarchy.GetCycles();
         const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(ilvl);
-        WriteToHDF5(name, fab, level_geom, time_point, cycle_number);
+        WriteToHDF5(name, fab, level_geom, time_point, cycle_number,
+                    field_names);
       }
     } else {
       const auto size = static_cast<int>(local_fab.size());
@@ -241,9 +254,10 @@ void WriteHdf5::operator()(const GriddingAlgorithm& grid) {
   BOOST_LOG(log) << fmt::format("Write Hdf5 output to '{}'.", path_to_file_);
   if (output_box_) {
     WriteHdf5RestrictedToBox(path_to_file_, grid.GetPatchHierarchy(),
-                             *output_box_);
+                             *output_box_, field_names_);
   } else {
-    WriteHdf5UnRestricted(path_to_file_, grid.GetPatchHierarchy());
+    WriteHdf5UnRestricted(path_to_file_, grid.GetPatchHierarchy(),
+                          field_names_);
   }
 }
 

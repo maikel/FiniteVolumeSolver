@@ -33,17 +33,29 @@
 
 namespace fub::amrex::cutcell {
 
-WriteHdf5::WriteHdf5(const std::map<std::string, pybind11::object>& vm)
-    : OutputAtFrequencyOrInterval<GriddingAlgorithm>(vm) {
-  path_to_file_ = GetOptionOr(vm, "path", std::string("grid.h5"));
-  auto it = vm.find("box");
-  if (it != vm.end()) {
+WriteHdf5::WriteHdf5(const ProgramOptions& options,
+                     std::vector<std::string> field_names)
+    : OutputAtFrequencyOrInterval<GriddingAlgorithm>(options),
+      field_names_(std::move(field_names)) {
+  if (field_names_.back() != "vfrac") {
+    field_names_.push_back("vfrac");
+  }
+  path_to_file_ = GetOptionOr(options, "path", std::string("grid.h5"));
+  fub::SeverityLogger log = GetInfoLogger();
+  BOOST_LOG(log) << "WriteHdf5 configured:";
+  BOOST_LOG(log) << fmt::format(" - path: {}", path_to_file_);
+  auto it = options.find("box");
+  if (it != options.end()) {
     auto box = ToMap(it->second);
     std::array<int, AMREX_SPACEDIM> lo =
         GetOptionOr(box, "lower", std::array<int, AMREX_SPACEDIM>{});
     std::array<int, AMREX_SPACEDIM> hi =
         GetOptionOr(box, "upper", std::array<int, AMREX_SPACEDIM>{});
     output_box_.emplace(::amrex::IntVect(lo), ::amrex::IntVect(hi));
+    BOOST_LOG(log) << fmt::format(" - box: [{{{}}}, {{{}}}]",
+                                  fmt::join(lo, ", "), fmt::join(hi, ", "));
+  } else {
+    BOOST_LOG(log) << " - box: everything";
   }
   int rank = -1;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);

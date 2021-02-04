@@ -37,7 +37,8 @@ public:
       : OutputAtFrequencyOrInterval(std::move(freqs), std::move(intervals)),
         path_to_file_(std::move(path)) {}
 
-  WriteHdf5(const ProgramOptions& vm);
+  WriteHdf5(const ProgramOptions& options,
+            std::vector<std::string> field_names = {});
 
   void operator()(const GriddingAlgorithm& grid) override;
 

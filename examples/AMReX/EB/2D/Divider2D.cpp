@@ -228,7 +228,8 @@ void MyMain(const fub::ProgramOptions& options) {
   using Plotfile = PlotfileOutput<fub::PerfectGas<2>>;
   fub::OutputFactory<GriddingAlgorithm> factory{};
   factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
-  factory.RegisterOutput<WriteHdf5>("HDF5");
+  auto field_names = fub::VarNames<State, std::vector<std::string>>(equation);
+  factory.RegisterOutput<WriteHdf5>("HDF5", field_names);
   factory.RegisterOutput<Plotfile>("Plotfiles", equation);
   fub::MultipleOutputs<GriddingAlgorithm> outputs(
       std::move(factory), fub::GetOptions(options, "Output"));
