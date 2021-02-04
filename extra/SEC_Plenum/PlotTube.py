@@ -14,8 +14,11 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import h5py
 
-os.environ['HDF5_USE_FILE_LOCKING'] = 'False'
+inputFilePath = FVS_path+"/examples/AMReX/EB/2D/"
+sys.path.append(inputFilePath)
+from SEC_Plenum_Arrhenius import T_ref
 
+os.environ['HDF5_USE_FILE_LOCKING'] = 'False'
 
 #plt.style.use('seaborn')
 tex_fonts = {
@@ -71,8 +74,8 @@ for mode, suptitle in zip(modes, mode_titles):
   Ma = rhou_data / rho_data / c_data
   X = rhoX_data / rho_data
 
-  titles = ['Temperature', 'Pressure', 'Local Machnumber', 'Fuel Massfraction', 'Passive Scalars']
-  datas = [T_data, p_data, Ma, F_data, X]
+  titles = ['Temperature [K]', 'Pressure [bar]', 'Local Machnumber [-]', 'Fuel Massfraction [-]', 'Passive Scalars [-]']
+  datas = [T_data * T_ref, p_data, Ma, F_data, X]
   f, ax = plt.subplots(nrows=1, ncols=5, figsize=(50. / 2, 10 / 2.), sharey=True)# figsize=(15, 10)) #set_size('thesis'))
 
   def props(title):
@@ -82,20 +85,21 @@ for mode, suptitle in zip(modes, mode_titles):
       'extent': (x0, xEnd, t0, tEnd),
       'aspect': 'auto'
     }
-    if title == 'Passive Scalars':
+    if title == 'Passive Scalars [-]':
       props = {
         'origin': 'lower',
         'extent': (x0, xEnd, t0, tEnd),
         'levels': np.linspace(np.min(X), np.max(X), 20),
         'vmax': None,
-        'vmin': None
+        'vmin': None,
+        'cmap': 'twilight'
       }
-    if title == 'Fuel Massfraction':
+    if title == 'Fuel Massfraction [-]':
       props['vmax'] = None
       props['vmin'] = None
     # if  title == 'Temperature':
       # props['vmax'] = 3.0
-    if title == 'Pressure':
+    if title == 'Pressure [bar]':
       props = {
       'origin': 'lower',
       'interpolation': 'none',
@@ -112,7 +116,6 @@ for mode, suptitle in zip(modes, mode_titles):
   ims.append(ax[4].contourf(datas[4], **props(titles[4])))
   for a, title in zip(ax, titles):
     a.set(xlabel='x', title=title)
-  
 
   from matplotlib.ticker import FormatStrFormatter
   for a, im in zip(ax, ims):
