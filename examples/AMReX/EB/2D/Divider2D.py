@@ -46,8 +46,10 @@ RunOptions = {
 # Default is 1.1
 Mach_number = 1.61
 
+#checkpoint='/srv/public/Maikel/FiniteVolumeSolver/build_2D-RelWithDebugInfo/Divider2D/Checkpoint/000000174'
+
 FluxMethod = {
-  'reconstruction': 'Conservative',
+  'reconstruction': 'Characteristics',
   'limiter':'MinMod',
   'base_method': 'HLLEM_Larrouturou'
 }
@@ -105,8 +107,9 @@ Output = {
   # {'type': 'Plotfiles', 'directory': 'Divider_DE5_{}/Plotfiles'.format(nx), 'intervals': [1e-5]},
   # Write simple HDF5 files
   # It is faster and writes a single grid without patches
-  {'type': 'HDF5', 'path': 'Divider_c24_{}.h5'.format(nx), 'intervals': [1e-5]},
+  {'type': 'HDF5', 'path': 'Divider_c24_{}_Ma_{}.h5'.format(nx, Mach_number), 'intervals': [1e-6]},
   # Print out timer statistics
   {'type': 'CounterOutput', 'intervals': [1e-4] },
+  {'type': 'Checkpoint', 'intervals': [1e-6] }
 ]
 }
