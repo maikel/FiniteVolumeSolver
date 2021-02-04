@@ -32,7 +32,7 @@ from SEC_Plenum_Arrhenius import D as diameter_tube
 
 plenum = "{}/Plenum.h5".format(dataPath)
 outPath = dataPath
-output_path = '{}/Visualization'.format(outPath)
+output_path = '{}/Visualization/Plenum/'.format(outPath)
 
 
 
