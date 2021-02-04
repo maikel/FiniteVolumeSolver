@@ -30,7 +30,22 @@ controlState = "{}/ControlState.h5".format(dataPath)
 outPath = dataPath
 output_path = '{}/Visualization'.format(outPath)
 
-
+plt.style.use('seaborn')
+tex_fonts = {
+    # Use LaTeX to write all text
+    "text.usetex": True,
+    "font.family": "serif",
+    # Use 10pt font in plots, to match 10pt font in document
+    "axes.labelsize": 9,
+    "axes.titlesize": 9,
+    "axes.labelsize": 9,
+    "font.size": 9,
+    # Make the legend/label fonts a little smaller
+    "legend.fontsize": 9,
+    "xtick.labelsize": 7,
+    "ytick.labelsize": 7
+}
+plt.rcParams.update(tex_fonts)
 
 os.makedirs(output_path, exist_ok=True)
 
@@ -72,6 +87,7 @@ for i, ax, subKey in zip(range(len(plotKeyList)), axs.flatten(), plotKeyList):
          ylab='rpm / rpmmax'
       ylab += data_units[i]
       ax.set(xlabel='time', ylabel=ylab, xlim=(0,None))
+      ax.grid(True)
 
 f.subplots_adjust(hspace=0.3, wspace=0.3)
 f.savefig('{}/control_state.png'.format(output_path), bbox_inches='tight')
