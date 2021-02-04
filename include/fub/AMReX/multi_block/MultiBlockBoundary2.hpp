@@ -169,6 +169,7 @@ void ReduceStateDimension(TubeEquation& tube_equation,
     dest.momentum[i] = src.momentum[i];
   }
   dest.species = src.species;
+  dest.passive_scalars = src.passive_scalars;
   dest.energy = src.energy;
   CompleteFromCons(tube_equation, dest, AsCons(dest));
 }
@@ -183,6 +184,7 @@ void EmbedState(PlenumEquation& plenum_equation, Complete<PlenumEquation>& dest,
     dest.momentum[i] = src.momentum[i];
   }
   dest.species = src.species;
+  dest.passive_scalars = src.passive_scalars;
   dest.energy = src.energy;
   CompleteFromCons(plenum_equation, dest, AsCons(dest));
 }

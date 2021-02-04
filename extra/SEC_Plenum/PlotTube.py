@@ -58,6 +58,7 @@ for mode, suptitle in zip(modes, mode_titles):
   rhoF_data = datas[:, datas_dict['Species'], :]
   p_data = datas[:, datas_dict['Pressure'], :]
   c_data = datas[:, datas_dict['SpeedOfSound'], :]
+  rhoX_data = datas[:, datas_dict['PassiveScalars'], :]
   T_data = p_data / rho_data
   F_data = rhoF_data / rho_data
 
@@ -68,11 +69,12 @@ for mode, suptitle in zip(modes, mode_titles):
 
   # print(np.max(F_data))
   Ma = rhou_data / rho_data / c_data
+  X = rhoX_data / rho_data
 
-  titles = ['Temperature', 'Pressure', 'Local Machnumber', 'Fuel Massfraction']
-  datas = [T_data, p_data, Ma, F_data]
-  f, ax = plt.subplots(nrows=1, ncols=4, figsize=(40. / 2, 10 / 2.), sharey=True)# figsize=(15, 10)) #set_size('thesis'))
-  
+  titles = ['Temperature', 'Pressure', 'Local Machnumber', 'Fuel Massfraction', 'Passive Scalars']
+  datas = [T_data, p_data, Ma, F_data, X]
+  f, ax = plt.subplots(nrows=1, ncols=5, figsize=(50. / 2, 10 / 2.), sharey=True)# figsize=(15, 10)) #set_size('thesis'))
+
   def props(title):
     props = {
       'origin': 'lower',
@@ -80,6 +82,14 @@ for mode, suptitle in zip(modes, mode_titles):
       'extent': (x0, xEnd, t0, tEnd),
       'aspect': 'auto'
     }
+    if title == 'Passive Scalars':
+      props = {
+        'origin': 'lower',
+        'extent': (x0, xEnd, t0, tEnd),
+        'levels': np.linspace(np.min(X), np.max(X), 20),
+        'vmax': None,
+        'vmin': None
+      }
     if title == 'Fuel Massfraction':
       props['vmax'] = None
       props['vmin'] = None
@@ -96,11 +106,13 @@ for mode, suptitle in zip(modes, mode_titles):
       'cmap': 'jet'
       }
     return props
-
-  ims = [a.imshow(data, **props(title)) for a, data, title in zip(ax, datas, titles)]
+  import itertools
+  ims = [a.imshow(data, **props(title)) for (__, (a, data, title)) in itertools.takewhile(lambda x: x[0] < 4,  enumerate(zip(ax, datas, titles)))]
   ax[0].set(ylabel='time')
+  ims.append(ax[4].contourf(datas[4], **props(titles[4])))
   for a, title in zip(ax, titles):
     a.set(xlabel='x', title=title)
+  
 
   from matplotlib.ticker import FormatStrFormatter
   for a, im in zip(ax, ims):
