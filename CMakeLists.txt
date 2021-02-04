@@ -187,7 +187,14 @@ install(
 find_package(fmt REQUIRED)
 find_package(Vc REQUIRED)
 find_package(HDF5 REQUIRED COMPONENTS C)
-find_package(pybind11 REQUIRED)
+find_package(Python COMPONENTS Interpreter Development REQUIRED)
+if (TARGET CONAN_PKG::pybind11)
+  message(STATUS "Use pybind11 from conan repository")
+  message(STATUS "pybind11 configs: ${CONAN_BUILD_MODULES_PATHS_PYBIND11}")
+  find_package(pybind11 CONFIGS "pybind11Install.cmake" REQUIRED)
+else()
+  find_package(pybind11 REQUIRED)
+endif()
 
 add_library(FiniteVolumeSolver.Solver
   include/fub/boundary_condition/TransmissiveBoundary.hpp
