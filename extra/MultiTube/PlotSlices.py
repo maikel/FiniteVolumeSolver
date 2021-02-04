@@ -77,7 +77,7 @@ def MakeImages(dest, source, steps=[], chunkSize=100):
             ax.cla()
             fig.clf()
 
-slurm_id = 5343973
+slurm_id = 5645413
 path = '/scratch/guttula/MultiTube_blocking/{}/MultiTube/Slices/Plenum.h5'.format(slurm_id)
-dest = '/home/guttula/PressureBlocked/{}'.format(slurm_id)
-MakeImages(dest, path, steps=[2473, 3400])
+dest = '/home/guttula/FiniteVolumeSolver/extra/MultiTube/{}/Slice/Pressure'.format(slurm_id)
+MakeImages(dest, path)

@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation
 import os
 import math
+from pathlib import Path
 
 os.environ['HDF5_USE_FILE_LOCKING'] = 'FALSE'
 
@@ -44,23 +45,23 @@ def MakePlot(dest, path, tube_id=0, variable=0, steps=[], time_interval=[]):
       data = data[:,:,iStart:iEnd]
       times = times[iStart:iEnd]
     fig, ax = plt.subplots()
-    ax.plot(times, data[variable, 0 + tube_id*5, :])
-    ax.plot(times, data[variable, 1 + tube_id*5, :])
-    ax.plot(times, data[variable, 2 + tube_id*5, :])
-    ax.plot(times, data[variable, 3 + tube_id*5, :])
-    ax.plot(times, data[variable, 4 + tube_id*5, :])
+    for i in range(0, 5):
+        ax.plot(times, data[variable, tube_id*5 + i, :], label='P{}{}'.format(tube_id + 1, i + 1))
+    ax.legend()
+    path = Path(dest)
+    os.makedirs(path.parent, exist_ok=True)
     fig.savefig(dest)
     fig.clf()
     return data, times
 
-slurm_id = '5343973'
-source = '/scratch/guttula/MultiTube_blocking/{}/MultiTube/Probes/Plenum.h5'.format(slurm_id)
-#source = "/scratch/guttula/MultiTube/5097856/MultiTube/Probes/Plenum.h5"
-dest = "/home/guttula/FiniteVolumeSolver/extra/MultiTube/pressure_{}.png".format(slurm_id)
+slurm_id = '5672798'
 variable = 16
-tube_id = 0
+tube_id = 2
+source = '/scratch/guttula/MultiTube_blocking/{}/MultiTube/Probes/Plenum.h5'.format(slurm_id)
+# source = "/scratch/guttula/MultiTube/5097856/MultiTube/Probes/Plenum.h5"
+dest = '/home/guttula/FiniteVolumeSolver/extra/MultiTube/{}/Probes_pressure_{}.png'.format(slurm_id, tube_id)
 
-data, times = MakePlot(dest, source, tube_id=tube_id, variable=variable, steps=[8000, 15000])
+data, times = MakePlot(dest, source, tube_id=tube_id, variable=variable, steps=[0, 18000], time_interval=[19e-3, 24e-3])
 
 # imax = [FindLargestGradient(data[16,i,:]) for i in range(0, 4)]
 # print('Largest gradient at i={} and t={}s'.format(imax[0], times[imax[0]]))
