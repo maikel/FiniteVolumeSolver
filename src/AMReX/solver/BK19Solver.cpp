@@ -811,21 +811,25 @@ double DerivativeFromNodes(::amrex::MFIter& dSdy_mf, const ::amrex::MFIter& S0n_
 
 
 template <int Rank, int VelocityRank>
-void SnychronizeRhoChiFastWithIntegratorContext(
+void ExplicitRhoChiFastIntegratorSynchronizedContext(
     CompressibleAdvectionIntegratorContext& context, 
     IndexMapping<CompressibleAdvection<Rank, VelocityRank>> index, Duration dt,
-    span<const ::amrex::MultiFab> S0s) {
+    span<const ::amrex::MultiFab> S0cs,
+    span<const ::amrex::MultiFab> S0ns) {
   const int n_levels = context.GetPatchHierarchy().GetNumberOfLevels();
   for (int level = 0; level < n_levels; ++level) {
     const ::amrex::Geometry& geom = context.GetGeometry(level);
     const double dy = geom.CellSize(1);
     ::amrex::MultiFab& scratch = context.GetScratch(level);
-    const ::amrex::MultiFab& S0c = S0s[level];
-    DerivativeFromNodes(dSdy,S0n,dy);
+    const ::amrex::MultiFab& S0c = S0cs[level];
+    const ::amrex::MultiFab& S0n = S0ns[level];
+
     ForEachFab(S0c, [&](const ::amrex::MFIter& mfi) {
       const ::amrex::FArrayBox& S0 = S0c[mfi];
-      const ::amrex::FArrayBox& dSdy = dSdy[mfi];
       ::amrex::FArrayBox& cells = scratch[mfi];
+      ::amrex::FArrayBox dSdy(cells.box());
+      DerivativeFromNodes(dSdy,S0n,dy);
+ 
       ForEachIndex(cells.box(), [&](auto... is) {
         const double rho = cells(iv, index.density);
         const double v = cells(iv, index.momentum[1]) / rho;
