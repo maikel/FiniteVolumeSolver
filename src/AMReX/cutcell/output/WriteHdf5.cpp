@@ -38,7 +38,7 @@ WriteHdf5::WriteHdf5(const ProgramOptions& options,
                      std::vector<std::string> field_names)
     : OutputAtFrequencyOrInterval<GriddingAlgorithm>(options),
       field_names_(std::move(field_names)) {
-  if (field_names_.back() != "vfrac") {
+  if (!field_names_.empty() && field_names_.back() != "vfrac") {
     field_names_.push_back("vfrac");
   }
   path_to_file_ = GetOptionOr(options, "path", std::string("grid.h5"));
