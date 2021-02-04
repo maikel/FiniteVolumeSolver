@@ -64,7 +64,7 @@ tube_n_cells = int(tube_n_cells)
 
 RunOptions = {
   'cfl': 1.0,# / float(tube_n_cells / 64),
-  'final_time': 4.0,
+  'final_time': 40.0,
   'max_cycles': -1,
   'do_backup': 0
 }
@@ -245,6 +245,7 @@ Tubes = [{
     },
     'periodicity': [0, 0, 0]
   },
+  'DiffusionSourceTerm': DiffusionSourceTerm,
   'ArrheniusKinetics': ArrheniusKinetics,
   'PatchHierarchy': {
     'max_number_of_levels': n_level, 

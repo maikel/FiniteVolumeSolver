@@ -103,6 +103,66 @@ struct IsNeverBlocked {
   }
 };
 
+struct TracePassiveScalarBoundary {
+  using Equation = fub::PerfectGasMix<1>;
+  using Complete = Equation::Complete;
+  using Conservative = Equation::Conservative;
+
+  Equation equation_;
+  fub::Duration dt_;
+
+  void FillBoundary(::amrex::MultiFab& mf,
+                    const fub::amrex::GriddingAlgorithm& grid, int level) {
+
+    using HLLEM_Lar = fub::perfect_gas::HllemMethod<Equation>;
+
+    using CharacteristicsReconstruction = fub::FluxMethod<fub::MusclHancock2<
+        Equation,
+        fub::CharacteristicsGradient<
+            Equation, fub::CentralDifferenceGradient<fub::MinModLimiter>>,
+        fub::CharacteristicsReconstruction<Equation>, HLLEM_Lar>>;
+
+    CharacteristicsReconstruction flux_method(equation_);
+    Conservative flux(equation_);
+    std::array<Complete, 4> stencil{};
+    stencil.fill(Complete(equation_));
+
+    int ngrow = 2;
+    const ::amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
+    const double dx = geom.CellSize(0);
+    const ::amrex::IntVect lo{-2*ngrow, 0};
+    const ::amrex::IntVect hi{+ngrow, 0};
+    const ::amrex::Box stencil_box{lo, hi};
+    fub::amrex::ForEachFab(mf, [&](const ::amrex::MFIter& mfi) {
+      const ::amrex::Box section = mfi.growntilebox() & stencil_box;
+      if (!section.isEmpty()) {
+        FUB_ASSERT(section == stencil_box);
+        fub::View<Complete> stencilv =
+            fub::amrex::MakeView<Complete>(mf[mfi], equation_, stencil_box);
+        for (int i = 0; i < int(stencil.size()); ++i) {
+          fub::Load(stencil[i], stencilv, fub::Index<1>{i - ngrow});
+        }
+        flux_method.ComputeNumericFlux(flux, stencil, dt_, dx,
+                                       fub::Direction::X);
+        const double X_right = stencilv.passive_scalars(0, 0) / stencilv.density(0);
+        const double X_left = X_right + dt_.count() / dx;
+        stencilv.passive_scalars(-1, 0) = X_left * stencilv.density(-1);
+        stencilv.passive_scalars(-2, 0) = X_left * stencilv.density(-2);
+        stencilv.passive_scalars(-3, 0) = X_left * stencilv.density(-3);
+        stencilv.passive_scalars(-4, 0) = X_left * stencilv.density(-4);
+      }
+    });
+  }
+
+  void FillBoundary(::amrex::MultiFab& mf,
+                    const fub::amrex::GriddingAlgorithm& grid, int level,
+                    fub::Direction dir) {
+    if (dir == fub::Direction::X) {
+      FillBoundary(mf, grid, level);
+    }
+  }
+};
+
 struct InitialDataInTube {
   using Equation = fub::PerfectGasMix<1>;
   using Complete = fub::Complete<Equation>;
@@ -150,6 +210,51 @@ struct InitialDataInTube {
   }
 };
 
+struct InitialDataInPlenum {
+  using Equation = fub::PerfectGasMix<2>;
+  using Complete = fub::Complete<Equation>;
+  using KineticState = fub::KineticState<Equation>;
+  using Conservative = fub::Conservative<Equation>;
+
+  Equation equation_;
+  fub::perfect_gas_mix::ArrheniusKineticsOptions kinetics_;
+
+  void InitializeData(fub::amrex::PatchLevel& patch_level,
+                      const fub::amrex::cutcell::GriddingAlgorithm& grid,
+                      int level, fub::Duration /*time*/) const {
+    const amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
+    amrex::MultiFab& data = patch_level.data;
+    fub::amrex::ForEachFab(
+        fub::execution::openmp, data, [&](amrex::MFIter& mfi) {
+          KineticState state(equation_);
+          Complete complete(equation_);
+          fub::Array<double, 2, 1> velocity{0.0, 0.0};
+          fub::View<Complete> states = fub::amrex::MakeView<Complete>(
+              data[mfi], equation_, mfi.tilebox());
+          fub::ForEachIndex(
+              fub::Box<0>(states), [&](std::ptrdiff_t i, std::ptrdiff_t j) {
+                const double x = geom.CellCenter(int(i), 0);
+                // const double pressure = 1.0;
+                const double p0 = 2.0;
+                const double rho0 = std::pow(p0, equation_.gamma_inv);
+                const double T0 = p0 / rho0;
+                const double p = 0.95 * p0;
+                const double T = T0 + kinetics_.Q * equation_.gamma_minus_one;
+                const double rho = p / T * equation_.ooRspec;
+
+                state.temperature = T;
+                state.density = rho;
+                state.mole_fractions[0] = 0.0;
+                state.mole_fractions[1] = 1.0;
+                state.passive_scalars[0] = -x;
+                fub::euler::CompleteFromKineticState(equation_, complete, state,
+                                                     velocity);
+                fub::Store(states, complete, {i, j});
+              });
+        });
+  }
+};
+
 auto MakeTubeSolver(
     const fub::ProgramOptions& options,
     const fub::PerfectGasConstants& constants,
@@ -172,7 +277,8 @@ auto MakeTubeSolver(
 
   using Eq = fub::PerfectGasMix<Tube_Rank>;
   using Complete = Eq::Complete;
-  fub::PerfectGasMix<Tube_Rank> equation{constants, n_species - 1, n_passive_scalars};
+  fub::PerfectGasMix<Tube_Rank> equation{constants, n_species - 1,
+                                         n_passive_scalars};
 
   GradientDetector gradient{equation, std::make_pair(&Complete::density, 1e-2),
                             std::make_pair(&Complete::pressure, 1e-2)};
@@ -287,6 +393,7 @@ auto MakeTubeSolver(
 
   // fub::amrex::PressureValveBoundary_Klein valve(equation, compressor_state,
   //                                               inflow_function);
+
   BoundarySet boundaries{{valve}};
 
   // If a checkpoint path is specified we will fill the patch hierarchy with
@@ -327,13 +434,24 @@ auto MakeTubeSolver(
 
   IntegratorContext context(gridding, method, scratch_gcw, flux_gcw);
 
+  fub::amrex::DiffusionSourceTermOptions diff_opts =
+      fub::GetOptions(options, "DiffusionSourceTerm");
+  fub::amrex::DiffusionSourceTerm<fub::PerfectGasMix<1>> diffusion_source_term{equation,
+                                                                     diff_opts};
+  const fub::Duration good_guess_dt = diffusion_source_term.ComputeStableDt(context, 0);
+  TracePassiveScalarBoundary passive_scalar_boundary{equation, good_guess_dt};
+  context.GetGriddingAlgorithm()->GetBoundaryCondition() =
+      BoundarySet{{valve, passive_scalar_boundary}};
+
   BOOST_LOG(log) << "==================== End Tube =========================";
 
   return std::pair{context, source_term};
 }
 
-auto MakePlenumSolver(const std::map<std::string, pybind11::object>& options,
-                      const fub::PerfectGasConstants& constants) {
+auto MakePlenumSolver(
+    const std::map<std::string, pybind11::object>& options,
+    const fub::PerfectGasConstants& constants,
+    const fub::perfect_gas_mix::ArrheniusKineticsOptions& kinetics) {
   std::shared_ptr<fub::CounterRegistry> registry =
       std::make_shared<fub::CounterRegistry>();
   auto make_plenum_solver = registry->get_timer("MakePlenumSolver");
@@ -398,45 +516,48 @@ auto MakePlenumSolver(const std::map<std::string, pybind11::object>& options,
         MakeIndexSpaces(shop, grid_geometry, hierarchy_options);
   }
 
-  fub::PerfectGasMix<Plenum_Rank> equation{constants, n_species - 1, n_passive_scalars};
+  fub::PerfectGasMix<Plenum_Rank> equation{constants, n_species - 1,
+                                           n_passive_scalars};
 
-  fub::Complete<fub::PerfectGasMix<Plenum_Rank>> left(equation);
-  fub::Complete<fub::PerfectGasMix<Plenum_Rank>> right(equation);
-  {
-    using namespace std::literals;
-    const fub::ProgramOptions initial_options =
-        fub::GetOptions(options, "InitialCondition");
-    const fub::ProgramOptions left_options =
-        fub::GetOptions(initial_options, "left");
-    std::array<double, n_species> moles{0.0, 1.0};
-    moles = fub::GetOptionOr(left_options, "moles", moles);
-    double temperature = fub::GetOptionOr(left_options, "temperature", 1.0);
-    double density = fub::GetOptionOr(left_options, "density", 1.0);
-    std::array<double, Plenum_Rank> velocity{};
-    velocity = fub::GetOptionOr(left_options, "velocity", velocity);
-    fub::KineticState<fub::PerfectGasMix<Plenum_Rank>> kin(equation);
-    kin.temperature = temperature;
-    kin.density = density;
-    kin.mole_fractions = fub::AsEigenVector(moles);
-    fub::euler::CompleteFromKineticState(equation, left, kin,
-                                         fub::AsEigenVector(velocity));
+  // fub::Complete<fub::PerfectGasMix<Plenum_Rank>> left(equation);
+  // fub::Complete<fub::PerfectGasMix<Plenum_Rank>> right(equation);
+  // {
+  //   using namespace std::literals;
+  //   const fub::ProgramOptions initial_options =
+  //       fub::GetOptions(options, "InitialCondition");
+  //   const fub::ProgramOptions left_options =
+  //       fub::GetOptions(initial_options, "left");
+  //   std::array<double, n_species> moles{0.0, 1.0};
+  //   moles = fub::GetOptionOr(left_options, "moles", moles);
+  //   double temperature = fub::GetOptionOr(left_options, "temperature", 1.0);
+  //   double density = fub::GetOptionOr(left_options, "density", 1.0);
+  //   std::array<double, Plenum_Rank> velocity{};
+  //   velocity = fub::GetOptionOr(left_options, "velocity", velocity);
+  //   fub::KineticState<fub::PerfectGasMix<Plenum_Rank>> kin(equation);
+  //   kin.temperature = temperature;
+  //   kin.density = density;
+  //   kin.mole_fractions = fub::AsEigenVector(moles);
+  //   fub::euler::CompleteFromKineticState(equation, left, kin,
+  //                                        fub::AsEigenVector(velocity));
 
-    const fub::ProgramOptions right_options =
-        fub::GetOptions(initial_options, "right");
-    moles = std::array<double, n_species>{0.0, 1.0};
-    moles = fub::GetOptionOr(right_options, "moles", moles);
-    temperature = fub::GetOptionOr(right_options, "temperature", 1.0);
-    density = fub::GetOptionOr(right_options, "density", 1.0);
-    velocity = std::array<double, Plenum_Rank>{};
-    velocity = fub::GetOptionOr(right_options, "velocity", velocity);
-    kin.temperature = temperature;
-    kin.density = density;
-    kin.mole_fractions = fub::AsEigenVector(moles);
-    fub::euler::CompleteFromKineticState(equation, right, kin,
-                                         fub::AsEigenVector(velocity));
-  }
-  RiemannProblem initial_data(equation, fub::Halfspace({+1.0, 0.0, 0.0}, 0.0),
-                              left, right);
+  //   const fub::ProgramOptions right_options =
+  //       fub::GetOptions(initial_options, "right");
+  //   moles = std::array<double, n_species>{0.0, 1.0};
+  //   moles = fub::GetOptionOr(right_options, "moles", moles);
+  //   temperature = fub::GetOptionOr(right_options, "temperature", 1.0);
+  //   density = fub::GetOptionOr(right_options, "density", 1.0);
+  //   velocity = std::array<double, Plenum_Rank>{};
+  //   velocity = fub::GetOptionOr(right_options, "velocity", velocity);
+  //   kin.temperature = temperature;
+  //   kin.density = density;
+  //   kin.mole_fractions = fub::AsEigenVector(moles);
+  //   fub::euler::CompleteFromKineticState(equation, right, kin,
+  //                                        fub::AsEigenVector(velocity));
+  // }
+  // RiemannProblem initial_data(equation, fub::Halfspace({+1.0, 0.0, 0.0},
+  // 0.0),
+  //                             left, right);
+  InitialDataInPlenum initial_data{equation, kinetics};
 
   //  using Complete = fub::Complete<fub::PerfectGas<Plenum_Rank>>;
   using Complete = fub::Complete<fub::PerfectGasMix<Plenum_Rank>>;
@@ -681,8 +802,10 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   BOOST_LOG(log) << fmt::format("  - Rspec = {}", constants.Rspec);
   BOOST_LOG(log) << fmt::format("  - gamma = {}", constants.gamma);
 
-  fub::PerfectGasMix<Plenum_Rank> plenum_equation{constants, n_species - 1, n_passive_scalars};
-  fub::PerfectGasMix<Tube_Rank> tube_equation{constants, n_species - 1, n_passive_scalars};
+  fub::PerfectGasMix<Plenum_Rank> plenum_equation{constants, n_species - 1,
+                                                  n_passive_scalars};
+  fub::PerfectGasMix<Tube_Rank> tube_equation{constants, n_species - 1,
+                                              n_passive_scalars};
   fub::ProgramOptions control_options_map =
       fub::GetOptions(vm, "ControlOptions");
   GT::ControlOptions control_options(control_options_map);
@@ -701,7 +824,10 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
     ia >> *control_state;
   }
 
-  plenum.push_back(MakePlenumSolver(fub::GetOptions(vm, "Plenum"), constants));
+  fub::perfect_gas_mix::ArrheniusKineticsOptions kinetic_opts =
+      fub::GetOptions(vm, "ArrheniusKinetics");
+  plenum.push_back(
+      MakePlenumSolver(fub::GetOptions(vm, "Plenum"), constants, kinetic_opts));
   auto counter_database = plenum[0].GetCounterRegistry();
 
   std::vector<pybind11::dict> tube_dicts = {};
