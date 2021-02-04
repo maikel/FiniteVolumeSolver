@@ -201,10 +201,29 @@ void MyMain(const fub::ProgramOptions& options) {
                                   TransmissiveBoundary{fub::Direction::Y, 0},
                                   TransmissiveBoundary{fub::Direction::Y, 1}}};
 
-  std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
-      PatchHierarchy(equation, geometry, hier_opts), initial_data,
-      TagAllOf(TagCutCells(), gradients, TagBuffer(4)), boundary_condition);
-  gridding->InitializeHierarchy(0.0);
+  std::shared_ptr gridding = [&] {
+    fub::SeverityLogger log = fub::GetInfoLogger();
+    std::string checkpoint =
+        fub::GetOptionOr(options, "checkpoint", std::string{});
+    if (checkpoint.empty()) {
+      BOOST_LOG(log) << "Initialize grid by initial condition...";
+      std::shared_ptr grid = std::make_shared<GriddingAlgorithm>(
+          PatchHierarchy(equation, geometry, hier_opts), initial_data,
+          TagAllOf(TagCutCells(), gradients, TagBuffer(4)), boundary_condition);
+      grid->InitializeHierarchy(0.0);
+      return grid;
+    } else {
+      BOOST_LOG(log) << "Initialize grid from given checkpoint '" << checkpoint
+                     << "'.";
+      PatchHierarchy h = ReadCheckpointFile(
+          checkpoint, fub::amrex::MakeDataDescription(equation), geometry,
+          hier_opts);
+      std::shared_ptr grid = std::make_shared<GriddingAlgorithm>(
+          std::move(h), initial_data,
+          TagAllOf(TagCutCells(), gradients, TagBuffer(4)), boundary_condition);
+      return grid;
+    }
+  }();
 
   using namespace std::literals;
 
@@ -228,8 +247,29 @@ void MyMain(const fub::ProgramOptions& options) {
   using Plotfile = PlotfileOutput<fub::PerfectGas<2>>;
   fub::OutputFactory<GriddingAlgorithm> factory{};
   factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
-  factory.RegisterOutput<WriteHdf5>("HDF5");
+  auto field_names = fub::VarNames<State, std::vector<std::string>>(equation);
+  factory.RegisterOutput<WriteHdf5>("HDF5", field_names);
   factory.RegisterOutput<Plotfile>("Plotfiles", equation);
+
+  struct MakeCheckpoint
+      : public fub::OutputAtFrequencyOrInterval<GriddingAlgorithm> {
+    std::string directory_ = "Divider2D/Checkpoint/";
+    MakeCheckpoint(const fub::ProgramOptions& options)
+        : OutputAtFrequencyOrInterval(options) {
+      directory_ = fub::GetOptionOr(options, "directory", directory_);
+      fub::SeverityLogger log = fub::GetInfoLogger();
+      BOOST_LOG(log) << "Checkpoint Output configured:";
+      BOOST_LOG(log) << fmt::format("  - directory = {}", directory_);
+      OutputAtFrequencyOrInterval::Print(log);
+    }
+    void operator()(const GriddingAlgorithm& grid) override {
+      std::string name = fmt::format("{}/{:09}", directory_, grid.GetCycles());
+      fub::SeverityLogger log = fub::GetInfoLogger();
+      BOOST_LOG(log) << fmt::format("Write Checkpoint to '{}'!", name);
+      fub::amrex::cutcell::WriteCheckpointFile(name, grid.GetPatchHierarchy());
+    }
+  };
+  factory.RegisterOutput<MakeCheckpoint>("Checkpoint");
   fub::MultipleOutputs<GriddingAlgorithm> outputs(
       std::move(factory), fub::GetOptions(options, "Output"));
 

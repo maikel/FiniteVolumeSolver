@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Maikel Nadolski
+// Copyright (c) 2021 Maikel Nadolski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,36 +18,26 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_AMREX_OUTPUT_WRITE_HDF5_HPP
-#define FUB_AMREX_OUTPUT_WRITE_HDF5_HPP
+#ifndef FUB_AMREX_OUTPUT_WRITE_HDF_IMPL_
+#define FUB_AMREX_OUTPUT_WRITE_HDF_IMPL_
 
-#include "fub/AMReX/GriddingAlgorithm.hpp"
-#include "fub/ext/ProgramOptions.hpp"
-#include "fub/output/OutputAtFrequencyOrInterval.hpp"
+#include "fub/AMReX/PatchHierarchy.hpp"
+#include "fub/core/span.hpp"
 
-#include <optional>
 #include <string>
 
 namespace fub::amrex {
 
-class WriteHdf5 : public OutputAtFrequencyOrInterval<GriddingAlgorithm> {
-public:
-  WriteHdf5(std::string path, std::vector<std::ptrdiff_t> freqs,
-            std::vector<Duration> intervals = std::vector<Duration>())
-      : OutputAtFrequencyOrInterval(std::move(freqs), std::move(intervals)),
-        path_to_file_(std::move(path)) {}
+void WriteHdf5UnRestricted(
+    const std::string& name, const PatchHierarchy& hierarchy,
+    span<const std::string> fields = span<const std::string>{});
 
-  WriteHdf5(const ProgramOptions& options,
-            std::vector<std::string> field_names = {});
+void WriteHdf5RestrictedToBox(
+    const std::string& name, const PatchHierarchy& hierarchy,
+    const ::amrex::Box& finest_box,
+    span<const std::string> fields = span<const std::string>{});
 
-  void operator()(const GriddingAlgorithm& grid) override;
+}
 
-private:
-  std::string path_to_file_{};
-  std::optional<::amrex::Box> output_box_{};
-  std::vector<std::string> field_names_{};
-};
-
-} // namespace fub::amrex
 
 #endif

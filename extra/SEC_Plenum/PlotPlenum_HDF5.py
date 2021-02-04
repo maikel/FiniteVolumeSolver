@@ -1,5 +1,7 @@
 import sys, os
 
+from numpy.lib.arraypad import pad
+
 # get the absolute path to the FUB FVS-Solver
 pathname = os.path.dirname(sys.argv[0])
 pathname = os.path.abspath(pathname)
@@ -25,14 +27,14 @@ inputFilePath = FVS_path+"/examples/AMReX/EB/2D/"
 # print(inputFile.y0s)
 # print(inputFile.Area)
 sys.path.append(inputFilePath)
-from SEC_Plenum_Arrhenius import y0s, Area, tube_n_cells, p_ref, T_ref, rho_ref, Output
+from SEC_Plenum_Arrhenius import y0s, Area, tube_n_cells, p_ref, T_ref, rho_ref, Output, u_ref, t_ref
 from SEC_Plenum_Arrhenius import D as diameter_tube
 # print(y0s)
 # print(Area)
 
 plenum = "{}/Plenum.h5".format(dataPath)
 outPath = dataPath
-output_path = '{}/Visualization'.format(outPath)
+output_path = '{}/Visualization/Plenum/'.format(outPath)
 
 
 
@@ -83,7 +85,8 @@ def stackTubeDataTo2D(Tube_datalist):
       Tube_datalist[i] = np.stack((el,el))
    return Tube_datalist
 
-for i in range(nsteps):
+for i in itertools.dropwhile(lambda x: x < 53, range(nsteps)):
+# for i in range(nsteps):
    PrintProgress(i)
    
    Tube_p = []
@@ -145,16 +148,16 @@ for i in range(nsteps):
    
    # temperature image
    T = p / rho
-   im_T = axs[1].imshow(T * T_ref, origin='lower', vmin=1.0 * T_ref, vmax=15 * T_ref, interpolation='none', extent=extent)
+   im_T = axs[1].imshow(T * T_ref, origin='lower', vmin=10.0 * T_ref, vmax=15. * T_ref, interpolation='none', extent=extent)
    axs[1].set_title('Temperature')
    axs[1].set(aspect='equal')
    cbar = plt.colorbar(im_T, ax=axs[1])
    cbar.set_label('[K]', rotation=270, labelpad=15)
    
    
-   # velocity field   rho = np.ma.masked_array(rho, vols > 1e-14)
-   rho = np.ma.masked_array(rho, vols < 1e-14)
+   
    # Passive Scalar
+   rho = np.ma.masked_array(rho, vols < 1e-14)
    X = rhoX / rho
    levels = np.linspace(-1.0, 2.0, 40)
    im_X = axs[2].contourf(X, origin='lower', extent=extent, levels=levels, extend='both', cmap='twilight')
@@ -178,16 +181,18 @@ for i in range(nsteps):
    
 
    # velocity plot
-   u = rhou / rho
-   v = rhov / rho
+   u = rhou / rho #* u_ref
+   v = rhov / rho #* u_ref
+   # print(np.max(u))
    skip = 5
-   #scale = 40.0
+   scale = 2.
    x = np.linspace(*extent[0:2], num=u[::skip, ::skip].shape[1], endpoint=True)
    y = np.linspace(*extent[2:], num=u[::skip, ::skip].shape[0], endpoint=True)
    X,Y = np.meshgrid(x,y)
-   Q = axs[3].quiver(X, Y, u[::skip,::skip], v[::skip,::skip], scale=4, units='inches', width=0.01)
-   axs[3].quiverkey(Q, 1, 1.05, 1, r'$1 \frac{m}{s}$', labelpos='E', coordinates='axes')
-   axs[3].set_title('Velocity Field')
+   # Q = axs[3].quiver(X, Y, u[::skip,::skip], v[::skip,::skip], scale=u_ref, units='inches', width=0.01)
+   Q = axs[3].quiver(X, Y, u[::skip,::skip], v[::skip,::skip], angles='xy', scale_units='xy', scale=scale)
+   axs[3].quiverkey(Q, 0.5, 1.05, 1./scale, '{}'.format(round(u_ref,1))+r'$ \frac{m}{s}$', labelpos='E', coordinates='axes')
+   # axs[3].set_title('Velocity Field')
    axs[3].set(aspect='equal')
    
    # f.subplots_adjust(hspace=0.4)

@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #include "fub/AMReX/output/WriteHdf5.hpp"
+#include "src/AMReX/output/WriteHdf5Impl.hpp"
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/ForEachIndex.hpp"
 
@@ -33,17 +34,26 @@
 
 namespace fub::amrex {
 
-WriteHdf5::WriteHdf5(const std::map<std::string, pybind11::object>& vm)
-    : OutputAtFrequencyOrInterval<GriddingAlgorithm>(vm) {
-  path_to_file_ = GetOptionOr(vm, "path", std::string("grid.h5"));
-  auto it = vm.find("box");
-  if (it != vm.end()) {
+WriteHdf5::WriteHdf5(const ProgramOptions& options,
+                     std::vector<std::string> field_names)
+    : OutputAtFrequencyOrInterval<GriddingAlgorithm>(options),
+      field_names_{std::move(field_names)} {
+  path_to_file_ = GetOptionOr(options, "path", std::string("grid.h5"));
+  fub::SeverityLogger log = GetInfoLogger();
+  BOOST_LOG(log) << "WriteHdf5 configured:";
+  BOOST_LOG(log) << fmt::format(" - path: {}", path_to_file_);
+  auto it = options.find("box");
+  if (it != options.end()) {
     auto box = ToMap(it->second);
     std::array<int, AMREX_SPACEDIM> lo =
         GetOptionOr(box, "lower", std::array<int, AMREX_SPACEDIM>{});
     std::array<int, AMREX_SPACEDIM> hi =
         GetOptionOr(box, "upper", std::array<int, AMREX_SPACEDIM>{});
     output_box_.emplace(::amrex::IntVect(lo), ::amrex::IntVect(hi));
+    BOOST_LOG(log) << fmt::format(" - box: [{{{}}}, {{{}}}]",
+                                  fmt::join(lo, ", "), fmt::join(hi, ", "));
+  } else {
+    BOOST_LOG(log) << " - box: everything";
   }
   int rank = -1;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -81,158 +91,6 @@ WriteHdf5::WriteHdf5(const std::map<std::string, pybind11::object>& vm)
   }
 }
 
-namespace {
-void WriteHdf5UnRestricted(const std::string& name,
-                           const PatchHierarchy& hierarchy) {
-  MPI_Comm comm = ::amrex::ParallelContext::CommunicatorAll();
-  int rank = -1;
-  ::MPI_Comm_rank(comm, &rank);
-  if (rank == 0) {
-    boost::filesystem::path path(name);
-    boost::filesystem::path dir = boost::filesystem::absolute(
-        path.parent_path(), boost::filesystem::current_path());
-    if (!boost::filesystem::exists(dir)) {
-      boost::filesystem::create_directories(dir);
-    }
-  }
-  const std::size_t n_level =
-      static_cast<std::size_t>(hierarchy.GetNumberOfLevels());
-  std::vector<::amrex::FArrayBox> fabs{};
-  fabs.reserve(n_level);
-  for (std::size_t level = 0; level < n_level; ++level) {
-    const int ilvl = static_cast<int>(level);
-    const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(ilvl);
-    ::amrex::Box domain = level_geom.Domain();
-    const ::amrex::MultiFab& level_data = hierarchy.GetPatchLevel(ilvl).data;
-    ::amrex::FArrayBox local_fab(domain, level_data.nComp());
-    local_fab.setVal(0.0);
-    ForEachFab(level_data, [&](const ::amrex::MFIter& mfi) {
-      const ::amrex::FArrayBox& patch_data = level_data[mfi];
-      local_fab.copy(patch_data);
-    });
-    if (rank == 0) {
-      ::amrex::FArrayBox& fab = fabs.emplace_back(domain, level_data.nComp());
-      fab.setVal(0.0);
-      const auto size = static_cast<int>(local_fab.size());
-      ::MPI_Reduce(local_fab.dataPtr(), fab.dataPtr(), size, MPI_DOUBLE,
-                   MPI_SUM, 0, comm);
-      if (level > 0) {
-        for (int comp = 1; comp < level_data.nComp(); ++comp) {
-          ForEachIndex(domain, [&](auto... is) {
-            ::amrex::IntVect fine_i{int(is)...};
-            ::amrex::IntVect coarse_i = fine_i;
-            coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(ilvl));
-            if (fab(fine_i, 0) == 0.0) {
-              fab(fine_i, comp) = fabs[level - 1](coarse_i, comp);
-            }
-          });
-        }
-        ForEachIndex(domain, [&](auto... is) {
-          ::amrex::IntVect fine_i{int(is)...};
-          ::amrex::IntVect coarse_i = fine_i;
-          coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(ilvl));
-          if (fab(fine_i, 0) == 0.0) {
-            fab(fine_i, 0) = fabs[level - 1](coarse_i, 0);
-          }
-        });
-      }
-      if (level == n_level - 1) {
-        const fub::Duration time_point = hierarchy.GetTimePoint();
-        const std::ptrdiff_t cycle_number = hierarchy.GetCycles();
-        WriteToHDF5(name, fab, level_geom, time_point, cycle_number);
-      }
-    } else {
-      const auto size = static_cast<int>(local_fab.size());
-      ::MPI_Reduce(local_fab.dataPtr(), nullptr, size, MPI_DOUBLE, MPI_SUM, 0,
-                   comm);
-    }
-  }
-}
-
-void WriteHdf5RestrictedToBox(const std::string& name,
-                              const PatchHierarchy& hierarchy,
-                              const ::amrex::Box& finest_box) {
-  MPI_Comm comm = ::amrex::ParallelContext::CommunicatorAll();
-  int rank = -1;
-  ::MPI_Comm_rank(comm, &rank);
-  if (rank == 0) {
-    boost::filesystem::path path(name);
-    boost::filesystem::path dir = boost::filesystem::absolute(
-        path.parent_path(), boost::filesystem::current_path());
-    if (!boost::filesystem::exists(dir)) {
-      boost::filesystem::create_directories(dir);
-    }
-  }
-  const std::size_t n_level =
-      static_cast<std::size_t>(hierarchy.GetNumberOfLevels());
-  std::vector<::amrex::Geometry> geoms{};
-  std::vector<::amrex::MultiFab> data{};
-  std::vector<::amrex::FArrayBox> fabs{};
-  std::vector<::amrex::Box> boxes{};
-  boxes.reserve(n_level);
-  boxes.push_back(finest_box);
-  ::amrex::Box box = finest_box;
-  for (int level = static_cast<int>(n_level) - 1; level > 0; --level) {
-    ::amrex::IntVect refine_ratio = hierarchy.GetRatioToCoarserLevel(level);
-    box.coarsen(refine_ratio);
-    boxes.push_back(box);
-  }
-  std::reverse(boxes.begin(), boxes.end());
-  geoms.reserve(n_level);
-  data.reserve(n_level);
-  fabs.reserve(n_level);
-  for (std::size_t level = 0; level < n_level; ++level) {
-    const int ilvl = static_cast<int>(level);
-    ::amrex::Box domain = boxes[level];
-    const ::amrex::MultiFab& level_data = hierarchy.GetPatchLevel(ilvl).data;
-    ::amrex::FArrayBox local_fab(domain, level_data.nComp());
-    local_fab.setVal(0.0);
-    ForEachFab(level_data, [&](const ::amrex::MFIter& mfi) {
-      const ::amrex::FArrayBox& patch_data = level_data[mfi];
-      const ::amrex::Box box = mfi.tilebox() & domain;
-      local_fab.copy(patch_data, box);
-    });
-    if (rank == 0) {
-      ::amrex::FArrayBox& fab = fabs.emplace_back(domain, level_data.nComp());
-      fab.setVal(0.0);
-      const auto size = static_cast<int>(local_fab.size());
-      ::MPI_Reduce(local_fab.dataPtr(), fab.dataPtr(), size, MPI_DOUBLE,
-                   MPI_SUM, 0, comm);
-      if (level > 0) {
-        for (int comp = 1; comp < level_data.nComp(); ++comp) {
-          ForEachIndex(domain, [&](auto... is) {
-            ::amrex::IntVect fine_i{int(is)...};
-            ::amrex::IntVect coarse_i = fine_i;
-            coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(ilvl));
-            if (fab(fine_i, 0) == 0.0) {
-              fab(fine_i, comp) = fabs[level - 1](coarse_i, comp);
-            }
-          });
-        }
-        ForEachIndex(domain, [&](auto... is) {
-          ::amrex::IntVect fine_i{int(is)...};
-          ::amrex::IntVect coarse_i = fine_i;
-          coarse_i.coarsen(hierarchy.GetRatioToCoarserLevel(ilvl));
-          if (fab(fine_i, 0) == 0.0) {
-            fab(fine_i, 0) = fabs[level - 1](coarse_i, 0);
-          }
-        });
-      }
-      if (level == n_level - 1) {
-        const fub::Duration time_point = hierarchy.GetTimePoint();
-        const std::ptrdiff_t cycle_number = hierarchy.GetCycles();
-        const ::amrex::Geometry& level_geom = hierarchy.GetGeometry(ilvl);
-        WriteToHDF5(name, fab, level_geom, time_point, cycle_number);
-      }
-    } else {
-      const auto size = static_cast<int>(local_fab.size());
-      ::MPI_Reduce(local_fab.dataPtr(), nullptr, size, MPI_DOUBLE, MPI_SUM, 0,
-                   comm);
-    }
-  }
-}
-} // namespace
-
 void WriteHdf5::operator()(const GriddingAlgorithm& grid) {
   boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
       boost::log::keywords::severity = boost::log::trivial::info);
@@ -241,9 +99,10 @@ void WriteHdf5::operator()(const GriddingAlgorithm& grid) {
   BOOST_LOG(log) << fmt::format("Write Hdf5 output to '{}'.", path_to_file_);
   if (output_box_) {
     WriteHdf5RestrictedToBox(path_to_file_, grid.GetPatchHierarchy(),
-                             *output_box_);
+                             *output_box_, field_names_);
   } else {
-    WriteHdf5UnRestricted(path_to_file_, grid.GetPatchHierarchy());
+    WriteHdf5UnRestricted(path_to_file_, grid.GetPatchHierarchy(),
+                          field_names_);
   }
 }
 
