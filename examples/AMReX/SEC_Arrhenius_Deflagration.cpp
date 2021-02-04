@@ -164,6 +164,7 @@ void MyMain(const fub::ProgramOptions& options) {
 
         FUB_ASSERT(rhoin > 0.0);
         FUB_ASSERT(pin > 0.0);
+
         prim.density = rhoin;
         prim.velocity[0] = uin;
         prim.pressure = pin;
@@ -188,6 +189,7 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::amrex::BoundarySet boundary;
   boundary.conditions.push_back(valve);
   using fub::amrex::IsentropicPressureExpansion;
+
   boundary.conditions.push_back(
       IsentropicPressureExpansion<fub::PerfectGasMix<1>>{equation, 1.0,
                                                          fub::Direction::X, 1});

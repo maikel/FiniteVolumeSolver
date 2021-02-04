@@ -968,13 +968,15 @@ We describe in the following how to use docker to run the Divider2D application.
 
 1. Install docker via https://www.docker.com/
 
-2. Download the docker image that contains the Divider2D example via
+2. Open a Terminal or Powershell in windows
+
+3. Download the docker image that contains the Divider2D example via
 
 ```console
 $ docker pull maikelnadolski/divider2d
 ```
 
-3. Run the `fish` command as the `amrex` user and mount your `$HOME` directory on the host `/home/amrex/volume` within the container
+4. Run the `fish` command as the `amrex` user and mount your `$HOME` directory on the host `/home/amrex/volume` within the container
 
 ```console
 $ docker run -it -v $HOME:/home/amrex/volume --user amrex -w /home/amrex maikelnadolski/divider2d fish
@@ -994,7 +996,25 @@ drwxr-xr-x 64 maikel maikel   45056 Jan 11 06:26 volume/
 ⋊> ~                                                          
 ```
 
-4. Test the simulation by running the examples with the provided input file
+On windows, you need to provide the HOST path directly as in the following command
+
+```console
+$ docker run -it -v C:/Users/Studi:/home/amrex/volume --user amrex -w /home/amrex maikelnadolski/divider2d fish
+```
+
+If you run into problems regarding the shared memory capacity of your docker container you can try to use the option `--shm-size=512m` to increase it.
+For example as in
+
+```console
+$ docker run -it -v $HOME:/home/amrex/volume --shm-size=512m --user amrex -w /home/amrex maikelnadolski/divider2d fish
+```
+
+5. Test the simulation by running the examples with the provided input file
+
+The folowing command will execute the application (`AMReX.EB.Divider2D`) with a given default input file (`Divider2D.py`).
+This default output will be located within your running docker container.
+
+Its output should be something like the following snippet
 
 ```
 ⋊> ~ OMP_NUM_THREADS=1 mpiexec AMReX.EB.Divider2D --config Divider2D.py                                                                                                                                    07:09:39
@@ -1055,7 +1075,29 @@ cutcell::IntegratorContext::ResetHierarchyConfiguration               1         
 ...
 ```
 
-5. Visualize the HDF5 output by executing VisualizeHdf5.py and the AMReX Plotfiles by VisualizePlotfiles.py
+Attention: whenever you close the docker container all changes *within* the container will be lost.
+If you want to persist some changes, for example an input file, you need to `commit` the changes from a second terminal window as in
+
+```console
+Darwin mos-mac-pro.hfi.lan 19.6.0 x86_64
+14:02  up 9 days, 14:09, 3 users, load averages: 10.48 6.31 4.14
+ ◰² base  ~  docker container list                                            
+CONTAINER ID   IMAGE                      COMMAND   CREATED         STATUS         PORTS     NAMES
+514cbfaf19cb   maikelnadolski/divider2d   "fish"    2 minutes ago   Up 2 minutes             sleepy_chaplygin
+ ◰² base  ~  docker stop 514cbfaf19cb                                                                                                                   
+514cbfaf19cb
+ ◰² base  ~  docker container list                                                                                                                          
+CONTAINER ID   IMAGE                      COMMAND   CREATED              STATUS              PORTS     NAMES
+53c5439c4f36   maikelnadolski/divider2d   "fish"    About a minute ago   Up About a minute             upbeat_varahamihira
+ ◰² base  ~  docker commit 53c5439c4f36 mo/divider2d                                                                                                      
+sha256:1015bdde15f48ab76b00380a91095fc74cff76465da21480689756d440d4e20c
+ ◰² base  ~  docker image ls                                                                                                                               
+REPOSITORY                 TAG       IMAGE ID       CREATED         SIZE
+mo/divider2d               latest    1015bdde15f4   9 seconds ago   1.24GB
+maikelnadolski/divider2d   latest    e2e6be51eb4f   2 weeks ago     1.24GB
+```
+
+6. Visualize the HDF5 output by executing VisualizeHdf5.py and the AMReX Plotfiles by VisualizePlotfiles.py
 
 ```
 ⋊> ~ python3  VisualizeHdf5.py                                                                                                                                                                             07:14:09
@@ -1111,7 +1153,7 @@ Save figure to /home/amrex/Figures/Plotfiles/Figure0001.png.
 ...
 ```
 
-6. Copy the figures to a location of your host computer. You need a directory that is writable for others.
+7. Copy the figures to a location of your host computer. You need a directory that is writable for others.
 
 On Unix-like machines you can do on your host side
 
@@ -1126,7 +1168,7 @@ Then copy from within your docker container
 ⋊> ~ cp -r Figures/ volume/docker-output
 ```
 
-7. Adjust the provided input file `Divider2D.py` by your needs
+8. Adjust the provided input file `Divider2D.py` by your needs
 
 ```
 ⋊> ~ cp Divider2D.py volume/docker-output
@@ -1248,3 +1290,39 @@ Output = {
 ]
 }
 ```
+
+  The usual workflow is to
+
+    -  Copy the provided input file to your HOST system and edit them
+    -  Run the application from within the docker container using the input file on your HOST machine instead of the provided one.
+       ```console
+       ⋊> ~ OMP_NUM_THREADS=1 mpiexec AMReX.EB.Divider2D --config volume/docker-output/Divider2D.py
+       ```
+    -  Reiterate and change more settings
+    -  Copy publication relevant input files and auxiliary files into the container. 
+       Then commit the container to a named image in order to persist it.
+
+
+  If you wish to write the output files directly in the ouput folder replace the following in devider2d*.py as Divider2D_output_on_windows.py
+  The hdf output will be directly written in the windows "docker_output" folder. 
+
+  ```python
+  # Defines the 
+  Output = {
+      'outputs': [
+    # Write AMReX-output directories. This output preserves the AMR hierarchy 
+    # It is readable from Paraview, VisIt and Python
+    #{'type': 'Plotfiles', 'directory': 'DividerDE5{}/Plotfiles'.format(nx), 'intervals': [1e-4]},
+    # Write simple HDF5 files
+    # It is faster and writes a single grid without patches
+    {'type': 'HDF5', 'path': 'volume/docker_output/Dividerc24{}.h5'.format(nx), 'intervals': [1e-5]},
+    # Print out timer statistics
+    {'type': 'CounterOutput', 'intervals': [1e-4] },
+  ]
+  }
+  ```
+  And then run
+
+  ```console
+  OMP_NUM_THREADS=1 mpiexec AMReX.EB.Divider2D --config volume/docker_output/Divider2D_output_on_windows.py
+  ```
