@@ -26,8 +26,8 @@
 #include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/AMReX/boundary_condition/BoundaryConditionRef.hpp"
 
-#include "fub/ext/ProgramOptions.hpp"
 #include "fub/ext/Log.hpp"
+#include "fub/ext/ProgramOptions.hpp"
 
 #include <AMReX_FillPatchUtil.H>
 
@@ -57,7 +57,8 @@ public:
       const EulerEquation& equation,
       const DiffusionSourceTermOptions& options = DiffusionSourceTermOptions());
 
-  Duration ComputeStableDt(const amrex::IntegratorContext& simulation_data, int level) const;
+  Duration ComputeStableDt(const amrex::IntegratorContext& simulation_data,
+                           int level) const;
 
   Result<void, TimeStepTooLarge>
   AdvanceLevel(IntegratorContext& simulation_data, int level, Duration dt,
@@ -100,8 +101,8 @@ private:
     double mu_Sc_effective;
   } constants_{options_};
 
-  Array1d Enthalpy(const ConservativeArray& q,
-                   const Array1d& rhoinvers) const noexcept;
+  Array1d Enthalpy(const ConservativeArray& q, const Array1d& rhoinvers) const
+      noexcept;
 };
 
 template <typename EulerEquation>
@@ -215,7 +216,8 @@ void DiffusionSourceTerm<EulerEquation>::ComputeDiffusionFluxes(
 }
 
 template <typename EulerEquation>
-Duration DiffusionSourceTerm<EulerEquation>::ComputeStableDt(const amrex::IntegratorContext& simulation_data, int level) const {
+Duration DiffusionSourceTerm<EulerEquation>::ComputeStableDt(
+    const amrex::IntegratorContext& simulation_data, int level) const {
   const ::amrex::Geometry& level_geometry = simulation_data.GetGeometry(level);
   const double dx = level_geometry.CellSize(0);
   return Duration(0.5 * dx * dx / constants_.mul);
