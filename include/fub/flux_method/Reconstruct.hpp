@@ -207,7 +207,7 @@ void PrimitiveReconstruction<EulerEquation>::Reconstruct(
                  lambda * (rho_a2 * dw_dx.velocity[ix] + u * dw_dx.pressure));
   w_rec_.velocity[ix] =
       w_.velocity[ix] +
-      dx_half * (dw_dx.velocity[ix] +
+      dx_half * (dw_dx.velocity[ix] -
                  lambda * (u * dw_dx.velocity[ix] + dw_dx.pressure / rho));
   constexpr int Rank = EulerEquation::Rank();
   for (int i = 1; i < Rank; ++i) {
@@ -259,7 +259,7 @@ void PrimitiveReconstruction<EulerEquation>::Reconstruct(
                                             u * dw_dx.pressure));
   w_rec_array_.velocity.row(ix) =
       w_array_.velocity.row(ix) +
-      dx_half * (dw_dx.velocity.row(ix) +
+      dx_half * (dw_dx.velocity.row(ix) -
                  lambda * (u * dw_dx.velocity.row(ix) + dw_dx.pressure / rho));
   constexpr int Rank = EulerEquation::Rank();
   for (int i = 1; i < Rank; ++i) {
