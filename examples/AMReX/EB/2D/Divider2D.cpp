@@ -41,6 +41,7 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <xmmintrin.h>
 
 fub::Polygon ReadPolygonData(std::istream& input) {
   std::string line{};
@@ -281,6 +282,7 @@ void MyMain(const fub::ProgramOptions& options) {
 }
 
 int main(int argc, char** argv) {
+  _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
   MPI_Init(nullptr, nullptr);
   fub::InitializeLogging(MPI_COMM_WORLD);
   pybind11::scoped_interpreter interpreter{};
