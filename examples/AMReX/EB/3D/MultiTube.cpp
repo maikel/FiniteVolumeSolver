@@ -547,8 +547,14 @@ void MyMain(const fub::ProgramOptions& options) {
 }
 
 int main(int argc, char** argv) {
-  // fub::EnableFloatingPointExceptions();
-  MPI_Init(nullptr, nullptr);
+  _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+  int provided{-1};
+  MPI_Init_thread(nullptr, nullptr, MPI_THREAD_FUNNELED, &provided);
+  if (provided < MPI_THREAD_FUNNELED) {
+    fmt::print(
+        "Aborting execution. MPI could not provide a thread-safe instance.\n");
+    MPI_Abort(MPI_COMM_WORLD, 1);
+  }
   fub::InitializeLogging(MPI_COMM_WORLD);
   pybind11::scoped_interpreter interpreter{};
   std::optional<fub::ProgramOptions> opts = fub::ParseCommandLine(argc, argv);
