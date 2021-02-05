@@ -20,6 +20,7 @@
 // SOFTWARE.
 
 #include "fub/AMReX.hpp"
+#include "fub/AMReX/FluxMethodFactory.hpp"
 #include "fub/Solver.hpp"
 
 #include "fub/equations/perfect_gas/MusclHancockCharactersticMethod.hpp"
@@ -48,37 +49,18 @@ struct SinusProblem {
         fub::execution::openmp, data, [&](amrex::MFIter& mfi) {
           fub::View<Complete> state = fub::amrex::MakeView<Complete>(
               data[mfi], equation_, mfi.tilebox());
-          fub::ForEachIndex(fub::Box<0>(state), [this, &state,
-                                                 &geom](std::ptrdiff_t i) {
-            const double x = geom.CellCenter(int(i), 0);
-            // const double temperature = (0.0 < x) ? 600.0 : 300.0;
-            const double pressure = (0.0 < x) ? 0.1: 1.0;
-            const double density = (0.0 < x) ? 0.125 : 1.0;
-            fub::Array<double, 1, 1> velocity{0.0};
-            const Complete complete =
-                equation_.CompleteFromPrim(density, velocity, pressure);
-            fub::Store(state, complete, {i});
-          });
+          fub::ForEachIndex(
+              fub::Box<0>(state), [this, &state, &geom](std::ptrdiff_t i) {
+                const double x = geom.CellCenter(int(i), 0);
+                // const double temperature = (0.0 < x) ? 600.0 : 300.0;
+                const double pressure = (0.0 < x) ? 0.1 : 1.0;
+                const double density = (0.0 < x) ? 0.125 : 1.0;
+                fub::Array<double, 1, 1> velocity{0.0};
+                const Complete complete =
+                    equation_.CompleteFromPrim(density, velocity, pressure);
+                fub::Store(state, complete, {i});
+              });
         });
-  }
-};
-
-using FactoryFunction =
-    std::function<fub::AnyFluxMethod<fub::amrex::IntegratorContext>(
-        const fub::PerfectGas<1>&)>;
-
-template <typename... Pairs> auto GetFluxMethodFactory(Pairs... ps) {
-  std::map<std::string, FactoryFunction> factory;
-  ((factory[ps.first] = ps.second), ...);
-  return factory;
-}
-
-template <typename FluxMethod> struct MakeFlux {
-  fub::AnyFluxMethod<fub::amrex::IntegratorContext>
-  operator()(const fub::PerfectGas<1>& eq) const {
-    FluxMethod flux_method{eq};
-    fub::amrex::FluxMethodAdapter adapter(fub::execution::seq, std::move(flux_method));
-    return adapter;
   }
 };
 
@@ -91,14 +73,15 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::SeverityLogger log = fub::GetInfoLogger();
 
   fub::ProgramOptions equation_options = fub::GetOptions(options, "Equation");
-  
+
   fub::PerfectGas<1> equation{};
-  equation.Rspec = fub::GetOptionOr(equation_options, "R_specific", equation.Rspec);
+  equation.Rspec =
+      fub::GetOptionOr(equation_options, "R_specific", equation.Rspec);
   equation.gamma = fub::GetOptionOr(equation_options, "gamma", equation.gamma);
   equation.gamma_minus_1_inv = 1.0 / (equation.gamma - 1.0);
   equation.gamma_array_ = fub::Array1d::Constant(equation.gamma);
-  equation.gamma_minus_1_inv_array_ = fub::Array1d::Constant(equation.gamma_minus_1_inv);
-
+  equation.gamma_minus_1_inv_array_ =
+      fub::Array1d::Constant(equation.gamma_minus_1_inv);
 
   BOOST_LOG(log) << "Equation:";
   BOOST_LOG(log) << fmt::format(" - R_specific = {}", equation.Rspec);
@@ -129,35 +112,17 @@ void MyMain(const fub::ProgramOptions& options) {
   boundary.conditions.push_back(
       ReflectiveBoundary{seq, equation, fub::Direction::X, 1});
 
-
   std::shared_ptr gridding = std::make_shared<fub::amrex::GriddingAlgorithm>(
-      fub::amrex::PatchHierarchy(equation, grid_geometry, hierarchy_options), initial_data,
-      gradient, boundary);
+      fub::amrex::PatchHierarchy(equation, grid_geometry, hierarchy_options),
+      initial_data, gradient, boundary);
   gridding->InitializeHierarchy(0.0);
 
-  using namespace std::literals;
-  using HLLE = fub::HllMethod<fub::PerfectGas<1>, fub::EinfeldtSignalVelocities<fub::PerfectGas<1>>>;
-  using HLLEM = fub::perfect_gas::HllemMethod<fub::PerfectGas<1>>;
-  using ConservativeReconstruction = fub::MusclHancockMethod<fub::PerfectGas<1>, HLLE, fub::VanLeer>;
-  using ConservativeReconstructionM = fub::MusclHancockMethod<fub::PerfectGas<1>, HLLEM, fub::VanLeer>;
-  using CharacteristicReconstruction = fub::perfect_gas::MusclHancockCharMethod<1>;
+  auto [flux_method, time_integrator] =
+      fub::amrex::GetFluxMethod(fub::GetOptions(options, "FluxMethod"),
+                                gridding->GetPatchHierarchy(), equation);
 
-  auto flux_method_factory = GetFluxMethodFactory(
-      std::pair{"HLLE"s, MakeFlux<HLLE>()},
-      std::pair{"HLLEM"s, MakeFlux<HLLEM>()},
-      std::pair{"Conservative"s, MakeFlux<ConservativeReconstruction>()},
-      std::pair{"ConservativeM"s, MakeFlux<ConservativeReconstructionM>()},
-      std::pair{"Characteristics"s, MakeFlux<CharacteristicReconstruction>()});
-
-  std::string reconstruction =
-      fub::GetOptionOr(options, "reconstruction", "Characteristics"s);
-  BOOST_LOG(log) << "Reconstruction: " << reconstruction;
-  auto flux_method = flux_method_factory.at(reconstruction)(equation);
-
-  fub::amrex::HyperbolicMethod method{
-      flux_method,
-      fub::amrex::EulerForwardTimeIntegrator(),
-      fub::amrex::Reconstruction(equation)};
+  fub::amrex::HyperbolicMethod method{flux_method, time_integrator,
+                                      fub::amrex::Reconstruction(equation)};
 
   const int scratch_ghost_cell_width = 2;
   const int flux_ghost_cell_width = 0;
@@ -174,10 +139,10 @@ void MyMain(const fub::ProgramOptions& options) {
   using namespace std::literals::chrono_literals;
 
   fub::OutputFactory<fub::amrex::GriddingAlgorithm> factory{};
-  factory.RegisterOutput<fub::amrex::WriteHdf5>("HDF5");
-  using CounterOutput =
-      fub::CounterOutput<fub::amrex::GriddingAlgorithm,
-                         std::chrono::milliseconds>;
+  factory.RegisterOutput<fub::amrex::WriteHdf5>(
+      "HDF5", fub::VarNames<Complete, std::vector<std::string>>(equation));
+  using CounterOutput = fub::CounterOutput<fub::amrex::GriddingAlgorithm,
+                                           std::chrono::nanoseconds>;
   factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
   fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> outputs(
       std::move(factory), fub::GetOptions(options, "Output"));
