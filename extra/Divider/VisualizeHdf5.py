@@ -17,9 +17,10 @@ import numpy as np
 
 os.environ['HDF5_USE_FILE_LOCKING'] = 'FALSE'
 
+case = 'De4'
 Ma = 1.61
-nx = 800
-path = '{}/build_2D-RelWithDebugInfo/Divider_c24_{}_Ma_{}.h5'.format(FVS_path, nx, Ma)
+nx = 1200
+path = '{}/build_2D-Release/Divider_{}_nx-{}_Ma-{}.h5'.format(FVS_path, case, nx, Ma)
 output_path = '{}/extra/Divider/Figures/Hdf5/nx_{}_Mach_{}/'.format(FVS_path, nx, Ma)
 os.makedirs(output_path, exist_ok=True)
 
