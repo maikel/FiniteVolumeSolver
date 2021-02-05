@@ -47,6 +47,10 @@ template <typename Context, typename... Args>
 using PostAdvanceLevel =
     decltype(std::declval<Context>().PostAdvanceLevel(std::declval<Args>()...));
 
+template <typename Context, typename... Args>
+using ComputeStableDt =
+    decltype(std::declval<Context>().ComputeStableDt(std::declval<Args>()...));
+
 template <typename T, typename... Args>
 using ResetHierarchyConfiguration = decltype(
     std::declval<T>().ResetHierarchyConfiguration(std::declval<Args>()...));
