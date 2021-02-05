@@ -27,8 +27,16 @@
 
 #include "fub/ext/Log.hpp"
 
+#include "fub/equations/ideal_gas_mix/EinfeldtSignalVelocities.hpp"
+#include "fub/equations/perfect_gas/HllemMethod.hpp"
+
+#include "fub/EinfeldtSignalVelocities.hpp"
+#include "fub/flux_method/HllMethod.hpp"
+
 #include "fub/AMReX/AxialFluxMethodAdapter.hpp"
 #include "fub/AMReX/AxialTimeIntegrator.hpp"
+#include "fub/AMReX/FluxMethodAdapter.hpp"
+#include "fub/AMReX/TimeIntegrator.hpp"
 
 #include <map>
 #include <optional>
@@ -132,12 +140,16 @@ GetFluxMethod(const fub::ProgramOptions& options,
         std::pair{"MinMod"s, Limiter{fub::MinModLimiter{}}},
         std::pair{"VanLeer"s, Limiter{fub::VanLeerLimiter{}}}};
 
+    using HLLE =
+        fub::HllMethod<Equation, fub::EinfeldtSignalVelocities<Equation>>;
     using HLLEM = fub::perfect_gas::HllemMethod<Equation, false>;
     using HLLEM_Lar = fub::perfect_gas::HllemMethod<Equation>;
 
-    using BaseMethod = std::variant<fub::Type<HLLEM>, fub::Type<HLLEM_Lar>>;
+    using BaseMethod =
+        std::variant<fub::Type<HLLE>, fub::Type<HLLEM>, fub::Type<HLLEM_Lar>>;
 
     const std::map<std::string, BaseMethod> base_methods{
+        std::pair{"HLLE"s, BaseMethod{fub::Type<HLLE>{}}},
         std::pair{"HLLEM"s, BaseMethod{fub::Type<HLLEM>{}}},
         std::pair{"HLLEM_Larrouturou"s, BaseMethod{fub::Type<HLLEM_Lar>{}}}};
 
@@ -184,6 +196,11 @@ GetFluxMethod(const fub::ProgramOptions& options,
     BOOST_LOG(log) << " - limiter = " << limiter_option;
     BOOST_LOG(log) << " - reconstruction = " << reconstruction_option;
     BOOST_LOG(log) << " - base_method = " << base_method_option;
+    if (auto iter = options.find("area_variation"); iter != options.end()) {
+      BOOST_LOG(log) << " - area_variation = <Function>";
+    } else {
+      BOOST_LOG(log) << " - area_variation = None";
+    }
 
     auto area = [&]() -> std::optional<pybind11::function> {
       if (auto iter = options.find("area_variation"); iter != options.end()) {
@@ -209,22 +226,31 @@ GetFluxMethod(const fub::ProgramOptions& options,
     BaseMethod base_method = base_methods.at(base_method_option);
 
     return std::visit(
-        [&equation, &hier, &area_lambda](auto limiter, auto reconstruction,
-                                         auto base_method_type) {
-          using ThisLimiter = fub::remove_cvref_t<decltype(limiter)>;
+        [&equation, &hier, &area_lambda,
+         &area](auto limiter, auto reconstruction, auto base_method_type) {
+          using ThisLimiter = remove_cvref_t<decltype(limiter)>;
           auto flux_method = RebindLimiter<ThisLimiter>(
               reconstruction, base_method_type, equation);
-          fub::amrex::AxialFluxMethodAdapter adapted(flux_method);
-          auto pressure = adapted.SharedInterfacePressure();
-          const ::amrex::Vector<::amrex::Geometry> geoms = hier.GetGeometries();
-          std::vector<::amrex::Geometry> std_geoms(geoms.begin(), geoms.end());
-          fub::amrex::AxialTimeIntegrator time_integrator(
-              equation, std_geoms, pressure, area_lambda);
-          fub::AnyFluxMethod<fub::amrex::IntegratorContext> any_flux(
-              std::move(adapted));
-          fub::AnyTimeIntegrator<fub::amrex::IntegratorContext> any_time(
-              std::move(time_integrator));
-          return std::pair{any_flux, any_time};
+          if (area) {
+            AxialFluxMethodAdapter adapted(flux_method);
+            auto pressure = adapted.SharedInterfacePressure();
+            const ::amrex::Vector<::amrex::Geometry> geoms =
+                hier.GetGeometries();
+            std::vector<::amrex::Geometry> std_geoms(geoms.begin(),
+                                                     geoms.end());
+            AxialTimeIntegrator time_integrator(equation, std_geoms, pressure,
+                                                area_lambda);
+            AnyFluxMethod<IntegratorContext> any_flux(std::move(adapted));
+            AnyTimeIntegrator<IntegratorContext> any_time(
+                std::move(time_integrator));
+            return std::pair{any_flux, any_time};
+          } else {
+            FluxMethodAdapter adapted(flux_method);
+            AnyFluxMethod<IntegratorContext> any_flux(std::move(adapted));
+            AnyTimeIntegrator<IntegratorContext> any_time(
+                EulerForwardTimeIntegrator());
+            return std::pair{any_flux, any_time};
+          }
         },
         limiter, reconstruction, base_method);
   } else {

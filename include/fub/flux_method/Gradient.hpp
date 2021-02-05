@@ -23,6 +23,7 @@
 
 #include "fub/Direction.hpp"
 #include "fub/State.hpp"
+#include "fub/equations/EulerEquation.hpp"
 
 namespace fub {
 struct NoLimiter2 {

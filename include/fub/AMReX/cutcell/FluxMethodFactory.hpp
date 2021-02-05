@@ -46,12 +46,15 @@ GetCutCellMethod(const fub::ProgramOptions& options, const Equation& equation) {
       std::pair{"MinMod"s, Limiter{fub::MinModLimiter{}}},
       std::pair{"VanLeer"s, Limiter{fub::VanLeerLimiter{}}}};
 
+  using HLLE =
+        fub::HllMethod<Equation, fub::EinfeldtSignalVelocities<Equation>>;
   using HLLEM = fub::perfect_gas::HllemMethod<Equation, false>;
   using HLLEM_Lar = fub::perfect_gas::HllemMethod<Equation>;
 
-  using BaseMethod = std::variant<fub::Type<HLLEM>, fub::Type<HLLEM_Lar>>;
+  using BaseMethod = std::variant<fub::Type<HLLE>, fub::Type<HLLEM>, fub::Type<HLLEM_Lar>>;
 
   const std::map<std::string, BaseMethod> base_methods{
+      std::pair{"HLLE"s, BaseMethod{fub::Type<HLLE>{}}},
       std::pair{"HLLEM"s, BaseMethod{fub::Type<HLLEM>{}}},
       std::pair{"HLLEM_Larrouturou"s, BaseMethod{fub::Type<HLLEM_Lar>{}}}};
 

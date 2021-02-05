@@ -70,7 +70,7 @@ public:
   void SolveRiemannProblem(Complete& solution, const Complete& left,
                            const Complete& right, Direction dir);
 
-  void ComputeNumericFlux(Conservative& numeric_flux,
+  auto ComputeNumericFlux(Conservative& numeric_flux,
                           span<const Complete, 2> states, Duration dt,
                           double dx, Direction dir);
 
@@ -104,11 +104,11 @@ public:
                            const CompleteArray& right, Direction dir);
 
   using Base::ComputeNumericFlux;
-  void ComputeNumericFlux(ConservativeArray& numeric_flux,
+  auto ComputeNumericFlux(ConservativeArray& numeric_flux,
                           span<const CompleteArray, 2> states, Duration dt,
                           double dx, Direction dir);
 
-  void ComputeNumericFlux(ConservativeArray& numeric_flux,
+  auto ComputeNumericFlux(ConservativeArray& numeric_flux,
                           Array1d face_fraction,
                           span<const CompleteArray, 2> states,
                           span<const Array1d, 2> volume_fraction, Duration dt,
@@ -183,8 +183,13 @@ void HllBase<Equation, SignalSpeeds>::SolveRiemannProblem(Complete& solution,
   }
 }
 
+namespace meta {
+template <typename State>
+using has_member_variable_pressure_t = decltype(std::declval<State>().pressure);
+}
+
 template <typename Equation, typename SignalSpeeds>
-void HllBase<Equation, SignalSpeeds>::ComputeNumericFlux(
+auto HllBase<Equation, SignalSpeeds>::ComputeNumericFlux(
     Conservative& numeric_flux, span<const Complete, 2> states,
     Duration /* dt */, double /* dx */, Direction dir) {
   const Complete& left = states[0];
@@ -206,6 +211,14 @@ void HllBase<Equation, SignalSpeeds>::ComputeNumericFlux(
         nf = (sR * fL - sL * fR + sLsR * (qR - qL)) / ds;
       },
       numeric_flux, flux_left_, flux_right_, states[0], states[1]);
+
+  if constexpr (is_detected<meta::has_member_variable_pressure_t,
+                            Complete>::value) {
+    const double pL = states[0].pressure;
+    const double pR = states[1].pressure;
+    const double p_star = (sR * pL - sL * pR) / ds;
+    return p_star;
+  }
 }
 
 template <typename Equation, typename SignalSpeeds>
@@ -245,7 +258,7 @@ void HllArrayBase<Equation, SignalSpeeds, true>::SolveRiemannProblem(
 }
 
 template <typename Equation, typename SignalSpeeds>
-void HllArrayBase<Equation, SignalSpeeds, true>::ComputeNumericFlux(
+auto HllArrayBase<Equation, SignalSpeeds, true>::ComputeNumericFlux(
     ConservativeArray& numeric_flux, span<const CompleteArray, 2> states,
     Duration /* dt */, double /* dx */, Direction dir) {
   const CompleteArray& left = states[0];
@@ -269,10 +282,18 @@ void HllArrayBase<Equation, SignalSpeeds, true>::ComputeNumericFlux(
       },
       numeric_flux, flux_left_array_, flux_right_array_, AsCons(left),
       AsCons(right));
+
+  if constexpr (is_detected<meta::has_member_variable_pressure_t,
+                            CompleteArray>::value) {
+    const Array1d pL = states[0].pressure;
+    const Array1d pR = states[1].pressure;
+    const Array1d p_star = (sR * pL - sL * pR) / ds;
+    return p_star;
+  }
 }
 
 template <typename Equation, typename SignalSpeeds>
-void HllArrayBase<Equation, SignalSpeeds, true>::ComputeNumericFlux(
+auto HllArrayBase<Equation, SignalSpeeds, true>::ComputeNumericFlux(
     ConservativeArray& numeric_flux, Array1d face_fraction,
     span<const CompleteArray, 2> states,
     span<const Array1d, 2> /* volume_fractions */, Duration /* dt */,
@@ -303,6 +324,14 @@ void HllArrayBase<Equation, SignalSpeeds, true>::ComputeNumericFlux(
       },
       numeric_flux, flux_left_array_, flux_right_array_, AsCons(left),
       AsCons(right));
+
+  if constexpr (is_detected<meta::has_member_variable_pressure_t,
+                            CompleteArray>::value) {
+    const Array1d pL = mask.select(states[0].pressure, 0.0);
+    const Array1d pR = mask.select(states[1].pressure, 0.0);
+    const Array1d p_star = (sR * pL - sL * pR) / safe_ds;
+    return p_star;
+  }
 }
 
 template <typename Equation, typename SignalSpeeds>
@@ -320,8 +349,7 @@ Array1d HllArrayBase<Equation, SignalSpeeds, true>::ComputeStableDt(
 template <typename Equation, typename SignalSpeeds>
 Array1d HllArrayBase<Equation, SignalSpeeds, true>::ComputeStableDt(
     span<const CompleteArray, 2> states, Array1d face_fraction,
-    span<const Array1d, 2>, double dx,
-    Direction dir) {
+    span<const Array1d, 2>, double dx, Direction dir) {
   MaskArray mask = (face_fraction > 0.0);
   const auto signals =
       GetSignalSpeeds()(GetEquation(), states[0], states[1], mask, dir);
