@@ -161,6 +161,8 @@ void ChangeRPM(ControlState& state, const ControlOptions& options,
   state.power_out = power_netto - d_Erot_dt; // Power output
 
   // efficiency of the machine
+  const double eps = std::sqrt(std::numeric_limits<double>::epsilon());
+  state.efficiency = std::max(0.0, state.power_out) / ( options.Q * state.fuel_consumption_rate + eps);
   // GT->Efficiency[0] = MAX_own(0.0, GT->PowerOut[0]) / (ud.Q *
   // GT->FuelConsumptionRate[0] + ud.eps_Machine);
 }
@@ -276,6 +278,9 @@ auto GetFieldMap() {
       std::pair<std::string, projection>{
           "fuel_consumption_rate"s,
           [](const ControlState& s) { return s.fuel_consumption_rate; }},
+      std::pair<std::string, projection>{
+          "efficiency"s,
+          [](const ControlState& s) { return s.efficiency; }},
       std::pair<std::string, projection>{
           "compressor_pressure"s,
           [](const ControlState& s) { return s.compressor.pressure; }},
