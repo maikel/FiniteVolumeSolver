@@ -63,8 +63,8 @@ tube_n_cells -= tube_n_cells % tube_blocking_factor
 tube_n_cells = int(tube_n_cells)
 
 RunOptions = {
-  'cfl': 1.0,# / float(tube_n_cells / 64),
-  'final_time': 40.0,
+  'cfl': 0.1,# / float(tube_n_cells / 64),
+  'final_time': 100.0,
   'max_cycles': -1,
   'do_backup': 0
 }
@@ -97,7 +97,7 @@ ArrheniusKinetics = {
 }
 
 DiffusionSourceTerm = {
-  'mul': 1.0
+  'mul': 3.0
 }
 R_ref = 287.
 p_ref = 101325.
@@ -106,6 +106,7 @@ L_ref = 1.0
 rho_ref = p_ref / T_ref / R_ref
 u_ref = math.sqrt(p_ref / rho_ref)
 t_ref = L_ref / u_ref
+# ud->Msq =  u_ref*u_ref / (R_gas*T_ref);
 
 p0 = 2.0
 rho0 = math.pow(p0, 1.0 / gamma)
@@ -274,38 +275,40 @@ mode_names = ['cellwise', 'average_mirror_state', 'average_ghost_state', 'averag
 tube_intervals = 0.005
 plenum_intervals = 0.02
 
+# outputPath = mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]+"mul_{}_xinit_{}".format(DiffusionSourceTerm['mul'], Tubes[0]['initially_filled_x'])
+outputPath = mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]
 Output = { 
   'outputs': [
     {
       'type': 'ControlOutput',
-      'path': '{}/ControlState.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
+      'path': '{}/ControlState.h5'.format(outputPath),
       'intervals': [0.001],
       # 'frequencies': [1]
     },
   {
     'type': 'HDF5',
-    'path': '{}/Tube0.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
+    'path': '{}/Tube0.h5'.format(outputPath),
     'which_block': 1,
     'intervals': [tube_intervals],
     # 'frequencies': [1]
   },
   {
     'type': 'HDF5',
-    'path': '{}/Tube1.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
+    'path': '{}/Tube1.h5'.format(outputPath),
     'which_block': 2,
     'intervals': [tube_intervals],
     # 'frequencies': [1]
   },
   {
     'type': 'HDF5',
-    'path': '{}/Tube2.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
+    'path': '{}/Tube2.h5'.format(outputPath),
     'which_block': 3,
     'intervals': [tube_intervals],
     # 'frequencies': [1]
   },
   {
     'type': 'HDF5',
-    'path': '{}/Plenum.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
+    'path': '{}/Plenum.h5'.format(outputPath),
     'which_block': 0,
     'intervals': [plenum_intervals],
     # 'frequencies': [1]
