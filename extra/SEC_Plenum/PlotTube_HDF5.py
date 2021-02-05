@@ -10,13 +10,12 @@ import amrex.plotfiles as da
 import numpy as np
 import matplotlib
 matplotlib.use('Agg') 
-
 import matplotlib.pyplot as plt
-import h5py
+
 
 inputFilePath = FVS_path+"/examples/AMReX/EB/2D/"
 sys.path.append(inputFilePath)
-from SEC_Plenum_Arrhenius import T_ref
+from SEC_Plenum_Arrhenius import T_ref, Tubes
 
 os.environ['HDF5_USE_FILE_LOCKING'] = 'False'
 
@@ -39,15 +38,14 @@ tex_fonts = {
 plt.rcParams.update(tex_fonts)
 plt.rcParams.update({'axes.grid' : False})
 
-tube_id = 1
-#modes = ['cellwise', 'average_mirror_state', 'average_ghost_state']
-#modes = ['cellwise']
-modes = ['average_massflow']
-#mode_titles = ['Cellwise', 'Average Mirror State', 'Average Ghost State']
-mode_titles = ['Average Massflow']
+n_tubes = len(Tubes)
 
-for mode, suptitle in zip(modes, mode_titles):
-  output_base_path = FVS_path+'/build_2D-Release/{}/Tube{}.h5'.format(mode, tube_id)
+dataPath = FVS_path+"/build_2D-ReleaseDebInfo/average_massflow"
+output_path = '{}/Visualization'.format(dataPath)
+
+for tube_id in range(n_tubes):
+  print("Plotting Tube with id = {}".format(tube_id))
+  output_base_path = dataPath+'/Tube{}.h5'.format(tube_id)
   datas, times, datas_dict = da.h5_load_timeseries(output_base_path)
   extent_1d = da.h5_load_get_extent_1D(output_base_path)
   
@@ -97,6 +95,7 @@ for mode, suptitle in zip(modes, mode_titles):
     if title == 'Fuel Massfraction [-]':
       props['vmax'] = None
       props['vmin'] = None
+      props['cmap'] = 'gray_r'
     # if  title == 'Temperature':
       # props['vmax'] = 3.0
     if title == 'Pressure [bar]':
@@ -121,8 +120,8 @@ for mode, suptitle in zip(modes, mode_titles):
   for a, im in zip(ax, ims):
     a.xaxis.set_major_formatter(FormatStrFormatter('%.2f'))
     plt.colorbar(im, ax=a)
-  # f.suptitle(suptitle)
-  f.savefig('Tube{}_{}.png'.format(tube_id, mode), bbox_inches='tight')
+  f.suptitle("Tube id = {}".format(tube_id))
+  f.savefig(output_path+'/Tube{}.png'.format(tube_id), bbox_inches='tight')
   f.clear()
   plt.close(f)
   
