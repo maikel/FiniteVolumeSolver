@@ -129,7 +129,7 @@ Result<void, TimeStepTooLarge> DiffusionSourceTerm<EulerEquation>::AdvanceLevel(
   // 1.) Compute diffusion fluxes from the current scratch grid.
   ComputeDiffusionFluxes(fluxes_diffusion, scratch, dxinv);
   ::amrex::MultiFab scratch_aux(scratch.boxArray(), scratch.DistributionMap(),
-                                scratch.nComp(), scratch.nGrowVect());
+                                scratch.nComp(), ::amrex::IntVect::TheDimensionVector(0));
   // 2.) Compute the half-timestep state including one ghost cell and store then
   // in scratch_aux
   ForwardIntegrator(execution::simd)
@@ -137,7 +137,7 @@ Result<void, TimeStepTooLarge> DiffusionSourceTerm<EulerEquation>::AdvanceLevel(
                             0.5 * dt, Direction::X);
   Reconstruction(execution::simd, equation_)
       .CompleteFromCons(scratch_aux, scratch_aux);
-
+  FUB_ASSERT(!scratch_aux.contains_nan());
   // 3.) Apply the physical boundary conditions on the computes half-timestep
   // state.
   {
@@ -158,7 +158,7 @@ Result<void, TimeStepTooLarge> DiffusionSourceTerm<EulerEquation>::AdvanceLevel(
   // 6.) Recompute all auxiliary variables from the conservative ones to get
   // valid cell states on scratch
   Reconstruction(execution::simd, equation_).CompleteFromCons(scratch, scratch);
-
+  FUB_ASSERT(!scratch.contains_nan());
   // 7.) Synchronize all ghost cells across MPI processes to get valid ghost
   // cells.
   if (level > 0) {
@@ -220,7 +220,7 @@ Duration DiffusionSourceTerm<EulerEquation>::ComputeStableDt(
     const amrex::IntegratorContext& simulation_data, int level) const {
   const ::amrex::Geometry& level_geometry = simulation_data.GetGeometry(level);
   const double dx = level_geometry.CellSize(0);
-  return Duration(0.5 * dx * dx / constants_.mul);
+  return Duration(0.5 * dx * dx / ( constants_.mul * constants_.reynolds_invers ));
 }
 
 template <typename EulerEquation>

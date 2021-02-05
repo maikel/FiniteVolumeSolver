@@ -18,14 +18,19 @@ ylower = -0.05 + 0.005
 yupper = +0.05 + 0.005
 ylen = yupper - ylower
 blocking_factor = 8
-nx = 800
 ny = nCellsY(nx, ylen / xlen, blocking_factor=blocking_factor)
 n_level = 1
 n_error_buf = 0 if n_level == 1 else 1
 
+# Controls the number of cells in the x-direction
+nx = 1200
 # The output files are written in this directory from the perspective of this 
 # docker container
-base_path = '/srv/public/Maikel/FiniteVolumeSolver/examples/AMReX/EB/2D'
+case = 'De1'
+base_path = '/srv/public/Maikel/FiniteVolumeSolver/examples/AMReX/EB/2D/Divider/{}'.format(case)
+# This option defines the Mach number of the shock
+# Default is 1.1
+Mach_number = 1.61
 
 ############################################################################
 # These variables and dictionaries will be read by the application
@@ -36,21 +41,17 @@ base_path = '/srv/public/Maikel/FiniteVolumeSolver/examples/AMReX/EB/2D'
 #}
 
 RunOptions = {
-  'cfl': 0.4,
+  'cfl': 0.8,
   'final_time': 5e-4,
   'do_backup': False,
   'max_cycles': -1, # -1 means infinite and 0 means only initial condition
 }
 
-# This option defines the Mach number of the shock
-# Default is 1.1
-Mach_number = 1.61
-
 #checkpoint='/srv/public/Maikel/FiniteVolumeSolver/build_2D-RelWithDebugInfo/Divider2D/Checkpoint/000000174'
 
 FluxMethod = {
   'reconstruction': 'Characteristics',
-  'limiter':'MinMod',
+  'limiter':'VanLeer',
   'base_method': 'HLLEM_Larrouturou'
 }
 
@@ -107,7 +108,7 @@ Output = {
   # {'type': 'Plotfiles', 'directory': 'Divider_DE5_{}/Plotfiles'.format(nx), 'intervals': [1e-5]},
   # Write simple HDF5 files
   # It is faster and writes a single grid without patches
-  {'type': 'HDF5', 'path': 'Divider_c24_{}_Ma_{}.h5'.format(nx, Mach_number), 'intervals': [1e-6]},
+  {'type': 'HDF5', 'path': 'Divider_{}_nx_{}_Ma_{}.h5'.format(case, nx, Mach_number), 'intervals': [1e-5]},
   # Print out timer statistics
   {'type': 'CounterOutput', 'intervals': [1e-4] },
   {'type': 'Checkpoint', 'intervals': [1e-6] }

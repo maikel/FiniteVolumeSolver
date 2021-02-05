@@ -68,7 +68,7 @@ def h5_load_spec_timepoint_variable(filename, num, variables):
     dictionary:   dict
                   dictionary that matches the variable names to their index
   """
-  file = h5py.File(filename, mode='r')
+  file = h5py.File(filename, mode='r', swmr=True)
   strings = list(file['fields'].asstr())
   indices = [strings.index(var) for var in variables]
   dictionary = dict( zip(variables, range(len(variables))))
@@ -100,7 +100,7 @@ def h5_load_timeseries(filename):
     dictionary:   dict
                   dictionary that matches the variable names to their index
   """
-  file = h5py.File(filename, mode='r')
+  file = h5py.File(filename, mode='r', swmr=True)
   strings = list(file['fields'].asstr())
   indices = [strings.index(var) for var in strings]
   dictionary = dict( zip(strings, indices) )
@@ -127,7 +127,7 @@ def h5_load_get_extent_1D(filename):
                   the physical extension from the 1D dataset,
                   something like [xlo, xhi]
   """
-  file = h5py.File(filename, mode='r')
+  file = h5py.File(filename, mode='r', swmr=True)
   shape = file['data'].shape
   nx = np.array([shape[2]])
   dx = np.array(file['data'].attrs['cell_size'])

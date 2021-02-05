@@ -175,6 +175,7 @@ struct ControlState {
   double power_out{};
   double fuel_consumption{};
   double fuel_consumption_rate{};
+  double efficiency{};
 };
 
 class Control {
