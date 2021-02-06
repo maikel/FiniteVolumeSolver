@@ -68,6 +68,7 @@
 #include <iostream>
 
 #include <range/v3/view/enumerate.hpp>
+#include <xmmintrin.h>
 
 namespace GT = fub::perfect_gas_mix::gt;
 
@@ -86,8 +87,8 @@ struct ChangeTOpened {
   [[nodiscard]] std::optional<fub::Duration>
   operator()(EulerEquation&, std::optional<fub::Duration>, double,
              const fub::perfect_gas_mix::gt::PlenumState&,
-             const fub::amrex::GriddingAlgorithm& gridding, int) const
-      noexcept {
+             const fub::amrex::GriddingAlgorithm& gridding,
+             int) const noexcept {
     return gridding.GetTimePoint();
   }
 };
@@ -130,13 +131,12 @@ struct TracePassiveScalarBoundary {
     int ngrow = 2;
     const ::amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
     const double dx = geom.CellSize(0);
-    const ::amrex::IntVect lo{-2*ngrow, 0};
+    const ::amrex::IntVect lo{-2 * ngrow, 0};
     const ::amrex::IntVect hi{+ngrow, 0};
     const ::amrex::Box stencil_box{lo, hi};
     fub::amrex::ForEachFab(mf, [&](const ::amrex::MFIter& mfi) {
       const ::amrex::Box section = mfi.growntilebox() & stencil_box;
-      if (!section.isEmpty()) {
-        FUB_ASSERT(section == stencil_box);
+      if (section == stencil_box) {
         fub::View<Complete> stencilv =
             fub::amrex::MakeView<Complete>(mf[mfi], equation_, stencil_box);
         for (int i = 0; i < int(stencil.size()); ++i) {
@@ -144,12 +144,19 @@ struct TracePassiveScalarBoundary {
         }
         flux_method.ComputeNumericFlux(flux, stencil, dt_, dx,
                                        fub::Direction::X);
-        const double X_right = stencilv.passive_scalars(0, 0) / stencilv.density(0);
+        const double X_right =
+            stencilv.passive_scalars(0, 0) / stencilv.density(0);
         const double X_left = X_right + dt_.count() / dx;
         stencilv.passive_scalars(-1, 0) = X_left * stencilv.density(-1);
         stencilv.passive_scalars(-2, 0) = X_left * stencilv.density(-2);
         stencilv.passive_scalars(-3, 0) = X_left * stencilv.density(-3);
         stencilv.passive_scalars(-4, 0) = X_left * stencilv.density(-4);
+      } else if (!section.isEmpty()) {
+        fub::View<Complete> stencilv =
+            fub::amrex::MakeView<Complete>(mf[mfi], equation_, section);
+        fub::ForEachIndex(fub::Box<0>(stencilv), [&](std::ptrdiff_t i) {
+          stencilv.passive_scalars(i, 0) = stencilv.passive_scalars(0, 0);
+        });
       }
     });
   }
@@ -436,9 +443,10 @@ auto MakeTubeSolver(
 
   fub::amrex::DiffusionSourceTermOptions diff_opts =
       fub::GetOptions(options, "DiffusionSourceTerm");
-  fub::amrex::DiffusionSourceTerm<fub::PerfectGasMix<1>> diffusion_source_term{equation,
-                                                                     diff_opts};
-  const fub::Duration good_guess_dt = diffusion_source_term.ComputeStableDt(context, 0);
+  fub::amrex::DiffusionSourceTerm<fub::PerfectGasMix<1>> diffusion_source_term{
+      equation, diff_opts};
+  const fub::Duration good_guess_dt =
+      diffusion_source_term.ComputeStableDt(context, 0);
   TracePassiveScalarBoundary passive_scalar_boundary{equation, good_guess_dt};
   context.GetGriddingAlgorithm()->GetBoundaryCondition() =
       BoundarySet{{valve, passive_scalar_boundary}};
@@ -696,40 +704,41 @@ auto MakePlenumSolver(
 
   IntegratorContext context(gridding, method, scratch_gcw, flux_gcw);
 
-  auto log_massflow = [](IntegratorContext& plenum, int level, fub::Duration,
-                         std::pair<int, int>) {
-    fub::SeverityLogger log =
-        fub::GetLogger(boost::log::trivial::severity_level::debug);
-    const fub::Duration time_point = plenum.GetTimePoint(level);
-    BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "LogMassflow");
-    BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", time_point.count());
-    BOOST_LOG_SCOPED_LOGGER_TAG(log, "Level", level);
-    const amrex::MultiFab& fluxes_x =
-        plenum.GetFluxes(level, fub::Direction::X);
-    const amrex::Geometry& geom = plenum.GetGeometry(level);
-    const amrex::Box cells = geom.Domain();
-    const amrex::Box faces_x = amrex::convert(cells, {1, 0});
-    const int boundary_n = faces_x.bigEnd(0);
-    const amrex::IntVect smallEnd{boundary_n, faces_x.smallEnd(1)};
-    const amrex::IntVect bigEnd = faces_x.bigEnd();
-    const amrex::Box right_boundary{smallEnd, bigEnd, faces_x.ixType()};
-    // const double dy = geom.CellSize(1);
-    double local_f_rho = 0.0;
-    fub::amrex::ForEachFab(fluxes_x, [&](const amrex::MFIter& mfi) {
-      amrex::Box local_boundary = mfi.tilebox() & right_boundary;
-      if (local_boundary.ok()) {
-        const amrex::FArrayBox& local_fluxes = fluxes_x[mfi];
-        local_f_rho += local_fluxes.sum(local_boundary, 0);
-      }
-    });
-    double global_f_rho = 0.0;
-    ::MPI_Allreduce(&local_f_rho, &global_f_rho, 1, MPI_DOUBLE, MPI_SUM,
-                    ::amrex::ParallelDescriptor::Communicator());
-    global_f_rho /= right_boundary.numPts();
-    BOOST_LOG(log) << fmt::format("Average F_rho = {:.12g}", global_f_rho)
-                   << boost::log::add_value("average_massflow", global_f_rho);
-  };
-  context.SetFeedbackFunction(log_massflow);
+  // auto log_massflow = [](IntegratorContext& plenum, int level, fub::Duration,
+  //                        std::pair<int, int>) {
+  //   fub::SeverityLogger log =
+  //       fub::GetLogger(boost::log::trivial::severity_level::debug);
+  //   const fub::Duration time_point = plenum.GetTimePoint(level);
+  //   BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "LogMassflow");
+  //   BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", time_point.count());
+  //   BOOST_LOG_SCOPED_LOGGER_TAG(log, "Level", level);
+  //   const amrex::MultiFab& fluxes_x =
+  //       plenum.GetFluxes(level, fub::Direction::X);
+  //   const amrex::Geometry& geom = plenum.GetGeometry(level);
+  //   const amrex::Box cells = geom.Domain();
+  //   const amrex::Box faces_x = amrex::convert(cells, {1, 0});
+  //   const int boundary_n = faces_x.bigEnd(0);
+  //   const amrex::IntVect smallEnd{boundary_n, faces_x.smallEnd(1)};
+  //   const amrex::IntVect bigEnd = faces_x.bigEnd();
+  //   const amrex::Box right_boundary{smallEnd, bigEnd, faces_x.ixType()};
+  //   // const double dy = geom.CellSize(1);
+  //   double local_f_rho = 0.0;
+  //   fub::amrex::ForEachFab(fluxes_x, [&](const amrex::MFIter& mfi) {
+  //     amrex::Box local_boundary = mfi.tilebox() & right_boundary;
+  //     if (local_boundary.ok()) {
+  //       const amrex::FArrayBox& local_fluxes = fluxes_x[mfi];
+  //       local_f_rho += local_fluxes.sum(local_boundary, 0);
+  //     }
+  //   });
+  //   double global_f_rho = 0.0;
+  //   ::MPI_Allreduce(&local_f_rho, &global_f_rho, 1, MPI_DOUBLE, MPI_SUM,
+  //                   ::amrex::ParallelDescriptor::Communicator());
+  //   global_f_rho /= right_boundary.numPts();
+  //   BOOST_LOG(log) << fmt::format("Average F_rho = {:.12g}", global_f_rho)
+  //                  << boost::log::add_value("average_massflow",
+  //                  global_f_rho);
+  // };
+  // context.SetFeedbackFunction(log_massflow);
 
   BOOST_LOG(log) << "==================== End Plenum =========================";
 
@@ -739,6 +748,7 @@ auto MakePlenumSolver(
 void MyMain(const std::map<std::string, pybind11::object>& vm);
 
 int main(int argc, char** argv) {
+  _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
   int provided{-1};
   MPI_Init_thread(nullptr, nullptr, MPI_THREAD_FUNNELED, &provided);
   if (provided < MPI_THREAD_FUNNELED) {
@@ -873,7 +883,7 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
 
   fub::SplitSystemSourceLevelIntegrator level_integrator(
       std::move(system_solver), std::move(source_term),
-      fub::GodunovSplitting{});
+      fub::StrangSplittingLumped{});
 
   fub::amrex::DiffusionSourceTermOptions diff_opts =
       fub::GetOptions(vm, "DiffusionSourceTerm");
@@ -885,7 +895,7 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
       diff_term(diffs);
   fub::SplitSystemSourceLevelIntegrator diff_integrator(
       std::move(level_integrator), std::move(diff_term),
-      fub::GodunovSplitting{});
+      fub::StrangSplittingLumped{});
 
   fub::SubcycleFineFirstSolver solver(std::move(diff_integrator));
 

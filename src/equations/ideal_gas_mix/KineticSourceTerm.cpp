@@ -32,6 +32,10 @@ template <int Rank> Duration KineticSourceTerm<Rank>::ComputeStableDt(const amre
   return Duration(std::numeric_limits<double>::max());
 }
 
+template <int Rank> Duration KineticSourceTerm<Rank>::ComputeStableDt(int) {
+  return Duration(std::numeric_limits<double>::max());
+}
+
 template <int Rank>
 Result<void, TimeStepTooLarge>
 KineticSourceTerm<Rank>::AdvanceLevel(amrex::IntegratorContext& simulation_data,

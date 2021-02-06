@@ -18,9 +18,10 @@ import matplotlib.pyplot as plt
 import h5py
 import itertools
 
-dataPath = FVS_path+"/build_2D-Release/average_massflow"
+dataPath = FVS_path+"/build_2D-Release/average_massflowmul_0.1_xinit_0.1"
 inputFilePath = FVS_path+"/examples/AMReX/EB/2D/"
 
+os.environ['HDF5_USE_FILE_LOCKING'] = 'False'
 
 # import importlib
 # inputFile = importlib.import_module('SEC_Plenum')
@@ -84,7 +85,8 @@ def stackTubeDataTo2D(Tube_datalist):
    return Tube_datalist
 
 # for i in itertools.dropwhile(lambda x: x < 53, range(nsteps)):
-for i in itertools.dropwhile(lambda i: i < 624, range(nsteps)):
+# for i in itertools.dropwhile(lambda i: i < 4997, range(nsteps)):
+for i in range(nsteps):
    PrintProgress(i)
    
    Tube_p = []
