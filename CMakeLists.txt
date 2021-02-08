@@ -307,6 +307,9 @@ add_library(FiniteVolumeSolver.Solver
   src/equations/PerfectGasMix.cpp
   src/equations/perfect_gas_mix/HllemMethod_1d.cpp
   src/equations/perfect_gas_mix/HllemMethod_2d.cpp
+  src/equations/perfect_gas_mix/EinfeldtSignalVelocities_1d.cpp
+  src/equations/perfect_gas_mix/EinfeldtSignalVelocities_2d.cpp
+  src/equations/perfect_gas_mix/EinfeldtSignalVelocities_3d.cpp
   src/equations/IdealGasMix.cpp
   src/equations/ideal_gas_mix/EinfeldtSignalVelocities_1d.cpp
   src/equations/ideal_gas_mix/EinfeldtSignalVelocities_2d.cpp
