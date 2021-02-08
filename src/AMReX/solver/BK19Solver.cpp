@@ -853,7 +853,191 @@ void DoEulerForward(BK19Solver<Rank, VelocityRank>& solver, Duration dt,
   std::vector<::amrex::MultiFab> UV =
       ComputePvFromScratch(solver, one_ghost_cell_width);
 
+  std::vector<::amrex::MultiFab> div =
+      ZerosOnNodes(context, one_component, no_ghosts);
+  solver.GetLinearOperator()->compDivergence(ToPointers(div), ToPointers(UV));
 
+  const std::shared_ptr<::amrex::MLNodeHelmholtz>& linear_operator =
+      solver.GetLinearOperator();
+
+  const BK19PhysicalParameters& physical_parameters =
+      solver.GetPhysicalParameters();
+
+  // construct sigma as in DoEulerBackward
+  SetSigmaForLinearOperator(solver, dt, physical_parameters, dbg_sn);
+
+  // Add explicit source terms to momentum on scratch
+  std::vector<::amrex::MultiFab> source_terms =
+      ZerosOnCells(context, AMREX_SPACEDIM, no_ghosts);
+  std::array<int, AMREX_SPACEDIM> source_terms_index{AMREX_D_DECL(0, 1, 2)};
+
+  // this computes: -sigma Grad(pi)
+  linear_operator->getFluxes(ToPointers(source_terms), GetPis(context));
+
+  SnychronizeRhoChiFastWithStates(context, index, dt, S0s);
+  const int nlevel = context.GetPatchHierarchy().GetNumberOfLevels();
+  const double factor1 = -dt.count() * physical_parameters.f;
+  const double factor2 = 1.0;
+  for (int ilvl = 0; ilvl < nlevel; ++ilvl) {
+    const std::size_t level = static_cast<std::size_t>(ilvl);
+    const ::amrex::MultiFab& scratch = context.GetScratch(ilvl);
+    // Add coriolis terms to source_terms multifab
+    AddCrossProduct(source_terms[level], source_terms_index, scratch,
+                    index.momentum, factor1, factor2,
+                    physical_parameters.k_vect);
+    // Add gravity to source_terms
+    AddGravity(source_terms[level], source_terms_index, scratch, index,
+               physical_parameters, dt);
+    // Add all source_terms to current momentum on scratch
+    ::amrex::MultiFab::Add(context.GetScratch(ilvl), source_terms[level], 0,
+                           index.momentum[0], index.momentum.size(), no_ghosts);
+  }
+
+  // compute update for pi (compressible case), (equation (16) in [BK19])
+
+  if (physical_parameters.alpha_p > 0.0) {
+    ApplyPiCorrectionOnScratch(solver, div, dt, dbg_sn);
+  }
+}
+
+template <int Rank, int VelocityRank>
+std::vector<::amrex::MultiFab>
+DoEulerBackward(BK19Solver<Rank, VelocityRank>& solver, Duration dt,
+                const BK19PhysicalParameters& physical_parameters,
+                DebugSnapshotProxy dbg_sn = DebugSnapshotProxy()) {
+  // If we play with a non-trivial coriolis term we need an explicit source
+  // term integration step here
+  ApplyExplicitSourceTerms(solver, dt, physical_parameters);
+  solver.FillAllGhostLayers();
+
+  const std::vector<::amrex::MultiFab> rhs =
+      ComputeEulerBackwardRHSAndSetAlphaForLinearOperator(
+          solver, dt, physical_parameters, dbg_sn);
+
+  const std::vector<::amrex::MultiFab> sigma =
+      SetSigmaForLinearOperator(solver, dt, physical_parameters, dbg_sn);
+
+  SetSigmaCrossForLinearOperator(solver, sigma, dt, physical_parameters,
+                                 dbg_sn);
+
+  const CompressibleAdvectionIntegratorContext& context =
+      solver.GetAdvectionSolver().GetContext();
+
+  // solve elliptic equation for pi
+  // weiqun recommends to use one ghost cell width to prevent internal copies
+  std::vector<::amrex::MultiFab> pi =
+      ZerosOnNodes(context, one_component, one_ghost_cell_width);
+
+  std::shared_ptr linear_operator = solver.GetLinearOperator();
+  const BK19SolverOptions& options = solver.GetSolverOptions();
+  {
+    Timer _ = context.GetCounterRegistry()->get_timer(
+        "BK19LevelIntegrator::EulerBackward::solve");
+    ::amrex::MLMG nodal_solver(*linear_operator);
+    nodal_solver.setMaxIter(options.mlmg_max_iter);
+    nodal_solver.setVerbose(options.mlmg_verbose);
+    nodal_solver.setBottomVerbose(options.bottom_verbose);
+    nodal_solver.setBottomMaxIter(options.bottom_max_iter);
+    nodal_solver.setBottomToleranceAbs(options.bottom_tolerance_abs);
+    nodal_solver.setBottomTolerance(options.bottom_tolerance_rel);
+    nodal_solver.setAlwaysUseBNorm(options.always_use_bnorm);
+    nodal_solver.solve(ToPointers(pi), ToConstPointers(rhs),
+                       options.mlmg_tolerance_rel, options.mlmg_tolerance_abs);
+  }
+  dbg_sn.SaveData(ToConstPointers(pi), "solution", GetGeometries(context));
+
+  // compute momentum correction
+  std::vector<::amrex::MultiFab> UV_correction =
+      ZerosOnCells(context, AMREX_SPACEDIM, no_ghosts);
+
+  // this computes: -sigma Grad(pi)
+  linear_operator->getFluxes(ToPointers(UV_correction), ToPointers(pi));
+
+  // Given this solution we apply the correction for the momentum on the
+  // current scratch.
+  // This correction also takes the coriolis force into consideration.
+  ApplyDivergenceCorrectionOnScratch(solver, dt, UV_correction,
+                                     physical_parameters, dbg_sn);
+
+  return pi;
+}
+
+} // namespace
+
+///////////////////////////////////////////////////////////////////////////////
+//                                                             IMPLEMENTATION
+///////////////////////////////////////////////////////////////////////////////
+
+template <int Rank, int VelocityRank>
+BK19Solver<Rank, VelocityRank>::BK19Solver(
+    const Equation& equation, AdvectionSolver advection,
+    std::shared_ptr<::amrex::MLNodeHelmholtz> linop,
+    const BK19PhysicalParameters& physical_parameters,
+    const BK19SolverOptions& options)
+    : equation_{equation},
+      physical_parameters_{physical_parameters}, options_{options},
+      advection_{std::move(advection)}, lin_op_{std::move(linop)} {}
+
+template <int Rank, int VelocityRank>
+void BK19Solver<Rank, VelocityRank>::RecomputeAdvectiveFluxes() {
+  // Get all neccessary objects
+  IndexMapping index = equation_.GetIndexMapping();
+  const int nlevel =
+      GetGriddingAlgorithm()->GetPatchHierarchy().GetNumberOfLevels();
+  for (int level = 0; level < nlevel; ++level) {
+    IntegratorContext& context = advection_.GetContext();
+    const ::amrex::MultiFab& scratch = context.GetScratch(level);
+    ::amrex::MultiFab& Pv_cells = context.GetAdvectiveFluxes(level).on_cells;
+    std::array<::amrex::MultiFab, AMREX_SPACEDIM>& Pv_faces =
+        context.GetAdvectiveFluxes(level).on_faces;
+
+    // Here we assume that boundary conditions are satisified on scratch
+    ComputePvFromScratch(Pv_cells, scratch, Pv_cells.nGrow(), index);
+
+    // Average Pv_i for each velocity direction
+    // TODO Something is off here if Rank != Velocity Rank
+    constexpr int face_component = 0;
+    for (std::size_t dir = 0; dir < std::size_t(Rank); ++dir) {
+      const int cell_component = static_cast<int>(dir);
+      AverageCellToFace(Pv_faces[dir], face_component, Pv_cells, cell_component,
+                        Direction(dir));
+    }
+  }
+}
+
+template <int Rank, int VelocityRank>
+void BK19Solver<Rank, VelocityRank>::DoInitialProjection() {
+  std::shared_ptr counters = advection_.GetContext().GetCounterRegistry();
+  Timer _ = counters->get_timer("BK19Solver::DoInitialProjection");
+  BK19PhysicalParameters phys_param_aux{physical_parameters_};
+  phys_param_aux.alpha_p = 0.0;
+  phys_param_aux.f = 0.0;
+  FillAllGhostLayers();
+  DoEulerBackward(*this, Duration(1.0), phys_param_aux);
+}
+
+template <int Rank, int VelocityRank>
+void BK19Solver<Rank, VelocityRank>::FillAllGhostLayers() {
+  const int nlevel =
+      GetGriddingAlgorithm()->GetPatchHierarchy().GetNumberOfLevels();
+  IntegratorContext& context = advection_.GetContext();
+  context.FillGhostLayerSingleLevel(0);
+  for (int level = 1; level < nlevel; ++level) {
+    context.FillGhostLayerTwoLevels(level, level - 1);
+  }
+}
+
+template <int Rank, int VelocityRank>
+Result<void, TimeStepTooLarge>
+BK19Solver<Rank, VelocityRank>::AdvanceHierarchy(Duration dt) {
+  std::shared_ptr<CounterRegistry> counters = advection_.GetCounterRegistry();
+  Timer measure_everything =
+      counters->get_timer("BK19LevelIntegrator::AdvanceLevelNonRecursively");
+  AdvectionSolver& advection = GetAdvectionSolver();
+  CompressibleAdvectionIntegratorContext& context = advection.GetContext();
+
+  const int current_cycle = context.GetCycles(0);
+  const Duration current_timepoint = context.GetTimePoint(0);
 
   const Duration half_dt = 0.5 * dt;
 
