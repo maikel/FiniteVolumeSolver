@@ -351,6 +351,7 @@ void serialize(Archive& ar, ::fub::perfect_gas_mix::gt::ControlState& state,
   ar & state.power_out;
   ar & state.fuel_consumption;
   ar & state.fuel_consumption_rate;
+  ar & state.efficiency;
   // clang-format on
 }
 
