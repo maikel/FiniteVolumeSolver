@@ -19,8 +19,13 @@ import itertools
 
 os.environ['HDF5_USE_FILE_LOCKING'] = 'False'
 
-dataPath = FVS_path+"/build_2D-Release/average_massflow"
-inputFilePath = FVS_path+"/examples/AMReX/EB/2D/"
+# optional parsing the datapath from the terminal
+if (len(sys.argv)>1):
+   dataPath = str(sys.argv[1])
+   inputFilePath = dataPath
+else:
+   dataPath = FVS_path+"/build_2D-Release/average_massflow"
+   inputFilePath = FVS_path+"/examples/AMReX/EB/2D/"
 
 
 sys.path.append(inputFilePath)

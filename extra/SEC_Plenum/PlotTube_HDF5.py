@@ -13,7 +13,17 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 
-inputFilePath = FVS_path+"/examples/AMReX/EB/2D/"
+# optional parsing the datapath from the terminal
+if (len(sys.argv)>1):
+   dataPath = str(sys.argv[1])
+   inputFilePath = dataPath
+else:
+   dataPath = FVS_path+"/build_2D-Release/average_massflow"
+   inputFilePath = FVS_path+"/examples/AMReX/EB/2D/"
+
+output_path = '{}/Visualization'.format(dataPath)
+
+# inputFilePath = FVS_path+"/examples/AMReX/EB/2D/"
 sys.path.append(inputFilePath)
 from SEC_Plenum_Arrhenius import T_ref, Tubes
 
@@ -38,10 +48,10 @@ tex_fonts = {
 plt.rcParams.update(tex_fonts)
 plt.rcParams.update({'axes.grid' : False})
 
+os.makedirs(output_path, exist_ok=True)
+
 n_tubes = len(Tubes)
 
-dataPath = FVS_path+"/build_2D-ReleaseDebInfo/average_massflow"
-output_path = '{}/Visualization'.format(dataPath)
 
 for tube_id in range(n_tubes):
   print("Plotting Tube with id = {}".format(tube_id))
