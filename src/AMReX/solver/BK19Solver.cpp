@@ -811,7 +811,7 @@ double DerivativeFromNodes(::amrex::MFIter& dSdy_mf, const ::amrex::MFIter& S0n_
 
 
 template <int Rank, int VelocityRank>
-void ExplicitRhoChiFastIntegratorSynchronizedContext(
+void ExplicitRhoChiFastSourceSynchronized(
     CompressibleAdvectionIntegratorContext& context, 
     IndexMapping<CompressibleAdvection<Rank, VelocityRank>> index, Duration dt,
     span<const ::amrex::MultiFab> S0cs,
@@ -874,7 +874,7 @@ void DoEulerForward(BK19Solver<Rank, VelocityRank>& solver, Duration dt,
   // this computes: -sigma Grad(pi)
   linear_operator->getFluxes(ToPointers(source_terms), GetPis(context));
 
-  SnychronizeRhoChiFastWithStates(context, index, dt, S0s);
+  ExplicitRhoChiFastSourceSynchronized(context, index, dt, S0cs, S0ns);
   const int nlevel = context.GetPatchHierarchy().GetNumberOfLevels();
   const double factor1 = -dt.count() * physical_parameters.f;
   const double factor2 = 1.0;
