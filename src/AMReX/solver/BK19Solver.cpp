@@ -785,30 +785,56 @@ namespace {
 /// The formula to recompute rho chi fast is
 ///
 ///           rho_chi_fast = rho / (PT - S0) * dS0_dy
+
+double DerivativeFromNodes(::amrex::MFIter& dSdy_mf, const ::amrex::MFIter& S0n_mf, const double dy){
+  FUB_ASSERT(dSdy_mf.boxArray() == S0n_mf.boxArray())
+  FUB_ASSERT(dSdy_mf.DistributionMap() == S0n_mf.DistributionMap())
+  ForEachFab(S0n_mf, [&](const ::amrex::MFIter& mfi) {
+      const ::amrex::FArrayBox& S0n  = S0n_mf[mfi];
+      ::amrex::FArrayBox& dSdy = dSdy_mf[mfi];
+      ForEachIndex(dSdy.box(), [&](auto... is) {
+        const ::amrex::IntVect iv(int(is)...);
+        // "lower" node at cell iv has index iv 
+        if constexpr (AMREX_SPACEDIM==2){
+          const ::amrex::IntVect iv_l_x = iv;                              // iv + {0,  0}
+          const ::amrex::IntVect iv_u_x = Shift(iv,     Direction::X, 1);  // iv + {1,  0}
+          const ::amrex::IntVect iv_l_y = Shift(iv_l_x, Direction::Y, 1);  // iv + {1,  1}
+          const ::amrex::IntVect iv_u_y = Shift(iv_u_x, Direction::Y, 1);  // iv + {0,  1}
+            dSdy(iv) = 0.5*(S0n(iv_l_y) + S0n(iv_u_y) - S0n(iv_l_x) - S0n(iv_u_x))/dy;
+        }
+        else if constexpr (AMREX_SPACEDIM==3){
+          static_assert(false,"not implemented yet");
+        }
+      }
+  }
+}
+
+
 template <int Rank, int VelocityRank>
-void SnychronizeRhoChiFastWithIntegratorContext(
+void ExplicitRhoChiFastIntegratorSynchronizedContext(
     CompressibleAdvectionIntegratorContext& context, 
     IndexMapping<CompressibleAdvection<Rank, VelocityRank>> index, Duration dt,
-    span<const ::amrex::MultiFab> S0s) {
+    span<const ::amrex::MultiFab> S0cs,
+    span<const ::amrex::MultiFab> S0ns) {
   const int n_levels = context.GetPatchHierarchy().GetNumberOfLevels();
   for (int level = 0; level < n_levels; ++level) {
     const ::amrex::Geometry& geom = context.GetGeometry(level);
     const double dy = geom.CellSize(1);
     ::amrex::MultiFab& scratch = context.GetScratch(level);
-    const ::amrex::MultiFab& S0c = S0s[level];
+    const ::amrex::MultiFab& S0c = S0cs[level];
+    const ::amrex::MultiFab& S0n = S0ns[level];
+
     ForEachFab(S0c, [&](const ::amrex::MFIter& mfi) {
       const ::amrex::FArrayBox& S0 = S0c[mfi];
       ::amrex::FArrayBox& cells = scratch[mfi];
+      ::amrex::FArrayBox dSdy(cells.box());
+      DerivativeFromNodes(dSdy,S0n,dy);
+ 
       ForEachIndex(cells.box(), [&](auto... is) {
-        const ::amrex::IntVect iv(int(is)...);                      // iv + {0, 0}
-        const ::amrex::IntVect upper = Shift(iv, Direction::Y, 1);  // iv + {0,  1}
-        const ::amrex::IntVect lower = Shift(iv, Direction::Y, -1); // iv + {0, -1}
-        const double dSdy = 0.5 * (S0c(upper) - S0c(lower)) / dy;
-        // Sol.rhoX[i1] = (Sol.rho[i1] * (Sol.rho[i1] / Sol.rhoY[i1] - S0c)) + dt * (-v * dSdy) * Sol.rho[i1]
         const double rho = cells(iv, index.density);
         const double v = cells(iv, index.momentum[1]) / rho;
         const double PTdensity = cells(iv, index.PTdensity);
-        const double rho_chi_fast = rho * (rho / PTdensity) + dt.count() * (-v * dSdy) * rho;
+        const double rho_chi_fast = rho * (rho / PTdensity - S0c(iv)) + dt.count() * (-v * dSdy(iv)) * rho;
         cells(iv, index.rho_chi_fast) = rho_chi_fast;
       });
     });
