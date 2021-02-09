@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Maikel Nadolski
+// Copyright (c) 2020 Maikel Nadolski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,35 +18,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_AMREX_CUTCELL_LOG_PROBES_HPP
-#define FUB_AMREX_CUTCELL_LOG_PROBES_HPP
+#include "src/equations/euler_equations/EinfeldtSignalVelocities.hpp"
+#include "fub/equations/PerfectGasMix.hpp"
 
-#include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm2.hpp"
-#include "fub/ext/ProgramOptions.hpp"
-#include "fub/output/OutputAtFrequencyOrInterval.hpp"
+namespace fub {
 
-#include <map>
-#include <string>
-#include <vector>
+template struct EinfeldtSignalVelocities<PerfectGasMix<3>>;
 
-namespace fub::amrex {
-
-class LogProbesOutput
-    : public OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm2> {
-public:
-  LogProbesOutput(const ProgramOptions& vm);
-
-  void operator()(const MultiBlockGriddingAlgorithm2& grid) override;
-
-private:
-  std::string plenum_output_path_;
-  std::vector<double> plenum_probes_;
-
-  std::string tube_output_path_;
-  std::vector<double> tube_probes_;
-  int n_tubes_;
-};
-
-} // namespace fub::amrex
-
-#endif
+}

@@ -39,13 +39,13 @@ MultiBlockIgniteDetonation::MultiBlockIgniteDetonation(
   }
 }
 
-Duration MultiBlockIgniteDetonation::ComputeStableDt(const MultiBlockIntegratorContext&, [
+Duration MultiBlockIgniteDetonation::ComputeStableDt(const MultiBlockIntegratorContext2&, [
     [maybe_unused]] int level) noexcept {
   return Duration(std::numeric_limits<double>::max());
 }
 
 void MultiBlockIgniteDetonation::ResetHierarchyConfiguration(
-    const std::shared_ptr<MultiBlockGriddingAlgorithm>& grid) {
+    const std::shared_ptr<MultiBlockGriddingAlgorithm2>& grid) {
   const std::shared_ptr<GriddingAlgorithm>* tube = grid->GetTubes().begin();
   for (IgniteDetonation& source : source_terms_) {
     source.ResetHierarchyConfiguration(*tube++);
@@ -53,7 +53,7 @@ void MultiBlockIgniteDetonation::ResetHierarchyConfiguration(
 }
 
 Result<void, TimeStepTooLarge>
-MultiBlockIgniteDetonation::AdvanceLevel(MultiBlockIntegratorContext& context,
+MultiBlockIgniteDetonation::AdvanceLevel(MultiBlockIntegratorContext2& context,
                                          int level, Duration dt,
                                          const ::amrex::IntVect& ngrow) {
   IntegratorContext* tube = context.Tubes().begin();

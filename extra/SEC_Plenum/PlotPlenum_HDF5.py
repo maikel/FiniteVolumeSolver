@@ -18,20 +18,21 @@ import matplotlib.pyplot as plt
 import h5py
 import itertools
 
-dataPath = FVS_path+"/build_2D-Release/average_massflowmul_0.1_xinit_0.1"
-inputFilePath = FVS_path+"/examples/AMReX/EB/2D/"
-
 os.environ['HDF5_USE_FILE_LOCKING'] = 'False'
 
-# import importlib
-# inputFile = importlib.import_module('SEC_Plenum')
-# print(inputFile.y0s)
-# print(inputFile.Area)
+# optional parsing the datapath from the terminal
+if (len(sys.argv)>1):
+   dataPath = str(sys.argv[1])
+   inputFilePath = dataPath
+else:
+   dataPath = FVS_path+"/build_2D-Release/average_massflow"
+   inputFilePath = FVS_path+"/examples/AMReX/EB/2D/"
+
+
+
 sys.path.append(inputFilePath)
 from SEC_Plenum_Arrhenius import y0s, Area, tube_n_cells, p_ref, T_ref, rho_ref, Output, u_ref, t_ref
 from SEC_Plenum_Arrhenius import D as diameter_tube
-# print(y0s)
-# print(Area)
 
 plenum = "{}/Plenum.h5".format(dataPath)
 outPath = dataPath
@@ -86,7 +87,7 @@ def stackTubeDataTo2D(Tube_datalist):
 
 # for i in itertools.dropwhile(lambda x: x < 53, range(nsteps)):
 # for i in itertools.dropwhile(lambda i: i < 4997, range(nsteps)):
-for i in range(nsteps):
+for i in range(nsteps-1):
    PrintProgress(i)
    
    Tube_p = []
@@ -118,7 +119,7 @@ for i in range(nsteps):
    f.suptitle('Time = {:.2f}'.format(current_time))
    # pressure image
    p = np.where(vols > 1e-14, p, np.nan)
-   levels = np.linspace(1.9, 2.7, 30)
+   levels = np.linspace(1.9, 6.5, 30)
    pressure_options = {
      'origin': 'lower',
      'cmap': 'jet',
@@ -148,7 +149,7 @@ for i in range(nsteps):
    
    # temperature image
    T = p / rho
-   im_T = axs[1].imshow(T * T_ref, origin='lower', vmin=10.0 * T_ref, vmax=15. * T_ref, interpolation='none', extent=extent)
+   im_T = axs[1].imshow(T * T_ref, origin='lower', vmin=10.0 * T_ref, vmax=13. * T_ref, interpolation='none', extent=extent)
    axs[1].set_title('Temperature')
    axs[1].set(aspect='equal')
    cbar = plt.colorbar(im_T, ax=axs[1])

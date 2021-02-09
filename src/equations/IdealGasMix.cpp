@@ -192,12 +192,12 @@ void IdealGasMix<Dim>::CompleteFromReactor(CompleteArray& state, const Array<dou
   state.density * reactor_.GetInternalEnergyArray();
   const Array1d rhoE_kin = KineticEnergy(state.density, state.momentum, mask);
   state.energy = rhoE_internal + rhoE_kin;
-  state.pressure = reactor_.GetPressureArray();
+  state.pressure = mask.select(reactor_.GetPressureArray(), 0.0);
   const ArrayXd& Y = reactor_.GetMassFractionsArray();
   for (int i = 0; i < Y.rows(); ++i) {
     state.species.row(i) = state.density * Y.row(i);
   }
-  state.temperature = reactor_.GetTemperatureArray();
+  state.temperature = mask.select(reactor_.GetTemperatureArray(), 0.0);
   std::tie(state.speed_of_sound, state.c_p, state.gamma) =
   ComputeSpeedOfSoundArray(reactor_, mask);
 }

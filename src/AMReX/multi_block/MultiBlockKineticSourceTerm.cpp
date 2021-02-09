@@ -23,7 +23,7 @@
 namespace fub::amrex {
 
 Result<void, TimeStepTooLarge>
-MultiBlockKineticSouceTerm::AdvanceLevel(MultiBlockIntegratorContext& context,
+MultiBlockKineticSouceTerm::AdvanceLevel(MultiBlockIntegratorContext2& context,
                                          int level, Duration dt,
                                          const ::amrex::IntVect& ngrow) {
   for (IntegratorContext& tube : context.Tubes()) {

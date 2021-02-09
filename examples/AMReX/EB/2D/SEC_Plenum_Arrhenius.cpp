@@ -82,27 +82,27 @@ static constexpr double r_tube = 0.015;
 static constexpr int n_species = 2;
 static constexpr int n_passive_scalars = 1;
 
-struct ChangeTOpened {
-  template <typename EulerEquation>
-  [[nodiscard]] std::optional<fub::Duration>
-  operator()(EulerEquation&, std::optional<fub::Duration>, double,
-             const fub::perfect_gas_mix::gt::PlenumState&,
-             const fub::amrex::GriddingAlgorithm& gridding,
-             int) const noexcept {
-    return gridding.GetTimePoint();
-  }
-};
+// struct ChangeTOpened {
+//   template <typename EulerEquation>
+//   [[nodiscard]] std::optional<fub::Duration>
+//   operator()(EulerEquation&, std::optional<fub::Duration>, double,
+//              const fub::perfect_gas_mix::gt::PlenumState&,
+//              const fub::amrex::GriddingAlgorithm& gridding,
+//              int) const noexcept {
+//     return gridding.GetTimePoint();
+//   }
+// };
 
-struct IsNeverBlocked {
-  template <typename EulerEquation>
-  [[nodiscard]] bool
-  operator()(EulerEquation&, std::optional<fub::Duration> /* t_opened */,
-             double, const fub::perfect_gas_mix::gt::PlenumState&,
-             const fub::amrex::GriddingAlgorithm& /* gridding */,
-             int /* level */) const noexcept {
-    return false;
-  }
-};
+// struct IsNeverBlocked {
+//   template <typename EulerEquation>
+//   [[nodiscard]] bool
+//   operator()(EulerEquation&, std::optional<fub::Duration> /* t_opened */,
+//              double, const fub::perfect_gas_mix::gt::PlenumState&,
+//              const fub::amrex::GriddingAlgorithm& /* gridding */,
+//              int /* level */) const noexcept {
+//     return false;
+//   }
+// };
 
 struct TracePassiveScalarBoundary {
   using Equation = fub::PerfectGasMix<1>;
@@ -344,10 +344,15 @@ auto MakeTubeSolver(
 
         fub::CompleteFromPrim(eq, boundary_state, prim);
       };
-  using DeflagrationValve = fub::amrex::GenericPressureValveBoundary<
-      fub::PerfectGasMix<1>, std::decay_t<decltype(combustor_inflow_function)>,
-      ChangeTOpened, IsNeverBlocked>;
-  DeflagrationValve valve(equation, control_state, combustor_inflow_function);
+  // using DeflagrationValve = fub::amrex::GenericPressureValveBoundary<
+  //     fub::PerfectGasMix<1>,
+  //     std::decay_t<decltype(combustor_inflow_function)>, ChangeTOpened,
+  //     IsNeverBlocked>;
+  // DeflagrationValve valve(equation, control_state,
+  // combustor_inflow_function);
+  fub::amrex::DeflagrationValve valve(equation, control_state,
+                                      combustor_inflow_function);
+
   // const double eps = std::sqrt(std::numeric_limits<double>::epsilon());
   // auto inflow_function =
   //     [eps, source_term,
@@ -631,35 +636,35 @@ auto MakePlenumSolver(
     boundary_condition.conditions.push_back(std::move(pressure_outflow));
   }
 
-  dicts.clear();
-  dicts = fub::GetOptionOr(options, "TurbineMassflowBoundaries_Jirasek", dicts);
-  for (pybind11::dict& dict : dicts) {
-    fub::ProgramOptions boundary_options = fub::ToMap(dict);
-    fub::amrex::cutcell::TurbineMassflowBoundaryOptions tb_opts(
-        boundary_options);
-    tb_opts.dir = fub::Direction::X;
-    tb_opts.side = 1;
-    BOOST_LOG(log) << "TurbineMassflowBoundaries_Jirasek:";
-    tb_opts.Print(log);
-    fub::amrex::cutcell::TurbineMassflowBoundary<fub::PerfectGasMix<2>,
-                                                 fub::RequireMassflow_Jirasek>
-        pressure_outflow(equation, tb_opts);
-    boundary_condition.conditions.push_back(std::move(pressure_outflow));
-  }
+  // dicts.clear();
+  // dicts = fub::GetOptionOr(options, "TurbineMassflowBoundaries_Jirasek",
+  // dicts); for (pybind11::dict& dict : dicts) {
+  //   fub::ProgramOptions boundary_options = fub::ToMap(dict);
+  //   fub::amrex::cutcell::TurbineMassflowBoundaryOptions tb_opts(
+  //       boundary_options);
+  //   tb_opts.dir = fub::Direction::X;
+  //   tb_opts.side = 1;
+  //   BOOST_LOG(log) << "TurbineMassflowBoundaries_Jirasek:";
+  //   tb_opts.Print(log);
+  //   fub::amrex::cutcell::TurbineMassflowBoundary<fub::PerfectGasMix<2>,
+  //                                                fub::RequireMassflow_Jirasek>
+  //       pressure_outflow(equation, tb_opts);
+  //   boundary_condition.conditions.push_back(std::move(pressure_outflow));
+  // }
 
-  dicts.clear();
-  dicts = fub::GetOptionOr(options, "MachnumberBoundaries", dicts);
-  for (pybind11::dict& dict : dicts) {
-    fub::ProgramOptions boundary_options = fub::ToMap(dict);
-    fub::amrex::cutcell::MachnumberBoundaryOptions mb_opts(boundary_options);
-    mb_opts.dir = fub::Direction::X;
-    mb_opts.side = 1;
-    BOOST_LOG(log) << "MachnumberBoundary:";
-    mb_opts.Print(log);
-    fub::amrex::cutcell::MachnumberBoundary<fub::PerfectGasMix<2>>
-        mach_boundary(equation, mb_opts);
-    boundary_condition.conditions.push_back(std::move(mach_boundary));
-  }
+  // dicts.clear();
+  // dicts = fub::GetOptionOr(options, "MachnumberBoundaries", dicts);
+  // for (pybind11::dict& dict : dicts) {
+  //   fub::ProgramOptions boundary_options = fub::ToMap(dict);
+  //   fub::amrex::cutcell::MachnumberBoundaryOptions mb_opts(boundary_options);
+  //   mb_opts.dir = fub::Direction::X;
+  //   mb_opts.side = 1;
+  //   BOOST_LOG(log) << "MachnumberBoundary:";
+  //   mb_opts.Print(log);
+  //   fub::amrex::cutcell::MachnumberBoundary<fub::PerfectGasMix<2>>
+  //       mach_boundary(equation, mb_opts);
+  //   boundary_condition.conditions.push_back(std::move(mach_boundary));
+  // }
 
   ::amrex::RealBox xbox = grid_geometry.coordinates;
   ::amrex::Geometry coarse_geom = fub::amrex::GetCoarseGeometry(grid_geometry);

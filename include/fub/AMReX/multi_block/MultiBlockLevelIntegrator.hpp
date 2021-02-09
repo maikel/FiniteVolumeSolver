@@ -27,28 +27,38 @@
 
 namespace fub::amrex {
 
-template <typename Adapter, typename LevelIntegrator>
+template <typename AdapterAdvanceLevel, typename AdapterComputeStableDt,
+          typename LevelIntegrator>
 class MultiBlockLevelIntegrator {
 private:
-  Adapter map_;
+  AdapterAdvanceLevel advance_level_map_;
+  AdapterComputeStableDt compute_stable_dt_map_;
   LevelIntegrator level_integrator_;
 
 public:
   static constexpr int Rank = LevelIntegrator::Rank;
 
-  MultiBlockLevelIntegrator(Adapter adapter, LevelIntegrator level_integrator)
-      : map_(std::move(adapter)),
+  MultiBlockLevelIntegrator(AdapterAdvanceLevel adapter1,
+                            AdapterComputeStableDt adapter2,
+                            LevelIntegrator level_integrator)
+      : advance_level_map_(std::move(adapter1)),
+        compute_stable_dt_map_(std::move(adapter2)),
         level_integrator_(std::move(level_integrator)) {}
 
-  Duration ComputeStableDt(const MultiBlockIntegratorContext& ctx, int level) {
-    return level_integrator_.ComputeStableDt(ctx, level);
+  template <typename IntegratorContext>
+  [[nodiscard]] Duration ComputeStableDt(const IntegratorContext& context,
+                                         int level) {
+    return std::invoke(compute_stable_dt_map_, level_integrator_, context,
+                       level);
   }
 
   /// \brief Integrates the source term for each tube in the specified context
+  template <typename IntegratorContext>
   [[nodiscard]] Result<void, TimeStepTooLarge>
-  AdvanceLevel(MultiBlockIntegratorContext& context, int level, Duration dt,
+  AdvanceLevel(IntegratorContext& context, int level, Duration dt,
                const ::amrex::IntVect& ngrow = ::amrex::IntVect(0)) {
-    return std::invoke(map_, context, level_integrator_, level, dt, ngrow);
+    return std::invoke(advance_level_map_, level_integrator_, context, level,
+                       dt, ngrow);
   }
 };
 

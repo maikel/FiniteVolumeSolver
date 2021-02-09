@@ -129,7 +129,7 @@ void Hllem<EulerEquation, Larrouturou>::SolveRiemannProblem(
     w_hllem_.momentum = w_hlle_.momentum - u_bar_delta_alpha_2 * roeU[0];
     w_hllem_.energy =
         w_hlle_.energy - u_bar_delta_alpha_2 * squaredNormRoeU_half;
-    if constexpr (fub::euler::state_with_species<EulerEquation,
+    if constexpr (fub::euler::state_with_species<
                                                  Conservative>()) {
       const int n_species = w_hllem_.species.size();
       for (int i = 0; i < n_species; ++i) {
@@ -210,7 +210,7 @@ void Hllem<EulerEquation, Larrouturou>::SolveRiemannProblem(
                         u_bar_delta_alpha_2 * squaredNormRoeU_half -
                         u_bar_delta_alpha_3 * roeU[iy];
     }
-    if constexpr (fub::euler::state_with_species<EulerEquation,
+    if constexpr (fub::euler::state_with_species<
                                                  Conservative>()) {
       const int n_species = w_hllem_.species.size();
       for (int i = 0; i < n_species; ++i) {
@@ -306,7 +306,7 @@ void Hllem<EulerEquation, Larrouturou>::SolveRiemannProblem(
                         u_bar_delta * (alpha_2 * squaredNormRoeU_half +
                                        alpha_3 * roeU[iy] + alpha_4 * roeU[iz]);
     }
-    if constexpr (fub::euler::state_with_species<EulerEquation,
+    if constexpr (fub::euler::state_with_species<
                                                  Conservative>()) {
       const int n_species = w_hllem_.species.size();
       for (int i = 0; i < n_species; ++i) {
@@ -474,7 +474,7 @@ double Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
     flux.density = flux_hlle_.density - b_delta_alpha_2 * 1.0;
     flux.momentum = flux_hlle_.momentum - b_delta_alpha_2 * roeU[0];
     flux.energy = flux_hlle_.energy - b_delta_alpha_2 * squaredNormRoeU_half;
-    if constexpr (fub::euler::state_with_species<EulerEquation,
+    if constexpr (fub::euler::state_with_species<
                                                  Conservative>()) {
       const int n_species = flux.species.size();
       for (int i = 0; i < n_species; ++i) {
@@ -556,7 +556,7 @@ double Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
       flux.energy = flux_hlle_.energy - b_delta_alpha_2 * squaredNormRoeU_half -
                     b_delta_alpha_3 * roeU[iy];
     }
-    if constexpr (fub::euler::state_with_species<EulerEquation,
+    if constexpr (fub::euler::state_with_species<
                                                  Conservative>()) {
       const int n_species = flux.species.size();
       for (int i = 0; i < n_species; ++i) {
@@ -649,7 +649,7 @@ double Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
       flux.energy = flux_hlle_.energy - b_delta_alpha_2 * squaredNormRoeU_half -
                     b_delta_alpha_3 * roeU[iy] - b_delta_alpha_4 * roeU[iz];
     }
-    if constexpr (fub::euler::state_with_species<EulerEquation,
+    if constexpr (fub::euler::state_with_species<
                                                  Conservative>()) {
       const int n_species = flux.species.size();
       for (int i = 0; i < n_species; ++i) {
@@ -826,7 +826,7 @@ Array1d Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
     flux.momentum = flux_hlle_array_.momentum - b_delta_alpha_2 * roeU;
     flux.energy =
         flux_hlle_array_.energy - b_delta_alpha_2 * squaredNormRoeU_half;
-    if constexpr (euler::state_with_species<EulerEquation, Conservative>()) {
+    if constexpr (euler::state_with_species<Conservative>()) {
       const int n_species = flux.species.rows();
       for (int i = 0; i < n_species; ++i) {
         const Array1d rhoYL = fub::euler::Species(equation_, left_array_, i);
@@ -876,10 +876,10 @@ Array1d Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
     FUB_ASSERT(!flux.density.isNaN().any());
     FUB_ASSERT(!flux.momentum.isNaN().any());
     FUB_ASSERT(!flux.energy.isNaN().any());
-    if constexpr (euler::state_with_species<EulerEquation, Conservative>()) {
+    if constexpr (euler::state_with_species<Conservative>()) {
       FUB_ASSERT(!flux.species.isNaN().any());
     }
-    if constexpr (euler::state_with_species<EulerEquation, Conservative>()) {
+    if constexpr (euler::state_with_species<Conservative>()) {
       FUB_ASSERT(!flux.passive_scalars.isNaN().any());
     }
   } else if constexpr (Dim == 2) {
@@ -914,7 +914,7 @@ Array1d Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
                     b_delta_alpha_2 * squaredNormRoeU_half -
                     b_delta_alpha_3 * roeU.row(iy);
     }
-    if constexpr (euler::state_with_species<EulerEquation, Conservative>()) {
+    if constexpr (euler::state_with_species<Conservative>()) {
       const int n_species = flux.species.rows();
       for (int i = 0; i < n_species; ++i) {
         const Array1d rhoYL = fub::euler::Species(equation_, left_array_, i);
@@ -1011,7 +1011,7 @@ Array1d Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
           b_delta_alpha_3 * roeU.row(iy) - b_delta_alpha_4 * roeU.row(iz);
     }
 
-    if constexpr (euler::state_with_species<EulerEquation, Conservative>()) {
+    if constexpr (euler::state_with_species<Conservative>()) {
       const int n_species = flux.species.rows();
       for (int i = 0; i < n_species; ++i) {
         const Array1d rhoYL = fub::euler::Species(equation_, left_array_, i);
@@ -1077,7 +1077,7 @@ void Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
   FUB_ASSERT(!flux.density.isNaN().any());
   FUB_ASSERT(!flux.momentum.isNaN().any());
   FUB_ASSERT(!flux.energy.isNaN().any());
-  if constexpr (euler::state_with_species<EulerEquation, Conservative>()) {
+  if constexpr (euler::state_with_species<Conservative>()) {
     FUB_ASSERT(!flux.species.isNaN().any());
   }
   if constexpr (euler::state_with_passive_scalars<Conservative>()) {

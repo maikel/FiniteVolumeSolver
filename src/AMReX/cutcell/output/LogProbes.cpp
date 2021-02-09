@@ -198,7 +198,7 @@ void RenameFileIfExists(const std::string& filename) {
 } // namespace
 
 LogProbesOutput::LogProbesOutput(const ProgramOptions& vm)
-    : OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm>(vm) {
+    : OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm2>(vm) {
   using namespace std::literals;
   {
     const ProgramOptions plenum_vm = GetOptions(vm, "Plenum");
@@ -236,7 +236,7 @@ LogProbesOutput::LogProbesOutput(const ProgramOptions& vm)
   }
 }
 
-void LogProbesOutput::operator()(const MultiBlockGriddingAlgorithm& grid) {
+void LogProbesOutput::operator()(const MultiBlockGriddingAlgorithm2& grid) {
   const std::ptrdiff_t n_tube_probes =
       static_cast<std::ptrdiff_t>(tube_probes_.size()) / n_tubes_ /
       AMREX_SPACEDIM;

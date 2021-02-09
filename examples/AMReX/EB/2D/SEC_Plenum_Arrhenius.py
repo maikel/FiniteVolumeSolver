@@ -4,6 +4,9 @@ plenum_x_n_cells = 128
 tube_blocking_factor = 8
 plenum_blocking_factor = 8
 
+massflow_cor = %MASSFLOW%
+diffusion = %Diffusion%
+outputPath = '%OUTPUT%'
 
 mode = 3 #%MODE%
 boundary_condition = 'TurbineMassflowBoundaries' # '%BOUNDARY_CONDITION%'
@@ -97,7 +100,7 @@ ArrheniusKinetics = {
 }
 
 DiffusionSourceTerm = {
-  'mul': 3.0
+  'mul': diffusion
 }
 R_ref = 287.
 p_ref = 101325.
@@ -126,7 +129,6 @@ def Area(xi):
   xi1 = 0.75 - 1.0   # Reference: 0.5; best: 0.75
   Ax = 1.0 if xi < xi0 else A0 + (A1-A0)*(xi-xi0)/(xi1-xi0) if xi < xi1 else A1
   return Ax
-  #return 1.0
 
 ControlOptions = {
   'Q': ArrheniusKinetics['Q'],
@@ -207,7 +209,7 @@ Plenum[boundary_condition] = [{
     'upper': [plenum_x_n_cells - 1, plenum_y_n_cells - 1, 0]
   },
   'relative_surface_area': ControlOptions['surface_area_turbine_plenum_to_turbine'], 
-  'massflow_correlation': 0.06 * 4.0,
+  'massflow_correlation': massflow_cor, # 0.06 * 4.0,
 }]
 
 def TubeCenterPoint(x0, y0):
@@ -275,8 +277,9 @@ mode_names = ['cellwise', 'average_mirror_state', 'average_ghost_state', 'averag
 tube_intervals = 0.005
 plenum_intervals = 0.02
 
-# outputPath = mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]+"mul_{}_xinit_{}".format(DiffusionSourceTerm['mul'], Tubes[0]['initially_filled_x'])
-outputPath = mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]
+# outputPath = mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]
+
+
 Output = { 
   'outputs': [
     {

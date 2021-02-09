@@ -35,7 +35,8 @@ namespace fub::amrex {
 class MultiWriteHdf5
     : public OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm> {
 public:
-  MultiWriteHdf5(const std::map<std::string, pybind11::object>& vm);
+  MultiWriteHdf5(const ProgramOptions& options);
+  virtual ~MultiWriteHdf5() = default;
 
   void operator()(const MultiBlockGriddingAlgorithm& grid) override;
 
@@ -45,12 +46,18 @@ private:
   int grid_id_{0};
   std::string path_to_file_{};
   std::optional<::amrex::Box> output_box_{};
+
+  virtual span<const std::string> PlenumFieldNames() const noexcept {
+    return {};
+  }
+  virtual span<const std::string> TubeFieldNames() const noexcept { return {}; }
 };
 
 class MultiWriteHdf52
     : public OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm2> {
 public:
-  MultiWriteHdf52(const fub::ProgramOptions& vm);
+  MultiWriteHdf52(const ProgramOptions& vm);
+  virtual ~MultiWriteHdf52() = default;
 
   void operator()(const MultiBlockGriddingAlgorithm2& grid) override;
 
@@ -67,12 +74,12 @@ private:
   virtual span<const std::string> TubeFieldNames() const noexcept { return {}; }
 };
 
-class MultiWriteHdf5WithNames : public MultiWriteHdf52 {
+class MultiWriteHdf5WithNames : public MultiWriteHdf52, public MultiWriteHdf5 {
 public:
   template <typename PEquation, typename TEquation>
-  MultiWriteHdf5WithNames(const fub::ProgramOptions& vm, const PEquation& peq,
+  MultiWriteHdf5WithNames(const ProgramOptions& options, const PEquation& peq,
                           const TEquation& teq)
-      : MultiWriteHdf52(vm),
+      : MultiWriteHdf52(options), MultiWriteHdf5(options),
         plenum_field_names_{
             VarNames<Complete<PEquation>, std::vector<std::string>>(peq)},
         tube_field_names_{
@@ -81,11 +88,6 @@ public:
   }
 
 private:
-  enum class Type { plenum, tube };
-  Type type_{Type::tube};
-  int grid_id_{0};
-  std::string path_to_file_{};
-  std::optional<::amrex::Box> output_box_{};
   std::vector<std::string> plenum_field_names_;
   std::vector<std::string> tube_field_names_;
 

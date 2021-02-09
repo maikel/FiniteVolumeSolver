@@ -19,10 +19,10 @@
 // SOFTWARE.
 
 #include "fub/AMReX/multi_block/MultiWriteHdf5.hpp"
-#include "src/AMReX/output/WriteHdf5Impl.hpp"
-#include "src/AMReX/cutcell/output/WriteHdf5Impl.hpp"
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/ForEachIndex.hpp"
+#include "src/AMReX/cutcell/output/WriteHdf5Impl.hpp"
+#include "src/AMReX/output/WriteHdf5Impl.hpp"
 
 #include "fub/ext/Log.hpp"
 #include "fub/ext/ProgramOptions.hpp"
@@ -163,16 +163,19 @@ void MultiWriteHdf5::operator()(const MultiBlockGriddingAlgorithm& grid) {
   if (type_ == Type::plenum && grid_id_ < grid.GetPlena().size()) {
     const auto& hierarchy = grid.GetPlena()[grid_id_]->GetPatchHierarchy();
     if (output_box_) {
-      cutcell::WriteHdf5RestrictedToBox(path_to_file_, hierarchy, *output_box_);
+      cutcell::WriteHdf5RestrictedToBox(path_to_file_, hierarchy, *output_box_,
+                                        PlenumFieldNames());
     } else {
-      cutcell::WriteHdf5UnRestricted(path_to_file_, hierarchy);
+      cutcell::WriteHdf5UnRestricted(path_to_file_, hierarchy,
+                                     PlenumFieldNames());
     }
   } else if (grid_id_ < grid.GetTubes().size()) {
     const auto& hierarchy = grid.GetTubes()[grid_id_]->GetPatchHierarchy();
     if (output_box_) {
-      WriteHdf5RestrictedToBox(path_to_file_, hierarchy, *output_box_);
+      WriteHdf5RestrictedToBox(path_to_file_, hierarchy, *output_box_,
+                               TubeFieldNames());
     } else {
-      WriteHdf5UnRestricted(path_to_file_, hierarchy);
+      WriteHdf5UnRestricted(path_to_file_, hierarchy, TubeFieldNames());
     }
   }
 }
@@ -189,7 +192,8 @@ void MultiWriteHdf52::operator()(const MultiBlockGriddingAlgorithm2& grid) {
       cutcell::WriteHdf5RestrictedToBox(path_to_file_, hierarchy, *output_box_,
                                         PlenumFieldNames());
     } else {
-      cutcell::WriteHdf5UnRestricted(path_to_file_, hierarchy, PlenumFieldNames());
+      cutcell::WriteHdf5UnRestricted(path_to_file_, hierarchy,
+                                     PlenumFieldNames());
     }
   } else if (grid_id_ < grid.GetTubes().size()) {
     const auto& hierarchy = grid.GetTubes()[grid_id_]->GetPatchHierarchy();

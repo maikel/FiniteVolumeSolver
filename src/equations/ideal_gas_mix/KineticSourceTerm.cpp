@@ -66,6 +66,11 @@ KineticSourceTerm<Rank>::AdvanceLevel(amrex::IntegratorContext& simulation_data,
       Store(states, *state_, index);
     });
   }
+  if (level == 0) {
+    simulation_data.FillGhostLayerSingleLevel(level);
+  } else {
+    simulation_data.FillGhostLayerTwoLevels(level, level - 1);
+  }
   return boost::outcome_v2::success();
 }
 
