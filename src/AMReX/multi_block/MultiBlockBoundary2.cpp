@@ -415,40 +415,45 @@ void AnyMultiBlockBoundary::ComputeBoundaryData(
 }
 
 void AnyMultiBlockBoundary::FillBoundary(::amrex::MultiFab& mf,
-                                         const GriddingAlgorithm&, int) {
-  ::amrex::Box box = tube_ghost_data_->box();
-  ForEachFab(execution::seq, mf, [&](const ::amrex::MFIter& mfi) {
-    const ::amrex::Box b = mfi.growntilebox() & box;
-    if (!b.isEmpty()) {
-      for (int n = 0; n < mf.nComp(); ++n) {
-        ForEachIndex(b, [&](auto... is) {
-          const ::amrex::IntVect iv{int(is)...};
-          if ((*tube_ghost_data_)(iv, 0) > 0.0) {
-            mf[mfi](iv, n) = (*tube_ghost_data_)(iv, n);
-          }
-        });
+                                         const GriddingAlgorithm&, int level) {
+  if (level == level_) {
+    ::amrex::Box box = tube_ghost_data_->box();
+    ForEachFab(execution::seq, mf, [&](const ::amrex::MFIter& mfi) {
+      const ::amrex::Box b = mfi.growntilebox() & box;
+      if (!b.isEmpty()) {
+        for (int n = 0; n < mf.nComp(); ++n) {
+          ForEachIndex(b, [&](auto... is) {
+            const ::amrex::IntVect iv{int(is)...};
+            if ((*tube_ghost_data_)(iv, 0) > 0.0) {
+              mf[mfi](iv, n) = (*tube_ghost_data_)(iv, n);
+            }
+          });
+        }
       }
-    }
-  });
+    });
+  }
 }
 
 void AnyMultiBlockBoundary::FillBoundary(::amrex::MultiFab& mf,
                                          const cutcell::GriddingAlgorithm&,
-                                         int) {
-  ::amrex::Box ghost_box = MakeGhostBox(plenum_mirror_box_, gcw_, dir_, side_);
-  ForEachFab(execution::openmp, mf, [&](const ::amrex::MFIter& mfi) {
-    const ::amrex::Box box = mfi.growntilebox() & ghost_box;
-    if (!box.isEmpty()) {
-      ::amrex::FArrayBox& fab = mf[mfi];
-      for (int c = 0; c < mf.nComp(); ++c) {
-        ForEachIndex(box, [&](auto... is) {
-          const ::amrex::IntVect dest{int(is)...};
-          ::amrex::IntVect src = ReduceDimension(dest, dir_);
-          fab(dest, c) = (*plenum_ghost_data_)(src, c);
-        });
+                                         int level) {
+  if (level == level_) {
+    ::amrex::Box ghost_box =
+        MakeGhostBox(plenum_mirror_box_, gcw_, dir_, side_);
+    ForEachFab(execution::openmp, mf, [&](const ::amrex::MFIter& mfi) {
+      const ::amrex::Box box = mfi.growntilebox() & ghost_box;
+      if (!box.isEmpty()) {
+        ::amrex::FArrayBox& fab = mf[mfi];
+        for (int c = 0; c < mf.nComp(); ++c) {
+          ForEachIndex(box, [&](auto... is) {
+            const ::amrex::IntVect dest{int(is)...};
+            ::amrex::IntVect src = ReduceDimension(dest, dir_);
+            fab(dest, c) = (*plenum_ghost_data_)(src, c);
+          });
+        }
       }
-    }
-  });
+    });
+  }
 }
 
 } // namespace fub::amrex

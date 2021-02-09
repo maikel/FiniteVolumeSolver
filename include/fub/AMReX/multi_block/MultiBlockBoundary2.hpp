@@ -22,6 +22,7 @@
 #define FUB_AMREX_MULTI_BLOCK_BOUNDARY2_HPP
 
 #include "fub/AMReX/multi_block/MultiBlockBoundary.hpp"
+#include "fub/equations/EulerEquation.hpp"
 
 #include "fub/Direction.hpp"
 #include "fub/Duration.hpp"
@@ -168,8 +169,14 @@ void ReduceStateDimension(TubeEquation& tube_equation,
   for (int i = 0; i < dest.momentum.size(); ++i) {
     dest.momentum[i] = src.momentum[i];
   }
-  dest.species = src.species;
-  dest.passive_scalars = src.passive_scalars;
+  if constexpr (euler::state_with_species<Complete<TubeEquation>>() &&
+                euler::state_with_species<Complete<PlenumEquation>>()) {
+    dest.species = src.species;
+  }
+  if constexpr (euler::state_with_passive_scalars<Complete<TubeEquation>>() &&
+                euler::state_with_passive_scalars<Complete<PlenumEquation>>()) {
+    dest.passive_scalars = src.passive_scalars;
+  }
   dest.energy = src.energy;
   CompleteFromCons(tube_equation, dest, AsCons(dest));
 }
@@ -183,8 +190,14 @@ void EmbedState(PlenumEquation& plenum_equation, Complete<PlenumEquation>& dest,
   for (int i = 0; i < src.momentum.size(); ++i) {
     dest.momentum[i] = src.momentum[i];
   }
-  dest.species = src.species;
-  dest.passive_scalars = src.passive_scalars;
+  if constexpr (euler::state_with_species<Complete<TubeEquation>>() &&
+                euler::state_with_species<Complete<PlenumEquation>>()) {
+    dest.species = src.species;
+  }
+  if constexpr (euler::state_with_passive_scalars<Complete<TubeEquation>>() &&
+                euler::state_with_passive_scalars<Complete<PlenumEquation>>()) {
+    dest.passive_scalars = src.passive_scalars;
+  }
   dest.energy = src.energy;
   CompleteFromCons(plenum_equation, dest, AsCons(dest));
 }

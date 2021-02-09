@@ -25,7 +25,7 @@ plenum_x_length = plenum_x_upper - plenum_x_lower
 plenum_length = plenum_x_length # [m]
 tube_length = 2.083 - 0.5 # [m]
 
-plenum_max_grid_size = max(plenum_blocking_factor, 64)
+plenum_max_grid_size = max(plenum_blocking_factor, 1024)
 
 plenum_domain_length = plenum_length + inlet_length
 tube_domain_length = tube_length - inlet_length
@@ -63,12 +63,13 @@ tube_n_cells -= tube_n_cells % tube_blocking_factor
 tube_n_cells = int(tube_n_cells)
 
 RunOptions = {
-  'cfl': 0.4,
+  'cfl': 0.8,
   'final_time': 0.021,
   'max_cycles': -1
 }
 
-#checkpoint = '/srv/public/Maikel/FiniteVolumeSolver/build_2D-Release/ConvergentNozzleAxi/Checkpoint/000012985'
+# checkpoint = '/srv/public/Maikel/FiniteVolumeSolver/build_2D-Release/ConvergentNozzleAxi/Checkpoint/000000660'
+# checkpoint = '/srv/public/Maikel/FiniteVolumeSolver/build_2D-RelWithDebugInfo/ConvergentNozzleAxi/Checkpoint/000000672'
 checkpoint = ''
 
 Plenum = {
@@ -133,6 +134,7 @@ Tube = {
   'PatchHierarchy': {
     'max_number_of_levels': n_level, 
     'blocking_factor': [tube_blocking_factor, 1, 1],
+    'max_grid_size': [tube_n_cells, tube_n_cells, tube_n_cells],
     'refine_ratio': [2, 1, 1],
     'n_proper': 1,
     'n_error_buf': [4, 0, 0]
@@ -172,16 +174,24 @@ Output = {
     'intervals': [1e-4]
   },
   {
+    'type': 'HDF5',
+    'which_block': 1,
+    'path': 'ConvergentNozzleAxi/Tube.h5',
+    'intervals': [1e-5]
+  },
+  {
     'type': 'Plotfiles',
     'directory': 'ConvergentNozzleAxi/Plotfiles/',
     'intervals': [1e-4],
     # 'frequencies': [1]
-  }, {
+  },
+  {
     'type': 'Checkpoint',
     'directory': 'ConvergentNozzleAxi/Checkpoint/',
     'intervals': [1e-3],
-    'frequencies': []
-  }, {
+    # 'frequencies': [1]
+  },
+  {
     'type': 'CounterOutput',
     'frequencies': [1000]
   }]
