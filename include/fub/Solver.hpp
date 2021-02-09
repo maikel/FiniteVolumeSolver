@@ -64,6 +64,7 @@
 #include "fub/flux_method/GodunovMethod.hpp"
 #include "fub/flux_method/HllMethod.hpp"
 #include "fub/flux_method/MusclHancockMethod.hpp"
+#include "fub/flux_method/MusclHancockMethod2.hpp"
 
 #include "fub/ext/Log.hpp"
 #include "fub/ext/Mpi.hpp"
