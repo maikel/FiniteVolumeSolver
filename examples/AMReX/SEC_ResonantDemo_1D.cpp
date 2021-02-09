@@ -132,8 +132,7 @@ void MyMain(const fub::ProgramOptions& options) {
       [fill_f_val, kin = fub::KineticState<fub::PerfectGasMix<1>>(equation)](
           const fub::PerfectGasMix<1>& eq,
           fub::Complete<fub::PerfectGasMix<1>>& boundary_state,
-          const fub::KineticState<
-              fub::PerfectGasMix<1>>& /* compressor_state */,
+          const auto& /* compressor_state */,
           double inner_pressure, fub::Duration tp, const amrex::MultiFab&,
           const fub::amrex::GriddingAlgorithm&, int) mutable {
         const double dt = tp.count();
