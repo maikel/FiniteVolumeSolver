@@ -165,11 +165,14 @@ void ChangeRPM(ControlState& state, const ControlOptions& options,
                      (options.Q * state.fuel_consumption_rate + eps);
 
   if (!state.compressor.SEC_Mode) {
+    // 0.9995 just shortcut because floating point comparison
     double target_pressure = 0.9995 * options.target_pressure_compressor;
-    state.compressor.SEC_Mode = (pressure < target_pressure) ? false : true;
+    state.compressor.SEC_Mode = pressure >= target_pressure;
+    // state.compressor.SEC_Mode = (pressure < target_pressure) ? false : true;
   } else {
     double fall_back_pressure = 0.9 * options.target_pressure_compressor;
-    state.compressor.SEC_Mode = (pressure > fall_back_pressure) ? true : false;
+    state.compressor.SEC_Mode = pressure > fall_back_pressure;
+    // state.compressor.SEC_Mode = (pressure > fall_back_pressure) ? true : false;
   }
 }
 } // namespace
@@ -304,7 +307,7 @@ auto GetFieldMap() {
       std::pair<std::string, projection>{
           "compressor_SEC_Mode"s,
           [](const ControlState& s) {
-            return static_cast<double>(static_cast<int>(s.compressor.SEC_Mode));
+            return static_cast<double>(s.compressor.SEC_Mode);
           }},
       std::pair<std::string, projection>{
           "turbine_pressure"s,
