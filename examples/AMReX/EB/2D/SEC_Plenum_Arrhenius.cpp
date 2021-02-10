@@ -310,48 +310,50 @@ auto MakeTubeSolver(
                                  initially_filled_x};
 
   FUB_ASSERT(control_state);
-  auto combustor_inflow_function =
-      [prim = fub::Primitive<fub::PerfectGasMix<1>>(equation)](
-          const fub::PerfectGasMix<1>& eq,
-          fub::Complete<fub::PerfectGasMix<1>>& boundary_state,
-          const fub::perfect_gas_mix::gt::PlenumState& compressor_state,
-          double inner_pressure, fub::Duration, const amrex::MultiFab&,
-          const fub::amrex::GriddingAlgorithm&, int) mutable {
-        // fixed fuel concentration in deflagration mode
-        const double X_inflow_left = 1.0;
+  // auto combustor_inflow_function =
+  //     [prim = fub::Primitive<fub::PerfectGasMix<1>>(equation)](
+  //         const fub::PerfectGasMix<1>& eq,
+  //         fub::Complete<fub::PerfectGasMix<1>>& boundary_state,
+  //         const fub::perfect_gas_mix::gt::PlenumState& compressor_state,
+  //         double inner_pressure, fub::Duration, const amrex::MultiFab&,
+  //         const fub::amrex::GriddingAlgorithm&, int) mutable {
+  //       // fixed fuel concentration in deflagration mode
+  //       const double X_inflow_left = 1.0;
 
-        const double p_inflow_left = compressor_state.pressure;
-        const double T_inflow_left = compressor_state.temperature;
-        const double rho_inflow_left =
-            p_inflow_left / T_inflow_left * eq.ooRspec;
+  //       const double p_inflow_left = compressor_state.pressure;
+  //       const double T_inflow_left = compressor_state.temperature;
+  //       const double rho_inflow_left =
+  //           p_inflow_left / T_inflow_left * eq.ooRspec;
 
-        const double p = inner_pressure;
-        const double ppv = p_inflow_left;
-        const double rhopv = rho_inflow_left;
-        const double Tpv = T_inflow_left;
-        const double pin = p;
-        const double Tin = Tpv * pow(pin / ppv, eq.gamma_minus_one_over_gamma);
-        const double uin = std::sqrt(2.0 * eq.gamma_over_gamma_minus_one *
-                                     std::max(0.0, Tpv - Tin));
-        double rhoin = rhopv * pow(pin / ppv, eq.gamma_inv);
+  //       const double p = inner_pressure;
+  //       const double ppv = p_inflow_left;
+  //       const double rhopv = rho_inflow_left;
+  //       const double Tpv = T_inflow_left;
+  //       const double pin = p;
+  //       const double Tin = Tpv * pow(pin / ppv,
+  //       eq.gamma_minus_one_over_gamma); const double uin = std::sqrt(2.0 *
+  //       eq.gamma_over_gamma_minus_one *
+  //                                    std::max(0.0, Tpv - Tin));
+  //       double rhoin = rhopv * pow(pin / ppv, eq.gamma_inv);
 
-        FUB_ASSERT(rhoin > 0.0);
-        FUB_ASSERT(pin > 0.0);
-        prim.density = rhoin;
-        prim.velocity[0] = uin;
-        prim.pressure = pin;
-        prim.species[0] = X_inflow_left;
+  //       FUB_ASSERT(rhoin > 0.0);
+  //       FUB_ASSERT(pin > 0.0);
+  //       prim.density = rhoin;
+  //       prim.velocity[0] = uin;
+  //       prim.pressure = pin;
+  //       prim.species[0] = X_inflow_left;
 
-        fub::CompleteFromPrim(eq, boundary_state, prim);
-      };
+  //       fub::CompleteFromPrim(eq, boundary_state, prim);
+  //     };
+  // fub::amrex::DeflagrationValve valve(equation, control_state,
+  //                                     combustor_inflow_function);
+
   // using DeflagrationValve = fub::amrex::GenericPressureValveBoundary<
   //     fub::PerfectGasMix<1>,
   //     std::decay_t<decltype(combustor_inflow_function)>, ChangeTOpened,
   //     IsNeverBlocked>;
   // DeflagrationValve valve(equation, control_state,
   // combustor_inflow_function);
-  fub::amrex::DeflagrationValve valve(equation, control_state,
-                                      combustor_inflow_function);
 
   // const double eps = std::sqrt(std::numeric_limits<double>::epsilon());
   // auto inflow_function =
@@ -405,6 +407,99 @@ auto MakeTubeSolver(
 
   // fub::amrex::PressureValveBoundary_Klein valve(equation, compressor_state,
   //                                               inflow_function);
+
+
+  const double eps = std::sqrt(std::numeric_limits<double>::epsilon());
+  auto switch_to_SEC_inflow_function =
+      [log, eps, source_term,
+       prim = fub::Primitive<fub::PerfectGasMix<1>>(equation)](
+          const fub::PerfectGasMix<1>& eq,
+          fub::Complete<fub::PerfectGasMix<1>>& boundary_state,
+          const fub::perfect_gas_mix::gt::PlenumState& compressor_state,
+          double inner_pressure, fub::Duration t_diff, const amrex::MultiFab&,
+          const fub::amrex::GriddingAlgorithm& gridding, int) mutable {
+      // const fub::Duration t = gridding.GetTimePoint();
+      // BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "GenericPressureValve");
+      // BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", t.count());
+        
+        if (!compressor_state.SEC_Mode) {
+          // BOOST_LOG(log) << fmt::format(
+          //   "Inflow Deflagrationmode with innerpressure = {}",
+          //     inner_pressure);
+          // fixed fuel concentration in deflagration mode
+          const double X_inflow_left = 1.0;
+
+          const double p_inflow_left = compressor_state.pressure;
+          const double T_inflow_left = compressor_state.temperature;
+          const double rho_inflow_left =
+              p_inflow_left / T_inflow_left * eq.ooRspec;
+
+          const double p = inner_pressure;
+          const double ppv = p_inflow_left;
+          const double rhopv = rho_inflow_left;
+          const double Tpv = T_inflow_left;
+          const double pin = p;
+          const double Tin =
+              Tpv * pow(pin / ppv, eq.gamma_minus_one_over_gamma);
+          const double uin = std::sqrt(2.0 * eq.gamma_over_gamma_minus_one *
+                                       std::max(0.0, Tpv - Tin));
+          double rhoin = rhopv * pow(pin / ppv, eq.gamma_inv);
+
+          FUB_ASSERT(rhoin > 0.0);
+          FUB_ASSERT(pin > 0.0);
+          prim.density = rhoin;
+          prim.velocity[0] = uin;
+          prim.pressure = pin;
+          prim.species[0] = X_inflow_left;
+
+          fub::CompleteFromPrim(eq, boundary_state, prim);
+        } else {
+          // BOOST_LOG(log) << fmt::format(
+          //   "Inflow SEC_Mode with innerpressure = {}",
+          //     inner_pressure);
+          const double fuel_retardatation =
+              0.06;                /* Reference: 0.06;   for icx = 256:  0.1*/
+          const double tti = 1.2; /* Reference: 0.75; */
+          const double timin = 0.1;
+          const double X_inflow_left = 1.0;
+
+          const double p_inflow_left = compressor_state.pressure;
+          const double T_inflow_left = compressor_state.temperature;
+          const double rho_inflow_left =
+              p_inflow_left / T_inflow_left * eq.ooRspec;
+
+          const double p = inner_pressure;
+          const double ppv = p_inflow_left;
+          const double rhopv = rho_inflow_left;
+          const double Tpv = T_inflow_left;
+          const double pin = p;
+          const double Tin =
+              Tpv * pow(pin / ppv, eq.gamma_minus_one_over_gamma);
+          const double uin = std::sqrt(2.0 * eq.gamma_over_gamma_minus_one *
+                                       std::max(0.0, Tpv - Tin));
+          double rhoin = rhopv * pow(pin / ppv, eq.gamma_inv);
+
+          const double tign = std::max(timin, tti - t_diff.count());
+          const double Xin = X_inflow_left;
+          const double Tin1 = fub::perfect_gas_mix::TemperatureForIgnitionDelay(
+              eq, source_term.options, tign, Xin, Tin, eps);
+
+          /* adjust density to match desired temperature */
+          rhoin *= Tin / Tin1;
+
+          prim.density = rhoin;
+          prim.velocity[0] = uin;
+          prim.pressure = pin;
+          auto heaviside = [](double x) { return (x > 0); };
+          prim.species[0] = std::clamp(
+              Xin * heaviside(t_diff.count() - fuel_retardatation), 0.0, 1.0);
+
+          fub::CompleteFromPrim(eq, boundary_state, prim);
+        }
+      };
+
+  fub::amrex::SwitchDeflagrationToSECValve valve(equation, control_state,
+                                                 switch_to_SEC_inflow_function);
 
   BoundarySet boundaries{{valve}};
 

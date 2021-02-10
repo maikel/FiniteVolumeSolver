@@ -82,6 +82,26 @@ struct ChangeTOpened_DeflagrationValve {
   }
 };
 
+struct ChangeTOpened_SwitchDeflagrationToSECValve {
+  template <typename EulerEquation>
+  [[nodiscard]] std::optional<Duration>
+  operator()(EulerEquation&, std::optional<Duration> t_opened,
+             double inner_pressure,
+             const perfect_gas_mix::gt::PlenumState& compressor_state,
+             const GriddingAlgorithm& gridding, int) const noexcept {
+    if (!compressor_state.SEC_Mode) {
+      return gridding.GetTimePoint();
+    } else {
+      if (!t_opened && inner_pressure <= compressor_state.pressure) {
+        t_opened = gridding.GetTimePoint();
+      } else if (inner_pressure > compressor_state.pressure) {
+        t_opened.reset();
+      }
+      return t_opened;
+    }
+  }
+};
+
 struct IsBlockedIfLargePressure {
   template <typename EulerEquation>
   [[nodiscard]] bool
@@ -102,6 +122,22 @@ struct IsNeverBlocked {
              const fub::amrex::GriddingAlgorithm& /* gridding */,
              int /* level */) const noexcept {
     return false;
+  }
+};
+
+struct IsNeverBlockedTilTargetPressure {
+  template <typename EulerEquation>
+  [[nodiscard]] bool
+  operator()(EulerEquation&, std::optional<Duration> /* t_opened */,
+             double inner_pressure,
+             const perfect_gas_mix::gt::PlenumState& compressor_state,
+             const GriddingAlgorithm& /* gridding */,
+             int /* level */) const noexcept {
+    if (!compressor_state.SEC_Mode) {
+      return false;
+    } else {
+      return inner_pressure > compressor_state.pressure;
+    }
   }
 };
 
@@ -218,6 +254,27 @@ DeflagrationValve(const Equation&,
                   std::shared_ptr<const perfect_gas_mix::gt::ControlState>,
                   InflowFunction)
     -> DeflagrationValve<Equation, InflowFunction>;
+
+template <typename Equation, typename InflowFunction>
+struct SwitchDeflagrationToSECValve
+    : public GenericPressureValveBoundary<
+          Equation, InflowFunction, ChangeTOpened_SwitchDeflagrationToSECValve,
+          IsNeverBlockedTilTargetPressure> {
+  using GenericPressureValveBoundary<
+      Equation, InflowFunction, ChangeTOpened_SwitchDeflagrationToSECValve,
+      IsNeverBlockedTilTargetPressure>::GenericPressureValveBoundary;
+};
+
+template <typename Equation, typename InflowFunction>
+SwitchDeflagrationToSECValve(
+    const Equation&, std::shared_ptr<const perfect_gas_mix::gt::ControlState>,
+    InflowFunction, const GenericPressureValveBoundaryOptions&)
+    -> SwitchDeflagrationToSECValve<Equation, InflowFunction>;
+
+template <typename Equation, typename InflowFunction>
+SwitchDeflagrationToSECValve(
+    const Equation&, std::shared_ptr<const perfect_gas_mix::gt::ControlState>,
+    InflowFunction) -> SwitchDeflagrationToSECValve<Equation, InflowFunction>;
 
 template <typename EulerEquation, typename InflowFunction,
           typename ChangeTOpened, typename IsBlocked>
