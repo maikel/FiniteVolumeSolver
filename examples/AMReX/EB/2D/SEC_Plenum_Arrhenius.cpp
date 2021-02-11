@@ -856,10 +856,10 @@ int main(int argc, char** argv) {
         "Aborting execution. MPI could not provide a thread-safe instance.\n");
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
-  fub::InitializeLogging(MPI_COMM_WORLD);
   pybind11::scoped_interpreter interpreter{};
   std::optional<fub::ProgramOptions> opts = fub::ParseCommandLine(argc, argv);
   if (opts) {
+    fub::InitializeLogging(MPI_COMM_WORLD, fub::GetOptions(*opts, "LogOptions"));
     MyMain(*opts);
   }
   int flag = -1;

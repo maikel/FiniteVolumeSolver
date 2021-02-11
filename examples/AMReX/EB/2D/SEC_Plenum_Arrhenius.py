@@ -1,11 +1,12 @@
 import math
 
-plenum_x_n_cells = 128
+tube_n_cells = 256
+# plenum_x_n_cells = 128
 tube_blocking_factor = 8
 plenum_blocking_factor = 8
 
-massflow_cor = %MASSFLOW%
-diffusion = %Diffusion%
+massflow_cor = 0.024 #%MASSFLOW%
+diffusion = 3.0 #%Diffusion%
 outputPath = '%OUTPUT%'
 
 mode = 3 #%MODE%
@@ -43,7 +44,11 @@ plenum_domain_length = plenum_length + inlet_length
 tube_domain_length = tube_length - inlet_length
 
 tube_over_plenum_length_ratio = tube_domain_length / plenum_domain_length
+plenum_over_tube_length_ratio = 1.0 / tube_over_plenum_length_ratio
 
+plenum_x_n_cells = tube_n_cells * plenum_over_tube_length_ratio
+plenum_x_n_cells -= plenum_x_n_cells % plenum_blocking_factor
+plenum_x_n_cells = int(plenum_x_n_cells)
 
 plenum_z_lower = plenum_y_lower
 plenum_z_upper = plenum_y_upper
@@ -61,15 +66,21 @@ plenum_z_n_cells = plenum_x_n_cells * plenum_z_over_x_ratio
 plenum_z_n_cells -= plenum_z_n_cells % plenum_blocking_factor
 plenum_z_n_cells = int(plenum_z_n_cells)
 
-tube_n_cells = plenum_x_n_cells * tube_over_plenum_length_ratio
-tube_n_cells -= tube_n_cells % tube_blocking_factor
-tube_n_cells = int(tube_n_cells)
+# tube_n_cells = plenum_x_n_cells * tube_over_plenum_length_ratio
+# tube_n_cells -= tube_n_cells % tube_blocking_factor
+# tube_n_cells = int(tube_n_cells)
+
 
 RunOptions = {
   'cfl': 0.1,# / float(tube_n_cells / 64),
   'final_time': 100.0,
   'max_cycles': -1,
   'do_backup': 0
+}
+
+LogOptions = {
+  'file_template': 'Test-{rank}.txt',
+  'channel_blacklist': ['TurbineMassflowBoundary']
 }
 
 FluxMethod = {
@@ -138,16 +149,16 @@ ControlOptions = {
   'initial_turbine_temperature': T,
   'checkpoint': checkpoint,
   # Tube surface
-  'surface_area_tube_inlet': Area(-1.0) * D / D,
-  'surface_area_tube_outlet': Area(0.0) * D / D,
+  'surface_area_tube_inlet': Area(-1.0) * D,
+  'surface_area_tube_outlet': Area(0.0) * D,
   # Turbine volumes and surfaces
-  'volume_turbine_plenum': TVolRPlen / D,
-  'surface_area_tube_inlet': (3.0 * Area(-1.0) * D) / D,
-  'surface_area_tube_outlet': (3.0 * Area(0.0) * D) / D,
-  'surface_area_turbine_plenum_to_turbine': plenum_y_length / D,
+  'volume_turbine_plenum': TVolRPlen,
+  'surface_area_tube_inlet': (3.0 * Area(-1.0) * D),
+  'surface_area_tube_outlet': (3.0 * Area(0.0) * D),
+  'surface_area_turbine_plenum_to_turbine': plenum_y_length,
   # Compressor volumes and surfaces
-  'volume_compressor_plenum': TVolRPlen / D,
-  'surface_area_compressor_to_compressor_plenum': (8.0 * D) / D,
+  'volume_compressor_plenum': TVolRPlen,
+  'surface_area_compressor_to_compressor_plenum': 8.0 * D,
 }
 
 def ToCellIndex(x, xlo, xhi, ncells):
