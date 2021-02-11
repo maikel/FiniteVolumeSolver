@@ -22,22 +22,22 @@
 #define FUB_EXT_BOOST_LOG_HPP
 
 #include "fub/Duration.hpp"
+#include "fub/ext/ProgramOptions.hpp"
+
 #include <boost/log/common.hpp>
 #include <boost/log/expressions.hpp>
 #include <boost/log/trivial.hpp>
-#include <boost/program_options.hpp>
 #include <mpi.h>
 
 namespace fub {
 
 struct LogOptions {
   LogOptions() = default;
-  LogOptions(const boost::program_options::variables_map& vm);
-
-  static boost::program_options::options_description GetCommandLineOptions();
+  LogOptions(const fub::ProgramOptions& options);
 
   std::string file_template{"{rank:04d}.log"};
   std::vector<int> which_mpi_ranks_do_log{0};
+  std::vector<std::string> channel_blacklist{};
 };
 
 void InitializeLogging(MPI_Comm comm, const LogOptions& log = {});

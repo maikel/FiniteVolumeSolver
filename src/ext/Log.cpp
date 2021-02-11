@@ -22,6 +22,7 @@
 
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/core/null_deleter.hpp>
+#include <boost/log/attributes/value_extraction.hpp>
 #include <boost/log/expressions.hpp>
 #include <boost/log/sinks/text_ostream_backend.hpp>
 #include <boost/log/sources/logger.hpp>
@@ -36,6 +37,14 @@
 #include <fstream>
 
 namespace fub {
+
+LogOptions::LogOptions(const fub::ProgramOptions& options) {
+  file_template = GetOptionOr(options, "file_template", file_template);
+  which_mpi_ranks_do_log =
+      GetOptionOr(options, "which_mpi_ranks_do_log", which_mpi_ranks_do_log);
+  channel_blacklist =
+      GetOptionOr(options, "channel_blacklist", channel_blacklist);
+}
 
 namespace {
 BOOST_LOG_ATTRIBUTE_KEYWORD(a_timestamp, "TimeStamp",
@@ -89,6 +98,23 @@ void InitializeLogging(MPI_Comm comm, const LogOptions& options) {
     file->locked_backend()->add_stream(boost::make_shared<std::ofstream>(
         fmt::format(options.file_template, fmt::arg("rank", rank))));
     file->set_formatter(&FormatLogs_);
+    std::vector<std::string> blacklist = options.channel_blacklist;
+    std::sort(blacklist.begin(), blacklist.end());
+    file->set_filter([blacklist](const boost::log::attribute_value_set& attrs) {
+      auto iter = attrs.find("Channel");
+      if (iter == attrs.end()) {
+        return true;
+      }
+      const boost::log::value_ref<std::string> channel_ref =
+          iter->second.extract<std::string>();
+      if (channel_ref.empty()) {
+        return true;
+      }
+      const std::string& channel = channel_ref.get();
+      auto entry =
+          std::lower_bound(blacklist.begin(), blacklist.end(), channel);
+      return (entry == blacklist.end()) || (*entry != channel);
+    });
     boost::log::core::get()->add_sink(file);
     boost::shared_ptr<text_sink> console = boost::make_shared<text_sink>();
     boost::shared_ptr<std::ostream> cout(&std::cout, boost::null_deleter{});

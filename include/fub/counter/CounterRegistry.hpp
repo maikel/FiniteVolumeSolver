@@ -97,7 +97,7 @@ int LengthOfFirstColumn(const ResultRange& results) {
 }
 
 template <typename Duration, typename ResultRange>
-void print_statistics(const ResultRange& results, long long reference = -1) {
+std::string print_statistics(const ResultRange& results, long long reference = -1) {
   const char* last_column_title = [](long long r) {
     return r == -1 ? "Total [{}]" : "Percent [%]";
   }(reference);
@@ -109,15 +109,17 @@ void print_statistics(const ResultRange& results, long long reference = -1) {
       "{{:>{}}} {{:>15}} {{:>15}} {{:>15}} {{:>15}} {{:>15}} {{:>15.2}}\n",
       LengthOfFirstColumn(results));
 
-  fmt::print("{:-<155}\n", "Table of Counters ");
-  fmt::print(header_format.c_str(), "Counter Name", "#Calls",
+  std::string output_string = "";
+
+  output_string += fmt::format("{:-<155}\n", "Table of Counters ");
+  output_string += fmt::format(header_format.c_str(), "Counter Name", "#Calls",
              fmt::format("Min [{}]", DurationName<Duration>::name),
              fmt::format("Max [{}]", DurationName<Duration>::name),
              fmt::format("Avg [{}]", DurationName<Duration>::name),
              fmt::format("StdDev [{}]", DurationName<Duration>::name),
              fmt::format(last_column_title, DurationName<Duration>::name));
   if (results.empty()) {
-    fmt::print("Registry does not contain any counters!\n");
+    output_string += fmt::format("Registry does not contain any counters!\n");
   }
   using namespace std::chrono;
   if constexpr (IsMapType<ResultRange>()) {
@@ -128,7 +130,7 @@ void print_statistics(const ResultRange& results, long long reference = -1) {
                      nanoseconds(std::llround(result.count * result.mean)))
                      .count()
                : ((result.count * result.mean) / reference) * 100);
-      fmt::print(
+      output_string += fmt::format(
           row_format.c_str(), name, result.count,
           duration_cast<Duration>(nanoseconds(result.min)).count(),
           duration_cast<Duration>(nanoseconds(result.max)).count(),
@@ -151,7 +153,7 @@ void print_statistics(const ResultRange& results, long long reference = -1) {
                      nanoseconds(std::llround(result.count * result.mean)))
                      .count()
                : ((result.count * result.mean) / reference) * 100);
-      fmt::print(
+      output_string += fmt::format(
           row_format.c_str(), result.name, result.count,
           duration_cast<Duration>(nanoseconds(result.min)).count(),
           duration_cast<Duration>(nanoseconds(result.max)).count(),
@@ -162,7 +164,9 @@ void print_statistics(const ResultRange& results, long long reference = -1) {
           last_column_value);
     }
   }
-  fmt::print("{:=<155}\n", "");
+  output_string += fmt::format("{:=<155}\n", "");
+
+  return output_string;
 }
 
 } // namespace fub

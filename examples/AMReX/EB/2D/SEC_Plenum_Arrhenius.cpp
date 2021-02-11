@@ -417,7 +417,7 @@ auto MakeTubeSolver(
           fub::Complete<fub::PerfectGasMix<1>>& boundary_state,
           const fub::perfect_gas_mix::gt::PlenumState& compressor_state,
           double inner_pressure, fub::Duration t_diff, const amrex::MultiFab&,
-          const fub::amrex::GriddingAlgorithm& gridding, int) mutable {
+          const fub::amrex::GriddingAlgorithm&, int) mutable {
       // const fub::Duration t = gridding.GetTimePoint();
       // BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "GenericPressureValve");
       // BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", t.count());
@@ -856,10 +856,10 @@ int main(int argc, char** argv) {
         "Aborting execution. MPI could not provide a thread-safe instance.\n");
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
-  fub::InitializeLogging(MPI_COMM_WORLD);
   pybind11::scoped_interpreter interpreter{};
   std::optional<fub::ProgramOptions> opts = fub::ParseCommandLine(argc, argv);
   if (opts) {
+    fub::InitializeLogging(MPI_COMM_WORLD, fub::GetOptions(*opts, "LogOptions"));
     MyMain(*opts);
   }
   int flag = -1;
