@@ -129,7 +129,6 @@ void UpdateCompressorPlenum(ControlState& state, const PerfectGasConstants& eq,
   state.fuel_consumption_rate =
       (1.0 - dt_over_tau) * state.fuel_consumption_rate +
       dt_over_tau * flux_spec * options.surface_area_tube_inlet;
-  // TODO calculate FuelConsumptionRate with flux_spec....
 }
 
 /// \brief Compute the new rotation speed of the compressor.
@@ -162,9 +161,19 @@ void ChangeRPM(ControlState& state, const ControlOptions& options,
 
   // efficiency of the machine
   const double eps = std::sqrt(std::numeric_limits<double>::epsilon());
-  state.efficiency = std::max(0.0, state.power_out) / ( options.Q * state.fuel_consumption_rate + eps);
-  // GT->Efficiency[0] = MAX_own(0.0, GT->PowerOut[0]) / (ud.Q *
-  // GT->FuelConsumptionRate[0] + ud.eps_Machine);
+  state.efficiency = std::max(0.0, state.power_out) /
+                     (options.Q * state.fuel_consumption_rate + eps);
+
+  if (!state.compressor.SEC_Mode) {
+    // 0.9995 just shortcut because floating point comparison
+    double target_pressure = 0.9995 * options.target_pressure_compressor;
+    state.compressor.SEC_Mode = pressure >= target_pressure;
+    // state.compressor.SEC_Mode = (pressure < target_pressure) ? false : true;
+  } else {
+    double fall_back_pressure = 0.9 * options.target_pressure_compressor;
+    state.compressor.SEC_Mode = pressure > fall_back_pressure;
+    // state.compressor.SEC_Mode = (pressure > fall_back_pressure) ? true : false;
+  }
 }
 } // namespace
 
@@ -279,8 +288,7 @@ auto GetFieldMap() {
           "fuel_consumption_rate"s,
           [](const ControlState& s) { return s.fuel_consumption_rate; }},
       std::pair<std::string, projection>{
-          "efficiency"s,
-          [](const ControlState& s) { return s.efficiency; }},
+          "efficiency"s, [](const ControlState& s) { return s.efficiency; }},
       std::pair<std::string, projection>{
           "compressor_pressure"s,
           [](const ControlState& s) { return s.compressor.pressure; }},
@@ -296,6 +304,11 @@ auto GetFieldMap() {
       std::pair<std::string, projection>{
           "compressor_mass_flow_out"s,
           [](const ControlState& s) { return s.compressor.mass_flow_out; }},
+      std::pair<std::string, projection>{
+          "compressor_SEC_Mode"s,
+          [](const ControlState& s) {
+            return static_cast<double>(s.compressor.SEC_Mode);
+          }},
       std::pair<std::string, projection>{
           "turbine_pressure"s,
           [](const ControlState& s) { return s.turbine.pressure; }},
@@ -499,8 +512,8 @@ ControlOutput::ControlOutput(const ProgramOptions& options,
   }
 }
 
-void ControlOutput::
-operator()(const amrex::MultiBlockGriddingAlgorithm2& grid) {
+void ControlOutput::operator()(
+    const amrex::MultiBlockGriddingAlgorithm2& grid) {
   int rank = -1;
   MPI_Comm_rank(::amrex::ParallelDescriptor::Communicator(), &rank);
   boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(

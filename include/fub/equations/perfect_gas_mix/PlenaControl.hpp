@@ -120,6 +120,7 @@ struct PlenumState {
   double power{};
   double mass_flow_in{};
   double mass_flow_out{};
+  bool SEC_Mode{false};
 };
 
 struct ControlOptions {
@@ -130,8 +131,8 @@ struct ControlOptions {
 
   double efficiency_turbine{0.9}; ///< efficiency from the turbine
 
-  double length_tube{1.0};             ///< the length of the tubes
-  double surface_area_tube_inlet{1.0}; ///< initial surface area of the tube
+  double length_tube{1.0};              ///< the length of the tubes
+  double surface_area_tube_inlet{1.0};  ///< initial surface area of the tube
   double surface_area_tube_outlet{4.0}; ///< final surface area of the tube
   /// surface area from the compressor to the compressor plenum
   double surface_area_compressor_to_compressor_plenum{8.0 *
@@ -289,11 +290,14 @@ public:
     }
     const double oosize = 1.0 / static_cast<double>(tubes.size());
     const double rhou_tubes =
-        oosize * std::accumulate(flux_rho_tube.begin(), flux_rho_tube.end(), 0.0);
-    const double specu_tubes = oosize * std::accumulate(flux_species_tube.begin(),
-                                               flux_species_tube.end(), 0.0);
-    const double rhou_last_tubes = oosize * std::accumulate(
-        flux_rho_last_tube.begin(), flux_rho_last_tube.end(), 0.0);
+        oosize *
+        std::accumulate(flux_rho_tube.begin(), flux_rho_tube.end(), 0.0);
+    const double specu_tubes =
+        oosize * std::accumulate(flux_species_tube.begin(),
+                                 flux_species_tube.end(), 0.0);
+    const double rhou_last_tubes =
+        oosize * std::accumulate(flux_rho_last_tube.begin(),
+                                 flux_rho_last_tube.end(), 0.0);
 
     control_.UpdatePlena(mdot_turbine, turbine_boundary_state, rhou_tubes,
                          specu_tubes, rhou_last_tubes, dt);
@@ -338,6 +342,7 @@ void serialize(Archive& ar, ::fub::perfect_gas_mix::gt::PlenumState& state,
   ar & state.power;
   ar & state.mass_flow_in;
   ar & state.mass_flow_out;
+  ar & state.SEC_Mode;
   // clang-format on
 }
 

@@ -28,6 +28,7 @@
 #include <boost/program_options.hpp>
 
 #include <fstream>
+#include <iostream>
 #include <string>
 
 namespace fub {
@@ -84,17 +85,21 @@ std::optional<ProgramOptions> ParseCommandLine(int argc, char** argv) {
     }
     po::notify(vm);
   } catch (std::exception& e) {
-    logger::sources::severity_logger<severity_level> log(
-        logger::keywords::severity = error);
-    BOOST_LOG(log) << "An Error occured while reading program options:";
-    BOOST_LOG(log) << e.what();
+    int mpi_rank = -1;
+    MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
+    if (mpi_rank == 0) {
+      std::cerr << "An Error occured while reading program options:\n";
+      std::cerr << e.what();
+    }
     return {};
   }
 
   if (vm.count("help")) {
-    logger::sources::severity_logger<severity_level> log(
-        logger::keywords::severity = info);
-    BOOST_LOG(log) << desc;
+    int mpi_rank = -1;
+    MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
+    if (mpi_rank == 0) {
+      std::cout << desc;
+    }
     return {};
   }
 
