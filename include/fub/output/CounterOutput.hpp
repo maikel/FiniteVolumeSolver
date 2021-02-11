@@ -56,7 +56,7 @@ public:
     std::vector<CounterResult> statistics =
         grid.GetPatchHierarchy().GetCounterRegistry()->gather_statistics();
     if (statistics.size()) {
-      SeverityLog log = GetInfoLogger();
+      SeverityLogger log = GetInfoLogger();
       BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "CounterOutput");
       BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", grid.GetTimePoint().count());
       BOOST_LOG(log) << print_statistics<PrintDuration>(statistics, diff.count());
