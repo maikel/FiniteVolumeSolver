@@ -136,6 +136,7 @@ ControlOptions = {
   'rpmmax': (60000.0 / 60.) * t_ref,
   'initial_turbine_pressure': p,
   'initial_turbine_temperature': T,
+  'target_pressure_compressor' : 6.0,
   'checkpoint': checkpoint,
   # Tube surface
   'surface_area_tube_inlet': Area(-1.0) * D / D,

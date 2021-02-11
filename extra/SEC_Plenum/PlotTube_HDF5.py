@@ -23,6 +23,10 @@ else:
 
 output_path = '{}/Visualization'.format(dataPath)
 
+# bool to read all existing HDF5 files
+# this make only sense if we restarted the simulation form the last checkpoint!!
+RESTARTEDSIMULATION = True
+
 # inputFilePath = FVS_path+"/examples/AMReX/EB/2D/"
 sys.path.append(inputFilePath)
 from SEC_Plenum_Arrhenius import T_ref, Tubes
@@ -55,27 +59,58 @@ n_tubes = len(Tubes)
 
 for tube_id in range(n_tubes):
   print("Plotting Tube with id = {}".format(tube_id))
-  output_base_path = dataPath+'/Tube{}.h5'.format(tube_id)
-  datas, times, datas_dict = da.h5_load_timeseries(output_base_path)
-  extent_1d = da.h5_load_get_extent_1D(output_base_path)
+  filename_basic = dataPath+'/Tube{}.h5'.format(tube_id)
+  # datas, times, datas_dict = da.h5_load_timeseries(filename_basic)
+  extent_1d = da.h5_load_get_extent_1D(filename_basic)
   
+  if RESTARTEDSIMULATION:
+   import glob
+   fileNameList = [filename_basic]
+
+   ###### collect data begin
+   # check if other h5.* files exist and append them to the list
+   otherFiles = glob.glob("{}.*".format(filename_basic))
+   if otherFiles:
+      fileNameList.append( *otherFiles )
+
+   print(fileNameList)
+
+   # Read in data
+   # Attention the last file is the latest!!
+   # for example we have Filename.h5 and Filename.h5.1 the last one contains the first data!
+   print("Read in data from {}".format(fileNameList[-1]))
+   datas, times, datas_dict = da.h5_load_timeseries(fileNameList[-1])
+
+   for filename in reversed(fileNameList[:-1]):
+      print("Read in data from {}".format(filename))
+      data, time, _ = da.h5_load_timeseries(fileNameList[0])
+      datas = np.concatenate((datas, data))
+      times = np.concatenate((times, time))
+  else:
+    print("Read in data from {}".format(filename_basic))
+    datas, times, datas_dict = da.h5_load_timeseries(filename_basic)
+
+
   datas = np.squeeze(datas) # remove last axis
-  # print(datas.shape)
+  print(datas.shape)
   # print(datas_dict)
 
-  rho_data = datas[:, datas_dict['Density'], :]
-  rhou_data = datas[:, datas_dict['Momentum'], :]
-  rhoE_data = datas[:, datas_dict['Energy'], :]
-  rhoF_data = datas[:, datas_dict['Species'], :]
-  p_data = datas[:, datas_dict['Pressure'], :]
-  c_data = datas[:, datas_dict['SpeedOfSound'], :]
-  rhoX_data = datas[:, datas_dict['PassiveScalars'], :]
+  # slice_start = datas.shape[0]//3
+  slice_start = 0
+  
+  rho_data = datas[slice_start:, datas_dict['Density'], :]
+  rhou_data = datas[slice_start:, datas_dict['Momentum'], :]
+  rhoE_data = datas[slice_start:, datas_dict['Energy'], :]
+  rhoF_data = datas[slice_start:, datas_dict['Species'], :]
+  p_data = datas[slice_start:, datas_dict['Pressure'], :]
+  c_data = datas[slice_start:, datas_dict['SpeedOfSound'], :]
+  rhoX_data = datas[slice_start:, datas_dict['PassiveScalars'], :]
   T_data = p_data / rho_data
   F_data = rhoF_data / rho_data
 
   x0 = extent_1d[0]
   xEnd = extent_1d[1]
-  t0 = 0.0
+  t0 = times[slice_start]
   tEnd = times[-1]
 
   # print(np.max(F_data))
@@ -121,6 +156,7 @@ for tube_id in range(n_tubes):
     return props
   import itertools
   ims = [a.imshow(data, **props(title)) for (__, (a, data, title)) in itertools.takewhile(lambda x: x[0] < 4,  enumerate(zip(ax, datas, titles)))]
+  # ims = [a.plot(data[-1,:]) for (__, (a, data, title)) in itertools.takewhile(lambda x: x[0] < 4,  enumerate(zip(ax, datas, titles)))]
   ax[0].set(ylabel='time')
   ims.append(ax[4].contourf(datas[4], **props(titles[4])))
   for a, title in zip(ax, titles):
@@ -129,9 +165,38 @@ for tube_id in range(n_tubes):
   from matplotlib.ticker import FormatStrFormatter
   for a, im in zip(ax, ims):
     a.xaxis.set_major_formatter(FormatStrFormatter('%.2f'))
+    # a.set(ylim=(150,None))
     plt.colorbar(im, ax=a)
   f.suptitle("Tube id = {}".format(tube_id))
   f.savefig(output_path+'/Tube{}.png'.format(tube_id), bbox_inches='tight')
   f.clear()
   plt.close(f)
+
+  # f = plt.figure()
+  # plt.plot(times, p_data[:,0], label='0')
+  # plt.plot(times, p_data[:,1], label='1')
+  # plt.plot(times, (p_data[:,0]+p_data[:,1])/2, label='mean')
+  # # for i in range(10):
+  # #   print("Cell {} pressure_max = {}".format(i, np.max(p_data[:,i])))
+
+  
+  # plt.ylim(5.85, 6.05)
+  # plt.xlim(130,140)
+  # plt.legend()
+  # plt.grid(True)
+  # f.savefig(output_path+'/Tube{}_pressureFirstCell.png'.format(tube_id), bbox_inches='tight')
+  # f.clear()
+  # plt.close(f)
+
+  # f = plt.figure()
+  # plt.plot(times, T_data[:,0], label='0')
+  # plt.plot(times, T_data[:,1], label='1')
+  # # plt.plot(times, (T_data[:,0]+T_data[:,1])/2, label='mean')
+  # # plt.ylim(0, 1)
+  # plt.xlim(130,140)
+  # plt.legend()
+  # plt.grid(True)
+  # f.savefig(output_path+'/Tube{}_TemperatureFirstCell.png'.format(tube_id), bbox_inches='tight')
+  # f.clear()
+  
   
