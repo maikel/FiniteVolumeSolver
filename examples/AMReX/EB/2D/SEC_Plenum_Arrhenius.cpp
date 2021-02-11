@@ -417,7 +417,7 @@ auto MakeTubeSolver(
           fub::Complete<fub::PerfectGasMix<1>>& boundary_state,
           const fub::perfect_gas_mix::gt::PlenumState& compressor_state,
           double inner_pressure, fub::Duration t_diff, const amrex::MultiFab&,
-          const fub::amrex::GriddingAlgorithm& gridding, int) mutable {
+          const fub::amrex::GriddingAlgorithm&, int) mutable {
       // const fub::Duration t = gridding.GetTimePoint();
       // BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "GenericPressureValve");
       // BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", t.count());
