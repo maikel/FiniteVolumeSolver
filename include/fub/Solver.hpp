@@ -41,6 +41,7 @@
 #include "fub/equations/Burgers.hpp"
 #include "fub/equations/IdealGasMix.hpp"
 #include "fub/equations/PerfectGas.hpp"
+#include "fub/equations/PerfectGasMix.hpp"
 #include "fub/equations/ShallowWater.hpp"
 
 #include "fub/equations/ideal_gas_mix/mechanism/Burke2012.hpp"
@@ -58,9 +59,12 @@
 #include "fub/equations/perfect_gas/MusclHancockCharactersticMethod.hpp"
 #include "fub/equations/perfect_gas/ThirdOrderRungeKuttaMethod.hpp"
 
+#include "fub/equations/perfect_gas_mix/EinfeldtSignalVelocities.hpp"
+
 #include "fub/flux_method/GodunovMethod.hpp"
 #include "fub/flux_method/HllMethod.hpp"
 #include "fub/flux_method/MusclHancockMethod.hpp"
+#include "fub/flux_method/MusclHancockMethod2.hpp"
 
 #include "fub/ext/Log.hpp"
 #include "fub/ext/Mpi.hpp"

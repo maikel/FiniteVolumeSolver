@@ -1,5 +1,14 @@
 import math
 
+# Controls the number of cells in the x-direction
+nx = 1200
+# The output files are written in this directory from the perspective of this 
+# docker container
+case = 'De1'
+base_path = './{}'.format(case)
+# This option defines the Mach number of the shock
+# Default is 1.1
+Mach_number = 1.61
 
 ############################################################################
 # These variables are only auxiliary and are not directly used by the app 
@@ -21,16 +30,6 @@ blocking_factor = 8
 ny = nCellsY(nx, ylen / xlen, blocking_factor=blocking_factor)
 n_level = 1
 n_error_buf = 0 if n_level == 1 else 1
-
-# Controls the number of cells in the x-direction
-nx = 1200
-# The output files are written in this directory from the perspective of this 
-# docker container
-case = 'De1'
-base_path = '/srv/public/Maikel/FiniteVolumeSolver/examples/AMReX/EB/2D/Divider/{}'.format(case)
-# This option defines the Mach number of the shock
-# Default is 1.1
-Mach_number = 1.61
 
 ############################################################################
 # These variables and dictionaries will be read by the application

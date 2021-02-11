@@ -68,6 +68,7 @@
 #include <iostream>
 
 #include <range/v3/view/enumerate.hpp>
+#include <xmmintrin.h>
 
 namespace GT = fub::perfect_gas_mix::gt;
 
@@ -81,27 +82,27 @@ static constexpr double r_tube = 0.015;
 static constexpr int n_species = 2;
 static constexpr int n_passive_scalars = 1;
 
-struct ChangeTOpened {
-  template <typename EulerEquation>
-  [[nodiscard]] std::optional<fub::Duration>
-  operator()(EulerEquation&, std::optional<fub::Duration>, double,
-             const fub::perfect_gas_mix::gt::PlenumState&,
-             const fub::amrex::GriddingAlgorithm& gridding, int) const
-      noexcept {
-    return gridding.GetTimePoint();
-  }
-};
+// struct ChangeTOpened {
+//   template <typename EulerEquation>
+//   [[nodiscard]] std::optional<fub::Duration>
+//   operator()(EulerEquation&, std::optional<fub::Duration>, double,
+//              const fub::perfect_gas_mix::gt::PlenumState&,
+//              const fub::amrex::GriddingAlgorithm& gridding,
+//              int) const noexcept {
+//     return gridding.GetTimePoint();
+//   }
+// };
 
-struct IsNeverBlocked {
-  template <typename EulerEquation>
-  [[nodiscard]] bool
-  operator()(EulerEquation&, std::optional<fub::Duration> /* t_opened */,
-             double, const fub::perfect_gas_mix::gt::PlenumState&,
-             const fub::amrex::GriddingAlgorithm& /* gridding */,
-             int /* level */) const noexcept {
-    return false;
-  }
-};
+// struct IsNeverBlocked {
+//   template <typename EulerEquation>
+//   [[nodiscard]] bool
+//   operator()(EulerEquation&, std::optional<fub::Duration> /* t_opened */,
+//              double, const fub::perfect_gas_mix::gt::PlenumState&,
+//              const fub::amrex::GriddingAlgorithm& /* gridding */,
+//              int /* level */) const noexcept {
+//     return false;
+//   }
+// };
 
 struct TracePassiveScalarBoundary {
   using Equation = fub::PerfectGasMix<1>;
@@ -130,13 +131,12 @@ struct TracePassiveScalarBoundary {
     int ngrow = 2;
     const ::amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
     const double dx = geom.CellSize(0);
-    const ::amrex::IntVect lo{-2*ngrow, 0};
+    const ::amrex::IntVect lo{-2 * ngrow, 0};
     const ::amrex::IntVect hi{+ngrow, 0};
     const ::amrex::Box stencil_box{lo, hi};
     fub::amrex::ForEachFab(mf, [&](const ::amrex::MFIter& mfi) {
       const ::amrex::Box section = mfi.growntilebox() & stencil_box;
-      if (!section.isEmpty()) {
-        FUB_ASSERT(section == stencil_box);
+      if (section == stencil_box) {
         fub::View<Complete> stencilv =
             fub::amrex::MakeView<Complete>(mf[mfi], equation_, stencil_box);
         for (int i = 0; i < int(stencil.size()); ++i) {
@@ -144,12 +144,19 @@ struct TracePassiveScalarBoundary {
         }
         flux_method.ComputeNumericFlux(flux, stencil, dt_, dx,
                                        fub::Direction::X);
-        const double X_right = stencilv.passive_scalars(0, 0) / stencilv.density(0);
+        const double X_right =
+            stencilv.passive_scalars(0, 0) / stencilv.density(0);
         const double X_left = X_right + dt_.count() / dx;
         stencilv.passive_scalars(-1, 0) = X_left * stencilv.density(-1);
         stencilv.passive_scalars(-2, 0) = X_left * stencilv.density(-2);
         stencilv.passive_scalars(-3, 0) = X_left * stencilv.density(-3);
         stencilv.passive_scalars(-4, 0) = X_left * stencilv.density(-4);
+      } else if (!section.isEmpty()) {
+        fub::View<Complete> stencilv =
+            fub::amrex::MakeView<Complete>(mf[mfi], equation_, section);
+        fub::ForEachIndex(fub::Box<0>(stencilv), [&](std::ptrdiff_t i) {
+          stencilv.passive_scalars(i, 0) = stencilv.passive_scalars(0, 0);
+        });
       }
     });
   }
@@ -303,44 +310,51 @@ auto MakeTubeSolver(
                                  initially_filled_x};
 
   FUB_ASSERT(control_state);
-  auto combustor_inflow_function =
-      [prim = fub::Primitive<fub::PerfectGasMix<1>>(equation)](
-          const fub::PerfectGasMix<1>& eq,
-          fub::Complete<fub::PerfectGasMix<1>>& boundary_state,
-          const fub::perfect_gas_mix::gt::PlenumState& compressor_state,
-          double inner_pressure, fub::Duration, const amrex::MultiFab&,
-          const fub::amrex::GriddingAlgorithm&, int) mutable {
-        // fixed fuel concentration in deflagration mode
-        const double X_inflow_left = 1.0;
+  // auto combustor_inflow_function =
+  //     [prim = fub::Primitive<fub::PerfectGasMix<1>>(equation)](
+  //         const fub::PerfectGasMix<1>& eq,
+  //         fub::Complete<fub::PerfectGasMix<1>>& boundary_state,
+  //         const fub::perfect_gas_mix::gt::PlenumState& compressor_state,
+  //         double inner_pressure, fub::Duration, const amrex::MultiFab&,
+  //         const fub::amrex::GriddingAlgorithm&, int) mutable {
+  //       // fixed fuel concentration in deflagration mode
+  //       const double X_inflow_left = 1.0;
 
-        const double p_inflow_left = compressor_state.pressure;
-        const double T_inflow_left = compressor_state.temperature;
-        const double rho_inflow_left =
-            p_inflow_left / T_inflow_left * eq.ooRspec;
+  //       const double p_inflow_left = compressor_state.pressure;
+  //       const double T_inflow_left = compressor_state.temperature;
+  //       const double rho_inflow_left =
+  //           p_inflow_left / T_inflow_left * eq.ooRspec;
 
-        const double p = inner_pressure;
-        const double ppv = p_inflow_left;
-        const double rhopv = rho_inflow_left;
-        const double Tpv = T_inflow_left;
-        const double pin = p;
-        const double Tin = Tpv * pow(pin / ppv, eq.gamma_minus_one_over_gamma);
-        const double uin = std::sqrt(2.0 * eq.gamma_over_gamma_minus_one *
-                                     std::max(0.0, Tpv - Tin));
-        double rhoin = rhopv * pow(pin / ppv, eq.gamma_inv);
+  //       const double p = inner_pressure;
+  //       const double ppv = p_inflow_left;
+  //       const double rhopv = rho_inflow_left;
+  //       const double Tpv = T_inflow_left;
+  //       const double pin = p;
+  //       const double Tin = Tpv * pow(pin / ppv,
+  //       eq.gamma_minus_one_over_gamma); const double uin = std::sqrt(2.0 *
+  //       eq.gamma_over_gamma_minus_one *
+  //                                    std::max(0.0, Tpv - Tin));
+  //       double rhoin = rhopv * pow(pin / ppv, eq.gamma_inv);
 
-        FUB_ASSERT(rhoin > 0.0);
-        FUB_ASSERT(pin > 0.0);
-        prim.density = rhoin;
-        prim.velocity[0] = uin;
-        prim.pressure = pin;
-        prim.species[0] = X_inflow_left;
+  //       FUB_ASSERT(rhoin > 0.0);
+  //       FUB_ASSERT(pin > 0.0);
+  //       prim.density = rhoin;
+  //       prim.velocity[0] = uin;
+  //       prim.pressure = pin;
+  //       prim.species[0] = X_inflow_left;
 
-        fub::CompleteFromPrim(eq, boundary_state, prim);
-      };
-  using DeflagrationValve = fub::amrex::GenericPressureValveBoundary<
-      fub::PerfectGasMix<1>, std::decay_t<decltype(combustor_inflow_function)>,
-      ChangeTOpened, IsNeverBlocked>;
-  DeflagrationValve valve(equation, control_state, combustor_inflow_function);
+  //       fub::CompleteFromPrim(eq, boundary_state, prim);
+  //     };
+  // fub::amrex::DeflagrationValve valve(equation, control_state,
+  //                                     combustor_inflow_function);
+
+  // using DeflagrationValve = fub::amrex::GenericPressureValveBoundary<
+  //     fub::PerfectGasMix<1>,
+  //     std::decay_t<decltype(combustor_inflow_function)>, ChangeTOpened,
+  //     IsNeverBlocked>;
+  // DeflagrationValve valve(equation, control_state,
+  // combustor_inflow_function);
+
   // const double eps = std::sqrt(std::numeric_limits<double>::epsilon());
   // auto inflow_function =
   //     [eps, source_term,
@@ -394,6 +408,99 @@ auto MakeTubeSolver(
   // fub::amrex::PressureValveBoundary_Klein valve(equation, compressor_state,
   //                                               inflow_function);
 
+
+  const double eps = std::sqrt(std::numeric_limits<double>::epsilon());
+  auto switch_to_SEC_inflow_function =
+      [log, eps, source_term,
+       prim = fub::Primitive<fub::PerfectGasMix<1>>(equation)](
+          const fub::PerfectGasMix<1>& eq,
+          fub::Complete<fub::PerfectGasMix<1>>& boundary_state,
+          const fub::perfect_gas_mix::gt::PlenumState& compressor_state,
+          double inner_pressure, fub::Duration t_diff, const amrex::MultiFab&,
+          const fub::amrex::GriddingAlgorithm&, int) mutable {
+      // const fub::Duration t = gridding.GetTimePoint();
+      // BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "GenericPressureValve");
+      // BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", t.count());
+        
+        if (!compressor_state.SEC_Mode) {
+          // BOOST_LOG(log) << fmt::format(
+          //   "Inflow Deflagrationmode with innerpressure = {}",
+          //     inner_pressure);
+          // fixed fuel concentration in deflagration mode
+          const double X_inflow_left = 1.0;
+
+          const double p_inflow_left = compressor_state.pressure;
+          const double T_inflow_left = compressor_state.temperature;
+          const double rho_inflow_left =
+              p_inflow_left / T_inflow_left * eq.ooRspec;
+
+          const double p = inner_pressure;
+          const double ppv = p_inflow_left;
+          const double rhopv = rho_inflow_left;
+          const double Tpv = T_inflow_left;
+          const double pin = p;
+          const double Tin =
+              Tpv * pow(pin / ppv, eq.gamma_minus_one_over_gamma);
+          const double uin = std::sqrt(2.0 * eq.gamma_over_gamma_minus_one *
+                                       std::max(0.0, Tpv - Tin));
+          double rhoin = rhopv * pow(pin / ppv, eq.gamma_inv);
+
+          FUB_ASSERT(rhoin > 0.0);
+          FUB_ASSERT(pin > 0.0);
+          prim.density = rhoin;
+          prim.velocity[0] = uin;
+          prim.pressure = pin;
+          prim.species[0] = X_inflow_left;
+
+          fub::CompleteFromPrim(eq, boundary_state, prim);
+        } else {
+          // BOOST_LOG(log) << fmt::format(
+          //   "Inflow SEC_Mode with innerpressure = {}",
+          //     inner_pressure);
+          const double fuel_retardatation =
+              0.06;                /* Reference: 0.06;   for icx = 256:  0.1*/
+          const double tti = 1.2; /* Reference: 0.75; */
+          const double timin = 0.1;
+          const double X_inflow_left = 1.0;
+
+          const double p_inflow_left = compressor_state.pressure;
+          const double T_inflow_left = compressor_state.temperature;
+          const double rho_inflow_left =
+              p_inflow_left / T_inflow_left * eq.ooRspec;
+
+          const double p = inner_pressure;
+          const double ppv = p_inflow_left;
+          const double rhopv = rho_inflow_left;
+          const double Tpv = T_inflow_left;
+          const double pin = p;
+          const double Tin =
+              Tpv * pow(pin / ppv, eq.gamma_minus_one_over_gamma);
+          const double uin = std::sqrt(2.0 * eq.gamma_over_gamma_minus_one *
+                                       std::max(0.0, Tpv - Tin));
+          double rhoin = rhopv * pow(pin / ppv, eq.gamma_inv);
+
+          const double tign = std::max(timin, tti - t_diff.count());
+          const double Xin = X_inflow_left;
+          const double Tin1 = fub::perfect_gas_mix::TemperatureForIgnitionDelay(
+              eq, source_term.options, tign, Xin, Tin, eps);
+
+          /* adjust density to match desired temperature */
+          rhoin *= Tin / Tin1;
+
+          prim.density = rhoin;
+          prim.velocity[0] = uin;
+          prim.pressure = pin;
+          auto heaviside = [](double x) { return (x > 0); };
+          prim.species[0] = std::clamp(
+              Xin * heaviside(t_diff.count() - fuel_retardatation), 0.0, 1.0);
+
+          fub::CompleteFromPrim(eq, boundary_state, prim);
+        }
+      };
+
+  fub::amrex::SwitchDeflagrationToSECValve valve(equation, control_state,
+                                                 switch_to_SEC_inflow_function);
+
   BoundarySet boundaries{{valve}};
 
   // If a checkpoint path is specified we will fill the patch hierarchy with
@@ -436,9 +543,10 @@ auto MakeTubeSolver(
 
   fub::amrex::DiffusionSourceTermOptions diff_opts =
       fub::GetOptions(options, "DiffusionSourceTerm");
-  fub::amrex::DiffusionSourceTerm<fub::PerfectGasMix<1>> diffusion_source_term{equation,
-                                                                     diff_opts};
-  const fub::Duration good_guess_dt = diffusion_source_term.ComputeStableDt(context, 0);
+  fub::amrex::DiffusionSourceTerm<fub::PerfectGasMix<1>> diffusion_source_term{
+      equation, diff_opts};
+  const fub::Duration good_guess_dt =
+      diffusion_source_term.ComputeStableDt(context, 0);
   TracePassiveScalarBoundary passive_scalar_boundary{equation, good_guess_dt};
   context.GetGriddingAlgorithm()->GetBoundaryCondition() =
       BoundarySet{{valve, passive_scalar_boundary}};
@@ -623,35 +731,35 @@ auto MakePlenumSolver(
     boundary_condition.conditions.push_back(std::move(pressure_outflow));
   }
 
-  dicts.clear();
-  dicts = fub::GetOptionOr(options, "TurbineMassflowBoundaries_Jirasek", dicts);
-  for (pybind11::dict& dict : dicts) {
-    fub::ProgramOptions boundary_options = fub::ToMap(dict);
-    fub::amrex::cutcell::TurbineMassflowBoundaryOptions tb_opts(
-        boundary_options);
-    tb_opts.dir = fub::Direction::X;
-    tb_opts.side = 1;
-    BOOST_LOG(log) << "TurbineMassflowBoundaries_Jirasek:";
-    tb_opts.Print(log);
-    fub::amrex::cutcell::TurbineMassflowBoundary<fub::PerfectGasMix<2>,
-                                                 fub::RequireMassflow_Jirasek>
-        pressure_outflow(equation, tb_opts);
-    boundary_condition.conditions.push_back(std::move(pressure_outflow));
-  }
+  // dicts.clear();
+  // dicts = fub::GetOptionOr(options, "TurbineMassflowBoundaries_Jirasek",
+  // dicts); for (pybind11::dict& dict : dicts) {
+  //   fub::ProgramOptions boundary_options = fub::ToMap(dict);
+  //   fub::amrex::cutcell::TurbineMassflowBoundaryOptions tb_opts(
+  //       boundary_options);
+  //   tb_opts.dir = fub::Direction::X;
+  //   tb_opts.side = 1;
+  //   BOOST_LOG(log) << "TurbineMassflowBoundaries_Jirasek:";
+  //   tb_opts.Print(log);
+  //   fub::amrex::cutcell::TurbineMassflowBoundary<fub::PerfectGasMix<2>,
+  //                                                fub::RequireMassflow_Jirasek>
+  //       pressure_outflow(equation, tb_opts);
+  //   boundary_condition.conditions.push_back(std::move(pressure_outflow));
+  // }
 
-  dicts.clear();
-  dicts = fub::GetOptionOr(options, "MachnumberBoundaries", dicts);
-  for (pybind11::dict& dict : dicts) {
-    fub::ProgramOptions boundary_options = fub::ToMap(dict);
-    fub::amrex::cutcell::MachnumberBoundaryOptions mb_opts(boundary_options);
-    mb_opts.dir = fub::Direction::X;
-    mb_opts.side = 1;
-    BOOST_LOG(log) << "MachnumberBoundary:";
-    mb_opts.Print(log);
-    fub::amrex::cutcell::MachnumberBoundary<fub::PerfectGasMix<2>>
-        mach_boundary(equation, mb_opts);
-    boundary_condition.conditions.push_back(std::move(mach_boundary));
-  }
+  // dicts.clear();
+  // dicts = fub::GetOptionOr(options, "MachnumberBoundaries", dicts);
+  // for (pybind11::dict& dict : dicts) {
+  //   fub::ProgramOptions boundary_options = fub::ToMap(dict);
+  //   fub::amrex::cutcell::MachnumberBoundaryOptions mb_opts(boundary_options);
+  //   mb_opts.dir = fub::Direction::X;
+  //   mb_opts.side = 1;
+  //   BOOST_LOG(log) << "MachnumberBoundary:";
+  //   mb_opts.Print(log);
+  //   fub::amrex::cutcell::MachnumberBoundary<fub::PerfectGasMix<2>>
+  //       mach_boundary(equation, mb_opts);
+  //   boundary_condition.conditions.push_back(std::move(mach_boundary));
+  // }
 
   ::amrex::RealBox xbox = grid_geometry.coordinates;
   ::amrex::Geometry coarse_geom = fub::amrex::GetCoarseGeometry(grid_geometry);
@@ -696,40 +804,41 @@ auto MakePlenumSolver(
 
   IntegratorContext context(gridding, method, scratch_gcw, flux_gcw);
 
-  auto log_massflow = [](IntegratorContext& plenum, int level, fub::Duration,
-                         std::pair<int, int>) {
-    fub::SeverityLogger log =
-        fub::GetLogger(boost::log::trivial::severity_level::debug);
-    const fub::Duration time_point = plenum.GetTimePoint(level);
-    BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "LogMassflow");
-    BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", time_point.count());
-    BOOST_LOG_SCOPED_LOGGER_TAG(log, "Level", level);
-    const amrex::MultiFab& fluxes_x =
-        plenum.GetFluxes(level, fub::Direction::X);
-    const amrex::Geometry& geom = plenum.GetGeometry(level);
-    const amrex::Box cells = geom.Domain();
-    const amrex::Box faces_x = amrex::convert(cells, {1, 0});
-    const int boundary_n = faces_x.bigEnd(0);
-    const amrex::IntVect smallEnd{boundary_n, faces_x.smallEnd(1)};
-    const amrex::IntVect bigEnd = faces_x.bigEnd();
-    const amrex::Box right_boundary{smallEnd, bigEnd, faces_x.ixType()};
-    // const double dy = geom.CellSize(1);
-    double local_f_rho = 0.0;
-    fub::amrex::ForEachFab(fluxes_x, [&](const amrex::MFIter& mfi) {
-      amrex::Box local_boundary = mfi.tilebox() & right_boundary;
-      if (local_boundary.ok()) {
-        const amrex::FArrayBox& local_fluxes = fluxes_x[mfi];
-        local_f_rho += local_fluxes.sum(local_boundary, 0);
-      }
-    });
-    double global_f_rho = 0.0;
-    ::MPI_Allreduce(&local_f_rho, &global_f_rho, 1, MPI_DOUBLE, MPI_SUM,
-                    ::amrex::ParallelDescriptor::Communicator());
-    global_f_rho /= right_boundary.numPts();
-    BOOST_LOG(log) << fmt::format("Average F_rho = {:.12g}", global_f_rho)
-                   << boost::log::add_value("average_massflow", global_f_rho);
-  };
-  context.SetFeedbackFunction(log_massflow);
+  // auto log_massflow = [](IntegratorContext& plenum, int level, fub::Duration,
+  //                        std::pair<int, int>) {
+  //   fub::SeverityLogger log =
+  //       fub::GetLogger(boost::log::trivial::severity_level::debug);
+  //   const fub::Duration time_point = plenum.GetTimePoint(level);
+  //   BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "LogMassflow");
+  //   BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", time_point.count());
+  //   BOOST_LOG_SCOPED_LOGGER_TAG(log, "Level", level);
+  //   const amrex::MultiFab& fluxes_x =
+  //       plenum.GetFluxes(level, fub::Direction::X);
+  //   const amrex::Geometry& geom = plenum.GetGeometry(level);
+  //   const amrex::Box cells = geom.Domain();
+  //   const amrex::Box faces_x = amrex::convert(cells, {1, 0});
+  //   const int boundary_n = faces_x.bigEnd(0);
+  //   const amrex::IntVect smallEnd{boundary_n, faces_x.smallEnd(1)};
+  //   const amrex::IntVect bigEnd = faces_x.bigEnd();
+  //   const amrex::Box right_boundary{smallEnd, bigEnd, faces_x.ixType()};
+  //   // const double dy = geom.CellSize(1);
+  //   double local_f_rho = 0.0;
+  //   fub::amrex::ForEachFab(fluxes_x, [&](const amrex::MFIter& mfi) {
+  //     amrex::Box local_boundary = mfi.tilebox() & right_boundary;
+  //     if (local_boundary.ok()) {
+  //       const amrex::FArrayBox& local_fluxes = fluxes_x[mfi];
+  //       local_f_rho += local_fluxes.sum(local_boundary, 0);
+  //     }
+  //   });
+  //   double global_f_rho = 0.0;
+  //   ::MPI_Allreduce(&local_f_rho, &global_f_rho, 1, MPI_DOUBLE, MPI_SUM,
+  //                   ::amrex::ParallelDescriptor::Communicator());
+  //   global_f_rho /= right_boundary.numPts();
+  //   BOOST_LOG(log) << fmt::format("Average F_rho = {:.12g}", global_f_rho)
+  //                  << boost::log::add_value("average_massflow",
+  //                  global_f_rho);
+  // };
+  // context.SetFeedbackFunction(log_massflow);
 
   BOOST_LOG(log) << "==================== End Plenum =========================";
 
@@ -739,6 +848,7 @@ auto MakePlenumSolver(
 void MyMain(const std::map<std::string, pybind11::object>& vm);
 
 int main(int argc, char** argv) {
+  _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
   int provided{-1};
   MPI_Init_thread(nullptr, nullptr, MPI_THREAD_FUNNELED, &provided);
   if (provided < MPI_THREAD_FUNNELED) {
@@ -746,10 +856,10 @@ int main(int argc, char** argv) {
         "Aborting execution. MPI could not provide a thread-safe instance.\n");
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
-  fub::InitializeLogging(MPI_COMM_WORLD);
   pybind11::scoped_interpreter interpreter{};
   std::optional<fub::ProgramOptions> opts = fub::ParseCommandLine(argc, argv);
   if (opts) {
+    fub::InitializeLogging(MPI_COMM_WORLD, fub::GetOptions(*opts, "LogOptions"));
     MyMain(*opts);
   }
   int flag = -1;
@@ -873,7 +983,7 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
 
   fub::SplitSystemSourceLevelIntegrator level_integrator(
       std::move(system_solver), std::move(source_term),
-      fub::GodunovSplitting{});
+      fub::StrangSplittingLumped{});
 
   fub::amrex::DiffusionSourceTermOptions diff_opts =
       fub::GetOptions(vm, "DiffusionSourceTerm");
@@ -885,7 +995,7 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
       diff_term(diffs);
   fub::SplitSystemSourceLevelIntegrator diff_integrator(
       std::move(level_integrator), std::move(diff_term),
-      fub::GodunovSplitting{});
+      fub::StrangSplittingLumped{});
 
   fub::SubcycleFineFirstSolver solver(std::move(diff_integrator));
 

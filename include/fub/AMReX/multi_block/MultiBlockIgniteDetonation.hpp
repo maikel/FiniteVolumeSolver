@@ -22,7 +22,7 @@
 #define FUB_AMREX_MULTI_BLOCK_IGNITE_DETONATION_HPP
 
 #include "fub/AMReX/IgniteDetonation.hpp"
-#include "fub/AMReX/multi_block/MultiBlockIntegratorContext.hpp"
+#include "fub/AMReX/multi_block/MultiBlockIntegratorContext2.hpp"
 
 #include <boost/serialization/access.hpp>
 #include <boost/serialization/vector.hpp>
@@ -44,12 +44,12 @@ public:
                              const std::vector<IgniteDetonationOptions>& opts);
 
   void ResetHierarchyConfiguration(
-      const std::shared_ptr<MultiBlockGriddingAlgorithm>& grid);
+      const std::shared_ptr<MultiBlockGriddingAlgorithm2>& grid);
 
-  [[nodiscard]] static Duration ComputeStableDt(const MultiBlockIntegratorContext&, int level) noexcept;
+  [[nodiscard]] static Duration ComputeStableDt(const MultiBlockIntegratorContext2&, int level) noexcept;
 
   [[nodiscard]] Result<void, TimeStepTooLarge>
-  AdvanceLevel(MultiBlockIntegratorContext& context, int level, Duration dt,
+  AdvanceLevel(MultiBlockIntegratorContext2& context, int level, Duration dt,
                const ::amrex::IntVect& ngrow = ::amrex::IntVect(0));
 
   [[nodiscard]] std::vector<Duration> GetNextIgnitionTimePoints() const;

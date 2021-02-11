@@ -31,6 +31,7 @@
 #include "fub/output/CounterOutput.hpp"
 
 #include "fub/core/span.hpp"
+#include <range/v3/view/enumerate.hpp>
 
 namespace fub {
 namespace amrex {
@@ -99,14 +100,12 @@ MultiBlockGriddingAlgorithm2::MultiBlockGriddingAlgorithm2(
   for (auto& plenum : plena_) {
     plenum_bcs_.push_back(plenum->GetBoundaryCondition());
   }
-  int level = 0;
-  for (auto& boundaries : boundaries_) {
+  for (auto&& [level, boundaries] : ranges::view::enumerate(boundaries_)) {
     for (const BlockConnection& conn : connectivity_) {
       boundaries.emplace_back(
           MultiBlockBoundary2(tube_equation, plenum_equation), *this, conn,
           conn.ghost_cell_width, level);
     }
-    level += 1;
   }
 }
 
@@ -142,7 +141,10 @@ public:
                                                 .GetCounterRegistry()
                                                 ->gather_statistics();
     if (statistics.size()) {
-      print_statistics<PrintDuration>(statistics, diff.count());
+      SeverityLogger log = GetInfoLogger();
+      BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "CounterOutput");
+      BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", grid.GetTimePoint().count());
+      BOOST_LOG(log) << print_statistics<PrintDuration>(statistics, diff.count());
     }
   }
 

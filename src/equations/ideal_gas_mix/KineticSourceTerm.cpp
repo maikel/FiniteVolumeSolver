@@ -32,6 +32,10 @@ template <int Rank> Duration KineticSourceTerm<Rank>::ComputeStableDt(const amre
   return Duration(std::numeric_limits<double>::max());
 }
 
+template <int Rank> Duration KineticSourceTerm<Rank>::ComputeStableDt(int) {
+  return Duration(std::numeric_limits<double>::max());
+}
+
 template <int Rank>
 Result<void, TimeStepTooLarge>
 KineticSourceTerm<Rank>::AdvanceLevel(amrex::IntegratorContext& simulation_data,
@@ -61,6 +65,11 @@ KineticSourceTerm<Rank>::AdvanceLevel(amrex::IntegratorContext& simulation_data,
       equation_->CompleteFromReactor(*state_, velocity);
       Store(states, *state_, index);
     });
+  }
+  if (level == 0) {
+    simulation_data.FillGhostLayerSingleLevel(level);
+  } else {
+    simulation_data.FillGhostLayerTwoLevels(level, level - 1);
   }
   return boost::outcome_v2::success();
 }

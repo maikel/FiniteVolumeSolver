@@ -340,7 +340,7 @@ Duration FluxMethod<Tag, FM>::ComputeStableDt(IntegratorContext& context,
     const Equation& equation = flux_method_->GetEquation();
     const ::amrex::Box face_tilebox = mfi.growntilebox();
     const ::amrex::Box cell_validbox = scratch[mfi].box();
-    auto [cell_box, face_box] =
+    [[maybe_unused]] auto [cell_box, face_box] =
         GetCellsAndFacesInStencilRange(cell_validbox, face_tilebox, gcw, dir);
     auto states =
         MakeView<const Complete<Equation>>(scratch[mfi], equation, cell_box);

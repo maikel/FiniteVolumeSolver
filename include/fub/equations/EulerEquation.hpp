@@ -338,9 +338,15 @@ inline constexpr struct SpeciesFn {
   }
 } Species;
 
-template <typename Equation, typename State>
-struct state_with_species : is_invocable<decltype(fub::euler::Species),
-                                         const Equation&, const State&> {};
+namespace meta {
+
+template <typename State>
+using species_t = decltype(std::declval<State>().species);
+
+}
+
+template <typename State>
+struct state_with_species : is_detected<meta::species_t, State> {};
 
 namespace meta {
 

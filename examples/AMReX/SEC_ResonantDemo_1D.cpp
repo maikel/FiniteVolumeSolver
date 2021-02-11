@@ -21,13 +21,6 @@
 #include "fub/AMReX.hpp"
 #include "fub/Solver.hpp"
 
-#include "fub/equations/PerfectGasMix.hpp"
-#include "fub/flux_method/MusclHancockMethod2.hpp"
-
-#include "fub/AMReX/boundary_condition/GenericPressureValveBoundary.hpp"
-#include "fub/AMReX/boundary_condition/IsentropicPressureExpansion.hpp"
-#include "fub/equations/perfect_gas_mix/IgnitionDelayKinetics.hpp"
-
 #include <cmath>
 #include <fmt/format.h>
 #include <iostream>
@@ -72,25 +65,6 @@ struct RiemannProblem {
   }
 };
 
-using FactoryFunction =
-    std::function<fub::AnyFluxMethod<fub::amrex::IntegratorContext>(
-        const fub::PerfectGasMix<1>&)>;
-
-template <typename... Pairs> auto GetFluxMethodFactory(Pairs... ps) {
-  std::map<std::string, FactoryFunction> factory;
-  ((factory[ps.first] = ps.second), ...);
-  return factory;
-}
-
-template <typename FluxMethod> struct MakeFlux {
-  fub::AnyFluxMethod<fub::amrex::IntegratorContext>
-  operator()(const fub::PerfectGasMix<1>& eq) const {
-    FluxMethod flux_method{eq};
-    fub::amrex::FluxMethodAdapter adapter(std::move(flux_method));
-    return adapter;
-  }
-};
-
 void MyMain(const fub::ProgramOptions& options) {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
@@ -101,15 +75,12 @@ void MyMain(const fub::ProgramOptions& options) {
 
   fub::ProgramOptions equation_options = fub::GetOptions(options, "Equation");
 
-  fub::PerfectGasMix<1> equation{};
-  equation.n_species = 2;
-  equation.Rspec =
-      fub::GetOptionOr(equation_options, "R_specific", equation.Rspec);
-  equation.gamma = fub::GetOptionOr(equation_options, "gamma", equation.gamma);
-  equation.gamma_minus_1_inv = 1.0 / (equation.gamma - 1.0);
-  equation.gamma_array_ = fub::Array1d::Constant(equation.gamma);
-  equation.gamma_minus_1_inv_array_ =
-      fub::Array1d::Constant(equation.gamma_minus_1_inv);
+  fub::PerfectGasConstants default_constants{};
+  const double Rspec =
+      fub::GetOptionOr(equation_options, "R_specific", default_constants.Rspec);
+  const double gamma =
+      fub::GetOptionOr(equation_options, "gamma", default_constants.gamma);
+  fub::PerfectGasMix<1> equation(fub::PerfectGasConstants{Rspec, gamma}, 2);
 
   BOOST_LOG(log) << "Equation:";
   BOOST_LOG(log) << fmt::format(" - n_species = {}", equation.n_species);
@@ -161,7 +132,7 @@ void MyMain(const fub::ProgramOptions& options) {
       [fill_f_val, kin = fub::KineticState<fub::PerfectGasMix<1>>(equation)](
           const fub::PerfectGasMix<1>& eq,
           fub::Complete<fub::PerfectGasMix<1>>& boundary_state,
-          const fub::KineticState<fub::PerfectGasMix<1>>& /* compressor_state */,
+          const auto& /* compressor_state */,
           double inner_pressure, fub::Duration tp, const amrex::MultiFab&,
           const fub::amrex::GriddingAlgorithm&, int) mutable {
         const double dt = tp.count();
@@ -186,15 +157,14 @@ void MyMain(const fub::ProgramOptions& options) {
                                           inner_pressure);
       };
 
-  fub::KineticState<fub::PerfectGasMix<1>> compressor_state(equation);
-  compressor_state.density = 1.0;
-  compressor_state.temperature = 1.0;
-  compressor_state.mole_fractions[2] = 1.0;
+  using fub::perfect_gas_mix::gt::ControlState;
+  auto control_state = std::make_shared<ControlState>();
+  control_state->compressor.pressure = 1.0;
 
   fub::amrex::BoundarySet boundary;
   using fub::amrex::IsentropicPressureExpansion;
   fub::amrex::PressureValveBoundary_ReducedModelDemo left(
-      equation, compressor_state, inflow_function);
+      equation, control_state, inflow_function);
   boundary.conditions.push_back(left);
   boundary.conditions.push_back(
       IsentropicPressureExpansion<fub::PerfectGasMix<1>>{equation, 1.0,
@@ -205,43 +175,11 @@ void MyMain(const fub::ProgramOptions& options) {
       initial_data, gradient, boundary);
   gridding->InitializeHierarchy(0.0);
 
-  using namespace std::literals;
-  using HLLEM = fub::perfect_gas::HllemMethod<fub::PerfectGasMix<1>>;
+  auto [flux_method, time_integrator] =
+      fub::amrex::GetFluxMethod(fub::GetOptions(options, "FluxMethod"),
+                                gridding->GetPatchHierarchy(), equation);
 
-  using ConservativeReconstruction = fub::FluxMethod<fub::MusclHancock2<
-      fub::PerfectGasMix<1>,
-      fub::ConservativeGradient<
-          fub::PerfectGasMix<1>,
-          fub::CentralDifferenceGradient<fub::VanLeerLimiter>>,
-      fub::ConservativeReconstruction<fub::PerfectGasMix<1>>, HLLEM>>;
-
-  using PrimitiveReconstruction = fub::FluxMethod<fub::MusclHancock2<
-      fub::PerfectGasMix<1>,
-      fub::PrimitiveGradient<
-          fub::PerfectGasMix<1>,
-          fub::CentralDifferenceGradient<fub::VanLeerLimiter>>,
-      fub::PrimitiveReconstruction<fub::PerfectGasMix<1>>, HLLEM>>;
-
-  using CharacteristicsReconstruction = fub::FluxMethod<fub::MusclHancock2<
-      fub::PerfectGasMix<1>,
-      fub::CharacteristicsGradient<
-          fub::PerfectGasMix<1>,
-          fub::CentralDifferenceGradient<fub::VanLeerLimiter>>,
-      fub::CharacteristicsReconstruction<fub::PerfectGasMix<1>>, HLLEM>>;
-
-  auto flux_method_factory = GetFluxMethodFactory(
-      std::pair{"NoReconstruct"s, MakeFlux<HLLEM>()},
-      std::pair{"Conservative"s, MakeFlux<ConservativeReconstruction>()},
-      std::pair{"Primitive"s, MakeFlux<PrimitiveReconstruction>()},
-      std::pair{"Characteristics"s, MakeFlux<CharacteristicsReconstruction>()});
-
-  std::string reconstruction =
-      fub::GetOptionOr(options, "reconstruction", "HLLEM"s);
-  BOOST_LOG(log) << "Reconstruction: " << reconstruction;
-  auto flux_method = flux_method_factory.at(reconstruction)(equation);
-
-  fub::amrex::HyperbolicMethod method{flux_method,
-                                      fub::amrex::EulerForwardTimeIntegrator(),
+  fub::amrex::HyperbolicMethod method{flux_method, time_integrator,
                                       fub::amrex::Reconstruction(equation)};
 
   const int scratch_ghost_cell_width =

@@ -608,7 +608,7 @@ struct AtComponentImpl<BasicView<S, Layout, Rank>> {
     for (std::size_t r = 0; r < sRank; ++r) {
       strides[r] = x.Stride(r);
     }
-    std::array<std::ptrdiff_t, sRank> origin;
+    std::array<std::ptrdiff_t, sRank> origin{};
     std::copy_n(x.Origin().begin(), Rank, origin.begin());
     if constexpr (std::is_same_v<Layout, layout_stride>) {
       layout_stride::mapping<dynamic_extents<sRank>> mapping{

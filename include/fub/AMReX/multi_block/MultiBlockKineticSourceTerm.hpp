@@ -21,7 +21,7 @@
 #ifndef FUB_AMREX_MULTI_BLOCK_KINETIC_SOURCE_TERM_HPP
 #define FUB_AMREX_MULTI_BLOCK_KINETIC_SOURCE_TERM_HPP
 
-#include "fub/AMReX/multi_block/MultiBlockIntegratorContext.hpp"
+#include "fub/AMReX/multi_block/MultiBlockIntegratorContext2.hpp"
 #include "fub/equations/ideal_gas_mix/KineticSourceTerm.hpp"
 
 #include <vector>
@@ -39,7 +39,7 @@ public:
 
   /// \brief Integrates the source term for each tube in the specified context
   [[nodiscard]] Result<void, TimeStepTooLarge>
-  AdvanceLevel(MultiBlockIntegratorContext& context, int level, Duration dt,
+  AdvanceLevel(MultiBlockIntegratorContext2& context, int level, Duration dt,
                const ::amrex::IntVect& ngrow = ::amrex::IntVect(0));
 };
 

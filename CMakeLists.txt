@@ -314,6 +314,9 @@ add_library(FiniteVolumeSolver.Solver
   src/equations/PerfectGasMix.cpp
   src/equations/perfect_gas_mix/HllemMethod_1d.cpp
   src/equations/perfect_gas_mix/HllemMethod_2d.cpp
+  src/equations/perfect_gas_mix/EinfeldtSignalVelocities_1d.cpp
+  src/equations/perfect_gas_mix/EinfeldtSignalVelocities_2d.cpp
+  src/equations/perfect_gas_mix/EinfeldtSignalVelocities_3d.cpp
   src/equations/IdealGasMix.cpp
   src/equations/ideal_gas_mix/EinfeldtSignalVelocities_1d.cpp
   src/equations/ideal_gas_mix/EinfeldtSignalVelocities_2d.cpp
@@ -557,7 +560,6 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         src/AMReX/multi_block/MultiBlockIntegratorContext2.cpp
         src/AMReX/multi_block/MultiBlockKineticSourceTerm.cpp
         src/AMReX/multi_block/MultiBlockIgniteDetonation.cpp
-        src/equations/perfect_gas_mix/PlenaContol.cpp
         src/AMReX/cutcell/output/WriteHdf5Impl.hpp
         src/AMReX/cutcell/output/WriteHdf5Impl.cpp)
     target_compile_options(FiniteVolumeSolver.AMReX.EB
@@ -571,6 +573,11 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     set_property(TARGET FiniteVolumeSolver.AMReX.EB PROPERTY VISIBILITY_INLINES_HIDDEN "hidden")
     target_link_libraries(FiniteVolumeSolver.AMReX.EB PUBLIC FiniteVolumeSolver.AMReX)
     target_include_directories(FiniteVolumeSolver.AMReX.EB PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
+    if (AMReX_2D_FOUND)
+      target_sources(FiniteVolumeSolver.AMReX.EB PRIVATE
+        src/equations/perfect_gas_mix/PlenaContol.cpp)
+    endif()
   endif()
 
   if (FUB_WITH_OPENMP AND AMREX_ENABLE_OMP)

@@ -41,6 +41,8 @@
 #include "fub/AMReX/boundary_condition/PressureValveBoundary.hpp"
 #include "fub/AMReX/boundary_condition/ReflectiveBoundary.hpp"
 #include "fub/AMReX/boundary_condition/TransmissiveBoundary.hpp"
+#include "fub/AMReX/boundary_condition/GenericPressureValveBoundary.hpp"
+#include "fub/AMReX/boundary_condition/IsentropicPressureExpansion.hpp"
 
 #include "fub/AMReX/initial_data/ConstantData.hpp"
 
@@ -52,12 +54,16 @@
 #include "fub/AMReX/FluxMethodAdapter.hpp"
 #include "fub/AMReX/Reconstruction.hpp"
 #include "fub/AMReX/TimeIntegrator.hpp"
+#include "fub/AMReX/FluxMethodFactory.hpp"
 
 #include "fub/AMReX/Geometry.hpp"
 #include "fub/geometry/Union.hpp"
 
 #include "fub/AMReX/AxialSourceTerm.hpp"
 #include "fub/equations/ideal_gas_mix/KineticSourceTerm.hpp"
+
+#include "fub/equations/perfect_gas_mix/IgnitionDelayKinetics.hpp"
+#include "fub/equations/perfect_gas_mix/ArrheniusKinetics.hpp"
 
 #include "fub/AMReX/output/DebugOutput.hpp"
 #include "fub/AMReX/output/WriteHdf5.hpp"

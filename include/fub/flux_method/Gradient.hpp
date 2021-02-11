@@ -23,6 +23,7 @@
 
 #include "fub/Direction.hpp"
 #include "fub/State.hpp"
+#include "fub/equations/EulerEquation.hpp"
 
 namespace fub {
 struct NoLimiter2 {
@@ -297,8 +298,7 @@ void ComputeAmplitudes(Characteristics<Equation>& amplitudes,
     const int iy = (ix + i) % Rank;
     amplitudes.zero[i] = (right.velocity[iy] - left.velocity[iy]) / dx;
   }
-  if constexpr (fub::euler::state_with_species<Equation,
-                                               Primitive<Equation>>()) {
+  if constexpr (fub::euler::state_with_species<Primitive<Equation>>()) {
     for (int i = 0; i < amplitudes.species.size(); ++i) {
       amplitudes.species[i] = (right.species[i] - left.species[i]) / dx;
     }
@@ -327,8 +327,7 @@ void ComputeAmplitudes(CharacteristicsArray<Equation>& amplitudes,
     amplitudes.zero.row(i) =
         (right.velocity.row(iy) - left.velocity.row(iy)) / dx;
   }
-  if constexpr (fub::euler::state_with_species<Equation,
-                                               Primitive<Equation>>()) {
+  if constexpr (fub::euler::state_with_species<Primitive<Equation>>()) {
     for (int i = 0; i < amplitudes.species.rows(); ++i) {
       amplitudes.species.row(i) =
           (right.species.row(i) - left.species.row(i)) / dx;

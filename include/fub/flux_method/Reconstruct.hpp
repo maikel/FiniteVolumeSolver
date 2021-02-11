@@ -207,7 +207,7 @@ void PrimitiveReconstruction<EulerEquation>::Reconstruct(
                  lambda * (rho_a2 * dw_dx.velocity[ix] + u * dw_dx.pressure));
   w_rec_.velocity[ix] =
       w_.velocity[ix] +
-      dx_half * (dw_dx.velocity[ix] +
+      dx_half * (dw_dx.velocity[ix] -
                  lambda * (u * dw_dx.velocity[ix] + dw_dx.pressure / rho));
   constexpr int Rank = EulerEquation::Rank();
   for (int i = 1; i < Rank; ++i) {
@@ -216,7 +216,7 @@ void PrimitiveReconstruction<EulerEquation>::Reconstruct(
         w_.velocity[iy] +
         dx_half * (dw_dx.velocity[iy] - lambda * u * dw_dx.velocity[iy]);
   }
-  if constexpr (fub::euler::state_with_species<EulerEquation, Primitive>()) {
+  if constexpr (fub::euler::state_with_species<Primitive>()) {
     for (int i = 0; i < w_rec_.species.size(); ++i) {
       w_rec_.species[i] =
           w_.species[i] +
@@ -259,7 +259,7 @@ void PrimitiveReconstruction<EulerEquation>::Reconstruct(
                                             u * dw_dx.pressure));
   w_rec_array_.velocity.row(ix) =
       w_array_.velocity.row(ix) +
-      dx_half * (dw_dx.velocity.row(ix) +
+      dx_half * (dw_dx.velocity.row(ix) -
                  lambda * (u * dw_dx.velocity.row(ix) + dw_dx.pressure / rho));
   constexpr int Rank = EulerEquation::Rank();
   for (int i = 1; i < Rank; ++i) {
@@ -269,7 +269,7 @@ void PrimitiveReconstruction<EulerEquation>::Reconstruct(
         dx_half *
             (dw_dx.velocity.row(iy) - lambda * u * dw_dx.velocity.row(iy));
   }
-  if constexpr (fub::euler::state_with_species<EulerEquation, Primitive>()) {
+  if constexpr (fub::euler::state_with_species<Primitive>()) {
     for (int i = 0; i < w_rec_array_.species.rows(); ++i) {
       w_rec_array_.species.row(i) =
           w_array_.species.row(i) +
@@ -303,7 +303,7 @@ void CharacteristicsReconstruction<EulerEquation>::Reconstruct(
   for (int i = 0; i < dKdt_.zero.size(); ++i) {
     dKdt_.zero[i] = dx_half * dKdx.zero[i] * (1.0 - lambda * u);
   }
-  if constexpr (fub::euler::state_with_species<EulerEquation, Primitive>()) {
+  if constexpr (fub::euler::state_with_species<Primitive>()) {
     for (int i = 0; i < dKdt_.species.size(); ++i) {
       dKdt_.species[i] = dx_half * dKdx.species[i] * (1.0 - lambda * u);
     }
@@ -325,7 +325,7 @@ void CharacteristicsReconstruction<EulerEquation>::Reconstruct(
     const int iy = (ix + i) % Rank;
     dwdt_.velocity.row(iy) = dKdt_.zero[i];
   }
-  if constexpr (fub::euler::state_with_species<EulerEquation, Primitive>()) {
+  if constexpr (fub::euler::state_with_species<Primitive>()) {
     for (int i = 0; i < dKdt_.species.size(); ++i) {
       dwdt_.species[i] = dKdt_.species[i];
     }
@@ -359,7 +359,7 @@ void CharacteristicsReconstruction<EulerEquation>::Reconstruct(
     dKdt_array_.zero.row(i) =
         dx_half * dKdx.zero.row(i) * (Array1d::Constant(1.0) - lambda * u);
   }
-  if constexpr (fub::euler::state_with_species<EulerEquation, Primitive>()) {
+  if constexpr (fub::euler::state_with_species<Primitive>()) {
     for (int i = 0; i < dKdt_array_.species.rows(); ++i) {
       dKdt_array_.species.row(i) =
           dx_half * dKdx.species.row(i) * (Array1d::Constant(1.0) - lambda * u);
@@ -384,7 +384,7 @@ void CharacteristicsReconstruction<EulerEquation>::Reconstruct(
     const int iy = (ix + i) % Rank;
     dwdt_array_.velocity.row(iy) = dKdt_array_.zero.row(i);
   }
-  if constexpr (fub::euler::state_with_species<EulerEquation, Primitive>()) {
+  if constexpr (fub::euler::state_with_species<Primitive>()) {
     for (int i = 0; i < dKdt_array_.species.rows(); ++i) {
       dwdt_array_.species.row(i) = dKdt_array_.species.row(i);
     }

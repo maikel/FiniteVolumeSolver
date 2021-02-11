@@ -58,9 +58,9 @@ tube_n_cells -= tube_n_cells % tube_blocking_factor
 tube_n_cells = int(tube_n_cells)
 
 RunOptions = {
-  'cfl': 0.3,
+  'cfl': 0.4,
   'final_time': 0.080,
-  'max_cycles': -1
+  'max_cycles': 10
 }
 
 # checkpoint = '/Users/maikel/Development/FiniteVolumeSolver/build_3d/MultiTube/Checkpoint/000000063'
@@ -186,12 +186,14 @@ Output = {
   'outputs': [{ 
     'type': 'Plotfile',
     'directory': 'MultiTube/Plenum/',
-    'intervals': [5e-4]
+    'intervals': [5e-4],
+    'frequencies': [1]
   }, {
     'type': 'HDF5',
     'which_block': 0,
     'path': 'MultiTube/Slices/Plenum.h5',
     'intervals': [1e-5],
+    'frequencies': [1],
     'box': {
       'lower': [0, 0, int(plenum_z_n_cells / 2)],
       'upper': [plenum_x_n_cells - 1, plenum_y_n_cells - 1, int(plenum_z_n_cells / 2)]
