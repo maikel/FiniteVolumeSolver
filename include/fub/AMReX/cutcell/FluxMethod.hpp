@@ -117,7 +117,8 @@ void FluxMethod<Tag, FM>::PreAdvanceHierarchy(IntegratorContext& context) {
     const PatchHierarchy& hierarchy = context.GetPatchHierarchy();
     for (int level = 0; level < hierarchy.GetNumberOfLevels(); ++level) {
       ::amrex::MultiFab& references = context.GetReferenceStates(level);
-      context.GetGriddingAlgorithm()->FillMultiFabFromLevel(references, level);
+      const ::amrex::MultiFab& scratch = context.GetScratch(level);
+      // context.GetGriddingAlgorithm()->FillMultiFabFromLevel(references, level);
       ForEachFab(Tag(), references, [&](const ::amrex::MFIter& mfi) {
         if (context.GetFabType(level, mfi) == ::amrex::FabType::singlevalued) {
           const Equation& eq = flux_method_->GetEquation();
@@ -125,7 +126,7 @@ void FluxMethod<Tag, FM>::PreAdvanceHierarchy(IntegratorContext& context) {
           View<Complete<Equation>> refs =
               MakeView<Complete<Equation>>(references[mfi], eq, box);
           View<const Complete<Equation>> states =
-              MakeView<const Complete<Equation>>(references[mfi], eq, box);
+              MakeView<const Complete<Equation>>(scratch[mfi], eq, box);
           CutCellData<AMREX_SPACEDIM> geom =
               hierarchy.GetCutCellData(level, mfi);
           flux_method_->PreAdvanceHierarchy(refs, states, geom);

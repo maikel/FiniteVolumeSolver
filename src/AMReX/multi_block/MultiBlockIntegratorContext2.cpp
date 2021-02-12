@@ -423,9 +423,8 @@ void MultiBlockIntegratorContext2::PreAdvanceHierarchy() {
   // The grid will pre-calculate ghost cells for each multi-domain connection.
   gridding_->PreAdvanceHierarchy();
   const int nlevel = plena_[0].GetPatchHierarchy().GetNumberOfLevels();
-  FillGhostLayerSingleLevel(0);
-  for (int level = 1; level < nlevel; ++level) {
-    FillGhostLayerTwoLevels(level, level - 1);
+  for (int level = 0; level < nlevel; ++level) {
+    ApplyBoundaryCondition(level, fub::Direction::X);
   }
   // Compute reference states for cut cell stabilisation.
   for (cutcell::IntegratorContext& ctx : plena_) {

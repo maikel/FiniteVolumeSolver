@@ -213,13 +213,13 @@ bool IntegratorContext::LevelExists(int level) const noexcept {
   return 0 <= level && level < GetPatchHierarchy().GetNumberOfLevels();
 }
 
-int IntegratorContext::GetRatioToCoarserLevel(int level, Direction dir) const
-    noexcept {
+int IntegratorContext::GetRatioToCoarserLevel(int level,
+                                              Direction dir) const noexcept {
   return GetPatchHierarchy().GetRatioToCoarserLevel(level, dir);
 }
 
-::amrex::IntVect IntegratorContext::GetRatioToCoarserLevel(int level) const
-    noexcept {
+::amrex::IntVect
+IntegratorContext::GetRatioToCoarserLevel(int level) const noexcept {
   return GetPatchHierarchy().GetRatioToCoarserLevel(level);
 }
 
@@ -244,6 +244,7 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
       GetPatchHierarchy().GetDataDescription().n_cons_components;
   const int new_n_levels = GetPatchHierarchy().GetNumberOfLevels();
   data_.resize(static_cast<std::size_t>(new_n_levels));
+  const ::amrex::MFInfo& mf_info = GetPatchHierarchy().GetMFInfo();
   for (int level = first_level; level < new_n_levels; ++level) {
     LevelData& data = data_[static_cast<std::size_t>(level)];
     const ::amrex::BoxArray& ba =
@@ -257,13 +258,13 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
          ++i) {
       grow[i] = cell_ghost_cell_width_;
     }
-    data.scratch.define(ba, dm, n_comp, grow);
+    data.scratch.define(ba, dm, n_comp, grow, mf_info);
     for (std::size_t d = 0; d < static_cast<std::size_t>(AMREX_SPACEDIM); ++d) {
       const ::amrex::BoxArray fba =
           ::amrex::convert(ba, ::amrex::IntVect::TheDimensionVector(int(d)));
       ::amrex::IntVect fgrow = grow;
       fgrow[int(d)] = face_ghost_cell_width_;
-      data.fluxes[d].define(fba, dm, n_cons_components, fgrow);
+      data.fluxes[d].define(fba, dm, n_cons_components, fgrow, mf_info);
       data.fluxes[d].setVal(0.0);
     }
     if (level > 0) {
