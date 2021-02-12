@@ -34,7 +34,9 @@ namespace fub::amrex {
 class LogProbesOutput
     : public OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm2> {
 public:
-  LogProbesOutput(const ProgramOptions& vm);
+  LogProbesOutput(const ProgramOptions& options);
+  
+  LogProbesOutput(const ProgramOptions& options, std::vector<std::string> plenum_names, std::vector<std::string> tube_names);
 
   void operator()(const MultiBlockGriddingAlgorithm2& grid) override;
 
@@ -45,6 +47,9 @@ private:
   std::string tube_output_path_;
   std::vector<double> tube_probes_;
   int n_tubes_;
+
+  std::vector<std::string> plenum_fields_{};
+  std::vector<std::string> tube_fields_{};
 };
 
 } // namespace fub::amrex

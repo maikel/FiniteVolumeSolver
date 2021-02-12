@@ -320,7 +320,7 @@ int main(int argc, char** argv) {
 }
 
 void WriteCheckpoint(const std::string& path,
-                     const fub::amrex::MultiBlockGriddingAlgorithm& grid,
+                     const fub::amrex::MultiBlockGriddingAlgorithm2& grid,
                      std::shared_ptr<fub::amrex::PressureValve> valve, int rank,
                      const fub::amrex::MultiBlockIgniteDetonation& ignition) {
   auto tubes = grid.GetTubes();
@@ -380,8 +380,8 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   fub::IdealGasMix<Plenum_Rank> plenum_equation{mechanism};
   fub::IdealGasMix<Tube_Rank> tube_equation{mechanism};
 
-  fub::amrex::MultiBlockIntegratorContext context(
-      fub::FlameMasterReactor(mechanism), std::move(tubes), std::move(plenum),
+  fub::amrex::MultiBlockIntegratorContext2 context(
+      tube_equation, plenum_equation, std::move(tubes), std::move(plenum),
       std::move(connectivity));
 
   fub::DimensionalSplitLevelIntegrator system_solver(
@@ -428,11 +428,11 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
       fub::StrangSplittingLumped{});
 
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
-  //fub::NoSubcycleSolver solver(std::move(level_integrator));
+  // fub::NoSubcycleSolver solver(std::move(level_integrator));
 
   using namespace fub::amrex;
   struct MakeCheckpoint
-      : public fub::OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm> {
+      : public fub::OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm2> {
     std::string directory_ = "ConvergentNozzle";
     std::shared_ptr<fub::amrex::PressureValve> valve_state_{};
     const fub::amrex::MultiBlockIgniteDetonation* ignition_{};
@@ -444,7 +444,7 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
           valve_state_(valve_state), ignition_{ignite} {
       directory_ = fub::GetOptionOr(options, "directory", directory_);
     }
-    void operator()(const MultiBlockGriddingAlgorithm& grid) override {
+    void operator()(const MultiBlockGriddingAlgorithm2& grid) override {
       int rank = -1;
       MPI_Comm_rank(MPI_COMM_WORLD, &rank);
       std::string name = fmt::format("{}/{:09}", directory_, grid.GetCycles());
@@ -454,18 +454,21 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
     }
   };
 
-  fub::OutputFactory<MultiBlockGriddingAlgorithm> factory{};
-  factory.RegisterOutput<MultiWriteHdf5>("HDF5");
-  factory.RegisterOutput<MultiBlockPlotfileOutput>("Plotfiles");
+  fub::OutputFactory<MultiBlockGriddingAlgorithm2> factory{};
+  factory.RegisterOutput<MultiWriteHdf52>("HDF5");
+  using PlotfileOutput =
+      fub::amrex::MultiBlockPlotfileOutput2<fub::IdealGasMix<1>,
+                                            fub::IdealGasMix<2>>;
+  factory.RegisterOutput<PlotfileOutput>("Plotfiles", tube_equation,
+                                         plenum_equation);
   factory.RegisterOutput<LogProbesOutput>("LogProbes");
   factory.RegisterOutput<MakeCheckpoint>(
       "Checkpoint", valve.GetSharedState(),
       &solver.GetLevelIntegrator().GetSystem().GetSource());
-  using CounterOutput =
-      fub::CounterOutput<fub::amrex::MultiBlockGriddingAlgorithm,
-                         std::chrono::milliseconds>;
+  using CounterOutput = fub::CounterOutput<MultiBlockGriddingAlgorithm2,
+                                           std::chrono::milliseconds>;
   factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
-  fub::MultipleOutputs<MultiBlockGriddingAlgorithm> outputs(
+  fub::MultipleOutputs<MultiBlockGriddingAlgorithm2> outputs(
       std::move(factory), fub::GetOptions(vm, "Output"));
 
   outputs(*solver.GetGriddingAlgorithm());
