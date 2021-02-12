@@ -71,6 +71,9 @@ public:
 
 private:
   Local<Tag, Base> flux_method_;
+  ::amrex::MultiFab gradient_x;
+  ::amrex::MultiFab gradient_y;
+  ::amrex::MultiFab gradient_z;
 };
 
 template <typename F>
@@ -152,10 +155,6 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
   ::amrex::MultiFab& fluxes_sL = context.GetShieldedFromLeftFluxes(level, dir);
   ::amrex::MultiFab& fluxes_sR = context.GetShieldedFromRightFluxes(level, dir);
   ::amrex::MultiFab& fluxes_ds = context.GetDoublyShieldedFluxes(level, dir);
-
-  [[maybe_unused]] ::amrex::MultiFab gradient_x;
-  [[maybe_unused]] ::amrex::MultiFab gradient_y;
-  [[maybe_unused]] ::amrex::MultiFab gradient_z;
 
   const double dx = context.GetDx(level, dir);
   const Eigen::Matrix<double, AMREX_SPACEDIM, 1> dx_vec{AMREX_D_DECL(

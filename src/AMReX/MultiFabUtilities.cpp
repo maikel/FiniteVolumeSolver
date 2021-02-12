@@ -27,6 +27,15 @@
 
 namespace fub::amrex {
 
+void Realloc(::amrex::MultiFab& mf, const ::amrex::BoxArray& ba,
+             const ::amrex::DistributionMap& dm, int ncomp,
+             const ::amrex::IntVect& ngrow) {
+  if (mf.boxArray() != ba || mf.DistributionMap() != dm ||
+      mf.nComps() != ncomp || mf.nGrowVec() != ngrow) {
+    mf.define(ba, dm, ncomp, ngrow);
+  }
+}
+
 /// \brief get the inner box
 /// \param width number of cells
 ::amrex::Box GetInnerBox(const ::amrex::Box& box, int side, Direction dir,
@@ -37,12 +46,12 @@ namespace fub::amrex {
   if (side == 0) {
     const ::amrex::IntVect lower_new = lower;
     ::amrex::IntVect upper_new = upper;
-    upper_new[dir_v] = lower_new[dir_v] + width-1;
+    upper_new[dir_v] = lower_new[dir_v] + width - 1;
     return ::amrex::Box(lower_new, upper_new);
   }
   const ::amrex::IntVect upper_new = upper;
   ::amrex::IntVect lower_new = lower;
-  lower_new[dir_v] = upper_new[dir_v] - width+1;
+  lower_new[dir_v] = upper_new[dir_v] - width + 1;
   return ::amrex::Box(lower_new, upper_new);
 }
 

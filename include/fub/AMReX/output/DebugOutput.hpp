@@ -173,7 +173,7 @@ public:
   /// @}
 
   /// \brief Returns true if this object is valid.
-  explicit operator bool() const noexcept { return snapshot_ == nullptr; }
+  explicit operator bool() const noexcept { return snapshot_ != nullptr; }
 
   /// \brief Returns true if both proxy objects point to the same snapshot.
   friend inline bool operator==(const DebugSnapshotProxy& p1,
