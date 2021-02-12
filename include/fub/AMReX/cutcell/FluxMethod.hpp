@@ -73,10 +73,10 @@ private:
 };
 
 template <typename F>
-FluxMethod(F &&) -> FluxMethod<execution::OpenMpSimdTag, std::decay_t<F>>;
+FluxMethod(F&&) -> FluxMethod<execution::OpenMpSimdTag, std::decay_t<F>>;
 
 template <typename Tag, typename FM>
-FluxMethod(Tag, FM &&) -> FluxMethod<Tag, std::decay_t<FM>>;
+FluxMethod(Tag, FM&&) -> FluxMethod<Tag, std::decay_t<FM>>;
 
 template <typename Tag, typename FM>
 FluxMethod<Tag, FM>::FluxMethod(Tag, FM&& flux_method)
@@ -232,9 +232,11 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
             equation);
     DebugSnapshotProxy snapshot =
         debug.AddSnapshot(fmt::format("Gradients_{}", int(dir)));
-    snapshot.SaveData(gradient_x, AddPrefix(names, "GradX_"), geom);
-    snapshot.SaveData(gradient_y, AddPrefix(names, "GradY_"), geom);
-    snapshot.SaveData(gradient_z, AddPrefix(names, "GradZ_"), geom);
+    if (snapshot) {
+      snapshot.SaveData(gradient_x, AddPrefix(names, "GradX_"), geom);
+      snapshot.SaveData(gradient_y, AddPrefix(names, "GradY_"), geom);
+      snapshot.SaveData(gradient_z, AddPrefix(names, "GradZ_"), geom);
+    }
   }
 
   static constexpr int gcw = GetStencilWidth();
@@ -311,18 +313,20 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
   DebugStorage& debug = *hierarchy.GetDebugStorage();
   const ::amrex::Geometry& geom = hierarchy.GetGeometry(level);
   const Equation& equation = flux_method_->GetEquation();
-  const auto names =
-        VarNames<Conservative<Equation>, ::amrex::Vector<std::string>>(
-            equation);
   DebugSnapshotProxy snapshot =
       debug.AddSnapshot(fmt::format("Fluxes_{}", int(dir)));
-  snapshot.SaveData(fluxes, AddPrefix(names, "RegularFlux_"), geom);
-  snapshot.SaveData(fluxes_s, AddPrefix(names, "StableFlux_"), geom);
-  snapshot.SaveData(fluxes_sL, AddPrefix(names, "ShieldedFromLeftFlux_"), geom);
-  snapshot.SaveData(fluxes_sR, AddPrefix(names, "ShieldedFromRightFlux_"),
-                    geom);
-  snapshot.SaveData(boundary_fluxes.ToMultiFab(0.0, 0.0),
-                    AddPrefix(names, "BoundaryFlux_"), geom);
+  if (snapshot) {
+    const auto names =
+      VarNames<Conservative<Equation>, ::amrex::Vector<std::string>>(equation);
+    snapshot.SaveData(fluxes, AddPrefix(names, "RegularFlux_"), geom);
+    snapshot.SaveData(fluxes_s, AddPrefix(names, "StableFlux_"), geom);
+    snapshot.SaveData(fluxes_sL, AddPrefix(names, "ShieldedFromLeftFlux_"),
+                      geom);
+    snapshot.SaveData(fluxes_sR, AddPrefix(names, "ShieldedFromRightFlux_"),
+                      geom);
+    snapshot.SaveData(boundary_fluxes.ToMultiFab(0.0, 0.0),
+                      AddPrefix(names, "BoundaryFlux_"), geom);
+  }
 }
 
 template <typename Tag, typename FM>
