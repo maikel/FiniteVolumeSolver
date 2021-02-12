@@ -81,6 +81,7 @@ struct PatchLevel : ::fub::amrex::PatchLevel {
   /// \param[in] factory  the boundary informations for cut cells.
   PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
              const ::amrex::DistributionMapping& dm, int n_components,
+             const ::amrex::MFInfo& mf_info,
              std::shared_ptr<::amrex::EBFArrayBoxFactory> factory, int ngrow);
 
   using MultiCutFabs =
@@ -199,6 +200,9 @@ public:
 
   ::amrex::IntVect GetRatioToCoarserLevel(int level) const;
 
+  void SetArena(::amrex::Arena* arena) { mf_info_.SetArena(arena); }
+  const ::amrex::MFInfo& GetMFInfo() const noexcept { return mf_info_; }
+
   const ::amrex::Geometry& GetGeometry(int level) const;
 
   PatchLevel& GetPatchLevel(int level);
@@ -223,6 +227,7 @@ private:
   PatchHierarchyOptions options_;
   std::vector<PatchLevel> patch_level_;
   std::vector<::amrex::Geometry> patch_level_geometry_;
+  ::amrex::MFInfo mf_info_{};
   std::shared_ptr<CounterRegistry> registry_;
   std::shared_ptr<DebugStorage> debug_storage_;
 };

@@ -54,7 +54,8 @@ PatchLevel::PatchLevel(const PatchLevel& other)
       distribution_mapping(other.distribution_mapping.ProcessorMap()) {
   if (other.data.ok()) {
     data.define(box_array, distribution_mapping, other.data.nComp(),
-                other.data.nGrowVect(), ::amrex::MFInfo(),
+                other.data.nGrowVect(),
+                ::amrex::MFInfo().SetArena(other.data.arena()),
                 other.data.Factory());
     data.copy(other.data);
   }
@@ -63,7 +64,9 @@ PatchLevel::PatchLevel(const PatchLevel& other)
     on_nodes.surroundingNodes();
     nodes = std::make_unique<::amrex::MultiFab>(
         on_nodes, distribution_mapping, other.nodes->nComp(),
-        other.nodes->nGrowVect(), ::amrex::MFInfo(), other.nodes->Factory());
+        other.nodes->nGrowVect(),
+        ::amrex::MFInfo().SetArena(other.nodes->arena()),
+        other.nodes->Factory());
     nodes->copy(*other.nodes);
   }
   if (other.faces[0]) {
@@ -71,14 +74,16 @@ PatchLevel::PatchLevel(const PatchLevel& other)
     on_faces.convert({AMREX_D_DECL(1, 0, 0)});
     faces[0] = std::make_unique<::amrex::MultiFab>(
         on_faces, distribution_mapping, other.faces[0]->nComp(),
-        other.faces[0]->nGrowVect(), ::amrex::MFInfo(),
+        other.faces[0]->nGrowVect(),
+        ::amrex::MFInfo().SetArena(other.faces[0]->arena()),
         other.faces[0]->Factory());
     faces[0]->copy(*other.faces[0]);
     if (other.faces[2]) {
       on_faces.convert({AMREX_D_DECL(0, 0, 1)});
       faces[2] = std::make_unique<::amrex::MultiFab>(
           on_faces, distribution_mapping, other.faces[2]->nComp(),
-          other.faces[2]->nGrowVect(), ::amrex::MFInfo(),
+          other.faces[2]->nGrowVect(),
+          ::amrex::MFInfo().SetArena(other.faces[1]->arena()),
           other.faces[2]->Factory());
       faces[2]->copy(*other.faces[2]);
     }
@@ -86,7 +91,8 @@ PatchLevel::PatchLevel(const PatchLevel& other)
       on_faces.convert({AMREX_D_DECL(0, 1, 0)});
       faces[1] = std::make_unique<::amrex::MultiFab>(
           on_faces, distribution_mapping, other.faces[1]->nComp(),
-          other.faces[1]->nGrowVect(), ::amrex::MFInfo(),
+          other.faces[1]->nGrowVect(),
+          ::amrex::MFInfo().SetArena(other.faces[2]->arena()),
           other.faces[1]->Factory());
       faces[1]->copy(*other.faces[1]);
     }
@@ -99,24 +105,27 @@ PatchLevel& PatchLevel::operator=(const PatchLevel& other) {
 }
 
 PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
-                       const ::amrex::DistributionMapping& dm, int n_components)
+                       const ::amrex::DistributionMapping& dm, int n_components,
+                       const ::amrex::MFInfo& mf_info)
     : level_number{level}, time_point{tp}, box_array{ba},
       distribution_mapping{dm}, data{box_array, distribution_mapping,
-                                     n_components, 0} {}
+                                     n_components, 0, mf_info} {}
 
 PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
                        const ::amrex::DistributionMapping& dm,
-                       const DataDescription& desc)
+                       const DataDescription& desc,
+                       const ::amrex::MFInfo& mf_info)
     : level_number{level}, time_point{tp}, box_array{ba}, distribution_mapping{
                                                               dm} {
   if (desc.n_state_components) {
-    data.define(box_array, distribution_mapping, desc.n_state_components, 0);
+    data.define(box_array, distribution_mapping, desc.n_state_components, 0,
+                mf_info);
   }
   if (desc.n_node_components) {
     ::amrex::BoxArray on_nodes = box_array;
     on_nodes.surroundingNodes();
-    nodes = std::make_unique<::amrex::MultiFab>(on_nodes, distribution_mapping,
-                                                desc.n_node_components, 0);
+    nodes = std::make_unique<::amrex::MultiFab>(
+        on_nodes, distribution_mapping, desc.n_node_components, 0, mf_info);
   }
   if (desc.n_face_components) {
     ::amrex::BoxArray on_faces = box_array;
@@ -124,28 +133,29 @@ PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
     case 3:
       on_faces.convert({AMREX_D_DECL(0, 0, 1)});
       faces[2] = std::make_unique<::amrex::MultiFab>(
-          on_faces, distribution_mapping, desc.n_face_components, 0);
+          on_faces, distribution_mapping, desc.n_face_components, 0, mf_info);
       [[fallthrough]];
     case 2:
       on_faces.convert({AMREX_D_DECL(0, 1, 0)});
       faces[1] = std::make_unique<::amrex::MultiFab>(
-          on_faces, distribution_mapping, desc.n_face_components, 0);
+          on_faces, distribution_mapping, desc.n_face_components, 0, mf_info);
       [[fallthrough]];
     default:
       on_faces.convert({AMREX_D_DECL(1, 0, 0)});
       faces[0] = std::make_unique<::amrex::MultiFab>(
-          on_faces, distribution_mapping, desc.n_face_components, 0);
+          on_faces, distribution_mapping, desc.n_face_components, 0, mf_info);
     }
   }
 }
 
 PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
                        const ::amrex::DistributionMapping& dm, int n_components,
+                       const ::amrex::MFInfo& mf_info,
                        const ::amrex::FabFactory<::amrex::FArrayBox>& factory)
     : level_number{level}, time_point{tp}, box_array{ba},
-      distribution_mapping{dm}, data{box_array,         distribution_mapping,
-                                     n_components,      0,
-                                     ::amrex::MFInfo(), factory} {}
+      distribution_mapping{dm}, data{box_array,    distribution_mapping,
+                                     n_components, 0,
+                                     mf_info,      factory} {}
 
 PatchHierarchy::PatchHierarchy(DataDescription desc,
                                const CartesianGridGeometry& geometry,
@@ -175,16 +185,16 @@ PatchHierarchy::PatchHierarchy(DataDescription desc,
 #endif
 }
 
-int PatchHierarchy::GetRatioToCoarserLevel(int level, Direction dir) const
-    noexcept {
+int PatchHierarchy::GetRatioToCoarserLevel(int level,
+                                           Direction dir) const noexcept {
   if (level == 0) {
     return 1;
   }
   return options_.refine_ratio[static_cast<int>(dir)];
 }
 
-::amrex::IntVect PatchHierarchy::GetRatioToCoarserLevel(int level) const
-    noexcept {
+::amrex::IntVect
+PatchHierarchy::GetRatioToCoarserLevel(int level) const noexcept {
   if (level == 0) {
     return ::amrex::IntVect::TheUnitVector();
   }
@@ -196,8 +206,8 @@ PatchHierarchy::GetCounterRegistry() const noexcept {
   return registry_;
 }
 
-const std::shared_ptr<DebugStorage>& PatchHierarchy::GetDebugStorage() const
-    noexcept {
+const std::shared_ptr<DebugStorage>&
+PatchHierarchy::GetDebugStorage() const noexcept {
   return debug_storage_;
 }
 
@@ -262,6 +272,10 @@ Duration PatchHierarchy::GetTimePoint(int level) const {
 
 int PatchHierarchy::GetNumberOfLevels() const noexcept {
   return static_cast<int>(patch_level_.size());
+}
+
+void PatchHierarchy::SetArena(::amrex::Arena* arena) {
+  mf_info_.SetArena(arena);
 }
 
 int PatchHierarchy::GetMaxNumberOfLevels() const noexcept {
@@ -575,7 +589,8 @@ void OpenHdf5Database(const std::string& name, const ::amrex::FArrayBox& fab,
 
 void WriteToHDF5(const std::string& name, const ::amrex::FArrayBox& fab,
                  const ::amrex::Geometry& geom, Duration time_point,
-                 std::ptrdiff_t cycle, span<const std::string> fields) noexcept {
+                 std::ptrdiff_t cycle,
+                 span<const std::string> fields) noexcept {
   if (!boost::filesystem::exists(name)) {
     CreateHdf5Database(name, fab, geom, time_point, cycle, fields);
   } else if (boost::filesystem::is_regular_file(name)) {
