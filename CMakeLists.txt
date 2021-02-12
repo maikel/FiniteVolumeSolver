@@ -219,6 +219,8 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/ext/outcome.hpp
   include/fub/ext/Log.hpp
   include/fub/ext/Mpi.hpp
+  include/fub/PoolAllocator.hpp
+  src/PoolAllocator.cpp
   include/fub/flux_method/FluxMethod.hpp
   include/fub/flux_method/GodunovMethod.hpp
   include/fub/flux_method/HllMethod.hpp
@@ -642,7 +644,7 @@ endif()
 ################################################################################
 # Doxygen target
 
-find_package(Doxygen)
+find_package(Doxygen QUIET)
 if (DOXYGEN_FOUND)
     # set input and output files
     set(DOXYGEN_IN ${PROJECT_SOURCE_DIR}/docs/Doxyfile.in)
