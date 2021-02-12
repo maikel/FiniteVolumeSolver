@@ -1,6 +1,6 @@
 import math
 
-plenum_x_n_cells = 128
+plenum_x_n_cells = 128*2
 tube_blocking_factor = 32
 plenum_blocking_factor = 32
 
@@ -58,9 +58,10 @@ tube_n_cells -= tube_n_cells % tube_blocking_factor
 tube_n_cells = int(tube_n_cells)
 
 RunOptions = {
-  'cfl': 0.4,
+  'cfl': 0.8,
   'final_time': 0.080,
-  'max_cycles': 10
+  'max_cycles': -1,
+  'do_backup': 0,
 }
 
 # checkpoint = '/Users/maikel/Development/FiniteVolumeSolver/build_3d/MultiTube/Checkpoint/000000063'
@@ -89,7 +90,7 @@ Plenum = {
     'blocking_factor': [plenum_blocking_factor, plenum_blocking_factor, plenum_blocking_factor],
     'max_grid_size': [plenum_max_grid_size, plenum_max_grid_size, plenum_max_grid_size],
     'ngrow_eb_level_set': 9,
-    'remove_covered_grids': False
+    'remove_covered_grids': True,
   },
   'IsentropicPressureBoundary': {
     'outer_pressure': 101325.0,
@@ -179,7 +180,7 @@ slices = [{
     'type': 'HDF5',
     'which_block': i + 1,
     'path': 'MultiTube/Slices/Tube_{}.h5'.format(i),
-    'intervals': [1e-5],
+    'intervals': [1e-4],
   } for i in range(0, 6)]
 
 Output = { 
@@ -187,13 +188,13 @@ Output = {
     'type': 'Plotfile',
     'directory': 'MultiTube/Plenum/',
     'intervals': [5e-4],
-    'frequencies': [1]
+    # 'frequencies': [1]
   }, {
     'type': 'HDF5',
     'which_block': 0,
     'path': 'MultiTube/Slices/Plenum.h5',
-    'intervals': [1e-5],
-    'frequencies': [1],
+    'intervals': [1e-4],
+    # 'frequencies': [1],
     'box': {
       'lower': [0, 0, int(plenum_z_n_cells / 2)],
       'upper': [plenum_x_n_cells - 1, plenum_y_n_cells - 1, int(plenum_z_n_cells / 2)]
@@ -233,7 +234,7 @@ Output = {
     'frequencies': []
   }, {
     'type': 'CounterOutput',
-    'frequencies': [1000]
+    'frequencies': [10]
   }]
 }
 

@@ -24,8 +24,9 @@
 
 namespace fub::amrex::cutcell {
 
+#if AMREX_SPACEDIM == 2
 template AnyFluxMethod<IntegratorContext>
 GetCutCellMethod<PerfectGasMix<2>>(const ProgramOptions& options,
                                    const PerfectGasMix<2>& equation);
-
+#endif
 }
