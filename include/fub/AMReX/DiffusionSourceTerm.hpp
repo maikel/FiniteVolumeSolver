@@ -22,9 +22,9 @@
 #define FUB_AMREX_DIFFUSION_SOURCE_TERM_HPP
 
 #include "fub/AMReX/IntegratorContext.hpp"
+#include "fub/AMReX/MultiFabUtilities.hpp"
 #include "fub/AMReX/TimeIntegrator.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
-#include "fub/AMReX/MultiFabUtilities.hpp"
 #include "fub/AMReX/boundary_condition/BoundaryConditionRef.hpp"
 
 #include "fub/ext/Log.hpp"
@@ -57,6 +57,15 @@ public:
   DiffusionSourceTerm(
       const EulerEquation& equation,
       const DiffusionSourceTermOptions& options = DiffusionSourceTermOptions());
+
+  DiffusionSourceTerm(const DiffusionSourceTerm& other)
+      : equation_{other.equation_} {}
+  DiffusionSourceTerm(DiffusionSourceTerm&& other) = default;
+
+  DiffusionSourceTerm& operator=(const DiffusionSourceTerm& other) {
+    equation_ = other.equation_;
+  }
+  DiffusionSourceTerm& operator=(DiffusionSourceTerm&& other) = default;
 
   Duration ComputeStableDt(const amrex::IntegratorContext& simulation_data,
                            int level) const;

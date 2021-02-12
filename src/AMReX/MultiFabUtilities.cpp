@@ -28,10 +28,10 @@
 namespace fub::amrex {
 
 void Realloc(::amrex::MultiFab& mf, const ::amrex::BoxArray& ba,
-             const ::amrex::DistributionMap& dm, int ncomp,
+             const ::amrex::DistributionMapping& dm, int ncomp,
              const ::amrex::IntVect& ngrow) {
   if (mf.boxArray() != ba || mf.DistributionMap() != dm ||
-      mf.nComps() != ncomp || mf.nGrowVec() != ngrow) {
+      mf.nComp() != ncomp || mf.nGrowVect() != ngrow) {
     mf.define(ba, dm, ncomp, ngrow);
   }
 }

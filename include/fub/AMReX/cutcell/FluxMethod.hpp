@@ -56,6 +56,14 @@ public:
   explicit FluxMethod(const Base& fm) : FluxMethod(Tag(), fm) {}
   FluxMethod(Tag, const Base& fm);
   FluxMethod(Tag, Base&& fm);
+  
+  FluxMethod(const FluxMethod& other) : flux_method_(other.flux_method_) {}
+  FluxMethod(FluxMethod&& other) = default;
+  
+  FluxMethod& operator=(const FluxMethod& other) {
+     flux_method_ = other.flux_method_;
+  }
+  FluxMethod& operator=(FluxMethod&& other) = default;
 
   static constexpr int GetStencilWidth() noexcept;
 
@@ -71,9 +79,9 @@ public:
 
 private:
   Local<Tag, Base> flux_method_;
-  ::amrex::MultiFab gradient_x;
-  ::amrex::MultiFab gradient_y;
-  ::amrex::MultiFab gradient_z;
+  ::amrex::MultiFab gradient_x{};
+  ::amrex::MultiFab gradient_y{};
+  ::amrex::MultiFab gradient_z{};
 };
 
 template <typename F>
