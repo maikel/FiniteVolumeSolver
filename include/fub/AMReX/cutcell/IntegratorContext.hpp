@@ -21,6 +21,7 @@
 #ifndef FUB_AMREX_CUTCELL_INTEGRATOR_CONTEXT_HPP
 #define FUB_AMREX_CUTCELL_INTEGRATOR_CONTEXT_HPP
 
+#include "fub/AMReX/IntegratorContext.hpp"
 #include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
 #include "fub/HyperbolicMethod.hpp"
 #include "fub/TimeStepError.hpp"
@@ -45,13 +46,15 @@ using HyperbolicMethod = ::fub::HyperbolicMethod<IntegratorContext>;
 /// simulations with the AMReX library.
 class IntegratorContext {
 public:
-  using FeedbackFn = std::function<void(IntegratorContext&, int, Duration, std::pair<int, int>)>;
+  using FeedbackFn = std::function<void(IntegratorContext&, int, Duration,
+                                        std::pair<int, int>)>;
 
   /// @{
   /// \name Constructors, Assignment Operators and Desctructor
 
-  IntegratorContext(std::shared_ptr<GriddingAlgorithm> gridding,
-                    HyperbolicMethod method);
+  IntegratorContext(
+      std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod method,
+      const IntegratorContextOptions& options = IntegratorContextOptions());
 
   IntegratorContext(std::shared_ptr<GriddingAlgorithm> gridding,
                     HyperbolicMethod method, int cell_gcw, int face_gcw);
@@ -86,6 +89,9 @@ public:
   [[nodiscard]] const std::shared_ptr<CounterRegistry>&
   GetCounterRegistry() const noexcept;
 
+  /// \brief Returns the options
+  [[nodiscard]] const IntegratorContextOptions& GetOptions() const noexcept;
+
   /// \brief Returns a reference to const PatchHierarchy which is a member of
   /// the GriddingAlgorithm.
   [[nodiscard]] const PatchHierarchy& GetPatchHierarchy() const noexcept;
@@ -104,8 +110,7 @@ public:
   /// \name Access Level-specific data
 
   /// \brief Returns the current boundary condition for the specified level.
-  [[nodiscard]] const AnyBoundaryCondition&
-  GetBoundaryCondition() const;
+  [[nodiscard]] const AnyBoundaryCondition& GetBoundaryCondition() const;
   [[nodiscard]] AnyBoundaryCondition& GetBoundaryCondition();
 
   [[nodiscard]] ::amrex::EBFArrayBoxFactory& GetEmbeddedBoundary(int level);
@@ -331,8 +336,7 @@ private:
     std::ptrdiff_t cycles{};
   };
 
-  int scratch_ghost_cell_width_;
-  int flux_ghost_cell_width_{scratch_ghost_cell_width_};
+  IntegratorContextOptions options_;
   std::shared_ptr<GriddingAlgorithm> gridding_;
   std::vector<LevelData> data_;
   HyperbolicMethod method_;

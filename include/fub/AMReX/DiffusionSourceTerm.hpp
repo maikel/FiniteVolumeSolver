@@ -113,8 +113,8 @@ private:
     double mu_Sc_effective;
   } constants_{options_};
 
-  Array1d Enthalpy(const ConservativeArray& q,
-                   const Array1d& rhoinvers) const noexcept;
+  Array1d Enthalpy(const ConservativeArray& q, const Array1d& rhoinvers) const
+      noexcept;
 };
 
 template <typename EulerEquation>
@@ -132,15 +132,17 @@ Result<void, TimeStepTooLarge> DiffusionSourceTerm<EulerEquation>::AdvanceLevel(
   ::amrex::MultiFab& scratch = simulation_data.GetScratch(level);
   const ::amrex::MultiFab& fluxes =
       simulation_data.GetFluxes(level, Direction::X);
+  const ::amrex::IntVect grow_vect =
+      scratch.nGrowVect()[0] * ::amrex::IntVect::TheDimensionVector(0);
   Realloc(fluxes_diffusion, fluxes.boxArray(), fluxes.DistributionMap(),
-          fluxes.nComp(), ::amrex::IntVect::TheDimensionVector(0));
+          fluxes.nComp(), grow_vect);
   const ::amrex::Geometry& geom = simulation_data.GetGeometry(level);
   const double dx = geom.CellSize(0);
   const double dxinv = 1.0 / dx;
   // 1.) Compute diffusion fluxes from the current scratch grid.
   ComputeDiffusionFluxes(fluxes_diffusion, scratch, dxinv);
   Realloc(scratch_aux, scratch.boxArray(), scratch.DistributionMap(),
-          scratch.nComp(), ::amrex::IntVect::TheDimensionVector(0));
+          scratch.nComp(), grow_vect);
   // 2.) Compute the half-timestep state including one ghost cell and store then
   // in scratch_aux
   ForwardIntegrator(execution::simd)
@@ -170,13 +172,8 @@ Result<void, TimeStepTooLarge> DiffusionSourceTerm<EulerEquation>::AdvanceLevel(
   // valid cell states on scratch
   Reconstruction(execution::simd, equation_).CompleteFromCons(scratch, scratch);
   FUB_ASSERT(!scratch.contains_nan());
-  // 7.) Synchronize all ghost cells across MPI processes to get valid ghost
-  // cells.
-  if (level > 0) {
-    simulation_data.FillGhostLayerTwoLevels(level, level - 1);
-  } else {
-    simulation_data.FillGhostLayerSingleLevel(level);
-  }
+  // 7.) Apply physical boundary condition, do NOT sync inner patch ghost cells
+  simulation_data.ApplyBoundaryCondition(level, Direction::X);
 
   return boost::outcome_v2::success();
 }

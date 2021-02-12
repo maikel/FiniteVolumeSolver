@@ -7,7 +7,7 @@ plenum_blocking_factor = 8
 
 massflow_cor = 0.024 #%MASSFLOW%
 diffusion = 3.0 #%Diffusion%
-outputPath = '%OUTPUT%'
+outputPath = 'SEC_Plenum_Arrhenius' # '%OUTPUT%'
 
 mode = 3 #%MODE%
 boundary_condition = 'TurbineMassflowBoundaries' # '%BOUNDARY_CONDITION%'
@@ -70,6 +70,9 @@ plenum_z_n_cells = int(plenum_z_n_cells)
 # tube_n_cells -= tube_n_cells % tube_blocking_factor
 # tube_n_cells = int(tube_n_cells)
 
+# y0s = [-1.0/3.0, 0.0, +1.0/3.0]
+y0s = [0.0]
+n_tubes = len(y0s)
 
 RunOptions = {
   'cfl': 0.1,# / float(tube_n_cells / 64),
@@ -141,6 +144,7 @@ def Area(xi):
   Ax = 1.0 if xi < xi0 else A0 + (A1-A0)*(xi-xi0)/(xi1-xi0) if xi < xi1 else A1
   return Ax
 
+
 ControlOptions = {
   'Q': ArrheniusKinetics['Q'],
   'rpmmin': (10000.0 / 60.) * t_ref,
@@ -150,12 +154,10 @@ ControlOptions = {
   'target_pressure_compressor' : 6.0,
   'checkpoint': checkpoint,
   # Tube surface
-  'surface_area_tube_inlet': Area(-1.0) * D,
-  'surface_area_tube_outlet': Area(0.0) * D,
+  'surface_area_tube_inlet': (n_tubes * Area(-1.0) * D),
+  'surface_area_tube_outlet': (n_tubes * Area(0.0) * D),
   # Turbine volumes and surfaces
   'volume_turbine_plenum': TVolRPlen,
-  'surface_area_tube_inlet': (3.0 * Area(-1.0) * D),
-  'surface_area_tube_outlet': (3.0 * Area(0.0) * D),
   'surface_area_turbine_plenum_to_turbine': plenum_y_length,
   # Compressor volumes and surfaces
   'volume_compressor_plenum': TVolRPlen,
@@ -167,9 +169,6 @@ def ToCellIndex(x, xlo, xhi, ncells):
   x_rel = (x - xlo) / xlen
   i = int(x_rel * ncells)
   return i
-
-y0s = [-1.0/3.0, 0.0, +1.0/3.0]
-mach_1_boundaries = [ToCellIndex(y0, plenum_y_lower, plenum_y_upper, plenum_y_n_cells) for y0 in y0s]
 
 Plenum = {
   'checkpoint': checkpoint,
@@ -189,6 +188,10 @@ Plenum = {
     'remove_covered_grids': False,
     'n_proper': 1,
     'n_error_buf': [0, 0, 0]
+  },
+  'IntegratorContext': {
+    'scratch_gcw': 4,
+    'flux_gcw': 2,
   },
   'FluxMethod': FluxMethod,
   'InletGeometries': [{
@@ -281,7 +284,11 @@ Tubes = [{
     'refine_ratio': [2, 1, 1],
     'n_proper': 1,
     'n_error_buf': [4, 0, 0]
-  }
+  },
+  'IntegratorContext': {
+    'scratch_gcw': 6,
+    'flux_gcw': 4,
+  },
 } for (i, y_0) in enumerate(y0s)]
 
 mode_names = ['cellwise', 'average_mirror_state', 'average_ghost_state', 'average_massflow']
@@ -304,20 +311,6 @@ Output = {
     'type': 'HDF5',
     'path': '{}/Tube0.h5'.format(outputPath),
     'which_block': 1,
-    'intervals': [tube_intervals],
-    # 'frequencies': [1]
-  },
-  {
-    'type': 'HDF5',
-    'path': '{}/Tube1.h5'.format(outputPath),
-    'which_block': 2,
-    'intervals': [tube_intervals],
-    # 'frequencies': [1]
-  },
-  {
-    'type': 'HDF5',
-    'path': '{}/Tube2.h5'.format(outputPath),
-    'which_block': 3,
     'intervals': [tube_intervals],
     # 'frequencies': [1]
   },

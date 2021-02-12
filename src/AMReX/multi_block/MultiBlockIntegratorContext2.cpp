@@ -431,7 +431,7 @@ void MultiBlockIntegratorContext2::PreAdvanceHierarchy() {
     ctx.PreAdvanceHierarchy();
   }
 }
-
+ 
 void MultiBlockIntegratorContext2::PostAdvanceHierarchy(Duration dt) {
   for (cutcell::IntegratorContext& ctx : plena_) {
     ctx.PostAdvanceHierarchy();

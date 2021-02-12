@@ -35,13 +35,36 @@
 namespace fub::amrex {
 
 ////////////////////////////////////////////////////////////////////////////////
+//                                   IntegratorContextOptions
+
+#ifndef FUB_ASSIGN_OPTION_FROM_MAP
+#define FUB_ASSIGN_OPTION_FROM_MAP(map, var) var = GetOptionOr(map, #var, var)
+#endif
+IntegratorContextOptions::IntegratorContextOptions(
+    const ProgramOptions& options) {
+  FUB_ASSIGN_OPTION_FROM_MAP(options, scratch_gcw);
+  FUB_ASSIGN_OPTION_FROM_MAP(options, flux_gcw);
+  FUB_ASSIGN_OPTION_FROM_MAP(options, regrid_frequency);
+}
+
+#ifndef FUB_PRINT_OPTION_LOG
+#define FUB_PRINT_OPTION_LOG(log, var)                                         \
+  BOOST_LOG(log) << "  - " #var " = " << var;
+#endif
+void IntegratorContextOptions::Print(SeverityLogger& log) const {
+  FUB_PRINT_OPTION_LOG(log, scratch_gcw);
+  FUB_PRINT_OPTION_LOG(log, flux_gcw);
+  FUB_PRINT_OPTION_LOG(log, regrid_frequency);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 //                                   IntegratorContext::LevelData
 
 ////////////////////////////////////////////////////////////////////////////////
 // Move Assignment Operator
 
-IntegratorContext::LevelData&
-IntegratorContext::LevelData::operator=(LevelData&& other) noexcept {
+IntegratorContext::LevelData& IntegratorContext::LevelData::
+operator=(LevelData&& other) noexcept {
   if (other.coarse_fine.fineLevel() > 0) {
     // If we do not invoke clear in beforehand it will throw an error in AMReX
     coarse_fine.clear();
@@ -68,11 +91,11 @@ IntegratorContext::LevelData::operator=(LevelData&& other) noexcept {
 // Each adds a factor of two to the ghost cell width requirements on coarse fine
 // boundaries.
 IntegratorContext::IntegratorContext(
-    std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod hm)
-    : cell_ghost_cell_width_{hm.flux_method.GetStencilWidth() * 2 * 2},
-      face_ghost_cell_width_{cell_ghost_cell_width_ -
-                             hm.flux_method.GetStencilWidth()},
-      gridding_{std::move(gridding)}, data_{}, method_{std::move(hm)} {
+    std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod hm,
+    const IntegratorContextOptions& options)
+    : options_{options}, gridding_{std::move(gridding)}, data_{}, method_{
+                                                                      std::move(
+                                                                          hm)} {
   data_.reserve(
       static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
   // Allocate auxiliary data arrays for each refinement level in the hierarchy
@@ -92,8 +115,10 @@ IntegratorContext::IntegratorContext(
 IntegratorContext::IntegratorContext(
     std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod nm,
     int cell_gcw, int face_gcw)
-    : cell_ghost_cell_width_{cell_gcw}, face_ghost_cell_width_{face_gcw},
-      gridding_{std::move(gridding)}, data_{}, method_{std::move(nm)} {
+    : options_{}, gridding_{std::move(gridding)}, data_{}, method_{
+                                                               std::move(nm)} {
+  options_.scratch_gcw = cell_gcw;
+  options_.flux_gcw = face_gcw;
   data_.reserve(
       static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
   // Allocate auxiliary data arrays for each refinement level in the hierarchy
@@ -111,9 +136,7 @@ IntegratorContext::IntegratorContext(
 }
 
 IntegratorContext::IntegratorContext(const IntegratorContext& other)
-    : cell_ghost_cell_width_{other.cell_ghost_cell_width_},
-      face_ghost_cell_width_{other.face_ghost_cell_width_},
-      gridding_{other.gridding_},
+    : options_{other.options_}, gridding_{other.gridding_},
       data_(static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels())),
       method_{other.method_} {
   // Allocate auxiliary data arrays
@@ -128,8 +151,8 @@ IntegratorContext::IntegratorContext(const IntegratorContext& other)
   }
 }
 
-IntegratorContext& IntegratorContext::IntegratorContext::operator=(
-    const IntegratorContext& other) {
+IntegratorContext& IntegratorContext::IntegratorContext::
+operator=(const IntegratorContext& other) {
   // We use the copy and move idiom to provide the strong exception guarantee.
   // If an exception occurs we do not change the original object.
   IntegratorContext tmp{other};
@@ -154,6 +177,10 @@ const PatchHierarchy& IntegratorContext::GetPatchHierarchy() const noexcept {
 
 MPI_Comm IntegratorContext::GetMpiCommunicator() const noexcept {
   return ::amrex::ParallelContext::CommunicatorAll();
+}
+
+const IntegratorContextOptions& IntegratorContext::GetOptions() const noexcept {
+  return options_;
 }
 
 const std::shared_ptr<CounterRegistry>&
@@ -213,13 +240,13 @@ bool IntegratorContext::LevelExists(int level) const noexcept {
   return 0 <= level && level < GetPatchHierarchy().GetNumberOfLevels();
 }
 
-int IntegratorContext::GetRatioToCoarserLevel(int level,
-                                              Direction dir) const noexcept {
+int IntegratorContext::GetRatioToCoarserLevel(int level, Direction dir) const
+    noexcept {
   return GetPatchHierarchy().GetRatioToCoarserLevel(level, dir);
 }
 
-::amrex::IntVect
-IntegratorContext::GetRatioToCoarserLevel(int level) const noexcept {
+::amrex::IntVect IntegratorContext::GetRatioToCoarserLevel(int level) const
+    noexcept {
   return GetPatchHierarchy().GetRatioToCoarserLevel(level);
 }
 
@@ -254,16 +281,15 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
     const int n_comp =
         GetPatchHierarchy().GetDataDescription().n_state_components;
     ::amrex::IntVect grow = ::amrex::IntVect::TheZeroVector();
-    for (int i = 0; i < GetPatchHierarchy().GetDataDescription().dimension;
-         ++i) {
-      grow[i] = cell_ghost_cell_width_;
+    for (int i = 0; i < Rank(); ++i) {
+      grow[i] = options_.scratch_gcw;
     }
     data.scratch.define(ba, dm, n_comp, grow, mf_info);
     for (std::size_t d = 0; d < static_cast<std::size_t>(AMREX_SPACEDIM); ++d) {
       const ::amrex::BoxArray fba =
           ::amrex::convert(ba, ::amrex::IntVect::TheDimensionVector(int(d)));
       ::amrex::IntVect fgrow = grow;
-      fgrow[int(d)] = face_ghost_cell_width_;
+      fgrow[int(d)] = options_.flux_gcw;
       data.fluxes[d].define(fba, dm, n_cons_components, fgrow, mf_info);
       data.fluxes[d].setVal(0.0);
     }
