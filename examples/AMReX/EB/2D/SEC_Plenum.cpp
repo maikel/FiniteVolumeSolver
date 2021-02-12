@@ -174,12 +174,13 @@ auto MakeTubeSolver(const fub::ProgramOptions& options,
        kin = fub::KineticState<fub::PerfectGasMix<1>>(equation)](
           const fub::PerfectGasMix<1>& eq,
           fub::Complete<fub::PerfectGasMix<1>>& boundary_state,
-          const fub::KineticState<fub::PerfectGasMix<1>>& compressor_state,
+          const fub::perfect_gas_mix::gt::PlenumState& compressor_state,
           double inner_pressure, fub::Duration tp, const amrex::MultiFab&,
           const fub::amrex::GriddingAlgorithm&, int) mutable {
         const double dt = tp.count();
         kin.temperature = compressor_state.temperature;
-        kin.density = compressor_state.density;
+        kin.density = compressor_state.pressure / compressor_state.temperature *
+                      eq.ooRspec;
         if (dt > buffer) {
           kin.mole_fractions[0] = fill_f_val(dt - t_ignite_diff);
           kin.mole_fractions[1] = 1.0;
@@ -494,8 +495,8 @@ auto MakePlenumSolver(const std::map<std::string, pybind11::object>& options) {
     }
   }();
 
-  auto flux_method =
-      fub::amrex::cutcell::GetCutCellMethod(fub::GetOptions(options, "FluxMethod"), equation);
+  auto flux_method = fub::amrex::cutcell::GetCutCellMethod(
+      fub::GetOptions(options, "FluxMethod"), equation);
 
   HyperbolicMethod method{flux_method, TimeIntegrator{},
                           Reconstruction{equation}};
