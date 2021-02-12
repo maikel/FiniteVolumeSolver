@@ -27,6 +27,8 @@
 
 namespace fub::amrex {
 
+/// \brief get the inner box
+/// \param width number of cells
 ::amrex::Box GetInnerBox(const ::amrex::Box& box, int side, Direction dir,
                          int width) {
   const int dir_v = static_cast<int>(dir);
@@ -35,12 +37,12 @@ namespace fub::amrex {
   if (side == 0) {
     const ::amrex::IntVect lower_new = lower;
     ::amrex::IntVect upper_new = upper;
-    upper_new[dir_v] = lower_new[dir_v] + width;
+    upper_new[dir_v] = lower_new[dir_v] + width-1;
     return ::amrex::Box(lower_new, upper_new);
   }
   const ::amrex::IntVect upper_new = upper;
   ::amrex::IntVect lower_new = lower;
-  lower_new[dir_v] = upper_new[dir_v] - width;
+  lower_new[dir_v] = upper_new[dir_v] - width+1;
   return ::amrex::Box(lower_new, upper_new);
 }
 
