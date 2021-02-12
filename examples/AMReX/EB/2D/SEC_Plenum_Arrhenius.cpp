@@ -411,7 +411,7 @@ auto MakeTubeSolver(
 
   const double eps = std::sqrt(std::numeric_limits<double>::epsilon());
   auto switch_to_SEC_inflow_function =
-      [log, eps, source_term,
+      [eps, source_term,
        prim = fub::Primitive<fub::PerfectGasMix<1>>(equation)](
           const fub::PerfectGasMix<1>& eq,
           fub::Complete<fub::PerfectGasMix<1>>& boundary_state,
