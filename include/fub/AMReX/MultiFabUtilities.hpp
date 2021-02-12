@@ -27,6 +27,10 @@
 
 namespace fub::amrex {
 
+void Realloc(::amrex::MultiFab& mf, const ::amrex::BoxArray& ba,
+             const ::amrex::DistributionMapping& dm, int ncomp,
+             const ::amrex::IntVect& ngrow);
+
 ::amrex::Box GetInnerBox(const ::amrex::Box& box, int side, Direction dir, int width);
 
 double GetMeanValueInBox(const ::amrex::MultiFab& data, const ::amrex::Box& box,

@@ -56,6 +56,14 @@ public:
   explicit FluxMethod(const Base& fm) : FluxMethod(Tag(), fm) {}
   FluxMethod(Tag, const Base& fm);
   FluxMethod(Tag, Base&& fm);
+  
+  FluxMethod(const FluxMethod& other) : flux_method_(other.flux_method_) {}
+  FluxMethod(FluxMethod&& other) = default;
+  
+  FluxMethod& operator=(const FluxMethod& other) {
+     flux_method_ = other.flux_method_;
+  }
+  FluxMethod& operator=(FluxMethod&& other) = default;
 
   static constexpr int GetStencilWidth() noexcept;
 
@@ -71,6 +79,9 @@ public:
 
 private:
   Local<Tag, Base> flux_method_;
+  ::amrex::MultiFab gradient_x{};
+  ::amrex::MultiFab gradient_y{};
+  ::amrex::MultiFab gradient_z{};
 };
 
 template <typename F>
@@ -152,10 +163,6 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
   ::amrex::MultiFab& fluxes_sL = context.GetShieldedFromLeftFluxes(level, dir);
   ::amrex::MultiFab& fluxes_sR = context.GetShieldedFromRightFluxes(level, dir);
   ::amrex::MultiFab& fluxes_ds = context.GetDoublyShieldedFluxes(level, dir);
-
-  [[maybe_unused]] ::amrex::MultiFab gradient_x;
-  [[maybe_unused]] ::amrex::MultiFab gradient_y;
-  [[maybe_unused]] ::amrex::MultiFab gradient_z;
 
   const double dx = context.GetDx(level, dir);
   const Eigen::Matrix<double, AMREX_SPACEDIM, 1> dx_vec{AMREX_D_DECL(
