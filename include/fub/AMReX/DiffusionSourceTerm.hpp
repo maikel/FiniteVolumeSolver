@@ -63,7 +63,7 @@ public:
 
   Result<void, TimeStepTooLarge>
   AdvanceLevel(IntegratorContext& simulation_data, int level, Duration dt,
-               const ::amrex::IntVect& ngrow = ::amrex::IntVect()) const;
+               const ::amrex::IntVect& ngrow = ::amrex::IntVect());
 
   void ComputeDiffusionFluxes(::amrex::MultiFab& fluxes,
                               const ::amrex::MultiFab& scratch,
@@ -116,7 +116,7 @@ DiffusionSourceTerm<EulerEquation>::DiffusionSourceTerm(
 template <typename EulerEquation>
 Result<void, TimeStepTooLarge> DiffusionSourceTerm<EulerEquation>::AdvanceLevel(
     IntegratorContext& simulation_data, int level, Duration dt,
-    const ::amrex::IntVect&) const {
+    const ::amrex::IntVect&) {
   Timer advance_timer = simulation_data.GetCounterRegistry()->get_timer(
       "DiffusionSourceTerm::AdvanceLevel");
 
