@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Maikel Nadolski
+// Copyright (c) 2021 Maikel Nadolski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,6 +22,8 @@
 #define FUB_AMREX_AXIAL_HYPERBOLIC_SPLIT_TIME_INTEGRATOR_HPP
 
 #include "fub/AMReX/IntegratorContext.hpp"
+#include "fub/AMReX/ForEachIndex.hpp"
+#include "fub/AMReX/ForEachFab.hpp"
 #include "fub/Direction.hpp"
 #include "fub/Duration.hpp"
 #include "fub/State.hpp"

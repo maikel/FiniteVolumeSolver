@@ -428,6 +428,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     src/equations/ideal_gas_mix/KineticSourceTerm.cpp
     src/equations/perfect_gas_mix/IgnitionDelayKinetics.cpp
     src/equations/perfect_gas_mix/ArrheniusKinetics.cpp
+    src/equations/perfect_gas_mix/FluxMethodFactory.cpp
     src/AMReX/boundary_condition/BoundarySet.cpp
     src/AMReX/boundary_condition/TransmissiveBoundary.cpp
     src/AMReX/boundary_condition/IsentropicPressureBoundary.cpp
@@ -520,6 +521,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         include/fub/AMReX/cutcell/output/WritePlotfiles.hpp
         include/fub/AMReX/cutcell/output/PerfectGasProbesOutput.hpp
         include/fub/AMReX/cutcell/output/DebugOutput.hpp
+        src/equations/perfect_gas_mix/CutCellMethodFactory.cpp
         src/AMReX/cutcell/output/DebugOutput.cpp
         include/fub/AMReX/multi_block/MultiBlockBoundary.hpp
         include/fub/AMReX/multi_block/MultiBlockBoundary2.hpp

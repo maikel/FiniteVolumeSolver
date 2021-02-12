@@ -27,6 +27,7 @@
 
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/cutcell/IntegratorContext.hpp"
+#include "fub/AMReX/output/DebugOutput.hpp"
 
 #include "fub/AMReX/cutcell/tagging_method/TagBuffer.hpp"
 

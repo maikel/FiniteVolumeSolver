@@ -27,6 +27,9 @@
 #include "fub/cutcell_method/KbnStabilisation.hpp"
 #include "fub/ext/Log.hpp"
 
+#include "fub/flux_method/MusclHancockMethod2.hpp"
+#include "fub/equations/perfect_gas/HllemMethod.hpp"
+
 #include <map>
 #include <optional>
 #include <string>
@@ -47,11 +50,12 @@ GetCutCellMethod(const fub::ProgramOptions& options, const Equation& equation) {
       std::pair{"VanLeer"s, Limiter{fub::VanLeerLimiter{}}}};
 
   using HLLE =
-        fub::HllMethod<Equation, fub::EinfeldtSignalVelocities<Equation>>;
+      fub::HllMethod<Equation, fub::EinfeldtSignalVelocities<Equation>>;
   using HLLEM = fub::perfect_gas::HllemMethod<Equation, false>;
   using HLLEM_Lar = fub::perfect_gas::HllemMethod<Equation>;
 
-  using BaseMethod = std::variant<fub::Type<HLLE>, fub::Type<HLLEM>, fub::Type<HLLEM_Lar>>;
+  using BaseMethod =
+      std::variant<fub::Type<HLLE>, fub::Type<HLLEM>, fub::Type<HLLEM_Lar>>;
 
   const std::map<std::string, BaseMethod> base_methods{
       std::pair{"HLLE"s, BaseMethod{fub::Type<HLLE>{}}},
@@ -117,6 +121,13 @@ GetCutCellMethod(const fub::ProgramOptions& options, const Equation& equation) {
       },
       limiter, reconstruction, base_method);
 }
+
+extern template AnyFluxMethod<IntegratorContext>
+GetCutCellMethod<PerfectGasMix<1>>(const ProgramOptions& options,
+                                   const PerfectGasMix<1>& equation);
+extern template AnyFluxMethod<IntegratorContext>
+GetCutCellMethod<PerfectGasMix<2>>(const ProgramOptions& options,
+                                   const PerfectGasMix<2>& equation);
 } // namespace fub::amrex::cutcell
 
 #endif

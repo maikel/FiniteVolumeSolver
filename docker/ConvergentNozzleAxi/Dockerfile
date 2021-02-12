@@ -12,7 +12,7 @@ RUN conan install ../ -o AMReX:dim=2 --build missing
 ARG INCUBATOR_VER=unknown
 RUN git pull
 RUN cmake ../ -DCMAKE_BUILD_TYPE=Release
-RUN make AMReX.EB.Divider2D -j4
+RUN make AMReX.EB.ConvergentNozzleAxiSymmetric -j4
 
 FROM debian:testing
 RUN apt-get update
@@ -24,12 +24,11 @@ RUN useradd amrex -d /home/amrex
 RUN mkdir /home/amrex
 RUN chown amrex:amrex -R /home/amrex
 RUN chsh -s `which fish` amrex
-COPY --from=0 /FiniteVolumeSolver/build/examples/AMReX.EB.Divider2D /home/amrex/
-COPY amrex/ /home/amrex/amrex/
-COPY Divider /home/amrex/
-COPY VisualizeHdf5.py /home/amrex/
 ARG INCUBATOR_VER2=unknown
-COPY Divider2D.py /home/amrex/
+COPY --from=0 /FiniteVolumeSolver/build/examples/AMReX.EB.ConvergentNozzleAxiSymmetric /home/amrex/
+COPY amrex/ /home/amrex/amrex/
+COPY VisualizeHdf5.py /home/amrex/
+COPY ConvergentNozzleAxiSymmetric.py /home/amrex/
 RUN chown amrex:amrex -R /home/amrex/*
 USER amrex
 WORKDIR /home/amrex
