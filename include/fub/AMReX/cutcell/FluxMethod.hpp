@@ -27,6 +27,7 @@
 
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/cutcell/IntegratorContext.hpp"
+#include "fub/AMReX/output/DebugOutput.hpp"
 
 #include "fub/AMReX/cutcell/tagging_method/TagBuffer.hpp"
 
@@ -55,6 +56,14 @@ public:
   explicit FluxMethod(const Base& fm) : FluxMethod(Tag(), fm) {}
   FluxMethod(Tag, const Base& fm);
   FluxMethod(Tag, Base&& fm);
+  
+  FluxMethod(const FluxMethod& other) : flux_method_(other.flux_method_) {}
+  FluxMethod(FluxMethod&& other) = default;
+  
+  FluxMethod& operator=(const FluxMethod& other) {
+     flux_method_ = other.flux_method_;
+  }
+  FluxMethod& operator=(FluxMethod&& other) = default;
 
   static constexpr int GetStencilWidth() noexcept;
 
@@ -70,13 +79,16 @@ public:
 
 private:
   Local<Tag, Base> flux_method_;
+  ::amrex::MultiFab gradient_x{};
+  ::amrex::MultiFab gradient_y{};
+  ::amrex::MultiFab gradient_z{};
 };
 
 template <typename F>
-FluxMethod(F &&) -> FluxMethod<execution::OpenMpSimdTag, std::decay_t<F>>;
+FluxMethod(F&&) -> FluxMethod<execution::OpenMpSimdTag, std::decay_t<F>>;
 
 template <typename Tag, typename FM>
-FluxMethod(Tag, FM &&) -> FluxMethod<Tag, std::decay_t<FM>>;
+FluxMethod(Tag, FM&&) -> FluxMethod<Tag, std::decay_t<FM>>;
 
 template <typename Tag, typename FM>
 FluxMethod<Tag, FM>::FluxMethod(Tag, FM&& flux_method)
@@ -105,7 +117,8 @@ void FluxMethod<Tag, FM>::PreAdvanceHierarchy(IntegratorContext& context) {
     const PatchHierarchy& hierarchy = context.GetPatchHierarchy();
     for (int level = 0; level < hierarchy.GetNumberOfLevels(); ++level) {
       ::amrex::MultiFab& references = context.GetReferenceStates(level);
-      context.GetGriddingAlgorithm()->FillMultiFabFromLevel(references, level);
+      const ::amrex::MultiFab& scratch = context.GetScratch(level);
+      // context.GetGriddingAlgorithm()->FillMultiFabFromLevel(references, level);
       ForEachFab(Tag(), references, [&](const ::amrex::MFIter& mfi) {
         if (context.GetFabType(level, mfi) == ::amrex::FabType::singlevalued) {
           const Equation& eq = flux_method_->GetEquation();
@@ -113,7 +126,7 @@ void FluxMethod<Tag, FM>::PreAdvanceHierarchy(IntegratorContext& context) {
           View<Complete<Equation>> refs =
               MakeView<Complete<Equation>>(references[mfi], eq, box);
           View<const Complete<Equation>> states =
-              MakeView<const Complete<Equation>>(references[mfi], eq, box);
+              MakeView<const Complete<Equation>>(scratch[mfi], eq, box);
           CutCellData<AMREX_SPACEDIM> geom =
               hierarchy.GetCutCellData(level, mfi);
           flux_method_->PreAdvanceHierarchy(refs, states, geom);
@@ -151,10 +164,6 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
   ::amrex::MultiFab& fluxes_sL = context.GetShieldedFromLeftFluxes(level, dir);
   ::amrex::MultiFab& fluxes_sR = context.GetShieldedFromRightFluxes(level, dir);
   ::amrex::MultiFab& fluxes_ds = context.GetDoublyShieldedFluxes(level, dir);
-
-  [[maybe_unused]] ::amrex::MultiFab gradient_x;
-  [[maybe_unused]] ::amrex::MultiFab gradient_y;
-  [[maybe_unused]] ::amrex::MultiFab gradient_z;
 
   const double dx = context.GetDx(level, dir);
   const Eigen::Matrix<double, AMREX_SPACEDIM, 1> dx_vec{AMREX_D_DECL(
@@ -232,9 +241,11 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
             equation);
     DebugSnapshotProxy snapshot =
         debug.AddSnapshot(fmt::format("Gradients_{}", int(dir)));
-    snapshot.SaveData(gradient_x, AddPrefix(names, "GradX_"), geom);
-    snapshot.SaveData(gradient_y, AddPrefix(names, "GradY_"), geom);
-    snapshot.SaveData(gradient_z, AddPrefix(names, "GradZ_"), geom);
+    if (snapshot) {
+      snapshot.SaveData(gradient_x, AddPrefix(names, "GradX_"), geom);
+      snapshot.SaveData(gradient_y, AddPrefix(names, "GradY_"), geom);
+      snapshot.SaveData(gradient_z, AddPrefix(names, "GradZ_"), geom);
+    }
   }
 
   static constexpr int gcw = GetStencilWidth();
@@ -311,18 +322,20 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
   DebugStorage& debug = *hierarchy.GetDebugStorage();
   const ::amrex::Geometry& geom = hierarchy.GetGeometry(level);
   const Equation& equation = flux_method_->GetEquation();
-  const auto names =
-        VarNames<Conservative<Equation>, ::amrex::Vector<std::string>>(
-            equation);
   DebugSnapshotProxy snapshot =
       debug.AddSnapshot(fmt::format("Fluxes_{}", int(dir)));
-  snapshot.SaveData(fluxes, AddPrefix(names, "RegularFlux_"), geom);
-  snapshot.SaveData(fluxes_s, AddPrefix(names, "StableFlux_"), geom);
-  snapshot.SaveData(fluxes_sL, AddPrefix(names, "ShieldedFromLeftFlux_"), geom);
-  snapshot.SaveData(fluxes_sR, AddPrefix(names, "ShieldedFromRightFlux_"),
-                    geom);
-  snapshot.SaveData(boundary_fluxes.ToMultiFab(0.0, 0.0),
-                    AddPrefix(names, "BoundaryFlux_"), geom);
+  if (snapshot) {
+    const auto names =
+      VarNames<Conservative<Equation>, ::amrex::Vector<std::string>>(equation);
+    snapshot.SaveData(fluxes, AddPrefix(names, "RegularFlux_"), geom);
+    snapshot.SaveData(fluxes_s, AddPrefix(names, "StableFlux_"), geom);
+    snapshot.SaveData(fluxes_sL, AddPrefix(names, "ShieldedFromLeftFlux_"),
+                      geom);
+    snapshot.SaveData(fluxes_sR, AddPrefix(names, "ShieldedFromRightFlux_"),
+                      geom);
+    snapshot.SaveData(boundary_fluxes.ToMultiFab(0.0, 0.0),
+                      AddPrefix(names, "BoundaryFlux_"), geom);
+  }
 }
 
 template <typename Tag, typename FM>

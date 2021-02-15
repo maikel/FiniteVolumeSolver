@@ -187,7 +187,14 @@ install(
 find_package(fmt REQUIRED)
 find_package(Vc REQUIRED)
 find_package(HDF5 REQUIRED COMPONENTS C)
-find_package(pybind11 REQUIRED)
+find_package(Python COMPONENTS Interpreter Development REQUIRED)
+if (TARGET CONAN_PKG::pybind11)
+  message(STATUS "Use pybind11 from conan repository")
+  message(STATUS "pybind11 configs: ${CONAN_BUILD_MODULES_PATHS_PYBIND11}")
+  find_package(pybind11 CONFIGS "pybind11Install.cmake" REQUIRED)
+else()
+  find_package(pybind11 REQUIRED)
+endif()
 
 add_library(FiniteVolumeSolver.Solver
   include/fub/boundary_condition/TransmissiveBoundary.hpp
@@ -212,6 +219,8 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/ext/outcome.hpp
   include/fub/ext/Log.hpp
   include/fub/ext/Mpi.hpp
+  include/fub/PoolAllocator.hpp
+  src/PoolAllocator.cpp
   include/fub/flux_method/FluxMethod.hpp
   include/fub/flux_method/GodunovMethod.hpp
   include/fub/flux_method/HllMethod.hpp
@@ -419,6 +428,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     src/equations/ideal_gas_mix/KineticSourceTerm.cpp
     src/equations/perfect_gas_mix/IgnitionDelayKinetics.cpp
     src/equations/perfect_gas_mix/ArrheniusKinetics.cpp
+    src/equations/perfect_gas_mix/FluxMethodFactory.cpp
     src/AMReX/boundary_condition/BoundarySet.cpp
     src/AMReX/boundary_condition/TransmissiveBoundary.cpp
     src/AMReX/boundary_condition/IsentropicPressureBoundary.cpp
@@ -511,6 +521,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         include/fub/AMReX/cutcell/output/WritePlotfiles.hpp
         include/fub/AMReX/cutcell/output/PerfectGasProbesOutput.hpp
         include/fub/AMReX/cutcell/output/DebugOutput.hpp
+        src/equations/perfect_gas_mix/CutCellMethodFactory.cpp
         src/AMReX/cutcell/output/DebugOutput.cpp
         include/fub/AMReX/multi_block/MultiBlockBoundary.hpp
         include/fub/AMReX/multi_block/MultiBlockBoundary2.hpp
@@ -635,7 +646,7 @@ endif()
 ################################################################################
 # Doxygen target
 
-find_package(Doxygen)
+find_package(Doxygen QUIET)
 if (DOXYGEN_FOUND)
     # set input and output files
     set(DOXYGEN_IN ${PROJECT_SOURCE_DIR}/docs/Doxyfile.in)

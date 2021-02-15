@@ -36,11 +36,23 @@
 namespace fub::amrex {
 
 /// \defgroup IntegratorContext Integrator Contexts
-/// \brief This group summarizes all classes and functions that are realted to integrator contexts.
+/// \brief This group summarizes all classes and functions that are realted to
+/// integrator contexts.
 
 class IntegratorContext;
 
 using HyperbolicMethod = ::fub::HyperbolicMethod<IntegratorContext>;
+
+struct IntegratorContextOptions {
+  IntegratorContextOptions() = default;
+  IntegratorContextOptions(const ProgramOptions& options);
+
+  void Print(SeverityLogger& log) const;
+
+  int scratch_gcw{4};
+  int flux_gcw{2};
+  int regrid_frequency{1};
+};
 
 /// \ingroup IntegratorContext
 ///
@@ -53,8 +65,9 @@ public:
 
   /// \brief Constructs a context object from given a gridding algorithm and a
   /// numerical method.
-  IntegratorContext(std::shared_ptr<GriddingAlgorithm> gridding,
-                    HyperbolicMethod method);
+  IntegratorContext(
+      std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod method,
+      const IntegratorContextOptions& options = IntegratorContextOptions());
 
   IntegratorContext(std::shared_ptr<GriddingAlgorithm> gridding,
                     HyperbolicMethod method, int cell_gcw, int face_gcw);
@@ -94,6 +107,9 @@ public:
 
   /// \brief Returns the MPI communicator which is associated with this context.
   [[nodiscard]] MPI_Comm GetMpiCommunicator() const noexcept;
+
+  /// \brief Returns the integrator context options
+  const IntegratorContextOptions& GetOptions() const noexcept;
   /// @}
 
   /// @{
@@ -270,8 +286,7 @@ private:
     std::ptrdiff_t cycles{};
   };
 
-  int cell_ghost_cell_width_;
-  int face_ghost_cell_width_{cell_ghost_cell_width_};
+  IntegratorContextOptions options_;
   std::shared_ptr<GriddingAlgorithm> gridding_;
   std::vector<LevelData> data_;
   HyperbolicMethod method_;

@@ -61,9 +61,10 @@ PatchLevel& PatchLevel::operator=(const PatchLevel& other) = default;
 
 PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
                        const ::amrex::DistributionMapping& dm, int n_components,
+                       const ::amrex::MFInfo& mf_info,
                        std::shared_ptr<::amrex::EBFArrayBoxFactory> f,
                        int ngrow)
-    : ::fub::amrex::PatchLevel(level, tp, ba, dm, n_components, *f),
+    : ::fub::amrex::PatchLevel(level, tp, ba, dm, n_components, mf_info, *f),
       factory(std::move(f)),
       unshielded(MakeMultiCutFabs_(ba, dm, *factory, ngrow)),
       shielded_left(MakeMultiCutFabs_(ba, dm, *factory, ngrow)),
@@ -357,7 +358,7 @@ PatchHierarchy ReadCheckpointFile(const std::string& checkpointname,
 
     hierarchy.GetPatchLevel(lev) = PatchLevel(
         lev, Duration(time_points[static_cast<std::size_t>(lev)]), ba, dm,
-        desc.n_state_components, std::move(eb_factory), ngrow - 1);
+        desc.n_state_components, hierarchy.GetMFInfo(), std::move(eb_factory), ngrow - 1);
     hierarchy.GetPatchLevel(lev).cycles = cycles[static_cast<std::size_t>(lev)];
   }
 

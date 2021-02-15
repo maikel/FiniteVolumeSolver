@@ -230,7 +230,8 @@ public:
     const ::amrex::IntVect smallEnd{boundary_n, cells.smallEnd(1)};
     const ::amrex::IntVect bigEnd = cells.bigEnd();
     const ::amrex::Box right_cell_boundary{smallEnd, bigEnd};
-    const ::amrex::Box faces_x = ::amrex::convert(right_cell_boundary, {1, 0});
+    const ::amrex::Box faces_x = ::amrex::convert(
+        right_cell_boundary, ::amrex::IntVect{AMREX_D_DECL(1, 0, 0)});
     const ::amrex::IntVect fsmallEnd = faces_x.smallEnd();
     const ::amrex::IntVect fbigEnd = {faces_x.smallEnd(0), faces_x.bigEnd(1)};
     const ::amrex::Box right_face_boundary{fsmallEnd, fbigEnd,

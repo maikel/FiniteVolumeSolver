@@ -37,6 +37,9 @@
 #include "fub/AMReX/AxialTimeIntegrator.hpp"
 #include "fub/AMReX/FluxMethodAdapter.hpp"
 #include "fub/AMReX/TimeIntegrator.hpp"
+#include "fub/AMReX/IntegratorContext.hpp"
+
+#include "fub/equations/PerfectGasMix.hpp"
 
 #include <map>
 #include <optional>
@@ -132,6 +135,7 @@ GetFluxMethod(const fub::ProgramOptions& options,
   if constexpr (Equation::Rank() == 1) {
     using Limiter = std::variant<fub::NoLimiter2, fub::UpwindLimiter,
                                  fub::MinModLimiter, fub::VanLeerLimiter>;
+    // using Limiter = std::variant<fub::VanLeerLimiter>;
     using namespace std::literals;
 
     const std::map<std::string, Limiter> limiters{
@@ -147,6 +151,7 @@ GetFluxMethod(const fub::ProgramOptions& options,
 
     using BaseMethod =
         std::variant<fub::Type<HLLE>, fub::Type<HLLEM>, fub::Type<HLLEM_Lar>>;
+    // std::variant<fub::Type<HLLEM_Lar>>;
 
     const std::map<std::string, BaseMethod> base_methods{
         std::pair{"HLLE"s, BaseMethod{fub::Type<HLLE>{}}},
@@ -256,6 +261,12 @@ GetFluxMethod(const fub::ProgramOptions& options,
   } else {
   }
 }
+
+extern template std::pair<fub::AnyFluxMethod<fub::amrex::IntegratorContext>,
+                          fub::AnyTimeIntegrator<fub::amrex::IntegratorContext>>
+GetFluxMethod<PerfectGasMix<1>>(const fub::ProgramOptions& options,
+                                const fub::amrex::PatchHierarchy& hier,
+                                const PerfectGasMix<1>& equation);
 } // namespace fub::amrex
 
 #endif

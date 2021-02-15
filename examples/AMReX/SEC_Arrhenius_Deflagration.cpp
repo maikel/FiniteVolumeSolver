@@ -174,17 +174,17 @@ void MyMain(const fub::ProgramOptions& options) {
       };
 
   fub::ProgramOptions compressor_options = fub::GetOptions(options, "CompressorState");
-  std::shared_ptr compressor_state = std::make_shared<fub::perfect_gas_mix::gt::PlenumState>();
-  compressor_state->pressure = fub::GetOptionOr(compressor_options, "pressure", 1.0);
-  compressor_state->temperature = fub::GetOptionOr(compressor_options, "temperature", 1.0);
+  std::shared_ptr control_state = std::make_shared<fub::perfect_gas_mix::gt::ControlState>();
+  control_state->compressor.pressure = fub::GetOptionOr(compressor_options, "pressure", 1.0);
+  control_state->compressor.temperature = fub::GetOptionOr(compressor_options, "temperature", 1.0);
   BOOST_LOG(log) << "CompressorState:";
-  BOOST_LOG(log) << fmt::format("  - pressure = {}", compressor_state->pressure);
-  BOOST_LOG(log) << fmt::format("  - temperature = {}", compressor_state->temperature);;
+  BOOST_LOG(log) << fmt::format("  - pressure = {}", control_state->compressor.pressure);
+  BOOST_LOG(log) << fmt::format("  - temperature = {}", control_state->compressor.temperature);
 
   using DeflagrationValve = fub::amrex::GenericPressureValveBoundary<
       fub::PerfectGasMix<1>, std::decay_t<decltype(inflow_function)>,
       ChangeTOpened, IsNeverBlocked>;
-  DeflagrationValve valve(equation, compressor_state, inflow_function);
+  DeflagrationValve valve(equation, control_state, inflow_function);
 
   fub::amrex::BoundarySet boundary;
   boundary.conditions.push_back(valve);

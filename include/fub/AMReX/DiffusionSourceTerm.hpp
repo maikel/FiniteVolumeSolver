@@ -22,6 +22,7 @@
 #define FUB_AMREX_DIFFUSION_SOURCE_TERM_HPP
 
 #include "fub/AMReX/IntegratorContext.hpp"
+#include "fub/AMReX/MultiFabUtilities.hpp"
 #include "fub/AMReX/TimeIntegrator.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/AMReX/boundary_condition/BoundaryConditionRef.hpp"
@@ -57,12 +58,21 @@ public:
       const EulerEquation& equation,
       const DiffusionSourceTermOptions& options = DiffusionSourceTermOptions());
 
+  DiffusionSourceTerm(const DiffusionSourceTerm& other)
+      : equation_{other.equation_} {}
+  DiffusionSourceTerm(DiffusionSourceTerm&& other) = default;
+
+  DiffusionSourceTerm& operator=(const DiffusionSourceTerm& other) {
+    equation_ = other.equation_;
+  }
+  DiffusionSourceTerm& operator=(DiffusionSourceTerm&& other) = default;
+
   Duration ComputeStableDt(const amrex::IntegratorContext& simulation_data,
                            int level) const;
 
   Result<void, TimeStepTooLarge>
   AdvanceLevel(IntegratorContext& simulation_data, int level, Duration dt,
-               const ::amrex::IntVect& ngrow = ::amrex::IntVect()) const;
+               const ::amrex::IntVect& ngrow = ::amrex::IntVect());
 
   void ComputeDiffusionFluxes(::amrex::MultiFab& fluxes,
                               const ::amrex::MultiFab& scratch,
@@ -76,6 +86,8 @@ public:
 
 private:
   EulerEquation equation_;
+  ::amrex::MultiFab fluxes_diffusion;
+  ::amrex::MultiFab scratch_aux;
 
   struct Constants {
     Constants(const DiffusionSourceTermOptions& o) {
@@ -113,23 +125,24 @@ DiffusionSourceTerm<EulerEquation>::DiffusionSourceTerm(
 template <typename EulerEquation>
 Result<void, TimeStepTooLarge> DiffusionSourceTerm<EulerEquation>::AdvanceLevel(
     IntegratorContext& simulation_data, int level, Duration dt,
-    const ::amrex::IntVect&) const {
+    const ::amrex::IntVect&) {
   Timer advance_timer = simulation_data.GetCounterRegistry()->get_timer(
       "DiffusionSourceTerm::AdvanceLevel");
 
   ::amrex::MultiFab& scratch = simulation_data.GetScratch(level);
   const ::amrex::MultiFab& fluxes =
       simulation_data.GetFluxes(level, Direction::X);
-  ::amrex::MultiFab fluxes_diffusion(fluxes.boxArray(),
-                                     fluxes.DistributionMap(), fluxes.nComp(),
-                                     ::amrex::IntVect::TheDimensionVector(0));
+  const ::amrex::IntVect grow_vect =
+      scratch.nGrowVect()[0] * ::amrex::IntVect::TheDimensionVector(0);
+  Realloc(fluxes_diffusion, fluxes.boxArray(), fluxes.DistributionMap(),
+          fluxes.nComp(), grow_vect);
   const ::amrex::Geometry& geom = simulation_data.GetGeometry(level);
   const double dx = geom.CellSize(0);
   const double dxinv = 1.0 / dx;
   // 1.) Compute diffusion fluxes from the current scratch grid.
   ComputeDiffusionFluxes(fluxes_diffusion, scratch, dxinv);
-  ::amrex::MultiFab scratch_aux(scratch.boxArray(), scratch.DistributionMap(),
-                                scratch.nComp(), ::amrex::IntVect::TheDimensionVector(0));
+  Realloc(scratch_aux, scratch.boxArray(), scratch.DistributionMap(),
+          scratch.nComp(), grow_vect);
   // 2.) Compute the half-timestep state including one ghost cell and store then
   // in scratch_aux
   ForwardIntegrator(execution::simd)
@@ -159,13 +172,8 @@ Result<void, TimeStepTooLarge> DiffusionSourceTerm<EulerEquation>::AdvanceLevel(
   // valid cell states on scratch
   Reconstruction(execution::simd, equation_).CompleteFromCons(scratch, scratch);
   FUB_ASSERT(!scratch.contains_nan());
-  // 7.) Synchronize all ghost cells across MPI processes to get valid ghost
-  // cells.
-  if (level > 0) {
-    simulation_data.FillGhostLayerTwoLevels(level, level - 1);
-  } else {
-    simulation_data.FillGhostLayerSingleLevel(level);
-  }
+  // 7.) Apply physical boundary condition, do NOT sync inner patch ghost cells
+  simulation_data.ApplyBoundaryCondition(level, Direction::X);
 
   return boost::outcome_v2::success();
 }
@@ -220,7 +228,8 @@ Duration DiffusionSourceTerm<EulerEquation>::ComputeStableDt(
     const amrex::IntegratorContext& simulation_data, int level) const {
   const ::amrex::Geometry& level_geometry = simulation_data.GetGeometry(level);
   const double dx = level_geometry.CellSize(0);
-  return Duration(0.5 * dx * dx / ( constants_.mul * constants_.reynolds_invers ));
+  return Duration(0.5 * dx * dx /
+                  (constants_.mul * constants_.reynolds_invers));
 }
 
 template <typename EulerEquation>

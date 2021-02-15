@@ -393,7 +393,7 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
 
 void WriteCheckpoint(
     const std::string& path,
-    const fub::amrex::MultiBlockGriddingAlgorithm& grid,
+    const fub::amrex::MultiBlockGriddingAlgorithm2& grid,
     fub::span<const std::shared_ptr<fub::amrex::PressureValve>> valves,
     int rank, const fub::amrex::MultiBlockIgniteDetonation& ignition) {
   auto tubes = grid.GetTubes();
@@ -424,7 +424,7 @@ void WriteCheckpoint(
 }
 
 struct CheckpointOutput : fub::OutputAtFrequencyOrInterval<
-                              fub::amrex::MultiBlockGriddingAlgorithm> {
+                              fub::amrex::MultiBlockGriddingAlgorithm2> {
   CheckpointOutput(
       const fub::ProgramOptions& options,
       std::vector<std::shared_ptr<fub::amrex::PressureValve>> valves,
@@ -439,7 +439,7 @@ struct CheckpointOutput : fub::OutputAtFrequencyOrInterval<
   }
 
   void
-  operator()(const fub::amrex::MultiBlockGriddingAlgorithm& grid) override {
+  operator()(const fub::amrex::MultiBlockGriddingAlgorithm2& grid) override {
     int rank = -1;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     boost::log::sources::severity_logger<boost::log::trivial::severity_level>
@@ -557,61 +557,63 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::IdealGasMix<Tube_Rank> tube_equation{mechanism};
   fub::IdealGasMix<Plenum_Rank> plenum_equation{mechanism};
 
-  fub::amrex::MultiBlockIntegratorContext context(
-      fub::FlameMasterReactor(mechanism), std::move(tubes), std::move(plenum),
+  fub::amrex::MultiBlockIntegratorContext2 context(
+      tube_equation, plenum_equation, std::move(tubes), std::move(plenum),
       std::move(connectivity));
 
   fub::DimensionalSplitLevelIntegrator system_solver(
-      fub::int_c<Plenum_Rank>, std::move(context), fub::StrangSplitting{});
-  // fub::int_c<Plenum_Rank>, std::move(context), fub::GodunovSplitting{});
+      //    fub::int_c<Plenum_Rank>, std::move(context),
+      //    fub::StrangSplitting{});
+      fub::int_c<Plenum_Rank>, std::move(context), fub::GodunovSplitting{});
 
-  std::vector<fub::amrex::AxialSourceTerm> axial_sources;
-  std::vector<pybind11::dict> dicts{};
-  dicts = fub::GetOptionOr(options, "Tubes", dicts);
-  int k = 0;
-  for (auto&& tube : system_solver.GetContext().Tubes()) {
+  // std::vector<fub::amrex::AxialSourceTerm> axial_sources;
+  // std::vector<pybind11::dict> dicts{};
+  // dicts = fub::GetOptionOr(options, "Tubes", dicts);
+  // int k = 0;
+  // for (auto&& tube : system_solver.GetContext().Tubes()) {
 
-    fub::ProgramOptions tube_options = fub::ToMap(dicts[k]);
-    fub::ProgramOptions geometry_options =
-        fub::GetOptions(tube_options, "TubeGeometry");
+  //   fub::ProgramOptions tube_options = fub::ToMap(dicts[k]);
+  //   fub::ProgramOptions geometry_options =
+  //       fub::GetOptions(tube_options, "TubeGeometry");
 
-    const double d_tube = fub::GetOptionOr(geometry_options, "d_tube", 0.03);
-    const double d_blende =
-        fub::GetOptionOr(geometry_options, "d_blende", 0.0226);
+  //   const double d_tube = fub::GetOptionOr(geometry_options, "d_tube", 0.03);
+  //   const double d_blende =
+  //       fub::GetOptionOr(geometry_options, "d_blende", 0.0226);
 
-    auto diameter_h = [=](double x, double y, double x0, double d) -> double {
-      if (x < x0 - d || x0 + d < x) {
-        return y;
-      }
-      const double lambda = std::clamp(0.5 * (d + x0 - x) / d, 0.0, 1.0);
-      return lambda * d_blende + (1.0 - lambda) * y;
-    };
+  //   auto diameter_h = [=](double x, double y, double x0, double d) -> double
+  //   {
+  //     if (x < x0 - d || x0 + d < x) {
+  //       return y;
+  //     }
+  //     const double lambda = std::clamp(0.5 * (d + x0 - x) / d, 0.0, 1.0);
+  //     return lambda * d_blende + (1.0 - lambda) * y;
+  //   };
 
-    std::vector<double> positions{0.085, 0.085 + 0.087, 0.085 + 2 * 0.087,
-                                  0.085 + 3 * 0.087, 0.085 + 4 * 0.087};
-    positions = fub::GetOptionOr(geometry_options, "positions", positions);
+  //   std::vector<double> positions{0.085, 0.085 + 0.087, 0.085 + 2 * 0.087,
+  //                                 0.085 + 3 * 0.087, 0.085 + 4 * 0.087};
+  //   positions = fub::GetOptionOr(geometry_options, "positions", positions);
 
-    auto diameter = [=](double x) -> double {
-      double y = d_tube;
-      for (const double position : positions) {
-        y = diameter_h(x, y, position, 0.004);
-      }
-      return y;
-    };
+  //   auto diameter = [=](double x) -> double {
+  //     double y = d_tube;
+  //     for (const double position : positions) {
+  //       y = diameter_h(x, y, position, 0.004);
+  //     }
+  //     return y;
+  //   };
 
-    axial_sources.emplace_back(tube_equation, diameter,
-                               tube.GetGriddingAlgorithm());
-  }
+  //   axial_sources.emplace_back(tube_equation, diameter,
+  //                              tube.GetGriddingAlgorithm());
+  // }
 
-  fub::amrex::MultiBlockSourceTerm<fub::amrex::AxialSourceTerm> axial_term(
-      axial_sources);
+  // fub::amrex::MultiBlockSourceTerm<fub::amrex::AxialSourceTerm> axial_term(
+  //     axial_sources);
 
-  fub::SplitSystemSourceLevelIntegrator axial_solver(
-      std::move(system_solver), std::move(axial_term),
-      fub::StrangSplittingLumped{});
+  // fub::SplitSystemSourceLevelIntegrator axial_solver(
+  //     std::move(system_solver), std::move(axial_term),
+  //     fub::StrangSplittingLumped{});
 
-  const std::size_t n_tubes = axial_solver.GetContext().Tubes().size();
-  const int max_number_of_levels = axial_solver.GetContext()
+  const std::size_t n_tubes = system_solver.GetContext().Tubes().size();
+  const int max_number_of_levels = system_solver.GetContext()
                                        .Tubes()[0]
                                        .GetPatchHierarchy()
                                        .GetMaxNumberOfLevels();
@@ -650,7 +652,8 @@ void MyMain(const fub::ProgramOptions& options) {
   }
 
   fub::SplitSystemSourceLevelIntegrator ign_solver(
-      std::move(axial_solver), std::move(ignition), fub::GodunovSplitting{});
+      // std::move(axial_solver), std::move(ignition), fub::GodunovSplitting{});
+      std::move(system_solver), std::move(ignition), fub::GodunovSplitting{});
 
   fub::amrex::MultiBlockKineticSouceTerm source_term(tube_equation);
 
@@ -661,18 +664,23 @@ void MyMain(const fub::ProgramOptions& options) {
   // fub::NoSubcycleSolver solver(std::move(level_integrator));
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
-  fub::OutputFactory<fub::amrex::MultiBlockGriddingAlgorithm> factory{};
-  factory.RegisterOutput<fub::amrex::MultiWriteHdf5>("HDF5");
-  factory.RegisterOutput<fub::amrex::MultiBlockPlotfileOutput>("Plotfile");
+  fub::OutputFactory<fub::amrex::MultiBlockGriddingAlgorithm2> factory{};
+  factory.RegisterOutput<fub::amrex::MultiWriteHdf5WithNames>(
+      "HDF5", plenum_equation, tube_equation);
+  using PlotfileOutput =
+      fub::amrex::MultiBlockPlotfileOutput2<fub::IdealGasMix<Tube_Rank>,
+                                            fub::IdealGasMix<Plenum_Rank>>;
+  factory.RegisterOutput<PlotfileOutput>("Plotfile", tube_equation,
+                                         plenum_equation);
   factory.RegisterOutput<fub::amrex::LogProbesOutput>("LogProbes");
   factory.RegisterOutput<CheckpointOutput>(
       "Checkpoint", valves,
       &solver.GetLevelIntegrator().GetSystem().GetSource());
   using CounterOutput =
-      fub::CounterOutput<fub::amrex::MultiBlockGriddingAlgorithm,
+      fub::CounterOutput<fub::amrex::MultiBlockGriddingAlgorithm2,
                          std::chrono::milliseconds>;
   factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
-  fub::MultipleOutputs<fub::amrex::MultiBlockGriddingAlgorithm> outputs(
+  fub::MultipleOutputs<fub::amrex::MultiBlockGriddingAlgorithm2> outputs(
       std::move(factory), fub::GetOptions(options, "Output"));
 
   BOOST_LOG(log) << "RunOptions:";
@@ -683,12 +691,18 @@ void MyMain(const fub::ProgramOptions& options) {
 }
 
 int main(int argc, char** argv) {
-  // fub::EnableFloatingPointExceptions();
-  MPI_Init(nullptr, nullptr);
-  fub::InitializeLogging(MPI_COMM_WORLD);
+  _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+  int provided{-1};
+  MPI_Init_thread(nullptr, nullptr, MPI_THREAD_FUNNELED, &provided);
+  if (provided < MPI_THREAD_FUNNELED) {
+    fmt::print(
+        "Aborting execution. MPI could not provide a thread-safe instance.\n");
+    MPI_Abort(MPI_COMM_WORLD, 1);
+  }
   pybind11::scoped_interpreter interpreter{};
   std::optional<fub::ProgramOptions> opts = fub::ParseCommandLine(argc, argv);
   if (opts) {
+    fub::InitializeLogging(MPI_COMM_WORLD, fub::GetOptions(*opts, "LogOptions"));
     MyMain(*opts);
   }
   int flag = -1;
