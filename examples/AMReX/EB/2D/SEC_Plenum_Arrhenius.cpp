@@ -408,24 +408,27 @@ auto MakeTubeSolver(
   // fub::amrex::PressureValveBoundary_Klein valve(equation, compressor_state,
   //                                               inflow_function);
 
+  fub::ProgramOptions SEC_options =
+      fub::GetOptions(options, "InflowOptionsSEC");
+  double SEC_buffer = fub::GetOptionOr(SEC_options, "SEC_buffer", 0.06);
+  double SEC_tti = fub::GetOptionOr(SEC_options, "SEC_tti", 1.2);
+  double SEC_timin = fub::GetOptionOr(SEC_options, "SEC_timin", 0.1);
+  BOOST_LOG(log) << "InflowOptionsSEC:";
+  BOOST_LOG(log) << "  - SEC_buffer = " << SEC_buffer;
+  BOOST_LOG(log) << "  - SEC_tti = " << SEC_tti;
+  BOOST_LOG(log) << "  - SEC_timin = " << SEC_timin;
+
   const double eps = std::sqrt(std::numeric_limits<double>::epsilon());
   auto switch_to_SEC_inflow_function =
-      [eps, source_term,
+      [eps, source_term, SEC_buffer, SEC_tti, SEC_timin,
        prim = fub::Primitive<fub::PerfectGasMix<1>>(equation)](
           const fub::PerfectGasMix<1>& eq,
           fub::Complete<fub::PerfectGasMix<1>>& boundary_state,
           const fub::perfect_gas_mix::gt::PlenumState& compressor_state,
           double inner_pressure, fub::Duration t_diff, const amrex::MultiFab&,
           const fub::amrex::GriddingAlgorithm&, int) mutable {
-        // const fub::Duration t = gridding.GetTimePoint();
-        // BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "GenericPressureValve");
-        // BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", t.count());
-
         if (!compressor_state.SEC_Mode) {
-          // BOOST_LOG(log) << fmt::format(
-          //   "Inflow Deflagrationmode with innerpressure = {}",
-          //     inner_pressure);
-          // fixed fuel concentration in deflagration mode
+          // Deflagration Mode
           const double X_inflow_left = 1.0;
 
           const double p_inflow_left = compressor_state.pressure;
@@ -453,13 +456,11 @@ auto MakeTubeSolver(
 
           fub::CompleteFromPrim(eq, boundary_state, prim);
         } else {
-          // BOOST_LOG(log) << fmt::format(
-          //   "Inflow SEC_Mode with innerpressure = {}",
-          //     inner_pressure);
+          // SEC Mode
           const double fuel_retardatation =
-              0.06;               /* Reference: 0.06;   for icx = 256:  0.1*/
-          const double tti = 1.2; /* Reference: 0.75; */
-          const double timin = 0.1;
+              SEC_buffer; /* Reference: 0.06;   for icx = 256:  0.1*/
+          const double tti = SEC_tti;     /* Reference: 0.75; best 1.2 */
+          const double timin = SEC_timin; /* Reference: 0.1 */
           const double X_inflow_left = 1.0;
 
           const double p_inflow_left = compressor_state.pressure;
