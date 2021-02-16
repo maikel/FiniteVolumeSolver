@@ -34,7 +34,8 @@ namespace fub::amrex {
 /// \ingroup IntegratorContext
 class MultiBlockIntegratorContext2 {
 public:
-  using FeedbackFn = std::function<void(MultiBlockIntegratorContext2&, Duration)>;
+  using FeedbackFn =
+      std::function<void(MultiBlockIntegratorContext2&, Duration)>;
 
   template <typename TubeEquation, typename PlenumEquation>
   MultiBlockIntegratorContext2(const TubeEquation& tube_equation,
@@ -52,6 +53,10 @@ public:
 
   [[nodiscard]] const std::shared_ptr<MultiBlockGriddingAlgorithm2>&
   GetGriddingAlgorithm() const noexcept;
+
+  const IntegratorContextOptions& GetOptions() const noexcept {
+    return plena_[0].GetOptions();
+  }
 
   /// \brief Returns the current time level for data at the specified refinement
   /// level and direction.
@@ -107,8 +112,9 @@ public:
 
   /// \brief Sets the time point for a specific level number and direction.
   void SetTimePoint(Duration t, int level);
-  
-  /// \brief Sets a feedback function that will be called in PostAdvanceHierarchy.
+
+  /// \brief Sets a feedback function that will be called in
+  /// PostAdvanceHierarchy.
   ///
   /// This is used to inject user defined behaviour after each time step
   void SetPostAdvanceHierarchyFeedback(FeedbackFn feedback);
