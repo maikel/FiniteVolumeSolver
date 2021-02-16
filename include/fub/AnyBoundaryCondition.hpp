@@ -27,6 +27,7 @@
 #include "fub/Meta.hpp"
 
 #include <memory>
+#include <typeinfo>
 
 namespace fub {
 
@@ -46,6 +47,9 @@ template <typename GriddingAlgorithm> struct BoundaryConditionBase {
                             int level) = 0;
   virtual void FillBoundary(DataReference mf, const GriddingAlgorithm& gridding,
                             int level, Direction dir) = 0;
+
+  virtual const std::type_info& GetTypeInfo() const noexcept = 0;
+  virtual void* GetPointer() noexcept = 0;
 };
 } // namespace detail
 
@@ -103,6 +107,20 @@ public:
                     int level, Direction dir);
   /// @}
 
+  /// \brief Try to cast this boundary condition to type BC.
+  ///
+  /// If the stored boundary condition is not of type BC then a nullptr is returned.
+  template <typename BC>
+  BC* Cast() {
+    if (boundary_condition_) {
+      const std::type_info& this_bc_type = boundary_condition_->GetTypeInfo();
+      if (this_bc_type == typeid(BC)) {
+        return static_cast<BC*>(boundary_condition_->GetPointer());
+      }
+    }
+    return nullptr;
+  }
+
 private:
   std::unique_ptr<detail::BoundaryConditionBase<GriddingAlgorithm>>
       boundary_condition_{};
@@ -143,6 +161,14 @@ struct BoundaryConditionWrapper
   void FillBoundary(DataReference data, const GriddingAlgorithm& gridding,
                     int level, Direction dir) override {
     boundary_condition_.FillBoundary(data, gridding, level, dir);
+  }
+
+  const std::type_info& GetTypeInfo() const noexcept override {
+    return typeid(BC);
+  }
+
+  void* GetPointer() noexcept override {
+    return std::addressof(boundary_condition_);
   }
 
   BC boundary_condition_;

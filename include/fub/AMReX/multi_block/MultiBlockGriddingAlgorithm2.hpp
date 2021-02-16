@@ -32,6 +32,7 @@
 
 #include "fub/core/span.hpp"
 #include <range/v3/view/enumerate.hpp>
+#include <range/v3/view/zip.hpp>
 
 namespace fub {
 namespace amrex {
@@ -94,18 +95,39 @@ MultiBlockGriddingAlgorithm2::MultiBlockGriddingAlgorithm2(
       connectivity_(std::move(connectivity)) {
   const int nlevel = plena_[0]->GetPatchHierarchy().GetMaxNumberOfLevels();
   boundaries_.resize(static_cast<std::size_t>(nlevel));
-  for (auto& tube : tubes_) {
-    tube_bcs_.push_back(tube->GetBoundaryCondition());
-  }
-  for (auto& plenum : plena_) {
-    plenum_bcs_.push_back(plenum->GetBoundaryCondition());
-  }
   for (auto&& [level, boundaries] : ranges::view::enumerate(boundaries_)) {
     for (const BlockConnection& conn : connectivity_) {
       boundaries.emplace_back(
           MultiBlockBoundary2(tube_equation, plenum_equation), *this, conn,
           conn.ghost_cell_width, level);
     }
+  }
+  // Add multi block boundaries to the tubes and plena
+  for (auto&& [tube_id, tube] : ranges::view::enumerate(tubes_)) {
+    amrex::BoundarySet boundary;
+    boundary.conditions.push_back(tube->GetBoundaryCondition());
+    // Add all multi block boundaries to boundary.conditions
+    for (auto& boundaries : boundaries_) {
+      for (auto&& [conn, bc] : ranges::view::zip(connectivity_, boundaries)) {
+        if (conn.tube.id == tube_id) {
+          boundary.conditions.emplace_back(bc);
+        }
+      }
+    }
+    tube->GetBoundaryCondition() = boundary;
+  }
+  for (auto&& [plenum_id, plenum] : ranges::view::enumerate(plena_)) {
+    amrex::cutcell::BoundarySet boundary;
+    boundary.conditions.push_back(plenum->GetBoundaryCondition());
+    // Add all multi block boundaries to boundary.conditions
+    for (auto& boundaries : boundaries_) {
+      for (auto&& [conn, bc] : ranges::view::zip(connectivity_, boundaries)) {
+        if (conn.plenum.id == plenum_id) {
+          boundary.conditions.emplace_back(bc);
+        }
+      }
+    }
+    plenum->GetBoundaryCondition() = boundary;
   }
 }
 

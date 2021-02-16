@@ -112,7 +112,7 @@ template <int Rank>
 Result<void, TimeStepTooLarge>
 ArrheniusKinetics<Rank>::AdvanceLevel(amrex::IntegratorContext& simulation_data,
                                       int level, Duration dt,
-                                      const ::amrex::IntVect& ngrow) {
+                                      const ::amrex::IntVect& ) {
   Timer advance_timer = simulation_data.GetCounterRegistry()->get_timer(
       "ArrheniusKinetics::AdvanceLevel");
   ::amrex::MultiFab& data = simulation_data.GetScratch(level);
@@ -120,7 +120,7 @@ ArrheniusKinetics<Rank>::AdvanceLevel(amrex::IntegratorContext& simulation_data,
   amrex::ForEachFab(execution::openmp, data, [&](const ::amrex::MFIter& mfi) {
     using Complete = ::fub::Complete<PerfectGasMix<Rank>>;
     View<Complete> states = amrex::MakeView<Complete>(data[mfi], *equation_,
-                                                      mfi.growntilebox(ngrow));
+                                                      mfi.growntilebox());
     PerfectGasMix<Rank>& eq = *equation_;
     auto& state = *state_;
     auto& kinetic_state = *kinetic_state_;

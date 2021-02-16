@@ -38,8 +38,8 @@ MultiBlockGriddingAlgorithm2::MultiBlockGriddingAlgorithm2(
   }
 }
 
-MultiBlockGriddingAlgorithm2& MultiBlockGriddingAlgorithm2::
-operator=(const MultiBlockGriddingAlgorithm2& other) {
+MultiBlockGriddingAlgorithm2& MultiBlockGriddingAlgorithm2::operator=(
+    const MultiBlockGriddingAlgorithm2& other) {
   MultiBlockGriddingAlgorithm2 tmp(other);
   *this = std::move(tmp);
   return *this;
@@ -53,35 +53,38 @@ void MultiBlockGriddingAlgorithm2::PreAdvanceHierarchy() {
     }
   }
   // Add multi block boundary to the local boundaries of tubes
-  for (auto&& [tube_id, original_tube_bc] :
-       ranges::view::enumerate(tube_bcs_)) {
-    std::vector<AnyBoundaryCondition> all_tube_conditions{original_tube_bc};
+  for (auto&& [tube_id, tube] : ranges::view::enumerate(tubes_)) {
+    amrex::BoundarySet* boundary =
+        tube->GetBoundaryCondition().Cast<amrex::BoundarySet>();
+    FUB_ASSERT(boundary);
+    // drop all old multi block boundaries
+    boundary->conditions.erase(boundary->conditions.begin() + 1,
+                               boundary->conditions.end());
+    // re-add all updated multi block boundaries
     for (auto& boundaries : boundaries_) {
       for (auto&& [conn, bc] : ranges::view::zip(connectivity_, boundaries)) {
         if (conn.tube.id == tube_id) {
-          all_tube_conditions.emplace_back(bc);
+          boundary->conditions.emplace_back(bc);
         }
       }
     }
-    amrex::BoundarySet new_tube_bc{};
-    new_tube_bc.conditions = all_tube_conditions;
-    tubes_[tube_id]->GetBoundaryCondition() = new_tube_bc;
   }
   // Add multi block boundary to the local boundaries of plena
-  for (auto&& [plenum_id, original_plenum_bc] :
-       ranges::view::enumerate(plenum_bcs_)) {
-    std::vector<cutcell::AnyBoundaryCondition> all_plenum_conditions{
-        original_plenum_bc};
+  for (auto&& [plenum_id, plenum] : ranges::view::enumerate(plena_)) {
+    amrex::cutcell::BoundarySet* boundary =
+        plenum->GetBoundaryCondition().Cast<amrex::cutcell::BoundarySet>();
+    FUB_ASSERT(boundary);
+    // drop all old multi block boundaries
+    boundary->conditions.erase(boundary->conditions.begin() + 1,
+                               boundary->conditions.end());
+    // re-add all updated multi block boundaries
     for (auto& boundaries : boundaries_) {
       for (auto&& [conn, bc] : ranges::view::zip(connectivity_, boundaries)) {
         if (conn.plenum.id == plenum_id) {
-          all_plenum_conditions.emplace_back(bc);
+          boundary->conditions.emplace_back(bc);
         }
       }
     }
-    amrex::cutcell::BoundarySet new_plenum_bc{};
-    new_plenum_bc.conditions = all_plenum_conditions;
-    plena_[plenum_id]->GetBoundaryCondition() = new_plenum_bc;
   }
 }
 
