@@ -180,7 +180,19 @@ SubcycleFineFirstSolver<LevelIntegrator>::AdvanceLevel(
 template <typename LevelIntegrator>
 Result<void, TimeStepTooLarge>
 SubcycleFineFirstSolver<LevelIntegrator>::AdvanceHierarchy(Duration dt) {
-  return AdvanceLevel(0, dt, {0, 1});
+  Result<void, TimeStepTooLarge> result = AdvanceLevel(0, dt, {0, 1});
+  const int num_step = Base::GetCycles();
+  int fill_boundary_frequency =
+      Base::GetContext().GetOptions().regrid_frequency;
+  if (result && num_step % fill_boundary_frequency == 0) {
+    Base::GetContext().FillGhostLayerSingleLevel(0);
+    int this_level = 1;
+    while (Base::GetContext().LevelExists(this_level)) {
+      Base::GetContext().FillGhostLayerTwoLevels(this_level, this_level - 1);
+      ++this_level;
+    }
+  }
+  return result;
 }
 
 } // namespace fub

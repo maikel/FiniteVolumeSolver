@@ -2,7 +2,9 @@ import math
 
 plenum_x_n_cells = 128*2
 tube_blocking_factor = 32
-plenum_blocking_factor = 32
+plenum_blocking_factor_x = 64
+plenum_blocking_factor_y = 64
+plenum_blocking_factor_z = 64
 
 n_level = 1
 
@@ -17,7 +19,9 @@ tube_length = 2.083 - 0.50 # [m]
 inlet_length = 0.1 # [m]
 plenum_length = 0.50 # [m]
 
-plenum_max_grid_size = max(plenum_blocking_factor, 64)
+plenum_max_grid_size_x = max(plenum_blocking_factor_x, 64)
+plenum_max_grid_size_y = max(plenum_blocking_factor_y, 64)
+plenum_max_grid_size_z = max(plenum_blocking_factor_z, 64)
 
 plenum_domain_length = plenum_length + inlet_length
 tube_domain_length = tube_length - inlet_length
@@ -44,13 +48,13 @@ plenum_z_length = plenum_z_upper - plenum_z_lower
 plenum_y_over_x_ratio = plenum_y_length / plenum_x_length
 
 plenum_y_n_cells = plenum_x_n_cells * plenum_y_over_x_ratio
-plenum_y_n_cells -= plenum_y_n_cells % plenum_blocking_factor
+plenum_y_n_cells -= plenum_y_n_cells % plenum_blocking_factor_y
 plenum_y_n_cells = int(plenum_y_n_cells)
 
 plenum_z_over_x_ratio = plenum_z_length / plenum_x_length
 
 plenum_z_n_cells = plenum_x_n_cells * plenum_z_over_x_ratio
-plenum_z_n_cells -= plenum_z_n_cells % plenum_blocking_factor
+plenum_z_n_cells -= plenum_z_n_cells % plenum_blocking_factor_z
 plenum_z_n_cells = int(plenum_z_n_cells)
 
 tube_n_cells = plenum_x_n_cells * tube_over_plenum_length_ratio
@@ -87,10 +91,16 @@ Plenum = {
   },
   'PatchHierarchy': {
     'max_number_of_levels': n_level, 
-    'blocking_factor': [plenum_blocking_factor, plenum_blocking_factor, plenum_blocking_factor],
-    'max_grid_size': [plenum_max_grid_size, plenum_max_grid_size, plenum_max_grid_size],
+    'blocking_factor': [plenum_blocking_factor_x, plenum_blocking_factor_y, plenum_blocking_factor_z],
+    'max_grid_size': [plenum_max_grid_size_x, plenum_max_grid_size_y, plenum_max_grid_size_z],
     'ngrow_eb_level_set': 9,
+    'cutcell_load_balance_weight': 2.,
     'remove_covered_grids': True,
+  },
+  'IntegratorContext': {
+    'scratch_gcw': 2,
+    'flux_gcw': 0,
+    'regrid_frequency': 1,
   },
   'IsentropicPressureBoundary': {
     'outer_pressure': 101325.0,
@@ -148,6 +158,11 @@ Tubes = [{
     'blocking_factor': [tube_blocking_factor, 1, 1],
     'refine_ratio': [2, 1, 1]
   },
+  'IntegratorContext': {
+    'scratch_gcw': 2,
+    'flux_gcw': 0,
+    'regrid_frequency': 1,
+  },
   'PressureValveBoundary': {
     'prefix': 'PressureValve-{}'.format(i),
     'efficiency': 1.0,
@@ -180,7 +195,7 @@ slices = [{
     'type': 'HDF5',
     'which_block': i + 1,
     'path': 'MultiTube/Slices/Tube_{}.h5'.format(i),
-    'intervals': [1e-4],
+    'intervals': [5e-4],
   } for i in range(0, 6)]
 
 Output = { 
@@ -189,20 +204,22 @@ Output = {
     'directory': 'MultiTube/Plenum/',
     'intervals': [5e-4],
     # 'frequencies': [1]
-  }, {
-    'type': 'HDF5',
-    'which_block': 0,
-    'path': 'MultiTube/Slices/Plenum.h5',
-    'intervals': [1e-4],
+  },
+  # , {
+    # 'type': 'HDF5',
+    # 'which_block': 0,
+    # 'path': 'MultiTube/Slices/Plenum.h5',
+    # 'intervals': [1e-4],
     # 'frequencies': [1],
-    'box': {
-      'lower': [0, 0, int(plenum_z_n_cells / 2)],
-      'upper': [plenum_x_n_cells - 1, plenum_y_n_cells - 1, int(plenum_z_n_cells / 2)]
-    }
-  }, {
+    # 'box': {
+      # 'lower': [0, 0, int(plenum_z_n_cells / 2)],
+      # 'upper': [plenum_x_n_cells - 1, plenum_y_n_cells - 1, int(plenum_z_n_cells / 2)]
+    # }
+  # },
+  {
     'type': 'LogProbes',
     'directory': 'MultiTube/Probes/',
-    'frequencies': [1],
+    'frequencies': [10],
     'Plenum': {
       'filename': 'MultiTube/Probes/Plenum.h5',
       'coordinates': [
@@ -234,7 +251,7 @@ Output = {
     'frequencies': []
   }, {
     'type': 'CounterOutput',
-    'frequencies': [10]
+    'frequencies': [100]
   }]
 }
 

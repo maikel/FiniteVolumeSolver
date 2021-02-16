@@ -269,15 +269,6 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::
       },
       MakeSplitDirections<Rank>(static_cast<int>(GetCycles(0)), subcycle));
 
-
-  if (result) {
-    if (this_level > 0) {
-      Context::FillGhostLayerTwoLevels(this_level, this_level - 1);
-    } else {
-      Context::FillGhostLayerSingleLevel(this_level);
-    }
-  }
-
   return result;
 }
 
