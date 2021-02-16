@@ -169,7 +169,10 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
                           EulerForwardTimeIntegrator(),
                           Reconstruction(equation)};
 
-  IntegratorContext context(gridding, method, scratch_gcw, flux_gcw);
+  IntegratorContext context(gridding, method,
+                            fub::GetOptions(tube_options, "IntegratorContext"));
+  BOOST_LOG(log) << "IntegratorContext:";
+  context.GetOptions().Print(log);
 
   BOOST_LOG(log) << fmt::format(
       "==================== End Tube #{} =========================", k);
@@ -385,7 +388,10 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
   HyperbolicMethod method{FluxMethod{cutcell_method}, TimeIntegrator{},
                           Reconstruction{equation}};
 
-  IntegratorContext context(gridding, method, scratch_gcw, flux_gcw);
+  IntegratorContext context(gridding, method,
+                            fub::GetOptions(plenum_options, "IntegratorContext"));
+  BOOST_LOG(log) << "IntegratorContext:";
+  context.GetOptions().Print(log);
 
   BOOST_LOG(log) << "==================== End Plenum =========================";
   return context;
@@ -534,7 +540,7 @@ void MyMain(const fub::ProgramOptions& options) {
     fub::amrex::BlockConnection connection;
     connection.direction = fub::Direction::X;
     connection.side = 0;
-    connection.ghost_cell_width = scratch_gcw;
+    connection.ghost_cell_width = tubes[k].GetOptions().scratch_gcw;
     connection.plenum.id = 0;
     connection.tube.id = k;
     connection.tube.mirror_box = tubes[k].GetGeometry(0).Domain();
@@ -659,7 +665,8 @@ void MyMain(const fub::ProgramOptions& options) {
 
   fub::SplitSystemSourceLevelIntegrator level_integrator(
       std::move(ign_solver), std::move(source_term),
-      fub::StrangSplittingLumped{});
+      // fub::StrangSplittingLumped{});
+      fub::GodunovSplitting{});
 
   // fub::NoSubcycleSolver solver(std::move(level_integrator));
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
@@ -702,7 +709,8 @@ int main(int argc, char** argv) {
   pybind11::scoped_interpreter interpreter{};
   std::optional<fub::ProgramOptions> opts = fub::ParseCommandLine(argc, argv);
   if (opts) {
-    fub::InitializeLogging(MPI_COMM_WORLD, fub::GetOptions(*opts, "LogOptions"));
+    fub::InitializeLogging(MPI_COMM_WORLD,
+                           fub::GetOptions(*opts, "LogOptions"));
     MyMain(*opts);
   }
   int flag = -1;
