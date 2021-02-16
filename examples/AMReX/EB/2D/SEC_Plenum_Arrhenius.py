@@ -190,8 +190,8 @@ Plenum = {
     'n_error_buf': [0, 0, 0]
   },
   'IntegratorContext': {
-    'scratch_gcw': 4,
-    'flux_gcw': 2,
+    'scratch_gcw': 2,
+    'flux_gcw': 0,
   },
   'FluxMethod': FluxMethod,
   'InletGeometries': [{
@@ -286,8 +286,8 @@ Tubes = [{
     'n_error_buf': [4, 0, 0]
   },
   'IntegratorContext': {
-    'scratch_gcw': 6,
-    'flux_gcw': 4,
+    'scratch_gcw': 4,
+    'flux_gcw': 0,
   },
 } for (i, y_0) in enumerate(y0s)]
 

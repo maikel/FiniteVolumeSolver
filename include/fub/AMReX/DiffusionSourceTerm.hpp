@@ -87,6 +87,7 @@ public:
 private:
   EulerEquation equation_;
   ::amrex::MultiFab fluxes_diffusion;
+  ::amrex::MultiFab fluxes_diffusion2;
   ::amrex::MultiFab scratch_aux;
 
   struct Constants {
@@ -133,7 +134,8 @@ Result<void, TimeStepTooLarge> DiffusionSourceTerm<EulerEquation>::AdvanceLevel(
   const ::amrex::MultiFab& fluxes =
       simulation_data.GetFluxes(level, Direction::X);
   const ::amrex::IntVect grow_vect =
-      scratch.nGrowVect()[0] * ::amrex::IntVect::TheDimensionVector(0);
+      (scratch.nGrowVect()[0] - 1) * ::amrex::IntVect::TheDimensionVector(0);
+      
   Realloc(fluxes_diffusion, fluxes.boxArray(), fluxes.DistributionMap(),
           fluxes.nComp(), grow_vect);
   const ::amrex::Geometry& geom = simulation_data.GetGeometry(level);
@@ -160,13 +162,19 @@ Result<void, TimeStepTooLarge> DiffusionSourceTerm<EulerEquation>::AdvanceLevel(
     bc.FillBoundary(scratch_aux, *grid, level, Direction::X);
   }
 
+  // Fluxes in 2nd stage have less input, therefore less ghost cell widths
+  const ::amrex::IntVect grow_vect2 =
+      (scratch_aux.nGrowVect()[0] - 1) * ::amrex::IntVect::TheDimensionVector(0);
+  Realloc(fluxes_diffusion2, fluxes.boxArray(), fluxes.DistributionMap(),
+          fluxes.nComp(), grow_vect2);
+
   // 4.) Recompute diffusion fluxes based from the half-timestep states.
-  ComputeDiffusionFluxes(fluxes_diffusion, scratch_aux, dxinv);
+  ComputeDiffusionFluxes(fluxes_diffusion2, scratch_aux, dxinv);
   // 5.) Update now the scratch grid using the half-timestep fluxes from time t0
   // to t0+dt
   //     The inner cells are ok now, because step 2.) updated one ghost cell
   ForwardIntegrator(execution::simd)
-      .UpdateConservatively(scratch, scratch, fluxes_diffusion, geom, dt,
+      .UpdateConservatively(scratch, scratch, fluxes_diffusion2, geom, dt,
                             Direction::X);
   // 6.) Recompute all auxiliary variables from the conservative ones to get
   // valid cell states on scratch
