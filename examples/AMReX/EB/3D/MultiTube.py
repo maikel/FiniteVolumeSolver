@@ -1,6 +1,6 @@
 import math
 
-plenum_x_n_cells = 128*2
+plenum_x_n_cells = 64
 tube_blocking_factor = 32
 plenum_blocking_factor_x = 64
 plenum_blocking_factor_y = 64
@@ -63,13 +63,14 @@ tube_n_cells = int(tube_n_cells)
 
 RunOptions = {
   'cfl': 0.8,
-  'final_time': 0.080,
+  'final_time': 0.009,
   'max_cycles': -1,
   'do_backup': 0,
 }
 
 # checkpoint = '/Users/maikel/Development/FiniteVolumeSolver/build_3d/MultiTube/Checkpoint/000000063'
-checkpoint = ''
+# checkpoint = ''
+checkpoint = '/srv/public/Maikel/FiniteVolumeSolver/build_3D-Release/MultiTube/Checkpoint/000000466'
 
 Plenum = {
   'checkpoint': checkpoint,
@@ -78,7 +79,7 @@ Plenum = {
     'r_end': 0.0225
   },
   'BlockGeometry': {
-    'factor': 0.9,
+    'factor': 0.0,
     'width': 10e-3
   },
   'GridGeometry': {
@@ -195,7 +196,8 @@ slices = [{
     'type': 'HDF5',
     'which_block': i + 1,
     'path': 'MultiTube/Slices/Tube_{}.h5'.format(i),
-    'intervals': [5e-4],
+    'intervals': [1e-4],
+    'frequencies': range(450, 500)
   } for i in range(0, 6)]
 
 Output = { 
@@ -248,7 +250,7 @@ Output = {
     'type': 'Checkpoint',
     'directory': 'MultiTube/Checkpoint/',
     'intervals': [1e-3],
-    'frequencies': []
+    'frequencies': range(450, 500)
   }, {
     'type': 'CounterOutput',
     'frequencies': [100]
