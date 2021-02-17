@@ -159,10 +159,13 @@ struct ControlOptions {
   double c_0 = 22.0 / 17.0;
 
   double inertial_moment{0.1}; ///< the initial moment of inertia of the rotor
-  double mu{10.0};             ///< some constant for GT_control
+  double mu{10.0};             ///< some constant for function ChangeRPM
 
   double target_pressure_compressor{
       6.5}; ///< the target pressure from the compressor
+
+  /// tolerance for the relative difference in pressure to acitvate the SEC Mode
+  double pressure_relDiffTolerance_SEC{1e-04};
 
   double Q{3.0 / 0.4}; ///< Needs to be equal to the ArrheniusKinetics Q.
 
