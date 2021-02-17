@@ -95,23 +95,25 @@ for tube_id in range(n_tubes):
   print(datas.shape)
   # print(datas_dict)
 
-  # slice_start = datas.shape[0]//3
+  # optional slicing in time-dimension
   slice_start = 0
+  slice_end = -1
   
-  rho_data = datas[slice_start:, datas_dict['Density'], :]
-  rhou_data = datas[slice_start:, datas_dict['Momentum'], :]
-  rhoE_data = datas[slice_start:, datas_dict['Energy'], :]
-  rhoF_data = datas[slice_start:, datas_dict['Species'], :]
-  p_data = datas[slice_start:, datas_dict['Pressure'], :]
-  c_data = datas[slice_start:, datas_dict['SpeedOfSound'], :]
-  rhoX_data = datas[slice_start:, datas_dict['PassiveScalars'], :]
+  rho_data = datas[slice_start:slice_end, datas_dict['Density'], :]
+  rhou_data = datas[slice_start:slice_end, datas_dict['Momentum'], :]
+  rhoE_data = datas[slice_start:slice_end, datas_dict['Energy'], :]
+  rhoF_data = datas[slice_start:slice_end, datas_dict['Species'], :]
+  p_data = datas[slice_start:slice_end, datas_dict['Pressure'], :]
+  c_data = datas[slice_start:slice_end, datas_dict['SpeedOfSound'], :]
+  rhoX_data = datas[slice_start:slice_end, datas_dict['PassiveScalars'], :]
   T_data = p_data / rho_data
   F_data = rhoF_data / rho_data
 
   x0 = extent_1d[0]
   xEnd = extent_1d[1]
   t0 = times[slice_start]
-  tEnd = times[-1]
+  tEnd = times[slice_end]
+  print(tEnd)
 
   # print(np.max(F_data))
   Ma = rhou_data / rho_data / c_data
@@ -149,8 +151,8 @@ for tube_id in range(n_tubes):
       'interpolation': 'none',
       'aspect': 'auto',
       'extent': (x0, xEnd, t0, tEnd),
-      # 'vmin': 0.7,
-      # 'vmax': 1.4,
+      'vmin': 0.0,
+      'vmax': 10.0,
       'cmap': 'jet'
       }
     return props
@@ -173,15 +175,15 @@ for tube_id in range(n_tubes):
   plt.close(f)
 
   # f = plt.figure()
-  # plt.plot(times, p_data[:,0], label='0')
-  # plt.plot(times, p_data[:,1], label='1')
-  # plt.plot(times, (p_data[:,0]+p_data[:,1])/2, label='mean')
+  # plt.plot(times[:slice_end], p_data[:,0], label='0')
+  # plt.plot(times[:slice_end], p_data[:,1], label='1')
+  # # plt.plot(times, (p_data[:,0]+p_data[:,1])/2, label='mean')
   # # for i in range(10):
   # #   print("Cell {} pressure_max = {}".format(i, np.max(p_data[:,i])))
 
   
   # plt.ylim(5.85, 6.05)
-  # plt.xlim(130,140)
+  # plt.xlim(135.5,None)
   # plt.legend()
   # plt.grid(True)
   # f.savefig(output_path+'/Tube{}_pressureFirstCell.png'.format(tube_id), bbox_inches='tight')
@@ -189,14 +191,14 @@ for tube_id in range(n_tubes):
   # plt.close(f)
 
   # f = plt.figure()
-  # plt.plot(times, T_data[:,0], label='0')
-  # plt.plot(times, T_data[:,1], label='1')
+  # plt.plot(times[:slice_end], F_data[:,0], label='0')
+  # plt.plot(times[:slice_end], F_data[:,1], label='1')
   # # plt.plot(times, (T_data[:,0]+T_data[:,1])/2, label='mean')
   # # plt.ylim(0, 1)
-  # plt.xlim(130,140)
+  # plt.xlim(135.5,None)
   # plt.legend()
   # plt.grid(True)
-  # f.savefig(output_path+'/Tube{}_TemperatureFirstCell.png'.format(tube_id), bbox_inches='tight')
+  # f.savefig(output_path+'/Tube{}_FuelFirstCell.png'.format(tube_id), bbox_inches='tight')
   # f.clear()
   
   

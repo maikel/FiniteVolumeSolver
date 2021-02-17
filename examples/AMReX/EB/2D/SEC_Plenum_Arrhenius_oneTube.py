@@ -30,7 +30,7 @@ plenum_y_lower = - 0.5
 plenum_y_upper = + 0.5
 plenum_y_length = plenum_y_upper - plenum_y_lower
 
-TVolRPlen = 20.0 * D # multiply with n_tubes
+TVolRPlen = 20.0 * D
 plenum_x_upper = TVolRPlen / plenum_y_length
 plenum_x_lower = -inlet_length
 plenum_x_length = plenum_x_upper - plenum_x_lower

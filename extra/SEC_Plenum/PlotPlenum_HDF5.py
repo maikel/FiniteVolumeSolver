@@ -1,7 +1,5 @@
 import sys, os
 
-from numpy.lib.arraypad import pad
-
 # get the absolute path to the FUB FVS-Solver
 pathname = os.path.dirname(sys.argv[0])
 pathname = os.path.abspath(pathname)
@@ -10,7 +8,6 @@ FVS_path = pathname.split('FiniteVolumeSolver')[0]+'FiniteVolumeSolver'
 sys.path.append(FVS_path+'/extra/')
 import amrex.plotfiles as da
 
-import yt
 import numpy as np
 import matplotlib
 matplotlib.use('Agg') 
@@ -74,10 +71,8 @@ def PrintProgress(i):
 
 os.makedirs(output_path, exist_ok=True)
 
-tube_paths = ['{}/Tube{}.h5'.format(dataPath, tube) for tube in [0, 1 ,2]]
+tube_paths = ['{}/Tube{}.h5'.format(dataPath, tube) for tube in range(len(y0s))]
 
-#for i, plotfile in itertools.dropwhile(lambda x: x[0] < 329, enumerate(plotfiles)):
-#for i, plotfile in itertools.takewhile(lambda x: x[0] < 4, enumerate(plotfiles)):
 def stackTubeDataTo2D(Tube_datalist):
    # all Tubedata is 1D but for contourf we need at least 2D data. so simply stack twice the 1d array
    for i, el in enumerate(Tube_datalist):
@@ -178,7 +173,7 @@ for i in range(nsteps-1):
    axs[2].set_title('PassiveScalar')
    axs[2].set(aspect='equal')
    cbar = plt.colorbar(im_X, ax=axs[2])
-   # cbar.set_label('[K]', rotation=270)
+
    
 
    # velocity plot
