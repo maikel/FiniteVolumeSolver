@@ -137,10 +137,10 @@ void UpdateCompressorPlenum(ControlState& state, const PerfectGasConstants& eq,
 void ChangeRPM(ControlState& state, const ControlOptions& options,
                Duration dt) noexcept {
   double pressure = state.compressor.pressure;
-  const double pressure_ratio =
+  const double pressure_relative_difference =
       (options.target_pressure_compressor - pressure) /
       options.target_pressure_compressor;
-  const double exp_term = std::exp(-options.mu * pressure_ratio);
+  const double exp_term = std::exp(-options.mu * pressure_relative_difference);
   const double comp_rate = 0.015 * (1.0 - exp_term);
   constexpr double pi2 = M_PI * M_PI;
   const double Ieff = 2.0 * pi2 * options.inertial_moment;
@@ -165,14 +165,12 @@ void ChangeRPM(ControlState& state, const ControlOptions& options,
                      (options.Q * state.fuel_consumption_rate + eps);
 
   if (!state.compressor.SEC_Mode) {
-    // 0.9995 just shortcut because floating point comparison
-    double target_pressure = 0.9995 * options.target_pressure_compressor;
-    state.compressor.SEC_Mode = pressure >= target_pressure;
-    // state.compressor.SEC_Mode = (pressure < target_pressure) ? false : true;
+    // compare the pressure relative difference with a given tolerance
+    state.compressor.SEC_Mode =
+        pressure_relative_difference < options.pressure_relDiffTolerance_SEC;
   } else {
     double fall_back_pressure = 0.9 * options.target_pressure_compressor;
     state.compressor.SEC_Mode = pressure > fall_back_pressure;
-    // state.compressor.SEC_Mode = (pressure > fall_back_pressure) ? true : false;
   }
 }
 } // namespace
@@ -199,6 +197,7 @@ ControlOptions::ControlOptions(const ProgramOptions& options) {
   FUB_GT_CONTROL_GET_OPTION(inertial_moment);
   FUB_GT_CONTROL_GET_OPTION(mu);
   FUB_GT_CONTROL_GET_OPTION(target_pressure_compressor);
+  FUB_GT_CONTROL_GET_OPTION(pressure_relDiffTolerance_SEC);
   FUB_GT_CONTROL_GET_OPTION(Q);
   initial_turbine_state.pressure = GetOptionOr(
       options, "initial_turbine_pressure", initial_turbine_state.pressure);
@@ -236,6 +235,7 @@ void ControlOptions::Print(SeverityLogger& log) {
   FUB_GT_CONTROL_PRINT(inertial_moment);
   FUB_GT_CONTROL_PRINT(mu);
   FUB_GT_CONTROL_PRINT(target_pressure_compressor);
+  FUB_GT_CONTROL_PRINT(pressure_relDiffTolerance_SEC);
   FUB_GT_CONTROL_PRINT(Q);
   BOOST_LOG(log) << " - initial_turbine_temperature = "
                  << initial_turbine_state.temperature;
@@ -304,11 +304,11 @@ auto GetFieldMap() {
       std::pair<std::string, projection>{
           "compressor_mass_flow_out"s,
           [](const ControlState& s) { return s.compressor.mass_flow_out; }},
-      std::pair<std::string, projection>{
-          "compressor_SEC_Mode"s,
-          [](const ControlState& s) {
-            return static_cast<double>(s.compressor.SEC_Mode);
-          }},
+      std::pair<std::string, projection>{"compressor_SEC_Mode"s,
+                                         [](const ControlState& s) {
+                                           return static_cast<double>(
+                                               s.compressor.SEC_Mode);
+                                         }},
       std::pair<std::string, projection>{
           "turbine_pressure"s,
           [](const ControlState& s) { return s.turbine.pressure; }},

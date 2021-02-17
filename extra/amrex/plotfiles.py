@@ -137,6 +137,47 @@ def h5_load_get_extent_1D(filename):
   file.close()
   return extent_1d
 
+def progressBar(iterable, prefix = 'Progress:', suffix = 'Complete', decimals = 1, length = 50, fill = '█', printEnd = "\r"):
+    """
+    Call in a loop to create terminal progress bar
+    This fancy function is taken from https://stackoverflow.com/a/34325723.
+
+    Parameters:
+    ------------------------------
+        iteration   - Required  : current iteration (Int)
+        total       - Required  : total iterations (Int)
+        prefix      - Optional  : prefix string (Str)
+        suffix      - Optional  : suffix string (Str)
+        decimals    - Optional  : positive number of decimals in percent complete (Int)
+        length      - Optional  : character length of bar (Int)
+        fill        - Optional  : bar fill character (Str)
+        printEnd    - Optional  : end character (e.g. "\\r", "\\r\\n") (Str)
+
+    Usage example
+    ----------------------------
+    \# create an iterable list of items \n
+    items = list(range(0, 57))
+
+    for item in progressBar(items, prefix = 'Progress:', suffix = 'Complete', length = 50):
+    \n\# Do stuff...
+    
+    """
+    total = len(iterable)
+    # Progress Bar Printing Function
+    def printProgressBar (iteration):
+        percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
+        filledLength = int(length * iteration // total)
+        bar = fill * filledLength + '-' * (length - filledLength)
+        print(f'\r{prefix} |{bar}| {percent}% {suffix}', end = printEnd)
+    # Initial Call
+    printProgressBar(0)
+    # Update Progress Bar
+    for i, item in enumerate(iterable):
+        yield item
+        printProgressBar(i + 1)
+    # Print New Line on Complete
+    print("\n")
+
 def set_size(width, fraction=1, subplots=(1, 1)):
     """Set figure dimensions to avoid scaling in LaTeX.
 
