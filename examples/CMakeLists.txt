@@ -172,8 +172,8 @@ if (AMReX_FOUND AND AMReX_3D_FOUND)
     add_executable_with_warnings(AMReX.EB.MultiTube_PerfectGas AMReX/EB/3D/MultiTube_PerfectGas.cpp)
     target_link_libraries(AMReX.EB.MultiTube_PerfectGas FiniteVolumeSolver.AMReX.EB)
 
-    add_executable_with_warnings(AMReX.EB.MultiTube_Compressor AMReX/EB/3D/MultiTube_Compressor.cpp)
-    target_link_libraries(AMReX.EB.MultiTube_Compressor FiniteVolumeSolver.AMReX.EB)
+    #add_executable_with_warnings(AMReX.EB.MultiTube_Compressor AMReX/EB/3D/MultiTube_Compressor.cpp)
+    #target_link_libraries(AMReX.EB.MultiTube_Compressor FiniteVolumeSolver.AMReX.EB)
 
     add_executable_with_warnings(AMReX.EB.Divider AMReX/EB/3D/Divider.cpp)
     target_link_libraries(AMReX.EB.Divider FiniteVolumeSolver.AMReX.EB)
