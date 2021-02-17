@@ -836,7 +836,8 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
     fub::amrex::BlockConnection connection;
     connection.direction = fub::Direction::X;
     connection.side = 0;
-    connection.ghost_cell_width = 4;
+    connection.ghost_cell_width = std::max(tube.GetOptions().scratch_gcw,
+                                           plenum[0].GetOptions().scratch_gcw);
     connection.plenum.id = 0;
     connection.tube.id = tubes.size();
     connection.tube.mirror_box = tube.GetGriddingAlgorithm()
