@@ -72,12 +72,11 @@ FormatTimeStepLine(std::ptrdiff_t cycle,
                    std::chrono::steady_clock::duration wall_time,
                    std::chrono::steady_clock::duration wall_time_difference);
 
-template <typename DestGrid, typename SrcGrid>
-void MakeBackup(std::shared_ptr<DestGrid>& dest,
-                const std::shared_ptr<SrcGrid>& src,
+template <typename Solver>
+void MakeBackup(std::optional<Solver>& dest, const Solver& src,
                 CounterRegistry& counter_database) {
   Timer counter = counter_database.get_timer("RunSimulation::MakeBackup");
-  dest = std::make_shared<DestGrid>(*src);
+  dest = src;
 }
 
 template <typename Solver,
@@ -94,13 +93,11 @@ void RunSimulation(Solver& solver, RunOptions options,
   const fub::Duration eps = options.smallest_time_step_size;
   std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
   std::chrono::steady_clock::duration wall_time = wall_time_reference - now;
-  using GriddingAlgorithm =
-      std::decay_t<decltype(*std::declval<Solver&>().GetGriddingAlgorithm())>;
   // Deeply copy the grid for a fallback scenario in case of time step errors
-  std::shared_ptr<GriddingAlgorithm> backup{};
+  std::optional<Solver> backup{};
   if (options.do_backup) {
-    MakeBackup(backup, solver.GetGriddingAlgorithm(),
-               *solver.GetCounterRegistry());
+    Timer counter = solver.GetCounterRegistry()->get_timer("RunSimulation::MakeBackup");
+    backup = solver;
   }
   std::optional<Duration> failure_dt{};
   while (time_point + eps < options.final_time &&
@@ -132,8 +129,7 @@ void RunSimulation(Solver& solver, RunOptions options,
             "was too large.\nRestarting this time step with a "
             "smaller coarse time step size (dt_new = {}s).\n",
             limited_dt.count(), options.cfl * failure_dt->count());
-        solver.ResetHierarchyConfiguration(backup);
-        MakeBackup(backup, backup, *solver.GetCounterRegistry());
+        solver = *backup;
       } else if (result.has_error() && !options.do_backup) {
         BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", time_point.count());
         BOOST_LOG_SEV(log, error) << fmt::format(
@@ -157,8 +153,8 @@ void RunSimulation(Solver& solver, RunOptions options,
                                              wall_time_difference);
         failure_dt.reset();
         if (options.do_backup) {
-          MakeBackup(backup, solver.GetGriddingAlgorithm(),
-                     *solver.GetCounterRegistry());
+          Timer counter = solver.GetCounterRegistry()->get_timer("RunSimulation::MakeBackup");
+          backup = solver;
         }
       }
     } while (

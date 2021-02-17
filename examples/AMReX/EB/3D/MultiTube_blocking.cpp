@@ -388,8 +388,8 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
   HyperbolicMethod method{FluxMethod{cutcell_method}, TimeIntegrator{},
                           Reconstruction{equation}};
 
-  IntegratorContext context(gridding, method,
-                            fub::GetOptions(plenum_options, "IntegratorContext"));
+  IntegratorContext context(
+      gridding, method, fub::GetOptions(plenum_options, "IntegratorContext"));
   BOOST_LOG(log) << "IntegratorContext:";
   context.GetOptions().Print(log);
 
@@ -403,14 +403,13 @@ void WriteCheckpoint(
     fub::span<const std::shared_ptr<fub::amrex::PressureValve>> valves,
     int rank, const fub::amrex::MultiBlockIgniteDetonation& ignition) {
   auto tubes = grid.GetTubes();
-  std::ptrdiff_t cycles = grid.GetCycles();
   int k = 0;
   for (auto& tube : tubes) {
-    std::string name = fmt::format("{}/{:09}/Tube_{}", path, cycles, k);
+    std::string name = fmt::format("{}/Tube_{}", path, k);
     fub::amrex::WriteCheckpointFile(name, tube->GetPatchHierarchy());
 
     if (rank == 0) {
-      std::string valve = fmt::format("{}/{:09}/Valve_{}", path, cycles, k);
+      std::string valve = fmt::format("{}/Valve_{}", path, k);
       std::ofstream valve_checkpoint(valve);
       boost::archive::text_oarchive oa(valve_checkpoint);
       oa << *valves[k];
@@ -418,11 +417,11 @@ void WriteCheckpoint(
 
     k = k + 1;
   }
-  std::string name = fmt::format("{}/{:09}/Plenum", path, cycles);
+  std::string name = fmt::format("{}/Plenum", path);
   fub::amrex::cutcell::WriteCheckpointFile(
       name, grid.GetPlena()[0]->GetPatchHierarchy());
   if (rank == 0) {
-    name = fmt::format("{}/{:09}/Ignition", path, cycles);
+    name = fmt::format("{}/Ignition", path);
     std::ofstream ignition_checkpoint(name);
     boost::archive::text_oarchive oa(ignition_checkpoint);
     oa << ignition.GetNextIgnitionTimePoints();
@@ -451,8 +450,22 @@ struct CheckpointOutput : fub::OutputAtFrequencyOrInterval<
     boost::log::sources::severity_logger<boost::log::trivial::severity_level>
         log(boost::log::keywords::severity = boost::log::trivial::info);
     BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", grid.GetTimePoint().count());
-    BOOST_LOG(log) << fmt::format("Write checkpoint to '{}'.", directory_);
-    WriteCheckpoint(directory_, grid, valves_, rank, *ignition_);
+    int count = 0;
+    if (rank == 0) {
+      boost::filesystem::path p(
+          fmt::format("{}/{:09d}", directory_, grid.GetCycles()));
+      while (boost::filesystem::exists(p)) {
+        count = count + 1;
+        p = fmt::format("{}/{:09d}_{}", directory_, grid.GetCycles(), count);
+      }
+    }
+    ::MPI_Bcast(&count, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    std::string path = fmt::format("{}/{:09d}", directory_, grid.GetCycles());
+    if (count > 0) {
+      path += fmt::format("_{}", count);
+    }
+    BOOST_LOG(log) << fmt::format("Write checkpoint to '{}'.", path);
+    WriteCheckpoint(path, grid, valves_, rank, *ignition_);
   }
 
   std::vector<std::shared_ptr<fub::amrex::PressureValve>> valves_{};

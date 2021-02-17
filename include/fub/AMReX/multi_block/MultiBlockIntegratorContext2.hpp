@@ -43,6 +43,18 @@ public:
                                std::vector<IntegratorContext> tubes,
                                std::vector<cutcell::IntegratorContext> plena,
                                std::vector<BlockConnection> connectivity);
+
+  MultiBlockIntegratorContext2(const MultiBlockIntegratorContext2& other);
+  MultiBlockIntegratorContext2&
+  operator=(const MultiBlockIntegratorContext2& other);
+
+  MultiBlockIntegratorContext2(MultiBlockIntegratorContext2&& other) noexcept =
+      default;
+  MultiBlockIntegratorContext2&
+  operator=(MultiBlockIntegratorContext2&& other) noexcept = default;
+
+  ~MultiBlockIntegratorContext2() noexcept = default;
+
   /// @{
   /// \name Member Accessors
   [[nodiscard]] span<IntegratorContext> Tubes() noexcept;
@@ -92,7 +104,8 @@ public:
   /// @{
   /// \name Modifiers
 
-  /// \brief Synchronize internal ghost cell data for each inter domain connection.
+  /// \brief Synchronize internal ghost cell data for each inter domain
+  /// connection.
   void ComputeMultiBlockBoundaryData(int level);
 
   void CopyDataToScratch(int level);

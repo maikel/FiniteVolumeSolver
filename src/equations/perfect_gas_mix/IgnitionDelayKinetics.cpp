@@ -34,7 +34,10 @@ IgnitionDelayKinetics<Rank>::IgnitionDelayKinetics(
     : equation_{eq}, state_{CompleteArray<PerfectGasMix<Rank>>(eq)},
       kinetic_state_{KineticStateArray<PerfectGasMix<Rank>>(eq)} {}
 
-template <int Rank> Duration IgnitionDelayKinetics<Rank>::ComputeStableDt(const amrex::IntegratorContext&, int) {
+template <int Rank>
+Duration
+IgnitionDelayKinetics<Rank>::ComputeStableDt(const amrex::IntegratorContext&,
+                                             int) {
   return Duration(std::numeric_limits<double>::max());
 }
 

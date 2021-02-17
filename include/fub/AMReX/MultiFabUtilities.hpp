@@ -22,20 +22,27 @@
 #ifndef FUB_AMREX_MULTIFAB_UTILITIES_HPP
 #define FUB_AMREX_MULTIFAB_UTILITIES_HPP
 
-#include <AMReX_MultiFab.H>
 #include "fub/Direction.hpp"
+#include <AMReX_MultiFab.H>
 
 namespace fub::amrex {
 
 void Realloc(::amrex::MultiFab& mf, const ::amrex::BoxArray& ba,
              const ::amrex::DistributionMapping& dm, int ncomp,
-             const ::amrex::IntVect& ngrow);
+             const ::amrex::IntVect& ngrow,
+             const ::amrex::MFInfo& mf_info = ::amrex::MFInfo(),
+             const ::amrex::FabFactory<::amrex::FArrayBox>& factory =
+                 ::amrex::FArrayBoxFactory());
 
-::amrex::Box GetInnerBox(const ::amrex::Box& box, int side, Direction dir, int width);
+void ReallocLike(::amrex::MultiFab& mf, const ::amrex::MultiFab& other);
+
+::amrex::Box GetInnerBox(const ::amrex::Box& box, int side, Direction dir,
+                         int width);
 
 double GetMeanValueInBox(const ::amrex::MultiFab& data, const ::amrex::Box& box,
                          int component);
 
-}
+::amrex::MultiFab CopyMultiFab(const ::amrex::MultiFab& other);
+} // namespace fub::amrex
 
 #endif

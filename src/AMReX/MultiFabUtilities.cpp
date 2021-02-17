@@ -29,11 +29,29 @@ namespace fub::amrex {
 
 void Realloc(::amrex::MultiFab& mf, const ::amrex::BoxArray& ba,
              const ::amrex::DistributionMapping& dm, int ncomp,
-             const ::amrex::IntVect& ngrow) {
+             const ::amrex::IntVect& ngrow, const ::amrex::MFInfo& mf_info,
+             const ::amrex::FabFactory<::amrex::FArrayBox>& factory) {
   if (mf.boxArray() != ba || mf.DistributionMap() != dm ||
       mf.nComp() != ncomp || mf.nGrowVect() != ngrow) {
-    mf.define(ba, dm, ncomp, ngrow);
+    mf.define(ba, dm, ncomp, ngrow, mf_info, factory);
   }
+}
+
+void ReallocLike(::amrex::MultiFab& mf, const ::amrex::MultiFab& other) {
+  if (other.ok()) {
+    Realloc(mf, other.boxArray(), other.DistributionMap(), other.nComp(),
+            other.nGrowVect(), ::amrex::MFInfo().SetArena(other.arena()),
+            other.Factory());
+  }
+}
+
+::amrex::MultiFab CopyMultiFab(const ::amrex::MultiFab& other) {
+  ::amrex::MultiFab mf(other.boxArray(), other.DistributionMap(), other.nComp(),
+                       other.nGrowVect(),
+                       ::amrex::MFInfo().SetArena(other.arena()),
+                       other.Factory());
+  ::amrex::MultiFab::Copy(mf, other, 0, 0, other.nComp(), other.nGrowVect());
+  return mf;
 }
 
 /// \brief get the inner box

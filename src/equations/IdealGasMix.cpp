@@ -56,8 +56,8 @@ void IdealGasMix<Dim>::Flux(ConservativeArray& flux, const CompleteArray& state,
 }
 
 template <int Dim>
-void IdealGasMix<Dim>::Flux(ConservativeArray& flux, const CompleteArray& state, MaskArray mask,
-                            Direction dir) const noexcept {
+void IdealGasMix<Dim>::Flux(ConservativeArray& flux, const CompleteArray& state,
+                            MaskArray mask, Direction dir) const noexcept {
   const int d0 = static_cast<int>(dir);
   const Array1d rho = mask.select(state.density, 1.0);
   const Array1d rho_u = mask.select(state.momentum.row(d0), 0.0);
@@ -99,7 +99,8 @@ auto ComputeSpeedOfSoundArray(const FlameMasterReactor& reactor) {
   return std::make_tuple(a, cp, gamma);
 }
 
-auto ComputeSpeedOfSoundArray(const FlameMasterReactor& reactor, MaskArray mask) {
+auto ComputeSpeedOfSoundArray(const FlameMasterReactor& reactor,
+                              MaskArray mask) {
   const Array1d cp = mask.select(reactor.GetCpArray(), 0.0);
   const Array1d gamma = cp / reactor.GetCvArray();
   const Array1d p = mask.select(reactor.GetPressureArray(), 0.0);
@@ -109,15 +110,16 @@ auto ComputeSpeedOfSoundArray(const FlameMasterReactor& reactor, MaskArray mask)
 }
 } // namespace
 
-
 template <int Dim>
-Array<double, Dim, 1> IdealGasMix<Dim>::Velocity(const ConservativeBase& cons) noexcept {
+Array<double, Dim, 1>
+IdealGasMix<Dim>::Velocity(const ConservativeBase& cons) noexcept {
   Array<double, Dim, 1> velocity = cons.momentum / cons.density;
   return velocity;
 }
 
 template <int Dim>
-Array<double, Dim> IdealGasMix<Dim>::Velocity(const ConservativeArrayBase& cons) noexcept {
+Array<double, Dim>
+IdealGasMix<Dim>::Velocity(const ConservativeArrayBase& cons) noexcept {
   Array<double, Dim> velocity;
   for (int d = 0; d < Dim; ++d) {
     velocity.row(d) = cons.momentum.row(d) / cons.density;
@@ -126,7 +128,8 @@ Array<double, Dim> IdealGasMix<Dim>::Velocity(const ConservativeArrayBase& cons)
 }
 
 template <int Dim>
-Array<double, Dim> IdealGasMix<Dim>::Velocity(const ConservativeArrayBase& cons, MaskArray mask) noexcept {
+Array<double, Dim> IdealGasMix<Dim>::Velocity(const ConservativeArrayBase& cons,
+                                              MaskArray mask) noexcept {
   Array<double, Dim> velocity;
   Array1d density = mask.select(cons.density, 1.0);
   for (int d = 0; d < Dim; ++d) {
@@ -173,23 +176,28 @@ void IdealGasMix<Dim>::CompleteFromReactor(
   const Array1d rhoE_kin = KineticEnergy(state.density, state.momentum);
   state.energy = rhoE_internal + rhoE_kin;
   state.pressure = reactor_.GetPressureArray();
+  FUB_ASSERT((state.density > 0.0).all());
+  FUB_ASSERT((state.pressure > 0.0).all());
   const ArrayXd& Y = reactor_.GetMassFractionsArray();
   for (int i = 0; i < Y.rows(); ++i) {
     state.species.row(i) = state.density * Y.row(i);
   }
+  FUB_ASSERT((state.species.colwise().sum().isApprox(state.density)));
   state.temperature = reactor_.GetTemperatureArray();
   std::tie(state.speed_of_sound, state.c_p, state.gamma) =
       ComputeSpeedOfSoundArray(reactor_);
 }
 
 template <int Dim>
-void IdealGasMix<Dim>::CompleteFromReactor(CompleteArray& state, const Array<double, Dim>& velocity, MaskArray mask) const {
+void IdealGasMix<Dim>::CompleteFromReactor(CompleteArray& state,
+                                           const Array<double, Dim>& velocity,
+                                           MaskArray mask) const {
   state.density = mask.select(reactor_.GetDensityArray(), 0.0);
   for (int i = 0; i < Dim; ++i) {
     state.momentum.row(i) = state.density * velocity.row(i);
   }
   const Array1d rhoE_internal =
-  state.density * reactor_.GetInternalEnergyArray();
+      state.density * reactor_.GetInternalEnergyArray();
   const Array1d rhoE_kin = KineticEnergy(state.density, state.momentum, mask);
   state.energy = rhoE_internal + rhoE_kin;
   state.pressure = mask.select(reactor_.GetPressureArray(), 0.0);
@@ -199,7 +207,7 @@ void IdealGasMix<Dim>::CompleteFromReactor(CompleteArray& state, const Array<dou
   }
   state.temperature = mask.select(reactor_.GetTemperatureArray(), 0.0);
   std::tie(state.speed_of_sound, state.c_p, state.gamma) =
-  ComputeSpeedOfSoundArray(reactor_, mask);
+      ComputeSpeedOfSoundArray(reactor_, mask);
 }
 
 template <int Dim>
@@ -362,4 +370,4 @@ void Reflect(Complete<IdealGasMix<3>>& reflected,
       2 * (state.momentum.matrix().dot(normal) * normal).array();
 }
 
-}
+} // namespace fub

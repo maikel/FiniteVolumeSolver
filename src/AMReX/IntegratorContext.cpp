@@ -21,6 +21,7 @@
 #include "fub/AMReX/IntegratorContext.hpp"
 
 #include "fub/AMReX/ForEachIndex.hpp"
+#include "fub/AMReX/MultiFabUtilities.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/AMReX/boundary_condition/BoundaryConditionRef.hpp"
 #include "fub/core/algorithm.hpp"
@@ -31,6 +32,8 @@
 #include <AMReX_MultiFabUtil.H>
 
 #include <fmt/format.h>
+
+#include <range/v3/view/zip.hpp>
 
 namespace fub::amrex {
 
@@ -59,6 +62,41 @@ void IntegratorContextOptions::Print(SeverityLogger& log) const {
 
 ////////////////////////////////////////////////////////////////////////////////
 //                                   IntegratorContext::LevelData
+
+////////////////////////////////////////////////////////////////////////////////
+// Copy Constructor
+
+IntegratorContext::LevelData::LevelData(const LevelData& other)
+    : scratch(CopyMultiFab(other.scratch)), fluxes{}, coarse_fine{} {
+  if (other.coarse_fine.fineLevel() > 0) {
+    // If we do not invoke clear in beforehand it will throw an error in AMReX
+    coarse_fine.clear();
+    coarse_fine.define(scratch.boxArray(), scratch.DistributionMap(),
+                       other.coarse_fine.refRatio(),
+                       other.coarse_fine.fineLevel(),
+                       other.coarse_fine.nComp());
+  }
+  for (auto&& [flux, of] : ranges::view::zip(fluxes, other.fluxes)) {
+    if (of.ok()) {
+      flux.define(of.boxArray(), of.DistributionMap(), of.nComp(),
+                  of.nGrowVect(), ::amrex::MFInfo().SetArena(of.arena()),
+                  of.Factory());
+      flux.setVal(0.0);
+    }
+  }
+  time_point = other.time_point;
+  regrid_time_point = other.regrid_time_point;
+  cycles = other.cycles;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Copy Assignment Operator
+
+IntegratorContext::LevelData& IntegratorContext::LevelData::
+operator=(const LevelData& other) {
+  LevelData tmp(other);
+  return *this = std::move(tmp);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Move Assignment Operator
@@ -136,20 +174,9 @@ IntegratorContext::IntegratorContext(
 }
 
 IntegratorContext::IntegratorContext(const IntegratorContext& other)
-    : options_{other.options_}, gridding_{other.gridding_},
-      data_(static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels())),
-      method_{other.method_} {
-  // Allocate auxiliary data arrays
-  ResetHierarchyConfiguration();
-  // Copy time stamps and cycle counters
-  std::size_t n_levels =
-      static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels());
-  for (std::size_t i = 0; i < n_levels; ++i) {
-    data_[i].cycles = other.data_[i].cycles;
-    data_[i].time_point = other.data_[i].time_point;
-    data_[i].regrid_time_point = other.data_[i].regrid_time_point;
-  }
-}
+    : options_{other.options_}, gridding_{std::make_shared<GriddingAlgorithm>(
+                                    *other.gridding_)},
+      data_{other.data_}, method_{other.method_} {}
 
 IntegratorContext& IntegratorContext::IntegratorContext::
 operator=(const IntegratorContext& other) {
@@ -165,6 +192,11 @@ operator=(const IntegratorContext& other) {
 const std::shared_ptr<GriddingAlgorithm>&
 IntegratorContext::GetGriddingAlgorithm() const noexcept {
   return gridding_;
+}
+
+const HyperbolicMethod& IntegratorContext::GetHyperbolicMethod() const
+    noexcept {
+  return method_;
 }
 
 PatchHierarchy& IntegratorContext::GetPatchHierarchy() noexcept {

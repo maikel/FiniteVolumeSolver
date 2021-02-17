@@ -64,6 +64,7 @@ public:
 
   DiffusionSourceTerm& operator=(const DiffusionSourceTerm& other) {
     equation_ = other.equation_;
+    return *this;
   }
   DiffusionSourceTerm& operator=(DiffusionSourceTerm&& other) = default;
 

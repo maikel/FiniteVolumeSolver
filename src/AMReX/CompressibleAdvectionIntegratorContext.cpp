@@ -48,12 +48,18 @@ CompressibleAdvectionIntegratorContext::CompressibleAdvectionIntegratorContext(
     const std::size_t levelli = static_cast<std::size_t>(level);
     const ::amrex::Geometry& geom = GetGeometry(level);
     Pv_[levelli].on_cells.ParallelCopy(other.Pv_[levelli].on_cells,
-                                     geom.periodicity());
+                                       geom.periodicity());
     for (std::size_t d = 0; d < rank; ++d) {
       Pv_[levelli].on_faces[d].ParallelCopy(other.Pv_[levelli].on_faces[d],
-                                          geom.periodicity());
+                                            geom.periodicity());
     }
   }
+}
+
+CompressibleAdvectionIntegratorContext& CompressibleAdvectionIntegratorContext::
+operator=(const CompressibleAdvectionIntegratorContext& other) {
+  CompressibleAdvectionIntegratorContext tmp(other);
+  return *this = std::move(tmp);
 }
 
 CompressibleAdvectionAdvectiveFluxes&
@@ -68,7 +74,8 @@ CompressibleAdvectionIntegratorContext::GetAdvectiveFluxes(int level) const {
 
 void CompressibleAdvectionIntegratorContext::ResetHierarchyConfiguration(
     std::shared_ptr<GriddingAlgorithm> gridding) {
-  Pv_.resize(static_cast<std::size_t>(gridding->GetPatchHierarchy().GetMaxNumberOfLevels()));
+  Pv_.resize(static_cast<std::size_t>(
+      gridding->GetPatchHierarchy().GetMaxNumberOfLevels()));
   IntegratorContext::ResetHierarchyConfiguration(std::move(gridding));
   PatchHierarchy& hier = GetPatchHierarchy();
   const int nlevel = GetPatchHierarchy().GetNumberOfLevels();
@@ -98,7 +105,8 @@ void CompressibleAdvectionIntegratorContext::ResetHierarchyConfiguration(
 void CompressibleAdvectionIntegratorContext::ResetHierarchyConfiguration(
     int coarsest_level) {
   if (Pv_.size() == 0) {
-    Pv_.resize(static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
+    Pv_.resize(
+        static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
   }
   IntegratorContext::ResetHierarchyConfiguration(coarsest_level);
   PatchHierarchy& hier = GetPatchHierarchy();
