@@ -28,8 +28,7 @@ namespace fub::amrex {
 MultiBlockGriddingAlgorithm2::MultiBlockGriddingAlgorithm2(
     const MultiBlockGriddingAlgorithm2& other)
     : tubes_(other.tubes_.size()), plena_(other.plena_.size()),
-      connectivity_(other.connectivity_), boundaries_(other.boundaries_),
-      tube_bcs_(other.tube_bcs_), plenum_bcs_(other.plenum_bcs_) {
+      connectivity_(other.connectivity_) {
   for (std::size_t i = 0; i < tubes_.size(); ++i) {
     tubes_[i] = std::make_shared<GriddingAlgorithm>(*other.tubes_[i]);
   }
@@ -38,54 +37,11 @@ MultiBlockGriddingAlgorithm2::MultiBlockGriddingAlgorithm2(
   }
 }
 
-MultiBlockGriddingAlgorithm2& MultiBlockGriddingAlgorithm2::operator=(
-    const MultiBlockGriddingAlgorithm2& other) {
+MultiBlockGriddingAlgorithm2& MultiBlockGriddingAlgorithm2::
+operator=(const MultiBlockGriddingAlgorithm2& other) {
   MultiBlockGriddingAlgorithm2 tmp(other);
   *this = std::move(tmp);
   return *this;
-}
-
-void MultiBlockGriddingAlgorithm2::PreAdvanceHierarchy() {
-  // Pre-compute ghost cells for each multi block boundary
-  for (std::vector<AnyMultiBlockBoundary>& boundaries : boundaries_) {
-    for (AnyMultiBlockBoundary& boundary : boundaries) {
-      boundary.PreAdvanceHierarchy(*this);
-    }
-  }
-  // Add multi block boundary to the local boundaries of tubes
-  for (auto&& [tube_id, tube] : ranges::view::enumerate(tubes_)) {
-    amrex::BoundarySet* boundary =
-        tube->GetBoundaryCondition().Cast<amrex::BoundarySet>();
-    FUB_ASSERT(boundary);
-    // drop all old multi block boundaries
-    boundary->conditions.erase(boundary->conditions.begin() + 1,
-                               boundary->conditions.end());
-    // re-add all updated multi block boundaries
-    for (auto& boundaries : boundaries_) {
-      for (auto&& [conn, bc] : ranges::view::zip(connectivity_, boundaries)) {
-        if (conn.tube.id == tube_id) {
-          boundary->conditions.emplace_back(bc);
-        }
-      }
-    }
-  }
-  // Add multi block boundary to the local boundaries of plena
-  for (auto&& [plenum_id, plenum] : ranges::view::enumerate(plena_)) {
-    amrex::cutcell::BoundarySet* boundary =
-        plenum->GetBoundaryCondition().Cast<amrex::cutcell::BoundarySet>();
-    FUB_ASSERT(boundary);
-    // drop all old multi block boundaries
-    boundary->conditions.erase(boundary->conditions.begin() + 1,
-                               boundary->conditions.end());
-    // re-add all updated multi block boundaries
-    for (auto& boundaries : boundaries_) {
-      for (auto&& [conn, bc] : ranges::view::zip(connectivity_, boundaries)) {
-        if (conn.plenum.id == plenum_id) {
-          boundary->conditions.emplace_back(bc);
-        }
-      }
-    }
-  }
 }
 
 span<const std::shared_ptr<GriddingAlgorithm>>

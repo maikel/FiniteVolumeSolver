@@ -92,6 +92,9 @@ public:
   /// @{
   /// \name Modifiers
 
+  /// \brief Synchronize internal ghost cell data for each inter domain connection.
+  void ComputeMultiBlockBoundaryData(int level);
+
   void CopyDataToScratch(int level);
   void CopyScratchToData(int level);
 

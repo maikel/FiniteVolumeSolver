@@ -128,6 +128,7 @@ public:
   /// \brief Returns the MultiFab associated with level data with ghost cells on
   /// the specifed level number and direction.
   [[nodiscard]] ::amrex::MultiFab& GetScratch(int level);
+  [[nodiscard]] const ::amrex::MultiFab& GetScratch(int level) const;
 
   /// \brief Returns the MultiFab associated with flux data on the specifed
   /// level number and direction.

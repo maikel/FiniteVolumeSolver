@@ -21,6 +21,8 @@
 #ifndef FUB_AMREX_MULTI_BLOCK_BOUNDARY2_HPP
 #define FUB_AMREX_MULTI_BLOCK_BOUNDARY2_HPP
 
+#include "fub/AMReX/IntegratorContext.hpp"
+#include "fub/AMReX/cutcell/IntegratorContext.hpp"
 #include "fub/AMReX/multi_block/MultiBlockBoundary.hpp"
 #include "fub/equations/EulerEquation.hpp"
 
@@ -110,6 +112,24 @@ public:
   /// \param[in] tube The low dimensional tube data.
   void ComputeBoundaryData(const cutcell::PatchHierarchy& plenum,
                            const PatchHierarchy& tube);
+
+  /// Precompute Boundary states for each domain using the scratch.
+  ///
+  /// Subsequent calls to FillBoundary will use these computed boundary states.
+  ///
+  /// \param[in] plenum  The higher dimensional patch hierarchy with geometry
+  /// information. States here will be conservatively averaged and projected
+  /// onto a one-dimesnional space.
+  ///
+  /// \param[in] tube The low dimensional tube data.
+  void ComputeBoundaryData(const cutcell::IntegratorContext& plenum,
+                           const IntegratorContext& tube);
+
+  void ComputeBoundaryDataForTube(const cutcell::IntegratorContext& plenum,
+                                  const IntegratorContext& tube);
+
+  void ComputeBoundaryDataForPlenum(const cutcell::IntegratorContext& plenum,
+                                    const IntegratorContext& tube);
 
   /// Assuming that mf represents a MultiFab living in the higher dimensional
   /// plenum simulation its ghost layer will be filled with data from the tube

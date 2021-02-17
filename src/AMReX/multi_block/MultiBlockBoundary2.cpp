@@ -109,12 +109,10 @@ void IntegrateConserativeStates(
   }
 }
 
-::amrex::FArrayBox
-AverageConservativeHierarchyStates(const cutcell::PatchHierarchy& hierarchy,
-                                   int level, const ::amrex::Box& mirror,
-                                   Direction dir) {
+::amrex::FArrayBox AverageConservativeHierarchyStates(
+    const ::amrex::MultiFab& datas, const cutcell::PatchHierarchy& hierarchy,
+    int level, const ::amrex::Box& mirror, Direction dir) {
   const ::amrex::EBFArrayBoxFactory& eb = *hierarchy.GetEmbeddedBoundary(level);
-  const ::amrex::MultiFab& datas = hierarchy.GetPatchLevel(level).data;
   const ::amrex::MultiFab& volumes = eb.getVolFrac();
   const int n_comps = hierarchy.GetDataDescription().n_cons_components;
   const ::amrex::FArrayBox total_volume =
@@ -140,6 +138,25 @@ AverageConservativeHierarchyStates(const cutcell::PatchHierarchy& hierarchy,
   ::MPI_Allreduce(fab.dataPtr(), global_fab.dataPtr(), int(fab.size()),
                   MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   return global_fab;
+}
+
+::amrex::FArrayBox
+AverageConservativeHierarchyStates(const cutcell::PatchHierarchy& hierarchy,
+                                   int level, const ::amrex::Box& mirror,
+                                   Direction dir) {
+  const ::amrex::MultiFab& datas = hierarchy.GetPatchLevel(level).data;
+  return AverageConservativeHierarchyStates(datas, hierarchy, level, mirror,
+                                            dir);
+}
+
+::amrex::FArrayBox
+AverageConservativeHierarchyStates(const cutcell::IntegratorContext& context,
+                                   int level, const ::amrex::Box& mirror,
+                                   Direction dir) {
+  const cutcell::PatchHierarchy& hierarchy = context.GetPatchHierarchy();
+  const ::amrex::MultiFab& datas = context.GetScratch(level);
+  return AverageConservativeHierarchyStates(datas, hierarchy, level, mirror,
+                                            dir);
 }
 
 void InterpolateStates_Greater(span<double> dest, double dest_dx,
@@ -230,21 +247,35 @@ void InterpolateStates(::amrex::FArrayBox& dest, double dest_dx,
   }
 }
 
-::amrex::FArrayBox AllgatherMirrorData(const PatchHierarchy& hierarchy,
-                                       int level, const ::amrex::Box& mirror) {
-  const ::amrex::MultiFab& datas = hierarchy.GetPatchLevel(level).data;
-  const int n_comps = hierarchy.GetDataDescription().n_cons_components;
+::amrex::FArrayBox AllgatherMirrorData(const ::amrex::MultiFab& mf,
+                                       const ::amrex::Box& mirror,
+                                       int first_comp, int n_comps) {
   ::amrex::FArrayBox local_fab(mirror, n_comps);
   local_fab.setVal(0.0);
-  for (::amrex::MFIter mfi(datas); mfi.isValid(); ++mfi) {
-    const ::amrex::FArrayBox& data = datas[mfi];
+  for (::amrex::MFIter mfi(mf); mfi.isValid(); ++mfi) {
+    const ::amrex::FArrayBox& data = mf[mfi];
     const ::amrex::Box subbox = mfi.tilebox() & mirror;
-    local_fab.plus(data, subbox, 0, 0, n_comps);
+    local_fab.plus(data, subbox, first_comp, 0, n_comps);
   }
   ::amrex::FArrayBox global_fab(local_fab.box(), local_fab.nComp());
   ::MPI_Allreduce(local_fab.dataPtr(), global_fab.dataPtr(),
                   int(local_fab.size()), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   return global_fab;
+}
+
+::amrex::FArrayBox AllgatherMirrorData(const PatchHierarchy& hierarchy,
+                                       int level, const ::amrex::Box& mirror) {
+  const ::amrex::MultiFab& data = hierarchy.GetPatchLevel(level).data;
+  const int n_comps = hierarchy.GetDataDescription().n_cons_components;
+  return AllgatherMirrorData(data, mirror, 0, n_comps);
+}
+
+::amrex::FArrayBox AllgatherMirrorData(const IntegratorContext& context,
+                                       int level, const ::amrex::Box& mirror) {
+  const ::amrex::MultiFab& datas = context.GetScratch(level);
+  const int n_comps =
+      context.GetPatchHierarchy().GetDataDescription().n_cons_components;
+  return AllgatherMirrorData(datas, mirror, 0, n_comps);
 }
 
 ::amrex::Box MakeMirrorBox(const ::amrex::Box& box, int width, Direction dir,
@@ -412,6 +443,50 @@ void AnyMultiBlockBoundary::ComputeBoundaryData(
     // Transform low dimensional states into high dimensional ones.
     impl_->FillPlenumGhostLayer(*plenum_ghost_data_, *tube_mirror_data_);
   }
+}
+
+void AnyMultiBlockBoundary::ComputeBoundaryData(
+    const cutcell::IntegratorContext& plenum, const IntegratorContext& tube) {
+  ComputeBoundaryDataForTube(plenum, tube);
+  ComputeBoundaryDataForPlenum(plenum, tube);
+}
+
+/// \brief Integrate plenum states over mirror volume and fill ghost cells of
+/// tube
+void AnyMultiBlockBoundary::ComputeBoundaryDataForTube(
+    const cutcell::IntegratorContext& plenum, const IntegratorContext& tube) {
+  const int d = static_cast<int>(dir_);
+  const double plenum_dx = plenum.GetGeometry(level_).CellSize(d);
+  const double tube_dx = tube.GetGeometry(level_).CellSize(d);
+
+  // Integrate over mirror volume
+  const ::amrex::FArrayBox plenum_data = AverageConservativeHierarchyStates(
+      plenum, level_, plenum_mirror_box_, dir_);
+
+  // Interpolate between grid cell sizes.
+  InterpolateStates(*plenum_mirror_data_, tube_dx, plenum_data, plenum_dx,
+                    side_);
+
+  // Transform high dimensional states into low dimensional ones.
+  // Store low dimensional states as the reference in the ghost cell region.
+  impl_->FillTubeGhostLayer(*tube_ghost_data_, *plenum_mirror_data_);
+}
+
+void AnyMultiBlockBoundary::ComputeBoundaryDataForPlenum(
+    const cutcell::IntegratorContext& plenum, const IntegratorContext& tube) {
+  const int d = static_cast<int>(dir_);
+  const double plenum_dx = plenum.GetGeometry(level_).CellSize(d);
+  const double tube_dx = tube.GetGeometry(level_).CellSize(d);
+
+  ::amrex::FArrayBox tube_data =
+      AllgatherMirrorData(tube, level_, tube_mirror_box_);
+
+  // Interpolate between grid cell sizes.
+  InterpolateStates(*tube_mirror_data_, plenum_dx, tube_data, tube_dx,
+                    Flip(side_));
+
+  // Transform low dimensional states into high dimensional ones.
+  impl_->FillPlenumGhostLayer(*plenum_ghost_data_, *tube_mirror_data_);
 }
 
 void AnyMultiBlockBoundary::FillBoundary(::amrex::MultiFab& mf,

@@ -57,8 +57,6 @@ public:
   MultiBlockGriddingAlgorithm2&
   operator=(MultiBlockGriddingAlgorithm2&& other) noexcept = default;
 
-  void PreAdvanceHierarchy();
-
   std::ptrdiff_t GetCycles() const noexcept { return plena_[0]->GetCycles(); }
 
   Duration GetTimePoint() const noexcept { return plena_[0]->GetTimePoint(); }
@@ -69,10 +67,6 @@ public:
   GetPlena() const noexcept;
 
   [[nodiscard]] span<const BlockConnection> GetConnectivity() const noexcept;
-  [[nodiscard]] span<AnyMultiBlockBoundary>
-  GetBoundaries(int level = 0) noexcept {
-    return boundaries_[static_cast<std::size_t>(level)];
-  }
 
   void RegridAllFinerLevels(int which_level);
 
@@ -80,9 +74,6 @@ private:
   std::vector<std::shared_ptr<GriddingAlgorithm>> tubes_;
   std::vector<std::shared_ptr<cutcell::GriddingAlgorithm>> plena_;
   std::vector<BlockConnection> connectivity_;
-  std::vector<std::vector<AnyMultiBlockBoundary>> boundaries_;
-  std::vector<AnyBoundaryCondition> tube_bcs_{};
-  std::vector<cutcell::AnyBoundaryCondition> plenum_bcs_{};
 };
 
 template <typename TubeEquation, typename PlenumEquation>
@@ -94,20 +85,23 @@ MultiBlockGriddingAlgorithm2::MultiBlockGriddingAlgorithm2(
     : tubes_{std::move(tubes)}, plena_{std::move(plena)},
       connectivity_(std::move(connectivity)) {
   const int nlevel = plena_[0]->GetPatchHierarchy().GetMaxNumberOfLevels();
-  boundaries_.resize(static_cast<std::size_t>(nlevel));
-  for (auto&& [level, boundaries] : ranges::view::enumerate(boundaries_)) {
+  std::vector<std::vector<AnyMultiBlockBoundary>> all_multi_block_boundaries;
+  all_multi_block_boundaries.resize(static_cast<std::size_t>(nlevel));
+  // We create a list of (connectivity, multi block boundary) pairs on each
+  // refinement level.
+  for (auto&& [level, boundaries] :
+       ranges::view::enumerate(all_multi_block_boundaries)) {
     for (const BlockConnection& conn : connectivity_) {
       boundaries.emplace_back(
           MultiBlockBoundary2(tube_equation, plenum_equation), *this, conn,
           conn.ghost_cell_width, level);
     }
   }
-  // Add multi block boundaries to the tubes and plena
+  // Add multi block boundaries to the boundary conditions of tubes
   for (auto&& [tube_id, tube] : ranges::view::enumerate(tubes_)) {
     amrex::BoundarySet boundary;
     boundary.conditions.push_back(tube->GetBoundaryCondition());
-    // Add all multi block boundaries to boundary.conditions
-    for (auto& boundaries : boundaries_) {
+    for (auto& boundaries : all_multi_block_boundaries) {
       for (auto&& [conn, bc] : ranges::view::zip(connectivity_, boundaries)) {
         if (conn.tube.id == tube_id) {
           boundary.conditions.emplace_back(bc);
@@ -116,11 +110,11 @@ MultiBlockGriddingAlgorithm2::MultiBlockGriddingAlgorithm2(
     }
     tube->GetBoundaryCondition() = boundary;
   }
+  // Add multi block boundaries to the boundary conditions of tubes
   for (auto&& [plenum_id, plenum] : ranges::view::enumerate(plena_)) {
     amrex::cutcell::BoundarySet boundary;
     boundary.conditions.push_back(plenum->GetBoundaryCondition());
-    // Add all multi block boundaries to boundary.conditions
-    for (auto& boundaries : boundaries_) {
+    for (auto& boundaries : all_multi_block_boundaries) {
       for (auto&& [conn, bc] : ranges::view::zip(connectivity_, boundaries)) {
         if (conn.plenum.id == plenum_id) {
           boundary.conditions.emplace_back(bc);
@@ -166,7 +160,8 @@ public:
       SeverityLogger log = GetInfoLogger();
       BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "CounterOutput");
       BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", grid.GetTimePoint().count());
-      BOOST_LOG(log) << print_statistics<PrintDuration>(statistics, diff.count());
+      BOOST_LOG(log) << print_statistics<PrintDuration>(statistics,
+                                                        diff.count());
     }
   }
 

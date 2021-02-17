@@ -187,6 +187,11 @@ MPI_Comm IntegratorContext::GetMpiCommunicator() const noexcept {
   return data_[l].scratch;
 }
 
+const ::amrex::MultiFab& IntegratorContext::GetScratch(int level) const {
+  const std::size_t l = static_cast<std::size_t>(level);
+  return data_[l].scratch;
+}
+
 ::amrex::MultiFab& IntegratorContext::GetFluxes(int level, Direction dir) {
   const std::size_t d = static_cast<std::size_t>(dir);
   const std::size_t l = static_cast<std::size_t>(level);
