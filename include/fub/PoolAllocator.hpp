@@ -16,7 +16,7 @@ namespace fub {
 
 #ifdef FUB_WITH_EXPERIMENTAL_MEMORY_RESOURCE
 using std::experimental::pmr::memory_resource;
-#elif FUB_WITH_MEMORY_RESROUCE
+#elif FUB_WITH_MEMORY_RESOURCE
 using std::pmr::memory_resource;
 #endif
 
