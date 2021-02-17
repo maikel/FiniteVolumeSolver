@@ -203,8 +203,7 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
   {
     const fub::ProgramOptions inlet_options =
         fub::GetOptions(plenum_options, "InletGeometry");
-    r_inlet_start =
-        fub::GetOptionOr(inlet_options, "r_start", r_inlet_start);
+    r_inlet_start = fub::GetOptionOr(inlet_options, "r_start", r_inlet_start);
     r_inlet_end = fub::GetOptionOr(inlet_options, "r_end", r_inlet_end);
   }
 
@@ -364,7 +363,7 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
 
 void WriteCheckpoint(
     const std::string& path,
-    const fub::amrex::MultiBlockGriddingAlgorithm& grid,
+    const fub::amrex::MultiBlockGriddingAlgorithm2& grid,
     fub::span<const std::shared_ptr<fub::amrex::PressureValve>> valves,
     int rank, const fub::amrex::MultiBlockIgniteDetonation& ignition) {
   auto tubes = grid.GetTubes();
@@ -395,7 +394,7 @@ void WriteCheckpoint(
 }
 
 struct CheckpointOutput : fub::OutputAtFrequencyOrInterval<
-                              fub::amrex::MultiBlockGriddingAlgorithm> {
+                              fub::amrex::MultiBlockGriddingAlgorithm2> {
   CheckpointOutput(
       const fub::ProgramOptions& options,
       std::vector<std::shared_ptr<fub::amrex::PressureValve>> valves,
@@ -410,7 +409,7 @@ struct CheckpointOutput : fub::OutputAtFrequencyOrInterval<
   }
 
   void
-  operator()(const fub::amrex::MultiBlockGriddingAlgorithm& grid) override {
+  operator()(const fub::amrex::MultiBlockGriddingAlgorithm2& grid) override {
     int rank = -1;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     boost::log::sources::severity_logger<boost::log::trivial::severity_level>
@@ -476,13 +475,13 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::IdealGasMix<Tube_Rank> tube_equation{mechanism};
   fub::IdealGasMix<Plenum_Rank> plenum_equation{mechanism};
 
-  fub::amrex::MultiBlockIntegratorContext context(
-      fub::FlameMasterReactor(mechanism), std::move(tubes), std::move(plenum),
+  fub::amrex::MultiBlockIntegratorContext2 context(
+      tube_equation, plenum_equation, std::move(tubes), std::move(plenum),
       std::move(connectivity));
 
   fub::DimensionalSplitLevelIntegrator system_solver(
       fub::int_c<Plenum_Rank>, std::move(context), fub::StrangSplitting{});
-      // fub::int_c<Plenum_Rank>, std::move(context), fub::GodunovSplitting{});
+  // fub::int_c<Plenum_Rank>, std::move(context), fub::GodunovSplitting{});
 
   const std::size_t n_tubes = system_solver.GetContext().Tubes().size();
   const int max_number_of_levels = system_solver.GetContext()
@@ -524,18 +523,23 @@ void MyMain(const fub::ProgramOptions& options) {
   // fub::NoSubcycleSolver solver(std::move(level_integrator));
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
-  fub::OutputFactory<fub::amrex::MultiBlockGriddingAlgorithm> factory{};
-  factory.RegisterOutput<fub::amrex::MultiWriteHdf5>("HDF5");
-  factory.RegisterOutput<fub::amrex::MultiBlockPlotfileOutput>("Plotfile");
+  fub::OutputFactory<fub::amrex::MultiBlockGriddingAlgorithm2> factory{};
+  factory.RegisterOutput<fub::amrex::MultiWriteHdf5WithNames>(
+      "HDF5", plenum_equation, tube_equation);
+  using PlotfileOutput =
+      fub::amrex::MultiBlockPlotfileOutput2<fub::IdealGasMix<Tube_Rank>,
+                                            fub::IdealGasMix<Plenum_Rank>>;
+  factory.RegisterOutput<PlotfileOutput>("Plotfile", tube_equation,
+                                         plenum_equation);
   factory.RegisterOutput<fub::amrex::LogProbesOutput>("LogProbes");
   factory.RegisterOutput<CheckpointOutput>(
       "Checkpoint", valves,
       &solver.GetLevelIntegrator().GetSystem().GetSource());
   using CounterOutput =
-      fub::CounterOutput<fub::amrex::MultiBlockGriddingAlgorithm,
+      fub::CounterOutput<fub::amrex::MultiBlockGriddingAlgorithm2,
                          std::chrono::milliseconds>;
   factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
-  fub::MultipleOutputs<fub::amrex::MultiBlockGriddingAlgorithm> outputs(
+  fub::MultipleOutputs<fub::amrex::MultiBlockGriddingAlgorithm2> outputs(
       std::move(factory), fub::GetOptions(options, "Output"));
 
   fub::RunOptions run_options = fub::GetOptions(options, "RunOptions");
