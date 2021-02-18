@@ -25,8 +25,6 @@ else:
    dataPath = FVS_path+"/build_2D-Release/average_massflow"
    inputFilePath = FVS_path+"/examples/AMReX/EB/2D/"
 
-
-
 sys.path.append(inputFilePath)
 from SEC_Plenum_Arrhenius import y0s, Area, tube_n_cells, p_ref, T_ref, rho_ref, Output, u_ref, t_ref
 from SEC_Plenum_Arrhenius import D as diameter_tube
@@ -44,14 +42,16 @@ file.close()
 output_dict = Output['outputs']
 output_dict = [ out_dict for out_dict in output_dict if 'which_block' in out_dict] # strip 'CounterOutput'
 for out_dict in output_dict:
-   if 'Plenum' in out_dict['path']:
+   # get only the file names without the prefix dir names
+   out_path = out_dict['path'].rsplit('/',1)[-1]
+   if 'Plenum' in out_path:
       if 'frequencies' in out_dict:
          plenum_out = int(out_dict['frequencies'][0])
       elif 'intervals' in out_dict:
          plenum_out = float(out_dict['intervals'][0])
       else:
          raise Exception("could not find output frequency or interval from plenum")
-   elif 'Tube' in out_dict['path']: # assume all tubes have same frequency or intervals
+   elif 'Tube' in out_path: # assume all tubes have same frequency or intervals
       if 'frequencies' in out_dict:
          tube_out = int(out_dict['frequencies'][0])
       elif 'intervals' in out_dict:
