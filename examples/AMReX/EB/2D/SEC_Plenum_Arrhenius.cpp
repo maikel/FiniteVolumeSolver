@@ -639,6 +639,22 @@ auto MakePlenumSolver(
 
   const int scratch_gcw = context_options.scratch_gcw;
 
+  const int lower_left_corner_x0 = -scratch_gcw;
+  const int lower_left_corner_y0 = -scratch_gcw;
+  ::amrex::IntVect lower_left_corner_lo{lower_left_corner_x0,
+                                        lower_left_corner_y0};
+  ::amrex::IntVect lower_left_corner_hi{lower_left_corner_x0 + scratch_gcw - 1,
+                                        lower_left_corner_y0 + scratch_gcw - 1};
+  ::amrex::Box lower_left_corner{lower_left_corner_lo, lower_left_corner_hi};
+
+  const int upper_left_corner_x0 = -scratch_gcw;
+  const int upper_left_corner_y0 = grid_geometry.cell_dimensions[1];
+  ::amrex::IntVect upper_left_corner_lo{upper_left_corner_x0,
+                                        upper_left_corner_y0};
+  ::amrex::IntVect upper_left_corner_hi{upper_left_corner_x0 + scratch_gcw - 1,
+                                        upper_left_corner_y0 + scratch_gcw - 1};
+  ::amrex::Box upper_left_corner{upper_left_corner_lo, upper_left_corner_hi};
+
   const int lower_right_corner_x0 = grid_geometry.cell_dimensions[0];
   const int lower_right_corner_y0 = -scratch_gcw;
   ::amrex::IntVect lower_right_corner_lo{lower_right_corner_x0,
@@ -659,6 +675,8 @@ auto MakePlenumSolver(
 
   BoundarySet boundary_condition{
       {TransmissiveBoundary{fub::Direction::X, 0},
+       ReflectiveBoundary2{equation, fub::Direction::X, 0, lower_left_corner},
+       ReflectiveBoundary2{equation, fub::Direction::X, 0, upper_left_corner},
        ReflectiveBoundary2{equation, fub::Direction::X, 1, lower_right_corner},
        ReflectiveBoundary2{equation, fub::Direction::X, 1, upper_right_corner},
        ReflectiveBoundary{fub::execution::seq, equation, fub::Direction::X, 1},
