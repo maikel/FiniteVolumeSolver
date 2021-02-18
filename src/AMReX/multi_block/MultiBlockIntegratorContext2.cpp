@@ -31,6 +31,30 @@
 
 namespace fub::amrex {
 
+MultiBlockIntegratorContext2::MultiBlockIntegratorContext2(
+    const MultiBlockIntegratorContext2& other)
+    : tubes_{}, plena_{},
+      gridding_{
+          std::make_shared<MultiBlockGriddingAlgorithm2>(*other.gridding_)},
+      post_advance_hierarchy_feedback_{other.post_advance_hierarchy_feedback_} {
+  for (auto&& [context, grid] :
+       ranges::view::zip(other.tubes_, gridding_->GetTubes())) {
+    tubes_.emplace_back(grid, context.GetHyperbolicMethod(),
+                        context.GetOptions());
+  }
+  for (auto&& [context, grid] :
+       ranges::view::zip(other.plena_, gridding_->GetPlena())) {
+    plena_.emplace_back(grid, context.GetHyperbolicMethod(),
+                        context.GetOptions());
+  }
+}
+
+MultiBlockIntegratorContext2& MultiBlockIntegratorContext2::
+operator=(const MultiBlockIntegratorContext2& other) {
+  MultiBlockIntegratorContext2 tmp(other);
+  return *this = std::move(tmp);
+}
+
 void MultiBlockIntegratorContext2::CopyDataToScratch(int level) {
   for (IntegratorContext& ctx : tubes_) {
     ctx.CopyDataToScratch(level);
@@ -226,68 +250,6 @@ MultiBlockIntegratorContext2::PostAdvanceLevel(int level_num, Duration dt,
   }
   return boost::outcome_v2::success();
 }
-
-namespace {
-struct WrapBoundaryCondition {
-  std::size_t id;
-  span<const BlockConnection> connectivity;
-  span<AnyMultiBlockBoundary> boundaries;
-  AnyBoundaryCondition* base_condition{nullptr};
-  cutcell::AnyBoundaryCondition* base_cc_condition{nullptr};
-
-  void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding,
-                    int level) const {
-    FUB_ASSERT(base_condition != nullptr);
-    base_condition->FillBoundary(mf, gridding, level);
-    AnyMultiBlockBoundary* boundary = boundaries.begin();
-    for (const BlockConnection& connection : connectivity) {
-      if (id == connection.tube.id) {
-        boundary->FillBoundary(mf, gridding, level);
-      }
-      ++boundary;
-    }
-  }
-  void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding,
-                    int level, Direction dir) const {
-    FUB_ASSERT(base_condition != nullptr);
-    base_condition->FillBoundary(mf, gridding, level, dir);
-    AnyMultiBlockBoundary* boundary = boundaries.begin();
-    for (const BlockConnection& connection : connectivity) {
-      if (id == connection.tube.id) {
-        boundary->FillBoundary(mf, gridding, level, dir);
-      }
-      ++boundary;
-    }
-  }
-
-  void FillBoundary(::amrex::MultiFab& mf,
-                    const cutcell::GriddingAlgorithm& gridding,
-                    int level) const {
-    FUB_ASSERT(base_cc_condition != nullptr);
-    base_cc_condition->FillBoundary(mf, gridding, level);
-    AnyMultiBlockBoundary* boundary = boundaries.begin();
-    for (const BlockConnection& connection : connectivity) {
-      if (id == connection.plenum.id) {
-        boundary->FillBoundary(mf, gridding, level);
-      }
-      ++boundary;
-    }
-  }
-  void FillBoundary(::amrex::MultiFab& mf,
-                    const cutcell::GriddingAlgorithm& gridding, int level,
-                    Direction dir) const {
-    FUB_ASSERT(base_cc_condition != nullptr);
-    base_cc_condition->FillBoundary(mf, gridding, level, dir);
-    AnyMultiBlockBoundary* boundary = boundaries.begin();
-    for (const BlockConnection& connection : connectivity) {
-      if (id == connection.plenum.id) {
-        boundary->FillBoundary(mf, gridding, level, dir);
-      }
-      ++boundary;
-    }
-  }
-};
-} // namespace
 
 void MultiBlockIntegratorContext2::ApplyBoundaryCondition(int level,
                                                           Direction dir) {

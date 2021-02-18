@@ -110,6 +110,9 @@ public:
 
   /// \brief Returns the integrator context options
   const IntegratorContextOptions& GetOptions() const noexcept;
+
+  /// \brief Returns the method components
+  const HyperbolicMethod& GetHyperbolicMethod() const noexcept;
   /// @}
 
   /// @{
@@ -262,8 +265,8 @@ private:
   /// \brief This class holds auxiliary data on each refinement level.
   struct LevelData {
     LevelData() = default;
-    LevelData(const LevelData& other) = delete;
-    LevelData& operator=(const LevelData& other) = delete;
+    LevelData(const LevelData& other);
+    LevelData& operator=(const LevelData& other);
     LevelData(LevelData&&) noexcept = default;
     LevelData& operator=(LevelData&&) noexcept;
     ~LevelData() noexcept = default;

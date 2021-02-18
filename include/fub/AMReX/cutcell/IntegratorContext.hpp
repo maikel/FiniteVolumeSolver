@@ -291,8 +291,8 @@ public:
 private:
   struct LevelData {
     LevelData() = default;
-    LevelData(const LevelData& other) = delete;
-    LevelData& operator=(const LevelData& other) = delete;
+    LevelData(const LevelData& other);
+    LevelData& operator=(const LevelData& other);
     LevelData(LevelData&&) noexcept = default;
     LevelData& operator=(LevelData&&) noexcept;
     ~LevelData() noexcept = default;

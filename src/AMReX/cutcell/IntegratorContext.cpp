@@ -22,6 +22,7 @@
 
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/ForEachIndex.hpp"
+#include "fub/AMReX/MultiFabUtilities.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/AMReX/boundary_condition/BoundaryConditionRef.hpp"
 #include "fub/AMReX/cutcell/IndexSpace.hpp"
@@ -32,10 +33,114 @@
 #include <AMReX_Interpolater.H>
 #include <AMReX_MultiFabUtil.H>
 
+#include <range/v3/view/zip.hpp>
+
 namespace fub::amrex::cutcell {
 
 ////////////////////////////////////////////////////////////////////////////////
 //                                                  IntegratorContext::LevelData
+
+////////////////////////////////////////////////////////////////////////////////
+//                                                              Copy Constrcutor
+
+IntegratorContext::LevelData::LevelData(const LevelData& other)
+    : eb_factory{other.eb_factory}, reference_states{}, scratch{CopyMultiFab(
+                                                            other.scratch)} {
+  if (other.coarse_fine.fineLevel() > 0) {
+    // If we do not invoke clear in beforehand it will throw an error in AMReX
+    coarse_fine.clear();
+    coarse_fine.define(scratch.boxArray(), scratch.DistributionMap(),
+                       other.coarse_fine.refRatio(),
+                       other.coarse_fine.fineLevel(),
+                       other.coarse_fine.nComp());
+    coarse_fine.setVal(0.0);
+  }
+  for (auto&& [this_mf, other_mf] : ranges::view::zip(fluxes, other.fluxes)) {
+    ReallocLike(this_mf, other_mf);
+    this_mf.setVal(0.0);
+  }
+
+  for (auto&& [this_mf, other_mf] :
+       ranges::view::zip(stabilized_fluxes, other.stabilized_fluxes)) {
+    ReallocLike(this_mf, other_mf);
+    this_mf.setVal(0.0);
+  }
+
+  for (auto&& [this_mf, other_mf] :
+       ranges::view::zip(shielded_left_fluxes, other.shielded_left_fluxes)) {
+    ReallocLike(this_mf, other_mf);
+    this_mf.setVal(0.0);
+  }
+
+  for (auto&& [this_mf, other_mf] :
+       ranges::view::zip(shielded_right_fluxes, other.shielded_right_fluxes)) {
+    ReallocLike(this_mf, other_mf);
+    this_mf.setVal(0.0);
+  }
+
+  for (auto&& [this_mf, other_mf] : ranges::view::zip(
+           doubly_shielded_fluxes, other.doubly_shielded_fluxes)) {
+    ReallocLike(this_mf, other_mf);
+    this_mf.setVal(0.0);
+  }
+
+  time_point = other.time_point;
+  regrid_time_point = other.regrid_time_point;
+  cycles = other.cycles;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//                                                      Copy Assignment Operator
+
+IntegratorContext::LevelData& IntegratorContext::LevelData::
+operator=(const LevelData& other) {
+  if (other.coarse_fine.fineLevel() > 0) {
+    // If we do not invoke clear in beforehand it will throw an error in AMReX
+    coarse_fine.clear();
+    coarse_fine.define(scratch.boxArray(), scratch.DistributionMap(),
+                       other.coarse_fine.refRatio(),
+                       other.coarse_fine.fineLevel(),
+                       other.coarse_fine.nComp());
+    coarse_fine.setVal(0.0);
+  }
+  for (auto&& [this_mf, other_mf] : ranges::view::zip(fluxes, other.fluxes)) {
+    ReallocLike(this_mf, other_mf);
+    this_mf.setVal(0.0);
+  }
+
+  for (auto&& [this_mf, other_mf] :
+       ranges::view::zip(stabilized_fluxes, other.stabilized_fluxes)) {
+    ReallocLike(this_mf, other_mf);
+    this_mf.setVal(0.0);
+  }
+
+  for (auto&& [this_mf, other_mf] :
+       ranges::view::zip(shielded_left_fluxes, other.shielded_left_fluxes)) {
+    ReallocLike(this_mf, other_mf);
+    this_mf.setVal(0.0);
+  }
+
+  for (auto&& [this_mf, other_mf] :
+       ranges::view::zip(shielded_right_fluxes, other.shielded_right_fluxes)) {
+    ReallocLike(this_mf, other_mf);
+    this_mf.setVal(0.0);
+  }
+
+  for (auto&& [this_mf, other_mf] : ranges::view::zip(
+           doubly_shielded_fluxes, other.doubly_shielded_fluxes)) {
+    ReallocLike(this_mf, other_mf);
+    this_mf.setVal(0.0);
+  }
+
+  ReallocLike(scratch, other.scratch);
+  ::amrex::MultiFab::Copy(scratch, other.scratch, 0, 0, other.scratch.nComp(),
+                          other.scratch.nGrowVect());
+
+  time_point = other.time_point;
+  regrid_time_point = other.regrid_time_point;
+  cycles = other.cycles;
+  return *this;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 //                                                      Move Assignment Operator
@@ -118,20 +223,9 @@ IntegratorContext::IntegratorContext(
 }
 
 IntegratorContext::IntegratorContext(const IntegratorContext& other)
-    : options_{other.options_}, gridding_{other.gridding_},
-      data_(static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels())),
-      method_{other.method_} {
-  // Allocate auxiliary data arrays
-  ResetHierarchyConfiguration();
-  // Copy time stamps and cycle counters
-  std::size_t n_levels =
-      static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels());
-  for (std::size_t i = 0; i < n_levels; ++i) {
-    data_[i].cycles = other.data_[i].cycles;
-    data_[i].time_point = other.data_[i].time_point;
-    data_[i].regrid_time_point = other.data_[i].regrid_time_point;
-  }
-}
+    : options_{other.options_}, gridding_{std::make_shared<GriddingAlgorithm>(
+                                    *other.gridding_)},
+      data_(other.data_), method_{other.method_} {}
 
 IntegratorContext& IntegratorContext::IntegratorContext::
 operator=(const IntegratorContext& other) {
