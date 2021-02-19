@@ -56,9 +56,15 @@ os.makedirs(output_path, exist_ok=True)
 
 n_tubes = len(Tubes)
 
+def printMinMaxData(data, variable, times, tube_id):
+  indices_min = np.unravel_index(np.argmin(data, axis=None), data.shape)
+  indices_max = np.unravel_index(np.argmax(data, axis=None), data.shape)
+  print("[Tube{}] {} min was {} at time {}".format(tube_id, variable, data[indices_min], times[indices_min[0]]))
+  print("[Tube{}] {} max was {} at time {}".format(tube_id, variable, data[indices_max], times[indices_max[0]]))
+
 
 for tube_id in range(n_tubes):
-  print("Plotting Tube with id = {}".format(tube_id))
+  print("[Tube{}] Plotting Tube data".format(tube_id))
   filename_basic = dataPath+'/Tube{}.h5'.format(tube_id)
   # datas, times, datas_dict = da.h5_load_timeseries(filename_basic)
   extent_1d = da.h5_load_get_extent_1D(filename_basic)
@@ -73,26 +79,26 @@ for tube_id in range(n_tubes):
    if otherFiles:
       fileNameList.append( *otherFiles )
 
-   print(fileNameList)
+   print("[Tube{}] fileNameList = {}".format(tube_id, fileNameList))
 
    # Read in data
    # Attention the last file is the latest!!
    # for example we have Filename.h5 and Filename.h5.1 the last one contains the first data!
-   print("Read in data from {}".format(fileNameList[-1]))
+   print("[Tube{}] Read in data from {}".format(tube_id, fileNameList[-1]))
    datas, times, datas_dict = da.h5_load_timeseries(fileNameList[-1])
 
    for filename in reversed(fileNameList[:-1]):
-      print("Read in data from {}".format(filename))
+      print("[Tube{}] Read in data from {}".format(tube_id, filename))
       data, time, _ = da.h5_load_timeseries(fileNameList[0])
       datas = np.concatenate((datas, data))
       times = np.concatenate((times, time))
   else:
-    print("Read in data from {}".format(filename_basic))
+    print("[Tube{}] Read in data from {}".format(tube_id, filename_basic))
     datas, times, datas_dict = da.h5_load_timeseries(filename_basic)
 
 
   datas = np.squeeze(datas) # remove last axis
-  print(datas.shape)
+  print("[Tube{}] data shape from tube is {} = (NTimePoints, NVariables, NCells)".format(tube_id, datas.shape))
   # print(datas_dict)
 
   # optional slicing in time-dimension
@@ -108,16 +114,23 @@ for tube_id in range(n_tubes):
   rhoX_data = datas[slice_start:slice_end, datas_dict['PassiveScalars'], :]
   T_data = p_data / rho_data
   F_data = rhoF_data / rho_data
+  Ma = rhou_data / rho_data / c_data
+  X = rhoX_data / rho_data
 
   x0 = extent_1d[0]
   xEnd = extent_1d[1]
   t0 = times[slice_start]
   tEnd = times[slice_end]
-  print(tEnd)
+  print("[Tube{}] tEnd is {}".format(tube_id, tEnd))
+
+  # print out the first occurence of min/max value 
+  printMinMaxData(p_data, 'Pressure', times, tube_id)
+  printMinMaxData(T_data, 'Temperature', times, tube_id)
+  printMinMaxData(F_data, 'Fuel', times, tube_id)
+  printMinMaxData(Ma, 'MachNumber', times, tube_id)
+
 
   # print(np.max(F_data))
-  Ma = rhou_data / rho_data / c_data
-  X = rhoX_data / rho_data
 
   titles = ['Temperature [K]', 'Pressure [bar]', 'Local Machnumber [-]', 'Fuel Massfraction [-]', 'Passive Scalars [-]']
   datas = [T_data * T_ref, p_data, Ma, F_data, X]
@@ -151,8 +164,8 @@ for tube_id in range(n_tubes):
       'interpolation': 'none',
       'aspect': 'auto',
       'extent': (x0, xEnd, t0, tEnd),
-      'vmin': 0.0,
-      'vmax': 10.0,
+      # 'vmin': 0.0,
+      # 'vmax': 10.0,
       'cmap': 'jet'
       }
     return props
