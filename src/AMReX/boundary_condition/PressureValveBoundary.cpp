@@ -280,16 +280,42 @@ void PressureValveBoundary::FillBoundary(::amrex::MultiFab& mf,
     break;
   case PressureValveState::open_air:
   case PressureValveState::open_fuel:
-    FlameMasterReactor& reactor = equation_.GetReactor();
-    reactor.SetDensity(1.0);
-    reactor.SetMoleFractions("O2:21,N2:79");
-    reactor.SetTemperature(300.0);
-    reactor.SetPressure(101325.0);
-    equation_.CompleteFromReactor(state);
-    inflow_boundary.ComputeBoundaryState(state, state);
-    inflow_boundary.FillBoundary(mf, geom, state);
+    inflow_boundary.FillBoundary(mf, grid, level);
   }
-  if (shared_valve_->state == PressureValveState::open_fuel) {
+  if (shared_valve_->state == PressureValveState::open_air) {
+    ForEachFab(execution::seq, mf, [&](const ::amrex::MFIter& mfi) {
+      ::amrex::FArrayBox& fab = mf[mfi];
+      for (const ::amrex::Box& boundary : boundaries) {
+        ::amrex::Box shifted = ::amrex::shift(boundary, 0, ngrow);
+        if (!geom.Domain().intersects(shifted)) {
+          continue;
+        }
+        ::amrex::Box box_to_fill = mfi.growntilebox() & boundary;
+        if (!box_to_fill.isEmpty()) {
+          auto states = MakeView<Complete<IdealGasMix<1>>>(fab, equation_,
+                                                           mfi.growntilebox());
+          ForEachIndex(box_to_fill, [this, &state, &states](std::ptrdiff_t i,
+                                                            auto...) {
+            std::array<std::ptrdiff_t, 1> dest{i};
+            Load(state, states, dest);
+            FUB_ASSERT(state.density > 0.0);
+            FUB_ASSERT(state.pressure > 0.0);
+            FUB_ASSERT(state.temperature > 0.0);
+            equation_.SetReactorStateFromComplete(state);
+            FlameMasterReactor& reactor = equation_.GetReactor();
+            reactor.SetDensity(1.0);
+            reactor.SetMoleFractions("O2:21,N2:79");
+            reactor.SetTemperature(300.0);
+            reactor.SetPressure(state.pressure);
+            equation_.CompleteFromReactor(state);
+            Array<double, 1, 1> velocity = equation_.Velocity(state);
+            equation_.CompleteFromReactor(state, velocity);
+            Store(states, state, dest);
+          });
+        }
+      }
+    });
+  } else if (shared_valve_->state == PressureValveState::open_fuel) {
     ForEachFab(execution::seq, mf, [&](const ::amrex::MFIter& mfi) {
       ::amrex::FArrayBox& fab = mf[mfi];
       for (const ::amrex::Box& boundary : boundaries) {
@@ -316,14 +342,10 @@ void PressureValveBoundary::FillBoundary(::amrex::MultiFab& mf,
             std::vector<double> new_moles(old_moles.begin(), old_moles.end());
             new_moles[Burke2012::sH2] =
                 2.0 * options_.equivalence_ratio * new_moles[Burke2012::sO2];
-            const double difference_h2_moles =
-                new_moles[Burke2012::sH2] - old_moles[Burke2012::sH2];
-            const double new_density =
-                state.density +
-                difference_h2_moles * mass_over_mole[Burke2012::sH2];
-            reactor.SetDensity(new_density);
+            reactor.SetDensity(1.0);
             reactor.SetMoleFractions(new_moles);
             reactor.SetTemperature(state.temperature);
+            reactor.SetPressure(state.pressure);
             Array<double, 1, 1> velocity = equation_.Velocity(state);
             equation_.CompleteFromReactor(state, velocity);
             Store(states, state, dest);

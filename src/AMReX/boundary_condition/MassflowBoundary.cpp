@@ -86,19 +86,30 @@ void MassflowBoundary<Rank>::ComputeBoundaryState(
   const double rGammaPlus = 1.0 / gammaPlus;
   const double c_critical =
       std::sqrt(c * c + 0.5 * gammaMinus * u * u) * std::sqrt(2 * rGammaPlus);
-  const double u_n = options_.required_massflow / rho / options_.surface_area;
-  const double lambda = u / c_critical;
-  const double lambda_n = u_n / c_critical;
-  const double gammaQuot = gammaMinus * rGammaPlus;
-  const double p0_n =
-      p * std::pow(1. - gammaQuot * lambda_n * lambda_n, -gamma / gammaMinus);
-  const double p_n =
-      p0_n * std::pow(1. - gammaQuot * lambda * lambda, gamma / gammaMinus);
-
-  equation_.GetReactor().SetDensity(state.density);
+  double mdot = rho * u;
+  double mdot_n = options_.required_massflow / options_.surface_area;
+  auto realtive_error = [](double x, double y) { 
+    if (x != 0 && y != 0) {
+      return std::abs(x - y) /  (std::abs(x) + std::abs(y)); 
+    }
+    return 0.0;
+  };
+  equation_.GetReactor().SetDensity(state.density); 
   equation_.GetReactor().SetMassFractions(state.species);
   equation_.GetReactor().SetTemperature(state.temperature);
-  equation_.GetReactor().SetPressureIsentropic(p_n);
+  double rho_n = equation_.GetReactor().GetDensity();
+  while (relative_error(mdot, mdot_n) > 1e-6) {
+    const double lambda = mdot / rho_n / c_critical;
+    const double lambda_n = mdot_n / rho_n / c_critical;
+    const double gammaQuot = gammaMinus * rGammaPlus;
+    const double p0_n =
+        p * std::pow(1. - gammaQuot * lambda * lambda, -gamma / gammaMinus);
+    const double p_n =
+        p0_n * std::pow(1. - gammaQuot * lambda_n * lambda_n, gamma / gammaMinus);
+    const double u_n = equation_.GetReactor().SetPressureIsentropic(p_n);
+    rho_n = equation_.GetReactor().GetDensity();
+    mdot = rho_n * u_n;
+  }
   Eigen::Array<double, Rank, 1> velocity =
       Eigen::Array<double, Rank, 1>::Zero();
   velocity[int(options_.dir)] = u_n;
