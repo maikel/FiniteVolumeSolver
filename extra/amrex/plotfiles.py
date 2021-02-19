@@ -247,3 +247,37 @@ def get_controlState_Klein(filename):
   GT_data = GT_data[:,1:]
 
   return GT_data, times, dictionary
+
+def printSimpleStatsTubeData(data, variable, times, tube_id=0, ndig=4):
+  """
+  Print out simple Stats from given Arrays. Only tested with Tube Data!
+  Shape must be (NTimePoints, NCells)
+
+  Parameters
+  ----------------------------------------
+    data:       numpy array
+                the data array with shape like (NTimePoints, NCells)
+    variable:   string
+                name of the variable
+    times:      numpy array
+                the time points from the data
+    tube_id:    integer, optional
+                number of the tube, default=0
+    ndig:       integer
+                maximal number of decimal digits for output
+  """
+  indices_min = np.unravel_index(np.argmin(data, axis=None), data.shape)
+  indices_max = np.unravel_index(np.argmax(data, axis=None), data.shape)
+
+  stats_data = [['', 'min', 'mean', 'median', 'std', 'max'],
+                ['value', data[indices_min], np.mean(data), np.median(data), np.std(data), data[indices_max]],
+                ['time', times[indices_min[0]], '-', '-', '-', times[indices_max[0]]] ]
+  
+  stats_data[1] = [el if isinstance(el, str) else round(el, ndig) for el in stats_data[1]]
+  stats_data[2] = [el if isinstance(el, str) else round(el, ndig) for el in stats_data[2]]
+
+  format_row = '{:>12}'*len(stats_data[0])
+  print("[Tube{}] Stats for {}:".format(tube_id, variable))
+  for row in stats_data:
+    print(format_row.format(*row))
+  print()
