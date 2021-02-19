@@ -216,3 +216,34 @@ def set_size(width, fraction=1, subplots=(1, 1)):
     fig_height_in = fig_width_in * golden_ratio * (subplots[0] / subplots[1])
 
     return (fig_width_in, fig_height_in)
+
+def get_controlState_Klein(filename):
+  """
+  Load the Control State data from the txt file for all time points.
+
+  Parameters
+  ----------------------------------------
+    filename:   string
+                name of the txt-file, usually GT_time_series.txt
+  Returns
+  ----------------------------------------
+    GT_data:      numpy array
+                  the loaded data from the txt-file
+    times:        numpy array
+                  the time points from the data
+    dictionary:   dictionary
+                  dict that matches the name to the data
+  """
+  ## all headers from GT
+  # GT_header_list = ["time", "rpm", "PowV", "PowT", "PowOut", "ftot", "frate", "Eff", "MFVout", "MFVin", "MFTin", "MFTout", "rhoV", "pV", "TV", "rhoT", "pT", "TT", "pTmax"]
+  # tcorresponding names for FVS Simulation
+  FVS_header = ["time", "current_rpm", "compressor_power", "turbine_power", "power_out", "fuel_consumption", "fuel_consumption_rate", "efficiency", "compressor_mass_flow_out", "compressor_mass_flow_in", "turbine_mass_flow_in", "turbine_mass_flow_out", "compressor_density", "compressor_pressure", "compressor_temperature", "turbine_density", "turbine_pressure", "turbine_temperature", "pTmax"]
+  
+  # create dict without "time"
+  dictionary = {key: value for value, key in enumerate(FVS_header[1:]) }
+
+  GT_data = np.loadtxt(filename, skiprows=1) # first row contains header
+  times = GT_data[:,0]
+  GT_data = GT_data[:,1:]
+
+  return GT_data, times, dictionary
