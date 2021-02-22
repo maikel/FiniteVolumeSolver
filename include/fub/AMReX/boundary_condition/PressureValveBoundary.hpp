@@ -33,6 +33,9 @@
 #include "fub/ext/Log.hpp"
 #include "fub/ext/ProgramOptions.hpp"
 
+#include <limits>
+#include <string>
+
 namespace fub::amrex {
 /// \ingroup BoundaryCondition
 ///
@@ -58,18 +61,6 @@ struct PressureValveOptions {
   MassflowBoundaryOptions massflow_boundary{};
 };
 
-} // namespace fub::amrex
-
-namespace boost::serialization {
-
-template <typename Archive>
-void serialize(Archive& ar, ::fub::amrex::PressureValveOptions& opts,
-               unsigned int version);
-
-}
-
-namespace fub::amrex {
-
 enum class PressureValveState { open_air, open_fuel, closed };
 /// \ingroup BoundaryCondition
 ///
@@ -78,7 +69,23 @@ struct PressureValve {
   Duration last_closed{std::numeric_limits<double>::lowest()};
   Duration last_fuel{std::numeric_limits<double>::lowest()};
 };
+}
 
+namespace boost::serialization {
+template <typename Archive>
+void serialize(Archive& ar, ::fub::amrex::PressureValve& valve,
+               unsigned int /* version */) {
+  // clang-format off
+  int state = static_cast<int>(valve.state);
+  ar & state;
+  valve.state = static_cast<::fub::amrex::PressureValveState>(state);
+  ar & valve.last_closed;
+  ar & valve.last_fuel;
+  // clang-format on
+}
+}
+
+namespace fub::amrex {
 /// \ingroup BoundaryCondition
 ///
 class PressureValveBoundary {
@@ -86,10 +93,9 @@ public:
   PressureValveBoundary(const IdealGasMix<1>& equation,
                         PressureValveOptions options);
 
-  PressureValveBoundary(const IdealGasMix<1>& equation,
-                        const std::map<std::string, pybind11::object>& options);
-
   [[nodiscard]] const PressureValveOptions& GetOptions() const noexcept;
+
+  [[nodiscard]] const PressureValve& GetValve() const noexcept;
 
   void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding,
                     int level);
@@ -97,38 +103,21 @@ public:
   void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& gridding,
                     int level, Direction dir);
 
-  [[nodiscard]] const std::shared_ptr<PressureValve>& GetSharedState() const
-      noexcept {
-    return shared_valve_;
-  }
 
 private:
+  template <typename Archive>
+  friend void serialize(Archive& ar, PressureValveBoundary& boundary,
+                        unsigned int /* version */) {
+    // clang-format off
+    ar & boundary.valve_;
+    // clang-format on
+  }
+
   PressureValveOptions options_;
   IdealGasMix<1> equation_;
-  std::shared_ptr<PressureValve> shared_valve_;
+  PressureValve valve_{};
 };
-
 } // namespace fub::amrex
 
-namespace boost::serialization {
-
-template <typename Archive>
-void serialize(Archive& ar, ::fub::amrex::PressureValve& valve,
-               unsigned int /* version */) {
-  int state = static_cast<int>(valve.state);
-  ar& state;
-  valve.state = static_cast<::fub::amrex::PressureValveState>(state);
-  ar& valve.last_closed;
-  ar& valve.last_fuel;
-}
-
-template <typename Archive>
-void serialize(Archive& ar, ::fub::amrex::PressureValveOptions& opts,
-               unsigned int /* version */) {
-  ar& opts.open_at_interval;
-  ar& opts.offset;
-}
-
-} // namespace boost::serialization
 
 #endif // FINITEVOLUMESOLVER_PRESSUREVALVE_HPP
