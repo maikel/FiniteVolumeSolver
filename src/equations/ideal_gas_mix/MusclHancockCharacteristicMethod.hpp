@@ -98,8 +98,9 @@ Characteristics ComputeSlopes(Characteristics& limited,
 template <int Rank>
 CharacteristicsArray
 ComputeSlopes(CharacteristicsArray& limited,
-              span<const CompleteArray<IdealGasMix<Rank>>, 3> states, Array1d rhoc,
-              Array1d ooc2, ArrayLimiter& limiter, Direction dir) {
+              span<const CompleteArray<IdealGasMix<Rank>>, 3> states,
+              Array1d rhoc, Array1d ooc2, ArrayLimiter& limiter,
+              Direction dir) {
   const auto [ix, iy, iz] = MakeIndices(dir);
   BasicPrimitivesArray pL(states[0]);
   BasicPrimitivesArray pM(states[1]);
@@ -310,8 +311,13 @@ template <int Rank>
 void MusclHancockCharacteristic<Rank>::ComputeNumericFlux(
     ConservativeArray& flux, Array1d face_fractions,
     span<const CompleteArray, 4> stencil,
-    span<const Array1d, 4> volume_fractions, Duration dt, double dx,
-    Direction dir) {}
+    span<const Array1d, 4> /* volume_fractions */, Duration dt, double dx,
+    Direction dir) {
+  ComputeNumericFlux(flux, stencil, dt, dx, dir);
+  MaskArray mask = (face_fractions > 0.0);
+  ForEachComponent([&mask](auto&& flux) { flux = mask.select(flux, 0.0); },
+                   flux);
+}
 
 template <int Rank>
 double MusclHancockCharacteristic<Rank>::ComputeStableDt(
