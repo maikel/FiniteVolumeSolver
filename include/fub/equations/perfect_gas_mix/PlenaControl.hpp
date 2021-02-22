@@ -223,7 +223,7 @@ public:
     /* grab the mean global mass flux into the turbine */
     amrex::cutcell::IntegratorContext& plenum = context.Plena()[0];
     int coarsest_level = 0;
-    const Duration time_point = plenum.GetTimePoint(coarsest_level);
+    // const Duration time_point = plenum.GetTimePoint(coarsest_level);
     const ::amrex::MultiFab& scratch = plenum.GetScratch(coarsest_level);
     const ::amrex::MultiFab& fluxes_x =
         plenum.GetFluxes(coarsest_level, Direction::X);
