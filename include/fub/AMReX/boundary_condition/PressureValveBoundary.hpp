@@ -45,19 +45,11 @@ struct PressureValveOptions {
 
   void Print(SeverityLogger& log);
 
-  std::string prefix{"PressureValve"};
+  std::string channel{"PressureValve"};
   double equivalence_ratio{1.0};
-  double outer_pressure{1.5 * 101325.0};
-  double outer_temperature{300.0};
-  double pressure_value_which_opens_boundary{101325.0};
   double pressure_value_which_closes_boundary{3.0 * 101325.0};
-  double oxygen_measurement_position{1.0};
-  double oxygen_measurement_criterium{0.1};
-  double fuel_measurement_position{1.0};
-  double fuel_measurement_criterium{0.95};
-  double valve_efficiency{1.0};
-  Duration open_at_interval{0.0};
-  Duration offset{0.0};
+  Duration change_to_fuel_at_interval{0.0};
+  Duration change_to_fuel_time_offset{0.0};
   MassflowBoundaryOptions massflow_boundary{};
 };
 
@@ -66,7 +58,6 @@ enum class PressureValveState { open_air, open_fuel, closed };
 ///
 struct PressureValve {
   PressureValveState state{PressureValveState::open_air};
-  Duration last_closed{std::numeric_limits<double>::lowest()};
   Duration last_fuel{std::numeric_limits<double>::lowest()};
 };
 }
@@ -79,7 +70,6 @@ void serialize(Archive& ar, ::fub::amrex::PressureValve& valve,
   int state = static_cast<int>(valve.state);
   ar & state;
   valve.state = static_cast<::fub::amrex::PressureValveState>(state);
-  ar & valve.last_closed;
   ar & valve.last_fuel;
   // clang-format on
 }

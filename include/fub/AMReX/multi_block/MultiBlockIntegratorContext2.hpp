@@ -224,11 +224,6 @@ MultiBlockIntegratorContext2::MultiBlockIntegratorContext2(
   gridding_ = std::make_shared<MultiBlockGriddingAlgorithm2>(
       tube_equation, plenum_equation, std::move(tube_grids),
       std::move(plenum_grids), std::move(connectivity));
-  const int nlevel = plena_[0].GetPatchHierarchy().GetNumberOfLevels();
-  for (int level = 0; level < nlevel; ++level) {
-    ComputeMultiBlockBoundaryData(level);
-    ApplyBoundaryCondition(level, Direction::X);
-  }
 }
 
 } // namespace fub::amrex

@@ -134,20 +134,20 @@ IntegratorContext::IntegratorContext(
     : options_{options}, gridding_{std::move(gridding)}, data_{}, method_{
                                                                       std::move(
                                                                           hm)} {
-  data_.reserve(
-      static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
-  // Allocate auxiliary data arrays for each refinement level in the hierarchy
-  ResetHierarchyConfiguration();
-  std::size_t n_levels =
-      static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels());
-  for (std::size_t i = 0; i < n_levels; ++i) {
-    const auto level = static_cast<int>(i);
-    data_[i].cycles =
-        gridding_->GetPatchHierarchy().GetPatchLevel(level).cycles;
-    data_[i].time_point =
-        gridding_->GetPatchHierarchy().GetPatchLevel(level).time_point;
-    data_[i].regrid_time_point = data_[i].time_point;
-  }
+  // data_.reserve(
+  //     static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
+  // // Allocate auxiliary data arrays for each refinement level in the hierarchy
+  // ResetHierarchyConfiguration();
+  // std::size_t n_levels =
+  //     static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels());
+  // for (std::size_t i = 0; i < n_levels; ++i) {
+  //   const auto level = static_cast<int>(i);
+  //   data_[i].cycles =
+  //       gridding_->GetPatchHierarchy().GetPatchLevel(level).cycles;
+  //   data_[i].time_point =
+  //       gridding_->GetPatchHierarchy().GetPatchLevel(level).time_point;
+  //   data_[i].regrid_time_point = data_[i].time_point;
+  // }
 }
 
 IntegratorContext::IntegratorContext(
@@ -157,26 +157,26 @@ IntegratorContext::IntegratorContext(
                                                                std::move(nm)} {
   options_.scratch_gcw = cell_gcw;
   options_.flux_gcw = face_gcw;
-  data_.reserve(
-      static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
-  // Allocate auxiliary data arrays for each refinement level in the hierarchy
-  ResetHierarchyConfiguration();
-  std::size_t n_levels =
-      static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels());
-  for (std::size_t i = 0; i < n_levels; ++i) {
-    const auto level = static_cast<int>(i);
-    data_[i].cycles =
-        gridding_->GetPatchHierarchy().GetPatchLevel(level).cycles;
-    data_[i].time_point =
-        gridding_->GetPatchHierarchy().GetPatchLevel(level).time_point;
-    data_[i].regrid_time_point = data_[i].time_point;
-  }
+  // data_.reserve(
+  //     static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
+  // // Allocate auxiliary data arrays for each refinement level in the hierarchy
+  // ResetHierarchyConfiguration();
+  // std::size_t n_levels =
+  //     static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels());
+  // for (std::size_t i = 0; i < n_levels; ++i) {
+  //   const auto level = static_cast<int>(i);
+  //   data_[i].cycles =
+  //       gridding_->GetPatchHierarchy().GetPatchLevel(level).cycles;
+  //   data_[i].time_point =
+  //       gridding_->GetPatchHierarchy().GetPatchLevel(level).time_point;
+  //   data_[i].regrid_time_point = data_[i].time_point;
+  // }
 }
 
 IntegratorContext::IntegratorContext(const IntegratorContext& other)
     : options_{other.options_}, gridding_{std::make_shared<GriddingAlgorithm>(
                                     *other.gridding_)},
-      data_{other.data_}, method_{other.method_} {}
+      data_{}, method_{other.method_} {}
 
 IntegratorContext& IntegratorContext::IntegratorContext::
 operator=(const IntegratorContext& other) {
@@ -335,6 +335,14 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
   for (int level_num = first_level; level_num < static_cast<int>(data_.size());
        ++level_num) {
     CopyDataToScratch(level_num);
+  }
+  for (std::size_t i = 0; i < data_.size(); ++i) {
+    const auto level = static_cast<int>(i);
+    data_[i].cycles =
+        gridding_->GetPatchHierarchy().GetPatchLevel(level).cycles;
+    data_[i].time_point =
+        gridding_->GetPatchHierarchy().GetPatchLevel(level).time_point;
+    data_[i].regrid_time_point = data_[i].time_point;
   }
 }
 

@@ -68,7 +68,7 @@ ProgramOptions GetOptions(const ProgramOptions& options,
 
 std::optional<ProgramOptions> ParseCommandLine(int argc, char** argv);
 
-#define FUB_GET_OPTION_VAR(options, var) GetOptionOr(options, #var, var)
+#define FUB_GET_OPTION_VAR(options, var) var = GetOptionOr(options, #var, var)
 #define FUB_PRINT_OPTION_VAR(log, var) BOOST_LOG(log) << "  - " #var " = " << var;
 
 } // namespace fub

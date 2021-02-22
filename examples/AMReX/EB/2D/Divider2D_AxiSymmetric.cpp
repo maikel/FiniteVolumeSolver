@@ -453,8 +453,10 @@ void MyMain(const fub::ProgramOptions& options) {
       std::move(symmetric_level_integrator), std::move(source_term),
       fub::StrangSplittingLumped{});
 
-  // fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
-  fub::NoSubcycleSolver solver(std::move(level_integrator));
+  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
+  // fub::NoSubcycleSolver solver(std::move(level_integrator));
+  
+  solver.GetContext().ResetHierarchyConfiguration();
 
   using namespace fub::amrex;
   struct MakeCheckpoint
@@ -498,5 +500,6 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::RunOptions run_options = fub::GetOptions(options, "RunOptions");
   BOOST_LOG(log) << "RunOptions:";
   run_options.Print(log);
+
   fub::RunSimulation(solver, run_options, wall_time_reference, outputs);
 }

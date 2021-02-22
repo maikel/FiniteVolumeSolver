@@ -244,6 +244,33 @@ void Reflect(Complete<IdealGasMix<3>>& reflected,
              const Complete<IdealGasMix<3>>& state,
              const Eigen::Vector3d& normal, const IdealGasMix<3>& gas);
 
+template <typename State, typename ReturnType, int Rank>
+ReturnType VarNames(const IdealGasMix<Rank>& equation) {
+  using Traits = StateTraits<State>;
+  constexpr auto names = Traits::names;
+  const auto depths = fub::Depths(equation, Type<State>{});
+  const std::size_t n_names =
+      std::tuple_size<remove_cvref_t<decltype(names)>>::value;
+  ReturnType varnames;
+  varnames.reserve(n_names);
+  boost::mp11::tuple_for_each(Zip(names, StateToTuple(depths)), [&](auto xs) {
+    const int ncomp = std::get<1>(xs);
+    if (ncomp == 1) {
+      varnames.push_back(std::get<0>(xs));
+    } else {
+      span<const std::string> species = equation.GetReactor().GetSpeciesNames();
+      for (int i = 0; i < ncomp; ++i) {
+        if (std::get<0>(xs) == std::string{"Species"}) {
+          varnames.push_back(species[i]);
+        } else {
+          varnames.push_back(fmt::format("{}_{}", std::get<0>(xs), i));
+        }
+      }
+    }
+  });
+  return varnames;
+}
+
 } // namespace fub
 
 #endif
