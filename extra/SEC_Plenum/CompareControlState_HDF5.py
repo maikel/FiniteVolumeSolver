@@ -6,7 +6,6 @@ pathname = os.path.abspath(pathname)
 FVS_path = pathname.split('FiniteVolumeSolver')[0]+'FiniteVolumeSolver'
 # print(FVS_path) 
 sys.path.append(FVS_path+'/extra/')
-# import amrex.plotfiles as da
 from amrex.plotfiles import h5_load_timeseries
 import amrex.plotfiles as da
 
@@ -31,7 +30,7 @@ else:
 RESTARTEDSIMULATION = True
 
 sys.path.append(inputFilePath)
-from SEC_Plenum_Arrhenius import t_ref, ControlOptions, T_ref
+from SEC_Plenum_Arrhenius import t_ref, ControlOptions, T_ref, rho_ref
 
 outPath = dataPath
 output_path = '{}/Visualization'.format(outPath)
@@ -84,52 +83,132 @@ else:
    print("Read in data from {}".format(filename_basic))
    FVS_data, FVS_times, FVS_dict = h5_load_timeseries(filename_basic)
 
+FVS_skip = 400 # skip time data to make plot clearer
+FVS_data = FVS_data[::FVS_skip, :]
+FVS_times = FVS_times[::FVS_skip]
+print("FVS delta t is {}".format(np.diff(FVS_times)[0]))
+
 # get reference data from Kleins Code
 GT_filename = "{}/GT_time_series.txt".format(dataPath)
 
-GT_data, GT_time, GT_dict = da.get_controlState_Klein(GT_filename)
+GT_data, GT_times, GT_dict = da.get_controlState_Klein(GT_filename)
 
-skip=14
-GT_data = GT_data[::skip,:]
-GT_time = GT_time[::skip]
+GT_skip=14 # skip time data to make plot clearer
+GT_data = GT_data[::GT_skip,:]
+GT_times = GT_times[::GT_skip]
+print("GT delta t is {}".format(np.diff(GT_times)[0]))
 
 # get maximum time from both simulations and create index array
-tEnd = min(np.max(FVS_times), np.max(GT_time))
+tEnd = min(np.max(FVS_times), np.max(GT_times))
 # print(tEnd)
-GT_t_index = GT_time<tEnd
+GT_t_index = GT_times<tEnd
 FVS_t_index = FVS_times<tEnd
 # print(GT_data.shape)
 # print(FVS_data.shape)
 # print(GT_data[GT_t_index].shape)
 # print(FVS_data[FVS_t_index].shape)
 
+################# Calc Mean Values ############################
+from scipy.integrate import simps
+from scipy.integrate import trapz
+def getMeanValue(y, x, mode='scipy_simps'):
+   dist = abs(x[-1]-x[0])
+   if mode=='numpy_trapz':
+      mean = np.trapz(y, x)
+      mean *=(1.0/dist)
+      return mean
+   elif mode=='numpy_mean':
+      mean = np.mean(y)
+      return mean
+   elif mode=='scipy_simps':
+      mean = simps(y, x)/dist
+      return mean
+   elif mode=='scipy_trapz':
+      mean = trapz(y, x)/dist
+      return mean
+
+def CompareMeanValue(gt_data, gt_time, fvs_data, fvs_time, variable, ndig=4):
+   gt_mean = getMeanValue(gt_data, gt_time)
+   fvs_mean = getMeanValue(fvs_data, fvs_time)
+   means = [ ['GT Mean', 'FVS Mean', 'abs diff'],
+         [gt_mean, fvs_mean, abs(gt_mean-fvs_mean)] ]
+   means[1] = [ round(val, ndig) for val in means[1] ]
+
+   format_row = '{:>12}'*len(means[0])
+   print("Means for {}:".format(variable))
+   for row in means:
+      print(format_row.format(*row))
+   print()
+   return means
+
+tInit = 150.0
+GT_idx_array = (GT_times>tInit) & (GT_times<tEnd )
+FVS_idx_array = (FVS_times>tInit) & (FVS_times<tEnd )
+
+gt_time = GT_times[GT_idx_array]
+fvs_time= FVS_times[FVS_idx_array]
+
+meanVariables = []
+meanValues = []
+
+var = 'fuel_consumption_rate'
+means = CompareMeanValue(GT_data[GT_idx_array, GT_dict[var]], gt_time, FVS_data[FVS_idx_array, FVS_dict[var]], fvs_time, var, ndig=4)
+meanVariables.append(var); meanValues.append(means)
+
+var = 'efficiency'
+means = CompareMeanValue(GT_data[GT_idx_array, GT_dict[var]], gt_time, FVS_data[FVS_idx_array, FVS_dict[var]], fvs_time, var, ndig=4)
+meanVariables.append(var); meanValues.append(means)
+
+var = 'turbine_pressure'
+means = CompareMeanValue(GT_data[GT_idx_array, GT_dict[var]], gt_time, FVS_data[FVS_idx_array, FVS_dict[var]], fvs_time, var, ndig=4)
+meanVariables.append(var); meanValues.append(means)
+
+var = 'turbine_temperature'
+means = CompareMeanValue(GT_data[GT_idx_array, GT_dict[var]], gt_time, FVS_data[FVS_idx_array, FVS_dict[var]], fvs_time, var, ndig=4)
+meanVariables.append(var); meanValues.append(means)
+
+meanVariables = [var.replace('_',' ') for var in meanVariables]
+
+# format_row = '{:>30}'+'{:>12}'*(len(means[0]))
+# formated_table = format_row.format('', *means[0])
+# cell_text = []
+# for var, val in zip(meanVariables, meanValues):
+#    formated_table += '\n'
+#    formated_table += format_row.format(var, *val[1])
+
+table_meanValues=(r'\begin{tabular}{ c | c | c | c} '
++r' {} & {} & {} & {} \\\hline '.format(' ', *meanValues[0][0])
++r' {} & {} & {} & {} \\\hline '.format(meanVariables[0], *meanValues[0][1])
++r' {} & {} & {} & {} \\\hline '.format(meanVariables[1], *meanValues[1][1])
++r' {} & {} & {} & {} \\\hline'.format(meanVariables[2], *meanValues[2][1])
++r' {} & {} & {} & {} '.format(meanVariables[3], *meanValues[3][1])
++r'\end{tabular}' )
+################# Calc Mean Values ############################
+
 def getSubKeyList(substring):
    return [ key for key in FVS_dict.keys() if substring in key ]
-   
-f, axs = plt.subplots(nrows=4, ncols=2, figsize=(23/2,20/2) )
-f.suptitle('Control Station')
 
 
-plotKeyList = ['mass_flow', 'power', 'pressure', 'temperature', 'rpm', 'fuel_consumption_rate', 'efficiency']#, 'SEC_Mode']
-plotKeyList = ['mass_flow', 'power', 'pressure', 'temperature', 'rpm', 'fuel_consumption_rate', 'efficiency', 'density']
-# print(FVS_dict)
 FVS_data[:, FVS_dict['current_rpm']] = FVS_data[:, FVS_dict['current_rpm']] / ControlOptions['rpmmax']
 GT_data[:, GT_dict['current_rpm']] = GT_data[:, GT_dict['current_rpm']] / ControlOptions['rpmmax']
 print( "FVS maximum compressor_pressure = {}".format(np.max(FVS_data[FVS_t_index, FVS_dict['compressor_pressure']])) )
 print( "GT maximum compressor_pressure = {}".format(np.max(GT_data[GT_t_index, GT_dict['compressor_pressure']])) )
 
-
 # calculate the carnot efficiency following Kleins SEC_Code
 FVS_eff_carnot = 1.0 - 1.0/FVS_data[FVS_t_index, FVS_dict['compressor_temperature']]
 GT_eff_carnot = 1.0 - 1.0/GT_data[GT_t_index, GT_dict['compressor_temperature']]
 
-FVS_turb_density = FVS_data[:, FVS_dict['turbine_pressure']] / FVS_data[:, FVS_dict['turbine_temperature']]
-FVS_comp_density = FVS_data[:, FVS_dict['compressor_pressure']] / FVS_data[:, FVS_dict['compressor_temperature']]
+f, axs = plt.subplots(nrows=4, ncols=2, figsize=(23/2,20/2) )
+f.suptitle('Control Station' )
 
-GT_turb_density = GT_data[:, GT_dict['turbine_pressure']] / GT_data[:, GT_dict['turbine_temperature']]
-GT_comp_density = GT_data[:, GT_dict['compressor_pressure']] / GT_data[:, GT_dict['compressor_temperature']]
+# add Latex table with mean values to plot
+axs[0,0].text(1.5, 1.5, table_meanValues, ha="right", va="top", transform=axs[0,0].transAxes)
 
-data_units = ['', '', ' [bar]', ' [K]', ' [-]', '', '', '']
+
+plotKeyList = ['mass_flow', 'power', 'pressure', 'temperature', 'rpm', 'fuel_consumption_rate', 'efficiency']#, 'SEC_Mode']
+plotKeyList = ['mass_flow', 'power', 'pressure', 'temperature', 'rpm', 'fuel_consumption_rate', 'efficiency', 'efficiency']
+
+data_units = ['', '', ' [bar]', ' [K]', ' [-]', '', '[-]', '[-]']
 colors=['b', 'g', 'r', 'm']
 
 for i, ax, subKey in zip(range(len(plotKeyList)), axs.flatten(), plotKeyList):
@@ -152,7 +231,7 @@ for i, ax, subKey in zip(range(len(plotKeyList)), axs.flatten(), plotKeyList):
          GT_data[GT_t_index, GT_dict[key]] *=T_ref
 
       ax.plot( FVS_times[FVS_t_index], FVS_data[FVS_t_index, FVS_dict[key]], label=lab, color=colors[j] )
-      ax.plot( GT_time[GT_t_index], GT_data[GT_t_index, GT_dict[key]], '--', zorder=10, color=colors[j] )
+      ax.plot( GT_times[GT_t_index], GT_data[GT_t_index, GT_dict[key]], '--', zorder=10, color=colors[j] )
 
       if i>3:
          pass
@@ -164,9 +243,10 @@ for i, ax, subKey in zip(range(len(plotKeyList)), axs.flatten(), plotKeyList):
 
       if 'efficiency' in subKey:
          ax.plot(FVS_times[FVS_t_index], FVS_eff_carnot, label='Carnot efficiency', color=colors[1])
-         ax.plot(GT_time[GT_t_index], GT_eff_carnot, '--', zorder=10, color=colors[1])
-         ax.legend()
-         ax.set(ylim=(0,0.5))
+         ax.plot(GT_times[GT_t_index], GT_eff_carnot, '--', zorder=10, color=colors[1])
+         if i==6:
+            ax.legend()
+            ax.set(ylim=(0,1.0))
       
       ylab = subKey.replace('_', ' ')
       if 'rpm' in ylab:
@@ -178,13 +258,18 @@ for i, ax, subKey in zip(range(len(plotKeyList)), axs.flatten(), plotKeyList):
 
 ax = axs.flatten()
 
+# FVS_turb_density = FVS_data[:, FVS_dict['turbine_pressure']] / FVS_data[:, FVS_dict['turbine_temperature']] * rho_ref
+# FVS_comp_density = FVS_data[:, FVS_dict['compressor_pressure']] / FVS_data[:, FVS_dict['compressor_temperature']] * rho_ref
 
-ax[-1].plot(FVS_times[FVS_t_index], FVS_comp_density[FVS_t_index], label='compressor', color=colors[0])
-ax[-1].plot( GT_time[GT_t_index], GT_comp_density[GT_t_index], '--', zorder=10, color=colors[0] )
-ax[-1].plot(FVS_times[FVS_t_index], FVS_turb_density[FVS_t_index], label='turbine', color=colors[1])
-ax[-1].plot( GT_time[GT_t_index], GT_turb_density[GT_t_index], '--', zorder=10, color=colors[1] )
-ax[-1].set(xlabel='time', ylabel='density [-]', xlim=(FVS_times[0], None))
-ax[-1].legend()
+# GT_turb_density = GT_data[:, GT_dict['turbine_pressure']] / GT_data[:, GT_dict['turbine_temperature']] * rho_ref
+# GT_comp_density = GT_data[:, GT_dict['compressor_pressure']] / GT_data[:, GT_dict['compressor_temperature']] * rho_ref
+
+# ax[-1].plot(FVS_times[FVS_t_index], FVS_comp_density[FVS_t_index], label='compressor', color=colors[0])
+# ax[-1].plot( GT_times[GT_t_index], GT_comp_density[GT_t_index], '--', zorder=10, color=colors[0] )
+# ax[-1].plot(FVS_times[FVS_t_index], FVS_turb_density[FVS_t_index], label='turbine', color=colors[1])
+# ax[-1].plot( GT_times[GT_t_index], GT_turb_density[GT_t_index], '--', zorder=10, color=colors[1] )
+# ax[-1].set(xlabel='time', ylabel='density '+r'$\left[ kg/m^3 \right]$', xlim=(FVS_times[0], None))
+# ax[-1].legend()
 
 
 f.subplots_adjust(hspace=0.3, wspace=0.3)
