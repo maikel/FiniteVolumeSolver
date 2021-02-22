@@ -16,7 +16,7 @@ RUN make AMReX.EB.Divider2D_AxiSymmetric -j4
 
 FROM debian:testing
 RUN apt-get update
-RUN apt-get install -y fish gcc g++ gfortran python3 python3-pip libopenmpi3 libpython3.9 libgomp1 vim openmpi-bin
+RUN apt-get install -y fish gcc g++ gfortran python3 python3-pip libopenmpi3 libpython3.9 libgomp1 vim openmpi-bin ffmpeg
 RUN pip3 install h5py matplotlib
 RUN pip3 install cython
 RUN pip3 install yt
@@ -26,10 +26,12 @@ RUN chown amrex:amrex -R /home/amrex
 RUN chsh -s `which fish` amrex
 COPY --from=0 /FiniteVolumeSolver/build/examples/AMReX.EB.Divider2D_AxiSymmetric /home/amrex/
 COPY amrex/ /home/amrex/amrex/
-COPY Divider /home/amrex/
-COPY VisualizeHdf5.py /home/amrex/
+COPY Boundaries /home/amrex/
 ARG INCUBATOR_VER2=unknown
-COPY Divider2D.py /home/amrex/
+COPY ConvergentNozzle.py /home/amrex/
+COPY DivergentWithBody.py /home/amrex/
+COPY PlotPlenum_HDF5.py /home/amrex/
+COPY PlotTube_HDF5.py /home/amrex/
 RUN chown amrex:amrex -R /home/amrex/*
 USER amrex
 WORKDIR /home/amrex
