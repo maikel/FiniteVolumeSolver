@@ -24,15 +24,63 @@
 #include "fub/AMReX/multi_block/MultiBlockIntegratorContext.hpp"
 
 #include <functional>
+#include <optional>
 
 namespace fub::amrex {
+
+template<typename T>
+class assignable
+{
+public:
+    assignable& operator=(assignable const& other)
+    {
+        value_.emplace(*other.value_);
+        return *this;
+    }
+
+    assignable& operator=(assignable&& other) = default;
+    assignable(assignable&& other) = default;
+    assignable(assignable const& other) = default;
+    
+    assignable(T const& value) : value_(value) {}
+    assignable(T&& value) : value_(std::move(value)) {}
+    
+    T const& get() const { return value_; }
+    T& get() { return value_; }
+    
+    template<typename... Args>
+    decltype(auto) operator()(Args&&... args)
+    {
+        return (*value_)(std::forward<Args>(args)...);
+    }
+private:
+    std::optional<T> value_;
+};
+
+template<typename T>
+class assignable<T&>
+{
+public:
+    explicit assignable(T& value) : value_(value) {}
+    
+    T const& get() const { return value_; }
+    T& get() { return value_; }
+    
+    template<typename... Args>
+    decltype(auto) operator()(Args&&... args)
+    {
+        return value_(std::forward<Args>(args)...);
+    }
+private:
+    std::reference_wrapper<T> value_;
+};
 
 template <typename AdapterAdvanceLevel, typename AdapterComputeStableDt,
           typename LevelIntegrator>
 class MultiBlockLevelIntegrator {
 private:
-  AdapterAdvanceLevel advance_level_map_;
-  AdapterComputeStableDt compute_stable_dt_map_;
+  assignable<AdapterAdvanceLevel> advance_level_map_;
+  assignable<AdapterComputeStableDt> compute_stable_dt_map_;
   LevelIntegrator level_integrator_;
 
 public:
