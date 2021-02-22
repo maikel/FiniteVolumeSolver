@@ -105,7 +105,7 @@ Duration SubcycleFineFirstSolver<LevelIntegrator>::ComputeStableDt() {
   Duration min_dt(std::numeric_limits<double>::max());
   for (int level_num = 0; Base::LevelExists(level_num); ++level_num) {
     int ratio = GetTotalRefineRatio(level_num);
-    min_dt = std::min(min_dt, ratio * Base::ComputeStableDt(level_num));
+    min_dt = std::min<Duration>(min_dt, ratio * Base::ComputeStableDt(level_num));
   }
   MPI_Comm comm = Base::GetMpiCommunicator();
   const double local_dt = min_dt.count();
