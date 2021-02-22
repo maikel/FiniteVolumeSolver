@@ -732,6 +732,7 @@ int IntegratorContext::PreAdvanceLevel(int level_num, Duration,
                                        std::pair<int, int> subcycle) {
   Timer timer1 = GetCounterRegistry()->get_timer(
       "cutcell::IntegratorContext::PreAdvanceLevel");
+  method_.flux_method.PreAdvanceHierarchy(*this);
   Timer timer_per_level{};
   if (count_per_level) {
     timer_per_level = GetCounterRegistry()->get_timer(fmt::format(
@@ -785,7 +786,7 @@ IntegratorContext::PostAdvanceLevel(int level_num, Duration dt,
 void IntegratorContext::PreAdvanceHierarchy() {
   Timer timer1 = GetCounterRegistry()->get_timer(
       "cutcell::IntegratorContext::PreAdvanceHierarchy");
-  method_.flux_method.PreAdvanceHierarchy(*this);
+  // method_.flux_method.PreAdvanceHierarchy(*this);
 }
 
 void IntegratorContext::PostAdvanceHierarchy() {

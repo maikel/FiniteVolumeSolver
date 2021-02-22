@@ -195,16 +195,16 @@ double ChangeState_(PressureValveState& state, const ::amrex::Geometry&,
     if (next_open_time < current_time &&
         mean_pressure < options.pressure_value_which_opens_boundary) {
       state = PressureValveState::open_air;
-      BOOST_LOG(log) << "pressure valve opened for air!";
+      // BOOST_LOG(log) << "pressure valve opened for air!";
     }
     break;
   case PressureValveState::open_air:
   case PressureValveState::open_fuel:
     if (mean_pressure > options.pressure_value_which_closes_boundary) {
       last_closed = current_time;
-      state = PressureValveState::closed;
-      BOOST_LOG(log) << "pressure valve closed due to mean pressure (which is "
-                     << mean_pressure << " [Pa])!";
+      state = PressureValveState::open_air;
+      // BOOST_LOG(log) << "pressure valve closed due to mean pressure (which is "
+      //                << mean_pressure << " [Pa])!";
     }
     break;
   }
@@ -307,7 +307,6 @@ void PressureValveBoundary::FillBoundary(::amrex::MultiFab& mf,
             reactor.SetMoleFractions("O2:21,N2:79");
             reactor.SetTemperature(300.0);
             reactor.SetPressure(state.pressure);
-            equation_.CompleteFromReactor(state);
             Array<double, 1, 1> velocity = equation_.Velocity(state);
             equation_.CompleteFromReactor(state, velocity);
             Store(states, state, dest);

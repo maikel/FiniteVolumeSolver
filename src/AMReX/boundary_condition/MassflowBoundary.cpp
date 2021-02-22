@@ -77,42 +77,55 @@ void MassflowBoundary<Rank>::ComputeBoundaryState(
     Complete<IdealGasMix<Rank>>& boundary,
     const Complete<IdealGasMix<Rank>>& state) {
   const double rho = state.density;
-  const double u = state.momentum[int(options_.dir)] / rho;
-  const double p = state.pressure;
-  const double gamma = state.gamma;
-  const double c = state.speed_of_sound;
-  const double gammaMinus = gamma - 1.0;
-  const double gammaPlus = gamma + 1.0;
-  const double rGammaPlus = 1.0 / gammaPlus;
-  const double c_critical =
-      std::sqrt(c * c + 0.5 * gammaMinus * u * u) * std::sqrt(2 * rGammaPlus);
-  double mdot = rho * u;
-  double mdot_n = options_.required_massflow / options_.surface_area;
-  auto realtive_error = [](double x, double y) { 
-    if (x != 0 && y != 0) {
-      return std::abs(x - y) /  (std::abs(x) + std::abs(y)); 
+  const double a = state.speed_of_sound;
+  const double m = options_.required_massflow / options_.surface_area / (rho * a);
+  auto uL = [&] {
+    if (options_.side == 0) {
+      const double uR = state.momentum[int(options_.dir)] / rho / a;
+      if (m == uR) {
+        return uR;
+      } else if (m < uR) {
+        if (m >= 1.0) {
+          return m;
+        } else if (m > -1.0) {
+          return (2.0 * m + uR * (m - 1.0)) / (m + 1.0);
+        } else {
+          return -1.0;
+        }
+      } else {
+        if (2.0 - m <= uR) {
+          return m;
+        } else {
+          return std::sqrt(4 * m + (uR - 1.0) * (uR - 1.0)) - 1.0;
+        } 
+      }
+    } else {
+      const double uL = state.momentum[int(options_.dir)] / rho / a;
+      if (m == uL) {
+        return uL;
+      } else if (m > uL) {
+        if (m >= 1.0) {
+          return 1.0;
+        } else if (m > -1.0) {
+          return (2.0 * m - uL * (m + 1.0)) / (1.0 - m);
+        } else {
+          return m;
+        }
+      } else {
+        if (m <= -(2.0 - uL)) {
+          return m;
+        } else {
+          return 1.0 - std::sqrt((uL + 1.0) * (uL + 1.0) - 4.0 * m);
+        }
+      }
     }
-    return 0.0;
   };
-  equation_.GetReactor().SetDensity(state.density); 
-  equation_.GetReactor().SetMassFractions(state.species);
-  equation_.GetReactor().SetTemperature(state.temperature);
-  double rho_n = equation_.GetReactor().GetDensity();
-  while (relative_error(mdot, mdot_n) > 1e-6) {
-    const double lambda = mdot / rho_n / c_critical;
-    const double lambda_n = mdot_n / rho_n / c_critical;
-    const double gammaQuot = gammaMinus * rGammaPlus;
-    const double p0_n =
-        p * std::pow(1. - gammaQuot * lambda * lambda, -gamma / gammaMinus);
-    const double p_n =
-        p0_n * std::pow(1. - gammaQuot * lambda_n * lambda_n, gamma / gammaMinus);
-    const double u_n = equation_.GetReactor().SetPressureIsentropic(p_n);
-    rho_n = equation_.GetReactor().GetDensity();
-    mdot = rho_n * u_n;
-  }
   Eigen::Array<double, Rank, 1> velocity =
       Eigen::Array<double, Rank, 1>::Zero();
-  velocity[int(options_.dir)] = u_n;
+  velocity[int(options_.dir)] = uL() * a;
+  equation_.GetReactor().SetDensity(state.density);
+  equation_.GetReactor().SetMassFractions(state.species);
+  equation_.GetReactor().SetTemperature(state.temperature);
   equation_.CompleteFromReactor(boundary, velocity);
 }
 
