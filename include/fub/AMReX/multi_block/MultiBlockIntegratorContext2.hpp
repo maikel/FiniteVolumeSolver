@@ -79,9 +79,6 @@ public:
   [[nodiscard]] std::ptrdiff_t GetCycles(int level = 0) const;
   /// @}
 
-  /// \brief Returns the current boundary condition for the specified level.
-  [[nodiscard]] MultiBlockBoundary& GetBoundaryCondition(int level);
-
   [[nodiscard]] MPI_Comm GetMpiCommunicator() const noexcept;
 
   /// \brief Returns a shared pointer to the counter registry.
