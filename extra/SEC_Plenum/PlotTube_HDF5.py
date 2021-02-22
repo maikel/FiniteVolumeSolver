@@ -56,11 +56,6 @@ os.makedirs(output_path, exist_ok=True)
 
 n_tubes = len(Tubes)
 
-def printMinMaxData(data, variable, times, tube_id):
-  indices_min = np.unravel_index(np.argmin(data, axis=None), data.shape)
-  indices_max = np.unravel_index(np.argmax(data, axis=None), data.shape)
-  print("[Tube{}] {} min was {} at time {}".format(tube_id, variable, data[indices_min], times[indices_min[0]]))
-  print("[Tube{}] {} max was {} at time {}".format(tube_id, variable, data[indices_max], times[indices_max[0]]))
 
 
 for tube_id in range(n_tubes):
@@ -124,13 +119,11 @@ for tube_id in range(n_tubes):
   print("[Tube{}] tEnd is {}".format(tube_id, tEnd))
 
   # print out the first occurence of min/max value 
-  printMinMaxData(p_data, 'Pressure', times, tube_id)
-  printMinMaxData(T_data, 'Temperature', times, tube_id)
-  printMinMaxData(F_data, 'Fuel', times, tube_id)
-  printMinMaxData(Ma, 'MachNumber', times, tube_id)
+  da.printSimpleStatsTubeData(p_data, 'Pressure', times, tube_id)
+  da.printSimpleStatsTubeData(T_data, 'Temperature', times, tube_id)
+  da.printSimpleStatsTubeData(F_data, 'Fuel', times, tube_id)
+  da.printSimpleStatsTubeData(Ma, 'MachNumber', times, tube_id)
 
-
-  # print(np.max(F_data))
 
   titles = ['Temperature [K]', 'Pressure [bar]', 'Local Machnumber [-]', 'Fuel Massfraction [-]', 'Passive Scalars [-]']
   datas = [T_data * T_ref, p_data, Ma, F_data, X]
@@ -164,8 +157,8 @@ for tube_id in range(n_tubes):
       'interpolation': 'none',
       'aspect': 'auto',
       'extent': (x0, xEnd, t0, tEnd),
-      # 'vmin': 0.0,
-      # 'vmax': 10.0,
+      'vmin': 0.0,
+      'vmax': 10.0,
       'cmap': 'jet'
       }
     return props
