@@ -24,11 +24,11 @@
 #include "fub/AMReX/IntegratorContext.hpp"
 #include "fub/TimeStepError.hpp"
 #include "fub/equations/IdealGasMix.hpp"
+
+#include "fub/ext/Log.hpp"
+#include "fub/ext/ProgramOptions.hpp"
 #include "fub/ext/outcome.hpp"
 
-#include "fub/ext/ProgramOptions.hpp"
-
-#include <boost/log/trivial.hpp>
 #include <boost/serialization/access.hpp>
 
 namespace fub::amrex {
@@ -37,25 +37,11 @@ namespace fub::amrex {
 struct IgniteDetonationOptions {
   IgniteDetonationOptions() = default;
 
-  explicit IgniteDetonationOptions(
-      const std::map<std::string, pybind11::object>& vm,
-      const std::string& prefix = "ignite");
+  explicit IgniteDetonationOptions(const ProgramOptions& options);
 
-  template <typename Logger> void Print(Logger& log) const {
-    // clang-format off
-    BOOST_LOG(log) << fmt::format("Ignite Detonation '{}' Options:", prefix);
-    BOOST_LOG(log) << fmt::format("  - measurement_position = {} [m]", measurement_position);
-    BOOST_LOG(log) << fmt::format("  - equivalence_ratio_criterium = {} [-]", equivalence_ratio_criterium);
-    BOOST_LOG(log) << fmt::format("  - temperature_low = {} [K]", temperature_low);
-    BOOST_LOG(log) << fmt::format("  - temperature_high = {} [K]", temperature_high);
-    BOOST_LOG(log) << fmt::format("  - ramp_width = {} [m]", ramp_width);
-    BOOST_LOG(log) << fmt::format("  - ignite_position = {} [m]", ignite_position);
-    BOOST_LOG(log) << fmt::format("  - ignite_interval = {} [s]", ignite_interval.count());
-    BOOST_LOG(log) << fmt::format("  - offset = {} [s]", offset.count());
-    // clang-format on
-  }
+  void Print(SeverityLogger& log) const;
 
-  std::string prefix{"ignite"};
+  std::string channel{"IgniteDetonation"};
   double measurement_position{1.0};
   double equivalence_ratio_criterium{0.95};
   double temperature_low{300.0};
@@ -95,18 +81,12 @@ public:
   IgniteDetonation(const IdealGasMix<1>& eq, int max_refinement_level,
                    const IgniteDetonationOptions& opts = {});
 
-  /// \brief Resets internal configuration
-  ///
-  /// Resets the last ignition time points if the time point on grid is lower
-  /// than the last recorded ignition. This happens when the CFL condition gets
-  /// violated right after the ignition.
-  void ResetHierarchyConfiguration(std::shared_ptr<GriddingAlgorithm> grid);
-
   /// \brief Returns numeric_limits<double>::max()
   ///
   /// This operator artificially ignites a detonation and has no restriction on
   /// the time step size.
-  [[nodiscard]] Duration ComputeStableDt(const IntegratorContext&, int) const noexcept;
+  [[nodiscard]] Duration ComputeStableDt(const IntegratorContext&, int) const
+      noexcept;
 
   /// Uses the scratch space of simulation_data to evaluate the criterion on the
   /// current equivalence ratio.
@@ -129,7 +109,6 @@ public:
 private:
   IdealGasMix<1> equation_;
   IgniteDetonationOptions options_;
-  std::vector<Duration> next_ignition_time_backup_{};
   std::vector<Duration> next_ignition_time_{};
 
   friend class boost::serialization::access;
@@ -139,31 +118,10 @@ private:
 template <typename Archive>
 void IgniteDetonation::serialize(Archive& ar, unsigned int /* version */) {
   // clang-format off
-  ar & options_;
   ar & next_ignition_time_;
-  ar & next_ignition_time_backup_;
   // clang-format on
 }
 
 } // namespace fub::amrex
-
-namespace boost::serialization {
-
-template <typename Archive>
-void serialize(Archive& ar, ::fub::amrex::IgniteDetonationOptions& opts,
-               unsigned int /* version */) {
-  // clang-format off
-  ar & opts.equivalence_ratio_criterium;
-  ar & opts.measurement_position;
-  ar & opts.ramp_width;
-  ar & opts.temperature_high;
-  ar & opts.temperature_low;
-  ar & opts.ignite_interval;
-  ar & opts.ignite_position;
-  ar & opts.offset;
-  // clang-format on
-}
-
-} // namespace boost::serialization
 
 #endif

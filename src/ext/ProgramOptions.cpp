@@ -39,6 +39,13 @@ Direction GetOptionOr(const ProgramOptions& map, const std::string& name,
   return static_cast<Direction>(dir_v);
 }
 
+template <>
+Duration GetOptionOr(const ProgramOptions& map, const std::string& name,
+                      const Duration& value) {
+  Duration dur(GetOptionOr(map, name, value.count()));
+  return dur;
+}
+
 std::map<std::string, pybind11::object>
 ParsePythonScript(const boost::filesystem::path& path, MPI_Comm comm) {
   if (!boost::filesystem::is_regular_file(path)) {

@@ -1,8 +1,8 @@
 import math
 
 plenum_x_n_cells = 256
-tube_blocking_factor = 32
-plenum_blocking_factor = 32
+tube_blocking_factor = 8
+plenum_blocking_factor = 8
 
 n_level = 2
 
@@ -130,8 +130,6 @@ Tube = {
     'efficiency': 1.0,
     'open_at_interval': 0.03333333,
     'offset': 0.01,
-    'fuel_measurement_position': -0.15,
-    'fuel_measurement_criterium': 0.9,
     'pressure_value_which_opens_boundary': 101325.0,
     'pressure_value_which_closes_boundary': 3.0e5,
     'equivalence_ratio': 1.0,

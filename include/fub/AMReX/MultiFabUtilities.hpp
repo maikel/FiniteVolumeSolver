@@ -42,6 +42,16 @@ void ReallocLike(::amrex::MultiFab& mf, const ::amrex::MultiFab& other);
 double GetMeanValueInBox(const ::amrex::MultiFab& data, const ::amrex::Box& box,
                          int component);
 
+template <typename GriddingAlgorithm>
+::amrex::Box GetFineBoxAtLevel(const ::amrex::Box& coarse_box, const GriddingAlgorithm& grid, int level)
+{
+  ::amrex::Box box = coarse_box;
+  for (int ilvl = 0; ilvl < level; ++ilvl) {
+      box.refine(grid.GetPatchHierarchy().GetRatioToCoarserLevel(ilvl + 1));
+  }
+  return box;
+}
+
 ::amrex::MultiFab CopyMultiFab(const ::amrex::MultiFab& other);
 } // namespace fub::amrex
 
