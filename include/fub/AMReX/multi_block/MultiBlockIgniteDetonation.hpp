@@ -43,9 +43,6 @@ public:
                              std::size_t n_tubes, int max_refinement_level,
                              const std::vector<IgniteDetonationOptions>& opts);
 
-  void ResetHierarchyConfiguration(
-      const std::shared_ptr<MultiBlockGriddingAlgorithm2>& grid);
-
   [[nodiscard]] static Duration ComputeStableDt(const MultiBlockIntegratorContext2&, int level) noexcept;
 
   [[nodiscard]] Result<void, TimeStepTooLarge>

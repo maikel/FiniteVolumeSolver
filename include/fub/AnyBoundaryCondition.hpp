@@ -28,6 +28,7 @@
 
 #include <memory>
 #include <typeinfo>
+#include <type_traits>
 
 namespace fub {
 
@@ -111,7 +112,18 @@ public:
   ///
   /// If the stored boundary condition is not of type BC then a nullptr is returned.
   template <typename BC>
-  BC* Cast() {
+  BC* Cast() noexcept {
+    if (boundary_condition_) {
+      const std::type_info& this_bc_type = boundary_condition_->GetTypeInfo();
+      if (this_bc_type == typeid(BC)) {
+        return static_cast<BC*>(boundary_condition_->GetPointer());
+      }
+    }
+    return nullptr;
+  }
+
+  template <typename BC, typename = std::enable_if_t<std::is_const_v<BC>>>
+  BC* Cast() const noexcept {
     if (boundary_condition_) {
       const std::type_info& this_bc_type = boundary_condition_->GetTypeInfo();
       if (this_bc_type == typeid(BC)) {

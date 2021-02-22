@@ -44,14 +44,6 @@ Duration MultiBlockIgniteDetonation::ComputeStableDt(const MultiBlockIntegratorC
   return Duration(std::numeric_limits<double>::max());
 }
 
-void MultiBlockIgniteDetonation::ResetHierarchyConfiguration(
-    const std::shared_ptr<MultiBlockGriddingAlgorithm2>& grid) {
-  const std::shared_ptr<GriddingAlgorithm>* tube = grid->GetTubes().begin();
-  for (IgniteDetonation& source : source_terms_) {
-    source.ResetHierarchyConfiguration(*tube++);
-  }
-}
-
 Result<void, TimeStepTooLarge>
 MultiBlockIgniteDetonation::AdvanceLevel(MultiBlockIntegratorContext2& context,
                                          int level, Duration dt,

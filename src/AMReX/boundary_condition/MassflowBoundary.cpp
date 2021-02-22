@@ -27,6 +27,7 @@
 #include "fub/ForEach.hpp"
 
 #include "fub/AMReX/AverageState.hpp"
+#include "fub/AMReX/MultiFabUtilities.hpp"
 
 #include "fub/ext/Log.hpp"
 
@@ -142,26 +143,30 @@ void MassflowBoundary<Rank>::FillBoundary(::amrex::MultiFab& mf,
   BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", t.count());
 
   Complete<IdealGasMix<Rank>> state(equation_);
+  // const ::amrex::Box fine_box = GetFineBoxAtLevel(options_.coarse_inner_box, grid, level);
+  // AverageState(state, mf, geom, fine_box);
   AverageState(state, mf, geom, options_.coarse_inner_box);
-  equation_.CompleteFromCons(state, state);
-  double rho = state.density;
-  double u = state.momentum[static_cast<int>(options_.dir)] / rho;
-  double p = state.pressure;
-  BOOST_LOG(log) << fmt::format(
-      "Average inner state: rho = {} [kg/m3], u = {} [m/s], p = {} [Pa]", rho,
-      u, p);
+  if (state.density > 0.0) {
+    equation_.CompleteFromCons(state, state);
+    double rho = state.density;
+    double u = state.momentum[static_cast<int>(options_.dir)] / rho;
+    double p = state.pressure;
+    BOOST_LOG(log) << fmt::format(
+        "Average inner state: rho = {} [kg/m3], u = {} [m/s], p = {} [Pa]", rho,
+        u, p);
 
-  ComputeBoundaryState(state, state);
+    ComputeBoundaryState(state, state);
 
-  rho = state.density;
-  u = state.momentum[static_cast<int>(options_.dir)] / rho;
-  p = state.pressure;
-  const double c = state.speed_of_sound;
-  const double Ma = u / c;
-  BOOST_LOG(log) << fmt::format("Outer state: rho = {} [kg/m3], u = {} [m/s], "
-                                "p = {} [Pa], Ma = {} [-]",
-                                rho, u, p, Ma);
-  FillBoundary(mf, geom, state);
+    rho = state.density;
+    u = state.momentum[static_cast<int>(options_.dir)] / rho;
+    p = state.pressure;
+    const double c = state.speed_of_sound;
+    const double Ma = u / c;
+    BOOST_LOG(log) << fmt::format("Outer state: rho = {} [kg/m3], u = {} [m/s], "
+                                  "p = {} [Pa], Ma = {} [-]",
+                                  rho, u, p, Ma);
+    FillBoundary(mf, geom, state);
+  }
 }
 
 template <int Rank>
