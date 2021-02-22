@@ -107,7 +107,7 @@ public:
   ///
   /// \param[in] plenum  The higher dimensional patch hierarchy with geometry
   /// information. States here will be conservatively averaged and projected
-  /// onto a one-dimesnional space.
+  /// onto a one-dimensional space.
   ///
   /// \param[in] tube The low dimensional tube data.
   void ComputeBoundaryData(const cutcell::PatchHierarchy& plenum,
