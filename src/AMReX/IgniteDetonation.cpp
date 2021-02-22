@@ -135,7 +135,7 @@ IgniteDetonation::AdvanceLevel(IntegratorContext& grid, int level,
     const double dx_2 = geom.CellSize(0);
     const double xlo = geom.ProbDomain().lo(0) + dx_2;
     const double xhi = geom.ProbDomain().hi(0) - dx_2;
-    const double x_fuel = std::clamp(options_.ignite_position, xlo, xhi);
+    const double x_fuel = std::clamp(options_.measurement_position, xlo, xhi);
     std::vector<double> moles = GatherMoles_(grid, x_fuel, equation_);
     const double equivalence_ratio =
         moles[Burke2012::sO2]
@@ -144,7 +144,7 @@ IgniteDetonation::AdvanceLevel(IntegratorContext& grid, int level,
     if (equivalence_ratio > options_.equivalence_ratio_criterium) {
       ::amrex::MultiFab& data = grid.GetScratch(level);
       const ::amrex::Geometry& geom = grid.GetGeometry(level);
-      const double x_ignite = options_.ignite_position;
+      const double x_ignite = std::clamp(options_.ignite_position, xlo, xhi);
       const double T_lo = options_.temperature_low;
       const double T_hi = options_.temperature_high;
       const double width = options_.ramp_width;
