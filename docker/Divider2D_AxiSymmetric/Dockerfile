@@ -36,3 +36,4 @@ RUN chown amrex:amrex -R /home/amrex/*
 USER amrex
 WORKDIR /home/amrex
 ENV OMPI_MCA_btl_vader_single_copy_mechanism=none
+ENV OMP_NUM_THREADS=1
