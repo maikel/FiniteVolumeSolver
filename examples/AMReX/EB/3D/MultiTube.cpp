@@ -119,9 +119,6 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
   valve_options.Print(log);
 
   PressureValveBoundary valve{equation, valve_options};
-  IsentropicPressureBoundary right_boundary(equation, 101325.0,
-                                            fub::Direction::X, 1);
-  BoundarySet boundaries{{valve, right_boundary}};
 
   // If a checkpoint path is specified we will fill the patch hierarchy with
   // data from the checkpoint file, otherwise we will initialize the data by
@@ -137,13 +134,13 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
           fmt::format("{}/Valve_{}", checkpoint, k), comm);
       auto ifs = std::istringstream(input);
       boost::archive::text_iarchive ia(ifs);
-      ia >> *(valve.GetSharedState());
+      ia >> valve;
     }
     if (checkpoint.empty()) {
       BOOST_LOG(log) << "Initialize grid by initial condition...";
       std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
           PatchHierarchy(equation, grid_geometry, hierarchy_options),
-          initial_data, TagAllOf(gradient, constant_box), boundaries);
+          initial_data, TagAllOf(gradient, constant_box), valve);
       gridding->GetPatchHierarchy().SetCounterRegistry(counters);
       gridding->InitializeHierarchy(0.0);
       return gridding;
@@ -159,7 +156,7 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
       std::shared_ptr<GriddingAlgorithm> gridding =
           std::make_shared<GriddingAlgorithm>(std::move(h), initial_data,
                                               TagAllOf(gradient, constant_box),
-                                              boundaries);
+                                              valve);
       return gridding;
     }
   }();
@@ -361,26 +358,32 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
   return context;
 }
 
-void WriteCheckpoint(
-    const std::string& path,
-    const fub::amrex::MultiBlockGriddingAlgorithm2& grid,
-    fub::span<const std::shared_ptr<fub::amrex::PressureValve>> valves,
-    int rank, const fub::amrex::MultiBlockIgniteDetonation& ignition) {
+const fub::amrex::PressureValveBoundary&
+GetValveBoundary(const fub::amrex::GriddingAlgorithm& tube) {
+  auto boundaries =
+      tube.GetBoundaryCondition().Cast<const fub::amrex::BoundarySet>();
+  FUB_ASSERT(boundaries);
+  auto valve =
+      boundaries->conditions[0].Cast<const fub::amrex::PressureValveBoundary>();
+  FUB_ASSERT(valve);
+  return *valve;
+}
+
+void WriteCheckpoint(const std::string& path,
+                     const fub::amrex::MultiBlockGriddingAlgorithm2& grid,
+                     int rank,
+                     const fub::amrex::MultiBlockIgniteDetonation& ignition) {
   auto tubes = grid.GetTubes();
   std::ptrdiff_t cycles = grid.GetCycles();
-  int k = 0;
-  for (auto& tube : tubes) {
+  for (auto&& [k, tube] : ranges::view::enumerate(tubes)) {
     std::string name = fmt::format("{}/{:09}/Tube_{}", path, cycles, k);
     fub::amrex::WriteCheckpointFile(name, tube->GetPatchHierarchy());
-
     if (rank == 0) {
       std::string valve = fmt::format("{}/{:09}/Valve_{}", path, cycles, k);
       std::ofstream valve_checkpoint(valve);
       boost::archive::text_oarchive oa(valve_checkpoint);
-      oa << *valves[k];
+      oa << GetValveBoundary(*tube);
     }
-
-    k = k + 1;
   }
   std::string name = fmt::format("{}/{:09}/Plenum", path, cycles);
   fub::amrex::cutcell::WriteCheckpointFile(
@@ -395,12 +398,9 @@ void WriteCheckpoint(
 
 struct CheckpointOutput : fub::OutputAtFrequencyOrInterval<
                               fub::amrex::MultiBlockGriddingAlgorithm2> {
-  CheckpointOutput(
-      const fub::ProgramOptions& options,
-      std::vector<std::shared_ptr<fub::amrex::PressureValve>> valves,
-      const fub::amrex::MultiBlockIgniteDetonation* ignition)
-      : OutputAtFrequencyOrInterval(options), valves_{std::move(valves)},
-        ignition_{ignition} {
+  CheckpointOutput(const fub::ProgramOptions& options,
+                   const fub::amrex::MultiBlockIgniteDetonation* ignition)
+      : OutputAtFrequencyOrInterval(options), ignition_{ignition} {
     directory_ = fub::GetOptionOr(options, "directory", directory_);
     fub::SeverityLogger log = fub::GetInfoLogger();
     BOOST_LOG(log) << "CheckpointOutput:";
@@ -416,10 +416,9 @@ struct CheckpointOutput : fub::OutputAtFrequencyOrInterval<
         log(boost::log::keywords::severity = boost::log::trivial::info);
     BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", grid.GetTimePoint().count());
     BOOST_LOG(log) << fmt::format("Write checkpoint to '{}'.", directory_);
-    WriteCheckpoint(directory_, grid, valves_, rank, *ignition_);
+    WriteCheckpoint(directory_, grid, rank, *ignition_);
   }
 
-  std::vector<std::shared_ptr<fub::amrex::PressureValve>> valves_{};
   const fub::amrex::MultiBlockIgniteDetonation* ignition_{};
   std::string directory_{"./Checkpoint/"};
 };
@@ -437,7 +436,6 @@ void MyMain(const fub::ProgramOptions& options) {
   std::vector<fub::amrex::cutcell::IntegratorContext> plenum{};
   std::vector<fub::amrex::IntegratorContext> tubes{};
   std::vector<fub::amrex::BlockConnection> connectivity{};
-  std::vector<std::shared_ptr<fub::amrex::PressureValve>> valves{};
 
   BOOST_LOG(log) << "Make Plenum Solver...";
   plenum.push_back(MakePlenumSolver(mechanism, options));
@@ -448,7 +446,6 @@ void MyMain(const fub::ProgramOptions& options) {
     auto&& [tube, valve] =
         MakeTubeSolver(mechanism, options, k, counter_database);
     tubes.push_back(std::move(tube));
-    valves.push_back(valve.GetSharedState());
     fub::amrex::BlockConnection connection;
     connection.direction = fub::Direction::X;
     connection.side = 0;
@@ -533,8 +530,7 @@ void MyMain(const fub::ProgramOptions& options) {
                                          plenum_equation);
   factory.RegisterOutput<fub::amrex::LogProbesOutput>("LogProbes");
   factory.RegisterOutput<CheckpointOutput>(
-      "Checkpoint", valves,
-      &solver.GetLevelIntegrator().GetSystem().GetSource());
+      "Checkpoint", &solver.GetLevelIntegrator().GetSystem().GetSource());
   using CounterOutput =
       fub::CounterOutput<fub::amrex::MultiBlockGriddingAlgorithm2,
                          std::chrono::milliseconds>;
