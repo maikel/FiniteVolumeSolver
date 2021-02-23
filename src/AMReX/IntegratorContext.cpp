@@ -657,7 +657,8 @@ IntegratorContext::PostAdvanceLevel(int level_num, Duration dt,
 }
 
 void IntegratorContext::PreAdvanceHierarchy() {
-  if (data_.size() != GetPatchHierarchy().GetNumberOfLevels()) {
+  if (static_cast<int>(data_.size()) !=
+      GetPatchHierarchy().GetNumberOfLevels()) {
     ResetHierarchyConfiguration();
   }
   if (data_[0].scratch.getBDKey() !=

@@ -792,7 +792,8 @@ IntegratorContext::PostAdvanceLevel(int level_num, Duration dt,
 void IntegratorContext::PreAdvanceHierarchy() {
   Timer timer1 = GetCounterRegistry()->get_timer(
       "cutcell::IntegratorContext::PreAdvanceHierarchy");
-  if (data_.size() != GetPatchHierarchy().GetNumberOfLevels()) {
+  if (static_cast<int>(data_.size()) !=
+      GetPatchHierarchy().GetNumberOfLevels()) {
     ResetHierarchyConfiguration();
   }
   if (data_[0].scratch.getBDKey() !=
