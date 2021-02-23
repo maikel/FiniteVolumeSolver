@@ -327,6 +327,9 @@ Duration MultiBlockIntegratorContext2::ComputeStableDt(int level,
 
 void MultiBlockIntegratorContext2::PreAdvanceHierarchy() {
   // Compute reference states for cut cell stabilisation.
+  for (IntegratorContext& ctx : tubes_) {
+    ctx.PreAdvanceHierarchy();
+  }
   for (cutcell::IntegratorContext& ctx : plena_) {
     ctx.PreAdvanceHierarchy();
   }

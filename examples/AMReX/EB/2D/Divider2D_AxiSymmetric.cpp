@@ -455,8 +455,6 @@ void MyMain(const fub::ProgramOptions& options) {
 
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
   // fub::NoSubcycleSolver solver(std::move(level_integrator));
-  
-  solver.GetContext().ResetHierarchyConfiguration();
 
   using namespace fub::amrex;
   struct MakeCheckpoint

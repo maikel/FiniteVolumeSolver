@@ -89,6 +89,7 @@ void RunSimulation(Solver& solver, RunOptions options,
   using namespace logger::trivial;
   logger::sources::severity_logger<severity_level> log(
       logger::keywords::severity = info);
+  solver.ResetHierarchyConfiguration();
   fub::Duration time_point = solver.GetTimePoint();
   const fub::Duration eps = options.smallest_time_step_size;
   std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();

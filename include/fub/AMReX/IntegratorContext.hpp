@@ -191,6 +191,8 @@ public:
   /// @{
   /// \name Member functions relevant for the level integrator algorithm.
 
+  void PreAdvanceHierarchy();
+
   /// \brief Updates time point and cycle counter for the patch hierarchy.
   void PostAdvanceHierarchy();
 

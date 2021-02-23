@@ -77,10 +77,10 @@ struct GridTraits;
 /// a member function the function body will be empty.
 ///
 /// This functionality is used by generic algorithms in include/fub/solver/*
-template <typename T, typename Grid>
-void ResetHierarchyConfigurationIfDetected(T&& obj, Grid&& grid) {
-  if constexpr (is_detected<meta::ResetHierarchyConfiguration, T, Grid>()) {
-    std::forward<T>(obj).ResetHierarchyConfiguration(std::forward<Grid>(grid));
+template <typename T, typename... Grid>
+void ResetHierarchyConfigurationIfDetected(T&& obj, Grid&&... grid) {
+  if constexpr (is_detected<meta::ResetHierarchyConfiguration, T, Grid...>()) {
+    std::forward<T>(obj).ResetHierarchyConfiguration(std::forward<Grid>(grid)...);
   }
 }
 

@@ -136,9 +136,8 @@ IntegratorContext::IntegratorContext(
                                                                           hm)} {
   // data_.reserve(
   //     static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
-  // // Allocate auxiliary data arrays for each refinement level in the hierarchy
-  // ResetHierarchyConfiguration();
-  // std::size_t n_levels =
+  // // Allocate auxiliary data arrays for each refinement level in the
+  // hierarchy ResetHierarchyConfiguration(); std::size_t n_levels =
   //     static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels());
   // for (std::size_t i = 0; i < n_levels; ++i) {
   //   const auto level = static_cast<int>(i);
@@ -159,9 +158,8 @@ IntegratorContext::IntegratorContext(
   options_.flux_gcw = face_gcw;
   // data_.reserve(
   //     static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
-  // // Allocate auxiliary data arrays for each refinement level in the hierarchy
-  // ResetHierarchyConfiguration();
-  // std::size_t n_levels =
+  // // Allocate auxiliary data arrays for each refinement level in the
+  // hierarchy ResetHierarchyConfiguration(); std::size_t n_levels =
   //     static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels());
   // for (std::size_t i = 0; i < n_levels; ++i) {
   //   const auto level = static_cast<int>(i);
@@ -656,6 +654,16 @@ IntegratorContext::PostAdvanceLevel(int level_num, Duration dt,
   }
 
   return boost::outcome_v2::success();
+}
+
+void IntegratorContext::PreAdvanceHierarchy() {
+  if (data_.size() != GetPatchHierarchy().GetNumberOfLevels()) {
+    ResetHierarchyConfiguration();
+  }
+  if (data_[0].scratch.getBDKey() !=
+      GetPatchHierarchy().GetPatchLevel(0).data.getBDKey()) {
+    ResetHierarchyConfiguration();
+  }
 }
 
 void IntegratorContext::PostAdvanceHierarchy() {
