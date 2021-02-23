@@ -2,9 +2,9 @@ import math
 
 plenum_x_n_cells = 64
 tube_blocking_factor = 32
-plenum_blocking_factor_x = 64
-plenum_blocking_factor_y = 64
-plenum_blocking_factor_z = 64
+plenum_blocking_factor_x = 16
+plenum_blocking_factor_y = 16
+plenum_blocking_factor_z = 16
 
 n_level = 1
 
@@ -62,21 +62,21 @@ tube_n_cells -= tube_n_cells % tube_blocking_factor
 tube_n_cells = int(tube_n_cells)
 
 RunOptions = {
-  'cfl': 0.8,
-  'final_time': 0.009,
+  'cfl': 0.7,
+  'final_time': 0.040,
   'max_cycles': -1,
-  'do_backup': 0,
+  'do_backup': 1,
 }
 
 # checkpoint = '/Users/maikel/Development/FiniteVolumeSolver/build_3d/MultiTube/Checkpoint/000000063'
-# checkpoint = ''
-checkpoint = '/srv/public/Maikel/FiniteVolumeSolver/build_3D-Release/MultiTube/Checkpoint/000000466'
+checkpoint = ''
+# checkpoint = '/srv/public/Maikel/FiniteVolumeSolver/build_3D-Release/MultiTube/Checkpoint/000001166'
 
 Plenum = {
   'checkpoint': checkpoint,
   'InletGeometry': {
     'r_start': r_tube,
-    'r_end': 0.0225
+    'r_end': 1.5 * r_tube
   },
   'BlockGeometry': {
     'factor': 0.0,
@@ -132,9 +132,9 @@ def UpperX(x0, k, alpha):
 fill_fraction = 1.0
 measurement_position = - (1.0 - fill_fraction) * tube_length
 
-ignition_position = -tube_length + 0.4
-fuel_offsets = [0.005, 0.020, 0.005, 0.020, 0.005, 0.020]
-ignition_offsets = [fuel_offset + 0.015 for fuel_offset in fuel_offsets]
+ignition_position = -tube_length + 0.2
+fuel_offsets = [0.004, 0.050, 0.05, 0.050, 0.05, 0.05]
+ignition_offsets = [fuel_offset + 0.030 for fuel_offset in fuel_offsets]
 
 IgniteDetonation = [{
   'interval': 0.030,
@@ -183,7 +183,7 @@ Tubes = [{
       },
       'side': 0,
       'direction': 0,
-      'required_massflow': 900.0 / 6.0 / 3600.0,
+      'required_massflow': 0.2 / 6.0,
       'surface_area': math.pi * r_tube * r_tube
     }
   }
@@ -195,22 +195,30 @@ def OuterProbe(x0, k, alpha):
 slices = [{
     'type': 'HDF5',
     'which_block': i + 1,
-    'path': 'MultiTube/Slices/Tube_{}.h5'.format(i),
+    'path': 'MultiTube2/Slices/Tube_{}.h5'.format(i),
     'intervals': [1e-4],
-    'frequencies': range(450, 500)
+    #'frequencies': range(450, 500)
   } for i in range(0, 6)]
+
+import itertools
+xvalues = [0.07 + 0.9 * i for i in range(0, 6)]
+probes = [OuterProbe(xvalue, tube, alpha) for (xvalue, tube) in itertools.product(xvalues, range(0, 6))]
+probes.extend([TubeCenterPoint(-0.07, tube, alpha) for tube in range(0, 6)])
+
+txvalues = [-0.15 - 0.15 * i for i in range(0,7)]
+tprobes = [TubeCenterPoint(xvalue, tube, alpha) for (xvalue, tube) in itertools.product(txvalues, range(0, 6))]
 
 Output = { 
   'outputs': [{ 
     'type': 'Plotfile',
-    'directory': 'MultiTube/Plenum/',
-    'intervals': [5e-4],
-    # 'frequencies': [1]
+    'directory': 'MultiTube2/Plenum/',
+    'intervals': [],
+    #'frequencies': range(450, 500)
   },
   # , {
     # 'type': 'HDF5',
     # 'which_block': 0,
-    # 'path': 'MultiTube/Slices/Plenum.h5',
+    # 'path': 'MultiTube2/Slices/Plenum.h5',
     # 'intervals': [1e-4],
     # 'frequencies': [1],
     # 'box': {
@@ -220,37 +228,22 @@ Output = {
   # },
   {
     'type': 'LogProbes',
-    'directory': 'MultiTube/Probes/',
+    'directory': 'MultiTube2/Probes/',
     'frequencies': [10],
     'Plenum': {
-      'filename': 'MultiTube/Probes/Plenum.h5',
-      'coordinates': [
-        OuterProbe(0.07, 0, alpha), OuterProbe(0.16, 0, alpha), OuterProbe(0.25, 0, alpha), OuterProbe(0.34, 0, alpha), OuterProbe(0.43, 0, alpha),
-        OuterProbe(0.07, 1, alpha), OuterProbe(0.16, 1, alpha), OuterProbe(0.25, 1, alpha), OuterProbe(0.34, 1, alpha), OuterProbe(0.43, 1, alpha),
-        OuterProbe(0.07, 2, alpha), OuterProbe(0.16, 2, alpha), OuterProbe(0.25, 2, alpha), OuterProbe(0.34, 2, alpha), OuterProbe(0.43, 2, alpha),
-        OuterProbe(0.07, 3, alpha), OuterProbe(0.16, 3, alpha), OuterProbe(0.25, 3, alpha), OuterProbe(0.34, 3, alpha), OuterProbe(0.43, 3, alpha),
-        OuterProbe(0.07, 4, alpha), OuterProbe(0.16, 4, alpha), OuterProbe(0.25, 4, alpha), OuterProbe(0.34, 4, alpha), OuterProbe(0.43, 4, alpha),
-        OuterProbe(0.07, 5, alpha), OuterProbe(0.16, 5, alpha), OuterProbe(0.25, 5, alpha), OuterProbe(0.34, 5, alpha), OuterProbe(0.43, 5, alpha),
-        TubeCenterPoint(-0.07, 0, alpha),  TubeCenterPoint(-0.07, 1, alpha), TubeCenterPoint(-0.07, 2, alpha), TubeCenterPoint(-0.07, 3, alpha), TubeCenterPoint(-0.07, 4, alpha), TubeCenterPoint(-0.07, 5, alpha)
-      ],
+      'filename': 'MultiTube2/Probes/Plenum.h5',
+      'coordinates': probes,
     },
     'Tube': {
       'n_tubes': 6,
-      'filename': 'MultiTube/Probes/Tube',
-      'coordinates': [
-        TubeCenterPoint(-0.9, 0, alpha), TubeCenterPoint(-0.45, 0, alpha), TubeCenterPoint(-0.3, 0, alpha), TubeCenterPoint(-0.15, 0, alpha), 
-        TubeCenterPoint(-0.9, 1, alpha), TubeCenterPoint(-0.45, 1, alpha), TubeCenterPoint(-0.3, 1, alpha), TubeCenterPoint(-0.15, 1, alpha),
-        TubeCenterPoint(-0.9, 2, alpha), TubeCenterPoint(-0.45, 2, alpha), TubeCenterPoint(-0.3, 2, alpha), TubeCenterPoint(-0.15, 2, alpha),
-        TubeCenterPoint(-0.9, 3, alpha), TubeCenterPoint(-0.45, 3, alpha), TubeCenterPoint(-0.3, 3, alpha), TubeCenterPoint(-0.15, 3, alpha),
-        TubeCenterPoint(-0.9, 4, alpha), TubeCenterPoint(-0.45, 4, alpha), TubeCenterPoint(-0.3, 4, alpha), TubeCenterPoint(-0.15, 4, alpha),
-        TubeCenterPoint(-0.9, 5, alpha), TubeCenterPoint(-0.45, 5, alpha), TubeCenterPoint(-0.3, 5, alpha), TubeCenterPoint(-0.15, 5, alpha),
-      ],
+      'filename': 'MultiTube2/Probes/Tube',
+      'coordinates': tprobes,
     }
   }, {
     'type': 'Checkpoint',
-    'directory': 'MultiTube/Checkpoint/',
+    'directory': 'MultiTube2/Checkpoint/',
     'intervals': [1e-3],
-    'frequencies': range(450, 500)
+    #'frequencies': range(450, 500)
   }, {
     'type': 'CounterOutput',
     'frequencies': [100]
