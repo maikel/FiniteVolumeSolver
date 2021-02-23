@@ -674,7 +674,7 @@ auto MakePlenumSolver(
   ::amrex::Box upper_right_corner{upper_right_corner_lo, upper_right_corner_hi};
 
   BoundarySet boundary_condition{
-      {TransmissiveBoundary{fub::Direction::X, 0},
+      {ReflectiveBoundary{fub::execution::seq, equation, fub::Direction::X, 0},
        ReflectiveBoundary2{equation, fub::Direction::X, 0, lower_left_corner},
        ReflectiveBoundary2{equation, fub::Direction::X, 0, upper_left_corner},
        ReflectiveBoundary2{equation, fub::Direction::X, 1, lower_right_corner},
@@ -684,20 +684,16 @@ auto MakePlenumSolver(
        ReflectiveBoundary{fub::execution::seq, equation, fub::Direction::Y,
                           1}}};
 
-  std::vector<pybind11::dict> dicts{};
-  dicts = fub::GetOptionOr(options, "TurbineMassflowBoundaries", dicts);
-  for (pybind11::dict& dict : dicts) {
-    fub::ProgramOptions boundary_options = fub::ToMap(dict);
-    fub::amrex::cutcell::TurbineMassflowBoundaryOptions tb_opts(
-        boundary_options);
-    tb_opts.dir = fub::Direction::X;
-    tb_opts.side = 1;
-    BOOST_LOG(log) << "TurbineMassflowBoundaries:";
-    tb_opts.Print(log);
-    fub::amrex::cutcell::TurbineMassflowBoundary<fub::PerfectGasMix<2>>
-        pressure_outflow(equation, tb_opts);
-    boundary_condition.conditions.push_back(std::move(pressure_outflow));
-  }
+  TurbineMassflowBoundaryOptions boundary_options =
+      fub::GetOptions(options, "TurbineMassflowBoundaries");
+  fub::amrex::cutcell::TurbineMassflowBoundaryOptions tb_opts(boundary_options);
+  tb_opts.dir = fub::Direction::X;
+  tb_opts.side = 1;
+  BOOST_LOG(log) << "TurbineMassflowBoundaries:";
+  tb_opts.Print(log);
+  fub::amrex::cutcell::TurbineMassflowBoundary<fub::PerfectGasMix<2>>
+      pressure_outflow(equation, tb_opts);
+  boundary_condition.conditions.push_back(std::move(pressure_outflow));
 
   ::amrex::RealBox xbox = grid_geometry.coordinates;
   ::amrex::Geometry coarse_geom = fub::amrex::GetCoarseGeometry(grid_geometry);
@@ -879,8 +875,17 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   fub::amrex::MultiBlockIntegratorContext2 context(
       tube_equation, plenum_equation, std::move(tubes), std::move(plenum),
       std::move(connectivity));
+
+  // get the coarse_average_mirror_box from the TurbineMassflowBoundary, only
+  // there we have an mass flow outside of the domain
+  const fub::ProgramOptions plenum_options = fub::GetOptions(vm, "Plenum");
+  fub::amrex::cutcell::TurbineMassflowBoundaryOptions boundary_options =
+      fub::GetOptions(plenum_options, "TurbineMassflowBoundaries");
+  ::amrex::Box coarse_average_mirror_box =
+      boundary_options.coarse_average_mirror_box;
+
   GT::ControlFeedback<Plenum_Rank> feedback(plenum_equation, tube_equation,
-                                            control);
+                                            control, coarse_average_mirror_box);
   context.SetPostAdvanceHierarchyFeedback(feedback);
   fub::DimensionalSplitLevelIntegrator system_solver(
       fub::int_c<Plenum_Rank>, std::move(context), fub::GodunovSplitting{});
