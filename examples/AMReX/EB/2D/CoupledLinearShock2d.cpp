@@ -275,6 +275,7 @@ int main() {
   connection.tube.id = 0;
   connection.tube.mirror_box =
       tube.GetGriddingAlgorithm()->GetPatchHierarchy().GetGeometry(0).Domain();
+  connection.ghost_cell_width = 2;
 
   fub::IdealGasMix<1> tube_equation(mechanism);
   fub::IdealGasMix<2> plenum_equation(mechanism);
