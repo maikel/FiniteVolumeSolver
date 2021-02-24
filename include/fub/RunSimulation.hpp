@@ -110,32 +110,30 @@ void RunSimulation(Solver& solver, RunOptions options,
       Timer timestep_counter =
           counters->get_timer("RunSimulation::WholeTimeStep");
       const fub::Duration next_output_time = output.NextOutputTime(time_point);
-      {
-        Timer pre_advance_counter =
-            counters->get_timer("RunSimulation::PreAdvanceHierarchy");
-        solver.PreAdvanceHierarchy();
-      }
-      {
 
-        Timer compute_stable_dt_counter =
-            counters->get_timer("RunSimulation::ComputeStableDt");
-        // Compute the next time step size. If an estimate is available from a
-        // prior failure we use that one.
-        const fub::Duration stable_dt =
-            failure_dt ? *failure_dt : solver.ComputeStableDt();
-        FUB_ASSERT(stable_dt > eps);
-        const fub::Duration limited_dt =
-            std::min({options.final_time - time_point,
-                      next_output_time - time_point, options.cfl * stable_dt});
-      }
+      std::optional<Timer> pre_advance_counter =
+          counters->get_timer("RunSimulation::PreAdvanceHierarchy");
+      solver.PreAdvanceHierarchy();
+      pre_advance_counter.reset();
 
-      {
-        Timer advance_hierarchy_counter =
-            counters->get_timer("RunSimulation::AdvanceHierarchy");
-        // Advance the hierarchy in time!
-        boost::outcome_v2::result<void, TimeStepTooLarge> result =
-            solver.AdvanceHierarchy(limited_dt);
-      }
+      std::optional<Timer> compute_stable_dt_counter =
+          counters->get_timer("RunSimulation::ComputeStableDt");
+      // Compute the next time step size. If an estimate is available from a
+      // prior failure we use that one.
+      const fub::Duration stable_dt =
+          failure_dt ? *failure_dt : solver.ComputeStableDt();
+      FUB_ASSERT(stable_dt > eps);
+      const fub::Duration limited_dt =
+          std::min({options.final_time - time_point,
+                    next_output_time - time_point, options.cfl * stable_dt});
+      compute_stable_dt_counter.reset();
+
+      std::optional<Timer> advance_hierarchy_counter =
+          counters->get_timer("RunSimulation::AdvanceHierarchy");
+      // Advance the hierarchy in time!
+      boost::outcome_v2::result<void, TimeStepTooLarge> result =
+          solver.AdvanceHierarchy(limited_dt);
+      advance_hierarchy_counter.reset();
 
       if (result.has_error() && options.do_backup) {
         // If the solver returned with an error, reduce the time step size with
@@ -156,9 +154,10 @@ void RunSimulation(Solver& solver, RunOptions options,
             limited_dt.count());
         return;
       } else {
-        Timer post_advance_hierarchy_counter =
+        std::optional<Timer> post_advance_hierarchy_counter =
             counters->get_timer("RunSimulation::PostAdvanceHierarchy");
         solver.PostAdvanceHierarchy(limited_dt);
+        post_advance_hierarchy_counter.reset();
         // If advancing the hierarchy was successfull print a successful time
         // step line and reset any failure indicators.
         now = std::chrono::steady_clock::now();
