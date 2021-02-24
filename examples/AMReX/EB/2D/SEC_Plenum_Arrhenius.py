@@ -5,7 +5,7 @@ tube_n_cells = 256
 tube_blocking_factor = 8
 plenum_blocking_factor = 8
 
-massflow_cor = 0.024 #%MASSFLOW%
+massflow_cor = 0.24 #%MASSFLOW%
 diffusion = 3.0 #%Diffusion%
 outputPath = 'SEC_Plenum_Arrhenius' # '%OUTPUT%'
 
@@ -178,7 +178,7 @@ Plenum = {
       'lower': [plenum_x_lower, plenum_y_lower, plenum_z_lower],
       'upper': [plenum_x_upper, plenum_y_upper, plenum_z_upper],
     },
-    'periodicity': [0, 1, 0]
+    # 'periodicity': [0, 1, 0]
   },
   'PatchHierarchy': {
     'max_number_of_levels': n_level, 
@@ -213,7 +213,7 @@ Plenum = {
   }
 }
 
-Plenum[boundary_condition] = [{
+Plenum[boundary_condition] = {
   'boundary_section': { 
     'lower': [plenum_x_n_cells, -4, 0], 
     'upper': [plenum_x_n_cells + 3, plenum_y_n_cells + 3, 0] 
@@ -225,7 +225,7 @@ Plenum[boundary_condition] = [{
   },
   'relative_surface_area': ControlOptions['surface_area_turbine_plenum_to_turbine'], 
   'massflow_correlation': massflow_cor, # 0.06 * 4.0,
-}]
+}
 
 def TubeCenterPoint(x0, y0):
   return [x0, y0, 0.0]
@@ -263,7 +263,7 @@ Tube_FluxMethod['area_variation'] = Area
 
 Tubes = [{
   'checkpoint': checkpoint if checkpoint == '' else '{}/Tube_{}'.format(checkpoint, i),
-  'buffer': 0.06,
+  # 'buffer': 0.06,
   'initially_filled_x': 0.1,
   'FluxMethod': Tube_FluxMethod,
   'plenum_mirror_box': PlenumMirrorBox(y_0),

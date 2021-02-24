@@ -5,40 +5,39 @@ tube_n_cells = 256
 tube_blocking_factor = 8
 plenum_blocking_factor = 8
 
-massflow_cor = 0.24
-diffusion = 3.0
-outputPath = 'nTube_1'
+outputPath = 'oneTube'
 
 mode = 3 #%MODE%
 boundary_condition = 'TurbineMassflowBoundaries' # '%BOUNDARY_CONDITION%'
 
 n_level = 1
 
-# y0s = [-1.0/3.0, 0.0, +1.0/3.0]
+# tube_y0s = [-1.0/3.0, 0.0, +1.0/3.0]
 
-y0s = [0.0]
+tube_y0s = [0.0]
 
-n_tubes = len(y0s)
+n_tubes = len(tube_y0s)
 r_tube = 0.015
 
 D = 2.0 * r_tube
 
 # calculate plenum geometry
+magic_z_length = 1.0 # should be replaced when switch to 3d!!!
 inlet_length = 3.0 * D # [m]
 
-plenum_y_lower = - 0.5
-plenum_y_upper = + 0.5
+plenum_y_lower = - 0.48
+plenum_y_upper = + 0.48
 plenum_y_length = plenum_y_upper - plenum_y_lower
 
 TVolRPlen = 20.0 * D
-plenum_x_upper = TVolRPlen / plenum_y_length
+plenum_x_upper = TVolRPlen / plenum_y_length / magic_z_length
 plenum_x_lower = -inlet_length
 plenum_x_length = plenum_x_upper - plenum_x_lower
 
-plenum_length = plenum_x_upper # [m]
+plenum_length = plenum_x_upper - 0.0 # [m]
 tube_length = 1.0 # [m]
 
-plenum_max_grid_size = max(plenum_blocking_factor, 1024)
+plenum_max_grid_size = max(plenum_blocking_factor, 2048)
 
 plenum_domain_length = plenum_length + inlet_length
 tube_domain_length = tube_length - inlet_length
@@ -67,9 +66,23 @@ plenum_z_n_cells -= plenum_z_n_cells % plenum_blocking_factor
 plenum_z_n_cells = int(plenum_z_n_cells)
 
 
+tube_dx = tube_domain_length/ tube_n_cells
+plenum_dx = plenum_domain_length / plenum_x_n_cells
+plenum_dy = plenum_y_length / plenum_y_n_cells
+plenum_dz = plenum_z_length / plenum_z_n_cells
+
+# formatter = (4*"{:>12}")
+
+# print(formatter.format('', 'ncells', 'length', 'delta_x'))
+# print(formatter.format('Tube_x', tube_n_cells, tube_domain_length, round(tube_dx, 5)))
+# print(formatter.format('plenum_x', plenum_x_n_cells, plenum_domain_length, round(plenum_dx, 5)))
+# print(formatter.format('plenum_y', plenum_y_n_cells, plenum_y_length, round(plenum_dy, 5)))
+# print(formatter.format('plenum_z', plenum_z_n_cells, plenum_z_length, round(plenum_dz, 5)))
+
+
 RunOptions = {
   'cfl': 0.1,# / float(tube_n_cells / 64),
-  'final_time': 200.0,
+  'final_time': 300.0,
   'max_cycles': -1,
   'do_backup': 0
 }
@@ -107,10 +120,10 @@ ArrheniusKinetics = {
 }
 
 DiffusionSourceTerm = {
-  'mul': diffusion
+  'mul': 3.0
 }
-R_ref = 287.
-p_ref = 101325.
+R_ref = 287.4
+p_ref = 10_000.
 T_ref = 300.
 L_ref = 1.0
 rho_ref = p_ref / T_ref / R_ref
@@ -150,7 +163,7 @@ ControlOptions = {
   'surface_area_tube_outlet': (n_tubes * Area(0.0) * D) / D,
   # Turbine volumes and surfaces
   'volume_turbine_plenum': TVolRPlen / D,
-  'surface_area_turbine_plenum_to_turbine': plenum_y_length / D,
+  'surface_area_turbine_plenum_to_turbine': 4.0 * D / D,
   # Compressor volumes and surfaces
   'volume_compressor_plenum': TVolRPlen / D,
   'surface_area_compressor_to_compressor_plenum': (8.0 * D) / D,
@@ -162,8 +175,40 @@ def ToCellIndex(x, xlo, xhi, ncells):
   i = int(x_rel * ncells)
   return i
 
+def GetCenterPoint(x0, y0):
+  return [x0, y0, 0.0]
 
-# mach_1_boundaries = [ToCellIndex(y0, plenum_y_lower, plenum_y_upper, plenum_y_n_cells) for y0 in y0s]
+def LowerX(x0, y0):
+  center = GetCenterPoint(x0, y0)
+  center[1] -= r_tube
+  center[2] -= r_tube
+  return center
+
+def UpperX(x0, y0):
+  center = GetCenterPoint(x0, y0)
+  center[1] += r_tube
+  center[2] += r_tube
+  return center
+
+def DomainAroundPoint(x0, lo, upper):
+  xlo = [x0[0] + lo[0], x0[1] + lo[1]]
+  xhi = [x0[0] + upper[0], x0[1] + upper[1]]
+  return [xlo, xhi]
+
+def BoxWhichContains(real_box):
+  i0 = ToCellIndex(real_box[0][0], plenum_x_lower, plenum_x_upper, plenum_x_n_cells)
+  iEnd = ToCellIndex(real_box[1][0], plenum_x_lower, plenum_x_upper, plenum_x_n_cells)
+  j0 = ToCellIndex(real_box[0][1], plenum_y_lower, plenum_y_upper, plenum_y_n_cells)
+  jEnd = ToCellIndex(real_box[1][1], plenum_y_lower, plenum_y_upper, plenum_y_n_cells)
+  return { 'lower': [i0, j0, 0], 'upper': [iEnd, jEnd, 0] }
+
+def BoxWhichContains_withGhostcells(real_box, gcw_x, gcw_y):
+  i0 = ToCellIndex(real_box[0][0], plenum_x_lower, plenum_x_upper, plenum_x_n_cells)
+  iEnd = ToCellIndex(real_box[1][0], plenum_x_lower, plenum_x_upper, plenum_x_n_cells)
+  j0 = ToCellIndex(real_box[0][1], plenum_y_lower, plenum_y_upper, plenum_y_n_cells)
+  jEnd = ToCellIndex(real_box[1][1], plenum_y_lower, plenum_y_upper, plenum_y_n_cells)
+  return { 'lower': [i0-gcw_x[0], j0-gcw_y[0], 0], 'upper': [iEnd+gcw_x[1]-1, jEnd+gcw_y[1]-1, 0] }
+
 
 Plenum = {
   'checkpoint': checkpoint,
@@ -173,7 +218,7 @@ Plenum = {
       'lower': [plenum_x_lower, plenum_y_lower, plenum_z_lower],
       'upper': [plenum_x_upper, plenum_y_upper, plenum_z_upper],
     },
-    'periodicity': [0, 1, 0]
+    # 'periodicity': [0, 1, 0]
   },
   'PatchHierarchy': {
     'max_number_of_levels': n_level, 
@@ -193,7 +238,7 @@ Plenum = {
     'r_start': 4.0 * r_tube,
     'r_end': 4.0 * r_tube,
     'y_0': y_0,
-  } for y_0 in y0s],
+  } for y_0 in tube_y0s],
   'InitialCondition': {
     'left': {
       'density': rho,
@@ -208,57 +253,65 @@ Plenum = {
   }
 }
 
-Plenum[boundary_condition] = [{
-  'boundary_section': { 
-    'lower': [plenum_x_n_cells, -4, 0], 
-    'upper': [plenum_x_n_cells + 3, plenum_y_n_cells + 3, 0] 
-    },
+
+Plenum_scratch_gcw = Plenum['IntegratorContext']['scratch_gcw']
+
+# get Boundarybox for the Plenum (upper side in x-Direction)
+plenum_y_midpoint = (plenum_y_upper + plenum_y_lower)/2.0
+def PlenumBoundaryBox(y0):
+  return BoxWhichContains_withGhostcells(DomainAroundPoint( GetCenterPoint(plenum_x_upper, y0), [0.0, -2.*D], [0.0, +2.*D]), 
+            [0,Plenum_scratch_gcw], [0, 0])
+
+## if plenum boundary goes over the whole y-range
+# def PlenumBoundaryBox(y0):
+#   return BoxWhichContains_withGhostcells(DomainAroundPoint( GetCenterPoint(plenum_x_upper, y0), [0.0, plenum_y_lower], [0.0, plenum_y_upper]), 
+#             [0,Plenum_scratch_gcw], [Plenum_scratch_gcw, Plenum_scratch_gcw])
+
+
+# get the Box for the Plenum where the massflow is accumulated (upper side in x-Direction)
+def PlenumCoarseAverageMirrorBox(y0):
+  return BoxWhichContains_withGhostcells(DomainAroundPoint( GetCenterPoint(plenum_x_upper, y0), [0.0, -2.*D], [0.0, +2.*D]), 
+            [1,0], [0, 0])
+
+Plenum[boundary_condition] = {
+  # 'boundary_section': { 
+  #   'lower': [plenum_x_n_cells, - Plenum_scratch_gcw, 0], 
+  #   'upper': [plenum_x_n_cells + Plenum_scratch_gcw - 1, plenum_y_n_cells + Plenum_scratch_gcw - 1, 0] 
+  #   },
+  'boundary_section': PlenumBoundaryBox(plenum_y_midpoint),
   'mode': mode,
-  'coarse_average_mirror_box': {
-    'lower': [plenum_x_n_cells - 1, 0, 0],
-    'upper': [plenum_x_n_cells - 1, plenum_y_n_cells - 1, 0]
-  },
+  # 'coarse_average_mirror_box': {
+  #   'lower': [plenum_x_n_cells - 1, 0, 0],
+  #   'upper': [plenum_x_n_cells - 1, plenum_y_n_cells - 1, 0]
+  # },
+  'coarse_average_mirror_box': PlenumCoarseAverageMirrorBox(plenum_y_midpoint),
   'relative_surface_area': ControlOptions['surface_area_turbine_plenum_to_turbine'], 
-  'massflow_correlation': massflow_cor, # 0.06 * 4.0,
-}]
+  'massflow_correlation': 0.06 * 4.0,
+}
 
-def TubeCenterPoint(x0, y0):
-  return [x0, y0, 0.0]
+# print("boundary section:")
+# print(PlenumBoundaryBox(plenum_y_midpoint))
+# print("should be: ")
+# print(Plenum[boundary_condition][0]['boundary_section'])
+# print()
 
-def LowerX(x0, y0):
-  center = TubeCenterPoint(x0, y0)
-  center[1] -= r_tube
-  center[2] -= r_tube
-  return center
+# print("coarse_average_mirror_box:")
+# print(PlenumCoarseAverageMirrorBox(plenum_y_midpoint))
+# print("should be: ")
+# print(Plenum[boundary_condition][0]['coarse_average_mirror_box'])
+# print()
 
-def UpperX(x0, y0):
-  center = TubeCenterPoint(x0, y0)
-  center[1] += r_tube
-  center[2] += r_tube
-  return center
 
-def DomainAroundPoint(x0, lo, upper):
-  xlo = [x0[0] + lo[0], x0[1] + lo[1]]
-  xhi = [x0[0] + upper[0], x0[1] + upper[1]]
-  return [xlo, xhi]
-
-def BoxWhichContains(real_box):
-  i0 = ToCellIndex(real_box[0][0], plenum_x_lower, plenum_x_upper, plenum_x_n_cells)
-  iEnd = ToCellIndex(real_box[1][0], plenum_x_lower, plenum_x_upper, plenum_x_n_cells)
-  j0 = ToCellIndex(real_box[0][1], plenum_y_lower, plenum_y_upper, plenum_y_n_cells)
-  jEnd = ToCellIndex(real_box[1][1], plenum_y_lower, plenum_y_upper, plenum_y_n_cells)
-  return { 'lower': [i0, j0, 0], 'upper': [iEnd, jEnd, 0] }
-
+# get Mirrorbox for each Tube where they are connected with the plenum
 def PlenumMirrorBox(y0):
-  return BoxWhichContains(DomainAroundPoint(TubeCenterPoint(-inlet_length, y0), [0.0, -2.0 * D], [inlet_length, +2.0 * D]))
+  return BoxWhichContains(DomainAroundPoint(GetCenterPoint(-inlet_length, y0), [0.0, -2.0 * D], [inlet_length, +2.0 * D]))
 
-
+# print(PlenumMirrorBox(tube_y0s[0]))
 Tube_FluxMethod = FluxMethod
 Tube_FluxMethod['area_variation'] = Area
 
 Tubes = [{
   'checkpoint': checkpoint if checkpoint == '' else '{}/Tube_{}'.format(checkpoint, i),
-  'buffer': 0.06,
   'initially_filled_x': 0.1,
   'FluxMethod': Tube_FluxMethod,
   'plenum_mirror_box': PlenumMirrorBox(y_0),
@@ -289,7 +342,7 @@ Tubes = [{
     'SEC_tti': 1.2, # 1.2
     'SEC_timin': 0.1, # 0.1
   }
-} for (i, y_0) in enumerate(y0s)]
+} for (i, y_0) in enumerate(tube_y0s)]
 
 tube_intervals = 0.005
 plenum_intervals = 0.02
@@ -316,10 +369,15 @@ Output = {
     'intervals': [plenum_intervals],
     # 'frequencies': [1]
   },
+  # {
+  #   'type': 'Plotfiles',
+  #   'directory': '{}/Plotfiles/'.format(outputPath),
+  #   'intervals': [1.0],
+  # },
   {
    'type': 'CounterOutput',
   #  'intervals': [1/.0]
-    'frequencies': [100]
+    'frequencies': [10000]
   },
   {
     'type': 'Checkpoint',

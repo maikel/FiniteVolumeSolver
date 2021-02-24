@@ -213,9 +213,9 @@ private:
 template <int PlenumRank> class ControlFeedback {
 public:
   ControlFeedback(const PerfectGasMix<PlenumRank>& plenum_equation,
-                  const PerfectGasMix<1>& tube_equation, const Control& c)
+                  const PerfectGasMix<1>& tube_equation, const Control& c, const ::amrex::Box boundary_box)
       : plenum_equation_(plenum_equation), tube_index_(tube_equation),
-        control_(c) {}
+        control_(c), boundary_box_(boundary_box) {}
 
   // Update the control object using the mass flows in the multi block
   // integrator context.
@@ -241,7 +241,13 @@ public:
                                            faces_x.ixType()};
     Conservative<PerfectGasMix<2>> fluxes_turbine(plenum_equation_);
     Conservative<PerfectGasMix<2>> cons_turbine(plenum_equation_);
-    amrex::AverageState(fluxes_turbine, fluxes_x, geom, right_face_boundary);
+
+    if (!boundary_box_.isEmpty()) {
+      amrex::AverageState(fluxes_turbine, fluxes_x, geom, boundary_box_);
+    }
+    else {
+      amrex::AverageState(fluxes_turbine, fluxes_x, geom, right_face_boundary);
+    }
     amrex::AverageState(cons_turbine, scratch, geom, right_cell_boundary);
 
     PlenumState turbine_boundary_state;
@@ -311,6 +317,7 @@ private:
   PerfectGasMix<PlenumRank> plenum_equation_;
   IndexMapping<PerfectGasMix<1>> tube_index_;
   Control control_;
+  ::amrex::Box boundary_box_;
 };
 
 class ControlOutput
