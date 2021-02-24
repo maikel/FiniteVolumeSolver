@@ -96,8 +96,10 @@ void RunSimulation(Solver& solver, RunOptions options,
   std::chrono::steady_clock::duration wall_time = wall_time_reference - now;
   // Deeply copy the grid for a fallback scenario in case of time step errors
   std::optional<Solver> backup{};
+  auto counters = solver.GetCounterRegistry();
+  FUB_ASSERT(counters);
   if (options.do_backup) {
-    Timer counter = solver.GetCounterRegistry()->get_timer("RunSimulation::MakeBackup");
+    Timer backup_counter = counters->get_timer("RunSimulation::MakeBackup");
     backup = solver;
   }
   std::optional<Duration> failure_dt{};
@@ -105,20 +107,35 @@ void RunSimulation(Solver& solver, RunOptions options,
          (options.max_cycles < 0 || solver.GetCycles() < options.max_cycles)) {
     // We have a nested loop to exactly reach output time points.
     do {
+      Timer timestep_counter =
+          counters->get_timer("RunSimulation::WholeTimeStep");
       const fub::Duration next_output_time = output.NextOutputTime(time_point);
-      solver.PreAdvanceHierarchy();
-      // Compute the next time step size. If an estimate is available from a
-      // prior failure we use that one.
-      const fub::Duration stable_dt =
-          failure_dt ? *failure_dt : solver.ComputeStableDt();
-      FUB_ASSERT(stable_dt > eps);
-      const fub::Duration limited_dt =
-          std::min({options.final_time - time_point,
-                    next_output_time - time_point, options.cfl * stable_dt});
+      {
+        Timer pre_advance_counter =
+            counters->get_timer("RunSimulation::PreAdvanceHierarchy");
+        solver.PreAdvanceHierarchy();
+      }
+      {
 
-      // Advance the hierarchy in time!
-      boost::outcome_v2::result<void, TimeStepTooLarge> result =
-          solver.AdvanceHierarchy(limited_dt);
+        Timer compute_stable_dt_counter =
+            counters->get_timer("RunSimulation::ComputeStableDt");
+        // Compute the next time step size. If an estimate is available from a
+        // prior failure we use that one.
+        const fub::Duration stable_dt =
+            failure_dt ? *failure_dt : solver.ComputeStableDt();
+        FUB_ASSERT(stable_dt > eps);
+        const fub::Duration limited_dt =
+            std::min({options.final_time - time_point,
+                      next_output_time - time_point, options.cfl * stable_dt});
+      }
+
+      {
+        Timer advance_hierarchy_counter =
+            counters->get_timer("RunSimulation::AdvanceHierarchy");
+        // Advance the hierarchy in time!
+        boost::outcome_v2::result<void, TimeStepTooLarge> result =
+            solver.AdvanceHierarchy(limited_dt);
+      }
 
       if (result.has_error() && options.do_backup) {
         // If the solver returned with an error, reduce the time step size with
@@ -139,6 +156,8 @@ void RunSimulation(Solver& solver, RunOptions options,
             limited_dt.count());
         return;
       } else {
+        Timer post_advance_hierarchy_counter =
+            counters->get_timer("RunSimulation::PostAdvanceHierarchy");
         solver.PostAdvanceHierarchy(limited_dt);
         // If advancing the hierarchy was successfull print a successful time
         // step line and reset any failure indicators.
@@ -154,7 +173,8 @@ void RunSimulation(Solver& solver, RunOptions options,
                                              wall_time_difference);
         failure_dt.reset();
         if (options.do_backup) {
-          Timer counter = solver.GetCounterRegistry()->get_timer("RunSimulation::MakeBackup");
+          Timer counter = solver.GetCounterRegistry()->get_timer(
+              "RunSimulation::MakeBackup");
           backup = solver;
         }
       }
