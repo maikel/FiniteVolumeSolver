@@ -213,7 +213,8 @@ private:
 template <int PlenumRank> class ControlFeedback {
 public:
   ControlFeedback(const PerfectGasMix<PlenumRank>& plenum_equation,
-                  const PerfectGasMix<1>& tube_equation, const Control& c, const ::amrex::Box boundary_box)
+                  const PerfectGasMix<1>& tube_equation, const Control& c,
+                  const ::amrex::Box boundary_box)
       : plenum_equation_(plenum_equation), tube_index_(tube_equation),
         control_(c), boundary_box_(boundary_box) {}
 
@@ -228,7 +229,8 @@ public:
     const ::amrex::MultiFab& fluxes_x =
         plenum.GetFluxes(coarsest_level, Direction::X);
     const ::amrex::Geometry& geom = plenum.GetGeometry(coarsest_level);
-    const ::amrex::Box cells = geom.Domain();
+    const ::amrex::Box cells =
+        !boundary_box_.isEmpty() ? boundary_box_ : geom.Domain();
     const int boundary_n = cells.bigEnd(0);
     const ::amrex::IntVect smallEnd{boundary_n, cells.smallEnd(1)};
     const ::amrex::IntVect bigEnd = cells.bigEnd();
@@ -242,12 +244,7 @@ public:
     Conservative<PerfectGasMix<2>> fluxes_turbine(plenum_equation_);
     Conservative<PerfectGasMix<2>> cons_turbine(plenum_equation_);
 
-    if (!boundary_box_.isEmpty()) {
-      amrex::AverageState(fluxes_turbine, fluxes_x, geom, boundary_box_);
-    }
-    else {
-      amrex::AverageState(fluxes_turbine, fluxes_x, geom, right_face_boundary);
-    }
+    amrex::AverageState(fluxes_turbine, fluxes_x, geom, right_face_boundary);
     amrex::AverageState(cons_turbine, scratch, geom, right_cell_boundary);
 
     PlenumState turbine_boundary_state;
