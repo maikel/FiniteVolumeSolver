@@ -397,7 +397,7 @@ void MyMain(const fub::ProgramOptions& options) {
     boost::archive::text_iarchive ia(ifs);
     std::vector<fub::Duration> last_ignitions;
     ia >> last_ignitions;
-    ignition.SetNextIgnitionTimePoints(last_ignitions);
+    ignition.SetLastIgnitionTimePoints(last_ignitions);
   }
 
   fub::SplitSystemSourceLevelIntegrator ign_solver(

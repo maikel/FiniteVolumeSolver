@@ -1,5 +1,19 @@
 import math
 
+print(args)
+if 'args' in globals() and len(args) > 0:
+  ignition_position = float(args[0])
+else:
+  ignition_position = -tube_length + 0.4
+
+if 'args' in globals() and len(args) > 1:
+  checkpoint = args[1]
+else:
+  checkpoint = ''
+
+print(args)
+print(ignition_position)
+
 plenum_x_n_cells = 64
 tube_blocking_factor = 32
 plenum_blocking_factor_x = 16
@@ -69,7 +83,7 @@ RunOptions = {
 }
 
 # checkpoint = '/Users/maikel/Development/FiniteVolumeSolver/build_3d/MultiTube/Checkpoint/000000063'
-checkpoint = ''
+# checkpoint = ''
 # checkpoint = '/srv/public/Maikel/FiniteVolumeSolver/build_3D-Release/MultiTube/Checkpoint/000001166'
 
 Plenum = {

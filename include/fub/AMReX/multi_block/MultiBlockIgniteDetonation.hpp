@@ -49,9 +49,6 @@ public:
   AdvanceLevel(MultiBlockIntegratorContext2& context, int level, Duration dt,
                const ::amrex::IntVect& ngrow = ::amrex::IntVect(0));
 
-  [[nodiscard]] std::vector<Duration> GetNextIgnitionTimePoints() const;
-  void SetNextIgnitionTimePoints(span<const Duration> timepoints);
-
 private:
   std::vector<IgniteDetonation> source_terms_;
   int max_number_levels_{1};
@@ -59,7 +56,9 @@ private:
   friend class boost::serialization::access;
   template <class Archive>
   void serialize(Archive& ar, unsigned int /* version */) {
-    ar& source_terms_;
+    for (auto&& source_term : source_terms_) {
+      ar & source_term;
+    }
   }
 };
 

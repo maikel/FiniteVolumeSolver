@@ -37,7 +37,7 @@ namespace fub::amrex {
 struct IgniteDetonationOptions {
   IgniteDetonationOptions() = default;
 
-  explicit IgniteDetonationOptions(const ProgramOptions& options);
+  IgniteDetonationOptions(const ProgramOptions& options);
 
   void Print(SeverityLogger& log) const;
 
@@ -104,12 +104,12 @@ public:
   [[nodiscard]] Duration GetNextIgnitionTimePoint(int level) const noexcept;
 
   /// \brief Set a time point for an ignition on refinement level `level`.
-  void SetNextIgnitionTimePoint(int level, Duration t) noexcept;
+  void SetLastIgnitionTimePoint(int level, Duration t) noexcept;
 
 private:
   IdealGasMix<1> equation_;
   IgniteDetonationOptions options_;
-  std::vector<Duration> next_ignition_time_{};
+  std::vector<Duration> last_ignition_time_{};
 
   friend class boost::serialization::access;
   template <typename Archive> void serialize(Archive& ar, unsigned int version);
@@ -118,7 +118,7 @@ private:
 template <typename Archive>
 void IgniteDetonation::serialize(Archive& ar, unsigned int /* version */) {
   // clang-format off
-  ar & next_ignition_time_;
+  ar & last_ignition_time_;
   // clang-format on
 }
 

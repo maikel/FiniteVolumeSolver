@@ -362,7 +362,7 @@ void WriteCheckpoint(const std::string& path,
     name = fmt::format("{}/Ignition", path);
     std::ofstream ignition_checkpoint(name);
     boost::archive::text_oarchive oa(ignition_checkpoint);
-    oa << ignition.GetNextIgnitionTimePoints();
+    oa << ignition;
   }
 }
 
@@ -431,9 +431,7 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
     std::istringstream ifs(input);
     {
       boost::archive::text_iarchive ia(ifs);
-      std::vector<fub::Duration> last_ignitions;
-      ia >> last_ignitions;
-      ignition.SetNextIgnitionTimePoints(last_ignitions);
+      ia >> ignition;
     }
     fub::amrex::PressureValveBoundary& valve =
         GetValveBoundary(*system_solver.GetGriddingAlgorithm());

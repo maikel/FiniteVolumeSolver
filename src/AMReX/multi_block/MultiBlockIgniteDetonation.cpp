@@ -62,27 +62,4 @@ MultiBlockIgniteDetonation::AdvanceLevel(MultiBlockIntegratorContext2& context,
   return boost::outcome_v2::success();
 }
 
-std::vector<Duration>
-MultiBlockIgniteDetonation::GetNextIgnitionTimePoints() const {
-  std::vector<Duration> times{};
-  times.reserve(source_terms_.size());
-  std::transform(source_terms_.begin(), source_terms_.end(),
-                 std::back_inserter(times), [](const IgniteDetonation& ign) {
-                   return ign.GetNextIgnitionTimePoint(0);
-                 });
-  return times;
-}
-
-void MultiBlockIgniteDetonation::SetNextIgnitionTimePoints(
-    span<const Duration> timepoints) {
-  std::size_t k = 0;
-  for (Duration t_ign : timepoints) {
-    const int nlevel = max_number_levels_;
-    for (int ilvl = 0; ilvl < nlevel; ++ilvl) {
-      source_terms_[k].SetNextIgnitionTimePoint(ilvl, t_ign);
-    }
-    k += 1;
-  }
-}
-
 } // namespace fub::amrex

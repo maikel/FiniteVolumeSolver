@@ -59,8 +59,8 @@ IgniteDetonation::IgniteDetonation(
     const fub::IdealGasMix<1>& eq, int max_number_levels,
     const fub::amrex::IgniteDetonationOptions& opts)
     : equation_(eq), options_{opts},
-      next_ignition_time_(static_cast<std::size_t>(max_number_levels),
-                          opts.offset) {}
+      last_ignition_time_(static_cast<std::size_t>(max_number_levels),
+                          Duration(std::numeric_limits<double>::min())) {}
 
 Duration IgniteDetonation::ComputeStableDt(const IntegratorContext&, int) const
     noexcept {
@@ -120,13 +120,17 @@ std::vector<double> GatherMoles_(const IntegratorContext& grid, double x,
 
 Duration IgniteDetonation::GetNextIgnitionTimePoint(int level) const noexcept {
   const std::size_t l = static_cast<std::size_t>(level);
-  return next_ignition_time_[l];
+  if (last_ignition_time_[l] < options_.offset) {
+    return options_.offset;
+  } else {
+    return last_ignition_time_[l] + options_.ignite_interval;
+  }
 }
 
-void IgniteDetonation::SetNextIgnitionTimePoint(int level,
+void IgniteDetonation::SetLastIgnitionTimePoint(int level,
                                                 Duration t) noexcept {
   const std::size_t l = static_cast<std::size_t>(level);
-  next_ignition_time_[l] = t;
+  last_ignition_time_[l] = t;
 }
 
 Result<void, TimeStepTooLarge>
@@ -181,8 +185,7 @@ IgniteDetonation::AdvanceLevel(IntegratorContext& grid, int level,
           }
         });
       });
-      SetNextIgnitionTimePoint(level,
-                               next_ignition_time + options_.ignite_interval);
+      SetLastIgnitionTimePoint(level, next_ignition_time);
       fub::SeverityLogger log = GetInfoLogger();
       BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", options_.channel);
       BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", current_time.count());
