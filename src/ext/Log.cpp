@@ -91,11 +91,44 @@ void InitializeLogging(MPI_Comm comm, const LogOptions& options) {
   std::string log_filename =
       fmt::format(options.file_template, fmt::arg("rank", rank));
   if (rank == 0) {
+    // create directory if neccessary
     boost::filesystem::path path(log_filename);
     boost::filesystem::path dir = boost::filesystem::absolute(
         path.parent_path(), boost::filesystem::current_path());
     if (!boost::filesystem::exists(dir)) {
       boost::filesystem::create_directories(dir);
+    }
+
+    // Rename old log file if neccessary
+    if (boost::filesystem::is_regular_file(log_filename)) {
+      boost::log::sources::severity_logger<boost::log::trivial::severity_level>
+          log(boost::log::keywords::severity = boost::log::trivial::info);
+      BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "HDF5");
+      for (int i = 1; i < std::numeric_limits<int>::max(); ++i) {
+        std::string new_name = fmt::format("{}.{}", log_filename, i);
+        if (!boost::filesystem::exists(new_name)) {
+          BOOST_LOG(log) << fmt::format(
+              "Old log file '{}' detected. Rename old file to '{}'",
+              log_filename, new_name);
+          boost::filesystem::rename(log_filename, new_name);
+          break;
+        }
+      }
+    } else if (boost::filesystem::exists(log_filename)) {
+      boost::log::sources::severity_logger<boost::log::trivial::severity_level>
+          log(boost::log::keywords::severity = boost::log::trivial::warning);
+      BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "HDF5");
+      for (int i = 1; i < std::numeric_limits<int>::max(); ++i) {
+        std::string new_name = fmt::format("{}.{}", log_filename, i);
+        if (!boost::filesystem::exists(new_name)) {
+          BOOST_LOG(log) << fmt::format(
+              "Path'{}' points to some non-file. Output will be directory to "
+              "'{}' instead.",
+              log_filename, new_name);
+          log_filename = new_name;
+          break;
+        }
+      }
     }
   }
 
