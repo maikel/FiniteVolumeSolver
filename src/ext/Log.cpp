@@ -87,6 +87,18 @@ void InitializeLogging(MPI_Comm comm, const LogOptions& options) {
       "TimeStamp", boost::log::attributes::local_clock());
   int rank = -1;
   MPI_Comm_rank(comm, &rank);
+
+  std::string log_filename =
+      fmt::format(options.file_template, fmt::arg("rank", rank));
+  if (rank == 0) {
+    boost::filesystem::path path(log_filename);
+    boost::filesystem::path dir = boost::filesystem::absolute(
+        path.parent_path(), boost::filesystem::current_path());
+    if (!boost::filesystem::exists(dir)) {
+      boost::filesystem::create_directories(dir);
+    }
+  }
+
   auto first = options.which_mpi_ranks_do_log.begin();
   auto last = options.which_mpi_ranks_do_log.end();
   auto found = std::find(first, last, rank);
@@ -95,8 +107,8 @@ void InitializeLogging(MPI_Comm comm, const LogOptions& options) {
         boost::log::sinks::text_ostream_backend>;
     boost::shared_ptr<text_sink> file = boost::make_shared<text_sink>();
     namespace expr = boost::log::expressions;
-    file->locked_backend()->add_stream(boost::make_shared<std::ofstream>(
-        fmt::format(options.file_template, fmt::arg("rank", rank))));
+    file->locked_backend()->add_stream(
+        boost::make_shared<std::ofstream>(log_filename));
     file->set_formatter(&FormatLogs_);
     std::vector<std::string> blacklist = options.channel_blacklist;
     std::sort(blacklist.begin(), blacklist.end());
