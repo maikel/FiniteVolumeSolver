@@ -352,7 +352,7 @@ private:
   template <typename Density, typename Momentum, typename Energy,
             typename Species, typename PassiveScalars>
   friend auto
-  tag_invoke(tag_t<euler::InternalEnergy>, const PerfectGasMix& eq,
+  tag_invoke(tag_t<euler::InternalEnergy>, const PerfectGasMix&,
              const PerfectGasMixConservative<Density, Momentum, Energy, Species,
                                              PassiveScalars>& q) noexcept {
     return (q.energy - euler::KineticEnergy(q.density, q.momentum)) / q.density;

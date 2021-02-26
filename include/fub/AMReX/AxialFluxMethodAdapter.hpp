@@ -35,8 +35,8 @@ namespace fub::amrex {
 /// \ingroup FluxMethod
 template <typename Tag, typename FM> struct AxialFluxMethodAdapter {
   using Equation = std::decay_t<decltype(std::declval<FM&>().GetEquation())>;
-  static const int Rank = Equation::Rank();
-  static const int StencilSize = FM::StencilSize;
+  static constexpr int Rank = Equation::Rank();
+  static constexpr int StencilSize = FM::StencilSize;
 
   AxialFluxMethodAdapter(const FM& fm) : AxialFluxMethodAdapter(Tag(), fm) {}
   AxialFluxMethodAdapter(Tag, const FM& fm);
@@ -191,7 +191,7 @@ void AxialFluxMethodAdapter<Tag, FM>::ComputeNumericFluxes(
   using Complete = Complete<Equation>;
   using Conservative = Conservative<Equation>;
   IndexBox<Rank> fluxbox = Box<0>(fluxes);
-  static constexpr int kWidth = flux_method.GetStencilWidth();
+  const int kWidth = flux_method.GetStencilWidth();
   IndexBox<Rank> cellbox = Grow(fluxbox, dir, {kWidth, kWidth - 1});
   BasicView base = Subview(states, cellbox);
   std::array<View<const Complete>, StencilSize> stencil_views;
@@ -206,7 +206,7 @@ void AxialFluxMethodAdapter<Tag, FM>::ComputeNumericFluxes(
         return std::tuple{fluxes, pressures, vs...};
       },
       stencil_views);
-  ForEachRow(views, [this, dt, dx, dir,
+  ForEachRow(views, [dt, dx, dir,
                      &flux_method](const Row<Conservative>& fluxes,
                                    span<double> pressure, auto... rows) {
     ViewPointer fit = Begin(fluxes);
