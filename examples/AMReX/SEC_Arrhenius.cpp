@@ -256,43 +256,11 @@ void MyMain(const fub::ProgramOptions& options) {
       initial_data, gradient, boundary);
   gridding->InitializeHierarchy(0.0);
 
-  using namespace std::literals;
-  using HLLEM = fub::perfect_gas::HllemMethod<fub::PerfectGasMix<1>>;
+  auto [flux_method, time_integrator] =
+      fub::amrex::GetFluxMethod(fub::GetOptions(options, "FluxMethod"),
+                                gridding->GetPatchHierarchy(), equation);
 
-  using ConservativeReconstruction = fub::FluxMethod<fub::MusclHancock2<
-      fub::PerfectGasMix<1>,
-      fub::ConservativeGradient<
-          fub::PerfectGasMix<1>,
-          fub::CentralDifferenceGradient<fub::VanLeerLimiter>>,
-      fub::ConservativeReconstruction<fub::PerfectGasMix<1>>, HLLEM>>;
-
-  using PrimitiveReconstruction = fub::FluxMethod<fub::MusclHancock2<
-      fub::PerfectGasMix<1>,
-      fub::PrimitiveGradient<
-          fub::PerfectGasMix<1>,
-          fub::CentralDifferenceGradient<fub::VanLeerLimiter>>,
-      fub::PrimitiveReconstruction<fub::PerfectGasMix<1>>, HLLEM>>;
-
-  using CharacteristicsReconstruction = fub::FluxMethod<fub::MusclHancock2<
-      fub::PerfectGasMix<1>,
-      fub::CharacteristicsGradient<
-          fub::PerfectGasMix<1>,
-          fub::CentralDifferenceGradient<fub::VanLeerLimiter>>,
-      fub::CharacteristicsReconstruction<fub::PerfectGasMix<1>>, HLLEM>>;
-
-  auto flux_method_factory = GetFluxMethodFactory(
-      std::pair{"NoReconstruct"s, MakeFlux<HLLEM>()},
-      std::pair{"Conservative"s, MakeFlux<ConservativeReconstruction>()},
-      std::pair{"Primitive"s, MakeFlux<PrimitiveReconstruction>()},
-      std::pair{"Characteristics"s, MakeFlux<CharacteristicsReconstruction>()});
-
-  std::string reconstruction =
-      fub::GetOptionOr(options, "reconstruction", "HLLEM"s);
-  BOOST_LOG(log) << "Reconstruction: " << reconstruction;
-  auto flux_method = flux_method_factory.at(reconstruction)(equation);
-
-  fub::amrex::HyperbolicMethod method{flux_method,
-                                      fub::amrex::EulerForwardTimeIntegrator(),
+  fub::amrex::HyperbolicMethod method{flux_method, time_integrator,
                                       fub::amrex::Reconstruction(equation)};
 
   const int scratch_ghost_cell_width =
@@ -324,7 +292,7 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::OutputFactory<fub::amrex::GriddingAlgorithm> factory{};
   factory.RegisterOutput<fub::amrex::WriteHdf5>("HDF5");
   using CounterOutput = fub::CounterOutput<fub::amrex::GriddingAlgorithm,
-                                           std::chrono::milliseconds>;
+                                           std::chrono::nanoseconds>;
   factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
   fub::MultipleOutputs<fub::amrex::GriddingAlgorithm> outputs(
       std::move(factory), fub::GetOptions(options, "Output"));

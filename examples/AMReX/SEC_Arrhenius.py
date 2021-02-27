@@ -13,8 +13,9 @@ T_ref = 300.0
 rho_ref = p_ref / T_ref / Rspec
 
 RunOptions = {
-  'cfl': 0.5 * 0.9 / float(n_cells / 64),
+  'cfl': 0.1125, # 0.5 * 0.9 / float(n_cells / 64),
   'final_time': 20.0, #/ math.sqrt(p_ref/rho_ref),
+  'do_backup': 0
 }
 
 GridGeometry = {
@@ -30,7 +31,7 @@ PatchHierarchy = {
  'max_number_of_levels': 1,
  'refine_ratio': [2, 1, 1],
  'blocking_factor': [8, 1, 1],
- 'max_grid_size': [n_cells, 1, 1],
+ 'max_grid_size': [n_cells, n_cells, n_cells],
 }
 
 Equation = {
@@ -76,8 +77,8 @@ Output = {
   'outputs': [{
     'type': 'HDF5',
     'path': 'Deflagration.h5',
-    'intervals': [0.005],# / math.sqrt(p_ref / rho_ref)],
-    # 'frequencies': [1],
+    # 'intervals': [],# / math.sqrt(p_ref / rho_ref)],
+    'frequencies': [266],
   },{
     'type': 'CounterOutput',
     'intervals': [1.0],
