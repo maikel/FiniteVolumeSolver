@@ -196,11 +196,10 @@ struct InitialDataInTube {
           fub::ForEachIndex(fub::Box<0>(states), [&](std::ptrdiff_t i) {
             const double x = geom.CellCenter(int(i), 0);
             const double rel_x = x - x_0_;
-            // const double pressure = 1.0;
-            const double p0 = 5.0;
+            const double p0 = 2.0;
             const double rho0 = std::pow(p0, equation_.gamma_inv);
             const double T0 = p0 / rho0;
-            const double p = p0; // 0.95 * p0;
+            const double p = 0.95 * p0;
             const double T = T0 + kinetics_.Q * equation_.gamma_minus_one;
             const double rho = p / T * equation_.ooRspec;
 

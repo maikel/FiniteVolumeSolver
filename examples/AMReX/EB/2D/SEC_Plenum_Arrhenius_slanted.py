@@ -76,7 +76,7 @@ n_tubes = len(y0s)
 
 RunOptions = {
   'cfl': 0.1,# / float(tube_n_cells / 64),
-  'final_time': 1.0,
+  'final_time': 300.0,
   'max_cycles': -1,
   'do_backup': 0
 }
