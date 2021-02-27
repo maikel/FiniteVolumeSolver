@@ -124,6 +124,8 @@ public:
   /// \brief Returns the MultiFab associated with flux data on the specifed
   /// level number and direction.
   [[nodiscard]] ::amrex::MultiFab& GetReferenceStates(int level);
+  [[nodiscard]] ::amrex::MultiFab& GetReferenceMirrorStates(int level);
+  [[nodiscard]] ::amrex::iMultiFab& GetReferenceMasks(int level);
 
   /// \brief Returns the MultiFab associated with level data with ghost cells on
   /// the specifed level number and direction.
@@ -305,6 +307,8 @@ private:
 
     /// reference states which are used to compute embedded boundary fluxes
     std::optional<::amrex::MultiFab> reference_states{};
+    std::optional<::amrex::MultiFab> reference_mirror_states{};
+    std::optional<::amrex::iMultiFab> reference_masks{};
 
     /// scratch space filled with data in ghost cells
     ::amrex::MultiFab scratch{};

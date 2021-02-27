@@ -218,6 +218,74 @@ int MultiBlockIntegratorContext2::PreAdvanceLevel(
                                 block.PreAdvanceLevel(level_num, dt, subcycle));
                  }
                });
+
+  for (auto&& [plenum_id, plenum] : ranges::view::enumerate(plena_)) {
+    cutcell::BoundarySet* boundary = plenum.GetGriddingAlgorithm()
+                                         ->GetBoundaryCondition()
+                                         .Cast<cutcell::BoundarySet>();
+    FUB_ASSERT(boundary);
+    span<cutcell::AnyBoundaryCondition> conditions = boundary->conditions;
+    // drop the first condition, since that is the original one.
+    conditions = conditions.subspan(1);
+    span<const BlockConnection> connectivity = gridding_->GetConnectivity();
+    const int n_connections =
+        ranges::count_if(gridding_->GetConnectivity(), [=](const auto& conn) {
+          return conn.plenum.id == plenum_id;
+        });
+    [[maybe_unused]] const int n_level = conditions.size() / n_connections;
+    FUB_ASSERT(level_num < n_level);
+    conditions = conditions.subspan(level_num * n_connections, n_connections);
+    for (auto&& [conn, bc] : ranges::view::zip(connectivity, conditions)) {
+      if (conn.plenum.id == plenum_id && conn.normal.squaredNorm() > 0.0) {
+        AnyMultiBlockBoundary* multi_block_boundary =
+            bc.Cast<AnyMultiBlockBoundary>();
+        FUB_ASSERT(multi_block_boundary);
+        const IntegratorContext& tube = tubes_[conn.tube.id];
+        multi_block_boundary->ComputeBoundaryData(plenum, tube);
+        const ::amrex::FArrayBox* tube_mirror_data =
+            multi_block_boundary->GetTubeMirrorData();
+        const ::amrex::FArrayBox* tube_ghost_data =
+            multi_block_boundary->GetTubeGhostData();
+        FUB_ASSERT(tube_mirror_data);
+        FUB_ASSERT(tube_ghost_data);
+        ::amrex::MultiFab& reference_states =
+            plenum.GetReferenceStates(level_num);
+        ::amrex::MultiFab& reference_mirror_states =
+            plenum.GetReferenceMirrorStates(level_num);
+        ::amrex::MultiFab& scratch = plenum.GetScratch(level_num);
+        ::amrex::iMultiFab& reference_masks =
+            plenum.GetReferenceMasks(level_num);
+        auto&& factory = plena_[0].GetEmbeddedBoundary(level_num);
+        const auto& flags = factory.getMultiEBCellFlagFab();
+        const ::amrex::MultiCutFab& eb_normals = factory.getBndryNormal();
+        auto&& conn2 = conn;
+        ForEachFab(reference_states, [&](const ::amrex::MFIter& mfi) {
+          ::amrex::Box box = mfi.tilebox() & conn2.plenum.mirror_box;
+          ::amrex::FabType type = flags[mfi].getType(box);
+          if (type != ::amrex::FabType::singlevalued || box.isEmpty()) {
+            return;
+          }
+          const ::amrex::CutFab& ebns = eb_normals[mfi];
+          ForEachIndex(box, [&](auto... is) {
+            ::amrex::IntVect index{static_cast<int>(is)...};
+            Eigen::Matrix<double, AMREX_SPACEDIM, 1> eb_normal{
+                AMREX_D_DECL(ebns(index, 0), ebns(index, 1), ebns(index, 2))};
+            const double projection = std::abs(eb_normal.dot(conn.normal));
+            const double error = std::abs(projection - 1.0);
+            if (error < conn.abs_tolerance) {
+              reference_masks[mfi](index, 0) = 1;
+              FUB_ASSERT(compute_eb_reference_state_);
+              compute_eb_reference_state_(reference_states[mfi],
+                                          reference_mirror_states[mfi],
+                                          scratch[mfi], *tube_mirror_data,
+                                          *tube_ghost_data, index, -eb_normal);
+            }
+          });
+        });
+      }
+    }
+  }
+
   if (level_which_changed ==
       plena_[0].GetPatchHierarchy().GetMaxNumberOfLevels()) {
     return 1;
@@ -444,7 +512,7 @@ void MultiBlockIntegratorContext2::ComputeNumericFluxes(int level, Duration dt,
   std::vector<double> average_flux(
       static_cast<std::size_t>(plena_[0].GetFluxes(0, Direction::X).nComp()));
   for (const BlockConnection& conn : gridding_->GetConnectivity()) {
-    if (dir == conn.direction) {
+    if (dir == conn.direction && conn.normal.squaredNorm() == 0.0) {
       cutcell::IntegratorContext& plenum = plena_[conn.plenum.id];
       IntegratorContext& tube = tubes_[conn.tube.id];
       const ::amrex::EBFArrayBoxFactory& factory =

@@ -158,6 +158,7 @@ operator=(LevelData&& other) noexcept {
   }
   eb_factory = std::move(other.eb_factory);
   reference_states = std::move(other.reference_states);
+  reference_masks = std::move(other.reference_masks);
   boundary_fluxes = std::move(other.boundary_fluxes);
   scratch = std::move(other.scratch);
   fluxes = std::move(other.fluxes);
@@ -298,6 +299,18 @@ const ::amrex::MultiFab& IntegratorContext::GetScratch(int level) const {
 ::amrex::MultiFab& IntegratorContext::GetReferenceStates(int level) {
   const std::size_t l = static_cast<std::size_t>(level);
   return *data_[l].reference_states;
+}
+
+::amrex::MultiFab& IntegratorContext::GetReferenceMirrorStates(int level) {
+  const std::size_t l = static_cast<std::size_t>(level);
+  FUB_ASSERT(data_.size() > l);
+  FUB_ASSERT(data_[l].reference_mirror_states);
+  return *data_[l].reference_mirror_states;
+}
+
+::amrex::iMultiFab& IntegratorContext::GetReferenceMasks(int level) {
+  const std::size_t l = static_cast<std::size_t>(level);
+  return *data_[l].reference_masks;
 }
 
 ::amrex::MultiFab& IntegratorContext::GetShieldedFromLeftFluxes(int level,
@@ -452,6 +465,15 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
                           options_.scratch_gcw, options_.scratch_gcw);
       }
       data.reference_states = std::move(refs);
+      refs.define(ba, dm, n_components, options_.scratch_gcw,
+                             ::amrex::MFInfo(), *ebf);
+      if (data.reference_mirror_states) {
+        refs.ParallelCopy(*data.reference_mirror_states, 0, 0, n_components,
+                          options_.scratch_gcw, options_.scratch_gcw);
+      }
+      data.reference_mirror_states = std::move(refs);
+      data.reference_masks.emplace(ba, dm, 1, options_.scratch_gcw);
+      data.reference_masks->setVal(0);
     }
 
     data.boundary_fluxes = std::make_unique<::amrex::MultiCutFab>(

@@ -86,6 +86,7 @@
 #include "fub/geometry/Invert.hpp"
 #include "fub/geometry/Polygon.hpp"
 #include "fub/geometry/RotateAxis.hpp"
+#include "fub/geometry/RotateAroundPoint.hpp"
 
 #include "fub/output/AsOutput.hpp"
 #include "fub/output/BasicOutput.hpp"

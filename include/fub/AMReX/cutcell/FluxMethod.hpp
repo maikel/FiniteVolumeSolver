@@ -56,12 +56,12 @@ public:
   explicit FluxMethod(const Base& fm) : FluxMethod(Tag(), fm) {}
   FluxMethod(Tag, const Base& fm);
   FluxMethod(Tag, Base&& fm);
-  
+
   FluxMethod(const FluxMethod& other) : flux_method_(other.flux_method_) {}
   FluxMethod(FluxMethod&& other) = default;
-  
+
   FluxMethod& operator=(const FluxMethod& other) {
-     flux_method_ = other.flux_method_;
+    flux_method_ = other.flux_method_;
   }
   FluxMethod& operator=(FluxMethod&& other) = default;
 
@@ -117,8 +117,12 @@ void FluxMethod<Tag, FM>::PreAdvanceHierarchy(IntegratorContext& context) {
     const PatchHierarchy& hierarchy = context.GetPatchHierarchy();
     for (int level = 0; level < hierarchy.GetNumberOfLevels(); ++level) {
       ::amrex::MultiFab& references = context.GetReferenceStates(level);
+      ::amrex::MultiFab& mirror_states =
+          context.GetReferenceMirrorStates(level);
+      mirror_states.setVal(0.0);
       const ::amrex::MultiFab& scratch = context.GetScratch(level);
-      // context.GetGriddingAlgorithm()->FillMultiFabFromLevel(references, level);
+      // context.GetGriddingAlgorithm()->FillMultiFabFromLevel(references,
+      // level);
       ForEachFab(Tag(), references, [&](const ::amrex::MFIter& mfi) {
         if (context.GetFabType(level, mfi) == ::amrex::FabType::singlevalued) {
           const Equation& eq = flux_method_->GetEquation();
@@ -175,8 +179,13 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
                             View<Conservative<Equation>>,
                             View<const Complete<Equation>>,
                             View<const Complete<Equation>>,
+                            View<const Complete<Equation>>,
+                            StridedDataView<int, Equation::Rank()>,
                             CutCellData<AMREX_SPACEDIM>, Duration, double,
                             Direction>::value) {
+    ::amrex::iMultiFab& reference_masks = context.GetReferenceMasks(level);
+    const ::amrex::MultiFab& reference_mirror_states =
+        context.GetReferenceMirrorStates(level);
     ForEachFab(Tag(), scratch, [&](const ::amrex::MFIter& mfi) {
       const Equation& equation = flux_method_->GetEquation();
       const ::amrex::Box box = mfi.growntilebox();
@@ -189,8 +198,12 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
             MakeView<const Complete<Equation>>(scratch[mfi], equation, box);
         auto refs =
             MakeView<const Complete<Equation>>(references[mfi], equation, box);
-        flux_method_->ComputeBoundaryFluxes(boundary_flux, states, refs, geom,
-                                            dt, dx, dir);
+        auto refs_mirror =
+            MakeView<const Complete<Equation>>(reference_mirror_states[mfi], equation, box);
+        auto masks = MakePatchDataView(reference_masks[mfi], 0, box);
+        flux_method_->ComputeBoundaryFluxes(boundary_flux, states, refs,
+                                            refs_mirror, masks,
+                                            geom, dt, dx, dir);
       }
     });
   }
@@ -326,7 +339,8 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
       debug.AddSnapshot(fmt::format("Fluxes_{}", int(dir)));
   if (snapshot) {
     const auto names =
-      VarNames<Conservative<Equation>, ::amrex::Vector<std::string>>(equation);
+        VarNames<Conservative<Equation>, ::amrex::Vector<std::string>>(
+            equation);
     snapshot.SaveData(fluxes, AddPrefix(names, "RegularFlux_"), geom);
     snapshot.SaveData(fluxes_s, AddPrefix(names, "StableFlux_"), geom);
     snapshot.SaveData(fluxes_sL, AddPrefix(names, "ShieldedFromLeftFlux_"),
@@ -353,8 +367,8 @@ Duration FluxMethod<Tag, FM>::ComputeStableDt(IntegratorContext& context,
     const Equation& equation = flux_method_->GetEquation();
     const ::amrex::Box face_tilebox = mfi.growntilebox();
     const ::amrex::Box cell_validbox = scratch[mfi].box();
-    auto cell_box =
-        GetCellsAndFacesInStencilRange(cell_validbox, face_tilebox, gcw, dir)[0];
+    auto cell_box = GetCellsAndFacesInStencilRange(cell_validbox, face_tilebox,
+                                                   gcw, dir)[0];
     auto states =
         MakeView<const Complete<Equation>>(scratch[mfi], equation, cell_box);
     const ::amrex::FabType type = context.GetFabType(level, mfi);

@@ -44,9 +44,10 @@ class MultiBlockGriddingAlgorithm2;
 struct MultiBlockBoundaryBase {
   virtual ~MultiBlockBoundaryBase() = default;
 
-  virtual void
-  FillTubeGhostLayer(::amrex::FArrayBox& tube_ghost_data,
-                     const ::amrex::FArrayBox& plenum_mirror_data) = 0;
+  virtual void FillTubeGhostLayer(
+      ::amrex::FArrayBox& tube_ghost_data,
+      const ::amrex::FArrayBox& plenum_mirror_data,
+      const Eigen::Matrix<double, AMREX_SPACEDIM, 1>& normal) = 0;
   virtual void
   FillPlenumGhostLayer(::amrex::FArrayBox& plenum_ghost_data,
                        const ::amrex::FArrayBox& tube_mirror_data) = 0;
@@ -65,8 +66,9 @@ struct MultiBlockBoundaryWrapper : public MultiBlockBoundaryBase {
 
   void FillTubeGhostLayer(
       ::amrex::FArrayBox& tube_ghost_data,
-      const ::amrex::FArrayBox& plenum_mirror_data) override final {
-    impl_.FillTubeGhostLayer(tube_ghost_data, plenum_mirror_data);
+      const ::amrex::FArrayBox& plenum_mirror_data,
+      const Eigen::Matrix<double, AMREX_SPACEDIM, 1>& normal) override final {
+    impl_.FillTubeGhostLayer(tube_ghost_data, plenum_mirror_data, normal);
   }
   void FillPlenumGhostLayer(
       ::amrex::FArrayBox& plenum_ghost_data,
@@ -158,6 +160,9 @@ public:
     }
   }
 
+  const ::amrex::FArrayBox* GetTubeMirrorData() const noexcept;
+  const ::amrex::FArrayBox* GetTubeGhostData() const noexcept;
+
 private:
   void Initialize(const MultiBlockGriddingAlgorithm2& gridding,
                   const BlockConnection& connection, int gcw, int level);
@@ -202,9 +207,9 @@ void ReduceStateDimension(TubeEquation& tube_equation,
 }
 
 template <typename PlenumEquation, typename TubeEquation>
-void EmbedState(PlenumEquation& plenum_equation, Complete<PlenumEquation>& dest,
+void EmbedState(PlenumEquation& plenum_equation, nodeduce_t<Complete<PlenumEquation>&> dest,
                 TubeEquation& /* tube_equation */,
-                const Conservative<TubeEquation>& src) {
+                nodeduce_t<const Conservative<TubeEquation>&> src) {
   dest.density = src.density;
   dest.momentum.setZero();
   for (int i = 0; i < src.momentum.size(); ++i) {
@@ -237,22 +242,36 @@ struct MultiBlockBoundary2 {
   TubeEquation tube_equation_;
   PlenumEquation plenum_equation_;
 
-  void FillTubeGhostLayer(::amrex::FArrayBox& tube_ghost_data,
-                          const ::amrex::FArrayBox& plenum_mirror_data) {
+  void
+  FillTubeGhostLayer(::amrex::FArrayBox& tube_ghost_data,
+                     const ::amrex::FArrayBox& plenum_mirror_data,
+                     const Eigen::Matrix<double, AMREX_SPACEDIM, 1>& normal) {
     BasicView cons_states = MakeView<const Conservative<PlenumEquation>>(
         plenum_mirror_data, plenum_equation_);
     BasicView complete_states =
         MakeView<Complete<TubeEquation>>(tube_ghost_data, tube_equation_);
     Conservative<PlenumEquation> cons(plenum_equation_);
+    Conservative<PlenumEquation> rotated(plenum_equation_);
     Complete<TubeEquation> complete(tube_equation_);
     const std::ptrdiff_t i0 = plenum_mirror_data.box().smallEnd(0);
     const std::ptrdiff_t j0 = tube_ghost_data.box().smallEnd(0);
     ForEachIndex(Box<0>(complete_states), [&](std::ptrdiff_t j) {
       const std::ptrdiff_t k = j - j0;
       const std::ptrdiff_t i = i0 + k;
-      Load(cons, cons_states, {i});
+      if (normal.squaredNorm() == 0.0) {
+        Load(cons, cons_states, {i});
+      } else {
+        Load(cons, cons_states, {0});
+      }
       if (cons.density > 0.0) {
-        ReduceStateDimension(tube_equation_, complete, plenum_equation_, cons);
+        if (normal.squaredNorm() > 0.0) {
+          const Eigen::Matrix<double, AMREX_SPACEDIM, 1> unit =
+              UnitVector<AMREX_SPACEDIM>(Direction::X);
+          Rotate(rotated, cons, MakeRotation(normal, unit), plenum_equation_);
+          ReduceStateDimension(tube_equation_, complete, plenum_equation_, rotated);
+        } else {
+          ReduceStateDimension(tube_equation_, complete, plenum_equation_, cons);
+        }
         Store(complete_states, complete, {j});
       }
     });

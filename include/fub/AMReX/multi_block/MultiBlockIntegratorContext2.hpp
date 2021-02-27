@@ -26,6 +26,9 @@
 
 #include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm2.hpp"
 
+#include "fub/EinfeldtSignalVelocities.hpp"
+#include "fub/flux_method/HllMethod.hpp"
+
 #include <memory>
 #include <vector>
 
@@ -199,6 +202,11 @@ private:
   std::vector<cutcell::IntegratorContext> plena_;
   std::shared_ptr<MultiBlockGriddingAlgorithm2> gridding_;
   FeedbackFn post_advance_hierarchy_feedback_;
+  std::function<void(::amrex::FArrayBox&, ::amrex::FArrayBox&,
+                     ::amrex::FArrayBox&, const ::amrex::FArrayBox&,
+                     const ::amrex::FArrayBox&, const ::amrex::IntVect&,
+                     const Eigen::Matrix<double, AMREX_SPACEDIM, 1>&)>
+      compute_eb_reference_state_;
 };
 
 template <typename TubeEquation, typename PlenumEquation>
@@ -221,6 +229,43 @@ MultiBlockIntegratorContext2::MultiBlockIntegratorContext2(
   gridding_ = std::make_shared<MultiBlockGriddingAlgorithm2>(
       tube_equation, plenum_equation, std::move(tube_grids),
       std::move(plenum_grids), std::move(connectivity));
+  Conservative<TubeEquation> cons(tube_equation);
+  Complete<TubeEquation> mirror_state(tube_equation);
+  Complete<TubeEquation> ghost_state(tube_equation);
+  Complete<TubeEquation> tube_rp_solution(tube_equation);
+  Complete<PlenumEquation> plenum_rp_solution(plenum_equation);
+  Complete<PlenumEquation> reference_state(plenum_equation);
+  Hll<TubeEquation, EinfeldtSignalVelocities<TubeEquation>> hlle(tube_equation);
+  compute_eb_reference_state_ =
+      [=, peq = plenum_equation, teq = tube_equation](
+          ::amrex::FArrayBox& refs, ::amrex::FArrayBox& refs_mirror,
+          ::amrex::FArrayBox& scratch, const ::amrex::FArrayBox& mirror,
+          const ::amrex::FArrayBox& ghost, const ::amrex::IntVect& i,
+          const Eigen::Matrix<double, AMREX_SPACEDIM, 1>& normal) mutable {
+        auto mirrorv = MakeView<const Conservative<TubeEquation>>(mirror, teq);
+        auto ghostv = MakeView<const Complete<TubeEquation>>(ghost, teq);
+        auto refv = MakeView<Complete<PlenumEquation>>(refs, peq);
+        auto ref_mirrorv = MakeView<Complete<PlenumEquation>>(refs_mirror, peq);
+        auto scratchv = MakeView<Complete<PlenumEquation>>(scratch, peq);
+        Load(cons, mirrorv, Shift(Box<0>(mirrorv).upper, Direction::X, -1));
+        fub::CompleteFromCons(teq, mirror_state, cons);
+        Load(ghost_state, ghostv, Box<0>(ghostv).lower);
+        hlle.SolveRiemannProblem(tube_rp_solution, mirror_state, ghost_state,
+                                 Direction::X);
+        EmbedState(peq, plenum_rp_solution, teq, AsCons(tube_rp_solution));
+        auto unit = UnitVector<PlenumEquation::Rank()>(Direction::X);
+        Rotate(reference_state, plenum_rp_solution, MakeRotation(unit, normal),
+               peq);
+        Index<AMREX_SPACEDIM> idx{};
+        std::copy_n(&i[0], AMREX_SPACEDIM, &idx[0]);
+        Store(refv, reference_state, idx);
+        //EmbedState(peq, plenum_rp_solution, teq, AsCons(ghost_state));
+        //Rotate(reference_state, plenum_rp_solution, MakeRotation(unit, normal),
+        //       peq);
+        // Store(scratchv, reference_state, idx);
+        EmbedState(peq, reference_state, teq, cons);
+        Store(ref_mirrorv, reference_state, idx);
+      };
 }
 
 } // namespace fub::amrex
