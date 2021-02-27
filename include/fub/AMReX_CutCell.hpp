@@ -52,6 +52,8 @@
 #include "fub/AMReX/cutcell/output/WriteHdf5.hpp"
 #include "fub/AMReX/cutcell/output/WritePlotfiles.hpp"
 #include "fub/AMReX/cutcell/output/DebugOutput.hpp"
+#include "fub/equations/perfect_gas_mix/PlenaControlFeedback.hpp"
+#include "fub/equations/perfect_gas_mix/PlenaControlOutput.hpp"
 
 #include "fub/AMReX/multi_block/MultiBlockBoundary.hpp"
 #include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp"
