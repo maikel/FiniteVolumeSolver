@@ -110,7 +110,7 @@ ReduceTotalVolume(const cutcell::PatchHierarchy& hierarchy, int level,
     if (type != ::amrex::FabType::singlevalued || section.isEmpty()) {
       return;
     }
-    const ::amrex::FArrayBox& alpha = alphas[mfi];
+    // const ::amrex::FArrayBox& alpha = alphas[mfi];
     const ::amrex::CutFab& ebns = eb_normals[mfi];
     ForEachIndex(section, [&](auto... is) {
       ::amrex::IntVect index{static_cast<int>(is)...};
@@ -120,8 +120,8 @@ ReduceTotalVolume(const cutcell::PatchHierarchy& hierarchy, int level,
       const double projection = std::abs(eb_normal.dot(normal));
       const double error = std::abs(projection - 1.0);
       if (error < abs_tolerance) {
-        const double frac = alpha(index);
-        local_reduced_volumes(ld_index) += frac * dx;
+        // const double frac = alpha(index);
+        local_reduced_volumes(ld_index) += dx;
       }
     });
   });
@@ -156,10 +156,8 @@ void IntegrateConserativeStates(
     const PatchDataView<double, AMREX_SPACEDIM + 1>& dest,
     const PatchDataView<const double, AMREX_SPACEDIM>& total_volumes,
     const PatchDataView<const double, AMREX_SPACEDIM + 1>& src,
-    const PatchDataView<const double, AMREX_SPACEDIM>& volumes,
-    const ::amrex::Box& box, double cell_volume,
-    const PatchDataView<const double, AMREX_SPACEDIM + 1>& eb_normals,
-    const Eigen::Matrix<double, AMREX_SPACEDIM, 1>& normal,
+    const CutCellData<AMREX_SPACEDIM>& geom, const ::amrex::Box& box,
+    double cell_volume, const Eigen::Matrix<double, AMREX_SPACEDIM, 1>& normal,
     double abs_tolerance) {
   const int n_comps = static_cast<int>(dest.Extent(AMREX_SPACEDIM));
   for (int i = 0; i < n_comps; ++i) {
@@ -167,13 +165,25 @@ void IntegrateConserativeStates(
       Index<AMREX_SPACEDIM> index{is...};
       Index<AMREX_SPACEDIM> lowdim_index{};
       Eigen::Matrix<double, AMREX_SPACEDIM, 1> eb_normal{AMREX_D_DECL(
-          eb_normals(index, 0), eb_normals(index, 1), eb_normals(index, 2))};
+          geom.boundary_normals(index, 0), geom.boundary_normals(index, 1),
+          geom.boundary_normals(index, 2))};
       const double projection = std::abs(eb_normal.dot(normal));
       const double error = std::abs(projection - 1.0);
-      if (volumes(index) > 0.0 && error < abs_tolerance) {
+      const double alpha = geom.volume_fractions(index);
+      if (alpha > 0.0 && error < abs_tolerance) {
+        const double cut_cell_quantity = src(index, i);
+        Index<AMREX_SPACEDIM> neighbor{index};
+        for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+          const double nx = eb_normal[d];
+          const int sign = (nx > 0.0) - (nx < 0.0);
+          Shift(neighbor, Direction(d), -sign);
+        }
+        FUB_ASSERT(geom.volume_fractions(neighbor) > 0.0);
+        const double neighbor_quantity = src(neighbor, i);
+        const double mixed_quantity =
+            alpha * cut_cell_quantity + (1.0 - alpha) * neighbor_quantity;
         dest(AMREX_D_DECL(lowdim_index[0], 0, 0), i) +=
-            (volumes(index) * cell_volume / total_volumes(lowdim_index)) *
-            src(index, i);
+            (cell_volume / total_volumes(lowdim_index)) * mixed_quantity;
       }
     });
   }
@@ -209,20 +219,20 @@ void IntegrateConserativeStates(
       IntegrateConserativeStates(fabv, tot_vol, src, vol, box, cell_volume);
     });
   } else {
-    const ::amrex::MultiCutFab& boundary_normals = eb.getBndryNormal();
-    const ::amrex::MultiFab normals = boundary_normals.ToMultiFab(0.0, 0.0);
+    auto&& flags_mf = eb.getMultiEBCellFlagFab();
     ForEachFab(datas, [&](const ::amrex::MFIter& mfi) {
-      const ::amrex::FArrayBox& alpha = volumes[mfi];
       const ::amrex::FArrayBox& data = datas[mfi];
-      PatchDataView<const double, AMREX_SPACEDIM + 1> src =
-          MakePatchDataView(data);
-      PatchDataView<const double, AMREX_SPACEDIM> vol =
-          MakePatchDataView(alpha, 0);
-      PatchDataView<const double, AMREX_SPACEDIM + 1> eb_normals =
-          MakePatchDataView(normals[mfi]);
-      ::amrex::Box box = mfi.tilebox() & mirror;
-      IntegrateConserativeStates(fabv, tot_vol, src, vol, box, cell_volume,
-                                 eb_normals, normal, abs_tolerance);
+      auto&& flags = flags_mf[mfi];
+      ::amrex::FabType type = flags.getType();
+      if (type == ::amrex::FabType::singlevalued) {
+        PatchDataView<const double, AMREX_SPACEDIM + 1> src =
+            MakePatchDataView(data);
+        CutCellData<AMREX_SPACEDIM> ccgeom =
+            hierarchy.GetCutCellData(level, mfi);
+        ::amrex::Box box = mfi.tilebox() & mirror;
+        IntegrateConserativeStates(fabv, tot_vol, src, ccgeom, box, cell_volume,
+                                   normal, abs_tolerance);
+      }
     });
   }
   ::amrex::FArrayBox global_fab(fab.box(), fab.nComp());
@@ -444,11 +454,13 @@ AnyMultiBlockBoundary::AnyMultiBlockBoundary(const AnyMultiBlockBoundary& other)
   }
 }
 
-const ::amrex::FArrayBox* AnyMultiBlockBoundary::GetTubeMirrorData() const noexcept {
+const ::amrex::FArrayBox* AnyMultiBlockBoundary::GetTubeMirrorData() const
+    noexcept {
   return tube_mirror_data_.get();
 }
 
-const ::amrex::FArrayBox* AnyMultiBlockBoundary::GetTubeGhostData() const noexcept {
+const ::amrex::FArrayBox* AnyMultiBlockBoundary::GetTubeGhostData() const
+    noexcept {
   return tube_ghost_data_.get();
 }
 

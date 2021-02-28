@@ -246,7 +246,6 @@ MultiBlockIntegratorContext2::MultiBlockIntegratorContext2(
         auto ghostv = MakeView<const Complete<TubeEquation>>(ghost, teq);
         auto refv = MakeView<Complete<PlenumEquation>>(refs, peq);
         auto ref_mirrorv = MakeView<Complete<PlenumEquation>>(refs_mirror, peq);
-        auto scratchv = MakeView<Complete<PlenumEquation>>(scratch, peq);
         Load(cons, mirrorv, Shift(Box<0>(mirrorv).upper, Direction::X, -1));
         fub::CompleteFromCons(teq, mirror_state, cons);
         Load(ghost_state, ghostv, Box<0>(ghostv).lower);
@@ -259,10 +258,6 @@ MultiBlockIntegratorContext2::MultiBlockIntegratorContext2(
         Index<AMREX_SPACEDIM> idx{};
         std::copy_n(&i[0], AMREX_SPACEDIM, &idx[0]);
         Store(refv, reference_state, idx);
-        //EmbedState(peq, plenum_rp_solution, teq, AsCons(ghost_state));
-        //Rotate(reference_state, plenum_rp_solution, MakeRotation(unit, normal),
-        //       peq);
-        // Store(scratchv, reference_state, idx);
         EmbedState(peq, reference_state, teq, cons);
         Store(ref_mirrorv, reference_state, idx);
       };

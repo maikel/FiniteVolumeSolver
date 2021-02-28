@@ -24,10 +24,10 @@ r_outer = 0.5 * 0.2
 r_tube_center = 2.0 * r_inner
 alpha = 2.0 * math.pi / n_tubes
 
-inlet_length = 6 * D # [m]
+inlet_length = 10 * D # [m]
 
-plenum_y_lower = - 0.5
-plenum_y_upper = + 0.5
+plenum_y_lower = - 1.0
+plenum_y_upper = + 1.0
 plenum_y_length = plenum_y_upper - plenum_y_lower
 
 TVolRPlen = 20.0 * D
@@ -76,13 +76,13 @@ n_tubes = len(y0s)
 
 RunOptions = {
   'cfl': 0.1,# / float(tube_n_cells / 64),
-  'final_time': 300.0,
+  'final_time': 300.,
   'max_cycles': -1,
   'do_backup': 0
 }
 
 LogOptions = {
-  'file_template': 'Test-{rank}.txt',
+  'file_template': '{rank}.txt',
   'channel_blacklist': ['TurbineMassflowBoundary']
 }
 
@@ -199,7 +199,7 @@ Plenum = {
     'r_end': 4.0 * r_tube,
     'y_0': y_0,
     'height': inlet_length,
-    'angle':  30. / 180. * math.pi
+    'angle':  60. / 180. * math.pi
   } for y_0 in y0s],
   'InitialCondition': {
     'left': {
@@ -257,7 +257,7 @@ def BoxWhichContains(real_box):
   return { 'lower': [i0, j0, 0], 'upper': [iEnd, jEnd, 0] }
 
 def PlenumMirrorBox(y0):
-  return BoxWhichContains(DomainAroundPoint(TubeCenterPoint(plenum_x_lower, y0), [0.0, -0.2], [-0.9 * plenum_x_lower, +0.2]))
+  return BoxWhichContains(DomainAroundPoint(TubeCenterPoint(plenum_x_lower, y0), [0.0, -1.0], [-0.9 * plenum_x_lower, +1.0]))
 
 
 Tube_FluxMethod = FluxMethod
@@ -327,7 +327,7 @@ Output = {
     'type': 'Plotfiles',
     #'directory': '/group/ag_klima/SFB1029_C01/SEC_Plenum/{}/Plotfiles/'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
     'directory': '{}/Plotfiles'.format(outputPath),
-    'intervals': [0.005],
+    'intervals': [plenum_intervals],
     #'frequencies': [1]
   }, {
     #'#type': 'Checkpoint',
@@ -337,7 +337,7 @@ Output = {
   #}, {
    'type': 'CounterOutput',
   #  'intervals': [1/.0]
-    'frequencies': [100]
+    'frequencies': [1000]
   },
   {
     'type': 'Checkpoint',

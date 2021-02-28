@@ -510,7 +510,7 @@ auto MakeTubeSolver(
   fub::amrex::SwitchDeflagrationToSECValve valve(equation, control_state,
                                                  switch_to_SEC_inflow_function);
 
-  BoundarySet boundaries{{valve}};
+  // fub::amrex::ReflectiveBoundary wall{fub::execution::seq, equation, fub::Direction::X, 0};
 
   // If a checkpoint path is specified we will fill the patch hierarchy with
   // data from the checkpoint file, otherwise we will initialize the data by
@@ -522,7 +522,7 @@ auto MakeTubeSolver(
       BOOST_LOG(log) << "Initialize grid by initial condition...";
       std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
           PatchHierarchy(desc, grid_geometry, hierarchy_options), initial_data,
-          TagAllOf(gradient, constant_box), boundaries);
+          TagAllOf(gradient, constant_box), valve);
       gridding->GetPatchHierarchy().SetCounterRegistry(counters);
       gridding->InitializeHierarchy(0.0);
       return gridding;
@@ -534,7 +534,7 @@ auto MakeTubeSolver(
       std::shared_ptr<GriddingAlgorithm> gridding =
           std::make_shared<GriddingAlgorithm>(std::move(h), initial_data,
                                               TagAllOf(gradient, constant_box),
-                                              boundaries);
+                                              valve);
       return gridding;
     }
   }();
@@ -879,7 +879,7 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
 
     R << std::cos(angle), -std::sin(angle), std::sin(angle), std::cos(angle);
     connection.normal = R * fub::UnitVector<2>(fub::Direction::X);
-    connection.abs_tolerance = 0.3;
+    connection.abs_tolerance = 1e-2;
     amrex::Box plenum_mirror_box{};
     FUB_ASSERT(!plenum_mirror_box.ok());
     plenum_mirror_box =
