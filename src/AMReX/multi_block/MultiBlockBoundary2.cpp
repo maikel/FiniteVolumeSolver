@@ -431,7 +431,8 @@ int Flip(int side) { return (side == 0) * 1 + (side != 0) * 0; }
 AnyMultiBlockBoundary::AnyMultiBlockBoundary(const AnyMultiBlockBoundary& other)
     : impl_(other.impl_->Clone()), plenum_mirror_box_(other.plenum_mirror_box_),
       tube_mirror_box_(other.tube_mirror_box_), dir_(other.dir_),
-      side_(other.side_), level_{other.level_}, gcw_{other.gcw_} {
+      side_(other.side_), level_{other.level_}, gcw_{other.gcw_},
+      connection_{other.connection_} {
   if (other.plenum_mirror_data_) {
     plenum_mirror_data_ = std::make_unique<::amrex::FArrayBox>(
         other.plenum_mirror_data_->box(), other.plenum_mirror_data_->nComp());
