@@ -137,6 +137,106 @@ private:
   ::amrex::Box boundary_box_;
 };
 
+struct ControlFeedbackOptions {
+  ControlFeedbackOptions() = default;
+
+  ControlFeedbackOptions(const ProgramOptions& options) {
+    FUB_GET_OPTION_VAR(options, mdot_correlation);
+  }
+
+  void Print(SeverityLogger& log) const {
+    FUB_PRINT_OPTION_VAR(log, mdot_correlation);
+  }
+
+  double mdot_correlation{0.24};
+};
+
+template <> class ControlFeedback<1> {
+public:
+  ControlFeedback(const PerfectGasMix<1>& equation, const Control& control,
+                  const ControlFeedbackOptions& options)
+      : equation_{equation},
+        tube_index_{equation}, control_{control}, options_{options} {}
+
+  double UpdateTurbinePlenumState(PlenumState& turbine_old, PlenumState& turbine_new, double f_rho,
+                                  double f_rhoe, Duration dt,
+                                  const ControlOptions& options) const {
+    const double pT = turbine_old.pressure;
+    const double TT = turbine_old.temperature;
+    const double mdotT = options_.mdot_correlation * pT / std::sqrt(TT);
+
+    // Update plenum state
+    const double rho = pT / TT * equation_.ooRspec;
+    const double rhoe = pT * equation_.gamma_minus_one_inv;
+    const double h = (rhoe + pT) / rho;
+
+    const double rho_n =
+        rho + (f_rho * options.surface_area_tube_outlet - mdotT) * dt.count() /
+                  options.volume_turbine_plenum;
+    const double rhoe_n =
+        rhoe + (f_rhoe * options.surface_area_tube_outlet - mdotT * h) *
+                   dt.count() / options.volume_turbine_plenum;
+
+    turbine_new.pressure = rhoe_n / equation_.gamma_minus_one_inv;
+    turbine_new.temperature = turbine_new.pressure / rho_n * equation_.ooRspec;
+
+    return mdotT;
+  }
+
+  void operator()(amrex::IntegratorContext& tube_context, Duration dt) {
+    // Get inflow and outflow fluxes from the combustion tube
+    double flux_rho{};
+    double flux_species{};
+    double flux_rho_last{};
+    double flux_rhoe_last{};
+    constexpr int coarsest_level = 0;
+    const ::amrex::Geometry& geom = tube_context.GetGeometry(coarsest_level);
+    const ::amrex::Box face_domain = ::amrex::convert(
+        geom.Domain(), ::amrex::IntVect::TheDimensionVector(0));
+    const ::amrex::IntVect first_face = face_domain.smallEnd();
+    const ::amrex::IntVect last_face = face_domain.bigEnd();
+    const ::amrex::MultiFab& fluxes_x =
+        tube_context.GetFluxes(coarsest_level, Direction::X);
+    double local_f_rho = 0.0;
+    double local_f_rho_last = 0.0;
+    double local_f_rhoe_last = 0.0;
+    double local_f_spec = 0.0;
+    amrex::ForEachFab(fluxes_x, [&](const ::amrex::MFIter& mfi) {
+      if (mfi.tilebox().contains(first_face)) {
+        local_f_rho = fluxes_x[mfi](first_face, tube_index_.density);
+        local_f_spec = fluxes_x[mfi](first_face, tube_index_.species[0]);
+      }
+      if (mfi.tilebox().contains(last_face)) {
+        local_f_rho_last = fluxes_x[mfi](last_face, tube_index_.density);
+        local_f_rhoe_last = fluxes_x[mfi](last_face, tube_index_.energy);
+      }
+    });
+    ::MPI_Allreduce(&local_f_rho, &flux_rho, 1, MPI_DOUBLE, MPI_SUM,
+                    ::amrex::ParallelDescriptor::Communicator());
+    ::MPI_Allreduce(&local_f_rho_last, &flux_rho_last, 1, MPI_DOUBLE, MPI_SUM,
+                    ::amrex::ParallelDescriptor::Communicator());
+    ::MPI_Allreduce(&local_f_spec, &flux_species, 1, MPI_DOUBLE, MPI_SUM,
+                    ::amrex::ParallelDescriptor::Communicator());
+    ::MPI_Allreduce(&local_f_rhoe_last, &flux_rhoe_last, 1, MPI_DOUBLE, MPI_SUM,
+                    ::amrex::ParallelDescriptor::Communicator());
+
+    PlenumState turbine_boundary_state = control_.GetSharedState()->turbine;
+    PlenumState new_turbine_boundary_state;
+    const double mdot_turbine =
+        UpdateTurbinePlenumState(turbine_boundary_state, new_turbine_boundary_state, flux_rho_last,
+                                 flux_rhoe_last, dt, control_.GetOptions());
+
+    control_.UpdatePlena(mdot_turbine, new_turbine_boundary_state, flux_rho,
+                         flux_species, flux_rho_last, dt);
+  }
+
+private:
+  PerfectGasMix<1> equation_;
+  IndexMapping<PerfectGasMix<1>> tube_index_;
+  Control control_;
+  ControlFeedbackOptions options_;
+};
+
 } // namespace fub::perfect_gas_mix::gt
 
 #endif

@@ -29,12 +29,14 @@
 namespace fub::perfect_gas_mix::gt {
 
 class ControlOutput
-    : public OutputAtFrequencyOrInterval<amrex::MultiBlockGriddingAlgorithm2> {
+    : public OutputAtFrequencyOrInterval<amrex::MultiBlockGriddingAlgorithm2>,
+      public OutputAtFrequencyOrInterval<amrex::GriddingAlgorithm> {
 public:
   ControlOutput(const ProgramOptions& options,
                 std::shared_ptr<const ControlState> control_state);
 
   void operator()(const amrex::MultiBlockGriddingAlgorithm2& grid) override;
+  void operator()(const amrex::GriddingAlgorithm& grid) override;
 
 private:
   std::string file_path_;
