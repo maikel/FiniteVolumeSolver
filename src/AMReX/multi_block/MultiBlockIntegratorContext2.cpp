@@ -561,56 +561,6 @@ void MultiBlockIntegratorContext2::UpdateConservatively(int level, Duration dt,
       plenum.UpdateConservatively(level, dt, dir);
     }
   }
-
-  for (auto&& [plenum_id, plenum] : ranges::view::enumerate(plena_)) {
-    const std::shared_ptr<cutcell::GriddingAlgorithm>& grid =
-        plenum.GetGriddingAlgorithm();
-    const cutcell::PatchHierarchy& hier = grid->GetPatchHierarchy();
-    span<const BlockConnection> connectivity = gridding_->GetConnectivity();
-    for (auto&& conn : connectivity) {
-      if (conn.plenum.id == plenum_id && conn.normal.squaredNorm() > 0.0) {
-        ::amrex::MultiFab& scratch = plenum.GetScratch(level);
-        ::amrex::iMultiFab& reference_masks = plenum.GetReferenceMasks(level);
-        auto&& factory = plenum.GetEmbeddedBoundary(level);
-        const auto& flags = factory.getMultiEBCellFlagFab();
-        auto&& conn2 = conn;
-        ForEachFab(scratch, [&](const ::amrex::MFIter& mfi) {
-          ::amrex::Box box = mfi.tilebox() & conn2.plenum.mirror_box;
-          ::amrex::FabType type = flags[mfi].getType(box);
-          if (type != ::amrex::FabType::singlevalued || box.isEmpty()) {
-            return;
-          }
-          CutCellData<AMREX_SPACEDIM> geom = hier.GetCutCellData(level, mfi);
-          auto data = MakePatchDataView(scratch[mfi]);
-          for (int i = 0; i < scratch.nComp(); ++i) {
-            ForEachIndex(box, [&](auto... is) {
-              if (reference_masks[mfi](::amrex::IntVect{int(is)...}, 0)) {
-                Index<AMREX_SPACEDIM> index{is...};
-                const double alpha = geom.volume_fractions(index);
-                Eigen::Matrix<double, AMREX_SPACEDIM, 1> eb_normal{
-                    AMREX_D_DECL(geom.boundary_normals(index, 0),
-                                 geom.boundary_normals(index, 1),
-                                 geom.boundary_normals(index, 2))};
-                const double cut_cell_quantity = data(index, i);
-                const double nx = eb_normal[int(dir)];
-                const int sign = (nx > 0.0) - (nx < 0.0);
-                Index<AMREX_SPACEDIM> neighbor = Shift(index, dir, -sign);
-                //for (int d = 0; d < AMREX_SPACEDIM; ++d) {
-                //  const double nx = eb_normal[d];
-                //  const int sign = (nx > 0.0) - (nx < 0.0);
-                //  Shift(neighbor, Direction(d), -sign);
-                //}
-                const double neighbor_quantity = data(neighbor, i);
-                const double mixed_quantity = alpha * cut_cell_quantity +
-                                              (1.0 - alpha) * neighbor_quantity;
-                data(index, i) = mixed_quantity;
-              }
-            });
-          }
-        });
-      }
-    }
-  }
 }
 
 /// \brief Reconstruct complete state variables from conservative ones.
