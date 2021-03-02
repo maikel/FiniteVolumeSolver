@@ -1,8 +1,8 @@
-import yt
 import numpy as np
 import h5py
 
 def yt_load(path_to_plotfile, vars, mask_boundary_cells=True, buffer_size=None, vfrac_cutoff=1e-15):
+  import yt
   """
   Load the with 'vars' specified 2D data from the plt-files.
 
@@ -247,6 +247,57 @@ def get_controlState_Klein(filename):
   GT_data = GT_data[:,1:]
 
   return GT_data, times, dictionary
+
+def h5_get_Dict_Klein(hdf5_dir_list):
+  """
+  Create a dictionary corresponding to the given directory names.
+
+  Parameters
+  ----------------------------------------
+    hdf5_dir_list:   list
+                     list of directories to translate to dict
+  Returns
+  ----------------------------------------
+    dictionary:      dictionary
+                     the created dictionary
+  """
+  # all possible directory names from the simulation 
+  hdf5_dir_full_list = ["p", "qc", "qr", "qv", "rho", "rhoe", "rhou", "rhov", "rhow", "rhoY", "S", "T", "Turb_Eps", "Turb_K", "u", "v", "w", "Y", "rhoX"]
+  
+  # the translated dictionary keys corresponding to the  directory names
+  dict_list = ["Pressure", "qc", "qr", "qv", "Density", "Energy", "Momentum_0", "Momentum_1", "Momentum_2", "RhoTheta", "S", "Temperature", "Turb_Eps", "Turb_K", "Velocity_0", "Velocity_1", "Velocity_2", "Theta", "Species"]
+  
+  # find the indices from the directory list
+  index_list = [hdf5_dir_full_list.index(element) for element in hdf5_dir_list if element in hdf5_dir_full_list]
+  
+  # and translate them to the dictionary
+  dictionary = {dict_list[ind]: i for i, ind in enumerate(index_list) }
+
+  return dictionary
+
+def h5_load_timeseries_Klein(filename):
+  """
+  Load the all 1D data from the HDF5 file for all time points.
+
+  Parameters
+  ----------------------------------------
+    filename:   string
+                name of the HDF5-file
+  Returns
+  ----------------------------------------
+    data:         numpy array
+                  the loaded data from the HDF5-file
+    time:         float
+                  the time point from the data
+    varname:      string
+                  the name of the variable
+  """
+  file = h5py.File(filename, mode='r', swmr=True)
+  data = np.array(file['Data-Set-2'])
+  time = float(file['Data-Set-2'].attrs['valid_max'])
+  varname = file['Data-Set-2'].attrs['long_name'].decode('UTF-8') # must be decoded because this is a byte string
+  file.close()
+  return data, time, varname
 
 def printSimpleStatsTubeData(data, variable, times, tube_id=0, ndig=4):
   """
