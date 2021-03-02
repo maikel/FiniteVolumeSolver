@@ -60,6 +60,8 @@ struct IntegratorContextOptions {
 /// delegates AMR related tasks to the AMReX library.
 class IntegratorContext {
 public:
+  using FeedbackFn =
+      std::function<void(IntegratorContext&, Duration)>;
   /// @{
   /// \name Constructors, Assignment Operators and Desctructor
 
@@ -186,6 +188,12 @@ public:
 
   /// \brief Sets the time point for a specific level number and direction.
   void SetTimePoint(Duration t, int level);
+
+  /// \brief Sets a feedback function that will be called in
+  /// PostAdvanceHierarchy.
+  ///
+  /// This is used to inject user defined behaviour after each time step
+  void SetPostAdvanceHierarchyFeedback(FeedbackFn feedback);
   /// @}
 
   /// @{
@@ -194,7 +202,7 @@ public:
   void PreAdvanceHierarchy();
 
   /// \brief Updates time point and cycle counter for the patch hierarchy.
-  void PostAdvanceHierarchy();
+  void PostAdvanceHierarchy(Duration dt);
 
   /// \brief On each first subcycle this will regrid the data if neccessary.
   ///
@@ -295,6 +303,7 @@ private:
   std::shared_ptr<GriddingAlgorithm> gridding_;
   std::vector<LevelData> data_;
   HyperbolicMethod method_;
+  FeedbackFn post_advance_hierarchy_feedback_;
 };
 
 } // namespace fub::amrex

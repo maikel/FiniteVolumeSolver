@@ -9,13 +9,11 @@ sys.path.append(FVS_path+'/extra/')
 # import amrex.plotfiles as da
 from amrex.plotfiles import h5_load_timeseries
 
-import yt
+
 import numpy as np
 import matplotlib
 matplotlib.use('Agg') 
 import matplotlib.pyplot as plt
-import h5py
-import itertools
 
 os.environ['HDF5_USE_FILE_LOCKING'] = 'False'
 
@@ -29,8 +27,14 @@ else:
 
 # bool to read all existing HDF5 files
 # this make only sense if we restarted the simulation form the last checkpoint!!
-RESTARTEDSIMULATION = True
+RESTARTEDSIMULATION = False
 
+#---------------------------------------
+from scipy.signal import savgol_filter
+USESAVGOLFILTER=False 
+window_length=51 # length of the filter window 51
+polyorder=3 # order of the polynomial 
+#--------------------------------
 sys.path.append(inputFilePath)
 from SEC_Plenum_Arrhenius import t_ref, ControlOptions, T_ref
 
@@ -92,6 +96,11 @@ def getSubKeyList(substring):
 f, axs = plt.subplots(nrows=4, ncols=2, figsize=(23/2,20/2) )
 f.suptitle('Control Station')
 
+FVS_skip = 200 # skip time data to make plot clearer
+datas = datas[::FVS_skip, :]
+times = times[::FVS_skip]
+print("FVS delta t is {}".format(np.diff(times)[0]))
+
 
 plotKeyList = ['mass_flow', 'power', 'pressure', 'temperature', 'rpm', 'fuel_consumption_rate', 'efficiency', 'SEC_Mode']
 # print(datas_dict)
@@ -121,8 +130,16 @@ for i, ax, subKey in zip(range(len(plotKeyList)), axs.flatten(), plotKeyList):
       if 'temperature' in subKey:
          datas[:, datas_dict[key]] *=T_ref
       
-      ax.plot( times, datas[:, datas_dict[key]], label=lab )
-      
+      if USESAVGOLFILTER:
+         if ('SEC_Mode' in subKey) or ('rpm' in subKey):
+            ax.plot( times, datas[:, datas_dict[key]], label=lab )
+         else:
+            cutoff=-1 #-window_length//2
+            ax.plot( times, savgol_filter(datas[:, datas_dict[key]], window_length=window_length, polyorder=polyorder, mode='mirror'), label=lab )
+            # ax.plot( times[cutoff:], datas[cutoff:, datas_dict[key]] )
+      else:
+            ax.plot( times, datas[:, datas_dict[key]], label=lab )
+
       if i>3:
          pass
       else:

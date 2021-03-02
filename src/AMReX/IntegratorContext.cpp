@@ -349,6 +349,11 @@ void IntegratorContext::SetTimePoint(Duration dt, int level) {
   data_[l].time_point = dt;
 }
 
+void IntegratorContext::SetPostAdvanceHierarchyFeedback(
+    FeedbackFn feedback) {
+  post_advance_hierarchy_feedback_ = std::move(feedback);
+}
+
 void IntegratorContext::SetCycles(std::ptrdiff_t cycles, int level) {
   const std::size_t l = static_cast<std::size_t>(level);
   data_[l].cycles = cycles;
@@ -667,13 +672,16 @@ void IntegratorContext::PreAdvanceHierarchy() {
   }
 }
 
-void IntegratorContext::PostAdvanceHierarchy() {
+void IntegratorContext::PostAdvanceHierarchy(Duration dt) {
   PatchHierarchy& hierarchy = GetPatchHierarchy();
   int nlevels = hierarchy.GetNumberOfLevels();
   const Duration time_point = GetTimePoint();
   for (int level = 0; level < nlevels; ++level) {
     hierarchy.GetPatchLevel(level).time_point = time_point;
     hierarchy.GetPatchLevel(level).cycles = GetCycles(level);
+  }
+  if (post_advance_hierarchy_feedback_) {
+    post_advance_hierarchy_feedback_(*this, dt);
   }
 }
 

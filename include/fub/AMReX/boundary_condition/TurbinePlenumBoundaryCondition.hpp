@@ -20,35 +20,39 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_EQUATIONS_PERFECT_GAS_MIX_PLENA_CONTROL_OUTPUT_HPP
-#define FUB_EQUATIONS_PERFECT_GAS_MIX_PLENA_CONTROL_OUTPUT_HPP
+#ifndef FUB_AMREX_BOUNDARY_CONDITION_TURBINE_PLENUM_BOUNDARY_CONDITION_HPP
+#define FUB_AMREX_BOUNDARY_CONDITION_TURBINE_PLENUM_BOUNDARY_CONDITION_HPP
 
-#include "fub/AMReX/multi_block/MultiBlockIntegratorContext2.hpp"
+#include "fub/AMReX/GriddingAlgorithm.hpp"
+#include "fub/equations/PerfectGasMix.hpp"
 #include "fub/equations/perfect_gas_mix/PlenaControl.hpp"
 
-namespace fub::perfect_gas_mix::gt {
+namespace fub::amrex {
 
-class ControlOutput
-    : public OutputAtFrequencyOrInterval<amrex::MultiBlockGriddingAlgorithm2>,
-      public OutputAtFrequencyOrInterval<amrex::GriddingAlgorithm> {
+class TurbinePlenumBoundaryCondition {
 public:
-  ControlOutput(const ProgramOptions& options,
-                std::shared_ptr<const ControlState> control_state);
+  using ControlState = fub::perfect_gas_mix::gt::ControlState;
 
-  void operator()(const amrex::MultiBlockGriddingAlgorithm2& grid) override;
-  void operator()(const amrex::GriddingAlgorithm& grid) override;
+  TurbinePlenumBoundaryCondition(
+      const PerfectGasMix<1>& equation,
+      std::shared_ptr<const ControlState> control_state)
+      : equation_{equation}, control_state_{control_state} {}
+
+  void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& grid,
+                    int level);
+
+  void FillBoundary(::amrex::MultiFab& mf, const GriddingAlgorithm& grid,
+                    int level, Direction dir) {
+    if (dir == Direction::X) {
+      FillBoundary(mf, grid, level);
+    }
+  }
 
 private:
-  std::string file_path_;
+  PerfectGasMix<1> equation_;
   std::shared_ptr<const ControlState> control_state_;
-  std::map<std::string, function_ref<double(const ControlState&)>> fields_;
-  std::vector<double> data_buffer_;
-
-  void CreateHdf5Database();
-  void WriteHdf5Database(span<const double> data, Duration time,
-                         std::ptrdiff_t cycle);
 };
 
-} // namespace fub::perfect_gas_mix::gt
+} // namespace fub::amrex
 
 #endif

@@ -221,6 +221,7 @@ void ControlOutput::WriteHdf5Database(span<const double> data, Duration time,
 ControlOutput::ControlOutput(const ProgramOptions& options,
                              std::shared_ptr<const ControlState> control_state)
     : OutputAtFrequencyOrInterval<amrex::MultiBlockGriddingAlgorithm2>(options),
+      OutputAtFrequencyOrInterval<amrex::GriddingAlgorithm>(options),
       control_state_(std::move(control_state)), fields_{GetFieldMap()},
       data_buffer_(fields_.size()) {
   file_path_ = GetOptionOr(options, "path", std::string("ControlState.h5"));
@@ -266,6 +267,25 @@ ControlOutput::ControlOutput(const ProgramOptions& options,
       }
     }
     CreateHdf5Database();
+  }
+}
+
+
+void ControlOutput::operator()(const amrex::GriddingAlgorithm& grid)
+{
+  int rank = -1;
+  MPI_Comm_rank(::amrex::ParallelDescriptor::Communicator(), &rank);
+  boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
+      boost::log::keywords::severity = boost::log::trivial::info);
+  BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "ControlOutput");
+  BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", grid.GetTimePoint().count());
+  BOOST_LOG(log) << fmt::format("Write Hdf5 output to '{}'.", file_path_);
+  if (rank == 0) {
+    auto values = ranges::view::values(fields_) |
+                  ranges::view::transform(
+                      [&](auto&& a) -> double { return a(*control_state_); });
+    ranges::copy(values, data_buffer_.begin());
+    WriteHdf5Database(data_buffer_, grid.GetTimePoint(), grid.GetCycles());
   }
 }
 

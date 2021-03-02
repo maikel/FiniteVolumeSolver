@@ -25,11 +25,16 @@ output_path = '{}/Visualization'.format(dataPath)
 
 # bool to read all existing HDF5 files
 # this make only sense if we restarted the simulation form the last checkpoint!!
-RESTARTEDSIMULATION = True
+RESTARTEDSIMULATION = False
 
 # inputFilePath = FVS_path+"/examples/AMReX/EB/2D/"
 sys.path.append(inputFilePath)
-from SEC_Plenum_Arrhenius import T_ref, Tubes
+try:
+  from SEC_Plenum_Arrhenius import T_ref, n_tubes
+except:
+  from SEC_Plenum_Arrhenius import T_ref
+  n_tubes=1
+  
 
 os.environ['HDF5_USE_FILE_LOCKING'] = 'False'
 
@@ -53,9 +58,6 @@ plt.rcParams.update(tex_fonts)
 plt.rcParams.update({'axes.grid' : False})
 
 os.makedirs(output_path, exist_ok=True)
-
-n_tubes = len(Tubes)
-
 
 
 for tube_id in range(n_tubes):
@@ -97,37 +99,45 @@ for tube_id in range(n_tubes):
   # print(datas_dict)
 
   # optional slicing in time-dimension
-  slice_start = 0
-  slice_end = -1
+  tplotmin = 0.0
+  # tplotmax = 400.0
+  # t_index_array = (times>=tplotmin) & (times<=tplotmax)
+  t_index_array = (times>=tplotmin)
   
-  rho_data = datas[slice_start:slice_end, datas_dict['Density'], :]
-  rhou_data = datas[slice_start:slice_end, datas_dict['Momentum'], :]
-  rhoE_data = datas[slice_start:slice_end, datas_dict['Energy'], :]
-  rhoF_data = datas[slice_start:slice_end, datas_dict['Species'], :]
-  p_data = datas[slice_start:slice_end, datas_dict['Pressure'], :]
-  c_data = datas[slice_start:slice_end, datas_dict['SpeedOfSound'], :]
-  rhoX_data = datas[slice_start:slice_end, datas_dict['PassiveScalars'], :]
+  rho_data = datas[t_index_array, datas_dict['Density'], :]
+  rhou_data = datas[t_index_array, datas_dict['Momentum'], :]
+  rhoE_data = datas[t_index_array, datas_dict['Energy'], :]
+  rhoF_data = datas[t_index_array, datas_dict['Species'], :]
+  p_data = datas[t_index_array, datas_dict['Pressure'], :]
+  c_data = datas[t_index_array, datas_dict['SpeedOfSound'], :]
+  if 'PassiveScalars' in datas_dict:
+    rhoX_data = datas[t_index_array, datas_dict['PassiveScalars'], :]
+    X = rhoX_data / rho_data
   T_data = p_data / rho_data
   F_data = rhoF_data / rho_data
   Ma = rhou_data / rho_data / c_data
-  X = rhoX_data / rho_data
 
   x0 = extent_1d[0]
   xEnd = extent_1d[1]
-  t0 = times[slice_start]
-  tEnd = times[slice_end]
+  t0 = times[t_index_array][0]
+  tEnd = round( times[t_index_array][-1], 2) # round tEnd to display the last yticklabel
   print("[Tube{}] tEnd is {}".format(tube_id, tEnd))
 
   # print out the first occurence of min/max value 
-  da.printSimpleStatsTubeData(p_data, 'Pressure', times, tube_id)
-  da.printSimpleStatsTubeData(T_data, 'Temperature', times, tube_id)
-  da.printSimpleStatsTubeData(F_data, 'Fuel', times, tube_id)
-  da.printSimpleStatsTubeData(Ma, 'MachNumber', times, tube_id)
+  da.printSimpleStatsTubeData(p_data, 'Pressure', times[t_index_array], tube_id)
+  da.printSimpleStatsTubeData(T_data, 'Temperature', times[t_index_array], tube_id)
+  da.printSimpleStatsTubeData(F_data, 'Fuel', times[t_index_array], tube_id)
+  da.printSimpleStatsTubeData(Ma, 'MachNumber', times[t_index_array], tube_id)
 
 
-  titles = ['Temperature [K]', 'Pressure [bar]', 'Local Machnumber [-]', 'Fuel Massfraction [-]', 'Passive Scalars [-]']
-  datas = [T_data * T_ref, p_data, Ma, F_data, X]
-  f, ax = plt.subplots(nrows=1, ncols=5, figsize=(50. / 2, 10 / 2.), sharey=True)# figsize=(15, 10)) #set_size('thesis'))
+  if 'PassiveScalars' in datas_dict:
+    titles = ['Temperature [K]', 'Pressure [bar]', 'Local Machnumber [-]', 'Fuel Massfraction [-]', 'Passive Scalars [-]']
+    datas = [T_data * T_ref, p_data, Ma, F_data, X]
+    f, ax = plt.subplots(nrows=1, ncols=5, figsize=(50. / 2, 10 / 2.), sharey=False)# figsize=(15, 10)) #set_size('thesis'))
+  else:
+    titles = ['Temperature [K]', 'Pressure [bar]', 'Local Machnumber [-]', 'Fuel Massfraction [-]']
+    datas = [T_data * T_ref, p_data, Ma, F_data]
+    f, ax = plt.subplots(nrows=1, ncols=4, figsize=(40. / 2, 10 / 2.), sharey=False)# figsize=(15, 10)) #set_size('thesis'))
 
   def props(title):
     props = {
@@ -166,14 +176,14 @@ for tube_id in range(n_tubes):
   ims = [a.imshow(data, **props(title)) for (__, (a, data, title)) in itertools.takewhile(lambda x: x[0] < 4,  enumerate(zip(ax, datas, titles)))]
   # ims = [a.plot(data[-1,:]) for (__, (a, data, title)) in itertools.takewhile(lambda x: x[0] < 4,  enumerate(zip(ax, datas, titles)))]
   ax[0].set(ylabel='time')
-  ims.append(ax[4].contourf(datas[4], **props(titles[4])))
+  if 'PassiveScalars' in datas_dict:
+    ims.append(ax[4].contourf(datas[4], **props(titles[4])))
   for a, title in zip(ax, titles):
     a.set(xlabel='x', title=title)
 
   from matplotlib.ticker import FormatStrFormatter
   for a, im in zip(ax, ims):
     a.xaxis.set_major_formatter(FormatStrFormatter('%.2f'))
-    # a.set(ylim=(150,None))
     plt.colorbar(im, ax=a)
   f.suptitle("Tube id = {}".format(tube_id))
   f.savefig(output_path+'/Tube{}.png'.format(tube_id), bbox_inches='tight')

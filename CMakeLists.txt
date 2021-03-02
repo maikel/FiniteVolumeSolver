@@ -435,6 +435,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     src/AMReX/boundary_condition/IsentropicPressureBoundary.cpp
     src/AMReX/boundary_condition/PressureValveBoundary.cpp
     src/AMReX/boundary_condition/MassflowBoundary.cpp
+    src/AMReX/boundary_condition/TurbinePlenumBoundaryCondition.cpp
     src/AMReX/AxialSourceTerm.cpp
     src/AMReX/IgniteDetonation.cpp
     src/AMReX/ScopeGuard.cpp
