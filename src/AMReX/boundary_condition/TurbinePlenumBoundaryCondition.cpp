@@ -56,6 +56,7 @@ void TurbinePlenumBoundaryCondition::FillBoundary(::amrex::MultiFab& mf,
   if (boundaries.isEmpty()) {
     return;
   }
+  double Msqinv = 1.0/equation_.Msq;
   ForEachFab(execution::seq, mf, [&](const ::amrex::MFIter& mfi) {
     ::amrex::FArrayBox& fab = mf[mfi];
     Complete<PerfectGasMix<1>> state(equation_);
@@ -90,7 +91,7 @@ void TurbinePlenumBoundaryCondition::FillBoundary(::amrex::MultiFab& mf,
                   // std::max(0.0, Tpv - Tin));
                   uout = -std::sqrt(
                       std::max(0.0, 2.0 * equation_.gamma_over_gamma_minus_one *
-                                        (Tratio - 1.0) * T));
+                                        (Tratio - 1.0) * T)) * Msqinv;
                   rhoout = rhoflush / rhoratio;
                   state.density = rhoout;
                   state.momentum[0] = uout * rhoout;
@@ -102,7 +103,7 @@ void TurbinePlenumBoundaryCondition::FillBoundary(::amrex::MultiFab& mf,
                 } else {
                   uout = std::sqrt(std::max(
                       0.0, u * u - 2.0 * equation_.gamma_over_gamma_minus_one *
-                                       (Tratio - 1.0) * T));
+                                       (Tratio - 1.0) * T) * Msqinv);
                   rhoout = rho * rhoratio;
                   state.density = rhoout;
                   state.momentum[0] = uout * rhoout;
