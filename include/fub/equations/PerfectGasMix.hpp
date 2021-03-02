@@ -342,7 +342,6 @@ private:
     return depths;
   }
 
-  template <typename State>
   friend constexpr auto tag_invoke(tag_t<euler::MaSq>,
                                    const PerfectGasMix& eq) noexcept {
     return eq.Msq;
