@@ -53,7 +53,7 @@ struct RiemannProblem {
             const double x = geom.CellCenter(int(i), 0);
             const double pressure = 1.0;
             state.temperature = (x < 0.5) ? 1.0 : 2.5;
-            state.density = pressure / state.temperature / equation_.Rspec;
+            state.density = pressure / state.temperature ;/// equation_.Rspec;
             state.mole_fractions[0] = 0.0;
             state.mole_fractions[1] = (x < 0.4) ? 1.0 : 0.0;
             state.mole_fractions[2] = !(x < 0.4) ? 1.0 : 0.0;

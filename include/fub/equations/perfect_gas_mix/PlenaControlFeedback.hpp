@@ -166,7 +166,7 @@ public:
     const double mdotT = options_.mdot_correlation * pT / std::sqrt(TT);
 
     // Update plenum state
-    const double rho = pT / TT * equation_.ooRspec;
+    const double rho = pT / TT;// * equation_.ooRspec;
     const double rhoe = pT * equation_.gamma_minus_one_inv;
     const double h = (rhoe + pT) / rho;
 
@@ -178,7 +178,7 @@ public:
                    dt.count() / options.volume_turbine_plenum;
 
     turbine_new.pressure = rhoe_n * equation_.gamma_minus_one;
-    turbine_new.temperature = turbine_new.pressure / rho_n * equation_.ooRspec;
+    turbine_new.temperature = turbine_new.pressure / rho_n;// * equation_.ooRspec;
 
     return mdotT;
   }

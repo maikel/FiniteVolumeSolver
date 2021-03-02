@@ -284,15 +284,16 @@ void PrimitiveGradient<Equation, GradientMethod>::ComputeGradient(
 }
 
 template <typename Equation>
-void ComputeAmplitudes(Characteristics<Equation>& amplitudes,
+void ComputeAmplitudes(const Equation& eq, Characteristics<Equation>& amplitudes,
                        const Primitive<Equation>& left,
                        const Primitive<Equation>& right, double rhoc,
                        double ooc2, double dx, int ix) {
+  const double M = std::sqrt(euler::MaSq(eq));
   const double dp = (right.pressure - left.pressure) / dx;
   const double du = (right.velocity[ix] - left.velocity[ix]) / dx;
   const double drho = (right.density - left.density) / dx;
-  amplitudes.minus = dp - rhoc * du;
-  amplitudes.plus = dp + rhoc * du;
+  amplitudes.minus = dp - M * rhoc * du;
+  amplitudes.plus = dp + M * rhoc * du;
   amplitudes.zero[0] = drho - ooc2 * dp;
   constexpr int Rank = Equation::Rank();
   for (int i = 1; i < Rank; ++i) {
@@ -312,15 +313,16 @@ void ComputeAmplitudes(Characteristics<Equation>& amplitudes,
 }
 
 template <typename Equation>
-void ComputeAmplitudes(CharacteristicsArray<Equation>& amplitudes,
+void ComputeAmplitudes(const Equation& eq, CharacteristicsArray<Equation>& amplitudes,
                        const PrimitiveArray<Equation>& left,
                        const PrimitiveArray<Equation>& right, Array1d rhoc,
                        Array1d ooc2, double dx, int ix) {
+  const Array1d Ma = Array1d::Constant(std::sqrt(euler::MaSq(eq)));
   const Array1d dp = (right.pressure - left.pressure) / dx;
   const Array1d du = (right.velocity.row(ix) - left.velocity.row(ix)) / dx;
   const Array1d drho = (right.density - left.density) / dx;
-  amplitudes.minus = dp - rhoc * du;
-  amplitudes.plus = dp + rhoc * du;
+  amplitudes.minus = dp - Ma * rhoc * du;
+  amplitudes.plus = dp + Ma * rhoc * du;
   amplitudes.zero.row(0) = drho - ooc2 * dp;
   constexpr int Rank = Equation::Rank();
   for (int i = 1; i < Rank; ++i) {
@@ -353,8 +355,8 @@ void CharacteristicsGradient<Equation, GradientMethod>::ComputeGradient(
   const Array1d c = q[1].speed_of_sound;
   const Array1d ooc2 = 1.0 / (c * c);
   const Array1d rhoc = rho * c;
-  ComputeAmplitudes(dKdx_L_array_, wL_array_, wM_array_, rhoc, ooc2, dx, ix);
-  ComputeAmplitudes(dKdx_R_array_, wM_array_, wR_array_, rhoc, ooc2, dx, ix);
+  ComputeAmplitudes(equation_, dKdx_L_array_, wL_array_, wM_array_, rhoc, ooc2, dx, ix);
+  ComputeAmplitudes(equation_, dKdx_R_array_, wM_array_, wR_array_, rhoc, ooc2, dx, ix);
   gradient_.ComputeGradient(dKdx, dKdx_L_array_, dKdx_R_array_);
 }
 
@@ -369,8 +371,8 @@ void CharacteristicsGradient<Equation, GradientMethod>::ComputeGradient(
   const double c = q[1].speed_of_sound;
   const double ooc2 = 1.0 / (c * c);
   const double rhoc = rho * c;
-  ComputeAmplitudes(dKdx_L_, wL_, wM_, rhoc, ooc2, dx, ix);
-  ComputeAmplitudes(dKdx_R_, wM_, wR_, rhoc, ooc2, dx, ix);
+  ComputeAmplitudes(equation_, dKdx_L_, wL_, wM_, rhoc, ooc2, dx, ix);
+  ComputeAmplitudes(equation_, dKdx_R_, wM_, wR_, rhoc, ooc2, dx, ix);
   gradient_.ComputeGradient(dKdx, dKdx_L_, dKdx_R_);
 }
 } // namespace fub

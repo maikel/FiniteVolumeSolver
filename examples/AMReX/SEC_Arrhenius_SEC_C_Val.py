@@ -10,13 +10,13 @@ n_tubes = 1
 r_tube = 0.015
 D = 2.0 * r_tube
 
-Rspec = 1.0 # 287.0
+Rspec = 287.0
 gamma = 1.4
 
 
 RunOptions = {
   'cfl': 0.1125,# / float(tube_n_cells / 64),
-  'final_time': 0.2,
+  'final_time': 0.4,
   'max_cycles': -1,
   'do_backup': 0
 }

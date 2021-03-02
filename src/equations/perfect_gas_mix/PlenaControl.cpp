@@ -91,14 +91,14 @@ void UpdateCompressorPlenum(ControlState& state, const PerfectGasConstants& eq,
                             double flux_spec, Duration dt) noexcept {
   double temperature_old = state.compressor.temperature;
   double rho_old =
-      state.compressor.pressure / state.compressor.temperature * eq.ooRspec;
+      state.compressor.pressure / state.compressor.temperature;// * eq.ooRspec;
 
   // update the compressor_plenum state with the new speed of the compressor
   // so we get new pressure and temperature
   UpdateCompressorFromRPM(state, eq, options);
 
   double rho_new =
-      state.compressor.pressure / state.compressor.temperature * eq.ooRspec;
+      state.compressor.pressure / state.compressor.temperature;// * eq.ooRspec;
 
   const double mdot = flux_rho * options.surface_area_tube_inlet +
                       options.volume_compressor_plenum / dt.count() *

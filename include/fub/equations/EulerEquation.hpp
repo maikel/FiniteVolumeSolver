@@ -50,6 +50,17 @@ Array1d KineticEnergy(const Array1d& density,
   return 0.5 * squaredMomentum / safe_density;
 }
 
+inline constexpr struct MaSqFn {
+  template <typename Equation>
+  constexpr auto operator()(Equation&& eq) const noexcept {
+    if constexpr (is_tag_invocable<MaSqFn, Equation>::value) {
+      return fub::meta::tag_invoke(*this, std::forward<Equation>(eq));
+    } else {
+      return 1.0;
+    }
+  }
+} MaSq;
+
 inline constexpr struct GammaFn {
   template <typename Equation, typename State,
             typename = std::enable_if_t<
@@ -58,7 +69,7 @@ inline constexpr struct GammaFn {
       noexcept(is_nothrow_tag_invocable<GammaFn, Equation, State>::value)
           -> tag_invoke_result_t<GammaFn, Equation, State> {
     return fub::meta::tag_invoke(*this, std::forward<Equation>(eq),
-                           std::forward<State>(state));
+                                 std::forward<State>(state));
   }
 } Gamma;
 
@@ -70,7 +81,7 @@ inline constexpr struct DensityFn {
       noexcept(is_nothrow_tag_invocable<DensityFn, Equation, State>::value)
           -> tag_invoke_result_t<DensityFn, Equation, State> {
     return fub::meta::tag_invoke(*this, std::forward<Equation>(eq),
-                           std::forward<State>(state));
+                                 std::forward<State>(state));
   }
 } Density;
 
@@ -83,7 +94,7 @@ inline constexpr struct MomentumFn {
       is_nothrow_tag_invocable<MomentumFn, Equation, State, Indices...>::value)
       -> tag_invoke_result_t<MomentumFn, Equation, State, Indices...> {
     return fub::meta::tag_invoke(*this, std::forward<Equation>(eq),
-                           std::forward<State>(state), d...);
+                                 std::forward<State>(state), d...);
   }
 } Momentum;
 
@@ -96,7 +107,7 @@ inline constexpr struct VelocityFn {
       is_nothrow_tag_invocable<VelocityFn, Equation, State, Indices...>::value)
       -> tag_invoke_result_t<VelocityFn, Equation, State, Indices...> {
     return fub::meta::tag_invoke(*this, std::forward<Equation>(eq),
-                           std::forward<State>(state), d...);
+                                 std::forward<State>(state), d...);
   }
 } Velocity;
 
@@ -104,12 +115,12 @@ inline constexpr struct SetVelocityFn {
   template <typename Equation, typename State, typename... Indices,
             typename = std::enable_if_t<is_tag_invocable<
                 SetVelocityFn, Equation, State, Indices...>::value>>
-  constexpr auto
-  operator()(Equation&& eq, State&& state, Indices... d) const noexcept(
-      is_nothrow_tag_invocable<SetVelocityFn, Equation, State, Indices...>::value)
-      -> tag_invoke_result_t<SetVelocityFn, Equation, State, Indices...> {
+  constexpr auto operator()(Equation&& eq, State&& state, Indices... d) const
+      noexcept(is_nothrow_tag_invocable<SetVelocityFn, Equation, State,
+                                        Indices...>::value)
+          -> tag_invoke_result_t<SetVelocityFn, Equation, State, Indices...> {
     return fub::meta::tag_invoke(*this, std::forward<Equation>(eq),
-                           std::forward<State>(state), d...);
+                                 std::forward<State>(state), d...);
   }
 } SetVelocity;
 
@@ -121,7 +132,7 @@ inline constexpr struct SpeedOfSoundFn {
       noexcept(is_nothrow_tag_invocable<SpeedOfSoundFn, Equation, State>::value)
           -> tag_invoke_result_t<SpeedOfSoundFn, Equation, State> {
     return fub::meta::tag_invoke(*this, std::forward<Equation>(eq),
-                           std::forward<State>(state));
+                                 std::forward<State>(state));
   }
 } SpeedOfSound;
 
@@ -133,7 +144,7 @@ inline constexpr struct EnergyFn {
       noexcept(is_nothrow_tag_invocable<EnergyFn, Equation, State>::value)
           -> tag_invoke_result_t<EnergyFn, Equation, State> {
     return fub::meta::tag_invoke(*this, std::forward<Equation>(eq),
-                           std::forward<State>(state));
+                                 std::forward<State>(state));
   }
 } Energy;
 
@@ -145,7 +156,7 @@ inline constexpr struct PressureFn {
       noexcept(is_nothrow_tag_invocable<PressureFn, Equation, State>::value)
           -> tag_invoke_result_t<PressureFn, Equation, State> {
     return fub::meta::tag_invoke(*this, std::forward<Equation>(eq),
-                           std::forward<State>(state));
+                                 std::forward<State>(state));
   }
 } Pressure;
 
@@ -157,7 +168,7 @@ inline constexpr struct MachnumberFn {
       noexcept(is_nothrow_tag_invocable<MachnumberFn, Equation, State>::value)
           -> tag_invoke_result_t<MachnumberFn, Equation, State> {
     return fub::meta::tag_invoke(*this, std::forward<Equation>(eq),
-                           std::forward<State>(state));
+                                 std::forward<State>(state));
   }
 } Machnumber;
 
@@ -169,7 +180,7 @@ inline constexpr struct TemperatureFn {
       noexcept(is_nothrow_tag_invocable<TemperatureFn, Equation, State>::value)
           -> tag_invoke_result_t<TemperatureFn, Equation, State> {
     return fub::meta::tag_invoke(*this, std::forward<Equation>(eq),
-                           std::forward<State>(state));
+                                 std::forward<State>(state));
   }
 } Temperature;
 
@@ -181,7 +192,7 @@ inline constexpr struct InternalEnergyFn {
       is_nothrow_tag_invocable<InternalEnergyFn, Equation, State>::value)
       -> tag_invoke_result_t<InternalEnergyFn, Equation, State> {
     return fub::meta::tag_invoke(*this, std::forward<Equation>(eq),
-                           std::forward<State>(state));
+                                 std::forward<State>(state));
   }
 } InternalEnergy;
 
@@ -193,7 +204,7 @@ inline constexpr struct TotalEnthalpyFn {
       is_nothrow_tag_invocable<TotalEnthalpyFn, Equation, State>::value)
       -> tag_invoke_result_t<TotalEnthalpyFn, Equation, State> {
     return fub::meta::tag_invoke(*this, std::forward<Equation>(eq),
-                           std::forward<State>(state));
+                                 std::forward<State>(state));
   }
 } TotalEnthalpy;
 
@@ -206,8 +217,8 @@ inline constexpr struct MoleFractionsFn {
           is_nothrow_tag_invocable<MoleFractionsFn, Equation, State>::value)
           -> tag_invoke_result_t<MoleFractionsFn, Equation, State> {
     return fub::meta::tag_invoke(*this, std::forward<Equation>(eq),
-                           std::forward<Dest>(dest),
-                           std::forward<State>(state));
+                                 std::forward<Dest>(dest),
+                                 std::forward<State>(state));
   }
 } MoleFractions;
 
@@ -221,8 +232,8 @@ inline constexpr struct KineticStateFromCompleteFn {
           -> tag_invoke_result_t<KineticStateFromCompleteFn, Equation, Dest,
                                  State> {
     return fub::meta::tag_invoke(*this, std::forward<Equation>(eq),
-                           std::forward<Dest>(dest),
-                           std::forward<State>(state));
+                                 std::forward<Dest>(dest),
+                                 std::forward<State>(state));
   }
 } KineticStateFromComplete;
 
@@ -237,22 +248,22 @@ inline constexpr struct CompleteFromKineticStateFn {
                                         Dest, State, Velocity>::value)
           -> tag_invoke_result_t<CompleteFromKineticStateFn, Equation, Dest,
                                  State, Velocity> {
-    return fub::meta::tag_invoke(*this, std::forward<Equation>(eq),
-                           std::forward<Dest>(dest), std::forward<State>(state),
-                           std::forward<Velocity>(velocity));
+    return fub::meta::tag_invoke(
+        *this, std::forward<Equation>(eq), std::forward<Dest>(dest),
+        std::forward<State>(state), std::forward<Velocity>(velocity));
   }
 
-  template <
-      typename Equation, typename Dest, typename State,
-      typename = std::enable_if_t<is_tag_invocable<
-          CompleteFromKineticStateFn, Equation, Dest, State>::value>>
+  template <typename Equation, typename Dest, typename State,
+            typename = std::enable_if_t<is_tag_invocable<
+                CompleteFromKineticStateFn, Equation, Dest, State>::value>>
   constexpr auto operator()(Equation&& eq, Dest&& dest, State&& state) const
       noexcept(is_nothrow_tag_invocable<CompleteFromKineticStateFn, Equation,
                                         Dest, State>::value)
           -> tag_invoke_result_t<CompleteFromKineticStateFn, Equation, Dest,
                                  State> {
     return fub::meta::tag_invoke(*this, std::forward<Equation>(eq),
-                           std::forward<Dest>(dest), std::forward<State>(state));
+                                 std::forward<Dest>(dest),
+                                 std::forward<State>(state));
   }
 } CompleteFromKineticState;
 
@@ -291,7 +302,7 @@ inline constexpr struct IsentropicExpansionWithoutDissipationFn {
                                    const Complete<std::decay_t<Equation>>&,
                                    double, double>::value) {
       fub::meta::tag_invoke(*this, std::forward<Equation>(eq), dest, src,
-                      pressure_dest, efficiency);
+                            pressure_dest, efficiency);
     } else {
       const auto old_velocity = Velocity(eq, src);
       const double rhoE_kin = KineticEnergy(src.density, src.momentum);
@@ -303,8 +314,8 @@ inline constexpr struct IsentropicExpansionWithoutDissipationFn {
       SetIsentropicPressure(eq, dest, dest, pressure_dest);
       const double h_after = (dest.energy + dest.pressure) / dest.density;
       const double h_diff = h_before - h_after;
-      const double e_kin_new =
-          2.0 * efficiency * std::abs(h_diff) + old_velocity.matrix().squaredNorm();
+      const double e_kin_new = 2.0 * efficiency * std::abs(h_diff) +
+                               old_velocity.matrix().squaredNorm();
       FUB_ASSERT(e_kin_new >= 0);
       const int sign = (h_diff >= 0) - (h_diff < 0);
       dest.momentum[0] = dest.density * (sign * std::sqrt(e_kin_new));
@@ -321,7 +332,7 @@ inline constexpr struct SpecificGasConstantFn {
       is_nothrow_tag_invocable<SpecificGasConstantFn, Equation, State>::value)
       -> tag_invoke_result_t<SpecificGasConstantFn, Equation, State> {
     return fub::meta::tag_invoke(*this, std::forward<Equation>(eq),
-                           std::forward<State>(state));
+                                 std::forward<State>(state));
   }
 } SpecificGasConstant;
 
@@ -334,7 +345,7 @@ inline constexpr struct SpeciesFn {
       is_nothrow_tag_invocable<SpeciesFn, Equation, State, Indices...>::value)
       -> tag_invoke_result_t<SpeciesFn, Equation, State, Indices...> {
     return fub::meta::tag_invoke(*this, std::forward<Equation>(eq),
-                           std::forward<State>(state), d...);
+                                 std::forward<State>(state), d...);
   }
 } Species;
 
@@ -356,7 +367,8 @@ using passive_scalars_t = decltype(std::declval<State>().passive_scalars);
 }
 
 template <typename State>
-struct state_with_passive_scalars : is_detected<meta::passive_scalars_t, State> {};
+struct state_with_passive_scalars
+    : is_detected<meta::passive_scalars_t, State> {};
 
 } // namespace fub::euler
 

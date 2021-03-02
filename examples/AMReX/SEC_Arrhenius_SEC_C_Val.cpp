@@ -70,6 +70,7 @@ struct ComputeStableDt {
     const ::amrex::Geometry& geom = data.GetGeometry(level);
     const double dx = geom.CellSize(0);
     double amax = 0.0;
+    const double Minv = 1.0 / std::sqrt(eq.Msq);
     fub::IndexMapping<fub::PerfectGasMix<1>> c{eq};
     fub::amrex::ForEachFab(scratch, [&](const amrex::MFIter& mfi) {
       const amrex::Array4<const double> array = scratch[mfi].array();
@@ -84,7 +85,7 @@ struct ComputeStableDt {
         const double p = array(i, 0, 0, c.pressure);
         // use exactly ruperts formula
         const double c = std::sqrt(eq.gamma * p * invrho);
-        amax = std::max(amax, u + c);
+        amax = std::max(amax, u + c * Minv);
       }
     });
     fub::Duration dt(dx / amax);
@@ -134,7 +135,7 @@ struct InitialDataInTube {
         const double p0 = 2.0;
         const double p = 0.95 * p0;
         const double T = TV + kinetics_.Q * equation_.gamma_minus_one;
-        const double rho = p / T * equation_.ooRspec;
+        const double rho = p / T; //* equation_.ooRspec;
 
         state.density = rho;
         state.species[0] = (rel_x < initially_filled_x_) ? 1.0 : 0.0;
@@ -287,7 +288,7 @@ void MyMain(const fub::ProgramOptions& options) {
           const double p_inflow_left = compressor_state.pressure;
           const double T_inflow_left = compressor_state.temperature;
           const double rho_inflow_left =
-              p_inflow_left / T_inflow_left * eq.ooRspec;
+              p_inflow_left / T_inflow_left;// * eq.ooRspec;
 
           const double p = inner_pressure;
           const double ppv = p_inflow_left;
@@ -319,7 +320,7 @@ void MyMain(const fub::ProgramOptions& options) {
           const double p_inflow_left = compressor_state.pressure;
           const double T_inflow_left = compressor_state.temperature;
           const double rho_inflow_left =
-              p_inflow_left / T_inflow_left * eq.ooRspec;
+              p_inflow_left / T_inflow_left;// * eq.ooRspec;
 
           const double p = inner_pressure;
           const double ppv = p_inflow_left;
