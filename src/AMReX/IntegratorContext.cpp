@@ -349,8 +349,7 @@ void IntegratorContext::SetTimePoint(Duration dt, int level) {
   data_[l].time_point = dt;
 }
 
-void IntegratorContext::SetPostAdvanceHierarchyFeedback(
-    FeedbackFn feedback) {
+void IntegratorContext::SetPostAdvanceHierarchyFeedback(FeedbackFn feedback) {
   post_advance_hierarchy_feedback_ = std::move(feedback);
 }
 
@@ -533,6 +532,12 @@ void IntegratorContext::ApplyFluxCorrection(
   }
 }
 
+void IntegratorContext::SetComputeStableDt(
+    std::function<Duration(IntegratorContext&, int, Direction)>
+        compute_stable_dt) {
+  user_compute_stable_dt_ = std::move(compute_stable_dt);
+}
+
 Duration IntegratorContext::ComputeStableDt(int level, Direction dir) {
   Timer timer1 =
       GetCounterRegistry()->get_timer("IntegratorContext::ComputeStableDt");
@@ -540,6 +545,9 @@ Duration IntegratorContext::ComputeStableDt(int level, Direction dir) {
   if (count_per_level) {
     timer_per_level = GetCounterRegistry()->get_timer(
         fmt::format("IntegratorContext::ComputeStableDt({})", level));
+  }
+  if (user_compute_stable_dt_) {
+    return user_compute_stable_dt_(*this, level, dir);
   }
   return method_.flux_method.ComputeStableDt(*this, level, dir);
 }

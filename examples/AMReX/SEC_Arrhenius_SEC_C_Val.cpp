@@ -62,6 +62,36 @@ static constexpr double r_tube = 0.015;
 static constexpr int n_species = 2;
 static constexpr int n_passive_scalars = 0;
 
+struct ComputeStableDt {
+  fub::PerfectGasMix<1> eq;
+  fub::Duration operator()(const fub::amrex::IntegratorContext& data, int level,
+                           fub::Direction) const {
+    const ::amrex::MultiFab& scratch = data.GetScratch(level);
+    const ::amrex::Geometry& geom = data.GetGeometry(level);
+    const double dx = geom.CellSize(0);
+    double amax = 0.0;
+    fub::IndexMapping<fub::PerfectGasMix<1>> c{eq};
+    fub::amrex::ForEachFab(scratch, [&](const amrex::MFIter& mfi) {
+      const amrex::Array4<const double> array = scratch[mfi].array();
+      amrex::Dim3 lo = array.begin;
+      amrex::Dim3 hi = array.end;
+      for (int i = lo.x + scratch.nGrowVect()[0];
+           i < hi.x - scratch.nGrowVect()[0]; ++i) {
+        const double rho = array(i, 0, 0, c.density);
+        const double rhou = array(i, 0, 0, c.momentum[0]);
+        const double invrho = 1.0 / rho;
+        const double u = std::abs(rhou * invrho);
+        const double p = array(i, 0, 0, c.pressure);
+        // use exactly ruperts formula
+        const double c = std::sqrt(eq.gamma * p * invrho);
+        amax = std::max(amax, u + c);
+      }
+    });
+    fub::Duration dt(dx / amax);
+    return dt;
+  }
+};
+
 struct InitialDataInTube {
   using Equation = fub::PerfectGasMix<1>;
   using Complete = fub::Complete<Equation>;
@@ -70,41 +100,49 @@ struct InitialDataInTube {
 
   Equation equation_;
   fub::perfect_gas_mix::ArrheniusKineticsOptions kinetics_;
+  fub::perfect_gas_mix::gt::ControlOptions control_;
   double x_0_;
   double initially_filled_x_{0.4};
+
+  double CompressorPressureRatio(double rpm) const noexcept {
+    double pratio = control_.pratiomean +
+                    control_.c_0 * control_.pratiovar *
+                        std::atan(M_PI * (rpm / control_.rpmmean - 1.0)) / M_PI;
+    return pratio;
+  }
 
   void InitializeData(fub::amrex::PatchLevel& patch_level,
                       const fub::amrex::GriddingAlgorithm& grid, int level,
                       fub::Duration /*time*/) const {
     const amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
     amrex::MultiFab& data = patch_level.data;
-    fub::amrex::ForEachFab(
-        fub::execution::openmp, data, [&](amrex::MFIter& mfi) {
-          KineticState state(equation_);
-          Complete complete(equation_);
-          fub::Array<double, 1, 1> velocity{0.0};
-          fub::View<Complete> states = fub::amrex::MakeView<Complete>(
-              data[mfi], equation_, mfi.tilebox());
-          fub::ForEachIndex(fub::Box<0>(states), [&](std::ptrdiff_t i) {
-            const double x = geom.CellCenter(int(i), 0);
-            const double rel_x = x - x_0_;
-            // const double pressure = 1.0;
-            const double p0 = 2.0;
-            const double rho0 = std::pow(p0, equation_.gamma_inv);
-            const double T0 = p0 / rho0;
-            const double p = 0.95 * p0;
-            const double T = T0 + kinetics_.Q * equation_.gamma_minus_one;
-            const double rho = p / T * equation_.ooRspec;
+    fub::amrex::ForEachFab(fub::execution::seq, data, [&](amrex::MFIter& mfi) {
+      fub::Conservative<fub::PerfectGasMix<1>> state(equation_);
+      Complete complete(equation_);
+      // fub::Array<double, 1, 1> velocity{0.0};
+      fub::View<Complete> states =
+          fub::amrex::MakeView<Complete>(data[mfi], equation_, mfi.tilebox());
+      fub::ForEachIndex(fub::Box<0>(states), [&](std::ptrdiff_t i) {
+        const double x = geom.CellCenter(int(i), 0);
+        const double rel_x = x - x_0_;
+        // const double pressure = 1.0;
 
-            state.temperature = T;
-            state.density = rho;
-            state.mole_fractions[0] = (rel_x < initially_filled_x_) ? 1.0 : 0.0;
-            state.mole_fractions[1] = (rel_x < initially_filled_x_) ? 0.0 : 1.0;
-            fub::euler::CompleteFromKineticState(equation_, complete, state,
-                                                 velocity);
-            fub::Store(states, complete, {i});
-          });
-        });
+        const double pV = CompressorPressureRatio(control_.rpmmin);
+        const double TV =
+            1.0 + (std::pow(pV, equation_.gamma_minus_one_over_gamma) - 1.0) /
+                      control_.efficiency_compressor;
+        const double p0 = 2.0;
+        const double p = 0.95 * p0;
+        const double T = TV + kinetics_.Q * equation_.gamma_minus_one;
+        const double rho = p / T * equation_.ooRspec;
+
+        state.density = rho;
+        state.species[0] = (rel_x < initially_filled_x_) ? 1.0 : 0.0;
+        state.energy = p * equation_.gamma_minus_one_inv;
+        equation_.CompleteFromCons(complete, state);
+        fub::Store(states, complete, {i});
+      });
+    });
   }
 };
 
@@ -218,9 +256,9 @@ void MyMain(const fub::ProgramOptions& options) {
       fub::GetOptionOr(tube_options, "initially_filled_x", 0.4);
   BOOST_LOG(log) << "InitialData:";
   BOOST_LOG(log) << "  - initially_filled_x = " << initially_filled_x << " [m]";
-  InitialDataInTube initial_data{tube_equation, arrhenius_source_term.options,
-                                 grid_geometry.coordinates.lo()[0],
-                                 initially_filled_x};
+  InitialDataInTube initial_data{
+      tube_equation, arrhenius_source_term.options, control_options,
+      grid_geometry.coordinates.lo()[0], initially_filled_x};
 
   FUB_ASSERT(control_state);
   fub::ProgramOptions SEC_options =
@@ -357,6 +395,7 @@ void MyMain(const fub::ProgramOptions& options) {
                             fub::GetOptions(tube_options, "IntegratorContext"));
   BOOST_LOG(log) << "IntegratorContext:";
   context.GetOptions().Print(log);
+  context.SetComputeStableDt(ComputeStableDt{tube_equation});
 
   fub::amrex::DiffusionSourceTermOptions diff_opts =
       fub::GetOptions(options, "DiffusionSourceTerm");

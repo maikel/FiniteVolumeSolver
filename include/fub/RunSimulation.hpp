@@ -89,8 +89,7 @@ void RunSimulation(Solver& solver, RunOptions options,
   using namespace logger::trivial;
   logger::sources::severity_logger<severity_level> log(
       logger::keywords::severity = info);
-  solver.ResetHierarchyConfiguration();
-  fub::Duration time_point = solver.GetTimePoint();
+  fub::Duration time_point = solver.GetGriddingAlgorithm()->GetTimePoint();
   const fub::Duration eps = options.smallest_time_step_size;
   std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
   std::chrono::steady_clock::duration wall_time = wall_time_reference - now;
@@ -104,7 +103,7 @@ void RunSimulation(Solver& solver, RunOptions options,
   }
   std::optional<Duration> failure_dt{};
   while (time_point + eps < options.final_time &&
-         (options.max_cycles < 0 || solver.GetCycles() < options.max_cycles)) {
+         (options.max_cycles < 0 || solver.GetGriddingAlgorithm()->GetCycles() < options.max_cycles)) {
     // We have a nested loop to exactly reach output time points.
     do {
       Timer timestep_counter =

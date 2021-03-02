@@ -158,7 +158,7 @@ public:
       : equation_{equation},
         tube_index_{equation}, control_{control}, options_{options} {}
 
-  double UpdateTurbinePlenumState(PlenumState& turbine_old, PlenumState& turbine_new, double f_rho,
+  double UpdateTurbinePlenumState(PlenumState& turbine_new, const PlenumState& turbine_old, double f_rho,
                                   double f_rhoe, Duration dt,
                                   const ControlOptions& options) const {
     const double pT = turbine_old.pressure;
@@ -177,7 +177,7 @@ public:
         rhoe + (f_rhoe * options.surface_area_tube_outlet - mdotT * h) *
                    dt.count() / options.volume_turbine_plenum;
 
-    turbine_new.pressure = rhoe_n / equation_.gamma_minus_one_inv;
+    turbine_new.pressure = rhoe_n * equation_.gamma_minus_one;
     turbine_new.temperature = turbine_new.pressure / rho_n * equation_.ooRspec;
 
     return mdotT;
@@ -220,10 +220,10 @@ public:
     ::MPI_Allreduce(&local_f_rhoe_last, &flux_rhoe_last, 1, MPI_DOUBLE, MPI_SUM,
                     ::amrex::ParallelDescriptor::Communicator());
 
-    PlenumState turbine_boundary_state = control_.GetSharedState()->turbine;
+    const PlenumState turbine_boundary_state = control_.GetSharedState()->turbine;
     PlenumState new_turbine_boundary_state;
     const double mdot_turbine =
-        UpdateTurbinePlenumState(turbine_boundary_state, new_turbine_boundary_state, flux_rho_last,
+        UpdateTurbinePlenumState(new_turbine_boundary_state, turbine_boundary_state, flux_rho_last,
                                  flux_rhoe_last, dt, control_.GetOptions());
 
     control_.UpdatePlena(mdot_turbine, new_turbine_boundary_state, flux_rho,

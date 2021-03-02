@@ -16,7 +16,7 @@ gamma = 1.4
 
 RunOptions = {
   'cfl': 0.1125,# / float(tube_n_cells / 64),
-  'final_time': 300.0,
+  'final_time': 0.2,
   'max_cycles': -1,
   'do_backup': 0
 }
@@ -54,7 +54,7 @@ DiffusionSourceTerm = {
   'mul': 3.0
 }
 R_ref = 287.4
-p_ref = 10_000.
+p_ref = 10000.0
 T_ref = 300.
 L_ref = 1.0
 rho_ref = p_ref / T_ref / R_ref
@@ -112,7 +112,7 @@ Tube_FluxMethod['area_variation'] = Area
 
 Tubes = {
   'checkpoint': checkpoint if checkpoint == '' else '{}/Tube_{}'.format(checkpoint),
-  'initially_filled_x': 0.1,
+  'initially_filled_x': 0.0,
   'FluxMethod': Tube_FluxMethod,
   'GridGeometry': {
     'cell_dimensions': [n_cells, 1, 1],
@@ -161,15 +161,15 @@ Output = {
     {
       'type': 'ControlOutput',
       'path': '{}/ControlState.h5'.format(outputPath),
-      'intervals': [0.001],
-      # 'frequencies': [1]
+      #'intervals': [0.001],
+      'frequencies': [1]
     },
     {
     'type': 'HDF5',
     'path': '{}/Tube0.h5'.format(outputPath),
     'which_block': 1,
-    'intervals': [tube_intervals],
-    # 'frequencies': [1]
+    # 'intervals': [tube_intervals],
+    'frequencies': [1]
   },
   {
     'type': 'CounterOutput',

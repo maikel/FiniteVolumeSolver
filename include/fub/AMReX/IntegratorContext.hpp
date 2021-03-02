@@ -60,8 +60,7 @@ struct IntegratorContextOptions {
 /// delegates AMR related tasks to the AMReX library.
 class IntegratorContext {
 public:
-  using FeedbackFn =
-      std::function<void(IntegratorContext&, Duration)>;
+  using FeedbackFn = std::function<void(IntegratorContext&, Duration)>;
   /// @{
   /// \name Constructors, Assignment Operators and Desctructor
 
@@ -241,6 +240,9 @@ public:
   /// \brief Returns a estimate for a stable time step size which can be taken
   /// for specified level number in direction dir.
   [[nodiscard]] Duration ComputeStableDt(int level, Direction dir);
+  void
+  SetComputeStableDt(std::function<Duration(IntegratorContext&, int, Direction)>
+                         compute_stable_dt);
 
   /// \brief Fill the flux MultiFab with numeric fluxes based on current states
   /// in scratch.
@@ -304,6 +306,8 @@ private:
   std::vector<LevelData> data_;
   HyperbolicMethod method_;
   FeedbackFn post_advance_hierarchy_feedback_;
+  std::function<Duration(IntegratorContext&, int, Direction)>
+      user_compute_stable_dt_{};
 };
 
 } // namespace fub::amrex
