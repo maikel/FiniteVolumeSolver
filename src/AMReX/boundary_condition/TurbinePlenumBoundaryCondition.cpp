@@ -87,8 +87,6 @@ void TurbinePlenumBoundaryCondition::FillBoundary(::amrex::MultiFab& mf,
                 double rhoout{};
                 if (u <= 0.0) {
                   /* flow from plenum into tube */
-                  // std::sqrt(2.0 * eq.gamma_over_gamma_minus_one *
-                  // std::max(0.0, Tpv - Tin));
                   uout = -std::sqrt(
                       std::max(0.0, 2.0 * equation_.gamma_over_gamma_minus_one *
                                         (Tratio - 1.0) * T));
@@ -133,6 +131,7 @@ void TurbinePlenumBoundaryCondition::FillBoundary(::amrex::MultiFab& mf,
                 }
               }
 
+              equation_.CompleteFromCons(state, state);
               Store(states, state, dest);
             });
       }
