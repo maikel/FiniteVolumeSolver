@@ -16,7 +16,7 @@ gamma = 1.4
 
 RunOptions = {
   'cfl': 0.1125,# / float(tube_n_cells / 64),
-  'final_time': 0.4,
+  'final_time': 0.2,
   'max_cycles': -1,
   'do_backup': 0
 }
@@ -78,7 +78,7 @@ checkpoint = ''
 
 def Area(xi):
   A0  = 1.0
-  A1  = 4.0 # Reference: 3.0; best: 4.0 
+  A1  = 1.0 # Reference: 3.0; best: 4.0 
   xi0 = 0.0625 - 1.0
   xi1 = 0.75 - 1.0   # Reference: 0.5; best: 0.75
   Ax = 1.0 if xi < xi0 else A0 + (A1-A0)*(xi-xi0)/(xi1-xi0) if xi < xi1 else A1

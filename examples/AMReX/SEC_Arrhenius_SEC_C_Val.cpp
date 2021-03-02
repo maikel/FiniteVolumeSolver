@@ -81,14 +81,15 @@ struct ComputeStableDt {
         const double rho = array(i, 0, 0, c.density);
         const double rhou = array(i, 0, 0, c.momentum[0]);
         const double invrho = 1.0 / rho;
-        const double u = std::abs(rhou * invrho);
+        const double u = std::abs(rhou * invrho) * Minv;
         const double p = array(i, 0, 0, c.pressure);
         // use exactly ruperts formula
         const double c = std::sqrt(eq.gamma * p * invrho);
         amax = std::max(amax, u + c * Minv);
       }
     });
-    fub::Duration dt(dx / amax);
+    // fub::Duration dt(dx / amax);
+    fub::Duration dt(5.0e-05 / 0.1125);
     return dt;
   }
 };
@@ -422,12 +423,16 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<Tube_Rank>, std::move(context), fub::GodunovSplitting{});
 
-  fub::SplitSystemSourceLevelIntegrator diffusive_integrator(
-      std::move(level_integrator), std::move(diffusion_source_term),
-      fub::StrangSplittingLumped());
+  // fub::SplitSystemSourceLevelIntegrator diffusive_integrator(
+  //     std::move(level_integrator), std::move(diffusion_source_term),
+  //     fub::StrangSplittingLumped());
+
+  // fub::SplitSystemSourceLevelIntegrator reactive_integrator(
+  //     std::move(diffusive_integrator), std::move(arrhenius_source_term),
+  //     fub::StrangSplittingLumped());
 
   fub::SplitSystemSourceLevelIntegrator reactive_integrator(
-      std::move(diffusive_integrator), std::move(arrhenius_source_term),
+      std::move(level_integrator), std::move(arrhenius_source_term),
       fub::StrangSplittingLumped());
 
   fub::SubcycleFineFirstSolver solver(std::move(reactive_integrator));
@@ -481,6 +486,8 @@ int main(int argc, char** argv) {
   pybind11::scoped_interpreter interpreter{};
   std::optional<fub::ProgramOptions> opts = fub::ParseCommandLine(argc, argv);
   if (opts) {
+    fub::InitializeLogging(MPI_COMM_WORLD,
+                           fub::GetOptions(*opts, "LogOptions"));
     MyMain(*opts);
   }
   int flag = -1;
