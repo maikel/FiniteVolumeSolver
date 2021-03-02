@@ -97,7 +97,7 @@ struct InitialDataInTube {
             // const double rel_x = x - x_0_;
             const double pressure = 1.0;
             state.temperature = 1.0; // (rel_x < 0.5) ? 1.0 : 2.5;
-            state.density = pressure / state.temperature / equation_.Rspec;
+            state.density = pressure / state.temperature;// / equation_.Rspec;
             state.mole_fractions[0] = 0.0;
             state.mole_fractions[1] =
                 0.0; // #(rel_x < initially_filled_x_) ? 1.0 : 0.0;
@@ -179,8 +179,8 @@ auto MakeTubeSolver(const fub::ProgramOptions& options,
           const fub::amrex::GriddingAlgorithm&, int) mutable {
         const double dt = tp.count();
         kin.temperature = compressor_state.temperature;
-        kin.density = compressor_state.pressure / compressor_state.temperature *
-                      eq.ooRspec;
+        kin.density = compressor_state.pressure / compressor_state.temperature;
+        // * eq.ooRspec;
         if (dt > buffer) {
           kin.mole_fractions[0] = fill_f_val(dt - t_ignite_diff);
           kin.mole_fractions[1] = 1.0;

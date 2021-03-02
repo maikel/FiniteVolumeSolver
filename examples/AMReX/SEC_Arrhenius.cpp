@@ -198,7 +198,7 @@ void MyMain(const fub::ProgramOptions& options) {
         const double p_inflow_left = compressor_state.pressure;
         const double T_inflow_left = compressor_state.temperature;
         const double rho_inflow_left =
-            p_inflow_left / T_inflow_left * eq.ooRspec;
+            p_inflow_left / T_inflow_left ;//* eq.ooRspec;
 
         const double p = inner_pressure;
         const double ppv = p_inflow_left;

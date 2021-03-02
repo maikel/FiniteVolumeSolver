@@ -292,14 +292,15 @@ void CharacteristicsReconstruction<EulerEquation>::Reconstruct(
     Complete& reconstruction, const Complete& q0, const Characteristics& dKdx,
     Duration dt, double dx, Direction dir, Side side) noexcept {
   PrimFromComplete(equation_, w_rec_, q0);
+  const double Minv = 1.0 / euler::MaSq(equation_);
   const int ix = static_cast<int>(dir);
   const double u = w_rec_.velocity[ix];
   const double c = q0.speed_of_sound;
   const int sign = (side == Side::Upper) - (side == Side::Lower);
   const double lambda = sign * dt.count() / dx;
   const double dx_half = sign * 0.5 * dx;
-  dKdt_.minus = dx_half * dKdx.minus * (1.0 - lambda * (u - c));
-  dKdt_.plus = dx_half * dKdx.plus * (1.0 - lambda * (u + c));
+  dKdt_.minus = dx_half * dKdx.minus * (1.0 - lambda * (u - c * Minv));
+  dKdt_.plus = dx_half * dKdx.plus * (1.0 - lambda * (u + c * Minv));
   for (int i = 0; i < dKdt_.zero.size(); ++i) {
     dKdt_.zero[i] = dx_half * dKdx.zero[i] * (1.0 - lambda * u);
   }
@@ -319,7 +320,7 @@ void CharacteristicsReconstruction<EulerEquation>::Reconstruct(
   const double c2 = c * c;
   dwdt_.pressure = 0.5 * (dKdt_.minus + dKdt_.plus);
   dwdt_.density = dwdt_.pressure / c2 + dKdt_.zero[0];
-  dwdt_.velocity.row(ix) = 0.5 * (dKdt_.plus - dKdt_.minus) / rhoc;
+  dwdt_.velocity.row(ix) = 0.5 * (dKdt_.plus - dKdt_.minus) * Minv / rhoc;
   constexpr int Rank = EulerEquation::Rank();
   for (int i = 1; i < Rank; ++i) {
     const int iy = (ix + i) % Rank;

@@ -46,7 +46,7 @@ void TurbinePlenumBoundaryCondition::FillBoundary(::amrex::MultiFab& mf,
   // Fetch Turbine Plenum state
   const double pflush = control_state_->turbine.pressure;
   const double Tflush = control_state_->turbine.temperature;
-  const double rhoflush = pflush / Tflush * equation_.ooRspec;
+  const double rhoflush = pflush / Tflush;// * equation_.ooRspec;
 
   const int ngrow = mf.nGrow(0);
   const ::amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
@@ -77,14 +77,13 @@ void TurbinePlenumBoundaryCondition::FillBoundary(::amrex::MultiFab& mf,
               double u = state.momentum[0] / rho;
               double ek = 0.5 * rho * (u * u);
               double p = state.pressure;
-              double T = p / rho * equation_.ooRspec;
+              double T = p / rho;// * equation_.ooRspec;
               double pratio = pflush / p;
               double rhoratio = pow(pratio, equation_.gamma_inv);
               double Tratio = pratio / rhoratio;
-
+              double uout{};
+              double rhoout{};
               if (pflush > p) {
-                double uout{};
-                double rhoout{};
                 if (u <= 0.0) {
                   /* flow from plenum into tube */
                   uout = -std::sqrt(
@@ -114,6 +113,8 @@ void TurbinePlenumBoundaryCondition::FillBoundary(::amrex::MultiFab& mf,
               } else {
                 if (u <= 0.0) {
                   state.density = state.density * rhoratio;
+                  rhoout = state.density;
+                  uout = 0.0;
                   state.momentum[0] = 0.0;
                   state.energy = pflush * equation_.gamma_minus_one_inv +
                                  (ek - 0.5 * rho * u * u) * rhoratio;
@@ -123,6 +124,8 @@ void TurbinePlenumBoundaryCondition::FillBoundary(::amrex::MultiFab& mf,
                 } else {
                   state.density = state.density * rhoratio;
                   state.momentum[0] = state.momentum[0] * rhoratio;
+                  rhoout = state.density;
+                  uout = state.momentum[0] / rhoout;
                   state.energy =
                       pflush * equation_.gamma_minus_one_inv + ek * rhoratio;
                   for (int nsp = 0; nsp < state.species.size(); nsp++) {
@@ -130,7 +133,6 @@ void TurbinePlenumBoundaryCondition::FillBoundary(::amrex::MultiFab& mf,
                   }
                 }
               }
-
               equation_.CompleteFromCons(state, state);
               Store(states, state, dest);
             });

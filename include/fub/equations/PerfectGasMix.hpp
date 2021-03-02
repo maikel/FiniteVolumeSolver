@@ -222,7 +222,7 @@ template <typename... Xs> struct StateTraits<PerfectGasMixComplete<Xs...>> {
 };
 
 struct PerfectGasConstants {
-  double Rspec{1.};                    ///< the specific gas constant
+  double Rspec{287.4};                 ///< the specific gas constant
   double gamma{1.28};                  ///< the adiabtic exponent
   double ooRspec{1. / Rspec};          ///< the inverse specific gas constant
   double gamma_inv{1.0 / gamma};       ///< 1 / gamma
@@ -232,11 +232,26 @@ struct PerfectGasConstants {
   double gamma_minus_one_inv{1.0 / gamma_minus_one}; ///< 1/(gamma-1)
   double gamma_over_gamma_minus_one{gamma *
                                     gamma_minus_one_inv}; // gamma/(gamma-1)
+  // double heat_capacity_at_constant_pressure{
+  //     Rspec * gamma_over_gamma_minus_one}; // gamma Rspec / (gamma-1)
+  // double heat_capacity_at_constant_volume{Rspec * gamma_minus_one_inv};
   double heat_capacity_at_constant_pressure{
-      Rspec * gamma_over_gamma_minus_one}; // gamma Rspec / (gamma-1)
-  double heat_capacity_at_constant_volume{Rspec * gamma_minus_one_inv};
+      gamma_over_gamma_minus_one}; // gamma / (gamma-1)
+  double heat_capacity_at_constant_volume{gamma_minus_one_inv};
   Array1d gamma_array_{Array1d::Constant(gamma)};
   Array1d gamma_minus_one_inv_array_{Array1d::Constant(gamma_minus_one_inv)};
+
+  /* references for non-dimensionalization */
+  double L_ref = 1.0;                       /* [m]               */
+  double T_ref = 300.00;                    /* [K]               */
+  double p_ref = 1e+5;                      /* [Pa]              */
+  double rho_ref = p_ref / (Rspec * T_ref); /* [kg/m^3]          */
+
+  double u_ref = sqrt(Rspec * T_ref);
+  double t_ref = L_ref / u_ref;
+
+  double Msq = u_ref * u_ref / (Rspec * T_ref);
+  double Msqinv = 1.0 / Msq;
 };
 
 inline PerfectGasConstants ComputeConstants(double Rspec, double gamma) {
@@ -327,6 +342,12 @@ private:
     return depths;
   }
 
+  template <typename State>
+  friend constexpr auto tag_invoke(tag_t<euler::MaSq>,
+                                   const PerfectGasMix& eq) noexcept {
+    return eq.Msq;
+  }
+
   template <typename Density, typename Momentum, typename Energy,
             typename Species, typename PassiveScalars>
   friend auto
@@ -352,10 +373,11 @@ private:
   template <typename Density, typename Momentum, typename Energy,
             typename Species, typename PassiveScalars>
   friend auto
-  tag_invoke(tag_t<euler::InternalEnergy>, const PerfectGasMix&,
+  tag_invoke(tag_t<euler::InternalEnergy>, const PerfectGasMix& eq,
              const PerfectGasMixConservative<Density, Momentum, Energy, Species,
                                              PassiveScalars>& q) noexcept {
-    return (q.energy - euler::KineticEnergy(q.density, q.momentum)) / q.density;
+    return (q.energy - eq.Msq * euler::KineticEnergy(q.density, q.momentum)) /
+           q.density;
   }
 
   template <typename Density, typename Temperature, typename MoleFractions,
@@ -370,7 +392,8 @@ private:
     // Rspec = gamma cv - cv
     // Rspec = (gamma - 1) cv
     // Rpsec /(gamma - 1) = cv
-    const double cv = eq.Rspec * eq.gamma_minus_one_inv;
+    // const double cv = eq.Rspec * eq.gamma_minus_one_inv;
+    const double cv = eq.gamma_minus_one_inv;
     return cv * q.temperature;
   }
 
@@ -382,7 +405,7 @@ private:
     q.momentum = q.density * u;
     const double e = euler::InternalEnergy(eq, kin);
     q.energy = q.density * (e + 0.5 * u.matrix().squaredNorm());
-    const double RT = eq.Rspec * kin.temperature;
+    const double RT = kin.temperature;// * eq.Rspec;
     q.pressure = RT * q.density;
     q.speed_of_sound = std::sqrt(eq.gamma * RT);
     const double sum = kin.mole_fractions.sum();
@@ -549,7 +572,8 @@ private:
 
   friend double tag_invoke(tag_t<euler::Pressure>, const PerfectGasMix& eq,
                            const KineticState& q) noexcept {
-    return eq.Rspec * q.temperature * q.density;
+    // return eq.Rspec * q.temperature * q.density;
+    return q.temperature * q.density;
   }
 
   template <typename Density, typename Momentum, typename Energy,
@@ -581,15 +605,17 @@ private:
     const double T_0 = T_old * alpha;
 
     const double rho_new = rho_0 * std::pow(p_new / p_0, eq.gamma_inv);
-    const double T_new = p_new / rho_new * eq.ooRspec;
+    const double T_new = p_new / rho_new;// * eq.ooRspec;
 
     // a = (gamma - 1) / 2
     // T0 = T_new (1 + a Ma2_n)
     // (gamma R) (T_0 - T_new) / a = (gamma R) (T_new (1 + a Ma2_n) - T_new) / a
     // = (gamma R) T_new Ma2_n = c2_n Ma2_n = u2_n
+    // const double u2_new =
+    //     2.0 * eq.gamma_over_gamma_minus_one * eq.Rspec * (T_0 - T_new);
     const double u2_new =
-        2.0 * eq.gamma_over_gamma_minus_one * eq.Rspec * (T_0 - T_new);
-    // const Array<double, N, 1> u0 = euler::Velocity(eq, q0);
+        2.0 * eq.gamma_over_gamma_minus_one * (T_0 - T_new);
+    // // const Array<double, N, 1> u0 = euler::Velocity(eq, q0);
     Array<double, N, 1> u_new = Array<double, N, 1>::Zero();
     u_new[0] = ((u2_new > 0.0) - (u2_new < 0.0)) * std::sqrt(std::abs(u2_new));
 
@@ -647,7 +673,7 @@ void CompleteFromPrim(const PerfectGasMix<Rank>& equation,
         prim.density * prim.passive_scalars.row(s);
   }
   const Array1d e_kin =
-      euler::KineticEnergy(complete.density, complete.momentum);
+      equation.Msq * euler::KineticEnergy(complete.density, complete.momentum);
   complete.energy = e_kin + complete.pressure * equation.gamma_minus_one_inv;
   complete.speed_of_sound =
       (equation.gamma * complete.pressure / complete.density).sqrt();
@@ -698,8 +724,8 @@ void tag_invoke(tag_t<euler::CompleteFromKineticState>,
   }
   const Array1d e = euler::InternalEnergy(eq, kin);
   const Array1d rhoE_kin = euler::KineticEnergy(q.density, q.momentum);
-  q.energy = q.density * e + rhoE_kin;
-  const Array1d RT = eq.Rspec * kin.temperature;
+  q.energy = q.density * e + eq.Msq * rhoE_kin;
+  const Array1d RT = kin.temperature;// * eq.Rspec;
   q.pressure = RT * q.density;
   q.speed_of_sound = Eigen::sqrt(eq.gamma * RT);
   const Array1d sum = kin.mole_fractions.colwise().sum();

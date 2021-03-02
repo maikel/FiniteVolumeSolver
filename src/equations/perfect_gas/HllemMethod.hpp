@@ -30,6 +30,8 @@ void Hllem<EulerEquation, Larrouturou>::SolveRiemannProblem(
   int d = static_cast<int>(dir);
   left_ = left;
   right_ = right;
+  const double Msq = euler::MaSq(equation_);
+  const double Minv = 1.0 / std::sqrt(Msq);
   const double rhoL = fub::euler::Density(equation_, left_);
   const double rhoR = fub::euler::Density(equation_, right_);
   [[maybe_unused]] Array<double, 1, Dim> vL_ =
@@ -49,8 +51,8 @@ void Hllem<EulerEquation, Larrouturou>::SolveRiemannProblem(
       left_.momentum[i] *= dim_mask[i];
       right_.momentum[i] *= dim_mask[i];
     }
-    eKinRL *= 0.5;
-    eKinRR *= 0.5;
+    eKinRL *= 0.5 * Msq;
+    eKinRR *= 0.5 * Msq;
     left_.energy -= rhoL * eKinRL;
     right_.energy -= rhoR * eKinRR;
   }
@@ -85,14 +87,15 @@ void Hllem<EulerEquation, Larrouturou>::SolveRiemannProblem(
   const double gammaR = fub::euler::Gamma(equation_, right_);
   const double roeGamma = (sqRhoL * gammaL + sqRhoR * gammaR) / sqRhoSum;
   const double gm1 = roeGamma - 1.0;
-  const double beta = gm1 / (2 * roeGamma);
+  // const double beta = gm1 / (2 * roeGamma);
 
-  const double roeA2 = gm1 * (roeH - 0.5 * roeU.matrix().squaredNorm());
+  const double roeA2 = gm1 * (roeH - 0.5 * Msq * roeU.matrix().squaredNorm());
   const double roeA = std::sqrt(roeA2);
-  const double sL1 = uL - beta * aL;
-  const double sL2 = roeU0 - roeA;
-  const double sR1 = roeU0 + roeA;
-  const double sR2 = uR + beta * aR;
+  const double maxA = std::max(aL, aR);
+  const double sL1 = uL - maxA * Minv;
+  const double sL2 = roeU0 - roeA * Minv;
+  const double sR1 = roeU0 + roeA * Minv;
+  const double sR2 = uR + maxA * Minv;
 
   const double sL = std::min(sL1, sL2);
   const double sR = std::max(sR1, sR2);
@@ -108,7 +111,7 @@ void Hllem<EulerEquation, Larrouturou>::SolveRiemannProblem(
       },
       w_hlle_, fluxL_, fluxR_, AsCons(left_), AsCons(right_));
 
-  const double squaredNormRoeU = roeU.matrix().squaredNorm();
+  const double squaredNormRoeU = Msq * roeU.matrix().squaredNorm();
   const double squaredNormRoeU_half = 0.5 * squaredNormRoeU;
   const double u_bar = 0.5 * (sR + sL);
   const double u_bar_abs = std::abs(u_bar);
@@ -119,8 +122,8 @@ void Hllem<EulerEquation, Larrouturou>::SolveRiemannProblem(
   const double deltaRhoE = rhoER - rhoEL;
 
   if constexpr (Dim == 1) {
-    const double l21 = gm1 / roeA2 * (roeH - roeU.matrix().squaredNorm());
-    const double l22 = gm1 / roeA2 * roeU[0];
+    const double l21 = gm1 / roeA2 * (roeH - Msq * roeU.matrix().squaredNorm());
+    const double l22 = gm1 / roeA2 * Msq * roeU[0];
     const double l23 = gm1 / roeA2 * (-1.0);
     const double alpha_2 =
         l21 * deltaRho + l22 * deltaRhoU[0] + l23 * deltaRhoE;
@@ -179,8 +182,8 @@ void Hllem<EulerEquation, Larrouturou>::SolveRiemannProblem(
   } else if constexpr (Dim == 2) {
     const int ix = int(dir);
     const int iy = (ix + 1) % 2;
-    const double l21 = gm1 / roeA2 * (roeH - roeU.matrix().squaredNorm());
-    const double l22 = gm1 / roeA2 * roeU[0];
+    const double l21 = gm1 / roeA2 * (roeH - Msq * roeU.matrix().squaredNorm());
+    const double l22 = gm1 / roeA2 * Msq * roeU[0];
     const double l23 = gm1 / roeA2 * roeU[1];
     const double l24 = gm1 / roeA2 * (-1.0);
     const double alpha_2 = l21 * deltaRho + l22 * deltaRhoU[0] +
@@ -262,8 +265,8 @@ void Hllem<EulerEquation, Larrouturou>::SolveRiemannProblem(
     const int ix = int(dir);
     const int iy = (ix + 1) % 3;
     const int iz = (iy + 1) % 3;
-    const double l21 = gm1 / roeA2 * (roeH - roeU.matrix().squaredNorm());
-    const double l22 = gm1 / roeA2 * roeU[0];
+    const double l21 = gm1 / roeA2 * (roeH - Msq * roeU.matrix().squaredNorm());
+    const double l22 = gm1 / roeA2 * Msq * roeU[0];
     const double l23 = gm1 / roeA2 * roeU[1];
     const double l24 = gm1 / roeA2 * roeU[2];
     const double l25 = gm1 / roeA2 * (-1.0);
@@ -373,6 +376,8 @@ double Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
   int d = static_cast<int>(dir);
   left_ = states[0];
   right_ = states[1];
+  const double Msq = euler::MaSq(equation_);
+  const double Minv = 1.0 / std::sqrt(Msq);
   const double rhoL = fub::euler::Density(equation_, left_);
   const double rhoR = fub::euler::Density(equation_, right_);
   [[maybe_unused]] Array<double, 1, Dim> vL_ =
@@ -392,8 +397,8 @@ double Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
       left_.momentum[i] *= dim_mask[i];
       right_.momentum[i] *= dim_mask[i];
     }
-    eKinRL *= 0.5;
-    eKinRR *= 0.5;
+    eKinRL *= 0.5 * Msq;
+    eKinRR *= 0.5 * Msq;
     left_.energy -= rhoL * eKinRL;
     right_.energy -= rhoR * eKinRR;
   }
@@ -429,14 +434,14 @@ double Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
   const double gammaR = fub::euler::Gamma(equation_, right_);
   const double roeGamma = (sqRhoL * gammaL + sqRhoR * gammaR) / sqRhoSum;
   const double gm1 = roeGamma - 1.0;
-  const double beta = std::sqrt(gm1 / (2 * roeGamma));
 
-  const double roeA2 = gm1 * (roeH - 0.5 * roeU.matrix().squaredNorm());
+  const double roeA2 = gm1 * (roeH - 0.5 * Msq * roeU.matrix().squaredNorm());
   const double roeA = std::sqrt(roeA2);
-  const double sL1 = uL - beta * aL;
-  const double sL2 = roeU0 - roeA;
-  const double sR1 = roeU0 + roeA;
-  const double sR2 = uR + beta * aR;
+  const double maxA = std::max(aL, aR);
+  const double sL1 = uL - maxA * Minv;
+  const double sL2 = roeU0 - roeA * Minv;
+  const double sR1 = roeU0 + roeA * Minv;
+  const double sR2 = uR + maxA * Minv;
 
   const double sL = std::min(sL1, sL2);
   const double sR = std::max(sR1, sR2);
@@ -453,7 +458,7 @@ double Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
       },
       flux_hlle_, fluxL_, fluxR_, AsCons(left_), AsCons(right_));
 
-  const double squaredNormRoeU = roeU.matrix().squaredNorm();
+  const double squaredNormRoeU = Msq * roeU.matrix().squaredNorm();
   const double squaredNormRoeU_half = 0.5 * squaredNormRoeU;
   const double u_bar = 0.5 * (sR + sL);
   const double u_bar_abs = std::abs(u_bar);
@@ -465,8 +470,8 @@ double Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
   const double deltaRhoE = rhoER - rhoEL;
 
   if constexpr (Dim == 1) {
-    const double l21 = gm1 / roeA2 * (roeH - roeU.matrix().squaredNorm());
-    const double l22 = gm1 / roeA2 * roeU[0];
+    const double l21 = gm1 / roeA2 * (roeH - Msq * roeU.matrix().squaredNorm());
+    const double l22 = gm1 / roeA2 * Msq * roeU[0];
     const double l23 = gm1 / roeA2 * (-1.0);
     const double alpha_2 =
         l21 * deltaRho + l22 * deltaRhoU[0] + l23 * deltaRhoE;
@@ -526,8 +531,8 @@ double Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
   } else if constexpr (Dim == 2) {
     const int ix = int(dir);
     const int iy = (ix + 1) % 2;
-    const double l21 = gm1 / roeA2 * (roeH - roeU.matrix().squaredNorm());
-    const double l22 = gm1 / roeA2 * roeU[0];
+    const double l21 = gm1 / roeA2 * (roeH - Msq * roeU.matrix().squaredNorm());
+    const double l22 = gm1 / roeA2 * Msq * roeU[0];
     const double l23 = gm1 / roeA2 * roeU[1];
     const double l24 = gm1 / roeA2 * (-1.0);
     const double alpha_2 = l21 * deltaRho + l22 * deltaRhoU[0] +
@@ -610,8 +615,8 @@ double Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
     const int ix = int(dir);
     const int iy = (ix + 1) % 3;
     const int iz = (iy + 1) % 3;
-    const double l21 = gm1 / roeA2 * (roeH - roeU.matrix().squaredNorm());
-    const double l22 = gm1 / roeA2 * roeU[0];
+    const double l21 = gm1 / roeA2 * (roeH - Msq * roeU.matrix().squaredNorm());
+    const double l22 = gm1 / roeA2 * Msq * roeU[0];
     const double l23 = gm1 / roeA2 * roeU[1];
     const double l24 = gm1 / roeA2 * roeU[2];
     const double l25 = gm1 / roeA2 * (-1.0);
@@ -711,6 +716,8 @@ Array1d Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
 
   left_array_ = states[0];
   right_array_ = states[1];
+  const Array1d Msq = Array1d::Constant(euler::MaSq(equation_));
+  const Array1d Minv = 1.0 / Msq.sqrt();
   const Array1d rhoL = fub::euler::Density(equation_, left_array_);
   const Array1d rhoR = fub::euler::Density(equation_, right_array_);
   [[maybe_unused]] Array<double, Dim> vL_;
@@ -731,8 +738,8 @@ Array1d Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
       left_array_.momentum.row(i) *= dim_mask[i];
       right_array_.momentum.row(i) *= dim_mask[i];
     }
-    eKinRL *= 0.5;
-    eKinRR *= 0.5;
+    eKinRL *= 0.5 * Msq;
+    eKinRR *= 0.5 * Msq;
     left_array_.energy -= rhoL * eKinRL;
     right_array_.energy -= rhoR * eKinRR;
   }
@@ -770,21 +777,21 @@ Array1d Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
   for (int i = 0; i < Dim; ++i) {
     squaredNormRoeU += roeU.row(i) * roeU.row(i);
   }
+  squaredNormRoeU *= Msq;
   const Array1d squaredNormRoeU_half = 0.5 * squaredNormRoeU;
 
   const Array1d gammaL = fub::euler::Gamma(equation_, left_array_);
   const Array1d gammaR = fub::euler::Gamma(equation_, right_array_);
   const Array1d roeGamma = (sqRhoL * gammaL + sqRhoR * gammaR) / sqRhoSum;
   const Array1d gm1 = roeGamma - 1.0;
-  const Array1d beta = (gm1 / (2 * roeGamma)).sqrt();
 
   const Array1d roeA2 = gm1 * (roeH - squaredNormRoeU_half);
   const Array1d roeA = roeA2.sqrt();
-
-  const Array1d sL1 = uL.row(int(dir)) - beta * aL;
-  const Array1d sL2 = roeU.row(int(dir)) - roeA;
-  const Array1d sR1 = roeU.row(int(dir)) + roeA;
-  const Array1d sR2 = uR.row(int(dir)) + beta * aR;
+  const Array1d maxA = aL.max(aR);
+  const Array1d sL1 = uL.row(int(dir)) - maxA * Minv;
+  const Array1d sL2 = roeU.row(int(dir)) - roeA * Minv;
+  const Array1d sR1 = roeU.row(int(dir)) + roeA * Minv;
+  const Array1d sR2 = uR.row(int(dir)) + maxA * Minv;
 
   const Array1d sL = sL1.min(sL2);
   const Array1d sR = sR1.max(sR2);
@@ -817,7 +824,7 @@ Array1d Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
 
   if constexpr (Dim == 1) {
     const Array1d l21 = gm1_over_roeA2 * (roeH - squaredNormRoeU);
-    const Array1d l22 = gm1_over_roeA2 * roeU;
+    const Array1d l22 = gm1_over_roeA2 * Msq * roeU;
     const Array1d l23 = gm1_over_roeA2 * (-1.0);
     const Array1d alpha_2 = l21 * deltaRho + l22 * deltaRhoU + l23 * deltaRhoE;
     const Array1d b_delta_alpha_2 = b * delta * alpha_2;
@@ -886,7 +893,7 @@ Array1d Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
     const int ix = int(dir);
     const int iy = (ix == 0);
     const Array1d l21 = gm1_over_roeA2 * (roeH - squaredNormRoeU);
-    const Array1d l22 = gm1_over_roeA2 * roeU.row(0);
+    const Array1d l22 = gm1_over_roeA2 * Msq * roeU.row(0);
     const Array1d l23 = gm1_over_roeA2 * roeU.row(1);
     const Array1d l24 = -gm1_over_roeA2;
     const Array1d alpha_2 = l21 * deltaRho + l22 * deltaRhoU.row(0) +
@@ -970,7 +977,7 @@ Array1d Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
     const int iy = (ix + 1) % 3;
     const int iz = (iy + 1) % 3;
     const Array1d l21 = gm1_over_roeA2 * (roeH - squaredNormRoeU);
-    const Array1d l22 = gm1_over_roeA2 * roeU.row(0);
+    const Array1d l22 = gm1_over_roeA2 * Msq * roeU.row(0);
     const Array1d l23 = gm1_over_roeA2 * roeU.row(1);
     const Array1d l24 = gm1_over_roeA2 * roeU.row(2);
     const Array1d l25 = -gm1_over_roeA2;
@@ -1091,9 +1098,9 @@ double Hllem<EulerEquation, Larrouturou>::ComputeStableDt(
   static constexpr int Dim = EulerEquation::Rank();
   const Complete& left = states[0];
   const Complete& right = states[1];
-
+  const double Msq = euler::MaSq(equation_);
+  const double Minv = 1.0 / std::sqrt(Msq);
   const double gm1 = equation_.gamma - 1.0;
-  const double beta = gm1 / (2 * equation_.gamma);
 
   // Compute Einfeldt signals velocities
 
@@ -1122,12 +1129,13 @@ double Hllem<EulerEquation, Larrouturou>::ComputeStableDt(
   Array<double, 1, Dim> roeU = (sqRhoL * vL + sqRhoR * vR) / sqRhoSum;
   const double roeU0 = roeU[d];
   const double roeH = (sqRhoL * hL + sqRhoR * hR) / sqRhoSum;
-  const double roeA2 = gm1 * (roeH - 0.5 * roeU.matrix().squaredNorm());
+  const double roeA2 = gm1 * (roeH - 0.5 * Msq * roeU.matrix().squaredNorm());
   const double roeA = std::sqrt(roeA2);
-  const double sL1 = uL - beta * aL;
-  const double sL2 = roeU0 - roeA;
-  const double sR1 = roeU0 + roeA;
-  const double sR2 = uR + beta * aR;
+  const double maxA = std::max(aL, aR);
+  const double sL1 = uL - maxA * Minv;
+  const double sL2 = roeU0 - roeA * Minv;
+  const double sR1 = roeU0 + roeA * Minv;
+  const double sR2 = uR + maxA * Minv;
 
   const double sL = std::min(sL1, sL2);
   const double sR = std::max(sR1, sR2);
@@ -1149,8 +1157,8 @@ Array1d Hllem<EulerEquation, Larrouturou>::ComputeStableDt(
   const CompleteArray& right = states[1];
 
   const Array1d gm1 = (equation_.gamma_array_ - Array1d::Constant(1.0));
-  const Array1d beta = gm1 / (2 * equation_.gamma_array_);
-
+  const Array1d Msq = Array1d::Constant(euler::MaSq(equation_));
+  const Array1d Minv = 1.0 / Msq.sqrt();
   // Compute Einfeldt signals velocities
 
   const Array1d rhoL = left.density;
@@ -1183,15 +1191,17 @@ Array1d Hllem<EulerEquation, Larrouturou>::ComputeStableDt(
   for (int i = 0; i < Dim; ++i) {
     squaredNormRoeU += roeU.row(i) * roeU.row(i);
   }
+  squaredNormRoeU *= Msq;
   const Array1d squaredNormRoeU_half = 0.5 * squaredNormRoeU;
 
   const Array1d roeA2 = gm1 * (roeH - squaredNormRoeU_half);
   const Array1d roeA = roeA2.sqrt();
+  const Array1d maxA = aL.max(aR);
 
-  const Array1d sL1 = uL.row(int(dir)) - beta * aL;
-  const Array1d sL2 = roeU.row(int(dir)) - roeA;
-  const Array1d sR1 = roeU.row(int(dir)) + roeA;
-  const Array1d sR2 = uR.row(int(dir)) + beta * aR;
+  const Array1d sL1 = uL.row(int(dir)) - maxA * Minv;
+  const Array1d sL2 = roeU.row(int(dir)) - roeA * Minv;
+  const Array1d sR1 = roeU.row(int(dir)) + roeA * Minv;
+  const Array1d sR2 = uR.row(int(dir)) + maxA * Minv;
 
   const Array1d sL = sL1.min(sL2);
   const Array1d sR = sR1.max(sR2);
@@ -1216,7 +1226,8 @@ Array1d Hllem<EulerEquation, Larrouturou>::ComputeStableDt(
   MaskArray face_mask = face_fraction > 0.0;
 
   const Array1d gm1 = (equation_.gamma_array_ - Array1d::Constant(1.0));
-  const Array1d beta = gm1 / (2 * equation_.gamma_array_);
+  const Array1d Msq = Array1d::Constant(euler::MaSq(equation_));
+  const Array1d Minv = 1.0 / Msq.sqrt();
 
   // Compute Einfeldt signals velocities
 
@@ -1253,15 +1264,17 @@ Array1d Hllem<EulerEquation, Larrouturou>::ComputeStableDt(
   for (int i = 0; i < Dim; ++i) {
     squaredNormRoeU += roeU.row(i) * roeU.row(i);
   }
+  squaredNormRoeU *= Msq;
   const Array1d squaredNormRoeU_half = 0.5 * squaredNormRoeU;
 
   const Array1d roeA2 = gm1 * (roeH - squaredNormRoeU_half);
   const Array1d roeA = roeA2.sqrt();
+  const Array1d maxA = aL.max(aR);
 
-  const Array1d sL1 = uL.row(int(dir)) - beta * aL;
-  const Array1d sL2 = roeU.row(int(dir)) - roeA;
-  const Array1d sR1 = roeU.row(int(dir)) + roeA;
-  const Array1d sR2 = uR.row(int(dir)) + beta * aR;
+  const Array1d sL1 = uL.row(int(dir)) - maxA * Minv;
+  const Array1d sL2 = roeU.row(int(dir)) - roeA * Minv;
+  const Array1d sR1 = roeU.row(int(dir)) + roeA * Minv;
+  const Array1d sR2 = uR.row(int(dir)) + maxA * Minv;
 
   const Array1d sL = sL1.min(sL2);
   const Array1d sR = sR1.max(sR2);

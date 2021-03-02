@@ -202,7 +202,7 @@ struct InitialDataInTube {
             const double T0 = p0 / rho0;
             const double p = 0.95 * p0;
             const double T = T0 + kinetics_.Q * equation_.gamma_minus_one;
-            const double rho = p / T * equation_.ooRspec;
+            const double rho = p / T;// * equation_.ooRspec;
 
             state.temperature = T;
             state.density = rho;
@@ -247,7 +247,7 @@ struct InitialDataInPlenum {
                 const double T0 = p0 / rho0;
                 const double p = 0.95 * p0;
                 const double T = T0 + kinetics_.Q * equation_.gamma_minus_one;
-                const double rho = p / T * equation_.ooRspec;
+                const double rho = p / T;// * equation_.ooRspec;
 
                 state.temperature = T;
                 state.density = rho;
@@ -323,7 +323,7 @@ auto MakeTubeSolver(
   //       const double p_inflow_left = compressor_state.pressure;
   //       const double T_inflow_left = compressor_state.temperature;
   //       const double rho_inflow_left =
-  //           p_inflow_left / T_inflow_left * eq.ooRspec;
+  //           p_inflow_left / T_inflow_left;// * eq.ooRspec;
 
   //       const double p = inner_pressure;
   //       const double ppv = p_inflow_left;
@@ -373,7 +373,7 @@ auto MakeTubeSolver(
   //       const double p_inflow_left = compressor_state.pressure;
   //       const double T_inflow_left = compressor_state.temperature;
   //       const double rho_inflow_left =
-  //           p_inflow_left / T_inflow_left * eq.ooRspec;
+  //           p_inflow_left / T_inflow_left;// * eq.ooRspec;
 
   //       const double p = inner_pressure;
   //       const double ppv = p_inflow_left;
@@ -434,7 +434,7 @@ auto MakeTubeSolver(
           const double p_inflow_left = compressor_state.pressure;
           const double T_inflow_left = compressor_state.temperature;
           const double rho_inflow_left =
-              p_inflow_left / T_inflow_left * eq.ooRspec;
+              p_inflow_left / T_inflow_left;// * eq.ooRspec;
 
           const double p = inner_pressure;
           const double ppv = p_inflow_left;
@@ -466,7 +466,7 @@ auto MakeTubeSolver(
           const double p_inflow_left = compressor_state.pressure;
           const double T_inflow_left = compressor_state.temperature;
           const double rho_inflow_left =
-              p_inflow_left / T_inflow_left * eq.ooRspec;
+              p_inflow_left / T_inflow_left;// * eq.ooRspec;
 
           const double p = inner_pressure;
           const double ppv = p_inflow_left;
