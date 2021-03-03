@@ -282,6 +282,7 @@ void MyMain(const fub::ProgramOptions& options) {
           const fub::perfect_gas_mix::gt::PlenumState& compressor_state,
           double inner_pressure, fub::Duration t_diff, const amrex::MultiFab&,
           const fub::amrex::GriddingAlgorithm&, int) mutable {
+        const double Minv = 1.0 / std::sqrt(eq.Msq);
         if (!compressor_state.SEC_Mode) {
           // Deflagration Mode
           const double X_inflow_left = 1.0;
@@ -299,7 +300,7 @@ void MyMain(const fub::ProgramOptions& options) {
           const double Tin =
               Tpv * pow(pin / ppv, eq.gamma_minus_one_over_gamma);
           const double uin = std::sqrt(2.0 * eq.gamma_over_gamma_minus_one *
-                                       std::max(0.0, Tpv - Tin));
+                                       std::max(0.0, Tpv - Tin)) * Minv;
           double rhoin = rhopv * pow(pin / ppv, eq.gamma_inv);
 
           FUB_ASSERT(rhoin > 0.0);
@@ -331,7 +332,7 @@ void MyMain(const fub::ProgramOptions& options) {
           const double Tin =
               Tpv * pow(pin / ppv, eq.gamma_minus_one_over_gamma);
           const double uin = std::sqrt(2.0 * eq.gamma_over_gamma_minus_one *
-                                       std::max(0.0, Tpv - Tin));
+                                       std::max(0.0, Tpv - Tin)) * Minv;
           double rhoin = rhopv * pow(pin / ppv, eq.gamma_inv);
 
           const double tign = std::max(timin, tti - t_diff.count());
