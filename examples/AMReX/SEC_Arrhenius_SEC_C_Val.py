@@ -16,7 +16,7 @@ gamma = 1.4
 
 RunOptions = {
   'cfl': 0.1125,# / float(tube_n_cells / 64),
-  'final_time': 0.2,
+  'final_time': 300.0,
   'max_cycles': -1,
   'do_backup': 0
 }
@@ -30,7 +30,7 @@ FluxMethod = {
   # HLLEM, HLLEM_Larrouturou
   'base_method': 'HLLEM_Larrouturou',
   # Upwind, MinMod, VanLeer
-  'limiter': 'MinMod',
+  'limiter': 'VanLeer',
   # Conservative, Primitive, Characteristics
   'reconstruction': 'Characteristics'
 }
@@ -65,22 +65,22 @@ t_ref = L_ref / u_ref
 p0 = 2.0
 rho0 = math.pow(p0, 1.0 / gamma)
 T0 = p0 / rho0 
-print(T0)
+# print(T0)
 p = 0.95 * p0
 #T = T0 + ArrheniusKinetics['Q'] * (gamma - 1.0)
 T = 11.290743302923245
 rho = p / T
-print(rho)
-print(ArrheniusKinetics['Q'])
-print(T)
+# print(rho)
+# print(ArrheniusKinetics['Q'])
+# print(T)
 # checkpoint = '/home/zenkechr/FVS_develop/FiniteVolumeSolver/build_2D-Release/oneTube/Checkpoint/002025006'
 checkpoint = ''
 
 def Area(xi):
   A0  = 1.0
-  A1  = 1.0 # Reference: 3.0; best: 4.0 
-  xi0 = 0.0625 - 1.0
-  xi1 = 0.75 - 1.0   # Reference: 0.5; best: 0.75
+  A1  = 4.0 # Reference: 3.0; best: 4.0 
+  xi0 = 0.0625
+  xi1 = 0.75   # Reference: 0.5; best: 0.75
   Ax = 1.0 if xi < xi0 else A0 + (A1-A0)*(xi-xi0)/(xi1-xi0) if xi < xi1 else A1
   return Ax
 
@@ -93,8 +93,8 @@ ControlOptions = {
   'target_pressure_compressor' : 6.0,
   'checkpoint': checkpoint,
   # Tube surface
-  'surface_area_tube_inlet': (Area(-1.0) * D) / D,
-  'surface_area_tube_outlet': (Area(0.0) * D) / D,
+  'surface_area_tube_inlet': (Area(0.0) * D) / D,
+  'surface_area_tube_outlet': (Area(1.0) * D) / D,
   # Turbine volumes and surfaces
   'volume_turbine_plenum': 20.0 * D / D,
   'surface_area_turbine_plenum_to_turbine': 4.0 * D / D,
@@ -133,8 +133,8 @@ Tubes = {
     'n_error_buf': [4, 0, 0]
   },
   'IntegratorContext': {
-    'scratch_gcw': 2,
-    'flux_gcw': 0,
+    'scratch_gcw': 6,
+    'flux_gcw': 2,
   },
   'InflowOptionsSEC' : {
     'SEC_buffer': 0.06, # 0.06

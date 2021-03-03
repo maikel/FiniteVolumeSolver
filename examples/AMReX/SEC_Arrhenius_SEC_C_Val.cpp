@@ -88,8 +88,7 @@ struct ComputeStableDt {
         amax = std::max(amax, u + c * Minv);
       }
     });
-    // fub::Duration dt(dx / amax);
-    fub::Duration dt(5.0e-05 / 0.1125);
+    fub::Duration dt(dx / amax);
     return dt;
   }
 };
@@ -371,7 +370,7 @@ void MyMain(const fub::ProgramOptions& options) {
   }();
 
   auto [flux_method, time_integrator] =
-      fub::amrex::GetFluxMethod(fub::GetOptions(options, "FluxMethod"),
+      fub::amrex::GetFluxMethod(fub::GetOptions(tube_options, "FluxMethod"),
                                 gridding->GetPatchHierarchy(), tube_equation);
   HyperbolicMethod method{flux_method, time_integrator,
                           Reconstruction(tube_equation)};
@@ -406,17 +405,16 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<Tube_Rank>, std::move(context), fub::GodunovSplitting{});
 
-  // fub::SplitSystemSourceLevelIntegrator diffusive_integrator(
-  //     std::move(level_integrator), std::move(diffusion_source_term),
-  //     fub::StrangSplittingLumped());
+  fub::SplitSystemSourceLevelIntegrator diffusive_integrator(
+      std::move(level_integrator), std::move(diffusion_source_term),
+      fub::StrangSplittingLumped());
 
-  // fub::SplitSystemSourceLevelIntegrator reactive_integrator(
-  //     std::move(diffusive_integrator), std::move(arrhenius_source_term),
-  //     fub::StrangSplittingLumped());
+  fub::SplitSystemSourceLevelIntegrator reactive_integrator(
+      std::move(diffusive_integrator), std::move(arrhenius_source_term),
+      fub::StrangSplittingLumped());
 
-  // fub::SubcycleFineFirstSolver solver(std::move(reactive_integrator));
+  fub::SubcycleFineFirstSolver solver(std::move(reactive_integrator));
 
-  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
   // using namespace fub::amrex;
   using namespace std::literals::chrono_literals;
@@ -463,7 +461,6 @@ void MyMain(const fub::ProgramOptions& options) {
 
 int main(int argc, char** argv) {
   MPI_Init(nullptr, nullptr);
-  fub::InitializeLogging(MPI_COMM_WORLD);
   pybind11::scoped_interpreter interpreter{};
   std::optional<fub::ProgramOptions> opts = fub::ParseCommandLine(argc, argv);
   if (opts) {
