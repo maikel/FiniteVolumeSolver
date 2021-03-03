@@ -234,9 +234,9 @@ void DiffusionSourceTerm<EulerEquation>::ComputeDiffusionFluxes(
 
 template <typename EulerEquation>
 Duration DiffusionSourceTerm<EulerEquation>::ComputeStableDt(
-    const amrex::IntegratorContext& simulation_data, int level) const {
-  const ::amrex::Geometry& level_geometry = simulation_data.GetGeometry(level);
-  const double dx = level_geometry.CellSize(0);
+    const amrex::IntegratorContext& /*simulation_data*/, int /*level*/) const {
+  // const ::amrex::Geometry& level_geometry = simulation_data.GetGeometry(level);
+  // const double dx = level_geometry.CellSize(0);
   return Duration(std::numeric_limits<double>::max());//  Duration(0.5 * dx * dx /
                   //(constants_.mul * constants_.reynolds_invers));
 }
