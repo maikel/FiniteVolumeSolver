@@ -133,8 +133,8 @@ Tubes = {
     'n_error_buf': [4, 0, 0]
   },
   'IntegratorContext': {
-    'scratch_gcw': 6,
-    'flux_gcw': 2,
+    'scratch_gcw': 2,
+    'flux_gcw': 0,
   },
   'InflowOptionsSEC' : {
     'SEC_buffer': 0.06, # 0.06
@@ -158,13 +158,13 @@ tube_intervals = 0.005
 
 Output = {
   'outputs': [
-    {
-      'type': 'ControlOutput',
-      'path': '{}/ControlState.h5'.format(outputPath),
-      #'intervals': [0.001],
-      'frequencies': [1]
-    },
-    {
+  {
+    'type': 'ControlOutput',
+    'path': '{}/ControlState.h5'.format(outputPath),
+    #'intervals': [0.001],
+    'frequencies': [1]
+  },
+  {
     'type': 'HDF5',
     'path': '{}/Tube0.h5'.format(outputPath),
     'which_block': 1,

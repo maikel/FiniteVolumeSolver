@@ -148,24 +148,6 @@ struct InitialDataInTube {
   }
 };
 
-using FactoryFunction =
-    std::function<fub::AnyFluxMethod<fub::amrex::IntegratorContext>(
-        const fub::PerfectGasMix<1>&)>;
-
-template <typename... Pairs> auto GetFluxMethodFactory(Pairs... ps) {
-  std::map<std::string, FactoryFunction> factory;
-  ((factory[ps.first] = ps.second), ...);
-  return factory;
-}
-
-template <typename FluxMethod> struct MakeFlux {
-  fub::AnyFluxMethod<fub::amrex::IntegratorContext>
-  operator()(const fub::PerfectGasMix<1>& eq) const {
-    FluxMethod flux_method{eq};
-    fub::amrex::FluxMethodAdapter adapter(std::move(flux_method));
-    return adapter;
-  }
-};
 
 void WriteCheckpoint(
     const std::string& path, const fub::amrex::GriddingAlgorithm& grid,
@@ -432,11 +414,9 @@ void MyMain(const fub::ProgramOptions& options) {
   //     std::move(diffusive_integrator), std::move(arrhenius_source_term),
   //     fub::StrangSplittingLumped());
 
-  fub::SplitSystemSourceLevelIntegrator reactive_integrator(
-      std::move(level_integrator), std::move(arrhenius_source_term),
-      fub::StrangSplittingLumped());
+  // fub::SubcycleFineFirstSolver solver(std::move(reactive_integrator));
 
-  fub::SubcycleFineFirstSolver solver(std::move(reactive_integrator));
+  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
   // using namespace fub::amrex;
   using namespace std::literals::chrono_literals;
