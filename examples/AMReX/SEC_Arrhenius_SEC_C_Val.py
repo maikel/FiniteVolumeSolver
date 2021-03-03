@@ -60,19 +60,17 @@ L_ref = 1.0
 rho_ref = p_ref / T_ref / R_ref
 u_ref = math.sqrt(p_ref / rho_ref)
 t_ref = L_ref / u_ref
-# ud->Msq =  u_ref*u_ref / (R_gas*T_ref);
+Ma_sq =  u_ref*u_ref / (R_ref*T_ref)
 
 p0 = 2.0
 rho0 = math.pow(p0, 1.0 / gamma)
 T0 = p0 / rho0 
-# print(T0)
 p = 0.95 * p0
 #T = T0 + ArrheniusKinetics['Q'] * (gamma - 1.0)
 T = 11.290743302923245
 rho = p / T
-# print(rho)
-# print(ArrheniusKinetics['Q'])
-# print(T)
+
+
 # checkpoint = '/home/zenkechr/FVS_develop/FiniteVolumeSolver/build_2D-Release/oneTube/Checkpoint/002025006'
 checkpoint = ''
 
@@ -84,28 +82,6 @@ def Area(xi):
   Ax = 1.0 if xi < xi0 else A0 + (A1-A0)*(xi-xi0)/(xi1-xi0) if xi < xi1 else A1
   return Ax
 
-ControlOptions = {
-  'Q': ArrheniusKinetics['Q'],
-  'rpmmin': (10000.0 / 60.) * t_ref,
-  'rpmmax': (60000.0 / 60.) * t_ref,
-  'initial_turbine_pressure': p,
-  'initial_turbine_temperature': T,
-  'target_pressure_compressor' : 6.0,
-  'checkpoint': checkpoint,
-  # Tube surface
-  'surface_area_tube_inlet': (Area(0.0) * D) / D,
-  'surface_area_tube_outlet': (Area(1.0) * D) / D,
-  # Turbine volumes and surfaces
-  'volume_turbine_plenum': 20.0 * D / D,
-  'surface_area_turbine_plenum_to_turbine': 4.0 * D / D,
-  # Compressor volumes and surfaces
-  'volume_compressor_plenum': 20.0 * D / D,
-  'surface_area_compressor_to_compressor_plenum': (8.0 * D) / D,
-}
-
-ControlFeedback = {
-  'mdot_correlation': 0.24
-}
 
 Tube_FluxMethod = FluxMethod
 Tube_FluxMethod['area_variation'] = Area
@@ -143,16 +119,31 @@ Tubes = {
   }
 }
 
+tube_x_lower = Tubes['GridGeometry']['coordinates']['lower'][0]
+tube_x_upper = Tubes['GridGeometry']['coordinates']['upper'][0]
 
-# p = 1.1 # * p_ref
-# rho = math.pow(1.1, 1.0 / 1.4) #* rho_ref
-# T = p / rho / Rspec
+ControlOptions = {
+  'Q': ArrheniusKinetics['Q'],
+  'rpmmin': (10000.0 / 60.) * t_ref,
+  'rpmmax': (60000.0 / 60.) * t_ref,
+  'initial_turbine_pressure': p,
+  'initial_turbine_temperature': T,
+  'target_pressure_compressor' : 6.0,
+  'checkpoint': checkpoint,
+  # Tube surface
+  'surface_area_tube_inlet': (Area(tube_x_lower) * D) / D,
+  'surface_area_tube_outlet': (Area(tube_x_upper) * D) / D,
+  # Turbine volumes and surfaces
+  'volume_turbine_plenum': 20.0 * D / D,
+  'surface_area_turbine_plenum_to_turbine': 4.0 * D / D,
+  # Compressor volumes and surfaces
+  'volume_compressor_plenum': 20.0 * D / D,
+  'surface_area_compressor_to_compressor_plenum': (8.0 * D) / D,
+}
 
-# CompressorState = {
-#   'pressure': p,
-#   'density': rho,
-#   'temperature': 1.025 * T, 
-# }
+ControlFeedback = {
+  'mdot_correlation': 0.24
+}
 
 tube_intervals = 0.005
 
@@ -161,15 +152,15 @@ Output = {
   {
     'type': 'ControlOutput',
     'path': '{}/ControlState.h5'.format(outputPath),
-    #'intervals': [0.001],
-    'frequencies': [1]
+    'intervals': [0.001],
+    # 'frequencies': [1]
   },
   {
     'type': 'HDF5',
     'path': '{}/Tube0.h5'.format(outputPath),
     'which_block': 1,
-    # 'intervals': [tube_intervals],
-    'frequencies': [1]
+    'intervals': [tube_intervals],
+    # 'frequencies': [1]
   },
   {
     'type': 'CounterOutput',
