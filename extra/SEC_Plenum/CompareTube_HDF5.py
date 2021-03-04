@@ -15,8 +15,8 @@ import glob
 
 # optional parsing the datapath from the terminal
 if (len(sys.argv)>1):
-   dataPath = str(sys.argv[1])
-   inputFilePath = dataPath
+   dataPath = str(sys.argv[1]) # path to data
+   inputFilePath = dataPath # assumes inputfile is located in datapath
 else:
    dataPath = FVS_path+"/build_2D-Release/average_massflow"
    inputFilePath = FVS_path+"/examples/AMReX/EB/2D/"
@@ -27,12 +27,18 @@ output_path = '{}/Visualization'.format(dataPath)
 # this make only sense if we restarted the simulation form the last checkpoint!!
 RESTARTEDSIMULATION = False
 
-# inputFilePath = FVS_path+"/examples/AMReX/EB/2D/"
-sys.path.append(inputFilePath)
 try:
-  from SEC_Plenum_Arrhenius import T_ref, n_tubes
+   inputfileName = str(sys.argv[2]) # optional name of the inputfile
+except: 
+   inputfileName = 'SEC_Plenum_Arrhenius.py'
+
+da.import_file_as_module(inputFilePath+inputfileName, 'inputfile')
+from inputfile import t_ref, T_ref, ControlOptions
+
+try:
+  from inputfile import T_ref, n_tubes
 except:
-  from SEC_Plenum_Arrhenius import T_ref
+  from inputfile import T_ref
   n_tubes=1
   
 

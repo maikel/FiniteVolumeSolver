@@ -6,9 +6,7 @@ pathname = os.path.abspath(pathname)
 FVS_path = pathname.split('FiniteVolumeSolver')[0]+'FiniteVolumeSolver'
 # print(FVS_path) 
 sys.path.append(FVS_path+'/extra/')
-# import amrex.plotfiles as da
-from amrex.plotfiles import h5_load_timeseries
-
+import amrex.plotfiles as da
 
 import numpy as np
 import matplotlib
@@ -19,11 +17,19 @@ os.environ['HDF5_USE_FILE_LOCKING'] = 'False'
 
 # optional parsing the datapath from the terminal
 if (len(sys.argv)>1):
-   dataPath = str(sys.argv[1])
-   inputFilePath = dataPath
+   dataPath = str(sys.argv[1]) # path to data
+   inputFilePath = dataPath # assumes inputfile is located in datapath
 else:
    dataPath = FVS_path+"/build_2D-Release/average_massflow"
    inputFilePath = FVS_path+"/examples/AMReX/EB/2D/"
+
+try:
+   inputfileName = str(sys.argv[2]) # optional name of the inputfile
+except: 
+   inputfileName = 'SEC_Plenum_Arrhenius.py'
+
+da.import_file_as_module(inputFilePath+inputfileName, 'inputfile')
+from inputfile import t_ref, T_ref, ControlOptions
 
 # bool to read all existing HDF5 files
 # this make only sense if we restarted the simulation form the last checkpoint!!
@@ -35,8 +41,6 @@ USESAVGOLFILTER=False
 window_length=51 # length of the filter window 51
 polyorder=3 # order of the polynomial 
 #--------------------------------
-sys.path.append(inputFilePath)
-from SEC_Plenum_Arrhenius import t_ref, ControlOptions, T_ref
 
 outPath = dataPath
 output_path = '{}/Visualization'.format(outPath)
@@ -78,16 +82,16 @@ if RESTARTEDSIMULATION:
    # Attention the last file is the latest!!
    # for example we have Filename.h5 and Filename.h5.1 the last one contains the first data!
    print("Read in data from {}".format(fileNameList[-1]))
-   datas, times, datas_dict = h5_load_timeseries(fileNameList[-1])
+   datas, times, datas_dict = da.h5_load_timeseries(fileNameList[-1])
 
    for filename in reversed(fileNameList[:-1]):
       print("Read in data from {}".format(filename))
-      data, time, _ = h5_load_timeseries(fileNameList[0])
+      data, time, _ = da.h5_load_timeseries(fileNameList[0])
       datas = np.concatenate((datas, data))
       times = np.concatenate((times, time))
 else:
    print("Read in data from {}".format(filename_basic))
-   datas, times, datas_dict = h5_load_timeseries(filename_basic)
+   datas, times, datas_dict = da.h5_load_timeseries(filename_basic)
 
 
 def getSubKeyList(substring):
@@ -96,7 +100,7 @@ def getSubKeyList(substring):
 f, axs = plt.subplots(nrows=4, ncols=2, figsize=(23/2,20/2) )
 f.suptitle('Control Station')
 
-FVS_skip = 200 # skip time data to make plot clearer
+FVS_skip = 389 # skip time data to make plot clearer
 datas = datas[::FVS_skip, :]
 times = times[::FVS_skip]
 print("FVS delta t is {}".format(np.diff(times)[0]))
