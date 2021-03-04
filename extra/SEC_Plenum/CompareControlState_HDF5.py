@@ -19,8 +19,8 @@ os.environ['HDF5_USE_FILE_LOCKING'] = 'False'
 
 # optional parsing the datapath from the terminal
 if (len(sys.argv)>1):
-   dataPath = str(sys.argv[1])
-   inputFilePath = dataPath
+   dataPath = str(sys.argv[1]) # path to data
+   inputFilePath = dataPath # assumes inputfile is located in datapath
 else:
    dataPath = FVS_path+"/build_2D-Release/average_massflow"
    inputFilePath = FVS_path+"/examples/AMReX/EB/2D/"
@@ -29,8 +29,13 @@ else:
 # this make only sense if we restarted the simulation form the last checkpoint!!
 RESTARTEDSIMULATION = False
 
-sys.path.append(inputFilePath)
-from SEC_Plenum_Arrhenius import t_ref, ControlOptions, T_ref, rho_ref
+try:
+   inputfileName = str(sys.argv[2]) # optional name of the inputfile
+except: 
+   inputfileName = 'SEC_Plenum_Arrhenius.py'
+
+da.import_file_as_module(inputFilePath+inputfileName, 'inputfile')
+from inputfile import t_ref, ControlOptions, T_ref, rho_ref
 
 outPath = dataPath
 output_path = '{}/Visualization'.format(outPath)
@@ -83,30 +88,16 @@ else:
    print("Read in data from {}".format(filename_basic))
    FVS_data, FVS_times, FVS_dict = h5_load_timeseries(filename_basic)
 
-FVS_skip = 389 # skip time data to make plot clearer #380
-FVS_data = FVS_data[::FVS_skip, :]
-FVS_times = FVS_times[::FVS_skip]
-print("FVS delta t is {}".format(np.diff(FVS_times)[0]))
 
 # get reference data from Kleins Code
 GT_filename = "{}/GT_time_series.txt".format(dataPath)
 
 GT_data, GT_times, GT_dict = da.get_controlState_Klein(GT_filename)
 
-GT_skip=14 # skip time data to make plot clearer #14
-GT_data = GT_data[::GT_skip,:]
-GT_times = GT_times[::GT_skip]
-print("GT delta t is {}".format(np.diff(GT_times)[0]))
-
 # get maximum time from both simulations and create index array
 tEnd = min(np.max(FVS_times), np.max(GT_times))
 # print(tEnd)
-GT_t_index = GT_times<tEnd
-FVS_t_index = FVS_times<tEnd
-# print(GT_data.shape)
-# print(FVS_data.shape)
-# print(GT_data[GT_t_index].shape)
-# print(FVS_data[FVS_t_index].shape)
+
 
 ################# Calc Mean Values ############################
 from scipy.integrate import simps
@@ -114,8 +105,7 @@ from scipy.integrate import trapz
 def getMeanValue(y, x, mode='scipy_simps'):
    dist = abs(x[-1]-x[0])
    if mode=='numpy_trapz':
-      mean = np.trapz(y, x)
-      mean *=(1.0/dist)
+      mean = np.trapz(y, x)/dist
       return mean
    elif mode=='numpy_mean':
       mean = np.mean(y)
@@ -141,7 +131,7 @@ def CompareMeanValue(gt_data, gt_time, fvs_data, fvs_time, variable, ndig=4):
    print()
    return means
 
-tInit = 150.0
+tInit = 160.0
 if tInit < tEnd:
    GT_idx_array = (GT_times>tInit) & (GT_times<tEnd )
    FVS_idx_array = (FVS_times>tInit) & (FVS_times<tEnd )
@@ -191,6 +181,19 @@ else:
 def getSubKeyList(substring):
    return [ key for key in FVS_dict.keys() if substring in key ]
 
+FVS_skip = 389 # skip time data to make plot clearer #389
+FVS_data = FVS_data[::FVS_skip, :]
+FVS_times = FVS_times[::FVS_skip]
+print("FVS delta t is {}".format(np.diff(FVS_times)[0]))
+
+GT_skip=14 # skip time data to make plot clearer #14
+GT_data = GT_data[::GT_skip,:]
+GT_times = GT_times[::GT_skip]
+print("GT delta t is {}".format(np.diff(GT_times)[0]))
+
+GT_t_index = GT_times<tEnd
+FVS_t_index = FVS_times<tEnd
+
 
 FVS_data[:, FVS_dict['current_rpm']] = FVS_data[:, FVS_dict['current_rpm']] / ControlOptions['rpmmax']
 GT_data[:, GT_dict['current_rpm']] = GT_data[:, GT_dict['current_rpm']] / ControlOptions['rpmmax']
@@ -208,7 +211,6 @@ f.suptitle('Control Station' )
 axs[0,0].text(1.5, 1.5, table_meanValues, ha="right", va="top", transform=axs[0,0].transAxes)
 
 
-plotKeyList = ['mass_flow', 'power', 'pressure', 'temperature', 'rpm', 'fuel_consumption_rate', 'efficiency']#, 'SEC_Mode']
 plotKeyList = ['mass_flow', 'power', 'pressure', 'temperature', 'rpm', 'fuel_consumption_rate', 'efficiency']
 
 data_units = ['', '', ' [bar]', ' [K]', ' [-]', '', '[-]', '[-]']
