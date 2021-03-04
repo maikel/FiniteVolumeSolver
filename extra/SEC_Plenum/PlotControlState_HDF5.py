@@ -96,29 +96,43 @@ else:
 
 def getSubKeyList(substring):
    return [ key for key in datas_dict.keys() if substring in key ]
+
+def getCarnotEff(comp_temp, normalized=True, T_ref=T_ref):
+   if normalized:
+      carnot_eff = 1.0-1.0/comp_temp
+   else:
+      carnot_eff = 1.0-T_ref/comp_temp
+   return carnot_eff
    
 f, axs = plt.subplots(nrows=4, ncols=2, figsize=(23/2,20/2) )
 f.suptitle('Control Station')
-
-FVS_skip = 389 # skip time data to make plot clearer
-datas = datas[::FVS_skip, :]
-times = times[::FVS_skip]
-print("FVS delta t is {}".format(np.diff(times)[0]))
-
 
 plotKeyList = ['mass_flow', 'power', 'pressure', 'temperature', 'rpm', 'fuel_consumption_rate', 'efficiency', 'SEC_Mode']
 # print(datas_dict)
 datas[:, datas_dict['current_rpm']] = datas[:, datas_dict['current_rpm']] / ControlOptions['rpmmax']
 print( "maximum compressor_pressure = {}".format(np.max(datas[:, datas_dict['compressor_pressure']])) )
 
-# calculate the carnot efficiency following Kleins SEC_Code
-eff_carnot = 1.0 - 1.0/datas[:, datas_dict['compressor_temperature']]
-
 data_units = ['', '', ' [bar]', ' [K]', ' [-]', '', '', '']
+colors=['b', 'g', 'r', 'm', 'k']
+
+PLOTFILLBETWEEN=True
+from scipy.signal import find_peaks
+# list of keys where this is applied:
+plotbetw_list = ['compressor_mass_flow_in', 'compressor_mass_flow_out', 'turbine_mass_flow_in', 'turbine_mass_flow_out', 'compressor_power', 'power_out', 'turbine_power', 'turbine_pressure', 'turbine_temperature', 'efficiency', 'fuel_consumption_rate']
+t_sec_stable = 160. # time after SEC is stable
+t_id_sec_stable = times>t_sec_stable
+
+if PLOTFILLBETWEEN:
+   FVS_skip=1
+else:
+   FVS_skip = 389 # skip time data to make plot clearer # 389
+datas = datas[::FVS_skip, :]
+times = times[::FVS_skip]
+print("FVS delta t is {}".format(np.diff(times)[0]))
 
 for i, ax, subKey in zip(range(len(plotKeyList)), axs.flatten(), plotKeyList):
    subKeyList = getSubKeyList(subKey)
-   for key in subKeyList:
+   for j, key in enumerate(subKeyList):
       if i>5: # don't destroy the labels from the last two plots
          lab = key
       else:
@@ -131,7 +145,7 @@ for i, ax, subKey in zip(range(len(plotKeyList)), axs.flatten(), plotKeyList):
          elif ('turb' in lab):
             lab = lab.replace('turbine', 'turb. plenum')
       
-      if 'temperature' in subKey:
+      if 'temperature' in key:
          datas[:, datas_dict[key]] *=T_ref
       
       if USESAVGOLFILTER:
@@ -139,10 +153,27 @@ for i, ax, subKey in zip(range(len(plotKeyList)), axs.flatten(), plotKeyList):
             ax.plot( times, datas[:, datas_dict[key]], label=lab )
          else:
             cutoff=-1 #-window_length//2
-            ax.plot( times, savgol_filter(datas[:, datas_dict[key]], window_length=window_length, polyorder=polyorder, mode='mirror'), label=lab )
+            ax.plot( times, savgol_filter(datas[:, datas_dict[key]], window_length=window_length, polyorder=polyorder, mode='mirror'), 
+                        color=colors[j], label=lab )
             # ax.plot( times[cutoff:], datas[cutoff:, datas_dict[key]] )
+      elif PLOTFILLBETWEEN:
+         if key in plotbetw_list:
+            # first plot solid lines before SEC was stable
+            ax.plot( times[~t_id_sec_stable], datas[~t_id_sec_stable, datas_dict[key]], color=colors[j], label=lab )
+            # after SEC is stable plot mean value and shaded areas
+            dat = datas[:, datas_dict[key]]
+            peaks, _ = find_peaks(dat) # get local maxima, peaks are the indices from the local maxima in the 1d array
+            low_peaks, _ = find_peaks(-dat) # get local minima (or maxima from mirrored data on the x axis)
+
+            yhi = np.interp(times[t_id_sec_stable], times[peaks], dat[peaks])
+            ylo = np.interp(times[t_id_sec_stable], times[low_peaks], dat[low_peaks])
+
+            ax.plot( times[t_id_sec_stable], np.mean([yhi,ylo], axis=0), color=colors[j]) # plot mean value
+            ax.fill_between(times[t_id_sec_stable], yhi, ylo, alpha=0.5, color=colors[j]) # plot shaded area
+         else:   
+            ax.plot( times, datas[:, datas_dict[key]], color=colors[j], label=lab )
       else:
-            ax.plot( times, datas[:, datas_dict[key]], label=lab )
+         ax.plot( times, datas[:, datas_dict[key]], color=colors[j], label=lab )
 
       if i>3:
          pass
@@ -150,7 +181,7 @@ for i, ax, subKey in zip(range(len(plotKeyList)), axs.flatten(), plotKeyList):
          ax.legend()
       
       if 'efficiency' in subKey:
-         ax.plot(times, eff_carnot, label='Carnot efficiency')
+         ax.plot(times, getCarnotEff(datas[:, datas_dict['compressor_temperature']], normalized=False), color=colors[1], label='Carnot efficiency')
          ax.legend()
          ax.set(ylim=(0,0.5))
       
@@ -164,6 +195,7 @@ for i, ax, subKey in zip(range(len(plotKeyList)), axs.flatten(), plotKeyList):
 
 f.subplots_adjust(hspace=0.3, wspace=0.3)
 f.savefig('{}/control_state.png'.format(output_path), bbox_inches='tight')
+f.savefig('{}/control_state.pdf'.format(output_path), bbox_inches='tight')
 
 f.clear()
 plt.close(f)
