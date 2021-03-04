@@ -107,12 +107,12 @@ def getCarnotEff(comp_temp, normalized=True, T_ref=T_ref):
 f, axs = plt.subplots(nrows=4, ncols=2, figsize=(23/2,20/2) )
 f.suptitle('Control Station')
 
-plotKeyList = ['mass_flow', 'power', 'pressure', 'temperature', 'rpm', 'fuel_consumption_rate', 'efficiency', 'SEC_Mode']
-# print(datas_dict)
+plotKeyList = ['compressor_mass_flow', 'turbine_mass_flow', 'power', 'rpm', 'pressure', 'temperature', 'fuel_consumption_rate', 'efficiency']
+data_units = ['', '', '', ' [-]', ' [bar]', ' [K]', '', '', '']
+
 datas[:, datas_dict['current_rpm']] = datas[:, datas_dict['current_rpm']] / ControlOptions['rpmmax']
 print( "maximum compressor_pressure = {}".format(np.max(datas[:, datas_dict['compressor_pressure']])) )
 
-data_units = ['', '', ' [bar]', ' [K]', ' [-]', '', '', '']
 colors=['b', 'g', 'r', 'm', 'k']
 
 PLOTFILLBETWEEN=True
@@ -133,17 +133,19 @@ print("FVS delta t is {}".format(np.diff(times)[0]))
 for i, ax, subKey in zip(range(len(plotKeyList)), axs.flatten(), plotKeyList):
    subKeyList = getSubKeyList(subKey)
    for j, key in enumerate(subKeyList):
-      if i>5: # don't destroy the labels from the last two plots
-         lab = key
+      if i<2 or i>6: # don't destroy the labels from the last two plots
+         lab = key.replace('_', ' ')
       else:
          lab = key.replace(subKey, '')
          lab = lab.replace('_', ' ')
-      
-      if (i==0):
+
+      if (i<2):
          if ('comp' in lab):
             lab = lab.replace('compressor', 'comp. plenum')
+            lab = lab.replace('mass flow', '')
          elif ('turb' in lab):
             lab = lab.replace('turbine', 'turb. plenum')
+            lab = lab.replace('mass flow', '')
       
       if 'temperature' in key:
          datas[:, datas_dict[key]] *=T_ref
@@ -175,7 +177,7 @@ for i, ax, subKey in zip(range(len(plotKeyList)), axs.flatten(), plotKeyList):
       else:
          ax.plot( times, datas[:, datas_dict[key]], color=colors[j], label=lab )
 
-      if i>3:
+      if i==3 or i>=6:
          pass
       else:
          ax.legend()
@@ -185,7 +187,12 @@ for i, ax, subKey in zip(range(len(plotKeyList)), axs.flatten(), plotKeyList):
          ax.legend()
          ax.set(ylim=(0,0.5))
       
-      ylab = subKey.replace('_', ' ')
+      if 'flow' in subKey:
+         ylab = subKey.replace('_', ' ')
+         ylab = ylab.split(' ', 1)[-1]
+      else:
+         ylab = subKey.replace('_', ' ')
+
       if 'rpm' in ylab:
          ylab='rpm / rpmmax'
       ylab += data_units[i]
@@ -193,9 +200,13 @@ for i, ax, subKey in zip(range(len(plotKeyList)), axs.flatten(), plotKeyList):
       ax.set(xlabel='time', ylabel=ylab, xlim=(times[0], None))
       ax.grid(True)
 
+ax = axs.flatten()
+ax[1].set(ylim=(0, None))
+ax[0].set( ylim=ax[1].get_ylim() ) # set mass flow to same ylim!
+
 f.subplots_adjust(hspace=0.3, wspace=0.3)
 f.savefig('{}/control_state.png'.format(output_path), bbox_inches='tight')
-f.savefig('{}/control_state.pdf'.format(output_path), bbox_inches='tight')
+# f.savefig('{}/control_state.pdf'.format(output_path), bbox_inches='tight')
 
 f.clear()
 plt.close(f)
