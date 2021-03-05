@@ -122,6 +122,10 @@ plotbetw_list = ['compressor_mass_flow_in', 'compressor_mass_flow_out', 'turbine
 t_sec_stable = 160. # time after SEC is stable
 t_id_sec_stable = times>t_sec_stable
 
+if t_sec_stable>times[-1]:
+   PLOTFILLBETWEEN=False
+   print("PLOTFILLBETWEEN was set to False, because t_sec_stable={} < tend={}".format(t_sec_stable, times[-1]))
+
 if PLOTFILLBETWEEN:
    FVS_skip=1
 else:
@@ -201,8 +205,15 @@ for i, ax, subKey in zip(range(len(plotKeyList)), axs.flatten(), plotKeyList):
       ax.grid(True)
 
 ax = axs.flatten()
-ax[1].set(ylim=(0, None))
-ax[0].set( ylim=ax[1].get_ylim() ) # set mass flow to same ylim!
+# ax[1].set(ylim=(0, None))
+
+# set mass flow plots to same ylim!
+comp_ylim = ax[0].get_ylim()
+turb_ylim = ax[1].get_ylim()
+if comp_ylim[1]<turb_ylim[1]:
+   ax[0].set_ylim(turb_ylim)
+else:
+   ax[1].set_ylim(comp_ylim)
 
 f.subplots_adjust(hspace=0.3, wspace=0.3)
 f.savefig('{}/control_state.png'.format(output_path), bbox_inches='tight')
