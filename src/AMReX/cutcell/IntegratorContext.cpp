@@ -756,7 +756,7 @@ void IntegratorContext::UpdateConservatively(int level, Duration dt,
   method_.time_integrator.UpdateConservatively(*this, level, dt, dir);
 }
 
-int IntegratorContext::PreAdvanceLevel(int level_num, Duration,
+int IntegratorContext::PreAdvanceLevel(int level_num, Duration dt,
                                        std::pair<int, int> subcycle) {
   Timer timer1 = GetCounterRegistry()->get_timer(
       "cutcell::IntegratorContext::PreAdvanceLevel");
@@ -766,6 +766,8 @@ int IntegratorContext::PreAdvanceLevel(int level_num, Duration,
     timer_per_level = GetCounterRegistry()->get_timer(fmt::format(
         "cutcell::IntegratorContext::PreAdvanceLevel({})", level_num));
   }
+  GetPatchHierarchy().SetStabledt(dt);
+
   const std::size_t l = static_cast<std::size_t>(level_num);
   const int max_level = GetPatchHierarchy().GetMaxNumberOfLevels();
   int level_which_changed = max_level;
