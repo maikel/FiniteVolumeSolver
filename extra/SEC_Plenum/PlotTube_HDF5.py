@@ -15,8 +15,8 @@ import matplotlib.pyplot as plt
 
 # optional parsing the datapath from the terminal
 if (len(sys.argv)>1):
-   dataPath = str(sys.argv[1])
-   inputFilePath = dataPath
+   dataPath = str(sys.argv[1]) # path to data
+   inputFilePath = dataPath # assumes inputfile is located in datapath
 else:
    dataPath = FVS_path+"/build_2D-Release/average_massflow"
    inputFilePath = FVS_path+"/examples/AMReX/EB/2D/"
@@ -27,12 +27,18 @@ output_path = '{}/Visualization'.format(dataPath)
 # this make only sense if we restarted the simulation form the last checkpoint!!
 RESTARTEDSIMULATION = False
 
-# inputFilePath = FVS_path+"/examples/AMReX/EB/2D/"
-sys.path.append(inputFilePath)
 try:
-  from SEC_Plenum_Arrhenius import T_ref, n_tubes
+  inputfileName = str(sys.argv[2]) # optional name of the inputfile
+except: 
+  inputfileName = 'SEC_Plenum_Arrhenius.py'
+
+da.import_file_as_module(inputFilePath+inputfileName, 'inputfile')
+from inputfile import t_ref, T_ref, ControlOptions
+
+try:
+  from inputfile import T_ref, n_tubes
 except:
-  from SEC_Plenum_Arrhenius import T_ref
+  from inputfile import T_ref
   n_tubes=1
   
 
@@ -100,9 +106,9 @@ for tube_id in range(n_tubes):
 
   # optional slicing in time-dimension
   tplotmin = 0.0
-  # tplotmax = 400.0
-  # t_index_array = (times>=tplotmin) & (times<=tplotmax)
-  t_index_array = (times>=tplotmin)
+  tplotmax = 400.0
+  t_index_array = (times>=tplotmin) & (times<=tplotmax)
+  # t_index_array = (times>=tplotmin)
   
   rho_data = datas[t_index_array, datas_dict['Density'], :]
   rhou_data = datas[t_index_array, datas_dict['Momentum'], :]
@@ -136,7 +142,7 @@ for tube_id in range(n_tubes):
     f, ax = plt.subplots(nrows=1, ncols=5, figsize=(50. / 2, 10 / 2.), sharey=False)# figsize=(15, 10)) #set_size('thesis'))
   else:
     titles = ['Temperature [K]', 'Pressure [bar]', 'Local Machnumber [-]', 'Fuel Massfraction [-]']
-    datas = [T_data * T_ref, p_data, Ma, F_data]
+    datas = [T_data , p_data, Ma, F_data]
     f, ax = plt.subplots(nrows=1, ncols=4, figsize=(40. / 2, 10 / 2.), sharey=False)# figsize=(15, 10)) #set_size('thesis'))
 
   def props(title):

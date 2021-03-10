@@ -60,7 +60,75 @@ static_assert(AMREX_SPACEDIM == 2);
 static constexpr double r_tube = 0.015;
 
 static constexpr int n_species = 2;
-static constexpr int n_passive_scalars = 0;
+static constexpr int n_passive_scalars = 1;
+
+struct TracePassiveScalarBoundary {
+  using Equation = fub::PerfectGasMix<1>;
+  using Complete = Equation::Complete;
+  using Conservative = Equation::Conservative;
+
+  Equation equation_;
+  fub::Duration dt_;
+
+  void FillBoundary(::amrex::MultiFab& mf,
+                    const fub::amrex::GriddingAlgorithm& grid, int level) {
+
+    dt_ = grid.GetPatchHierarchy().GetStabledt();
+
+    using HLLEM_Lar = fub::perfect_gas::HllemMethod<Equation>;
+
+    using CharacteristicsReconstruction = fub::FluxMethod<fub::MusclHancock2<
+        Equation,
+        fub::CharacteristicsGradient<
+            Equation, fub::CentralDifferenceGradient<fub::MinModLimiter>>,
+        fub::CharacteristicsReconstruction<Equation>, HLLEM_Lar>>;
+
+    CharacteristicsReconstruction flux_method(equation_);
+    Conservative flux(equation_);
+    std::array<Complete, 4> stencil{};
+    stencil.fill(Complete(equation_));
+
+    int ngrow = 2;
+    const ::amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
+    const double dx = geom.CellSize(0);
+    const ::amrex::IntVect lo{-2 * ngrow, 0};
+    const ::amrex::IntVect hi{+ngrow, 0};
+    const ::amrex::Box stencil_box{lo, hi};
+    fub::amrex::ForEachFab(mf, [&](const ::amrex::MFIter& mfi) {
+      const ::amrex::Box section = mfi.growntilebox() & stencil_box;
+      if (section == stencil_box) {
+        fub::View<Complete> stencilv =
+            fub::amrex::MakeView<Complete>(mf[mfi], equation_, stencil_box);
+        for (int i = 0; i < int(stencil.size()); ++i) {
+          fub::Load(stencil[i], stencilv, fub::Index<1>{i - ngrow});
+        }
+        flux_method.ComputeNumericFlux(flux, stencil, dt_, dx,
+                                       fub::Direction::X);
+        const double X_right =
+            stencilv.passive_scalars(0, 0) / stencilv.density(0);
+        const double X_left = X_right + dt_.count() / dx;
+        stencilv.passive_scalars(-1, 0) = X_left * stencilv.density(-1);
+        stencilv.passive_scalars(-2, 0) = X_left * stencilv.density(-2);
+        stencilv.passive_scalars(-3, 0) = X_left * stencilv.density(-3);
+        stencilv.passive_scalars(-4, 0) = X_left * stencilv.density(-4);
+      } else if (!section.isEmpty()) {
+        fub::View<Complete> stencilv =
+            fub::amrex::MakeView<Complete>(mf[mfi], equation_, section);
+        fub::ForEachIndex(fub::Box<0>(stencilv), [&](std::ptrdiff_t i) {
+          stencilv.passive_scalars(i, 0) = stencilv.passive_scalars(0, 0);
+        });
+      }
+    });
+  }
+
+  void FillBoundary(::amrex::MultiFab& mf,
+                    const fub::amrex::GriddingAlgorithm& grid, int level,
+                    fub::Direction dir) {
+    if (dir == fub::Direction::X) {
+      FillBoundary(mf, grid, level);
+    }
+  }
+};
 
 struct ComputeStableDt {
   fub::PerfectGasMix<1> eq;
@@ -88,8 +156,7 @@ struct ComputeStableDt {
         amax = std::max(amax, u + c * Minv);
       }
     });
-    // fub::Duration dt(dx / amax);
-    fub::Duration dt(5.0e-05 / 0.1125);
+    fub::Duration dt(dx / amax);
     return dt;
   }
 };
@@ -147,7 +214,6 @@ struct InitialDataInTube {
     });
   }
 };
-
 
 void WriteCheckpoint(
     const std::string& path, const fub::amrex::GriddingAlgorithm& grid,
@@ -272,7 +338,7 @@ void MyMain(const fub::ProgramOptions& options) {
           const double p_inflow_left = compressor_state.pressure;
           const double T_inflow_left = compressor_state.temperature;
           const double rho_inflow_left =
-              p_inflow_left / T_inflow_left;// * eq.ooRspec;
+              p_inflow_left / T_inflow_left; // * eq.ooRspec;
 
           const double p = inner_pressure;
           const double ppv = p_inflow_left;
@@ -282,7 +348,8 @@ void MyMain(const fub::ProgramOptions& options) {
           const double Tin =
               Tpv * pow(pin / ppv, eq.gamma_minus_one_over_gamma);
           const double uin = std::sqrt(2.0 * eq.gamma_over_gamma_minus_one *
-                                       std::max(0.0, Tpv - Tin)) * Minv;
+                                       std::max(0.0, Tpv - Tin)) *
+                             Minv;
           double rhoin = rhopv * pow(pin / ppv, eq.gamma_inv);
 
           FUB_ASSERT(rhoin > 0.0);
@@ -304,7 +371,7 @@ void MyMain(const fub::ProgramOptions& options) {
           const double p_inflow_left = compressor_state.pressure;
           const double T_inflow_left = compressor_state.temperature;
           const double rho_inflow_left =
-              p_inflow_left / T_inflow_left;// * eq.ooRspec;
+              p_inflow_left / T_inflow_left; // * eq.ooRspec;
 
           const double p = inner_pressure;
           const double ppv = p_inflow_left;
@@ -314,7 +381,8 @@ void MyMain(const fub::ProgramOptions& options) {
           const double Tin =
               Tpv * pow(pin / ppv, eq.gamma_minus_one_over_gamma);
           const double uin = std::sqrt(2.0 * eq.gamma_over_gamma_minus_one *
-                                       std::max(0.0, Tpv - Tin)) * Minv;
+                                       std::max(0.0, Tpv - Tin)) *
+                             Minv;
           double rhoin = rhopv * pow(pin / ppv, eq.gamma_inv);
 
           const double tign = std::max(timin, tti - t_diff.count());
@@ -371,7 +439,7 @@ void MyMain(const fub::ProgramOptions& options) {
   }();
 
   auto [flux_method, time_integrator] =
-      fub::amrex::GetFluxMethod(fub::GetOptions(options, "FluxMethod"),
+      fub::amrex::GetFluxMethod(fub::GetOptions(tube_options, "FluxMethod"),
                                 gridding->GetPatchHierarchy(), tube_equation);
   HyperbolicMethod method{flux_method, time_integrator,
                           Reconstruction(tube_equation)};
@@ -386,12 +454,13 @@ void MyMain(const fub::ProgramOptions& options) {
       fub::GetOptions(options, "DiffusionSourceTerm");
   fub::amrex::DiffusionSourceTerm<fub::PerfectGasMix<1>> diffusion_source_term{
       tube_equation, diff_opts};
-  // const fub::Duration good_guess_dt =
-  //     diffusion_source_term.ComputeStableDt(context, 0);
-  // TracePassiveScalarBoundary passive_scalar_boundary{tube_equation,
-  //                                                    good_guess_dt};
-  // context.GetGriddingAlgorithm()->GetBoundaryCondition() =
-  //     BoundarySet{{valve, passive_scalar_boundary}};
+
+  fub::Duration good_guess_dt = context.GetPatchHierarchy().GetStabledt();
+  TracePassiveScalarBoundary passive_scalar_boundary{tube_equation,
+                                                     good_guess_dt};
+  boundaries.conditions.push_back(std::move(passive_scalar_boundary));
+
+  context.GetGriddingAlgorithm()->GetBoundaryCondition() = boundaries;
 
   BOOST_LOG(log) << "==================== End Tube =========================";
 
@@ -399,24 +468,22 @@ void MyMain(const fub::ProgramOptions& options) {
       fub::GetOptions(options, "ControlFeedback");
   BOOST_LOG(log) << "ControlFeedback:";
   feedback_options.Print(log);
-  GT::ControlFeedback<Tube_Rank> feedback(
-      tube_equation, control, feedback_options); // TODO make feedback function
+  GT::ControlFeedback<Tube_Rank> feedback(tube_equation, control,
+                                          feedback_options);
   context.SetPostAdvanceHierarchyFeedback(feedback);
 
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<Tube_Rank>, std::move(context), fub::GodunovSplitting{});
 
-  // fub::SplitSystemSourceLevelIntegrator diffusive_integrator(
-  //     std::move(level_integrator), std::move(diffusion_source_term),
-  //     fub::StrangSplittingLumped());
+  fub::SplitSystemSourceLevelIntegrator diffusive_integrator(
+      std::move(level_integrator), std::move(diffusion_source_term),
+      fub::StrangSplittingLumped());
 
-  // fub::SplitSystemSourceLevelIntegrator reactive_integrator(
-  //     std::move(diffusive_integrator), std::move(arrhenius_source_term),
-  //     fub::StrangSplittingLumped());
+  fub::SplitSystemSourceLevelIntegrator reactive_integrator(
+      std::move(diffusive_integrator), std::move(arrhenius_source_term),
+      fub::StrangSplittingLumped());
 
-  // fub::SubcycleFineFirstSolver solver(std::move(reactive_integrator));
-
-  fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
+  fub::SubcycleFineFirstSolver solver(std::move(reactive_integrator));
 
   // using namespace fub::amrex;
   using namespace std::literals::chrono_literals;
@@ -463,7 +530,6 @@ void MyMain(const fub::ProgramOptions& options) {
 
 int main(int argc, char** argv) {
   MPI_Init(nullptr, nullptr);
-  fub::InitializeLogging(MPI_COMM_WORLD);
   pybind11::scoped_interpreter interpreter{};
   std::optional<fub::ProgramOptions> opts = fub::ParseCommandLine(argc, argv);
   if (opts) {

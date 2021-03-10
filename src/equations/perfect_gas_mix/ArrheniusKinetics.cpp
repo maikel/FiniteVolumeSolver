@@ -61,11 +61,17 @@ void Advance_(Equation& eq, CompleteArray<Equation>& state,
   const Array1d T = kinetic_state.temperature;
   FUB_ASSERT(dt > Duration(0.0));
 
-  const MaskArray activator = (T >= options.T_switch);
-  const Array1d rate = Eigen::exp(options.EA * (1.0 - 1.0 / T));
-  const Array1d Xnew = X.row(0) * Eigen::exp(-options.B * dt.count() * rate);
+  const double eps = std::sqrt(std::numeric_limits<double>::epsilon());
+  const Array1d eps_array{Array1d::Constant(eps)};
 
-  const Array1d dX = activator.select((Xnew - X.row(0)), 0.0);
+  const MaskArray activator = (T >= options.T_switch);
+  const MaskArray Xmask = (X.row(0) >= 1.0e-05);
+  const Array1d rate = Eigen::exp(options.EA * (1.0 - 1.0 / T));
+  const Array1d Xnew = Xmask.select(
+      X.row(0) * Eigen::exp(-options.B * dt.count() * rate), eps_array);
+  // const Array1d Xnew = X.row(0) * Eigen::exp(-options.B * dt.count() * rate);
+
+  const Array1d dX = activator.select((Xnew - X.row(0)), eps_array);
   X.row(0) = X.row(0) + dX;
   X.row(1) = X.row(1) - dX;
   FUB_ASSERT(X.colwise().sum().isApproxToConstant(1.0));
@@ -112,15 +118,15 @@ template <int Rank>
 Result<void, TimeStepTooLarge>
 ArrheniusKinetics<Rank>::AdvanceLevel(amrex::IntegratorContext& simulation_data,
                                       int level, Duration dt,
-                                      const ::amrex::IntVect& ) {
+                                      const ::amrex::IntVect&) {
   Timer advance_timer = simulation_data.GetCounterRegistry()->get_timer(
       "ArrheniusKinetics::AdvanceLevel");
   ::amrex::MultiFab& data = simulation_data.GetScratch(level);
 
   amrex::ForEachFab(execution::openmp, data, [&](const ::amrex::MFIter& mfi) {
     using Complete = ::fub::Complete<PerfectGasMix<Rank>>;
-    View<Complete> states = amrex::MakeView<Complete>(data[mfi], *equation_,
-                                                      mfi.growntilebox());
+    View<Complete> states =
+        amrex::MakeView<Complete>(data[mfi], *equation_, mfi.growntilebox());
     PerfectGasMix<Rank>& eq = *equation_;
     auto& state = *state_;
     auto& kinetic_state = *kinetic_state_;

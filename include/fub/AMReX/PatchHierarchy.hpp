@@ -238,6 +238,10 @@ public:
   /// \brief Returns a shared pointer to the debug storage.
   [[nodiscard]] const std::shared_ptr<DebugStorage>&
   GetDebugStorage() const noexcept;
+  
+  fub::Duration const GetStabledt() const noexcept;
+
+  void SetStabledt(fub::Duration dt);
 
   void SetCounterRegistry(std::shared_ptr<CounterRegistry> registry);
 
@@ -251,6 +255,7 @@ private:
   ::amrex::MFInfo mf_info_{};
   std::shared_ptr<CounterRegistry> registry_;
   std::shared_ptr<DebugStorage> debug_storage_;
+  fub::Duration stable_dt_{};
 };
 
 template <typename Equation>

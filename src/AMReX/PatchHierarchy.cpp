@@ -211,6 +211,14 @@ PatchHierarchy::GetDebugStorage() const noexcept {
   return debug_storage_;
 }
 
+fub::Duration const PatchHierarchy::GetStabledt() const noexcept {
+  return stable_dt_;
+}
+
+void PatchHierarchy::SetStabledt(fub::Duration dt) {
+  stable_dt_ = dt;
+}
+
 void PatchHierarchy::SetCounterRegistry(
     std::shared_ptr<CounterRegistry> registry) {
   registry_ = std::move(registry);

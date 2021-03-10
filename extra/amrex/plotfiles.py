@@ -332,3 +332,34 @@ def printSimpleStatsTubeData(data, variable, times, tube_id=0, ndig=4):
   for row in stats_data:
     print(format_row.format(*row))
   print()
+
+def import_file_as_module(module_path, module_name):
+  """
+    Import a regular file as python module, following the python syntax: \n
+    import module_path as module_name
+
+    Parameters:
+    ------------------------------
+        module_path   - Required  : path to file with filename (str)
+        module_name   - Required  : name of the module (str)
+
+    Usage example
+    ----------------------------
+    \# import the inputfile as module inputfile \n
+    import_file_as_module(inputFilePath+'SEC_Plenum_Arrhenius.py', 'inputfile') \n
+    \# now we can import some objects from this new module \n
+    from inputfile import T_ref, ControlOptions \n
+    print(ControlOptions)
+  """
+  import sys, os
+  if not os.path.isfile(module_path):
+   raise FileNotFoundError('given file: {} does not exist!'.format(module_path))
+
+  import importlib.machinery
+  import importlib.util
+  loader = importlib.machinery.SourceFileLoader(module_name, module_path)
+  spec = importlib.util.spec_from_loader(loader.name, loader)
+  mod = importlib.util.module_from_spec(spec)
+  loader.exec_module(mod)
+  sys.modules[module_name] = mod
+  return mod

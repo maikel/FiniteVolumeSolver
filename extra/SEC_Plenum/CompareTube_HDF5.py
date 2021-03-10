@@ -15,8 +15,8 @@ import glob
 
 # optional parsing the datapath from the terminal
 if (len(sys.argv)>1):
-   dataPath = str(sys.argv[1])
-   inputFilePath = dataPath
+   dataPath = str(sys.argv[1]) # path to data
+   inputFilePath = dataPath # assumes inputfile is located in datapath
 else:
    dataPath = FVS_path+"/build_2D-Release/average_massflow"
    inputFilePath = FVS_path+"/examples/AMReX/EB/2D/"
@@ -27,12 +27,18 @@ output_path = '{}/Visualization'.format(dataPath)
 # this make only sense if we restarted the simulation form the last checkpoint!!
 RESTARTEDSIMULATION = False
 
-# inputFilePath = FVS_path+"/examples/AMReX/EB/2D/"
-sys.path.append(inputFilePath)
 try:
-  from SEC_Plenum_Arrhenius import T_ref, n_tubes
+   inputfileName = str(sys.argv[2]) # optional name of the inputfile
+except: 
+   inputfileName = 'SEC_Plenum_Arrhenius.py'
+
+da.import_file_as_module(inputFilePath+inputfileName, 'inputfile')
+from inputfile import t_ref, T_ref, ControlOptions
+
+try:
+  from inputfile import T_ref, n_tubes
 except:
-  from SEC_Plenum_Arrhenius import T_ref
+  from inputfile import T_ref
   n_tubes=1
   
 
@@ -131,15 +137,16 @@ for tube_id in range(n_tubes):
 
   GT_data = np.array(GT_data)
   GT_times = np.array(GT_times)
-  GT_times = GT_times[:-2]
+  GT_times = GT_times[1:-1]
   GT_data = np.swapaxes(GT_data,0,1)
-  GT_data = GT_data[:-2,:,2:-2]
+  GT_data = GT_data[1:-1,:,2:-2]
   print("[Tube{} GT] data shape from tube is {} = (NTimePoints, NVariables, NCells)".format(tube_id, GT_data.shape))
   # print(GT_data.shape)
   gamma=1.4
 
-  tplotmin = 0.0
-  tplotmax = 2.0
+  tplotmin = 100.0
+  tplotmax = 400.0
+  print("timeslicing ACTIVE tplotmin = {} and tplotmax={}".format(tplotmin, tplotmax))
   GT_t_index = (GT_times>=tplotmin) & (GT_times<=tplotmax)
   # print(GT_times[-5:])
   print("GT t0= {}; tend = {}".format(GT_times[GT_t_index][0], GT_times[GT_t_index][-1]))
@@ -157,8 +164,6 @@ for tube_id in range(n_tubes):
 
 
   # optional slicing in time-dimension
-  # tplotmin = 0.0
-  # tplotmax = 2.0
   FVS_t_index = (FVS_times>=tplotmin) & (FVS_times<=tplotmax)
   print("FVS t0= {}; tend = {}".format(FVS_times[FVS_t_index][0], FVS_times[FVS_t_index][-1]))
   # FVS_t_index = (FVS_times>=tplotmin)
@@ -169,9 +174,6 @@ for tube_id in range(n_tubes):
   FVS_rhoF = FVS_data[FVS_t_index, FVS_dict['Species'], :]
   FVS_pressure = FVS_data[FVS_t_index, FVS_dict['Pressure'], :]
   FVS_c = FVS_data[FVS_t_index, FVS_dict['SpeedOfSound'], :]
-  # if 'PassiveScalars' in FVS_dict:
-  #   FVS_rho_passiveSkalar = FVS_data[FVS_t_index, FVS_dict['PassiveScalars'], :]
-  #   FVS_passiveSkalar = FVS_rho_passiveSkalar / FVS_rho
   FVS_temperature = FVS_pressure / FVS_rho
   FVS_fuel = FVS_rhoF / FVS_rho
   FVS_mach = FVS_rhou / FVS_rho / FVS_c
@@ -204,18 +206,9 @@ for tube_id in range(n_tubes):
   # FVS_mach = multi_interp(GT_times[GT_t_index], FVS_times[FVS_t_index], FVS_mach)
   # FVS_fuel = multi_interp(GT_times[GT_t_index], FVS_times[FVS_t_index], FVS_fuel)
   
-  
-  # if 'PassiveScalars' in FVS_dict:
-  #   titles = ['Temperature [K]', 'Pressure [bar]', 'Local Machnumber [-]', 'Fuel Massfraction [-]', 'Passive Scalars [-]']
-  #   FVS_data = [FVS_temperature * T_ref, FVS_pressure, FVS_mach, FVS_fuel, FVS_passiveSkalar]
-  #   f, ax = plt.subplots(nrows=1, ncols=5, figsize=(50. / 2, 10 / 2.), sharey=False)# figsize=(15, 10)) #set_size('thesis'))
-  # else:
-  titles = ['Temperature [K]', 'Pressure [bar]', 'Local Machnumber [-]', 'Fuel Massfraction [-]']
-  Plot_data = [np.abs(FVS_temperature-GT_temperature), 
-            np.abs(FVS_pressure-GT_pressure), 
-            np.abs(FVS_mach-GT_mach), 
-            np.abs(FVS_fuel-GT_fuel)]
-  f, ax = plt.subplots(nrows=1, ncols=4, figsize=(40. / 2, 10 / 2.), sharey=False)# figsize=(15, 10)) #set_size('thesis'))
+  def flatten_a_python_list(list):
+      # only for list in list [ [bla], [blab] ]
+      return [item for sublist in list for item in sublist]
 
   def props(title):
     props = {
@@ -224,15 +217,6 @@ for tube_id in range(n_tubes):
       'extent': (x0, xEnd, t0, tEnd),
       'aspect': 'auto'
     }
-    # if title == 'Passive Scalars [-]':
-    #   props = {
-    #     'origin': 'lower',
-    #     'extent': (x0, xEnd, t0, tEnd),
-    #     'levels': np.linspace(np.min(FVS_passiveSkalar), np.max(FVS_passiveSkalar), 20),
-    #     'vmax': None,
-    #     'vmin': None,
-    #     'cmap': 'twilight'
-    #   }
     if title == 'Fuel Massfraction [-]':
       props['vmax'] = None
       props['vmin'] = None
@@ -245,26 +229,49 @@ for tube_id in range(n_tubes):
       'interpolation': 'none',
       'aspect': 'auto',
       'extent': (x0, xEnd, t0, tEnd),
-      # 'vmin': 0.0,
-      # 'vmax': 10.0,
+      'vmin': 0.0,
+      'vmax': 10.0,
       'cmap': 'jet'
       }
     return props
+
+  titles = ['Temperature [K]', 'Pressure [bar]', 'Local Machnumber [-]', 'Fuel Massfraction [-]']
+  # Plot_data = [np.abs(FVS_temperature-GT_temperature), 
+  #           np.abs(FVS_pressure-GT_pressure), 
+  #           np.abs(FVS_mach-GT_mach), 
+  #           np.abs(FVS_fuel-GT_fuel)]
+
+  new_titles = []
+  # new_titles.append(['FVS-GT: '+tit for tit in titles])
+  new_titles.append(['FVS: '+tit for tit in titles])
+  new_titles.append(['SEC\_C: '+tit for tit in titles])
+  nrows=len(new_titles)
+  
+  titles = flatten_a_python_list(new_titles)
+  
+  new_data = []
+  # new_data.append(Plot_data)
+  new_data.append([FVS_temperature*T_ref, FVS_pressure, FVS_mach, FVS_fuel])
+  new_data.append([GT_temperature*T_ref, GT_pressure, GT_mach, GT_fuel])
+  Plot_data = flatten_a_python_list(new_data)
+  # print(len(Plot_data))
+  # print(Plot_data[5])
+
+  
+  f, ax = plt.subplots(nrows=nrows, ncols=4, figsize=(40. / 2, nrows*10*1.5 / 2.), sharey=False)# figsize=(15, 10)) #set_size('thesis'))
+
   import itertools
-  ims = [a.imshow(data, **props(title)) for (__, (a, data, title)) in itertools.takewhile(lambda FVS_passiveSkalar: FVS_passiveSkalar[0] < 4,  enumerate(zip(ax, Plot_data, titles)))]
-  # ims = [a.plot(data[-1,:]) for (__, (a, data, title)) in itertools.takewhile(lambda FVS_passiveSkalar: FVS_passiveSkalar[0] < 4,  enumerate(zip(ax, Plot_data, titles)))]
-  ax[0].set(ylabel='time')
-  # if 'PassiveScalars' in FVS_dict:
-  #   ims.append(ax[4].contourf(Plot_data[4], **props(titles[4])))
-  for a, title in zip(ax, titles):
-    a.set(xlabel='x', title=title)
+  ims = [a.imshow(data, **props(title.split(' ',1)[-1])) for (__, (a, data, title)) in enumerate(zip(ax.flatten(), Plot_data, titles))]
+  
+  for a, title in zip(ax.flatten(), titles):
+    a.set(xlabel='x', ylabel='time', title=title)
 
   from matplotlib.ticker import FormatStrFormatter
-  for a, im in zip(ax, ims):
+  for a, im in zip(ax.flatten(), ims):
     a.xaxis.set_major_formatter(FormatStrFormatter('%.2f'))
     plt.colorbar(im, ax=a)
-  f.suptitle("Tube id = {}".format(tube_id))
-  f.savefig(output_path+'/Tube_FVS_GT_{}.png'.format(tube_id), bbox_inches='tight')
+  # f.suptitle("Tube id = {}".format(tube_id))
+  f.savefig(output_path+'/Tube_Compare_t0_{}_tend_{}.pdf'.format(int(t0), int(tEnd)), bbox_inches='tight')
   f.clear()
   plt.close(f)
 

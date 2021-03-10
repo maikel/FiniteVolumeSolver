@@ -1,11 +1,11 @@
 import math
 
-tube_n_cells = 256
+tube_n_cells = 200 #256
 # plenum_x_n_cells = 128
 tube_blocking_factor = 8
-plenum_blocking_factor = 8
+plenum_blocking_factor = 32 #8
 
-outputPath = 'oneTube'
+outputPath = 'oneTube_vol40_y0.48'
 
 mode = 3 #%MODE%
 boundary_condition = 'TurbineMassflowBoundaries' # '%BOUNDARY_CONDITION%'
@@ -29,7 +29,7 @@ plenum_y_lower = - 0.48
 plenum_y_upper = + 0.48
 plenum_y_length = plenum_y_upper - plenum_y_lower
 
-TVolRPlen = 20.0 * D
+TVolRPlen = 2.* 20.0 * D #20.0 * D
 plenum_x_upper = TVolRPlen / plenum_y_length / magic_z_length
 plenum_x_lower = -inlet_length
 plenum_x_length = plenum_x_upper - plenum_x_lower
@@ -37,7 +37,7 @@ plenum_x_length = plenum_x_upper - plenum_x_lower
 plenum_length = plenum_x_upper - 0.0 # [m]
 tube_length = 1.0 # [m]
 
-plenum_max_grid_size = max(plenum_blocking_factor, 2048)
+plenum_max_grid_size = max(plenum_blocking_factor, 1024)
 
 plenum_domain_length = plenum_length + inlet_length
 tube_domain_length = tube_length - inlet_length
@@ -81,14 +81,14 @@ plenum_dz = plenum_z_length / plenum_z_n_cells
 
 
 RunOptions = {
-  'cfl': 0.1,# / float(tube_n_cells / 64),
+  'cfl': 0.1125,# / float(tube_n_cells / 64),
   'final_time': 300.0,
   'max_cycles': -1,
   'do_backup': 0
 }
 
 LogOptions = {
-  # 'file_template': 'Test-{rank}.txt',
+  'file_template': '{}/000.log'.format(outputPath),
   'channel_blacklist': ['TurbineMassflowBoundary']
 }
 
@@ -96,7 +96,7 @@ FluxMethod = {
   # HLLEM, HLLEM_Larrouturou
   'base_method': 'HLLEM_Larrouturou',
   # Upwind, MinMod, VanLeer
-  'limiter': 'MinMod',
+  'limiter': 'VanLeer',
   # Conservative, Primitive, Characteristics
   'reconstruction': 'Characteristics'
 }
@@ -135,7 +135,8 @@ p0 = 2.0
 rho0 = math.pow(p0, 1.0 / gamma)
 T0 = p0 / rho0
 p = 0.95 * p0
-T = T0 + ArrheniusKinetics['Q'] * (gamma - 1.0)
+# T = T0 + ArrheniusKinetics['Q'] * (gamma - 1.0)
+T = 11.290743302923245
 rho = p / T
 
 # checkpoint = '/srv/public/Maikel/FiniteVolumeSolver/build_2D-Debug/Checkpoint/000000005'
@@ -218,7 +219,7 @@ Plenum = {
       'lower': [plenum_x_lower, plenum_y_lower, plenum_z_lower],
       'upper': [plenum_x_upper, plenum_y_upper, plenum_z_upper],
     },
-    # 'periodicity': [0, 1, 0]
+    'periodicity': [0, 1, 0]
   },
   'PatchHierarchy': {
     'max_number_of_levels': n_level, 
@@ -312,7 +313,7 @@ Tube_FluxMethod['area_variation'] = Area
 
 Tubes = [{
   'checkpoint': checkpoint if checkpoint == '' else '{}/Tube_{}'.format(checkpoint, i),
-  'initially_filled_x': 0.1,
+  'initially_filled_x': 0.0,
   'FluxMethod': Tube_FluxMethod,
   'plenum_mirror_box': PlenumMirrorBox(y_0),
   'GridGeometry': {
@@ -382,7 +383,7 @@ Output = {
   {
     'type': 'Checkpoint',
     'intervals': [1.0],
-    'directory': 'Checkpoint/'
+    'directory': '{}/Checkpoint/'.format(outputPath)
   }
   ]
 }
