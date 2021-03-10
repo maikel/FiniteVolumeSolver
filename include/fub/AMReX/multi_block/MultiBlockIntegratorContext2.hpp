@@ -239,7 +239,7 @@ MultiBlockIntegratorContext2::MultiBlockIntegratorContext2(
   compute_eb_reference_state_ =
       [=, peq = plenum_equation, teq = tube_equation](
           ::amrex::FArrayBox& refs, ::amrex::FArrayBox& refs_mirror,
-          ::amrex::FArrayBox& scratch, const ::amrex::FArrayBox& mirror,
+          ::amrex::FArrayBox&, const ::amrex::FArrayBox& mirror,
           const ::amrex::FArrayBox& ghost, const ::amrex::IntVect& i,
           const Eigen::Matrix<double, AMREX_SPACEDIM, 1>& normal) mutable {
         auto mirrorv = MakeView<const Conservative<TubeEquation>>(mirror, teq);

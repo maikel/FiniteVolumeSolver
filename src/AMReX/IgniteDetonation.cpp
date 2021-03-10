@@ -164,7 +164,18 @@ IgniteDetonation::AdvanceLevel(IntegratorContext& grid, int level,
             MakeView<Complete<IdealGasMix<1>>>(fab, equation_, mfi.tilebox());
         ForEachIndex(Box<0>(view), [&](std::ptrdiff_t i) {
           const double x = geom.CellCenter(static_cast<int>(i), 0);
-          if (x_ignite - width <= x && x < x_ignite) {
+          if (x < x_ignite - width) {
+            Load(state, view, {i});
+            equation_.SetReactorStateFromComplete(state);
+            equation_.GetReactor().SetTemperature(2000.0);
+            equation_.GetReactor().Advance(1.0);
+            span<const double> moles = equation_.GetReactor().GetMoleFractions();
+            std::vector<double> burnt_moles(moles.begin(), moles.end());
+            equation_.SetReactorStateFromComplete(state);
+            equation_.GetReactor().SetMoleFractions(burnt_moles);
+            equation_.CompleteFromReactor(state);
+            Store(view, state, {i});
+          } else if (x_ignite - width <= x && x < x_ignite) {
             const double d = (x_ignite - x) / width;
             const double T = d * T_lo + (1.0 - d) * T_hi;
             Load(state, view, {i});
