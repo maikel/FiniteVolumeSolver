@@ -246,11 +246,22 @@ void WritePlotFile(const std::string& plotfilename, const PatchHierarchy& hier,
   FUB_ASSERT(nlevels >= 0);
   std::size_t size = static_cast<std::size_t>(nlevels);
   ::amrex::Vector<const ::amrex::MultiFab*> mf(size);
+  ::amrex::Vector<::amrex::MultiFab> mf_holder(size);
   ::amrex::Vector<::amrex::Geometry> geoms(size);
   ::amrex::Vector<int> level_steps(size);
   ::amrex::Vector<::amrex::IntVect> ref_ratio(size - 1);
   for (std::size_t i = 0; i < size; ++i) {
-    mf[i] = &hier.GetPatchLevel(static_cast<int>(i)).data;
+    const ::amrex::MultiFab& data =
+        hier.GetPatchLevel(static_cast<int>(i)).data;
+    auto&& normals_cutmf = hier.GetEmbeddedBoundary(i)->getBndryNormal();
+    ::amrex::MultiFab normals = normals_cutmf.ToMultiFab(0.0, 0.0);
+    ::amrex::MultiFab& new_mf = mf_holder.emplace_back(
+        data.boxArray(), data.DistributionMap(), data.nComp() + normals.nComp(),
+        0, ::amrex::MFInfo(), data.Factory());
+    ::amrex::MultiFab::Copy(new_mf, data, 0, 0, data.nComp(), 0);
+    ::amrex::MultiFab::Copy(new_mf, normals, 0, data.nComp(), normals.nComp(),
+                            0);
+    mf[i] = &new_mf;
     geoms[i] = hier.GetGeometry(static_cast<int>(i));
     level_steps[i] = static_cast<int>(hier.GetCycles(static_cast<int>(i)));
   }
@@ -274,6 +285,10 @@ void WritePlotFile(const std::string& plotfilename, const PatchHierarchy& hier,
       }
     }
   });
+  const char* dim_names[] = {"X", "Y", "Z"};
+  for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+    varnames.push_back(fmt::format("Boundary_{}", dim_names[d]));
+  }
   ::amrex::EB_WriteMultiLevelPlotfile(plotfilename, nlevels, mf, varnames,
                                       geoms, time_point, level_steps,
                                       ref_ratio);
@@ -287,12 +302,23 @@ void WritePlotFile(const std::string& plotfilename, const PatchHierarchy& hier,
   const double time_point = hier.GetTimePoint().count();
   FUB_ASSERT(nlevels >= 0);
   std::size_t size = static_cast<std::size_t>(nlevels);
+  ::amrex::Vector<::amrex::MultiFab> mf_holder(size);
   ::amrex::Vector<const ::amrex::MultiFab*> mf(size);
   ::amrex::Vector<::amrex::Geometry> geoms(size);
   ::amrex::Vector<int> level_steps(size);
   ::amrex::Vector<::amrex::IntVect> ref_ratio(size - 1);
   for (std::size_t i = 0; i < size; ++i) {
-    mf[i] = &hier.GetPatchLevel(static_cast<int>(i)).data;
+    const ::amrex::MultiFab& data =
+        hier.GetPatchLevel(static_cast<int>(i)).data;
+    auto&& normals_cutmf = hier.GetEmbeddedBoundary(i)->getBndryNormal();
+    ::amrex::MultiFab normals = normals_cutmf.ToMultiFab(0.0, 0.0);
+    ::amrex::MultiFab& new_mf = mf_holder.emplace_back(
+        data.boxArray(), data.DistributionMap(), data.nComp() + normals.nComp(),
+        0, ::amrex::MFInfo(), data.Factory());
+    ::amrex::MultiFab::Copy(new_mf, data, 0, 0, data.nComp(), 0);
+    ::amrex::MultiFab::Copy(new_mf, normals, 0, data.nComp(), normals.nComp(),
+                            0);
+    mf[i] = &new_mf;
     geoms[i] = hier.GetGeometry(static_cast<int>(i));
     level_steps[i] = static_cast<int>(hier.GetCycles(static_cast<int>(i)));
   }
@@ -321,6 +347,10 @@ void WritePlotFile(const std::string& plotfilename, const PatchHierarchy& hier,
       }
     }
   });
+  const char* dim_names[] = {"X", "Y", "Z"};
+  for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+    varnames.push_back(fmt::format("Boundary_{}", dim_names[d]));
+  }
   ::amrex::EB_WriteMultiLevelPlotfile(plotfilename, nlevels, mf, varnames,
                                       geoms, time_point, level_steps,
                                       ref_ratio);
