@@ -115,6 +115,8 @@ struct TracePassiveScalarBoundary {
   void FillBoundary(::amrex::MultiFab& mf,
                     const fub::amrex::GriddingAlgorithm& grid, int level) {
 
+    dt_ = grid.GetPatchHierarchy().GetStabledt();
+
     using HLLEM_Lar = fub::perfect_gas::HllemMethod<Equation>;
 
     using CharacteristicsReconstruction = fub::FluxMethod<fub::MusclHancock2<
@@ -178,41 +180,49 @@ struct InitialDataInTube {
 
   Equation equation_;
   fub::perfect_gas_mix::ArrheniusKineticsOptions kinetics_;
+  fub::perfect_gas_mix::gt::ControlOptions control_;
   double x_0_;
   double initially_filled_x_{0.4};
+
+  double CompressorPressureRatio(double rpm) const noexcept {
+    double pratio = control_.pratiomean +
+                    control_.c_0 * control_.pratiovar *
+                        std::atan(M_PI * (rpm / control_.rpmmean - 1.0)) / M_PI;
+    return pratio;
+  }
 
   void InitializeData(fub::amrex::PatchLevel& patch_level,
                       const fub::amrex::GriddingAlgorithm& grid, int level,
                       fub::Duration /*time*/) const {
     const amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
     amrex::MultiFab& data = patch_level.data;
-    fub::amrex::ForEachFab(
-        fub::execution::openmp, data, [&](amrex::MFIter& mfi) {
-          KineticState state(equation_);
-          Complete complete(equation_);
-          fub::Array<double, 1, 1> velocity{0.0};
-          fub::View<Complete> states = fub::amrex::MakeView<Complete>(
-              data[mfi], equation_, mfi.tilebox());
-          fub::ForEachIndex(fub::Box<0>(states), [&](std::ptrdiff_t i) {
-            const double x = geom.CellCenter(int(i), 0);
-            const double rel_x = x - x_0_;
-            const double p0 = 2.0;
-            const double rho0 = std::pow(p0, equation_.gamma_inv);
-            const double T0 = p0 / rho0;
-            const double p = 0.95 * p0;
-            const double T = T0 + kinetics_.Q * equation_.gamma_minus_one;
-            const double rho = p / T;// * equation_.ooRspec;
+    fub::amrex::ForEachFab(fub::execution::seq, data, [&](amrex::MFIter& mfi) {
+      Conservative state(equation_);
+      Complete complete(equation_);
+      fub::View<Complete> states =
+          fub::amrex::MakeView<Complete>(data[mfi], equation_, mfi.tilebox());
+      fub::ForEachIndex(fub::Box<0>(states), [&](std::ptrdiff_t i) {
+        const double x = geom.CellCenter(int(i), 0);
+        const double rel_x = x - x_0_;
 
-            state.temperature = T;
-            state.density = rho;
-            state.mole_fractions[0] = (rel_x < initially_filled_x_) ? 1.0 : 0.0;
-            state.mole_fractions[1] = (rel_x < initially_filled_x_) ? 0.0 : 1.0;
-            state.passive_scalars[0] = -x;
-            fub::euler::CompleteFromKineticState(equation_, complete, state,
-                                                 velocity);
-            fub::Store(states, complete, {i});
-          });
-        });
+        const double pV = CompressorPressureRatio(control_.rpmmin);
+        const double TV =
+            1.0 + (std::pow(pV, equation_.gamma_minus_one_over_gamma) - 1.0) /
+                      control_.efficiency_compressor;
+        const double p0 = 2.0;
+        const double p = 0.95 * p0;
+        const double T = TV + kinetics_.Q * equation_.gamma_minus_one;
+        const double rho = p / T; // * equation_.ooRspec;
+
+        state.density = rho;
+        state.species[0] =
+            (rel_x < initially_filled_x_) ? 1.0 * rho : 0.0 * rho;
+        state.passive_scalars[0] = -x * rho;
+        state.energy = p * equation_.gamma_minus_one_inv;
+        equation_.CompleteFromCons(complete, state);
+        fub::Store(states, complete, {i});
+      });
+    });
   }
 };
 
@@ -253,7 +263,7 @@ struct InitialDataInPlenum {
                   const double T0 = p0 / rho0;
                   const double p = 0.95 * p0;
                   const double T = T0 + kinetics_.Q * equation_.gamma_minus_one;
-                  const double rho = p / T ;//* equation_.ooRspec;
+                  const double rho = p / T; //* equation_.ooRspec;
 
                   state.temperature = T;
                   state.density = rho;
@@ -275,7 +285,8 @@ auto MakeTubeSolver(
     const fub::ProgramOptions& options,
     const fub::PerfectGasConstants& constants,
     const std::shared_ptr<fub::CounterRegistry>& counters,
-    const std::shared_ptr<const GT::ControlState>& control_state) {
+    const std::shared_ptr<const GT::ControlState>& control_state,
+    GT::ControlOptions& control_options) {
   using namespace fub::amrex;
   auto make_tube_solver = counters->get_timer("MakeTubeSolver");
 
@@ -314,7 +325,7 @@ auto MakeTubeSolver(
       fub::GetOptionOr(options, "initially_filled_x", 0.4);
   BOOST_LOG(log) << "InitialData:";
   BOOST_LOG(log) << "  - initially_filled_x = " << initially_filled_x << " [m]";
-  InitialDataInTube initial_data{equation, source_term.options,
+  InitialDataInTube initial_data{equation, source_term.options, control_options,
                                  grid_geometry.coordinates.lo()[0],
                                  initially_filled_x};
 
@@ -443,7 +454,7 @@ auto MakeTubeSolver(
           const double p_inflow_left = compressor_state.pressure;
           const double T_inflow_left = compressor_state.temperature;
           const double rho_inflow_left =
-              p_inflow_left / T_inflow_left;// * eq.ooRspec;
+              p_inflow_left / T_inflow_left; // * eq.ooRspec;
 
           const double p = inner_pressure;
           const double ppv = p_inflow_left;
@@ -475,7 +486,7 @@ auto MakeTubeSolver(
           const double p_inflow_left = compressor_state.pressure;
           const double T_inflow_left = compressor_state.temperature;
           const double rho_inflow_left =
-              p_inflow_left / T_inflow_left;// * eq.ooRspec;
+              p_inflow_left / T_inflow_left; // * eq.ooRspec;
 
           const double p = inner_pressure;
           const double ppv = p_inflow_left;
@@ -510,7 +521,8 @@ auto MakeTubeSolver(
   fub::amrex::SwitchDeflagrationToSECValve valve(equation, control_state,
                                                  switch_to_SEC_inflow_function);
 
-  // fub::amrex::ReflectiveBoundary wall{fub::execution::seq, equation, fub::Direction::X, 0};
+  // fub::amrex::ReflectiveBoundary wall{fub::execution::seq, equation,
+  // fub::Direction::X, 0};
 
   // If a checkpoint path is specified we will fill the patch hierarchy with
   // data from the checkpoint file, otherwise we will initialize the data by
@@ -550,12 +562,7 @@ auto MakeTubeSolver(
   BOOST_LOG(log) << "IntegratorContext:";
   context.GetOptions().Print(log);
 
-  fub::amrex::DiffusionSourceTermOptions diff_opts =
-      fub::GetOptions(options, "DiffusionSourceTerm");
-  fub::amrex::DiffusionSourceTerm<fub::PerfectGasMix<1>> diffusion_source_term{
-      equation, diff_opts};
-  const fub::Duration good_guess_dt =
-      diffusion_source_term.ComputeStableDt(context, 0);
+  fub::Duration good_guess_dt = context.GetPatchHierarchy().GetStabledt();
   TracePassiveScalarBoundary passive_scalar_boundary{equation, good_guess_dt};
   context.GetGriddingAlgorithm()->GetBoundaryCondition() =
       BoundarySet{{valve, passive_scalar_boundary}};
@@ -858,8 +865,9 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   tube_dicts = fub::GetOptionOr(vm, "Tubes", tube_dicts);
   for (auto&& [k, dict] : ranges::view::enumerate(tube_dicts)) {
     fub::ProgramOptions tube_options = fub::ToMap(dict);
-    auto&& [tube, source] = MakeTubeSolver(tube_options, constants,
-                                           counter_database, control_state);
+    auto&& [tube, source] =
+        MakeTubeSolver(tube_options, constants, counter_database, control_state,
+                       control_options);
     fub::amrex::BlockConnection connection;
     connection.direction = fub::Direction::X;
     connection.side = 0;
@@ -871,9 +879,10 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
                                      ->GetPatchHierarchy()
                                      .GetGeometry(0)
                                      .Domain();
-                
+
     std::vector<pybind11::dict> dicts{};
-    dicts = fub::GetOptionOr(fub::GetOptions(vm, "Plenum"), "InletGeometries", dicts);
+    dicts = fub::GetOptionOr(fub::GetOptions(vm, "Plenum"), "InletGeometries",
+                             dicts);
     const double angle = fub::GetOptionOr(fub::ToMap(dicts[k]), "angle", 0.0);
     Eigen::Matrix<double, 2, 2> R;
 

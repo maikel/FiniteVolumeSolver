@@ -116,7 +116,7 @@ struct TracePassiveScalarBoundary {
                     const fub::amrex::GriddingAlgorithm& grid, int level) {
 
     dt_ = grid.GetPatchHierarchy().GetStabledt();
-    
+
     using HLLEM_Lar = fub::perfect_gas::HllemMethod<Equation>;
 
     using CharacteristicsReconstruction = fub::FluxMethod<fub::MusclHancock2<
@@ -197,36 +197,29 @@ struct InitialDataInTube {
     const amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
     amrex::MultiFab& data = patch_level.data;
     fub::amrex::ForEachFab(fub::execution::seq, data, [&](amrex::MFIter& mfi) {
-      // KineticState state(equation_);
-      fub::Conservative<fub::PerfectGasMix<1>> state(equation_);
+      Conservative state(equation_);
       Complete complete(equation_);
-      // fub::Array<double, 1, 1> velocity{0.0};
       fub::View<Complete> states =
           fub::amrex::MakeView<Complete>(data[mfi], equation_, mfi.tilebox());
       fub::ForEachIndex(fub::Box<0>(states), [&](std::ptrdiff_t i) {
         const double x = geom.CellCenter(int(i), 0);
         const double rel_x = x - x_0_;
-        // const double pressure = 1.0;
 
         const double pV = CompressorPressureRatio(control_.rpmmin);
         const double TV =
             1.0 + (std::pow(pV, equation_.gamma_minus_one_over_gamma) - 1.0) /
                       control_.efficiency_compressor;
         const double p0 = 2.0;
-        // const double rho0 = std::pow(p0, equation_.gamma_inv);
         const double p = 0.95 * p0;
         const double T = TV + kinetics_.Q * equation_.gamma_minus_one;
         const double rho = p / T; // * equation_.ooRspec;
 
-        // state.temperature = T;
         state.density = rho;
-        state.species[0] = (rel_x < initially_filled_x_) ? 1.0 : 0.0;
-        // state.mole_fractions[1] = (rel_x < initially_filled_x_) ? 0.0 : 1.0;
-        state.passive_scalars[0] = -x;
+        state.species[0] =
+            (rel_x < initially_filled_x_) ? 1.0 * rho : 0.0 * rho;
+        state.passive_scalars[0] = -x * rho;
         state.energy = p * equation_.gamma_minus_one_inv;
         equation_.CompleteFromCons(complete, state);
-        // fub::euler::CompleteFromKineticState(equation_, complete, state,
-        //                                      velocity);
         fub::Store(states, complete, {i});
       });
     });
@@ -561,7 +554,7 @@ auto MakeTubeSolver(
   fub::Duration good_guess_dt = context.GetPatchHierarchy().GetStabledt();
   TracePassiveScalarBoundary passive_scalar_boundary{equation, good_guess_dt};
   boundaries.conditions.push_back(std::move(passive_scalar_boundary));
-  
+
   context.GetGriddingAlgorithm()->GetBoundaryCondition() = boundaries;
 
   BOOST_LOG(log) << "==================== End Tube =========================";

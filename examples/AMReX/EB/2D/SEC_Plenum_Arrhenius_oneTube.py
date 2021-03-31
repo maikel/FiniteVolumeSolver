@@ -5,7 +5,7 @@ tube_n_cells = 200 #256
 tube_blocking_factor = 8
 plenum_blocking_factor = 32 #8
 
-outputPath = 'oneTube_vol40_y0.48'
+outputPath = 'test_oneTube_vol40_y0.48'
 
 mode = 3 #%MODE%
 boundary_condition = 'TurbineMassflowBoundaries' # '%BOUNDARY_CONDITION%'
@@ -23,7 +23,7 @@ D = 2.0 * r_tube
 
 # calculate plenum geometry
 magic_z_length = 1.0 # should be replaced when switch to 3d!!!
-inlet_length = 3.0 * D # [m]
+inlet_length = 10.0 * D # 3.0 * D # [m]
 
 plenum_y_lower = - 0.48
 plenum_y_upper = + 0.48
@@ -82,7 +82,7 @@ plenum_dz = plenum_z_length / plenum_z_n_cells
 
 RunOptions = {
   'cfl': 0.1125,# / float(tube_n_cells / 64),
-  'final_time': 300.0,
+  'final_time': 0.2, # 300.0,
   'max_cycles': -1,
   'do_backup': 0
 }
@@ -305,7 +305,7 @@ Plenum[boundary_condition] = {
 
 # get Mirrorbox for each Tube where they are connected with the plenum
 def PlenumMirrorBox(y0):
-  return BoxWhichContains(DomainAroundPoint(GetCenterPoint(-inlet_length, y0), [0.0, -2.0 * D], [inlet_length, +2.0 * D]))
+  return BoxWhichContains(DomainAroundPoint(GetCenterPoint(plenum_x_lower, y0), [0.0, -2.0 * D], [inlet_length, +2.0 * D]))
 
 # print(PlenumMirrorBox(tube_y0s[0]))
 Tube_FluxMethod = FluxMethod
@@ -313,7 +313,7 @@ Tube_FluxMethod['area_variation'] = Area
 
 Tubes = [{
   'checkpoint': checkpoint if checkpoint == '' else '{}/Tube_{}'.format(checkpoint, i),
-  'initially_filled_x': 0.0,
+  'initially_filled_x': 0.4,
   'FluxMethod': Tube_FluxMethod,
   'plenum_mirror_box': PlenumMirrorBox(y_0),
   'GridGeometry': {
@@ -370,11 +370,11 @@ Output = {
     'intervals': [plenum_intervals],
     # 'frequencies': [1]
   },
-  # {
-  #   'type': 'Plotfiles',
-  #   'directory': '{}/Plotfiles/'.format(outputPath),
-  #   'intervals': [1.0],
-  # },
+  {
+    'type': 'Plotfiles',
+    'directory': '{}/Plotfiles/'.format(outputPath),
+    'intervals': [0.001],
+  },
   {
    'type': 'CounterOutput',
   #  'intervals': [1/.0]
