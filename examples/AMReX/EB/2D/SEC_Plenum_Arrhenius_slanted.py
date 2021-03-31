@@ -1,6 +1,6 @@
 import math
 
-tube_n_cells = 256
+tube_n_cells_on_full_length = 256
 # plenum_x_n_cells = 128
 tube_blocking_factor = 8
 plenum_blocking_factor = 8
@@ -42,6 +42,10 @@ plenum_max_grid_size = max(plenum_blocking_factor, 1024)
 
 plenum_domain_length = plenum_length + inlet_length
 tube_domain_length = tube_length - inlet_length
+
+tube_n_cells = tube_domain_length * tube_n_cells_on_full_length
+tube_n_cells -= tube_n_cells % tube_blocking_factor
+tube_n_cells = int(tube_n_cells)
 
 tube_over_plenum_length_ratio = tube_domain_length / plenum_domain_length
 plenum_over_tube_length_ratio = 1.0 / tube_over_plenum_length_ratio
@@ -154,14 +158,14 @@ ControlOptions = {
   'target_pressure_compressor' : 6.0,
   'checkpoint': checkpoint,
   # Tube surface
-  'surface_area_tube_inlet': (n_tubes * Area(-1.0) * D),
-  'surface_area_tube_outlet': (n_tubes * Area(0.0) * D),
+  'surface_area_tube_inlet': (n_tubes * Area(-1.0) * D) / D,
+  'surface_area_tube_outlet': (n_tubes * Area(0.0) * D) / D,
   # Turbine volumes and surfaces
-  'volume_turbine_plenum': TVolRPlen,
-  'surface_area_turbine_plenum_to_turbine': plenum_y_length,
+  'volume_turbine_plenum': TVolRPlen / D,
+  'surface_area_turbine_plenum_to_turbine': plenum_y_length / D,
   # Compressor volumes and surfaces
-  'volume_compressor_plenum': TVolRPlen,
-  'surface_area_compressor_to_compressor_plenum': 8.0 * D,
+  'volume_compressor_plenum': TVolRPlen / D,
+  'surface_area_compressor_to_compressor_plenum': 8.0 * D / D,
 }
 
 def ToCellIndex(x, xlo, xhi, ncells):
@@ -178,7 +182,7 @@ Plenum = {
       'lower': [plenum_x_lower, plenum_y_lower, plenum_z_lower],
       'upper': [plenum_x_upper, plenum_y_upper, plenum_z_upper],
     },
-    # 'periodicity': [0, 1, 0]
+    'periodicity': [0, 1, 0]
   },
   'PatchHierarchy': {
     'max_number_of_levels': n_level, 
