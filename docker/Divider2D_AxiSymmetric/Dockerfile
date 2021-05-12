@@ -5,7 +5,7 @@ RUN conan profile new default --detect
 RUN conan profile update settings.compiler.libcxx=libstdc++11 default
 RUN conan remote add gitlab https://git.imp.fu-berlin.de/api/v4/packages/conan
 RUN conan user guttula -r gitlab -p VwArmxLep3iHxEsshJEU
-RUN git clone https://oauth2:LxnsQNy9iN6i6uNA2Dxo@git.imp.fu-berlin.de/ag-klein/FiniteVolumeSolver.git --branch feature/AxialConservative
+RUN git clone https://oauth2:LxnsQNy9iN6i6uNA2Dxo@git.imp.fu-berlin.de/ag-klein/FiniteVolumeSolver.git --branch Docker/Divider2d
 RUN mkdir /FiniteVolumeSolver/build
 WORKDIR /FiniteVolumeSolver/build
 RUN conan install ../ -o AMReX:dim=2 --build missing
