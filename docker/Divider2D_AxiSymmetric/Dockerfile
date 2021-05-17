@@ -17,9 +17,10 @@ RUN make AMReX.EB.Divider2D_AxiSymmetric -j4
 FROM debian:testing
 RUN apt-get update
 RUN apt-get install -y fish gcc g++ gfortran python3 python3-pip libopenmpi3 libpython3.9 libgomp1 vim openmpi-bin ffmpeg
-RUN pip3 install h5py matplotlib
+RUN pip3 install h5py 
+RUN pip3 install matplotlib==3.3.3 --force-reinstall
 RUN pip3 install cython
-RUN pip3 install yt
+RUN pip3 install yt==3.6.1
 RUN useradd amrex -d /home/amrex
 RUN mkdir /home/amrex
 RUN chown amrex:amrex -R /home/amrex
