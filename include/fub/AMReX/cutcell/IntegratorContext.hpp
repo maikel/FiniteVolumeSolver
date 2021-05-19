@@ -50,7 +50,7 @@ public:
                                         std::pair<int, int>)>;
 
   /// @{
-  /// \name Constructors, Assignment Operators and Desctructor
+  /// \name Constructors, Assignment Operators and Destructor
 
   IntegratorContext(
       std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod method,
@@ -104,6 +104,14 @@ public:
   void SetFeedbackFunction(FeedbackFn feedback) {
     feedback_ = std::move(feedback);
   }
+
+  /// \brief Set the inflow boundary normal
+  void SetInflowBoundaryNormal(Eigen::Vector2d inflow_boundary_normal) {
+    inflow_boundary_normal_ = std::move(inflow_boundary_normal);
+  }
+
+  /// \brief Get the inflow boundary normal
+  std::optional<Eigen::Vector2d> const GetInflowBoundaryNormal() const noexcept;
   /// @}
 
   /// @{
@@ -179,18 +187,17 @@ public:
   [[nodiscard]] bool LevelExists(int level) const noexcept;
 
   /// \brief Returns the refinement ratio in the specified direction.
-  [[nodiscard]] int GetRatioToCoarserLevel(int level, Direction dir) const
-      noexcept;
+  [[nodiscard]] int GetRatioToCoarserLevel(int level,
+                                           Direction dir) const noexcept;
 
   /// \brief Returns the refinement ratio for all directions.
-  [[nodiscard]] ::amrex::IntVect GetRatioToCoarserLevel(int level) const
-      noexcept;
+  [[nodiscard]] ::amrex::IntVect
+  GetRatioToCoarserLevel(int level) const noexcept;
 
   [[nodiscard]] double GetDx(int level, Direction dir) const noexcept;
 
-  [[nodiscard]] ::amrex::FabType GetFabType(int level,
-                                            const ::amrex::MFIter& mfi) const
-      noexcept;
+  [[nodiscard]] ::amrex::FabType
+  GetFabType(int level, const ::amrex::MFIter& mfi) const noexcept;
   /// @}
 
   /// @{
@@ -346,6 +353,7 @@ private:
   std::vector<LevelData> data_;
   HyperbolicMethod method_;
   FeedbackFn feedback_{};
+  std::optional<Eigen::Vector2d> inflow_boundary_normal_;
 };
 
 } // namespace fub::amrex::cutcell

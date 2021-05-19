@@ -106,21 +106,23 @@ public:
   /// \param[in] dir the split direction for the flux
   /// \param[in] dt the current time step size
   /// \param[in] dx the cell width length
-  void
-  ComputeBoundaryFlux(Conservative& flux, Complete& state,
-                      const Complete& reference_state,
-                      const Complete& reference_mirror_state,
-                      const Eigen::Matrix<double, Rank, 1>& boundary_normal,
-                      int mask, Direction dir, Duration dt, double dx);
+  void ComputeBoundaryFlux(
+      Conservative& flux, Complete& state, const Complete& reference_state,
+      const Complete& reference_mirror_state,
+      const std::optional<Eigen::Vector2d>& inflow_boundary_normal,
+      const Eigen::Matrix<double, Rank, 1>& boundary_normal, int mask,
+      Direction dir, Duration dt, double dx);
 
   /// This function can be used to compute a boundary flux for all cut cells.
-  void ComputeBoundaryFluxes(const View<Conservative>& boundary_fluxes,
-                             const View<const Complete>& states,
-                             const View<const Complete>& reference_states,
-                             const View<const Complete>& reference_mirror_states,
-                             const StridedDataView<int, Rank>& reference_masks,
-                             const CutCellData<Rank>& cutcell_data, Duration dt,
-                             double dx, Direction dir);
+  void ComputeBoundaryFluxes(
+      const View<Conservative>& boundary_fluxes,
+      const View<const Complete>& states,
+      const View<const Complete>& reference_states,
+      const View<const Complete>& reference_mirror_states,
+      const StridedDataView<int, Rank>& reference_masks,
+      const std::optional<Eigen::Vector2d>& inflow_boundary_normal,
+      const CutCellData<Rank>& cutcell_data, Duration dt, double dx,
+      Direction dir);
 
   using FM::ComputeStableDt;
 
@@ -210,6 +212,7 @@ template <typename FM, typename RiemannSolver>
 void KbnCutCellMethod<FM, RiemannSolver>::ComputeBoundaryFlux(
     Conservative& flux, Complete& state, const Complete& reference_state,
     const Complete& reference_mirror_state,
+    const std::optional<Eigen::Vector2d>& inflow_boundary_normal,
     const Eigen::Matrix<double, Rank, 1>& boundary_normal, int mask,
     Direction dir, Duration /* dt */, double /* dx */) {
   const Equation& equation = FM::GetEquation();
@@ -217,10 +220,20 @@ void KbnCutCellMethod<FM, RiemannSolver>::ComputeBoundaryFlux(
   const Eigen::Matrix<double, Rank, 1> unit = UnitVector<Rank>(Direction::X);
 
   if (mask) {
-    Rotate(state, state, MakeRotation(boundary_normal, unit), equation);
-    riemann_solver_.SolveRiemannProblem(solution_, reference_mirror_state,
-                                        state, Direction::X);
-    Rotate(solution_, solution_, MakeRotation(unit, boundary_normal), equation);
+    if (inflow_boundary_normal) {
+      Rotate(state, state, MakeRotation(*inflow_boundary_normal, unit),
+             equation);
+      riemann_solver_.SolveRiemannProblem(solution_, reference_mirror_state,
+                                          state, Direction::X);
+      Rotate(solution_, solution_, MakeRotation(unit, *inflow_boundary_normal),
+             equation);
+    } else {
+      Rotate(state, state, MakeRotation(boundary_normal, unit), equation);
+      riemann_solver_.SolveRiemannProblem(solution_, reference_mirror_state,
+                                          state, Direction::X);
+      Rotate(solution_, solution_, MakeRotation(unit, boundary_normal),
+             equation);
+    }
   } else {
     // Rotate states such that the boundary is left and the state is right
     // Reflect state in the split direction
@@ -245,8 +258,9 @@ void KbnCutCellMethod<FM, RiemannSolver>::ComputeBoundaryFluxes(
     const View<const Complete>& states,
     const View<const Complete>& reference_states,
     const View<const Complete>& reference_mirror_states,
-    const StridedDataView<int, Rank>& masks, const CutCellData<Rank>& geom,
-    Duration dt, double dx, Direction dir) {
+    const StridedDataView<int, Rank>& masks,
+    const std::optional<Eigen::Vector2d>& inflow_boundary_normal,
+    const CutCellData<Rank>& geom, Duration dt, double dx, Direction dir) {
   FUB_ASSERT(Extents<0>(boundary_fluxes) == Extents<0>(states));
   ForEachIndex(Box<0>(reference_states), [&](auto... is) {
     if (IsCutCell(geom, {is...})) {
@@ -259,8 +273,8 @@ void KbnCutCellMethod<FM, RiemannSolver>::ComputeBoundaryFluxes(
           GetBoundaryNormal(geom, cell);
 
       this->ComputeBoundaryFlux(boundary_flux_left_, state_, reference_state_,
-                                reference_mirror_state_, normal, masks(cell),
-                                dir, dt, dx);
+                                reference_mirror_state_, inflow_boundary_normal,
+                                normal, masks(cell), dir, dt, dx);
 
       // Store the result in our array
       Store(boundary_fluxes, boundary_flux_left_, cell);

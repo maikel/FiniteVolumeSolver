@@ -169,6 +169,9 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
   ::amrex::MultiFab& fluxes_sR = context.GetShieldedFromRightFluxes(level, dir);
   ::amrex::MultiFab& fluxes_ds = context.GetDoublyShieldedFluxes(level, dir);
 
+  std::optional<Eigen::Vector2d> inflow_boundary_normal =
+      context.GetInflowBoundaryNormal();
+
   const double dx = context.GetDx(level, dir);
   const Eigen::Matrix<double, AMREX_SPACEDIM, 1> dx_vec{AMREX_D_DECL(
       context.GetDx(level, Direction::X), context.GetDx(level, Direction::Y),
@@ -181,6 +184,7 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
                             View<const Complete<Equation>>,
                             View<const Complete<Equation>>,
                             StridedDataView<int, Equation::Rank()>,
+                            const std::optional<Eigen::Vector2d>,
                             CutCellData<AMREX_SPACEDIM>, Duration, double,
                             Direction>::value) {
     ::amrex::iMultiFab& reference_masks = context.GetReferenceMasks(level);
@@ -198,12 +202,12 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
             MakeView<const Complete<Equation>>(scratch[mfi], equation, box);
         auto refs =
             MakeView<const Complete<Equation>>(references[mfi], equation, box);
-        auto refs_mirror =
-            MakeView<const Complete<Equation>>(reference_mirror_states[mfi], equation, box);
+        auto refs_mirror = MakeView<const Complete<Equation>>(
+            reference_mirror_states[mfi], equation, box);
         auto masks = MakePatchDataView(reference_masks[mfi], 0, box);
-        flux_method_->ComputeBoundaryFluxes(boundary_flux, states, refs,
-                                            refs_mirror, masks,
-                                            geom, dt, dx, dir);
+        flux_method_->ComputeBoundaryFluxes(
+            boundary_flux, states, refs, refs_mirror, masks,
+            inflow_boundary_normal, geom, dt, dx, dir);
       }
     });
   }

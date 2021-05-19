@@ -92,8 +92,8 @@ IntegratorContext::LevelData::LevelData(const LevelData& other)
 ////////////////////////////////////////////////////////////////////////////////
 //                                                      Copy Assignment Operator
 
-IntegratorContext::LevelData& IntegratorContext::LevelData::
-operator=(const LevelData& other) {
+IntegratorContext::LevelData&
+IntegratorContext::LevelData::operator=(const LevelData& other) {
   if (other.coarse_fine.fineLevel() > 0) {
     // If we do not invoke clear in beforehand it will throw an error in AMReX
     coarse_fine.clear();
@@ -145,8 +145,8 @@ operator=(const LevelData& other) {
 ////////////////////////////////////////////////////////////////////////////////
 //                                                      Move Assignment Operator
 
-IntegratorContext::LevelData& IntegratorContext::LevelData::
-operator=(LevelData&& other) noexcept {
+IntegratorContext::LevelData&
+IntegratorContext::LevelData::operator=(LevelData&& other) noexcept {
   if (other.coarse_fine.fineLevel() > 0) {
     // If we do not invoke clear in beforehand it will throw an error in AMReX
     coarse_fine.clear();
@@ -226,8 +226,8 @@ IntegratorContext::IntegratorContext(const IntegratorContext& other)
                                     *other.gridding_)},
       data_{}, method_{other.method_} {}
 
-IntegratorContext& IntegratorContext::IntegratorContext::
-operator=(const IntegratorContext& other) {
+IntegratorContext& IntegratorContext::IntegratorContext::operator=(
+    const IntegratorContext& other) {
   // We use the copy and move idiom to provide the strong exception guarantee.
   // If an exception occurs we do not change the original object.
   IntegratorContext tmp{other};
@@ -269,6 +269,11 @@ const PatchHierarchy& IntegratorContext::GetPatchHierarchy() const noexcept {
 
 MPI_Comm IntegratorContext::GetMpiCommunicator() const noexcept {
   return ::amrex::ParallelContext::CommunicatorAll();
+}
+
+std::optional<Eigen::Vector2d> const
+IntegratorContext::GetInflowBoundaryNormal() const noexcept {
+  return inflow_boundary_normal_;
 }
 
 ::amrex::MultiFab& IntegratorContext::GetData(int level) {
@@ -364,8 +369,8 @@ IntegratorContext::GetEmbeddedBoundary(int level) const {
   return *GetPatchHierarchy().GetEmbeddedBoundary(level);
 }
 
-const HyperbolicMethod& IntegratorContext::GetHyperbolicMethod() const
-    noexcept {
+const HyperbolicMethod&
+IntegratorContext::GetHyperbolicMethod() const noexcept {
   return method_;
 }
 
@@ -380,19 +385,19 @@ double IntegratorContext::GetDx(int level, Direction dir) const noexcept {
   return GetPatchHierarchy().GetGeometry(level).CellSize(int(dir));
 }
 
-int IntegratorContext::GetRatioToCoarserLevel(int level, Direction dir) const
-    noexcept {
+int IntegratorContext::GetRatioToCoarserLevel(int level,
+                                              Direction dir) const noexcept {
   return GetPatchHierarchy().GetRatioToCoarserLevel(level, dir);
 }
 
-::amrex::IntVect IntegratorContext::GetRatioToCoarserLevel(int level) const
-    noexcept {
+::amrex::IntVect
+IntegratorContext::GetRatioToCoarserLevel(int level) const noexcept {
   return GetPatchHierarchy().GetRatioToCoarserLevel(level);
 }
 
-::amrex::FabType IntegratorContext::GetFabType(int level,
-                                               const ::amrex::MFIter& mfi) const
-    noexcept {
+::amrex::FabType
+IntegratorContext::GetFabType(int level,
+                              const ::amrex::MFIter& mfi) const noexcept {
   return GetPatchHierarchy()
       .GetEmbeddedBoundary(level)
       ->getMultiEBCellFlagFab()[mfi]
@@ -465,8 +470,8 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
                           options_.scratch_gcw, options_.scratch_gcw);
       }
       data.reference_states = std::move(refs);
-      refs.define(ba, dm, n_components, options_.scratch_gcw,
-                             ::amrex::MFInfo(), *ebf);
+      refs.define(ba, dm, n_components, options_.scratch_gcw, ::amrex::MFInfo(),
+                  *ebf);
       if (data.reference_mirror_states) {
         refs.ParallelCopy(*data.reference_mirror_states, 0, 0, n_components,
                           options_.scratch_gcw, options_.scratch_gcw);
