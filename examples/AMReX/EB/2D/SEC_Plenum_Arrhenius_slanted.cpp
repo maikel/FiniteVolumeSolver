@@ -50,6 +50,7 @@
 #include <AMReX_EB2_IF_Cylinder.H>
 #include <AMReX_EB2_IF_Intersection.H>
 #include <AMReX_EB2_IF_Plane.H>
+#include <AMReX_EB2_IF_Rotation.H>
 #include <AMReX_EB2_IF_Union.H>
 
 #include <boost/filesystem.hpp>
@@ -592,6 +593,8 @@ auto MakePlenumSolver(
     return fub::Polygon(std::move(xs), std::move(ys));
   };
 
+  std::vector<amrex::EB2::BoxIF> inlet_boxes{};
+  std::vector<double> rot_angles{};
   std::vector<fub::PolymorphicGeometry<Plenum_Rank>> inlets{};
   std::vector<pybind11::dict> eb_dicts{};
   eb_dicts = fub::GetOptionOr(options, "InletGeometries", eb_dicts);
@@ -618,13 +621,25 @@ auto MakePlenumSolver(
                     std::pair{xdiv, y_0 - r}, std::pair{xlo, y_0 - r},
                     std::pair{xlo, y_0 + r});
     fub::RotateAroundPoint rotated_polygon(polygon, angle, {0.0, y_0});
-    inlets.push_back(rotated_polygon);
+
+    auto box = ::amrex::EB2::BoxIF({xlo, y_0 - r}, {xhi, y_0 + r}, true);
+    inlet_boxes.push_back(box);
+    rot_angles.push_back(angle);
+
+    // inlets.push_back(rotated_polygon);
+    // inlets.push_back(polygon);
   }
-  fub::PolymorphicUnion<Plenum_Rank> union_of_inlets(std::move(inlets));
+  // fub::PolymorphicUnion<Plenum_Rank> union_of_inlets(std::move(inlets));
+
+  // auto embedded_boundary = amrex::EB2::makeIntersection(
+  //     amrex::EB2::PlaneIF({0.0, 0.0}, {1.0, 0.0}, false),
+  //     fub::amrex::Geometry(fub::Invert(union_of_inlets)));
 
   auto embedded_boundary = amrex::EB2::makeIntersection(
       amrex::EB2::PlaneIF({0.0, 0.0}, {1.0, 0.0}, false),
-      fub::amrex::Geometry(fub::Invert(union_of_inlets)));
+      ::amrex::EB2::rotate(inlet_boxes[0], rot_angles[0],
+                           0)); // only for first inlet box!!!!
+
   auto shop = amrex::EB2::makeShop(embedded_boundary);
 
   fub::amrex::CartesianGridGeometry grid_geometry =
@@ -888,7 +903,7 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
 
     R << std::cos(angle), -std::sin(angle), std::sin(angle), std::cos(angle);
     connection.normal = R * fub::UnitVector<2>(fub::Direction::X);
-    connection.abs_tolerance = 1e-2;
+    connection.abs_tolerance = 0.6; // 1e-2;
     amrex::Box plenum_mirror_box{};
     FUB_ASSERT(!plenum_mirror_box.ok());
     plenum_mirror_box =
@@ -902,6 +917,10 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
     kinetics.push_back(source);
     connectivity.push_back(connection);
   }
+
+  // Attention plenum is an vector and every tube_connectivity can have its own
+  // inflow_boundary_normal!!!!
+  plenum[0].SetInflowBoundaryNormal(connectivity[0].normal);
 
   fub::amrex::MultiBlockIntegratorContext2 context(
       tube_equation, plenum_equation, std::move(tubes), std::move(plenum),
