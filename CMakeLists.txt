@@ -504,6 +504,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         include/fub/AMReX/cutcell/IntegratorContext.hpp
         include/fub/AMReX/cutcell/TimeIntegrator.hpp
         include/fub/AMReX/cutcell/AxiSymmetricSourceTerm.hpp
+        include/fub/AMReX/cutcell/AxiSymmetricSourceTerm_PerfectGas.hpp
         include/fub/AMReX/cutcell/initial_data/RiemannProblem.hpp
         include/fub/AMReX/cutcell/initial_data/InterpolateFrom1d.hpp
         include/fub/AMReX/cutcell/tagging_method/ConstantRegion.hpp
@@ -537,6 +538,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         src/AMReX/multi_block/MultiBlockPlotfileOutput.cpp
         src/AMReX/multi_block/MultiWriteHdf5.cpp
         src/AMReX/cutcell/AxiSymmetricSourceTerm.cpp
+        src/AMReX/cutcell/AxiSymmetricSourceTerm_PerfectGas.cpp
         src/AMReX/cutcell/IntegratorContext.cpp
         src/AMReX/cutcell/PatchHierarchy.cpp
         src/AMReX/cutcell/FillCutCellData.cpp
