@@ -1,21 +1,21 @@
 import math
 
 # Controls the number of cells in the x-direction
-nx = 400 #1200
+nx = 128 #1200
 # The output files are written in this directory from the perspective of this 
 # docker container
 
 base_path = '../examples/AMReX/EB/2D/Divider2D_MassFlow_AxiSymmetric/'
 # This option defines the Mach number of the shock
 # Default is 1.1
-shock_mach_number = 1.1
-shock_x_location = -0.04
+shock_mach_number = 1.0 # 1.1
+shock_x_location = -0.05
 
 ############################################################################
 # These variables define the 2D Plenum.
 
-xlower = -0.09
-xupper = 0.3
+xlower = -0.1
+xupper = 0.1
 xlen = xupper - xlower
 
 
@@ -99,6 +99,19 @@ PatchHierarchy = {
   'n_proper': 1,
 }
 
+massflow_boundary= {
+    'coarse_inner_box': { 
+      'lower': [0, 0, 0], 
+      'upper': [2, ny, 0] 
+    },
+    'side': 0,
+    'direction': 0,
+    # This controls the inflow velocity in the tube 
+    # The density in the domain is XXX kg/m^3 so this correspond roughly to XXX m/s
+    'required_massflow': 6.*0.0002 / 6.0, # [kg / s]
+    'surface_area': math.pi * 0.015 * 0.015 # [m^2]
+  }
+
 # Adjust those paths to read the files that describe the wall boundaries for the Divider.
 # The first and the last point need within each wall file need to be equal
 wall_filenames = ['{}/wall.txt'.format(base_path),
@@ -107,7 +120,8 @@ wall_filenames = ['{}/wall.txt'.format(base_path),
                   ]
 
 # Defines the 
-OutPut_BasePath = 'Divider2D_nx_{}_Ma_{}'.format(nx, shock_mach_number)
+# OutPut_BasePath = 'Divider2D_nx_{}_Ma_{}'.format(nx, shock_mach_number)
+OutPut_BasePath = 'massflowboundaryTest'
 
 # Defines the 
 Output = {

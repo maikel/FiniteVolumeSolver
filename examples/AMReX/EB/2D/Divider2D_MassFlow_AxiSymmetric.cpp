@@ -27,6 +27,7 @@
 #include "fub/flux_method/MusclHancockMethod2.hpp"
 
 #include "fub/AMReX/cutcell/AxiSymmetricSourceTerm_PerfectGas.hpp"
+#include "fub/AMReX/cutcell/boundary_condition/MassflowBoundary_PerfectGas.hpp"
 
 #include <AMReX_EB2_IF_Cylinder.H>
 #include <AMReX_EB2_IF_Intersection.H>
@@ -202,14 +203,21 @@ void MyMain(const fub::ProgramOptions& options) {
                  << equation.Velocity(pre_shock_state).transpose() << " [m/s]\n"
                  << "\tpressure: " << pre_shock_state.pressure << " [Pa]";
 
+
   auto seq = fub::execution::seq;
   BoundarySet boundary_condition{
       {TransmissiveBoundary{fub::Direction::X, 0},
        TransmissiveBoundary{fub::Direction::X, 1},
-       // TransmissiveBoundary{fub::Direction::Y, 0},
        ReflectiveBoundary{seq, equation, fub::Direction::Y,
                           0}, // for axisymmetric sourceterm
        TransmissiveBoundary{fub::Direction::Y, 1}}};
+
+  MassflowBoundary_PerfectGasOptions massflowboundary_options =
+      fub::GetOptions(options, "massflow_boundary");
+  MassflowBoundary_PerfectGas massflowboundary{equation, massflowboundary_options};
+  BOOST_LOG(log) << "massflow_boundary:";
+  massflowboundary_options.Print(log);
+  boundary_condition.conditions.push_back(std::move(massflowboundary));
 
   std::shared_ptr gridding = [&] {
     fub::SeverityLogger log = fub::GetInfoLogger();
