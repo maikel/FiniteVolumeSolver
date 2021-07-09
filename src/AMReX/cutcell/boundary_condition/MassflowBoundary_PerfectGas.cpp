@@ -21,6 +21,7 @@
 
 #include "fub/AMReX/cutcell/boundary_condition/MassflowBoundary_PerfectGas.hpp"
 
+#include "fub/AMReX/cutcell/AverageState.hpp"
 #include "fub/AMReX/ForEachFab.hpp"
 #include "fub/AMReX/ForEachIndex.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
@@ -56,57 +57,7 @@ void MassflowBoundary_PerfectGasOptions::Print(SeverityLogger& log) const {
                                 lower, upper);
 }
 
-namespace {
-double TotalVolume(const PatchHierarchy& hier, int level,
-                   const ::amrex::Box& box) {
-  double local_volume(0.0);
-  const ::amrex::EBFArrayBoxFactory& factory = *hier.GetEmbeddedBoundary(level);
-  const ::amrex::MultiFab& alphas = factory.getVolFrac();
-  ForEachFab(alphas, [&](const ::amrex::MFIter& mfi) {
-    const ::amrex::FArrayBox& alpha = alphas[mfi];
-    ForEachIndex(box & mfi.tilebox(), [&](auto... is) {
-      ::amrex::IntVect index{static_cast<int>(is)...};
-      const double frac = alpha(index);
-      local_volume += frac;
-    });
-  });
-  double global_volume = 0.0;
-  MPI_Allreduce(&local_volume, &global_volume, 1, MPI_DOUBLE, MPI_SUM,
-                ::amrex::ParallelDescriptor::Communicator());
-  return global_volume;
-}
 
-template <int Dim>
-void AverageState(Complete<PerfectGas<Dim>>& state, const PatchHierarchy& hier,
-                  int level, const ::amrex::Box& box) {
-  const double total_volume = TotalVolume(hier, level, box);
-  const int ncomp = hier.GetDataDescription().n_state_components;
-  std::vector<double> state_buffer(static_cast<std::size_t>(ncomp));
-  const ::amrex::EBFArrayBoxFactory& factory = *hier.GetEmbeddedBoundary(level);
-  const ::amrex::MultiFab& alphas = factory.getVolFrac();
-  const ::amrex::MultiFab& datas = hier.GetPatchLevel(level).data;
-  ForEachFab(alphas, [&](const ::amrex::MFIter& mfi) {
-    const ::amrex::FArrayBox& alpha = alphas[mfi];
-    const ::amrex::FArrayBox& data = datas[mfi];
-    IndexBox<AMREX_SPACEDIM> section =
-        AsIndexBox<AMREX_SPACEDIM>(box & mfi.tilebox());
-    for (int comp = 0; comp < ncomp; ++comp) {
-      ForEachIndex(section, [&](auto... is) {
-        ::amrex::IntVect index{static_cast<int>(is)...};
-        const double frac = alpha(index);
-        const auto c = static_cast<std::size_t>(comp);
-        state_buffer[c] += frac / total_volume * data(index, comp);
-      });
-    }
-  });
-  std::vector<double> global_state_buffer(static_cast<std::size_t>(ncomp));
-  MPI_Allreduce(state_buffer.data(), global_state_buffer.data(), ncomp,
-                MPI_DOUBLE, MPI_SUM,
-                ::amrex::ParallelDescriptor::Communicator());
-  CopyFromBuffer(state, global_state_buffer);
-}
-
-} // namespace
 
 template <int Dim>
 MassflowBoundary_PerfectGas<Dim>::MassflowBoundary_PerfectGas(
