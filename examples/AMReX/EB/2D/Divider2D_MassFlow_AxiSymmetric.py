@@ -107,10 +107,20 @@ massflow_boundary= {
     'side': 0,
     'direction': 0,
     # This controls the inflow velocity in the tube 
-    # The density in the domain is XXX kg/m^3 so this correspond roughly to XXX m/s
-    'required_massflow': 6.*0.0002 / 6.0, # [kg / s]
+    # The density in the domain is 1.22 kg/m^3 so this correspond roughly to 35.0 m/s
+    'required_massflow': 0.0, # 0.2 / 6.0, # [kg / s]
     'surface_area': math.pi * 0.015 * 0.015 # [m^2]
   }
+
+shock_xid = int(nx * (shock_x_location-xlower) / (xlen))
+schock_feedback = {
+  'shock_mach_number': 1.1,
+  'shock_time': 0.0,
+  'average_post_shock_box' : {
+    'lower': [shock_xid-1, 0, 0], 
+    'upper': [shock_xid+1, ny, 0] 
+  },
+}
 
 # Adjust those paths to read the files that describe the wall boundaries for the Divider.
 # The first and the last point need within each wall file need to be equal
@@ -121,7 +131,7 @@ wall_filenames = ['{}/wall.txt'.format(base_path),
 
 # Defines the 
 # OutPut_BasePath = 'Divider2D_nx_{}_Ma_{}'.format(nx, shock_mach_number)
-OutPut_BasePath = 'massflowboundaryTest'
+OutPut_BasePath = 'initShockTest'
 
 # Defines the 
 Output = {

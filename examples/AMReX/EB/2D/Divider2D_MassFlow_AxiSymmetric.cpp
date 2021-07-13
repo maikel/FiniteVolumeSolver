@@ -28,6 +28,7 @@
 
 #include "fub/AMReX/cutcell/AxiSymmetricSourceTerm_PerfectGas.hpp"
 #include "fub/AMReX/cutcell/boundary_condition/MassflowBoundary_PerfectGas.hpp"
+#include "fub/equations/perfect_gas/InitializeShock.hpp"
 
 #include <AMReX_EB2_IF_Cylinder.H>
 #include <AMReX_EB2_IF_Intersection.H>
@@ -253,9 +254,17 @@ void MyMain(const fub::ProgramOptions& options) {
 
   BOOST_LOG(log) << fmt::format("scratch_gcw = {}", scratch_gcw);
   BOOST_LOG(log) << fmt::format("flux_gcw = {}", flux_gcw);
+
+  IntegratorContext context(gridding, method, scratch_gcw, flux_gcw);
+  
+  fub::amrex::cutcell::feedback_functions::ShockOptions shock_options =
+      fub::GetOptions(options, "schock_feedback");
+  fub::amrex::cutcell::feedback_functions::ShockFeedback shock_feedback(equation, shock_options);
+  context.SetFeedbackFunction(shock_feedback);
+
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<2>,
-      IntegratorContext(gridding, method, scratch_gcw, flux_gcw));
+      std::move(context));
 
   // {
   fub::amrex::AxiSymmetricSourceTerm_PerfectGas symmetry_source_term(

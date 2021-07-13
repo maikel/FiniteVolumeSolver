@@ -536,6 +536,8 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         include/fub/AMReX/multi_block/MultiWriteHdf5.hpp
         include/fub/AMReX/multi_block/MultiBlockPlotfileOutput.hpp
         include/fub/AMReX/cutcell/output/LogProbes.hpp
+        include/fub/equations/perfect_gas/InitializeShock.hpp
+        src/equations/perfect_gas/InitializeShock.cpp
         src/AMReX/cutcell/output/LogProbes.cpp
         src/AMReX/multi_block/MultiBlockPlotfileOutput.cpp
         src/AMReX/multi_block/MultiWriteHdf5.cpp
