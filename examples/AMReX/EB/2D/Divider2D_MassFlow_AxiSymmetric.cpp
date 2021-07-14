@@ -28,6 +28,7 @@
 
 #include "fub/AMReX/cutcell/AxiSymmetricSourceTerm_PerfectGas.hpp"
 #include "fub/AMReX/cutcell/boundary_condition/MassflowBoundary_PerfectGas.hpp"
+#include "fub/AMReX/cutcell/boundary_condition/ShockValveBoundary.hpp"
 #include "fub/equations/perfect_gas/InitializeShock.hpp"
 
 #include <AMReX_EB2_IF_Cylinder.H>
@@ -213,12 +214,14 @@ void MyMain(const fub::ProgramOptions& options) {
                           0}, // for axisymmetric sourceterm
        TransmissiveBoundary{fub::Direction::Y, 1}}};
 
-  MassflowBoundary_PerfectGasOptions massflowboundary_options =
-      fub::GetOptions(options, "massflow_boundary");
-  MassflowBoundary_PerfectGas massflowboundary{equation, massflowboundary_options};
-  BOOST_LOG(log) << "massflow_boundary:";
-  massflowboundary_options.Print(log);
-  boundary_condition.conditions.push_back(std::move(massflowboundary));
+  // MassflowBoundary_PerfectGasOptions massflowboundary_options =
+  //     fub::GetOptions(options, "massflow_boundary");
+  
+  ShockValveOptions valve_options = fub::GetOptions(options, "ShockValveBoundary");
+  ShockValveBoundary shock_valve(equation, valve_options);
+  BOOST_LOG(log) << "ShockValveBoundary:";
+  valve_options.Print(log);
+  boundary_condition.conditions.push_back(std::move(shock_valve));
 
   std::shared_ptr gridding = [&] {
     fub::SeverityLogger log = fub::GetInfoLogger();

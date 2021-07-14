@@ -520,6 +520,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         include/fub/AMReX/cutcell/boundary_condition/ReflectiveBoundary.hpp
         include/fub/AMReX/cutcell/boundary_condition/TurbineMassflowBoundary.hpp
         include/fub/AMReX/cutcell/boundary_condition/PressureOutflowBoundary.hpp
+        include/fub/AMReX/cutcell/boundary_condition/ShockValveBoundary.hpp
         include/fub/AMReX/cutcell/output/WriteHdf5.hpp
         include/fub/AMReX/cutcell/output/WritePlotfiles.hpp
         include/fub/AMReX/cutcell/output/PerfectGasProbesOutput.hpp
@@ -558,6 +559,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         src/AMReX/cutcell/boundary_condition/TurbineMassflowBoundary.cpp
         src/AMReX/cutcell/boundary_condition/PressureOutflowBoundary.cpp
         src/AMReX/cutcell/boundary_condition/PressureOutflowBoundary2.cpp
+        src/AMReX/cutcell/boundary_condition/ShockValveBoundary.cpp
         src/AMReX/cutcell/tagging_method/ConstantRegion.cpp
         src/AMReX/cutcell/tagging_method/TagBuffer.cpp
         src/AMReX/cutcell/tagging_method/TagCutCells.cpp

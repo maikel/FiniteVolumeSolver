@@ -110,7 +110,7 @@ public:
 
     // get all relevant data
     ::amrex::MultiFab& scratch = context.GetScratch(coarsest_level);
-    const ::amrex::Geometry& geom = context.GetGeometry(coarsest_level);
+    // const ::amrex::Geometry& geom = context.GetGeometry(coarsest_level);
 
     // get average state right from the shock location == post shock state
     Complete<PerfectGas<Dim>> post_shock_state(equation_);
@@ -143,7 +143,8 @@ public:
 
     // write pre shock state in all cells left from the shock location
     const ::amrex::IntVect bigEnd = options_.average_post_shock_box.bigEnd();
-    const ::amrex::IntVect smallEnd = geom.Domain().smallEnd();
+    const int scratch_gcw = context.GetOptions().scratch_gcw;
+    const ::amrex::IntVect smallEnd{-scratch_gcw, -scratch_gcw};
     const ::amrex::Box pre_shock_box{smallEnd, bigEnd};
     const ::amrex::MultiFab& alphas =
         hier.GetEmbeddedBoundary(coarsest_level)->getVolFrac();
@@ -161,7 +162,8 @@ public:
           ::amrex::IntVect iv{
               AMREX_D_DECL(int(dest[0]), int(dest[1]), int(dest[2]))};
           if (alpha(iv) > 0.0) {
-            Load(state, states, dest);
+            // Load(state, states, dest);
+            // old state doesn't matter, only write new state
             Store(states, pre_shock_state, dest);
           }
         });
