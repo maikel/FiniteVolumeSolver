@@ -128,10 +128,6 @@ void MassflowBoundary_PerfectGas<Dim>::ComputeBoundaryState(
   boundary =
       equation_.CompleteFromPrim(state.density, velocity, state.pressure);
 
-  // equation_.GetReactor().SetDensity(state.density);
-  // equation_.GetReactor().SetMassFractions(state.species);
-  // equation_.GetReactor().SetTemperature(state.temperature);
-  // equation_.CompleteFromReactor(boundary, velocity);
 }
 
 template <int Dim>
@@ -146,9 +142,9 @@ void MassflowBoundary_PerfectGas<Dim>::FillBoundary(
   BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", t.count());
 
   Complete<PerfectGas<Dim>> state(equation_);
-  AverageState(state, grid.GetPatchHierarchy(), 0, options_.coarse_inner_box);
+  fub::amrex::cutcell::AverageState(state, grid.GetPatchHierarchy(), 0, options_.coarse_inner_box);
   if (state.density > 0.0) {
-    equation_.CompleteFromCons(state, state);
+    // equation_.CompleteFromCons(state, state);
     double rho = state.density;
     double u = state.momentum[static_cast<int>(options_.dir)] / rho;
     double p = state.pressure;

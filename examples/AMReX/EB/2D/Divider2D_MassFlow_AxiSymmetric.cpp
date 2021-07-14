@@ -77,45 +77,6 @@ fub::Polygon ReadPolygonData(std::istream& input) {
   return fub::Polygon(std::move(xs), std::move(ys));
 }
 
-template <typename Geometry>
-struct ShockMachnumber
-    : fub::amrex::cutcell::RiemannProblem<fub::PerfectGas<2>, Geometry> {
-  static fub::PerfectGas<2>::Complete
-  ComputePreShockState(fub::PerfectGas<2>& equation,
-                       const fub::PerfectGas<2>::Complete& post_shock,
-                       double M_S, const fub::Array<double, 2, 1>& normal) {
-    const double g = equation.gamma;
-    const double gp1 = g + 1.0;
-    const double gm1 = g - 1.0;
-    const double M_post = equation.Machnumber(post_shock);
-    const double M2 = (M_post - M_S) * (M_post - M_S);
-
-    const double rho_c = gp1 * M2 / (gm1 * M2 + 2.0);
-    const double rho_post = post_shock.density;
-    const double rho_pre = rho_post * rho_c;
-
-    const double p_c = (2.0 * g * M2 - gm1) / gp1;
-    const double p_post = post_shock.pressure;
-    const double p_pre = p_post * p_c;
-
-    const double t = rho_post / rho_pre;
-    const double a_post = post_shock.speed_of_sound;
-    const double u_S = M_S * a_post;
-    const double u_post = equation.Velocity(post_shock).matrix().norm();
-    const double u_pre = u_S * (1.0 - t) + u_post * t;
-
-    return equation.CompleteFromPrim(rho_pre, u_pre * normal, p_pre);
-  }
-
-  ShockMachnumber(fub::PerfectGas<2> equation, Geometry geometry,
-                  const fub::PerfectGas<2>::Complete& post_shock, double M_S,
-                  const fub::Array<double, 2, 1>& normal)
-      : fub::amrex::cutcell::RiemannProblem<fub::PerfectGas<2>, Geometry>(
-            equation, std::move(geometry),
-            ComputePreShockState(equation, post_shock, M_S, normal),
-            post_shock) {}
-};
-
 void MyMain(const fub::ProgramOptions& options) {
   std::chrono::steady_clock::time_point wall_time_reference =
       std::chrono::steady_clock::now();
@@ -174,50 +135,40 @@ void MyMain(const fub::ProgramOptions& options) {
   GradientDetector gradients{equation, std::pair{&State::pressure, 0.05},
                              std::pair{&State::density, 0.005}};
 
-  fub::Conservative<fub::PerfectGas<2>> cons;
-  cons.density = 1.22;
-  cons.momentum << 0.0, 0.0;
-  cons.energy = 101325.0 * equation.gamma_minus_1_inv;
-  fub::Complete<fub::PerfectGas<2>> post_shock_state;
-  fub::CompleteFromCons(equation, post_shock_state, cons);
+  fub::Complete<fub::PerfectGas<2>> initial_state;
+  {
+    using namespace std::literals;
+    fub::Primitive<fub::PerfectGas<2>> prim;
+    const fub::ProgramOptions initial_options =
+        fub::GetOptions(options, "InitialCondition");
+    const double density = fub::GetOptionOr(initial_options, "density", 1.22);
+    const double u_velocity =
+        fub::GetOptionOr(initial_options, "u_velocity", 0.0);
+    [[maybe_unused]] const double v_velocity =
+        fub::GetOptionOr(initial_options, "v_velocity", 0.0);
+    [[maybe_unused]] const double w_velocity =
+        fub::GetOptionOr(initial_options, "w_velocity", 0.0);
+    const double pressure =
+        fub::GetOptionOr(initial_options, "pressure", 101325.0);
+    prim.density = density;
+    prim.velocity << AMREX_D_DECL(u_velocity, v_velocity, w_velocity);
+    prim.pressure = pressure;
+    fub::CompleteFromPrim(equation, initial_state, prim);
+  }
 
-  double shock_mach_number =
-      fub::GetOptionOr(options, "shock_mach_number", 1.1);
-  double schock_x_location =
-      fub::GetOptionOr(options, "schock_x_location", -0.01);
-  const fub::Array<double, 2, 1> normal{1.0, 0.0};
-
-  ShockMachnumber<fub::Halfspace> initial_data(
-      equation, fub::Halfspace({+1.0, 0.0, 0.0}, schock_x_location),
-      post_shock_state, shock_mach_number, normal);
-
-  const State& pre_shock_state = initial_data.left_;
-  BOOST_LOG(log) << "Post-Shock-State:\n"
-                 << "\tdensity: " << post_shock_state.density << " [kg/m^3]\n"
-                 << "\tvelocity: "
-                 << equation.Velocity(post_shock_state).transpose()
-                 << " [m/s]\n"
-                 << "\tpressure: " << post_shock_state.pressure << " [Pa]";
-
-  BOOST_LOG(log) << "Calculated Pre-Shock-State:\n"
-                 << "\tdensity: " << pre_shock_state.density << " [kg/m^3]\n"
-                 << "\tvelocity: "
-                 << equation.Velocity(pre_shock_state).transpose() << " [m/s]\n"
-                 << "\tpressure: " << pre_shock_state.pressure << " [Pa]";
-
+  RiemannProblem<fub::PerfectGas<2>, fub::Halfspace> initial_data{
+      equation, fub::Halfspace({+1.0, 0.0, 0.0}, 0.0), initial_state,
+      initial_state};
 
   auto seq = fub::execution::seq;
   BoundarySet boundary_condition{
       {TransmissiveBoundary{fub::Direction::X, 0},
        TransmissiveBoundary{fub::Direction::X, 1},
-       ReflectiveBoundary{seq, equation, fub::Direction::Y,
-                          0}, // for axisymmetric sourceterm
+       ReflectiveBoundary{seq, equation, fub::Direction::Y, 0},
        TransmissiveBoundary{fub::Direction::Y, 1}}};
 
-  // MassflowBoundary_PerfectGasOptions massflowboundary_options =
-  //     fub::GetOptions(options, "massflow_boundary");
-  
-  ShockValveOptions valve_options = fub::GetOptions(options, "ShockValveBoundary");
+  ShockValveOptions valve_options =
+      fub::GetOptions(options, "ShockValveBoundary");
   ShockValveBoundary shock_valve(equation, valve_options);
   BOOST_LOG(log) << "ShockValveBoundary:";
   valve_options.Print(log);
@@ -259,31 +210,12 @@ void MyMain(const fub::ProgramOptions& options) {
   BOOST_LOG(log) << fmt::format("flux_gcw = {}", flux_gcw);
 
   IntegratorContext context(gridding, method, scratch_gcw, flux_gcw);
-  
+
   fub::amrex::cutcell::feedback_functions::ShockOptions shock_options =
       fub::GetOptions(options, "schock_feedback");
-  fub::amrex::cutcell::feedback_functions::ShockFeedback shock_feedback(equation, shock_options);
+  fub::amrex::cutcell::feedback_functions::ShockFeedback shock_feedback(
+      equation, shock_options);
   context.SetFeedbackFunction(shock_feedback);
-
-  fub::DimensionalSplitLevelIntegrator level_integrator(
-      fub::int_c<2>,
-      std::move(context));
-
-  // {
-  fub::amrex::AxiSymmetricSourceTerm_PerfectGas symmetry_source_term(
-      equation);
-
-  fub::SplitSystemSourceLevelIntegrator symmetric_level_integrator(
-      std::move(level_integrator), std::move(symmetry_source_term),
-      fub::GodunovSplitting());
-
-  fub::NoSubcycleSolver solver(std::move(symmetric_level_integrator));
-  // } with AxiSymmetric Source Term
-
-  // without Axisymmetric Source Term
-  // fub::NoSubcycleSolver solver(std::move(level_integrator));
-
-  // fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
   using CounterOutput =
       fub::CounterOutput<GriddingAlgorithm, std::chrono::milliseconds>;
@@ -316,11 +248,36 @@ void MyMain(const fub::ProgramOptions& options) {
   fub::MultipleOutputs<GriddingAlgorithm> outputs(
       std::move(factory), fub::GetOptions(options, "Output"));
 
-  outputs(*solver.GetGriddingAlgorithm());
+  fub::DimensionalSplitLevelIntegrator level_integrator(fub::int_c<2>,
+                                                        std::move(context));
+
   fub::RunOptions run_options = fub::GetOptions(options, "RunOptions");
   BOOST_LOG(log) << "RunOptions:";
   run_options.Print(log);
-  fub::RunSimulation(solver, run_options, wall_time_reference, outputs);
+
+  fub::ProgramOptions prog_run_options = fub::GetOptions(options, "RunOptions");
+  int AxiSymmetric = fub::GetOptionOr(prog_run_options, "AxiSymmetric", 0);
+
+  if (AxiSymmetric) {
+    fub::amrex::AxiSymmetricSourceTerm_PerfectGas symmetry_source_term(
+        equation);
+
+    fub::SplitSystemSourceLevelIntegrator symmetric_level_integrator(
+        std::move(level_integrator), std::move(symmetry_source_term),
+        fub::GodunovSplitting());
+
+    fub::NoSubcycleSolver solver(std::move(symmetric_level_integrator));
+
+    outputs(*solver.GetGriddingAlgorithm());
+    fub::RunSimulation(solver, run_options, wall_time_reference, outputs);
+  } else {
+    fub::NoSubcycleSolver solver(std::move(level_integrator));
+
+    outputs(*solver.GetGriddingAlgorithm());
+    fub::RunSimulation(solver, run_options, wall_time_reference, outputs);
+  }
+
+  // fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 }
 
 int main(int argc, char** argv) {
