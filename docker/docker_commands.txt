@@ -1,0 +1,21 @@
+
+# build and push docker container
+cd folder
+docker build -t <yourusername/repository-name> .
+docker tag <yourusername/repository-name> <yourdockerhubusername/repository-name:v1>
+docker login
+docker push <yourdockerhubusername/repository-name:v1>
+
+# list all docker images 
+docker images
+
+# delete some docker image
+docker image rm <docker image>
+
+# list all active/inactive containers
+docker ps -a 
+
+# delete active/inactive containers
+docker rm <docker container>
+
+docker run -v <output dir>:/home/amrex/output -it <docker image> fish

@@ -68,7 +68,7 @@ for i in range(nsteps):
    
    f, axs = plt.subplots(nrows=2, ncols=2, figsize=(35. / 2, 15. / 2), gridspec_kw={'width_ratios': [3,3]})
    axs = axs.flatten()
-   f.suptitle('Time = {:.2f}'.format(current_time))
+   f.suptitle('Time = {:.2e}'.format(current_time))
    # Pressure image
    levels = np.linspace(0.9, 1.5, 40)
    pressure_options = {
@@ -115,4 +115,5 @@ for i in range(nsteps):
    f.clear()
    plt.close(f)
 
-os.system('ffmpeg -y -framerate 20 -i {}/Figure%04d.png -crf 20 {}/../Movie.mkv'.format(output_path, output_path))
+# ffmpeg currently not installed in the docker image
+# os.system('ffmpeg -y -framerate 20 -i {}/Figure%04d.png -crf 20 {}/../Movie.mkv'.format(output_path, output_path))
