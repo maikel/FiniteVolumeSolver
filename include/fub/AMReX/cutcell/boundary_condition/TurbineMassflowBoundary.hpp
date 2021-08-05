@@ -100,16 +100,17 @@ struct TurbineMassflowBoundaryOptions {
 
 /// \ingroup BoundaryCondition
 ///
-/// This is an outflow boundary condition that models the massflow condition of
+/// \brief This is an outflow boundary condition that models the massflow condition of
 /// a turbine machine.
 ///
 /// The massflow is given by the relation
 ///
-///         \f$\dot{m} / A \cdot \frac{\sqrt{T_0}}{p_0} = \text{const}\f$
+/// \f$ \dot{m} / A \cdot \frac{\sqrt{T_0}}{p_0} = \text{const} \f$
 ///
-/// Therefore, for given surface area \f$A\f$, total pressure \f$p_0\f$ and
-/// total temperature \f$T_0\f$ one determines the required massflow \f$\dot
-/// m\f$ and recomputes the static pressure and temperature values.
+/// Therefore, for given surface area \f$A\f$, total pressure \f$p_0\f$ and total
+/// temperature \f$T_0\f$ one determines the required massflow \f$\dot m \f$ and
+/// recomputes the static pressure and temperature values.
+/// Details can be found in \cite Jirasek2006 .
 template <typename EulerEquation,
           typename Transform = RequireMassflow_SolveExactRiemannProblem>
 class TurbineMassflowBoundary {

@@ -153,6 +153,7 @@ public:
   ///
   /// \param level  The refinement level on which the boundary condition shall
   /// be used.
+  /// \param dir The dimensional split direction which will be used.
   void ApplyBoundaryCondition(int level, Direction dir);
 
   /// \brief Fills the ghost layer of the scratch data and interpolates in the

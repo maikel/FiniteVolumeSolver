@@ -121,7 +121,6 @@ struct PatchLevel {
   /// \param tp  the time point of the simulation
   /// \param ba  the box array of the distributed array
   /// \param dm  the distribution mapping for the array
-  /// \param n_components the number of components of the array
   PatchLevel(int num, Duration tp, const ::amrex::BoxArray& ba,
              const ::amrex::DistributionMapping& dm,
              const DataDescription& desc,
@@ -200,7 +199,7 @@ public:
 
   /// \brief Returns a Geometry object for a specified level.
   ///
-  /// \param[in] The refinement level number for this geometry obejct.
+  /// \param[in] level The refinement level number for this geometry object.
   [[nodiscard]] const ::amrex::Geometry& GetGeometry(int level) const;
 
   /// \brief Returns the hierarchy of Geometry objects.

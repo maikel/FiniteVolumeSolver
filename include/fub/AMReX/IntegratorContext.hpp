@@ -215,6 +215,7 @@ public:
   ///
   /// \param level  The refinement level on which the boundary condition shall
   /// be used.
+  /// \param dir The dimensional split direction which will be used.
   void ApplyBoundaryCondition(int level, Direction dir);
   void ApplyBoundaryCondition(int level, Direction dir,
                               AnyBoundaryCondition& bc);

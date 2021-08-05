@@ -202,7 +202,7 @@ struct Rank<PerfectGasMixCompleteShape<R>> : int_constant<R> {};
 
 // We "register" the complete state with our framework.
 // This enables us to name and iterate over all member variables in a given
-// compete state.
+// complete state.
 template <typename... Xs> struct StateTraits<PerfectGasMixComplete<Xs...>> {
   static constexpr auto names =
       std::make_tuple("Density", "Momentum", "Energy", "Species",
@@ -309,7 +309,17 @@ template <int N> struct PerfectGasMix : PerfectGasConstants {
     (PerfectGasConstants&)(*this) = ComputeConstants(Rspec, gamma);
   }
 
-  int n_species{0};
+  // Rspec = cp - cv
+  // gamma = cp / cv
+  // cp = cv gamma
+  // Rspec = gamma cv - cv
+  // Rspec = (gamma - 1) cv
+  // Rpsec /(gamma - 1) = cv
+  double Rspec{1.};
+  double gamma{1.28};
+  double gamma_minus_1_inv{1.0 / (gamma - 1.0)};
+
+  int n_species{0}; ///< the total number of species
   int n_passive_scalars{0};
 
 private:
