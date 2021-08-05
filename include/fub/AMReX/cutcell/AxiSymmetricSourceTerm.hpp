@@ -29,6 +29,15 @@
 namespace fub::amrex {
 
 /// \ingroup LevelIntegrator
+///
+/// \brief The Axisymmetric Source Term for the 2D Euler Equations.
+///
+/// We consider that the domain is symmetric around a coordinate axis, e.g. in
+/// the z direction. Then the three dimensional Euler Equations can be
+/// approximated by a two dimensional problem with geometric source term \f$
+/// S(U) \f$ namely \f$ U_{t} + F(U)_{r} + G(U)_{z} = S(U) \f$. Further details
+/// can be found in \cite Toro2009riemann (p.28) or in \cite Hoffmann2000computational (p.162 ff.)
+
 class AxiSymmetricSourceTerm {
 public:
   static constexpr int Rank = 2;
