@@ -396,7 +396,9 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     include/fub/AMReX/boundary_condition/ReflectiveBoundary.hpp
     include/fub/AMReX/boundary_condition/IsentropicPressureBoundary.hpp
     include/fub/AMReX/boundary_condition/PressureValveBoundary.hpp
+    include/fub/AMReX/boundary_condition/ShockValveBoundary.hpp
     include/fub/AMReX/boundary_condition/MassflowBoundary.hpp
+    include/fub/AMReX/boundary_condition/MassflowBoundary_PerfectGas.hpp
     include/fub/AMReX/initial_data/ConstantData.hpp
     include/fub/AMReX/AxialSourceTerm.hpp
     include/fub/AMReX/DiffusionSourceTerm.hpp
@@ -433,7 +435,9 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     src/AMReX/boundary_condition/TransmissiveBoundary.cpp
     src/AMReX/boundary_condition/IsentropicPressureBoundary.cpp
     src/AMReX/boundary_condition/PressureValveBoundary.cpp
+    src/AMReX/boundary_condition/ShockValveBoundary.cpp
     src/AMReX/boundary_condition/MassflowBoundary.cpp
+    src/AMReX/boundary_condition/MassflowBoundary_PerfectGas.cpp
     src/AMReX/AxialSourceTerm.cpp
     src/AMReX/IgniteDetonation.cpp
     src/AMReX/ScopeGuard.cpp
@@ -538,8 +542,8 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         include/fub/AMReX/multi_block/MultiWriteHdf5.hpp
         include/fub/AMReX/multi_block/MultiBlockPlotfileOutput.hpp
         include/fub/AMReX/cutcell/output/LogProbes.hpp
-        include/fub/equations/perfect_gas/InitializeShock.hpp
-        src/equations/perfect_gas/InitializeShock.cpp
+        include/fub/equations/perfect_gas/InitializeShock_CutCell.hpp
+        src/equations/perfect_gas/InitializeShock_CutCell.cpp
         src/AMReX/cutcell/output/LogProbes.cpp
         src/AMReX/multi_block/MultiBlockPlotfileOutput.cpp
         src/AMReX/multi_block/MultiWriteHdf5.cpp

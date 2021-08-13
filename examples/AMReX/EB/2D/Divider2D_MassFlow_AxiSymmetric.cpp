@@ -29,7 +29,7 @@
 #include "fub/AMReX/cutcell/AxiSymmetricSourceTerm_PerfectGas.hpp"
 #include "fub/AMReX/cutcell/boundary_condition/MassflowBoundary_PerfectGas.hpp"
 #include "fub/AMReX/cutcell/boundary_condition/ShockValveBoundary.hpp"
-#include "fub/equations/perfect_gas/InitializeShock.hpp"
+#include "fub/equations/perfect_gas/InitializeShock_CutCell.hpp"
 
 #include <AMReX_EB2_IF_Cylinder.H>
 #include <AMReX_EB2_IF_Intersection.H>

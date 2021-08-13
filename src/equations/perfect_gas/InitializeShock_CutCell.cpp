@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/equations/perfect_gas/InitializeShock.hpp"
+#include "fub/equations/perfect_gas/InitializeShock_CutCell.hpp"
 
 namespace fub::amrex::cutcell::feedback_functions {
 

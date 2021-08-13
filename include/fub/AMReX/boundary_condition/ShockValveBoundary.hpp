@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_AMREX_BOUNDARY_CONDITION_CUTCELL_SHOCK_VALVE_HPP
-#define FUB_AMREX_BOUNDARY_CONDITION_CUTCELL_SHOCK_VALVE_HPP
+#ifndef FUB_AMREX_BOUNDARY_CONDITION_SHOCK_VALVE_HPP
+#define FUB_AMREX_BOUNDARY_CONDITION_SHOCK_VALVE_HPP
 
 /// \file
 ///
@@ -31,7 +31,7 @@
 #include "fub/AMReX/GriddingAlgorithm.hpp"
 
 #include "fub/AMReX/boundary_condition/TransmissiveBoundary.hpp"
-#include "fub/AMReX/cutcell/boundary_condition/MassflowBoundary_PerfectGas.hpp"
+#include "fub/AMReX/boundary_condition/MassflowBoundary_PerfectGas.hpp"
 #include "fub/equations/perfect_gas/InitializeShock_CutCell.hpp"
 
 #include "fub/Duration.hpp"
@@ -44,7 +44,7 @@
 #include <limits>
 #include <string>
 
-namespace fub::amrex::cutcell {
+namespace fub::amrex {
 /// \ingroup BoundaryCondition
 ///
 struct ShockValveOptions {
@@ -55,7 +55,7 @@ struct ShockValveOptions {
 
   std::string channel{"ShockValve"};
   MassflowBoundary_PerfectGasOptions massflow_boundary{};
-  feedback_functions::ShockOptions shock_options{};
+  cutcell::feedback_functions::ShockOptions shock_options{};
 };
 
 enum class ShockValveState { open, closed };
@@ -65,27 +65,28 @@ struct ShockValve {
   ShockValveState state{ShockValveState::open};
   Duration last_shock{std::numeric_limits<double>::lowest()};
 };
-} // namespace fub::amrex::cutcell
+} // namespace fub::amrex
 
 namespace boost::serialization {
 template <typename Archive>
-void serialize(Archive& ar, ::fub::amrex::cutcell::ShockValve& valve,
+void serialize(Archive& ar, ::fub::amrex::ShockValve& valve,
                unsigned int /* version */) {
   // clang-format off
   int state = static_cast<int>(valve.state);
   ar & state;
-  valve.state = static_cast<::fub::amrex::cutcell::ShockValveState>(state);
+  valve.state = static_cast<::fub::amrex::ShockValveState>(state);
   ar & valve.last_shock;
   // clang-format on
 }
 } // namespace boost::serialization
 
-namespace fub::amrex::cutcell {
+namespace fub::amrex {
 /// \ingroup BoundaryCondition
 ///
 class ShockValveBoundary {
 public:
-  ShockValveBoundary(const PerfectGas<2>& equation, ShockValveOptions options);
+  static constexpr int Dim = 1;
+  ShockValveBoundary(const PerfectGas<Dim>& equation, ShockValveOptions options);
 
   [[nodiscard]] const ShockValveOptions& GetOptions() const noexcept;
 
@@ -107,9 +108,9 @@ private:
   }
 
   ShockValveOptions options_;
-  PerfectGas<2> equation_;
+  PerfectGas<Dim> equation_;
   ShockValve valve_{};
 };
-} // namespace fub::amrex::cutcell
+} // namespace fub::amrex
 
-#endif // FINITEVOLUMESOLVER_CUTCELL_SHOCK_VALVE_HPP
+#endif // FUB_AMREX_BOUNDARY_CONDITION_SHOCK_VALVE_HPP
