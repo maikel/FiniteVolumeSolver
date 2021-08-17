@@ -38,7 +38,7 @@ struct MassflowBoundaryOptions {
   std::string channel_name{"MassflowBoundary"};
   ::amrex::Box coarse_inner_box{};
   double required_massflow = 0.0;
-  double surface_area = 0.0;
+  double surface_area = 1.0;
   Direction dir = Direction::X;
   int side = 0;
 };
