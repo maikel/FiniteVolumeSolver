@@ -21,7 +21,7 @@ surface_area = math.pi * r_tube * r_tube # [m^2]
 
 # The output files are written in this directory from the perspective of this 
 # docker container
-OutPut_BasePath = 'MB_Riemann_nx_{}_Ma_{}_{}'.format(plenum_x_nCells, shock_mach_number, required_massflow)
+OutPut_BasePath = 'MB_Riemann_nx_{}_Ma_{}_mf_{}'.format(plenum_x_nCells, shock_mach_number, required_massflow)
 
 # OutPut_BasePath = 'Div_Riemann_plenum_x_nCells_{}_Ma_{}_MF_{}'.format(plenum_x_nCells, shock_mach_number, required_massflow)
 

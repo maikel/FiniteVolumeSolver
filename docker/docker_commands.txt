@@ -5,6 +5,7 @@ docker build -t <yourusername/repository-name> .
 docker tag <yourusername/repository-name> <yourdockerhubusername/repository-name:v1>
 docker login
 docker push <yourdockerhubusername/repository-name:v1>
+docker logout
 
 # list all docker images 
 docker images

@@ -24,14 +24,17 @@ RUN pip3 install cython
 RUN pip3 install yt==3.6.1
 RUN useradd amrex -d /home/amrex
 RUN mkdir /home/amrex
+RUN mkdir /home/amrex/wall_files
 RUN chown amrex:amrex -R /home/amrex
 RUN chsh -s `which fish` amrex
 COPY --from=builder /FiniteVolumeSolver/build/examples/AMReX.EB.Divider2D_MassFlow_AxiSymmetric /home/amrex/
+COPY --from=builder /FiniteVolumeSolver/build/examples/AMReX.EB.Divider2D_MassFlow_AxiSymmetric_Multiblock /home/amrex/
 COPY amrex/ /home/amrex/amrex/
-COPY wall_files/ /home/amrex/
+COPY wall_files/wall.txt /home/amrex/wall_files/
 COPY PlotPlenum_HDF5.py /home/amrex/
 ARG INCUBATOR_VER2=unknown
 COPY Divider2D_MassFlow_AxiSymmetric.py /home/amrex/
+COPY Divider2D_MassFlow_AxiSymmetric_Multiblock.py /home/amrex/
 RUN chown amrex:amrex -R /home/amrex/*
 USER amrex
 WORKDIR /home/amrex
