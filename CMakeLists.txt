@@ -543,6 +543,8 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         include/fub/AMReX/multi_block/MultiBlockPlotfileOutput.hpp
         include/fub/AMReX/cutcell/output/LogProbes.hpp
         include/fub/equations/perfect_gas/InitializeShock_CutCell.hpp
+        include/fub/equations/perfect_gas/InitializeShock_CutCell_Multiblock.hpp
+        src/equations/perfect_gas/InitializeShock_CutCell_Multiblock.cpp
         src/equations/perfect_gas/InitializeShock_CutCell.cpp
         src/AMReX/cutcell/output/LogProbes.cpp
         src/AMReX/multi_block/MultiBlockPlotfileOutput.cpp

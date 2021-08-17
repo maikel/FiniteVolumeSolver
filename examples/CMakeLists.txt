@@ -114,6 +114,9 @@ if (AMReX_FOUND AND AMReX_2D_FOUND)
     add_executable_with_warnings(AMReX.EB.Divider2D_MassFlow_AxiSymmetric AMReX/EB/2D/Divider2D_MassFlow_AxiSymmetric.cpp)
     target_link_libraries(AMReX.EB.Divider2D_MassFlow_AxiSymmetric FiniteVolumeSolver.AMReX.EB)
 
+    add_executable_with_warnings(AMReX.EB.Divider2D_MassFlow_AxiSymmetric_Multiblock AMReX/EB/2D/Divider2D_MassFlow_AxiSymmetric_Multiblock.cpp)
+    target_link_libraries(AMReX.EB.Divider2D_MassFlow_AxiSymmetric_Multiblock FiniteVolumeSolver.AMReX.EB)
+
     add_executable_with_warnings(AMReX.EB.ShockTube AMReX/EB/2D/ShockTube.cpp)
     target_link_libraries(AMReX.EB.ShockTube FiniteVolumeSolver.AMReX.EB)
 

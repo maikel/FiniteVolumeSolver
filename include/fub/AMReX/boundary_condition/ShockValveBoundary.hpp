@@ -32,7 +32,7 @@
 
 #include "fub/AMReX/boundary_condition/TransmissiveBoundary.hpp"
 #include "fub/AMReX/boundary_condition/MassflowBoundary_PerfectGas.hpp"
-#include "fub/equations/perfect_gas/InitializeShock_CutCell.hpp"
+#include "fub/equations/perfect_gas/InitializeShock_CutCell_Multiblock.hpp"
 
 #include "fub/Duration.hpp"
 
