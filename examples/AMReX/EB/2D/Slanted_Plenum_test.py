@@ -1,13 +1,15 @@
 import math
 
-tube_n_cells = 128
+tube_n_cells = 64 # 128
 # plenum_x_n_cells = 128
 tube_blocking_factor = 8
 plenum_blocking_factor = 8
 
-angle_degree = 0.
+angle_degree = 45.
 angle = angle_degree / 180. * math.pi
-outputPath = 'slanted_Plenum_test_angle{}_vol40_y0.48'.format(int(angle_degree))
+# outputPath = 'left_connNorma1e-2_NoInflowBndrySet_angle{}'.format(int(angle_degree))
+outputPath = 'awesomeTest_angle{}'.format(int(angle_degree))
+
 
 mode = 3 #%MODE%
 boundary_condition = 'TurbineMassflowBoundaries' # '%BOUNDARY_CONDITION%'
@@ -126,7 +128,7 @@ checkpoint = ''
 
 
 def Area(xi):
-  A0  = 1.0
+  A0  = 4.0
   A1  = 4.0 # Reference: 3.0; best: 4.0 
   xi0 = 0.0625 - 1.0
   xi1 = 0.75 - 1.0   # Reference: 0.5; best: 0.75
@@ -156,14 +158,14 @@ def GetCenterPoint(x0, y0):
 
 def LowerX(x0, y0):
   center = GetCenterPoint(x0, y0)
-  center[1] -= r_tube
-  center[2] -= r_tube
+  center[1] -= 4.*r_tube
+  center[2] -= 4.*r_tube
   return center
 
 def UpperX(x0, y0):
   center = GetCenterPoint(x0, y0)
-  center[1] += r_tube
-  center[2] += r_tube
+  center[1] += 4.*r_tube
+  center[2] += 4.*r_tube
   return center
 
 def DomainAroundPoint(x0, lo, upper):
@@ -188,11 +190,11 @@ def BoxWhichContains_withGhostcells(real_box, gcw_x, gcw_y):
 Plenum = {
   'checkpoint': checkpoint,
   'initial_conditions': {
-    'initially_filled_x': 0.4,
-    'rho_left': 0.125, # should be equal to rho_right from tube, same for pressure
+    'initially_filled_x': 0.01,
+    'rho_left': 0.125,
     'p_left': 0.1,
-    'rho_right': 0.125,
-    'p_right': 0.1
+    'rho_right': 1., #0.125, #1.0,
+    'p_right': 10., #0.1, #10.0
   },
   'GridGeometry': {
     'cell_dimensions': [plenum_x_n_cells, plenum_y_n_cells, plenum_z_n_cells],
@@ -217,8 +219,8 @@ Plenum = {
   },
   'FluxMethod': FluxMethod,
   'InletGeometries': [{
-    'r_start': 4.0 * r_tube, # +plenum_dy/100.,
-    'r_end': 4.0 * r_tube, # +plenum_dy/100.,
+    'r_start': 4.0 * r_tube,
+    'r_end': 4.0 * r_tube,
     'y_0': y_0,
     'height': inlet_length,
     'angle':  angle # 60. / 180. * math.pi
@@ -244,11 +246,13 @@ def PlenumCoarseAverageMirrorBox(y0):
   return BoxWhichContains_withGhostcells(DomainAroundPoint( GetCenterPoint(plenum_x_upper, y0), [0.0, -2.*D], [0.0, +2.*D]), 
             [1,0], [0, 0])
 
+# not used in this simulation!
 Plenum[boundary_condition] = {
   # 'boundary_section': { 
   #   'lower': [plenum_x_n_cells, - Plenum_scratch_gcw, 0], 
   #   'upper': [plenum_x_n_cells + Plenum_scratch_gcw - 1, plenum_y_n_cells + Plenum_scratch_gcw - 1, 0] 
   #   },
+  ## outlet boundary
   'boundary_section': PlenumBoundaryBox(plenum_y_midpoint),
   'mode': mode,
   # 'coarse_average_mirror_box': {
@@ -273,9 +277,9 @@ Tubes = [{
   'checkpoint': checkpoint if checkpoint == '' else '{}/Tube_{}'.format(checkpoint, i),
   # 'buffer': 0.06,
   'initial_conditions': {
-    'initially_filled_x': 0.4,
-    'rho_left': 1.0, # should be equal to rho_right from tube, same for pressure
-    'p_left': 10.0,
+    'initially_filled_x': 0.95,
+    'rho_left': 0.125, #1.0,
+    'p_left': 0.1, #10.0,
     'rho_right': 0.125,
     'p_right': 0.1
   },
@@ -309,33 +313,33 @@ plenum_intervals = 0.02
 
 Output = { 
   'outputs': [
-  {
-    'type': 'HDF5',
-    'path': '{}/Tube0.h5'.format(outputPath),
-    'which_block': 1,
-    'intervals': [tube_intervals],
-    # 'frequencies': [1]
-  },
-  {
-    'type': 'HDF5',
-    'path': '{}/Plenum.h5'.format(outputPath),
-    'which_block': 0,
-    'intervals': [plenum_intervals],
-    # 'frequencies': [1]
-  },
+  # {
+  #   'type': 'HDF5',
+  #   'path': '{}/Tube0.h5'.format(outputPath),
+  #   'which_block': 1,
+  #   'intervals': [tube_intervals],
+  #   # 'frequencies': [1]
+  # },
+  # {
+  #   'type': 'HDF5',
+  #   'path': '{}/Plenum.h5'.format(outputPath),
+  #   'which_block': 0,
+  #   'intervals': [plenum_intervals],
+  #   # 'frequencies': [1]
+  # },
   {
     'type': 'Plotfiles',
     'directory': '{}/Plotfiles'.format(outputPath),
-    'intervals': [0.001],
-    #'frequencies': [1]
+    # 'intervals': [0.001],
+    'frequencies': [1]
   }, {
     'type': 'CounterOutput',
     'frequencies': [1000]
   },
-  {
-    'type': 'Checkpoint',
-    'intervals': [1.0],
-    'directory': '{}/Checkpoint/'.format(outputPath)
-  }
+  # {
+  #   'type': 'Checkpoint',
+  #   'intervals': [1.0],
+  #   'directory': '{}/Checkpoint/'.format(outputPath)
+  # }
   ]
 }
