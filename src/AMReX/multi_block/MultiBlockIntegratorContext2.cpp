@@ -49,8 +49,8 @@ MultiBlockIntegratorContext2::MultiBlockIntegratorContext2(
   }
 }
 
-MultiBlockIntegratorContext2& MultiBlockIntegratorContext2::
-operator=(const MultiBlockIntegratorContext2& other) {
+MultiBlockIntegratorContext2& MultiBlockIntegratorContext2::operator=(
+    const MultiBlockIntegratorContext2& other) {
   MultiBlockIntegratorContext2 tmp(other);
   return *this = std::move(tmp);
 }
@@ -76,8 +76,8 @@ void MultiBlockIntegratorContext2::CopyScratchToData(int level) {
 span<IntegratorContext> MultiBlockIntegratorContext2::Tubes() noexcept {
   return tubes_;
 }
-span<const IntegratorContext> MultiBlockIntegratorContext2::Tubes() const
-    noexcept {
+span<const IntegratorContext>
+MultiBlockIntegratorContext2::Tubes() const noexcept {
   return tubes_;
 }
 
@@ -123,9 +123,8 @@ bool MultiBlockIntegratorContext2::LevelExists(int level) const noexcept {
                      });
 }
 
-int MultiBlockIntegratorContext2::GetRatioToCoarserLevel(int level,
-                                                         Direction dir) const
-    noexcept {
+int MultiBlockIntegratorContext2::GetRatioToCoarserLevel(
+    int level, Direction dir) const noexcept {
   return plena_[0].GetRatioToCoarserLevel(level, dir);
 }
 
@@ -259,6 +258,7 @@ int MultiBlockIntegratorContext2::PreAdvanceLevel(
         const auto& flags = factory.getMultiEBCellFlagFab();
         const ::amrex::MultiCutFab& eb_normals = factory.getBndryNormal();
         auto&& conn2 = conn;
+        // mask all inflow cells through given connection normal
         ForEachFab(reference_states, [&](const ::amrex::MFIter& mfi) {
           ::amrex::Box box = mfi.tilebox() & conn2.plenum.mirror_box;
           ::amrex::FabType type = flags[mfi].getType(box);
@@ -273,6 +273,7 @@ int MultiBlockIntegratorContext2::PreAdvanceLevel(
             const double projection = std::abs(eb_normal.dot(conn.normal));
             const double error = std::abs(projection - 1.0);
             if (error < conn.abs_tolerance) {
+              // here we mask the inflow cutcells
               reference_masks[mfi](index, 0) = 1;
               FUB_ASSERT(compute_eb_reference_state_);
               compute_eb_reference_state_(reference_states[mfi],

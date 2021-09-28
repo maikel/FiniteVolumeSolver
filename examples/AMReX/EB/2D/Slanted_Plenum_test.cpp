@@ -605,8 +605,8 @@ auto MakePlenumSolver(
     return fub::Polygon(std::move(xs), std::move(ys));
   };
 
-  std::vector<amrex::EB2::BoxIF> inlet_boxes{};
-  std::vector<double> rot_angles{};
+  // std::vector<amrex::EB2::BoxIF> inlet_boxes{};
+  // std::vector<double> rot_angles{};
   std::vector<fub::PolymorphicGeometry<Plenum_Rank>> inlets{};
   std::vector<pybind11::dict> eb_dicts{};
   eb_dicts = fub::GetOptionOr(options, "InletGeometries", eb_dicts);
@@ -631,26 +631,27 @@ auto MakePlenumSolver(
         MakePolygon(std::pair{xlo, y_0 + r}, std::pair{xdiv, y_0 + r},
                     std::pair{xhi, y_0 + r2}, std::pair{xhi, y_0 - r2},
                     std::pair{xdiv, y_0 - r}, std::pair{xlo, y_0 - r},
+                    // std::pair{xlo, y_0 - r +0.002}, std::pair{xlo, y_0 - r+0.01},
                     std::pair{xlo, y_0 + r});
     fub::RotateAroundPoint rotated_polygon(polygon, angle, {0.0, y_0});
 
-    auto box = ::amrex::EB2::BoxIF({xlo, y_0 - r}, {xhi, y_0 + r}, true);
-    inlet_boxes.push_back(box);
-    rot_angles.push_back(angle);
+    // auto box = ::amrex::EB2::BoxIF({xlo, y_0 - r}, {xhi, y_0 + r}, true);
+    // inlet_boxes.push_back(box);
+    // rot_angles.push_back(angle);
 
-    // inlets.push_back(rotated_polygon);
+    inlets.push_back(rotated_polygon);
     // inlets.push_back(polygon);
   }
-  // fub::PolymorphicUnion<Plenum_Rank> union_of_inlets(std::move(inlets));
-
-  // auto embedded_boundary = amrex::EB2::makeIntersection(
-  //     amrex::EB2::PlaneIF({0.0, 0.0}, {1.0, 0.0}, false),
-  //     fub::amrex::Geometry(fub::Invert(union_of_inlets)));
+  fub::PolymorphicUnion<Plenum_Rank> union_of_inlets(std::move(inlets));
 
   auto embedded_boundary = amrex::EB2::makeIntersection(
       amrex::EB2::PlaneIF({0.0, 0.0}, {1.0, 0.0}, false),
-      ::amrex::EB2::rotate(inlet_boxes[0], rot_angles[0],
-                           0)); // only for first inlet box!!!!
+      fub::amrex::Geometry(fub::Invert(union_of_inlets)));
+
+  // auto embedded_boundary = amrex::EB2::makeIntersection(
+  //     amrex::EB2::PlaneIF({0.0, 0.0}, {1.0, 0.0}, false),
+  //     ::amrex::EB2::rotate(inlet_boxes[0], rot_angles[0],
+  //                          0)); // only for first inlet box!!!!
 
   auto shop = amrex::EB2::makeShop(embedded_boundary);
 
@@ -883,8 +884,8 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
                                                   n_passive_scalars};
   fub::PerfectGasMix<Tube_Rank> tube_equation{constants, n_species - 1,
                                               n_passive_scalars};
-  fub::ProgramOptions control_options_map =
-      fub::GetOptions(vm, "ControlOptions");
+  // fub::ProgramOptions control_options_map =
+  //     fub::GetOptions(vm, "ControlOptions");
   // GT::ControlOptions control_options(control_options_map);
   // BOOST_LOG(log) << "ControlOptions:";
   // control_options.Print(log);
@@ -996,7 +997,7 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   using namespace fub::amrex;
   struct MakeCheckpoint
       : public fub::OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm2> {
-    std::string directory_ = "SEC_Plenum_Arrhenius";
+    std::string directory_ = "Slanted_Plenum_test";
     // std::shared_ptr<const fub::perfect_gas_mix::gt::ControlState>
     //     control_state_;
     MakeCheckpoint(
