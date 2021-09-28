@@ -5,10 +5,10 @@ tube_n_cells = 64 # 128
 tube_blocking_factor = 8
 plenum_blocking_factor = 8
 
-angle_degree = 45.
+angle_degree = 0.
 angle = angle_degree / 180. * math.pi
 # outputPath = 'left_connNorma1e-2_NoInflowBndrySet_angle{}'.format(int(angle_degree))
-outputPath = 'awesomeTest_angle{}'.format(int(angle_degree))
+outputPath = 'aRevwesomeTest_angle{}'.format(int(angle_degree))
 
 
 mode = 3 #%MODE%

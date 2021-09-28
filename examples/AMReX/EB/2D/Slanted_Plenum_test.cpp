@@ -936,7 +936,9 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
 
     R << std::cos(angle), -std::sin(angle), std::sin(angle), std::cos(angle);
     connection.normal = R * fub::UnitVector<2>(fub::Direction::X);
-    connection.abs_tolerance = 0.6; // 1e-2;
+    connection.abs_tolerance = 1e-2; // 1e-2;
+    connection.mask_inflow_abs_tolerance = 1e-2; //0.6;
+
     amrex::Box plenum_mirror_box{};
     FUB_ASSERT(!plenum_mirror_box.ok());
     plenum_mirror_box =
@@ -953,7 +955,7 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
 
   // Attention plenum is an vector and every tube_connectivity can have its own
   // inflow_boundary_normal!!!!
-  plenum[0].SetInflowBoundaryNormal(connectivity[0].normal);
+  // plenum[0].SetInflowBoundaryNormal(connectivity[0].normal);
 
   fub::amrex::MultiBlockIntegratorContext2 context(
       tube_equation, plenum_equation, std::move(tubes), std::move(plenum),

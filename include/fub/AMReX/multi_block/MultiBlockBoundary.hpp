@@ -59,6 +59,7 @@ struct BlockConnection {
   int ghost_cell_width;
   Eigen::Matrix<double, AMREX_SPACEDIM, 1> normal = Eigen::Matrix<double, AMREX_SPACEDIM, 1>::Zero();
   double abs_tolerance = 1.0e-3;
+  double mask_inflow_abs_tolerance = 1.0e-3;
 };
 
 /// \ingroup BoundaryCondition

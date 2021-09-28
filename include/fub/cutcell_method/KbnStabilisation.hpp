@@ -32,6 +32,7 @@
 #include "fub/core/tuple.hpp"
 
 #include <algorithm>
+#include <cmath>
 
 namespace fub {
 
@@ -221,12 +222,33 @@ void KbnCutCellMethod<FM, RiemannSolver>::ComputeBoundaryFlux(
 
   if (mask) {
     if (inflow_boundary_normal) {
-      Rotate(state, state, MakeRotation(*inflow_boundary_normal, unit),
+      // Corners should be handled here, this is only possible when we set abs tolerance 
+      // from the connectivity to a high value (0.6)
+      const double projection = std::abs(boundary_normal.dot(*inflow_boundary_normal));
+      const double error = std::abs( projection - 1.0);
+      const double conn_tolerance = 1e-2;
+      
+      // all boundary_normals are negated!!
+      const double sign = std::copysign(1.0, boundary_normal[1]);
+      
+      if (error < conn_tolerance) {
+        Rotate(state, state, MakeRotation(*inflow_boundary_normal, unit),
              equation);
-      riemann_solver_.SolveRiemannProblem(solution_, reference_mirror_state,
-                                          state, Direction::X);
-      Rotate(solution_, solution_, MakeRotation(unit, *inflow_boundary_normal),
-             equation);
+        riemann_solver_.SolveRiemannProblem(solution_, reference_mirror_state,
+                                            state, Direction::X);
+        Rotate(solution_, solution_, MakeRotation(unit, *inflow_boundary_normal),
+              equation);
+      }
+      else { 
+        // should be corner, just reflect like its a normal wall at y=const
+        const Eigen::Matrix<double, Rank, 1> unitY = sign*UnitVector<Rank>(Direction::Y);
+        // multiply unitY with sign of projection!
+        Rotate(state, state, MakeRotation(unitY, unit), equation);
+        Reflect(reflected_, state, unit, equation);
+        riemann_solver_.SolveRiemannProblem(solution_, reflected_, state,
+                                            Direction::X);
+        Rotate(solution_, solution_, MakeRotation(unit, unitY), equation);
+      }
     } else {
       Rotate(state, state, MakeRotation(boundary_normal, unit), equation);
       riemann_solver_.SolveRiemannProblem(solution_, reference_mirror_state,

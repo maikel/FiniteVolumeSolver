@@ -272,7 +272,7 @@ int MultiBlockIntegratorContext2::PreAdvanceLevel(
                 AMREX_D_DECL(ebns(index, 0), ebns(index, 1), ebns(index, 2))};
             const double projection = std::abs(eb_normal.dot(conn.normal));
             const double error = std::abs(projection - 1.0);
-            if (error < conn.abs_tolerance) {
+            if (error < conn.mask_inflow_abs_tolerance) {
               // here we mask the inflow cutcells
               reference_masks[mfi](index, 0) = 1;
               FUB_ASSERT(compute_eb_reference_state_);
