@@ -5,7 +5,7 @@ RunOptions = {
 }
 
 GridGeometry = {
- 'cell_dimensions': [200, 200, 1],
+ 'cell_dimensions': [256, 256, 1],
  'coordinates': {
    'lower': [-1.0, -1.0, -1.0],
    'upper': [+1.0, +1.0, +1.0],
@@ -14,7 +14,7 @@ GridGeometry = {
 }
 
 PatchHierarchy = {
- 'max_number_of_levels': 4, 
+ 'max_number_of_levels': 3, 
  'n_error_buf': [4, 4, 0]
 }
 
