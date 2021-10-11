@@ -455,13 +455,13 @@ AnyMultiBlockBoundary::AnyMultiBlockBoundary(const AnyMultiBlockBoundary& other)
   }
 }
 
-const ::amrex::FArrayBox* AnyMultiBlockBoundary::GetTubeMirrorData() const
-    noexcept {
+const ::amrex::FArrayBox*
+AnyMultiBlockBoundary::GetTubeMirrorData() const noexcept {
   return tube_mirror_data_.get();
 }
 
-const ::amrex::FArrayBox* AnyMultiBlockBoundary::GetTubeGhostData() const
-    noexcept {
+const ::amrex::FArrayBox*
+AnyMultiBlockBoundary::GetTubeGhostData() const noexcept {
   return tube_ghost_data_.get();
 }
 
@@ -477,8 +477,9 @@ void AnyMultiBlockBoundary::Initialize(
       plenum.GetGeometry(level_).CellSize(static_cast<int>(dir_));
   const double tube_dx =
       tube.GetGeometry(level_).CellSize(static_cast<int>(dir_));
-  // Allocate mirror data containing the plenum data (reduced to 1d)
+
   if (connection_.normal.squaredNorm() == 0.0) {
+    // Allocate mirror data containing the plenum data (reduced to 1d)
     const int mirror_width =
         static_cast<int>(std::ceil((gcw * tube_dx) / plenum_dx));
     plenum_mirror_box_ =
@@ -497,21 +498,27 @@ void AnyMultiBlockBoundary::Initialize(
                         dir_),
         ncomp);
   } else {
+    // in slanted version we only need the given mirrorbox
     plenum_mirror_box_ = connection.plenum.mirror_box;
   }
+
   // Allocate mirror data for the tube data
   {
+
+    const int plenum_width =
+        plenum_mirror_box_.bigEnd(0) - plenum_mirror_box_.smallEnd(0);
+    const double plenum_overlap_length = static_cast<double>(plenum_width) * plenum_dx;
+
+    // tube_mirrorbox_ must overlap the plena in the right way
     const int mirror_width =
-        static_cast<int>(std::ceil((gcw * plenum_dx) / tube_dx));
+        static_cast<int>(std::ceil(connection.overlapping_length / tube_dx));
     tube_mirror_box_ =
         MakeMirrorBox(connection.tube.mirror_box, mirror_width, dir_,
                       Flip(side_), level_, tube.GetRatioToCoarserLevel(level));
     const int ncons = tube.GetDataDescription().n_cons_components;
     const int ncomp = tube.GetDataDescription().n_state_components;
     tube_mirror_data_ = std::make_unique<::amrex::FArrayBox>(
-        MakeMirrorBox(connection.tube.mirror_box, gcw, dir_, Flip(side_),
-                      level_, tube.GetRatioToCoarserLevel(level_)),
-        ncons);
+        tube_mirror_box_, ncons);
     tube_ghost_data_ = std::make_unique<::amrex::FArrayBox>(
         MakeGhostBox(tube_mirror_box_, gcw, dir_, Flip(side_)), ncomp);
   }
@@ -541,6 +548,10 @@ void AnyMultiBlockBoundary::ComputeBoundaryData(
   //////////////////////////////////////////////////////////////////////////////
   // Integrate plenum states over mirror volume and fill ghost cells of tube
 
+  // const ::amrex::Geometry& plena_geom = plenum.GetGeometry(level_);
+  // const ::amrex::Geometry& tube_geom = tube.GetGeometry(level_);
+
+  // same as in ComputeBoundaryDataForTube(plenum, tube), see below
   {
     // Integrate over mirror volume
     const ::amrex::FArrayBox plenum_data = AverageConservativeHierarchyStates(
@@ -564,6 +575,7 @@ void AnyMultiBlockBoundary::ComputeBoundaryData(
     }
   }
 
+  // same as in ComputeBoundaryDataForPlenum(plenum, tube), see below
   {
     ::amrex::FArrayBox tube_data =
         AllgatherMirrorData(tube, level_, tube_mirror_box_);
@@ -574,6 +586,7 @@ void AnyMultiBlockBoundary::ComputeBoundaryData(
                         Flip(side_));
     }
 
+    // only in not slanted case
     if (tube_mirror_data_ && plenum_ghost_data_) {
       // Transform low dimensional states into high dimensional ones.
       impl_->FillPlenumGhostLayer(*plenum_ghost_data_, *tube_mirror_data_);

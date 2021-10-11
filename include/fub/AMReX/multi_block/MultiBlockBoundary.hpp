@@ -58,6 +58,8 @@ struct BlockConnection {
   int side;
   int ghost_cell_width;
   Eigen::Matrix<double, AMREX_SPACEDIM, 1> normal = Eigen::Matrix<double, AMREX_SPACEDIM, 1>::Zero();
+  std::vector<double> center_point{AMREX_D_DECL(0.0, 0.0, 0.0)};
+  double overlapping_length = 2.0;
   double abs_tolerance = 1.0e-3;
 };
 

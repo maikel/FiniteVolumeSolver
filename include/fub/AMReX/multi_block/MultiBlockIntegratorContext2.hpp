@@ -249,15 +249,21 @@ MultiBlockIntegratorContext2::MultiBlockIntegratorContext2(
         Load(cons, mirrorv, Shift(Box<0>(mirrorv).upper, Direction::X, -1));
         fub::CompleteFromCons(teq, mirror_state, cons);
         Load(ghost_state, ghostv, Box<0>(ghostv).lower);
+        // use tube mirror and ghost state to solve the riemann problem
         hlle.SolveRiemannProblem(tube_rp_solution, mirror_state, ghost_state,
                                  Direction::X);
+
+        // transform and rotate the solution to higher dimensional plenum state
         EmbedState(peq, plenum_rp_solution, teq, AsCons(tube_rp_solution));
         auto unit = UnitVector<PlenumEquation::Rank()>(Direction::X);
         Rotate(reference_state, plenum_rp_solution, MakeRotation(unit, normal),
                peq);
+
         Index<AMREX_SPACEDIM> idx{};
         std::copy_n(&i[0], AMREX_SPACEDIM, &idx[0]);
+        // store the transformed solution
         Store(refv, reference_state, idx);
+        // transform and store the tube mirror state
         EmbedState(peq, reference_state, teq, cons);
         Store(ref_mirrorv, reference_state, idx);
       };

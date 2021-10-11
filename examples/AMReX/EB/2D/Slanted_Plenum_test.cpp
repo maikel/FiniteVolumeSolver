@@ -111,11 +111,10 @@ static constexpr int n_passive_scalars = 1;
 //     stencil.fill(Complete(equation_));
 
 //     int ngrow = 2;
-//     const ::amrex::Geometry& geom = grid.GetPatchHierarchy().GetGeometry(level);
-//     const double dx = geom.CellSize(0);
-//     const ::amrex::IntVect lo{-2 * ngrow, 0};
-//     const ::amrex::IntVect hi{+ngrow, 0};
-//     const ::amrex::Box stencil_box{lo, hi};
+//     const ::amrex::Geometry& geom =
+//     grid.GetPatchHierarchy().GetGeometry(level); const double dx =
+//     geom.CellSize(0); const ::amrex::IntVect lo{-2 * ngrow, 0}; const
+//     ::amrex::IntVect hi{+ngrow, 0}; const ::amrex::Box stencil_box{lo, hi};
 //     fub::amrex::ForEachFab(mf, [&](const ::amrex::MFIter& mfi) {
 //       const ::amrex::Box section = mfi.growntilebox() & stencil_box;
 //       if (section == stencil_box) {
@@ -171,7 +170,8 @@ struct InitialDataInTube {
   // double CompressorPressureRatio(double rpm) const noexcept {
   //   double pratio = control_.pratiomean +
   //                   control_.c_0 * control_.pratiovar *
-  //                       std::atan(M_PI * (rpm / control_.rpmmean - 1.0)) / M_PI;
+  //                       std::atan(M_PI * (rpm / control_.rpmmean - 1.0)) /
+  //                       M_PI;
   //   return pratio;
   // }
 
@@ -191,17 +191,19 @@ struct InitialDataInTube {
 
         // const double pV = CompressorPressureRatio(control_.rpmmin);
         // const double TV =
-        //     1.0 + (std::pow(pV, equation_.gamma_minus_one_over_gamma) - 1.0) /
+        //     1.0 + (std::pow(pV, equation_.gamma_minus_one_over_gamma) - 1.0)
+        //     /
         //               control_.efficiency_compressor;
         // const double p0 = 2.0;
         // const double p = 0.95 * p0;
         // const double T = TV + kinetics_.Q * equation_.gamma_minus_one;
         // const double rho = p / T; // * equation_.ooRspec;
         const double p = (rel_x < initially_filled_x_) ? p_left_ : p_right_;
-        state.density = (rel_x < initially_filled_x_) ? rho_left_ : rho_right_; //rho;
+        state.density =
+            (rel_x < initially_filled_x_) ? rho_left_ : rho_right_; // rho;
         state.species[0] =
             (rel_x < initially_filled_x_) ? 1.0 * rho_left_ : 0.0 * rho_right_;
-        state.passive_scalars[0] = -x * 0.0; //rho;
+        state.passive_scalars[0] = -x * 0.0; // rho;
         state.energy = p * equation_.gamma_minus_one_inv;
         equation_.CompleteFromCons(complete, state);
         fub::Store(states, complete, {i});
@@ -253,11 +255,14 @@ struct InitialDataInPlenum {
                   // const double rho0 = std::pow(p0, equation_.gamma_inv);
                   // const double T0 = p0 / rho0;
                   // const double p = 0.95 * p0;
-                  // const double T = T0 + kinetics_.Q * equation_.gamma_minus_one;
-                  // const double rho = p / T; //* equation_.ooRspec;
-                  const double pressure = (rel_x < initially_filled_x_) ? p_left_ : p_right_;
-                  const double density = (rel_x < initially_filled_x_) ? rho_left_ : rho_right_;
-                  
+                  // const double T = T0 + kinetics_.Q *
+                  // equation_.gamma_minus_one; const double rho = p / T; //*
+                  // equation_.ooRspec;
+                  const double pressure =
+                      (rel_x < initially_filled_x_) ? p_left_ : p_right_;
+                  const double density =
+                      (rel_x < initially_filled_x_) ? rho_left_ : rho_right_;
+
                   const double T = pressure / density;
 
                   state.temperature = T;
@@ -276,12 +281,11 @@ struct InitialDataInPlenum {
   }
 };
 
-auto MakeTubeSolver(
-    const fub::ProgramOptions& options,
-    const fub::PerfectGasConstants& constants,
-    const std::shared_ptr<fub::CounterRegistry>& counters //,
-    // const std::shared_ptr<const GT::ControlState>& control_state,
-    // GT::ControlOptions& control_options) {
+auto MakeTubeSolver(const fub::ProgramOptions& options,
+                    const fub::PerfectGasConstants& constants,
+                    const std::shared_ptr<fub::CounterRegistry>& counters //,
+                    // const std::shared_ptr<const GT::ControlState>&
+                    // control_state, GT::ControlOptions& control_options) {
 ) {
   using namespace fub::amrex;
   auto make_tube_solver = counters->get_timer("MakeTubeSolver");
@@ -317,13 +321,13 @@ auto MakeTubeSolver(
   // BOOST_LOG(log) << "ArrheniusKinetics:";
   // source_term.options.Print(log);
 
-  const std::map<std::string, pybind11::object>& inital_condition_opts = fub::GetOptions(options, "initial_conditions");
+  const std::map<std::string, pybind11::object>& inital_condition_opts =
+      fub::GetOptions(options, "initial_conditions");
   const double initially_filled_x =
       fub::GetOptionOr(inital_condition_opts, "initially_filled_x", 0.4);
   const double rho_left =
       fub::GetOptionOr(inital_condition_opts, "rho_left", 0.125);
-  const double p_left =
-      fub::GetOptionOr(inital_condition_opts, "p_left", 0.1);
+  const double p_left = fub::GetOptionOr(inital_condition_opts, "p_left", 0.1);
   const double rho_right =
       fub::GetOptionOr(inital_condition_opts, "rho_right", 1.0);
   const double p_right =
@@ -334,10 +338,17 @@ auto MakeTubeSolver(
   BOOST_LOG(log) << "  - rho_right = " << rho_right << " [kg/m3]";
   BOOST_LOG(log) << "  - p_left = " << p_left << " [Pa]";
   BOOST_LOG(log) << "  - p_right = " << p_right << " [Pa]";
-  // InitialDataInTube initial_data{equation, source_term.options, control_options,
+  // InitialDataInTube initial_data{equation, source_term.options,
+  // control_options,
   //                                grid_geometry.coordinates.lo()[0],
   //                                initially_filled_x};
-  InitialDataInTube initial_data{equation, grid_geometry.coordinates.lo()[0], initially_filled_x, rho_left, p_left, rho_right, p_right};
+  InitialDataInTube initial_data{equation,
+                                 grid_geometry.coordinates.lo()[0],
+                                 initially_filled_x,
+                                 rho_left,
+                                 p_left,
+                                 rho_right,
+                                 p_right};
 
   // FUB_ASSERT(control_state);
   // auto combustor_inflow_function =
@@ -455,8 +466,9 @@ auto MakeTubeSolver(
   //         const fub::PerfectGasMix<1>& eq,
   //         fub::Complete<fub::PerfectGasMix<1>>& boundary_state,
   //         const fub::perfect_gas_mix::gt::PlenumState& compressor_state,
-  //         double inner_pressure, fub::Duration t_diff, const amrex::MultiFab&,
-  //         const fub::amrex::GriddingAlgorithm&, int) mutable {
+  //         double inner_pressure, fub::Duration t_diff, const
+  //         amrex::MultiFab&, const fub::amrex::GriddingAlgorithm&, int)
+  //         mutable {
   //       if (!compressor_state.SEC_Mode) {
   //         // Deflagration Mode
   //         const double X_inflow_left = 1.0;
@@ -511,7 +523,8 @@ auto MakeTubeSolver(
 
   //         const double tign = std::max(timin, tti - t_diff.count());
   //         const double Xin = X_inflow_left;
-  //         const double Tin1 = fub::perfect_gas_mix::TemperatureForIgnitionDelay(
+  //         const double Tin1 =
+  //         fub::perfect_gas_mix::TemperatureForIgnitionDelay(
   //             eq, source_term.options, tign, Xin, Tin, eps);
 
   //         /* adjust density to match desired temperature */
@@ -522,7 +535,8 @@ auto MakeTubeSolver(
   //         prim.pressure = pin;
   //         auto heaviside = [](double x) { return (x > 0); };
   //         prim.species[0] = std::clamp(
-  //             Xin * heaviside(t_diff.count() - fuel_retardatation), 0.0, 1.0);
+  //             Xin * heaviside(t_diff.count() - fuel_retardatation),
+  //             0.0, 1.0);
 
   //         fub::CompleteFromPrim(eq, boundary_state, prim);
   //       }
@@ -532,7 +546,7 @@ auto MakeTubeSolver(
   //                                                switch_to_SEC_inflow_function);
 
   fub::amrex::ReflectiveBoundary wall{fub::execution::seq, equation,
-  fub::Direction::X, 0};
+                                      fub::Direction::X, 0};
 
   // If a checkpoint path is specified we will fill the patch hierarchy with
   // data from the checkpoint file, otherwise we will initialize the data by
@@ -544,7 +558,7 @@ auto MakeTubeSolver(
       BOOST_LOG(log) << "Initialize grid by initial condition...";
       std::shared_ptr gridding = std::make_shared<GriddingAlgorithm>(
           PatchHierarchy(desc, grid_geometry, hierarchy_options), initial_data,
-          TagAllOf(gradient, constant_box), wall); //valve);
+          TagAllOf(gradient, constant_box), wall); // valve);
       gridding->GetPatchHierarchy().SetCounterRegistry(counters);
       gridding->InitializeHierarchy(0.0);
       return gridding;
@@ -556,7 +570,7 @@ auto MakeTubeSolver(
       std::shared_ptr<GriddingAlgorithm> gridding =
           std::make_shared<GriddingAlgorithm>(std::move(h), initial_data,
                                               TagAllOf(gradient, constant_box),
-                                              wall); //valve);
+                                              wall); // valve);
       return gridding;
     }
   }();
@@ -573,22 +587,20 @@ auto MakeTubeSolver(
   context.GetOptions().Print(log);
 
   // fub::Duration good_guess_dt = context.GetPatchHierarchy().GetStabledt();
-  // TracePassiveScalarBoundary passive_scalar_boundary{equation, good_guess_dt};
-  // context.GetGriddingAlgorithm()->GetBoundaryCondition() =
+  // TracePassiveScalarBoundary passive_scalar_boundary{equation,
+  // good_guess_dt}; context.GetGriddingAlgorithm()->GetBoundaryCondition() =
   //     BoundarySet{{valve, passive_scalar_boundary}};
-  context.GetGriddingAlgorithm()->GetBoundaryCondition() =
-        BoundarySet{{wall}};
+  context.GetGriddingAlgorithm()->GetBoundaryCondition() = BoundarySet{{wall}};
 
   BOOST_LOG(log) << "==================== End Tube =========================";
-  
+
   // return std::pair{context, source_term};
   return context;
 }
 
-auto MakePlenumSolver(
-    const std::map<std::string, pybind11::object>& options,
-    const fub::PerfectGasConstants& constants ) { //,
-    // const fub::perfect_gas_mix::ArrheniusKineticsOptions& kinetics) {
+auto MakePlenumSolver(const std::map<std::string, pybind11::object>& options,
+                      const fub::PerfectGasConstants& constants) { //,
+  // const fub::perfect_gas_mix::ArrheniusKineticsOptions& kinetics) {
   std::shared_ptr<fub::CounterRegistry> registry =
       std::make_shared<fub::CounterRegistry>();
   auto make_plenum_solver = registry->get_timer("MakePlenumSolver");
@@ -625,12 +637,12 @@ auto MakePlenumSolver(
     const double r = r_inlet_start;
     const double r2 = r_inlet_end;
     const double xdiv = -4.0 * r;
-    auto polygon =
-        MakePolygon(std::pair{xlo, y_0 + r}, std::pair{xdiv, y_0 + r},
-                    std::pair{xhi, y_0 + r2}, std::pair{xhi, y_0 - r2},
-                    std::pair{xdiv, y_0 - r}, std::pair{xlo, y_0 - r},
-                    // std::pair{xlo, y_0 - r +0.002}, std::pair{xlo, y_0 - r+0.01},
-                    std::pair{xlo, y_0 + r});
+    auto polygon = MakePolygon(
+        std::pair{xlo, y_0 + r}, std::pair{xdiv, y_0 + r},
+        std::pair{xhi, y_0 + r2}, std::pair{xhi, y_0 - r2},
+        std::pair{xdiv, y_0 - r}, std::pair{xlo, y_0 - r},
+        // std::pair{xlo, y_0 - r +0.002}, std::pair{xlo, y_0 - r+0.01},
+        std::pair{xlo, y_0 + r});
     fub::RotateAroundPoint rotated_polygon(polygon, angle, {0.0, y_0});
 
     inlets.push_back(rotated_polygon);
@@ -664,13 +676,13 @@ auto MakePlenumSolver(
                                            n_passive_scalars};
 
   // InitialDataInPlenum initial_data{equation, kinetics};
-  const std::map<std::string, pybind11::object>& inital_condition_opts = fub::GetOptions(options, "initial_conditions");
+  const std::map<std::string, pybind11::object>& inital_condition_opts =
+      fub::GetOptions(options, "initial_conditions");
   const double initially_filled_x =
       fub::GetOptionOr(inital_condition_opts, "initially_filled_x", 0.4);
   const double rho_left =
       fub::GetOptionOr(inital_condition_opts, "rho_left", 1.0);
-  const double p_left =
-      fub::GetOptionOr(inital_condition_opts, "p_left", 1.0);
+  const double p_left = fub::GetOptionOr(inital_condition_opts, "p_left", 1.0);
   const double rho_right =
       fub::GetOptionOr(inital_condition_opts, "rho_right", 0.125);
   const double p_right =
@@ -682,7 +694,13 @@ auto MakePlenumSolver(
   BOOST_LOG(log) << "  - p_left = " << p_left << " [Pa]";
   BOOST_LOG(log) << "  - p_right = " << p_right << " [Pa]";
 
-  InitialDataInPlenum initial_data{equation, grid_geometry.coordinates.lo()[0], initially_filled_x, rho_left, p_left, rho_right, p_right};
+  InitialDataInPlenum initial_data{equation,
+                                   grid_geometry.coordinates.lo()[0],
+                                   initially_filled_x,
+                                   rho_left,
+                                   p_left,
+                                   rho_right,
+                                   p_right};
 
   //  using Complete = fub::Complete<fub::PerfectGas<Plenum_Rank>>;
   using Complete = fub::Complete<fub::PerfectGasMix<Plenum_Rank>>;
@@ -741,11 +759,9 @@ auto MakePlenumSolver(
 
   // TurbineMassflowBoundaryOptions boundary_options =
   //     fub::GetOptions(options, "TurbineMassflowBoundaries");
-  // fub::amrex::cutcell::TurbineMassflowBoundaryOptions tb_opts(boundary_options);
-  // tb_opts.dir = fub::Direction::X;
-  // tb_opts.side = 1;
-  // BOOST_LOG(log) << "TurbineMassflowBoundaries:";
-  // tb_opts.Print(log);
+  // fub::amrex::cutcell::TurbineMassflowBoundaryOptions
+  // tb_opts(boundary_options); tb_opts.dir = fub::Direction::X; tb_opts.side =
+  // 1; BOOST_LOG(log) << "TurbineMassflowBoundaries:"; tb_opts.Print(log);
   // fub::amrex::cutcell::TurbineMassflowBoundary<fub::PerfectGasMix<2>>
   //     pressure_outflow(equation, tb_opts);
   // boundary_condition.conditions.push_back(std::move(pressure_outflow));
@@ -825,11 +841,10 @@ int main(int argc, char** argv) {
   }
 }
 
-void WriteCheckpoint(
-    const std::string& path,
-    const fub::amrex::MultiBlockGriddingAlgorithm2& grid) {//,
-    // const std::shared_ptr<const fub::perfect_gas_mix::gt::ControlState>&
-        // control_state) {
+void WriteCheckpoint(const std::string& path,
+                     const fub::amrex::MultiBlockGriddingAlgorithm2& grid) { //,
+  // const std::shared_ptr<const fub::perfect_gas_mix::gt::ControlState>&
+  // control_state) {
   auto tubes = grid.GetTubes();
   for (auto&& [i, tube] : ranges::view::enumerate(tubes)) {
     std::string name = fmt::format("{}/Tube_{}", path, i);
@@ -892,8 +907,8 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
 
   // fub::perfect_gas_mix::ArrheniusKineticsOptions kinetic_opts =
   //     fub::GetOptions(vm, "ArrheniusKinetics");
-  plenum.push_back(
-      MakePlenumSolver(fub::GetOptions(vm, "Plenum"), constants )); //,kinetic_opts));
+  plenum.push_back(MakePlenumSolver(fub::GetOptions(vm, "Plenum"),
+                                    constants)); //,kinetic_opts));
   auto counter_database = plenum[0].GetCounterRegistry();
 
   std::vector<pybind11::dict> tube_dicts = {};
@@ -901,9 +916,9 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   for (auto&& [k, dict] : ranges::view::enumerate(tube_dicts)) {
     fub::ProgramOptions tube_options = fub::ToMap(dict);
     // auto&& [tube, source] =
-    auto&& tube =
-        MakeTubeSolver(tube_options, constants, counter_database); //, control_state,
-                      //  control_options);
+    auto&& tube = MakeTubeSolver(tube_options, constants,
+                                 counter_database); //, control_state,
+                                                    //  control_options);
     fub::amrex::BlockConnection connection;
     connection.direction = fub::Direction::X;
     connection.side = 0;
@@ -925,6 +940,13 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
     R << std::cos(angle), -std::sin(angle), std::sin(angle), std::cos(angle);
     connection.normal = R * fub::UnitVector<2>(fub::Direction::X);
     connection.abs_tolerance = 1e-2;
+
+    std::vector<double> iv{-20.0 * r_tube, 0.0};
+    connection.center_point = fub::GetOptionOr(
+        fub::ToMap(dicts[k]), "connection_point", std::move(iv));
+    connection.overlapping_length = fub::GetOptionOr(
+        fub::ToMap(dicts[k]), "overlapping_length", 4.0 * r_tube );
+
     amrex::Box plenum_mirror_box{};
     FUB_ASSERT(!plenum_mirror_box.ok());
     plenum_mirror_box =
@@ -952,7 +974,8 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   //     boundary_options.coarse_average_mirror_box;
 
   // GT::ControlFeedback<Plenum_Rank> feedback(plenum_equation, tube_equation,
-  //                                           control, coarse_average_mirror_box);
+  //                                           control,
+  //                                           coarse_average_mirror_box);
   // context.SetPostAdvanceHierarchyFeedback(feedback);
   fub::DimensionalSplitLevelIntegrator system_solver(
       fub::int_c<Plenum_Rank>, std::move(context), fub::GodunovSplitting{});
@@ -966,7 +989,8 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   // fub::amrex::DiffusionSourceTermOptions diff_opts =
   //     fub::GetOptions(vm, "DiffusionSourceTerm");
   // std::vector<fub::amrex::DiffusionSourceTerm<fub::PerfectGasMix<1>>> diffs(
-  //     kinetics.size(), fub::amrex::DiffusionSourceTerm<fub::PerfectGasMix<1>>{
+  //     kinetics.size(),
+  //     fub::amrex::DiffusionSourceTerm<fub::PerfectGasMix<1>>{
   //                          tube_equation, diff_opts});
   // fub::amrex::MultiBlockSourceTerm<
   //     fub::amrex::DiffusionSourceTerm<fub::PerfectGasMix<1>>>
@@ -984,8 +1008,7 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
     std::string directory_ = "Slanted_Plenum_test";
     // std::shared_ptr<const fub::perfect_gas_mix::gt::ControlState>
     //     control_state_;
-    MakeCheckpoint(
-        const fub::ProgramOptions& options ) //,
+    MakeCheckpoint(const fub::ProgramOptions& options) //,
         // std::shared_ptr<const fub::perfect_gas_mix::gt::ControlState> cs)
         : OutputAtFrequencyOrInterval(options) { //, control_state_{cs} {
       directory_ = fub::GetOptionOr(options, "directory", directory_);
@@ -994,13 +1017,14 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
       std::string name = fmt::format("{}/{:09}", directory_, grid.GetCycles());
       fub::SeverityLogger log = fub::GetInfoLogger();
       BOOST_LOG(log) << fmt::format("Write Checkpoint to '{}'!", name);
-      WriteCheckpoint(name, grid);//, control_state_);
+      WriteCheckpoint(name, grid); //, control_state_);
     }
   };
 
   fub::OutputFactory<MultiBlockGriddingAlgorithm2> factory{};
-  factory.RegisterOutput<MakeCheckpoint>("Checkpoint");//, control_state);
-  // factory.RegisterOutput<GT::ControlOutput>("ControlOutput");//, control_state);
+  factory.RegisterOutput<MakeCheckpoint>("Checkpoint"); //, control_state);
+  // factory.RegisterOutput<GT::ControlOutput>("ControlOutput");//,
+  // control_state);
   using CounterOutput =
       fub::CounterOutput<fub::amrex::MultiBlockGriddingAlgorithm2,
                          std::chrono::nanoseconds>;

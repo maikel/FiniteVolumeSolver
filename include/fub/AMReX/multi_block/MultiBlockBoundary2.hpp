@@ -172,11 +172,11 @@ private:
   ::amrex::Box plenum_mirror_box_{};
   ::amrex::Box tube_mirror_box_{};
 
-  std::unique_ptr<::amrex::FArrayBox> plenum_mirror_data_{};
-  std::unique_ptr<::amrex::FArrayBox> tube_ghost_data_{};
+  std::unique_ptr<::amrex::FArrayBox> plenum_mirror_data_{}; // not used in slanted case
+  std::unique_ptr<::amrex::FArrayBox> tube_ghost_data_{}; // used in slanted case
 
-  std::unique_ptr<::amrex::FArrayBox> tube_mirror_data_{};
-  std::unique_ptr<::amrex::FArrayBox> plenum_ghost_data_{};
+  std::unique_ptr<::amrex::FArrayBox> tube_mirror_data_{}; // used in slanted case
+  std::unique_ptr<::amrex::FArrayBox> plenum_ghost_data_{}; // not used in slanted case
 
   Direction dir_{};
   int side_{};

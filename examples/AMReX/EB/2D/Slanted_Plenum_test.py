@@ -5,7 +5,7 @@ tube_n_cells = 64 # 128
 tube_blocking_factor = 8
 plenum_blocking_factor = 8
 
-angle_degree = 45.
+angle_degree = 0.
 angle = angle_degree / 180. * math.pi
 # outputPath = 'left_connNorma1e-2_NoInflowBndrySet_angle{}'.format(int(angle_degree))
 outputPath = 'awesomeTest_angle{}'.format(int(angle_degree))
@@ -26,6 +26,9 @@ inlet_length = 10. * D # [m]
 tube_length = 1.0 # [m]
 tube_domain_length = tube_length - inlet_length
 
+# size of the overlap between tube and plenum
+overlapping_length = 2.0 * D 
+
 plenum_max_grid_size = max(plenum_blocking_factor, 1024)
 plenum_y_lower = - 0.48
 plenum_y_upper = + 0.48
@@ -45,7 +48,7 @@ plenum_x_n_cells -= plenum_x_n_cells % plenum_blocking_factor
 plenum_x_n_cells = int(plenum_x_n_cells)
 
 plenum_dx = plenum_domain_length / plenum_x_n_cells
-plenum_x_lower = -inlet_length #-plenum_dx
+plenum_x_lower = -(inlet_length + overlapping_length)
 plenum_x_length = plenum_x_upper - plenum_x_lower
 
 plenum_z_lower = plenum_y_lower
@@ -77,6 +80,8 @@ print(formatter.format('plenum_x', plenum_x_n_cells, plenum_domain_length, round
 print(formatter.format('plenum_y', plenum_y_n_cells, plenum_y_length, round(plenum_dy, 5)))
 print(formatter.format('plenum_z', plenum_z_n_cells, plenum_z_length, round(plenum_dz, 5)))
 print("total cells = {}".format(tube_n_cells+ (plenum_x_n_cells*plenum_y_n_cells)))
+print(overlapping_length/tube_dx)
+
 
 RunOptions = {
   'cfl': 0.1125,# / float(tube_n_cells / 64),
@@ -158,14 +163,14 @@ def GetCenterPoint(x0, y0):
 
 def LowerX(x0, y0):
   center = GetCenterPoint(x0, y0)
-  center[1] -= 4.*r_tube
-  center[2] -= 4.*r_tube
+  center[1] -= 5.0*r_tube
+  center[2] -= 5.0*r_tube
   return center
 
 def UpperX(x0, y0):
   center = GetCenterPoint(x0, y0)
-  center[1] += 4.*r_tube
-  center[2] += 4.*r_tube
+  center[1] += 5.0*r_tube
+  center[2] += 5.0*r_tube
   return center
 
 def DomainAroundPoint(x0, lo, upper):
@@ -190,7 +195,7 @@ def BoxWhichContains_withGhostcells(real_box, gcw_x, gcw_y):
 Plenum = {
   'checkpoint': checkpoint,
   'initial_conditions': {
-    'initially_filled_x': 0.01,
+    'initially_filled_x': 0.0,
     'rho_left': 0.125,
     'p_left': 0.1,
     'rho_right': 1., #0.125, #1.0,
@@ -222,7 +227,9 @@ Plenum = {
     'r_start': 4.0 * r_tube,
     'r_end': 4.0 * r_tube,
     'y_0': y_0,
-    'height': inlet_length,
+    'connection_point': [-inlet_length, y_0],
+    'overlapping_length': overlapping_length,
+    'height': inlet_length+overlapping_length,
     'angle':  angle # 60. / 180. * math.pi
   } for y_0 in y0s],
 }
@@ -266,9 +273,17 @@ Plenum[boundary_condition] = {
 
 
 # get Mirrorbox for each Tube where they are connected with the plenum
+## if many tubes are used plenum_y_lower/upper must be replaced!!!
+## if angle>0 this mirror box will be not big enough
 def PlenumMirrorBox(y0):
-  return BoxWhichContains(DomainAroundPoint(GetCenterPoint(plenum_x_lower, y0), [0.0, -1.0], [-0.9 * plenum_x_lower, +1.0]))
+  return BoxWhichContains(DomainAroundPoint(GetCenterPoint(plenum_x_lower, y0), [0.0, plenum_y_lower], [overlapping_length, plenum_y_upper]))
 
+# print(plenum_x_lower)
+# centerpoint = GetCenterPoint(plenum_x_lower, y0s[0])
+# print(centerpoint)
+# domaroundpoint = DomainAroundPoint(centerpoint, [0.0, plenum_y_lower], [overlapping_length, plenum_y_upper])
+# print(domaroundpoint)
+# print(BoxWhichContains(domaroundpoint))
 
 Tube_FluxMethod = FluxMethod
 Tube_FluxMethod['area_variation'] = Area
