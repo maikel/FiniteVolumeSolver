@@ -18,7 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-/// \file This file defines a small wrapper class which stores thread local
+/// \file
+/// \brief This file defines a small wrapper class which stores thread local
 /// instances of a given object.
 
 #ifndef FUB_EXT_OMP_HPP
@@ -33,8 +34,8 @@ extern "C" {
 #endif
 
 #include <algorithm>
-#include <numeric>
 #include <functional>
+#include <numeric>
 #include <vector>
 
 namespace fub {
@@ -54,7 +55,7 @@ public:
   const T& operator*() const noexcept;
 
   const T& Min() const noexcept;
-  
+
   template <typename BinaryOperation = std::plus<>>
   auto Accumulate(BinaryOperation op = BinaryOperation()) const noexcept;
 
@@ -128,7 +129,8 @@ template <typename T, typename Allocator>
 template <typename BinaryOperator>
 auto OmpLocal<T, Allocator>::Accumulate(BinaryOperator op) const noexcept {
   FUB_ASSERT(!instances_.empty());
-  return std::accumulate(instances_.begin() + 1, instances_.end(), instances_[0], op);
+  return std::accumulate(instances_.begin() + 1, instances_.end(),
+                         instances_[0], op);
 }
 
 } // namespace fub

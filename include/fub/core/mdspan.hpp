@@ -18,7 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-/// @file This file introduces `extents<E0, ..., En>`, a compact
+/// \file
+/// \brief This file introduces `extents<E0, ..., En>`, a compact
 /// multi-dimensional size type. Each integral extent `Ei` stands an upper bound
 /// in dimension `i` and can either be a compile-time constant signed integral
 /// value or `dynamic_extent`. Each compile-time sized extent does not take any
@@ -331,7 +332,7 @@ struct layout_left {
     /// \return Returns the codomain index for specified multi dimensional index
     /// coordinates.
     ///
-    /// \effect Equivalent to offset in
+    /// Equivalent to offset in
     /// \code
     ///    index_type offset = 0;
     ///    for(size_t k = 0; k < Extents::rank(); ++k) {
@@ -368,14 +369,14 @@ struct layout_left {
     constexpr bool is_strided() const noexcept { return true; }
 
     template <class OtherExtents>
-    constexpr bool operator==(const mapping<OtherExtents>& other) const
-        noexcept {
+    constexpr bool
+    operator==(const mapping<OtherExtents>& other) const noexcept {
       return extents() == other.extents();
     }
 
     template <class OtherExtents>
-    constexpr bool operator!=(const mapping<OtherExtents>& other) const
-        noexcept {
+    constexpr bool
+    operator!=(const mapping<OtherExtents>& other) const noexcept {
       return !(*this == other);
     }
     /// @}
@@ -395,7 +396,6 @@ struct layout_left {
     }
   };
 };
-
 
 /// \ingroup spans
 struct layout_right {
@@ -441,14 +441,14 @@ struct layout_right {
     constexpr bool is_strided() const noexcept { return true; }
 
     template <class OtherExtents>
-    constexpr bool operator==(const mapping<OtherExtents>& other) const
-        noexcept {
+    constexpr bool
+    operator==(const mapping<OtherExtents>& other) const noexcept {
       return extents() == other.extents();
     }
 
     template <class OtherExtents>
-    constexpr bool operator!=(const mapping<OtherExtents>& other) const
-        noexcept {
+    constexpr bool
+    operator!=(const mapping<OtherExtents>& other) const noexcept {
       return !(*this == other);
     }
 
@@ -495,8 +495,8 @@ struct layout_stride {
     // [mdspan.layout.stride.ops], layout_stride::mapping operations
     constexpr const Extents& extents() const noexcept { return *this; }
 
-    constexpr const std::array<std::ptrdiff_t, Extents::rank()>& strides() const
-        noexcept {
+    constexpr const std::array<std::ptrdiff_t, Extents::rank()>&
+    strides() const noexcept {
       return strides_;
     }
 
@@ -534,13 +534,13 @@ struct layout_stride {
     std::ptrdiff_t stride(size_t rank) const noexcept { return strides_[rank]; }
 
     template <class OtherExtents>
-    constexpr bool operator==(const mapping<OtherExtents>& other) const
-        noexcept {
+    constexpr bool
+    operator==(const mapping<OtherExtents>& other) const noexcept {
       return extents() == other.extents();
     }
     template <class OtherExtents>
-    constexpr bool operator!=(const mapping<OtherExtents>& other) const
-        noexcept {
+    constexpr bool
+    operator!=(const mapping<OtherExtents>& other) const noexcept {
       return !(*this == other);
     }
 
@@ -645,8 +645,8 @@ public:
   }
 
   template <class IndexType, size_t N>
-  constexpr reference operator()(const std::array<IndexType, N>& indices) const
-      noexcept {
+  constexpr reference
+  operator()(const std::array<IndexType, N>& indices) const noexcept {
     const accessor_type acc = accessor();
     const mapping_type map = mapping();
     return acc.access(ptr_, boost::mp11::tuple_apply(map, indices));
