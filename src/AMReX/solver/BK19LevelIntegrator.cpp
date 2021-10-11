@@ -572,7 +572,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   // Save data on current time level for later use
   MultiFab scratch_aux(scratch.boxArray(), scratch.DistributionMap(),
                        scratch.nComp(), no_ghosts);
-  scratch_aux.copy(scratch);
+  scratch_aux.ParallelCopy(scratch);
   CompressibleAdvectionAdvectiveFluxes& Pv = context.GetAdvectiveFluxes(level);
 
   const Duration half_dt = 0.5 * dt;
@@ -614,7 +614,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
     // NOTE: the following update of pi in the pseudo-incompressible case is not
     // present in BK19, but a further development in the work of Ray Chow
     if (phys_param_.alpha_p == 0) {
-      hier.GetPatchLevel(level).nodes->copy(pi_aux);
+      hier.GetPatchLevel(level).nodes->ParallelCopy(pi_aux);
     }
   }
 
@@ -633,7 +633,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
   dbgAdvB.SaveData(scratch, GetCompleteVariableNames(), geom);
 
   // Copy data from old time level back to scratch
-  scratch.copy(scratch_aux);
+  scratch.ParallelCopy(scratch_aux);
   context.FillGhostLayerSingleLevel(level);
 
   // 5) Explicit Euler with old scratch data
@@ -671,7 +671,7 @@ BK19LevelIntegrator::AdvanceLevelNonRecursively(int level, Duration dt,
                          geom, level, half_dt, *counters, dbgAdvBFAB);
 
     // Copy pi_n+1 to pi_n
-    hier.GetPatchLevel(level).nodes->copy(pi_new);
+    hier.GetPatchLevel(level).nodes->ParallelCopy(pi_new);
   }
 
   dbgAdvBFAB.SaveData(scratch, GetCompleteVariableNames(), geom);
