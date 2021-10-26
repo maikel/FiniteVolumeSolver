@@ -23,7 +23,9 @@ D = 2.0 * r_tube
 
 # calculate plenum geometry
 magic_z_length = 1.0 # should be replaced when switch to 3d!!!
-inlet_length = 10.0 * D # 3.0 * D # [m]
+
+# normally 3.0 * D # [m] # in old slanted case 10.0D
+inlet_length = 10.0 * D 
 
 plenum_y_lower = - 0.48
 plenum_y_upper = + 0.48
@@ -82,7 +84,7 @@ plenum_dz = plenum_z_length / plenum_z_n_cells
 
 RunOptions = {
   'cfl': 0.1125,# / float(tube_n_cells / 64),
-  'final_time': 0.2, # 300.0,
+  'final_time': 300.0,
   'max_cycles': -1,
   'do_backup': 0
 }
@@ -101,8 +103,8 @@ FluxMethod = {
   'reconstruction': 'Characteristics'
 }
 
-R = 1.0
-gamma = 1.4
+R = 1.0 # non dimensionalized specific gas constant
+gamma = 1.4 # adiabitic exponent (for air)
 
 Equation = {
   'Rspec': R,
@@ -122,23 +124,30 @@ ArrheniusKinetics = {
 DiffusionSourceTerm = {
   'mul': 3.0
 }
-R_ref = 287.4
-p_ref = 10_000.
-T_ref = 300.
-L_ref = 1.0
+
+#-----------------------------------------------
+# parameters for non dimensionalizing
+R_ref = 287.4 # [J/kg/K] should be dry air
+p_ref = 1.0e5 # [Pa]
+T_ref = 300. # [K]
+L_ref = 1.0 # [m]
 rho_ref = p_ref / T_ref / R_ref
 u_ref = math.sqrt(p_ref / rho_ref)
 t_ref = L_ref / u_ref
 # ud->Msq =  u_ref*u_ref / (R_gas*T_ref);
 
+#-----------------------------------------------
+# initial parameters for Plenum (used in Plenum dictionary below)
 p0 = 2.0
 rho0 = math.pow(p0, 1.0 / gamma)
 T0 = p0 / rho0
+
 p = 0.95 * p0
 # T = T0 + ArrheniusKinetics['Q'] * (gamma - 1.0)
-T = 11.290743302923245
+T = 11.290743302923245 # this value is used in Klein's Code
 rho = p / T
 
+#-----------------------------------------------
 # checkpoint = '/srv/public/Maikel/FiniteVolumeSolver/build_2D-Debug/Checkpoint/000000005'
 checkpoint = ''
 
@@ -373,7 +382,7 @@ Output = {
   {
     'type': 'Plotfiles',
     'directory': '{}/Plotfiles/'.format(outputPath),
-    'intervals': [0.001],
+    'intervals': [0.01],
   },
   {
    'type': 'CounterOutput',
@@ -382,7 +391,7 @@ Output = {
   },
   {
     'type': 'Checkpoint',
-    'intervals': [1.0],
+    'intervals': [10.0],
     'directory': '{}/Checkpoint/'.format(outputPath)
   }
   ]
