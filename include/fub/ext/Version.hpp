@@ -27,6 +27,7 @@
 
 #include "fub/ext/Log.hpp"
 
+#include <errno.h>
 #include <fmt/format.h>
 
 namespace fub::git {
@@ -38,6 +39,8 @@ extern const char* GIT_TAG;    //< git tag (if any)
 extern const char* GIT_REV;    //< short git commit hash
 extern const char* GIT_BRANCH; //< name of the git branch
 }
+
+/// Compile Date and Time
 const char* const COMPILED = __DATE__ " @ " __TIME__;
 
 /// \brief Returns the git tag if there is any.
@@ -53,13 +56,14 @@ const char* libfive_git_branch(void);
 /// \brief simple Print function for the options
 ///
 /// \param log the logger for the output
-template <typename Log> void PrintProgrammVersion(Log& log) {
+template <typename Log> void PrintProgramVersion(Log& log) {
   BOOST_LOG(log) << "==========================================";
-  BOOST_LOG(log) << "Git Version Parameters: ";
-  BOOST_LOG(log) << fmt::format(" - Tag = {}", libfive_git_version());
-  BOOST_LOG(log) << fmt::format(" - Revision = {}", libfive_git_revision());
-  BOOST_LOG(log) << fmt::format(" - Branch = {}", libfive_git_branch());
+  BOOST_LOG(log) << "Version Control Parameters: ";
+  BOOST_LOG(log) << fmt::format(" - Program Name = {}", program_invocation_name);
   BOOST_LOG(log) << fmt::format(" - Compiled = {}", COMPILED);
+  BOOST_LOG(log) << fmt::format(" - Git Tag = {}", libfive_git_version());
+  BOOST_LOG(log) << fmt::format(" - Git Revision = {}", libfive_git_revision());
+  BOOST_LOG(log) << fmt::format(" - Git Branch = {}", libfive_git_branch());
   BOOST_LOG(log) << "==========================================";
 }
 } // namespace fub::git

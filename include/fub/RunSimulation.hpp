@@ -25,6 +25,7 @@
 #include "fub/TimeStepError.hpp"
 #include "fub/core/assert.hpp"
 #include "fub/ext/ProgramOptions.hpp"
+#include "fub/ext/Version.hpp"
 
 #include "fub/counter/CounterRegistry.hpp"
 #include "fub/counter/Timer.hpp"
@@ -90,6 +91,9 @@ void RunSimulation(Solver& solver, RunOptions options,
   logger::sources::severity_logger<severity_level> log(
       logger::keywords::severity = info);
   fub::Duration time_point = solver.GetGriddingAlgorithm()->GetTimePoint();
+
+  fub::git::PrintProgramVersion(log); // Print out version control stuff
+
   const fub::Duration eps = options.smallest_time_step_size;
   std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
   std::chrono::steady_clock::duration wall_time = wall_time_reference - now;

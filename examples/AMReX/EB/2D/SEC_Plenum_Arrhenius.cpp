@@ -23,8 +23,6 @@
 #include "fub/AMReX_CutCell.hpp"
 #include "fub/Solver.hpp"
 
-#include "fub/ext/Version.hpp"
-
 #include "fub/AMReX/boundary_condition/GenericPressureValveBoundary.hpp"
 #include "fub/equations/PerfectGasMix.hpp"
 #include "fub/equations/perfect_gas_mix/ArrheniusKinetics.hpp"
@@ -817,8 +815,6 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   double gamma = fub::GetOptionOr(eq_options, "gamma", 1.28);
   fub::PerfectGasConstants constants{Rspec, gamma};
   fub::SeverityLogger log = fub::GetInfoLogger();
-  
-  fub::git::PrintProgrammVersion(log);
   
   BOOST_LOG(log) << "Equation:";
   BOOST_LOG(log) << fmt::format("  - Rspec = {}", constants.Rspec);
