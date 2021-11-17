@@ -174,8 +174,17 @@ for i, ax, subKey in zip(range(len(plotKeyList)), axs.flatten(), plotKeyList):
             yhi = np.interp(times[t_id_sec_stable], times[peaks], dat[peaks])
             ylo = np.interp(times[t_id_sec_stable], times[low_peaks], dat[low_peaks])
 
-            ax.plot( times[t_id_sec_stable], np.mean([yhi,ylo], axis=0), color=colors[j]) # plot mean value
-            ax.fill_between(times[t_id_sec_stable], yhi, ylo, alpha=0.5, color=colors[j]) # plot shaded area
+            # ax.plot( times[t_id_sec_stable], np.mean([yhi,ylo], axis=0), color=colors[j]) # plot mean value for nonoscillating data
+            
+            # plot mean value for oscillating data
+            skip=389
+            skip_t = times[::skip]
+            skip_dat = dat[::skip]
+            ax.plot( skip_t[t_id_sec_stable[::skip]], savgol_filter(skip_dat[t_id_sec_stable[::skip]], window_length=window_length, 
+            polyorder=polyorder, mode='nearest'), color=colors[j]) 
+
+            # plot shaded area
+            ax.fill_between(times[t_id_sec_stable], yhi, ylo, alpha=0.5, color=colors[j]) 
          else:   
             ax.plot( times, datas[:, datas_dict[key]], color=colors[j], label=lab )
       else:

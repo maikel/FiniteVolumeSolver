@@ -108,6 +108,11 @@ for tube_id in range(n_tubes):
   tplotmin = 0.0
   tplotmax = 400.0
   t_index_array = (times>=tplotmin) & (times<=tplotmax)
+  
+  # check if index array is empty
+  if not np.any(t_index_array):
+    raise IndexError('time index array is empty!')
+
   # t_index_array = (times>=tplotmin)
   
   rho_data = datas[t_index_array, datas_dict['Density'], :]
@@ -142,7 +147,7 @@ for tube_id in range(n_tubes):
     f, ax = plt.subplots(nrows=1, ncols=5, figsize=(50. / 2, 10 / 2.), sharey=False)# figsize=(15, 10)) #set_size('thesis'))
   else:
     titles = ['Temperature [K]', 'Pressure [bar]', 'Local Machnumber [-]', 'Fuel Massfraction [-]']
-    datas = [T_data , p_data, Ma, F_data]
+    datas = [T_data * T_ref, p_data, Ma, F_data]
     f, ax = plt.subplots(nrows=1, ncols=4, figsize=(40. / 2, 10 / 2.), sharey=False)# figsize=(15, 10)) #set_size('thesis'))
 
   def props(title):
@@ -174,14 +179,13 @@ for tube_id in range(n_tubes):
       'aspect': 'auto',
       'extent': (x0, xEnd, t0, tEnd),
       'vmin': 0.0,
-      'vmax': 10.0,
+      'vmax': 30.0,
       'cmap': 'jet'
       }
     return props
   import itertools
   ims = [a.imshow(data, **props(title)) for (__, (a, data, title)) in itertools.takewhile(lambda x: x[0] < 4,  enumerate(zip(ax, datas, titles)))]
   # ims = [a.plot(data[-1,:]) for (__, (a, data, title)) in itertools.takewhile(lambda x: x[0] < 4,  enumerate(zip(ax, datas, titles)))]
-  ax[0].set(ylabel='time')
   if 'PassiveScalars' in datas_dict:
     ims.append(ax[4].contourf(datas[4], **props(titles[4])))
   for a, title in zip(ax, titles):
@@ -193,6 +197,7 @@ for tube_id in range(n_tubes):
     plt.colorbar(im, ax=a)
   f.suptitle("Tube id = {}".format(tube_id))
   f.savefig(output_path+'/Tube{}.png'.format(tube_id), bbox_inches='tight')
+  f.savefig(output_path+'/Tube{}.pdf'.format(tube_id), bbox_inches='tight')
   f.clear()
   plt.close(f)
 
