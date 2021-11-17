@@ -3,9 +3,9 @@ import sys, os
 # get the absolute path to the FUB FVS-Solver
 pathname = os.path.dirname(sys.argv[0])
 pathname = os.path.abspath(pathname)
-FVS_path = pathname.split('FiniteVolumeSolver')[0]+'FiniteVolumeSolver'
-# print(FVS_path) 
+FVS_path = pathname.split('extra')[0]
 sys.path.append(FVS_path+'/extra/')
+
 from amrex.plotfiles import h5_load_timeseries
 import amrex.plotfiles as da
 

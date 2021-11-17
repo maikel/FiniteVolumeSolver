@@ -3,9 +3,9 @@ import sys, os
 # get the absolute path to the FUB FVS-Solver
 pathname = os.path.dirname(sys.argv[0])
 pathname = os.path.abspath(pathname)
-FVS_path = pathname.split('FiniteVolumeSolver')[0]+'FiniteVolumeSolver'
-# print(FVS_path) 
+FVS_path = pathname.split('extra')[0]
 sys.path.append(FVS_path+'/extra/')
+
 import amrex.plotfiles as da
 
 import numpy as np
@@ -26,7 +26,7 @@ else:
    inputFilePath = FVS_path+"/examples/AMReX/EB/2D/"
 
 sys.path.append(inputFilePath)
-from SEC_Plenum_Arrhenius import y0s, Area, tube_n_cells, p_ref, T_ref, rho_ref, Output, u_ref, t_ref
+from SEC_Plenum_Arrhenius import n_tubes, Area, tube_n_cells, p_ref, T_ref, rho_ref, Output, u_ref, t_ref
 from SEC_Plenum_Arrhenius import D as diameter_tube
 
 plenum = "{}/Plenum.h5".format(dataPath)
@@ -71,7 +71,7 @@ def PrintProgress(i):
 
 os.makedirs(output_path, exist_ok=True)
 
-tube_paths = ['{}/Tube{}.h5'.format(dataPath, tube) for tube in range(len(y0s))]
+tube_paths = ['{}/Tube{}.h5'.format(dataPath, tube) for tube in range(n_tubes)]
 
 def stackTubeDataTo2D(Tube_datalist):
    # all Tubedata is 1D but for contourf we need at least 2D data. so simply stack twice the 1d array
