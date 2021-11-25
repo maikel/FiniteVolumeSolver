@@ -1,6 +1,7 @@
 import numpy as np
 import h5py
 import os
+from datetime import datetime
 
 def yt_load(path_to_plotfile, vars, mask_boundary_cells=True, buffer_size=None, vfrac_cutoff=1e-15):
   import yt
@@ -94,7 +95,7 @@ def h5_load_timeseries(filename):
                 name of the HDF5-file
   Returns
   ----------------------------------------
-    datas:        tuple of numpy arrays
+    datas:        numpy array
                   the loaded datas from the HDF5-file
     time:         numpy array
                   the time points from the data
@@ -112,6 +113,24 @@ def h5_load_timeseries(filename):
   time = np.array(file['times'])
   file.close()
   return datas, time, dictionary
+
+def h5_load_timepoints(filename):
+  """
+  Load the all 1D data from the HDF5 file for all time points.
+
+  Parameters
+  ----------------------------------------
+    filename:   string
+                name of the HDF5-file
+  Returns
+  ----------------------------------------
+    time:         numpy array
+                  the time points from the data
+  """
+  file = h5py.File(filename, mode='r', swmr=True)
+  time = np.array(file['times'])
+  file.close()
+  return time
 
 def h5_load_get_extent_1D(filename):
   """
@@ -345,6 +364,56 @@ def printSimpleStatsTubeData(data, variable, times, tube_id=0, ndig=4, output_pa
       with open(fname, 'a') as f:
         f.write(format_row.format(*row)+"\n")
   print()
+
+def printSimpleStatsPlenumSingleTimepoint(data, variable, time, ndig=4, output_path="", firstCall=False):
+  """
+  Print out simple Stats from given Arrays. 
+  Shape must be (NCellsX, NCellsY, (NCellsZ))
+
+  Parameters
+  ----------------------------------------
+    data:       numpy array
+                the data array with shape like (NCellsX, NCellsY, (NCellsZ))
+    variable:   string
+                name of the variable
+    times:      numpy array
+                the time points from the data
+    ndig:       integer
+                maximal number of decimal digits for output
+    output_path: string, optional
+                 optional write out all stats in file
+    firstCall:  bool, optional
+                rename old file if any, write header in new file
+  """
+  if output_path:
+    if 'Plenum' in output_path:
+      fname = os.path.join( output_path.split('Plenum')[0], "Plenum_{}_stats.dat".format(variable) )
+    else:
+      fname = os.path.join( output_path, "Plenum_{}_stats.dat".format(variable) )
+    if firstCall:
+      if os.path.isfile(fname): # if file exists, rename it
+        date = datetime.now().strftime("%Y_%m_%d-%I:%M:%S_%p")
+        newName = fname.split('.dat')[0]+"_{}.dat".format(date)
+        print("renamed old File '{}' to '{}'".format(fname, newName))
+        os.rename(fname, newName)
+      header = ['time', 'min', 'mean', 'median', 'std', 'max']
+      format_row = '{:>12}'*len(header)
+      with open(fname, 'w') as f:
+        f.write(format_row.format(*header)+"\n")
+      return None
+  
+  indices_min = np.unravel_index(np.argmin(data, axis=None), data.shape)
+  indices_max = np.unravel_index(np.argmax(data, axis=None), data.shape)
+
+  stats_data = [time, data[indices_min], np.mean(data), np.median(data), np.std(data), data[indices_max]]
+  stats_data = [el if isinstance(el, str) else round(el, ndig) for el in stats_data]
+  
+  format_row = '{:>12}'*len(stats_data)
+  # print(format_row.format(*stats_data))
+  if output_path:
+    with open(fname, 'a') as f:
+      f.write(format_row.format(*stats_data)+"\n")
+  # print()
 
 def import_file_as_module(module_path, module_name):
   """

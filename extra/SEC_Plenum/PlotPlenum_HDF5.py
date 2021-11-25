@@ -25,18 +25,39 @@ else:
    dataPath = FVS_path+"/build_2D-Release/average_massflow"
    inputFilePath = FVS_path+"/examples/AMReX/EB/2D/"
 
-sys.path.append(inputFilePath)
-from SEC_Plenum_Arrhenius import n_tubes, Area, tube_n_cells, p_ref, T_ref, rho_ref, Output, u_ref, t_ref
-from SEC_Plenum_Arrhenius import D as diameter_tube
+try:
+  inputfileName = str(sys.argv[2]) # optional name of the inputfile
+except: 
+  inputfileName = 'SEC_Plenum_Arrhenius.py'
+
+da.import_file_as_module(inputFilePath+inputfileName, 'inputfile')
+from inputfile import Area, tube_n_cells, p_ref, rho_ref, Output, u_ref, t_ref
+from inputfile import D as diameter_tube
+
+try:
+  from inputfile import T_ref, n_tubes  
+except:
+  from inputfile import T_ref
+  n_tubes=1
 
 plenum = "{}/Plenum.h5".format(dataPath)
 outPath = dataPath
 output_path = '{}/Visualization/Plenum/'.format(outPath)
 
-# Get nsteps from plenum
-file = h5py.File(plenum, mode='r')
-nsteps = file['data'].shape[0]
-file.close()
+# Get times and nSteps from plenum
+times = da.h5_load_timepoints(plenum)
+nSteps = times.shape[0]
+
+# optional slicing in time-dimension
+tplotmin = 200.0
+tplotmax = 400.0
+t_bool_array = (times>=tplotmin) & (times<=tplotmax)
+t_index_array = np.nonzero(t_bool_array)[0] # returns tuple: (array([10 11 ...]), )
+
+# check if index array is empty
+if not np.any(t_index_array):
+   raise IndexError('time index array is empty!')
+
 
 # get data from output dictionary
 output_dict = Output['outputs']
@@ -65,9 +86,69 @@ tube_output_factor = int(plenum_out / tube_out)
 # print(tube_output_factor, plenum_out, tube_out)
 
 
+def getPassiveScalarLimits(first=0, last=nSteps-1):
+   (rho, rhoX, vols), _, _, _ = da.h5_load_spec_timepoint_variable(plenum, first, ["Density", "PassiveScalars", "vfrac"])
+   rho = np.ma.masked_array(rho, vols < 1e-14)
+   min = np.min(rhoX / rho)
+
+   (rho, rhoX, vols), _, _, _ = da.h5_load_spec_timepoint_variable(plenum, last, ["Density", "PassiveScalars", "vfrac"])
+   rho = np.ma.masked_array(rho, vols < 1e-14)
+   max = np.max(rhoX / rho)
+
+   return np.rint((min, max))
+
+scalar_limits = getPassiveScalarLimits(first=t_index_array[0], last=t_index_array[-1])
+
+titles = ['Pressure', 'Temperature',  'Passive Scalar', 'Velocity']
+def props(title):
+   props = {
+      'origin': 'lower',
+      # 'interpolation': 'none',
+      # 'aspect': 'equal',
+      'extend': 'both',
+   }
+   if title == 'Passive Scalar':
+      levels = np.linspace(*scalar_limits, 40)
+      props.update(
+         {
+         'levels': levels,
+         'vmin': levels[0],
+         'vmax': levels[-1],
+         'cmap': 'twilight'
+         }
+      )
+   if  title == 'Temperature':
+      props = {
+         'origin': 'lower',
+         'interpolation': 'none',
+         'aspect': 'equal',
+         # 'levels': np.linspace(10.0*T_ref, 13.0*T_ref, 30),
+         'vmin': 6.5*T_ref,
+         'vmax': 10.*T_ref,
+         # 'cmap': 'jet'
+         }
+   if title == 'Pressure':
+      levels = np.linspace(1.0, 20., 20)
+      props.update(
+         {
+         'levels': levels,
+         'vmin': levels[0],
+         'vmax': levels[-1],
+         'cmap': 'jet'
+         }
+      )
+   if title == 'Velocity':
+      props = {
+         'angles': 'xy', 
+         'scale_units': 'xy', 
+         'scale': 10.0
+      }
+   return props
+
+
 def PrintProgress(i):
-  progress = int(100.0 * float(i) / (nsteps - 1))
-  print('[{:3d}%] Reading slice [{}/{}]'.format(progress, i + 1, nsteps))
+  progress = int(100.0 * float(i) / (nSteps - 1))
+  print('[{:3d}%] Reading slice [{}/{}]'.format(progress, i + 1, nSteps))
 
 os.makedirs(output_path, exist_ok=True)
 
@@ -80,114 +161,119 @@ def stackTubeDataTo2D(Tube_datalist):
       Tube_datalist[i] = np.stack((el,el))
    return Tube_datalist
 
-# for i in itertools.dropwhile(lambda x: x < 53, range(nsteps)):
-# for i in itertools.dropwhile(lambda i: i < 4997, range(nsteps)):
-for i in range(nsteps-1):
+# for i in itertools.dropwhile(lambda x: x < 53, range(nSteps)):
+# for i in itertools.dropwhile(lambda i: i < 4997, range(nSteps)):
+
+da.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Pressure', 1.0, output_path=output_path, firstCall=True)
+da.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Density', 1.0, output_path=output_path, firstCall=True)
+da.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Temperature', 1.0, output_path=output_path, firstCall=True)
+da.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'PassiveScalar', 1.0, output_path=output_path, firstCall=True)
+
+for i in t_index_array:
    PrintProgress(i)
    
    Tube_p = []
    Tube_X = []
-   extent_tubes = []
+   tube_extents = []
    tube_variables = ["Pressure", "PassiveScalars", "Density"]
 
    for tube in tube_paths:
-      tube_data, current_time, extent, tube_dict = da.h5_load_spec_timepoint_variable(tube, tube_output_factor*i, tube_variables)
+      tube_data, current_time, ext, tube_dict = da.h5_load_spec_timepoint_variable(tube, tube_output_factor*i, tube_variables)
       Tube_p.append(tube_data[tube_dict['Pressure']])
       Tube_X.append( tube_data[tube_dict['PassiveScalars']] / tube_data[tube_dict['Density']] )
-      extent_tubes.append(extent)
+      tube_extents.append(ext)
    
    Tube_p = stackTubeDataTo2D(Tube_p)
    Tube_X = stackTubeDataTo2D(Tube_X)
    
    plenum_variables = ["Pressure", "Density", "Momentum_0", "Momentum_1", "PassiveScalars", 'vfrac']
-   (p, rho, rhou, rhov, rhoX, vols), current_time, extent, plenum_dict = da.h5_load_spec_timepoint_variable(plenum, i, plenum_variables)
    # # alternative:
-   # plenum_data, current_time, extent, plenum_dict = da.h5_load_spec_timepoint_variable(plenum, i, plenum_variables)
-   # p = plenum_data[plenum_dict['Pressure']]
-   # rho = plenum_data[plenum_dict['Density']]
-   # rhou = plenum_data[plenum_dict['Momentum_0']]
-   # rhov = plenum_data[plenum_dict['Momentum_1']]
-   # vols = plenum_data[plenum_dict['vfrac']]
-   
+   # (pressure, rho, rhoU, rhoV, rhoX, vols), current_time, plenum_extent, plenum_dict = da.h5_load_spec_timepoint_variable(plenum, i, plenum_variables)
+   plenum_data, current_time, plenum_extent, plenum_dict = da.h5_load_spec_timepoint_variable(plenum, i, plenum_variables)
+   volume_fraction = plenum_data[plenum_dict['vfrac']]
+
+   volume_fraction_offset = 1.e-14
+   pressure = np.ma.masked_array(plenum_data[plenum_dict['Pressure']], volume_fraction < volume_fraction_offset)
+   rho = np.ma.masked_array(plenum_data[plenum_dict['Density']], volume_fraction < volume_fraction_offset)
+   rhoU = np.ma.masked_array(plenum_data[plenum_dict['Momentum_0']], volume_fraction < volume_fraction_offset)
+   rhoV = np.ma.masked_array(plenum_data[plenum_dict['Momentum_1']], volume_fraction < volume_fraction_offset)
+   passiveScalarMF = np.ma.masked_array(plenum_data[plenum_dict['PassiveScalars']], volume_fraction < volume_fraction_offset) / rho
+   temperature = pressure / rho
+
+   # # print out the first occurence of min/max value 
+   da.printSimpleStatsPlenumSingleTimepoint(pressure, 'Pressure', current_time, output_path=output_path)
+   da.printSimpleStatsPlenumSingleTimepoint(rho, 'Density', current_time, output_path=output_path)
+   da.printSimpleStatsPlenumSingleTimepoint(temperature, 'Temperature', current_time, output_path=output_path)
+   da.printSimpleStatsPlenumSingleTimepoint(passiveScalarMF, 'PassiveScalar', current_time, output_path=output_path)
+
+
    f, axs = plt.subplots(nrows=2, ncols=2, figsize=(20. / 2, 15. / 2), gridspec_kw={'width_ratios': [3,1]})
    axs = axs.flatten()
    f.suptitle('Time = {:.2f}'.format(current_time))
+   
+   #################################################
    # pressure image
-   p = np.where(vols > 1e-14, p, np.nan)
-   levels = np.linspace(1.9, 6.5, 30)
-   pressure_options = {
-     'origin': 'lower',
-     'cmap': 'jet',
-     'levels': levels, 
-     'vmin': levels[0],
-     'vmax': levels[-1],
-     'extend': 'both'
-   }
-   im_p = axs[0].contourf(p, extent=extent, **pressure_options)
-   for extent_tube, tube_p in zip(extent_tubes, Tube_p):
-      midpoint = 0.5 * (extent_tube[2] + extent_tube[3])
-      D = diameter_tube
-      x = np.linspace(extent_tube[0], extent_tube[1], tube_n_cells)
-      y_upper = midpoint + 0.5 * np.array([Area(xi) for xi in x]) * D
-      y_lower = midpoint - 0.5 * np.array([Area(xi) for xi in x]) * D
-      lower = midpoint - 4.0 * D
-      upper = midpoint + 4.0 * D
-      extent_tube[2] = lower
-      extent_tube[3] = upper
-      im_p = axs[0].contourf(tube_p, extent=extent_tube, **pressure_options)
+   im_p = axs[0].contourf(pressure, extent=plenum_extent, **props(titles[0]))
+   for tube_extent, tube_p in zip(tube_extents, Tube_p):
+      midpoint = 0.5 * (tube_extent[2] + tube_extent[3])
+      x = np.linspace(tube_extent[0], tube_extent[1], tube_n_cells)
+      y_upper = midpoint + 0.5 * np.array([Area(xi) for xi in x]) * diameter_tube
+      y_lower = midpoint - 0.5 * np.array([Area(xi) for xi in x]) * diameter_tube
+      lower = midpoint - 4.0 * diameter_tube
+      upper = midpoint + 4.0 * diameter_tube
+      tube_extent[2] = lower
+      tube_extent[3] = upper
+      im_p = axs[0].contourf(tube_p, extent=tube_extent, **props(titles[0]))
       axs[0].fill_between(x, y_upper, np.max(y_upper), color='white')
       axs[0].fill_between(x, y_lower, np.min(y_lower), color='white')
-   axs[0].set_title('Pressure')
-   axs[0].set(aspect='equal')
+   axs[0].set_title(titles[0])
    cbar = plt.colorbar(im_p, ax=axs[0])
    cbar.set_label('[bar]', rotation=270, labelpad=15)
    
+   #################################################
    # temperature image
-   T = p / rho
-   im_T = axs[1].imshow(T * T_ref, origin='lower', vmin=10.0 * T_ref, vmax=13. * T_ref, interpolation='none', extent=extent)
-   axs[1].set_title('Temperature')
+   im_T = axs[1].imshow(temperature * T_ref, extent=plenum_extent, **props(titles[1]))
+   axs[1].set_title(titles[1])
    axs[1].set(aspect='equal')
    cbar = plt.colorbar(im_T, ax=axs[1])
    cbar.set_label('[K]', rotation=270, labelpad=15)
    
    
-   
+   ################################################
    # Passive Scalar
-   rho = np.ma.masked_array(rho, vols < 1e-14)
-   X = rhoX / rho
-   levels = np.linspace(-1.0, 2.0, 40)
-   im_X = axs[2].contourf(X, origin='lower', extent=extent, levels=levels, extend='both', cmap='twilight')
-   for extent_tube, tube_X in zip(extent_tubes, Tube_X):
-      midpoint = 0.5 * (extent_tube[2] + extent_tube[3])
-      D = diameter_tube
-      x = np.linspace(extent_tube[0], extent_tube[1], tube_n_cells)
-      y_upper = midpoint + 0.5 * np.array([Area(xi) for xi in x]) * D
-      y_lower = midpoint - 0.5 * np.array([Area(xi) for xi in x]) * D
-      lower = midpoint - 2.0* D
-      upper = midpoint + 2.0* D
-      extent_tube[2] = lower
-      extent_tube[3] = upper
-      im_X = axs[2].contourf(tube_X, extent=extent_tube, levels=levels, extend='both', cmap='twilight')
+   
+   im_X = axs[2].contourf(passiveScalarMF, extent=plenum_extent, **props(titles[2]))
+   for tube_extent, tube_X in zip(tube_extents, Tube_X):
+      midpoint = 0.5 * (tube_extent[2] + tube_extent[3])
+      x = np.linspace(tube_extent[0], tube_extent[1], tube_n_cells)
+      y_upper = midpoint + 0.5 * np.array([Area(xi) for xi in x]) * diameter_tube
+      y_lower = midpoint - 0.5 * np.array([Area(xi) for xi in x]) * diameter_tube
+      # lower = midpoint - 3.0* diameter_tube
+      # upper = midpoint + 3.0* diameter_tube
+      # tube_extent[2] = lower
+      # tube_extent[3] = upper
+      # print(tube_extent)
+      im_X = axs[2].contourf(tube_X, extent=tube_extent, **props(titles[2]))
       axs[2].fill_between(x, y_upper, np.max(y_upper), color='white')
       axs[2].fill_between(x, y_lower, np.min(y_lower), color='white')
-   axs[2].set_title('PassiveScalar')
-   axs[2].set(aspect='equal')
+   axs[2].set_title(titles[2])
    cbar = plt.colorbar(im_X, ax=axs[2])
 
    
-
+   #####################################################
    # velocity plot
-   u = rhou / rho #* u_ref
-   v = rhov / rho #* u_ref
-   # print(np.max(u))
+   velU = rhoU / rho #* u_ref
+   velV = rhoV / rho #* u_ref
    skip = 5
-   scale = 2.
-   x = np.linspace(*extent[0:2], num=u[::skip, ::skip].shape[1], endpoint=True)
-   y = np.linspace(*extent[2:], num=u[::skip, ::skip].shape[0], endpoint=True)
-   X,Y = np.meshgrid(x,y)
-   # Q = axs[3].quiver(X, Y, u[::skip,::skip], v[::skip,::skip], scale=u_ref, units='inches', width=0.01)
-   Q = axs[3].quiver(X, Y, u[::skip,::skip], v[::skip,::skip], angles='xy', scale_units='xy', scale=scale)
-   axs[3].quiverkey(Q, 0.5, 1.05, 1./scale, '{}'.format(round(u_ref,1))+r'$ \frac{m}{s}$', labelpos='E', coordinates='axes')
+   # scale = 2.
+   props_dict = props(titles[3])
+
+   x = np.linspace(*plenum_extent[0:2], num=velU[::skip, ::skip].shape[1], endpoint=True)
+   y = np.linspace(*plenum_extent[2:], num=velU[::skip, ::skip].shape[0], endpoint=True)
+   passiveScalarMF,Y = np.meshgrid(x,y)
+   # Q = axs[3].quiver(passiveScalarMF, Y, velU[::skip,::skip], velV[::skip,::skip], scale=u_ref, units='inches', width=0.01)
+   Q = axs[3].quiver(passiveScalarMF, Y, velU[::skip,::skip], velV[::skip,::skip], **props_dict)
+   axs[3].quiverkey(Q, 0.5, 1.05, 1./props_dict['scale'], '{}'.format(round(u_ref,1))+r'$ \frac{m}{s}$', labelpos='E', coordinates='axes')
    # axs[3].set_title('Velocity Field')
    axs[3].set(aspect='equal')
    
@@ -199,4 +285,7 @@ for i in range(nsteps-1):
 
 # Call ffmpeg to make a movie
 
-os.system('ffmpeg -framerate 20 -i {}/Figure%04d.png -crf 20 {}/../Movie.mkv'.format(output_path, output_path))
+# os.system('ffmpeg -framerate 20 -i {}/Figure%05d.png -crf 20 {}/../Movie.mkv'.format(output_path, output_path))
+
+# use start_number if not starting at File_00000.png
+os.system('ffmpeg -start_number {} -framerate 20 -i {}/Figure%5d.png -crf 20 {}/../Movie.mkv'.format(t_index_array[0], output_path, output_path))
