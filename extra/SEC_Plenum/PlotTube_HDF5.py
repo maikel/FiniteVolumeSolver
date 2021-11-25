@@ -137,10 +137,10 @@ for tube_id in range(n_tubes):
   print("[Tube{}] tEnd is {}".format(tube_id, tEnd))
 
   # print out the first occurence of min/max value 
-  da.printSimpleStatsTubeData(p_data, 'Pressure', times[t_index_array], tube_id)
-  da.printSimpleStatsTubeData(T_data, 'Temperature', times[t_index_array], tube_id)
-  da.printSimpleStatsTubeData(F_data, 'Fuel', times[t_index_array], tube_id)
-  da.printSimpleStatsTubeData(Ma, 'MachNumber', times[t_index_array], tube_id)
+  da.printSimpleStatsTubeData(p_data, 'Pressure', times[t_index_array], tube_id, output_path=output_path)
+  da.printSimpleStatsTubeData(T_data, 'Temperature', times[t_index_array], tube_id, output_path=output_path)
+  da.printSimpleStatsTubeData(F_data, 'Fuel', times[t_index_array], tube_id, output_path=output_path)
+  da.printSimpleStatsTubeData(Ma, 'MachNumber', times[t_index_array], tube_id, output_path=output_path)
 
 
   if 'PassiveScalars' in datas_dict:

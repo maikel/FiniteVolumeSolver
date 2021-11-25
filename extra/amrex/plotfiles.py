@@ -1,5 +1,6 @@
 import numpy as np
 import h5py
+import os
 
 def yt_load(path_to_plotfile, vars, mask_boundary_cells=True, buffer_size=None, vfrac_cutoff=1e-15):
   import yt
@@ -299,7 +300,7 @@ def h5_load_timeseries_Klein(filename):
   file.close()
   return data, time, varname
 
-def printSimpleStatsTubeData(data, variable, times, tube_id=0, ndig=4):
+def printSimpleStatsTubeData(data, variable, times, tube_id=0, ndig=4, output_path=""):
   """
   Print out simple Stats from given Arrays. Only tested with Tube Data!
   Shape must be (NTimePoints, NCells)
@@ -316,7 +317,16 @@ def printSimpleStatsTubeData(data, variable, times, tube_id=0, ndig=4):
                 number of the tube, default=0
     ndig:       integer
                 maximal number of decimal digits for output
+    output_path: string, optional
+                 optional write out all stats in file
   """
+  if output_path:
+    fname = os.path.join( output_path, "Tube{}_stats.dat".format(tube_id) )
+    if os.path.isfile(fname):
+      print("appending Tube Stats to File: {}".format(fname))
+    with open(fname, 'a') as f:
+      f.write("[Tube{}] Stats for {}:\n".format(tube_id, variable))
+
   indices_min = np.unravel_index(np.argmin(data, axis=None), data.shape)
   indices_max = np.unravel_index(np.argmax(data, axis=None), data.shape)
 
@@ -331,6 +341,9 @@ def printSimpleStatsTubeData(data, variable, times, tube_id=0, ndig=4):
   print("[Tube{}] Stats for {}:".format(tube_id, variable))
   for row in stats_data:
     print(format_row.format(*row))
+    if output_path:
+      with open(fname, 'a') as f:
+        f.write(format_row.format(*row)+"\n")
   print()
 
 def import_file_as_module(module_path, module_name):
