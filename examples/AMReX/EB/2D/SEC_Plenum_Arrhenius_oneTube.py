@@ -5,8 +5,6 @@ tube_n_cells = 200 #256
 tube_blocking_factor = 8
 plenum_blocking_factor = 32 #8
 
-outputPath = 'test_oneTube_vol40_y0.48'
-
 mode = 3 #%MODE%
 boundary_condition = 'TurbineMassflowBoundaries' # '%BOUNDARY_CONDITION%'
 
@@ -25,10 +23,10 @@ D = 2.0 * r_tube
 magic_z_length = 1.0 # should be replaced when switch to 3d!!!
 
 # normally 3.0 * D # [m] # in old slanted case 10.0D
-inlet_length = 10.0 * D 
+inlet_length = 3.0 * D 
 
-plenum_y_lower = - 0.48
-plenum_y_upper = + 0.48
+plenum_y_lower = - 0.96
+plenum_y_upper = + 0.96
 plenum_y_length = plenum_y_upper - plenum_y_lower
 
 TVolRPlen = 2.* 20.0 * D #20.0 * D
@@ -81,6 +79,9 @@ plenum_dz = plenum_z_length / plenum_z_n_cells
 # print(formatter.format('plenum_y', plenum_y_n_cells, plenum_y_length, round(plenum_dy, 5)))
 # print(formatter.format('plenum_z', plenum_z_n_cells, plenum_z_length, round(plenum_dz, 5)))
 
+
+# outputPath = 'test_oneTube_vol40_y0.48'
+outputPath = 'sec_vol{}_y{}_tx{}_px{}_py{}'.format(TVolRPlen/D, plenum_y_upper, tube_n_cells, plenum_x_n_cells, plenum_y_n_cells)
 
 RunOptions = {
   'cfl': 0.1125,# / float(tube_n_cells / 64),
