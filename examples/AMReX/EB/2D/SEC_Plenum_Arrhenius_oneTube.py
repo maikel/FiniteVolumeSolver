@@ -380,11 +380,11 @@ Output = {
     'intervals': [plenum_intervals],
     # 'frequencies': [1]
   },
-  {
-    'type': 'Plotfiles',
-    'directory': '{}/Plotfiles/'.format(outputPath),
-    'intervals': [0.01],
-  },
+#  {
+#    'type': 'Plotfiles',
+#    'directory': '{}/Plotfiles/'.format(outputPath),
+#    'intervals': [0.01],
+#  },
   {
    'type': 'CounterOutput',
   #  'intervals': [1/.0]
