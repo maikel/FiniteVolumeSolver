@@ -95,6 +95,11 @@ LogOptions = {
   'channel_blacklist': ['TurbineMassflowBoundary']
 }
 
+InputFileOptions = {
+  'copy_input_file' : 1,
+  'file_template': '{}/SEC_Plenum_Arrhenius_oneTube.py'.format(outputPath),
+}
+
 FluxMethod = {
   # HLLEM, HLLEM_Larrouturou
   'base_method': 'HLLEM_Larrouturou',

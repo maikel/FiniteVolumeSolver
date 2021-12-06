@@ -283,6 +283,7 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/split_method/StrangSplitting.hpp
   include/fub/split_method/StrangSplittingLumped.hpp
   include/fub/ext/ProgramOptions.hpp
+  include/fub/ext/CopyInputFile.hpp
   include/fub/counter/Counter.hpp
   include/fub/counter/CounterRegistry.hpp
   include/fub/counter/CounterResult.hpp
@@ -360,6 +361,7 @@ add_library(FiniteVolumeSolver.Solver
   src/HyperbolicPatchIntegrator.cpp
   src/RunSimulation.cpp
   src/ext/ProgramOptions.cpp
+  src/ext/CopyInputFile.cpp
   src/counter/Counter.cpp
   src/counter/CounterRegistry.cpp
   src/counter/Timer.cpp

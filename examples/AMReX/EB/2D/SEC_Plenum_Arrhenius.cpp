@@ -1,4 +1,5 @@
-// Copyright (c) 2020 Maikel Nadolski
+// Copyright (c) 2021 Maikel Nadolski
+// Copyright (c) 2021 Christian Zenker
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +28,8 @@
 #include "fub/equations/PerfectGasMix.hpp"
 #include "fub/equations/perfect_gas_mix/ArrheniusKinetics.hpp"
 #include "fub/equations/perfect_gas_mix/PlenaControl.hpp"
+
+#include "fub/ext/CopyInputFile.hpp"
 
 #include "fub/flux_method/MusclHancockMethod2.hpp"
 
@@ -81,28 +84,6 @@ static constexpr double r_tube = 0.015;
 
 static constexpr int n_species = 2;
 static constexpr int n_passive_scalars = 1;
-
-// struct ChangeTOpened {
-//   template <typename EulerEquation>
-//   [[nodiscard]] std::optional<fub::Duration>
-//   operator()(EulerEquation&, std::optional<fub::Duration>, double,
-//              const fub::perfect_gas_mix::gt::PlenumState&,
-//              const fub::amrex::GriddingAlgorithm& gridding,
-//              int) const noexcept {
-//     return gridding.GetTimePoint();
-//   }
-// };
-
-// struct IsNeverBlocked {
-//   template <typename EulerEquation>
-//   [[nodiscard]] bool
-//   operator()(EulerEquation&, std::optional<fub::Duration> /* t_opened */,
-//              double, const fub::perfect_gas_mix::gt::PlenumState&,
-//              const fub::amrex::GriddingAlgorithm& /* gridding */,
-//              int /* level */) const noexcept {
-//     return false;
-//   }
-// };
 
 struct TracePassiveScalarBoundary {
   using Equation = fub::PerfectGasMix<1>;
@@ -765,6 +746,8 @@ int main(int argc, char** argv) {
   pybind11::scoped_interpreter interpreter{};
   std::optional<fub::ProgramOptions> opts = fub::ParseCommandLine(argc, argv);
   if (opts) {
+    fub::CopyInputFile(MPI_COMM_WORLD,
+                       fub::GetOptions(*opts, "InputFileOptions"), argc, argv);
     fub::InitializeLogging(MPI_COMM_WORLD,
                            fub::GetOptions(*opts, "LogOptions"));
     MyMain(*opts);
@@ -815,7 +798,7 @@ void MyMain(const std::map<std::string, pybind11::object>& vm) {
   double gamma = fub::GetOptionOr(eq_options, "gamma", 1.28);
   fub::PerfectGasConstants constants{Rspec, gamma};
   fub::SeverityLogger log = fub::GetInfoLogger();
-  
+
   BOOST_LOG(log) << "Equation:";
   BOOST_LOG(log) << fmt::format("  - Rspec = {}", constants.Rspec);
   BOOST_LOG(log) << fmt::format("  - gamma = {}", constants.gamma);
