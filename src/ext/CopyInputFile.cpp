@@ -45,23 +45,24 @@ void CopyInputFile(MPI_Comm comm, const InputFileOptions& options, int argc,
     if (!boost::filesystem::exists(dir)) {
       boost::filesystem::create_directories(dir);
     }
-  }
-  namespace po = boost::program_options;
-  po::options_description desc{};
-  std::string config_path{};
-  desc.add_options()("config", po::value<std::string>(&config_path),
-                     "Path to the config file which can be parsed.");
-  desc.add_options()("args",
-                     po::value<std::vector<std::string>>()->multitoken(),
-                     "Arguments for the input file");
-  desc.add_options()("help", "Print this help message.");
-  po::variables_map vm;
-  po::store(po::parse_command_line(argc, argv, desc), vm);
-  if (vm.count("config")) {
-    config_path = vm["config"].as<std::string>();
-    boost::filesystem::copy_file(
-        config_path, filename,
-        boost::filesystem::copy_option::overwrite_if_exists);
+
+    namespace po = boost::program_options;
+    po::options_description desc{};
+    std::string config_path{};
+    desc.add_options()("config", po::value<std::string>(&config_path),
+                       "Path to the config file which can be parsed.");
+    desc.add_options()("args",
+                       po::value<std::vector<std::string>>()->multitoken(),
+                       "Arguments for the input file");
+    desc.add_options()("help", "Print this help message.");
+    po::variables_map vm;
+    po::store(po::parse_command_line(argc, argv, desc), vm);
+    if (vm.count("config")) {
+      config_path = vm["config"].as<std::string>();
+      boost::filesystem::copy_file(
+          config_path, filename,
+          boost::filesystem::copy_option::overwrite_if_exists);
+    }
   }
 }
 
