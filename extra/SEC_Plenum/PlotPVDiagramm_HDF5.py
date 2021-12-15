@@ -16,20 +16,24 @@ import h5py
 
 os.environ['HDF5_USE_FILE_LOCKING'] = 'False'
 
-# optional parsing the datapath from the terminal
-if (len(sys.argv)>1):
-   dataPath = str(sys.argv[1])
-   inputFilePath = dataPath
-else:
-   dataPath = FVS_path+"/build_2D-Release/average_massflow"
-   inputFilePath = FVS_path+"/examples/AMReX/EB/2D/"
+# check cli
+if len(sys.argv)<2:
+   errMsg = ('Not enough input arguments!\n'
+               +'\tfirst argument must be dataPath!')
+   raise RuntimeError(errMsg)
+
+# parsing the datapath from terminal
+dataPath = str(sys.argv[1]) # path to data
+if not os.path.exists(dataPath):
+   raise FileNotFoundError('given Path: {} does not exist!'.format(dataPath))
+inputFilePath = dataPath # assumes inputfile is located in datapath
 
 try:
   inputfileName = str(sys.argv[2]) # optional name of the inputfile
 except: 
   inputfileName = 'SEC_Plenum_Arrhenius.py'
 
-da.import_file_as_module(inputFilePath+inputfileName, 'inputfile')
+da.import_file_as_module(os.path.join(inputFilePath, inputfileName), 'inputfile')
 from inputfile import Area, tube_n_cells, p_ref, rho_ref, Output, u_ref, t_ref
 from inputfile import D as diameter_tube
 

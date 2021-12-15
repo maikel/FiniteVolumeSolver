@@ -1,4 +1,5 @@
-import sys, os
+import sys 
+import os
 
 # get the absolute path to the FUB FVS-Solver
 pathname = os.path.dirname(sys.argv[0])
@@ -17,13 +18,17 @@ import matplotlib.pyplot as plt
 
 os.environ['HDF5_USE_FILE_LOCKING'] = 'False'
 
-# optional parsing the datapath from the terminal
-if (len(sys.argv)>1):
-   dataPath = str(sys.argv[1]) # path to data
-   inputFilePath = dataPath # assumes inputfile is located in datapath
-else:
-   dataPath = FVS_path+"/build_2D-Release/average_massflow"
-   inputFilePath = FVS_path+"/examples/AMReX/EB/2D/"
+# check cli
+if len(sys.argv)<2:
+   errMsg = ('Not enough input arguments!\n'
+               +'\tfirst argument must be dataPath!')
+   raise RuntimeError(errMsg)
+
+# parsing the datapath from terminal
+dataPath = str(sys.argv[1]) # path to data
+if not os.path.exists(dataPath):
+   raise FileNotFoundError('given Path: {} does not exist!'.format(dataPath))
+inputFilePath = dataPath # assumes inputfile is located in datapath
 
 # bool to read all existing HDF5 files
 # this make only sense if we restarted the simulation form the last checkpoint!!
@@ -34,7 +39,7 @@ try:
 except: 
    inputfileName = 'SEC_Plenum_Arrhenius.py'
 
-da.import_file_as_module(inputFilePath+inputfileName, 'inputfile')
+da.import_file_as_module(os.path.join(inputFilePath, inputfileName), 'inputfile')
 from inputfile import t_ref, ControlOptions, T_ref, rho_ref
 
 outPath = dataPath

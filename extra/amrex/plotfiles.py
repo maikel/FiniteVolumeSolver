@@ -396,7 +396,7 @@ def printSimpleStatsPlenumSingleTimepoint(data, variable, time, ndig=4, output_p
         newName = fname.split('.dat')[0]+"_{}.dat".format(date)
         print("renamed old File '{}' to '{}'".format(fname, newName))
         os.rename(fname, newName)
-      header = ['time', 'min', 'mean', 'median', 'std', 'max']
+      header = ['#time', 'min', 'mean', 'median', 'std', 'max']
       format_row = '{:>12}'*len(header)
       with open(fname, 'w') as f:
         f.write(format_row.format(*header)+"\n")

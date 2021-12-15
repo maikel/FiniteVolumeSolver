@@ -17,20 +17,24 @@ import itertools
 
 os.environ['HDF5_USE_FILE_LOCKING'] = 'False'
 
-# optional parsing the datapath from the terminal
-if (len(sys.argv)>1):
-   dataPath = str(sys.argv[1])
-   inputFilePath = dataPath
-else:
-   dataPath = FVS_path+"/build_2D-Release/average_massflow"
-   inputFilePath = FVS_path+"/examples/AMReX/EB/2D/"
+# check cli
+if len(sys.argv)<2:
+   errMsg = ('Not enough input arguments!\n'
+               +'\tfirst argument must be dataPath!')
+   raise RuntimeError(errMsg)
+
+# parsing the datapath from terminal
+dataPath = str(sys.argv[1]) # path to data
+if not os.path.exists(dataPath):
+   raise FileNotFoundError('given Path: {} does not exist!'.format(dataPath))
+inputFilePath = dataPath # assumes inputfile is located in datapath
 
 try:
   inputfileName = str(sys.argv[2]) # optional name of the inputfile
 except: 
   inputfileName = 'SEC_Plenum_Arrhenius.py'
 
-da.import_file_as_module(inputFilePath+inputfileName, 'inputfile')
+da.import_file_as_module(os.path.join(inputFilePath, inputfileName), 'inputfile')
 from inputfile import Area, tube_n_cells, p_ref, rho_ref, Output, u_ref, t_ref
 from inputfile import D as diameter_tube
 
@@ -50,6 +54,11 @@ nSteps = times.shape[0]
 
 # optional slicing in time-dimension
 tplotmin = 200.0
+splittedPath = dataPath.rsplit('/',1)[-2] #-2 because / at the end
+if 'vol40.0' in splittedPath:
+   tplotmin = 200.0
+elif 'vol20.0' in splittedPath:
+   tplotmin = 145.0
 tplotmax = 400.0
 t_bool_array = (times>=tplotmin) & (times<=tplotmax)
 t_index_array = np.nonzero(t_bool_array)[0] # returns tuple: (array([10 11 ...]), )
@@ -101,14 +110,15 @@ scalar_limits = getPassiveScalarLimits(first=t_index_array[0], last=t_index_arra
 
 titles = ['Pressure', 'Temperature',  'Passive Scalar', 'Velocity']
 def props(title):
+   nlevels = 96
    props = {
-      'origin': 'lower',
+      # 'origin': 'lower',
       # 'interpolation': 'none',
       # 'aspect': 'equal',
       'extend': 'both',
    }
    if title == 'Passive Scalar':
-      levels = np.linspace(*scalar_limits, 40)
+      levels = np.linspace(*scalar_limits, nlevels)
       props.update(
          {
          'levels': levels,
@@ -118,17 +128,29 @@ def props(title):
          }
       )
    if  title == 'Temperature':
-      props = {
-         'origin': 'lower',
-         'interpolation': 'none',
-         'aspect': 'equal',
-         # 'levels': np.linspace(10.0*T_ref, 13.0*T_ref, 30),
-         'vmin': 6.5*T_ref,
-         'vmax': 10.*T_ref,
-         # 'cmap': 'jet'
+      minT = 5.*T_ref
+      maxT = 12.5*T_ref
+      scaleT = 25
+      levels = np.linspace(minT, maxT, int(maxT-minT)//scaleT )
+      props.update(
+         {
+            'levels': levels,
+            'vmin': levels[0],
+            'vmax': levels[-1],
+            'cmap': 'afmhot_r'
          }
+      )
+      # props = {
+      #    'origin': 'lower',
+      #    'interpolation': 'none',
+      #    'aspect': 'auto',
+      #    # 'levels': np.linspace(10.0*T_ref, 13.0*T_ref, 30),
+      #    'vmin': 6.5*T_ref,
+      #    'vmax': 10.*T_ref,
+      #    # 'cmap': 'jet'
+      #    }
    if title == 'Pressure':
-      levels = np.linspace(1.0, 20., 20)
+      levels = np.linspace(1.0, 20., nlevels)
       props.update(
          {
          'levels': levels,
@@ -207,7 +229,7 @@ for i in t_index_array:
    da.printSimpleStatsPlenumSingleTimepoint(passiveScalarMF, 'PassiveScalar', current_time, output_path=output_path)
 
 
-   f, axs = plt.subplots(nrows=2, ncols=2, figsize=(20. / 2, 15. / 2), gridspec_kw={'width_ratios': [3,1]})
+   f, axs = plt.subplots(nrows=2, ncols=2, figsize=(20. / 2, 15. / 2), gridspec_kw={'width_ratios': [4,2]}, constrained_layout=True)
    axs = axs.flatten()
    f.suptitle('Time = {:.2f}'.format(current_time))
    
@@ -219,8 +241,10 @@ for i in t_index_array:
       x = np.linspace(tube_extent[0], tube_extent[1], tube_n_cells)
       y_upper = midpoint + 0.5 * np.array([Area(xi) for xi in x]) * diameter_tube
       y_lower = midpoint - 0.5 * np.array([Area(xi) for xi in x]) * diameter_tube
-      lower = midpoint - 4.0 * diameter_tube
-      upper = midpoint + 4.0 * diameter_tube
+      y_upper_scale = 0.2
+      y_upper += y_upper_scale*np.max(y_upper) # increase y_upper by y_upper_scale (in percent) to avoid overlapping in the image
+      lower = midpoint - 2.0 * diameter_tube
+      upper = midpoint + 2.0 * diameter_tube
       tube_extent[2] = lower
       tube_extent[3] = upper
       im_p = axs[0].contourf(tube_p, extent=tube_extent, **props(titles[0]))
@@ -232,9 +256,10 @@ for i in t_index_array:
    
    #################################################
    # temperature image
-   im_T = axs[1].imshow(temperature * T_ref, extent=plenum_extent, **props(titles[1]))
+   # im_T = axs[1].imshow(temperature * T_ref, extent=plenum_extent, **props(titles[1]))
+   im_T = axs[1].contourf(temperature * T_ref, extent=plenum_extent, **props(titles[1]))
    axs[1].set_title(titles[1])
-   axs[1].set(aspect='equal')
+   # axs[1].set(aspect='equal')
    cbar = plt.colorbar(im_T, ax=axs[1])
    cbar.set_label('[K]', rotation=270, labelpad=15)
    
@@ -248,11 +273,7 @@ for i in t_index_array:
       x = np.linspace(tube_extent[0], tube_extent[1], tube_n_cells)
       y_upper = midpoint + 0.5 * np.array([Area(xi) for xi in x]) * diameter_tube
       y_lower = midpoint - 0.5 * np.array([Area(xi) for xi in x]) * diameter_tube
-      # lower = midpoint - 3.0* diameter_tube
-      # upper = midpoint + 3.0* diameter_tube
-      # tube_extent[2] = lower
-      # tube_extent[3] = upper
-      # print(tube_extent)
+      y_upper += y_upper_scale*np.max(y_upper) # increase y_upper by y_upper_scale (in percent) to avoid overlapping in the image
       im_X = axs[2].contourf(tube_X, extent=tube_extent, **props(titles[2]))
       axs[2].fill_between(x, y_upper, np.max(y_upper), color='white')
       axs[2].fill_between(x, y_lower, np.min(y_lower), color='white')
@@ -275,10 +296,10 @@ for i in t_index_array:
    Q = axs[3].quiver(passiveScalarMF, Y, velU[::skip,::skip], velV[::skip,::skip], **props_dict)
    axs[3].quiverkey(Q, 0.5, 1.05, 1./props_dict['scale'], '{}'.format(round(u_ref,1))+r'$ \frac{m}{s}$', labelpos='E', coordinates='axes')
    # axs[3].set_title('Velocity Field')
-   axs[3].set(aspect='equal')
+   # axs[3].set(aspect='equal')
    
    # f.subplots_adjust(hspace=0.4)
-   f.savefig('{}/Figure{:04d}.png'.format(output_path, i), bbox_inches='tight')
+   f.savefig('{}/Figure{:05d}.png'.format(output_path, i), bbox_inches='tight', dpi=100)
    f.clear()
    plt.close(f)
 
