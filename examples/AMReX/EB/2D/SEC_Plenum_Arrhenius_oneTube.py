@@ -11,13 +11,28 @@ boundary_condition = 'TurbineMassflowBoundaries' # '%BOUNDARY_CONDITION%'
 n_level = 1
 
 # tube_y0s = [-1.0/3.0, 0.0, +1.0/3.0]
-
 tube_y0s = [0.0]
+tube_length = 1.0 # [m]
 
 n_tubes = len(tube_y0s)
 r_tube = 0.015
-
 D = 2.0 * r_tube
+
+## InflowOptions for SEC Tube
+## this values influence the SEC mode and are set under Tubes Dict
+# fuel retardation time (controls how long the air buffer is)
+SEC_buffer = 0.06 # default value 0.06
+# maximum ignition delay time for the fuel
+SEC_tti = 1.2 # default value 1.2
+# minimum ignition delay time for the fuel
+SEC_timin = 0.1 # default value 0.1
+
+# parameter for the diffusorpart from the inflow tube
+diffusorStart = 0.0625 # start point x-axis
+diffusorEnd = 0.75 # end point x-axis
+offset=-tube_length # tube begins at x=-1.0
+A0=1.0 # surface Area befor diffusor
+A1=4.0 # surface Area after diffusor
 
 # calculate plenum geometry
 magic_z_length = 1.0 # should be replaced when switch to 3d!!!
@@ -35,7 +50,6 @@ plenum_x_lower = -inlet_length
 plenum_x_length = plenum_x_upper - plenum_x_lower
 
 plenum_length = plenum_x_upper - 0.0 # [m]
-tube_length = 1.0 # [m]
 
 plenum_max_grid_size = max(plenum_blocking_factor, 1024)
 
@@ -81,11 +95,11 @@ plenum_dz = plenum_z_length / plenum_z_n_cells
 
 
 # outputPath = 'test_oneTube_vol40_y0.48'
-outputPath = 'sec_vol{}_y{}_tx{}_px{}_py{}'.format(TVolRPlen/D, plenum_y_upper, tube_n_cells, plenum_x_n_cells, plenum_y_n_cells)
+outputPath = 'sec_vol{}_y{}_tx{}_px{}_py{}_xi0{}'.format(TVolRPlen/D, plenum_y_upper, tube_n_cells, plenum_x_n_cells, plenum_y_n_cells, diffusorStart)
 
 RunOptions = {
   'cfl': 0.1125,# / float(tube_n_cells / 64),
-  'final_time': 300.0,
+  'final_time': 400.0,
   'max_cycles': -1,
   'do_backup': 0
 }
@@ -157,14 +171,14 @@ rho = p / T
 # checkpoint = '/srv/public/Maikel/FiniteVolumeSolver/build_2D-Debug/Checkpoint/000000005'
 checkpoint = ''
 
-
-def Area(xi):
-  A0  = 1.0
-  A1  = 4.0 # Reference: 3.0; best: 4.0 
-  xi0 = 0.0625 - 1.0
-  xi1 = 0.75 - 1.0   # Reference: 0.5; best: 0.75
+def Area(xi, xi0=0.0625, xi1=0.75, offset=-1.0, A0=1.0, A1=4.0):
+  xi0 += offset
+  xi1 += offset # Reference: 0.5; best: 0.75
   Ax = 1.0 if xi < xi0 else A0 + (A1-A0)*(xi-xi0)/(xi1-xi0) if xi < xi1 else A1
   return Ax
+
+surface_area_SingleTube_inlet = Area(-1.0, xi0=diffusorStart, xi1=diffusorEnd, offset=offset, A0=A0, A1=A1)
+surface_area_SingleTube_outlet = Area(0.0, xi0=diffusorStart, xi1=diffusorEnd, offset=offset, A0=A0, A1=A1)
 
 ControlOptions = {
   'Q': ArrheniusKinetics['Q'],
@@ -175,8 +189,8 @@ ControlOptions = {
   'target_pressure_compressor' : 6.0,
   'checkpoint': checkpoint,
   # Tube surface
-  'surface_area_tube_inlet': (n_tubes * Area(-1.0) * D) / D,
-  'surface_area_tube_outlet': (n_tubes * Area(0.0) * D) / D,
+  'surface_area_tube_inlet': (n_tubes * surface_area_SingleTube_inlet * D) / D,
+  'surface_area_tube_outlet': (n_tubes * surface_area_SingleTube_outlet * D) / D,
   # Turbine volumes and surfaces
   'volume_turbine_plenum': TVolRPlen / D,
   'surface_area_turbine_plenum_to_turbine': 4.0 * D / D,
@@ -354,9 +368,9 @@ Tubes = [{
     'flux_gcw': 2,
   },
   'InflowOptionsSEC' : {
-    'SEC_buffer': 0.06, # 0.06
-    'SEC_tti': 1.2, # 1.2
-    'SEC_timin': 0.1, # 0.1
+    'SEC_buffer': SEC_buffer,
+    'SEC_tti': SEC_tti,
+    'SEC_timin': SEC_timin,
   }
 } for (i, y_0) in enumerate(tube_y0s)]
 
