@@ -50,18 +50,20 @@ os.environ['HDF5_USE_FILE_LOCKING'] = 'False'
 #plt.style.use('seaborn')
 tex_fonts = {
     # Use LaTeX to write all text
-    "text.usetex": True,
-    "font.family": "serif",
+    # "text.usetex": True,
+    # "font.family": "serif",
     # Use 10pt font in plots, to match 10pt font in document
-    "axes.labelsize": 10,# 9,
-    "axes.titlesize": 10,# 9,
-    "axes.labelsize": 10,# 9,
-    "font.size": 10,# 9,
+    "axes.labelsize": 12,# 10,
+    "axes.titlesize": 12,# 10,
+    "axes.labelsize": 12,# 10,
+    "font.size": 12,# 10,
     # Make the legend/label fonts a little smaller
-    "legend.fontsize": 10, #9,
-    "xtick.labelsize": 8,# 7,
-    "ytick.labelsize": 8,# 7
+    "legend.fontsize": 12, # 10,
+    "xtick.labelsize": 10,# 8,
+    "ytick.labelsize": 10,# 8
 }
+
+CROPPED=True
 
 plt.rcParams.update(tex_fonts)
 plt.rcParams.update({'axes.grid' : False})
@@ -108,7 +110,7 @@ for tube_id in range(n_tubes):
   # print(datas_dict)
 
   # optional slicing in time-dimension
-  tplotmin = 295.0
+  tplotmin = 398 #395.0
   tplotmax = 400.0
   del datas_dict['PassiveScalars']
 
@@ -146,13 +148,19 @@ for tube_id in range(n_tubes):
 
 
   if 'PassiveScalars' in datas_dict:
-    titles = ['Temperature [K]', 'Pressure [bar]', 'Local Machnumber [-]', 'Fuel Massfraction [-]', 'Passive Scalars [-]']
+    propTitles = ['temperature [K]', 'pressure [bar]', 'local Machnumber [-]', 'fuel Massfraction [-]', 'Passive Scalars [-]']
+    titles = ['T [K]', 'P [bar]', 'Ma [-]', r'$\text{X}_{\text{fuel}}\,[-]$', 'Passive Scalars [-]']
     datas = [T_data * T_ref, p_data, Ma, F_data, X]
     f, ax = plt.subplots(nrows=1, ncols=5, figsize=(50. / 2, 10 / 2.), sharey=False)# figsize=(15, 10)) #set_size('thesis'))
   else:
-    titles = ['Temperature [K]', 'Pressure [bar]', 'Local Machnumber [-]', 'Fuel Massfraction [-]']
+    propTitles = ['temperature [K]', 'pressure [bar]', 'local Machnumber [-]', 'fuel Massfraction [-]']
+    titles = [r'$T$'+' [K]', r'$p$'+' [bar]', r'$Ma$'+' [-]', r'$X_{fuel}$'+' [-]']
     datas = [T_data * T_ref, p_data, Ma, F_data]
-    f, ax = plt.subplots(nrows=2, ncols=2, figsize=(18. / 2., 18. / 2.), sharey=False)# figsize=(15, 10)) #set_size('thesis'))
+    if CROPPED:
+      f, ax = plt.subplots(nrows=2, ncols=2, figsize=(18. / 2., 5.), sharey=False)
+    else:
+      f, ax = plt.subplots(nrows=2, ncols=2, figsize=(18. / 2., 18. / 2.), sharey=False)
+    
     ax = ax.flatten()
   def props(title):
     props = {
@@ -170,13 +178,13 @@ for tube_id in range(n_tubes):
         'vmin': None,
         'cmap': 'twilight'
       }
-    if title == 'Fuel Massfraction [-]':
+    if title == 'fuel Massfraction [-]':
       props['vmax'] = 0.
       props['vmin'] = 1.
       props['cmap'] = 'gray_r'
-    # if  title == 'Temperature':
+    # if  title == 'temperature':
       # props['vmax'] = 3.0
-    if title == 'Pressure [bar]':
+    if title == 'pressure [bar]':
       props = {
       'origin': 'lower',
       'interpolation': 'none',
@@ -184,53 +192,35 @@ for tube_id in range(n_tubes):
       'extent': (x0, xEnd, t0, tEnd),
       'vmin': 0.0,
       'vmax': 30.0,
-      'cmap': 'jet'
+      'cmap': 'jet',
       }
     return props
   import itertools
-  ims = [a.imshow(data, **props(title)) for (__, (a, data, title)) in itertools.takewhile(lambda x: x[0] < 4,  enumerate(zip(ax, datas, titles)))]
-  # ims = [a.plot(data[-1,:]) for (__, (a, data, title)) in itertools.takewhile(lambda x: x[0] < 4,  enumerate(zip(ax, datas, titles)))]
+  ims = [a.imshow(data, **props(title)) for (__, (a, data, title)) in itertools.takewhile(lambda x: x[0] < 4,  enumerate(zip(ax, datas, propTitles)))]
+  # ims = [a.plot(data[-1,:]) for (__, (a, data, title)) in itertools.takewhile(lambda x: x[0] < 4,  enumerate(zip(ax, datas, propTitles)))]
   if 'PassiveScalars' in datas_dict:
-    ims.append(ax[4].contourf(datas[4], **props(titles[4])))
+    ims.append(ax[4].contourf(datas[4], **props(propTitles[4])))
   for a, title in zip(ax, titles):
-    a.set(ylabel='time [-]')
-    a.set(xlabel='x [-]', title=title)
+    a.set(ylabel=r'$t$'+' [-]')
+    a.set(xlabel=r'$x$'+' [-]', title=title)
 
   from matplotlib.ticker import FormatStrFormatter
-  for a, im in zip(ax, ims):
-    a.xaxis.set_major_formatter(FormatStrFormatter('%.2f'))
-    plt.colorbar(im, ax=a)
-  f.suptitle("Tube id = {}".format(tube_id), y=0.93, fontsize=14)
-  f.savefig(output_path+'/Tube{}.png'.format(tube_id), bbox_inches='tight', dpi=175)
-  f.savefig(output_path+'/Tube{}.pdf'.format(tube_id), bbox_inches='tight')
+  for a, im, tit in zip(ax, ims, propTitles):
+    a.xaxis.set_major_formatter(FormatStrFormatter('%.1f'))
+    a.label_outer()
+    if 'pressure' in tit:
+      plt.colorbar(im, ax=a, extend='max')
+    else:
+      plt.colorbar(im, ax=a)
+  
+  # if CROPPED:
+  #   f.subplots_adjust(wspace=0.35, hspace=0.4)
+  # else:
+  #   f.suptitle("Tube id = {}".format(tube_id), y=0.93, fontsize=14)
+
+  f.savefig(output_path+'/Tube{}-poster.png'.format(tube_id), bbox_inches='tight', dpi=175)
+  f.savefig(output_path+'/Tube{}-poster.pdf'.format(tube_id), bbox_inches='tight', dpi=600)
   f.clear()
   plt.close(f)
-
-  # f = plt.figure()
-  # plt.plot(times[:slice_end], p_data[:,0], label='0')
-  # plt.plot(times[:slice_end], p_data[:,1], label='1')
-  # # plt.plot(times, (p_data[:,0]+p_data[:,1])/2, label='mean')
-  # # for i in range(10):
-  # #   print("Cell {} pressure_max = {}".format(i, np.max(p_data[:,i])))
-
-  
-  # plt.ylim(5.85, 6.05)
-  # plt.xlim(135.5,None)
-  # plt.legend()
-  # plt.grid(True)
-  # f.savefig(output_path+'/Tube{}_pressureFirstCell.png'.format(tube_id), bbox_inches='tight')
-  # f.clear()
-  # plt.close(f)
-
-  # f = plt.figure()
-  # plt.plot(times[:slice_end], F_data[:,0], label='0')
-  # plt.plot(times[:slice_end], F_data[:,1], label='1')
-  # # plt.plot(times, (T_data[:,0]+T_data[:,1])/2, label='mean')
-  # # plt.ylim(0, 1)
-  # plt.xlim(135.5,None)
-  # plt.legend()
-  # plt.grid(True)
-  # f.savefig(output_path+'/Tube{}_FuelFirstCell.png'.format(tube_id), bbox_inches='tight')
-  # f.clear()
   
   
