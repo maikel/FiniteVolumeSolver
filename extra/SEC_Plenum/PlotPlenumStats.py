@@ -101,6 +101,15 @@ data_units = [' [bar]', ' [K]']
 
 meanValueMinTime = 300.
 
+# optional slicing in time-dimension
+tplotmin = 100.0 # vol10
+splittedPath = dataPath.rsplit('/',1)[-2] #-2 because / at the end
+if 'vol40.0' in splittedPath:
+   tplotmin = 200.0
+elif 'vol20.0' in splittedPath:
+   tplotmin = 145.0
+tplotmax = 500.0
+
 for i, ax, subKey, unit in zip(range(len(plotKeyList)), axs.flatten(), plotKeyList, data_units):
    statsData, headerDict = readPlenumStats(output_path, subKey)
    
@@ -115,14 +124,20 @@ for i, ax, subKey, unit in zip(range(len(plotKeyList)), axs.flatten(), plotKeyLi
    max = statsData[:, headerDict['max']]
    mean = statsData[:, headerDict['mean']]
 
-   ax.plot(time, mean, color=colors[i], label=subKey)
-   ax.fill_between(time, max, min, alpha=0.5, color=colors[i])
+   tplotmax = tplotmax if time[-1]>=tplotmax else np.rint(time[-1])
+   t_index_array = (time>=tplotmin) & (time<=tplotmax)
+   # check if index array is empty
+   if not np.any(t_index_array):
+      raise IndexError('time index array is empty!')
+
+   ax.plot(time[t_index_array], mean[t_index_array], color=colors[i], label=subKey)
+   ax.fill_between(time[t_index_array], max[t_index_array], min[t_index_array], alpha=0.5, color=colors[i])
    
    meanValue = np.mean(mean[time>meanValueMinTime])
    ax.set_title('mean value = {} {} for '.format(round(meanValue, 2), unit)
                + r'$t \in [{},{}]$'.format(np.rint(meanValueMinTime), np.rint(time[-1]))
                )
-   ax.set(xlabel='time', ylabel=subKey+unit, xlim=(time[0], None))
+   ax.set(xlabel='time', ylabel=subKey+unit, xlim=(tplotmin, tplotmax))
    ax.grid(True)
 
 f.savefig('{}/Plenum_stats.png'.format(output_path), bbox_inches='tight')

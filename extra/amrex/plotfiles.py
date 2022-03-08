@@ -157,7 +157,7 @@ def h5_load_get_extent_1D(filename):
   file.close()
   return extent_1d
 
-def progressBar(iterable, prefix = 'Progress:', suffix = 'Complete', decimals = 1, length = 50, fill = '█', printEnd = "\r"):
+def progressBar(iterable, prefix = 'Progress:', suffix = 'Complete', decimals = 1, length = 50, fill = '█', printEnd = "\r", enumeration=False):
     """
     Call in a loop to create terminal progress bar
     This fancy function is taken from https://stackoverflow.com/a/34325723.
@@ -193,7 +193,10 @@ def progressBar(iterable, prefix = 'Progress:', suffix = 'Complete', decimals = 
     printProgressBar(0)
     # Update Progress Bar
     for i, item in enumerate(iterable):
-        yield item
+        if enumeration:
+          yield i, item
+        else:
+          yield item
         printProgressBar(i + 1)
     # Print New Line on Complete
     print("\n")
@@ -365,9 +368,9 @@ def printSimpleStatsTubeData(data, variable, times, tube_id=0, ndig=4, output_pa
         f.write(format_row.format(*row)+"\n")
   print()
 
-def printSimpleStatsPlenumSingleTimepoint(data, variable, time, ndig=4, output_path="", firstCall=False):
+def printSimpleStatsPlenumSingleTimepoint(data, variable, time, ndig=8, output_path="", firstCall=False):
   """
-  Print out simple Stats from given Arrays. 
+  Print out simple Stats from given Arrays.
   Shape must be (NCellsX, NCellsY, (NCellsZ))
 
   Parameters
@@ -396,16 +399,22 @@ def printSimpleStatsPlenumSingleTimepoint(data, variable, time, ndig=4, output_p
         newName = fname.split('.dat')[0]+"_{}.dat".format(date)
         print("renamed old File '{}' to '{}'".format(fname, newName))
         os.rename(fname, newName)
-      header = ['#time', 'min', 'mean', 'median', 'std', 'max']
-      format_row = '{:>12}'*len(header)
+      header = ['time', 'min', 'mean', 'median', 'std', 'max']
+      format_row = '#{:>11}'+'{:>12}'*(len(header)-1)
       with open(fname, 'w') as f:
         f.write(format_row.format(*header)+"\n")
       return None
   
-  indices_min = np.unravel_index(np.argmin(data, axis=None), data.shape)
-  indices_max = np.unravel_index(np.argmax(data, axis=None), data.shape)
-
-  stats_data = [time, data[indices_min], np.mean(data), np.median(data), np.std(data), data[indices_max]]
+  if np.ma.is_masked(data):
+    # version for masked numpy arrays
+    indices_min = np.unravel_index(np.ma.argmin(data, axis=None), data.shape)
+    indices_max = np.unravel_index(np.ma.argmax(data, axis=None), data.shape)
+    stats_data = [time, data[indices_min], np.ma.mean(data), np.ma.median(data), np.ma.std(data), data[indices_max]]
+  else: 
+    indices_min = np.unravel_index(np.argmin(data, axis=None), data.shape)
+    indices_max = np.unravel_index(np.argmax(data, axis=None), data.shape)
+    stats_data = [time, data[indices_min], np.mean(data), np.median(data), np.std(data), data[indices_max]]
+  
   stats_data = [el if isinstance(el, str) else round(el, ndig) for el in stats_data]
   
   format_row = '{:>12}'*len(stats_data)
