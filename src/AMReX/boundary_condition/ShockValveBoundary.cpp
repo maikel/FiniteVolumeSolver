@@ -71,7 +71,7 @@ void ChangeState_(ShockValveState& state, const ::amrex::Geometry&,
   BOOST_LOG_SCOPED_LOGGER_TAG(log, "Level", level);
   switch (state) {
   case ShockValveState::closed:
-    BOOST_LOG(log) << "Shock valve is transmissive!";
+    // BOOST_LOG(log) << "Shock valve is transmissive!";
     break;
   case ShockValveState::open:
     if (options.shock_options.shock_time < current_time) {

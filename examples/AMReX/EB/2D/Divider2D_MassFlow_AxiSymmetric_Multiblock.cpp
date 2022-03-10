@@ -278,10 +278,17 @@ auto MakePlenumSolver(const std::map<std::string, pybind11::object>& options) {
       plenum_equation, fub::Halfspace({+1.0, 0.0, 0.0}, 0.0), initial_state,
       initial_state};
 
+
+  const fub::ProgramOptions refineOptions =
+        fub::GetOptions(options, "RefineOptions");
+  const double densityGradient = fub::GetOptionOr(refineOptions, "densityGradient", 0.05);
+  const double pressureGradient = fub::GetOptionOr(refineOptions, "pressureGradient", 0.0025);
+
+
   using Complete = fub::Complete<fub::PerfectGas<Plenum_Rank>>;
   GradientDetector gradients{plenum_equation,
-                             std::pair{&Complete::pressure, 0.05},
-                             std::pair{&Complete::density, 0.05}};
+                             std::pair{&Complete::pressure, pressureGradient},
+                             std::pair{&Complete::density, densityGradient}};
 
   auto seq = fub::execution::seq;
   BoundarySet boundary_condition{
@@ -290,12 +297,13 @@ auto MakePlenumSolver(const std::map<std::string, pybind11::object>& options) {
        ReflectiveBoundary{seq, plenum_equation, fub::Direction::Y, 0},
        TransmissiveBoundary{fub::Direction::Y, 1}}};
 
-  ::amrex::RealBox xbox = grid_geometry.coordinates;
-  ::amrex::Geometry coarse_geom = fub::amrex::GetCoarseGeometry(grid_geometry);
+  // ::amrex::RealBox xbox = grid_geometry.coordinates;
+  // ::amrex::Geometry coarse_geom = fub::amrex::GetCoarseGeometry(grid_geometry);
 
-  ::amrex::RealBox inlet{{xbox.lo(0), -0.15}, {0.18, +0.15}};
-  ::amrex::Box refine_box = fub::amrex::BoxWhichContains(inlet, coarse_geom);
-  ConstantBox constant_refinebox{refine_box};
+  // ::amrex::RealBox inlet{{xbox.lo(0), -0.15}, {0.18, +0.15}};
+  // ::amrex::Box refine_box = fub::amrex::BoxWhichContains(inlet, coarse_geom);
+  // ConstantBox constant_refinebox{refine_box};
+  
 
   std::shared_ptr gridding = [&] {
     std::string checkpoint =
@@ -304,7 +312,7 @@ auto MakePlenumSolver(const std::map<std::string, pybind11::object>& options) {
       BOOST_LOG(log) << "Initialize grid by initial condition...";
       std::shared_ptr grid = std::make_shared<GriddingAlgorithm>(
           PatchHierarchy(plenum_equation, grid_geometry, hierarchy_options),
-          initial_data, TagAllOf(TagCutCells(), constant_refinebox),
+          initial_data,TagAllOf(TagCutCells(), gradients, TagBuffer(2)),
           boundary_condition);
       grid->InitializeHierarchy(0.0);
       return grid;
@@ -317,7 +325,7 @@ auto MakePlenumSolver(const std::map<std::string, pybind11::object>& options) {
           grid_geometry, hierarchy_options);
       std::shared_ptr grid = std::make_shared<GriddingAlgorithm>(
           std::move(h), initial_data,
-          TagAllOf(TagCutCells(), constant_refinebox), boundary_condition);
+         TagAllOf(TagCutCells(), gradients, TagBuffer(2)), boundary_condition);
       return grid;
     }
   }();

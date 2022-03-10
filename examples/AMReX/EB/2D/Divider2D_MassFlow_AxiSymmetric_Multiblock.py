@@ -2,27 +2,39 @@ import math
 
 # This is the amount of cells in the x Direction for the plenum domain
 # Given this and the total lengths will determine all cell sizes
-plenum_x_nCells = 512
+n_level = 3
+plenum_x_nCells = 2*2048 // 2**(n_level-1) #256
 
 # This settings controls where and when the Riemann Problem 
 # is applied in the Domain. 
 # Further description is given below in ShockValveBoundary['schock_feedback']
-shock_x_location = -0.05 
+shock_x_location = -0.051 # 1.7D
 shock_mach_number =  2.62
-shock_time = 100. #1.0e-02
+shock_time = 1.0e-02
 
 # This controls the inflow velocity in the tube 
 # The density in the domain is default 1.22 kg/m^3 
 # so this correspond roughly to 48.0 m/s.
 # Further description is given below in ShockValveBoundary['massflow_boundary']
-r_tube = 0.016 # radius of the tube
-required_massflow = 0.047 # [kg/s]
+r_tube = 0.015 # radius of the tube # D=0.03
+required_massflow = 0.114 # 0.047 # [kg/s]
 surface_area = math.pi * r_tube * r_tube # [m^2]
+
+grid_efficiency = 0.95
+blocking_factor = 8
+
+# This defines the constant initial state in the whole domain.
+RefineOptions = {
+    'densityGradient': 0.05, # Default 0.05 
+    'pressureGradient': 0.0025, # Default 0.0025 
+}
+
 
 # The output files are written in this directory from the perspective of this 
 # docker container
-OutPut_BasePath = 'RieMultiblock_plenum_x_nCells_{}_Ma_{}'.format(plenum_x_nCells, shock_mach_number)
+OutPut_BasePath = 'RieMB_nlevels_{}_ncells_{}_Ma_{}'.format(n_level, plenum_x_nCells, shock_mach_number)
 
+# OutPut_BasePath = 'Rietest'
 # OutPut_BasePath = 'Div_Riemann_plenum_x_nCells_{}_Ma_{}_MF_{}'.format(plenum_x_nCells, shock_mach_number, required_massflow)
 
 
@@ -35,7 +47,7 @@ RunOptions = {
   # Higher means larger time steps
   'cfl': 0.8,
   # The simulation stops upon reaching the final time
-  'final_time': 2e-02, # 5e-1,
+  'final_time': 1.1e-02, # 2.e-02,
   'do_backup': False,
   # The simulation stops after doing max_cycles (many coarse time steps). 
   # Choose -1 for infinite many time steps.
@@ -95,8 +107,8 @@ wall_filenames = ['{}/wall.txt'.format(wall_path),
 
 #-----------------------------------------------------
 
-blocking_factor = 8
-n_level = 1
+# blocking_factor = 8
+# n_level = 1
 
 def nCellsY(nCellsX, ratio, blocking_factor=8):
     base = int(nCellsX * ratio)
@@ -106,7 +118,7 @@ def nCellsY(nCellsX, ratio, blocking_factor=8):
 plenum_y_nCells = nCellsY(plenum_x_nCells, plenum_ylen / plenum_xlen, blocking_factor=blocking_factor)
 tube_nCells = nCellsY(plenum_x_nCells, tube_xlen / plenum_xlen, blocking_factor=blocking_factor)
 
-n_error_buf = 0 if n_level == 1 else 1
+n_error_buf = 0 if n_level == 1 else 2
 
 # defines the number of ghost cells
 scratch_gcw = 4 if n_level == 1 else 4
@@ -146,7 +158,8 @@ Plenum = {
   'PatchHierarchy': {
     # Defines the number of refinement levels
     # 1 means no adaptive refinement
-    'max_number_of_levels': n_level, 
+    'max_number_of_levels': n_level,
+    'grid_efficiency': grid_efficiency,
     # Every patch size is a multiple of blocking_factor (in each direction)
     # i.e. blocking_factor = 8 means patches have the size of 8 or 16 or 24 or ...
     'blocking_factor': [blocking_factor, blocking_factor, blocking_factor],
@@ -281,20 +294,20 @@ Output = {
   # It is readable from Paraview, VisIt and Python
   {'type': 'Plotfiles',
     'directory': '{}/Plotfiles'.format(OutPut_BasePath),
-    'intervals': [1e-4]
+    'intervals': [1.0e-5]
   },
   
   # Write simple HDF5 files
   # It is faster and writes a single grid without patches
-  {'type': 'HDF5', 
-    'path': '{}/Tube.h5'.format(OutPut_BasePath), 
-    'intervals': [1e-4]
-  },
+  # {'type': 'HDF5', 
+  #   'path': '{}/Tube.h5'.format(OutPut_BasePath), 
+  #   'intervals': [1e-4]
+  # },
 
-  {'type': 'HDF5', 
-    'path': '{}/Plenum.h5'.format(OutPut_BasePath), 
-    'intervals': [1e-4]
-  },
+  # {'type': 'HDF5', 
+  #   'path': '{}/Plenum.h5'.format(OutPut_BasePath), 
+  #   'intervals': [1e-4]
+  # },
   
   # Print out timer statistics
   {'type': 'CounterOutput', 
@@ -302,9 +315,9 @@ Output = {
   },
   
   # write out Checkpoints
-  {'type': 'Checkpoint', 
-    'directory': '{}/Checkpoint'.format(OutPut_BasePath),
-    'intervals': [1e-3]  
-  }
+  # {'type': 'Checkpoint', 
+  #   'directory': '{}/Checkpoint'.format(OutPut_BasePath),
+  #   'intervals': [1e-3]  
+  # }
 ]
 }
