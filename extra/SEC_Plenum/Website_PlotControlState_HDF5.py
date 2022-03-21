@@ -6,7 +6,8 @@ pathname = os.path.abspath(pathname)
 FVS_path = pathname.split('extra')[0]
 sys.path.append(FVS_path+'/extra/')
 
-import amrex.plotfiles as da
+import amrex.h5_io as io
+from amrex.other import import_file_as_module
 
 import numpy as np
 import matplotlib
@@ -32,7 +33,7 @@ try:
 except: 
    inputfileName = 'SEC_Plenum_Arrhenius.py'
 
-da.import_file_as_module( os.path.join(inputFilePath, inputfileName), 'inputfile')
+import_file_as_module( os.path.join(inputFilePath, inputfileName), 'inputfile')
 from inputfile import t_ref, T_ref, ControlOptions
 
 #---------------------------------------
@@ -93,16 +94,16 @@ if RESTARTEDSIMULATION:
    # Attention the last file is the latest!!
    # for example we have Filename.h5 and Filename.h5.1 the last one contains the first data!
    print("Read in data from {}".format(fileNameList[-1]))
-   datas, times, datas_dict = da.h5_load_timeseries(fileNameList[-1])
+   datas, times, datas_dict = io.h5_load_timeseries(fileNameList[-1])
 
    for filename in reversed(fileNameList[:-1]):
       print("Read in data from {}".format(filename))
-      data, time, _ = da.h5_load_timeseries(fileNameList[0])
+      data, time, _ = io.h5_load_timeseries(fileNameList[0])
       datas = np.concatenate((datas, data))
       times = np.concatenate((times, time))
 else:
    print("Read in data from {}".format(filename_basic))
-   datas, times, datas_dict = da.h5_load_timeseries(filename_basic)
+   datas, times, datas_dict = io.h5_load_timeseries(filename_basic)
 
 
 def getSubKeyList(substring):

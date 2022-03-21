@@ -7,8 +7,9 @@ pathname = os.path.abspath(pathname)
 FVS_path = pathname.split('extra')[0]
 sys.path.append(FVS_path+'/extra/')
 
-from amrex.plotfiles import h5_load_timeseries
-import amrex.plotfiles as da
+from amrex.h5_io import h5_load_timeseries
+from amrex.other import import_file_as_module
+import amrex.h5_io as da
 
 import numpy as np
 import matplotlib
@@ -39,7 +40,7 @@ try:
 except: 
    inputfileName = 'SEC_Plenum_Arrhenius.py'
 
-da.import_file_as_module(os.path.join(inputFilePath, inputfileName), 'inputfile')
+import_file_as_module(os.path.join(inputFilePath, inputfileName), 'inputfile')
 from inputfile import t_ref, ControlOptions, T_ref, rho_ref
 
 outPath = dataPath

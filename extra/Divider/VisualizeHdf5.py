@@ -6,7 +6,7 @@ pathname = os.path.abspath(pathname)
 FVS_path = pathname.split('FiniteVolumeSolver')[0]+'FiniteVolumeSolver'
 # print(FVS_path) 
 sys.path.append(FVS_path+'/extra/')
-import amrex.plotfiles
+import amrex.h5_io
 
 import matplotlib
 matplotlib.use('Agg')
@@ -33,7 +33,7 @@ file.close()
 
 
 for i in range(nsteps):
-    (rho, p, vfrac), time, extent, __ = amrex.plotfiles.h5_load_spec_timepoint_variable(path, i, ['Density', 'Pressure', 'vfrac'])
+    (rho, p, vfrac), time, extent, __ = amrex.h5_io.h5_load_spec_timepoint_variable(path, i, ['Density', 'Pressure', 'vfrac'])
     p = np.ma.masked_array(p, vfrac < 1e-14)
     rho = np.ma.masked_array(rho, vfrac < 1e-14)
 

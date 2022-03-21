@@ -2,7 +2,7 @@ import yt
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-import amrex.plotfiles
+import amrex.yt_io
 
 workdir_path = '/home/amrex'
 base_data_path = '/home/amrex/Divider_DE5_800/'
@@ -17,7 +17,7 @@ figure_out_path = '{}/Figures/Plotfiles'.format(workdir_path)
 os.makedirs(figure_out_path, exist_ok=True)
 
 for i, plotfile in enumerate(plotfiles):
-   (p, rho, vols), current_time, extent = amrex.plotfiles.load(plotfile, ['Pressure', 'Density', 'vfrac'])
+   (p, rho, vols), current_time, extent = amrex.yt_io.yt_load(plotfile, ['Pressure', 'Density', 'vfrac'])
    print('{}: {}, {}'.format(plotfile, current_time, extent))
    f, axs = plt.subplots(nrows=2, ncols=1, figsize=(25, 20))
    f.suptitle('Time = {:.2e}'.format(float(current_time)))

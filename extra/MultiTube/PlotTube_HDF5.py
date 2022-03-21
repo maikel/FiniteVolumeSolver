@@ -4,8 +4,7 @@ pathname = os.path.dirname(sys.argv[0])
 pathname = os.path.abspath(pathname)
 FVS_path = pathname.split('FiniteVolumeSolver')[0]+'FiniteVolumeSolver'
 sys.path.append(FVS_path+'/extra/')
-import amrex.plotfiles as da
-#from amrex.plotfiles import h5_load_timeseries
+import amrex.h5_io as da
 
 import numpy as np
 import matplotlib

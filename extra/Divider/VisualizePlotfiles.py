@@ -9,7 +9,7 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import amrex.plotfiles
+import amrex.yt_io
 
 base_data_path = '/srv/public/Maikel/FiniteVolumeSolver/build_2D-RelWithDebugInfo/Divider_DE5_1200'
 plotfiles_path = '{}/Plotfiles'.format(base_data_path)
@@ -22,7 +22,7 @@ figure_out_path = '{}/Divider/Visualization'.format(workdir_path)
 os.makedirs(figure_out_path, exist_ok=True)
 
 for i, plotfile in enumerate(plotfiles):
-   (p, rho, vols), current_time, extent = amrex.plotfiles.yt_load(plotfile, ['Pressure', 'Density', 'vfrac'])
+   (p, rho, vols), current_time, extent = amrex.yt_io.yt_load(plotfile, ['Pressure', 'Density', 'vfrac'])
    p = np.ma.masked_array(p, vols < 1e-14)
    rho = np.ma.masked_array(rho, vols < 1e-14)
    print('{}: {}, {}'.format(plotfile, current_time, extent))

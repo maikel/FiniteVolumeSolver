@@ -4,8 +4,10 @@ pathname = os.path.dirname(sys.argv[0])
 pathname = os.path.abspath(pathname)
 FVS_path = pathname.split('FiniteVolumeSolver')[0]+'FiniteVolumeSolver'
 sys.path.append(FVS_path+'/extra/')
-import amrex.plotfiles as da
-#from amrex.plotfiles import h5_load_timeseries
+
+import amrex.h5_io as io
+import amrex.h5_data_processing as dataManip
+from amrex.other import import_file_as_module
 
 import numpy as np
 import matplotlib
@@ -35,7 +37,7 @@ try:
 except: 
   inputfileName = 'SEC_Plenum_Arrhenius.py'
 
-da.import_file_as_module(os.path.join(inputFilePath, inputfileName), 'inputfile')
+import_file_as_module(os.path.join(inputFilePath, inputfileName), 'inputfile')
 from inputfile import t_ref, T_ref, ControlOptions
 
 try:
@@ -74,8 +76,8 @@ os.makedirs(output_path, exist_ok=True)
 for tube_id in range(n_tubes):
   print("[Tube{}] Plotting Tube data".format(tube_id))
   filename_basic = dataPath+'/Tube{}.h5'.format(tube_id)
-  # datas, times, datas_dict = da.h5_load_timeseries(filename_basic)
-  extent_1d = da.h5_load_get_extent_1D(filename_basic)
+  # datas, times, datas_dict = io.h5_load_timeseries(filename_basic)
+  extent_1d = io.h5_load_get_extent_1D(filename_basic)
   
   if RESTARTEDSIMULATION:
    import glob
@@ -93,16 +95,16 @@ for tube_id in range(n_tubes):
    # Attention the last file is the latest!!
    # for example we have Filename.h5 and Filename.h5.1 the last one contains the first data!
    print("[Tube{}] Read in data from {}".format(tube_id, fileNameList[-1]))
-   datas, times, datas_dict = da.h5_load_timeseries(fileNameList[-1])
+   datas, times, datas_dict = io.h5_load_timeseries(fileNameList[-1])
 
    for filename in reversed(fileNameList[:-1]):
       print("[Tube{}] Read in data from {}".format(tube_id, filename))
-      data, time, _ = da.h5_load_timeseries(fileNameList[0])
+      data, time, _ = io.h5_load_timeseries(fileNameList[0])
       datas = np.concatenate((datas, data))
       times = np.concatenate((times, time))
   else:
     print("[Tube{}] Read in data from {}".format(tube_id, filename_basic))
-    datas, times, datas_dict = da.h5_load_timeseries(filename_basic)
+    datas, times, datas_dict = io.h5_load_timeseries(filename_basic)
 
 
   datas = np.squeeze(datas) # remove last axis
@@ -141,10 +143,10 @@ for tube_id in range(n_tubes):
   print("[Tube{}] tEnd is {}".format(tube_id, tEnd))
 
   # print out the first occurence of min/max value 
-  da.printSimpleStatsTubeData(p_data, 'Pressure', times[t_index_array], tube_id)
-  da.printSimpleStatsTubeData(T_data, 'Temperature', times[t_index_array], tube_id)
-  da.printSimpleStatsTubeData(F_data, 'Fuel', times[t_index_array], tube_id)
-  da.printSimpleStatsTubeData(Ma, 'MachNumber', times[t_index_array], tube_id)
+  dataManip.printSimpleStatsTubeData(p_data, 'Pressure', times[t_index_array], tube_id)
+  dataManip.printSimpleStatsTubeData(T_data, 'Temperature', times[t_index_array], tube_id)
+  dataManip.printSimpleStatsTubeData(F_data, 'Fuel', times[t_index_array], tube_id)
+  dataManip.printSimpleStatsTubeData(Ma, 'MachNumber', times[t_index_array], tube_id)
 
 
   if 'PassiveScalars' in datas_dict:

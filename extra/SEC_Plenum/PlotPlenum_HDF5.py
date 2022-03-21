@@ -6,7 +6,9 @@ pathname = os.path.abspath(pathname)
 FVS_path = pathname.split('extra')[0]
 sys.path.append(FVS_path+'/extra/')
 
-import amrex.plotfiles as da
+import amrex.h5_io as io
+import amrex.h5_data_processing as dataManip
+from amrex.other import import_file_as_module
 
 import numpy as np
 import matplotlib
@@ -34,7 +36,7 @@ try:
 except: 
   inputfileName = 'SEC_Plenum_Arrhenius.py'
 
-da.import_file_as_module(os.path.join(inputFilePath, inputfileName), 'inputfile')
+import_file_as_module(os.path.join(inputFilePath, inputfileName), 'inputfile')
 from inputfile import Area, tube_n_cells, p_ref, rho_ref, Output, u_ref, t_ref
 from inputfile import D as diameter_tube
 
@@ -49,7 +51,7 @@ outPath = dataPath
 output_path = '{}/Visualization/Plenum/'.format(outPath)
 
 # Get times and nSteps from plenum
-times = da.h5_load_timepoints(plenum)
+times = io.h5_load_timepoints(plenum)
 nSteps = times.shape[0]
 
 # optional slicing in time-dimension
@@ -96,11 +98,11 @@ tube_output_factor = int(plenum_out / tube_out)
 
 
 def getPassiveScalarLimits(first=0, last=nSteps-1):
-   (rho, rhoX, vols), _, _, _ = da.h5_load_spec_timepoint_variable(plenum, first, ["Density", "PassiveScalars", "vfrac"])
+   (rho, rhoX, vols), _, _, _ = io.h5_load_spec_timepoint_variable(plenum, first, ["Density", "PassiveScalars", "vfrac"])
    rho = np.ma.masked_array(rho, vols < 1e-14)
    min = np.min(rhoX / rho)
 
-   (rho, rhoX, vols), _, _, _ = da.h5_load_spec_timepoint_variable(plenum, last, ["Density", "PassiveScalars", "vfrac"])
+   (rho, rhoX, vols), _, _, _ = io.h5_load_spec_timepoint_variable(plenum, last, ["Density", "PassiveScalars", "vfrac"])
    rho = np.ma.masked_array(rho, vols < 1e-14)
    max = np.max(rhoX / rho)
 
@@ -186,10 +188,10 @@ def stackTubeDataTo2D(Tube_datalist):
 # for i in itertools.dropwhile(lambda x: x < 53, range(nSteps)):
 # for i in itertools.dropwhile(lambda i: i < 4997, range(nSteps)):
 
-da.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Pressure', 1.0, output_path=output_path, firstCall=True)
-da.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Density', 1.0, output_path=output_path, firstCall=True)
-da.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Temperature', 1.0, output_path=output_path, firstCall=True)
-da.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'PassiveScalar', 1.0, output_path=output_path, firstCall=True)
+dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Pressure', 1.0, output_path=output_path, firstCall=True)
+dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Density', 1.0, output_path=output_path, firstCall=True)
+dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Temperature', 1.0, output_path=output_path, firstCall=True)
+dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'PassiveScalar', 1.0, output_path=output_path, firstCall=True)
 
 for i in t_index_array:
    PrintProgress(i)
@@ -200,7 +202,7 @@ for i in t_index_array:
    tube_variables = ["Pressure", "PassiveScalars", "Density"]
 
    for tube in tube_paths:
-      tube_data, current_time, ext, tube_dict = da.h5_load_spec_timepoint_variable(tube, tube_output_factor*i, tube_variables)
+      tube_data, current_time, ext, tube_dict = io.h5_load_spec_timepoint_variable(tube, tube_output_factor*i, tube_variables)
       Tube_p.append(tube_data[tube_dict['Pressure']])
       Tube_X.append( tube_data[tube_dict['PassiveScalars']] / tube_data[tube_dict['Density']] )
       tube_extents.append(ext)
@@ -210,8 +212,8 @@ for i in t_index_array:
    
    plenum_variables = ["Pressure", "Density", "Momentum_0", "Momentum_1", "PassiveScalars", 'vfrac']
    # # alternative:
-   # (pressure, rho, rhoU, rhoV, rhoX, vols), current_time, plenum_extent, plenum_dict = da.h5_load_spec_timepoint_variable(plenum, i, plenum_variables)
-   plenum_data, current_time, plenum_extent, plenum_dict = da.h5_load_spec_timepoint_variable(plenum, i, plenum_variables)
+   # (pressure, rho, rhoU, rhoV, rhoX, vols), current_time, plenum_extent, plenum_dict = io.h5_load_spec_timepoint_variable(plenum, i, plenum_variables)
+   plenum_data, current_time, plenum_extent, plenum_dict = io.h5_load_spec_timepoint_variable(plenum, i, plenum_variables)
    volume_fraction = plenum_data[plenum_dict['vfrac']]
 
    volume_fraction_offset = 1.e-14
@@ -223,10 +225,10 @@ for i in t_index_array:
    temperature = pressure / rho
 
    # # print out the first occurence of min/max value 
-   da.printSimpleStatsPlenumSingleTimepoint(pressure, 'Pressure', current_time, output_path=output_path)
-   da.printSimpleStatsPlenumSingleTimepoint(rho, 'Density', current_time, output_path=output_path)
-   da.printSimpleStatsPlenumSingleTimepoint(temperature, 'Temperature', current_time, output_path=output_path)
-   da.printSimpleStatsPlenumSingleTimepoint(passiveScalarMF, 'PassiveScalar', current_time, output_path=output_path)
+   dataManip.printSimpleStatsPlenumSingleTimepoint(pressure, 'Pressure', current_time, output_path=output_path)
+   dataManip.printSimpleStatsPlenumSingleTimepoint(rho, 'Density', current_time, output_path=output_path)
+   dataManip.printSimpleStatsPlenumSingleTimepoint(temperature, 'Temperature', current_time, output_path=output_path)
+   dataManip.printSimpleStatsPlenumSingleTimepoint(passiveScalarMF, 'PassiveScalar', current_time, output_path=output_path)
 
 
    f, axs = plt.subplots(nrows=2, ncols=2, figsize=(20. / 2, 15. / 2), gridspec_kw={'width_ratios': [4,2]}, constrained_layout=True)

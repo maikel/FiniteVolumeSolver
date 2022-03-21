@@ -8,7 +8,9 @@ pathname = os.path.abspath(pathname)
 FVS_path = pathname.split('extra')[0]
 sys.path.append(FVS_path+'/extra/')
 
-import amrex.plotfiles as da
+import amrex.h5_io as da
+import amrex.other as other
+import amrex.h5_data_processing as dataManip
 
 os.environ['HDF5_USE_FILE_LOCKING'] = 'False'
 
@@ -25,7 +27,7 @@ try:
 except: 
   inputfileName = 'SEC_Plenum_Arrhenius.py'
 
-da.import_file_as_module( os.path.join(inputFilePath, inputfileName), 'inputfile')
+other.import_file_as_module( os.path.join(inputFilePath, inputfileName), 'inputfile')
 from inputfile import Area, tube_n_cells, p_ref, rho_ref, Output, u_ref, t_ref
 from inputfile import D as diameter_tube
 
@@ -54,12 +56,12 @@ def getPassiveScalarLimits(plenumFile, first=0, last=nSteps-1):
 
 scalar_limits = getPassiveScalarLimits(plenum)
 
-da.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Pressure', 1.0, output_path=output_path, firstCall=True)
-da.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Density', 1.0, output_path=output_path, firstCall=True)
-da.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Temperature', 1.0, output_path=output_path, firstCall=True)
-da.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'PassiveScalar', 1.0, output_path=output_path, firstCall=True)
+dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Pressure', 1.0, output_path=output_path, firstCall=True)
+dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Density', 1.0, output_path=output_path, firstCall=True)
+dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Temperature', 1.0, output_path=output_path, firstCall=True)
+dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'PassiveScalar', 1.0, output_path=output_path, firstCall=True)
 
-for i, timepoint in da.progressBar(times, enumeration=True):
+for i, timepoint in other.progressBar(times, enumeration=True):
 
    plenum_variables = ["Pressure", "Density", "PassiveScalars", 'vfrac']
    
@@ -73,7 +75,7 @@ for i, timepoint in da.progressBar(times, enumeration=True):
    temperature = pressure / rho
 
    # # print out the first occurence of min/max value 
-   da.printSimpleStatsPlenumSingleTimepoint(pressure, 'Pressure', current_time, output_path=output_path)
-   da.printSimpleStatsPlenumSingleTimepoint(rho, 'Density', current_time, output_path=output_path)
-   da.printSimpleStatsPlenumSingleTimepoint(temperature, 'Temperature', current_time, output_path=output_path)
-   da.printSimpleStatsPlenumSingleTimepoint(passiveScalarMF, 'PassiveScalar', current_time, output_path=output_path)
+   dataManip.printSimpleStatsPlenumSingleTimepoint(pressure, 'Pressure', current_time, output_path=output_path)
+   dataManip.printSimpleStatsPlenumSingleTimepoint(rho, 'Density', current_time, output_path=output_path)
+   dataManip.printSimpleStatsPlenumSingleTimepoint(temperature, 'Temperature', current_time, output_path=output_path)
+   dataManip.printSimpleStatsPlenumSingleTimepoint(passiveScalarMF, 'PassiveScalar', current_time, output_path=output_path)

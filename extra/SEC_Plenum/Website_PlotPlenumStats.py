@@ -7,7 +7,7 @@ pathname = os.path.abspath(pathname)
 FVS_path = pathname.split('extra')[0]
 sys.path.append(FVS_path+'/extra/')
 
-import amrex.plotfiles as da
+from amrex.other import import_file_as_module
 
 import numpy as np
 import matplotlib
@@ -33,7 +33,7 @@ try:
 except: 
    inputfileName = 'SEC_Plenum_Arrhenius.py'
 
-da.import_file_as_module( os.path.join(inputFilePath, inputfileName), 'inputfile')
+import_file_as_module( os.path.join(inputFilePath, inputfileName), 'inputfile')
 from inputfile import t_ref, T_ref, ControlOptions
 
 #---------------------------------------

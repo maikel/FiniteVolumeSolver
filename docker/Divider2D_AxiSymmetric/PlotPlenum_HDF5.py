@@ -4,7 +4,7 @@ import sys, os
 pathname = os.path.dirname(sys.argv[0])
 pathname = os.path.abspath(pathname)
 sys.path.append(pathname)
-import amrex.plotfiles as da
+import amrex.h5_io as da
 
 import numpy as np
 import matplotlib
