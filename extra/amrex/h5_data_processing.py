@@ -2,6 +2,23 @@ import numpy as np
 import os
 from datetime import datetime
 
+def maskPlenumCutCells(data, vfrac, vfracOffset=1.0e-14):
+  """
+  Mask all Cut Cells from the (2D) Plenum data.
+
+  Parameters
+  ----------------------------------------
+    data:         numpy array
+                  data to mask
+    vfrac:        numpy array (same shape as data)
+                  volumefraction
+    vfracOffset:  float
+                  offset for mask
+
+  Returns the masked numpy array
+  """
+  return np.ma.masked_array(data, vfrac < vfracOffset)
+
 def printSimpleStatsTubeData(data, variable, times, tube_id=0, ndig=4, output_path=""):
   """
   Print out simple Stats from given Arrays. Only tested with HDF5 Tube Data!

@@ -28,7 +28,7 @@ except:
   inputfileName = 'SEC_Plenum_Arrhenius.py'
 
 other.import_file_as_module( os.path.join(inputFilePath, inputfileName), 'inputfile')
-from inputfile import Area, tube_n_cells, p_ref, rho_ref, Output, u_ref, t_ref
+from inputfile import Area, tube_n_cells, p_ref, rho_ref, Output, u_ref, t_ref, R
 from inputfile import D as diameter_tube
 
 #-----------------------------------------------------------------------------
@@ -66,13 +66,14 @@ for i, timepoint in other.progressBar(times, enumeration=True):
    plenum_variables = ["Pressure", "Density", "PassiveScalars", 'vfrac']
    
    plenum_data, current_time, plenum_extent, plenum_dict = da.h5_load_spec_timepoint_variable(plenum, i, plenum_variables)
+   
    volume_fraction = plenum_data[plenum_dict['vfrac']]
-
-   volume_fraction_offset = 1.e-14
-   pressure = np.ma.masked_array(plenum_data[plenum_dict['Pressure']], volume_fraction < volume_fraction_offset)
-   rho = np.ma.masked_array(plenum_data[plenum_dict['Density']], volume_fraction < volume_fraction_offset)
-   passiveScalarMF = np.ma.masked_array(plenum_data[plenum_dict['PassiveScalars']], volume_fraction < volume_fraction_offset) / rho
-   temperature = pressure / rho
+   pressure = dataManip.maskPlenumCutCells(plenum_data[plenum_dict['Pressure']], volume_fraction)
+   rho = dataManip.maskPlenumCutCells(plenum_data[plenum_dict['Density']], volume_fraction)
+   
+   passiveScalarMF = dataManip.maskPlenumCutCells(plenum_data[plenum_dict['PassiveScalars']], volume_fraction)
+   
+   temperature = pressure / (rho*R)
 
    # # print out the first occurence of min/max value 
    dataManip.printSimpleStatsPlenumSingleTimepoint(pressure, 'Pressure', current_time, output_path=output_path)

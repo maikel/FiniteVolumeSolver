@@ -43,7 +43,7 @@ def h5_load_spec_timepoint_variable(filename, num, variables):
 
 def h5_load_timeseries(filename):
   """
-  Load the all 1D data from the HDF5 file for all time points.
+  Load all the 1D data from HDF5 file for all time points.
 
   Parameters
   ----------------------------------------
