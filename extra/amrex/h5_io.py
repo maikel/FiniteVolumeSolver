@@ -113,6 +113,46 @@ def h5_load_get_extent_1D(filename):
   file.close()
   return extent_1d
 
+def h5_load_restartedTimeseries(basePath):
+  """
+  Load all the 1D data from several HDF5 file for all time points.
+
+  Parameters
+  ----------------------------------------
+    basePath:   string
+                path and name of the HDF5-file,
+                e.g. PATH/ControlState.h5
+
+  Returns
+  ----------------------------------------
+    several:    see function h5_load_timeseries
+  """
+  import glob
+  fileNameList = [basePath]
+
+  ###### collect data begin
+  # check if other h5.* files exist and append them to the list
+  otherFiles = glob.glob("{}.*".format(basePath))
+  if otherFiles:
+    fileNameList.append( *otherFiles )
+
+  print(fileNameList)
+
+  # Read in data
+  # Attention the last file is the latest!!
+  # for example we have Filename.h5 and Filename.h5.1 the last one contains the first data!
+  print("Read in data from {}".format(fileNameList[-1]))
+  datas, times, datas_dict = h5_load_timeseries(fileNameList[-1])
+
+  for filename in reversed(fileNameList[:-1]):
+    print("Read in data from {}".format(filename))
+    data, time, _ = h5_load_timeseries(fileNameList[0])
+    datas = np.concatenate((datas, data))
+    times = np.concatenate((times, time))
+  return datas, time, datas_dict
+
+#--------------------------------------------------
+# functions to load data generated with Prof. Klein's 1D Code
 
 def get_controlState_Klein(filename):
   """

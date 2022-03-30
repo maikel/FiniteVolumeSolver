@@ -77,32 +77,11 @@ output_path = '{}/Visualization'.format(outPath)
 os.makedirs(output_path, exist_ok=True)
 
 filename_basic = "{}/ControlState.h5".format(dataPath)
+print("Read in data from {}".format(filename_basic))
 
 if RESTARTEDSIMULATION:
-   import glob
-   fileNameList = [filename_basic]
-
-   ###### collect data begin
-   # check if other h5.* files exist and append them to the list
-   otherFiles = glob.glob("{}.*".format(filename_basic))
-   if otherFiles:
-      fileNameList.append( *otherFiles )
-
-   print(fileNameList)
-
-   # Read in data
-   # Attention the last file is the latest!!
-   # for example we have Filename.h5 and Filename.h5.1 the last one contains the first data!
-   print("Read in data from {}".format(fileNameList[-1]))
-   datas, times, datas_dict = io.h5_load_timeseries(fileNameList[-1])
-
-   for filename in reversed(fileNameList[:-1]):
-      print("Read in data from {}".format(filename))
-      data, time, _ = io.h5_load_timeseries(fileNameList[0])
-      datas = np.concatenate((datas, data))
-      times = np.concatenate((times, time))
+   datas, times, datas_dict = io.h5_load_restartedTimeseries(filename_basic)
 else:
-   print("Read in data from {}".format(filename_basic))
    datas, times, datas_dict = io.h5_load_timeseries(filename_basic)
 
 

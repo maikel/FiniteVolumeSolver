@@ -56,7 +56,7 @@ def printSimpleStatsTubeData(data, variable, times, tube_id=0, ndig=4, output_pa
   stats_data[1] = [el if isinstance(el, str) else round(el, ndig) for el in stats_data[1]]
   stats_data[2] = [el if isinstance(el, str) else round(el, ndig) for el in stats_data[2]]
 
-  format_row = '{:>12}'*len(stats_data[0])
+  format_row = '{:>18}'*len(stats_data[0])
   print("[Tube{}] Stats for {}:".format(tube_id, variable))
   for row in stats_data:
     print(format_row.format(*row))
@@ -97,7 +97,7 @@ def printSimpleStatsPlenumSingleTimepoint(data, variable, time, ndig=8, output_p
         print("renamed old File '{}' to '{}'".format(fname, newName))
         os.rename(fname, newName)
       header = ['time', 'min', 'mean', 'median', 'std', 'max']
-      format_row = '#{:>11}'+'{:>12}'*(len(header)-1)
+      format_row = '#{:>17}'+'{:>18}'*(len(header)-1)
       with open(fname, 'w') as f:
         f.write(format_row.format(*header)+"\n")
       return None
@@ -114,7 +114,7 @@ def printSimpleStatsPlenumSingleTimepoint(data, variable, time, ndig=8, output_p
   
   stats_data = [el if isinstance(el, str) else round(el, ndig) for el in stats_data]
   
-  format_row = '{:>12}'*len(stats_data)
+  format_row = '{:>18}'*len(stats_data)
   # print(format_row.format(*stats_data))
   if output_path:
     with open(fname, 'a') as f:
