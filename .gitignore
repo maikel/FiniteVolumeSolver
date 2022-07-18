@@ -4,6 +4,7 @@ build_*
 xcode
 docs/html
 docs/latex
+docs/presentations
 third_party/Catch2
 third_party/pybind11
 third_party/TChem2/doc

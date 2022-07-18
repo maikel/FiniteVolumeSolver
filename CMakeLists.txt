@@ -133,6 +133,14 @@ option(FUB_WARN_CONVERSION "Compile with warnings regarding implicit sign conver
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/include/fub/config.hpp.in
                ${CMAKE_BINARY_DIR}/include/fub/config.hpp)
 
+# Add a custom command that produces version.cpp, plus
+# a dummy output that's not actually produced, in order
+# to force version.cmake to always be re-run before the build
+ADD_CUSTOM_COMMAND(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/version.cpp
+           ${CMAKE_CURRENT_BINARY_DIR}/_version.cpp
+    COMMAND ${CMAKE_COMMAND} -P
+            ${CMAKE_CURRENT_SOURCE_DIR}/cmake/version.cmake)
 ################################################################################
 # [FiniteVolumeSolver.Core]
 
@@ -218,6 +226,7 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/ext/Eigen.hpp
   include/fub/ext/outcome.hpp
   include/fub/ext/Log.hpp
+  include/fub/ext/Version.hpp
   include/fub/ext/Mpi.hpp
   include/fub/PoolAllocator.hpp
   src/PoolAllocator.cpp
@@ -275,11 +284,13 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/split_method/StrangSplitting.hpp
   include/fub/split_method/StrangSplittingLumped.hpp
   include/fub/ext/ProgramOptions.hpp
+  include/fub/ext/CopyInputFile.hpp
   include/fub/counter/Counter.hpp
   include/fub/counter/CounterRegistry.hpp
   include/fub/counter/CounterResult.hpp
   include/fub/counter/Timer.hpp
   src/ext/Log.cpp
+  src/ext/Version.cpp
   src/boundary_condition/ReflectiveBoundary.cpp
   src/equations/Advection.cpp
   src/equations/advection/GodunovMethod.cpp
@@ -352,9 +363,11 @@ add_library(FiniteVolumeSolver.Solver
   src/HyperbolicPatchIntegrator.cpp
   src/RunSimulation.cpp
   src/ext/ProgramOptions.cpp
+  src/ext/CopyInputFile.cpp
   src/counter/Counter.cpp
   src/counter/CounterRegistry.cpp
-  src/counter/Timer.cpp)
+  src/counter/Timer.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/version.cpp)
 target_link_libraries(FiniteVolumeSolver.Solver
   PUBLIC
     FiniteVolumeSolver.Core

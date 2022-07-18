@@ -5,7 +5,7 @@ import yt
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-import amrex.plotfiles as da
+import amrex.yt_io as io
 import itertools
 
 valueString = 'Pressure' # which value we want to plot
@@ -51,7 +51,7 @@ for i, plotfile in enumerate(plotfiles):
    
    for tube_number in Tubes:
       Tube_Dir = dataPath+'/Plotfiles/Tube%i/'%tube_number
-      (p_tube), current_time, extent_temp = da.yt_load(Tube_Dir+temp, ["Pressure"], False)
+      (p_tube), current_time, extent_temp = io.yt_load(Tube_Dir+temp, ["Pressure"], False)
       Tube_p.append(p_tube)
       extent_tube.append(extent_temp)
    
@@ -64,7 +64,7 @@ for i, plotfile in enumerate(plotfiles):
    Tube_p = stackTubeDataTo2D(Tube_p)
 
 
-   (p, rho, rhou, rhov, c, vols), current_time, extent = da.yt_load(plotfile, ["Pressure", "Density", "Momentum_0", "Momentum_1", "SpeedOfSound", 'vfrac'])
+   (p, rho, rhou, rhov, c, vols), current_time, extent = io.yt_load(plotfile, ["Pressure", "Density", "Momentum_0", "Momentum_1", "SpeedOfSound", 'vfrac'])
    f, axs = plt.subplots(nrows=1, ncols=3, figsize=(22, 10), gridspec_kw={'width_ratios': [3, 1, 1]})
    f.suptitle('Time = {:.2f}'.format(current_time))
    # pressure image

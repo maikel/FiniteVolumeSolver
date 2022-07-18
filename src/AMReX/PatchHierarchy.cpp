@@ -57,7 +57,7 @@ PatchLevel::PatchLevel(const PatchLevel& other)
                 other.data.nGrowVect(),
                 ::amrex::MFInfo().SetArena(other.data.arena()),
                 other.data.Factory());
-    data.copy(other.data);
+    data.ParallelCopy(other.data);
   }
   if (other.nodes) {
     ::amrex::BoxArray on_nodes = box_array;
@@ -67,7 +67,7 @@ PatchLevel::PatchLevel(const PatchLevel& other)
         other.nodes->nGrowVect(),
         ::amrex::MFInfo().SetArena(other.nodes->arena()),
         other.nodes->Factory());
-    nodes->copy(*other.nodes);
+    nodes->ParallelCopy(*other.nodes);
   }
   if (other.faces[0]) {
     ::amrex::BoxArray on_faces = box_array;
@@ -77,7 +77,7 @@ PatchLevel::PatchLevel(const PatchLevel& other)
         other.faces[0]->nGrowVect(),
         ::amrex::MFInfo().SetArena(other.faces[0]->arena()),
         other.faces[0]->Factory());
-    faces[0]->copy(*other.faces[0]);
+    faces[0]->ParallelCopy(*other.faces[0]);
     if (other.faces[2]) {
       on_faces.convert({AMREX_D_DECL(0, 0, 1)});
       faces[2] = std::make_unique<::amrex::MultiFab>(
@@ -85,7 +85,7 @@ PatchLevel::PatchLevel(const PatchLevel& other)
           other.faces[2]->nGrowVect(),
           ::amrex::MFInfo().SetArena(other.faces[1]->arena()),
           other.faces[2]->Factory());
-      faces[2]->copy(*other.faces[2]);
+      faces[2]->ParallelCopy(*other.faces[2]);
     }
     if (other.faces[1]) {
       on_faces.convert({AMREX_D_DECL(0, 1, 0)});
@@ -94,7 +94,7 @@ PatchLevel::PatchLevel(const PatchLevel& other)
           other.faces[1]->nGrowVect(),
           ::amrex::MFInfo().SetArena(other.faces[2]->arena()),
           other.faces[1]->Factory());
-      faces[1]->copy(*other.faces[1]);
+      faces[1]->ParallelCopy(*other.faces[1]);
     }
   }
 }

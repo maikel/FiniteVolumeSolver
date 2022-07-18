@@ -295,7 +295,7 @@ Plenum[boundary_condition] = {
 
 # get Mirrorbox for each Tube where they are connected with the plenum
 def PlenumMirrorBox(y0):
-  return BoxWhichContains(DomainAroundPoint(GetCenterPoint(plenum_x_lower, y0), [0.0, -1.0], [inlet_length, +1.0]))
+  return BoxWhichContains(DomainAroundPoint(GetCenterPoint(plenum_x_lower, y0), [0.0, -1.0], [-0.9 * plenum_x_lower, +1.0]))
 
 
 Tube_FluxMethod = FluxMethod

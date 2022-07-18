@@ -14,15 +14,9 @@ boundary_condition = 'TurbineMassflowBoundaries' # '%BOUNDARY_CONDITION%'
 
 n_level = 1
 
-n_tubes = 6
 r_tube = 0.015
 
 D = 2.0 * r_tube
-
-r_inner = 0.5 * 0.130
-r_outer = 0.5 * 0.2
-r_tube_center = 2.0 * r_inner
-alpha = 2.0 * math.pi / n_tubes
 
 inlet_length = 3.0 * D # [m]
 
@@ -82,7 +76,7 @@ RunOptions = {
 }
 
 LogOptions = {
-  'file_template': 'Test-{rank}.txt',
+  'file_template': '{}/000.log'.format(outputPath),
   'channel_blacklist': ['TurbineMassflowBoundary']
 }
 
@@ -129,7 +123,8 @@ p0 = 2.0
 rho0 = math.pow(p0, 1.0 / gamma)
 T0 = p0 / rho0
 p = 0.95 * p0
-T = T0 + ArrheniusKinetics['Q'] * (gamma - 1.0)
+# T = T0 + ArrheniusKinetics['Q'] * (gamma - 1.0)
+T = 11.290743302923245
 rho = p / T
 
 # checkpoint = '/srv/public/Maikel/FiniteVolumeSolver/build_2D-Debug/Checkpoint/000000005'
@@ -178,7 +173,7 @@ Plenum = {
       'lower': [plenum_x_lower, plenum_y_lower, plenum_z_lower],
       'upper': [plenum_x_upper, plenum_y_upper, plenum_z_upper],
     },
-    # 'periodicity': [0, 1, 0]
+    'periodicity': [0, 1, 0]
   },
   'PatchHierarchy': {
     'max_number_of_levels': n_level, 
@@ -190,8 +185,8 @@ Plenum = {
     'n_error_buf': [0, 0, 0]
   },
   'IntegratorContext': {
-    'scratch_gcw': 2,
-    'flux_gcw': 0,
+    'scratch_gcw': 4,
+    'flux_gcw': 2,
   },
   'FluxMethod': FluxMethod,
   'InletGeometries': [{
@@ -286,8 +281,8 @@ Tubes = [{
     'n_error_buf': [4, 0, 0]
   },
   'IntegratorContext': {
-    'scratch_gcw': 4,
-    'flux_gcw': 0,
+    'scratch_gcw': 6,
+    'flux_gcw': 2,
   },
 } for (i, y_0) in enumerate(y0s)]
 
@@ -340,7 +335,7 @@ Output = {
   {
     'type': 'Checkpoint',
     'intervals': [1.0],
-    'directory': 'Checkpoint/'
+    'directory': '{}/Checkpoint/'.format(outputPath)
   }
   ]
 }

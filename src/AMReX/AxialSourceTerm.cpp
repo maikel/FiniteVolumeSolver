@@ -42,7 +42,7 @@ AxialSourceTerm::AxialSourceTerm(const AxialSourceTerm& other)
     const int ngrow = other_Ax.nGrow();
     ::amrex::MultiFab& Ax =
         Ax_.emplace_back(box_array, distribution_map, ncomp, ngrow);
-    Ax.copy(other_Ax);
+    Ax.ParallelCopy(other_Ax);
   }
 }
 

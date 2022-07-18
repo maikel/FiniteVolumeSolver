@@ -1,13 +1,15 @@
-import sys, os
+import sys 
+import os
 
 # get the absolute path to the FUB FVS-Solver
 pathname = os.path.dirname(sys.argv[0])
 pathname = os.path.abspath(pathname)
-FVS_path = pathname.split('FiniteVolumeSolver')[0]+'FiniteVolumeSolver'
-# print(FVS_path) 
+FVS_path = pathname.split('extra')[0]
 sys.path.append(FVS_path+'/extra/')
-from amrex.plotfiles import h5_load_timeseries
-import amrex.plotfiles as da
+
+from amrex.h5_io import h5_load_timeseries
+from amrex.other import import_file_as_module
+import amrex.h5_io as da
 
 import numpy as np
 import matplotlib
@@ -17,13 +19,17 @@ import matplotlib.pyplot as plt
 
 os.environ['HDF5_USE_FILE_LOCKING'] = 'False'
 
-# optional parsing the datapath from the terminal
-if (len(sys.argv)>1):
-   dataPath = str(sys.argv[1]) # path to data
-   inputFilePath = dataPath # assumes inputfile is located in datapath
-else:
-   dataPath = FVS_path+"/build_2D-Release/average_massflow"
-   inputFilePath = FVS_path+"/examples/AMReX/EB/2D/"
+# check cli
+if len(sys.argv)<2:
+   errMsg = ('Not enough input arguments!\n'
+               +'\tfirst argument must be dataPath!')
+   raise RuntimeError(errMsg)
+
+# parsing the datapath from terminal
+dataPath = str(sys.argv[1]) # path to data
+if not os.path.exists(dataPath):
+   raise FileNotFoundError('given Path: {} does not exist!'.format(dataPath))
+inputFilePath = dataPath # assumes inputfile is located in datapath
 
 # bool to read all existing HDF5 files
 # this make only sense if we restarted the simulation form the last checkpoint!!
@@ -34,7 +40,7 @@ try:
 except: 
    inputfileName = 'SEC_Plenum_Arrhenius.py'
 
-da.import_file_as_module(inputFilePath+inputfileName, 'inputfile')
+import_file_as_module(os.path.join(inputFilePath, inputfileName), 'inputfile')
 from inputfile import t_ref, ControlOptions, T_ref, rho_ref
 
 outPath = dataPath

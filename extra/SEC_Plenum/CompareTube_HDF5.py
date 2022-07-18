@@ -4,8 +4,10 @@ pathname = os.path.dirname(sys.argv[0])
 pathname = os.path.abspath(pathname)
 FVS_path = pathname.split('FiniteVolumeSolver')[0]+'FiniteVolumeSolver'
 sys.path.append(FVS_path+'/extra/')
-import amrex.plotfiles as da
-#from amrex.plotfiles import h5_load_timeseries
+
+import amrex.h5_io as da
+import amrex.h5_data_processing as dataManip
+import amrex.other as other
 
 import numpy as np
 import matplotlib
@@ -13,13 +15,18 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import glob
 
-# optional parsing the datapath from the terminal
-if (len(sys.argv)>1):
-   dataPath = str(sys.argv[1]) # path to data
-   inputFilePath = dataPath # assumes inputfile is located in datapath
-else:
-   dataPath = FVS_path+"/build_2D-Release/average_massflow"
-   inputFilePath = FVS_path+"/examples/AMReX/EB/2D/"
+# check cli
+if len(sys.argv)<2:
+   errMsg = ('Not enough input arguments!\n'
+               +'\tfirst argument must be dataPath!')
+   raise RuntimeError(errMsg)
+
+# parsing the datapath from terminal
+dataPath = str(sys.argv[1]) # path to data
+if not os.path.exists(dataPath):
+   raise FileNotFoundError('given Path: {} does not exist!'.format(dataPath))
+inputFilePath = dataPath # assumes inputfile is located in datapath
+
 
 output_path = '{}/Visualization'.format(dataPath)
 
@@ -32,7 +39,7 @@ try:
 except: 
    inputfileName = 'SEC_Plenum_Arrhenius.py'
 
-da.import_file_as_module(inputFilePath+inputfileName, 'inputfile')
+other.import_file_as_module(os.path.join(inputFilePath, inputfileName), 'inputfile')
 from inputfile import t_ref, T_ref, ControlOptions
 
 try:
@@ -127,7 +134,7 @@ for tube_id in range(n_tubes):
     temp_data = []
     GT_times = []
     
-    for file in da.progressBar(file_list):
+    for file in other.progressBar(file_list):
       # print("reading file {}".format(file))
       data, time, varname = da.h5_load_timeseries_Klein(file)
 
@@ -185,10 +192,10 @@ for tube_id in range(n_tubes):
   print("[Tube{}] tEnd is {}".format(tube_id, tEnd))
 
   # # print out the first occurence of min/max value 
-  # da.printSimpleStatsTubeData(FVS_pressure, 'Pressure', FVS_times[t_index_array], tube_id)
-  # da.printSimpleStatsTubeData(FVS_temperature, 'Temperature', FVS_times[t_index_array], tube_id)
-  # da.printSimpleStatsTubeData(FVS_fuel, 'Fuel', FVS_times[t_index_array], tube_id)
-  # da.printSimpleStatsTubeData(FVS_mach, 'MachNumber', FVS_times[t_index_array], tube_id)
+  # dataManip.printSimpleStatsTubeData(FVS_pressure, 'Pressure', FVS_times[t_index_array], tube_id)
+  # dataManip.printSimpleStatsTubeData(FVS_temperature, 'Temperature', FVS_times[t_index_array], tube_id)
+  # dataManip.printSimpleStatsTubeData(FVS_fuel, 'Fuel', FVS_times[t_index_array], tube_id)
+  # dataManip.printSimpleStatsTubeData(FVS_mach, 'MachNumber', FVS_times[t_index_array], tube_id)
   
   def multi_interp(x, xp, fp):
     new_f = [ np.interp(x, xp, fp[:,i]) for i in range(fp.shape[1]) ]

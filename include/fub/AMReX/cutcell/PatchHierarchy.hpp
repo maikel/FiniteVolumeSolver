@@ -206,6 +206,7 @@ public:
   ///
   /// \param[in] level  the fine refinement level number
   /// \param[in] dir  the direction
+  /// \param[in] mfi the multifab iterator
   int GetRatioToCoarserLevel(int level, Direction dir) const;
 
   ::amrex::IntVect GetRatioToCoarserLevel(int level) const;

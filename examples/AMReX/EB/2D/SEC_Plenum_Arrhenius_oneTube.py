@@ -5,28 +5,43 @@ tube_n_cells = 200 #256
 tube_blocking_factor = 8
 plenum_blocking_factor = 32 #8
 
-outputPath = 'test_oneTube_vol40_y0.48'
-
 mode = 3 #%MODE%
 boundary_condition = 'TurbineMassflowBoundaries' # '%BOUNDARY_CONDITION%'
 
 n_level = 1
 
 # tube_y0s = [-1.0/3.0, 0.0, +1.0/3.0]
-
 tube_y0s = [0.0]
+tube_length = 1.0 # [m]
 
 n_tubes = len(tube_y0s)
 r_tube = 0.015
-
 D = 2.0 * r_tube
+
+## InflowOptions for SEC Tube
+## this values influence the SEC mode and are set under Tubes Dict
+# fuel retardation time (controls how long the air buffer is)
+SEC_buffer = 0.06 # default value 0.06
+# maximum ignition delay time for the fuel
+SEC_tti = 1.2 # default value 1.2
+# minimum ignition delay time for the fuel
+SEC_timin = 0.1 # default value 0.1
+
+# parameter for the diffusorpart from the inflow tube
+diffusorStart = 0.0625 # start point x-axis
+diffusorEnd = 0.75 # end point x-axis
+offset=-tube_length # tube begins at x=-1.0
+A0=1.0 # surface Area befor diffusor
+A1=4.0 # surface Area after diffusor
 
 # calculate plenum geometry
 magic_z_length = 1.0 # should be replaced when switch to 3d!!!
-inlet_length = 10.0 * D # 3.0 * D # [m]
 
-plenum_y_lower = - 0.48
-plenum_y_upper = + 0.48
+# normally 3.0 * D # [m] # in old slanted case 10.0D
+inlet_length = 3.0 * D 
+
+plenum_y_lower = - 0.96
+plenum_y_upper = + 0.96
 plenum_y_length = plenum_y_upper - plenum_y_lower
 
 TVolRPlen = 2.* 20.0 * D #20.0 * D
@@ -35,7 +50,6 @@ plenum_x_lower = -inlet_length
 plenum_x_length = plenum_x_upper - plenum_x_lower
 
 plenum_length = plenum_x_upper - 0.0 # [m]
-tube_length = 1.0 # [m]
 
 plenum_max_grid_size = max(plenum_blocking_factor, 1024)
 
@@ -80,9 +94,12 @@ plenum_dz = plenum_z_length / plenum_z_n_cells
 # print(formatter.format('plenum_z', plenum_z_n_cells, plenum_z_length, round(plenum_dz, 5)))
 
 
+# outputPath = 'test_oneTube_vol40_y0.48'
+outputPath = 'sec_vol{}_y{}_tx{}_px{}_py{}_xi0{}'.format(TVolRPlen/D, plenum_y_upper, tube_n_cells, plenum_x_n_cells, plenum_y_n_cells, diffusorStart)
+
 RunOptions = {
   'cfl': 0.1125,# / float(tube_n_cells / 64),
-  'final_time': 0.2, # 300.0,
+  'final_time': 400.0,
   'max_cycles': -1,
   'do_backup': 0
 }
@@ -90,6 +107,11 @@ RunOptions = {
 LogOptions = {
   'file_template': '{}/000.log'.format(outputPath),
   'channel_blacklist': ['TurbineMassflowBoundary']
+}
+
+InputFileOptions = {
+  'copy_input_file' : 1,
+  'file_template': '{}/SEC_Plenum_Arrhenius_oneTube.py'.format(outputPath),
 }
 
 FluxMethod = {
@@ -101,8 +123,8 @@ FluxMethod = {
   'reconstruction': 'Characteristics'
 }
 
-R = 1.0
-gamma = 1.4
+R = 1.0 # non dimensionalized specific gas constant
+gamma = 1.4 # adiabitic exponent (for air)
 
 Equation = {
   'Rspec': R,
@@ -122,34 +144,41 @@ ArrheniusKinetics = {
 DiffusionSourceTerm = {
   'mul': 3.0
 }
-R_ref = 287.4
-p_ref = 10_000.
-T_ref = 300.
-L_ref = 1.0
+
+#-----------------------------------------------
+# parameters for non dimensionalizing
+R_ref = 287.4 # [J/kg/K] should be dry air
+p_ref = 1.0e5 # [Pa]
+T_ref = 300. # [K]
+L_ref = 1.0 # [m]
 rho_ref = p_ref / T_ref / R_ref
 u_ref = math.sqrt(p_ref / rho_ref)
 t_ref = L_ref / u_ref
 # ud->Msq =  u_ref*u_ref / (R_gas*T_ref);
 
+#-----------------------------------------------
+# initial parameters for Plenum (used in Plenum dictionary below)
 p0 = 2.0
 rho0 = math.pow(p0, 1.0 / gamma)
 T0 = p0 / rho0
+
 p = 0.95 * p0
 # T = T0 + ArrheniusKinetics['Q'] * (gamma - 1.0)
-T = 11.290743302923245
+T = 11.290743302923245 # this value is used in Klein's Code
 rho = p / T
 
+#-----------------------------------------------
 # checkpoint = '/srv/public/Maikel/FiniteVolumeSolver/build_2D-Debug/Checkpoint/000000005'
 checkpoint = ''
 
-
-def Area(xi):
-  A0  = 1.0
-  A1  = 4.0 # Reference: 3.0; best: 4.0 
-  xi0 = 0.0625 - 1.0
-  xi1 = 0.75 - 1.0   # Reference: 0.5; best: 0.75
+def Area(xi, xi0=0.0625, xi1=0.75, offset=-1.0, A0=1.0, A1=4.0):
+  xi0 += offset
+  xi1 += offset # Reference: 0.5; best: 0.75
   Ax = 1.0 if xi < xi0 else A0 + (A1-A0)*(xi-xi0)/(xi1-xi0) if xi < xi1 else A1
   return Ax
+
+surface_area_SingleTube_inlet = Area(-1.0, xi0=diffusorStart, xi1=diffusorEnd, offset=offset, A0=A0, A1=A1)
+surface_area_SingleTube_outlet = Area(0.0, xi0=diffusorStart, xi1=diffusorEnd, offset=offset, A0=A0, A1=A1)
 
 ControlOptions = {
   'Q': ArrheniusKinetics['Q'],
@@ -160,8 +189,8 @@ ControlOptions = {
   'target_pressure_compressor' : 6.0,
   'checkpoint': checkpoint,
   # Tube surface
-  'surface_area_tube_inlet': (n_tubes * Area(-1.0) * D) / D,
-  'surface_area_tube_outlet': (n_tubes * Area(0.0) * D) / D,
+  'surface_area_tube_inlet': (n_tubes * surface_area_SingleTube_inlet * D) / D,
+  'surface_area_tube_outlet': (n_tubes * surface_area_SingleTube_outlet * D) / D,
   # Turbine volumes and surfaces
   'volume_turbine_plenum': TVolRPlen / D,
   'surface_area_turbine_plenum_to_turbine': 4.0 * D / D,
@@ -339,9 +368,9 @@ Tubes = [{
     'flux_gcw': 2,
   },
   'InflowOptionsSEC' : {
-    'SEC_buffer': 0.06, # 0.06
-    'SEC_tti': 1.2, # 1.2
-    'SEC_timin': 0.1, # 0.1
+    'SEC_buffer': SEC_buffer,
+    'SEC_tti': SEC_tti,
+    'SEC_timin': SEC_timin,
   }
 } for (i, y_0) in enumerate(tube_y0s)]
 
@@ -370,11 +399,11 @@ Output = {
     'intervals': [plenum_intervals],
     # 'frequencies': [1]
   },
-  {
-    'type': 'Plotfiles',
-    'directory': '{}/Plotfiles/'.format(outputPath),
-    'intervals': [0.001],
-  },
+#  {
+#    'type': 'Plotfiles',
+#    'directory': '{}/Plotfiles/'.format(outputPath),
+#    'intervals': [0.01],
+#  },
   {
    'type': 'CounterOutput',
   #  'intervals': [1/.0]
@@ -382,7 +411,7 @@ Output = {
   },
   {
     'type': 'Checkpoint',
-    'intervals': [1.0],
+    'intervals': [10.0],
     'directory': '{}/Checkpoint/'.format(outputPath)
   }
   ]
