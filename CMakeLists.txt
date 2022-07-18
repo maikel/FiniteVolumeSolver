@@ -227,6 +227,7 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/flux_method/MusclHancockMethod.hpp
   include/fub/cutcell_method/KbnStabilisation.hpp
   include/fub/cutcell_method/MyStabilisation.hpp
+  include/fub/cutcell_method/HGridReconstruction.hpp
   include/fub/initial_data/Constant.hpp
   include/fub/initial_data/ShockMachnumber.hpp
   include/fub/tagging_method/GradientDetector.hpp
@@ -337,6 +338,7 @@ add_library(FiniteVolumeSolver.Solver
   src/equations/ideal_gas_mix/mechanism/Burke2012.cpp
   src/cutcell_method/KbnStabilisation.cpp
   src/cutcell_method/MyStabilisation.cpp
+  src/cutcell_method/HGridReconstruction.cpp
   src/tagging_method/TagBuffer.cpp
   src/tagging_method/TagCutCells.cpp
   src/ext/Mpi.cpp
@@ -366,7 +368,8 @@ target_link_libraries(FiniteVolumeSolver.Solver
     Eigen3::Eigen
     Vc::Vc
     pybind11::embed
-    range-v3)
+    range-v3
+    CONAN_PKG::cgal)
 target_include_directories(FiniteVolumeSolver.Solver
   PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
@@ -455,6 +458,9 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     src/geometry/Union.cpp
     src/AMReX/output/WriteHdf5Impl.hpp
     src/AMReX/output/WriteHdf5Impl.cpp)
+    # src/AMReX_MultiBlockBoundary.H
+    # src/AMReX_MultiBlockBoundaryImpl.H
+    # src/AMReX_MultiBlockBoundary.cpp)
   target_include_directories(FiniteVolumeSolver.AMReX
     PUBLIC
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

@@ -48,6 +48,11 @@ class DebugStorage;
 
 namespace fub::amrex::cutcell {
 
+enum class GeometryDetails {
+  standard,
+  with_hgrid
+};
+
 /// \ingroup PatchHierarchy
 /// This class holds state data arrays for each refinement level of a patch
 /// hierarchy.
@@ -82,7 +87,8 @@ struct PatchLevel : ::fub::amrex::PatchLevel {
   PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
              const ::amrex::DistributionMapping& dm, int n_components,
              const ::amrex::MFInfo& mf_info,
-             std::shared_ptr<::amrex::EBFArrayBoxFactory> factory, int ngrow);
+             std::shared_ptr<::amrex::EBFArrayBoxFactory> factory, int ngrow,
+             GeometryDetails hgrid = GeometryDetails::standard);
 
   using MultiCutFabs =
       std::array<std::shared_ptr<::amrex::MultiCutFab>, AMREX_SPACEDIM>;
@@ -105,6 +111,10 @@ struct PatchLevel : ::fub::amrex::PatchLevel {
   /// \brief Store doubly shielded face fractions for all faces which touch a
   /// cut cell.
   MultiCutFabs doubly_shielded;
+
+  /// \brief If we use a h-grid based method we need to compute the integral of
+  /// the h-grid boxes for each direction.
+  MultiCutFabs h_grid_integration_points;
 };
 
 /// \ingroup PatchHierarchy

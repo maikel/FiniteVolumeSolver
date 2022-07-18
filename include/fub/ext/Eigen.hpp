@@ -39,6 +39,8 @@ constexpr const int kDefaultChunkSize = FUB_DEFAULT_CHUNK_SIZE;
 constexpr const int kDefaultChunkSize = 8;
 #endif
 
+template <int Rank> using Coordinates = Eigen::Matrix<double, Rank, 1>;
+
 template <std::size_t N>
 Eigen::Matrix<double, static_cast<int>(N), 1>
 AsEigenVector(const std::array<double, N>& x) {

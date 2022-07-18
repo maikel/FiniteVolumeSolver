@@ -1326,3 +1326,94 @@ Output = {
   ```console
   OMP_NUM_THREADS=1 mpiexec AMReX.EB.Divider2D --config volume/docker_output/Divider2D_output_on_windows.py
   ```
+
+How to run the existing Axi-Symmetric Divider Simulation
+--------------------------------------------------------
+
+We developed an extra test case for an axi symmetric plenum that is coupled with a tube.
+Next we describe how to run this test case from docker and we assume that docker is already installed on the host system.
+
+1. Tell docker to load the test case and mount a directory on the host system 
+
+  If we want to mount `C:\CFD` as `/home/amrex/output` we do on windows machines
+
+  ```text 
+  $ docker run -v C:\CFD:/home/amrex/output -it maikelnadolski/divider2d_axi fish
+  ```
+
+  To mount the folder `/home/maikel/Figures` on a Linux host system as `/home/maikel/output` the command reads
+
+  ```text
+  $ docker run -v /home/maikel/Figures:/home/amrex/output -it maikelnadolski/divider2d_axi fish
+  ```
+
+  With this, you will start a container that contains the following files
+
+  ```text
+  amrex@94b5ce649f71 ~> ls -lh
+  total 9.8M
+  -rwxr-xr-x 1 amrex amrex 9.8M Feb 22 18:57 AMReX.EB.Divider2D_AxiSymmetric*
+  drwxr-xr-x 1 amrex amrex 4.0K Feb 22 18:33 ConvergentNozzle/
+  -rw-r--r-- 1 amrex amrex 8.4K Feb 22 18:33 ConvergentNozzle.py
+  drwxr-xr-x 1 amrex amrex 4.0K Feb 22 18:33 DivergentWithBody/
+  -rw-r--r-- 1 amrex amrex 8.4K Feb 22 18:33 DivergentWithBody.py
+  -rw-r--r-- 1 amrex amrex 4.0K Feb 22 18:33 PlotPlenum_HDF5.py
+  -rw-r--r-- 1 amrex amrex 6.1K Feb 22 18:33 PlotTube_HDF5.py
+  drwxr-xr-x 1 amrex amrex 4.0K Feb 22 19:05 amrex/
+  drwxrwxrwx 2 amrex amrex 4.0K Feb 23 04:07 output/
+  ```
+
+  The image contains two input files `ConvergentNozzle.py` and `DivergentWithBody.py`.
+  Both input files setup different cut-cell boundaries. 
+  The default setup stores data in the folders `ConvergentNozzle/` or `DivergentWithBody/` respectively.
+
+2. Run a simulation such as the `ConvergentNozzle` case
+
+  The most efficient way to start the simulation is by using MPI to use multiple CPUs.
+  To start the application `AMReX.EB.Divider2D_AxiSymmetric` via MPI and using the input file `ConvergentNozzle.py` one calls
+
+  ```text
+  mpiexec ./AMReX.EB.Divider2D_AxiSymmetric --config ConvergentNozzle.py
+  ``` 
+
+3. Visualize the results either in the container or on your host system.
+  You can use the python scripts `PlotPlenum_HDF5.py` or `PlotTube_HDF5.py` to create images of the Plenum and Tube within the simulation.
+  Those scripts will read the `Plenum.h5` and `Tube.h5` files to get the field data and they are called by
+  
+  ```text
+  python3 PlotPlenum_HDF5.py ConvergentNozzle/
+  ```
+
+  The `PlotPlenum_HDF5.py` script will produce a movie and images for each frame in a `ConvergentNozzle/Visualization` subfolder.
+
+  <center><img width="100%" height="auto" src="img/Figure0318.png"/></center>
+
+  ```text
+  python3 PlotTube_HDF5.py ConvergentNozzle/
+  ```
+
+  The `PlotTube_HDF5.py` script will produce x-t diagrams for pressure, temperarure, velocity and mass fractions 
+  and stores the plots in the `ConvergentNozzle/Visualization` subfolder.
+
+<center><img width="100%" height="auto" src="img/Tube0.png"/></center>
+
+4. Copy the data to your host system. To persist the data you should copy the generated data to your host system.
+  
+  ```text
+  cp -r ConvergentNozzle/ output/
+  ``` 
+
+Here are some tips for setting up interesting test cases:
+
+  1. If you run long simulation from a remote computer make sure to be able to close the connection without stopping the simulation.
+     On Linux one can run docker in a virtual terminal emulator such as `tmux` or `screen` which can be suspended and re-attached without stopping the application.
+  
+  2. Learn how to use the input files to control output behaviour. If you write your output directly to your host system you can visualize the simulation when it is still running. 
+     Beware that this might impact performance on file i/o for windows system if you write data outside of your WSL2 container.
+     But if something bad happens you will never lose the output data or checkpoints that are generated up to this point.
+
+  3. Learn how to use checkpoints that restart your simulation from a given time point. 
+     This can be either useful to reproduce bugs or to start from special initial conditions that require a stationary flow for example.
+     Checkpoints are used by settings the `checkpoint = ''` string in the input file.
+     For example, `checkpoint = '/home/amrex/ConvergentNozzle/Checkpoints/000000060'` starts from a checkpoint that is stored in this folder. 
+     The number represents the coarse time step number of the simulation.

@@ -63,7 +63,7 @@ PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
                        const ::amrex::DistributionMapping& dm, int n_components,
                        const ::amrex::MFInfo& mf_info,
                        std::shared_ptr<::amrex::EBFArrayBoxFactory> f,
-                       int ngrow)
+                       int ngrow, GeometryDetails)
     : ::fub::amrex::PatchLevel(level, tp, ba, dm, n_components, mf_info, *f),
       factory(std::move(f)),
       unshielded(MakeMultiCutFabs_(ba, dm, *factory, ngrow)),

@@ -28,6 +28,7 @@
 #include <functional>
 #include <tuple>
 #include <utility>
+#include <type_traits>
 
 namespace fub {
 template <int Rank>
@@ -51,6 +52,16 @@ template <std::size_t N>
 std::array<std::ptrdiff_t, N> RightTo(const std::array<std::ptrdiff_t, N>& idx,
                                       Direction dir, std::ptrdiff_t shift = 1) {
   return Shift(idx, dir, shift - 1);
+}
+
+template <std::size_t N>
+Index<static_cast<int>(N) + 1>
+EmbedIndex(const std::array<std::ptrdiff_t, N>& index, Direction dir) {
+  return std::apply(
+      [dir](auto... is) {
+        return Index<N + 1>{is..., static_cast<int>(dir)};
+      },
+      index);
 }
 
 template <int Rank> struct IndexBox {

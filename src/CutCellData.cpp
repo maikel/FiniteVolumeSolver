@@ -73,7 +73,7 @@ Eigen::Vector3d GetVolumeCentroid(const CutCellData<3>& ccdata,
   return centroid;
 }
 
-Eigen::Vector2d GetUnshieldedCentroid(const CutCellData<2>& geom,
+Eigen::Vector2d GetAbsoluteUnshieldedCentroid(const CutCellData<2>& geom,
                                       const Index<2>& face,
                                       const Eigen::Vector2d& dx,
                                       Direction dir)
@@ -116,7 +116,6 @@ Eigen::Vector2d GetUnshieldedCentroid(const CutCellData<2>& geom,
   centroid[dir_y] = regular_centroid[dir_y] + centroid_y * dx[dir_y];
   return centroid;
 }
-
 
 namespace {
 template <int Rank>

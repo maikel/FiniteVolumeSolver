@@ -72,15 +72,6 @@ Index<Rank> RelativeCellIndex(const Coordinates<Rank>& x,
   return i;
 }
 
-template <int Rank>
-Index<Rank + 1> EmbedIndex(const Index<Rank>& index, Direction dir) {
-  return std::apply(
-      [dir](auto... is) {
-        return Index<Rank + 1>{is..., static_cast<int>(dir)};
-      },
-      index);
-}
-
 template <typename State, std::ptrdiff_t Rank>
 void ApplyGradient(
     State& u, span<const State, Rank> grad,
@@ -731,7 +722,7 @@ struct ConservativeHGridReconstruction
     Index<Rank> iR = RightTo(face, dir);
 
     const Coordinates<Rank> face_xM =
-        GetUnshieldedCentroid(geom, face, dx, dir);
+        GetAbsoluteUnshieldedCentroid(geom, face, dx, dir);
     const Coordinates<Rank> xL_us = Shift(face_xM, dir, -0.5 * dx[int(dir)]);
     const Coordinates<Rank> xR_us = Shift(face_xM, dir, +0.5 * dx[int(dir)]);
     const Coordinates<Rank> xL = GetAbsoluteVolumeCentroid(geom, iL, dx);

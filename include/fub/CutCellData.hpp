@@ -27,7 +27,7 @@
 namespace fub {
 
 inline std::array<double, 2> Intersect(const std::array<double, 2>& i1,
-                                const std::array<double, 2>& i2) {
+                                       const std::array<double, 2>& i2) {
   return {std::max(i1[0], i2[0]), std::min(i1[1], i2[1])};
 }
 
@@ -89,11 +89,24 @@ GetVolumeCentroid(const CutCellData<3>& ccdata,
 
 [[nodiscard]] Eigen::Vector2d GetUnshieldedCentroid(const CutCellData<2>& geom,
                                                     const Index<2>& face,
-                                                    const Eigen::Vector2d& dx,
                                                     Direction dir);
 
+[[nodiscard]] Eigen::Vector2d
+GetAbsoluteUnshieldedCentroid(const CutCellData<2>& geom, const Index<2>& face,
+                              const Eigen::Vector2d& dx, Direction dir);
+
+[[nodiscard]] Eigen::Vector2d
+GetUnshieldedVolumeCentroid(const CutCellData<2>& geom, const Index<2>& face,
+                            Side side, Direction dir);
+
+[[nodiscard]] Eigen::Vector2d
+GetAbsoluteUnshieldedVolumeCentroid(const CutCellData<2>& geom,
+                                    const Index<2>& face, Side side,
+                                    Direction dir, const Eigen::Vector2d& dx);
+
 template <std::size_t Rank>
-Eigen::Matrix<double, Rank, 1> GetOffset(const std::array<std::ptrdiff_t, Rank>& index) {
+Eigen::Matrix<double, Rank, 1>
+GetOffset(const std::array<std::ptrdiff_t, Rank>& index) {
   static constexpr int iRank = static_cast<int>(Rank);
   Eigen::Matrix<double, iRank, 1> offset;
   for (int i = 0; i < iRank; ++i) {
@@ -118,8 +131,8 @@ GetAbsoluteVolumeCentroid(const CutCellData<Rank>& geom,
 template <int Rank>
 Eigen::Matrix<double, Rank, 1>
 GetAbsoluteBoundaryCentroid(const CutCellData<Rank>& geom,
-                          const Index<Rank>& index,
-                          const Eigen::Matrix<double, Rank, 1>& dx) {
+                            const Index<Rank>& index,
+                            const Eigen::Matrix<double, Rank, 1>& dx) {
   const Eigen::Matrix<double, Rank, 1> relative_xB =
       GetBoundaryCentroid(geom, index);
   const Eigen::Matrix<double, Rank, 1> offset = GetOffset<Rank>(index);
