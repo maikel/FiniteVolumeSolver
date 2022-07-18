@@ -1,11 +1,11 @@
 import math
 
 isRef = 0
-factor = 4
+factor = 1
 
 final_time = 15e-4
 
-max_cycles = [-1, 0]
+max_cycles = [1, 0]
 mode = ['new', 'ref']
 originC = [0.035, 0.035 + 30.0 * final_time]
 
@@ -44,23 +44,23 @@ PatchHierarchy = {
 }
 
 # reconstruction = "HLLE"
-reconstruction = "ConservativeMinMod"
+# reconstruction = "ConservativeMinMod"
 # reconstruction = "ConservativeVanLeer"
 # reconstruction = "ConservativeNoGradient"
-# reconstruction = "ConservativeNoLimiter"
-initial_function = "Smooth"
+reconstruction = "ConservativeReconstruction"
+initial_function = "Constant"
 initial_data_jump = 0.0
 
 origin = originC[isRef]
-theta = math.pi * 30.0 / 180.0
+theta = math.pi * 45.0 / 180.0
 
 Output = { 
   'outputs': [
     {
     'type': 'Plotfile',
     'directory': 'Debug_{}_{}x{}-{}/Plot/'.format(reconstruction, n_cells_x, n_cells_y, n_levels),
-    'intervals': [final_time],
-    # 'frequencies': [1] 
+    # 'intervals': [final_time],
+    'frequencies': [1] 
   },
   # {
   #   'type': 'DebugOutput',

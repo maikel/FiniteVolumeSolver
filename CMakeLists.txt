@@ -223,6 +223,7 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/equations/perfect_gas/ThirdOrderRungeKuttaMethod.hpp
   include/fub/equations/perfect_gas/GodunovMethod.hpp
   include/fub/equations/ShallowWater.hpp
+  include/fub/equations/RequireMassflow.hpp
   include/fub/ext/Eigen.hpp
   include/fub/ext/outcome.hpp
   include/fub/ext/Log.hpp
@@ -498,7 +499,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
       Boost::filesystem
       Boost::serialization
       Eigen3::Eigen
-      CONAN_PKG::HDF5)
+      hdf5::hdf5)
   target_include_directories(FiniteVolumeSolver.AMReX PUBLIC ${HDF5_C_INCLUDE_DIR})
 
   if (AMReX_2D_FOUND)

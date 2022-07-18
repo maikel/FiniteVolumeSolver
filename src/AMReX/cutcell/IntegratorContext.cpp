@@ -160,6 +160,7 @@ operator=(LevelData&& other) noexcept {
   reference_states = std::move(other.reference_states);
   reference_masks = std::move(other.reference_masks);
   boundary_fluxes = std::move(other.boundary_fluxes);
+  boundary_massflow = std::move(other.boundary_massflow);
   scratch = std::move(other.scratch);
   fluxes = std::move(other.fluxes);
   stabilized_fluxes = std::move(other.stabilized_fluxes);
@@ -294,6 +295,11 @@ const ::amrex::MultiFab& IntegratorContext::GetScratch(int level) const {
 ::amrex::MultiCutFab& IntegratorContext::GetBoundaryFluxes(int level) {
   const std::size_t l = static_cast<std::size_t>(level);
   return *data_[l].boundary_fluxes;
+}
+
+::amrex::MultiCutFab& IntegratorContext::GetBoundaryMassflow(int level) {
+  const std::size_t l = static_cast<std::size_t>(level);
+  return *data_[l].boundary_massflow;
 }
 
 ::amrex::MultiFab& IntegratorContext::GetReferenceStates(int level) {
@@ -478,6 +484,10 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
 
     data.boundary_fluxes = std::make_unique<::amrex::MultiCutFab>(
         ba, dm, n_cons_components, options_.scratch_gcw,
+        ebf->getMultiEBCellFlagFab());
+
+    data.boundary_massflow = std::make_unique<::amrex::MultiCutFab>(
+        ba, dm, AMREX_SPACEDIM, options_.scratch_gcw,
         ebf->getMultiEBCellFlagFab());
 
     data.scratch.define(ba, dm, n_components, options_.scratch_gcw);

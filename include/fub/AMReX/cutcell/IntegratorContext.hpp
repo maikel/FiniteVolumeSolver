@@ -135,6 +135,7 @@ public:
   /// \brief Returns the MultiFab associated with flux data on the specifed
   /// level number and direction.
   [[nodiscard]] ::amrex::MultiCutFab& GetBoundaryFluxes(int level);
+  [[nodiscard]] ::amrex::MultiCutFab& GetBoundaryMassflow(int level);
 
   /// \brief Returns the MultiFab associated with flux data on the specifed
   /// level number and direction.
@@ -316,6 +317,7 @@ private:
 
     /// fluxes for the embedded boundary
     std::unique_ptr<::amrex::MultiCutFab> boundary_fluxes{};
+    std::unique_ptr<::amrex::MultiCutFab> boundary_massflow{};
 
     ///////////////////////////////////////////////////////////////////////////
     // [face-centered]

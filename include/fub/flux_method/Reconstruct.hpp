@@ -40,6 +40,10 @@ public:
   explicit ConservativeReconstruction(const Equation& equation)
       : equation_{equation} {}
 
+  void Reconstruct(Conservative& reconstruction, const Conservative& q0,
+                   const Gradient& du_dx, Duration dt, double dx, Direction dir,
+                   Side side) noexcept;
+
   void Reconstruct(Complete& reconstruction, const Complete& q0,
                    const Gradient& du_dx, Duration dt, double dx, Direction dir,
                    Side side) noexcept;
@@ -127,6 +131,32 @@ private:
   PrimitiveArray dwdt_array_{equation_};
   CharacteristicsArray dKdt_array_{equation_};
 };
+
+template <typename Equation>
+void ConservativeReconstruction<Equation>::Reconstruct(
+    Conservative& reconstruction, const Conservative& q0, const Gradient& dq_dx,
+    Duration dt, double dx, Direction dir, Side side) noexcept {
+  ForEachComponent(
+      [dx](double& uL, double& uR, double u, double du_dx) {
+        const double du = 0.5 * dx * du_dx;
+        uL = u - du;
+        uR = u + du;
+      },
+      AsCons(q_left_), AsCons(q_right_), q0, dq_dx);
+  CompleteFromCons(equation_, q_left_, q_left_);
+  CompleteFromCons(equation_, q_right_, q_right_);
+  Flux(equation_, flux_left_, q_left_, dir);
+  Flux(equation_, flux_right_, q_right_, dir);
+  const double lambda_half = 0.5 * dt.count() / dx;
+  const Complete& q = side == Side::Lower ? q_left_ : q_right_;
+  ForEachComponent(
+      [&lambda_half](double& rec, double u, double fL, double fR) {
+        const double dF = fL - fR;
+        const double dU = lambda_half * dF;
+        rec = u + dU;
+      },
+      reconstruction, AsCons(q), flux_left_, flux_right_);
+}
 
 template <typename Equation>
 void ConservativeReconstruction<Equation>::Reconstruct(

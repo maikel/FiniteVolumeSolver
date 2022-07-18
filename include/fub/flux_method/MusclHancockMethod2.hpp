@@ -105,6 +105,9 @@ struct MusclHancock2 {
 
   const BaseMethod& GetBaseMethod() const noexcept { return flux_method_; }
 
+  const ReconstructionMethod& GetReconstruction() const noexcept { return reconstruction_method_; }
+  ReconstructionMethod& GetReconstruction() noexcept { return reconstruction_method_; }
+
 private:
   // These member variables control the behaviour of this method
   Equation equation_;
@@ -220,8 +223,12 @@ void MusclHancock2<Equation, GradientMethod, ReconstructionMethod, BaseMethod>::
                                      gradients[1], dt, dx, dir, Side::Lower);
   flux_method_.ComputeNumericFlux(flux, face_fractions, reconstruction_array_,
                                   volume_fractions, dt, dx, dir);
-  ForEachVariable(
-      []([[maybe_unused]] auto&& f) { FUB_ASSERT(!f.isNaN().any()); }, flux);
+  
+  MaskArray mask = (face_fractions > 0);
+  ForEachComponent(
+      [&](auto&& f) { 
+        f = mask.select(f, 0);
+        FUB_ASSERT(!f.isNaN().any()); }, flux);
 }
 
 } // namespace fub

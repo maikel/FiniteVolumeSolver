@@ -162,6 +162,7 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
   ::amrex::MultiFab& references = context.GetReferenceStates(level);
   const ::amrex::MultiFab& scratch = context.GetScratch(level);
   ::amrex::MultiCutFab& boundary_fluxes = context.GetBoundaryFluxes(level);
+  ::amrex::MultiCutFab& boundary_massflows = context.GetBoundaryMassflow(level);
 
   ::amrex::MultiFab& fluxes = context.GetFluxes(level, dir);
   ::amrex::MultiFab& fluxes_s = context.GetStabilizedFluxes(level, dir);
@@ -298,6 +299,7 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
                                 View<Conservative<Equation>>,
                                 View<Conservative<Equation>>,
                                 View<Conservative<Equation>>,
+                                PatchDataView<double, AMREX_SPACEDIM + 1>,
                                 View<const Conservative<Equation>>,
                                 View<const Conservative<Equation>>,
                                 View<const Conservative<Equation>>,
@@ -313,8 +315,9 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
             gradient_y[mfi], equation, cell_box);
         auto grad_z = MakeView<const Conservative<Equation>>(
             gradient_z[mfi], equation, cell_box);
+        auto flux_B_ref = MakePatchDataView(boundary_massflows[mfi]);
         flux_method_->ComputeCutCellFluxes(flux_s, flux_sL, flux_sR, flux_ds,
-                                           flux, flux_B, grad_x, grad_y, grad_z,
+                                           flux, flux_B, flux_B_ref, grad_x, grad_y, grad_z,
                                            states, geom, dt, dx_vec, dir);
       } else {
         auto flux = MakeView<const Conservative<Equation>>(fluxes[mfi],

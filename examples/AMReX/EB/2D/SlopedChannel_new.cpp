@@ -233,38 +233,21 @@ void MyMain(const fub::ProgramOptions& opts) {
   hier_opts.index_spaces = MakeIndexSpaces(shop, geometry, hier_opts);
 
   using namespace std::literals;
-  // using HLLE =
-  //     fub::HllMethod<fub::PerfectGas<2>,
-  //                    fub::EinfeldtSignalVelocities<fub::PerfectGas<2>>>;
-  using HLLEM = fub::perfect_gas::HllemMethod<fub::PerfectGas<2>>;
-  // using ConservativeReconstruction =
-  //     fub::MusclHancockMethod<fub::PerfectGas<2>, HLLE, fub::VanLeer>;
-  using ConservativeReconstructionNoGradient =
-      fub::MusclHancockMethod<fub::PerfectGas<2>, HLLEM, fub::NoGradient>;
-  using ConservativeReconstructionNoLimiter =
-      fub::MusclHancockMethod<fub::PerfectGas<2>, HLLEM, fub::NoLimiter>;
-  using ConservativeReconstructionMinMod =
-      fub::MusclHancockMethod<fub::PerfectGas<2>, HLLEM, fub::MinMod>;
-  using ConservativeReconstructionVanLeer =
-      fub::MusclHancockMethod<fub::PerfectGas<2>, HLLEM, fub::VanLeer>;
-  // using PrimitiveReconstruction =
-  //     fub::FluxMethod<fub::perfect_gas::MusclHancockPrim<2>>;
-  // using CharacteristicReconstruction =
-  //     fub::perfect_gas::MusclHancockCharMethod<2>;
+
+  using Equation = fub::PerfectGas<2>;
+  using HLLE =
+      fub::HllMethod<Equation, fub::EinfeldtSignalVelocities<Equation>>;
+
+  using ConservativeReconstruction = fub::FluxMethod<fub::MusclHancock2<
+      Equation,
+      fub::ConservativeGradient<
+          Equation, fub::CentralDifferenceGradient<fub::NoLimiter2>>,
+      fub::ConservativeReconstruction<Equation>, HLLE>>;
+
 
   auto flux_method_factory = GetFluxMethodFactory(
-      // std::pair{"HLLE"s, MakeFlux<HLLE>()},
-      // std::pair{"HLLEM"s, MakeFlux<HLLEM>()},
-      // std::pair{"Primitive"s, MakeFlux<PrimitiveReconstruction>()},
-      // std::pair{"Conservative"s, MakeFlux<ConservativeReconstruction>()},
-      std::pair{"ConservativeNoGradient"s,
-                MakeFlux<ConservativeReconstructionNoGradient>()},
-      std::pair{"ConservativeNoLimiter"s,
-                MakeFlux<ConservativeReconstructionNoLimiter>()},
-      std::pair{"ConservativeVanLeer"s,
-                MakeFlux<ConservativeReconstructionVanLeer>()},
-      std::pair{"ConservativeMinMod"s,
-                MakeFlux<ConservativeReconstructionMinMod>()});
+      std::pair{"ConservativeReconstruction"s,
+                MakeFlux<ConservativeReconstruction>()});
   // std::pair{"Characteristics"s, MakeFlux<CharacteristicReconstruction>()});
 
   std::string reconstruction =

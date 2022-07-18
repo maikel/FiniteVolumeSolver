@@ -37,15 +37,18 @@ MultiBlockIntegratorContext2::MultiBlockIntegratorContext2(
       gridding_{
           std::make_shared<MultiBlockGriddingAlgorithm2>(*other.gridding_)},
       post_advance_hierarchy_feedback_{other.post_advance_hierarchy_feedback_} {
-  for (auto&& [context, grid] :
-       ranges::view::zip(other.tubes_, gridding_->GetTubes())) {
-    tubes_.emplace_back(grid, context.GetHyperbolicMethod(),
-                        context.GetOptions());
+  auto tube_grids = gridding_->GetTubes();
+  std::size_t size =
+      std::min<std::size_t>(other.tubes_.size(), tube_grids.size());
+  for (std::size_t i = 0; i < size; ++i) {
+    tubes_.emplace_back(tube_grids[i], other.tubes_[i].GetHyperbolicMethod(),
+                        other.tubes_[i].GetOptions());
   }
-  for (auto&& [context, grid] :
-       ranges::view::zip(other.plena_, gridding_->GetPlena())) {
-    plena_.emplace_back(grid, context.GetHyperbolicMethod(),
-                        context.GetOptions());
+  auto plenum_grids = gridding_->GetPlena();
+  size = std::min<std::size_t>(other.tubes_.size(), plenum_grids.size());
+  for (std::size_t i = 0; i < size; ++i) {
+    plena_.emplace_back(plenum_grids[i], other.plena_[i].GetHyperbolicMethod(),
+                        other.plena_[i].GetOptions());
   }
 }
 
@@ -227,10 +230,10 @@ int MultiBlockIntegratorContext2::PreAdvanceLevel(
     // drop the first condition, since that is the original one.
     conditions = conditions.subspan(1);
     span<const BlockConnection> connectivity = gridding_->GetConnectivity();
-    const int n_connections =
-        ranges::count_if(gridding_->GetConnectivity(), [=](const auto& conn) {
-          return conn.plenum.id == plenum_id;
-        });
+    const int n_connections = std::count_if(
+        gridding_->GetConnectivity().begin(),
+        gridding_->GetConnectivity().end(),
+        [=](const auto& conn) { return conn.plenum.id == plenum_id; });
     [[maybe_unused]] const int n_level = conditions.size() / n_connections;
     FUB_ASSERT(level_num < n_level);
     conditions = conditions.subspan(level_num * n_connections, n_connections);
