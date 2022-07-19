@@ -489,6 +489,7 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
     data.boundary_massflow = std::make_unique<::amrex::MultiCutFab>(
         ba, dm, AMREX_SPACEDIM, options_.scratch_gcw,
         ebf->getMultiEBCellFlagFab());
+    data.boundary_massflow->setVal(std::numeric_limits<double>::signaling_NaN());
 
     data.scratch.define(ba, dm, n_components, options_.scratch_gcw);
     ::amrex::IntVect grow(options_.scratch_gcw);
