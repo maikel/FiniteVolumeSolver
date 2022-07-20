@@ -104,6 +104,16 @@ GetAbsoluteUnshieldedVolumeCentroid(const CutCellData<2>& geom,
                                     const Index<2>& face, Side side,
                                     Direction dir, const Eigen::Vector2d& dx);
 
+[[nodiscard]] Eigen::Vector2d
+GetAbsoluteSinglyShieldedFromRightVolumeCentroid(const CutCellData<2>& geom,
+                                    const Index<2>& face, Side side,
+                                    Direction dir, const Eigen::Vector2d& dx);
+
+[[nodiscard]] Eigen::Vector2d
+GetAbsoluteSinglyShieldedFromLeftVolumeCentroid(const CutCellData<2>& geom,
+                                    const Index<2>& face, Side side,
+                                    Direction dir, const Eigen::Vector2d& dx);
+
 template <std::size_t Rank>
 Eigen::Matrix<double, Rank, 1>
 GetOffset(const std::array<std::ptrdiff_t, Rank>& index) {

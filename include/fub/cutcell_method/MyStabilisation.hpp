@@ -24,17 +24,35 @@
 #include "fub/CutCellData.hpp"
 #include "fub/Duration.hpp"
 #include "fub/Equation.hpp"
-#include "fub/equations/RequireMassflow.hpp"
 #include "fub/ExactRiemannSolver.hpp"
 #include "fub/ForEach.hpp"
 #include "fub/State.hpp"
 #include "fub/StateRow.hpp"
 #include "fub/core/span.hpp"
 #include "fub/core/tuple.hpp"
+#include "fub/equations/RequireMassflow.hpp"
+
+#include <CGAL/Boolean_set_operations_2.h>
+#include <CGAL/Polygon_2.h>
+#include <CGAL/Polygon_2_algorithms.h>
+#include <CGAL/Polygon_with_holes_2.h>
+#include <CGAL/Simple_cartesian.h>
+#include <CGAL/convex_hull_2.h>
 
 #include <algorithm>
 
 namespace fub {
+
+template <int Rank>
+IndexBox<Rank> Neighborhood(const Index<Rank>& i, int width) {
+  Index<Rank> lower = i;
+  Index<Rank> upper = i;
+  for (int i = 0; i < Rank; ++i) {
+    lower[i] -= width;
+    upper[i] += width + 1;
+  }
+  return {lower, upper};
+}
 
 void MyStab_ComputeStableFluxComponents(
     const PatchDataView<double, 2, layout_stride>& stabilised_fluxes,
@@ -127,20 +145,349 @@ struct ConservativeHGridReconstruction
   using Complete = ::fub::Complete<Equation>;
   using CompleteArray = ::fub::CompleteArray<Equation>;
 
+  using K = CGAL::Exact_predicates_exact_constructions_kernel;
+  using Point_2 = K::Point_2;
+  using Polygon_2 = CGAL::Polygon_2<K>;
+  using Polygon_with_holes_2 = CGAL::Polygon_with_holes_2<K>;
+
   static constexpr int Rank = Equation::Rank();
 
-  struct AuxiliaryReconstructionData {
-    static constexpr int kMaxSources = 6;
+  struct IntegrationPoints {
+    static constexpr int kMaxSources = 9;
 
-    std::array<Index<Rank>, kMaxSources> sources{};
-    std::array<double, kMaxSources> start{};
-    std::array<double, kMaxSources> end{};
+    std::array<Index<Rank>, kMaxSources> index{};
+    std::array<double, kMaxSources> volume{};
+    std::array<Coordinates<Rank>, kMaxSources> xM{};
 
-    int n_sources;
-
-    Coordinates<Rank> slope{};
+    Index<Rank> iB{};
     Coordinates<Rank> xB{};
   };
+
+  Point_2 ShiftFrom(const Coordinates<2>& x, double xshift, double yshift) {
+    Point_2 p{x[0] + xshift, x[1] + yshift};
+    return p;
+  }
+
+  Polygon_2 GetPolygon(const CutCellData<2>& geom, const Index<2>& index,
+                       const Coordinates<2>& dx) {
+    std::vector<Point_2> points{};
+    if (geom.volume_fractions(index) == 1.0) {
+      const Coordinates<2> xC = GetAbsoluteVolumeCentroid(geom, index, dx);
+      points.push_back(ShiftFrom(xC, -0.5 * dx[0], -0.5 * dx[1]));
+      points.push_back(ShiftFrom(xC, -0.5 * dx[0], +0.5 * dx[1]));
+      points.push_back(ShiftFrom(xC, +0.5 * dx[0], -0.5 * dx[1]));
+      points.push_back(ShiftFrom(xC, +0.5 * dx[0], +0.5 * dx[1]));
+    } else if (geom.volume_fractions(index) > 0.0) {
+      const auto ix = 0;
+      const auto iy = 1;
+      const Index<2> fL = index;
+      const Index<2> fR = Shift(index, Direction::X, 1);
+      const double betaL = geom.face_fractions[ix](fL);
+      const double betaR = geom.face_fractions[ix](fR);
+      const double betaLy = geom.face_fractions[iy](fL);
+      const double betaRy =
+          geom.face_fractions[iy](Shift(index, Direction::Y, 1));
+      const Coordinates<2> xC{(double(index[0]) + 0.5) * dx[0] , (double(index[1]) + 0.5) * dx[1]};
+      const Coordinates<2> xB = GetAbsoluteBoundaryCentroid(geom, index, dx);
+      const Coordinates<2> xN = GetBoundaryNormal(geom, index);
+
+      const double dBeta_x = betaR - betaL;
+      const double dBeta_y = betaRy - betaLy;
+
+      Eigen::Vector2d xLL = xB;
+      Eigen::Vector2d xLR = xB;
+
+      xLL[iy] += 0.5 * dBeta_x * dx[iy];
+      xLL[ix] -= 0.5 * dBeta_y * dx[ix];
+
+      xLR[iy] -= 0.5 * dBeta_x * dx[iy];
+      xLR[ix] += 0.5 * dBeta_y * dx[ix];
+
+      points.push_back(Point_2{xLL[0], xLL[1]});
+      points.push_back(Point_2{xLR[0], xLR[1]});
+
+      auto e_x = Coordinates<2>::Unit(0);
+      auto e_y = Coordinates<2>::Unit(1);
+      std::vector<Coordinates<2>> xs{};
+      xs.push_back(xC - 0.5 * dx);
+      xs.push_back(xC + 0.5 * dx);
+      xs.push_back(xC + 0.5 * dx[0] * e_x - 0.5 * dx[1] * e_y);
+      xs.push_back(xC - 0.5 * dx[0] * e_x + 0.5 * dx[1] * e_y);
+      for (Coordinates<2> x : xs) {
+        if (xN.dot(xB - x) < 0) {
+          points.emplace_back(x[0], x[1]);
+        }
+      }
+    }
+    Polygon_2 polygon{};
+    CGAL::convex_hull_2(points.begin(), points.end(),
+                        std::back_inserter(polygon));
+    return polygon;
+  }
+
+  Polygon_2 GetHGridPolygonAtBoundary(const CutCellData<2>& geom,
+                                      const Index<2>& index,
+                                      const Eigen::Vector2d& dx,
+                                      Direction dir) {
+    FUB_ASSERT(dir == Direction::X || dir == Direction::Y);
+    const auto ix = static_cast<std::size_t>(dir);
+    const auto iy = 1 - ix;
+    const Index<Rank> fL = index;
+    const Index<Rank> fR = Shift(index, dir, 1);
+    const double betaL = geom.face_fractions[ix](fL);
+    const double betaR = geom.face_fractions[ix](fR);
+    const double betaLy = geom.face_fractions[iy](fL);
+    const double betaRy =
+        geom.face_fractions[iy](Shift(index, Direction(iy), 1));
+    const Coordinates<Rank> xB = GetAbsoluteBoundaryCentroid(geom, index, dx);
+    const Coordinates<Rank> xN = GetBoundaryNormal(geom, index);
+
+    const double dBeta_x = betaR - betaL;
+    const double dBeta_y = betaRy - betaLy;
+    const double alpha = betaL > betaR
+                             ? 0.5 + geom.boundary_centeroids(index, ix)
+                             : 0.5 - geom.boundary_centeroids(index, ix);
+
+    const int sign = (dBeta_x > 0) - (dBeta_x < 0);
+    Eigen::Vector2d xR = xB;
+    xR[ix] -= sign * (1.0 - alpha) * dx[ix];
+
+    Eigen::Vector2d xRL = xR;
+    Eigen::Vector2d xRR = xR;
+    Eigen::Vector2d xLL = xB;
+    Eigen::Vector2d xLR = xB;
+
+    xRR[iy] -= 0.5 * dBeta_x * dx[iy];
+    xLR[iy] -= 0.5 * dBeta_x * dx[iy];
+
+    xLL[iy] += 0.5 * dBeta_x * dx[iy];
+    xRL[iy] += 0.5 * dBeta_x * dx[iy];
+
+    xLL[ix] -= 0.5 * dBeta_y * dx[ix];
+    xLR[ix] += 0.5 * dBeta_y * dx[ix];
+
+    Eigen::Vector2d mRL = xRL - 2.0 * xN.dot(xRL - xLL) * xN;
+    Eigen::Vector2d mRR = xRR - 2.0 * xN.dot(xRR - xLR) * xN;
+
+    std::vector<Point_2> points{};
+    points.push_back(Point_2{xLL[0], xLL[1]});
+    points.push_back(Point_2{xLR[0], xLR[1]});
+    points.push_back(Point_2{mRL[0], mRL[1]});
+    points.push_back(Point_2{mRR[0], mRR[1]});
+
+    Polygon_2 polygon{};
+    CGAL::convex_hull_2(points.begin(), points.end(),
+                        std::back_inserter(polygon));
+
+    return polygon;
+  }
+
+  IntegrationPoints GetIntegrationPoints(const Index<Rank>& index,
+                                         const CutCellData<Rank>& geom,
+                                         const Coordinates<Rank>& dx,
+                                         Direction dir) {
+    // Fill aux data for the cut-cell itself
+    IntegrationPoints integration{};
+    integration.xB = GetAbsoluteBoundaryCentroid(geom, index, dx);
+    integration.iB = index;
+    const Polygon_2 hgrid_polygon =
+        GetHGridPolygonAtBoundary(geom, index, dx, dir);
+    int count = 0;
+    ForEachIndex(Neighborhood<Rank>(index, 1), [&](auto... is) {
+      Index<Rank> i{is...};
+      const Polygon_2 neighbor_polygon = GetPolygon(geom, i, dx);
+      if (neighbor_polygon.is_empty()) {
+        return;
+      }
+      if (CGAL::do_intersect(hgrid_polygon, neighbor_polygon)) {
+        FUB_ASSERT(count < IntegrationPoints::kMaxSources);
+        std::vector<Polygon_with_holes_2> intersections{};
+        CGAL::intersection(hgrid_polygon, neighbor_polygon,
+                           std::back_inserter(intersections));
+        FUB_ASSERT(intersections.size() == 1);
+        integration.index[count] = i;
+        Eigen::Vector2d xM = Eigen::Vector2d::Zero();
+        for (const Point_2& p : intersections[0].outer_boundary()) {
+          const double px = p[0].exact().convert_to<double>();
+          const double py = p[1].exact().convert_to<double>();
+          xM += Eigen::Vector2d{px, py};
+        }
+        xM /= intersections[0].outer_boundary().size();
+        integration.xM[count] = xM;
+        integration.volume[count] = intersections[0]
+                                        .outer_boundary()
+                                        .area()
+                                        .exact()
+                                        .convert_to<double>();
+        count += 1;
+      }
+    });
+    return integration;
+  }
+
+  bool IntegrateInteriorCellState(Conservative& integral,
+                                  Conservative& integral_gradient,
+                                  const View<const Conservative>& states,
+                                  const View<const Conservative>& gradient_x,
+                                  const View<const Conservative>& gradient_y,
+                                  const View<const Conservative>& gradient_z,
+                                  const CutCellData<Rank>& geom,
+                                  const Index<Rank>& index,
+                                  const Coordinates<Rank>& dx, Direction dir) {
+    const auto d = static_cast<std::size_t>(dir);
+    const Index<Rank> fL = index;
+    const Index<Rank> fR = Shift(fL, dir, 1);
+    const double betaL = geom.face_fractions[d](fL);
+    const double betaLds = geom.doubly_shielded_fractions[d](fL);
+    const double betaLsr = geom.shielded_right_fractions[d](fL);
+    const double betaR = geom.face_fractions[d](fR);
+    const double betaRds = geom.doubly_shielded_fractions[d](fR);
+    const double betaRsl = geom.shielded_left_fractions[d](fR);
+    if (betaL > betaR && betaLds < betaLsr) {
+      //           Here we have the boundary from right
+      //
+      //        ------------- -------------
+      //       |             |             |
+      //       |             |             |
+      //       |     iL      |      i      |
+      //       |             |            /|
+      //       |             |          /  |
+      //       |             |        /    |
+      //        ------------- -------------
+      const double alpha = 0.5 + geom.boundary_centeroids(index, d);
+      const Index<Rank> iL = Shift(index, dir, -1);
+      Load(gradient_[0], gradient_x, iL);
+      Load(gradient_[1], gradient_y, iL);
+      Load(gradient_[2], gradient_z, iL);
+      const Coordinates<Rank> xL = GetAbsoluteVolumeCentroid(geom, iL, dx);
+      const Coordinates<Rank> xLssR =
+          GetAbsoluteSinglyShieldedFromRightVolumeCentroid(
+              geom, fL, Side::Lower, dir, dx);
+      span<const Conservative, Rank> grads{gradient_.data(), Rank};
+      ApplyGradient(gradient_dir_, grads, xLssR - xL);
+      Load(state_, states, iL);
+      state_ += gradient_dir_;
+
+      ForEachVariable(
+          [&](auto&& y, auto&& dy, const auto& xL, const auto& dxL) {
+            y = (1.0 - alpha) * (xL + alpha * dx[d] * dxL);
+            dy = (1.0 - alpha) * dxL;
+          },
+          integral, integral_gradient, state_, grads[d]);
+
+      const Coordinates<Rank> xC = GetAbsoluteVolumeCentroid(geom, index, dx);
+      const Coordinates<Rank> xCssR =
+          xLssR +
+          0.5 * (1.0 - alpha) * dx[d] * Eigen::Matrix<double, Rank, 1>::Unit(d);
+      Load(gradient_[0], gradient_x, index);
+      Load(gradient_[1], gradient_y, index);
+      Load(gradient_[2], gradient_z, index);
+      ApplyGradient(gradient_dir_, grads, xCssR - xC);
+      Load(state_, states, index);
+      state_ += gradient_dir_;
+
+      ForEachVariable(
+          [&](auto&& y, auto&& dy, const auto& xR, const auto& dxR) {
+            y += alpha * xR;
+            dy += alpha * dxR;
+          },
+          integral, integral_gradient, state_, grads[d]);
+
+      return true;
+
+    } else if (betaL < betaR && betaRds < betaRsl) {
+
+      const double alpha = 0.5 - geom.boundary_centeroids(index, d);
+      const Index<Rank> iR = Shift(index, dir, +1);
+      Load(gradient_[0], gradient_x, iR);
+      Load(gradient_[1], gradient_y, iR);
+      Load(gradient_[2], gradient_z, iR);
+      const Coordinates<Rank> xR = GetAbsoluteVolumeCentroid(geom, iR, dx);
+      const Coordinates<Rank> xRssR =
+          GetAbsoluteSinglyShieldedFromLeftVolumeCentroid(geom, fR, Side::Upper,
+                                                          dir, dx);
+      span<const Conservative, Rank> grads{gradient_.data(), Rank};
+      ApplyGradient(gradient_dir_, grads, xRssR - xR);
+      Load(state_, states, iR);
+      state_ += gradient_dir_;
+
+      ForEachVariable(
+          [&](auto&& y, auto&& dy, const auto& xR, const auto& dxR) {
+            y = (1.0 - alpha) * (xR + alpha * dx[d] * dxR);
+            dy = (1.0 - alpha) * dxR;
+          },
+          integral, integral_gradient, state_, grads[d]);
+
+      const Coordinates<Rank> xC = GetAbsoluteVolumeCentroid(geom, index, dx);
+      const Coordinates<Rank> xCssR =
+          xRssR -
+          0.5 * (1.0 - alpha) * dx[d] * Eigen::Matrix<double, Rank, 1>::Unit(d);
+      Load(gradient_[0], gradient_x, index);
+      Load(gradient_[1], gradient_y, index);
+      Load(gradient_[2], gradient_z, index);
+      ApplyGradient(gradient_dir_, grads, xCssR - xC);
+      Load(state_, states, index);
+      state_ += gradient_dir_;
+
+      ForEachVariable(
+          [&](auto&& y, auto&& dy, const auto& xL, const auto& dxL) {
+            y += alpha * xL;
+            dy += alpha * dxL;
+          },
+          integral, integral_gradient, state_, grads[d]);
+
+      return true;
+    }
+
+    return false;
+  }
+
+  bool IntegrateCellState(Conservative& integral,
+                          Conservative& integral_gradient,
+                          const View<const Conservative>& states,
+                          const View<const Conservative>& gradient_x,
+                          const View<const Conservative>& gradient_y,
+                          const View<const Conservative>& gradient_z,
+                          const CutCellData<Rank>& geom,
+                          const IntegrationPoints& integration,
+                          const Coordinates<Rank>& dx, Direction dir) {
+    const double total_volume = std::accumulate(integration.volume.begin(),
+                                                integration.volume.end(), 0);
+    for (std::size_t i = 0;
+         i < IntegrationPoints::kMaxSources && integration.volume[i]; ++i) {
+      FUB_ASSERT(integration.volume[i] > 0);
+      const Index<Rank> index = integration.index[i];
+      if (Contains(Box<0>(states), index) &&
+          geom.volume_fractions(index) > 0.0) {
+        Load(gradient_[0], gradient_x, index);
+        Load(gradient_[1], gradient_y, index);
+        Load(gradient_[2], gradient_z, index);
+        span<const Conservative, Rank> grads{gradient_.data(), Rank};
+        const Coordinates<Rank> xC = GetAbsoluteVolumeCentroid(geom, index, dx);
+        const Coordinates<Rank> xM = integration.xM[i];
+        const Coordinates<Rank> dx = xM - xC;
+        ApplyGradient(gradient_dir_, grads, dx);
+        Load(state_, states, index);
+        state_ += gradient_dir_;
+        const Coordinates<Rank> e_d =
+            Eigen::Matrix<double, Rank, 1>::Unit(int(dir));
+        const Coordinates<Rank> xN = GetBoundaryNormal(geom, index);
+        const Coordinates<Rank> e_r = e_d - 2.0 * xN.dot(e_d) * xN;
+        ApplyGradient(gradient_dir_, grads, e_r);
+        const double volume = integration.volume[i];
+        ForEachVariable(
+            [volume, total_volume](auto&& u, auto&& grad_u, auto&& u_0,
+                                   auto&& grad_u_0) {
+              u += volume / total_volume * u_0;
+              grad_u += volume / total_volume * grad_u_0;
+            },
+            integral, integral_gradient, state_, gradient_dir_);
+      } else {
+        return false;
+      }
+    }
+    return true;
+  }
 
   ConservativeHGridReconstruction(const Equation& equation)
       : equation_(equation) {}
@@ -180,7 +527,7 @@ struct ConservativeHGridReconstruction
                         const View<Conservative>& gradient_y,
                         const View<Conservative>& gradient_z,
                         const View<const Conservative>& states,
-                        const StridedDataView<const char, Rank>& flags,
+                        const StridedDataView<const char, Rank>& /* flags */,
                         const CutCellData<Rank>& geom,
                         const Coordinates<Rank>& dx) {
     Conservative zero{equation_};
@@ -257,7 +604,9 @@ struct ConservativeHGridReconstruction
             xM[1] = GetAbsoluteVolumeCentroid(geom, neighbors[is[0]], dx);
             xM[2] = GetAbsoluteVolumeCentroid(geom, neighbors[is[1]], dx);
             xM[3] = GetAbsoluteVolumeCentroid(geom, neighbors[is[2]], dx);
-            ComputeGradients(gradient, fub::span<const Conservative>(u).template subspan<0, 4>(), xM);
+            ComputeGradients(
+                gradient,
+                fub::span<const Conservative>(u).template subspan<0, 4>(), xM);
             // Load(u[0], AsCons(states), {i, j});
             // Load(u[1], AsCons(states), neighbors[is[0]]);
             // Load(u[2], AsCons(states), neighbors[is[1]]);
@@ -299,245 +648,30 @@ struct ConservativeHGridReconstruction
             xM[1] = GetAbsoluteVolumeCentroid(geom, neighbors[is[0]], dx);
             xM[2] = GetAbsoluteVolumeCentroid(geom, neighbors[is[1]], dx);
             xM[3] = GetAbsoluteVolumeCentroid(geom, neighbors[is[2]], dx);
-            ComputeGradients(gradient, fub::span<const Conservative>(u).template subspan<0, 4>(), xM);
+            ComputeGradients(
+                gradient,
+                fub::span<const Conservative>(u).template subspan<0, 4>(), xM);
           }
         }
         Store(gradient_x, gradient[0], {i, j});
         Store(gradient_y, gradient[1], {i, j});
         Store(gradient_z, zero, {i, j});
       });
-      ForEachComponent(
-          [&](const StridedDataView<double, 2>& u_x,
-              const StridedDataView<double, 2>& u_y,
-              const StridedDataView<const double, 2>& u) {
-            std::array<StridedDataView<double, 2>, 2> grad_u{u_x.Subview(box),
-                                                             u_y.Subview(box)};
-            Base::LimitGradients(grad_u, u.Subview(box), flags, geom, dx);
-          },
-          gradient_x, gradient_y, states);
+      // ForEachComponent(
+      //     [&](const StridedDataView<double, 2>& u_x,
+      //         const StridedDataView<double, 2>& u_y,
+      //         const StridedDataView<const double, 2>& u) {
+      //       std::array<StridedDataView<double, 2>, 2>
+      //       grad_u{u_x.Subview(box),
+      //                                                        u_y.Subview(box)};
+      //       Base::LimitGradients(grad_u, u.Subview(box), flags, geom, dx);
+      //     },
+      //     gradient_x, gradient_y, states);
     }
-  }
-
-  std::array<double, 2> FindAdmissibleInterval(const Coordinates<Rank>& xM,
-                                               const Coordinates<Rank>& xB,
-                                               const Coordinates<Rank>& slope,
-                                               const Coordinates<Rank>& dx) {
-    double lower = std::numeric_limits<double>::lowest();
-    double upper = std::numeric_limits<double>::max();
-    for (int d = 0; d < Rank; ++d) {
-      if (slope[d] != 0) {
-        // xM - (xB + slope * lambda) <= 0.5 * dx
-        const double lambda_lower = (xM[d] - xB[d] - 0.5 * dx[d]) / slope[d];
-        // (xB + slope * lambda) - xM <= 0.5 * dx
-        const double lambda_upper = (0.5 * dx[d] + xM[d] - xB[d]) / slope[d];
-        if (slope[d] > 0) {
-          upper = std::min(upper, lambda_upper);
-          lower = std::max(lower, lambda_lower);
-        } else {
-          upper = std::min(upper, lambda_lower);
-          lower = std::max(lower, lambda_upper);
-        }
-      } else if (std::abs(xM[d] - xB[d]) > 0.5 * dx[d]) {
-        lower = std::numeric_limits<double>::max();
-        upper = std::numeric_limits<double>::lowest();
-      }
-    }
-    return {lower, upper};
-  }
-
-  double Length(const std::array<double, 2>& interval) {
-    return interval[1] - interval[0];
-  }
-
-  IndexBox<Rank> MakeIndexBox(const Index<Rank>& signs) noexcept {
-    IndexBox<Rank> box{};
-    for (int d = 0; d < Rank; ++d) {
-      if (signs[d] >= 0) {
-        box.upper[d] = 2 * signs[d] + 1;
-      } else {
-        box.upper[d] = 1;
-        box.lower[d] = 2 * signs[d];
-      }
-    }
-    return box;
-  }
-
-  AuxiliaryReconstructionData Sort(const AuxiliaryReconstructionData& aux_data) {
-    std::array<int, AuxiliaryReconstructionData::kMaxSources> indices;
-    const int count = aux_data.n_sources;
-    std::iota(indices.begin(), indices.begin() + count, 0);
-    std::sort(indices.begin(), indices.begin() + count, [&](int i, int j) {
-      return aux_data.start[i] < aux_data.start[j];
-    });
-    AuxiliaryReconstructionData sorted_aux{};
-    sorted_aux.slope = aux_data.slope;
-    sorted_aux.xB = aux_data.xB;
-    for (int i = 0; i < count; ++i) {
-      sorted_aux.sources[i] = aux_data.sources[indices[i]];
-      sorted_aux.start[i] = aux_data.start[indices[i]];
-      sorted_aux.end[i] = aux_data.end[indices[i]];
-    }
-    for (int i = count; i < AuxiliaryReconstructionData::kMaxSources; ++i) {
-      sorted_aux.sources[i] = sorted_aux.sources[count - 1];
-      sorted_aux.start[i] = sorted_aux.end[count - 1];
-      sorted_aux.end[i] = sorted_aux.end[count - 1];
-    }
-    sorted_aux.n_sources = count;
-    return sorted_aux;
-  }
-
-  std::array<AuxiliaryReconstructionData, 2>
-  SplitAt(const AuxiliaryReconstructionData& aux, double dx) {
-    std::array<AuxiliaryReconstructionData, 2> datas{};
-    datas[0].slope = aux.slope;
-    datas[0].xB = aux.xB;
-    datas[1].slope = aux.slope;
-    datas[1].xB = aux.xB;
-    int i = 0;
-    while (i < AuxiliaryReconstructionData::kMaxSources) {
-      datas[0].sources[i] = aux.sources[i];
-      datas[0].start[i] = aux.start[i];
-      datas[0].n_sources = i + 1;
-      if (dx < aux.end[i]) {
-        datas[0].end[i] = dx;
-        break;
-      } else {
-        datas[0].end[i] = aux.end[i];
-      }
-      ++i;
-    }
-    datas[1].sources[0] = aux.sources[i];
-    datas[1].start[0] = dx;
-    datas[1].end[0] = aux.end[i];
-    for (int j = i + 1; j < AuxiliaryReconstructionData::kMaxSources; ++j) {
-      datas[1].sources[j - i] = aux.sources[j];
-      datas[1].start[j - i] = aux.start[j];
-      datas[1].end[j - i] = aux.end[j];
-      datas[1].n_sources = aux.n_sources - datas[0].n_sources;
-    }
-    return datas;
   }
 
   void SetZero(Conservative& cons) {
     ForEachComponent([](auto&& u) { u = 0.0; }, cons);
-  }
-
-  AuxiliaryReconstructionData GetAuxiliaryData(const Index<Rank>& index,
-                                               const CutCellData<Rank>& geom,
-                                               const Coordinates<Rank>& dx,
-                                               const Coordinates<Rank>& slope,
-                                               double required_length) {
-    Index<Rank> signs{};
-    for (int d = 0; d < Rank; ++d) {
-      signs[d] = (slope[d] > 0.0) - (slope[d] < 0.0);
-    }
-    // Fill aux data for the cut-cell itself
-    const Coordinates<Rank> xB =
-        GetBoundaryCentroid(geom, index).array() * dx.array();
-    AuxiliaryReconstructionData aux_data{};
-    aux_data.slope = slope;
-    aux_data.xB = GetAbsoluteBoundaryCentroid(geom, index, dx);
-    int count = 0;
-    ForEachIndex(MakeIndexBox(signs), [&](auto... is) {
-      Coordinates<Rank> x_i{double(is)...};
-      const Coordinates<Rank> xM = x_i.array() * dx.array();
-      const auto interval = FindAdmissibleInterval(xM, xB, slope, dx);
-      const auto [a, b] = Intersect(interval, {0.0, required_length});
-      if (b - a > 0.0) {
-        FUB_ASSERT(count < AuxiliaryReconstructionData::kMaxSources);
-        Index<Rank> i{is...};
-        Index<Rank> global{};
-        std::transform(i.begin(), i.end(), index.begin(), global.begin(),
-                       std::plus<>());
-        aux_data.sources[count] = global;
-        aux_data.start[count] = a;
-        aux_data.end[count] = b;
-        ++count;
-      }
-    });
-    FUB_ASSERT(count > 0 && count <= AuxiliaryReconstructionData::kMaxSources);
-    aux_data.n_sources = count;
-    AuxiliaryReconstructionData sorted_aux = Sort(aux_data);
-    return sorted_aux;
-  }
-
-  AuxiliaryReconstructionData GetAuxiliaryData(const Index<Rank>& index,
-                                               const CutCellData<Rank>& geom,
-                                               const Coordinates<Rank>& dx,
-                                               Direction dir) {
-    const Coordinates<Rank> normal = GetBoundaryNormal(geom, index);
-    const int dir_v = static_cast<int>(dir);
-    const Coordinates<Rank> unit_vector =
-        ((normal[dir_v] < 0) - (normal[dir_v] >= 0)) *
-        Eigen::Matrix<double, Rank, 1>::Unit(dir_v);
-    const Coordinates<Rank> slope =
-        unit_vector - 2.0 * unit_vector.dot(normal) * normal;
-    return GetAuxiliaryData(index, geom, dx, slope, dx[int(dir)]);
-  }
-
-  double TotalLength(const AuxiliaryReconstructionData& aux) noexcept {
-    double total = 0.0;
-    for (int i = 0; i < AuxiliaryReconstructionData::kMaxSources; ++i) {
-      total += aux.end[i] - aux.start[i];
-    }
-    return total;
-  }
-
-  bool IntegrateCellState(Conservative& integral,
-                          Conservative& integral_gradient,
-                          const View<const Conservative>& states,
-                          const View<const Conservative>& gradient_x,
-                          const View<const Conservative>& gradient_y,
-                          const View<const Conservative>& gradient_z,
-                          const CutCellData<Rank>& geom,
-                          const AuxiliaryReconstructionData& aux_data,
-                          const Coordinates<Rank>& dx, double total_length) {
-    for (int i = 0; i < aux_data.n_sources; ++i) {
-      const Index<Rank> index = aux_data.sources[i];
-      if (Contains(Box<0>(states), index) &&
-          geom.volume_fractions(index) > 0.0) {
-        Load(gradient_[0], gradient_x, index);
-        Load(gradient_[1], gradient_y, index);
-        Load(gradient_[2], gradient_z, index);
-        span<const Conservative, Rank> grads{gradient_.data(), Rank};
-        const Coordinates<Rank> xM = GetAbsoluteVolumeCentroid(geom, index, dx);
-        const Coordinates<Rank> x0 =
-            aux_data.xB +
-            0.5 * (aux_data.start[i] + aux_data.end[i]) * aux_data.slope;
-        const Coordinates<Rank> dx = x0 - xM;
-        ApplyGradient(gradient_dir_, grads, dx);
-        Load(state_, states, index);
-        state_ += gradient_dir_;
-        ApplyGradient(gradient_dir_, grads, aux_data.slope);
-        const double length = aux_data.end[i] - aux_data.start[i];
-        ForEachVariable(
-            [length, total_length](auto&& u, auto&& grad_u, auto&& u_0,
-                                   auto&& grad_u_0) {
-              u += length / total_length * u_0;
-              grad_u += length / total_length * grad_u_0;
-            },
-            integral, integral_gradient, state_, gradient_dir_);
-      } else {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  // int_0^l (u0 + gradient * x) = l ( u_0 + l/2 * gradient )
-  bool IntegrateCellState(Conservative& integral,
-                          Conservative& integral_gradient,
-                          const View<const Conservative>& states,
-                          const View<const Conservative>& gradient_x,
-                          const View<const Conservative>& gradient_y,
-                          const View<const Conservative>& gradient_z,
-                          const CutCellData<Rank>& geom,
-                          const AuxiliaryReconstructionData& aux_data,
-                          const Coordinates<Rank>& dx) {
-    const double total_length = TotalLength(aux_data);
-    return IntegrateCellState(integral, integral_gradient, states, gradient_x,
-                              gradient_y, gradient_z, geom, aux_data, dx,
-                              total_length);
   }
 
   void ReconstructSinglyShieldedStencil(
@@ -568,37 +702,43 @@ struct ConservativeHGridReconstruction
       Load(gradient_[0], gradient_x, iR);
       Load(gradient_[1], gradient_y, iR);
       Load(gradient_[2], gradient_z, iR);
-      const Coordinates<Rank> xR = GetAbsoluteVolumeCentroid(cutcell_data, iR, dx);
-      const Coordinates<Rank> xB = GetAbsoluteBoundaryCentroid(cutcell_data, cell, dx);
-      const Coordinates<Rank> xRssR = xB + (alpha + 0.5) * dx[d] * Eigen::Matrix<double, Rank, 1>::Unit(d);
+      const Coordinates<Rank> xR =
+          GetAbsoluteVolumeCentroid(cutcell_data, iR, dx);
+      const Coordinates<Rank> xB =
+          GetAbsoluteBoundaryCentroid(cutcell_data, cell, dx);
+      const Coordinates<Rank> xRssR =
+          xB + (alpha + 0.5) * dx[d] * Eigen::Matrix<double, Rank, 1>::Unit(d);
       span<const Conservative, Rank> grads{gradient_.data(), Rank};
       ApplyGradient(gradient_dir_, grads, xRssR - xR);
       Load(h_grid_singly_shielded[1], states, iR);
-      ForEachComponent([](double& x, double dx) {
-        x += dx;
-      }, AsCons(h_grid_singly_shielded[1]), gradient_dir_);
-      CompleteFromCons(equation_, h_grid_singly_shielded[1], h_grid_singly_shielded[1]);
+      ForEachComponent([](double& x, double dx) { x += dx; },
+                       AsCons(h_grid_singly_shielded[1]), gradient_dir_);
+      CompleteFromCons(equation_, h_grid_singly_shielded[1],
+                       h_grid_singly_shielded[1]);
       Load(h_grid_singly_shielded_gradients[1], gradients[d], iR);
 
       Load(state_, AsCons(states), cell);
       Load(gradient_[0], gradient_x, cell);
       Load(gradient_[1], gradient_y, cell);
       Load(gradient_[2], gradient_z, cell);
-      const Coordinates<Rank> xC = GetAbsoluteVolumeCentroid(cutcell_data, cell, dx);
-      const Coordinates<Rank> xCssR = xB + 0.5 * alpha * dx[d] * Eigen::Matrix<double, Rank, 1>::Unit(d);
+      const Coordinates<Rank> xC =
+          GetAbsoluteVolumeCentroid(cutcell_data, cell, dx);
+      const Coordinates<Rank> xCssR =
+          xB + 0.5 * alpha * dx[d] * Eigen::Matrix<double, Rank, 1>::Unit(d);
       ApplyGradient(gradient_dir_, grads, xCssR - xC);
-      ForEachComponent([](double& x, double dx) {
-        x += dx;
-      }, AsCons(state_), gradient_dir_);
+      ForEachComponent([](double& x, double dx) { x += dx; }, AsCons(state_),
+                       gradient_dir_);
       ForEachComponent(
           [&](double& Q_l, double& dQ_l, double Q_b, double dQ_b, double Q_i,
               double dQ_i) {
             Q_l = (1 - alpha) * (Q_b + alpha * dx[d] * dQ_b) + alpha * Q_i;
             dQ_l = (1 - alpha) * dQ_b + alpha * dQ_i;
           },
-          AsCons(h_grid_singly_shielded[0]), h_grid_singly_shielded_gradients[0], AsCons(h_grid_eb[0]),
+          AsCons(h_grid_singly_shielded[0]),
+          h_grid_singly_shielded_gradients[0], AsCons(h_grid_eb[0]),
           h_grid_eb_gradients[0], state_, gradient_[d]);
-      CompleteFromCons(equation_, h_grid_singly_shielded[0], h_grid_singly_shielded[0]);
+      CompleteFromCons(equation_, h_grid_singly_shielded[0],
+                       h_grid_singly_shielded[0]);
     } else if (betaR < betaL) {
       const double alpha = 0.5 + cutcell_data.boundary_centeroids(cell_d);
 
@@ -606,145 +746,43 @@ struct ConservativeHGridReconstruction
       Load(gradient_[0], gradient_x, iL);
       Load(gradient_[1], gradient_y, iL);
       Load(gradient_[2], gradient_z, iL);
-      const Coordinates<Rank> xL = GetAbsoluteVolumeCentroid(cutcell_data, iL, dx);
-      const Coordinates<Rank> xB = GetAbsoluteBoundaryCentroid(cutcell_data, cell, dx);
-      const Coordinates<Rank> xLssR = xB - (alpha + 0.5) * dx[d] * Eigen::Matrix<double, Rank, 1>::Unit(d);
+      const Coordinates<Rank> xL =
+          GetAbsoluteVolumeCentroid(cutcell_data, iL, dx);
+      const Coordinates<Rank> xB =
+          GetAbsoluteBoundaryCentroid(cutcell_data, cell, dx);
+      const Coordinates<Rank> xLssR =
+          xB - (alpha + 0.5) * dx[d] * Eigen::Matrix<double, Rank, 1>::Unit(d);
       span<const Conservative, Rank> grads{gradient_.data(), Rank};
       ApplyGradient(gradient_dir_, grads, xLssR - xL);
       Load(h_grid_singly_shielded[0], states, iL);
-      ForEachComponent([](double& x, double dx) {
-        x += dx;
-      }, AsCons(h_grid_singly_shielded[0]), gradient_dir_);
-      CompleteFromCons(equation_, h_grid_singly_shielded[0], h_grid_singly_shielded[0]);
+      ForEachComponent([](double& x, double dx) { x += dx; },
+                       AsCons(h_grid_singly_shielded[0]), gradient_dir_);
+      CompleteFromCons(equation_, h_grid_singly_shielded[0],
+                       h_grid_singly_shielded[0]);
       Load(h_grid_singly_shielded_gradients[0], gradients[d], iL);
 
       Load(state_, AsCons(states), cell);
       Load(gradient_[0], gradient_x, cell);
       Load(gradient_[1], gradient_y, cell);
       Load(gradient_[2], gradient_z, cell);
-      const Coordinates<Rank> xC = GetAbsoluteVolumeCentroid(cutcell_data, cell, dx);
-      const Coordinates<Rank> xCssR = xB - 0.5 * alpha * dx[d] * Eigen::Matrix<double, Rank, 1>::Unit(d);
+      const Coordinates<Rank> xC =
+          GetAbsoluteVolumeCentroid(cutcell_data, cell, dx);
+      const Coordinates<Rank> xCssR =
+          xB - 0.5 * alpha * dx[d] * Eigen::Matrix<double, Rank, 1>::Unit(d);
       ApplyGradient(gradient_dir_, grads, xCssR - xC);
-      ForEachComponent([](double& x, double dx) {
-        x += dx;
-      }, AsCons(state_), gradient_dir_);
+      ForEachComponent([](double& x, double dx) { x += dx; }, AsCons(state_),
+                       gradient_dir_);
       ForEachComponent(
           [&](double& Q_r, double& dQ_r, double Q_b, double dQ_b, double Q_i,
               double dQ_i) {
             Q_r = (1 - alpha) * (Q_b + alpha * dx[d] * dQ_b) + alpha * Q_i;
             dQ_r = (1 - alpha) * dQ_b + alpha * dQ_i;
           },
-          AsCons(h_grid_singly_shielded[1]), h_grid_singly_shielded_gradients[1], AsCons(h_grid_eb[1]),
+          AsCons(h_grid_singly_shielded[1]),
+          h_grid_singly_shielded_gradients[1], AsCons(h_grid_eb[1]),
           h_grid_eb_gradients[1], state_, gradient_[d]);
-      CompleteFromCons(equation_, h_grid_singly_shielded[1], h_grid_singly_shielded[1]);
-    }
-  }
-
-  void ReconstructSinglyShieldedStencil(
-      span<Complete, 2> h_grid_singly_shielded,
-      span<Conservative, 2> h_grid_singly_shielded_gradients,
-      const View<const Complete>& states,
-      const View<const Conservative>& gradient_x,
-      const View<const Conservative>& gradient_y,
-      const View<const Conservative>& gradient_z,
-      const CutCellData<Rank>& cutcell_data, const Index<Rank>& cell,
-      Duration /*dt*/, const Coordinates<Rank>& dx, Direction dir) {
-    AuxiliaryReconstructionData boundary_aux_data =
-        GetAuxiliaryData(cell, cutcell_data, dx, dir);
-    const Coordinates<Rank> normal = GetBoundaryNormal(cutcell_data, cell);
-    const int dir_v = static_cast<int>(dir);
-    const Coordinates<Rank> unit_vector =
-        ((normal[dir_v] >= 0) - (normal[dir_v] < 0)) *
-        Eigen::Matrix<double, Rank, 1>::Unit(dir_v);
-    AuxiliaryReconstructionData interior_aux_data =
-        GetAuxiliaryData(cell, cutcell_data, dx, unit_vector, 2.0 * dx[dir_v]);
-    SetZero(boundary_state_);
-    SetZero(boundary_gradient_);
-    SetZero(interior_state_);
-    SetZero(interior_gradient_);
-    const int d = static_cast<std::size_t>(dir);
-    const Index<Rank> face_L = cell;
-    const Index<Rank> face_R = Shift(face_L, dir, 1);
-    const double betaL = cutcell_data.face_fractions[d](face_L);
-    const double betaR = cutcell_data.face_fractions[d](face_R);
-
-    const Index<Rank + 1> cell_d = EmbedIndex<Rank>(cell, dir);
-
-    if (betaL < betaR) {
-      const double d = 0.5 - cutcell_data.boundary_centeroids(cell_d);
-
-      auto [laux1, raux1] = SplitAt(boundary_aux_data, (1.0 - d) * dx[d]);
-      auto [laux2, raux2] = SplitAt(interior_aux_data, d * dx[d]);
-      auto [interior_aux, raux3] = SplitAt(raux2, (1.0 + d) * dx[d]);
-
-      if (!IntegrateCellState(boundary_state_, boundary_gradient_, states,
-                              gradient_x, gradient_y, gradient_z, cutcell_data,
-                              laux1, dx, dx[d])) {
-        Load(boundary_state_, AsCons(states), cell);
-        SetZero(boundary_gradient_);
-      } else {
-        ForEachComponent([](auto&& u) { u *= -1.0; }, boundary_gradient_);
-        if (!IntegrateCellState(boundary_state_, boundary_gradient_, states,
-                                gradient_x, gradient_y, gradient_z,
-                                cutcell_data, laux2, dx, dx[d])) {
-          Load(boundary_state_, AsCons(states), cell);
-          SetZero(boundary_gradient_);
-        }
-      }
-      Reflect(boundary_state_, boundary_state_, normal, equation_);
-      Reflect(boundary_gradient_, boundary_gradient_, normal, equation_);
-
-      CompleteFromCons(equation_, h_grid_singly_shielded[0], boundary_state_);
-      h_grid_singly_shielded_gradients[0] = boundary_gradient_;
-
-      if (!IntegrateCellState(interior_state_, interior_gradient_, states,
-                              gradient_x, gradient_y, gradient_z, cutcell_data,
-                              interior_aux, dx)) {
-        Load(interior_state_, AsCons(states), cell);
-        SetZero(interior_gradient_);
-      }
-
-      CompleteFromCons(equation_, h_grid_singly_shielded[1], interior_state_);
-      h_grid_singly_shielded_gradients[1] = interior_gradient_;
-
-    } else if (betaR < betaL) {
-      const double d = 0.5 + cutcell_data.boundary_centeroids(cell_d);
-
-      auto [laux1, raux1] = SplitAt(boundary_aux_data, (1.0 - d) * dx[d]);
-      auto [laux2, raux2] = SplitAt(interior_aux_data, d * dx[d]);
-      auto [interior_aux, raux3] = SplitAt(raux2, (1.0 + d) * dx[d]);
-
-      if (!IntegrateCellState(interior_state_, interior_gradient_, states,
-                              gradient_x, gradient_y, gradient_z, cutcell_data,
-                              interior_aux, dx)) {
-        Load(interior_state_, AsCons(states), cell);
-        SetZero(interior_gradient_);
-      } else {
-        ForEachComponent([](auto&& u) { u *= -1.0; }, interior_gradient_);
-      }
-
-      CompleteFromCons(equation_, h_grid_singly_shielded[0], interior_state_);
-      h_grid_singly_shielded_gradients[0] = interior_gradient_;
-
-      if (!IntegrateCellState(boundary_state_, boundary_gradient_, states,
-                              gradient_x, gradient_y, gradient_z, cutcell_data,
-                              laux2, dx, dx[d])) {
-        Load(boundary_state_, AsCons(states), cell);
-        SetZero(boundary_gradient_);
-      } else {
-        ForEachComponent([](auto&& u) { u *= -1.0; }, boundary_gradient_);
-        if (!IntegrateCellState(boundary_state_, boundary_gradient_, states,
-                                gradient_x, gradient_y, gradient_z,
-                                cutcell_data, laux1, dx, dx[d])) {
-          Load(boundary_state_, AsCons(states), cell);
-          SetZero(boundary_gradient_);
-        }
-      }
-      Reflect(boundary_state_, boundary_state_, normal, equation_);
-      Reflect(boundary_gradient_, boundary_gradient_, normal, equation_);
-
-      CompleteFromCons(equation_, h_grid_singly_shielded[1], boundary_state_);
-      h_grid_singly_shielded_gradients[1] = boundary_gradient_;
+      CompleteFromCons(equation_, h_grid_singly_shielded[1],
+                       h_grid_singly_shielded[1]);
     }
   }
 
@@ -755,7 +793,8 @@ struct ConservativeHGridReconstruction
   // boundary such that the required mass flux is obtained on the cut-cell
   // boundary.
   template <typename ReconstructionMethod>
-  void FindRiemannProblemForRequiredMassFlux(ReconstructionMethod& reconstruction,
+  void FindRiemannProblemForRequiredMassFlux(
+      ReconstructionMethod& reconstruction,
       span<Complete, 2> h_grid_embedded_boundary,
       span<Conservative, 2> h_grid_embedded_boundary_slopes,
       double required_massflux, const View<const Complete>& states,
@@ -769,35 +808,37 @@ struct ConservativeHGridReconstruction
     const Coordinates<Rank> unit_vector =
         ((normal[dir_v] >= 0) - (normal[dir_v] < 0)) *
         Eigen::Matrix<double, Rank, 1>::Unit(dir_v);
-    AuxiliaryReconstructionData interior_aux_data =
-        GetAuxiliaryData(cell, cutcell_data, dx, unit_vector, dx[dir_v]);
     SetZero(interior_state_);
     SetZero(interior_gradient_);
-    if (!IntegrateCellState(interior_state_, interior_gradient_, states,
-                            gradient_x, gradient_y, gradient_z, cutcell_data,
-                            interior_aux_data, dx)) {
-      throw std::runtime_error("Could not integrate interior cells.");
-    }
+    IntegrateInteriorCellState(interior_state_, interior_gradient_, states,
+                               gradient_x, gradient_y, gradient_z, cutcell_data,
+                               cell, dx, dir);
     RequireMassflow_SolveExactRiemannProblem require_massflow{};
 
     const Side boundary_side = normal[dir_v] >= 0 ? Side::Lower : Side::Upper;
-    reconstruction.Reconstruct(reconstructed_interior_state_, interior_state_, interior_gradient_, dt, dx[dir_v], dir, boundary_side);    
-    
+    reconstruction.Reconstruct(reconstructed_interior_state_, interior_state_,
+                               interior_gradient_, dt, dx[dir_v], dir,
+                               boundary_side);
+
     if (boundary_side == Side::Lower) {
       require_massflow(equation_, boundary_state_, interior_state_,
-                     required_massflux, 1.0, dir);
-      require_massflow(equation_, reconstructed_boundary_state_, reconstructed_interior_state_,
-                     required_massflux, 1.0, dir);
+                       required_massflux, 1.0, dir);
+      require_massflow(equation_, reconstructed_boundary_state_,
+                       reconstructed_interior_state_, required_massflux, 1.0,
+                       dir);
     } else {
-      Reflect(reflected_interior_state_, interior_state_, unit_vector, equation_);
+      Reflect(reflected_interior_state_, interior_state_, unit_vector,
+              equation_);
       require_massflow(equation_, boundary_state_, reflected_interior_state_,
-                     required_massflux, 1.0, dir);
+                       required_massflux, 1.0, dir);
       Reflect(boundary_state_, boundary_state_, unit_vector, equation_);
 
-      Reflect(reflected_interior_state_, reconstructed_interior_state_, unit_vector, equation_);
-      require_massflow(equation_, reconstructed_boundary_state_, reflected_interior_state_,
-                     required_massflux, 1.0, dir);
-      Reflect(reconstructed_boundary_state_, reconstructed_boundary_state_, unit_vector, equation_);
+      Reflect(reflected_interior_state_, reconstructed_interior_state_,
+              unit_vector, equation_);
+      require_massflow(equation_, reconstructed_boundary_state_,
+                       reflected_interior_state_, required_massflux, 1.0, dir);
+      Reflect(reconstructed_boundary_state_, reconstructed_boundary_state_,
+              unit_vector, equation_);
     }
 
     ForEachComponent(
@@ -838,28 +879,22 @@ struct ConservativeHGridReconstruction
       const View<const Conservative>& gradient_z,
       const CutCellData<Rank>& cutcell_data, const Index<Rank>& cell,
       Duration /*dt*/, Eigen::Matrix<double, Rank, 1> dx, Direction dir) {
-    AuxiliaryReconstructionData boundary_aux_data =
-        GetAuxiliaryData(cell, cutcell_data, dx, dir);
+    IntegrationPoints boundary_aux_data =
+        GetIntegrationPoints(cell, cutcell_data, dx, dir);
     const Coordinates<Rank> normal = GetBoundaryNormal(cutcell_data, cell);
-    const int dir_v = static_cast<int>(dir);
-    const Coordinates<Rank> unit_vector =
-        ((normal[dir_v] >= 0) - (normal[dir_v] < 0)) *
-        Eigen::Matrix<double, Rank, 1>::Unit(dir_v);
-    AuxiliaryReconstructionData interior_aux_data =
-        GetAuxiliaryData(cell, cutcell_data, dx, unit_vector, dx[dir_v]);
     SetZero(boundary_state_);
     SetZero(boundary_gradient_);
     if (!IntegrateCellState(boundary_state_, boundary_gradient_, states,
                             gradient_x, gradient_y, gradient_z, cutcell_data,
-                            boundary_aux_data, dx)) {
+                            boundary_aux_data, dx, dir)) {
       Load(boundary_state_, AsCons(states), cell);
       SetZero(boundary_gradient_);
     }
     SetZero(interior_state_);
     SetZero(interior_gradient_);
-    if (!IntegrateCellState(interior_state_, interior_gradient_, states,
-                            gradient_x, gradient_y, gradient_z, cutcell_data,
-                            interior_aux_data, dx)) {
+    if (!IntegrateInteriorCellState(interior_state_, interior_gradient_, states,
+                                    gradient_x, gradient_y, gradient_z,
+                                    cutcell_data, cell, dx, dir)) {
       interior_state_ = boundary_state_;
       interior_gradient_ = boundary_gradient_;
     }
@@ -998,20 +1033,19 @@ public:
                             const CutCellData<Rank>& cutcell_data, Duration dt,
                             double dx, Direction dir);
 
-  void ComputeCutCellFluxes(const View<Conservative>& stabilised_fluxes,
-                            const View<Conservative>& shielded_left_fluxes,
-                            const View<Conservative>& shielded_right_fluxes,
-                            const View<Conservative>& doubly_shielded_fluxes,
-                            const View<Conservative>& regular_fluxes,
-                            const View<Conservative>& boundary_fluxes,
-                            const PatchDataView<double, Rank + 1>& boundary_massflows,
-                            const View<const Conservative>& gradient_x,
-                            const View<const Conservative>& gradient_y,
-                            const View<const Conservative>& gradient_z,
-                            const View<const Complete>& states,
-                            const CutCellData<Rank>& geom, Duration dt,
-                            const Eigen::Matrix<double, Rank, 1>& dx,
-                            Direction dir);
+  void ComputeCutCellFluxes(
+      const View<Conservative>& stabilised_fluxes,
+      const View<Conservative>& shielded_left_fluxes,
+      const View<Conservative>& shielded_right_fluxes,
+      const View<Conservative>& doubly_shielded_fluxes,
+      const View<Conservative>& regular_fluxes,
+      const View<Conservative>& boundary_fluxes,
+      const PatchDataView<double, Rank + 1>& boundary_massflows,
+      const View<const Conservative>& gradient_x,
+      const View<const Conservative>& gradient_y,
+      const View<const Conservative>& gradient_z,
+      const View<const Complete>& states, const CutCellData<Rank>& geom,
+      Duration dt, const Eigen::Matrix<double, Rank, 1>& dx, Direction dir);
 
   void ComputeGradients(const View<Conservative>& gradient_x,
                         const View<Conservative>& gradient_y,
@@ -1024,16 +1058,22 @@ public:
                                             states, flags, geom, dx);
   }
 
+  static constexpr int GetStencilWidth() noexcept {
+    return FluxMethod::GetStencilWidth() + 1;
+  }
+
 private:
-  bool IsBoundaryMassflowRequired(const PatchDataView<double, 3>& boundary_massflows, const Coordinates<2>& normal, Index<2> cell, Direction dir)
-  {
-    const int ix = static_cast<int>(dir);
-    const int iy = 1 - ix;
-    const double m_y = boundary_massflows(cell, iy);
-    if (normal[ix] > 0 && !std::isnan(m_y)) {
-      boundary_massflows(cell, ix) = -normal[iy] / normal[ix] * m_y;
-      return true;
-    }
+  bool IsBoundaryMassflowRequired(
+      const PatchDataView<double, 3>& /* boundary_massflows */,
+      const Coordinates<2>& /* normal */, Index<2> /* cell */,
+      Direction /* dir */) {
+    // const int ix = static_cast<int>(dir);
+    // const int iy = 1 - ix;
+    // const double m_y = boundary_massflows(cell, iy);
+    // if (normal[ix] > 0 && !std::isnan(m_y)) {
+    //   boundary_massflows(cell, ix) = -normal[iy] / normal[ix] * m_y;
+    //   return true;
+    // }
     return false;
   }
 
@@ -1056,7 +1096,8 @@ private:
 };
 
 template <typename Equation, typename FluxMethod>
-MyCutCellMethod(const Equation&, const FluxMethod&) -> MyCutCellMethod<Equation, FluxMethod>;
+MyCutCellMethod(const Equation&, const FluxMethod&)
+    -> MyCutCellMethod<Equation, FluxMethod>;
 
 // IMPLEMENTATION
 
@@ -1240,20 +1281,19 @@ void MyCutCellMethod<Equation, FluxMethod, HGridReconstruction>::
 
 template <typename Equation, typename FluxMethod, typename HGridReconstruction>
 void MyCutCellMethod<Equation, FluxMethod, HGridReconstruction>::
-    ComputeCutCellFluxes(const View<Conservative>& stabilised_fluxes,
-                         const View<Conservative>& shielded_left_fluxes,
-                         const View<Conservative>& shielded_right_fluxes,
-                         const View<Conservative>& /* doubly_shielded_fluxes */,
-                         const View<Conservative>& regular_fluxes,
-                         const View<Conservative>& boundary_fluxes,
-                         const PatchDataView<double, Rank + 1>& boundary_massflows,
-                         const View<const Conservative>& gradient_x,
-                         const View<const Conservative>& gradient_y,
-                         const View<const Conservative>& gradient_z,
-                         const View<const Complete>& states,
-                         const CutCellData<Rank>& geom, Duration dt,
-                         const Eigen::Matrix<double, Rank, 1>& dx,
-                         Direction dir) {
+    ComputeCutCellFluxes(
+        const View<Conservative>& stabilised_fluxes,
+        const View<Conservative>& shielded_left_fluxes,
+        const View<Conservative>& shielded_right_fluxes,
+        const View<Conservative>& /* doubly_shielded_fluxes */,
+        const View<Conservative>& regular_fluxes,
+        const View<Conservative>& boundary_fluxes,
+        const PatchDataView<double, Rank + 1>& boundary_massflows,
+        const View<const Conservative>& gradient_x,
+        const View<const Conservative>& gradient_y,
+        const View<const Conservative>& gradient_z,
+        const View<const Complete>& states, const CutCellData<Rank>& geom,
+        Duration dt, const Eigen::Matrix<double, Rank, 1>& dx, Direction dir) {
 
   // Iterate through each EB cell and then
   //
@@ -1276,30 +1316,43 @@ void MyCutCellMethod<Equation, FluxMethod, HGridReconstruction>::
     const double betaR = betas(faceR);
     const double betaUsL = betaUs(faceL);
     const double betaUsR = betaUs(faceR);
-    if (betaL < betaR) {
-      if (IsBoundaryMassflowRequired(boundary_massflows, GetBoundaryNormal(geom, cell), cell, dir)) {
-        h_grid_reconstruction_.FindRiemannProblemForRequiredMassFlux(
-            FluxMethod::GetReconstruction(), h_grid_eb_, h_grid_eb_gradients_,
-            boundary_massflows(cell, d), states, gradient_x, gradient_y,
-            gradient_z, geom, cell, dt, dx, dir);
-      } else {
-        h_grid_reconstruction_.ReconstructEmbeddedBoundaryStencil(
-            h_grid_eb_, h_grid_eb_gradients_, states, gradient_x, gradient_y,
-            gradient_z, geom, cell, dt, dx, dir);
-      }
 
-      h_grid_reconstruction_.ReconstructSinglyShieldedStencil(
-          h_grid_singly_shielded_, h_grid_singly_shielded_gradients_,
-          h_grid_eb_, h_grid_eb_gradients_, states, gradient_x, gradient_y,
+    if (betaL == betaR) {
+      return;
+    }
+
+    if (IsBoundaryMassflowRequired(boundary_massflows,
+                                   GetBoundaryNormal(geom, cell), cell, dir)) {
+      h_grid_reconstruction_.FindRiemannProblemForRequiredMassFlux(
+          FluxMethod::GetReconstruction(), h_grid_eb_, h_grid_eb_gradients_,
+          boundary_massflows(cell, d), states, gradient_x, gradient_y,
           gradient_z, geom, cell, dt, dx, dir);
-
       FluxMethod::ComputeNumericFlux(boundary_flux_, h_grid_eb_,
                                      h_grid_eb_gradients_, dt, dx[d], dir);
       Store(boundary_fluxes, boundary_flux_, cell);
+      for (int i = 0; i < Rank; ++i) {
+        boundary_massflows(cell, i) =
+            std::numeric_limits<double>::signaling_NaN();
+      }
+    } else {
+      h_grid_reconstruction_.ReconstructEmbeddedBoundaryStencil(
+          h_grid_eb_, h_grid_eb_gradients_, states, gradient_x, gradient_y,
+          gradient_z, geom, cell, dt, dx, dir);
+      FluxMethod::ComputeNumericFlux(boundary_flux_, h_grid_eb_,
+                                     h_grid_eb_gradients_, dt, dx[d], dir);
+      Store(boundary_fluxes, boundary_flux_, cell);
+      boundary_massflows(cell, d) = euler::Density(equation_, boundary_flux_);
+    }
 
-      FluxMethod::ComputeNumericFlux(
-          singly_shielded_flux_, h_grid_singly_shielded_,
-          h_grid_singly_shielded_gradients_, dt, dx[d], dir);
+    h_grid_reconstruction_.ReconstructSinglyShieldedStencil(
+        h_grid_singly_shielded_, h_grid_singly_shielded_gradients_, h_grid_eb_,
+        h_grid_eb_gradients_, states, gradient_x, gradient_y, gradient_z, geom,
+        cell, dt, dx, dir);
+    FluxMethod::ComputeNumericFlux(
+        singly_shielded_flux_, h_grid_singly_shielded_,
+        h_grid_singly_shielded_gradients_, dt, dx[d], dir);
+
+    if (betaL < betaR) {
       if (Contains(Box<0>(shielded_left_fluxes), faceR)) {
         Store(shielded_left_fluxes, singly_shielded_flux_, faceR);
         if (betaUsR > 0.0) {
@@ -1313,29 +1366,6 @@ void MyCutCellMethod<Equation, FluxMethod, HGridReconstruction>::
         }
       }
     } else if (betaR < betaL) {
-      if (IsBoundaryMassflowRequired(boundary_massflows, GetBoundaryNormal(geom, cell), cell, dir)) {
-        h_grid_reconstruction_.FindRiemannProblemForRequiredMassFlux(
-            FluxMethod::GetReconstruction(), h_grid_eb_, h_grid_eb_gradients_,
-            boundary_massflows(cell, d), states, gradient_x, gradient_y,
-            gradient_z, geom, cell, dt, dx, dir);
-      } else {
-        h_grid_reconstruction_.ReconstructEmbeddedBoundaryStencil(
-          h_grid_eb_, h_grid_eb_gradients_, states, gradient_x, gradient_y,
-          gradient_z, geom, cell, dt, dx, dir);
-      }
-
-      h_grid_reconstruction_.ReconstructSinglyShieldedStencil(
-          h_grid_singly_shielded_, h_grid_singly_shielded_gradients_,
-          h_grid_eb_, h_grid_eb_gradients_, states, gradient_x, gradient_y,
-          gradient_z, geom, cell, dt, dx, dir);
-
-      FluxMethod::ComputeNumericFlux(boundary_flux_, h_grid_eb_,
-                                     h_grid_eb_gradients_, dt, dx[d], dir);
-      Store(boundary_fluxes, boundary_flux_, cell);
-
-      FluxMethod::ComputeNumericFlux(
-          singly_shielded_flux_, h_grid_singly_shielded_,
-          h_grid_singly_shielded_gradients_, dt, dx[d], dir);
       if (Contains(Box<0>(shielded_right_fluxes), faceL)) {
         Store(shielded_right_fluxes, singly_shielded_flux_, faceL);
         if (betaUsL > 0.0) {

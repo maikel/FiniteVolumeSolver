@@ -117,6 +117,46 @@ Eigen::Vector2d GetAbsoluteUnshieldedCentroid(const CutCellData<2>& geom,
   return centroid;
 }
 
+Eigen::Vector2d
+GetAbsoluteSinglyShieldedFromRightVolumeCentroid(const CutCellData<2>& geom,
+                                    const Index<2>& face, Side side,
+                                    Direction dir, const Eigen::Vector2d& dx)
+{
+  const Index<2> iR = Shift(face, dir, 1);
+  FUB_ASSERT(geom.volume_fractions(iR) < 1.0);
+  Eigen::Vector2d xB = GetAbsoluteBoundaryCentroid(geom, iR, dx);
+  const auto d = static_cast<std::size_t>(dir);
+  FUB_ASSERT(geom.shielded_right_fractions[d](face) > 0.0);
+  const double alpha = 0.5 + geom.boundary_centeroids(iR, d);
+  FUB_ASSERT(side == Side::Lower || side == Side::Upper);
+  if (side == Side::Upper) {
+    xB[d] -= 0.5 * alpha * dx[d];
+  } else if (side == Side::Lower) {
+    xB[d] -= (0.5 + alpha) * dx[d];
+  }
+  return xB;
+}
+
+Eigen::Vector2d
+GetAbsoluteSinglyShieldedFromLeftVolumeCentroid(const CutCellData<2>& geom,
+                                    const Index<2>& face, Side side,
+                                    Direction dir, const Eigen::Vector2d& dx)
+{
+  const Index<2> iL = face;
+  FUB_ASSERT(geom.volume_fractions(iL) < 1.0);
+  Eigen::Vector2d xB = GetAbsoluteBoundaryCentroid(geom, iL, dx);
+  const auto d = static_cast<std::size_t>(dir);
+  FUB_ASSERT(geom.shielded_left_fractions[d](face) > 0.0);
+  const double alpha = 0.5 - geom.boundary_centeroids(iL, d);
+  FUB_ASSERT(side == Side::Lower || side == Side::Upper);
+  if (side == Side::Lower) {
+    xB[d] += 0.5 * alpha * dx[d];
+  } else if (side == Side::Upper) {
+    xB[d] += (0.5 + alpha) * dx[d];
+  }
+  return xB;
+}
+
 namespace {
 template <int Rank>
 bool IsCutCell_(const CutCellData<Rank>& geom,

@@ -262,17 +262,6 @@ Eigen::Vector2d SolveLinearOptimizationProblem(
                            "solving a linear optimization probem.");
 }
 
-template <int Rank> 
-IndexBox<Rank> Neighborhood(const Index<Rank>& i, int width) {
-  Index<Rank> lower = i;
-  Index<Rank> upper = i;
-  for (int i = 0; i < Rank; ++i) {
-    lower[i] -= width;
-    upper[i] += width + 1;
-  }
-  return {lower, upper};
-}
-
 template <int Rank>
 void BasicHGridReconstruction<Rank>::LimitGradients(
     const std::array<StridedDataView<double, Rank>, Rank>& grad_u,
