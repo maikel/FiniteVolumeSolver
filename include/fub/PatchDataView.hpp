@@ -170,6 +170,17 @@ AsArray(Extents e) noexcept {
   return array;
 }
 
+template <int Rank>
+IndexBox<Rank> Neighborhood(const Index<Rank>& i, int width) {
+  Index<Rank> lower = i;
+  Index<Rank> upper = i;
+  for (int i = 0; i < Rank; ++i) {
+    lower[i] -= width;
+    upper[i] += width + 1;
+  }
+  return {lower, upper};
+}
+
 template <typename T, int Rank, typename Layout = layout_left>
 struct PatchDataView;
 

@@ -31,6 +31,18 @@ inline std::array<double, 2> Intersect(const std::array<double, 2>& i1,
   return {std::max(i1[0], i2[0]), std::min(i1[1], i2[1])};
 }
 
+template <int Rank>
+struct HGridIntegrationPoints {
+    static constexpr int kMaxSources = 9;
+
+    std::array<Index<Rank>, kMaxSources> index{};
+    std::array<double, kMaxSources> volume{};
+    std::array<Coordinates<Rank>, kMaxSources> xM{};
+
+    Index<Rank> iB{};
+    Coordinates<Rank> xB{};
+};
+
 template <int Rank> struct CutCellData {
   static constexpr auto sRank = static_cast<std::size_t>(Rank);
 
@@ -55,7 +67,11 @@ template <int Rank> struct CutCellData {
       shielded_right_fractions_rel;
   std::array<PatchDataView<const double, Rank>, sRank>
       doubly_shielded_fractions_rel;
+
+  std::array<PatchDataView<const double, Rank + 1>, sRank> hgrid_integration_points;
 };
+
+HGridIntegrationPoints<2> GetHGridIntegrationPoints(const CutCellData<2>& geom, Index<2> index, const Coordinates<2>& dx, Direction dir);
 
 [[nodiscard]] bool IsCutCell(const CutCellData<2>& geom,
                              const std::array<std::ptrdiff_t, 2>& index);

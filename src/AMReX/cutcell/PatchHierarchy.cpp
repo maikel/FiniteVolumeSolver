@@ -30,6 +30,13 @@
 
 #include <boost/filesystem.hpp>
 
+#include <CGAL/Boolean_set_operations_2.h>
+#include <CGAL/Polygon_2.h>
+#include <CGAL/Polygon_2_algorithms.h>
+#include <CGAL/Polygon_with_holes_2.h>
+#include <CGAL/Simple_cartesian.h>
+#include <CGAL/convex_hull_2.h>
+
 namespace fub {
 namespace amrex {
 namespace cutcell {
@@ -37,13 +44,17 @@ namespace {
 using MultiCutFabs =
     std::array<std::shared_ptr<::amrex::MultiCutFab>, AMREX_SPACEDIM>;
 
+using K = CGAL::Exact_predicates_exact_constructions_kernel;
+using Point_2 = K::Point_2;
+using Polygon_2 = CGAL::Polygon_2<K>;
+using Polygon_with_holes_2 = CGAL::Polygon_with_holes_2<K>;
+
 MultiCutFabs MakeMultiCutFabs_(const ::amrex::BoxArray& ba,
                                const ::amrex::DistributionMapping& dm,
                                const ::amrex::EBFArrayBoxFactory& factory,
-                               int ngrow) {
+                               int ngrow, int ncomp = 2) {
   MultiCutFabs mfabs;
   int dir = 0;
-  const int ncomp = 2;
   for (std::shared_ptr<::amrex::MultiCutFab>& mf : mfabs) {
     ::amrex::IntVect unit = ::amrex::IntVect::TheDimensionVector(dir);
     mf = std::make_shared<::amrex::MultiCutFab>(
@@ -53,6 +64,171 @@ MultiCutFabs MakeMultiCutFabs_(const ::amrex::BoxArray& ba,
   }
   return mfabs;
 }
+
+Point_2 ShiftFrom(const Coordinates<2>& x, double xshift, double yshift) {
+  Point_2 p{x[0] + xshift, x[1] + yshift};
+  return p;
+}
+
+Polygon_2 GetPolygon(const CutCellData<2>& geom, const Index<2>& index,
+                     const Coordinates<2>& dx) {
+  std::vector<Point_2> points{};
+  if (geom.volume_fractions(index) == 1.0) {
+    const Coordinates<2> xC = GetAbsoluteVolumeCentroid(geom, index, dx);
+    points.push_back(ShiftFrom(xC, -0.5 * dx[0], -0.5 * dx[1]));
+    points.push_back(ShiftFrom(xC, -0.5 * dx[0], +0.5 * dx[1]));
+    points.push_back(ShiftFrom(xC, +0.5 * dx[0], -0.5 * dx[1]));
+    points.push_back(ShiftFrom(xC, +0.5 * dx[0], +0.5 * dx[1]));
+  } else if (geom.volume_fractions(index) > 0.0) {
+    const auto ix = 0;
+    const auto iy = 1;
+    const Index<2> fL = index;
+    const Index<2> fR = Shift(index, Direction::X, 1);
+    const double betaL = geom.face_fractions[ix](fL);
+    const double betaR = geom.face_fractions[ix](fR);
+    const double betaLy = geom.face_fractions[iy](fL);
+    const double betaRy =
+        geom.face_fractions[iy](Shift(index, Direction::Y, 1));
+    const Coordinates<2> xC{(double(index[0]) + 0.5) * dx[0],
+                            (double(index[1]) + 0.5) * dx[1]};
+    const Coordinates<2> xB = GetAbsoluteBoundaryCentroid(geom, index, dx);
+    const Coordinates<2> xN = GetBoundaryNormal(geom, index);
+
+    const double dBeta_x = betaR - betaL;
+    const double dBeta_y = betaRy - betaLy;
+
+    Eigen::Vector2d xLL = xB;
+    Eigen::Vector2d xLR = xB;
+
+    xLL[iy] += 0.5 * dBeta_x * dx[iy];
+    xLL[ix] -= 0.5 * dBeta_y * dx[ix];
+
+    xLR[iy] -= 0.5 * dBeta_x * dx[iy];
+    xLR[ix] += 0.5 * dBeta_y * dx[ix];
+
+    points.push_back(Point_2{xLL[0], xLL[1]});
+    points.push_back(Point_2{xLR[0], xLR[1]});
+
+    auto e_x = Coordinates<2>::Unit(0);
+    auto e_y = Coordinates<2>::Unit(1);
+    std::vector<Coordinates<2>> xs{};
+    xs.push_back(xC - 0.5 * dx);
+    xs.push_back(xC + 0.5 * dx);
+    xs.push_back(xC + 0.5 * dx[0] * e_x - 0.5 * dx[1] * e_y);
+    xs.push_back(xC - 0.5 * dx[0] * e_x + 0.5 * dx[1] * e_y);
+    for (Coordinates<2> x : xs) {
+      if (xN.dot(xB - x) < 0) {
+        points.emplace_back(x[0], x[1]);
+      }
+    }
+  }
+  Polygon_2 polygon{};
+  CGAL::convex_hull_2(points.begin(), points.end(),
+                      std::back_inserter(polygon));
+  return polygon;
+}
+
+Polygon_2 GetHGridPolygonAtBoundary(const CutCellData<2>& geom,
+                                    const Index<2>& index,
+                                    const Eigen::Vector2d& dx, Direction dir) {
+  FUB_ASSERT(dir == Direction::X || dir == Direction::Y);
+  const auto ix = static_cast<std::size_t>(dir);
+  const auto iy = 1 - ix;
+  const Index<AMREX_SPACEDIM> fL = index;
+  const Index<AMREX_SPACEDIM> fR = Shift(index, dir, 1);
+  const double betaL = geom.face_fractions[ix](fL);
+  const double betaR = geom.face_fractions[ix](fR);
+  const double betaLy = geom.face_fractions[iy](fL);
+  const double betaRy = geom.face_fractions[iy](Shift(index, Direction(iy), 1));
+  const Coordinates<AMREX_SPACEDIM> xB =
+      GetAbsoluteBoundaryCentroid(geom, index, dx);
+  const Coordinates<AMREX_SPACEDIM> xN = GetBoundaryNormal(geom, index);
+
+  const double dBeta_x = betaR - betaL;
+  const double dBeta_y = betaRy - betaLy;
+
+  if (dBeta_x == 0 && dBeta_y == 0) {
+    return {};
+  }
+
+  const int sign = (dBeta_x > 0) - (dBeta_x < 0);
+  Eigen::Vector2d xR = xB;
+  xR[ix] -= sign * dx[ix];
+
+  Eigen::Vector2d xRL = xR;
+  Eigen::Vector2d xRR = xR;
+  Eigen::Vector2d xLL = xB;
+  Eigen::Vector2d xLR = xB;
+
+  xRR[iy] -= 0.5 * dBeta_x * dx[iy];
+  xLR[iy] -= 0.5 * dBeta_x * dx[iy];
+
+  xLL[iy] += 0.5 * dBeta_x * dx[iy];
+  xRL[iy] += 0.5 * dBeta_x * dx[iy];
+
+  xLL[ix] -= 0.5 * dBeta_y * dx[ix];
+  xLR[ix] += 0.5 * dBeta_y * dx[ix];
+
+  Eigen::Vector2d mRL = xRL - 2.0 * xN.dot(xRL - xLL) * xN;
+  Eigen::Vector2d mRR = xRR - 2.0 * xN.dot(xRR - xLR) * xN;
+
+  std::vector<Point_2> points{};
+  points.push_back(Point_2{xLL[0], xLL[1]});
+  points.push_back(Point_2{xLR[0], xLR[1]});
+  points.push_back(Point_2{mRL[0], mRL[1]});
+  points.push_back(Point_2{mRR[0], mRR[1]});
+
+  Polygon_2 polygon{};
+  CGAL::convex_hull_2(points.begin(), points.end(),
+                      std::back_inserter(polygon));
+
+  return polygon;
+}
+
+HGridIntegrationPoints<AMREX_SPACEDIM>
+ComputeIntegrationPoints(const Index<AMREX_SPACEDIM>& index,
+                         const CutCellData<AMREX_SPACEDIM>& geom,
+                         const Coordinates<AMREX_SPACEDIM>& dx, Direction dir) {
+  // Fill aux data for the cut-cell itself
+  HGridIntegrationPoints<2> integration{};
+  integration.xB = GetAbsoluteBoundaryCentroid(geom, index, dx);
+  integration.iB = index;
+  const Polygon_2 hgrid_polygon =
+      GetHGridPolygonAtBoundary(geom, index, dx, dir);
+  if (hgrid_polygon.is_empty() || !hgrid_polygon.is_simple() ||
+      !hgrid_polygon.is_convex()) {
+    return integration;
+  }
+  int count = 0;
+  ForEachIndex(Neighborhood<AMREX_SPACEDIM>(index, 1), [&](auto... is) {
+    Index<AMREX_SPACEDIM> i{is...};
+    const Polygon_2 neighbor_polygon = GetPolygon(geom, i, dx);
+    if (neighbor_polygon.is_empty()) {
+      return;
+    }
+    if (CGAL::do_intersect(hgrid_polygon, neighbor_polygon)) {
+      FUB_ASSERT(count < HGridIntegrationPoints<AMREX_SPACEDIM>::kMaxSources);
+      std::vector<Polygon_with_holes_2> intersections{};
+      CGAL::intersection(hgrid_polygon, neighbor_polygon,
+                         std::back_inserter(intersections));
+      FUB_ASSERT(intersections.size() == 1);
+      integration.index[count] = i;
+      Eigen::Vector2d xM = Eigen::Vector2d::Zero();
+      for (const Point_2& p : intersections[0].outer_boundary()) {
+        const double px = p[0].exact().convert_to<double>();
+        const double py = p[1].exact().convert_to<double>();
+        xM += Eigen::Vector2d{px, py};
+      }
+      xM /= intersections[0].outer_boundary().size();
+      integration.xM[count] = xM;
+      integration.volume[count] =
+          intersections[0].outer_boundary().area().exact().convert_to<double>();
+      count += 1;
+    }
+  });
+  return integration;
+}
+
 } // namespace
 
 PatchLevel::PatchLevel(const PatchLevel& other) = default;
@@ -62,8 +238,9 @@ PatchLevel& PatchLevel::operator=(const PatchLevel& other) = default;
 PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
                        const ::amrex::DistributionMapping& dm, int n_components,
                        const ::amrex::MFInfo& mf_info,
+                       const ::amrex::Geometry& geom,
                        std::shared_ptr<::amrex::EBFArrayBoxFactory> f,
-                       int ngrow, GeometryDetails)
+                       int ngrow, GeometryDetails cutcell_details)
     : ::fub::amrex::PatchLevel(level, tp, ba, dm, n_components, mf_info, *f),
       factory(std::move(f)),
       unshielded(MakeMultiCutFabs_(ba, dm, *factory, ngrow)),
@@ -110,6 +287,83 @@ PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
       }
     });
   }
+
+  if (cutcell_details == GeometryDetails::standard) {
+    return;
+  }
+  h_grid_integration_points =
+      MakeMultiCutFabs_(ba, dm, *factory, ngrow, HGridIntegrationPoints<AMREX_SPACEDIM>::kMaxSources * (2 * AMREX_SPACEDIM + 1));
+  for (std::size_t d = 0; d < AMREX_SPACEDIM; ++d) {
+    h_grid_integration_points[d]->setVal(0.0);
+    const ::amrex::BoxArray& ba = unshielded[d]->boxArray();
+    const ::amrex::DistributionMapping& dm = unshielded[d]->DistributionMap();
+    ForEachFab(execution::openmp, ba, dm, [&](const ::amrex::MFIter& mfi) {
+      if (flags[mfi].getType() == ::amrex::FabType::singlevalued) {
+        // Get Cutcell data
+        CutCellData<AMREX_SPACEDIM> cutcell_data = GetCutCellData(mfi);
+        ::amrex::Box box = mfi.growntilebox(ngrow - 1);
+        Coordinates<AMREX_SPACEDIM> dx{
+            AMREX_D_DECL(geom.CellSize(0), geom.CellSize(1), geom.CellSize(2))};
+        PatchDataView<double, AMREX_SPACEDIM + 1> h_grid_data =
+            MakePatchDataView((*h_grid_integration_points[d])[mfi]);
+        ForEachIndex(AsIndexBox<AMREX_SPACEDIM>(box), [&](auto... is) {
+          Index<AMREX_SPACEDIM> index{is...};
+          HGridIntegrationPoints<AMREX_SPACEDIM> integration_points =
+              ComputeIntegrationPoints(index, cutcell_data, dx, Direction(d));
+          for (int i = 0;
+               i < HGridIntegrationPoints<AMREX_SPACEDIM>::kMaxSources; ++i) {
+            h_grid_data(index, i * (2 * AMREX_SPACEDIM + 1)) =
+                integration_points.volume[i];
+            for (int j = 0; j < AMREX_SPACEDIM; ++j) {
+              h_grid_data(index, i * (2 * AMREX_SPACEDIM + 1) + j + 1) =
+                  integration_points.xM[i][j];
+            }
+            for (int j = 0; j < AMREX_SPACEDIM; ++j) {
+              double* ptr = &h_grid_data(index, i * (2 * AMREX_SPACEDIM + 1) + 1 +
+                                                    AMREX_SPACEDIM + j);
+              std::memcpy(ptr, &integration_points.index[i][j], sizeof(double));
+            }
+          }
+        });
+      }
+    });
+  }
+}
+
+CutCellData<AMREX_SPACEDIM>
+PatchLevel::GetCutCellData(const ::amrex::MFIter& mfi) const {
+  CutCellData<AMREX_SPACEDIM> cutcell_data{};
+  cutcell_data.volume_fractions =
+      MakePatchDataView(factory->getVolFrac()[mfi], 0);
+  cutcell_data.volume_centeroid =
+      MakePatchDataView(factory->getCentroid()[mfi]);
+  cutcell_data.boundary_normals =
+      MakePatchDataView(factory->getBndryNormal()[mfi]);
+  cutcell_data.boundary_centeroids =
+      MakePatchDataView(factory->getBndryCent()[mfi]);
+  for (std::size_t d = 0; d < AMREX_SPACEDIM; ++d) {
+    cutcell_data.face_fractions[d] =
+        MakePatchDataView((*factory->getAreaFrac()[d])[mfi], 0);
+    cutcell_data.unshielded_fractions[d] =
+        MakePatchDataView((*unshielded[d])[mfi], 0);
+    cutcell_data.shielded_left_fractions[d] =
+        MakePatchDataView((*shielded_left[d])[mfi], 0);
+    cutcell_data.shielded_right_fractions[d] =
+        MakePatchDataView((*shielded_right[d])[mfi], 0);
+    cutcell_data.doubly_shielded_fractions[d] =
+        MakePatchDataView((*doubly_shielded[d])[mfi], 0);
+    cutcell_data.unshielded_fractions_rel[d] =
+        MakePatchDataView((*unshielded[d])[mfi], 1);
+    cutcell_data.shielded_left_fractions_rel[d] =
+        MakePatchDataView((*shielded_left[d])[mfi], 1);
+    cutcell_data.shielded_right_fractions_rel[d] =
+        MakePatchDataView((*shielded_right[d])[mfi], 1);
+    cutcell_data.doubly_shielded_fractions_rel[d] =
+        MakePatchDataView((*doubly_shielded[d])[mfi], 1);
+    cutcell_data.hgrid_integration_points[d] =
+        MakePatchDataView((*h_grid_integration_points[d])[mfi]);
+  }
+  return cutcell_data;
 }
 
 PatchHierarchy::PatchHierarchy(DataDescription desc,
@@ -139,37 +393,8 @@ PatchHierarchy::PatchHierarchy(DataDescription desc,
 CutCellData<AMREX_SPACEDIM>
 PatchHierarchy::GetCutCellData(int level_number,
                                const ::amrex::MFIter& mfi) const {
-  CutCellData<AMREX_SPACEDIM> cutcell_data;
   const PatchLevel& level = GetPatchLevel(level_number);
-  cutcell_data.volume_fractions =
-      MakePatchDataView(level.factory->getVolFrac()[mfi], 0);
-  cutcell_data.volume_centeroid =
-      MakePatchDataView(level.factory->getCentroid()[mfi]);
-  cutcell_data.boundary_normals =
-      MakePatchDataView(level.factory->getBndryNormal()[mfi]);
-  cutcell_data.boundary_centeroids =
-      MakePatchDataView(level.factory->getBndryCent()[mfi]);
-  for (std::size_t d = 0; d < AMREX_SPACEDIM; ++d) {
-    cutcell_data.face_fractions[d] =
-        MakePatchDataView((*level.factory->getAreaFrac()[d])[mfi], 0);
-    cutcell_data.unshielded_fractions[d] =
-        MakePatchDataView((*level.unshielded[d])[mfi], 0);
-    cutcell_data.shielded_left_fractions[d] =
-        MakePatchDataView((*level.shielded_left[d])[mfi], 0);
-    cutcell_data.shielded_right_fractions[d] =
-        MakePatchDataView((*level.shielded_right[d])[mfi], 0);
-    cutcell_data.doubly_shielded_fractions[d] =
-        MakePatchDataView((*level.doubly_shielded[d])[mfi], 0);
-    cutcell_data.unshielded_fractions_rel[d] =
-        MakePatchDataView((*level.unshielded[d])[mfi], 1);
-    cutcell_data.shielded_left_fractions_rel[d] =
-        MakePatchDataView((*level.shielded_left[d])[mfi], 1);
-    cutcell_data.shielded_right_fractions_rel[d] =
-        MakePatchDataView((*level.shielded_right[d])[mfi], 1);
-    cutcell_data.doubly_shielded_fractions_rel[d] =
-        MakePatchDataView((*level.doubly_shielded[d])[mfi], 1);
-  }
-  return cutcell_data;
+  return level.GetCutCellData(mfi);
 }
 
 const std::shared_ptr<::amrex::EBFArrayBoxFactory>&
@@ -209,8 +434,8 @@ PatchHierarchy::GetCounterRegistry() const noexcept {
   return registry_;
 }
 
-const std::shared_ptr<DebugStorage>& PatchHierarchy::GetDebugStorage() const
-    noexcept {
+const std::shared_ptr<DebugStorage>&
+PatchHierarchy::GetDebugStorage() const noexcept {
   return debug_storage_;
 }
 
@@ -218,9 +443,7 @@ fub::Duration const PatchHierarchy::GetStabledt() const noexcept {
   return stable_dt_;
 }
 
-void PatchHierarchy::SetStabledt(fub::Duration dt) {
-  stable_dt_ = dt;
-}
+void PatchHierarchy::SetStabledt(fub::Duration dt) { stable_dt_ = dt; }
 
 void PatchHierarchy::SetCounterRegistry(
     std::shared_ptr<CounterRegistry> registry) {
@@ -366,7 +589,8 @@ PatchHierarchy ReadCheckpointFile(const std::string& checkpointname,
 
     hierarchy.GetPatchLevel(lev) = PatchLevel(
         lev, Duration(time_points[static_cast<std::size_t>(lev)]), ba, dm,
-        desc.n_state_components, hierarchy.GetMFInfo(), std::move(eb_factory), ngrow - 1);
+        desc.n_state_components, hierarchy.GetMFInfo(),
+        hierarchy.GetGeometry(lev), std::move(eb_factory), ngrow - 1);
     hierarchy.GetPatchLevel(lev).cycles = cycles[static_cast<std::size_t>(lev)];
   }
 

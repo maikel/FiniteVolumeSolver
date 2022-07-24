@@ -22,6 +22,26 @@
 
 namespace fub {
 
+HGridIntegrationPoints<2> GetHGridIntegrationPoints(const CutCellData<2>& geom, Index<2> index, const Coordinates<2>& dx, Direction dir)
+{
+  HGridIntegrationPoints<2> integration_points{};
+  integration_points.iB = index;
+  integration_points.xB = GetAbsoluteBoundaryCentroid(geom, index, dx);
+  const auto d = static_cast<std::size_t>(dir);
+  for (int i = 0; i < HGridIntegrationPoints<2>::kMaxSources; ++i) {
+    integration_points.volume[i] = geom.hgrid_integration_points[d](index, i*5 + 0);
+    integration_points.xM[i][0] = geom.hgrid_integration_points[d](index, i*5 + 1);
+    integration_points.xM[i][1] = geom.hgrid_integration_points[d](index, i*5 + 2);
+
+    const double* ptr_x = &geom.hgrid_integration_points[d](index, i*5 + 3);
+    std::memcpy(&integration_points.index[i][0], ptr_x, sizeof(double));
+
+    const double* ptr_y = &geom.hgrid_integration_points[d](index, i*5 + 4);
+    std::memcpy(&integration_points.index[i][1], ptr_y, sizeof(double));
+  }
+  return integration_points;
+}
+
 Eigen::Vector2d GetBoundaryNormal(const CutCellData<2>& ccdata,
                                   const std::array<std::ptrdiff_t, 2>& index) {
   Eigen::Vector2d normal;
@@ -142,7 +162,7 @@ GetAbsoluteSinglyShieldedFromLeftVolumeCentroid(const CutCellData<2>& geom,
                                     const Index<2>& face, Side side,
                                     Direction dir, const Eigen::Vector2d& dx)
 {
-  const Index<2> iL = face;
+  const Index<2> iL = LeftTo(face, dir, 1);
   FUB_ASSERT(geom.volume_fractions(iL) < 1.0);
   Eigen::Vector2d xB = GetAbsoluteBoundaryCentroid(geom, iL, dx);
   const auto d = static_cast<std::size_t>(dir);

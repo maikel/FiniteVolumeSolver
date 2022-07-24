@@ -227,9 +227,11 @@ void GriddingAlgorithm::MakeNewLevelFromScratch(
                 .index_spaces[static_cast<std::size_t>(level)],
             hierarchy_.GetGeometry(level), box_array, balanced_distribution_map,
             {ngrow, ngrow, ngrow}, ::amrex::EBSupport::full);
-    hierarchy_.GetPatchLevel(level) = PatchLevel(
-        level, Duration(time_point), box_array, balanced_distribution_map,
-        n_comps, hierarchy_.GetMFInfo(), std::move(eb_factory), ngrow - 1);
+    hierarchy_.GetPatchLevel(level) =
+        PatchLevel(level, Duration(time_point), box_array,
+                   balanced_distribution_map, n_comps, hierarchy_.GetMFInfo(),
+                   hierarchy_.GetGeometry(level), std::move(eb_factory),
+                   ngrow - 1, hierarchy_.GetOptions().hgrid_details);
   }
 
   PatchLevel& patch_level = hierarchy_.GetPatchLevel(level);
@@ -257,7 +259,8 @@ void GriddingAlgorithm::MakeNewLevelFromCoarse(
           ::amrex::EBSupport::full);
   PatchLevel fine_level(level, Duration(time_point), box_array,
                         balanced_distribution_map, n_comps,
-                        hierarchy_.GetMFInfo(), std::move(factory), ngrow - 1);
+                        hierarchy_.GetMFInfo(), geom, std::move(factory),
+                        ngrow - 1, hierarchy_.GetOptions().hgrid_details);
   const int cons_start = hierarchy_.GetDataDescription().first_cons_component;
   const int n_cons_components =
       hierarchy_.GetDataDescription().n_cons_components;
@@ -293,7 +296,8 @@ void GriddingAlgorithm::RemakeLevel(
           ::amrex::EBSupport::full);
   PatchLevel new_level(level_number, Duration(time_point), box_array,
                        balanced_distribution_map, n_comps,
-                       hierarchy_.GetMFInfo(), std::move(factory), ngrow - 1);
+                       hierarchy_.GetMFInfo(), geom, std::move(factory),
+                       ngrow - 1, hierarchy_.GetOptions().hgrid_details);
   FillMultiFabFromLevel(new_level.data, level_number);
   hierarchy_.GetPatchLevel(level_number) = std::move(new_level);
   SetDistributionMap(level_number, balanced_distribution_map);

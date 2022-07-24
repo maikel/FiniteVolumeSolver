@@ -86,12 +86,14 @@ struct PatchLevel : ::fub::amrex::PatchLevel {
   /// \param[in] factory  the boundary informations for cut cells.
   PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
              const ::amrex::DistributionMapping& dm, int n_components,
-             const ::amrex::MFInfo& mf_info,
+             const ::amrex::MFInfo& mf_info, const ::amrex::Geometry& geom,
              std::shared_ptr<::amrex::EBFArrayBoxFactory> factory, int ngrow,
              GeometryDetails hgrid = GeometryDetails::standard);
 
   using MultiCutFabs =
       std::array<std::shared_ptr<::amrex::MultiCutFab>, AMREX_SPACEDIM>;
+
+  CutCellData<AMREX_SPACEDIM> GetCutCellData(const ::amrex::MFIter& mfi) const;
 
   /// \brief This stores the EB factory for this refinement level.
   std::shared_ptr<::amrex::EBFArrayBoxFactory> factory;
@@ -130,6 +132,8 @@ struct PatchHierarchyOptions : public ::fub::amrex::PatchHierarchyOptions {
         options, "cutcell_load_balance_weight", cutcell_load_balance_weight);
     remove_covered_grids =
         GetOptionOr(options, "remove_covered_grids", remove_covered_grids);
+    hgrid_details =
+        static_cast<GeometryDetails>(GetOptionOr(options, "hgrid_details", false));
   }
 
   template <typename Log> void Print(Log& log) {
@@ -138,12 +142,14 @@ struct PatchHierarchyOptions : public ::fub::amrex::PatchHierarchyOptions {
     BOOST_LOG(log) << " - cutcell_load_balance_weight = "
                    << cutcell_load_balance_weight;
     BOOST_LOG(log) << " - remove_covered_grids = " << remove_covered_grids;
+    BOOST_LOG(log) << " - hgrid_details = " << (hgrid_details == GeometryDetails::standard ? "false" : "true");
   }
 
   std::vector<const ::amrex::EB2::IndexSpace*> index_spaces{};
   int ngrow_eb_level_set{5};
   double cutcell_load_balance_weight{6.0};
   bool remove_covered_grids{true};
+  GeometryDetails hgrid_details{GeometryDetails::standard};
 };
 
 /// \ingroup PatchHierarchy

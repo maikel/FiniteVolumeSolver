@@ -294,6 +294,8 @@ struct StateTraits<Conservative<Eq>> : StateTraits<ConservativeBase<Eq>> {};
 template <typename Eq>
 struct Primitive : ScalarState<typename Eq::PrimitiveDepths> {
   using Base = ScalarState<typename Eq::PrimitiveDepths>;
+  using Equation = Eq;
+  using ValueType = double;
 
   using Base::Base;
 };
@@ -316,6 +318,8 @@ struct StateTraits<KineticState<Eq>>
 template <typename Eq>
 struct Characteristics : ScalarState<typename Eq::CharacteristicsDepths> {
   using Base = ScalarState<typename Eq::CharacteristicsDepths>;
+  using Equation = Eq;
+  using ValueType = double;
 
   using Base::Base;
 };

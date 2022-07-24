@@ -3,9 +3,9 @@ import math
 isRef = 0
 factor = 1
 
-final_time = 15e-4
+final_time = 1e-4
 
-max_cycles = [1, 0]
+max_cycles = [20, 0]
 mode = ['new', 'ref']
 originC = [0.035, 0.035 + 30.0 * final_time]
 
@@ -41,14 +41,12 @@ PatchHierarchy = {
   'remove_covered_grids': False,
   'blocking_factor': [n_cells_x, n_cells_y, 1],
   'n_proper': 1,
+  'hgrid_details': True
 }
 
-# reconstruction = "HLLE"
-# reconstruction = "ConservativeMinMod"
-# reconstruction = "ConservativeVanLeer"
-# reconstruction = "ConservativeNoGradient"
+# reconstruction = "NoReconstruction"
 reconstruction = "ConservativeReconstruction"
-initial_function = "Constant"
+initial_function = "Smooth"
 initial_data_jump = 0.0
 
 origin = originC[isRef]
@@ -58,20 +56,20 @@ Output = {
   'outputs': [
     {
     'type': 'Plotfile',
-    'directory': 'Debug_{}_{}x{}-{}/Plot/'.format(reconstruction, n_cells_x, n_cells_y, n_levels),
-    # 'intervals': [final_time],
+    'directory': 'Debug_{}_{}x{}-{}/Plot_cons/'.format(reconstruction, n_cells_x, n_cells_y, n_levels),
+    # 'intervals': [5e-5],
     'frequencies': [1] 
   },
   # {
   #   'type': 'DebugOutput',
   #   'directory': 'Debug_{}_{}x{}-{}/'.format(reconstruction, n_cells_x, n_cells_y, n_levels),
-  #   'intervals': [1e-4],
+  #   # 'intervals': [1e-4],
   #   'frequencies': [1] 
   # },
   {
     'type': 'HDF5',
     'path': 'ReferenceData/SlopedChannel_{}_{}_{}x{}-{}.h5'.format(mode[isRef], reconstruction, n_cells_x, n_cells_y, n_levels),
     'intervals': [final_time],
-    # 'frequencies': [1] 
+    'frequencies': [1] 
   }]
 }

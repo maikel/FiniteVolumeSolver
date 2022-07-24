@@ -61,95 +61,93 @@ struct WaveFunction {
     const std::shared_ptr<::amrex::EBFArrayBoxFactory>& factory =
         grid.GetPatchHierarchy().GetEmbeddedBoundary(level);
     const ::amrex::MultiFab& volfrac = factory->getVolFrac();
-    const auto& facecent = factory->getFaceCent();
-    const auto& bdrycent = factory->getBndryCent();
-    const auto& bdrynorm = factory->getBndryNormal();
-    FUB_ASSERT(facecent[0] && facecent[1]);
+    // const auto& facecent = factory->getFaceCent();
+    // const auto& bdrycent = factory->getBndryCent();
+    // const auto& bdrynorm = factory->getBndryNormal();
+    const auto& volcent = factory->getCentroid();
+    // FUB_ASSERT(facecent[0] && facecent[1]);
     fub::amrex::ForEachFab(
         fub::execution::openmp, data, [&](const ::amrex::MFIter& mfi) {
           ::amrex::FArrayBox& fab = data[mfi];
           const ::amrex::FArrayBox& alpha = volfrac[mfi];
-          const auto& fx = (*facecent[0])[mfi];
-          const auto& fy = (*facecent[1])[mfi];
-          const auto& fB = bdrycent[mfi];
-          const auto& bn = bdrynorm[mfi];
+          // const auto& fx = (*facecent[0])[mfi];
+          // const auto& fy = (*facecent[1])[mfi];
+          // const auto& fB = bdrycent[mfi];
+          // const auto& bn = bdrynorm[mfi];
+          const auto& vol = volcent[mfi];
           ::amrex::Box box = mfi.tilebox();
           auto states = fub::amrex::MakeView<fub::Complete<fub::PerfectGas<2>>>(
               fab, equation_, box);
           fub::amrex::ForEachIndex(box, [&](std::ptrdiff_t i,
                                             std::ptrdiff_t j) {
-            double xhi[2];
-            double xlo[2];
-            double yhi[2];
-            double ylo[2];
             const amrex::IntVect iv{int(i), int(j)};
-            geom.LoFace(iv, 0, xlo);
-            geom.HiFace(iv, 0, xhi);
-            geom.LoFace(iv, 1, ylo);
-            geom.HiFace(iv, 1, yhi);
-            // Coord xhi(geom.CellCenter(i, 0), geom.CellCenter(j, 1));
+            Coord xhi(geom.CellCenter(i, 0), geom.CellCenter(j, 1));
+            const double dx = geom.CellSize(0);
+            const double dy = geom.CellSize(1);
             fub::Array<double, 2, 1> u = u_0_ * direction_;
             double p = p_0_;
-            double rho = rho_0_;
-            if (alpha(iv) == 1.0) {
-              Coord x1{xlo[0], xlo[1]};
-              Coord x2{xhi[0], xhi[1]};
-              Coord x3{ylo[0], ylo[1]};
-              Coord x4{yhi[0], yhi[1]};
-              const double relative_x1 = (x1 - origin_).dot(direction_);
-              const double relative_x2 = (x2 - origin_).dot(direction_);
-              const double relative_x3 = (x3 - origin_).dot(direction_);
-              const double relative_x4 = (x4 - origin_).dot(direction_);
-              const double rho1 = initial_function(relative_x1, rho_0_, width_);
-              const double rho2 = initial_function(relative_x2, rho_0_, width_);
-              const double rho3 = initial_function(relative_x3, rho_0_, width_);
-              const double rho4 = initial_function(relative_x4, rho_0_, width_);
-              rho = (rho1 + rho2 + rho3 + rho4) / 4.0;
+            if (alpha(iv) > 0.0) {
+              // Coord x1{xlo[0], xlo[1]};
+              // Coord x2{xhi[0], xhi[1]};
+              // Coord x3{ylo[0], ylo[1]};
+              // Coord x4{yhi[0], yhi[1]};
+              Coord x{xhi[0] + vol(iv,0)*dx, xhi[1] + vol(iv,1)*dy};
+              // const double relative_x1 = (x1 - origin_).dot(direction_);
+              // const double relative_x2 = (x2 - origin_).dot(direction_);
+              // const double relative_x3 = (x3 - origin_).dot(direction_);
+              // const double relative_x4 = (x4 - origin_).dot(direction_);
+              const double relative_x = (x - origin_).dot(direction_);
+              // const double rho1 = initial_function(relative_x1, rho_0_, width_);
+              // const double rho2 = initial_function(relative_x2, rho_0_, width_);
+              // const double rho3 = initial_function(relative_x3, rho_0_, width_);
+              // const double rho4 = initial_function(relative_x4, rho_0_, width_);
+              // rho = (rho1 + rho2 + rho3 + rho4) / 4.0;
+              const double rho = initial_function(relative_x, rho_0_, width_);
               fub::Complete<fub::PerfectGas<2>> state =
                   equation_.CompleteFromPrim(rho, u, p);
               fub::Store(states, state, {i, j});
-            } else if (alpha(iv) > 0.0) {
-              geom.LoFace(iv, 0, xlo);
-              geom.HiFace(iv, 0, xhi);
-              geom.LoFace(iv, 1, ylo);
-              geom.HiFace(iv, 1, yhi);
-              amrex::IntVect ivxR = iv;
-              ivxR.shift({1, 0});
-              amrex::IntVect ivyR = iv;
-              ivyR.shift({0, 1});
-              double xlo_offset = fx(iv);
-              double xhi_offset = fx(ivxR);
-              double ylo_offset = fy(iv);
-              double yhi_offset = fy(ivyR);
-              double xb_offset = fB(iv, 0);
-              double yb_offset = fB(iv, 1);
-              const double dx = geom.CellSize(0);
-              const double dy = geom.CellSize(1);
-              Coord x1{xlo[0], xlo[1] + xlo_offset * dy};
-              Coord x2{xhi[0], xhi[1] + xhi_offset * dy};
-              Coord x3{ylo[0] + ylo_offset * dx, ylo[1]};
-              Coord x4{yhi[0] + yhi_offset * dx, yhi[1]};
-              Coord x5{geom.CellCenter(i, 0) + xb_offset * dx,
-                       geom.CellCenter(j, 1) + yb_offset * dy};
-              Coord n{bn(iv, 0), bn(iv, 1)};
+            // } else if (alpha(iv) > 0.0) {
+              // geom.LoFace(iv, 0, xlo);
+              // geom.HiFace(iv, 0, xhi);
+              // geom.LoFace(iv, 1, ylo);
+              // geom.HiFace(iv, 1, yhi);
+              // amrex::IntVect ivxR = iv;
+              // ivxR.shift({1, 0});
+              // amrex::IntVect ivyR = iv;
+              // ivyR.shift({0, 1});
+              // double xlo_offset = fx(iv);
+              // double xhi_offset = fx(ivxR);
+              // double ylo_offset = fy(iv);
+              // double yhi_offset = fy(ivyR);
+              // double xb_offset =   fB(iv, 0);
+              // double yb_offset = fB(iv, 1);
+              // const double dx = geom.CellSize(0);
+              // const double dy = geom.CellSize(1);
+              // Coord x1{xlo[0], xlo[1] + xlo_offset * dy};
+              // Coord x2{xhi[0], xhi[1] + xhi_offset * dy};
+              // Coord x3{ylo[0] + ylo_offset * dx, ylo[1]};
+              // Coord x4{yhi[0] + yhi_offset * dx, yhi[1]};
+              // Coord x5{geom.CellCenter(i, 0) + xb_offset * dx,
+              //          geom.CellCenter(j, 1) + yb_offset * dy};
+              // Coord n{bn(iv, 0), bn(iv, 1)};
 
-              std::array<Coord, 5> xs{x1, x2, x3, x4, x5};
-              std::array<double, 5> rel_x{};
-              int rel_n = 0;
-              for (int i = 0; i < 5; ++i) {
-                if ((xs[i] - x5).dot(n) <= 0.0) {
-                  rel_x[rel_n] = (xs[i] - origin_).dot(direction_);
-                  rel_n += 1;
-                }
-              }
-              rho = 0.0;
-              for (int i = 0; i < rel_n; ++i) {
-                rho +=
-                    initial_function(rel_x[i], rho_0_, width_) / double(rel_n);
-              }
-              fub::Complete<fub::PerfectGas<2>> state =
-                  equation_.CompleteFromPrim(rho, u, p);
-              fub::Store(states, state, {i, j});
+              // std::array<Coord, 5> xs{x1, x2, x3, x4, x5};
+              // std::array<double, 5> rel_x{};
+              // int rel_n = 0;
+              // for (int i = 0; i < 5; ++i) {
+              //   if ((xs[i] - x5).dot(n) <= 0.0) {
+              //     rel_x[rel_n] = (xs[i] - origin_).dot(direction_);
+              //     rel_n += 1;
+              //   }
+              // }
+              // rho = 0.0;
+              // for (int i = 0; i < rel_n; ++i) {
+              //   rho +=
+              //       initial_function(rel_x[i], rho_0_, width_) / double(rel_n);
+              // }
+              // fub::Complete<fub::PerfectGas<2>> state =
+              //     equation_.CompleteFromPrim(rho, u, p);
+              // fub::Store(states, state, {i, j});
             } else {
               for (int comp = 0; comp < fab.nComp(); ++comp) {
                 fab(iv, comp) = 0.0;
@@ -180,7 +178,7 @@ auto Plane(const Eigen::Vector2d& p0, const Eigen::Vector2d& p1) {
 
 using FactoryFunction =
     std::function<fub::AnyFluxMethod<fub::amrex::cutcell::IntegratorContext>(
-        const fub::PerfectGas<2>&)>;
+        const fub::PerfectGas<2>&, fub::AnyLimiter<2>)>;
 
 template <typename... Pairs> auto GetFluxMethodFactory(Pairs... ps) {
   std::map<std::string, FactoryFunction> factory;
@@ -190,8 +188,8 @@ template <typename... Pairs> auto GetFluxMethodFactory(Pairs... ps) {
 
 template <typename FluxMethod> struct MakeFlux {
   fub::AnyFluxMethod<fub::amrex::cutcell::IntegratorContext>
-  operator()(const fub::PerfectGas<2>& eq) const {
-    fub::MyCutCellMethod<fub::PerfectGas<2>, FluxMethod> cutcell_method(eq);
+  operator()(const fub::PerfectGas<2>& eq, fub::AnyLimiter<2> limiter) const {
+    fub::MyCutCellMethod<fub::PerfectGas<2>, FluxMethod> cutcell_method(eq, std::move(limiter));
     fub::amrex::cutcell::FluxMethod adapter(std::move(cutcell_method));
     return adapter;
   }
@@ -229,6 +227,7 @@ void MyMain(const fub::ProgramOptions& opts) {
 
   auto embedded_boundary =
       ::amrex::EB2::makeUnion(Plane(p0, p1), Plane(q1, q0));
+      // Plane(p0, p1);
   auto shop = amrex::EB2::makeShop(embedded_boundary);
   hier_opts.index_spaces = MakeIndexSpaces(shop, geometry, hier_opts);
 
@@ -238,6 +237,12 @@ void MyMain(const fub::ProgramOptions& opts) {
   using HLLE =
       fub::HllMethod<Equation, fub::EinfeldtSignalVelocities<Equation>>;
 
+  using NoReconstruction = fub::FluxMethod<fub::MusclHancock2<
+      Equation,
+      fub::PrimitiveGradient<
+          Equation, fub::CentralDifferenceGradient<fub::UpwindLimiter>>,
+      fub::PrimitiveReconstruction<Equation>, HLLE>>;
+
   using ConservativeReconstruction = fub::FluxMethod<fub::MusclHancock2<
       Equation,
       fub::ConservativeGradient<
@@ -245,15 +250,25 @@ void MyMain(const fub::ProgramOptions& opts) {
       fub::ConservativeReconstruction<Equation>, HLLE>>;
 
 
+  std::map<std::string, fub::AnyLimiter<2>> limiters{};
+  limiters["Upwind"] = fub::UpwindMdLimiter<2>{};
+  limiters["NoLimiter"] = fub::NoMdLimiter<2>{};
+  std::string limitername = fub::GetOptionOr(opts, "limiter", "Upwind"s);
+  BOOST_LOG(log) << "Limiter: " << limitername;
+  fub::AnyLimiter<2>& limiter = limiters.at(limitername);
+
   auto flux_method_factory = GetFluxMethodFactory(
+      std::pair{"NoReconstruction"s,
+                MakeFlux<NoReconstruction>()},
       std::pair{"ConservativeReconstruction"s,
                 MakeFlux<ConservativeReconstruction>()});
   // std::pair{"Characteristics"s, MakeFlux<CharacteristicReconstruction>()});
 
   std::string reconstruction =
-      fub::GetOptionOr(opts, "reconstruction", "Characteristics"s);
+      fub::GetOptionOr(opts, "reconstruction", "NoReconstruction"s);
   BOOST_LOG(log) << "Reconstruction: " << reconstruction;
-  auto flux_method = flux_method_factory.at(reconstruction)(equation);
+  auto flux_method = flux_method_factory.at(reconstruction)(equation, std::move(limiter));
+
 
   const double relative_origin = fub::GetOptionOr(opts, "origin", 0.035);
   const Coord origin{relative_origin * cos(theta),
@@ -278,8 +293,15 @@ void MyMain(const fub::ProgramOptions& opts) {
   fub::Complete<fub::PerfectGas<2>> stateR = equation.CompleteFromPrim(
       initial_data.rho_0_ + jump, u, initial_data.p_0_);
 
+  using fub::amrex::cutcell::TransmissiveBoundary;
   using fub::amrex::cutcell::ConstantBoundary;
   using fub::amrex::cutcell::ReflectiveBoundary;
+
+  // fub::amrex::cutcell::BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
+  //                                 TransmissiveBoundary{fub::Direction::X, 1},
+  //                                 TransmissiveBoundary{fub::Direction::Y, 0},
+  //                                 TransmissiveBoundary{fub::Direction::Y, 1}}};
+
   fub::amrex::cutcell::BoundarySet boundary_condition{
       {ConstantBoundary<fub::PerfectGas<2>>{fub::Direction::X, 0, equation,
                                             stateL},
@@ -289,7 +311,7 @@ void MyMain(const fub::ProgramOptions& opts) {
                                             stateL},
        ConstantBoundary<fub::PerfectGas<2>>{fub::Direction::Y, 1, equation,
                                             stateR}}};
-  // auto seq = fub::execution::seq;
+  // // auto seq = fub::execution::seq;
   // fub::amrex::cutcell::BoundarySet boundary_condition{
   //     {ReflectiveBoundary{seq, equation, fub::Direction::X, 0},
   //      ReflectiveBoundary{seq, equation, fub::Direction::X, 1},
@@ -312,8 +334,8 @@ void MyMain(const fub::ProgramOptions& opts) {
                                                Reconstruction{equation}};
 
   const int base_gcw = flux_method.GetStencilWidth();
-  const int scratch_gcw = base_gcw + 1;
-  const int flux_gcw = 0;
+  const int scratch_gcw = 2*base_gcw + 1;
+  const int flux_gcw = 2;
   using fub::amrex::cutcell::IntegratorContext;
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<2>, IntegratorContext(gridding, method, scratch_gcw, flux_gcw),
@@ -343,7 +365,6 @@ void MyMain(const fub::ProgramOptions& opts) {
   run_options.Print(log);
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }
-
 int main(int argc, char** argv) {
   MPI_Init(nullptr, nullptr);
   fub::InitializeLogging(MPI_COMM_WORLD);

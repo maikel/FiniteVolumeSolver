@@ -150,6 +150,10 @@ using ComputeCutCellFluxes =
     decltype(std::declval<T>().ComputeCutCellFluxes(std::declval<Args>()...));
 
 template <typename T, typename... Args>
+using ComputeRegularFluxes =
+    decltype(std::declval<T>().ComputeRegularFluxes(std::declval<Args>()...));
+
+template <typename T, typename... Args>
 using ComputeGradients =
     decltype(std::declval<T>().ComputeGradients(std::declval<Args>()...));
 } // namespace detail
@@ -199,20 +203,19 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
             MakeView<const Complete<Equation>>(scratch[mfi], equation, box);
         auto refs =
             MakeView<const Complete<Equation>>(references[mfi], equation, box);
-        auto refs_mirror =
-            MakeView<const Complete<Equation>>(reference_mirror_states[mfi], equation, box);
+        auto refs_mirror = MakeView<const Complete<Equation>>(
+            reference_mirror_states[mfi], equation, box);
         auto masks = MakePatchDataView(reference_masks[mfi], 0, box);
-        flux_method_->ComputeBoundaryFluxes(boundary_flux, states, refs,
-                                            refs_mirror, masks,
-                                            geom, dt, dx, dir);
+        flux_method_->ComputeBoundaryFluxes(
+            boundary_flux, states, refs, refs_mirror, masks, geom, dt, dx, dir);
       }
     });
   }
 
   if constexpr (is_detected<
-                    detail::ComputeGradients, FM&, View<Conservative<Equation>>,
-                    View<Conservative<Equation>>, View<Conservative<Equation>>,
-                    View<const Conservative<Equation>>,
+                    detail::ComputeGradients, FM&, View<typename FM::Gradient>,
+                    View<typename FM::Gradient>, View<typename FM::Gradient>,
+                    View<const Complete<Equation>>,
                     StridedDataView<const char, AMREX_SPACEDIM>,
                     CutCellData<AMREX_SPACEDIM>,
                     Eigen::Matrix<double, AMREX_SPACEDIM, 1>>::value) {
@@ -235,13 +238,13 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
         auto flags = MakePatchDataView(limiter_flags[mfi], 0, box);
         const Equation& equation = flux_method_->GetEquation();
         auto states =
-            MakeView<const Conservative<Equation>>(scratch[mfi], equation, box);
+            MakeView<const Complete<Equation>>(scratch[mfi], equation, box);
         auto grad_x =
-            MakeView<Conservative<Equation>>(gradient_x[mfi], equation, box);
+            MakeView<typename FM::Gradient>(gradient_x[mfi], equation, box);
         auto grad_y =
-            MakeView<Conservative<Equation>>(gradient_y[mfi], equation, box);
+            MakeView<typename FM::Gradient>(gradient_y[mfi], equation, box);
         auto grad_z =
-            MakeView<Conservative<Equation>>(gradient_z[mfi], equation, box);
+            MakeView<typename FM::Gradient>(gradient_z[mfi], equation, box);
         flux_method_->ComputeGradients(grad_x, grad_y, grad_z, states, flags,
                                        geom, dx_vec);
       }
@@ -273,7 +276,27 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
     const ::amrex::FabType type = context.GetFabType(level, mfi);
     if (type == ::amrex::FabType::singlevalued) {
       CutCellData<AMREX_SPACEDIM> geom = hierarchy.GetCutCellData(level, mfi);
-      {
+      if constexpr (is_detected<detail::ComputeRegularFluxes, FM&,
+                                View<Conservative<Equation>>,
+                                View<const Complete<Equation>>,
+                                View<const typename FM::Gradient>,
+                                View<const typename FM::Gradient>,
+                                View<const typename FM::Gradient>,
+                                CutCellData<AMREX_SPACEDIM>, Duration, double,
+                                Direction>::value) {
+        auto flux =
+            MakeView<Conservative<Equation>>(fluxes[mfi], equation, face_box);
+        auto states = MakeView<const Complete<Equation>>(scratch[mfi], equation,
+                                                         cell_box);
+        auto grad_x = MakeView<const typename FM::Gradient>(
+            gradient_x[mfi], equation, cell_box);
+        auto grad_y = MakeView<const typename FM::Gradient>(
+            gradient_y[mfi], equation, cell_box);
+        auto grad_z = MakeView<const typename FM::Gradient>(
+            gradient_z[mfi], equation, cell_box);
+        flux_method_->ComputeRegularFluxes(flux, states, grad_x, grad_y, grad_z,
+                                           geom, dt, dx, dir);
+      } else {
         auto flux =
             MakeView<Conservative<Equation>>(fluxes[mfi], equation, face_box);
         auto states = MakeView<const Complete<Equation>>(scratch[mfi], equation,
@@ -300,25 +323,25 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
                                 View<Conservative<Equation>>,
                                 View<Conservative<Equation>>,
                                 PatchDataView<double, AMREX_SPACEDIM + 1>,
-                                View<const Conservative<Equation>>,
-                                View<const Conservative<Equation>>,
-                                View<const Conservative<Equation>>,
+                                View<const typename FM::Gradient>,
+                                View<const typename FM::Gradient>,
+                                View<const typename FM::Gradient>,
                                 View<const Complete<Equation>>,
                                 CutCellData<AMREX_SPACEDIM>, Duration,
                                 Eigen::Matrix<double, AMREX_SPACEDIM, 1>,
                                 Direction>::value) {
         auto flux =
             MakeView<Conservative<Equation>>(fluxes[mfi], equation, face_box);
-        auto grad_x = MakeView<const Conservative<Equation>>(
+        auto grad_x = MakeView<const typename FM::Gradient>(
             gradient_x[mfi], equation, cell_box);
-        auto grad_y = MakeView<const Conservative<Equation>>(
+        auto grad_y = MakeView<const typename FM::Gradient>(
             gradient_y[mfi], equation, cell_box);
-        auto grad_z = MakeView<const Conservative<Equation>>(
+        auto grad_z = MakeView<const typename FM::Gradient>(
             gradient_z[mfi], equation, cell_box);
         auto flux_B_ref = MakePatchDataView(boundary_massflows[mfi]);
-        flux_method_->ComputeCutCellFluxes(flux_s, flux_sL, flux_sR, flux_ds,
-                                           flux, flux_B, flux_B_ref, grad_x, grad_y, grad_z,
-                                           states, geom, dt, dx_vec, dir);
+        flux_method_->ComputeCutCellFluxes(
+            flux_s, flux_sL, flux_sR, flux_ds, flux, flux_B, flux_B_ref, grad_x,
+            grad_y, grad_z, states, geom, dt, dx_vec, dir);
       } else {
         auto flux = MakeView<const Conservative<Equation>>(fluxes[mfi],
                                                            equation, face_box);

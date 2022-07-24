@@ -8,42 +8,6 @@
 #include <array>
 
 namespace fub {
-// This struct computes indices that are used to integrator mirror data on an
-// embedded boundary. This mirror data is being used in the first order
-// reconstruction of the half time step approximation.
-template <int Rank> class AuxiliaryReconstructionData {
-public:
-  AuxiliaryReconstructionData(const Index<Rank>& index,
-                              const CutCellData<Rank>& geom,
-                              const Coordinates<Rank>& dx, Direction dir);
-
-  AuxiliaryReconstructionData(const Index<Rank>& index,
-                              const CutCellData<Rank>& geom,
-                              const Coordinates<Rank>& dx, Direction dir,
-                              double total_length);
-
-  std::array<AuxiliaryReconstructionData, 2> SplitAt(double length);
-
-  span<const Index<Rank>> GetSources() const noexcept;
-  span<const double> GetStarts() const noexcept;
-  span<const double> GetEnds() const noexcept;
-
-  const Coordinates<Rank>& GetSlope() const noexcept;
-  const Coordinates<Rank>& GetVolumeCentroid() const noexcept;
-
-private:
-  static constexpr int kMaxSources = 6;
-  AuxiliaryReconstructionData() = default;
-
-  std::array<Index<Rank>, kMaxSources> sources{};
-  std::array<double, kMaxSources> start{};
-  std::array<double, kMaxSources> end{};
-
-  int n_sources{};
-
-  Coordinates<Rank> slope{};
-  Coordinates<Rank> xB{};
-};
 
 struct HGridReconstruction {
   struct PatchData {

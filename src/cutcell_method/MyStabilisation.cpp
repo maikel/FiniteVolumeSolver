@@ -270,7 +270,7 @@ void BasicHGridReconstruction<Rank>::LimitGradients(
     const CutCellData<Rank>& geom, const Coordinates<Rank>& dx) const {
   ForEachIndex(u.Box(), [&](auto... is) {
     if (needs_limiter(is...) && geom.volume_fractions(is...) > 0.0) {
-      LimitGradientsAtIndex(grad_u, u, geom, {is...}, dx);
+      limiter_.LimitGradientsAtIndex(grad_u, u, geom, {is...}, dx);
     }
   });
 }
@@ -297,7 +297,26 @@ bool IsConnected(const CutCellData<Rank>& geom, const Index<Rank>& i,
 }
 
 template <int Rank>
-void BasicHGridReconstruction<Rank>::LimitGradientsAtIndex(
+void NoMdLimiter<Rank>::LimitGradientsAtIndex(
+    const std::array<StridedDataView<double, Rank>, Rank>&,
+    StridedDataView<const double, Rank>, const CutCellData<Rank>&,
+    const Index<Rank>&, const Coordinates<Rank>&) const {}
+
+template struct NoMdLimiter<2>;
+
+template <int Rank>
+void UpwindMdLimiter<Rank>::LimitGradientsAtIndex(
+    const std::array<StridedDataView<double, Rank>, Rank>& grad_u,
+    StridedDataView<const double, Rank>, const CutCellData<Rank>&,
+    const Index<Rank>& index, const Coordinates<Rank>&) const {
+  grad_u[0](index) = 0.0;
+  grad_u[1](index) = 0.0;
+}
+
+template struct UpwindMdLimiter<2>;
+
+template <int Rank>
+void LinearOptimizationLimiter<Rank>::LimitGradientsAtIndex(
     const std::array<StridedDataView<double, Rank>, Rank>& grad_u,
     StridedDataView<const double, Rank> u, const CutCellData<Rank>& geom,
     const Index<Rank>& index, const Coordinates<Rank>& dx) const {

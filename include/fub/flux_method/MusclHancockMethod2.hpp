@@ -33,10 +33,12 @@
 
 namespace fub {
 template <
-    typename Equation, typename GradientMethod = ConservativeGradient<Equation>,
+    typename Equation, typename GradientMethodT = ConservativeGradient<Equation>,
     typename ReconstructionMethod = ConservativeReconstruction<Equation>,
     typename BaseMethod = GodunovMethod<Equation, ExactRiemannSolver<Equation>>>
 struct MusclHancock2 {
+  using GradientMethod = GradientMethodT;
+
   using Complete = typename Equation::Complete;
   using Conservative = typename Equation::Conservative;
   using Gradient = typename GradientMethod::Gradient;
@@ -104,6 +106,9 @@ struct MusclHancock2 {
   Equation& GetEquation() noexcept { return equation_; }
 
   const BaseMethod& GetBaseMethod() const noexcept { return flux_method_; }
+
+  const GradientMethod& GetGradientMethod() const noexcept { return gradient_method_; }
+  GradientMethod& GetGradientMethod() noexcept { return gradient_method_; }
 
   const ReconstructionMethod& GetReconstruction() const noexcept { return reconstruction_method_; }
   ReconstructionMethod& GetReconstruction() noexcept { return reconstruction_method_; }
