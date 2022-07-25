@@ -681,6 +681,18 @@ void Store(const BasicView<Conservative<Eq>, Layout, Eq::Rank()>& view,
 }
 
 template <typename Eq, typename Layout>
+void Store(const BasicView<Primitive<Eq>, Layout, Eq::Rank()>& view,
+           const Primitive<Eq>& state,
+           const std::array<std::ptrdiff_t, Eq::Rank()>& index) {
+  ForEachComponent(
+      [&](auto data, auto block) {
+        FUB_ASSERT(Contains(data.Box(), index));
+        Store(data, block, index);
+      },
+      view, state);
+}
+
+template <typename Eq, typename Layout>
 void Store(const BasicView<Complete<Eq>, Layout, Eq::Rank()>& view,
            const Complete<Eq>& state,
            const std::array<std::ptrdiff_t, Eq::Rank()>& index) {
@@ -803,6 +815,21 @@ ViewPointer<State> End(const BasicView<State, Layout, Rank>& view) {
 template <typename Eq>
 void Load(Complete<Eq>& state,
           nodeduce_t<ViewPointer<const Complete<Eq>>> pointer) {
+  ForEachVariable(
+      overloaded{[](double& x, const double* p) { x = *p; },
+                 [](auto& xs, std::pair<const double*, std::ptrdiff_t> ps) {
+                   const double* p = ps.first;
+                   for (std::size_t i = 0; i < xs.size(); ++i) {
+                     xs[i] = *p;
+                     p += ps.second;
+                   }
+                 }},
+      state, pointer);
+}
+
+template <typename Eq>
+void Load(Primitive<Eq>& state,
+          nodeduce_t<ViewPointer<const Primitive<Eq>>> pointer) {
   ForEachVariable(
       overloaded{[](double& x, const double* p) { x = *p; },
                  [](auto& xs, std::pair<const double*, std::ptrdiff_t> ps) {

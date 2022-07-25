@@ -578,7 +578,7 @@ void DebugStorage::FlushData(const std::string& directory, int cycle,
     int partition_counter = 0;
     for (auto&& [hierarchy, names, geoms] : hiers_tuple) {
       const std::string plotfilename =
-          fmt::format("{}/{}/partition_{}_plt{:09}", directory,
+          fmt::format("{}/{}/partition_{}/plt{:09}", directory,
                       snapshot_directory, partition_counter, cycle_);
       const auto size = static_cast<std::size_t>(hierarchy.size());
       ::amrex::Vector<const ::amrex::MultiFab*> mf(size);

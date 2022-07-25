@@ -351,7 +351,7 @@ void MyMain(const fub::ProgramOptions& opts) {
   fub::OutputFactory<GriddingAlgorithm> factory{};
   factory.RegisterOutput<Plotfile>("Plotfile", equation);
   factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
-  factory.RegisterOutput<fub::amrex::cutcell::WriteHdf5>("HDF5");
+  factory.RegisterOutput<fub::amrex::cutcell::WriteHdf5>("HDF5", fub::VarNames<fub::Complete<fub::PerfectGas<2>>, std::vector<std::string>>(equation));
   factory.RegisterOutput<fub::amrex::cutcell::DebugOutput>(
       "DebugOutput",
       solver.GetGriddingAlgorithm()->GetPatchHierarchy().GetDebugStorage());
