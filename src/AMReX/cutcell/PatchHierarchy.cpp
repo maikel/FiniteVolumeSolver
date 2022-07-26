@@ -182,7 +182,35 @@ Polygon_2 GetHGridPolygonAtBoundary(const CutCellData<2>& geom,
   CGAL::convex_hull_2(points.begin(), points.end(),
                       std::back_inserter(polygon));
 
+  if (polygon.size() < 3) {
+    return Polygon_2{};
+  }
   return polygon;
+}
+
+Point_2 Centroid(const Polygon_2& polygon)
+{
+  FUB_ASSERT(polygon.size() >= 3);
+  auto pRef = polygon.vertices_begin();
+  auto p1 = std::next(pRef);
+  auto p2 = std::next(p1);
+  K::FT total_area = 0;
+  K::FT total_center_x = 0;
+  K::FT total_center_y = 0;
+  while (p2 != polygon.vertices_end())
+  {
+    CGAL::Triangle_2<K> triangle(*pRef, *p1, *p2);
+    const K::FT area = triangle.area();
+    const Point_2 center = CGAL::centroid(triangle);
+    total_center_x += area * center[0];
+    total_center_y += area * center[1];
+    total_area += area;
+    ++p1;
+    ++p2;
+  }
+  total_center_x /= total_area;
+  total_center_y /= total_area;
+  return Point_2{total_center_x, total_center_y};
 }
 
 HGridIntegrationPoints<AMREX_SPACEDIM>
@@ -213,13 +241,10 @@ ComputeIntegrationPoints(const Index<AMREX_SPACEDIM>& index,
                          std::back_inserter(intersections));
       FUB_ASSERT(intersections.size() == 1);
       integration.index[count] = i;
-      Eigen::Vector2d xM = Eigen::Vector2d::Zero();
-      for (const Point_2& p : intersections[0].outer_boundary()) {
-        const double px = p[0].exact().convert_to<double>();
-        const double py = p[1].exact().convert_to<double>();
-        xM += Eigen::Vector2d{px, py};
-      }
-      xM /= intersections[0].outer_boundary().size();
+      Point_2 center = Centroid(intersections[0].outer_boundary());
+      const double px = center[0].exact().convert_to<double>();
+      const double py = center[1].exact().convert_to<double>();
+      Eigen::Vector2d xM{px, py};
       integration.xM[count] = xM;
       integration.volume[count] =
           intersections[0].outer_boundary().area().exact().convert_to<double>();

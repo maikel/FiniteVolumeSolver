@@ -472,7 +472,21 @@ DebugSnapshotProxy
 DebugStorage::AddSnapshot(const std::string& snapshot_directory) {
   if (is_enabled_) {
     DebugSnapshot& snapshot = saved_snapshots_.emplace_back();
-    snapshot.SetSnapshotDirectory(snapshot_directory);
+    bool is_modified = false;
+    int counter = 0;
+    std::string dir = snapshot_directory;
+    do {
+      is_modified = false;
+      for (DebugSnapshot& snap : saved_snapshots_) {
+        if (snap.GetSnapshotDirectory() == dir) {
+          is_modified = true;
+          snap.SetSnapshotDirectory(fmt::format("{}-{}", snapshot_directory, counter));
+          counter += 1;
+          dir = fmt::format("{}-{}", snapshot_directory, counter);
+        }
+      }
+    } while (is_modified);
+    snapshot.SetSnapshotDirectory(dir);
     DebugSnapshotProxy snapshotproxy(snapshot);
     return snapshotproxy;
   }

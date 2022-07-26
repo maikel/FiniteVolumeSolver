@@ -226,19 +226,23 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
     gradient_x.define(ba, dm, ncons, ngrow);
     gradient_y.define(ba, dm, ncons, ngrow);
     gradient_z.define(ba, dm, ncons, ngrow);
+    gradient_x.setVal(0.0);
+    gradient_y.setVal(0.0);
+    gradient_z.setVal(0.0);
     ::amrex::TagBoxArray limiter_flags(ba, dm, ngrow);
-    ::amrex::TagCutCells(limiter_flags, context.GetData(level));
-    TagBuffer(2).TagCellsForRefinement(limiter_flags);
+    limiter_flags.setVal(1);
+    // ::amrex::TagCutCells(limiter_flags, context.GetData(level));
+    // TagBuffer(2).TagCellsForRefinement(limiter_flags);
 
     ForEachFab(Tag(), scratch, [&](const ::amrex::MFIter& mfi) {
-      const ::amrex::Box box = mfi.growntilebox();
+      const ::amrex::Box box = mfi.growntilebox(scratch.nGrow() - 1);
+      const ::amrex::Box sbox = scratch[mfi].box() & ::amrex::grow(box, 1);
       const ::amrex::FabType type = context.GetFabType(level, mfi);
       if (type == ::amrex::FabType::singlevalued) {
         CutCellData<AMREX_SPACEDIM> geom = hierarchy.GetCutCellData(level, mfi);
         auto flags = MakePatchDataView(limiter_flags[mfi], 0, box);
         const Equation& equation = flux_method_->GetEquation();
-        auto states =
-            MakeView<const Complete<Equation>>(scratch[mfi], equation, box);
+        auto states = MakeView<const Complete<Equation>>(scratch[mfi], equation, sbox);
         auto grad_x =
             MakeView<typename FM::Gradient>(gradient_x[mfi], equation, box);
         auto grad_y =
@@ -254,7 +258,7 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
     const ::amrex::Geometry& geom = hierarchy.GetGeometry(level);
     const Equation& equation = flux_method_->GetEquation();
     const auto names =
-        VarNames<Conservative<Equation>, ::amrex::Vector<std::string>>(
+        VarNames<typename FM::Gradient, ::amrex::Vector<std::string>>(
             equation);
     DebugSnapshotProxy snapshot =
         debug.AddSnapshot(fmt::format("Gradients_{}", int(dir)));

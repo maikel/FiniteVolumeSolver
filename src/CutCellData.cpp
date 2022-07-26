@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #include "fub/CutCellData.hpp"
+#include "fub/PatchDataView.hpp"
 
 namespace fub {
 
@@ -142,8 +143,8 @@ GetAbsoluteSinglyShieldedFromRightVolumeCentroid(const CutCellData<2>& geom,
                                     const Index<2>& face, Side side,
                                     Direction dir, const Eigen::Vector2d& dx)
 {
-  const Index<2> iR = Shift(face, dir, 1);
-  FUB_ASSERT(geom.volume_fractions(iR) < 1.0);
+  const Index<2> iR = RightTo(face, dir);
+  FUB_ASSERT(IsCutCell(geom, iR));
   Eigen::Vector2d xB = GetAbsoluteBoundaryCentroid(geom, iR, dx);
   const auto d = static_cast<std::size_t>(dir);
   FUB_ASSERT(geom.shielded_right_fractions[d](face) > 0.0);
@@ -163,7 +164,7 @@ GetAbsoluteSinglyShieldedFromLeftVolumeCentroid(const CutCellData<2>& geom,
                                     Direction dir, const Eigen::Vector2d& dx)
 {
   const Index<2> iL = LeftTo(face, dir, 1);
-  FUB_ASSERT(geom.volume_fractions(iL) < 1.0);
+  FUB_ASSERT(IsCutCell(geom, iL));
   Eigen::Vector2d xB = GetAbsoluteBoundaryCentroid(geom, iL, dx);
   const auto d = static_cast<std::size_t>(dir);
   FUB_ASSERT(geom.shielded_left_fractions[d](face) > 0.0);

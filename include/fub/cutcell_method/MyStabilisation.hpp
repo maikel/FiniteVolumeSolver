@@ -340,7 +340,7 @@ struct HGridReconstruction
 
       ForEachVariable(
           [&](auto&& y, auto&& dy, const auto& xL, const auto& dxL) {
-            y = (1.0 - alpha) * (xL + alpha * dx[d] * dxL);
+            y = (1.0 - alpha) * (xL + 0.5 * alpha * dx[d] * dxL);
             dy = (1.0 - alpha) * dxL;
           },
           integral_scratch_, integral_gradient, scratch_, grads[d]);
@@ -348,7 +348,7 @@ struct HGridReconstruction
       const Coordinates<Rank> xC = GetAbsoluteVolumeCentroid(geom, index, dx);
       const Coordinates<Rank> xCssR =
           xLssR +
-          0.5 * (1.0 - alpha) * dx[d] * Eigen::Matrix<double, Rank, 1>::Unit(d);
+          0.5 * (1.0 + alpha) * dx[d] * Eigen::Matrix<double, Rank, 1>::Unit(d);
       Load(gradient_[0], gradient_x, index);
       Load(gradient_[1], gradient_y, index);
       Load(gradient_[2], gradient_z, index);
@@ -362,7 +362,7 @@ struct HGridReconstruction
             y += alpha * xR;
             dy += alpha * dxR;
           },
-          integral_scratch_, integral_gradient, state_, grads[d]);
+          integral_scratch_, integral_gradient, scratch_, grads[d]);
 
       CompleteFromGradient(integral, integral_scratch_);
 
@@ -387,7 +387,7 @@ struct HGridReconstruction
 
       ForEachVariable(
           [&](auto&& y, auto&& dy, const auto& xR, const auto& dxR) {
-            y = (1.0 - alpha) * (xR + alpha * dx[d] * dxR);
+            y = (1.0 - alpha) * (xR - 0.5 * alpha * dx[d] * dxR);
             dy = (1.0 - alpha) * dxR;
           },
           integral_scratch_, integral_gradient, scratch_, grads[d]);
@@ -395,7 +395,7 @@ struct HGridReconstruction
       const Coordinates<Rank> xC = GetAbsoluteVolumeCentroid(geom, index, dx);
       const Coordinates<Rank> xCssR =
           xRssR -
-          0.5 * (1.0 - alpha) * dx[d] * Eigen::Matrix<double, Rank, 1>::Unit(d);
+          0.5 * (1.0 + alpha) * dx[d] * Eigen::Matrix<double, Rank, 1>::Unit(d);
       Load(gradient_[0], gradient_x, index);
       Load(gradient_[1], gradient_y, index);
       Load(gradient_[2], gradient_z, index);
@@ -426,11 +426,16 @@ struct HGridReconstruction
                           const View<const Gradient>& gradient_z,
                           const CutCellData<Rank>& geom,
                           const HGridIntegrationPoints<Rank>& integration,
-                          const Coordinates<Rank>& dx, Direction dir) {
+                          const Coordinates<Rank>& h, Direction dir) {
     const double total_volume = std::accumulate(integration.volume.begin(),
                                                 integration.volume.end(), 0.0);
+    if (total_volume == 0.0) {
+      return false;
+    }
     SetZero(integral_scratch_);
     SetZero(integral_gradient);
+    std::array<Gradient, 3> total_grads{Gradient(equation_), Gradient(equation_), Gradient(equation_)};
+    Coordinates<Rank> total_xM = Coordinates<Rank>::Zero();
     for (std::size_t i = 0;
          i < HGridIntegrationPoints<Rank>::kMaxSources && integration.volume[i]; ++i) {
       FUB_ASSERT(integration.volume[i] > 0);
@@ -441,37 +446,52 @@ struct HGridReconstruction
         Load(gradient_[1], gradient_y, index);
         Load(gradient_[2], gradient_z, index);
         span<const Gradient, Rank> grads{gradient_.data(), Rank};
-        const Coordinates<Rank> xC = GetAbsoluteVolumeCentroid(geom, index, dx);
+        const Coordinates<Rank> xC = GetAbsoluteVolumeCentroid(geom, index, h);
         const Coordinates<Rank> xM = integration.xM[i];
         const Coordinates<Rank> dx = xM - xC;
         ApplyGradient(gradient_dir_, grads, dx);
         Load(state_, states, index);
         GradientFromComplete(scratch_, state_);
         scratch_ += gradient_dir_;
-        const Coordinates<Rank> e_d =
-            Eigen::Matrix<double, Rank, 1>::Unit(int(dir));
-        const Coordinates<Rank> xN = GetBoundaryNormal(geom, index);
-        const Coordinates<Rank> e_r = e_d - 2.0 * xN.dot(e_d) * xN;
-        ApplyGradient(gradient_dir_, grads, e_r);
         const double volume = integration.volume[i];
+        const double lambda = volume / total_volume;
+        total_xM += lambda * xM;
         ForEachVariable(
-            [volume, total_volume](auto&& u, auto&& grad_u, auto&& u_0,
-                                   auto&& grad_u_0) {
-              u += volume / total_volume * u_0;
-              grad_u += volume / total_volume * grad_u_0;
+            [lambda](auto&& u, auto&& gradx_u, auto&& grady_u, auto&& gradz_u, auto&& u_0,
+                                   auto&& gradx_u_0, auto&& grady_u_0, auto&& gradz_u_0) {
+              u += lambda * u_0;
+              gradx_u += lambda * gradx_u_0;
+              grady_u += lambda * grady_u_0;
+              gradz_u += lambda * gradz_u_0;
             },
-            integral_scratch_, integral_gradient, scratch_, gradient_dir_);
+            integral_scratch_, total_grads[0], total_grads[1], total_grads[2], scratch_, gradient_[0], gradient_[1], gradient_[2]);
       } else {
         return false;
       }
     }
+    const Coordinates<Rank> xN = GetBoundaryNormal(geom, integration.iB);
+    const Coordinates<Rank> xB = GetAbsoluteBoundaryCentroid(geom, integration.iB, h);
+    const Coordinates<Rank> e_d = Eigen::Matrix<double, Rank, 1>::Unit(int(dir));
+    const Coordinates<Rank> e_r = e_d - 2.0 * xN.dot(e_d) * xN;
+    const int sign = (xN[int(dir)] > 0) - (xN[int(dir)] < 0);
+    const Coordinates<Rank> x0 = xB - sign * 0.5 * h[int(dir)] * e_r;
+    const Coordinates<Rank> dx = x0 - total_xM;
+    span<const Gradient, Rank> grads{total_grads.data(), Rank};
+    ApplyGradient(gradient_dir_, grads, dx);
+    integral_scratch_ += gradient_dir_;
     CompleteFromGradient(integral, integral_scratch_);
+    ApplyGradient(integral_gradient, grads, e_r);
     return true;
   }
 
   void ComputeGradients(span<Gradient, 2> gradient,
                         span<const Complete, 4> states,
                         span<const Coordinates<Rank>, 4> x) {
+    std::array<Gradient, 4> states_as_gradient_type;
+    states_as_gradient_type.fill(Gradient(equation_));
+    for (int i = 0; i < states.size(); ++i) {
+      GradientFromComplete(states_as_gradient_type[i], states[size_t(i)]);
+    }
     ForEachComponent(
         [&](double& grad_x, double& grad_y, double uM, double u1, double u2,
             double u3) {
@@ -481,12 +501,17 @@ struct HGridReconstruction
           grad_x = grad[0];
           grad_y = grad[1];
         },
-        gradient[0], gradient[1], states[0], states[1], states[2], states[3]);
+        gradient[0], gradient[1], states_as_gradient_type[0], states_as_gradient_type[1], states_as_gradient_type[2], states_as_gradient_type[3]);
   }
 
   void ComputeGradients(span<Gradient, 2> gradient,
                         span<const Complete, 5> states,
                         span<const Coordinates<Rank>, 5> x) {
+    std::array<Gradient, 4> states_as_gradient_type;
+    states_as_gradient_type.fill(Gradient(equation_));
+    for (int i = 0; i < states.size(); ++i) {
+      GradientFromComplete(states_as_gradient_type[i], states[size_t(i)]);
+    }
     ForEachComponent(
         [&](double& grad_x, double& grad_y, double uM, double u1, double u2,
             double u3, double u4) {
@@ -496,8 +521,8 @@ struct HGridReconstruction
           grad_x = grad[0];
           grad_y = grad[1];
         },
-        gradient[0], gradient[1], states[0], states[1], states[2], states[3],
-        states[4]);
+        gradient[0], gradient[1], states_as_gradient_type[0], states_as_gradient_type[1], states_as_gradient_type[2], states_as_gradient_type[3],
+        states_as_gradient_type[4]);
   }
 
   void ComputeGradients(const View<Gradient>& gradient_x,
@@ -512,9 +537,9 @@ struct HGridReconstruction
       std::array<Gradient, 2> gradient{Gradient{equation_}, Gradient{equation_}};
       std::array<Complete, 5> u;
       u.fill(Complete{equation_});
-      const IndexBox<Rank> box =
-          Shrink(Shrink(Box<0>(gradient_x), Direction::X, {1, 1}), Direction::Y,
-                 {1, 1});
+      const IndexBox<Rank> box = Box<0>(gradient_x);
+      FUB_ASSERT(box == Box<0>(gradient_y));
+      FUB_ASSERT(box == Box<0>(gradient_z));
       ForEachIndex(box, [&](int i, int j) {
         ////////////////////////////////////////////////
         // All regular case
@@ -690,7 +715,7 @@ struct HGridReconstruction
       ForEachComponent(
           [&](double& Q_l, double& dQ_l, double Q_b, double dQ_b, double Q_i,
               double dQ_i) {
-            Q_l = (1 - alpha) * (Q_b + alpha * dx[d] * dQ_b) + alpha * Q_i;
+            Q_l = (1 - alpha) * (Q_b + 0.5 * alpha * dx[d] * dQ_b) + alpha * Q_i;
             dQ_l = (1 - alpha) * dQ_b + alpha * dQ_i;
           },
           integral_scratch_,
@@ -735,12 +760,12 @@ struct HGridReconstruction
       ForEachComponent(
           [&](double& Q_r, double& dQ_r, double Q_b, double dQ_b, double Q_i,
               double dQ_i) {
-            Q_r = (1 - alpha) * (Q_b + alpha * dx[d] * dQ_b) + alpha * Q_i;
-            dQ_r = (1 - alpha) * dQ_b + alpha * dQ_i;
+            Q_r = (1.0 - alpha) * (Q_b - 0.5 * alpha * dx[d] * dQ_b) + alpha * Q_i;
+            dQ_r = (1.0 - alpha) * dQ_b + alpha * dQ_i;
           },
           integral_scratch_,
           h_grid_singly_shielded_gradients[1], boundary_gradient_,
-          h_grid_eb_gradients[1], state_, gradient_[d]);
+          h_grid_eb_gradients[1], scratch_, gradient_[d]);
       CompleteFromGradient(h_grid_singly_shielded[1], integral_scratch_);
     }
   }
@@ -869,16 +894,12 @@ struct HGridReconstruction
     Reflect(boundary_gradient_, boundary_gradient_, normal, equation_);
 
     if (betaL < betaR) {
-      ForEachComponent([](auto&& u) { u *= -1.0; }, boundary_gradient_);
-
       CompleteFromCons(equation_, h_grid_embedded_boundary[0], boundary_state_);
       h_grid_embedded_boundary_slopes[0] = boundary_gradient_;
       CompleteFromCons(equation_, h_grid_embedded_boundary[1], interior_state_);
       h_grid_embedded_boundary_slopes[1] = interior_gradient_;
 
     } else if (betaR < betaL) {
-      ForEachComponent([](auto&& u) { u *= -1.0; }, interior_gradient_);
-
       CompleteFromCons(equation_, h_grid_embedded_boundary[1], boundary_state_);
       h_grid_embedded_boundary_slopes[1] = boundary_gradient_;
       CompleteFromCons(equation_, h_grid_embedded_boundary[0], interior_state_);
