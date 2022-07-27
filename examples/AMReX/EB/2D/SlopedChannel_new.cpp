@@ -237,10 +237,10 @@ void MyMain(const fub::ProgramOptions& opts) {
   using HLLE =
       fub::HllMethod<Equation, fub::EinfeldtSignalVelocities<Equation>>;
 
-  using NoReconstruction = fub::FluxMethod<fub::MusclHancock2<
+  using PrimitiveReconstruction = fub::FluxMethod<fub::MusclHancock2<
       Equation,
       fub::PrimitiveGradient<
-          Equation, fub::CentralDifferenceGradient<fub::UpwindLimiter>>,
+          Equation, fub::CentralDifferenceGradient<fub::NoLimiter2>>,
       fub::PrimitiveReconstruction<Equation>, HLLE>>;
 
   using ConservativeReconstruction = fub::FluxMethod<fub::MusclHancock2<
@@ -258,14 +258,14 @@ void MyMain(const fub::ProgramOptions& opts) {
   fub::AnyLimiter<2>& limiter = limiters.at(limitername);
 
   auto flux_method_factory = GetFluxMethodFactory(
-      std::pair{"NoReconstruction"s,
-                MakeFlux<NoReconstruction>()},
+      std::pair{"PrimitiveReconstruction"s,
+                MakeFlux<PrimitiveReconstruction>()},
       std::pair{"ConservativeReconstruction"s,
                 MakeFlux<ConservativeReconstruction>()});
   // std::pair{"Characteristics"s, MakeFlux<CharacteristicReconstruction>()});
 
   std::string reconstruction =
-      fub::GetOptionOr(opts, "reconstruction", "NoReconstruction"s);
+      fub::GetOptionOr(opts, "reconstruction", "PrimitiveReconstruction"s);
   BOOST_LOG(log) << "Reconstruction: " << reconstruction;
   auto flux_method = flux_method_factory.at(reconstruction)(equation, std::move(limiter));
 
@@ -339,7 +339,7 @@ void MyMain(const fub::ProgramOptions& opts) {
   using fub::amrex::cutcell::IntegratorContext;
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<2>, IntegratorContext(gridding, method, scratch_gcw, flux_gcw),
-      fub::GodunovSplitting());
+      fub::StrangSplitting());
 
   // fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
   fub::NoSubcycleSolver solver(std::move(level_integrator));
@@ -365,6 +365,7 @@ void MyMain(const fub::ProgramOptions& opts) {
   run_options.Print(log);
   fub::RunSimulation(solver, run_options, wall_time_reference, output);
 }
+
 int main(int argc, char** argv) {
   MPI_Init(nullptr, nullptr);
   fub::InitializeLogging(MPI_COMM_WORLD);
