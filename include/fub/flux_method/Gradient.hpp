@@ -23,6 +23,7 @@
 
 #include "fub/Direction.hpp"
 #include "fub/State.hpp"
+#include "fub/StateUtil.hpp"
 #include "fub/StateArray.hpp"
 #include "fub/equations/EulerEquation.hpp"
 
@@ -69,10 +70,11 @@ private:
   Limiter limiter_;
 };
 
-template <typename Equation,
+template <typename EquationT,
           typename GradientMethod = CentralDifferenceGradient<MinModLimiter>>
 class ConservativeGradient {
 public:
+  using Equation = EquationT;
   using Complete = ::fub::Complete<Equation>;
   using CompleteArray = ::fub::CompleteArray<Equation>;
   using Conservative = ::fub::Conservative<Equation>;
@@ -97,6 +99,8 @@ public:
   void ComputeGradient(GradientArray& dudx, span<const CompleteArray, 3> q,
                        double dx, Direction dir);
 
+  const Equation& GetEquation() const noexcept { return equation_; }
+
 private:
   Equation equation_{};
   Conservative dudx_L_{equation_};
@@ -110,6 +114,7 @@ template <typename EulerEquation,
           typename GradientMethod = CentralDifferenceGradient<MinModLimiter>>
 class PrimitiveGradient {
 public:
+  using Equation = EulerEquation;
   using Complete = ::fub::Complete<EulerEquation>;
   using CompleteArray = ::fub::CompleteArray<EulerEquation>;
   using Primitive = ::fub::Primitive<EulerEquation>;
@@ -134,6 +139,8 @@ public:
 
   void ComputeGradient(GradientArray& dudx, span<const CompleteArray, 3> q,
                        double dx, Direction dir);
+
+  const Equation& GetEquation() const noexcept { return equation_; }
 
 private:
   EulerEquation equation_{};
