@@ -56,7 +56,7 @@ void MyStab_ComputeStableFluxComponents(
     const PatchDataView<const double, 3, layout_stride>& boundary_fluxes,
     const CutCellData<3>& geom, Duration dt, double dx, Direction dir);
 
-template <typename EquationT, typename FluxMethod>
+template <typename EquationT, typename FluxMethod, typename HGridRec>
 class MyCutCellMethod : public FluxMethod {
 public:
   using Equation = EquationT;
@@ -86,8 +86,8 @@ public:
   /// Constructs a CutCell method from a given base flux method.
   ///
   /// This constructor uses a default constructed riemann problem solver.
-  MyCutCellMethod(const Equation& equation, AnyLimiter<Rank> limiter);
-  MyCutCellMethod(const Equation& equation, const FluxMethod& flux_method,
+  MyCutCellMethod(const Equation& equation, HGridRec rec, AnyLimiter<Rank> limiter);
+  MyCutCellMethod(const Equation& equation, HGridRec rec, const FluxMethod& flux_method,
                   AnyLimiter<Rank> limiter);
 
   using FluxMethod::ComputeStableDt;
@@ -178,7 +178,7 @@ private:
 
   Equation equation_;
   MdGradients<GradientMethod> md_gradient_method_;
-  HGridReconstruction<Equation, Gradient> h_grid_reconstruction_;
+  HGridRec h_grid_reconstruction_;
 
   std::array<Complete, 2> h_grid_eb_{};
   std::array<Gradient, 2> h_grid_eb_gradients_{};
@@ -205,17 +205,17 @@ private:
 
 // IMPLEMENTATION
 
-template <typename Equation, typename FluxMethod>
-MyCutCellMethod<Equation, FluxMethod>::MyCutCellMethod(const Equation& eq,
+template <typename Equation, typename FluxMethod, typename HGridRec>
+MyCutCellMethod<Equation, FluxMethod, HGridRec>::MyCutCellMethod(const Equation& eq, HGridRec hgrid_rec,
                                                        AnyLimiter<Rank> limiter)
-    : MyCutCellMethod(eq, FluxMethod(eq), std::move(limiter)) {}
+    : MyCutCellMethod(eq, std::move(hgrid_rec), FluxMethod(eq), std::move(limiter)) {}
 
-template <typename Equation, typename FluxMethod>
-MyCutCellMethod<Equation, FluxMethod>::MyCutCellMethod(
-    const Equation& eq, const FluxMethod& flux_method, AnyLimiter<Rank> limiter)
+template <typename Equation, typename FluxMethod, typename HGridRec>
+MyCutCellMethod<Equation, FluxMethod, HGridRec>::MyCutCellMethod(
+    const Equation& eq, HGridRec hgrid_rec, const FluxMethod& flux_method, AnyLimiter<Rank> limiter)
     : FluxMethod(flux_method), equation_(eq),
       md_gradient_method_(FluxMethod::GetGradientMethod(), std::move(limiter)),
-      h_grid_reconstruction_(eq) {
+      h_grid_reconstruction_(std::move(hgrid_rec)) {
   h_grid_eb_.fill(Complete(equation_));
   h_grid_eb_gradients_.fill(Gradient(equation_));
   h_grid_singly_shielded_.fill(Complete(equation_));
@@ -225,8 +225,8 @@ MyCutCellMethod<Equation, FluxMethod>::MyCutCellMethod(
   stencil_array_.fill(CompleteArray(equation_));
 }
 
-template <typename Equation, typename FluxMethod>
-void MyCutCellMethod<Equation, FluxMethod>::IntegrateInTime(
+template <typename Equation, typename FluxMethod, typename HGridRec>
+void MyCutCellMethod<Equation, FluxMethod, HGridRec>::IntegrateInTime(
     [[maybe_unused]] const View<const Complete>& states,
     [[maybe_unused]] const Index<Rank>& index,
     [[maybe_unused]] const CutCellData<Rank>& geom,
@@ -253,8 +253,8 @@ void MyCutCellMethod<Equation, FluxMethod>::IntegrateInTime(
   // ForEachVariable([&](auto&& next, auto&& prev, ) {});
 }
 
-template <typename Equation, typename FluxMethod>
-void MyCutCellMethod<Equation, FluxMethod>::ComputeCutCellFlux(
+template <typename Equation, typename FluxMethod, typename HGridRec>
+void MyCutCellMethod<Equation, FluxMethod, HGridRec>::ComputeCutCellFlux(
     const View<const Complete>& states, span<View<const Gradient>, 3> gradients,
     const Index<Rank>& index, const CutCellData<Rank>& geom,
     const Coordinates<Rank>& dx, Duration dt, Direction dir) {
@@ -309,8 +309,8 @@ void MyCutCellMethod<Equation, FluxMethod>::ComputeCutCellFlux(
                                  dir);
 }
 
-template <typename Equation, typename FluxMethod>
-void MyCutCellMethod<Equation, FluxMethod>::Integrate(
+template <typename Equation, typename FluxMethod, typename HGridRec>
+void MyCutCellMethod<Equation, FluxMethod, HGridRec>::Integrate(
     Complete& state, const View<const Complete>& states,
     span<View<const Gradient>, 3> gradients, const Index<Rank>& index,
     const CutCellData<Rank>& geom, const Coordinates<Rank>& dx, Duration dt,
@@ -321,8 +321,8 @@ void MyCutCellMethod<Equation, FluxMethod>::Integrate(
   IntegrateInTime(state, states, geom, index, dx, dt, dir);
 }
 
-template <typename Equation, typename FluxMethod>
-void MyCutCellMethod<Equation, FluxMethod>::ReconstructOnBoundary(
+template <typename Equation, typename FluxMethod, typename HGridRec>
+void MyCutCellMethod<Equation, FluxMethod, HGridRec>::ReconstructOnBoundary(
     Complete& state, const View<const Complete>& states,
     span<View<const Gradient>, 3> gradients, const Index<Rank>& index,
     const CutCellData<Rank>& geom, const Coordinates<Rank>& dx, Duration dt) {
@@ -331,8 +331,8 @@ void MyCutCellMethod<Equation, FluxMethod>::ReconstructOnBoundary(
   // InterpolateToBoundary(state, states, gradients, index, geom, dx);
 }
 
-template <typename Equation, typename FluxMethod>
-void MyCutCellMethod<Equation, FluxMethod>::ComputeReferenceState(
+template <typename Equation, typename FluxMethod, typename HGridRec>
+void MyCutCellMethod<Equation, FluxMethod, HGridRec>::ComputeReferenceState(
     const View<Complete>& references, const View<const Complete>& states,
     span<View<const Gradient>, 3> gradients, const Index<Rank>& index,
     const CutCellData<Rank>& geom, const Coordinates<Rank>& dx, Duration dt) {
@@ -348,8 +348,8 @@ void MyCutCellMethod<Equation, FluxMethod>::ComputeReferenceState(
   Store(references, solution_, index);
 }
 
-template <typename Equation, typename FluxMethod>
-void MyCutCellMethod<Equation, FluxMethod>::PreAdvanceSplitStep(
+template <typename Equation, typename FluxMethod, typename HGridRec>
+void MyCutCellMethod<Equation, FluxMethod, HGridRec>::PreAdvanceSplitStep(
     const View<Complete>& references, const View<Gradient>& gradient_x,
     const View<Gradient>& gradient_y, const View<Gradient>& gradient_z,
     const View<const Complete>& states, const CutCellData<Rank>& geom,
@@ -371,8 +371,8 @@ void MyCutCellMethod<Equation, FluxMethod>::PreAdvanceSplitStep(
 
 /// \todo compute stable dt inside of cutcells, i.e. in the reflection with
 /// their boundary state.
-template <typename Equation, typename FluxMethod>
-double MyCutCellMethod<Equation, FluxMethod>::ComputeStableDt(
+template <typename Equation, typename FluxMethod, typename HGridRec>
+double MyCutCellMethod<Equation, FluxMethod, HGridRec>::ComputeStableDt(
     const View<const Complete>& states, const CutCellData<Rank>& geom,
     double dx, Direction dir) {
   double min_dt = std::numeric_limits<double>::infinity();
@@ -443,8 +443,8 @@ double MyCutCellMethod<Equation, FluxMethod>::ComputeStableDt(
   return min_dt;
 }
 
-template <typename Equation, typename FluxMethod>
-void MyCutCellMethod<Equation, FluxMethod>::ComputeRegularFluxes(
+template <typename Equation, typename FluxMethod, typename HGridRec>
+void MyCutCellMethod<Equation, FluxMethod, HGridRec>::ComputeRegularFluxes(
     const View<Conservative>& fluxes, const View<const Complete>& states,
     const View<const Gradient>& gradient_x,
     const View<const Gradient>& gradient_y,
@@ -645,8 +645,8 @@ void MyCutCellMethod<Equation, FluxMethod>::ComputeRegularFluxes(
 //   });
 // }
 
-template <typename Equation, typename FluxMethod>
-void MyCutCellMethod<Equation, FluxMethod>::ComputeCutCellFluxes(
+template <typename Equation, typename FluxMethod, typename HGridRec>
+void MyCutCellMethod<Equation, FluxMethod, HGridRec>::ComputeCutCellFluxes(
     const View<Conservative>& stabilised_fluxes,
     const View<Conservative>& shielded_left_fluxes,
     const View<Conservative>& shielded_right_fluxes,

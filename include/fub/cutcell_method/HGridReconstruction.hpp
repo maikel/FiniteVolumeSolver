@@ -129,6 +129,14 @@ public:
                                  Eigen::Matrix<double, Rank, 1> dx,
                                  Direction dir);
 
+  HGridIntegration<Equation, GradientT>& GetHGridIntegration() noexcept {
+    return hgrid_integration_;
+  }
+
+  const HGridIntegration<Equation, GradientT>& GetHGridIntegration() const noexcept {
+    return hgrid_integration_;
+  }
+
 private:
   Equation equation_;
   HGridIntegration<Equation, GradientT> hgrid_integration_{equation_};
