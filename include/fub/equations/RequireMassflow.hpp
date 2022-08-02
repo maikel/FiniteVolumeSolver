@@ -20,7 +20,56 @@ struct RequireMassflow_SolveExactRiemannProblem {
                   const Complete<EulerEquation>& source,
                   double required_massflow, double relative_surface_area,
                   Direction dir) const;
-  
+
+  // Compute a left state
+  template <typename EulerEquation>
+  void operator()(EulerEquation& eq, Primitive<EulerEquation>& left,
+                  double rhoL_star, double u_star, double p_star, double pL, Direction dir)
+  {
+    const double gamma = eq.gamma;
+    const double gp1 = gamma + 1.0;
+    const double gm1 = gamma - 1.0;
+    const double oogm1 = 1.0 / gm1;
+    const double gm1_over_gp1 = gm1 / gp1;
+    const double p_star_over_pL = p_star / pL;
+    const double rhoL_shock = rhoL_star * (gm1_over_gp1 * p_star_over_pL + 1.0) / (gm1_over_gp1 + p_star_over_pL);
+    const double rhoL_rarefaction = rhoL_star / std::pow(p_star_over_pL, 1.0 / gamma);
+    
+    // Toro p.122 f_L for the case: left wave is shock wave
+    static auto f_shock = [&](double p) {
+      const double A = 2.0 / (gp1 * rhoL_shock);
+      const double B = pL * gm1_over_gp1;
+      const double ooQ = std::sqrt(A / (p + B));
+      return (p - pL) * ooQ;
+    };
+
+    // Toro p.122 eq(4.21) u_L for the case: left wave is shock wave
+    static auto u_shock = [&](double p) {
+      return u_star + f_shock(p);
+    };
+
+    // Toro p.123 f_L for the case: left wave is rarefaction wave
+    static auto f_rarefaction = [&](double p) {
+      const double aL = std::sqrt(gamma * pL / rhoL_rarefaction);
+      const double pre_coeff = 2.0 * aL * oogm1;
+      const double p_rel = p / pL;
+      const double exponent = gm1 / 2.0 / gamma;
+      return pre_coeff * (std::pow(p_rel, exponent) - 1.0);
+    };
+
+    // Toro p.123 eq(4.26) u_L for the case: left wave is rarefaction wave
+    static auto u_rarefaction = [&](double p) {
+      return u_star + f_rarefaction(p);
+    };
+    
+    const double rhoL = p_star > pL ? rhoL_shock : rhoL_rarefaction;
+    const double uL = p_star > pL ? u_shock(p_star) : u_rarefaction(p_star);
+
+    left.density = rhoL;
+    left.velocity[int(dir)] = uL;
+    left.pressure = pL; 
+  }
+
   template <typename EulerEquation>
   void operator()(EulerEquation& eq, Conservative<EulerEquation>& expanded,
                   const Conservative<EulerEquation>& source,

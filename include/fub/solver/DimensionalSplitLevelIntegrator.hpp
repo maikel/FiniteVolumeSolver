@@ -232,6 +232,8 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::
       }
       count_split_steps += 1;
 
+      Context::PreSplitStep(this_level, split_dt, dir, subcycle);
+
       // Check stable time step size and if the CFL condition is violated then
       // restart the coarse time step
       const Duration local_dt = Context::ComputeStableDt(this_level, dir);

@@ -135,6 +135,7 @@ public:
   /// \brief Returns the MultiFab associated with flux data on the specifed
   /// level number and direction.
   [[nodiscard]] ::amrex::MultiCutFab& GetBoundaryFluxes(int level);
+  [[nodiscard]] ::amrex::MultiCutFab& GetBoundaryFluxes(int level, Direction dir);
   [[nodiscard]] ::amrex::MultiCutFab& GetBoundaryMassflow(int level);
 
   /// \brief Returns the MultiFab associated with flux data on the specifed
@@ -226,6 +227,8 @@ public:
   void PreAdvanceHierarchy();
   void PostAdvanceHierarchy();
 
+  void PreSplitStep(int level, Duration dt, Direction dir, std::pair<int, int> subcycle);
+
   /// \brief On each first subcycle this will regrid the data if neccessary.
   int PreAdvanceLevel(int level_num, Duration dt, std::pair<int, int> subcycle);
 
@@ -316,7 +319,7 @@ private:
     ::amrex::MultiFab scratch{};
 
     /// fluxes for the embedded boundary
-    std::unique_ptr<::amrex::MultiCutFab> boundary_fluxes{};
+    std::array<std::unique_ptr<::amrex::MultiCutFab>, AMREX_SPACEDIM> boundary_fluxes{};
     std::unique_ptr<::amrex::MultiCutFab> boundary_massflow{};
 
     ///////////////////////////////////////////////////////////////////////////

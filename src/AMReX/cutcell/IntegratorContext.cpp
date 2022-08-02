@@ -92,8 +92,8 @@ IntegratorContext::LevelData::LevelData(const LevelData& other)
 ////////////////////////////////////////////////////////////////////////////////
 //                                                      Copy Assignment Operator
 
-IntegratorContext::LevelData& IntegratorContext::LevelData::
-operator=(const LevelData& other) {
+IntegratorContext::LevelData&
+IntegratorContext::LevelData::operator=(const LevelData& other) {
   if (other.coarse_fine.fineLevel() > 0) {
     // If we do not invoke clear in beforehand it will throw an error in AMReX
     coarse_fine.clear();
@@ -145,8 +145,8 @@ operator=(const LevelData& other) {
 ////////////////////////////////////////////////////////////////////////////////
 //                                                      Move Assignment Operator
 
-IntegratorContext::LevelData& IntegratorContext::LevelData::
-operator=(LevelData&& other) noexcept {
+IntegratorContext::LevelData&
+IntegratorContext::LevelData::operator=(LevelData&& other) noexcept {
   if (other.coarse_fine.fineLevel() > 0) {
     // If we do not invoke clear in beforehand it will throw an error in AMReX
     coarse_fine.clear();
@@ -227,8 +227,8 @@ IntegratorContext::IntegratorContext(const IntegratorContext& other)
                                     *other.gridding_)},
       data_{}, method_{other.method_} {}
 
-IntegratorContext& IntegratorContext::IntegratorContext::
-operator=(const IntegratorContext& other) {
+IntegratorContext& IntegratorContext::IntegratorContext::operator=(
+    const IntegratorContext& other) {
   // We use the copy and move idiom to provide the strong exception guarantee.
   // If an exception occurs we do not change the original object.
   IntegratorContext tmp{other};
@@ -294,7 +294,14 @@ const ::amrex::MultiFab& IntegratorContext::GetScratch(int level) const {
 
 ::amrex::MultiCutFab& IntegratorContext::GetBoundaryFluxes(int level) {
   const std::size_t l = static_cast<std::size_t>(level);
-  return *data_[l].boundary_fluxes;
+  return *data_[l].boundary_fluxes[0];
+}
+
+::amrex::MultiCutFab& IntegratorContext::GetBoundaryFluxes(int level,
+                                                           Direction dir) {
+  const std::size_t d = static_cast<std::size_t>(dir);
+  const std::size_t l = static_cast<std::size_t>(level);
+  return *data_[l].boundary_fluxes[d];
 }
 
 ::amrex::MultiCutFab& IntegratorContext::GetBoundaryMassflow(int level) {
@@ -370,8 +377,8 @@ IntegratorContext::GetEmbeddedBoundary(int level) const {
   return *GetPatchHierarchy().GetEmbeddedBoundary(level);
 }
 
-const HyperbolicMethod& IntegratorContext::GetHyperbolicMethod() const
-    noexcept {
+const HyperbolicMethod&
+IntegratorContext::GetHyperbolicMethod() const noexcept {
   return method_;
 }
 
@@ -386,19 +393,19 @@ double IntegratorContext::GetDx(int level, Direction dir) const noexcept {
   return GetPatchHierarchy().GetGeometry(level).CellSize(int(dir));
 }
 
-int IntegratorContext::GetRatioToCoarserLevel(int level, Direction dir) const
-    noexcept {
+int IntegratorContext::GetRatioToCoarserLevel(int level,
+                                              Direction dir) const noexcept {
   return GetPatchHierarchy().GetRatioToCoarserLevel(level, dir);
 }
 
-::amrex::IntVect IntegratorContext::GetRatioToCoarserLevel(int level) const
-    noexcept {
+::amrex::IntVect
+IntegratorContext::GetRatioToCoarserLevel(int level) const noexcept {
   return GetPatchHierarchy().GetRatioToCoarserLevel(level);
 }
 
-::amrex::FabType IntegratorContext::GetFabType(int level,
-                                               const ::amrex::MFIter& mfi) const
-    noexcept {
+::amrex::FabType
+IntegratorContext::GetFabType(int level,
+                              const ::amrex::MFIter& mfi) const noexcept {
   return GetPatchHierarchy()
       .GetEmbeddedBoundary(level)
       ->getMultiEBCellFlagFab()[mfi]
@@ -471,8 +478,8 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
                           options_.scratch_gcw, options_.scratch_gcw);
       }
       data.reference_states = std::move(refs);
-      refs.define(ba, dm, n_components, options_.scratch_gcw,
-                             ::amrex::MFInfo(), *ebf);
+      refs.define(ba, dm, n_components, options_.scratch_gcw, ::amrex::MFInfo(),
+                  *ebf);
       if (data.reference_mirror_states) {
         refs.ParallelCopy(*data.reference_mirror_states, 0, 0, n_components,
                           options_.scratch_gcw, options_.scratch_gcw);
@@ -482,14 +489,17 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
       data.reference_masks->setVal(0);
     }
 
-    data.boundary_fluxes = std::make_unique<::amrex::MultiCutFab>(
-        ba, dm, n_cons_components, options_.scratch_gcw,
-        ebf->getMultiEBCellFlagFab());
+    for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+      data.boundary_fluxes[d] = std::make_unique<::amrex::MultiCutFab>(
+          ba, dm, n_cons_components, options_.scratch_gcw,
+          ebf->getMultiEBCellFlagFab());
+    }
 
     data.boundary_massflow = std::make_unique<::amrex::MultiCutFab>(
         ba, dm, AMREX_SPACEDIM, options_.scratch_gcw,
         ebf->getMultiEBCellFlagFab());
-    data.boundary_massflow->setVal(std::numeric_limits<double>::signaling_NaN());
+    data.boundary_massflow->setVal(
+        std::numeric_limits<double>::signaling_NaN());
 
     data.scratch.define(ba, dm, n_components, options_.scratch_gcw);
     ::amrex::IntVect grow(options_.scratch_gcw);
@@ -765,6 +775,13 @@ void IntegratorContext::UpdateConservatively(int level, Duration dt,
         "cutcell::IntegratorContext::UpdateConservatively({})", level));
   }
   method_.time_integrator.UpdateConservatively(*this, level, dt, dir);
+}
+
+void IntegratorContext::PreSplitStep(int level, Duration dt, Direction dir, std::pair<int, int> subcycle)
+{
+  Timer timer = GetCounterRegistry()->get_timer(
+      "cutcell::IntegratorContext::PreSplitStep");
+  method_.flux_method.PreSplitStep(*this, level, dt, dir, subcycle);
 }
 
 int IntegratorContext::PreAdvanceLevel(int level_num, Duration dt,

@@ -55,6 +55,7 @@ template <typename IntegratorContext> struct FluxMethodBase {
   virtual ~FluxMethodBase() = default;
   virtual std::unique_ptr<FluxMethodBase> Clone() const = 0;
   virtual void PreAdvanceHierarchy(IntegratorContext& context) = 0;
+  virtual void PreSplitStep(IntegratorContext& context, int level, Duration dt, Direction dir, std::pair<int, int> subcycle) = 0;
   virtual Duration ComputeStableDt(IntegratorContext& context, int level,
                                    Direction dir) = 0;
   virtual void ComputeNumericFluxes(IntegratorContext& context, int level,
@@ -136,6 +137,8 @@ public:
                            Direction dir);
 
   void PreAdvanceHierarchy(IntegratorContext& context);
+
+  void PreSplitStep(IntegratorContext& context, int level, Duration dt, Direction dir, std::pair<int, int> subcycle);
 
   void ComputeNumericFluxes(IntegratorContext& context, int level, Duration dt,
                             Direction dir);
@@ -294,6 +297,12 @@ void AnyFluxMethod<IntegratorContext>::PreAdvanceHierarchy(
 }
 
 template <typename IntegratorContext>
+void AnyFluxMethod<IntegratorContext>::PreSplitStep(IntegratorContext& context, int level, Duration dt, Direction dir, std::pair<int, int> subcycle)
+{
+  flux_method_->PreSplitStep(context, level, dt, dir, subcycle);
+}
+
+template <typename IntegratorContext>
 Duration
 AnyFluxMethod<IntegratorContext>::ComputeStableDt(IntegratorContext& context,
                                                   int level, Direction dir) {
@@ -315,6 +324,10 @@ namespace detail {
 template <typename I, typename... Args>
 using PreAdvanceHierarchyT =
     decltype(std::declval<I>().PreAdvanceHierarchy(std::declval<Args>()...));
+
+template <typename I, typename... Args>
+using PreSplitStepT =
+    decltype(std::declval<I>().PreSplitStep(std::declval<Args>()...));
 
 template <typename IntegratorContext, typename I>
 struct FluxMethodWrapper : FluxMethodBase<IntegratorContext> {
@@ -338,6 +351,13 @@ struct FluxMethodWrapper : FluxMethodBase<IntegratorContext> {
     if constexpr (is_detected<PreAdvanceHierarchyT, I&,
                               IntegratorContext&>::value) {
       flux_method_.PreAdvanceHierarchy(context);
+    }
+  }
+
+  void PreSplitStep(IntegratorContext& context, int level, Duration dt, Direction dir, std::pair<int, int> subcycle) override {
+    if constexpr (is_detected<PreSplitStepT, I&,
+                              IntegratorContext&, int, Duration, Direction, std::pair<int, int>>::value) {
+      flux_method_.PreSplitStep(context, level, dt, dir, subcycle);
     }
   }
   I flux_method_;

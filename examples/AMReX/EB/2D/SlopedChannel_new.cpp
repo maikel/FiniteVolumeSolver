@@ -23,6 +23,8 @@
 #include "fub/Solver.hpp"
 
 #include "fub/cutcell_method/MyStabilisation.hpp"
+#include "fub/AMReX/cutcell/MyFluxMethod.hpp"
+#include "fub/cutcell_method/HGridReconstruction2.hpp"
 
 #include "fub/AMReX/cutcell/boundary_condition/ConstantBoundary.hpp"
 
@@ -174,7 +176,7 @@ auto Plane(const Eigen::Vector2d& p0, const Eigen::Vector2d& p1) {
   Eigen::Vector2d norm1 = OrthogonalTo(p1 - p0).normalized();
   amrex::EB2::PlaneIF plane1({p0[0], p0[1]}, {norm1[0], norm1[1]}, false);
   return amrex::EB2::makeComplement(plane1);
-}
+} 
 
 using FactoryFunction =
     std::function<fub::AnyFluxMethod<fub::amrex::cutcell::IntegratorContext>(
@@ -189,8 +191,11 @@ template <typename... Pairs> auto GetFluxMethodFactory(Pairs... ps) {
 template <typename FluxMethod> struct MakeFlux {
   fub::AnyFluxMethod<fub::amrex::cutcell::IntegratorContext>
   operator()(const fub::PerfectGas<2>& eq, fub::AnyLimiter<2> limiter) const {
-    fub::MyCutCellMethod<fub::PerfectGas<2>, FluxMethod> cutcell_method(eq, std::move(limiter));
-    fub::amrex::cutcell::FluxMethod adapter(std::move(cutcell_method));
+    using Gradient = typename FluxMethod::Gradient;
+    using HGrid = fub::HGridReconstruction2<fub::PerfectGas<2>, Gradient>;
+    HGrid hgrid{eq};
+    fub::MyCutCellMethod<fub::PerfectGas<2>, FluxMethod, HGrid> cutcell_method(eq, std::move(hgrid), std::move(limiter));
+    fub::amrex::cutcell::MyFluxMethod adapter(std::move(cutcell_method));
     return adapter;
   }
 };
@@ -234,20 +239,20 @@ void MyMain(const fub::ProgramOptions& opts) {
   using namespace std::literals;
 
   using Equation = fub::PerfectGas<2>;
-  using HLLE =
-      fub::HllMethod<Equation, fub::EinfeldtSignalVelocities<Equation>>;
+  // using HLLE =
+  //     fub::HllMethod<Equation, fub::EinfeldtSignalVelocities<Equation>>;
 
   using PrimitiveReconstruction = fub::FluxMethod<fub::MusclHancock2<
       Equation,
       fub::PrimitiveGradient<
           Equation, fub::CentralDifferenceGradient<fub::NoLimiter2>>,
-      fub::PrimitiveReconstruction<Equation>, HLLE>>;
+      fub::PrimitiveReconstruction<Equation>, fub::GodunovMethod<Equation>>>;
 
-  using ConservativeReconstruction = fub::FluxMethod<fub::MusclHancock2<
-      Equation,
-      fub::ConservativeGradient<
-          Equation, fub::CentralDifferenceGradient<fub::NoLimiter2>>,
-      fub::ConservativeReconstruction<Equation>, HLLE>>;
+  // using ConservativeReconstruction = fub::FluxMethod<fub::MusclHancock2<
+  //     Equation,
+  //     fub::ConservativeGradient<
+  //         Equation, fub::CentralDifferenceGradient<fub::NoLimiter2>>,
+  //     fub::ConservativeReconstruction<Equation>, HLLE>>;
 
 
   std::map<std::string, fub::AnyLimiter<2>> limiters{};
@@ -259,9 +264,9 @@ void MyMain(const fub::ProgramOptions& opts) {
 
   auto flux_method_factory = GetFluxMethodFactory(
       std::pair{"PrimitiveReconstruction"s,
-                MakeFlux<PrimitiveReconstruction>()},
-      std::pair{"ConservativeReconstruction"s,
-                MakeFlux<ConservativeReconstruction>()});
+                MakeFlux<PrimitiveReconstruction>()});
+      // std::pair{"ConservativeReconstruction"s,
+      //           MakeFlux<ConservativeReconstruction>()});
   // std::pair{"Characteristics"s, MakeFlux<CharacteristicReconstruction>()});
 
   std::string reconstruction =
@@ -339,7 +344,8 @@ void MyMain(const fub::ProgramOptions& opts) {
   using fub::amrex::cutcell::IntegratorContext;
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<2>, IntegratorContext(gridding, method, scratch_gcw, flux_gcw),
-      fub::StrangSplitting());
+      fub::GodunovSplitting());
+      // fub::StrangSplitting());
 
   // fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
   fub::NoSubcycleSolver solver(std::move(level_integrator));

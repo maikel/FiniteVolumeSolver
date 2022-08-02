@@ -29,13 +29,10 @@ public:
                         const View<Gradient>& gradient_y,
                         const View<Gradient>& gradient_z,
                         const View<const Complete>& states,
-                        const StridedDataView<const char, Rank>& flags,
                         const CutCellData<Rank>& geom,
                         const Coordinates<Rank>& dx);
 
 private:
-
-
   void ComputeGradients(span<Gradient, 2> gradient,
                         span<const Complete, 4> states,
                         span<const Coordinates<Rank>, 4> x);
@@ -53,7 +50,6 @@ private:
   void
   LimitGradients(const std::array<StridedDataView<double, Rank>, Rank>& grad_u,
                  StridedDataView<const double, Rank> u,
-                 StridedDataView<const char, Rank> needs_limiter,
                  const CutCellData<Rank>& geom,
                  const Coordinates<Rank>& dx) const;
 
@@ -67,7 +63,6 @@ template <typename GradientMethod>
 void MdGradients<GradientMethod>::ComputeGradients(
     const View<Gradient>& gradient_x, const View<Gradient>& gradient_y,
     const View<Gradient>& gradient_z, const View<const Complete>& states,
-    const StridedDataView<const char, Rank>& flags,
     const CutCellData<Rank>& geom, const Coordinates<Rank>& dx) {
   Gradient zero{equation_};
   if constexpr (Rank == 2) {
@@ -186,7 +181,7 @@ void MdGradients<GradientMethod>::ComputeGradients(
             const StridedDataView<const double, 2>& u) {
           std::array<StridedDataView<double, 2>, 2> grad_u{u_x.Subview(box),
                                                            u_y.Subview(box)};
-          LimitGradients(grad_u, u.Subview(box), flags, geom, dx);
+          LimitGradients(grad_u, u.Subview(box), geom, dx);
         },
         gradient_x, gradient_y, states);
   }
@@ -242,10 +237,9 @@ template <typename GradientMethod>
 void MdGradients<GradientMethod>::LimitGradients(
     const std::array<StridedDataView<double, Rank>, Rank>& grad_u,
     StridedDataView<const double, Rank> u,
-    StridedDataView<const char, Rank> needs_limiter,
     const CutCellData<Rank>& geom, const Coordinates<Rank>& dx) const {
   ForEachIndex(u.Box(), [&](auto... is) {
-    if (needs_limiter(is...) && geom.volume_fractions(is...) > 0.0) {
+    if (geom.volume_fractions(is...) > 0.0) {
       limiter_.LimitGradientsAtIndex(grad_u, u, geom, {is...}, dx);
     }
   });

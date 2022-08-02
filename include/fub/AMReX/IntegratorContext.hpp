@@ -203,6 +203,8 @@ public:
   /// \brief Updates time point and cycle counter for the patch hierarchy.
   void PostAdvanceHierarchy(Duration dt);
 
+  void PreSplitStep(int level, Duration dt, Direction dir, std::pair<int, int> subcycle);
+
   /// \brief On each first subcycle this will regrid the data if neccessary.
   ///
   /// \return Returns the coarsest level that changed. This function returns
