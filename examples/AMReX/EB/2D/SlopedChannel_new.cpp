@@ -37,21 +37,30 @@ static_assert(AMREX_SPACEDIM == 2);
 
 using Coord = Eigen::Vector2d;
 
-static double constant_function(double, double rho_0, double) noexcept {
-  return rho_0;
+static auto constant_function(double, double rho0, double, double u0, double p0) noexcept {
+  return std::tuple{rho0, u0, p0};
 }
 
-static double initial_function1(double rel_x, double rho_0,
-                                double width) noexcept {
-  return std::min(std::max(rho_0 + rel_x, rho_0), rho_0 + width);
+static auto initial_function1(double rel_x, double rho_0,
+                                double width, double u0, double p0) noexcept {
+  const double rho = std::min(std::max(rho_0 + rel_x, rho_0), rho_0 + width);
+  return std::tuple{rho, u0, p0};
 }
 
-static double initial_function2(double rel_x, double rho_0,
-                                double width) noexcept {
+static auto initial_function2(double rel_x, double rho_0,
+                                double width, double u0, double p0) noexcept {
   const double exponent = 2.0 * std::abs(rel_x) / width;
   const double exponent2 = exponent * exponent;
   const double rho = rho_0 + std::exp(-exponent2);
-  return rho;
+  return std::tuple{rho, u0, p0};
+}
+
+static auto sod_shock_function(double rel_x, double rho0,
+                                double width, double u0, double p0) noexcept {
+  const double rho = rel_x < 0.0 ? 10.0*rho0 : rho0;
+  const double u = u0;
+  const double p = rel_x < 0.0 ? 10.0*p0 : p0;
+  return std::tuple{rho, u, p};
 }
 
 struct WaveFunction {
@@ -86,70 +95,15 @@ struct WaveFunction {
             Coord xhi(geom.CellCenter(i, 0), geom.CellCenter(j, 1));
             const double dx = geom.CellSize(0);
             const double dy = geom.CellSize(1);
-            fub::Array<double, 2, 1> u = u_0_ * direction_;
             double p = p_0_;
             if (alpha(iv) > 0.0) {
-              // Coord x1{xlo[0], xlo[1]};
-              // Coord x2{xhi[0], xhi[1]};
-              // Coord x3{ylo[0], ylo[1]};
-              // Coord x4{yhi[0], yhi[1]};
               Coord x{xhi[0] + vol(iv,0)*dx, xhi[1] + vol(iv,1)*dy};
-              // const double relative_x1 = (x1 - origin_).dot(direction_);
-              // const double relative_x2 = (x2 - origin_).dot(direction_);
-              // const double relative_x3 = (x3 - origin_).dot(direction_);
-              // const double relative_x4 = (x4 - origin_).dot(direction_);
               const double relative_x = (x - origin_).dot(direction_);
-              // const double rho1 = initial_function(relative_x1, rho_0_, width_);
-              // const double rho2 = initial_function(relative_x2, rho_0_, width_);
-              // const double rho3 = initial_function(relative_x3, rho_0_, width_);
-              // const double rho4 = initial_function(relative_x4, rho_0_, width_);
-              // rho = (rho1 + rho2 + rho3 + rho4) / 4.0;
-              const double rho = initial_function(relative_x, rho_0_, width_);
+              const auto [rho, u_mag, p] = initial_function(relative_x, rho_0_, width_, u_0_, p_0_);
+              fub::Array<double, 2, 1> u = u_mag * direction_;
               fub::Complete<fub::PerfectGas<2>> state =
                   equation_.CompleteFromPrim(rho, u, p);
               fub::Store(states, state, {i, j});
-            // } else if (alpha(iv) > 0.0) {
-              // geom.LoFace(iv, 0, xlo);
-              // geom.HiFace(iv, 0, xhi);
-              // geom.LoFace(iv, 1, ylo);
-              // geom.HiFace(iv, 1, yhi);
-              // amrex::IntVect ivxR = iv;
-              // ivxR.shift({1, 0});
-              // amrex::IntVect ivyR = iv;
-              // ivyR.shift({0, 1});
-              // double xlo_offset = fx(iv);
-              // double xhi_offset = fx(ivxR);
-              // double ylo_offset = fy(iv);
-              // double yhi_offset = fy(ivyR);
-              // double xb_offset =   fB(iv, 0);
-              // double yb_offset = fB(iv, 1);
-              // const double dx = geom.CellSize(0);
-              // const double dy = geom.CellSize(1);
-              // Coord x1{xlo[0], xlo[1] + xlo_offset * dy};
-              // Coord x2{xhi[0], xhi[1] + xhi_offset * dy};
-              // Coord x3{ylo[0] + ylo_offset * dx, ylo[1]};
-              // Coord x4{yhi[0] + yhi_offset * dx, yhi[1]};
-              // Coord x5{geom.CellCenter(i, 0) + xb_offset * dx,
-              //          geom.CellCenter(j, 1) + yb_offset * dy};
-              // Coord n{bn(iv, 0), bn(iv, 1)};
-
-              // std::array<Coord, 5> xs{x1, x2, x3, x4, x5};
-              // std::array<double, 5> rel_x{};
-              // int rel_n = 0;
-              // for (int i = 0; i < 5; ++i) {
-              //   if ((xs[i] - x5).dot(n) <= 0.0) {
-              //     rel_x[rel_n] = (xs[i] - origin_).dot(direction_);
-              //     rel_n += 1;
-              //   }
-              // }
-              // rho = 0.0;
-              // for (int i = 0; i < rel_n; ++i) {
-              //   rho +=
-              //       initial_function(rel_x[i], rho_0_, width_) / double(rel_n);
-              // }
-              // fub::Complete<fub::PerfectGas<2>> state =
-              //     equation_.CompleteFromPrim(rho, u, p);
-              // fub::Store(states, state, {i, j});
             } else {
               for (int comp = 0; comp < fab.nComp(); ++comp) {
                 fab(iv, comp) = 0.0;
@@ -163,10 +117,10 @@ struct WaveFunction {
   Coord origin_;
   Coord direction_;
   double rho_0_{1.2};
-  double u_0_{30.0};
-  double p_0_{101325.0};
-  double width_{0.0141};
-  std::function<double(double, double, double)> initial_function{
+  double u_0_{0.1};
+  double p_0_{1.0};
+  double width_{0.141};
+  std::function<std::tuple<double,double,double>(double, double, double, double, double)> initial_function{
       &initial_function2};
 };
 
@@ -192,13 +146,25 @@ template <typename FluxMethod> struct MakeFlux {
   fub::AnyFluxMethod<fub::amrex::cutcell::IntegratorContext>
   operator()(const fub::PerfectGas<2>& eq, fub::AnyLimiter<2> limiter) const {
     using Gradient = typename FluxMethod::Gradient;
-    using HGrid = fub::HGridReconstruction2<fub::PerfectGas<2>, Gradient>;
-    HGrid hgrid{eq};
+    using ReconstructionMethod = typename FluxMethod::ReconstructionMethod;
+    using HGrid = fub::HGridReconstruction2<fub::PerfectGas<2>, Gradient, ReconstructionMethod>;
+    HGrid hgrid{eq, ReconstructionMethod{eq}};
     fub::MyCutCellMethod<fub::PerfectGas<2>, FluxMethod, HGrid> cutcell_method(eq, std::move(hgrid), std::move(limiter));
     fub::amrex::cutcell::MyFluxMethod adapter(std::move(cutcell_method));
     return adapter;
   }
 };
+
+struct MakeKbnFlux {
+  fub::AnyFluxMethod<fub::amrex::cutcell::IntegratorContext>
+  operator()(const fub::PerfectGas<2>& eq, const fub::AnyLimiter<2>&) const {
+    fub::GodunovMethod<fub::PerfectGas<2>> godunov_method{eq};
+    fub::KbnCutCellMethod cutcell_method(godunov_method);
+    fub::amrex::cutcell::FluxMethod adapter(std::move(cutcell_method));
+    return adapter;
+  }
+};
+
 
 void MyMain(const fub::ProgramOptions& opts) {
   std::chrono::steady_clock::time_point wall_time_reference =
@@ -221,7 +187,7 @@ void MyMain(const fub::ProgramOptions& opts) {
 
   BOOST_LOG(log) << "Compute EB level set data...";
   const double theta = fub::GetOptionOr(opts, "theta", M_PI * 30.0 / 180.0);
-  const double W = 0.0141;
+  const double W = fub::GetOptionOr(opts, "W", 0.141);
 
   using std::cos;
   using std::sin;
@@ -258,13 +224,15 @@ void MyMain(const fub::ProgramOptions& opts) {
   std::map<std::string, fub::AnyLimiter<2>> limiters{};
   limiters["Upwind"] = fub::UpwindMdLimiter<2>{};
   limiters["NoLimiter"] = fub::NoMdLimiter<2>{};
+  limiters["MinModLimiter"] = fub::LinearOptimizationLimiter<2>{};
   std::string limitername = fub::GetOptionOr(opts, "limiter", "Upwind"s);
   BOOST_LOG(log) << "Limiter: " << limitername;
   fub::AnyLimiter<2>& limiter = limiters.at(limitername);
 
   auto flux_method_factory = GetFluxMethodFactory(
       std::pair{"PrimitiveReconstruction"s,
-                MakeFlux<PrimitiveReconstruction>()});
+                MakeFlux<PrimitiveReconstruction>()},
+      std::pair{"KBN", MakeKbnFlux{}});
       // std::pair{"ConservativeReconstruction"s,
       //           MakeFlux<ConservativeReconstruction>()});
   // std::pair{"Characteristics"s, MakeFlux<CharacteristicReconstruction>()});
@@ -279,6 +247,12 @@ void MyMain(const fub::ProgramOptions& opts) {
   const Coord origin{relative_origin * cos(theta),
                      relative_origin * sin(theta)};
   const Coord direction{cos(theta), sin(theta)};
+
+  const double rho0 = fub::GetOptionOr(opts, "rho0", 1.2);
+  const double u0 = fub::GetOptionOr(opts, "u0", 0.1);
+  const double pr0 = fub::GetOptionOr(opts, "p0", 1.0);
+  const double width = fub::GetOptionOr(opts, "width", 0.141);
+
   WaveFunction initial_data{equation, origin, direction};
   std::string initial_function =
       fub::GetOptionOr(opts, "initial_function", "Linear"s);
@@ -286,26 +260,31 @@ void MyMain(const fub::ProgramOptions& opts) {
     initial_data.initial_function = &initial_function1;
   } else if (initial_function == "Constant") {
     initial_data.initial_function = &constant_function;
+  } else if (initial_function == "Sod") {
+    initial_data.initial_function = &sod_shock_function;
   }
-  double jump = fub::GetOptionOr(opts, "initial_data_jump", 0.0);
+  initial_data.rho_0_ = rho0;
+  initial_data.u_0_ = u0;
+  initial_data.p_0_ = pr0;
+  initial_data.width_ = width;
   BOOST_LOG(log) << "Initial Function: " << initial_function;
-  BOOST_LOG(log) << "Initial Data Jump: " << jump;
 
-  fub::Array<double, 2, 1> u = initial_data.u_0_ * initial_data.direction_;
-  fub::Complete<fub::PerfectGas<2>> stateL =
-      equation.CompleteFromPrim(initial_data.rho_0_, u, initial_data.p_0_);
+  const double rhoL = fub::GetOptionOr(opts, "rhoL", 1.2);
+  const double uL = fub::GetOptionOr(opts, "uL", 0.1);
+  const double pL = fub::GetOptionOr(opts, "pL", 1.0);
 
-  fub::Complete<fub::PerfectGas<2>> stateR = equation.CompleteFromPrim(
-      initial_data.rho_0_ + jump, u, initial_data.p_0_);
+  const double rhoR = fub::GetOptionOr(opts, "rhoR", 1.2);
+  const double uR = fub::GetOptionOr(opts, "uR", 0.1);
+  const double pR = fub::GetOptionOr(opts, "pR", 1.0);
+
+  fub::Array<double, 2, 1> vL =  uL * initial_data.direction_;
+  fub::Array<double, 2, 1> vR =  uR * initial_data.direction_;
+  fub::Complete<fub::PerfectGas<2>> stateL = equation.CompleteFromPrim(rhoL, vL, pL);
+  fub::Complete<fub::PerfectGas<2>> stateR = equation.CompleteFromPrim(rhoR, vR, pR);
 
   using fub::amrex::cutcell::TransmissiveBoundary;
   using fub::amrex::cutcell::ConstantBoundary;
   using fub::amrex::cutcell::ReflectiveBoundary;
-
-  // fub::amrex::cutcell::BoundarySet boundary_condition{{TransmissiveBoundary{fub::Direction::X, 0},
-  //                                 TransmissiveBoundary{fub::Direction::X, 1},
-  //                                 TransmissiveBoundary{fub::Direction::Y, 0},
-  //                                 TransmissiveBoundary{fub::Direction::Y, 1}}};
 
   fub::amrex::cutcell::BoundarySet boundary_condition{
       {ConstantBoundary<fub::PerfectGas<2>>{fub::Direction::X, 0, equation,
@@ -338,14 +317,13 @@ void MyMain(const fub::ProgramOptions& opts) {
   fub::amrex::cutcell::HyperbolicMethod method{flux_method, TimeIntegrator2{},
                                                Reconstruction{equation}};
 
-  const int base_gcw = flux_method.GetStencilWidth();
-  const int scratch_gcw = 2*base_gcw + 1;
-  const int flux_gcw = 2;
+  const int scratch_gcw = 7;
+  const int flux_gcw = 4;
   using fub::amrex::cutcell::IntegratorContext;
   fub::DimensionalSplitLevelIntegrator level_integrator(
       fub::int_c<2>, IntegratorContext(gridding, method, scratch_gcw, flux_gcw),
-      fub::GodunovSplitting());
-      // fub::StrangSplitting());
+      // fub::GodunovSplitting());
+      fub::StrangSplitting());
 
   // fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
   fub::NoSubcycleSolver solver(std::move(level_integrator));

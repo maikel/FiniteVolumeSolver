@@ -223,6 +223,7 @@ Result<void, TimeStepTooLarge>
 DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::
     AdvanceLevelNonRecursively(int this_level, Duration dt,
                                std::pair<int, int> subcycle) {
+  int shared_counter = 0;
   auto AdvanceLevel_Split = [&](Direction dir) {
     return [&, this_level, dir, count_split_steps = 0](
                Duration split_dt) mutable -> Result<void, TimeStepTooLarge> {
@@ -231,8 +232,8 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::
         Context::ApplyBoundaryCondition(this_level, dir);
       }
       count_split_steps += 1;
-
-      Context::PreSplitStep(this_level, split_dt, dir, subcycle);
+      Context::PreSplitStep(this_level, split_dt, dir, {shared_counter, 0});
+      ++shared_counter;
 
       // Check stable time step size and if the CFL condition is violated then
       // restart the coarse time step

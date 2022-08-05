@@ -3,14 +3,14 @@ import math
 isRef = 0
 factor = 1
 
-final_time = 15e-4
+final_time = 0.51
 
 max_cycles = [-1, 0]
 mode = ['new', 'ref']
-originC = [0.035, 0.035 + 30.0 * final_time]
+originC = [0.35, 0.35 + final_time]
 
 RunOptions = {
-  'cfl': 0.25,
+  'cfl': 0.5,
   'final_time': final_time,
   'max_cycles': max_cycles[isRef] # -1 means infinite and 0 means only initial condition
 }
@@ -28,7 +28,7 @@ GridGeometry = {
   'cell_dimensions': [n_cells_x, n_cells_y, 1],
   'coordinates': {
     'lower': [+0.00, +0.00, +0.00],
-    'upper': [+0.10, +0.07, +0.07],
+    'upper': [+1.0, +0.7, +0.7],
   },
   'periodicity': [0, 0, 0]
 }
@@ -44,38 +44,56 @@ PatchHierarchy = {
   'hgrid_details': True
 }
 
-limiter = "NoLimiter"
+limiter = "MinModLimiter"
+# limiter = "NoLimiter"
 # limiter = "Upwind"
+# reconstruction = "KBN"
 reconstruction = "PrimitiveReconstruction"
 # reconstruction = "ConservativeReconstruction"
-initial_function = "Smooth"
+initial_function = "Sod"
+# initial_function = "Smooth"
 # initial_function = "Linear"
 # initial_function = "Constant"
-# initial_data_jump = 0.25
-initial_data_jump = 0.0
+
+rhoL = 1.0
+uL = 0.0
+pL = 1.0
+
+rhoR = 0.1
+uR = 0.0
+pR = 0.1
+
+rho0 = 0.1
+u0 = 0.0
+p0 = 0.1
 
 origin = originC[isRef]
-theta = math.pi * 45.0 / 180.0
+theta = math.pi * 30.0 / 180.0
 
 Output = { 
   'outputs': [
     {
     'type': 'Plotfile',
-    'directory': 'Debug_{}_{}x{}-{}/Plot/'.format(reconstruction, n_cells_x, n_cells_y, n_levels),
-    # 'intervals': [5e-5],
-    'frequencies': [1] 
+    'directory': 'Debug_{}_{}x{}-{}-{}/Plot/'.format(reconstruction, n_cells_x, n_cells_y, limiter, initial_function),
+    'intervals': [0.05],
+    # 'frequencies': [1] 
   },
   # {
   #   'type': 'DebugOutput',
-  #   'directory': 'Debug_{}_{}x{}-{}/'.format(reconstruction, n_cells_x, n_cells_y, n_levels),
+  #   'directory': 'Debug_{}_{}x{}-{}/'.format(reconstruction, n_cells_x, n_cells_y, limiter),
   #   # 'intervals': [1e-4],
   #   'frequencies': [1] 
   # },
   # {
   #   'type': 'HDF5',
-  #   'path': 'ReferenceData/SlopedChannel_{}_{}_{}x{}-{}.h5'.format(mode[isRef], reconstruction, n_cells_x, n_cells_y, n_levels),
+  #   'path': 'ReferenceData/SlopedChannel_{}_{}_{}x{}-{}.h5'.format(mode[isRef], reconstruction, n_cells_x, n_cells_y, limiter),
   #   'intervals': [final_time],
   #   'frequencies': [1] 
   # }
+  # {
+    # 'type': 'CounterOutput',
+    # 'intervals': [5.0e-5],
+    #'frequencies': [1],
+  # },
   ]
 }

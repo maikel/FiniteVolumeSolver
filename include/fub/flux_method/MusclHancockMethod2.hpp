@@ -34,10 +34,11 @@
 namespace fub {
 template <
     typename Equation, typename GradientMethodT = ConservativeGradient<Equation>,
-    typename ReconstructionMethod = ConservativeReconstruction<Equation>,
+    typename ReconstructionMethodT = ConservativeReconstruction<Equation>,
     typename BaseMethod = GodunovMethod<Equation, ExactRiemannSolver<Equation>>>
 struct MusclHancock2 {
   using GradientMethod = GradientMethodT;
+  using ReconstructionMethod = ReconstructionMethodT;
 
   using Complete = typename Equation::Complete;
   using Conservative = typename Equation::Conservative;

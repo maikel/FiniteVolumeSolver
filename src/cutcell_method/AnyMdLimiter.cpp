@@ -22,6 +22,7 @@
 #include "fub/ext/Eigen.hpp"
 #include "fub/core/assert.hpp"
 #include "fub/CutCellData.hpp"
+#include "fub/ForEach.hpp"
 
 #include <limits>
 
@@ -234,5 +235,7 @@ void LinearOptimizationLimiter<Rank>::LimitGradientsAtIndex(
     grad_u[1](index) = limiter[1] * D[1];
   }
 }
+
+template struct LinearOptimizationLimiter<2>;
 
 }

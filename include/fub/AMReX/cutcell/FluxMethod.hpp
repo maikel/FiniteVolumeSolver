@@ -79,9 +79,6 @@ public:
 
 private:
   Local<Tag, Base> flux_method_;
-  ::amrex::MultiFab gradient_x{};
-  ::amrex::MultiFab gradient_y{};
-  ::amrex::MultiFab gradient_z{};
 };
 
 template <typename F>
@@ -110,10 +107,6 @@ const FM& FluxMethod<Tag, FM>::GetBase() const noexcept {
 
 template <typename Tag, typename FM>
 void FluxMethod<Tag, FM>::PreAdvanceHierarchy(IntegratorContext& context) {
-  if constexpr (is_detected<detail::PreAdvanceHierarchyT, FM&,
-                            View<Complete<Equation>>,
-                            View<const Complete<Equation>>,
-                            CutCellData<AMREX_SPACEDIM>>::value) {
     const PatchHierarchy& hierarchy = context.GetPatchHierarchy();
     for (int level = 0; level < hierarchy.GetNumberOfLevels(); ++level) {
       ::amrex::MultiFab& references = context.GetReferenceStates(level);
@@ -137,7 +130,6 @@ void FluxMethod<Tag, FM>::PreAdvanceHierarchy(IntegratorContext& context) {
         }
       });
     }
-  }
 }
 
 namespace detail {
@@ -166,7 +158,6 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
   ::amrex::MultiFab& references = context.GetReferenceStates(level);
   const ::amrex::MultiFab& scratch = context.GetScratch(level);
   ::amrex::MultiCutFab& boundary_fluxes = context.GetBoundaryFluxes(level);
-  ::amrex::MultiCutFab& boundary_massflows = context.GetBoundaryMassflow(level);
 
   ::amrex::MultiFab& fluxes = context.GetFluxes(level, dir);
   ::amrex::MultiFab& fluxes_s = context.GetStabilizedFluxes(level, dir);
@@ -180,94 +171,28 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
       context.GetDx(level, Direction::Z))};
 
   boundary_fluxes.setVal(0.0);
-  if constexpr (is_detected<detail::ComputeBoundaryFluxesT, FM&,
-                            View<Conservative<Equation>>,
-                            View<const Complete<Equation>>,
-                            View<const Complete<Equation>>,
-                            View<const Complete<Equation>>,
-                            StridedDataView<int, Equation::Rank()>,
-                            CutCellData<AMREX_SPACEDIM>, Duration, double,
-                            Direction>::value) {
-    ::amrex::iMultiFab& reference_masks = context.GetReferenceMasks(level);
-    const ::amrex::MultiFab& reference_mirror_states =
-        context.GetReferenceMirrorStates(level);
-    ForEachFab(Tag(), scratch, [&](const ::amrex::MFIter& mfi) {
-      const Equation& equation = flux_method_->GetEquation();
-      const ::amrex::Box box = mfi.growntilebox();
-      const ::amrex::FabType type = context.GetFabType(level, mfi);
-      if (type == ::amrex::FabType::singlevalued) {
-        CutCellData<AMREX_SPACEDIM> geom = hierarchy.GetCutCellData(level, mfi);
-        auto boundary_flux = MakeView<Conservative<Equation>>(
-            boundary_fluxes[mfi], equation, box);
-        auto states =
-            MakeView<const Complete<Equation>>(scratch[mfi], equation, box);
-        auto refs =
-            MakeView<const Complete<Equation>>(references[mfi], equation, box);
-        auto refs_mirror = MakeView<const Complete<Equation>>(
-            reference_mirror_states[mfi], equation, box);
-        auto masks = MakePatchDataView(reference_masks[mfi], 0, box);
-        flux_method_->ComputeBoundaryFluxes(
-            boundary_flux, states, refs, refs_mirror, masks, geom, dt, dx, dir);
-      }
-    });
-  }
-
-  if constexpr (is_detected<
-                    detail::ComputeGradients, FM&, View<typename FM::Gradient>,
-                    View<typename FM::Gradient>, View<typename FM::Gradient>,
-                    View<const Complete<Equation>>,
-                    StridedDataView<const char, AMREX_SPACEDIM>,
-                    CutCellData<AMREX_SPACEDIM>,
-                    Eigen::Matrix<double, AMREX_SPACEDIM, 1>>::value) {
-    const ::amrex::BoxArray ba = scratch.boxArray();
-    const ::amrex::DistributionMapping dm = scratch.DistributionMap();
-    const int ncons = fluxes.nComp();
-    const ::amrex::IntVect ngrow = scratch.nGrowVect();
-    gradient_x.define(ba, dm, ncons, ngrow);
-    gradient_y.define(ba, dm, ncons, ngrow);
-    gradient_z.define(ba, dm, ncons, ngrow);
-    gradient_x.setVal(0.0);
-    gradient_y.setVal(0.0);
-    gradient_z.setVal(0.0);
-    ::amrex::TagBoxArray limiter_flags(ba, dm, ngrow);
-    limiter_flags.setVal(1);
-    // ::amrex::TagCutCells(limiter_flags, context.GetData(level));
-    // TagBuffer(2).TagCellsForRefinement(limiter_flags);
-
-    ForEachFab(Tag(), scratch, [&](const ::amrex::MFIter& mfi) {
-      const ::amrex::Box box = mfi.growntilebox(scratch.nGrow() - 1);
-      const ::amrex::Box sbox = scratch[mfi].box() & ::amrex::grow(box, 1);
-      const ::amrex::FabType type = context.GetFabType(level, mfi);
-      if (type == ::amrex::FabType::singlevalued) {
-        CutCellData<AMREX_SPACEDIM> geom = hierarchy.GetCutCellData(level, mfi);
-        auto flags = MakePatchDataView(limiter_flags[mfi], 0, box);
-        const Equation& equation = flux_method_->GetEquation();
-        auto states =
-            MakeView<const Complete<Equation>>(scratch[mfi], equation, sbox);
-        auto grad_x =
-            MakeView<typename FM::Gradient>(gradient_x[mfi], equation, box);
-        auto grad_y =
-            MakeView<typename FM::Gradient>(gradient_y[mfi], equation, box);
-        auto grad_z =
-            MakeView<typename FM::Gradient>(gradient_z[mfi], equation, box);
-        flux_method_->ComputeGradients(grad_x, grad_y, grad_z, states, flags,
-                                       geom, dx_vec);
-      }
-    });
-
-    DebugStorage& debug = *hierarchy.GetDebugStorage();
-    const ::amrex::Geometry& geom = hierarchy.GetGeometry(level);
+  ::amrex::iMultiFab& reference_masks = context.GetReferenceMasks(level);
+  const ::amrex::MultiFab& reference_mirror_states =
+      context.GetReferenceMirrorStates(level);
+  ForEachFab(Tag(), scratch, [&](const ::amrex::MFIter& mfi) {
     const Equation& equation = flux_method_->GetEquation();
-    const auto names =
-        VarNames<typename FM::Gradient, ::amrex::Vector<std::string>>(equation);
-    DebugSnapshotProxy snapshot =
-        debug.AddSnapshot(fmt::format("Gradients_{}", int(dir)));
-    if (snapshot) {
-      snapshot.SaveData(gradient_x, AddPrefix(names, "GradX_"), geom);
-      snapshot.SaveData(gradient_y, AddPrefix(names, "GradY_"), geom);
-      snapshot.SaveData(gradient_z, AddPrefix(names, "GradZ_"), geom);
+    const ::amrex::Box box = mfi.growntilebox();
+    const ::amrex::FabType type = context.GetFabType(level, mfi);
+    if (type == ::amrex::FabType::singlevalued) {
+      CutCellData<AMREX_SPACEDIM> geom = hierarchy.GetCutCellData(level, mfi);
+      auto boundary_flux = MakeView<Conservative<Equation>>(
+          boundary_fluxes[mfi], equation, box);
+      auto states =
+          MakeView<const Complete<Equation>>(scratch[mfi], equation, box);
+      auto refs =
+          MakeView<const Complete<Equation>>(references[mfi], equation, box);
+      auto refs_mirror = MakeView<const Complete<Equation>>(
+          reference_mirror_states[mfi], equation, box);
+      auto masks = MakePatchDataView(reference_masks[mfi], 0, box);
+      flux_method_->ComputeBoundaryFluxes(
+          boundary_flux, states, refs, refs_mirror, masks, geom, dt, dx, dir);
     }
-  }
+  });
 
   static constexpr int gcw = GetStencilWidth();
 
@@ -280,63 +205,27 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
     const ::amrex::FabType type = context.GetFabType(level, mfi);
     if (type == ::amrex::FabType::singlevalued) {
       CutCellData<AMREX_SPACEDIM> geom = hierarchy.GetCutCellData(level, mfi);
-      if constexpr (is_detected<detail::ComputeRegularFluxes, FM&,
-                                View<Conservative<Equation>>,
-                                View<const Complete<Equation>>,
-                                View<const typename FM::Gradient>,
-                                View<const typename FM::Gradient>,
-                                View<const typename FM::Gradient>,
-                                CutCellData<AMREX_SPACEDIM>, Duration, double,
-                                Direction>::value) {
-        auto flux =
-            MakeView<Conservative<Equation>>(fluxes[mfi], equation, face_box);
-        auto states = MakeView<const Complete<Equation>>(scratch[mfi], equation,
-                                                         cell_box);
-        auto grad_x = MakeView<const typename FM::Gradient>(gradient_x[mfi],
-                                                            equation, cell_box);
-        auto grad_y = MakeView<const typename FM::Gradient>(gradient_y[mfi],
-                                                            equation, cell_box);
-        auto grad_z = MakeView<const typename FM::Gradient>(gradient_z[mfi],
-                                                            equation, cell_box);
-        flux_method_->ComputeRegularFluxes(flux, states, grad_x, grad_y, grad_z,
-                                           geom, dt, dx, dir);
-      } else {
-        auto flux =
-            MakeView<Conservative<Equation>>(fluxes[mfi], equation, face_box);
-        auto states = MakeView<const Complete<Equation>>(scratch[mfi], equation,
-                                                         cell_box);
-        flux_method_->ComputeRegularFluxes(flux, states, geom, dt, dx, dir);
-      }
 
-      if constexpr (is_detected<detail::ComputeCutCellFluxes, FM&,
-                                View<Conservative<Equation>>,
-                                View<Conservative<Equation>>,
-                                View<Conservative<Equation>>,
-                                View<Conservative<Equation>>,
-                                View<Conservative<Equation>>,
-                                View<const Conservative<Equation>>,
-                                View<const Complete<Equation>>,
-                                CutCellData<AMREX_SPACEDIM>, Duration, double,
-                                Direction>::value) {
-        auto flux_s =
-            MakeView<Conservative<Equation>>(fluxes_s[mfi], equation, face_box);
-        auto flux_sL = MakeView<Conservative<Equation>>(fluxes_sL[mfi],
-                                                        equation, face_box);
-        auto flux_sR = MakeView<Conservative<Equation>>(fluxes_sR[mfi],
-                                                        equation, face_box);
-        auto flux_ds = MakeView<Conservative<Equation>>(fluxes_ds[mfi],
-                                                        equation, face_box);
-        auto flux_B = MakeView<Conservative<Equation>>(boundary_fluxes[mfi],
-                                                       equation, cell_box);
-        auto states = MakeView<const Complete<Equation>>(scratch[mfi], equation,
-                                                         cell_box);
+      auto flux =
+          MakeView<Conservative<Equation>>(fluxes[mfi], equation, face_box);
+      auto states = MakeView<const Complete<Equation>>(scratch[mfi], equation,
+                                                        cell_box);
+      flux_method_->ComputeRegularFluxes(flux, states, geom, dt, dx, dir);
 
-        auto flux = MakeView<const Conservative<Equation>>(fluxes[mfi],
-                                                           equation, face_box);
-        flux_method_->ComputeCutCellFluxes(flux_s, flux_sL, flux_sR, flux_ds,
-                                           flux_B, flux, states, geom, dt, dx,
-                                           dir);
-      }
+      auto flux_s =
+          MakeView<Conservative<Equation>>(fluxes_s[mfi], equation, face_box);
+      auto flux_sL = MakeView<Conservative<Equation>>(fluxes_sL[mfi],
+                                                      equation, face_box);
+      auto flux_sR = MakeView<Conservative<Equation>>(fluxes_sR[mfi],
+                                                      equation, face_box);
+      auto flux_ds = MakeView<Conservative<Equation>>(fluxes_ds[mfi],
+                                                      equation, face_box);
+      auto flux_B = MakeView<Conservative<Equation>>(boundary_fluxes[mfi],
+                                                      equation, cell_box);
+
+      flux_method_->ComputeCutCellFluxes(flux_s, flux_sL, flux_sR, flux_ds,
+                                          flux_B, AsConst(flux), states, geom, dt, dx,
+                                          dir);
     } else if (type == ::amrex::FabType::regular) {
       auto flux =
           MakeView<Conservative<Equation>>(fluxes[mfi], equation, face_box);
@@ -345,58 +234,6 @@ void FluxMethod<Tag, FM>::ComputeNumericFluxes(IntegratorContext& context,
       flux_method_->ComputeNumericFluxes(Tag(), flux, states, dt, dx, dir);
     }
   });
-
-  if constexpr (is_detected<
-                    detail::ComputeCutCellFluxes, FM&,
-                    View<Conservative<Equation>>, View<Conservative<Equation>>,
-                    View<Conservative<Equation>>, View<Conservative<Equation>>,
-                    View<Conservative<Equation>>, View<Conservative<Equation>>,
-                    PatchDataView<double, AMREX_SPACEDIM + 1>,
-                    View<const typename FM::Gradient>,
-                    View<const typename FM::Gradient>,
-                    View<const typename FM::Gradient>,
-                    View<const Complete<Equation>>, CutCellData<AMREX_SPACEDIM>,
-                    Duration, Eigen::Matrix<double, AMREX_SPACEDIM, 1>,
-                    Direction>::value) {
-    ForEachFab(Tag(), scratch, [&](const ::amrex::MFIter& mfi) {
-      const Equation& equation = flux_method_->GetEquation();
-      const ::amrex::Box tilebox = mfi.growntilebox();
-      const ::amrex::Box all_faces =
-          ::amrex::surroundingNodes(tilebox, int(dir));
-      const ::amrex::Box face_box = fluxes_s[mfi].box();
-      const ::amrex::Box cell_box = ::amrex::enclosedCells(all_faces & fluxes_s[mfi].box());
-      const ::amrex::Box grown_cell_box = ::amrex::grow(cell_box, 1);
-
-      const ::amrex::FabType type = context.GetFabType(level, mfi);
-      if (type == ::amrex::FabType::singlevalued) {
-        CutCellData<AMREX_SPACEDIM> geom = hierarchy.GetCutCellData(level, mfi);
-        auto flux_s =
-            MakeView<Conservative<Equation>>(fluxes_s[mfi], equation, face_box);
-        auto flux_sL = MakeView<Conservative<Equation>>(fluxes_sL[mfi],
-                                                        equation, face_box);
-        auto flux_sR = MakeView<Conservative<Equation>>(fluxes_sR[mfi],
-                                                        equation, face_box);
-        auto flux_ds = MakeView<Conservative<Equation>>(fluxes_ds[mfi],
-                                                        equation, face_box);
-        auto flux_B = MakeView<Conservative<Equation>>(boundary_fluxes[mfi],
-                                                       equation, grown_cell_box);
-        auto flux = MakeView<Conservative<Equation>>(fluxes[mfi],
-                                                           equation, face_box);
-        auto states = MakeView<const Complete<Equation>>(scratch[mfi], equation,
-                                                         grown_cell_box);
-        auto grad_x = MakeView<const typename FM::Gradient>(
-            gradient_x[mfi], equation, grown_cell_box);
-        auto grad_y = MakeView<const typename FM::Gradient>(
-            gradient_y[mfi], equation, grown_cell_box);
-        auto grad_z = MakeView<const typename FM::Gradient>(
-            gradient_z[mfi], equation, grown_cell_box);
-        auto flux_B_ref = MakePatchDataView(boundary_massflows[mfi]);
-        flux_method_->ComputeCutCellFluxes(
-            flux_s, flux_sL, flux_sR, flux_ds, flux, flux_B, flux_B_ref, grad_x,
-            grad_y, grad_z, states, geom, dt, dx_vec, dir);
-      }
-    });
-  }
 
   DebugStorage& debug = *hierarchy.GetDebugStorage();
   const ::amrex::Geometry& geom = hierarchy.GetGeometry(level);

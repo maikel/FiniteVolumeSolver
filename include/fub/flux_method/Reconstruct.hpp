@@ -83,6 +83,10 @@ public:
                    const Gradient& dw_dx, Duration dt, double dx, Direction dir,
                    Side side) noexcept;
 
+  void ReconstructInvers(Complete& q0, const Complete& rec,
+                   const Gradient& dw_dx, Duration dt, double dx, Direction dir,
+                   Side side) noexcept;
+
   void Reconstruct(CompleteArray& reconstruction, const CompleteArray& q0,
                    const GradientArray& dw_dx, Duration dt, double dx,
                    Direction dir, Side side) noexcept;
@@ -262,6 +266,57 @@ void PrimitiveReconstruction<EulerEquation>::Reconstruct(
     }
   }
   CompleteFromPrim(equation_, reconstruction, w_rec_);
+}
+
+template <typename EulerEquation>
+void PrimitiveReconstruction<EulerEquation>::ReconstructInvers(
+    Complete& q0, const Complete& rec, const Primitive& dw_dx,
+    Duration dt, double dx, Direction dir, Side side) noexcept {
+  PrimFromComplete(equation_, w_, rec);
+  const int ix = static_cast<int>(dir);
+  const int sign = (side == Side::Upper) - (side == Side::Lower);
+  const double lambda = sign * dt.count() / dx;
+  const double dx_half = sign * 0.5 * dx;
+  const double u = w_.velocity[ix];
+  const double rho = rec.density;
+  const double a = rec.speed_of_sound;
+  const double a2 = a * a;
+  const double rho_a2 = rho * a2;
+  w_rec_.density =
+      w_.density -
+      dx_half * (dw_dx.density -
+                 lambda * (u * dw_dx.density + rho * dw_dx.velocity[ix]));
+  w_rec_.pressure =
+      w_.pressure -
+      dx_half * (dw_dx.pressure -
+                 lambda * (rho_a2 * dw_dx.velocity[ix] + u * dw_dx.pressure));
+  w_rec_.velocity[ix] =
+      w_.velocity[ix] -
+      dx_half * (dw_dx.velocity[ix] -
+                 lambda * (u * dw_dx.velocity[ix] + dw_dx.pressure / rho));
+  constexpr int Rank = EulerEquation::Rank();
+  for (int i = 1; i < Rank; ++i) {
+    const int iy = (ix + i) % Rank;
+    w_rec_.velocity[iy] =
+        w_.velocity[iy] -
+        dx_half * (dw_dx.velocity[iy] - lambda * u * dw_dx.velocity[iy]);
+  }
+  if constexpr (fub::euler::state_with_species<Primitive>()) {
+    for (int i = 0; i < w_rec_.species.size(); ++i) {
+      w_rec_.species[i] =
+          w_.species[i] -
+          dx_half * (dw_dx.species[i] - lambda * u * dw_dx.species[i]);
+    }
+  }
+  if constexpr (fub::euler::state_with_passive_scalars<Primitive>()) {
+    for (int i = 0; i < w_rec_.passive_scalars.size(); ++i) {
+      w_rec_.passive_scalars[i] =
+          w_.passive_scalars[i] -
+          dx_half * (dw_dx.passive_scalars[i] +
+                     lambda * u * dw_dx.passive_scalars[i]);
+    }
+  }
+  CompleteFromPrim(equation_, q0, w_rec_);
 }
 
 template <typename EulerEquation>

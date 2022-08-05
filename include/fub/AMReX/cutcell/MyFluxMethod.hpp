@@ -68,7 +68,7 @@ public:
 
   void ComputeReferenceStates(IntegratorContext& context,
                               ::amrex::MultiFab& dest,
-                              const ::amrex::MultiFab& src, int level);
+                              const ::amrex::MultiFab& src, const ::amrex::MultiFab& old, int level, Duration dt, Direction dir);
 
   void IntegrateInTime(IntegratorContext& context, ::amrex::MultiFab& dest,
                        const ::amrex::MultiFab& source, int level, Duration dt,
@@ -123,10 +123,10 @@ void MyFluxMethod<Tag, FM>::PreSplitStep(IntegratorContext& context, int level,
                                          Duration dt, Direction dir,
                                          std::pair<int, int> subcycle) {
   const ::amrex::MultiFab& scratch = context.GetScratch(level);
-  ComputeGradients(context, scratch, level);
   if ((subcycle.first % AMREX_SPACEDIM) != 0) {
     return;
   }
+  ComputeGradients(context, scratch, level);
   ::amrex::MultiFab& references = context.GetReferenceStates(level);
   references.setVal(0.0);
   const int ncomp = scratch.nComp();
@@ -139,14 +139,15 @@ void MyFluxMethod<Tag, FM>::PreSplitStep(IntegratorContext& context, int level,
     Direction dir_y = Direction((int(dir) + 1) % AMREX_SPACEDIM);
     IntegrateInTime(context, pre_scratch, pre_scratch, level, 0.5 * dt, dir_y);
   }
-  ComputeReferenceStates(context, references, pre_scratch, level);
+  ComputeReferenceStates(context, references, pre_scratch, scratch, level, dt, dir);
 }
 
 template <typename Tag, typename FM>
 void MyFluxMethod<Tag, FM>::ComputeReferenceStates(IntegratorContext& context,
                                                    ::amrex::MultiFab& dest,
                                                    const ::amrex::MultiFab& src,
-                                                   int level) {
+                                                   const ::amrex::MultiFab& old,
+                                                   int level, Duration dt, Direction dir) {
   PatchHierarchy& hierarchy = context.GetPatchHierarchy();
   const Eigen::Matrix<double, AMREX_SPACEDIM, 1> h{AMREX_D_DECL(
       context.GetDx(level, Direction::X), context.GetDx(level, Direction::Y),
@@ -155,22 +156,23 @@ void MyFluxMethod<Tag, FM>::ComputeReferenceStates(IntegratorContext& context,
   const ::amrex::DistributionMapping dm = dest.DistributionMap();
 
   ForEachFab(Tag(), dest, [&](const ::amrex::MFIter& mfi) {
-    const ::amrex::Box box = mfi.growntilebox();
+    const ::amrex::Box box = mfi.growntilebox(src.nGrow() - 1);
     const ::amrex::FabType type = context.GetFabType(level, mfi);
     if (type == ::amrex::FabType::singlevalued) {
       CutCellData<AMREX_SPACEDIM> geom = hierarchy.GetCutCellData(level, mfi);
       const Equation& equation = flux_method_->GetEquation();
       auto refs = MakeView<Complete<Equation>>(dest[mfi], equation, box);
-      auto states = MakeView<const Complete<Equation>>(src[mfi], equation, box);
+      auto states = MakeView<const Complete<Equation>>(src[mfi], equation, src[mfi].box());
+      auto states_old = MakeView<const Complete<Equation>>(old[mfi], equation, old[mfi].box());
       auto grad_x = MakeView<const typename FM::Gradient>(gradients_[0][mfi],
-                                                          equation, box);
+                                                          equation, gradients_[0][mfi].box());
       auto grad_y = MakeView<const typename FM::Gradient>(gradients_[1][mfi],
-                                                          equation, box);
+                                                          equation, gradients_[1][mfi].box());
       auto grad_z = MakeView<const typename FM::Gradient>(gradients_[2][mfi],
-                                                          equation, box);
+                                                          equation, gradients_[2][mfi].box());
       std::array<View<const typename FM::Gradient>, 3> grads{grad_x, grad_y,
                                                              grad_z};
-      flux_method_->ComputeBoundaryStates(refs, states, span{grads}, geom, h);
+      flux_method_->ComputeBoundaryStates(refs, states, states_old, span{grads}, geom, h, dt, dir);
     }
   });
 }

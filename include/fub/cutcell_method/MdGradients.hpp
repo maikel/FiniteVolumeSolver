@@ -73,6 +73,7 @@ void MdGradients<GradientMethod>::ComputeGradients(
     FUB_ASSERT(box == Box<0>(gradient_y));
     FUB_ASSERT(box == Box<0>(gradient_z));
     ForEachIndex(box, [&](int i, int j) {
+      std::array<int, 4> is{0, 1, 2, 3};
       ////////////////////////////////////////////////
       // All regular case
       if (geom.volume_fractions(i, j) == 1.0 &&
@@ -115,7 +116,7 @@ void MdGradients<GradientMethod>::ComputeGradients(
                        [&geom](const Index<Rank>& ij) {
                          return geom.volume_fractions(ij);
                        });
-        std::array<int, 4> is{0, 1, 2, 3};
+        // std::array<int, 4> is{0, 1, 2, 3};
         std::sort(is.begin(), is.end(), [&](int i, int j) {
           return betas[i] >= betas[j] && alphas[i] >= alphas[j];
         });
@@ -214,7 +215,7 @@ template <typename GradientMethod>
 void MdGradients<GradientMethod>::ComputeGradients(
     span<Gradient, 2> gradient, span<const Complete, 5> states,
     span<const Coordinates<Rank>, 5> x) {
-  std::array<Gradient, 4> states_as_gradient_type;
+  std::array<Gradient, 5> states_as_gradient_type;
   states_as_gradient_type.fill(Gradient(equation_));
   for (int i = 0; i < states.size(); ++i) {
     StateFromComplete(equation_, states_as_gradient_type[i], states[size_t(i)]);

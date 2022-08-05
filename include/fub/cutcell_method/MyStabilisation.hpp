@@ -97,9 +97,10 @@ public:
 
   void ComputeBoundaryStates(const View<Complete>& references,
                              const View<const Complete>& states,
+                             const View<const Complete>& states_old,
                              const span<View<const Gradient>, 3>& gradients,
                              const CutCellData<Rank>& cutcell_data,
-                             const Coordinates<Rank>& dx);
+                             const Coordinates<Rank>& dx, Duration dt, Direction dir);
 
   /// \todo compute stable dt inside of cutcells, i.e. in the reflection with
   /// their boundary state.
@@ -115,19 +116,20 @@ public:
                             const CutCellData<Rank>& cutcell_data, Duration dt,
                             double dx, Direction dir);
 
-  void ComputeCutCellFluxes(
-      const View<Conservative>& stabilised_fluxes,
-      const View<Conservative>& shielded_left_fluxes,
-      const View<Conservative>& shielded_right_fluxes,
-      const View<Conservative>& doubly_shielded_fluxes,
-      const View<Conservative>& regular_fluxes,
-      const View<Conservative>& boundary_fluxes,
-      const View<const Complete>& boundary_reference_states,
-      const View<const Gradient>& gradient_x,
-      const View<const Gradient>& gradient_y,
-      const View<const Gradient>& gradient_z,
-      const View<const Complete>& states, const CutCellData<Rank>& geom,
-      Duration dt, const Eigen::Matrix<double, Rank, 1>& dx, Direction dir);
+  void
+  ComputeCutCellFluxes(const View<Conservative>& stabilised_fluxes,
+                       const View<Conservative>& shielded_left_fluxes,
+                       const View<Conservative>& shielded_right_fluxes,
+                       const View<Conservative>& doubly_shielded_fluxes,
+                       const View<Conservative>& regular_fluxes,
+                       const View<Conservative>& boundary_fluxes,
+                       const View<const Complete>& boundary_reference_states,
+                       const View<const Gradient>& gradient_x,
+                       const View<const Gradient>& gradient_y,
+                       const View<const Gradient>& gradient_z,
+                       const View<const Complete>& states,
+                       const CutCellData<Rank>& geom, Duration dt,
+                       const Eigen::Matrix<double, Rank, 1>& dx, Direction dir);
 
   void ComputeGradients(const View<Gradient>& gradient_x,
                         const View<Gradient>& gradient_y,
@@ -135,7 +137,8 @@ public:
                         const View<const Complete>& states,
                         const CutCellData<Rank>& geom,
                         const Coordinates<Rank>& dx) {
-    md_gradient_method_.ComputeGradients(gradient_x, gradient_y, gradient_z, states, geom, dx);
+    md_gradient_method_.ComputeGradients(gradient_x, gradient_y, gradient_z,
+                                         states, geom, dx);
   }
 
   static constexpr int GetStencilWidth() noexcept {
@@ -206,35 +209,63 @@ template <typename Equation, typename FluxMethod, typename HGridRec,
 void MyCutCellMethod<Equation, FluxMethod, HGridRec, RiemannSolver>::
     ComputeBoundaryStates(const View<Complete>& references,
                           const View<const Complete>& states,
+                          const View<const Complete>& states_old,
                           const span<View<const Gradient>, 3>& gradients,
                           const CutCellData<Rank>& geom,
-                          const Coordinates<Rank>& h) {
+                          const Coordinates<Rank>& h, Duration dt, Direction dir_x) {
   const Eigen::Matrix<double, Rank, 1> unit = UnitVector<Rank>(Direction::X);
   ForEachIndex(Box<0>(references), [&](auto... is) {
     Index<Rank> index{is...};
     if (IsCutCell(geom, index)) {
-      Coordinates<Rank> xM = GetAbsoluteVolumeCentroid(geom, index, h);
-      Coordinates<Rank> xB = GetAbsoluteBoundaryCentroid(geom, index, h);
-      Coordinates<Rank> dx = xB - xM;
+      Coordinates<Rank> normal = GetBoundaryNormal(geom, index);
       Load(state_, states, index);
-      Load(gradients_[0], gradients[0], index);
-      Load(gradients_[1], gradients[1], index);
-      Load(gradients_[2], gradients[2], index);
-      span<const Gradient, Rank> grads{gradients_.data(), Rank};
-      ApplyGradient(gradient_, grads, dx);
-      StateFromComplete(equation_, scratch_, state_);
-      scratch_ += gradient_;
-      CompleteFromState(equation_, state_, scratch_);
-      const Eigen::Matrix<double, Rank, 1> normal =
-          GetBoundaryNormal(geom, index);
-      Rotate(state_, state_, MakeRotation(normal, unit), equation_);
-      Reflect(reflected_, state_, unit, equation_);
-      riemann_solver_.SolveRiemannProblem(riemann_solution_, reflected_, state_,
-                                          Direction::X);
-      Rotate(riemann_solution_, riemann_solution_, MakeRotation(unit, normal),
-             equation_);
-      Reflect(reflected_, state_, normal, equation_);
-      Store(references, riemann_solution_, index);
+      for (int d = 0; d < Rank; ++d) {
+        const double rhou = state_.momentum[d];
+        if (rhou * normal[d] > 0) {
+          continue;
+        }
+        Direction dir = static_cast<Direction>(d);
+        // const auto d = static_cast<int>(dir);
+        // if (dir != dir_x) {
+        //   h_grid_reconstruction_.ReconstructEmbeddedBoundaryStencil(
+        //     h_grid_eb_, h_grid_eb_gradients_, states, gradients[0], gradients[1],
+        //     gradients[2], AsConst(references), geom, index, dt, h, dir);
+        // } else {
+          h_grid_reconstruction_.ReconstructEmbeddedBoundaryStencil(
+            h_grid_eb_, h_grid_eb_gradients_, states, gradients[0], gradients[1],
+            gradients[2], AsConst(references), geom, index,  Duration(0), h, dir);
+        // }
+        // const Complete* q = normal[d] < 0 ? &h_grid_eb_[0] : &h_grid_eb_[1];
+        // const Gradient* dqdx = normal[d] < 0 ? &h_grid_eb_gradients_[0] : &h_grid_eb_gradients_[1];
+        // Side side = normal[d] < 0 ? Side::Upper : Side::Lower;
+        // FluxMethod::GetReconstruction().Reconstruct(state_, *q, *dqdx, Duration(0), h[d], dir, side);
+        // Rotate(state_, state_, MakeRotation(normal, unit), equation_);
+        // Reflect(reflected_, state_, unit, equation_);
+        riemann_solver_.SolveRiemannProblem(riemann_solution_, h_grid_eb_[0], h_grid_eb_[1], dir);
+        riemann_solution_.momentum[1 - d] = -normal[d] / normal[1 - d] * riemann_solution_.momentum[d];
+        // Rotate(riemann_solution_, riemann_solution_, MakeRotation(unit, normal),
+        //       equation_);
+        Store(references, riemann_solution_, index);
+        break;
+      }
+      // Load(gradients_[0], gradients[0], index);
+      // Load(gradients_[1], gradients[1], index);
+      // Load(gradients_[2], gradients[2], index);
+      // span<const Gradient, Rank> grads{gradients_.data(), Rank};
+      // Coordinates<Rank> xM = GetAbsoluteVolumeCentroid(geom, index, h);
+      // Coordinates<Rank> xB = GetAbsoluteBoundaryCentroid(geom, index, h);
+      // Coordinates<Rank> dx = xB - xM;
+      // ApplyGradient(gradient_, grads, dx);
+      // StateFromComplete(equation_, scratch_, state_);
+      // scratch_ += gradient_;
+      // CompleteFromState(equation_, state_, scratch_);
+      // Rotate(state_, state_, MakeRotation(normal, unit), equation_);
+      // Reflect(reflected_, state_, unit, equation_);
+      // riemann_solver_.SolveRiemannProblem(riemann_solution_, reflected_, state_,
+      //                                     Direction::X);
+      // Rotate(riemann_solution_, riemann_solution_, MakeRotation(unit, normal),
+      //        equation_);
+      // Store(references, riemann_solution_, index);
     }
   });
 }
@@ -389,7 +420,7 @@ void MyCutCellMethod<Equation, FluxMethod, HGridRec, RiemannSolver>::
       }
       Store(fit, numeric_flux_array_);
       Advance(fit, kDefaultChunkSize);
-      for (std::size_t i = 0; i < StencilSize; ++i) {
+      for (std::size_t i = 0; i < 2; ++i) {
         Advance(states[i], kDefaultChunkSize);
         Advance(grads[i], kDefaultChunkSize);
         volumes[i] = volumes[i].subspan(kDefaultChunkSize);
@@ -416,19 +447,20 @@ void MyCutCellMethod<Equation, FluxMethod, HGridRec, RiemannSolver>::
 template <typename Equation, typename FluxMethod, typename HGridRec,
           typename RiemannSolver>
 void MyCutCellMethod<Equation, FluxMethod, HGridRec, RiemannSolver>::
-    ComputeCutCellFluxes(
-        const View<Conservative>& stabilised_fluxes,
-        const View<Conservative>& shielded_left_fluxes,
-        const View<Conservative>& shielded_right_fluxes,
-        const View<Conservative>& /* doubly_shielded_fluxes */,
-        const View<Conservative>& regular_fluxes,
-        const View<Conservative>& boundary_fluxes,
-        const View<const Complete>& boundary_reference_states,
-        const View<const Gradient>& gradient_x,
-        const View<const Gradient>& gradient_y,
-        const View<const Gradient>& gradient_z,
-        const View<const Complete>& states, const CutCellData<Rank>& geom,
-        Duration dt, const Eigen::Matrix<double, Rank, 1>& dx, Direction dir) {
+    ComputeCutCellFluxes(const View<Conservative>& stabilised_fluxes,
+                         const View<Conservative>& shielded_left_fluxes,
+                         const View<Conservative>& shielded_right_fluxes,
+                         const View<Conservative>& /* doubly_shielded_fluxes */,
+                         const View<Conservative>& regular_fluxes,
+                         const View<Conservative>& boundary_fluxes,
+                         const View<const Complete>& boundary_reference_states,
+                         const View<const Gradient>& gradient_x,
+                         const View<const Gradient>& gradient_y,
+                         const View<const Gradient>& gradient_z,
+                         const View<const Complete>& states,
+                         const CutCellData<Rank>& geom, Duration dt,
+                         const Eigen::Matrix<double, Rank, 1>& dx,
+                         Direction dir) {
 
   // Iterate through each EB cell and then
   //
