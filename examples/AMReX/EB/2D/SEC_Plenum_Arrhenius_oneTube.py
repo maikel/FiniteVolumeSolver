@@ -28,7 +28,7 @@ SEC_tti = 1.2 # default value 1.2
 SEC_timin = 0.1 # default value 0.1
 
 # parameter for the diffusorpart from the inflow tube
-diffusorStart = 0.0625 # start point x-axis
+diffusorStart = 1.0 * 0.25 # start point x-axis
 diffusorEnd = 0.75 # end point x-axis
 offset=-tube_length # tube begins at x=-1.0
 A0=1.0 # surface Area befor diffusor
@@ -40,11 +40,11 @@ magic_z_length = 1.0 # should be replaced when switch to 3d!!!
 # normally 3.0 * D # [m] # in old slanted case 10.0D
 inlet_length = 3.0 * D 
 
-plenum_y_lower = - 0.96
-plenum_y_upper = + 0.96
+plenum_y_lower = - 1.2
+plenum_y_upper = + 1.2
 plenum_y_length = plenum_y_upper - plenum_y_lower
 
-TVolRPlen = 2.* 20.0 * D #20.0 * D
+TVolRPlen = 1.0 * 20.0 * D #20.0 * D
 plenum_x_upper = TVolRPlen / plenum_y_length / magic_z_length
 plenum_x_lower = -inlet_length
 plenum_x_length = plenum_x_upper - plenum_x_lower
@@ -95,7 +95,8 @@ plenum_dz = plenum_z_length / plenum_z_n_cells
 
 
 # outputPath = 'test_oneTube_vol40_y0.48'
-outputPath = 'sec_vol{}_y{}_tx{}_px{}_py{}_xi0{}'.format(TVolRPlen/D, plenum_y_upper, tube_n_cells, plenum_x_n_cells, plenum_y_n_cells, diffusorStart)
+outputPath = 'sec_newArea_vol{}_y{}_tx{}_px{}_py{}_xi0_{}_buf{}'.format(TVolRPlen/D, plenum_y_upper, tube_n_cells, plenum_x_n_cells, plenum_y_n_cells, diffusorStart, SEC_buffer)
+# outputPath = 'sec_vol{}_y{}_tx{}_xi0_{}_buf{}_tti{}_timin{}'.format(TVolRPlen/D, plenum_y_upper, tube_n_cells, diffusorStart, SEC_buffer, SEC_tti, SEC_timin)
 
 RunOptions = {
   'cfl': 0.1125,# / float(tube_n_cells / 64),
@@ -111,7 +112,7 @@ LogOptions = {
 
 InputFileOptions = {
   'copy_input_file' : 1,
-  'file_template': '{}/SEC_Plenum_Arrhenius_oneTube.py'.format(outputPath),
+  'file_template': '{}/{}'.format(outputPath, 'inputfile.py'),
 }
 
 FluxMethod = {
@@ -171,14 +172,19 @@ rho = p / T
 # checkpoint = '/srv/public/Maikel/FiniteVolumeSolver/build_2D-Debug/Checkpoint/000000005'
 checkpoint = ''
 
-def Area(xi, xi0=0.0625, xi1=0.75, offset=-1.0, A0=1.0, A1=4.0):
+def Area(xi):
+  xi0 = diffusorStart
+  xi1 = diffusorEnd
+  
   xi0 += offset
   xi1 += offset # Reference: 0.5; best: 0.75
   Ax = 1.0 if xi < xi0 else A0 + (A1-A0)*(xi-xi0)/(xi1-xi0) if xi < xi1 else A1
   return Ax
 
-surface_area_SingleTube_inlet = Area(-1.0, xi0=diffusorStart, xi1=diffusorEnd, offset=offset, A0=A0, A1=A1)
-surface_area_SingleTube_outlet = Area(0.0, xi0=diffusorStart, xi1=diffusorEnd, offset=offset, A0=A0, A1=A1)
+# should be Tubes['GridGeometry']['coordinates']['lower'][0]
+surface_area_SingleTube_inlet = Area(-1.0)
+# should be Tubes['GridGeometry']['coordinates']['upper'][0]
+surface_area_SingleTube_outlet = Area(0.0)
 
 ControlOptions = {
   'Q': ArrheniusKinetics['Q'],
