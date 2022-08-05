@@ -311,4 +311,4 @@ for i in t_index_array:
 # os.system('ffmpeg -framerate 20 -i {}/Figure%05d.png -crf 20 {}/../Movie.mkv'.format(output_path, output_path))
 
 # use start_number if not starting at File_00000.png
-os.system('ffmpeg -start_number {} -framerate 20 -i {}/Figure%5d.png -crf 20 {}/../Movie.mkv'.format(t_index_array[0], output_path, output_path))
+os.system('ffmpeg -start_number {} -framerate 20 -i {}/Figure%5d.png -crf 20 {}/../PlenumMovie.mkv'.format(t_index_array[0], output_path, output_path))

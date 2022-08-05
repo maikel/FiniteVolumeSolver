@@ -273,6 +273,7 @@ void DiffusionSourceTerm<EulerEquation>::ComputeDiffusionFlux(
     const Array1d dY_dx = (YR - YL) * dxinv;
     flux.species.row(s) = -constants_.mu_Sc_effective * dY_dx;
   }
+  // no diffusion for passive scalars!!
 }
 
 } // namespace fub::amrex
